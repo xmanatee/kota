@@ -19,6 +19,7 @@
  * to re-issue the call against a different store.
  */
 
+import { selectedScopeSelectorId } from "#core/server/scope-selector.js";
 import {
   CAPTURE_TARGET_ORDER,
   type CaptureClassifier,
@@ -71,7 +72,7 @@ export class CaptureProviderImpl implements CaptureProvider {
   ): Promise<CaptureResult> {
     const trimmed = text.trim();
     const resolvedProject =
-      project ?? this.resolveProjectContext?.(filter?.projectId);
+      project ?? this.resolveProjectContext?.(selectedScopeSelectorId(filter));
     if (resolvedProject && "error" in resolvedProject) {
       throw new Error(`Unknown project: ${resolvedProject.projectId}`);
     }

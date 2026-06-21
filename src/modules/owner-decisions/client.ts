@@ -3,15 +3,13 @@ import type {
   OwnerDecisionSelectedValue,
   OwnerDecisionStatus,
 } from "#core/daemon/owner-decision-store.js";
+import type { ScopeSelector } from "#core/server/scope-selector.js";
 
-export type OwnerDecisionListFilter = {
+export type OwnerDecisionListFilter = ScopeSelector & {
   status?: OwnerDecisionStatus | "all";
-  projectId?: string;
 };
 
-export type OwnerDecisionProjectScope = {
-  projectId?: string;
-};
+export type OwnerDecisionProjectScope = ScopeSelector;
 
 export type OwnerDecisionListResult = {
   decisions: OwnerDecisionClientProjection[];

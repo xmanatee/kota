@@ -71,6 +71,7 @@ import type { WorkflowClient } from "#modules/workflow-ops/client.js";
  */
 export interface KotaClient {
   forProject(projectId: string): KotaClient;
+  forScope?(scopeId: string): KotaClient;
   readonly workflow: WorkflowClient;
   readonly approvals: ApprovalsClient;
   readonly secrets: SecretsClient;

@@ -1,4 +1,11 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import {
+  type ScopeSelector,
+  ScopeSelectorConflictError,
+  scopeSelectorConflictBody,
+  scopeSelectorFromUrl,
+  selectedScopeSelectorId,
+} from "#core/server/scope-selector.js";
 import type {
   ConflictingScopeSelectorsError,
   DaemonControlHandle,
@@ -97,27 +104,24 @@ export function resolveProjectIdParam(
   handle: DaemonControlHandle,
   url: URL,
 ): ProjectScopeParam {
-  const projectId = nonEmptyQueryParam(url, "projectId");
-  const scopeId = nonEmptyQueryParam(url, "scopeId");
-  if (projectId && scopeId && projectId !== scopeId) {
+  let selector: ScopeSelector;
+  try {
+    selector = scopeSelectorFromUrl(url);
+  } catch (err) {
+    if (!(err instanceof ScopeSelectorConflictError)) throw err;
     return {
       ok: false,
       status: 400,
-      error: {
-        error: "Conflicting scope selectors",
-        reason: "conflicting_scope_selectors",
-        scopeId,
-        projectId,
-      },
+      error: scopeSelectorConflictBody(err),
     };
   }
-  const selected = scopeId ?? projectId;
+  const selected = selectedScopeSelectorId(selector);
   if (!selected) {
     const active = handle.getActiveProjectId();
     return { ok: true, projectId: active ?? undefined };
   }
   if (!handle.hasProject(selected)) {
-    if (scopeId) {
+    if (selector.scopeId) {
       return {
         ok: false,
         status: 404,
@@ -139,9 +143,4 @@ export function resolveProjectIdParam(
     };
   }
   return { ok: true, projectId: selected };
-}
-
-function nonEmptyQueryParam(url: URL, key: string): string | undefined {
-  const raw = url.searchParams.get(key);
-  return raw === null || raw === "" ? undefined : raw;
 }

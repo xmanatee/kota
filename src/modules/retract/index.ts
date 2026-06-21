@@ -21,6 +21,7 @@ import { Command } from "commander";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import { selectedScopeSelectorId } from "#core/server/scope-selector.js";
 import { createRetractReadinessSource } from "./capability-readiness.js";
 import { registerRetractCommand } from "./cli.js";
 import type { RetractClient, RetractRequest, RetractResult } from "./client.js";
@@ -166,7 +167,7 @@ const retractModule: KotaModule = {
     const handler: RetractClient = {
       async retract(request) {
         const project = createRetractProjectContextResolver(ctx.cwd)(
-          request.projectId,
+          selectedScopeSelectorId(request),
         );
         if ("error" in project) throw new Error(`Unknown project: ${project.projectId}`);
         return resolveActiveProvider().retract(request, project);

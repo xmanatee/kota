@@ -12,6 +12,7 @@
  */
 
 import type { ReindexResult } from "#core/modules/provider-types.js";
+import type { ScopeSelector } from "#core/server/scope-selector.js";
 
 /** A masked memory entry as the CLI surfaces it. */
 export type MemoryListEntry = {
@@ -30,9 +31,7 @@ export type MemoryListResult = {
  * absent, the implementation resolves the active/default project once at the
  * client or route boundary.
  */
-export type MemoryProjectSelection = {
-  projectId?: string;
-};
+export type MemoryProjectSelection = ScopeSelector;
 
 /** Filter for `memory.list`. */
 export type MemoryListFilter = MemoryProjectSelection & {

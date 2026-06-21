@@ -13,6 +13,11 @@ import type {
   ControlRouteRegistration,
   RouteRegistration,
 } from "#core/modules/module-types.js";
+import {
+  ScopeSelectorConflictError,
+  scopeSelectorConflictBody,
+  selectedScopeSelectorId,
+} from "#core/server/scope-selector.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import type {
   RecallFilter,
@@ -49,6 +54,9 @@ function parseFilter(value: unknown): RecallFilter | undefined {
   if (typeof raw.projectId === "string" && raw.projectId.trim() !== "") {
     filter.projectId = raw.projectId;
   }
+  if (typeof raw.scopeId === "string" && raw.scopeId.trim() !== "") {
+    filter.scopeId = raw.scopeId;
+  }
   return filter;
 }
 
@@ -74,7 +82,15 @@ export function createRecallRouteHandler(
     }
     const filter = parseFilter(body.filter);
     try {
-      const project = resolveProjectContext?.(filter?.projectId);
+      let selectedId: string | undefined;
+      try {
+        selectedId = selectedScopeSelectorId(filter);
+      } catch (err) {
+        if (!(err instanceof ScopeSelectorConflictError)) throw err;
+        jsonResponse(res, 400, scopeSelectorConflictBody(err));
+        return;
+      }
+      const project = resolveProjectContext?.(selectedId);
       if (project && "error" in project) {
         jsonResponse(res, 404, {
           error: "Unknown project",

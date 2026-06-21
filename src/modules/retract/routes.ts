@@ -14,6 +14,11 @@ import type {
   ControlRouteRegistration,
   RouteRegistration,
 } from "#core/modules/module-types.js";
+import {
+  ScopeSelectorConflictError,
+  scopeSelectorConflictBody,
+  selectedScopeSelectorId,
+} from "#core/server/scope-selector.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import type { RetractRequest, RetractResult } from "./client.js";
 import type { ResolveRetractProjectContext } from "./project-context.js";
@@ -35,27 +40,32 @@ export function parseRetractRequestBody(value: unknown): RequestParseResult {
     typeof raw.projectId === "string" && raw.projectId.trim() !== ""
       ? { projectId: raw.projectId }
       : {};
+  const scope =
+    typeof raw.scopeId === "string" && raw.scopeId.trim() !== ""
+      ? { scopeId: raw.scopeId }
+      : {};
+  const selector = { ...project, ...scope };
   switch (raw.target) {
     case "memory":
       if (typeof raw.id !== "string" || raw.id === "") {
         return { ok: false, error: "memory retract requires `id`" };
       }
-      return { ok: true, request: { target: "memory", id: raw.id, ...project } };
+      return { ok: true, request: { target: "memory", id: raw.id, ...selector } };
     case "knowledge":
       if (typeof raw.slug !== "string" || raw.slug === "") {
         return { ok: false, error: "knowledge retract requires `slug`" };
       }
-      return { ok: true, request: { target: "knowledge", slug: raw.slug, ...project } };
+      return { ok: true, request: { target: "knowledge", slug: raw.slug, ...selector } };
     case "tasks":
       if (typeof raw.id !== "string" || raw.id === "") {
         return { ok: false, error: "tasks retract requires `id`" };
       }
-      return { ok: true, request: { target: "tasks", id: raw.id, ...project } };
+      return { ok: true, request: { target: "tasks", id: raw.id, ...selector } };
     case "inbox":
       if (typeof raw.path !== "string" || raw.path === "") {
         return { ok: false, error: "inbox retract requires `path`" };
       }
-      return { ok: true, request: { target: "inbox", path: raw.path, ...project } };
+      return { ok: true, request: { target: "inbox", path: raw.path, ...selector } };
     default:
       return {
         ok: false,
@@ -85,7 +95,15 @@ export function createRetractRouteHandler(
       return;
     }
     try {
-      const project = resolveProjectContext?.(parsed.request.projectId);
+      let selectedId: string | undefined;
+      try {
+        selectedId = selectedScopeSelectorId(parsed.request);
+      } catch (err) {
+        if (!(err instanceof ScopeSelectorConflictError)) throw err;
+        jsonResponse(res, 400, scopeSelectorConflictBody(err));
+        return;
+      }
+      const project = resolveProjectContext?.(selectedId);
       if (project && "error" in project) {
         jsonResponse(res, 404, {
           error: "Unknown project",

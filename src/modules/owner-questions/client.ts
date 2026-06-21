@@ -18,6 +18,7 @@ import type {
   OwnerQuestionStatus,
   PendingOwnerQuestion,
 } from "#core/daemon/owner-question-queue.js";
+import type { ScopeSelector } from "#core/server/scope-selector.js";
 
 /**
  * Filter for `OwnerQuestionsClient.list`.
@@ -27,14 +28,11 @@ import type {
  * `"dismissed"`, `"expired"`) or `"all"` to include resolved items used by
  * `kota owner-question history` and any caller that needs the full archive.
  */
-export type OwnerQuestionListFilter = {
+export type OwnerQuestionListFilter = ScopeSelector & {
   status?: OwnerQuestionStatus | "all";
-  projectId?: string;
 };
 
-export type OwnerQuestionProjectScope = {
-  projectId?: string;
-};
+export type OwnerQuestionProjectScope = ScopeSelector;
 
 export type OwnerQuestionsListResult = {
   questions: PendingOwnerQuestion[];

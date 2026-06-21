@@ -22,6 +22,7 @@ import { createModelClient } from "#core/model/model-client.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import type { KotaModule, ModuleContext, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import { selectedScopeSelectorId } from "#core/server/scope-selector.js";
 import { createCaptureReadinessSource } from "./capability-readiness.js";
 import { CaptureProviderImpl } from "./capture-provider.js";
 import {
@@ -191,7 +192,7 @@ const captureModule: KotaModule = {
     const handler: CaptureClient = {
       async capture(text, filter) {
         const project = createCaptureProjectContextResolver(ctx.cwd)(
-          filter?.projectId,
+          selectedScopeSelectorId(filter),
         );
         if ("error" in project) throw new Error(`Unknown project: ${project.projectId}`);
         return resolveActiveProvider().capture(text, filter, project);

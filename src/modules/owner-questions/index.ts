@@ -13,8 +13,16 @@ import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-p
 import type { KotaModule } from "#core/modules/module-types.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import {
+  appendScopeSelector,
+  encodeQueryParams,
+  type ScopeSelector,
+  scopeSelectorQuery,
+  selectedScopeSelectorId,
+} from "#core/server/scope-selector.js";
 import { registerOwnerQuestionCommands } from "./cli.js";
 import type {
+  OwnerQuestionListFilter,
   OwnerQuestionMutateResult,
   OwnerQuestionProjectScope,
   OwnerQuestionsClient,
@@ -36,9 +44,10 @@ export { reviewOwnerQuestion } from "#core/daemon/owner-question-review.js";
 
 const RESOLUTION_SOURCE = "cli";
 
-function resolveLocalOwnerQuestionQueue(projectId?: string): OwnerQuestionQueue {
+function resolveLocalOwnerQuestionQueue(selector?: ScopeSelector): OwnerQuestionQueue {
   const projectScope = getProviderRegistry()?.get(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE);
   if (!projectScope) return getOwnerQuestionQueue();
+  const projectId = selectedScopeSelectorId(selector);
   const resolved = projectScope.resolveProjectRuntime(projectId);
   if (!resolved.ok) {
     throw new Error(`Unknown project: ${resolved.error.projectId}`);
@@ -46,19 +55,16 @@ function resolveLocalOwnerQuestionQueue(projectId?: string): OwnerQuestionQueue 
   return resolved.runtime.ownerQuestionQueue;
 }
 
-function ownerQuestionsListPath(filter?: { status?: string; projectId?: string }): string {
-  const params: string[] = [];
-  if (filter?.status) params.push(`status=${encodeURIComponent(filter.status)}`);
-  if (filter?.projectId) params.push(`projectId=${encodeURIComponent(filter.projectId)}`);
-  const query = params.join("&");
+function ownerQuestionsListPath(filter?: OwnerQuestionListFilter): string {
+  const params = new URLSearchParams();
+  if (filter?.status) params.set("status", filter.status);
+  appendScopeSelector(params, filter);
+  const query = encodeQueryParams(params);
   return query ? `/owner-questions?${query}` : "/owner-questions";
 }
 
 function ownerQuestionProjectQuery(project?: OwnerQuestionProjectScope): string {
-  if (!project?.projectId) return "";
-  const params = new URLSearchParams();
-  params.set("projectId", project.projectId);
-  return `?${params.toString()}`;
+  return scopeSelectorQuery(project);
 }
 
 /**
@@ -166,18 +172,18 @@ const ownerQuestionsModule: KotaModule = {
   localClient: () => {
     const handler: OwnerQuestionsClient = {
       async list(filter) {
-        const queue = resolveLocalOwnerQuestionQueue(filter?.projectId);
+        const queue = resolveLocalOwnerQuestionQueue(filter);
         const status = filter?.status;
         if (status === undefined) return { questions: queue.list("pending") };
         if (status === "all") return { questions: queue.list() };
         return { questions: queue.list(status) };
       },
       async answer(id, answer, project) {
-        const item = resolveLocalOwnerQuestionQueue(project?.projectId).answer(id, answer, RESOLUTION_SOURCE);
+        const item = resolveLocalOwnerQuestionQueue(project).answer(id, answer, RESOLUTION_SOURCE);
         return item ? { ok: true, question: item } : { ok: false, reason: "not_found" };
       },
       async dismiss(id, reason, project) {
-        const item = resolveLocalOwnerQuestionQueue(project?.projectId).dismiss(id, reason, RESOLUTION_SOURCE);
+        const item = resolveLocalOwnerQuestionQueue(project).dismiss(id, reason, RESOLUTION_SOURCE);
         return item ? { ok: true, question: item } : { ok: false, reason: "not_found" };
       },
     };

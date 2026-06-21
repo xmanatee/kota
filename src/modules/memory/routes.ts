@@ -2,6 +2,14 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { RouteRegistration } from "#core/modules/module-types.js";
 import { getMemoryProvider } from "#core/modules/provider-registry.js";
 import type { Memory } from "#core/modules/provider-types.js";
+import {
+  type ScopeSelector,
+  ScopeSelectorConflictError,
+  scopeSelectorConflictBody,
+  scopeSelectorFromUrl,
+  selectedScopeSelectorId,
+  unknownScopeSelectorBody,
+} from "#core/server/scope-selector.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import type { MemoryProjectStores } from "./project-scope.js";
 
@@ -32,9 +40,18 @@ function resolveScopedProvider(
 ) {
   if (!projectStores) return getMemoryProvider();
   const url = new URL(req.url ?? "", "http://localhost");
-  const resolved = projectStores.resolve(url.searchParams.get("projectId"));
+  let selector: ScopeSelector;
+  try {
+    selector = scopeSelectorFromUrl(url);
+  } catch (err) {
+    if (!(err instanceof ScopeSelectorConflictError)) throw err;
+    jsonResponse(res, 400, scopeSelectorConflictBody(err));
+    return null;
+  }
+  const selectedId = selectedScopeSelectorId(selector);
+  const resolved = projectStores.resolve(selectedId);
   if (!resolved.ok) {
-    jsonResponse(res, 404, resolved.error);
+    jsonResponse(res, 404, unknownScopeSelectorBody(selector, resolved.error.projectId));
     return null;
   }
   return resolved.store;

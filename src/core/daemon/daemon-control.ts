@@ -1,126 +1,39 @@
-import { randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import type { EventJournal } from "#core/events/event-journal.js";
 import type {
   ControlRouteRegistration,
   ModuleRouteHandler,
   RouteRegistration,
 } from "#core/modules/module-types.js";
 import { findRouteMatch } from "#core/modules/route-matcher.js";
-import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import { normalizeScopeSelectorQueryUrl } from "#core/server/scope-selector.js";
 import type { GuardrailsConfig } from "#core/tools/guardrails.js";
 import type { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import type { DaemonChatConversationResolver } from "./daemon-chat-handlers.js";
 import {
   type DaemonChatGuardrailsRefreshSummary,
-  type DaemonChatMakeAgent,
   DaemonChatPool,
-  type DaemonChatPoolOptions,
 } from "./daemon-chat-pool.js";
+import { DaemonControlRequestAuthorizer } from "./daemon-control-auth.js";
+import type { DaemonControlServerOptions } from "./daemon-control-options.js";
 import { buildBuiltinControlRoutes } from "./daemon-control-routes.js";
 import type { DaemonControlHandle } from "./daemon-control-types.js";
 import { jsonResponse } from "./daemon-control-utils.js";
 import { type BufferedEvent, EventRingBuffer } from "./event-ring-buffer.js";
 
-const DASHBOARD_SESSION_COOKIE = "kota_dashboard_session";
-const DASHBOARD_REQUEST_HEADER = "x-kota-dashboard-request";
-
-type RequestAuthResult =
-  | { kind: "open" }
-  | { kind: "bearer" }
-  | { kind: "dashboard-cookie" }
-  | { kind: "unauthorized" };
-
-type RouteAuthResult =
-  | Exclude<RequestAuthResult, { kind: "unauthorized" }>
-  | { kind: "unauthorized" }
-  | { kind: "dashboard-guard-missing" };
-
+export type { ClientDashboardAvailability, ClientIdentity } from "./client-identity.js";
+export { DASHBOARD_CAPABILITY_ID, WORKFLOW_TRIGGER_CAPABILITY_ID } from "./client-identity.js";
 export type {
-  ClientDashboardAvailability,
-  ClientIdentity,
-} from "./client-identity.js";
-export {
-  DASHBOARD_CAPABILITY_ID,
-  WORKFLOW_TRIGGER_CAPABILITY_ID,
-} from "./client-identity.js";
-export type {
-  CapabilityScope,
-  ComponentStatus,
-  DaemonControlAddress,
-  DaemonControlHandle,
-  DaemonLiveStatus,
-  DaemonSseEvent,
-  DaemonSseEventType,
-  DaemonSseStreamEvent,
-  DaemonTimelineEvent,
-  DeadLetterItem,
-  DeadLetterItemStatus,
-  DeadLetterItemType,
-  DeadLetterQueueCounts,
-  DeadLetterRedriveTarget,
-  EventSchemaDetail,
-  EventSchemaSummary,
-  HealthStatus,
-  InteractiveSession,
-  WorkflowCostEntry,
-  WorkflowDefinitionSummary,
-  WorkflowDefinitionTriggerSummary,
-  WorkflowDurationHistogramEntry,
-  WorkflowLiveStatus,
-  WorkflowMetricCounts,
-  WorkflowRunCountEntry,
-  WorkflowRunDetail,
-  WorkflowRunStepSummary,
+  CapabilityScope, ComponentStatus, DaemonControlAddress, DaemonControlHandle,
+  DaemonLiveStatus, DaemonSseEvent, DaemonSseEventType, DaemonSseStreamEvent,
+  DaemonTimelineEvent, DeadLetterItem, DeadLetterItemStatus, DeadLetterItemType,
+  DeadLetterQueueCounts, DeadLetterRedriveTarget, EventSchemaDetail, EventSchemaSummary,
+  HealthStatus, InteractiveSession, WorkflowCostEntry, WorkflowDefinitionSummary,
+  WorkflowDefinitionTriggerSummary, WorkflowDurationHistogramEntry, WorkflowLiveStatus,
+  WorkflowMetricCounts, WorkflowRunCountEntry, WorkflowRunDetail, WorkflowRunStepSummary,
   WorkflowRunSummary,
 } from "./daemon-control-types.js";
+export type { DaemonControlServerOptions } from "./daemon-control-options.js";
 export type { ScopePolicyRouteResponse } from "./scope-policy.js";
-
-export type DaemonControlServerOptions = {
-  /** Maximum number of events retained in the in-memory ring buffer. Default: 500. */
-  eventBufferSize?: number;
-  /** Durable event journal used by /api/events; the SSE stream still uses the ring buffer. */
-  eventJournal?: EventJournal;
-  /**
-   * When provided, enables POST /sessions, POST /sessions/:id/chat for daemon-owned sessions.
-   * The factory receives the proxy transport, the session's autonomy mode, and
-   * the conversation id the new AgentSession should resume from, plus the
-   * configured project id the session must bind to.
-   */
-  makeAgent?: DaemonChatMakeAgent;
-  /** Autonomy mode used when POST /sessions does not specify one. */
-  defaultAutonomyMode?: AutonomyMode;
-  /** Options forwarded to the daemon chat session pool. */
-  chatPool?: DaemonChatPoolOptions;
-  /**
-   * Persisted session_id → conversationId binding. Required whenever
-   * {@link DaemonControlServerOptions.makeAgent} is supplied so daemon chat
-   * sessions survive a restart with a client-facing wake path.
-   */
-  chatBindings?: DaemonChatBindingStore;
-  /**
-   * Resolves / creates conversation ids for new and woken chat sessions.
-   * Required whenever {@link DaemonControlServerOptions.makeAgent} is supplied.
-   */
-  conversationResolver?: DaemonChatConversationResolver;
-  /**
-   * Module-contributed daemon-control routes. Each contribution carries its
-   * own capability scope; the router applies the same bearer-token and
-   * scope check to contributed routes as to built-in ones. Paths colliding
-   * with a built-in route or with another contribution throw at startup.
-   */
-  controlRoutes?: readonly ControlRouteRegistration[];
-  /**
-   * Module-contributed HTTP routes (the same `KotaModule.routes` list that
-   * `kota serve` consumes). The daemon's control server registers them as a
-   * fallthrough after built-in routes and contributed control routes do not
-   * match, so a running daemon serves the same `/api/*` surface those modules
-   * publish to `kota serve`. Bearer-token auth applies unless the route opts
-   * out via `bypassAuth`. Path collisions with a built-in or contributed
-   * control route throw at startup.
-   */
-  routes?: readonly RouteRegistration[];
-};
 
 export class DaemonControlServer {
   private server: Server | null = null;
@@ -132,16 +45,16 @@ export class DaemonControlServer {
   private readonly chatSweepMs: number;
   private readonly controlRoutes: readonly ControlRouteRegistration[];
   private readonly moduleRoutes: readonly RouteRegistration[];
-  private readonly dashboardSessionToken: string | null;
+  private readonly requestAuth: DaemonControlRequestAuthorizer;
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private readonly handle: DaemonControlHandle,
-    private readonly token?: string,
+    token?: string,
     options?: DaemonControlServerOptions,
   ) {
     this.eventBuffer = new EventRingBuffer(options?.eventBufferSize ?? 500);
-    this.dashboardSessionToken = token ? randomBytes(32).toString("base64url") : null;
+    this.requestAuth = new DaemonControlRequestAuthorizer(token);
 
     const makeAgent = options?.makeAgent ?? null;
     let chatBindings: DaemonChatBindingStore | null = null;
@@ -258,84 +171,6 @@ export class DaemonControlServer {
     return this.chatPool?.refreshGuardrails(config) ?? { refreshed: 0, unchanged: 0 };
   }
 
-  private authorizeRequest(req: IncomingMessage): RequestAuthResult {
-    if (!this.token) return { kind: "open" };
-    const header = req.headers.authorization ?? "";
-    if (header === `Bearer ${this.token}`) return { kind: "bearer" };
-    if (
-      this.dashboardSessionToken &&
-      this.cookieValue(req, DASHBOARD_SESSION_COOKIE) === this.dashboardSessionToken
-    ) {
-      return { kind: "dashboard-cookie" };
-    }
-    return { kind: "unauthorized" };
-  }
-
-  private authorizeRoute(
-    req: IncomingMessage,
-    method: string,
-    route: ControlRouteRegistration | RouteRegistration,
-  ): RouteAuthResult {
-    const auth = this.authorizeRequest(req);
-    if (auth.kind !== "dashboard-cookie") return auth;
-    if (!this.requiresDashboardRequestGuard(method, route)) return auth;
-    if (this.hasDashboardRequestGuard(req)) return auth;
-    return { kind: "dashboard-guard-missing" };
-  }
-
-  private requiresDashboardRequestGuard(
-    method: string,
-    route: ControlRouteRegistration | RouteRegistration,
-  ): boolean {
-    if (method !== "GET") return true;
-    return "capabilityScope" in route && route.capabilityScope === "control";
-  }
-
-  private hasDashboardRequestGuard(req: IncomingMessage): boolean {
-    return this.headerIncludes(req, DASHBOARD_REQUEST_HEADER, "1") || this.hasSameOrigin(req);
-  }
-
-  private headerIncludes(req: IncomingMessage, name: string, expected: string): boolean {
-    const value = req.headers[name];
-    if (Array.isArray(value)) return value.includes(expected);
-    return value === expected;
-  }
-
-  private hasSameOrigin(req: IncomingMessage): boolean {
-    const origin = req.headers.origin;
-    const host = req.headers.host;
-    if (typeof origin !== "string" || typeof host !== "string") return false;
-    try {
-      const url = new URL(origin);
-      return url.host === host && (url.protocol === "http:" || url.protocol === "https:");
-    } catch {
-      return false;
-    }
-  }
-
-  private cookieValue(req: IncomingMessage, name: string): string | undefined {
-    const header = req.headers.cookie;
-    if (!header) return undefined;
-    for (const part of header.split(";")) {
-      const [rawName, ...rawValue] = part.trim().split("=");
-      if (rawName !== name) continue;
-      return rawValue.join("=");
-    }
-    return undefined;
-  }
-
-  private isDashboardEntry(method: string, path: string): boolean {
-    return method === "GET" && (path === "/" || path === "/index.html");
-  }
-
-  private setDashboardAuthCookie(res: ServerResponse): void {
-    if (!this.dashboardSessionToken) return;
-    res.setHeader(
-      "Set-Cookie",
-      `${DASHBOARD_SESSION_COOKIE}=${encodeURIComponent(this.dashboardSessionToken)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400`,
-    );
-  }
-
   private serializeEvent(entry: BufferedEvent): string {
     const { event } = entry;
     return `id: ${entry.id}\nevent: ${event.type}\ndata: ${JSON.stringify(event.payload)}\n\n`;
@@ -393,6 +228,21 @@ export class DaemonControlServer {
     return true;
   }
 
+  private normalizeScopeSelectorQuery(
+    req: IncomingMessage,
+    res: ServerResponse,
+  ): boolean {
+    const normalized = normalizeScopeSelectorQueryUrl(
+      new URL(req.url ?? "/", "http://127.0.0.1"),
+    );
+    if (!normalized.ok) {
+      jsonResponse(res, normalized.status, normalized.body);
+      return false;
+    }
+    if (normalized.changed) req.url = normalized.pathWithQuery;
+    return true;
+  }
+
   private handleRequest(req: IncomingMessage, res: ServerResponse): void {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const path = url.pathname;
@@ -401,7 +251,7 @@ export class DaemonControlServer {
     const controlMatch = findRouteMatch(this.controlRoutes, method, path);
     if (controlMatch) {
       if (!controlMatch.route.bypassAuth) {
-        const auth = this.authorizeRoute(req, method, controlMatch.route);
+        const auth = this.requestAuth.authorizeRoute(req, method, controlMatch.route);
         if (auth.kind === "unauthorized") {
           if (this.invokeAuthFailureHandler(controlMatch.route, req, res, controlMatch.params)) {
             return;
@@ -414,14 +264,15 @@ export class DaemonControlServer {
           return;
         }
       }
+      if (!this.normalizeScopeSelectorQuery(req, res)) return;
       this.invokeRouteHandler(controlMatch.route, req, res, controlMatch.params);
       return;
     }
 
     const moduleMatch = findRouteMatch(this.moduleRoutes, method, path);
     if (moduleMatch) {
-      const dashboardEntry = this.isDashboardEntry(method, path);
-      const auth = this.authorizeRoute(req, method, moduleMatch.route);
+      const dashboardEntry = this.requestAuth.isDashboardEntry(method, path);
+      const auth = this.requestAuth.authorizeRoute(req, method, moduleMatch.route);
       if (!moduleMatch.route.bypassAuth) {
         if (auth.kind === "unauthorized") {
           if (this.invokeAuthFailureHandler(moduleMatch.route, req, res, moduleMatch.params)) {
@@ -435,7 +286,8 @@ export class DaemonControlServer {
           return;
         }
       }
-      if (dashboardEntry && auth.kind !== "unauthorized") this.setDashboardAuthCookie(res);
+      if (dashboardEntry && auth.kind !== "unauthorized") this.requestAuth.setDashboardAuthCookie(res);
+      if (!this.normalizeScopeSelectorQuery(req, res)) return;
       this.invokeRouteHandler(moduleMatch.route, req, res, moduleMatch.params);
       return;
     }

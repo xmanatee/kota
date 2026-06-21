@@ -27,9 +27,10 @@ per CLI invocation and stores it in `client-holder.ts`. CLI subcommands
 read it through `ModuleContext.client` and never re-decide the
 daemon-vs-local policy.
 
-`KotaClient.forProject(projectId)` is the single public project-scoping
-primitive. It returns a scoped client that injects the selected project id into
-project-aware namespaces and normalizes unknown ids to the typed client error.
+`KotaClient.forProject(projectId)` is the compatibility project-scoping
+primitive. `KotaClient.forScope(scopeId)` is the canonical directory-scope
+primitive. Both return scoped clients that inject the selected scope into
+project-aware namespaces and normalize unknown ids to the typed client error.
 
 ## Conventions
 

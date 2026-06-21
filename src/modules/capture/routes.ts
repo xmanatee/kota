@@ -14,6 +14,11 @@ import type {
   ControlRouteRegistration,
   RouteRegistration,
 } from "#core/modules/module-types.js";
+import {
+  ScopeSelectorConflictError,
+  scopeSelectorConflictBody,
+  selectedScopeSelectorId,
+} from "#core/server/scope-selector.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import {
   CAPTURE_TARGET_ORDER,
@@ -41,6 +46,9 @@ function parseFilter(value: unknown): CaptureFilter | undefined {
   if (typeof raw.projectId === "string" && raw.projectId.trim() !== "") {
     filter.projectId = raw.projectId;
   }
+  if (typeof raw.scopeId === "string" && raw.scopeId.trim() !== "") {
+    filter.scopeId = raw.scopeId;
+  }
   return Object.keys(filter).length > 0 ? filter : undefined;
 }
 
@@ -66,7 +74,15 @@ export function createCaptureRouteHandler(
     }
     const filter = parseFilter(body.filter);
     try {
-      const project = resolveProjectContext?.(filter?.projectId);
+      let selectedId: string | undefined;
+      try {
+        selectedId = selectedScopeSelectorId(filter);
+      } catch (err) {
+        if (!(err instanceof ScopeSelectorConflictError)) throw err;
+        jsonResponse(res, 400, scopeSelectorConflictBody(err));
+        return;
+      }
+      const project = resolveProjectContext?.(selectedId);
       if (project && "error" in project) {
         jsonResponse(res, 404, {
           error: "Unknown project",

@@ -17,6 +17,7 @@ import type {
   ConversationRecord,
   ReindexResult,
 } from "#core/modules/provider-types.js";
+import type { ScopeSelector } from "#core/server/scope-selector.js";
 
 /**
  * Optional project boundary for callers that already hold an explicit
@@ -24,9 +25,7 @@ import type {
  * absent, the implementation resolves the active/default project once at the
  * client or route boundary.
  */
-export type HistoryProjectSelection = {
-  projectId?: string;
-};
+export type HistoryProjectSelection = ScopeSelector;
 
 /**
  * Filter for `HistoryClient.list`.

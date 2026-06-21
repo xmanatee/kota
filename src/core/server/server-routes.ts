@@ -5,6 +5,7 @@ import type { AgentSession } from "#core/loop/loop.js";
 import type { Transport } from "#core/loop/transport.js";
 import type { ModuleRouteHandler, RouteRegistration } from "#core/modules/module-types.js";
 import { findRouteMatch } from "#core/modules/route-matcher.js";
+import { normalizeScopeSelectorQueryUrl } from "#core/server/scope-selector.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { DaemonControlClient } from "./daemon-client.js";
 import { jsonResponse, type SessionPool, setCors } from "./session-pool.js";
@@ -48,6 +49,21 @@ function invokeRouteHandler(
   Promise.resolve(handler(req, res, params)).catch((err) => {
     if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
   });
+}
+
+function normalizeMatchedRouteScopeSelectorQuery(
+  req: IncomingMessage,
+  res: ServerResponse,
+): boolean {
+  const normalized = normalizeScopeSelectorQueryUrl(
+    new URL(req.url ?? "/", "http://localhost"),
+  );
+  if (!normalized.ok) {
+    jsonResponse(res, normalized.status, normalized.body);
+    return false;
+  }
+  if (normalized.changed) req.url = normalized.pathWithQuery;
+  return true;
 }
 
 export function buildRequestHandler(ctx: ServerContext) {
@@ -179,6 +195,7 @@ export function buildRequestHandler(ctx: ServerContext) {
     if (req.method) {
       const match = findRouteMatch(ctx.moduleRoutes, req.method, path);
       if (match) {
+        if (!normalizeMatchedRouteScopeSelectorQuery(req, res)) return;
         invokeRouteHandler(match.route.handler, req, res, match.params);
         return;
       }

@@ -18,7 +18,11 @@ import {
   type KotaClientNamespace,
   type LocalClientHandlers,
 } from "./kota-client.js";
-import { createProjectScopedKotaClient } from "./project-scoped-kota-client.js";
+import {
+  createProjectScopedKotaClient,
+  createScopeScopedKotaClient,
+} from "./project-scoped-kota-client.js";
+import { normalizeScopeSelectorClientHandlers } from "./scope-selector.js";
 
 /** Validate `handlers` covers every declared namespace, then assemble. */
 export function buildLocalKotaClient(
@@ -35,7 +39,9 @@ export function buildLocalKotaClient(
         `top-level localClient(ctx) factory at module load time.`,
     );
   }
-  return new LocalKotaClient(handlers as LocalClientHandlers);
+  return new LocalKotaClient(
+    normalizeScopeSelectorClientHandlers(handlers as LocalClientHandlers),
+  );
 }
 
 export class LocalKotaClient implements KotaClient {
@@ -74,6 +80,10 @@ export class LocalKotaClient implements KotaClient {
 
   forProject(projectId: string): KotaClient {
     return createProjectScopedKotaClient(this, projectId);
+  }
+
+  forScope(scopeId: string): KotaClient {
+    return createScopeScopedKotaClient(this, scopeId);
   }
 
   constructor(handlers: LocalClientHandlers) {

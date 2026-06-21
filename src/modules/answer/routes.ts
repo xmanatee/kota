@@ -16,6 +16,12 @@ import type {
   ControlRouteRegistration,
   RouteRegistration,
 } from "#core/modules/module-types.js";
+import {
+  type ScopeSelector,
+  ScopeSelectorConflictError,
+  scopeSelectorConflictBody,
+  selectedScopeSelectorId,
+} from "#core/server/scope-selector.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import type { RecallSource } from "#modules/recall/client.js";
 import type { AnswerHistoryStore } from "./answer-history-store.js";
@@ -55,7 +61,23 @@ function parseFilter(value: unknown): AnswerFilter | undefined {
   if (typeof raw.projectId === "string" && raw.projectId.trim() !== "") {
     filter.projectId = raw.projectId;
   }
+  if (typeof raw.scopeId === "string" && raw.scopeId.trim() !== "") {
+    filter.scopeId = raw.scopeId;
+  }
   return filter;
+}
+
+function selectedIdOrRespond(
+  res: ServerResponse,
+  selector?: ScopeSelector,
+): string | null | undefined {
+  try {
+    return selectedScopeSelectorId(selector);
+  } catch (err) {
+    if (!(err instanceof ScopeSelectorConflictError)) throw err;
+    jsonResponse(res, 400, scopeSelectorConflictBody(err));
+    return null;
+  }
 }
 
 export function createAnswerRouteHandler(
@@ -80,7 +102,9 @@ export function createAnswerRouteHandler(
     }
     const filter = parseFilter(body.filter);
     try {
-      const project = resolveProjectContext?.(filter?.projectId);
+      const selectedId = selectedIdOrRespond(res, filter);
+      if (selectedId === null) return;
+      const project = resolveProjectContext?.(selectedId);
       if (project && "error" in project) {
         jsonResponse(res, 404, {
           error: "Unknown project",
@@ -163,8 +187,7 @@ export function answerApiRoutes(
 type ListQuery = {
   limit?: number;
   beforeId?: string;
-  projectId?: string;
-};
+} & ScopeSelector;
 
 function parseListQuery(req: IncomingMessage): ListQuery {
   const url = req.url ?? "";
@@ -181,6 +204,8 @@ function parseListQuery(req: IncomingMessage): ListQuery {
   if (beforeId !== null && beforeId !== "") out.beforeId = beforeId;
   const projectId = params.get("projectId");
   if (projectId !== null && projectId.trim() !== "") out.projectId = projectId;
+  const scopeId = params.get("scopeId");
+  if (scopeId !== null && scopeId.trim() !== "") out.scopeId = scopeId;
   return out;
 }
 
@@ -199,7 +224,9 @@ export function createAnswerHistoryRouteHandler(
     async list(req: IncomingMessage, res: ServerResponse): Promise<void> {
       try {
         const query = parseListQuery(req);
-        const project = resolveProjectContext?.(query.projectId);
+        const selectedId = selectedIdOrRespond(res, query);
+        if (selectedId === null) return;
+        const project = resolveProjectContext?.(selectedId);
         if (project && "error" in project) {
           jsonResponse(res, 404, {
             error: "Unknown project",
@@ -209,7 +236,7 @@ export function createAnswerHistoryRouteHandler(
           return;
         }
         const history = project?.history ?? resolveHistory();
-        const { projectId: _projectId, ...filter } = query;
+        const { projectId: _projectId, scopeId: _scopeId, ...filter } = query;
         const entries = await history.listAnswers(filter);
         const body: AnswerHistoryListResult = { entries };
         jsonResponse(res, 200, body);
@@ -225,7 +252,9 @@ export function createAnswerHistoryRouteHandler(
     ): Promise<void> {
       try {
         const query = parseListQuery(req);
-        const project = resolveProjectContext?.(query.projectId);
+        const selectedId = selectedIdOrRespond(res, query);
+        if (selectedId === null) return;
+        const project = resolveProjectContext?.(selectedId);
         if (project && "error" in project) {
           jsonResponse(res, 404, {
             error: "Unknown project",

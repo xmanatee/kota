@@ -18,9 +18,17 @@ import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-p
 import type { KotaModule } from "#core/modules/module-types.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import {
+	appendScopeSelector,
+	encodeQueryParams,
+	type ScopeSelector,
+	scopeSelectorQuery,
+	selectedScopeSelectorId,
+} from "#core/server/scope-selector.js";
 import { registerApprovalCommands } from "./cli.js";
 import type {
 	ApprovalExecutionProjection,
+	ApprovalListFilter,
 	ApprovalMutateResult,
 	ApprovalProjectScope,
 	ApprovalsClient,
@@ -31,9 +39,10 @@ import { approvalControlRoutes, approvalRoutes } from "./routes.js";
 export type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queue.js";
 export { ApprovalQueue, getApprovalQueue, resetApprovalQueue } from "#core/daemon/approval-queue.js";
 
-function resolveLocalApprovalQueue(projectId?: string): ApprovalQueue {
+function resolveLocalApprovalQueue(selector?: ScopeSelector): ApprovalQueue {
 	const projectScope = getProviderRegistry()?.get(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE);
 	if (!projectScope) return getApprovalQueue();
+	const projectId = selectedScopeSelectorId(selector);
 	const resolved = projectScope.resolveProjectRuntime(projectId);
 	if (!resolved.ok) {
 		throw new Error(`Unknown project: ${resolved.error.projectId}`);
@@ -41,19 +50,16 @@ function resolveLocalApprovalQueue(projectId?: string): ApprovalQueue {
 	return resolved.runtime.approvalQueue;
 }
 
-function approvalListPath(filter?: { status?: string; projectId?: string }): string {
-	const params: string[] = [];
-	if (filter?.status) params.push(`status=${encodeURIComponent(filter.status)}`);
-	if (filter?.projectId) params.push(`projectId=${encodeURIComponent(filter.projectId)}`);
-	const query = params.join("&");
+function approvalListPath(filter?: ApprovalListFilter): string {
+	const params = new URLSearchParams();
+	if (filter?.status) params.set("status", filter.status);
+	appendScopeSelector(params, filter);
+	const query = encodeQueryParams(params);
 	return query ? `/approvals?${query}` : "/approvals";
 }
 
 function approvalProjectQuery(project?: ApprovalProjectScope): string {
-	if (!project?.projectId) return "";
-	const params = new URLSearchParams();
-	params.set("projectId", project.projectId);
-	return `?${params.toString()}`;
+	return scopeSelectorQuery(project);
 }
 
 const approvalQueueModule: KotaModule = {
@@ -76,7 +82,7 @@ const approvalQueueModule: KotaModule = {
 			async list(filter) {
 				const config = loadConfig();
 				const ttlMs = config.approvalTtlMs ?? defaultApprovalPendingTtlMs();
-				const queue = resolveLocalApprovalQueue(filter?.projectId);
+				const queue = resolveLocalApprovalQueue(filter);
 				queue.expireStale(ttlMs);
 				const status = filter?.status;
 				if (status === undefined) return { approvals: queue.list("pending") };
@@ -85,13 +91,13 @@ const approvalQueueModule: KotaModule = {
 			},
 			async approve(id, note, project) {
 				if (!isApprovalId(id)) return { ok: false, reason: "invalid_id" };
-				const result = resolveLocalApprovalQueue(project?.projectId).approveForExecution(id, note);
+				const result = resolveLocalApprovalQueue(project).approveForExecution(id, note);
 				if (result.ok) return { ok: true, approval: result.approval };
 				return { ok: false, reason: result.reason };
 			},
 			async reject(id, reason, project) {
 				if (!isApprovalId(id)) return { ok: false, reason: "invalid_id" };
-				const item = resolveLocalApprovalQueue(project?.projectId).reject(id, reason);
+				const item = resolveLocalApprovalQueue(project).reject(id, reason);
 				return item ? { ok: true, approval: item } : { ok: false, reason: "not_found" };
 			},
 		};

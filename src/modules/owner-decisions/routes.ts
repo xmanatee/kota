@@ -15,6 +15,13 @@ import type {
   RouteRegistration,
 } from "#core/modules/module-types.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
+import {
+  type ScopeSelector,
+  ScopeSelectorConflictError,
+  scopeSelectorConflictBody,
+  scopeSelectorFromUrl,
+  selectedScopeSelectorId,
+} from "#core/server/scope-selector.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import {
   answerOwnerDecisionLocal,
@@ -53,12 +60,23 @@ function readStatusFilter(req: IncomingMessage): OwnerDecisionStatus | "all" | u
   return undefined;
 }
 
-function readProjectId(req: IncomingMessage): string | undefined {
-  const projectId = new URL(req.url ?? "", "http://localhost").searchParams.get("projectId");
-  return projectId && projectId.trim() !== "" ? projectId : undefined;
+function readScopeSelector(
+  req: IncomingMessage,
+  res: ServerResponse,
+): ScopeSelector | null {
+  try {
+    return scopeSelectorFromUrl(new URL(req.url ?? "", "http://localhost"));
+  } catch (err) {
+    if (!(err instanceof ScopeSelectorConflictError)) throw err;
+    jsonResponse(res, 400, scopeSelectorConflictBody(err));
+    return null;
+  }
 }
 
-function resolveQueues(res: ServerResponse, projectId?: string): OwnerDecisionQueues | null {
+function resolveQueues(
+  res: ServerResponse,
+  selector?: ScopeSelector,
+): OwnerDecisionQueues | null {
   const projectScope = getProviderRegistry()?.get(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE);
   if (!projectScope) {
     return {
@@ -66,7 +84,7 @@ function resolveQueues(res: ServerResponse, projectId?: string): OwnerDecisionQu
       questionQueue: getOwnerQuestionQueue(),
     };
   }
-  const resolved = projectScope.resolveProjectRuntime(projectId);
+  const resolved = projectScope.resolveProjectRuntime(selectedScopeSelectorId(selector));
   if (!resolved.ok) {
     jsonResponse(res, 404, resolved.error);
     return null;
@@ -99,7 +117,9 @@ export async function handleListOwnerDecisions(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
-  const queues = resolveQueues(res, readProjectId(req));
+  const selector = readScopeSelector(req, res);
+  if (selector === null) return;
+  const queues = resolveQueues(res, selector);
   if (!queues) return;
   jsonResponse(res, 200, listOwnerDecisionsLocal(queues.decisionStore, readStatusFilter(req)));
 }
@@ -109,7 +129,9 @@ export async function handleShowOwnerDecision(
   res: ServerResponse,
   id: string,
 ): Promise<void> {
-  const queues = resolveQueues(res, readProjectId(req));
+  const selector = readScopeSelector(req, res);
+  if (selector === null) return;
+  const queues = resolveQueues(res, selector);
   if (!queues) return;
   const decision = showOwnerDecisionLocal(queues.decisionStore, id);
   if (!decision) {
@@ -129,7 +151,9 @@ export async function handleAnswerOwnerDecision(
     jsonResponse(res, 400, { error: "selectedValue is required" });
     return;
   }
-  const queues = resolveQueues(res, readProjectId(req));
+  const selector = readScopeSelector(req, res);
+  if (selector === null) return;
+  const queues = resolveQueues(res, selector);
   if (!queues) return;
   try {
     const decision = answerOwnerDecisionLocal(
@@ -155,7 +179,9 @@ export async function handleCancelOwnerDecision(
   id: string,
 ): Promise<void> {
   const reason = await readCancelReason(req);
-  const queues = resolveQueues(res, readProjectId(req));
+  const selector = readScopeSelector(req, res);
+  if (selector === null) return;
+  const queues = resolveQueues(res, selector);
   if (!queues) return;
   const decision = cancelOwnerDecisionLocal(
     queues.decisionStore,

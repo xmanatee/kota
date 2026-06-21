@@ -8,7 +8,11 @@ import {
   KOTA_CLIENT_NAMESPACES,
   type KotaClientNamespace,
 } from "./kota-client.js";
-import { createProjectScopedKotaClient } from "./project-scoped-kota-client.js";
+import {
+  createProjectScopedKotaClient,
+  createScopeScopedKotaClient,
+} from "./project-scoped-kota-client.js";
+import { normalizeScopeSelectorClientHandlers } from "./scope-selector.js";
 
 /**
  * The OS-managed daemon flag is filesystem-scoped (it checks for a
@@ -69,7 +73,7 @@ export function assembleDaemonClientHandlers(
         `module's daemonClient(link) factory at module load time.`,
     );
   }
-  return merged as DaemonClientHandlers;
+  return normalizeScopeSelectorClientHandlers(merged as DaemonClientHandlers);
 }
 
 // ---------------------------------------------------------------------------
@@ -157,6 +161,10 @@ export class DaemonControlClient implements KotaClient {
 
   forProject(projectId: string): KotaClient {
     return createProjectScopedKotaClient(this, projectId);
+  }
+
+  forScope(scopeId: string): KotaClient {
+    return createScopeScopedKotaClient(this, scopeId);
   }
 
   /**

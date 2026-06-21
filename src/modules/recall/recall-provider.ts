@@ -11,6 +11,7 @@
  * (ASCII compare). The same query against the same data therefore returns
  * the same ordering on repeat calls.
  */
+import { selectedScopeSelectorId } from "#core/server/scope-selector.js";
 import type { RecallFilter, RecallHit } from "./client.js";
 import {
   type RawRecallEntry,
@@ -168,7 +169,7 @@ export class RecallProviderImpl implements RecallProvider {
     const trimmed = query.trim();
     if (trimmed === "") return [];
     const resolvedProject =
-      project ?? this.resolveProjectContext?.(filter?.projectId);
+      project ?? this.resolveProjectContext?.(selectedScopeSelectorId(filter));
     if (resolvedProject && "error" in resolvedProject) {
       throw new Error(`Unknown project: ${resolvedProject.projectId}`);
     }

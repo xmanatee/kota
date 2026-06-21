@@ -1,11 +1,10 @@
+import type { ScopeSelector } from "#core/server/scope-selector.js";
 import type {
   InboundSignalRouteValidationResult,
   InboundSignalRoutingStatus,
 } from "./routing.js";
 
-export type InboundSignalProjectSelection = {
-  projectId?: string;
-};
+export type InboundSignalProjectSelection = ScopeSelector;
 
 export type InboundSignalRouteListResult = InboundSignalRoutingStatus;
 

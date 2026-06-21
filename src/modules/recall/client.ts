@@ -12,6 +12,8 @@
  * by importing these types from `#modules/recall/client.js`.
  */
 
+import type { ScopeSelector } from "#core/server/scope-selector.js";
+
 /**
  * Source of a `RecallHit`. The cross-store recall seam discriminates each hit
  * by which store originated it. Adding a new contributor extends this union
@@ -120,11 +122,10 @@ export type RecallHit =
  * - `sources` defaults to "every registered contributor"; pass a list to
  *   restrict to a subset (e.g. `["knowledge", "memory"]`).
  */
-export type RecallFilter = {
+export type RecallFilter = ScopeSelector & {
   topK?: number;
   minScore?: number;
   sources?: ReadonlyArray<RecallSource>;
-  projectId?: string;
 };
 
 /**

@@ -12,6 +12,8 @@
  * `#modules/capture/client.js`.
  */
 
+import type { ScopeSelector } from "#core/server/scope-selector.js";
+
 /**
  * Target store for a `CaptureClient.capture` call. Mirrors the contributor
  * sources registered by the capture seam. Adding a fifth contributor
@@ -67,10 +69,9 @@ export type CaptureRecord =
  *   `target` is supplied. The seam never tries to be clever with it
  *   beyond passing it to the classifier prompt.
  */
-export type CaptureFilter = {
+export type CaptureFilter = ScopeSelector & {
   target?: CaptureTarget;
   hint?: string;
-  projectId?: string;
 };
 
 /**

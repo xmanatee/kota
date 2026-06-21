@@ -22,6 +22,7 @@
  * their own.
  */
 
+import type { ScopeSelector } from "#core/server/scope-selector.js";
 import type {
   RecallFilter,
   RecallHit,
@@ -114,15 +115,12 @@ export type AnswerHistoryEntry = {
  * `beforeId` cursor is the `id` of the last entry on the previous page
  * — passing it returns the next older entries.
  */
-export type AnswerHistoryListFilter = {
+export type AnswerHistoryListFilter = ScopeSelector & {
   limit?: number;
   beforeId?: string;
-  projectId?: string;
 };
 
-export type AnswerHistoryShowFilter = {
-  projectId?: string;
-};
+export type AnswerHistoryShowFilter = ScopeSelector;
 
 /** Result of `AnswerClient.log`. */
 export type AnswerHistoryListResult = {

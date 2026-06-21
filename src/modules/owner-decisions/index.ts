@@ -12,6 +12,13 @@ import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-p
 import type { KotaModule } from "#core/modules/module-types.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import {
+  appendScopeSelector,
+  encodeQueryParams,
+  type ScopeSelector,
+  scopeSelectorQuery,
+  selectedScopeSelectorId,
+} from "#core/server/scope-selector.js";
 import { registerOwnerDecisionCommands } from "./cli.js";
 import type {
   OwnerDecisionListFilter,
@@ -56,7 +63,7 @@ type OwnerDecisionRouteError = {
   projectId?: string;
 };
 
-function resolveLocalQueues(projectId?: string): OwnerDecisionQueues {
+function resolveLocalQueues(selector?: ScopeSelector): OwnerDecisionQueues {
   const projectScope = getProviderRegistry()?.get(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE);
   if (!projectScope) {
     return {
@@ -64,6 +71,7 @@ function resolveLocalQueues(projectId?: string): OwnerDecisionQueues {
       questionQueue: getOwnerQuestionQueue(),
     };
   }
+  const projectId = selectedScopeSelectorId(selector);
   const resolved = projectScope.resolveProjectRuntime(projectId);
   if (!resolved.ok) throw new Error(`Unknown project: ${resolved.error.projectId}`);
   return {
@@ -75,16 +83,13 @@ function resolveLocalQueues(projectId?: string): OwnerDecisionQueues {
 function listPath(filter?: OwnerDecisionListFilter): string {
   const params = new URLSearchParams();
   if (filter?.status) params.set("status", filter.status);
-  if (filter?.projectId) params.set("projectId", filter.projectId);
-  const query = params.toString();
+  appendScopeSelector(params, filter);
+  const query = encodeQueryParams(params);
   return query ? `/owner-decisions?${query}` : "/owner-decisions";
 }
 
 function projectQuery(project?: OwnerDecisionProjectScope): string {
-  if (!project?.projectId) return "";
-  const params = new URLSearchParams();
-  params.set("projectId", project.projectId);
-  return `?${params.toString()}`;
+  return scopeSelectorQuery(project);
 }
 
 async function readRouteError(res: Response): Promise<OwnerDecisionRouteError | null> {
@@ -152,16 +157,16 @@ function buildDaemonHandler(link: DaemonTransport): OwnerDecisionsClient {
 function localHandler(): OwnerDecisionsClient {
   return {
     async list(filter) {
-      const queues = resolveLocalQueues(filter?.projectId);
+      const queues = resolveLocalQueues(filter);
       return listOwnerDecisionsLocal(queues.decisionStore, filter?.status);
     },
     async show(id, project) {
-      const queues = resolveLocalQueues(project?.projectId);
+      const queues = resolveLocalQueues(project);
       const decision = showOwnerDecisionLocal(queues.decisionStore, id);
       return decision ? { found: true, decision } : { found: false };
     },
     async answer(id, selectedValue: OwnerDecisionSelectedValue, project) {
-      const queues = resolveLocalQueues(project?.projectId);
+      const queues = resolveLocalQueues(project);
       const decision = answerOwnerDecisionLocal(
         queues.decisionStore,
         queues.questionQueue,
@@ -172,7 +177,7 @@ function localHandler(): OwnerDecisionsClient {
       return decision ? { ok: true, decision } : { ok: false, reason: "not_found" };
     },
     async cancel(id, reason, project) {
-      const queues = resolveLocalQueues(project?.projectId);
+      const queues = resolveLocalQueues(project);
       const decision = cancelOwnerDecisionLocal(
         queues.decisionStore,
         queues.questionQueue,

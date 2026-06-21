@@ -14,6 +14,7 @@ import type {
   ReindexResult,
   RepoTaskSearchHit,
 } from "#core/modules/provider-types.js";
+import type { ScopeSelector } from "#core/server/scope-selector.js";
 
 /** A repo-task queue state, mirroring `data/tasks/<state>/`. */
 export type RepoTaskState =
@@ -44,9 +45,7 @@ export type RepoTaskListResult = {
  * the implementation resolves the active/default project once at the client
  * or route boundary.
  */
-export type RepoTaskProjectSelection = {
-  projectId?: string;
-};
+export type RepoTaskProjectSelection = ScopeSelector;
 
 /**
  * Result of `tasks.show(id)`. The full file content is returned with the
@@ -75,13 +74,12 @@ export type RepoTaskMoveResult =
 /** Allowed task priorities. */
 export type RepoTaskPriority = "p0" | "p1" | "p2" | "p3";
 
-export type RepoTaskCreateOptions = {
+export type RepoTaskCreateOptions = ScopeSelector & {
   title: string;
   priority: RepoTaskPriority;
   area: string;
   state: RepoTaskState;
   summary?: string;
-  projectId?: string;
 };
 
 export type RepoTaskCreateResult =
@@ -101,11 +99,10 @@ export type RepoTaskCaptureResult =
     };
 
 /** Options accepted by `tasks.gc`. Defaults match the CLI: 30 days, archive. */
-export type RepoTaskGcOptions = {
+export type RepoTaskGcOptions = ScopeSelector & {
   days?: number;
   delete?: boolean;
   dryRun?: boolean;
-  projectId?: string;
 };
 
 export type RepoTaskGcResult = {

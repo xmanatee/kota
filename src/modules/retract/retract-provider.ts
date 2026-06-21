@@ -13,6 +13,7 @@
  *   envelope. There is no implicit cross-target search.
  * - A contributor that throws becomes a typed `contributor_failed` arm.
  */
+import { selectedScopeSelectorId } from "#core/server/scope-selector.js";
 import type { RetractRequest, RetractResult } from "./client.js";
 import type {
   RetractContributor,
@@ -55,7 +56,7 @@ export class RetractProviderImpl implements RetractProvider {
     project?: RetractProjectContext,
   ): Promise<RetractResult> {
     const resolvedProject =
-      project ?? this.resolveProjectContext?.(request.projectId);
+      project ?? this.resolveProjectContext?.(selectedScopeSelectorId(request));
     if (resolvedProject && "error" in resolvedProject) {
       throw new Error(`Unknown project: ${resolvedProject.projectId}`);
     }

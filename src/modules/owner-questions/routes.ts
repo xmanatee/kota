@@ -11,6 +11,14 @@ import type {
   RouteRegistration,
 } from "#core/modules/module-types.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
+import {
+  type ScopeSelector,
+  type ScopeSelectorArgument,
+  ScopeSelectorConflictError,
+  scopeSelectorConflictBody,
+  scopeSelectorFromUrl,
+  selectedScopeSelectorId,
+} from "#core/server/scope-selector.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 
 const RESOLUTION_SOURCE = "http";
@@ -34,20 +42,28 @@ export function readOwnerQuestionStatusFilter(
   return undefined;
 }
 
-function readProjectId(req: IncomingMessage): string | undefined {
-  const projectId = new URL(req.url ?? "", "http://localhost").searchParams.get("projectId");
-  return projectId && projectId.trim() !== "" ? projectId : undefined;
+function readScopeSelector(
+  req: IncomingMessage,
+  res: ServerResponse,
+): ScopeSelector | null {
+  try {
+    return scopeSelectorFromUrl(new URL(req.url ?? "", "http://localhost"));
+  } catch (err) {
+    if (!(err instanceof ScopeSelectorConflictError)) throw err;
+    jsonResponse(res, 400, scopeSelectorConflictBody(err));
+    return null;
+  }
 }
 
 function resolveOwnerQuestionQueue(
   res: ServerResponse,
   queue?: OwnerQuestionQueue,
-  projectId?: string,
+  selector?: ScopeSelectorArgument,
 ): OwnerQuestionQueue | null {
   if (queue) return queue;
   const projectScope = getProviderRegistry()?.get(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE);
   if (!projectScope) return getOwnerQuestionQueue();
-  const resolved = projectScope.resolveProjectRuntime(projectId);
+  const resolved = projectScope.resolveProjectRuntime(selectedScopeSelectorId(selector));
   if (!resolved.ok) {
     jsonResponse(res, 404, resolved.error);
     return null;
@@ -102,9 +118,9 @@ export async function handleListOwnerQuestions(
   res: ServerResponse,
   queue?: OwnerQuestionQueue,
   status?: OwnerQuestionStatus | "all",
-  projectId?: string,
+  selector?: ScopeSelectorArgument,
 ): Promise<void> {
-  const resolvedQueue = resolveOwnerQuestionQueue(res, queue, projectId);
+  const resolvedQueue = resolveOwnerQuestionQueue(res, queue, selector);
   if (!resolvedQueue) return;
   jsonResponse(res, 200, listOwnerQuestionsLocal(resolvedQueue, status));
 }
@@ -114,14 +130,14 @@ export async function handleAnswerOwnerQuestion(
   res: ServerResponse,
   id: string,
   queue?: OwnerQuestionQueue,
-  projectId?: string,
+  selector?: ScopeSelectorArgument,
 ): Promise<void> {
   const answer = await readAnswerField(req);
   if (!answer.trim()) {
     jsonResponse(res, 400, { error: "answer is required" });
     return;
   }
-  const resolvedQueue = resolveOwnerQuestionQueue(res, queue, projectId);
+  const resolvedQueue = resolveOwnerQuestionQueue(res, queue, selector);
   if (!resolvedQueue) return;
   const item = answerOwnerQuestionLocal(resolvedQueue, id, answer);
   if (!item) {
@@ -136,10 +152,10 @@ export async function handleDismissOwnerQuestion(
   res: ServerResponse,
   id: string,
   queue?: OwnerQuestionQueue,
-  projectId?: string,
+  selector?: ScopeSelectorArgument,
 ): Promise<void> {
   const reason = await readReasonField(req);
-  const resolvedQueue = resolveOwnerQuestionQueue(res, queue, projectId);
+  const resolvedQueue = resolveOwnerQuestionQueue(res, queue, selector);
   if (!resolvedQueue) return;
   const item = dismissOwnerQuestionLocal(resolvedQueue, id, reason);
   if (!item) {
@@ -154,37 +170,46 @@ export function ownerQuestionRoutes(): RouteRegistration[] {
     {
       method: "GET",
       path: "/api/owner-questions",
-      handler: (req, res) =>
-        handleListOwnerQuestions(
+      handler: (req, res) => {
+        const selector = readScopeSelector(req, res);
+        if (selector === null) return;
+        return handleListOwnerQuestions(
           res,
           undefined,
           readOwnerQuestionStatusFilter(req),
-          readProjectId(req),
-        ),
+          selector,
+        );
+      },
     },
     {
       method: "POST",
       path: "/api/owner-questions/:id/answer",
-      handler: (req, res, params) =>
-        handleAnswerOwnerQuestion(
+      handler: (req, res, params) => {
+        const selector = readScopeSelector(req, res);
+        if (selector === null) return;
+        return handleAnswerOwnerQuestion(
           req,
           res,
           params.id,
           undefined,
-          readProjectId(req),
-        ),
+          selector,
+        );
+      },
     },
     {
       method: "POST",
       path: "/api/owner-questions/:id/dismiss",
-      handler: (req, res, params) =>
-        handleDismissOwnerQuestion(
+      handler: (req, res, params) => {
+        const selector = readScopeSelector(req, res);
+        if (selector === null) return;
+        return handleDismissOwnerQuestion(
           req,
           res,
           params.id,
           undefined,
-          readProjectId(req),
-        ),
+          selector,
+        );
+      },
     },
   ];
 }
@@ -193,7 +218,9 @@ async function handleListOwnerQuestionsControl(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
-  const queue = resolveOwnerQuestionQueue(res, undefined, readProjectId(req));
+  const selector = readScopeSelector(req, res);
+  if (selector === null) return;
+  const queue = resolveOwnerQuestionQueue(res, undefined, selector);
   if (!queue) return;
   jsonResponse(
     res,
@@ -212,7 +239,9 @@ async function handleAnswerOwnerQuestionControl(
     jsonResponse(res, 400, { error: "answer is required" });
     return;
   }
-  const queue = resolveOwnerQuestionQueue(res, undefined, readProjectId(req));
+  const selector = readScopeSelector(req, res);
+  if (selector === null) return;
+  const queue = resolveOwnerQuestionQueue(res, undefined, selector);
   if (!queue) return;
   const item = answerOwnerQuestionLocal(queue, params.id, answer);
   if (!item) {
@@ -228,7 +257,9 @@ async function handleDismissOwnerQuestionControl(
   params: Record<string, string>,
 ): Promise<void> {
   const reason = await readReasonField(req);
-  const queue = resolveOwnerQuestionQueue(res, undefined, readProjectId(req));
+  const selector = readScopeSelector(req, res);
+  if (selector === null) return;
+  const queue = resolveOwnerQuestionQueue(res, undefined, selector);
   if (!queue) return;
   const item = dismissOwnerQuestionLocal(queue, params.id, reason);
   if (!item) {

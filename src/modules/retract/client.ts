@@ -13,6 +13,8 @@
  * `#modules/retract/client.js`.
  */
 
+import type { ScopeSelector } from "#core/server/scope-selector.js";
+
 /**
  * Target store for a `RetractClient.retract` call. Mirrors the contributor
  * sources registered by the retract seam. Adding a fifth contributor
@@ -86,10 +88,10 @@ export type RetractRecord =
  *   (e.g. `data/inbox/note-foo.md`).
  */
 export type RetractRequest =
-  | { target: "memory"; id: string; projectId?: string }
-  | { target: "knowledge"; slug: string; projectId?: string }
-  | { target: "tasks"; id: string; projectId?: string }
-  | { target: "inbox"; path: string; projectId?: string };
+  | ({ target: "memory"; id: string } & ScopeSelector)
+  | ({ target: "knowledge"; slug: string } & ScopeSelector)
+  | ({ target: "tasks"; id: string } & ScopeSelector)
+  | ({ target: "inbox"; path: string } & ScopeSelector);
 
 /**
  * Result of `retract.retract`.

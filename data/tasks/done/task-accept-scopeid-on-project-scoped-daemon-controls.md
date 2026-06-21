@@ -1,12 +1,12 @@
 ---
 id: task-accept-scopeid-on-project-scoped-daemon-controls
 title: Accept scopeId on project-scoped daemon controls
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Make project-scoped daemon control routes and KotaClient filters accept canonical scopeId selectors, keeping projectId as an explicit compatibility alias with conflict rejection.
 created_at: 2026-06-21T09:32:23.925Z
-updated_at: 2026-06-21T09:32:23.925Z
+updated_at: 2026-06-21T10:16:25.000Z
 task_class: Platform
 ---
 
@@ -146,3 +146,16 @@ directory-project compatibility.
   `projectId`-only project-scoped selectors, or that each remaining occurrence
   is named as an intentional compatibility surface in source tests.
 - `pnpm run typecheck`.
+
+## Completion Evidence
+
+- 2026-06-21 manual recovery review restored the builder recovery stash,
+  kept the oversized workflow trial implementation out of the staged set,
+  split the workflow client contract and daemon-control helper responsibilities
+  under the source-size gate, and added the dirty-recovery pause/queue-clear
+  guard.
+- Lightweight checks run: touched source-size scan, `git diff --check`, scoped
+  selector coverage script, route-parser search, inbox/task id/status queue
+  scan, daemon-process check, and dispatch pause-file check.
+- Build, lint, tests, and typecheck were intentionally not run in this pass
+  because the operator requested only inspection and simple validity scripts.

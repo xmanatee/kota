@@ -2,29 +2,34 @@ import {
   type KotaClient,
   KotaClientProjectError,
 } from "./kota-client.js";
+import {
+  mergeScopeSelector,
+  normalizeScopeSelector,
+  type ScopeSelector,
+  selectedScopeSelectorId,
+} from "./scope-selector.js";
 
-function withProject<T extends object>(
+function withScope<T extends ScopeSelector>(
   value: T | undefined,
-  projectId: string,
-): T & { projectId: string } {
-  if (value) return { ...value, projectId };
-  return { projectId } as T & { projectId: string };
+  selector: ScopeSelector,
+): T & ScopeSelector {
+  return mergeScopeSelector(value, selector);
 }
 
-function isUnknownProjectMessage(message: string): boolean {
-  return /^Unknown project(?::|$)/.test(message);
+function isUnknownScopeMessage(message: string): boolean {
+  return /^Unknown (project|scope)(?::|$)/.test(message);
 }
 
 async function scoped<T>(
-  projectId: string,
+  selectedId: string,
   operation: () => Promise<T>,
 ): Promise<T> {
   try {
     return await operation();
   } catch (err) {
     if (err instanceof KotaClientProjectError) throw err;
-    if (err instanceof Error && isUnknownProjectMessage(err.message)) {
-      throw new KotaClientProjectError(projectId, err);
+    if (err instanceof Error && isUnknownScopeMessage(err.message)) {
+      throw new KotaClientProjectError(selectedId, err);
     }
     throw err;
   }
@@ -34,238 +39,256 @@ export function createProjectScopedKotaClient(
   base: KotaClient,
   projectId: string,
 ): KotaClient {
-  const selectedProjectId = projectId.trim();
-  if (!selectedProjectId) {
-    throw new KotaClientProjectError(projectId);
+  return createScopedKotaClient(base, { projectId }, projectId);
+}
+
+export function createScopeScopedKotaClient(
+  base: KotaClient,
+  scopeId: string,
+): KotaClient {
+  return createScopedKotaClient(base, { scopeId }, scopeId);
+}
+
+function createScopedKotaClient(
+  base: KotaClient,
+  selectorInput: ScopeSelector,
+  errorId: string,
+): KotaClient {
+  const selector = normalizeScopeSelector(selectorInput);
+  const selectedId = selectedScopeSelectorId(selector);
+  if (!selectedId) {
+    throw new KotaClientProjectError(errorId);
   }
 
   return {
     ...base,
     forProject: (nextProjectId) =>
       createProjectScopedKotaClient(base, nextProjectId),
+    forScope: (nextScopeId) =>
+      createScopeScopedKotaClient(base, nextScopeId),
     workflow: {
       ...base.workflow,
       listDeadLetters: (filter) =>
-        scoped(selectedProjectId, () =>
-          base.workflow.listDeadLetters(withProject(filter, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.workflow.listDeadLetters(withScope(filter, selector)),
         ),
       getDeadLetter: (id) =>
-        scoped(selectedProjectId, () =>
-          base.workflow.getDeadLetter(id, selectedProjectId),
+        scoped(selectedId, () =>
+          base.workflow.getDeadLetter(id, selectedId),
         ),
       dismissDeadLetter: (id, reason) =>
-        scoped(selectedProjectId, () =>
-          base.workflow.dismissDeadLetter(id, reason, selectedProjectId),
+        scoped(selectedId, () =>
+          base.workflow.dismissDeadLetter(id, reason, selectedId),
         ),
       redriveDeadLetter: (id, options) =>
-        scoped(selectedProjectId, () =>
-          base.workflow.redriveDeadLetter(id, options, selectedProjectId),
+        scoped(selectedId, () =>
+          base.workflow.redriveDeadLetter(id, options, selectedId),
         ),
       exportDeadLetterDiagnostics: (id) =>
-        scoped(selectedProjectId, () =>
-          base.workflow.exportDeadLetterDiagnostics(id, selectedProjectId),
+        scoped(selectedId, () =>
+          base.workflow.exportDeadLetterDiagnostics(id, selectedId),
         ),
       status: (filter) =>
-        scoped(selectedProjectId, () =>
-          base.workflow.status(withProject(filter, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.workflow.status(withScope(filter, selector)),
         ),
       trial: (name, options) =>
-        scoped(selectedProjectId, () =>
-          base.workflow.trial(name, withProject(options, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.workflow.trial(name, withScope(options, selector)),
         ),
     },
     memory: {
       list: (filter) =>
-        scoped(selectedProjectId, () =>
-          base.memory.list(withProject(filter, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.memory.list(withScope(filter, selector)),
         ),
       add: (content, tags, project) =>
-        scoped(selectedProjectId, () =>
-          base.memory.add(content, tags, withProject(project, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.memory.add(content, tags, withScope(project, selector)),
         ),
       delete: (id, project) =>
-        scoped(selectedProjectId, () =>
-          base.memory.delete(id, withProject(project, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.memory.delete(id, withScope(project, selector)),
         ),
       search: (query, filter) =>
-        scoped(selectedProjectId, () =>
-          base.memory.search(query, withProject(filter, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.memory.search(query, withScope(filter, selector)),
         ),
       reindex: (project) =>
-        scoped(selectedProjectId, () =>
-          base.memory.reindex(withProject(project, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.memory.reindex(withScope(project, selector)),
         ),
     },
     knowledge: {
       list: (filter) =>
-        scoped(selectedProjectId, () =>
-          base.knowledge.list(withProject(filter, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.knowledge.list(withScope(filter, selector)),
         ),
       show: (id, project) =>
-        scoped(selectedProjectId, () =>
-          base.knowledge.show(id, withProject(project, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.knowledge.show(id, withScope(project, selector)),
         ),
       search: (query, filter) =>
-        scoped(selectedProjectId, () =>
-          base.knowledge.search(query, withProject(filter, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.knowledge.search(query, withScope(filter, selector)),
         ),
       add: (options) =>
-        scoped(selectedProjectId, () =>
-          base.knowledge.add(withProject(options, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.knowledge.add(withScope(options, selector)),
         ),
       delete: (id, project) =>
-        scoped(selectedProjectId, () =>
-          base.knowledge.delete(id, withProject(project, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.knowledge.delete(id, withScope(project, selector)),
         ),
       reindex: (project) =>
-        scoped(selectedProjectId, () =>
-          base.knowledge.reindex(withProject(project, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.knowledge.reindex(withScope(project, selector)),
         ),
     },
     history: {
       list: (filter) =>
-        scoped(selectedProjectId, () =>
-          base.history.list(withProject(filter, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.history.list(withScope(filter, selector)),
         ),
       listDiscoveredProjectRecords: (filter) =>
         base.history.listDiscoveredProjectRecords(filter),
       show: (id, project) =>
-        scoped(selectedProjectId, () =>
-          base.history.show(id, withProject(project, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.history.show(id, withScope(project, selector)),
         ),
       delete: (id, project) =>
-        scoped(selectedProjectId, () =>
-          base.history.delete(id, withProject(project, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.history.delete(id, withScope(project, selector)),
         ),
       search: (query, filter) =>
-        scoped(selectedProjectId, () =>
-          base.history.search(query, withProject(filter, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.history.search(query, withScope(filter, selector)),
         ),
       reindex: (project) =>
-        scoped(selectedProjectId, () =>
-          base.history.reindex(withProject(project, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.history.reindex(withScope(project, selector)),
         ),
     },
     inboundSignals: {
       listRoutes: (project) =>
-        scoped(selectedProjectId, () =>
-          base.inboundSignals.listRoutes(withProject(project, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.inboundSignals.listRoutes(withScope(project, selector)),
         ),
       validateRoutes: (project) =>
-        scoped(selectedProjectId, () =>
-          base.inboundSignals.validateRoutes(withProject(project, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.inboundSignals.validateRoutes(withScope(project, selector)),
         ),
     },
     tasks: {
       list: (states, project) =>
-        scoped(selectedProjectId, () =>
-          base.tasks.list(states, withProject(project, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.tasks.list(states, withScope(project, selector)),
         ),
       show: (id, project) =>
-        scoped(selectedProjectId, () =>
-          base.tasks.show(id, withProject(project, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.tasks.show(id, withScope(project, selector)),
         ),
       move: (id, toState, project) =>
-        scoped(selectedProjectId, () =>
-          base.tasks.move(id, toState, withProject(project, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.tasks.move(id, toState, withScope(project, selector)),
         ),
       create: (options) =>
-        scoped(selectedProjectId, () =>
-          base.tasks.create(withProject(options, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.tasks.create(withScope(options, selector)),
         ),
       capture: (title, project) =>
-        scoped(selectedProjectId, () =>
-          base.tasks.capture(title, withProject(project, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.tasks.capture(title, withScope(project, selector)),
         ),
       gc: (options) =>
-        scoped(selectedProjectId, () =>
-          base.tasks.gc(withProject(options, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.tasks.gc(withScope(options, selector)),
         ),
       search: (query, filter) =>
-        scoped(selectedProjectId, () =>
-          base.tasks.search(query, withProject(filter, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.tasks.search(query, withScope(filter, selector)),
         ),
       reindex: (project) =>
-        scoped(selectedProjectId, () =>
-          base.tasks.reindex(withProject(project, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.tasks.reindex(withScope(project, selector)),
         ),
     },
     recall: {
       recall: (query, filter) =>
-        scoped(selectedProjectId, () =>
-          base.recall.recall(query, withProject(filter, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.recall.recall(query, withScope(filter, selector)),
         ),
     },
     answer: {
       answer: (query, filter) =>
-        scoped(selectedProjectId, () =>
-          base.answer.answer(query, withProject(filter, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.answer.answer(query, withScope(filter, selector)),
         ),
       log: (filter) =>
-        scoped(selectedProjectId, () =>
-          base.answer.log(withProject(filter, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.answer.log(withScope(filter, selector)),
         ),
       show: (id, project) =>
-        scoped(selectedProjectId, () =>
-          base.answer.show(id, withProject(project, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.answer.show(id, withScope(project, selector)),
         ),
     },
     capture: {
       capture: (text, filter) =>
-        scoped(selectedProjectId, () =>
-          base.capture.capture(text, withProject(filter, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.capture.capture(text, withScope(filter, selector)),
         ),
     },
     retract: {
       retract: (request) =>
-        scoped(selectedProjectId, () =>
-          base.retract.retract({ ...request, projectId: selectedProjectId }),
+        scoped(selectedId, () =>
+          base.retract.retract(withScope(request, selector)),
         ),
     },
     approvals: {
       list: (filter) =>
-        scoped(selectedProjectId, () =>
-          base.approvals.list(withProject(filter, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.approvals.list(withScope(filter, selector)),
         ),
       approve: (id, note, project) =>
-        scoped(selectedProjectId, () =>
-          base.approvals.approve(id, note, withProject(project, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.approvals.approve(id, note, withScope(project, selector)),
         ),
       reject: (id, reason, project) =>
-        scoped(selectedProjectId, () =>
-          base.approvals.reject(id, reason, withProject(project, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.approvals.reject(id, reason, withScope(project, selector)),
         ),
     },
     ownerDecisions: {
       list: (filter) =>
-        scoped(selectedProjectId, () =>
-          base.ownerDecisions.list(withProject(filter, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.ownerDecisions.list(withScope(filter, selector)),
         ),
       show: (id, project) =>
-        scoped(selectedProjectId, () =>
-          base.ownerDecisions.show(id, withProject(project, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.ownerDecisions.show(id, withScope(project, selector)),
         ),
       answer: (id, selectedValue, project) =>
-        scoped(selectedProjectId, () =>
-          base.ownerDecisions.answer(id, selectedValue, withProject(project, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.ownerDecisions.answer(id, selectedValue, withScope(project, selector)),
         ),
       cancel: (id, reason, project) =>
-        scoped(selectedProjectId, () =>
-          base.ownerDecisions.cancel(id, reason, withProject(project, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.ownerDecisions.cancel(id, reason, withScope(project, selector)),
         ),
     },
     ownerQuestions: {
       list: (filter) =>
-        scoped(selectedProjectId, () =>
-          base.ownerQuestions.list(withProject(filter, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.ownerQuestions.list(withScope(filter, selector)),
         ),
       answer: (id, answer, project) =>
-        scoped(selectedProjectId, () =>
-          base.ownerQuestions.answer(id, answer, withProject(project, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.ownerQuestions.answer(id, answer, withScope(project, selector)),
         ),
       dismiss: (id, reason, project) =>
-        scoped(selectedProjectId, () =>
-          base.ownerQuestions.dismiss(id, reason, withProject(project, selectedProjectId)),
+        scoped(selectedId, () =>
+          base.ownerQuestions.dismiss(id, reason, withScope(project, selector)),
         ),
     },
   };

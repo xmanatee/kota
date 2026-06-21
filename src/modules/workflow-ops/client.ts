@@ -9,7 +9,6 @@
  * `buildWorkflowDaemonHandler`) realize this contract.
  */
 
-import type { KotaJsonObject } from "#core/agent-harness/message-protocol.js";
 import type {
   DeadLetterItem,
   DeadLetterItemStatus,
@@ -21,8 +20,9 @@ import type {
   WorkflowRunDetail,
   WorkflowRunSummary,
 } from "#core/daemon/daemon-control.js";
-import type { EventSchemaReference } from "#core/events/event-bus.js";
 import type { EventJsonObject } from "#core/events/event-journal.js";
+import type { ScopeSelector } from "#core/server/scope-selector.js";
+import type { WorkflowTrialOptions, WorkflowTrialResult } from "./client-trial-types.js";
 import type {
   AutomationExplainOptions,
   AutomationExplainResult,
@@ -31,26 +31,34 @@ import type {
   WorkflowSimulationRequest,
   WorkflowSimulationResult,
 } from "./simulation/types.js";
+export type {
+  WorkflowTrialAttemptReport,
+  WorkflowTrialBlockedSideEffect,
+  WorkflowTrialChangedFile,
+  WorkflowTrialEvent,
+  WorkflowTrialOptions,
+  WorkflowTrialPayload,
+  WorkflowTrialResult,
+  WorkflowTrialSummary,
+} from "./client-trial-types.js";
 
 /** Filters accepted by `client.workflow.listRuns`. */
-export type WorkflowRunsListFilter = {
+export type WorkflowRunsListFilter = ScopeSelector & {
   workflow?: string;
   limit?: number;
   tag?: string;
   causedByRunId?: string;
-  projectId?: string;
 };
 
 export type WorkflowRunsListResult = {
   runs: WorkflowRunSummary[];
 };
 
-export type WorkflowDeadLetterListFilter = {
+export type WorkflowDeadLetterListFilter = ScopeSelector & {
   status?: DeadLetterItemStatus;
   type?: DeadLetterItemType;
   workflow?: string;
   limit?: number;
-  projectId?: string;
 };
 
 export type WorkflowDeadLetterListResult = {
@@ -72,9 +80,7 @@ export type WorkflowDeadLetterRedriveOptions = {
 };
 
 /** Project scope accepted by workflow runtime reads. */
-export type WorkflowStatusFilter = {
-  projectId?: string;
-};
+export type WorkflowStatusFilter = ScopeSelector;
 
 /**
  * Workflow runtime snapshot returned by `client.workflow.status()`.
@@ -196,104 +202,6 @@ export type WorkflowTriggerResult =
   | { ok: true; path: "daemon" | "queue"; queued: string; runId?: string }
   | { ok: false; reason: "already_queued" };
 
-export type WorkflowTrialBlockedSideEffect = {
-  stepId: string;
-  tool: string;
-  reason: string;
-  effect: {
-    kind: string;
-    scope: string;
-    openWorld: boolean;
-  };
-  manifest?: {
-    moduleName: string;
-    effectId: string;
-    categories: readonly string[];
-    capabilityIds: readonly string[];
-  };
-};
-
-export type WorkflowTrialChangedFile = {
-  path: string;
-  change: "created" | "modified" | "deleted";
-};
-
-export type WorkflowTrialPayload = KotaJsonObject;
-
-export type WorkflowTrialEvent = {
-  type: string;
-  schemaRef: EventSchemaReference | null;
-  payload: WorkflowTrialPayload;
-};
-
-export type WorkflowTrialAttemptReport = {
-  id: string;
-  workflow: string;
-  payload: WorkflowTrialPayload;
-  status: "passed" | "failed" | "blocked";
-  trialProjectPath: string;
-  workflowRunId?: string;
-  stepStatuses: Array<{
-    id: string;
-    type: string;
-    status: string;
-    durationMs: number;
-  }>;
-  changedFiles: WorkflowTrialChangedFile[];
-  taskMutations: WorkflowTrialChangedFile[];
-  storeMutations: WorkflowTrialChangedFile[];
-  busEvents: WorkflowTrialEvent[];
-  queuedWorkflows: Array<{
-    workflow: string;
-    runId: string;
-    waitFor: "queued" | "completed";
-    payload: WorkflowTrialPayload;
-    status: "queued" | "completed" | "failed";
-  }>;
-  blockedExternalSideEffects: WorkflowTrialBlockedSideEffect[];
-  reportPath: string;
-  error?: string;
-};
-
-export type WorkflowTrialSummary = {
-  runId: string;
-  workflow: string;
-  projectId?: string;
-  sourceProjectPath: string;
-  reportDir: string;
-  payload: WorkflowTrialPayload;
-  repeat: number;
-  attempts: WorkflowTrialAttemptReport[];
-  comparison: {
-    workflows: string[];
-    payloadVariants: WorkflowTrialPayload[];
-  };
-  passed: number;
-  failed: number;
-  blocked: number;
-  status: "passed" | "failed";
-};
-
-export type WorkflowTrialOptions = {
-  payload?: WorkflowTrialPayload;
-  repeat?: number;
-  compareWorkflows?: string[];
-  comparePayloads?: WorkflowTrialPayload[];
-  projectId?: string;
-};
-
-export type WorkflowTrialResult =
-  | {
-      ok: true;
-      summary: WorkflowTrialSummary;
-    }
-  | {
-      ok: false;
-      reason: "daemon_required" | "invalid_request" | "unknown_workflow" | "unknown_project";
-      message: string;
-      summary?: WorkflowTrialSummary;
-    };
-
 /**
  * Result of `workflow.listDefinitions`. `source` carries which side produced
  * the listing so callers can render attribution; the daemon listing includes
@@ -324,11 +232,7 @@ export interface WorkflowClient {
   listDeadLetters(filter?: WorkflowDeadLetterListFilter): Promise<WorkflowDeadLetterListResult>;
   getDeadLetter(id: string, projectId?: string): Promise<WorkflowDeadLetterGetResult>;
   dismissDeadLetter(id: string, reason: string, projectId?: string): Promise<WorkflowDeadLetterMutationResult>;
-  redriveDeadLetter(
-    id: string,
-    options: WorkflowDeadLetterRedriveOptions,
-    projectId?: string,
-  ): Promise<WorkflowDeadLetterMutationResult>;
+  redriveDeadLetter(id: string, options: WorkflowDeadLetterRedriveOptions, projectId?: string): Promise<WorkflowDeadLetterMutationResult>;
   exportDeadLetterDiagnostics(id: string, projectId?: string): Promise<EventJsonObject | null>;
   status(filter?: WorkflowStatusFilter): Promise<WorkflowStatusSnapshot>;
   /**

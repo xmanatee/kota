@@ -15,6 +15,7 @@ import type {
   ApprovalStatus,
   PendingApproval,
 } from "#core/daemon/approval-queue.js";
+import type { ScopeSelector } from "#core/server/scope-selector.js";
 
 export type ApprovalsListResult = {
   approvals: PendingApproval[];
@@ -28,14 +29,11 @@ export type ApprovalsListResult = {
  * status (used by `kota approval history` and by callers that need to
  * count or render resolved items).
  */
-export type ApprovalListFilter = {
+export type ApprovalListFilter = ScopeSelector & {
   status?: ApprovalStatus | "all";
-  projectId?: string;
 };
 
-export type ApprovalProjectScope = {
-  projectId?: string;
-};
+export type ApprovalProjectScope = ScopeSelector;
 
 export type ApprovalExecutionProjection = {
   status: "succeeded" | "failed";
