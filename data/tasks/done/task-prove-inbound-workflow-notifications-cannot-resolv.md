@@ -1,13 +1,13 @@
 ---
 id: task-prove-inbound-workflow-notifications-cannot-resolv
 title: Prove inbound workflow notifications cannot resolve operator approvals
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: Add a regression/audit proving scheduled, webhook, and inbound-signal workflow deliveries cannot answer or approve pending operator prompts except through explicit authenticated operator routes.
 created_at: 2026-06-21T06:07:47.113Z
-updated_at: 2026-06-21T07:40:07.124Z
+updated_at: 2026-06-21T08:14:16.000Z
 ---
 
 ## Problem
@@ -114,3 +114,15 @@ through the same daemon and workflow runtime.
   callback resolution still works for the matching prompt.
 - Any runtime diagnostics or run artifact showing the source classification
   used for rejected non-operator event payloads.
+
+## Completion Evidence
+
+- Added `src/operator-authorization-boundary.integration.test.ts`, which
+  creates pending approval and owner-question records, delivers approval-like
+  scheduled, webhook, and inbound-signal workflow payloads, and verifies both
+  records remain pending in the project-scoped runtime.
+- The same regression resolves fresh prompts through the existing approval
+  rejection and owner-question answer route handlers as positive controls.
+- Focused validation passed:
+  `NODE_OPTIONS=--conditions=source pnpm exec vitest run src/operator-authorization-boundary.integration.test.ts`.
+- Task validation passed: `pnpm run validate-tasks -- --min-ready 0`.
