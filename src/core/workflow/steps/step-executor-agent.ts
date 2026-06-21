@@ -340,6 +340,10 @@ export async function executeAgentStep(
             lastJsonOutputFeedback = `Previous output failed schema validation: ${err.validationDetail}\nPlease include all required fields in your JSON block and try again.`;
           } else if (err instanceof JsonOutputParseError) {
             lastJsonOutputFeedback = `Previous JSON output was invalid: ${err.validationDetail}\nEnd with one fenced valid JSON block that matches the requested schema, then try again.`;
+          } else if (err instanceof JsonOutputValidationError) {
+            lastJsonOutputFeedback = `Previous output was missing usable structured JSON: ${err.validationDetail}\nEnd with one fenced valid JSON block that matches the requested schema, then try again.`;
+          } else if (err instanceof WorkflowStepOutputValidationError) {
+            lastJsonOutputFeedback = `Previous structured output failed workflow validation: ${err.cause.message}\nCorrect the JSON using only the provided workflow evidence, then try again.`;
           }
           throw err;
         }
@@ -384,8 +388,8 @@ export async function executeAgentStep(
     // Only consume retry attempts for classified-transient failures. Max-turn,
     // logic, and malformed-tool errors fail hard on the first attempt.
     shouldRetry: (err) =>
-      err instanceof JsonSchemaValidationError ||
-      err instanceof JsonOutputParseError ||
+      err instanceof JsonOutputValidationError ||
+      (step.outputFormat === "json" && err instanceof WorkflowStepOutputValidationError) ||
       (err instanceof AgentStepRuntimeError && err.retryable),
   });
   const output = agentConfig.agentRunLimiter
