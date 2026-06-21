@@ -11,6 +11,7 @@ import {
 } from "#modules/autonomy/evaluator-calibration.js";
 import { buildEvalCommand } from "./cli.js";
 import type {
+  EvalCalibrationResult,
   EvalHarnessClient,
   EvalListResult,
   EvalRunOptions,
@@ -117,6 +118,28 @@ const EMPTY_CODE_HEALTH: CodeHealthAggregate = {
   },
 };
 
+const EMPTY_CALIBRATION_RESULT: EvalCalibrationResult = {
+  aggregate: {
+    windowStartMs: 0,
+    windowEndMs: 0,
+    totalRuns: 0,
+    byVerdict: {
+      pass: 0,
+      pass_with_warnings: 0,
+      fail: 0,
+      absent: 0,
+    },
+    passContradictionCount: 0,
+    passContradictionRate: 0,
+    passWithWarningsFollowUpCount: 0,
+    passWithWarningsFollowUpRate: 0,
+  },
+  decision: {
+    status: "insufficient-sample",
+    reason: "No calibration samples in test fixture.",
+  },
+};
+
 const SAMPLE_RUN_CONFIGURATION: Extract<
   EvalRunResult,
   { ok: true }
@@ -165,7 +188,7 @@ function makeListCtx(result: EvalListResult): ModuleContext {
       };
     },
     async calibration() {
-      return { aggregate: {}, decision: {} };
+      return EMPTY_CALIBRATION_RESULT;
     },
   };
   const client = { evalHarness } as unknown as KotaClient;
@@ -204,7 +227,7 @@ function makeRunRecordingCtx(
       };
     },
     async calibration() {
-      return { aggregate: {}, decision: {} };
+      return EMPTY_CALIBRATION_RESULT;
     },
   };
   const client = { evalHarness } as unknown as KotaClient;

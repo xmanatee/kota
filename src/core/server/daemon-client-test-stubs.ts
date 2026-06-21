@@ -16,7 +16,32 @@
  * a test needs real behavior for a namespace, contribute a handler that
  * exercises it instead of relying on the stub.
  */
+import { buildTaskAndWorkflowTestStubs } from "./daemon-client-task-workflow-test-stubs.js";
 import type { DaemonClientHandlers } from "./kota-client.js";
+
+const EMPTY_EVAL_CALIBRATION_RESULT: Awaited<
+  ReturnType<DaemonClientHandlers["evalHarness"]["calibration"]>
+> = {
+  aggregate: {
+    windowStartMs: 0,
+    windowEndMs: 0,
+    totalRuns: 0,
+    byVerdict: {
+      pass: 0,
+      pass_with_warnings: 0,
+      fail: 0,
+      absent: 0,
+    },
+    passContradictionCount: 0,
+    passContradictionRate: 0,
+    passWithWarningsFollowUpCount: 0,
+    passWithWarningsFollowUpRate: 0,
+  },
+  decision: {
+    status: "insufficient-sample",
+    reason: "No calibration samples in test stub.",
+  },
+};
 
 /**
  * Build a `Partial<DaemonClientHandlers>` covering every namespace that
@@ -200,7 +225,7 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
         reason: "no_fixtures" as const,
         message: "stub",
       }),
-      calibration: async () => ({ aggregate: {}, decision: {} }),
+      calibration: async () => EMPTY_EVAL_CALIBRATION_RESULT,
     },
     voice: {
       transcribe: async () => ({
@@ -260,93 +285,6 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
       schemaPath: async () => ({ path: "" }),
       schemaContent: async () => ({ content: "" }),
     },
-    tasks: {
-      list: async () => ({ tasks: [] }),
-      show: async () => ({ found: false as const }),
-      move: async () => ({ ok: false as const, reason: "not_found" as const }),
-      create: async () => ({ ok: true as const, id: "stub", path: "stub" }),
-      capture: async () => ({ ok: true as const, id: "stub", path: "stub" }),
-      gc: async () => ({ archived: [], deleted: [] }),
-      search: async () => ({ ok: true as const, tasks: [] }),
-      reindex: async () => ({ indexed: 0, failed: 0 }),
-    },
-    workflow: {
-      listRuns: async () => ({ runs: [] }),
-      status: async () => ({
-        activeRuns: [],
-        pendingRuns: [],
-        queueLength: 0,
-        completedRuns: 0,
-        workflows: {},
-        paused: false,
-        pendingAbort: false,
-        agentConcurrency: 1,
-        codeConcurrency: 4,
-      }),
-      pause: async () => ({ paused: true, already: false }),
-      resume: async () => ({ paused: false, already: false }),
-      abort: async () => ({ status: "applied" as const, count: 0 }),
-      reload: async () => ({ status: "applied" as const, count: 0 }),
-      enable: async () => ({ ok: false as const, reason: "not_found" as const }),
-      disable: async () => ({ ok: false as const, reason: "not_found" as const }),
-      cancelRun: async () => ({ ok: false as const, reason: "not_found" as const }),
-      abortRun: async () => ({ ok: false as const, reason: "not_found" as const }),
-      getRun: async () => ({ found: false as const }),
-      listDeadLetters: async () => ({
-        items: [],
-        counts: { open: 0, dismissed: 0, redriven: 0 },
-      }),
-      getDeadLetter: async () => ({ found: false as const }),
-      dismissDeadLetter: async () => ({ ok: false as const, reason: "not_found" as const }),
-      redriveDeadLetter: async () => ({ ok: false as const, reason: "not_found" as const }),
-      exportDeadLetterDiagnostics: async () => null,
-      listDefinitions: async () => ({
-        source: "static" as const,
-        definitions: [],
-      }),
-      triggerByName: async () => ({
-        ok: false as const,
-        reason: "already_queued" as const,
-      }),
-      trial: async () => ({
-        ok: false as const,
-        reason: "daemon_required" as const,
-        message: "stub",
-      }),
-      explain: async () => ({
-        graph: {
-          workflows: [],
-          events: [],
-          agents: [],
-          automation: {
-            workflows: [],
-            events: [],
-            blockers: [],
-            downstream: [],
-          },
-        },
-        query: {},
-        outcome: "unknown" as const,
-        matches: [],
-        reasons: [],
-      }),
-      simulate: async () => ({
-        ok: true as const,
-        request: {},
-        inputs: [],
-        summary: {
-          total: 0,
-          "would-ignore": 0,
-          "would-batch": 0,
-          "would-queue": 0,
-          "would-block": 0,
-          "would-ask-owner": 0,
-          "would-dlq": 0,
-          "would-perform-effect": 0,
-          "would-noop": 0,
-          unknown: 0,
-        },
-      }),
-    },
+    ...buildTaskAndWorkflowTestStubs(),
   };
 }

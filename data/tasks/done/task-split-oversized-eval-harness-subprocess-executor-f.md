@@ -1,12 +1,12 @@
 ---
 id: task-split-oversized-eval-harness-subprocess-executor-f
 title: Split oversized eval-harness subprocess executor files
-status: ready
+status: done
 priority: p3
 area: modules
 summary: The eval-harness host-subprocess security fix passed but recorded source-file-size warnings for src/modules/eval-harness/eval-operations.ts, src/modules/eval-harness/subprocess-executor.test.ts, and src/modules/eval-harness/subprocess-executor.ts. Split cohesive helpers and tests without changing host subprocess behavior.
 created_at: 2026-06-21T08:06:00.035Z
-updated_at: 2026-06-21T08:06:00.035Z
+updated_at: 2026-06-21T09:08:10.518Z
 ---
 
 ## Problem
@@ -47,3 +47,8 @@ Outcome-aware autonomy progress review.
 ## Acceptance Evidence
 
 - Diff reduces or splits the cited eval-harness files so builder source-size diagnostics no longer warn on those changed files; focused host subprocess tests pass; typecheck, biome, and validate-tasks pass; before/after line counts are recorded in the task or run artifact.
+- Before/after line counts recorded in `.kota/runs/2026-06-21T08-53-09-482Z-builder-e8cjyw/source-size-line-counts.txt`: the cited files moved from 315 / 1124 / 1175 lines to focused files all under 300 lines.
+- `pnpm exec vitest run src/modules/eval-harness/subprocess-executor*.test.ts` passed: 5 test files, 22 tests.
+- `pnpm run typecheck` passed.
+- `pnpm run lint` passed.
+- `pnpm run validate-tasks` passed after `git add -A` staged the task move.

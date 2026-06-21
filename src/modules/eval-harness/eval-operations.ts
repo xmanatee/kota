@@ -16,19 +16,8 @@ import {
   PRESET_ENV_VAR,
   resolveActivePresetFromConfig,
 } from "#core/model/preset.js";
-import { getCriticPromptHash } from "#modules/autonomy/critic.js";
-import {
-  aggregateCalibration,
-  DEFAULT_CALIBRATION_MIN_SAMPLE,
-  DEFAULT_CALIBRATION_THRESHOLD_RATE,
-  DEFAULT_PASS_WITH_WARNINGS_MIN_SAMPLE,
-  DEFAULT_PASS_WITH_WARNINGS_THRESHOLD_RATE,
-  evaluateCalibrationGate,
-} from "#modules/autonomy/evaluator-calibration.js";
 import { loadBaseline } from "./baseline-store.js";
 import type {
-  EvalCalibrationOptions,
-  EvalCalibrationResult,
   EvalListResult,
   EvalRunOptions,
   EvalRunResult,
@@ -60,9 +49,10 @@ import {
   type SubprocessIsolationBackend,
 } from "./subprocess-executor.js";
 
+export { runEvalCalibration } from "./eval-calibration-operation.js";
+
 export const DEFAULT_HOST_CLASS = "local-dev";
 const DEFAULT_REPEATS = 3;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 function fixturesRootFor(projectDir: string): string {
   return join(projectDir, "src/modules/eval-harness/fixtures");
@@ -284,32 +274,5 @@ export async function runEvalHarness(
     ),
     baselineConfigurationComparison,
     runArtifactBaseDir: report.runArtifactBaseDir,
-  };
-}
-
-export function runEvalCalibration(
-  projectDir: string,
-  options: EvalCalibrationOptions = {},
-): EvalCalibrationResult {
-  const windowDays = options.windowDays ?? 7;
-  const followUpDays = options.followUpDays ?? 3;
-  const thresholdRate = options.thresholdRate ?? DEFAULT_CALIBRATION_THRESHOLD_RATE;
-  const minSample = options.minSample ?? DEFAULT_CALIBRATION_MIN_SAMPLE;
-  const runsDir = options.runsDir ?? join(projectDir, ".kota", "runs");
-
-  const aggregate = aggregateCalibration(runsDir, {
-    windowMs: windowDays * DAY_MS,
-    followUpWindowMs: followUpDays * DAY_MS,
-    criticPromptHash: getCriticPromptHash(),
-  });
-  const decision = evaluateCalibrationGate(aggregate, {
-    thresholdRate,
-    minSample,
-    passWithWarningsThresholdRate: DEFAULT_PASS_WITH_WARNINGS_THRESHOLD_RATE,
-    passWithWarningsMinSample: DEFAULT_PASS_WITH_WARNINGS_MIN_SAMPLE,
-  });
-  return {
-    aggregate: aggregate as unknown as Record<string, unknown>,
-    decision: decision as unknown as Record<string, unknown>,
   };
 }

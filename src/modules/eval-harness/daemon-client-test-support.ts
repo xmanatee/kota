@@ -4,6 +4,7 @@ import type {
   DaemonTransport,
 } from "#core/server/daemon-transport.js";
 import type {
+  EvalCalibrationResult,
   EvalListResult,
   EvalRunResult,
 } from "./client.js";
@@ -78,6 +79,30 @@ export const SAMPLE_CODE_HEALTH: CodeHealthAggregate = {
     "source-size-growth": 0,
     "duplicated-implementation-chunk": 0,
     "complexity-concentration": 0,
+  },
+};
+
+export const SAMPLE_CALIBRATION_AGGREGATE: EvalCalibrationResult["aggregate"] = {
+  windowStartMs: 0,
+  windowEndMs: 1,
+  totalRuns: 0,
+  byVerdict: {
+    pass: 0,
+    pass_with_warnings: 0,
+    fail: 0,
+    absent: 0,
+  },
+  passContradictionCount: 0,
+  passContradictionRate: 0,
+  passWithWarningsFollowUpCount: 0,
+  passWithWarningsFollowUpRate: 0,
+};
+
+export const SAMPLE_CALIBRATION_RESULT: EvalCalibrationResult = {
+  aggregate: SAMPLE_CALIBRATION_AGGREGATE,
+  decision: {
+    status: "insufficient-sample",
+    reason: "No calibration samples in test fixture.",
   },
 };
 

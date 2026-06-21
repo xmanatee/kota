@@ -19,6 +19,30 @@ import {
   KOTA_CLIENT_NAMESPACES,
 } from "./kota-client.js";
 
+const EMPTY_EVAL_CALIBRATION_RESULT: Awaited<
+  ReturnType<DaemonClientHandlers["evalHarness"]["calibration"]>
+> = {
+  aggregate: {
+    windowStartMs: 0,
+    windowEndMs: 0,
+    totalRuns: 0,
+    byVerdict: {
+      pass: 0,
+      pass_with_warnings: 0,
+      fail: 0,
+      absent: 0,
+    },
+    passContradictionCount: 0,
+    passContradictionRate: 0,
+    passWithWarningsFollowUpCount: 0,
+    passWithWarningsFollowUpRate: 0,
+  },
+  decision: {
+    status: "insufficient-sample",
+    reason: "No calibration samples in test stub.",
+  },
+};
+
 /**
  * Namespaces already migrated out of the core stub into their owning
  * module's `daemonClient(link)` factory. The stub no longer covers them;
@@ -293,7 +317,7 @@ function makeStubEvalHarness(): DaemonClientHandlers["evalHarness"] {
       reason: "no_fixtures",
       message: "stub",
     }),
-    calibration: async () => ({ aggregate: {}, decision: {} }),
+    calibration: async () => EMPTY_EVAL_CALIBRATION_RESULT,
   };
 }
 

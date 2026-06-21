@@ -10,6 +10,10 @@
  * `ctx.client.evalHarness` or by importing these types from
  * `#modules/eval-harness/client.js`.
  */
+import type {
+  CalibrationGateDecision,
+  EvaluatorCalibrationAggregate,
+} from "#modules/autonomy/evaluator-calibration.js";
 import type { CodeHealthAggregate } from "./code-health-diagnostics.js";
 import type { EvalComponentAttributionOperatorSummary } from "./eval-attribution.js";
 import type {
@@ -109,13 +113,13 @@ export type EvalCalibrationOptions = {
 };
 
 /**
- * Result of `evalHarness.calibration`. The aggregate and decision payloads
- * are surfaced as plain JSON records so the contract avoids coupling to
- * the autonomy module's internal types.
+ * Result of `evalHarness.calibration`. This operator-facing contract carries
+ * the precise evaluator-calibration payloads so downstream code does not
+ * erase validated domain data back into raw JSON records.
  */
 export type EvalCalibrationResult = {
-  aggregate: Record<string, unknown>;
-  decision: Record<string, unknown>;
+  aggregate: EvaluatorCalibrationAggregate;
+  decision: CalibrationGateDecision;
 };
 
 /**

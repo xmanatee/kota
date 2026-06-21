@@ -24,6 +24,30 @@ import {
   runNavigator,
 } from "./navigator.js";
 
+const EMPTY_EVAL_CALIBRATION_RESULT: Awaited<
+  ReturnType<KotaClient["evalHarness"]["calibration"]>
+> = {
+  aggregate: {
+    windowStartMs: 0,
+    windowEndMs: 0,
+    totalRuns: 0,
+    byVerdict: {
+      pass: 0,
+      pass_with_warnings: 0,
+      fail: 0,
+      absent: 0,
+    },
+    passContradictionCount: 0,
+    passContradictionRate: 0,
+    passWithWarningsFollowUpCount: 0,
+    passWithWarningsFollowUpRate: 0,
+  },
+  decision: {
+    status: "insufficient-sample",
+    reason: "No calibration samples in test stub.",
+  },
+};
+
 function makePrompt(answers: string[]): NavigatorPrompt {
   let i = 0;
   return {
@@ -260,7 +284,7 @@ function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
         },
       }),
       run: stub({ ok: false, reason: "no_fixtures", message: "stub" }),
-      calibration: stub({ aggregate: {}, decision: {} }),
+      calibration: stub(EMPTY_EVAL_CALIBRATION_RESULT),
     },
     recall: {
       recall: stub({ ok: true, hits: [] }),

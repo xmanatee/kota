@@ -31,8 +31,7 @@
  *  6. `EvalListResult` decodes correctly through `requestStrict<T>` (the
  *     `fixtures` array and coverage summary pass through unchanged).
  *  7. `EvalCalibrationResult` decodes correctly through `requestStrict<T>`
- *     (the `aggregate` and `decision` `Record<string, unknown>` fields
- *     pass through unchanged).
+ *     (the typed `aggregate` and `decision` fields pass through unchanged).
  *  8. Supplying the contribution to the assembly path satisfies coverage.
  *  9. Removing the eval-harness module's daemonClient contribution makes
  *     the assembled client fail loudly with a clear "evalHarness" missing-
@@ -50,6 +49,8 @@ import type {
 } from "./client.js";
 import {
   makeRecordingTransport,
+  SAMPLE_CALIBRATION_AGGREGATE,
+  SAMPLE_CALIBRATION_RESULT,
   SAMPLE_CODE_HEALTH,
   SAMPLE_COMPONENT_ATTRIBUTION,
   SAMPLE_CONTROL_DECISION_COVERAGE,
@@ -208,10 +209,7 @@ describe("eval-harness module daemonClient(link)", () => {
   });
 
   it("routes calibration() with no options through GET /eval/calibration with no query string", async () => {
-    const wireResult: EvalCalibrationResult = {
-      aggregate: { totalRuns: 0 },
-      decision: { status: "noop" },
-    };
+    const wireResult = SAMPLE_CALIBRATION_RESULT;
     const { transport, calls } = makeRecordingTransport(() => wireResult);
     const contributed = evalHarnessModule.daemonClient!(transport);
     const result = await contributed.evalHarness!.calibration();
@@ -228,10 +226,7 @@ describe("eval-harness module daemonClient(link)", () => {
   });
 
   it("threads calibration() options into URLSearchParams in windowDays, followUpDays, thresholdRate, minSample, runsDir insertion order", async () => {
-    const wireResult: EvalCalibrationResult = {
-      aggregate: {},
-      decision: {},
-    };
+    const wireResult = SAMPLE_CALIBRATION_RESULT;
     const { transport, calls } = makeRecordingTransport(() => wireResult);
     const contributed = evalHarnessModule.daemonClient!(transport);
     await contributed.evalHarness!.calibration({
@@ -246,15 +241,24 @@ describe("eval-harness module daemonClient(link)", () => {
     );
   });
 
-  it("decodes EvalCalibrationResult Record<string, unknown> fields unchanged", async () => {
+  it("decodes EvalCalibrationResult fields unchanged", async () => {
     const wireResult: EvalCalibrationResult = {
       aggregate: {
+        ...SAMPLE_CALIBRATION_AGGREGATE,
         totalRuns: 12,
-        nested: { a: [1, 2, 3], b: "x" },
+        byVerdict: {
+          pass: 8,
+          pass_with_warnings: 2,
+          fail: 1,
+          absent: 1,
+        },
+        passContradictionCount: 3,
+        passContradictionRate: 0.375,
       },
       decision: {
         status: "gated",
         reason: "contradiction-rate-above-threshold",
+        kinds: ["pass-contradiction"],
       },
     };
     const { transport } = makeRecordingTransport(() => wireResult);
