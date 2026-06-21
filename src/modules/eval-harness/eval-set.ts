@@ -9,10 +9,17 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { PersistedBaseline } from "./baseline-store.js";
 import {
   aggregateCodeHealthDiagnostics,
   type CodeHealthAggregate,
 } from "./code-health-diagnostics.js";
+import {
+  buildEvalComponentAttribution,
+  collectFixtureRunAttributionEvidence,
+  type EvalComponentAttribution,
+  type EvalFixtureRunAttributionEvidence,
+} from "./eval-attribution.js";
 import {
   type FixtureControlDecisionCoverageSummary,
   type LoadedFixture,
@@ -61,6 +68,7 @@ export type EvalSetParams = {
   requestedProfile: ResourceProfile;
   runArtifactBaseDir: string;
   repeatCount: number;
+  priorBaseline?: PersistedBaseline | null;
   /**
    * Whether to retain fixture working directories after the run. False by
    * default; set true from CLI `--keep` for post-mortem debugging.
@@ -77,6 +85,7 @@ export type EvalSetReport = {
   objectiveMetrics: readonly AggregateObjectiveMetric[];
   codeHealth: CodeHealthAggregate;
   runConfiguration: EvalRunConfiguration;
+  componentAttribution: EvalComponentAttribution;
   resourceProfile: ResourceProfile;
   executionProfile: ExecutionProfilePreflightResult;
   repeatCount: number;
@@ -116,6 +125,7 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
   const startedAt = new Date().toISOString();
 
   const runs: FixtureRun[] = [];
+  const runArtifactEvidence: EvalFixtureRunAttributionEvidence[] = [];
   const resolvedHarnessModelEvidence =
     createResolvedHarnessModelEvidenceAccumulator();
   for (const fixture of params.fixtures) {
@@ -134,6 +144,7 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
         fixture,
         report,
       );
+      runArtifactEvidence.push(collectFixtureRunAttributionEvidence(report.run));
       if (!params.keepWorkingDirs) {
         cleanupFixtureWorkingDir(report.workingDir);
       }
@@ -156,6 +167,20 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
       resolvedHarnessModelEvidence,
     ),
   });
+  const componentAttribution = buildEvalComponentAttribution({
+    priorBaseline: params.priorBaseline ?? null,
+    runs,
+    perFixture,
+    fixtureDiagnostics,
+    objectiveMetrics,
+    codeHealth,
+    runConfiguration,
+    resourceProfile,
+    executionProfile,
+    repeatCount: params.repeatCount,
+    runArtifactBaseDir: params.runArtifactBaseDir,
+    runArtifactEvidence,
+  });
 
   writeFileSync(
     join(params.runArtifactBaseDir, "eval-set-report.json"),
@@ -174,6 +199,7 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
         objectiveMetrics,
         codeHealth,
         runConfiguration,
+        componentAttribution,
       },
       null,
       2,
@@ -189,6 +215,7 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
     objectiveMetrics,
     codeHealth,
     runConfiguration,
+    componentAttribution,
     resourceProfile,
     executionProfile,
     repeatCount: params.repeatCount,

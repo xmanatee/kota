@@ -186,6 +186,9 @@ describe("runEvalSet", () => {
     expect(raw.repeatCount).toBe(3);
     expect(raw.executionProfile.status).toBe("verified");
     expect(raw.runs).toHaveLength(6);
+    expect(raw.runs).toEqual(
+      expect.arrayContaining([expect.objectContaining({ executionMode: "live" })]),
+    );
     expect(raw.fixtureDiagnostics.aggregate.repeatUnstable).toBe(1);
     expect(raw.fixtureDiagnostics.perFixture).toContainEqual(
       expect.objectContaining({
@@ -206,6 +209,22 @@ describe("runEvalSet", () => {
     ]);
     expect(raw.runConfiguration.components.sourceIdentity.status).toBe(
       "unavailable",
+    );
+    expect(raw.componentAttribution.schemaVersion).toBe(1);
+    expect(raw.componentAttribution.baseline.status).toBe("no-baseline");
+    expect(raw.componentAttribution.components.map((entry: { id: string }) => entry.id)).toEqual([
+      "model-preset",
+      "harness-execution",
+      "prompt-skill-context",
+      "fixture-verifier",
+      "environment-resource",
+      "feedback-loop",
+    ]);
+    expect(raw.componentAttribution.perFixture).toContainEqual(
+      expect.objectContaining({
+        fixtureId: "beta",
+        outcomeDelta: "no-baseline",
+      }),
     );
     expect(
       raw.runConfiguration.components.resolvedHarnessModelEvidence.status,

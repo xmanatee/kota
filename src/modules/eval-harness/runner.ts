@@ -60,6 +60,7 @@ import type {
   ExecutionProfilePreflightResult,
   FixtureRoundRun,
   FixtureRun,
+  FixtureRunExecutionMode,
   FixtureRunOutcome,
   ResourceProfile,
   SkillAblationObjectiveMetric,
@@ -342,6 +343,10 @@ function materializeFixtureWorkingDir(fixture: LoadedFixture): {
     fixture,
     workingDir: mkdtempSync(join(tmpdir(), `kota-eval-${fixture.spec.id}-`)),
   });
+}
+
+function fixtureExecutionMode(fixture: LoadedFixture): FixtureRunExecutionMode {
+  return fixture.agentStepRecordings.length > 0 ? "replay" : "live";
 }
 
 function outcomeFromExecution(
@@ -1376,6 +1381,7 @@ async function runSingleWorkflowFixture(
       fixtureId: params.fixture.spec.id,
       runIndex: params.runIndex,
       repeatCount: params.repeatCount,
+      executionMode: fixtureExecutionMode(params.fixture),
       outcome: outcomeFromExecution(executionOutcome, false),
       resourceProfile,
       executionProfile: params.executionProfile,
@@ -1429,6 +1435,7 @@ async function runSingleWorkflowFixture(
       fixtureId: params.fixture.spec.id,
       runIndex: params.runIndex,
       repeatCount: params.repeatCount,
+      executionMode: fixtureExecutionMode(params.fixture),
       outcome: outcomeFromExecution(executionOutcome, false),
       resourceProfile,
       executionProfile: params.executionProfile,
@@ -1510,6 +1517,7 @@ async function runSingleWorkflowFixture(
     fixtureId: params.fixture.spec.id,
     runIndex: params.runIndex,
     repeatCount: params.repeatCount,
+    executionMode: fixtureExecutionMode(params.fixture),
     outcome,
     resourceProfile,
     executionProfile: params.executionProfile,
@@ -1746,6 +1754,7 @@ async function runSkillAblationFixture(
     fixtureId: spec.id,
     runIndex: params.runIndex,
     repeatCount: params.repeatCount,
+    executionMode: fixtureExecutionMode(params.fixture),
     outcome,
     resourceProfile,
     executionProfile: params.executionProfile,
@@ -1828,6 +1837,7 @@ async function runMultiRoundFixture(
       fixtureId: spec.id,
       runIndex: params.runIndex,
       repeatCount: params.repeatCount,
+      executionMode: fixtureExecutionMode(params.fixture),
       outcome: outcomeFromExecution(executionOutcome, false),
       resourceProfile,
       executionProfile: params.executionProfile,
@@ -1946,6 +1956,7 @@ async function runMultiRoundFixture(
     fixtureId: spec.id,
     runIndex: params.runIndex,
     repeatCount: params.repeatCount,
+    executionMode: fixtureExecutionMode(params.fixture),
     outcome,
     resourceProfile,
     executionProfile: params.executionProfile,

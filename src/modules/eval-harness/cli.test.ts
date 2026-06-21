@@ -132,6 +132,16 @@ const SAMPLE_RUN_CONFIGURATION: Extract<
   },
 };
 
+const SAMPLE_COMPONENT_ATTRIBUTION: Extract<
+  EvalRunResult,
+  { ok: true }
+>["componentAttribution"] = {
+  summary: "component attribution: comparable eval population with no observed component or fixture outcome deltas",
+  artifactPath: "/tmp/eval-run/eval-set-report.json",
+  baselineStatus: "comparable",
+  changedComponents: [],
+};
+
 function makeListCtx(result: EvalListResult): ModuleContext {
   const evalHarness: EvalHarnessClient = {
     async list() {
@@ -149,6 +159,7 @@ function makeListCtx(result: EvalListResult): ModuleContext {
         codeHealth: EMPTY_CODE_HEALTH,
         fixtureDiagnostics: EMPTY_FIXTURE_DIAGNOSTICS,
         runConfiguration: SAMPLE_RUN_CONFIGURATION,
+        componentAttribution: SAMPLE_COMPONENT_ATTRIBUTION,
         baselineConfigurationComparison: null,
         runArtifactBaseDir: "/tmp/eval-run",
       };
@@ -188,6 +199,8 @@ function makeRunRecordingCtx(
         baselineConfigurationComparison: null,
         runArtifactBaseDir: "/tmp/eval-run",
         ...resultOverrides,
+        componentAttribution:
+          resultOverrides.componentAttribution ?? SAMPLE_COMPONENT_ATTRIBUTION,
       };
     },
     async calibration() {
@@ -612,6 +625,9 @@ describe("kota eval run CLI", () => {
     expect(text).toContain("codex (default) via codex");
     expect(text).toContain("configuration mismatch:");
     expect(text).toContain("fixture-manifest-drift");
+    expect(text).toContain("attribution:");
+    expect(text).toContain("changed=none");
+    expect(text).toContain("/tmp/eval-run/eval-set-report.json");
   });
 
   it("rejects container fields unless the operator selects container isolation", async () => {

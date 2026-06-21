@@ -33,6 +33,7 @@ import type {
   EvalRunOptions,
   EvalRunResult,
 } from "./client.js";
+import { toEvalComponentAttributionOperatorSummary } from "./eval-attribution.js";
 import { runEvalSet } from "./eval-set.js";
 import { evalHarnessSetCompleted } from "./events.js";
 import {
@@ -210,6 +211,7 @@ export async function runEvalHarness(
   });
   const requestedProfile = buildProfile(options, DEFAULT_HOST_CLASS);
   const repeatCount = options.repeatCount ?? DEFAULT_REPEATS;
+  const priorBaseline = loadBaseline(projectDir);
   let report: Awaited<ReturnType<typeof runEvalSet>>;
   try {
     report = await runEvalSet({
@@ -219,6 +221,7 @@ export async function runEvalHarness(
       requestedProfile,
       runArtifactBaseDir: realpathSync(runArtifactBaseDir),
       repeatCount,
+      priorBaseline,
       keepWorkingDirs: options.keepWorkingDirs ?? false,
     });
   } catch (err) {
@@ -250,7 +253,6 @@ export async function runEvalHarness(
     });
   }
 
-  const priorBaseline = loadBaseline(projectDir);
   const baselineConfigurationComparison =
     priorBaseline === null
       ? null
@@ -272,6 +274,9 @@ export async function runEvalHarness(
     codeHealth: report.codeHealth,
     fixtureDiagnostics: report.fixtureDiagnostics,
     runConfiguration: toRunConfigurationOperatorSummary(report.runConfiguration),
+    componentAttribution: toEvalComponentAttributionOperatorSummary(
+      report.componentAttribution,
+    ),
     baselineConfigurationComparison,
     runArtifactBaseDir: report.runArtifactBaseDir,
   };

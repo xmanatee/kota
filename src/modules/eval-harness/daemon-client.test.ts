@@ -139,6 +139,16 @@ const SAMPLE_RUN_CONFIGURATION: Extract<
   },
 };
 
+const SAMPLE_COMPONENT_ATTRIBUTION: Extract<
+  EvalRunResult,
+  { ok: true }
+>["componentAttribution"] = {
+  summary: "component attribution: comparable eval population with no observed component or fixture outcome deltas",
+  artifactPath: "/tmp/eval-runs/run-x/eval-set-report.json",
+  baselineStatus: "comparable",
+  changedComponents: [],
+};
+
 function makeRecordingTransport(
   responder: (
     method: string,
@@ -231,6 +241,7 @@ describe("eval-harness module daemonClient(link)", () => {
       codeHealth: SAMPLE_CODE_HEALTH,
       fixtureDiagnostics: SAMPLE_FIXTURE_DIAGNOSTICS,
       runConfiguration: SAMPLE_RUN_CONFIGURATION,
+      componentAttribution: SAMPLE_COMPONENT_ATTRIBUTION,
       baselineConfigurationComparison: null,
       runArtifactBaseDir: "/tmp/eval-runs/run-x",
     };
@@ -261,6 +272,7 @@ describe("eval-harness module daemonClient(link)", () => {
       codeHealth: SAMPLE_CODE_HEALTH,
       fixtureDiagnostics: SAMPLE_FIXTURE_DIAGNOSTICS,
       runConfiguration: SAMPLE_RUN_CONFIGURATION,
+      componentAttribution: SAMPLE_COMPONENT_ATTRIBUTION,
       baselineConfigurationComparison: null,
       runArtifactBaseDir: "/tmp/eval-runs/run-y",
     };

@@ -1,13 +1,13 @@
 ---
 id: task-report-per-component-eval-attribution-for-score-mo
 title: Report per-component eval attribution for score movement
-status: ready
+status: done
 priority: p2
 area: modules
 task_class: Platform
 summary: Derive a typed eval-harness attribution report from existing run-configuration, fixture, trajectory, and verifier evidence so score changes identify which component changed instead of stopping at an opaque end-to-end delta.
 created_at: 2026-06-20T23:40:59.483Z
-updated_at: 2026-06-20T23:40:59.483Z
+updated_at: 2026-06-21T00:02:26.844Z
 ---
 
 ## Problem

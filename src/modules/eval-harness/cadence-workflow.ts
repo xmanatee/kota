@@ -109,6 +109,7 @@ const runHarness = typedCodeStep<CadenceResult>({
     const runArtifactBaseDir = join(workflow.runDirPath, "eval-runs");
     const requestedProfile =
       detectHostSubprocessResourceProfile(CADENCE_HOST_CLASS);
+    const priorBaseline = loadBaseline(projectDir);
     const report = await runEvalSet({
       projectDir,
       fixtures,
@@ -116,13 +117,14 @@ const runHarness = typedCodeStep<CadenceResult>({
       requestedProfile,
       runArtifactBaseDir,
       repeatCount: CADENCE_REPEAT_COUNT,
+      priorBaseline,
     });
 
-    const priorBaseline = loadBaseline(projectDir);
     const assessment = assessAgainstBaseline(priorBaseline, {
       aggregate: report.aggregate,
       executionProfile: report.executionProfile,
       runConfiguration: report.runConfiguration,
+      componentAttribution: report.componentAttribution,
       runArtifactBaseDir: report.runArtifactBaseDir,
       recordedAt: report.completedAt,
     });
@@ -168,6 +170,7 @@ const runHarness = typedCodeStep<CadenceResult>({
           resourceProfile: report.resourceProfile,
           executionProfile: report.executionProfile,
           runConfiguration: report.runConfiguration,
+          componentAttribution: report.componentAttribution,
           startedAt: report.startedAt,
           completedAt: report.completedAt,
           assessment: summarizeAssessment(assessment),

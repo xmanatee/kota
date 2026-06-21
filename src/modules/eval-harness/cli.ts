@@ -412,6 +412,23 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
             ]
           : []),
       ];
+      const attributionRows = [
+        line(
+          plain("attribution: "),
+          span(result.componentAttribution.baselineStatus, "info"),
+          plain(
+            ` changed=${result.componentAttribution.changedComponents.join(",") || "none"}`,
+          ),
+        ),
+        line(
+          plain("  summary: "),
+          span(result.componentAttribution.summary, "muted"),
+        ),
+        line(
+          plain("  report: "),
+          span(result.componentAttribution.artifactPath, "muted"),
+        ),
+      ];
       print(stack(
         line(
           plain("eval-set done: "),
@@ -433,6 +450,7 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
         ),
         line(span(`artifacts: ${result.runArtifactBaseDir}`, "muted")),
         ...configurationRows,
+        ...attributionRows,
         ...repeatUnstableRows,
         ...codeHealthRows,
         ...metricRows,

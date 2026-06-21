@@ -11,6 +11,7 @@
  * `#modules/eval-harness/client.js`.
  */
 import type { CodeHealthAggregate } from "./code-health-diagnostics.js";
+import type { EvalComponentAttributionOperatorSummary } from "./eval-attribution.js";
 import type {
   FixtureControlDecision,
   FixtureControlDecisionCoverageSummary,
@@ -81,6 +82,7 @@ export type EvalRunResult =
       codeHealth: CodeHealthAggregate;
       fixtureDiagnostics: FixtureDiagnosticsReport;
       runConfiguration: EvalRunConfigurationOperatorSummary;
+      componentAttribution: EvalComponentAttributionOperatorSummary;
       baselineConfigurationComparison: EvalRunConfigurationComparison | null;
       runArtifactBaseDir: string;
     }

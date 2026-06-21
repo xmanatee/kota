@@ -117,6 +117,8 @@ export type FixtureRunOutcome =
   | "error"
   | "configuration-error";
 
+export type FixtureRunExecutionMode = "live" | "replay";
+
 export type FixtureRoundRun = {
   roundId: string;
   /** 0-based index within the fixture's ordered round list. */
@@ -211,6 +213,12 @@ export type FixtureRun = {
   runIndex: number;
   /** Total number of runs planned for this fixture in this repeat set. */
   repeatCount: number;
+  /**
+   * Whether the fixture executed against live agent/tool calls or replayed
+   * fixture-owned agent-step recordings. Older reports may omit this field;
+   * attribution treats missing mode as live for backward compatibility.
+   */
+  executionMode?: FixtureRunExecutionMode;
   outcome: FixtureRunOutcome;
   resourceProfile: ResourceProfile;
   executionProfile: ExecutionProfilePreflightResult;

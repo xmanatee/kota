@@ -4,6 +4,7 @@ import {
   type CandidateAssessment,
 } from "./baseline-assessment.js";
 import type { PersistedBaseline } from "./baseline-store.js";
+import type { EvalComponentAttribution } from "./eval-attribution.js";
 import type {
   ExecutionProfilePreflightResult,
   ResourceProfile,
@@ -64,6 +65,8 @@ function candidate(
   passAtK: number,
   overrides: Partial<CandidateAssessment> = {},
 ): CandidateAssessment {
+  const componentAttribution =
+    overrides.componentAttribution ?? sampleComponentAttribution();
   return {
     aggregate: { fixtureCount: 4, repeatCount: 3, passAtK, passHatK },
     executionProfile: verifiedProfile(),
@@ -71,6 +74,7 @@ function candidate(
     runArtifactBaseDir: "/tmp/fresh/eval-runs",
     recordedAt: "2026-04-27T12:00:00.000Z",
     ...overrides,
+    componentAttribution,
   };
 }
 
@@ -145,6 +149,40 @@ function runConfiguration(
   };
 }
 
+function emptyDiagnostic() {
+  return {
+    status: "missing" as const,
+    artifactCount: 0,
+    warningCount: 0,
+    codes: [],
+  };
+}
+
+function sampleComponentAttribution(
+  overrides: Partial<EvalComponentAttribution> = {},
+): EvalComponentAttribution {
+  return {
+    schemaVersion: 1,
+    summary: "component attribution: no deltas",
+    artifactPath: "/tmp/fresh/eval-runs/eval-set-report.json",
+    baseline: {
+      status: "comparable",
+      reason: null,
+      priorRunArtifactBaseDir: "/tmp/prior/eval-runs",
+      candidateRunArtifactBaseDir: "/tmp/fresh/eval-runs",
+      changedComponents: [],
+    },
+    components: [],
+    diagnostics: {
+      verifierCalibration: emptyDiagnostic(),
+      trajectoryDiagnostics: emptyDiagnostic(),
+      contextRetrievalDiagnostics: emptyDiagnostic(),
+    },
+    perFixture: [],
+    ...overrides,
+  };
+}
+
 describe("assessAgainstBaseline", () => {
   it("first-run (no prior baseline) records the candidate but does not gate", () => {
     const result = assessAgainstBaseline(null, candidate(1, 1));
@@ -154,6 +192,7 @@ describe("assessAgainstBaseline", () => {
     expect(result.baselineToRecord.recordedAt).toBe(
       "2026-04-27T12:00:00.000Z",
     );
+    expect(result.componentAttribution.changedComponents).toEqual([]);
   });
 
   it("gates on a pass^k drop beyond the noise band with a stable profile", () => {
@@ -285,6 +324,16 @@ describe("assessAgainstBaseline", () => {
           },
           fingerprint: "fingerprint-preset-b",
         }),
+        componentAttribution: sampleComponentAttribution({
+          summary: "component attribution: changedComponents=model-preset",
+          baseline: {
+            status: "non-comparable",
+            reason: "active-preset-drift",
+            priorRunArtifactBaseDir: "/tmp/prior/eval-runs",
+            candidateRunArtifactBaseDir: "/tmp/fresh/eval-runs",
+            changedComponents: ["model-preset"],
+          },
+        }),
       }),
     );
     expect(result.status).toBe("non-gating");
@@ -292,6 +341,10 @@ describe("assessAgainstBaseline", () => {
       throw new Error("unreachable");
     }
     expect(result.reason).toBe("active-preset-drift");
+    expect(result.componentAttribution.baselineStatus).toBe("non-comparable");
+    expect(result.componentAttribution.changedComponents).toEqual([
+      "model-preset",
+    ]);
     expect(result.baselineToRecord.runConfiguration.fingerprint).toBe(
       "fingerprint-preset-b",
     );

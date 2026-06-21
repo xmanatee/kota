@@ -9,6 +9,11 @@
  */
 
 import type { PersistedBaseline } from "./baseline-store.js";
+import {
+  type EvalComponentAttribution,
+  type EvalComponentAttributionAssessmentSummary,
+  toEvalComponentAttributionAssessmentSummary,
+} from "./eval-attribution.js";
 import type {
   ExecutionProfileNonGatingReason,
   ExecutionProfilePreflightResult,
@@ -34,6 +39,7 @@ export type CandidateAssessment = {
   aggregate: AggregateScore;
   executionProfile: ExecutionProfilePreflightResult;
   runConfiguration: EvalRunConfiguration;
+  componentAttribution: EvalComponentAttribution;
   runArtifactBaseDir: string;
   /** ISO timestamp of the cadence run that produced the candidate. */
   recordedAt: string;
@@ -49,12 +55,14 @@ export type BaselineAssessment =
       resourceProfile: ResourceProfile;
       runArtifactBaseDir: string;
       recordedAt: string;
+      componentAttribution: EvalComponentAttributionAssessmentSummary;
     }
   | {
       status: "non-gating";
       kind: "run-configuration";
       reason: EvalRunConfigurationMismatchReason;
       comparison: Extract<EvalRunConfigurationComparison, { status: "mismatch" }>;
+      componentAttribution: EvalComponentAttributionAssessmentSummary;
       /**
        * Candidate is a fresh population: persist it as the new baseline without
        * treating the prior aggregate as a normal quality comparison.
@@ -65,6 +73,7 @@ export type BaselineAssessment =
       status: "first-run";
       /** The caller MUST persist this baseline so the next cadence has a comparison point. */
       baselineToRecord: PersistedBaseline;
+      componentAttribution: EvalComponentAttributionAssessmentSummary;
     }
   | {
       status: "not-gated";
@@ -76,6 +85,7 @@ export type BaselineAssessment =
        */
       baselineToRecord: PersistedBaseline;
       noiseBandPercentagePoints: number;
+      componentAttribution: EvalComponentAttributionAssessmentSummary;
     }
   | {
       status: "gated";
@@ -88,12 +98,16 @@ export type BaselineAssessment =
        */
       priorBaseline: PersistedBaseline;
       noiseBandPercentagePoints: number;
+      componentAttribution: EvalComponentAttributionAssessmentSummary;
     };
 
 export function assessAgainstBaseline(
   prior: PersistedBaseline | null,
   candidate: CandidateAssessment,
 ): BaselineAssessment {
+  const componentAttribution = toEvalComponentAttributionAssessmentSummary(
+    candidate.componentAttribution,
+  );
   const candidateResourceProfile = resourceProfileFromExecutionProfile(
     candidate.executionProfile,
   );
@@ -109,6 +123,7 @@ export function assessAgainstBaseline(
       resourceProfile: candidateResourceProfile,
       runArtifactBaseDir: candidate.runArtifactBaseDir,
       recordedAt: candidate.recordedAt,
+      componentAttribution,
     };
   }
 
@@ -121,7 +136,11 @@ export function assessAgainstBaseline(
   };
 
   if (prior === null) {
-    return { status: "first-run", baselineToRecord: candidateBaseline };
+    return {
+      status: "first-run",
+      baselineToRecord: candidateBaseline,
+      componentAttribution,
+    };
   }
 
   const configurationComparison =
@@ -137,6 +156,7 @@ export function assessAgainstBaseline(
       kind: "run-configuration",
       reason: configurationComparison.reason,
       comparison: configurationComparison,
+      componentAttribution,
       baselineToRecord: candidateBaseline,
     };
   }
@@ -159,6 +179,7 @@ export function assessAgainstBaseline(
       dropPercentagePoints: decision.dropPercentagePoints,
       priorBaseline: prior,
       noiseBandPercentagePoints,
+      componentAttribution,
     };
   }
 
@@ -168,5 +189,6 @@ export function assessAgainstBaseline(
     dropPercentagePoints: decision.dropPercentagePoints,
     baselineToRecord: candidateBaseline,
     noiseBandPercentagePoints,
+    componentAttribution,
   };
 }

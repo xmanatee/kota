@@ -117,6 +117,28 @@ export {
   measureCodeHealth,
   parseCodeHealthDiagnosticsConfig,
 } from "./code-health-diagnostics.js";
+export type {
+  EvalAttributionBaselineStatus,
+  EvalAttributionCodeCount,
+  EvalAttributionComponentEntry,
+  EvalAttributionComponentId,
+  EvalAttributionComponentStatus,
+  EvalAttributionDiagnosticSummary,
+  EvalComponentAttribution,
+  EvalComponentAttributionAssessmentSummary,
+  EvalComponentAttributionOperatorSummary,
+  EvalFixtureArtifactEvidenceSummary,
+  EvalFixtureAttributionSummary,
+  EvalFixtureObjectiveMetricDelta,
+  EvalFixtureOutcomeAttribution,
+  EvalFixtureRunAttributionEvidence,
+} from "./eval-attribution.js";
+export {
+  buildEvalComponentAttribution,
+  collectFixtureRunAttributionEvidence,
+  toEvalComponentAttributionAssessmentSummary,
+  toEvalComponentAttributionOperatorSummary,
+} from "./eval-attribution.js";
 export type { EvalSetParams, EvalSetReport } from "./eval-set.js";
 export { runEvalSet } from "./eval-set.js";
 export type { InstalledShims } from "./external-call-shim.js";
