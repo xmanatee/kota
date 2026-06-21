@@ -1,13 +1,13 @@
 ---
 id: task-make-the-package-bin-resilient-to-source-mode-node
 title: Make the package bin resilient to source-mode NODE_OPTIONS
-status: ready
+status: done
 priority: p2
 area: architecture
 task_class: Platform
 summary: Ensure pnpm kota and bin/kota.mjs normalize source-mode NODE_OPTIONS before loading built dist so documented task and workflow commands work from source-condition shells.
 created_at: 2026-06-21T08:30:03.038Z
-updated_at: 2026-06-21T08:30:03.038Z
+updated_at: 2026-06-21T08:44:59.000Z
 ---
 
 ## Problem
@@ -127,3 +127,10 @@ out-of-band environment cleanup.
 - Transcript for the relevant existing built CLI or eval-harness subprocess
   test that proves production-resolution launches still work.
 - `pnpm run validate-tasks -- --min-ready 0` transcript.
+
+Satisfied in run `2026-06-21T08-27-39-326Z-builder-7389gr`:
+
+- `.kota/runs/2026-06-21T08-27-39-326Z-builder-7389gr/task-cli-help-transcript.txt`
+- `.kota/runs/2026-06-21T08-27-39-326Z-builder-7389gr/focused-test-transcript.txt`
+- `.kota/runs/2026-06-21T08-27-39-326Z-builder-7389gr/eval-harness-test-transcript.txt`
+- `.kota/runs/2026-06-21T08-27-39-326Z-builder-7389gr/validate-tasks-transcript.txt`

@@ -28,6 +28,7 @@ import {
 import { availableParallelism, tmpdir, totalmem } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { PRESET_ENV_VAR, resolvePreset } from "#core/model/preset.js";
+import { envWithoutSourceConditionNodeOption } from "#core/util/node-options.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { writeStderr } from "#modules/rendering/transport.js";
 import type {
@@ -649,32 +650,8 @@ function envWithReplay(
     : {};
 }
 
-function removeSourceConditionNodeOption(
-  value: string | undefined,
-): string | undefined {
-  if (value === undefined) return undefined;
-  const parts = value.split(/\s+/).filter((part) => part.length > 0);
-  const kept: string[] = [];
-  for (let index = 0; index < parts.length; index++) {
-    const part = parts[index]!;
-    if (part === "--conditions=source") continue;
-    if (part === "--conditions" && parts[index + 1] === "source") {
-      index++;
-      continue;
-    }
-    kept.push(part);
-  }
-  return kept.length > 0 ? kept.join(" ") : undefined;
-}
-
 function distCliExecutionEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const nodeOptions = removeSourceConditionNodeOption(env.NODE_OPTIONS);
-  if (nodeOptions === undefined) {
-    delete env.NODE_OPTIONS;
-  } else {
-    env.NODE_OPTIONS = nodeOptions;
-  }
-  return env;
+  return envWithoutSourceConditionNodeOption(env);
 }
 
 function hostParentExecutionEnv(
