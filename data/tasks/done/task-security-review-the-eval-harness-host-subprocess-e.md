@@ -1,12 +1,13 @@
 ---
 id: task-security-review-the-eval-harness-host-subprocess-e
 title: Security review: The eval-harness host subprocess executor forwards the full parent process environment into fixture workflow runs, so any code executing inside the default host-backed workflow subprocess can read operator secrets beyond the explicitly intended eval environment.
-status: ready
+status: done
 priority: p2
 area: security
-summary: The eval-harness host subprocess executor forwards the full parent process environment into fixture workflow runs, so any code executing inside the default host-backed workflow subprocess can read operator secrets beyond the explicitly intended eval environment.
+task_class: Safety
+summary: The eval-harness host subprocess executor now builds host-backed fixture workflow subprocess env from an explicit allowlist plus active preset auth, fixture remaps, replay env, and caller-supplied extraEnv.
 created_at: 2026-06-21T07:38:00.972Z
-updated_at: 2026-06-21T07:38:00.972Z
+updated_at: 2026-06-21T07:56:16.000Z
 ---
 
 ## Problem
@@ -34,6 +35,18 @@ claim:
 - Focused regression coverage guards the fixed boundary.
 - The task records the final verification command or artifact.
 
+## Result
+
+`src/modules/eval-harness/subprocess-executor.ts` now builds host subprocess
+environment from a small parent-env allowlist, active preset auth env, explicit
+`extraEnv`, fixture remaps (`HOME`, `KOTA_PROJECT_DIR`, `KOTA_DIST_DIR`, `PATH`),
+and replay env. The vulnerable `...process.env` spread was removed from the
+host-backed execution path.
+
+`src/modules/eval-harness/eval-operations.ts` now passes the active preset auth
+env through `extraEnv` so config-selected presets keep required harness auth
+without relying on ambient parent env inheritance.
+
 ## Source / Intent
 
 Created by security-review workflow run 2026-06-21T07-25-10-625Z-security-review-tk3g4w.
@@ -49,21 +62,15 @@ Evidence:
 
 Evidence 1:
 
-
-
 path: src/modules/eval-harness/subprocess-executor.ts
 
 line: 954
 
 excerpt:
 
-
-
 > const isolationBackend = options.isolationBackend ?? { kind: "host-subprocess" };
 
 Evidence 2:
-
-
 
 path: src/modules/eval-harness/subprocess-executor.ts
 
@@ -71,13 +78,9 @@ line: 682
 
 excerpt:
 
-
-
 > ...process.env,
 
 Evidence 3:
-
-
 
 path: src/modules/eval-harness/subprocess-executor.ts
 
@@ -85,21 +88,15 @@ line: 985
 
 excerpt:
 
-
-
 > env: hostExecutionEnv(options, request, hostKotaDistDir),
 
 Evidence 4:
-
-
 
 path: src/modules/eval-harness/subprocess-executor.ts
 
 line: 1028
 
 excerpt:
-
-
 
 > env: childSpec.env,
 
@@ -109,4 +106,7 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `pnpm exec vitest run src/modules/eval-harness/subprocess-executor.test.ts` passed: 22 tests, including a host-subprocess regression proving `KOTA_PARENT_SECRET_LEAK_TEST` and unrelated parent `OPENAI_API_KEY` are absent while `ANTHROPIC_API_KEY` for active `KOTA_PRESET=claude` and caller-supplied `extraEnv` are present.
+- `pnpm run typecheck` passed.
+- `pnpm exec biome check src/modules/eval-harness/subprocess-executor.ts src/modules/eval-harness/subprocess-executor.test.ts src/modules/eval-harness/eval-operations.ts` passed.
+- `pnpm run validate-tasks -- --min-ready 0` passed after `git add -A` staged the task move.

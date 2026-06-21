@@ -27,7 +27,7 @@ import {
 } from "node:fs";
 import { availableParallelism, tmpdir, totalmem } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
-import { PRESET_ENV_VAR } from "#core/model/preset.js";
+import { PRESET_ENV_VAR, resolvePreset } from "#core/model/preset.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { writeStderr } from "#modules/rendering/transport.js";
 import type {
@@ -130,6 +130,16 @@ const REPLAY_PRESET_ID = "claude";
 const CONTAINER_DEFAULT_PATH =
   "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
 const DOCKER_ENV_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const HOST_RUNTIME_PARENT_ENV_KEYS = [
+  "LANG",
+  "LC_ALL",
+  "LC_CTYPE",
+  "NODE_OPTIONS",
+  "TERM",
+  "TMPDIR",
+  "TEMP",
+  "TMP",
+] as const;
 
 type DockerNetworkInspectRecord = {
   Internal?: boolean;
@@ -667,19 +677,40 @@ function distCliExecutionEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return env;
 }
 
+function hostParentExecutionEnv(
+  options: SubprocessExecutorOptions,
+  baseEnv: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const key of HOST_RUNTIME_PARENT_ENV_KEYS) {
+    const value = baseEnv[key];
+    if (value !== undefined) env[key] = value;
+  }
+
+  const presetId = options.extraEnv?.[PRESET_ENV_VAR] ?? baseEnv[PRESET_ENV_VAR];
+  if (presetId !== undefined) env[PRESET_ENV_VAR] = presetId;
+  const activePreset = resolvePreset({ env: presetId }).preset;
+  for (const key of activePreset.authEnv) {
+    const value = options.extraEnv?.[key] ?? baseEnv[key];
+    if (value !== undefined) env[key] = value;
+  }
+  return env;
+}
+
 function hostExecutionEnv(
   options: SubprocessExecutorOptions,
   request: WorkflowExecutionRequest,
   kotaDistDir: string,
 ): NodeJS.ProcessEnv {
-  const basePath = process.env.PATH ?? "";
+  const basePath =
+    options.extraEnv?.PATH ?? process.env.PATH ?? CONTAINER_DEFAULT_PATH;
   const pathWithShims =
     request.externalCallShimDir !== undefined
       ? `${request.externalCallShimDir}:${basePath}`
       : basePath;
   return distCliExecutionEnv(
     withProtectedGitBareRepositoryEnv({
-      ...process.env,
+      ...hostParentExecutionEnv(options),
       ...(options.extraEnv ?? {}),
       HOME: request.workingDir,
       KOTA_PROJECT_DIR: request.workingDir,

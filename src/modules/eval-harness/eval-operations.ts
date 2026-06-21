@@ -98,9 +98,20 @@ function providerEgressTaskBoundaryForRun(
   };
 }
 
+function envForKeys(
+  keys: readonly string[],
+  env: NodeJS.ProcessEnv = process.env,
+): Record<string, string> | undefined {
+  const authEnv: Record<string, string> = {};
+  for (const key of keys) {
+    const value = env[key];
+    if (value !== undefined) authEnv[key] = value;
+  }
+  return Object.keys(authEnv).length > 0 ? authEnv : undefined;
+}
+
 function providerEgressAuthEnvForRun(
   backend: SubprocessIsolationBackend,
-  env: NodeJS.ProcessEnv = process.env,
 ): Record<string, string> | undefined {
   if (
     backend.kind !== "container" ||
@@ -108,14 +119,7 @@ function providerEgressAuthEnvForRun(
   ) {
     return undefined;
   }
-  const authEnv: Record<string, string> = {};
-  for (const key of providerEgressAuthEnvKeysFor(
-    backend.networkPolicy.provider,
-  )) {
-    const value = env[key];
-    if (value !== undefined) authEnv[key] = value;
-  }
-  return Object.keys(authEnv).length > 0 ? authEnv : undefined;
+  return envForKeys(providerEgressAuthEnvKeysFor(backend.networkPolicy.provider));
 }
 
 function executorExtraEnvForRun(
@@ -125,6 +129,7 @@ function executorExtraEnvForRun(
   const activePreset = resolveActivePresetFromConfig(loadConfig(projectDir));
   return {
     [PRESET_ENV_VAR]: activePreset.id,
+    ...(envForKeys(activePreset.authEnv) ?? {}),
     ...(providerEgressAuthEnvForRun(backend) ?? {}),
   };
 }
