@@ -130,7 +130,7 @@ function writeFakeContainerBackend(path: string): void {
       "}",
       "const result = spawnSync(args[index], commandArgs, {",
       "  cwd: workdir,",
-      "  env: { ...process.env, ...env, KOTA_FAKE_CONTAINER_VISIBLE_MOUNTS: JSON.stringify(mountTargets) },",
+      "  env: { ...env, KOTA_FAKE_CONTAINER_VISIBLE_MOUNTS: JSON.stringify(mountTargets) },",
       "  stdio: ['ignore', 'inherit', 'inherit'],",
       "});",
       "process.exit(result.status ?? 1);",
@@ -213,6 +213,47 @@ describe("createSubprocessExecutor", () => {
 
     expect(outcome.kind).toBe("completed");
     expect(outcome.runArtifactPath).toContain("run-1-noop-abc");
+  });
+
+  it("strips source-mode NODE_OPTIONS before invoking the dist CLI", async () => {
+    const fakeKota = join(binariesDir, "kota-node-options.mjs");
+    writeFakeKotaScript(
+      fakeKota,
+      [
+        "import { mkdirSync, writeFileSync } from 'node:fs';",
+        "import { join } from 'node:path';",
+        "writeFileSync(join(process.cwd(), 'env.json'), JSON.stringify({",
+        "  nodeOptions: process.env.NODE_OPTIONS,",
+        "}));",
+        "const runDir = join(process.cwd(), '.kota', 'runs', 'run-1-noop-node-options');",
+        "mkdirSync(runDir, { recursive: true });",
+        "writeFileSync(join(runDir, 'metadata.json'), JSON.stringify({",
+        "  id: 'run-1-noop-node-options', workflow: 'noop', status: 'success',",
+        "}));",
+      ].join("\n"),
+    );
+    const previousNodeOptions = process.env.NODE_OPTIONS;
+    process.env.NODE_OPTIONS = "--conditions=source --max-old-space-size=2048";
+    try {
+      const executor = createSubprocessExecutor({ kotaBinaryPath: fakeKota });
+      const outcome = await executor.execute({
+        workflowName: "noop",
+        workingDir,
+        budgetMs: 5_000,
+      });
+
+      expect(outcome.kind).toBe("completed");
+      const envCapture = JSON.parse(
+        readFileSync(join(workingDir, "env.json"), "utf8"),
+      ) as Record<string, string>;
+      expect(envCapture.nodeOptions).toBe("--max-old-space-size=2048");
+    } finally {
+      if (previousNodeOptions === undefined) {
+        delete process.env.NODE_OPTIONS;
+      } else {
+        process.env.NODE_OPTIONS = previousNodeOptions;
+      }
+    }
   });
 
   it("reports the new terminal run when prior rounds used the same workflow", async () => {
@@ -715,6 +756,7 @@ describe("createSubprocessExecutor", () => {
         "  home: process.env.HOME,",
         "  projectDir: process.env.KOTA_PROJECT_DIR,",
         "  distDir: process.env.KOTA_DIST_DIR,",
+        "  nodeOptions: process.env.NODE_OPTIONS,",
         "  path: process.env.PATH,",
         `  preset: process.env.${PRESET_ENV_VAR},`,
         `  replayRoot: process.env.${REPLAY_AGENT_HARNESS_NAME_ENV},`,
@@ -783,6 +825,7 @@ describe("createSubprocessExecutor", () => {
     expect(envCapture.replayRoot).toBe(replayRoot);
     expect(envCapture.replayContent).toBe("recorded");
     expect(envCapture.path.startsWith(`${shimDir}:`)).toBe(true);
+    expect(envCapture.nodeOptions).toBeUndefined();
     expect(existsSync(join(workingDir, "shim-hit.txt"))).toBe(true);
 
     const log = JSON.parse(

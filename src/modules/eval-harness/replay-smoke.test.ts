@@ -58,13 +58,9 @@
  * Local devs who run `pnpm test` against a stale dist will see this test
  * surface that gap loudly rather than silently — which is the point.
  *
- * `pnpm test` sets `NODE_OPTIONS=--conditions=source` so vitest itself
- * imports the TypeScript sources. That env var would propagate to the
- * subprocess and make `dist/cli.js`'s `#core/*` imports resolve to
- * `.ts` files that plain `node` cannot load, so the subprocess crashes
- * before producing a run. The test clears `NODE_OPTIONS` for the child
- * to keep the production resolution path (default → `dist/*.js`) the
- * cadence and CLI subprocess paths use.
+ * The subprocess executor strips source-mode `NODE_OPTIONS` before launching
+ * `dist/cli.js`, so this test exercises the same production resolution path
+ * the cadence and CLI subprocess paths use.
  */
 
 import { mkdtempSync, rmSync } from "node:fs";
@@ -105,7 +101,6 @@ describe("eval-harness shipped replay-fixture smoke gate", () => {
         );
         const executor = createSubprocessExecutor({
           kotaBinaryPath: resolve(join(PROJECT_DIR, "bin/kota.mjs")),
-          extraEnv: { NODE_OPTIONS: "" },
         });
         const executionProfile = executor.preflight(
           detectHostSubprocessResourceProfile("pnpm-test-smoke"),

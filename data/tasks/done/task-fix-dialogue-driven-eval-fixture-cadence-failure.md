@@ -1,12 +1,12 @@
 ---
 id: task-fix-dialogue-driven-eval-fixture-cadence-failure
 title: Fix dialogue-driven eval fixture cadence failure
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Repair `builder-dialogue-driven-coding` so eval-harness cadence produces the required `dialogue-result.json` objective-metric source instead of failing after the fixture task is marked done.
 created_at: 2026-06-21T06:04:36.318Z
-updated_at: 2026-06-21T06:04:36.318Z
+updated_at: 2026-06-21T06:34:44.208Z
 ---
 
 ## Problem
@@ -46,3 +46,5 @@ Outcome-aware autonomy progress review.
 ## Acceptance Evidence
 
 - `pnpm kota eval run --fixture builder-dialogue-driven-coding --repeats 1` or the next eval-harness cadence completes, and the fixture-run artifact records `dialogue_quality_score` sourced from `dialogue-result.json`.
+- 2026-06-21 improver run `2026-06-21T05-27-13-407Z-improver-7fhx9i` fixed the source-mode subprocess leak and verified `runEvalHarness` for `builder-dialogue-driven-coding` with `pass@k=1`, `pass^k=1`, and `dialogue_quality_score` mean `1` from one sample.
+- Focused validation passed: `NODE_OPTIONS=--conditions=source pnpm exec vitest run src/modules/eval-harness/subprocess-executor.test.ts`, `NODE_OPTIONS=--conditions=source pnpm exec vitest run src/modules/eval-harness/replay-smoke.test.ts`, `pnpm exec biome check src/modules/eval-harness/subprocess-executor.ts src/modules/eval-harness/subprocess-executor.test.ts src/modules/eval-harness/replay-smoke.test.ts`, and `pnpm run typecheck`.

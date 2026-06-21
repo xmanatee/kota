@@ -639,6 +639,34 @@ function envWithReplay(
     : {};
 }
 
+function removeSourceConditionNodeOption(
+  value: string | undefined,
+): string | undefined {
+  if (value === undefined) return undefined;
+  const parts = value.split(/\s+/).filter((part) => part.length > 0);
+  const kept: string[] = [];
+  for (let index = 0; index < parts.length; index++) {
+    const part = parts[index]!;
+    if (part === "--conditions=source") continue;
+    if (part === "--conditions" && parts[index + 1] === "source") {
+      index++;
+      continue;
+    }
+    kept.push(part);
+  }
+  return kept.length > 0 ? kept.join(" ") : undefined;
+}
+
+function distCliExecutionEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const nodeOptions = removeSourceConditionNodeOption(env.NODE_OPTIONS);
+  if (nodeOptions === undefined) {
+    delete env.NODE_OPTIONS;
+  } else {
+    env.NODE_OPTIONS = nodeOptions;
+  }
+  return env;
+}
+
 function hostExecutionEnv(
   options: SubprocessExecutorOptions,
   request: WorkflowExecutionRequest,
@@ -649,15 +677,17 @@ function hostExecutionEnv(
     request.externalCallShimDir !== undefined
       ? `${request.externalCallShimDir}:${basePath}`
       : basePath;
-  return withProtectedGitBareRepositoryEnv({
-    ...process.env,
-    ...(options.extraEnv ?? {}),
-    HOME: request.workingDir,
-    KOTA_PROJECT_DIR: request.workingDir,
-    KOTA_DIST_DIR: kotaDistDir,
-    PATH: pathWithShims,
-    ...envWithReplay(request),
-  });
+  return distCliExecutionEnv(
+    withProtectedGitBareRepositoryEnv({
+      ...process.env,
+      ...(options.extraEnv ?? {}),
+      HOME: request.workingDir,
+      KOTA_PROJECT_DIR: request.workingDir,
+      KOTA_DIST_DIR: kotaDistDir,
+      PATH: pathWithShims,
+      ...envWithReplay(request),
+    }),
+  );
 }
 
 function containerExecutionEnv(
@@ -671,17 +701,21 @@ function containerExecutionEnv(
     request.externalCallShimDir !== undefined
       ? `${request.externalCallShimDir}:${basePath}`
       : basePath;
-  const env = withProtectedGitBareRepositoryEnv({
-    ...(options.extraEnv ?? {}),
-    HOME: request.workingDir,
-    KOTA_PROJECT_DIR: request.workingDir,
-    KOTA_DIST_DIR: kotaDistDir,
-    PATH: pathWithShims,
-    ...containerNetworkEnv(networkPolicy),
-    ...envWithReplay(request),
-  });
+  const env = distCliExecutionEnv(
+    withProtectedGitBareRepositoryEnv({
+      ...(options.extraEnv ?? {}),
+      HOME: request.workingDir,
+      KOTA_PROJECT_DIR: request.workingDir,
+      KOTA_DIST_DIR: kotaDistDir,
+      PATH: pathWithShims,
+      ...containerNetworkEnv(networkPolicy),
+      ...envWithReplay(request),
+    }),
+  );
   return Object.fromEntries(
-    Object.entries(env).filter((entry): entry is [string, string] => entry[1] !== undefined),
+    Object.entries(env).filter(
+      (entry): entry is [string, string] => entry[1] !== undefined,
+    ),
   );
 }
 
