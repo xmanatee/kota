@@ -55,6 +55,18 @@
         }
       ]
     },
+    "acceptedAlternatives": [
+      {
+        "id": "coefficient-object",
+        "setup": [
+          {
+            "kind": "copy-fixture-file",
+            "sourcePath": "calibration/accepted-alternatives/coefficient-object/src/predictor.mjs",
+            "targetPath": "src/predictor.mjs"
+          }
+        ]
+      }
+    ],
     "adversarial": {
       "setup": [
         {

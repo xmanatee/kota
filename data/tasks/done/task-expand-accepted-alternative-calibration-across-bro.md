@@ -1,13 +1,13 @@
 ---
 id: task-expand-accepted-alternative-calibration-across-bro
 title: Expand accepted-alternative calibration across broad eval fixtures
-status: ready
+status: done
 priority: p2
 area: modules
 task_class: Platform
 summary: Add accepted-alternative verifier calibration cases to broad-answer-space eval fixtures so scorer false negatives are caught across the fixture set, not only in the one fixture used to prove the mechanism.
 created_at: 2026-06-21T01:10:22.410Z
-updated_at: 2026-06-21T01:10:22.410Z
+updated_at: 2026-06-21T01:29:16.549Z
 ---
 
 ## Problem

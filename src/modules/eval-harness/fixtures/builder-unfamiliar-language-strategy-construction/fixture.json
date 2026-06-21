@@ -86,6 +86,28 @@
         }
       ]
     },
+    "acceptedAlternatives": [
+      {
+        "id": "helper-generated-route",
+        "setup": [
+          {
+            "kind": "copy-fixture-file",
+            "sourcePath": "calibration/accepted-alternatives/helper-generated-route/programs/solution.spool",
+            "targetPath": "programs/solution.spool"
+          },
+          {
+            "kind": "copy-fixture-file",
+            "sourcePath": "calibration/accepted-alternatives/helper-generated-route/scripts/generate-solution.mjs",
+            "targetPath": "scripts/generate-solution.mjs"
+          },
+          {
+            "kind": "copy-fixture-file",
+            "sourcePath": "calibration/accepted-alternatives/helper-generated-route/strategy-result.json",
+            "targetPath": "strategy-result.json"
+          }
+        ]
+      }
+    ],
     "adversarial": {
       "setup": [
         {

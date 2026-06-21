@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "claimId": "claim-lx12-mature-week6-biomass",
+  "verdict": "supported",
+  "command": "node scripts/analyze-claim.mjs --data data/claims/lx12-holdout.csv --output claim-holdout-result.json",
+  "metric": {
+    "name": "median_uplift_pct",
+    "threshold_pct": 40,
+    "control_median": 10,
+    "treatment_median": 16,
+    "value": 60,
+    "audit_note": "Equivalent holdout median evidence with reordered metric fields."
+  },
+  "provenance": {
+    "method": "median",
+    "data": "data/claims/lx12-holdout.csv",
+    "filters": {
+      "quality_flag": "ok",
+      "include_in_claim": "yes",
+      "site": "greenhouse-a",
+      "phase": "week6",
+      "cohort": "mature"
+    },
+    "row_ids": {
+      "lx12": ["HT1", "HT2", "HT3"],
+      "control": ["HC1", "HC2", "HC3"]
+    },
+    "auditTrail": ["loaded-holdout-data", "filtered-claim-cohort", "computed-medians"]
+  }
+}

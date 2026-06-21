@@ -90,6 +90,23 @@
         }
       ]
     },
+    "acceptedAlternatives": [
+      {
+        "id": "two-turn-sms-confirmation",
+        "setup": [
+          {
+            "kind": "copy-fixture-file",
+            "sourcePath": "calibration/accepted-alternatives/two-turn-sms-confirmation/src/notification-copy.mjs",
+            "targetPath": "src/notification-copy.mjs"
+          },
+          {
+            "kind": "copy-fixture-file",
+            "sourcePath": "calibration/accepted-alternatives/two-turn-sms-confirmation/dialogue-simulator-transcript.json",
+            "targetPath": ".kota/dialogue-simulator/transcript.json"
+          }
+        ]
+      }
+    ],
     "adversarial": {
       "setup": [
         {

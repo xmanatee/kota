@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "persona": "Nova launch coordinator",
+  "maxTurns": 2,
+  "turns": [
+    {
+      "turn": 1,
+      "speaker": "builder",
+      "question": "Do launch notifications need to use email copy or the SMS wording?",
+      "classification": "relevant",
+      "response": {
+        "kind": "requirement-answer",
+        "text": "Use SMS copy. The required label is `Text alert: <product> launches at <time>`, and the implementation must preserve the UTC input time. Requirement id: nova-launch-sms-v1.",
+        "facts": {
+          "requirementId": "nova-launch-sms-v1",
+          "channel": "sms",
+          "prefix": "Text alert",
+          "preserveInputTime": true
+        }
+      }
+    },
+    {
+      "turn": 2,
+      "speaker": "builder",
+      "question": "Should the formatter derive the product name and UTC time from the event input?",
+      "classification": "relevant",
+      "response": {
+        "kind": "confirmation",
+        "text": "Yes. Keep productName and launchAtUtc dynamic."
+      }
+    }
+  ]
+}

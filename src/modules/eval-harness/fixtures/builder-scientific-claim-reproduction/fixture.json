@@ -77,6 +77,23 @@
         }
       ]
     },
+    "acceptedAlternatives": [
+      {
+        "id": "audited-json-evidence",
+        "setup": [
+          {
+            "kind": "copy-fixture-file",
+            "sourcePath": "calibration/accepted-alternatives/audited-json-evidence/claim-result.json",
+            "targetPath": "claim-result.json"
+          },
+          {
+            "kind": "copy-fixture-file",
+            "sourcePath": "calibration/accepted-alternatives/audited-json-evidence/claim-holdout-result.json",
+            "targetPath": "claim-holdout-result.json"
+          }
+        ]
+      }
+    ],
     "adversarial": {
       "setup": [
         {

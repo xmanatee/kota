@@ -11,9 +11,9 @@
  *     method `GET`, path `/eval/list`, and an undefined body.
  *  3. `run(options)` is wired through `requestStrict<T>` with method
  *     `POST`, path `/api/eval/run`, the full options body (calls with no
- *     options default to `{}`), and a `Number.MAX_SAFE_INTEGER`
- *     `timeoutMs` override that disables the typed link's 2s default
- *     so unbounded eval runs do not abort. The daemon route was reshaped
+ *     options default to `{}`), and a finite one-day `timeoutMs` override
+ *     that replaces the typed link's 2s default without overflowing Node
+ *     timers. The daemon route was reshaped
  *     from the prior `400 + { error }` typed-failure shape to a uniform
  *     `200 + EvalRunResult` discriminated body, matching the skills
  *     migration precedent.
@@ -229,7 +229,7 @@ describe("eval-harness module daemonClient(link)", () => {
     ]);
   });
 
-  it("routes run() with no options through POST /api/eval/run via requestStrict<T> with {} body and MAX_SAFE_INTEGER timeoutMs", async () => {
+  it("routes run() with no options through POST /api/eval/run via requestStrict<T> with {} body and a finite long timeoutMs", async () => {
     const wireResult: EvalRunResult = {
       ok: true,
       fixtureCount: 2,
@@ -254,7 +254,7 @@ describe("eval-harness module daemonClient(link)", () => {
         method: "POST",
         path: "/api/eval/run",
         body: {},
-        init: { timeoutMs: Number.MAX_SAFE_INTEGER },
+        init: { timeoutMs: 24 * 60 * 60 * 1000 },
         shape: "requestStrict",
       },
     ]);
@@ -296,7 +296,7 @@ describe("eval-harness module daemonClient(link)", () => {
     };
     await contributed.evalHarness!.run(options);
     expect(calls[0]!.body).toEqual(options);
-    expect(calls[0]!.init).toEqual({ timeoutMs: Number.MAX_SAFE_INTEGER });
+    expect(calls[0]!.init).toEqual({ timeoutMs: 24 * 60 * 60 * 1000 });
   });
 
   it("decodes the EvalRunResult no_fixtures arm unchanged", async () => {

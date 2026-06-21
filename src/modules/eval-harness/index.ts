@@ -387,9 +387,10 @@ const evalHarnessModule: KotaModule = {
  * `list()` issues `GET /eval/list` through `requestStrict<T>`.
  *
  * `run(options)` issues `POST /api/eval/run` through `requestStrict<T>`
- * with `Number.MAX_SAFE_INTEGER` timeout — eval runs frequently exceed
- * the typed link's 2s default timeout because they invoke the subprocess
- * executor and stream fixture runs end-to-end. The daemon route was
+ * with a finite one-day timeout — eval runs frequently exceed the typed
+ * link's 2s default timeout because they invoke the subprocess executor
+ * and stream fixture runs end-to-end, while `Number.MAX_SAFE_INTEGER`
+ * overflows Node timers and aborts immediately. The daemon route was
  * reshaped from the prior `400 + { error }` typed-failure shape to a
  * uniform `200 + EvalRunResult` discriminated body, matching the skills
  * migration precedent (`f62bbb65`'s "first multi-status-code → 200
@@ -401,6 +402,8 @@ const evalHarnessModule: KotaModule = {
  * (omitting the query string entirely when no key produces a value) and
  * issues `GET /eval/calibration${query}` through `requestStrict<T>`.
  */
+const EVAL_RUN_DAEMON_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+
 function buildEvalHarnessDaemonHandler(link: DaemonTransport): EvalHarnessClient {
   return {
     list: async (): Promise<EvalListResult> => {
@@ -411,7 +414,7 @@ function buildEvalHarnessDaemonHandler(link: DaemonTransport): EvalHarnessClient
         "POST",
         "/api/eval/run",
         options ?? {},
-        { timeoutMs: Number.MAX_SAFE_INTEGER },
+        { timeoutMs: EVAL_RUN_DAEMON_TIMEOUT_MS },
       );
     },
     calibration: async (

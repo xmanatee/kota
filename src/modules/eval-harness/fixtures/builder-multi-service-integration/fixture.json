@@ -85,6 +85,18 @@
         }
       ]
     },
+    "acceptedAlternatives": [
+      {
+        "id": "segmented-route",
+        "setup": [
+          {
+            "kind": "copy-fixture-file",
+            "sourcePath": "calibration/accepted-alternatives/segmented-route/src/catalog-routes.mjs",
+            "targetPath": "src/catalog-routes.mjs"
+          }
+        ]
+      }
+    ],
     "adversarial": {
       "setup": [
         {
