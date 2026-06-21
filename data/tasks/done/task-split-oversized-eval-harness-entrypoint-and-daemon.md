@@ -1,12 +1,12 @@
 ---
 id: task-split-oversized-eval-harness-entrypoint-and-daemon
 title: Split oversized eval-harness entrypoint and daemon-client test
-status: ready
+status: done
 priority: p3
 area: modules
 summary: The latest accepted-alternative calibration build passed but emitted source-file-size warnings for src/modules/eval-harness/daemon-client.test.ts and src/modules/eval-harness/index.ts. The existing ready cleanup task covers fixture, runner, eval-set, and scoring helpers, so split or rehome the eval-harness entrypoint exports and daemon-client test helpers without changing behavior.
 created_at: 2026-06-21T02:07:01.288Z
-updated_at: 2026-06-21T02:07:01.288Z
+updated_at: 2026-06-21T02:41:10.080Z
 ---
 
 ## Problem
@@ -47,3 +47,4 @@ Outcome-aware autonomy progress review.
 ## Acceptance Evidence
 
 - Diff reduces or splits src/modules/eval-harness/index.ts and src/modules/eval-harness/daemon-client.test.ts so builder source-size diagnostics no longer warn on those files; focused eval-harness daemon-client and entrypoint tests pass; pnpm build and pnpm run validate-tasks pass.
+- Run artifact `.kota/runs/2026-06-21T02-31-42-840Z-builder-eh6nlx/acceptance-evidence.md` records the line counts and passing focused tests, build, and task validation.

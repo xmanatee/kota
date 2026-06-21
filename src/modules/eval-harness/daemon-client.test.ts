@@ -43,149 +43,20 @@ import { describe, expect, it } from "vitest";
 import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
 import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type {
-  DaemonRequestInit,
-  DaemonTransport,
-} from "#core/server/daemon-transport.js";
-import type {
   EvalCalibrationResult,
   EvalFixtureSummary,
   EvalListResult,
   EvalRunResult,
 } from "./client.js";
-import type { CodeHealthAggregate } from "./code-health-diagnostics.js";
+import {
+  makeRecordingTransport,
+  SAMPLE_CODE_HEALTH,
+  SAMPLE_COMPONENT_ATTRIBUTION,
+  SAMPLE_CONTROL_DECISION_COVERAGE,
+  SAMPLE_FIXTURE_DIAGNOSTICS,
+  SAMPLE_RUN_CONFIGURATION,
+} from "./daemon-client-test-support.js";
 import evalHarnessModule from "./index.js";
-import type { FixtureDiagnosticsReport } from "./scoring.js";
-
-type RecordedCall = {
-  method: string;
-  path: string;
-  body: unknown;
-  init: DaemonRequestInit | undefined;
-  shape: "request" | "requestStrict";
-};
-
-const SAMPLE_CONTROL_DECISION_COVERAGE: EvalListResult["controlDecisionCoverage"] = {
-  counts: {
-    act: 1,
-    ask: 0,
-    refuse: 0,
-    stop: 0,
-    confirm: 0,
-    recover: 0,
-  },
-  missingDecisions: ["ask", "refuse", "stop", "confirm", "recover"],
-  missingDecisionWarnings: [
-    {
-      decision: "ask",
-      message: 'No eval fixture declares control decision "ask".',
-    },
-  ],
-};
-
-const SAMPLE_FIXTURE_DIAGNOSTICS: FixtureDiagnosticsReport = {
-  perFixture: [
-    {
-      fixtureId: "fix-a",
-      repeatCount: 3,
-      outcomes: ["pass", "pass", "pass"],
-      outcomeCounts: {
-        pass: 3,
-        fail: 0,
-        timeout: 0,
-        error: 0,
-        "configuration-error": 0,
-      },
-      observedPassRate: 1,
-      repeatVariance: 0,
-      diagnosticClass: "stable-pass",
-      warnings: [],
-    },
-  ],
-  aggregate: {
-    fixtureCount: 1,
-    stablePass: 1,
-    stableFail: 0,
-    repeatUnstable: 0,
-    insufficientSample: 0,
-    nonGating: 0,
-    lowSignalWarnings: 0,
-  },
-};
-
-const SAMPLE_CODE_HEALTH: CodeHealthAggregate = {
-  diagnosticRunCount: 0,
-  runsWithWarnings: 0,
-  fixturesWithWarnings: 0,
-  totalWarnings: 0,
-  warningCounts: {
-    "source-size-growth": 0,
-    "duplicated-implementation-chunk": 0,
-    "complexity-concentration": 0,
-  },
-};
-
-const SAMPLE_RUN_CONFIGURATION: Extract<
-  EvalRunResult,
-  { ok: true }
->["runConfiguration"] = {
-  fingerprint: "abc123def456",
-  summary: {
-    activePreset: "codex (default) via codex",
-    fixtureManifest: "2 fixture(s) fixturehash",
-    sourceIdentity: "abc123 (clean, sourcehash)",
-    resolvedHarnessModelEvidence: "codex/gpt-5.5 x2",
-    resourceProfile: "test cpu=1/1 memoryMB=1024/1024",
-    executionProfile: "verified/container/enforced/verified-profile",
-  },
-};
-
-const SAMPLE_COMPONENT_ATTRIBUTION: Extract<
-  EvalRunResult,
-  { ok: true }
->["componentAttribution"] = {
-  summary: "component attribution: comparable eval population with no observed component or fixture outcome deltas",
-  artifactPath: "/tmp/eval-runs/run-x/eval-set-report.json",
-  baselineStatus: "comparable",
-  changedComponents: [],
-};
-
-function makeRecordingTransport(
-  responder: (
-    method: string,
-    path: string,
-    body: unknown,
-    shape: "request" | "requestStrict",
-  ) => unknown,
-): { transport: DaemonTransport; calls: RecordedCall[] } {
-  const calls: RecordedCall[] = [];
-  const transport: DaemonTransport = {
-    baseUrl: "http://127.0.0.1:0",
-    authHeaders: () => ({}),
-    request: async <T>(
-      method: string,
-      path: string,
-      body?: unknown,
-      init?: DaemonRequestInit,
-    ): Promise<T | null> => {
-      calls.push({ method, path, body, init, shape: "request" });
-      return responder(method, path, body, "request") as T | null;
-    },
-    requestStrict: async <T>(
-      method: string,
-      path: string,
-      body?: unknown,
-      init?: DaemonRequestInit,
-    ): Promise<T> => {
-      calls.push({ method, path, body, init, shape: "requestStrict" });
-      return responder(method, path, body, "requestStrict") as T;
-    },
-    fetchRaw: async () => new Response(null, { status: 200 }),
-    events: async function* () {
-      // empty generator
-    },
-  };
-  return { transport, calls };
-}
 
 describe("eval-harness module daemonClient(link)", () => {
   it("contributes an evalHarness namespace handler", () => {
