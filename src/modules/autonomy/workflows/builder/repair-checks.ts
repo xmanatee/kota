@@ -6,6 +6,10 @@ import { checkRepoHygiene } from "#modules/autonomy/hygiene-check.js";
 import { checkCommitMessageExists, checkNoScratchArtifacts } from "#modules/autonomy/shared.js";
 import { checkSourceFileSize, SOURCE_FILE_SIZE_WARNING_TYPE } from "#modules/autonomy/source-size-check.js";
 import {
+  SOURCE_FILE_SIZE_SEVERE_TYPE,
+} from "#modules/autonomy/source-size-escalation.js";
+import { checkSevereSourceFileSizeForRun } from "#modules/autonomy/source-size-review-artifact.js";
+import {
   checkMacosSwiftBuild,
   checkMobileTypecheck,
   checkModuleBoundary,
@@ -124,6 +128,12 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       type: "code" as const,
       phase: 1,
       run: (ctx) => checkRepoHygiene(ctx.projectDir),
+    },
+    {
+      id: SOURCE_FILE_SIZE_SEVERE_TYPE,
+      type: "code" as const,
+      phase: 1,
+      run: (ctx) => checkSevereSourceFileSizeForRun(ctx.projectDir, ctx.workflow.runDirPath),
     },
     {
       id: SOURCE_FILE_SIZE_WARNING_TYPE,

@@ -1,13 +1,13 @@
 ---
 id: task-escalate-severe-source-size-warnings-before-commit
 title: Escalate severe source-size warnings before commit
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Platform
 summary: Turn calibrated source-file-size warnings into an adaptive builder gate for severe or repeated oversized-growth cases so large avoidable files are split during the originating run instead of spawning repeated cleanup tasks.
 created_at: 2026-06-21T02:51:44.137Z
-updated_at: 2026-06-21T02:51:44.137Z
+updated_at: 2026-06-21T03:07:36.000Z
 ---
 
 ## Problem
@@ -69,6 +69,20 @@ validated large-file tradeoff.
 - The existing p3 cleanup path remains valid for historical warnings, but new
   severe warning batches are caught before the originating builder commit.
 
+## Result
+
+The builder repair loop now has a blocking `source-file-size-severe` check in
+front of the existing advisory `source-file-size` warning check. The shared
+scanner still reports changed-file-only structured warnings, while
+`source-size-escalation.ts` classifies severe batches, substantial positive
+growth, and open cleanup-task overlaps with deterministic thresholds.
+
+Typed cleanup exceptions are declared through a task-local
+`## Source Size Exception` section with `kind: source-size-cleanup` and a
+named file list. The exception only applies when every current source-size
+warning is named by the task and the staged diff reduces those files, so it
+does not silently bypass positive growth or unrelated warning files.
+
 ## Source / Intent
 
 Explorer run `2026-06-21T02-31-43-083Z-explorer-pj1urj` received a thin queue
@@ -111,9 +125,24 @@ tasks after large Platform changes have already landed.
 
 ## Acceptance Evidence
 
-- Focused test transcript covering `source-size-check` severity classification
-  and builder repair-check behavior.
-- Run-summary or fixture artifact showing all three outcomes: advisory warning,
-  blocking severe source-size failure, and a typed cleanup-task exception.
-- Validation transcript showing `pnpm run validate-tasks` and the focused
-  autonomy workflow tests pass.
+- Focused autonomy test transcript:
+  `.kota/runs/2026-06-21T02-57-00-518Z-builder-ju6yyf/focused-autonomy-tests.txt`
+  shows `src/modules/autonomy/source-size-check.test.ts`,
+  `src/modules/autonomy/source-size-escalation.test.ts`,
+  `src/modules/autonomy/workflows/builder/repair-checks.test.ts`, and
+  `src/modules/autonomy/workflows/builder/workflow.test.ts` passing.
+- The focused source-size tests cover advisory warning output, blocking
+  oversized-batch threshold, blocking substantial-growth threshold, open
+  cleanup-task overlap with sibling basenames, and typed cleanup-task exception
+  output.
+- Static validation transcript:
+  `.kota/runs/2026-06-21T02-57-00-518Z-builder-ju6yyf/static-validation.txt`
+  shows `pnpm run typecheck`, `pnpm run lint`, and `pnpm build` passing.
+- Workflow validation transcript:
+  `.kota/runs/2026-06-21T02-57-00-518Z-builder-ju6yyf/workflow-validate-node-import.txt`
+  shows all workflow definitions valid. The direct `pnpm dev workflow validate`
+  form is recorded separately as sandbox-blocked by `tsx` IPC permissions.
+- Task validation transcript:
+  `.kota/runs/2026-06-21T02-57-00-518Z-builder-ju6yyf/task-validation.txt`
+  shows `pnpm run validate-tasks` passing after the final `git add -A` staged
+  the fallback task move.

@@ -6,9 +6,12 @@ import {
   extractSourceFileSizeWarningsFromBuildOutput,
   type SourceFileSizeWarning,
 } from "#modules/autonomy/source-size-check.js";
+import type { SourceFileSizeReview } from "#modules/autonomy/source-size-escalation.js";
+import { readSourceFileSizeReviewArtifact } from "#modules/autonomy/source-size-review-artifact.js";
 import { REPO_TASKS_DIR } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 export type BuilderRunSummary = WorkflowRunSummary & {
+  sourceFileSize?: SourceFileSizeReview;
   warnings?: SourceFileSizeWarning[];
 };
 
@@ -52,14 +55,18 @@ function findTaskInChangedFiles(
 
 export function writeBuilderRunSummary(ctx: WorkflowStepContext): BuilderRunSummary {
   const summary = writeRunSummary(ctx, "build", findTaskInChangedFiles);
+  const sourceFileSize = readSourceFileSizeReviewArtifact(ctx.workflow.runDirPath);
   const warnings = extractSourceFileSizeWarningsFromBuildOutput(
     ctx.stepOutputs.build as { repairWarnings?: readonly { id?: string; output?: string }[] } | undefined,
   );
-  if (warnings.length === 0) return summary;
+  if (warnings.length === 0 && (sourceFileSize === null || sourceFileSize.outcome === "ok")) {
+    return summary;
+  }
 
   const builderSummary: BuilderRunSummary = {
     ...summary,
-    warnings,
+    ...(sourceFileSize !== null && sourceFileSize.outcome !== "ok" ? { sourceFileSize } : {}),
+    ...(warnings.length > 0 ? { warnings } : {}),
   };
   writeFileSync(
     join(ctx.workflow.runDirPath, "run-summary.json"),

@@ -4,7 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { WorkflowStepContext, WorkflowStepResult } from "#core/workflow/run-types.js";
-import { SOURCE_FILE_SIZE_WARNING_TYPE } from "#modules/autonomy/source-size-check.js";
+import {
+  SOURCE_FILE_SIZE_WARNING_TYPE,
+  type SourceFileSizeWarning,
+} from "#modules/autonomy/source-size-check.js";
 import { writeBuilderRunSummary } from "./run-summary.js";
 import builderWorkflow from "./workflow.js";
 
@@ -192,7 +195,7 @@ describe("writeBuilderRunSummary", () => {
     writeFileSync(join(projectDir, "change.txt"), "hello\n");
     execSync("git add -A && git commit -m 'test change'", { cwd: projectDir, shell: "/bin/sh" });
 
-    const sourceFileSizeWarning = {
+    const sourceFileSizeWarning: SourceFileSizeWarning = {
       type: SOURCE_FILE_SIZE_WARNING_TYPE,
       file: "src/large.ts",
       lines: 420,
@@ -217,6 +220,7 @@ describe("writeBuilderRunSummary", () => {
     expect(summary.warnings).toEqual([sourceFileSizeWarning]);
     expect(written.warnings).toEqual([sourceFileSizeWarning]);
   });
+
 });
 
 describe("builder workflow write-run-summary step", () => {

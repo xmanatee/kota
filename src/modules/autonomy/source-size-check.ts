@@ -1,6 +1,10 @@
 import { execFileSync } from "node:child_process";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
-import { parseAddedLinesByFile, readStagedDiff } from "./staged-diff.js";
+import {
+  type FileDiff,
+  parseAddedLinesByFile,
+  readStagedDiff,
+} from "./staged-diff.js";
 
 export const SOURCE_FILE_SIZE_WARNING_TYPE = "source-file-size";
 export const SOURCE_FILE_LINE_THRESHOLD = 300;
@@ -49,6 +53,17 @@ export type SourceFileSizeWarning = {
   message: string;
 };
 
+export type SourceFileSizeChangedFile = {
+  file: string;
+  changedLines: number;
+};
+
+export type SourceFileSizeScan = {
+  diff: string;
+  changedFiles: SourceFileSizeChangedFile[];
+  warnings: SourceFileSizeWarning[];
+};
+
 function normalizePath(file: string): string {
   return file.replace(/\\/g, "/");
 }
@@ -93,12 +108,19 @@ function buildWarning(file: string, lines: number, changedLines: number): Source
   };
 }
 
-export function detectSourceFileSizeWarnings(
-  diff: string,
+function toChangedFile(fileDiff: FileDiff): SourceFileSizeChangedFile {
+  return {
+    file: fileDiff.file,
+    changedLines: fileDiff.addedLines.length - fileDiff.deletedLines.length,
+  };
+}
+
+function detectSourceFileSizeWarningsFromFileDiffs(
+  fileDiffs: readonly FileDiff[],
   readLineCount: (file: string) => number | null,
 ): SourceFileSizeWarning[] {
   const warnings: SourceFileSizeWarning[] = [];
-  for (const fileDiff of parseAddedLinesByFile(diff)) {
+  for (const fileDiff of fileDiffs) {
     if (!isSourceSizeCheckPath(fileDiff.file)) continue;
     const lines = readLineCount(fileDiff.file);
     if (lines === null) continue;
@@ -111,6 +133,16 @@ export function detectSourceFileSizeWarnings(
     warnings.push(buildWarning(fileDiff.file, lines, changedLines));
   }
   return warnings;
+}
+
+export function detectSourceFileSizeWarnings(
+  diff: string,
+  readLineCount: (file: string) => number | null,
+): SourceFileSizeWarning[] {
+  return detectSourceFileSizeWarningsFromFileDiffs(
+    parseAddedLinesByFile(diff),
+    readLineCount,
+  );
 }
 
 export function formatSourceFileSizeWarnings(
@@ -165,12 +197,22 @@ function readStagedLineCount(projectDir: string, file: string): number | null {
   }
 }
 
-export function checkSourceFileSize(projectDir: string): string {
+export function scanStagedSourceFileSizes(projectDir: string): SourceFileSizeScan {
   const diff = readStagedDiff(projectDir, ["."]);
+  if (!diff.trim()) return { diff, changedFiles: [], warnings: [] };
+  const fileDiffs = parseAddedLinesByFile(diff);
+  return {
+    diff,
+    changedFiles: fileDiffs.map(toChangedFile),
+    warnings: detectSourceFileSizeWarningsFromFileDiffs(fileDiffs, (file) =>
+      readStagedLineCount(projectDir, file)
+    ),
+  };
+}
+
+export function checkSourceFileSize(projectDir: string): string {
+  const { diff, warnings } = scanStagedSourceFileSizes(projectDir);
   if (!diff.trim()) return "OK: no staged source changes";
-  const warnings = detectSourceFileSizeWarnings(diff, (file) =>
-    readStagedLineCount(projectDir, file),
-  );
   if (warnings.length === 0) {
     return "OK: changed source files are under source-size warning thresholds";
   }

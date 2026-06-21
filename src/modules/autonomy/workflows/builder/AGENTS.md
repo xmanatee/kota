@@ -65,3 +65,21 @@ an optional runtime probe the critic runs before judging.
   probe when the failure is environmental (network outage, missing binary)
   and unrelated to the staged change, but must justify that in the verdict
   `summary`.
+
+## Source Size Exceptions
+
+The builder treats severe source-size warning batches as blocking before
+commit. A source-size cleanup task can declare a typed exception in its task
+body only when the staged diff reduces every named warning file:
+
+```md
+## Source Size Exception
+
+kind: source-size-cleanup
+files:
+- src/path/to/file.ts
+```
+
+This section does not waive positive growth, unnamed warning files, or
+unrelated oversized edits; it only keeps a reducing cleanup task from blocking
+while the touched file remains above the line guideline.
