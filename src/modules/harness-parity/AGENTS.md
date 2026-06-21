@@ -75,8 +75,7 @@ every child run directory.
 
 ## Scenario Coverage
 
-Keep these eight coverage points alive. Adding another scenario is fine,
-but do not delete existing fixtures:
+Keep these nine coverage points alive. Adding another scenario is fine, but do not delete existing fixtures:
 
 - Smoke proves scenario load, working-dir materialization, adapter
   invocation, verification, and diff capture end to end.
@@ -96,8 +95,9 @@ but do not delete existing fixtures:
 - Package-upgrade-chain probes staged maintenance: apply dependent API
   upgrades on one working tree while preserving earlier behavior.
 - Codebase-investigation-answer probes answer-shaped work: investigate a local
-  codebase question, cite source paths and runtime evidence, and avoid
-  production edits.
+  codebase question, cite evidence, and avoid production edits.
+- Rank-relevant-regions probes repository exploration as the deliverable: return
+  a ranked, line-budgeted map of relevant code regions without production edits.
 
 ## Capability Gap Handling
 

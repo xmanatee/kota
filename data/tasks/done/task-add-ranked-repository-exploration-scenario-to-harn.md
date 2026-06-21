@@ -1,13 +1,13 @@
 ---
 id: task-add-ranked-repository-exploration-scenario-to-harn
 title: Add ranked repository-exploration scenario to harness parity
-status: ready
+status: done
 priority: p2
 area: modules
 task_class: Platform
 summary: Add a harness-parity scenario where agents return a ranked list of task-relevant code regions under a line budget, so repository exploration quality is scored separately from implementation success.
 created_at: 2026-06-21T02:01:26.350Z
-updated_at: 2026-06-21T02:01:26.350Z
+updated_at: 2026-06-21T02:22:40.072Z
 ---
 
 ## Problem
@@ -145,3 +145,19 @@ localize relevant repository context through a bounded, inspectable artifact.
 - Sample harness-parity artifact under `.kota/runs/<run-id>/` or a committed
   test fixture showing `exploration.json`, verification details, diagnostics,
   and top-level `parity.json` summary for the new scenario.
+
+Completed evidence from builder run
+`2026-06-21T02-12-34-863Z-builder-g7wed9`:
+
+- Focused transcript:
+  `.kota/runs/2026-06-21T02-12-34-863Z-builder-g7wed9/focused-tests-transcript.txt`
+  (`scenario.test.ts` and `runner.test.ts`: 50 passed).
+- Scenario list transcript:
+  `.kota/runs/2026-06-21T02-12-34-863Z-builder-g7wed9/harness-parity-list-transcript.txt`
+  includes `rank-relevant-regions`.
+- Sample parity artifact:
+  `.kota/runs/2026-06-21T02-12-34-863Z-builder-g7wed9/rank-relevant-regions-sample/rank-relevant-regions/parity.json`
+  with passed verification, `exploration.json`, verification details, trajectory
+  diagnostics, context-retrieval diagnostics, and preserved preview artifacts.
+- Additional validation passed: `pnpm run validate-tasks`,
+  `pnpm run typecheck`, `pnpm run lint`, and `git diff --check`.

@@ -1,0 +1,26 @@
+{
+  "id": "rank-relevant-regions",
+  "description": "Investigate a tiny checkout failure and return a ranked, line-budgeted map of the source regions that matter, without editing production source.",
+  "prompt": "There is a tiny Node.js checkout project in this directory. Running `node test.js` fails for a gift-wrap review edge case. Do not fix the bug or edit project source. Instead, investigate the repository and write `exploration.json` in the repository root.\n\nThe artifact must have this shape: `{ \"regions\": [{ \"rank\": number, \"path\": string, \"startLine\": number, \"endLine\": number, \"rationale\": string }] }`.\n\nRank the most task-relevant regions first. Keep the total cited source lines at or under 24 lines, so broad file dumps or directory-wide listings fail. Use 1-based inclusive line numbers that point to existing files. When done, run `node verify-exploration.js`; it must print `ok` and exit 0.",
+  "verification": {
+    "command": "node -e \"const { createHash } = require('node:crypto'); const { readFileSync } = require('node:fs'); const expected = 'de63df8a53ff70102212f495db4dfad22fd0769988cc16b0f2726bd6862caeb0'; const actual = createHash('sha256').update(readFileSync('verify-exploration.js')).digest('hex'); if (actual !== expected) { console.error('verify-exploration.js was modified'); process.exit(1); } require('./verify-exploration.js');\"",
+    "timeoutMs": 30000
+  },
+  "previewArtifacts": [
+    "exploration.json",
+    "exploration-check.json"
+  ],
+  "contextRetrieval": {
+    "targets": [
+      {
+        "id": "review-threshold-evidence",
+        "kind": "path-group",
+        "paths": [
+          "src/review.js",
+          "src/pricing.js",
+          "test.js"
+        ]
+      }
+    ]
+  }
+}

@@ -175,6 +175,43 @@ function writeInvestigationAnswer(
   );
 }
 
+const VALID_REPOSITORY_EXPLORATION_REGIONS = [
+  {
+    rank: 1,
+    path: "src/review.js",
+    startLine: 1,
+    endLine: 5,
+    rationale:
+      "Shows the manual-review threshold and the strict greater-than comparison that skips exact-threshold orders.",
+  },
+  {
+    rank: 2,
+    path: "src/pricing.js",
+    startLine: 3,
+    endLine: 12,
+    rationale:
+      "Shows how the selected product and gift wrap combine into the totalMinor value checked by review logic.",
+  },
+  {
+    rank: 3,
+    path: "test.js",
+    startLine: 9,
+    endLine: 15,
+    rationale:
+      "Shows the failing assertion: the exact-threshold gift-wrap order should produce manual_review.",
+  },
+] as const;
+
+function writeRepositoryExplorationArtifact(
+  workDir: string,
+  regions: readonly Record<string, unknown>[] = VALID_REPOSITORY_EXPLORATION_REGIONS,
+): void {
+  writeFileSync(
+    join(workDir, "exploration.json"),
+    JSON.stringify({ regions }, null, 2),
+  );
+}
+
 describe("scenario loader", () => {
   let scenariosRoot: string;
   beforeEach(() => {
@@ -608,7 +645,7 @@ describe("scenario loader", () => {
 });
 
 describe("shipped scenarios", () => {
-  it("covers the arithmetic-fix smoke, the multi-file workload, the failure-and-revise probe, the discovery probe, the cross-file rename probe, the frontend preview probe, package upgrade, and investigation answer probe", () => {
+  it("covers the arithmetic-fix smoke, the multi-file workload, the failure-and-revise probe, the discovery probe, the cross-file rename probe, the frontend preview probe, package upgrade, investigation answer, and repository exploration probes", () => {
     const all = loadAllScenarios(SHIPPED_SCENARIOS_ROOT);
     const ids = all.map((s) => s.spec.id);
     expect(ids).toEqual(
@@ -621,11 +658,12 @@ describe("shipped scenarios", () => {
         "rename-across-files",
         "frontend-preview",
         "package-upgrade-chain",
+        "rank-relevant-regions",
       ]),
     );
     // Guard against regressions that accidentally drop coverage back to a
     // single fixture. If a new scenario is added, bump this bound deliberately.
-    expect(all.length).toBeGreaterThanOrEqual(8);
+    expect(all.length).toBeGreaterThanOrEqual(9);
   });
 
   it("codebase-investigation-answer loads with an answer-only prompt and context targets", () => {
@@ -719,6 +757,146 @@ describe("shipped scenarios", () => {
     } finally {
       rmSync(workDir, { recursive: true, force: true });
     }
+  });
+
+  it("rank-relevant-regions loads with a budgeted exploration prompt and context targets", () => {
+    const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "rank-relevant-regions");
+    expect(loaded.spec.id).toBe("rank-relevant-regions");
+    expect(loaded.spec.prompt).toMatch(/exploration\.json/);
+    expect(loaded.spec.prompt).toMatch(/rank/i);
+    expect(loaded.spec.prompt).toMatch(/24 lines/);
+    expect(loaded.spec.prompt).toMatch(/node verify-exploration\.js/);
+    expect(loaded.spec.prompt).not.toMatch(/src\/review\.js/);
+    expect(loaded.spec.prompt).not.toMatch(/src\/pricing\.js/);
+    expect(loaded.spec.verification.command).toMatch(/verify-exploration\.js/);
+    expect(loaded.spec.previewArtifacts).toEqual([
+      "exploration.json",
+      "exploration-check.json",
+    ]);
+    expect(loaded.spec.contextRetrieval?.targets).toEqual([
+      {
+        id: "review-threshold-evidence",
+        kind: "path-group",
+        paths: ["src/review.js", "src/pricing.js", "test.js"],
+      },
+    ]);
+    expect(existsSync(loaded.initialStateDir)).toBe(true);
+    expect(statSync(loaded.initialStateDir).isDirectory()).toBe(true);
+  });
+
+  it("rank-relevant-regions verifier enforces coverage, budget, valid ranges, ranking, and no source edits", () => {
+    const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "rank-relevant-regions");
+
+    const runCase = (
+      name: string,
+      arrange: (workDir: string) => void,
+    ): ReturnType<typeof spawnSync> => {
+      const workDir = mkdtempSync(
+        join(tmpdir(), `kota-harness-parity-exploration-${name}-`),
+      );
+      try {
+        cpSync(loaded.initialStateDir, workDir, { recursive: true });
+        arrange(workDir);
+        return runLoadedVerification(loaded, workDir);
+      } finally {
+        rmSync(workDir, { recursive: true, force: true });
+      }
+    };
+
+    const missingArtifact = runCase("missing-artifact", () => {});
+    expect(missingArtifact.status).not.toBe(0);
+    expect(`${missingArtifact.stdout ?? ""}\n${missingArtifact.stderr ?? ""}`).toMatch(
+      /exploration\.json is required/,
+    );
+
+    const valid = runCase("valid", (workDir) => {
+      writeRepositoryExplorationArtifact(workDir);
+    });
+    expect(valid.status).toBe(0);
+    expect(valid.stdout).toContain("ok");
+
+    const missingRegion = runCase("missing-region", (workDir) => {
+      writeRepositoryExplorationArtifact(
+        workDir,
+        VALID_REPOSITORY_EXPLORATION_REGIONS.slice(1).map((region, index) => ({
+          ...region,
+          rank: index + 1,
+        })),
+      );
+    });
+    expect(missingRegion.status).not.toBe(0);
+    expect(`${missingRegion.stdout ?? ""}\n${missingRegion.stderr ?? ""}`).toMatch(
+      /missing required region manual-review-threshold/,
+    );
+
+    const budgetOverrun = runCase("budget-overrun", (workDir) => {
+      writeRepositoryExplorationArtifact(workDir, [
+        ...VALID_REPOSITORY_EXPLORATION_REGIONS,
+        {
+          rank: 4,
+          path: "src/checkout.js",
+          startLine: 1,
+          endLine: 11,
+          rationale:
+            "Extra checkout context is broader than needed and should push the artifact over the line budget.",
+        },
+      ]);
+    });
+    expect(budgetOverrun.status).not.toBe(0);
+    expect(`${budgetOverrun.stdout ?? ""}\n${budgetOverrun.stderr ?? ""}`).toMatch(
+      /line budget exceeded/,
+    );
+
+    const badLineRange = runCase("bad-line-range", (workDir) => {
+      writeRepositoryExplorationArtifact(workDir, [
+        {
+          ...VALID_REPOSITORY_EXPLORATION_REGIONS[0],
+          endLine: 99,
+        },
+        VALID_REPOSITORY_EXPLORATION_REGIONS[1],
+        VALID_REPOSITORY_EXPLORATION_REGIONS[2],
+      ]);
+    });
+    expect(badLineRange.status).not.toBe(0);
+    expect(`${badLineRange.stdout ?? ""}\n${badLineRange.stderr ?? ""}`).toMatch(
+      /cites line 99/,
+    );
+
+    const irrelevantFirst = runCase("irrelevant-first", (workDir) => {
+      writeRepositoryExplorationArtifact(workDir, [
+        {
+          rank: 1,
+          path: "src/checkout.js",
+          startLine: 4,
+          endLine: 4,
+          rationale:
+            "This is adjacent checkout plumbing, but it is not one of the required root-cause evidence regions.",
+        },
+        ...VALID_REPOSITORY_EXPLORATION_REGIONS.map((region) => ({
+          ...region,
+          rank: region.rank + 1,
+        })),
+      ]);
+    });
+    expect(irrelevantFirst.status).not.toBe(0);
+    expect(`${irrelevantFirst.stdout ?? ""}\n${irrelevantFirst.stderr ?? ""}`).toMatch(
+      /irrelevant region ranked before required coverage/,
+    );
+
+    const sourceEdit = runCase("source-edit", (workDir) => {
+      writeRepositoryExplorationArtifact(workDir);
+      writeFileSync(
+        join(workDir, "src/review.js"),
+        readFileSync(join(workDir, "src/review.js"), "utf-8").replace(
+          "quote.totalMinor > MANUAL_REVIEW_THRESHOLD_MINOR",
+          "quote.totalMinor >= MANUAL_REVIEW_THRESHOLD_MINOR",
+        ),
+      );
+    });
+    expect(sourceEdit.status).not.toBe(0);
+    expect(`${sourceEdit.stdout ?? ""}\n${sourceEdit.stderr ?? ""}`).toMatch(
+      /src\/review\.js was modified/,
+    );
   });
 
   it("package-upgrade-chain loads as a staged release-note scenario", () => {
