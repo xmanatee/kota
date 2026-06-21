@@ -109,6 +109,102 @@ function seedFixture(
   );
 }
 
+function seedAcceptedAlternativeFailureFixture(root: string): void {
+  const id = "accepted-alternative-failure";
+  const dir = join(root, id);
+  mkdirSync(join(dir, "initial", "scripts"), { recursive: true });
+  mkdirSync(join(dir, "calibration", "golden"), { recursive: true });
+  mkdirSync(
+    join(dir, "calibration", "accepted-alternatives", "alternate-output"),
+    { recursive: true },
+  );
+  mkdirSync(join(dir, "calibration", "adversarial"), { recursive: true });
+  writeFileSync(
+    join(dir, "initial", "scripts", "check.mjs"),
+    `import { existsSync, readFileSync } from "node:fs";
+const value = existsSync("result.txt") ? readFileSync("result.txt", "utf8").trim() : "";
+process.exit(value === "ok" ? 0 : 1);
+`,
+  );
+  writeFileSync(join(dir, "calibration", "golden", "result.txt"), "ok\n");
+  writeFileSync(
+    join(
+      dir,
+      "calibration",
+      "accepted-alternatives",
+      "alternate-output",
+      "result.txt",
+    ),
+    "also-ok\n",
+  );
+  writeFileSync(join(dir, "calibration", "adversarial", "result.txt"), "shortcut\n");
+  writeFileSync(
+    join(dir, "fixture.json"),
+    JSON.stringify({
+      id,
+      description: "accepted alternative false negative fixture",
+      role: "builder",
+      workflowName: "noop",
+      budgetMs: 60_000,
+      predicates: [
+        {
+          kind: "shell-succeeds",
+          command: "node scripts/check.mjs",
+          timeoutMs: 10_000,
+        },
+      ],
+      preRunExpectations: [
+        {
+          predicate: {
+            kind: "shell-succeeds",
+            command: "node scripts/check.mjs",
+            timeoutMs: 10_000,
+          },
+          expected: "fail",
+        },
+      ],
+      controlDecisions: ["act"],
+      verifierCalibration: {
+        null: {},
+        golden: {
+          setup: [
+            {
+              kind: "copy-fixture-file",
+              sourcePath: "calibration/golden/result.txt",
+              targetPath: "result.txt",
+            },
+          ],
+        },
+        acceptedAlternatives: [
+          {
+            id: "alternate-output",
+            setup: [
+              {
+                kind: "copy-fixture-file",
+                sourcePath: "calibration/accepted-alternatives/alternate-output/result.txt",
+                targetPath: "result.txt",
+              },
+            ],
+          },
+        ],
+        adversarial: {
+          setup: [
+            {
+              kind: "copy-fixture-file",
+              sourcePath: "calibration/adversarial/result.txt",
+              targetPath: "result.txt",
+            },
+          ],
+        },
+      },
+      provenance: {
+        kind: "smoke-fixture",
+        justification: "tests accepted alternative calibration failure aggregation",
+      },
+    }),
+  );
+}
+
 describe("runEvalSet", () => {
   let fixturesRoot: string;
   let runsRoot: string;
@@ -236,6 +332,42 @@ describe("runEvalSet", () => {
       ),
     );
     expect(preflight.eligibilityReason).toBe("verified-profile");
+  });
+
+  it("surfaces accepted alternative calibration failures before aggregate scoring", async () => {
+    seedAcceptedAlternativeFailureFixture(fixturesRoot);
+    const fixtures = loadAllFixtures(fixturesRoot);
+
+    await expect(
+      runEvalSet({
+        projectDir: fixturesRoot,
+        fixtures,
+        executor: {
+          preflight: () => EXECUTION_PROFILE,
+          execute: async () => ({
+            kind: "completed",
+            durationMs: 0,
+            runArtifactPath: null,
+          }),
+        },
+        requestedProfile: PROFILE,
+        runArtifactBaseDir: runsRoot,
+        repeatCount: 1,
+      }),
+    ).rejects.toThrow(/alternate-output/);
+
+    const calibration = JSON.parse(
+      readFileSync(
+        join(runsRoot, "accepted-alternative-failure-0", "verifier-calibration.json"),
+        "utf-8",
+      ),
+    );
+    expect(
+      calibration.cases.find((entry: { id: string }) => entry.id === "alternate-output"),
+    ).toMatchObject({
+      caseKind: "accepted-alternative",
+      passed: false,
+    });
   });
 
   it("writes objective metric aggregates without changing pass/fail aggregation", async () => {

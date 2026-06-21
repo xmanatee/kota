@@ -86,7 +86,9 @@ export class FixtureConfigurationScoringError extends Error {
 
   constructor(run: FixtureRun) {
     super(
-      `Fixture "${run.fixtureId}" runIndex ${run.runIndex} ended with configuration-error; fix the fixture before computing pass@k/pass^k.`,
+      `Fixture "${run.fixtureId}" runIndex ${run.runIndex} ended with configuration-error${
+        run.configurationError !== undefined ? `: ${run.configurationError.detail}` : ""
+      }; fix the fixture before computing pass@k/pass^k.`,
     );
     this.name = "FixtureConfigurationScoringError";
     this.fixtureId = run.fixtureId;

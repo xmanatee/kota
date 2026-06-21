@@ -55,6 +55,18 @@
         }
       ]
     },
+    "acceptedAlternatives": [
+      {
+        "id": "reduce-loop",
+        "setup": [
+          {
+            "kind": "copy-fixture-file",
+            "sourcePath": "calibration/accepted-alternatives/reduce-loop/src/badge-code.mjs",
+            "targetPath": "src/badge-code.mjs"
+          }
+        ]
+      }
+    ],
     "adversarial": {
       "setup": [
         {

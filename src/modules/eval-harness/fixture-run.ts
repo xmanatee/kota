@@ -119,6 +119,11 @@ export type FixtureRunOutcome =
 
 export type FixtureRunExecutionMode = "live" | "replay";
 
+export type FixtureRunConfigurationError = {
+  reason: "pre-run-sanity-failed" | "verifier-calibration-failed";
+  detail: string;
+};
+
 export type FixtureRoundRun = {
   roundId: string;
   /** 0-based index within the fixture's ordered round list. */
@@ -243,6 +248,11 @@ export type FixtureRun = {
    * one scored run; variant records preserve paired skill/no-skill evidence.
    */
   skillAblation?: SkillAblationRun;
+  /**
+   * Present when outcome is configuration-error and the runner can name the
+   * fixture-owned configuration failure directly.
+   */
+  configurationError?: FixtureRunConfigurationError;
   timing: TimingEnvelope;
   /** Absolute path to the run artifact directory under `.kota/runs/`. */
   runArtifactPath: string;

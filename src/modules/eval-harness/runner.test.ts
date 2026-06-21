@@ -432,11 +432,38 @@ function writeCalibratedShellFixture(
   fixturesRoot: string,
   id: string,
   checkerSource: string,
+  options: {
+    acceptedAlternative?: {
+      id: string;
+      content: string;
+    };
+  } = {},
 ): void {
   const fixtureDir = join(fixturesRoot, id);
   mkdirSync(join(fixtureDir, "initial", "scripts"), { recursive: true });
   mkdirSync(join(fixtureDir, "calibration", "golden"), { recursive: true });
   mkdirSync(join(fixtureDir, "calibration", "adversarial"), { recursive: true });
+  if (options.acceptedAlternative !== undefined) {
+    mkdirSync(
+      join(
+        fixtureDir,
+        "calibration",
+        "accepted-alternatives",
+        options.acceptedAlternative.id,
+      ),
+      { recursive: true },
+    );
+    writeFileSync(
+      join(
+        fixtureDir,
+        "calibration",
+        "accepted-alternatives",
+        options.acceptedAlternative.id,
+        "result.txt",
+      ),
+      options.acceptedAlternative.content,
+    );
+  }
   writeFileSync(join(fixtureDir, "initial", "scripts", "check.mjs"), checkerSource);
   writeFileSync(join(fixtureDir, "calibration", "golden", "result.txt"), "ok\n");
   writeFileSync(
@@ -479,6 +506,20 @@ function writeCalibratedShellFixture(
             },
           ],
         },
+        ...(options.acceptedAlternative !== undefined && {
+          acceptedAlternatives: [
+            {
+              id: options.acceptedAlternative.id,
+              setup: [
+                {
+                  kind: "copy-fixture-file",
+                  sourcePath: `calibration/accepted-alternatives/${options.acceptedAlternative.id}/result.txt`,
+                  targetPath: "result.txt",
+                },
+              ],
+            },
+          ],
+        }),
         adversarial: {
           setup: [
             {
@@ -504,6 +545,14 @@ const value = existsSync("result.txt")
   ? readFileSync("result.txt", "utf8").trim()
   : "";
 process.exit(value === "ok" ? 0 : 1);
+`;
+
+const alternativeAcceptingCheckerSource = `import { existsSync, readFileSync } from "node:fs";
+
+const value = existsSync("result.txt")
+  ? readFileSync("result.txt", "utf8").trim()
+  : "";
+process.exit(value === "ok" || value === "also-ok" ? 0 : 1);
 `;
 
 const alwaysPassCheckerSource = `process.exit(0);
@@ -567,7 +616,17 @@ describe("runFixture", () => {
   });
 
   it("runs verifier calibration before workflow execution and writes the artifact", async () => {
-    writeCalibratedShellFixture(fixturesRoot, "calibrated-shell", strictCheckerSource);
+    writeCalibratedShellFixture(
+      fixturesRoot,
+      "calibrated-shell",
+      alternativeAcceptingCheckerSource,
+      {
+        acceptedAlternative: {
+          id: "alternate-output",
+          content: "also-ok\n",
+        },
+      },
+    );
     const fixture = loadFixture(fixturesRoot, "calibrated-shell");
     let executorCalls = 0;
     const executor: WorkflowExecutor = {
@@ -594,10 +653,15 @@ describe("runFixture", () => {
       readFileSync(join(report.run.runArtifactPath, "verifier-calibration.json"), "utf-8"),
     );
     expect(calibration.passed).toBe(true);
-    expect(calibration.cases.map((entry: { id: string; passed: boolean }) => [entry.id, entry.passed])).toEqual([
-      ["null", true],
-      ["golden", true],
-      ["adversarial", true],
+    expect(calibration.cases.map((entry: { id: string; caseKind: string; passed: boolean }) => [
+      entry.id,
+      entry.caseKind,
+      entry.passed,
+    ])).toEqual([
+      ["null", "null", true],
+      ["golden", "golden", true],
+      ["alternate-output", "accepted-alternative", true],
+      ["adversarial", "adversarial", true],
     ]);
     const runArtifact = JSON.parse(
       readFileSync(join(report.run.runArtifactPath, "fixture-run.json"), "utf-8"),
@@ -673,6 +737,56 @@ describe("runFixture", () => {
       readFileSync(join(report.run.runArtifactPath, "verifier-calibration.json"), "utf-8"),
     );
     expect(calibration.cases.find((entry: { id: string }) => entry.id === "golden")).toMatchObject({
+      passed: false,
+      scoringPassed: false,
+    });
+    cleanupFixtureWorkingDir(report.workingDir);
+  });
+
+  it("aborts before workflow execution when an accepted alternative is a false negative", async () => {
+    writeCalibratedShellFixture(
+      fixturesRoot,
+      "alternative-false-negative",
+      strictCheckerSource,
+      {
+        acceptedAlternative: {
+          id: "alternate-output",
+          content: "also-ok\n",
+        },
+      },
+    );
+    const fixture = loadFixture(fixturesRoot, "alternative-false-negative");
+    let executorCalls = 0;
+    const executor: WorkflowExecutor = {
+      preflight: () => TEST_EXECUTION_PROFILE,
+      execute: async () => {
+        executorCalls++;
+        return { kind: "completed", durationMs: 5, runArtifactPath: null };
+      },
+    };
+
+    const report = await runFixture({
+      fixture,
+      executor,
+      executionProfile: TEST_EXECUTION_PROFILE,
+      runArtifactBaseDir: runsRoot,
+      runIndex: 0,
+      repeatCount: 1,
+    });
+
+    expect(executorCalls).toBe(0);
+    expect(report.run.outcome).toBe("configuration-error");
+    expect(report.run.configurationError).toMatchObject({
+      reason: "verifier-calibration-failed",
+    });
+    expect(report.run.configurationError?.detail).toContain("alternate-output");
+    const calibration = JSON.parse(
+      readFileSync(join(report.run.runArtifactPath, "verifier-calibration.json"), "utf-8"),
+    );
+    expect(
+      calibration.cases.find((entry: { id: string }) => entry.id === "alternate-output"),
+    ).toMatchObject({
+      caseKind: "accepted-alternative",
       passed: false,
       scoringPassed: false,
     });

@@ -67,8 +67,12 @@ export const VERIFIER_CALIBRATION_CASE_IDS = [
   "adversarial",
 ] as const;
 
-export type VerifierCalibrationCaseId =
+export type VerifierCalibrationFixedCaseId =
   (typeof VERIFIER_CALIBRATION_CASE_IDS)[number];
+
+export type VerifierCalibrationCaseKind =
+  | VerifierCalibrationFixedCaseId
+  | "accepted-alternative";
 
 export type VerifierCalibrationSetupOperation = {
   kind: "copy-fixture-file";
@@ -77,7 +81,8 @@ export type VerifierCalibrationSetupOperation = {
 };
 
 export type VerifierCalibrationCaseSpec = {
-  id: VerifierCalibrationCaseId;
+  id: string;
+  caseKind: VerifierCalibrationCaseKind;
   expected: "pass" | "fail";
   setup: readonly VerifierCalibrationSetupOperation[];
 };
@@ -194,7 +199,8 @@ export type FixtureSpecCommon = {
   codeHealthDiagnostics?: CodeHealthDiagnosticsConfig;
   /**
    * Optional verifier calibration probes for nontrivial scoring paths. Case
-   * expectations are fixed: null/adversarial must fail, golden must pass.
+   * expectations are fixed: null/adversarial must fail, golden and accepted
+   * alternatives must pass.
    */
   verifierCalibration?: VerifierCalibrationSpec;
 };
@@ -778,15 +784,17 @@ function parseExternalCallShims(
 }
 
 function expectedVerifierCalibrationOutcome(
-  id: VerifierCalibrationCaseId,
+  caseKind: VerifierCalibrationCaseKind,
 ): "pass" | "fail" {
-  return id === "golden" ? "pass" : "fail";
+  return caseKind === "golden" || caseKind === "accepted-alternative"
+    ? "pass"
+    : "fail";
 }
 
 function parseVerifierCalibrationSetup(
   raw: FixtureJsonValue | undefined,
   fixtureDir: string,
-  caseId: VerifierCalibrationCaseId,
+  caseId: string,
 ): VerifierCalibrationSetupOperation[] {
   if (raw === undefined) return [];
   if (!Array.isArray(raw)) {
@@ -854,7 +862,7 @@ function parseVerifierCalibrationSetup(
 function parseVerifierCalibrationCase(
   raw: FixtureJsonValue | undefined,
   fixtureDir: string,
-  caseId: VerifierCalibrationCaseId,
+  caseId: VerifierCalibrationFixedCaseId,
 ): VerifierCalibrationCaseSpec {
   if (!isJsonObject(raw)) {
     throw new FixtureVerifierCalibrationError(
@@ -881,9 +889,92 @@ function parseVerifierCalibrationCase(
   }
   return {
     id: caseId,
+    caseKind: caseId,
     expected: expectedVerifierCalibrationOutcome(caseId),
     setup,
   };
+}
+
+function parseAcceptedAlternativeCaseId(
+  raw: FixtureJsonValue | undefined,
+  fixtureDir: string,
+  index: number,
+  usedIds: Set<string>,
+): string {
+  if (typeof raw !== "string" || !/^[a-z][a-z0-9-]*$/.test(raw)) {
+    throw new FixtureVerifierCalibrationError(
+      fixtureDir,
+      "malformed-declaration",
+      `acceptedAlternatives[${index}].id must be a lowercase kebab-case string.`,
+    );
+  }
+  if (usedIds.has(raw)) {
+    throw new FixtureVerifierCalibrationError(
+      fixtureDir,
+      "malformed-declaration",
+      `acceptedAlternatives[${index}].id "${raw}" duplicates another verifier calibration case id.`,
+    );
+  }
+  usedIds.add(raw);
+  return raw;
+}
+
+function parseAcceptedAlternativeCase(
+  raw: FixtureJsonValue,
+  fixtureDir: string,
+  index: number,
+  usedIds: Set<string>,
+): VerifierCalibrationCaseSpec {
+  if (!isJsonObject(raw)) {
+    throw new FixtureVerifierCalibrationError(
+      fixtureDir,
+      "malformed-declaration",
+      `acceptedAlternatives[${index}] must be an object.`,
+    );
+  }
+  const unknownKeys = Object.keys(raw).filter(
+    (key) => key !== "id" && key !== "setup",
+  );
+  if (unknownKeys.length > 0) {
+    throw new FixtureVerifierCalibrationError(
+      fixtureDir,
+      "malformed-declaration",
+      `acceptedAlternatives[${index}] has unknown field(s): ${unknownKeys.join(", ")}.`,
+    );
+  }
+  const id = parseAcceptedAlternativeCaseId(raw.id, fixtureDir, index, usedIds);
+  const setup = parseVerifierCalibrationSetup(raw.setup, fixtureDir, id);
+  if (setup.length === 0) {
+    throw new FixtureVerifierCalibrationError(
+      fixtureDir,
+      "malformed-declaration",
+      `accepted alternative case "${id}" must declare at least one fixture-owned setup file.`,
+    );
+  }
+  return {
+    id,
+    caseKind: "accepted-alternative",
+    expected: expectedVerifierCalibrationOutcome("accepted-alternative"),
+    setup,
+  };
+}
+
+function parseAcceptedAlternativeCases(
+  raw: FixtureJsonValue | undefined,
+  fixtureDir: string,
+): VerifierCalibrationCaseSpec[] {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) {
+    throw new FixtureVerifierCalibrationError(
+      fixtureDir,
+      "malformed-declaration",
+      "acceptedAlternatives must be an array when present.",
+    );
+  }
+  const usedIds = new Set<string>(VERIFIER_CALIBRATION_CASE_IDS);
+  return raw.map((entry, index) =>
+    parseAcceptedAlternativeCase(entry, fixtureDir, index, usedIds),
+  );
 }
 
 function parseVerifierCalibration(
@@ -899,7 +990,9 @@ function parseVerifierCalibration(
     );
   }
   const legalCaseIds = new Set<string>(VERIFIER_CALIBRATION_CASE_IDS);
-  const unknownKeys = Object.keys(raw).filter((key) => !legalCaseIds.has(key));
+  const unknownKeys = Object.keys(raw).filter(
+    (key) => !legalCaseIds.has(key) && key !== "acceptedAlternatives",
+  );
   if (unknownKeys.length > 0) {
     throw new FixtureVerifierCalibrationError(
       fixtureDir,
@@ -907,10 +1000,17 @@ function parseVerifierCalibration(
       `unknown case field(s): ${unknownKeys.join(", ")}.`,
     );
   }
+  const acceptedAlternatives = parseAcceptedAlternativeCases(
+    raw.acceptedAlternatives,
+    fixtureDir,
+  );
   return {
-    cases: VERIFIER_CALIBRATION_CASE_IDS.map((caseId) =>
-      parseVerifierCalibrationCase(raw[caseId], fixtureDir, caseId),
-    ),
+    cases: [
+      parseVerifierCalibrationCase(raw.null, fixtureDir, "null"),
+      parseVerifierCalibrationCase(raw.golden, fixtureDir, "golden"),
+      ...acceptedAlternatives,
+      parseVerifierCalibrationCase(raw.adversarial, fixtureDir, "adversarial"),
+    ],
   };
 }
 

@@ -60,6 +60,7 @@ import type {
   ExecutionProfilePreflightResult,
   FixtureRoundRun,
   FixtureRun,
+  FixtureRunConfigurationError,
   FixtureRunExecutionMode,
   FixtureRunOutcome,
   ResourceProfile,
@@ -192,6 +193,7 @@ type SerializedCalibrationError = {
 
 type VerifierCalibrationCaseResult = {
   id: VerifierCalibrationCaseSpec["id"];
+  caseKind: VerifierCalibrationCaseSpec["caseKind"];
   expected: VerifierCalibrationCaseSpec["expected"];
   setup: readonly VerifierCalibrationSetupOperation[];
   passed: boolean;
@@ -207,6 +209,10 @@ type VerifierCalibrationObjectiveMetricComparison = {
   direction: ObjectiveMetricDirection;
   passed: boolean;
   goldenValue?: number;
+  acceptedAlternativeValues: readonly {
+    caseId: string;
+    value?: number;
+  }[];
   nullValue?: number;
   adversarialValue?: number;
   detail: string;
@@ -630,6 +636,7 @@ function evaluateVerifierCalibrationCase(params: {
         }`;
     return {
       id: params.caseSpec.id,
+      caseKind: params.caseSpec.caseKind,
       expected: params.caseSpec.expected,
       setup: params.caseSpec.setup,
       passed,
@@ -689,6 +696,15 @@ function compareObjectiveMetricCalibration(params: {
   const comparisons = params.objectiveMetricSpecs.map((metricSpec) => {
     const goldenValue =
       golden === undefined ? undefined : metricValue(golden, metricSpec.name);
+    const acceptedAlternativeCases = params.cases.filter(
+      (caseResult) => caseResult.caseKind === "accepted-alternative",
+    );
+    const acceptedAlternativeValues = acceptedAlternativeCases.map((caseResult) => ({
+      caseId: caseResult.id,
+      ...(metricValue(caseResult, metricSpec.name) !== undefined && {
+        value: metricValue(caseResult, metricSpec.name),
+      }),
+    }));
     const values: {
       goldenValue?: number;
       nullValue?: number;
@@ -707,12 +723,24 @@ function compareObjectiveMetricCalibration(params: {
         name: metricSpec.name,
         direction: metricSpec.direction,
         passed: false,
+        acceptedAlternativeValues,
         ...values,
         detail: `golden case did not produce objective metric "${metricSpec.name}"`,
       };
     }
 
     const failedCaseDetails: string[] = [];
+    for (const caseResult of acceptedAlternativeCases) {
+      if (caseResult.objectiveMetricError !== undefined) {
+        continue;
+      }
+      if (metricValue(caseResult, metricSpec.name) !== undefined) {
+        continue;
+      }
+      const detail = `accepted alternative "${caseResult.id}" did not produce objective metric "${metricSpec.name}"`;
+      appendMetricFailure(metricFailures, caseResult.id, detail);
+      failedCaseDetails.push(detail);
+    }
     for (const caseId of ["null", "adversarial"] as const) {
       const caseResult = casesById.get(caseId);
       if (caseResult === undefined || caseResult.objectiveMetricError !== undefined) {
@@ -747,6 +775,7 @@ function compareObjectiveMetricCalibration(params: {
       name: metricSpec.name,
       direction: metricSpec.direction,
       passed: failedCaseDetails.length === 0,
+      acceptedAlternativeValues,
       ...values,
       detail:
         failedCaseDetails.length === 0
@@ -815,6 +844,38 @@ function writeVerifierCalibrationArtifact(
     join(runArtifactDir, "verifier-calibration.json"),
     JSON.stringify(result, null, 2),
   );
+}
+
+function verifierCalibrationConfigurationError(
+  result: VerifierCalibrationRunResult,
+): FixtureRunConfigurationError {
+  const failedCases = result.cases.filter((caseResult) => !caseResult.passed);
+  const failedComparisons = result.objectiveMetricComparisons.filter(
+    (comparison) => !comparison.passed,
+  );
+  const details = [
+    ...(failedCases.length > 0
+      ? [
+          `failed case(s): ${failedCases
+            .map((caseResult) => `${caseResult.id} (${caseResult.caseKind})`)
+            .join(", ")}`,
+        ]
+      : []),
+    ...(failedComparisons.length > 0
+      ? [
+          `failed objective metric comparison(s): ${failedComparisons
+            .map((comparison) => `${comparison.name}: ${comparison.detail}`)
+            .join("; ")}`,
+        ]
+      : []),
+  ];
+  return {
+    reason: "verifier-calibration-failed",
+    detail:
+      details.length > 0
+        ? `verifier calibration failed; ${details.join("; ")}`
+        : "verifier calibration failed",
+  };
 }
 
 async function executeRound(params: {
@@ -1369,6 +1430,8 @@ async function runSingleWorkflowFixture(
       reason: "verifier-calibration-failed",
       runArtifactPath: null,
     };
+    const configurationError =
+      verifierCalibrationConfigurationError(verifierCalibration);
     const codeHealthDiagnostics =
       spec.codeHealthDiagnostics !== undefined && codeHealthBaseline !== undefined
         ? finalizeCodeHealthDiagnostics({
@@ -1386,6 +1449,7 @@ async function runSingleWorkflowFixture(
       resourceProfile,
       executionProfile: params.executionProfile,
       objectiveMetrics: [],
+      configurationError,
       ...(codeHealthDiagnostics !== undefined && { codeHealthDiagnostics }),
       timing: {
         startedAt: startedAt.toISOString(),
@@ -1825,6 +1889,8 @@ async function runMultiRoundFixture(
       reason: "verifier-calibration-failed",
       runArtifactPath: null,
     };
+    const configurationError =
+      verifierCalibrationConfigurationError(verifierCalibration);
     const codeHealthDiagnostics =
       spec.codeHealthDiagnostics !== undefined && codeHealthBaseline !== undefined
         ? finalizeCodeHealthDiagnostics({
@@ -1842,6 +1908,7 @@ async function runMultiRoundFixture(
       resourceProfile,
       executionProfile: params.executionProfile,
       objectiveMetrics: [],
+      configurationError,
       ...(codeHealthDiagnostics !== undefined && { codeHealthDiagnostics }),
       rounds: [],
       timing: {

@@ -11,8 +11,8 @@ must carry:
 - **Resource profile** — host class, CPU allocation and kill threshold, with
   matching memory fields.
 - **Execution profile preflight** — backend kind, requested/observed/enforced
-  profile, diagnostics, and gate eligibility. Host subprocess runs may score
-  fixtures, but are non-gating unless an executor verifies CPU/memory facts.
+  profile, diagnostics, and gate eligibility. Host subprocess runs are
+  non-gating unless an executor verifies CPU/memory facts.
 - **Repeat index and total** — fixtures run k times; k=1 is non-gating.
 - **Timing envelope** — budget, observed duration, deadline hits, and clean
   returns.
@@ -44,8 +44,7 @@ A candidate change is gated only when all of the following hold:
 Noise-band drops, repeat-count mismatch, non-gating execution profile,
 resource drift, or config drift resolve to typed non-gating evidence.
 
-Calibrate the band per host class and record it with the run. Defaults live in
-code.
+Calibrate the band per host class; record it per run. Defaults live in code.
 
 ## Fixture Provenance
 
@@ -79,14 +78,15 @@ Objective metrics are deterministic fixture-path evidence, not a second
 benchmark runner. Pass/fail gating stays predicate-only unless a fixture adds
 a threshold predicate; compare metric deltas only for compatible profiles.
 
-`verifierCalibration` cases run before workflow execution with fixture-owned
-setup files, write `verifier-calibration.json`, and fail as fixture
-configuration errors.
+`verifierCalibration` runs before workflow execution with fixture-owned setup,
+writes `verifier-calibration.json`, and fails as fixture errors. Use
+`acceptedAlternatives` only for real broad-answer-space risk; cases must be
+deterministic valid alternatives.
 
-Code-health diagnostics are opt-in source-tree evidence for fixtures with
-`codeHealthDiagnostics.sourceGlobs`. They report baseline/checkpoint
-measurements and bounded warning codes for growth, duplication, and complexity
-concentration. They are advisory; predicates own pass/fail.
+Code-health diagnostics are opt-in source-tree evidence for
+`codeHealthDiagnostics.sourceGlobs`: baseline/checkpoint metrics and bounded
+growth, duplication, and complexity warnings. They are advisory; predicates own
+pass/fail.
 
 ## Baseline Persistence And Regression Surfacing
 

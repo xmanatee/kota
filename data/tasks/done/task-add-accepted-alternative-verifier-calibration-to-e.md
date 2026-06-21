@@ -1,13 +1,13 @@
 ---
 id: task-add-accepted-alternative-verifier-calibration-to-e
 title: Add accepted-alternative verifier calibration to eval-harness fixtures
-status: ready
+status: done
 priority: p2
 area: modules
 task_class: Platform
 summary: Extend eval-harness verifier calibration so rich scorers can prove at least one intentionally different but valid candidate passes, reducing false negatives from single-reference or overspecific grading while preserving shortcut rejection.
 created_at: 2026-06-21T00:32:10.192Z
-updated_at: 2026-06-21T00:32:10.192Z
+updated_at: 2026-06-21T00:59:39.359Z
 ---
 
 ## Problem
@@ -129,11 +129,17 @@ train its regression gate around one reference-shaped solution.
 
 ## Acceptance Evidence
 
-- Focused test transcript, for example:
-  `pnpm test src/modules/eval-harness/fixture.test.ts src/modules/eval-harness/runner.test.ts src/modules/eval-harness/eval-set.test.ts`.
-- A run artifact under `.kota/runs/<run-id>/` or `.kota/eval-runs/<run-id>/`
-  containing `verifier-calibration.json` with null, golden, accepted
-  alternative, and adversarial case results for a real calibrated fixture.
-- A deliberately broken accepted-alternative fixture or unit fixture shows the
-  false-negative alternative failure aborting before workflow execution and
-  being excluded from capability scoring with a typed diagnostic.
+- Focused test transcript:
+  `.kota/runs/2026-06-21T00-47-06-643Z-builder-tcwbba/focused-tests.txt`
+  shows 5 eval-harness test files passing with 91 tests:
+  `fixture.test.ts`, `runner.test.ts`, `eval-set.test.ts`,
+  `scoring.test.ts`, and `black-box-behavior-fixture.test.ts`.
+- Real shipped-fixture calibration artifact:
+  `.kota/runs/2026-06-21T00-47-06-643Z-builder-tcwbba/calibration-artifact/builder-black-box-behavior-reconstruction-0/verifier-calibration.json`
+  contains passing `null`, `golden`, accepted alternative `reduce-loop`, and
+  `adversarial` case results.
+- The false-negative accepted-alternative path is covered by
+  `runner.test.ts` and `eval-set.test.ts`: workflow execution is not called,
+  the run outcome is `configuration-error`, and aggregate scoring surfaces the
+  failed `alternate-output` case name instead of counting it as capability
+  evidence.
