@@ -1,10 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
-  type ScopeSelector,
-  ScopeSelectorConflictError,
-  scopeSelectorConflictBody,
-  scopeSelectorFromUrl,
-  selectedScopeSelectorId,
+  resolveScopeSelectorFromUrl,
 } from "#core/server/scope-selector.js";
 import type {
   ConflictingScopeSelectorsError,
@@ -104,24 +100,21 @@ export function resolveProjectIdParam(
   handle: DaemonControlHandle,
   url: URL,
 ): ProjectScopeParam {
-  let selector: ScopeSelector;
-  try {
-    selector = scopeSelectorFromUrl(url);
-  } catch (err) {
-    if (!(err instanceof ScopeSelectorConflictError)) throw err;
+  const resolvedSelector = resolveScopeSelectorFromUrl(url);
+  if (!resolvedSelector.ok) {
     return {
       ok: false,
-      status: 400,
-      error: scopeSelectorConflictBody(err),
+      status: resolvedSelector.status,
+      error: resolvedSelector.body,
     };
   }
-  const selected = selectedScopeSelectorId(selector);
+  const selected = resolvedSelector.selectedId;
   if (!selected) {
     const active = handle.getActiveProjectId();
     return { ok: true, projectId: active ?? undefined };
   }
   if (!handle.hasProject(selected)) {
-    if (selector.scopeId) {
+    if (resolvedSelector.selector.scopeId) {
       return {
         ok: false,
         status: 404,

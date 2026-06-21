@@ -2,12 +2,11 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { RouteRegistration } from "#core/modules/module-types.js";
 import { getKnowledgeProvider } from "#core/modules/provider-registry.js";
 import type { KnowledgeEntry, SearchFilters } from "#core/modules/provider-types.js";
+import { readSelectedScopeSelectorIdQueryOrErrorResponse } from "#core/server/scope-selector-request.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import type { KnowledgeProjectStores } from "./project-scope.js";
 
-type KnowledgeListResponse = {
-  entries: KnowledgeEntry[];
-};
+type KnowledgeListResponse = { entries: KnowledgeEntry[] };
 
 function parseScope(value: string | null): "project" | "global" | "all" | undefined {
   if (value === "project" || value === "global" || value === "all") return value;
@@ -33,8 +32,9 @@ function resolveScopedProvider(
   projectStores: KnowledgeProjectStores | undefined,
 ) {
   if (!projectStores) return getKnowledgeProvider();
-  const url = new URL(req.url ?? "", "http://localhost");
-  const resolved = projectStores.resolve(url.searchParams.get("projectId"));
+  const selectedId = readSelectedScopeSelectorIdQueryOrErrorResponse(req, res);
+  if (selectedId === null) return null;
+  const resolved = projectStores.resolve(selectedId);
   if (!resolved.ok) {
     jsonResponse(res, 404, resolved.error);
     return null;
@@ -265,44 +265,34 @@ function handleDeleteKnowledgeScoped(
   }
 }
 
-
 export function knowledgeRoutes(projectStores: KnowledgeProjectStores): RouteRegistration[] {
   return [
     {
-      method: "GET",
-      path: "/api/knowledge",
+      method: "GET", path: "/api/knowledge",
       handler: (req, res) => handleListKnowledge(req, res, projectStores),
     },
     {
-      method: "GET",
-      path: "/api/knowledge/search",
+      method: "GET", path: "/api/knowledge/search",
       handler: (req, res) => handleSearchKnowledge(req, res, projectStores),
     },
     {
-      method: "POST",
-      path: "/api/knowledge",
+      method: "POST", path: "/api/knowledge",
       handler: (req, res) => handleAddKnowledge(req, res, projectStores),
     },
     {
-      method: "POST",
-      path: "/api/knowledge/reindex",
+      method: "POST", path: "/api/knowledge/reindex",
       handler: (req, res) => handleReindexKnowledge(req, res, projectStores),
     },
     {
-      method: "GET",
-      path: "/api/knowledge/:id",
-      handler: (req, res, params) =>
-        handleGetKnowledgeScoped(req, res, params.id, projectStores),
+      method: "GET", path: "/api/knowledge/:id",
+      handler: (req, res, params) => handleGetKnowledgeScoped(req, res, params.id, projectStores),
     },
     {
-      method: "DELETE",
-      path: "/api/knowledge/:id",
-      handler: (req, res, params) =>
-        handleDeleteKnowledgeScoped(req, res, params.id, projectStores),
+      method: "DELETE", path: "/api/knowledge/:id",
+      handler: (req, res, params) => handleDeleteKnowledgeScoped(req, res, params.id, projectStores),
     },
     {
-      method: "PATCH",
-      path: "/api/knowledge/:id",
+      method: "PATCH", path: "/api/knowledge/:id",
       handler: (req, res, params) =>
         handleUpdateKnowledge(req, res, params.id, projectStores),
     },

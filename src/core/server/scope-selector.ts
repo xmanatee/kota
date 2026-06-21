@@ -33,6 +33,10 @@ export type ScopeSelectorQueryNormalization =
   | { ok: true; changed: boolean; pathWithQuery: string }
   | { ok: false; status: 400; body: ScopeSelectorConflictBody };
 
+export type ScopeSelectorResolution =
+  | { ok: true; selector: NormalizedScopeSelector; selectedId?: string }
+  | { ok: false; status: 400; body: ScopeSelectorConflictBody };
+
 export class ScopeSelectorConflictError extends Error {
   readonly reason = "conflicting_scope_selectors" as const;
   readonly scopeId: string;
@@ -76,8 +80,24 @@ export function selectedScopeSelectorId(
   return normalized.scopeId ?? normalized.projectId;
 }
 
-export function scopeSelectorFromUrl(url: URL): NormalizedScopeSelector {
-  return normalizeScopeSelector({
+export function resolveScopeSelector(
+  selector?: ScopeSelectorArgument,
+): ScopeSelectorResolution {
+  try {
+    const normalized = normalizeScopeSelectorArgument(selector);
+    return {
+      ok: true,
+      selector: normalized,
+      selectedId: normalized.scopeId ?? normalized.projectId,
+    };
+  } catch (err) {
+    if (!(err instanceof ScopeSelectorConflictError)) throw err;
+    return { ok: false, status: 400, body: scopeSelectorConflictBody(err) };
+  }
+}
+
+export function resolveScopeSelectorFromUrl(url: URL): ScopeSelectorResolution {
+  return resolveScopeSelector({
     scopeId: url.searchParams.get("scopeId") ?? undefined,
     projectId: url.searchParams.get("projectId") ?? undefined,
   });
@@ -159,13 +179,9 @@ export function unknownScopeSelectorBody(
 export function normalizeScopeSelectorQueryUrl(
   url: URL,
 ): ScopeSelectorQueryNormalization {
-  let selector: NormalizedScopeSelector;
-  try {
-    selector = scopeSelectorFromUrl(url);
-  } catch (err) {
-    if (!(err instanceof ScopeSelectorConflictError)) throw err;
-    return { ok: false, status: 400, body: scopeSelectorConflictBody(err) };
-  }
+  const resolved = resolveScopeSelectorFromUrl(url);
+  if (!resolved.ok) return resolved;
+  const { selector } = resolved;
   if (selector.scopeId === undefined) {
     return {
       ok: true,

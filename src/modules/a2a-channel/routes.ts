@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import type { ModuleContext, RouteRegistration } from "#core/modules/module-types.js";
 import { getDaemonTransport } from "#core/server/daemon-transport.js";
+import { readSelectedScopeSelectorIdQueryOrErrorResponse } from "#core/server/scope-selector-request.js";
 import { jsonResponse, readBody, setCors } from "#core/server/session-pool.js";
 import { buildAgentCard } from "./agent-card.js";
 import {
@@ -10,7 +11,7 @@ import {
 } from "./daemon-session-client.js";
 import {
   A2A_EXTENDED_CARD_PATH,
-  A2A_LEGACY_PROTOCOL_VERSION,
+  A2A_LEGACY_PROTOCOL_VERSION as A2A_IMPLICIT_PROTOCOL_VERSION,
   A2A_PROTOCOL_VERSION,
   A2A_RPC_PATH,
   A2A_WELL_KNOWN_CARD_PATH,
@@ -80,7 +81,11 @@ function handleAgentCard(
 ): void {
   setCors(res);
   res.setHeader("Cache-Control", extended ? "no-store" : "public, max-age=300");
-  jsonResponse(res, 200, buildAgentCard(ctx, req, extended));
+  const tenant = extended
+    ? readSelectedScopeSelectorIdQueryOrErrorResponse(req, res, "http://127.0.0.1")
+    : undefined;
+  if (tenant === null) return;
+  jsonResponse(res, 200, buildAgentCard(ctx, req, extended, tenant));
 }
 
 async function handleRpc(
@@ -147,12 +152,12 @@ function requestedA2AProtocolVersion(req: IncomingMessage): string {
   const queryVersion = url.searchParams.get(A2A_VERSION_QUERY_PARAMETER);
   if (queryVersion !== null) return normalizeRequestedA2AVersion(queryVersion);
 
-  return A2A_LEGACY_PROTOCOL_VERSION;
+  return A2A_IMPLICIT_PROTOCOL_VERSION;
 }
 
 function normalizeRequestedA2AVersion(value: string): string {
   const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : A2A_LEGACY_PROTOCOL_VERSION;
+  return trimmed.length > 0 ? trimmed : A2A_IMPLICIT_PROTOCOL_VERSION;
 }
 
 function firstHeaderValue(value: string | string[] | undefined): string | null {

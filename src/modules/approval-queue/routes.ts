@@ -24,10 +24,15 @@ import {
 	type DaemonTransport,
 	getDaemonTransport,
 } from "#core/server/daemon-transport.js";
+import { readSelectedScopeSelectorIdQueryOrErrorResponse } from "#core/server/scope-selector-request.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import { executeTool, type ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type { ApprovalExecutionProjection } from "./client.js";
+
+type OptionalStringFieldRead =
+	| { ok: true; value?: string }
+	| { ok: false };
 
 const VALID_STATUSES: readonly (ApprovalStatus | "all")[] = [
 	"all",
@@ -46,9 +51,11 @@ function readStatusFilter(req: IncomingMessage): ApprovalStatus | "all" | undefi
 	return undefined;
 }
 
-function readProjectId(req: IncomingMessage): string | undefined {
-	const projectId = new URL(req.url ?? "", "http://localhost").searchParams.get("projectId");
-	return projectId && projectId.trim() !== "" ? projectId : undefined;
+function readProjectId(
+	req: IncomingMessage,
+	res: ServerResponse,
+): string | null | undefined {
+	return readSelectedScopeSelectorIdQueryOrErrorResponse(req, res);
 }
 
 function approvalQuery(
@@ -238,14 +245,16 @@ function writeApprovalInputUnavailable(
 
 async function readOptionalStringField(
 	req: IncomingMessage,
+	res: ServerResponse,
 	field: "note" | "reason",
-): Promise<string | undefined> {
+): Promise<OptionalStringFieldRead> {
 	try {
 		const body = await readBody(req);
 		const value = body[field];
-		return typeof value === "string" ? value : undefined;
+		return { ok: true, ...(typeof value === "string" ? { value } : {}) };
 	} catch {
-		return undefined;
+		jsonResponse(res, 400, { error: "Invalid request body" });
+		return { ok: false };
 	}
 }
 
@@ -303,20 +312,21 @@ export async function handleApproveApproval(
 	projectId?: string,
 ): Promise<void> {
 	if (rejectMalformedApprovalId(res, id)) return;
-	const note = await readOptionalStringField(req, "note");
+	const note = await readOptionalStringField(req, res, "note");
+	if (!note.ok) return;
 
 	if (link) {
 		await proxyApprovalMutation(
 			res,
 			link,
 			`/approvals/${encodeURIComponent(id)}/approve${projectQuery(projectId)}`,
-			{ note },
+			note.value === undefined ? {} : { note: note.value },
 		);
 		return;
 	}
 	const resolvedQueue = resolveApprovalQueue(res, queue, projectId);
 	if (!resolvedQueue) return;
-	const result = approveApprovalLocal(resolvedQueue.queue, id, note);
+	const result = approveApprovalLocal(resolvedQueue.queue, id, note.value);
 	if (!result.ok && result.reason === "not_found") {
 		jsonResponse(res, 404, { error: "Approval not found or not pending" });
 		return;
@@ -340,20 +350,21 @@ export async function handleRejectApproval(
 	projectId?: string,
 ): Promise<void> {
 	if (rejectMalformedApprovalId(res, id)) return;
-	const reason = await readOptionalStringField(req, "reason");
+	const reason = await readOptionalStringField(req, res, "reason");
+	if (!reason.ok) return;
 
 	if (link) {
 		await proxyApprovalMutation(
 			res,
 			link,
 			`/approvals/${encodeURIComponent(id)}/reject${projectQuery(projectId)}`,
-			{ reason },
+			reason.value === undefined ? {} : { reason: reason.value },
 		);
 		return;
 	}
 	const resolvedQueue = resolveApprovalQueue(res, queue, projectId);
 	if (!resolvedQueue) return;
-	const item = rejectApprovalLocal(resolvedQueue.queue, id, reason);
+	const item = rejectApprovalLocal(resolvedQueue.queue, id, reason.value);
 	if (!item) {
 		jsonResponse(res, 404, { error: "Approval not found or not pending" });
 		return;
@@ -368,20 +379,21 @@ export async function handleApproveAllApprovals(
 	queue?: ApprovalQueue,
 	projectId?: string,
 ): Promise<void> {
-	const note = await readOptionalStringField(req, "note");
+	const note = await readOptionalStringField(req, res, "note");
+	if (!note.ok) return;
 
 	if (link) {
 		await proxyApprovalMutation(
 			res,
 			link,
 			`/approvals/approve-all${projectQuery(projectId)}`,
-			{ note },
+			note.value === undefined ? {} : { note: note.value },
 		);
 		return;
 	}
 	const resolvedQueue = resolveApprovalQueue(res, queue, projectId);
 	if (!resolvedQueue) return;
-	const result = approveAllApprovalsLocal(resolvedQueue.queue, note);
+	const result = approveAllApprovalsLocal(resolvedQueue.queue, note.value);
 	if (!result.ok) {
 		writeApprovalInputUnavailable(res, result.approvals);
 		return;
@@ -399,20 +411,21 @@ export async function handleRejectAllApprovals(
 	queue?: ApprovalQueue,
 	projectId?: string,
 ): Promise<void> {
-	const reason = await readOptionalStringField(req, "reason");
+	const reason = await readOptionalStringField(req, res, "reason");
+	if (!reason.ok) return;
 
 	if (link) {
 		await proxyApprovalMutation(
 			res,
 			link,
 			`/approvals/reject-all${projectQuery(projectId)}`,
-			{ reason },
+			reason.value === undefined ? {} : { reason: reason.value },
 		);
 		return;
 	}
 	const resolvedQueue = resolveApprovalQueue(res, queue, projectId);
 	if (!resolvedQueue) return;
-	jsonResponse(res, 200, rejectAllApprovalsLocal(resolvedQueue.queue, reason));
+	jsonResponse(res, 200, rejectAllApprovalsLocal(resolvedQueue.queue, reason.value));
 }
 
 
@@ -421,64 +434,79 @@ export function approvalRoutes(): RouteRegistration[] {
 		{
 			method: "GET",
 			path: "/api/approvals",
-			handler: (req, res) =>
-				handleListApprovals(
+			handler: (req, res) => {
+				const projectId = readProjectId(req, res);
+				if (projectId === null) return;
+				return handleListApprovals(
 					res,
 					getDaemonTransport(),
 					undefined,
 					readStatusFilter(req),
-					readProjectId(req),
-				),
+					projectId,
+				);
+			},
 		},
 		{
 			method: "POST",
 			path: "/api/approvals/approve-all",
-			handler: (req, res) =>
-				handleApproveAllApprovals(
+			handler: (req, res) => {
+				const projectId = readProjectId(req, res);
+				if (projectId === null) return;
+				return handleApproveAllApprovals(
 					req,
 					res,
 					getDaemonTransport(),
 					undefined,
-					readProjectId(req),
-				),
+					projectId,
+				);
+			},
 		},
 		{
 			method: "POST",
 			path: "/api/approvals/reject-all",
-			handler: (req, res) =>
-				handleRejectAllApprovals(
+			handler: (req, res) => {
+				const projectId = readProjectId(req, res);
+				if (projectId === null) return;
+				return handleRejectAllApprovals(
 					req,
 					res,
 					getDaemonTransport(),
 					undefined,
-					readProjectId(req),
-				),
+					projectId,
+				);
+			},
 		},
 		{
 			method: "POST",
 			path: "/api/approvals/:id/approve",
-			handler: (req, res, params) =>
-				handleApproveApproval(
+			handler: (req, res, params) => {
+				const projectId = readProjectId(req, res);
+				if (projectId === null) return;
+				return handleApproveApproval(
 					req,
 					res,
 					params.id,
 					getDaemonTransport(),
 					undefined,
-					readProjectId(req),
-				),
+					projectId,
+				);
+			},
 		},
 		{
 			method: "POST",
 			path: "/api/approvals/:id/reject",
-			handler: (req, res, params) =>
-				handleRejectApproval(
+			handler: (req, res, params) => {
+				const projectId = readProjectId(req, res);
+				if (projectId === null) return;
+				return handleRejectApproval(
 					req,
 					res,
 					params.id,
 					getDaemonTransport(),
 					undefined,
-					readProjectId(req),
-				),
+					projectId,
+				);
+			},
 		},
 	];
 }
@@ -487,7 +515,9 @@ async function handleListApprovalsControl(
 	req: IncomingMessage,
 	res: ServerResponse,
 ): Promise<void> {
-	const queue = resolveApprovalQueue(res, undefined, readProjectId(req));
+	const projectId = readProjectId(req, res);
+	if (projectId === null) return;
+	const queue = resolveApprovalQueue(res, undefined, projectId);
 	if (!queue) return;
 	jsonResponse(res, 200, listApprovalsLocal(queue.queue, readStatusFilter(req)));
 }
@@ -498,10 +528,13 @@ async function handleApproveApprovalControl(
 	params: Record<string, string>,
 ): Promise<void> {
 	if (rejectMalformedApprovalId(res, params.id)) return;
-	const note = await readOptionalStringField(req, "note");
-	const queue = resolveApprovalQueue(res, undefined, readProjectId(req));
+	const note = await readOptionalStringField(req, res, "note");
+	if (!note.ok) return;
+	const projectId = readProjectId(req, res);
+	if (projectId === null) return;
+	const queue = resolveApprovalQueue(res, undefined, projectId);
 	if (!queue) return;
-	const result = approveApprovalLocal(queue.queue, params.id, note);
+	const result = approveApprovalLocal(queue.queue, params.id, note.value);
 	if (!result.ok && result.reason === "not_found") {
 		jsonResponse(res, 404, { error: "Approval not found or not pending" });
 		return;
@@ -522,10 +555,13 @@ async function handleRejectApprovalControl(
 	params: Record<string, string>,
 ): Promise<void> {
 	if (rejectMalformedApprovalId(res, params.id)) return;
-	const reason = await readOptionalStringField(req, "reason");
-	const queue = resolveApprovalQueue(res, undefined, readProjectId(req));
+	const reason = await readOptionalStringField(req, res, "reason");
+	if (!reason.ok) return;
+	const projectId = readProjectId(req, res);
+	if (projectId === null) return;
+	const queue = resolveApprovalQueue(res, undefined, projectId);
 	if (!queue) return;
-	const item = rejectApprovalLocal(queue.queue, params.id, reason);
+	const item = rejectApprovalLocal(queue.queue, params.id, reason.value);
 	if (!item) {
 		jsonResponse(res, 404, { error: "Approval not found or not pending" });
 		return;
@@ -537,10 +573,13 @@ async function handleApproveAllApprovalsControl(
 	req: IncomingMessage,
 	res: ServerResponse,
 ): Promise<void> {
-	const note = await readOptionalStringField(req, "note");
-	const queue = resolveApprovalQueue(res, undefined, readProjectId(req));
+	const note = await readOptionalStringField(req, res, "note");
+	if (!note.ok) return;
+	const projectId = readProjectId(req, res);
+	if (projectId === null) return;
+	const queue = resolveApprovalQueue(res, undefined, projectId);
 	if (!queue) return;
-	const result = approveAllApprovalsLocal(queue.queue, note);
+	const result = approveAllApprovalsLocal(queue.queue, note.value);
 	if (!result.ok) {
 		writeApprovalInputUnavailable(res, result.approvals);
 		return;
@@ -555,10 +594,13 @@ async function handleRejectAllApprovalsControl(
 	req: IncomingMessage,
 	res: ServerResponse,
 ): Promise<void> {
-	const reason = await readOptionalStringField(req, "reason");
-	const queue = resolveApprovalQueue(res, undefined, readProjectId(req));
+	const reason = await readOptionalStringField(req, res, "reason");
+	if (!reason.ok) return;
+	const projectId = readProjectId(req, res);
+	if (projectId === null) return;
+	const queue = resolveApprovalQueue(res, undefined, projectId);
 	if (!queue) return;
-	jsonResponse(res, 200, rejectAllApprovalsLocal(queue.queue, reason));
+	jsonResponse(res, 200, rejectAllApprovalsLocal(queue.queue, reason.value));
 }
 
 export function approvalControlRoutes(): ControlRouteRegistration[] {

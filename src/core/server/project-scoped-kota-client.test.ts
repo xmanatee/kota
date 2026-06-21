@@ -11,7 +11,7 @@ describe("createProjectScopedKotaClient", () => {
     const calls: unknown[] = [];
     const base = {
       forProject: () => {
-        throw new Error("not used");
+        throw new Error("unexpected call");
       },
       workflow: {
         status: async (filter: unknown) => {
@@ -121,10 +121,10 @@ describe("createScopeScopedKotaClient", () => {
     const calls: unknown[] = [];
     const base = {
       forProject: () => {
-        throw new Error("not used");
+        throw new Error("unexpected call");
       },
       forScope: () => {
-        throw new Error("not used");
+        throw new Error("unexpected call");
       },
       workflow: {
         status: async (filter: unknown) => {
@@ -188,10 +188,10 @@ describe("createScopeScopedKotaClient", () => {
     const calls: unknown[] = [];
     const base = {
       forProject: () => {
-        throw new Error("not used");
+        throw new Error("unexpected call");
       },
       forScope: () => {
-        throw new Error("not used");
+        throw new Error("unexpected call");
       },
       approvals: {
         approve: async (id: string, note: string | undefined, project: unknown) => {

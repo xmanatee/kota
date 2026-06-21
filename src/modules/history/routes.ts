@@ -12,6 +12,7 @@ import {
   type DaemonTransport,
   getDaemonTransport,
 } from "#core/server/daemon-transport.js";
+import { selectedScopeSelectorIdFromUrlOrErrorResponse } from "#core/server/scope-selector-request.js";
 import { jsonResponse } from "#core/server/session-pool.js";
 import { line, span } from "#modules/rendering/primitives.js";
 import { printToStderr } from "#modules/rendering/transport.js";
@@ -35,7 +36,9 @@ function resolveScopedProvider(
   projectStores: HistoryProjectStores | undefined,
 ): HistoryProvider | null {
   if (!projectStores) return getHistoryProvider();
-  const resolved = projectStores.resolve(url.searchParams.get("projectId"));
+  const selectedId = selectedScopeSelectorIdFromUrlOrErrorResponse(res, url);
+  if (selectedId === null) return null;
+  const resolved = projectStores.resolve(selectedId);
   if (!resolved.ok) {
     jsonResponse(res, 404, resolved.error);
     return null;
@@ -92,6 +95,8 @@ export async function handleListHistory(
   link: DaemonTransport | null = null,
   projectStores?: HistoryProjectStores,
 ): Promise<void> {
+  const selectedId = selectedScopeSelectorIdFromUrlOrErrorResponse(res, url);
+  if (selectedId === null) return;
   if (link) {
     const params = new URLSearchParams();
     const search = url.searchParams.get("search");
@@ -101,8 +106,7 @@ export async function handleListHistory(
     if (cwd != null) params.set("cwd", cwd);
     const sourceParam = url.searchParams.get("source") ?? undefined;
     if (sourceParam === "user" || sourceParam === "action") params.set("source", sourceParam);
-    const projectId = url.searchParams.get("projectId");
-    if (projectId != null) params.set("projectId", projectId);
+    if (selectedId !== undefined) params.set("projectId", selectedId);
     const qs = params.toString();
     const result = await link.request<{ conversations: ConversationRecord[] }>(
       "GET",
@@ -128,10 +132,9 @@ export async function handleGetHistory(
 ): Promise<void> {
   const request = parseHistoryDetailRequestOrRespond(res, url);
   if (!request) return;
-  const projectQuery = buildHistoryDetailQuery(
-    request,
-    url.searchParams.get("projectId") ?? undefined,
-  );
+  const selectedId = selectedScopeSelectorIdFromUrlOrErrorResponse(res, url);
+  if (selectedId === null) return;
+  const projectQuery = buildHistoryDetailQuery(request, selectedId);
   if (link) {
     const detail = await link.request<HistoryDetail>(
       "GET",
@@ -191,7 +194,9 @@ export async function handleDeleteHistory(
   link: DaemonTransport | null = null,
   projectStores?: HistoryProjectStores,
 ): Promise<void> {
-  const projectQuery = buildProjectQuery(url);
+  const selectedId = selectedScopeSelectorIdFromUrlOrErrorResponse(res, url);
+  if (selectedId === null) return;
+  const projectQuery = buildProjectQuery(selectedId);
   if (link) {
     let resp: Response | null = null;
     try {
@@ -360,9 +365,8 @@ function handleDeleteHistoryControl(
   jsonResponse(res, 200, { deleted: params.id });
 }
 
-function buildProjectQuery(url: URL): string {
-  const projectId = url.searchParams.get("projectId");
-  if (projectId === null) return "";
+function buildProjectQuery(projectId?: string): string {
+  if (projectId === undefined) return "";
   const params = new URLSearchParams();
   params.set("projectId", projectId);
   return `?${params.toString()}`;

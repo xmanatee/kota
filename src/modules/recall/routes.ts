@@ -13,11 +13,7 @@ import type {
   ControlRouteRegistration,
   RouteRegistration,
 } from "#core/modules/module-types.js";
-import {
-  ScopeSelectorConflictError,
-  scopeSelectorConflictBody,
-  selectedScopeSelectorId,
-} from "#core/server/scope-selector.js";
+import { selectedScopeSelectorIdOrErrorResponse } from "#core/server/scope-selector-request.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import type {
   RecallFilter,
@@ -82,14 +78,8 @@ export function createRecallRouteHandler(
     }
     const filter = parseFilter(body.filter);
     try {
-      let selectedId: string | undefined;
-      try {
-        selectedId = selectedScopeSelectorId(filter);
-      } catch (err) {
-        if (!(err instanceof ScopeSelectorConflictError)) throw err;
-        jsonResponse(res, 400, scopeSelectorConflictBody(err));
-        return;
-      }
+      const selectedId = selectedScopeSelectorIdOrErrorResponse(res, filter);
+      if (selectedId === null) return;
       const project = resolveProjectContext?.(selectedId);
       if (project && "error" in project) {
         jsonResponse(res, 404, {

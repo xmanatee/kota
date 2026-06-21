@@ -16,12 +16,7 @@ import type {
   ControlRouteRegistration,
   RouteRegistration,
 } from "#core/modules/module-types.js";
-import {
-  type ScopeSelector,
-  ScopeSelectorConflictError,
-  scopeSelectorConflictBody,
-  selectedScopeSelectorId,
-} from "#core/server/scope-selector.js";
+import { selectedScopeSelectorIdOrErrorResponse } from "#core/server/scope-selector-request.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import type { RecallSource } from "#modules/recall/client.js";
 import type { AnswerHistoryStore } from "./answer-history-store.js";
@@ -67,19 +62,6 @@ function parseFilter(value: unknown): AnswerFilter | undefined {
   return filter;
 }
 
-function selectedIdOrRespond(
-  res: ServerResponse,
-  selector?: ScopeSelector,
-): string | null | undefined {
-  try {
-    return selectedScopeSelectorId(selector);
-  } catch (err) {
-    if (!(err instanceof ScopeSelectorConflictError)) throw err;
-    jsonResponse(res, 400, scopeSelectorConflictBody(err));
-    return null;
-  }
-}
-
 export function createAnswerRouteHandler(
   resolveProvider: () => AnswerProvider,
   resolveProjectContext?: ResolveAnswerProjectContext,
@@ -102,7 +84,7 @@ export function createAnswerRouteHandler(
     }
     const filter = parseFilter(body.filter);
     try {
-      const selectedId = selectedIdOrRespond(res, filter);
+      const selectedId = selectedScopeSelectorIdOrErrorResponse(res, filter);
       if (selectedId === null) return;
       const project = resolveProjectContext?.(selectedId);
       if (project && "error" in project) {
@@ -224,7 +206,7 @@ export function createAnswerHistoryRouteHandler(
     async list(req: IncomingMessage, res: ServerResponse): Promise<void> {
       try {
         const query = parseListQuery(req);
-        const selectedId = selectedIdOrRespond(res, query);
+        const selectedId = selectedScopeSelectorIdOrErrorResponse(res, query);
         if (selectedId === null) return;
         const project = resolveProjectContext?.(selectedId);
         if (project && "error" in project) {
@@ -252,7 +234,7 @@ export function createAnswerHistoryRouteHandler(
     ): Promise<void> {
       try {
         const query = parseListQuery(req);
-        const selectedId = selectedIdOrRespond(res, query);
+        const selectedId = selectedScopeSelectorIdOrErrorResponse(res, query);
         if (selectedId === null) return;
         const project = resolveProjectContext?.(selectedId);
         if (project && "error" in project) {

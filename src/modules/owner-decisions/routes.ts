@@ -16,12 +16,10 @@ import type {
 } from "#core/modules/module-types.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import {
-  type ScopeSelector,
-  ScopeSelectorConflictError,
-  scopeSelectorConflictBody,
-  scopeSelectorFromUrl,
+  type NormalizedScopeSelector,
   selectedScopeSelectorId,
 } from "#core/server/scope-selector.js";
+import { readScopeSelectorQueryOrErrorResponse } from "#core/server/scope-selector-request.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import {
   answerOwnerDecisionLocal,
@@ -60,22 +58,9 @@ function readStatusFilter(req: IncomingMessage): OwnerDecisionStatus | "all" | u
   return undefined;
 }
 
-function readScopeSelector(
-  req: IncomingMessage,
-  res: ServerResponse,
-): ScopeSelector | null {
-  try {
-    return scopeSelectorFromUrl(new URL(req.url ?? "", "http://localhost"));
-  } catch (err) {
-    if (!(err instanceof ScopeSelectorConflictError)) throw err;
-    jsonResponse(res, 400, scopeSelectorConflictBody(err));
-    return null;
-  }
-}
-
 function resolveQueues(
   res: ServerResponse,
-  selector?: ScopeSelector,
+  selector?: NormalizedScopeSelector,
 ): OwnerDecisionQueues | null {
   const projectScope = getProviderRegistry()?.get(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE);
   if (!projectScope) {
@@ -117,7 +102,7 @@ export async function handleListOwnerDecisions(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
-  const selector = readScopeSelector(req, res);
+  const selector = readScopeSelectorQueryOrErrorResponse(req, res);
   if (selector === null) return;
   const queues = resolveQueues(res, selector);
   if (!queues) return;
@@ -129,7 +114,7 @@ export async function handleShowOwnerDecision(
   res: ServerResponse,
   id: string,
 ): Promise<void> {
-  const selector = readScopeSelector(req, res);
+  const selector = readScopeSelectorQueryOrErrorResponse(req, res);
   if (selector === null) return;
   const queues = resolveQueues(res, selector);
   if (!queues) return;
@@ -151,7 +136,7 @@ export async function handleAnswerOwnerDecision(
     jsonResponse(res, 400, { error: "selectedValue is required" });
     return;
   }
-  const selector = readScopeSelector(req, res);
+  const selector = readScopeSelectorQueryOrErrorResponse(req, res);
   if (selector === null) return;
   const queues = resolveQueues(res, selector);
   if (!queues) return;
@@ -179,7 +164,7 @@ export async function handleCancelOwnerDecision(
   id: string,
 ): Promise<void> {
   const reason = await readCancelReason(req);
-  const selector = readScopeSelector(req, res);
+  const selector = readScopeSelectorQueryOrErrorResponse(req, res);
   if (selector === null) return;
   const queues = resolveQueues(res, selector);
   if (!queues) return;

@@ -47,9 +47,14 @@ export type A2AAgentSkill = {
   outputModes: string[];
 };
 
-export function buildAgentCard(ctx: ModuleContext, req: IncomingMessage, extended: boolean): A2AAgentCard {
+export function buildAgentCard(
+  ctx: ModuleContext,
+  req: IncomingMessage,
+  extended: boolean,
+  tenant?: string,
+): A2AAgentCard {
   const origin = requestOrigin(req);
-  const tenant = extended ? selectedProjectTenant(req) : null;
+  const selectedTenant = extended ? tenant : undefined;
   const moduleSkills = ctx
     .getModuleSummaries()
     .flatMap((summary) => summary.skillNames)
@@ -63,7 +68,7 @@ export function buildAgentCard(ctx: ModuleContext, req: IncomingMessage, extende
         url: `${origin}${A2A_RPC_PATH}`,
         protocolBinding: "JSONRPC",
         protocolVersion: A2A_PROTOCOL_VERSION,
-        ...(tenant ? { tenant } : {}),
+        ...(selectedTenant ? { tenant: selectedTenant } : {}),
       },
     ],
     version: "0.1.0",
@@ -118,12 +123,6 @@ function requestOrigin(req: IncomingMessage): string {
   const forwardedHost = firstHeaderValue(req.headers["x-forwarded-host"]);
   const host = forwardedHost ?? firstHeaderValue(req.headers.host) ?? "127.0.0.1";
   return `${proto}://${host}`;
-}
-
-function selectedProjectTenant(req: IncomingMessage): string | null {
-  const url = new URL(req.url ?? "/", "http://127.0.0.1");
-  const projectId = url.searchParams.get("projectId")?.trim() ?? "";
-  return projectId.length > 0 ? projectId : null;
 }
 
 function firstHeaderValue(value: string | string[] | undefined): string | null {

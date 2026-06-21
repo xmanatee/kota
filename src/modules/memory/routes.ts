@@ -3,13 +3,10 @@ import type { RouteRegistration } from "#core/modules/module-types.js";
 import { getMemoryProvider } from "#core/modules/provider-registry.js";
 import type { Memory } from "#core/modules/provider-types.js";
 import {
-  type ScopeSelector,
-  ScopeSelectorConflictError,
-  scopeSelectorConflictBody,
-  scopeSelectorFromUrl,
   selectedScopeSelectorId,
   unknownScopeSelectorBody,
 } from "#core/server/scope-selector.js";
+import { readScopeSelectorQueryOrErrorResponse } from "#core/server/scope-selector-request.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import type { MemoryProjectStores } from "./project-scope.js";
 
@@ -39,15 +36,8 @@ function resolveScopedProvider(
   projectStores: MemoryProjectStores | undefined,
 ) {
   if (!projectStores) return getMemoryProvider();
-  const url = new URL(req.url ?? "", "http://localhost");
-  let selector: ScopeSelector;
-  try {
-    selector = scopeSelectorFromUrl(url);
-  } catch (err) {
-    if (!(err instanceof ScopeSelectorConflictError)) throw err;
-    jsonResponse(res, 400, scopeSelectorConflictBody(err));
-    return null;
-  }
+  const selector = readScopeSelectorQueryOrErrorResponse(req, res);
+  if (selector === null) return null;
   const selectedId = selectedScopeSelectorId(selector);
   const resolved = projectStores.resolve(selectedId);
   if (!resolved.ok) {
