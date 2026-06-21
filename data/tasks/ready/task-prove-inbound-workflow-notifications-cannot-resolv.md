@@ -1,13 +1,13 @@
 ---
 id: task-prove-inbound-workflow-notifications-cannot-resolv
 title: Prove inbound workflow notifications cannot resolve operator approvals
-status: backlog
+status: ready
 priority: p2
 area: security
 task_class: Safety
 summary: Add a regression/audit proving scheduled, webhook, and inbound-signal workflow deliveries cannot answer or approve pending operator prompts except through explicit authenticated operator routes.
 created_at: 2026-06-21T06:07:47.113Z
-updated_at: 2026-06-21T06:07:47.113Z
+updated_at: 2026-06-21T07:40:07.124Z
 ---
 
 ## Problem
