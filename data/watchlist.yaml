@@ -169,6 +169,10 @@ resources:
   - url: https://arxiv.org/abs/2606.07297
     added: "2026-06-21"
     notes: "SWE-Explore isolates repository exploration by asking coding agents to return ranked relevant code regions under a line budget. Monitor as a harness-parity/eval signal for exploration-only localization scenarios, ranking quality, and context efficiency; do not import the benchmark dataset or runner. This review opened task-add-ranked-repository-exploration-scenario-to-harn."
+    snapshot:
+      fingerprint: sha256:ce59b99f2863938c7dc1c1ea3ba9734d
+      summary: "SWE-Explore is accessible; its ranked-region repository-exploration signal is already covered by completed task-add-ranked-repository-exploration-scenario-to-harn, so no duplicate task is needed from this snapshot."
+      last_seen_at: "2026-06-21T02:53:55.170Z"
   - url: https://arxiv.org/abs/2605.18583
     added: "2026-05-19"
     notes: "Overeager Coding Agents / OverEager-Bench measures benign-task scope expansion across Claude Code, OpenHands, Codex CLI, and Gemini CLI. Monitor as a direct autonomy-eval signal for authorization-boundary and over-eager edit behavior, not as a replacement benchmark."
