@@ -62,21 +62,21 @@ resources:
   - url: https://github.com/anthropics/claude-code
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:5a930c14b243f5ae01ce5e17990a963c
-      summary: "Claude Code v2.1.152 adds active skill tool-deny frontmatter and skill reload hooks; this opened task-reject-skill-frontmatter-tool-policy-declarations- for KOTA's matching unsupported skill tool-policy metadata gap."
-      last_seen_at: "2026-05-27T10:12:35.222Z"
+      fingerprint: sha256:6e0e34062f79d52fbe9a3d81ee879629
+      summary: "Claude Code 2.1.183 surfaces a nonduplicative KOTA safety gap: automated scheduled/webhook deliveries must be proven unable to resolve pending approvals or owner prompts, which opened task-prove-inbound-workflow-notifications-cannot-resolv."
+      last_seen_at: "2026-06-21T06:09:44.587Z"
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:f00d90cba3f609cee2687a62f6319284
-      summary: "Codex 0.134.0 reinforces effect-aware tool-call parallelism; this run opened task-serialize-mutating-agent-tool-calls-while-preservi so KOTA preserves read-only concurrency without racing mutating agent tool calls."
-      last_seen_at: "2026-05-27T19:21:13.478Z"
+      fingerprint: sha256:1c3a7f812b45a1d70faa0347fae80a70
+      summary: "Codex 0.141.0 reinforces remote executor, dynamic-tool namespace, plugin-MCP, and hook-policy directions; KOTA's current MCP namespacing and tool-control work cover the nonduplicative local gaps from this snapshot."
+      last_seen_at: "2026-06-21T06:09:44.587Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:26f3635c7b0dd2058d17923a6f8e6166
-      summary: "Gemini CLI v0.45.0-nightly.20260527 surfaces an ACP PolicyEngine deadlock fix; this run opened task-bridge-acp-client-permission-decisions-into-daemon so KOTA's ACP adapter can round-trip permission decisions through the connected client instead of relying only on out-of-band approval."
-      last_seen_at: "2026-05-28T04:39:04.416Z"
+      fingerprint: sha256:c2cb3ac8fbcbc49fb7edd0271cb2921c
+      summary: "Gemini CLI v0.47.0 reinforces KOTA's existing MCP discovery, policy-parse recovery, Antigravity migration, and harness-readiness directions; no new nonduplicative task was opened."
+      last_seen_at: "2026-06-21T06:09:44.587Z"
   - url: https://agentclientprotocol.com/get-started/architecture
     added: "2026-05-27"
     notes: "Official Agent Client Protocol docs. Monitor architecture, schema, transport, registry, stdio/Streamable HTTP, MCP handoff, permission, and session-lifecycle changes as an interoperability signal for KOTA's module-owned ACP adapter task."
