@@ -120,13 +120,22 @@ function selectAutonomyMode(context: ToolCallContext | undefined): AutonomyMode 
   return context?.autonomyMode ?? "autonomous";
 }
 
+function shouldScreenTool(
+  callName: string,
+  context: ToolCallContext | undefined,
+  targetTools: ReadonlySet<string>,
+): boolean {
+  return targetTools.has(callName) ||
+    context?.resultContentProvenance?.kind === "external-mcp";
+}
+
 export function createInjectionDefenseMiddleware(
   options: InjectionDefenseOptions,
 ): ToolMiddlewareFn {
   const { targetTools, targetModes, emit } = options;
   return async (call, next) => {
     const result = await next();
-    if (!targetTools.has(call.name)) return result;
+    if (!shouldScreenTool(call.name, call.context, targetTools)) return result;
     // Do not screen error results — a failure does not carry ingested content.
     if (result.is_error) return result;
 

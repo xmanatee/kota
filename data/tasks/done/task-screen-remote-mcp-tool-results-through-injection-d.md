@@ -1,13 +1,13 @@
 ---
 id: task-screen-remote-mcp-tool-results-through-injection-d
 title: Screen remote MCP tool results through injection-defense by provenance
-status: ready
+status: done
 priority: p1
 area: modules
 task_class: Safety
 summary: Treat external MCP tool and resource results as content-ingest outputs for autonomous runs by default, so dynamically named mcp__server__tool results are screened through injection-defense without per-tool allowlist configuration.
 created_at: 2026-06-21T04:39:36.410Z
-updated_at: 2026-06-21T04:39:36.410Z
+updated_at: 2026-06-21T05:36:14.000Z
 ---
 
 ## Problem
@@ -117,6 +117,15 @@ Local overlap check:
 
 Agentic security containment: external tool output should not gain authority
 inside autonomous runs just because the connector itself was configured.
+
+## Outcome
+
+MCP-managed remote tools and resource/skill/prompt operations now attach
+typed `external-mcp` result-content provenance before tool middleware runs.
+`injection-defense` screens that provenance in autonomous sessions alongside
+the configured exact-name target tools, while unmanaged MCP-shaped KOTA
+control-plane names remain untouched unless they are explicitly marked as
+external content.
 
 ## Acceptance Evidence
 

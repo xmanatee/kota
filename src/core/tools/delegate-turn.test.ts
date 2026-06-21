@@ -56,6 +56,12 @@ describe("runDelegateTurns", () => {
     };
     const mcpMgr = {
       isMcpTool: vi.fn((name: string) => name === "mcp__search__lookup"),
+      getToolResultContentProvenance: vi.fn(() => ({
+        kind: "external-mcp" as const,
+        serverName: "search",
+        source: "tool" as const,
+        name: "lookup",
+      })),
       executeTool: vi.fn(async () => ({
         content: "visible text",
         blocks: [

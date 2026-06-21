@@ -16,6 +16,13 @@
 import type { AutonomyMode } from "./autonomy-mode.js";
 import type { ToolResult } from "./index.js";
 
+export type ToolResultContentProvenance = {
+	kind: "external-mcp";
+	serverName: string;
+	source: "tool" | "operation";
+	name: string;
+};
+
 /**
  * Session-level context that tool-runner attaches to a tool call so middleware
  * can make posture-aware decisions (e.g. injection defense only applies on
@@ -27,6 +34,7 @@ export type ToolCallContext = {
 	autonomyMode?: AutonomyMode;
 	sessionId?: string;
 	toolUseId?: string;
+	resultContentProvenance?: ToolResultContentProvenance;
 	signal?: AbortSignal;
 };
 

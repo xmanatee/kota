@@ -9,6 +9,7 @@ import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import type { McpToolAnnotations } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { validateToolStructuredOutput } from "#core/tools/output-schema.js";
+import type { ToolResultContentProvenance } from "#core/tools/tool-middleware.js";
 import {
   type McpAuthorizationResolver,
   type McpCacheHints,
@@ -1345,6 +1346,31 @@ export class McpManager {
   /** Check whether a remote MCP tool explicitly advertised read-only behavior. */
   isToolReadOnly(name: string): boolean {
     return this.toolMap.get(name)?.annotations?.readOnlyHint === true;
+  }
+
+  /** Return the external-content provenance for an MCP-managed tool or operation. */
+  getToolResultContentProvenance(
+    name: string,
+  ): ToolResultContentProvenance | undefined {
+    const tool = this.toolMap.get(name);
+    if (tool) {
+      return {
+        kind: "external-mcp",
+        serverName: tool.serverConfigName,
+        source: "tool",
+        name: tool.originalName,
+      };
+    }
+    const operation = this.operationMap.get(name);
+    if (operation) {
+      return {
+        kind: "external-mcp",
+        serverName: operation.serverName,
+        source: "operation",
+        name: operation.kind,
+      };
+    }
+    return undefined;
   }
 
   /** Execute an MCP tool by its namespaced name. */

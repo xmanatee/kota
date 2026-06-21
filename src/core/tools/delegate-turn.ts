@@ -203,13 +203,19 @@ export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopR
         const childRunnerContext = runnerContext
           ? { ...runnerContext, toolUseId: block.id }
           : undefined;
+        const resultContentProvenance = isMcp
+          ? mcpMgr?.getToolResultContentProvenance?.(block.name)
+          : undefined;
         const callContext = childRunnerContext
           ? {
               ...(childRunnerContext.sessionId ? { sessionId: childRunnerContext.sessionId } : {}),
               ...(childRunnerContext.toolUseId ? { toolUseId: childRunnerContext.toolUseId } : {}),
+              ...(resultContentProvenance ? { resultContentProvenance } : {}),
               ...(childRunnerContext.signal ? { signal: childRunnerContext.signal } : {}),
             }
-          : undefined;
+          : resultContentProvenance
+            ? { resultContentProvenance }
+            : undefined;
         const call = { name: block.name, input: toolInput };
         try {
           result = await getToolMiddleware().execute(

@@ -494,10 +494,15 @@ export async function executeToolCalls(
       toolUseId: block.id,
       ...(signal ? { signal } : {}),
     };
+    const resultContentProvenance = mcpManager?.getToolResultContentProvenance?.(block.name);
     const call = {
       name: block.name,
       input,
-      context: { autonomyMode, ...runnerContext },
+      context: {
+        autonomyMode,
+        ...runnerContext,
+        ...(resultContentProvenance ? { resultContentProvenance } : {}),
+      },
     };
     const baseFn = () => {
       if (!mcpManager?.isMcpTool(call.name)) {

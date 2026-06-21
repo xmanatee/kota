@@ -2,8 +2,8 @@
  * Injection-defense module — input-side defense for externally authored
  * content on autonomous runs.
  *
- * Registers middleware that screens output from content-ingest tools
- * (`web_fetch`, `web_search`, `http_request`, `read_document`) against a
+ * Registers middleware that screens output from configured content-ingest
+ * tools and tool results marked with external-content provenance against a
  * cheap structural detector. Suspicious payloads receive a warning banner
  * before they reach agent context; every screened call emits an
  * `injection.defense.assessed` bus event so operators can audit both
@@ -75,7 +75,7 @@ const injectionDefenseModule: KotaModule = {
 
   onLoad: (ctx) => {
     const { enabled, targetTools, targetModes } = resolveConfig(ctx);
-    if (!enabled || targetTools.size === 0 || targetModes.size === 0) {
+    if (!enabled || targetModes.size === 0) {
       ctx.log.info("injection-defense: disabled by configuration");
       return;
     }
@@ -90,7 +90,7 @@ const injectionDefenseModule: KotaModule = {
     });
     ctx.registerMiddleware(MIDDLEWARE_NAME, mw, PRIORITY);
     ctx.log.info(
-      `injection-defense: screening ${targetTools.size} tool(s) on modes: ${[...targetModes].join(", ")}`,
+      `injection-defense: screening ${targetTools.size} configured tool(s) plus external-content provenance on modes: ${[...targetModes].join(", ")}`,
     );
   },
 };

@@ -10,7 +10,9 @@ tool does not become safer because its output was screened.
 - Registers tool middleware at priority 40 (after retry, before custom user
   middleware).
 - Post-processes content-ingest tool output (`web_fetch`, `web_search`,
-  `http_request`, `read_document`) before it reaches agent context.
+  `http_request`, `read_document`, browser text-ingest surfaces) and
+  tool results marked with external-content provenance before they reach
+  agent context.
 - Screens payloads against a cheap structural detector; suspicious payloads
   are **annotated, never dropped**: the middleware prepends a warning banner
   naming the tool and reason tags, wraps the original content between
@@ -27,8 +29,9 @@ tool does not become safer because its output was screened.
 
 ## Extending
 
-- New ingest channels should be added to `DEFAULT_TARGET_TOOLS` rather than
-  wrapping their output elsewhere.
+- New exact-name ingest channels should be added to `DEFAULT_TARGET_TOOLS`;
+  dynamically named external tools should pass typed result-content provenance
+  into this middleware instead of maintaining generated name lists.
 - Detection heuristics live in `detector.ts` and should stay cheap and
   structural.
 - If escalation to a classifier becomes necessary, extend the middleware
