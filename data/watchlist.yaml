@@ -296,9 +296,9 @@ resources:
   - url: https://www.anthropic.com/engineering
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:b1cc5670da3d1822bf47c010c2ba5843
-      summary: "Anthropic engineering still centers the Claude Code quality report already mapped to KOTA's completed compaction-context task; no new nonduplicative task was opened from this refresh."
-      last_seen_at: "2026-05-25T11:39:27.852Z"
+      fingerprint: sha256:9b73b2cfbab6f512adb1660ebdd752aa
+      summary: "Anthropic engineering now foregrounds containment across agent products; the nonduplicative KOTA signal is default injection-defense screening for dynamically named external MCP tool results, which opened task-screen-remote-mcp-tool-results-through-injection-d."
+      last_seen_at: "2026-06-21T04:44:16.578Z"
   - url: https://openai.com/research
     added: "2026-04-19"
     snapshot:
