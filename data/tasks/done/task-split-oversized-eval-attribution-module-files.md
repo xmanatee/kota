@@ -1,12 +1,12 @@
 ---
 id: task-split-oversized-eval-attribution-module-files
 title: Split oversized eval attribution module files
-status: ready
+status: done
 priority: p3
 area: modules
 summary: The eval-attribution implementation landed with passing behavior but left src/modules/eval-harness/eval-attribution.ts and eval-attribution.test.ts far above the source-size guideline. Split the attribution implementation and focused tests into cohesive module-local helpers without changing the eval report contract.
 created_at: 2026-06-21T00:25:59.781Z
-updated_at: 2026-06-21T00:25:59.781Z
+updated_at: 2026-06-21T01:45:04.372Z
 ---
 
 ## Problem
@@ -47,3 +47,9 @@ Outcome-aware autonomy progress review.
 ## Acceptance Evidence
 
 - Diff splits the oversized eval-attribution implementation and tests into cohesive files under src/modules/eval-harness/ without changing the public eval report schema; focused eval-attribution, baseline-assessment, cli, and eval-set tests pass; builder source-size diagnostics no longer warn on the attribution files touched by this cleanup.
+
+## Result
+
+- Split `eval-attribution.ts` into module-local helpers for types, artifact evidence, per-fixture attribution, component attribution, diagnostics, and prior-report loading while preserving the public `eval-attribution.js` import surface.
+- Split bulky test setup into `eval-attribution-test-data.ts` and `eval-attribution-test-harness.ts`; all touched attribution files are now below the 300-line source-size warning threshold.
+- Acceptance evidence is recorded in `.kota/runs/2026-06-21T01-34-51-102Z-builder-x1e0oa/`.
