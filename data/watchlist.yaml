@@ -705,3 +705,6 @@ resources:
       fingerprint: sha256:a2b3812be5efa8b414190b67e20c6489
       summary: "OpenAI Secure MCP Tunnel is accessible and still maps to completed task-add-private-mcp-tunnel-connector-support; no additional tunnel task is opened from this snapshot."
       last_seen_at: "2026-06-19T13:36:13.092Z"
+  - url: https://arxiv.org/abs/2602.14878
+    added: "2026-06-22"
+    notes: "MCP tool-description quality paper studying 856 tools across 103 MCP servers. Monitor as a core tool-guidance and MCP-client signal for compact diagnostics around purpose, effect, input/output, and negative-use guidance; do not add a model scanner, rewrite remote tool descriptions, or expand normal agent prompts by default."
