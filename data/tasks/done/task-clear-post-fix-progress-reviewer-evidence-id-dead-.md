@@ -1,12 +1,12 @@
 ---
 id: task-clear-post-fix-progress-reviewer-evidence-id-dead-
 title: Clear post-fix progress-reviewer evidence-id dead letter
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Resolve dlq-e64c4d33-87d0-426b-a397-3708de8d7f30 from the failed progress-reviewer run after the evidence-id handling fix: confirm the current reviewer accepts the corrected dead-letter evidence id, then redrive or dismiss the dead-letter with durable evidence.
 created_at: 2026-06-22T13:59:34.210Z
-updated_at: 2026-06-22T13:59:34.210Z
+updated_at: 2026-06-22T15:13:44.631Z
 ---
 
 ## Problem
@@ -46,4 +46,7 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- A run artifact or task evidence records before/after state for dlq-e64c4d33-87d0-426b-a397-3708de8d7f30, shows it is no longer open, and includes either a successful progress-reviewer redrive/transcript or focused validation proving representative dead-letter evidence ids are accepted.
+- Before snapshot: `.kota/runs/2026-06-22T15-09-20-973Z-builder-rdfzns/dlq-before.json` shows `dlq-e64c4d33-87d0-426b-a397-3708de8d7f30` was `open`.
+- Resolution: `pnpm kota workflow dlq dismiss dlq-e64c4d33-87d0-426b-a397-3708de8d7f30 --reason "Post-fix progress-reviewer evidence-id handling is validated: later progress-review artifacts include dead-letter:dlq-e64c4d33-87d0-426b-a397-3708de8d7f30 and git:commit:828485b3584a, and focused progress-reviewer evidence-id tests pass. The failed run cited an older malformed id, so this stale dead-letter is resolved by dismissal rather than redrive."`
+- After snapshot: `.kota/runs/2026-06-22T15-09-20-973Z-builder-rdfzns/dlq-after.json` shows the same item is `dismissed` with `dismissedAt: 2026-06-22T15:12:15.067Z`; `pnpm kota workflow dlq list --status open --workflow progress-reviewer` reports `open=0`.
+- Focused validation: `pnpm exec vitest run src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts -t "normalizes compacted child evidence ids to exposed parent ids|rejects review evidence ids outside the collected packet"` passed 2 tests, proving representative exact dead-letter evidence ids are accepted while unknown ids are still rejected.
