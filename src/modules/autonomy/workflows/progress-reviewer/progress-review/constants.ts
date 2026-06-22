@@ -1,6 +1,7 @@
 import type { ProgressReviewEvidenceRef } from "./types.js";
 
 export const PROGRESS_REVIEW_ARTIFACT = "progress-review.json";
+export const PROGRESS_REVIEW_EVIDENCE_ARTIFACT = "progress-review-evidence.json";
 export const PROGRESS_REVIEW_DEFAULT_WINDOW_MS = 24 * 60 * 60 * 1000;
 export const PROGRESS_REVIEW_MAX_RUNS = 20;
 export const PROGRESS_REVIEW_MAX_TASKS = 20;

@@ -32,6 +32,7 @@ import {
 } from "#core/events/module-event.js";
 import { validatePayloadSchema } from "#core/workflow/payload-validator.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
+import { DEFAULT_MAX_STEP_OUTPUT_BYTES } from "#core/workflow/run-executor-step.js";
 import { safeJsonStringify } from "#core/workflow/run-io.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
@@ -56,6 +57,7 @@ import {
   decodeProgressReviewAgentOutputForEvidence,
   PROGRESS_REVIEW_AGENT_MAX_EVIDENCE,
   PROGRESS_REVIEW_ARTIFACT,
+  PROGRESS_REVIEW_EVIDENCE_ARTIFACT,
   PROGRESS_REVIEW_MAX_ARTIFACT_DEPTH,
   PROGRESS_REVIEW_MAX_ARTIFACTS,
   PROGRESS_REVIEW_MAX_RUNS,
@@ -1452,7 +1454,7 @@ describe("progress-reviewer workflow", () => {
     );
   });
 
-  it("runs review-evidence with schema-valid JSON for a large run-count packet before the step timeout", async () => {
+  it("runs review-evidence with schema-valid JSON when raw run-count evidence exceeds the step output limit", async () => {
     const projectDir = trackProjectDir("progress-reviewer-runtime-large-packet");
     const runId = "batched-builder-run";
     const scopeId = deriveDirectoryScopeId(projectDir);
@@ -1493,17 +1495,32 @@ describe("progress-reviewer workflow", () => {
       join(projectDir, ".kota", "dead-letter-queue"),
       () => NOW,
     );
-    const deadLetter = createWorkflowDispatchDeadLetter({
-      store: deadLetterQueue,
+    const largeSourceEventIds = Array.from(
+      { length: 4_000 },
+      (_, index) =>
+        `evtj-${String(index).padStart(12, "0")}-${"x".repeat(48)}`,
+    );
+    const deadLetter = deadLetterQueue.record({
+      type: "workflow-dispatch",
       scopeId,
-      workflowName: "progress-reviewer",
-      trigger: {
-        event: WORKFLOW_BATCH_FLUSH_EVENT,
-        schemaRef: null,
-        payload: { scopeId, projectId: scopeId },
+      projectId: scopeId,
+      owningModule: "workflow-runtime",
+      sourceEventIds: largeSourceEventIds,
+      affectedWorkflowNames: ["progress-reviewer"],
+      failure: {
+        reason: 'Step "review-evidence" timed out after 1800000ms',
+        lastErrorClass: "execution",
+        failedAt: NOW.toISOString(),
       },
-      reason: 'Step "review-evidence" timed out after 1800000ms',
-      errorClass: "execution",
+      source: {
+        kind: "workflow-dispatch",
+        workflowName: "progress-reviewer",
+        triggerEvent: WORKFLOW_BATCH_FLUSH_EVENT,
+        triggerSchemaRef: null,
+      },
+      redrive: { kind: "none", reason: "fixture has no redrive target" },
+      redactedProjection: {},
+      retention: { kind: "retain" },
     });
     const payload = runCountBatchPayload(projectDir, runId);
     const harnessCalls: AgentHarnessRunOptions[] = [];
@@ -1575,6 +1592,40 @@ describe("progress-reviewer workflow", () => {
 
     expect(result.metadata.status).toBe("success");
     expect(harnessCalls).toHaveLength(1);
+    expect(result.metadata.warnings ?? []).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "step-output-truncated" }),
+      ]),
+    );
+    const evidenceArtifactPath = join(
+      projectDir,
+      ".kota",
+      "runs",
+      "runtime-large-run-count-packet",
+      PROGRESS_REVIEW_EVIDENCE_ARTIFACT,
+    );
+    const collectResult = result.metadata.steps.find(
+      (step) => step.id === "collect-evidence",
+    );
+    expect(collectResult?.output).toEqual(
+      expect.objectContaining({
+        artifact: PROGRESS_REVIEW_EVIDENCE_ARTIFACT,
+        artifactPath: evidenceArtifactPath,
+      }),
+    );
+    expect(Buffer.byteLength(JSON.stringify(collectResult?.output), "utf-8")).toBeLessThan(
+      DEFAULT_MAX_STEP_OUTPUT_BYTES,
+    );
+    const evidenceArtifactText = readFileSync(evidenceArtifactPath, "utf-8");
+    expect(Buffer.byteLength(evidenceArtifactText, "utf-8")).toBeGreaterThan(
+      DEFAULT_MAX_STEP_OUTPUT_BYTES,
+    );
+    const prepareResult = result.metadata.steps.find(
+      (step) => step.id === "prepare-review-input",
+    );
+    expect(Buffer.byteLength(JSON.stringify(prepareResult?.output), "utf-8")).toBeLessThan(
+      DEFAULT_MAX_STEP_OUTPUT_BYTES,
+    );
     const reviewResult = result.metadata.steps.find(
       (step) => step.id === "review-evidence",
     );
@@ -1595,7 +1646,10 @@ describe("progress-reviewer workflow", () => {
       PROGRESS_REVIEW_ARTIFACT,
     );
     const artifact = JSON.parse(readFileSync(artifactPath, "utf-8")) as {
-      evidence: { evidence: Array<{ id: string }> };
+      evidence: {
+        deadLetters: Array<{ itemId: string; sourceEventIds: string[] }>;
+        evidence: Array<{ id: string }>;
+      };
       reviewInput: { evidence: Array<{ id: string }> };
       review: {
         findings: {
@@ -1606,6 +1660,10 @@ describe("progress-reviewer workflow", () => {
     expect(artifact.evidence.evidence.length).toBeGreaterThan(
       artifact.reviewInput.evidence.length,
     );
+    expect(
+      artifact.evidence.deadLetters.find((item) => item.itemId === deadLetter.id)
+        ?.sourceEventIds,
+    ).toHaveLength(largeSourceEventIds.length);
     expect(artifact.reviewInput.evidence.length).toBeLessThanOrEqual(
       PROGRESS_REVIEW_AGENT_MAX_EVIDENCE,
     );

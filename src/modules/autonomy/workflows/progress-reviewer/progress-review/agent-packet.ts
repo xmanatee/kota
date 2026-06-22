@@ -1,7 +1,7 @@
 import {
   PROGRESS_REVIEW_AGENT_KIND_LIMITS,
   PROGRESS_REVIEW_AGENT_MAX_EVIDENCE,
-  PROGRESS_REVIEW_ARTIFACT,
+  PROGRESS_REVIEW_EVIDENCE_ARTIFACT,
 } from "./constants.js";
 import type {
   ProgressReviewAgentEvidencePacket,
@@ -192,7 +192,7 @@ export function compactProgressReviewEvidenceForAgent(
   const excluded = [...packet.excluded];
   if (compacted.omittedCount > 0) {
     excluded.push(
-      `agent evidence packet: omitted ${compacted.omittedCount} lower-detail evidence refs from the prompt; full evidence remains in ${PROGRESS_REVIEW_ARTIFACT}`,
+      `agent evidence packet: omitted ${compacted.omittedCount} lower-detail evidence refs from the prompt; full evidence remains in ${PROGRESS_REVIEW_EVIDENCE_ARTIFACT}`,
     );
   }
   return {

@@ -1,8 +1,14 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
+import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
-import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
+import type { WorkflowStepContext } from "#core/workflow/run-types.js";
+import {
+  type CodeStepOutputValidator,
+  expectStructuredOutput,
+  typedCodeStep,
+} from "#core/workflow/step-input-code.js";
 import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import { onNormalTrigger } from "#modules/autonomy/recovery.js";
 import {
@@ -18,6 +24,7 @@ import {
   collectProgressReviewEvidence,
   compactProgressReviewEvidenceForAgent,
   decodeProgressReviewAgentOutputForEvidence,
+  PROGRESS_REVIEW_EVIDENCE_ARTIFACT,
   type ProgressReviewActionResult,
   type ProgressReviewAgentEvidencePacket,
   type ProgressReviewAgentOutput,
@@ -40,6 +47,78 @@ type WorktreeInspection = {
   dirty: boolean;
 };
 
+type ProgressReviewEvidenceHandle = {
+  generatedAt: string;
+  artifact: typeof PROGRESS_REVIEW_EVIDENCE_ARTIFACT;
+  artifactPath: string;
+};
+
+const validateProgressReviewEvidencePacket: CodeStepOutputValidator<
+  ProgressReviewEvidencePacket
+> = (raw) => {
+  return expectStructuredOutput<ProgressReviewEvidencePacket>(raw, [
+    "generatedAt",
+    "triggerKind",
+    "triggerEvent",
+    "scope",
+    "window",
+    "scopes",
+    "evidence",
+    "approvals",
+    "excluded",
+    "taskClassDistribution",
+    "operatorJourneyRisks",
+  ]);
+};
+
+const validateProgressReviewEvidenceHandle: CodeStepOutputValidator<
+  ProgressReviewEvidenceHandle
+> = (raw) => {
+  const handle = expectStructuredOutput<ProgressReviewEvidenceHandle>(raw, [
+    "generatedAt",
+    "artifact",
+    "artifactPath",
+  ]);
+  if (handle.artifact !== PROGRESS_REVIEW_EVIDENCE_ARTIFACT) {
+    throw new Error(
+      `unexpected progress-review evidence artifact ${String(handle.artifact)}`,
+    );
+  }
+  if (typeof handle.generatedAt !== "string" || !handle.generatedAt.trim()) {
+    throw new Error("progress-review evidence generatedAt must be non-empty");
+  }
+  if (typeof handle.artifactPath !== "string" || !handle.artifactPath.trim()) {
+    throw new Error("progress-review evidence artifactPath must be non-empty");
+  }
+  return handle;
+};
+
+function writeProgressReviewEvidencePacket(
+  runDirPath: string,
+  packet: ProgressReviewEvidencePacket,
+): ProgressReviewEvidenceHandle {
+  const artifactPath = join(runDirPath, PROGRESS_REVIEW_EVIDENCE_ARTIFACT);
+  writeJsonFileAtomic(artifactPath, packet);
+  return {
+    generatedAt: packet.generatedAt,
+    artifact: PROGRESS_REVIEW_EVIDENCE_ARTIFACT,
+    artifactPath,
+  };
+}
+
+function readProgressReviewEvidencePacket(
+  ctx: WorkflowStepContext,
+): ProgressReviewEvidencePacket {
+  const handle = collectEvidence.outputRequired(ctx);
+  const raw = readOptionalJsonFile<unknown>(handle.artifactPath);
+  if (raw === null) {
+    throw new Error(
+      `progress-review evidence artifact is missing: ${handle.artifactPath}`,
+    );
+  }
+  return validateProgressReviewEvidencePacket(raw);
+}
+
 export const inspectWorktree = typedCodeStep<WorktreeInspection>({
   id: "inspect-worktree",
   type: "code",
@@ -51,32 +130,21 @@ export const inspectWorktree = typedCodeStep<WorktreeInspection>({
   },
 });
 
-export const collectEvidence = typedCodeStep<ProgressReviewEvidencePacket>({
+export const collectEvidence = typedCodeStep<ProgressReviewEvidenceHandle>({
   id: "collect-evidence",
   type: "code",
   when: onNormalTrigger,
-  validate: (raw) =>
-    expectStructuredOutput<ProgressReviewEvidencePacket>(raw, [
-      "generatedAt",
-      "triggerKind",
-      "triggerEvent",
-      "scope",
-      "window",
-      "scopes",
-      "evidence",
-      "approvals",
-      "excluded",
-      "taskClassDistribution",
-      "operatorJourneyRisks",
-    ]),
-  run: ({ projectDir, stateDir, eventJournal, trigger }) =>
-    collectProgressReviewEvidence({
+  validate: validateProgressReviewEvidenceHandle,
+  run: ({ projectDir, stateDir, eventJournal, trigger, workflow }) => {
+    const packet = collectProgressReviewEvidence({
       projectDir,
       stateDir,
       eventJournal,
       trigger,
       now: new Date(),
-    }),
+    });
+    return writeProgressReviewEvidencePacket(workflow.runDirPath, packet);
+  },
 });
 
 export const prepareReviewInput = typedCodeStep<ProgressReviewAgentEvidencePacket>({
@@ -100,7 +168,7 @@ export const prepareReviewInput = typedCodeStep<ProgressReviewAgentEvidencePacke
       "excluded",
     ]),
   run: (ctx) =>
-    compactProgressReviewEvidenceForAgent(collectEvidence.outputRequired(ctx)),
+    compactProgressReviewEvidenceForAgent(readProgressReviewEvidencePacket(ctx)),
 });
 
 export const applyActions = typedCodeStep<ProgressReviewActionResult>({
@@ -121,7 +189,7 @@ export const applyActions = typedCodeStep<ProgressReviewActionResult>({
     applyProgressReviewActions({
       projectDir: ctx.projectDir,
       runId: ctx.workflow.runId,
-      evidence: collectEvidence.outputRequired(ctx),
+      evidence: readProgressReviewEvidencePacket(ctx),
       review: decodeProgressReviewAgentOutputForEvidence(
         ctx.stepOutputs["review-evidence"],
         prepareReviewInput.outputRequired(ctx),
@@ -151,7 +219,7 @@ export const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
     const reviewInput = prepareReviewInput.outputRequired(ctx);
     const artifact: ProgressReviewArtifact = {
       generatedAt: new Date().toISOString(),
-      evidence: collectEvidence.outputRequired(ctx),
+      evidence: readProgressReviewEvidencePacket(ctx),
       reviewInput,
       review: decodeProgressReviewAgentOutputForEvidence(
         ctx.stepOutputs["review-evidence"],
