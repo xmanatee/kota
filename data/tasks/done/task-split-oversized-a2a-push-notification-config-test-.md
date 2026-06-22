@@ -1,12 +1,12 @@
 ---
 id: task-split-oversized-a2a-push-notification-config-test-
 title: Split oversized A2A push notification config test surface
-status: ready
+status: done
 priority: p3
 area: modules
 summary: The authenticated A2A callback security fix passed, but its builder source-size advisory records src/modules/a2a-channel/push-notification-configs.test.ts at 321 lines after 60 changed lines. Existing ready split tasks cover other test surfaces, so split cohesive push-notification config scenarios or helpers without changing A2A behavior.
 created_at: 2026-06-22T06:09:55.426Z
-updated_at: 2026-06-22T06:09:55.426Z
+updated_at: 2026-06-22T06:15:49.930Z
 ---
 
 ## Problem
@@ -48,3 +48,4 @@ Outcome-aware autonomy progress review.
 ## Acceptance Evidence
 
 - Before/after line counts show src/modules/a2a-channel/push-notification-configs.test.ts no longer triggers the 300-line source-size guideline, or a narrow justified exception is recorded; focused A2A push-notification config tests pass; typecheck, lint, and validate-tasks pass.
+- 2026-06-22 builder run 2026-06-22T06-09-59-064Z-builder-0lzbuq split malformed-config validation into src/modules/a2a-channel/push-notification-config-validation.test.ts. Line counts: src/modules/a2a-channel/push-notification-configs.test.ts 321 before, 185 after; new validation test 157. Focused test `pnpm test src/modules/a2a-channel/push-notification-configs.test.ts src/modules/a2a-channel/push-notification-config-validation.test.ts` passed (2 files, 4 tests). `pnpm typecheck`, `pnpm lint`, and `pnpm validate-tasks` passed.
