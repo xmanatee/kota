@@ -56,12 +56,17 @@ describe("classifyWorkflowShellTeardownCommand", () => {
     expect(classifyWorkflowShellTeardownCommand("git reset --hard HEAD")).toBe("local-work");
     expect(classifyWorkflowShellTeardownCommand("git -C /tmp/project reset --hard")).toBe("local-work");
     expect(classifyWorkflowShellTeardownCommand("git checkout -- .")).toBe("local-work");
+    expect(classifyWorkflowShellTeardownCommand("git checkout -- src")).toBe("local-work");
+    expect(classifyWorkflowShellTeardownCommand("git restore .")).toBe("local-work");
+    expect(classifyWorkflowShellTeardownCommand("git restore -- src")).toBe("local-work");
     expect(classifyWorkflowShellTeardownCommand("git clean -fd")).toBe("local-work");
     expect(classifyWorkflowShellTeardownCommand("git clean -d -f")).toBe("local-work");
   });
 
   it("detects direct and simply chained infrastructure destroy commands", () => {
     expect(classifyWorkflowShellTeardownCommand("terraform destroy")).toBe("infrastructure");
+    expect(classifyWorkflowShellTeardownCommand("terraform apply -destroy")).toBe("infrastructure");
+    expect(classifyWorkflowShellTeardownCommand("terraform apply -auto-approve -destroy")).toBe("infrastructure");
     expect(classifyWorkflowShellTeardownCommand("pnpm test && pulumi destroy")).toBe("infrastructure");
     expect(classifyWorkflowShellTeardownCommand("cd infra; cdk destroy")).toBe("infrastructure");
   });
@@ -69,9 +74,12 @@ describe("classifyWorkflowShellTeardownCommand", () => {
   it("ignores benign Git and ordinary workflow commands", () => {
     expect(classifyWorkflowShellTeardownCommand("git reset --mixed HEAD")).toBeNull();
     expect(classifyWorkflowShellTeardownCommand("git checkout feature-branch")).toBeNull();
+    expect(classifyWorkflowShellTeardownCommand("git restore --help")).toBeNull();
     expect(classifyWorkflowShellTeardownCommand("git clean -f")).toBeNull();
     expect(classifyWorkflowShellTeardownCommand("git add -A")).toBeNull();
     expect(classifyWorkflowShellTeardownCommand("git diff --staged")).toBeNull();
+    expect(classifyWorkflowShellTeardownCommand("terraform apply")).toBeNull();
+    expect(classifyWorkflowShellTeardownCommand("terraform apply -destroy=false")).toBeNull();
     expect(classifyWorkflowShellTeardownCommand("pnpm test")).toBeNull();
   });
 });

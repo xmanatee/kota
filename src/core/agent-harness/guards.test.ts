@@ -146,6 +146,8 @@ describe("createWorkflowAgentGuards", () => {
     for (const [toolName, command] of [
       ["Bash", "git reset --hard HEAD"],
       ["shell", "git checkout -- ."],
+      ["Bash", "git checkout -- src"],
+      ["shell", "git restore ."],
       ["Bash", "git clean -fd"],
       ["shell", "git clean -d -f"],
     ] as const) {
@@ -178,6 +180,7 @@ describe("createWorkflowAgentGuards", () => {
     const guard = createWorkflowAgentGuards();
     for (const command of [
       "terraform destroy",
+      "terraform apply -destroy -auto-approve",
       "pnpm test && pulumi destroy",
       "cd infra; cdk destroy",
     ]) {
@@ -275,7 +278,9 @@ describe("createWorkflowAgentGuards", () => {
     for (const command of [
       "git add -A",
       "git status",
+      "git checkout feature-branch",
       "git diff --staged",
+      "terraform apply",
       "pnpm test",
       "pnpm run typecheck",
       "pnpm run lint",

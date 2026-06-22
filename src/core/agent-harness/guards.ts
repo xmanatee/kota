@@ -96,8 +96,11 @@ const GIT_COMMIT_PATTERN =
 const GIT_RESET_HARD_PATTERN =
   /(?:^|[\s;&|()`])git\s+(?:(?:-\S+|--\S+|[^\s;&|()-][^\s;&|()]*)\s+)*reset(?=$|\s|[;&|()`])(?=[^;&|()`]*\s--hard(?=$|\s|[;&|()`]))/;
 
-const GIT_CHECKOUT_DISCARD_ALL_PATTERN =
-  /(?:^|[\s;&|()`])git\s+(?:(?:-\S+|--\S+|[^\s;&|()-][^\s;&|()]*)\s+)*checkout\s+--\s+\.(?=$|\s|[;&|()`])/;
+const GIT_CHECKOUT_COMMAND_PATTERN =
+  /(?:^|[\s;&|()`])git\s+(?:(?:-\S+|--\S+|[^\s;&|()-][^\s;&|()]*)\s+)*checkout(?=$|\s|[;&|()`])([^;&|()`]*)/g;
+
+const GIT_RESTORE_COMMAND_PATTERN =
+  /(?:^|[\s;&|()`])git\s+(?:(?:-\S+|--\S+|[^\s;&|()-][^\s;&|()]*)\s+)*restore(?=$|\s|[;&|()`])([^;&|()`]*)/g;
 
 const GIT_CLEAN_COMMAND_PATTERN =
   /(?:^|[\s;&|()`])git\s+(?:(?:-\S+|--\S+|[^\s;&|()-][^\s;&|()]*)\s+)*clean(?=$|\s|[;&|()`])([^;&|()`]*)/g;
@@ -105,15 +108,52 @@ const GIT_CLEAN_COMMAND_PATTERN =
 const INFRASTRUCTURE_DESTROY_PATTERN =
   /(?:^|[\s;&|()`])(?:terraform|pulumi|cdk)\s+destroy(?=$|\s|[;&|()`])/;
 
+const TERRAFORM_APPLY_COMMAND_PATTERN =
+  /(?:^|[\s;&|()`])terraform\s+(?:(?:-\S+|--\S+|[^\s;&|()-][^\s;&|()]*)\s+)*apply(?=$|\s|[;&|()`])([^;&|()`]*)/g;
+
 type WorkflowShellTeardownKind = "local-work" | "infrastructure";
 
 function gitCleanFlagHasShortOption(arg: string, option: "d" | "f"): boolean {
   return /^-[A-Za-z]+$/.test(arg) && arg.includes(option);
 }
 
+function splitCommandArgs(args: string): string[] {
+  return args.trim().split(/\s+/).filter(Boolean);
+}
+
+function isCommandOption(arg: string): boolean {
+  return arg.startsWith("-") && arg !== "-";
+}
+
+function hasPathspecArg(args: string[]): boolean {
+  const pathspecSeparatorIndex = args.indexOf("--");
+  if (pathspecSeparatorIndex >= 0) {
+    return args.slice(pathspecSeparatorIndex + 1).some(Boolean);
+  }
+  return args.some((arg) => !isCommandOption(arg));
+}
+
+function isGitCheckoutPathDiscardCommand(command: string): boolean {
+  for (const match of command.matchAll(GIT_CHECKOUT_COMMAND_PATTERN)) {
+    const args = splitCommandArgs(match[1] ?? "");
+    const pathspecSeparatorIndex = args.indexOf("--");
+    if (pathspecSeparatorIndex >= 0 && args.slice(pathspecSeparatorIndex + 1).some(Boolean)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isGitRestorePathDiscardCommand(command: string): boolean {
+  for (const match of command.matchAll(GIT_RESTORE_COMMAND_PATTERN)) {
+    if (hasPathspecArg(splitCommandArgs(match[1] ?? ""))) return true;
+  }
+  return false;
+}
+
 function isGitCleanForceDirectoryCommand(command: string): boolean {
   for (const match of command.matchAll(GIT_CLEAN_COMMAND_PATTERN)) {
-    const args = (match[1] ?? "").trim().split(/\s+/).filter(Boolean);
+    const args = splitCommandArgs(match[1] ?? "");
     const hasForce = args.some(
       (arg) => arg === "--force" || gitCleanFlagHasShortOption(arg, "f"),
     );
@@ -121,6 +161,21 @@ function isGitCleanForceDirectoryCommand(command: string): boolean {
       (arg) => arg === "--directory" || gitCleanFlagHasShortOption(arg, "d"),
     );
     if (hasForce && hasDirectory) return true;
+  }
+  return false;
+}
+
+function isTruthyDestroyFlag(arg: string): boolean {
+  if (arg === "-destroy" || arg === "--destroy") return true;
+  const value = arg.match(/^--?destroy=(.+)$/)?.[1];
+  if (value === undefined) return false;
+  return !["false", "0", "no"].includes(value.toLowerCase());
+}
+
+function isTerraformApplyDestroyCommand(command: string): boolean {
+  for (const match of command.matchAll(TERRAFORM_APPLY_COMMAND_PATTERN)) {
+    const args = splitCommandArgs(match[1] ?? "");
+    if (args.some(isTruthyDestroyFlag)) return true;
   }
   return false;
 }
@@ -138,12 +193,16 @@ export function classifyWorkflowShellTeardownCommand(
   if (!normalized) return null;
   if (
     GIT_RESET_HARD_PATTERN.test(normalized) ||
-    GIT_CHECKOUT_DISCARD_ALL_PATTERN.test(normalized) ||
+    isGitCheckoutPathDiscardCommand(normalized) ||
+    isGitRestorePathDiscardCommand(normalized) ||
     isGitCleanForceDirectoryCommand(normalized)
   ) {
     return "local-work";
   }
-  if (INFRASTRUCTURE_DESTROY_PATTERN.test(normalized)) return "infrastructure";
+  if (
+    INFRASTRUCTURE_DESTROY_PATTERN.test(normalized) ||
+    isTerraformApplyDestroyCommand(normalized)
+  ) return "infrastructure";
   return null;
 }
 
