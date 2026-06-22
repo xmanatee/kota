@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  classifyWorkflowShellTeardownCommand,
   composeCanUseTools,
   createAgentCommitGuard,
   createWorkflowAgentGuards,
@@ -54,6 +55,31 @@ describe("isGitCommitCommand", () => {
     expect(isGitCommitCommand("")).toBe(false);
     expect(isGitCommitCommand("git  commit")).toBe(true);
     expect(isGitCommitCommand("git commit\\\n -m msg")).toBe(true);
+  });
+});
+
+describe("classifyWorkflowShellTeardownCommand", () => {
+  it("detects destructive Git local-work teardown commands", () => {
+    expect(classifyWorkflowShellTeardownCommand("git reset --hard HEAD")).toBe("local-work");
+    expect(classifyWorkflowShellTeardownCommand("git -C /tmp/project reset --hard")).toBe("local-work");
+    expect(classifyWorkflowShellTeardownCommand("git checkout -- .")).toBe("local-work");
+    expect(classifyWorkflowShellTeardownCommand("git clean -fd")).toBe("local-work");
+    expect(classifyWorkflowShellTeardownCommand("git clean -d -f")).toBe("local-work");
+  });
+
+  it("detects direct and simply chained infrastructure destroy commands", () => {
+    expect(classifyWorkflowShellTeardownCommand("terraform destroy")).toBe("infrastructure");
+    expect(classifyWorkflowShellTeardownCommand("pnpm test && pulumi destroy")).toBe("infrastructure");
+    expect(classifyWorkflowShellTeardownCommand("cd infra; cdk destroy")).toBe("infrastructure");
+  });
+
+  it("ignores benign Git and ordinary workflow commands", () => {
+    expect(classifyWorkflowShellTeardownCommand("git reset --mixed HEAD")).toBeNull();
+    expect(classifyWorkflowShellTeardownCommand("git checkout feature-branch")).toBeNull();
+    expect(classifyWorkflowShellTeardownCommand("git clean -f")).toBeNull();
+    expect(classifyWorkflowShellTeardownCommand("git add -A")).toBeNull();
+    expect(classifyWorkflowShellTeardownCommand("git diff --staged")).toBeNull();
+    expect(classifyWorkflowShellTeardownCommand("pnpm test")).toBeNull();
   });
 });
 
@@ -199,6 +225,62 @@ describe("createWorkflowAgentGuards", () => {
     const guard = createWorkflowAgentGuards();
     const result = await guard("Bash", { command: "git commit -m msg" }, options);
     expect(result.behavior).toBe("deny");
+    expect(result).not.toHaveProperty("interrupt");
+    if (result.behavior === "deny") {
+      expect(result.message).toMatch(/amend workflow-owned commits/);
+    }
+  });
+
+  it("denies destructive Git teardown commands from Bash and KOTA shell calls without interrupting", async () => {
+    const guard = createWorkflowAgentGuards();
+    for (const [toolName, command] of [
+      ["Bash", "git reset --hard HEAD"],
+      ["shell", "git checkout -- ."],
+      ["Bash", "git clean -fd"],
+      ["shell", "git clean -d -f"],
+    ] as const) {
+      const result = await guard(toolName, { command }, options);
+      expect(result).toMatchObject({
+        behavior: "deny",
+        decisionAttribution: "operator-deny",
+      });
+      expect(result).not.toHaveProperty("interrupt");
+      if (result.behavior === "deny") {
+        expect(result.message).toMatch(/cannot discard local work/);
+      }
+    }
+  });
+
+  it("denies chained destructive Git teardown commands", async () => {
+    const guard = createWorkflowAgentGuards();
+    const result = await guard(
+      "Bash",
+      { command: "pnpm test && git reset --hard HEAD" },
+      options,
+    );
+    expect(result.behavior).toBe("deny");
+    if (result.behavior === "deny") {
+      expect(result.message).toMatch(/discard local work/);
+    }
+  });
+
+  it("denies direct and chained infrastructure destroy commands", async () => {
+    const guard = createWorkflowAgentGuards();
+    for (const command of [
+      "terraform destroy",
+      "pnpm test && pulumi destroy",
+      "cd infra; cdk destroy",
+    ]) {
+      const result = await guard("Bash", { command }, options);
+      expect(result).toMatchObject({
+        behavior: "deny",
+        decisionAttribution: "operator-deny",
+      });
+      expect(result).not.toHaveProperty("interrupt");
+      if (result.behavior === "deny") {
+        expect(result.message).toMatch(/cannot destroy infrastructure/);
+      }
+    }
   });
 
   it("denies daemon-control commands", async () => {
@@ -209,6 +291,19 @@ describe("createWorkflowAgentGuards", () => {
       options,
     );
     expect(result.behavior).toBe("deny");
+  });
+
+  it("keeps daemon-control denials ahead of other workflow shell guards", async () => {
+    const guard = createWorkflowAgentGuards();
+    const result = await guard(
+      "Bash",
+      { command: "pnpm kota daemon stop && git reset --hard && git commit -m nope" },
+      options,
+    );
+    expect(result.behavior).toBe("deny");
+    if (result.behavior === "deny") {
+      expect(result.message).toMatch(/daemon process/);
+    }
   });
 
   it("denies KOTA-routed shell package bootstrap commands when no package project exists", async () => {
@@ -222,7 +317,7 @@ describe("createWorkflowAgentGuards", () => {
       );
       expect(result.behavior).toBe("deny");
       if (result.behavior === "deny") {
-      expect(result.message).toMatch(/allow-package-bootstrap/);
+        expect(result.message).toMatch(/allow-package-bootstrap/);
       }
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -267,7 +362,16 @@ describe("createWorkflowAgentGuards", () => {
 
   it("allows benign commands", async () => {
     const guard = createWorkflowAgentGuards();
-    const result = await guard("Bash", { command: "git status" }, options);
-    expect(result.behavior).toBe("allow");
+    for (const command of [
+      "git add -A",
+      "git status",
+      "git diff --staged",
+      "pnpm test",
+      "pnpm run typecheck",
+      "pnpm run lint",
+    ]) {
+      const result = await guard("Bash", { command }, options);
+      expect(result.behavior).toBe("allow");
+    }
   });
 });

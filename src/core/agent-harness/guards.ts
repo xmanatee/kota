@@ -17,10 +17,16 @@ import type { AgentCanUseTool, AgentPermissionResult } from "./types.js";
 type AgentToolInput = Parameters<AgentCanUseTool>[1];
 
 const COMMIT_DENIAL_MESSAGE =
-  "Workflow agents must not run `git commit`. Stage changes with `git add` and write `<run-dir>/commit-message.txt`; the workflow's commit step creates the commit after validation gates pass.";
+  "Workflow agents must not run `git commit` or amend workflow-owned commits. Stage changes with `git add` and write `<run-dir>/commit-message.txt`; the workflow's commit step creates the commit after validation gates pass.";
 
 const DAEMON_DENIAL_MESSAGE =
   "Workflow agents must not control, stop, restart, or signal the daemon process that hosts them.";
+
+const LOCAL_WORK_TEARDOWN_DENIAL_MESSAGE =
+  "Workflow agents cannot discard local work from inside an autonomous run. Inspect, edit, or stage files instead of running destructive Git teardown commands.";
+
+const INFRASTRUCTURE_DESTROY_DENIAL_MESSAGE =
+  "Workflow agents cannot destroy infrastructure from inside an autonomous run. Infrastructure teardown requires an explicit operator-owned action outside the workflow agent shell.";
 
 const PACKAGE_BOOTSTRAP_DENIAL_MESSAGE =
   "Workflow agents must not install package managers or dependencies unless the project explicitly opts in with `.kota/allow-package-bootstrap`. Inspect the existing files and make the requested direct change.";
@@ -87,10 +93,58 @@ function hasPackageBootstrapAllowMarker(startDir: string): boolean {
 const GIT_COMMIT_PATTERN =
   /(?:^|[\s;&|()`])git\s+(?:(?:-\S+|--\S+|[^\s;&|()-][^\s;&|()]*)\s+)*commit(?=$|\s|[;&|()`])/;
 
+const GIT_RESET_HARD_PATTERN =
+  /(?:^|[\s;&|()`])git\s+(?:(?:-\S+|--\S+|[^\s;&|()-][^\s;&|()]*)\s+)*reset(?=$|\s|[;&|()`])(?=[^;&|()`]*\s--hard(?=$|\s|[;&|()`]))/;
+
+const GIT_CHECKOUT_DISCARD_ALL_PATTERN =
+  /(?:^|[\s;&|()`])git\s+(?:(?:-\S+|--\S+|[^\s;&|()-][^\s;&|()]*)\s+)*checkout\s+--\s+\.(?=$|\s|[;&|()`])/;
+
+const GIT_CLEAN_COMMAND_PATTERN =
+  /(?:^|[\s;&|()`])git\s+(?:(?:-\S+|--\S+|[^\s;&|()-][^\s;&|()]*)\s+)*clean(?=$|\s|[;&|()`])([^;&|()`]*)/g;
+
+const INFRASTRUCTURE_DESTROY_PATTERN =
+  /(?:^|[\s;&|()`])(?:terraform|pulumi|cdk)\s+destroy(?=$|\s|[;&|()`])/;
+
+type WorkflowShellTeardownKind = "local-work" | "infrastructure";
+
+function gitCleanFlagHasShortOption(arg: string, option: "d" | "f"): boolean {
+  return /^-[A-Za-z]+$/.test(arg) && arg.includes(option);
+}
+
+function isGitCleanForceDirectoryCommand(command: string): boolean {
+  for (const match of command.matchAll(GIT_CLEAN_COMMAND_PATTERN)) {
+    const args = (match[1] ?? "").trim().split(/\s+/).filter(Boolean);
+    const hasForce = args.some(
+      (arg) => arg === "--force" || gitCleanFlagHasShortOption(arg, "f"),
+    );
+    const hasDirectory = args.some(
+      (arg) => arg === "--directory" || gitCleanFlagHasShortOption(arg, "d"),
+    );
+    if (hasForce && hasDirectory) return true;
+  }
+  return false;
+}
+
 export function isGitCommitCommand(command: string): boolean {
   const normalized = normalizeCommand(command);
   if (!normalized) return false;
   return GIT_COMMIT_PATTERN.test(normalized);
+}
+
+export function classifyWorkflowShellTeardownCommand(
+  command: string,
+): WorkflowShellTeardownKind | null {
+  const normalized = normalizeCommand(command);
+  if (!normalized) return null;
+  if (
+    GIT_RESET_HARD_PATTERN.test(normalized) ||
+    GIT_CHECKOUT_DISCARD_ALL_PATTERN.test(normalized) ||
+    isGitCleanForceDirectoryCommand(normalized)
+  ) {
+    return "local-work";
+  }
+  if (INFRASTRUCTURE_DESTROY_PATTERN.test(normalized)) return "infrastructure";
+  return null;
 }
 
 export function createAgentCommitGuard(): AgentCanUseTool {
@@ -149,6 +203,24 @@ export function createDaemonHostControlGuard(daemonPid = process.pid): AgentCanU
     return {
       behavior: "deny",
       message: DAEMON_DENIAL_MESSAGE,
+      decisionAttribution: "operator-deny",
+    };
+  };
+}
+
+export function createWorkflowShellTeardownGuard(): AgentCanUseTool {
+  return async (toolName, input): Promise<AgentPermissionResult> => {
+    if (!isShellCommandTool(toolName)) return { behavior: "allow", updatedInput: input };
+    const command = typeof input.command === "string" ? input.command : "";
+    const kind = classifyWorkflowShellTeardownCommand(command);
+    if (kind === null) {
+      return { behavior: "allow", updatedInput: input };
+    }
+    return {
+      behavior: "deny",
+      message: kind === "local-work"
+        ? LOCAL_WORK_TEARDOWN_DENIAL_MESSAGE
+        : INFRASTRUCTURE_DESTROY_DENIAL_MESSAGE,
       decisionAttribution: "operator-deny",
     };
   };
@@ -213,6 +285,7 @@ export function createPackageBootstrapGuard(): AgentCanUseTool {
 export function createWorkflowAgentGuards(): AgentCanUseTool {
   return composeCanUseTools(
     createDaemonHostControlGuard(),
+    createWorkflowShellTeardownGuard(),
     createAgentCommitGuard(),
     createPackageBootstrapGuard(),
   );

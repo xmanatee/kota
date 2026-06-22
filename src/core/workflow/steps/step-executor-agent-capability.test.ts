@@ -169,6 +169,17 @@ describe("workflow agent-step harness capability artifacts", () => {
       expect(options.allowedTools).toEqual(["Read", "ask_owner"]);
       expect(options.disallowedTools).toEqual(["Write"]);
       expect(options.canUseTool).toBeTypeOf("function");
+      if (!options.canUseTool) throw new Error("missing canUseTool");
+      const teardownDecision = await options.canUseTool(
+        "Bash",
+        { command: "terraform destroy" },
+        { signal: new AbortController().signal, toolUseId: "tool-1" },
+      );
+      expect(teardownDecision).toMatchObject({
+        behavior: "deny",
+        decisionAttribution: "operator-deny",
+      });
+      expect(teardownDecision).not.toHaveProperty("interrupt");
       expect(options.askOwner).toEqual({
         source: expect.stringContaining("workflow:capability-artifact-test/"),
       });

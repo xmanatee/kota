@@ -1,13 +1,13 @@
 ---
 id: task-deny-destructive-shell-teardown-commands-in-workfl
 title: Deny destructive shell teardown commands in workflow agent guards
-status: ready
+status: done
 priority: p1
 area: core
 task_class: Safety
 summary: Extend workflow agent canUseTool guards to deny destructive shell teardown commands such as git reset/clean/checkout -- ., git commit --amend, and infrastructure destroy commands before an autonomous agent can run them through an SDK shell.
 created_at: 2026-06-22T16:22:33.673Z
-updated_at: 2026-06-22T16:22:33.673Z
+updated_at: 2026-06-22T16:35:31.000Z
 ---
 
 ## Problem
