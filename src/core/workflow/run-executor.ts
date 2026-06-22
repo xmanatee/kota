@@ -8,17 +8,16 @@ import type { EventJournal } from "#core/events/event-journal.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { createDelegateBudget } from "#core/tools/delegate-budget.js";
 import {
-  buildStepCompletedPayload,
   buildStepStartedPayload,
   buildWorkflowCompletedPayload,
   buildWorkflowStartedPayload,
 } from "./event-payloads.js";
 import { validatePayloadSchema } from "./payload-validator.js";
-import { buildSkippedResult, DEFAULT_STEP_TIMEOUT_MS, executeWorkflowStep } from "./run-executor-step.js";
+import { executeGroupStep } from "./run-executor-groups.js";
+import { buildSkippedResult, executeWorkflowStep } from "./run-executor-step.js";
 import { buildResumeInitialState, buildRetryInitialState } from "./run-executor-utils.js";
 import type { WorkflowRunStore } from "./run-store.js";
-import type { WorkflowRunExecutionResult, WorkflowRunStatus, WorkflowRunToolRunner, WorkflowRunWarning, WorkflowStepResult } from "./run-types.js";
-import type { WorkflowBranchStep, WorkflowForeachStep } from "./step-types.js";
+import type { WorkflowRunExecutionResult, WorkflowRunStatus, WorkflowRunToolRunner, WorkflowRunWarning } from "./run-types.js";
 import { type AgentRunLimiter, createAgentRunLimiter } from "./steps/agent-run-limiter.js";
 import { createStepContext } from "./steps/step-context.js";
 import {
@@ -26,9 +25,6 @@ import {
   AgentStepRuntimeError,
   evaluateStepRunDecision,
 } from "./steps/step-executor.js";
-import { type BranchGroupResult, executeBranchStepGroup } from "./steps/step-executor-branch.js";
-import { executeForeachStepGroup, type ForeachGroupResult } from "./steps/step-executor-foreach.js";
-import { executeParallelStepGroup, type ParallelAgentDeps } from "./steps/step-executor-parallel.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
@@ -182,8 +178,8 @@ export function executeWorkflowRun(
         );
         deps.log(`Starting step "${step.id}" (${step.type}) in workflow "${definition.name}"`);
 
-        if (step.type === "parallel") {
-          const parallelAgentDeps: ParallelAgentDeps = {
+        if (step.type === "parallel" || step.type === "branch" || step.type === "foreach") {
+          const group = await executeGroupStep(step, context, stepStartedAt, {
             definition,
             run,
             trigger,
@@ -193,225 +189,17 @@ export function executeWorkflowRun(
             bus: deps.bus,
             pbus: deps.pbus,
             log: deps.log,
-          };
-          const {
-            groupResult,
-            innerResults,
-            hadNewWarnings,
-            groupFailed,
-            agentBackoff: parallelBackoff,
-            thrownError,
-          } =
-            await executeParallelStepGroup(step, context, stepStartedAt, parallelAgentDeps);
-          if (parallelBackoff && !agentBackoff) agentBackoff = parallelBackoff;
-          run.recordStep(groupResult);
-          stepOutputsById[step.id] = groupResult.output;
-          stepResultsById[step.id] = groupResult;
-          for (const child of innerResults) {
-            stepResultsById[child.id] = child;
-            stepOutputsById[child.id] =
-              child.status === "success" ? child.output : { skipped: true };
-          }
-          stepOutputs.push(groupResult.output);
-          previousOutput = groupResult.output;
-          deps.pbus.emit(
-            "workflow.step.completed",
-            buildStepCompletedPayload(run.metadata, groupResult, definition.defaultAutonomyMode),
-          );
-          deps.log(
-            `Completed step "${step.id}" (parallel) in workflow "${definition.name}" [${groupResult.durationMs}ms]`,
-          );
-          if (groupFailed) {
-            if (step.continueOnFailure) { hadWarnings = true; continue; }
-            if (thrownError) throw thrownError;
-            const failedChildren = innerResults.filter((r) => r.status === "failed" && !r.continueOnFailure);
-            throw new Error(
-              `Parallel group "${step.id}" failed: ${failedChildren.map((r) => `${r.id}: ${r.error ?? "unknown"}`).join("; ")}`,
-            );
-          }
-          if (hadNewWarnings) hadWarnings = true;
-          continue;
-        }
-
-        if (step.type === "branch") {
-          const stepAbortController = new AbortController();
-          const forwardBranchAbort = () => stepAbortController.abort(abortController.signal.reason);
-          abortController.signal.addEventListener("abort", forwardBranchAbort, { once: true });
-          const branchTimeoutMs = step.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS;
-          let branchTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
-          const branchTimeoutPromise = new Promise<never>((_, reject) => {
-            branchTimeoutHandle = setTimeout(() => {
-              const err = new Error(`Step "${step.id}" timed out after ${branchTimeoutMs}ms`);
-              stepAbortController.abort(err);
-              reject(err);
-            }, branchTimeoutMs);
+            contextDeps: deps,
+            previousOutput,
+            ...(retryState.priorRunSteps
+              ? { priorRunSteps: retryState.priorRunSteps }
+              : {}),
           });
-          let branchGroupResult: BranchGroupResult | undefined;
-          try {
-            const branchDeps = {
-              definition,
-              run,
-              trigger,
-              runAbortController: stepAbortController,
-              agentConfig,
-              acc,
-              bus: deps.bus,
-              pbus: deps.pbus,
-              log: deps.log,
-            };
-            const getContext = (currentStepId = step.id) => createStepContext(
-              run.metadata,
-              trigger,
-              previousOutput,
-              stepOutputsById,
-              stepResultsById,
-              stepOutputs,
-              { ...deps, currentStepId },
-            );
-            branchGroupResult = await Promise.race([
-              executeBranchStepGroup(step as WorkflowBranchStep, context, stepStartedAt, branchDeps, getContext),
-              branchTimeoutPromise,
-            ]);
-          } catch (err) {
-            const error = err instanceof Error ? err : new Error(String(err));
-            const failed: WorkflowStepResult = {
-              id: step.id,
-              type: step.type,
-              status: "failed",
-              startedAt: new Date(stepStartedAt).toISOString(),
-              completedAt: new Date().toISOString(),
-              durationMs: Date.now() - stepStartedAt,
-              error: error.message,
-              ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
-            };
-            run.recordStep(failed);
-            stepOutputsById[step.id] = undefined;
-            stepResultsById[step.id] = failed;
-            deps.pbus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, failed, definition.defaultAutonomyMode));
-            deps.log(`Failed step "${step.id}" (branch) in workflow "${definition.name}": ${error.message}`);
-            if (step.continueOnFailure) { hadWarnings = true; continue; }
-            throw error;
-          } finally {
-            clearTimeout(branchTimeoutHandle);
-            abortController.signal.removeEventListener("abort", forwardBranchAbort);
+          if (group.agentBackoff && !agentBackoff) {
+            agentBackoff = group.agentBackoff;
           }
-          const {
-            branchResult,
-            hadNewWarnings,
-            branchFailed,
-            thrownError,
-            agentBackoff: branchBackoff,
-          } = branchGroupResult!;
-          if (branchBackoff && !agentBackoff) agentBackoff = branchBackoff;
-          run.recordStep(branchResult);
-          stepOutputsById[step.id] = branchResult.output;
-          stepResultsById[step.id] = branchResult;
-          stepOutputs.push(branchResult.output);
-          previousOutput = branchResult.output;
-          deps.pbus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, branchResult, definition.defaultAutonomyMode));
-          deps.log(`Completed step "${step.id}" (branch) in workflow "${definition.name}" [${branchResult.durationMs}ms]`);
-          if (branchFailed) {
-            if (step.continueOnFailure) { hadWarnings = true; continue; }
-            if (thrownError) throw thrownError;
-            throw new Error(`Branch step "${step.id}" failed`);
-          }
-          if (hadNewWarnings) hadWarnings = true;
-          continue;
-        }
-
-        if (step.type === "foreach") {
-          const stepAbortController = new AbortController();
-          const forwardForeachAbort = () => stepAbortController.abort(abortController.signal.reason);
-          abortController.signal.addEventListener("abort", forwardForeachAbort, { once: true });
-          const foreachTimeoutMs = step.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS;
-          let foreachTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
-          const foreachTimeoutPromise = new Promise<never>((_, reject) => {
-            foreachTimeoutHandle = setTimeout(() => {
-              const err = new Error(`Step "${step.id}" timed out after ${foreachTimeoutMs}ms`);
-              stepAbortController.abort(err);
-              reject(err);
-            }, foreachTimeoutMs);
-          });
-          let foreachGroupResult: ForeachGroupResult | undefined;
-          try {
-            let priorItemResults: import("./steps/step-executor-foreach.js").ForeachItemResult[] | undefined;
-            if (step.retryFailedItems && step.continueOnFailure && retryState.priorRunSteps) {
-              const priorForeachResult = retryState.priorRunSteps.find((s) => s.id === step.id);
-              const priorOutput = priorForeachResult?.output as { items?: number; results?: import("./steps/step-executor-foreach.js").ForeachItemResult[] } | undefined;
-              if (Array.isArray(priorOutput?.results)) {
-                priorItemResults = priorOutput.results;
-              }
-            }
-            const foreachDeps = {
-              definition,
-              run,
-              trigger,
-              runAbortController: stepAbortController,
-              agentConfig,
-              acc,
-              bus: deps.bus,
-              pbus: deps.pbus,
-              log: deps.log,
-              priorItemResults,
-            };
-            const getContext = (currentStepId = step.id) => createStepContext(
-              run.metadata,
-              trigger,
-              previousOutput,
-              stepOutputsById,
-              stepResultsById,
-              stepOutputs,
-              { ...deps, currentStepId },
-            );
-            const foreachContext = getContext();
-            foreachGroupResult = await Promise.race([
-              executeForeachStepGroup(step as WorkflowForeachStep, foreachContext, stepStartedAt, foreachDeps),
-              foreachTimeoutPromise,
-            ]);
-          } catch (err) {
-            const error = err instanceof Error ? err : new Error(String(err));
-            const failed: WorkflowStepResult = {
-              id: step.id,
-              type: step.type,
-              status: "failed",
-              startedAt: new Date(stepStartedAt).toISOString(),
-              completedAt: new Date().toISOString(),
-              durationMs: Date.now() - stepStartedAt,
-              error: error.message,
-              ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
-            };
-            run.recordStep(failed);
-            stepOutputsById[step.id] = undefined;
-            stepResultsById[step.id] = failed;
-            deps.pbus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, failed, definition.defaultAutonomyMode));
-            deps.log(`Failed step "${step.id}" (foreach) in workflow "${definition.name}": ${error.message}`);
-            if (step.continueOnFailure) { hadWarnings = true; continue; }
-            throw error;
-          } finally {
-            clearTimeout(foreachTimeoutHandle);
-            abortController.signal.removeEventListener("abort", forwardForeachAbort);
-          }
-          const {
-            groupResult,
-            hadNewWarnings,
-            groupFailed,
-            thrownError,
-            agentBackoff: foreachBackoff,
-          } = foreachGroupResult!;
-          if (foreachBackoff && !agentBackoff) agentBackoff = foreachBackoff;
-          run.recordStep(groupResult);
-          stepOutputsById[step.id] = groupResult.output;
-          stepResultsById[step.id] = groupResult;
-          stepOutputs.push(groupResult.output);
-          previousOutput = groupResult.output;
-          deps.pbus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, groupResult, definition.defaultAutonomyMode));
-          deps.log(`Completed step "${step.id}" (foreach) in workflow "${definition.name}" [${groupResult.durationMs}ms]`);
-          if (groupFailed) {
-            if (step.continueOnFailure) { hadWarnings = true; continue; }
-            if (thrownError) throw thrownError;
-            throw new Error(`Foreach step "${step.id}" failed`);
-          }
-          if (hadNewWarnings) hadWarnings = true;
+          previousOutput = group.previousOutput;
+          if (group.hadWarnings) hadWarnings = true;
           continue;
         }
 

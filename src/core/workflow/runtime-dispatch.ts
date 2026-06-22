@@ -14,7 +14,6 @@ import type { AgentBackoffManager } from "./agent-backoff.js";
 import { isWithinDispatchWindow } from "./dispatch-window.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { workflowUsesAgent } from "./run-executor-utils.js";
-import { formatRunId } from "./run-io.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type {
   WorkflowRunExecutionResult,
@@ -25,6 +24,7 @@ import type { WorkflowRuntimeConfig } from "./runtime-config.js";
 import { canDispatchDefinition } from "./runtime-dispatch-concurrency.js";
 import { loadDefinitions } from "./runtime-dispatch-definitions.js";
 import { handleDirtyCompletion } from "./runtime-dispatch-dirty-recovery.js";
+import { triggerWorkflowFromStep } from "./runtime-dispatch-trigger.js";
 import { checkAbortSignal, checkReloadSignal, PAUSE_SIGNAL_FILE } from "./runtime-signals.js";
 import type { ScheduleTriggerManager } from "./schedule-triggers.js";
 import type { WorkflowStep } from "./step-types.js";
@@ -128,82 +128,6 @@ export function maybeStartNext(state: WorkflowRuntimeDispatchState): void {
   }
 }
 
-async function triggerWorkflowFromStep(
-  state: WorkflowRuntimeDispatchState,
-  workflowName: string,
-  payload: Record<string, unknown>,
-  waitFor: "queued" | "completed",
-  signal?: AbortSignal,
-): Promise<{ runId: string; status: "queued" | "completed" | "failed"; childOutput?: unknown }> {
-  const definition = state.definitions.find((d) => d.name === workflowName);
-  if (!definition) {
-    throw new Error(`Trigger step references unknown workflow "${workflowName}"`);
-  }
-  if (!definition.enabled) {
-    throw new Error(`Trigger step references disabled workflow "${workflowName}"`);
-  }
-
-  const runId = formatRunId(workflowName);
-  const now = Date.now();
-  const runTrigger: WorkflowRunTrigger = {
-    event: "workflow.triggered",
-    schemaRef: null,
-    payload: { ...payload, _runId: runId, triggeredAt: new Date().toISOString() },
-  };
-
-  if (waitFor === "queued") {
-    const runtimeState = state.store.readState();
-    state.store.setPendingRuns([
-      ...runtimeState.pendingRuns,
-      { runId, workflowName, trigger: runTrigger, enqueuedAtMs: now, notBeforeMs: now },
-    ]);
-    maybeStartNext(state);
-    return { runId, status: "queued" };
-  }
-
-  // waitFor === "completed": subscribe to bus before enqueuing to avoid missing the event.
-  return new Promise((resolve, reject) => {
-    const stopListening = state.runtimeConfig.bus.on(
-      "workflow.completed",
-      (completedPayload) => {
-        if (completedPayload.runId !== runId) return;
-        stopListening();
-        const status =
-          completedPayload.status === "success" ||
-          completedPayload.status === "completed-with-warnings"
-            ? "completed"
-            : "failed";
-        const childMeta = state.store.getRun(runId);
-        const lastSuccessfulStep = childMeta?.steps
-          .slice()
-          .reverse()
-          .find((s) => s.status === "success");
-        const childOutput = lastSuccessfulStep?.output;
-        resolve({ runId, status, ...(childOutput !== undefined && { childOutput }) });
-      },
-    );
-
-    if (signal) {
-      signal.addEventListener(
-        "abort",
-        () => {
-          stopListening();
-          const reason = signal.reason instanceof Error ? signal.reason : new Error("Trigger step aborted");
-          reject(reason);
-        },
-        { once: true },
-      );
-    }
-
-    const runtimeState = state.store.readState();
-    state.store.setPendingRuns([
-      ...runtimeState.pendingRuns,
-      { runId, workflowName, trigger: runTrigger, enqueuedAtMs: now, notBeforeMs: now },
-    ]);
-    maybeStartNext(state);
-  });
-}
-
 export async function runWorkflow(
   state: WorkflowRuntimeDispatchState,
   definition: WorkflowDefinition,
@@ -247,7 +171,14 @@ export async function runWorkflow(
       config: state.config,
       log: (message) => state.log(message),
       triggerWorkflow: (workflowName, payload, waitFor, signal) =>
-        triggerWorkflowFromStep(state, workflowName, payload, waitFor, signal),
+        triggerWorkflowFromStep(
+          state,
+          () => maybeStartNext(state),
+          workflowName,
+          payload,
+          waitFor,
+          signal,
+        ),
       resolveAgentDef: state.resolveAgentDef,
       resolveSkillsPrompt: state.resolveSkillsPrompt,
       agentRunLimiter: state.agentRunLimiter,

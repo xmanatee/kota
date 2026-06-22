@@ -1,12 +1,12 @@
 ---
 id: task-split-oversized-core-workflow-executor-and-dispatc
 title: Split oversized core workflow executor and dispatch files
-status: ready
+status: done
 priority: p3
 area: core
 summary: The progress-review journal backfill landed successfully but its builder run reported source-size warnings on touched core workflow files: src/core/workflow/run-executor.ts and src/core/workflow/runtime-dispatch.ts. Extract cohesive helpers or record a narrow typed exception while preserving workflow runtime behavior.
 created_at: 2026-06-22T07:59:57.099Z
-updated_at: 2026-06-22T07:59:57.099Z
+updated_at: 2026-06-22T19:10:36.012Z
 ---
 
 ## Problem
@@ -46,4 +46,7 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- Before/after line counts are recorded; builder source-size diagnostics no longer warn on src/core/workflow/run-executor.ts or src/core/workflow/runtime-dispatch.ts, or a typed narrow exception is justified; focused core workflow tests plus typecheck, lint, and validate-tasks pass.
+- `.kota/runs/2026-06-22T18-58-36-187Z-builder-56a3rx/line-count-evidence.txt` records the split: `run-executor.ts` went from 488 to 276 lines and `runtime-dispatch.ts` went from 337 to 268 lines; new workflow helper files are 234, 108, and 89 lines.
+- Source-size diagnostics against the temporary staged index reported `OK: changed source files are under source-size warning thresholds`.
+- Focused workflow tests passed: 7 files, 111 tests.
+- `pnpm run typecheck` and `pnpm run lint` passed. `pnpm run validate-tasks` passed against the temporary staged index; the real-index invocation is blocked by this sandbox's `.git` write restriction.
