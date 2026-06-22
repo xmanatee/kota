@@ -1,13 +1,17 @@
 ---
 id: task-split-oversized-agent-harness-guard-implementation
 title: Split oversized agent harness guard implementation
-status: ready
+status: done
 priority: p3
 area: core
 summary: The workflow shell teardown guard hardening passed, but its builder run reports src/core/agent-harness/guards.ts at 351 lines over the 300-line source-size guideline. Extract cohesive command-classification or workflow-shell guard helpers while preserving the fixed destructive-command coverage.
 created_at: 2026-06-22T18:22:33.256Z
-updated_at: 2026-06-22T18:22:33.256Z
+updated_at: 2026-06-22T18:51:59.673Z
 ---
+
+## Result
+
+Extracted the harness guard command classifiers into `src/core/agent-harness/guard-command-classifiers.ts` and left `src/core/agent-harness/guards.ts` focused on guard composition and permission decisions. The public classifier exports remain available through `guards.ts`.
 
 ## Problem
 
@@ -46,4 +50,8 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- Before/after line-count evidence shows src/core/agent-harness/guards.ts no longer triggers the changed-source-size warning, or records a narrow justified exception. Focused agent-harness guard classifier tests, workflow-agent guard tests, typecheck, lint, and validate-tasks pass.
+- Line counts: `src/core/agent-harness/guards.ts` reduced from 351 lines to 199 lines; extracted classifier file is 167 lines, so both touched source files are below the 300-line guideline.
+- Focused tests passed: `pnpm test src/core/agent-harness/guard-command-classifiers.test.ts src/core/agent-harness/guards.test.ts src/modules/claude-agent-harness/executor.test.ts`.
+- `pnpm run typecheck`, `pnpm run lint`, and `pnpm run build` passed.
+- `pnpm run validate-tasks` passed after staging the task/source diff.
+- Run artifact: `.kota/runs/2026-06-22T18-44-41-698Z-builder-75g8xf/source-size-evidence.txt`.
