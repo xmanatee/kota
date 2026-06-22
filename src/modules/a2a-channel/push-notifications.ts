@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleLogger } from "#core/modules/module-types.js";
-import { postWithRetry } from "#modules/notification/index.js";
 import type { A2ABackend } from "./daemon-session-client.js";
 import {
   A2AProtocolError,
@@ -10,9 +9,9 @@ import {
   invalidParams,
   type TaskSelector,
 } from "./protocol.js";
-import { redactedCallbackUrl } from "./push-notification-callback-url.js";
+import { deliverPushNotificationCallback } from "./push-notification-callback-delivery.js";
+import type { CallbackAddressResolver } from "./push-notification-callback-hosts.js";
 import {
-  buildPushDeliveryHeaders,
   type PushDeliveryPayload,
   pushDeliveryPayload,
   pushDeliveryScope,
@@ -60,6 +59,7 @@ export class A2APushNotificationManager {
     private readonly log: ModuleLogger,
     private readonly fetchImpl: typeof fetch = fetch,
     private readonly now: () => string = () => new Date().toISOString(),
+    private readonly callbackAddressResolver?: CallbackAddressResolver,
   ) {}
 
   create(input: PushNotificationConfigInput, task: A2ATask): A2ATaskPushNotificationConfig {
@@ -196,18 +196,11 @@ export class A2APushNotificationManager {
     config: StoredPushNotificationConfig,
     update: PushDeliveryPayload,
   ): Promise<void> {
-    await postWithRetry(
-      config.url,
-      JSON.stringify(update),
-      this.log,
-      {
-        retries: 2,
-        baseDelayMs: 500,
-        headers: buildPushDeliveryHeaders(config),
-        logUrl: redactedCallbackUrl(config.url),
-        fetchImpl: this.fetchImpl,
-      },
-    );
+    await deliverPushNotificationCallback(config, update, {
+      log: this.log,
+      fetchImpl: this.fetchImpl,
+      callbackAddressResolver: this.callbackAddressResolver,
+    });
   }
 
   private ensureSubscription(backend: A2ABackend, selector: PushTaskSubscriptionSelector): void {

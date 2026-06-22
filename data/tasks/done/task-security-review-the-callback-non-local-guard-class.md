@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-callback-non-local-guard-class
 title: Security review: The callback non-local guard classifies only the URL hostname string; ordinary domains are allowed without DNS resolution, and delivery later lets fetch resolve the host, so a callback domain can resolve or rebind to loopback/private addresses and still receive POSTs from KOTA.
-status: ready
+status: done
 priority: p2
 area: security
 summary: The callback non-local guard classifies only the URL hostname string; ordinary domains are allowed without DNS resolution, and delivery later lets fetch resolve the host, so a callback domain can resolve or rebind to loopback/private addresses and still receive POSTs from KOTA.
 created_at: 2026-06-22T08:06:52.749Z
-updated_at: 2026-06-22T08:06:52.749Z
+updated_at: 2026-06-22T08:49:31.588Z
 ---
 
 ## Problem
@@ -121,6 +121,13 @@ excerpt:
 
 Agentic security review for autonomous coding infrastructure.
 
+## Resolution
+
+A2A push callback delivery now resolves callback hostnames at delivery time, rejects any loopback/private/non-public resolved address before sending the callback POST, and uses an A2A-owned HTTP(S) dispatcher that pins the connection lookup to the vetted address. The dispatcher does not follow redirects.
+
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Regression coverage in `src/modules/a2a-channel/push-notification-delivery.test.ts` stores an ordinary callback hostname and proves delivery is blocked when the delivery-time resolver returns `127.0.0.1`.
+- Verification passed: `pnpm exec vitest run src/modules/a2a-channel/push-notification-callback-hosts.test.ts src/modules/a2a-channel/push-notification-delivery.test.ts src/modules/notification/post-with-retry.test.ts`.
+- Verification passed: `pnpm typecheck`.
+- Verification passed: `pnpm exec biome check src/modules/a2a-channel/push-notification-callback-delivery.ts src/modules/a2a-channel/push-notification-callback-fetch.ts src/modules/a2a-channel/push-notification-callback-hosts.ts src/modules/a2a-channel/push-notification-delivery.test.ts src/modules/a2a-channel/push-notification-runtime.ts src/modules/a2a-channel/push-notifications.ts`.

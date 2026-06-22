@@ -46,19 +46,7 @@ describe("a2a push notification delivery", () => {
       projectId: "proj-1",
     });
 
-    const current = await backend.getTask({
-      taskId: "task-1",
-      contextId: "proj-1",
-      projectId: "proj-1",
-    });
-    backend.emitSubscribed({
-      statusUpdate: {
-        taskId: current.id,
-        contextId: current.contextId,
-        status: current.status,
-        metadata: current.metadata,
-      },
-    });
+    const current = await emitCurrentStatusUpdate(backend);
 
     await vi.waitFor(() => expect(callbackFetch).toHaveBeenCalledTimes(1));
     const body = callbackFetch.mock.calls[0]?.[1]?.body;
@@ -71,6 +59,44 @@ describe("a2a push notification delivery", () => {
         metadata: current.metadata,
       },
     });
+  });
+
+  it("blocks delivery when a stored callback hostname resolves to a private address", async () => {
+    const storage = makeStorage(state.tempDirs);
+    const ctx = makeContext(storage);
+    const backend = new FakeBackend();
+    const callbackFetch = vi.fn<typeof fetch>(async () => new Response("{}", { status: 202 }));
+    const callbackAddressResolver = vi.fn(async () => [{
+      address: "127.0.0.1",
+      family: 4 as const,
+    }]);
+    const server = await startRouteServer(a2aRoutes(ctx, {
+      backendFactory: () => backend,
+      pushNotificationFetch: callbackFetch,
+      pushNotificationAddressResolver: callbackAddressResolver,
+    }));
+    state.servers.push(server.server);
+
+    await postRpc(server.baseUrl, {
+      jsonrpc: "2.0",
+      id: "create",
+      method: "CreateTaskPushNotificationConfig",
+      params: pushConfigParams({
+        id: "config-1",
+        url: "https://callback.example.test/a2a",
+      }),
+    });
+
+    await vi.waitFor(() => expect(backend.subscriptions).toHaveLength(1));
+    await emitCurrentStatusUpdate(backend);
+
+    await vi.waitFor(() => {
+      expect(ctx.log.warn).toHaveBeenCalledWith(
+        expect.stringContaining("callback host resolved to a non-public address"),
+      );
+    });
+    expect(callbackAddressResolver).toHaveBeenCalledWith("callback.example.test");
+    expect(callbackFetch).not.toHaveBeenCalled();
   });
 
   it("rehydrates persisted configs into task subscriptions after route restart", async () => {
@@ -104,19 +130,7 @@ describe("a2a push notification delivery", () => {
       projectId: "proj-1",
     });
 
-    const current = await restartedBackend.getTask({
-      taskId: "task-1",
-      contextId: "proj-1",
-      projectId: "proj-1",
-    });
-    restartedBackend.emitSubscribed({
-      statusUpdate: {
-        taskId: current.id,
-        contextId: current.contextId,
-        status: current.status,
-        metadata: current.metadata,
-      },
-    });
+    const current = await emitCurrentStatusUpdate(restartedBackend);
 
     await vi.waitFor(() => expect(callbackFetch).toHaveBeenCalledTimes(1));
     const body = callbackFetch.mock.calls[0]?.[1]?.body;
@@ -257,3 +271,20 @@ describe("a2a push notification delivery", () => {
     expect(listed.result.configs).toEqual([]);
   });
 });
+
+async function emitCurrentStatusUpdate(backend: FakeBackend) {
+  const current = await backend.getTask({
+    taskId: "task-1",
+    contextId: "proj-1",
+    projectId: "proj-1",
+  });
+  backend.emitSubscribed({
+    statusUpdate: {
+      taskId: current.id,
+      contextId: current.contextId,
+      status: current.status,
+      metadata: current.metadata,
+    },
+  });
+  return current;
+}

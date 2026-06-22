@@ -1,4 +1,14 @@
+import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+
+export type CallbackResolvedAddress = {
+  address: string;
+  family: 4 | 6;
+};
+
+export type CallbackAddressResolver = (
+  hostname: string,
+) => Promise<readonly CallbackResolvedAddress[]>;
 
 type Ipv6Block = {
   prefix: readonly number[];
@@ -38,6 +48,46 @@ export function isPrivateCallbackHost(hostname: string): boolean {
   if (version === 4) return isNonPublicIpv4(normalized);
   if (version === 6) return isNonPublicIpv6(normalized);
   return false;
+}
+
+export async function resolvePublicCallbackAddresses(
+  hostname: string,
+  resolver: CallbackAddressResolver = defaultCallbackAddressResolver,
+): Promise<readonly CallbackResolvedAddress[]> {
+  const normalized = normalizeCallbackHostname(hostname);
+  if (isPrivateCallbackHost(normalized)) {
+    throw new Error("callback host is not public");
+  }
+
+  const addresses = await resolver(normalized);
+  if (addresses.length === 0) {
+    throw new Error("callback host did not resolve to an address");
+  }
+
+  for (const resolved of addresses) {
+    if (isIP(resolved.address) !== resolved.family) {
+      throw new Error("callback host resolved to an invalid address record");
+    }
+    if (isPrivateCallbackHost(resolved.address)) {
+      throw new Error("callback host resolved to a non-public address");
+    }
+  }
+  return addresses;
+}
+
+async function defaultCallbackAddressResolver(
+  hostname: string,
+): Promise<readonly CallbackResolvedAddress[]> {
+  const records = await lookup(hostname, { all: true });
+  return records.map((record) => {
+    if (record.family !== 4 && record.family !== 6) {
+      throw new Error("callback host resolved to an unsupported address family");
+    }
+    return {
+      address: record.address,
+      family: record.family,
+    };
+  });
 }
 
 function normalizeCallbackHostname(hostname: string): string {
