@@ -88,9 +88,9 @@ resources:
     added: "2026-05-27"
     notes: "Official Agent2Agent Protocol docs. Monitor v1.0 Agent Card discovery, JSON-RPC/HTTP and SSE bindings, task lifecycle methods, security schemes, Agent Card signatures, MCP complementarity, SDK support, and registry/discovery direction for KOTA's module-owned A2A channel work."
     snapshot:
-      fingerprint: sha256:e6c0f3e96df56be80e484bf89edda5d5
-      summary: "A2A v1.0 multi-tenancy docs expose KOTA's remaining A2A project-routing gap: this run opened task-map-a2a-tenant-routing-to-kota-project-scoping so the channel uses protocol tenant routing instead of relying only on KOTA-specific projectId metadata."
-      last_seen_at: "2026-05-27T12:14:09.387Z"
+      fingerprint: sha256:0f015107cf5d895c2a0449cb69ab33c2
+      summary: "A2A v1.0 still maps cleanly to KOTA's module-owned channel model, but the remaining nonduplicative gap is push notification configuration for long-running daemon-backed tasks; this run opened task-add-a2a-push-notification-configuration-support."
+      last_seen_at: "2026-06-22T02:48:08.277Z"
   - url: https://antigravity.google/docs/cli-overview
     added: "2026-05-26"
     notes: "Antigravity CLI is Google's successor terminal surface for Gemini CLI consumer users and shares the Antigravity agent harness with Antigravity 2.0. Monitor as a peer native-CLI harness signal for KOTA's Google preset migration, auth-readiness behavior, plugin/skills layout, and native subagent boundaries."
