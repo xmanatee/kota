@@ -122,4 +122,32 @@ describe("postWithRetry", () => {
     await p;
     expect(log.warn).toHaveBeenCalledWith(expect.stringContaining("3 attempt(s)"));
   });
+
+  it("applies caller headers, injected fetch, and redacted log URLs", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({ ok: false, status: 401 });
+    const log = { warn: vi.fn() };
+    const p = postWithRetry(URL, BODY, log, {
+      retries: 0,
+      baseDelayMs: 100,
+      headers: {
+        "Content-Type": "application/a2a+json",
+        Authorization: "Bearer secret-token",
+      },
+      logUrl: "https://hooks.example.com/notify?...",
+      fetchImpl,
+    });
+    await vi.runAllTimersAsync();
+    await p;
+
+    expect(fetchImpl).toHaveBeenCalledWith(URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/a2a+json",
+        Authorization: "Bearer secret-token",
+      },
+      body: BODY,
+    });
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining("notify?..."));
+    expect(log.warn).not.toHaveBeenCalledWith(expect.stringContaining("secret-token"));
+  });
 });

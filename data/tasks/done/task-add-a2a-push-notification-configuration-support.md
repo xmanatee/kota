@@ -1,13 +1,13 @@
 ---
 id: task-add-a2a-push-notification-configuration-support
 title: Add A2A push notification configuration support
-status: ready
+status: done
 priority: p2
 area: modules
 task_class: Platform
 summary: Implement A2A v1.0 push notification configuration methods for daemon-backed session tasks, with callback authentication, persistence, unsubscribe, and approval-safe delivery semantics.
 created_at: 2026-06-22T02:45:44.134Z
-updated_at: 2026-06-22T02:45:44.134Z
+updated_at: 2026-06-22T03:16:32.000Z
 ---
 
 ## Problem
@@ -139,3 +139,11 @@ parallel runtime or bypassing approval and project-scope guardrails.
 - A protocol transcript under `.kota/runs/<run-id>/` showing create/get/list,
   a delivered task update callback, delete/unsubscribe, and one callback
   response that cannot resolve a pending approval or owner question.
+
+## Completion Evidence
+
+- `pnpm test src/modules/a2a-channel` passed.
+- `pnpm run typecheck` passed.
+- `pnpm exec biome check src/modules/a2a-channel` passed.
+- Protocol transcript recorded at
+  `.kota/runs/2026-06-22T03-02-11-073Z-builder-qb0sve/a2a-push-protocol-transcript.txt`.

@@ -59,7 +59,7 @@ describe("a2a channel routes", () => {
       ],
       capabilities: {
         streaming: true,
-        pushNotifications: false,
+        pushNotifications: true,
         extendedAgentCard: true,
       },
       securitySchemes: {
@@ -766,7 +766,7 @@ function makeContext(): ModuleContext {
     cwd: process.cwd(),
     verbose: false,
     config: {},
-    storage: {} as never,
+    storage: { getJSON: () => undefined } as never,
     log: {
       info: vi.fn(),
       warn: vi.fn(),

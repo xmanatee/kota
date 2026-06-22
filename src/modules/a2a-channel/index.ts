@@ -1,5 +1,9 @@
 import type { KotaModule } from "#core/modules/module-types.js";
-import { a2aRoutes } from "./routes.js";
+import {
+  a2aRoutes,
+  resumeStoredA2APushNotificationSubscriptions,
+  stopSharedA2APushNotificationManagers,
+} from "./routes.js";
 
 export { type A2AAgentCard, buildAgentCard } from "./agent-card.js";
 export { type A2ABackend, DaemonA2ABackend } from "./daemon-session-client.js";
@@ -18,7 +22,14 @@ const a2aChannelModule: KotaModule = {
   version: "1.0.0",
   description:
     "Agent2Agent HTTP channel exposing KOTA daemon sessions through Agent Card discovery, JSON-RPC task methods, and SSE updates.",
+  dependencies: ["notification"],
   routes: (ctx) => a2aRoutes(ctx),
+  onLoad: (ctx) => {
+    resumeStoredA2APushNotificationSubscriptions(ctx);
+  },
+  onUnload: () => {
+    stopSharedA2APushNotificationManagers();
+  },
 };
 
 export default a2aChannelModule;

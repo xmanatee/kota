@@ -74,7 +74,7 @@ export function buildAgentCard(
     version: "0.1.0",
     capabilities: {
       streaming: true,
-      pushNotifications: false,
+      pushNotifications: true,
       extendedAgentCard: true,
     },
     securitySchemes: {
@@ -111,7 +111,7 @@ export function buildAgentCard(
     metadata: {
       extendedCardUrl: `${origin}${A2A_EXTENDED_CARD_PATH}`,
       mcpComplementary: true,
-      pushNotificationsImplemented: false,
+      pushNotificationsImplemented: true,
       ...(extended ? { moduleSkills } : {}),
     },
   };

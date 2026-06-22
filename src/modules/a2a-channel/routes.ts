@@ -1,17 +1,11 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { join } from "node:path";
 import type { ModuleContext, RouteRegistration } from "#core/modules/module-types.js";
-import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import { readSelectedScopeSelectorIdQueryOrErrorResponse } from "#core/server/scope-selector-request.js";
 import { jsonResponse, readBody, setCors } from "#core/server/session-pool.js";
 import { buildAgentCard } from "./agent-card.js";
-import {
-  type A2ABackend,
-  DaemonA2ABackend,
-} from "./daemon-session-client.js";
+import type { A2ABackend } from "./daemon-session-client.js";
 import {
   A2A_EXTENDED_CARD_PATH,
-  A2A_LEGACY_PROTOCOL_VERSION as A2A_IMPLICIT_PROTOCOL_VERSION,
   A2A_PROTOCOL_VERSION,
   A2A_RPC_PATH,
   A2A_WELL_KNOWN_CARD_PATH,
@@ -28,30 +22,34 @@ import {
   type JsonRpcId,
   makeJsonRpcError,
   makeJsonRpcResponse,
-  methodNotFound,
   unauthorized,
   versionNotSupported,
 } from "./protocol.js";
+import {
+  handlePushNotificationRpc,
+  isPushNotificationRpcMethod,
+} from "./push-notification-rpc.js";
+import {
+  type A2ARouteOptions,
+  backendFactoryFor,
+  pushNotificationManagerFor,
+} from "./push-notification-runtime.js";
+import type { A2APushNotificationManager } from "./push-notifications.js";
+import {
+  canonicalMethod,
+  isStreamingMethod,
+  requestedA2AProtocolVersion,
+} from "./rpc-methods.js";
 
-export type A2ARouteOptions = {
-  backendFactory?: () => A2ABackend | null;
-};
-
-const A2A_VERSION_QUERY_PARAMETER = "A2A-Version";
-
-type CanonicalMethod =
-  | "SendMessage"
-  | "SendStreamingMessage"
-  | "GetTask"
-  | "ListTasks"
-  | "CancelTask"
-  | "SubscribeToTask";
+export type { A2ARouteOptions } from "./push-notification-runtime.js";
+export {
+  resumeStoredA2APushNotificationSubscriptions,
+  stopSharedA2APushNotificationManagers,
+} from "./push-notification-runtime.js";
 
 export function a2aRoutes(ctx: ModuleContext, options: A2ARouteOptions = {}): RouteRegistration[] {
-  const backendFactory = options.backendFactory ?? (() => {
-    const transport = getDaemonTransport(join(ctx.cwd, ".kota"));
-    return transport ? new DaemonA2ABackend(transport) : null;
-  });
+  const backendFactory = backendFactoryFor(ctx, options);
+  const pushNotifications = pushNotificationManagerFor(ctx, options);
   return [
     {
       method: "GET",
@@ -68,7 +66,7 @@ export function a2aRoutes(ctx: ModuleContext, options: A2ARouteOptions = {}): Ro
       method: "POST",
       path: A2A_RPC_PATH,
       authFailureHandler: handleRpcAuthFailure,
-      handler: (req, res) => handleRpc(req, res, backendFactory),
+      handler: (req, res) => handleRpc(req, res, backendFactory, pushNotifications),
     },
   ];
 }
@@ -92,6 +90,7 @@ async function handleRpc(
   req: IncomingMessage,
   res: ServerResponse,
   backendFactory: () => A2ABackend | null,
+  pushNotifications: A2APushNotificationManager,
 ): Promise<void> {
   let id: JsonRpcId = null;
   try {
@@ -110,13 +109,25 @@ async function handleRpc(
     }
     const method = canonicalMethod(request.method);
     if (method === "SendStreamingMessage" || method === "SubscribeToTask") {
-      await handleStreamingRpc(res, req, id, method, request.params, backendFactory);
+      await handleStreamingRpc(
+        res,
+        req,
+        id,
+        method,
+        request.params,
+        backendFactory,
+        pushNotifications,
+      );
       return;
     }
     if (method === "SendMessage") {
       const input = decodeSendMessageParams(request.params);
       const backend = requireBackend(backendFactory);
-      const task = await backend.sendMessage(input);
+      const task = await backend.sendMessage(input, {
+        onUpdate: (update) => {
+          void pushNotifications.dispatch(update);
+        },
+      });
       jsonResponse(res, 200, makeJsonRpcResponse(id, { task }));
       return;
     }
@@ -134,6 +145,17 @@ async function handleRpc(
       jsonResponse(res, 200, makeJsonRpcResponse(id, taskListResponse(tasks)));
       return;
     }
+    if (isPushNotificationRpcMethod(method)) {
+      await handlePushNotificationRpc(
+        res,
+        id,
+        method,
+        request.params,
+        () => requireBackend(backendFactory),
+        pushNotifications,
+      );
+      return;
+    }
     const selector = decodeTaskSelector(request.params);
     const backend = requireBackend(backendFactory);
     const task = await backend.cancelTask(selector);
@@ -142,31 +164,6 @@ async function handleRpc(
     const normalized = normalizeA2AError(err instanceof Error ? err : String(err));
     jsonResponse(res, 200, makeJsonRpcError(id, normalized));
   }
-}
-
-function requestedA2AProtocolVersion(req: IncomingMessage): string {
-  const headerVersion = firstHeaderValue(req.headers["a2a-version"]);
-  if (headerVersion !== null) return normalizeRequestedA2AVersion(headerVersion);
-
-  const url = new URL(req.url ?? "/", "http://127.0.0.1");
-  const queryVersion = url.searchParams.get(A2A_VERSION_QUERY_PARAMETER);
-  if (queryVersion !== null) return normalizeRequestedA2AVersion(queryVersion);
-
-  return A2A_IMPLICIT_PROTOCOL_VERSION;
-}
-
-function normalizeRequestedA2AVersion(value: string): string {
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : A2A_IMPLICIT_PROTOCOL_VERSION;
-}
-
-function firstHeaderValue(value: string | string[] | undefined): string | null {
-  if (Array.isArray(value)) return value[0] ?? null;
-  return value ?? null;
-}
-
-function isStreamingMethod(method: string): boolean {
-  return method === "SendStreamingMessage" || method === "SubscribeToTask";
 }
 
 function sendSingleSseError(res: ServerResponse, id: JsonRpcId, err: A2AProtocolError): void {
@@ -198,6 +195,7 @@ async function handleStreamingRpc(
   method: "SendStreamingMessage" | "SubscribeToTask",
   params: JsonObject,
   backendFactory: () => A2ABackend | null,
+  pushNotifications: A2APushNotificationManager,
 ): Promise<void> {
   setCors(res);
   res.writeHead(200, {
@@ -217,14 +215,20 @@ async function handleStreamingRpc(
       const backend = requireBackend(backendFactory);
       await backend.sendMessage(input, {
         signal: controller.signal,
-        onUpdate: (update) => send(makeJsonRpcResponse(id, update)),
+        onUpdate: (update) => {
+          send(makeJsonRpcResponse(id, update));
+          void pushNotifications.dispatch(update);
+        },
       });
     } else {
       const selector = decodeTaskSelector(params);
       const backend = requireBackend(backendFactory);
       await backend.subscribeToTask(selector, {
         signal: controller.signal,
-        onUpdate: (update) => send(makeJsonRpcResponse(id, update)),
+        onUpdate: (update) => {
+          send(makeJsonRpcResponse(id, update));
+          void pushNotifications.dispatch(update);
+        },
       });
     }
   } catch (err) {
@@ -241,20 +245,6 @@ function taskListResponse(tasks: A2ATaskListResponse["tasks"]): A2ATaskListRespo
     pageSize: tasks.length,
     totalSize: tasks.length,
   };
-}
-
-function canonicalMethod(method: string): CanonicalMethod {
-  if (method === "SendMessage") return "SendMessage";
-  if (method === "SendStreamingMessage") {
-    return "SendStreamingMessage";
-  }
-  if (method === "GetTask") return "GetTask";
-  if (method === "ListTasks") return "ListTasks";
-  if (method === "CancelTask") return "CancelTask";
-  if (method === "SubscribeToTask") {
-    return "SubscribeToTask";
-  }
-  throw methodNotFound(method);
 }
 
 function requireBackend(backendFactory: () => A2ABackend | null): A2ABackend {

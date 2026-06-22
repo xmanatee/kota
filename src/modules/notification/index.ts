@@ -3,6 +3,9 @@ import type { KotaModule } from "#core/modules/module-types.js";
 export type RetryOptions = {
   retries?: number;
   baseDelayMs?: number;
+  headers?: Record<string, string>;
+  logUrl?: string;
+  fetchImpl?: typeof fetch;
 };
 
 export async function postWithRetry(
@@ -13,6 +16,8 @@ export async function postWithRetry(
 ): Promise<void> {
   const maxRetries = options.retries ?? 3;
   const baseDelayMs = options.baseDelayMs ?? 1000;
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const logUrl = options.logUrl ?? url;
 
   let lastError = "";
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -21,9 +26,9 @@ export async function postWithRetry(
       await new Promise<void>((resolve) => setTimeout(resolve, delay));
     }
     try {
-      const res = await fetch(url, {
+      const res = await fetchImpl(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...options.headers },
         body,
       });
       if (res.ok) return;
@@ -32,7 +37,7 @@ export async function postWithRetry(
       lastError = (err as Error).message;
     }
   }
-  log.warn(`POST to ${url} failed after ${maxRetries + 1} attempt(s): ${lastError}`);
+  log.warn(`POST to ${logUrl} failed after ${maxRetries + 1} attempt(s): ${lastError}`);
 }
 
 const notificationModule: KotaModule = {
