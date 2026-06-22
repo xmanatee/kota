@@ -1,5 +1,10 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
+import {
+	formatToolDescriptionQualitySection,
+	hasMatchingToolDescriptionQualityReports,
+	type ToolDescriptionQualityProvider,
+} from "./agent-status-description-quality.js";
 import { readOnlySessionEffect, riskFromEffect } from "./effect.js";
 import { getCoreRegistrations, getRegisteredTools, getToolEffect, type ToolRegistration, type ToolResult } from "./index.js";
 import { getEnabledGroups, TOOL_GROUPS } from "./tool-groups.js";
@@ -42,6 +47,7 @@ type ConfigProvider = () => Record<string, unknown>;
 
 let _moduleInfoProvider: ModuleInfoProvider | null = null;
 let _configProvider: ConfigProvider | null = null;
+let _toolDescriptionQualityProvider: ToolDescriptionQualityProvider | null = null;
 
 export function setModuleInfoProvider(fn: ModuleInfoProvider): void {
 	_moduleInfoProvider = fn;
@@ -51,9 +57,14 @@ export function setConfigProvider(fn: ConfigProvider): void {
 	_configProvider = fn;
 }
 
+export function setToolDescriptionQualityProvider(fn: ToolDescriptionQualityProvider): void {
+	_toolDescriptionQualityProvider = fn;
+}
+
 export function resetAgentStatusProviders(): void {
 	_moduleInfoProvider = null;
 	_configProvider = null;
+	_toolDescriptionQualityProvider = null;
 }
 
 // --- Runner ---
@@ -121,7 +132,22 @@ function formatTools(filter: string): string {
 		}
 	}
 
-	if (coreFiltered.length === 0 && moduleFiltered.length === 0) {
+	const remoteReports = _toolDescriptionQualityProvider?.() ?? [];
+	const diagnosticSection = formatToolDescriptionQualitySection({
+		coreTools: coreFiltered,
+		moduleTools: moduleFiltered,
+		remoteReports,
+		filter,
+	});
+	if (diagnosticSection) {
+		lines.push(diagnosticSection);
+	}
+
+	if (
+		coreFiltered.length === 0 &&
+		moduleFiltered.length === 0 &&
+		!hasMatchingToolDescriptionQualityReports(remoteReports, filter)
+	) {
 		lines.push("(no tools match filter)");
 	}
 

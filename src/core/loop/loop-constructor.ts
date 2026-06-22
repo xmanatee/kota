@@ -10,13 +10,18 @@ import { initScheduler, setSchedulerInstance } from "#core/daemon/scheduler.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { initTaskStore, setTaskStoreInstance } from "#core/daemon/task-store.js";
 import { tryEmit } from "#core/events/event-bus.js";
+import { remoteMcpToolDescriptionQualityReportsFromManager } from "#core/mcp/tool-description-quality.js";
 import { createModelClient } from "#core/model/model-client.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
 import { initModuleLogStore, setModuleLogStoreInstance } from "#core/modules/module-log.js";
 import type { CreateSessionOptions, ModuleSession } from "#core/modules/module-types.js";
 import { initProviderRegistry, registerDefaultProviders } from "#core/modules/provider-registry.js";
-import { setConfigProvider, setModuleInfoProvider } from "#core/tools/agent-status.js";
+import {
+  setConfigProvider,
+  setModuleInfoProvider,
+  setToolDescriptionQualityProvider,
+} from "#core/tools/agent-status.js";
 import { isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import { setDelegateConfig } from "#core/tools/delegate.js";
 import {
@@ -207,6 +212,11 @@ export function initAgentSession(
       name,
       toolCount: 0,
     })),
+  );
+  setToolDescriptionQualityProvider(() =>
+    state.mcpManager
+      ? remoteMcpToolDescriptionQualityReportsFromManager(state.mcpManager)
+      : [],
   );
   if (options.config) {
     const cfg = options.config;

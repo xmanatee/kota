@@ -1,13 +1,13 @@
 ---
 id: task-add-tool-description-quality-diagnostics-for-agent
 title: Add tool-description quality diagnostics for agent tool selection
-status: ready
+status: done
 priority: p2
 area: core
 task_class: Platform
 summary: Add deterministic diagnostics for first-party and remote MCP tool descriptions so KOTA can surface missing purpose, effect, input/output, or negative-use guidance without rewriting remote tools or bloating agent prompts.
 created_at: 2026-06-22T21:31:08.516Z
-updated_at: 2026-06-22T21:31:08.516Z
+updated_at: 2026-06-22T21:51:01.000Z
 ---
 
 ## Problem
@@ -152,3 +152,21 @@ quality into a prompt-only convention.
   fixture showing local and remote tool diagnostic codes without raw tool
   payloads or secrets.
 - `pnpm run typecheck`, `pnpm run lint`, and `pnpm run validate-tasks` pass.
+
+## Result
+
+Added a deterministic tool-description quality analyzer, wired local
+diagnostics into `agent_status`, and exposed remote MCP diagnostics alongside
+tool declaration fingerprints without blocking remote registration or
+execution.
+
+## Evidence
+
+- `.kota/runs/2026-06-22T21-36-55-470Z-builder-n045fg/focused-tests.txt`
+  covers the analyzer, `agent_status`, MCP diagnostics, and fingerprint
+  refresh behavior.
+- `.kota/runs/2026-06-22T21-36-55-470Z-builder-n045fg/sample-description-diagnostics.txt`
+  shows bounded local and remote diagnostic output.
+- `pnpm run typecheck`
+- `pnpm run lint`
+- `pnpm run validate-tasks`
