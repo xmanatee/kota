@@ -62,9 +62,9 @@ resources:
   - url: https://github.com/anthropics/claude-code
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:6e0e34062f79d52fbe9a3d81ee879629
-      summary: "Claude Code 2.1.183 surfaces a nonduplicative KOTA safety gap: automated scheduled/webhook deliveries must be proven unable to resolve pending approvals or owner prompts, which opened task-prove-inbound-workflow-notifications-cannot-resolv."
-      last_seen_at: "2026-06-21T06:09:44.587Z"
+      fingerprint: sha256:70783d3b8e165bf476aefcd2cb60f9df
+      summary: "Claude Code now surfaces a nonduplicative KOTA workflow-agent safety gap: autonomous SDK shell calls need pre-execution canUseTool denials for destructive local-work and infrastructure teardown commands, which opened task-deny-destructive-shell-teardown-commands-in-workfl."
+      last_seen_at: "2026-06-22T16:24:54.353Z"
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
