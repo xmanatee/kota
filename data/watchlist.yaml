@@ -708,3 +708,7 @@ resources:
   - url: https://arxiv.org/abs/2602.14878
     added: "2026-06-22"
     notes: "MCP tool-description quality paper studying 856 tools across 103 MCP servers. Monitor as a core tool-guidance and MCP-client signal for compact diagnostics around purpose, effect, input/output, and negative-use guidance; do not add a model scanner, rewrite remote tool descriptions, or expand normal agent prompts by default."
+    snapshot:
+      fingerprint: sha256:0b7cb1aab500b2096b2219cd1bbb7476
+      summary: "MCP tool-description smells are accessible and already covered by completed task-add-tool-description-quality-diagnostics-for-agent, so no duplicate task is needed from this snapshot."
+      last_seen_at: "2026-06-22T23:00:05.565Z"
