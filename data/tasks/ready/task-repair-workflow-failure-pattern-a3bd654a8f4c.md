@@ -6,7 +6,7 @@ priority: p1
 area: autonomy
 summary: Fix the local cause behind trajectory-diagnostic-escalator's persistent consecutive failure signal (step inspect-patterns error f8e7bfd65856).
 created_at: 2026-06-22T13:24:46.650Z
-updated_at: 2026-06-22T13:24:46.650Z
+updated_at: 2026-06-22T13:29:19.551Z
 task_class: Meta
 ---
 
@@ -19,7 +19,7 @@ signal is considered local and code-actionable.
 
 Pattern fingerprint: `workflow-failure:consecutive-failures:trajectory-diagnostic-escalator:step-error:e7feb8f277b6`
 Root-cause fingerprint: `workflow-failure-root:trajectory-diagnostic-escalator:543ed98e7816`
-Evidence fingerprint: `c617cbcd9bb075ec13d1c287638f8ddad3eeb4934b411b5e2f6b51671ede216b`
+Evidence fingerprint: `57847f4a2c1e5ad3ca2b2f4de353555ca370eacff310aa2cdaa35325e655d651`
 
 ## Failure Evidence
 
@@ -27,10 +27,16 @@ Evidence fingerprint: `c617cbcd9bb075ec13d1c287638f8ddad3eeb4934b411b5e2f6b51671
 - Workflow: trajectory-diagnostic-escalator
 - Failure class: step-error:inspect-patterns:f8e7bfd65856
 - Signal: step inspect-patterns error f8e7bfd65856
-- Run ids: 2026-06-22T13-02-54-631Z-trajectory-diagnostic-escalator-b8u03i, 2026-06-22T13-06-24-493Z-trajectory-diagnostic-escalator-titk3p, 2026-06-22T13-16-10-782Z-trajectory-diagnostic-escalator-v9yy12
-- Window: 2026-06-22T13:02:59.683Z to 2026-06-22T13:16:19.275Z
-- Actionable reason: trajectory-diagnostic-escalator has 3 consecutive failed completed runs with the same owned failure class (step inspect-patterns error f8e7bfd65856).
+- Run ids: 2026-06-22T13-02-54-631Z-trajectory-diagnostic-escalator-b8u03i, 2026-06-22T13-06-24-493Z-trajectory-diagnostic-escalator-titk3p, 2026-06-22T13-16-10-782Z-trajectory-diagnostic-escalator-v9yy12, 2026-06-22T13-24-41-866Z-trajectory-diagnostic-escalator-ejnmjx, 2026-06-22T13-28-20-894Z-trajectory-diagnostic-escalator-4n57a8, 2026-06-22T13-28-36-658Z-trajectory-diagnostic-escalator-jo0zyn, 2026-06-22T13-28-42-847Z-trajectory-diagnostic-escalator-udw4ce, 2026-06-22T13-28-57-193Z-trajectory-diagnostic-escalator-j6q8w1, 2026-06-22T13-29-05-952Z-trajectory-diagnostic-escalator-rphff8
+- Window: 2026-06-22T13:02:59.683Z to 2026-06-22T13:29:07.149Z
+- Actionable reason: trajectory-diagnostic-escalator has 9 consecutive failed completed runs with the same owned failure class (step inspect-patterns error f8e7bfd65856).
 
+- run 2026-06-22T13-29-05-952Z-trajectory-diagnostic-escalator-rphff8 failed at step inspect-patterns: Malformed trajectory diagnostics artifact: /Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/control-monitor-coverage-gap-sample/steps/build.trajectory-diagnostics.json
+- run 2026-06-22T13-28-57-193Z-trajectory-diagnostic-escalator-j6q8w1 failed at step inspect-patterns: Malformed trajectory diagnostics artifact: /Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/control-monitor-coverage-gap-sample/steps/build.trajectory-diagnostics.json
+- run 2026-06-22T13-28-42-847Z-trajectory-diagnostic-escalator-udw4ce failed at step inspect-patterns: Malformed trajectory diagnostics artifact: /Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/control-monitor-coverage-gap-sample/steps/build.trajectory-diagnostics.json
+- run 2026-06-22T13-28-36-658Z-trajectory-diagnostic-escalator-jo0zyn failed at step inspect-patterns: Malformed trajectory diagnostics artifact: /Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/control-monitor-coverage-gap-sample/steps/build.trajectory-diagnostics.json
+- run 2026-06-22T13-28-20-894Z-trajectory-diagnostic-escalator-4n57a8 failed at step inspect-patterns: Malformed trajectory diagnostics artifact: /Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/control-monitor-coverage-gap-sample/steps/build.trajectory-diagnostics.json
+- run 2026-06-22T13-24-41-866Z-trajectory-diagnostic-escalator-ejnmjx failed at step inspect-patterns: Malformed trajectory diagnostics artifact: /Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/control-monitor-coverage-gap-sample/steps/build.trajectory-diagnostics.json
 - run 2026-06-22T13-16-10-782Z-trajectory-diagnostic-escalator-v9yy12 failed at step inspect-patterns: Malformed trajectory diagnostics artifact: /Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/control-monitor-coverage-gap-sample/steps/build.trajectory-diagnostics.json
 - run 2026-06-22T13-06-24-493Z-trajectory-diagnostic-escalator-titk3p failed at step inspect-patterns: Malformed trajectory diagnostics artifact: /Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/control-monitor-coverage-gap-sample/steps/build.trajectory-diagnostics.json
 - run 2026-06-22T13-02-54-631Z-trajectory-diagnostic-escalator-b8u03i failed at step inspect-patterns: Malformed trajectory diagnostics artifact: /Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/control-monitor-coverage-gap-sample/steps/build.trajectory-diagnostics.json
@@ -89,4 +95,4 @@ into deterministic, reviewable repair work.
   the task id without cost fields.
 
 <!-- workflow-failure-pattern-fingerprint: workflow-failure:consecutive-failures:trajectory-diagnostic-escalator:step-error:e7feb8f277b6 -->
-<!-- workflow-failure-evidence-fingerprint: c617cbcd9bb075ec13d1c287638f8ddad3eeb4934b411b5e2f6b51671ede216b -->
+<!-- workflow-failure-evidence-fingerprint: 57847f4a2c1e5ad3ca2b2f4de353555ca370eacff310aa2cdaa35325e655d651 -->
