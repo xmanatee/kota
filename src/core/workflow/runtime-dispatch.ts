@@ -242,6 +242,7 @@ export async function runWorkflow(
       ...(state.deadLetterQueue !== undefined
         ? { deadLetterQueue: state.deadLetterQueue }
         : {}),
+      eventJournal: state.eventJournal,
       model: state.model,
       config: state.config,
       log: (message) => state.log(message),

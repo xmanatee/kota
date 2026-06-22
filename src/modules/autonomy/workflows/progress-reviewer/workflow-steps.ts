@@ -69,9 +69,11 @@ export const collectEvidence = typedCodeStep<ProgressReviewEvidencePacket>({
       "taskClassDistribution",
       "operatorJourneyRisks",
     ]),
-  run: ({ projectDir, trigger }) =>
+  run: ({ projectDir, stateDir, eventJournal, trigger }) =>
     collectProgressReviewEvidence({
       projectDir,
+      stateDir,
+      eventJournal,
       trigger,
       now: new Date(),
     }),

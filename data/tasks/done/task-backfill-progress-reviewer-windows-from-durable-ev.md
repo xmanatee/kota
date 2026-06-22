@@ -1,13 +1,13 @@
 ---
 id: task-backfill-progress-reviewer-windows-from-durable-ev
 title: Backfill progress-reviewer windows from durable event journal cursors
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Platform
 summary: Teach progress-reviewer to select durable event-journal windows for run-count, task-count, and message-batch reviews so review evidence survives batch-buffer truncation and daemon restarts.
 created_at: 2026-06-22T06:48:06.140Z
-updated_at: 2026-06-22T06:48:06.140Z
+updated_at: 2026-06-22T07:07:40.000Z
 ---
 
 ## Problem
@@ -138,3 +138,17 @@ batch payload that happened to survive dispatch.
 - `pnpm test src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts`
   and the focused workflow-ops simulation journal replay tests pass.
 - `pnpm run typecheck`, `pnpm run lint`, and `pnpm run validate-tasks` pass.
+
+## Completion Evidence
+
+- Run artifact:
+  `.kota/runs/2026-06-22T06-52-58-622Z-builder-bopz18/progress-review.json`
+  shows journal-backed event refs with `journalId`, `source: "journal"`,
+  redacted payload summaries, batch `journalBackfillCount`, and truncation
+  exclusions.
+- Focused tests passed:
+  `pnpm test src/modules/autonomy/workflows/progress-reviewer/progress-review/event-evidence-journal-backfill.test.ts src/modules/autonomy/workflows/progress-reviewer/progress-review/event-evidence-daemon-state.test.ts src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts`.
+- Workflow-ops journal replay tests passed:
+  `pnpm test src/modules/workflow-ops/simulation/engine.test.ts src/modules/workflow-ops/simulation/cli.test.ts`.
+- `pnpm run typecheck` and `pnpm run lint` passed.
+- `pnpm run validate-tasks` passed after the final task move was staged.

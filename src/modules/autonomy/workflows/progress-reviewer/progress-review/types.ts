@@ -77,6 +77,10 @@ export type ProgressReviewEventEvidence = ProgressReviewEvidenceRef & {
   kind: "event";
   event: string;
   receivedAt: string;
+  source: "batch" | "journal";
+  journalId?: string;
+  sourceId?: string;
+  payloadSummary?: string;
 };
 
 export type ProgressReviewArtifactEvidence = ProgressReviewEvidenceRef & {
@@ -181,8 +185,10 @@ export type ProgressReviewEvidencePacket = {
     sourceEventName: string;
     reason: string;
     count: number;
+    inputEventCount: number;
     groupingKey: string;
     droppedInputCount: number;
+    journalBackfillCount: number;
   } | null;
   scopes: ProgressReviewScopeEvidence[];
   runs: ProgressReviewRunEvidence[];

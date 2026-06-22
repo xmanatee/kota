@@ -1,3 +1,5 @@
+import { join } from "node:path";
+import type { EventJournal } from "#core/events/event-journal.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import { cloneDeadLetterEvidence, cloneEvidenceItem, evidenceRefs } from "./agent-packet.js";
 import { listArtifactEvidence } from "./artifact-evidence.js";
@@ -47,6 +49,8 @@ function collectProgressReviewEvidenceForSource(args: {
   trigger: WorkflowRunTrigger;
   window: ProgressReviewEvidenceWindow;
   windowStartMs: number;
+  stateDir: string;
+  eventJournal?: EventJournal;
 }): ProgressReviewScopeEvidence {
   const excluded: string[] = [];
   const scopedRuns = listRecentRunsForSources(
@@ -57,7 +61,16 @@ function collectProgressReviewEvidenceForSource(args: {
   );
   const runs = scopedRuns.map((run) => run.evidence);
   const tasks = listRecentTasks([args.source], args.windowStartMs, excluded);
-  const events = listBatchEvents(args.source, args.trigger, excluded);
+  const events = listBatchEvents(
+    args.source,
+    args.trigger,
+    args.windowStartMs,
+    excluded,
+    {
+      stateDir: args.stateDir,
+      eventJournal: args.eventJournal,
+    },
+  );
   const artifacts = listArtifactEvidence(scopedRuns, excluded);
   const git = listScopedGitEvidence([args.source], args.windowStartMs, excluded);
   const ownerQuestions = listScopedOwnerQuestionEvidence([args.source], args.windowStartMs, excluded);
@@ -76,7 +89,6 @@ function collectProgressReviewEvidenceForSource(args: {
     approvals,
     deadLetters,
   });
-
   return {
     scope: directoryScopeForSource(args.source),
     window: { ...args.window },
@@ -105,6 +117,8 @@ function aggregateExcluded(scopes: readonly ProgressReviewScopeEvidence[]): stri
 
 export function collectProgressReviewEvidence(args: {
   projectDir: string;
+  stateDir?: string;
+  eventJournal?: EventJournal;
   trigger: WorkflowRunTrigger;
   now: Date;
 }): ProgressReviewEvidencePacket {
@@ -113,7 +127,8 @@ export function collectProgressReviewEvidence(args: {
   const endedAt = args.now.toISOString();
   const startedAtMs = args.now.getTime() - windowMs;
   const startedAt = new Date(startedAtMs).toISOString();
-  const target = selectEvidenceTarget(args.projectDir, args.trigger);
+  const stateDir = args.stateDir ?? join(args.projectDir, ".kota");
+  const target = selectEvidenceTarget(args.projectDir, args.trigger, stateDir);
   const window = {
     startedAt,
     endedAt,
@@ -125,6 +140,8 @@ export function collectProgressReviewEvidence(args: {
       trigger: args.trigger,
       window,
       windowStartMs: startedAtMs,
+      stateDir,
+      eventJournal: args.eventJournal,
     }),
   );
   const runs = scopes.flatMap((scope) => scope.runs.map(cloneEvidenceItem));
@@ -152,6 +169,10 @@ export function collectProgressReviewEvidence(args: {
     approvals,
     deadLetters,
   });
+  const batch = batchSummary(args.trigger);
+  const journalBackfillCount = events.filter(
+    (event) => event.source === "journal",
+  ).length;
 
   return {
     generatedAt: endedAt,
@@ -159,7 +180,7 @@ export function collectProgressReviewEvidence(args: {
     triggerEvent: args.trigger.event,
     scope: target.scope,
     window,
-    batch: batchSummary(args.trigger),
+    batch: batch ? { ...batch, journalBackfillCount } : null,
     scopes,
     runs,
     tasks,

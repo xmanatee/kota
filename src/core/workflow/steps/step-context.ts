@@ -6,6 +6,7 @@ import {
   type EventSchemaReference,
   resolveEventSchemaReference,
 } from "#core/events/event-bus.js";
+import type { EventJournal } from "#core/events/event-journal.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { executeTool } from "#core/tools/index.js";
 import type { WorkflowRunStore } from "../run-store.js";
@@ -90,6 +91,7 @@ export function createStepContext(
     pbus: ProjectScopedEventBus;
     store: WorkflowRunStore;
     deadLetterQueue?: DeadLetterQueueStore;
+    eventJournal?: EventJournal;
     runTool?: WorkflowRunToolRunner;
     currentStepId?: string;
     triggerWorkflow?: (
@@ -101,8 +103,15 @@ export function createStepContext(
   },
 ): WorkflowStepContext {
   const runDirPath = resolve(deps.projectDir, metadata.runDir);
+  const stateDir = deps.eventJournal
+    ? dirname(dirname(deps.eventJournal.getPath()))
+    : deps.store.rootDir;
   return {
     projectDir: deps.projectDir,
+    stateDir,
+    ...(deps.eventJournal !== undefined
+      ? { eventJournal: deps.eventJournal }
+      : {}),
     workflow: {
       name: metadata.workflow,
       definitionPath: metadata.definitionPath,

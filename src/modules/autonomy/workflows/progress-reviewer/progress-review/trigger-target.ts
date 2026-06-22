@@ -48,9 +48,9 @@ export function currentDirectorySource(projectDir: string): ProgressReviewDirect
 }
 
 export function loadConfiguredDirectorySources(
-  projectDir: string,
+  stateDir: string,
 ): { sources: ProgressReviewDirectorySource[] } | null {
-  const registry = loadRegistryFileFromDisk(join(projectDir, ".kota"));
+  const registry = loadRegistryFileFromDisk(stateDir);
   if (!registry) return null;
   return {
     sources: registry.projects.map((project) => ({
@@ -74,16 +74,17 @@ export function prefixGlobalSourceIds(
 export function selectEvidenceTarget(
   projectDir: string,
   trigger: WorkflowRunTrigger,
+  stateDir = join(projectDir, ".kota"),
 ): ProgressReviewEvidenceTarget {
   const payload = requestPayload(trigger);
   const selected = nonEmptyString(payload.scopeId) ?? nonEmptyString(payload.projectId);
   const currentSource = currentDirectorySource(projectDir);
-  const configured = loadConfiguredDirectorySources(projectDir);
+  const configured = loadConfiguredDirectorySources(stateDir);
   const scopeId = selected ?? currentSource.scopeId;
   if (scopeId === GLOBAL_SCOPE_ID) {
     if (!configured) {
       throw new Error(
-        "progress-review global scope requires .kota/project-registry.json",
+        "progress-review global scope requires project-registry.json in the active state directory",
       );
     }
     return {
@@ -170,8 +171,10 @@ export function batchSummary(trigger: WorkflowRunTrigger): ProgressReviewEvidenc
     sourceEventName: batch.sourceEventName,
     reason: batch.reason,
     count: batch.count,
+    inputEventCount: batch.inputEvents.length,
     groupingKey: batch.groupingKey,
     droppedInputCount: batch.batch.droppedInputCount,
+    journalBackfillCount: 0,
   };
 }
 

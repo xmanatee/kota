@@ -4,6 +4,7 @@ import type { KotaConfig } from "#core/config/config.js";
 import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { EventBus } from "#core/events/event-bus.js";
+import type { EventJournal } from "#core/events/event-journal.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { createDelegateBudget } from "#core/tools/delegate-budget.js";
 import {
@@ -44,6 +45,7 @@ export type RunExecutorDeps = {
   pbus?: ProjectScopedEventBus;
   store: WorkflowRunStore;
   deadLetterQueue?: DeadLetterQueueStore;
+  eventJournal?: EventJournal;
   model?: string;
   config?: KotaConfig;
   runId?: string;
