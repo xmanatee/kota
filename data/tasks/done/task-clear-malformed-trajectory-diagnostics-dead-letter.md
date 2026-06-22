@@ -1,12 +1,12 @@
 ---
 id: task-clear-malformed-trajectory-diagnostics-dead-letter
 title: Clear malformed trajectory diagnostics dead-letter
-status: ready
+status: done
 priority: p2
 area: autonomy
-summary: Resolve dlq-12b58bda-ee91-4362-b93a-7cf9a8ae07ae from trajectory-diagnostic-escalator rejecting .kota/runs/control-monitor-coverage-gap-sample/steps/build.trajectory-diagnostics.json. Either normalize the sample artifact to the expected schema or harden the escalator to skip/dismiss unsupported sample diagnostics, then redrive or dismiss the dead-letter with durable evidence.
+summary: Resolved dlq-12b58bda-ee91-4362-b93a-7cf9a8ae07ae from trajectory-diagnostic-escalator rejecting .kota/runs/control-monitor-coverage-gap-sample/steps/build.trajectory-diagnostics.json by confirming current parser coverage for the legacy clean artifact and dismissing stale duplicate dead letters with durable evidence.
 created_at: 2026-06-22T13:05:44.780Z
-updated_at: 2026-06-22T13:05:44.780Z
+updated_at: 2026-06-22T14:37:24.441Z
 ---
 
 ## Problem
@@ -46,4 +46,10 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- A run artifact records before/after state for dlq-12b58bda-ee91-4362-b93a-7cf9a8ae07ae, shows no open trajectory-diagnostic-escalator dead-letter for the sample artifact, and includes either a focused parser/escalator test or a redrive transcript proving the same artifact no longer dead-letters.
+- `.kota/runs/2026-06-22T14-33-33-428Z-builder-kpya7t/dead-letter-resolution.md` records before/after state for dlq-12b58bda-ee91-4362-b93a-7cf9a8ae07ae, confirms there are zero open trajectory-diagnostic-escalator dead letters for `.kota/runs/control-monitor-coverage-gap-sample/steps/build.trajectory-diagnostics.json`, and cites focused parser/escalator tests proving the sample shape is handled as an empty observation.
+
+## Completion Evidence
+
+- `pnpm test src/modules/autonomy/trajectory-diagnostic-escalation.test.ts src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.test.ts` passed with 2 files and 17 tests.
+- `pnpm kota workflow dlq show dlq-12b58bda-ee91-4362-b93a-7cf9a8ae07ae --json` reports `status: dismissed` and `dismissedAt: 2026-06-22T14:37:24.441Z`.
+- `.kota/dead-letter-queue/items.json` now has zero open trajectory-diagnostic-escalator dead letters whose failure reason references `control-monitor-coverage-gap-sample/steps/build.trajectory-diagnostics.json`; the ten matching stale duplicates are dismissed.
