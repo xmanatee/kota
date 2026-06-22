@@ -34,10 +34,31 @@ export async function postWithRetry(
       if (res.ok) return;
       lastError = `HTTP ${res.status}`;
     } catch (err) {
-      lastError = (err as Error).message;
+      const message = err instanceof Error ? err.message : String(err);
+      lastError = redactUrlInFailureMessage(message, url, logUrl);
     }
   }
   log.warn(`POST to ${logUrl} failed after ${maxRetries + 1} attempt(s): ${lastError}`);
+}
+
+function redactUrlInFailureMessage(message: string, rawUrl: string, logUrl: string): string {
+  if (rawUrl === logUrl) return message;
+  for (const sensitiveUrl of sensitiveUrlVariants(rawUrl)) {
+    message = message.split(sensitiveUrl).join(logUrl);
+  }
+  return message;
+}
+
+function sensitiveUrlVariants(rawUrl: string): string[] {
+  const variants = new Set([rawUrl]);
+  try {
+    const parsed = new URL(rawUrl);
+    parsed.hash = "";
+    variants.add(parsed.toString());
+  } catch {
+    return [...variants];
+  }
+  return [...variants];
 }
 
 const notificationModule: KotaModule = {

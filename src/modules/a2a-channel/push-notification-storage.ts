@@ -5,6 +5,7 @@ import {
   type JsonObject,
   type JsonValue,
 } from "./protocol.js";
+import { redactedCallbackUrl } from "./push-notification-callback-url.js";
 import type {
   A2APushNotificationAuthentication,
   A2ATaskPushNotificationConfig,
@@ -55,7 +56,7 @@ export function redactPushNotificationConfig(
   return {
     id: config.id,
     taskId: config.taskId,
-    url: config.url,
+    url: redactedCallbackUrl(config.url),
     ...(config.token !== null ? { token: REDACTED_SECRET } : {}),
     ...(config.authentication ? { authentication: redactAuthentication(config.authentication) } : {}),
   };

@@ -25,15 +25,6 @@ export function buildPushDeliveryHeaders(
   return headers;
 }
 
-export function redactedCallbackUrl(rawUrl: string): string {
-  const url = new URL(rawUrl);
-  url.username = "";
-  url.password = "";
-  if (url.search) url.search = "?...";
-  url.hash = "";
-  return url.toString();
-}
-
 export function pushDeliveryScope(
   update: PushDeliveryPayload,
 ): { taskId: string; contextId: string } | null {

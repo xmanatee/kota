@@ -129,6 +129,7 @@ describe("a2a push notification delivery", () => {
   });
 
   it("delivers sanitized task updates with callback auth and stops after delete", async () => {
+    const callbackUrl = "https://callback.example.test/a2a?secret=query-token#fragment-secret";
     const storage = makeStorage(state.tempDirs);
     const backend = new FakeBackend();
     const callbackFetch = vi.fn<typeof fetch>(async () =>
@@ -148,6 +149,7 @@ describe("a2a push notification delivery", () => {
       method: "CreateTaskPushNotificationConfig",
       params: pushConfigParams({
         id: "config-1",
+        url: callbackUrl,
         authentication: {
           scheme: "Bearer",
           credentials: "callback-secret",
@@ -175,7 +177,7 @@ describe("a2a push notification delivery", () => {
     const firstCall = callbackFetch.mock.calls[0];
     if (!firstCall) throw new Error("expected a callback delivery");
     const [url, init] = firstCall;
-    expect(url).toBe("https://callback.example.test/a2a");
+    expect(url).toBe(callbackUrl);
     expect(init?.headers).toEqual({
       "Content-Type": "application/a2a+json",
       Authorization: "Bearer callback-secret",

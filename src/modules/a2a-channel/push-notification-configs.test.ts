@@ -20,6 +20,8 @@ describe("a2a push notification configs", () => {
   });
 
   it("creates, reads, lists, persists, and deletes redacted task-scoped configs", async () => {
+    const callbackUrl = "https://callback.example.test/a2a?secret=query-token#fragment-secret";
+    const redactedUrl = "https://callback.example.test/a2a?...";
     const storage = makeStorage(state.tempDirs);
     const backend = new FakeBackend();
     const first = await startRouteServer(a2aRoutes(makeContext(storage), {
@@ -34,7 +36,7 @@ describe("a2a push notification configs", () => {
       method: "CreateTaskPushNotificationConfig",
       params: pushConfigParams({
         id: "config-1",
-        url: "https://callback.example.test/a2a?secret=query-token",
+        url: callbackUrl,
         token: "config-token",
         authentication: {
           scheme: "Bearer",
@@ -46,7 +48,7 @@ describe("a2a push notification configs", () => {
     expect(created.result).toEqual({
       id: "config-1",
       taskId: "task-1",
-      url: "https://callback.example.test/a2a?secret=query-token",
+      url: redactedUrl,
       token: "<redacted>",
       authentication: {
         scheme: "Bearer",
@@ -55,6 +57,8 @@ describe("a2a push notification configs", () => {
     });
     expect(JSON.stringify(created.result)).not.toContain("callback-secret");
     expect(JSON.stringify(created.result)).not.toContain("config-token");
+    expect(JSON.stringify(created.result)).not.toContain("query-token");
+    expect(JSON.stringify(created.result)).not.toContain("fragment-secret");
 
     const fetched = await postRpc(first.baseUrl, {
       jsonrpc: "2.0",
@@ -74,6 +78,12 @@ describe("a2a push notification configs", () => {
       configs: [created.result],
       nextPageToken: "",
     });
+    expect(JSON.stringify([created.result, fetched.result, listed.result])).not.toContain(
+      "query-token",
+    );
+    expect(JSON.stringify([created.result, fetched.result, listed.result])).not.toContain(
+      "fragment-secret",
+    );
 
     const second = await startRouteServer(a2aRoutes(makeContext(storage), {
       backendFactory: () => backend,

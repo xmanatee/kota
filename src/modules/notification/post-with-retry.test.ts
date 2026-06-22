@@ -124,22 +124,24 @@ describe("postWithRetry", () => {
   });
 
   it("applies caller headers, injected fetch, and redacted log URLs", async () => {
-    const fetchImpl = vi.fn().mockResolvedValue({ ok: false, status: 401 });
+    const callbackUrl = "https://hooks.example.com/notify?secret=query-token#fragment-secret";
+    const redactedUrl = "https://hooks.example.com/notify?...";
+    const fetchImpl = vi.fn().mockRejectedValue(new Error(`connect to ${callbackUrl} failed`));
     const log = { warn: vi.fn() };
-    const p = postWithRetry(URL, BODY, log, {
+    const p = postWithRetry(callbackUrl, BODY, log, {
       retries: 0,
       baseDelayMs: 100,
       headers: {
         "Content-Type": "application/a2a+json",
         Authorization: "Bearer secret-token",
       },
-      logUrl: "https://hooks.example.com/notify?...",
+      logUrl: redactedUrl,
       fetchImpl,
     });
     await vi.runAllTimersAsync();
     await p;
 
-    expect(fetchImpl).toHaveBeenCalledWith(URL, {
+    expect(fetchImpl).toHaveBeenCalledWith(callbackUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/a2a+json",
@@ -148,6 +150,8 @@ describe("postWithRetry", () => {
       body: BODY,
     });
     expect(log.warn).toHaveBeenCalledWith(expect.stringContaining("notify?..."));
+    expect(log.warn).not.toHaveBeenCalledWith(expect.stringContaining("query-token"));
+    expect(log.warn).not.toHaveBeenCalledWith(expect.stringContaining("fragment-secret"));
     expect(log.warn).not.toHaveBeenCalledWith(expect.stringContaining("secret-token"));
   });
 });

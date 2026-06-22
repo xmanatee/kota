@@ -10,12 +10,12 @@ import {
   invalidParams,
   type TaskSelector,
 } from "./protocol.js";
+import { redactedCallbackUrl } from "./push-notification-callback-url.js";
 import {
   buildPushDeliveryHeaders,
   type PushDeliveryPayload,
   pushDeliveryPayload,
   pushDeliveryScope,
-  redactedCallbackUrl,
 } from "./push-notification-delivery.js";
 import type {
   A2ATaskPushNotificationConfig,
