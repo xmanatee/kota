@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-read-only-agentstatus-config-q
 title: Security review: The read-only agent_status config query can disclose module and other non-modelProvider secrets to the agent because the session config provider passes all non-modelProvider config through and agent_status stringifies those values verbatim.
-status: ready
+status: done
 priority: p1
 area: security
 summary: The read-only agent_status config query can disclose module and other non-modelProvider secrets to the agent because the session config provider passes all non-modelProvider config through and agent_status stringifies those values verbatim.
 created_at: 2026-06-22T22:57:30.478Z
-updated_at: 2026-06-22T22:57:30.478Z
+updated_at: 2026-06-22T23:06:08.546Z
 ---
 
 ## Problem
@@ -138,3 +138,6 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Fixed by shared recursive config redaction in `src/core/config/config-redaction.ts`, used by both `src/core/tools/agent-status.ts` and `src/modules/config/routes.ts`.
+- Focused regression: `pnpm test src/core/tools/agent-status.test.ts src/modules/config/routes.test.ts` - 2 files passed, 36 tests passed.
+- Boundary checks: `pnpm run typecheck`, `pnpm test src/strict-types-policy.integration.test.ts`, and `pnpm run lint` all passed.

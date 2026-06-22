@@ -1,4 +1,5 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import { maskConfig } from "#core/config/config-redaction.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import {
 	formatToolDescriptionQualitySection,
@@ -257,7 +258,7 @@ function formatConfig(filter: string): string {
 		return lines.join("\n");
 	}
 
-	const config = _configProvider();
+	const config = maskConfig(_configProvider());
 	const entries = Object.entries(config).filter(
 		([key, val]) => val !== undefined && matches(key, filter),
 	);
@@ -268,13 +269,7 @@ function formatConfig(filter: string): string {
 	}
 
 	for (const [key, val] of entries) {
-		if (key === "modelProvider" && typeof val === "object" && val !== null) {
-			const mp = val as Record<string, unknown>;
-			const safe = { type: mp.type, baseUrl: mp.baseUrl };
-			lines.push(`- ${key}: ${JSON.stringify(safe)}`);
-		} else {
-			lines.push(`- ${key}: ${JSON.stringify(val)}`);
-		}
+		lines.push(`- ${key}: ${JSON.stringify(val)}`);
 	}
 
 	return lines.join("\n");

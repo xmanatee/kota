@@ -62,6 +62,40 @@ describe("maskConfig", () => {
     expect(masked.dbPassword).toBe("***");
     expect(masked.webhookSecret).toBe("***");
   });
+
+  it("masks authorization and credential-shaped keys", () => {
+    const config = {
+      model: "claude-test",
+      mcp: {
+        servers: {
+          files: {
+            authorization: "Bearer mcp-token",
+            headers: [{ Authorization: "Bearer header-token" }],
+            oauth: {
+              clientSecret: "oauth-secret",
+              refreshToken: "refresh-token",
+            },
+          },
+        },
+      },
+      cookieJar: "session-cookie",
+      credentialRef: "cred-ref",
+    } as unknown as KotaConfig;
+
+    const masked = maskConfig(config) as Record<string, unknown>;
+    const serialized = JSON.stringify(masked);
+
+    expect(serialized).not.toContain("Bearer mcp-token");
+    expect(serialized).not.toContain("Bearer header-token");
+    expect(serialized).not.toContain("oauth-secret");
+    expect(serialized).not.toContain("refresh-token");
+    expect(serialized).not.toContain("session-cookie");
+    expect(serialized).not.toContain("cred-ref");
+    expect(serialized).toContain('"authorization":"***"');
+    expect(serialized).toContain('"Authorization":"***"');
+    expect(masked.cookieJar).toBe("***");
+    expect(masked.credentialRef).toBe("***");
+  });
 });
 
 describe("handleGetConfig", () => {
