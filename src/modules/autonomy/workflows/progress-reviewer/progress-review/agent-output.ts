@@ -133,21 +133,33 @@ function resolveCompactedChildEvidenceId(
 
 function normalizeEvidenceIds(args: {
   evidence: ProgressReviewEvidenceIdPacket;
+  fullEvidence?: ProgressReviewEvidenceIdPacket;
   knownIds: ReadonlySet<string>;
+  fullKnownIds?: ReadonlySet<string>;
   field: string;
   evidenceIds: readonly string[];
 }): string[] {
   const normalized: string[] = [];
   const unknown: string[] = [];
   for (const id of args.evidenceIds) {
-    const knownId = args.knownIds.has(id)
-      ? id
-      : resolveCompactedChildEvidenceId(
-          id,
-          args.evidence,
-          args.knownIds,
-          args.evidenceIds,
-        );
+    const knownId =
+      (args.knownIds.has(id)
+        ? id
+        : resolveCompactedChildEvidenceId(
+            id,
+            args.evidence,
+            args.knownIds,
+            args.evidenceIds,
+          )) ??
+      (args.fullKnownIds?.has(id) ? id : null) ??
+      (args.fullEvidence && args.fullKnownIds
+        ? resolveCompactedChildEvidenceId(
+            id,
+            args.fullEvidence,
+            args.fullKnownIds,
+            args.evidenceIds,
+          )
+        : null);
     if (!knownId) {
       unknown.push(id);
       continue;
@@ -164,7 +176,9 @@ function normalizeEvidenceIds(args: {
 
 function normalizeFindingGroupEvidenceIds(args: {
   evidence: ProgressReviewEvidenceIdPacket;
+  fullEvidence?: ProgressReviewEvidenceIdPacket;
   knownIds: ReadonlySet<string>;
+  fullKnownIds?: ReadonlySet<string>;
   label: string;
   group: ProgressReviewFindingGroup;
 }): ProgressReviewFindingGroup {
@@ -173,7 +187,9 @@ function normalizeFindingGroupEvidenceIds(args: {
       ...claim,
       evidenceIds: normalizeEvidenceIds({
         evidence: args.evidence,
+        fullEvidence: args.fullEvidence,
         knownIds: args.knownIds,
+        fullKnownIds: args.fullKnownIds,
         field: `${args.label} claim ${claim.id}`,
         evidenceIds: claim.evidenceIds,
       }),
@@ -182,7 +198,9 @@ function normalizeFindingGroupEvidenceIds(args: {
       ...task,
       evidenceIds: normalizeEvidenceIds({
         evidence: args.evidence,
+        fullEvidence: args.fullEvidence,
         knownIds: args.knownIds,
+        fullKnownIds: args.fullKnownIds,
         field: `${args.label} follow-up task "${task.title}"`,
         evidenceIds: task.evidenceIds,
       }),
@@ -192,21 +210,29 @@ function normalizeFindingGroupEvidenceIds(args: {
 
 function normalizeProgressReviewEvidenceIds(args: {
   evidence: ProgressReviewEvidenceIdPacket;
+  fullEvidence?: ProgressReviewEvidenceIdPacket;
   review: ProgressReviewAgentOutput;
 }): ProgressReviewAgentOutput {
   const knownIds = evidenceIdsForPacket(args.evidence);
+  const fullKnownIds = args.fullEvidence
+    ? evidenceIdsForPacket(args.fullEvidence)
+    : undefined;
   return {
     ...args.review,
     findings: {
       crossScope: normalizeFindingGroupEvidenceIds({
         evidence: args.evidence,
+        fullEvidence: args.fullEvidence,
         knownIds,
+        fullKnownIds,
         label: "cross-scope",
         group: args.review.findings.crossScope,
       }),
       localScope: normalizeFindingGroupEvidenceIds({
         evidence: args.evidence,
+        fullEvidence: args.fullEvidence,
         knownIds,
+        fullKnownIds,
         label: "local-scope",
         group: args.review.findings.localScope,
       }),
@@ -215,7 +241,9 @@ function normalizeProgressReviewEvidenceIds(args: {
       ...question,
       evidenceIds: normalizeEvidenceIds({
         evidence: args.evidence,
+        fullEvidence: args.fullEvidence,
         knownIds,
+        fullKnownIds,
         field: `owner question "${question.question}"`,
         evidenceIds: question.evidenceIds,
       }),
@@ -256,7 +284,8 @@ export function validateProgressReviewEvidenceIds(args: {
 export function decodeProgressReviewAgentOutputForEvidence(
   raw: Parameters<typeof progressReviewAgentOutputSchema.parse>[0],
   evidence: ProgressReviewEvidenceIdPacket,
+  fullEvidence?: ProgressReviewEvidenceIdPacket,
 ): ProgressReviewAgentOutput {
   const review = decodeProgressReviewAgentOutput(raw);
-  return normalizeProgressReviewEvidenceIds({ evidence, review });
+  return normalizeProgressReviewEvidenceIds({ evidence, fullEvidence, review });
 }

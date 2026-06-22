@@ -25,5 +25,5 @@ export const PROGRESS_REVIEW_AGENT_KIND_LIMITS = {
   git: 16,
   "owner-question": 10,
   approval: 10,
-  "dead-letter": 20,
+  "dead-letter": 5,
 } satisfies Record<ProgressReviewEvidenceRef["kind"], number>;

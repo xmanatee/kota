@@ -5,6 +5,7 @@ import {
 } from "./constants.js";
 import type {
   ProgressReviewAgentEvidencePacket,
+  ProgressReviewDeadLetterCounts,
   ProgressReviewDeadLetterEvidence,
   ProgressReviewEvidenceCounts,
   ProgressReviewEvidencePacket,
@@ -185,6 +186,29 @@ function compactAgentEvidence(
   return { evidence: selected, omittedCount };
 }
 
+function compactDeadLetterCountsForAgent(
+  counts: readonly ProgressReviewDeadLetterCounts[],
+  excluded: string[],
+): ProgressReviewDeadLetterCounts[] {
+  let omittedOpenItemIds = 0;
+  let omittedRedriveRunIds = 0;
+  const compacted = counts.map((item) => {
+    omittedOpenItemIds += item.openItemIds.length;
+    omittedRedriveRunIds += item.redriveRunIds.length;
+    return {
+      ...item,
+      openItemIds: [],
+      redriveRunIds: [],
+    };
+  });
+  if (omittedOpenItemIds > 0 || omittedRedriveRunIds > 0) {
+    excluded.push(
+      "dead-letter counts: omitted raw item/run id lists from the prompt; cite ids from the flat evidence array instead",
+    );
+  }
+  return compacted;
+}
+
 export function compactProgressReviewEvidenceForAgent(
   packet: ProgressReviewEvidencePacket,
 ): ProgressReviewAgentEvidencePacket {
@@ -209,7 +233,10 @@ export function compactProgressReviewEvidenceForAgent(
       excluded: scope.excluded,
     })),
     counts: progressReviewEvidenceCounts(packet),
-    deadLetterCounts: packet.deadLetterCounts,
+    deadLetterCounts: compactDeadLetterCountsForAgent(
+      packet.deadLetterCounts,
+      excluded,
+    ),
     operatorJourneyRisks: packet.operatorJourneyRisks,
     evidence: compacted.evidence,
     excluded,

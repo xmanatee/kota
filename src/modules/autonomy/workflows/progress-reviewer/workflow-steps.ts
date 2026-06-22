@@ -185,16 +185,19 @@ export const applyActions = typedCodeStep<ProgressReviewActionResult>({
       "applied",
       "touchedTaskQueue",
     ]),
-  run: (ctx) =>
-    applyProgressReviewActions({
+  run: (ctx) => {
+    const evidence = readProgressReviewEvidencePacket(ctx);
+    return applyProgressReviewActions({
       projectDir: ctx.projectDir,
       runId: ctx.workflow.runId,
-      evidence: readProgressReviewEvidencePacket(ctx),
+      evidence,
       review: decodeProgressReviewAgentOutputForEvidence(
         ctx.stepOutputs["review-evidence"],
         prepareReviewInput.outputRequired(ctx),
+        evidence,
       ),
-    }),
+    });
+  },
 });
 
 export function emptyActions(): ProgressReviewActionResult {
@@ -217,13 +220,15 @@ export const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
     ]),
   run: (ctx) => {
     const reviewInput = prepareReviewInput.outputRequired(ctx);
+    const evidence = readProgressReviewEvidencePacket(ctx);
     const artifact: ProgressReviewArtifact = {
       generatedAt: new Date().toISOString(),
-      evidence: readProgressReviewEvidencePacket(ctx),
+      evidence,
       reviewInput,
       review: decodeProgressReviewAgentOutputForEvidence(
         ctx.stepOutputs["review-evidence"],
         reviewInput,
+        evidence,
       ),
       actions: applyActions.output(ctx) ?? emptyActions(),
     };

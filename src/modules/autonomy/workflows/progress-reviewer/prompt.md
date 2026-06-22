@@ -23,6 +23,8 @@ they address.
 For every `evidenceIds` entry, copy an exact `id` from the packet's flat
 `evidence` array. If you inspect a referenced file, cite the packet id that led
 you there; do not invent ids from paths, run directories, or summaries.
+For many similar events or dead letters, cite a few representative flat
+evidence ids plus the count; do not enumerate every item.
 Return no follow-up when the evidence is healthy or too thin. Create follow-up
 task proposals only for concrete, non-duplicate work with acceptance evidence.
 Ask owner questions only when the evidence shows a steering decision that the

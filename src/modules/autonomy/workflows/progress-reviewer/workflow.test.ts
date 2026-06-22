@@ -1408,6 +1408,46 @@ describe("progress-reviewer workflow", () => {
       "event:1",
       "run:builder-run-003",
     ]);
+    const normalizedFromFullEvidence = decodeProgressReviewAgentOutputForEvidence(
+      reviewOutput({
+        verdict: "on-track",
+        summary: "Full evidence ids are allowed when inspected exactly.",
+        localScope: {
+          claims: [
+            {
+              id: "full-evidence-ids",
+              claim:
+                "A reviewer inspected the full evidence artifact and cited exact omitted ids.",
+              evidenceIds: [
+                "event:evtj-000000000999",
+                "dead-letter:dlq-00000000-0000-4000-8000-000000000001",
+              ],
+              confidence: "medium",
+            },
+          ],
+        },
+      }),
+      evidence,
+      {
+        evidence: [
+          ...evidence.evidence,
+          {
+            id: "event:evtj-000000000999",
+            kind: "event" as const,
+            summary: "workflow.completed at 2026-06-04T11:59:00.000Z",
+          },
+          {
+            id: "dead-letter:dlq-00000000-0000-4000-8000-000000000001",
+            kind: "dead-letter" as const,
+            summary: "open workflow-dispatch for progress-reviewer",
+          },
+        ],
+      },
+    );
+    expect(normalizedFromFullEvidence.findings.localScope.claims[0]?.evidenceIds).toEqual([
+      "event:evtj-000000000999",
+      "dead-letter:dlq-00000000-0000-4000-8000-000000000001",
+    ]);
     expect(() =>
       decodeProgressReviewAgentOutputForEvidence(
         reviewOutput({
@@ -2131,6 +2171,68 @@ describe("progress-reviewer workflow", () => {
         kind: "dead-letter",
         path: ".kota/dead-letter-queue/items.json",
       }),
+    );
+  });
+
+  it("bounds dead-letter ids in the compact agent packet", () => {
+    const projectDir = trackProjectDir("progress-reviewer-dead-letter-agent-packet");
+    const scopeId = deriveDirectoryScopeId(projectDir);
+    const queue = new DeadLetterQueueStore(
+      join(projectDir, ".kota", "dead-letter-queue"),
+      () => NOW,
+    );
+    for (let index = 0; index < 6; index += 1) {
+      queue.record({
+        type: "workflow-dispatch",
+        scopeId,
+        projectId: scopeId,
+        owningModule: "workflow-runtime",
+        sourceEventIds: [`evtj-${String(index).padStart(12, "0")}`],
+        affectedWorkflowNames: ["trajectory-diagnostic-escalator"],
+        failure: {
+          reason: "Malformed trajectory diagnostics artifact",
+          lastErrorClass: "execution",
+          failedAt: NOW.toISOString(),
+        },
+        source: {
+          kind: "workflow-dispatch",
+          workflowName: "trajectory-diagnostic-escalator",
+          triggerEvent: "workflow.completed",
+          triggerSchemaRef: null,
+        },
+        redrive: { kind: "none", reason: "fixture has no redrive target" },
+        redactedProjection: {},
+        retention: { kind: "retain" },
+      });
+    }
+
+    const evidence = collectProgressReviewEvidence({
+      projectDir,
+      trigger: {
+        event: progressReviewRequested.name,
+        schemaRef: null,
+        payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+      },
+      now: NOW,
+    });
+    const reviewInput = compactProgressReviewEvidenceForAgent(evidence);
+    const compactDeadLetterIds = reviewInput.evidence
+      .filter((item) => item.kind === "dead-letter")
+      .map((item) => item.id);
+
+    expect(evidence.deadLetterCounts[0]?.openItemIds).toHaveLength(6);
+    expect(reviewInput.deadLetterCounts[0]).toEqual(
+      expect.objectContaining({
+        open: 6,
+        openItemIds: [],
+        redriveRunIds: [],
+      }),
+    );
+    expect(compactDeadLetterIds).toHaveLength(5);
+    expect(reviewInput.excluded).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("dead-letter counts: omitted raw item/run id lists"),
+      ]),
     );
   });
 
