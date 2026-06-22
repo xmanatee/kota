@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { findRouteMatch } from "#core/modules/route-matcher.js";
 import {
   handleTaskBodyUpdate,
   handleTaskCapture,
@@ -13,6 +14,7 @@ import {
   handleTaskShow,
   handleTaskStateChange,
   handleTaskStatus,
+  taskRoutes,
 } from "./routes.js";
 
 vi.mock("node:child_process", () => ({
@@ -324,6 +326,17 @@ describe("task-routes", () => {
       const { res, result } = mockResponse();
       await handleTaskShow(res, "task-missing", projectDir);
       expect(result.status).toBe(404);
+    });
+
+    it("returns 400 for encoded slash traversal route ids", async () => {
+      writeFileSync(join(projectDir, "AGENTS.md"), "# outside task queue\n");
+      const match = findRouteMatch(taskRoutes(), "GET", "/api/tasks/%2E%2E%2FAGENTS");
+      expect(match?.params).toEqual({ id: "../AGENTS" });
+
+      const { res, result } = mockResponse();
+      await handleTaskShow(res, match?.params.id ?? "", projectDir);
+
+      expect(result.status).toBe(400);
     });
   });
 

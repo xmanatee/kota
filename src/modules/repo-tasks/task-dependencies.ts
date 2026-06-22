@@ -1,6 +1,6 @@
-export const TASK_DEPENDENCIES_FIELD = "depends_on";
+import { isRepoTaskId, REPO_TASK_ID_PATTERN } from "./task-id.js";
 
-const TASK_ID_RE = /^task-[a-z0-9-]+$/;
+export const TASK_DEPENDENCIES_FIELD = "depends_on";
 
 export type TaskDependencyParseResult =
   | { ok: true; dependencies: string[] }
@@ -18,10 +18,10 @@ export function parseTaskDependencyIds(
     };
   }
   for (const dependency of raw) {
-    if (!TASK_ID_RE.test(dependency)) {
+    if (!isRepoTaskId(dependency)) {
       return {
         ok: false,
-        error: `${TASK_DEPENDENCIES_FIELD} entries must match ${TASK_ID_RE.source}, got '${dependency}'`,
+        error: `${TASK_DEPENDENCIES_FIELD} entries must match ${REPO_TASK_ID_PATTERN.source}, got '${dependency}'`,
       };
     }
   }

@@ -33,6 +33,7 @@ import {
   gcTerminalTasks,
   showTask,
 } from "./repo-tasks-operations.js";
+import { isRepoTaskId } from "./task-id.js";
 
 const COUNTED_STATES = ["inbox", "ready", "backlog", "doing", "blocked"] as const;
 const DETAIL_STATES = ["doing", "ready", "backlog", "blocked"] as const;
@@ -426,6 +427,11 @@ export async function handleTaskShow(
   id: string,
   projectDir = process.cwd(),
 ): Promise<void> {
+  if (!isRepoTaskId(id)) {
+    jsonResponse(res, 400, { error: "Invalid task id" });
+    return;
+  }
+
   const result = showTask(projectDir, id);
   if (!result.found) {
     jsonResponse(res, 404, { error: `Task "${id}" not found.` });

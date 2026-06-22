@@ -101,6 +101,14 @@ describe("showTask", () => {
       expect(result.content).toContain("id: task-foo");
     }
   });
+
+  it("rejects traversal-shaped task ids before reading task-state paths", () => {
+    writeFileSync(join(projectDir, "AGENTS.md"), "# outside task queue\n");
+
+    const result = showTask(projectDir, "../../../AGENTS");
+
+    expect(result).toEqual({ found: false });
+  });
 });
 
 describe("createNormalizedTask", () => {

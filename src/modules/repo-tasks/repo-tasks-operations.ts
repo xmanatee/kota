@@ -35,6 +35,7 @@ import {
   TASK_INITIATIVE_PLACEHOLDER,
   TASK_SOURCE_INTENT_PLACEHOLDER,
 } from "./repo-tasks-domain.js";
+import { isRepoTaskId } from "./task-id.js";
 
 const TERMINAL_STATES: RepoTaskState[] = ["done", "dropped"];
 
@@ -58,6 +59,10 @@ export function slugifyTaskTitle(title: string): string {
 
 /** Read a normalized task by id, scanning every state directory. */
 export function showTask(projectDir: string, id: string): RepoTaskShowResult {
+  if (!isRepoTaskId(id)) {
+    return { found: false };
+  }
+
   const tasksDir = getRepoTasksDir(projectDir);
   for (const state of REPO_TASK_STATES) {
     const filePath = join(tasksDir, state, `${id}.md`);

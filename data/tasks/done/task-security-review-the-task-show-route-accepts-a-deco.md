@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-task-show-route-accepts-a-deco
 title: Security review: The task show route accepts a decoded route id and passes it into direct filesystem path construction, so an authenticated request with encoded slash and dot-dot segments can read markdown files outside data/tasks.
-status: ready
+status: done
 priority: p2
 area: security
 summary: The task show route accepts a decoded route id and passes it into direct filesystem path construction, so an authenticated request with encoded slash and dot-dot segments can read markdown files outside data/tasks.
 created_at: 2026-06-22T01:03:37.737Z
-updated_at: 2026-06-22T01:03:37.737Z
+updated_at: 2026-06-22T01:29:01.735Z
 ---
 
 ## Problem
@@ -137,4 +137,6 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `NODE_OPTIONS=--conditions=source pnpm exec vitest run src/modules/repo-tasks/repo-tasks-operations.test.ts src/modules/repo-tasks/routes.test.ts src/modules/repo-tasks/task-dependencies.test.ts` passed on 2026-06-22 with 55 tests.
+- `pnpm typecheck` passed on 2026-06-22.
+- `pnpm lint` passed on 2026-06-22.
