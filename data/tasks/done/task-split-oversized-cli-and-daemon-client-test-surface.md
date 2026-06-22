@@ -1,12 +1,12 @@
 ---
 id: task-split-oversized-cli-and-daemon-client-test-surface
 title: Split oversized CLI and daemon-client test surfaces
-status: ready
+status: done
 priority: p3
 area: architecture
 summary: The eval-harness subprocess executor cleanup passed, but its builder run still reported source-file-size warnings for src/core/server/daemon-client.test.ts, src/modules/cli/navigator.test.ts, and src/modules/eval-harness/cli.test.ts. Split cohesive test support or narrower test files without changing daemon-client, CLI navigator, or eval-harness behavior.
 created_at: 2026-06-21T09:44:50.364Z
-updated_at: 2026-06-21T09:44:50.364Z
+updated_at: 2026-06-22T09:31:44.000Z
 ---
 
 ## Problem
@@ -46,4 +46,11 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- Before/after line counts are recorded; builder source-size diagnostics no longer warn on the three cited touched test files, or a typed narrow exception is justified; focused daemon-client, CLI navigator, and eval-harness CLI tests pass; typecheck, lint, and validate-tasks pass.
+- Before line counts: `src/core/server/daemon-client.test.ts` 577 lines; `src/modules/cli/navigator.test.ts` 652 lines; `src/modules/eval-harness/cli.test.ts` 872 lines.
+- After line counts: `src/core/server/daemon-client.test.ts` 70 lines; `src/modules/cli/navigator.test.ts` 264 lines; `src/modules/eval-harness/cli.test.ts` removed and split into focused files of 117, 170, 157, 122, and 105 lines plus a 146-line CLI test support file.
+- All touched replacement source files are under the 300-line source-size warning threshold.
+- `pnpm test src/core/server/daemon-client.test.ts src/modules/cli/navigator.test.ts src/modules/eval-harness/cli-list.test.ts src/modules/eval-harness/cli-run-options.test.ts src/modules/eval-harness/cli-run-reporting.test.ts src/modules/eval-harness/cli-calibration.test.ts src/modules/eval-harness/cli-fixture-candidates.test.ts` passed: 7 files, 29 tests.
+- `pnpm run typecheck` passed.
+- `pnpm run lint` passed.
+- `pnpm run validate-tasks` passed after staging the task state move.
+- `node --conditions=source --import tsx -e "import { checkSourceFileSize } from './src/modules/autonomy/source-size-check.ts'; console.log(checkSourceFileSize(process.cwd()));"` passed with `OK: changed source files are under source-size warning thresholds`.
