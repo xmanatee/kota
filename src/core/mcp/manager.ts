@@ -6,7 +6,6 @@ import type {
   KotaTool,
 } from "#core/agent-harness/message-protocol.js";
 import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
-import type { McpToolAnnotations } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { validateToolStructuredOutput } from "#core/tools/output-schema.js";
 import type { ToolResultContentProvenance } from "#core/tools/tool-middleware.js";
@@ -52,6 +51,10 @@ import {
 } from "./client-remote-skills.js";
 import { decodeCallToolResult } from "./client-result-decoders.js";
 import {
+  entryForPersistedRemoteTask,
+  type McpToolEntry,
+} from "./remote-task-entry-resolution.js";
+import {
   formatRemoteTaskResumeResult,
   type McpRemoteTaskResumeResult,
   type McpRemoteTaskStats,
@@ -73,7 +76,6 @@ import {
   changedMcpToolDeclarationFacets,
   fingerprintMcpToolDeclaration,
   type McpToolDeclarationFacet,
-  type McpToolDeclarationFingerprint,
 } from "./tool-declaration-fingerprint.js";
 import {
   assertValidMcpServerNamespace,
@@ -105,15 +107,6 @@ export type McpManagerInitializeOptions = {
 export type McpManagerOptions = {
   projectDir?: string;
   remoteTaskStore?: RemoteMcpTaskStore;
-};
-
-type McpToolEntry = {
-  serverConfigName: string;
-  client: McpClient;
-  originalName: string;
-  tool: KotaTool;
-  declaration: McpToolDeclarationFingerprint;
-  annotations?: McpToolAnnotations;
 };
 
 export type McpToolDeclarationDriftDiagnostic = {
@@ -230,10 +223,6 @@ export type McpExecuteToolOptions = {
   maxProgressEvents?: number;
   signal?: AbortSignal;
 };
-
-type McpPersistedRemoteTaskEntryResolution =
-  | { kind: "entry"; entry: McpToolEntry }
-  | { kind: "diagnostic"; message: string };
 
 const DEFAULT_REMOTE_TASK_POLL_INTERVAL_MS = 1_000;
 const MAX_TOOL_DECLARATION_DRIFT_DIAGNOSTICS = 100;
@@ -1581,7 +1570,11 @@ export class McpManager {
     }
 
     try {
-      const resolvedEntry = this.entryForPersistedRemoteTask(handle, client);
+      const resolvedEntry = entryForPersistedRemoteTask({
+        handle,
+        client,
+        entries: this.serverTools.get(handle.serverConfigName),
+      });
       if (resolvedEntry.kind === "diagnostic") {
         return await this.remoteTaskResumeDiagnostic(handle, resolvedEntry.message);
       }
@@ -1610,57 +1603,6 @@ export class McpManager {
         : `MCP remote task resume error: ${(err as Error).message}`;
       return await this.remoteTaskResumeDiagnostic(handle, message);
     }
-  }
-
-  private entryForPersistedRemoteTask(
-    handle: PersistedRemoteMcpTaskHandle,
-    client: McpClient,
-  ): McpPersistedRemoteTaskEntryResolution {
-    const currentEntry = this.serverTools
-      .get(handle.serverConfigName)
-      ?.find((entry) => entry.originalName === handle.toolName);
-    if (currentEntry) {
-      if (
-        handle.toolDeclarationFingerprint !== undefined &&
-        handle.toolDeclarationFingerprint !== currentEntry.declaration.fingerprint
-      ) {
-        return {
-          kind: "diagnostic",
-          message:
-            `tool declaration fingerprint for "${handle.toolName}" changed since remote task ` +
-            `"${handle.taskId}" was created; persisted toolDeclarationFingerprint=` +
-            `${handle.toolDeclarationFingerprint}; current toolDeclarationFingerprint=` +
-            `${currentEntry.declaration.fingerprint}; remote task was not resumed because its ` +
-            "result would be validated against a different declaration",
-        };
-      }
-      return { kind: "entry", entry: currentEntry };
-    }
-    const declarationFingerprint = handle.toolDeclarationFingerprint ?? handle.serverFingerprint;
-    return {
-      kind: "entry",
-      entry: {
-        serverConfigName: handle.serverConfigName,
-        client,
-        originalName: handle.toolName,
-        tool: operationTool(
-          namespaceTool(handle.serverConfigName, handle.toolName),
-          `[${handle.serverConfigName}] Resumed remote MCP task for ${handle.toolName}.`,
-          { type: "object", properties: {} },
-        ),
-        declaration: {
-          fingerprint: declarationFingerprint,
-          facetFingerprints: {
-            serverIdentity: declarationFingerprint,
-            description: declarationFingerprint,
-            inputSchema: declarationFingerprint,
-            outputSchema: declarationFingerprint,
-            annotations: declarationFingerprint,
-            capabilities: declarationFingerprint,
-          },
-        },
-      },
-    };
   }
 
   private async remoteTaskResumeDiagnostic(

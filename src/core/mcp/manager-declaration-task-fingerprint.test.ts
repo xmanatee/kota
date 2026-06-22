@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { MCP_DRAFT_PROTOCOL_VERSION } from "./client.js";
 import { McpManager } from "./manager.js";
 import type {
@@ -24,6 +24,35 @@ class CapturingRemoteTaskStore implements RemoteMcpTaskStore {
   }
 
   async remove(): Promise<void> {}
+}
+
+type RecordedHttpRequest = {
+  body: {
+    id?: number;
+    method?: string;
+  };
+};
+
+function mockMcpHttpFetch(
+  handler: (request: RecordedHttpRequest) => Response,
+): { requests: RecordedHttpRequest[]; fetchSpy: { mockRestore: () => void } } {
+  const requests: RecordedHttpRequest[] = [];
+  const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+    const bodyText = String(init?.body ?? "");
+    const request = {
+      body: bodyText.startsWith("{") ? JSON.parse(bodyText) : {},
+    };
+    requests.push(request);
+    return handler(request);
+  });
+  return { requests, fetchSpy };
+}
+
+function jsonRpcResponse(id: number | undefined, result: object): Response {
+  return new Response(JSON.stringify({ jsonrpc: "2.0", id, result }), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
 }
 
 function taskServerScript(): string {
@@ -172,4 +201,96 @@ describe("MCP remote task declaration fingerprints", () => {
       await manager.close();
     }
   }, 10_000);
+
+  it("keeps fingerprinted persisted task handles as diagnostics when the current tool is missing", async () => {
+    const serverConfig = {
+      type: "http" as const,
+      url: "https://mcp.example.test/mcp",
+    };
+    const identity = remoteMcpServerIdentity(serverConfig);
+    const persistedDeclarationFingerprint = "1".repeat(64);
+    const remoteTaskStore = new CapturingRemoteTaskStore([
+      {
+        id: remoteMcpTaskHandleId("remote", "task-fingerprint-missing-tool"),
+        serverConfigName: "remote",
+        serverDisplayName: "task-fingerprint-fixture",
+        serverFingerprint: identity.fingerprint,
+        serverMatch: identity.match,
+        toolName: "deploy",
+        toolDeclarationFingerprint: persistedDeclarationFingerprint,
+        taskId: "task-fingerprint-missing-tool",
+        protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+        status: "working",
+        createdAt: "2026-05-25T12:00:00.000Z",
+        lastUpdatedAt: "2026-05-25T12:00:00.000Z",
+        ttlMs: null,
+        pollCount: 0,
+        inputUpdateCount: 0,
+        startedAt: "2026-05-25T12:00:00.000Z",
+        deadlineAt: null,
+        updatedAt: "2026-05-25T12:00:00.000Z",
+      },
+    ]);
+    const { requests, fetchSpy } = mockMcpHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: {
+            tools: {},
+            extensions: { "io.modelcontextprotocol/tasks": {} },
+          },
+          serverInfo: { name: "task-fingerprint-fixture" },
+        });
+      }
+      if (request.body.method === "tools/list") {
+        return jsonRpcResponse(request.body.id, { tools: [] });
+      }
+      if (request.body.method === "tasks/get") {
+        return jsonRpcResponse(request.body.id, {
+          resultType: "task",
+          taskId: "task-fingerprint-missing-tool",
+          status: "completed",
+          createdAt: "2026-05-25T12:00:00.000Z",
+          lastUpdatedAt: "2026-05-25T12:00:01.000Z",
+          ttlMs: null,
+          result: {
+            resultType: "complete",
+            content: [{ type: "text", text: "deployed without declaration" }],
+            structuredContent: { deploymentId: "dep-hidden" },
+          },
+        });
+      }
+      return jsonRpcResponse(request.body.id, {});
+    });
+    const manager = new McpManager({ remoteTaskStore });
+
+    try {
+      await manager.initialize({
+        mcpServers: {
+          remote: serverConfig,
+        },
+      }, { inputResolverAvailable: true });
+
+      const [resumeResult] = manager.getRemoteTaskResumeResults();
+      expect(resumeResult).toMatchObject({
+        kind: "diagnostic",
+        serverConfigName: "remote",
+        serverDisplayName: "task-fingerprint-fixture",
+        tool: "deploy",
+        taskId: "task-fingerprint-missing-tool",
+        message: expect.stringContaining("current tool declaration is missing"),
+      });
+      expect(remoteTaskStore.upserts[0]).toMatchObject({
+        taskId: "task-fingerprint-missing-tool",
+        lastDiagnostic: expect.stringContaining(persistedDeclarationFingerprint),
+      });
+      expect(requests.map((request) => request.body.method)).toEqual([
+        "server/discover",
+        "tools/list",
+      ]);
+    } finally {
+      await manager.close();
+      fetchSpy.mockRestore();
+    }
+  });
 });

@@ -1,12 +1,12 @@
 ---
 id: task-security-review-remote-task-declaration-fingerprin
 title: Security review: Remote-task declaration fingerprint checks only run when the current MCP tools list still contains the original tool. If the server removes or hides that tool before resume, KOTA builds a synthetic generic tool entry with no output schema and resumes the task, so the completed result is not validated against the original declaration.
-status: ready
+status: done
 priority: p2
 area: security
 summary: Remote-task declaration fingerprint checks only run when the current MCP tools list still contains the original tool. If the server removes or hides that tool before resume, KOTA builds a synthetic generic tool entry with no output schema and resumes the task, so the completed result is not validated against the original declaration.
 created_at: 2026-06-22T18:06:47.838Z
-updated_at: 2026-06-22T18:06:47.838Z
+updated_at: 2026-06-22T18:34:40.334Z
 ---
 
 ## Problem
@@ -27,6 +27,12 @@ claim:
 
 - Preserve the confirmed security claim and cited evidence until the fix lands.
 - Do not weaken authorization, approval, tool-risk, secret-handling, or injection-defense boundaries to make the finding disappear.
+
+## Source Size Exception
+
+kind: source-size-cleanup
+files:
+- src/core/mcp/manager.ts
 
 ## Done When
 
@@ -138,3 +144,19 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Result
+
+Persisted remote MCP task handles that include `toolDeclarationFingerprint` now
+fail closed when the current server no longer lists the original tool
+declaration. The handle is retained as a diagnostic instead of resuming through
+a synthetic schema-less tool, so completed task results cannot bypass the
+original declaration boundary.
+
+## Evidence
+
+- `pnpm test src/core/mcp/manager-declaration-task-fingerprint.test.ts`
+- `pnpm test src/core/mcp/manager.test.ts -t "remote task"`
+- `pnpm run typecheck`
+- `pnpm run lint`
+- `pnpm run validate-tasks`
