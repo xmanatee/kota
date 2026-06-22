@@ -1,12 +1,12 @@
 ---
 id: task-split-oversized-agent-harness-guard-test-surfaces
 title: Split oversized agent harness guard test surfaces
-status: ready
+status: done
 priority: p3
 area: core
 summary: The destructive shell guard build passed, but its source-size review reports touched core test files over the 300-line guideline: src/core/agent-harness/guards.test.ts and src/core/workflow/steps/step-executor-agent-capability.test.ts. Extract focused guard/capability test helpers or split scenario groups while preserving coverage.
 created_at: 2026-06-22T16:50:50.816Z
-updated_at: 2026-06-22T16:50:50.816Z
+updated_at: 2026-06-22T17:54:32.851Z
 ---
 
 ## Problem
@@ -46,4 +46,7 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- Before/after line-count evidence shows src/core/agent-harness/guards.test.ts and src/core/workflow/steps/step-executor-agent-capability.test.ts no longer trigger source-size warnings, or each has a documented scoped exception. Focused agent-harness guard and workflow step capability tests, pnpm run typecheck, pnpm run lint, and pnpm run validate-tasks pass.
+- Run artifact `.kota/runs/2026-06-22T17-46-38-843Z-builder-ysyis2/line-count-evidence.txt` records the before/after line counts and staged source-size result.
+- `src/core/agent-harness/guards.test.ts` is 287 lines, and `src/core/workflow/steps/step-executor-agent-capability.test.ts` is 175 lines.
+- Staged source-size checks report `OK: changed source files are under source-size warning thresholds`.
+- Focused guard and workflow capability tests, `pnpm run typecheck`, `pnpm run lint`, `pnpm run validate-tasks`, and `git diff --cached --check` passed; see `.kota/runs/2026-06-22T17-46-38-843Z-builder-ysyis2/validation-transcript.txt`.
