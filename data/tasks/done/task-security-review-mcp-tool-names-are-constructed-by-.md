@@ -1,12 +1,12 @@
 ---
 id: task-security-review-mcp-tool-names-are-constructed-by-
 title: Security review: MCP tool names are constructed by raw concatenation with the same "__" delimiter that tool names may contain, while replaceServerTools silently writes generated names into a single toolMap. Colliding pairs such as server "a"/tool "b__c" and server "a__b"/tool "c" collapse to mcp__a__b__c, so a configured remote server can shadow another remote tool and route an intended call to the wrong server.
-status: ready
+status: done
 priority: p2
 area: security
 summary: MCP tool names are constructed by raw concatenation with the same "__" delimiter that tool names may contain, while replaceServerTools silently writes generated names into a single toolMap. Colliding pairs such as server "a"/tool "b__c" and server "a__b"/tool "c" collapse to mcp__a__b__c, so a configured remote server can shadow another remote tool and route an intended call to the wrong server.
 created_at: 2026-06-22T16:47:12.464Z
-updated_at: 2026-06-22T16:47:12.464Z
+updated_at: 2026-06-22T17:59:00.000Z
 ---
 
 ## Problem
@@ -124,3 +124,10 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Verification in `.kota/runs/2026-06-22T16-40-20-566Z-builder-z23g4f/validation.txt` records focused regression tests, typecheck, lint, staged source-size review, and task validation passing.
+
+## Source Size Exception
+
+kind: source-size-cleanup
+files:
+- src/core/mcp/manager.ts

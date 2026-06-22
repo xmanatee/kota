@@ -67,6 +67,17 @@ import {
   type McpToolDeclarationFacet,
   type McpToolDeclarationFingerprint,
 } from "./tool-declaration-fingerprint.js";
+import {
+  assertValidMcpServerNamespace,
+  firstDuplicateMcpToolName,
+  namespacePromptOperation,
+  namespaceResourceOperation,
+  namespaceResourceTemplateOperation,
+  namespaceSkillOperation,
+  namespaceTool,
+} from "./tool-namespace.js";
+
+export { namespaceTool, parseToolName } from "./tool-namespace.js";
 
 export type McpServerStdioConfig = McpStdioClientTransportConfig;
 export type McpServerHttpConfig = McpStreamableHttpClientTransportConfig;
@@ -238,7 +249,6 @@ export type McpRemoteTaskResumeResult =
       message: string;
     };
 
-const SEPARATOR = "__";
 const DEFAULT_REMOTE_TASK_POLL_INTERVAL_MS = 1_000;
 const MAX_TOOL_DECLARATION_DRIFT_DIAGNOSTICS = 100;
 const MCP_CONFIG_FIELDS = new Set(["type", "command", "args", "env", "url", "headers", "authorization"]);
@@ -303,35 +313,6 @@ const MCP_OAUTH_CLIENT_CREDENTIALS_PRIVATE_KEY_JWT_FIELDS = new Set([
   "signingAlgorithm",
   "keyId",
 ]);
-
-/** Build a namespaced tool name: mcp__<server>__<tool> */
-export function namespaceTool(serverName: string, toolName: string): string {
-  return `mcp${SEPARATOR}${serverName}${SEPARATOR}${toolName}`;
-}
-
-function namespaceResourceOperation(serverName: string, action: "list" | "read"): string {
-  return `mcp_resources${SEPARATOR}${serverName}${SEPARATOR}${action}`;
-}
-
-function namespaceResourceTemplateOperation(serverName: string): string {
-  return `mcp_resource_templates${SEPARATOR}${serverName}${SEPARATOR}list`;
-}
-
-function namespacePromptOperation(serverName: string, action: "list" | "get"): string {
-  return `mcp_prompts${SEPARATOR}${serverName}${SEPARATOR}${action}`;
-}
-
-function namespaceSkillOperation(serverName: string, action: "list" | "read"): string {
-  return `mcp_skills${SEPARATOR}${serverName}${SEPARATOR}${action}`;
-}
-
-/** Parse a namespaced tool name back to server + tool. Returns null if not an MCP tool. */
-export function parseToolName(name: string): { server: string; tool: string } | null {
-  if (!name.startsWith(`mcp${SEPARATOR}`)) return null;
-  const parts = name.split(SEPARATOR);
-  if (parts.length < 3) return null;
-  return { server: parts[1], tool: parts.slice(2).join(SEPARATOR) };
-}
 
 /** Convert an MCP tool schema to a neutral KotaTool with namespaced name. */
 function toKotaTool(serverName: string, tool: McpToolSchema): KotaTool {
@@ -1062,6 +1043,7 @@ function normalizeMcpServerConfig(
   serverName: string,
   config: McpServerConfig,
 ): McpClientTransportConfig {
+  assertValidMcpServerNamespace(serverName);
   if (!isJsonObject(config)) {
     throw new Error(`Invalid MCP server config for "${serverName}": config must be an object`);
   }
@@ -1704,9 +1686,9 @@ export class McpManager {
       );
     }
 
-    const entry = this.entryForPersistedRemoteTask(handle, client);
-    const stats = remoteTaskStatsForPersistedHandle(handle);
     try {
+      const entry = this.entryForPersistedRemoteTask(handle, client);
+      const stats = remoteTaskStatsForPersistedHandle(handle);
       const current = await client.getTask(handle.taskId);
       stats.pollCount += 1;
       await this.persistRemoteTaskHandle(entry, current, stats);
@@ -2519,14 +2501,21 @@ export class McpManager {
         ...(tool.annotations ? { annotations: tool.annotations } : {}),
       };
     });
-    this.recordToolDeclarationDrift(previousByOriginalName, entries);
     const nextToolMap = new Map(this.toolMap);
     for (const entry of this.serverTools.get(serverName) ?? []) {
       nextToolMap.delete(entry.tool.name);
     }
-    for (const entry of entries) {
-      nextToolMap.set(entry.tool.name, entry);
+    const duplicate = firstDuplicateMcpToolName([
+      ...nextToolMap.keys(),
+      ...entries.map((entry) => entry.tool.name),
+    ]);
+    if (duplicate) {
+      throw new Error(
+        `Invalid MCP tool registry for server "${serverName}": duplicate generated MCP tool name "${duplicate}"`,
+      );
     }
+    this.recordToolDeclarationDrift(previousByOriginalName, entries);
+    for (const entry of entries) nextToolMap.set(entry.tool.name, entry);
     this.serverTools.set(serverName, entries);
     this.toolMap = nextToolMap;
     this.replaceServerOperations(serverName, client);
@@ -2655,7 +2644,15 @@ export class McpManager {
     if (this.clients.get(serverName) !== client || !client.isConnected()) {
       return;
     }
-    this.replaceServerTools(serverName, client, tools);
+    try {
+      this.replaceServerTools(serverName, client, tools);
+    } catch (err) {
+      printTerminalDiagnostic(
+        `[kota] Warning: MCP server "${serverName}" tool refresh failed; keeping previous registry: ${(err as Error).message}`,
+        "warn",
+      );
+      return;
+    }
     printTerminalDiagnostic(
       `[kota] MCP server "${serverName}" tool registry refreshed — ${tools.length} tool${tools.length !== 1 ? "s" : ""}`,
     );
