@@ -1,3 +1,8 @@
+import { join } from "node:path";
+import {
+  PRUNED_RUN_REFERENCES_FILE,
+  readPrunedWorkflowRunReferences,
+} from "#core/workflow/run-store-retention.js";
 import {
   blank,
   heading,
@@ -8,7 +13,9 @@ import { loadRunsInWindow } from "#modules/workflow-ops/runs/workflow-history.js
 import type { AutonomyReportData } from "./aggregate.js";
 import {
   buildControlCoverageReport,
+  type ControlCoverageEvidenceGap,
   type ControlMonitorCoverageReport,
+  policyPrunedControlCoverageEvidenceGapsForWindow,
 } from "./control-coverage-report.js";
 import { renderControlCoverage } from "./render-control-coverage.js";
 
@@ -22,13 +29,36 @@ export type ControlCoverageReportWindowInput = {
   windowEndMs: number;
 };
 
+function prunedRunEvidenceGapsForWindow(
+  input: ControlCoverageReportWindowInput,
+): ControlCoverageEvidenceGap[] {
+  try {
+    return policyPrunedControlCoverageEvidenceGapsForWindow(
+      readPrunedWorkflowRunReferences(input.runsDir),
+      input.windowStartMs,
+      input.windowEndMs,
+    );
+  } catch (error) {
+    return [
+      {
+        kind: "producer-missing",
+        reasonCode: "producer-missing",
+        ref: join(".kota", "runs", PRUNED_RUN_REFERENCES_FILE),
+        summary: `Pruned run references could not be read: ${String(error)}`,
+      },
+    ];
+  }
+}
+
 export function buildControlCoverageReportForWindow(
   input: ControlCoverageReportWindowInput,
 ): ControlMonitorCoverageReport {
   const runs = loadRunsInWindow(input.runsDir, input.windowStartMs).filter(
     (run) => Date.parse(run.startedAt) <= input.windowEndMs,
   );
-  return buildControlCoverageReport(runs, input.runsDir);
+  return buildControlCoverageReport(runs, input.runsDir, {
+    evidenceGaps: prunedRunEvidenceGapsForWindow(input),
+  });
 }
 
 export function attachControlCoverageToReport(

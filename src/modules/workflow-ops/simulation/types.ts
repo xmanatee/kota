@@ -1,4 +1,10 @@
 import type { EventEnvelope } from "#core/events/event-journal.js";
+import type {
+  EvidenceArtifactType,
+  EvidenceJsonObject,
+  EvidenceProvenance,
+} from "#core/evidence/policy.js";
+import type { EvidencePrunedReasonCode } from "#core/evidence/pruned-reference.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { DryRunDiagnostic, DryRunStepPlan, DryRunTriggerMatch } from "../execution/dry-run.js";
 import type {
@@ -43,6 +49,16 @@ export type WorkflowSimulationSource = {
   journalId?: string;
 };
 
+export type WorkflowSimulationAvailability = {
+  kind: "policy-pruned";
+  reasonCode: EvidencePrunedReasonCode;
+  artifactType: EvidenceArtifactType;
+  id: string;
+  prunedAt: string;
+  retained: EvidenceJsonObject;
+  provenance: EvidenceProvenance;
+};
+
 export type WorkflowSimulationDryRun = {
   workflow: string;
   pass: boolean;
@@ -62,6 +78,7 @@ export type WorkflowSimulationInputResult = {
   source: WorkflowSimulationSource;
   event: string;
   eventId?: string;
+  availability?: WorkflowSimulationAvailability;
   outcome: WorkflowSimulationOutcome;
   reasons: readonly AutomationExplainReason[];
   matches: readonly {

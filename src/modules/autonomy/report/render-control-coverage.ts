@@ -12,7 +12,7 @@ import type { ControlMonitorCoverageReport } from "./control-coverage-report.js"
 export function renderControlCoverage(
   report: ControlMonitorCoverageReport,
 ): RenderNode[] {
-  if (report.artifactCount === 0) {
+  if (report.artifactCount === 0 && report.evidenceGapCount === 0) {
     return [line(span("(no control coverage artifacts)", "muted"))];
   }
   const lines: RenderNode[] = [
@@ -23,11 +23,34 @@ export function renderControlCoverage(
       span(String(report.runsWithGaps), report.runsWithGaps > 0 ? "warn" : "success"),
       plain("   Gaps: "),
       span(String(report.totalGaps), report.totalGaps > 0 ? "warn" : "success"),
+      plain("   Evidence gaps: "),
+      span(
+        String(report.evidenceGapCount),
+        report.evidenceGapCount > 0 ? "warn" : "success",
+      ),
     ),
     blank(),
     line(span("Control states", "muted", true)),
     kvBlock(controlStateEntries(report), 14),
   ];
+  if (report.evidenceGaps.length > 0) {
+    lines.push(blank(), line(span("Evidence gaps", "muted", true)));
+    for (const gap of report.evidenceGaps) {
+      lines.push(
+        line(
+          plain("  "),
+          span(`${String(gap.count).padStart(2)}x`, gap.kind === "producer-missing" ? "error" : "warn"),
+          plain(" "),
+          plain(gap.kind.padEnd(16)),
+          plain(" "),
+          span(gap.reasonCode, gap.kind === "producer-missing" ? "error" : "warn"),
+        ),
+      );
+      for (const ref of gap.evidenceRefs.slice(0, 3)) {
+        lines.push(line(plain(`    ${ref}`)));
+      }
+    }
+  }
   lines.push(blank(), ...renderAsyncReviewerTiming(report));
   if (report.topGaps.length > 0) {
     lines.push(blank(), line(span("Top gaps", "muted", true)));

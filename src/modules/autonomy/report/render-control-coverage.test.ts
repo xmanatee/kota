@@ -21,12 +21,16 @@ describe("renderControlCoverage", () => {
       unsupportedFamilies: 0,
       blockedFamilies: 0,
       warnedFamilies: 0,
+      evidenceGapCount: 0,
+      producerMissingEvidenceRefs: 0,
+      policyPrunedEvidenceRefs: 0,
       asyncReviewResponseMs: {
         observations: 0,
         min: null,
         max: null,
         average: null,
       },
+      evidenceGaps: [],
       topGaps: [],
       recentArtifactPaths: [],
     })).toContain("(no control coverage artifacts)");
@@ -41,12 +45,35 @@ describe("renderControlCoverage", () => {
       unsupportedFamilies: 0,
       blockedFamilies: 0,
       warnedFamilies: 0,
+      evidenceGapCount: 2,
+      producerMissingEvidenceRefs: 1,
+      policyPrunedEvidenceRefs: 1,
       asyncReviewResponseMs: {
         observations: 1,
         min: 5000,
         max: 5000,
         average: 5000,
       },
+      evidenceGaps: [
+        {
+          kind: "producer-missing",
+          reasonCode: "producer-missing",
+          count: 1,
+          evidenceRefs: [".kota/runs/missing/control-monitor-coverage.json"],
+          summaries: [
+            "builder success at 2026-04-29T10:00:00.000Z: control-monitor-coverage.json was not produced",
+          ],
+        },
+        {
+          kind: "policy-pruned",
+          reasonCode: "policy-pruned-payload",
+          count: 1,
+          evidenceRefs: [".kota/runs/pruned-runs.jsonl#pruned"],
+          summaries: [
+            "builder success (pruned) control coverage body unavailable: policy-pruned-payload",
+          ],
+        },
+      ],
       topGaps: [
         {
           family: "injection-defense",
@@ -64,6 +91,8 @@ describe("renderControlCoverage", () => {
 
     expect(text).toContain("Artifacts: 2");
     expect(text).toContain("external-payload-unscreened");
+    expect(text).toContain("producer-missing");
+    expect(text).toContain("policy-pruned-payload");
     expect(text).toContain("avg 5000ms");
     expect(text).toContain(".kota/runs/r2/control-monitor-coverage.json");
   });

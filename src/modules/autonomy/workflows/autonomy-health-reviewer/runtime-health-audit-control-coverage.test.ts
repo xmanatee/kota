@@ -149,4 +149,71 @@ describe("runtime health audit control coverage gaps", () => {
     expect(task).toContain(".kota/runs/control-gap-a/control-monitor-coverage.json");
     expect(task).toContain("external-payload-unscreened");
   });
+
+  it("distinguishes producer-missing control evidence from policy-pruned run references", () => {
+    const missingRunDir = join(projectDir, ".kota", "runs", "missing-coverage");
+    mkdirSync(missingRunDir, { recursive: true });
+    writeFileSync(
+      join(missingRunDir, "metadata.json"),
+      JSON.stringify({
+        id: "missing-coverage",
+        workflow: "builder",
+        status: "success",
+        startedAt: "2026-06-19T10:00:00.000Z",
+        completedAt: "2026-06-19T10:01:00.000Z",
+        durationMs: 1000,
+        runDir: ".kota/runs/missing-coverage",
+        steps: [],
+      }),
+      "utf-8",
+    );
+    writeFileSync(
+      join(projectDir, ".kota", "runs", "pruned-runs.jsonl"),
+      `${JSON.stringify({
+        artifactType: "workflow-run",
+        id: "pruned-coverage",
+        prunedAt: "2026-06-19T11:00:00.000Z",
+        retained: {
+          id: "pruned-coverage",
+          workflow: "builder",
+          status: "success",
+          startedAt: "2026-06-19T09:00:00.000Z",
+          completedAt: "2026-06-19T09:01:00.000Z",
+        },
+        provenance: {
+          workflowName: "builder",
+          runId: "pruned-coverage",
+          sourceEventIds: ["evtj-pruned-coverage"],
+          transformedFrom: [
+            { artifactType: "event-envelope", id: "evtj-pruned-coverage" },
+          ],
+        },
+        payloadExpired: true,
+      })}\n`,
+      "utf-8",
+    );
+
+    const audit = collectRuntimeHealthAudit({
+      projectDir,
+      options: { nowIso: NOW, interruptedRunMinCount: 2 },
+    });
+
+    expect(audit.inspected.producerMissingEvidenceRefs).toBe(1);
+    expect(audit.inspected.policyPrunedEvidenceRefs).toBe(1);
+    expect(audit.evidenceGaps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "producer-missing",
+          reasonCode: "producer-missing",
+          ref: ".kota/runs/missing-coverage/control-monitor-coverage.json",
+        }),
+        expect.objectContaining({
+          kind: "policy-pruned",
+          reasonCode: "policy-pruned-payload",
+          ref: ".kota/runs/pruned-runs.jsonl#pruned-coverage",
+          summary: expect.stringContaining("policy-pruned-payload"),
+        }),
+      ]),
+    );
+  });
 });

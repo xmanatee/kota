@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { assertProgressReviewPrunedEvidenceRef } from "./pruned-evidence.js";
 import type {
   ProgressReviewAgentOutput,
   ProgressReviewEvidenceIdPacket,
@@ -67,6 +68,7 @@ export function progressReviewFindingGroupEntries(review: ProgressReviewAgentOut
 function evidenceIdsForPacket(packet: ProgressReviewEvidenceIdPacket): Set<string> {
   const ids = new Set<string>();
   for (const evidence of packet.evidence) {
+    assertProgressReviewPrunedEvidenceRef(evidence);
     if (ids.has(evidence.id)) {
       throw new Error(`progress-review evidence packet contains duplicate id: ${evidence.id}`);
     }

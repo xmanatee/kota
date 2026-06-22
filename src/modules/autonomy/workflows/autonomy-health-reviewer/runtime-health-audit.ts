@@ -54,6 +54,7 @@ export function collectRuntimeHealthAudit(args: {
     interruptedRunMinCount:
       args.options?.interruptedRunMinCount ?? DEFAULT_INTERRUPTED_RUN_MIN_COUNT,
     patterns: new Map(),
+    evidenceGaps: [],
     inspected: {
       moduleLogFiles: 0,
       moduleLogLines: 0,
@@ -63,6 +64,8 @@ export function collectRuntimeHealthAudit(args: {
       interruptedRuns: 0,
       controlCoverageArtifacts: 0,
       controlCoverageGapRuns: 0,
+      policyPrunedEvidenceRefs: 0,
+      producerMissingEvidenceRefs: 0,
       daemonEvidenceFiles: 0,
       daemonStopAttempts: 0,
       inboxEntries: 0,
@@ -82,6 +85,7 @@ export function collectRuntimeHealthAudit(args: {
     generatedAt: nowIso,
     windowStart: new Date(windowStartMs).toISOString(),
     inspected: ctx.inspected,
+    evidenceGaps: ctx.evidenceGaps,
     patterns,
     signals: patterns.map((pattern) => signalForPattern(pattern, nowIso)),
   };

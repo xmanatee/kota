@@ -42,6 +42,35 @@ async function simulateEvent(
   args: SimulateAutomationArgs,
   event: SimulationEvent,
 ): Promise<WorkflowSimulationInputResult> {
+  if (event.availability?.kind === "policy-pruned") {
+    const explain = explainAutomation(args.definitions, {
+      moduleManifests: args.moduleManifests ?? [],
+      ...(args.request.workflowName ? { workflowName: args.request.workflowName } : {}),
+      eventName: event.event,
+    });
+    return {
+      source: event.source,
+      event: event.event,
+      ...(event.eventId ? { eventId: event.eventId } : {}),
+      availability: event.availability,
+      outcome: "would-noop",
+      reasons: [
+        {
+          code: event.availability.reasonCode,
+          severity: "warning",
+          event: event.event,
+          message:
+            `journal event ${event.availability.id} payload is unavailable by evidence retention policy; retained metadata only`,
+        },
+      ],
+      matches: [],
+      blockers: [],
+      policyGates: [],
+      effects: [],
+      dryRuns: [],
+      explain,
+    };
+  }
   const explain = explainAutomation(args.definitions, {
     moduleManifests: args.moduleManifests ?? [],
     ...(args.request.workflowName ? { workflowName: args.request.workflowName } : {}),

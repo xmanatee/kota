@@ -5,6 +5,22 @@ import {
   type ControlMonitorCoverageArtifact,
 } from "#core/workflow/control-monitor-coverage.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import type {
+  ControlCoverageEvidenceGap,
+  ControlCoverageEvidenceGapKind,
+  ControlCoverageEvidenceGapReasonCode,
+  ControlCoverageEvidenceGapSummary,
+} from "./control-coverage-evidence-gaps.js";
+
+export type {
+  ControlCoverageEvidenceGap,
+  ControlCoverageEvidenceGapKind,
+  ControlCoverageEvidenceGapReasonCode,
+  ControlCoverageEvidenceGapSummary,
+} from "./control-coverage-evidence-gaps.js";
+export {
+  policyPrunedControlCoverageEvidenceGapsForWindow,
+} from "./control-coverage-evidence-gaps.js";
 
 export type ControlCoverageGapSummary = {
   family: string;
@@ -22,14 +38,22 @@ export type ControlMonitorCoverageReport = {
   unsupportedFamilies: number;
   blockedFamilies: number;
   warnedFamilies: number;
+  evidenceGapCount: number;
+  producerMissingEvidenceRefs: number;
+  policyPrunedEvidenceRefs: number;
   asyncReviewResponseMs: {
     observations: number;
     min: number | null;
     max: number | null;
     average: number | null;
   };
+  evidenceGaps: ControlCoverageEvidenceGapSummary[];
   topGaps: ControlCoverageGapSummary[];
   recentArtifactPaths: string[];
+};
+
+type BuildControlCoverageReportOptions = {
+  evidenceGaps?: readonly ControlCoverageEvidenceGap[];
 };
 
 type ControlGapAccumulator = {
@@ -38,6 +62,14 @@ type ControlGapAccumulator = {
   severity: "warning" | "error";
   count: number;
   evidenceArtifactPaths: Set<string>;
+};
+
+type ControlEvidenceGapAccumulator = {
+  kind: ControlCoverageEvidenceGapKind;
+  reasonCode: ControlCoverageEvidenceGapReasonCode;
+  count: number;
+  evidenceRefs: Set<string>;
+  summaries: Set<string>;
 };
 
 export function emptyControlMonitorCoverageReport(): ControlMonitorCoverageReport {
@@ -49,12 +81,16 @@ export function emptyControlMonitorCoverageReport(): ControlMonitorCoverageRepor
     unsupportedFamilies: 0,
     blockedFamilies: 0,
     warnedFamilies: 0,
+    evidenceGapCount: 0,
+    producerMissingEvidenceRefs: 0,
+    policyPrunedEvidenceRefs: 0,
     asyncReviewResponseMs: {
       observations: 0,
       min: null,
       max: null,
       average: null,
     },
+    evidenceGaps: [],
     topGaps: [],
     recentArtifactPaths: [],
   };
@@ -95,6 +131,31 @@ function recordTiming(
         : Math.max(report.max, timings.max);
 }
 
+function recordEvidenceGap(
+  report: ControlMonitorCoverageReport,
+  evidenceGaps: Map<string, ControlEvidenceGapAccumulator>,
+  gap: ControlCoverageEvidenceGap,
+): void {
+  report.evidenceGapCount += 1;
+  if (gap.kind === "policy-pruned") {
+    report.policyPrunedEvidenceRefs += 1;
+  } else {
+    report.producerMissingEvidenceRefs += 1;
+  }
+  const key = `${gap.kind}:${gap.reasonCode}`;
+  const existing = evidenceGaps.get(key) ?? {
+    kind: gap.kind,
+    reasonCode: gap.reasonCode,
+    count: 0,
+    evidenceRefs: new Set<string>(),
+    summaries: new Set<string>(),
+  };
+  existing.count += 1;
+  existing.evidenceRefs.add(gap.ref);
+  existing.summaries.add(gap.summary);
+  evidenceGaps.set(key, existing);
+}
+
 function recordGaps(
   topGaps: Map<string, ControlGapAccumulator>,
   artifact: ControlMonitorCoverageArtifact,
@@ -119,19 +180,39 @@ function recordGaps(
   }
 }
 
+function producerMissingEvidenceGap(run: WorkflowRunMetadata): ControlCoverageEvidenceGap {
+  return {
+    kind: "producer-missing",
+    reasonCode: "producer-missing",
+    ref: artifactRef(run.id),
+    summary:
+      `${run.workflow} ${run.status} at ${run.startedAt}: ` +
+      `${CONTROL_MONITOR_COVERAGE_ARTIFACT} was not produced`,
+  };
+}
+
 export function buildControlCoverageReport(
   runs: readonly WorkflowRunMetadata[],
   runsDir: string,
+  options: BuildControlCoverageReportOptions = {},
 ): ControlMonitorCoverageReport {
   const report = emptyControlMonitorCoverageReport();
   const topGaps = new Map<string, ControlGapAccumulator>();
+  const evidenceGaps = new Map<string, ControlEvidenceGapAccumulator>();
   const timing = { observations: 0, total: 0, min: null, max: null };
+
+  for (const gap of options.evidenceGaps ?? []) {
+    recordEvidenceGap(report, evidenceGaps, gap);
+  }
 
   for (const run of runs) {
     const artifact = readOptionalJsonFile<ControlMonitorCoverageArtifact>(
       artifactPath(runsDir, run.id),
     );
-    if (!artifact) continue;
+    if (!artifact) {
+      recordEvidenceGap(report, evidenceGaps, producerMissingEvidenceGap(run));
+      continue;
+    }
     const ref = artifactRef(run.id);
     report.artifactCount += 1;
     report.recentArtifactPaths.push(ref);
@@ -154,6 +235,20 @@ export function buildControlCoverageReport(
       average:
         timing.observations > 0 ? Math.round(timing.total / timing.observations) : null,
     },
+    evidenceGaps: [...evidenceGaps.values()]
+      .map((gap) => ({
+        kind: gap.kind,
+        reasonCode: gap.reasonCode,
+        count: gap.count,
+        evidenceRefs: [...gap.evidenceRefs].sort().slice(0, 10),
+        summaries: [...gap.summaries].sort().slice(0, 5),
+      }))
+      .sort(
+        (a, b) =>
+          b.count - a.count ||
+          `${a.kind}:${a.reasonCode}`.localeCompare(`${b.kind}:${b.reasonCode}`),
+      )
+      .slice(0, 10),
     topGaps: [...topGaps.values()]
       .map((gap) => ({
         family: gap.family,

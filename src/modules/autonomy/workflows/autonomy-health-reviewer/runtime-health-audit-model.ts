@@ -39,6 +39,13 @@ export type RuntimeHealthAuditPattern = {
   evidenceRefs: AutonomyHealthEvidenceRef[];
 };
 
+export type RuntimeHealthEvidenceGap = {
+  kind: "policy-pruned" | "producer-missing";
+  reasonCode: "policy-pruned-payload" | "producer-missing";
+  ref: string;
+  summary: string;
+};
+
 export type RuntimeHealthAudit = {
   generatedAt: string;
   windowStart: string;
@@ -51,11 +58,14 @@ export type RuntimeHealthAudit = {
     interruptedRuns: number;
     controlCoverageArtifacts: number;
     controlCoverageGapRuns: number;
+    policyPrunedEvidenceRefs: number;
+    producerMissingEvidenceRefs: number;
     daemonEvidenceFiles: number;
     daemonStopAttempts: number;
     inboxEntries: number;
     operatorRuntimeWarnings: number;
   };
+  evidenceGaps: RuntimeHealthEvidenceGap[];
   patterns: RuntimeHealthAuditPattern[];
   signals: AutonomyHealthSignal[];
 };
@@ -101,6 +111,7 @@ export type RuntimeHealthAuditContext = {
   logPatternMinObservations: number;
   interruptedRunMinCount: number;
   patterns: Map<string, MutablePattern>;
+  evidenceGaps: RuntimeHealthEvidenceGap[];
   inspected: RuntimeHealthAudit["inspected"];
 };
 

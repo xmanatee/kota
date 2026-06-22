@@ -1,9 +1,11 @@
 import { join } from "node:path";
+import type { EvidenceJsonObject } from "#core/evidence/policy.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import {
   CONTROL_MONITOR_COVERAGE_ARTIFACT,
   type ControlMonitorCoverageArtifact,
 } from "#core/workflow/control-monitor-coverage.js";
+import { readPrunedWorkflowRunReferences } from "#core/workflow/run-store-retention.js";
 import type { AutonomyHealthEvidenceRef } from "#modules/autonomy/health-signal.js";
 import {
   addPattern,
@@ -31,6 +33,11 @@ function artifactRef(runId: string): string {
   return join(".kota", "runs", runId, CONTROL_MONITOR_COVERAGE_ARTIFACT);
 }
 
+function retainedString(retained: EvidenceJsonObject, key: string): string | null {
+  const value = retained[key];
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
 function readArtifact(
   ctx: RuntimeHealthAuditContext,
   run: WorkflowHistoryRunLike,
@@ -38,6 +45,61 @@ function readArtifact(
   return readOptionalJsonFile<ControlMonitorCoverageArtifact>(
     join(ctx.projectDir, ".kota", "runs", run.id, CONTROL_MONITOR_COVERAGE_ARTIFACT),
   );
+}
+
+function recordProducerMissingCoverageArtifact(
+  ctx: RuntimeHealthAuditContext,
+  run: WorkflowHistoryRunLike,
+): void {
+  ctx.inspected.producerMissingEvidenceRefs += 1;
+  ctx.evidenceGaps.push({
+    kind: "producer-missing",
+    reasonCode: "producer-missing",
+    ref: artifactRef(run.id),
+    summary:
+      `${run.workflow} ${run.status} at ${run.startedAt}: ` +
+      `${CONTROL_MONITOR_COVERAGE_ARTIFACT} was not produced`,
+  });
+}
+
+function recordPolicyPrunedCoverageRefs(ctx: RuntimeHealthAuditContext): void {
+  let references: ReturnType<typeof readPrunedWorkflowRunReferences>;
+  try {
+    references = readPrunedWorkflowRunReferences(join(ctx.projectDir, ".kota", "runs"));
+  } catch (error) {
+    ctx.inspected.producerMissingEvidenceRefs += 1;
+    ctx.evidenceGaps.push({
+      kind: "producer-missing",
+      reasonCode: "producer-missing",
+      ref: join(".kota", "runs", "pruned-runs.jsonl"),
+      summary: `Pruned run references could not be read: ${String(error)}`,
+    });
+    return;
+  }
+  for (const reference of references) {
+    const workflow = retainedString(reference.retained, "workflow") ?? "unknown";
+    const status = retainedString(reference.retained, "status") ?? "unknown";
+    const startedAt = retainedString(reference.retained, "startedAt") ?? reference.prunedAt;
+    const startedMs = Date.parse(startedAt);
+    const prunedAtMs = Date.parse(reference.prunedAt);
+    if (
+      Number.isFinite(startedMs) &&
+      Number.isFinite(prunedAtMs) &&
+      startedMs < ctx.windowStartMs &&
+      prunedAtMs < ctx.windowStartMs
+    ) {
+      continue;
+    }
+    ctx.inspected.policyPrunedEvidenceRefs += 1;
+    ctx.evidenceGaps.push({
+      kind: "policy-pruned",
+      reasonCode: "policy-pruned-payload",
+      ref: `${join(".kota", "runs", "pruned-runs.jsonl")}#${reference.id}`,
+      summary:
+        `${workflow} ${status} (${reference.id}) control coverage body unavailable: ` +
+        "policy-pruned-payload",
+    });
+  }
 }
 
 function evidenceRefs(
@@ -125,9 +187,13 @@ export function scanControlCoverageGaps(
   runs: readonly WorkflowHistoryRunLike[],
 ): void {
   const byFamilyReason = new Map<string, ControlCoverageGapObservation[]>();
+  recordPolicyPrunedCoverageRefs(ctx);
   for (const run of runs) {
     const artifact = readArtifact(ctx, run);
-    if (!artifact) continue;
+    if (!artifact) {
+      recordProducerMissingCoverageArtifact(ctx, run);
+      continue;
+    }
     ctx.inspected.controlCoverageArtifacts += 1;
     if (artifact.gaps.length > 0) ctx.inspected.controlCoverageGapRuns += 1;
     for (const observation of observationsFor(run, artifact)) {

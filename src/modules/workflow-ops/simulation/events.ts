@@ -7,9 +7,17 @@ import {
   type EventJsonObject,
   eventEnvelopeToBusEnvelope,
 } from "#core/events/event-journal.js";
+import type {
+  EvidenceJsonObject,
+  EvidencePrunedReference,
+} from "#core/evidence/policy.js";
+import {
+  EVIDENCE_PRUNED_REASON_CODE,
+} from "#core/evidence/pruned-reference.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import { eventJournalForProject } from "../utils.js";
 import type {
+  WorkflowSimulationAvailability,
   WorkflowSimulationJournalSelector,
   WorkflowSimulationRequest,
   WorkflowSimulationSource,
@@ -22,6 +30,7 @@ export type SimulationEvent = {
   eventId?: string;
   schemaRef?: EventSchemaReference | null;
   envelope?: EventEnvelope;
+  availability?: WorkflowSimulationAvailability;
 };
 
 function isPayload(
@@ -46,6 +55,33 @@ export function eventFromEnvelope(
     eventId: envelope.id,
     schemaRef: bus.schemaRef,
     envelope,
+  };
+}
+
+function retainedString(retained: EvidenceJsonObject, key: string): string | null {
+  const value = retained[key];
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function eventFromPrunedReference(
+  reference: EvidencePrunedReference,
+  source: WorkflowSimulationSource,
+): SimulationEvent {
+  const event = retainedString(reference.retained, "event") ?? "unknown.event";
+  return {
+    source,
+    event,
+    payload: {},
+    eventId: reference.id,
+    availability: {
+      kind: "policy-pruned",
+      reasonCode: EVIDENCE_PRUNED_REASON_CODE,
+      artifactType: reference.artifactType,
+      id: reference.id,
+      prunedAt: reference.prunedAt,
+      retained: reference.retained,
+      provenance: reference.provenance,
+    },
   };
 }
 
@@ -108,19 +144,27 @@ function journalEvents(
   selector: WorkflowSimulationJournalSelector,
 ): SimulationEvent[] {
   const journal = eventJournalForProject(projectDir);
-  const events = journal.query({
+  const limit = journalLimit(selector);
+  const query = {
     id: selector.id,
     after: selector.after,
     type: selector.type,
     typePrefix: selector.typePrefix,
-    limit: journalLimit(selector),
-  });
-  return events.map((envelope) =>
+    limit,
+  };
+  const available = journal.query(query).map((envelope) =>
     eventFromEnvelope(envelope, {
       kind: "journal",
       journalId: envelope.id,
     })
   );
+  const pruned = journal.queryPrunedReferences(query).map((reference) =>
+    eventFromPrunedReference(reference, {
+      kind: "journal",
+      journalId: reference.id,
+    })
+  );
+  return [...available, ...pruned].slice(0, limit);
 }
 
 export function resolveEvents(

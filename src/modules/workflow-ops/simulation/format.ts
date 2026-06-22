@@ -1,13 +1,44 @@
 import type {
+  WorkflowSimulationAvailability,
   WorkflowSimulationInputResult,
   WorkflowSimulationResult,
 } from "./types.js";
+
+function retainedString(
+  availability: WorkflowSimulationAvailability,
+  key: string,
+): string | null {
+  const value = availability.retained[key];
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function formatAvailability(availability: WorkflowSimulationAvailability): string[] {
+  const scopeId = retainedString(availability, "scopeId");
+  const state = retainedString(availability, "state");
+  const receivedAt = retainedString(availability, "receivedAt");
+  const startedAt = retainedString(availability, "startedAt");
+  const timestamp = receivedAt ?? startedAt ?? availability.prunedAt;
+  const provenance = availability.provenance.workflowName
+    ? ` workflow=${availability.provenance.workflowName}` +
+      `${availability.provenance.runId ? ` run=${availability.provenance.runId}` : ""}`
+    : "";
+  return [
+    `Availability: ${availability.kind} ${availability.reasonCode}`,
+    `  - artifact=${availability.artifactType}:${availability.id}` +
+      `${scopeId ? ` scope=${scopeId}` : ""}` +
+      `${state ? ` state=${state}` : ""}` +
+      ` timestamp=${timestamp} prunedAt=${availability.prunedAt}${provenance}`,
+  ];
+}
 
 function formatInput(input: WorkflowSimulationInputResult): string[] {
   const lines: string[] = [];
   const id = input.eventId ? ` (${input.eventId})` : "";
   lines.push(`Input: ${input.event}${id}`);
   lines.push(`Outcome: ${input.outcome}`);
+  if (input.availability) {
+    lines.push(...formatAvailability(input.availability));
+  }
   if (input.source.kind !== "synthetic") {
     const label = input.source.journalId ?? input.source.label;
     lines.push(label ? `Source: ${input.source.kind} ${label}` : `Source: ${input.source.kind}`);

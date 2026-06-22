@@ -1,12 +1,12 @@
 ---
 id: task-apply-evidence-retention-policy-to-run-evidence-co
 title: Apply evidence retention policy to run evidence consumers
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Teach workflow review, reporting, and replay consumers to treat pruned evidence as typed metadata references instead of missing evidence, closing the retention-consumer gap without adding a second evidence store.
 created_at: 2026-06-22T19:26:49.976Z
-updated_at: 2026-06-22T19:26:49.976Z
+updated_at: 2026-06-22T19:50:51.000Z
 task_class: Platform
 ---
 
@@ -142,3 +142,21 @@ unavailable.
 - Evidence-id validation tests showing matching retained metadata is accepted
   and spoofed/malformed pruned references are rejected.
 - `pnpm run typecheck`, `pnpm run lint`, and `pnpm run validate-tasks` pass.
+
+## Completion Evidence
+
+- Added typed pruned-reference validation in `src/core/evidence/` plus event
+  journal and pruned workflow-run readers.
+- Progress-review evidence collection now surfaces policy-pruned run and event
+  metadata references with `policy-pruned-payload` reason codes; reviewer
+  citation validation rejects spoofed retained ids.
+- Runtime health audit control-coverage output now distinguishes
+  `policy-pruned-payload` from `producer-missing` evidence gaps.
+- Workflow simulation journal replay reports policy-pruned journal references as
+  unavailable metadata-only inputs without replaying payload bodies.
+- Focused tests passed:
+  `pnpm test src/core/events/event-journal.test.ts src/modules/autonomy/workflows/progress-reviewer/progress-review/event-evidence-journal-backfill.test.ts src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit-control-coverage.test.ts src/modules/workflow-ops/simulation/engine.test.ts`.
+- `pnpm run typecheck` passed.
+- `pnpm run lint` initially reported import-order fixes only; Biome safe fixes
+  were applied and lint was rerun successfully.
+- `pnpm run validate-tasks` passed after staging the task move.

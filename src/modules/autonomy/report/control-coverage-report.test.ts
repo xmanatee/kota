@@ -96,6 +96,40 @@ function writeCoverage(
   );
 }
 
+function writePrunedRunReference(
+  runsDir: string,
+  runId: string,
+  workflow: string,
+  startedAt: string,
+  prunedAt: string,
+): void {
+  writeFileSync(
+    join(runsDir, "pruned-runs.jsonl"),
+    `${JSON.stringify({
+      artifactType: "workflow-run",
+      id: runId,
+      prunedAt,
+      retained: {
+        id: runId,
+        workflow,
+        status: "success",
+        startedAt,
+        completedAt: startedAt,
+      },
+      provenance: {
+        workflowName: workflow,
+        runId,
+        sourceEventIds: [`evtj-${runId}`],
+        transformedFrom: [
+          { artifactType: "event-envelope", id: `evtj-${runId}` },
+        ],
+      },
+      payloadExpired: true,
+    })}\n`,
+    "utf-8",
+  );
+}
+
 describe("control coverage report aggregation", () => {
   let projectDir: string;
   let runsDir: string;
@@ -149,6 +183,53 @@ describe("control coverage report aggregation", () => {
     });
     expect(report.recentArtifactPaths).toContain(
       `.kota/runs/${runB}/control-monitor-coverage.json`,
+    );
+  });
+
+  it("distinguishes producer-missing coverage from policy-pruned run evidence", () => {
+    const missingRun = "2026-04-29T10-00-00-000Z-builder-missing";
+    const prunedRun = "2026-04-29T11-00-00-000Z-builder-pruned";
+    writeRun(
+      runsDir,
+      missingRun,
+      "builder",
+      new Date(NOW - 2 * 60 * 60 * 1000).toISOString(),
+    );
+    writePrunedRunReference(
+      runsDir,
+      prunedRun,
+      "builder",
+      new Date(NOW - 60 * 60 * 1000).toISOString(),
+      new Date(NOW - 30 * 60 * 1000).toISOString(),
+    );
+
+    const report = buildControlCoverageReportForWindow({
+      runsDir,
+      windowEndMs: NOW,
+      windowStartMs: NOW - 7 * MS_PER_DAY,
+    });
+
+    expect(report).toMatchObject({
+      artifactCount: 0,
+      evidenceGapCount: 2,
+      producerMissingEvidenceRefs: 1,
+      policyPrunedEvidenceRefs: 1,
+    });
+    expect(report.evidenceGaps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "producer-missing",
+          reasonCode: "producer-missing",
+          evidenceRefs: [
+            `.kota/runs/${missingRun}/control-monitor-coverage.json`,
+          ],
+        }),
+        expect.objectContaining({
+          kind: "policy-pruned",
+          reasonCode: "policy-pruned-payload",
+          evidenceRefs: [`.kota/runs/pruned-runs.jsonl#${prunedRun}`],
+        }),
+      ]),
     );
   });
 });

@@ -1,18 +1,20 @@
 import { execFileSync } from "node:child_process";
-import { appendFileSync, existsSync, readdirSync, rmSync } from "node:fs";
+import { appendFileSync, existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join, relative } from "node:path";
 import {
   buildEvidencePrunedReference,
   type EvidenceArtifactReference,
   type EvidenceLifecycleState,
+  type EvidencePrunedReference,
   evidenceRetentionDurationMsFor,
   resolveEvidenceRetention,
 } from "#core/evidence/policy.js";
+import { validateEvidencePrunedReference } from "#core/evidence/pruned-reference.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { WorkflowRunMetadata, WorkflowRuntimeState } from "./run-types.js";
 
-const PRUNED_RUN_REFERENCES_FILE = "pruned-runs.jsonl";
+export const PRUNED_RUN_REFERENCES_FILE = "pruned-runs.jsonl";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type WorkflowRunPruneOptions = {
@@ -40,6 +42,31 @@ export function defaultWorkflowRunRetentionDays(): number {
     state: "terminal",
     scope: "directory",
   }) / DAY_MS;
+}
+
+export function readPrunedWorkflowRunReferences(
+  runsDir: string,
+): EvidencePrunedReference[] {
+  const filePath = join(runsDir, PRUNED_RUN_REFERENCES_FILE);
+  if (!existsSync(filePath)) return [];
+  const references: EvidencePrunedReference[] = [];
+  const lines = readFileSync(filePath, "utf-8").split("\n");
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]!.trim();
+    if (line.length === 0) continue;
+    const parsed = JSON.parse(line) as Partial<EvidencePrunedReference>;
+    const validation = validateEvidencePrunedReference(parsed, {
+      artifactType: "workflow-run",
+      retainedKeys: ["id", "workflow", "status", "startedAt"],
+    });
+    if (!validation.ok) {
+      throw new Error(
+        `${filePath}:${index + 1}: malformed pruned workflow-run reference: ${validation.reason}`,
+      );
+    }
+    references.push(validation.reference);
+  }
+  return references;
 }
 
 export function pruneWorkflowRuns(opts: WorkflowRunPruneOptions): string[] {

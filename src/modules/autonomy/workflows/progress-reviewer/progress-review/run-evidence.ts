@@ -8,6 +8,8 @@ import type {
 } from "#core/workflow/run-types.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import { PROGRESS_REVIEW_MAX_RUNS } from "./constants.js";
+import { listPrunedRuns } from "./pruned-run-evidence.js";
+import { isSafeRunIdBasename } from "./run-id.js";
 import {
   batchPayload,
   eventScopeId,
@@ -23,16 +25,6 @@ import type {
 function readRunTrigger(projectDir: string, runId: string): WorkflowRunTrigger | null {
   return readOptionalJsonFile<WorkflowRunTrigger>(
     join(projectDir, ".kota", "runs", runId, "trigger.json"),
-  );
-}
-
-function isSafeRunIdBasename(value: string): boolean {
-  return (
-    typeof value === "string" &&
-    value.length > 0 &&
-    value !== "." &&
-    value !== ".." &&
-    value === value.split(/[\\/]/).pop()
   );
 }
 
@@ -191,6 +183,7 @@ export function listRecentRunsForSources(
     .flatMap((source) => [
       ...listRecentRuns(source, windowStartMs, excluded),
       ...listPendingRuns(source, windowStartMs, excluded),
+      ...listPrunedRuns(source, windowStartMs, excluded),
     ])
     .sort((a, b) => b.startedMs - a.startedMs || a.evidence.id.localeCompare(b.evidence.id));
   const runs = mergeScopedRuns([

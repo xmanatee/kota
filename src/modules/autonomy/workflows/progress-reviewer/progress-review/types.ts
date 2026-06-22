@@ -4,6 +4,12 @@ import type {
   DeadLetterQueueCounts,
 } from "#core/daemon/dead-letter-queue.js";
 import type {
+  EvidenceArtifactType,
+  EvidenceJsonObject,
+  EvidenceProvenance,
+} from "#core/evidence/policy.js";
+import type { EvidencePrunedReasonCode } from "#core/evidence/pruned-reference.js";
+import type {
   RepoTaskClass,
   RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
@@ -23,6 +29,15 @@ export type ProgressReviewScope = {
   directoryRoot?: string;
 };
 
+export type ProgressReviewPrunedEvidenceReference = {
+  reasonCode: EvidencePrunedReasonCode;
+  artifactType: EvidenceArtifactType;
+  id: string;
+  prunedAt: string;
+  retained: EvidenceJsonObject;
+  provenance: EvidenceProvenance;
+};
+
 export type ProgressReviewEvidenceRef = {
   id: string;
   kind:
@@ -36,6 +51,7 @@ export type ProgressReviewEvidenceRef = {
     | "dead-letter";
   summary: string;
   path?: string;
+  pruned?: ProgressReviewPrunedEvidenceReference;
 };
 
 export type ProgressReviewRunEvidence = ProgressReviewEvidenceRef & {

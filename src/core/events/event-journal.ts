@@ -3,11 +3,13 @@ import { join } from "node:path";
 import {
   EVIDENCE_REDACTED,
   type EvidenceDataClass,
+  type EvidencePrunedReference,
   type EvidenceSensitivity,
   evidencePolicyForArtifact,
   projectEvidenceJsonObject,
 } from "#core/evidence/policy.js";
 import type { BusEnvelope, EventBus, EventSchemaReference } from "./event-bus.js";
+import { eventPrunedReference } from "./event-journal-pruned-reference.js";
 import { getModuleEventRegistry } from "./module-event.js";
 import type {
   ModuleEventPayloadSchema,
@@ -112,7 +114,7 @@ export type EventEnvelopeRetention =
   | {
       kind: "expires";
       expiresAt: string;
-      expiredBehavior: "exclude-from-query";
+      expiredBehavior: "exclude-from-query" | "metadata-reference";
     };
 
 export type EventEnvelope = {
@@ -220,11 +222,27 @@ export class EventJournal {
       const cursorIndex = events.findIndex((event) => event.id === query.after);
       events = cursorIndex >= 0 ? events.slice(cursorIndex + 1) : [];
     }
-    events = events.filter((event) => this.matches(event, query));
+    events = events.filter((event) => this.matchesAvailable(event, query));
     if (query.limit !== undefined && query.limit > 0 && events.length > query.limit) {
       events = events.slice(events.length - query.limit);
     }
     return events;
+  }
+
+  queryPrunedReferences(query: EventJournalQuery = {}): EvidencePrunedReference[] {
+    let events = this.readAll();
+    if (query.after !== undefined) {
+      const cursorIndex = events.findIndex((event) => event.id === query.after);
+      events = cursorIndex >= 0 ? events.slice(cursorIndex + 1) : [];
+    }
+    const references = events
+      .filter((event) => hasMetadataReferenceAfterExpiry(event, this.now().getTime()))
+      .filter((event) => this.matchesFields(event, query))
+      .map(eventPrunedReference);
+    if (query.limit !== undefined && query.limit > 0 && references.length > query.limit) {
+      return references.slice(references.length - query.limit);
+    }
+    return references;
   }
 
   replay(
@@ -285,8 +303,11 @@ export class EventJournal {
     return events;
   }
 
-  private matches(envelope: EventEnvelope, query: EventJournalQuery): boolean {
-    if (isExpired(envelope, this.now().getTime())) return false;
+  private matchesAvailable(envelope: EventEnvelope, query: EventJournalQuery): boolean {
+    return !isExpired(envelope, this.now().getTime()) && this.matchesFields(envelope, query);
+  }
+
+  private matchesFields(envelope: EventEnvelope, query: EventJournalQuery): boolean {
     if (query.id !== undefined && envelope.id !== query.id) return false;
     if (query.type !== undefined && envelope.event.name !== query.type) return false;
     if (
@@ -568,13 +589,24 @@ function resolveRetention(
   return {
     kind: "expires",
     expiresAt: new Date(journaledAt.getTime() + retention.durationMs).toISOString(),
-    expiredBehavior: "exclude-from-query",
+    expiredBehavior: "metadata-reference",
   };
 }
 
 function isExpired(envelope: EventEnvelope, nowMs: number): boolean {
   return (
     envelope.retention.kind === "expires" &&
+    Date.parse(envelope.retention.expiresAt) <= nowMs
+  );
+}
+
+function hasMetadataReferenceAfterExpiry(
+  envelope: EventEnvelope,
+  nowMs: number,
+): boolean {
+  return (
+    envelope.retention.kind === "expires" &&
+    envelope.retention.expiredBehavior === "metadata-reference" &&
     Date.parse(envelope.retention.expiresAt) <= nowMs
   );
 }

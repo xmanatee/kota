@@ -6,10 +6,15 @@ import {
   type EventJournalClientProjection,
 } from "#core/events/event-journal.js";
 import type {
+  EvidenceJsonObject,
+  EvidencePrunedReference,
+} from "#core/evidence/policy.js";
+import type {
   WorkflowBatchFlushPayload,
   WorkflowRunTrigger,
 } from "#core/workflow/trigger-types.js";
 import { PROGRESS_REVIEW_MAX_EVENTS } from "./constants.js";
+import { progressReviewPrunedReference } from "./pruned-evidence.js";
 import {
   batchPayload,
   eventScopeId,
@@ -139,6 +144,41 @@ function journalEventEvidence(
   };
 }
 
+function retainedString(retained: EvidenceJsonObject, key: string): string | null {
+  const value = retained[key];
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function journalPrunedEventEvidence(
+  source: ProgressReviewDirectorySource,
+  reference: EvidencePrunedReference,
+): ProgressReviewEventEvidence {
+  const eventName = retainedString(reference.retained, "event") ?? "unknown.event";
+  const receivedAt = retainedString(reference.retained, "receivedAt") ?? reference.prunedAt;
+  const sourceId = retainedString(reference.retained, "sourceId");
+  return {
+    id: sourceEvidenceId(source, `event:${reference.id}`),
+    kind: "event",
+    event: eventName,
+    receivedAt,
+    source: "journal",
+    journalId: reference.id,
+    ...(sourceId ? { sourceId } : {}),
+    payloadSummary: "policy-pruned-payload",
+    summary: sourceSummary(
+      source,
+      `${eventName} journal ${reference.id} at ${receivedAt}: policy-pruned-payload`,
+    ),
+    pruned: progressReviewPrunedReference(reference, [
+      "id",
+      "event",
+      "state",
+      "receivedAt",
+      "journaledAt",
+    ]),
+  };
+}
+
 function listJournalEvents(args: {
   source: ProgressReviewDirectorySource;
   batch: WorkflowBatchFlushPayload;
@@ -169,16 +209,19 @@ function listJournalEvents(args: {
 
   let journal: EventJournal;
   let envelopes: EventEnvelope[];
+  let prunedReferences: EvidencePrunedReference[];
   try {
     journal =
       args.journalOptions.eventJournal ??
       new EventJournal(eventJournalDir(args.journalOptions.stateDir));
-    envelopes = journal.query({
+    const query = {
       type: args.batch.sourceEventName,
       scopeId: args.source.scopeId,
       sinceMs: journalQueryStartMs(args.windowStartMs, args.batch),
       limit: args.remainingEventSlots + args.liveJournalIds.size + 1,
-    });
+    };
+    envelopes = journal.query(query);
+    prunedReferences = journal.queryPrunedReferences(query);
   } catch (error) {
     args.excluded.push(
       `event journal: unavailable for ${args.batch.sourceEventName}: ${String(error)}`,
@@ -187,7 +230,10 @@ function listJournalEvents(args: {
   }
 
   const unseen = envelopes.filter((envelope) => !args.liveJournalIds.has(envelope.id));
-  if (unseen.length === 0 && shouldReportMissingJournal(args.batch)) {
+  const pruned = prunedReferences.filter(
+    (reference) => !args.liveJournalIds.has(reference.id),
+  );
+  if (unseen.length === 0 && pruned.length === 0 && shouldReportMissingJournal(args.batch)) {
     args.excluded.push(
       `event journal: no matching ${args.batch.sourceEventName} entries for scope ${args.source.scopeId}; dropped inputs may be expired or unavailable`,
     );
@@ -199,10 +245,18 @@ function listJournalEvents(args: {
       `event journal: truncated ${unseen.length} ${args.batch.sourceEventName} entries to ${args.remainingEventSlots}`,
     );
   }
+  const selected = [
+    ...unseen.map((envelope) => journalEventEvidence(args.source, journal.toClientProjection(envelope))),
+    ...pruned.map((reference) => journalPrunedEventEvidence(args.source, reference)),
+  ].slice(0, args.remainingEventSlots);
+  const selectedPrunedCount = selected.filter((event) => event.pruned).length;
+  if (pruned.length > 0) {
+    args.excluded.push(
+      `event journal: included ${selectedPrunedCount} policy-pruned ${args.batch.sourceEventName} metadata-only reference(s); payload bodies unavailable by retention policy`,
+    );
+  }
 
-  return unseen
-    .slice(0, args.remainingEventSlots)
-    .map((envelope) => journalEventEvidence(args.source, journal.toClientProjection(envelope)));
+  return selected;
 }
 
 export function listBatchEvents(

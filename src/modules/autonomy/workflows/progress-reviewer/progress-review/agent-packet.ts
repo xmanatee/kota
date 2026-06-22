@@ -19,6 +19,7 @@ export function toEvidenceRef(evidence: ProgressReviewEvidenceRef): ProgressRevi
     kind: evidence.kind,
     summary: evidence.summary,
     ...(evidence.path ? { path: evidence.path } : {}),
+    ...(evidence.pruned ? { pruned: evidence.pruned } : {}),
   };
 }
 

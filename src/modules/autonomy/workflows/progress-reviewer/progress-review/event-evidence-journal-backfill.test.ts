@@ -120,11 +120,27 @@ describe("progress-review event journal evidence", () => {
       projectDir: expiredProject,
     }));
 
-    expect(expiredEvidence.events).toHaveLength(0);
-    expect(expiredEvidence.batch?.journalBackfillCount).toBe(0);
+    expect(expiredEvidence.events).toEqual([
+      expect.objectContaining({
+        id: "event:evtj-000000000001",
+        source: "journal",
+        journalId: "evtj-000000000001",
+        payloadSummary: "policy-pruned-payload",
+        pruned: expect.objectContaining({
+          reasonCode: "policy-pruned-payload",
+          artifactType: "event-envelope",
+          id: "evtj-000000000001",
+          retained: expect.objectContaining({
+            event: "workflow.completed",
+            scopeId: expiredScopeId,
+          }),
+        }),
+      }),
+    ]);
+    expect(expiredEvidence.batch?.journalBackfillCount).toBe(1);
     expect(expiredEvidence.excluded).toEqual(
       expect.arrayContaining([
-        expect.stringContaining("dropped inputs may be expired or unavailable"),
+        expect.stringContaining("policy-pruned workflow.completed metadata-only reference"),
       ]),
     );
   });
