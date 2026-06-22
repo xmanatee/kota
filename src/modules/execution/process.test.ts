@@ -62,6 +62,12 @@ describe("process tool", () => {
       expect(result.content).toContain("server ready");
     });
 
+    it("captures initial partial output before a long-running process exits", async () => {
+      const result = await runProcess({ action: "start", command: "printf 'server booting'; sleep 30" });
+
+      expect(result.content).toContain("server booting");
+    });
+
     it("injects context ids and scrubs inherited telemetry routing env", async () => {
       process.env.OTEL_EXPORTER_OTLP_ENDPOINT = "http://kota-collector";
       process.env.OTLP_ENDPOINT = "http://legacy-collector";

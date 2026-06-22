@@ -1,12 +1,12 @@
 ---
 id: task-repair-workflow-failure-pattern-a3bd654a8f4c
 title: Repair persistent trajectory-diagnostic-escalator workflow failure pattern
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Fix the local cause behind trajectory-diagnostic-escalator's persistent consecutive failure signal (step inspect-patterns error f8e7bfd65856).
 created_at: 2026-06-22T13:24:46.650Z
-updated_at: 2026-06-22T13:29:19.551Z
+updated_at: 2026-06-22T14:03:31Z
 task_class: Meta
 ---
 
@@ -93,6 +93,10 @@ into deterministic, reviewable repair work.
   escalation gate on fresh evidence.
 - Attention-event fixture or transcript showing any future escalation names
   the task id without cost fields.
+- Completed in builder run `2026-06-22T13-59-49-848Z-builder-w1gvlk`.
+  Focused trajectory escalation tests pass, source and built detector scans
+  over `.kota/runs` return `count: 0`, and the run evidence records the
+  compact clean control-monitor regression plus final verification commands.
 
 <!-- workflow-failure-pattern-fingerprint: workflow-failure:consecutive-failures:trajectory-diagnostic-escalator:step-error:e7feb8f277b6 -->
 <!-- workflow-failure-evidence-fingerprint: 57847f4a2c1e5ad3ca2b2f4de353555ca370eacff310aa2cdaa35325e655d651 -->

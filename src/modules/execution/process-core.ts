@@ -71,6 +71,13 @@ function truncateOutput(text: string): string {
   );
 }
 
+function displayLines(mp: ManagedProcess): string[] {
+  const lines = [...mp.outputBuffer];
+  if (mp.stdoutPartial) lines.push(mp.stdoutPartial);
+  if (mp.stderrPartial) lines.push(`[stderr] ${mp.stderrPartial}`);
+  return lines;
+}
+
 const STALE_PROCESS_MS = 10 * 60 * 1000;
 
 function purgeStale(): void {
@@ -159,7 +166,7 @@ export async function startProcess(
 
   await new Promise((resolve) => setTimeout(resolve, INITIAL_OUTPUT_WAIT_MS));
 
-  const initial = mp.outputBuffer.slice(-10).join("\n");
+  const initial = displayLines(mp).slice(-10).join("\n");
   const status = mp.exited
     ? `exited (code ${mp.exitCode})`
     : "running";
@@ -182,7 +189,7 @@ export function getOutput(processId: string, lines: number): ToolResult {
   }
 
   const n = Math.min(Math.max(lines, 1), MAX_BUFFER_LINES);
-  const output = mp.outputBuffer.slice(-n).join("\n");
+  const output = displayLines(mp).slice(-n).join("\n");
   const status = mp.exited
     ? `exited (code ${mp.exitCode})`
     : `running (${formatUptime(mp.startedAt)})`;
@@ -229,8 +236,9 @@ export function listProcesses(): ToolResult {
     const status = mp.exited
       ? `exited (code ${mp.exitCode})`
       : `running (${formatUptime(mp.startedAt)})`;
-    const lastLine = mp.outputBuffer.length > 0
-      ? mp.outputBuffer[mp.outputBuffer.length - 1]
+    const outputLines = displayLines(mp);
+    const lastLine = outputLines.length > 0
+      ? outputLines[outputLines.length - 1]
       : "(no output)";
     const truncLast = lastLine.length > 80 ? `${lastLine.slice(0, 77)}...` : lastLine;
     lines.push(`${mp.id} [${status}] ${mp.command}\n  last: ${truncLast}`);

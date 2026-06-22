@@ -16,6 +16,11 @@ import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import trajectoryDiagnosticEscalator from "./workflow.js";
 
+type LegacyCleanTrajectoryDiagnosticsArtifact = {
+  status: "ok";
+  counts: { warningCount: 0 };
+};
+
 vi.mock("#core/util/repo-worktree.js", async () => {
   const actual = await vi.importActual<typeof import("#core/util/repo-worktree.js")>(
     "#core/util/repo-worktree.js",
@@ -132,11 +137,19 @@ function unsupportedDiagnosticArtifact(): TrajectoryDiagnosticsArtifact {
   };
 }
 
+function legacyCleanDiagnosticArtifact(): LegacyCleanTrajectoryDiagnosticsArtifact {
+  return {
+    status: "ok",
+    counts: { warningCount: 0 },
+  };
+}
+
 function seedRun(
   projectDir: string,
   id: string,
   hoursAgo: number,
-  artifact = diagnosticArtifact(),
+  artifact: TrajectoryDiagnosticsArtifact | LegacyCleanTrajectoryDiagnosticsArtifact =
+    diagnosticArtifact(),
 ): void {
   const completedAt = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
   const metadata: WorkflowRunMetadata = {
@@ -269,6 +282,44 @@ describe("trajectory-diagnostic-escalator workflow", () => {
       trigger: {
         event: "workflow.completed",
         schemaRef: null, payload: { workflow: "builder", tags: ["monitored"] },
+      },
+    });
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps["inspect-patterns"].output).toMatchObject({
+      status: "none",
+      patterns: [],
+    });
+    expect(result.steps["write-artifact"].status).toBe("skipped");
+    expect(result.steps["emit-attention"].status).toBe("skipped");
+    const readyDir = join(projectDir, "data", "tasks", "ready");
+    const readyTasks = execFileSync("find", [readyDir, "-name", "*.md"], {
+      encoding: "utf-8",
+    })
+      .trim()
+      .split("\n")
+      .filter(Boolean);
+    expect(readyTasks).toEqual([]);
+  });
+
+  it("treats compact clean control-monitor artifacts as empty observations", async () => {
+    seedRun(projectDir, "2026-05-29T08-00-00-000Z-builder-warning-a", 4);
+    seedRun(projectDir, "2026-05-29T09-00-00-000Z-builder-warning-b", 3);
+    seedRun(projectDir, "2026-05-29T10-00-00-000Z-builder-warning-c", 2);
+    seedRun(
+      projectDir,
+      "control-monitor-coverage-gap-sample",
+      1,
+      legacyCleanDiagnosticArtifact(),
+    );
+
+    const harness = new WorkflowTestHarness(trajectoryDiagnosticEscalator, {
+      projectDir,
+      trigger: {
+        event: "workflow.completed",
+        schemaRef: null,
+        payload: { workflow: "builder", tags: ["monitored"] },
       },
     });
     const result = await harness.run();
