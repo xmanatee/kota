@@ -42,12 +42,20 @@ export type KotaAgentToolCallMessage = KotaAgentMessageEnvelope & {
   input: Record<string, unknown>;
 };
 
+export type KotaAgentToolResultContentProvenance = {
+  kind: "external-mcp";
+  serverName: string;
+  source: "tool" | "operation";
+  name: string;
+};
+
 /** User-side tool result mirrored back to the model. */
 export type KotaAgentToolResultMessage = KotaAgentMessageEnvelope & {
   type: "tool_result";
   toolUseId: string;
   isError: boolean;
   content: string | KotaContentBlock[];
+  resultContentProvenance?: KotaAgentToolResultContentProvenance;
 };
 
 /**

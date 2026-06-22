@@ -1,0 +1,161 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-06-22T10:22:00.000Z",
+  "artifactPath": ".kota/runs/control-monitor-coverage-gap-sample/control-monitor-coverage.json",
+  "run": {
+    "id": "control-monitor-coverage-gap-sample",
+    "workflow": "builder",
+    "triggerEvent": "autonomy.queue.available",
+    "status": "success",
+    "startedAt": "2026-06-22T10:20:00.000Z",
+    "completedAt": "2026-06-22T10:21:00.000Z",
+    "headSha": "control-monitor-coverage-gap-sample"
+  },
+  "monitoredSurfaceCounts": {
+    "agentSteps": 1,
+    "toolCalls": 2,
+    "externalPayloadIngests": 2,
+    "approvalRequests": 2,
+    "ownerQuestionWaits": 0,
+    "daemonHostControlDenials": 0,
+    "runtimeProbes": 0,
+    "postRunReviewLinks": 1
+  },
+  "summary": {
+    "numerator": 9,
+    "denominator": 10,
+    "gapCount": 1,
+    "unsupportedCount": 0,
+    "pendingCount": 0,
+    "blockedCount": 0,
+    "warnedCount": 0
+  },
+  "families": [
+    {
+      "family": "agent-step-stream",
+      "numerator": 1,
+      "denominator": 1,
+      "pending": 0,
+      "blocked": 0,
+      "warned": 0,
+      "evidenceRefs": [
+        ".kota/runs/control-monitor-coverage-gap-sample/steps/build.events.jsonl"
+      ],
+      "gapIds": [],
+      "status": "covered"
+    },
+    {
+      "family": "autonomy-mode",
+      "numerator": 1,
+      "denominator": 1,
+      "pending": 0,
+      "blocked": 0,
+      "warned": 0,
+      "evidenceRefs": [
+        ".kota/runs/control-monitor-coverage-gap-sample/workflow.json"
+      ],
+      "gapIds": [],
+      "status": "covered"
+    },
+    {
+      "family": "trajectory-diagnostics",
+      "numerator": 1,
+      "denominator": 1,
+      "pending": 0,
+      "blocked": 0,
+      "warned": 0,
+      "evidenceRefs": [
+        ".kota/runs/control-monitor-coverage-gap-sample/steps/build.trajectory-diagnostics.json"
+      ],
+      "gapIds": [],
+      "status": "covered"
+    },
+    {
+      "family": "tool-policy",
+      "numerator": 2,
+      "denominator": 2,
+      "pending": 0,
+      "blocked": 0,
+      "warned": 0,
+      "evidenceRefs": [
+        ".kota/runs/control-monitor-coverage-gap-sample/emitted-events.jsonl#L1",
+        ".kota/runs/control-monitor-coverage-gap-sample/emitted-events.jsonl#L2",
+        ".kota/runs/control-monitor-coverage-gap-sample/steps/build.tool-telemetry.json"
+      ],
+      "gapIds": [],
+      "status": "covered"
+    },
+    {
+      "family": "injection-defense",
+      "numerator": 1,
+      "denominator": 2,
+      "pending": 0,
+      "blocked": 0,
+      "warned": 0,
+      "evidenceRefs": [
+        ".kota/runs/control-monitor-coverage-gap-sample/emitted-events.jsonl#L3"
+      ],
+      "gapIds": [
+        "injection-defense:external-payload-unscreened:1"
+      ],
+      "status": "partial"
+    },
+    {
+      "family": "approval-owner-gates",
+      "numerator": 2,
+      "denominator": 2,
+      "pending": 0,
+      "blocked": 0,
+      "warned": 0,
+      "evidenceRefs": [
+        ".kota/runs/control-monitor-coverage-gap-sample/emitted-events.jsonl#L4",
+        ".kota/runs/control-monitor-coverage-gap-sample/emitted-events.jsonl#L5",
+        ".kota/runs/control-monitor-coverage-gap-sample/steps/approve-release.json"
+      ],
+      "gapIds": [],
+      "status": "covered"
+    },
+    {
+      "family": "runtime-probe",
+      "numerator": 0,
+      "denominator": 0,
+      "pending": 0,
+      "blocked": 0,
+      "warned": 0,
+      "evidenceRefs": [],
+      "gapIds": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "async-reviewers",
+      "numerator": 1,
+      "denominator": 1,
+      "pending": 0,
+      "blocked": 0,
+      "warned": 0,
+      "evidenceRefs": [
+        ".kota/runs/control-monitor-coverage-gap-sample/critic-review.json"
+      ],
+      "gapIds": [],
+      "status": "covered"
+    }
+  ],
+  "gaps": [
+    {
+      "id": "injection-defense:external-payload-unscreened:1",
+      "family": "injection-defense",
+      "severity": "error",
+      "reason": "external-payload-unscreened",
+      "subject": "1 external payload(s)",
+      "evidenceRefs": [
+        ".kota/runs/control-monitor-coverage-gap-sample/metadata.json"
+      ]
+    }
+  ],
+  "asyncReviewResponseMs": {
+    "observations": 0,
+    "min": null,
+    "max": null,
+    "average": null
+  }
+}

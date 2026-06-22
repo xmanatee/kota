@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import type { ToolResultContentProvenance } from "./tool-middleware.js";
 
 /**
  * Tool execution telemetry — tracks per-tool timing, success/failure rates,
@@ -29,6 +30,7 @@ export type ToolTelemetryCallRecord = {
   inputBytes: number;
   incomplete: boolean;
   truncated: boolean;
+  resultContentProvenance?: ToolResultContentProvenance;
   durationMs?: number;
   success?: boolean;
   resultBytes?: number;
@@ -49,10 +51,34 @@ export type ToolTelemetryCallResult = {
   resultBytes: number;
   resultContentKind: ToolTelemetryResultContentKind;
   truncated: boolean;
+  resultContentProvenance?: ToolResultContentProvenance;
   error?: string;
 };
 
 export const MAX_TOOL_TELEMETRY_CALL_RECORDS = 500;
+
+function inferMcpResultContentProvenance(
+  tool: string,
+): ToolResultContentProvenance | undefined {
+  if (tool === "mcp__kota_owner_questions__ask_owner") return undefined;
+  const toolMatch = /^mcp__(.+?)__(.+)$/.exec(tool);
+  if (toolMatch) {
+    return {
+      kind: "external-mcp",
+      serverName: toolMatch[1],
+      source: "tool",
+      name: toolMatch[2],
+    };
+  }
+  const operationMatch = /^mcp_(resources|prompts)__(.+?)__(.+)$/.exec(tool);
+  if (!operationMatch) return undefined;
+  return {
+    kind: "external-mcp",
+    serverName: operationMatch[2],
+    source: "operation",
+    name: `${operationMatch[1]}/${operationMatch[3]}`,
+  };
+}
 
 function emptyStats(): ToolStats {
   return { calls: 0, successes: 0, failures: 0, totalMs: 0, minMs: Infinity, maxMs: 0 };
@@ -127,6 +153,9 @@ export class ToolTelemetry {
   }
 
   recordCallResult(result: ToolTelemetryCallResult): void {
+    const resultContentProvenance =
+      result.resultContentProvenance ??
+      inferMcpResultContentProvenance(result.tool);
     const existing = this.callIndexes.get(result.toolUseId);
     if (existing !== undefined) {
       const current = this.calls[existing];
@@ -138,6 +167,9 @@ export class ToolTelemetry {
         resultBytes: result.resultBytes,
         resultContentKind: result.resultContentKind,
         truncated: result.truncated,
+        ...(resultContentProvenance !== undefined
+          ? { resultContentProvenance }
+          : {}),
         incomplete: false,
       };
     } else if (!this.omittedCallIds.has(result.toolUseId)) {
@@ -155,6 +187,9 @@ export class ToolTelemetry {
           resultBytes: result.resultBytes,
           resultContentKind: result.resultContentKind,
           truncated: result.truncated,
+          ...(resultContentProvenance !== undefined
+            ? { resultContentProvenance }
+            : {}),
           incomplete: false,
         });
       }

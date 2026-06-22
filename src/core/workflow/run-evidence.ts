@@ -96,6 +96,9 @@ export function projectKotaAgentMessageForStorage(
         ...agentMessageEnvelope(message),
         toolUseId: message.toolUseId,
         isError: message.isError,
+        ...(message.resultContentProvenance !== undefined
+          ? { resultContentProvenance: message.resultContentProvenance }
+          : {}),
         content: formatProjectedEvidenceText(
           projectText(
             typeof message.content === "string"

@@ -1,0 +1,7 @@
+Record control monitor coverage artifacts
+
+Write per-run control coverage for completed and recovered runs, expose it in
+reports and health review, track external tool-result provenance, and split the
+coverage builder helpers under the source-size gate. Record explicit
+attribution gaps for guardrail and injection events that cannot be matched to
+agent-step tool telemetry.

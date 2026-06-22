@@ -1,0 +1,4 @@
+{"type":"tool_call","toolUseId":"tool-web-fetch","toolName":"WebFetch"}
+{"type":"tool_call","toolUseId":"tool-web-search","toolName":"WebSearch"}
+{"type":"tool_result","toolUseId":"tool-web-fetch","isError":false,"content":"[redacted fixture content]"}
+{"type":"tool_result","toolUseId":"tool-web-search","isError":false,"content":"[redacted fixture content]"}

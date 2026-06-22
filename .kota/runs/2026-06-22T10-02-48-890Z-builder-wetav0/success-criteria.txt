@@ -1,0 +1,7 @@
+1. Autonomous workflow runs write .kota/runs/<run-id>/control-monitor-coverage.json with a stable schema version, compact summary, control-family coverage entries, and explicit gap entries.
+2. The coverage builder consumes a fixture run directory with mixed evidence including an agent step, tool decision, injection-screened external payload, approval or owner-question event, trajectory diagnostic artifact, and asynchronous reviewer/finding link.
+3. Missing evidence cases are represented deterministically, including absent/non-streaming step event evidence, external payload evidence without injection-screening proof, and unattributed guardrail/injection events without matching step telemetry.
+4. Existing operator-facing run artifact summaries expose the coverage artifact path and gap counts without adding a new command.
+5. Repeated coverage gaps across recent autonomous runs seed a normal repair task through the existing task queue rather than a new lessons store.
+6. Focused tests cover covered runs, missing step stream evidence, unscreened external payload evidence, unattributed monitor events, synchronous approval/tool guard coverage, asynchronous reviewer linkage with response time, and bounded redaction.
+7. Existing workflow, injection-defense, approval/owner-question, trajectory diagnostic, and task-validation checks remain green or any unrelated failure is recorded honestly.

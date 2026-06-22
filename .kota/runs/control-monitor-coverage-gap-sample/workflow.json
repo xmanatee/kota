@@ -1,0 +1,13 @@
+{
+  "defaultAutonomyMode": "autonomous",
+  "steps": [
+    {
+      "id": "build",
+      "type": "agent"
+    },
+    {
+      "id": "approve-release",
+      "type": "approval"
+    }
+  ]
+}

@@ -1,7 +1,10 @@
 import { appendFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
 import { redactSensitiveText } from "#core/evidence/policy.js";
+import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { writeControlMonitorCoverageArtifactBestEffort } from "./control-monitor-coverage.js";
+import { triggerPayloadLinkedRunIds } from "./control-monitor-coverage-readers.js";
 import {
   formatProjectedEvidenceText,
   projectKotaAgentMessageForStorage,
@@ -39,6 +42,7 @@ export type ActiveWorkflowRunHandle = {
 
 export function createActiveRunHandle(opts: {
   id: string;
+  projectDir?: string;
   runDirPath: string;
   metadata: WorkflowRunMetadata;
   workflowName: string;
@@ -47,6 +51,7 @@ export function createActiveRunHandle(opts: {
   writeState: (state: WorkflowRuntimeState) => void;
 }): ActiveWorkflowRunHandle {
   const { id, runDirPath, metadata, workflowName, stepOrder, readState, writeState } = opts;
+  const projectDir = opts.projectDir ?? dirname(dirname(dirname(runDirPath)));
 
   const persistMetadata = () => {
     writeJsonFile(
@@ -69,6 +74,46 @@ export function createActiveRunHandle(opts: {
     });
     if (insertIndex >= 0) metadata.steps.splice(insertIndex, 0, result);
     else metadata.steps.push(result);
+  };
+
+  const persistControlCoverage = (
+    targetRunDirPath: string,
+    completed: WorkflowRunMetadata,
+    errorArtifact: string,
+  ): void => {
+    writeControlMonitorCoverageArtifactBestEffort({
+      projectDir,
+      runDirPath: targetRunDirPath,
+      metadata: completed,
+      errorArtifact,
+      errorRunDirPath: runDirPath,
+    });
+  };
+
+  const linkedSourceRunIds = (completed: WorkflowRunMetadata): string[] => {
+    const ids = [
+      completed.causedBy?.runId,
+      completed.triggeredByRunId,
+      ...triggerPayloadLinkedRunIds(completed.trigger.payload),
+    ];
+    return [...new Set(ids.filter((value): value is string =>
+      value !== undefined && value !== completed.id
+    ))];
+  };
+
+  const refreshLinkedControlCoverage = (completed: WorkflowRunMetadata): void => {
+    for (const sourceRunId of linkedSourceRunIds(completed)) {
+      const sourceRunDirPath = join(projectDir, ".kota", "runs", sourceRunId);
+      const sourceMetadata = readOptionalJsonFile<WorkflowRunMetadata>(
+        join(sourceRunDirPath, "metadata.json"),
+      );
+      if (!sourceMetadata) continue;
+      persistControlCoverage(
+        sourceRunDirPath,
+        sourceMetadata,
+        "control-monitor-coverage-refresh-error.txt",
+      );
+    }
   };
 
   return {
@@ -137,6 +182,11 @@ export function createActiveRunHandle(opts: {
         join(runDirPath, "metadata.json"),
         projectWorkflowRunMetadataForStorage(completed),
       );
+      persistControlCoverage(
+        runDirPath,
+        completed,
+        "control-monitor-coverage-error.txt",
+      );
 
       // Re-read state immediately before writing to minimize the race window.
       // Merge carefully: only advance lastCompletion forward so a concurrent
@@ -164,6 +214,7 @@ export function createActiveRunHandle(opts: {
         (r) => r.runId !== id,
       );
       writeState(freshState);
+      refreshLinkedControlCoverage(completed);
 
       return completed;
     },

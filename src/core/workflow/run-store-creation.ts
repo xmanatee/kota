@@ -80,6 +80,7 @@ export function createWorkflowRun(opts: {
 
   return createActiveRunHandle({
     id,
+    projectDir: opts.projectDir,
     runDirPath,
     metadata,
     workflowName: opts.workflow.name,
@@ -117,7 +118,8 @@ function buildRunMetadata(opts: {
     typeof opts.trigger.payload.resumedFromRunId === "string"
       ? opts.trigger.payload.resumedFromRunId
       : undefined;
-  const tags = stringArray(opts.trigger.payload.tags);
+  const triggerTags = stringArray(opts.trigger.payload.tags) ?? [];
+  const tags = [...new Set([...opts.workflow.tags, ...triggerTags])];
 
   return {
     id: opts.id,
@@ -128,7 +130,7 @@ function buildRunMetadata(opts: {
     ...(causedBy !== undefined ? { causedBy } : {}),
     ...(retryOf !== undefined ? { retryOf } : {}),
     ...(resumedFromRunId !== undefined ? { resumedFromRunId } : {}),
-    ...(tags !== undefined && tags.length > 0 ? { tags } : {}),
+    ...(tags.length > 0 ? { tags } : {}),
     startedAt: new Date().toISOString(),
     status: "running",
     runDir: relative(opts.projectDir, opts.runDirPath),

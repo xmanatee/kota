@@ -78,6 +78,70 @@ describe("WorkflowRunStore.recoverInterruptedRuns", () => {
     expect(errorTxt).toContain("daemon restarted");
   });
 
+  it("writes control monitor coverage artifacts for recovered interrupted runs", () => {
+    const id = "run-stale-coverage";
+    const runDir = join(runsDir, id);
+    mkdirSync(join(runDir, "steps"), { recursive: true });
+    writeFileSync(
+      join(runDir, "metadata.json"),
+      JSON.stringify({
+        id,
+        workflow: "builder",
+        definitionPath: "src/modules/test/workflows/builder/workflow.ts",
+        trigger: { event: "runtime.idle", schemaRef: null, payload: {} },
+        startedAt: new Date(Date.now() - 60_000).toISOString(),
+        status: "running",
+        runDir: `.kota/runs/${id}`,
+        steps: [
+          {
+            id: "build",
+            type: "agent",
+            status: "success",
+            startedAt: "2026-06-22T10:00:00.000Z",
+            completedAt: "2026-06-22T10:01:00.000Z",
+            durationMs: 60_000,
+          },
+        ],
+      }),
+    );
+    writeFileSync(
+      join(runDir, "workflow.json"),
+      JSON.stringify({
+        defaultAutonomyMode: "autonomous",
+        steps: [{ id: "build", type: "agent" }],
+      }),
+    );
+    writeFileSync(
+      join(runDir, "steps", "build.harness-capability.json"),
+      JSON.stringify({ emitsAgentMessageStream: false }),
+    );
+    writeFileSync(
+      join(runDir, "steps", "build.tool-telemetry.json"),
+      JSON.stringify({ calls: [{ tool: "WebFetch" }] }),
+    );
+
+    const state = store.readState();
+    state.activeRuns = [{ runId: id, workflow: "builder", startedAt: new Date(Date.now() - 60_000).toISOString() }];
+    // biome-ignore lint/complexity/useLiteralKeys: accessing private method in test
+    store["writeState"](state);
+
+    store.recoverInterruptedRuns();
+
+    const artifact = JSON.parse(
+      readFileSync(join(runDir, "control-monitor-coverage.json"), "utf-8"),
+    );
+    expect(artifact.run.status).toBe("interrupted");
+    expect(artifact.monitoredSurfaceCounts.externalPayloadIngests).toBe(1);
+    expect(artifact.gaps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          reason: "external-payload-unscreened",
+          severity: "error",
+        }),
+      ]),
+    );
+  });
+
   it("recovers stale running metadata with incomplete step records", () => {
     const id = "run-stale-with-old-step";
     const runDir = join(runsDir, id);

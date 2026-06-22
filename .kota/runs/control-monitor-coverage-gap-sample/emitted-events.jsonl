@@ -1,0 +1,5 @@
+{"event":"guardrail.assessed","payload":{"policy":"allow","tool":"WebFetch"}}
+{"event":"guardrail.assessed","payload":{"policy":"allow","tool":"WebSearch"}}
+{"event":"injection.defense.assessed","payload":{"suspicious":false,"tool":"WebFetch"}}
+{"event":"approval.requested","payload":{"id":"approval-fixture-1"}}
+{"event":"approval.resolved","payload":{"id":"approval-fixture-1","approved":true}}

@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-06-22T11:50:18.722Z",
+  "artifactPath": ".kota/runs/2026-06-22T10-02-48-890Z-builder-wetav0/control-monitor-coverage.json",
+  "run": {
+    "id": "2026-06-22T10-02-48-890Z-builder-wetav0",
+    "workflow": "builder",
+    "triggerEvent": "autonomy.queue.available",
+    "status": "running",
+    "startedAt": "2026-06-22T10:02:49.105Z",
+    "completedAt": null,
+    "headSha": "093962ea2a32e816b3ceebf79eca2b2801fa1227"
+  },
+  "monitoredSurfaceCounts": {
+    "agentSteps": 1,
+    "toolCalls": 0,
+    "externalPayloadIngests": 0,
+    "approvalRequests": 0,
+    "ownerQuestionWaits": 0,
+    "daemonHostControlDenials": 0,
+    "runtimeProbes": 0,
+    "postRunReviewLinks": 1
+  },
+  "summary": {
+    "numerator": 4,
+    "denominator": 4,
+    "gapCount": 0,
+    "unsupportedCount": 0,
+    "pendingCount": 0,
+    "blockedCount": 0,
+    "warnedCount": 0
+  },
+  "families": [
+    {
+      "family": "agent-step-stream",
+      "numerator": 1,
+      "denominator": 1,
+      "pending": 0,
+      "blocked": 0,
+      "warned": 0,
+      "evidenceRefs": [
+        ".kota/runs/2026-06-22T10-02-48-890Z-builder-wetav0/steps/build.events.jsonl"
+      ],
+      "gapIds": [],
+      "status": "covered"
+    },
+    {
+      "family": "autonomy-mode",
+      "numerator": 1,
+      "denominator": 1,
+      "pending": 0,
+      "blocked": 0,
+      "warned": 0,
+      "evidenceRefs": [
+        ".kota/runs/2026-06-22T10-02-48-890Z-builder-wetav0/workflow.json"
+      ],
+      "gapIds": [],
+      "status": "covered"
+    },
+    {
+      "family": "trajectory-diagnostics",
+      "numerator": 1,
+      "denominator": 1,
+      "pending": 0,
+      "blocked": 0,
+      "warned": 0,
+      "evidenceRefs": [
+        ".kota/runs/2026-06-22T10-02-48-890Z-builder-wetav0/steps/build.trajectory-diagnostics.json"
+      ],
+      "gapIds": [],
+      "status": "covered"
+    },
+    {
+      "family": "tool-policy",
+      "numerator": 0,
+      "denominator": 0,
+      "pending": 0,
+      "blocked": 0,
+      "warned": 0,
+      "evidenceRefs": [],
+      "gapIds": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "injection-defense",
+      "numerator": 0,
+      "denominator": 0,
+      "pending": 0,
+      "blocked": 0,
+      "warned": 0,
+      "evidenceRefs": [],
+      "gapIds": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "approval-owner-gates",
+      "numerator": 0,
+      "denominator": 0,
+      "pending": 0,
+      "blocked": 0,
+      "warned": 0,
+      "evidenceRefs": [],
+      "gapIds": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "runtime-probe",
+      "numerator": 0,
+      "denominator": 0,
+      "pending": 0,
+      "blocked": 0,
+      "warned": 0,
+      "evidenceRefs": [],
+      "gapIds": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "async-reviewers",
+      "numerator": 1,
+      "denominator": 1,
+      "pending": 0,
+      "blocked": 0,
+      "warned": 0,
+      "evidenceRefs": [
+        ".kota/runs/2026-06-22T10-02-48-890Z-builder-wetav0/critic-review.json"
+      ],
+      "gapIds": [],
+      "status": "covered"
+    }
+  ],
+  "gaps": [],
+  "asyncReviewResponseMs": {
+    "observations": 0,
+    "min": null,
+    "max": null,
+    "average": null
+  }
+}

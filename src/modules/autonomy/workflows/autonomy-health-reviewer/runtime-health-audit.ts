@@ -61,6 +61,8 @@ export function collectRuntimeHealthAudit(args: {
       staleOpenDeadLetterItems: 0,
       recentRuns: 0,
       interruptedRuns: 0,
+      controlCoverageArtifacts: 0,
+      controlCoverageGapRuns: 0,
       daemonEvidenceFiles: 0,
       daemonStopAttempts: 0,
       inboxEntries: 0,

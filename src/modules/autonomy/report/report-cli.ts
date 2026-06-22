@@ -14,10 +14,14 @@ import { resolveProjectDir } from "#core/config/project-dir.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { print, writeJson } from "#modules/rendering/transport.js";
 import {
-  type AutonomyReportData,
   aggregateAutonomyReport,
   DEFAULT_REPORT_WINDOW_DAYS,
 } from "./aggregate.js";
+import {
+  type AutonomyReportDataWithControlCoverage,
+  attachControlCoverageToReport,
+  renderAutonomyReportWithControlCoverage,
+} from "./control-coverage-report-window.js";
 import { renderAutonomyReport } from "./render.js";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -40,21 +44,28 @@ export function buildReportCommand(): Command {
     )
     .option(
       "--json",
-      "Emit the structured AutonomyReportData payload as JSON instead of the rendered text",
+      "Emit the structured report payload as JSON instead of the rendered text",
     )
     .action((opts: ReportCommandOptions) => {
       const days = parseDaysOption(opts.days);
       const projectDir = resolveProjectDir();
+      const runsDir = join(projectDir, ".kota", "runs");
       const windowEndMs = Date.now();
-      const data = aggregateAutonomyReport({
+      const windowStartMs = windowEndMs - days * MS_PER_DAY;
+      const baseData = aggregateAutonomyReport({
         projectDir,
-        runsDir: join(projectDir, ".kota", "runs"),
+        runsDir,
         windowEndMs,
         windowDays: days,
         addedFilesBySha: collectAddedFilesBySha(
           projectDir,
-          windowEndMs - days * MS_PER_DAY,
+          windowStartMs,
         ),
+      });
+      const data = attachControlCoverageToReport(baseData, {
+        runsDir,
+        windowStartMs,
+        windowEndMs,
       });
       emitReport(data, opts.json === true);
     });
@@ -116,12 +127,15 @@ export function collectAddedFilesBySha(
   return map;
 }
 
-export function emitReport(data: AutonomyReportData, asJson: boolean): void {
+export function emitReport(
+  data: AutonomyReportDataWithControlCoverage,
+  asJson: boolean,
+): void {
   if (asJson) {
     writeJson(data, { pretty: true });
     return;
   }
-  print(renderAutonomyReport(data));
+  print(renderAutonomyReportWithControlCoverage(data, renderAutonomyReport(data)));
 }
 
 function parseDaysOption(raw: string | undefined): number {

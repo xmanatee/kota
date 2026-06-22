@@ -1,0 +1,36 @@
+{
+  "id": "control-monitor-coverage-gap-sample",
+  "workflow": "builder",
+  "definitionPath": "src/modules/autonomy/workflows/builder/workflow.ts",
+  "trigger": {
+    "event": "autonomy.queue.available",
+    "schemaRef": null,
+    "payload": {}
+  },
+  "startedAt": "2026-06-22T10:20:00.000Z",
+  "completedAt": "2026-06-22T10:21:00.000Z",
+  "status": "success",
+  "durationMs": 60000,
+  "runDir": ".kota/runs/control-monitor-coverage-gap-sample",
+  "tags": [
+    "monitored"
+  ],
+  "steps": [
+    {
+      "id": "build",
+      "type": "agent",
+      "status": "success",
+      "startedAt": "2026-06-22T10:20:00.000Z",
+      "completedAt": "2026-06-22T10:21:00.000Z",
+      "durationMs": 55000
+    },
+    {
+      "id": "approve-release",
+      "type": "approval",
+      "status": "success",
+      "startedAt": "2026-06-22T10:20:00.000Z",
+      "completedAt": "2026-06-22T10:21:00.000Z",
+      "durationMs": 500
+    }
+  ]
+}

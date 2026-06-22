@@ -2,6 +2,7 @@ import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
+import { writeControlMonitorCoverageArtifactBestEffort } from "./control-monitor-coverage.js";
 import { ensureDir, writeJsonFile, writeStrictJsonFile } from "./run-io.js";
 import { createWorkflowRun } from "./run-store-creation.js";
 import { migrateLegacyWorkflowState } from "./run-store-legacy-migration.js";
@@ -107,6 +108,12 @@ export class WorkflowRunStore {
       writeJsonFile(metadataPath, interrupted);
       const errorPath = join(this.runsDir, runId, "error.txt");
       writeFileSync(errorPath, "Interrupted: daemon restarted while run was in progress.", "utf-8");
+      writeControlMonitorCoverageArtifactBestEffort({
+        projectDir: this.projectDir,
+        runDirPath: join(this.runsDir, runId),
+        metadata: interrupted,
+        errorArtifact: "control-monitor-coverage-error.txt",
+      });
       state.workflows[metadata.workflow] = {
         ...state.workflows[metadata.workflow],
         lastCompletion: {

@@ -131,10 +131,11 @@ describe("kota report CLI", () => {
     expect(out).toContain("By task_class");
     expect(out).toContain("Product");
     expect(out).toContain("Unclassified");
+    expect(out).toContain("Control coverage");
     expect(out).toContain("Cost");
   });
 
-  it("--json emits the structured AutonomyReportData payload", async () => {
+  it("--json emits the structured report payload", async () => {
     writeTask(projectDir, "backlog", "task-arch-1", {
       priority: "p1",
       area: "architecture",
@@ -153,6 +154,10 @@ describe("kota report CLI", () => {
     expect(Array.isArray(parsed.cost.byWorkflow)).toBe(true);
     expect(parsed.explorer.byClassification).toHaveLength(3);
     expect(Array.isArray(parsed.trajectoryDiagnostics.activePatterns)).toBe(true);
+    expect(parsed.controlCoverage).toMatchObject({
+      artifactCount: 0,
+      totalGaps: 0,
+    });
   });
 
   it("respects --days override", async () => {

@@ -1,0 +1,166 @@
+Validation transcript for task-record-autonomy-control-monitor-coverage-in-run-ar repair
+
+Commands run:
+
+1. pnpm test src/core/workflow/control-monitor-coverage.test.ts
+   Initial result: failed because the async-reviewer refresh fixture did not mark the source run as monitored in trigger metadata.
+   Repair: set the source trigger payload tags to ["monitored"].
+   Final result: pass, 1 test file passed, 6 tests passed.
+
+2. pnpm typecheck
+   Result: pass.
+
+3. pnpm test src/core/tools/tool-runner-mcp-provenance.test.ts src/core/tools/tool-runner.test.ts
+   Result: pass, 2 test files passed, 51 tests passed.
+
+4. pnpm test src/core/workflow/run-executor.test.ts src/core/workflow/run-store-recover.test.ts src/core/workflow/workflow-state-shape.test.ts
+   Result: pass, 3 test files passed, 44 tests passed.
+
+5. pnpm test src/strict-types-policy.integration.test.ts
+   Result: pass, 1 test file passed, 1 test passed.
+
+6. pnpm test src/modules/autonomy/report/control-coverage-report.test.ts src/modules/autonomy/report/render-control-coverage.test.ts src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit-control-coverage.test.ts
+   Result: pass, 3 test files passed, 4 tests passed.
+
+7. pnpm lint
+   Initial result: failed on import ordering in src/core/workflow/active-run-handle.ts.
+   Repair: sorted the imports.
+   Final result: pass.
+
+8. git add -A
+   Result: pass.
+
+9. git diff --cached --check
+   Result: pass.
+
+Repair attempt 5:
+
+10. pnpm test src/modules/claude-agent-harness/executor.test.ts src/core/workflow/control-monitor-coverage-journal.test.ts src/core/workflow/control-monitor-coverage-telemetry.test.ts src/core/workflow/control-monitor-coverage.test.ts
+    Result: pass, 4 test files passed, 25 tests passed.
+
+11. node --conditions=source --import tsx -e '<writeControlMonitorCoverageArtifact for this run>'
+    Initial result: failed because one historical run metadata file had no trigger payload.
+    Repair: guarded async reviewer linkage against missing historical trigger payloads.
+    Final result: pass; wrote .kota/runs/2026-06-22T10-02-48-890Z-builder-wetav0/control-monitor-coverage.json.
+
+12. pnpm exec tsc --noEmit --pretty false
+    Result: pass.
+
+13. pnpm run validate-tasks
+    Result: pass.
+
+14. pnpm test src/core/agent-harness/neutral-protocol-shape.test.ts src/core/agent-harness/no-sdk-shaped-neutral-fields.test.ts src/strict-types-policy.integration.test.ts
+    Result: pass, 3 test files passed, 16 tests passed.
+
+15. pnpm lint
+    Result: pass.
+
+16. git add -A
+    Result: failed because this session cannot create .git/index.lock: Operation not permitted. `.git` is readable but not writable under the current sandbox.
+
+Repair attempt 7:
+
+17. pnpm test src/core/workflow/control-monitor-coverage-telemetry.test.ts src/core/workflow/run-store-recover.test.ts
+    Result: pass, 2 test files passed, 11 tests passed.
+
+18. node --conditions=source --import tsx '<generate control-monitor-coverage-gap-sample>'
+    Result: pass; wrote .kota/runs/control-monitor-coverage-gap-sample/control-monitor-coverage.json with gapCount=1 and external-payload-unscreened evidence.
+
+19. pnpm test src/core/workflow/control-monitor-coverage.test.ts src/core/workflow/control-monitor-coverage-telemetry.test.ts src/core/workflow/run-store-recover.test.ts src/modules/autonomy/report/control-coverage-report.test.ts src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit-control-coverage.test.ts
+    Result: pass, 5 test files passed, 16 tests passed.
+
+20. pnpm run typecheck
+    Result: pass.
+
+21. pnpm run validate-tasks
+    Result: pass.
+
+22. git diff --check
+    Result: pass.
+
+23. pnpm test src/strict-types-policy.integration.test.ts
+    Result: pass, 1 test file passed, 1 test passed.
+
+24. pnpm run lint
+    Initial result: failed on import ordering in src/core/workflow/run-store.ts.
+    Repair: sorted the imports.
+    Final result: pass.
+
+Repair attempt 8:
+
+25. Split source-size repair
+    Result: moved control-monitor coverage family aggregation and active agent-step discovery into src/core/workflow/control-monitor-coverage-aggregate.ts. Line counts are now 251 for control-monitor-coverage.ts and 105 for control-monitor-coverage-aggregate.ts.
+
+26. pnpm exec biome check --write src/core/workflow/control-monitor-coverage.ts src/core/workflow/control-monitor-coverage-aggregate.ts
+    Result: pass; no fixes applied.
+
+27. node --conditions=source --import tsx -e '<checkSevereSourceFileSize(process.cwd())>'
+    Result: pass. The severe source-size check now reports advisory-only warnings for src/core/tools/tool-runner.ts and src/modules/claude-agent-harness/executor.ts.
+
+28. pnpm test src/core/workflow/control-monitor-coverage.test.ts src/core/workflow/control-monitor-coverage-telemetry.test.ts src/core/workflow/control-monitor-coverage-journal.test.ts src/core/workflow/control-monitor-coverage-executor.test.ts src/modules/claude-agent-harness/executor-mcp-provenance.test.ts
+    Result: pass, 5 test files passed, 10 tests passed.
+
+29. pnpm run typecheck
+    Result: pass.
+
+30. pnpm run validate-tasks
+    Result: pass.
+
+31. git add -A
+    Result: pass.
+
+32. git diff --check
+    Result: pass.
+
+Repair attempt 9:
+
+33. pnpm exec vitest run src/core/workflow/control-monitor-coverage.test.ts src/core/workflow/control-monitor-coverage-journal.test.ts src/core/workflow/control-monitor-coverage-telemetry.test.ts
+    Result: pass, 3 test files passed, 8 tests passed.
+
+34. pnpm exec vitest run src/modules/autonomy/report/control-coverage-report.test.ts src/modules/autonomy/report/render-control-coverage.test.ts src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit-control-coverage.test.ts src/core/workflow/run-store-recover.test.ts
+    Result: pass, 4 test files passed, 13 tests passed.
+
+35. pnpm exec biome check --write src/core/workflow/control-monitor-coverage-inspectors.ts src/core/workflow/control-monitor-coverage.ts src/core/workflow/control-monitor-coverage.test.ts
+    Result: pass; no fixes applied.
+
+36. node --conditions=source --import tsx -e '<build control-monitor-coverage-gap-sample artifact in memory>'
+    Result: pass; the sample still reports gapCount=1 with only external-payload-unscreened.
+
+37. git diff --check
+    Result: pass.
+
+38. git add -A
+    Result: pass.
+
+39. git diff --cached --check
+    Result: pass.
+
+Repair attempt 10:
+
+40. Split source-size-blocking coverage artifact test
+    Result: split `src/core/workflow/control-monitor-coverage.test.ts` into focused artifact and gap suites plus `control-monitor-coverage-test-support.ts`. Line counts are now 186, 140, and 64.
+
+41. Remove legacy-large implementation edits from staged shape
+    Result: moved dynamic MCP result-content provenance recording into `ToolTelemetry`, added `src/core/tools/tool-telemetry-mcp-provenance.test.ts`, and the would-be staged diff no longer touches `src/core/tools/tool-runner.ts` or `src/modules/claude-agent-harness/executor.ts`.
+
+42. pnpm exec vitest run src/core/tools/tool-telemetry-mcp-provenance.test.ts src/core/workflow/control-monitor-coverage.test.ts src/core/workflow/control-monitor-coverage-gaps.test.ts src/core/workflow/control-monitor-coverage-telemetry.test.ts src/core/workflow/control-monitor-coverage-journal.test.ts
+    Result: pass, 5 test files passed, 9 tests passed.
+
+43. pnpm exec tsc --noEmit --pretty false
+    Result: pass.
+
+44. Temporary-index source-size verification
+    Command: copied `.git/index` to a writable temp index, used a writable temp object directory, ran `git add -A`, then ran both `checkSevereSourceFileSize(process.cwd())` and `checkSourceFileSize(process.cwd())`.
+    Result: pass. Both checks reported `OK: changed source files are under source-size warning thresholds`.
+
+45. git add -A
+    Result: pass. The real staged diff now matches the repaired source-size-clean shape.
+
+46. pnpm exec biome check src/core/tools/tool-telemetry.ts src/core/tools/tool-telemetry-mcp-provenance.test.ts src/core/workflow/control-monitor-coverage.test.ts src/core/workflow/control-monitor-coverage-gaps.test.ts src/core/workflow/control-monitor-coverage-test-support.ts
+    Result: pass; no fixes applied.
+
+47. git diff --cached --check
+    Result: pass.
+
+48. node --conditions=source --import tsx -e '<checkSevereSourceFileSize + checkSourceFileSize>'
+    Result: pass. Both checks reported `OK: changed source files are under source-size warning thresholds`.

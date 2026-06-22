@@ -8,6 +8,7 @@ export type {
   KotaAgentTextMessage,
   KotaAgentThinkingMessage,
   KotaAgentToolCallMessage,
+  KotaAgentToolResultContentProvenance,
   KotaAgentToolResultMessage,
 } from "./agent-message.js";
 export type {

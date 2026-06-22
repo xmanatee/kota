@@ -1,13 +1,13 @@
 ---
 id: task-record-autonomy-control-monitor-coverage-in-run-ar
 title: Record autonomy control-monitor coverage in run artifacts
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Safety
 summary: Add deterministic run-artifact coverage for autonomous agent control monitors so KOTA can see which agent steps, tool decisions, injection screenings, approval gates, and post-run reviewers actually covered each autonomous workflow run.
 created_at: 2026-06-22T09:44:57.671Z
-updated_at: 2026-06-22T09:44:57.671Z
+updated_at: 2026-06-22T10:29:07Z
 ---
 
 ## Problem
@@ -198,3 +198,19 @@ or trusting final agent prose.
 - Diff review showing the coverage artifact stores bounded reason codes,
   counts, event/artifact paths, and no raw prompts, secrets, payload bodies, or
   full tool outputs.
+
+## Completion Evidence
+
+- Added `control-monitor-coverage.json` generation from workflow run metadata,
+  step events, tool telemetry, trajectory diagnostics, runtime probes, and
+  linked reviewer artifacts.
+- Added operator report aggregation/rendering for coverage artifact counts,
+  gap counts, top gap families, recent artifact paths, and async reviewer
+  response timing without adding a new command.
+- Added autonomy health audit escalation for repeated coverage gaps through
+  normal `task-health-*` repair tasks.
+- Focused coverage/report/escalation tests passed:
+  `pnpm exec vitest run src/modules/autonomy/report/control-coverage-report.test.ts src/modules/autonomy/report/report-cli.test.ts src/modules/autonomy/report/render-control-coverage.test.ts src/core/tools/tool-telemetry-mcp-provenance.test.ts src/modules/claude-agent-harness/executor.test.ts`
+- Existing control producer and strict-types tests passed:
+  `pnpm exec vitest run src/modules/injection-defense/defense-middleware.test.ts src/modules/injection-defense/defense-middleware-mcp-provenance.test.ts src/core/workflow/steps/approval-step.test.ts src/core/workflow/owner-decision-step.test.ts src/core/workflow/ask-owner-step.test.ts src/core/workflow/steps/step-executor-agent-trajectory-diagnostics.test.ts src/modules/autonomy/trajectory-diagnostic-escalation.test.ts src/strict-types-policy.integration.test.ts`
+- Typecheck passed: `pnpm exec tsc --noEmit --pretty false`.

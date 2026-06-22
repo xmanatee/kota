@@ -49,6 +49,8 @@ export type RuntimeHealthAudit = {
     staleOpenDeadLetterItems: number;
     recentRuns: number;
     interruptedRuns: number;
+    controlCoverageArtifacts: number;
+    controlCoverageGapRuns: number;
     daemonEvidenceFiles: number;
     daemonStopAttempts: number;
     inboxEntries: number;

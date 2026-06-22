@@ -54,6 +54,9 @@ export function makeToolTelemetryTracker(
         resultBytes: measureTelemetryPayloadBytes(message.content),
         resultContentKind: getAgentToolResultContentKind(message.content),
         truncated: hasToolResultTruncationMarker(message.content),
+        ...(message.resultContentProvenance !== undefined
+          ? { resultContentProvenance: message.resultContentProvenance }
+          : {}),
         ...(errorMsg !== undefined ? { error: errorMsg } : {}),
       });
       pending.delete(message.toolUseId);
