@@ -600,6 +600,48 @@ describe("step timeout", () => {
     expect(result.metadata.steps[0]?.output).toEqual({ body: "ok" });
   }, 10_000);
 
+  it("retries missing fenced JSON output with a targeted correction prompt", async () => {
+    const harness = "workflow-agent-missing-json-fence-retry";
+    const prompts: string[] = [];
+    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+      prompts.push(options.prompt);
+      const text = prompts.length === 1
+        ? JSON.stringify({ body: "ok" })
+        : ["```json", JSON.stringify({ body: "ok" }), "```"].join("\n");
+      return {
+        text,
+        streamedText: text,
+        turns: 1,
+        isError: false,
+      };
+    });
+
+    const definition = makeDefinition({
+      moduleRoot: projectDir,
+      steps: [
+        makeAgentStep(projectDir, harness, {
+          outputFormat: "json",
+          outputSchema: {
+            type: "object",
+            required: ["body"],
+            properties: { body: { type: "string" } },
+          },
+          retry: { maxAttempts: 2, initialDelayMs: 1, backoffFactor: 1 },
+        }),
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("success");
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]).toContain(
+      "Previous output was missing usable structured JSON: no fenced JSON block was found in the response",
+    );
+    expect(result.metadata.steps[0]?.output).toEqual({ body: "ok" });
+  }, 10_000);
+
   it("retries agent idle timeouts through the agent retry classifier", async () => {
     const harness = "workflow-idle-retry";
     let attempts = 0;

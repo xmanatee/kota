@@ -385,11 +385,11 @@ export async function executeAgentStep(
   const runWithRetry = () => withRetry(runAttempt, retry, {
     log: agentConfig.log,
     abortSignal: abortController.signal,
-    // Only consume retry attempts for classified-transient failures. Max-turn,
-    // logic, and malformed-tool errors fail hard on the first attempt.
+    // Only consume retry attempts for classified-transient failures and
+    // structured-output correction paths. Max-turn, logic, and malformed-tool
+    // errors fail hard on the first attempt.
     shouldRetry: (err) =>
-      err instanceof JsonOutputParseError ||
-      err instanceof JsonSchemaValidationError ||
+      err instanceof JsonOutputValidationError ||
       (step.outputFormat === "json" && err instanceof WorkflowStepOutputValidationError) ||
       (err instanceof AgentStepRuntimeError && err.retryable),
   });

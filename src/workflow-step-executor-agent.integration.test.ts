@@ -339,15 +339,31 @@ describe("executeAgentStep — schema validation feedback on retry", () => {
     expect(capturedPrompts[1]).toContain("count");
   });
 
-  it("fails hard without retry on non-schema JSON format errors", async () => {
-    executeWithAgentSDKMock.mockResolvedValue({
-      text: "No JSON block here.",
-      streamedText: "",
-      sessionId: undefined,
-      turns: 1,
-      totalCostUsd: 0.01,
-      subtype: undefined,
-      isError: false,
+  it("injects missing-fence feedback into the prompt on the second attempt", async () => {
+    const capturedPrompts: string[] = [];
+
+    executeWithAgentSDKMock.mockImplementation(async (prompt: string) => {
+      capturedPrompts.push(prompt);
+      if (capturedPrompts.length === 1) {
+        return {
+          text: "No JSON block here.",
+          streamedText: "",
+          sessionId: undefined,
+          turns: 1,
+          totalCostUsd: 0.01,
+          subtype: undefined,
+          isError: false,
+        };
+      }
+      return {
+        text: 'Result:\n\n```json\n{"status":"ok","count":3}\n```',
+        streamedText: "",
+        sessionId: undefined,
+        turns: 1,
+        totalCostUsd: 0.01,
+        subtype: undefined,
+        isError: false,
+      };
     });
 
     const step = makeAgentStep(projectDir, {
@@ -361,23 +377,23 @@ describe("executeAgentStep — schema validation feedback on retry", () => {
       retry: { maxAttempts: 2, initialDelayMs: 0, backoffFactor: 1 },
     });
 
-    await expect(
-      executeAgentStep(
-        makeDefinition(),
-        step,
-        makeMetadata(),
-        { event: "runtime.idle", schemaRef: null, payload: {} },
-        new AbortController(),
-        () => {},
-        () => {},
-        { projectDir, log: () => {} },
-      ),
-    ).rejects.toThrow("no fenced JSON block was found");
+    const result = await executeAgentStep(
+      makeDefinition(),
+      step,
+      makeMetadata(),
+      { event: "runtime.idle", schemaRef: null, payload: {} },
+      new AbortController(),
+      () => {},
+      () => {},
+      { projectDir, log: () => {} },
+    );
 
-    // "no fenced block" is a format failure, not a classified transient
-    // failure and not a schema validation error — so the retry predicate
-    // refuses to consume a retry attempt.
-    expect(executeWithAgentSDKMock).toHaveBeenCalledTimes(1);
+    expect(result.output).toEqual({ status: "ok", count: 3 });
+    expect(executeWithAgentSDKMock).toHaveBeenCalledTimes(2);
+    expect(capturedPrompts[0]).not.toContain("Previous output was missing usable structured JSON");
+    expect(capturedPrompts[1]).toContain(
+      "Previous output was missing usable structured JSON: no fenced JSON block was found in the response",
+    );
   });
 });
 

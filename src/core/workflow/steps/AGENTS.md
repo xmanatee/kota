@@ -112,10 +112,10 @@ Every agent step inherits `DEFAULT_AGENT_STEP_RETRY` from
 has a genuinely different requirement and justify it with a comment.
 
 Retries consume attempts only for classified transient failures (rate-limit,
-auth, provider 5xx/timeouts, socket errors), fenced JSON parse errors, and
-JSON-schema validation errors. Missing fenced output, runaway-agent subtypes
-(`error_max_turns`, `error_max_tokens`), malformed tool calls, and other
-deterministic mistakes are **unclassified**: the step fails on the first
+auth, provider 5xx/timeouts, socket errors), JSON output extraction errors
+(missing fence or invalid JSON), and JSON-schema validation errors. Runaway-agent
+subtypes (`error_max_turns`, `error_max_tokens`), malformed tool calls, and
+other deterministic mistakes are **unclassified**: the step fails on the first
 attempt without burning budget or triggering agent-dispatch backoff.
 
 Classification is driven by structured signals (SDK result subtype, HTTP
