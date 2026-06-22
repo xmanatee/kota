@@ -24,6 +24,8 @@ writeScope contract; everything else is a phase file:
   exposed-step-output block, ask-owner sentence, JSON-output trailer).
 - `step-executor-agent-capability.ts` — pre-launch
   `<runDir>/steps/<stepId>.harness-capability.json` artifact.
+- `step-executor-agent-attempt.ts` — harness dispatch, idle-timeout handling,
+  JSON-output feedback, and runtime failure classification.
 - `step-executor-agent-telemetry.ts` — tool-telemetry tracker and the
   `<runDir>/steps/<stepId>.tool-telemetry.json` artifact.
 - `step-executor-agent-trajectory-diagnostics.ts` — advisory
@@ -35,12 +37,10 @@ writeScope contract; everything else is a phase file:
   `JsonOutputParseError`, `JsonSchemaValidationError`, and
   `outputSchema` validation.
 
-New agent-step internals land as a new phase file here, dispatched from the
-orchestrator. The orchestrator keeps the `runAgentHarness` call, the
-`AgentStepRuntimeError` classification of `isError` results, the retry loop
-with the classifier-driven `shouldRetry` predicate, and the pre/post
-`writeScope` enforcement pipeline. Helpers that exist solely to support a
-single phase live in that phase file, not in the orchestrator.
+New agent-step internals land as phase files dispatched from the orchestrator,
+which keeps `runAgentHarness`, classifier-driven retry orchestration, and
+pre/post `writeScope` enforcement. Helpers that exist solely to support one
+phase live in that phase file, not in the orchestrator.
 
 ## Per-Run Emitted-Events Log
 

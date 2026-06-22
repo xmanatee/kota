@@ -1,5 +1,8 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
+import type { AgentDef } from "#core/agents/agent-types.js";
+import type { KotaConfig } from "#core/config/config.js";
+import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
 import { detectInjection } from "#core/util/injection-detector.js";
 import type { WorkflowRunMetadata, WorkflowStepContext } from "../run-types.js";
 import type { WorkflowAgentStep } from "../step-types.js";
@@ -17,6 +20,39 @@ function shouldExposeOutput(output: unknown): boolean {
     return false;
   }
   return true;
+}
+
+// Walk closer-scoped `.kota.md`/`AGENTS.md`/`CLAUDE.md` from the prompt
+// directory when it lives under the project; otherwise fall back to the
+// project root so external module guidance does not leak into discovery.
+export function resolvePromptContextStartDir(promptDir: string, projectDir: string): string {
+  const rel = relative(projectDir, promptDir);
+  if (rel === "" || (!rel.startsWith("..") && !isAbsolute(rel))) return promptDir;
+  return projectDir;
+}
+
+export function buildAgentSystemPrompt(input: {
+  config?: KotaConfig;
+  systemPromptAppend: string;
+  moduleRoot: string;
+  promptPath: string;
+  projectDir: string;
+  agentDef?: AgentDef;
+  agentName?: string;
+  resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
+}): string | undefined {
+  const promptDir = dirname(resolve(input.moduleRoot, input.promptPath));
+  const contextStartDir = resolvePromptContextStartDir(promptDir, input.projectDir);
+  const skillsPrompt = input.agentDef?.skills && input.resolveSkillsPrompt
+    ? input.resolveSkillsPrompt(input.agentDef.skills, input.agentName)
+    : undefined;
+  return buildKotaSystemPrompt(
+    input.config,
+    input.systemPromptAppend,
+    contextStartDir,
+    input.projectDir,
+    skillsPrompt,
+  );
 }
 
 function getExposedStepOutputs(

@@ -1,12 +1,12 @@
 ---
 id: task-split-oversized-mcp-client-and-agent-step-source-f
 title: Split oversized MCP client and agent-step source files
-status: ready
+status: done
 priority: p3
 area: architecture
 summary: The stderr redaction build passed, but its source-size review still reported advisory warnings for src/core/mcp/client-connection.ts and src/core/workflow/steps/step-executor-agent.ts. Split cohesive helpers or record a narrow typed exception without changing MCP stderr redaction or workflow agent-step behavior.
 created_at: 2026-06-22T01:23:33.294Z
-updated_at: 2026-06-22T01:23:33.294Z
+updated_at: 2026-06-22T02:22:05.615Z
 ---
 
 ## Problem
@@ -48,3 +48,8 @@ Outcome-aware autonomy progress review.
 ## Acceptance Evidence
 
 - Before/after line counts are recorded; builder source-size diagnostics no longer warn on both cited files, or a typed narrow exception is justified; focused MCP stdio stderr redaction and workflow agent-step tests pass; typecheck, lint, and validate-tasks pass.
+- Before/after line counts are recorded in `.kota/runs/2026-06-22T02-09-19-731Z-builder-ey8a49/source-size-evidence.json`: `src/core/mcp/client-connection.ts` went from 390 to 172 lines, and `src/core/workflow/steps/step-executor-agent.ts` went from 451 to 250 lines.
+- Split MCP stdio process/request handling into `src/core/mcp/client-stdio-runtime.ts`; split workflow agent-step single-attempt, idle, output, and run-option helpers into focused `src/core/workflow/steps/step-executor-agent-*.ts` phase files without changing stderr redaction or agent-step behavior.
+- Passed `pnpm test src/core/mcp/stdio-stderr-redaction.test.ts src/core/workflow/steps/step-executor-agent-prompt.test.ts src/core/workflow/steps/step-executor-agent-tool-scope.test.ts src/core/workflow/steps/step-executor-agent-capability.test.ts src/core/workflow/steps/step-executor-agent-trajectory-diagnostics.test.ts`.
+- Passed `pnpm typecheck` and `pnpm lint`.
+- Passed real-index `pnpm validate-tasks` after final `git add -A`; `.kota/runs/2026-06-22T02-09-19-731Z-builder-ey8a49/validation-notes.txt` records the initial index-lock failures and final validation result.

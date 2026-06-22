@@ -1,27 +1,16 @@
-import type { Buffer } from "node:buffer";
-import { spawn } from "node:child_process";
-import { createInterface } from "node:readline";
-import { buildRequiredInheritedSubprocessEnv } from "#core/modules/subprocess-env.js";
-import { writeTerminalStderr } from "#core/modules/terminal-renderer.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { McpAuthorizationError, McpConnectionError } from "./client-auth-types.js";
 import {
-  generatedProgressToken,
   isUnsupportedProtocolVersionError,
   supportedVersionsForUnsupportedProtocolVersionError,
 } from "./client-decode-utils.js";
-import { McpClientHttpRuntime } from "./client-http-runtime.js";
 import {
   decodeDiscoverResult,
   decodeInitializeResult,
 } from "./client-initialize-decoders.js";
 import type {
-  JsonRpcNotification,
   JsonRpcParams,
-  JsonRpcRequest,
   JsonRpcResult,
   McpInitializeResult,
-  McpProgressToken,
   McpProtocolVersion,
   McpRequestProgressOptions,
 } from "./client-protocol.js";
@@ -34,17 +23,9 @@ import {
   mcpProtocolSupports,
   mcpToolResultContractForProtocol,
 } from "./client-protocol.js";
+import { McpClientStdioRuntime } from "./client-stdio-runtime.js";
 
-function buildMcpStdioSubprocessEnv(
-  transportEnv: Record<string, string> | undefined,
-): NodeJS.ProcessEnv {
-  return withProtectedGitBareRepositoryEnv({
-    ...buildRequiredInheritedSubprocessEnv(),
-    ...(transportEnv ?? {}),
-  });
-}
-
-export abstract class McpClientConnection extends McpClientHttpRuntime {
+export abstract class McpClientConnection extends McpClientStdioRuntime {
   /** Connect the configured transport and complete the MCP handshake. */
   async connect(): Promise<void> {
     if (this.connected) {
@@ -59,88 +40,23 @@ export abstract class McpClientConnection extends McpClientHttpRuntime {
 
     this.connecting = true;
     try {
-      if (this.transport.type === "http") {
-        await this.connectHttp();
-      } else {
-        await this.connectStdio();
+      const result = this.transport.type === "http"
+        ? await this.connectHttp()
+        : await this.connectStdio();
+      if (this.closing) {
+        throw new Error(`MCP server "${this.serverName}" was closed during connection`);
       }
+      this.applyInitializeResult(result);
     } finally {
       this.connecting = false;
     }
   }
 
-  protected async connectStdio(): Promise<void> {
-    if (this.transport.type !== "stdio") return;
-    this.proc = spawn(this.transport.command, this.transport.args ?? [], {
-      stdio: ["pipe", "pipe", "pipe"],
-      env: buildMcpStdioSubprocessEnv(this.transport.env),
-    });
-
-    this.proc.on("error", (err) => {
-      this.rejectAll(new Error(`MCP server "${this.serverName}" failed: ${err.message}`));
-      this.connected = false;
-    });
-
-    this.proc.on("exit", (code) => {
-      this.rejectAll(new Error(`MCP server "${this.serverName}" exited with code ${code}`));
-      this.connected = false;
-    });
-
-    // Absorb stdin write errors (server may have exited)
-    this.proc.stdin?.on("error", () => {});
-
-    // Capture stderr for diagnostics but don't block
-    this.proc.stderr?.on("data", (chunk: Buffer) => {
-      const text = chunk.toString().trim();
-      if (text) {
-        writeTerminalStderr(
-          `[mcp:${this.serverName}] ${this.redactSensitiveErrorMessage(text)}\n`,
-        );
-      }
-    });
-
-    this.rl = createInterface({ input: this.proc.stdout! });
-    this.rl.on("line", (line) => this.handleLine(line));
-
-    const result = await this.initializeServer();
-
-    // Send initialized notification
-    this.notify("notifications/initialized");
-
-    // close() may have been called during the handshake await
-    if (this.closing) {
-      throw new Error(`MCP server "${this.serverName}" was closed during connection`);
-    }
-
-    if (result.serverInfo?.name) {
-      this.serverName = result.serverInfo.name;
-    }
-    this.warnDeprecatedServerCapabilities(result);
-    this.protocolVersion = result.protocolVersion;
-    this.toolResultContract = mcpToolResultContractForProtocol(result.protocolVersion);
-    this.toolsSupported = result.toolsSupported;
-    this.toolsListChanged = result.toolsListChanged;
-    this.resourcesSupported = result.resourcesSupported;
-    this.resourcesListChanged = result.resourcesListChanged;
-    this.promptsSupported = result.promptsSupported;
-    this.promptsListChanged = result.promptsListChanged;
-    this.tasksSupported = result.tasksSupported;
-    this.skillsSupported = result.skillsSupported;
-    this.connected = true;
-    if (
-      mcpProtocolSupports(result.protocolVersion, "listChangedSubscriptions") &&
-      (this.toolsListChanged || this.resourcesListChanged || this.promptsListChanged)
-    ) {
-      this.openListChangedSubscription();
-    }
-  }
-
-  protected async connectHttp(): Promise<void> {
+  protected async connectHttp(): Promise<McpInitializeResult> {
     this.protocolVersion = MCP_CURRENT_PROTOCOL_VERSION;
     this.toolResultContract = "complete-tool-result";
-    let result: McpInitializeResult;
     try {
-      result = decodeDiscoverResult(await this.request("server/discover"));
+      return decodeDiscoverResult(await this.request("server/discover"));
     } catch (err) {
       if (err instanceof McpConnectionError || err instanceof McpAuthorizationError) {
         throw err;
@@ -148,11 +64,9 @@ export abstract class McpClientConnection extends McpClientHttpRuntime {
       const message = err instanceof Error ? err.message : String(err);
       throw this.requestErrorForMethod("server/discover", message);
     }
+  }
 
-    if (this.closing) {
-      throw new Error(`MCP server "${this.serverName}" was closed during connection`);
-    }
-
+  protected applyInitializeResult(result: McpInitializeResult): void {
     if (result.serverInfo?.name) {
       this.serverName = result.serverInfo.name;
     }
@@ -175,7 +89,6 @@ export abstract class McpClientConnection extends McpClientHttpRuntime {
       this.openListChangedSubscription();
     }
   }
-
 
   /** Gracefully shut down the server. */
   async close(): Promise<void> {
@@ -193,51 +106,8 @@ export abstract class McpClientConnection extends McpClientHttpRuntime {
       this.promptListChangedHandlers.clear();
       return;
     }
-    if (!this.proc || this.closing) return;
-    this.closing = true;
-    this.connected = false;
-    this.rejectAll(new Error(`MCP server "${this.serverName}" is closing`));
-    this.streamingRequestIds.clear();
-    this.clearAllProgress();
-    this.toolListSubscriptionId = null;
-    this.toolListChangedHandlers.clear();
-    this.resourceListChangedHandlers.clear();
-    this.promptListChangedHandlers.clear();
-
-    const proc = this.proc;
-    this.proc = null;
-    this.rl?.close();
-    this.rl = null;
-
-    try {
-      // Attempt graceful shutdown if stdin is still writable
-      if (proc.stdin?.writable) {
-        const id = this.nextId++;
-        const msg: JsonRpcRequest = { jsonrpc: "2.0", id, method: "shutdown" };
-        proc.stdin.write(`${JSON.stringify(msg)}\n`);
-        await new Promise<void>((resolve) => setTimeout(resolve, 500));
-        const exitMsg: JsonRpcNotification = { jsonrpc: "2.0", method: "exit" };
-        proc.stdin.write(`${JSON.stringify(exitMsg)}\n`);
-      }
-    } catch {
-      // Server may not support graceful shutdown
-    }
-
-    proc.kill("SIGTERM");
-    this.killTimer = setTimeout(() => {
-      try { proc.kill("SIGKILL"); } catch { /* already dead */ }
-      this.killTimer = null;
-    }, 3_000);
-
-    // Cancel the SIGKILL timer if the process exits promptly
-    proc.on("exit", () => {
-      if (this.killTimer) {
-        clearTimeout(this.killTimer);
-        this.killTimer = null;
-      }
-    });
+    await this.closeStdio();
   }
-
 
   protected async initializeServer(): Promise<McpInitializeResult> {
     try {
@@ -292,99 +162,11 @@ export abstract class McpClientConnection extends McpClientHttpRuntime {
     });
   }
 
-  protected stdioRequest(
-    method: string,
-    params?: JsonRpcParams,
-    timeout = CONNECT_TIMEOUT,
-    progress?: McpRequestProgressOptions,
-  ): Promise<JsonRpcResult> {
-    if (!this.proc?.stdin?.writable) {
-      return Promise.reject(
-        new Error(`MCP server "${this.serverName}" is not connected`),
-      );
-    }
-
-    const id = this.nextId++;
-    let progressToken: McpProgressToken | undefined;
-    if (
-      progress &&
-      this.protocolVersion !== null &&
-      mcpProtocolSupports(this.protocolVersion, "requestMetadata")
-    ) {
-      progressToken = progress.token ?? generatedProgressToken(id);
-    }
-    const requestParams = this.paramsWithProtocolMetadata(params, progressToken);
-    const msg: JsonRpcRequest = {
-      jsonrpc: "2.0",
-      id,
-      method,
-      ...(requestParams && { params: requestParams }),
-    };
-
-    return new Promise((resolve, reject) => {
-      if (progress && progressToken !== undefined) {
-        try {
-          this.trackProgressRequest(id, progressToken, progress);
-        } catch (err) {
-          reject(err instanceof Error ? err : new Error(String(err)));
-          return;
-        }
-      }
-      const timer = setTimeout(() => {
-        this.pending.delete(id);
-        this.clearProgressForRequest(id);
-        reject(new Error(`MCP request "${method}" timed out after ${timeout}ms`));
-      }, timeout);
-
-      this.pending.set(id, {
-        resolve: (value) => { clearTimeout(timer); resolve(value); },
-        reject: (err) => { clearTimeout(timer); reject(err); },
-      });
-
-      this.proc?.stdin?.write(`${JSON.stringify(msg)}\n`);
-    });
-  }
-
-
   protected openListChangedSubscription(): void {
     if (this.transport.type === "http") {
       this.openHttpListChangedSubscription();
       return;
     }
-    if (!this.proc?.stdin?.writable || this.toolListSubscriptionId !== null) return;
-    const id = this.nextId++;
-    this.toolListSubscriptionId = id;
-    this.streamingRequestIds.add(id);
-    const notifications = {
-      ...(this.toolsListChanged ? { toolsListChanged: true } : {}),
-      ...(this.resourcesListChanged ? { resourcesListChanged: true } : {}),
-      ...(this.promptsListChanged ? { promptsListChanged: true } : {}),
-    };
-    const msg: JsonRpcRequest = {
-      jsonrpc: "2.0",
-      id,
-      method: "subscriptions/listen",
-      params: {
-        _meta: this.protocolRequestMeta(),
-        notifications,
-      },
-    };
-    this.proc.stdin.write(`${JSON.stringify(msg)}\n`);
+    this.openStdioListChangedSubscription();
   }
-
-
-  protected notify(method: string, params?: JsonRpcNotification["params"]): void {
-    if (!this.proc?.stdin?.writable) return;
-    const msg: JsonRpcNotification = { jsonrpc: "2.0", method, ...(params && { params }) };
-    this.proc.stdin.write(`${JSON.stringify(msg)}\n`);
-  }
-
-  protected rejectAll(error: Error): void {
-    for (const { reject } of this.pending.values()) {
-      reject(error);
-    }
-    this.pending.clear();
-    this.clearAllProgress();
-  }
-
 }
