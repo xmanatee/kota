@@ -91,6 +91,7 @@ function resolveCompactedChildEvidenceId(
   id: string,
   evidence: ProgressReviewEvidenceIdPacket,
   knownIds: ReadonlySet<string>,
+  siblingEvidenceIds: readonly string[],
 ): string | null {
   const gitCommitFile = id.match(/^(.*git:commit:[^:]+):file:\d+$/);
   if (gitCommitFile?.[1] && knownIds.has(gitCommitFile[1])) {
@@ -101,6 +102,20 @@ function resolveCompactedChildEvidenceId(
   if (artifact?.[1] !== undefined && artifact[2]) {
     const runId = `${artifact[1]}run:${artifact[2]}`;
     if (knownIds.has(runId)) return runId;
+  }
+
+  const journalEvent = id.match(/^(.*)event:evtj-[^:]+$/);
+  if (journalEvent?.[1] !== undefined) {
+    const prefix = journalEvent[1] ?? "";
+    const runParents = [
+      ...new Set(
+        siblingEvidenceIds.filter(
+          (candidate) =>
+            candidate.startsWith(`${prefix}run:`) && knownIds.has(candidate),
+        ),
+      ),
+    ];
+    return runParents.length === 1 ? runParents[0] ?? null : null;
   }
 
   const run = id.match(/^(.*)run:([^:]+)$/);
@@ -127,7 +142,12 @@ function normalizeEvidenceIds(args: {
   for (const id of args.evidenceIds) {
     const knownId = args.knownIds.has(id)
       ? id
-      : resolveCompactedChildEvidenceId(id, args.evidence, args.knownIds);
+      : resolveCompactedChildEvidenceId(
+          id,
+          args.evidence,
+          args.knownIds,
+          args.evidenceIds,
+        );
     if (!knownId) {
       unknown.push(id);
       continue;

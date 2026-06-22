@@ -1364,6 +1364,11 @@ describe("progress-reviewer workflow", () => {
           summary: "builder success (builder-run-001)",
         },
         {
+          id: "run:builder-run-003",
+          kind: "run" as const,
+          summary: "builder success (builder-run-003)",
+        },
+        {
           id: "event:1",
           kind: "event" as const,
           summary:
@@ -1386,6 +1391,8 @@ describe("progress-reviewer workflow", () => {
                 "git:commit:abc123def456:file:3",
                 "artifact:builder-run-001:critic-review.json",
                 "run:builder-run-002",
+                "run:builder-run-003",
+                "event:evtj-000000000123",
               ],
               confidence: "medium",
             },
@@ -1399,7 +1406,27 @@ describe("progress-reviewer workflow", () => {
       "git:commit:abc123def456",
       "run:builder-run-001",
       "event:1",
+      "run:builder-run-003",
     ]);
+    expect(() =>
+      decodeProgressReviewAgentOutputForEvidence(
+        reviewOutput({
+          verdict: "on-track",
+          summary: "Unanchored compacted event ids are still unknown.",
+          localScope: {
+            claims: [
+              {
+                id: "unanchored-event-id",
+                claim: "A reviewer cited an event id outside the packet.",
+                evidenceIds: ["event:evtj-000000000999"],
+                confidence: "low",
+              },
+            ],
+          },
+        }),
+        evidence,
+      ),
+    ).toThrow(/unknown evidence id/);
   });
 
   it("reports task_class distribution and Product operator-journey risks", () => {
