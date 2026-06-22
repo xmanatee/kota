@@ -1,12 +1,12 @@
 ---
 id: task-split-oversized-repo-tasks-routes-and-route-tests
 title: Split oversized repo-tasks routes and route tests
-status: ready
+status: done
 priority: p3
 area: modules
 summary: The task-show traversal fix passed, but its builder source-size review reported advisory warnings for src/modules/repo-tasks/routes.ts and src/modules/repo-tasks/routes.test.ts. Split cohesive route handlers, route helpers, or test fixtures, or record a narrow typed exception without changing repo task show or traversal behavior.
 created_at: 2026-06-22T01:35:26.765Z
-updated_at: 2026-06-22T01:35:26.765Z
+updated_at: 2026-06-22T01:48:03.000Z
 ---
 
 ## Problem
@@ -49,4 +49,7 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- Before/after line counts are recorded; builder source-size diagnostics no longer warn on src/modules/repo-tasks/routes.ts and src/modules/repo-tasks/routes.test.ts, or a typed narrow exception is justified; focused repo-tasks route, operation, and dependency tests pass; typecheck, lint, and validate-tasks pass.
+- `.kota/runs/2026-06-22T01-35-30-662Z-builder-9bklnw/source-size-line-counts.txt` records before/after line counts: `routes.ts` went from 747 lines to 129, and `routes.test.ts` was split from 550 lines into focused files no larger than 126 lines plus 60 lines of shared test helpers.
+- Builder source-size diagnostics against the staged changes reported `OK: changed source files are under source-size warning thresholds`.
+- Focused validation passed: `pnpm exec vitest run src/modules/repo-tasks/routes-status.test.ts src/modules/repo-tasks/routes-state.test.ts src/modules/repo-tasks/routes-show.test.ts src/modules/repo-tasks/routes-create.test.ts src/modules/repo-tasks/routes-maintenance.test.ts src/modules/repo-tasks/repo-tasks-operations.test.ts src/modules/repo-tasks/task-dependencies.test.ts`; `pnpm run typecheck`; `pnpm run lint`; `pnpm run validate-tasks`.
+- Real-index validation and final staging passed after the manual task-state updates: `pnpm run validate-tasks`; `git add -A`.
