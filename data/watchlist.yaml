@@ -315,9 +315,9 @@ resources:
   - url: https://deepmind.google/discover/blog/
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:a31ab02acad770b660d45496c034721b
-      summary: "DeepMind's current autonomy-adjacent signal is AlphaEvolve-style objective optimization evidence; KOTA now carries objective metrics in eval artifacts without adding a parallel benchmark or agent framework."
-      last_seen_at: "2026-05-17T13:08:55.112Z"
+      fingerprint: sha256:526eae3f649986557a005f0cd6ef8d2b
+      summary: "DeepMind's June 18 AI Control Roadmap surfaces a nonduplicative KOTA gap: normal autonomous workflow runs need deterministic control-monitor coverage artifacts, which opened task-record-autonomy-control-monitor-coverage-in-run-ar."
+      last_seen_at: "2026-06-22T09:47:30.713Z"
   - url: https://research.google/blog/
     added: "2026-04-19"
     snapshot:
