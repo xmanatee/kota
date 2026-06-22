@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-callback-url-non-local-guard-o
 title: Security review: The callback URL non-local guard only blocks localhost names and private dotted IPv4 ranges; private or link-local IPv6 literals and IPv4-mapped loopback literals are treated as allowed callback hosts and later fetched.
-status: ready
+status: done
 priority: p2
 area: security
 summary: The callback URL non-local guard only blocks localhost names and private dotted IPv4 ranges; private or link-local IPv6 literals and IPv4-mapped loopback literals are treated as allowed callback hosts and later fetched.
 created_at: 2026-06-22T05:38:58.024Z
-updated_at: 2026-06-22T05:38:58.024Z
+updated_at: 2026-06-22T05:56:48.326Z
 ---
 
 ## Problem
@@ -110,3 +110,14 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Implemented A2A-local callback host validation that rejects private, loopback,
+  link-local, non-public IPv6, and IPv4-mapped non-public address literals
+  before push-notification config creation reaches daemon work.
+- Added focused RPC regression coverage in
+  `src/modules/a2a-channel/push-notification-callback-hosts.test.ts` for blocked
+  IPv6 and IPv4-mapped callback literals plus an allowed public IPv6 literal.
+- DNS resolution was considered but not added in this slice: a create-time
+  lookup would not fully prevent rebinding while delivery delegates to generic
+  `fetch`; a complete follow-up should own connection-time lookup/pinning.
+- Verification: `pnpm test src/modules/a2a-channel/push-notification-callback-hosts.test.ts`,
+  `pnpm typecheck`, `pnpm lint`, and `pnpm validate-tasks` passed on 2026-06-22.
