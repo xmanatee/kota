@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
@@ -6,6 +6,7 @@ import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import {
   type AutonomyHealthJsonObject,
+  type AutonomyHealthSignal,
   autonomyHealthSignal,
 } from "#modules/autonomy/health-signal.js";
 import {
@@ -38,7 +39,13 @@ type WorktreeInspection = {
 };
 
 type AuditOutput = {
-  audit: RuntimeHealthAudit;
+  signals: AutonomyHealthSignal[];
+  generatedAt: string;
+  windowStart: string;
+  inspected: RuntimeHealthAudit["inspected"];
+  patternCount: number;
+  evidenceGapCount: number;
+  artifactPath: string;
 };
 
 type ReviewOutput = {
@@ -50,6 +57,21 @@ type ActionOutput = {
 };
 
 const AUTONOMY_HEALTH_AUDIT_SCHEDULE_EVENT = "autonomy.runtime-health.audit.scheduled";
+
+export function runtimeHealthAuditStepOutput(
+  audit: RuntimeHealthAudit,
+  artifactPath: string,
+): AuditOutput {
+  return {
+    signals: audit.signals,
+    generatedAt: audit.generatedAt,
+    windowStart: audit.windowStart,
+    inspected: audit.inspected,
+    patternCount: audit.patterns.length,
+    evidenceGapCount: audit.evidenceGaps.length,
+    artifactPath,
+  };
+}
 
 const inspectWorktree = typedCodeStep<WorktreeInspection>({
   id: "inspect-worktree",
@@ -73,10 +95,21 @@ const buildRuntimeAudit = typedCodeStep<AuditOutput>({
   id: "build-runtime-audit",
   type: "code",
   when: (ctx) => isRuntimeAuditTrigger(ctx.trigger.event),
-  validate: (raw) => expectStructuredOutput<AuditOutput>(raw, ["audit"]),
-  run: ({ projectDir }) => ({
-    audit: collectRuntimeHealthAudit({ projectDir }),
-  }),
+  validate: (raw) =>
+    expectStructuredOutput<AuditOutput>(raw, [
+      "signals",
+      "artifactPath",
+      "patternCount",
+      "evidenceGapCount",
+    ]),
+  run: ({ projectDir, workflow }) => {
+    const audit = collectRuntimeHealthAudit({ projectDir });
+    const artifactPath = writeRuntimeHealthAuditArtifact(
+      workflow.runDirPath,
+      audit,
+    );
+    return runtimeHealthAuditStepOutput(audit, artifactPath);
+  },
 });
 
 const buildReview = typedCodeStep<ReviewOutput>({
@@ -92,7 +125,7 @@ const buildReview = typedCodeStep<ReviewOutput>({
     if (runtimeAudit) {
       return {
         review: buildAutonomyHealthReviewFromSignals({
-          signals: runtimeAudit.audit.signals,
+          signals: runtimeAudit.signals,
           generatedAt,
           sourceEventName: "autonomy.runtime-health.audit",
           reason: ctx.trigger.event,
@@ -165,8 +198,10 @@ const writeRuntimeAuditArtifact = typedCodeStep<{ written: boolean; path: string
       "path",
     ]),
   run: (ctx) => {
-    const audit = buildRuntimeAudit.outputRequired(ctx).audit;
-    const path = writeRuntimeHealthAuditArtifact(ctx.workflow.runDirPath, audit);
+    const path = buildRuntimeAudit.outputRequired(ctx).artifactPath;
+    if (!existsSync(path)) {
+      throw new Error(`runtime health audit artifact was not written: ${path}`);
+    }
     return { written: true, path };
   },
 });
