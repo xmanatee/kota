@@ -31,6 +31,9 @@ resources:
       fingerprint: sha256:80f054daf64f6d50b2660e00564a4bb3
       summary: "CodeScaleBench is accessible; its retrieval diagnostics are already covered by completed harness-parity work, and this run opened task-add-eval-harness-verifier-calibration-probes for the remaining verifier-integrity QA signal."
       last_seen_at: "2026-05-29T09:16:50.140Z"
+  - url: https://github.com/zsworld6/projdevbench
+    added: "2026-06-22"
+    notes: "ProjDevBench evaluates coding agents on end-to-end project development with OJ-style execution feedback and resource-limit diagnostics. Monitor as an eval-harness signal for scalable-design, time/memory-budget, and project-construction canaries; do not import the benchmark, online judge, or LLM review rubric."
   - url: https://github.com/datacurve-ai/deep-swe
     added: "2026-05-29"
     notes: "DeepSWE evaluates frontier coding agents on original long-horizon tasks with behavioral verifiers and Pier sandboxing. Monitor as an eval-harness signal for contamination-resistant task construction, behavior-first verification, and provider-only agent egress inside otherwise isolated task environments; do not import the benchmark runner."

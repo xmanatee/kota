@@ -1,0 +1,180 @@
+---
+id: task-add-algorithmic-resource-budget-canaries-to-the-ev
+title: Add algorithmic resource-budget canaries to the eval harness
+status: ready
+priority: p2
+area: modules
+task_class: Meta
+summary: Seed a compact builder fixture where a naive solution passes small examples but fails deterministic large-input time or memory canaries, making scalable design and resource management artifact-graded.
+created_at: 2026-06-22T23:35:15.496Z
+updated_at: 2026-06-22T23:35:15.496Z
+---
+
+## Problem
+
+KOTA's eval-harness fixtures now cover no-op restraint, scope restraint,
+black-box behavior reconstruction, scientific-claim reproduction, unfamiliar
+language strategy construction, product canaries, multi-service integration,
+and empirical score improvement. They still do not directly grade a common
+coding-agent failure mode: a builder writes code that passes small examples
+and ordinary unit tests, but uses an algorithm or data structure that fails
+under larger deterministic input because of time or memory growth.
+
+That gap matters because the operator-visible product claim is not just
+"agent can patch a function"; it is "KOTA can be trusted to complete real
+development work through artifact-backed evidence." A small-example pass can
+hide a design that exhausts CPU, memory, or submission budget once the input
+shape scales.
+
+ProjDevBench is a current primary-source signal for this. It evaluates coding
+agents on end-to-end project development and reports that agents often handle
+basic functionality while struggling with time-complexity optimization and
+resource management. Its project repo also exposes OJ-style verdicts such as
+TLE, MLE, runtime error, wrong answer, and memory leak. KOTA should not import
+ProjDevBench, an online judge, or an LLM code-review rubric. The local
+response is one compact fixture where scalable design is checked by
+deterministic canaries and artifacts.
+
+## Desired Outcome
+
+Add one shipped eval-harness fixture where the builder receives a tiny
+project with a naive implementation that passes visible examples but fails
+larger deterministic resource-budget cases.
+
+The fixture should make scalable-design failure observable:
+
+- The initial tree includes a deliberately simple implementation with
+  acceptable behavior on small examples and unacceptable growth on generated
+  large cases.
+- The task asks for a resource-aware implementation, not a cosmetic
+  optimization or a hardcoded answer.
+- The verifier runs small examples plus large synthetic canaries and writes a
+  structured artifact such as `resource-budget-result.json` containing input
+  sizes, observed pass/fail per canary, the verification command, and a
+  deterministic operation-count or memory-growth proxy.
+- Final predicates require the task to move to `done/`, the verifier to pass,
+  the evidence artifact to contain the expected canary results, and the
+  implementation to avoid sample-only or hardcoded shortcuts.
+- Any numeric value, such as operation count, max generated input size, or
+  memory-growth proxy, is reported through the existing objective-metric path
+  while pass/fail remains predicate-based.
+
+## Constraints
+
+- Use the existing eval-harness fixture, predicate, subprocess execution,
+  resource-profile, and objective-metric paths. Do not add a ProjDevBench
+  importer, online-judge integration, Docker-only runner, LLM reviewer, or
+  second fixture DSL.
+- Keep the scenario tiny, deterministic, and local. It must run without
+  network access, external services, large dependencies, GPUs, or platform-
+  specific tooling.
+- Avoid brittle wall-clock-only scoring. A wall-clock timeout can be a final
+  guard, but the primary pass/fail signal should come from deterministic
+  generated cases and an auditable operation-count or memory-growth proxy.
+- The fixture must require an algorithmic or data-structure improvement. A
+  candidate that only changes constants, raises a timeout, skips large cases,
+  or special-cases visible examples should fail.
+- Keep this out of `pnpm test` unless replay-backed. A live-builder fixture
+  belongs in `pnpm kota eval run` and cadence, not the standard unit test path.
+- If the implementation environment cannot make a live nested agent call, do
+  not mark the task done from fixture-load evidence alone. Reposition it
+  honestly with a typed operator-capture precondition for the live pass.
+
+## Done When
+
+- A fixture such as
+  `src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/`
+  exists with `fixture.json`, `notes.md`, and a minimal `initial/` tree.
+- The fixture's initial task is in `data/tasks/ready/`, is valid under task
+  validation, and describes the resource-budget canary outcome and acceptance
+  evidence.
+- The initial project passes visible examples but fails the final predicates
+  before the builder runs; `preRunExpectations` include expected failures for
+  the large canaries or budget artifact.
+- Final predicates require the task to move to `done/`, the verifier command
+  to pass, `resource-budget-result.json` to contain the required canary
+  fields, and the deterministic budget proxy to stay under the configured
+  threshold.
+- The scorer rejects obvious shortcuts, including hardcoded expected answers,
+  skipped large cases, editing the verifier to relax thresholds, or writing a
+  plausible artifact without running the generated cases.
+- `pnpm kota eval list` loads the fixture without provenance or schema errors.
+- `pnpm kota eval run --fixture <new-fixture-id> --repeats 1` completes with
+  the resource-budget predicates passing and any objective metric visible in
+  the run artifact and aggregate output.
+- The fixture includes at least one regression check showing a sample-only or
+  threshold-relaxing shortcut fails, then the shortcut is reverted before
+  staging.
+
+## Source / Intent
+
+Explorer run `2026-06-22T23-00-20-991Z-explorer-whdo09` reviewed an empty
+actionable queue (`ready=0`, `doing=0`, `backlog=0`). The strategic blocked
+alternatives all still require operator-captured artifacts and were not
+movable:
+
+- `task-add-a-scientific-claim-reproduction-fixture-to-the`
+- `task-add-an-unfamiliar-language-strategy-construction-f`
+- `task-add-cross-preset-runtime-parity-gate`
+- `task-capture-an-end-to-end-coding-task-parity-artifact-`
+
+External sources checked:
+
+- `https://arxiv.org/abs/2602.01655` ("ProjDevBench: Benchmarking AI Coding
+  Agents on End-to-End Project Development", submitted February 2, 2026 and
+  revised February 9, 2026) describes a benchmark for building complete
+  repositories from project requirements. Its abstract identifies system
+  architecture, functional correctness, iterative refinement, and especially
+  time-complexity optimization and resource management as hard points for
+  coding agents.
+- `https://github.com/zsworld6/projdevbench` is the project repository. Its
+  README describes OJ-style execution feedback, resource-limit diagnostics,
+  containerized reproducibility, and problem categories that include data
+  structures, interpreters, storage systems, algorithms, and optimization.
+
+Local overlap check:
+
+- `builder-empirical-code-optimization` covers improving a numeric score, not
+  proving a solution scales from examples to large deterministic canaries.
+- `builder-product-requirements-canary` covers preserving rich product
+  requirements through implementation and follow-up changes, not algorithmic
+  resource growth.
+- `builder-multi-service-integration` covers component wiring and startup, not
+  input-size complexity.
+- `builder-bare-repo-full-cycle` covers environment setup and test creation,
+  not large-case budget behavior.
+- Eval-harness resource profiles make run comparability auditable, but they do
+  not themselves create a fixture that catches sample-passing,
+  resource-exhausting code.
+
+The nonduplicative gap is one compact resource-budget canary fixture that
+grades scalable design through deterministic artifacts.
+
+## Initiative
+
+Outcome-grade autonomy evaluation: KOTA should test whether builders can
+produce code that remains correct and bounded beyond small examples, without
+importing an external benchmark or trusting final prose.
+
+## Product / Safety Link
+
+This Meta task supports the Product claim that KOTA can handle real coding
+work through pluggable harnesses and the Safety concern that agent-authored
+code should not be accepted from toy-example success while hiding predictable
+resource exhaustion.
+
+## Acceptance Evidence
+
+- Diff showing the new fixture directory, including `fixture.json`, `notes.md`,
+  the minimal `initial/` project/task files, generated-canary verifier, and
+  deterministic scoring or shortcut-regression scripts.
+- Transcript captured under `.kota/runs/<run-id>/` for
+  `pnpm kota eval list` showing the new fixture loads.
+- Transcript captured under `.kota/runs/<run-id>/` for
+  `pnpm kota eval run --fixture <new-fixture-id> --repeats 1` showing the
+  resource-budget predicates passing.
+- Run artifact from the same eval execution showing predicate details,
+  `resource-budget-result.json`, generated input sizes, budget proxy values,
+  and any objective metrics.
+- Evidence of a temporary sample-only or threshold-relaxing shortcut causing
+  the fixture to fail, with the shortcut reverted before staging.
