@@ -31,9 +31,9 @@ export type DoctorRunOptions = {
   skipConnectivity?: boolean;
   /**
    * Preset id to preflight (`claude` | `codex` | `gemini` | …). When set,
-   * `kota doctor` checks the preset's auth contract and reports a `fail`
-   * row naming missing env vars when the preset uses env auth. Defaults to
-   * the active preset resolved through `--preset` / `$KOTA_PRESET` /
+   * `kota doctor` checks the preset's auth contract, including missing env
+   * auth failures and unverifiable harness-managed auth warnings. Defaults
+   * to the active preset resolved through `--preset` / `$KOTA_PRESET` /
    * `config.defaultPreset` / shipped default.
    */
   preset?: string;

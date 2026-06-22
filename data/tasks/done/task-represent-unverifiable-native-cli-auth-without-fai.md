@@ -1,13 +1,13 @@
 ---
 id: task-represent-unverifiable-native-cli-auth-without-fai
 title: Represent unverifiable native CLI auth without failing preset readiness
-status: ready
+status: done
 priority: p2
 area: architecture
 task_class: Platform
 summary: Distinguish harness-managed auth that cannot be checked non-interactively from missing auth, so Antigravity CLI doctor and preset-parity preflight stay honest while still allowing an explicit operator-invoked live smoke.
 created_at: 2026-06-22T04:43:07.804Z
-updated_at: 2026-06-22T04:43:07.804Z
+updated_at: 2026-06-22T05:00:19.000Z
 ---
 
 ## Problem
@@ -141,3 +141,18 @@ and useful without pretending it can inspect provider-owned local login state.
 - If a live smoke command is added, a fake-CLI test and a redacted transcript
   proving the smoke result is recorded separately from local auth readiness.
 - `pnpm run validate-tasks` passes with this ready task present.
+
+## Completion Evidence
+
+- Builder run: `.kota/runs/2026-06-22T04-52-55-585Z-builder-a6e07a/`.
+- Focused tests passed: `pnpm test src/core/agent-harness/readiness.test.ts src/core/model/preset-readiness.test.ts src/modules/doctor/doctor.test.ts src/modules/antigravity-cli-agent-harness/adapter.test.ts src/core/workflow/steps/step-executor-agent-capability.test.ts`.
+- Typecheck passed: `pnpm run typecheck`.
+- Build passed: `pnpm run build`.
+- Task validation passed after staging the manual task-state move:
+  `pnpm run validate-tasks`.
+- Doctor evidence:
+  `.kota/runs/2026-06-22T04-52-55-585Z-builder-a6e07a/doctor-antigravity-cli-transcript.txt`
+  and
+  `.kota/runs/2026-06-22T04-52-55-585Z-builder-a6e07a/doctor-antigravity-cli-json-transcript.txt`.
+- No live AGY smoke path was added; ordinary readiness remains local and
+  deterministic.

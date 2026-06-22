@@ -111,6 +111,8 @@ function collectAuthReadiness(
       probe,
       summary: ready
         ? `harness-managed auth ready (${probe.summary})`
+        : probe.status === "unverifiable"
+          ? `harness-managed auth unverifiable (${probe.summary})`
         : `harness-managed auth not ready (${probe.summary})`,
     };
   }

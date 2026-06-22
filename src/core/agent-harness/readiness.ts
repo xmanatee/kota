@@ -13,7 +13,11 @@ export type AgentHarnessAdapterKind =
   | "unknown";
 
 export type AgentHarnessRuntimeStatus = "ready" | "missing" | "error";
-export type AgentHarnessAuthStatus = "ready" | "missing" | "error";
+export type AgentHarnessAuthStatus =
+  | "ready"
+  | "missing"
+  | "unverifiable"
+  | "error";
 
 export type AgentHarnessRuntimeProbe =
   | {
@@ -107,6 +111,14 @@ export type AgentHarnessAuthProbe =
   | {
       readonly kind: "harness-managed-login";
       readonly status: "missing";
+      readonly required: boolean;
+      readonly command: string;
+      readonly detail: string;
+      readonly summary: string;
+    }
+  | {
+      readonly kind: "harness-managed-login";
+      readonly status: "unverifiable";
       readonly required: boolean;
       readonly command: string;
       readonly detail: string;

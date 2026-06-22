@@ -417,14 +417,40 @@ function presetReadinessSummary(readiness: PresetHarnessReadiness): string {
   return `${readiness.auth.summary}; runtime ${readiness.adapter.localRuntime.summary}`;
 }
 
+function hasRequiredRuntimeFailure(readiness: PresetHarnessReadiness): boolean {
+  return (
+    readiness.adapter.localRuntime.required &&
+    readiness.adapter.localRuntime.status !== "ready"
+  );
+}
+
+function authCheckStatus(
+  readiness: PresetHarnessReadiness,
+): CheckResult["status"] {
+  if (readiness.auth.ready) return "pass";
+  if (
+    readiness.auth.mode === "harness-managed-login" &&
+    readiness.auth.probe.status === "unverifiable"
+  ) {
+    return "warn";
+  }
+  return "fail";
+}
+
 function renderPresetReadinessChecks(
   readiness: PresetHarnessReadiness,
   sourceLabel: string,
 ): CheckResult[] {
   const sourceDetail =
     `source: ${sourceLabel}, harness: ${readiness.harnessId}, defaultModel: ${readiness.defaultModel}`;
-  const presetStatus: CheckResult["status"] =
-    isPresetHarnessReadinessReady(readiness) ? "pass" : "fail";
+  const presetStatus: CheckResult["status"] = isPresetHarnessReadinessReady(
+    readiness,
+  )
+    ? "pass"
+    : authCheckStatus(readiness) === "warn" &&
+        !hasRequiredRuntimeFailure(readiness)
+      ? "warn"
+      : "fail";
   const checks: CheckResult[] = [
     {
       label: `Preset: ${readiness.presetId}`,
@@ -457,7 +483,7 @@ function renderPresetReadinessChecks(
 
   checks.push({
     label: `Preset auth: ${readiness.presetId}`,
-    status: readiness.auth.ready ? "pass" : "fail",
+    status: authCheckStatus(readiness),
     detail: readiness.auth.summary,
   });
   checks.push(pass(

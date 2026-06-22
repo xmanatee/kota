@@ -108,14 +108,15 @@ function antigravityCliAuthReadiness(): AgentHarnessAuthProbe {
     : `settings file not found at ${ANTIGRAVITY_SETTINGS_PATH}`;
   return {
     kind: "harness-managed-login",
-    status: "missing",
+    status: "unverifiable",
     required: true,
     command: ANTIGRAVITY_CLI_BINARY_NAME,
     detail:
       `${settingsState}; Antigravity CLI stores Google session state in the OS secure keyring ` +
-      "and current docs expose `/logout` but no stable headless auth-status command.",
+      "and current docs expose `/logout` but no stable headless auth-status command. " +
+      "The settings file is not proof of login state.",
     summary:
-      "Antigravity CLI login cannot be verified non-interactively; run `agy` and sign in",
+      "Antigravity CLI auth cannot be verified non-interactively",
   };
 }
 

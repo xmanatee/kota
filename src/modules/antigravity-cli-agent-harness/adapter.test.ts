@@ -97,7 +97,7 @@ describe("antigravityCliAgentHarness", () => {
       },
       localAuth: {
         kind: "harness-managed-login",
-        status: "missing",
+        status: "unverifiable",
         command: "agy",
         required: true,
       },
@@ -107,6 +107,9 @@ describe("antigravityCliAgentHarness", () => {
     );
     expect(readiness?.localAuth?.detail).toContain(
       ".gemini/antigravity-cli/settings.json",
+    );
+    expect(readiness?.localAuth?.detail).toContain(
+      "settings file is not proof",
     );
   });
 
