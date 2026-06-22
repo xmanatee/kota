@@ -1,12 +1,12 @@
 ---
 id: task-security-review-normalized-task-creation-stages-th
 title: Security review: Normalized task creation stages the new file through a shell-interpolated git command. Because the interpolated file path is derived from the project directory, a project path containing shell metacharacters can break out of the quoted argument and execute commands during task creation.
-status: ready
+status: done
 priority: p2
 area: security
 summary: Normalized task creation stages the new file through a shell-interpolated git command. Because the interpolated file path is derived from the project directory, a project path containing shell metacharacters can break out of the quoted argument and execute commands during task creation.
 created_at: 2026-06-22T02:43:07.339Z
-updated_at: 2026-06-22T02:43:07.339Z
+updated_at: 2026-06-22T03:58:30.000Z
 ---
 
 ## Problem
@@ -96,3 +96,10 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/modules/repo-tasks/repo-tasks-operations.test.ts` passed: 1 file, 20 tests.
+- `pnpm exec biome check src/modules/repo-tasks/repo-tasks-operations.ts src/modules/repo-tasks/repo-tasks-operations.test.ts` passed.
+- `pnpm run typecheck` passed.
+- `pnpm run validate-tasks` passed after staging the task move.

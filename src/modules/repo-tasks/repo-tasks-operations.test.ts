@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -81,6 +82,7 @@ describe("showTask", () => {
 
   beforeEach(() => {
     projectDir = makeProjectDir();
+    vi.mocked(execFileSync).mockClear();
   });
 
   afterEach(() => {
@@ -139,6 +141,31 @@ describe("createNormalizedTask", () => {
       expect(content).toContain("status: backlog");
       expect(content).toContain("## Problem");
       expect(content).toContain("## Done When");
+    }
+  });
+
+  it("stages the task file through argv so path metacharacters stay literal", () => {
+    const unsafeProjectDir = join(projectDir, 'repo "$(touch should-not-run)" ;');
+    mkdirSync(unsafeProjectDir, { recursive: true });
+
+    const result = createNormalizedTask(unsafeProjectDir, {
+      title: "Literal path task",
+      priority: "p2",
+      area: "core",
+      state: "backlog",
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.path).toContain('$(touch should-not-run)');
+      expect(execFileSync).toHaveBeenCalledWith(
+        "git",
+        ["add", result.path],
+        expect.objectContaining({
+          cwd: unsafeProjectDir,
+          stdio: "ignore",
+        }),
+      );
     }
   });
 

@@ -5,7 +5,7 @@
  * HTTP routes route through these functions so the two transports cannot
  * diverge in behavior.
  */
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -148,7 +148,7 @@ export function createNormalizedTask(
 
   writeFileSync(filePath, serializeFlatFrontMatter(attrs, buildNormalizedTaskBody()), "utf-8");
   try {
-    execSync(`git add "${filePath}"`, {
+    execFileSync("git", ["add", filePath], {
       cwd: projectDir,
       env: withProtectedGitBareRepositoryEnv(),
       stdio: "ignore",
