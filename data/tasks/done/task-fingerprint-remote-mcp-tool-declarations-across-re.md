@@ -1,12 +1,12 @@
 ---
 id: task-fingerprint-remote-mcp-tool-declarations-across-re
 title: Fingerprint remote MCP tool declarations across registry refreshes
-status: ready
+status: done
 priority: p2
 area: core
 summary: Record stable fingerprints for remote MCP tool declarations from tools/list and surface changed descriptions, schemas, or annotations across refreshes so long-lived sessions can audit advertised tool-contract drift.
 created_at: 2026-06-22T15:38:27.874Z
-updated_at: 2026-06-22T15:38:27.874Z
+updated_at: 2026-06-22T16:00:35.611Z
 ---
 
 ## Problem

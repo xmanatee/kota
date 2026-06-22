@@ -88,6 +88,7 @@ describe("executeToolCalls MCP provenance", () => {
         serverName: "remote",
         source: "tool",
         name: "lookup",
+        declarationFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
       }]);
     } finally {
       await manager.close();

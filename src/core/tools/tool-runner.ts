@@ -583,6 +583,7 @@ export async function executeToolCalls(
       resultBytes: measureTelemetryPayloadBytes(resultPayload),
       resultContentKind: getToolResultContentKind(result),
       truncated: toolResultWouldTruncate(result, resultLimit),
+      ...(resultContentProvenance !== undefined ? { resultContentProvenance } : {}),
       ...(result.is_error ? { error: result.content.slice(0, 200) } : {}),
     });
     if (transport) {

@@ -37,6 +37,7 @@ describe("McpManager result provenance", () => {
         serverName: "remote",
         source: "tool",
         name: "lookup",
+        declarationFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
       });
       expect(manager.getToolResultContentProvenance("mcp_resources__remote__read")).toEqual({
         kind: "external-mcp",

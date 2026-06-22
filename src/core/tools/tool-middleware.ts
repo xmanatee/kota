@@ -21,6 +21,7 @@ export type ToolResultContentProvenance = {
 	serverName: string;
 	source: "tool" | "operation";
 	name: string;
+	declarationFingerprint?: string;
 };
 
 /**

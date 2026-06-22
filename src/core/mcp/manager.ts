@@ -61,6 +61,12 @@ import {
   remoteMcpServerIdentity,
   remoteMcpTaskHandleId,
 } from "./remote-task-store.js";
+import {
+  changedMcpToolDeclarationFacets,
+  fingerprintMcpToolDeclaration,
+  type McpToolDeclarationFacet,
+  type McpToolDeclarationFingerprint,
+} from "./tool-declaration-fingerprint.js";
 
 export type McpServerStdioConfig = McpStdioClientTransportConfig;
 export type McpServerHttpConfig = McpStreamableHttpClientTransportConfig;
@@ -86,7 +92,17 @@ type McpToolEntry = {
   client: McpClient;
   originalName: string;
   tool: KotaTool;
+  declaration: McpToolDeclarationFingerprint;
   annotations?: McpToolAnnotations;
+};
+
+export type McpToolDeclarationDriftDiagnostic = {
+  serverConfigName: string;
+  serverDisplayName: string;
+  toolName: string;
+  previousFingerprint: string;
+  currentFingerprint: string;
+  changedFacets: McpToolDeclarationFacet[];
 };
 
 type McpOperationKind =
@@ -197,6 +213,7 @@ export type McpExecuteToolOptions = {
 
 type McpRemoteTaskStats = {
   protocolVersion: McpProtocolVersion;
+  toolDeclarationFingerprint: string;
   pollCount: number;
   inputUpdateCount: number;
   startedAtMs: number;
@@ -223,6 +240,7 @@ export type McpRemoteTaskResumeResult =
 
 const SEPARATOR = "__";
 const DEFAULT_REMOTE_TASK_POLL_INTERVAL_MS = 1_000;
+const MAX_TOOL_DECLARATION_DRIFT_DIAGNOSTICS = 100;
 const MCP_CONFIG_FIELDS = new Set(["type", "command", "args", "env", "url", "headers", "authorization"]);
 const MCP_STDIO_FIELDS = ["command", "args", "env"] as const;
 const MCP_HTTP_FIELDS = ["url", "headers", "authorization"] as const;
@@ -489,6 +507,7 @@ function remoteTaskDiagnostics(
     protocolVersion: stats.protocolVersion,
     server: entry.client.getName(),
     tool: entry.originalName,
+    toolDeclarationFingerprint: stats.toolDeclarationFingerprint,
     taskId: task.taskId,
     status: task.status,
     pollCount: stats.pollCount,
@@ -561,6 +580,7 @@ function remoteTaskStatsForPersistedHandle(
 ): McpRemoteTaskStats {
   return {
     protocolVersion: handle.protocolVersion,
+    toolDeclarationFingerprint: handle.toolDeclarationFingerprint ?? handle.serverFingerprint,
     pollCount: handle.pollCount,
     inputUpdateCount: handle.inputUpdateCount,
     startedAtMs: Date.parse(handle.startedAt),
@@ -1204,6 +1224,7 @@ export class McpManager {
   private refreshQueues = new Map<string, Promise<void>>();
   private remoteTaskServerIdentities = new Map<string, RemoteMcpServerIdentity>();
   private remoteTaskResumeResults: McpRemoteTaskResumeResult[] = [];
+  private toolDeclarationDriftDiagnostics: McpToolDeclarationDriftDiagnostic[] = [];
 
   constructor(options: McpManagerOptions = {}) {
     this.remoteTaskStore = options.remoteTaskStore ??
@@ -1338,6 +1359,17 @@ export class McpManager {
     return this.remoteTaskResumeResults;
   }
 
+  getToolDeclarationFingerprint(name: string): string | undefined {
+    return this.toolMap.get(name)?.declaration.fingerprint;
+  }
+
+  getToolDeclarationDriftDiagnostics(): readonly McpToolDeclarationDriftDiagnostic[] {
+    return this.toolDeclarationDriftDiagnostics.map((diagnostic) => ({
+      ...diagnostic,
+      changedFacets: [...diagnostic.changedFacets],
+    }));
+  }
+
   /** Check if a tool name belongs to an MCP server. */
   isMcpTool(name: string): boolean {
     return this.toolMap.has(name) || this.operationMap.has(name);
@@ -1359,6 +1391,7 @@ export class McpManager {
         serverName: tool.serverConfigName,
         source: "tool",
         name: tool.originalName,
+        declarationFingerprint: tool.declaration.fingerprint,
       };
     }
     const operation = this.operationMap.get(name);
@@ -1461,6 +1494,7 @@ export class McpManager {
     const now = Date.now();
     const stats: McpRemoteTaskStats = {
       protocolVersion: created.protocolVersion,
+      toolDeclarationFingerprint: entry.declaration.fingerprint,
       pollCount: 0,
       inputUpdateCount: 0,
       startedAtMs: now,
@@ -1599,6 +1633,7 @@ export class McpManager {
       serverFingerprint: identity.fingerprint,
       serverMatch: identity.match,
       toolName: entry.originalName,
+      toolDeclarationFingerprint: stats.toolDeclarationFingerprint,
       taskId: task.taskId,
       protocolVersion: stats.protocolVersion,
       status: task.status,
@@ -1705,6 +1740,7 @@ export class McpManager {
       .get(handle.serverConfigName)
       ?.find((entry) => entry.originalName === handle.toolName);
     if (currentEntry) return currentEntry;
+    const declarationFingerprint = handle.toolDeclarationFingerprint ?? handle.serverFingerprint;
     return {
       serverConfigName: handle.serverConfigName,
       client,
@@ -1714,6 +1750,17 @@ export class McpManager {
         `[${handle.serverConfigName}] Resumed remote MCP task for ${handle.toolName}.`,
         { type: "object", properties: {} },
       ),
+      declaration: {
+        fingerprint: declarationFingerprint,
+        facetFingerprints: {
+          serverIdentity: declarationFingerprint,
+          description: declarationFingerprint,
+          inputSchema: declarationFingerprint,
+          outputSchema: declarationFingerprint,
+          annotations: declarationFingerprint,
+          capabilities: declarationFingerprint,
+        },
+      },
     };
   }
 
@@ -2434,6 +2481,7 @@ export class McpManager {
     this.listCacheInvalidations.clear();
     this.remoteSkillCatalogCache.clear();
     this.remoteSkillCatalogInvalidations.clear();
+    this.toolDeclarationDriftDiagnostics = [];
     this.kotaTools = [];
   }
 
@@ -2452,6 +2500,9 @@ export class McpManager {
     client: McpClient,
     tools: McpToolSchema[],
   ): void {
+    const previousByOriginalName = new Map(
+      (this.serverTools.get(serverName) ?? []).map((entry) => [entry.originalName, entry]),
+    );
     const entries = tools.map((tool) => {
       const kotaTool = toKotaTool(serverName, tool);
       return {
@@ -2459,9 +2510,16 @@ export class McpManager {
         client,
         originalName: tool.name,
         tool: kotaTool,
+        declaration: fingerprintMcpToolDeclaration({
+          serverConfigName: serverName,
+          serverDisplayName: client.getName(),
+          tool,
+          tasksSupported: client.supportsTasks(),
+        }),
         ...(tool.annotations ? { annotations: tool.annotations } : {}),
       };
     });
+    this.recordToolDeclarationDrift(previousByOriginalName, entries);
     const nextToolMap = new Map(this.toolMap);
     for (const entry of this.serverTools.get(serverName) ?? []) {
       nextToolMap.delete(entry.tool.name);
@@ -2473,6 +2531,44 @@ export class McpManager {
     this.toolMap = nextToolMap;
     this.replaceServerOperations(serverName, client);
     this.rebuildKotaTools();
+  }
+
+  private recordToolDeclarationDrift(
+    previousByOriginalName: Map<string, McpToolEntry>,
+    entries: McpToolEntry[],
+  ): void {
+    const diagnostics: McpToolDeclarationDriftDiagnostic[] = [];
+    for (const entry of entries) {
+      const previous = previousByOriginalName.get(entry.originalName);
+      if (!previous) continue;
+      if (previous.declaration.fingerprint === entry.declaration.fingerprint) continue;
+      const changedFacets = changedMcpToolDeclarationFacets(
+        previous.declaration,
+        entry.declaration,
+      );
+      diagnostics.push({
+        serverConfigName: entry.serverConfigName,
+        serverDisplayName: entry.client.getName(),
+        toolName: entry.originalName,
+        previousFingerprint: previous.declaration.fingerprint,
+        currentFingerprint: entry.declaration.fingerprint,
+        changedFacets,
+      });
+    }
+    if (diagnostics.length === 0) return;
+    this.toolDeclarationDriftDiagnostics = [
+      ...this.toolDeclarationDriftDiagnostics,
+      ...diagnostics,
+    ].slice(-MAX_TOOL_DECLARATION_DRIFT_DIAGNOSTICS);
+    for (const diagnostic of diagnostics) {
+      printTerminalDiagnostic(
+        `[kota] Warning: MCP server "${diagnostic.serverConfigName}" tool declaration changed for ` +
+          `"${diagnostic.toolName}" (${diagnostic.previousFingerprint.slice(0, 12)} -> ` +
+          `${diagnostic.currentFingerprint.slice(0, 12)}; facets: ` +
+          `${diagnostic.changedFacets.join(", ") || "fingerprint"})`,
+        "warn",
+      );
+    }
   }
 
   private replaceServerOperations(serverName: string, client: McpClient): void {

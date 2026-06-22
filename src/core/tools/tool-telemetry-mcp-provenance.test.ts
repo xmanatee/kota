@@ -44,4 +44,39 @@ describe("ToolTelemetry MCP provenance", () => {
       }),
     ]);
   });
+
+  it("preserves explicit MCP declaration fingerprints on call records", () => {
+    const telemetry = new ToolTelemetry();
+    telemetry.recordCallStart({
+      toolUseId: "tool-1",
+      tool: "mcp__remote__lookup",
+      inputBytes: 0,
+    });
+    telemetry.recordCallResult({
+      toolUseId: "tool-1",
+      tool: "mcp__remote__lookup",
+      durationMs: 10,
+      success: true,
+      resultBytes: 20,
+      resultContentKind: "text",
+      truncated: false,
+      resultContentProvenance: {
+        kind: "external-mcp",
+        serverName: "remote",
+        source: "tool",
+        name: "lookup",
+        declarationFingerprint: "declaration-fp",
+      },
+    });
+
+    expect(telemetry.getCallRecords()[0]).toMatchObject({
+      resultContentProvenance: {
+        kind: "external-mcp",
+        serverName: "remote",
+        source: "tool",
+        name: "lookup",
+        declarationFingerprint: "declaration-fp",
+      },
+    });
+  });
 });

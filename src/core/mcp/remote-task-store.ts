@@ -34,6 +34,7 @@ export type PersistedRemoteMcpTaskHandle = {
   serverFingerprint: string;
   serverMatch: RemoteMcpTaskServerMatch;
   toolName: string;
+  toolDeclarationFingerprint?: string;
   taskId: string;
   protocolVersion: McpProtocolVersion;
   status: McpTaskStatus;
@@ -305,6 +306,9 @@ function validateHandle(
   requireString(handle.serverFingerprint, `tasks[${index}].serverFingerprint`);
   validateServerMatch(handle.serverMatch, `tasks[${index}].serverMatch`);
   requireString(handle.toolName, `tasks[${index}].toolName`);
+  if (handle.toolDeclarationFingerprint !== undefined) {
+    requireString(handle.toolDeclarationFingerprint, `tasks[${index}].toolDeclarationFingerprint`);
+  }
   requireString(handle.taskId, `tasks[${index}].taskId`);
   if (!isMcpProtocolVersion(handle.protocolVersion)) {
     throw new Error(`Malformed remote MCP task store: tasks[${index}].protocolVersion is invalid`);
