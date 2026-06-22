@@ -1,17 +1,17 @@
 ---
 id: task-clear-current-progress-reviewer-collect-evidence-d
 title: Clear current progress-reviewer collect-evidence dead-letter
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Dead-letter dlq-e6d3e07c-fac4-41c8-9987-da6b3e04d980 remains open after progress-reviewer failed because collect-evidence output was truncated before prepare-review-input could read generatedAt. Recent code now persists full evidence as an artifact and the current run reached prepare-review-input, so resolve the DLQ by redrive or dismissal with durable evidence.
 created_at: 2026-06-22T08:40:16.180Z
-updated_at: 2026-06-22T08:40:16.180Z
+updated_at: 2026-06-22T09:09:54.066Z
 ---
 
 ## Problem
 
-Dead-letter dlq-e6d3e07c-fac4-41c8-9987-da6b3e04d980 remains open after progress-reviewer failed because collect-evidence output was truncated before prepare-review-input could read generatedAt. Recent code now persists full evidence as an artifact and the current run reached prepare-review-input, so resolve the DLQ by redrive or dismissal with durable evidence.
+Dead-letter dlq-e6d3e07c-fac4-41c8-9987-da6b3e04d980 remained open after progress-reviewer failed because collect-evidence output was truncated before prepare-review-input could read generatedAt.
 
 ## Desired Outcome
 
@@ -47,4 +47,8 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- A DLQ resolution artifact or command transcript records before/after state for dlq-e6d3e07c-fac4-41c8-9987-da6b3e04d980, the redrive or dismissal rationale, a no-open-progress-reviewer-DLQ check, and a same-shape run or focused workflow test proving collect-evidence persists generatedAt via artifact when full evidence would exceed the step-output limit.
+- `.kota/runs/2026-06-22T09-05-05-207Z-builder-idhqcb/dead-letter-resolution.md` records the before/after state, dismissal rationale, preserved source event ids, no-open progress-reviewer DLQ check, and focused workflow test result.
+- `.kota/runs/2026-06-22T09-05-05-207Z-builder-idhqcb/dlq-e6d3e07c-before.json` records the item as open before dismissal; `.kota/runs/2026-06-22T09-05-05-207Z-builder-idhqcb/dlq-e6d3e07c-after.json` records it as dismissed with the rationale.
+- `.kota/runs/2026-06-22T09-05-05-207Z-builder-idhqcb/dlq-progress-reviewer-open-after.json` records `items: []` and `counts.open: 0` for `pnpm kota workflow dlq list --status open --workflow progress-reviewer --json`.
+- Run 2026-06-22T08-21-35-141Z-progress-reviewer-jsdc5r reached `prepare-review-input`; its `collect-evidence` step returned `generatedAt: 2026-06-22T08:37:06.333Z` and `artifactPath: .kota/runs/2026-06-22T08-21-35-141Z-progress-reviewer-jsdc5r/progress-review-evidence.json`.
+- Focused verification passed: `pnpm vitest run src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts -t "runs review-evidence with schema-valid JSON when raw run-count evidence exceeds the step output limit"`.
