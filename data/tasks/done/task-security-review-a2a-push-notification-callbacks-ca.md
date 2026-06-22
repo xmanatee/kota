@@ -1,12 +1,12 @@
 ---
 id: task-security-review-a2a-push-notification-callbacks-ca
 title: Security review: A2A push notification callbacks can be configured with authenticated credentials over plain HTTP; delivery later sends the Authorization header and task update payload to that URL.
-status: ready
+status: done
 priority: p2
 area: security
 summary: A2A push notification callbacks can be configured with authenticated credentials over plain HTTP; delivery later sends the Authorization header and task update payload to that URL.
 created_at: 2026-06-22T05:38:58.010Z
-updated_at: 2026-06-22T05:38:58.010Z
+updated_at: 2026-06-22T05:43:44.199Z
 ---
 
 ## Problem
@@ -110,3 +110,4 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Verification: `pnpm test src/modules/a2a-channel/push-notification-configs.test.ts src/modules/a2a-channel/push-notification-delivery.test.ts`; `pnpm typecheck`; `pnpm lint`; `pnpm validate-tasks`.

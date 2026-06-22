@@ -158,6 +158,31 @@ describe("a2a push notification configs", () => {
     expect(listed.result.configs).toEqual([created.result]);
   });
 
+  it("allows non-credentialed http callback configs", async () => {
+    const storage = makeStorage(state.tempDirs);
+    const backend = new FakeBackend();
+    const server = await startRouteServer(a2aRoutes(makeContext(storage), {
+      backendFactory: () => backend,
+      pushNotificationFetch: vi.fn(),
+    }));
+    state.servers.push(server.server);
+
+    const created = await postRpc(server.baseUrl, {
+      jsonrpc: "2.0",
+      id: "anonymous-http",
+      method: "CreateTaskPushNotificationConfig",
+      params: pushConfigParams({
+        id: "anonymous-http",
+        url: "http://callback.example.test/a2a",
+      }),
+    });
+
+    expect(created.result).toMatchObject({
+      id: "anonymous-http",
+      url: "http://callback.example.test/a2a",
+    });
+  });
+
   it("rejects malformed configs and routing mismatches before daemon work starts", async () => {
     const backend = new FakeBackend();
     const backendFactory = vi.fn(() => backend);
@@ -200,6 +225,41 @@ describe("a2a push notification configs", () => {
       }),
     });
     expect(headerInjection.error.code).toBe(-32602);
+    expect(backendFactory).not.toHaveBeenCalled();
+
+    const cleartextAuthentication = await postRpc(server.baseUrl, {
+      jsonrpc: "2.0",
+      id: "cleartext-auth",
+      method: "CreateTaskPushNotificationConfig",
+      params: pushConfigParams({
+        id: "cleartext-auth",
+        url: "http://callback.example.test/a2a",
+        authentication: {
+          scheme: "Bearer",
+          credentials: "callback-secret",
+        },
+      }),
+    });
+    expect(cleartextAuthentication.error.code).toBe(-32602);
+    expect(cleartextAuthentication.error.message).toBe(
+      "url must use https when callback credentials are configured",
+    );
+    expect(backendFactory).not.toHaveBeenCalled();
+
+    const cleartextToken = await postRpc(server.baseUrl, {
+      jsonrpc: "2.0",
+      id: "cleartext-token",
+      method: "CreateTaskPushNotificationConfig",
+      params: pushConfigParams({
+        id: "cleartext-token",
+        url: "http://callback.example.test/a2a",
+        token: "config-token",
+      }),
+    });
+    expect(cleartextToken.error.code).toBe(-32602);
+    expect(cleartextToken.error.message).toBe(
+      "url must use https when callback credentials are configured",
+    );
     expect(backendFactory).not.toHaveBeenCalled();
 
     const numericId = await postRpc(server.baseUrl, {

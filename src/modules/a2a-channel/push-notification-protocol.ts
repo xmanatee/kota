@@ -62,15 +62,18 @@ export function decodeCreatePushNotificationConfigParams(
   if (!taskId) throw invalidParams("taskId must be a non-empty string");
   const url = optionalStringField(config, "url") ?? optionalStringField(params, "url");
   if (!url) throw invalidParams("url must be a non-empty string");
-  assertAllowedCallbackUrl(url);
+  const parsedUrl = assertAllowedCallbackUrl(url);
+  const token = decodeSecretString(config, params, "token");
+  const authentication = decodePushAuthentication(config);
+  assertCredentialedCallbackUsesHttps(parsedUrl, token, authentication);
   return {
     id: optionalStringField(config, "id") ?? optionalStringField(params, "id"),
     taskId,
     projectId: decodeRoutingProjectId({ params, message: config }),
     contextId: optionalStringField(config, "contextId") ?? optionalStringField(params, "contextId"),
     url,
-    token: decodeSecretString(config, params, "token"),
-    authentication: decodePushAuthentication(config),
+    token,
+    authentication,
   };
 }
 
@@ -155,7 +158,7 @@ function decodePositiveInteger(params: JsonObject, key: string): number | null {
   return value;
 }
 
-function assertAllowedCallbackUrl(rawUrl: string): void {
+function assertAllowedCallbackUrl(rawUrl: string): URL {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
@@ -171,6 +174,17 @@ function assertAllowedCallbackUrl(rawUrl: string): void {
   if (isPrivateCallbackHost(parsed.hostname)) {
     throw invalidParams("url must use a non-local callback host");
   }
+  return parsed;
+}
+
+function assertCredentialedCallbackUsesHttps(
+  parsed: URL,
+  token: string | null,
+  authentication: A2APushNotificationAuthentication | null,
+): void {
+  if (parsed.protocol === "https:") return;
+  if (token === null && !authentication?.credentials) return;
+  throw invalidParams("url must use https when callback credentials are configured");
 }
 
 function isPrivateCallbackHost(hostname: string): boolean {
