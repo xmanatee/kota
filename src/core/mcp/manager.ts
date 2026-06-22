@@ -33,7 +33,6 @@ import {
   type McpOAuthClientCredentialsPrivateKeyJwtClientConfig,
   type McpOAuthClientIdentityConfig,
   type McpProgressEvent,
-  type McpProtocolVersion,
   type McpReadResourceResult,
   type McpStdioClientTransportConfig,
   type McpStreamableHttpAuthorizationConfig,
@@ -52,6 +51,15 @@ import {
   resolveRemoteSkillRelativeUri,
 } from "./client-remote-skills.js";
 import { decodeCallToolResult } from "./client-result-decoders.js";
+import {
+  formatRemoteTaskResumeResult,
+  type McpRemoteTaskResumeResult,
+  type McpRemoteTaskStats,
+  remoteTaskErrorResult,
+  remoteTaskPollingErrorMessage,
+  remoteTaskStatsForPersistedHandle,
+  withRemoteTaskDiagnostics,
+} from "./remote-task-results.js";
 import {
   FileRemoteMcpTaskStore,
   MemoryRemoteMcpTaskStore,
@@ -77,6 +85,7 @@ import {
   namespaceTool,
 } from "./tool-namespace.js";
 
+export type { McpRemoteTaskResumeResult } from "./remote-task-results.js";
 export { namespaceTool, parseToolName } from "./tool-namespace.js";
 
 export type McpServerStdioConfig = McpStdioClientTransportConfig;
@@ -222,32 +231,9 @@ export type McpExecuteToolOptions = {
   signal?: AbortSignal;
 };
 
-type McpRemoteTaskStats = {
-  protocolVersion: McpProtocolVersion;
-  toolDeclarationFingerprint: string;
-  pollCount: number;
-  inputUpdateCount: number;
-  startedAtMs: number;
-  deadlineAtMs: number | null;
-};
-
-export type McpRemoteTaskResumeResult =
-  | {
-      kind: "result";
-      serverConfigName: string;
-      serverDisplayName: string;
-      tool: string;
-      taskId: string;
-      result: ToolResult;
-    }
-  | {
-      kind: "diagnostic";
-      serverConfigName: string;
-      serverDisplayName: string;
-      tool: string;
-      taskId: string;
-      message: string;
-    };
+type McpPersistedRemoteTaskEntryResolution =
+  | { kind: "entry"; entry: McpToolEntry }
+  | { kind: "diagnostic"; message: string };
 
 const DEFAULT_REMOTE_TASK_POLL_INTERVAL_MS = 1_000;
 const MAX_TOOL_DECLARATION_DRIFT_DIAGNOSTICS = 100;
@@ -478,63 +464,6 @@ function operationInputRequiredDiagnostics(
   };
 }
 
-function remoteTaskDiagnostics(
-  entry: McpToolEntry,
-  task: McpCreateTaskResult | McpGetTaskResult,
-  stats: McpRemoteTaskStats,
-): KotaJsonObject {
-  return {
-    resultType: "task",
-    protocolVersion: stats.protocolVersion,
-    server: entry.client.getName(),
-    tool: entry.originalName,
-    toolDeclarationFingerprint: stats.toolDeclarationFingerprint,
-    taskId: task.taskId,
-    status: task.status,
-    pollCount: stats.pollCount,
-    inputUpdateCount: stats.inputUpdateCount,
-    startedAt: new Date(stats.startedAtMs).toISOString(),
-    deadlineAt: stats.deadlineAtMs === null ? null : new Date(stats.deadlineAtMs).toISOString(),
-    lastUpdatedAt: task.lastUpdatedAt,
-  };
-}
-
-function withRemoteTaskDiagnostics(
-  result: ToolResult,
-  entry: McpToolEntry,
-  task: McpCreateTaskResult | McpGetTaskResult,
-  stats: McpRemoteTaskStats,
-): ToolResult {
-  return {
-    ...result,
-    _meta: {
-      ...(result._meta ?? {}),
-      mcpTask: remoteTaskDiagnostics(entry, task, stats),
-    },
-  };
-}
-
-function remoteTaskErrorResult(
-  entry: McpToolEntry,
-  task: McpCreateTaskResult | McpGetTaskResult,
-  stats: McpRemoteTaskStats,
-  reason: string,
-  errorCode?: number,
-): ToolResult {
-  return withRemoteTaskDiagnostics(
-    {
-      content:
-        `MCP tool error: remote MCP task "${task.taskId}" for tool ` +
-        `"${entry.originalName}" on server "${entry.client.getName()}" ${reason}`,
-      is_error: true,
-      ...(errorCode !== undefined ? { structuredContent: { errorCode } } : {}),
-    },
-    entry,
-    task,
-    stats,
-  );
-}
-
 function sleepUntilNextPoll(ms: number, signal?: AbortSignal): Promise<void> {
   if (signal?.aborted) {
     return Promise.reject(new Error("MCP task polling aborted"));
@@ -554,41 +483,6 @@ function sleepUntilNextPoll(ms: number, signal?: AbortSignal): Promise<void> {
     };
     signal?.addEventListener("abort", onAbort, { once: true });
   });
-}
-
-function remoteTaskStatsForPersistedHandle(
-  handle: PersistedRemoteMcpTaskHandle,
-): McpRemoteTaskStats {
-  return {
-    protocolVersion: handle.protocolVersion,
-    toolDeclarationFingerprint: handle.toolDeclarationFingerprint ?? handle.serverFingerprint,
-    pollCount: handle.pollCount,
-    inputUpdateCount: handle.inputUpdateCount,
-    startedAtMs: Date.parse(handle.startedAt),
-    deadlineAtMs: handle.deadlineAt === null ? null : Date.parse(handle.deadlineAt),
-  };
-}
-
-function formatRemoteTaskResumeResult(result: McpRemoteTaskResumeResult): string {
-  const prefix =
-    `[kota] MCP remote task "${result.taskId}" for tool "${result.tool}" ` +
-    `on server "${result.serverDisplayName}"`;
-  if (result.kind === "diagnostic") {
-    return `${prefix} was not resumed: ${result.message}`;
-  }
-  const state = result.result.is_error ? "resumed with error" : "resumed";
-  return `${prefix} ${state}: ${truncateRemoteTaskResumeContent(result.result.content)}`;
-}
-
-function truncateRemoteTaskResumeContent(content: string): string {
-  const normalized = content.replace(/\s+/g, " ").trim();
-  if (normalized.length <= 300) return normalized;
-  return `${normalized.slice(0, 297)}...`;
-}
-
-function remoteTaskPollingErrorMessage(err: Error): string {
-  if (err instanceof McpToolError) return err.message;
-  return `MCP remote task polling error: ${err.message}`;
 }
 
 function unsupportedInputRequiredResult(
@@ -1687,7 +1581,11 @@ export class McpManager {
     }
 
     try {
-      const entry = this.entryForPersistedRemoteTask(handle, client);
+      const resolvedEntry = this.entryForPersistedRemoteTask(handle, client);
+      if (resolvedEntry.kind === "diagnostic") {
+        return await this.remoteTaskResumeDiagnostic(handle, resolvedEntry.message);
+      }
+      const entry = resolvedEntry.entry;
       const stats = remoteTaskStatsForPersistedHandle(handle);
       const current = await client.getTask(handle.taskId);
       stats.pollCount += 1;
@@ -1717,30 +1615,49 @@ export class McpManager {
   private entryForPersistedRemoteTask(
     handle: PersistedRemoteMcpTaskHandle,
     client: McpClient,
-  ): McpToolEntry {
+  ): McpPersistedRemoteTaskEntryResolution {
     const currentEntry = this.serverTools
       .get(handle.serverConfigName)
       ?.find((entry) => entry.originalName === handle.toolName);
-    if (currentEntry) return currentEntry;
+    if (currentEntry) {
+      if (
+        handle.toolDeclarationFingerprint !== undefined &&
+        handle.toolDeclarationFingerprint !== currentEntry.declaration.fingerprint
+      ) {
+        return {
+          kind: "diagnostic",
+          message:
+            `tool declaration fingerprint for "${handle.toolName}" changed since remote task ` +
+            `"${handle.taskId}" was created; persisted toolDeclarationFingerprint=` +
+            `${handle.toolDeclarationFingerprint}; current toolDeclarationFingerprint=` +
+            `${currentEntry.declaration.fingerprint}; remote task was not resumed because its ` +
+            "result would be validated against a different declaration",
+        };
+      }
+      return { kind: "entry", entry: currentEntry };
+    }
     const declarationFingerprint = handle.toolDeclarationFingerprint ?? handle.serverFingerprint;
     return {
-      serverConfigName: handle.serverConfigName,
-      client,
-      originalName: handle.toolName,
-      tool: operationTool(
-        namespaceTool(handle.serverConfigName, handle.toolName),
-        `[${handle.serverConfigName}] Resumed remote MCP task for ${handle.toolName}.`,
-        { type: "object", properties: {} },
-      ),
-      declaration: {
-        fingerprint: declarationFingerprint,
-        facetFingerprints: {
-          serverIdentity: declarationFingerprint,
-          description: declarationFingerprint,
-          inputSchema: declarationFingerprint,
-          outputSchema: declarationFingerprint,
-          annotations: declarationFingerprint,
-          capabilities: declarationFingerprint,
+      kind: "entry",
+      entry: {
+        serverConfigName: handle.serverConfigName,
+        client,
+        originalName: handle.toolName,
+        tool: operationTool(
+          namespaceTool(handle.serverConfigName, handle.toolName),
+          `[${handle.serverConfigName}] Resumed remote MCP task for ${handle.toolName}.`,
+          { type: "object", properties: {} },
+        ),
+        declaration: {
+          fingerprint: declarationFingerprint,
+          facetFingerprints: {
+            serverIdentity: declarationFingerprint,
+            description: declarationFingerprint,
+            inputSchema: declarationFingerprint,
+            outputSchema: declarationFingerprint,
+            annotations: declarationFingerprint,
+            capabilities: declarationFingerprint,
+          },
         },
       },
     };

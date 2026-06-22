@@ -5,12 +5,18 @@ import type {
   PersistedRemoteMcpTaskHandle,
   RemoteMcpTaskStore,
 } from "./remote-task-store.js";
+import {
+  remoteMcpServerIdentity,
+  remoteMcpTaskHandleId,
+} from "./remote-task-store.js";
 
 class CapturingRemoteTaskStore implements RemoteMcpTaskStore {
   readonly upserts: PersistedRemoteMcpTaskHandle[] = [];
 
+  constructor(private readonly handles: PersistedRemoteMcpTaskHandle[] = []) {}
+
   async list(): Promise<PersistedRemoteMcpTaskHandle[]> {
-    return [];
+    return this.handles.map((handle) => ({ ...handle }));
   }
 
   async upsert(handle: PersistedRemoteMcpTaskHandle): Promise<void> {
@@ -98,6 +104,70 @@ describe("MCP remote task declaration fingerprints", () => {
         protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
         toolDeclarationFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
       });
+    } finally {
+      await manager.close();
+    }
+  }, 10_000);
+
+  it("keeps persisted task handles as diagnostics when the current tool declaration changed", async () => {
+    const script = taskServerScript();
+    const serverConfig = {
+      type: "stdio" as const,
+      command: "node",
+      args: ["-e", script],
+    };
+    const identity = remoteMcpServerIdentity(serverConfig);
+    const staleDeclarationFingerprint = "0".repeat(64);
+    const remoteTaskStore = new CapturingRemoteTaskStore([
+      {
+        id: remoteMcpTaskHandleId("remote", "task-fingerprint-1"),
+        serverConfigName: "remote",
+        serverDisplayName: "task-fingerprint-fixture",
+        serverFingerprint: identity.fingerprint,
+        serverMatch: identity.match,
+        toolName: "deploy",
+        toolDeclarationFingerprint: staleDeclarationFingerprint,
+        taskId: "task-fingerprint-1",
+        protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+        status: "working",
+        createdAt: "2026-05-25T12:00:00.000Z",
+        lastUpdatedAt: "2026-05-25T12:00:00.000Z",
+        ttlMs: null,
+        pollCount: 0,
+        inputUpdateCount: 0,
+        startedAt: "2026-05-25T12:00:00.000Z",
+        deadlineAt: null,
+        updatedAt: "2026-05-25T12:00:00.000Z",
+      },
+    ]);
+    const manager = new McpManager({ remoteTaskStore });
+
+    try {
+      await manager.initialize({
+        mcpServers: {
+          remote: serverConfig,
+        },
+      }, { inputResolverAvailable: true });
+
+      const [resumeResult] = manager.getRemoteTaskResumeResults();
+      expect(resumeResult).toMatchObject({
+        kind: "diagnostic",
+        serverConfigName: "remote",
+        serverDisplayName: "task-fingerprint-fixture",
+        tool: "deploy",
+        taskId: "task-fingerprint-1",
+        message: expect.stringContaining("tool declaration fingerprint"),
+      });
+      expect(remoteTaskStore.upserts[0]).toMatchObject({
+        taskId: "task-fingerprint-1",
+        lastDiagnostic: expect.stringContaining(staleDeclarationFingerprint),
+      });
+      expect(remoteTaskStore.upserts[0]?.lastDiagnostic).toContain(
+        "current toolDeclarationFingerprint=",
+      );
+      expect(remoteTaskStore.upserts[0]?.lastDiagnostic).toContain(
+        "different declaration",
+      );
     } finally {
       await manager.close();
     }
