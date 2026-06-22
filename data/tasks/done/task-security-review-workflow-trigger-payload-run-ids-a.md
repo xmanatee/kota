@@ -1,12 +1,12 @@
 ---
 id: task-security-review-workflow-trigger-payload-run-ids-a
 title: Security review: Workflow trigger payload run ids are trusted as filesystem path segments when refreshing linked control-coverage artifacts, allowing a crafted runId/sourceRunId/inputEvents payload with ../ segments to make the runtime read and write control coverage outside the project .kota/runs directory when a metadata.json exists at the resolved path.
-status: ready
+status: done
 priority: p2
 area: security
 summary: Workflow trigger payload run ids are trusted as filesystem path segments when refreshing linked control-coverage artifacts, allowing a crafted runId/sourceRunId/inputEvents payload with ../ segments to make the runtime read and write control coverage outside the project .kota/runs directory when a metadata.json exists at the resolved path.
 created_at: 2026-06-22T13:24:39.968Z
-updated_at: 2026-06-22T13:24:39.968Z
+updated_at: 2026-06-22T14:23:56.000Z
 ---
 
 ## Problem
@@ -110,3 +110,6 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Fixed in `src/core/workflow/active-run-handle.ts` with path-safe linked run-id validation plus `.kota/runs` containment before linked coverage refresh reads/writes.
+- Regression coverage in `src/core/workflow/control-monitor-coverage-executor.test.ts` creates an outside-run fixture with `metadata.json`, feeds `../../outside-source-run` through direct and nested trigger payload run-id fields, and verifies no control-monitor coverage artifact is written outside `.kota/runs`.
+- Verification is recorded in `.kota/runs/2026-06-22T14-19-12-546Z-builder-md55mu/validation.txt`; passing commands include `pnpm test src/core/workflow/control-monitor-coverage-executor.test.ts src/core/workflow/workflow-run-id-security.test.ts`, `pnpm typecheck`, targeted Biome check, `git add -A`, and `pnpm validate-tasks`.

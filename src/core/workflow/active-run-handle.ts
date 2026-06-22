@@ -1,5 +1,5 @@
 import { appendFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
 import { redactSensitiveText } from "#core/evidence/policy.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
@@ -12,7 +12,7 @@ import {
   projectWorkflowRunMetadataForStorage,
   projectWorkflowStepResultForStorage,
 } from "./run-evidence.js";
-import { safeJsonStringify, writeJsonFile } from "./run-io.js";
+import { safeJsonStringify, validateWorkflowRunId, writeJsonFile } from "./run-io.js";
 import type {
   WorkflowRunMetadata,
   WorkflowRunStatus,
@@ -90,6 +90,23 @@ export function createActiveRunHandle(opts: {
     });
   };
 
+  const runsDirPath = resolve(projectDir, ".kota", "runs");
+
+  const pathInsideDirectory = (parentPath: string, childPath: string): boolean => {
+    const relativePath = relative(parentPath, childPath);
+    return relativePath.length > 0 && !relativePath.startsWith("..") && !isAbsolute(relativePath);
+  };
+
+  const linkedSourceRunDirPath = (sourceRunId: string): string | null => {
+    try {
+      validateWorkflowRunId(sourceRunId, "Linked workflow source");
+    } catch {
+      return null;
+    }
+    const sourceRunDirPath = resolve(runsDirPath, sourceRunId);
+    return pathInsideDirectory(runsDirPath, sourceRunDirPath) ? sourceRunDirPath : null;
+  };
+
   const linkedSourceRunIds = (completed: WorkflowRunMetadata): string[] => {
     const ids = [
       completed.causedBy?.runId,
@@ -103,7 +120,8 @@ export function createActiveRunHandle(opts: {
 
   const refreshLinkedControlCoverage = (completed: WorkflowRunMetadata): void => {
     for (const sourceRunId of linkedSourceRunIds(completed)) {
-      const sourceRunDirPath = join(projectDir, ".kota", "runs", sourceRunId);
+      const sourceRunDirPath = linkedSourceRunDirPath(sourceRunId);
+      if (sourceRunDirPath === null) continue;
       const sourceMetadata = readOptionalJsonFile<WorkflowRunMetadata>(
         join(sourceRunDirPath, "metadata.json"),
       );

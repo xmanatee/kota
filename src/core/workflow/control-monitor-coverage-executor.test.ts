@@ -220,4 +220,74 @@ describe("control monitor coverage executor persistence", () => {
     );
     expect(refreshed?.asyncReviewResponseMs.observations).toBe(1);
   });
+
+  it("does not refresh linked coverage outside the runs directory for traversal-shaped ids", async () => {
+    const store = new WorkflowRunStore(projectDir);
+    const outsideRunDirPath = join(projectDir, "outside-source-run");
+    mkdirSync(join(outsideRunDirPath, "steps"), { recursive: true });
+    writeJson(join(outsideRunDirPath, "metadata.json"), {
+      id: "outside-source-run",
+      workflow: "monitored-source",
+      definitionPath: "src/modules/test/workflows/monitored-source/workflow.ts",
+      trigger: { event: "runtime.idle", schemaRef: null, payload: {} },
+      startedAt: "2026-06-22T10:00:00.000Z",
+      completedAt: "2026-06-22T10:00:01.000Z",
+      status: "success",
+      durationMs: 1,
+      runDir: "outside-source-run",
+      steps: [],
+    });
+    const reviewerDefinition: WorkflowDefinition = {
+      name: "progress-reviewer",
+      enabled: true,
+      recoveryCapable: false,
+      definitionPath: "src/modules/test/workflows/progress-reviewer/workflow.ts",
+      moduleRoot: projectDir,
+      triggers: [],
+      tags: [],
+      steps: [
+        {
+          id: "review",
+          type: "code",
+          run: () => ({ ok: true }),
+        },
+      ],
+    };
+
+    await executeWorkflowRun(
+      reviewerDefinition,
+      {
+        event: "workflow.batch.flushed",
+        schemaRef: null,
+        payload: {
+          runId: "../../outside-source-run",
+          sourceRunId: "../../outside-source-run",
+          inputEvents: [
+            {
+              event: "workflow.completed",
+              schemaRef: null,
+              receivedAt: "2026-06-22T10:00:00.000Z",
+              payload: {
+                runId: "../../outside-source-run",
+                sourceRunId: "../../outside-source-run",
+                workflow: "monitored-source",
+                status: "success",
+              },
+            },
+          ],
+        },
+      },
+      {
+        projectDir,
+        bus: new EventBus(),
+        store,
+        log: vi.fn(),
+        runId: "review-run-traversal",
+      },
+    ).promise;
+
+    expect(
+      existsSync(join(outsideRunDirPath, CONTROL_MONITOR_COVERAGE_ARTIFACT)),
+    ).toBe(false);
+  });
 });
