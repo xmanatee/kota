@@ -1,16 +1,10 @@
 import type {
   KotaJsonObject,
   KotaMessage,
-  KotaTextBlock,
   KotaToolUseBlock,
 } from "#core/agent-harness/message-protocol.js";
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
-import {
-  fingerprintIdempotencyParams,
-  hashIdempotencyMaterial,
-  type IdempotencyJsonObject,
-  type IdempotencyStore,
-} from "#core/daemon/idempotency-store.js";
+import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { tryEmit } from "#core/events/event-bus.js";
 import { truncateToolResult } from "#core/loop/context.js";
 import type { Transport } from "#core/loop/transport.js";
@@ -22,7 +16,6 @@ import type {
 import { confirmAction } from "#core/util/confirm.js";
 import { type AutonomyMode, resolveAutonomyGate } from "./autonomy-mode.js";
 import { assess, type GuardrailsConfig } from "./guardrails.js";
-import type { RiskLevel } from "./guardrails-classify.js";
 import {
   classifyToolCallInputEffectOverride,
   type ToolCallInput,
@@ -30,6 +23,18 @@ import {
 import type { ToolResult, ToolResultBlock } from "./index.js";
 import { executeTool, getToolEffect } from "./index.js";
 import { maskToolResultSecrets } from "./secret-masking.js";
+import {
+  type ClientApprovalResult,
+  extractApprovalContext,
+  ToolApprovalCancelledError,
+  type ToolApprovalResolver,
+} from "./tool-approval.js";
+import {
+  idempotencyMeta,
+  providerWriteIdempotencyInput,
+  toolResultFromProjection,
+  toolResultProjection,
+} from "./tool-idempotency.js";
 import { getToolMiddleware } from "./tool-middleware.js";
 import {
   getToolTelemetry,
@@ -38,48 +43,18 @@ import {
   type ToolTelemetryResultContentKind,
 } from "./tool-telemetry.js";
 
+export type {
+  ToolApprovalDecision,
+  ToolApprovalRequest,
+  ToolApprovalResolver,
+} from "./tool-approval.js";
+export {
+  extractApprovalContext,
+  ToolApprovalCancelledError,
+  ToolApprovalTimeoutError,
+} from "./tool-approval.js";
+
 type ToolUseBlock = KotaToolUseBlock;
-
-export type ToolApprovalRequest = {
-  id: string;
-  toolUseId: string;
-  toolName: string;
-  input: Record<string, unknown>;
-  risk: RiskLevel;
-  reason: string;
-  sessionId?: string;
-  timeoutMs?: number;
-  context?: string;
-  signal?: AbortSignal;
-};
-
-export type ToolApprovalDecision =
-  | { outcome: "allow" }
-  | { outcome: "deny"; message: string }
-  | { outcome: "cancelled"; message: string };
-
-export type ToolApprovalResolver = (
-  request: ToolApprovalRequest,
-) => Promise<ToolApprovalDecision>;
-
-type ClientApprovalResult =
-  | { outcome: "unavailable" }
-  | { outcome: "allowed" }
-  | { outcome: "blocked"; result: ToolResultEntry };
-
-export class ToolApprovalCancelledError extends Error {
-  constructor(message = "Client approval request was cancelled") {
-    super(message);
-    this.name = "ToolApprovalCancelledError";
-  }
-}
-
-export class ToolApprovalTimeoutError extends Error {
-  constructor(message = "Client approval request timed out") {
-    super(message);
-    this.name = "ToolApprovalTimeoutError";
-  }
-}
 
 function abortReason(signal: AbortSignal): Error {
   const { reason } = signal;
@@ -88,41 +63,6 @@ function abortReason(signal: AbortSignal): Error {
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted) throw abortReason(signal);
-}
-
-const CONTEXT_MAX_CHARS = 2000;
-const CONTEXT_TURNS = 3;
-
-/**
- * Extract the last N text-bearing turns from conversation messages as a plain
- * string for operator context. Skips tool-result-only messages.
- */
-export function extractApprovalContext(
-  messages: KotaMessage[],
-  turns = CONTEXT_TURNS,
-  maxChars = CONTEXT_MAX_CHARS,
-): string | undefined {
-  const lines: string[] = [];
-  let collected = 0;
-  for (let i = messages.length - 1; i >= 0 && collected < turns; i--) {
-    const msg = messages[i];
-    let text = "";
-    if (typeof msg.content === "string") {
-      text = msg.content;
-    } else if (Array.isArray(msg.content)) {
-      text = msg.content
-        .filter((b): b is KotaTextBlock => b.type === "text")
-        .map((b) => b.text)
-        .join(" ");
-    }
-    if (!text.trim()) continue;
-    const prefix = msg.role === "assistant" ? "Assistant" : "User";
-    lines.unshift(`${prefix}: ${text.trim()}`);
-    collected++;
-  }
-  if (lines.length === 0) return undefined;
-  const joined = lines.join("\n");
-  return joined.length > maxChars ? `${joined.slice(0, maxChars)}…` : joined;
 }
 
 export type ToolResultEntry = {
@@ -193,69 +133,6 @@ function isReadOnlyToolCall(
   );
   if (inputEffectOverride) return inputEffectOverride.kind === "read";
   return getToolEffect(block.name)?.kind === "read";
-}
-
-function stringInput(input: ToolCallInput, key: string): string | undefined {
-  const value = input[key];
-  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
-}
-
-function providerWriteIdempotencyInput(
-  block: ToolUseBlock,
-  input: ToolCallInput,
-  scopeId: string,
-):
-  | {
-      scopeId: string;
-      key: string;
-      parameterFingerprint: string;
-    }
-  | null {
-  const explicitKey = stringInput(input, "idempotencyKey");
-  if (explicitKey === undefined) return null;
-  const effect = getToolEffect(block.name);
-  if (!effect || effect.kind === "read") return null;
-  const projection = { ...(input as IdempotencyJsonObject) };
-  delete projection.idempotencyKey;
-  return {
-    scopeId,
-    key: `tool:${hashIdempotencyMaterial([block.name, explicitKey])}`,
-    parameterFingerprint: fingerprintIdempotencyParams({
-      tool: block.name,
-      input: projection,
-    }),
-  };
-}
-
-function toolResultProjection(
-  block: ToolUseBlock,
-  result: ToolResult,
-): IdempotencyJsonObject {
-  return {
-    kind: "provider-write",
-    tool: block.name,
-    toolUseId: block.id,
-    content: result.content,
-    isError: result.is_error === true,
-    completedAt: new Date().toISOString(),
-  };
-}
-
-function toolResultFromProjection(
-  projection: IdempotencyJsonObject,
-  fallbackTool: string,
-): ToolResult {
-  const content = typeof projection.content === "string"
-    ? projection.content
-    : `Replayed idempotent result for ${fallbackTool}`;
-  return {
-    content,
-    ...(projection.isError === true ? { is_error: true } : {}),
-  };
-}
-
-function idempotencyMeta(status: string, key: string): KotaJsonObject {
-  return { idempotency: { status, key } };
 }
 
 async function executeToolCallSchedule(

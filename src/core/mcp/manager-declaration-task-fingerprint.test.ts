@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { MCP_DRAFT_PROTOCOL_VERSION } from "./client.js";
 import { McpManager } from "./manager.js";
+import { remoteMcpServerIdentity } from "./remote-task-server-identity.js";
 import type {
   PersistedRemoteMcpTaskHandle,
   RemoteMcpTaskStore,
 } from "./remote-task-store.js";
 import {
-  remoteMcpServerIdentity,
   remoteMcpTaskHandleId,
 } from "./remote-task-store.js";
 
