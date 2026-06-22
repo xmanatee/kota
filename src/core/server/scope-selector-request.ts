@@ -1,9 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   type NormalizedScopeSelector,
-  type ScopeSelectorArgument,
   resolveScopeSelector,
   resolveScopeSelectorFromUrl,
+  type ScopeSelectorArgument,
 } from "./scope-selector.js";
 import { jsonResponse } from "./session-pool.js";
 

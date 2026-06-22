@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import type { WorkflowRunMetadata, WorkflowRuntimeState } from "./run-types.js";
-import { handleDirtyCompletion } from "./runtime-dispatch-dirty-recovery.js";
 import type { WorkflowRuntimeDispatchState } from "./runtime-dispatch.js";
+import { handleDirtyCompletion } from "./runtime-dispatch-dirty-recovery.js";
 import type { WorkflowDefinition } from "./types.js";
 
 function makeProjectDir(): string {

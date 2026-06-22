@@ -200,30 +200,39 @@ export function normalizeScopeSelectorQueryUrl(
 export function normalizeScopeSelectorClientHandlers<T extends object>(
   handlers: T,
 ): T {
-  const wrapped: Partial<T> = {};
   for (const key of Object.keys(handlers) as Array<keyof T>) {
     const namespace = handlers[key];
-    wrapped[key] =
-      typeof namespace === "object" && namespace !== null
-        ? wrapScopeSelectorNamespace(namespace)
-        : namespace;
+    if (typeof namespace === "object" && namespace !== null) {
+      wrapScopeSelectorNamespace(namespace);
+    }
   }
-  return wrapped as T;
+  return handlers;
 }
 
+const scopeSelectorWrappedNamespaces = new WeakSet<object>();
+type ScopeSelectorClientMethod = (...args: never[]) => never;
+const scopeSelectorWrappedMethods = new WeakSet<ScopeSelectorClientMethod>();
+
 function wrapScopeSelectorNamespace<T extends object>(namespace: T): T {
-  return new Proxy(namespace, {
-    get(target, prop, receiver) {
-      const value = Reflect.get(target, prop, receiver);
-      if (typeof value !== "function") return value;
-      return (...args: never[]) =>
-        Reflect.apply(
-          value,
-          target,
-          args.map((arg) => normalizeScopeSelectorClientArgument(arg)),
-        );
-    },
-  });
+  if (scopeSelectorWrappedNamespaces.has(namespace)) return namespace;
+  scopeSelectorWrappedNamespaces.add(namespace);
+  for (const key of Object.keys(namespace) as Array<keyof T>) {
+    const value = namespace[key];
+    if (typeof value !== "function") continue;
+    const method = value as ScopeSelectorClientMethod;
+    if (scopeSelectorWrappedMethods.has(method)) continue;
+    const wrapped: ScopeSelectorClientMethod = (...args: never[]) =>
+      Reflect.apply(
+        method,
+        namespace,
+        args.map((arg) => normalizeScopeSelectorClientArgument(arg)),
+      ) as never;
+    scopeSelectorWrappedMethods.add(wrapped);
+    if (!Reflect.set(namespace, key, wrapped)) {
+      throw new Error(`Unable to install scope selector normalizer for client method "${String(key)}"`);
+    }
+  }
+  return namespace;
 }
 
 function normalizeScopeSelectorClientArgument<T>(value: T): T {

@@ -16,6 +16,7 @@ import type {
   ControlRouteRegistration,
   RouteRegistration,
 } from "#core/modules/module-types.js";
+import type { ScopeSelector } from "#core/server/scope-selector.js";
 import { selectedScopeSelectorIdOrErrorResponse } from "#core/server/scope-selector-request.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import type { RecallSource } from "#modules/recall/client.js";

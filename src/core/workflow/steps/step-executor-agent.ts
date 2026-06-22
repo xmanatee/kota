@@ -388,7 +388,8 @@ export async function executeAgentStep(
     // Only consume retry attempts for classified-transient failures. Max-turn,
     // logic, and malformed-tool errors fail hard on the first attempt.
     shouldRetry: (err) =>
-      err instanceof JsonOutputValidationError ||
+      err instanceof JsonOutputParseError ||
+      err instanceof JsonSchemaValidationError ||
       (step.outputFormat === "json" && err instanceof WorkflowStepOutputValidationError) ||
       (err instanceof AgentStepRuntimeError && err.retryable),
   });

@@ -97,7 +97,6 @@ project-aware namespaces and normalize unknown ids to the typed client error.
   shapes — both implementors share one type per method.
 
 ## Non-namespace transport surface
-
 `DaemonControlClient` may keep a non-namespace method only when every
 condition holds:
 

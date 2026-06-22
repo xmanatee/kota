@@ -92,7 +92,11 @@ export abstract class McpClientConnection extends McpClientHttpRuntime {
     // Capture stderr for diagnostics but don't block
     this.proc.stderr?.on("data", (chunk: Buffer) => {
       const text = chunk.toString().trim();
-      if (text) writeTerminalStderr(`[mcp:${this.serverName}] ${text}\n`);
+      if (text) {
+        writeTerminalStderr(
+          `[mcp:${this.serverName}] ${this.redactSensitiveErrorMessage(text)}\n`,
+        );
+      }
     });
 
     this.rl = createInterface({ input: this.proc.stdout! });

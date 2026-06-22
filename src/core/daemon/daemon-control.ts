@@ -22,6 +22,7 @@ import { type BufferedEvent, EventRingBuffer } from "./event-ring-buffer.js";
 
 export type { ClientDashboardAvailability, ClientIdentity } from "./client-identity.js";
 export { DASHBOARD_CAPABILITY_ID, WORKFLOW_TRIGGER_CAPABILITY_ID } from "./client-identity.js";
+export type { DaemonControlServerOptions } from "./daemon-control-options.js";
 export type {
   CapabilityScope, ComponentStatus, DaemonControlAddress, DaemonControlHandle,
   DaemonLiveStatus, DaemonSseEvent, DaemonSseEventType, DaemonSseStreamEvent,
@@ -32,7 +33,6 @@ export type {
   WorkflowMetricCounts, WorkflowRunCountEntry, WorkflowRunDetail, WorkflowRunStepSummary,
   WorkflowRunSummary,
 } from "./daemon-control-types.js";
-export type { DaemonControlServerOptions } from "./daemon-control-options.js";
 export type { ScopePolicyRouteResponse } from "./scope-policy.js";
 
 export class DaemonControlServer {

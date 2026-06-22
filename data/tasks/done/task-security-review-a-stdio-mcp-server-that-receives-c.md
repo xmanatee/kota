@@ -1,12 +1,12 @@
 ---
 id: task-security-review-a-stdio-mcp-server-that-receives-c
 title: Security review: A stdio MCP server that receives configured transport env secrets can write those secrets to stderr and KOTA forwards them to terminal diagnostics without applying the existing MCP secret redaction path.
-status: ready
+status: done
 priority: p2
 area: security
 summary: A stdio MCP server that receives configured transport env secrets can write those secrets to stderr and KOTA forwards them to terminal diagnostics without applying the existing MCP secret redaction path.
 created_at: 2026-06-21T11:55:41.150Z
-updated_at: 2026-06-21T11:55:41.150Z
+updated_at: 2026-06-22T00:33:26.381Z
 ---
 
 ## Problem
@@ -124,3 +124,16 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Resolution
+
+Stdio MCP stderr diagnostics now pass through the same configured-secret
+redaction set used for MCP request errors before terminal output.
+
+Verification:
+
+- `pnpm test src/core/mcp/stdio-stderr-redaction.test.ts` passed.
+- `pnpm exec biome check src/core/mcp/client-connection.ts src/core/mcp/stdio-stderr-redaction.test.ts` passed.
+- Source-size severe evaluation returned advisory only after the regression moved out of the oversized manager test.
+- `pnpm typecheck` passed.
+- `pnpm validate-tasks` passed.
