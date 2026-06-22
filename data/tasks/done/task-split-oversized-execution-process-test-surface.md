@@ -1,12 +1,12 @@
 ---
 id: task-split-oversized-execution-process-test-surface
 title: Split oversized execution process test surface
-status: ready
+status: done
 priority: p3
 area: modules
 summary: The process initial-output truncation fix passed, but its builder source-size review still reported src/modules/execution/process.test.ts at 527 lines after touching it for regression coverage. Split cohesive process test scenarios or shared helpers without changing execution behavior.
 created_at: 2026-06-22T15:09:11.164Z
-updated_at: 2026-06-22T15:09:11.164Z
+updated_at: 2026-06-22T15:30:17.148Z
 ---
 
 ## Problem
@@ -47,3 +47,15 @@ Outcome-aware autonomy progress review.
 ## Acceptance Evidence
 
 - Before/after line counts show src/modules/execution/process.test.ts no longer triggers the 300-line source-size guideline, or a narrow justified exception is recorded; focused process tests pass; typecheck, Biome, and validate-tasks pass.
+
+## Result
+
+Split the 527-line `src/modules/execution/process.test.ts` into focused basic action, output buffer, and lifecycle edge-case suites with shared test setup in `process-test-support.ts`. Every touched execution process test/support file is now below the 300-line source-size guideline.
+
+## Evidence
+
+- Line counts recorded in `.kota/runs/2026-06-22T15-23-51-787Z-builder-migg5a/source-size-line-counts.txt`.
+- Focused tests passed: `pnpm test src/modules/execution/process.test.ts src/modules/execution/process-output-buffer.test.ts src/modules/execution/process-lifecycle-edge-cases.test.ts`.
+- `pnpm run typecheck` passed.
+- `pnpm run lint` passed.
+- `pnpm run validate-tasks` passed after the task record moved to `done/`.
