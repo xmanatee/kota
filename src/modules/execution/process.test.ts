@@ -68,6 +68,17 @@ describe("process tool", () => {
       expect(result.content).toContain("server booting");
     });
 
+    it("truncates oversized initial partial output before newline or exit", async () => {
+      const result = await runProcess({
+        action: "start",
+        command: "python3 -c \"import sys,time; sys.stdout.write('X'*25000); sys.stdout.flush(); time.sleep(30)\"",
+      });
+
+      expect(result.content).toContain("Initial output:");
+      expect(result.content).toContain("truncated");
+      expect(result.content!.length).toBeLessThan(20_000);
+    }, 10_000);
+
     it("injects context ids and scrubs inherited telemetry routing env", async () => {
       process.env.OTEL_EXPORTER_OTLP_ENDPOINT = "http://kota-collector";
       process.env.OTLP_ENDPOINT = "http://legacy-collector";

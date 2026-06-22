@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-process-start-path-now-include
 title: Security review: The process start path now includes live partial stdout/stderr in the initial tool result but does not apply the existing MAX_OUTPUT_CHARS truncation, so a background command that emits a long line without a newline during the startup wait can return an unbounded tool result and bloat persisted command-output artifacts.
-status: ready
+status: done
 priority: p3
 area: security
 summary: The process start path now includes live partial stdout/stderr in the initial tool result but does not apply the existing MAX_OUTPUT_CHARS truncation, so a background command that emits a long line without a newline during the startup wait can return an unbounded tool result and bloat persisted command-output artifacts.
 created_at: 2026-06-22T14:49:37.290Z
-updated_at: 2026-06-22T14:49:37.290Z
+updated_at: 2026-06-22T14:58:38.496Z
 ---
 
 ## Problem
@@ -124,3 +124,6 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Fixed in `src/modules/execution/process-core.ts` by applying `truncateOutput` to the initial output returned by `startProcess`.
+- Added regression coverage in `src/modules/execution/process.test.ts` for a long-running process that writes a 25,000-character partial stdout line before newline or exit.
+- Verification passed: `pnpm test src/modules/execution/process.test.ts`; `pnpm exec biome check src/modules/execution/process-core.ts src/modules/execution/process.test.ts`; `pnpm typecheck`.

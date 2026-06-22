@@ -166,7 +166,7 @@ export async function startProcess(
 
   await new Promise((resolve) => setTimeout(resolve, INITIAL_OUTPUT_WAIT_MS));
 
-  const initial = displayLines(mp).slice(-10).join("\n");
+  const initial = truncateOutput(displayLines(mp).slice(-10).join("\n"));
   const status = mp.exited
     ? `exited (code ${mp.exitCode})`
     : "running";
