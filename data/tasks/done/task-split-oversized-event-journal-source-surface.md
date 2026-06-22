@@ -1,12 +1,12 @@
 ---
 id: task-split-oversized-event-journal-source-surface
 title: Split oversized event journal source surface
-status: ready
+status: done
 priority: p3
 area: core
 summary: The retention-aware evidence build passed, but its source-size review still reports src/core/events/event-journal.ts at 782 lines after a touched 32-line change. Split cohesive event-journal pruning/query helpers or record a narrow typed exception without changing event retention behavior.
 created_at: 2026-06-22T20:58:22.540Z
-updated_at: 2026-06-22T20:58:22.540Z
+updated_at: 2026-06-22T21:21:01.278Z
 ---
 
 ## Problem
@@ -44,6 +44,15 @@ Evidence ids:
 
 Outcome-aware autonomy progress review.
 
+## Resolution
+
+Split the event journal into focused core event helpers for types, envelope construction, payload redaction/storage, query predicates, projections, and codec validation. `src/core/events/event-journal.ts` is now the journal facade and is 154 lines; the extracted helper files are each below 300 lines.
+
 ## Acceptance Evidence
 
-- Before/after line counts show src/core/events/event-journal.ts no longer triggers the source-size guideline, or a narrow justified exception is recorded. Focused event-journal pruned-reference tests, progress-review evidence retention tests, pnpm run typecheck, pnpm run lint, and pnpm run validate-tasks pass.
+- Before: cited source-size review reported `src/core/events/event-journal.ts` at 782 lines.
+- After: `wc -l` reports `src/core/events/event-journal.ts` at 154 lines, with extracted helpers at 248 lines or less.
+- `checkSevereSourceFileSize(process.cwd())` on the staged diff returned `OK: changed source files are under source-size warning thresholds`.
+- Focused event-journal pruned-reference tests passed: `pnpm test src/core/events/event-journal.test.ts src/core/events/event-journal-pruned-reference.test.ts`.
+- Progress-review retention tests passed: `pnpm test src/modules/autonomy/workflows/progress-reviewer/progress-review/event-evidence-journal-backfill.test.ts src/modules/autonomy/workflows/progress-reviewer/progress-review/pruned-run-evidence.test.ts`.
+- `pnpm run typecheck` and `pnpm run lint` passed on the final source content; `pnpm run validate-tasks` passed after staging the final task move.
