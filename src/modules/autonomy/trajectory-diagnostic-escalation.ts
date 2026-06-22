@@ -13,6 +13,7 @@ import {
   type TrajectoryDiagnostic,
   type TrajectoryDiagnosticCode,
   type TrajectoryDiagnosticsArtifact,
+  type TrajectoryDiagnosticsCounts,
 } from "#core/agent-harness/index.js";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
@@ -101,6 +102,13 @@ type ExistingTask = {
   content: string;
   evidenceFingerprint: string | null;
   createdAt: string | null;
+};
+
+type TrajectoryDiagnosticsArtifactCandidate = Partial<
+  Omit<TrajectoryDiagnosticsArtifact, "counts" | "status">
+> & {
+  counts?: Partial<TrajectoryDiagnosticsCounts>;
+  status?: string;
 };
 
 export type TrajectoryDiagnosticEscalationProposal =
@@ -283,9 +291,11 @@ function observationKey(observation: DiagnosticObservation): string {
 function readTrajectoryDiagnosticsArtifact(
   artifactPath: string,
 ): TrajectoryDiagnosticsArtifact {
-  const raw = JSON.parse(readFileSync(artifactPath, "utf-8")) as Partial<
-    TrajectoryDiagnosticsArtifact
-  >;
+  const raw = JSON.parse(
+    readFileSync(artifactPath, "utf-8"),
+  ) as TrajectoryDiagnosticsArtifactCandidate;
+  const legacyClean = legacyCleanTrajectoryDiagnosticsArtifact(raw);
+  if (legacyClean) return legacyClean;
   if (
     raw.version !== 1 ||
     (raw.status !== "supported" && raw.status !== "unsupported") ||
@@ -313,6 +323,42 @@ function readTrajectoryDiagnosticsArtifact(
     }
   }
   return raw as TrajectoryDiagnosticsArtifact;
+}
+
+function emptyTrajectoryDiagnosticsCounts(): TrajectoryDiagnosticsCounts {
+  return {
+    warningCount: 0,
+    unsupportedTrajectoryCount: 0,
+    missingStreamingFramesCount: 0,
+    missingFinalVerificationAfterEditCount: 0,
+    repeatedIdenticalFailingCommandCount: 0,
+    editAfterSuccessfulVerificationCount: 0,
+    longPreambleWithoutTaskTouchCount: 0,
+  };
+}
+
+function legacyCleanTrajectoryDiagnosticsArtifact(
+  raw: TrajectoryDiagnosticsArtifactCandidate,
+): TrajectoryDiagnosticsArtifact | null {
+  // Older control-monitor evidence fixtures wrote a clean-only shape before
+  // trajectory diagnostics had a versioned artifact schema. They carry no
+  // warning evidence, so normalize them into an empty observation instead of
+  // letting one retained historical artifact abort every escalator scan.
+  if (
+    raw.version !== undefined ||
+    raw.status !== "ok" ||
+    raw.counts?.warningCount !== 0 ||
+    raw.diagnostics !== undefined
+  ) {
+    return null;
+  }
+  return {
+    version: 1,
+    status: "supported",
+    emitsAgentMessageStream: true,
+    counts: emptyTrajectoryDiagnosticsCounts(),
+    diagnostics: [],
+  };
 }
 
 function listStepTrajectoryArtifacts(runsDir: string, runId: string): string[] {

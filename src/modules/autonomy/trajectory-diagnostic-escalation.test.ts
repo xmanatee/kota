@@ -92,13 +92,22 @@ function supportedArtifactWithUnsupportedDiagnostic(): TrajectoryDiagnosticsArti
   };
 }
 
+function legacyCleanArtifact(): { status: "ok"; counts: { warningCount: 0 } } {
+  return {
+    status: "ok",
+    counts: { warningCount: 0 },
+  };
+}
+
 function seedTrajectoryRun(
   projectDir: string,
   opts: {
     id: string;
     hoursAgo: number;
     code: TrajectoryDiagnosticCode | null;
-    artifact?: TrajectoryDiagnosticsArtifact;
+    artifact?:
+      | TrajectoryDiagnosticsArtifact
+      | { status: "ok"; counts: { warningCount: 0 } };
     workflow?: string;
     stepId?: string;
     status?: WorkflowRunMetadata["status"];
@@ -271,6 +280,32 @@ describe("detectRecurringTrajectoryDiagnosticPatterns", () => {
         artifact: supportedArtifactWithUnsupportedDiagnostic(),
       });
     }
+
+    expect(detect(projectDir)).toEqual([]);
+  });
+
+  it("treats legacy clean trajectory artifacts as empty observations", () => {
+    seedTrajectoryRun(projectDir, {
+      id: "2026-05-29T07-00-00-000Z-builder-legacy-a",
+      hoursAgo: 5,
+      code: "missing_final_verification_after_edit",
+    });
+    seedTrajectoryRun(projectDir, {
+      id: "2026-05-29T08-00-00-000Z-builder-legacy-b",
+      hoursAgo: 4,
+      code: "missing_final_verification_after_edit",
+    });
+    seedTrajectoryRun(projectDir, {
+      id: "2026-05-29T09-00-00-000Z-builder-legacy-c",
+      hoursAgo: 3,
+      code: "missing_final_verification_after_edit",
+    });
+    seedTrajectoryRun(projectDir, {
+      id: "control-monitor-coverage-gap-sample",
+      hoursAgo: 1,
+      code: null,
+      artifact: legacyCleanArtifact(),
+    });
 
     expect(detect(projectDir)).toEqual([]);
   });
