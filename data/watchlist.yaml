@@ -69,15 +69,15 @@ resources:
   - url: https://github.com/anthropics/claude-code
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:70783d3b8e165bf476aefcd2cb60f9df
-      summary: "Claude Code now surfaces a nonduplicative KOTA workflow-agent safety gap: autonomous SDK shell calls need pre-execution canUseTool denials for destructive local-work and infrastructure teardown commands, which opened task-deny-destructive-shell-teardown-commands-in-workfl."
-      last_seen_at: "2026-06-22T16:24:54.353Z"
+      fingerprint: sha256:5d00f39f29c5cd7aa28e2d508cf55ed8
+      summary: "Claude Code v2.1.186 reinforces KOTA's existing shell-output, subagent guardrail, MCP auth/status, and permission-layout directions; no additional nonduplicative KOTA task was opened from this refresh."
+      last_seen_at: "2026-06-23T12:29:41.352Z"
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:1c3a7f812b45a1d70faa0347fae80a70
-      summary: "Codex 0.141.0 reinforces remote executor, dynamic-tool namespace, plugin-MCP, and hook-policy directions; KOTA's current MCP namespacing and tool-control work cover the nonduplicative local gaps from this snapshot."
-      last_seen_at: "2026-06-21T06:09:44.587Z"
+      fingerprint: sha256:aed6d520c135186b99b822a7924cc3cf
+      summary: "Codex 0.142.0 adds rollout token budgets across agent threads; this run opened task-add-rollout-token-budgets-to-workflow-agent-runs for KOTA's matching provider-neutral runtime budget gap."
+      last_seen_at: "2026-06-23T12:29:41.351Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
@@ -450,9 +450,9 @@ resources:
     added: "2026-05-16"
     notes: "Official MCP tools spec draft - monitor tool-result content, structuredContent, _meta, output schema, annotations, and execution-error semantics that affect KOTA's MCP client/server protocol fidelity."
     snapshot:
-      fingerprint: sha256:ff7aa2990e0ce8ac962615aa32da3e0c
-      summary: "Official MCP draft Tools still defines changing tool lists and untrusted annotations; this run opened task-deny-stale-mcp-tool-calls-after-declaration-drift for KOTA's remaining prompt-time stale-declaration execution gap."
-      last_seen_at: "2026-06-23T00:50:58.941Z"
+      fingerprint: sha256:59f9fe08cb563c7970b1010e9ac7eeb8
+      summary: "Official MCP draft Tools still reinforces KOTA's completed stale-declaration, task/input-required, result-variant, and header-schema work; no duplicate MCP task was opened from this refresh."
+      last_seen_at: "2026-06-23T12:29:41.352Z"
   - url: https://modelcontextprotocol.io/specification/draft/server/resources
     added: "2026-05-20"
     notes: "Official MCP resources spec draft - monitor resources/list pagination, resources.listChanged, resource subscriptions, resource annotations, and input-required resource reads that affect KOTA's MCP server resource surface."
