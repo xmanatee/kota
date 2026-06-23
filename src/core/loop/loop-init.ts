@@ -104,9 +104,11 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
       const previousHarness = previousDelegateConfig.harness;
       const previousResolveAgentDef = previousDelegateConfig.resolveAgentDef;
       const previousResolveSkillsPrompt = previousDelegateConfig.resolveSkillsPrompt;
+      const previousModelProvider = previousDelegateConfig.modelProvider;
       setDelegateConfig({
         model: state.editorModel,
         modelTiers: state.modelTiers,
+        ...(previousModelProvider !== undefined ? { modelProvider: previousModelProvider } : {}),
         modelOutputTokenLimits: state.modelOutputTokenLimits,
         client: state.client,
         cwd: state.projectDir,

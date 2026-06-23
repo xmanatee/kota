@@ -189,6 +189,7 @@ async function runDelegateWithBudget(
       costTracker: delegateConfig.costTracker,
       transport: delegateConfig.transport,
       model: selectedModel,
+      modelProvider: delegateConfig.modelProvider,
       modelOutputTokenLimits: delegateConfig.modelOutputTokenLimits,
       harness: delegateConfig.harness,
       tokenBudget,
@@ -237,6 +238,9 @@ async function runDelegateWithBudget(
 
   const client = delegateConfig.client ?? createModelClient({
     model: delegateConfig.model,
+    provider: delegateConfig.modelProvider?.provider,
+    baseUrl: delegateConfig.modelProvider?.baseUrl,
+    apiKey: delegateConfig.modelProvider?.apiKey,
     projectDir: cwd,
   }).client;
   const costTracker = delegateConfig.costTracker;

@@ -368,6 +368,9 @@ function resolveHandoffRuntime(): HandoffAgentRuntime | ToolResult {
     ...(delegateConfig.resolveSkillsPrompt !== undefined
       ? { resolveSkillsPrompt: delegateConfig.resolveSkillsPrompt }
       : {}),
+    ...(delegateConfig.modelProvider !== undefined
+      ? { modelProvider: delegateConfig.modelProvider }
+      : {}),
     ...(delegateConfig.modelOutputTokenLimits !== undefined
       ? { modelOutputTokenLimits: delegateConfig.modelOutputTokenLimits }
       : {}),
@@ -568,6 +571,7 @@ export async function runHandoffAgent(
         {
           prompt: buildAgentHandoffPrompt(request),
           model: agent.model,
+          ...(runtime.modelProvider !== undefined ? { modelProvider: runtime.modelProvider } : {}),
           modelOutputTokenLimits: runtime.modelOutputTokenLimits,
           systemPrompt,
           cwd,

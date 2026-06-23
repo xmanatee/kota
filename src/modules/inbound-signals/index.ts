@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { modelProviderSelectionFromConfig } from "#core/model/model-client.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
@@ -182,12 +183,14 @@ async function triggerInboundSignalAgent(
   options: InboundSignalAgentTriggerOptions,
 ): Promise<InboundSignalAgentTriggerResult> {
   const harness = ctx.config.defaultAgentHarness ?? resolveActivePresetFromConfig(ctx.config).harness;
+  const modelProvider = modelProviderSelectionFromConfig(ctx.config);
   const result = await withHandoffAgentRuntime(
     {
       cwd: ctx.cwd,
       harness,
       resolveAgentDef: ctx.resolveAgentDef,
       resolveSkillsPrompt: ctx.resolveSkillsPrompt,
+      ...(modelProvider !== undefined ? { modelProvider } : {}),
       ...(ctx.config.modelOutputTokenLimits !== undefined
         ? { modelOutputTokenLimits: ctx.config.modelOutputTokenLimits }
         : {}),

@@ -1,12 +1,12 @@
 ---
 id: task-security-review-nested-handoffagent-runs-drop-the-
 title: Security review: Nested handoff_agent runs drop the configured modelProvider/baseUrl/apiKey before launching the child harness, so a child agent can run against the provider implied by its model string instead of the operator-configured endpoint.
-status: ready
+status: done
 priority: p2
 area: security
-summary: Nested handoff_agent runs drop the configured modelProvider/baseUrl/apiKey before launching the child harness, so a child agent can run against the provider implied by its model string instead of the operator-configured endpoint.
+summary: Nested handoff_agent runs now preserve the configured modelProvider/baseUrl/apiKey when launching child harness runs, including workflow-scoped handoffs and session/delegate handoff paths.
 created_at: 2026-06-23T17:41:39.717Z
-updated_at: 2026-06-23T17:41:39.717Z
+updated_at: 2026-06-23T17:53:02Z
 ---
 
 ## Problem
@@ -103,10 +103,17 @@ excerpt:
 
 > runHandoffAgent calls runAgentHarness for the child without passing modelProvider.
 
+## Outcome
+
+HandoffAgentRuntime now carries ModelProviderSelection explicitly, runHandoffAgent passes it to child harness runs, and the session/delegate/inbound-signal handoff paths preserve configured provider selection instead of falling back to model-string inference.
+
 ## Initiative
 
 Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `pnpm test src/core/tools/handoff-agent.test.ts` passed: 1 file, 15 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm validate-tasks` passed after staging the completed task move.

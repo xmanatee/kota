@@ -6,6 +6,7 @@ import type {
 } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { Transport } from "#core/loop/transport.js";
+import type { ModelProviderSelection } from "#core/model/model-client.js";
 import type { ModelOutputTokenLimits } from "#core/model/output-token-limits.js";
 import type { DelegateBudget } from "./delegate-budget.js";
 
@@ -14,6 +15,7 @@ export type HandoffAgentRuntime = {
   harness: string;
   resolveAgentDef: (name: string) => AgentDef | undefined;
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
+  modelProvider?: ModelProviderSelection;
   modelOutputTokenLimits?: ModelOutputTokenLimits;
   delegateBudget: DelegateBudget;
   canUseTool?: AgentCanUseTool;

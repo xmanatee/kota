@@ -3,7 +3,7 @@ import type { AgentDef } from "#core/agents/agent-types.js";
 import type { CostTracker } from "#core/loop/cost.js";
 import type { Transport } from "#core/loop/transport.js";
 import type { McpManager } from "#core/mcp/manager.js";
-import type { ModelClient } from "#core/model/model-client.js";
+import type { ModelClient, ModelProviderSelection } from "#core/model/model-client.js";
 import type { DelegateBackend, ModelTiers } from "#core/model/model-router.js";
 import type { ModelOutputTokenLimits } from "#core/model/output-token-limits.js";
 import {
@@ -35,6 +35,7 @@ export function streamBackoff(attempt: number): Promise<void> {
 export type DelegateConfig = {
   model: string;
   modelTiers?: ModelTiers;
+  modelProvider?: ModelProviderSelection;
   modelOutputTokenLimits?: ModelOutputTokenLimits;
   client?: ModelClient;
   cwd?: string;

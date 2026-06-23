@@ -194,9 +194,26 @@ export function initAgentSession(
   state.moduleLoader = new ModuleLoader(options.config || {}, state.verbose);
   state.moduleLoader.setCwd(projectDir);
   const activePreset = resolveActivePresetFromConfig(options.config);
+  const configuredModelProvider = options.config?.modelProvider;
+  const delegateModelProvider = configuredModelProvider
+    ? {
+        ...(configuredModelProvider.type !== undefined
+          ? { provider: configuredModelProvider.type }
+          : {}),
+        ...(configuredModelProvider.baseUrl !== undefined
+          ? { baseUrl: configuredModelProvider.baseUrl }
+          : {}),
+        ...(configuredModelProvider.apiKey !== undefined
+          ? { apiKey: configuredModelProvider.apiKey }
+          : {}),
+      }
+    : undefined;
+  const hasDelegateModelProvider =
+    delegateModelProvider !== undefined && Object.keys(delegateModelProvider).length > 0;
   setDelegateConfig({
     model: state.editorModel,
     modelTiers: options.config?.modelTiers,
+    ...(hasDelegateModelProvider ? { modelProvider: delegateModelProvider } : {}),
     modelOutputTokenLimits: options.config?.modelOutputTokenLimits,
     client: state.client,
     cwd: projectDir,
