@@ -116,4 +116,33 @@ describe("handleGetConfig", () => {
     expect(body.config.anthropicApiKey).toBe("***");
     expect(body.config.anthropicApiKey).not.toBe("sk-real");
   });
+
+  it("does not leak private-key-shaped module config in response", () => {
+    const { res, result } = mockResponse();
+    const config = {
+      model: "claude-test",
+      modules: {
+        demo: {
+          privateKeyPem: "-----BEGIN PRIVATE KEY-----",
+          private_key: "private-key-material",
+          signingKey: "signing-key-material",
+          clientAssertion: "signed-client-assertion",
+          teamKey: "OPS",
+        },
+      },
+    } as unknown as KotaConfig;
+
+    handleGetConfig(res, config);
+
+    const serialized = JSON.stringify(result.body);
+    expect(serialized).toContain("OPS");
+    expect(serialized).not.toContain("-----BEGIN PRIVATE KEY-----");
+    expect(serialized).not.toContain("private-key-material");
+    expect(serialized).not.toContain("signing-key-material");
+    expect(serialized).not.toContain("signed-client-assertion");
+    expect(serialized).toContain('"privateKeyPem":"***"');
+    expect(serialized).toContain('"private_key":"***"');
+    expect(serialized).toContain('"signingKey":"***"');
+    expect(serialized).toContain('"clientAssertion":"***"');
+  });
 });

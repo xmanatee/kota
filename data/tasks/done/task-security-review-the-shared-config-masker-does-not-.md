@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-shared-config-masker-does-not-
 title: Security review: The shared config masker does not treat private-key-shaped fields such as privateKeyPem as sensitive, so config introspection surfaces can serialize raw private signing key material from KotaConfig/module config objects. The repo now has OAuth private_key_jwt support that uses privateKeyPem, while runtime error redaction treats that value as secret.
-status: ready
+status: done
 priority: p1
 area: security
 summary: The shared config masker does not treat private-key-shaped fields such as privateKeyPem as sensitive, so config introspection surfaces can serialize raw private signing key material from KotaConfig/module config objects. The repo now has OAuth private_key_jwt support that uses privateKeyPem, while runtime error redaction treats that value as secret.
 created_at: 2026-06-23T00:29:08.497Z
-updated_at: 2026-06-23T00:29:08.497Z
+updated_at: 2026-06-23T00:33:42.742Z
 ---
 
 ## Problem
@@ -166,3 +166,9 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/core/config/config-redaction.test.ts src/core/tools/agent-status.test.ts src/modules/config/routes.test.ts` passed.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.

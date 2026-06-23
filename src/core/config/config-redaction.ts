@@ -25,7 +25,7 @@ type ConfigRedactionInputObject = {
 };
 
 const SENSITIVE_CONFIG_KEY_PATTERN =
-	/(authorization|bearer|credential|password|secret|token|api[-_]?key|access[-_]?key|refresh[-_]?token|cookie)/i;
+	/(authorization|bearer|credential|password|secret|token|api[-_]?key|access[-_]?key|private[-_]?key|signing[-_]?key|client[-_]?assertion|refresh[-_]?token|cookie)/i;
 
 export function isSensitiveConfigKey(key: string): boolean {
 	return SENSITIVE_CONFIG_KEY_PATTERN.test(key);

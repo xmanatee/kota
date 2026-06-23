@@ -262,6 +262,32 @@ describe("agent_status", () => {
 			expect(result.content).toContain('"cookieJar":"***"');
 		});
 
+		it("redacts private-key-shaped config values", async () => {
+			setConfigProvider(() => ({
+				modules: {
+					demo: {
+						privateKeyPem: "-----BEGIN PRIVATE KEY-----",
+						private_key: "private-key-material",
+						signingKey: "signing-key-material",
+						clientAssertion: "signed-client-assertion",
+						teamKey: "OPS",
+					},
+				},
+			}));
+
+			const result = await runAgentStatus({ query: "config" });
+
+			expect(result.content).toContain("OPS");
+			expect(result.content).not.toContain("-----BEGIN PRIVATE KEY-----");
+			expect(result.content).not.toContain("private-key-material");
+			expect(result.content).not.toContain("signing-key-material");
+			expect(result.content).not.toContain("signed-client-assertion");
+			expect(result.content).toContain('"privateKeyPem":"***"');
+			expect(result.content).toContain('"private_key":"***"');
+			expect(result.content).toContain('"signingKey":"***"');
+			expect(result.content).toContain('"clientAssertion":"***"');
+		});
+
 		it("filters config by key name", async () => {
 			setConfigProvider(() => ({
 				model: "claude-sonnet-4-6",
