@@ -1,12 +1,12 @@
 ---
 id: task-handle-recent-core-tool-source-size-warnings
 title: Handle recent core tool source-size warnings
-status: ready
+status: done
 priority: p2
 area: core
 summary: Recent safety builds passed but left touched oversized core tool surfaces: src/core/tools/agent-status.test.ts from the config-redaction fix and src/core/tools/tool-runner.ts from the stale-MCP declaration guard. Split cohesive helpers/tests or record a narrow current exception without changing behavior.
 created_at: 2026-06-23T12:32:29.863Z
-updated_at: 2026-06-23T12:32:29.863Z
+updated_at: 2026-06-23T19:21:05.000Z
 ---
 
 ## Problem
@@ -48,3 +48,4 @@ Outcome-aware autonomy progress review.
 ## Acceptance Evidence
 
 - Diff reduces or justifies the cited core tool source-size warnings; focused agent-status/tool-runner tests pass; typecheck, lint, and validate-tasks pass; any remaining oversized file has a scoped exception tied to current ownership.
+- Completed in builder run 2026-06-23T19-10-14-966Z-builder-sqr09y. `src/core/tools/agent-status.test.ts` was split from 352 lines into `agent-status.test.ts` at 230 lines and `agent-status-config.test.ts` at 132 lines. The cited `src/core/tools/tool-runner.ts` warning is disproven by the current 22-line file. Focused agent-status and tool-runner suites pass, `pnpm typecheck` passes, `pnpm lint` passes, `pnpm validate-tasks` passes, and the staged source-size scan reports no warnings.
