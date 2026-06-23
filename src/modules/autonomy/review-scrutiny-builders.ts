@@ -16,6 +16,7 @@ const CRITIC_METRICS: ReviewScrutinyMetric[] = [
   "issueCount",
   "warningCount",
   "reviewBodyLength",
+  "citedFileLineCount",
 ];
 const PROGRESS_REVIEW_METRICS: ReviewScrutinyMetric[] = [
   "evidenceIdCount",
@@ -93,6 +94,13 @@ export function buildCriticReviewScrutinyRecord(args: {
       issueCount: args.verdict.critical_issues.length,
       warningCount: args.verdict.warnings.length,
       reviewBodyLength: args.verdict.summary.length,
+      citedFileLineCount: countFileLineCitations(
+        [
+          args.verdict.summary,
+          ...args.verdict.critical_issues,
+          ...args.verdict.warnings,
+        ].join("\n"),
+      ),
     }),
     absentMetrics: absentMetrics(CRITIC_METRICS),
   });

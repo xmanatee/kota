@@ -38,6 +38,7 @@ describe("critic prompt context", () => {
     expect(systemPrompt).toContain("Placeholder or no-value tests");
     expect(systemPrompt).toContain("Untracked compatibility shims");
     expect(systemPrompt).toContain("Baseline-only strictness ratchets");
+    expect(systemPrompt).toContain("concrete reviewed file/line");
     expect(systemPrompt).toContain("durable trace");
     expect(systemPrompt).toContain("name the trace");
   });

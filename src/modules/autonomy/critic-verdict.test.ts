@@ -121,7 +121,40 @@ describe("critic verdict handling", () => {
         "evidenceIdCount",
         "findingCount",
         "followUpTaskCount",
-        "citedFileLineCount",
+      ],
+    });
+  });
+
+  it("writes citation-backed clean passes as non-thin review scrutiny", async () => {
+    const dir = makeTmpDir();
+    writeDoingTask(dir, "task-cited.md", "---\ntitle: Do cited\n---\nDo cited.");
+    const runDir = makeRunDir(dir);
+    setApiResponse({
+      verdict: "pass",
+      critical_issues: [],
+      warnings: [],
+      summary: "Done When criteria are covered by src/modules/autonomy/critic.ts:98.",
+    });
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
+    expect(result).toMatch(/pass/);
+
+    const scrutiny = JSON.parse(readFileSync(join(runDir, "review-scrutiny.json"), "utf8"));
+    expect(scrutiny).toMatchObject({
+      surface: "critic",
+      workflow: "builder",
+      taskId: "task-cited",
+      decision: "pass",
+      thinAcceptance: false,
+      signals: {
+        warningCount: 0,
+        citedFileLineCount: 1,
+      },
+      absentMetrics: [
+        "evidenceIdCount",
+        "findingCount",
+        "followUpTaskCount",
       ],
     });
   });

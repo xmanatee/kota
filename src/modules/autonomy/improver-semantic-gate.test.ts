@@ -244,7 +244,6 @@ describe("createImproverSemanticCheck", () => {
         "evidenceIdCount",
         "findingCount",
         "followUpTaskCount",
-        "citedFileLineCount",
       ],
     });
   });

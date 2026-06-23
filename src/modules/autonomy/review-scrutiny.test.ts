@@ -95,12 +95,11 @@ describe("review scrutiny aggregation", () => {
         "evidenceIdCount",
         "findingCount",
         "followUpTaskCount",
-        "citedFileLineCount",
       ],
     });
     expect(Object.hasOwn(report.records[0]?.signals ?? {}, "issueCount")).toBe(true);
     expect(report.records[0]?.signals.evidenceIdCount).toBeUndefined();
-    expect(report.absentMetricCount).toBe(4);
+    expect(report.absentMetricCount).toBe(3);
     expect(report.absentMetricRefs[0]).toMatchObject({
       runId: run.id,
       surface: "critic",
@@ -108,7 +107,35 @@ describe("review scrutiny aggregation", () => {
         "evidenceIdCount",
         "findingCount",
         "followUpTaskCount",
-        "citedFileLineCount",
+      ],
+    });
+    expect(report.thinAcceptances).toBe(0);
+  });
+
+  it("records a clean critic pass with file-line citations as non-thin", () => {
+    const run = writeRunMetadata(runsDir, "builder-cited-run", "builder");
+    writeJson(runsDir, run.id, "critic-review.json", {
+      verdict: "pass",
+      critical_issues: [],
+      warnings: [],
+      summary: "Done When coverage is visible in src/modules/autonomy/critic.ts:98.",
+    });
+
+    const report = collectReviewScrutinyReport({ runsDir, runs: [run] });
+
+    expect(report.records[0]).toMatchObject({
+      surface: "critic",
+      decision: "pass",
+      thinAcceptance: false,
+      signals: {
+        issueCount: 0,
+        warningCount: 0,
+        citedFileLineCount: 1,
+      },
+      absentMetrics: [
+        "evidenceIdCount",
+        "findingCount",
+        "followUpTaskCount",
       ],
     });
     expect(report.thinAcceptances).toBe(0);

@@ -47,7 +47,12 @@ function makeProjectDir(): string {
   return dir;
 }
 
-function writeTask(projectDir: string, state: string, id: string): void {
+function writeTask(
+  projectDir: string,
+  state: string,
+  id: string,
+  options: { taskClass?: "Meta" | "Product" | "Safety" | "Platform" | null } = {},
+): void {
   const updatedAt = new Date(NOW - 10 * 24 * 60 * 60 * 1000).toISOString();
   writeFileSync(
     join(projectDir, "data", "tasks", state, `${id}.md`),
@@ -58,7 +63,9 @@ function writeTask(projectDir: string, state: string, id: string): void {
       `status: ${state}`,
       "priority: p2",
       "area: autonomy",
-      "task_class: Meta",
+      ...(options.taskClass === null
+        ? []
+        : [`task_class: ${options.taskClass ?? "Meta"}`]),
       "summary: test",
       `created_at: ${updatedAt}`,
       `updated_at: ${updatedAt}`,
@@ -98,7 +105,6 @@ function record(args: {
       "evidenceIdCount",
       "findingCount",
       "followUpTaskCount",
-      "citedFileLineCount",
     ],
     thinAcceptance: args.thin,
   };
@@ -249,6 +255,57 @@ describe("review scrutiny escalation", () => {
     expect(detection.patterns).toEqual([]);
     expect(detection.belowThreshold).toEqual([]);
     expect(detection.unsupportedArtifacts).toBe(2);
+  });
+
+  it("keeps citation-backed builder autonomy passes out of the active escalation gate", () => {
+    writeTask(projectDir, "done", "task-autonomy-reviewed", { taskClass: null });
+    const detection = detect(projectDir, [
+      {
+        ...record({ index: 1, thin: false, taskId: "task-autonomy-reviewed" }),
+        signals: {
+          issueCount: 0,
+          warningCount: 0,
+          reviewBodyLength: 72,
+          citedFileLineCount: 1,
+        },
+        absentMetrics: [
+          "evidenceIdCount",
+          "findingCount",
+          "followUpTaskCount",
+        ],
+      },
+      {
+        ...record({ index: 2, thin: false, taskId: "task-autonomy-reviewed" }),
+        signals: {
+          issueCount: 0,
+          warningCount: 0,
+          reviewBodyLength: 72,
+          citedFileLineCount: 1,
+        },
+        absentMetrics: [
+          "evidenceIdCount",
+          "findingCount",
+          "followUpTaskCount",
+        ],
+      },
+      {
+        ...record({ index: 3, thin: false, taskId: "task-autonomy-reviewed" }),
+        signals: {
+          issueCount: 0,
+          warningCount: 0,
+          reviewBodyLength: 72,
+          citedFileLineCount: 1,
+        },
+        absentMetrics: [
+          "evidenceIdCount",
+          "findingCount",
+          "followUpTaskCount",
+        ],
+      },
+    ]);
+
+    expect(detection.patterns).toEqual([]);
+    expect(detection.belowThreshold).toEqual([]);
   });
 
   it("surfaces active, cooldown-suppressed, and below-threshold report state", () => {

@@ -1,13 +1,13 @@
 ---
 id: task-repair-review-scrutiny-pattern-c16eb63e9c89
 title: Repair recurring thin critic acceptances
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Meta
 summary: Make critic reviews for builder autonomy/Unclassified carry inspectable evidence instead of recurring thin acceptances.
 created_at: 2026-06-23T22:39:45.975Z
-updated_at: 2026-06-23T22:39:45.975Z
+updated_at: 2026-06-23T23:16:11.000Z
 ---
 
 ## Problem
@@ -104,6 +104,14 @@ Outcome-aware autonomy governance.
   escalation gate on fresh evidence.
 - Operator-facing report or attention fixture showing future escalations
   include the repair task id without cost fields.
+
+## Result
+
+Builder critic reviews now count concrete file-line citations as a supported
+review-scrutiny signal, and the critic prompt requires accepted reviews to cite
+reviewed file/line evidence when reviewable repo files changed. Focused tests
+cover artifact writing, aggregation, escalation suppression, and operator report
+rendering.
 
 <!-- review-scrutiny-pattern-fingerprint: review-scrutiny:critic:builder:autonomy:Unclassified -->
 <!-- review-scrutiny-evidence-fingerprint: d4d72bf743c9409f70e78d9dc49dc1b69becc40d424ceed3d2fe0aaec1971c00 -->
