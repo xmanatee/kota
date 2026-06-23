@@ -153,6 +153,12 @@ describe("kota report CLI", () => {
     expect(parsed.windowDays).toBe(7);
     expect(Array.isArray(parsed.cost.byWorkflow)).toBe(true);
     expect(parsed.explorer.byClassification).toHaveLength(3);
+    expect(parsed.reviewScrutiny).toMatchObject({
+      totalReviews: 0,
+      thinAcceptances: 0,
+      absentMetricCount: 0,
+      unsupportedArtifacts: 0,
+    });
     expect(Array.isArray(parsed.trajectoryDiagnostics.activePatterns)).toBe(true);
     expect(parsed.controlCoverage).toMatchObject({
       artifactCount: 0,

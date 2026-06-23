@@ -20,6 +20,10 @@ import {
   type AutonomyHealthJsonValue,
   isAutonomyHealthJsonObject,
 } from "#modules/autonomy/health-signal.js";
+import {
+  collectReviewScrutinyReport,
+  type ReviewScrutinyReport,
+} from "#modules/autonomy/review-scrutiny.js";
 import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
 import {
   DEFAULT_TRAJECTORY_DIAGNOSTIC_REPORT_LIMIT,
@@ -199,6 +203,7 @@ export type AutonomyReportData = {
   doneInWindow: QueueBalance;
   explorer: ExplorerBalance;
   builder: BuilderBreakdown;
+  reviewScrutiny: ReviewScrutinyReport;
   trajectoryDiagnostics: TrajectoryDiagnosticReport;
   health: AutonomyHealthBreakdown;
   blockers: BlockerClassMix;
@@ -266,6 +271,10 @@ export function aggregateAutonomyReport(
     input.addedFilesBySha,
   );
   const builder = buildBuilderBreakdown(runs, taskById, input.runsDir);
+  const reviewScrutiny = collectReviewScrutinyReport({
+    runsDir: input.runsDir,
+    runs,
+  });
   const trajectoryDiagnostics = buildTrajectoryDiagnosticReport(
     input.runsDir,
     input.windowEndMs,
@@ -287,6 +296,7 @@ export function aggregateAutonomyReport(
     doneInWindow,
     explorer,
     builder,
+    reviewScrutiny,
     trajectoryDiagnostics,
     health,
     blockers,

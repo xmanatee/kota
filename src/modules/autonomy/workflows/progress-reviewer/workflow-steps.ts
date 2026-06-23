@@ -232,7 +232,10 @@ export const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
       ),
       actions: applyActions.output(ctx) ?? emptyActions(),
     };
-    const artifactPath = writeProgressReviewArtifact(ctx.workflow.runDirPath, artifact);
+    const artifactPath = writeProgressReviewArtifact(ctx.workflow.runDirPath, artifact, {
+      runId: ctx.workflow.runId,
+      workflow: ctx.workflow.name,
+    });
     return { written: true, path: artifactPath };
   },
 });

@@ -109,5 +109,20 @@ describe("critic verdict handling", () => {
     const artifact = JSON.parse(readFileSync(join(runDir, "critic-review.json"), "utf8"));
     expect(artifact.verdict).toBe("pass_with_warnings");
     expect(artifact.warnings).toHaveLength(1);
+    const scrutiny = JSON.parse(readFileSync(join(runDir, "review-scrutiny.json"), "utf8"));
+    expect(scrutiny).toMatchObject({
+      surface: "critic",
+      workflow: "builder",
+      taskId: "task-baz",
+      decision: "pass_with_warnings",
+      thinAcceptance: false,
+      signals: { warningCount: 1 },
+      absentMetrics: [
+        "evidenceIdCount",
+        "findingCount",
+        "followUpTaskCount",
+        "citedFileLineCount",
+      ],
+    });
   });
 });

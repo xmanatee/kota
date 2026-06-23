@@ -1,13 +1,13 @@
 ---
 id: task-record-autonomy-review-scrutiny-metrics
 title: Record autonomy review scrutiny metrics
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Meta
 summary: Persist deterministic scrutiny metrics for autonomy and PR review artifacts so rising approvals with thin evidence become visible before reviewer habituation turns into silent acceptance.
 created_at: 2026-06-23T20:35:23.517Z
-updated_at: 2026-06-23T20:35:23.517Z
+updated_at: 2026-06-23T21:00:36.000Z
 ---
 
 ## Problem
@@ -76,8 +76,9 @@ that need inspection. Existing old run artifacts should be tolerated as
   or expose a `review-scrutiny` record without changing the reviewer prompts or
   requiring agent self-reporting.
 - The operator report includes a concise review-scrutiny section or JSON field
-  with total reviews, approval-like decisions, thin acceptances, unsupported
-  artifact counts, and run references for the current window.
+  with total reviews, approval-like decisions, thin acceptances, absent metric
+  counts, unsupported artifact counts, and run references for the current
+  window.
 - Focused tests cover at least: a critic pass with warnings, a progress-reviewer
   `on-track` review with cited evidence, a progress-reviewer `on-track` review
   with no findings/evidence that is flagged thin, a PR `approve` body with
@@ -134,3 +135,21 @@ should not be silently accepted as reviewer workload rises.
 - Transcript for the relevant reviewer workflow tests touched by the change.
 - `pnpm kota report` or its JSON mode showing the new review-scrutiny summary
   against fixture or local run artifacts, with run references visible.
+
+Completion evidence:
+
+- Added typed review-scrutiny records and aggregation in
+  `src/modules/autonomy/review-scrutiny*.ts`, wired into critic,
+  semantic-gate, progress-reviewer, PR reviewer, and `kota report`.
+- Unavailable per-surface metrics are now omitted from `signals` and listed in
+  `absentMetrics`; the report JSON and renderer include absent metric counts
+  and refs instead of flattening unavailable metrics to zero.
+- `pnpm test src/modules/autonomy/review-scrutiny.test.ts src/modules/autonomy/workflows/progress-reviewer/progress-review/artifact.test.ts src/modules/autonomy/critic-verdict.test.ts src/modules/autonomy/improver-semantic-gate.test.ts src/modules/autonomy/workflows/pr-reviewer/workflow.test.ts src/modules/autonomy/report/aggregate.test.ts src/modules/autonomy/report/render.test.ts src/modules/autonomy/report/report-cli.test.ts src/strict-types-policy.integration.test.ts` passed: 9 files, 67 tests.
+- `pnpm run typecheck`, `pnpm run lint`, `pnpm run build`,
+  `pnpm run hygiene`, and `pnpm run validate-tasks` passed.
+- `pnpm kota report --days 7` showed `Review scrutiny` with
+  `Reviews: 350`, `Approval-like: 267`, `Thin acceptances: 164`,
+  `Unsupported: 0`, and thin acceptance refs including
+  `2026-06-23T20-18-03-413Z-builder-2322qt`. Repair attempt 3 added
+  focused coverage for absent metric counts and refs plus full-suite Vitest,
+  focused Biome, and typecheck validation.

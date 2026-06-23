@@ -141,11 +141,17 @@ export function createImproverSemanticCheck(options?: {
       }
       if (response.isError) {
         const recovered = parseVerdict(response.text);
-        return handleVerdict(recovered, runDir, ARTIFACT_NAME);
+        return handleVerdict(recovered, runDir, ARTIFACT_NAME, {
+          runId: ctx.workflow.runId,
+          workflow: ctx.workflow.name,
+        });
       }
 
       const verdict = parseVerdict(response.text);
-      return handleVerdict(verdict, runDir, ARTIFACT_NAME);
+      return handleVerdict(verdict, runDir, ARTIFACT_NAME, {
+        runId: ctx.workflow.runId,
+        workflow: ctx.workflow.name,
+      });
     },
   };
 }

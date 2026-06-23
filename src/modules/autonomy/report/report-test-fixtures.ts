@@ -1,0 +1,81 @@
+import type { AutonomyReportData } from "./aggregate.js";
+
+export const baseReportWindow = {
+  windowStartedAt: "2026-04-22T12:00:00.000Z",
+  windowEndedAt: "2026-04-29T12:00:00.000Z",
+  windowDays: 7,
+};
+
+export const emptyAutonomyReportData: AutonomyReportData = {
+  ...baseReportWindow,
+  openQueue: {
+    total: 0,
+    byPriority: [],
+    byArea: [],
+    byState: [],
+    byTaskClass: [],
+    waitingOnTasks: [],
+  },
+  doneInWindow: {
+    total: 0,
+    byPriority: [],
+    byArea: [],
+    byState: [],
+    byTaskClass: [],
+    waitingOnTasks: [],
+  },
+  explorer: {
+    totalRuns: 0,
+    totalTaskAdditions: 0,
+    unresolvedTaskAdditions: 0,
+    byClassification: [
+      { classification: "strategic", tasks: 0 },
+      { classification: "fan-out", tasks: 0 },
+      { classification: "other", tasks: 0 },
+    ],
+    taskAdditions: [],
+  },
+  builder: {
+    totalCommittedRuns: 0,
+    unresolvedClosures: 0,
+    byArea: [],
+    byPriority: [],
+    byClassification: [],
+    closures: [],
+  },
+  reviewScrutiny: {
+    totalReviews: 0,
+    approvalLikeDecisions: 0,
+    thinAcceptances: 0,
+    absentMetricCount: 0,
+    unsupportedArtifacts: 0,
+    bySurface: [
+      { surface: "critic", reviews: 0, approvalLikeDecisions: 0, thinAcceptances: 0, absentMetricCount: 0, unsupportedArtifacts: 0 },
+      { surface: "progress-reviewer", reviews: 0, approvalLikeDecisions: 0, thinAcceptances: 0, absentMetricCount: 0, unsupportedArtifacts: 0 },
+      { surface: "pr-reviewer", reviews: 0, approvalLikeDecisions: 0, thinAcceptances: 0, absentMetricCount: 0, unsupportedArtifacts: 0 },
+      { surface: "semantic-gate", reviews: 0, approvalLikeDecisions: 0, thinAcceptances: 0, absentMetricCount: 0, unsupportedArtifacts: 0 },
+    ],
+    thinAcceptanceRefs: [],
+    absentMetricRefs: [],
+    records: [],
+    unsupported: [],
+  },
+  trajectoryDiagnostics: { activePatterns: [] },
+  health: {
+    totalSignals: 0,
+    totalGroups: 0,
+    bySeverity: [],
+    byLabel: [],
+    byScope: [],
+    bySource: [],
+    byActionability: [],
+    topGroups: [],
+  },
+  blockers: { totalBlocked: 0, byKind: [] },
+  cost: {
+    totalCostUsd: 0,
+    finishedRuns: 0,
+    averagePerFinishedRun: 0,
+    byWorkflow: [],
+  },
+};

@@ -2,69 +2,7 @@ import { describe, expect, it } from "vitest";
 import { NO_COLOR_THEME, renderToString } from "#modules/rendering/index.js";
 import type { AutonomyReportData } from "./aggregate.js";
 import { renderAutonomyReport } from "./render.js";
-
-const baseWindow = {
-  windowStartedAt: "2026-04-22T12:00:00.000Z",
-  windowEndedAt: "2026-04-29T12:00:00.000Z",
-  windowDays: 7,
-};
-
-const empty: AutonomyReportData = {
-  ...baseWindow,
-  openQueue: {
-    total: 0,
-    byPriority: [],
-    byArea: [],
-    byState: [],
-    byTaskClass: [],
-    waitingOnTasks: [],
-  },
-  doneInWindow: {
-    total: 0,
-    byPriority: [],
-    byArea: [],
-    byState: [],
-    byTaskClass: [],
-    waitingOnTasks: [],
-  },
-  explorer: {
-    totalRuns: 0,
-    totalTaskAdditions: 0,
-    unresolvedTaskAdditions: 0,
-    byClassification: [
-      { classification: "strategic", tasks: 0 },
-      { classification: "fan-out", tasks: 0 },
-      { classification: "other", tasks: 0 },
-    ],
-    taskAdditions: [],
-  },
-  builder: {
-    totalCommittedRuns: 0,
-    unresolvedClosures: 0,
-    byArea: [],
-    byPriority: [],
-    byClassification: [],
-    closures: [],
-  },
-  trajectoryDiagnostics: { activePatterns: [] },
-  health: {
-    totalSignals: 0,
-    totalGroups: 0,
-    bySeverity: [],
-    byLabel: [],
-    byScope: [],
-    bySource: [],
-    byActionability: [],
-    topGroups: [],
-  },
-  blockers: { totalBlocked: 0, byKind: [] },
-  cost: {
-    totalCostUsd: 0,
-    finishedRuns: 0,
-    averagePerFinishedRun: 0,
-    byWorkflow: [],
-  },
-};
+import { emptyAutonomyReportData as empty } from "./report-test-fixtures.js";
 
 function render(data: AutonomyReportData): string {
   return renderToString(renderAutonomyReport(data), {
@@ -88,6 +26,7 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("Tasks moved to done in window");
     expect(text).toContain("Explorer output");
     expect(text).toContain("Builder breakdown");
+    expect(text).toContain("Review scrutiny");
     expect(text).toContain("Trajectory diagnostics");
     expect(text).toContain("Autonomy health");
     expect(text).toContain("Blockers");
@@ -99,6 +38,7 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("(none)");
     expect(text).toContain("(no explorer runs)");
     expect(text).toContain("(no builder commits)");
+    expect(text).toContain("(no reviewer artifacts)");
     expect(text).toContain("(no recurring trajectory diagnostic patterns)");
     expect(text).toContain("(no health signals)");
     expect(text).toContain("(no blocked tasks)");

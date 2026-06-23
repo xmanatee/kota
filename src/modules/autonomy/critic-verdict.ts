@@ -1,5 +1,10 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  buildCriticReviewScrutinyRecord,
+  runIdFromRunDir,
+  writeReviewScrutinyRecord,
+} from "./review-scrutiny.js";
 
 export type CriticVerdict = {
   verdict: "pass" | "fail" | "pass_with_warnings";
@@ -77,7 +82,17 @@ export function parseVerdict(text: string): CriticVerdict {
   };
 }
 
-export function handleVerdict(verdict: CriticVerdict, runDir?: string, artifactName = "critic-review.json"): string {
+export function handleVerdict(
+  verdict: CriticVerdict,
+  runDir?: string,
+  artifactName = "critic-review.json",
+  context?: {
+    runId?: string;
+    workflow?: string;
+    generatedAt?: string;
+    taskId?: string;
+  },
+): string {
   // Always persist the verdict so live-run calibration tracking can read it
   // back later; operators inspecting a run that passed cleanly no longer need
   // to infer the verdict from the step's repair-iteration output. Repeat
@@ -87,6 +102,17 @@ export function handleVerdict(verdict: CriticVerdict, runDir?: string, artifactN
     writeFileSync(
       join(runDir, artifactName),
       JSON.stringify(verdict, null, 2),
+    );
+    writeReviewScrutinyRecord(
+      runDir,
+      buildCriticReviewScrutinyRecord({
+        runId: context?.runId ?? runIdFromRunDir(runDir),
+        workflow: context?.workflow ?? "unknown",
+        generatedAt: context?.generatedAt ?? new Date().toISOString(),
+        artifact: artifactName,
+        taskId: context?.taskId,
+        verdict,
+      }),
     );
   }
 

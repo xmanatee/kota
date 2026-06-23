@@ -120,6 +120,10 @@ const criticBaseConfig: CriticBaseConfig = {
   effort: AUTONOMY_AGENT_DEFAULTS.effort,
 };
 
+function taskIdFromReviewTargetPath(path: string): string | undefined {
+  return path.match(/(?:^|\/)(task-[^/]+)\.md$/)?.[1];
+}
+
 export function createCriticCheck(options?: {
   runDirPath?: string;
   /**
@@ -152,6 +156,7 @@ export function createCriticCheck(options?: {
       const diffContent = getStagedDiffContent(ctx.projectDir);
       const changedFiles = getChangedFiles(ctx.projectDir);
       const runDir = options?.runDirPath ?? ctx.workflow.runDirPath;
+      const taskId = taskIdFromReviewTargetPath(target.path);
 
       const probeResult = runProbeIfDeclared(taskContent, target.path, ctx.projectDir, runDir);
       const productEvidence = checkProductOperatorEvidence({
@@ -171,6 +176,8 @@ export function createCriticCheck(options?: {
               "Product task review failed before agent judgment because operator journey evidence is absent.",
           },
           runDir,
+          "critic-review.json",
+          { runId: ctx.workflow.runId, workflow: ctx.workflow.name, taskId },
         );
       }
 
@@ -228,11 +235,19 @@ export function createCriticCheck(options?: {
       }
       if (response.isError) {
         const recovered = parseVerdict(response.text);
-        return handleVerdict(recovered, runDir);
+        return handleVerdict(recovered, runDir, "critic-review.json", {
+          runId: ctx.workflow.runId,
+          workflow: ctx.workflow.name,
+          taskId,
+        });
       }
 
       const verdict = parseVerdict(response.text);
-      return handleVerdict(verdict, runDir);
+      return handleVerdict(verdict, runDir, "critic-review.json", {
+        runId: ctx.workflow.runId,
+        workflow: ctx.workflow.name,
+        taskId,
+      });
     },
   };
 }

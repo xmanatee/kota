@@ -233,6 +233,20 @@ describe("createImproverSemanticCheck", () => {
     expect(result).toMatch(/pass_with_warnings/);
     const artifact = JSON.parse(readFileSync(join(runDir, "semantic-gate-review.json"), "utf8"));
     expect(artifact.warnings).toHaveLength(1);
+    const scrutiny = JSON.parse(readFileSync(join(runDir, "review-scrutiny.json"), "utf8"));
+    expect(scrutiny).toMatchObject({
+      surface: "semantic-gate",
+      workflow: "improver",
+      decision: "pass_with_warnings",
+      thinAcceptance: false,
+      signals: { warningCount: 1 },
+      absentMetrics: [
+        "evidenceIdCount",
+        "findingCount",
+        "followUpTaskCount",
+        "citedFileLineCount",
+      ],
+    });
   });
 
   it("includes commit message and run artifacts in the prompt", async () => {
