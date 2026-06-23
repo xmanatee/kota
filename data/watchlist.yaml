@@ -450,9 +450,9 @@ resources:
     added: "2026-05-16"
     notes: "Official MCP tools spec draft - monitor tool-result content, structuredContent, _meta, output schema, annotations, and execution-error semantics that affect KOTA's MCP client/server protocol fidelity."
     snapshot:
-      fingerprint: sha256:b133954456bfefe1323eae8990fd6e75
-      summary: "MCP draft Tools remains the protocol-fidelity source for tools/list pagination, input-required tool results, outputSchema, structuredContent, x-mcp-header, and tool list change behavior; current KOTA gaps from this page are already covered by completed tasks."
-      last_seen_at: "2026-05-20T10:02:27.469Z"
+      fingerprint: sha256:ff7aa2990e0ce8ac962615aa32da3e0c
+      summary: "Official MCP draft Tools still defines changing tool lists and untrusted annotations; this run opened task-deny-stale-mcp-tool-calls-after-declaration-drift for KOTA's remaining prompt-time stale-declaration execution gap."
+      last_seen_at: "2026-06-23T00:50:58.941Z"
   - url: https://modelcontextprotocol.io/specification/draft/server/resources
     added: "2026-05-20"
     notes: "Official MCP resources spec draft - monitor resources/list pagination, resources.listChanged, resource subscriptions, resource annotations, and input-required resource reads that affect KOTA's MCP server resource surface."
