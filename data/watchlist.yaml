@@ -719,3 +719,6 @@ resources:
       fingerprint: sha256:0b7cb1aab500b2096b2219cd1bbb7476
       summary: "MCP tool-description smells are accessible and already covered by completed task-add-tool-description-quality-diagnostics-for-agent, so no duplicate task is needed from this snapshot."
       last_seen_at: "2026-06-22T23:00:05.565Z"
+  - url: https://arxiv.org/abs/2606.22721
+    added: "2026-06-23"
+    notes: "Habituation at the Gate studies rising approval and declining scrutiny in human review of AI-agent pull requests using the AIDev dataset. Monitor as an autonomy/GitHub review safety signal for local PR-review scrutiny artifacts, approval-pattern warnings, and operator-facing review-quality evidence; do not import AIDev or add an external PR-review benchmark."
