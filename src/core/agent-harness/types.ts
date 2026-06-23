@@ -2,8 +2,26 @@ import type { ModelProviderSelection } from "#core/model/model-client.js";
 import type { ModelOutputTokenLimits } from "#core/model/output-token-limits.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { KotaAgentMessage } from "./agent-message.js";
+import type {
+  AgentAskOwnerOptions,
+  AgentCanUseTool,
+  AgentMcpServers,
+} from "./run-option-types.js";
+import type { AgentTokenBudgetLedger } from "./token-budget.js";
 
 export type { KotaAgentMessage } from "./agent-message.js";
+export type {
+  AgentAskOwnerOptions,
+  AgentCanUseTool,
+  AgentCanUseToolContext,
+  AgentDecisionAttribution,
+  AgentMcpHttpServerConfig,
+  AgentMcpServerConfig,
+  AgentMcpServers,
+  AgentMcpSseServerConfig,
+  AgentMcpStdioServerConfig,
+  AgentPermissionResult,
+} from "./run-option-types.js";
 
 import type { HarnessHookKind } from "./hooks.js";
 import type {
@@ -25,109 +43,6 @@ export type AgentSystemPrompt = string;
  * `src/modules/model-clients/reasoning.ts`). Five literals, ordered low-to-max.
  */
 export type AgentEffort = "low" | "medium" | "high" | "xhigh" | "max";
-
-/**
- * KOTA-native classification of a permission decision, surfaced to UIs that
- * record why a tool call was allowed or rejected. Provider-specific
- * decision-classification literals (claude SDK uses `user_…` shapes; other
- * adapters carry their own) translate to and from this enum at the adapter
- * boundary.
- */
-export type AgentDecisionAttribution =
-  | "operator-allow-once"
-  | "operator-allow-always"
-  | "operator-deny";
-
-export type AgentPermissionResult =
-  | {
-      behavior: "allow";
-      updatedInput?: Record<string, unknown>;
-      updatedPermissions?: unknown[];
-      toolUseId?: string;
-      decisionAttribution?: AgentDecisionAttribution;
-    }
-  | {
-      behavior: "deny";
-      message: string;
-      interrupt?: boolean;
-      toolUseId?: string;
-      decisionAttribution?: AgentDecisionAttribution;
-    };
-
-/**
- * Context object the harness hands to a `canUseTool` callback for one tool
- * call. The shape is KOTA-native; adapters that route through a native SDK
- * (e.g. claude-agent-sdk) translate their context into this shape at the
- * boundary.
- */
-export type AgentCanUseToolContext = {
-  signal: AbortSignal;
-  suggestions?: unknown[];
-  blockedPath?: string;
-  decisionReason?: string;
-  title?: string;
-  displayName?: string;
-  description?: string;
-  toolUseId: string;
-  agentId?: string;
-};
-
-export type AgentCanUseTool = (
-  toolName: string,
-  input: Record<string, unknown>,
-  context: AgentCanUseToolContext,
-) => Promise<AgentPermissionResult>;
-
-/**
- * One MCP server entry the harness should host for the agent. KOTA-owned
- * discriminated union covering the transport variants every harness can
- * reason about (`stdio | sse | http`). Non-claude adapters reject any
- * non-empty `mcpServers` field at their boundary; the claude adapter passes
- * the entries through to the SDK.
- *
- * Harness-specific in-process hosting mechanisms (e.g. the claude-agent-sdk
- * `sdk` variant that carries a live server instance) stay inside the
- * adapter that owns them and never surface here.
- */
-export type AgentMcpStdioServerConfig = {
-  type?: "stdio";
-  command: string;
-  args?: string[];
-  env?: Record<string, string>;
-};
-
-export type AgentMcpSseServerConfig = {
-  type: "sse";
-  url: string;
-  headers?: Record<string, string>;
-  tools?: unknown[];
-};
-
-export type AgentMcpHttpServerConfig = {
-  type: "http";
-  url: string;
-  headers?: Record<string, string>;
-  tools?: unknown[];
-};
-
-export type AgentMcpServerConfig =
-  | AgentMcpStdioServerConfig
-  | AgentMcpSseServerConfig
-  | AgentMcpHttpServerConfig;
-
-export type AgentMcpServers = Record<string, AgentMcpServerConfig>;
-
-/**
- * Declares that a run should expose the `ask_owner` tool to the agent so it
- * can escalate high-stakes decisions to the repo owner. Every adapter that
- * can host a tool loop must honor this; adapters that cannot (text-only
- * runners) reject it at the boundary. `source` is threaded into the owner
- * question queue so operators can trace which agent run raised which
- * question.
- */
-export type AgentAskOwnerOptions = {
-  source: string;
-};
 
 export type AgentHarnessWriter = { write(text: string): boolean };
 
@@ -196,6 +111,13 @@ export type AgentHarnessRunOptions = {
   persistSession?: boolean;
   resumeSessionId?: string;
   workflowContext?: AgentHarnessWorkflowContext;
+  /**
+   * Shared per-run token budget ledger. KOTA-controlled loops must check this
+   * before each model turn and debit usage after the provider returns it.
+   * Native adapters that only expose aggregate usage debit at the wrapper
+   * boundary and record a non-enforcing diagnostic.
+   */
+  tokenBudget?: AgentTokenBudgetLedger;
   effort: AgentEffort;
   abortController?: AbortController;
   enableFileCheckpointing?: boolean;

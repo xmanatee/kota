@@ -58,7 +58,7 @@ function resolveRefs(obj: unknown, defs: Record<string, unknown>): unknown {
   return result;
 }
 
-const baseGenerated = runGenerator("src/core/config/config.ts", "KotaConfig");
+const baseGenerated = runGenerator("src/core/config/config-types.ts", "KotaConfig");
 
 const kotaDef = baseGenerated.definitions?.KotaConfig;
 if (!kotaDef) throw new Error("KotaConfig definition not found in generated schema");

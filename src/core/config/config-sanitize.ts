@@ -206,6 +206,16 @@ function sanitizeWorkflow(out: Partial<CoreKotaConfig>, src: unknown): void {
   if (!isPlainObject(src)) return;
   const w: NonNullable<CoreKotaConfig["workflow"]> = {};
   if (typeof src.maxStepOutputBytes === "number" && src.maxStepOutputBytes > 0) w.maxStepOutputBytes = src.maxStepOutputBytes;
+  if (
+    isPlainObject(src.agentTokenBudget) &&
+    typeof src.agentTokenBudget.maxTotalTokens === "number" &&
+    Number.isInteger(src.agentTokenBudget.maxTotalTokens) &&
+    src.agentTokenBudget.maxTotalTokens > 0
+  ) {
+    w.agentTokenBudget = {
+      maxTotalTokens: src.agentTokenBudget.maxTotalTokens,
+    };
+  }
   if (Object.keys(w).length > 0) out.workflow = w;
 }
 

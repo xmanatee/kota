@@ -1,4 +1,5 @@
 import type { KotaThinkingConfig } from "#core/agent-harness/message-protocol.js";
+import type { AgentTokenBudgetLedger } from "#core/agent-harness/token-budget.js";
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
@@ -24,6 +25,7 @@ import type { CostTracker } from "./cost.js";
 import { initAgentSession } from "./loop-constructor.js";
 import { type AgentLoopState, runClose, saveToHistoryImpl } from "./loop-init.js";
 import { runSend } from "./loop-send.js";
+import { getAgentLoopTokenBudget } from "./loop-token-budget.js";
 import type { SessionState, SessionStateMachine } from "./session-state.js";
 import { BufferTransport, type ProxyTransport, type Transport } from "./transport.js";
 import type { VerifyTracker } from "./verify-tracker.js";
@@ -74,6 +76,8 @@ export type LoopOptions = {
   mcpServers?: Record<string, McpServerConfig>;
   /** Optional live-client resolver for queued tool approvals during a turn. */
   clientApprovalResolver?: ToolApprovalResolver;
+  /** Optional shared token budget for this session and its delegate children. */
+  tokenBudget?: AgentTokenBudgetLedger;
 };
 
 export type GuardrailsConfigReplacement = {
@@ -149,6 +153,7 @@ export class AgentSession implements AgentLoopState {
         projectRuntime: options.projectRuntime,
         mcpInputResolver: this.mcpInputResolver,
         mcpAuthorizationResolver: this.mcpAuthorizationResolver,
+        tokenBudget: getAgentLoopTokenBudget(this),
       });
       return {
         send: (prompt: string) => session.send(prompt),

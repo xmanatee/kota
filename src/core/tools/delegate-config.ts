@@ -1,3 +1,4 @@
+import type { AgentTokenBudgetLedger } from "#core/agent-harness/token-budget.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { CostTracker } from "#core/loop/cost.js";
 import type { Transport } from "#core/loop/transport.js";
@@ -54,6 +55,7 @@ export type DelegateConfig = {
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
   delegateBudgetLimits?: DelegateBudgetLimits;
   delegateBudget?: DelegateBudget;
+  tokenBudget?: AgentTokenBudgetLedger;
 };
 
 export type ResolvedDelegateConfig = DelegateConfig & {

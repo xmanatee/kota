@@ -18,6 +18,7 @@ import type {
   AgentHarnessRunOptions,
   AgentHarnessUnsupportedOption,
   AgentHarnessWriter,
+  AgentTokenBudgetSource,
   KotaContentBlock,
   KotaMessage,
   KotaTextBlock,
@@ -25,7 +26,11 @@ import type {
   KotaToolResultBlock,
   KotaToolUseBlock,
 } from "#core/agent-harness/index.js";
-import { probeCurrentNodeRuntime } from "#core/agent-harness/index.js";
+import {
+  agentTokenUsageFromModelUsage,
+  probeCurrentNodeRuntime,
+  TOKEN_BUDGET_EXHAUSTED_SUBTYPE,
+} from "#core/agent-harness/index.js";
 import { createModelClient } from "#core/model/model-client.js";
 import { resolveModelOutputTokenLimit } from "#core/model/output-token-limits.js";
 import { runWithAskOwnerSource } from "#core/tools/ask-owner.js";
@@ -216,6 +221,7 @@ async function dispatchToolCall(
     disallowedTools: readonly string[] | undefined;
     abortSignal: AbortSignal | undefined;
     workflowContext: AgentHarnessRunOptions["workflowContext"];
+    tokenBudget: AgentHarnessRunOptions["tokenBudget"];
   },
 ): Promise<{ result: KotaToolResultBlock; denial?: DenialOutcome }> {
   const validatedInput = validateToolUseBlock(call);
@@ -298,6 +304,7 @@ async function dispatchToolCall(
           projectId: options.workflowContext.projectId,
         }
       : {}),
+    ...(options.tokenBudget !== undefined ? { tokenBudget: options.tokenBudget } : {}),
   }));
   return {
     result: {
@@ -316,6 +323,47 @@ function checkAborted(signal: AbortSignal | undefined): void {
     const reason = signal.reason;
     throw reason instanceof Error ? reason : new Error("Agent execution aborted");
   }
+}
+
+function openaiToolsTokenBudgetSource(
+  options: AgentHarnessRunOptions,
+  model: string,
+  turn: number,
+): AgentTokenBudgetSource {
+  return {
+    kind: "harness-turn",
+    harness: OPENAI_TOOLS_AGENT_HARNESS_NAME,
+    model,
+    turn,
+    ...(options.workflowContext !== undefined
+      ? {
+          workflowName: options.workflowContext.workflowName,
+          runId: options.workflowContext.runId,
+          stepId: options.workflowContext.stepId,
+          spanId: options.workflowContext.spanId,
+        }
+      : {}),
+  };
+}
+
+function openaiToolsTokenBudgetErrorResult(input: {
+  message: string;
+  streamedChunks: readonly string[];
+  lastSessionId: string | undefined;
+  turnCount: number;
+  inputTokens: number;
+  outputTokens: number;
+}): AgentHarnessResult {
+  return {
+    text: input.message,
+    streamedText: input.streamedChunks.join(""),
+    ...(input.lastSessionId !== undefined ? { sessionId: input.lastSessionId } : {}),
+    turns: input.turnCount,
+    inputTokens: input.inputTokens,
+    outputTokens: input.outputTokens,
+    isError: true,
+    subtype: TOKEN_BUDGET_EXHAUSTED_SUBTYPE,
+  };
 }
 
 export const openaiToolsAgentHarness: AgentHarness = {
@@ -389,6 +437,22 @@ async function runOpenaiToolsLoop(
 
     for (let turn = 0; turn < maxTurns; turn += 1) {
       checkAborted(options.abortController?.signal);
+      const tokenBudgetSource = openaiToolsTokenBudgetSource(
+        options,
+        resolved.model,
+        turn + 1,
+      );
+      const exhaustion = options.tokenBudget?.checkCanStartTurn(tokenBudgetSource);
+      if (exhaustion) {
+        return openaiToolsTokenBudgetErrorResult({
+          message: exhaustion.message,
+          streamedChunks,
+          lastSessionId,
+          turnCount,
+          inputTokens,
+          outputTokens,
+        });
+      }
 
       const abortSignal = options.abortController?.signal;
       const stream = resolved.client.messages.stream({
@@ -409,6 +473,10 @@ async function runOpenaiToolsLoop(
       turnCount += 1;
       inputTokens += finalMessage.usage?.input_tokens ?? 0;
       outputTokens += finalMessage.usage?.output_tokens ?? 0;
+      options.tokenBudget?.debitUsage(
+        agentTokenUsageFromModelUsage(finalMessage.usage),
+        tokenBudgetSource,
+      );
       if (finalMessage.id) lastSessionId = finalMessage.id;
 
       const textBlocks = finalMessage.content.filter(isTextBlock);
@@ -420,6 +488,20 @@ async function runOpenaiToolsLoop(
         role: "assistant",
         content: finalMessage.content,
       });
+
+      const turnExhaustion = options.tokenBudget?.checkAfterDebit(tokenBudgetSource);
+      if (turnExhaustion) {
+        return openaiToolsTokenBudgetErrorResult({
+          message: toolBlocks.length > 0
+            ? `${turnExhaustion.message} Tool calls were not executed because the harness cannot continue to consume their results.`
+            : turnExhaustion.message,
+          streamedChunks,
+          lastSessionId,
+          turnCount,
+          inputTokens,
+          outputTokens,
+        });
+      }
 
       if (toolBlocks.length === 0 || finalMessage.stop_reason === "end_turn") {
         return {
@@ -443,6 +525,7 @@ async function runOpenaiToolsLoop(
           disallowedTools: options.disallowedTools,
           abortSignal: options.abortController?.signal,
           workflowContext: options.workflowContext,
+          tokenBudget: options.tokenBudget,
         });
         resultBlocks.push(dispatched.result);
         if (dispatched.denial?.interrupt && !interrupted) {

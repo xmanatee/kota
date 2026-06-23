@@ -1,5 +1,4 @@
 import type {
-  KotaJsonObject,
   KotaMessage,
   KotaModelResponse,
   KotaTextBlock,
@@ -7,7 +6,10 @@ import type {
   KotaToolResultBlockContent,
   KotaToolUseBlock,
 } from "#core/agent-harness/message-protocol.js";
-import { truncateToolResult } from "#core/loop/context.js";
+import {
+  type AgentTokenBudgetLedger,
+  agentTokenUsageFromModelUsage,
+} from "#core/agent-harness/token-budget.js";
 import type { CostTracker } from "#core/loop/cost.js";
 import type { Transport } from "#core/loop/transport.js";
 import type { McpManager } from "#core/mcp/manager.js";
@@ -22,18 +24,20 @@ import {
   IDENTICAL_FAILURE_LIMIT,
   MAX_DELEGATE_IMAGES,
   STREAM_MAX_RETRIES,
-  SUB_AGENT_RESULT_LIMIT,
   streamBackoff,
 } from "./delegate-config.js";
 import type { CompletionReason } from "./delegate-format.js";
-import { collectImageBlocks, extractModifiedFiles } from "./delegate-format.js";
+import { collectImageBlocks } from "./delegate-format.js";
+import {
+  delegateTokenBudgetSource,
+  tokenBudgetEarlyError,
+} from "./delegate-turn-token-budget.js";
+import { executeDelegateToolBlocks } from "./delegate-turn-tools.js";
 import type {
-  ToolResult,
   ToolResultBlock,
   ToolRunner,
   ToolRunnerContext,
 } from "./index.js";
-import { getToolMiddleware } from "./tool-middleware.js";
 
 export type TurnLoopOptions = {
   client: ModelClient;
@@ -50,6 +54,7 @@ export type TurnLoopOptions = {
   mode: DelegateMode;
   transport: Transport | undefined;
   costTracker: CostTracker | undefined;
+  tokenBudget?: AgentTokenBudgetLedger;
   modifiedFiles: Set<string>;
   collectedImages: ToolResultBlock[];
   toolsUsed: Set<string>;
@@ -65,20 +70,11 @@ export type TurnLoopResult = {
   totalTurns: number;
 };
 
-type DelegateToolResultEntry = {
-  tool_use_id: string;
-  content: string;
-  blocks?: ToolResultBlock[];
-  structuredContent?: KotaJsonObject;
-  _meta?: KotaJsonObject;
-  is_error?: boolean;
-};
-
 export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopResult> {
   const {
     client, messages, systemBlocks, tools, runners, runnerContext, mcpMgr, isExecute,
     selectedModel, modelOutputTokenLimits, maxTurns, mode, transport, costTracker,
-    modifiedFiles, collectedImages, toolsUsed, urlsFetched, searchQueries,
+    tokenBudget, modifiedFiles, collectedImages, toolsUsed, urlsFetched, searchQueries,
   } = opts;
   const outputTokenLimit = resolveModelOutputTokenLimit(
     selectedModel,
@@ -93,6 +89,12 @@ export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopR
   let completionReason: CompletionReason = "done";
 
   for (let turn = 0; turn < maxTurns; turn++) {
+    const source = delegateTokenBudgetSource(selectedModel, turn + 1);
+    const exhaustion = tokenBudget?.checkCanStartTurn(source);
+    if (exhaustion) {
+      return tokenBudgetEarlyError(exhaustion.message, lastText, totalTurns);
+    }
+
     let response!: KotaModelResponse;
     let streamSuccess = false;
     for (let attempt = 0; attempt <= STREAM_MAX_RETRIES; attempt++) {
@@ -156,10 +158,12 @@ export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopR
 
     totalTurns++;
     if (costTracker) costTracker.addUsage(selectedModel, response.usage);
+    tokenBudget?.debitUsage(agentTokenUsageFromModelUsage(response.usage), source);
 
-    const toolNames = response.content
-      .filter((b) => b.type === "tool_use")
-      .map((b) => (b as KotaToolUseBlock).name);
+    const toolBlocks = response.content.filter(
+      (b): b is KotaToolUseBlock => b.type === "tool_use",
+    );
+    const toolNames = toolBlocks.map((b) => b.name);
     for (const name of toolNames) toolsUsed.add(name);
     const toolsSummary = toolNames.length > 0 ? ` — ${toolNames.join(", ")}` : "";
     if (transport) transport.emit({ type: "status", message: `[kota] delegate(${mode}) turn ${turn + 1}/${maxTurns}${toolsSummary}` });
@@ -183,77 +187,32 @@ export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopR
       content: response.content,
     });
 
-    const toolBlocks = response.content.filter((b) => b.type === "tool_use");
+    const turnExhaustion = tokenBudget?.checkAfterDebit(source);
+    if (turnExhaustion) {
+      return tokenBudgetEarlyError(
+        toolBlocks.length > 0
+          ? `${turnExhaustion.message} Tool calls were not executed because the child cannot continue to consume their results.`
+          : turnExhaustion.message,
+        lastText,
+        totalTurns,
+      );
+    }
+
     if (toolBlocks.length === 0) {
       naturalEnd = true;
       break;
     }
 
-    const results = await Promise.all(
-      toolBlocks.map(async (block): Promise<DelegateToolResultEntry | null> => {
-        if (block.type !== "tool_use") return null;
-        const toolInput = block.input as Record<string, unknown>;
-
-        const isMcp = mcpMgr?.isMcpTool(block.name);
-        const runner = isMcp ? undefined : runners[block.name];
-        if (!runner && !isMcp) {
-          return { tool_use_id: block.id, content: `Unknown tool: ${block.name}`, is_error: true as const };
-        }
-        let result: ToolResult;
-        const childRunnerContext = runnerContext
-          ? { ...runnerContext, toolUseId: block.id }
-          : undefined;
-        const resultContentProvenance = isMcp
-          ? mcpMgr?.getToolResultContentProvenance?.(block.name)
-          : undefined;
-        const callContext = childRunnerContext
-          ? {
-              ...(childRunnerContext.sessionId ? { sessionId: childRunnerContext.sessionId } : {}),
-              ...(childRunnerContext.toolUseId ? { toolUseId: childRunnerContext.toolUseId } : {}),
-              ...(resultContentProvenance ? { resultContentProvenance } : {}),
-              ...(childRunnerContext.signal ? { signal: childRunnerContext.signal } : {}),
-            }
-          : resultContentProvenance
-            ? { resultContentProvenance }
-            : undefined;
-        const call = { name: block.name, input: toolInput };
-        try {
-          result = await getToolMiddleware().execute(
-            callContext ? { ...call, context: callContext } : call,
-            () =>
-            isMcp
-              ? mcpMgr!.executeTool(block.name, call.input)
-              : runner!(call.input, childRunnerContext)
-          );
-        } catch (runnerErr) {
-          const errMsg = runnerErr instanceof Error ? runnerErr.message : String(runnerErr);
-          result = { content: `Tool error (${block.name}): ${errMsg}`, is_error: true };
-        }
-
-        if (isExecute && !result.is_error) {
-          for (const f of extractModifiedFiles(block.name, toolInput, result.content)) {
-            modifiedFiles.add(f);
-          }
-        }
-        if ((block.name === "web_fetch" || block.name === "http_request") && toolInput.url) {
-          urlsFetched.add(toolInput.url as string);
-        }
-        if (block.name === "web_search" && toolInput.query) {
-          searchQueries.add(toolInput.query as string);
-        }
-
-        return {
-          tool_use_id: block.id,
-          content: truncateToolResult(result.content, SUB_AGENT_RESULT_LIMIT),
-          ...(result.blocks ? { blocks: result.blocks } : {}),
-          ...(result.structuredContent ? { structuredContent: result.structuredContent } : {}),
-          ...(result._meta ? { _meta: result._meta } : {}),
-          ...(result.is_error !== undefined ? { is_error: result.is_error } : {}),
-        };
-      }),
-    );
-
-    const validResults = results.filter((r): r is NonNullable<typeof r> => r !== null);
+    const validResults = await executeDelegateToolBlocks({
+      toolBlocks,
+      runners,
+      runnerContext,
+      mcpMgr,
+      isExecute,
+      modifiedFiles,
+      urlsFetched,
+      searchQueries,
+    });
 
     const updated = collectImageBlocks(validResults, collectedImages, MAX_DELEGATE_IMAGES);
     collectedImages.length = 0;

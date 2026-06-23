@@ -71,6 +71,64 @@ describe("validateAgentStep registered agent resolution", () => {
     });
   });
 
+  it("normalizes a valid per-step token budget", () => {
+    const [definition] = validateWorkflowDefinitions(
+      [
+        registerWorkflowDefinition(definitionPath, {
+          name: "review-workflow",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "review",
+              type: "agent",
+              agentName: "reviewer",
+              harness: "test-harness",
+              autonomyMode: "autonomous",
+              tokenBudget: { maxTotalTokens: 10_000 },
+            },
+          ],
+        }),
+      ],
+      projectDir,
+      {
+        resolveAgentDef: (name) => (name === reviewer.name ? reviewer : undefined),
+      },
+    );
+
+    expect(definition.steps[0]).toMatchObject({
+      id: "review",
+      type: "agent",
+      tokenBudget: { maxTotalTokens: 10_000 },
+    });
+  });
+
+  it("rejects malformed per-step token budgets", () => {
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition(definitionPath, {
+            name: "review-workflow",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [
+              {
+                id: "review",
+                type: "agent",
+                agentName: "reviewer",
+                harness: "test-harness",
+                autonomyMode: "autonomous",
+                tokenBudget: { maxTotalTokens: 0 },
+              },
+            ],
+          }),
+        ],
+        projectDir,
+        {
+          resolveAgentDef: (name) => (name === reviewer.name ? reviewer : undefined),
+        },
+      ),
+    ).toThrow(/tokenBudget\.maxTotalTokens/);
+  });
+
   it("rejects an unknown registered agent name when an agent resolver is available", () => {
     expect(() =>
       validateWorkflowDefinitions(

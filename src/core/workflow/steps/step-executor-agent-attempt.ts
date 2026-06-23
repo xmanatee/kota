@@ -1,5 +1,6 @@
 import {
   type AgentHarness,
+  type AgentTokenBudgetLedger,
   type KotaAgentMessage,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
@@ -45,6 +46,7 @@ export async function runAgentAttempt(input: {
   appendMessage: (message: KotaAgentMessage) => void;
   bufferAgentMessages: boolean;
   stepTelemetry: ToolTelemetry;
+  tokenBudget?: AgentTokenBudgetLedger;
   onSuccessfulAttemptMessages: (messages: KotaAgentMessage[]) => void;
   onJsonOutputFeedback: (feedback: string) => void;
 }): Promise<WorkflowStepOutput> {
@@ -59,6 +61,7 @@ export async function runAgentAttempt(input: {
     appendMessage,
     bufferAgentMessages,
     stepTelemetry,
+    tokenBudget,
   } = input;
   const attemptMessages: KotaAgentMessage[] = [];
   const attemptAbortController = new AbortController();
@@ -88,6 +91,7 @@ export async function runAgentAttempt(input: {
     systemPrompt,
     abortController: attemptAbortController,
     ...(trackedMessage !== undefined ? { onMessage: trackedMessage } : {}),
+    ...(tokenBudget !== undefined ? { tokenBudget } : {}),
   });
 
   try {
@@ -113,6 +117,7 @@ export async function runAgentAttempt(input: {
             ...(harnessRunOptions.askOwner !== undefined
               ? { askOwner: harnessRunOptions.askOwner }
               : {}),
+            ...(tokenBudget !== undefined ? { tokenBudget } : {}),
           },
           runHarness,
         )

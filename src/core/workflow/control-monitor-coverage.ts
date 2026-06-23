@@ -30,6 +30,7 @@ import {
   telemetryCalls,
 } from "./control-monitor-coverage-readers.js";
 import { average } from "./control-monitor-coverage-reviewers.js";
+import { inspectTokenBudget } from "./control-monitor-coverage-token-budget.js";
 import {
   CONTENT_INGEST_TOOL_NAMES,
   CONTROL_MONITOR_COVERAGE_ARTIFACT,
@@ -124,6 +125,14 @@ export function buildControlMonitorCoverageArtifact(
     inspectAgentStream({ projectDir, runDirPath, stepId, family, addGap });
     inspectAutonomyMode({ projectDir, runDirPath, stepId, mode: snapshotById.get(stepId)?.autonomyMode ?? null, family, addGap });
     inspectTrajectory({ projectDir, runDirPath, stepId, family, addGap });
+    inspectTokenBudget({
+      projectDir,
+      runDirPath,
+      stepId,
+      maxTotalTokens: snapshotById.get(stepId)?.tokenBudgetMaxTotalTokens ?? null,
+      family,
+      addGap,
+    });
     const telemetryPath = join(runDirPath, "steps", `${stepId}.tool-telemetry.json`);
     const calls = telemetryCalls(telemetryPath);
     toolCalls += calls.length;

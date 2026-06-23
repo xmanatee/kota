@@ -110,6 +110,21 @@ export {
   shouldRouteKotaToolControl,
 } from "./runner.js";
 export type {
+  AgentTokenBudgetConfig,
+  AgentTokenBudgetDebit,
+  AgentTokenBudgetDiagnostic,
+  AgentTokenBudgetExhaustion,
+  AgentTokenBudgetSnapshot,
+  AgentTokenBudgetSource,
+  AgentTokenBudgetSourceKind,
+  AgentTokenUsage,
+} from "./token-budget.js";
+export {
+  AgentTokenBudgetLedger,
+  agentTokenUsageFromModelUsage,
+  TOKEN_BUDGET_EXHAUSTED_SUBTYPE,
+} from "./token-budget.js";
+export type {
   TrajectoryDiagnostic,
   TrajectoryDiagnosticCode,
   TrajectoryDiagnosticsArtifact,

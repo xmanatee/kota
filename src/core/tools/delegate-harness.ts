@@ -6,6 +6,7 @@
  */
 
 import {
+  type AgentTokenBudgetLedger,
   resolveAgentHarness,
   routeKotaToolControlOptions,
   runAgentHarness,
@@ -56,6 +57,7 @@ export type DelegateHarnessConfig = {
    * fails loudly rather than silently re-pinning subagents to claude.
    */
   harness: string;
+  tokenBudget?: AgentTokenBudgetLedger;
 };
 
 export async function runDelegateHarness(
@@ -105,6 +107,7 @@ export async function runDelegateHarness(
       autonomyMode: "autonomous",
       cwd: config.cwd ?? process.cwd(),
       effort: "xhigh",
+      tokenBudget: config.tokenBudget,
     },
     transport
       ? {

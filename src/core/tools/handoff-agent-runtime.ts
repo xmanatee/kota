@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import type {
   AgentAskOwnerOptions,
   AgentCanUseTool,
+  AgentTokenBudgetLedger,
 } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { Transport } from "#core/loop/transport.js";
@@ -17,6 +18,7 @@ export type HandoffAgentRuntime = {
   delegateBudget: DelegateBudget;
   canUseTool?: AgentCanUseTool;
   askOwner?: AgentAskOwnerOptions;
+  tokenBudget?: AgentTokenBudgetLedger;
   transport?: Transport;
 };
 

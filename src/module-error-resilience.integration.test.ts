@@ -1,0 +1,148 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { NullTransport } from "./core/loop/transport.js";
+import { ModuleLoader } from "./core/modules/module-loader.js";
+import type { KotaModule } from "./core/modules/module-types.js";
+import { discoverProjectModules } from "./core/modules/project-discovery.js";
+import {
+  initProviderRegistry,
+  RENDERING_PROVIDER_TOKEN,
+  resetProviderRegistry,
+} from "./core/modules/provider-registry.js";
+import type { RenderingProvider, ReplChrome } from "./core/modules/provider-types.js";
+import { clearCustomTools } from "./core/tools/index.js";
+import { clearCustomGroups, resetGroups } from "./core/tools/tool-groups.js";
+
+let projectModules: KotaModule[];
+
+const noopChrome: ReplChrome = {
+  announceHarness: () => {},
+  showHelp: () => {},
+  showStatus: () => {},
+  showReset: () => {},
+  showError: () => {},
+  showGoodbye: () => {},
+};
+
+function installRenderingCapture(chunks: string[]): void {
+  const provider: RenderingProvider = {
+    createAgentTransport: () => new NullTransport(),
+    createReplChrome: () => noopChrome,
+    printDiagnostic: (diagnostic) => {
+      chunks.push(diagnostic.detail ? `${diagnostic.message}\n${diagnostic.detail}` : diagnostic.message);
+    },
+    printPrompt: (prompt) => {
+      chunks.push(prompt.kind);
+    },
+    writeStderr: (text) => {
+      chunks.push(text);
+    },
+  };
+  initProviderRegistry().register(RENDERING_PROVIDER_TOKEN, "test", provider);
+}
+
+beforeEach(async () => {
+  projectModules = await discoverProjectModules();
+  resetProviderRegistry();
+  clearCustomTools();
+  clearCustomGroups();
+  resetGroups();
+});
+
+afterEach(() => {
+  resetProviderRegistry();
+  vi.restoreAllMocks();
+  clearCustomTools();
+  clearCustomGroups();
+  resetGroups();
+});
+
+describe("module error resilience", () => {
+  it("broken project module in loadAll throws after loading remaining modules", async () => {
+    const loader = new ModuleLoader({});
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const brokenModule: KotaModule = {
+      name: "broken",
+      onLoad: () => { throw new Error("Module init explosion"); },
+    };
+
+    await expect(
+      loader.loadAll([brokenModule, ...projectModules]),
+    ).rejects.toThrow("1 project module(s) failed to load");
+
+    expect(loader.getLoadedModules()).not.toContain("broken");
+    expect(loader.getLoadedModules()).toContain("memory");
+    expect(loader.getLoadedModules()).toContain("scheduler");
+    expect(loader.getModuleCount()).toBe(projectModules.length);
+
+    errSpy.mockRestore();
+    await loader.unloadAll();
+  });
+
+  it("broken installed module in loadAll does not throw", async () => {
+    const loader = new ModuleLoader({});
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const brokenInstalled: KotaModule = {
+      name: "broken-integration",
+      onLoad: () => { throw new Error("Missing credentials"); },
+    };
+
+    await loader.loadAll(projectModules, [brokenInstalled]);
+
+    expect(loader.getLoadedModules()).not.toContain("broken-integration");
+    expect(loader.getLoadedModules()).toContain("memory");
+    expect(loader.getModuleCount()).toBe(projectModules.length);
+
+    errSpy.mockRestore();
+    await loader.unloadAll();
+  });
+
+  it("broken module commands() does not prevent other module commands", async () => {
+    const loader = new ModuleLoader({});
+    const chunks: string[] = [];
+    installRenderingCapture(chunks);
+
+    const brokenCommandModule: KotaModule = {
+      name: "broken-cmd",
+      commands: () => { throw new Error("Command factory explosion"); },
+    };
+
+    await loader.loadAll([brokenCommandModule, ...projectModules]);
+
+    const commandNames = loader.getCommands().map((command) => command.name());
+    expect(commandNames).toContain("serve");
+    expect(commandNames).toContain("daemon");
+    expect(commandNames).toContain("tools");
+    expect(chunks).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Module "broken-cmd" command registration failed'),
+      ]),
+    );
+
+    await loader.unloadAll();
+  });
+
+  it("broken module routes() does not prevent other module routes", async () => {
+    const loader = new ModuleLoader({});
+    const chunks: string[] = [];
+    installRenderingCapture(chunks);
+
+    const brokenRouteModule: KotaModule = {
+      name: "broken-route",
+      routes: () => { throw new Error("Route factory explosion"); },
+    };
+
+    await loader.loadAll([brokenRouteModule, ...projectModules]);
+
+    const routes = loader.getRoutes();
+    expect(routes.some((route) => route.path === "/api/chat/vercel")).toBe(true);
+    expect(chunks).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Module "broken-route" route registration failed'),
+      ]),
+    );
+
+    await loader.unloadAll();
+  });
+});

@@ -32,11 +32,13 @@ import type {
   AgentHarnessRunOptions,
   AgentHarnessUnsupportedOption,
   AgentHarnessWriter,
+  AgentTokenBudgetSource,
   KotaTool,
 } from "#core/agent-harness/index.js";
 import {
   probeNativeCliRuntime,
   probeNodePackageRuntime,
+  TOKEN_BUDGET_EXHAUSTED_SUBTYPE,
 } from "#core/agent-harness/index.js";
 import { runWithAskOwnerSource } from "#core/tools/ask-owner.js";
 import { executeTool, getAllTools } from "#core/tools/index.js";
@@ -267,6 +269,7 @@ async function dispatchFunctionCall(
     disallowedTools: readonly string[] | undefined;
     abortSignal: AbortSignal | undefined;
     workflowContext: AgentHarnessRunOptions["workflowContext"];
+    tokenBudget: AgentHarnessRunOptions["tokenBudget"];
   },
 ): Promise<DispatchResult> {
   const name = call.name;
@@ -342,6 +345,7 @@ async function dispatchFunctionCall(
           projectId: guardrails.workflowContext.projectId,
         }
       : {}),
+    ...(guardrails.tokenBudget !== undefined ? { tokenBudget: guardrails.tokenBudget } : {}),
   }));
   const body = result.is_error === true
     ? { error: result.content }
@@ -354,6 +358,47 @@ function checkAborted(signal: AbortSignal | undefined): void {
     const reason = signal.reason;
     throw reason instanceof Error ? reason : new Error("Agent execution aborted");
   }
+}
+
+function geminiTokenBudgetSource(
+  options: AgentHarnessRunOptions,
+  model: string,
+  turn: number,
+): AgentTokenBudgetSource {
+  return {
+    kind: "harness-turn",
+    harness: GEMINI_AGENT_HARNESS_NAME,
+    model,
+    turn,
+    ...(options.workflowContext !== undefined
+      ? {
+          workflowName: options.workflowContext.workflowName,
+          runId: options.workflowContext.runId,
+          stepId: options.workflowContext.stepId,
+          spanId: options.workflowContext.spanId,
+        }
+      : {}),
+  };
+}
+
+function geminiTokenBudgetErrorResult(input: {
+  message: string;
+  streamedChunks: readonly string[];
+  lastResponseId: string | undefined;
+  turnCount: number;
+  inputTokens: number;
+  outputTokens: number;
+}): AgentHarnessResult {
+  return {
+    text: input.message,
+    streamedText: input.streamedChunks.join(""),
+    ...(input.lastResponseId !== undefined ? { sessionId: input.lastResponseId } : {}),
+    turns: input.turnCount,
+    inputTokens: input.inputTokens,
+    outputTokens: input.outputTokens,
+    isError: true,
+    subtype: TOKEN_BUDGET_EXHAUSTED_SUBTYPE,
+  };
 }
 
 export const geminiAgentHarness: AgentHarness = {
@@ -413,6 +458,22 @@ async function runGeminiLoop(
 
   for (let turn = 0; turn < maxTurns; turn += 1) {
     checkAborted(options.abortController?.signal);
+    const tokenBudgetSource = geminiTokenBudgetSource(
+      options,
+      options.model,
+      turn + 1,
+    );
+    const exhaustion = options.tokenBudget?.checkCanStartTurn(tokenBudgetSource);
+    if (exhaustion) {
+      return geminiTokenBudgetErrorResult({
+        message: exhaustion.message,
+        streamedChunks,
+        lastResponseId,
+        turnCount,
+        inputTokens,
+        outputTokens,
+      });
+    }
 
     const config: GenerateContentConfig = {
       thinkingConfig,
@@ -429,6 +490,8 @@ async function runGeminiLoop(
 
     let aggregatedContent: Content | undefined;
     let lastChunk: GenerateContentResponse | undefined;
+    let turnInputTokens: number | undefined;
+    let turnOutputTokens: number | undefined;
 
     for await (const chunk of stream) {
       lastChunk = chunk;
@@ -444,13 +507,22 @@ async function runGeminiLoop(
         aggregatedContent = mergeContent(aggregatedContent, candidateContent);
       }
       if (chunk.usageMetadata) {
-        inputTokens = chunk.usageMetadata.promptTokenCount ?? inputTokens;
-        outputTokens = chunk.usageMetadata.candidatesTokenCount ?? outputTokens;
+        turnInputTokens = chunk.usageMetadata.promptTokenCount ?? turnInputTokens;
+        turnOutputTokens = chunk.usageMetadata.candidatesTokenCount ?? turnOutputTokens;
       }
       if (chunk.responseId) lastResponseId = chunk.responseId;
     }
 
     turnCount += 1;
+    inputTokens += turnInputTokens ?? 0;
+    outputTokens += turnOutputTokens ?? 0;
+    options.tokenBudget?.debitUsage(
+      {
+        inputTokens: turnInputTokens,
+        outputTokens: turnOutputTokens,
+      },
+      tokenBudgetSource,
+    );
     const turnText = extractTextFromContent(aggregatedContent);
     if (turnText.length > 0) finalText = turnText;
 
@@ -459,6 +531,20 @@ async function runGeminiLoop(
     const assistantContent: Content = aggregatedContent ?? { role: "model", parts: [] };
     if (!assistantContent.role) assistantContent.role = "model";
     conversation.push(assistantContent);
+
+    const turnExhaustion = options.tokenBudget?.checkAfterDebit(tokenBudgetSource);
+    if (turnExhaustion) {
+      return geminiTokenBudgetErrorResult({
+        message: functionCalls.length > 0
+          ? `${turnExhaustion.message} Function calls were not executed because the harness cannot continue to consume their results.`
+          : turnExhaustion.message,
+        streamedChunks,
+        lastResponseId,
+        turnCount,
+        inputTokens,
+        outputTokens,
+      });
+    }
 
     if (functionCalls.length === 0 || lastChunk?.candidates?.[0]?.finishReason === "STOP") {
       return {
@@ -481,6 +567,7 @@ async function runGeminiLoop(
         disallowedTools: options.disallowedTools,
         abortSignal: options.abortController?.signal,
         workflowContext: options.workflowContext,
+        tokenBudget: options.tokenBudget,
       });
       responseParts.push(dispatched.responsePart);
       if (dispatched.denial?.interrupt && !interruptDenial) {

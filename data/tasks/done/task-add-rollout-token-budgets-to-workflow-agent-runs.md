@@ -1,13 +1,13 @@
 ---
 id: task-add-rollout-token-budgets-to-workflow-agent-runs
 title: Add rollout token budgets to workflow agent runs
-status: ready
+status: done
 priority: p1
 area: core
 task_class: Safety
 summary: Add a run-scoped token budget for workflow agent steps and delegated child agents so autonomous rollouts abort predictably before token usage runs away, independent of provider pricing.
 created_at: 2026-06-23T12:27:06.493Z
-updated_at: 2026-06-23T12:27:06.493Z
+updated_at: 2026-06-23T15:01:38.000Z
 ---
 
 ## Problem
@@ -149,15 +149,25 @@ the same runtime boundary that starts model turns.
 
 ## Acceptance Evidence
 
-- Focused unit test transcript for the token-budget ledger, including
-  under-budget, over-budget, missing-usage, and parent/child debit cases.
-- Focused workflow/delegate test transcript showing a multi-turn workflow agent
-  run stops before the next turn once the ledger is exhausted and a delegated
-  child consumes the parent budget.
-- Focused harness-adapter test transcript for every usage-reporting path that
-  is wired into the ledger, including OpenAI-tools and Gemini harness adapters.
-- Sample run artifact under `.kota/runs/<run-id>/` or fixture output showing
-  configured budget, consumed input/output/total tokens, remaining tokens, and
-  `token_budget_exhausted` on an exhausted run.
-- `pnpm run validate-tasks`, relevant focused tests, `pnpm run typecheck`, and
-  `pnpm run lint` pass.
+- Focused test transcript:
+  `.kota/runs/2026-06-23T14-27-59-282Z-builder-l5pers/validation-transcript.txt`
+  (`pnpm test src/core/agent-harness/token-budget.test.ts
+  src/core/agent-harness/runner.test.ts src/core/tools/delegate-turn.test.ts
+  src/core/tools/handoff-agent.test.ts
+  src/modules/openai-tools-agent-harness/adapter.test.ts
+  src/modules/gemini-agent-harness/adapter.test.ts
+  src/core/workflow/control-monitor-coverage.test.ts
+  src/core/workflow/step-validators/validate-agent-step.test.ts
+  src/core/config/config.test.ts`): 109 tests passed.
+- Repair coverage in the same transcript adds
+  `pnpm test src/core/workflow/run-executor.test.ts src/core/loop/loop.test.ts`
+  (70 tests passed), proving the config/default ledger is shared across
+  workflow agent steps and the classic KOTA loop stops with
+  `token_budget_exhausted`.
+- Strict type, typecheck, and lint gates passed:
+  `pnpm test src/strict-types-policy.integration.test.ts`,
+  `pnpm run typecheck`, and `pnpm run lint`.
+- Sample token-budget artifact:
+  `.kota/runs/2026-06-23T14-27-59-282Z-builder-l5pers/steps/sample-token-budget.token-budget.json`.
+- Queue validation passed after staging the task move and implementation
+  changes: `pnpm run validate-tasks`.

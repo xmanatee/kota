@@ -17,6 +17,7 @@ export type SnapshotStep = {
   type: string;
   event: string | null;
   autonomyMode: string | null;
+  tokenBudgetMaxTotalTokens: number | null;
 };
 
 export type CoverageEvent = {
@@ -227,11 +228,13 @@ function collectSnapshotStep(
   const type = stringField(raw.type);
   if (!id || !type) return [];
   const autonomyMode = stringField(raw.autonomyMode) ?? inheritedAutonomyMode;
+  const tokenBudget = isJsonObject(raw.tokenBudget) ? raw.tokenBudget : null;
   const current: SnapshotStep = {
     id,
     type,
     event: stringField(raw.event),
     autonomyMode,
+    tokenBudgetMaxTotalTokens: numberField(tokenBudget?.maxTotalTokens),
   };
   return [
     current,

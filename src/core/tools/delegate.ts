@@ -36,6 +36,7 @@ import {
 } from "./delegate-format.js";
 import { runDelegateTurns } from "./delegate-turn.js";
 import { localWriteEffect } from "./effect.js";
+import { getCurrentHandoffAgentRuntime } from "./handoff-agent-runtime.js";
 import type { ResolvedToolSet, ToolResult, ToolRunnerContext } from "./index.js";
 
 export {
@@ -162,6 +163,10 @@ async function runDelegateWithBudget(
     ? routeModel(task, mode, delegateConfig.modelTiers, delegateConfig.model)
     : null;
   const selectedModel = modelRoute?.model ?? delegateConfig.model;
+  const tokenBudget =
+    context?.tokenBudget ??
+    getCurrentHandoffAgentRuntime()?.tokenBudget ??
+    delegateConfig.tokenBudget;
 
   const resolvedBackend = delegateConfig.backend ?? modelRoute?.backend ?? "thin";
   if (resolvedBackend === "agent-sdk") {
@@ -186,6 +191,7 @@ async function runDelegateWithBudget(
       model: selectedModel,
       modelOutputTokenLimits: delegateConfig.modelOutputTokenLimits,
       harness: delegateConfig.harness,
+      tokenBudget,
     });
   }
 
@@ -254,6 +260,7 @@ async function runDelegateWithBudget(
     client, messages, systemBlocks, tools, runners, runnerContext: context, mcpMgr,
     isExecute, selectedModel, modelOutputTokenLimits: delegateConfig.modelOutputTokenLimits,
     maxTurns, mode, transport, costTracker,
+    tokenBudget,
     modifiedFiles, collectedImages, toolsUsed, urlsFetched, searchQueries,
   });
 

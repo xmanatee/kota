@@ -6,79 +6,16 @@
  * the full pipeline — not just in isolation.
  */
 
-import { execFileSync, type SpawnSyncReturns } from "node:child_process";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { NullTransport } from "./core/loop/transport.js";
 import { ModuleLoader } from "./core/modules/module-loader.js";
 import type { KotaModule } from "./core/modules/module-types.js";
 import { discoverProjectModules } from "./core/modules/project-discovery.js";
-import {
-  initProviderRegistry,
-  RENDERING_PROVIDER_TOKEN,
-  resetProviderRegistry,
-} from "./core/modules/provider-registry.js";
-import type { RenderingProvider, ReplChrome } from "./core/modules/provider-types.js";
 import { clearCustomTools, executeTool, getAllTools } from "./core/tools/index.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, } from "./core/tools/tool-groups.js";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const CLI = resolve(root, "src/cli.ts");
-const CLI_TIMEOUT = 30_000;
-
-function runCli(...args: string[]): { stdout: string; stderr: string; exitCode: number } {
-  try {
-    const stdout = execFileSync(process.execPath, ["--import", "tsx", CLI, ...args], {
-      encoding: "utf-8",
-      timeout: CLI_TIMEOUT,
-      cwd: root,
-    });
-    return { stdout, stderr: "", exitCode: 0 };
-  } catch (err) {
-    const e = err as SpawnSyncReturns<string>;
-    return {
-      stdout: e.stdout || "",
-      stderr: e.stderr || "",
-      exitCode: e.status ?? 1,
-    };
-  }
-}
-
 let projectModules: KotaModule[];
 
-const noopChrome: ReplChrome = {
-  announceHarness: () => {},
-  showHelp: () => {},
-  showStatus: () => {},
-  showReset: () => {},
-  showError: () => {},
-  showGoodbye: () => {},
-};
-
-function installRenderingCapture(chunks: string[]): void {
-  const provider: RenderingProvider = {
-    createAgentTransport: () => new NullTransport(),
-    createReplChrome: () => noopChrome,
-    printDiagnostic: (diagnostic) => {
-      chunks.push(diagnostic.detail ? `${diagnostic.message}\n${diagnostic.detail}` : diagnostic.message);
-    },
-    printPrompt: (prompt) => {
-      chunks.push(prompt.kind);
-    },
-    writeStderr: (text) => {
-      chunks.push(text);
-    },
-  };
-  initProviderRegistry().register(RENDERING_PROVIDER_TOKEN, "test", provider);
-}
-
-beforeEach(() => {
-  resetProviderRegistry();
-});
-
 afterEach(() => {
-  resetProviderRegistry();
   vi.restoreAllMocks();
 });
 
@@ -213,153 +150,9 @@ describe("module → CLI pipeline (full lifecycle)", () => {
   });
 });
 
-describe("module error resilience", () => {
-  beforeEach(() => {
-    clearCustomTools();
-    clearCustomGroups();
-    resetGroups();
-  });
-
-  afterEach(() => {
-    clearCustomTools();
-    clearCustomGroups();
-    resetGroups();
-  });
-
-  it("broken project module in loadAll throws after loading remaining modules", async () => {
-    const loader = new ModuleLoader({});
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-
-    const brokenModule: KotaModule = {
-      name: "broken",
-      onLoad: () => { throw new Error("Module init explosion"); },
-    };
-
-    await expect(
-      loader.loadAll([brokenModule, ...projectModules]),
-    ).rejects.toThrow("1 project module(s) failed to load");
-
-    // Broken module should not be loaded
-    expect(loader.getLoadedModules()).not.toContain("broken");
-    // But all other project modules should still have loaded
-    expect(loader.getLoadedModules()).toContain("memory");
-    expect(loader.getLoadedModules()).toContain("scheduler");
-    expect(loader.getModuleCount()).toBe(projectModules.length);
-
-    errSpy.mockRestore();
-    await loader.unloadAll();
-  });
-
-  it("broken installed module in loadAll does not throw", async () => {
-    const loader = new ModuleLoader({});
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-
-    const brokenInstalled: KotaModule = {
-      name: "broken-integration",
-      onLoad: () => { throw new Error("Missing credentials"); },
-    };
-
-    await loader.loadAll(projectModules, [brokenInstalled]);
-
-    expect(loader.getLoadedModules()).not.toContain("broken-integration");
-    expect(loader.getLoadedModules()).toContain("memory");
-    expect(loader.getModuleCount()).toBe(projectModules.length);
-
-    errSpy.mockRestore();
-    await loader.unloadAll();
-  });
-
-  it("broken module commands() does not prevent other module commands", async () => {
-    const loader = new ModuleLoader({});
-    const chunks: string[] = [];
-    installRenderingCapture(chunks);
-
-    const brokenCommandModule: KotaModule = {
-      name: "broken-cmd",
-      commands: () => { throw new Error("Command factory explosion"); },
-    };
-
-    // Load the broken module alongside real ones
-    await loader.loadAll([brokenCommandModule, ...projectModules]);
-
-    // getCommands should gracefully skip the broken module
-    const commands = loader.getCommands();
-    const commandNames = commands.map((c) => c.name());
-
-    // Real module commands should still be available
-    expect(commandNames).toContain("serve");
-    expect(commandNames).toContain("daemon");
-    expect(commandNames).toContain("tools");
-
-    // Error should have been logged
-    expect(chunks).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining('Module "broken-cmd" command registration failed'),
-      ]),
-    );
-
-    await loader.unloadAll();
-  });
-
-  it("broken module routes() does not prevent other module routes", async () => {
-    const loader = new ModuleLoader({});
-    const chunks: string[] = [];
-    installRenderingCapture(chunks);
-
-    const brokenRouteModule: KotaModule = {
-      name: "broken-route",
-      routes: () => { throw new Error("Route factory explosion"); },
-    };
-
-    await loader.loadAll([brokenRouteModule, ...projectModules]);
-
-    const routes = loader.getRoutes();
-    // vercel-adapter routes should still work
-    expect(routes.some((r) => r.path === "/api/chat/vercel")).toBe(true);
-
-    expect(chunks).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining('Module "broken-route" route registration failed'),
-      ]),
-    );
-
-    await loader.unloadAll();
-  });
-});
-
-describe("CLI module commands (compiled binary)", () => {
-  it("--help lists all module-provided commands", () => {
-    const { stdout } = runCli("--help");
-    // Commands from modules
-    expect(stdout).toContain("serve");
-    expect(stdout).toContain("daemon");
-    expect(stdout).toContain("tools");
-    // Built-in commands
-    expect(stdout).toContain("run");
-    expect(stdout).toContain("history");
-  });
-
-  it("module commands have working --help", () => {
-    const { stdout, exitCode } = runCli("serve", "--help");
-    expect(exitCode).toBe(0);
-    expect(stdout).toContain("--model");
-    expect(stdout).toContain("--verbose");
-    // daemon uses a fixed model for autonomous workflows — no --model flag
-    const { stdout: daemonHelp, exitCode: daemonExit } = runCli("daemon", "--help");
-    expect(daemonExit).toBe(0);
-    expect(daemonHelp).toContain("--verbose");
-  });
-
-  it("tools subcommand from registry module works", () => {
-    const { stdout, exitCode } = runCli("tools", "list");
-    expect(exitCode).toBe(0);
-    // Output should be either "No tools installed" or a table
-    expect(stdout.length).toBeGreaterThan(0);
-  });
-});
-
 describe("module lifecycle across multiple loadAll/unloadAll cycles", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    projectModules = await discoverProjectModules();
     clearCustomTools();
     clearCustomGroups();
     resetGroups();

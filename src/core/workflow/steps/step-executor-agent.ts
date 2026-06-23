@@ -1,5 +1,6 @@
 import {
   type AgentCanUseTool,
+  type AgentTokenBudgetLedger,
   findRequiredHarnessReadinessFailures,
   formatRequiredHarnessReadinessFailures,
   type KotaAgentMessage,
@@ -35,6 +36,10 @@ import {
   buildAgentSystemPrompt,
 } from "./step-executor-agent-prompt.js";
 import { writeToolTelemetryArtifact } from "./step-executor-agent-telemetry.js";
+import {
+  resolveAgentStepTokenBudget,
+  writeAgentTokenBudgetArtifact,
+} from "./step-executor-agent-token-budget.js";
 import { writeAgentTrajectoryDiagnosticsArtifact } from "./step-executor-agent-trajectory-diagnostics.js";
 import {
   AgentStepRuntimeError,
@@ -56,6 +61,7 @@ export type AgentStepResult = {
   trajectoryDiagnostics: TrajectoryDiagnosticsMetadata;
   trajectoryMessages: readonly KotaAgentMessage[];
   preStepMutatedPaths: readonly string[];
+  tokenBudget?: AgentTokenBudgetLedger;
 };
 
 export type AgentStepConfig = {
@@ -68,6 +74,7 @@ export type AgentStepConfig = {
   createCanUseTool?: (stepId: string) => AgentCanUseTool;
   agentRunLimiter?: AgentRunLimiter;
   delegateBudget?: DelegateBudget;
+  runTokenBudget?: AgentTokenBudgetLedger;
   scopeId?: string;
   projectId?: string;
 };
@@ -158,6 +165,11 @@ export async function executeAgentStep(
   const bufferAgentMessages = step.validate !== undefined;
   let successfulAttemptMessages: KotaAgentMessage[] = [];
   let lastJsonOutputFeedback: string | undefined;
+  const tokenBudget = resolveAgentStepTokenBudget(
+    step,
+    agentConfig.runTokenBudget,
+    agentConfig.config,
+  );
 
   const runAttempt = (): Promise<WorkflowStepOutput> =>
     runAgentAttempt({
@@ -173,6 +185,7 @@ export async function executeAgentStep(
       appendMessage,
       bufferAgentMessages,
       stepTelemetry,
+      tokenBudget,
       onSuccessfulAttemptMessages: (messages) => {
         successfulAttemptMessages = messages;
       },
@@ -193,9 +206,19 @@ export async function executeAgentStep(
       (step.outputFormat === "json" && err instanceof WorkflowStepOutputValidationError) ||
       (err instanceof AgentStepRuntimeError && err.retryable),
   });
-  const output = agentConfig.agentRunLimiter
-    ? await agentConfig.agentRunLimiter.run(runWithRetry, abortController.signal)
-    : await runWithRetry();
+  let output: WorkflowStepOutput;
+  try {
+    output = agentConfig.agentRunLimiter
+      ? await agentConfig.agentRunLimiter.run(runWithRetry, abortController.signal)
+      : await runWithRetry();
+  } finally {
+    writeAgentTokenBudgetArtifact(
+      step.id,
+      metadata,
+      agentConfig.projectDir,
+      tokenBudget,
+    );
+  }
 
   if (bufferAgentMessages) {
     for (const message of successfulAttemptMessages) appendMessage(message);
@@ -247,5 +270,6 @@ export async function executeAgentStep(
     trajectoryDiagnostics,
     trajectoryMessages: successfulAttemptMessages,
     preStepMutatedPaths,
+    ...(tokenBudget !== undefined ? { tokenBudget } : {}),
   };
 }

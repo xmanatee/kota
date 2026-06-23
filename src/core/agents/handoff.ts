@@ -15,6 +15,7 @@ export type AgentHandoffScope = {
 
 export type AgentHandoffBudget = {
   maxTurns: number;
+  maxTotalTokens?: number;
 };
 
 export type AgentHandoffTraceLink = {

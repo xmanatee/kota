@@ -19,6 +19,11 @@ import type {
   AgentHarnessUnsupportedOption,
   AgentHarnessUnsupportedRunOption,
 } from "./readiness.js";
+import {
+  type AgentTokenBudgetExhaustion,
+  type AgentTokenBudgetSource,
+  TOKEN_BUDGET_EXHAUSTED_SUBTYPE,
+} from "./token-budget.js";
 import type {
   AgentHarness,
   AgentHarnessResult,
@@ -116,6 +121,94 @@ export function routeKotaToolControlOptions(
   return options;
 }
 
+function harnessBudgetSource(
+  kind: AgentTokenBudgetSource["kind"],
+  harness: AgentHarness,
+  options: AgentHarnessRunOptions,
+): AgentTokenBudgetSource {
+  return {
+    kind,
+    harness: harness.name,
+    ...(options.model !== undefined ? { model: options.model } : {}),
+    ...(options.workflowContext !== undefined
+      ? {
+          workflowName: options.workflowContext.workflowName,
+          runId: options.workflowContext.runId,
+          stepId: options.workflowContext.stepId,
+          spanId: options.workflowContext.spanId,
+        }
+      : {}),
+  };
+}
+
+function hasSameHarnessTurnDebitSince(
+  harness: AgentHarness,
+  options: AgentHarnessRunOptions,
+  initialDebitCount: number,
+): boolean {
+  return options.tokenBudget?.hasDebitSince(initialDebitCount, ({ source }) => {
+    if (source.kind !== "harness-turn") return false;
+    if (source.harness !== harness.name) return false;
+    if (options.workflowContext === undefined) return true;
+    return (
+      source.workflowName === options.workflowContext.workflowName &&
+      source.runId === options.workflowContext.runId &&
+      source.stepId === options.workflowContext.stepId &&
+      source.spanId === options.workflowContext.spanId
+    );
+  }) === true;
+}
+
+function tokenBudgetErrorResult(
+  exhaustion: AgentTokenBudgetExhaustion,
+): AgentHarnessResult {
+  return {
+    text: exhaustion.message,
+    streamedText: "",
+    turns: 0,
+    isError: true,
+    subtype: TOKEN_BUDGET_EXHAUSTED_SUBTYPE,
+  };
+}
+
+function applyResultOnlyTokenBudgetDebit(
+  harness: AgentHarness,
+  options: AgentHarnessRunOptions,
+  result: AgentHarnessResult,
+  initialDebitCount: number,
+): AgentHarnessResult {
+  const tokenBudget = options.tokenBudget;
+  if (tokenBudget === undefined) return result;
+  if (hasSameHarnessTurnDebitSince(harness, options, initialDebitCount)) {
+    return result;
+  }
+
+  const source = harnessBudgetSource("harness-result", harness, options);
+  if (result.inputTokens === undefined && result.outputTokens === undefined) {
+    tokenBudget.recordMissingUsage(
+      source,
+      `Agent harness "${harness.name}" did not report token usage for budget enforcement.`,
+    );
+    return result;
+  }
+
+  tokenBudget.recordNonEnforcing(
+    source,
+    `Agent harness "${harness.name}" reported usage only after the run completed; KOTA cannot stop between native/internal turns for this adapter.`,
+  );
+  tokenBudget.debitUsage(
+    {
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
+    },
+    source,
+  );
+
+  const exhaustion = tokenBudget.checkAfterDebit(source);
+  if (exhaustion && !result.isError) return tokenBudgetErrorResult(exhaustion);
+  return result;
+}
+
 export async function runAgentHarness(
   harness: AgentHarness,
   options: AgentHarnessRunOptions,
@@ -124,11 +217,26 @@ export async function runAgentHarness(
   assertAdapterHonorsRegisteredHooks(harness);
   assertAdapterCanHostRequestedCapabilities(harness, options);
 
+  const tokenBudget = options.tokenBudget;
+  const tokenBudgetSource = tokenBudget
+    ? harnessBudgetSource("harness-run", harness, options)
+    : undefined;
+  const initialDebitCount = tokenBudget?.debitCount() ?? 0;
+  if (tokenBudget !== undefined && tokenBudgetSource !== undefined) {
+    const exhaustion = tokenBudget.checkCanStartTurn(tokenBudgetSource);
+    if (exhaustion) return tokenBudgetErrorResult(exhaustion);
+  }
+
   for (const hook of listHarnessHooks("preRun")) {
     await hook.handler({ harness, options });
   }
 
-  const result = await harness.run(options, writer);
+  const result = applyResultOnlyTokenBudgetDebit(
+    harness,
+    options,
+    await harness.run(options, writer),
+    initialDebitCount,
+  );
 
   for (const hook of listHarnessHooks("postRun")) {
     await hook.handler({ harness, options, result });

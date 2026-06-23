@@ -1,4 +1,7 @@
-import type { AgentHarnessStepOverrides } from "#core/agent-harness/types.js";
+import type { AgentTokenBudgetConfig } from "#core/agent-harness/token-budget.js";
+import type {
+  AgentHarnessStepOverrides,
+} from "#core/agent-harness/types.js";
 import type { ModelTier } from "#core/model/model-router.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type {
@@ -54,6 +57,7 @@ export type WorkflowAgentStep = WorkflowBaseStep & {
   tier?: ModelTier;
   effort: "low" | "medium" | "high" | "xhigh" | "max";
   maxTurns?: number;
+  tokenBudget?: AgentTokenBudgetConfig;
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
   allowedTools?: string[];

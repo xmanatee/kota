@@ -30,6 +30,7 @@ export type ControlCoverageFamilyName =
   | "injection-defense"
   | "approval-owner-gates"
   | "runtime-probe"
+  | "token-budget"
   | "trajectory-diagnostics"
   | "async-reviewers";
 

@@ -25,6 +25,7 @@ import {
   AgentStepRuntimeError,
   evaluateStepRunDecision,
 } from "./steps/step-executor.js";
+import { resolveWorkflowRunTokenBudget } from "./steps/step-executor-agent-token-budget.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
@@ -91,6 +92,7 @@ export function executeWorkflowRun(
   const agentRunLimiter =
     deps.agentRunLimiter ?? createAgentRunLimiter(deps.agentConcurrency);
   const delegateBudget = createDelegateBudget();
+  const runTokenBudget = resolveWorkflowRunTokenBudget(deps.config);
 
   let runTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
   if (definition.runTimeoutMs !== undefined) {
@@ -153,6 +155,7 @@ export function executeWorkflowRun(
           createCanUseTool: deps.createAgentCanUseTool,
           agentRunLimiter,
           delegateBudget,
+          runTokenBudget,
           scopeId: deps.pbus.getScopeId(),
           projectId: deps.pbus.getProjectId(),
         };

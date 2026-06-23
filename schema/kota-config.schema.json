@@ -1349,6 +1349,18 @@
       "additionalProperties": false,
       "description": "Workflow runtime settings.",
       "properties": {
+        "agentTokenBudget": {
+          "additionalProperties": false,
+          "properties": {
+            "maxTotalTokens": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "maxTotalTokens"
+          ],
+          "type": "object"
+        },
         "maxStepOutputBytes": {
           "description": "Max step output bytes before truncation. Default: 256 KB. Hard cap: 10 MB.",
           "type": "number"

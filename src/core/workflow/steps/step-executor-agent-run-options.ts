@@ -3,6 +3,7 @@ import {
   type AgentCanUseTool,
   type AgentHarness,
   type AgentHarnessRunOptions,
+  type AgentTokenBudgetLedger,
   composeCanUseTools,
   createWorkflowAgentGuards,
   type KotaAgentMessage,
@@ -43,6 +44,7 @@ export function buildAgentHarnessRunOptions(input: {
   systemPrompt: string | undefined;
   abortController: AbortController;
   onMessage?: (message: KotaAgentMessage) => void;
+  tokenBudget?: AgentTokenBudgetLedger;
 }): AgentHarnessRunOptionBundle {
   const {
     step,
@@ -54,6 +56,7 @@ export function buildAgentHarnessRunOptions(input: {
     systemPrompt,
     abortController,
     onMessage,
+    tokenBudget,
   } = input;
   const harnessOverrides = step.harnessOptions?.[resolvedHarness.name];
   const scopeId = agentConfig.scopeId ?? deriveDirectoryScopeId(agentConfig.projectDir);
@@ -102,6 +105,7 @@ export function buildAgentHarnessRunOptions(input: {
         scopeId,
         projectId,
       },
+      ...(tokenBudget !== undefined ? { tokenBudget } : {}),
       ...(onMessage !== undefined ? { onMessage } : {}),
     },
     canUseTool,

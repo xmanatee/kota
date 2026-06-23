@@ -81,6 +81,7 @@ function hasAgentStepEvidence(runDirPath: string, stepId: string): boolean {
   return [
     `${stepId}.events.jsonl`,
     `${stepId}.harness-capability.json`,
+    `${stepId}.token-budget.json`,
     `${stepId}.tool-telemetry.json`,
     `${stepId}.trajectory-diagnostics.json`,
   ].some((name) => existsSync(join(runDirPath, "steps", name)));

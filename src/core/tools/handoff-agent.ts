@@ -80,6 +80,7 @@ export const handoffAgentTool: KotaTool = {
         type: "object",
         properties: {
           max_turns: { type: "number" },
+          max_total_tokens: { type: "number" },
         },
         required: ["max_turns"],
         additionalProperties: false,
@@ -220,14 +221,23 @@ function validateStructuredInput(
   return errorResult(`input failed input_schema validation: ${validationError}`);
 }
 
-function readBudget(input: ToolInput): { maxTurns: number } | ToolResult {
+function readBudget(input: ToolInput): { maxTurns: number; maxTotalTokens?: number } | ToolResult {
   const budget = input.budget;
   if (!isObject(budget)) return errorResult("budget.max_turns is required");
   const maxTurns = budget.max_turns;
   if (typeof maxTurns !== "number" || !Number.isInteger(maxTurns) || maxTurns < 1) {
     return errorResult("budget.max_turns must be an integer >= 1");
   }
-  return { maxTurns };
+  const maxTotalTokens = budget.max_total_tokens;
+  if (maxTotalTokens === undefined) return { maxTurns };
+  if (
+    typeof maxTotalTokens !== "number" ||
+    !Number.isInteger(maxTotalTokens) ||
+    maxTotalTokens < 1
+  ) {
+    return errorResult("budget.max_total_tokens must be an integer >= 1");
+  }
+  return { maxTurns, maxTotalTokens };
 }
 
 function readMode(rawMode: string): AgentHandoffMode | ToolResult {
@@ -364,6 +374,9 @@ function resolveHandoffRuntime(): HandoffAgentRuntime | ToolResult {
     delegateBudget: delegateConfig.delegateBudget,
     ...(delegateConfig.transport !== undefined
       ? { transport: delegateConfig.transport }
+      : {}),
+    ...(delegateConfig.tokenBudget !== undefined
+      ? { tokenBudget: delegateConfig.tokenBudget }
       : {}),
   };
 }
@@ -522,7 +535,12 @@ export async function runHandoffAgent(
         ...(outputSchema !== undefined ? { outputSchema } : {}),
         scope,
         autonomyMode,
-        budget: { maxTurns: budget.maxTurns },
+        budget: {
+          maxTurns: budget.maxTurns,
+          ...(budget.maxTotalTokens !== undefined
+            ? { maxTotalTokens: budget.maxTotalTokens }
+            : {}),
+        },
         toolPolicy: toolPolicy.policy,
         writeScope,
         ...(resumeSessionId !== undefined ? { resumeSessionId } : {}),
@@ -542,6 +560,9 @@ export async function runHandoffAgent(
           `agent harness "${harness.name}" cannot honor named handoff tool policy`,
         );
       }
+      const childTokenBudget = runtime.tokenBudget && budget.maxTotalTokens !== undefined
+        ? runtime.tokenBudget.createChild({ maxTotalTokens: budget.maxTotalTokens })
+        : runtime.tokenBudget;
       const result = await runAgentHarness(
         harness,
         {
@@ -562,6 +583,7 @@ export async function runHandoffAgent(
           }),
           ...(runtime.askOwner !== undefined ? { askOwner: runtime.askOwner } : {}),
           abortController: createChildAbortController(context),
+          ...(childTokenBudget !== undefined ? { tokenBudget: childTokenBudget } : {}),
         },
         createHarnessWriter(runtime.transport),
       );

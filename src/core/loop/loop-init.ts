@@ -1,8 +1,7 @@
 import type { KotaThinkingConfig } from "#core/agent-harness/message-protocol.js";
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
-import { getEventBus, tryEmit } from "#core/events/event-bus.js";
-import { runCleanupHooks } from "#core/loop/cleanup-hooks.js";
+import { getEventBus } from "#core/events/event-bus.js";
 import { listManifestModules } from "#core/manifest/index.js";
 import type { McpAuthorizationResolver } from "#core/mcp/client.js";
 import { type McpInputResolver, McpManager, type McpServerConfig } from "#core/mcp/manager.js";
@@ -15,20 +14,16 @@ import { discoverProjectModules } from "#core/modules/project-discovery.js";
 import {
   getHistoryProvider,
   getRenderingProvider,
-  resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
-import { resetAgentStatusProviders } from "#core/tools/agent-status.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
-import { loadSavedTools, resetCustomTools } from "#core/tools/custom-tool.js";
+import { loadSavedTools } from "#core/tools/custom-tool.js";
 import { getDelegateConfig, setDelegateConfig } from "#core/tools/delegate-config.js";
 import type { GuardrailsConfig, GuardrailsSnapshot } from "#core/tools/guardrails.js";
-import { addLoadedModule, resetModuleFactory } from "#core/tools/module-factory/index.js";
-import { resetGroups } from "#core/tools/tool-groups.js";
+import { addLoadedModule } from "#core/tools/module-factory/index.js";
 import type { ToolApprovalResolver } from "#core/tools/tool-runner.js";
-import { resetToolTelemetry } from "#core/tools/tool-telemetry.js";
 import type { Context } from "./context.js";
 import type { CostTracker } from "./cost.js";
-import { resetChangeTracker } from "./file-changes.js";
+import { getAgentLoopTokenBudget } from "./loop-token-budget.js";
 import type { SessionStateMachine } from "./session-state.js";
 import type { ProxyTransport, Transport } from "./transport.js";
 import type { VerifyTracker } from "./verify-tracker.js";
@@ -124,6 +119,7 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
         ...(previousResolveAgentDef !== undefined ? { resolveAgentDef: previousResolveAgentDef } : {}),
         ...(previousResolveSkillsPrompt !== undefined ? { resolveSkillsPrompt: previousResolveSkillsPrompt } : {}),
         delegateBudget: previousDelegateConfig.delegateBudget,
+        tokenBudget: getAgentLoopTokenBudget(state),
       });
       if (state.verbose) {
         state.transport.emit({
@@ -270,39 +266,4 @@ export function saveToHistoryImpl(state: AgentLoopState): void {
   history.save(state.conversationId, snapshot.messages, snapshot.compactionCount, snapshot.lastInputTokens);
 }
 
-export function runClose(state: AgentLoopState, errored: boolean): void {
-  if (state.closed) return;
-  for (const controller of state.activeAbortControllers) {
-    if (!controller.signal.aborted) controller.abort(new Error("Session closed"));
-  }
-  state.closed = true;
-  if (errored && state.stateMachine.canTransition("error")) {
-    state.stateMachine.transition("error");
-  }
-  if (state.stateMachine.canTransition("closed")) {
-    state.stateMachine.transition("closed");
-  }
-  if (state.sessionPath) state.context.save(state.sessionPath);
-  saveToHistoryImpl(state);
-  runCleanupHooks();
-  resetCustomTools();
-  resetModuleFactory();
-  resetChangeTracker();
-  resetGroups();
-  resetProviderRegistry();
-  resetToolTelemetry();
-  resetAgentStatusProviders();
-  state.moduleLoader.unloadAll().catch(() => {});
-  state.mcpManager?.close().catch(() => {});
-  if (state.sessionStartTime > 0) {
-    tryEmit("session.end", {
-      sessionId: state.sessionId,
-      label: state.sessionLabel,
-      error: errored ? "session errored" : undefined,
-      durationMs: Date.now() - state.sessionStartTime,
-    });
-  }
-  if (!errored) {
-    state.transport.emit({ type: "status", message: `[kota] Done — ${state.costTracker.getSummary()}` });
-  }
-}
+export { runClose } from "./loop-close.js";

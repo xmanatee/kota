@@ -1,3 +1,4 @@
+import type { AgentTokenBudgetConfig } from "#core/agent-harness/token-budget.js";
 import type { ModelTier } from "#core/model/model-router.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type {
@@ -87,6 +88,8 @@ export type WorkflowAgentStepInput = WorkflowBaseStep & {
    */
   effort?: "low" | "medium" | "high" | "xhigh" | "max";
   maxTurns?: number;
+  /** Optional max total-token budget shared by this agent step and its child agents. */
+  tokenBudget?: AgentTokenBudgetConfig;
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
   allowedTools?: string[];

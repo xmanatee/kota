@@ -15,6 +15,12 @@ import { collectDynamicState } from "./dynamic-state.js";
 import { getChangeTracker } from "./file-changes.js";
 import type { AgentLoopState } from "./loop-init.js";
 import { saveToHistoryImpl } from "./loop-init.js";
+import {
+  debitSessionTokenBudget,
+  getAgentLoopTokenBudget,
+  sessionTokenBudgetSource,
+  tokenBudgetExhaustedError,
+} from "./loop-token-budget.js";
 import { runPreSendHooks } from "./pre-send-hooks.js";
 import { buildReflectionPrompt, getLastAssistantText, shouldReflect } from "./reflection.js";
 import { analyzeRequest, formatContextHint } from "./request-analyzer.js";
@@ -99,9 +105,21 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
 
     const failureTracker = new FailureTracker();
     let reflectionDone = false;
+    const tokenBudget = getAgentLoopTokenBudget(state);
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
       throwIfAborted(signal);
+      const tokenBudgetSource = sessionTokenBudgetSource(state, i + 1);
+      const tokenBudgetExhaustion = tokenBudget?.checkCanStartTurn(
+        tokenBudgetSource,
+      );
+      if (tokenBudgetExhaustion) {
+        state.transport.emit({
+          type: "error",
+          message: `[kota] ${tokenBudgetExhaustion.message}`,
+        });
+        throw tokenBudgetExhaustedError(tokenBudgetExhaustion.message);
+      }
       const maskStats = state.context.maskOldObservations();
       if (maskStats.maskedCount > 0) {
         state.transport.emit({
@@ -167,6 +185,7 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
       state.context.setInputTokens(response.usage.input_tokens);
       const prevTotal = state.costTracker.getTotalCost();
       state.costTracker.addUsage(state.model, response.usage);
+      debitSessionTokenBudget(state, response.usage, tokenBudgetSource);
       const totalCostUsd = state.costTracker.getTotalCost();
       const turnCostUsd = totalCostUsd - prevTotal;
       const budgetPct = Math.round(state.context.getBudgetPercent() * 100);
@@ -194,6 +213,17 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
       const toolBlocks = response.content.filter(
         (b): b is KotaToolUseBlock => b.type === "tool_use",
       );
+      const turnExhaustion = tokenBudget?.checkAfterDebit(tokenBudgetSource);
+      if (turnExhaustion) {
+        const message = toolBlocks.length > 0
+          ? `${turnExhaustion.message} Tool calls were not executed because the agent cannot continue to consume their results.`
+          : turnExhaustion.message;
+        state.transport.emit({
+          type: "error",
+          message: `[kota] ${message}`,
+        });
+        throw tokenBudgetExhaustedError(message);
+      }
 
       if (toolBlocks.length === 0) {
         if (state.reflectionEnabled && !reflectionDone) {

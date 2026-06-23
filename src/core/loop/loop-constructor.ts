@@ -37,6 +37,7 @@ import { initChangeTracker } from "./file-changes.js";
 import { loadInstructionContext } from "./instruction-files.js";
 import type { LoopOptions } from "./loop.js";
 import { type AgentLoopState, runInitModules, saveToHistoryImpl } from "./loop-init.js";
+import { getAgentLoopTokenBudget, setAgentLoopTokenBudget } from "./loop-token-budget.js";
 import { loadProjectContext } from "./project-context.js";
 import { SessionStateMachine } from "./session-state.js";
 import { NullTransport, ProxyTransport } from "./transport.js";
@@ -92,6 +93,7 @@ export function initAgentSession(
   state.modelTiers = options.config?.modelTiers;
   state.modelOutputTokenLimits = options.config?.modelOutputTokenLimits;
   state.channelIdentity = options.channelIdentity;
+  setAgentLoopTokenBudget(state, options.tokenBudget);
 
   const thinkingBudget = options.thinkingBudget || 10_000;
   state.thinkingConfig = options.thinkingEnabled
@@ -206,6 +208,7 @@ export function initAgentSession(
     resolveAgentDef: (name) => state.moduleLoader.getAgentDef(name),
     resolveSkillsPrompt: (names, agentName) =>
       state.moduleLoader.getSkillsPromptFor(names, agentName),
+    tokenBudget: getAgentLoopTokenBudget(state),
   });
   setModuleInfoProvider(() =>
     state.moduleLoader.getLoadedModules().map((name) => ({

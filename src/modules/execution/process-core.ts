@@ -78,6 +78,26 @@ function displayLines(mp: ManagedProcess): string[] {
   return lines;
 }
 
+function createInitialActivityWaiter(): { mark: () => void; wait: (timeoutMs: number) => Promise<void> } {
+  let resolved = false;
+  let resolveActivity: () => void = () => {};
+  const activity = new Promise<void>((resolve) => { resolveActivity = resolve; });
+  const mark = () => {
+    if (resolved) return;
+    resolved = true;
+    resolveActivity();
+  };
+
+  return {
+    mark,
+    wait: async (timeoutMs: number) => {
+      const timeout = new Promise<void>((resolve) => setTimeout(resolve, timeoutMs));
+      await Promise.race([activity, timeout]);
+      resolved = true;
+    },
+  };
+}
+
 const STALE_PROCESS_MS = 10 * 60 * 1000;
 
 function purgeStale(): void {
@@ -130,13 +150,16 @@ export async function startProcess(
     stdoutPartial: "",
     stderrPartial: "",
   };
+  const initialActivity = createInitialActivityWaiter();
 
   proc.stdout?.on("data", (chunk: Buffer) => {
     mp.stdoutPartial = processChunk(mp, chunk.toString(), mp.stdoutPartial, "");
+    initialActivity.mark();
   });
 
   proc.stderr?.on("data", (chunk: Buffer) => {
     mp.stderrPartial = processChunk(mp, chunk.toString(), mp.stderrPartial, "[stderr] ");
+    initialActivity.mark();
   });
 
   proc.on("close", (code) => {
@@ -150,6 +173,7 @@ export async function startProcess(
     mp.exited = true;
     mp.exitedAt = Date.now();
     appendLine(mp, `[process exited with code ${mp.exitCode}]`);
+    initialActivity.mark();
   });
 
   proc.on("error", (err) => {
@@ -157,6 +181,7 @@ export async function startProcess(
     mp.exitedAt = Date.now();
     mp.exitCode = -1;
     appendLine(mp, `[process error: ${err.message}]`);
+    initialActivity.mark();
   });
 
   proc.stdin?.end();
@@ -164,7 +189,7 @@ export async function startProcess(
 
   printToStderr(line(span(`[bg] $ ${command} → ${id}`, "muted")));
 
-  await new Promise((resolve) => setTimeout(resolve, INITIAL_OUTPUT_WAIT_MS));
+  await initialActivity.wait(INITIAL_OUTPUT_WAIT_MS);
 
   const initial = truncateOutput(displayLines(mp).slice(-10).join("\n"));
   const status = mp.exited

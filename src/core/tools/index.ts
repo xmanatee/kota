@@ -1,4 +1,5 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type { AgentTokenBudgetLedger } from "#core/agent-harness/token-budget.js";
 import { clearModuleCapabilityManifestProjections } from "#core/modules/module-manifest.js";
 import { registration as agentStatus } from "./agent-status.js";
 import { registration as approval } from "./approval.js";
@@ -25,6 +26,7 @@ export type ToolRunnerContext = {
   cwd?: string;
   scopeId?: string;
   projectId?: string;
+  tokenBudget?: AgentTokenBudgetLedger;
   workflow?: {
     workflowName: string;
     runId: string;

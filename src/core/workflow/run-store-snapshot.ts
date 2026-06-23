@@ -39,6 +39,7 @@ function summarizeStep(step: WorkflowStep): Record<string, unknown> {
       model: step.model,
       effort: step.effort,
       maxTurns: step.maxTurns,
+      ...(step.tokenBudget ? { tokenBudget: step.tokenBudget } : {}),
       autonomyMode: step.autonomyMode,
       allowedTools: step.allowedTools,
       disallowedTools: step.disallowedTools,

@@ -6,6 +6,7 @@ import type {
   KotaModelResponse,
   KotaToolResultBlock,
 } from "#core/agent-harness/message-protocol.js";
+import { AgentTokenBudgetLedger } from "#core/agent-harness/token-budget.js";
 import type { McpManager } from "#core/mcp/manager.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import { runDelegateTurns } from "./delegate-turn.js";
@@ -22,14 +23,17 @@ class TestStream implements KotaMessageStream {
   }
 }
 
-function modelResponse(content: KotaContentBlock[]): KotaModelResponse {
+function modelResponse(
+  content: KotaContentBlock[],
+  usage: KotaModelResponse["usage"] = { input_tokens: 0, output_tokens: 0 },
+): KotaModelResponse {
   return {
     id: "msg_test",
     role: "assistant",
     model: "test-model",
     content,
     stop_reason: content.some((block) => block.type === "tool_use") ? "tool_use" : "end_turn",
-    usage: { input_tokens: 0, output_tokens: 0 },
+    usage,
   };
 }
 
@@ -130,5 +134,67 @@ describe("runDelegateTurns", () => {
         _meta: { resultCache: "r1" },
       },
     ]);
+  });
+
+  it("stops before executing tool calls when the shared token budget is exhausted", async () => {
+    const responses = [
+      modelResponse(
+        [
+          {
+            type: "tool_use",
+            id: "toolu_1",
+            name: "write_tool",
+            input: { path: "out.txt" },
+          },
+        ],
+        { input_tokens: 8, output_tokens: 2 },
+      ),
+    ];
+
+    const stream = vi.fn(() => new TestStream(responses.shift()!));
+    const runner = vi.fn(async () => ({ content: "wrote" }));
+    const client: ModelClient = {
+      messages: {
+        stream,
+        create: vi.fn(async () => modelResponse([{ type: "text", text: "unused" }])),
+      },
+    };
+    const tokenBudget = new AgentTokenBudgetLedger({ maxTotalTokens: 10 });
+    const messages: KotaMessage[] = [];
+
+    const result = await runDelegateTurns({
+      client,
+      messages,
+      systemBlocks: [],
+      tools: [
+        {
+          name: "write_tool",
+          description: "Write",
+          input_schema: { type: "object", properties: {} },
+        },
+      ],
+      runners: { write_tool: runner },
+      mcpMgr: undefined,
+      isExecute: true,
+      selectedModel: "test-model",
+      modelOutputTokenLimits: { "test-model": 1234 },
+      maxTurns: 3,
+      mode: "execute",
+      transport: undefined,
+      costTracker: undefined,
+      tokenBudget,
+      modifiedFiles: new Set(),
+      collectedImages: [],
+      toolsUsed: new Set(),
+      urlsFetched: new Set(),
+      searchQueries: new Set(),
+    });
+
+    expect(result.earlyError?.content).toContain("token_budget_exhausted");
+    expect(result.totalTurns).toBe(1);
+    expect(stream).toHaveBeenCalledTimes(1);
+    expect(runner).not.toHaveBeenCalled();
+    expect(messages).toHaveLength(1);
+    expect(tokenBudget.snapshot().usage.totalTokens).toBe(10);
   });
 });
