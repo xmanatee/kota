@@ -34,6 +34,10 @@ resources:
   - url: https://github.com/zsworld6/projdevbench
     added: "2026-06-22"
     notes: "ProjDevBench evaluates coding agents on end-to-end project development with OJ-style execution feedback and resource-limit diagnostics. Monitor as an eval-harness signal for scalable-design, time/memory-budget, and project-construction canaries; do not import the benchmark, online judge, or LLM review rubric."
+    snapshot:
+      fingerprint: sha256:8c0818c977cb1829f11f2576a5522f7f
+      summary: "ProjDevBench is accessible; its scalable-design and resource-limit signal is already covered by blocked task-add-algorithmic-resource-budget-canaries-to-the-ev, which is waiting on operator-captured live eval evidence."
+      last_seen_at: "2026-06-23T00:15:48.188Z"
   - url: https://github.com/datacurve-ai/deep-swe
     added: "2026-05-29"
     notes: "DeepSWE evaluates frontier coding agents on original long-horizon tasks with behavioral verifiers and Pier sandboxing. Monitor as an eval-harness signal for contamination-resistant task construction, behavior-first verification, and provider-only agent egress inside otherwise isolated task environments; do not import the benchmark runner."
