@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import { getCriticPromptHash } from "./critic.js";
 import { collectReviewScrutinyReport } from "./review-scrutiny.js";
 
 const NOW = "2026-06-23T12:00:00.000Z";
@@ -119,6 +120,7 @@ describe("review scrutiny aggregation", () => {
       critical_issues: [],
       warnings: [],
       summary: "Done When coverage is visible in src/modules/autonomy/critic.ts:98.",
+      reviewerPromptHash: getCriticPromptHash(),
     });
 
     const report = collectReviewScrutinyReport({ runsDir, runs: [run] });
@@ -126,6 +128,7 @@ describe("review scrutiny aggregation", () => {
     expect(report.records[0]).toMatchObject({
       surface: "critic",
       decision: "pass",
+      reviewerPromptHash: getCriticPromptHash(),
       thinAcceptance: false,
       signals: {
         issueCount: 0,

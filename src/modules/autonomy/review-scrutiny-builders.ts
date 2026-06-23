@@ -72,6 +72,7 @@ export function buildCriticReviewScrutinyRecord(args: {
   workflow: string;
   generatedAt: string;
   artifact: string;
+  reviewerPromptHash?: string;
   taskId?: string;
   verdict: {
     verdict: "pass" | "fail" | "pass_with_warnings";
@@ -88,6 +89,7 @@ export function buildCriticReviewScrutinyRecord(args: {
     workflow: args.workflow,
     generatedAt: args.generatedAt,
     artifact: args.artifact,
+    ...(args.reviewerPromptHash ? { reviewerPromptHash: args.reviewerPromptHash } : {}),
     ...(args.taskId ? { taskId: args.taskId } : {}),
     decision: args.verdict.verdict,
     signals: measuredSignals(CRITIC_METRICS, {

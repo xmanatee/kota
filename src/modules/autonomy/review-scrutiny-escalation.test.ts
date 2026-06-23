@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { getCriticPromptHash } from "./critic.js";
+import { getImproverSemanticGatePromptHash } from "./improver-semantic-gate.js";
 import type { ReviewScrutinyReport } from "./review-scrutiny.js";
 import {
   applyReviewScrutinyEscalation,
@@ -87,15 +89,22 @@ function record(args: {
   surface?: ReviewSurface;
   workflow?: string;
   decision?: ReviewDecision;
+  legacyReviewerPrompt?: boolean;
+  reviewerPromptHash?: string;
 }): ReviewScrutinyRecord {
   const generatedAt = new Date(NOW - (10 - args.index) * 60 * 1000).toISOString();
+  const surface = args.surface ?? "critic";
+  const reviewerPromptHash = args.legacyReviewerPrompt
+    ? undefined
+    : args.reviewerPromptHash ?? currentPromptHashForSurface(surface);
   return {
     schemaVersion: REVIEW_SCRUTINY_SCHEMA_VERSION,
-    surface: args.surface ?? "critic",
+    surface,
     runId: `run-${args.workflow ?? "builder"}-${args.index}`,
     workflow: args.workflow ?? "builder",
     generatedAt,
     artifact: "critic-review.json",
+    ...(reviewerPromptHash ? { reviewerPromptHash } : {}),
     ...(args.taskId ? { taskId: args.taskId } : {}),
     decision: args.decision ?? "pass",
     signals: args.thin
@@ -108,6 +117,12 @@ function record(args: {
     ],
     thinAcceptance: args.thin,
   };
+}
+
+function currentPromptHashForSurface(surface: ReviewSurface): string | undefined {
+  if (surface === "critic") return getCriticPromptHash();
+  if (surface === "semantic-gate") return getImproverSemanticGatePromptHash();
+  return undefined;
 }
 
 function report(records: ReviewScrutinyRecord[], unsupportedArtifacts = 0): ReviewScrutinyReport {
@@ -197,6 +212,29 @@ describe("review scrutiny escalation", () => {
     expect(task).toContain("## Product / Safety Link");
     expect(task).toContain("run-builder-1");
     expect(task).toContain("critic-review.json");
+    expect(task).toContain(`reviewerPromptHash: ${getCriticPromptHash()}`);
+  });
+
+  it("excludes prompt-hashless legacy critic records from escalation", () => {
+    const legacy = detect(projectDir, [
+      record({ index: 1, thin: true, taskId: "task-reviewed", legacyReviewerPrompt: true }),
+      record({ index: 2, thin: true, taskId: "task-reviewed", legacyReviewerPrompt: true }),
+      record({ index: 3, thin: true, taskId: "task-reviewed", legacyReviewerPrompt: true }),
+    ]);
+    expect(legacy.patterns).toEqual([]);
+    expect(legacy.belowThreshold).toEqual([]);
+
+    const current = detect(projectDir, [
+      record({ index: 1, thin: true, taskId: "task-reviewed" }),
+      record({ index: 2, thin: true, taskId: "task-reviewed" }),
+      record({ index: 3, thin: true, taskId: "task-reviewed" }),
+    ]);
+    expect(current.patterns).toHaveLength(1);
+    expect(current.patterns[0]?.evidence.map((ref) => ref.reviewerPromptHash)).toEqual([
+      getCriticPromptHash(),
+      getCriticPromptHash(),
+      getCriticPromptHash(),
+    ]);
   });
 
   it("noops on current evidence, suppresses churn inside cooldown, and refreshes after cooldown", () => {

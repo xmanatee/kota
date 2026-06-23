@@ -47,6 +47,7 @@ export type ReviewScrutinyEvidenceRef = {
   surface: ReviewSurface;
   decision: ReviewDecision;
   artifactPath: string;
+  reviewerPromptHash?: string;
   signals: ReviewScrutinySignals;
   absentMetrics: ReviewScrutinyMetric[];
   taskId?: string;

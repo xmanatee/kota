@@ -90,6 +90,7 @@ export function handleVerdict(
     runId?: string;
     workflow?: string;
     generatedAt?: string;
+    reviewerPromptHash?: string;
     taskId?: string;
   },
 ): string {
@@ -99,17 +100,29 @@ export function handleVerdict(
   // critic invocations within one run overwrite the file so it reflects the
   // final verdict.
   if (runDir) {
+    const generatedAt = context?.generatedAt ?? new Date().toISOString();
     writeFileSync(
       join(runDir, artifactName),
-      JSON.stringify(verdict, null, 2),
+      JSON.stringify(
+        {
+          ...verdict,
+          generatedAt,
+          ...(context?.reviewerPromptHash
+            ? { reviewerPromptHash: context.reviewerPromptHash }
+            : {}),
+        },
+        null,
+        2,
+      ),
     );
     writeReviewScrutinyRecord(
       runDir,
       buildCriticReviewScrutinyRecord({
         runId: context?.runId ?? runIdFromRunDir(runDir),
         workflow: context?.workflow ?? "unknown",
-        generatedAt: context?.generatedAt ?? new Date().toISOString(),
+        generatedAt,
         artifact: artifactName,
+        reviewerPromptHash: context?.reviewerPromptHash,
         taskId: context?.taskId,
         verdict,
       }),

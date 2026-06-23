@@ -173,6 +173,7 @@ function collectCriticLike(
     workflow: run.workflow,
     generatedAt: artifactGeneratedAt(run, read.value),
     artifact,
+    reviewerPromptHash: stringValue(read.value.reviewerPromptHash) ?? undefined,
     taskId: taskIdFromRunData(run, runsDir),
     verdict: {
       verdict,

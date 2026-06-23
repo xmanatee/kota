@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
+import { getCriticPromptHash } from "#modules/autonomy/critic.js";
 import reviewScrutinyEscalator from "./workflow.js";
 
 vi.mock("#core/util/repo-worktree.js", async () => {
@@ -133,6 +134,7 @@ function seedCriticRun(projectDir: string, id: string, minutesAgo: number, taskI
       critical_issues: [],
       warnings: [],
       summary: "Accepted.",
+      reviewerPromptHash: getCriticPromptHash(),
     }, null, 2),
   );
 }

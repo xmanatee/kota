@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
@@ -41,6 +42,7 @@ const GATE_SYSTEM_PROMPT = `You are a semantic quality gate for an autonomous im
 - Reject only when the diff clearly lacks semantic value. If a change is small but targeted and evidence-based, pass it.
 - If the diff modifies autonomy code and the commit message plausibly matches, lean toward passing unless there is a concrete red flag.
 - An artifact-only diff (.claude/worktrees/*, empty changes) is always a critical issue.
+- For accepted work, the \`summary\` must cite at least one concrete reviewed file/line such as \`src/path/file.ts:123\` or \`src/path/file.ts#L123\`, unless the run truly changed no reviewable repo file. This citation is an inspectable review-scrutiny signal, not a hidden reasoning trace.
 
 ## Output format
 
@@ -56,6 +58,10 @@ Schema:
 
 Example:
 {"verdict":"pass","critical_issues":[],"warnings":[],"summary":"Diff tightens validation thresholds with direct run-trace evidence."}`;
+
+export function getImproverSemanticGatePromptHash(): string {
+  return createHash("sha256").update(GATE_SYSTEM_PROMPT).digest("hex").slice(0, 12);
+}
 
 type GateBaseConfig = Omit<AgentJudgeConfig, "harness">;
 
@@ -99,6 +105,11 @@ export function createImproverSemanticCheck(options?: {
       const diffContent = getStagedDiffContent(ctx.projectDir);
       const runDir = options?.runDirPath ?? ctx.workflow.runDirPath;
       const commitMessage = readCommitMessage(runDir);
+      const verdictContext = {
+        runId: ctx.workflow.runId,
+        workflow: ctx.workflow.name,
+        reviewerPromptHash: getImproverSemanticGatePromptHash(),
+      };
 
       const userMessage = [
         "## Commit message",
@@ -141,17 +152,11 @@ export function createImproverSemanticCheck(options?: {
       }
       if (response.isError) {
         const recovered = parseVerdict(response.text);
-        return handleVerdict(recovered, runDir, ARTIFACT_NAME, {
-          runId: ctx.workflow.runId,
-          workflow: ctx.workflow.name,
-        });
+        return handleVerdict(recovered, runDir, ARTIFACT_NAME, verdictContext);
       }
 
       const verdict = parseVerdict(response.text);
-      return handleVerdict(verdict, runDir, ARTIFACT_NAME, {
-        runId: ctx.workflow.runId,
-        workflow: ctx.workflow.name,
-      });
+      return handleVerdict(verdict, runDir, ARTIFACT_NAME, verdictContext);
     },
   };
 }

@@ -3,6 +3,8 @@ import {
   type RepoTaskFullRecord,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { loadRunsInWindow } from "#modules/workflow-ops/runs/workflow-history.js";
+import { getCriticPromptHash } from "./critic.js";
+import { getImproverSemanticGatePromptHash } from "./improver-semantic-gate.js";
 import { collectReviewScrutinyReport } from "./review-scrutiny-collect.js";
 import {
   escalationThresholds,
@@ -88,11 +90,24 @@ function evidenceForThinRecords(
     surface: record.surface,
     decision: record.decision,
     artifactPath: artifactPath(record),
+    ...(record.reviewerPromptHash ? { reviewerPromptHash: record.reviewerPromptHash } : {}),
     signals: record.signals,
     absentMetrics: record.absentMetrics,
     ...(record.taskId ? { taskId: record.taskId } : {}),
     ...(record.pr ? { pr: record.pr } : {}),
   }));
+}
+
+function currentReviewerPromptHash(record: ReviewScrutinyRecord): string | null {
+  if (record.surface === "critic") return getCriticPromptHash();
+  if (record.surface === "semantic-gate") return getImproverSemanticGatePromptHash();
+  return null;
+}
+
+function matchesCurrentReviewerPrompt(record: ReviewScrutinyRecord): boolean {
+  const expectedHash = currentReviewerPromptHash(record);
+  if (expectedHash === null) return true;
+  return record.reviewerPromptHash === expectedHash;
 }
 
 function buildCandidate(
@@ -191,7 +206,8 @@ export function detectRecurringReviewScrutinyPatternsFromReport(args: {
       !Number.isFinite(generatedAtMs) ||
       generatedAtMs < windowStartMs ||
       generatedAtMs > normalized.nowMs ||
-      !isApprovalLikeDecision(record.decision)
+      !isApprovalLikeDecision(record.decision) ||
+      !matchesCurrentReviewerPrompt(record)
     ) {
       continue;
     }

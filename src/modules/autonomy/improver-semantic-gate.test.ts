@@ -3,7 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CriticVerdict } from "./critic.js";
-import { createImproverSemanticCheck } from "./improver-semantic-gate.js";
+import {
+  createImproverSemanticCheck,
+  getImproverSemanticGatePromptHash,
+} from "./improver-semantic-gate.js";
 import { AUTONOMY_DISALLOWED_TOOLS } from "./shared.js";
 
 const mockRunAgentHarness = vi.hoisted(() => vi.fn());
@@ -233,10 +236,12 @@ describe("createImproverSemanticCheck", () => {
     expect(result).toMatch(/pass_with_warnings/);
     const artifact = JSON.parse(readFileSync(join(runDir, "semantic-gate-review.json"), "utf8"));
     expect(artifact.warnings).toHaveLength(1);
+    expect(artifact.reviewerPromptHash).toBe(getImproverSemanticGatePromptHash());
     const scrutiny = JSON.parse(readFileSync(join(runDir, "review-scrutiny.json"), "utf8"));
     expect(scrutiny).toMatchObject({
       surface: "semantic-gate",
       workflow: "improver",
+      reviewerPromptHash: getImproverSemanticGatePromptHash(),
       decision: "pass_with_warnings",
       thinAcceptance: false,
       signals: { warningCount: 1 },

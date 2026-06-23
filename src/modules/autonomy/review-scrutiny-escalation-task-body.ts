@@ -8,7 +8,10 @@ export function buildReviewScrutinyTaskBody(
     const signals = Object.entries(ref.signals)
       .map(([key, value]) => `${key}=${value}`)
       .join(", ");
-    return `- ${ref.runId} ${ref.surface} ${ref.decision} ${target} ${ref.artifactPath}; signals: ${signals || "(none)"}; absent: ${ref.absentMetrics.join(", ") || "(none)"}`;
+    const promptHash = ref.reviewerPromptHash
+      ? `; reviewerPromptHash: ${ref.reviewerPromptHash}`
+      : "";
+    return `- ${ref.runId} ${ref.surface} ${ref.decision} ${target} ${ref.artifactPath}; signals: ${signals || "(none)"}${promptHash}; absent: ${ref.absentMetrics.join(", ") || "(none)"}`;
   });
   return [
     "",

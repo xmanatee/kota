@@ -158,6 +158,12 @@ export function createCriticCheck(options?: {
       const changedFiles = getChangedFiles(ctx.projectDir);
       const runDir = options?.runDirPath ?? ctx.workflow.runDirPath;
       const taskId = taskIdFromReviewTargetPath(target.path);
+      const verdictContext = {
+        runId: ctx.workflow.runId,
+        workflow: ctx.workflow.name,
+        reviewerPromptHash: getCriticPromptHash(),
+        taskId,
+      };
 
       const probeResult = runProbeIfDeclared(taskContent, target.path, ctx.projectDir, runDir);
       const productEvidence = checkProductOperatorEvidence({
@@ -178,7 +184,7 @@ export function createCriticCheck(options?: {
           },
           runDir,
           "critic-review.json",
-          { runId: ctx.workflow.runId, workflow: ctx.workflow.name, taskId },
+          verdictContext,
         );
       }
 
@@ -236,19 +242,11 @@ export function createCriticCheck(options?: {
       }
       if (response.isError) {
         const recovered = parseVerdict(response.text);
-        return handleVerdict(recovered, runDir, "critic-review.json", {
-          runId: ctx.workflow.runId,
-          workflow: ctx.workflow.name,
-          taskId,
-        });
+        return handleVerdict(recovered, runDir, "critic-review.json", verdictContext);
       }
 
       const verdict = parseVerdict(response.text);
-      return handleVerdict(verdict, runDir, "critic-review.json", {
-        runId: ctx.workflow.runId,
-        workflow: ctx.workflow.name,
-        taskId,
-      });
+      return handleVerdict(verdict, runDir, "critic-review.json", verdictContext);
     },
   };
 }

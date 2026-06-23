@@ -122,5 +122,6 @@ describe("renderReviewScrutinyEscalation", () => {
     expect(text).toContain("Cooldown-suppressed patterns");
     expect(text).toContain("Below-threshold patterns");
     expect(text).toContain("task-repair-review-scrutiny-pattern");
+    expect(text).not.toMatch(/\bcost\b/i);
   });
 });

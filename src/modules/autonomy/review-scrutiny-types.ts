@@ -49,6 +49,7 @@ export type ReviewScrutinyRecord = {
   workflow: string;
   generatedAt: string;
   artifact: string;
+  reviewerPromptHash?: string;
   taskId?: string;
   pr?: { repo: string; number: number };
   decision: ReviewDecision;

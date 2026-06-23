@@ -2,7 +2,7 @@ import "./critic-test-fixture.integration.js";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
-import { createCriticCheck } from "./critic.js";
+import { createCriticCheck, getCriticPromptHash } from "./critic.js";
 import {
   type CodeCheck,
   getMockRunAgentHarness,
@@ -109,11 +109,13 @@ describe("critic verdict handling", () => {
     const artifact = JSON.parse(readFileSync(join(runDir, "critic-review.json"), "utf8"));
     expect(artifact.verdict).toBe("pass_with_warnings");
     expect(artifact.warnings).toHaveLength(1);
+    expect(artifact.reviewerPromptHash).toBe(getCriticPromptHash());
     const scrutiny = JSON.parse(readFileSync(join(runDir, "review-scrutiny.json"), "utf8"));
     expect(scrutiny).toMatchObject({
       surface: "critic",
       workflow: "builder",
       taskId: "task-baz",
+      reviewerPromptHash: getCriticPromptHash(),
       decision: "pass_with_warnings",
       thinAcceptance: false,
       signals: { warningCount: 1 },
@@ -145,6 +147,7 @@ describe("critic verdict handling", () => {
       surface: "critic",
       workflow: "builder",
       taskId: "task-cited",
+      reviewerPromptHash: getCriticPromptHash(),
       decision: "pass",
       thinAcceptance: false,
       signals: {
