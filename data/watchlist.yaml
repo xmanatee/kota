@@ -722,3 +722,7 @@ resources:
   - url: https://arxiv.org/abs/2606.22721
     added: "2026-06-23"
     notes: "Habituation at the Gate studies rising approval and declining scrutiny in human review of AI-agent pull requests using the AIDev dataset. Monitor as an autonomy/GitHub review safety signal for local PR-review scrutiny artifacts, approval-pattern warnings, and operator-facing review-quality evidence; do not import AIDev or add an external PR-review benchmark."
+    snapshot:
+      fingerprint: sha256:7745a0f9dd6558369e93e3b3f44fa036
+      summary: "Habituation at the Gate is accessible; its nonduplicative KOTA signal is operator-visible review-scrutiny diagnostics for approval-like autonomy and PR review decisions, which opened task-record-autonomy-review-scrutiny-metrics."
+      last_seen_at: "2026-06-23T20:37:39.305Z"
