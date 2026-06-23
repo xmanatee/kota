@@ -1,13 +1,13 @@
 ---
 id: task-add-algorithmic-resource-budget-canaries-to-the-ev
 title: Add algorithmic resource-budget canaries to the eval harness
-status: ready
+status: blocked
 priority: p2
 area: modules
 task_class: Meta
 summary: Seed a compact builder fixture where a naive solution passes small examples but fails deterministic large-input time or memory canaries, making scalable design and resource management artifact-graded.
 created_at: 2026-06-22T23:35:15.496Z
-updated_at: 2026-06-22T23:35:15.496Z
+updated_at: 2026-06-22T23:53:47.000Z
 ---
 
 ## Problem
@@ -105,6 +105,30 @@ The fixture should make scalable-design failure observable:
 - The fixture includes at least one regression check showing a sample-only or
   threshold-relaxing shortcut fails, then the shortcut is reverted before
   staging.
+
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/algorithmic-resource-budget-canary-live-pass
+description: live eval-harness pass artifact — operator runs `pnpm kota eval run --fixture builder-algorithmic-resource-budget-canary --repeats 1 --keep` in an environment where the nested builder harness has an active Codex login, then stores eval-run-transcript.txt, eval-set-report.json, the per-run fixture-run.json, and the produced resource-budget-result.json evidence under .kota/runs/algorithmic-resource-budget-canary-live-pass/
+```
+
+## Status (2026-06-23 builder)
+
+The fixture files, minimal initial project, generated-canary verifier,
+objective metric, verifier calibration, and sample-only shortcut self-test
+have been implemented. Local validation passed for the fixture's visible
+examples, expected initial large-canary failure, golden calibration candidate,
+adversarial shortcut candidate, shortcut self-test, and `pnpm kota eval list`.
+
+The required live eval was attempted from run
+`.kota/runs/2026-06-22T23-44-16-981Z-builder-4945oa/eval-run-transcript.txt`.
+It reached the nested builder agent step, then failed because the required
+Codex harness was not logged in (`localAuth missing: Codex ChatGPT login not
+active; run codex login`). No live builder-produced
+`resource-budget-result.json` was produced, so this task remains blocked on
+the operator-captured live pass above rather than marked done.
 
 ## Source / Intent
 

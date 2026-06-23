@@ -1,0 +1,153 @@
+{
+  "id": "builder-algorithmic-resource-budget-canary",
+  "description": "Live-builder fixture where a quadratic inversion counter passes visible examples but fails deterministic large resource-budget canaries.",
+  "role": "builder",
+  "workflowName": "builder",
+  "budgetMs": 1800000,
+  "predicates": [
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-resource-budget.mjs",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-resource-budget.mjs --self-test-shortcuts",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "file-exists",
+      "path": "resource-budget-result.json"
+    },
+    {
+      "kind": "file-contains",
+      "path": "resource-budget-result.json",
+      "needle": "\"descending-4096\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "resource-budget-result.json",
+      "needle": "\"sawtooth-4096\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "resource-budget-result.json",
+      "needle": "\"clustered-duplicates-4096\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "resource-budget-result.json",
+      "needle": "\"resourceBudgetScore\": 1"
+    },
+    {
+      "kind": "file-absent",
+      "path": "data/tasks/ready/task-implement-scalable-inversion-counter.md"
+    },
+    {
+      "kind": "file-exists",
+      "path": "data/tasks/done/task-implement-scalable-inversion-counter.md"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/tasks/done/task-implement-scalable-inversion-counter.md",
+      "needle": "status: done"
+    },
+    {
+      "kind": "git-changes-within",
+      "allowedPaths": [
+        "resource-budget-result.json",
+        "src/inversions.mjs",
+        "data/tasks/ready/task-implement-scalable-inversion-counter.md",
+        "data/tasks/done/task-implement-scalable-inversion-counter.md"
+      ]
+    }
+  ],
+  "objectiveMetrics": [
+    {
+      "name": "max_comparison_budget_ratio",
+      "unit": "ratio",
+      "direction": "lower_is_better",
+      "source": {
+        "kind": "json-file",
+        "path": "resource-budget-result.json",
+        "pointer": "/budgetProxy/maxOperationRatio"
+      }
+    }
+  ],
+  "verifierCalibration": {
+    "null": {},
+    "golden": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/src/inversions.mjs",
+          "targetPath": "src/inversions.mjs"
+        }
+      ]
+    },
+    "adversarial": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/src/inversions.mjs",
+          "targetPath": "src/inversions.mjs"
+        }
+      ]
+    }
+  },
+  "tags": [
+    "autonomy",
+    "builder-discipline",
+    "algorithmic-complexity",
+    "resource-budget",
+    "live-llm",
+    "objective-metric"
+  ],
+  "provenance": {
+    "kind": "smoke-fixture",
+    "justification": "Synthetic live-builder canary for the ProjDevBench-shaped gap where agents pass basic examples but fail time-complexity and resource-management requirements under larger deterministic inputs. The fixture keeps execution local and artifact-graded through existing shell predicates, resource-profile reporting, and objective metrics instead of importing ProjDevBench or adding an online-judge integration. No past KOTA failure run exists for this exact measurement gap."
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "pnpm test",
+        "timeoutMs": 10000
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-resource-budget.mjs --no-write",
+        "timeoutMs": 20000
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-resource-budget.mjs --self-test-shortcuts",
+        "timeoutMs": 10000
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/ready/task-implement-scalable-inversion-counter.md"
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "resource-budget-result.json"
+      },
+      "expected": "fail"
+    }
+  ],
+  "controlDecisions": [
+    "act"
+  ]
+}
