@@ -14,7 +14,7 @@ import {
 	DAEMON_PROJECT_SCOPE_PROVIDER_TYPE,
 	type DaemonProjectRuntimeScope,
 } from "#core/daemon/project-scope-provider.js";
-import { projectEvidenceText, redactSensitiveText } from "#core/evidence/policy.js";
+import { redactSensitiveText } from "#core/evidence/policy.js";
 import type {
 	ControlRouteRegistration,
 	RouteRegistration,
@@ -26,9 +26,14 @@ import {
 } from "#core/server/daemon-transport.js";
 import { readSelectedScopeSelectorIdQueryOrErrorResponse } from "#core/server/scope-selector-request.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
-import { executeTool, type ToolRunnerContext } from "#core/tools/index.js";
-import type { ToolResult } from "#core/tools/tool-result.js";
-import type { ApprovalExecutionProjection } from "./client.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
+import {
+	type ApprovalExecutionLease,
+	approveAllResponse,
+	approvedApprovalResponse,
+	closeApprovalExecutionLeases,
+	prepareApprovalExecutionBatch,
+} from "./approval-execution.js";
 
 type OptionalStringFieldRead =
 	| { ok: true; value?: string }
@@ -105,17 +110,6 @@ function projectExecutionContext(
 	};
 }
 
-function approvalExecutionContext(
-	base: ToolRunnerContext | undefined,
-	item: PendingApproval,
-): ToolRunnerContext | undefined {
-	if (!base && !item.sessionId) return undefined;
-	return {
-		...base,
-		...(item.sessionId ? { sessionId: item.sessionId } : {}),
-	};
-}
-
 function listApprovalsLocal(
 	queue: ApprovalQueue,
 	status?: ApprovalStatus | "all",
@@ -154,72 +148,6 @@ function rejectAllApprovalsLocal(
 ): { approvals: ApprovalClientProjection[]; count: number } {
 	const items = queue.rejectAll(reason);
 	return { approvals: items.map((item) => projectApprovalForClient(item)), count: items.length };
-}
-
-function projectToolExecution(result: ToolResult): ApprovalExecutionProjection {
-	const projected = projectEvidenceText(result.content, "daemon-api", "tool-io");
-	const output = typeof projected === "string"
-		? {
-			redacted: true as const,
-			reason: "tool-io" as const,
-			bytes: Buffer.byteLength(projected, "utf8"),
-		}
-		: {
-			redacted: true as const,
-			reason: "tool-io" as const,
-			...(projected.bytes !== undefined ? { bytes: projected.bytes } : {}),
-		};
-	return {
-		status: result.is_error ? "failed" : "succeeded",
-		output,
-	};
-}
-
-async function executeApprovedTool(
-	item: PendingApproval,
-	context?: ToolRunnerContext,
-): Promise<ApprovalExecutionProjection> {
-	const executionContext = approvalExecutionContext(context, item);
-	const result = executionContext
-		? await executeTool(item.tool, item.input, executionContext)
-		: await executeTool(item.tool, item.input);
-	return projectToolExecution(result);
-}
-
-async function approvedApprovalResponse(
-	item: PendingApproval,
-	context?: ToolRunnerContext,
-): Promise<{
-	approval: ApprovalClientProjection;
-	execution: ApprovalExecutionProjection;
-}> {
-	const execution = await executeApprovedTool(item, context);
-	return {
-		approval: projectApprovalForClient(item),
-		execution,
-	};
-}
-
-async function approveAllResponse(
-	items: PendingApproval[],
-	context?: ToolRunnerContext,
-): Promise<{
-	approvals: ApprovalClientProjection[];
-	count: number;
-	executions: Array<{ approvalId: string; execution: ApprovalExecutionProjection }>;
-}> {
-	const executions: Array<{ approvalId: string; execution: ApprovalExecutionProjection }> = [];
-	for (const item of items) {
-		executions.push({
-			approvalId: item.id,
-			execution: await executeApprovedTool(item, context),
-		});
-	}
-	return {
-		approvals: items.map((item) => projectApprovalForClient(item)),
-		count: items.length,
-		executions,
-	};
 }
 
 function rejectMalformedApprovalId(res: ServerResponse, id: string): boolean {
@@ -281,6 +209,76 @@ async function proxyApprovalMutation(
 	}
 }
 
+async function writeApproveApprovalMutation(
+	res: ServerResponse,
+	queue: ApprovalQueue,
+	id: string,
+	note: string | undefined,
+	executionContext: ToolRunnerContext | undefined,
+): Promise<void> {
+	const pending = queue.get(id);
+	let leases: Map<string, ApprovalExecutionLease> | undefined;
+	if (pending?.status === "pending") {
+		const preflight = await prepareApprovalExecutionBatch([pending], executionContext);
+		if (!preflight.ok) {
+			jsonResponse(res, preflight.status, preflight.body);
+			return;
+		}
+		leases = preflight.leases;
+	}
+	const result = approveApprovalLocal(queue, id, note);
+	if (!result.ok && result.reason === "not_found") {
+		if (leases) await closeApprovalExecutionLeases(leases.values());
+		jsonResponse(res, 404, { error: "Approval not found or not pending" });
+		return;
+	}
+	if (!result.ok) {
+		if (leases) await closeApprovalExecutionLeases(leases.values());
+		writeApprovalInputUnavailable(res, result.approval ? [result.approval] : []);
+		return;
+	}
+	try {
+		jsonResponse(res, 200, await approvedApprovalResponse(
+			result.approval,
+			executionContext,
+			leases?.get(result.approval.id),
+		));
+	} finally {
+		if (leases) await closeApprovalExecutionLeases(leases.values());
+	}
+}
+
+async function writeApproveAllApprovalsMutation(
+	res: ServerResponse,
+	queue: ApprovalQueue,
+	note: string | undefined,
+	executionContext: ToolRunnerContext | undefined,
+): Promise<void> {
+	const preflight = await prepareApprovalExecutionBatch(
+		queue.list("pending"),
+		executionContext,
+	);
+	if (!preflight.ok) {
+		jsonResponse(res, preflight.status, preflight.body);
+		return;
+	}
+	const result = approveAllApprovalsLocal(queue, note);
+	if (!result.ok) {
+		await closeApprovalExecutionLeases(preflight.leases.values());
+		writeApprovalInputUnavailable(res, result.approvals);
+		return;
+	}
+	try {
+		jsonResponse(res, 200, await approveAllResponse(
+			result.approvals,
+			executionContext,
+			preflight.leases,
+		));
+	} finally {
+		await closeApprovalExecutionLeases(preflight.leases.values());
+	}
+}
+
 export async function handleListApprovals(
 	res: ServerResponse,
 	link: DaemonTransport | null = null,
@@ -326,19 +324,13 @@ export async function handleApproveApproval(
 	}
 	const resolvedQueue = resolveApprovalQueue(res, queue, projectId);
 	if (!resolvedQueue) return;
-	const result = approveApprovalLocal(resolvedQueue.queue, id, note.value);
-	if (!result.ok && result.reason === "not_found") {
-		jsonResponse(res, 404, { error: "Approval not found or not pending" });
-		return;
-	}
-	if (!result.ok) {
-		writeApprovalInputUnavailable(res, result.approval ? [result.approval] : []);
-		return;
-	}
-	jsonResponse(res, 200, await approvedApprovalResponse(
-		result.approval,
+	await writeApproveApprovalMutation(
+		res,
+		resolvedQueue.queue,
+		id,
+		note.value,
 		resolvedQueue.executionContext,
-	));
+	);
 }
 
 export async function handleRejectApproval(
@@ -393,15 +385,12 @@ export async function handleApproveAllApprovals(
 	}
 	const resolvedQueue = resolveApprovalQueue(res, queue, projectId);
 	if (!resolvedQueue) return;
-	const result = approveAllApprovalsLocal(resolvedQueue.queue, note.value);
-	if (!result.ok) {
-		writeApprovalInputUnavailable(res, result.approvals);
-		return;
-	}
-	jsonResponse(res, 200, await approveAllResponse(
-		result.approvals,
+	await writeApproveAllApprovalsMutation(
+		res,
+		resolvedQueue.queue,
+		note.value,
 		resolvedQueue.executionContext,
-	));
+	);
 }
 
 export async function handleRejectAllApprovals(
@@ -534,19 +523,13 @@ async function handleApproveApprovalControl(
 	if (projectId === null) return;
 	const queue = resolveApprovalQueue(res, undefined, projectId);
 	if (!queue) return;
-	const result = approveApprovalLocal(queue.queue, params.id, note.value);
-	if (!result.ok && result.reason === "not_found") {
-		jsonResponse(res, 404, { error: "Approval not found or not pending" });
-		return;
-	}
-	if (!result.ok) {
-		writeApprovalInputUnavailable(res, result.approval ? [result.approval] : []);
-		return;
-	}
-	jsonResponse(res, 200, await approvedApprovalResponse(
-		result.approval,
+	await writeApproveApprovalMutation(
+		res,
+		queue.queue,
+		params.id,
+		note.value,
 		queue.executionContext,
-	));
+	);
 }
 
 async function handleRejectApprovalControl(
@@ -579,15 +562,12 @@ async function handleApproveAllApprovalsControl(
 	if (projectId === null) return;
 	const queue = resolveApprovalQueue(res, undefined, projectId);
 	if (!queue) return;
-	const result = approveAllApprovalsLocal(queue.queue, note.value);
-	if (!result.ok) {
-		writeApprovalInputUnavailable(res, result.approvals);
-		return;
-	}
-	jsonResponse(res, 200, await approveAllResponse(
-		result.approvals,
+	await writeApproveAllApprovalsMutation(
+		res,
+		queue.queue,
+		note.value,
 		queue.executionContext,
-	));
+	);
 }
 
 async function handleRejectAllApprovalsControl(

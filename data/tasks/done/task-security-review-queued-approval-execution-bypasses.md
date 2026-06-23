@@ -1,12 +1,12 @@
 ---
 id: task-security-review-queued-approval-execution-bypasses
 title: Security review: Queued approval execution bypasses the MCP manager and prompt-time declaration fingerprint check. A supervised MCP tool call queued while fresh can later be approved through the approval route and executed with executeTool by name only; if a local, manifest, or foreign module runner with the same mcp__... name is present, approval can execute that runner under the stale MCP approval context.
-status: ready
+status: done
 priority: p2
 area: security
 summary: Queued approval execution bypasses the MCP manager and prompt-time declaration fingerprint check. A supervised MCP tool call queued while fresh can later be approved through the approval route and executed with executeTool by name only; if a local, manifest, or foreign module runner with the same mcp__... name is present, approval can execute that runner under the stale MCP approval context.
 created_at: 2026-06-23T12:44:16.478Z
-updated_at: 2026-06-23T12:44:16.478Z
+updated_at: 2026-06-23T19:34:43.000Z
 ---
 
 ## Problem
@@ -151,4 +151,6 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Implemented code-level fix: supervised/queued MCP approvals now persist the prompt declaration server, tool, and fingerprint; approval execution rejects MCP-prefixed approvals without matching current MCP declaration metadata before queue mutation; fresh MCP approvals execute through an MCP manager instead of `executeTool` by name; `mcp__` is rejected for custom, manifest, module-registered, and foreign tools.
+- Focused regression coverage: `src/modules/approval-queue/routes-mcp-execution.test.ts` covers missing MCP metadata, stale declaration rejection, fresh MCP manager execution, and daemon-control preflight-before-mutation; `src/core/daemon/approval-queue-mcp.test.ts` and `src/core/tools/tool-runner-mcp-approval.test.ts` cover stored metadata; custom/manifest/module/foreign tests cover namespace reservation.
+- Verification passed: `pnpm test src/modules/approval-queue/routes.test.ts src/modules/approval-queue/routes-mcp-execution.test.ts src/core/daemon/approval-queue.test.ts src/core/daemon/approval-queue-mcp.test.ts src/core/tools/tool-runner.test.ts src/core/tools/tool-runner-mcp-approval.test.ts src/core/tools/custom-tool.test.ts src/core/tools/custom-tool-name-policy.test.ts src/core/tools/index.test.ts src/core/tools/register-tool-name-policy.test.ts src/core/manifest/module-factory.test.ts src/core/manifest/tool-name-policy.test.ts src/core/modules/foreign-module-loader.test.ts` (263 tests), `pnpm typecheck`, `pnpm lint`, `pnpm validate-tasks`, and the staged severe source-size evaluator (`Advisory source-size warning(s): src/core/daemon/approval-queue.ts, src/core/modules/foreign-module-loader.ts, src/modules/approval-queue/routes.ts.`).

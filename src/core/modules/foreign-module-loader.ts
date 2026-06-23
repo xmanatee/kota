@@ -12,6 +12,7 @@
 import { resolve } from "node:path";
 import { tryEmit } from "#core/events/event-bus.js";
 import { localWriteEffect } from "#core/tools/effect.js";
+import { assertNotMcpManagedToolName } from "#core/tools/tool-name-policy.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type {
   ForeignModuleConfig,
@@ -50,6 +51,16 @@ type RawModule = {
   session: ForeignModuleSession;
   toolDefs: KempManifest["tools"];
 };
+
+function assertAllowedForeignToolNames(manifest: KempManifest): void {
+  for (const tool of manifest.tools) {
+    try {
+      assertNotMcpManagedToolName(tool.name);
+    } catch (err) {
+      throw new Error(`Foreign module "${manifest.name}" declared invalid tool: ${(err as Error).message}`);
+    }
+  }
+}
 
 /**
  * Wraps a KempTransport in request/response semantics, dispatching inbound
@@ -168,6 +179,12 @@ async function createRawModule(
   if (manifestMsg.type !== "manifest") {
     await session.close();
     throw new Error(`Expected manifest, got: ${manifestMsg.type}`);
+  }
+  try {
+    assertAllowedForeignToolNames(manifestMsg);
+  } catch (err) {
+    await session.close();
+    throw err;
   }
   return {
     name: manifestMsg.name,

@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CodeLanguage } from "#core/tools/code-runner.js";
+import { isMcpManagedToolName, mcpManagedToolNameError } from "./tool-name-policy.js";
 
 export type CustomToolDef = {
   name: string;
@@ -26,6 +27,9 @@ export function validateName(name: string): string | null {
   }
   if (RESERVED_NAMES.has(name)) {
     return `Error: "${name}" conflicts with a project tool name`;
+  }
+  if (isMcpManagedToolName(name)) {
+    return `Error: ${mcpManagedToolNameError(name)}`;
   }
   return null;
 }

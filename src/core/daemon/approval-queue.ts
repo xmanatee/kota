@@ -29,6 +29,12 @@ export type ApprovalToolIoRedaction = {
 	bytes?: number;
 };
 
+export type ApprovalMcpPromptDeclaration = {
+	server: string;
+	tool: string;
+	promptDeclarationFingerprint: string;
+};
+
 export type PendingApproval = {
 	id: string;
 	seq?: number;
@@ -46,6 +52,7 @@ export type PendingApproval = {
 	resolvedAt?: string;
 	rejectionReason?: string;
 	approvalNote?: string;
+	mcpPromptDeclaration?: ApprovalMcpPromptDeclaration;
 	timeoutMs?: number;
 	defaultResolution?: "deny" | "approve";
 	resolutionSource?: string;
@@ -238,6 +245,7 @@ export class ApprovalQueue {
 		defaultResolution?: "deny" | "approve",
 		context?: string,
 		sessionId?: string,
+		mcpPromptDeclaration?: ApprovalMcpPromptDeclaration,
 	): PendingApproval {
 		const item: PendingApproval = {
 			id: randomUUID().slice(0, 8),
@@ -249,6 +257,7 @@ export class ApprovalQueue {
 			source,
 			...(sessionId !== undefined && { sessionId }),
 			...(context !== undefined && { context }),
+			...(mcpPromptDeclaration !== undefined && { mcpPromptDeclaration }),
 			createdAt: new Date().toISOString(),
 			status: "pending",
 			...(timeoutMs !== undefined && { timeoutMs }),

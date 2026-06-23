@@ -3,6 +3,7 @@
  */
 
 import { getCoreRegistrations } from "#core/tools/index.js";
+import { isMcpManagedToolName, mcpManagedToolNameError } from "#core/tools/tool-name-policy.js";
 import type { ValidationError } from "./types.js";
 
 const MODULE_NAME_RE = /^[a-z][a-z0-9_-]{1,48}[a-z0-9]$/;
@@ -116,6 +117,11 @@ function validateTools(tools: unknown, errors: ValidationError[]): void {
 			errors.push({
 				field: `${prefix}.name`,
 				message: "tool name must be snake_case, 3-50 chars",
+			});
+		} else if (isMcpManagedToolName(t.name as string)) {
+			errors.push({
+				field: `${prefix}.name`,
+				message: mcpManagedToolNameError(t.name as string),
 			});
 		} else if (getReservedToolNames().has(t.name as string)) {
 			errors.push({

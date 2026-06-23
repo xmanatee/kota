@@ -15,6 +15,7 @@ import { registration as moduleFactory } from "./module-factory/index.js";
 import { assertToolStructuredOutput } from "./output-schema.js";
 import { getTodoState, registration as todo } from "./todo.js";
 import { deregisterToolsFromGroups, registerCustomGroup, runEnableTools } from "./tool-groups.js";
+import { assertNotMcpManagedToolName } from "./tool-name-policy.js";
 import type { ToolResult, ToolResultBlock } from "./tool-result.js";
 
 export type { ToolResult, ToolResultBlock };
@@ -160,6 +161,7 @@ export function registerTool(
   meta?: { effect: ToolEffect },
 ): void {
   ensureInit();
+  assertNotMcpManagedToolName(tool.name);
   if (runners[tool.name]) {
     throw new Error(`Tool already registered: ${tool.name}`);
   }
