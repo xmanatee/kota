@@ -1,12 +1,12 @@
 ---
 id: task-handle-token-budget-module-adapter-source-size-war
 title: Handle token-budget module adapter source-size warnings
-status: ready
+status: done
 priority: p3
 area: modules
 summary: The token-budget builder passed after reducing the severe source-size batch, but it still left advisory warnings for src/modules/gemini-agent-harness/adapter.ts and src/modules/openai-tools-agent-harness/adapter.ts. Split cohesive token-budget/provider helpers or record narrow scoped exceptions without changing harness behavior.
 created_at: 2026-06-23T17:48:06.502Z
-updated_at: 2026-06-23T17:48:06.502Z
+updated_at: 2026-06-23T20:05:00.000Z
 ---
 
 ## Problem
@@ -44,6 +44,12 @@ Evidence ids:
 
 Outcome-aware autonomy progress review.
 
+## Result
+
+The Gemini and OpenAI tools adapters now keep provider option handling, token-budget result shaping, and tool-dispatch/content helpers in local helper modules. The touched adapter files dropped below the 300-line source-size advisory threshold: `src/modules/gemini-agent-harness/adapter.ts` is 287 lines and `src/modules/openai-tools-agent-harness/adapter.ts` is 253 lines; every new helper file is below 300 lines.
+
 ## Acceptance Evidence
 
-- Diff reduces or justifies the token-budget-related source-size warnings for the Gemini and OpenAI tools adapter files; focused adapter token-budget tests pass; typecheck, lint, and validate-tasks pass; any remaining oversized adapter surface has a scoped ownership exception.
+- Focused adapter and token-budget tests passed: `pnpm test src/modules/gemini-agent-harness/adapter.test.ts src/modules/gemini-agent-harness/adapter-token-budget.test.ts src/modules/openai-tools-agent-harness/adapter.test.ts src/modules/openai-tools-agent-harness/adapter-token-budget.test.ts` (4 files, 48 tests).
+- `pnpm typecheck`, `pnpm lint`, `pnpm validate-tasks`, and `pnpm test src/strict-types-policy.integration.test.ts` passed.
+- Source-size severe and advisory checks both returned `OK: changed source files are under source-size warning thresholds`; see `.kota/runs/2026-06-23T19-47-15-526Z-builder-et00ya/source-file-size-review.json`.
