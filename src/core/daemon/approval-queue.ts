@@ -1,25 +1,21 @@
-/**
- * ApprovalQueue — file-based queue for tool calls requiring human approval.
- *
- * When guardrails resolve to "queue" policy (default for dangerous operations
- * in non-interactive contexts), the tool call is stored here. Users review
- * and approve/reject via the approval agent tool. Approved items execute
- * immediately.
- */
-
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
-import {
-	cloneEvidenceJsonObject,
-	type EvidenceProjectionTarget,
-	evidenceRetentionDurationMsFor,
-	projectEvidenceJsonValueAsDataClass,
-	projectEvidenceText,
-	redactSensitiveText,
-} from "#core/evidence/policy.js";
+import { cloneEvidenceJsonObject, evidenceRetentionDurationMsFor } from "#core/evidence/policy.js";
 import type { RiskLevel } from "#core/tools/guardrails.js";
+import {
+	emitApprovalExpired,
+	emitApprovalRequested,
+	emitApprovalResolved,
+} from "./approval-queue-events.js";
+import {
+	approvalFilePath,
+	approvalFilePathForItem,
+	projectApprovalForStorage,
+} from "./approval-queue-projection.js";
+
+export { isApprovalId, projectApprovalForClient } from "./approval-queue-projection.js";
 
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "expired";
 
@@ -84,135 +80,14 @@ export type ApprovalExecutionApproveAllResult =
 			approvals: PendingApproval[];
 	  };
 
-const APPROVAL_ID_PATTERN = /^[0-9a-f]{8}$/;
 const DEFAULT_APPROVAL_PENDING_TTL_MS = evidenceRetentionDurationMsFor({
 	artifactType: "approval",
 	state: "pending",
 	scope: "directory",
 });
 
-export function isApprovalId(id: string): boolean {
-	return APPROVAL_ID_PATTERN.test(id);
-}
-
 export function defaultApprovalPendingTtlMs(): number {
 	return DEFAULT_APPROVAL_PENDING_TTL_MS;
-}
-
-export function projectApprovalForClient(
-	item: PendingApproval,
-	target: EvidenceProjectionTarget = "daemon-api",
-): ApprovalClientProjection {
-	const projected: ApprovalClientProjection = {
-		...projectApprovalTextFields(item),
-		input: projectApprovalInputForTarget(item.input, target),
-	};
-	if (item.context !== undefined) {
-		const context = projectEvidenceText(item.context, target, "tool-io");
-		if (typeof context === "string") {
-			projected.context = context;
-		} else {
-			projected.context = "[redacted]";
-			projected.contextRedaction = {
-				redacted: true,
-				reason: "tool-io",
-				...(context.bytes !== undefined ? { bytes: context.bytes } : {}),
-			};
-		}
-	}
-	return projected;
-}
-
-function approvalFilePath(dir: string, id: string): string | null {
-	return isApprovalId(id) ? join(dir, `${id}.json`) : null;
-}
-
-function approvalFilePathForItem(dir: string, item: PendingApproval): string {
-	const path = approvalFilePath(dir, item.id);
-	if (!path) throw new Error(`Malformed approval id: ${item.id}`);
-	return path;
-}
-
-function projectApprovalForStorage(item: PendingApproval): PendingApproval {
-	const projected: PendingApproval = {
-		...projectApprovalTextFields(item),
-		input: projectApprovalInputForStorage(item.input),
-	};
-	if (item.context !== undefined) {
-		delete projected.context;
-		projected.contextRedaction = projectApprovalContextForStorage(item.context);
-	}
-	return projected;
-}
-
-function projectApprovalInputForStorage(input: PendingApproval["input"]): PendingApproval["input"] {
-	if (isToolIoRedactionRecord(input)) return input;
-	const projected = projectApprovalInputForTarget(input, "internal-storage");
-	if (!isToolIoRedactionRecord(projected)) {
-		throw new Error("Approval input storage projection must redact tool I/O");
-	}
-	return projected;
-}
-
-function projectApprovalTextFields(item: PendingApproval): PendingApproval {
-	const projected: PendingApproval = {
-		...item,
-		reason: projectApprovalText(item.reason),
-	};
-	if (item.source !== undefined) projected.source = projectApprovalText(item.source);
-	if (item.approvalNote !== undefined) {
-		projected.approvalNote = projectApprovalText(item.approvalNote);
-	}
-	if (item.rejectionReason !== undefined) {
-		projected.rejectionReason = projectApprovalText(item.rejectionReason);
-	}
-	if (item.resolutionSource !== undefined) {
-		projected.resolutionSource = projectApprovalText(item.resolutionSource);
-	}
-	return projected;
-}
-
-function projectApprovalText(text: string): string {
-	return redactSensitiveText(text);
-}
-
-function projectApprovalInputForTarget(
-	input: PendingApproval["input"],
-	target: EvidenceProjectionTarget,
-): PendingApproval["input"] {
-	const projected = projectEvidenceJsonValueAsDataClass(
-		cloneEvidenceJsonObject(input),
-		target,
-		"tool-io",
-	);
-	if (typeof projected !== "object" || projected === null || Array.isArray(projected)) {
-		throw new Error("Approval input projection must remain an object");
-	}
-	return projected;
-}
-
-function projectApprovalContextForStorage(context: string): ApprovalToolIoRedaction {
-	const projected = projectEvidenceText(context, "internal-storage", "tool-io");
-	if (typeof projected === "string" || projected.reason !== "tool-io") {
-		throw new Error("Approval context storage projection must redact tool I/O");
-	}
-	return {
-		redacted: true,
-		reason: "tool-io",
-		...(projected.bytes !== undefined ? { bytes: projected.bytes } : {}),
-	};
-}
-
-function isToolIoRedactionRecord(
-	value: PendingApproval["input"],
-): value is ApprovalToolIoRedaction & PendingApproval["input"] {
-	return (
-		typeof value === "object" &&
-		value !== null &&
-		!Array.isArray(value) &&
-		value.redacted === true &&
-		value.reason === "tool-io"
-	);
 }
 
 let _enqueueSeq = 0;
@@ -265,17 +140,7 @@ export class ApprovalQueue {
 		};
 		this.executionInputs.set(item.id, cloneEvidenceJsonObject(input));
 		const stored = this.write(item);
-		if (this.pbus) {
-			this.pbus.emit("approval.requested", {
-				id: stored.id,
-				tool,
-				risk,
-				reason: stored.reason,
-				source: stored.source ?? "",
-				sessionId: sessionId ?? "",
-			});
-			this.pbus.emit("approval.changed", { id: item.id, pendingCount: this.count("pending") });
-		}
+		emitApprovalRequested(this.pbus, stored, sessionId, this.count("pending"));
 		return stored;
 	}
 
@@ -309,17 +174,7 @@ export class ApprovalQueue {
 		const stored = this.write(item);
 		const executionInput = this.executionInputs.get(id);
 		this.executionInputs.delete(id);
-		if (this.pbus) {
-			this.pbus.emit("approval.resolved", {
-				id,
-				tool: stored.tool,
-				approved: true,
-				reason: "",
-				source: stored.source ?? "",
-				sessionId: stored.sessionId ?? "",
-			});
-			this.pbus.emit("approval.changed", { id, pendingCount: this.count("pending") });
-		}
+		emitApprovalResolved(this.pbus, stored, true, "", this.count("pending"));
 		return executionInput === undefined ? stored : { ...stored, input: executionInput };
 	}
 
@@ -350,17 +205,7 @@ export class ApprovalQueue {
 		if (resolutionSource) item.resolutionSource = resolutionSource;
 		const stored = this.write(item);
 		this.executionInputs.delete(id);
-		if (this.pbus) {
-			this.pbus.emit("approval.resolved", {
-				id,
-				tool: stored.tool,
-				approved: false,
-				reason: stored.rejectionReason ?? "",
-				source: stored.source ?? "",
-				sessionId: stored.sessionId ?? "",
-			});
-			this.pbus.emit("approval.changed", { id, pendingCount: this.count("pending") });
-		}
+		emitApprovalResolved(this.pbus, stored, false, stored.rejectionReason ?? "", this.count("pending"));
 		return stored;
 	}
 
@@ -381,19 +226,7 @@ export class ApprovalQueue {
 			}
 			const stored = this.write(item);
 			this.executionInputs.delete(item.id);
-			if (this.pbus) {
-				this.pbus.emit("workflow.approval.timeout", { id: stored.id, tool: stored.tool, defaultResolution: resolution });
-				this.pbus.emit("approval.expired", { id: stored.id, tool: stored.tool });
-				this.pbus.emit("approval.resolved", {
-					id: stored.id,
-					tool: stored.tool,
-					approved: resolution === "approve",
-					reason: stored.rejectionReason ?? "",
-					source: stored.source ?? "",
-					sessionId: stored.sessionId ?? "",
-				});
-				this.pbus.emit("approval.changed", { id: stored.id, pendingCount: this.count("pending") });
-			}
+			emitApprovalExpired(this.pbus, stored, resolution, this.count("pending"));
 			expired.push(stored);
 		}
 		return expired;

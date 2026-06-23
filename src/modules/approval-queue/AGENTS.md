@@ -6,9 +6,10 @@ Owns the `kota approval` CLI surface and the underlying `ApprovalQueue` class us
   HTTP route handlers for approvals on both surfaces: the public
   `/api/approvals*` routes contributed via `KotaModule.routes` and the
   daemon-control `/approvals*` routes contributed via
-  `KotaModule.controlRoutes`. Both surfaces share one local handler family
-  in `routes.ts` so the wire contract (envelopes, status codes, capability
-  scopes) lives in a single place.
+  `KotaModule.controlRoutes`. `routes.ts` is the public module surface; the
+  shared handler family and registration wrappers live in focused
+  `route-*` siblings so the wire contract stays local without one oversized
+  file.
 - `supervised` session autonomy is the main producer: the tool-runner queues
   every non-safe tool for this mode regardless of the tool's guardrail policy.
   Operators resolve queued approvals through this module's CLI and routes.
