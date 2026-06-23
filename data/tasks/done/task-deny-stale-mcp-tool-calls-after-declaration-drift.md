@@ -1,13 +1,13 @@
 ---
 id: task-deny-stale-mcp-tool-calls-after-declaration-drift
 title: Deny stale MCP tool calls after declaration drift
-status: ready
+status: done
 priority: p1
 area: core
 task_class: Safety
 summary: Refresh MCP tool declarations each turn and reject remote MCP calls when the declaration fingerprint changed since the model saw the tool, so tools/list_changed updates cannot execute under stale tool context.
 created_at: 2026-06-23T00:48:45.822Z
-updated_at: 2026-06-23T00:50:00.000Z
+updated_at: 2026-06-23T01:03:11.996Z
 ---
 
 ## Problem
@@ -142,13 +142,19 @@ MCP security and auditability: KOTA should consume remote tools through a
 strict runtime boundary where the advertised contract an agent sees is the same
 contract used for execution, approval, telemetry, and post-run review.
 
+## Resolution
+
+`runSend()` now rebuilds MCP tools inside each model turn and snapshots
+prompt-time declaration fingerprints for remote MCP tools. `executeToolCalls()`
+receives that snapshot and returns a bounded
+`mcp_declaration_changed_since_prompt` tool-result error before remote or local
+dispatch when the current fingerprint differs or is missing. Remote MCP
+operations without declaration fingerprints keep their prior behavior.
+
 ## Acceptance Evidence
 
-- Focused test transcript for the stale-declaration boundary, for example:
-  `pnpm test src/core/loop/loop.test.ts src/core/tools/tool-runner.test.ts src/core/mcp/manager-declaration-fingerprint.test.ts`.
-- Fixture or fake-manager test output showing: prompt-time fingerprint A,
-  manager refresh to fingerprint B, attempted same-name remote MCP call denied,
-  remote handler call count zero, and next turn exposing fingerprint B.
-- Existing regression transcript for MCP refresh and remote-task fingerprint
-  behavior, for example `pnpm test src/core/mcp/manager.test.ts -t "list_changed|declaration"`.
-- `pnpm run validate-tasks` passes after implementation.
+- `pnpm test src/core/loop/loop-send-mcp-declaration.test.ts src/core/tools/tool-runner-mcp-declaration-contract.test.ts src/core/tools/tool-runner-mcp-provenance.test.ts src/core/mcp/manager-declaration-fingerprint.test.ts` passed.
+- `pnpm test src/core/mcp/manager.test.ts src/core/mcp/manager-declaration-fingerprint.test.ts src/core/mcp/manager-declaration-task-fingerprint.test.ts src/core/mcp/manager-provenance.test.ts src/core/tools/tool-runner.test.ts src/core/tools/tool-runner-schema.integration.test.ts src/core/tools/tool-runner-mcp-provenance.test.ts src/core/tools/tool-runner-mcp-declaration-contract.test.ts src/core/tools/tool-telemetry-mcp-provenance.test.ts` passed.
+- `pnpm test src/core/loop/loop.test.ts src/core/loop/loop-send-mcp-declaration.test.ts` passed.
+- `pnpm run typecheck` and `pnpm run lint` passed.
+- `pnpm run validate-tasks` passed against a temporary staged index/object store; direct real-index staging is blocked in this sandbox by `.git/index.lock` permissions.

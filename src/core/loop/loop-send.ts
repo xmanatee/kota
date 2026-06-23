@@ -31,6 +31,18 @@ function throwIfAborted(signal: AbortSignal): void {
   if (signal.aborted) throw abortReason(signal);
 }
 
+function snapshotMcpToolDeclarationFingerprints(
+  state: AgentLoopState,
+  mcpTools: readonly { name: string }[],
+): ReadonlyMap<string, string> | undefined {
+  if (!state.mcpManager) return undefined;
+  const entries = mcpTools.flatMap((tool) => {
+    const fingerprint = state.mcpManager?.getToolDeclarationFingerprint(tool.name);
+    return fingerprint === undefined ? [] : [[tool.name, fingerprint] as const];
+  });
+  return entries.length === 0 ? undefined : new Map(entries);
+}
+
 export async function runSend(state: AgentLoopState, prompt: string): Promise<string> {
   if (state.closed) throw new Error("Session is closed");
   const abortController = new AbortController();
@@ -61,8 +73,6 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
       for (const g of taskRoute.groups) enableGroup(g);
     }
     let lastResult = "";
-
-    const mcpTools = state.mcpManager ? state.mcpManager.getTools() : [];
 
     const preSendResults = await runPreSendHooks({
       client: state.client,
@@ -114,6 +124,9 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
         });
       }
 
+      const mcpTools = state.mcpManager ? state.mcpManager.getTools() : [];
+      const mcpPromptToolDeclarationFingerprints =
+        snapshotMcpToolDeclarationFingerprints(state, mcpTools);
       const activeTools = [...filterTools(getAllTools()), ...mcpTools];
       const activeToolNames = new Set(activeTools.map((t) => t.name));
 
@@ -216,6 +229,9 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
         sessionId: state.sessionId,
         messages: state.context.getMessages(),
         idempotencyStore: state.idempotencyStore,
+        ...(mcpPromptToolDeclarationFingerprints
+          ? { mcpPromptToolDeclarationFingerprints }
+          : {}),
         signal,
       });
       throwIfAborted(signal);

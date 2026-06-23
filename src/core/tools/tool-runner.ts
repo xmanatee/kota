@@ -80,6 +80,7 @@ export type ToolCallExecutionOptions = {
   autonomyMode: AutonomyMode;
   mcpManager?: McpManager;
   mcpInputResolver?: McpInputResolver;
+  mcpPromptToolDeclarationFingerprints?: McpPromptToolDeclarationFingerprints;
   transport?: Transport;
   guardrailsConfig?: GuardrailsConfig;
   clientApprovalResolver?: ToolApprovalResolver;
@@ -119,6 +120,37 @@ function toolResultWouldTruncate(result: ToolResult, resultLimit: number): boole
 }
 
 type ExecuteToolBlock = (block: ToolUseBlock) => Promise<ToolResultEntry>;
+export type McpPromptToolDeclarationFingerprints = ReadonlyMap<string, string>;
+const MCP_DECLARATION_CHANGED_REASON = "mcp_declaration_changed_since_prompt";
+
+function staleMcpDeclarationResult(
+  toolName: string,
+  mcpManager: McpManager | undefined,
+  promptFingerprints: McpPromptToolDeclarationFingerprints | undefined,
+): ToolResult | null {
+  const promptFingerprint = promptFingerprints?.get(toolName);
+  if (promptFingerprint === undefined) return null;
+  const currentFingerprint = mcpManager?.getToolDeclarationFingerprint(toolName);
+  if (currentFingerprint === promptFingerprint) return null;
+  const promptPrefix = promptFingerprint.slice(0, 12);
+  const currentPrefix = currentFingerprint?.slice(0, 12) ?? "missing";
+  return {
+    content:
+      `MCP tool error: reason=${MCP_DECLARATION_CHANGED_REASON}; ` +
+      `declaration for "${toolName}" changed since it was ` +
+      `shown to the model (${promptPrefix} -> ${currentPrefix}); retry after ` +
+      "the refreshed tool list is shown.",
+    is_error: true,
+    _meta: {
+      mcp: {
+        reason: MCP_DECLARATION_CHANGED_REASON,
+        tool: toolName,
+        promptDeclarationFingerprintPrefix: promptPrefix,
+        currentDeclarationFingerprintPrefix: currentFingerprint?.slice(0, 12) ?? null,
+      },
+    },
+  };
+}
 
 function isReadOnlyToolCall(
   block: ToolUseBlock,
@@ -188,6 +220,7 @@ export async function executeToolCalls(
     autonomyMode,
     mcpManager,
     mcpInputResolver,
+    mcpPromptToolDeclarationFingerprints,
     transport,
     guardrailsConfig,
     clientApprovalResolver,
@@ -205,6 +238,42 @@ export async function executeToolCalls(
       });
     }
     const input = block.input as ToolCallInput;
+    const staleMcpResult = staleMcpDeclarationResult(
+      block.name,
+      mcpManager,
+      mcpPromptToolDeclarationFingerprints,
+    );
+    if (staleMcpResult) {
+      const startMs = performance.now();
+      const inputBytes = measureTelemetryPayloadBytes(input);
+      const telemetry = getToolTelemetry();
+      telemetry.recordCallStart({
+        toolUseId: block.id,
+        tool: block.name,
+        inputBytes,
+      });
+      const durationMs = Math.round(performance.now() - startMs);
+      const resultPayload = getToolResultTelemetryPayload(staleMcpResult);
+      telemetry.recordCallResult({
+        toolUseId: block.id,
+        tool: block.name,
+        durationMs,
+        success: false,
+        resultBytes: measureTelemetryPayloadBytes(resultPayload),
+        resultContentKind: getToolResultContentKind(staleMcpResult),
+        truncated: toolResultWouldTruncate(staleMcpResult, resultLimit),
+        error: staleMcpResult.content.slice(0, 200),
+      });
+      if (transport) {
+        transport.emit({ type: "tool_metric", tool: block.name, durationMs, success: false });
+      }
+      return {
+        tool_use_id: block.id,
+        content: staleMcpResult.content,
+        ...(staleMcpResult._meta ? { _meta: staleMcpResult._meta } : {}),
+        is_error: true,
+      };
+    }
 
     // Assess risk once up front so autonomy-mode gating and guardrails share
     // a single classification. Fall back to a neutral moderate assessment if
@@ -381,7 +450,14 @@ export async function executeToolCalls(
         ...(resultContentProvenance ? { resultContentProvenance } : {}),
       },
     };
-    const baseFn = () => {
+    const baseFn = async () => {
+      const dispatchStaleMcpResult = staleMcpDeclarationResult(
+        call.name,
+        mcpManager,
+        mcpPromptToolDeclarationFingerprints,
+      );
+      if (dispatchStaleMcpResult) return dispatchStaleMcpResult;
+
       if (!mcpManager?.isMcpTool(call.name)) {
         return executeTool(call.name, call.input, runnerContext);
       }
