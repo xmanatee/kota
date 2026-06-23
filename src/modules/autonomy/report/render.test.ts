@@ -27,6 +27,7 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("Explorer output");
     expect(text).toContain("Builder breakdown");
     expect(text).toContain("Review scrutiny");
+    expect(text).toContain("Review scrutiny escalation");
     expect(text).toContain("Trajectory diagnostics");
     expect(text).toContain("Autonomy health");
     expect(text).toContain("Blockers");
@@ -39,6 +40,7 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("(no explorer runs)");
     expect(text).toContain("(no builder commits)");
     expect(text).toContain("(no reviewer artifacts)");
+    expect(text).toContain("(no recurring thin-acceptance patterns)");
     expect(text).toContain("(no recurring trajectory diagnostic patterns)");
     expect(text).toContain("(no health signals)");
     expect(text).toContain("(no blocked tasks)");

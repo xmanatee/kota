@@ -24,6 +24,11 @@ import {
   collectReviewScrutinyReport,
   type ReviewScrutinyReport,
 } from "#modules/autonomy/review-scrutiny.js";
+import {
+  buildReviewScrutinyEscalationReport,
+  detectRecurringReviewScrutinyPatternsFromReport,
+  type ReviewScrutinyEscalationReport,
+} from "#modules/autonomy/review-scrutiny-escalation.js";
 import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
 import {
   DEFAULT_TRAJECTORY_DIAGNOSTIC_REPORT_LIMIT,
@@ -204,6 +209,7 @@ export type AutonomyReportData = {
   explorer: ExplorerBalance;
   builder: BuilderBreakdown;
   reviewScrutiny: ReviewScrutinyReport;
+  reviewScrutinyEscalation: ReviewScrutinyEscalationReport;
   trajectoryDiagnostics: TrajectoryDiagnosticReport;
   health: AutonomyHealthBreakdown;
   blockers: BlockerClassMix;
@@ -275,6 +281,17 @@ export function aggregateAutonomyReport(
     runsDir: input.runsDir,
     runs,
   });
+  const reviewScrutinyEscalationDetection =
+    detectRecurringReviewScrutinyPatternsFromReport({
+      report: reviewScrutiny,
+      tasks: allTasks,
+      config: { nowMs: input.windowEndMs, windowMs },
+    });
+  const reviewScrutinyEscalation = buildReviewScrutinyEscalationReport({
+    projectDir: input.projectDir,
+    detection: reviewScrutinyEscalationDetection,
+    config: { nowMs: input.windowEndMs, windowMs },
+  });
   const trajectoryDiagnostics = buildTrajectoryDiagnosticReport(
     input.runsDir,
     input.windowEndMs,
@@ -297,6 +314,7 @@ export function aggregateAutonomyReport(
     explorer,
     builder,
     reviewScrutiny,
+    reviewScrutinyEscalation,
     trajectoryDiagnostics,
     health,
     blockers,

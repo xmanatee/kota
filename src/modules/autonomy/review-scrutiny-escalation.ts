@@ -1,0 +1,33 @@
+export {
+  detectRecurringReviewScrutinyPatterns,
+  detectRecurringReviewScrutinyPatternsFromReport,
+} from "./review-scrutiny-escalation-detect.js";
+export {
+  buildReviewScrutinyAttentionDigest,
+  buildReviewScrutinyEscalationReport,
+} from "./review-scrutiny-escalation-report.js";
+export {
+  applyReviewScrutinyEscalation,
+  proposeReviewScrutinyEscalation,
+} from "./review-scrutiny-escalation-tasks.js";
+export type {
+  ReviewScrutinyAttentionEntry,
+  ReviewScrutinyEscalationApplied,
+  ReviewScrutinyEscalationConfig,
+  ReviewScrutinyEscalationContext,
+  ReviewScrutinyEscalationDetection,
+  ReviewScrutinyEscalationProposal,
+  ReviewScrutinyEscalationReport,
+  ReviewScrutinyEscalationThresholds,
+  ReviewScrutinyEvidenceRef,
+  ReviewScrutinyPatternCandidate,
+  ReviewScrutinyPatternSummary,
+} from "./review-scrutiny-escalation-types.js";
+export {
+  DEFAULT_REVIEW_SCRUTINY_COOLDOWN_MS,
+  DEFAULT_REVIEW_SCRUTINY_MIN_APPROVALS,
+  DEFAULT_REVIEW_SCRUTINY_MIN_RATIO,
+  DEFAULT_REVIEW_SCRUTINY_MIN_THIN_ACCEPTANCES,
+  DEFAULT_REVIEW_SCRUTINY_REPORT_LIMIT,
+  DEFAULT_REVIEW_SCRUTINY_WINDOW_MS,
+} from "./review-scrutiny-escalation-types.js";

@@ -25,6 +25,7 @@ import {
   renderBuilderBreakdown,
   renderExplorerBalance,
   renderReviewScrutiny,
+  renderReviewScrutinyEscalation,
   renderTrajectoryDiagnostics,
 } from "./render-run-sections.js";
 
@@ -52,6 +53,9 @@ export function renderAutonomyReport(data: AutonomyReportData): RenderNode {
     blank(),
     heading("Review scrutiny", 2),
     ...renderReviewScrutiny(data.reviewScrutiny),
+    blank(),
+    heading("Review scrutiny escalation", 2),
+    ...renderReviewScrutinyEscalation(data.reviewScrutinyEscalation),
     blank(),
     heading("Trajectory diagnostics", 2),
     ...renderTrajectoryDiagnostics(data.trajectoryDiagnostics),

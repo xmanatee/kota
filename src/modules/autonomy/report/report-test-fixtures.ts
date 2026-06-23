@@ -60,6 +60,11 @@ export const emptyAutonomyReportData: AutonomyReportData = {
     records: [],
     unsupported: [],
   },
+  reviewScrutinyEscalation: {
+    activePatterns: [],
+    cooldownPatterns: [],
+    belowThresholdPatterns: [],
+  },
   trajectoryDiagnostics: { activePatterns: [] },
   health: {
     totalSignals: 0,

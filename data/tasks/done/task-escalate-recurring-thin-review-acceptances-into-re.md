@@ -1,13 +1,13 @@
 ---
 id: task-escalate-recurring-thin-review-acceptances-into-re
 title: Escalate recurring thin review acceptances into repair tasks
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Meta
 summary: Detect repeated thin review acceptances from review-scrutiny records and open or refresh one evidence-backed repair task instead of leaving the signal only in the operator report.
 created_at: 2026-06-23T21:59:12.021Z
-updated_at: 2026-06-23T21:59:12.021Z
+updated_at: 2026-06-23T22:30:30.493Z
 ---
 
 ## Problem
@@ -127,11 +127,15 @@ should not be silently accepted as reviewer workload or habituation rises.
 
 ## Acceptance Evidence
 
-- Diff showing the review-scrutiny escalation detector, fingerprint/cooldown
-  handling, and normalized repair-task creation or refresh path.
-- Focused test transcript covering below-threshold, above-threshold,
-  idempotent refresh, unsupported artifact, and isolated thin-approval cases.
-- `node bin/kota.mjs report --days 7 --json` or a fixture-backed report command
-  showing active/below-threshold/cooldown review-scrutiny escalation state.
-- `pnpm run validate-tasks` passes after any generated repair-task fixture or
-  task-state update.
+- Diff adds `review-scrutiny-escalator`, review-scrutiny escalation detector,
+  stable task fingerprint/cooldown handling, repair-task create/refresh/apply
+  paths, attention digest output, and report JSON/text exposure for active,
+  cooldown-suppressed, and below-threshold patterns.
+- Focused transcript: `pnpm exec vitest run src/modules/autonomy/review-scrutiny-escalation.test.ts src/modules/autonomy/workflows/review-scrutiny-escalator/workflow.test.ts src/modules/autonomy/report/render-review-scrutiny.test.ts src/modules/autonomy/report/render.test.ts src/modules/autonomy/report/aggregate.test.ts src/modules/autonomy/review-scrutiny.test.ts src/modules/autonomy/workflow-failure-escalation.test.ts src/modules/autonomy/trajectory-diagnostic-escalation.test.ts src/modules/autonomy/workflows/workflow-failure-escalator/workflow.test.ts src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.test.ts src/modules/autonomy/report/report-cli.test.ts` passes: 11 files, 75 tests.
+- Source-mode report artifact: `.kota/runs/2026-06-23T22-11-40-419Z-builder-dprtdy/report.json` shows `reviewScrutinyEscalation` with active=5, cooldown=0, below=5 for the current 7-day window.
+- `pnpm run typecheck`, `pnpm run lint`, and `pnpm run hygiene` pass.
+- `pnpm run validate-tasks` reaches the expected task-state staging checks but
+  cannot pass in this sandbox because `.git/index.lock` cannot be created;
+  both `pnpm kota task move ... doing` and `pnpm kota task move ... done`
+  failed with that same git-index permission error before the equivalent task
+  file transitions were applied manually.
