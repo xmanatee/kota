@@ -10,6 +10,7 @@ import {
 } from "#core/daemon/approval-queue.js";
 import { McpManager } from "#core/mcp/manager.js";
 import { executeTool } from "#core/tools/index.js";
+import { MCP_MANAGED_OPERATION_TOOL_PREFIXES } from "#core/tools/tool-name-policy.js";
 import { approvalControlRoutes, handleApproveApproval } from "./routes.js";
 
 vi.mock("#core/tools/index.js", () => ({
@@ -103,6 +104,8 @@ function writeMcpConfig(projectDir: string, toolDescription: string, toolResult 
 	);
 }
 
+const MCP_OPERATION_TOOL_NAMES = MCP_MANAGED_OPERATION_TOOL_PREFIXES.map((prefix) => `${prefix}remote__list`);
+
 async function currentMcpFingerprint(projectDir: string): Promise<string> {
 	const config = McpManager.loadConfig(projectDir);
 	if (!config) throw new Error("expected MCP test config");
@@ -152,6 +155,24 @@ describe("approval route MCP execution", () => {
 		expect(queue.get(item.id)?.status).toBe("pending");
 		expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
 	});
+
+	it.each(MCP_OPERATION_TOOL_NAMES)(
+		"rejects MCP operation approval %s before local execution",
+		async (toolName) => {
+			const item = queue.enqueue(toolName, {}, "moderate", "remote operation");
+			const { res, result } = mockResponse();
+
+			await handleApproveApproval(mockRequest(), res, item.id, null, queue);
+
+			expect(result.status).toBe(409);
+			expect(result.body).toMatchObject({
+				reason: "mcp_approval_missing_declaration",
+				mcp: { tool: toolName },
+			});
+			expect(queue.get(item.id)?.status).toBe("pending");
+			expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
+		},
+	);
 
 	it("rejects a stale MCP approval before local execution", async () => {
 		const projectDir = mkdtempSync(join(tmpdir(), "kota-approval-mcp-stale-"));

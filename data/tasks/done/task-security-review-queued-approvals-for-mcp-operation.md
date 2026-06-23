@@ -1,12 +1,12 @@
 ---
 id: task-security-review-queued-approvals-for-mcp-operation
 title: Security review: Queued approvals for MCP operation tools such as mcp_resources__, mcp_resource_templates__, mcp_prompts__, and mcp_skills__ are not treated as MCP-managed during approval execution. They skip MCP preflight and replay through the generic local tool registry, while live execution routes those same names through McpManager.
-status: ready
+status: done
 priority: p2
 area: security
 summary: Queued approvals for MCP operation tools such as mcp_resources__, mcp_resource_templates__, mcp_prompts__, and mcp_skills__ are not treated as MCP-managed during approval execution. They skip MCP preflight and replay through the generic local tool registry, while live execution routes those same names through McpManager.
 created_at: 2026-06-23T19:33:51.533Z
-updated_at: 2026-06-23T19:33:51.533Z
+updated_at: 2026-06-23T19:41:54Z
 ---
 
 ## Problem
@@ -33,6 +33,19 @@ claim:
 - The cited vulnerability is fixed or proven impossible with code-level evidence.
 - Focused regression coverage guards the fixed boundary.
 - The task records the final verification command or artifact.
+
+## Resolution
+
+MCP operation tool prefixes are now part of the shared MCP-managed tool-name
+policy. Approval execution fails closed for queued MCP operation names before
+generic local execution, and the local registry, custom tool, manifest, and
+foreign module paths reject operation-style names as reserved.
+
+## Verification
+
+- `pnpm test src/modules/approval-queue/routes-mcp-execution.test.ts src/core/tools/register-tool-name-policy.test.ts src/core/tools/custom-tool-name-policy.test.ts src/core/manifest/tool-name-policy.test.ts src/core/modules/foreign-module-loader.test.ts`
+- `pnpm typecheck`
+- `pnpm lint`
 
 ## Source / Intent
 
