@@ -111,10 +111,16 @@ export function buildControlMonitorCoverageArtifact(
   const approvalRequestedEvents = matchingCoverageEvents(events, "approval.requested");
   const approvalResolvedEvents = matchingCoverageEvents(events, "approval.resolved");
   const agentStepIds = activeAgentStepIds(metadata, snapshotSteps, runDirPath);
-  const approvalSteps = metadata.steps.filter((step) => step.type === "approval");
+  const approvalSteps = metadata.steps.filter((step) =>
+    step.type === "approval" && step.status !== "skipped"
+  );
   const ownerWaitSteps = metadata.steps.filter((step) => {
     const snapshot = snapshotById.get(step.id);
-    return step.type === "await-event" && snapshot?.event === "owner.question.resolved";
+    return (
+      step.type === "await-event" &&
+      step.status !== "skipped" &&
+      snapshot?.event === "owner.question.resolved"
+    );
   });
   let toolCalls = 0;
   let externalPayloadIngests = 0;

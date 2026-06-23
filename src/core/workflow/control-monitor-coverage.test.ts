@@ -183,4 +183,63 @@ describe("control monitor coverage artifacts", () => {
       ]),
     );
   });
+
+  it("does not treat skipped approval or owner-question gates as unresolved", () => {
+    const metadata = baseMetadata({
+      steps: [
+        {
+          id: "approve-comment",
+          type: "approval",
+          status: "skipped",
+          startedAt: STARTED_AT,
+          completedAt: COMPLETED_AT,
+          durationMs: 10,
+          skipReason: { kind: "when-predicate" },
+        },
+        {
+          id: "owner-wait",
+          type: "await-event",
+          status: "skipped",
+          startedAt: STARTED_AT,
+          completedAt: COMPLETED_AT,
+          durationMs: 10,
+          skipReason: { kind: "when-predicate" },
+        },
+      ],
+    });
+    writeJson(join(runDirPath, "workflow.json"), {
+      steps: [
+        { id: "approve-comment", type: "approval" },
+        {
+          id: "owner-wait",
+          type: "await-event",
+          event: "owner.question.resolved",
+        },
+      ],
+    });
+
+    const artifact = buildControlMonitorCoverageArtifact({
+      projectDir,
+      runDirPath,
+      metadata,
+      nowIso: "2026-06-22T10:03:00.000Z",
+      headSha: "abc123",
+    });
+
+    expect(artifact.summary.gapCount).toBe(0);
+    expect(artifact.monitoredSurfaceCounts).toMatchObject({
+      approvalRequests: 0,
+      ownerQuestionWaits: 0,
+    });
+    expect(artifact.families).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          family: "approval-owner-gates",
+          status: "not-applicable",
+          numerator: 0,
+          denominator: 0,
+        }),
+      ]),
+    );
+  });
 });
