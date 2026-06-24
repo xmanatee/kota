@@ -56,6 +56,35 @@ function extractJson(text: string): JsonObject | undefined {
   return undefined;
 }
 
+function countFileLineCitations(text: string): number {
+  const matches = text.match(/\b[\w./-]+\.[A-Za-z0-9]+(?::\d+|#L\d+)\b/g);
+  return matches ? new Set(matches).size : 0;
+}
+
+function hasAcceptedVerdictScrutinySignal(verdict: CriticVerdict): boolean {
+  if (verdict.critical_issues.length > 0 || verdict.warnings.length > 0) return true;
+  return (
+    countFileLineCitations(
+      [verdict.summary, ...verdict.critical_issues, ...verdict.warnings].join("\n"),
+    ) > 0
+  );
+}
+
+function normalizeAcceptedVerdictScrutiny(verdict: CriticVerdict): CriticVerdict {
+  if (verdict.verdict !== "pass" && verdict.verdict !== "pass_with_warnings") {
+    return verdict;
+  }
+  if (hasAcceptedVerdictScrutinySignal(verdict)) return verdict;
+  return {
+    ...verdict,
+    verdict: "pass_with_warnings",
+    warnings: [
+      ...verdict.warnings,
+      "Accepted reviewer verdict omitted warnings, critical issues, and file-line citations; review-scrutiny recorded this reviewer-evidence gap.",
+    ],
+  };
+}
+
 export function parseVerdict(text: string): CriticVerdict {
   const stripped = text.replace(/^```(?:json)?\s*\n?/m, "").replace(/\n?```\s*$/m, "").trim();
   let parsed: JsonObject | undefined;
@@ -83,7 +112,7 @@ export function parseVerdict(text: string): CriticVerdict {
 }
 
 export function handleVerdict(
-  verdict: CriticVerdict,
+  rawVerdict: CriticVerdict,
   runDir?: string,
   artifactName = "critic-review.json",
   context?: {
@@ -94,6 +123,7 @@ export function handleVerdict(
     taskId?: string;
   },
 ): string {
+  const verdict = normalizeAcceptedVerdictScrutiny(rawVerdict);
   // Always persist the verdict so live-run calibration tracking can read it
   // back later; operators inspecting a run that passed cleanly no longer need
   // to infer the verdict from the step's repair-iteration output. Repeat

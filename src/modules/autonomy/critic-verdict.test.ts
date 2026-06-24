@@ -127,6 +127,47 @@ describe("critic verdict handling", () => {
     });
   });
 
+  it("records no-citation accepted verdicts as warning-backed scrutiny", async () => {
+    const dir = makeTmpDir();
+    writeDoingTask(dir, "task-thin.md", "---\ntitle: Do thin\n---\nDo thin.");
+    const runDir = makeRunDir(dir);
+    setApiResponse({
+      verdict: "pass",
+      critical_issues: [],
+      warnings: [],
+      summary: "All required work is complete.",
+    });
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
+    expect(result).toMatch(/pass_with_warnings/);
+
+    const artifact = JSON.parse(readFileSync(join(runDir, "critic-review.json"), "utf8"));
+    expect(artifact).toMatchObject({
+      verdict: "pass_with_warnings",
+      critical_issues: [],
+      summary: "All required work is complete.",
+      reviewerPromptHash: getCriticPromptHash(),
+    });
+    expect(artifact.warnings).toEqual([
+      expect.stringContaining("reviewer-evidence gap"),
+    ]);
+
+    const scrutiny = JSON.parse(readFileSync(join(runDir, "review-scrutiny.json"), "utf8"));
+    expect(scrutiny).toMatchObject({
+      surface: "critic",
+      workflow: "builder",
+      taskId: "task-thin",
+      reviewerPromptHash: getCriticPromptHash(),
+      decision: "pass_with_warnings",
+      thinAcceptance: false,
+      signals: {
+        warningCount: 1,
+        citedFileLineCount: 0,
+      },
+    });
+  });
+
   it("writes citation-backed clean passes as non-thin review scrutiny", async () => {
     const dir = makeTmpDir();
     writeDoingTask(dir, "task-cited.md", "---\ntitle: Do cited\n---\nDo cited.");

@@ -80,7 +80,11 @@ function makeProjectDir(): string {
   return dir;
 }
 
-function writeTask(projectDir: string, id: string): void {
+function writeTask(
+  projectDir: string,
+  id: string,
+  options: { area?: string; taskClass?: string } = {},
+): void {
   const updatedAt = new Date(NOW - 24 * 60 * 60 * 1000).toISOString();
   writeFileSync(
     join(projectDir, "data", "tasks", "done", `${id}.md`),
@@ -90,8 +94,8 @@ function writeTask(projectDir: string, id: string): void {
       `title: ${id}`,
       "status: done",
       "priority: p2",
-      "area: autonomy",
-      "task_class: Meta",
+      `area: ${options.area ?? "autonomy"}`,
+      `task_class: ${options.taskClass ?? "Meta"}`,
       "summary: test",
       `created_at: ${updatedAt}`,
       `updated_at: ${updatedAt}`,
@@ -133,6 +137,46 @@ function seedCriticRun(projectDir: string, id: string, minutesAgo: number, taskI
       verdict: "pass",
       critical_issues: [],
       warnings: [],
+      summary: "Accepted.",
+      reviewerPromptHash: getCriticPromptHash(),
+    }, null, 2),
+  );
+}
+
+function seedWarningBackedCriticRun(
+  projectDir: string,
+  id: string,
+  minutesAgo: number,
+  taskId: string,
+): void {
+  const completedAt = new Date(NOW - minutesAgo * 60 * 1000).toISOString();
+  const metadata: WorkflowRunMetadata = {
+    id,
+    workflow: "builder",
+    definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+    trigger: { event: "workflow.completed", schemaRef: null, payload: {} },
+    startedAt: new Date(NOW - minutesAgo * 60 * 1000 - 1000).toISOString(),
+    completedAt,
+    status: "success",
+    durationMs: 1000,
+    runDir: `.kota/runs/${id}`,
+    steps: [],
+  };
+  const runDir = join(projectDir, ".kota", "runs", id);
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, "metadata.json"), JSON.stringify(metadata, null, 2));
+  writeFileSync(
+    join(runDir, "run-summary.json"),
+    JSON.stringify({ taskId }, null, 2),
+  );
+  writeFileSync(
+    join(runDir, "critic-review.json"),
+    JSON.stringify({
+      verdict: "pass_with_warnings",
+      critical_issues: [],
+      warnings: [
+        "Accepted reviewer verdict omitted warnings, critical issues, and file-line citations; review-scrutiny recorded this reviewer-evidence gap.",
+      ],
       summary: "Accepted.",
       reviewerPromptHash: getCriticPromptHash(),
     }, null, 2),
@@ -236,6 +280,57 @@ describe("review-scrutiny-escalator workflow", () => {
     expect(attentionJson).toContain("Review scrutiny escalated");
     expect(attentionJson).toContain("task-repair-review-scrutiny-pattern");
     expect(attentionJson).not.toMatch(/cost|throughput/i);
+  });
+
+  it("does not escalate fresh warning-backed no-citation critic acceptances", async () => {
+    writeTask(projectDir, "task-modules-platform", {
+      area: "modules",
+      taskClass: "Platform",
+    });
+    seedWarningBackedCriticRun(
+      projectDir,
+      "2026-06-23T11-57-00-000Z-builder-a",
+      3,
+      "task-modules-platform",
+    );
+    seedWarningBackedCriticRun(
+      projectDir,
+      "2026-06-23T11-58-00-000Z-builder-b",
+      2,
+      "task-modules-platform",
+    );
+    seedWarningBackedCriticRun(
+      projectDir,
+      "2026-06-23T11-59-00-000Z-builder-c",
+      1,
+      "task-modules-platform",
+    );
+
+    const harness = new WorkflowTestHarness(reviewScrutinyEscalator, {
+      projectDir,
+      trigger: {
+        event: "workflow.completed",
+        schemaRef: null,
+        payload: { workflow: "builder", tags: ["monitored"] },
+      },
+    });
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps["inspect-patterns"].output).toMatchObject({
+      status: "none",
+      detection: { patterns: [] },
+    });
+    expect(result.steps["emit-attention"].status).toBe("skipped");
+    const readyTasks = execFileSync(
+      "find",
+      [join(projectDir, "data", "tasks", "ready"), "-name", "*.md"],
+      { encoding: "utf-8" },
+    )
+      .trim()
+      .split("\n")
+      .filter(Boolean);
+    expect(readyTasks).toEqual([]);
   });
 
   it("writes a no-op artifact for below-threshold windows without creating tasks", async () => {

@@ -1,13 +1,13 @@
 ---
 id: task-repair-review-scrutiny-pattern-f04f65eebfe5
 title: Repair recurring thin critic acceptances
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Meta
 summary: Make critic reviews for builder modules/Platform carry inspectable evidence instead of recurring thin acceptances.
 created_at: 2026-06-23T22:39:46.012Z
-updated_at: 2026-06-23T22:39:46.012Z
+updated_at: 2026-06-24T00:22:35.000Z
 ---
 
 ## Problem
@@ -92,6 +92,16 @@ Outcome-aware autonomy governance.
   escalation gate on fresh evidence.
 - Operator-facing report or attention fixture showing future escalations
   include the repair task id without cost fields.
+
+## Outcome
+
+Accepted critic verdicts that omit warnings, critical issues, and file-line
+citations now persist as `pass_with_warnings` with an explicit reviewer
+evidence warning, so the review-scrutiny artifact records a supported signal
+without blocking the run. The review-scrutiny escalator fixture covers fresh
+builder `modules`/`Platform` artifacts with that warning and confirms they no
+longer create a recurring thin-acceptance repair task, while the existing
+attention fixture still names future repair task ids without cost fields.
 
 <!-- review-scrutiny-pattern-fingerprint: review-scrutiny:critic:builder:modules:Platform -->
 <!-- review-scrutiny-evidence-fingerprint: d01ae854c7f1a802ae14938c67ba1c1887e8c99d0ad2f40daacb808d69b8ef7a -->
