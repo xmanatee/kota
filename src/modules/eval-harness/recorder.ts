@@ -11,10 +11,10 @@
  * commit diff (`recorder-commit-diff.ts`) to emit one `write`/`delete` per
  * touched path, with renames expanded to a delete + write pair. Run-dir
  * paths (under `.kota/runs/<sourceRunId>/`) are never committed; they come
- * from a best-effort Write-event scan of the step's events.jsonl and stay
- * templated to `{{runDir}}`. A source run whose commit step did not commit
- * is a hard error — the recorder will not emit an empty or partial
- * recording.
+ * from a best-effort Write-event scan of the step's events.jsonl, with a
+ * narrow fallback for known agent-authored run artifacts, and stay templated
+ * to `{{runDir}}`. A source run whose commit step did not commit is a hard
+ * error — the recorder will not emit an empty or partial recording.
  *
  * Judge-call recordings (critic, improver semantic gate, any future judge)
  * take the same recording shape and use the same recording path contract.
@@ -55,11 +55,39 @@ type StepArtifact = {
   output?: StepArtifactOutput;
 };
 
+const AGENT_AUTHORED_RUN_DIR_ARTIFACTS = [
+  "commit-message.txt",
+  "success-criteria.txt",
+  "success-criteria-verified.txt",
+] as const;
+
 function requireString(value: unknown, field: string): string {
   if (typeof value !== "string") {
     throw new Error(`Step artifact field "${field}" is not a string`);
   }
   return value;
+}
+
+function responseContentText(value: StepArtifactOutput["content"]): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    const marker = value as { redacted?: boolean; reason?: string; bytes?: number };
+    if (
+      marker.redacted === true &&
+      typeof marker.reason === "string" &&
+      typeof marker.bytes === "number" &&
+      Number.isFinite(marker.bytes)
+    ) {
+      return JSON.stringify({
+        redacted: true,
+        reason: marker.reason,
+        bytes: marker.bytes,
+      });
+    }
+  }
+  throw new Error(
+    'Step artifact field "output.content" is neither a string nor a redacted evidence marker',
+  );
 }
 
 function requireNumber(value: unknown, field: string): number {
@@ -124,7 +152,7 @@ function extractResponse(
     throw new Error(`Step "${stepId}" has no output object.`);
   }
   return {
-    text: requireString(out.content, "output.content"),
+    text: responseContentText(out.content),
     subtype: requireString(out.subtype, "output.subtype"),
     turns: requireNumber(out.turns, "output.turns"),
     totalCostUsd: requireNumber(out.totalCostUsd, "output.totalCostUsd"),
@@ -168,46 +196,59 @@ function extractRunDirWriteOperations(
     "steps",
     `${stepId}.events.jsonl`,
   );
-  if (!existsSync(eventsPath)) return { ops: [], skippedOutsideProject: [] };
   const sourceRunDir = join(".kota", "runs", sourceRunId);
   const ops: AgentStepFileOperation[] = [];
   const skippedOutsideProject: string[] = [];
   const indexByPath = new Map<string, number>();
-  for (const line of readFileSync(eventsPath, "utf-8").split("\n")) {
-    const trimmed = line.trim();
-    if (trimmed.length === 0) continue;
-    let event: Record<string, unknown>;
-    try {
-      event = JSON.parse(trimmed) as Record<string, unknown>;
-    } catch {
-      continue;
-    }
-    if (event.type !== "assistant") continue;
-    const inner = event.message as { content?: unknown } | undefined;
-    const content = (inner?.content ?? event.content) as unknown;
-    if (!Array.isArray(content)) continue;
-    for (const block of content) {
-      const b = block as {
-        type?: string;
-        name?: string;
-        input?: { file_path?: unknown; content?: unknown };
-      };
-      if (b.type !== "tool_use" || b.name !== "Write") continue;
-      const filePath = b.input?.file_path;
-      const writeContent = b.input?.content;
-      if (typeof filePath !== "string" || typeof writeContent !== "string") continue;
-      const rel = relative(projectDir, resolve(filePath));
-      if (rel.startsWith("..")) {
-        skippedOutsideProject.push(filePath);
+  if (existsSync(eventsPath)) {
+    for (const line of readFileSync(eventsPath, "utf-8").split("\n")) {
+      const trimmed = line.trim();
+      if (trimmed.length === 0) continue;
+      let event: Record<string, unknown>;
+      try {
+        event = JSON.parse(trimmed) as Record<string, unknown>;
+      } catch {
         continue;
       }
-      if (rel !== sourceRunDir && !rel.startsWith(`${sourceRunDir}/`)) continue;
-      const templated = rel.replace(sourceRunDir, "{{runDir}}");
-      const existing = indexByPath.get(templated);
-      if (existing !== undefined) ops.splice(existing, 1);
-      indexByPath.set(templated, ops.length);
-      ops.push({ op: "write", path: templated, content: writeContent });
+      if (event.type !== "assistant") continue;
+      const inner = event.message as { content?: unknown } | undefined;
+      const content = (inner?.content ?? event.content) as unknown;
+      if (!Array.isArray(content)) continue;
+      for (const block of content) {
+        const b = block as {
+          type?: string;
+          name?: string;
+          input?: { file_path?: unknown; content?: unknown };
+        };
+        if (b.type !== "tool_use" || b.name !== "Write") continue;
+        const filePath = b.input?.file_path;
+        const writeContent = b.input?.content;
+        if (typeof filePath !== "string" || typeof writeContent !== "string") continue;
+        const rel = relative(projectDir, resolve(filePath));
+        if (rel.startsWith("..")) {
+          skippedOutsideProject.push(filePath);
+          continue;
+        }
+        if (rel !== sourceRunDir && !rel.startsWith(`${sourceRunDir}/`)) continue;
+        const templated = rel.replace(sourceRunDir, "{{runDir}}");
+        const existing = indexByPath.get(templated);
+        if (existing !== undefined) ops.splice(existing, 1);
+        indexByPath.set(templated, ops.length);
+        ops.push({ op: "write", path: templated, content: writeContent });
+      }
     }
+  }
+  for (const artifact of AGENT_AUTHORED_RUN_DIR_ARTIFACTS) {
+    const templated = join("{{runDir}}", artifact);
+    if (indexByPath.has(templated)) continue;
+    const artifactPath = join(projectDir, sourceRunDir, artifact);
+    if (!existsSync(artifactPath)) continue;
+    indexByPath.set(templated, ops.length);
+    ops.push({
+      op: "write",
+      path: templated,
+      content: readFileSync(artifactPath, "utf-8"),
+    });
   }
   return { ops, skippedOutsideProject };
 }

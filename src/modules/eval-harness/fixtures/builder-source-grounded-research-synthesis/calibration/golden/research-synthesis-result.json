@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "decisionId": "support-triage-ingestion-2026-q3",
+  "selectedDecision": "local-first-markdown",
+  "citedSources": [
+    {
+      "id": "security-review-2026-06",
+      "path": "research/packet/source-2026-06-security-review.md",
+      "claim": "Security blocks external OCR for customer-ticket payloads in the Q3 offline release."
+    },
+    {
+      "id": "pilot-results-2026-06",
+      "path": "research/packet/source-2026-06-production-pilot.md",
+      "claim": "The local-first markdown parser met release thresholds and Cloud OCR failed the offline canary."
+    }
+  ],
+  "rejectedSources": [
+    {
+      "id": "archival-cloud-ocr-2025-11",
+      "path": "research/packet/source-2025-11-cloud-ocr-archive.md",
+      "reason": "Stale guidance superseded by the later security review and production pilot."
+    },
+    {
+      "id": "partner-roadmap-2026-04",
+      "path": "research/packet/source-2026-04-partner-roadmap.md",
+      "reason": "Speculative unshipped offline cache, not current release evidence."
+    },
+    {
+      "id": "lab-benchmark-2026-05",
+      "path": "research/packet/source-2026-05-lab-benchmark.md",
+      "reason": "Narrow benchmark conflicts with the offline and privacy constraints."
+    }
+  ],
+  "conflictResolution": {
+    "summary": "The security review and production pilot are decisive release evidence, so they resolve the conflict against stale, speculative, and narrow Cloud OCR notes.",
+    "winningEvidence": [
+      "security-review-2026-06",
+      "pilot-results-2026-06"
+    ],
+    "losingEvidence": [
+      "archival-cloud-ocr-2025-11",
+      "partner-roadmap-2026-04",
+      "lab-benchmark-2026-05"
+    ]
+  },
+  "verificationCommand": "node scripts/check-research-synthesis.mjs",
+  "objectiveMetrics": {
+    "sourceDisciplineScore": 1,
+    "decisiveSourceCitations": 2,
+    "rejectedStaleSources": 1,
+    "conflictsAddressed": 1
+  }
+}

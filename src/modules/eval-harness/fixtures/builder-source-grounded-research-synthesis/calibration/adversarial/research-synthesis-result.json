@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "decisionId": "support-triage-ingestion-2026-q3",
+  "selectedDecision": "cloud-ocr",
+  "citedSources": [
+    {
+      "id": "archival-cloud-ocr-2025-11",
+      "path": "research/packet/source-2025-11-cloud-ocr-archive.md",
+      "claim": "The archived note preferred Cloud OCR."
+    },
+    {
+      "id": "invented-cloud-canary-2026-06",
+      "path": "research/packet/source-2026-06-cloud-canary.md",
+      "claim": "A made-up canary said Cloud OCR can run offline."
+    }
+  ],
+  "rejectedSources": [],
+  "conflictResolution": {
+    "summary": "Most notes point at Cloud OCR.",
+    "winningEvidence": [
+      "archival-cloud-ocr-2025-11"
+    ],
+    "losingEvidence": []
+  },
+  "verificationCommand": "node scripts/check-research-synthesis.mjs",
+  "objectiveMetrics": {
+    "sourceDisciplineScore": 0.2,
+    "decisiveSourceCitations": 0,
+    "rejectedStaleSources": 0,
+    "conflictsAddressed": 0
+  }
+}

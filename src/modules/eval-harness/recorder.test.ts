@@ -19,7 +19,7 @@ type AgentStepArtifact = {
   id: string;
   type: "agent" | "code";
   output?: {
-    content?: string;
+    content?: unknown;
     subtype?: string;
     turns?: number;
     totalCostUsd?: number;
@@ -262,6 +262,79 @@ describe("extractAgentStepRecording", () => {
     ) as { sourceRunId: string };
     expect(written.sourceRunId).toBe(runId);
     expect(result.skippedWritesOutsideProject).toEqual([]);
+  });
+
+  it("preserves redacted step content markers and run artifacts without events", () => {
+    const runId = "2026-04-24T00-00-00-000Z-builder-redacted";
+    writeFile(projectDir, "research-synthesis-result.json", "{}\n");
+    execSync("git add -A", { cwd: projectDir });
+    execSync('git commit -q -m "builder commit"', { cwd: projectDir });
+    const sha = execSync("git rev-parse HEAD", {
+      cwd: projectDir,
+      encoding: "utf-8",
+    }).trim();
+
+    const redactedContent = {
+      redacted: true,
+      reason: "provider-payload",
+      bytes: 211,
+    };
+    const runDir = seedSourceRun(
+      projectDir,
+      runId,
+      "builder",
+      "build",
+      {
+        id: "build",
+        type: "agent",
+        output: {
+          ...defaultAgentStep("build").output,
+          content: redactedContent,
+        },
+      },
+      [],
+    );
+    rmSync(join(runDir, "steps", "build.events.jsonl"));
+    writeCommitArtifact(runDir, {
+      committed: true,
+      sha,
+      message: "builder commit",
+    });
+    writeFileSync(join(runDir, "commit-message.txt"), "Builder: finish fixture\n");
+    writeFileSync(join(runDir, "success-criteria.txt"), "1. Criterion\n2. Criterion\n");
+    writeFileSync(
+      join(runDir, "success-criteria-verified.txt"),
+      "1. Verified\n2. Verified\n",
+    );
+
+    const result = extractAgentStepRecording({
+      projectDir,
+      sourceRunId: runId,
+      stepId: "build",
+      fixtureDir,
+    });
+
+    expect(result.recording.response.text).toBe(JSON.stringify(redactedContent));
+    expect(result.recording.fileOperations).toContainEqual({
+      op: "write",
+      path: "research-synthesis-result.json",
+      content: "{}\n",
+    });
+    expect(result.recording.fileOperations).toContainEqual({
+      op: "write",
+      path: "{{runDir}}/commit-message.txt",
+      content: "Builder: finish fixture\n",
+    });
+    expect(result.recording.fileOperations).toContainEqual({
+      op: "write",
+      path: "{{runDir}}/success-criteria.txt",
+      content: "1. Criterion\n2. Criterion\n",
+    });
+    expect(result.recording.fileOperations).toContainEqual({
+      op: "write",
+      path: "{{runDir}}/success-criteria-verified.txt",
+      content: "1. Verified\n2. Verified\n",
+    });
   });
 
   it("rejects a non-committing source run with the run id named", () => {

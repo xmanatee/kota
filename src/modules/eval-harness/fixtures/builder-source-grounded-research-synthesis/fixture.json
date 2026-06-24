@@ -1,0 +1,153 @@
+{
+  "id": "builder-source-grounded-research-synthesis",
+  "description": "Replay-backed builder fixture for reconciling conflicting local research notes into a cited decision artifact with deterministic citation, conflict, and shortcut checks.",
+  "role": "builder",
+  "workflowName": "builder",
+  "budgetMs": 1800000,
+  "predicates": [
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-research-synthesis.mjs",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-research-synthesis.mjs --self-test-shortcuts",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "file-exists",
+      "path": "research-synthesis-result.json"
+    },
+    {
+      "kind": "file-exists",
+      "path": "research-synthesis-verification.json"
+    },
+    {
+      "kind": "file-contains",
+      "path": "research-synthesis-result.json",
+      "needle": "\"selectedDecision\": \"local-first-markdown\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "research-synthesis-result.json",
+      "needle": "\"id\": \"security-review-2026-06\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "research-synthesis-result.json",
+      "needle": "\"id\": \"pilot-results-2026-06\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "research-synthesis-result.json",
+      "needle": "\"verificationCommand\": \"node scripts/check-research-synthesis.mjs\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "research-synthesis-result.json",
+      "needle": "\"sourceDisciplineScore\": 1"
+    },
+    {
+      "kind": "file-absent",
+      "path": "data/tasks/ready/task-synthesize-support-triage-ingestion-decision.md"
+    },
+    {
+      "kind": "file-exists",
+      "path": "data/tasks/done/task-synthesize-support-triage-ingestion-decision.md"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/tasks/done/task-synthesize-support-triage-ingestion-decision.md",
+      "needle": "status: done"
+    },
+    {
+      "kind": "git-changes-within",
+      "allowedPaths": [
+        "research-synthesis-result.json",
+        "research-synthesis-verification.json",
+        "data/tasks/ready/task-synthesize-support-triage-ingestion-decision.md",
+        "data/tasks/done/task-synthesize-support-triage-ingestion-decision.md"
+      ]
+    }
+  ],
+  "objectiveMetrics": [
+    {
+      "name": "source_discipline_score",
+      "unit": "ratio",
+      "direction": "higher_is_better",
+      "source": {
+        "kind": "json-file",
+        "path": "research-synthesis-result.json",
+        "pointer": "/objectiveMetrics/sourceDisciplineScore"
+      }
+    }
+  ],
+  "verifierCalibration": {
+    "null": {},
+    "golden": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/research-synthesis-result.json",
+          "targetPath": "research-synthesis-result.json"
+        }
+      ]
+    },
+    "adversarial": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/research-synthesis-result.json",
+          "targetPath": "research-synthesis-result.json"
+        }
+      ]
+    }
+  },
+  "tags": [
+    "autonomy",
+    "builder-discipline",
+    "source-grounded-research",
+    "agent-call-replay",
+    "objective-metric"
+  ],
+  "provenance": {
+    "kind": "smoke-fixture",
+    "justification": "Replay-backed builder canary for source-grounded research synthesis: the builder must reconcile a tiny conflicting local research packet into a cited JSON decision artifact, reject stale and scoped-conflicting sources, and expose objective citation-discipline evidence. It uses the existing replay, verifier-calibration, predicate, and objective-metric paths so `pnpm kota eval run` remains deterministic and network-free. No past KOTA failure run exists for this exact research-synthesis measurement gap, so the fixture stays smoke-classified; recording provenance is traced in recordings/provenance.md and both recordings cite the completed source workflow run used by `record-agent-step`."
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-research-synthesis.mjs",
+        "timeoutMs": 20000
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-research-synthesis.mjs --self-test-shortcuts",
+        "timeoutMs": 10000
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/ready/task-synthesize-support-triage-ingestion-decision.md"
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "research-synthesis-result.json"
+      },
+      "expected": "fail"
+    }
+  ],
+  "controlDecisions": [
+    "act"
+  ]
+}

@@ -1,13 +1,13 @@
 ---
 id: task-add-a-source-grounded-research-synthesis-fixture-t
 title: Add a source-grounded research synthesis fixture to the eval harness
-status: ready
+status: done
 priority: p2
 area: modules
 task_class: Platform
 summary: Seed a replay-backed builder fixture where the agent must reconcile conflicting local research notes into a cited decision artifact, so grounded synthesis and citation discipline are artifact-graded instead of trusted from prose.
 created_at: 2026-06-24T03:47:28.070Z
-updated_at: 2026-06-24T03:47:28.070Z
+updated_at: 2026-06-24T04:46:00.000Z
 ---
 
 ## Problem
@@ -159,3 +159,25 @@ sources, flattening conflicts, or trusting final prose.
 - Run artifact from the same eval execution showing predicate details, cited
   source ids or paths, rejected-source reasons, conflict-resolution evidence,
   and any objective metric values.
+
+Completed evidence:
+
+- `src/modules/eval-harness/fixtures/builder-source-grounded-research-synthesis/`
+  contains the fixture metadata, notes, initial project, source packet,
+  verifier, calibration files, and replay recordings.
+- `.kota/runs/2026-06-24T03-44-31-181Z-builder-8zj16u/eval-list-transcript.txt`
+  shows `pnpm kota eval list` loads the fixture.
+- `.kota/runs/2026-06-24T03-44-31-181Z-builder-8zj16u/eval-run-transcript.txt`
+  shows `pnpm kota eval run --fixture builder-source-grounded-research-synthesis --repeats 1`
+  passes through replay.
+- `.kota/eval-runs/2026-06-24T04-47-29-309Z/builder-source-grounded-research-synthesis-0/fixture-run.json`
+  records passing predicate details, cited/rejected source ids, conflict
+  summary, and `source_discipline_score: 1`.
+- `.kota/eval-runs/2026-06-24T04-47-29-309Z/builder-source-grounded-research-synthesis-0/verifier-calibration.json`
+  records null/golden/adversarial calibration and shortcut self-test output.
+- `src/modules/eval-harness/fixtures/builder-source-grounded-research-synthesis/recordings/provenance.md`
+  records completed source run
+  `2026-06-24T04-39-44-641Z-builder-gfdmek`, source commit `005ecdaae924`,
+  and the normal `record-agent-step` extraction commands, while keeping the
+  fixture honestly smoke-classified because there is no prior real-failure
+  source run for this measurement gap.
