@@ -1,0 +1,14 @@
+- generic [ref=e2]:
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - button "Grok" [ref=e3] [cursor=pointer]:
+            - img [ref=e4]
+          - button "Chat" [ref=e7] [cursor=pointer]:
+            - img [ref=e8]
+      - generic [ref=e11]:
+        - banner [ref=e12]
+        - main [ref=e13]:
+          - progressbar "Loading" [ref=e16]:
+            - img [ref=e18]
