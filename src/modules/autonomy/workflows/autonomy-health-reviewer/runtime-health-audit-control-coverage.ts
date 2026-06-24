@@ -29,6 +29,11 @@ type ControlCoverageGapObservation = {
   gapCount: number;
 };
 
+type ControlCoverageGap = ControlMonitorCoverageArtifact["gaps"][number];
+type StepEvidence = {
+  status?: string;
+};
+
 function artifactRef(runId: string): string {
   return join(".kota", "runs", runId, CONTROL_MONITOR_COVERAGE_ARTIFACT);
 }
@@ -144,7 +149,37 @@ function pattern(
   };
 }
 
+function stepEvidenceRefForRun(run: WorkflowHistoryRunLike, ref: string): string | null {
+  const path = ref.split("#", 1)[0] ?? ref;
+  const prefix = `.kota/runs/${run.id}/steps/`;
+  return path.startsWith(prefix) && path.endsWith(".json") ? path : null;
+}
+
+function isStaleSkippedApprovalOwnerGateGap(
+  ctx: RuntimeHealthAuditContext,
+  run: WorkflowHistoryRunLike,
+  gap: ControlCoverageGap,
+): boolean {
+  if (
+    gap.family !== "approval-owner-gates" ||
+    gap.reason !== "approval-or-owner-gate-unresolved"
+  ) {
+    return false;
+  }
+
+  const stepRefs = gap.evidenceRefs
+    .map((ref) => stepEvidenceRefForRun(run, ref))
+    .filter((ref): ref is string => ref !== null);
+  if (stepRefs.length === 0) return false;
+
+  return stepRefs.every((ref) => {
+    const step = readOptionalJsonFile<StepEvidence>(join(ctx.projectDir, ref));
+    return step?.status === "skipped";
+  });
+}
+
 function observationsFor(
+  ctx: RuntimeHealthAuditContext,
   run: WorkflowHistoryRunLike,
   artifact: ControlMonitorCoverageArtifact,
 ): ControlCoverageGapObservation[] {
@@ -158,6 +193,7 @@ function observationsFor(
     }
   >();
   for (const gap of artifact.gaps) {
+    if (isStaleSkippedApprovalOwnerGateGap(ctx, run, gap)) continue;
     const key = `${gap.family}\0${gap.reason}`;
     const existing = byKey.get(key) ?? {
       family: gap.family,
@@ -195,8 +231,9 @@ export function scanControlCoverageGaps(
       continue;
     }
     ctx.inspected.controlCoverageArtifacts += 1;
-    if (artifact.gaps.length > 0) ctx.inspected.controlCoverageGapRuns += 1;
-    for (const observation of observationsFor(run, artifact)) {
+    const observations = observationsFor(ctx, run, artifact);
+    if (observations.length > 0) ctx.inspected.controlCoverageGapRuns += 1;
+    for (const observation of observations) {
       const key = `${observation.family}\0${observation.reason}`;
       const existing = byFamilyReason.get(key) ?? [];
       existing.push(observation);
