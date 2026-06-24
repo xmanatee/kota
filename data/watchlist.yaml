@@ -733,3 +733,6 @@ resources:
       fingerprint: sha256:0efe904181f04ef97de1638a96e07271
       summary: "Will It Survive? is accessible; its post-completion corrective-maintenance signal is already covered by completed task-record-post-completion-corrective-follow-up-metric, and this run opened no duplicate code-survival benchmark task."
       last_seen_at: "2026-06-24T02:24:13.661Z"
+  - url: https://arxiv.org/abs/2604.09409
+    added: "2026-06-24"
+    notes: "Do AI Coding Agents Log Like Humans? studies logging and observability behavior in agentic pull requests. Monitor as an autonomy/runtime diagnostic signal for deterministic logging-obligation checks around agent-authored runtime-sensitive changes; do not add generic log-volume prompts or a parallel audit log."
