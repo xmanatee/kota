@@ -116,6 +116,12 @@ describe("loadAgentStepRecordings", () => {
     expect(recordings[0].stepId).toBe("decompose");
   });
 
+  it("rejects traversal-shaped recording step ids with an observable error", () => {
+    expect(() => recordingPathForStep(dir, "../outside-step")).toThrow(
+      /recording step id must be a safe single path component/,
+    );
+  });
+
   it("fails loudly when a recording's stepId does not match its filename", () => {
     mkdirSync(join(dir, "recordings"), { recursive: true });
     const raw = { ...VALID, stepId: "decompose" };

@@ -50,6 +50,18 @@ describe("recorder path guards", () => {
     }
   });
 
+  it("rejects unsafe run, step, and judge ids with label-specific errors", () => {
+    expect(() => requireRecorderIdentifier("../outside-run", "--run-id")).toThrow(
+      /--run-id must be a safe single path component/,
+    );
+    expect(() => requireRecorderIdentifier("nested/step", "--step")).toThrow(
+      /--step must be a safe single path component/,
+    );
+    expect(() => requireRecorderIdentifier("nested\\judge", "--judge")).toThrow(
+      /--judge must be a safe single path component/,
+    );
+  });
+
   it("resolves safe fixture ids under the fixtures root", () => {
     expect(resolveRecordingFixtureDir(fixturesRoot, "builder-safe")).toBe(
       join(fixturesRoot, "builder-safe"),

@@ -1,12 +1,12 @@
 ---
 id: task-add-observability-evidence-for-eval-harness-record
 title: Add observability evidence for eval-harness recorder guards
-status: ready
+status: done
 priority: p2
 area: modules
 summary: The latest eval-harness recorder security fix changed runtime-sensitive recording paths, and the builder observability-obligation diagnostic reported no inspectable evidence for src/modules/eval-harness/agent-step-recording.ts, cli.ts, recorder-paths.ts, and recorder.ts. Add or document an existing structured log, event, run artifact, explicit error result, focused test assertion, or run-artifact rationale for the relevant decision and failure paths.
 created_at: 2026-06-24T08:14:18.244Z
-updated_at: 2026-06-24T08:14:18.244Z
+updated_at: 2026-06-24T08:48:27.000Z
 ---
 
 ## Problem
@@ -46,3 +46,8 @@ Outcome-aware autonomy progress review.
 ## Acceptance Evidence
 
 - Focused eval-harness tests and task validation pass, and a follow-up builder run or explicit run artifact shows the observability-obligation diagnostic satisfied or intentionally waived with rationale for the four cited files.
+- Added focused test assertions in `src/modules/eval-harness/agent-step-recording.test.ts`, `cli-run-options.test.ts`, and `recorder-paths.test.ts` for recorder path/CLI guard errors; existing `recorder-agent-step-errors.test.ts` and `recorder-judge.test.ts` cover recorder extraction failure and audit paths.
+- `.kota/runs/2026-06-24T08-38-08-800Z-builder-2zxgll/observability-obligation-rationale.json` records rationale entries for all four cited files.
+- `pnpm test src/modules/eval-harness/agent-step-recording.test.ts src/modules/eval-harness/cli-run-options.test.ts src/modules/eval-harness/recorder-paths.test.ts src/modules/eval-harness/recorder-agent-step-errors.test.ts src/modules/eval-harness/recorder-judge.test.ts` passed: 5 files, 31 tests.
+- `pnpm run validate-tasks` passed after staging the task move.
+- `.kota/runs/2026-06-24T08-38-08-800Z-builder-2zxgll/observability-obligation-review.json` reports outcome `ok`.

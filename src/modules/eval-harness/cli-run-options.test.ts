@@ -167,4 +167,25 @@ describe("kota eval run CLI options", () => {
     ).rejects.toThrow(/require --isolation container/);
     expect(calls).toHaveLength(0);
   });
+
+  it("rejects unsafe recording fixture ids before recorder extraction", async () => {
+    const calls: EvalRunOptions[] = [];
+    const cmd = buildEvalCommand(makeRunRecordingCtx(calls));
+
+    await expect(
+      cmd.parseAsync(
+        [
+          "record-agent-step",
+          "--run-id",
+          "2026-04-24T00-00-00-000Z-builder-safe",
+          "--step",
+          "build",
+          "--fixture",
+          "../outside-fixture",
+        ],
+        { from: "user" },
+      ),
+    ).rejects.toThrow(/--fixture must be a safe single path component/);
+    expect(calls).toHaveLength(0);
+  });
 });
