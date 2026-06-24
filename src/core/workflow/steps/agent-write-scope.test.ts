@@ -13,9 +13,11 @@ import type { WorkflowRunMetadata } from "../run-types.js";
 import {
   AgentWriteScopeViolationError,
   diffMutatedPaths,
+  findWorkflowScratchArtifactPaths,
   findWriteScopeViolations,
   listWorkflowMutatedPaths,
   pathInScope,
+  removeWorkflowScratchArtifacts,
   tryListWorkflowMutatedPaths,
   writeWriteScopeViolationArtifact,
 } from "./agent-write-scope.js";
@@ -286,6 +288,76 @@ describe("writeScope enforcement over mutated paths", () => {
       ["data/tasks/"],
     );
     expect(violations).toEqual([]);
+  });
+});
+
+describe("workflow scratch artifact handling", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-write-scope-scratch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
+    execFileSync("git", ["config", "user.email", "t@example.com"], {
+      cwd: projectDir,
+    });
+    execFileSync("git", ["config", "user.name", "test"], { cwd: projectDir });
+    execFileSync("git", ["config", "commit.gpgsign", "false"], {
+      cwd: projectDir,
+    });
+    writeFileSync(join(projectDir, "seed.txt"), "seed\n");
+    execFileSync("git", ["add", "-A"], { cwd: projectDir });
+    execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: projectDir });
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("identifies native harness scratch artifacts by exact path and directory", () => {
+    expect(
+      findWorkflowScratchArtifactPaths([
+        ".playwright-mcp/console.log",
+        ".playwright-mcp/page.yml",
+        "x-article-body.txt",
+        ".playwright-mcp-old/console.log",
+        "src/x-article-body.txt",
+      ]),
+    ).toEqual([
+      ".playwright-mcp/console.log",
+      ".playwright-mcp/page.yml",
+      "x-article-body.txt",
+    ]);
+  });
+
+  it("removes untracked native harness scratch artifacts", () => {
+    mkdirSync(join(projectDir, ".playwright-mcp"), { recursive: true });
+    writeFileSync(join(projectDir, ".playwright-mcp", "console.log"), "tmp\n");
+    writeFileSync(join(projectDir, "x-article-body.txt"), "tmp\n");
+
+    expect(removeWorkflowScratchArtifacts(projectDir)).toEqual([
+      ".playwright-mcp",
+      "x-article-body.txt",
+    ]);
+    expect(existsSync(join(projectDir, ".playwright-mcp"))).toBe(false);
+    expect(existsSync(join(projectDir, "x-article-body.txt"))).toBe(false);
+  });
+
+  it("does not remove tracked files that match scratch artifact names", () => {
+    mkdirSync(join(projectDir, ".playwright-mcp"), { recursive: true });
+    writeFileSync(join(projectDir, ".playwright-mcp", "fixture.yml"), "tracked\n");
+    writeFileSync(join(projectDir, "x-article-body.txt"), "tracked\n");
+    execFileSync("git", ["add", "-A"], { cwd: projectDir });
+    execFileSync("git", ["commit", "-q", "-m", "track scratch-shaped files"], {
+      cwd: projectDir,
+    });
+
+    expect(removeWorkflowScratchArtifacts(projectDir)).toEqual([]);
+    expect(existsSync(join(projectDir, ".playwright-mcp", "fixture.yml"))).toBe(true);
+    expect(existsSync(join(projectDir, "x-article-body.txt"))).toBe(true);
   });
 });
 

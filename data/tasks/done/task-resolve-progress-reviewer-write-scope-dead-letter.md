@@ -1,12 +1,12 @@
 ---
 id: task-resolve-progress-reviewer-write-scope-dead-letter
 title: Resolve progress-reviewer write-scope dead-letter
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: The latest progress-reviewer review-evidence step failed after writing .playwright-mcp artifacts and x-article-body.txt outside .kota/runs/, leaving an open workflow-dispatch dead-letter and untracked files. Add a focused repair, redrive, or dismissal path so passive progress reviews complete without out-of-scope writes.
 created_at: 2026-06-24T15:35:32.910Z
-updated_at: 2026-06-24T15:35:32.910Z
+updated_at: 2026-06-24T15:47:33Z
 ---
 
 ## Problem
@@ -41,10 +41,23 @@ Evidence ids:
 - git:status:1
 - git:status:2
 
+## Resolution
+
+The workflow runtime now removes known Codex/Playwright native harness scratch
+artifacts before post-agent write-scope diffing. The repair also removes the
+tracked `.playwright-mcp/*` and `x-article-body.txt` artifacts left by the
+failed progress-reviewer run. The stale DLQ item was dismissed with a
+superseded-by-fix rationale after focused same-shape tests passed.
+
 ## Initiative
 
 Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- A run artifact records before/after state for dlq-b111b33a-5a4a-4179-8b3b-4af106bce6c7, redrive or dismissal rationale, a no-open-progress-reviewer-DLQ check, no remaining .playwright-mcp or x-article-body.txt worktree entries, and either a same-shape progress-reviewer run or focused test showing review-evidence returns schema-valid JSON without out-of-scope writes.
+- Before and after DLQ exports are in `.kota/runs/2026-06-24T15-19-24-903Z-builder-orvlmg/dlq-b111b33a-before.json` and `.kota/runs/2026-06-24T15-19-24-903Z-builder-orvlmg/dlq-b111b33a-after.json`; the after export records status `dismissed` and the dismissal rationale.
+- `pnpm test src/core/workflow/steps/agent-write-scope.test.ts` passed with 27 tests, including scratch classification and cleanup coverage.
+- `pnpm test src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts` passed with 32 tests, including a same-shape progress-reviewer run where `review-evidence` returns schema-valid JSON after writing `.playwright-mcp` and `x-article-body.txt` scratch artifacts.
+- `pnpm kota workflow dlq list` reported `open=0 dismissed=47 redriven=1` after dismissal.
+- `find . -maxdepth 2 \( -name '.playwright-mcp' -o -name 'x-article-body.txt' \) -print` produced no output after removing the tracked scratch artifacts.
+- `pnpm run typecheck` and `pnpm run validate-tasks` passed after staging the task-state transition.

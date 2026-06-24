@@ -13,7 +13,10 @@ import type {
   WorkflowRunMetadata,
   WorkflowRunWarning,
 } from "#core/workflow/run-types.js";
-import { listWorkflowMutatedPaths } from "#core/workflow/steps/agent-write-scope.js";
+import {
+  findWorkflowScratchArtifactPaths,
+  listWorkflowMutatedPaths,
+} from "#core/workflow/steps/agent-write-scope.js";
 import { loadRunsInWindow } from "#modules/workflow-ops/runs/workflow-history.js";
 
 const RUN_CHECK_MAX_BUFFER = 10 * 1024 * 1024;
@@ -179,7 +182,12 @@ function isWithinDirectory(parentDir: string, childPath: string): boolean {
 }
 
 export function findScratchArtifactPaths(paths: string[]): string[] {
-  return paths.filter((f) => SCRATCH_ARTIFACT_PREFIXES.some((p) => f.startsWith(p)));
+  return [
+    ...new Set([
+      ...paths.filter((f) => SCRATCH_ARTIFACT_PREFIXES.some((p) => f.startsWith(p))),
+      ...findWorkflowScratchArtifactPaths(paths),
+    ]),
+  ].sort();
 }
 
 export function findRegisteredScratchWorktrees(projectDir: string): string[] {

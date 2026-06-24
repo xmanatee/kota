@@ -1,8 +1,15 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { WorkflowRunMetadata } from "../run-types.js";
+
+const WORKFLOW_SCRATCH_ARTIFACT_PREFIXES = [".playwright-mcp/"] as const;
+const WORKFLOW_SCRATCH_ARTIFACT_EXACT_PATHS = ["x-article-body.txt"] as const;
+const WORKFLOW_SCRATCH_ARTIFACT_ROOTS = [".playwright-mcp"] as const;
+const WORKFLOW_SCRATCH_ARTIFACT_EXACT_PATH_SET = new Set<string>(
+  WORKFLOW_SCRATCH_ARTIFACT_EXACT_PATHS,
+);
 
 /**
  * Thrown when an agent step mutates tracked files outside its declared
@@ -81,6 +88,62 @@ export function listWorkflowMutatedPaths(projectDir: string): string[] {
     if (trimmed.length > 0) paths.add(trimmed);
   }
   return [...paths].sort();
+}
+
+export function findWorkflowScratchArtifactPaths(
+  paths: readonly string[],
+): string[] {
+  return paths
+    .filter((path) =>
+      WORKFLOW_SCRATCH_ARTIFACT_EXACT_PATH_SET.has(path) ||
+      WORKFLOW_SCRATCH_ARTIFACT_PREFIXES.some((prefix) => path.startsWith(prefix))
+    )
+    .sort();
+}
+
+function trackedWorkflowScratchArtifacts(projectDir: string): Set<string> {
+  let output = "";
+  try {
+    output = gitOutput(projectDir, [
+      "ls-files",
+      "--",
+      ...WORKFLOW_SCRATCH_ARTIFACT_ROOTS,
+      ...WORKFLOW_SCRATCH_ARTIFACT_EXACT_PATHS,
+    ]);
+  } catch {
+    return new Set();
+  }
+  return new Set(output.split("\n").map((line) => line.trim()).filter(Boolean));
+}
+
+function hasTrackedPathUnder(root: string, trackedPaths: ReadonlySet<string>): boolean {
+  for (const path of trackedPaths) {
+    if (path === root || path.startsWith(`${root}/`)) return true;
+  }
+  return false;
+}
+
+export function removeWorkflowScratchArtifacts(projectDir: string): string[] {
+  const trackedPaths = trackedWorkflowScratchArtifacts(projectDir);
+  const removed: string[] = [];
+
+  for (const root of WORKFLOW_SCRATCH_ARTIFACT_ROOTS) {
+    if (hasTrackedPathUnder(root, trackedPaths)) continue;
+    const absoluteRoot = resolve(projectDir, root);
+    if (!existsSync(absoluteRoot)) continue;
+    rmSync(absoluteRoot, { recursive: true, force: true });
+    removed.push(root);
+  }
+
+  for (const path of WORKFLOW_SCRATCH_ARTIFACT_EXACT_PATHS) {
+    if (trackedPaths.has(path)) continue;
+    const absolutePath = resolve(projectDir, path);
+    if (!existsSync(absolutePath)) continue;
+    rmSync(absolutePath, { force: true });
+    removed.push(path);
+  }
+
+  return removed.sort();
 }
 
 export function tryListWorkflowMutatedPaths(

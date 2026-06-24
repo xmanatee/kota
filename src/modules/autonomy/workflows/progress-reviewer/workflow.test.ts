@@ -701,6 +701,94 @@ describe("progress-reviewer workflow", () => {
     expect(artifact.actions.createdTaskIds).toHaveLength(0);
   });
 
+  it("cleans native harness scratch artifacts before write-scope enforcement", async () => {
+    const projectDir = trackProjectDir("progress-reviewer-scratch-cleanup");
+    const scopeId = deriveDirectoryScopeId(projectDir);
+    writeRun(
+      projectDir,
+      "builder-success",
+      "builder",
+      "success",
+      "2026-06-04T11:20:00.000Z",
+    );
+    registerProgressReviewHarness(async () => {
+      mkdirSync(join(projectDir, ".playwright-mcp"), { recursive: true });
+      writeFileSync(
+        join(projectDir, ".playwright-mcp", "console-2026-06-24T15-31-34-323Z.log"),
+        "browser console scratch\n",
+      );
+      writeFileSync(
+        join(projectDir, ".playwright-mcp", "page-2026-06-24T15-31-36-771Z.yml"),
+        "browser page scratch\n",
+      );
+      writeFileSync(join(projectDir, "x-article-body.txt"), "article scratch\n");
+      const output = reviewOutput({
+        verdict: "on-track",
+        summary: "The reviewer returned schema-valid JSON after native scratch cleanup.",
+        localScope: {
+          claims: [
+            {
+              id: "scratch-cleanup-review-evidence-json",
+              claim:
+                "The review-evidence step completed with schema-valid JSON while native harness scratch files were cleaned before write-scope enforcement.",
+              evidenceIds: ["run:builder-success"],
+              confidence: "high",
+            },
+          ],
+        },
+      });
+      return {
+        text: `Review complete.\n\`\`\`json\n${JSON.stringify(output)}\n\`\`\``,
+        streamedText: "",
+        turns: 1,
+        isError: false,
+      };
+    });
+
+    const { promise } = executeWorkflowRun(
+      compileProgressReviewerWorkflow(),
+      {
+        event: progressReviewRequested.name,
+        schemaRef: null,
+        payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+      },
+      {
+        projectDir,
+        bus: new EventBus(),
+        store: new WorkflowRunStore(projectDir),
+        log: vi.fn(),
+        runId: "scratch-cleanup-review",
+      },
+    );
+
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("success");
+    expect(existsSync(join(projectDir, ".playwright-mcp"))).toBe(false);
+    expect(existsSync(join(projectDir, "x-article-body.txt"))).toBe(false);
+    expect(
+      existsSync(
+        join(
+          projectDir,
+          ".kota",
+          "runs",
+          "scratch-cleanup-review",
+          "steps",
+          "review-evidence.write-scope-violation.json",
+        ),
+      ),
+    ).toBe(false);
+    const reviewResult = result.metadata.steps.find(
+      (step) => step.id === "review-evidence",
+    );
+    expect(reviewResult).toEqual(
+      expect.objectContaining({
+        status: "success",
+        output: expect.objectContaining({ verdict: "on-track" }),
+      }),
+    );
+  });
+
   it("classifies the runtime schedule trigger in the review artifact", async () => {
     const projectDir = trackProjectDir("progress-reviewer-schedule");
     writeTask(projectDir, "done", "task-ship-coding-slice", {

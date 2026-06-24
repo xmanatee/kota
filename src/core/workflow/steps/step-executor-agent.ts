@@ -23,6 +23,7 @@ import {
   diffMutatedPaths,
   findWriteScopeViolations,
   listWorkflowMutatedPaths,
+  removeWorkflowScratchArtifacts,
   tryListWorkflowMutatedPaths,
   writeWriteScopeViolationArtifact,
 } from "./agent-write-scope.js";
@@ -218,6 +219,7 @@ export async function executeAgentStep(
       agentConfig.projectDir,
       tokenBudget,
     );
+    removeWorkflowScratchArtifacts(agentConfig.projectDir);
   }
 
   if (bufferAgentMessages) {
