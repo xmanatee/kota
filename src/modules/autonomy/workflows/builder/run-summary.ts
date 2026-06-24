@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
+import { writeDiffSummaryConsistencyArtifact } from "#modules/autonomy/diff-summary-consistency.js";
 import type { ObservabilityObligationReview } from "#modules/autonomy/observability-obligation.js";
 import { readObservabilityObligationReviewArtifact } from "#modules/autonomy/observability-obligation.js";
 import { type WorkflowRunSummary, writeRunSummary } from "#modules/autonomy/run-summary.js";
@@ -71,6 +72,11 @@ export function writeBuilderRunSummary(ctx: WorkflowStepContext): BuilderRunSumm
     (observabilityObligations === null ||
       observabilityObligations.candidates.length === 0)
   ) {
+    writeDiffSummaryConsistencyArtifact(
+      ctx.projectDir,
+      ctx.workflow.runDirPath,
+      summary,
+    );
     return summary;
   }
 
@@ -86,6 +92,11 @@ export function writeBuilderRunSummary(ctx: WorkflowStepContext): BuilderRunSumm
   writeFileSync(
     join(ctx.workflow.runDirPath, "run-summary.json"),
     JSON.stringify(builderSummary, null, 2),
+  );
+  writeDiffSummaryConsistencyArtifact(
+    ctx.projectDir,
+    ctx.workflow.runDirPath,
+    builderSummary,
   );
   return builderSummary;
 }

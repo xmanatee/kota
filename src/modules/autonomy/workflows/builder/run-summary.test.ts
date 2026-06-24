@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { WorkflowStepContext, WorkflowStepResult } from "#core/workflow/run-types.js";
+import { DIFF_SUMMARY_CONSISTENCY_ARTIFACT } from "#modules/autonomy/diff-summary-consistency.js";
 import {
   SOURCE_FILE_SIZE_WARNING_TYPE,
   type SourceFileSizeWarning,
@@ -91,6 +92,33 @@ describe("writeBuilderRunSummary", () => {
     writeBuilderRunSummary(ctx);
 
     expect(existsSync(join(runDirPath, "run-summary.json"))).toBe(true);
+  });
+
+  it("writes diff-summary consistency evidence to the run directory", () => {
+    writeFileSync(join(projectDir, "change.txt"), "hello\n");
+    writeFileSync(join(runDirPath, "commit-message.txt"), "test change\n");
+    execSync("git add -A && git commit -m 'test change'", { cwd: projectDir, shell: "/bin/sh" });
+
+    const ctx = makeContext(projectDir, runDirPath);
+    writeBuilderRunSummary(ctx);
+
+    const written = JSON.parse(
+      readFileSync(join(runDirPath, DIFF_SUMMARY_CONSISTENCY_ARTIFACT), "utf-8"),
+    );
+    expect(written).toMatchObject({
+      version: 1,
+      runId: "2026-01-01T00-00-00-000Z-builder-test",
+      declared: {
+        commitSubject: "test change",
+        commitMessageFile: "test change",
+      },
+      facts: {
+        changedFileCount: 1,
+        modifiedFileCount: 0,
+        addedFileCount: 1,
+      },
+      missingData: [],
+    });
   });
 
   it("returns a summary with expected shape", () => {

@@ -11,11 +11,13 @@ import type {
   RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { CodeHealthDriftReport } from "./code-health-drift.js";
+import type { DiffSummaryConsistencyReport } from "./diff-summary-consistency-report.js";
 import type { PostCompletionFollowUpReport } from "./post-completion-followups.js";
 import type { QualityStratificationReport } from "./quality-stratification.js";
 import type { AreaClassification } from "./task-classification.js";
 
 export type { CodeHealthDriftReport } from "./code-health-drift.js";
+export type { DiffSummaryConsistencyReport } from "./diff-summary-consistency-report.js";
 export type { QualityStratificationReport } from "./quality-stratification.js";
 
 export const DEFAULT_REPORT_WINDOW_DAYS = 7;
@@ -159,6 +161,7 @@ export type AutonomyReportData = {
   doneInWindow: QueueBalance;
   explorer: ExplorerBalance;
   builder: BuilderBreakdown;
+  diffSummaryConsistency: DiffSummaryConsistencyReport;
   reviewScrutiny: ReviewScrutinyReport;
   reviewScrutinyEscalation: ReviewScrutinyEscalationReport;
   trajectoryDiagnostics: TrajectoryDiagnosticReport;

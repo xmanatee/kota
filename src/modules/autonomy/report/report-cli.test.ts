@@ -125,6 +125,7 @@ describe("kota report CLI", () => {
 
     expect(out).toContain("Autonomy report");
     expect(out).toContain("Open queue");
+    expect(out).toContain("Diff-summary consistency");
     expect(out).toContain("Code-health drift");
     expect(out).toContain("Total: 2");
     expect(out).toContain("architecture");
@@ -165,6 +166,10 @@ describe("kota report CLI", () => {
       totalBuilderRuns: 0,
       runsWithWarnings: 0,
       unsupportedArtifacts: 0,
+    });
+    expect(parsed.diffSummaryConsistency).toMatchObject({
+      totalBuilderRuns: 0,
+      runsWithMismatches: 0,
     });
     expect(parsed.controlCoverage).toMatchObject({
       artifactCount: 0,

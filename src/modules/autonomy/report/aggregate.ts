@@ -31,6 +31,7 @@ import {
   DEFAULT_REPORT_WINDOW_DAYS,
 } from "./aggregate-types.js";
 import { buildCodeHealthDriftReport } from "./code-health-drift.js";
+import { buildDiffSummaryConsistencyReport } from "./diff-summary-consistency-report.js";
 import {
   buildPostCompletionCorrectiveLinks,
   summarizePostCompletionFollowUpLinks,
@@ -49,6 +50,7 @@ export {
   type CodeHealthDriftReport,
   type CostBreakdown,
   DEFAULT_REPORT_WINDOW_DAYS,
+  type DiffSummaryConsistencyReport,
   type ExplorerBalance,
   type ExplorerTaskAddition,
   type HealthCountRow,
@@ -162,6 +164,10 @@ export function aggregateAutonomyReport(
     doneInWindow,
     explorer: buildExplorerBalance(runs, taskById, input.addedFilesBySha),
     builder: buildBuilderBreakdown(runs, taskById, input.runsDir),
+    diffSummaryConsistency: buildDiffSummaryConsistencyReport({
+      runs,
+      runsDir: input.runsDir,
+    }),
     reviewScrutiny,
     reviewScrutinyEscalation: buildReviewScrutinyEscalationReport({
       projectDir: input.projectDir,

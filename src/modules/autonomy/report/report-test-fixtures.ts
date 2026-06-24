@@ -43,6 +43,15 @@ export const emptyAutonomyReportData: AutonomyReportData = {
     byClassification: [],
     closures: [],
   },
+  diffSummaryConsistency: {
+    totalBuilderRuns: 0,
+    recordedRuns: 0,
+    runsWithMismatches: 0,
+    totalMismatches: 0,
+    byCategory: [],
+    missingData: [],
+    examples: [],
+  },
   reviewScrutiny: {
     totalReviews: 0,
     approvalLikeDecisions: 0,

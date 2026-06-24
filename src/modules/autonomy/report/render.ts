@@ -16,6 +16,7 @@ import {
 } from "#modules/rendering/primitives.js";
 import type { AutonomyReportData } from "./aggregate.js";
 import { renderCodeHealthDrift } from "./render-code-health-drift.js";
+import { renderDiffSummaryConsistency } from "./render-diff-summary-consistency.js";
 import {
   renderBlockers,
   renderCost,
@@ -53,6 +54,9 @@ export function renderAutonomyReport(data: AutonomyReportData): RenderNode {
     blank(),
     heading("Builder breakdown", 2),
     ...renderBuilderBreakdown(data.builder),
+    blank(),
+    heading("Diff-summary consistency", 2),
+    ...renderDiffSummaryConsistency(data.diffSummaryConsistency),
     blank(),
     heading("Code-health drift", 2),
     ...renderCodeHealthDrift(data.codeHealthDrift),

@@ -1,13 +1,13 @@
 ---
 id: task-record-builder-diff-summary-consistency-diagnostic
 title: Record builder diff-summary consistency diagnostics
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Safety
 summary: Add deterministic diagnostics that compare autonomous builder completion summaries, commit messages, and changed-file evidence against the actual diff so misleading or underspecified change descriptions become visible in operator reports.
 created_at: 2026-06-24T08:08:48.717Z
-updated_at: 2026-06-24T08:08:48.717Z
+updated_at: 2026-06-24T08:27:06.543Z
 ---
 
 ## Problem
@@ -165,3 +165,17 @@ their actual repository impact.
 - `pnpm kota report` or JSON-mode fixture output showing the new consistency
   section with mismatch counts and run/task refs.
 - `pnpm run validate-tasks` output showing the task queue remains valid.
+- Implemented `diff-summary-consistency.json` emission from builder
+  `write-run-summary`, with bounded diff facts, declared text fields,
+  advisory mismatch categories, and explicit missing-data markers.
+- Report aggregation and rendering now expose `diffSummaryConsistency` in JSON
+  and the "Diff-summary consistency" text section with counts, categories,
+  missing data, and sanitized run/task examples.
+- Focused validation passed:
+  `pnpm test src/modules/autonomy/diff-summary-consistency.test.ts src/modules/autonomy/report/diff-summary-consistency-report.test.ts src/modules/autonomy/report/render.test.ts src/modules/autonomy/report/report-cli.test.ts src/modules/autonomy/workflows/builder/run-summary.test.ts`
+  (31 tests), `pnpm run typecheck`, real-index `pnpm run validate-tasks`, and
+  `git diff --cached --check`.
+- Source-mode report JSON check passed:
+  `node --conditions=source --import tsx src/cli.ts report --json --days 1`
+  included `diffSummaryConsistency` with historical builder runs counted as
+  missing the new artifact.
