@@ -1,13 +1,13 @@
 ---
 id: task-repair-review-scrutiny-pattern-fc896caa1a7a
 title: Repair recurring thin critic acceptances
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Meta
 summary: Make critic reviews for builder core/Unclassified carry inspectable evidence instead of recurring thin acceptances.
 created_at: 2026-06-23T22:39:46.024Z
-updated_at: 2026-06-23T22:39:46.024Z
+updated_at: 2026-06-24T00:37:26.000Z
 ---
 
 ## Problem
@@ -91,6 +91,17 @@ Outcome-aware autonomy governance.
   escalation gate on fresh evidence.
 - Operator-facing report or attention fixture showing future escalations
   include the repair task id without cost fields.
+
+## Completion Notes
+
+- Added `src/modules/autonomy/review-scrutiny-core-pattern.test.ts` covering the
+  exact `review-scrutiny:critic:builder:core:Unclassified` fingerprint.
+- Fresh warning-backed builder core acceptances now have focused regression
+  coverage showing they do not cross the escalation gate.
+- The same fixture proves future core thin-acceptance escalations still surface
+  repair task ids in operator report/attention output without cost fields.
+- Focused validation passed:
+  `pnpm exec vitest run src/modules/autonomy/review-scrutiny-core-pattern.test.ts src/modules/autonomy/critic-verdict.test.ts src/modules/autonomy/review-scrutiny-escalation.test.ts`.
 
 <!-- review-scrutiny-pattern-fingerprint: review-scrutiny:critic:builder:core:Unclassified -->
 <!-- review-scrutiny-evidence-fingerprint: 1d5c29afab5923dcb6ce11c5d90cd4a5a15c71fa8e6e806fa3dca65981e5d9d4 -->
