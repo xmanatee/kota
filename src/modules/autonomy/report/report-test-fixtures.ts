@@ -100,6 +100,36 @@ export const emptyAutonomyReportData: AutonomyReportData = {
     completedTaskIds: [],
     activeFollowUpTaskIds: [],
     links: [],
+    truncatedLinkCount: 0,
+  },
+  qualityStratification: {
+    weakSampleThreshold: 3,
+    aggregates: [
+      {
+        signal: "review-scrutiny",
+        current: { sampleCount: 0, numeratorCount: 0, denominatorCount: 0, rate: null },
+        prior: { sampleCount: 0, numeratorCount: 0, denominatorCount: 0, rate: null },
+        rateDelta: null,
+        weakEvidence: false,
+      },
+      {
+        signal: "code-health-drift",
+        current: { sampleCount: 0, numeratorCount: 0, denominatorCount: 0, rate: null },
+        prior: { sampleCount: 0, numeratorCount: 0, denominatorCount: 0, rate: null },
+        rateDelta: null,
+        weakEvidence: false,
+      },
+      {
+        signal: "post-completion-follow-up",
+        current: { sampleCount: 0, numeratorCount: 0, denominatorCount: 0, rate: null },
+        prior: { sampleCount: 0, numeratorCount: 0, denominatorCount: 0, rate: null },
+        rateDelta: null,
+        weakEvidence: false,
+      },
+    ],
+    slices: [],
+    missingDimensions: [],
+    compositionShifts: [],
   },
   health: {
     totalSignals: 0,

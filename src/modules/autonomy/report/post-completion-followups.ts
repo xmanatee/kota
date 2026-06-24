@@ -33,7 +33,7 @@ export {
 } from "./post-completion-followup-types.js";
 
 const OPEN_TASK_STATES = new Set(["backlog", "ready", "doing", "blocked"]);
-const LINK_DISPLAY_LIMIT = 12;
+export const POST_COMPLETION_FOLLOW_UP_LINK_LIMIT = 12;
 
 type CompletedTaskEvidence = {
   task: RepoTaskFullRecord;
@@ -43,6 +43,14 @@ type CompletedTaskEvidence = {
 export function buildPostCompletionFollowUpReport(
   input: BuildPostCompletionFollowUpReportInput,
 ): PostCompletionFollowUpReport {
+  return summarizePostCompletionFollowUpLinks(
+    buildPostCompletionCorrectiveLinks(input),
+  );
+}
+
+export function buildPostCompletionCorrectiveLinks(
+  input: BuildPostCompletionFollowUpReportInput,
+): PostCompletionCorrectiveLink[] {
   const builderEvidenceByTaskId = buildBuilderEvidenceByTaskId(
     input.runs,
     input.runsDir,
@@ -74,7 +82,13 @@ export function buildPostCompletionFollowUpReport(
     }
   }
 
-  const sortedLinks = links.sort(compareLinks);
+  return links.sort(compareLinks);
+}
+
+export function summarizePostCompletionFollowUpLinks(
+  links: readonly PostCompletionCorrectiveLink[],
+): PostCompletionFollowUpReport {
+  const sortedLinks = [...links].sort(compareLinks);
   const activeFollowUpTaskIds = sortedUnique(
     sortedLinks.map((link) => link.activeFollowUpTaskId),
   );
@@ -88,7 +102,11 @@ export function buildPostCompletionFollowUpReport(
     byReason: buildReasonCounts(sortedLinks),
     completedTaskIds,
     activeFollowUpTaskIds,
-    links: sortedLinks.slice(0, LINK_DISPLAY_LIMIT),
+    links: sortedLinks.slice(0, POST_COMPLETION_FOLLOW_UP_LINK_LIMIT),
+    truncatedLinkCount: Math.max(
+      0,
+      sortedLinks.length - POST_COMPLETION_FOLLOW_UP_LINK_LIMIT,
+    ),
   };
 }
 

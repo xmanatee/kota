@@ -1,13 +1,13 @@
 ---
 id: task-stratify-autonomy-quality-metrics-before-comparing
 title: Stratify autonomy quality metrics before comparing agent outcomes
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Safety
 summary: Add deterministic stratification to autonomy quality reports so pooled review, code-health, and follow-up metrics are grouped by workflow, harness, task shape, and changed area before operators compare outcome trends.
 created_at: 2026-06-24T06:35:19.545Z
-updated_at: 2026-06-24T06:35:19.545Z
+updated_at: 2026-06-24T07:03:10.000Z
 ---
 
 ## Problem
@@ -154,12 +154,16 @@ false sense of improvement.
 
 ## Acceptance Evidence
 
-- Diff showing the stratification data model, aggregation, report rendering,
-  JSON output, and focused tests.
-- Test transcript for the report aggregation/rendering cases covering
-  aggregate-vs-slice reversal, isolated slice regression, missing metadata,
-  small samples, and sanitized output.
-- Report output artifact under `.kota/runs/<run-id>/` showing the new
-  stratification section with slice counts, rates, composition notes, and
-  run/task refs.
-- Validation transcript for `pnpm run validate-tasks`.
+- Diff adds `qualityStratification` to the autonomy report data model,
+  aggregation, text rendering, JSON output, fixtures, and focused tests.
+- `.kota/runs/2026-06-24T06-26-17-712Z-builder-x9ukqz/report-tests-transcript.txt`
+  records `pnpm exec vitest run src/modules/autonomy/report --reporter=dot`
+  passing 11 files / 48 tests.
+- `.kota/runs/2026-06-24T06-26-17-712Z-builder-x9ukqz/quality-stratification-report.txt`
+  and `quality-stratification-report.json` show the new Quality
+  stratification section with aggregate rates, slices, composition shifts,
+  missing metadata counts, and run/task refs.
+- `.kota/runs/2026-06-24T06-26-17-712Z-builder-x9ukqz/typecheck-transcript.txt`
+  records `pnpm run typecheck` passing.
+- `.kota/runs/2026-06-24T06-26-17-712Z-builder-x9ukqz/validate-tasks-transcript.txt`
+  records `pnpm run validate-tasks` passing after staging the task move.

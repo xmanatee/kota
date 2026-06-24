@@ -31,7 +31,11 @@ import {
   DEFAULT_REPORT_WINDOW_DAYS,
 } from "./aggregate-types.js";
 import { buildCodeHealthDriftReport } from "./code-health-drift.js";
-import { buildPostCompletionFollowUpReport } from "./post-completion-followups.js";
+import {
+  buildPostCompletionCorrectiveLinks,
+  summarizePostCompletionFollowUpLinks,
+} from "./post-completion-followups.js";
+import { buildQualityStratificationReport } from "./quality-stratification.js";
 
 export {
   type AreaCount,
@@ -50,6 +54,7 @@ export {
   type HealthCountRow,
   type HealthTopGroup,
   type PriorityCount,
+  type QualityStratificationReport,
   type QueueBalance,
   type QueueDependencyWait,
   type ReportPriority,
@@ -103,9 +108,17 @@ export function aggregateAutonomyReport(
   const runs = reportRuns.filter(
     (r) => Date.parse(r.startedAt) >= windowStartMs,
   );
+  const priorRuns = reportRuns.filter((run) => {
+    const startedMs = Date.parse(run.startedAt);
+    return startedMs >= windowStartMs - windowMs && startedMs < windowStartMs;
+  });
   const reviewScrutiny = collectReviewScrutinyReport({
     runsDir: input.runsDir,
     runs,
+  });
+  const priorReviewScrutiny = collectReviewScrutinyReport({
+    runsDir: input.runsDir,
+    runs: priorRuns,
   });
   const reviewScrutinyEscalationDetection =
     detectRecurringReviewScrutinyPatternsFromReport({
@@ -113,6 +126,33 @@ export function aggregateAutonomyReport(
       tasks: allTasks,
       config: { nowMs: input.windowEndMs, windowMs },
     });
+  const codeHealthDrift = buildCodeHealthDriftReport({
+    tasks: allTasks,
+    runs: reportRuns,
+    runsDir: input.runsDir,
+    windowStartMs,
+    windowEndMs: input.windowEndMs,
+  });
+  const postCompletionFollowUpLinks = buildPostCompletionCorrectiveLinks({
+    tasks: allTasks,
+    runs,
+    runsDir: input.runsDir,
+    windowStartMs,
+    windowEndMs: input.windowEndMs,
+  });
+  const postCompletionFollowUps = summarizePostCompletionFollowUpLinks(
+    postCompletionFollowUpLinks,
+  );
+  const priorPostCompletionFollowUpLinks = buildPostCompletionCorrectiveLinks({
+    tasks: allTasks,
+    runs: priorRuns,
+    runsDir: input.runsDir,
+    windowStartMs: windowStartMs - windowMs,
+    windowEndMs: windowStartMs - 1,
+  });
+  const priorPostCompletionFollowUps = summarizePostCompletionFollowUpLinks(
+    priorPostCompletionFollowUpLinks,
+  );
 
   return {
     windowStartedAt: new Date(windowStartMs).toISOString(),
@@ -133,19 +173,20 @@ export function aggregateAutonomyReport(
       input.windowEndMs,
       windowMs,
     ),
-    codeHealthDrift: buildCodeHealthDriftReport({
+    codeHealthDrift,
+    postCompletionFollowUps,
+    qualityStratification: buildQualityStratificationReport({
       tasks: allTasks,
       runs: reportRuns,
       runsDir: input.runsDir,
       windowStartMs,
       windowEndMs: input.windowEndMs,
-    }),
-    postCompletionFollowUps: buildPostCompletionFollowUpReport({
-      tasks: allTasks,
-      runs,
-      runsDir: input.runsDir,
-      windowStartMs,
-      windowEndMs: input.windowEndMs,
+      reviewScrutiny,
+      priorReviewScrutiny,
+      postCompletionFollowUps,
+      priorPostCompletionFollowUps,
+      postCompletionFollowUpLinks,
+      priorPostCompletionFollowUpLinks,
     }),
     health: buildAutonomyHealthBreakdown(
       input.runsDir,

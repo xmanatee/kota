@@ -8,6 +8,8 @@ import {
 import type { PostCompletionFollowUpReport } from "./post-completion-followups.js";
 import { pct } from "./render-common.js";
 
+const LINK_DISPLAY_LIMIT = 12;
+
 export function renderPostCompletionFollowUps(
   report: PostCompletionFollowUpReport,
 ): RenderNode[] {
@@ -41,7 +43,7 @@ export function renderPostCompletionFollowUps(
   if (report.links.length > 0) {
     lines.push(blank());
     lines.push(line(span("Linked follow-ups", "muted", true)));
-    for (const link of report.links) {
+    for (const link of report.links.slice(0, LINK_DISPLAY_LIMIT)) {
       lines.push(line(
         plain("  "),
         span(link.activeFollowUpState.padEnd(7), "muted"),
@@ -56,6 +58,12 @@ export function renderPostCompletionFollowUps(
         plain("    "),
         span(link.matchedRefs.slice(0, 3).join(", "), "muted"),
       ));
+    }
+    const remainingLinks =
+      Math.max(0, report.links.length - LINK_DISPLAY_LIMIT) +
+      report.truncatedLinkCount;
+    if (remainingLinks > 0) {
+      lines.push(line(span(`  ... ${remainingLinks} more linked follow-ups`, "muted")));
     }
   }
 

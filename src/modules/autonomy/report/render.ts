@@ -22,6 +22,7 @@ import {
   renderHealth,
 } from "./render-health-sections.js";
 import { renderPostCompletionFollowUps } from "./render-post-completion-followups.js";
+import { renderQualityStratification } from "./render-quality-stratification.js";
 import { renderQueueBalance } from "./render-queue.js";
 import {
   renderBuilderBreakdown,
@@ -67,6 +68,9 @@ export function renderAutonomyReport(data: AutonomyReportData): RenderNode {
     blank(),
     heading("Post-completion follow-ups", 2),
     ...renderPostCompletionFollowUps(data.postCompletionFollowUps),
+    blank(),
+    heading("Quality stratification", 2),
+    ...renderQualityStratification(data.qualityStratification),
     blank(),
     heading("Autonomy health", 2),
     ...renderHealth(data.health),

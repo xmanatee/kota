@@ -16,6 +16,7 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("Review scrutiny escalation");
     expect(text).toContain("Trajectory diagnostics");
     expect(text).toContain("Post-completion follow-ups");
+    expect(text).toContain("Quality stratification");
     expect(text).toContain("Autonomy health");
     expect(text).toContain("Blockers");
     expect(text).toContain("Cost");
@@ -33,6 +34,7 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain(
       "(no corrective follow-ups linked to recently completed tasks)",
     );
+    expect(text).toContain("(no quality signals with rate denominators)");
     expect(text).toContain("(no health signals)");
     expect(text).toContain("(no blocked tasks)");
     expect(text).toContain("(no finished runs in window)");
@@ -93,13 +95,14 @@ describe("renderAutonomyReport", () => {
             sourceArtifactPaths: [],
           },
         ],
+        truncatedLinkCount: 0,
       },
     });
 
     const followUpSection = section(
       text,
       "Post-completion follow-ups",
-      "Autonomy health",
+      "Quality stratification",
     );
     expect(followUpSection).toContain("task-completed-parent");
     expect(followUpSection).toContain("task-source-size-follow-up");
@@ -219,6 +222,7 @@ describe("renderAutonomyReport", () => {
             sourceArtifactPaths: [],
           },
         ],
+        truncatedLinkCount: 0,
       },
       health: {
         totalSignals: 2,

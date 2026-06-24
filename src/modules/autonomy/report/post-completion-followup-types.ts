@@ -44,6 +44,7 @@ export type PostCompletionFollowUpReport = {
   completedTaskIds: string[];
   activeFollowUpTaskIds: string[];
   links: PostCompletionCorrectiveLink[];
+  truncatedLinkCount: number;
 };
 
 export type BuildPostCompletionFollowUpReportInput = {
