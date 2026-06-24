@@ -1,6 +1,8 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
+import type { ObservabilityObligationReview } from "#modules/autonomy/observability-obligation.js";
+import { readObservabilityObligationReviewArtifact } from "#modules/autonomy/observability-obligation.js";
 import { type WorkflowRunSummary, writeRunSummary } from "#modules/autonomy/run-summary.js";
 import {
   extractSourceFileSizeWarningsFromBuildOutput,
@@ -11,6 +13,7 @@ import { readSourceFileSizeReviewArtifact } from "#modules/autonomy/source-size-
 import { REPO_TASKS_DIR } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 export type BuilderRunSummary = WorkflowRunSummary & {
+  observabilityObligations?: ObservabilityObligationReview;
   sourceFileSize?: SourceFileSizeReview;
   warnings?: SourceFileSizeWarning[];
 };
@@ -55,16 +58,28 @@ function findTaskInChangedFiles(
 
 export function writeBuilderRunSummary(ctx: WorkflowStepContext): BuilderRunSummary {
   const summary = writeRunSummary(ctx, "build", findTaskInChangedFiles);
+  const observabilityObligations = readObservabilityObligationReviewArtifact(
+    ctx.workflow.runDirPath,
+  );
   const sourceFileSize = readSourceFileSizeReviewArtifact(ctx.workflow.runDirPath);
   const warnings = extractSourceFileSizeWarningsFromBuildOutput(
     ctx.stepOutputs.build as { repairWarnings?: readonly { id?: string; output?: string }[] } | undefined,
   );
-  if (warnings.length === 0 && (sourceFileSize === null || sourceFileSize.outcome === "ok")) {
+  if (
+    warnings.length === 0 &&
+    (sourceFileSize === null || sourceFileSize.outcome === "ok") &&
+    (observabilityObligations === null ||
+      observabilityObligations.candidates.length === 0)
+  ) {
     return summary;
   }
 
   const builderSummary: BuilderRunSummary = {
     ...summary,
+    ...(observabilityObligations !== null &&
+    observabilityObligations.candidates.length > 0
+      ? { observabilityObligations }
+      : {}),
     ...(sourceFileSize !== null && sourceFileSize.outcome !== "ok" ? { sourceFileSize } : {}),
     ...(warnings.length > 0 ? { warnings } : {}),
   };

@@ -4,6 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
+import {
+  OBSERVABILITY_OBLIGATION_REVIEW_ARTIFACT,
+  OBSERVABILITY_OBLIGATION_WARNING_TYPE,
+} from "#modules/autonomy/observability-obligation.js";
 import { SOURCE_FILE_SIZE_WARNING_TYPE } from "#modules/autonomy/source-size-check.js";
 import {
   SOURCE_FILE_SEVERE_BATCH_THRESHOLD,
@@ -78,5 +82,50 @@ describe("builder source-size repair checks", () => {
         ]),
       });
     expect(() => advisory.run(ctx, {} as never)).toThrow(SOURCE_FILE_SIZE_WARNING_TYPE);
+  });
+
+  it("wires observability obligation diagnostics as advisory run artifacts", async () => {
+    const workflowDir = join(repoDir, "src", "core", "workflow");
+    mkdirSync(workflowDir, { recursive: true });
+    writeFileSync(
+      join(workflowDir, "retry.ts"),
+      [
+        "export async function runStep(step: { run(): Promise<void> }) {",
+        "  try {",
+        "    return await step.run();",
+        "  } catch (error) {",
+        "    return null;",
+        "  }",
+        "}",
+      ].join("\n"),
+    );
+    execSync("git add src/core/workflow/retry.ts", { cwd: repoDir });
+    const runDir = join(repoDir, ".kota", "runs", "test-run-observability");
+    mkdirSync(runDir, { recursive: true });
+    const checks = new Map(builderRepairChecks().map((check) => [check.id, check]));
+    const observability = checks.get(OBSERVABILITY_OBLIGATION_WARNING_TYPE);
+    const ctx = {
+      projectDir: repoDir,
+      workflow: { runDirPath: runDir },
+    } as WorkflowStepContext;
+
+    expect(observability).toMatchObject({
+      id: OBSERVABILITY_OBLIGATION_WARNING_TYPE,
+      type: "code",
+      severity: "warning",
+      phase: 1,
+    });
+    if (!observability || observability.type !== "code") {
+      throw new Error("missing observability obligation check");
+    }
+
+    expect(() => observability.run(ctx, {} as never)).toThrow(
+      OBSERVABILITY_OBLIGATION_WARNING_TYPE,
+    );
+    expect(JSON.parse(readFileSync(join(runDir, OBSERVABILITY_OBLIGATION_REVIEW_ARTIFACT), "utf-8")))
+      .toMatchObject({
+        outcome: "warning",
+        missingFiles: ["src/core/workflow/retry.ts"],
+      });
   });
 });

@@ -3,6 +3,10 @@ import { checkCommitStageable } from "#modules/autonomy/commit.js";
 import { createCriticCheck } from "#modules/autonomy/critic.js";
 import { checkDocBloat } from "#modules/autonomy/doc-bloat-check.js";
 import { checkRepoHygiene } from "#modules/autonomy/hygiene-check.js";
+import {
+  checkObservabilityObligationsForRun,
+  OBSERVABILITY_OBLIGATION_WARNING_TYPE,
+} from "#modules/autonomy/observability-obligation.js";
 import { checkCommitMessageExists, checkNoScratchArtifacts } from "#modules/autonomy/shared.js";
 import { checkSourceFileSize, SOURCE_FILE_SIZE_WARNING_TYPE } from "#modules/autonomy/source-size-check.js";
 import {
@@ -128,6 +132,14 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       type: "code" as const,
       phase: 1,
       run: (ctx) => checkRepoHygiene(ctx.projectDir),
+    },
+    {
+      id: OBSERVABILITY_OBLIGATION_WARNING_TYPE,
+      type: "code" as const,
+      severity: "warning" as const,
+      phase: 1,
+      run: (ctx) =>
+        checkObservabilityObligationsForRun(ctx.projectDir, ctx.workflow.runDirPath),
     },
     {
       id: SOURCE_FILE_SIZE_SEVERE_TYPE,

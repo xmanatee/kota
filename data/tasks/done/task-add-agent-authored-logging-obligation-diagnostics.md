@@ -1,13 +1,13 @@
 ---
 id: task-add-agent-authored-logging-obligation-diagnostics
 title: Add agent-authored logging obligation diagnostics
-status: ready
+status: done
 priority: p2
 area: modules
 task_class: Platform
 summary: Add deterministic diagnostics that flag agent-authored runtime changes missing structured logging or observability evidence, so logging obligations are not left to prompt-only review.
 created_at: 2026-06-24T05:52:02.042Z
-updated_at: 2026-06-24T05:52:02.042Z
+updated_at: 2026-06-24T06:12:52.633Z
 ---
 
 ## Problem
@@ -130,3 +130,12 @@ Observable autonomous runtime changes.
 - Task validation transcript showing the task queue remains valid.
 - Example run artifact or review metadata sample showing a flagged
   observability obligation and an accepted one without exposing sensitive data.
+
+Completion artifacts for builder run
+`2026-06-24T05-59-39-009Z-builder-acxj4f`:
+
+- `.kota/runs/2026-06-24T05-59-39-009Z-builder-acxj4f/diagnostic-focused-tests.txt`
+- `.kota/runs/2026-06-24T05-59-39-009Z-builder-acxj4f/typecheck.txt`
+- `.kota/runs/2026-06-24T05-59-39-009Z-builder-acxj4f/lint-touched-files.txt`
+- `.kota/runs/2026-06-24T05-59-39-009Z-builder-acxj4f/task-validation.txt`
+- `.kota/runs/2026-06-24T05-59-39-009Z-builder-acxj4f/observability-obligation-samples.json`
