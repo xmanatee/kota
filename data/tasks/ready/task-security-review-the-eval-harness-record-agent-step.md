@@ -6,7 +6,7 @@ priority: p3
 area: security
 summary: The eval-harness record-agent-step authoring path accepts raw fixture, run, step, and judge identifiers as filesystem path segments, so malformed CLI input can escape the intended fixtures or .kota/runs directories and read or overwrite files outside those roots.
 created_at: 2026-06-24T06:32:18.947Z
-updated_at: 2026-06-24T06:32:18.947Z
+updated_at: 2026-06-24T07:47:22.413Z
 ---
 
 ## Problem
@@ -21,7 +21,7 @@ claim:
 
 ## Desired Outcome
 
-> Constrain --fixture, --run-id, --step, and --judge to conservative identifier patterns or resolve and verify all derived paths stay under the intended fixture root and .kota/runs source-run root before reading or writing; add traversal regression tests for agent-step and judge modes.
+> Constrain --fixture, --run-id, --step, and --judge to conservative identifier patterns, or resolve and verify all derived paths stay under the intended fixture root and .kota/runs source-run root before reading or writing; add traversal regression tests for agent-step and judge modes.
 
 ## Constraints
 
@@ -36,14 +36,14 @@ claim:
 
 ## Source / Intent
 
-Created by security-review workflow run 2026-06-24T05-03-16-050Z-security-review-43nasb.
+Created by security-review workflow run 2026-06-24T06-26-17-751Z-security-review-ujjy7q.
 
 finding id: security-review-2026-06-24-eval-recorder-path-traversal
 candidate id: task-workflow-mutation:src/modules/eval-harness/recorder.ts:213
 verdict: confirmed
 rationale:
 
-> The record-agent-step CLI passes raw --run-id, --fixture, --step, and --judge strings into path joins without enforcing safe single path components: cli.ts:482-517 builds fixtureDir from opts.fixture and forwards opts.runId/opts.step/opts.judge, recorder.ts:117 and recorder.ts:155 read source artifacts under .kota/runs/<sourceRunId>, recorder.ts:256-262 reads <label>.json, and agent-step-recording.ts:216-220 writes recordings using stepId/label as the output filename. The module already has safe path helpers in fixture-parse-utils.ts:15-24, but this authoring path does not use them. Scope is low because this is a local developer command, not a daemon or remote operator route.
+> Confirmed. The CLI maps --fixture directly with join(fixturesRoot, opts.fixture) (src/modules/eval-harness/cli.ts:484), and the recorder reads source artifacts with sourceRunId/stepId or label joined directly into .kota/runs paths (src/modules/eval-harness/recorder.ts:117, 256-262). It then writes recordingPathForStep(..., stepId/label), which joins the requested id under fixtureDir/recordings with no normalization containment check (src/modules/eval-harness/agent-step-recording.ts:216-220; src/modules/eval-harness/recorder.ts:211-213, 294-296). I found no validation that constrains these values to safe identifiers before the reads or writes, so traversal segments can escape the intended source-run or fixture recording roots.
 
 Evidence:
 
@@ -95,20 +95,6 @@ Evidence 4:
 
 path: src/modules/eval-harness/recorder.ts
 
-line: 213
-
-excerpt:
-
-
-
-> writeFileSync(recordingPath, `${JSON.stringify(recording, null, 2)}\n`, "utf-8");
-
-Evidence 5:
-
-
-
-path: src/modules/eval-harness/recorder.ts
-
 line: 256
 
 excerpt:
@@ -117,7 +103,7 @@ excerpt:
 
 > const artifactPath = join(
 
-Evidence 6:
+Evidence 5:
 
 
 
