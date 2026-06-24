@@ -1,12 +1,12 @@
 ---
 id: task-split-oversized-post-completion-follow-up-report-t
 title: Split oversized post-completion follow-up report test
-status: ready
+status: done
 priority: p3
 area: autonomy
 summary: The CI/build-failure reporting build passed, but its builder source-size review reported src/modules/autonomy/report/post-completion-followups.test.ts at 384 lines. Split focused fixture cases or extract local test helpers so future post-completion follow-up changes stay reviewable without changing report behavior.
 created_at: 2026-06-24T02:56:19.507Z
-updated_at: 2026-06-24T02:56:19.507Z
+updated_at: 2026-06-24T05:45:00.000Z
 ---
 
 ## Problem
@@ -46,4 +46,7 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- Before/after line-count or builder source-size evidence shows src/modules/autonomy/report/post-completion-followups.test.ts no longer triggers the 300-line advisory, or records a narrow justified exception; focused post-completion follow-up and render tests pass along with typecheck and task validation.
+- Before: `wc -l src/modules/autonomy/report/post-completion-followups.test.ts` reported 384 lines.
+- After: `.kota/runs/2026-06-24T05-37-33-663Z-builder-1nyppq/line-counts.txt` records `post-completion-followups.test.ts` at 272 lines, with extracted helper/detection files at 117 and 24 lines.
+- `.kota/runs/2026-06-24T05-37-33-663Z-builder-1nyppq/source-file-size-review.json` reports no staged source-size warnings.
+- `.kota/runs/2026-06-24T05-37-33-663Z-builder-1nyppq/validation.txt` records focused post-completion follow-up/render tests, strict-types, typecheck, formatting, and task validation evidence.

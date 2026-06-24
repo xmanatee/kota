@@ -1,140 +1,28 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { aggregateAutonomyReport } from "./aggregate.js";
-import { classifyCorrectiveReasons } from "./post-completion-followup-detection.js";
-
-const NOW = Date.parse("2026-04-29T12:00:00.000Z");
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-function writeTask(
-  projectDir: string,
-  state: string,
-  id: string,
-  attrs: {
-    priority: string;
-    area: string;
-    title?: string;
-    summary?: string;
-    updatedAt?: string;
-    body?: string;
-  },
-): void {
-  const dir = join(projectDir, "data", "tasks", state);
-  mkdirSync(dir, { recursive: true });
-  const updatedAt = attrs.updatedAt ?? new Date(NOW).toISOString();
-  const title = attrs.title ?? id;
-  const summary = attrs.summary ?? "fixture task";
-  const body = attrs.body ?? "## Problem\n\nFixture task.\n";
-  const content =
-    `---\nid: ${id}\ntitle: ${title}\nstatus: ${state}\npriority: ${attrs.priority}\n` +
-    `area: ${attrs.area}\nsummary: ${summary}\ncreated_at: ${updatedAt}\nupdated_at: ${updatedAt}\n---\n\n${body}`;
-  writeFileSync(join(dir, `${id}.md`), content, "utf-8");
-}
-
-function writeRun(
-  runsDir: string,
-  id: string,
-  metadata: {
-    workflow: string;
-    startedAt: string;
-    status: string;
-    steps?: unknown[];
-  },
-): void {
-  const dir = join(runsDir, id);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(
-    join(dir, "metadata.json"),
-    JSON.stringify({
-      id,
-      definitionPath: `src/modules/autonomy/workflows/${metadata.workflow}/workflow.ts`,
-      trigger: { event: "schedule", payload: {} },
-      runDir: `.kota/runs/${id}`,
-      durationMs: 1000,
-      totalCostUsd: null,
-      steps: metadata.steps ?? [],
-      ...metadata,
-    }),
-  );
-}
-
-function writeRunSummary(
-  runsDir: string,
-  id: string,
-  taskId: string,
-  commitSha: string,
-): void {
-  writeFileSync(
-    join(runsDir, id, "run-summary.json"),
-    JSON.stringify({
-      runId: id,
-      workflow: "builder",
-      taskId,
-      taskTitle: taskId,
-      outcome: "success",
-      commitSha,
-      commitMessage: "complete fixture task",
-      filesChanged: [],
-      costUsd: null,
-      durationMs: null,
-      completedAt: new Date(NOW - MS_PER_DAY).toISOString(),
-    }),
-  );
-}
-
-function taskWithText(text: string): RepoTaskFullRecord {
-  return {
-    id: "task-fixture",
-    title: "Fixture task",
-    state: "ready",
-    priority: "p2",
-    area: "autonomy",
-    taskClass: "Meta",
-    summary: text,
-    updatedAt: new Date(NOW).toISOString(),
-    body: `## Problem\n\n${text}\n`,
-    dependsOn: [],
-    anchor: false,
-  };
-}
+import {
+  createPostCompletionFollowUpsFixture,
+  MS_PER_DAY,
+  NOW,
+  writeRun,
+  writeRunSummary,
+  writeTask,
+} from "./post-completion-followups.test-helpers.js";
 
 describe("post-completion corrective follow-up report", () => {
   let projectDir: string;
   let runsDir: string;
+  let cleanupFixture: () => void;
 
   beforeEach(() => {
-    projectDir = join(
-      tmpdir(),
-      `post-completion-followups-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    );
-    runsDir = join(projectDir, ".kota", "runs");
-    mkdirSync(runsDir, { recursive: true });
+    const fixture = createPostCompletionFollowUpsFixture();
+    projectDir = fixture.projectDir;
+    runsDir = fixture.runsDir;
+    cleanupFixture = fixture.cleanup;
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
-  });
-
-  it("detects explicit CI, build, and integration-test failure wording", () => {
-    for (const text of [
-      "failing CI after the completed task landed",
-      "the build is broken after completion",
-      "failed integration tests after the merge",
-      "post-merge test-suite breakage after an accepted task",
-    ]) {
-      expect(classifyCorrectiveReasons(taskWithText(text))).toContain(
-        "ci-build-failure",
-      );
-    }
-
-    expect(
-      classifyCorrectiveReasons(
-        taskWithText("planned test expansion adds ordinary integration tests"),
-      ),
-    ).not.toContain("ci-build-failure");
+    cleanupFixture();
   });
 
   it("links corrective open tasks to recent done evidence and excludes planned or operator-capture work", () => {
