@@ -250,6 +250,7 @@ async function runGeminiLoop(
         abortSignal: options.abortController?.signal,
         workflowContext: options.workflowContext,
         tokenBudget: options.tokenBudget,
+        cwd: options.cwd,
       });
       responseParts.push(dispatched.responsePart);
       if (dispatched.denial?.interrupt && !interruptDenial) {

@@ -163,4 +163,5 @@ describe("workspace tool", () => {
       expect(r.content).toContain("eco-agent");
     });
   });
+
 });

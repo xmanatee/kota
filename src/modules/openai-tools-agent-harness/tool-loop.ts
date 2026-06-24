@@ -101,6 +101,7 @@ export async function dispatchToolCall(
     abortSignal: AbortSignal | undefined;
     workflowContext: AgentHarnessRunOptions["workflowContext"];
     tokenBudget: AgentHarnessRunOptions["tokenBudget"];
+    cwd: AgentHarnessRunOptions["cwd"];
   },
 ): Promise<DispatchToolCallResult> {
   const validatedInput = validateToolUseBlock(call);
@@ -181,6 +182,7 @@ export async function dispatchToolCall(
   const toolResult = maskToolResultSecrets(
     await executeTool(call.name, effectiveInput, {
       toolUseId: call.id,
+      ...(options.cwd !== undefined ? { cwd: options.cwd } : {}),
       ...(options.abortSignal !== undefined
         ? { signal: options.abortSignal }
         : {}),

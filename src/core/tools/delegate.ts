@@ -108,7 +108,6 @@ function omitRecursiveDelegateTool(toolSet: ResolvedToolSet): ResolvedToolSet {
 function formatBudgetStatus(lease: DelegateBudgetLease): string {
   return formatDelegateBudgetSnapshot(lease.snapshot());
 }
-
 type DelegateInput = Record<string, unknown>;
 
 const VALID_MODES: Set<DelegateMode> = new Set(["explore", "execute", "research"]);
@@ -193,6 +192,7 @@ async function runDelegateWithBudget(
       modelOutputTokenLimits: delegateConfig.modelOutputTokenLimits,
       harness: delegateConfig.harness,
       tokenBudget,
+      ...(context?.workflow !== undefined ? { workflowContext: context.workflow } : {}),
     });
   }
 

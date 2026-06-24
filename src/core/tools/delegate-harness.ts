@@ -11,6 +11,7 @@ import {
   routeKotaToolControlOptions,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
+import type { AgentHarnessWorkflowContext } from "#core/agent-harness/types.js";
 import {
   buildSubAgentPrompt,
   EXECUTE_PROMPT,
@@ -60,6 +61,7 @@ export type DelegateHarnessConfig = {
    */
   harness: string;
   tokenBudget?: AgentTokenBudgetLedger;
+  workflowContext?: AgentHarnessWorkflowContext;
 };
 
 export async function runDelegateHarness(
@@ -111,6 +113,9 @@ export async function runDelegateHarness(
       cwd: config.cwd ?? process.cwd(),
       effort: "xhigh",
       tokenBudget: config.tokenBudget,
+      ...(config.workflowContext !== undefined
+        ? { workflowContext: config.workflowContext }
+        : {}),
     },
     transport
       ? {

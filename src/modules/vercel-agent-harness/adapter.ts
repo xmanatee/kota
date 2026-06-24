@@ -109,6 +109,7 @@ async function runVercelLoop(
       abortSignal: options.abortController?.signal,
       workflowContext: options.workflowContext,
       tokenBudget: options.tokenBudget,
+      cwd: options.cwd,
     },
     flags,
     internalAbort,

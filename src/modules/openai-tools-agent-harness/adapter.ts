@@ -209,6 +209,7 @@ async function runOpenaiToolsLoop(
         abortSignal: options.abortController?.signal,
         workflowContext: options.workflowContext,
         tokenBudget: options.tokenBudget,
+        cwd: options.cwd,
       });
       resultBlocks.push(dispatched.result);
       if (dispatched.denial?.interrupt && !interrupted) {

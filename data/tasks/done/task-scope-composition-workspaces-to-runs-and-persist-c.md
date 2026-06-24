@@ -1,13 +1,13 @@
 ---
 id: task-scope-composition-workspaces-to-runs-and-persist-c
 title: Scope composition workspaces to runs and persist coordination snapshots
-status: ready
+status: done
 priority: p2
 area: modules
 task_class: Platform
 summary: Make the composition module's shared workspace run-scoped and artifact-backed so multi-agent coordination can be reconstructed after a workflow run and cannot leak through process-global names.
 created_at: 2026-06-24T15:25:46.243Z
-updated_at: 2026-06-24T15:25:46.243Z
+updated_at: 2026-06-24T16:11:38.300Z
 ---
 
 ## Problem
@@ -150,3 +150,5 @@ should be scoped, replayable from run artifacts, and module-owned.
   artifact with sanitized entries, authors, timestamps, run/session/step refs,
   and truncation diagnostics where applicable.
 - `pnpm run validate-tasks` passes after the task is completed or moved.
+
+Run evidence: `.kota/runs/2026-06-24T15-35-56-095Z-builder-eaxkbt/`.

@@ -189,6 +189,7 @@ export async function runHandoffAgent(
           ...(runtime.askOwner !== undefined ? { askOwner: runtime.askOwner } : {}),
           abortController: createChildAbortController(context),
           ...(childTokenBudget !== undefined ? { tokenBudget: childTokenBudget } : {}),
+          ...(context?.workflow !== undefined ? { workflowContext: context.workflow } : {}),
         },
         createHarnessWriter(runtime.transport),
       );

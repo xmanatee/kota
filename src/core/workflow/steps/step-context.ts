@@ -22,7 +22,9 @@ function buildToolContext(
   metadata: WorkflowRunMetadata,
   pbus: ProjectScopedEventBus,
   stepId: string,
+  projectDir: string,
 ): {
+  cwd: string;
   stepId: string;
   scopeId: string;
   projectId: string;
@@ -38,6 +40,7 @@ function buildToolContext(
   const scopeId = pbus.getScopeId();
   const projectId = pbus.getProjectId();
   return {
+    cwd: projectDir,
     stepId,
     scopeId,
     projectId,
@@ -126,7 +129,7 @@ export function createStepContext(
     stepOutputList,
     runTool: async (name, input, toolContext) => {
       const stepId = toolContext?.stepId ?? deps.currentStepId ?? "unknown";
-      const context = buildToolContext(metadata, deps.pbus, stepId);
+      const context = buildToolContext(metadata, deps.pbus, stepId, deps.projectDir);
       if (deps.runTool) {
         return deps.runTool(name, input, context);
       }

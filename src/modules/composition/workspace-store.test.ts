@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 import {
   clearAllWorkspaces,
   createWorkspace,
@@ -8,10 +9,27 @@ import {
   listWorkspaces,
   readAllEntries,
   readEntry,
+  resolveWorkspaceScope,
+  snapshotWorkspaceScope,
+  workspaceSourceFromContext,
   writeEntry,
 } from "./workspace-store.js";
 
 afterEach(() => clearAllWorkspaces());
+
+function workflowContext(runId: string, toolUseId: string): ToolRunnerContext {
+  return {
+    toolUseId,
+    workflow: {
+      workflowName: "builder",
+      runId,
+      stepId: "build",
+      spanId: `${runId}:build`,
+      scopeId: "scope-1",
+      projectId: "scope-1",
+    },
+  };
+}
 
 describe("WorkspaceStore", () => {
   it("creates a workspace", () => {
@@ -124,5 +142,63 @@ describe("WorkspaceStore", () => {
     expect(authors).toContain("agent-1");
     expect(authors).toContain("agent-2");
     expect(authors).toContain("agent-3");
+  });
+
+  it("isolates same-name workspaces by workflow run while sharing within a run", () => {
+    const runA1 = workflowContext("run-a", "tool-a1");
+    const runA2 = workflowContext("run-a", "tool-a2");
+    const runB = workflowContext("run-b", "tool-b");
+    const scopeA = resolveWorkspaceScope(runA1);
+    const scopeB = resolveWorkspaceScope(runB);
+
+    writeEntry("shared", "finding", "run a", "agent-a", scopeA, workspaceSourceFromContext(runA1));
+    writeEntry("shared", "other", "same run", "agent-a2", scopeA, workspaceSourceFromContext(runA2));
+    writeEntry("shared", "finding", "run b", "agent-b", scopeB, workspaceSourceFromContext(runB));
+
+    expect(readEntry("shared", "finding", scopeA)?.value).toBe("run a");
+    expect(readEntry("shared", "other", scopeA)?.value).toBe("same run");
+    expect(readEntry("shared", "finding", scopeB)?.value).toBe("run b");
+    expect(readEntry("shared", "other", scopeB)).toBeUndefined();
+  });
+
+  it("records entry metadata and delete operations for scoped snapshots", () => {
+    const context = workflowContext("run-meta", "tool-write");
+    const scope = resolveWorkspaceScope(context);
+    const source = workspaceSourceFromContext(context);
+
+    const first = writeEntry("coordination", "decision", "try typed scope", "architect", scope, source);
+    const second = writeEntry("coordination", "decision", "persist artifact", "builder", scope, source);
+    expect(second.createdAt).toBe(first.createdAt);
+    expect(second.updatedAt).toBeGreaterThanOrEqual(first.updatedAt);
+    expect(second.lastWriter).toBe("builder");
+    expect(second.source).toMatchObject({
+      kind: "workflow",
+      runId: "run-meta",
+      stepId: "build",
+      toolUseId: "tool-write",
+    });
+
+    expect(deleteEntry("coordination", "decision", scope, source)).toBe(true);
+    expect(readEntry("coordination", "decision", scope)).toBeUndefined();
+
+    const snapshot = snapshotWorkspaceScope(scope);
+    expect(snapshot.operations.map((operation) => operation.action)).toEqual([
+      "create",
+      "write",
+      "write",
+      "delete-entry",
+    ]);
+    expect(snapshot.operations.at(-1)).toMatchObject({
+      action: "delete-entry",
+      status: "ok",
+      workspace: "coordination",
+      key: "decision",
+    });
+  });
+
+  it("keeps no-context calls on a process scope", () => {
+    writeEntry("process", "k", "v");
+    expect(readEntry("process", "k")?.value).toBe("v");
+    expect(listWorkspaces().map((workspace) => workspace.name)).toEqual(["process"]);
   });
 });

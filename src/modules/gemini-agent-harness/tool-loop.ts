@@ -121,6 +121,7 @@ export async function dispatchFunctionCall(
     abortSignal: AbortSignal | undefined;
     workflowContext: AgentHarnessRunOptions["workflowContext"];
     tokenBudget: AgentHarnessRunOptions["tokenBudget"];
+    cwd: AgentHarnessRunOptions["cwd"];
   },
 ): Promise<DispatchResult> {
   const name = call.name;
@@ -202,6 +203,7 @@ export async function dispatchFunctionCall(
   const result = maskToolResultSecrets(
     await executeTool(name, effectiveInput, {
       toolUseId: call.id ?? name,
+      ...(guardrails.cwd !== undefined ? { cwd: guardrails.cwd } : {}),
       ...(guardrails.abortSignal !== undefined
         ? { signal: guardrails.abortSignal }
         : {}),

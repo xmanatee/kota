@@ -48,6 +48,7 @@ export function buildVercelToolSet(
     abortSignal: AbortSignal | undefined;
     workflowContext: AgentHarnessRunOptions["workflowContext"];
     tokenBudget: AgentHarnessRunOptions["tokenBudget"];
+    cwd: AgentHarnessRunOptions["cwd"];
   },
   flags: LoopFlags,
   internalAbort: AbortController,
@@ -109,6 +110,7 @@ export function buildVercelToolSet(
 
         const result = maskToolResultSecrets(await executeTool(kotaTool.name, effectiveInput, {
           toolUseId: options.toolCallId,
+          ...(guardrails.cwd !== undefined ? { cwd: guardrails.cwd } : {}),
           ...(guardrails.abortSignal !== undefined ? { signal: guardrails.abortSignal } : {}),
           ...(guardrails.workflowContext !== undefined
             ? {

@@ -48,6 +48,56 @@ afterEach(() => {
 });
 
 describe("createStepContext", () => {
+  it("passes the project cwd into workflow tool-runner contexts", async () => {
+    const projectDir = tempProject();
+    try {
+      const bus = new EventBus();
+      const pbus = new ProjectScopedEventBus(bus, "scope-a");
+      const store = new WorkflowRunStore(projectDir);
+      const runTool = vi.fn(async () => ({ content: "ok" }));
+
+      const context = createStepContext(
+        makeMetadata(),
+        trigger,
+        undefined,
+        {},
+        {},
+        [],
+        {
+          projectDir,
+          bus,
+          pbus,
+          store,
+          runTool,
+          currentStepId: "build",
+        },
+      );
+
+      await context.runTool("composition.workspace", { action: "list" });
+
+      expect(runTool).toHaveBeenCalledWith(
+        "composition.workspace",
+        { action: "list" },
+        {
+          cwd: projectDir,
+          stepId: "build",
+          scopeId: "scope-a",
+          projectId: "scope-a",
+          workflow: {
+            workflowName: "repo-ai-checks",
+            runId: "run-1",
+            stepId: "build",
+            spanId: "run-1:build",
+            scopeId: "scope-a",
+            projectId: "scope-a",
+          },
+        },
+      );
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
   it("emits registered daemon-wide dynamic events without injecting scope fields", () => {
     const projectDir = tempProject();
     try {
