@@ -13,6 +13,7 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("Builder breakdown");
     expect(text).toContain("Diff-summary consistency");
     expect(text).toContain("Code-health drift");
+    expect(text).toContain("Owner interventions");
     expect(text).toContain("Review scrutiny");
     expect(text).toContain("Review scrutiny escalation");
     expect(text).toContain("Trajectory diagnostics");
@@ -30,6 +31,7 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("(no builder commits)");
     expect(text).toContain("(no builder runs inspected for diff-summary consistency)");
     expect(text).toContain("(no builder runs inspected for code-health drift)");
+    expect(text).toContain("(no owner-question pressure)");
     expect(text).toContain("(no reviewer artifacts)");
     expect(text).toContain("(no recurring thin-acceptance patterns)");
     expect(text).toContain("(no recurring trajectory diagnostic patterns)");

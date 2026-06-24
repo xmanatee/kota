@@ -32,6 +32,7 @@ import {
 } from "./aggregate-types.js";
 import { buildCodeHealthDriftReport } from "./code-health-drift.js";
 import { buildDiffSummaryConsistencyReport } from "./diff-summary-consistency-report.js";
+import { buildOwnerInterventionReport } from "./owner-interventions.js";
 import {
   buildPostCompletionCorrectiveLinks,
   summarizePostCompletionFollowUpLinks,
@@ -55,6 +56,7 @@ export {
   type ExplorerTaskAddition,
   type HealthCountRow,
   type HealthTopGroup,
+  type OwnerInterventionReport,
   type PriorityCount,
   type QualityStratificationReport,
   type QueueBalance,
@@ -180,6 +182,11 @@ export function aggregateAutonomyReport(
       windowMs,
     ),
     codeHealthDrift,
+    ownerInterventions: buildOwnerInterventionReport({
+      projectDir: input.projectDir,
+      windowStartMs,
+      windowEndMs: input.windowEndMs,
+    }),
     postCompletionFollowUps,
     qualityStratification: buildQualityStratificationReport({
       tasks: allTasks,

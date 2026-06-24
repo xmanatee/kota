@@ -1,13 +1,13 @@
 ---
 id: task-report-owner-intervention-pressure-in-autonomy-sum
 title: Report owner-intervention pressure in autonomy summaries
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Safety
 summary: Aggregate owner-question outcomes and free-form correction signals so operator reports show where autonomous work repeatedly needs owner intervention, times out, or receives corrective direction.
 created_at: 2026-06-24T08:56:43.501Z
-updated_at: 2026-06-24T08:56:43.501Z
+updated_at: 2026-06-24T09:18:09.805Z
 ---
 
 ## Problem

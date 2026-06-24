@@ -127,6 +127,7 @@ describe("kota report CLI", () => {
     expect(out).toContain("Open queue");
     expect(out).toContain("Diff-summary consistency");
     expect(out).toContain("Code-health drift");
+    expect(out).toContain("Owner interventions");
     expect(out).toContain("Total: 2");
     expect(out).toContain("architecture");
     expect(out).toContain("client");
@@ -166,6 +167,12 @@ describe("kota report CLI", () => {
       totalBuilderRuns: 0,
       runsWithWarnings: 0,
       unsupportedArtifacts: 0,
+    });
+    expect(parsed.ownerInterventions).toMatchObject({
+      totalQuestions: 0,
+      stalePending: 0,
+      timeouts: 0,
+      answeredCorrections: 0,
     });
     expect(parsed.diffSummaryConsistency).toMatchObject({
       totalBuilderRuns: 0,

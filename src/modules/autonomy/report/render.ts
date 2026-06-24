@@ -22,6 +22,7 @@ import {
   renderCost,
   renderHealth,
 } from "./render-health-sections.js";
+import { renderOwnerInterventions } from "./render-owner-interventions.js";
 import { renderPostCompletionFollowUps } from "./render-post-completion-followups.js";
 import { renderQualityStratification } from "./render-quality-stratification.js";
 import { renderQueueBalance } from "./render-queue.js";
@@ -60,6 +61,9 @@ export function renderAutonomyReport(data: AutonomyReportData): RenderNode {
     blank(),
     heading("Code-health drift", 2),
     ...renderCodeHealthDrift(data.codeHealthDrift),
+    blank(),
+    heading("Owner interventions", 2),
+    ...renderOwnerInterventions(data.ownerInterventions),
     blank(),
     heading("Review scrutiny", 2),
     ...renderReviewScrutiny(data.reviewScrutiny),
