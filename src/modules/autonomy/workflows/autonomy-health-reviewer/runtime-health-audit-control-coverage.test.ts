@@ -7,19 +7,15 @@ import {
   buildAutonomyHealthReviewFromSignals,
 } from "./health-review.js";
 import { collectRuntimeHealthAudit } from "./runtime-health-audit.js";
+import {
+  readyTaskPath,
+  writeRunWithApprovalOwnerGateGap,
+  writeRunWithCoverage,
+  writeRunWithSkippedApprovalGateGap,
+  writeRunWithSkippedOwnerWaitGateGap,
+} from "./runtime-health-audit-control-coverage-test-support.js";
 
 const NOW = "2026-06-19T12:00:00.000Z";
-
-type StepSeed = {
-  id: string;
-  type: "approval" | "await-event" | "code";
-  status: "success" | "failed" | "skipped";
-  event?: string;
-};
-
-function readyTaskPath(projectDir: string, taskId: string): string {
-  return join(projectDir, "data", "tasks", "ready", `${taskId}.md`);
-}
 
 describe("runtime health audit control coverage gaps", () => {
   let projectDir: string;
@@ -51,216 +47,6 @@ describe("runtime health audit control coverage gaps", () => {
     });
   }
 
-  function writeRunWithCoverage(id: string, startedAt: string): void {
-    const runDir = join(projectDir, ".kota", "runs", id);
-    mkdirSync(runDir, { recursive: true });
-    writeFileSync(
-      join(runDir, "metadata.json"),
-      JSON.stringify({
-        id,
-        workflow: "builder",
-        status: "success",
-        startedAt,
-        completedAt: startedAt,
-        durationMs: 1000,
-        runDir: `.kota/runs/${id}`,
-        steps: [],
-      }),
-      "utf-8",
-    );
-    writeFileSync(
-      join(runDir, "control-monitor-coverage.json"),
-      JSON.stringify({
-        schemaVersion: 1,
-        generatedAt: startedAt,
-        artifactPath: `.kota/runs/${id}/control-monitor-coverage.json`,
-        run: {
-          id,
-          workflow: "builder",
-          triggerEvent: "autonomy.queue.available",
-          status: "success",
-          startedAt,
-          completedAt: startedAt,
-          headSha: "abc123",
-        },
-        monitoredSurfaceCounts: {
-          agentSteps: 1,
-          toolCalls: 1,
-          externalPayloadIngests: 1,
-          approvalRequests: 0,
-          ownerQuestionWaits: 0,
-          daemonHostControlDenials: 0,
-          runtimeProbes: 0,
-          postRunReviewLinks: 0,
-        },
-        summary: {
-          numerator: 3,
-          denominator: 4,
-          gapCount: 1,
-          unsupportedCount: 0,
-          pendingCount: 0,
-          blockedCount: 0,
-          warnedCount: 0,
-        },
-        families: [],
-        gaps: [
-          {
-            id: "injection-defense:external-payload-unscreened:1",
-            family: "injection-defense",
-            severity: "error",
-            reason: "external-payload-unscreened",
-            subject: "1 external payload(s)",
-            evidenceRefs: [`.kota/runs/${id}/metadata.json`],
-          },
-        ],
-        asyncReviewResponseMs: {
-          observations: 0,
-          min: null,
-          max: null,
-          average: null,
-        },
-      }),
-      "utf-8",
-    );
-  }
-
-  function stepResult(step: StepSeed, startedAt: string) {
-    return {
-      id: step.id,
-      type: step.type,
-      status: step.status,
-      startedAt,
-      completedAt: startedAt,
-      durationMs: 10,
-      ...(step.status === "skipped"
-        ? { skipReason: { kind: "when-predicate" } }
-        : {}),
-    };
-  }
-
-  function writeRunWithApprovalOwnerGateGap(args: {
-    id: string;
-    startedAt: string;
-    step: StepSeed;
-    evidenceRefs?: string[];
-    stepArtifact?: StepSeed;
-  }): void {
-    const { id, startedAt, step } = args;
-    const runDir = join(projectDir, ".kota", "runs", id);
-    const stepsDir = join(runDir, "steps");
-    mkdirSync(stepsDir, { recursive: true });
-    const stepArtifact = args.stepArtifact ?? step;
-    writeFileSync(
-      join(runDir, "metadata.json"),
-      JSON.stringify({
-        id,
-        workflow: "github-mention-intake",
-        status: "success",
-        startedAt,
-        completedAt: startedAt,
-        durationMs: 1000,
-        runDir: `.kota/runs/${id}`,
-        steps: [stepResult(step, startedAt)],
-      }),
-      "utf-8",
-    );
-    writeFileSync(
-      join(runDir, "workflow.json"),
-      JSON.stringify({
-        steps: [
-          {
-            id: step.id,
-            type: step.type,
-            ...(step.event ? { event: step.event } : {}),
-          },
-        ],
-      }),
-      "utf-8",
-    );
-    writeFileSync(
-      join(stepsDir, `${stepArtifact.id}.json`),
-      JSON.stringify(stepResult(stepArtifact, startedAt)),
-      "utf-8",
-    );
-    writeFileSync(
-      join(runDir, "control-monitor-coverage.json"),
-      JSON.stringify({
-        schemaVersion: 1,
-        generatedAt: startedAt,
-        artifactPath: `.kota/runs/${id}/control-monitor-coverage.json`,
-        run: {
-          id,
-          workflow: "github-mention-intake",
-          triggerEvent: "runtime.recovered",
-          status: "success",
-          startedAt,
-          completedAt: startedAt,
-          headSha: "stale-before-skipped-gate-fix",
-        },
-        monitoredSurfaceCounts: {
-          agentSteps: 0,
-          toolCalls: 0,
-          externalPayloadIngests: 0,
-          approvalRequests: 1,
-          ownerQuestionWaits: 0,
-          daemonHostControlDenials: 0,
-          runtimeProbes: 0,
-          postRunReviewLinks: 0,
-        },
-        summary: {
-          numerator: 0,
-          denominator: 1,
-          gapCount: 1,
-          unsupportedCount: 0,
-          pendingCount: 0,
-          blockedCount: 1,
-          warnedCount: 0,
-        },
-        families: [],
-        gaps: [
-          {
-            id: "approval-owner-gates:approval-or-owner-gate-unresolved:1",
-            family: "approval-owner-gates",
-            severity: "warning",
-            reason: "approval-or-owner-gate-unresolved",
-            subject: step.id,
-            evidenceRefs: args.evidenceRefs ?? [
-              `.kota/runs/${id}/steps/${step.id}.json`,
-            ],
-          },
-        ],
-        asyncReviewResponseMs: {
-          observations: 0,
-          min: null,
-          max: null,
-          average: null,
-        },
-      }),
-      "utf-8",
-    );
-  }
-
-  function writeRunWithSkippedApprovalGateGap(id: string, startedAt: string): void {
-    writeRunWithApprovalOwnerGateGap({
-      id,
-      startedAt,
-      step: { id: "approve-comment", type: "approval", status: "skipped" },
-    });
-  }
-
-  function writeRunWithSkippedOwnerWaitGateGap(id: string, startedAt: string): void {
-    writeRunWithApprovalOwnerGateGap({
-      id,
-      startedAt,
-      step: {
-        id: "wait-owner",
-        type: "await-event",
-        status: "skipped",
-        event: "owner.question.resolved",
-      },
-    });
-  }
-
   function expectApprovalOwnerGatePattern(
     audit: ReturnType<typeof collectRuntimeHealthAudit>,
   ): void {
@@ -276,8 +62,8 @@ describe("runtime health audit control coverage gaps", () => {
   }
 
   it("creates one local repair task for recurring control coverage gaps", () => {
-    writeRunWithCoverage("control-gap-a", "2026-06-19T10:00:00.000Z");
-    writeRunWithCoverage("control-gap-b", "2026-06-19T11:00:00.000Z");
+    writeRunWithCoverage(projectDir, "control-gap-a", "2026-06-19T10:00:00.000Z");
+    writeRunWithCoverage(projectDir, "control-gap-b", "2026-06-19T11:00:00.000Z");
 
     const audit = collectRuntimeHealthAudit({
       projectDir,
@@ -310,10 +96,12 @@ describe("runtime health audit control coverage gaps", () => {
 
   it("ignores stale skipped approval gate gaps from historical coverage artifacts", () => {
     writeRunWithSkippedApprovalGateGap(
+      projectDir,
       "stale-skipped-approval-a",
       "2026-06-19T10:00:00.000Z",
     );
     writeRunWithSkippedApprovalGateGap(
+      projectDir,
       "stale-skipped-approval-b",
       "2026-06-19T11:00:00.000Z",
     );
@@ -337,10 +125,12 @@ describe("runtime health audit control coverage gaps", () => {
 
   it("ignores stale skipped owner-wait gate gaps from historical coverage artifacts", () => {
     writeRunWithSkippedOwnerWaitGateGap(
+      projectDir,
       "stale-skipped-owner-wait-a",
       "2026-06-19T10:00:00.000Z",
     );
     writeRunWithSkippedOwnerWaitGateGap(
+      projectDir,
       "stale-skipped-owner-wait-b",
       "2026-06-19T11:00:00.000Z",
     );
@@ -367,7 +157,7 @@ describe("runtime health audit control coverage gaps", () => {
       ["escaping-step-ref-a", "2026-06-19T10:00:00.000Z"],
       ["escaping-step-ref-b", "2026-06-19T11:00:00.000Z"],
     ] as const) {
-      writeRunWithApprovalOwnerGateGap({
+      writeRunWithApprovalOwnerGateGap(projectDir, {
         id,
         startedAt,
         step: { id: "approve-comment", type: "approval", status: "skipped" },
@@ -395,12 +185,12 @@ describe("runtime health audit control coverage gaps", () => {
   });
 
   it("does not suppress approval gate gaps from skipped non-gate step artifacts", () => {
-    writeRunWithApprovalOwnerGateGap({
+    writeRunWithApprovalOwnerGateGap(projectDir, {
       id: "skipped-non-gate-a",
       startedAt: "2026-06-19T10:00:00.000Z",
       step: { id: "sort-inbox", type: "code", status: "skipped" },
     });
-    writeRunWithApprovalOwnerGateGap({
+    writeRunWithApprovalOwnerGateGap(projectDir, {
       id: "skipped-non-gate-b",
       startedAt: "2026-06-19T11:00:00.000Z",
       step: { id: "sort-inbox", type: "code", status: "skipped" },
