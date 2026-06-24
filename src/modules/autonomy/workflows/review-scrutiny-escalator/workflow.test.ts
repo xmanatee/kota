@@ -1,20 +1,20 @@
-import { execFileSync } from "node:child_process";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
-import { getCriticPromptHash } from "#modules/autonomy/critic.js";
 import reviewScrutinyEscalator from "./workflow.js";
+import {
+  listReadyTaskPaths,
+  makeProjectDir,
+  mockCleanWorktree,
+  NOW,
+  readJsonFile,
+  readTextFile,
+  seedCriticRun,
+  seedWarningBackedCriticRun,
+  writeTask,
+} from "./workflow.test-helpers.js";
 
 vi.mock("#core/util/repo-worktree.js", async () => {
   const actual = await vi.importActual<typeof import("#core/util/repo-worktree.js")>(
@@ -48,140 +48,6 @@ vi.mock("#modules/autonomy/shared.js", async () => {
     checkCommitMessageExists: vi.fn(() => "ok"),
   };
 });
-
-const NOW = Date.parse("2026-06-23T12:00:00.000Z");
-
-async function mockCleanWorktree() {
-  const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
-  vi.mocked(getRepoWorktreeStatus).mockReturnValue({
-    available: true,
-    dirty: false,
-    trackedDirty: false,
-    entries: [],
-    fingerprint: "",
-    summary: "clean",
-    headSha: "abc1234",
-  });
-}
-
-function makeProjectDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "review-scrutiny-workflow-"));
-  for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
-    mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
-  }
-  mkdirSync(join(dir, ".kota", "runs"), { recursive: true });
-  execFileSync("git", ["init", "--quiet"], { cwd: dir });
-  execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: dir });
-  execFileSync("git", ["config", "user.name", "test"], { cwd: dir });
-  execFileSync("git", ["config", "commit.gpgsign", "false"], { cwd: dir });
-  execFileSync("git", ["commit", "--allow-empty", "-m", "initial", "--quiet"], {
-    cwd: dir,
-  });
-  return dir;
-}
-
-function writeTask(
-  projectDir: string,
-  id: string,
-  options: { area?: string; taskClass?: string } = {},
-): void {
-  const updatedAt = new Date(NOW - 24 * 60 * 60 * 1000).toISOString();
-  writeFileSync(
-    join(projectDir, "data", "tasks", "done", `${id}.md`),
-    [
-      "---",
-      `id: ${id}`,
-      `title: ${id}`,
-      "status: done",
-      "priority: p2",
-      `area: ${options.area ?? "autonomy"}`,
-      `task_class: ${options.taskClass ?? "Meta"}`,
-      "summary: test",
-      `created_at: ${updatedAt}`,
-      `updated_at: ${updatedAt}`,
-      "---",
-      "",
-      "## Problem",
-      "",
-      "Test task.",
-      "",
-    ].join("\n"),
-    "utf-8",
-  );
-}
-
-function seedCriticRun(projectDir: string, id: string, minutesAgo: number, taskId: string): void {
-  const completedAt = new Date(NOW - minutesAgo * 60 * 1000).toISOString();
-  const metadata: WorkflowRunMetadata = {
-    id,
-    workflow: "builder",
-    definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
-    trigger: { event: "workflow.completed", schemaRef: null, payload: {} },
-    startedAt: new Date(NOW - minutesAgo * 60 * 1000 - 1000).toISOString(),
-    completedAt,
-    status: "success",
-    durationMs: 1000,
-    runDir: `.kota/runs/${id}`,
-    steps: [],
-  };
-  const runDir = join(projectDir, ".kota", "runs", id);
-  mkdirSync(runDir, { recursive: true });
-  writeFileSync(join(runDir, "metadata.json"), JSON.stringify(metadata, null, 2));
-  writeFileSync(
-    join(runDir, "run-summary.json"),
-    JSON.stringify({ taskId }, null, 2),
-  );
-  writeFileSync(
-    join(runDir, "critic-review.json"),
-    JSON.stringify({
-      verdict: "pass",
-      critical_issues: [],
-      warnings: [],
-      summary: "Accepted.",
-      reviewerPromptHash: getCriticPromptHash(),
-    }, null, 2),
-  );
-}
-
-function seedWarningBackedCriticRun(
-  projectDir: string,
-  id: string,
-  minutesAgo: number,
-  taskId: string,
-): void {
-  const completedAt = new Date(NOW - minutesAgo * 60 * 1000).toISOString();
-  const metadata: WorkflowRunMetadata = {
-    id,
-    workflow: "builder",
-    definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
-    trigger: { event: "workflow.completed", schemaRef: null, payload: {} },
-    startedAt: new Date(NOW - minutesAgo * 60 * 1000 - 1000).toISOString(),
-    completedAt,
-    status: "success",
-    durationMs: 1000,
-    runDir: `.kota/runs/${id}`,
-    steps: [],
-  };
-  const runDir = join(projectDir, ".kota", "runs", id);
-  mkdirSync(runDir, { recursive: true });
-  writeFileSync(join(runDir, "metadata.json"), JSON.stringify(metadata, null, 2));
-  writeFileSync(
-    join(runDir, "run-summary.json"),
-    JSON.stringify({ taskId }, null, 2),
-  );
-  writeFileSync(
-    join(runDir, "critic-review.json"),
-    JSON.stringify({
-      verdict: "pass_with_warnings",
-      critical_issues: [],
-      warnings: [
-        "Accepted reviewer verdict omitted warnings, critical issues, and file-line citations; review-scrutiny recorded this reviewer-evidence gap.",
-      ],
-      summary: "Accepted.",
-      reviewerPromptHash: getCriticPromptHash(),
-    }, null, 2),
-  );
-}
 
 describe("review-scrutiny-escalator workflow", () => {
   let projectDir: string;
@@ -247,16 +113,9 @@ describe("review-scrutiny-escalator workflow", () => {
     const result = await harness.run();
 
     expect(result.status).toBe("success");
-    const readyTasks = execFileSync(
-      "find",
-      [join(projectDir, "data", "tasks", "ready"), "-name", "*.md"],
-      { encoding: "utf-8" },
-    )
-      .trim()
-      .split("\n")
-      .filter(Boolean);
+    const readyTasks = listReadyTaskPaths(projectDir);
     expect(readyTasks).toHaveLength(1);
-    const task = readFileSync(readyTasks[0], "utf-8");
+    const task = readTextFile(readyTasks[0]);
     expect(task).toContain("status: ready");
     expect(task).toContain("review-scrutiny-pattern-fingerprint");
     expect(task).toContain("## Product / Safety Link");
@@ -268,8 +127,7 @@ describe("review-scrutiny-escalator workflow", () => {
       "harness",
       "review-scrutiny-escalation.json",
     );
-    expect(existsSync(artifactPath)).toBe(true);
-    const artifact = JSON.parse(readFileSync(artifactPath, "utf-8"));
+    const artifact = readJsonFile<{ applied: { kind: string }[] }>(artifactPath);
     expect(artifact.applied[0].kind).toBe("created");
 
     const attentionEvents = result.emitted.filter(
@@ -322,15 +180,7 @@ describe("review-scrutiny-escalator workflow", () => {
       detection: { patterns: [] },
     });
     expect(result.steps["emit-attention"].status).toBe("skipped");
-    const readyTasks = execFileSync(
-      "find",
-      [join(projectDir, "data", "tasks", "ready"), "-name", "*.md"],
-      { encoding: "utf-8" },
-    )
-      .trim()
-      .split("\n")
-      .filter(Boolean);
-    expect(readyTasks).toEqual([]);
+    expect(listReadyTaskPaths(projectDir)).toEqual([]);
   });
 
   it("writes a no-op artifact for below-threshold windows without creating tasks", async () => {
@@ -351,15 +201,7 @@ describe("review-scrutiny-escalator workflow", () => {
       status: "none",
     });
     expect(result.steps["emit-attention"].status).toBe("skipped");
-    const readyTasks = execFileSync(
-      "find",
-      [join(projectDir, "data", "tasks", "ready"), "-name", "*.md"],
-      { encoding: "utf-8" },
-    )
-      .trim()
-      .split("\n")
-      .filter(Boolean);
-    expect(readyTasks).toEqual([]);
+    expect(listReadyTaskPaths(projectDir)).toEqual([]);
     const artifactPath = join(
       projectDir,
       ".kota",
@@ -367,7 +209,9 @@ describe("review-scrutiny-escalator workflow", () => {
       "harness",
       "review-scrutiny-escalation.json",
     );
-    const artifact = JSON.parse(readFileSync(artifactPath, "utf-8"));
+    const artifact = readJsonFile<{ detection: { belowThreshold: unknown[] } }>(
+      artifactPath,
+    );
     expect(artifact.detection.belowThreshold).toHaveLength(1);
   });
 
