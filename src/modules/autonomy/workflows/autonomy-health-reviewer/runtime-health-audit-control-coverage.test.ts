@@ -61,6 +61,17 @@ describe("runtime health audit control coverage gaps", () => {
     );
   }
 
+  function expectNoObservableGateDiagnostics(
+    audit: ReturnType<typeof collectRuntimeHealthAudit>,
+  ): void {
+    expect({
+      evidenceGaps: audit.evidenceGaps,
+      warningOrErrorPatterns: audit.patterns.filter((pattern) =>
+        pattern.severity === "warning" || pattern.severity === "error"
+      ),
+    }).toEqual({ evidenceGaps: [], warningOrErrorPatterns: [] });
+  }
+
   it("creates one local repair task for recurring control coverage gaps", () => {
     writeRunWithCoverage(projectDir, "control-gap-a", "2026-06-19T10:00:00.000Z");
     writeRunWithCoverage(projectDir, "control-gap-b", "2026-06-19T11:00:00.000Z");
@@ -81,6 +92,15 @@ describe("runtime health audit control coverage gaps", () => {
         observationCount: 2,
       }),
     ]);
+    const observableArtifactRefs = audit.patterns.flatMap((pattern) =>
+      pattern.evidenceRefs.map((ref) => ref.ref)
+    );
+    expect(observableArtifactRefs).toEqual(
+      expect.arrayContaining([
+        ".kota/runs/control-gap-a/control-monitor-coverage.json",
+        ".kota/runs/control-gap-b/control-monitor-coverage.json",
+      ]),
+    );
 
     const actions = reviewAndApply(audit);
     const taskId =
@@ -121,6 +141,7 @@ describe("runtime health audit control coverage gaps", () => {
         }),
       ]),
     );
+    expectNoObservableGateDiagnostics(audit);
   });
 
   it("ignores stale skipped owner-wait gate gaps from historical coverage artifacts", () => {
@@ -150,6 +171,7 @@ describe("runtime health audit control coverage gaps", () => {
         }),
       ]),
     );
+    expectNoObservableGateDiagnostics(audit);
   });
 
   it("does not suppress approval gate gaps with escaping step evidence refs", () => {

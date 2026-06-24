@@ -1,12 +1,12 @@
 ---
 id: task-add-observability-evidence-for-runtime-health-cont
 title: Add observability evidence for runtime health control coverage helpers
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Builder run 2026-06-24T18-02-58-232Z-builder-4wf2qh resolved the runtime-health source-size split, but its observability-obligation diagnostic reports missing inspectable evidence for src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit-control-coverage-gates.ts and runtime-health-audit-control-coverage.ts after approval and agent-harness-sensitive changes.
 created_at: 2026-06-24T18:33:46.547Z
-updated_at: 2026-06-24T18:33:46.547Z
+updated_at: 2026-06-24T21:07:01Z
 ---
 
 ## Problem
@@ -47,4 +47,8 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- Record structured logging, event or run-artifact evidence, explicit error-result assertions, focused test assertions, or an explicit rationale/waiver for both cited files; rerun focused runtime-health control coverage validation and produce an observability-obligation review or equivalent artifact showing outcome ok or justified waiver.
+- Added focused runtime-health control coverage assertions in `src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit-control-coverage.test.ts`: `observableArtifactRefs` proves recurring control-coverage gaps keep `control-monitor-coverage.json` artifact refs for `runtime-health-audit-control-coverage.ts`, and `expectNoObservableGateDiagnostics` proves trusted skipped approval/owner-wait gates produce no evidence gaps or warning/error patterns for `runtime-health-audit-control-coverage-gates.ts`.
+- Recorded explicit rationale and evidence artifacts in `.kota/runs/2026-06-24T18-34-01-119Z-builder-8469zo/observability-obligation-rationale.json` and `.kota/runs/2026-06-24T18-34-01-119Z-builder-8469zo/runtime-health-observability-evidence.json`; both cited files are marked satisfied and `missingFiles` is empty.
+- Focused validation passed: `pnpm test src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit-control-coverage.test.ts` (captured in `.kota/runs/2026-06-24T18-34-01-119Z-builder-8469zo/focused-runtime-health-control-coverage-test.txt`, 1 test file passed, 6 tests passed).
+- Source lint passed: `pnpm run lint` (captured in `.kota/runs/2026-06-24T18-34-01-119Z-builder-8469zo/lint.txt`).
+- Queue validation passes against the real staged index after the moved done-task file and ready-task deletion are staged (captured in `.kota/runs/2026-06-24T18-34-01-119Z-builder-8469zo/validate-tasks.txt`).
