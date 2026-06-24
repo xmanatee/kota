@@ -30,6 +30,7 @@ import {
   type AutonomyReportInput,
   DEFAULT_REPORT_WINDOW_DAYS,
 } from "./aggregate-types.js";
+import { buildCodeHealthDriftReport } from "./code-health-drift.js";
 import { buildPostCompletionFollowUpReport } from "./post-completion-followups.js";
 
 export {
@@ -41,6 +42,7 @@ export {
   type BlockerKind,
   type BuilderBreakdown,
   type BuilderClosure,
+  type CodeHealthDriftReport,
   type CostBreakdown,
   DEFAULT_REPORT_WINDOW_DAYS,
   type ExplorerBalance,
@@ -95,8 +97,11 @@ export function aggregateAutonomyReport(
     [],
   );
 
-  const runs = loadRunsInWindow(input.runsDir, windowStartMs).filter(
+  const reportRuns = loadRunsInWindow(input.runsDir, windowStartMs - windowMs).filter(
     (r) => Date.parse(r.startedAt) <= input.windowEndMs,
+  );
+  const runs = reportRuns.filter(
+    (r) => Date.parse(r.startedAt) >= windowStartMs,
   );
   const reviewScrutiny = collectReviewScrutinyReport({
     runsDir: input.runsDir,
@@ -128,6 +133,13 @@ export function aggregateAutonomyReport(
       input.windowEndMs,
       windowMs,
     ),
+    codeHealthDrift: buildCodeHealthDriftReport({
+      tasks: allTasks,
+      runs: reportRuns,
+      runsDir: input.runsDir,
+      windowStartMs,
+      windowEndMs: input.windowEndMs,
+    }),
     postCompletionFollowUps: buildPostCompletionFollowUpReport({
       tasks: allTasks,
       runs,

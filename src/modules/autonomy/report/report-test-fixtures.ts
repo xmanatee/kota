@@ -66,6 +66,33 @@ export const emptyAutonomyReportData: AutonomyReportData = {
     belowThresholdPatterns: [],
   },
   trajectoryDiagnostics: { activePatterns: [] },
+  codeHealthDrift: {
+    totalBuilderRuns: 0,
+    runsWithWarnings: 0,
+    unsupportedArtifacts: 0,
+    byWarningFamily: [],
+    bySurfaceArea: [],
+    repeatedSurfaces: [],
+    trendBuckets: [
+      {
+        bucket: "current",
+        totalBuilderRuns: 0,
+        runsWithWarnings: 0,
+        warningRecords: 0,
+        cleanupExceptionRuns: 0,
+        unsupportedArtifacts: 0,
+      },
+      {
+        bucket: "prior",
+        totalBuilderRuns: 0,
+        runsWithWarnings: 0,
+        warningRecords: 0,
+        cleanupExceptionRuns: 0,
+        unsupportedArtifacts: 0,
+      },
+    ],
+    records: [],
+  },
   postCompletionFollowUps: {
     totalCorrectiveFollowUps: 0,
     linkedCompletedTaskCount: 0,

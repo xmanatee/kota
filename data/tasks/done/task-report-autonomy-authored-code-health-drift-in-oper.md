@@ -1,13 +1,13 @@
 ---
 id: task-report-autonomy-authored-code-health-drift-in-oper
 title: Report autonomy-authored code-health drift in operator summaries
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Safety
 summary: Aggregate deterministic source-size and lightweight code-health signals from completed autonomous builder runs so operators can see maintainability drift before it only appears as scattered cleanup tasks.
 created_at: 2026-06-24T02:58:46.043Z
-updated_at: 2026-06-24T02:58:46.043Z
+updated_at: 2026-06-24T03:15:03Z
 ---
 
 ## Problem
@@ -164,3 +164,8 @@ Outcome-aware autonomy governance.
   showing code-health-drift counts, repeated surfaces, active cleanup coverage,
   and no cost fields.
 - Validation transcript for `pnpm run validate-tasks`.
+- Completed in builder run `2026-06-24T02-48-46-763Z-builder-fx0xgo`.
+  Acceptance artifacts:
+  `.kota/runs/2026-06-24T02-48-46-763Z-builder-fx0xgo/kota-report.json`,
+  `.kota/runs/2026-06-24T02-48-46-763Z-builder-fx0xgo/success-criteria.txt`,
+  and `.kota/runs/2026-06-24T02-48-46-763Z-builder-fx0xgo/success-criteria-verified.txt`.

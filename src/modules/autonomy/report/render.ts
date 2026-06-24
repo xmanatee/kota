@@ -15,6 +15,7 @@ import {
   stack,
 } from "#modules/rendering/primitives.js";
 import type { AutonomyReportData } from "./aggregate.js";
+import { renderCodeHealthDrift } from "./render-code-health-drift.js";
 import {
   renderBlockers,
   renderCost,
@@ -51,6 +52,9 @@ export function renderAutonomyReport(data: AutonomyReportData): RenderNode {
     blank(),
     heading("Builder breakdown", 2),
     ...renderBuilderBreakdown(data.builder),
+    blank(),
+    heading("Code-health drift", 2),
+    ...renderCodeHealthDrift(data.codeHealthDrift),
     blank(),
     heading("Review scrutiny", 2),
     ...renderReviewScrutiny(data.reviewScrutiny),

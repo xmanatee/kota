@@ -10,8 +10,11 @@ import type {
   RepoTaskClass,
   RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
+import type { CodeHealthDriftReport } from "./code-health-drift.js";
 import type { PostCompletionFollowUpReport } from "./post-completion-followups.js";
 import type { AreaClassification } from "./task-classification.js";
+
+export type { CodeHealthDriftReport } from "./code-health-drift.js";
 
 export const DEFAULT_REPORT_WINDOW_DAYS = 7;
 
@@ -157,6 +160,7 @@ export type AutonomyReportData = {
   reviewScrutiny: ReviewScrutinyReport;
   reviewScrutinyEscalation: ReviewScrutinyEscalationReport;
   trajectoryDiagnostics: TrajectoryDiagnosticReport;
+  codeHealthDrift: CodeHealthDriftReport;
   postCompletionFollowUps: PostCompletionFollowUpReport;
   health: AutonomyHealthBreakdown;
   blockers: BlockerClassMix;
