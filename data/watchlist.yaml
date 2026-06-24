@@ -729,3 +729,7 @@ resources:
   - url: https://arxiv.org/abs/2601.16809
     added: "2026-06-24"
     notes: "Will It Survive? studies the long-term fate of AI-generated code in open source. Monitor as an autonomy/reporting safety signal for post-completion corrective follow-up metrics; this review opened task-record-post-completion-corrective-follow-up-metric for the nonduplicative local gap and should not import an external code-survival benchmark."
+    snapshot:
+      fingerprint: sha256:0efe904181f04ef97de1638a96e07271
+      summary: "Will It Survive? is accessible; its post-completion corrective-maintenance signal is already covered by completed task-record-post-completion-corrective-follow-up-metric, and this run opened no duplicate code-survival benchmark task."
+      last_seen_at: "2026-06-24T02:24:13.661Z"
