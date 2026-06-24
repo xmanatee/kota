@@ -66,6 +66,16 @@ function normalizeMatchedRouteScopeSelectorQuery(
   return true;
 }
 
+function isAuthorizedApiRequest(
+  req: IncomingMessage,
+  url: URL,
+  authToken: string,
+): boolean {
+  if (req.headers.authorization === `Bearer ${authToken}`) return true;
+  if (req.method !== "GET") return false;
+  return url.searchParams.get("token") === authToken;
+}
+
 export function buildRequestHandler(ctx: ServerContext) {
   return function handleRequest(req: IncomingMessage, res: ServerResponse): void {
     setCors(res);
@@ -82,9 +92,7 @@ export function buildRequestHandler(ctx: ServerContext) {
       const moduleMatch = req.method ? findRouteMatch(ctx.moduleRoutes, req.method, path) : null;
       const isBypass = moduleMatch?.route.bypassAuth ?? false;
       if (!isBypass) {
-        const header = req.headers.authorization;
-        const queryToken = url.searchParams.get("token");
-        if (header !== `Bearer ${ctx.authToken}` && queryToken !== ctx.authToken) {
+        if (!isAuthorizedApiRequest(req, url, ctx.authToken)) {
           if (moduleMatch?.route.authFailureHandler) {
             invokeRouteHandler(moduleMatch.route.authFailureHandler, req, res, moduleMatch.params);
             return;

@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-public-serve-api-accepts-query
 title: Security review: The public serve API accepts query-string token authentication for state-changing approval routes, so a leaked dashboard URL token is sufficient to trigger approve-all through a simple POST to the loopback server without an Authorization header.
-status: ready
+status: done
 priority: p2
 area: security
-summary: The public serve API accepts query-string token authentication for state-changing approval routes, so a leaked dashboard URL token is sufficient to trigger approve-all through a simple POST to the loopback server without an Authorization header.
+summary: The public serve API accepted query-string token authentication for state-changing approval routes; non-GET serve API requests now require the bearer Authorization header while GET query-token bootstrap/read routes remain available.
 created_at: 2026-06-24T01:25:51.008Z
-updated_at: 2026-06-24T01:25:51.008Z
+updated_at: 2026-06-24T01:35:05.816Z
 ---
 
 ## Problem
@@ -33,6 +33,14 @@ claim:
 - The cited vulnerability is fixed or proven impossible with code-level evidence.
 - Focused regression coverage guards the fixed boundary.
 - The task records the final verification command or artifact.
+
+## Resolution
+
+The public `kota serve` `/api/*` auth gate now accepts query-string token
+authentication only for `GET` requests. Non-GET requests, including
+`POST /api/approvals/approve-all?token=...`, must authenticate with the
+`Authorization: Bearer ...` header unless the matched module route explicitly
+declares `bypassAuth`.
 
 ## Source / Intent
 
@@ -123,4 +131,5 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `pnpm test src/core/server/server-routes.test.ts` passed on 2026-06-24; coverage includes rejected query-token `POST /api/approvals/approve-all?token=...`, accepted bearer POST, and retained GET query-token auth.
+- `pnpm run typecheck` passed on 2026-06-24.
