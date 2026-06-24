@@ -1,12 +1,12 @@
 ---
 id: task-split-autonomy-report-render-test-source-size-regr
 title: Split autonomy report render test source-size regression
-status: ready
+status: done
 priority: p3
 area: autonomy
 summary: The owner-intervention pressure build passed, but its builder source-size review reports src/modules/autonomy/report/render.test.ts at 302 lines after the report rendering changes. Split focused render-test scenarios or extract local test helpers so future autonomy report changes stay below the source-size guideline without changing report behavior.
 created_at: 2026-06-24T09:46:27.977Z
-updated_at: 2026-06-24T09:46:27.977Z
+updated_at: 2026-06-24T15:14:27.000Z
 ---
 
 ## Problem
@@ -46,4 +46,13 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- Builder source-size evidence or line-count output shows src/modules/autonomy/report/render.test.ts no longer triggers the 300-line advisory, focused autonomy report rendering and owner-intervention tests pass, and pnpm run typecheck plus pnpm run validate-tasks pass.
+- Initial line count showed `src/modules/autonomy/report/render.test.ts` at 302 lines; after splitting the populated-data scenario into `src/modules/autonomy/report/render-populated.test.ts`, `wc -l` reports 117 lines for `render.test.ts` and 191 lines for the new focused test file.
+- `pnpm exec vitest run src/modules/autonomy/report/render.test.ts src/modules/autonomy/report/render-populated.test.ts src/modules/autonomy/report/render-owner-interventions.test.ts` passed 3 files and 6 tests.
+- `pnpm test -- src/modules/autonomy/report/render.test.ts src/modules/autonomy/report/render-populated.test.ts src/modules/autonomy/report/render-owner-interventions.test.ts` completed cleanly while expanding to the full suite: 917 files passed, 11,559 tests passed, 8 skipped.
+- `pnpm run typecheck` passed.
+- Staged source-size review reported `OK: changed source files are under source-size warning thresholds`.
+- `pnpm run validate-tasks` passed.
+
+## Result
+
+Split the broad populated autonomy-report renderer scenario into its own focused test file. Report rendering behavior is unchanged, and the cited source-size advisory on `render.test.ts` is resolved by line-count evidence.
