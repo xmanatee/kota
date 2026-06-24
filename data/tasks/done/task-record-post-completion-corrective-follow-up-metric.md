@@ -1,13 +1,13 @@
 ---
 id: task-record-post-completion-corrective-follow-up-metric
 title: Record post-completion corrective follow-up metrics for autonomous tasks
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Safety
 summary: Derive a compact post-completion signal from existing task, run, and follow-up evidence so KOTA can see when completed agent-authored work later creates corrective maintenance tasks instead of treating completion-time review as the whole quality story.
 created_at: 2026-06-24T00:46:56.239Z
-updated_at: 2026-06-24T00:46:56.239Z
+updated_at: 2026-06-24T01:05:09.985Z
 ---
 
 ## Problem
@@ -147,3 +147,14 @@ Outcome-aware autonomy governance.
 - `pnpm kota report` or JSON-mode output against fixture/local run artifacts
   showing the new summary with task/run/commit refs and no cost fields.
 - `pnpm run validate-tasks` output showing the task queue remains valid.
+- Implemented in `src/modules/autonomy/report/post-completion-followups.ts`
+  with aggregation/render wiring in the existing autonomy report surface.
+- Focused fixture coverage:
+  `pnpm test src/modules/autonomy/report/post-completion-followups.test.ts`,
+  `pnpm test src/modules/autonomy/report/render.test.ts`, and
+  `pnpm test src/modules/autonomy/report/aggregate.test.ts`.
+- Validation evidence: `pnpm run typecheck`, `pnpm run lint`, and
+  `pnpm run validate-tasks` passed; task validation used a temporary Git index
+  because this sandbox cannot write `.git/index.lock`.
+- JSON-mode local report artifact:
+  `.kota/runs/2026-06-24T00-33-42-793Z-builder-dp2llr/post-completion-followups-report.json`.

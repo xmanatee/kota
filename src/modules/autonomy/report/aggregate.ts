@@ -48,6 +48,10 @@ import {
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { loadRunsInWindow } from "#modules/workflow-ops/runs/workflow-history.js";
 import {
+  buildPostCompletionFollowUpReport,
+  type PostCompletionFollowUpReport,
+} from "./post-completion-followups.js";
+import {
   type AreaClassification,
   classifyTaskShape,
 } from "./task-classification.js";
@@ -211,6 +215,7 @@ export type AutonomyReportData = {
   reviewScrutiny: ReviewScrutinyReport;
   reviewScrutinyEscalation: ReviewScrutinyEscalationReport;
   trajectoryDiagnostics: TrajectoryDiagnosticReport;
+  postCompletionFollowUps: PostCompletionFollowUpReport;
   health: AutonomyHealthBreakdown;
   blockers: BlockerClassMix;
   cost: CostBreakdown;
@@ -297,6 +302,13 @@ export function aggregateAutonomyReport(
     input.windowEndMs,
     windowMs,
   );
+  const postCompletionFollowUps = buildPostCompletionFollowUpReport({
+    tasks: allTasks,
+    runs,
+    runsDir: input.runsDir,
+    windowStartMs,
+    windowEndMs: input.windowEndMs,
+  });
   const health = buildAutonomyHealthBreakdown(
     input.runsDir,
     windowStartMs,
@@ -316,6 +328,7 @@ export function aggregateAutonomyReport(
     reviewScrutiny,
     reviewScrutinyEscalation,
     trajectoryDiagnostics,
+    postCompletionFollowUps,
     health,
     blockers,
     cost,

@@ -66,6 +66,14 @@ export const emptyAutonomyReportData: AutonomyReportData = {
     belowThresholdPatterns: [],
   },
   trajectoryDiagnostics: { activePatterns: [] },
+  postCompletionFollowUps: {
+    totalCorrectiveFollowUps: 0,
+    linkedCompletedTaskCount: 0,
+    byReason: [],
+    completedTaskIds: [],
+    activeFollowUpTaskIds: [],
+    links: [],
+  },
   health: {
     totalSignals: 0,
     totalGroups: 0,

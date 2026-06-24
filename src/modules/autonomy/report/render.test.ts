@@ -29,6 +29,7 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("Review scrutiny");
     expect(text).toContain("Review scrutiny escalation");
     expect(text).toContain("Trajectory diagnostics");
+    expect(text).toContain("Post-completion follow-ups");
     expect(text).toContain("Autonomy health");
     expect(text).toContain("Blockers");
     expect(text).toContain("Cost");
@@ -42,6 +43,9 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("(no reviewer artifacts)");
     expect(text).toContain("(no recurring thin-acceptance patterns)");
     expect(text).toContain("(no recurring trajectory diagnostic patterns)");
+    expect(text).toContain(
+      "(no corrective follow-ups linked to recently completed tasks)",
+    );
     expect(text).toContain("(no health signals)");
     expect(text).toContain("(no blocked tasks)");
     expect(text).toContain("(no finished runs in window)");
@@ -70,6 +74,49 @@ describe("renderAutonomyReport", () => {
     expect(trajectorySection).toContain("explorer/explore");
     expect(trajectorySection).toContain("task-repair-trajectory-diagnostic-pattern");
     expect(trajectorySection).not.toMatch(/\$|cost|throughput/i);
+  });
+
+  it("renders post-completion corrective follow-ups without cost fields", () => {
+    const text = render({
+      ...empty,
+      postCompletionFollowUps: {
+        totalCorrectiveFollowUps: 1,
+        linkedCompletedTaskCount: 1,
+        byReason: [
+          { reason: "source-size", count: 1 },
+          { reason: "operator-report", count: 1 },
+        ],
+        completedTaskIds: ["task-completed-parent"],
+        activeFollowUpTaskIds: ["task-source-size-follow-up"],
+        links: [
+          {
+            completedTaskId: "task-completed-parent",
+            completedTaskTitle: "Completed parent",
+            activeFollowUpTaskId: "task-source-size-follow-up",
+            activeFollowUpTitle: "Split oversized source-size fallout",
+            activeFollowUpState: "ready",
+            reasons: ["source-size", "operator-report"],
+            matchedRefs: [
+              "run:2026-04-28T09-00-00-000Z-builder-bbb",
+              "git:commit:abc123def456",
+            ],
+            sourceRunIds: ["2026-04-28T09-00-00-000Z-builder-bbb"],
+            sourceCommitRefs: ["abc123def456"],
+            sourceArtifactPaths: [],
+          },
+        ],
+      },
+    });
+
+    const followUpSection = section(
+      text,
+      "Post-completion follow-ups",
+      "Autonomy health",
+    );
+    expect(followUpSection).toContain("task-completed-parent");
+    expect(followUpSection).toContain("task-source-size-follow-up");
+    expect(followUpSection).toContain("source-size");
+    expect(followUpSection).not.toMatch(/\$|cost|throughput/i);
   });
 
   it("includes priority/area mix and explorer additions when populated", () => {
@@ -163,6 +210,27 @@ describe("renderAutonomyReport", () => {
           },
         ],
       },
+      postCompletionFollowUps: {
+        totalCorrectiveFollowUps: 1,
+        linkedCompletedTaskCount: 1,
+        byReason: [{ reason: "review-scrutiny", count: 1 }],
+        completedTaskIds: ["task-review-parent"],
+        activeFollowUpTaskIds: ["task-review-follow-up"],
+        links: [
+          {
+            completedTaskId: "task-review-parent",
+            completedTaskTitle: "Review parent",
+            activeFollowUpTaskId: "task-review-follow-up",
+            activeFollowUpTitle: "Repair review-scrutiny pattern",
+            activeFollowUpState: "ready",
+            reasons: ["review-scrutiny"],
+            matchedRefs: ["task:task-review-parent"],
+            sourceRunIds: [],
+            sourceCommitRefs: [],
+            sourceArtifactPaths: [],
+          },
+        ],
+      },
       health: {
         totalSignals: 2,
         totalGroups: 1,
@@ -225,6 +293,7 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("$0.10");
     expect(text).toContain("missing_final_verification_after_edit");
     expect(text).toContain("task-repair-trajectory-diagnostic-pattern");
+    expect(text).toContain("task-review-follow-up");
     expect(text).toContain("workflow:builder:runtime-warning");
     expect(text).toContain("local-code");
     expect(text).toContain("owner-decision");

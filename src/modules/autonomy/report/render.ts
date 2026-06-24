@@ -20,6 +20,7 @@ import {
   renderCost,
   renderHealth,
 } from "./render-health-sections.js";
+import { renderPostCompletionFollowUps } from "./render-post-completion-followups.js";
 import { renderQueueBalance } from "./render-queue.js";
 import {
   renderBuilderBreakdown,
@@ -59,6 +60,9 @@ export function renderAutonomyReport(data: AutonomyReportData): RenderNode {
     blank(),
     heading("Trajectory diagnostics", 2),
     ...renderTrajectoryDiagnostics(data.trajectoryDiagnostics),
+    blank(),
+    heading("Post-completion follow-ups", 2),
+    ...renderPostCompletionFollowUps(data.postCompletionFollowUps),
     blank(),
     heading("Autonomy health", 2),
     ...renderHealth(data.health),
