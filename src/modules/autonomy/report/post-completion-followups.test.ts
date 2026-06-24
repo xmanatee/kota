@@ -2,7 +2,9 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { aggregateAutonomyReport } from "./aggregate.js";
+import { classifyCorrectiveReasons } from "./post-completion-followup-detection.js";
 
 const NOW = Date.parse("2026-04-29T12:00:00.000Z");
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -83,6 +85,22 @@ function writeRunSummary(
   );
 }
 
+function taskWithText(text: string): RepoTaskFullRecord {
+  return {
+    id: "task-fixture",
+    title: "Fixture task",
+    state: "ready",
+    priority: "p2",
+    area: "autonomy",
+    taskClass: "Meta",
+    summary: text,
+    updatedAt: new Date(NOW).toISOString(),
+    body: `## Problem\n\n${text}\n`,
+    dependsOn: [],
+    anchor: false,
+  };
+}
+
 describe("post-completion corrective follow-up report", () => {
   let projectDir: string;
   let runsDir: string;
@@ -98,6 +116,25 @@ describe("post-completion corrective follow-up report", () => {
 
   afterEach(() => {
     rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("detects explicit CI, build, and integration-test failure wording", () => {
+    for (const text of [
+      "failing CI after the completed task landed",
+      "the build is broken after completion",
+      "failed integration tests after the merge",
+      "post-merge test-suite breakage after an accepted task",
+    ]) {
+      expect(classifyCorrectiveReasons(taskWithText(text))).toContain(
+        "ci-build-failure",
+      );
+    }
+
+    expect(
+      classifyCorrectiveReasons(
+        taskWithText("planned test expansion adds ordinary integration tests"),
+      ),
+    ).not.toContain("ci-build-failure");
   });
 
   it("links corrective open tasks to recent done evidence and excludes planned or operator-capture work", () => {
@@ -233,6 +270,114 @@ describe("post-completion corrective follow-up report", () => {
         "git:commit:fedcba987654",
         `run:${sourceRunId}`,
       ],
+    });
+    expect(JSON.stringify(followUps)).not.toMatch(/cost|throughput/i);
+  });
+
+  it("classifies linked CI/build follow-ups without reclassifying planned test expansion", () => {
+    const parentRunId = "2026-04-28T09-00-00-000Z-builder-parent";
+    writeRun(runsDir, parentRunId, {
+      workflow: "builder",
+      startedAt: new Date(NOW - MS_PER_DAY).toISOString(),
+      status: "success",
+    });
+    writeRunSummary(
+      runsDir,
+      parentRunId,
+      "task-completed-parent",
+      "abc123def456",
+    );
+
+    writeTask(projectDir, "done", "task-completed-parent", {
+      priority: "p2",
+      area: "autonomy",
+      updatedAt: new Date(NOW - MS_PER_DAY).toISOString(),
+      body: "## Acceptance Evidence\n\n- Builder run landed the parent change.\n",
+    });
+    writeTask(projectDir, "ready", "task-ci-failure-follow-up", {
+      priority: "p2",
+      area: "autonomy",
+      title: "Repair failed CI after completed parent",
+      updatedAt: new Date(NOW).toISOString(),
+      body:
+        "## Problem\n\nCI failed after the completed builder work landed.\n\n" +
+        `Evidence ids:\n\n- run:${parentRunId}\n- git:commit:abc123def456\n\n` +
+        "The follow-up should be counted as integration-boundary breakage.\n",
+    });
+    writeTask(projectDir, "ready", "task-generic-regression-follow-up", {
+      priority: "p2",
+      area: "autonomy",
+      title: "Repair generic runtime regression",
+      updatedAt: new Date(NOW).toISOString(),
+      body:
+        "## Problem\n\nA runtime regression references the completed parent.\n\n" +
+        `Evidence ids:\n\n- run:${parentRunId}\n`,
+    });
+    writeTask(projectDir, "ready", "task-planned-test-expansion", {
+      priority: "p2",
+      area: "autonomy",
+      title: "Planned test expansion sibling",
+      updatedAt: new Date(NOW).toISOString(),
+      body:
+        "## Problem\n\nThis planned sibling adds ordinary test coverage for " +
+        `task-completed-parent after ${parentRunId}; it is not corrective fallout.\n`,
+    });
+    writeTask(projectDir, "blocked", "task-blocked-ci-capture", {
+      priority: "p2",
+      area: "client",
+      title: "Capture CI failure evidence for completed parent",
+      updatedAt: new Date(NOW).toISOString(),
+      body:
+        "## Problem\n\nCI failed after " +
+        `${parentRunId} and git:commit:abc123def456.\n\n` +
+        "## Unblock Precondition\n\nkind: operator-capture\npath: .kota/runs/capture.png\ndescription: Capture the operator-visible proof.\n",
+    });
+
+    const report = aggregateAutonomyReport({
+      projectDir,
+      runsDir,
+      windowEndMs: NOW,
+      windowDays: 7,
+    });
+    const followUps = report.postCompletionFollowUps;
+
+    expect(followUps.activeFollowUpTaskIds).toEqual([
+      "task-ci-failure-follow-up",
+      "task-generic-regression-follow-up",
+    ]);
+    expect(followUps.activeFollowUpTaskIds).not.toContain(
+      "task-planned-test-expansion",
+    );
+    expect(followUps.activeFollowUpTaskIds).not.toContain(
+      "task-blocked-ci-capture",
+    );
+
+    const ciLink = followUps.links.find(
+      (link) => link.activeFollowUpTaskId === "task-ci-failure-follow-up",
+    );
+    expect(ciLink).toMatchObject({
+      completedTaskId: "task-completed-parent",
+      reasons: ["ci-build-failure"],
+      matchedRefs: [
+        "git:commit:abc123def456",
+        `run:${parentRunId}`,
+      ],
+    });
+
+    const regressionLink = followUps.links.find(
+      (link) => link.activeFollowUpTaskId === "task-generic-regression-follow-up",
+    );
+    expect(regressionLink).toMatchObject({
+      completedTaskId: "task-completed-parent",
+      reasons: ["regression"],
+    });
+
+    const byReason = Object.fromEntries(
+      followUps.byReason.map((row) => [row.reason, row.count]),
+    );
+    expect(byReason).toMatchObject({
+      "ci-build-failure": 1,
+      regression: 1,
     });
     expect(JSON.stringify(followUps)).not.toMatch(/cost|throughput/i);
   });

@@ -16,6 +16,7 @@ const ARTIFACT_PATH_RE =
 
 const HARD_CORRECTIVE_REASONS = new Set<PostCompletionCorrectiveReason>([
   "regression",
+  "ci-build-failure",
   "security",
   "review-scrutiny",
   "trajectory-diagnostic",
@@ -75,6 +76,9 @@ export function classifyCorrectiveReasons(
   const reasons: PostCompletionCorrectiveReason[] = [];
   if (/\b(regression|regressed|runtime defect|bug|broken|failure masked)\b/.test(text)) {
     reasons.push("regression");
+  }
+  if (hasCiBuildFailureSignal(text)) {
+    reasons.push("ci-build-failure");
   }
   if (/\b(security|secret|credential|permission|sandbox|injection|approval|destructive)\b/.test(text)) {
     reasons.push("security");
@@ -166,6 +170,26 @@ function stripLocalOverlapCheckSections(text: string): string {
 
 function normalizeText(text: string): string {
   return text.toLowerCase().replace(/\s+/g, " ");
+}
+
+const FAILURE_TERM = "(?:fail(?:ed|ing|ures?|s)?|broken|break(?:age|s)?|red)";
+const CI_TERM = "(?:ci|ci/cd|continuous integration)";
+const BUILD_TERM = "(?:build|build pipeline|production build)";
+const INTEGRATION_TEST_TERM =
+  "(?:integration tests?|integration test suite|test[- ]suite|e2e tests?|end-to-end tests?)";
+const NEARBY_WORDS = "(?:\\s+[a-z0-9/.-]+){0,6}\\s+";
+const CI_BUILD_FAILURE_PATTERNS = [
+  new RegExp(`\\b${CI_TERM}\\b${NEARBY_WORDS}${FAILURE_TERM}\\b`),
+  new RegExp(`\\b${FAILURE_TERM}\\b${NEARBY_WORDS}${CI_TERM}\\b`),
+  new RegExp(`\\b${BUILD_TERM}\\b${NEARBY_WORDS}${FAILURE_TERM}\\b`),
+  new RegExp(`\\b${FAILURE_TERM}\\b${NEARBY_WORDS}${BUILD_TERM}\\b`),
+  new RegExp(`\\b${INTEGRATION_TEST_TERM}\\b${NEARBY_WORDS}${FAILURE_TERM}\\b`),
+  new RegExp(`\\b${FAILURE_TERM}\\b${NEARBY_WORDS}${INTEGRATION_TEST_TERM}\\b`),
+  /\bpost[- ](?:merge|completion)\b(?:\s+[a-z0-9/.-]+){0,8}\s+(?:ci|build|integration tests?|test[- ]suite)\b(?:\s+[a-z0-9/.-]+){0,8}\s+(?:fail(?:ed|ing|ures?|s)?|broken|break(?:age|s)?)\b/,
+];
+
+function hasCiBuildFailureSignal(text: string): boolean {
+  return CI_BUILD_FAILURE_PATTERNS.some((pattern) => pattern.test(text));
 }
 
 function normalizeCommitRef(raw: string): string {

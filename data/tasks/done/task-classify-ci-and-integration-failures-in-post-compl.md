@@ -1,13 +1,13 @@
 ---
 id: task-classify-ci-and-integration-failures-in-post-compl
 title: Classify CI and integration failures in post-completion follow-up metrics
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Safety
 summary: Extend the autonomy report's post-completion follow-up diagnostic so CI, build, and integration-test breakage after a task is marked done is classified as a distinct corrective-maintenance signal.
 created_at: 2026-06-24T02:21:58.978Z
-updated_at: 2026-06-24T02:21:58.978Z
+updated_at: 2026-06-24T02:39:26.475Z
 ---
 
 ## Problem
@@ -120,9 +120,19 @@ Outcome-aware autonomy governance.
 
 - Diff showing the new reason code, deterministic detection rules, and report
   rendering/JSON support.
-- Focused tests for linked CI/build failure, generic regression, planned
-  test-expansion sibling exclusion, and blocked operator-capture exclusion.
-- Report output artifact or transcript under `.kota/runs/<run-id>/` showing the
-  new reason in the post-completion follow-up summary and no cost fields in
-  that section.
-- `pnpm run validate-tasks` output showing the task queue remains valid.
+- Focused tests in
+  `src/modules/autonomy/report/post-completion-followups.test.ts` cover linked
+  CI/build failure, generic regression, planned test-expansion sibling
+  exclusion, blocked operator-capture exclusion, and explicit CI/build/
+  integration-test wording.
+- Report output artifact:
+  `.kota/runs/2026-06-24T02-31-29-135Z-builder-8lw26z/report-output.json`;
+  checked by
+  `.kota/runs/2026-06-24T02-31-29-135Z-builder-8lw26z/report-output-check.txt`.
+- Validation run:
+  `pnpm test src/modules/autonomy/report/post-completion-followups.test.ts src/modules/autonomy/report/render.test.ts`.
+- Validation run: `pnpm run typecheck`.
+- Validation run: `pnpm exec biome check ...` on touched report files.
+- Validation run: `GIT_INDEX_FILE=<temporary-index> pnpm run validate-tasks`.
+  The real-index `pnpm run validate-tasks` run reported only the sandbox
+  staging blocker for the ready-to-done task move.

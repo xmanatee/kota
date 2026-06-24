@@ -67,6 +67,7 @@ function reasonRole(
 ): "error" | "warn" | "info" | "muted" {
   switch (reason) {
     case "regression":
+    case "ci-build-failure":
     case "security":
     case "missing-evidence":
       return "error";

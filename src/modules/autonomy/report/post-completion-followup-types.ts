@@ -6,6 +6,7 @@ import type {
 
 export const POST_COMPLETION_FOLLOW_UP_REASONS = [
   "regression",
+  "ci-build-failure",
   "security",
   "review-scrutiny",
   "trajectory-diagnostic",

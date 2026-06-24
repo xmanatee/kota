@@ -68,6 +68,7 @@ describe("renderAutonomyReport", () => {
         totalCorrectiveFollowUps: 1,
         linkedCompletedTaskCount: 1,
         byReason: [
+          { reason: "ci-build-failure", count: 1 },
           { reason: "source-size", count: 1 },
           { reason: "operator-report", count: 1 },
         ],
@@ -80,7 +81,7 @@ describe("renderAutonomyReport", () => {
             activeFollowUpTaskId: "task-source-size-follow-up",
             activeFollowUpTitle: "Split oversized source-size fallout",
             activeFollowUpState: "ready",
-            reasons: ["source-size", "operator-report"],
+            reasons: ["ci-build-failure", "source-size", "operator-report"],
             matchedRefs: [
               "run:2026-04-28T09-00-00-000Z-builder-bbb",
               "git:commit:abc123def456",
@@ -100,6 +101,7 @@ describe("renderAutonomyReport", () => {
     );
     expect(followUpSection).toContain("task-completed-parent");
     expect(followUpSection).toContain("task-source-size-follow-up");
+    expect(followUpSection).toContain("ci-build-failure");
     expect(followUpSection).toContain("source-size");
     expect(followUpSection).not.toMatch(/\$|cost|throughput/i);
   });
