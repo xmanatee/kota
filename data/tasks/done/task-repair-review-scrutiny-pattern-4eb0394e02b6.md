@@ -1,13 +1,13 @@
 ---
 id: task-repair-review-scrutiny-pattern-4eb0394e02b6
 title: Repair recurring thin critic acceptances
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Meta
 summary: Make critic reviews for builder modules/Unclassified carry inspectable evidence instead of recurring thin acceptances.
 created_at: 2026-06-23T22:39:46.001Z
-updated_at: 2026-06-23T22:39:46.001Z
+updated_at: 2026-06-24T00:07:56.000Z
 ---
 
 ## Problem
@@ -96,6 +96,20 @@ Outcome-aware autonomy governance.
   escalation gate on fresh evidence.
 - Operator-facing report or attention fixture showing future escalations
   include the repair task id without cost fields.
+
+## Completion Notes
+
+- Current source already contains the prompt-versioned review-scrutiny repair:
+  critic verdict artifacts persist `reviewerPromptHash`, accepted critic
+  reviews require file-line summary citations for reviewable work, and
+  escalation ignores prompt-hashless legacy critic records.
+- Source-mode detection at the task creation timestamp returned no active
+  `review-scrutiny:critic:builder:modules:Unclassified` pattern; the run
+  artifact is `.kota/runs/2026-06-23T23-50-26-678Z-builder-9zs48s/review-scrutiny-detection.json`.
+- Focused validation passed:
+  `pnpm exec vitest run src/modules/autonomy/review-scrutiny-escalation.test.ts src/modules/autonomy/critic-verdict.test.ts src/modules/autonomy/review-scrutiny.test.ts`.
+- Operator-facing report/escalator validation passed:
+  `pnpm exec vitest run src/modules/autonomy/report/render-review-scrutiny.test.ts src/modules/autonomy/workflows/review-scrutiny-escalator/workflow.test.ts`.
 
 <!-- review-scrutiny-pattern-fingerprint: review-scrutiny:critic:builder:modules:Unclassified -->
 <!-- review-scrutiny-evidence-fingerprint: 1286183d0bc955ff0ee9513f27ebc44643fb6d6475d678ae872e02a3818acc17 -->
