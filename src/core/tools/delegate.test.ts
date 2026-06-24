@@ -192,7 +192,7 @@ describe("runDelegate model output-token limits", () => {
     );
   });
 
-  it("passes explicit output-token limits to the agent-harness backend", async () => {
+  it("passes explicit output-token limits and workflow metadata to the agent-harness backend", async () => {
     let receivedOptions: AgentHarnessRunOptions | undefined;
     registerAgentHarness({
       name: "openai-tools",
@@ -224,15 +224,30 @@ describe("runDelegate model output-token limits", () => {
       harness: "openai-tools",
     });
 
-    const result = await runDelegate({
-      task: "Research vector search options",
-      mode: "explore",
-    });
+    const workflowMetadata = {
+      workflowName: "builder",
+      runId: "run-observable",
+      stepId: "build",
+      spanId: "run-observable:build",
+      scopeId: "scope-a",
+      projectId: "scope-a",
+    };
+
+    const result = await runDelegate(
+      {
+        task: "Research vector search options",
+        mode: "explore",
+      },
+      {
+        workflow: workflowMetadata,
+      },
+    );
 
     expect(result.is_error).toBeUndefined();
     expect(receivedOptions).toMatchObject({
       model: "openai/operator-model",
       modelOutputTokenLimits: { "operator-model": 7777 },
+      workflowContext: workflowMetadata,
     });
   });
 });

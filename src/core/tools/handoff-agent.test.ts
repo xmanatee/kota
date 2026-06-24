@@ -94,7 +94,17 @@ describe("handoff_agent", () => {
     setDelegateConfig({ model: "gpt-5.5" });
   });
 
-  it("dispatches a registered agent with trace links and validates structured output", async () => {
+  it("dispatches a registered agent with trace links, workflow metadata, and validated structured output", async () => {
+    const scope = scopeInput(projectDir);
+    const workflowMetadata = {
+      workflowName: "builder",
+      runId: "run-observable",
+      stepId: "build",
+      spanId: "run-observable:build",
+      scopeId: scope.scope_id,
+      projectId: scope.project_id,
+    };
+
     const result = await runHandoffAgent(
       {
         agent: "reviewer",
@@ -109,7 +119,7 @@ describe("handoff_agent", () => {
         reason: "Need specialist review.",
         autonomy_mode: "autonomous",
         budget: { max_turns: 3 },
-        scope: scopeInput(projectDir),
+        scope,
         output_schema: {
           type: "object",
           properties: {
@@ -122,7 +132,11 @@ describe("handoff_agent", () => {
         parent: { run_id: "parent-run", step_id: "parent-step" },
         allowed_tools: ["Read"],
       },
-      { sessionId: "parent-session", toolUseId: "tool-use-1" },
+      {
+        sessionId: "parent-session",
+        toolUseId: "tool-use-1",
+        workflow: workflowMetadata,
+      },
     );
 
     expect(result.is_error).toBeUndefined();
@@ -136,6 +150,7 @@ describe("handoff_agent", () => {
       allowedTools: ["Read"],
       disallowedTools: ["Bash"],
       modelProvider: delegateModelProvider,
+      workflowContext: workflowMetadata,
     });
     expect(receivedOptions[0].systemPrompt).toContain("Reviewer prompt.");
     expect(receivedOptions[0].systemPrompt).toContain("Skill prompt.");

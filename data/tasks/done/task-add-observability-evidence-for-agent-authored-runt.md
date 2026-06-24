@@ -1,12 +1,12 @@
 ---
 id: task-add-observability-evidence-for-agent-authored-runt
 title: Add observability evidence for agent-authored runtime changes
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Builder run 2026-06-24T15-35-56-095Z-builder-eaxkbt landed scoped composition workspace snapshots but its observability-obligation review reported 9 of 12 runtime-sensitive core/tool and harness files missing inspectable structured log, event, run artifact, explicit error result, focused test assertion, or rationale evidence.
 created_at: 2026-06-24T17:31:00.652Z
-updated_at: 2026-06-24T17:31:00.652Z
+updated_at: 2026-06-24T17:44:13Z
 ---
 
 ## Problem
@@ -48,3 +48,5 @@ Outcome-aware autonomy progress review.
 ## Acceptance Evidence
 
 - A follow-up builder run or explicit run artifact shows the observability-obligation diagnostic for the missing core/tool and harness files is satisfied or intentionally waived with rationale, and focused tests covering the added evidence pass.
+- Run artifact `.kota/runs/2026-06-24T17-37-58-184Z-builder-4p3fni/observability-obligation-resolution.json` maps each cited missing file to focused runtime-context assertions.
+- `pnpm test src/core/tools/delegate.test.ts src/core/tools/handoff-agent.test.ts src/modules/gemini-agent-harness/adapter-token-budget.test.ts src/modules/openai-tools-agent-harness/adapter-token-budget.test.ts src/modules/vercel-agent-harness/adapter.test.ts` passed with 5 files and 40 tests.

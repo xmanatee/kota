@@ -151,7 +151,7 @@ describe("openaiToolsAgentHarness token budget", () => {
     expect(tokenBudget.snapshot().usage.totalTokens).toBe(10);
   });
 
-  it("passes the active token budget to KOTA tool calls", async () => {
+  it("passes active token budget, cwd, and workflow metadata to KOTA tool calls", async () => {
     messagesStreamMock
       .mockReturnValueOnce(
         makeStubStream({
@@ -178,6 +178,7 @@ describe("openaiToolsAgentHarness token budget", () => {
       );
     executeToolMock.mockResolvedValueOnce({ content: "echo: hello" });
     const tokenBudget = new AgentTokenBudgetLedger({ maxTotalTokens: 100 });
+    const executionCwd = "/tmp/kota-openai-tools-metadata";
     const workflowContext = {
       workflowName: "builder",
       runId: "run-1",
@@ -192,6 +193,7 @@ describe("openaiToolsAgentHarness token budget", () => {
       model: "openai/gpt-5.4-mini",
       effort: "xhigh",
       tokenBudget,
+      cwd: executionCwd,
       workflowContext,
     });
 
@@ -201,6 +203,7 @@ describe("openaiToolsAgentHarness token budget", () => {
       { text: "hello" },
       expect.objectContaining({
         toolUseId: "call_1",
+        cwd: executionCwd,
         workflow: workflowContext,
         scopeId: "scope-1",
         projectId: "scope-1",

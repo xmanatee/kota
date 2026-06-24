@@ -6,6 +6,10 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type {
+  AgentCanUseTool,
+  AgentHarnessRunOptions,
+} from "#core/agent-harness/index.js";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 
 const streamTextMock = vi.fn();
@@ -183,9 +187,11 @@ type ToolExecuteFn = (
 
 describe("vercelAgentHarness — guardrails", () => {
   async function runAndCaptureToolExecute(opts: {
-    canUseTool?: import("#core/agent-harness/index.js").AgentCanUseTool;
+    canUseTool?: AgentCanUseTool;
     allowedTools?: string[];
     disallowedTools?: string[];
+    cwd?: string;
+    workflowContext?: AgentHarnessRunOptions["workflowContext"];
   }): Promise<{
     toolExecute: ToolExecuteFn;
     streamArgs: StreamTextArgs;
@@ -205,6 +211,8 @@ describe("vercelAgentHarness — guardrails", () => {
       ...(opts.canUseTool ? { canUseTool: opts.canUseTool } : {}),
       ...(opts.allowedTools ? { allowedTools: opts.allowedTools } : {}),
       ...(opts.disallowedTools ? { disallowedTools: opts.disallowedTools } : {}),
+      ...(opts.cwd ? { cwd: opts.cwd } : {}),
+      ...(opts.workflowContext ? { workflowContext: opts.workflowContext } : {}),
     });
 
     const streamArgs = captureStreamTextArgs();
@@ -252,6 +260,44 @@ describe("vercelAgentHarness — guardrails", () => {
       content: "token=<secret:API_TOKEN>",
     });
     expect(JSON.stringify(result)).not.toContain("agent-secret-token");
+  });
+
+  it("passes cwd and workflow metadata to KOTA tool execution", async () => {
+    executeToolMock.mockResolvedValue({ content: "context ok" });
+    const executionCwd = "/tmp/kota-vercel-metadata";
+    const workflowContext = {
+      workflowName: "builder",
+      runId: "run-1",
+      stepId: "build",
+      spanId: "run-1:build",
+      scopeId: "scope-1",
+      projectId: "scope-1",
+    };
+
+    const { toolExecute } = await runAndCaptureToolExecute({
+      cwd: executionCwd,
+      workflowContext,
+    });
+    const result = await toolExecute(
+      { text: "context" },
+      { toolCallId: "call_context" },
+    );
+
+    expect(result).toEqual({
+      isError: false,
+      content: "context ok",
+    });
+    expect(executeToolMock).toHaveBeenCalledWith(
+      "echo_tool",
+      { text: "context" },
+      expect.objectContaining({
+        toolUseId: "call_context",
+        cwd: executionCwd,
+        workflow: workflowContext,
+        scopeId: "scope-1",
+        projectId: "scope-1",
+      }),
+    );
   });
 
   it("filters disallowedTools out of the Vercel ToolSet so the model never sees them", async () => {

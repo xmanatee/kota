@@ -144,7 +144,7 @@ describe("geminiAgentHarness token budget", () => {
     expect(tokenBudget.snapshot().usage.totalTokens).toBe(10);
   });
 
-  it("passes the active token budget to KOTA function calls", async () => {
+  it("passes active token budget, cwd, and workflow metadata to KOTA function calls", async () => {
     generateContentStreamMock
       .mockResolvedValueOnce(
         makeStreamFromChunks([
@@ -189,6 +189,7 @@ describe("geminiAgentHarness token budget", () => {
       );
     executeToolMock.mockResolvedValueOnce({ content: "pong" });
     const tokenBudget = new AgentTokenBudgetLedger({ maxTotalTokens: 100 });
+    const executionCwd = "/tmp/kota-gemini-metadata";
     const workflowContext = {
       workflowName: "builder",
       runId: "run-1",
@@ -203,6 +204,7 @@ describe("geminiAgentHarness token budget", () => {
       model: "gemini-2.5-flash",
       effort: "xhigh",
       tokenBudget,
+      cwd: executionCwd,
       workflowContext,
     });
 
@@ -212,6 +214,7 @@ describe("geminiAgentHarness token budget", () => {
       { text: "ping" },
       expect.objectContaining({
         toolUseId: "call_1",
+        cwd: executionCwd,
         workflow: workflowContext,
         scopeId: "scope-1",
         projectId: "scope-1",
