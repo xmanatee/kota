@@ -1,15 +1,3 @@
-/**
- * Knowledge module — file-based structured data layer.
- *
- * Owns the file-based KnowledgeStore implementation and registers it as the
- * `default` knowledge provider. Contributes the `knowledge` tool in the
- * `management` group, the `kota knowledge` operator CLI commands, and the
- * `/api/knowledge` HTTP routes.
- *
- * Storage: .kota/data/ (project) and ~/.kota/data/ (global).
- */
-
-
 import { Command } from "commander";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
@@ -113,6 +101,12 @@ const knowledgeModule: KotaModule = {
 					...(options.status !== undefined && { status: options.status }),
 					...(options.scope !== undefined && { scope: options.scope }),
 					...(options.meta !== undefined && { meta: options.meta }),
+					...(options.provenance !== undefined && {
+						provenance: options.provenance,
+					}),
+					...(options.freshness !== undefined && {
+						freshness: options.freshness,
+					}),
 				});
 				return { id };
 			},
@@ -143,41 +137,6 @@ const knowledgeModule: KotaModule = {
 		),
 };
 
-/**
- * Daemon-side `KnowledgeClient` backed by the typed `DaemonTransport`. Calls
- * the same `/api/knowledge`, `/api/knowledge/:id`, `/api/knowledge/search`,
- * and `/api/knowledge/reindex` HTTP routes the knowledge module registers
- * through `knowledgeRoutes`. The transport surface owns the bearer token,
- * base URL, and timeout policy — this factory only encodes the wire shape.
- *
- * `list(filter)` builds the optional `tag` / `type` / `status` / `scope`
- * URLSearchParams shape (omitting the query string entirely when no key is
- * set) and issues `GET /api/knowledge${query}` through `requestStrict<T>`.
- * The daemon route emits `{ entries: KnowledgeEntry[] }`; the factory
- * passes that decode shape through unchanged.
- *
- * `show(id)` issues `GET /api/knowledge/:id` through `request<T>`,
- * collapsing a `null` (404) into `{ found: false }` and a non-null entry
- * into `{ found: true, entry }`. The id runs through `encodeURIComponent`.
- *
- * `search(query, filter)` builds the same `URLSearchParams` shape today's
- * `searchKnowledgeHttp` built (`q`, optional `tag`, `type`, `status`,
- * `scope`, `semantic=true`, `limit`) and issues
- * `GET /api/knowledge/search?...` through `requestStrict<T>`. The daemon
- * route emits the discriminated union directly.
- *
- * `add(options)` issues `POST /api/knowledge` with the full
- * `KnowledgeAddOptions` body through `requestStrict<T>` and returns
- * `{ id }`.
- *
- * `delete(id)` issues `DELETE /api/knowledge/:id` through `request<T>`,
- * collapsing `null` (404 or transport silence) into
- * `{ ok: false, reason: "not_found" }` and a non-null result into
- * `{ ok: true }`. The id runs through `encodeURIComponent`.
- *
- * `reindex()` issues `POST /api/knowledge/reindex` through
- * `requestStrict<T>` and returns the provider's `ReindexResult` verbatim.
- */
 function buildKnowledgeDaemonHandler(link: DaemonTransport): KnowledgeClient {
 	return {
 		list: async (filter): Promise<KnowledgeListResult> => {

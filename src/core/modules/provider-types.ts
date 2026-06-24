@@ -1,6 +1,11 @@
 import type { KotaMessage } from "#core/agent-harness/message-protocol.js";
 import type { Task, TaskPriority, TaskStatus } from "#core/daemon/task-store.js";
 import type { Transport } from "#core/loop/transport.js";
+import type {
+	WorkMemoryFreshness,
+	WorkMemoryMetadata,
+	WorkMemoryProvenance,
+} from "./work-memory-metadata.js";
 
 /** A stored conversation message — alias for the core harness message protocol. */
 export type ConversationMessage = KotaMessage;
@@ -32,6 +37,9 @@ export type Memory = {
 	content: string;
 	tags: string[];
 	created: string;
+	updated?: string;
+	provenance?: WorkMemoryProvenance;
+	freshness?: WorkMemoryFreshness;
 };
 
 /** A knowledge base entry: structured markdown with YAML front matter. */
@@ -44,6 +52,8 @@ export type KnowledgeEntry = {
 	created: string;
 	updated: string;
 	content: string;
+	provenance?: WorkMemoryProvenance;
+	freshness?: WorkMemoryFreshness;
 	/** Extra metadata fields not covered by the core schema. */
 	meta: Record<string, string>;
 };
@@ -67,12 +77,21 @@ export type ReindexResult = {
 
 /** Interface for persistent memory storage (save/search/list/update/delete). */
 export interface MemoryProvider {
-	save(content: string, tags?: string[]): string;
+	save(
+		content: string,
+		tags?: string[],
+		metadata?: WorkMemoryMetadata,
+	): string;
 	search(query: string, options?: { tag?: string; since?: string }): Memory[];
 	list(): Memory[];
 	update(
 		id: string,
-		updates: { content?: string; tags?: string[] },
+		updates: {
+			content?: string;
+			tags?: string[];
+			provenance?: WorkMemoryProvenance | null;
+			freshness?: WorkMemoryFreshness | null;
+		},
 	): boolean;
 	delete(id: string): boolean;
 	supportsSemanticSearch(): boolean;
@@ -102,6 +121,8 @@ export interface KnowledgeProvider {
 		status?: string;
 		scope?: "project" | "global";
 		meta?: Record<string, string>;
+		provenance?: WorkMemoryProvenance;
+		freshness?: WorkMemoryFreshness;
 	}): string;
 	read(id: string): KnowledgeEntry | null;
 	update(
@@ -113,6 +134,8 @@ export interface KnowledgeProvider {
 			tags?: string[];
 			status?: string;
 			meta?: Record<string, string>;
+			provenance?: WorkMemoryProvenance | null;
+			freshness?: WorkMemoryFreshness | null;
 		},
 	): boolean;
 	delete(id: string): boolean;

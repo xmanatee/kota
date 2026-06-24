@@ -1,20 +1,21 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { RouteRegistration } from "#core/modules/module-types.js";
-import { getMemoryProvider } from "#core/modules/provider-registry.js";
 import type { Memory } from "#core/modules/provider-types.js";
-import {
-  selectedScopeSelectorId,
-  unknownScopeSelectorBody,
-} from "#core/server/scope-selector.js";
-import { readScopeSelectorQueryOrErrorResponse } from "#core/server/scope-selector-request.js";
+import { parseWorkMemoryMetadataFromBody } from "#core/modules/work-memory-metadata.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import type { MemoryProjectStores } from "./project-scope.js";
+import { resolveMemoryRouteProvider } from "./route-provider.js";
+
+type MemoryRequestBody = Awaited<ReturnType<typeof readBody>>;
 
 type MemoryListItem = {
   id: string;
   tags: string[];
   created: string;
+  updated?: string;
   excerpt: string;
+  provenance?: Memory["provenance"];
+  freshness?: Memory["freshness"];
 };
 
 type MemoryListResponse = {
@@ -26,25 +27,11 @@ function toListItem(m: Memory): MemoryListItem {
     id: m.id,
     tags: m.tags,
     created: m.created,
+    ...(m.updated && { updated: m.updated }),
     excerpt: m.content.slice(0, 200).replace(/\s+/g, " ").trim(),
+    ...(m.provenance && { provenance: m.provenance }),
+    ...(m.freshness && { freshness: m.freshness }),
   };
-}
-
-function resolveScopedProvider(
-  req: IncomingMessage,
-  res: ServerResponse,
-  projectStores: MemoryProjectStores | undefined,
-) {
-  if (!projectStores) return getMemoryProvider();
-  const selector = readScopeSelectorQueryOrErrorResponse(req, res);
-  if (selector === null) return null;
-  const selectedId = selectedScopeSelectorId(selector);
-  const resolved = projectStores.resolve(selectedId);
-  if (!resolved.ok) {
-    jsonResponse(res, 404, unknownScopeSelectorBody(selector, resolved.error.projectId));
-    return null;
-  }
-  return resolved.store;
 }
 
 export function handleListMemory(
@@ -53,7 +40,7 @@ export function handleListMemory(
   projectStores?: MemoryProjectStores,
 ): void {
   try {
-    const provider = resolveScopedProvider(req, res, projectStores);
+    const provider = resolveMemoryRouteProvider(req, res, projectStores);
     if (!provider) return;
     const all = provider.list();
     jsonResponse(res, 200, { entries: all.map(toListItem) } satisfies MemoryListResponse);
@@ -69,7 +56,7 @@ export function handleGetMemory(
   projectStores?: MemoryProjectStores,
 ): void {
   try {
-    const provider = resolveScopedProvider(req, res, projectStores);
+    const provider = resolveMemoryRouteProvider(req, res, projectStores);
     if (!provider) return;
     const entry = provider.list().find((m) => m.id === id) ?? null;
     if (!entry) {
@@ -87,7 +74,7 @@ export async function handleAddMemory(
   res: ServerResponse,
   projectStores?: MemoryProjectStores,
 ): Promise<void> {
-  let body: Record<string, unknown>;
+  let body: MemoryRequestBody;
   try {
     body = await readBody(req);
   } catch {
@@ -100,10 +87,17 @@ export async function handleAddMemory(
     return;
   }
   const tags = Array.isArray(body.tags) ? (body.tags as unknown[]).filter((t): t is string => typeof t === "string") : [];
+  const metadata = parseWorkMemoryMetadataFromBody(body);
+  if (!metadata.ok) {
+    jsonResponse(res, 400, { error: metadata.message });
+    return;
+  }
   try {
-    const provider = resolveScopedProvider(req, res, projectStores);
+    const provider = resolveMemoryRouteProvider(req, res, projectStores);
     if (!provider) return;
-    const id = provider.save(content, tags);
+    const id = metadata.metadata
+      ? provider.save(content, tags, metadata.metadata)
+      : provider.save(content, tags);
     jsonResponse(res, 201, { id });
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
@@ -116,20 +110,36 @@ export async function handleUpdateMemory(
   id: string,
   projectStores?: MemoryProjectStores,
 ): Promise<void> {
-  let body: Record<string, unknown>;
+  let body: MemoryRequestBody;
   try {
     body = await readBody(req);
   } catch {
     jsonResponse(res, 400, { error: "Invalid request body" });
     return;
   }
-  const changes: { content?: string; tags?: string[] } = {};
+  const changes: {
+    content?: string;
+    tags?: string[];
+    provenance?: Memory["provenance"] | null;
+    freshness?: Memory["freshness"] | null;
+  } = {};
   if (typeof body.content === "string") changes.content = body.content;
   if (Array.isArray(body.tags)) {
     changes.tags = (body.tags as unknown[]).filter((t): t is string => typeof t === "string");
   }
+  const metadata = parseWorkMemoryMetadataFromBody(body);
+  if (!metadata.ok) {
+    jsonResponse(res, 400, { error: metadata.message });
+    return;
+  }
+  if (body.provenance !== undefined) {
+    changes.provenance = metadata.metadata?.provenance ?? null;
+  }
+  if (body.freshness !== undefined) {
+    changes.freshness = metadata.metadata?.freshness ?? null;
+  }
   try {
-    const provider = resolveScopedProvider(req, res, projectStores);
+    const provider = resolveMemoryRouteProvider(req, res, projectStores);
     if (!provider) return;
     const existing = provider.list().find((m) => m.id === id) ?? null;
     if (!existing) {
@@ -151,7 +161,7 @@ export function handleDeleteMemory(
   projectStores?: MemoryProjectStores,
 ): void {
   try {
-    const provider = resolveScopedProvider(req, res, projectStores);
+    const provider = resolveMemoryRouteProvider(req, res, projectStores);
     if (!provider) return;
     const ok = provider.delete(id);
     if (!ok) {
@@ -177,7 +187,7 @@ export async function handleSearchMemory(
   const limitParam = url.searchParams.get("limit");
   const limit = limitParam ? Math.max(1, Number.parseInt(limitParam, 10) || 0) : 20;
   try {
-    const provider = resolveScopedProvider(req, res, projectStores);
+    const provider = resolveMemoryRouteProvider(req, res, projectStores);
     if (!provider) return;
     if (semantic && !provider.supportsSemanticSearch()) {
       jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
@@ -188,7 +198,14 @@ export async function handleSearchMemory(
       : provider.search(query, { tag, since }).slice(0, limit);
     jsonResponse(res, 200, {
       ok: true,
-      entries: results.map((m) => ({ id: m.id, created: m.created, content: m.content })),
+      entries: results.map((m) => ({
+        id: m.id,
+        created: m.created,
+        ...(m.updated && { updated: m.updated }),
+        content: m.content,
+        ...(m.provenance && { provenance: m.provenance }),
+        ...(m.freshness && { freshness: m.freshness }),
+      })),
     });
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
@@ -201,7 +218,7 @@ export async function handleReindexMemory(
   projectStores?: MemoryProjectStores,
 ): Promise<void> {
   try {
-    const provider = resolveScopedProvider(req, res, projectStores);
+    const provider = resolveMemoryRouteProvider(req, res, projectStores);
     if (!provider) return;
     const result = await provider.reindex();
     jsonResponse(res, 200, result);

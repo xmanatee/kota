@@ -25,6 +25,7 @@ import type {
 	ReindexResult,
 	SearchFilters,
 } from "#core/modules/provider-types.js";
+import type { WorkMemoryMetadata } from "#core/modules/work-memory-metadata.js";
 import {
 	applyFilters,
 	findFileByIdInDir,
@@ -34,6 +35,11 @@ import {
 	serializeFrontMatter,
 	toSlug,
 } from "./store-helpers.js";
+import {
+	applyKnowledgeMetadataChanges,
+	cleanKnowledgeMeta,
+	workMemoryMetadataFields,
+} from "./store-metadata.js";
 
 export class KnowledgeStore {
 	private projectDir: string | null;
@@ -121,6 +127,8 @@ export class KnowledgeStore {
 		status?: string;
 		scope?: "project" | "global";
 		meta?: Record<string, string>;
+		provenance?: WorkMemoryMetadata["provenance"];
+		freshness?: WorkMemoryMetadata["freshness"];
 	}): string {
 		const scope = opts.scope || "project";
 		const dir = this.getDir(scope);
@@ -138,7 +146,11 @@ export class KnowledgeStore {
 			status: opts.status || "active",
 			created: now,
 			updated: now,
-			...(opts.meta || {}),
+			...cleanKnowledgeMeta(opts.meta || {}),
+			...workMemoryMetadataFields({
+				...(opts.provenance && { provenance: opts.provenance }),
+				...(opts.freshness && { freshness: opts.freshness }),
+			}),
 		};
 
 		writeFileSync(join(dir, filename), serializeFrontMatter(attrs, opts.content), "utf-8");
@@ -165,6 +177,8 @@ export class KnowledgeStore {
 			tags?: string[];
 			status?: string;
 			meta?: Record<string, string>;
+			provenance?: WorkMemoryMetadata["provenance"] | null;
+			freshness?: WorkMemoryMetadata["freshness"] | null;
 		},
 	): boolean {
 		for (const dir of this.allDirs()) {
@@ -178,11 +192,7 @@ export class KnowledgeStore {
 			if (changes.type !== undefined) attrs.type = changes.type;
 			if (changes.tags !== undefined) attrs.tags = changes.tags;
 			if (changes.status !== undefined) attrs.status = changes.status;
-			if (changes.meta) {
-				for (const [k, v] of Object.entries(changes.meta)) {
-					attrs[k] = v;
-				}
-			}
+			applyKnowledgeMetadataChanges(attrs, changes);
 			attrs.updated = new Date().toISOString();
 
 			const newBody = changes.content !== undefined ? changes.content : body;

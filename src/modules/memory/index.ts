@@ -1,15 +1,3 @@
-/**
- * Memory module — persistent memory across sessions.
- *
- * Owns the file-based MemoryStore implementation and registers it as the
- * `default` memory provider. Contributes the `memory` tool in the `management`
- * group, the `kota memory` operator CLI commands, and the `/api/memory` HTTP
- * routes.
- *
- * Storage: `.kota/memory.json` (project) and `~/.kota/memory.json` (global).
- */
-
-
 import { Command } from "commander";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
@@ -63,11 +51,14 @@ const memoryModule: KotaModule = {
         const slice =
           filter?.limit !== undefined ? all.slice(0, filter.limit) : all;
         return {
-          entries: slice.map((entry) => ({
-            id: entry.id,
-            created: entry.created,
-            content: entry.content,
-          })),
+            entries: slice.map((entry) => ({
+              id: entry.id,
+              created: entry.created,
+              ...(entry.updated && { updated: entry.updated }),
+              content: entry.content,
+              ...(entry.provenance && { provenance: entry.provenance }),
+              ...(entry.freshness && { freshness: entry.freshness }),
+            })),
         };
       },
       async add(content, tags, project) {
@@ -93,7 +84,14 @@ const memoryModule: KotaModule = {
           });
           return {
             ok: true,
-            entries: results.map((m) => ({ id: m.id, created: m.created, content: m.content })),
+            entries: results.map((m) => ({
+              id: m.id,
+              created: m.created,
+              ...(m.updated && { updated: m.updated }),
+              content: m.content,
+              ...(m.provenance && { provenance: m.provenance }),
+              ...(m.freshness && { freshness: m.freshness }),
+            })),
           };
         }
         const results = provider
@@ -101,7 +99,14 @@ const memoryModule: KotaModule = {
           .slice(0, limit);
         return {
           ok: true,
-          entries: results.map((m) => ({ id: m.id, created: m.created, content: m.content })),
+          entries: results.map((m) => ({
+            id: m.id,
+            created: m.created,
+            ...(m.updated && { updated: m.updated }),
+            content: m.content,
+            ...(m.provenance && { provenance: m.provenance }),
+            ...(m.freshness && { freshness: m.freshness }),
+          })),
         };
       },
       async reindex(project) {
@@ -133,45 +138,20 @@ const memoryModule: KotaModule = {
     memoryRoutes(createMemoryProjectStores(ctx.cwd, () => getMemoryProvider())),
 };
 
-/**
- * Daemon-side `MemoryClient` backed by the typed `DaemonTransport`. Calls
- * the same `/api/memory` and `/api/memory/:id` HTTP routes the memory
- * module registers through `memoryRoutes`. The transport surface owns the
- * bearer token, base URL, and timeout policy — this factory only encodes
- * the wire shape.
- *
- * `list(filter)` issues `GET /api/memory` through `requestStrict<T>`, then
- * collapses the daemon-wire `{ id, tags, created, excerpt }[]` entries
- * into the `MemoryListResult` shape by mapping `excerpt → content`,
- * dropping `tags`, and slicing by `filter.limit ?? Number.POSITIVE_INFINITY`.
- *
- * Project-scoped calls append `?projectId=...`; omitted ids resolve at the
- * daemon route boundary. `add(content, tags)` issues `POST /api/memory`
- * with body `{ content, tags: tags ?? [] }` through `requestStrict<T>` and
- * returns `{ id }`.
- *
- * `delete(id)` issues `DELETE /api/memory/:id` through `fetchRaw`,
- * collapsing a 404 not-found response into `{ ok: false,
- * reason: "not_found" }`, preserving typed unknown-project errors, and
- * collapsing a non-null result into `{ ok: true }`.
- * The id runs through `encodeURIComponent` so embedded slashes,
- * percents, or spaces round-trip safely.
- *
- * `search(query, filter)` builds the same `URLSearchParams` shape the
- * pre-migration `searchMemoryHttp` built (`q`, optional `tag`, `since`,
- * `semantic=true`, `limit`) and issues `GET /api/memory/search?...`
- * through `requestStrict<T>`. The daemon route emits the discriminated
- * union directly; no additional collapse is needed.
- *
- * `reindex()` issues `POST /api/memory/reindex` through `requestStrict<T>`
- * and returns the provider's `ReindexResult` verbatim.
- */
 function buildMemoryDaemonHandler(link: DaemonTransport): MemoryClient {
   return {
     list: async (filter): Promise<MemoryListResult> => {
       const query = projectQuery(filter?.projectId);
       const result = await link.requestStrict<{
-        entries: { id: string; tags: string[]; created: string; excerpt: string }[];
+        entries: {
+          id: string;
+          tags: string[];
+          created: string;
+          updated?: string;
+          excerpt: string;
+          provenance?: MemoryListResult["entries"][number]["provenance"];
+          freshness?: MemoryListResult["entries"][number]["freshness"];
+        }[];
       }>("GET", `/api/memory${query}`);
       const slice = result.entries.slice(
         0,
@@ -181,7 +161,10 @@ function buildMemoryDaemonHandler(link: DaemonTransport): MemoryClient {
         entries: slice.map((entry) => ({
           id: entry.id,
           created: entry.created,
+          ...(entry.updated && { updated: entry.updated }),
           content: entry.excerpt,
+          ...(entry.provenance && { provenance: entry.provenance }),
+          ...(entry.freshness && { freshness: entry.freshness }),
         })),
       };
     },

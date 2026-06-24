@@ -71,6 +71,10 @@ function toRecallHit(entry: ScoredEntry): RecallHit {
         title: entry.payload.title,
         preview: entry.payload.preview,
         updated: entry.payload.updated,
+        ...(entry.payload.provenance && {
+          provenance: entry.payload.provenance,
+        }),
+        ...(entry.payload.freshness && { freshness: entry.payload.freshness }),
       };
     case "memory":
       return {
@@ -79,6 +83,11 @@ function toRecallHit(entry: ScoredEntry): RecallHit {
         id: entry.id,
         preview: entry.payload.preview,
         created: entry.payload.created,
+        ...(entry.payload.updated && { updated: entry.payload.updated }),
+        ...(entry.payload.provenance && {
+          provenance: entry.payload.provenance,
+        }),
+        ...(entry.payload.freshness && { freshness: entry.payload.freshness }),
       };
     case "history":
       return {

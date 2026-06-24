@@ -107,6 +107,37 @@ describe("createKnowledgeContributor", () => {
     const hits = await contributor.recall("q", { topK: 5 });
     expect(hits.map((h) => h.id)).toEqual(["k-keyword"]);
   });
+
+  it("threads knowledge provenance and freshness into raw recall payloads", async () => {
+    const entry = knowledgeEntry("k-provenance");
+    entry.provenance = {
+      sourceKind: "file",
+      sourcePath: "docs/ARCHITECTURE.md",
+      observedAt: "2026-04-26T12:34:56.000Z",
+    };
+    entry.freshness = { status: "current" };
+    const provider: KnowledgeProvider = {
+      create: () => "",
+      read: () => null,
+      update: () => false,
+      delete: () => false,
+      search: () => [entry],
+      list: () => [],
+      count: () => 0,
+      supportsSemanticSearch: () => false,
+      semanticSearch: async () => {
+        throw new Error("should not call semantic path");
+      },
+      reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
+    };
+    const [hit] = await createKnowledgeContributor(provider).recall("q", {
+      topK: 5,
+    });
+    expect(hit.payload).toMatchObject({
+      provenance: { sourceKind: "file", sourcePath: "docs/ARCHITECTURE.md" },
+      freshness: { status: "current" },
+    });
+  });
 });
 
 describe("createMemoryContributor", () => {
@@ -143,6 +174,41 @@ describe("createMemoryContributor", () => {
     };
     const hits = await createMemoryContributor(provider).recall("q", { topK: 2 });
     expect(hits.map((h) => h.id)).toEqual(["a", "b"]);
+  });
+
+  it("threads memory provenance, freshness, and updated timestamp into raw recall payloads", async () => {
+    const entry = memoryEntry("m-provenance");
+    entry.updated = "2026-04-04";
+    entry.provenance = {
+      sourceKind: "run",
+      sourceId: "run-123",
+      observedAt: "2026-04-03T00:00:00.000Z",
+    };
+    entry.freshness = {
+      status: "superseded",
+      changedAt: "2026-04-04T00:00:00.000Z",
+      replacementId: "m-next",
+    };
+    const provider: MemoryProvider = {
+      save: () => "",
+      search: () => [entry],
+      list: () => [],
+      update: () => false,
+      delete: () => false,
+      supportsSemanticSearch: () => false,
+      semanticSearch: async () => {
+        throw new Error("nope");
+      },
+      reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
+    };
+    const [hit] = await createMemoryContributor(provider).recall("q", {
+      topK: 2,
+    });
+    expect(hit.payload).toMatchObject({
+      updated: "2026-04-04",
+      provenance: { sourceKind: "run", sourceId: "run-123" },
+      freshness: { status: "superseded", replacementId: "m-next" },
+    });
   });
 });
 

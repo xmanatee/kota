@@ -1,10 +1,20 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { RouteRegistration } from "#core/modules/module-types.js";
-import { getKnowledgeProvider } from "#core/modules/provider-registry.js";
 import type { KnowledgeEntry, SearchFilters } from "#core/modules/provider-types.js";
-import { readSelectedScopeSelectorIdQueryOrErrorResponse } from "#core/server/scope-selector-request.js";
+import {
+  parseWorkMemoryMetadataFromBody,
+  type WorkMemoryMetadata,
+} from "#core/modules/work-memory-metadata.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import type { KnowledgeProjectStores } from "./project-scope.js";
+import { handleDeleteKnowledgeScoped } from "./route-delete.js";
+import { handleGetKnowledgeScoped } from "./route-get.js";
+import { resolveKnowledgeRouteProvider } from "./route-provider.js";
+
+export { handleDeleteKnowledge } from "./route-delete.js";
+export { handleGetKnowledge } from "./route-get.js";
+
+type KnowledgeRequestBody = Awaited<ReturnType<typeof readBody>>;
 
 type KnowledgeListResponse = { entries: KnowledgeEntry[] };
 
@@ -26,67 +36,17 @@ function parseListFilters(req: IncomingMessage): SearchFilters {
   return filters;
 }
 
-function resolveScopedProvider(
-  req: IncomingMessage,
-  res: ServerResponse,
-  projectStores: KnowledgeProjectStores | undefined,
-) {
-  if (!projectStores) return getKnowledgeProvider();
-  const selectedId = readSelectedScopeSelectorIdQueryOrErrorResponse(req, res);
-  if (selectedId === null) return null;
-  const resolved = projectStores.resolve(selectedId);
-  if (!resolved.ok) {
-    jsonResponse(res, 404, resolved.error);
-    return null;
-  }
-  return resolved.store;
-}
-
 export function handleListKnowledge(
   req: IncomingMessage,
   res: ServerResponse,
   projectStores?: KnowledgeProjectStores,
 ): void {
   try {
-    const provider = resolveScopedProvider(req, res, projectStores);
+    const provider = resolveKnowledgeRouteProvider(req, res, projectStores);
     if (!provider) return;
     const filters = parseListFilters(req);
     const entries = provider.list(filters);
     jsonResponse(res, 200, { entries } satisfies KnowledgeListResponse);
-  } catch (err) {
-    jsonResponse(res, 500, { error: (err as Error).message });
-  }
-}
-
-export function handleGetKnowledge(res: ServerResponse, id: string): void {
-  try {
-    const provider = getKnowledgeProvider();
-    const entry = provider.read(id);
-    if (!entry) {
-      jsonResponse(res, 404, { error: "Not found" });
-      return;
-    }
-    jsonResponse(res, 200, entry);
-  } catch (err) {
-    jsonResponse(res, 500, { error: (err as Error).message });
-  }
-}
-
-function handleGetKnowledgeScoped(
-  req: IncomingMessage,
-  res: ServerResponse,
-  id: string,
-  projectStores: KnowledgeProjectStores,
-): void {
-  try {
-    const provider = resolveScopedProvider(req, res, projectStores);
-    if (!provider) return;
-    const entry = provider.read(id);
-    if (!entry) {
-      jsonResponse(res, 404, { error: "Not found" });
-      return;
-    }
-    jsonResponse(res, 200, entry);
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
   }
@@ -97,7 +57,7 @@ export async function handleAddKnowledge(
   res: ServerResponse,
   projectStores?: KnowledgeProjectStores,
 ): Promise<void> {
-  let body: Record<string, unknown>;
+  let body: KnowledgeRequestBody;
   try {
     body = await readBody(req);
   } catch {
@@ -125,8 +85,13 @@ export async function handleAddKnowledge(
           ),
         )
       : undefined;
+  const metadata = parseWorkMemoryMetadataFromBody(body);
+  if (!metadata.ok) {
+    jsonResponse(res, 400, { error: metadata.message });
+    return;
+  }
   try {
-    const provider = resolveScopedProvider(req, res, projectStores);
+    const provider = resolveKnowledgeRouteProvider(req, res, projectStores);
     if (!provider) return;
     const id = provider.create({
       title,
@@ -136,6 +101,12 @@ export async function handleAddKnowledge(
       status,
       ...(scope !== undefined && { scope }),
       ...(meta !== undefined && { meta }),
+      ...(metadata.metadata?.provenance && {
+        provenance: metadata.metadata.provenance,
+      }),
+      ...(metadata.metadata?.freshness && {
+        freshness: metadata.metadata.freshness,
+      }),
     });
     jsonResponse(res, 201, { id });
   } catch (err) {
@@ -165,7 +136,7 @@ export async function handleSearchKnowledge(
   if (status) filters.status = status;
   if (scope) filters.scope = scope;
   try {
-    const provider = resolveScopedProvider(req, res, projectStores);
+    const provider = resolveKnowledgeRouteProvider(req, res, projectStores);
     if (!provider) return;
     if (semantic && !provider.supportsSemanticSearch()) {
       jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
@@ -186,7 +157,7 @@ export async function handleReindexKnowledge(
   projectStores?: KnowledgeProjectStores,
 ): Promise<void> {
   try {
-    const provider = resolveScopedProvider(req, res, projectStores);
+    const provider = resolveKnowledgeRouteProvider(req, res, projectStores);
     if (!provider) return;
     const result = await provider.reindex();
     jsonResponse(res, 200, result);
@@ -201,22 +172,40 @@ export async function handleUpdateKnowledge(
   id: string,
   projectStores?: KnowledgeProjectStores,
 ): Promise<void> {
-  let body: Record<string, unknown>;
+  let body: KnowledgeRequestBody;
   try {
     body = await readBody(req);
   } catch {
     jsonResponse(res, 400, { error: "Invalid request body" });
     return;
   }
-  const changes: { title?: string; content?: string; type?: string; tags?: string[] } = {};
+  const changes: {
+    title?: string;
+    content?: string;
+    type?: string;
+    tags?: string[];
+    provenance?: WorkMemoryMetadata["provenance"] | null;
+    freshness?: WorkMemoryMetadata["freshness"] | null;
+  } = {};
   if (typeof body.title === "string") changes.title = body.title.trim();
   if (typeof body.content === "string") changes.content = body.content;
   if (typeof body.type === "string") changes.type = body.type.trim();
   if (Array.isArray(body.tags)) {
     changes.tags = (body.tags as unknown[]).filter((t): t is string => typeof t === "string");
   }
+  const metadata = parseWorkMemoryMetadataFromBody(body);
+  if (!metadata.ok) {
+    jsonResponse(res, 400, { error: metadata.message });
+    return;
+  }
+  if (body.provenance !== undefined) {
+    changes.provenance = metadata.metadata?.provenance ?? null;
+  }
+  if (body.freshness !== undefined) {
+    changes.freshness = metadata.metadata?.freshness ?? null;
+  }
   try {
-    const provider = resolveScopedProvider(req, res, projectStores);
+    const provider = resolveKnowledgeRouteProvider(req, res, projectStores);
     if (!provider) return;
     const existing = provider.read(id);
     if (!existing) {
@@ -226,40 +215,6 @@ export async function handleUpdateKnowledge(
     provider.update(id, changes);
     const updated = provider.read(id);
     jsonResponse(res, 200, updated);
-  } catch (err) {
-    jsonResponse(res, 500, { error: (err as Error).message });
-  }
-}
-
-export function handleDeleteKnowledge(res: ServerResponse, id: string): void {
-  try {
-    const provider = getKnowledgeProvider();
-    const ok = provider.delete(id);
-    if (!ok) {
-      jsonResponse(res, 404, { error: "Not found" });
-      return;
-    }
-    jsonResponse(res, 200, { deleted: id });
-  } catch (err) {
-    jsonResponse(res, 500, { error: (err as Error).message });
-  }
-}
-
-function handleDeleteKnowledgeScoped(
-  req: IncomingMessage,
-  res: ServerResponse,
-  id: string,
-  projectStores: KnowledgeProjectStores,
-): void {
-  try {
-    const provider = resolveScopedProvider(req, res, projectStores);
-    if (!provider) return;
-    const ok = provider.delete(id);
-    if (!ok) {
-      jsonResponse(res, 404, { error: "Not found" });
-      return;
-    }
-    jsonResponse(res, 200, { deleted: id });
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
   }

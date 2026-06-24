@@ -1,109 +1,25 @@
-import { readFileSync } from "node:fs";
 import type { Command } from "commander";
 import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { KnowledgeEntry } from "#core/modules/provider-types.js";
+import { formatWorkMemoryMetadata } from "#core/modules/work-memory-metadata.js";
 import {
 	blank,
-	type ColumnsNode,
-	columns,
 	kvBlock,
 	line,
 	plain,
-	type SemanticRole,
 	span,
 } from "#modules/rendering/primitives.js";
 import { print, printToStderr, writeJson, writeStdoutLine } from "#modules/rendering/transport.js";
+import { registerKnowledgeImportCommand } from "./cli-import-command.js";
+import {
+	buildKnowledgeListNode,
+	buildKnowledgeSearchNode,
+	knowledgeStatusRole,
+	toKnowledgeRow,
+} from "./list-nodes.js";
 
-type RawImportEntry = { title?: unknown; body?: unknown; tags?: unknown };
-
-function formatDate(iso: string): string {
-	return iso.slice(0, 16).replace("T", " ");
-}
-
-type KnowledgeRow = {
-	id: string;
-	title: string;
-	type: string;
-	status: string;
-	updated: string;
-};
-
-function statusRole(status: string): SemanticRole {
-	switch (status) {
-		case "active":
-			return "success";
-		case "archived":
-			return "muted";
-		case "draft":
-			return "warn";
-		default:
-			return "info";
-	}
-}
-
-export function buildKnowledgeListNode(entries: KnowledgeRow[]): ColumnsNode {
-	return columns(
-		[
-			{ header: "ID", role: "accent" },
-			{ header: "Type" },
-			{ header: "Status", minWidth: 6 },
-			{ header: "Updated" },
-			{ header: "Title", maxWidth: 60 },
-		],
-		entries.map((e) => ({
-			cells: [
-				{ spans: [{ text: e.id, role: "accent" }] },
-				{ spans: [{ text: e.type }] },
-				{ spans: [{ text: e.status, role: statusRole(e.status) }] },
-				{ spans: [{ text: formatDate(e.updated), role: "muted" }] },
-				{ spans: [{ text: e.title }] },
-			],
-		})),
-	);
-}
-
-export function buildKnowledgeSearchNode(entries: KnowledgeRow[]): ColumnsNode {
-	return columns(
-		[
-			{ header: "ID", role: "accent" },
-			{ header: "Type" },
-			{ header: "Title", maxWidth: 80 },
-		],
-		entries.map((e) => ({
-			cells: [
-				{ spans: [{ text: e.id, role: "accent" }] },
-				{ spans: [{ text: e.type }] },
-				{ spans: [{ text: e.title }] },
-			],
-		})),
-	);
-}
-
-function toRow(entry: KnowledgeEntry): KnowledgeRow {
-	return {
-		id: entry.id,
-		title: entry.title,
-		type: entry.type,
-		status: entry.status,
-		updated: entry.updated,
-	};
-}
-
-/** Parse a JSON or JSONL file into raw entry objects. */
-export function parseImportEntries(content: string): RawImportEntry[] {
-	const trimmed = content.trim();
-	if (trimmed.startsWith("[")) {
-		const parsed = JSON.parse(trimmed) as unknown;
-		if (!Array.isArray(parsed)) throw new Error("JSON file must be an array");
-		return parsed as RawImportEntry[];
-	}
-	return trimmed
-		.split("\n")
-		.map((line) => line.trim())
-		.filter((line) => line.length > 0)
-		.map((line) => JSON.parse(line) as RawImportEntry);
-}
+export { parseImportEntries } from "./import.js";
+export { buildKnowledgeListNode, buildKnowledgeSearchNode } from "./list-nodes.js";
 
 export function registerKnowledgeCommands(
 	program: Command,
@@ -133,7 +49,7 @@ export function registerKnowledgeCommands(
 				print(line(plain("No knowledge entries.")));
 				return;
 			}
-			print(buildKnowledgeListNode(entries.map(toRow)));
+			print(buildKnowledgeListNode(entries.map(toKnowledgeRow)));
 		});
 
 	kCmd
@@ -162,7 +78,7 @@ export function registerKnowledgeCommands(
 				print(line(plain("No matching knowledge entries.")));
 				return;
 			}
-			print(buildKnowledgeSearchNode(result.entries.map(toRow)));
+			print(buildKnowledgeSearchNode(result.entries.map(toKnowledgeRow)));
 		});
 
 	kCmd
@@ -181,14 +97,27 @@ export function registerKnowledgeCommands(
 				value: String(v),
 				role: "muted" as const,
 			}));
+			const workMemoryMetadata = formatWorkMemoryMetadata({
+				...(entry.provenance && { provenance: entry.provenance }),
+				...(entry.freshness && { freshness: entry.freshness }),
+			});
 			print(kvBlock([
 				{ label: "ID", value: entry.id, role: "accent" },
 				{ label: "Title", value: entry.title },
 				{ label: "Type", value: entry.type, role: "info" },
-				{ label: "Status", value: entry.status, role: statusRole(entry.status) },
+				{ label: "Status", value: entry.status, role: knowledgeStatusRole(entry.status) },
 				{ label: "Tags", value: entry.tags.join(", ") || "(none)", role: "muted" },
 				{ label: "Created", value: entry.created, role: "muted" },
 				{ label: "Updated", value: entry.updated, role: "muted" },
+				...(workMemoryMetadata
+					? [
+							{
+								label: "Work Memory",
+								value: workMemoryMetadata,
+								role: "muted" as const,
+							},
+						]
+					: []),
 				...meta,
 			]));
 			print(blank());
@@ -315,61 +244,5 @@ export function registerKnowledgeCommands(
 			if (result.failed > 0) process.exit(1);
 		});
 
-	kCmd
-		.command("import <file>")
-		.description("Bulk import knowledge entries from a JSON or JSONL file")
-		.option("--type <type>", "Entry type for all imported entries", "note")
-		.option("--status <status>", "Entry status for all imported entries", "active")
-		.option("--scope <scope>", "Storage scope: project or global", "project")
-		.action(async (file: string, opts: { type: string; status: string; scope: string }) => {
-			await ensureCliProvidersFor(["knowledge"]);
-			if (opts.scope !== "project" && opts.scope !== "global") {
-				printToStderr(line(span(`Invalid scope "${opts.scope}". Use "project" or "global".`, "error")));
-				process.exit(1);
-			}
-			let raw: string;
-			try {
-				raw = readFileSync(file, "utf-8");
-			} catch {
-				printToStderr(line(span(`Cannot read file: ${file}`, "error")));
-				process.exit(1);
-			}
-			let entries: RawImportEntry[];
-			try {
-				entries = parseImportEntries(raw);
-			} catch (err) {
-				printToStderr(line(span(`Failed to parse file: ${err instanceof Error ? err.message : String(err)}`, "error")));
-				process.exit(1);
-			}
-			let imported = 0;
-			let skipped = 0;
-			for (let i = 0; i < entries.length; i++) {
-				const entry = entries[i];
-				if (typeof entry.title !== "string" || !entry.title || typeof entry.body !== "string") {
-					printToStderr(line(span(`Row ${i + 1}: skipped (missing title or body)`, "warn")));
-					skipped++;
-					continue;
-				}
-				const tags =
-					Array.isArray(entry.tags) && entry.tags.every((t) => typeof t === "string")
-						? (entry.tags as string[])
-						: [];
-				await ctx.client.knowledge.add({
-					title: entry.title,
-					content: entry.body,
-					type: opts.type,
-					tags,
-					status: opts.status,
-					scope: opts.scope as "project" | "global",
-				});
-				imported++;
-			}
-			print(line(
-				plain("Imported "),
-				span(String(imported), "success"),
-				plain(" entries, skipped "),
-				span(String(skipped), skipped > 0 ? "warn" : "muted"),
-				plain(" (missing title/body)."),
-			));
-		});
+	registerKnowledgeImportCommand(kCmd, ctx);
 }

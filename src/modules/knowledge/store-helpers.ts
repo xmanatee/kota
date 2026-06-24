@@ -2,6 +2,10 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { KnowledgeEntry, SearchFilters } from "#core/modules/provider-types.js";
 import {
+	isWorkMemoryMetadataKey,
+	readWorkMemoryMetadataFromFlatFields,
+} from "#core/modules/work-memory-metadata.js";
+import {
 	parseFlatFrontMatter,
 	serializeFlatFrontMatter,
 } from "#core/util/frontmatter.js";
@@ -94,11 +98,17 @@ export function parseKnowledgeFile(
 		if (!id) return null;
 
 		const meta: Record<string, string> = {};
+		const metadataFields: Record<string, string> = {};
 		for (const [k, v] of Object.entries(attrs)) {
+			if (isWorkMemoryMetadataKey(k) && typeof v === "string") {
+				metadataFields[k] = v;
+				continue;
+			}
 			if (!CORE_KEYS.has(k) && typeof v === "string") {
 				meta[k] = v;
 			}
 		}
+		const metadata = readWorkMemoryMetadataFromFlatFields(metadataFields);
 
 		return {
 			id,
@@ -109,6 +119,8 @@ export function parseKnowledgeFile(
 			created: typeof attrs.created === "string" ? attrs.created : "",
 			updated: typeof attrs.updated === "string" ? attrs.updated : "",
 			content: body,
+			...(metadata?.provenance && { provenance: metadata.provenance }),
+			...(metadata?.freshness && { freshness: metadata.freshness }),
 			meta,
 		};
 	} catch {

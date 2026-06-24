@@ -4,8 +4,9 @@
  * background embed work; queries lazily fill the index, cosine-rank the
  * results, and surface embedding errors to the caller.
  *
- * Memory entries have no `updated` timestamp, so staleness is detected via a
- * content+tags hash fingerprint computed by the adapter.
+ * The indexable memory text is still content+tags. Provenance/freshness stays
+ * canonical in the base store and is read from the returned entry, not from the
+ * semantic sidecar.
  */
 
 import { createHash } from "node:crypto";
@@ -74,8 +75,12 @@ export class SemanticMemoryStore implements MemoryProvider {
 		});
 	}
 
-	save(content: string, tags: string[] = []): string {
-		const id = this.base.save(content, tags);
+	save(
+		content: string,
+		tags: string[] = [],
+		metadata?: Parameters<MemoryProvider["save"]>[2],
+	): string {
+		const id = this.base.save(content, tags, metadata);
 		this.manager.enqueueEmbed(id);
 		return id;
 	}
@@ -88,7 +93,10 @@ export class SemanticMemoryStore implements MemoryProvider {
 		return this.base.list();
 	}
 
-	update(id: string, updates: { content?: string; tags?: string[] }): boolean {
+	update(
+		id: string,
+		updates: Parameters<MemoryProvider["update"]>[1],
+	): boolean {
 		const ok = this.base.update(id, updates);
 		if (ok) this.manager.enqueueEmbed(id);
 		return ok;

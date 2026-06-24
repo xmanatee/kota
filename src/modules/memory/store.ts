@@ -12,6 +12,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { Memory, ReindexResult } from "#core/modules/provider-types.js";
+import {
+	parseWorkMemoryMetadata,
+	type WorkMemoryMetadata,
+} from "#core/modules/work-memory-metadata.js";
 
 type MemoryFile = {
   memories: Memory[];
@@ -36,8 +40,12 @@ export class MemoryStore {
     if (!existsSync(this.filePath)) return;
     try {
       const raw = readFileSync(this.filePath, "utf-8");
-      const data: MemoryFile = JSON.parse(raw);
-      this.memories = data.memories || [];
+      const data = JSON.parse(raw) as Partial<MemoryFile>;
+      this.memories = Array.isArray(data.memories)
+        ? data.memories
+            .map((entry) => normalizeMemory(entry))
+            .filter((entry): entry is Memory => entry !== null)
+        : [];
     } catch {
       // Corrupted file — start fresh
       this.memories = [];
@@ -53,14 +61,27 @@ export class MemoryStore {
   }
 
   /** Save a new memory. Returns the assigned ID. */
-  save(content: string, tags: string[] = []): string {
+  save(
+    content: string,
+    tags: string[] = [],
+    metadata?: WorkMemoryMetadata,
+  ): string {
     this.ensureLoaded();
     const id = randomBytes(4).toString("hex");
+    const now = new Date().toISOString();
+    const normalizedMetadata = normalizeWorkMemoryMetadata(metadata);
     this.memories.push({
       id,
       content,
       tags,
-      created: new Date().toISOString(),
+      created: now,
+      updated: now,
+      ...(normalizedMetadata?.provenance && {
+        provenance: normalizedMetadata.provenance,
+      }),
+      ...(normalizedMetadata?.freshness && {
+        freshness: normalizedMetadata.freshness,
+      }),
     });
     // Auto-prune oldest if over limit
     if (this.memories.length > MAX_MEMORIES) {
@@ -107,12 +128,29 @@ export class MemoryStore {
   }
 
   /** Update an existing memory's content or tags. Returns true if found. */
-  update(id: string, updates: { content?: string; tags?: string[] }): boolean {
+  update(
+    id: string,
+    updates: {
+      content?: string;
+      tags?: string[];
+      provenance?: Memory["provenance"] | null;
+      freshness?: Memory["freshness"] | null;
+    },
+  ): boolean {
     this.ensureLoaded();
     const memory = this.memories.find((m) => m.id === id);
     if (!memory) return false;
     if (updates.content !== undefined) memory.content = updates.content;
     if (updates.tags !== undefined) memory.tags = updates.tags;
+    if (updates.provenance !== undefined) {
+      if (updates.provenance === null) delete memory.provenance;
+      else memory.provenance = updates.provenance;
+    }
+    if (updates.freshness !== undefined) {
+      if (updates.freshness === null) delete memory.freshness;
+      else memory.freshness = updates.freshness;
+    }
+    memory.updated = new Date().toISOString();
     this.persist();
     return true;
   }
@@ -165,4 +203,55 @@ export function getProjectMemoryStore(projectDir: string): MemoryStore {
 
 export function resetMemoryStore(): void {
   store = undefined;
+}
+
+function normalizeMemory(entry: Partial<Memory> | null): Memory | null {
+  if (!entry || typeof entry !== "object") return null;
+  if (
+    typeof entry.id !== "string" ||
+    typeof entry.content !== "string" ||
+    !Array.isArray(entry.tags) ||
+    typeof entry.created !== "string"
+  ) {
+    return null;
+  }
+  const created = normalizeTimestamp(entry.created) ?? entry.created;
+  const updated =
+    typeof entry.updated === "string"
+      ? normalizeTimestamp(entry.updated) ?? entry.updated
+      : created;
+  const metadata = parseWorkMemoryMetadata({
+    provenance: entry.provenance ?? null,
+    freshness: entry.freshness ?? null,
+  });
+  return {
+    id: entry.id,
+    content: entry.content,
+    tags: entry.tags.filter((tag): tag is string => typeof tag === "string"),
+    created,
+    updated,
+    ...(metadata.ok && metadata.metadata?.provenance && {
+      provenance: metadata.metadata.provenance,
+    }),
+    ...(metadata.ok && metadata.metadata?.freshness && {
+      freshness: metadata.metadata.freshness,
+    }),
+  };
+}
+
+function normalizeTimestamp(value: string): string | null {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+}
+
+function normalizeWorkMemoryMetadata(
+  metadata: WorkMemoryMetadata | undefined,
+): WorkMemoryMetadata | undefined {
+  if (!metadata) return undefined;
+  const parsed = parseWorkMemoryMetadata({
+    provenance: metadata.provenance ?? null,
+    freshness: metadata.freshness ?? null,
+  });
+  return parsed.ok ? parsed.metadata : undefined;
 }

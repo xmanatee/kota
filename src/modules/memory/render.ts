@@ -1,3 +1,4 @@
+import { formatWorkMemoryMetadata } from "#core/modules/work-memory-metadata.js";
 import type { MemoryListEntry } from "./client.js";
 
 function formatDate(iso: string): string {
@@ -16,7 +17,12 @@ export function renderMemorySearchPlain(entries: MemoryListEntry[]): string {
 	return entries
 		.map((e) => {
 			const snippet = e.content.replace(/\n/g, " ").slice(0, 60);
-			return `${e.id.padEnd(idWidth)}  ${formatDate(e.created).padEnd(16)}  ${snippet}`;
+			const metadata = formatWorkMemoryMetadata({
+				...(e.provenance && { provenance: e.provenance }),
+				...(e.freshness && { freshness: e.freshness }),
+			});
+			const suffix = metadata ? `  | ${metadata}` : "";
+			return `${e.id.padEnd(idWidth)}  ${formatDate(e.updated ?? e.created).padEnd(16)}  ${snippet}${suffix}`;
 		})
 		.join("\n");
 }

@@ -1526,6 +1526,37 @@ export type RecallSource =
   | "tasks"
   | "answer";
 
+export type WorkMemorySourceKind =
+  | "run"
+  | "session"
+  | "file"
+  | "url"
+  | "tool"
+  | "manual";
+
+export type WorkMemoryFreshnessState =
+  | "current"
+  | "stale"
+  | "superseded"
+  | "retracted";
+
+export type WorkMemoryProvenance = {
+  sourceKind: WorkMemorySourceKind;
+  observedAt: string;
+  sourceId?: string;
+  sourcePath?: string;
+  sourceUrl?: string;
+  sourceTool?: string;
+  note?: string;
+};
+
+export type WorkMemoryFreshness = {
+  status: WorkMemoryFreshnessState;
+  changedAt?: string;
+  note?: string;
+  replacementId?: string;
+};
+
 export type RecallKnowledgeHit = {
   source: "knowledge";
   score: number;
@@ -1533,6 +1564,8 @@ export type RecallKnowledgeHit = {
   title: string;
   preview: string;
   updated: string;
+  provenance?: WorkMemoryProvenance;
+  freshness?: WorkMemoryFreshness;
 };
 
 export type RecallMemoryHit = {
@@ -1541,6 +1574,9 @@ export type RecallMemoryHit = {
   id: string;
   preview: string;
   created: string;
+  updated?: string;
+  provenance?: WorkMemoryProvenance;
+  freshness?: WorkMemoryFreshness;
 };
 
 export type RecallHistoryHit = {
@@ -1606,6 +1642,74 @@ function parseRecallAnswerHitResult(raw: unknown): RecallAnswerHitResult {
   return fail(`unknown recall answer-hit result reason: ${reason}`);
 }
 
+function parseOptionalWorkMemoryProvenance(
+  raw: unknown,
+  field: string,
+): WorkMemoryProvenance | undefined {
+  if (raw === undefined) return undefined;
+  const obj = asObject(raw, field);
+  const sourceKind = asString(obj.sourceKind, `${field}.sourceKind`);
+  if (
+    sourceKind !== "run" &&
+    sourceKind !== "session" &&
+    sourceKind !== "file" &&
+    sourceKind !== "url" &&
+    sourceKind !== "tool" &&
+    sourceKind !== "manual"
+  ) {
+    return fail(`unknown work-memory source kind: ${sourceKind}`);
+  }
+  return {
+    sourceKind,
+    observedAt: asString(obj.observedAt, `${field}.observedAt`),
+    ...(asOptionalString(obj.sourceId, `${field}.sourceId`) !== undefined && {
+      sourceId: asOptionalString(obj.sourceId, `${field}.sourceId`),
+    }),
+    ...(asOptionalString(obj.sourcePath, `${field}.sourcePath`) !== undefined && {
+      sourcePath: asOptionalString(obj.sourcePath, `${field}.sourcePath`),
+    }),
+    ...(asOptionalString(obj.sourceUrl, `${field}.sourceUrl`) !== undefined && {
+      sourceUrl: asOptionalString(obj.sourceUrl, `${field}.sourceUrl`),
+    }),
+    ...(asOptionalString(obj.sourceTool, `${field}.sourceTool`) !== undefined && {
+      sourceTool: asOptionalString(obj.sourceTool, `${field}.sourceTool`),
+    }),
+    ...(asOptionalString(obj.note, `${field}.note`) !== undefined && {
+      note: asOptionalString(obj.note, `${field}.note`),
+    }),
+  };
+}
+
+function parseOptionalWorkMemoryFreshness(
+  raw: unknown,
+  field: string,
+): WorkMemoryFreshness | undefined {
+  if (raw === undefined) return undefined;
+  const obj = asObject(raw, field);
+  const status = asString(obj.status, `${field}.status`);
+  if (
+    status !== "current" &&
+    status !== "stale" &&
+    status !== "superseded" &&
+    status !== "retracted"
+  ) {
+    return fail(`unknown work-memory freshness status: ${status}`);
+  }
+  return {
+    status,
+    ...(asOptionalString(obj.changedAt, `${field}.changedAt`) !== undefined && {
+      changedAt: asOptionalString(obj.changedAt, `${field}.changedAt`),
+    }),
+    ...(asOptionalString(obj.note, `${field}.note`) !== undefined && {
+      note: asOptionalString(obj.note, `${field}.note`),
+    }),
+    ...(asOptionalString(obj.replacementId, `${field}.replacementId`) !==
+      undefined && {
+      replacementId: asOptionalString(obj.replacementId, `${field}.replacementId`),
+    }),
+  };
+}
+
 export function parseRecallHit(raw: unknown): RecallHit {
   const obj = asObject(raw, "recallHit");
   const source = asString(obj.source, "recallHit.source");
@@ -1620,6 +1724,7 @@ export function parseRecallHit(raw: unknown): RecallHit {
         title: asString(obj.title, "recallHit[knowledge].title"),
         preview: asString(obj.preview, "recallHit[knowledge].preview"),
         updated: asString(obj.updated, "recallHit[knowledge].updated"),
+        ...optionalRecallMetadata(obj, "recallHit[knowledge]"),
       };
     case "memory":
       return {
@@ -1628,6 +1733,11 @@ export function parseRecallHit(raw: unknown): RecallHit {
         id,
         preview: asString(obj.preview, "recallHit[memory].preview"),
         created: asString(obj.created, "recallHit[memory].created"),
+        ...(asOptionalString(obj.updated, "recallHit[memory].updated") !==
+          undefined && {
+          updated: asOptionalString(obj.updated, "recallHit[memory].updated"),
+        }),
+        ...optionalRecallMetadata(obj, "recallHit[memory]"),
       };
     case "history":
       return {
@@ -1665,6 +1775,27 @@ export function parseRecallHit(raw: unknown): RecallHit {
     default:
       return fail(`unknown recall hit source: ${source}`);
   }
+}
+
+function optionalRecallMetadata(
+  obj: Record<string, unknown>,
+  field: string,
+): {
+  provenance?: WorkMemoryProvenance;
+  freshness?: WorkMemoryFreshness;
+} {
+  const provenance = parseOptionalWorkMemoryProvenance(
+    obj.provenance,
+    `${field}.provenance`,
+  );
+  const freshness = parseOptionalWorkMemoryFreshness(
+    obj.freshness,
+    `${field}.freshness`,
+  );
+  return {
+    ...(provenance && { provenance }),
+    ...(freshness && { freshness }),
+  };
 }
 
 export function parseRecallResult(raw: unknown): RecallResult {

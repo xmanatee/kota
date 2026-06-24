@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { formatWorkMemoryMetadata } from "#core/modules/work-memory-metadata.js";
 import {
 	type ColumnsNode,
 	columns,
@@ -9,8 +10,9 @@ import {
 	span,
 } from "#modules/rendering/primitives.js";
 import { print, printToStderr, writeStdoutLine } from "#modules/rendering/transport.js";
+import type { MemoryListEntry } from "./client.js";
 
-type MemoryRow = { id: string; created: string; content: string };
+type MemoryRow = MemoryListEntry;
 
 function formatDate(iso: string): string {
 	return iso.slice(0, 16).replace("T", " ");
@@ -20,14 +22,27 @@ export function buildMemoryListNode(rows: MemoryRow[]): ColumnsNode {
 	return columns(
 		[
 			{ header: "ID", role: "accent" },
-			{ header: "Date" },
+			{ header: "Updated" },
 			{ header: "Content", maxWidth: 80 },
+			{ header: "Metadata", maxWidth: 72 },
 		],
 		rows.map((e) => ({
 			cells: [
 				{ spans: [{ text: e.id, role: "accent" }] },
-				{ spans: [{ text: formatDate(e.created) }] },
+				{ spans: [{ text: formatDate(e.updated ?? e.created) }] },
 				{ spans: [{ text: e.content.replace(/\n/g, " ") }] },
+				{
+					spans: [
+						{
+							text:
+								formatWorkMemoryMetadata({
+									...(e.provenance && { provenance: e.provenance }),
+									...(e.freshness && { freshness: e.freshness }),
+								}) || "",
+							role: "muted",
+						},
+					],
+				},
 			],
 		})),
 	);

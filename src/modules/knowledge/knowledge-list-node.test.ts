@@ -11,6 +11,7 @@ const ROWS = [
     type: "plan",
     status: "active",
     updated: "2026-04-20T10:00:00.000Z",
+    metadata: "",
   },
   {
     id: "k2",
@@ -19,6 +20,7 @@ const ROWS = [
     type: "note",
     status: "draft",
     updated: "2026-04-21T10:00:00.000Z",
+    metadata: "",
   },
 ];
 

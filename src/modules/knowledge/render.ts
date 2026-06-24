@@ -1,4 +1,5 @@
 import type { KnowledgeEntry } from "#core/modules/provider-types.js";
+import { formatWorkMemoryMetadata } from "#core/modules/work-memory-metadata.js";
 
 /**
  * Plain-text rendering of knowledge search results — one line per entry
@@ -12,9 +13,13 @@ export function renderKnowledgeSearchPlain(entries: KnowledgeEntry[]): string {
 	const typeWidth = Math.max(...entries.map((e) => e.type.length), 4);
 	const statusWidth = Math.max(...entries.map((e) => e.status.length), 6);
 	return entries
-		.map(
-			(e) =>
-				`${e.id.padEnd(idWidth)}  ${e.type.padEnd(typeWidth)}  ${e.status.padEnd(statusWidth)}  ${e.title}`,
-		)
+		.map((e) => {
+			const metadata = formatWorkMemoryMetadata({
+				...(e.provenance && { provenance: e.provenance }),
+				...(e.freshness && { freshness: e.freshness }),
+			});
+			const suffix = metadata ? `  | ${metadata}` : "";
+			return `${e.id.padEnd(idWidth)}  ${e.type.padEnd(typeWidth)}  ${e.status.padEnd(statusWidth)}  ${e.title}${suffix}`;
+		})
 		.join("\n");
 }

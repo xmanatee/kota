@@ -14,11 +14,12 @@ export const RECALL_SOURCE_BADGE_VARIANT: Record<
 };
 
 export function describeRecallHit(hit: RecallHit): string {
+  const metadata = formatRecallMetadata(hit);
   switch (hit.source) {
     case "knowledge":
-      return hit.title;
+      return appendMetadata(hit.title, metadata);
     case "memory":
-      return hit.preview;
+      return appendMetadata(hit.preview, metadata);
     case "history":
       return hit.title;
     case "tasks":
@@ -28,6 +29,48 @@ export function describeRecallHit(hit: RecallHit): string {
         hit.result.ok ? `ok(${hit.citationCount})` : hit.result.reason
       }] ${hit.query}`;
   }
+}
+
+function formatRecallMetadata(hit: RecallHit): string {
+  if (hit.source !== "knowledge" && hit.source !== "memory") return "";
+  const pieces: string[] = [];
+  if (hit.provenance) {
+    pieces.push(
+      `${formatProvenanceLocator(hit.provenance)} observed ${hit.provenance.observedAt.slice(0, 10)}`,
+    );
+  }
+  if (hit.freshness) {
+    const replacement = hit.freshness.replacementId
+      ? ` -> ${hit.freshness.replacementId}`
+      : "";
+    const changed = hit.freshness.changedAt
+      ? ` ${hit.freshness.changedAt.slice(0, 10)}`
+      : "";
+    pieces.push(`${hit.freshness.status}${replacement}${changed}`);
+  }
+  return pieces.join("; ");
+}
+
+function formatProvenanceLocator(
+  provenance: NonNullable<Extract<RecallHit, { source: "knowledge" }>["provenance"]>,
+): string {
+  switch (provenance.sourceKind) {
+    case "run":
+    case "session":
+      return `${provenance.sourceKind}:${provenance.sourceId ?? "unknown"}`;
+    case "file":
+      return `file:${provenance.sourcePath ?? "unknown"}`;
+    case "url":
+      return `url:${provenance.sourceUrl ?? "unknown"}`;
+    case "tool":
+      return `tool:${provenance.sourceTool ?? provenance.sourceId ?? "unknown"}`;
+    case "manual":
+      return "manual";
+  }
+}
+
+function appendMetadata(label: string, metadata: string): string {
+  return metadata ? `${label} | ${metadata}` : label;
 }
 
 export function formatRecallScore(score: number): string {

@@ -76,6 +76,8 @@ async function recallKnowledge(
       title: entry.title,
       preview: clipPreview(entry.content),
       updated: entry.updated,
+      ...(entry.provenance && { provenance: entry.provenance }),
+      ...(entry.freshness && { freshness: entry.freshness }),
     },
   }));
 }
@@ -95,6 +97,9 @@ async function recallMemory(
     payload: {
       preview: clipPreview(entry.content),
       created: entry.created,
+      ...(entry.updated && { updated: entry.updated }),
+      ...(entry.provenance && { provenance: entry.provenance }),
+      ...(entry.freshness && { freshness: entry.freshness }),
     },
   }));
 }

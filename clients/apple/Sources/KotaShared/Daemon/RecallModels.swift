@@ -78,7 +78,7 @@ enum RecallHit: Decodable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case source, score, id, title, preview, updated, created, cwd, updatedAt, state, priority,
-             query, citationCount, createdAt, result
+             query, citationCount, createdAt, result, provenance, freshness
     }
 
     init(from decoder: Decoder) throws {
@@ -91,11 +91,26 @@ enum RecallHit: Decodable, Equatable {
             let title = try container.decode(String.self, forKey: .title)
             let preview = try container.decode(String.self, forKey: .preview)
             let updated = try container.decode(String.self, forKey: .updated)
-            self = .knowledge(score: score, id: id, title: title, preview: preview, updated: updated)
+            let provenance = try container.decodeIfPresent(WorkMemoryProvenance.self, forKey: .provenance)
+            let freshness = try container.decodeIfPresent(WorkMemoryFreshness.self, forKey: .freshness)
+            self = .knowledge(
+                score: score,
+                id: id,
+                title: appendWorkMemoryMetadata(title, provenance: provenance, freshness: freshness),
+                preview: preview,
+                updated: updated
+            )
         case "memory":
             let preview = try container.decode(String.self, forKey: .preview)
             let created = try container.decode(String.self, forKey: .created)
-            self = .memory(score: score, id: id, preview: preview, created: created)
+            let provenance = try container.decodeIfPresent(WorkMemoryProvenance.self, forKey: .provenance)
+            let freshness = try container.decodeIfPresent(WorkMemoryFreshness.self, forKey: .freshness)
+            self = .memory(
+                score: score,
+                id: id,
+                preview: appendWorkMemoryMetadata(preview, provenance: provenance, freshness: freshness),
+                created: created
+            )
         case "history":
             let title = try container.decode(String.self, forKey: .title)
             let cwd = try container.decode(String.self, forKey: .cwd)

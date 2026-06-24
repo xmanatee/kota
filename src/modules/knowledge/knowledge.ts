@@ -7,6 +7,11 @@
 
 import { tryEmit } from "#core/events/event-bus.js";
 import { getKnowledgeProvider } from "#core/modules/provider-registry.js";
+import {
+	formatWorkMemoryMetadata,
+	type WorkMemoryFreshness,
+	type WorkMemoryProvenance,
+} from "#core/modules/work-memory-metadata.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { knowledgeTool } from "./knowledge-schema.js";
 
@@ -36,6 +41,8 @@ function formatEntryFull(e: {
 	updated: string;
 	content: string;
 	meta: Record<string, string>;
+	provenance?: WorkMemoryProvenance;
+	freshness?: WorkMemoryFreshness;
 }): string {
 	const parts = [
 		`ID: ${e.id}`,
@@ -46,6 +53,11 @@ function formatEntryFull(e: {
 		`Created: ${e.created}`,
 		`Updated: ${e.updated}`,
 	];
+	const workMemoryMetadata = formatWorkMemoryMetadata({
+		...(e.provenance && { provenance: e.provenance }),
+		...(e.freshness && { freshness: e.freshness }),
+	});
+	if (workMemoryMetadata) parts.push(`Work Memory: ${workMemoryMetadata}`);
 	const metaKeys = Object.keys(e.meta);
 	if (metaKeys.length > 0) {
 		for (const k of metaKeys) {

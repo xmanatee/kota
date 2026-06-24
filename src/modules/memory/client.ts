@@ -12,13 +12,20 @@
  */
 
 import type { ReindexResult } from "#core/modules/provider-types.js";
+import type {
+  WorkMemoryFreshness,
+  WorkMemoryProvenance,
+} from "#core/modules/work-memory-metadata.js";
 import type { ScopeSelector } from "#core/server/scope-selector.js";
 
 /** A masked memory entry as the CLI surfaces it. */
 export type MemoryListEntry = {
   id: string;
   created: string;
+  updated?: string;
   content: string;
+  provenance?: WorkMemoryProvenance;
+  freshness?: WorkMemoryFreshness;
 };
 
 export type MemoryListResult = {

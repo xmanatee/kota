@@ -7,6 +7,8 @@
  * operators see consistent output across `kota recall` and the existing
  * per-store search commands.
  */
+
+import { formatWorkMemoryMetadata } from "#core/modules/work-memory-metadata.js";
 import type { RecallHit } from "./client.js";
 
 const SCORE_PRECISION = 3;
@@ -16,11 +18,12 @@ export function formatRecallScore(score: number): string {
 }
 
 export function describeRecallHit(hit: RecallHit): string {
+  const metadata = formatRecallHitMetadata(hit);
   switch (hit.source) {
     case "knowledge":
-      return hit.title;
+      return appendMetadata(hit.title, metadata);
     case "memory":
-      return hit.preview;
+      return appendMetadata(hit.preview, metadata);
     case "history":
       return hit.title;
     case "tasks":
@@ -32,6 +35,18 @@ export function describeRecallHit(hit: RecallHit): string {
       return `[${badge}] ${hit.query}`;
     }
   }
+}
+
+function formatRecallHitMetadata(hit: RecallHit): string {
+  if (hit.source !== "knowledge" && hit.source !== "memory") return "";
+  return formatWorkMemoryMetadata({
+    ...(hit.provenance && { provenance: hit.provenance }),
+    ...(hit.freshness && { freshness: hit.freshness }),
+  });
+}
+
+function appendMetadata(label: string, metadata: string): string {
+  return metadata ? `${label} | ${metadata}` : label;
 }
 
 export function renderRecallHitsPlain(hits: RecallHit[]): string {

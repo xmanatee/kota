@@ -23,6 +23,28 @@ describe("MemoryStore", () => {
     expect(store.list()).toHaveLength(2);
   });
 
+  it("saves and reloads provenance and freshness metadata", () => {
+    const id = store.save(
+      "Loop work should cite its run artifact",
+      ["autonomy"],
+      {
+        provenance: {
+          sourceKind: "run",
+          sourceId: "run-123",
+          observedAt: "2026-04-25T08:00:00.000Z",
+        },
+        freshness: { status: "current" },
+      },
+    );
+    const reloaded = new MemoryStore(dir).list().find((entry) => entry.id === id);
+    expect(reloaded).toMatchObject({
+      id,
+      provenance: { sourceKind: "run", sourceId: "run-123" },
+      freshness: { status: "current" },
+    });
+    expect(reloaded?.updated).toBe(reloaded?.created);
+  });
+
   it("returns an ID on save", () => {
     const id = store.save("hello");
     expect(typeof id).toBe("string");
@@ -155,6 +177,36 @@ describe("MemoryStore", () => {
       const mem = store2.list().find((m) => m.id === id)!;
       expect(mem.content).toBe("after");
       expect(mem.tags).toEqual(["b"]);
+    });
+
+    it("persists correction metadata without deleting provenance", () => {
+      const id = store.save(
+        "old claim",
+        ["correction"],
+        {
+          provenance: {
+            sourceKind: "file",
+            sourcePath: "notes/old.md",
+            observedAt: "2026-04-25T08:00:00.000Z",
+          },
+        },
+      );
+      expect(
+        store.update(id, {
+          freshness: {
+            status: "superseded",
+            changedAt: "2026-04-27T09:15:00.000Z",
+            replacementId: "mem-new",
+          },
+        }),
+      ).toBe(true);
+      const mem = new MemoryStore(dir).list().find((m) => m.id === id)!;
+      expect(mem.provenance).toMatchObject({ sourcePath: "notes/old.md" });
+      expect(mem.freshness).toMatchObject({
+        status: "superseded",
+        replacementId: "mem-new",
+      });
+      expect(mem.updated).toBeTruthy();
     });
   });
 

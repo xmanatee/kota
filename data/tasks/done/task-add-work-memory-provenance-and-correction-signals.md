@@ -1,13 +1,13 @@
 ---
 id: task-add-work-memory-provenance-and-correction-signals
 title: Add work-memory provenance and correction signals
-status: ready
+status: done
 priority: p1
 area: knowledge
 task_class: Platform
 summary: Make memory, knowledge, and recall results carry reviewable source, freshness, correction, and retraction signals so long-running agents learn from work without trusting stale context.
 created_at: 2026-06-24T15:44:37.334Z
-updated_at: 2026-06-24T21:44:22.389Z
+updated_at: 2026-06-24T22:16:32.000Z
 ---
 
 ## Problem
@@ -110,3 +110,24 @@ source, freshness, and correction state visible enough to audit.
 - CLI or HTTP transcript under `.kota/runs/<run-id>/` showing a record created
   with provenance, recalled, corrected/retracted, and recalled again with the
   changed state visible.
+
+## Completion Notes
+
+Implemented a typed work-memory metadata contract for memory and knowledge
+entries, route and CLI exposure for create/update/read/list/search surfaces,
+recall contributor and renderer propagation, semantic-store compatibility, and
+cross-client conformance rendering for web, mobile, and Apple clients.
+
+The retraction/correction path is demonstrated in
+`.kota/runs/2026-06-24T21-48-14-387Z-builder-3ertwr/acceptance-evidence.md`:
+a memory record is recalled with current provenance, updated to superseded,
+then retracted through the existing retract provider so later recall omits it.
+
+Validation passed: `pnpm typecheck`, `pnpm lint`, strict-types policy, focused
+memory/knowledge/recall/retract tests, cross-client recall conformance test,
+web recall-render test, mobile RecallScreen test, and Apple RecallView tests.
+The OpenAI and Jason Liu source pages were reachable during implementation;
+the Perplexity source was inaccessible through the available browser. It is no
+longer needed since the task body already captured the relevant
+memory/correction intent and no unread claims from that page were used beyond
+that summarized intent.

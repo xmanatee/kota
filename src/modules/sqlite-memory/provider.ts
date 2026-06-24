@@ -16,6 +16,10 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Memory, MemoryProvider, ReindexResult } from "#core/modules/provider-types.js";
+import {
+	parseWorkMemoryMetadata,
+	type WorkMemoryMetadata,
+} from "#core/modules/work-memory-metadata.js";
 
 const TIMEOUT_MS = 10_000;
 const MAX_BUFFER = 5 * 1024 * 1024;
@@ -84,17 +88,31 @@ CREATE TABLE IF NOT EXISTS memories (
 );
 CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created);`,
 		);
+		this.ensureColumn("updated", "TEXT");
+		this.ensureColumn("provenance_json", "TEXT");
+		this.ensureColumn("freshness_json", "TEXT");
 		this.initialized = true;
 	}
 
-	save(content: string, tags: string[] = []): string {
+	save(
+		content: string,
+		tags: string[] = [],
+		metadata?: WorkMemoryMetadata,
+	): string {
 		this.ensureInit();
 		const id = randomBytes(4).toString("hex");
 		const created = new Date().toISOString();
 		const tagsJson = JSON.stringify(tags);
+		const normalizedMetadata = normalizeWorkMemoryMetadata(metadata);
+		const provenanceJson = normalizedMetadata?.provenance
+			? JSON.stringify(normalizedMetadata.provenance)
+			: "";
+		const freshnessJson = normalizedMetadata?.freshness
+			? JSON.stringify(normalizedMetadata.freshness)
+			: "";
 		execSqlVoid(
 			this.dbPath,
-			`INSERT INTO memories (id, content, tags, created) VALUES ('${esc(id)}', '${esc(content)}', '${esc(tagsJson)}', '${esc(created)}');`,
+			`INSERT INTO memories (id, content, tags, created, updated, provenance_json, freshness_json) VALUES ('${esc(id)}', '${esc(content)}', '${esc(tagsJson)}', '${esc(created)}', '${esc(created)}', '${esc(provenanceJson)}', '${esc(freshnessJson)}');`,
 		);
 		return id;
 	}
@@ -122,7 +140,7 @@ CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created);`,
 		}
 
 		const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-		const sql = `SELECT id, content, tags, created FROM memories ${where} ORDER BY created DESC;`;
+		const sql = `SELECT id, content, tags, created, updated, provenance_json, freshness_json FROM memories ${where} ORDER BY created DESC;`;
 
 		const raw = execSql(this.dbPath, sql);
 		if (!raw) return [];
@@ -131,12 +149,20 @@ CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created);`,
 
 	list(): Memory[] {
 		this.ensureInit();
-		const raw = execSql(this.dbPath, "SELECT id, content, tags, created FROM memories ORDER BY created DESC;");
+		const raw = execSql(this.dbPath, "SELECT id, content, tags, created, updated, provenance_json, freshness_json FROM memories ORDER BY created DESC;");
 		if (!raw) return [];
 		return this.parseRows(raw);
 	}
 
-	update(id: string, updates: { content?: string; tags?: string[] }): boolean {
+	update(
+		id: string,
+		updates: {
+			content?: string;
+			tags?: string[];
+			provenance?: Memory["provenance"] | null;
+			freshness?: Memory["freshness"] | null;
+		},
+	): boolean {
 		this.ensureInit();
 		const sets: string[] = [];
 		if (updates.content !== undefined) {
@@ -145,7 +171,20 @@ CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created);`,
 		if (updates.tags !== undefined) {
 			sets.push(`tags = '${esc(JSON.stringify(updates.tags))}'`);
 		}
+		if (updates.provenance !== undefined) {
+			const provenanceJson = updates.provenance
+				? JSON.stringify(updates.provenance)
+				: "";
+			sets.push(`provenance_json = '${esc(provenanceJson)}'`);
+		}
+		if (updates.freshness !== undefined) {
+			const freshnessJson = updates.freshness
+				? JSON.stringify(updates.freshness)
+				: "";
+			sets.push(`freshness_json = '${esc(freshnessJson)}'`);
+		}
 		if (sets.length === 0) return false;
+		sets.push(`updated = '${esc(new Date().toISOString())}'`);
 
 		execSqlVoid(this.dbPath, `UPDATE memories SET ${sets.join(", ")} WHERE id = '${esc(id)}';`);
 		return this.rowExists(id);
@@ -167,13 +206,30 @@ CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created);`,
 	}
 
 	private parseRows(raw: string): Memory[] {
-		const rows = JSON.parse(raw) as { id: string; content: string; tags: string; created: string }[];
+		const rows = JSON.parse(raw) as {
+			id: string;
+			content: string;
+			tags: string;
+			created: string;
+			updated?: string;
+			provenance_json?: string;
+			freshness_json?: string;
+		}[];
 		return rows.map((r) => ({
 			id: r.id,
 			content: r.content,
 			tags: JSON.parse(r.tags) as string[],
 			created: r.created,
+			updated: r.updated || r.created,
+			...parseMemoryMetadataJson(r.provenance_json, r.freshness_json),
 		}));
+	}
+
+	private ensureColumn(name: string, type: string): void {
+		const raw = execSql(this.dbPath, "PRAGMA table_info(memories);");
+		const rows = raw ? (JSON.parse(raw) as { name: string }[]) : [];
+		if (rows.some((row) => row.name === name)) return;
+		execSqlVoid(this.dbPath, `ALTER TABLE memories ADD COLUMN ${name} ${type};`);
 	}
 
 	supportsSemanticSearch(): boolean {
@@ -196,4 +252,44 @@ CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created);`,
 	getDbPath(): string {
 		return this.dbPath;
 	}
+}
+
+function parseMemoryMetadataJson(
+	provenanceJson: string | undefined,
+	freshnessJson: string | undefined,
+): Pick<Memory, "provenance" | "freshness"> {
+	let provenance: WorkMemoryMetadata["provenance"] | undefined;
+	let freshness: WorkMemoryMetadata["freshness"] | undefined;
+	try {
+		if (provenanceJson) {
+			provenance = JSON.parse(provenanceJson) as WorkMemoryMetadata["provenance"];
+		}
+		if (freshnessJson) {
+			freshness = JSON.parse(freshnessJson) as WorkMemoryMetadata["freshness"];
+		}
+	} catch {
+		return {};
+	}
+	const parsed = parseWorkMemoryMetadata({
+		provenance: provenance ?? null,
+		freshness: freshness ?? null,
+	});
+	if (!parsed.ok || !parsed.metadata) return {};
+	return {
+		...(parsed.metadata.provenance && {
+			provenance: parsed.metadata.provenance,
+		}),
+		...(parsed.metadata.freshness && { freshness: parsed.metadata.freshness }),
+	};
+}
+
+function normalizeWorkMemoryMetadata(
+	metadata: WorkMemoryMetadata | undefined,
+): WorkMemoryMetadata | undefined {
+	if (!metadata) return undefined;
+	const parsed = parseWorkMemoryMetadata({
+		provenance: metadata.provenance ?? null,
+		freshness: metadata.freshness ?? null,
+	});
+	return parsed.ok ? parsed.metadata : undefined;
 }

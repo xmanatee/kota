@@ -5,6 +5,18 @@
 // facing metadata each surface renders.
 
 import { daemonRequest, type DaemonHttp } from './http';
+import {
+  parseOptionalRecallMetadata,
+  type WorkMemoryFreshness,
+  type WorkMemoryProvenance,
+} from './recallMetadata';
+
+export type {
+  WorkMemoryFreshness,
+  WorkMemoryFreshnessState,
+  WorkMemoryProvenance,
+  WorkMemorySourceKind,
+} from './recallMetadata';
 
 export type RecallSource =
   | 'knowledge'
@@ -20,6 +32,8 @@ export interface RecallKnowledgeHit {
   title: string;
   preview: string;
   updated: string;
+  provenance?: WorkMemoryProvenance;
+  freshness?: WorkMemoryFreshness;
 }
 
 export interface RecallMemoryHit {
@@ -28,6 +42,9 @@ export interface RecallMemoryHit {
   id: string;
   preview: string;
   created: string;
+  updated?: string;
+  provenance?: WorkMemoryProvenance;
+  freshness?: WorkMemoryFreshness;
 }
 
 export interface RecallHistoryHit {
@@ -164,6 +181,7 @@ export function parseRecallHit(value: unknown): RecallHit {
         title: obj.title,
         preview: obj.preview,
         updated: obj.updated,
+        ...parseOptionalRecallMetadata(obj),
       };
     case 'memory':
       if (
@@ -178,6 +196,8 @@ export function parseRecallHit(value: unknown): RecallHit {
         id: obj.id,
         preview: obj.preview,
         created: obj.created,
+        ...(typeof obj.updated === 'string' && { updated: obj.updated }),
+        ...parseOptionalRecallMetadata(obj),
       };
     case 'history':
       if (

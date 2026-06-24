@@ -1,5 +1,10 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { getMemoryProvider } from "#core/modules/provider-registry.js";
+import type {
+  WorkMemoryFreshness,
+  WorkMemoryProvenance,
+} from "#core/modules/work-memory-metadata.js";
+import { formatWorkMemoryMetadata } from "#core/modules/work-memory-metadata.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
 export const memoryTool: KotaTool = {
@@ -61,6 +66,23 @@ function formatTimestamp(iso: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+function formatMemoryLine(m: {
+  id: string;
+  created: string;
+  updated?: string;
+  tags: string[];
+  content: string;
+  provenance?: WorkMemoryProvenance;
+  freshness?: WorkMemoryFreshness;
+}): string {
+  const metadata = formatWorkMemoryMetadata({
+    ...(m.provenance && { provenance: m.provenance }),
+    ...(m.freshness && { freshness: m.freshness }),
+  });
+  const suffix = metadata ? ` | ${metadata}` : "";
+  return `[${m.id}] ${formatTimestamp(m.updated ?? m.created)} (${m.tags.join(", ") || "untagged"}) ${m.content}${suffix}`;
+}
+
 export async function runMemory(
   input: Record<string, unknown>,
 ): Promise<ToolResult> {
@@ -93,7 +115,7 @@ export async function runMemory(
       if (results.length === 0) return { content: "No matching memories found." };
       return {
         content: results
-          .map((m) => `[${m.id}] ${formatTimestamp(m.created)} (${m.tags.join(", ") || "untagged"}) ${m.content}`)
+          .map(formatMemoryLine)
           .join("\n"),
       };
     }
@@ -103,7 +125,7 @@ export async function runMemory(
       return {
         content: `${all.length} memories:\n` +
           all
-            .map((m) => `[${m.id}] ${formatTimestamp(m.created)} (${m.tags.join(", ") || "untagged"}) ${m.content.slice(0, 80)}`)
+            .map((m) => formatMemoryLine({ ...m, content: m.content.slice(0, 80) }))
             .join("\n"),
       };
     }

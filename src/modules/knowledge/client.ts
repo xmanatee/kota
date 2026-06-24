@@ -15,6 +15,10 @@ import type {
   KnowledgeEntry,
   ReindexResult,
 } from "#core/modules/provider-types.js";
+import type {
+  WorkMemoryFreshness,
+  WorkMemoryProvenance,
+} from "#core/modules/work-memory-metadata.js";
 import type { ScopeSelector } from "#core/server/scope-selector.js";
 
 /** Knowledge storage scope. Mirrors `SearchFilters.scope` in provider types. */
@@ -84,6 +88,8 @@ export type KnowledgeAddOptions = KnowledgeProjectSelection & {
   status?: string;
   scope?: KnowledgeWritableScope;
   meta?: Record<string, string>;
+  provenance?: WorkMemoryProvenance;
+  freshness?: WorkMemoryFreshness;
 };
 
 export type KnowledgeAddResult = { id: string };

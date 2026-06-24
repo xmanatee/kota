@@ -10,14 +10,31 @@
           "id": "kn-1",
           "title": "Cross-store recall fan-out",
           "preview": "Knowledge preview text",
-          "updated": "2026-04-26T12:34:56.000Z"
+          "updated": "2026-04-26T12:34:56.000Z",
+          "provenance": {
+            "sourceKind": "file",
+            "sourcePath": "docs/ARCHITECTURE.md",
+            "observedAt": "2026-04-26T12:34:56.000Z"
+          },
+          "freshness": { "status": "current" }
         },
         {
           "source": "memory",
           "score": 0.834,
           "id": "mem-1",
           "preview": "Remembers the recall fan-out cadence",
-          "created": "2026-04-25T08:00:00.000Z"
+          "created": "2026-04-25T08:00:00.000Z",
+          "updated": "2026-04-27T09:15:00.000Z",
+          "provenance": {
+            "sourceKind": "run",
+            "sourceId": "2026-04-25T08-00-00Z-builder-demo",
+            "observedAt": "2026-04-25T08:00:00.000Z"
+          },
+          "freshness": {
+            "status": "superseded",
+            "changedAt": "2026-04-27T09:15:00.000Z",
+            "replacementId": "mem-2"
+          }
         },
         {
           "source": "history",
@@ -59,8 +76,8 @@
       ]
     },
     "descriptions": {
-      "knowledge:kn-1": "Cross-store recall fan-out",
-      "memory:mem-1": "Remembers the recall fan-out cadence",
+      "knowledge:kn-1": "Cross-store recall fan-out | file:docs/ARCHITECTURE.md observed 2026-04-26; current",
+      "memory:mem-1": "Remembers the recall fan-out cadence | run:2026-04-25T08-00-00Z-builder-demo observed 2026-04-25; superseded -> mem-2 2026-04-27",
       "history:hist-1": "Recall design discussion",
       "tasks:task-recall": "[ready/p2] Wire recall surfaces",
       "answer:ans-ok": "[ok(2)] How does the harness boundary work?",
@@ -74,7 +91,7 @@
       "answer:ans-ok": "0.521",
       "answer:ans-fail": "0.409"
     },
-    "plain": "knowledge  0.912  kn-1         Cross-store recall fan-out\nmemory     0.834  mem-1        Remembers the recall fan-out cadence\nhistory    0.712  hist-1       Recall design discussion\ntasks      0.633  task-recall  [ready/p2] Wire recall surfaces\nanswer     0.521  ans-ok       [ok(2)] How does the harness boundary work?\nanswer     0.409  ans-fail     [semantic_unavailable] Why did synthesis fail?"
+    "plain": "knowledge  0.912  kn-1         Cross-store recall fan-out | file:docs/ARCHITECTURE.md observed 2026-04-26; current\nmemory     0.834  mem-1        Remembers the recall fan-out cadence | run:2026-04-25T08-00-00Z-builder-demo observed 2026-04-25; superseded -> mem-2 2026-04-27\nhistory    0.712  hist-1       Recall design discussion\ntasks      0.633  task-recall  [ready/p2] Wire recall surfaces\nanswer     0.521  ans-ok       [ok(2)] How does the harness boundary work?\nanswer     0.409  ans-fail     [semantic_unavailable] Why did synthesis fail?"
   },
   "empty": {
     "result": { "ok": true, "hits": [] },

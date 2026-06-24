@@ -12,6 +12,10 @@
  * by importing these types from `#modules/recall/client.js`.
  */
 
+import type {
+  WorkMemoryFreshness,
+  WorkMemoryProvenance,
+} from "#core/modules/work-memory-metadata.js";
 import type { ScopeSelector } from "#core/server/scope-selector.js";
 
 /**
@@ -40,6 +44,8 @@ export type RecallKnowledgeHit = {
   title: string;
   preview: string;
   updated: string;
+  provenance?: WorkMemoryProvenance;
+  freshness?: WorkMemoryFreshness;
 };
 
 /** Memory-store hit payload surfaced through `recall`. */
@@ -49,6 +55,9 @@ export type RecallMemoryHit = {
   id: string;
   preview: string;
   created: string;
+  updated?: string;
+  provenance?: WorkMemoryProvenance;
+  freshness?: WorkMemoryFreshness;
 };
 
 /** Conversation-history hit payload surfaced through `recall`. */

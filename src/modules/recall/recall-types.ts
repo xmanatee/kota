@@ -21,6 +21,10 @@ import type {
   MemoryProvider,
   RepoTasksProvider,
 } from "#core/modules/provider-types.js";
+import type {
+  WorkMemoryFreshness,
+  WorkMemoryProvenance,
+} from "#core/modules/work-memory-metadata.js";
 import type { RecallFilter, RecallHit, RecallSource } from "./client.js";
 
 export type {
@@ -83,13 +87,25 @@ export type RawRecallEntry =
       source: "knowledge";
       id: string;
       nativeScore: number;
-      payload: { title: string; preview: string; updated: string };
+      payload: {
+        title: string;
+        preview: string;
+        updated: string;
+        provenance?: WorkMemoryProvenance;
+        freshness?: WorkMemoryFreshness;
+      };
     }
   | {
       source: "memory";
       id: string;
       nativeScore: number;
-      payload: { preview: string; created: string };
+      payload: {
+        preview: string;
+        created: string;
+        updated?: string;
+        provenance?: WorkMemoryProvenance;
+        freshness?: WorkMemoryFreshness;
+      };
     }
   | {
       source: "history";
