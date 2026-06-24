@@ -736,3 +736,14 @@ resources:
   - url: https://arxiv.org/abs/2604.09409
     added: "2026-06-24"
     notes: "Do AI Coding Agents Log Like Humans? studies logging and observability behavior in agentic pull requests. Monitor as an autonomy/runtime diagnostic signal for deterministic logging-obligation checks around agent-authored runtime-sensitive changes; do not add generic log-volume prompts or a parallel audit log."
+    snapshot:
+      fingerprint: sha256:4f2aed1ae29925f95ed8c72f1371eec7
+      summary: "Do AI Coding Agents Log Like Humans? is accessible; its logging-observability signal is already covered by completed task-add-agent-authored-logging-obligation-diagnostics, so no duplicate logging task was opened."
+      last_seen_at: "2026-06-24T06:39:56.551Z"
+  - url: https://arxiv.org/abs/2606.22711
+    added: "2026-06-24"
+    notes: "Beyond Simpson's Paradox studies confounded AI-agent pull-request outcome metrics in the AIDev dataset. Monitor as an autonomy/reporting safety signal for stratifying KOTA's own quality metrics by workflow, harness, task shape, and source area before comparing pooled trends; do not import AIDev or mine GitHub."
+    snapshot:
+      fingerprint: sha256:273657614c8d6fc07aa449a3ecfcc0ce
+      summary: "Beyond Simpson's Paradox is accessible; its nonduplicative KOTA signal is stratifying autonomy quality report metrics before comparing pooled trends, which opened task-stratify-autonomy-quality-metrics-before-comparing."
+      last_seen_at: "2026-06-24T06:39:56.551Z"
