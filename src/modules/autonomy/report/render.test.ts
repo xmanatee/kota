@@ -1,26 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { NO_COLOR_THEME, renderToString } from "#modules/rendering/index.js";
 import type { AutonomyReportData } from "./aggregate.js";
-import { renderAutonomyReport } from "./render.js";
+import { renderReport, section } from "./render-test-helpers.js";
 import { emptyAutonomyReportData as empty } from "./report-test-fixtures.js";
-
-function render(data: AutonomyReportData): string {
-  return renderToString(renderAutonomyReport(data), {
-    width: 100,
-    theme: NO_COLOR_THEME,
-  });
-}
-
-function section(text: string, start: string, end: string): string {
-  const startIndex = text.indexOf(start);
-  const endIndex = text.indexOf(end, startIndex + start.length);
-  if (startIndex < 0 || endIndex < 0) return "";
-  return text.slice(startIndex, endIndex);
-}
 
 describe("renderAutonomyReport", () => {
   it("renders all dimension headings even when data is empty", () => {
-    const text = render(empty);
+    const text = renderReport(empty);
     expect(text).toContain("Autonomy report");
     expect(text).toContain("Open queue");
     expect(text).toContain("Tasks moved to done in window");
@@ -36,7 +21,7 @@ describe("renderAutonomyReport", () => {
   });
 
   it("emits placeholder lines when sections are empty", () => {
-    const text = render(empty);
+    const text = renderReport(empty);
     expect(text).toContain("(none)");
     expect(text).toContain("(no explorer runs)");
     expect(text).toContain("(no builder commits)");
@@ -52,7 +37,7 @@ describe("renderAutonomyReport", () => {
   });
 
   it("renders trajectory repair task ids without cost fields in that section", () => {
-    const text = render({
+    const text = renderReport({
       ...empty,
       trajectoryDiagnostics: {
         activePatterns: [
@@ -77,7 +62,7 @@ describe("renderAutonomyReport", () => {
   });
 
   it("renders post-completion corrective follow-ups without cost fields", () => {
-    const text = render({
+    const text = renderReport({
       ...empty,
       postCompletionFollowUps: {
         totalCorrectiveFollowUps: 1,
@@ -279,7 +264,7 @@ describe("renderAutonomyReport", () => {
       },
     };
 
-    const text = render(populated);
+    const text = renderReport(populated);
     expect(text).toContain("Total: 3");
     expect(text).toContain("architecture");
     expect(text).toContain("client");

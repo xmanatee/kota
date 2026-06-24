@@ -1,0 +1,177 @@
+import type { ReviewScrutinyReport } from "#modules/autonomy/review-scrutiny.js";
+import type { ReviewScrutinyEscalationReport } from "#modules/autonomy/review-scrutiny-escalation.js";
+import type {
+  TrajectoryDiagnosticPattern,
+} from "#modules/autonomy/trajectory-diagnostic-escalation.js";
+import type {
+  BlockedPreconditionKind,
+} from "#modules/repo-tasks/blocked-precondition.js";
+import type {
+  RepoTaskClass,
+  RepoTaskState,
+} from "#modules/repo-tasks/repo-tasks-domain.js";
+import type { PostCompletionFollowUpReport } from "./post-completion-followups.js";
+import type { AreaClassification } from "./task-classification.js";
+
+export const DEFAULT_REPORT_WINDOW_DAYS = 7;
+
+export type ReportPriority = "p0" | "p1" | "p2" | "p3" | "unknown";
+
+export type PriorityCount = { priority: ReportPriority; count: number };
+export type AreaCount = { area: string; count: number };
+export type StateCount = { state: RepoTaskState; count: number };
+export type TaskClassCount = { taskClass: RepoTaskClass; count: number };
+export type QueueDependencyWait = {
+  taskId: string;
+  title: string;
+  state: RepoTaskState;
+  waitingOn: string[];
+};
+
+export type QueueBalance = {
+  total: number;
+  byPriority: PriorityCount[];
+  byArea: AreaCount[];
+  byState: StateCount[];
+  byTaskClass: TaskClassCount[];
+  waitingOnTasks: QueueDependencyWait[];
+};
+
+export type ExplorerTaskAddition = {
+  runId: string;
+  taskId: string;
+  title: string;
+  area: string;
+  priority: ReportPriority;
+  classification: AreaClassification;
+};
+
+export type ExplorerBalance = {
+  totalRuns: number;
+  totalTaskAdditions: number;
+  unresolvedTaskAdditions: number;
+  byClassification: { classification: AreaClassification; tasks: number }[];
+  taskAdditions: ExplorerTaskAddition[];
+};
+
+export type BuilderClosure = {
+  runId: string;
+  taskId: string;
+  taskTitle: string;
+  area: string;
+  priority: ReportPriority;
+  classification: AreaClassification;
+  costUsd: number | null;
+  durationMs: number | null;
+};
+
+export type BuilderBreakdown = {
+  totalCommittedRuns: number;
+  unresolvedClosures: number;
+  byArea: { area: string; commits: number; totalCostUsd: number }[];
+  byPriority: {
+    priority: ReportPriority;
+    commits: number;
+    totalCostUsd: number;
+  }[];
+  byClassification: {
+    classification: AreaClassification;
+    commits: number;
+    totalCostUsd: number;
+  }[];
+  closures: BuilderClosure[];
+};
+
+export type BlockerKind =
+  | BlockedPreconditionKind
+  | "missing-section"
+  | "malformed";
+
+export type BlockerClassMix = {
+  totalBlocked: number;
+  byKind: { kind: BlockerKind; count: number }[];
+};
+
+export type WorkflowCostRow = {
+  workflow: string;
+  finishedRuns: number;
+  totalCostUsd: number;
+  averageCostUsd: number;
+};
+
+export type CostBreakdown = {
+  totalCostUsd: number;
+  finishedRuns: number;
+  averagePerFinishedRun: number;
+  byWorkflow: WorkflowCostRow[];
+};
+
+export type TrajectoryDiagnosticPatternSummary = {
+  workflow: string;
+  stepId: string;
+  code: TrajectoryDiagnosticPattern["code"];
+  runCount: number;
+  repairTaskId: string;
+  evidenceArtifactPaths: string[];
+};
+
+export type TrajectoryDiagnosticReport = {
+  activePatterns: TrajectoryDiagnosticPatternSummary[];
+};
+
+export type HealthCountRow<TKey extends string> = {
+  [key in TKey]: string;
+} & {
+  count: number;
+};
+
+export type HealthTopGroup = {
+  dedupeKey: string;
+  labels: string[];
+  severity: string;
+  actionability: string;
+  signalCount: number;
+  source: string;
+  scope: string;
+};
+
+export type AutonomyHealthBreakdown = {
+  totalSignals: number;
+  totalGroups: number;
+  bySeverity: HealthCountRow<"severity">[];
+  byLabel: HealthCountRow<"label">[];
+  byScope: HealthCountRow<"scope">[];
+  bySource: HealthCountRow<"source">[];
+  byActionability: HealthCountRow<"actionability">[];
+  topGroups: HealthTopGroup[];
+};
+
+export type AutonomyReportData = {
+  windowStartedAt: string;
+  windowEndedAt: string;
+  windowDays: number;
+  openQueue: QueueBalance;
+  doneInWindow: QueueBalance;
+  explorer: ExplorerBalance;
+  builder: BuilderBreakdown;
+  reviewScrutiny: ReviewScrutinyReport;
+  reviewScrutinyEscalation: ReviewScrutinyEscalationReport;
+  trajectoryDiagnostics: TrajectoryDiagnosticReport;
+  postCompletionFollowUps: PostCompletionFollowUpReport;
+  health: AutonomyHealthBreakdown;
+  blockers: BlockerClassMix;
+  cost: CostBreakdown;
+};
+
+export type AutonomyReportInput = {
+  projectDir: string;
+  runsDir: string;
+  windowEndMs: number;
+  windowDays?: number;
+  /**
+   * Optional fallback map from commit SHA to repo-relative paths added by that
+   * commit. The aggregator consults this map for explorer runs whose commit
+   * step output records a `sha` but no inline `addedTaskFiles` array.
+   */
+  addedFilesBySha?: Map<string, readonly string[]>;
+};
