@@ -1,10 +1,5 @@
 /**
- * Agent-step recording extractor.
- *
- * Scaffolds a recording file from a real `.kota/runs/<id>/steps/<stepId>.json`
- * artifact. The response envelope is lifted verbatim from the source step
- * artifact so the replay returns the literal text, turn count, token usage,
- * and subtype the real agent produced.
+ * Agent-step and judge-call recording extractor.
  *
  * Repo-tree `fileOperations` come from the commit the source run produced:
  * the recorder reads the SHA from `steps/commit.json`, then walks the
@@ -27,9 +22,8 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import type {
-  AgentStepFileOperation,
   AgentStepRecording,
   AgentStepRecordingResponse,
 } from "./agent-step-recording.js";
@@ -38,6 +32,7 @@ import {
   extractCommitDiffOperations,
   resolveSourceCommitSha,
 } from "./recorder-commit-diff.js";
+import { extractRunDirWriteOperations } from "./recorder-run-dir-writes.js";
 
 type StepArtifactOutput = {
   content?: unknown;
@@ -54,12 +49,6 @@ type StepArtifact = {
   type?: unknown;
   output?: StepArtifactOutput;
 };
-
-const AGENT_AUTHORED_RUN_DIR_ARTIFACTS = [
-  "commit-message.txt",
-  "success-criteria.txt",
-  "success-criteria-verified.txt",
-] as const;
 
 function requireString(value: unknown, field: string): string {
   if (typeof value !== "string") {
@@ -174,83 +163,6 @@ function readWorkflowName(projectDir: string, sourceRunId: string): string {
     throw new Error(`Source run metadata missing "workflow" field: ${path}`);
   }
   return meta.workflow;
-}
-
-/**
- * Collect Write tool invocations targeting run-dir paths. Repo-tree paths
- * come from the commit diff, so this scan is limited to `{{runDir}}`-
- * templated run-dir artifacts. Write events pointing outside the project
- * root are reported via `skippedOutsideProject` so the author can audit.
- * Multiple writes to the same run-dir path collapse to the latest write.
- */
-function extractRunDirWriteOperations(
-  projectDir: string,
-  sourceRunId: string,
-  stepId: string,
-): { ops: AgentStepFileOperation[]; skippedOutsideProject: string[] } {
-  const eventsPath = join(
-    projectDir,
-    ".kota",
-    "runs",
-    sourceRunId,
-    "steps",
-    `${stepId}.events.jsonl`,
-  );
-  const sourceRunDir = join(".kota", "runs", sourceRunId);
-  const ops: AgentStepFileOperation[] = [];
-  const skippedOutsideProject: string[] = [];
-  const indexByPath = new Map<string, number>();
-  if (existsSync(eventsPath)) {
-    for (const line of readFileSync(eventsPath, "utf-8").split("\n")) {
-      const trimmed = line.trim();
-      if (trimmed.length === 0) continue;
-      let event: Record<string, unknown>;
-      try {
-        event = JSON.parse(trimmed) as Record<string, unknown>;
-      } catch {
-        continue;
-      }
-      if (event.type !== "assistant") continue;
-      const inner = event.message as { content?: unknown } | undefined;
-      const content = (inner?.content ?? event.content) as unknown;
-      if (!Array.isArray(content)) continue;
-      for (const block of content) {
-        const b = block as {
-          type?: string;
-          name?: string;
-          input?: { file_path?: unknown; content?: unknown };
-        };
-        if (b.type !== "tool_use" || b.name !== "Write") continue;
-        const filePath = b.input?.file_path;
-        const writeContent = b.input?.content;
-        if (typeof filePath !== "string" || typeof writeContent !== "string") continue;
-        const rel = relative(projectDir, resolve(filePath));
-        if (rel.startsWith("..")) {
-          skippedOutsideProject.push(filePath);
-          continue;
-        }
-        if (rel !== sourceRunDir && !rel.startsWith(`${sourceRunDir}/`)) continue;
-        const templated = rel.replace(sourceRunDir, "{{runDir}}");
-        const existing = indexByPath.get(templated);
-        if (existing !== undefined) ops.splice(existing, 1);
-        indexByPath.set(templated, ops.length);
-        ops.push({ op: "write", path: templated, content: writeContent });
-      }
-    }
-  }
-  for (const artifact of AGENT_AUTHORED_RUN_DIR_ARTIFACTS) {
-    const templated = join("{{runDir}}", artifact);
-    if (indexByPath.has(templated)) continue;
-    const artifactPath = join(projectDir, sourceRunDir, artifact);
-    if (!existsSync(artifactPath)) continue;
-    indexByPath.set(templated, ops.length);
-    ops.push({
-      op: "write",
-      path: templated,
-      content: readFileSync(artifactPath, "utf-8"),
-    });
-  }
-  return { ops, skippedOutsideProject };
 }
 
 /**

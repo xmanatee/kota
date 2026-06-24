@@ -1,12 +1,12 @@
 ---
 id: task-split-oversized-eval-harness-recorder-files
 title: Split oversized eval-harness recorder files
-status: ready
+status: done
 priority: p3
 area: modules
 summary: The source-grounded synthesis fixture build passed, but its builder source-size review reported fresh advisories for src/modules/eval-harness/recorder.test.ts at 600 lines and src/modules/eval-harness/recorder.ts at 386 lines. Split cohesive recorder helpers or focused test fixtures, or record a narrow typed exception, without changing eval-harness recording behavior.
 created_at: 2026-06-24T05:03:09.725Z
-updated_at: 2026-06-24T05:03:09.725Z
+updated_at: 2026-06-24T05:16:06.000Z
 ---
 
 ## Problem
@@ -46,4 +46,9 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- Before/after line-count or builder source-size evidence shows src/modules/eval-harness/recorder.test.ts and src/modules/eval-harness/recorder.ts no longer trigger the 300-line advisory, or records a narrow justified source-size exception; focused eval-harness recorder tests, typecheck, and task validation pass.
+- Before line counts: `src/modules/eval-harness/recorder.ts` was 386 lines and `src/modules/eval-harness/recorder.test.ts` was 600 lines.
+- After line counts: `recorder.ts` is 298 lines; the removed `recorder.test.ts` is split into `recorder-agent-step.test.ts` at 243 lines, `recorder-agent-step-errors.test.ts` at 148 lines, `recorder-judge.test.ts` at 147 lines, `recorder.test-helpers.ts` at 89 lines, and `recorder-run-dir-writes.ts` at 93 lines.
+- Focused recorder validation passed: `NODE_OPTIONS=--conditions=source pnpm exec vitest run src/modules/eval-harness/recorder-agent-step.test.ts src/modules/eval-harness/recorder-agent-step-errors.test.ts src/modules/eval-harness/recorder-judge.test.ts`.
+- Touched-file formatter/lint passed: `pnpm exec biome check src/modules/eval-harness/recorder.ts src/modules/eval-harness/recorder-run-dir-writes.ts src/modules/eval-harness/recorder.test-helpers.ts src/modules/eval-harness/recorder-agent-step.test.ts src/modules/eval-harness/recorder-agent-step-errors.test.ts src/modules/eval-harness/recorder-judge.test.ts`.
+- Typecheck passed: `pnpm typecheck`.
+- Task validation passed after staging the final tree: `pnpm validate-tasks`.
