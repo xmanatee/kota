@@ -1,13 +1,13 @@
 ---
 id: task-add-agentic-resource-discovery-over-kota-capabilit
 title: Add agentic resource discovery over KOTA capabilities
-status: backlog
+status: ready
 priority: p1
 area: modules
 task_class: Platform
 summary: Expose a discovery surface that ranks existing tools, skills, modules, MCP servers, setup requirements, and knowledge entries for a task without creating a second resource catalog.
 created_at: 2026-06-24T15:44:37.284Z
-updated_at: 2026-06-24T15:44:37.284Z
+updated_at: 2026-06-24T21:44:22.350Z
 ---
 
 ## Problem

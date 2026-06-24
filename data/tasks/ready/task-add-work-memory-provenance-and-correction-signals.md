@@ -1,13 +1,13 @@
 ---
 id: task-add-work-memory-provenance-and-correction-signals
 title: Add work-memory provenance and correction signals
-status: backlog
+status: ready
 priority: p1
 area: knowledge
 task_class: Platform
 summary: Make memory, knowledge, and recall results carry reviewable source, freshness, correction, and retraction signals so long-running agents learn from work without trusting stale context.
 created_at: 2026-06-24T15:44:37.334Z
-updated_at: 2026-06-24T15:44:37.334Z
+updated_at: 2026-06-24T21:44:22.389Z
 ---
 
 ## Problem
