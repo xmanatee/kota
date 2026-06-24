@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { AutonomyHealthIssueEvidence } from "#modules/autonomy/health-issue-cards.js";
 import type { RunOutcomeAggregation } from "#modules/autonomy/run-outcome-aggregation.js";
 import {
   decideImproverEvidenceGate,
@@ -18,6 +19,49 @@ function emptyAggregation(): RunOutcomeAggregation {
     durationOutliers: [],
     agentStepTimeouts7d: [],
     latestActionableRunAt: null,
+  };
+}
+
+function localCodeHealthEvidence(args: {
+  reviewedAt: string;
+  evidenceRef?: string;
+  summary?: string;
+}): AutonomyHealthIssueEvidence {
+  return {
+    generatedAt: args.reviewedAt,
+    latestHealthReviewAt: args.reviewedAt,
+    issueCards: [
+      {
+        reviewedAt: args.reviewedAt,
+        dedupeKey: "control-coverage:approval-owner-gates:approval-or-owner-gate-unresolved",
+        severity: "warning",
+        labels: [
+          "approval-or-owner-gate-unresolved",
+          "approval-owner-gates",
+          "control-coverage",
+          "local-code",
+          "runtime",
+        ],
+        actionability: "local-code",
+        signalCount: 1,
+        summaries: [
+          args.summary ??
+            "Control monitor coverage gap approval-owner-gates/approval-or-owner-gate-unresolved recurred in 2 recent run(s).",
+        ],
+        evidenceRefs: [
+          {
+            kind: "artifact",
+            ref:
+              args.evidenceRef ??
+              ".kota/runs/control-gap-a/control-monitor-coverage.json",
+            summary:
+              "github-mention-intake success: 1 approval-owner-gates/approval-or-owner-gate-unresolved gap(s)",
+          },
+        ],
+        createdTaskIds: [],
+        ownerQuestionIds: [],
+      },
+    ],
   };
 }
 
@@ -207,6 +251,59 @@ describe("improver evidence gate", () => {
     expect(decision.reason).toBe(
       "no new actionable run or health signal evidence since the last improver pass",
     );
+  });
+
+  it("skips newer health reviews when local-code health evidence is unchanged", () => {
+    writeImproverEvidenceGateState(
+      projectDir,
+      decideImproverEvidenceGate(
+        emptyAggregation(),
+        null,
+        localCodeHealthEvidence({
+          reviewedAt: "2026-06-17T12:30:00.000Z",
+        }),
+      ),
+    );
+
+    const decision = decideImproverEvidenceGate(
+      emptyAggregation(),
+      readImproverEvidenceGateState(projectDir),
+      localCodeHealthEvidence({
+        reviewedAt: "2026-06-17T13:30:00.000Z",
+      }),
+    );
+
+    expect(decision.shouldRun).toBe(false);
+    expect(decision.reason).toBe(
+      "no new actionable run or health signal evidence since the last improver pass",
+    );
+  });
+
+  it("runs when a newer health review carries changed local-code evidence", () => {
+    writeImproverEvidenceGateState(
+      projectDir,
+      decideImproverEvidenceGate(
+        emptyAggregation(),
+        null,
+        localCodeHealthEvidence({
+          reviewedAt: "2026-06-17T12:30:00.000Z",
+          evidenceRef: ".kota/runs/control-gap-a/control-monitor-coverage.json",
+        }),
+      ),
+    );
+
+    const decision = decideImproverEvidenceGate(
+      emptyAggregation(),
+      readImproverEvidenceGateState(projectDir),
+      localCodeHealthEvidence({
+        reviewedAt: "2026-06-17T13:30:00.000Z",
+        evidenceRef: ".kota/runs/control-gap-b/control-monitor-coverage.json",
+      }),
+    );
+
+    expect(decision.shouldRun).toBe(true);
+    expect(decision.reason).toBe("new systemic health signal evidence");
+    expect(decision.latestHealthReviewAt).toBe("2026-06-17T13:30:00.000Z");
   });
 
   it("discards invalid persisted gate state instead of bricking the improver", () => {

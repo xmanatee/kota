@@ -1,7 +1,11 @@
+import { createHash } from "node:crypto";
 import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { JsonFileError, readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
-import type { AutonomyHealthIssueEvidence } from "#modules/autonomy/health-issue-cards.js";
+import type {
+  AutonomyHealthIssueCard,
+  AutonomyHealthIssueEvidence,
+} from "#modules/autonomy/health-issue-cards.js";
 import type { RunOutcomeAggregation } from "#modules/autonomy/run-outcome-aggregation.js";
 
 const STATE_FILE = "improver-evidence-gate.json";
@@ -9,6 +13,7 @@ const STATE_FILE = "improver-evidence-gate.json";
 type EvidenceGateState = {
   latestActionableRunAt: string | null;
   latestHealthReviewAt: string | null;
+  latestHealthEvidenceFingerprint?: string | null;
   updatedAt: string;
   reason: string;
 };
@@ -18,6 +23,7 @@ export type ImproverEvidenceGateDecision = {
   reason: string;
   latestActionableRunAt?: string;
   latestHealthReviewAt?: string;
+  latestHealthEvidenceFingerprint?: string;
 };
 
 function statePath(projectDir: string): string {
@@ -28,6 +34,8 @@ function isEvidenceGateState(value: unknown): value is EvidenceGateState {
   const candidate = value as Partial<EvidenceGateState>;
   const latestActionableRunAt = candidate.latestActionableRunAt;
   const latestHealthReviewAt = candidate.latestHealthReviewAt;
+  const latestHealthEvidenceFingerprint =
+    candidate.latestHealthEvidenceFingerprint;
   const carriesRecognizedTimestamp =
     Object.hasOwn(candidate, "latestActionableRunAt") ||
     Object.hasOwn(candidate, "latestHealthReviewAt");
@@ -42,6 +50,9 @@ function isEvidenceGateState(value: unknown): value is EvidenceGateState {
     (latestHealthReviewAt === null ||
       latestHealthReviewAt === undefined ||
       typeof latestHealthReviewAt === "string") &&
+    (latestHealthEvidenceFingerprint === null ||
+      latestHealthEvidenceFingerprint === undefined ||
+      typeof latestHealthEvidenceFingerprint === "string") &&
     typeof candidate.updatedAt === "string" &&
     typeof candidate.reason === "string"
   );
@@ -52,13 +63,51 @@ function discardInvalidEvidenceGateState(path: string): null {
   return null;
 }
 
-function hasLocalCodeHealthIssue(
+function compareStrings(left: string, right: string): number {
+  return left.localeCompare(right);
+}
+
+function localCodeHealthIssueCards(
   healthEvidence: AutonomyHealthIssueEvidence | undefined,
-): boolean {
+): AutonomyHealthIssueCard[] {
   return (
-    healthEvidence?.issueCards.some((card) => card.actionability === "local-code") ??
-    false
+    healthEvidence?.issueCards.filter((card) => card.actionability === "local-code") ??
+    []
   );
+}
+
+function healthEvidenceFingerprint(
+  healthEvidence: AutonomyHealthIssueEvidence | undefined,
+): string | null {
+  const cards = localCodeHealthIssueCards(healthEvidence);
+  if (cards.length === 0) return null;
+  const material = cards
+    .map((card) => ({
+      actionability: card.actionability,
+      createdTaskIds: [...card.createdTaskIds].sort(compareStrings),
+      dedupeKey: card.dedupeKey,
+      evidenceRefs: card.evidenceRefs
+        .map((ref) => ({
+          kind: ref.kind,
+          ref: ref.ref,
+          summary: ref.summary ?? "",
+        }))
+        .sort((left, right) =>
+          `${left.kind}\0${left.ref}\0${left.summary}`.localeCompare(
+            `${right.kind}\0${right.ref}\0${right.summary}`,
+          )
+        ),
+      labels: [...card.labels].sort(compareStrings),
+      ownerQuestionIds: [...card.ownerQuestionIds].sort(compareStrings),
+      severity: card.severity,
+      signalCount: card.signalCount,
+      summaries: [...card.summaries].sort(compareStrings),
+    }))
+    .sort((left, right) => left.dedupeKey.localeCompare(right.dedupeKey));
+  return createHash("sha256")
+    .update(JSON.stringify(material))
+    .digest("hex")
+    .slice(0, 20);
 }
 
 export function readImproverEvidenceGateState(
@@ -87,8 +136,9 @@ export function decideImproverEvidenceGate(
   healthEvidence?: AutonomyHealthIssueEvidence,
 ): ImproverEvidenceGateDecision {
   const { latestActionableRunAt } = aggregation;
+  const latestHealthEvidenceFingerprint = healthEvidenceFingerprint(healthEvidence);
   const latestHealthReviewAt =
-    healthEvidence && hasLocalCodeHealthIssue(healthEvidence)
+    healthEvidence && latestHealthEvidenceFingerprint !== null
       ? healthEvidence.latestHealthReviewAt
       : null;
   if (latestActionableRunAt === null && latestHealthReviewAt === null) {
@@ -102,14 +152,22 @@ export function decideImproverEvidenceGate(
 
   const latestStateActionableRunAt = state?.latestActionableRunAt ?? null;
   const latestStateHealthReviewAt = state?.latestHealthReviewAt ?? null;
+  const latestStateHealthEvidenceFingerprint =
+    state?.latestHealthEvidenceFingerprint ?? null;
   const actionableRunAdvanced =
     latestActionableRunAt !== null &&
     (latestStateActionableRunAt === null ||
       latestActionableRunAt > latestStateActionableRunAt);
-  const healthReviewAdvanced =
+  const healthReviewTimestampAdvanced =
     latestHealthReviewAt !== null &&
     (latestStateHealthReviewAt === null ||
       latestHealthReviewAt > latestStateHealthReviewAt);
+  const healthEvidenceChanged =
+    latestHealthEvidenceFingerprint !== null &&
+    (latestStateHealthEvidenceFingerprint === null ||
+      latestHealthEvidenceFingerprint !== latestStateHealthEvidenceFingerprint);
+  const healthReviewAdvanced =
+    healthReviewTimestampAdvanced && healthEvidenceChanged;
 
   if (!actionableRunAdvanced && !healthReviewAdvanced) {
     return {
@@ -119,6 +177,9 @@ export function decideImproverEvidenceGate(
         : "no new actionable run evidence since the last improver pass",
       ...(latestActionableRunAt ? { latestActionableRunAt } : {}),
       ...(latestHealthReviewAt ? { latestHealthReviewAt } : {}),
+      ...(latestHealthEvidenceFingerprint
+        ? { latestHealthEvidenceFingerprint }
+        : {}),
     };
   }
 
@@ -128,6 +189,9 @@ export function decideImproverEvidenceGate(
       reason: "new systemic health signal evidence",
       ...(latestActionableRunAt ? { latestActionableRunAt } : {}),
       latestHealthReviewAt,
+      ...(latestHealthEvidenceFingerprint
+        ? { latestHealthEvidenceFingerprint }
+        : {}),
     };
   }
 
@@ -136,6 +200,9 @@ export function decideImproverEvidenceGate(
     reason: "new actionable run evidence",
     ...(latestActionableRunAt ? { latestActionableRunAt } : {}),
     ...(latestHealthReviewAt ? { latestHealthReviewAt } : {}),
+    ...(latestHealthEvidenceFingerprint
+      ? { latestHealthEvidenceFingerprint }
+      : {}),
   };
 }
 
@@ -151,6 +218,8 @@ export function writeImproverEvidenceGateState(
   writeJsonFileAtomic(statePath(projectDir), {
     latestActionableRunAt: decision.latestActionableRunAt ?? null,
     latestHealthReviewAt: decision.latestHealthReviewAt ?? null,
+    latestHealthEvidenceFingerprint:
+      decision.latestHealthEvidenceFingerprint ?? null,
     updatedAt: new Date().toISOString(),
     reason: decision.reason,
   });
