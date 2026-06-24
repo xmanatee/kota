@@ -37,10 +37,8 @@ import {
   providerEgressProviderForPreset,
   validateProviderEgressProxyUrl,
 } from "./provider-egress.js";
-import {
-  extractAgentStepRecording,
-  extractJudgeCallRecording,
-} from "./recorder.js";
+import { extractAgentStepRecording, extractJudgeCallRecording } from "./recorder.js";
+import { resolveRecordingFixtureDir } from "./recorder-paths.js";
 
 function parsePositiveInt(raw: string, name: string): number {
   const parsed = Number.parseInt(raw, 10);
@@ -481,7 +479,7 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
     )
     .action((opts: { runId: string; step?: string; judge?: string; fixture: string; sourceCommitSha?: string }) => {
       const fixturesRoot = join(ctx.cwd, "src/modules/eval-harness/fixtures");
-      const fixtureDir = join(fixturesRoot, opts.fixture);
+      const fixtureDir = resolveRecordingFixtureDir(fixturesRoot, opts.fixture);
       if (!opts.step === !opts.judge) {
         throw new Error(
           "record-agent-step requires exactly one of --step or --judge.",

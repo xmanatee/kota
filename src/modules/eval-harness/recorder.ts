@@ -32,6 +32,7 @@ import {
   extractCommitDiffOperations,
   resolveSourceCommitSha,
 } from "./recorder-commit-diff.js";
+import { requireRecorderIdentifier } from "./recorder-paths.js";
 import { extractRunDirWriteOperations } from "./recorder-run-dir-writes.js";
 
 type StepArtifactOutput = {
@@ -172,43 +173,37 @@ function readWorkflowName(projectDir: string, sourceRunId: string): string {
 export function extractAgentStepRecording(
   params: ExtractRecordingParams,
 ): ExtractRecordingResult {
-  const artifact = readStepArtifact(params.projectDir, params.sourceRunId, params.stepId);
-  if (typeof artifact.id === "string" && artifact.id !== params.stepId) {
+  const sourceRunId = requireRecorderIdentifier(params.sourceRunId, "--run-id");
+  const stepId = requireRecorderIdentifier(params.stepId, "--step");
+  const artifact = readStepArtifact(params.projectDir, sourceRunId, stepId);
+  if (typeof artifact.id === "string" && artifact.id !== stepId) {
     throw new Error(
-      `Source step artifact id "${String(artifact.id)}" does not match requested step id "${params.stepId}".`,
+      `Source step artifact id "${String(artifact.id)}" does not match requested step id "${stepId}".`,
     );
   }
-  const response = extractResponse(artifact, params.stepId);
-  const workflowName = readWorkflowName(params.projectDir, params.sourceRunId);
+  const response = extractResponse(artifact, stepId);
+  const workflowName = readWorkflowName(params.projectDir, sourceRunId);
   const sourceCommitSha = resolveSourceCommitSha(
     params.projectDir,
-    params.sourceRunId,
+    sourceRunId,
     params.explicitCommitSha,
   );
 
   const { ops: commitOps, skippedOutsideProject: skippedFromCommit } =
-    extractCommitDiffOperations(
-      params.projectDir,
-      params.sourceRunId,
-      sourceCommitSha,
-    );
+    extractCommitDiffOperations(params.projectDir, sourceRunId, sourceCommitSha);
   const { ops: runDirOps, skippedOutsideProject: skippedFromWrites } =
-    extractRunDirWriteOperations(
-      params.projectDir,
-      params.sourceRunId,
-      params.stepId,
-    );
+    extractRunDirWriteOperations(params.projectDir, sourceRunId, stepId);
 
   const recording: AgentStepRecording = {
     version: 1,
     workflowName,
-    stepId: params.stepId,
-    sourceRunId: params.sourceRunId,
+    stepId,
+    sourceRunId,
     response,
     fileOperations: [...commitOps, ...runDirOps],
   };
 
-  const recordingPath = recordingPathForStep(params.fixtureDir, params.stepId);
+  const recordingPath = recordingPathForStep(params.fixtureDir, stepId);
   mkdirSync(dirname(recordingPath), { recursive: true });
   writeFileSync(recordingPath, `${JSON.stringify(recording, null, 2)}\n`, "utf-8");
   return {
@@ -253,16 +248,18 @@ export type ExtractJudgeRecordingResult = {
 export function extractJudgeCallRecording(
   params: ExtractJudgeRecordingParams,
 ): ExtractJudgeRecordingResult {
+  const sourceRunId = requireRecorderIdentifier(params.sourceRunId, "--run-id");
+  const label = requireRecorderIdentifier(params.label, "--judge");
   const artifactPath = join(
     params.projectDir,
     ".kota",
     "runs",
-    params.sourceRunId,
-    `${params.label}.json`,
+    sourceRunId,
+    `${label}.json`,
   );
   if (!existsSync(artifactPath)) {
     throw new Error(
-      `Judge artifact not found for label "${params.label}" in source run "${params.sourceRunId}": ${artifactPath}. Either the run id or the judge label is wrong, or the source run never invoked this judge.`,
+      `Judge artifact not found for label "${label}" in source run "${sourceRunId}": ${artifactPath}. Either the run id or the judge label is wrong, or the source run never invoked this judge.`,
     );
   }
   let parsed: unknown;
@@ -270,16 +267,16 @@ export function extractJudgeCallRecording(
     parsed = JSON.parse(readFileSync(artifactPath, "utf-8"));
   } catch (err) {
     throw new Error(
-      `Judge artifact "${params.label}.json" in source run "${params.sourceRunId}" is not valid JSON (${artifactPath}): ${(err as Error).message}`,
+      `Judge artifact "${label}.json" in source run "${sourceRunId}" is not valid JSON (${artifactPath}): ${(err as Error).message}`,
     );
   }
 
-  const workflowName = readWorkflowName(params.projectDir, params.sourceRunId);
+  const workflowName = readWorkflowName(params.projectDir, sourceRunId);
   const recording: AgentStepRecording = {
     version: 1,
     workflowName,
-    stepId: params.label,
-    sourceRunId: params.sourceRunId,
+    stepId: label,
+    sourceRunId,
     response: {
       text: JSON.stringify(parsed, null, 2),
       subtype: "success",
@@ -291,7 +288,7 @@ export function extractJudgeCallRecording(
     fileOperations: [],
   };
 
-  const recordingPath = recordingPathForStep(params.fixtureDir, params.label);
+  const recordingPath = recordingPathForStep(params.fixtureDir, label);
   mkdirSync(dirname(recordingPath), { recursive: true });
   writeFileSync(recordingPath, `${JSON.stringify(recording, null, 2)}\n`, "utf-8");
   return { recordingPath, recording };

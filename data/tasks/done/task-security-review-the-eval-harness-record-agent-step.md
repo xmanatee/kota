@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-eval-harness-record-agent-step
 title: Security review: The eval-harness record-agent-step authoring path accepts raw fixture, run, step, and judge identifiers as filesystem path segments, so malformed CLI input can escape the intended fixtures or .kota/runs directories and read or overwrite files outside those roots.
-status: ready
+status: done
 priority: p3
 area: security
 summary: The eval-harness record-agent-step authoring path accepts raw fixture, run, step, and judge identifiers as filesystem path segments, so malformed CLI input can escape the intended fixtures or .kota/runs directories and read or overwrite files outside those roots.
 created_at: 2026-06-24T06:32:18.947Z
-updated_at: 2026-06-24T07:47:22.413Z
+updated_at: 2026-06-24T08:01:50Z
 ---
 
 ## Problem
@@ -124,3 +124,8 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/modules/eval-harness/recorder-paths.test.ts src/modules/eval-harness/recorder-agent-step-errors.test.ts src/modules/eval-harness/recorder-agent-step.test.ts src/modules/eval-harness/recorder-judge.test.ts src/modules/eval-harness/agent-step-recording.test.ts src/modules/eval-harness/replay-harness.test.ts` passed.
+- `pnpm typecheck` passed.

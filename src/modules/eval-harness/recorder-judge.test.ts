@@ -125,6 +125,26 @@ describe("extractJudgeCallRecording", () => {
     expect(message).toContain("critic-review");
   });
 
+  it("rejects traversal-shaped source run and judge labels before deriving paths", () => {
+    expect(() =>
+      extractJudgeCallRecording({
+        projectDir,
+        sourceRunId: "../outside-run",
+        label: "critic-review",
+        fixtureDir,
+      }),
+    ).toThrow(/--run-id must be a safe single path component/);
+
+    expect(() =>
+      extractJudgeCallRecording({
+        projectDir,
+        sourceRunId: "2026-04-24T00-00-00-000Z-builder-safe",
+        label: "../critic-review",
+        fixtureDir,
+      }),
+    ).toThrow(/--judge must be a safe single path component/);
+  });
+
   it("rejects an unparseable judge artifact", () => {
     const runId = "2026-04-24T00-00-00-000Z-builder-badjson";
     const runDir = join(projectDir, ".kota", "runs", runId);

@@ -79,6 +79,26 @@ describe("extractAgentStepRecording errors", () => {
     ).toThrow(/no steps\/commit\.json/);
   });
 
+  it("rejects traversal-shaped source run and step ids before deriving paths", () => {
+    expect(() =>
+      extractAgentStepRecording({
+        projectDir,
+        sourceRunId: "../outside-run",
+        stepId: "decompose",
+        fixtureDir,
+      }),
+    ).toThrow(/--run-id must be a safe single path component/);
+
+    expect(() =>
+      extractAgentStepRecording({
+        projectDir,
+        sourceRunId: "2026-04-24T00-00-00-000Z-decomposer-safe",
+        stepId: "../decompose",
+        fixtureDir,
+      }),
+    ).toThrow(/--step must be a safe single path component/);
+  });
+
   it("surfaces Write events that target paths outside the project root", () => {
     const runId = "2026-04-24T00-00-00-000Z-decomposer-outside";
     writeFile(projectDir, "inside.md", "inside v1\n");

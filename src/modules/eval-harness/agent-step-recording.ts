@@ -22,6 +22,7 @@
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { requireRecorderIdentifier } from "./recorder-paths.js";
 
 const SUPPORTED_RECORDING_VERSION = 1;
 
@@ -217,7 +218,10 @@ export function recordingPathForStep(
   fixtureDir: string,
   stepId: string,
 ): string {
-  return join(recordingsDirForFixture(fixtureDir), `${stepId}.json`);
+  return join(
+    recordingsDirForFixture(fixtureDir),
+    `${requireRecorderIdentifier(stepId, "recording step id")}.json`,
+  );
 }
 
 /**
