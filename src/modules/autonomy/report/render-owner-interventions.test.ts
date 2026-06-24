@@ -69,6 +69,25 @@ describe("renderOwnerInterventions", () => {
             markers: [],
           },
         ],
+        recurringPatterns: {
+          activePatterns: [
+            {
+              kind: "repeated-freeform-correction",
+              dimension: { kind: "task", value: "task-owner-intervention" },
+              questionCount: 2,
+              distinctRunCount: 2,
+              outcomeBuckets: ["freeform-correction"],
+              repairTaskId: "task-repair-owner-intervention-pattern-abc123",
+              patternFingerprint: "owner-intervention:test",
+              action: "create",
+              reason: "repeated free-form owner corrections",
+              questionIds: ["q1", "q2"],
+              runIds: ["run1", "run2"],
+            },
+          ],
+          ignoredPatterns: [],
+          belowThresholdPatterns: [],
+        },
       },
     });
 
@@ -78,6 +97,7 @@ describe("renderOwnerInterventions", () => {
       "Review scrutiny",
     );
     expect(interventionSection).toContain("owner-question:q1");
+    expect(interventionSection).toContain("task-repair-owner-intervention-pattern-abc123");
     expect(interventionSection).toContain("task-owner-intervention");
     expect(interventionSection).toContain("freeform-correction");
     expect(interventionSection).not.toContain("sk-live-secret");

@@ -3,6 +3,7 @@ import type {
   OwnerQuestionOrigin,
   OwnerQuestionStatus,
 } from "#core/daemon/owner-question-queue.js";
+import type { OwnerInterventionEscalationReport } from "../owner-intervention-escalation-types.js";
 
 export type OwnerInterventionOutcomeBucket =
   | "proposed-option"
@@ -71,6 +72,7 @@ export type OwnerInterventionReport = {
   byWorkflow: OwnerInterventionPressureBucket[];
   byTask: OwnerInterventionPressureBucket[];
   records: OwnerInterventionRecord[];
+  recurringPatterns: OwnerInterventionEscalationReport;
 };
 
 export function emptyOwnerInterventionReport(): OwnerInterventionReport {
@@ -90,5 +92,10 @@ export function emptyOwnerInterventionReport(): OwnerInterventionReport {
     byWorkflow: [],
     byTask: [],
     records: [],
+    recurringPatterns: {
+      activePatterns: [],
+      ignoredPatterns: [],
+      belowThresholdPatterns: [],
+    },
   };
 }

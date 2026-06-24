@@ -1,13 +1,13 @@
 ---
 id: task-escalate-recurring-owner-intervention-patterns-int
 title: Escalate recurring owner-intervention patterns into repair tasks
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Safety
 summary: Create an idempotent escalation path when owner-question corrections and intervention-pressure records repeat across adjacent runs, turning the pattern into one evidence-backed repair task.
 created_at: 2026-06-24T09:33:55.056Z
-updated_at: 2026-06-24T09:33:55.056Z
+updated_at: 2026-06-24T10:05:00.000Z
 ---
 
 ## Problem
@@ -160,6 +160,11 @@ stay hidden behind successful workflow completion or report-only trends.
 
 ## Acceptance Evidence
 
+- Completed in run `2026-06-24T09-46-40-701Z-builder-qulwsm`.
+- `pnpm exec vitest run src/modules/autonomy/owner-intervention-escalation.test.ts src/modules/autonomy/report/owner-interventions.test.ts src/modules/autonomy/report/render-owner-interventions.test.ts src/modules/autonomy/report/report-cli.test.ts` passed with 17 tests.
+- `pnpm exec vitest run src/workflow-validation.integration.test.ts src/modules/autonomy/workflows/prompt-hygiene.test.ts` passed with 85 tests.
+- `pnpm run typecheck` passed.
+- `pnpm run validate-tasks` passed after staging the task state transition.
 - Diff showing the typed recurring-intervention analyzer, fingerprinting,
   task creation/refresh path, operator-surface summary, and sanitized generated
   task body.

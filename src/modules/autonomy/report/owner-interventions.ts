@@ -5,6 +5,10 @@ import {
   OwnerQuestionQueue,
   type PendingOwnerQuestion,
 } from "#core/daemon/owner-question-queue.js";
+import {
+  buildOwnerInterventionEscalationReport,
+  detectRecurringOwnerInterventionPatternsFromReport,
+} from "#modules/autonomy/owner-intervention-escalation.js";
 import { classifyOwnerInterventionOutcome } from "./owner-intervention-classification.js";
 import {
   emptyOwnerInterventionReport,
@@ -25,6 +29,7 @@ export type OwnerInterventionReportInput = {
   projectDir: string;
   windowStartMs: number;
   windowEndMs: number;
+  includeEscalation?: boolean;
 };
 
 export function buildOwnerInterventionReport(
@@ -40,7 +45,24 @@ export function buildOwnerInterventionReport(
     .map((question) => toOwnerInterventionRecord(question, input.windowEndMs))
     .sort(compareOwnerInterventionRecords);
 
-  return summarizeOwnerInterventions(records);
+  const report = summarizeOwnerInterventions(records);
+  if (input.includeEscalation === false) return report;
+  const detection = detectRecurringOwnerInterventionPatternsFromReport({
+    report,
+    config: {
+      nowMs: input.windowEndMs,
+      windowMs: input.windowEndMs - input.windowStartMs,
+    },
+  });
+  return {
+    ...report,
+    recurringPatterns: buildOwnerInterventionEscalationReport({
+      projectDir: input.projectDir,
+      patterns: detection.patterns,
+      ignoredPatterns: detection.ignoredPatterns,
+      belowThresholdPatterns: detection.belowThresholdPatterns,
+    }),
+  };
 }
 
 function isInReportWindow(
@@ -209,6 +231,7 @@ function summarizeOwnerInterventions(
     byWorkflow: pressureRows(byWorkflow),
     byTask: pressureRows(byTask),
     records,
+    recurringPatterns: emptyOwnerInterventionReport().recurringPatterns,
   };
 }
 

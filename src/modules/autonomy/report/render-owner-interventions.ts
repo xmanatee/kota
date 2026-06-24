@@ -53,6 +53,12 @@ export function renderOwnerInterventions(
   appendPressureBuckets(lines, "Top sources", report.bySource);
   appendPressureBuckets(lines, "Top workflows", report.byWorkflow);
   if (report.byTask.length > 0) appendPressureBuckets(lines, "Top tasks", report.byTask);
+  appendRecurringPatterns(lines, "Recurring patterns", report.recurringPatterns.activePatterns);
+  appendRecurringPatterns(
+    lines,
+    "Ignored recurring patterns",
+    report.recurringPatterns.ignoredPatterns,
+  );
   if (report.records.length > 0) {
     lines.push(blank());
     lines.push(line(span("Recent refs", "muted", true)));
@@ -77,6 +83,23 @@ export function renderOwnerInterventions(
     }
   }
   return lines;
+}
+
+function appendRecurringPatterns(
+  lines: RenderNode[],
+  label: string,
+  patterns: OwnerInterventionReport["recurringPatterns"]["activePatterns"],
+): void {
+  if (patterns.length === 0) return;
+  lines.push(blank());
+  lines.push(line(span(label, "muted", true)));
+  for (const pattern of patterns.slice(0, 5)) {
+    lines.push(line(plain(
+      `  ${pattern.kind.padEnd(28)} ${pattern.dimension.kind}:${pattern.dimension.value} ` +
+      `${String(pattern.questionCount).padStart(2)} questions   ` +
+      `task ${pattern.repairTaskId}   action ${pattern.action}`,
+    )));
+  }
 }
 
 function appendPressureBuckets(

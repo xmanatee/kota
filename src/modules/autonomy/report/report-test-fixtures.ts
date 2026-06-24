@@ -118,6 +118,11 @@ export const emptyAutonomyReportData: AutonomyReportData = {
     byWorkflow: [],
     byTask: [],
     records: [],
+    recurringPatterns: {
+      activePatterns: [],
+      ignoredPatterns: [],
+      belowThresholdPatterns: [],
+    },
   },
   postCompletionFollowUps: {
     totalCorrectiveFollowUps: 0,
