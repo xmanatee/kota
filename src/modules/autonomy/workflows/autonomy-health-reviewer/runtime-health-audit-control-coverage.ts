@@ -1,11 +1,19 @@
-import { join } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { EvidenceJsonObject } from "#core/evidence/policy.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import {
   CONTROL_MONITOR_COVERAGE_ARTIFACT,
   type ControlMonitorCoverageArtifact,
 } from "#core/workflow/control-monitor-coverage.js";
+import {
+  readJsonObject,
+  snapshotStepsFrom,
+} from "#core/workflow/control-monitor-coverage-readers.js";
 import { readPrunedWorkflowRunReferences } from "#core/workflow/run-store-retention.js";
+import type {
+  WorkflowRunMetadata,
+  WorkflowStepResult,
+} from "#core/workflow/run-types.js";
 import type { AutonomyHealthEvidenceRef } from "#modules/autonomy/health-signal.js";
 import {
   addPattern,
@@ -13,12 +21,10 @@ import {
   type RuntimeHealthAuditContext,
 } from "./runtime-health-audit-model.js";
 
-type WorkflowHistoryRunLike = {
-  id: string;
-  workflow: string;
-  status: string;
-  startedAt: string;
-};
+type WorkflowHistoryRunLike = Pick<
+  WorkflowRunMetadata,
+  "id" | "workflow" | "status" | "startedAt" | "steps"
+>;
 
 type ControlCoverageGapObservation = {
   run: WorkflowHistoryRunLike;
@@ -31,7 +37,17 @@ type ControlCoverageGapObservation = {
 
 type ControlCoverageGap = ControlMonitorCoverageArtifact["gaps"][number];
 type StepEvidence = {
+  id?: string;
+  type?: string;
   status?: string;
+};
+type StepEvidenceRef = {
+  path: string;
+  stepId: string;
+};
+type TrustedSkippedGateStep = {
+  id: string;
+  type: "approval" | "await-event";
 };
 
 function artifactRef(runId: string): string {
@@ -149,10 +165,84 @@ function pattern(
   };
 }
 
-function stepEvidenceRefForRun(run: WorkflowHistoryRunLike, ref: string): string | null {
-  const path = ref.split("#", 1)[0] ?? ref;
-  const prefix = `.kota/runs/${run.id}/steps/`;
-  return path.startsWith(prefix) && path.endsWith(".json") ? path : null;
+function hasDotSegment(path: string): boolean {
+  return path.split(/[\\/]/).some((segment) => segment === "." || segment === "..");
+}
+
+function leavesDirectory(relativePath: string): boolean {
+  return (
+    relativePath === ".." ||
+    relativePath.startsWith(`..${sep}`) ||
+    isAbsolute(relativePath)
+  );
+}
+
+function stepEvidenceRefForRun(
+  ctx: RuntimeHealthAuditContext,
+  run: WorkflowHistoryRunLike,
+  ref: string,
+): StepEvidenceRef | null {
+  const path = (ref.split("#", 1)[0] ?? ref).trim();
+  if (!path.endsWith(".json") || isAbsolute(path) || hasDotSegment(path)) {
+    return null;
+  }
+
+  const stepsDir = resolve(ctx.projectDir, ".kota", "runs", run.id, "steps");
+  const resolvedPath = resolve(ctx.projectDir, path);
+  const relativeToSteps = relative(stepsDir, resolvedPath);
+  if (
+    relativeToSteps.length === 0 ||
+    leavesDirectory(relativeToSteps) ||
+    relativeToSteps.includes(sep)
+  ) {
+    return null;
+  }
+
+  const suffix = ".json";
+  if (!relativeToSteps.endsWith(suffix)) return null;
+  const stepId = relativeToSteps.slice(0, -suffix.length);
+  return stepId.length > 0 ? { path: resolvedPath, stepId } : null;
+}
+
+function ownerWaitStepIdsForRun(
+  ctx: RuntimeHealthAuditContext,
+  run: WorkflowHistoryRunLike,
+): Set<string> {
+  const snapshot = readJsonObject(
+    join(ctx.projectDir, ".kota", "runs", run.id, "workflow.json"),
+  );
+  return new Set(
+    snapshotStepsFrom(snapshot)
+      .filter((step) =>
+        step.type === "await-event" && step.event === "owner.question.resolved"
+      )
+      .map((step) => step.id),
+  );
+}
+
+function trustedSkippedGateStep(
+  step: WorkflowStepResult,
+  ownerWaitStepIds: ReadonlySet<string>,
+): TrustedSkippedGateStep | null {
+  if (step.status !== "skipped") return null;
+  if (step.type === "approval") return { id: step.id, type: "approval" };
+  if (step.type === "await-event" && ownerWaitStepIds.has(step.id)) {
+    return { id: step.id, type: "await-event" };
+  }
+  return null;
+}
+
+function trustedSkippedGateStepsForRun(
+  ctx: RuntimeHealthAuditContext,
+  run: WorkflowHistoryRunLike,
+): ReadonlyMap<string, TrustedSkippedGateStep> {
+  const ownerWaitStepIds = ownerWaitStepIdsForRun(ctx, run);
+  const trusted = new Map<string, TrustedSkippedGateStep>();
+  for (const step of run.steps) {
+    const gateStep = trustedSkippedGateStep(step, ownerWaitStepIds);
+    if (gateStep) trusted.set(gateStep.id, gateStep);
+  }
+  return trusted;
 }
 
 function isStaleSkippedApprovalOwnerGateGap(
@@ -167,14 +257,24 @@ function isStaleSkippedApprovalOwnerGateGap(
     return false;
   }
 
-  const stepRefs = gap.evidenceRefs
-    .map((ref) => stepEvidenceRefForRun(run, ref))
-    .filter((ref): ref is string => ref !== null);
-  if (stepRefs.length === 0) return false;
+  if (gap.evidenceRefs.length === 0) return false;
 
+  const trustedGateSteps = trustedSkippedGateStepsForRun(ctx, run);
+  const stepRefs: StepEvidenceRef[] = [];
+  for (const ref of gap.evidenceRefs) {
+    const stepRef = stepEvidenceRefForRun(ctx, run, ref);
+    if (!stepRef) return false;
+    stepRefs.push(stepRef);
+  }
   return stepRefs.every((ref) => {
-    const step = readOptionalJsonFile<StepEvidence>(join(ctx.projectDir, ref));
-    return step?.status === "skipped";
+    const trustedStep = trustedGateSteps.get(ref.stepId);
+    if (!trustedStep) return false;
+    const step = readOptionalJsonFile<StepEvidence>(ref.path);
+    return (
+      step?.id === trustedStep.id &&
+      step.type === trustedStep.type &&
+      step.status === "skipped"
+    );
   });
 }
 

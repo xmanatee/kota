@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-stale-skipped-approval-gate-su
 title: Security review: The stale skipped approval-gate suppressor trusts control-coverage artifact evidenceRefs and validates them with only a string prefix plus .json suffix before reading them through path.join. A forged or corrupted run artifact can include ../ segments under the accepted prefix, make the audit read unrelated JSON with status skipped, and suppress approval-or-owner-gate-unresolved gaps from autonomy health review.
-status: ready
+status: done
 priority: p2
 area: security
 summary: The stale skipped approval-gate suppressor trusts control-coverage artifact evidenceRefs and validates them with only a string prefix plus .json suffix before reading them through path.join. A forged or corrupted run artifact can include ../ segments under the accepted prefix, make the audit read unrelated JSON with status skipped, and suppress approval-or-owner-gate-unresolved gaps from autonomy health review.
 created_at: 2026-06-24T17:01:17.007Z
-updated_at: 2026-06-24T17:01:17.007Z
+updated_at: 2026-06-24T17:18:18.000Z
 ---
 
 ## Problem
@@ -124,3 +124,4 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Verification commands: `pnpm test src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit-control-coverage.test.ts`, `pnpm typecheck`, `pnpm lint`.

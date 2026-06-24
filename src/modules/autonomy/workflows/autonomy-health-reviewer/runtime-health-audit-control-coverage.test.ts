@@ -10,6 +10,13 @@ import { collectRuntimeHealthAudit } from "./runtime-health-audit.js";
 
 const NOW = "2026-06-19T12:00:00.000Z";
 
+type StepSeed = {
+  id: string;
+  type: "approval" | "await-event" | "code";
+  status: "success" | "failed" | "skipped";
+  event?: string;
+};
+
 function readyTaskPath(projectDir: string, taskId: string): string {
   return join(projectDir, "data", "tasks", "ready", `${taskId}.md`);
 }
@@ -117,10 +124,32 @@ describe("runtime health audit control coverage gaps", () => {
     );
   }
 
-  function writeRunWithSkippedApprovalGateGap(id: string, startedAt: string): void {
+  function stepResult(step: StepSeed, startedAt: string) {
+    return {
+      id: step.id,
+      type: step.type,
+      status: step.status,
+      startedAt,
+      completedAt: startedAt,
+      durationMs: 10,
+      ...(step.status === "skipped"
+        ? { skipReason: { kind: "when-predicate" } }
+        : {}),
+    };
+  }
+
+  function writeRunWithApprovalOwnerGateGap(args: {
+    id: string;
+    startedAt: string;
+    step: StepSeed;
+    evidenceRefs?: string[];
+    stepArtifact?: StepSeed;
+  }): void {
+    const { id, startedAt, step } = args;
     const runDir = join(projectDir, ".kota", "runs", id);
     const stepsDir = join(runDir, "steps");
     mkdirSync(stepsDir, { recursive: true });
+    const stepArtifact = args.stepArtifact ?? step;
     writeFileSync(
       join(runDir, "metadata.json"),
       JSON.stringify({
@@ -131,31 +160,26 @@ describe("runtime health audit control coverage gaps", () => {
         completedAt: startedAt,
         durationMs: 1000,
         runDir: `.kota/runs/${id}`,
+        steps: [stepResult(step, startedAt)],
+      }),
+      "utf-8",
+    );
+    writeFileSync(
+      join(runDir, "workflow.json"),
+      JSON.stringify({
         steps: [
           {
-            id: "approve-comment",
-            type: "approval",
-            status: "skipped",
-            startedAt,
-            completedAt: startedAt,
-            durationMs: 10,
-            skipReason: { kind: "when-predicate" },
+            id: step.id,
+            type: step.type,
+            ...(step.event ? { event: step.event } : {}),
           },
         ],
       }),
       "utf-8",
     );
     writeFileSync(
-      join(stepsDir, "approve-comment.json"),
-      JSON.stringify({
-        id: "approve-comment",
-        type: "approval",
-        status: "skipped",
-        startedAt,
-        completedAt: startedAt,
-        durationMs: 10,
-        skipReason: { kind: "when-predicate" },
-      }),
+      join(stepsDir, `${stepArtifact.id}.json`),
+      JSON.stringify(stepResult(stepArtifact, startedAt)),
       "utf-8",
     );
     writeFileSync(
@@ -199,9 +223,9 @@ describe("runtime health audit control coverage gaps", () => {
             family: "approval-owner-gates",
             severity: "warning",
             reason: "approval-or-owner-gate-unresolved",
-            subject: "approve-comment",
-            evidenceRefs: [
-              `.kota/runs/${id}/steps/approve-comment.json`,
+            subject: step.id,
+            evidenceRefs: args.evidenceRefs ?? [
+              `.kota/runs/${id}/steps/${step.id}.json`,
             ],
           },
         ],
@@ -213,6 +237,41 @@ describe("runtime health audit control coverage gaps", () => {
         },
       }),
       "utf-8",
+    );
+  }
+
+  function writeRunWithSkippedApprovalGateGap(id: string, startedAt: string): void {
+    writeRunWithApprovalOwnerGateGap({
+      id,
+      startedAt,
+      step: { id: "approve-comment", type: "approval", status: "skipped" },
+    });
+  }
+
+  function writeRunWithSkippedOwnerWaitGateGap(id: string, startedAt: string): void {
+    writeRunWithApprovalOwnerGateGap({
+      id,
+      startedAt,
+      step: {
+        id: "wait-owner",
+        type: "await-event",
+        status: "skipped",
+        event: "owner.question.resolved",
+      },
+    });
+  }
+
+  function expectApprovalOwnerGatePattern(
+    audit: ReturnType<typeof collectRuntimeHealthAudit>,
+  ): void {
+    expect(audit.patterns).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          dedupeKey:
+            "control-coverage:approval-owner-gates:approval-or-owner-gate-unresolved",
+          observationCount: 2,
+        }),
+      ]),
     );
   }
 
@@ -274,6 +333,87 @@ describe("runtime health audit control coverage gaps", () => {
         }),
       ]),
     );
+  });
+
+  it("ignores stale skipped owner-wait gate gaps from historical coverage artifacts", () => {
+    writeRunWithSkippedOwnerWaitGateGap(
+      "stale-skipped-owner-wait-a",
+      "2026-06-19T10:00:00.000Z",
+    );
+    writeRunWithSkippedOwnerWaitGateGap(
+      "stale-skipped-owner-wait-b",
+      "2026-06-19T11:00:00.000Z",
+    );
+
+    const audit = collectRuntimeHealthAudit({
+      projectDir,
+      options: { nowIso: NOW, interruptedRunMinCount: 2 },
+    });
+
+    expect(audit.inspected.controlCoverageArtifacts).toBe(2);
+    expect(audit.inspected.controlCoverageGapRuns).toBe(0);
+    expect(audit.patterns).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          dedupeKey:
+            "control-coverage:approval-owner-gates:approval-or-owner-gate-unresolved",
+        }),
+      ]),
+    );
+  });
+
+  it("does not suppress approval gate gaps with escaping step evidence refs", () => {
+    for (const [id, startedAt] of [
+      ["escaping-step-ref-a", "2026-06-19T10:00:00.000Z"],
+      ["escaping-step-ref-b", "2026-06-19T11:00:00.000Z"],
+    ] as const) {
+      writeRunWithApprovalOwnerGateGap({
+        id,
+        startedAt,
+        step: { id: "approve-comment", type: "approval", status: "skipped" },
+        evidenceRefs: [`.kota/runs/${id}/steps/../../forged-${id}.json`],
+      });
+      writeFileSync(
+        join(projectDir, ".kota", "runs", `forged-${id}.json`),
+        JSON.stringify({
+          id: "approve-comment",
+          type: "approval",
+          status: "skipped",
+        }),
+        "utf-8",
+      );
+    }
+
+    const audit = collectRuntimeHealthAudit({
+      projectDir,
+      options: { nowIso: NOW, interruptedRunMinCount: 2 },
+    });
+
+    expect(audit.inspected.controlCoverageArtifacts).toBe(2);
+    expect(audit.inspected.controlCoverageGapRuns).toBe(2);
+    expectApprovalOwnerGatePattern(audit);
+  });
+
+  it("does not suppress approval gate gaps from skipped non-gate step artifacts", () => {
+    writeRunWithApprovalOwnerGateGap({
+      id: "skipped-non-gate-a",
+      startedAt: "2026-06-19T10:00:00.000Z",
+      step: { id: "sort-inbox", type: "code", status: "skipped" },
+    });
+    writeRunWithApprovalOwnerGateGap({
+      id: "skipped-non-gate-b",
+      startedAt: "2026-06-19T11:00:00.000Z",
+      step: { id: "sort-inbox", type: "code", status: "skipped" },
+    });
+
+    const audit = collectRuntimeHealthAudit({
+      projectDir,
+      options: { nowIso: NOW, interruptedRunMinCount: 2 },
+    });
+
+    expect(audit.inspected.controlCoverageArtifacts).toBe(2);
+    expect(audit.inspected.controlCoverageGapRuns).toBe(2);
+    expectApprovalOwnerGatePattern(audit);
   });
 
   it("distinguishes producer-missing control evidence from policy-pruned run references", () => {
