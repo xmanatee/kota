@@ -13,6 +13,7 @@ import {
   judgeUnavailableResult,
   parseVerdict,
 } from "./critic.js";
+import { fileLineCitationsFromUnifiedDiff } from "./review-scrutiny-citations.js";
 import { AUTONOMY_AGENT_DEFAULTS } from "./shared.js";
 
 const GATE_MAX_TURNS = 10;
@@ -105,10 +106,12 @@ export function createImproverSemanticCheck(options?: {
       const diffContent = getStagedDiffContent(ctx.projectDir);
       const runDir = options?.runDirPath ?? ctx.workflow.runDirPath;
       const commitMessage = readCommitMessage(runDir);
+      const fallbackFileLineCitations = fileLineCitationsFromUnifiedDiff(diffContent);
       const verdictContext = {
         runId: ctx.workflow.runId,
         workflow: ctx.workflow.name,
         reviewerPromptHash: getImproverSemanticGatePromptHash(),
+        fallbackFileLineCitations,
       };
 
       const userMessage = [

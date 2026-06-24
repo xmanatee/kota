@@ -1,13 +1,13 @@
 ---
 id: task-repair-review-scrutiny-pattern-b62bf508bec9
 title: Repair recurring thin semantic-gate acceptances
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Meta
 summary: Make semantic-gate reviews for improver (unknown)/Unclassified carry inspectable evidence instead of recurring thin acceptances.
 created_at: 2026-06-23T22:39:45.988Z
-updated_at: 2026-06-23T22:39:45.988Z
+updated_at: 2026-06-24T01:54:05.000Z
 ---
 
 ## Problem
@@ -97,6 +97,10 @@ Outcome-aware autonomy governance.
   escalation gate on fresh evidence.
 - Operator-facing report or attention fixture showing future escalations
   include the repair task id without cost fields.
+- Completed in builder run `2026-06-24T01-38-56-141Z-builder-e4vsr4`.
+- `pnpm test src/modules/autonomy/critic-verdict.test.ts src/modules/autonomy/improver-semantic-gate.test.ts src/modules/autonomy/review-scrutiny.test.ts` passed.
+- `pnpm test src/modules/autonomy/review-scrutiny-core-pattern.test.ts src/modules/autonomy/workflows/review-scrutiny-escalator/workflow.test.ts src/modules/autonomy/report/render-review-scrutiny.test.ts` passed.
+- `pnpm typecheck` passed.
 
 <!-- review-scrutiny-pattern-fingerprint: review-scrutiny:semantic-gate:improver:(unknown):Unclassified -->
 <!-- review-scrutiny-evidence-fingerprint: 5cb743d47dc99fbde4144f00d032998eeeda9f43651409ba1c495a58c6bd48a8 -->

@@ -14,6 +14,7 @@ import {
 import { runProbeIfDeclared } from "./critic-runtime-probe.js";
 import { handleVerdict, parseVerdict } from "./critic-verdict.js";
 import { checkProductOperatorEvidence } from "./product-evidence.js";
+import { fileLineCitationsFromUnifiedDiff } from "./review-scrutiny-citations.js";
 import { AUTONOMY_AGENT_DEFAULTS } from "./shared.js";
 import { formatProbeBlock } from "./task-probe.js";
 import { findTaskReviewTarget } from "./task-review-target.js";
@@ -158,11 +159,13 @@ export function createCriticCheck(options?: {
       const changedFiles = getChangedFiles(ctx.projectDir);
       const runDir = options?.runDirPath ?? ctx.workflow.runDirPath;
       const taskId = taskIdFromReviewTargetPath(target.path);
+      const fallbackFileLineCitations = fileLineCitationsFromUnifiedDiff(diffContent);
       const verdictContext = {
         runId: ctx.workflow.runId,
         workflow: ctx.workflow.name,
         reviewerPromptHash: getCriticPromptHash(),
         taskId,
+        fallbackFileLineCitations,
       };
 
       const probeResult = runProbeIfDeclared(taskContent, target.path, ctx.projectDir, runDir);

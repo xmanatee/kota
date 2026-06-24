@@ -5,6 +5,10 @@ import {
   runIdFromRunDir,
   writeReviewScrutinyRecord,
 } from "./review-scrutiny.js";
+import {
+  countFileLineCitations,
+  normalizeFileLineCitations,
+} from "./review-scrutiny-citations.js";
 
 export type CriticVerdict = {
   verdict: "pass" | "fail" | "pass_with_warnings";
@@ -56,11 +60,6 @@ function extractJson(text: string): JsonObject | undefined {
   return undefined;
 }
 
-function countFileLineCitations(text: string): number {
-  const matches = text.match(/\b[\w./-]+\.[A-Za-z0-9]+(?::\d+|#L\d+)\b/g);
-  return matches ? new Set(matches).size : 0;
-}
-
 function hasAcceptedVerdictScrutinySignal(verdict: CriticVerdict): boolean {
   if (verdict.critical_issues.length > 0 || verdict.warnings.length > 0) return true;
   return (
@@ -70,17 +69,24 @@ function hasAcceptedVerdictScrutinySignal(verdict: CriticVerdict): boolean {
   );
 }
 
-function normalizeAcceptedVerdictScrutiny(verdict: CriticVerdict): CriticVerdict {
+function normalizeAcceptedVerdictScrutiny(
+  verdict: CriticVerdict,
+  fallbackFileLineCitations: readonly string[],
+): CriticVerdict {
   if (verdict.verdict !== "pass" && verdict.verdict !== "pass_with_warnings") {
     return verdict;
   }
   if (hasAcceptedVerdictScrutinySignal(verdict)) return verdict;
+  const citations = normalizeFileLineCitations(fallbackFileLineCitations);
+  const citationText =
+    citations.length > 0 ? ` Reviewed diff refs: ${citations.join(", ")}.` : "";
   return {
     ...verdict,
     verdict: "pass_with_warnings",
     warnings: [
       ...verdict.warnings,
-      "Accepted reviewer verdict omitted warnings, critical issues, and file-line citations; review-scrutiny recorded this reviewer-evidence gap.",
+      "Accepted reviewer verdict omitted warnings, critical issues, and file-line citations; review-scrutiny recorded this reviewer-evidence gap." +
+        citationText,
     ],
   };
 }
@@ -121,9 +127,13 @@ export function handleVerdict(
     generatedAt?: string;
     reviewerPromptHash?: string;
     taskId?: string;
+    fallbackFileLineCitations?: readonly string[];
   },
 ): string {
-  const verdict = normalizeAcceptedVerdictScrutiny(rawVerdict);
+  const verdict = normalizeAcceptedVerdictScrutiny(
+    rawVerdict,
+    context?.fallbackFileLineCitations ?? [],
+  );
   // Always persist the verdict so live-run calibration tracking can read it
   // back later; operators inspecting a run that passed cleanly no longer need
   // to infer the verdict from the step's repair-iteration output. Repeat

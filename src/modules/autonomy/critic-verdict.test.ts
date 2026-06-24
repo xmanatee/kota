@@ -1,8 +1,8 @@
 import "./critic-test-fixture.integration.js";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
-import { createCriticCheck, getCriticPromptHash } from "./critic.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createCriticCheck, getCriticPromptHash, handleVerdict } from "./critic.js";
 import {
   type CodeCheck,
   getMockRunAgentHarness,
@@ -14,6 +14,7 @@ import {
   TEST_PARENT_STEP,
   writeDoingTask,
 } from "./critic-test-fixture.integration.js";
+import { getImproverSemanticGatePromptHash } from "./improver-semantic-gate.js";
 
 const mockRunAgentHarness = getMockRunAgentHarness();
 
@@ -127,10 +128,23 @@ describe("critic verdict handling", () => {
     });
   });
 
-  it("records no-citation accepted verdicts as warning-backed scrutiny", async () => {
+  it("records no-citation accepted verdicts as citation-backed scrutiny", async () => {
+    const { execFileSync } = await import("node:child_process");
     const dir = makeTmpDir();
     writeDoingTask(dir, "task-thin.md", "---\ntitle: Do thin\n---\nDo thin.");
     const runDir = makeRunDir(dir);
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const argStr = Array.isArray(args) ? args.join(" ") : "";
+      if (argStr.includes("--name-only")) return "src/modules/autonomy/critic.ts\n";
+      if (argStr.includes("--stat")) return " src/modules/autonomy/critic.ts | 1 +\n";
+      return [
+        "diff --git a/src/modules/autonomy/critic.ts b/src/modules/autonomy/critic.ts",
+        "--- a/src/modules/autonomy/critic.ts",
+        "+++ b/src/modules/autonomy/critic.ts",
+        "@@ -98,6 +98,7 @@ export function createCriticCheck() {",
+        "+  return true;",
+      ].join("\n");
+    });
     setApiResponse({
       verdict: "pass",
       critical_issues: [],
@@ -150,7 +164,7 @@ describe("critic verdict handling", () => {
       reviewerPromptHash: getCriticPromptHash(),
     });
     expect(artifact.warnings).toEqual([
-      expect.stringContaining("reviewer-evidence gap"),
+      expect.stringContaining("src/modules/autonomy/critic.ts:98"),
     ]);
 
     const scrutiny = JSON.parse(readFileSync(join(runDir, "review-scrutiny.json"), "utf8"));
@@ -163,7 +177,47 @@ describe("critic verdict handling", () => {
       thinAcceptance: false,
       signals: {
         warningCount: 1,
-        citedFileLineCount: 0,
+        citedFileLineCount: 1,
+      },
+    });
+  });
+
+  it("records semantic-gate accepted verdicts with fallback citations", () => {
+    const dir = makeTmpDir();
+    const runDir = makeRunDir(dir);
+    const result = handleVerdict(
+      {
+        verdict: "pass",
+        critical_issues: [],
+        warnings: [],
+        summary: "The improver change is useful.",
+      },
+      runDir,
+      "semantic-gate-review.json",
+      {
+        runId: "test-run",
+        workflow: "improver",
+        reviewerPromptHash: getImproverSemanticGatePromptHash(),
+        fallbackFileLineCitations: ["src/modules/autonomy/improver-semantic-gate.ts:106"],
+      },
+    );
+
+    expect(result).toMatch(/pass_with_warnings/);
+    const artifact = JSON.parse(readFileSync(join(runDir, "semantic-gate-review.json"), "utf8"));
+    expect(artifact.warnings[0]).toContain(
+      "src/modules/autonomy/improver-semantic-gate.ts:106",
+    );
+
+    const scrutiny = JSON.parse(readFileSync(join(runDir, "review-scrutiny.json"), "utf8"));
+    expect(scrutiny).toMatchObject({
+      surface: "semantic-gate",
+      workflow: "improver",
+      reviewerPromptHash: getImproverSemanticGatePromptHash(),
+      decision: "pass_with_warnings",
+      thinAcceptance: false,
+      signals: {
+        warningCount: 1,
+        citedFileLineCount: 1,
       },
     });
   });

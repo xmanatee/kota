@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
+import { countFileLineCitations } from "./review-scrutiny-citations.js";
 import {
   isApprovalLikeDecision,
   PROGRESS_REVIEW_ARTIFACT,
@@ -192,11 +193,6 @@ export function writeReviewScrutinyRecord(
   const path = join(runDirPath, REVIEW_SCRUTINY_ARTIFACT);
   writeFileSync(path, `${JSON.stringify(record, null, 2)}\n`, "utf-8");
   return path;
-}
-
-function countFileLineCitations(text: string): number {
-  const matches = text.match(/\b[\w./-]+\.[A-Za-z0-9]+(?::\d+|#L\d+)\b/g);
-  return matches ? new Set(matches).size : 0;
 }
 
 export function runIdFromRunDir(runDirPath: string): string {
