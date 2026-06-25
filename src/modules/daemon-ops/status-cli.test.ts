@@ -164,6 +164,21 @@ describe("formatStatusOutput", () => {
     expect(out).toContain("no control API");
   });
 
+  it("shows pending dirty-worktree recovery while the daemon is offline", () => {
+    const out = formatStatusOutput(makeSnap({
+      pendingRecovery: {
+        sourceWorkflow: "progress-reviewer",
+        sourceRunId: "2026-06-25T02-37-35-003Z-progress-reviewer-yow6wq",
+        worktreeSummary: "R data/tasks/backlog/task-a.md -> data/tasks/ready/task-a.md",
+        attempts: 0,
+      },
+    }));
+    expect(out).toContain("Pending recovery");
+    expect(out).toContain("progress-reviewer");
+    expect(out).toContain("dirty worktree");
+    expect(out).toContain("task-a.md");
+  });
+
   it("reports a stale control file with the doctor hint and base URL", () => {
     const out = formatStatusOutput(makeSnap({
       controlFile: { kind: "stale", pid: 99999, baseURL: "http://127.0.0.1:8765" },

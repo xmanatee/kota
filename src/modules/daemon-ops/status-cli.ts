@@ -16,6 +16,7 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import type { WorkflowRecoveryState } from "#core/workflow/run-types.js";
 import { PAUSE_SIGNAL_FILE } from "#core/workflow/runtime.js";
 import { kvBlock, type RenderNode } from "#modules/rendering/primitives.js";
 import { print, renderToString } from "#modules/rendering/transport.js";
@@ -87,6 +88,10 @@ export type StatusSnapshot = {
     queuedRuns: number;
     workflowPaused: boolean;
   };
+  pendingRecovery?: Pick<
+    WorkflowRecoveryState,
+    "sourceWorkflow" | "sourceRunId" | "worktreeSummary" | "attempts"
+  >;
 };
 
 /**
@@ -272,6 +277,16 @@ export function buildStatusNode(
         role: "warn" as const,
       });
     }
+    if (snap.pendingRecovery) {
+      entries.push({
+        label: "Pending recovery",
+        value:
+          `dirty worktree from ${snap.pendingRecovery.sourceWorkflow} ` +
+          `(${snap.pendingRecovery.sourceRunId}, attempts ${snap.pendingRecovery.attempts}): ` +
+          snap.pendingRecovery.worktreeSummary,
+        role: "warn" as const,
+      });
+    }
   }
 
   entries.push({
@@ -432,6 +447,14 @@ export async function gatherStatus(
     projectName,
     controlFile,
     historicalWorkflow,
+    ...(state.recovery && {
+      pendingRecovery: {
+        sourceWorkflow: state.recovery.sourceWorkflow,
+        sourceRunId: state.recovery.sourceRunId,
+        worktreeSummary: state.recovery.worktreeSummary,
+        attempts: state.recovery.attempts,
+      },
+    }),
     ...(strandedDaemon.kind === "stranded" && {
       strandedDaemon: { pid: strandedDaemon.pid, command: strandedDaemon.command },
     }),
