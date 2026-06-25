@@ -31,7 +31,7 @@ core). Each namespace file owns its types, parsers, and the
   `daemonRequest<T>` helper every namespace uses for bearer-auth JSON
   calls.
 - `src/daemon/conformance/` carries the byte-identical mirror of
-  `clients/conformance/decoders.ts` and `decoders.test-cases.ts`. The
+  `clients/conformance/decoder*.ts` and `decoders.test-cases.ts`. The
   per-namespace files call into `parse*Response` from this directory so
   the daemon boundary throws a `ContractDecodeError` on a malformed
   payload instead of silently flowing into the screens. The cross-client

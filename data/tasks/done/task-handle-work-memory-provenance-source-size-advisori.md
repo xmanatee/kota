@@ -1,12 +1,12 @@
 ---
 id: task-handle-work-memory-provenance-source-size-advisori
 title: Handle work-memory provenance source-size advisories
-status: ready
+status: done
 priority: p3
 area: architecture
 summary: Builder run 2026-06-24T21-48-14-387Z-builder-3ertwr completed the work-memory provenance task, but its source-file-size review reports touched oversized surfaces: clients/conformance/decoders.ts and clients/mobile/src/daemon/conformance/decoders.ts at 2632 lines each, plus src/core/modules/provider-types.ts at 414 lines. Split cohesive decoder/provider metadata helpers or record tightly scoped source-size cleanup exceptions while preserving work-memory provenance, recall rendering, and cross-client conformance behavior.
 created_at: 2026-06-24T22:49:02.911Z
-updated_at: 2026-06-24T22:49:02.911Z
+updated_at: 2026-06-25T02:31:14Z
 ---
 
 ## Problem
@@ -46,4 +46,8 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- Before/after line-count evidence shows clients/conformance/decoders.ts, clients/mobile/src/daemon/conformance/decoders.ts, and src/core/modules/provider-types.ts no longer trigger changed-file source-size warnings for this work-memory provenance path, or each has a typed scoped exception with rationale. Focused memory, knowledge, recall, conformance, web, mobile, and Apple recall rendering tests pass, along with typecheck, lint, validate-tasks, and a source-size check.
+- Line-count cleanup is recorded in `.kota/runs/2026-06-25T02-14-28-199Z-builder-wx6wqu/source-size-line-counts.txt` and `.kota/runs/2026-06-25T02-14-28-199Z-builder-wx6wqu/source-size-worktree-review.json`: the former 2,632-line decoder mirrors are 15-line barrels, every extracted decoder source is under 300 lines, `src/core/modules/provider-types.ts` is a 5-line barrel, and every provider-type sibling is under 134 lines.
+- The source-size worktree review reported `OK: 39 changed source files are under 300 lines`. The normal staged source-size check could not be used before this record because `.git/index.lock` writes are unavailable in this sandbox.
+- Focused validation passed: root work-memory/knowledge/recall/conformance tests, web conformance and recall-render tests, mobile conformance and RecallScreen tests, and `swift test` for the Apple package.
+- Static validation passed: `pnpm run typecheck`, `pnpm run lint`, `pnpm --dir clients/web run typecheck`, and `pnpm --dir clients/mobile run typecheck`.
+- Queue validation passed after staging the task state change: `pnpm run validate-tasks`.
