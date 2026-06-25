@@ -142,6 +142,7 @@ describe("daemonModule", () => {
         "status",
         "scopes",
         "inbox",
+        "continuity",
         "operator-control",
         "runs",
         "modules-agents",

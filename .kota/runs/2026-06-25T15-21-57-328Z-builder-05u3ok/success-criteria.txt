@@ -1,0 +1,5 @@
+1. Add a daemon-backed continuity projection for a selected scope/project that composes existing stores and exposes recent work state, open unblock items, artifact review links, memory or knowledge hints, recurring follow-ups, and the next operator action.
+2. Consume the continuity projection from at least one operator-facing surface without adding direct client `.kota/` filesystem parsing or a parallel workstream store.
+3. Make empty, healthy, blocked, and failed continuity states distinct and operator-readable while redacting sensitive details.
+4. Cover projection assembly, secret redaction, no direct client file reads, empty state, blocked state, and failed-run state with focused tests.
+5. Produce rendered operator evidence under this run directory showing healthy, blocked, and failed continuity states, and record which existing stores were composed.

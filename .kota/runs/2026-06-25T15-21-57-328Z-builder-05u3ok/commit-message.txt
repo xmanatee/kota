@@ -1,0 +1,3 @@
+Add daemon continuity surface for long-running work
+
+Include projection helpers/tests and source reread evidence for the operator continuity surface.

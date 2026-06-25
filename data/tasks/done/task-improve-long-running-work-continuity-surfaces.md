@@ -1,13 +1,13 @@
 ---
 id: task-improve-long-running-work-continuity-surfaces
 title: Improve long running work continuity surfaces
-status: ready
+status: done
 priority: p2
 area: client
 task_class: Product
 summary: Improve operator-visible continuity for durable KOTA work by surfacing goals, memory diffs, artifacts, recurring checks, and remote unblock points through existing clients and run records.
 created_at: 2026-06-24T15:44:37.255Z
-updated_at: 2026-06-25T02:37:49.479Z
+updated_at: 2026-06-25T15:44:16.000Z
 ---
 
 ## Problem
@@ -95,9 +95,14 @@ review, and unblock without reconstructing state from scattered files.
 
 ## Acceptance Evidence
 
-- Shared projection test transcript and redaction tests.
-- Rendered CLI transcript, web screenshot, mobile/native screenshot, or shared
-  UI fixture under `.kota/runs/<run-id>/` showing healthy, blocked, and failed
-  continuity states.
-- Notes in the run artifact identifying which existing stores were composed and
-  confirming no direct client `.kota/` parsing was added.
+- Added the daemon-backed `continuity` shared UI surface, consumed from
+  `/ui/surfaces` after Inbox and built from typed `KotaClient` namespace reads.
+- Covered projection assembly, secret redaction, no direct client `.kota`
+  parsing, empty state, blocked state, and failed-run state in
+  `src/modules/daemon-ops/operator-ui-continuity.test.ts`.
+- Generated rendered evidence under
+  `.kota/runs/2026-06-25T15-21-57-328Z-builder-05u3ok/`:
+  `continuity-rendered-transcript.txt`, `render-continuity-fixtures.ts`, and
+  `continuity-notes.md`.
+- Validated with `pnpm lint`, `pnpm typecheck`, and focused daemon-ops Vitest
+  coverage.

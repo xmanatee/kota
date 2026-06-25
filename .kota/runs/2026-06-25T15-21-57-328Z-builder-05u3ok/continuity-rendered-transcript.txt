@@ -1,0 +1,145 @@
+$ kota ui render continuity --fixture healthy
+state=healthy
+nextAction=Review recent artifacts or continue the active task when needed.
+composedStores=tasks.list, workflow.status, workflow.listRuns, workflow.listDefinitions, approvals.list, ownerQuestions.list, ownerDecisions.list, setup.list, memory.list, knowledge.list
+[1mContinuity[0m
+────────────────────────────────────────
+[2mWork[0m
+
+State:            [32mhealthy[0m
+Work:             [36m3[0m
+Unblocks:         [2m0[0m
+Failed runs:      [2m0[0m
+Artifacts:        [36m1[0m
+Memory/knowledge: [36m2[0m
+Follow-ups:       [32m1[0m
+[1mNext action[0m [2m──────────────────────────────────────────────────────────────────────────────────────────────────────────[0m
+[32mReview recent artifacts or continue the active task when needed.[0m
+[1mWork continuity[0m [2m──────────────────────────────────────────────────────────────────────────────────────────────────────[0m
+[1m[2mName                       [0m  [1m[2mState     [0m  [1m[2mDetail                          [0m
+[36mImprove operator continuity[0m  [36mdoing     [0m  [2mp2                              [0m
+[36mbuilder                    [0m  [36mactive    [0m  [2mstarted 2026-06-25T10:00:00.000…[0m
+[32mbuilder                    [0m  [32msuccess   [0m  [2m2026-06-25T09:00:00.000Z; run 2…[0m
+[1mOpen unblock points[0m [2m──────────────────────────────────────────────────────────────────────────────────────────────────[0m
+[2mNo items.[0m
+[1mRun artifacts to review[0m [2m──────────────────────────────────────────────────────────────────────────────────────────────[0m
+- [36mbuilder artifacts[0m  [2msuccess; run 2026-06-25T09-00-00-000Z-...; 2026-06-25T09:00:00.000Z[0m
+  [2mGET /api/workflow/runs/2026-06-25T09-00-00-000Z-builder-success/artifacts[0m
+[1mMemory and knowledge hints[0m [2m───────────────────────────────────────────────────────────────────────────────────────────[0m
+- [36mMemory mem-conti...[0m  [2m2026-06-25T08:00:00.000Z; Recent work changed the continuity surface and left review artifacts.[0m
+  [2mGET /api/memory?limit=10[0m
+- [36mKnowledge kn-contin...[0m  [2mactive; Continuity design notes[0m
+  [2mGET /api/knowledge[0m
+[1mRecurring follow-ups[0m [2m─────────────────────────────────────────────────────────────────────────────────────────────────[0m
+- [32mdaily-digest[0m  [2mcron; 0 9 * * *[0m
+  [2mGET /workflow/definitions[0m
+[1mContinuity actions[0m [2m───────────────────────────────────────────────────────────────────────────────────────────────────[0m
+[35mRefresh continuity[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /ui/surfaces[0m
+[35mOpen task[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /api/tasks/task-active-work[0m
+[35mOpen run[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /workflow/runs/2026-06-25T10-00-00-000Z-builder-active[0m
+[35mOpen run[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /workflow/runs/2026-06-25T09-00-00-000Z-builder-success[0m
+[35mOpen artifacts[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /api/workflow/runs/2026-06-25T09-00-00-000Z-builder-success/artifacts[0m
+[35mOpen memory[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /api/memory?limit=10[0m
+[35mOpen knowledge[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /api/knowledge[0m
+[35mOpen workflow definitions[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /workflow/definitions[0m
+$ kota ui render continuity --fixture blocked
+state=blocked
+nextAction=Resolve the first unblock item, then refresh continuity.
+composedStores=tasks.list, workflow.status, workflow.listRuns, workflow.listDefinitions, approvals.list, ownerQuestions.list, ownerDecisions.list, setup.list, memory.list, knowledge.list
+[1mContinuity[0m
+────────────────────────────────────────
+[2mWork[0m
+
+State:            [33mblocked[0m
+Work:             [36m2[0m
+Unblocks:         [33m5[0m
+Failed runs:      [2m0[0m
+Artifacts:        [36m1[0m
+Memory/knowledge: [36m2[0m
+Follow-ups:       [32m1[0m
+[1mNext action[0m [2m──────────────────────────────────────────────────────────────────────────────────────────────────────────[0m
+[33mResolve the first unblock item, then refresh continuity.[0m
+[1mWork continuity[0m [2m──────────────────────────────────────────────────────────────────────────────────────────────────────[0m
+[1m[2mName      [0m  [1m[2mState     [0m  [1m[2mDetail                          [0m
+[36mbuilder   [0m  [36mactive    [0m  [2mstarted 2026-06-25T10:00:00.000…[0m
+[32mbuilder   [0m  [32msuccess   [0m  [2m2026-06-25T09:00:00.000Z; run 2…[0m
+[1mOpen unblock points[0m [2m──────────────────────────────────────────────────────────────────────────────────────────────────[0m
+- [33mBlocked release review[0m  [2mblocked; p1[0m
+  [2mGET /api/tasks/task-blocked[0m
+- [31mApproval: shell.exec[0m  [2mpending; release command needs approval[0m
+  [2mGET /approvals?status=pending[0m
+- [33mOwner question[0m  [2mpending; Use production [redacted]?[0m
+  [2mGET /owner-questions?status=pending[0m
+- [33mOwner decision[0m  [2mpending; Pick the deployment provider.[0m
+  [2mGET /owner-decisions?status=pending[0m
+- [33mSetup: [redacted][0m  [2mmissing; Required credential is missing[0m
+  [2mGET /setup/requirements[0m
+[1mRun artifacts to review[0m [2m──────────────────────────────────────────────────────────────────────────────────────────────[0m
+- [36mbuilder artifacts[0m  [2msuccess; run 2026-06-25T09-00-00-000Z-...; 2026-06-25T09:00:00.000Z[0m
+  [2mGET /api/workflow/runs/2026-06-25T09-00-00-000Z-builder-success/artifacts[0m
+[1mMemory and knowledge hints[0m [2m───────────────────────────────────────────────────────────────────────────────────────────[0m
+- [36mMemory mem-conti...[0m  [2m2026-06-25T08:00:00.000Z; Recent work changed the continuity surface and left review artifacts.[0m
+  [2mGET /api/memory?limit=10[0m
+- [36mKnowledge kn-contin...[0m  [2mactive; Continuity design notes[0m
+  [2mGET /api/knowledge[0m
+[1mRecurring follow-ups[0m [2m─────────────────────────────────────────────────────────────────────────────────────────────────[0m
+- [32mdaily-digest[0m  [2mcron; 0 9 * * *[0m
+  [2mGET /workflow/definitions[0m
+[1mContinuity actions[0m [2m───────────────────────────────────────────────────────────────────────────────────────────────────[0m
+[35mRefresh continuity[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /ui/surfaces[0m
+[35mOpen run[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /workflow/runs/2026-06-25T10-00-00-000Z-builder-active[0m
+[35mOpen run[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /workflow/runs/2026-06-25T09-00-00-000Z-builder-success[0m
+[35mOpen task[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /api/tasks/task-blocked[0m
+[35mOpen approvals[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /approvals?status=pending[0m
+[35mOpen owner questions[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /owner-questions?status=pending[0m
+[35mOpen owner decisions[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /owner-decisions?status=pending[0m
+[35mOpen setup[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /setup/requirements[0m
+[35mOpen artifacts[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /api/workflow/runs/2026-06-25T09-00-00-000Z-builder-success/artifacts[0m
+[35mOpen memory[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /api/memory?limit=10[0m
+[35mOpen knowledge[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /api/knowledge[0m
+[35mOpen workflow definitions[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /workflow/definitions[0m
+
+$ kota ui render continuity --fixture failed
+state=failed
+nextAction=Inspect the failed run artifact before resuming this workstream.
+composedStores=tasks.list, workflow.status, workflow.listRuns, workflow.listDefinitions, approvals.list, ownerQuestions.list, ownerDecisions.list, setup.list, memory.list, knowledge.list
+[1mContinuity[0m
+────────────────────────────────────────
+[2mWork[0m
+
+State:            [31mfailed[0m
+Work:             [36m3[0m
+Unblocks:         [2m0[0m
+Failed runs:      [31m1[0m
+Artifacts:        [36m1[0m
+Memory/knowledge: [36m2[0m
+Follow-ups:       [32m1[0m
+[1mNext action[0m [2m──────────────────────────────────────────────────────────────────────────────────────────────────────────[0m
+[31mInspect the failed run artifact before resuming this workstream.[0m
+[1mWork continuity[0m [2m──────────────────────────────────────────────────────────────────────────────────────────────────────[0m
+[1m[2mName                       [0m  [1m[2mState     [0m  [1m[2mDetail                          [0m
+[36mImprove operator continuity[0m  [36mdoing     [0m  [2mp2                              [0m
+[36mbuilder                    [0m  [36mactive    [0m  [2mstarted 2026-06-25T10:00:00.000…[0m
+[31mbuilder                    [0m  [31mfailed    [0m  [2m2026-06-25T09:00:00.000Z; run 2…[0m
+[1mOpen unblock points[0m [2m──────────────────────────────────────────────────────────────────────────────────────────────────[0m
+[2mNo items.[0m
+[1mRun artifacts to review[0m [2m──────────────────────────────────────────────────────────────────────────────────────────────[0m
+- [31mbuilder artifacts[0m  [2mfailed; run 2026-06-25T09-00-00-000Z-...; 2026-06-25T09:00:00.000Z[0m
+  [2mGET /api/workflow/runs/2026-06-25T09-00-00-000Z-builder-failed/artifacts[0m
+[1mMemory and knowledge hints[0m [2m───────────────────────────────────────────────────────────────────────────────────────────[0m
+- [36mMemory mem-conti...[0m  [2m2026-06-25T08:00:00.000Z; Recent work changed the continuity surface and left review artifacts.[0m
+  [2mGET /api/memory?limit=10[0m
+- [36mKnowledge kn-contin...[0m  [2mactive; Continuity design notes[0m
+  [2mGET /api/knowledge[0m
+[1mRecurring follow-ups[0m [2m─────────────────────────────────────────────────────────────────────────────────────────────────[0m
+- [32mdaily-digest[0m  [2mcron; 0 9 * * *[0m
+  [2mGET /workflow/definitions[0m
+[1mContinuity actions[0m [2m───────────────────────────────────────────────────────────────────────────────────────────────────[0m
+[35mRefresh continuity[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /ui/surfaces[0m
+[35mOpen task[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /api/tasks/task-active-work[0m
+[35mOpen run[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /workflow/runs/2026-06-25T10-00-00-000Z-builder-active[0m
+[35mOpen run[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /workflow/runs/2026-06-25T09-00-00-000Z-builder-failed[0m
+[35mOpen artifacts[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /api/workflow/runs/2026-06-25T09-00-00-000Z-builder-failed/artifacts[0m
+[35mOpen memory[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /api/memory?limit=10[0m
+[35mOpen knowledge[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /api/knowledge[0m
+[35mOpen workflow definitions[0m  [2mread[0m  [2mnone[0m  [32mready[0m  [2mGET /workflow/definitions[0m

@@ -5,6 +5,8 @@ export type {
 } from "./operator-ui-actions.js";
 export { executeUiAction, findUiAction } from "./operator-ui-actions.js";
 export {
+  buildContinuityProjection,
+  buildContinuityUiSurface,
   buildInboxUiSurface,
   buildModulesAgentsUiSurface,
   buildOperatorControlUiSurface,
@@ -14,6 +16,10 @@ export {
   buildStatusInboxBundle,
   buildStatusUiSurface,
   buildStoresUiSurface,
+  CONTINUITY_COMPOSED_STORES,
+  type ContinuityProjection,
+  type ContinuityProjectionInput,
+  type ContinuityState,
   type SurfaceRead,
 } from "./operator-ui-builders.js";
 export { renderUiSurface } from "./operator-ui-render.js";

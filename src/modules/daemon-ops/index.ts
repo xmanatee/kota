@@ -72,6 +72,8 @@ import type {
   UiSurfaceBundle,
 } from "./operator-ui.js";
 import {
+  buildContinuityProjection,
+  buildContinuityUiSurface,
   buildInboxUiSurface,
   buildModulesAgentsUiSurface,
   buildOperatorControlUiSurface,
@@ -104,6 +106,9 @@ import { sessionsLocalClient } from "./sessions-local.js";
 import { buildStatusCommand, gatherStatus } from "./status-cli.js";
 
 export type {
+  ContinuityProjection,
+  ContinuityProjectionInput,
+  ContinuityState,
   UiAction,
   UiActionEffect,
   UiActionExecutionResult,
@@ -119,6 +124,8 @@ export type {
   UiSurfaceBundle,
 } from "./operator-ui.js";
 export {
+  buildContinuityProjection,
+  buildContinuityUiSurface,
   buildInboxUiSurface,
   buildModulesAgentsUiSurface,
   buildOperatorControlUiSurface,
@@ -128,6 +135,7 @@ export {
   buildStatusInboxBundle,
   buildStatusUiSurface,
   buildStoresUiSurface,
+  CONTINUITY_COMPOSED_STORES,
   executeUiAction,
   renderUiSurface,
 } from "./operator-ui.js";
@@ -471,9 +479,11 @@ async function buildSharedUiSurfaceBundle(ctx: ModuleContext): Promise<UiSurface
     definitions,
     approvals,
     ownerQuestions,
+    ownerDecisions,
     modules,
     agents,
     setup,
+    tasks,
     memory,
     knowledge,
     history,
@@ -485,17 +495,33 @@ async function buildSharedUiSurfaceBundle(ctx: ModuleContext): Promise<UiSurface
     readSurface("workflow definitions", () => ctx.client.workflow.listDefinitions()),
     readSurface("approvals", () => ctx.client.approvals.list({ status: "pending" })),
     readSurface("owner questions", () => ctx.client.ownerQuestions.list({ status: "pending" })),
+    readSurface("owner decisions", () => ctx.client.ownerDecisions.list({ status: "pending" })),
     readSurface("modules", () => ctx.client.modules.list()),
     readSurface("agents", () => ctx.client.agents.list()),
     readSurface("setup", () => ctx.client.setup.list()),
+    readSurface("tasks", () => ctx.client.tasks.list(["doing", "ready", "blocked"])),
     readSurface("memory", () => ctx.client.memory.list({ limit: 10 })),
     readSurface("knowledge", () => ctx.client.knowledge.list()),
     readSurface("history", () => ctx.client.history.list({ limit: 10 })),
   ]);
+  const continuity = buildContinuityProjection({
+    status,
+    tasks,
+    workflowStatus,
+    runs,
+    definitions,
+    approvals,
+    ownerQuestions,
+    ownerDecisions,
+    setup,
+    memory,
+    knowledge,
+  });
   return buildUiSurfaceBundle([
     buildStatusUiSurface(status, { explain: true }),
     buildScopeUiSurface({ status, projects, sessions }),
     buildInboxUiSurface(inbox),
+    buildContinuityUiSurface(continuity),
     buildRuntimeUiSurface({
       status,
       workflowStatus,
