@@ -1,12 +1,12 @@
 ---
 id: task-security-review-project-scoped-resource-discovery-
 title: Security review: Project-scoped resource discovery accepts an enforced scope selector, but the snapshot reader ignores it for knowledge, setup availability, and MCP config metadata. A caller scoped to one project can receive default-project discovery metadata such as knowledge entry titles and configured MCP server names/field lists.
-status: ready
+status: done
 priority: p2
 area: security
 summary: Project-scoped resource discovery accepts an enforced scope selector, but the snapshot reader ignores it for knowledge, setup availability, and MCP config metadata. A caller scoped to one project can receive default-project discovery metadata such as knowledge entry titles and configured MCP server names/field lists.
 created_at: 2026-06-25T01:51:41.594Z
-updated_at: 2026-06-25T01:51:41.594Z
+updated_at: 2026-06-25T02:08:01Z
 ---
 
 ## Problem
@@ -152,3 +152,6 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Implemented in `src/modules/resource-discovery/snapshot.ts`: snapshot construction resolves the selected directory-backed scope/project and uses that project root/provider for knowledge, setup availability, MCP config metadata, and imported skill metadata; unresolved selectors omit those project-specific snapshot sources.
+- Regression coverage in `src/modules/resource-discovery/snapshot-scope.test.ts` proves a project-B discovery snapshot returns project-B knowledge and MCP metadata, does not surface default-project metadata, uses project-B setup availability, and omits project-specific metadata for an unknown selector.
+- Verification: `pnpm test src/modules/resource-discovery`, `pnpm typecheck`, `pnpm lint`, `pnpm validate-tasks`, and `checkSourceFileSize(process.cwd())` all passed.

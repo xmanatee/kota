@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetSecretStore } from "#core/config/secrets.js";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
+import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
 import { IMPORTED_SKILL_PROVENANCE_FILE } from "#core/modules/imported-skills.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import {
@@ -186,6 +187,26 @@ describe("buildResourceDiscoverySnapshotReader", () => {
         return [recallHit];
       },
     };
+    const registry = initProviderRegistry();
+    registry.register(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE, "test", {
+      getProjectRegistryProjection: () => ({
+        defaultProjectId: "project-a",
+        projects: [{
+          projectId: "project-a",
+          projectDir: dir,
+          displayName: "Project A",
+        }],
+      }),
+      getActiveProjectId: () => null,
+      resolveProjectRuntime: (projectId) => ({
+        ok: false,
+        error: {
+          error: "Unknown project",
+          reason: "unknown_project",
+          projectId: projectId ?? "",
+        },
+      }),
+    });
     const ctx = {
       cwd: dir,
       getModuleSummaries: () => [],

@@ -1,3 +1,8 @@
+import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
+import {
+  buildConfiguredProject,
+  type ConfiguredProject,
+} from "#core/daemon/scope-registry.js";
 import { McpManager } from "#core/mcp/manager.js";
 import type {
   ModuleManifestSetupAvailabilitySnapshot,
@@ -8,14 +13,19 @@ import {
 import type { ModuleContext, ModuleSummary } from "#core/modules/module-types.js";
 import {
   getKnowledgeProvider,
+  getProviderRegistry,
 } from "#core/modules/provider-registry.js";
+import type { KnowledgeProvider } from "#core/modules/provider-types.js";
 import type {
   ModuleSetupCapabilityStatus,
   ModuleSetupRequirementStatus,
 } from "#core/modules/setup-requirements.js";
+import { selectedScopeSelectorId } from "#core/server/scope-selector.js";
 import { getAllTools, getToolEffect } from "#core/tools/index.js";
+import { KnowledgeStore } from "#modules/knowledge/store.js";
 import type { RecallHit, RecallSource } from "#modules/recall/client.js";
 import { RECALL_PROVIDER_TOKEN, type RecallProvider } from "#modules/recall/recall-types.js";
+import type { SkillSummary } from "#modules/skill-ops/client.js";
 import { listSkills } from "#modules/skill-ops/skill-ops-operations.js";
 import type { ConfiguredMcpServerResource, ResourceDiscoverySnapshot } from "./catalog.js";
 import type { ResourceDiscoveryFilter } from "./client.js";
@@ -32,6 +42,12 @@ const RECALL_DISCOVERY_SOURCES = [
 // Discovery is advisory: local setup status may be inspected, but live
 // capability probes can refresh OAuth tokens or touch external services.
 const ADVISORY_CAPABILITY_STATUSES: readonly ModuleSetupCapabilityStatus[] = [];
+
+type DiscoveryProject = {
+  projectId: string;
+  projectDir: string;
+  isDefault: boolean;
+};
 
 function setupAvailabilityFromStatus(
   status: ModuleSetupRequirementStatus,
@@ -96,10 +112,14 @@ function moduleSummariesWithAdvisoryAvailability(
   });
 }
 
-async function moduleSummariesWithAdvisorySetupStatus(ctx: ModuleContext) {
+async function moduleSummariesWithAdvisorySetupStatus(
+  ctx: ModuleContext,
+  projectDir: string | null,
+) {
   const summaries = ctx.getModuleSummaries();
+  if (projectDir === null) return summaries;
   const setupStatuses = await listModuleSetupStatusesFromSummaries({
-    projectDir: ctx.cwd,
+    projectDir,
     getModuleSummaries: () => summaries,
     probeCapabilities: async () => ADVISORY_CAPABILITY_STATUSES,
   });
@@ -123,14 +143,39 @@ export function configuredMcpServers(cwd: string): ConfiguredMcpServerResource[]
   });
 }
 
-function knowledgeEntries(query: string) {
+function knowledgeEntries(
+  query: string,
+  project: DiscoveryProject | null,
+) {
+  if (project === null) return [];
   try {
-    return getKnowledgeProvider()
+    return knowledgeProviderForProject(project)
       .search(query, { scope: "all" })
       .slice(0, KNOWLEDGE_LIMIT);
   } catch {
     return [];
   }
+}
+
+function skillSummaries(
+  ctx: ModuleContext,
+  project: DiscoveryProject | null,
+): SkillSummary[] {
+  if (project) {
+    return listSkills({ ...ctx, cwd: project.projectDir }).skills;
+  }
+  return ctx.getModuleSummaries().flatMap((summary) =>
+    summary.skills.map((skill) => ({
+      name: skill.name,
+      source: summary.name,
+      sourceType: "module" as const,
+      status: "resolvable" as const,
+      activation: "default" as const,
+      ...(skill.description !== undefined && { description: skill.description }),
+      promptPath: skill.promptPath,
+      ...(skill.roles !== undefined && { roles: skill.roles }),
+    }))
+  );
 }
 
 async function recallHits(
@@ -151,11 +196,57 @@ async function recallHits(
   }
 }
 
+function knowledgeProviderForProject(project: DiscoveryProject): KnowledgeProvider {
+  if (project.isDefault) return getKnowledgeProvider();
+  return new KnowledgeStore(project.projectDir);
+}
+
+function resolveDiscoveryProject(
+  defaultProjectDir: string,
+  filter: ResourceDiscoveryFilter,
+): DiscoveryProject | null {
+  const selectedId = selectedScopeSelectorId(filter);
+  const daemonScope = getProviderRegistry()?.get(
+    DAEMON_PROJECT_SCOPE_PROVIDER_TYPE,
+  );
+  if (daemonScope) {
+    const projection = daemonScope.getProjectRegistryProjection();
+    const projectId =
+      selectedId ?? daemonScope.getActiveProjectId() ?? projection.defaultProjectId;
+    const project = projection.projects.find((entry) =>
+      entry.projectId === projectId
+    );
+    return project
+      ? discoveryProject(project, projection.defaultProjectId)
+      : null;
+  }
+
+  const fallbackProject = buildConfiguredProject({
+    projectDir: defaultProjectDir,
+  });
+  const projectId = selectedId ?? fallbackProject.projectId;
+  return projectId === fallbackProject.projectId
+    ? discoveryProject(fallbackProject, fallbackProject.projectId)
+    : null;
+}
+
+function discoveryProject(
+  project: ConfiguredProject,
+  defaultProjectId: string,
+): DiscoveryProject {
+  return {
+    projectId: project.projectId,
+    projectDir: project.projectDir,
+    isDefault: project.projectId === defaultProjectId,
+  };
+}
+
 export function buildResourceDiscoverySnapshotReader(ctx: ModuleContext) {
   return async (
     query: string,
-    _filter: ResourceDiscoveryFilter,
+    filter: ResourceDiscoveryFilter,
   ): Promise<ResourceDiscoverySnapshot> => {
+    const project = resolveDiscoveryProject(ctx.cwd, filter);
     const toolEffects = new Map(
       getAllTools()
         .map((tool) => [tool.name, getToolEffect(tool.name)] as const)
@@ -164,17 +255,20 @@ export function buildResourceDiscoverySnapshotReader(ctx: ModuleContext) {
         ),
     );
     return {
-      summaries: await moduleSummariesWithAdvisorySetupStatus(ctx),
+      summaries: await moduleSummariesWithAdvisorySetupStatus(
+        ctx,
+        project?.projectDir ?? null,
+      ),
       tools: getAllTools(),
       toolEffects,
-      skillSummaries: listSkills(ctx).skills,
-      knowledgeEntries: knowledgeEntries(query),
+      skillSummaries: skillSummaries(ctx, project),
+      knowledgeEntries: knowledgeEntries(query, project),
       recallHits: await recallHits(
         ctx.getProvider(RECALL_PROVIDER_TOKEN),
         query,
-        _filter,
+        filter,
       ),
-      mcpServers: configuredMcpServers(ctx.cwd),
+      mcpServers: project ? configuredMcpServers(project.projectDir) : [],
     };
   };
 }
