@@ -396,6 +396,22 @@ describe("kota task move", () => {
     expect(existsSync(join(projectDir, "data", "tasks", "done", "task-no-evidence.md"))).toBe(false);
   });
 
+  it("refuses to move a Meta task into ready without a Product or Safety link", async () => {
+    writeTaskFile(projectDir, "backlog", "task-meta-no-link", {
+      status: "backlog",
+      task_class: "Meta",
+    });
+    mkdirSync(join(projectDir, "data", "tasks", "ready"), { recursive: true });
+
+    const program = makeProgram();
+    await expect(
+      program.parseAsync(["node", "kota", "task", "move", "task-meta-no-link", "ready"]),
+    ).rejects.toThrow(/Product \/ Safety Link/);
+
+    expect(existsSync(join(projectDir, "data", "tasks", "backlog", "task-meta-no-link.md"))).toBe(true);
+    expect(existsSync(join(projectDir, "data", "tasks", "ready", "task-meta-no-link.md"))).toBe(false);
+  });
+
   it("prints message when task is already in target state", async () => {
     writeTaskFile(projectDir, "ready", "task-already");
 

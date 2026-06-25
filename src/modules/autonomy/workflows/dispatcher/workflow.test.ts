@@ -19,6 +19,7 @@ function taskFixture(
     dependsOn?: string[];
     resources?: string[];
     marker?: string;
+    taskClass?: "Product" | "Safety" | "Platform" | "Meta";
   } = {},
 ): string {
   return [
@@ -28,6 +29,7 @@ function taskFixture(
     `status: ${state}`,
     "priority: p2",
     "area: modules",
+    ...(options.taskClass ? [`task_class: ${options.taskClass}`] : []),
     `summary: ${id} summary`,
     "created_at: 2026-05-08T00:00:00.000Z",
     "updated_at: 2026-05-08T00:00:00.000Z",
@@ -306,6 +308,22 @@ describe("dispatcher workflow", () => {
     writeFileSync(
       join(projectDir, "data", "tasks", "backlog", "task-anchor.md"),
       taskFixture("task-anchor", "backlog", { anchor: true }),
+    );
+    const harness = new WorkflowTestHarness(dispatcherWorkflow, { projectDir });
+    const result = await harness.run();
+
+    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
+    expect(output.pullableCount).toBe(1);
+    expect(output.actionableCount).toBe(0);
+    expect(output.promotableBacklogCount).toBe(0);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.needs-promotion")).toBe(false);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
+  });
+
+  it("does not emit needs-promotion when only target-invalid Meta backlog remains", async () => {
+    writeFileSync(
+      join(projectDir, "data", "tasks", "backlog", "task-meta-no-link.md"),
+      taskFixture("task-meta-no-link", "backlog", { taskClass: "Meta" }),
     );
     const harness = new WorkflowTestHarness(dispatcherWorkflow, { projectDir });
     const result = await harness.run();

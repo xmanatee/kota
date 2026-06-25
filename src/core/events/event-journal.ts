@@ -109,7 +109,11 @@ export class EventJournal {
   private readNextSequence(): number {
     const events = this.readAll();
     if (events.length === 0) return 1;
-    return Math.max(...events.map((event) => event.sequence)) + 1;
+    let maxSequence = 0;
+    for (const event of events) {
+      if (event.sequence > maxSequence) maxSequence = event.sequence;
+    }
+    return maxSequence + 1;
   }
 
   private readEventsAfter(after: string | undefined): EventEnvelope[] {

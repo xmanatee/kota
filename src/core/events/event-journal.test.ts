@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -166,6 +166,15 @@ function makeTelegramPayload() {
   };
 }
 
+function minimalEnvelopeLine(sequence: number): string {
+  return JSON.stringify({
+    id: `evtj-${String(sequence).padStart(12, "0")}`,
+    sequence,
+    event: { name: "bulk.event", schema: { name: "bulk.event", version: 1 } },
+    payload: { kind: "inline", payload: {} },
+  });
+}
+
 describe("EventJournal", () => {
   const tempDirs: string[] = [];
 
@@ -284,6 +293,33 @@ describe("EventJournal", () => {
     ]);
     expect(restarted.query({ sinceMs: Date.parse("2026-06-05T10:00:03.000Z") })).toHaveLength(1);
   });
+
+  it("recovers the next sequence from a large existing journal", () => {
+    const dir = trackTempDir();
+    writeFileSync(
+      join(dir, "journal.jsonl"),
+      `${Array.from({ length: 120_000 }, (_, index) =>
+        minimalEnvelopeLine(index + 1)
+      ).join("\n")}\n`,
+      "utf-8",
+    );
+
+    const journal = new EventJournal(dir);
+    journal.appendFromBusEnvelope({
+      type: "bulk.after-restart",
+      schemaRef: null,
+      payload: { source: "event-journal-test" },
+    });
+
+    const lastLine = readFileSync(journal.getPath(), "utf-8")
+      .trim()
+      .split("\n")
+      .at(-1);
+    expect(lastLine ? JSON.parse(lastLine) : null).toMatchObject({
+      id: "evtj-000000120001",
+      sequence: 120_001,
+    });
+  }, 20_000);
 
   it("excludes expired retained entries from queries", () => {
     const dir = trackTempDir();

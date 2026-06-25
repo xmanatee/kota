@@ -53,12 +53,11 @@ export function hasConcreteTaskAcceptanceEvidence(raw: string): boolean {
     /\b(?:transcript|screenshot|fixture|test|command|artifact|validation|demo|snapshot)\b/i.test(section);
 }
 
-function assertDoneTransitionEvidence(id: string, content: string): void {
-  if (hasConcreteTaskAcceptanceEvidence(content)) return;
-  throw new Error(
-    `Task "${id}" cannot move to "done" without concrete ## Acceptance Evidence. ` +
-      "Add a command, artifact, transcript, screenshot, fixture, demo, or validation bullet before completing it.",
-  );
+export function hasProductSafetyTaskLink(raw: string): boolean {
+  const section = extractRepoTaskSection(raw, "Product / Safety Link");
+  if (!section) return false;
+  if (section.replace(/[-*\s]/g, "").length < 12) return false;
+  return /\b(?:Product|Safety|task-[a-z0-9-]+)\b/i.test(section);
 }
 
 export type RepoTaskQueueSnapshot = {
@@ -173,7 +172,9 @@ export function countRepoPromotableBacklogTasks(projectDir: string): number {
     listRepoTaskDependencyWaits(projectDir, ["backlog"]).map((wait) => wait.id),
   );
   return listFullRepoTasks(projectDir, ["backlog"]).filter((record) =>
-    !record.anchor && !waitingIds.has(record.id)
+    !record.anchor &&
+    !waitingIds.has(record.id) &&
+    getRepoTaskStateTransitionBlocker(record, "ready") === null
   ).length;
 }
 
@@ -206,6 +207,47 @@ export type RepoTaskClass =
   | "Platform"
   | "Meta"
   | "Unclassified";
+
+export type RepoTaskTransitionCheckInput = {
+  id: string;
+  taskClass: RepoTaskClass;
+  body: string;
+};
+
+const ACTIONABLE_TASK_STATES: ReadonlySet<RepoTaskState> = new Set([
+  "ready",
+  "doing",
+]);
+
+export function getRepoTaskStateTransitionBlocker(
+  task: RepoTaskTransitionCheckInput,
+  toState: RepoTaskState,
+): string | null {
+  if (toState === "done" && !hasConcreteTaskAcceptanceEvidence(task.body)) {
+    return "missing concrete ## Acceptance Evidence. Add a command, artifact, " +
+      "transcript, screenshot, fixture, demo, or validation bullet before completing it.";
+  }
+
+  if (
+    ACTIONABLE_TASK_STATES.has(toState) &&
+    task.taskClass === "Meta" &&
+    !hasProductSafetyTaskLink(task.body)
+  ) {
+    return "task_class=Meta work needs a ## Product / Safety Link before it can enter ready/doing. " +
+      "Name the Product or Safety blocker it closes, or keep it outside the actionable queue.";
+  }
+
+  return null;
+}
+
+function assertTaskStateTransitionAllowed(
+  task: RepoTaskTransitionCheckInput,
+  toState: RepoTaskState,
+): void {
+  const blocker = getRepoTaskStateTransitionBlocker(task, toState);
+  if (blocker === null) return;
+  throw new Error(`Task "${task.id}" cannot move to "${toState}": ${blocker}`);
+}
 
 /**
  * A full task record carrying every frontmatter field needed to render a
@@ -497,10 +539,17 @@ export function moveTaskById(
   }
   const dstPath = join(tasksDir, toState, `${id}.md`);
   const content = readFileSync(fromPath, "utf-8");
-  if (toState === "done") {
-    assertDoneTransitionEvidence(id, content);
-  }
   const { attrs, body } = parseFlatFrontMatter(content);
+  assertTaskStateTransitionAllowed(
+    {
+      id,
+      taskClass: parseTaskClass(
+        typeof attrs.task_class === "string" ? attrs.task_class : undefined,
+      ),
+      body,
+    },
+    toState,
+  );
   attrs.status = toState;
   attrs.updated_at = new Date().toISOString();
   const updated = serializeFlatFrontMatter(attrs, body);

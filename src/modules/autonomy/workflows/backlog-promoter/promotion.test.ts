@@ -386,6 +386,30 @@ describe("buildPromotionRationale", () => {
     expect(rationale.rejected.filter((r) => r.state === "backlog")).toHaveLength(2);
   });
 
+  it("skips backlog candidates that cannot enter ready as actionable work", () => {
+    const projectDir = makeProjectDir();
+    writeTask(projectDir, "backlog", "task-meta-without-product-safety-link", {
+      priority: "p1",
+      taskClass: "Meta",
+      area: "autonomy",
+    });
+    writeTask(projectDir, "backlog", "task-valid-platform", {
+      priority: "p2",
+      taskClass: "Platform",
+      area: "core",
+    });
+
+    const rationale = buildPromotionRationale(projectDir, { batchLimit: 1 });
+
+    expect(rationale.selected.map((s) => s.id)).toEqual(["task-valid-platform"]);
+    const rejected = rationale.rejected.find((r) =>
+      r.id === "task-meta-without-product-safety-link"
+    );
+    expect(rejected?.reason).toContain("cannot enter ready/");
+    expect(rejected?.reason).toContain("Product / Safety Link");
+    expect(rationale.summary).toContain("not ready-actionable");
+  });
+
   it("selects generated runtime-posture repair before same-priority Product and Safety work", () => {
     const projectDir = makeProjectDir();
     const runtimeRepairBody = [

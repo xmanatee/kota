@@ -98,6 +98,31 @@ describe("repo task helpers", () => {
     expect(countRepoPromotableBacklogTasks(projectDir)).toBe(1);
   });
 
+  it("does not count Meta backlog tasks as promotable without a Product or Safety link", () => {
+    writeFileSync(
+      join(projectDir, REPO_TASKS_DIR, "backlog", "task-meta-no-link.md"),
+      [
+        "---",
+        "id: task-meta-no-link",
+        "title: Meta without link",
+        "status: backlog",
+        "priority: p1",
+        "area: autonomy",
+        "task_class: Meta",
+        "summary: Meta without link",
+        "updated_at: 2026-05-08T00:00:00.000Z",
+        "---",
+        "",
+        "## Problem",
+        "",
+        "Meta work exists but has no actionable Product/Safety blocker.",
+        "",
+      ].join("\n"),
+    );
+
+    expect(countRepoPromotableBacklogTasks(projectDir)).toBe(0);
+  });
+
   it("summarizes the open task queue by state", () => {
     writeFileSync(join(projectDir, REPO_INBOX_DIR, "task-capture.md"), "task");
     writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-ready.md"), "task");

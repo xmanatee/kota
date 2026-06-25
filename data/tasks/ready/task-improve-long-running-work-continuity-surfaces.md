@@ -1,13 +1,13 @@
 ---
 id: task-improve-long-running-work-continuity-surfaces
 title: Improve long running work continuity surfaces
-status: backlog
+status: ready
 priority: p2
 area: client
 task_class: Product
 summary: Improve operator-visible continuity for durable KOTA work by surfacing goals, memory diffs, artifacts, recurring checks, and remote unblock points through existing clients and run records.
 created_at: 2026-06-24T15:44:37.255Z
-updated_at: 2026-06-24T15:44:37.255Z
+updated_at: 2026-06-25T02:37:49.479Z
 ---
 
 ## Problem

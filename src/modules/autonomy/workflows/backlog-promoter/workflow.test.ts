@@ -235,6 +235,50 @@ describe("backlog-promoter workflow", () => {
     expect(blockedRejection?.reason).toMatch(/precondition/);
   });
 
+  it("does not promote a Meta task that is invalid in the actionable queue", async () => {
+    await mockCleanWorktree();
+    const projectDir = makeProjectDir();
+    writeFileSync(
+      join(projectDir, "data", "tasks", "backlog", "task-meta-invalid.md"),
+      TASK_TEMPLATE("task-meta-invalid", {
+        priority: "p1",
+        area: "autonomy",
+      }).replace("summary: task-meta-invalid summary", [
+        "task_class: Meta",
+        "summary: task-meta-invalid summary",
+      ].join("\n")),
+    );
+    writeFileSync(
+      join(projectDir, "data", "tasks", "backlog", "task-platform-valid.md"),
+      TASK_TEMPLATE("task-platform-valid", {
+        priority: "p2",
+        area: "core",
+      }),
+    );
+    commitInitial(projectDir);
+
+    const harness = new WorkflowTestHarness(backlogPromoterWorkflow, {
+      trigger: { event: "autonomy.queue.needs-promotion", payload: {} },
+      projectDir,
+    });
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    const moves = result.steps["apply-promotion"].output as {
+      promotions: Array<{ id: string; toState: string }>;
+    };
+    expect(moves.promotions.map((p) => p.id)).toEqual(["task-platform-valid"]);
+    expect(
+      existsSync(join(projectDir, "data", "tasks", "backlog", "task-meta-invalid.md")),
+    ).toBe(true);
+    expect(
+      existsSync(join(projectDir, "data", "tasks", "ready", "task-meta-invalid.md")),
+    ).toBe(false);
+    expect(
+      existsSync(join(projectDir, "data", "tasks", "ready", "task-platform-valid.md")),
+    ).toBe(true);
+  });
+
   it("skips promotion entirely when only blocked work exists", async () => {
     await mockCleanWorktree();
     const projectDir = makeProjectDir();

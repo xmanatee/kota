@@ -1,5 +1,6 @@
 import {
   extractTaskSections,
+  getRepoTaskStateTransitionBlocker,
   listFullRepoTasks,
   listRepoTaskDependencyWaits,
   type RepoTaskClass,
@@ -201,8 +202,20 @@ export function buildPromotionRationale(
   const dependencyWaitingBacklog = allBacklog.filter((record) =>
     !record.anchor && waitingById.has(record.id)
   );
-  const promotableBacklog = allBacklog.filter((record) =>
+  const dependencyClearBacklog = allBacklog.filter((record) =>
     !record.anchor && !waitingById.has(record.id)
+  );
+  const transitionBlockerById = new Map(
+    dependencyClearBacklog.flatMap((record) => {
+      const blocker = getRepoTaskStateTransitionBlocker(record, "ready");
+      return blocker === null ? [] : [[record.id, blocker] as const];
+    }),
+  );
+  const transitionBlockedBacklog = dependencyClearBacklog.filter((record) =>
+    transitionBlockerById.has(record.id)
+  );
+  const promotableBacklog = dependencyClearBacklog.filter((record) =>
+    !transitionBlockerById.has(record.id)
   );
   const blocked = records
     .filter((record) => record.state === "blocked")
@@ -240,6 +253,14 @@ export function buildPromotionRationale(
     state: "backlog" as const,
     reason: `waiting on task dependencies: ${waitingById.get(record.id)?.join(", ") ?? ""}`,
   }));
+  const rejectedTransitionBlocked = transitionBlockedBacklog.map((record) => ({
+    id: record.id,
+    title: record.title,
+    priority: record.priority,
+    taskClass: record.taskClass,
+    state: "backlog" as const,
+    reason: `cannot enter ready/: ${transitionBlockerById.get(record.id) ?? ""}`,
+  }));
   const rejectedBlocked = blocked.map((record) => ({
     id: record.id,
     title: record.title,
@@ -259,7 +280,7 @@ export function buildPromotionRationale(
   const summaryLines: string[] = [];
   if (selected.length === 0) {
     summaryLines.push(
-      "No backlog tasks were available to promote (the queue is empty or only blocked/anchor work remains).",
+      "No backlog tasks were available to promote (the queue is empty or only blocked, anchor, dependency-waiting, or ready-invalid work remains).",
     );
   } else {
     const ids = selected
@@ -286,6 +307,14 @@ export function buildPromotionRationale(
       `Backlog tasks waiting on hard predecessors skipped: ${waitingIds}.`,
     );
   }
+  if (rejectedTransitionBlocked.length > 0) {
+    const transitionBlockedIds = rejectedTransitionBlocked
+      .map((r) => `${r.id} (${r.reason})`)
+      .join(", ");
+    summaryLines.push(
+      `Backlog tasks not ready-actionable skipped: ${transitionBlockedIds}.`,
+    );
+  }
   if (rejectedBlocked.length > 0) {
     const blockedIds = rejectedBlocked.map((r) => r.id).join(", ");
     summaryLines.push(
@@ -299,6 +328,7 @@ export function buildPromotionRationale(
       ...rejectedBacklog,
       ...rejectedAnchors,
       ...rejectedDependencyWaiting,
+      ...rejectedTransitionBlocked,
       ...rejectedBlocked,
     ],
     candidates,

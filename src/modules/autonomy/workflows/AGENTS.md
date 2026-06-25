@@ -95,10 +95,11 @@ Dispatcher emits queue-shape events distinguishing actionable from
 backlog-only state:
 
 - `autonomy.queue.available` — actionable (`ready` + `doing`) exists; builder gates on this.
-- `autonomy.queue.needs-promotion` — actionable=0 and at least one non-anchor
-  backlog task exists; `backlog-promoter` consumes this and writes a
-  deterministic promotion rationale before builder resumes. Strategic anchors
-  do not count as promotable work.
+- `autonomy.queue.needs-promotion` — actionable=0 and at least one non-anchor,
+  dependency-clear backlog task can legally enter `ready/`; `backlog-promoter`
+  consumes this and writes a deterministic promotion rationale before builder
+  resumes. Strategic anchors and ready-invalid tasks do not count as promotable
+  work.
 - `autonomy.queue.empty` — no inbox entries and no dependency-clear pullable
   ready/backlog/doing work exists.
 - `autonomy.queue.thin` — one or two dependency-clear ready/backlog tasks

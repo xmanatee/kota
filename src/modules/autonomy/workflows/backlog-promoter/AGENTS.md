@@ -1,10 +1,11 @@
 # backlog-promoter
 
 This workflow keeps `ready/` honest as the short execution queue. When the
-dispatcher reports actionable=0 with at least one non-anchor backlog task
-(`autonomy.queue.needs-promotion`) this workflow deterministically promotes a
-small batch of the best backlog candidates so builder runs land on intentionally
-selected work, not on whatever backlog ordering happens to produce.
+dispatcher reports actionable=0 with at least one non-anchor, dependency-clear,
+ready-actionable backlog task (`autonomy.queue.needs-promotion`) this workflow
+deterministically promotes a small batch of the best backlog candidates so
+builder runs land on intentionally selected work, not on whatever backlog
+ordering happens to produce.
 
 Runtime contract:
 
@@ -18,10 +19,11 @@ Runtime contract:
   strategic-area tie-break (architecture/autonomy/core/modules), then oldest
   `updated_at`, then id. The same record set therefore picks the same batch
   every run.
-- Tasks with `anchor: true` in frontmatter are filtered out before ranking and
-  recorded in `rejected` with a strategic-anchor reason. Anchors track an
-  initiative across a sequenced set of sub-slice tasks and never land in
-  `ready/` themselves. See `data/tasks/AGENTS.md` for the convention.
+- Tasks with `anchor: true` in frontmatter and tasks that would violate
+  `ready/` lifecycle rules are filtered out before ranking and recorded in
+  `rejected` with the exact reason. Anchors track an initiative across a
+  sequenced set of sub-slice tasks and never land in `ready/` themselves. See
+  `data/tasks/AGENTS.md` for the convention.
 - Every successful run writes `promotion-rationale.json` to its run directory:
   candidates considered (backlog + blocked, so blocked alternatives are
   visible), selected with per-pick reason, rejected (lower-ranked backlog and

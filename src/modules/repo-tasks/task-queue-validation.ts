@@ -15,6 +15,7 @@ import {
 import {
   getRepoTaskStateDir,
   hasConcreteTaskAcceptanceEvidence,
+  hasProductSafetyTaskLink,
   REPO_TASK_STATES,
   REPO_TASKS_DIR,
   type RepoTaskState,
@@ -279,13 +280,6 @@ function readTaskPriority(entry: TaskFileEntry): string | null {
 function readTaskClass(attrs: Record<string, string | string[]>): string | null {
   const taskClass = String(attrs.task_class ?? "").trim();
   return taskClass.length > 0 ? taskClass : null;
-}
-
-function hasProductSafetyLink(raw: string): boolean {
-  const section = extractSection(raw, "Product / Safety Link");
-  if (!section) return false;
-  if (section.replace(/[-*\s]/g, "").length < 12) return false;
-  return /\b(?:Product|Safety|task-[a-z0-9-]+)\b/i.test(section);
 }
 
 function isStrategicPriority(priority: string | null): boolean {
@@ -769,7 +763,7 @@ export function validateTaskQueue(
         });
       }
 
-      if (taskClass === "Meta" && ACTIONABLE_META_STATES.has(entry.state) && !hasProductSafetyLink(entry.raw)) {
+      if (taskClass === "Meta" && ACTIONABLE_META_STATES.has(entry.state) && !hasProductSafetyTaskLink(entry.raw)) {
         findings.push({
           code: "meta-task-missing-product-safety-link",
           severity: "error",
