@@ -1,13 +1,13 @@
 ---
 id: task-add-agentic-resource-discovery-over-kota-capabilit
 title: Add agentic resource discovery over KOTA capabilities
-status: ready
+status: done
 priority: p1
 area: modules
 task_class: Platform
 summary: Expose a discovery surface that ranks existing tools, skills, modules, MCP servers, setup requirements, and knowledge entries for a task without creating a second resource catalog.
 created_at: 2026-06-24T15:44:37.284Z
-updated_at: 2026-06-24T21:44:22.350Z
+updated_at: 2026-06-24T23:24:11.084Z
 ---
 
 ## Problem
@@ -101,10 +101,17 @@ resource without bypassing module ownership, setup, auth, or guardrails.
 
 ## Acceptance Evidence
 
-- Focused test transcript for resource matching, ranking, readiness, and
-  redaction.
-- CLI or HTTP transcript under `.kota/runs/<run-id>/` showing a query such as
-  "send a Slack approval" returning the Slack/channel/setup/tool candidates
-  with risk and readiness details.
-- Agent-tool fixture showing the same provider result consumed without running
-  a mutating action.
+- Required source resources were reread and mapped back to the implementation
+  in `.kota/runs/2026-06-24T22-45-17-701Z-builder-q982rr/source-reread.md`.
+- Focused tests passed and transcript saved at
+  `.kota/runs/2026-06-24T22-45-17-701Z-builder-q982rr/resource-discovery-focused-tests.txt`:
+  `pnpm test src/modules/resource-discovery/provider.test.ts src/modules/resource-discovery/snapshot.test.ts src/modules/resource-discovery/tool.test.ts src/modules/resource-discovery/routes.test.ts src/modules/resource-discovery/cli.test.ts src/core/server/kota-client-guard.test.ts src/core/agent-harness/no-module-imports-in-core.test.ts src/core/modules/module-deps.test.ts src/module-cli.integration.test.ts src/core/server/project-scoped-kota-client.test.ts`.
+- Type/lint checks passed: `pnpm typecheck` and `pnpm lint`.
+- CLI transcript:
+  `.kota/runs/2026-06-24T22-45-17-701Z-builder-q982rr/resource-discovery-cli-transcript.txt`
+  shows "send a Slack approval" returning Slack module/channel/setup
+  candidates plus the approval tool with readiness and risk details.
+- Agent-tool fixture:
+  `.kota/runs/2026-06-24T22-45-17-701Z-builder-q982rr/resource-discovery-agent-tool-fixture.json`
+  shows the `resource_discovery` tool returning the same structured provider
+  envelope for Slack resources without running a mutating action.

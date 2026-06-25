@@ -114,6 +114,7 @@ export class DaemonControlClient implements KotaClient {
   readonly doctor: KotaClient["doctor"];
   readonly evalHarness: KotaClient["evalHarness"];
   readonly recall: KotaClient["recall"];
+  readonly resourceDiscovery: KotaClient["resourceDiscovery"];
   readonly answer: KotaClient["answer"];
   readonly capture: KotaClient["capture"];
   readonly retract: KotaClient["retract"];
@@ -153,6 +154,7 @@ export class DaemonControlClient implements KotaClient {
     this.doctor = handlers.doctor;
     this.evalHarness = handlers.evalHarness;
     this.recall = handlers.recall;
+    this.resourceDiscovery = handlers.resourceDiscovery;
     this.answer = handlers.answer;
     this.capture = handlers.capture;
     this.retract = handlers.retract;

@@ -1,7 +1,4 @@
-import {
-  type KotaClient,
-  KotaClientProjectError,
-} from "./kota-client.js";
+import { type KotaClient, KotaClientProjectError } from "./kota-client.js";
 import {
   mergeScopeSelector,
   normalizeScopeSelector,
@@ -217,6 +214,12 @@ function createScopedKotaClient(
       recall: (query, filter) =>
         scoped(selectedId, () =>
           base.recall.recall(query, withScope(filter, selector)),
+        ),
+    },
+    resourceDiscovery: {
+      discover: (query, filter) =>
+        scoped(selectedId, () =>
+          base.resourceDiscovery.discover(query, withScope(filter, selector)),
         ),
     },
     answer: {

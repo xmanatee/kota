@@ -52,6 +52,7 @@ import type { OwnerDecisionsClient } from "#modules/owner-decisions/client.js";
 import type { OwnerQuestionsClient } from "#modules/owner-questions/client.js";
 import type { RecallClient } from "#modules/recall/client.js";
 import type { RepoTasksClient } from "#modules/repo-tasks/client.js";
+import type { ResourceDiscoveryClient } from "#modules/resource-discovery/client.js";
 import type { RetractClient } from "#modules/retract/client.js";
 import type { SecretsClient } from "#modules/secrets/client.js";
 import type { SetupClient } from "#modules/setup/client.js";
@@ -100,6 +101,7 @@ export interface KotaClient {
   readonly doctor: DoctorClient;
   readonly evalHarness: EvalHarnessClient;
   readonly recall: RecallClient;
+  readonly resourceDiscovery: ResourceDiscoveryClient;
   readonly answer: AnswerClient;
   readonly capture: CaptureClient;
   readonly retract: RetractClient;
@@ -140,6 +142,7 @@ export const KOTA_CLIENT_NAMESPACES = [
   "doctor",
   "evalHarness",
   "recall",
+  "resourceDiscovery",
   "answer",
   "capture",
   "retract",

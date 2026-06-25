@@ -64,7 +64,7 @@ describe("assembleDaemonClientHandlers", () => {
 
   it("throws naming each migrated namespace when no module contributes it", () => {
     expect(() => assembleDaemonClientHandlers(transport)).toThrow(
-      /missing daemon handler\(s\) for: workflow, approvals, secrets, tasks, memory, ownerDecisions, ownerQuestions, history, inboundSignals, knowledge, sessions, modules, agents, skills, harnessParity, webhook, voice, web, mcpServer, audit, config, modulesAdmin, daemonOps, projects, ui, doctor, evalHarness, recall, answer, capture, retract, setup/,
+      /missing daemon handler\(s\) for: workflow, approvals, secrets, tasks, memory, ownerDecisions, ownerQuestions, history, inboundSignals, knowledge, sessions, modules, agents, skills, harnessParity, webhook, voice, web, mcpServer, audit, config, modulesAdmin, daemonOps, projects, ui, doctor, evalHarness, recall, resourceDiscovery, answer, capture, retract, setup/,
     );
   });
 });

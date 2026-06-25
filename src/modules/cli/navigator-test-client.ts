@@ -215,6 +215,14 @@ export function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
       calibration: stub(EMPTY_EVAL_CALIBRATION_RESULT),
     },
     recall: { recall: stub({ ok: true, hits: [] }) },
+    resourceDiscovery: {
+      discover: stub({
+        ok: true,
+        query: "",
+        hits: [],
+        degradation: "keyword_only",
+      }),
+    },
     answer: {
       answer: stub({ ok: false, reason: "no_hits" }),
       log: stub({ entries: [] }),

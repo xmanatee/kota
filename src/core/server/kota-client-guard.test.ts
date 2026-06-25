@@ -50,6 +50,7 @@ const NAMESPACE_OWNERS: Record<(typeof KOTA_CLIENT_NAMESPACES)[number], string> 
   doctor: "doctor",
   evalHarness: "eval-harness",
   recall: "recall",
+  resourceDiscovery: "resource-discovery",
   answer: "answer",
   capture: "capture",
   retract: "retract",
