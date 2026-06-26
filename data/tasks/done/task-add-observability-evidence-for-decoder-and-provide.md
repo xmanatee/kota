@@ -1,12 +1,12 @@
 ---
 id: task-add-observability-evidence-for-decoder-and-provide
 title: Add observability evidence for decoder and provider split surfaces
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Builder run 2026-06-25T02-14-28-199Z-builder-wx6wqu resolved the source-size split but its observability-obligation review reports 13 runtime-sensitive conformance decoder and core provider split files without inspectable structured logging, event, run-artifact, explicit error-result, focused test assertion, or waiver rationale.
 created_at: 2026-06-25T02:40:30.813Z
-updated_at: 2026-06-25T02:40:30.813Z
+updated_at: 2026-06-25T16:55:24Z
 ---
 
 ## Problem
@@ -48,3 +48,11 @@ Outcome-aware autonomy progress review.
 ## Acceptance Evidence
 
 - A follow-up builder run or explicit run artifact maps each of the 13 missing files to inspectable observability evidence or an explicit waiver rationale, the observability-obligation diagnostic reports no unresolved missing files for this change, focused conformance/provider validation passes, and task validation passes.
+
+## Completion Evidence
+
+- `.kota/runs/2026-06-25T16-20-08-179Z-builder-3xhc1y/decoder-provider-observability-evidence.json` maps each of the 13 cited files to explicit decoder failure surfaces, focused conformance/provider assertions, typecheck evidence, or run-artifact rationale; `missingFiles` is empty.
+- `.kota/runs/2026-06-25T16-20-08-179Z-builder-3xhc1y/observability-obligation-rationale.json` records one explicit rationale entry for each cited missing file while preserving the prior evidence ids from run `2026-06-25T02-14-28-199Z-builder-wx6wqu`.
+- `.kota/runs/2026-06-25T16-20-08-179Z-builder-3xhc1y/observability-obligation-review.json` records the current-change diagnostic outcome: `ok`, with no unresolved missing files.
+- Focused validation passed: root conformance/provider tests (`4` files, `54` tests), web decoder tests (`2` files, `84` tests), mobile decoder tests (`2` suites, `81` tests), and `pnpm run typecheck`.
+- Task validation passed against the real staged index after `git add -A` staged the ready-to-done task move; `.kota/runs/2026-06-25T16-20-08-179Z-builder-3xhc1y/validation.txt` records the command results.
