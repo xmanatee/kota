@@ -3,6 +3,9 @@ import type {
 	KotaMessage,
 	KotaToolUseBlock,
 } from "#core/agent-harness/message-protocol.js";
+import type { AgentCanUseTool } from "#core/agent-harness/run-option-types.js";
+import type { AgentTokenBudgetLedger } from "#core/agent-harness/token-budget.js";
+import type { AgentHarnessWorkflowContext } from "#core/agent-harness/types.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import type { Transport } from "#core/loop/transport.js";
 import type {
@@ -38,9 +41,17 @@ export type ToolCallExecutionOptions = {
 	guardrailsConfig?: GuardrailsConfig;
 	clientApprovalResolver?: ToolApprovalResolver;
 	sessionId?: string;
+	cwd?: string;
+	workflowContext?: AgentHarnessWorkflowContext;
+	scopeId?: string;
+	projectId?: string;
 	messages?: KotaMessage[];
 	idempotencyStore?: IdempotencyStore;
+	tokenBudget?: AgentTokenBudgetLedger;
 	signal?: AbortSignal;
+	canUseTool?: AgentCanUseTool;
+	allowedTools?: readonly string[];
+	disallowedTools?: readonly string[];
 };
 
 export type ExecuteToolBlock = (block: ToolUseBlock) => Promise<ToolResultEntry>;

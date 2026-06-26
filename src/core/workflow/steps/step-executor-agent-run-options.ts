@@ -93,6 +93,12 @@ export function buildAgentHarnessRunOptions(input: {
         disallowedTools: toolScope.disallowedTools,
         canUseTool,
       }),
+      ...(agentConfig.config?.guardrails !== undefined
+        ? { guardrailsConfig: agentConfig.config.guardrails }
+        : {}),
+      ...(agentConfig.idempotencyStore !== undefined
+        ? { idempotencyStore: agentConfig.idempotencyStore }
+        : {}),
       askOwner,
       autonomyMode: step.autonomyMode,
       harnessOverrides,

@@ -7,16 +7,6 @@ import { probeCurrentNodeRuntime } from "#core/agent-harness/index.js";
 
 export const OPENAI_TOOLS_UNSUPPORTED_OPTIONS = [
   {
-    runOption: "mcpServers",
-    option: "mcpServers",
-    reason: "The openai-tools harness hosts KOTA tools directly, not MCP servers.",
-  },
-  {
-    runOption: "autonomyMode.supervised",
-    option: 'autonomyMode="supervised"',
-    reason: "The openai-tools harness cannot route tool calls through KOTA's approval queue.",
-  },
-  {
     runOption: "persistSession",
     option: "persistSession",
     reason: "The openai-tools harness does not persist native sessions.",
@@ -58,18 +48,6 @@ export function openaiToolsReadiness(): AgentHarnessReadiness {
 }
 
 export function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
-  if (options.mcpServers && Object.keys(options.mcpServers).length > 0) {
-    throw new Error(
-      'The "openai-tools" agent harness does not host MCP servers. Drop mcpServers ' +
-        "or run the claude-agent-sdk harness which proxies them through the SDK.",
-    );
-  }
-  if (options.autonomyMode === "supervised") {
-    throw new Error(
-      'The "openai-tools" agent harness cannot route tool calls through the operator approval queue. ' +
-        'Use autonomyMode "autonomous" or "passive", or run claude-agent-sdk.',
-    );
-  }
   if (options.persistSession === true) {
     throw new Error(
       'The "openai-tools" agent harness does not persist sessions. ' +

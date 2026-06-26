@@ -9,6 +9,7 @@ import {
 } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
+import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import type { DelegateBudget } from "#core/tools/delegate-budget.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { ToolTelemetry } from "#core/tools/tool-telemetry.js";
@@ -76,6 +77,7 @@ export type AgentStepConfig = {
   agentRunLimiter?: AgentRunLimiter;
   delegateBudget?: DelegateBudget;
   runTokenBudget?: AgentTokenBudgetLedger;
+  idempotencyStore?: IdempotencyStore;
   scopeId?: string;
   projectId?: string;
 };

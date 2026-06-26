@@ -9,6 +9,7 @@ const messagesCreateMock = vi.fn();
 const createModelClientMock = vi.fn();
 const executeToolMock = vi.fn();
 const getAllToolsMock = vi.fn<() => readonly KotaTool[]>();
+const getToolEffectMock = vi.fn();
 const getSecretStoreMock = vi.fn();
 
 vi.mock("#core/model/model-client.js", () => ({
@@ -18,6 +19,7 @@ vi.mock("#core/model/model-client.js", () => ({
 vi.mock("#core/tools/index.js", () => ({
   executeTool: (...args: unknown[]) => executeToolMock(...args),
   getAllTools: () => getAllToolsMock(),
+  getToolEffect: (...args: unknown[]) => getToolEffectMock(...args),
 }));
 
 vi.mock("#core/config/secrets.js", () => ({
@@ -109,6 +111,7 @@ beforeEach(() => {
   createModelClientMock.mockReset();
   executeToolMock.mockReset();
   getAllToolsMock.mockReset();
+  getToolEffectMock.mockReset();
   getSecretStoreMock.mockReset();
   streamCallSnapshots.length = 0;
   streamReturnQueue.length = 0;
@@ -136,6 +139,12 @@ beforeEach(() => {
     providerName: "openai",
   }));
   getAllToolsMock.mockReturnValue([TEST_TOOL]);
+  getToolEffectMock.mockReturnValue({
+    kind: "read",
+    scope: "local-fs",
+    idempotent: true,
+    openWorld: false,
+  });
   getSecretStoreMock.mockReturnValue(null);
 });
 
@@ -154,14 +163,6 @@ describe("openaiToolsAgentHarness — registration", () => {
     ]);
     expect(openaiToolsAgentHarness.unsupportedRunOptions).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          option: "mcpServers",
-          runOption: "mcpServers",
-        }),
-        expect.objectContaining({
-          option: 'autonomyMode="supervised"',
-          runOption: "autonomyMode.supervised",
-        }),
         expect.objectContaining({
           option: "thinkingEnabled/thinkingBudget",
           runOption: "thinking",
@@ -241,7 +242,11 @@ describe("openaiToolsAgentHarness — happy path tool loop", () => {
       },
     ]);
 
-    expect(executeToolMock).toHaveBeenCalledWith("echo_tool", { text: "hello" }, { toolUseId: "call_1" });
+    expect(executeToolMock).toHaveBeenCalledWith(
+      "echo_tool",
+      { text: "hello" },
+      expect.objectContaining({ toolUseId: "call_1" }),
+    );
     expect(writer.write).toHaveBeenCalledWith("all done");
     expect(result).toMatchObject({
       text: "all done",
@@ -627,26 +632,50 @@ describe("openaiToolsAgentHarness — protocol errors", () => {
 });
 
 describe("openaiToolsAgentHarness — unsupported options rejection", () => {
-  it("rejects mcpServers", async () => {
-    await expect(
-      openaiToolsAgentHarness.run({
-        prompt: "x",
-        model: "openai/gpt-5.4-mini",
-        effort: "xhigh",
-        mcpServers: { foo: { type: "stdio", command: "bar" } } as never,
+  it("accepts caller mcpServers and proceeds through the model surface", async () => {
+    queueStream(
+      makeStubStream({
+        final: {
+          id: "msg_mcp_boundary",
+          stop_reason: "end_turn",
+          content: [
+            { type: "text", text: "ok", citations: null } as KotaContentBlock,
+          ],
+        },
       }),
-    ).rejects.toThrow(/does not host MCP servers/);
+    );
+
+    await openaiToolsAgentHarness.run({
+      prompt: "x",
+      model: "openai/gpt-5.4-mini",
+      effort: "xhigh",
+      mcpServers: {},
+    });
+
+    expect(messagesStreamMock).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects supervised autonomy mode", async () => {
-    await expect(
-      openaiToolsAgentHarness.run({
-        prompt: "x",
-        model: "openai/gpt-5.4-mini",
-        effort: "xhigh",
-        autonomyMode: "supervised",
+  it("accepts supervised autonomy mode", async () => {
+    queueStream(
+      makeStubStream({
+        final: {
+          id: "msg_supervised_boundary",
+          stop_reason: "end_turn",
+          content: [
+            { type: "text", text: "ok", citations: null } as KotaContentBlock,
+          ],
+        },
       }),
-    ).rejects.toThrow(/operator approval queue/);
+    );
+
+    await openaiToolsAgentHarness.run({
+      prompt: "x",
+      model: "openai/gpt-5.4-mini",
+      effort: "xhigh",
+      autonomyMode: "supervised",
+    });
+
+    expect(messagesStreamMock).toHaveBeenCalledTimes(1);
   });
 
   it("rejects per-step harness overrides (no validateStepOptions)", async () => {

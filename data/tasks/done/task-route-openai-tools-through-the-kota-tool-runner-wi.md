@@ -1,13 +1,13 @@
 ---
 id: task-route-openai-tools-through-the-kota-tool-runner-wi
 title: Route openai-tools through the KOTA tool runner with MCP and approvals
-status: ready
+status: done
 priority: p1
 area: modules
 task_class: Safety
 summary: Replace openai-tools direct tool execution with the shared KOTA tool runner so OpenRouter and local models inherit MCP, guardrails, approvals, scheduling, telemetry, truncation, idempotency, and failure recovery.
 created_at: 2026-06-25T14:22:56.644Z
-updated_at: 2026-06-26T03:19:35.852Z
+updated_at: 2026-06-26T03:54:58.000Z
 ---
 
 ## Problem

@@ -103,13 +103,6 @@ export function validateAgentStep(
       definitionPath,
     );
   }
-  if (autonomyMode === "supervised") {
-    throw new WorkflowDefinitionError(
-      `${stepLabel}.autonomyMode cannot be supervised for workflow agent steps because SDK tool calls cannot be routed through KOTA approvals`,
-      definitionPath,
-    );
-  }
-
   const declaredHarness = expectOptionalString(
     step.harness,
     `${stepLabel}.harness`,

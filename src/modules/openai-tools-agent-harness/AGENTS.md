@@ -5,7 +5,9 @@ tool-calling loop driven by any OpenAI-compatible `ModelClient`. Select it with
 the `openai-tools` preset, default harness config, or a per-step `harness`.
 
 This module owns the `KotaTool` to OpenAI-tools native-loop translation at the
-adapter seam.
+adapter seam. Tool execution routes through the shared KOTA tool runner so
+guardrails, approvals, idempotency, effect-aware scheduling, MCP dispatch, and
+secret masking stay aligned with the classic loop.
 
 ## Supported Providers
 
@@ -21,9 +23,11 @@ through `ModelClient.messages.stream`, forwards streamed text, validates tool
 calls, executes them through guarded core tool paths, appends `tool_result`
 messages, and repeats until no tool calls remain or the max turn limit fires.
 
-Guardrails are applied inside the loop. Filtered tools are hidden and denied if
-called; `canUseTool` can update inputs, return a denial tool result, or
-interrupt the run.
+Guardrails are applied inside the shared runner. Filtered tools are hidden and
+denied if called; `canUseTool` can update inputs, return a denial tool result,
+or interrupt the run. Non-empty `mcpServers` are hosted by a KOTA-owned
+`McpManager` for stdio/http transports; unsupported transports fail at the
+adapter boundary.
 
 The adapter additionally rejects a bare `claude_code` preset `systemPrompt`
 without an `append` body because that shape is Claude-specific. Portable

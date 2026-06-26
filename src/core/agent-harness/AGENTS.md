@@ -106,10 +106,11 @@ hook, not that.
 `types.ts` declares the KOTA-native neutral run options and
 `agent-message.ts` declares the strict discriminated `KotaAgentMessage`
 union every adapter normalizes into. `AgentMcpServerConfig` is
-`stdio | sse | http`; non-claude adapters reject non-empty `mcpServers` at
-the boundary. `AgentCanUseTool` / `AgentPermissionResult` are KOTA-shaped
-(`toolUseId`, `decisionAttribution` literals); the claude adapter bridges
-them to the SDK shape at its own seam. Nothing in core imports
+`stdio | sse | http`; adapters either host those servers through their own
+tool-control surface or reject unsupported transports/options at the boundary.
+`AgentCanUseTool` / `AgentPermissionResult` are KOTA-shaped
+(`toolUseId`, `decisionAttribution` literals); adapters bridge
+them to their native shape at their own seam. Nothing in core imports
 `@anthropic-ai/claude-agent-sdk`. Harness-specific in-process MCP hosting
 stays inside the owning adapter.
 

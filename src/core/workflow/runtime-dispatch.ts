@@ -167,6 +167,7 @@ export async function runWorkflow(
         ? { deadLetterQueue: state.deadLetterQueue }
         : {}),
       eventJournal: state.eventJournal,
+      idempotencyStore: state.idempotencyStore,
       model: state.model,
       config: state.config,
       log: (message) => state.log(message),

@@ -61,8 +61,13 @@ export async function executeToolBlock(
 		guardrailsConfig,
 		clientApprovalResolver,
 		sessionId,
+		cwd,
+		workflowContext,
+		scopeId,
+		projectId,
 		messages,
 		idempotencyStore,
+		tokenBudget,
 		signal,
 	} = options;
 	throwIfAborted(signal);
@@ -154,46 +159,53 @@ export async function executeToolBlock(
 		clientApprovedAutonomyGate = true;
 	}
 
-	if (guardrailsConfig) {
-		emitGuardrailAssessment(assessment.policy, assessment.reason);
-		if (assessment.policy === "deny") {
+	emitGuardrailAssessment(assessment.policy, assessment.reason);
+	if (assessment.policy === "deny") {
+		return errorEntry(
+			block,
+			`Blocked by guardrails: ${block.name} is classified as ${assessment.risk} (${assessment.reason}). ` +
+				"This operation requires approval. Use ask_user to request permission, or try a safer approach.",
+		);
+	}
+	if (assessment.policy === "queue" && !clientApprovedAutonomyGate) {
+		const approvalContext = messages ? extractApprovalContext(messages) : undefined;
+		const clientDecision = await askClientApproval(assessment.reason, approvalContext);
+		if (clientDecision.outcome === "blocked") return clientDecision.result;
+		if (clientDecision.outcome === "unavailable") {
+			const queued = enqueueToolApproval({
+				toolName: block.name,
+				input,
+				risk: assessment.risk,
+				reason: assessment.reason,
+				sessionId,
+				timeoutMs: guardrailsConfig?.approvalTimeoutMs,
+				context: approvalContext,
+				promptFingerprints: mcpPromptToolDeclarationFingerprints,
+			});
 			return errorEntry(
 				block,
-				`Blocked by guardrails: ${block.name} is classified as ${assessment.risk} (${assessment.reason}). ` +
-					"This operation requires approval. Use ask_user to request permission, or try a safer approach.",
+				`Queued for approval [${queued.id}]: ${block.name} is classified as ${assessment.risk} (${assessment.reason}). ` +
+					"Operators can review and resolve it through the approval CLI or authenticated daemon client.",
 			);
 		}
-		if (assessment.policy === "queue" && !clientApprovedAutonomyGate) {
+	}
+	if (assessment.policy === "confirm") {
+		let approved = false;
+		if (!clientApprovedAutonomyGate) {
 			const approvalContext = messages ? extractApprovalContext(messages) : undefined;
 			const clientDecision = await askClientApproval(assessment.reason, approvalContext);
 			if (clientDecision.outcome === "blocked") return clientDecision.result;
-			if (clientDecision.outcome === "unavailable") {
-				const queued = enqueueToolApproval({
-					toolName: block.name,
-					input,
-					risk: assessment.risk,
-					reason: assessment.reason,
-					sessionId,
-					timeoutMs: guardrailsConfig.approvalTimeoutMs,
-					context: approvalContext,
-					promptFingerprints: mcpPromptToolDeclarationFingerprints,
-				});
-				return errorEntry(
-					block,
-					`Queued for approval [${queued.id}]: ${block.name} is classified as ${assessment.risk} (${assessment.reason}). ` +
-						"Operators can review and resolve it through the approval CLI or authenticated daemon client.",
-				);
-			}
+			approved = clientDecision.outcome === "allowed";
 		}
-		if (assessment.policy === "confirm") {
-			const approved = await confirmAction(`Allow ${block.name}? (${assessment.reason})`);
-			if (!approved) {
-				return errorEntry(
-					block,
-					`Blocked by guardrails: ${block.name} requires confirmation (${assessment.reason}). ` +
-						"Use ask_user to request explicit human approval, then retry.",
-				);
-			}
+		if (!approved) {
+			approved = await confirmAction(`Allow ${block.name}? (${assessment.reason})`);
+		}
+		if (!approved) {
+			return errorEntry(
+				block,
+				`Blocked by guardrails: ${block.name} requires confirmation (${assessment.reason}). ` +
+					"Use ask_user to request explicit human approval, then retry.",
+			);
 		}
 	}
 
@@ -201,6 +213,17 @@ export async function executeToolBlock(
 	const runnerContext = {
 		...(sessionId && { sessionId }),
 		toolUseId: block.id,
+		...(cwd !== undefined ? { cwd } : {}),
+		...(scopeId !== undefined ? { scopeId } : {}),
+		...(projectId !== undefined ? { projectId } : {}),
+		...(workflowContext !== undefined
+			? {
+					workflow: workflowContext,
+					scopeId: workflowContext.scopeId,
+					projectId: workflowContext.projectId,
+				}
+			: {}),
+		...(tokenBudget !== undefined ? { tokenBudget } : {}),
 		...(signal ? { signal } : {}),
 	};
 	const resultContentProvenance = mcpManager?.getToolResultContentProvenance?.(block.name);

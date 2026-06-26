@@ -10,7 +10,7 @@ registerAgentHarness(openaiToolsAgentHarness);
 const openaiToolsAgentHarnessModule: KotaModule = {
   name: "openai-tools-agent-harness",
   description:
-    "Registers the openai-tools agent harness — a multi-turn tool-calling loop driven by any OpenAI-compatible ModelClient. Routes tool dispatch through the core tool registry and honors canUseTool, allowedTools, and disallowedTools.",
+    "Registers the openai-tools agent harness — a multi-turn tool-calling loop driven by any OpenAI-compatible ModelClient. Routes tool dispatch through KOTA's guarded tool runner and honors MCP servers plus tool-control rails.",
   dependencies: ["model-clients"],
   onLoad(ctx) {
     ctx.log.info(

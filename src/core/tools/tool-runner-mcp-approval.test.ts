@@ -11,6 +11,9 @@ vi.mock("#core/loop/context.js", () => ({
 }));
 vi.mock("./guardrails.js", () => ({
 	assess: vi.fn(),
+	getDefaultConfig: vi.fn(() => ({
+		policies: { safe: "allow", moderate: "allow", dangerous: "confirm" },
+	})),
 }));
 vi.mock("#core/util/confirm.js", () => ({
 	confirmAction: vi.fn(),

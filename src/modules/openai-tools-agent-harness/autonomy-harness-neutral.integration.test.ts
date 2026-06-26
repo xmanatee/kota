@@ -2,8 +2,7 @@
  * Integration test: prove that an autonomy agent step executed via the
  * workflow step-executor, and an autonomy judge executed via the critic
  * repair check, both flow through the `openai-tools` harness without
- * triggering the adapter's claude-specific rejection list (mcpServers,
- * non-`bypass` permissionMode, settingSources).
+ * triggering the adapter's unsupported-option boundary.
  *
  * This is the regression guard for the "harness-neutral autonomy" contract:
  * switching `defaultAgentHarness` to `"openai-tools"` must not leak claude
@@ -67,7 +66,7 @@ function makeMetadata(): WorkflowRunMetadata {
 function makeAgentStep(moduleRoot: string): WorkflowAgentStep {
   // Intentionally no harnessOptions block — those per-harness options are
   // only valid on the resolved harness and the openai-tools adapter rejects
-  // any claude-specific wire options that leak through its boundary.
+  // unsupported harness-private options that leak through its boundary.
   return {
     id: "build",
     type: "agent",
@@ -115,7 +114,7 @@ describe("autonomy agent steps and judges on openai-tools", () => {
     vi.clearAllMocks();
   });
 
-  it("runs a representative workflow agent step without the openai-tools adapter rejecting claude-specific options", async () => {
+  it("runs a representative workflow agent step without leaking unsupported adapter options", async () => {
     const projectDir = join(
       tmpdir(),
       `kota-openai-harness-step-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -154,7 +153,7 @@ describe("autonomy agent steps and judges on openai-tools", () => {
     expect(result.harness).toBe(OPENAI_TOOLS_AGENT_HARNESS_NAME);
     expect(streamMock).toHaveBeenCalledTimes(1);
     const streamArgs = streamMock.mock.calls[0][0] as Record<string, unknown>;
-    // The openai-tools adapter would throw loudly if any claude-specific
+    // The openai-tools adapter would throw loudly if any unsupported
     // option leaked through; reaching this assertion means the boundary
     // stayed neutral.
     expect(streamArgs.model).toBe("openai/gpt-5.4-mini");

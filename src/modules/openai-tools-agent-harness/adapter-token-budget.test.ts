@@ -9,6 +9,7 @@ const messagesStreamMock = vi.fn();
 const createModelClientMock = vi.fn();
 const executeToolMock = vi.fn();
 const getAllToolsMock = vi.fn<() => readonly KotaTool[]>();
+const getToolEffectMock = vi.fn();
 const getSecretStoreMock = vi.fn();
 
 vi.mock("#core/model/model-client.js", () => ({
@@ -18,6 +19,7 @@ vi.mock("#core/model/model-client.js", () => ({
 vi.mock("#core/tools/index.js", () => ({
   executeTool: (...args: unknown[]) => executeToolMock(...args),
   getAllTools: () => getAllToolsMock(),
+  getToolEffect: (...args: unknown[]) => getToolEffectMock(...args),
 }));
 
 vi.mock("#core/config/secrets.js", () => ({
@@ -67,6 +69,7 @@ beforeEach(() => {
   createModelClientMock.mockReset();
   executeToolMock.mockReset();
   getAllToolsMock.mockReset();
+  getToolEffectMock.mockReset();
   getSecretStoreMock.mockReset();
   getAllToolsMock.mockReturnValue([TEST_TOOL]);
   getSecretStoreMock.mockReturnValue(null);

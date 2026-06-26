@@ -366,6 +366,7 @@ export async function runScriptedAgentSession(opts: {
     model: "openai/gpt-5.4-mini",
     effort: "xhigh",
     systemPrompt: "be terse",
+    clientApprovalResolver: async () => ({ outcome: "allow" }),
   });
 }
 

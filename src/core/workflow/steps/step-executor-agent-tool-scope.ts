@@ -68,16 +68,11 @@ export function resolveAgentToolScope(
   allowedTools: string[] | undefined;
   disallowedTools: string[] | undefined;
 } {
-  if (mode === "autonomous") {
+  if (mode === "autonomous" || mode === "supervised") {
     return {
       allowedTools: includeAskOwnerTool(allowedTools, askOwnerToolName),
       disallowedTools: excludeAskOwnerTool(disallowedTools, askOwnerToolName),
     };
-  }
-  if (mode === "supervised") {
-    throw new Error(
-      "Workflow agent steps cannot use supervised autonomyMode because tool calls cannot be routed through KOTA approvals",
-    );
   }
   return {
     allowedTools: resolvePassiveAllowedTools(allowedTools, disallowedTools, askOwnerToolName),

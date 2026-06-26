@@ -25,9 +25,9 @@ vi.mock("#modules/claude-agent-harness/executor.js", async (importActual) => {
 });
 
 // The openai-tools adapter calls `getAllTools()` to filter the tool catalog
-// before streaming. The empty-mcpServers branch in this test reaches that path,
-// so we stub the registry with an empty catalog rather than depend on real
-// tool registry initialization order in this isolated test.
+// before streaming. These contract tests do not execute local tools, so we
+// stub the registry with an empty catalog rather than depend on real tool
+// registry initialization order in this isolated test.
 vi.mock("#core/tools/index.js", () => ({
   executeTool: vi.fn(),
   getAllTools: () => [],
@@ -87,33 +87,34 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-/**
- * Cross-harness parity guard for the agent-harness `mcpServers` contract
- * declared in `src/core/agent-harness/AGENTS.md`. Every registered adapter
- * must honor `AgentHarnessRunOptions.mcpServers` per its declared contract:
- *
- * - **claude-agent-sdk** forwards a non-empty caller-supplied map through to
- *   `executeWithAgentSDK` unchanged when `askOwner` is unset, and merges the
- *   in-process owner-questions MCP server on top of the caller-supplied map
- *   when `askOwner` is set — *without* overwriting an existing entry under
- *   `KOTA_OWNER_QUESTIONS_MCP_SERVER`.
- * - **openai-tools** rejects non-empty `mcpServers` loudly at the boundary
- *   without entering the model client.
- * - **thin** rejects non-empty `mcpServers` loudly at the boundary without
- *   entering the model client.
- * - **Every adapter** treats the literal `{}` as "unset" — claude-agent-sdk
- *   forwards the empty map through, openai-tools and thin proceed past their
- *   rejection guard. This pins `Object.keys(...).length > 0` against a
- *   regression that would truthy-check the map itself.
- *
- * The owner-questions merge in particular is a real footgun: a regression
- * that overwrote caller-supplied servers would silently drop module-supplied
- * tool surfaces in the autonomy loop on every run with `askOwner` set.
- */
+// Cross-harness parity guard for `AgentHarnessRunOptions.mcpServers`:
+// claude forwards and owner-question-merges MCP configs, openai-tools hosts
+// supported configs through KOTA's McpManager, thin rejects non-empty configs,
+// and every adapter treats `{}` as unset.
 
 const SAMPLE_NON_EMPTY: AgentMcpServers = {
-  foo: { type: "stdio", command: "bar" },
+  foo: { type: "stdio", command: process.execPath, args: ["-e", mcpFixtureServer()] },
 };
+
+function mcpFixtureServer(): string {
+  return `
+    const rl = require("readline").createInterface({ input: process.stdin });
+    function write(message) { process.stdout.write(JSON.stringify(message) + "\\n"); }
+    rl.on("line", (line) => {
+      let msg;
+      try { msg = JSON.parse(line); } catch { return; }
+      if (msg.method === "initialize") {
+        write({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: "2024-11-05", capabilities: {}, serverInfo: { name: "mcp-parity-fixture" } } });
+      } else if (msg.method === "tools/list") {
+        write({ jsonrpc: "2.0", id: msg.id, result: { tools: [] } });
+      } else if (msg.method === "shutdown") {
+        write({ jsonrpc: "2.0", id: msg.id, result: {} });
+      } else if (msg.id !== undefined) {
+        write({ jsonrpc: "2.0", id: msg.id, result: {} });
+      }
+    });
+  `;
+}
 
 type AdapterCase = {
   name: string;
@@ -123,7 +124,7 @@ type AdapterCase = {
   assertNonEmptyContract(): Promise<void>;
   /** Verifies the literal `{}` is treated as "unset". */
   assertEmptyContract(): Promise<void>;
-  /** Owner-questions merge contract — null where the adapter does not host MCP servers. */
+  /** Owner-questions merge contract — null where the adapter does not own this merge. */
   assertOwnerQuestionsMerge: (() => Promise<void>) | null;
 };
 
@@ -180,7 +181,7 @@ const ADAPTERS: AdapterCase[] = [
       const merged = (executeWithAgentSDKMock.mock.calls[0][1] as {
         mcpServers: Record<string, unknown>;
       }).mcpServers;
-      expect(merged.foo).toEqual({ type: "stdio", command: "bar" });
+      expect(merged.foo).toEqual(SAMPLE_NON_EMPTY.foo);
       expect(merged[KOTA_OWNER_QUESTIONS_MCP_SERVER]).toBeDefined();
 
       // Caller already supplied an owner-questions entry: keep theirs. Use a
@@ -215,15 +216,13 @@ const ADAPTERS: AdapterCase[] = [
       effort: "xhigh",
     }),
     assertNonEmptyContract: async () => {
-      await expect(
-        openaiToolsAgentHarness.run({
-          prompt: "go",
-          model: "openai/gpt-5.4-mini",
-          effort: "xhigh",
-          mcpServers: SAMPLE_NON_EMPTY,
-        }),
-      ).rejects.toThrow(/does not host MCP servers/);
-      expect(messagesStreamMock).not.toHaveBeenCalled();
+      await openaiToolsAgentHarness.run({
+        prompt: "go",
+        model: "openai/gpt-5.4-mini",
+        effort: "xhigh",
+        mcpServers: SAMPLE_NON_EMPTY,
+      });
+      expect(messagesStreamMock).toHaveBeenCalledTimes(1);
       expect(messagesCreateMock).not.toHaveBeenCalled();
     },
     assertEmptyContract: async () => {

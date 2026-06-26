@@ -25,6 +25,15 @@ function registerFixtureTool(name: string, effect: ReturnType<typeof networkRead
 }
 
 describe("resolveAgentToolScope", () => {
+  it("keeps configured tool scope in supervised workflow agent steps", () => {
+    expect(
+      resolveAgentToolScope("supervised", [WRITE_TOOL], ["blocked"], null),
+    ).toEqual({
+      allowedTools: [WRITE_TOOL],
+      disallowedTools: ["blocked"],
+    });
+  });
+
   it("allows registered read-effect tools in passive workflow agent steps", () => {
     registerFixtureTool(READ_TOOL, networkReadEffect());
 

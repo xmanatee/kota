@@ -1,6 +1,9 @@
+import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import type { ModelProviderSelection } from "#core/model/model-client.js";
 import type { ModelOutputTokenLimits } from "#core/model/output-token-limits.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import type { GuardrailsConfig } from "#core/tools/guardrails.js";
+import type { ToolApprovalResolver } from "#core/tools/tool-approval.js";
 import type { KotaAgentMessage } from "./agent-message.js";
 import type {
   AgentAskOwnerOptions,
@@ -97,10 +100,9 @@ export type AgentHarnessRunOptions = {
   mcpServers?: AgentMcpServers;
   /**
    * KOTA-native session supervision posture. The adapter maps this onto its
-   * provider's native permission knob. Adapters without a permission UX
-   * must still honor the mode (passive read-only constraints come from
-   * `allowedTools`; supervised mode is rejected by every workflow agent
-   * step adapter at the boundary).
+   * provider's native permission or KOTA-owned tool-runner gate. Adapters
+   * without a permission UX must still honor the mode or reject it loudly
+   * through their unsupported-option boundary.
    *
    * Callers that do not care about supervision posture omit this field;
    * adapters default to `"autonomous"`. Workflow agent steps always set it
@@ -125,6 +127,14 @@ export type AgentHarnessRunOptions = {
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
   canUseTool?: AgentCanUseTool;
+  /**
+   * KOTA-owned tool-runner context for adapters that execute tools in-process.
+   * Native CLI adapters do not consume these fields because they do not host the
+   * shared KOTA tool runner.
+   */
+  guardrailsConfig?: GuardrailsConfig;
+  clientApprovalResolver?: ToolApprovalResolver;
+  idempotencyStore?: IdempotencyStore;
   /**
    * Harness-neutral request to expose the owner-questions escalation tool to
    * the agent. Adapters that can host a tool loop honor it using their native

@@ -14,6 +14,7 @@ export {
 } from "./tool-failure-tracker.js";
 export {
 	executeToolCalls,
+	ToolPermissionInterruptedError,
 } from "./tool-runner-execution.js";
 export type {
 	McpPromptToolDeclarationFingerprints,
