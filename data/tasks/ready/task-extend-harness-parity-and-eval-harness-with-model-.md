@@ -1,14 +1,14 @@
 ---
 id: task-extend-harness-parity-and-eval-harness-with-model-
 title: Extend harness parity and eval harness with model-matrix evidence
-status: backlog
+status: ready
 priority: p1
 area: modules
 task_class: Platform
 depends_on: [task-add-openrouter-model-capability-catalog-and-candid, task-make-openai-compatible-model-clients-honor-model-s, task-route-openai-tools-through-the-kota-tool-runner-wi, task-preserve-rich-tool-results-reasoning-and-agent-mes, task-add-kota-owned-session-resume-for-model-client-har]
 summary: Add baseline-versus-candidate model matrices, repeats, cost and latency metrics, live-key skips, and shadow comparison artifacts so GLM, Kimi, OpenRouter, and local models are judged against Codex on KOTA scenarios.
 created_at: 2026-06-25T14:23:20.760Z
-updated_at: 2026-06-25T14:23:20.760Z
+updated_at: 2026-06-26T10:55:58.512Z
 ---
 
 ## Problem
