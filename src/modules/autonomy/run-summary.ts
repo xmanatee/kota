@@ -32,16 +32,17 @@ export function writeRunSummary(
   agentStepId: string,
   findTask?: (projectDir: string, filesChanged: string[]) => { taskId: string | null; taskTitle: string | null },
 ): WorkflowRunSummary {
-  const { projectDir, workflow, stepOutputs, stepResults } = ctx;
+  const { workflow, stepOutputs, stepResults } = ctx;
+  const repoDir = ctx.workspaceDir ?? ctx.projectDir;
 
-  const commitSha = git(projectDir, "rev-parse HEAD");
-  const commitMessage = git(projectDir, "log --format=%s -1");
-  const filesChanged = git(projectDir, "diff --name-only HEAD~1")
+  const commitSha = git(repoDir, "rev-parse HEAD");
+  const commitMessage = git(repoDir, "log --format=%s -1");
+  const filesChanged = git(repoDir, "diff --name-only HEAD~1")
     .split("\n")
     .filter(Boolean);
 
   const { taskId, taskTitle } = findTask
-    ? findTask(projectDir, filesChanged)
+    ? findTask(repoDir, filesChanged)
     : { taskId: null, taskTitle: null };
 
   const agentOutput = stepOutputs[agentStepId] as Record<string, unknown> | undefined;

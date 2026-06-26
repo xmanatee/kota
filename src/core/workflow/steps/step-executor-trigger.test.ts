@@ -32,6 +32,7 @@ function makeContext(
     reportProgress: () => {},
     triggerWorkflow: vi.fn().mockResolvedValue({ runId: "child-run-1", status: "queued" }),
     ...overrides,
+    workspaceDir: overrides.workspaceDir ?? overrides.projectDir ?? "/project",
   };
 }
 

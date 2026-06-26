@@ -59,6 +59,7 @@ function findTaskInChangedFiles(
 
 export function writeBuilderRunSummary(ctx: WorkflowStepContext): BuilderRunSummary {
   const summary = writeRunSummary(ctx, "build", findTaskInChangedFiles);
+  const repoDir = ctx.workspaceDir ?? ctx.projectDir;
   const observabilityObligations = readObservabilityObligationReviewArtifact(
     ctx.workflow.runDirPath,
   );
@@ -73,7 +74,7 @@ export function writeBuilderRunSummary(ctx: WorkflowStepContext): BuilderRunSumm
       observabilityObligations.candidates.length === 0)
   ) {
     writeDiffSummaryConsistencyArtifact(
-      ctx.projectDir,
+      repoDir,
       ctx.workflow.runDirPath,
       summary,
     );
@@ -94,7 +95,7 @@ export function writeBuilderRunSummary(ctx: WorkflowStepContext): BuilderRunSumm
     JSON.stringify(builderSummary, null, 2),
   );
   writeDiffSummaryConsistencyArtifact(
-    ctx.projectDir,
+    repoDir,
     ctx.workflow.runDirPath,
     builderSummary,
   );

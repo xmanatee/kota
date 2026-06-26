@@ -101,7 +101,7 @@ export async function executeRepairAgentIteration(
         {
           prompt: repairPrompt,
           model: resolveAgentModel(step, agentConfig),
-          cwd: agentConfig.projectDir,
+          cwd: agentConfig.workspaceDir ?? agentConfig.projectDir,
           systemPrompt,
           modelOutputTokenLimits: agentConfig.config?.modelOutputTokenLimits,
           ...(modelProvider !== undefined ? { modelProvider } : {}),

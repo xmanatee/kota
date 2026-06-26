@@ -20,6 +20,12 @@ export type WorkflowRuntimeConfig = {
   pbus?: ProjectScopedEventBus;
   projectDir?: string;
   /**
+   * Mutable checkout used by workflow steps that execute against repository
+   * files. Defaults to `projectDir`, which preserves the existing single-
+   * checkout runtime shape.
+   */
+  workspaceDir?: string;
+  /**
    * Pre-built run store. Supplied by the per-project runtime bundle so the
    * daemon shares one instance across the workflow runtime and the
    * daemon-handle. Tests that build a standalone runtime may omit this and

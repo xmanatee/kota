@@ -99,9 +99,10 @@ export async function runAgentRepairLoop(
   const scopedAgent = resolveScopedRepairAgent(step, agentConfig);
 
   const wrap = (output: Record<string, unknown>): AgentStepResult => {
+    const workspaceDir = context.workspaceDir ?? context.projectDir;
     const postStepMutatedPaths = scopedAgent
-      ? listWorkflowMutatedPaths(context.projectDir)
-      : (tryListWorkflowMutatedPaths(context.projectDir) ?? []);
+      ? listWorkflowMutatedPaths(workspaceDir)
+      : (tryListWorkflowMutatedPaths(workspaceDir) ?? []);
     const changedFiles = diffMutatedPaths(
       initialResult.preStepMutatedPaths,
       postStepMutatedPaths,

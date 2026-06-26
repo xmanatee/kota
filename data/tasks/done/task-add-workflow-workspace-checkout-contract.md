@@ -1,14 +1,14 @@
 ---
 id: task-add-workflow-workspace-checkout-contract
 title: Add workflow workspace checkout contract
-status: ready
+status: done
 priority: p1
 area: core
 task_class: Platform
 depends_on: [task-record-architecture-decision-for-worktree-backed-a]
 summary: Teach workflow execution to distinguish canonical project state from the mutable workspace checkout used by agent steps.
 created_at: 2026-06-25T14:53:24.025Z
-updated_at: 2026-06-26T10:55:58.547Z
+updated_at: 2026-06-26T12:35:55Z
 ---
 
 ## Problem

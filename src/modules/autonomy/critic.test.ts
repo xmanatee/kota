@@ -38,6 +38,37 @@ describe("createCriticCheck", () => {
     expect(mockRunAgentHarness).toHaveBeenCalledOnce();
   });
 
+  it("reviews task and diff from workspaceDir when provided", async () => {
+    const projectDir = makeTmpDir();
+    const workspaceDir = makeTmpDir();
+    writeDoingTask(
+      workspaceDir,
+      "task-workspace.md",
+      "---\ntitle: Workspace task\n---\nWorkspace task content.",
+    );
+    const runDir = makeRunDir(projectDir);
+    setApiResponse({
+      verdict: "pass",
+      critical_issues: [],
+      warnings: [],
+      summary: "Workspace diff looks complete.",
+    });
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    await (check as CodeCheck).run(
+      makeContext(projectDir, runDir, workspaceDir),
+      TEST_PARENT_STEP,
+    );
+
+    expect(mockRunAgentHarness).toHaveBeenCalledOnce();
+    const userMessage = getPromptArg(mockRunAgentHarness.mock.calls[0]);
+    expect(userMessage).toContain("Workspace task content.");
+    expect(userMessage).toContain(`Project root: ${workspaceDir}`);
+    expect(mockRunAgentHarness.mock.calls[0]?.[1]).toMatchObject({
+      cwd: workspaceDir,
+    });
+  });
+
   it("skips when no task in doing/ and no staged done/ task", async () => {
     const dir = makeTmpDir();
     const check = createCriticCheck();

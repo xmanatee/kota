@@ -105,6 +105,7 @@ describe("daily-digest build-digest step", () => {
 
     await buildStep.run({
       projectDir,
+      workspaceDir: projectDir,
       workflow: {
         name: "daily-digest",
         definitionPath: "src/modules/autonomy/workflows/daily-digest/workflow.ts",
@@ -161,6 +162,7 @@ describe("daily-digest build-digest step", () => {
 
     const ctxBase = {
       projectDir,
+      workspaceDir: projectDir,
       trigger: { event: "schedule", schemaRef: null, payload: {} },
       previousOutput: undefined,
       stepOutputs: {},

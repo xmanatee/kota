@@ -27,6 +27,7 @@ import { cleanupMergedBranches, createPullRequest, createTaskBranch } from "./br
 import { builderRepairChecks } from "./repair-checks.js";
 import type { BuilderRunSummary } from "./run-summary.js";
 import { writeBuilderRunSummary } from "./run-summary.js";
+import { workflowWorkspaceDir } from "./workspace.js";
 
 export const agent: AgentDef = {
   name: "builder",
@@ -50,11 +51,12 @@ const inspectReadyQueue = typedCodeStep<InspectResult>({
       "pullableCount",
       "actionableCount",
       "counts",
-    ]),
-  run: ({ projectDir }) => {
-    const worktree = getRepoWorktreeStatus(projectDir);
+  ]),
+  run: (ctx) => {
+    const repoDir = workflowWorkspaceDir(ctx);
+    const worktree = getRepoWorktreeStatus(repoDir);
     const dirty = worktree.available && worktree.trackedDirty;
-    return { ...getRepoTaskQueueSnapshot(projectDir), dirty };
+    return { ...getRepoTaskQueueSnapshot(repoDir), dirty };
   },
 });
 
@@ -81,9 +83,9 @@ const builderWorkflow: WorkflowDefinitionInput = {
       id: "reset-for-recovery",
       type: "code",
       when: onRecoveryTrigger,
-      run: ({ projectDir }) =>
+      run: (ctx) =>
         resetWorktreeForRecovery({
-          projectDir,
+          projectDir: workflowWorkspaceDir(ctx),
           workflowName: "builder",
           restoreBaseBranch: true,
         }),
@@ -129,7 +131,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       id: "commit",
       type: "code",
       when: stepSucceeded("create-task-branch"),
-      run: ({ projectDir, workflow }) => commitWorkflowChanges(projectDir, workflow.runDirPath),
+      run: (ctx) => commitWorkflowChanges(workflowWorkspaceDir(ctx), ctx.workflow.runDirPath),
     },
     typedCodeStep<BuilderRunSummary>({
       id: "write-run-summary",

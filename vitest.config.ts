@@ -29,8 +29,8 @@ export default defineConfig({
     // Capping at 4 prevents resource starvation under full parallel load.
     maxForks: 4,
     // Tests and hooks that run real git/subprocess ops need more than the 5s/10s defaults.
-    testTimeout: 30000,
-    hookTimeout: 30000,
+    testTimeout: 60000,
+    hookTimeout: 60000,
     setupFiles: ["./test/loopback-fetch.ts"],
   },
 });

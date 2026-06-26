@@ -40,6 +40,7 @@ export const IDLE_UNCHANGED_REEMIT_MS = 30 * 60 * 1000;
 
 export interface WorkflowRuntimeDispatchState {
   projectDir: string;
+  workspaceDir?: string;
   stopping: boolean;
   dispatchPaused: boolean;
   config?: KotaConfig;
@@ -72,13 +73,24 @@ export interface WorkflowRuntimeDispatchState {
   log(message: string): void;
 }
 
-function getIdleEventSignature(projectDir: string): string {
+function getIdleEventSignature(projectDir: string, workspaceDir: string): string {
   const worktree = getRepoWorktreeStatus(projectDir);
+  const workspaceWorktree =
+    workspaceDir === projectDir ? worktree : getRepoWorktreeStatus(workspaceDir);
   return [
+    "project",
     worktree.available ? "git" : "no-git",
     worktree.headSha,
     worktree.fingerprint,
+    "workspace",
+    workspaceWorktree.available ? "git" : "no-git",
+    workspaceWorktree.headSha,
+    workspaceWorktree.fingerprint,
   ].join("\0");
+}
+
+function workspaceDirFor(state: WorkflowRuntimeDispatchState): string {
+  return state.workspaceDir ?? state.runtimeConfig.workspaceDir ?? state.projectDir;
 }
 
 export function emitIdleEvent(state: WorkflowRuntimeDispatchState): void {
@@ -99,7 +111,8 @@ export function emitIdleEvent(state: WorkflowRuntimeDispatchState): void {
   if (state.stopping || state.activeRuns.size > 0 || idleTriggerAlreadyQueued) return;
   const dispatchWindow = state.config?.scheduler?.dispatchWindow;
   if (dispatchWindow && !isWithinDispatchWindow(dispatchWindow)) return;
-  const signature = getIdleEventSignature(state.projectDir);
+  const workspaceDir = workspaceDirFor(state);
+  const signature = getIdleEventSignature(state.projectDir, workspaceDir);
   const now = Date.now();
   const recentlyEmittedUnchanged =
     state.lastIdleEventSignature === signature &&
@@ -134,7 +147,8 @@ export async function runWorkflow(
   trigger: WorkflowRunTrigger,
   runId?: string,
 ): Promise<void> {
-  const preRunFingerprint = getRepoWorktreeStatus(state.projectDir).fingerprint;
+  const workspaceDir = workspaceDirFor(state);
+  const preRunFingerprint = getRepoWorktreeStatus(workspaceDir).fingerprint;
   // Claim the concurrency slot synchronously BEFORE executeWorkflowRun runs.
   // executeWorkflowRun emits `workflow.started` on the bus synchronously; the
   // wildcard handler re-enters `maybeStartNext` on the same call stack. Until
@@ -160,6 +174,7 @@ export async function runWorkflow(
     trigger,
     {
       projectDir: state.projectDir,
+      workspaceDir,
       bus: state.runtimeConfig.bus,
       pbus: state.pbus,
       store: state.store,

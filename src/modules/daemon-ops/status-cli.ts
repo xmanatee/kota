@@ -90,7 +90,7 @@ export type StatusSnapshot = {
   };
   pendingRecovery?: Pick<
     WorkflowRecoveryState,
-    "sourceWorkflow" | "sourceRunId" | "worktreeSummary" | "attempts"
+    "sourceWorkflow" | "sourceRunId" | "dirtyCheckout" | "worktreeSummary" | "attempts"
   >;
 };
 
@@ -110,6 +110,13 @@ export type StatusDashboard =
 
 function formatUptime(ms: number): string {
   return formatUptimeFromIso(new Date(Date.now() - ms).toISOString());
+}
+
+function formatDirtyCheckout(
+  dirtyCheckout: WorkflowRecoveryState["dirtyCheckout"],
+): string {
+  if (dirtyCheckout === undefined) return "worktree";
+  return dirtyCheckout === "workspace" ? "workspace checkout" : "canonical checkout";
 }
 
 function describeControlFile(identity: DaemonControlIdentity): {
@@ -281,7 +288,7 @@ export function buildStatusNode(
       entries.push({
         label: "Pending recovery",
         value:
-          `dirty worktree from ${snap.pendingRecovery.sourceWorkflow} ` +
+          `dirty ${formatDirtyCheckout(snap.pendingRecovery.dirtyCheckout)} from ${snap.pendingRecovery.sourceWorkflow} ` +
           `(${snap.pendingRecovery.sourceRunId}, attempts ${snap.pendingRecovery.attempts}): ` +
           snap.pendingRecovery.worktreeSummary,
         role: "warn" as const,
@@ -451,6 +458,7 @@ export async function gatherStatus(
       pendingRecovery: {
         sourceWorkflow: state.recovery.sourceWorkflow,
         sourceRunId: state.recovery.sourceRunId,
+        dirtyCheckout: state.recovery.dirtyCheckout,
         worktreeSummary: state.recovery.worktreeSummary,
         attempts: state.recovery.attempts,
       },

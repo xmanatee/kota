@@ -59,6 +59,7 @@ export function buildAgentHarnessRunOptions(input: {
     tokenBudget,
   } = input;
   const harnessOverrides = step.harnessOptions?.[resolvedHarness.name];
+  const workspaceDir = agentConfig.workspaceDir ?? agentConfig.projectDir;
   const scopeId = agentConfig.scopeId ?? deriveDirectoryScopeId(agentConfig.projectDir);
   const projectId = agentConfig.projectId ?? scopeId;
   const toolScope = resolveAgentToolScope(
@@ -80,7 +81,7 @@ export function buildAgentHarnessRunOptions(input: {
     options: {
       prompt,
       model: resolvedModel,
-      cwd: agentConfig.projectDir,
+      cwd: workspaceDir,
       systemPrompt,
       modelOutputTokenLimits: agentConfig.config?.modelOutputTokenLimits,
       ...(modelProvider !== undefined ? { modelProvider } : {}),

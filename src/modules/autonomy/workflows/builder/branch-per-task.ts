@@ -6,6 +6,7 @@ import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { REPO_TASKS_DIR } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { BuilderRunSummary } from "./run-summary.js";
+import { workflowWorkspaceDir } from "./workspace.js";
 
 export type CleanupResult = {
   cleaned: string[];
@@ -59,8 +60,8 @@ function getCurrentBranch(projectDir: string): string {
 }
 
 export function createTaskBranch(ctx: WorkflowStepContext): BranchStepResult {
-  const { projectDir } = ctx;
-  const config = loadConfig(projectDir);
+  const projectDir = workflowWorkspaceDir(ctx);
+  const config = loadConfig(ctx.projectDir);
   const builderConfig = config.modules?.builder;
 
   if (!builderConfig?.branchPerTask) {
@@ -90,7 +91,7 @@ export function createTaskBranch(ctx: WorkflowStepContext): BranchStepResult {
 }
 
 export function createPullRequest(ctx: WorkflowStepContext): { prUrl: string } {
-  const { projectDir } = ctx;
+  const projectDir = workflowWorkspaceDir(ctx);
   const branchInfo = ctx.stepOutputs["create-task-branch"] as BranchStepResult;
   const summary = ctx.stepOutputs["write-run-summary"] as BuilderRunSummary | undefined;
 
@@ -168,7 +169,7 @@ export function createPullRequest(ctx: WorkflowStepContext): { prUrl: string } {
 }
 
 export function cleanupMergedBranches(ctx: WorkflowStepContext): CleanupResult {
-  const { projectDir } = ctx;
+  const projectDir = workflowWorkspaceDir(ctx);
   const branchInfo = ctx.stepOutputs["create-task-branch"] as BranchStepResult | undefined;
   const cleaned: string[] = [];
   const warnings: string[] = [];

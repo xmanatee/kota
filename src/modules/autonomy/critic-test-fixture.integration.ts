@@ -108,9 +108,10 @@ export function writePackageJson(dir: string, scripts: Record<string, string>): 
   );
 }
 
-export function makeContext(projectDir: string, runDirPath?: string) {
+export function makeContext(projectDir: string, runDirPath?: string, workspaceDir?: string) {
   return {
     projectDir,
+    ...(workspaceDir !== undefined ? { workspaceDir } : {}),
     workflow: {
       name: "builder",
       runId: "test-run",

@@ -28,6 +28,7 @@ function makeContext(projectDir: string, runDirPath: string): WorkflowStepContex
     previousOutput: undefined,
     stepOutputList: [],
     projectDir,
+    workspaceDir: projectDir,
     workflow: {
       name: "builder",
       definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",

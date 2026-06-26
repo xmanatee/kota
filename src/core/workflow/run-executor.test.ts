@@ -40,6 +40,9 @@ const AGENT_OK_RESULT: AgentHarnessResult = {
   turns: 1,
   isError: false,
 };
+const AGENT_IDLE_TIMEOUT_MS = 100;
+const AGENT_IDLE_DELAY_MS = 500;
+const AGENT_STEP_TIMEOUT_MS = 1_500;
 
 function delayWithAbort(ms: number, signal?: AbortSignal): Promise<void> {
   if (signal?.aborted) return Promise.reject(signal.reason);
@@ -649,7 +652,7 @@ describe("step timeout", () => {
       attempts += 1;
       const signal = options.abortController?.signal;
       if (attempts === 1) {
-        await delayWithAbort(200, signal);
+        await delayWithAbort(AGENT_IDLE_DELAY_MS, signal);
       }
       await options.onMessage?.({ type: "text", text: "recovered" });
       return AGENT_OK_RESULT;
@@ -659,8 +662,8 @@ describe("step timeout", () => {
       moduleRoot: projectDir,
       steps: [
         makeAgentStep(projectDir, harness, {
-          idleTimeoutMs: 20,
-          timeoutMs: 500,
+          idleTimeoutMs: AGENT_IDLE_TIMEOUT_MS,
+          timeoutMs: AGENT_STEP_TIMEOUT_MS,
           retry: { maxAttempts: 2, initialDelayMs: 1, backoffFactor: 1 },
         }),
       ],
@@ -682,7 +685,7 @@ describe("step timeout", () => {
 
     const harness = "workflow-idle-failure";
     registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
-      await delayWithAbort(200, options.abortController?.signal);
+      await delayWithAbort(AGENT_IDLE_DELAY_MS, options.abortController?.signal);
       return AGENT_OK_RESULT;
     });
 
@@ -690,8 +693,8 @@ describe("step timeout", () => {
       moduleRoot: projectDir,
       steps: [
         makeAgentStep(projectDir, harness, {
-          idleTimeoutMs: 20,
-          timeoutMs: 500,
+          idleTimeoutMs: AGENT_IDLE_TIMEOUT_MS,
+          timeoutMs: AGENT_STEP_TIMEOUT_MS,
           retry: { maxAttempts: 1, initialDelayMs: 1, backoffFactor: 1 },
         }),
       ],
@@ -704,7 +707,7 @@ describe("step timeout", () => {
     expect(result.metadata.steps[0]).toMatchObject({
       status: "failed",
       errorKind: "idle-timeout",
-      idleTimeoutMs: 20,
+      idleTimeoutMs: AGENT_IDLE_TIMEOUT_MS,
     });
     expect(alerts).toHaveLength(1);
   }, 10_000);
@@ -715,7 +718,7 @@ describe("step timeout", () => {
     registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
       attempts += 1;
       if (attempts === 1) return AGENT_OK_RESULT;
-      await delayWithAbort(200, options.abortController?.signal);
+      await delayWithAbort(AGENT_IDLE_DELAY_MS, options.abortController?.signal);
       return AGENT_OK_RESULT;
     });
 
@@ -723,8 +726,8 @@ describe("step timeout", () => {
       moduleRoot: projectDir,
       steps: [
         makeAgentStep(projectDir, harness, {
-          idleTimeoutMs: 20,
-          timeoutMs: 500,
+          idleTimeoutMs: AGENT_IDLE_TIMEOUT_MS,
+          timeoutMs: AGENT_STEP_TIMEOUT_MS,
           retry: { maxAttempts: 1, initialDelayMs: 1, backoffFactor: 1 },
           repairLoop: {
             maxRepairAttempts: 1,
@@ -750,7 +753,7 @@ describe("step timeout", () => {
     expect(result.metadata.steps[0]).toMatchObject({
       status: "failed",
       errorKind: "idle-timeout",
-      idleTimeoutMs: 20,
+      idleTimeoutMs: AGENT_IDLE_TIMEOUT_MS,
     });
     expect(attempts).toBe(2);
   }, 10_000);
@@ -765,8 +768,8 @@ describe("step timeout", () => {
             {
               id: "inner-code",
               type: "code",
-              idleTimeoutMs: 20,
-              timeoutMs: 500,
+              idleTimeoutMs: AGENT_IDLE_TIMEOUT_MS,
+              timeoutMs: AGENT_STEP_TIMEOUT_MS,
               run: () => new Promise(() => {}),
             },
           ],
@@ -782,7 +785,7 @@ describe("step timeout", () => {
     expect(child).toMatchObject({
       status: "failed",
       errorKind: "idle-timeout",
-      idleTimeoutMs: 20,
+      idleTimeoutMs: AGENT_IDLE_TIMEOUT_MS,
     });
   }, 10_000);
 
@@ -798,8 +801,8 @@ describe("step timeout", () => {
             {
               id: "inner-code",
               type: "code",
-              idleTimeoutMs: 20,
-              timeoutMs: 500,
+              idleTimeoutMs: AGENT_IDLE_TIMEOUT_MS,
+              timeoutMs: AGENT_STEP_TIMEOUT_MS,
               run: () => new Promise(() => {}),
             },
           ],
@@ -815,14 +818,14 @@ describe("step timeout", () => {
     expect(child).toMatchObject({
       status: "failed",
       errorKind: "idle-timeout",
-      idleTimeoutMs: 20,
+      idleTimeoutMs: AGENT_IDLE_TIMEOUT_MS,
     });
   }, 10_000);
 
   it("preserves agent idle-timeout details and backoff from parallel groups", async () => {
     const harness = "workflow-parallel-idle-failure";
     registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
-      await delayWithAbort(200, options.abortController?.signal);
+      await delayWithAbort(AGENT_IDLE_DELAY_MS, options.abortController?.signal);
       return AGENT_OK_RESULT;
     });
 
@@ -835,8 +838,8 @@ describe("step timeout", () => {
           steps: [
             makeAgentStep(projectDir, harness, {
               id: "inner-agent",
-              idleTimeoutMs: 20,
-              timeoutMs: 500,
+              idleTimeoutMs: AGENT_IDLE_TIMEOUT_MS,
+              timeoutMs: AGENT_STEP_TIMEOUT_MS,
               retry: { maxAttempts: 1, initialDelayMs: 1, backoffFactor: 1 },
             }),
           ],
@@ -853,14 +856,14 @@ describe("step timeout", () => {
     expect(child).toMatchObject({
       status: "failed",
       errorKind: "idle-timeout",
-      idleTimeoutMs: 20,
+      idleTimeoutMs: AGENT_IDLE_TIMEOUT_MS,
     });
   }, 10_000);
 
   it("preserves agent idle-timeout details and backoff from foreach groups", async () => {
     const harness = "workflow-foreach-idle-failure";
     registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
-      await delayWithAbort(200, options.abortController?.signal);
+      await delayWithAbort(AGENT_IDLE_DELAY_MS, options.abortController?.signal);
       return AGENT_OK_RESULT;
     });
 
@@ -875,8 +878,8 @@ describe("step timeout", () => {
           steps: [
             makeAgentStep(projectDir, harness, {
               id: "inner-agent",
-              idleTimeoutMs: 20,
-              timeoutMs: 500,
+              idleTimeoutMs: AGENT_IDLE_TIMEOUT_MS,
+              timeoutMs: AGENT_STEP_TIMEOUT_MS,
               retry: { maxAttempts: 1, initialDelayMs: 1, backoffFactor: 1 },
             }),
           ],
@@ -893,14 +896,14 @@ describe("step timeout", () => {
     expect(child).toMatchObject({
       status: "failed",
       errorKind: "idle-timeout",
-      idleTimeoutMs: 20,
+      idleTimeoutMs: AGENT_IDLE_TIMEOUT_MS,
     });
   }, 10_000);
 
   it("lets hard timeoutMs win before an idle timeout deadline", async () => {
     const harness = "workflow-hard-timeout-wins";
     registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
-      await delayWithAbort(200, options.abortController?.signal);
+      await delayWithAbort(AGENT_IDLE_DELAY_MS, options.abortController?.signal);
       return AGENT_OK_RESULT;
     });
 

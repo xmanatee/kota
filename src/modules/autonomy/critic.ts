@@ -146,17 +146,18 @@ export function createCriticCheck(options?: {
     id: "critic-review",
     type: "code" as const,
     run: async (ctx, parentStep) => {
+      const reviewDir = ctx.workspaceDir ?? ctx.projectDir;
       const harnessName = options?.harnessName ?? parentStep.harness;
       const resolvedConfig: AgentJudgeConfig = { ...baseConfig, harness: harnessName };
-      const target = findTaskReviewTarget(ctx.projectDir);
+      const target = findTaskReviewTarget(reviewDir);
       if (!target) {
         return "OK: no task in doing/ — skipping critic review";
       }
 
       const taskContent = target.content;
-      const diffStat = getStagedDiff(ctx.projectDir);
-      const diffContent = getStagedDiffContent(ctx.projectDir);
-      const changedFiles = getChangedFiles(ctx.projectDir);
+      const diffStat = getStagedDiff(reviewDir);
+      const diffContent = getStagedDiffContent(reviewDir);
+      const changedFiles = getChangedFiles(reviewDir);
       const runDir = options?.runDirPath ?? ctx.workflow.runDirPath;
       const taskId = taskIdFromReviewTargetPath(target.path);
       const fallbackFileLineCitations = fileLineCitationsFromUnifiedDiff(diffContent);
@@ -168,7 +169,7 @@ export function createCriticCheck(options?: {
         fallbackFileLineCitations,
       };
 
-      const probeResult = runProbeIfDeclared(taskContent, target.path, ctx.projectDir, runDir);
+      const probeResult = runProbeIfDeclared(taskContent, target.path, reviewDir, runDir);
       const productEvidence = checkProductOperatorEvidence({
         taskContent,
         taskState: target.state,
@@ -202,7 +203,7 @@ export function createCriticCheck(options?: {
         changedFiles,
         "",
         "## Review context",
-        `Project root: ${ctx.projectDir}`,
+        `Project root: ${reviewDir}`,
         `Run directory: ${runDir}`,
         "Start from the task, final task state, changed files, and diff below.",
         "If completeness is uncertain, inspect run artifacts yourself: metadata.json, steps/*.json (structured step outputs), steps/*.input.md, steps/*.tool-telemetry.json, and related repo files.",
@@ -228,7 +229,7 @@ export function createCriticCheck(options?: {
 
       let response: Awaited<ReturnType<typeof invokeAgentJudge>>;
       try {
-        response = await invokeAgentJudge(userMessage, ctx.projectDir, resolvedConfig);
+        response = await invokeAgentJudge(userMessage, reviewDir, resolvedConfig);
       } catch (err) {
         const judgeError = err instanceof Error ? err : new Error(String(err));
         // Runaway judge (max turns / max tokens) is an evaluator-side

@@ -45,9 +45,12 @@ export type WorkflowRecoveryRetryAttempt = {
   attemptedAt: string;
 };
 
+export type WorkflowRecoveryDirtyCheckout = "canonical" | "workspace";
+
 export type WorkflowRecoveryState = {
   sourceRunId: string;
   sourceWorkflow: string;
+  dirtyCheckout?: WorkflowRecoveryDirtyCheckout;
   worktreeFingerprint: string;
   worktreeSummary: string;
   attempts: number;
@@ -144,6 +147,7 @@ export type WorkflowStepResult = {
 
 export type WorkflowStepContext = {
   projectDir: string;
+  workspaceDir?: string;
   stateDir?: string;
   eventJournal?: EventJournal;
   workflow: WorkflowContextInfo;

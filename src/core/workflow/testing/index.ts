@@ -78,6 +78,11 @@ export type HarnessOptions = {
    */
   projectDir?: string;
   /**
+   * Mutable checkout passed to workflow step contexts. Omitted means code
+   * steps see the same checkout as projectDir.
+   */
+  workspaceDir?: string;
+  /**
    * Mock outputs for agent steps and (optionally) tool steps.
    * Agent steps require a mock; a missing mock throws a clear error.
    * Tool steps use the mock when provided; otherwise context.runTool is called.
@@ -192,6 +197,7 @@ export class WorkflowTestHarness {
       payload: this.#options.trigger?.payload ?? {},
     };
     const projectDir = this.#options.projectDir ?? tmpdir();
+    const workspaceDir = this.#options.workspaceDir ?? projectDir;
     const stepMocks = this.#options.stepMocks ?? {};
     const runParallel = this.#options.parallel ?? false;
 
@@ -219,6 +225,7 @@ export class WorkflowTestHarness {
 
       return {
         projectDir,
+        workspaceDir,
         workflow: {
           name: this.#workflow.name,
           definitionPath: "test",

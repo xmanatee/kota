@@ -27,6 +27,7 @@ import {
   checkActionableTaskClaimed,
   checkActionableTaskResolved,
 } from "./task-state-repair-checks.js";
+import { workflowWorkspaceDir } from "./workspace.js";
 
 export { checkModuleBoundary } from "./project-repair-checks.js";
 export {
@@ -43,12 +44,13 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
     {
       id: "actionable-task-claimed",
       type: "code" as const,
-      run: (ctx) => checkActionableTaskClaimed(ctx.projectDir),
+      run: (ctx) => checkActionableTaskClaimed(workflowWorkspaceDir(ctx)),
     },
     {
       id: "success-criteria-declared",
       type: "code" as const,
-      run: (ctx) => checkSuccessCriteriaDeclared(ctx.workflow.runDirPath, ctx.projectDir),
+      run: (ctx) =>
+        checkSuccessCriteriaDeclared(ctx.workflow.runDirPath, workflowWorkspaceDir(ctx)),
     },
     {
       id: "success-criteria-verified",
@@ -60,78 +62,81 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       id: "actionable-task-resolved",
       type: "code" as const,
       phase: 1,
-      run: (ctx) => checkActionableTaskResolved(ctx.projectDir),
+      run: (ctx) => checkActionableTaskResolved(workflowWorkspaceDir(ctx)),
     },
     {
       id: "build-output",
       type: "code" as const,
-      run: (ctx) => checkPackageScript(ctx.projectDir, "pnpm build"),
+      run: (ctx) => checkPackageScript(workflowWorkspaceDir(ctx), "pnpm build"),
     },
     {
       id: "workflow-validate",
       type: "code" as const,
       phase: 1,
-      run: (ctx) => checkPackageScript(ctx.projectDir, "pnpm dev workflow validate"),
+      run: (ctx) => checkPackageScript(workflowWorkspaceDir(ctx), "pnpm dev workflow validate"),
     },
     {
       id: "task-queue-valid",
       type: "code" as const,
       phase: 1,
-      run: (ctx) => checkPackageScript(ctx.projectDir, "pnpm run validate-tasks"),
+      run: (ctx) => checkPackageScript(workflowWorkspaceDir(ctx), "pnpm run validate-tasks"),
     },
     {
       id: "typecheck",
       type: "code" as const,
       phase: 1,
-      run: (ctx) => checkPackageScript(ctx.projectDir, "pnpm run typecheck"),
+      run: (ctx) => checkPackageScript(workflowWorkspaceDir(ctx), "pnpm run typecheck"),
     },
     {
       id: "lint",
       type: "code" as const,
       phase: 1,
       run: (ctx) =>
-        checkPackageScript(ctx.projectDir, "pnpm run lint:fix && git add -u && pnpm run lint"),
+        checkPackageScript(
+          workflowWorkspaceDir(ctx),
+          "pnpm run lint:fix && git add -u && pnpm run lint",
+        ),
     },
     {
       id: "test",
       type: "code" as const,
       phase: 1,
-      run: (ctx) => checkPackageScript(ctx.projectDir, "pnpm test", 300_000),
+      run: (ctx) => checkPackageScript(workflowWorkspaceDir(ctx), "pnpm test", 300_000),
     },
     {
       id: "mobile-typecheck",
       type: "code" as const,
       phase: 1,
-      run: (ctx) => checkMobileTypecheck(ctx.projectDir),
+      run: (ctx) => checkMobileTypecheck(workflowWorkspaceDir(ctx)),
     },
     {
       id: "macos-swift-build",
       type: "code" as const,
       phase: 1,
-      run: (ctx) => checkMacosSwiftBuild(ctx.projectDir),
+      run: (ctx) => checkMacosSwiftBuild(workflowWorkspaceDir(ctx)),
     },
     {
       id: "module-boundary",
       type: "code" as const,
       phase: 1,
-      run: (ctx) => checkModuleBoundary(ctx.projectDir),
+      run: (ctx) => checkModuleBoundary(workflowWorkspaceDir(ctx)),
     },
     {
       id: "no-scratch-artifacts",
       type: "code" as const,
-      run: (ctx) => checkNoScratchArtifacts(ctx.projectDir),
+      run: (ctx) => checkNoScratchArtifacts(workflowWorkspaceDir(ctx)),
     },
     {
       id: "doc-bloat",
       type: "code" as const,
       phase: 1,
-      run: (ctx) => checkDocBloat(ctx.projectDir),
+      run: (ctx) => checkDocBloat(workflowWorkspaceDir(ctx)),
     },
     {
       id: "repo-hygiene",
       type: "code" as const,
       phase: 1,
-      run: (ctx) => checkRepoHygiene(ctx.projectDir),
+      run: (ctx) => checkRepoHygiene(workflowWorkspaceDir(ctx)),
     },
     {
       id: OBSERVABILITY_OBLIGATION_WARNING_TYPE,
@@ -139,30 +144,34 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       severity: "warning" as const,
       phase: 1,
       run: (ctx) =>
-        checkObservabilityObligationsForRun(ctx.projectDir, ctx.workflow.runDirPath),
+        checkObservabilityObligationsForRun(
+          workflowWorkspaceDir(ctx),
+          ctx.workflow.runDirPath,
+        ),
     },
     {
       id: SOURCE_FILE_SIZE_SEVERE_TYPE,
       type: "code" as const,
       phase: 1,
-      run: (ctx) => checkSevereSourceFileSizeForRun(ctx.projectDir, ctx.workflow.runDirPath),
+      run: (ctx) =>
+        checkSevereSourceFileSizeForRun(workflowWorkspaceDir(ctx), ctx.workflow.runDirPath),
     },
     {
       id: SOURCE_FILE_SIZE_WARNING_TYPE,
       type: "code" as const,
       severity: "warning" as const,
       phase: 1,
-      run: (ctx) => checkSourceFileSize(ctx.projectDir),
+      run: (ctx) => checkSourceFileSize(workflowWorkspaceDir(ctx)),
     },
     {
       id: "commit-message-exists",
       type: "code" as const,
-      run: (ctx) => checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir),
+      run: (ctx) => checkCommitMessageExists(ctx.workflow.runDirPath, workflowWorkspaceDir(ctx)),
     },
     {
       id: "commit-stageable",
       type: "code" as const,
-      run: (ctx) => checkCommitStageable(ctx.projectDir),
+      run: (ctx) => checkCommitStageable(workflowWorkspaceDir(ctx)),
     },
     { ...createCriticCheck(), phase: 2 },
   ];

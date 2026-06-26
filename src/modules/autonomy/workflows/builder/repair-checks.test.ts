@@ -128,4 +128,51 @@ describe("builder source-size repair checks", () => {
         missingFiles: ["src/core/workflow/retry.ts"],
       });
   });
+
+  it("runs repository-backed checks against workspaceDir while writing artifacts to the run directory", async () => {
+    const projectDir = join(tmpdir(), `kota-builder-canonical-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+    mkdirSync(projectDir, { recursive: true });
+    initRepo(projectDir);
+    const workflowDir = join(repoDir, "src", "core", "workflow");
+    mkdirSync(workflowDir, { recursive: true });
+    writeFileSync(
+      join(workflowDir, "workspace-retry.ts"),
+      [
+        "export async function runStep(step: { run(): Promise<void> }) {",
+        "  try {",
+        "    return await step.run();",
+        "  } catch (error) {",
+        "    return null;",
+        "  }",
+        "}",
+      ].join("\n"),
+    );
+    execSync("git add src/core/workflow/workspace-retry.ts", { cwd: repoDir });
+    const runDir = join(projectDir, ".kota", "runs", "test-run-workspace");
+    mkdirSync(runDir, { recursive: true });
+    const checks = new Map(builderRepairChecks().map((check) => [check.id, check]));
+    const observability = checks.get(OBSERVABILITY_OBLIGATION_WARNING_TYPE);
+    const ctx = {
+      projectDir,
+      workspaceDir: repoDir,
+      workflow: { runDirPath: runDir },
+    } as WorkflowStepContext;
+
+    try {
+      if (!observability || observability.type !== "code") {
+        throw new Error("missing observability obligation check");
+      }
+
+      expect(() => observability.run(ctx, {} as never)).toThrow(
+        OBSERVABILITY_OBLIGATION_WARNING_TYPE,
+      );
+      expect(JSON.parse(readFileSync(join(runDir, OBSERVABILITY_OBLIGATION_REVIEW_ARTIFACT), "utf-8")))
+        .toMatchObject({
+          outcome: "warning",
+          missingFiles: ["src/core/workflow/workspace-retry.ts"],
+        });
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
 });

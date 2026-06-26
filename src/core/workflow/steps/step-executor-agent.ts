@@ -70,6 +70,7 @@ export type AgentStepConfig = {
   model?: string;
   config?: KotaConfig;
   projectDir: string;
+  workspaceDir?: string;
   log?: (message: string) => void;
   resolveAgentDef?: (name: string) => AgentDef | undefined;
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
@@ -108,6 +109,7 @@ export async function executeAgentStep(
 ): Promise<AgentStepResult> {
   const resolvedHarness = resolveAgentHarness(step.harness);
   const resolvedModel = resolveAgentModel(step, agentConfig);
+  const workspaceDir = agentConfig.workspaceDir ?? agentConfig.projectDir;
   const capabilitySnapshot = writeHarnessCapabilityArtifact(
     step.id,
     metadata,
@@ -163,8 +165,8 @@ export async function executeAgentStep(
   // Snapshot before run so post-step writeScope diff excludes paths another
   // step or pre-existing dirt mutated.
   const preStepMutatedPaths = scopedAgent
-    ? listWorkflowMutatedPaths(agentConfig.projectDir)
-    : (tryListWorkflowMutatedPaths(agentConfig.projectDir) ?? []);
+    ? listWorkflowMutatedPaths(workspaceDir)
+    : (tryListWorkflowMutatedPaths(workspaceDir) ?? []);
   const bufferAgentMessages = step.validate !== undefined;
   let successfulAttemptMessages: KotaAgentMessage[] = [];
   let lastJsonOutputFeedback: string | undefined;
@@ -221,7 +223,7 @@ export async function executeAgentStep(
       agentConfig.projectDir,
       tokenBudget,
     );
-    removeWorkflowScratchArtifacts(agentConfig.projectDir);
+    removeWorkflowScratchArtifacts(workspaceDir);
   }
 
   if (bufferAgentMessages) {
@@ -233,8 +235,8 @@ export async function executeAgentStep(
   }
 
   const postStepMutatedPaths = scopedAgent
-    ? listWorkflowMutatedPaths(agentConfig.projectDir)
-    : (tryListWorkflowMutatedPaths(agentConfig.projectDir) ?? []);
+    ? listWorkflowMutatedPaths(workspaceDir)
+    : (tryListWorkflowMutatedPaths(workspaceDir) ?? []);
   const stepMutatedPaths = diffMutatedPaths(
     preStepMutatedPaths,
     postStepMutatedPaths,

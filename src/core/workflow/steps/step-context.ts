@@ -22,7 +22,7 @@ function buildToolContext(
   metadata: WorkflowRunMetadata,
   pbus: ProjectScopedEventBus,
   stepId: string,
-  projectDir: string,
+  workspaceDir: string,
 ): {
   cwd: string;
   stepId: string;
@@ -40,7 +40,7 @@ function buildToolContext(
   const scopeId = pbus.getScopeId();
   const projectId = pbus.getProjectId();
   return {
-    cwd: projectDir,
+    cwd: workspaceDir,
     stepId,
     scopeId,
     projectId,
@@ -90,6 +90,7 @@ export function createStepContext(
   stepOutputList: unknown[],
   deps: {
     projectDir: string;
+    workspaceDir?: string;
     bus: EventBus;
     pbus: ProjectScopedEventBus;
     store: WorkflowRunStore;
@@ -106,11 +107,13 @@ export function createStepContext(
   },
 ): WorkflowStepContext {
   const runDirPath = resolve(deps.projectDir, metadata.runDir);
+  const workspaceDir = deps.workspaceDir ?? deps.projectDir;
   const stateDir = deps.eventJournal
     ? dirname(dirname(deps.eventJournal.getPath()))
     : deps.store.rootDir;
   return {
     projectDir: deps.projectDir,
+    workspaceDir,
     stateDir,
     ...(deps.eventJournal !== undefined
       ? { eventJournal: deps.eventJournal }
@@ -129,7 +132,7 @@ export function createStepContext(
     stepOutputList,
     runTool: async (name, input, toolContext) => {
       const stepId = toolContext?.stepId ?? deps.currentStepId ?? "unknown";
-      const context = buildToolContext(metadata, deps.pbus, stepId, deps.projectDir);
+      const context = buildToolContext(metadata, deps.pbus, stepId, workspaceDir);
       if (deps.runTool) {
         return deps.runTool(name, input, context);
       }

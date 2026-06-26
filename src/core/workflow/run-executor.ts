@@ -32,6 +32,7 @@ import type { WorkflowDefinition } from "./types.js";
 
 export type RunExecutorDeps = {
   projectDir: string;
+  workspaceDir?: string;
   bus: EventBus;
   /**
    * Per-project view over {@link bus}. The executor emits every workflow-
@@ -83,8 +84,9 @@ export function executeWorkflowRun(
   // tests) get a wrapper bound to their own `projectDir`. Either way the
   // run is attributed to the project producing it, never the registry's
   // default.
-  const deps: RunExecutorDeps & { pbus: ProjectScopedEventBus } = {
+  const deps: RunExecutorDeps & { pbus: ProjectScopedEventBus; workspaceDir: string } = {
     ...inputDeps,
+    workspaceDir: inputDeps.workspaceDir ?? inputDeps.projectDir,
     pbus:
       inputDeps.pbus ??
       new ProjectScopedEventBus(inputDeps.bus, deriveDirectoryScopeId(inputDeps.projectDir)),
@@ -151,6 +153,7 @@ export function executeWorkflowRun(
           model: deps.model,
           config: deps.config,
           projectDir: deps.projectDir,
+          workspaceDir: deps.workspaceDir,
           log: deps.log,
           resolveAgentDef: deps.resolveAgentDef,
           resolveSkillsPrompt: deps.resolveSkillsPrompt,
