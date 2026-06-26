@@ -3,7 +3,6 @@ import type {
   AgentHarnessResult,
   AgentHarnessRunOptions,
   AgentHarnessWriter,
-  KotaMessage,
   KotaToolUseBlock,
 } from "#core/agent-harness/index.js";
 import { agentTokenUsageFromModelUsage } from "#core/agent-harness/index.js";
@@ -32,6 +31,7 @@ import {
   openaiToolsReadiness,
   rejectUnsupportedOptions,
 } from "./options.js";
+import { createOpenaiToolsSessionRuntime } from "./session-runtime.js";
 import {
   openaiToolsTokenBudgetErrorResult,
   openaiToolsTokenBudgetSource,
@@ -108,8 +108,13 @@ async function runOpenaiToolsLoop(
       options.modelOutputTokenLimits,
     );
     const maxTurns = options.maxTurns ?? DEFAULT_MAX_TURNS;
-
-    const messages: KotaMessage[] = [{ role: "user", content: options.prompt }];
+    const sessionRuntime = createOpenaiToolsSessionRuntime({
+      options,
+      projectDir,
+      resolved,
+      outputTokenLimit,
+    });
+    const messages = sessionRuntime.messages;
     let inputTokens = 0;
     let outputTokens = 0;
     let lastSessionId: string | undefined;
@@ -119,6 +124,19 @@ async function runOpenaiToolsLoop(
     let lastSubtype: string | undefined;
     let finalText = "";
     const failureTracker = new FailureTracker();
+
+    function currentResult(): AgentHarnessResult {
+      return {
+        text: finalText,
+        streamedText: streamedChunks.join(""),
+        ...(lastSessionId !== undefined ? { sessionId: lastSessionId } : {}),
+        turns: turnCount,
+        inputTokens,
+        outputTokens,
+        isError,
+        ...(lastSubtype !== undefined ? { subtype: lastSubtype } : {}),
+      };
+    }
 
     for (let turn = 0; turn < maxTurns; turn += 1) {
       checkAborted(options.abortController?.signal);
@@ -130,6 +148,10 @@ async function runOpenaiToolsLoop(
         options.disallowedTools,
         options.askOwner !== undefined,
         mcpTools,
+      );
+      sessionRuntime.validateTools(
+        tools,
+        mcpPromptToolDeclarationFingerprints,
       );
       const tokenBudgetSource = openaiToolsTokenBudgetSource(
         options,
@@ -201,16 +223,7 @@ async function runOpenaiToolsLoop(
       }
 
       if (toolBlocks.length === 0 || finalMessage.stop_reason === "end_turn") {
-        return {
-          text: finalText,
-          streamedText: streamedChunks.join(""),
-          ...(lastSessionId !== undefined ? { sessionId: lastSessionId } : {}),
-          turns: turnCount,
-          inputTokens,
-          outputTokens,
-          isError,
-          ...(lastSubtype !== undefined ? { subtype: lastSubtype } : {}),
-        };
+        return sessionRuntime.finalize(currentResult(), lastSessionId);
       }
 
       let toolResults: ToolResultEntry[];
@@ -256,16 +269,7 @@ async function runOpenaiToolsLoop(
         finalText = message;
         isError = true;
         lastSubtype = "interrupted_by_can_use_tool";
-        return {
-          text: finalText,
-          streamedText: streamedChunks.join(""),
-          ...(lastSessionId !== undefined ? { sessionId: lastSessionId } : {}),
-          turns: turnCount,
-          inputTokens,
-          outputTokens,
-          isError,
-          subtype: lastSubtype,
-        };
+        return sessionRuntime.finalize(currentResult(), lastSessionId);
       }
 
       const resultBlocks = toolResults.map(toolResultEntryToBlock);
@@ -281,18 +285,9 @@ async function runOpenaiToolsLoop(
 
     isError = true;
     lastSubtype = "max_turns_reached";
-    return {
-      text:
-        finalText ||
-        `openai-tools harness reached maxTurns=${maxTurns} without ending.`,
-      streamedText: streamedChunks.join(""),
-      ...(lastSessionId !== undefined ? { sessionId: lastSessionId } : {}),
-      turns: turnCount,
-      inputTokens,
-      outputTokens,
-      isError,
-      subtype: lastSubtype,
-    };
+    finalText =
+      finalText || `openai-tools harness reached maxTurns=${maxTurns} without ending.`;
+    return sessionRuntime.finalize(currentResult(), lastSessionId);
   } finally {
     await mcpManager?.close();
   }

@@ -1,14 +1,14 @@
 ---
 id: task-add-kota-owned-session-resume-for-model-client-har
 title: Add KOTA-owned session resume for model-client harnesses
-status: ready
+status: done
 priority: p1
 area: core
 task_class: Platform
 depends_on: [task-route-openai-tools-through-the-kota-tool-runner-wi]
 summary: Implement KOTA-owned persistSession and resumeSessionId support for OpenAI-compatible model-client harnesses so delegate and handoff transfer flows do not depend on provider-native sessions.
 created_at: 2026-06-25T14:23:13.216Z
-updated_at: 2026-06-26T07:19:27.171Z
+updated_at: 2026-06-26T08:39:06.000Z
 ---
 
 ## Problem
@@ -65,6 +65,7 @@ OpenRouter/local model parity for KOTA autonomy.
 
 ## Acceptance Evidence
 
-- `pnpm test src/history-resume.integration.test.ts src/named-agent-handoff.integration.test.ts src/modules/openai-tools-agent-harness/adapter.test.ts` passes with model-client resume coverage.
-- A captured transcript under `.kota/runs/<run-id>/` shows an `openai-tools`
-  run persisting a session, resuming it, and preserving prior tool context.
+- `pnpm test src/history-resume.integration.test.ts src/named-agent-handoff.integration.test.ts src/modules/openai-tools-agent-harness/adapter.test.ts` passed in run `2026-06-26T08-24-22-825Z-builder-iai13p`.
+- `pnpm test src/modules/openai-tools-agent-harness/adapter.test.ts src/modules/openai-tools-agent-harness/adapter-mcp-shared-runner.test.ts` passed in run `2026-06-26T08-24-22-825Z-builder-iai13p`.
+- `pnpm test src/modules/openai-tools-agent-harness/adapter-session-resume.test.ts src/modules/openai-tools-agent-harness/adapter-mcp-shared-runner.test.ts src/modules/openai-tools-agent-harness/adapter.test.ts` passed during post-check repair in run `2026-06-26T08-24-22-825Z-builder-iai13p`.
+- `.kota/runs/2026-06-26T08-24-22-825Z-builder-iai13p/openai-tools-resume-transcript.txt` captures the focused persist/resume transcript for the neutral transcript replay scenario.

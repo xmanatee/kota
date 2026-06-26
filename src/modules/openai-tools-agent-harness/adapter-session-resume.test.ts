@@ -1,0 +1,200 @@
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it, vi } from "vitest";
+import type { KotaMessage } from "#core/agent-harness/message-protocol.js";
+import {
+  createModelClientMock,
+  executeToolMock,
+  getAllToolsMock,
+  messagesStreamMock,
+  openaiToolsAgentHarness,
+  queueEnd,
+  queueToolUse,
+  streamCallSnapshots,
+  tool,
+} from "./adapter-shared-runner-test-support.js";
+
+function createProjectDir(prefix: string): string {
+  return mkdtempSync(join(tmpdir(), prefix));
+}
+
+describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
+  it("persists a neutral transcript and replays it before the resumed prompt", async () => {
+    const projectDir = createProjectDir("openai-tools-resume-");
+    try {
+      getAllToolsMock.mockReturnValue([tool("echo_tool")]);
+      queueToolUse("call_persist", "echo_tool", { text: "hello" });
+      queueEnd("saved");
+      executeToolMock.mockResolvedValue({ content: "echo: hello" });
+
+      const persisted = await openaiToolsAgentHarness.run({
+        prompt: "please echo",
+        model: "openai/gpt-5.4-mini",
+        effort: "xhigh",
+        cwd: projectDir,
+        persistSession: true,
+      });
+
+      expect(persisted.sessionId).toMatch(/^ots_/);
+      expect(persisted.sessionId).not.toBe("msg_end");
+
+      const sessionPath = join(
+        projectDir,
+        ".kota",
+        "openai-tools-agent-harness",
+        "sessions",
+        `${persisted.sessionId}.json`,
+      );
+      const record = JSON.parse(readFileSync(sessionPath, "utf8")) as {
+        context: { model: string; providerName: string; cwd: string };
+        lastProviderMessageId: string;
+        messages: KotaMessage[];
+      };
+      expect(record.context).toMatchObject({
+        model: "openai/gpt-5.4-mini",
+        providerName: "openai",
+        cwd: projectDir,
+      });
+      expect(record.lastProviderMessageId).toBe("msg_end");
+      expect(JSON.stringify(record.messages)).toContain("echo: hello");
+
+      queueEnd("continued with context");
+      const resumed = await openaiToolsAgentHarness.run({
+        prompt: "continue",
+        model: "openai/gpt-5.4-mini",
+        effort: "xhigh",
+        cwd: projectDir,
+        resumeSessionId: persisted.sessionId,
+      });
+
+      expect(resumed).toMatchObject({
+        sessionId: persisted.sessionId,
+        text: "continued with context",
+        turns: 1,
+        inputTokens: 1,
+        outputTokens: 1,
+      });
+      const replayedMessages = streamCallSnapshots[2].messages;
+      expect(replayedMessages[0]).toEqual({ role: "user", content: "please echo" });
+      expect(replayedMessages.at(-1)).toEqual({
+        role: "user",
+        content: "continue",
+      });
+      expect(JSON.stringify(replayedMessages)).toContain("echo: hello");
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a missing KOTA-owned session id before dispatching a model call", async () => {
+    const projectDir = createProjectDir("openai-tools-missing-resume-");
+    try {
+      await expect(
+        openaiToolsAgentHarness.run({
+          prompt: "continue",
+          model: "openai/gpt-5.4-mini",
+          effort: "xhigh",
+          cwd: projectDir,
+          resumeSessionId: "ots_00000000-0000-0000-0000-000000000000",
+        }),
+      ).rejects.toThrow(/was not found/);
+      expect(messagesStreamMock).not.toHaveBeenCalled();
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects resumes with incompatible model, provider, or token capability metadata", async () => {
+    const projectDir = createProjectDir("openai-tools-context-resume-");
+    try {
+      queueEnd("saved");
+      const persisted = await openaiToolsAgentHarness.run({
+        prompt: "save",
+        model: "openai/gpt-5.4-mini",
+        effort: "xhigh",
+        cwd: projectDir,
+        persistSession: true,
+      });
+
+      await expect(
+        openaiToolsAgentHarness.run({
+          prompt: "resume",
+          model: "openai/gpt-5.5",
+          effort: "xhigh",
+          cwd: projectDir,
+          resumeSessionId: persisted.sessionId,
+        }),
+      ).rejects.toThrow(/created for model/);
+
+      createModelClientMock.mockImplementationOnce(({ model }) => ({
+        client: { messages: { create: vi.fn(), stream: messagesStreamMock } },
+        model,
+        providerName: "openrouter",
+      }));
+      await expect(
+        openaiToolsAgentHarness.run({
+          prompt: "resume",
+          model: "openai/gpt-5.4-mini",
+          effort: "xhigh",
+          cwd: projectDir,
+          resumeSessionId: persisted.sessionId,
+        }),
+      ).rejects.toThrow(/created for provider/);
+
+      await expect(
+        openaiToolsAgentHarness.run({
+          prompt: "resume",
+          model: "openai/gpt-5.4-mini",
+          modelOutputTokenLimits: { "openai/gpt-5.4-mini": 7777 },
+          effort: "xhigh",
+          cwd: projectDir,
+          resumeSessionId: persisted.sessionId,
+        }),
+      ).rejects.toThrow(/output-token capability changed/);
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects resumes when a previously exposed local tool is missing or changed", async () => {
+    const projectDir = createProjectDir("openai-tools-tool-resume-");
+    try {
+      getAllToolsMock.mockReturnValue([tool("echo_tool")]);
+      queueEnd("saved");
+      const persisted = await openaiToolsAgentHarness.run({
+        prompt: "save",
+        model: "openai/gpt-5.4-mini",
+        effort: "xhigh",
+        cwd: projectDir,
+        persistSession: true,
+      });
+
+      getAllToolsMock.mockReturnValue([]);
+      await expect(
+        openaiToolsAgentHarness.run({
+          prompt: "resume",
+          model: "openai/gpt-5.4-mini",
+          effort: "xhigh",
+          cwd: projectDir,
+          resumeSessionId: persisted.sessionId,
+        }),
+      ).rejects.toThrow(/references unavailable tool "echo_tool"/);
+
+      getAllToolsMock.mockReturnValue([
+        { ...tool("echo_tool"), description: "Changed echo declaration" },
+      ]);
+      await expect(
+        openaiToolsAgentHarness.run({
+          prompt: "resume",
+          model: "openai/gpt-5.4-mini",
+          effort: "xhigh",
+          cwd: projectDir,
+          resumeSessionId: persisted.sessionId,
+        }),
+      ).rejects.toThrow(/tool declaration for "echo_tool" changed/);
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+});

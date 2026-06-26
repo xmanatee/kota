@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { KotaToolResultBlock } from "#core/agent-harness/message-protocol.js";
 import { McpManager } from "#core/mcp/manager.js";
@@ -88,6 +91,52 @@ describe("openaiToolsAgentHarness MCP shared runner", () => {
 		} finally {
 			getToolsSpy.mockRestore();
 			fingerprintSpy.mockRestore();
+		}
+	});
+
+	it("rejects a resumed session when an MCP declaration fingerprint changes", async () => {
+		const projectDir = mkdtempSync(join(tmpdir(), "openai-tools-mcp-resume-"));
+		let fingerprint = "fp:initial";
+		const fingerprintSpy = vi
+			.spyOn(McpManager.prototype, "getToolDeclarationFingerprint")
+			.mockImplementation(() => fingerprint);
+		try {
+			queueEnd("saved");
+			const persisted = await openaiToolsAgentHarness.run({
+				prompt: "save mcp state",
+				model: "openai/gpt-5.4-mini",
+				effort: "xhigh",
+				cwd: projectDir,
+				persistSession: true,
+				mcpServers: {
+					remote: {
+						type: "stdio",
+						command: process.execPath,
+						args: ["-e", mcpFixtureServer()],
+					},
+				},
+			});
+
+			fingerprint = "fp:changed";
+			await expect(
+				openaiToolsAgentHarness.run({
+					prompt: "resume",
+					model: "openai/gpt-5.4-mini",
+					effort: "xhigh",
+					cwd: projectDir,
+					resumeSessionId: persisted.sessionId,
+					mcpServers: {
+						remote: {
+							type: "stdio",
+							command: process.execPath,
+							args: ["-e", mcpFixtureServer()],
+						},
+					},
+				}),
+			).rejects.toThrow(/tool declaration for "mcp__remote__lookup" changed/);
+		} finally {
+			fingerprintSpy.mockRestore();
+			rmSync(projectDir, { recursive: true, force: true });
 		}
 	});
 });

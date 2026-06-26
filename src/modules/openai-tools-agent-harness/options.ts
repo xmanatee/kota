@@ -7,16 +7,6 @@ import { probeCurrentNodeRuntime } from "#core/agent-harness/index.js";
 
 export const OPENAI_TOOLS_UNSUPPORTED_OPTIONS = [
   {
-    runOption: "persistSession",
-    option: "persistSession",
-    reason: "The openai-tools harness does not persist native sessions.",
-  },
-  {
-    runOption: "resumeSessionId",
-    option: "resumeSessionId",
-    reason: "The openai-tools harness does not resume native sessions.",
-  },
-  {
     runOption: "harnessOverrides",
     option: "harnessOverrides",
     reason: "The openai-tools harness does not accept per-step harnessOptions.",
@@ -48,18 +38,6 @@ export function openaiToolsReadiness(): AgentHarnessReadiness {
 }
 
 export function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
-  if (options.persistSession === true) {
-    throw new Error(
-      'The "openai-tools" agent harness does not persist sessions. ' +
-        "Drop persistSession or run claude-agent-sdk for native session resumption.",
-    );
-  }
-  if (options.resumeSessionId !== undefined) {
-    throw new Error(
-      'The "openai-tools" agent harness does not resume native sessions. ' +
-        "Drop resumeSessionId or run claude-agent-sdk.",
-    );
-  }
   if (options.harnessOverrides !== undefined) {
     throw new Error(
       'The "openai-tools" agent harness does not accept per-step harnessOptions. ' +
