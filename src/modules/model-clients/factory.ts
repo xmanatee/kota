@@ -14,6 +14,7 @@ import type { ModelClient, ProviderFactoryOptions, ResolvedProvider } from "#cor
 import { AnthropicModelClient } from "./anthropic.js";
 import { FailoverModelClient } from "./failover-client.js";
 import { OpenAIModelClient } from "./openai/client.js";
+import { resolveOpenAIModelCapabilities } from "./openrouter-capabilities.js";
 import {
 	anthropicThinkingTranslator,
 	type EffortTranslator,
@@ -135,6 +136,7 @@ export function resolveApiKey(
 
 function createClientForProvider(
 	providerName: string,
+	model: string,
 	baseUrl?: string,
 	apiKey?: string,
 	options: SecretResolutionOptions = {},
@@ -158,10 +160,12 @@ function createClientForProvider(
 	}
 
 	const resolvedKey = resolveApiKey(providerName, apiKey, options);
+	const modelCapabilities = resolveOpenAIModelCapabilities(providerName, model);
 	return new OpenAIModelClient({
 		baseUrl: resolvedBaseUrl,
 		apiKey: resolvedKey,
 		presetName: providerName,
+		...(modelCapabilities !== undefined ? { modelCapabilities } : {}),
 		...(preset?.effortTranslator
 			? { effortTranslator: preset.effortTranslator }
 			: {}),
@@ -191,6 +195,7 @@ export function createModelClientImpl(
 
 	const primary = createClientForProvider(
 		providerName,
+		model,
 		opts.baseUrl,
 		opts.apiKey,
 		opts,
@@ -217,12 +222,14 @@ export function createModelClientWithFailover(
 
 	const primary = createClientForProvider(
 		providerName,
+		model,
 		opts.baseUrl,
 		opts.apiKey,
 		opts,
 	);
 	const fallback = createClientForProvider(
 		failoverConfig.provider,
+		model,
 		failoverConfig.baseUrl,
 		failoverConfig.apiKey,
 		opts,

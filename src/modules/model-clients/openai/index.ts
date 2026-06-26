@@ -7,11 +7,25 @@ export { type OpenAIClientOptions, OpenAIModelClient } from "./client.js";
 export { OpenAIStream } from "./stream.js";
 export {
 	buildKotaModelResponse,
+	extractReasoningText,
 	extractToolResultContent,
 	mapFinishReason,
+	openAIUsageToKotaUsage,
 	safeJsonParse,
 	systemToText,
 	toOpenAIMessages,
 	toOpenAITools,
 } from "./translations.js";
-export type { OAIMessage, OAIResponse, OAIStreamChunk, OAITool, OAIToolCall } from "./types.js";
+export type {
+	OAIMessage,
+	OAIModelCapabilities,
+	OAIProviderRouting,
+	OAIReasoningEffort,
+	OAIRequestOptions,
+	OAIResponse,
+	OAIResponseFormat,
+	OAIStreamChunk,
+	OAITool,
+	OAIToolCall,
+	OAIToolChoice,
+} from "./types.js";

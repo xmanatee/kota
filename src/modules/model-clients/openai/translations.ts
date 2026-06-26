@@ -5,6 +5,7 @@
 
 import type {
 	KotaContentBlock,
+	KotaImageBlock,
 	KotaMessage,
 	KotaModelResponse,
 	KotaStopReason,
@@ -12,7 +13,13 @@ import type {
 	KotaTool,
 	KotaToolResultBlock,
 } from "#core/agent-harness/message-protocol.js";
-import type { OAIMessage, OAITool, OAIToolCall } from "./types.js";
+import type {
+	OAIMessage,
+	OAITool,
+	OAIToolCall,
+	OAIUsage,
+	OAIUserContentPart,
+} from "./types.js";
 
 /** Extract plain text from the system param (string or KotaTextBlock[]). */
 export function systemToText(
@@ -35,14 +42,16 @@ export function kotaMessageToOpenAiMessage(msg: KotaMessage): OAIMessage[] {
 			return [{ role: "user", content: msg.content }];
 		}
 		const entries: OAIMessage[] = [];
-		const textParts: string[] = [];
+		const parts: OAIUserContentPart[] = [];
 		for (const block of msg.content) {
 			if (block.type === "text") {
-				textParts.push(block.text);
+				parts.push({ type: "text", text: block.text });
+			} else if (block.type === "image") {
+				parts.push(imageBlockToOpenAI(block));
 			} else if (block.type === "tool_result") {
-				if (textParts.length > 0) {
-					entries.push({ role: "user", content: textParts.join("\n") });
-					textParts.length = 0;
+				if (parts.length > 0) {
+					entries.push({ role: "user", content: collapseUserContent(parts) });
+					parts.length = 0;
 				}
 				entries.push({
 					role: "tool",
@@ -51,8 +60,8 @@ export function kotaMessageToOpenAiMessage(msg: KotaMessage): OAIMessage[] {
 				});
 			}
 		}
-		if (textParts.length > 0) {
-			entries.push({ role: "user", content: textParts.join("\n") });
+		if (parts.length > 0) {
+			entries.push({ role: "user", content: collapseUserContent(parts) });
 		}
 		return entries;
 	}
@@ -85,6 +94,27 @@ export function kotaMessageToOpenAiMessage(msg: KotaMessage): OAIMessage[] {
 		(entry as { tool_calls?: OAIToolCall[] }).tool_calls = toolCalls;
 	}
 	return [entry];
+}
+
+function imageBlockToOpenAI(block: KotaImageBlock): OAIUserContentPart {
+	return {
+		type: "image_url",
+		image_url: {
+			url: `data:${block.source.media_type};base64,${block.source.data}`,
+		},
+	};
+}
+
+function collapseUserContent(
+	parts: readonly OAIUserContentPart[],
+): string | OAIUserContentPart[] {
+	const hasImage = parts.some((part) => part.type === "image_url");
+	if (!hasImage) {
+		return parts
+			.map((part) => (part.type === "text" ? part.text : ""))
+			.join("\n");
+	}
+	return [...parts];
 }
 
 /** Convert neutral KOTA messages + system to OpenAI message array. */
@@ -174,12 +204,21 @@ export function mapFinishReason(reason: string | null): KotaStopReason {
 /** Build a neutral `KotaModelResponse` from accumulated OpenAI response data. */
 export function buildKotaModelResponse(opts: {
 	text: string;
+	thinking?: string;
 	toolCalls: Array<{ id: string; name: string; input: unknown }>;
 	stopReason: KotaStopReason;
 	model: string;
-	usage: { input: number; output: number };
+	usage: {
+		input: number;
+		output: number;
+		cacheReadInput?: number | null;
+		cacheCreationInput?: number | null;
+	};
 }): KotaModelResponse {
 	const content: KotaContentBlock[] = [];
+	if (opts.thinking) {
+		content.push({ type: "thinking", thinking: opts.thinking, signature: "" });
+	}
 	if (opts.text) {
 		content.push({ type: "text", text: opts.text });
 	}
@@ -204,10 +243,31 @@ export function buildKotaModelResponse(opts: {
 		usage: {
 			input_tokens: opts.usage.input,
 			output_tokens: opts.usage.output,
-			cache_creation_input_tokens: null,
-			cache_read_input_tokens: null,
+			cache_creation_input_tokens: opts.usage.cacheCreationInput ?? null,
+			cache_read_input_tokens: opts.usage.cacheReadInput ?? null,
 		},
 	};
+}
+
+export function openAIUsageToKotaUsage(usage: OAIUsage | undefined): {
+	input: number;
+	output: number;
+	cacheReadInput?: number | null;
+	cacheCreationInput?: number | null;
+} {
+	return {
+		input: usage?.prompt_tokens ?? 0,
+		output: usage?.completion_tokens ?? 0,
+		cacheReadInput: usage?.prompt_tokens_details?.cached_tokens ?? null,
+		cacheCreationInput:
+			usage?.prompt_tokens_details?.cache_creation_tokens ?? null,
+	};
+}
+
+export function extractReasoningText(
+	value: { reasoning?: string | null; reasoning_content?: string | null },
+): string {
+	return value.reasoning ?? value.reasoning_content ?? "";
 }
 
 /** Parse JSON with fallback to raw string wrapper. */

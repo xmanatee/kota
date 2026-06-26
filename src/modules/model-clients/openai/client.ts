@@ -12,10 +12,21 @@ import type {
 	MessageStreamParams,
 	ModelClient,
 } from "#core/model/model-client.js";
-import { buildMissingReasoningError, type EffortTranslator } from "../reasoning.js";
+import type { EffortTranslator } from "../reasoning.js";
+import { buildOpenAIRequestBody } from "./request-body.js";
 import { OpenAIStream } from "./stream.js";
-import { buildKotaModelResponse, mapFinishReason, safeJsonParse, toOpenAIMessages, toOpenAITools } from "./translations.js";
-import type { OAIResponse } from "./types.js";
+import {
+	buildKotaModelResponse,
+	extractReasoningText,
+	mapFinishReason,
+	openAIUsageToKotaUsage,
+	safeJsonParse,
+} from "./translations.js";
+import type {
+	OAIModelCapabilities,
+	OAIRequestOptions,
+	OAIResponse,
+} from "./types.js";
 
 export type OpenAIClientOptions = {
 	baseUrl: string;
@@ -33,6 +44,14 @@ export type OpenAIClientOptions = {
 	 * a call at the provider's default reasoning budget.
 	 */
 	effortTranslator?: EffortTranslator;
+	/**
+	 * Model-specific capability metadata resolved by the provider factory.
+	 * Undefined means a custom/local OpenAI-compatible endpoint where KOTA
+	 * cannot safely validate model-specific feature support.
+	 */
+	modelCapabilities?: OAIModelCapabilities;
+	/** Adapter-private provider wire options; core callers keep using the neutral protocol. */
+	requestOptions?: OAIRequestOptions;
 };
 
 /** ModelClient backed by any OpenAI-compatible API (OpenAI, Ollama, Groq, etc.). */
@@ -42,12 +61,16 @@ export class OpenAIModelClient implements ModelClient {
 	private apiKey: string;
 	private presetName: string;
 	private effortTranslator: EffortTranslator | undefined;
+	private modelCapabilities: OAIModelCapabilities | undefined;
+	private requestOptions: OAIRequestOptions;
 
 	constructor(options: OpenAIClientOptions) {
 		this.baseUrl = options.baseUrl.replace(/\/+$/, "");
 		this.apiKey = options.apiKey;
 		this.presetName = options.presetName;
 		this.effortTranslator = options.effortTranslator;
+		this.modelCapabilities = options.modelCapabilities;
+		this.requestOptions = options.requestOptions ?? {};
 
 		this.messages = {
 			stream: (params: MessageStreamParams) => this.doStream(params),
@@ -106,6 +129,7 @@ export class OpenAIModelClient implements ModelClient {
 		}
 
 		const textContent = choice.message.content ?? "";
+		const thinking = extractReasoningText(choice.message);
 		const toolCalls = (choice.message.tool_calls ?? []).map((tc) => ({
 			id: tc.id,
 			name: tc.function.name,
@@ -114,39 +138,23 @@ export class OpenAIModelClient implements ModelClient {
 
 		return buildKotaModelResponse({
 			text: textContent,
+			...(thinking ? { thinking } : {}),
 			toolCalls,
 			stopReason: mapFinishReason(choice.finish_reason),
 			model: data.model || params.model,
-			usage: {
-				input: data.usage?.prompt_tokens ?? 0,
-				output: data.usage?.completion_tokens ?? 0,
-			},
+			usage: openAIUsageToKotaUsage(data.usage),
 		});
 	}
 
 	private buildRequestBody(
 		params: MessageStreamParams | MessageCreateParams,
 		stream: boolean,
-	): Record<string, unknown> {
-		const oaiMessages = toOpenAIMessages(params.system, params.messages);
-		const body: Record<string, unknown> = {
-			model: params.model,
-			max_tokens: params.max_tokens,
-			messages: oaiMessages,
-			stream,
-		};
-		if ("tools" in params && params.tools?.length) {
-			body.tools = toOpenAITools(params.tools);
-		}
-		if (stream) {
-			body.stream_options = { include_usage: true };
-		}
-		if ("effort" in params && params.effort !== undefined) {
-			if (!this.effortTranslator) {
-				throw buildMissingReasoningError(this.presetName, params.effort);
-			}
-			Object.assign(body, this.effortTranslator.apply(params.effort));
-		}
-		return body;
+	) {
+		return buildOpenAIRequestBody(params, stream, {
+			presetName: this.presetName,
+			effortTranslator: this.effortTranslator,
+			modelCapabilities: this.modelCapabilities,
+			requestOptions: this.requestOptions,
+		});
 	}
 }

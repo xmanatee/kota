@@ -6,8 +6,14 @@ import type {
 	KotaMessageStream,
 	KotaModelResponse,
 } from "#core/agent-harness/message-protocol.js";
-import { buildKotaModelResponse, mapFinishReason, safeJsonParse } from "./translations.js";
-import type { OAIStreamChunk } from "./types.js";
+import {
+	buildKotaModelResponse,
+	extractReasoningText,
+	mapFinishReason,
+	openAIUsageToKotaUsage,
+	safeJsonParse,
+} from "./translations.js";
+import type { OAIReasoningDeltaEvent, OAIStreamChunk } from "./types.js";
 
 export class OpenAIStream implements KotaMessageStream {
 	private listeners = new Map<string, Array<(delta: string) => void>>();
@@ -44,14 +50,14 @@ export class OpenAIStream implements KotaMessageStream {
 		}
 
 		let text = "";
+		let thinking = "";
 		const toolCalls = new Map<
 			number,
 			{ id: string; name: string; args: string }
 		>();
 		let finishReason: string | null = null;
 		let model = fallbackModel;
-		let promptTokens = 0;
-		let completionTokens = 0;
+		let usage = openAIUsageToKotaUsage(undefined);
 
 		const reader = response.body?.getReader();
 		if (!reader) {
@@ -74,17 +80,23 @@ export class OpenAIStream implements KotaMessageStream {
 				const data = line.slice(6).trim();
 				if (data === "[DONE]") continue;
 
-				let chunk: OAIStreamChunk;
+				let parsed: OAIStreamChunk | OAIReasoningDeltaEvent;
 				try {
-					chunk = JSON.parse(data);
+					parsed = JSON.parse(data);
 				} catch {
 					continue;
 				}
+				if (isReasoningDeltaEvent(parsed)) {
+					thinking += parsed.delta;
+					this.emit("thinking", parsed.delta);
+					if (parsed.model) model = parsed.model;
+					continue;
+				}
 
+				const chunk = parsed;
 				model = chunk.model || model;
 				if (chunk.usage) {
-					promptTokens = chunk.usage.prompt_tokens;
-					completionTokens = chunk.usage.completion_tokens;
+					usage = openAIUsageToKotaUsage(chunk.usage);
 				}
 
 				const choice = chunk.choices[0];
@@ -95,6 +107,11 @@ export class OpenAIStream implements KotaMessageStream {
 				if (delta.content) {
 					text += delta.content;
 					this.emit("text", delta.content);
+				}
+				const reasoningDelta = extractReasoningText(delta);
+				if (reasoningDelta) {
+					thinking += reasoningDelta;
+					this.emit("thinking", reasoningDelta);
 				}
 
 				if (delta.tool_calls) {
@@ -107,6 +124,12 @@ export class OpenAIStream implements KotaMessageStream {
 								args: tc.function?.arguments || "",
 							});
 						} else {
+							if (tc.id) {
+								existing.id = tc.id;
+							}
+							if (tc.function?.name) {
+								existing.name += tc.function.name;
+							}
 							if (tc.function?.arguments) {
 								existing.args += tc.function.arguments;
 							}
@@ -124,10 +147,17 @@ export class OpenAIStream implements KotaMessageStream {
 
 		return buildKotaModelResponse({
 			text,
+			...(thinking ? { thinking } : {}),
 			toolCalls: parsedToolCalls,
 			stopReason: mapFinishReason(finishReason),
 			model,
-			usage: { input: promptTokens, output: completionTokens },
+			usage,
 		});
 	}
+}
+
+function isReasoningDeltaEvent(
+	value: OAIStreamChunk | OAIReasoningDeltaEvent,
+): value is OAIReasoningDeltaEvent {
+	return "type" in value && value.type === "response.reasoning.delta";
 }
