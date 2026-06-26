@@ -13,6 +13,7 @@ import {
 } from "./operator-evidence.js";
 import { listRecentRunsForSources } from "./run-evidence.js";
 import {
+  listDeadLetterReferencedTasks,
   listRecentTasks,
   operatorJourneyRisks,
   taskClassDistribution,
@@ -77,11 +78,15 @@ function collectProgressReviewEvidenceForSource(args: {
   const approvals = listScopedApprovalEvidence([args.source], args.windowStartMs, excluded);
   const deadLetterCounts = listDeadLetterCounts([args.source]);
   const deadLetters = listScopedDeadLetterEvidence([args.source], excluded);
-  const taskClassCounts = taskClassDistribution(tasks);
-  const journeyRisks = operatorJourneyRisks(tasks);
+  const allTasks = [
+    ...tasks,
+    ...listDeadLetterReferencedTasks(args.source, deadLetters, tasks, excluded),
+  ];
+  const taskClassCounts = taskClassDistribution(allTasks);
+  const journeyRisks = operatorJourneyRisks(allTasks);
   const evidence = evidenceRefs({
     runs,
-    tasks,
+    tasks: allTasks,
     events,
     artifacts,
     git,
@@ -93,7 +98,7 @@ function collectProgressReviewEvidenceForSource(args: {
     scope: directoryScopeForSource(args.source),
     window: { ...args.window },
     runs,
-    tasks,
+    tasks: allTasks,
     events,
     artifacts,
     git,

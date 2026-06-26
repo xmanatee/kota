@@ -2262,6 +2262,74 @@ describe("progress-reviewer workflow", () => {
     );
   });
 
+  it("keeps tasks referenced by dead-letter reasons citeable", () => {
+    const projectDir = trackProjectDir("progress-reviewer-dlq-task-reference");
+    const scopeId = deriveDirectoryScopeId(projectDir);
+    const taskId = "task-add-loop-quality-audits-for-autonomous-workflows";
+    writeTask(projectDir, "backlog", taskId, {
+      updatedAt: "2026-06-01T12:00:00.000Z",
+      taskClass: "Meta",
+    });
+    const queue = new DeadLetterQueueStore(
+      join(projectDir, ".kota", "dead-letter-queue"),
+      () => NOW,
+    );
+    const item = createWorkflowDispatchDeadLetter({
+      store: queue,
+      scopeId,
+      workflowName: "progress-reviewer",
+      trigger: {
+        event: WORKFLOW_BATCH_FLUSH_EVENT,
+        schemaRef: null,
+        payload: { scopeId, projectId: scopeId },
+      },
+      reason:
+        `- [meta-task-missing-product-safety-link] ${projectDir}/data/tasks/ready/${taskId}.md ` +
+        "is actionable task_class=Meta work but does not explain which Product or Safety blocker it closes.",
+      errorClass: "validation",
+    });
+
+    const evidence = collectProgressReviewEvidence({
+      projectDir,
+      trigger: {
+        event: progressReviewRequested.name,
+        schemaRef: null,
+        payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+      },
+      now: NOW,
+    });
+    const reviewInput = compactProgressReviewEvidenceForAgent(evidence);
+
+    expect(evidence.tasks.map((task) => task.taskId)).toContain(taskId);
+    expect(evidence.evidence).toContainEqual(
+      expect.objectContaining({
+        id: `task:${taskId}`,
+        kind: "task",
+        path: `data/tasks/backlog/${taskId}.md`,
+      }),
+    );
+    expect(() =>
+      decodeProgressReviewAgentOutputForEvidence(
+        reviewOutput({
+          verdict: "needs-steering",
+          summary: "The dead-lettered validation failure references a task.",
+          localScope: {
+            claims: [
+              {
+                id: "dead-letter-task-reference",
+                claim: "The dead letter points at a current task record.",
+                evidenceIds: [`dead-letter:${item.id}`, `task:${taskId}`],
+                confidence: "high",
+              },
+            ],
+          },
+        }),
+        reviewInput,
+        evidence,
+      ),
+    ).not.toThrow();
+  });
+
   it("bounds dead-letter ids in the compact agent packet", () => {
     const projectDir = trackProjectDir("progress-reviewer-dead-letter-agent-packet");
     const scopeId = deriveDirectoryScopeId(projectDir);

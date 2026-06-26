@@ -8,11 +8,16 @@ import {
 import { PROGRESS_REVIEW_MAX_TASKS } from "./constants.js";
 import { sourceEvidenceId, sourceSummary } from "./trigger-target.js";
 import type {
+  ProgressReviewDeadLetterEvidence,
   ProgressReviewDirectorySource,
   ProgressReviewOperatorJourneyRisk,
   ProgressReviewTaskClassCount,
   ProgressReviewTaskEvidence,
 } from "./types.js";
+
+const TASK_PATH_REFERENCE_RE =
+  /\bdata\/tasks\/(?:backlog|ready|doing|blocked|done|dropped)\/(task-[A-Za-z0-9-]+)\.md\b/g;
+const TASK_EVIDENCE_ID_REFERENCE_RE = /\btask:(task-[A-Za-z0-9-]+)\b/g;
 
 function summarizeTask(
   source: ProgressReviewDirectorySource,
@@ -67,6 +72,50 @@ export function listRecentTasks(
   return records
     .slice(0, PROGRESS_REVIEW_MAX_TASKS)
     .map(({ source, record }) => summarizeTask(source, record));
+}
+
+function referencedTaskIds(text: string): string[] {
+  const ids = new Set<string>();
+  for (const match of text.matchAll(TASK_PATH_REFERENCE_RE)) {
+    if (match[1]) ids.add(match[1]);
+  }
+  for (const match of text.matchAll(TASK_EVIDENCE_ID_REFERENCE_RE)) {
+    if (match[1]) ids.add(match[1]);
+  }
+  return [...ids];
+}
+
+export function listDeadLetterReferencedTasks(
+  source: ProgressReviewDirectorySource,
+  deadLetters: readonly ProgressReviewDeadLetterEvidence[],
+  existingTasks: readonly ProgressReviewTaskEvidence[],
+  excluded: string[],
+): ProgressReviewTaskEvidence[] {
+  if (deadLetters.length === 0) return [];
+
+  const existingTaskIds = new Set(existingTasks.map((task) => task.taskId));
+  const recordsById = new Map(
+    listFullRepoTasks(source.projectDir).map((record) => [record.id, record]),
+  );
+  const selected = new Set<string>();
+  const tasks: ProgressReviewTaskEvidence[] = [];
+
+  for (const deadLetter of deadLetters) {
+    for (const taskId of referencedTaskIds(deadLetter.reason)) {
+      if (existingTaskIds.has(taskId) || selected.has(taskId)) continue;
+      const record = recordsById.get(taskId);
+      if (!record) {
+        excluded.push(
+          `dead letters: referenced task ${taskId} was not found in current task files`,
+        );
+        continue;
+      }
+      selected.add(taskId);
+      tasks.push(summarizeTask(source, record));
+    }
+  }
+
+  return tasks;
 }
 
 export function taskClassDistribution(
