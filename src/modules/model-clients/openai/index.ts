@@ -7,7 +7,6 @@ export { type OpenAIClientOptions, OpenAIModelClient } from "./client.js";
 export { OpenAIStream } from "./stream.js";
 export {
 	buildKotaModelResponse,
-	extractReasoningText,
 	extractToolResultContent,
 	mapFinishReason,
 	openAIUsageToKotaUsage,

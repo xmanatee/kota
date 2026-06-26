@@ -8,7 +8,6 @@ import type {
 } from "#core/agent-harness/message-protocol.js";
 import {
 	buildKotaModelResponse,
-	extractReasoningText,
 	mapFinishReason,
 	openAIUsageToKotaUsage,
 	safeJsonParse,
@@ -50,7 +49,6 @@ export class OpenAIStream implements KotaMessageStream {
 		}
 
 		let text = "";
-		let thinking = "";
 		const toolCalls = new Map<
 			number,
 			{ id: string; name: string; args: string }
@@ -87,8 +85,6 @@ export class OpenAIStream implements KotaMessageStream {
 					continue;
 				}
 				if (isReasoningDeltaEvent(parsed)) {
-					thinking += parsed.delta;
-					this.emit("thinking", parsed.delta);
 					if (parsed.model) model = parsed.model;
 					continue;
 				}
@@ -107,11 +103,6 @@ export class OpenAIStream implements KotaMessageStream {
 				if (delta.content) {
 					text += delta.content;
 					this.emit("text", delta.content);
-				}
-				const reasoningDelta = extractReasoningText(delta);
-				if (reasoningDelta) {
-					thinking += reasoningDelta;
-					this.emit("thinking", reasoningDelta);
 				}
 
 				if (delta.tool_calls) {
@@ -147,7 +138,6 @@ export class OpenAIStream implements KotaMessageStream {
 
 		return buildKotaModelResponse({
 			text,
-			...(thinking ? { thinking } : {}),
 			toolCalls: parsedToolCalls,
 			stopReason: mapFinishReason(finishReason),
 			model,

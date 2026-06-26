@@ -17,7 +17,6 @@ import { buildOpenAIRequestBody } from "./request-body.js";
 import { OpenAIStream } from "./stream.js";
 import {
 	buildKotaModelResponse,
-	extractReasoningText,
 	mapFinishReason,
 	openAIUsageToKotaUsage,
 	safeJsonParse,
@@ -129,7 +128,6 @@ export class OpenAIModelClient implements ModelClient {
 		}
 
 		const textContent = choice.message.content ?? "";
-		const thinking = extractReasoningText(choice.message);
 		const toolCalls = (choice.message.tool_calls ?? []).map((tc) => ({
 			id: tc.id,
 			name: tc.function.name,
@@ -138,7 +136,6 @@ export class OpenAIModelClient implements ModelClient {
 
 		return buildKotaModelResponse({
 			text: textContent,
-			...(thinking ? { thinking } : {}),
 			toolCalls,
 			stopReason: mapFinishReason(choice.finish_reason),
 			model: data.model || params.model,

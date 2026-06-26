@@ -1,12 +1,12 @@
 ---
 id: task-security-review-openai-compatible-provider-reasoni
 title: Security review: OpenAI-compatible provider reasoning is captured as transcript `thinking` content and later included in the compaction prompt, exposing provider-private reasoning to future model calls.
-status: ready
+status: done
 priority: p2
 area: security
 summary: OpenAI-compatible provider reasoning is captured as transcript `thinking` content and later included in the compaction prompt, exposing provider-private reasoning to future model calls.
 created_at: 2026-06-26T09:05:35.242Z
-updated_at: 2026-06-26T09:05:35.242Z
+updated_at: 2026-06-26T09:16:27.900Z
 ---
 
 ## Problem
@@ -135,6 +135,21 @@ excerpt:
 
 Agentic security review for autonomous coding infrastructure.
 
+## Resolution
+
+OpenAI-compatible response reasoning is no longer converted into neutral
+`thinking` blocks or emitted as streaming `thinking` deltas. The adapter still
+parses provider frames for text, tools, usage, and model ids, but drops
+`response.reasoning.delta`, `delta.reasoning`, `delta.reasoning_content`, and
+non-stream `message.reasoning_content` at the provider seam because the neutral
+transcript has no non-promptable operator-local reasoning metadata channel.
+
+Regression tests cover both stream and non-stream responses, then run
+`compactMessages()` over the returned messages and assert the private reasoning
+tokens are absent from the compaction prompt.
+
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `pnpm test src/modules/model-clients/openai/translations.test.ts src/modules/model-clients/openai/stream.test.ts src/modules/model-clients/openai/client.test.ts src/modules/model-clients/openai/request-body.test.ts src/modules/model-clients/openai/create-response.test.ts src/modules/model-clients/openai/stream-reasoning.test.ts src/modules/model-clients/openai/translations-multimodal.test.ts src/core/loop/compaction.test.ts` passed on 2026-06-26 with 8 files and 86 tests.
+- `pnpm exec tsc --noEmit --pretty false` passed.
+- `pnpm exec biome check src/modules/model-clients/openai/stream.ts src/modules/model-clients/openai/client.ts src/modules/model-clients/openai/translations.ts src/modules/model-clients/openai/index.ts src/modules/model-clients/openai/create-response.test.ts src/modules/model-clients/openai/stream-reasoning.test.ts src/modules/model-clients/openai/translations-multimodal.test.ts` passed.

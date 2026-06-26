@@ -37,9 +37,8 @@ describe("OpenAI multimodal translations", () => {
 		]);
 	});
 
-	it("builds response content with reasoning and cache usage metadata", () => {
+	it("builds response content with cache usage metadata", () => {
 		const msg = buildKotaModelResponse({
-			thinking: "reasoning trace",
 			text: "answer",
 			toolCalls: [],
 			stopReason: "end_turn",
@@ -52,12 +51,7 @@ describe("OpenAI multimodal translations", () => {
 			},
 		});
 
-		expect(msg.content[0]).toEqual({
-			type: "thinking",
-			thinking: "reasoning trace",
-			signature: "",
-		});
-		expect(msg.content[1]).toEqual({ type: "text", text: "answer" });
+		expect(msg.content[0]).toEqual({ type: "text", text: "answer" });
 		expect(msg.usage.cache_read_input_tokens).toBe(3);
 		expect(msg.usage.cache_creation_input_tokens).toBe(2);
 	});

@@ -204,7 +204,6 @@ export function mapFinishReason(reason: string | null): KotaStopReason {
 /** Build a neutral `KotaModelResponse` from accumulated OpenAI response data. */
 export function buildKotaModelResponse(opts: {
 	text: string;
-	thinking?: string;
 	toolCalls: Array<{ id: string; name: string; input: unknown }>;
 	stopReason: KotaStopReason;
 	model: string;
@@ -216,9 +215,6 @@ export function buildKotaModelResponse(opts: {
 	};
 }): KotaModelResponse {
 	const content: KotaContentBlock[] = [];
-	if (opts.thinking) {
-		content.push({ type: "thinking", thinking: opts.thinking, signature: "" });
-	}
 	if (opts.text) {
 		content.push({ type: "text", text: opts.text });
 	}
@@ -262,12 +258,6 @@ export function openAIUsageToKotaUsage(usage: OAIUsage | undefined): {
 		cacheCreationInput:
 			usage?.prompt_tokens_details?.cache_creation_tokens ?? null,
 	};
-}
-
-export function extractReasoningText(
-	value: { reasoning?: string | null; reasoning_content?: string | null },
-): string {
-	return value.reasoning ?? value.reasoning_content ?? "";
 }
 
 /** Parse JSON with fallback to raw string wrapper. */
