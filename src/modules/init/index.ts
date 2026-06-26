@@ -13,7 +13,7 @@ import {
 const KOTA_CONFIG_TEMPLATE = `import type { KotaConfig } from "kota/module";
 
 const config: KotaConfig = {
-  // Active preset bundle (claude | codex | openrouter | gemini | gemini-cli | antigravity-cli).
+  // Active preset bundle (claude | codex | openrouter | openrouter-lab | gemini | gemini-cli | antigravity-cli).
   // Selects harness, default model, fast/balanced/capable tier mapping, default
   // reasoning effort, and auth contract together. Override per-run with
   // \`--preset <id>\` or \`KOTA_PRESET=<id>\`. Defaults to "codex" when unset.

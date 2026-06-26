@@ -104,6 +104,25 @@ const SHIPPED_PRESETS: readonly Preset[] = [
     defaultEffort: "medium",
   },
   {
+    id: "openrouter-lab",
+    description:
+      "OpenRouter lab candidates via the OpenAI-compatible openai-tools harness.",
+    harness: "openai-tools",
+    authEnv: ["OPENROUTER_API_KEY"],
+    defaultModel: "openrouter/z-ai/glm-5.2",
+    tiers: {
+      fast: "openrouter/deepseek/deepseek-v4-flash",
+      balanced: "openrouter/qwen/qwen3.7-plus",
+      capable: "openrouter/z-ai/glm-5.2",
+    },
+    outputTokenLimits: {
+      fast: 65536,
+      balanced: 65536,
+      capable: 32768,
+    },
+    defaultEffort: "high",
+  },
+  {
     id: "gemini",
     description: "Google Gemini via @google/genai tool-calling SDK.",
     harness: "gemini",

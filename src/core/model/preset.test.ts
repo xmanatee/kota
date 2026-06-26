@@ -14,13 +14,14 @@ import {
 } from "./preset.js";
 
 describe("shipped preset registry", () => {
-  it("includes the canonical claude/codex/openrouter/gemini/gemini-cli/antigravity-cli presets", () => {
+  it("includes the canonical claude/codex/openrouter/openrouter-lab/gemini/gemini-cli/antigravity-cli presets", () => {
     const ids = listShippedPresetIds();
     expect(ids).toEqual(
       expect.arrayContaining([
         "claude",
         "codex",
         "openrouter",
+        "openrouter-lab",
         "gemini",
         "gemini-cli",
         "antigravity-cli",
@@ -58,6 +59,7 @@ describe("shipped preset registry", () => {
     expect(hasPreset("claude")).toBe(true);
     expect(hasPreset("codex")).toBe(true);
     expect(hasPreset("openrouter")).toBe(true);
+    expect(hasPreset("openrouter-lab")).toBe(true);
     expect(hasPreset("gemini")).toBe(true);
     expect(hasPreset("gemini-cli")).toBe(true);
     expect(hasPreset("antigravity-cli")).toBe(true);
@@ -76,6 +78,22 @@ describe("shipped preset registry", () => {
 
   it("the shipped default preset is part of the shipped registry", () => {
     expect(hasPreset(SHIPPED_DEFAULT_PRESET_ID)).toBe(true);
+  });
+
+  it("keeps the OpenRouter lab preset non-default while selecting concrete candidate tiers", () => {
+    const preset = getPreset("openrouter-lab");
+    expect(SHIPPED_DEFAULT_PRESET_ID).not.toBe("openrouter-lab");
+    expect(preset).toMatchObject({
+      harness: "openai-tools",
+      authEnv: ["OPENROUTER_API_KEY"],
+      defaultModel: "openrouter/z-ai/glm-5.2",
+      tiers: {
+        fast: "openrouter/deepseek/deepseek-v4-flash",
+        balanced: "openrouter/qwen/qwen3.7-plus",
+        capable: "openrouter/z-ai/glm-5.2",
+      },
+      defaultEffort: "high",
+    });
   });
 });
 
@@ -140,6 +158,7 @@ describe("mergePresetTiers and resolvePresetTierModel", () => {
 describe("checkPresetAuth", () => {
   const codex = getPreset("codex");
   const openrouter = getPreset("openrouter");
+  const openrouterLab = getPreset("openrouter-lab");
   const claude = getPreset("claude");
   const gemini = getPreset("gemini");
   const geminiCli = getPreset("gemini-cli");
@@ -168,6 +187,11 @@ describe("checkPresetAuth", () => {
   it("uses OPENROUTER_API_KEY for the OpenRouter preset", () => {
     expect(checkPresetAuth(openrouter, {}).missing).toEqual(["OPENROUTER_API_KEY"]);
     expect(checkPresetAuth(openrouter, { OPENROUTER_API_KEY: "sk-or-test" }).missing).toEqual([]);
+  });
+
+  it("uses OPENROUTER_API_KEY for the OpenRouter lab preset", () => {
+    expect(checkPresetAuth(openrouterLab, {}).missing).toEqual(["OPENROUTER_API_KEY"]);
+    expect(checkPresetAuth(openrouterLab, { OPENROUTER_API_KEY: "sk-or-test" }).missing).toEqual([]);
   });
 
   it("treats multi-alternate auth (gemini) as satisfied when any alternate is set", () => {

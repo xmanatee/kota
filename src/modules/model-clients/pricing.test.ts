@@ -70,15 +70,40 @@ describe("shipped model pricing provider", () => {
 			"https://platform.claude.com/docs/en/about-claude/pricing",
 			"https://openai.com/api/pricing/",
 			"https://ai.google.dev/gemini-api/docs/pricing",
+			"https://openrouter.ai/api/v1/models",
 		]);
-		expect(sources.every((source) => source.observedAt === "2026-05-16")).toBe(true);
 
 		for (const status of listShippedModelPricingStatuses()) {
 			if (status.kind === "priced") {
 				expect(status.source.url).toMatch(/^https:\/\//);
-				expect(status.source.observedAt).toBe("2026-05-16");
+				expect(status.source.observedAt).toMatch(/^\d{4}-\d{2}-\d{2}/);
 			}
 		}
+	});
+
+	it("prices the OpenRouter lab preset tiers from the observed OpenRouter catalog", () => {
+		const provider = createShippedModelPricingProvider();
+		expect(provider.getPricing("openrouter/deepseek/deepseek-v4-flash")).toEqual({
+			kind: "flat",
+			input: 0.09,
+			output: 0.18,
+			cacheRead: 0.02,
+			cacheWrite: 0,
+		});
+		expect(provider.getPricing("openrouter/qwen/qwen3.7-plus")).toEqual({
+			kind: "flat",
+			input: 0.32,
+			output: 1.28,
+			cacheRead: 0.064,
+			cacheWrite: 0.4,
+		});
+		expect(provider.getPricing("openrouter/z-ai/glm-5.2")).toEqual({
+			kind: "flat",
+			input: 0.95,
+			output: 3,
+			cacheRead: 0.18,
+			cacheWrite: 0,
+		});
 	});
 
 	it("represents Gemini Pro's paid Standard prompt-size tiers explicitly", () => {

@@ -1,13 +1,13 @@
 ---
 id: task-add-openrouter-model-capability-catalog-and-candid
 title: Add OpenRouter model capability catalog and candidate presets
-status: ready
+status: done
 priority: p1
 area: core
 task_class: Platform
 summary: Record live OpenRouter model capabilities and add candidate presets for GLM, Kimi, DeepSeek, Qwen, MiniMax, MiMo, Nemotron, Step, Ring, KAT, Poolside, Hy3, and local OpenAI-compatible routes.
 created_at: 2026-06-25T14:22:41.268Z
-updated_at: 2026-06-26T03:19:35.907Z
+updated_at: 2026-06-26T06:56:46.000Z
 ---
 
 ## Problem

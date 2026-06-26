@@ -1,9 +1,13 @@
 import type { ModelPricing, ModelPricingProvider } from "#core/modules/provider-registry.js";
+import {
+	OPENROUTER_MODEL_CATALOG_OBSERVED_AT,
+	OPENROUTER_MODEL_CATALOG_SOURCE_URL,
+} from "./openrouter-catalog.js";
 
 export type PricingSource = {
-	provider: "anthropic" | "openai" | "google";
+	provider: "anthropic" | "openai" | "google" | "openrouter";
 	url: string;
-	observedAt: "2026-05-16";
+	observedAt: string;
 	scope: string;
 };
 
@@ -39,6 +43,13 @@ export const MODEL_PRICING_SOURCES = {
 		url: "https://ai.google.dev/gemini-api/docs/pricing",
 		observedAt: "2026-05-16",
 		scope: "Gemini API paid Standard tier for text/image/video token usage; Pro rates tier by prompt input tokens.",
+	},
+	openrouter: {
+		provider: "openrouter",
+		url: OPENROUTER_MODEL_CATALOG_SOURCE_URL,
+		observedAt: OPENROUTER_MODEL_CATALOG_OBSERVED_AT,
+		scope:
+			"OpenRouter /models per-token pricing converted to per-million-token KOTA pricing rows.",
 	},
 } as const satisfies Record<string, PricingSource>;
 
@@ -120,6 +131,24 @@ const SHIPPED_MODEL_PRICING_STATUS: Record<string, ShippedModelPricingStatus> = 
 		model: "openrouter/openai/gpt-4.1-mini",
 		rationale:
 			"OpenRouter is a provider-routed model id; KOTA does not ship a pass-through OpenRouter billing row until route-specific pricing is normalized separately from OpenAI's direct API table.",
+	},
+	"openrouter/deepseek/deepseek-v4-flash": {
+		kind: "priced",
+		model: "openrouter/deepseek/deepseek-v4-flash",
+		pricing: { kind: "flat", input: 0.09, output: 0.18, cacheRead: 0.02, cacheWrite: 0 },
+		source: MODEL_PRICING_SOURCES.openrouter,
+	},
+	"openrouter/qwen/qwen3.7-plus": {
+		kind: "priced",
+		model: "openrouter/qwen/qwen3.7-plus",
+		pricing: { kind: "flat", input: 0.32, output: 1.28, cacheRead: 0.064, cacheWrite: 0.4 },
+		source: MODEL_PRICING_SOURCES.openrouter,
+	},
+	"openrouter/z-ai/glm-5.2": {
+		kind: "priced",
+		model: "openrouter/z-ai/glm-5.2",
+		pricing: { kind: "flat", input: 0.95, output: 3, cacheRead: 0.18, cacheWrite: 0 },
+		source: MODEL_PRICING_SOURCES.openrouter,
 	},
 };
 
