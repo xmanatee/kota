@@ -1,14 +1,14 @@
 ---
 id: task-make-openai-compatible-model-clients-honor-model-s
 title: Make OpenAI-compatible model clients honor model-specific capabilities
-status: backlog
+status: ready
 priority: p1
 area: modules
 task_class: Platform
 depends_on: [task-add-openrouter-model-capability-catalog-and-candid]
 summary: Teach the OpenAI-compatible client to send and parse OpenRouter/local model features such as reasoning, tool choice, parallel calls, structured output, multimodal blocks, usage, and provider routing without silent drops.
 created_at: 2026-06-25T14:22:47.075Z
-updated_at: 2026-06-25T14:22:47.075Z
+updated_at: 2026-06-26T07:19:27.140Z
 ---
 
 ## Problem
