@@ -204,11 +204,10 @@ export type AgentHarness = {
   readonly askOwnerToolName: string | null;
   /**
    * Whether this adapter emits `KotaAgentMessage` frames to an `onMessage`
-   * callback. Adapters that do (claude-agent-sdk, future Codex/Vercel) set
-   * this to `true`; adapters without a streaming surface (openai-tools,
-   * thin) reject `onMessage` at the boundary. Callers consult this flag to
-   * decide whether to subscribe — branching on a declared capability rather
-   * than the adapter name.
+   * callback. Adapters that do set this to `true`; adapters without a
+   * streaming surface reject `onMessage` at the boundary. Callers consult
+   * this flag to decide whether to subscribe — branching on a declared
+   * capability rather than the adapter name.
    */
   readonly emitsAgentMessageStream: boolean;
   /**

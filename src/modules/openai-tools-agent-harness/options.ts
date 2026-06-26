@@ -21,11 +21,6 @@ export const OPENAI_TOOLS_UNSUPPORTED_OPTIONS = [
     option: "thinkingEnabled/thinkingBudget",
     reason: "Portable effort is the canonical reasoning control for this adapter.",
   },
-  {
-    runOption: "onMessage",
-    option: "onMessage",
-    reason: "The adapter emits text deltas, not KotaAgentMessage frames.",
-  },
 ] as const satisfies readonly AgentHarnessUnsupportedOption[];
 
 export function openaiToolsReadiness(): AgentHarnessReadiness {
@@ -54,12 +49,6 @@ export function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void 
     throw new Error(
       'The "openai-tools" agent harness does not host extended thinking. ' +
         "Drop thinkingEnabled/thinkingBudget or run claude-agent-sdk.",
-    );
-  }
-  if (options.onMessage !== undefined) {
-    throw new Error(
-      'The "openai-tools" agent harness does not emit KotaAgentMessage frames. ' +
-        "Drop onMessage or run claude-agent-sdk.",
     );
   }
 }

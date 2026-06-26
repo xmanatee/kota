@@ -5,7 +5,7 @@ import type {
 } from "#core/agent-harness/message-protocol.js";
 import { compactMessages } from "#core/loop/compaction.js";
 import type { MessageCreateParams, ModelClient } from "#core/model/model-client.js";
-import { OpenAIStream } from "./stream.js";
+import { OPENAI_REASONING_REDACTION_TEXT, OpenAIStream } from "./stream.js";
 
 function okResponse(events: string[]): Response {
 	const encoder = new TextEncoder();
@@ -71,7 +71,7 @@ describe("OpenAIStream reasoning parity", () => {
 
 		const msg = await stream.finalMessage();
 
-		expect(thinkingDeltas).toEqual([]);
+		expect(thinkingDeltas).toEqual([OPENAI_REASONING_REDACTION_TEXT]);
 		expect(JSON.stringify(msg.content)).not.toContain(privateReasoningA);
 		expect(JSON.stringify(msg.content)).not.toContain(privateReasoningB);
 		const tc = msg.content[0] as KotaToolUseBlock;

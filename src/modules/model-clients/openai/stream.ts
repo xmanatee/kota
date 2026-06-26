@@ -14,6 +14,9 @@ import {
 } from "./translations.js";
 import type { OAIReasoningDeltaEvent, OAIStreamChunk } from "./types.js";
 
+export const OPENAI_REASONING_REDACTION_TEXT =
+	"[OpenAI-compatible reasoning omitted by evidence policy]";
+
 export class OpenAIStream implements KotaMessageStream {
 	private listeners = new Map<string, Array<(delta: string) => void>>();
 	private messagePromise: Promise<KotaModelResponse>;
@@ -56,6 +59,7 @@ export class OpenAIStream implements KotaMessageStream {
 		let finishReason: string | null = null;
 		let model = fallbackModel;
 		let usage = openAIUsageToKotaUsage(undefined);
+		let emittedReasoningNotice = false;
 
 		const reader = response.body?.getReader();
 		if (!reader) {
@@ -86,6 +90,11 @@ export class OpenAIStream implements KotaMessageStream {
 				}
 				if (isReasoningDeltaEvent(parsed)) {
 					if (parsed.model) model = parsed.model;
+					if (parsed.delta) {
+						emittedReasoningNotice = this.emitReasoningNotice(
+							emittedReasoningNotice,
+						);
+					}
 					continue;
 				}
 
@@ -103,6 +112,11 @@ export class OpenAIStream implements KotaMessageStream {
 				if (delta.content) {
 					text += delta.content;
 					this.emit("text", delta.content);
+				}
+				if (delta.reasoning || delta.reasoning_content) {
+					emittedReasoningNotice = this.emitReasoningNotice(
+						emittedReasoningNotice,
+					);
 				}
 
 				if (delta.tool_calls) {
@@ -143,6 +157,12 @@ export class OpenAIStream implements KotaMessageStream {
 			model,
 			usage,
 		});
+	}
+
+	private emitReasoningNotice(alreadyEmitted: boolean): boolean {
+		if (alreadyEmitted) return true;
+		this.emit("thinking", OPENAI_REASONING_REDACTION_TEXT);
+		return true;
 	}
 }
 

@@ -9,7 +9,6 @@ import type {
 } from "#core/agent-harness/message-protocol.js";
 import {
 	buildKotaModelResponse,
-	extractToolResultContent,
 	kotaMessageToOpenAiMessage,
 	mapFinishReason,
 	safeJsonParse,
@@ -37,92 +36,6 @@ describe("safeJsonParse", () => {
 
 	it("parses JSON string literal", () => {
 		expect(safeJsonParse('"hello"')).toBe("hello");
-	});
-});
-
-describe("extractToolResultContent", () => {
-	it("returns empty prefix-only string for empty-string content", () => {
-		const block: KotaToolResultBlock = {
-			type: "tool_result",
-			tool_use_id: "t1",
-			content: "",
-		};
-		expect(extractToolResultContent(block)).toBe("");
-	});
-
-	it("handles content array with text blocks", () => {
-		const block: KotaToolResultBlock = {
-			type: "tool_result",
-			tool_use_id: "t1",
-			content: [
-				{ type: "text", text: "line1" },
-				{ type: "text", text: "line2" },
-			],
-		};
-		expect(extractToolResultContent(block)).toBe("line1\nline2");
-	});
-
-	it("handles content array with is_error", () => {
-		const block: KotaToolResultBlock = {
-			type: "tool_result",
-			tool_use_id: "t1",
-			is_error: true,
-			content: [{ type: "text", text: "something failed" }],
-		};
-		expect(extractToolResultContent(block)).toBe("[ERROR] something failed");
-	});
-
-	it("rejects image blocks it cannot translate in content arrays", () => {
-		const block: KotaToolResultBlock = {
-			type: "tool_result",
-			tool_use_id: "t1",
-			content: [
-				{
-					type: "image",
-					source: { type: "base64", media_type: "image/png", data: "abc" },
-				},
-				{ type: "text", text: "visible" },
-			],
-		};
-		expect(() => extractToolResultContent(block)).toThrow(
-			/content\[0\]\.image:image\/png/,
-		);
-	});
-
-	it("returns prefix only for empty content array", () => {
-		const block: KotaToolResultBlock = {
-			type: "tool_result",
-			tool_use_id: "t1",
-			content: [],
-		};
-		expect(extractToolResultContent(block)).toBe("");
-	});
-
-	it("rejects enriched tool_result fields it cannot translate", () => {
-		const block: KotaToolResultBlock = {
-			type: "tool_result",
-			tool_use_id: "t1",
-			content: [{ type: "text", text: "visible", _meta: { blockCache: "b1" } }],
-			structuredContent: { answer: 42 },
-			_meta: { resultCache: "r1" },
-		};
-		expect(() => extractToolResultContent(block)).toThrow(
-			/enriched tool_result fields: structuredContent, _meta, content\[0\]\._meta/,
-		);
-	});
-
-	it("rejects MCP-only tool_result content explicitly", () => {
-		const block: KotaToolResultBlock = {
-			type: "tool_result",
-			tool_use_id: "t1",
-			content: [{
-				type: "mcp_content",
-				content: { type: "audio", data: "abc", mimeType: "audio/wav" },
-			}],
-		};
-		expect(() => extractToolResultContent(block)).toThrow(
-			/content\[0\]\.mcp_content:audio/,
-		);
 	});
 });
 
@@ -232,7 +145,7 @@ describe("kotaMessageToOpenAiMessage round-trip coverage", () => {
 		]);
 	});
 
-	it("rejects a tool_result with mixed text and image block content", () => {
+	it("translates a tool_result with mixed text and image block content", () => {
 		const textA: KotaTextBlock = { type: "text", text: "first" };
 		const textB: KotaTextBlock = { type: "text", text: "second" };
 		const image: KotaImageBlock = {
@@ -245,12 +158,17 @@ describe("kotaMessageToOpenAiMessage round-trip coverage", () => {
 			content: [textA, image, textB],
 		};
 		const msg: KotaMessage = { role: "user", content: [resultBlock] };
-		expect(() => kotaMessageToOpenAiMessage(msg)).toThrow(
-			/content\[1\]\.image:image\/png/,
-		);
+		expect(kotaMessageToOpenAiMessage(msg)).toEqual([
+			{
+				role: "tool",
+				tool_call_id: "t1",
+				content:
+					"first\n[image omitted: image/png, base64 bytes=3]\nsecond",
+			},
+		]);
 	});
 
-	it("rejects a tool_result with image-only block content", () => {
+	it("translates a tool_result with image-only block content", () => {
 		const image: KotaImageBlock = {
 			type: "image",
 			source: { type: "base64", media_type: "image/png", data: "abc" },
@@ -261,9 +179,13 @@ describe("kotaMessageToOpenAiMessage round-trip coverage", () => {
 			content: [image],
 		};
 		const msg: KotaMessage = { role: "user", content: [resultBlock] };
-		expect(() => kotaMessageToOpenAiMessage(msg)).toThrow(
-			/content\[0\]\.image:image\/png/,
-		);
+		expect(kotaMessageToOpenAiMessage(msg)).toEqual([
+			{
+				role: "tool",
+				tool_call_id: "t1",
+				content: "[image omitted: image/png, base64 bytes=3]",
+			},
+		]);
 	});
 });
 

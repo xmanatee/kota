@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { KotaAgentMessage } from "#core/agent-harness/index.js";
 import type { KotaContentBlock, KotaMessage, KotaModelResponse, KotaTool, KotaToolResultBlock } from "#core/agent-harness/message-protocol.js";
 
 const messagesStreamMock = vi.fn();
@@ -38,12 +39,16 @@ type StubFinalMessage = Pick<KotaModelResponse, "id" | "content" | "stop_reason"
 
 function makeStubStream(opts: {
   textChunks?: string[];
+  thinkingChunks?: string[];
   final: StubFinalMessage;
 }) {
   return {
     on(event: "text" | "thinking", cb: (delta: string) => void) {
       if (event === "text" && opts.textChunks) {
         for (const chunk of opts.textChunks) cb(chunk);
+      }
+      if (event === "thinking" && opts.thinkingChunks) {
+        for (const chunk of opts.thinkingChunks) cb(chunk);
       }
       return this;
     },
@@ -161,12 +166,17 @@ describe("openaiToolsAgentHarness — registration", () => {
       "preRun",
       "postRun",
     ]);
+    expect(openaiToolsAgentHarness.emitsAgentMessageStream).toBe(true);
     expect(openaiToolsAgentHarness.unsupportedRunOptions).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           option: "thinkingEnabled/thinkingBudget",
           runOption: "thinking",
         }),
+      ]),
+    );
+    expect(openaiToolsAgentHarness.unsupportedRunOptions).not.toEqual(
+      expect.arrayContaining([
         expect.objectContaining({
           option: "onMessage",
           runOption: "onMessage",
@@ -303,6 +313,118 @@ describe("openaiToolsAgentHarness — happy path tool loop", () => {
     const followUpTurn = JSON.stringify(streamCallSnapshots[1].messages[2]);
     expect(followUpTurn).toContain("<secret:API_TOKEN>");
     expect(followUpTurn).not.toContain("agent-secret-token");
+  });
+
+  it("emits structured message frames for text, reasoning, tools, status, and result", async () => {
+    queueStream(
+      makeStubStream({
+        textChunks: ["I need a lookup."],
+        thinkingChunks: ["[OpenAI-compatible reasoning omitted by evidence policy]"],
+        final: {
+          id: "msg_frames_1",
+          stop_reason: "tool_use",
+          content: [
+            {
+              type: "text",
+              text: "I need a lookup.",
+            },
+            {
+              type: "tool_use",
+              id: "call_frames",
+              name: "echo_tool",
+              input: { text: "hello" },
+            },
+          ] as KotaContentBlock[],
+          usage: { input_tokens: 6, output_tokens: 2 },
+        },
+      }),
+    );
+    queueStream(
+      makeStubStream({
+        textChunks: ["done"],
+        final: {
+          id: "msg_frames_2",
+          stop_reason: "end_turn",
+          content: [
+            { type: "text", text: "done", citations: null } as KotaContentBlock,
+          ],
+          usage: { input_tokens: 7, output_tokens: 3 },
+        },
+      }),
+    );
+
+    executeToolMock.mockResolvedValue({
+      content: "summary",
+      blocks: [
+        { type: "text", text: "visible block", _meta: { trace: "block-secret" } },
+        {
+          type: "image",
+          source: { type: "base64", media_type: "image/png", data: "abc" },
+        },
+      ],
+      structuredContent: { answer: 42 },
+      _meta: { trace: "result-secret" },
+    });
+
+    const frames: KotaAgentMessage[] = [];
+    const result = await openaiToolsAgentHarness.run({
+      prompt: "please echo",
+      model: "openai/gpt-5.4-mini",
+      effort: "xhigh",
+      onMessage: (message) => {
+        frames.push(message);
+      },
+    });
+
+    expect(result.isError).toBe(false);
+    expect(frames.map((frame) => frame.type)).toEqual([
+      "status",
+      "text",
+      "thinking",
+      "tool_call",
+      "tool_result",
+      "status",
+      "text",
+      "result",
+    ]);
+    expect(frames).toContainEqual({
+      type: "tool_call",
+      toolUseId: "call_frames",
+      toolName: "echo_tool",
+      input: { text: "hello" },
+      sessionId: "msg_frames_1",
+    });
+    const toolResultFrame = frames.find(
+      (frame): frame is Extract<KotaAgentMessage, { type: "tool_result" }> =>
+        frame.type === "tool_result",
+    );
+    expect(toolResultFrame).toBeDefined();
+    expect(toolResultFrame?.toolUseId).toBe("call_frames");
+    expect(toolResultFrame?.content).toEqual([
+      {
+        type: "tool_result",
+        tool_use_id: "call_frames",
+        content: [
+          { type: "text", text: "visible block", _meta: { trace: "block-secret" } },
+          {
+            type: "image",
+            source: { type: "base64", media_type: "image/png", data: "abc" },
+          },
+        ],
+        structuredContent: { answer: 42 },
+        _meta: { trace: "result-secret" },
+        is_error: false,
+      },
+    ]);
+    expect(frames.at(-1)).toMatchObject({
+      type: "result",
+      isError: false,
+      text: "done",
+      numTurns: 2,
+      inputTokens: 13,
+      outputTokens: 5,
+      sessionId: "msg_frames_2",
+    });
   });
 
   it("does not expose project secrets or env files through file_read tool results", async () => {

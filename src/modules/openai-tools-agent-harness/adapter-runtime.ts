@@ -1,9 +1,15 @@
 import type {
 	AgentHarnessRunOptions,
+	KotaMessage,
 	KotaToolResultBlock,
 } from "#core/agent-harness/index.js";
 import { McpManager, type McpServerConfig } from "#core/mcp/manager.js";
-import type { ToolResultEntry } from "#core/tools/tool-runner.js";
+import {
+	executeToolCalls,
+	type McpPromptToolDeclarationFingerprints,
+	type ToolResultEntry,
+} from "#core/tools/tool-runner.js";
+import type { ValidatedToolUseBlock } from "./tool-loop.js";
 
 export function resolveProjectDir(options: AgentHarnessRunOptions): string {
 	return options.cwd ?? process.cwd();
@@ -78,4 +84,57 @@ export function toolResultEntryToBlock(entry: ToolResultEntry): KotaToolResultBl
 		...(entry._meta ? { _meta: entry._meta } : {}),
 		is_error: entry.is_error === true,
 	};
+}
+
+export function executeOpenaiToolCalls(
+	toolBlocks: ValidatedToolUseBlock[],
+	options: AgentHarnessRunOptions,
+	context: {
+		mcpManager: McpManager | undefined;
+		mcpPromptToolDeclarationFingerprints:
+			| McpPromptToolDeclarationFingerprints
+			| undefined;
+		projectDir: string;
+		abortSignal: AbortSignal | undefined;
+		messages: KotaMessage[];
+	},
+): Promise<ToolResultEntry[]> {
+	return executeToolCalls(toolBlocks, {
+		resultLimit: 50_000,
+		verbose: options.verbose === true,
+		autonomyMode: options.autonomyMode ?? "autonomous",
+		...(context.mcpManager !== undefined ? { mcpManager: context.mcpManager } : {}),
+		...(context.mcpPromptToolDeclarationFingerprints !== undefined
+			? {
+					mcpPromptToolDeclarationFingerprints:
+						context.mcpPromptToolDeclarationFingerprints,
+				}
+			: {}),
+		cwd: context.projectDir,
+		...(options.guardrailsConfig !== undefined
+			? { guardrailsConfig: options.guardrailsConfig }
+			: {}),
+		...(options.clientApprovalResolver !== undefined
+			? { clientApprovalResolver: options.clientApprovalResolver }
+			: {}),
+		...(options.workflowContext !== undefined
+			? {
+					sessionId: options.workflowContext.spanId,
+					workflowContext: options.workflowContext,
+					scopeId: options.workflowContext.scopeId,
+					projectId: options.workflowContext.projectId,
+				}
+			: {}),
+		messages: context.messages,
+		...(options.idempotencyStore !== undefined
+			? { idempotencyStore: options.idempotencyStore }
+			: {}),
+		...(options.tokenBudget !== undefined
+			? { tokenBudget: options.tokenBudget }
+			: {}),
+		...(context.abortSignal !== undefined ? { signal: context.abortSignal } : {}),
+		canUseTool: options.canUseTool,
+		allowedTools: options.allowedTools,
+		disallowedTools: options.disallowedTools,
+	});
 }

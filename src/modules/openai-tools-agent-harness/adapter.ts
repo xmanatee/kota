@@ -3,19 +3,26 @@ import type {
   AgentHarnessResult,
   AgentHarnessRunOptions,
   AgentHarnessWriter,
-  KotaToolUseBlock,
 } from "#core/agent-harness/index.js";
 import { agentTokenUsageFromModelUsage } from "#core/agent-harness/index.js";
 import { createModelClient } from "#core/model/model-client.js";
 import { resolveModelOutputTokenLimit } from "#core/model/output-token-limits.js";
 import { runWithAskOwnerSource } from "#core/tools/ask-owner.js";
 import {
-  executeToolCalls,
   FailureTracker,
   ToolPermissionInterruptedError,
-  type ToolResultEntry,
 } from "#core/tools/tool-runner.js";
 import {
+  attachAgentMessageStreamEvents,
+  checkAborted,
+  createAgentMessageEmitter,
+  emitModelTurnStarted,
+  emitResultMessage,
+  emitToolCallMessages,
+  emitToolResultMessages,
+} from "./adapter-agent-messages.js";
+import {
+  executeOpenaiToolCalls,
   initializeMcpManager,
   resolveProjectDir,
   snapshotMcpToolDeclarationFingerprints,
@@ -48,13 +55,6 @@ export {
   OPENAI_TOOLS_ASK_OWNER_TOOL_NAME,
 } from "./constants.js";
 
-function checkAborted(signal: AbortSignal | undefined): void {
-  if (signal?.aborted) {
-    const reason = signal.reason;
-    throw reason instanceof Error ? reason : new Error("Agent execution aborted");
-  }
-}
-
 export const openaiToolsAgentHarness: AgentHarness = {
   name: OPENAI_TOOLS_AGENT_HARNESS_NAME,
   description:
@@ -62,7 +62,7 @@ export const openaiToolsAgentHarness: AgentHarness = {
   supportsMultiTurn: true,
   supportedHookKinds: ["preRun", "postRun"] as const,
   askOwnerToolName: OPENAI_TOOLS_ASK_OWNER_TOOL_NAME,
-  emitsAgentMessageStream: false,
+  emitsAgentMessageStream: true,
   toolControl: "kota",
   readiness: openaiToolsReadiness,
   unsupportedRunOptions: OPENAI_TOOLS_UNSUPPORTED_OPTIONS,
@@ -119,6 +119,7 @@ async function runOpenaiToolsLoop(
     let outputTokens = 0;
     let lastSessionId: string | undefined;
     const streamedChunks: string[] = [];
+    const agentMessages = createAgentMessageEmitter(options.onMessage);
     let turnCount = 0;
     let isError = false;
     let lastSubtype: string | undefined;
@@ -138,8 +139,17 @@ async function runOpenaiToolsLoop(
       };
     }
 
+    async function finish(
+      result: AgentHarnessResult,
+    ): Promise<AgentHarnessResult> {
+      emitResultMessage(agentMessages, result, lastSessionId);
+      await agentMessages.flush();
+      return sessionRuntime.finalize(result, lastSessionId);
+    }
+
     for (let turn = 0; turn < maxTurns; turn += 1) {
       checkAborted(options.abortController?.signal);
+      emitModelTurnStarted(agentMessages, turn);
       const mcpTools = mcpManager?.getTools() ?? [];
       const mcpPromptToolDeclarationFingerprints =
         snapshotMcpToolDeclarationFingerprints(mcpManager, mcpTools);
@@ -160,14 +170,14 @@ async function runOpenaiToolsLoop(
       );
       const exhaustion = options.tokenBudget?.checkCanStartTurn(tokenBudgetSource);
       if (exhaustion) {
-        return openaiToolsTokenBudgetErrorResult({
+        return finish(openaiToolsTokenBudgetErrorResult({
           message: exhaustion.message,
           streamedChunks,
           lastSessionId,
           turnCount,
           inputTokens,
           outputTokens,
-        });
+        }));
       }
 
       const abortSignal = options.abortController?.signal;
@@ -180,12 +190,10 @@ async function runOpenaiToolsLoop(
         effort: options.effort,
         ...(abortSignal ? { signal: abortSignal } : {}),
       });
-      stream.on("text", (delta) => {
-        streamedChunks.push(delta);
-        if (writer) writer.write(delta);
-      });
+      attachAgentMessageStreamEvents(stream, writer, streamedChunks, agentMessages);
 
       const finalMessage = await stream.finalMessage();
+      await agentMessages.flush();
       turnCount += 1;
       inputTokens += finalMessage.usage?.input_tokens ?? 0;
       outputTokens += finalMessage.usage?.output_tokens ?? 0;
@@ -198,7 +206,8 @@ async function runOpenaiToolsLoop(
       const textBlocks = finalMessage.content.filter(isTextBlock);
       const toolBlocks = finalMessage.content
         .filter(isToolUseBlock)
-        .map((block): KotaToolUseBlock => validateToolUseBlock(block));
+        .map((block) => validateToolUseBlock(block));
+      emitToolCallMessages(agentMessages, toolBlocks, finalMessage.id);
       const turnText = textBlocks.map((block) => block.text).join("");
       if (turnText.length > 0) finalText = turnText;
 
@@ -209,7 +218,7 @@ async function runOpenaiToolsLoop(
 
       const turnExhaustion = options.tokenBudget?.checkAfterDebit(tokenBudgetSource);
       if (turnExhaustion) {
-        return openaiToolsTokenBudgetErrorResult({
+        return finish(openaiToolsTokenBudgetErrorResult({
           message:
             toolBlocks.length > 0
               ? `${turnExhaustion.message} Tool calls were not executed because the harness cannot continue to consume their results.`
@@ -219,49 +228,21 @@ async function runOpenaiToolsLoop(
           turnCount,
           inputTokens,
           outputTokens,
-        });
+        }));
       }
 
       if (toolBlocks.length === 0 || finalMessage.stop_reason === "end_turn") {
-        return sessionRuntime.finalize(currentResult(), lastSessionId);
+        return finish(currentResult());
       }
 
-      let toolResults: ToolResultEntry[];
+      let toolResults: Awaited<ReturnType<typeof executeOpenaiToolCalls>>;
       try {
-        toolResults = await executeToolCalls(toolBlocks, {
-          resultLimit: 50_000,
-          verbose: options.verbose === true,
-          autonomyMode: options.autonomyMode ?? "autonomous",
-          ...(mcpManager !== undefined ? { mcpManager } : {}),
-          ...(mcpPromptToolDeclarationFingerprints !== undefined
-            ? { mcpPromptToolDeclarationFingerprints }
-            : {}),
-          cwd: projectDir,
-          ...(options.guardrailsConfig !== undefined
-            ? { guardrailsConfig: options.guardrailsConfig }
-            : {}),
-          ...(options.clientApprovalResolver !== undefined
-            ? { clientApprovalResolver: options.clientApprovalResolver }
-            : {}),
-          ...(options.workflowContext !== undefined
-            ? {
-                sessionId: options.workflowContext.spanId,
-                workflowContext: options.workflowContext,
-                scopeId: options.workflowContext.scopeId,
-                projectId: options.workflowContext.projectId,
-              }
-            : {}),
+        toolResults = await executeOpenaiToolCalls(toolBlocks, options, {
+          mcpManager,
+          mcpPromptToolDeclarationFingerprints,
+          projectDir,
+          abortSignal,
           messages,
-          ...(options.idempotencyStore !== undefined
-            ? { idempotencyStore: options.idempotencyStore }
-            : {}),
-          ...(options.tokenBudget !== undefined
-            ? { tokenBudget: options.tokenBudget }
-            : {}),
-          ...(abortSignal !== undefined ? { signal: abortSignal } : {}),
-          canUseTool: options.canUseTool,
-          allowedTools: options.allowedTools,
-          disallowedTools: options.disallowedTools,
         });
       } catch (error) {
         if (!(error instanceof ToolPermissionInterruptedError)) throw error;
@@ -269,10 +250,12 @@ async function runOpenaiToolsLoop(
         finalText = message;
         isError = true;
         lastSubtype = "interrupted_by_can_use_tool";
-        return sessionRuntime.finalize(currentResult(), lastSessionId);
+        return finish(currentResult());
       }
 
       const resultBlocks = toolResults.map(toolResultEntryToBlock);
+      emitToolResultMessages(agentMessages, resultBlocks, lastSessionId);
+      await agentMessages.flush();
       messages.push({ role: "user", content: resultBlocks });
       const failureAction = failureTracker.record(toolResults);
       if (failureAction !== "continue") {
@@ -287,7 +270,7 @@ async function runOpenaiToolsLoop(
     lastSubtype = "max_turns_reached";
     finalText =
       finalText || `openai-tools harness reached maxTurns=${maxTurns} without ending.`;
-    return sessionRuntime.finalize(currentResult(), lastSessionId);
+    return finish(currentResult());
   } finally {
     await mcpManager?.close();
   }

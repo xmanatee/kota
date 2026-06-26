@@ -16,6 +16,10 @@ export function isTextBlock(block: KotaContentBlock): block is KotaTextBlock {
   return block.type === "text";
 }
 
+export type ValidatedToolUseBlock = KotaToolUseBlock & {
+  input: KotaJsonObject;
+};
+
 function isPlainToolInput(
   value: KotaToolUseBlock["input"] | undefined,
 ): value is KotaJsonObject {
@@ -32,7 +36,7 @@ function looksLikeRawFallback(input: KotaToolUseBlock["input"]): boolean {
   );
 }
 
-export function validateToolUseBlock(call: KotaToolUseBlock): KotaToolUseBlock {
+export function validateToolUseBlock(call: KotaToolUseBlock): ValidatedToolUseBlock {
   if (typeof call.name !== "string" || call.name.length === 0) {
     throw new Error(
       `OpenAI model returned a malformed tool_call: missing tool name (id=${String(call.id)}).`,
@@ -55,7 +59,7 @@ export function validateToolUseBlock(call: KotaToolUseBlock): KotaToolUseBlock {
       }.`,
     );
   }
-  return call;
+  return call as ValidatedToolUseBlock;
 }
 
 export function selectToolDefinitions(
