@@ -1,13 +1,13 @@
 ---
 id: task-record-architecture-decision-for-worktree-backed-a
 title: Record architecture decision for worktree-backed autonomy
-status: backlog
+status: ready
 priority: p1
 area: architecture
 task_class: Platform
 summary: Capture the researched design, tradeoffs, conflict policy, and local architecture rules for KOTA worktree-backed autonomy before implementation.
 created_at: 2026-06-25T14:53:17.693Z
-updated_at: 2026-06-25T14:53:17.693Z
+updated_at: 2026-06-26T09:40:00.204Z
 ---
 
 ## Problem

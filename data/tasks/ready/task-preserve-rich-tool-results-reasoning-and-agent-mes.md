@@ -1,14 +1,14 @@
 ---
 id: task-preserve-rich-tool-results-reasoning-and-agent-mes
 title: Preserve rich tool results reasoning and agent-message traces in openai-tools
-status: backlog
+status: ready
 priority: p1
 area: modules
 task_class: Platform
 depends_on: [task-make-openai-compatible-model-clients-honor-model-s, task-route-openai-tools-through-the-kota-tool-runner-wi]
 summary: Make the openai-tools harness preserve rich tool results, reasoning frames, and structured action traces so model-client harnesses have inspectable parity with native harness artifacts.
 created_at: 2026-06-25T14:23:05.303Z
-updated_at: 2026-06-25T14:23:05.303Z
+updated_at: 2026-06-26T09:40:00.169Z
 ---
 
 ## Problem
