@@ -80,10 +80,20 @@ describe("shipped preset registry", () => {
     expect(hasPreset(SHIPPED_DEFAULT_PRESET_ID)).toBe(true);
   });
 
-  it("keeps the OpenRouter lab preset non-default while selecting concrete candidate tiers", () => {
+  it("exposes OpenRouter lab preset metadata for diagnostics while keeping it non-default", () => {
     const preset = getPreset("openrouter-lab");
+    const metadata = {
+      presetId: preset.id,
+      harness: preset.harness,
+      authEnv: preset.authEnv,
+      defaultModel: preset.defaultModel,
+      tiers: preset.tiers,
+      outputTokenLimits: preset.outputTokenLimits,
+      defaultEffort: preset.defaultEffort,
+    };
     expect(SHIPPED_DEFAULT_PRESET_ID).not.toBe("openrouter-lab");
-    expect(preset).toMatchObject({
+    expect(metadata).toEqual({
+      presetId: "openrouter-lab",
       harness: "openai-tools",
       authEnv: ["OPENROUTER_API_KEY"],
       defaultModel: "openrouter/z-ai/glm-5.2",
@@ -91,6 +101,11 @@ describe("shipped preset registry", () => {
         fast: "openrouter/deepseek/deepseek-v4-flash",
         balanced: "openrouter/qwen/qwen3.7-plus",
         capable: "openrouter/z-ai/glm-5.2",
+      },
+      outputTokenLimits: {
+        fast: 65536,
+        balanced: 65536,
+        capable: 32768,
       },
       defaultEffort: "high",
     });

@@ -92,6 +92,15 @@ describe("daemonModule", () => {
     expect(optNames).toContain("--log-format");
   });
 
+  it("exposes OpenRouter lab in daemon start preset help metadata", () => {
+    const cmds = daemonModule.commands!(stubCtx);
+    const startCmd = cmds[0].commands.find((c) => c.name() === "start")!;
+    const presetOption = startCmd.options.find((option) => option.long === "--preset");
+    expect(presetOption?.description).toContain("openrouter-lab");
+    expect(presetOption?.description).toContain("KOTA_PRESET");
+    expect(presetOption?.description).toContain("config.defaultPreset");
+  });
+
   it("install subcommand has --dry-run option", () => {
     const cmds = daemonModule.commands!(stubCtx);
     const installCmd = cmds[0].commands.find((c) => c.name() === "install")!;
