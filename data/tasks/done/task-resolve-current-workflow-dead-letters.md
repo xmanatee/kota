@@ -1,12 +1,12 @@
 ---
 id: task-resolve-current-workflow-dead-letters
 title: Resolve current workflow dead letters
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Clear or redrive the five open KOTA workflow-dispatch DLQs after recent promotion and progress-reviewer fixes, preserving diagnostics and creating narrower repair tasks for any failure that still reproduces.
 created_at: 2026-06-26T06:20:49.216Z
-updated_at: 2026-06-26T06:20:49.216Z
+updated_at: 2026-06-26T06:29:57.481Z
 ---
 
 ## Problem
@@ -48,4 +48,8 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- A run artifact exports before/after DLQ state for the five cited items, records redrive or dismissal rationale per item, verifies the Meta loop-quality task remains non-actionable or has a Product/Safety link before promotion, runs `pnpm run validate-tasks`, and captures a successful same-shape progress-reviewer run or an explicit classified external-provider outcome.
+- `.kota/runs/2026-06-26T06-22-55-603Z-builder-tmg2wp/dlq-resolution-summary.md` records before/after DLQ state, per-item dismissal rationale, loop-quality task state, focused progress-reviewer test evidence, and queue validation evidence.
+- The cited DLQ ids were exported before and after dismissal under `.kota/runs/2026-06-26T06-22-55-603Z-builder-tmg2wp/dlq-diagnostics/`.
+- `pnpm kota workflow dlq list --status open --json` returned `items: []` and `counts.open: 0`.
+- `pnpm exec vitest run src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts -t "keeps tasks referenced by dead-letter reasons citeable" --reporter=dot` passed.
+- `pnpm run validate-tasks` passed after the task move was staged.
