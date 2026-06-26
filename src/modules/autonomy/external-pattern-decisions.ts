@@ -183,14 +183,24 @@ export const EXTERNAL_PATTERN_DECISIONS: readonly ExternalPatternDecision[] = [
   {
     pattern: "Multi-Claude parallel builds",
     verdict: "reject",
-    source: "Anthropic Claude Code multi-instance/parallel-builds post",
-    date: "2026-04-23",
-    kotaPrimitives: ["builder", "critic", "git worktree posture"],
+    source:
+      "Anthropic Claude Code worktrees/agent-teams docs, Codex app worktrees, " +
+      "AgenticFlict conflict study, and KOTA worktree-backed autonomy decision",
+    date: "2026-06-26",
+    kotaPrimitives: [
+      "builder",
+      "critic",
+      "workspaceDir",
+      "task claim lease",
+      "git worktree lifecycle",
+      "merge gate",
+      "scheduler concurrency",
+    ],
     revisitWhen:
-      "One-task-WIP through builder/critic stops scaling to a queue " +
-      "shape we need, AND a peer demonstrates a parallel-builder + " +
-      "git-locks coordination primitive without introducing a second " +
-      "coordination surface.",
+      "Direct adoption remains rejected until KOTA's own workspaceDir " +
+      "execution, git-module lifecycle, task claim leases, merge gate, " +
+      "status/cleanup controls, and guarded parallel-builder fixtures " +
+      "are complete.",
   },
   {
     pattern: "Claude Code 1M context + session management",

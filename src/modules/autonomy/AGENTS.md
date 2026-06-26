@@ -11,9 +11,7 @@ Owns KOTA's autonomous development loop.
   retract or narrow when code, behavior, or ownership changes.
 - Workflow prompts stay role-focused; shared policy belongs in this hierarchy.
 - Shipped autonomy workflows get harness/model/effort from the active preset
-  in code, so repo boot does not require operator `.kota/config.json`.
-  Generic workflows may still inherit
-  `KotaConfig.defaultAgentHarness`.
+  in code; generic workflows may still inherit `KotaConfig.defaultAgentHarness`.
 - Judges inside a repair loop inherit the parent step's resolved harness, not
   a parallel fallback.
 
@@ -47,23 +45,24 @@ artifacts or `data/watchlist.yaml`.
 - **Eval fixtures resist contamination.** After OpenAI retired SWE-bench
   Verified, keep SWE-bench/Pro reference-only; seed `eval-harness` from local
   failures or justified smoke cases with non-vacuous predicates.
+- **Worktree-backed autonomy.** Accepted in
+  `worktree-backed-autonomy-decision.ts`: `projectDir`, leased `workspaceDir`
+  worktrees, gated merges, serial-to-parallel rollout.
 
 ## Live-Run Evaluator Calibration
 
-Fixture `pass^k` catches generator drift; per-run artifacts catch
-evaluator drift. Pass-contradiction needs later overlap with final
-failure (`verdict==="fail"` or failed terminal status);
-`criticFailureCount>0` alone is diagnostic. Mechanical repair
-is iteration noise. PWW escalation needs later final hedging/failing
-overlap. Prompt-hash changes reset the window. Drift creates/recreates/promotes
-`task-evaluator-calibration-drift-repair` in `ready/`; regression
-bridges to attention digest. Recreate noops when the prior repair
-commit is newer than the latest calibration artifact: daemon has not
-loaded post-fix dist. Critic blocks weak rendered evidence
-(preflight-only), placeholder tests, untracked compat shims, baseline
-ratchets (hedged "if inadvertent"), required-source dishonesty,
-untracked Done-When gaps, and runtime defects masked by missing test
-coverage. Non-trivial warnings need a durable trace; otherwise critical.
+Fixture `pass^k` catches generator drift; per-run artifacts catch evaluator
+drift. Pass-contradiction needs later final failure overlap
+(`verdict==="fail"` or failed terminal status); `criticFailureCount>0` alone
+is diagnostic. Mechanical repair is iteration noise. PWW escalation needs
+later final hedging/failing overlap; prompt-hash changes reset the window.
+Drift creates/recreates/promotes `task-evaluator-calibration-drift-repair` in
+`ready/`; regression bridges to attention digest. Recreate noops when the prior
+repair commit is newer than the latest artifact: daemon has not loaded post-fix
+dist. Critic blocks weak rendered evidence, placeholder tests, untracked compat
+shims, hedged baseline ratchets, source dishonesty, untracked Done-When gaps,
+and untested runtime defects. Non-trivial warnings need a durable trace;
+otherwise critical.
 
 ## External Pattern Decisions
 
@@ -81,7 +80,7 @@ Verdicts on peer patterns vs KOTA primitives live in
 - **Managed Agents / brain-hands decoupling.** Reject.
 - **Claude Code auto mode + sandboxing.** Read.
 - **Harness design for long-running apps.** Read.
-- **Multi-Claude parallel builds.** Reject.
+- **Multi-Claude parallel builds.** Reject direct adoption; revisit via worktrees.
 - **Claude Code 1M context + session management.** Reject.
 - **Production MCP agent integration.** Read.
 - **AGI capability scoring / behavioral-disposition alignment.** Reject.
@@ -98,17 +97,15 @@ Verdicts on peer patterns vs KOTA primitives live in
   SDK boundary; tools ≈ `guardrails.ts` + risk; runtime ≈
   `approval-queue` + autonomy mode + `injection-defense`.
 - **Opus 4.7 harness defaults at agent-step layer.** Delegate-don't-pair:
-  front-load intent, constraints, and success criteria. Use `xhigh`,
-  adaptive thinking, batch-upfront, and judicious subagents. Task
-  contract + success-criteria files enforce this; no clarification loops
-  or fixed reasoning caps.
+  front-load intent, constraints, and success criteria; use `xhigh`,
+  adaptive thinking, batch-upfront, and judicious subagents. Task contracts
+  enforce this; no clarification loops or fixed reasoning caps.
 - **Tool-design hygiene.** High bar for new tools; prefer discoverable
   surfaces (read, grep, scoped `AGENTS.md`, prompt state).
 - **`ask_owner` in autonomous workflows uses `askOwnerSteps`**
   (`#core/workflow/ask-owner-step.js`): ask → await → consume,
-  daemon-restart-safe. Gate on real prior-step output, 10 min budget,
-  consume every `AwaitedOwnerOutcome` kind. Do not import
-  `#core/tools/ask-owner.js` from an autonomy workflow.
+  daemon-restart-safe. Gate on real prior-step output, 10 min budget, consume
+  every `AwaitedOwnerOutcome` kind. Do not import `#core/tools/ask-owner.js`.
 
 ## Scoped Contracts
 
