@@ -1,14 +1,14 @@
 ---
 id: task-add-merge-gate-and-automated-conflict-resolver-for
 title: Add merge gate and automated conflict resolver for worktree runs
-status: backlog
+status: ready
 priority: p1
 area: autonomy
 task_class: Safety
 depends_on: [task-run-builder-work-and-repair-inside-task-worktrees]
 summary: Merge completed worktree branches through a validation gate that rebases, resolves bounded textual conflicts, reruns checks, and leaves unresolved work visible.
 created_at: 2026-06-25T14:53:46.305Z
-updated_at: 2026-06-25T14:53:46.305Z
+updated_at: 2026-06-27T08:26:06.324Z
 ---
 
 ## Problem

@@ -1,14 +1,14 @@
 ---
 id: task-add-scaffolded-weak-and-local-model-agent-mode
 title: Add scaffolded weak and local model agent mode
-status: backlog
+status: ready
 priority: p2
 area: modules
 task_class: Platform
 depends_on: [task-route-openai-tools-through-the-kota-tool-runner-wi, task-preserve-rich-tool-results-reasoning-and-agent-mes]
 summary: Add a constrained agent mode for local and weaker models with compound inspect/edit/verify tools, smaller action space, context packaging, and verifier-driven repair loops.
 created_at: 2026-06-25T14:23:26.692Z
-updated_at: 2026-06-25T14:23:26.692Z
+updated_at: 2026-06-27T08:26:06.367Z
 ---
 
 ## Problem
