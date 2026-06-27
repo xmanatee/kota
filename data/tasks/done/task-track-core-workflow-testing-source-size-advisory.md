@@ -1,12 +1,12 @@
 ---
 id: task-track-core-workflow-testing-source-size-advisory
 title: Track core workflow testing source-size advisory
-status: ready
+status: done
 priority: p3
 area: platform
 summary: Builder run 2026-06-27T06-09-10-237Z-builder-ppmxgl completed successfully but still recorded a source-size advisory for touched src/core/workflow/testing/index.ts at 669 lines. Split cohesive test helpers or record a narrow cleanup exception so future core workflow edits do not leave this advisory untracked.
 created_at: 2026-06-27T07:02:16.621Z
-updated_at: 2026-06-27T07:02:16.621Z
+updated_at: 2026-06-27T08:18:22.529Z
 ---
 
 ## Problem
@@ -45,4 +45,26 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- Before/after line counts are recorded for src/core/workflow/testing/index.ts and any extracted helpers; staged source-size diagnostics no longer warn for this touched core workflow testing helper, or a narrow typed cleanup exception is recorded; focused core workflow tests, typecheck, and task validation pass.
+Resolved in builder run 2026-06-27T08-06-19-202Z-builder-dti9px.
+
+Before:
+
+- `src/core/workflow/testing/index.ts`: 669 lines, with an advisory source-size warning in `.kota/runs/2026-06-27T06-09-10-237Z-builder-ppmxgl/source-file-size-review.json`.
+
+After:
+
+- `src/core/workflow/testing/index.ts`: 133 lines.
+- `src/core/workflow/testing/results.ts`: 89 lines.
+- `src/core/workflow/testing/execution-state.ts`: 198 lines.
+- `src/core/workflow/testing/execute-leaf-step.ts`: 157 lines.
+- `src/core/workflow/testing/execute-control-flow.ts`: 140 lines.
+- `src/core/workflow/testing/execute-foreach-step.ts`: 180 lines.
+- `src/core/workflow/testing/step-executor.ts`: 33 lines.
+
+Validation:
+
+- `pnpm exec vitest run src/core/workflow/testing src/core/workflow/steps/branch-step.test.ts src/core/workflow/steps/approval-step.test.ts src/modules/autonomy/workflows/builder/workflow.test.ts src/modules/autonomy/workflows/builder/workflow-run.test.ts src/modules/autonomy/workflows/decomposer/workflow.test.ts src/modules/autonomy/workflows/github-mention-intake/workflow.test.ts` passed: 8 files, 75 tests.
+- `pnpm run typecheck` passed.
+- `pnpm exec vitest run src/strict-types-policy.integration.test.ts` passed.
+- Real-index `checkSevereSourceFileSizeForRun` passed and wrote `.kota/runs/2026-06-27T08-06-19-202Z-builder-dti9px/source-file-size-review.json` with `outcome: "ok"`.
+- `pnpm run validate-tasks` passed after staging.

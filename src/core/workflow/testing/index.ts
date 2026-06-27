@@ -1,51 +1,28 @@
 import { tmpdir } from "node:os";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type {
-  WorkflowPredicate,
   WorkflowRuntimeState,
   WorkflowStepContext,
-  WorkflowStepResult,
   WorkflowStepSkipReason,
 } from "#core/workflow/run-types.js";
-import {
-  type WorkflowCodeStepInput,
-  WorkflowStepOutputValidationError,
-} from "#core/workflow/step-input-code.js";
-import type {
-  WorkflowBranchStepInput,
-  WorkflowForeachStepInput,
-  WorkflowParallelGroupInput,
-} from "#core/workflow/step-input-control-flow.js";
-import type { WorkflowStepInput } from "#core/workflow/step-input-types.js";
-import { resolveValue } from "#core/workflow/steps/step-executor.js";
 import type { WorkflowStepOutput } from "#core/workflow/steps/step-executor-agent.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { workspaceDirFromStepOutput } from "#core/workflow/workspace-update.js";
+import { HarnessExecutionState } from "./execution-state.js";
+import { executeHarnessStep } from "./step-executor.js";
+
+export type HarnessOutputValue = unknown;
+export type HarnessObjectValue = Record<string, unknown>;
 
 export type HarnessStepResult = {
   id: string;
   type: string;
   status: "success" | "failed" | "skipped";
-  output?: unknown;
+  output?: HarnessOutputValue;
   error?: string;
   skipReason?: WorkflowStepSkipReason;
   costUsd?: number;
 };
-
-const BRANCH_ARM_NOT_TAKEN: WorkflowStepSkipReason = {
-  kind: "branch-arm-not-taken",
-};
-const FOREACH_EMPTY: WorkflowStepSkipReason = { kind: "foreach-empty" };
-const PARENT_SKIPPED: WorkflowStepSkipReason = { kind: "parent-skipped" };
-
-function whenSkipReason(
-  when: WorkflowPredicate | undefined,
-): WorkflowStepSkipReason {
-  return when?.skipLabel
-    ? { kind: "when-predicate", label: when.skipLabel }
-    : { kind: "when-predicate" };
-}
 
 export type HarnessRunResult = {
   status: "success" | "failed";
@@ -54,7 +31,7 @@ export type HarnessRunResult = {
   emitted: Array<{
     event: string;
     schemaRef: WorkflowRunTrigger["schemaRef"];
-    payload: Record<string, unknown>;
+    payload: HarnessObjectValue;
   }>;
   restartRequested?: string;
 };
@@ -62,7 +39,7 @@ export type HarnessRunResult = {
 export type HarnessTrigger = {
   event: string;
   schemaRef?: WorkflowRunTrigger["schemaRef"];
-  payload?: Record<string, unknown>;
+  payload?: HarnessObjectValue;
 };
 
 type StepMockLiteral = WorkflowStepOutput | readonly WorkflowStepOutput[];
@@ -100,14 +77,11 @@ export type HarnessOptions = {
    * call runTool, triggerWorkflow, or readPrompt.
    */
   contextOverrides?: {
-    runTool?: (
-      name: string,
-      input: Record<string, unknown>,
-    ) => Promise<ToolResult>;
+    runTool?: (name: string, input: HarnessObjectValue) => Promise<ToolResult>;
     readPrompt?: (promptPath: string) => string;
     triggerWorkflow?: (
       workflowName: string,
-      payload: Record<string, unknown>,
+      payload: HarnessObjectValue,
       waitFor: "queued" | "completed",
       signal?: AbortSignal,
     ) => Promise<{ runId: string; status: "queued" | "completed" | "failed" }>;
@@ -118,60 +92,6 @@ export type HarnessOptions = {
    */
   parallel?: boolean;
 };
-
-function makeStepResult(
-  id: string,
-  type: string,
-  status: "success" | "failed" | "skipped",
-  output: unknown,
-  error: string | undefined,
-  skipReason: WorkflowStepSkipReason | undefined,
-): { harness: HarnessStepResult; internal: WorkflowStepResult } {
-  const now = new Date().toISOString();
-  const harness: HarnessStepResult = {
-    id,
-    type,
-    status,
-    ...(output !== undefined ? { output } : {}),
-    ...(error !== undefined ? { error } : {}),
-    ...(skipReason !== undefined ? { skipReason } : {}),
-  };
-  const internal: WorkflowStepResult = {
-    id,
-    type: type as WorkflowStepResult["type"],
-    status,
-    startedAt: now,
-    completedAt: now,
-    durationMs: 0,
-    ...(output !== undefined ? { output } : {}),
-    ...(error !== undefined ? { error } : {}),
-    ...(skipReason !== undefined ? { skipReason } : {}),
-  };
-  return { harness, internal };
-}
-
-function validateWorkflowStepOutput<T>(
-  step: WorkflowCodeStepInput | WorkflowStepInput,
-  rawOutput: T,
-) {
-  if ((step.type !== "code" && step.type !== "agent") || step.validate === undefined) {
-    return rawOutput;
-  }
-  try {
-    return step.validate(rawOutput);
-  } catch (error) {
-    const cause = error instanceof Error ? error : new Error(String(error));
-    throw new WorkflowStepOutputValidationError(step.id, "run", cause);
-  }
-}
-
-async function resolveStepMock(
-  mock: StepMockValue,
-  context: WorkflowStepContext,
-): Promise<StepMockLiteral> {
-  if (typeof mock === "function") return await mock(context);
-  return mock;
-}
 
 /**
  * A lightweight harness for unit-testing workflow definitions without a running
@@ -192,478 +112,22 @@ export class WorkflowTestHarness {
   }
 
   async run(): Promise<HarnessRunResult> {
-    const trigger = {
-      event: this.#options.trigger?.event ?? "runtime.idle",
-      schemaRef: this.#options.trigger?.schemaRef ?? null,
-      payload: this.#options.trigger?.payload ?? {},
-    };
     const projectDir = this.#options.projectDir ?? tmpdir();
-    let workspaceDir = this.#options.workspaceDir ?? projectDir;
-    const stepMocks = this.#options.stepMocks ?? {};
-    const runParallel = this.#options.parallel ?? false;
-
-    const stepOutputsById: Record<string, unknown> = {};
-    const stepResultsById: Record<string, WorkflowStepResult> = {};
-    const stepOutputList: unknown[] = [];
-    const emitted: HarnessRunResult["emitted"] = [];
-    let restartRequested: string | undefined;
-
-    const allStepResults: Record<string, HarnessStepResult> = {};
-    let runFailed = false;
-    let runError: string | undefined;
-
-    const buildContext = (): WorkflowStepContext => {
-      const previousOutput =
-        stepOutputList.length > 0
-          ? stepOutputList[stepOutputList.length - 1]
-          : undefined;
-
-      const runtimeState: WorkflowRuntimeState = {
-        completedRuns: this.#options.runtimeState?.completedRuns ?? 0,
-        pendingRuns: this.#options.runtimeState?.pendingRuns ?? [],
-        workflows: this.#options.runtimeState?.workflows ?? {},
-      };
-
-      return {
-        projectDir,
-        workspaceDir,
-        workflow: {
-          name: this.#workflow.name,
-          definitionPath: "test",
-          runId: "harness-run-id",
-          runDir: ".kota/runs/harness",
-          runDirPath: `${projectDir}/.kota/runs/harness`,
-        },
-        trigger,
-        previousOutput,
-        stepOutputs: { ...stepOutputsById },
-        stepResults: { ...stepResultsById },
-        stepOutputList: [...stepOutputList],
-        runTool:
-          this.#options.contextOverrides?.runTool ??
-          (() => {
-            throw new Error(
-              "runTool called but no contextOverrides.runTool mock was provided",
-            );
-          }),
-        emit: (event, payload) => emitted.push({ event, schemaRef: null, payload }),
-        requestRestart: (reason) => {
-          restartRequested = reason;
-        },
-        readPrompt:
-          this.#options.contextOverrides?.readPrompt ?? (() => ""),
-        readRuntimeState: () => runtimeState,
-        reportProgress: () => {},
-        triggerWorkflow:
-          this.#options.contextOverrides?.triggerWorkflow ??
-          (() => {
-            throw new Error(
-              "triggerWorkflow called but no contextOverrides.triggerWorkflow mock was provided",
-            );
-          }),
-      };
-    };
-
-    const recordResult = (
-      harness: HarnessStepResult,
-      internal: WorkflowStepResult,
-      output: unknown,
-    ) => {
-      allStepResults[harness.id] = harness;
-      stepResultsById[harness.id] = internal;
-      if (output !== undefined) {
-        stepOutputsById[harness.id] = output;
-        stepOutputList.push(output);
-      }
-    };
-
-    const recordSkippedArm = (steps: WorkflowStepInput[]) => {
-      for (const s of steps) {
-        const { harness, internal } = makeStepResult(s.id, s.type, "skipped", undefined, undefined, BRANCH_ARM_NOT_TAKEN);
-        allStepResults[s.id] = harness;
-        stepResultsById[s.id] = internal;
-        if (s.type === "branch") {
-          recordSkippedArm(s.ifTrue);
-          if (s.ifFalse) recordSkippedArm(s.ifFalse);
-        } else if (s.type === "parallel" || s.type === "foreach") {
-          recordSkippedArm(s.steps);
-        }
-      }
-    };
-
-    const recordSkippedChildren = (
-      steps: WorkflowStepInput[],
-      reason: WorkflowStepSkipReason,
-    ) => {
-      for (const s of steps) {
-        const { harness, internal } = makeStepResult(s.id, s.type, "skipped", undefined, undefined, reason);
-        allStepResults[s.id] = harness;
-        stepResultsById[s.id] = internal;
-        if (s.type === "branch") {
-          recordSkippedChildren(s.ifTrue, reason);
-          if (s.ifFalse) recordSkippedChildren(s.ifFalse, reason);
-        } else if (s.type === "parallel" || s.type === "foreach") {
-          recordSkippedChildren(s.steps, reason);
-        }
-      }
-    };
-
-    const executeStep = async (
-      step: WorkflowCodeStepInput | WorkflowStepInput,
-    ): Promise<void> => {
-      // Branch step — evaluate outer when, then condition, then run chosen arm
-      if (step.type === "branch") {
-        const branch = step as WorkflowBranchStepInput;
-        const context = buildContext();
-        const shouldRun = branch.when ? Boolean(await branch.when(context)) : true;
-        if (!shouldRun) {
-          const reason = whenSkipReason(branch.when);
-          const { harness, internal } = makeStepResult(branch.id, "branch", "skipped", undefined, undefined, reason);
-          recordResult(harness, internal, undefined);
-          recordSkippedChildren(branch.ifTrue, PARENT_SKIPPED);
-          if (branch.ifFalse) recordSkippedChildren(branch.ifFalse, PARENT_SKIPPED);
-          return;
-        }
-
-        let conditionResult: boolean;
-        try {
-          conditionResult = Boolean(await branch.condition(context));
-        } catch (err) {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          const { harness, internal } = makeStepResult(branch.id, "branch", "failed", undefined, `Branch condition error: ${errMsg}`, undefined);
-          recordResult(harness, internal, undefined);
-          if (!branch.continueOnFailure) { runFailed = true; runError = errMsg; }
-          return;
-        }
-
-        const takenArm = conditionResult ? branch.ifTrue : (branch.ifFalse ?? []);
-        const skippedArm = conditionResult ? (branch.ifFalse ?? []) : branch.ifTrue;
-        const armLabel: "ifTrue" | "ifFalse" = conditionResult ? "ifTrue" : "ifFalse";
-
-        recordSkippedArm(skippedArm);
-        for (const armStep of takenArm) {
-          if (runFailed && !branch.continueOnFailure) break;
-          await executeStep(armStep);
-        }
-
-        const armStatuses = takenArm.map((s) => allStepResults[s.id]?.status);
-        const branchFailed = armStatuses.some((s) => s === "failed");
-        const branchStatus = branchFailed ? "failed" : "success";
-        const branchOutput = { arm: armLabel, steps: takenArm.length };
-        const now = new Date().toISOString();
-        allStepResults[branch.id] = { id: branch.id, type: "branch", status: branchStatus, output: branchOutput };
-        stepResultsById[branch.id] = { id: branch.id, type: "branch", status: branchStatus, startedAt: now, completedAt: now, durationMs: 0, output: branchOutput };
-        stepOutputsById[branch.id] = branchOutput;
-        stepOutputList.push(branchOutput);
-
-        if (branchFailed && !branch.continueOnFailure) {
-          runFailed = true;
-          runError = takenArm.map((s) => allStepResults[s.id]).find((r) => r?.status === "failed")?.error ?? "branch arm failed";
-        }
-        return;
-      }
-
-      // Foreach step — iterate over items, binding each to context.foreach
-      if (step.type === "foreach") {
-        const foreach = step as WorkflowForeachStepInput;
-        const context = buildContext();
-        const shouldRun = foreach.when ? Boolean(await foreach.when(context)) : true;
-        if (!shouldRun) {
-          const reason = whenSkipReason(foreach.when);
-          const { harness, internal } = makeStepResult(foreach.id, "foreach", "skipped", undefined, undefined, reason);
-          recordResult(harness, internal, undefined);
-          recordSkippedChildren(foreach.steps, PARENT_SKIPPED);
-          return;
-        }
-
-        let items: unknown[];
-        try {
-          const resolved = await resolveValue(foreach.items, context);
-          if (!Array.isArray(resolved)) {
-            throw new Error(`foreach step "${foreach.id}" items resolver returned a non-array value`);
-          }
-          items = resolved;
-        } catch (err) {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          const { harness, internal } = makeStepResult(foreach.id, "foreach", "failed", undefined, errMsg, undefined);
-          recordResult(harness, internal, undefined);
-          if (!foreach.continueOnFailure) { runFailed = true; runError = errMsg; }
-          return;
-        }
-
-        const itemResults: Array<{ index: number; status: "success" | "failed"; steps: Record<string, HarnessStepResult> }> = [];
-        let foreachFailed = false;
-
-        if (items.length === 0) {
-          recordSkippedChildren(foreach.steps, FOREACH_EMPTY);
-        }
-
-        const runIteration = async (index: number, item: unknown): Promise<void> => {
-          const iterStepOutputsById: Record<string, unknown> = {};
-          const iterHarnessResults: Record<string, HarnessStepResult> = {};
-          let iterFailed = false;
-
-          for (const innerStep of foreach.steps) {
-            const iterContext: WorkflowStepContext = {
-              ...buildContext(),
-              foreach: { [foreach.as]: item },
-              stepOutputs: { ...stepOutputsById, ...iterStepOutputsById },
-              stepResults: { ...stepResultsById },
-              stepOutputList: [...stepOutputList],
-            };
-
-            const innerShouldRun = innerStep.when ? Boolean(await innerStep.when(iterContext)) : true;
-            if (!innerShouldRun) {
-              const reason = whenSkipReason(innerStep.when);
-              const { harness: h } = makeStepResult(innerStep.id, innerStep.type, "skipped", undefined, undefined, reason);
-              iterHarnessResults[innerStep.id] = h;
-              continue;
-            }
-
-            let innerOutput: unknown;
-            let innerError: string | undefined;
-            let innerStatus: "success" | "failed" = "success";
-
-            try {
-              if (innerStep.type === "agent") {
-                if (!(innerStep.id in stepMocks)) {
-                  throw new Error(`Agent step "${innerStep.id}" requires a mock. Add stepMocks["${innerStep.id}"] to HarnessOptions.`);
-                }
-                innerOutput = validateWorkflowStepOutput(
-                  innerStep,
-                  await resolveStepMock(stepMocks[innerStep.id], iterContext),
-                );
-              } else {
-                const innerCode = innerStep as WorkflowCodeStepInput;
-                const innerRaw = await innerCode.run(iterContext);
-                innerOutput = validateWorkflowStepOutput(innerCode, innerRaw);
-              }
-            } catch (err) {
-              innerError = err instanceof Error ? err.message : String(err);
-              innerStatus = "failed";
-            }
-
-            const { harness: h } = makeStepResult(innerStep.id, innerStep.type, innerStatus, innerOutput, innerError, undefined);
-            iterHarnessResults[innerStep.id] = h;
-            if (innerOutput !== undefined) iterStepOutputsById[innerStep.id] = innerOutput;
-
-            if (innerStatus === "failed" && !innerStep.continueOnFailure) {
-              iterFailed = true;
-              break;
-            }
-          }
-
-          const iterStatus = iterFailed ? "failed" : "success";
-          itemResults.push({ index, status: iterStatus, steps: iterHarnessResults });
-
-          if (iterFailed) {
-            foreachFailed = true;
-          }
-        };
-
-        if (runParallel) {
-          await Promise.all(items.map((item, i) => runIteration(i, item)));
-        } else {
-          for (let i = 0; i < items.length; i++) {
-            await runIteration(i, items[i]);
-            if (foreachFailed && !foreach.continueOnFailure) break;
-          }
-        }
-
-        const foreachStatus = foreachFailed ? "failed" : "success";
-        const foreachOutput = { items: items.length, results: itemResults };
-        const now = new Date().toISOString();
-        allStepResults[foreach.id] = { id: foreach.id, type: "foreach", status: foreachStatus, output: foreachOutput };
-        stepResultsById[foreach.id] = { id: foreach.id, type: "foreach", status: foreachStatus, startedAt: now, completedAt: now, durationMs: 0, output: foreachOutput };
-        stepOutputsById[foreach.id] = foreachOutput;
-        stepOutputList.push(foreachOutput);
-
-        if (foreachFailed && !foreach.continueOnFailure) {
-          runFailed = true;
-          const failedItem = itemResults.find((r) => r.status === "failed");
-          const failedStep = failedItem ? Object.values(failedItem.steps).find((s) => s.status === "failed") : undefined;
-          runError = failedStep?.error ?? "foreach step failed";
-        }
-        return;
-      }
-
-      // Parallel group — run child steps concurrently or serially
-      if (step.type === "parallel") {
-        const group = step as WorkflowParallelGroupInput;
-        const context = buildContext();
-        const shouldRun = group.when ? Boolean(await group.when(context)) : true;
-        if (!shouldRun) {
-          const reason = whenSkipReason(group.when);
-          const { harness, internal } = makeStepResult(group.id, "parallel", "skipped", undefined, undefined, reason);
-          recordResult(harness, internal, undefined);
-          recordSkippedChildren(group.steps, PARENT_SKIPPED);
-          return;
-        }
-
-        const groupStart = new Date().toISOString();
-        if (runParallel) {
-          await Promise.all(group.steps.map((s) => executeStep(s)));
-        } else {
-          for (const s of group.steps) {
-            if (runFailed && !group.continueOnFailure) break;
-            await executeStep(s);
-          }
-        }
-
-        const innerStatuses = group.steps.map((s) => allStepResults[s.id]?.status);
-        const groupFailed = innerStatuses.some((s) => s === "failed");
-        const groupStatus = groupFailed ? "failed" : "success";
-        const innerResults = group.steps.map((s) => allStepResults[s.id]);
-        const groupOutput = { steps: innerResults };
-        const groupNow = new Date().toISOString();
-        allStepResults[group.id] = { id: group.id, type: "parallel", status: groupStatus, output: groupOutput };
-        stepResultsById[group.id] = { id: group.id, type: "parallel", status: groupStatus, startedAt: groupStart, completedAt: groupNow, durationMs: 0, output: groupOutput };
-
-        if (groupFailed && !group.continueOnFailure) {
-          runFailed = true;
-          runError = group.steps.map((s) => allStepResults[s.id]).find((r) => r?.status === "failed")?.error ?? "parallel group failed";
-        }
-        return;
-      }
-
-      // Leaf steps: code, agent, emit, restart, trigger, tool
-      const context = buildContext();
-      const shouldRun = step.when ? Boolean(await step.when(context)) : true;
-      if (!shouldRun) {
-        const reason = whenSkipReason(step.when);
-        const { harness, internal } = makeStepResult(step.id, step.type, "skipped", undefined, undefined, reason);
-        recordResult(harness, internal, undefined);
-        return;
-      }
-
-      let output: unknown;
-      let stepError: string | undefined;
-      let status: "success" | "failed" = "success";
-
-      try {
-        if (step.type === "code") {
-          const codeStep = step as WorkflowCodeStepInput;
-          const rawOutput = await codeStep.run(context);
-          output = validateWorkflowStepOutput(codeStep, rawOutput);
-        } else if (step.type === "agent") {
-          if (!(step.id in stepMocks)) {
-            throw new Error(
-              `Agent step "${step.id}" requires a mock. Add stepMocks["${step.id}"] to HarnessOptions.`,
-            );
-          }
-          output = validateWorkflowStepOutput(
-            step,
-            await resolveStepMock(stepMocks[step.id], context),
-          );
-        } else if (step.type === "tool") {
-          if (step.id in stepMocks) {
-            output = await resolveStepMock(stepMocks[step.id], context);
-          } else if (this.#options.contextOverrides?.runTool) {
-            const input =
-              typeof step.input === "function"
-                ? await step.input(context)
-                : (step.input ?? {});
-            output = await context.runTool(step.tool, input as Record<string, unknown>);
-          } else {
-            throw new Error(
-              `Tool step "${step.id}" requires either stepMocks["${step.id}"] or contextOverrides.runTool.`,
-            );
-          }
-        } else if (step.type === "emit") {
-          const payload =
-            typeof step.payload === "function"
-              ? await step.payload(context)
-              : (step.payload ?? {});
-          context.emit(step.event, payload as Record<string, unknown>);
-          output = { event: step.event, payload };
-        } else if (step.type === "restart") {
-          const reason =
-            typeof step.reason === "function"
-              ? await step.reason(context)
-              : (step.reason ??
-                `${this.#workflow.name} requested restart`);
-          context.requestRestart(reason as string);
-          output = {
-            event: "runtime.restart_requested",
-            schemaRef: null, payload: { reason },
-          };
-        } else if (step.type === "trigger") {
-          if (step.id in stepMocks) {
-            output = await resolveStepMock(stepMocks[step.id], context);
-          } else if (this.#options.contextOverrides?.triggerWorkflow) {
-            const payload =
-              typeof step.payload === "function"
-                ? await step.payload(context)
-                : (step.payload ?? {});
-            output = await context.triggerWorkflow(
-              step.workflow,
-              payload as Record<string, unknown>,
-              step.waitFor ?? "queued",
-            );
-          } else {
-            throw new Error(
-              `Trigger step "${step.id}" requires either stepMocks["${step.id}"] or contextOverrides.triggerWorkflow.`,
-            );
-          }
-        } else if (step.type === "approval") {
-          const mock = await resolveStepMock(stepMocks[step.id], context);
-          if (mock !== undefined && mock !== null && (mock as { approved?: unknown }).approved === false) {
-            const reason = (mock as { reason?: string }).reason;
-            throw new Error(
-              `Approval step "${step.id}" was rejected${reason ? `: ${reason}` : ""}`,
-            );
-          }
-          // Default: approve
-          const approvalNote = mock !== undefined && mock !== null ? (mock as { approvalNote?: string }).approvalNote : undefined;
-          output = {
-            approvalId: "harness-approval",
-            approved: true,
-            resolutionSource: "harness",
-            ...(approvalNote && { approvalNote }),
-          };
-        } else if (step.type === "await-event") {
-          if (!(step.id in stepMocks)) {
-            throw new Error(
-              `Await-event step "${step.id}" requires a mock. Add stepMocks["${step.id}"] to HarnessOptions ` +
-                `with an AwaitEventStepOutput shape ({ kind: "event", ... } or { kind: "timeout", ... }).`,
-            );
-          }
-          output = await resolveStepMock(stepMocks[step.id], context);
-        }
-      } catch (err) {
-        stepError = err instanceof Error ? err.message : String(err);
-        status = "failed";
-        if (!step.continueOnFailure) {
-          runFailed = true;
-          runError = stepError;
-        }
-      }
-
-      const { harness, internal } = makeStepResult(
-        step.id,
-        step.type,
-        status,
-        output,
-        stepError,
-        undefined,
-      );
-      recordResult(harness, internal, output);
-      if (status === "success" && step.type === "code" && step.updatesWorkspaceDir === true) {
-        workspaceDir = workspaceDirFromStepOutput(step.id, internal.output);
-      }
-    };
+    const state = new HarnessExecutionState(this.#workflow, this.#options, {
+      projectDir,
+      workspaceDir: this.#options.workspaceDir ?? projectDir,
+      trigger: {
+        event: this.#options.trigger?.event ?? "runtime.idle",
+        schemaRef: this.#options.trigger?.schemaRef ?? null,
+        payload: this.#options.trigger?.payload ?? {},
+      },
+    });
 
     for (const step of this.#workflow.steps) {
-      if (runFailed) break;
-      await executeStep(step);
+      if (state.runFailed) break;
+      await executeHarnessStep(step, state);
     }
 
-    return {
-      status: runFailed ? "failed" : "success",
-      steps: allStepResults,
-      ...(runError !== undefined ? { error: runError } : {}),
-      emitted,
-      ...(restartRequested !== undefined ? { restartRequested } : {}),
-    };
+    return state.toRunResult();
   }
 }
