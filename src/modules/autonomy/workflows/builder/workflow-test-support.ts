@@ -203,8 +203,8 @@ export async function resetBuilderWorkflowMocks(): Promise<void> {
   vi.mocked(runSummary.writeBuilderRunSummary).mockReturnValue({
     runId: "test-run-id",
     workflow: "builder",
-    taskId: null,
-    taskTitle: null,
+    taskId: "task-claimed",
+    taskTitle: "Claimed task",
     outcome: "success",
     commitSha: "abc1234",
     commitMessage: "test commit",

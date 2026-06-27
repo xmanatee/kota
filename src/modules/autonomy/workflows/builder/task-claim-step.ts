@@ -18,6 +18,7 @@ import {
   type TaskClaimTerminalResult,
 } from "#modules/autonomy/task-claims.js";
 import type { BranchStepResult } from "./branch-per-task.js";
+import { claimedTaskConsistencySucceeded } from "./claimed-task-consistency-step.js";
 import { mergeGatePending, mergeGateSucceeded } from "./merge-gate-step.js";
 import { workflowWorkspaceDir } from "./workspace.js";
 
@@ -93,7 +94,7 @@ export function createReleaseTaskClaimStep(
     id: "release-task-claim",
     type: "code",
     when: (ctx) => {
-      if (!stepSucceeded("write-run-summary")(ctx)) return false;
+      if (!claimedTaskConsistencySucceeded(ctx)) return false;
       const branchInfo = ctx.stepOutputs["create-task-branch"] as BranchStepResult | undefined;
       return (branchInfo?.branchPerTask !== true || mergeGateSucceeded(ctx)) && claimTaskStep.output(ctx)?.claimed === true;
     },

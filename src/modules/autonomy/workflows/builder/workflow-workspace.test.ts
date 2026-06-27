@@ -105,8 +105,8 @@ vi.mock("./run-summary.js", () => ({
   writeBuilderRunSummary: vi.fn(() => ({
     runId: "test-run-id",
     workflow: "builder",
-    taskId: null,
-    taskTitle: null,
+    taskId: "task-claimed",
+    taskTitle: "Claimed task",
     outcome: "success" as const,
     commitSha: "abc1234",
     commitMessage: "test commit",

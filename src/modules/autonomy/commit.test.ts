@@ -509,12 +509,18 @@ describe("builder workflow commit and restart gates", () => {
 
   it("runs restart when commit produced a commit", async () => {
     const ctx = makeContext(
-      { commit: "success" },
+      { commit: "success", "check-claimed-task-consistency": "success" },
       {
         commit: {
           committed: true,
           message: "Workflow: update repo",
           sha: "0000000000000000000000000000000000000000",
+        },
+        "check-claimed-task-consistency": {
+          matched: true,
+          taskId: "task-claimed",
+          claimedTaskId: "task-claimed",
+          summaryTaskId: "task-claimed",
         },
       },
     );

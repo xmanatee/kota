@@ -4,6 +4,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -162,6 +163,27 @@ describe("builder workflow worktree-mode fixture", () => {
             "created in the task worktree\n",
             "utf8",
           );
+          const readyTaskPath = join(
+            workspaceDir,
+            "data",
+            "tasks",
+            "ready",
+            "task-worktree-fixture.md",
+          );
+          const doneTaskDir = join(workspaceDir, "data", "tasks", "done");
+          const doneTaskPath = join(doneTaskDir, "task-worktree-fixture.md");
+          mkdirSync(doneTaskDir, { recursive: true });
+          writeFileSync(
+            readyTaskPath,
+            readFileSync(readyTaskPath, "utf8")
+              .replace("status: ready", "status: done")
+              .replace(
+                "updated_at: 2026-06-27T00:00:00.000Z",
+                "updated_at: 2026-06-27T00:00:01.000Z",
+              ),
+            "utf8",
+          );
+          renameSync(readyTaskPath, doneTaskPath);
           mkdirSync(ctx.workflow.runDirPath, { recursive: true });
           writeFileSync(
             join(ctx.workflow.runDirPath, "commit-message.txt"),
@@ -190,8 +212,17 @@ describe("builder workflow worktree-mode fixture", () => {
     expect(git(workspaceDir, ["log", "--format=%s", "-1"])).toBe(
       "Builder worktree fixture",
     );
-    expect(git(workspaceDir, ["show", "--name-only", "--format=", "HEAD"])).toBe(
-      fixtureRelativePath,
+    const committedFiles = git(workspaceDir, [
+      "show",
+      "--name-only",
+      "--format=",
+      "HEAD",
+    ])
+      .split("\n")
+      .filter(Boolean);
+    expect(committedFiles).toContain(fixtureRelativePath);
+    expect(committedFiles).toContain(
+      join("data", "tasks", "done", "task-worktree-fixture.md"),
     );
     expect(gitStatus(workspaceDir)).toBe("");
     expect(gitStatus(projectDir)).toBe("");

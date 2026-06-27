@@ -25,6 +25,12 @@ import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.
 import type { BranchStepResult, CleanupResult } from "./branch-per-task.js";
 import { cleanupMergedBranches, createPullRequest, createTaskBranch } from "./branch-per-task.js";
 import {
+  CLAIMED_TASK_CONSISTENCY_STEP_ID,
+  type ClaimedTaskConsistencyResult,
+  claimedTaskConsistencySucceeded,
+  createClaimedTaskConsistencyStep,
+} from "./claimed-task-consistency-step.js";
+import {
   createCleanupAutomationWorktreeStep,
   createMergeGateStep,
 } from "./merge-gate-step.js";
@@ -74,6 +80,7 @@ const inspectReadyQueue = typedCodeStep<InspectResult>({
 
 const claimTaskStep = createClaimTaskStep(inspectReadyQueue);
 const prepareWorktreeStep = createPrepareBuilderWorktreeStep(claimTaskStep);
+const claimedTaskConsistencyStep = createClaimedTaskConsistencyStep(claimTaskStep);
 const mergeGateStep = createMergeGateStep();
 const cleanupAutomationWorktreeStep = createCleanupAutomationWorktreeStep();
 
@@ -163,18 +170,20 @@ const builderWorkflow: WorkflowDefinitionInput = {
           "runId",
           "workflow",
           "outcome",
+          "taskId",
           "commitSha",
           "commitMessage",
           "filesChanged",
         ]),
       run: (ctx) => writeBuilderRunSummary(ctx),
     }),
+    claimedTaskConsistencyStep,
     mergeGateStep,
     createReleaseTaskClaimStep(claimTaskStep),
     typedCodeStep<EvaluatorCalibrationArtifact>({
       id: "write-calibration-artifact",
       type: "code",
-      when: stepSucceeded("write-run-summary"),
+      when: claimedTaskConsistencySucceeded,
       validate: (raw) =>
         expectStructuredOutput<EvaluatorCalibrationArtifact>(raw, [
           "runId",
@@ -188,6 +197,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       id: "create-pr",
       type: "code",
       when: (ctx) => {
+        if (!claimedTaskConsistencySucceeded(ctx)) return false;
         if (!stepCommitted("commit")(ctx)) return false;
         const branchInfo = ctx.stepOutputs["create-task-branch"] as BranchStepResult | undefined;
         const workspaceInfo = ctx.stepOutputs["prepare-worktree"] as BuilderWorkspaceResult | undefined;
@@ -212,13 +222,16 @@ const builderWorkflow: WorkflowDefinitionInput = {
     {
       id: "emit-build-committed",
       type: "emit",
-      when: stepSucceeded("write-run-summary"),
+      when: claimedTaskConsistencySucceeded,
       event: "workflow.build.committed",
       payload: (ctx) => {
         const summary = ctx.stepOutputs["write-run-summary"] as BuilderRunSummary | undefined;
+        const consistency = ctx.stepOutputs[
+          CLAIMED_TASK_CONSISTENCY_STEP_ID
+        ] as ClaimedTaskConsistencyResult | undefined;
         return {
           runId: ctx.workflow.runId,
-          taskId: summary?.taskId ?? null,
+          taskId: consistency?.taskId ?? null,
           commitMessage: summary?.commitMessage ?? "",
           costUsd: summary?.costUsd ?? null,
           durationMs: summary?.durationMs ?? null,
@@ -228,9 +241,9 @@ const builderWorkflow: WorkflowDefinitionInput = {
     {
       id: "request-restart",
       type: "restart",
-      when: stepCommitted("commit"),
+      when: claimedTaskConsistencySucceeded,
       reason: "builder workflow finished validation and commit",
-      requires: ["commit"],
+      requires: ["commit", CLAIMED_TASK_CONSISTENCY_STEP_ID],
     },
   ],
 };

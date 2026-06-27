@@ -10,6 +10,7 @@ import {
 	mergeAutomationWorktree,
 } from "#modules/git/worktree-merge-gate.js";
 import type { BranchStepResult } from "./branch-per-task.js";
+import { claimedTaskConsistencySucceeded } from "./claimed-task-consistency-step.js";
 import {
 	createMergeConflictResolver,
 	MERGE_CONFLICT_RESOLUTION_ATTEMPTS,
@@ -56,7 +57,12 @@ export function createMergeGateStep(): TypedCodeStepInput<MergeGateResult> {
 			const workspace = preparedWorktree(ctx);
 			const branch = taskBranch(ctx);
 			const commit = ctx.stepOutputs.commit as { committed?: boolean } | undefined;
-			return workspace?.enabled === true && branch?.branchPerTask === true && commit?.committed === true;
+			return (
+				claimedTaskConsistencySucceeded(ctx) &&
+				workspace?.enabled === true &&
+				branch?.branchPerTask === true &&
+				commit?.committed === true
+			);
 		},
 		validate: (raw) =>
 			expectStructuredOutput<MergeGateResult>(raw, [

@@ -73,11 +73,11 @@ describe("builder workflow run path", () => {
     vi.mocked(writeBuilderRunSummary).mockReturnValue({
       runId: "run-abc",
       workflow: "builder",
-      taskId: "task-foo-bar",
-      taskTitle: "Add foo bar support",
+      taskId: "task-claimed",
+      taskTitle: "Claimed task",
       outcome: "success",
       commitSha: "abc123",
-      commitMessage: "Add foo bar support",
+      commitMessage: "Complete claimed task",
       filesChanged: ["src/foo.ts"],
       costUsd: 0.42,
       durationMs: 480000,
@@ -101,11 +101,58 @@ describe("builder workflow run path", () => {
     const committed = result.emitted.find((e) => e.event === "workflow.build.committed");
     expect(committed).toBeDefined();
     expect(committed?.payload).toMatchObject({
-      taskId: "task-foo-bar",
-      commitMessage: "Add foo bar support",
+      taskId: "task-claimed",
+      commitMessage: "Complete claimed task",
       costUsd: 0.42,
       durationMs: 480000,
     });
+  });
+
+  it("fails before commit emission or claim release when run-summary task differs from the claim", async () => {
+    const snapshot = makeSnapshot(1, 0);
+
+    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+
+    const { writeBuilderRunSummary } = await import("./run-summary.js");
+    vi.mocked(writeBuilderRunSummary).mockReturnValue({
+      runId: "run-abc",
+      workflow: "builder",
+      taskId: "task-other",
+      taskTitle: "Other task",
+      outcome: "success",
+      commitSha: "abc123",
+      commitMessage: "Complete other task",
+      filesChanged: ["data/tasks/done/task-other.md"],
+      costUsd: 0.42,
+      durationMs: 480000,
+      completedAt: "2026-04-02T10:00:00Z",
+    });
+
+    const harness = new WorkflowTestHarness(builderWorkflow, {
+      projectDir: makeWorkflowProject(snapshot),
+      trigger: {
+        event: "autonomy.queue.available",
+        payload: { pullableCount: 5, actionableCount: 1, counts: snapshot.counts },
+      },
+      stepMocks: {
+        build: { turns: [], totalCostUsd: 0.42 },
+      },
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("failed");
+    expect(result.steps["check-claimed-task-consistency"].status).toBe("failed");
+    expect(result.steps["check-claimed-task-consistency"].error).toMatch(
+      /claimed task-claimed but run-summary identified task-other/,
+    );
+    expect(result.steps["emit-build-committed"]).toBeUndefined();
+    expect(result.steps["release-task-claim"]).toBeUndefined();
+    expect(result.emitted.find((e) => e.event === "workflow.build.committed")).toBeUndefined();
+
+    const { releaseTaskClaim } = await import("#modules/autonomy/task-claims.js");
+    expect(releaseTaskClaim).not.toHaveBeenCalled();
   });
 
   it("includes inspect-ready-queue snapshot in step output", async () => {
