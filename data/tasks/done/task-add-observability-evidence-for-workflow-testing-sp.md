@@ -1,12 +1,12 @@
 ---
 id: task-add-observability-evidence-for-workflow-testing-sp
 title: Add observability evidence for workflow testing split helpers
-status: ready
+status: done
 priority: p2
 area: platform
 summary: Builder run 2026-06-27T08-06-19-202Z-builder-dti9px resolved the core workflow testing source-size advisory, but its observability-obligation diagnostic still reports missing inspectable evidence for src/core/workflow/testing/index.ts and src/core/workflow/testing/results.ts after runtime-sensitive workflow testing changes.
 created_at: 2026-06-27T08:30:40.779Z
-updated_at: 2026-06-27T08:30:40.779Z
+updated_at: 2026-06-27T11:53:37Z
 ---
 
 ## Problem
@@ -26,6 +26,14 @@ Resolve the progress-review finding from run 2026-06-27T08-25-28-718Z-progress-r
 
 - The cited progress gap is fixed or explicitly disproven with evidence.
 - Acceptance evidence is recorded in this task or its run artifact.
+
+## Resolution Evidence
+
+- Added `src/core/workflow/testing/harness-results.test.ts` with focused assertions for the two files flagged by `observability-obligation-review.json`.
+- `src/core/workflow/testing/index.ts` is mapped to public `WorkflowTestHarness` / `HarnessRunResult` assertions: validation failures become explicit failed run results, emitted events are visible, and restart requests are visible.
+- `src/core/workflow/testing/results.ts` is mapped to result-shaping assertions: decoder failures are preserved as explicit failed step errors, and `makeStepResult` keeps harness-facing and internal step result fields aligned.
+- Wrote `.kota/runs/2026-06-27T10-33-29-094Z-builder-en8pxe/observability-evidence.json` as the run artifact mapping both missing files to the focused evidence.
+- Verification: `pnpm test src/core/workflow/testing/harness-results.test.ts` passed; `pnpm test src/core/workflow/testing` passed; `pnpm run validate-tasks` passed; `pnpm run typecheck` passed; `pnpm run lint` exited 0 with existing style infos outside this change.
 
 ## Source / Intent
 
