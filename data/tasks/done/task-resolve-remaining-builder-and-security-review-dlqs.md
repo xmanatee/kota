@@ -1,12 +1,12 @@
 ---
 id: task-resolve-remaining-builder-and-security-review-dlqs
 title: Resolve remaining builder and security-review DLQs
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Resolve the open builder build idle-timeout DLQ and security-review investigate-candidates provider-failure DLQ without duplicating the active progress-reviewer DLQ cleanup task.
 created_at: 2026-06-27T02:39:27.789Z
-updated_at: 2026-06-27T02:39:27.789Z
+updated_at: 2026-06-27T02:52:12.000Z
 ---
 
 ## Problem
@@ -48,3 +48,21 @@ Outcome-aware autonomy progress review.
 ## Acceptance Evidence
 
 - A run artifact preserves before/after state for both cited DLQ ids, records redrive or dismissal rationale, shows builder and security-review DLQ list checks no longer return those ids, and cites same-shape terminal workflow evidence or a superseded-context rationale.
+
+## Result
+
+Resolved both cited DLQs by dismissal with before/after diagnostics under `.kota/runs/2026-06-27T02-47-24-968Z-builder-pfblu9/`.
+
+- `dlq-30179ab9-0865-4d2b-9a72-a59b84710b98` was dismissed as superseded by successful builder run `2026-06-27T00-33-10-684Z-builder-wtiy1i`, which completed the model-matrix implementation path for `task-extend-harness-parity-and-eval-harness-with-model-` and moved the remaining live-key evidence to an operator-capture blocked task.
+- `dlq-7563063d-d800-4f87-83d6-a02678f39658` was dismissed as superseded by successful security-review run `2026-06-27T00-33-11-031Z-security-review-kldxwz`, where `investigate-candidates` completed and recorded no findings after the earlier provider DNS/stream disconnect.
+- `open-builder-dlq-after.json` and `open-security-review-dlq-after.json` both show `items: []`; the remaining open DLQs in `open-dlq-after.json` are progress-reviewer items owned by `task-clear-new-progress-reviewer-review-evidence-dead-l`.
+
+Run artifacts:
+
+- `dlq-30179ab9-before-dismissal.json`
+- `dlq-30179ab9-after-dismissal.json`
+- `dlq-7563063d-before-dismissal.json`
+- `dlq-7563063d-after-dismissal.json`
+- `open-builder-dlq-after.json`
+- `open-security-review-dlq-after.json`
+- `open-dlq-after.json`
