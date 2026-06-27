@@ -13,6 +13,44 @@
  * `ctx.client.agents`.
  */
 import type { AgentToolPolicy } from "#core/agents/agent-types.js";
+import type { ModuleSource } from "#core/modules/module-types.js";
+import type { ModuleSetupStatusState } from "#core/modules/setup-requirements.js";
+
+export type AgentResolvedSkill = {
+  name: string;
+  source: string;
+  promptPath: string;
+  description?: string;
+};
+
+export type AgentToolPolicySummary = {
+  posture:
+    | "inherits-session"
+    | "allow-list"
+    | "deny-list"
+    | "allow-list-with-deny-list";
+  allowed?: string[];
+  disallowed?: string[];
+};
+
+export type AgentSetupRequirementSummary = {
+  id: string;
+  kind: string;
+  required: boolean;
+  sensitivity: string;
+  state: ModuleSetupStatusState;
+  reason: string;
+  message: string;
+};
+
+export type AgentWorkflowUsage = {
+  workflow: string;
+  stepId: string;
+  harness?: string;
+  autonomyMode?: string;
+  model?: string;
+  effort?: "low" | "medium" | "high" | "xhigh" | "max";
+};
 
 /**
  * Per-agent summary surfaced by `agents.list` / `agents.inspect`.
@@ -28,13 +66,22 @@ import type { AgentToolPolicy } from "#core/agents/agent-types.js";
 export type AgentSummary = {
   name: string;
   source: string;
+  moduleSource: ModuleSource;
+  sourcePath?: string;
+  sourcePaths: string[];
   role: string;
   model: string;
   effort?: "low" | "medium" | "high" | "xhigh" | "max";
   promptPath: string;
   writeScope: string[];
   skills?: string[] | "all";
+  resolvedSkills: AgentResolvedSkill[];
   tools?: AgentToolPolicy;
+  toolPolicy: AgentToolPolicySummary;
+  workflows: string[];
+  workflowUsages: AgentWorkflowUsage[];
+  channels: string[];
+  setupRequirements: AgentSetupRequirementSummary[];
 };
 
 export type AgentsListResult = {

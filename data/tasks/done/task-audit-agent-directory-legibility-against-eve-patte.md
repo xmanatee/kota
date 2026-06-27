@@ -1,13 +1,13 @@
 ---
 id: task-audit-agent-directory-legibility-against-eve-patte
 title: Audit agent directory legibility against Eve patterns
-status: ready
+status: done
 priority: p2
 area: modules
 task_class: Platform
 summary: Compare KOTA's agent/module file layout with Eve's filesystem-first agent shape and close concrete legibility gaps without importing a new framework.
 created_at: 2026-06-24T15:44:37.358Z
-updated_at: 2026-06-27T05:55:37.336Z
+updated_at: 2026-06-27T07:24:49.595Z
 ---
 
 ## Problem
@@ -104,3 +104,19 @@ to understand an agent's shape from one reflective surface.
 - CLI transcript for representative `kota agent inspect` and/or
   `kota module inspect` output before/after the change.
 - Focused tests for local and daemon-backed inspection result shape.
+
+## Completion Evidence
+
+- Audit artifact:
+  `.kota/runs/2026-06-27T06-58-04-510Z-builder-9hxzvp/eve-agent-legibility-audit.md`.
+- Before transcript:
+  `.kota/runs/2026-06-27T06-58-04-510Z-builder-9hxzvp/agent-inspect-before.txt`.
+- After transcript:
+  `.kota/runs/2026-06-27T06-58-04-510Z-builder-9hxzvp/agent-inspect-after.txt`.
+- Validation summary:
+  `.kota/runs/2026-06-27T06-58-04-510Z-builder-9hxzvp/validation-summary.txt`.
+- Focused tests:
+  `pnpm test src/modules/agent-ops/agent-ops-operations.test.ts src/modules/agent-ops/agent-list-node.test.ts src/modules/agent-ops/daemon-client.test.ts`.
+- Validation:
+  `pnpm run typecheck`; `pnpm run build`; `pnpm run lint`;
+  `pnpm run validate-tasks`.

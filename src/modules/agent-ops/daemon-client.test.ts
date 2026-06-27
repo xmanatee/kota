@@ -79,10 +79,22 @@ function makeAgentSummary(name: string): AgentSummary {
   return {
     name,
     source: "agent-ops",
+    moduleSource: "project",
+    sourcePath: "src/modules/agent-ops",
+    sourcePaths: [
+      "src/modules/agent-ops",
+      `src/modules/${name}/prompt.md`,
+    ],
     role: "operator",
     model: "claude-opus-4-7",
     promptPath: `src/modules/${name}/prompt.md`,
     writeScope: [],
+    resolvedSkills: [],
+    toolPolicy: { posture: "inherits-session" },
+    workflows: [],
+    workflowUsages: [],
+    channels: [],
+    setupRequirements: [],
   };
 }
 
@@ -121,7 +133,15 @@ describe("agent-ops module daemonClient(link)", () => {
         ...makeAgentSummary("critic"),
         effort: "xhigh",
         skills: ["repo-knowledge"],
+        resolvedSkills: [
+          {
+            name: "repo-knowledge",
+            source: "knowledge",
+            promptPath: "src/modules/knowledge/knowledge.md",
+          },
+        ],
         tools: { allowed: ["file_read"] },
+        toolPolicy: { posture: "allow-list", allowed: ["file_read"] },
       },
     ];
     const { transport } = makeRecordingTransport({
@@ -183,6 +203,28 @@ describe("agent-ops module daemonClient(link)", () => {
       ...makeAgentSummary("decomposer"),
       effort: "high",
       skills: "all",
+      workflows: ["decomposer"],
+      workflowUsages: [
+        {
+          workflow: "decomposer",
+          stepId: "decompose",
+          harness: "codex",
+          autonomyMode: "autonomous",
+          effort: "high",
+        },
+      ],
+      channels: ["telegram"],
+      setupRequirements: [
+        {
+          id: "github-oauth",
+          kind: "oauth",
+          required: true,
+          sensitivity: "oauth",
+          state: "missing",
+          reason: "secret_missing",
+          message: "GitHub OAuth is not configured.",
+        },
+      ],
     };
     const expected: AgentInspectResult = { found: true, agent: summary };
     const { transport } = makeRecordingTransport({

@@ -17,17 +17,21 @@ import type {
 import { jsonResponse } from "#core/server/session-pool.js";
 import { inspectAgent, listAgents } from "./agent-ops-operations.js";
 
-function handleList(ctx: ModuleContext, _req: IncomingMessage, res: ServerResponse): void {
-  jsonResponse(res, 200, listAgents(ctx));
+async function handleList(
+  ctx: ModuleContext,
+  _req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  jsonResponse(res, 200, await listAgents(ctx));
 }
 
-function handleInspect(
+async function handleInspect(
   ctx: ModuleContext,
   _req: IncomingMessage,
   res: ServerResponse,
   params: Record<string, string>,
-): void {
-  jsonResponse(res, 200, inspectAgent(ctx, params.name));
+): Promise<void> {
+  jsonResponse(res, 200, await inspectAgent(ctx, params.name));
 }
 
 export function agentControlRoutes(ctx: ModuleContext): ControlRouteRegistration[] {
