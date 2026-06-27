@@ -16,6 +16,10 @@ import {
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
 } from "#core/agent-harness/index.js";
+import type {
+  HarnessParityMatrixRow,
+  HarnessParityMatrixScaffoldEvidence,
+} from "./client.js";
 import { runHarnessParityMatrix } from "./harness-parity-operations.js";
 
 function writeScenario(scenariosRoot: string): void {
@@ -257,23 +261,61 @@ describe("harness-parity model matrix", () => {
         baselines: [
           { label: "local-baseline", model: "test-model", provider: "local" },
         ],
+        candidates: [
+          {
+            label: "glm",
+            model: "openrouter/z-ai/glm-5.2",
+            provider: "openrouter",
+          },
+        ],
       },
     );
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.rows).toHaveLength(1);
-    expect(result.rows[0]?.scaffoldEvidence).toEqual({
+    expect(result.rows).toHaveLength(2);
+    const supportedEvidence = {
       harnessMode: "openai-tools-scaffold",
       taskClass: "general-coding",
       supportStatus: "supported",
       reason: 'scenario verifier passed for scaffold task class "general-coding"',
-    });
+    } satisfies HarnessParityMatrixScaffoldEvidence;
+    const experimentalEvidence = {
+      harnessMode: "openai-tools-scaffold",
+      taskClass: "general-coding",
+      supportStatus: "experimental",
+      reason:
+        'scenario was not executed, so scaffold task class "general-coding" remains experimental',
+    } satisfies HarnessParityMatrixScaffoldEvidence;
+
+    const passedRow = result.rows.find((row) => row.status === "passed");
+    const skippedRow = result.rows.find((row) => row.status === "skipped");
+    expect(passedRow?.scaffoldEvidence).toEqual(supportedEvidence);
+    expect(skippedRow?.skipReason).toBe("missing OPENROUTER_API_KEY");
+    expect(skippedRow?.scaffoldEvidence).toEqual(experimentalEvidence);
 
     const report = JSON.parse(readFileSync(result.reportPath, "utf-8")) as {
-      rows: Array<{ scaffoldEvidence?: { supportStatus: string } }>;
+      rows: Array<
+        Pick<
+          HarnessParityMatrixRow,
+          "harnessName" | "scaffoldEvidence" | "status"
+        >
+      >;
     };
-    expect(report.rows[0]?.scaffoldEvidence?.supportStatus).toBe("supported");
+    expect(report.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          harnessName: "openai-tools-scaffold",
+          status: "passed",
+          scaffoldEvidence: supportedEvidence,
+        }),
+        expect.objectContaining({
+          harnessName: "openai-tools-scaffold",
+          status: "skipped",
+          scaffoldEvidence: experimentalEvidence,
+        }),
+      ]),
+    );
   });
 
   it("expands the shipped OpenRouter lab candidate set without requiring a key", async () => {
