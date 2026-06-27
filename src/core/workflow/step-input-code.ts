@@ -63,6 +63,13 @@ export type WorkflowCodeStepInput = WorkflowBaseStep & {
   type: "code";
   run: (context: WorkflowStepContext) => Promise<unknown> | unknown;
   /**
+   * When true, this top-level code step's validated output must include an
+   * absolute `workspaceDir` string. The run executor uses that path for
+   * subsequent code, tool, agent, and repair-loop execution while keeping run
+   * artifacts under the original projectDir.
+   */
+  updatesWorkspaceDir?: boolean;
+  /**
    * Optional runtime decoder for the step's output. When set, it runs after
    * `run()` and replaces the raw value with the validated decode. Required for
    * any code step whose output is consumed by a downstream step or `when`
@@ -79,6 +86,7 @@ export type TypedCodeStepInput<T> = WorkflowBaseStep & {
   type: "code";
   run: (context: WorkflowStepContext) => Promise<T> | T;
   validate: CodeStepOutputValidator<T>;
+  updatesWorkspaceDir?: boolean;
   /**
    * Returns this step's output from a step context, decoded as `T`.
    * Returns `undefined` when the step was skipped (its `when` predicate
@@ -163,6 +171,7 @@ export function typedCodeStep<T>(
     type: "code";
     run: (context: WorkflowStepContext) => Promise<T> | T;
     validate: CodeStepOutputValidator<T>;
+    updatesWorkspaceDir?: boolean;
   },
 ): TypedCodeStepInput<T> {
   const output = (context: WorkflowStepContext): T | undefined => {

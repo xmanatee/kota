@@ -8,6 +8,7 @@ import {
   releaseTaskClaim,
   resumeTaskClaim,
   taskClaimPath,
+  updateTaskClaimWorkspace,
 } from "./task-claims.js";
 import { claimInput, makeProject, writeTask } from "./task-claims-test-support.js";
 
@@ -50,6 +51,24 @@ describe("task claim recovery lifecycle", () => {
       changed: true,
       recoveryStatus: "agent-running",
       safeToRetry: false,
+    });
+
+    const workspace = updateTaskClaimWorkspace({
+      projectDir,
+      taskId: "task-alpha",
+      runId: "run-a",
+      workflowId: "builder",
+      workspaceDir: "/tmp/kota-worktrees/task-alpha-run-a",
+      branch: "kota/task/task-alpha/run-a",
+      baseCommit: "abc123",
+      evidence: "prepared builder worktree for the claimed task",
+      now: new Date("2026-06-27T01:00:02.500Z"),
+    });
+    expect(workspace.claim).toMatchObject({
+      workspaceDir: "/tmp/kota-worktrees/task-alpha-run-a",
+      branch: "kota/task/task-alpha/run-a",
+      baseCommit: "abc123",
+      evidence: "prepared builder worktree for the claimed task",
     });
 
     const pending = markTaskClaimPendingMerge({

@@ -1,0 +1,94 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import "./workflow-test-support.js";
+import builderWorkflow from "./workflow.js";
+import {
+  makeSnapshot,
+  makeWorkflowProject,
+  resetBuilderWorkflowMocks,
+} from "./workflow-test-support.js";
+
+describe("builder workflow worktree mode", () => {
+  beforeEach(async () => {
+    await resetBuilderWorkflowMocks();
+  });
+
+  it("prepares a task worktree and runs build and commit inside it", async () => {
+    const snapshot = makeSnapshot(1, 0);
+    const projectDir = makeWorkflowProject(snapshot);
+    const expectedWorkspaceDir = `${projectDir}/.worktrees/task-claimed-harness-run-id`;
+    let buildWorkspaceDir: string | undefined;
+
+    const { loadConfig } = await import("#core/config/config.js");
+    vi.mocked(loadConfig).mockReturnValue({
+      modules: { builder: { branchPerTask: true } },
+    });
+
+    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+
+    const harness = new WorkflowTestHarness(builderWorkflow, {
+      projectDir,
+      trigger: {
+        event: "autonomy.queue.available",
+        payload: {
+          pullableCount: 1,
+          actionableCount: 1,
+          counts: snapshot.counts,
+          branchPerTask: true,
+          prUrl: "https://github.com/org/repo/pull/42",
+        },
+      },
+      stepMocks: {
+        build: (ctx) => {
+          buildWorkspaceDir = ctx.workspaceDir;
+          return { turns: [], totalCostUsd: 0.05 };
+        },
+      },
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps["prepare-worktree"].output).toMatchObject({
+      enabled: true,
+      projectDir,
+      workspaceDir: expectedWorkspaceDir,
+      branch: "kota/task/task-claimed/harness-run-id",
+      baseCommit: "abc1234",
+      headCommit: "abc1234",
+      taskId: "task-claimed",
+      claimId: "task-claimed:harness-run-id",
+    });
+    expect(buildWorkspaceDir).toBe(expectedWorkspaceDir);
+    expect(commitWorkflowChanges).toHaveBeenCalledWith(
+      expectedWorkspaceDir,
+      `${projectDir}/.kota/runs/harness`,
+    );
+
+    const { createAutomationWorktree } = await import("#modules/git/worktree-lifecycle.js");
+    expect(createAutomationWorktree).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectDir,
+        taskId: "task-claimed",
+        runId: "harness-run-id",
+        workflowId: "builder",
+        owner: "workflow:builder",
+        baseRef: "abc1234",
+      }),
+    );
+
+    const { updateTaskClaimWorkspace } = await import("#modules/autonomy/task-claims.js");
+    expect(updateTaskClaimWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectDir,
+        taskId: "task-claimed",
+        runId: "harness-run-id",
+        workflowId: "builder",
+        workspaceDir: expectedWorkspaceDir,
+        branch: "kota/task/task-claimed/harness-run-id",
+        baseCommit: "abc1234",
+      }),
+    );
+  });
+});

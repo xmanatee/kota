@@ -94,6 +94,7 @@ const autonomyModule: KotaModule = {
     "daemon-ops",
     "github-webhook",
     "github",
+    "git",
     "inbound-signals",
     "repo-ai-checks",
   ],

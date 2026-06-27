@@ -15,6 +15,7 @@ import type {
   TaskClaimMutationInput,
   TaskClaimRecoveryPath,
   TaskClaimTerminalResult,
+  TaskClaimWorkspaceInput,
 } from "./task-claim-types.js";
 
 function sameWorkflowRun(existing: TaskClaim, input: ClaimTaskInput): boolean {
@@ -186,6 +187,17 @@ export function markTaskClaimPendingMerge(input: TaskClaimMutationInput): TaskCl
   return mutateActiveClaim(input, (claim, now) => ({
     ...claim,
     status: "pending-merge",
+    updatedAt: now.toISOString(),
+    evidence: input.evidence,
+  }));
+}
+
+export function updateTaskClaimWorkspace(input: TaskClaimWorkspaceInput): TaskClaimTerminalResult {
+  return mutateActiveClaim(input, (claim, now) => ({
+    ...claim,
+    workspaceDir: input.workspaceDir,
+    branch: input.branch,
+    baseCommit: input.baseCommit,
     updatedAt: now.toISOString(),
     evidence: input.evidence,
   }));

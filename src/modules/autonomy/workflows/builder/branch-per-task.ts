@@ -59,6 +59,15 @@ function getCurrentBranch(projectDir: string): string {
   return result.stdout.trim() || "main";
 }
 
+function getClaimedTaskId(ctx: WorkflowStepContext): string | null {
+  const claim = ctx.stepOutputs["claim-task"];
+  if (claim === null || typeof claim !== "object" || Array.isArray(claim)) {
+    return null;
+  }
+  const taskId = (claim as { taskId?: string | null }).taskId;
+  return typeof taskId === "string" && taskId ? taskId : null;
+}
+
 export function createTaskBranch(ctx: WorkflowStepContext): BranchStepResult {
   const projectDir = workflowWorkspaceDir(ctx);
   const config = loadConfig(ctx.projectDir);
@@ -66,6 +75,15 @@ export function createTaskBranch(ctx: WorkflowStepContext): BranchStepResult {
 
   if (!builderConfig?.branchPerTask) {
     return { branchPerTask: false, branch: null, baseBranch: null, taskId: null };
+  }
+
+  if (projectDir !== ctx.projectDir) {
+    return {
+      branchPerTask: true,
+      branch: getCurrentBranch(projectDir),
+      baseBranch: getCurrentBranch(ctx.projectDir),
+      taskId: getClaimedTaskId(ctx) ?? findTaskIdFromStagedFiles(projectDir),
+    };
   }
 
   const baseBranch = getCurrentBranch(projectDir);
@@ -150,6 +168,10 @@ export function createPullRequest(ctx: WorkflowStepContext): { prUrl: string } {
 
   if (prCreate.status !== 0) {
     throw new Error(`Failed to create pull request: ${prCreate.stderr || prCreate.stdout}`);
+  }
+
+  if (projectDir !== ctx.projectDir) {
+    return { prUrl: prCreate.stdout.trim() };
   }
 
   // Restore base branch so the daemon restarts on the correct branch for subsequent runs.

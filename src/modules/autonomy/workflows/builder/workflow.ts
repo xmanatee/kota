@@ -24,6 +24,10 @@ import type { RepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domai
 import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { BranchStepResult, CleanupResult } from "./branch-per-task.js";
 import { cleanupMergedBranches, createPullRequest, createTaskBranch } from "./branch-per-task.js";
+import {
+  type BuilderWorkspaceResult,
+  createPrepareBuilderWorktreeStep,
+} from "./prepare-worktree-step.js";
 import { builderRepairChecks } from "./repair-checks.js";
 import type { BuilderRunSummary } from "./run-summary.js";
 import { writeBuilderRunSummary } from "./run-summary.js";
@@ -65,6 +69,7 @@ const inspectReadyQueue = typedCodeStep<InspectResult>({
 });
 
 const claimTaskStep = createClaimTaskStep(inspectReadyQueue);
+const prepareWorktreeStep = createPrepareBuilderWorktreeStep(claimTaskStep);
 
 const builderWorkflow: WorkflowDefinitionInput = {
   name: "builder",
@@ -98,6 +103,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
     },
     inspectReadyQueue,
     claimTaskStep,
+    prepareWorktreeStep,
     {
       id: "build",
       type: "agent",
@@ -116,7 +122,8 @@ const builderWorkflow: WorkflowDefinitionInput = {
         // silently consumes reserve work.
         const { dirty, actionableCount } = inspectReadyQueue.outputRequired(ctx);
         const claim = claimTaskStep.output(ctx);
-        return !dirty && actionableCount > 0 && claim?.claimed === true;
+        const workspace = prepareWorktreeStep.output(ctx);
+        return !dirty && actionableCount > 0 && claim?.claimed === true && workspace !== undefined;
       },
       repairLoop: {
         checks: builderRepairChecks(),
@@ -175,6 +182,8 @@ const builderWorkflow: WorkflowDefinitionInput = {
       when: (ctx) => {
         if (!stepCommitted("commit")(ctx)) return false;
         const branchInfo = ctx.stepOutputs["create-task-branch"] as BranchStepResult | undefined;
+        const workspaceInfo = ctx.stepOutputs["prepare-worktree"] as BuilderWorkspaceResult | undefined;
+        if (workspaceInfo?.enabled === true && branchInfo?.branchPerTask !== true) return false;
         return branchInfo?.branchPerTask === true;
       },
       run: (ctx) => createPullRequest(ctx),

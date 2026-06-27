@@ -105,7 +105,7 @@ export function createReleaseTaskClaimStep(
         taskId: claim.taskId,
         runId: ctx.workflow.runId,
         workflowId: ctx.workflow.name,
-        evidence: "builder workflow committed changes in the canonical checkout",
+        evidence: "builder workflow committed changes in the selected workspace",
       });
     },
   });

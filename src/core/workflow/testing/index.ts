@@ -21,6 +21,7 @@ import { resolveValue } from "#core/workflow/steps/step-executor.js";
 import type { WorkflowStepOutput } from "#core/workflow/steps/step-executor-agent.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { workspaceDirFromStepOutput } from "#core/workflow/workspace-update.js";
 
 export type HarnessStepResult = {
   id: string;
@@ -197,7 +198,7 @@ export class WorkflowTestHarness {
       payload: this.#options.trigger?.payload ?? {},
     };
     const projectDir = this.#options.projectDir ?? tmpdir();
-    const workspaceDir = this.#options.workspaceDir ?? projectDir;
+    let workspaceDir = this.#options.workspaceDir ?? projectDir;
     const stepMocks = this.#options.stepMocks ?? {};
     const runParallel = this.#options.parallel ?? false;
 
@@ -647,6 +648,9 @@ export class WorkflowTestHarness {
         undefined,
       );
       recordResult(harness, internal, output);
+      if (status === "success" && step.type === "code" && step.updatesWorkspaceDir === true) {
+        workspaceDir = workspaceDirFromStepOutput(step.id, internal.output);
+      }
     };
 
     for (const step of this.#workflow.steps) {

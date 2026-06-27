@@ -95,6 +95,7 @@ export type WorkflowRestartStep = WorkflowBaseStep & {
 export type WorkflowCodeStep = WorkflowBaseStep & {
   type: "code";
   run: (context: WorkflowStepContext) => Promise<unknown> | unknown;
+  updatesWorkspaceDir?: boolean;
   /**
    * Runtime decoder propagated by the step validator. When present, the
    * executor runs it on the raw `run()` result and replaces the persisted

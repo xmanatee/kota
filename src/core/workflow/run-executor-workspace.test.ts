@@ -209,4 +209,76 @@ describe("workflow workspaceDir execution", () => {
       rmSync(workspaceDir, { recursive: true, force: true });
     }
   }, 10_000);
+
+  it("updates workflow workspaceDir from an explicit top-level code step", async () => {
+    const workspaceDir = join(
+      tmpdir(),
+      `kota-run-executor-updated-worktree-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(workspaceDir, { recursive: true });
+    const harness = "workflow-dynamic-workspace";
+    let agentCwd: string | undefined;
+    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+      agentCwd = options.cwd;
+      return AGENT_OK_RESULT;
+    });
+    let toolCwd: string | undefined;
+    const definition = makeDefinition({
+      moduleRoot: projectDir,
+      steps: [
+        {
+          id: "prepare-workspace",
+          type: "code",
+          updatesWorkspaceDir: true,
+          run: (ctx) => ({
+            projectDir: ctx.projectDir,
+            workspaceDir,
+          }),
+        },
+        {
+          id: "inspect",
+          type: "code",
+          run: async (ctx) => {
+            await ctx.runTool("capture", {});
+            return {
+              projectDir: ctx.projectDir,
+              workspaceDir: ctx.workspaceDir,
+              runDirPath: ctx.workflow.runDirPath,
+            };
+          },
+        },
+        makeAgentStep(projectDir, harness),
+      ],
+    });
+
+    try {
+      const { promise } = executeWorkflowRun(definition, TRIGGER, {
+        projectDir,
+        bus,
+        store,
+        log,
+        runTool: async (_name, _input, context) => {
+          toolCwd = context?.cwd;
+          return { content: "ok" };
+        },
+      });
+      const result = await promise;
+      const output = result.metadata.steps[1]?.output as {
+        projectDir: string;
+        workspaceDir: string;
+        runDirPath: string;
+      };
+
+      expect(result.metadata.status).toBe("success");
+      expect(output).toEqual({
+        projectDir,
+        workspaceDir,
+        runDirPath: join(projectDir, result.metadata.runDir),
+      });
+      expect(toolCwd).toBe(workspaceDir);
+      expect(agentCwd).toBe(workspaceDir);
+    } finally {
+      rmSync(workspaceDir, { recursive: true, force: true });
+    }
+  }, 10_000);
 });

@@ -29,6 +29,7 @@ import {
 import { resolveWorkflowRunTokenBudget } from "./steps/step-executor-agent-token-budget.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
+import { replayWorkspaceDirUpdates, workspaceDirFromStepOutput } from "./workspace-update.js";
 
 export type RunExecutorDeps = {
   projectDir: string;
@@ -124,6 +125,12 @@ export function executeWorkflowRun(
       const retryState = resumedFromRunId && resumeFromStep
         ? buildResumeInitialState(resumedFromRunId, resumeFromStep, definition.steps, (result) => run.recordStep(result), deps.store.runsDir)
         : buildRetryInitialState(retryOfId, definition.steps, (result) => run.recordStep(result), deps.store.runsDir);
+      deps.workspaceDir = replayWorkspaceDirUpdates(
+        definition,
+        retryState.retryFromIndex,
+        retryState.stepResultsById,
+        deps.workspaceDir,
+      );
       const { stepOutputsById, stepResultsById, stepOutputs, retryFromIndex } = retryState;
       let previousOutput = retryState.previousOutput;
       let hadWarnings = retryState.hadWarnings;
@@ -215,6 +222,13 @@ export function executeWorkflowRun(
         const { completed, agentBackoff: stepBackoff, thrownError } = await executeWorkflowStep(
           definition, step, run, trigger, context, abortController, agentConfig, acc, stepDeps, stepStartedAt,
         );
+        if (
+          completed.status === "success" &&
+          step.type === "code" &&
+          step.updatesWorkspaceDir === true
+        ) {
+          deps.workspaceDir = workspaceDirFromStepOutput(step.id, completed.output);
+        }
         if (stepBackoff && !agentBackoff) agentBackoff = stepBackoff;
         if (completed.status === "success") previousOutput = completed.output;
         else if (completed.continueOnFailure) { hadWarnings = true; }

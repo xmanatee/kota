@@ -39,6 +39,7 @@ export function validateStep(
   moduleRoot: string,
   workflowDefaultAutonomyMode: AutonomyMode | undefined,
   options: WorkflowValidationOptions,
+  allowWorkspaceDirUpdate = true,
 ): WorkflowStep {
   if (!step || typeof step !== "object") {
     throw new WorkflowDefinitionError(
@@ -62,7 +63,11 @@ export function validateStep(
   if (step.type === "restart") {
     return validateRestartStep(step, definitionPath, index);
   }
-  if (step.type === "code") return validateCodeStep(step, definitionPath, index);
+  if (step.type === "code") {
+    return validateCodeStep(step, definitionPath, index, `steps[${index}]`, {
+      allowWorkspaceDirUpdate,
+    });
+  }
   if (step.type === "parallel") {
     return validateParallelGroup(
       step as WorkflowParallelGroupInput,
@@ -84,7 +89,7 @@ export function validateStep(
       moduleRoot,
       workflowDefaultAutonomyMode,
       (armStep, dp, armIndex, root, armDefault) =>
-        validateStep(armStep, dp, armIndex, root, armDefault, options),
+        validateStep(armStep, dp, armIndex, root, armDefault, options, false),
     );
   }
   if (step.type === "foreach") {

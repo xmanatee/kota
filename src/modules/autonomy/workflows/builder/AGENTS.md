@@ -11,7 +11,10 @@ This directory contains the builder workflow definition and its prompt.
 - Own implementation quality, architecture, completeness, honest task-state updates, and hard validation fixes before the run ends.
 - Tasks define the contract and constraints; the implementing agent owns the detailed plan.
 - Changes here shape the default autonomous development behavior.
-- Work directly in this repository — no worktrees. Sub-agents must also work without isolation.
+- Mutating builder work runs in the workflow-selected workspace. When
+  branch-per-task worktree mode is enabled, that workspace is a prepared task
+  worktree; agents and sub-agents must use the provided cwd instead of the
+  canonical checkout.
 - Prefer validation rails over hardcoded pre-agent task moves or scope policing.
 
 ## Success Criteria

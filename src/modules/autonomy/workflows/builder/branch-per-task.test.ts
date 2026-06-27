@@ -23,6 +23,93 @@ function makeCtx(overrides: Partial<{ branch: string | null; branchPerTask: bool
   } as never;
 }
 
+function makeWorktreeCtx() {
+  return {
+    projectDir: "/fake/project",
+    workspaceDir: "/fake/project/.worktrees/task-current-run-001",
+    workflow: { runId: "run-001", runDir: ".kota/runs/run-001", runDirPath: "/fake/project/.kota/runs/run-001" },
+    stepOutputs: {
+      "claim-task": { taskId: "task-current" },
+      "create-task-branch": {
+        branchPerTask: true,
+        branch: "kota/task/task-current/run-001",
+        baseBranch: "main",
+        taskId: "task-current",
+      },
+      "write-run-summary": {
+        taskTitle: "Task Current",
+        filesChanged: ["src/current.ts"],
+        costUsd: 0.01,
+      },
+    },
+  } as never;
+}
+
+describe("createTaskBranch", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("reuses the prepared worktree branch instead of creating another branch", async () => {
+    const { spawnSync } = await import("node:child_process");
+    vi.mocked(spawnSync)
+      .mockReturnValueOnce({
+        status: 0,
+        stdout: "kota/task/task-current/run-001\n",
+        stderr: "",
+      } as never)
+      .mockReturnValueOnce({ status: 0, stdout: "main\n", stderr: "" } as never);
+
+    const { createTaskBranch } = await import("./branch-per-task.js");
+    const result = createTaskBranch(makeWorktreeCtx());
+
+    expect(result).toEqual({
+      branchPerTask: true,
+      branch: "kota/task/task-current/run-001",
+      baseBranch: "main",
+      taskId: "task-current",
+    });
+    const checkoutBranchCalls = vi.mocked(spawnSync).mock.calls.filter(
+      ([command, args]) =>
+        command === "git" &&
+        Array.isArray(args) &&
+        args[0] === "checkout" &&
+        args[1] === "-b",
+    );
+    expect(checkoutBranchCalls).toEqual([]);
+  });
+});
+
+describe("createPullRequest", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("does not restore the base branch inside a prepared worktree", async () => {
+    const { spawnSync } = await import("node:child_process");
+    vi.mocked(spawnSync)
+      .mockReturnValueOnce({ status: 0, stdout: "", stderr: "" } as never)
+      .mockReturnValueOnce({ status: 0, stdout: "", stderr: "" } as never)
+      .mockReturnValueOnce({
+        status: 0,
+        stdout: "https://github.com/org/repo/pull/42\n",
+        stderr: "",
+      } as never);
+
+    const { createPullRequest } = await import("./branch-per-task.js");
+    const result = createPullRequest(makeWorktreeCtx());
+
+    expect(result).toEqual({ prUrl: "https://github.com/org/repo/pull/42" });
+    const gitCheckoutCalls = vi.mocked(spawnSync).mock.calls.filter(
+      ([command, args]) =>
+        command === "git" &&
+        Array.isArray(args) &&
+        args[0] === "checkout",
+    );
+    expect(gitCheckoutCalls).toEqual([]);
+  });
+});
+
 describe("cleanupMergedBranches", () => {
   beforeEach(() => {
     vi.clearAllMocks();

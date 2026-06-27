@@ -27,6 +27,7 @@ export {
   markTaskClaimPendingMerge,
   releaseTaskClaim,
   resumeTaskClaim,
+  updateTaskClaimWorkspace,
 } from "./task-claim-operations.js";
 export {
   CLAIM_CANDIDATE_STATES,
@@ -43,6 +44,7 @@ export {
   type TaskClaimRecoveryStatus,
   type TaskClaimStatus,
   type TaskClaimTerminalResult,
+  type TaskClaimWorkspaceInput,
 } from "./task-claim-types.js";
 
 const PRIORITY_RANK = new Map([

@@ -114,6 +114,12 @@ export type TaskClaimMutationInput = {
   leaseMs?: number;
 };
 
+export type TaskClaimWorkspaceInput = TaskClaimMutationInput & {
+  workspaceDir: string;
+  branch: string;
+  baseCommit: string;
+};
+
 export function safeTaskClaimSegment(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "item";
 }

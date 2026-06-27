@@ -5,6 +5,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import builderWorkflow from "./workflow.js";
 
+vi.mock("#core/config/config.js", () => ({
+  loadConfig: vi.fn(() => ({ modules: { builder: { branchPerTask: false } } })),
+}));
+
 vi.mock("#core/util/repo-worktree.js", () => ({
   getRepoWorktreeStatus: vi.fn(() => ({
     available: true,
@@ -31,6 +35,9 @@ vi.mock("#modules/autonomy/commit.js", () => ({
 
 vi.mock("#modules/autonomy/task-claims.js", () => ({
   DEFAULT_TASK_CLAIM_LEASE_MS: 25_200_000,
+  taskClaimPath: vi.fn((projectDir: string, taskId: string) =>
+    `${projectDir}/.kota/task-claims/active/${taskId}.json`
+  ),
   claimNextQueueTask: vi.fn(() => ({
     claimed: true,
     taskId: "task-claimed",
@@ -57,6 +64,39 @@ vi.mock("#modules/autonomy/task-claims.js", () => ({
     claim: null,
     recoveryStatus: "released",
     safeToRetry: true,
+    reason: null,
+  })),
+  updateTaskClaimWorkspace: vi.fn((input: {
+    taskId: string;
+    runId: string;
+    workflowId: string;
+    workspaceDir: string;
+    branch: string;
+    baseCommit: string;
+    evidence: string;
+  }) => ({
+    taskId: input.taskId,
+    changed: true,
+    claim: {
+      schemaVersion: 1,
+      taskId: input.taskId,
+      taskState: "ready",
+      runId: input.runId,
+      workflowId: input.workflowId,
+      owner: `workflow:${input.workflowId}`,
+      workspaceDir: input.workspaceDir,
+      branch: input.branch,
+      baseCommit: input.baseCommit,
+      leaseMs: 25_200_000,
+      leaseAcquiredAt: "2026-06-27T00:00:00.000Z",
+      leaseExpiresAt: "2026-06-27T07:00:00.000Z",
+      createdAt: "2026-06-27T00:00:00.000Z",
+      updatedAt: "2026-06-27T00:00:01.000Z",
+      status: "active",
+      evidence: input.evidence,
+    },
+    recoveryStatus: "agent-running",
+    safeToRetry: false,
     reason: null,
   })),
 }));

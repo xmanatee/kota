@@ -13,6 +13,7 @@ export function validateCodeStep(
   definitionPath: string,
   index: number,
   stepLabel = `steps[${index}]`,
+  options: { allowWorkspaceDirUpdate?: boolean } = {},
 ): WorkflowCodeStep {
   if (typeof step.run !== "function") {
     throw new WorkflowDefinitionError(
@@ -27,11 +28,23 @@ export function validateCodeStep(
       definitionPath,
     );
   }
+  const updatesWorkspaceDir = expectOptionalBoolean(
+    step.updatesWorkspaceDir,
+    `${stepLabel}.updatesWorkspaceDir`,
+    definitionPath,
+  );
+  if (updatesWorkspaceDir === true && options.allowWorkspaceDirUpdate === false) {
+    throw new WorkflowDefinitionError(
+      `${stepLabel}.updatesWorkspaceDir is only supported on top-level code steps`,
+      definitionPath,
+    );
+  }
 
   return {
     id: expectName(step.id, `${stepLabel}.id`, definitionPath),
     type: "code",
     run: step.run,
+    ...(updatesWorkspaceDir !== undefined ? { updatesWorkspaceDir } : {}),
     ...validateBaseStepTimeouts(step, stepLabel, definitionPath),
     when: expectOptionalFunction(
       step.when,
