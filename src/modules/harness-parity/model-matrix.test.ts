@@ -8,10 +8,6 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type {
-  AgentHarness,
-  AgentHarnessRunOptions,
-} from "#core/agent-harness/index.js";
 import {
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
@@ -21,67 +17,11 @@ import type {
   HarnessParityMatrixScaffoldEvidence,
 } from "./client.js";
 import { runHarnessParityMatrix } from "./harness-parity-operations.js";
-
-function writeScenario(scenariosRoot: string): void {
-  const dir = join(scenariosRoot, "fix-add");
-  mkdirSync(join(dir, "initial"), { recursive: true });
-  writeFileSync(
-    join(dir, "scenario.json"),
-    JSON.stringify({
-      id: "fix-add",
-      description: "fix add",
-      prompt: "fix add",
-      verification: {
-        command:
-          "node -e \"require('./add.js').add(2,3)===5 || process.exit(1)\"",
-        timeoutMs: 10_000,
-      },
-    }),
-  );
-  writeFileSync(
-    join(dir, "initial", "add.js"),
-    "exports.add = (a, b) => a - b;\n",
-  );
-}
-
-function fixingHarness(name: string): AgentHarness {
-  return {
-    name,
-    description: `test harness ${name}`,
-    supportsMultiTurn: true,
-    supportedHookKinds: ["preRun", "postRun"] as const,
-    askOwnerToolName: null,
-    emitsAgentMessageStream: true,
-    toolControl: "kota",
-    async run(options: AgentHarnessRunOptions) {
-      writeFileSync(
-        join(options.cwd ?? process.cwd(), "add.js"),
-        "exports.add = (a, b) => a + b;\n",
-      );
-      options.onMessage?.({
-        type: "tool_call",
-        toolUseId: "tool-1",
-        toolName: "edit",
-        input: { path: "add.js" },
-      });
-      options.onMessage?.({
-        type: "tool_result",
-        toolUseId: "tool-1",
-        isError: false,
-        content: "ok",
-      });
-      return {
-        text: "done",
-        streamedText: "done",
-        turns: 1,
-        isError: false,
-        inputTokens: 10,
-        outputTokens: 5,
-        totalCostUsd: 0.002,
-      };
-    },
-  };
-}
+import {
+  createFixingHarness,
+  FIX_ADD_SCENARIO_ID,
+  writeFixAddScenario,
+} from "./model-matrix.test-support.js";
 
 describe("harness-parity model matrix", () => {
   let scenariosRoot: string;
@@ -93,11 +33,11 @@ describe("harness-parity model matrix", () => {
     savedOpenRouterKey = process.env.OPENROUTER_API_KEY;
     delete process.env.OPENROUTER_API_KEY;
     clearAgentHarnessRegistryForTest();
-    registerAgentHarness(fixingHarness("matrix-harness"));
+    registerAgentHarness(createFixingHarness("matrix-harness"));
     scenariosRoot = mkdtempSync(join(tmpdir(), "kota-matrix-scenarios-"));
     evalFixturesRoot = mkdtempSync(join(tmpdir(), "kota-matrix-eval-"));
     outRoot = mkdtempSync(join(tmpdir(), "kota-matrix-out-"));
-    writeScenario(scenariosRoot);
+    writeFixAddScenario(scenariosRoot);
   });
 
   afterEach(() => {
@@ -127,7 +67,7 @@ describe("harness-parity model matrix", () => {
     const result = await runHarnessParityMatrix(
       matrixDeps(),
       {
-        scenarios: ["fix-add"],
+        scenarios: [FIX_ADD_SCENARIO_ID],
         harnesses: ["matrix-harness"],
         baselines: [
           { label: "local-baseline", model: "test-model", provider: "local" },
@@ -211,7 +151,7 @@ describe("harness-parity model matrix", () => {
     const result = await runHarnessParityMatrix(
       matrixDeps(),
       {
-        scenarios: ["fix-add"],
+        scenarios: [FIX_ADD_SCENARIO_ID],
         harnesses: ["matrix-harness"],
         baselines: [
           { label: "local-baseline", model: "test-model", provider: "local" },
@@ -251,12 +191,12 @@ describe("harness-parity model matrix", () => {
   });
 
   it("records scaffold support evidence for scaffold harness rows", async () => {
-    registerAgentHarness(fixingHarness("openai-tools-scaffold"));
+    registerAgentHarness(createFixingHarness("openai-tools-scaffold"));
 
     const result = await runHarnessParityMatrix(
       matrixDeps(),
       {
-        scenarios: ["fix-add"],
+        scenarios: [FIX_ADD_SCENARIO_ID],
         harnesses: ["openai-tools-scaffold"],
         baselines: [
           { label: "local-baseline", model: "test-model", provider: "local" },
@@ -322,7 +262,7 @@ describe("harness-parity model matrix", () => {
     const result = await runHarnessParityMatrix(
       matrixDeps(),
       {
-        scenarios: ["fix-add"],
+        scenarios: [FIX_ADD_SCENARIO_ID],
         harnesses: ["matrix-harness"],
         baselines: [
           { label: "local-baseline", model: "test-model", provider: "local" },
