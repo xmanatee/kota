@@ -1,5 +1,6 @@
 import { vi } from "vitest";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
+import "./workflow-worktree-test-mocks.js";
 
 vi.mock("#core/config/config.js", () => ({
   loadConfig: vi.fn(() => ({ modules: { builder: { branchPerTask: false } } })),
@@ -114,127 +115,6 @@ vi.mock("#modules/autonomy/task-claims.js", () => ({
     safeToRetry: false,
     reason: null,
   })),
-}));
-
-vi.mock("#modules/git/worktree-lifecycle.js", () => ({
-  cleanupAutomationWorktree: vi.fn((selector: {
-    projectDir: string;
-    taskId: string;
-    runId: string;
-  }) => {
-    const workspaceDir = `${selector.projectDir}/.worktrees/${selector.taskId}-${selector.runId}`;
-    return {
-      removed: true,
-      inspection: {
-        metadata: {
-          schemaVersion: 1,
-          taskId: selector.taskId,
-          runId: selector.runId,
-          workflowId: "builder",
-          owner: "workflow:builder",
-          workspaceDir,
-          branch: `kota/task/${selector.taskId}/${selector.runId}`,
-          baseCommit: "abc1234",
-          createdAt: "2026-06-27T00:00:00.000Z",
-          updatedAt: "2026-06-27T00:00:00.000Z",
-          state: "removed",
-          copiedSetupFiles: [],
-        },
-        cleanup: { eligible: true, blockers: [] },
-      },
-    };
-  }),
-  createAutomationWorktree: vi.fn((input: {
-    projectDir: string;
-    taskId: string;
-    runId: string;
-    workflowId: string;
-    owner: string;
-    baseRef?: string;
-  }) => {
-    const workspaceDir = `${input.projectDir}/.worktrees/${input.taskId}-${input.runId}`;
-    const branch = `kota/task/${input.taskId}/${input.runId}`;
-    return {
-      metadata: {
-        schemaVersion: 1,
-        taskId: input.taskId,
-        runId: input.runId,
-        workflowId: input.workflowId,
-        owner: input.owner,
-        workspaceDir,
-        branch,
-        baseCommit: input.baseRef ?? "abc1234",
-        createdAt: "2026-06-27T00:00:00.000Z",
-        updatedAt: "2026-06-27T00:00:00.000Z",
-        state: "active",
-        copiedSetupFiles: [],
-      },
-      metadataPath: `${input.projectDir}/.kota/worktrees/${input.taskId}-${input.runId}.json`,
-      exists: true,
-      branch,
-      baseCommit: input.baseRef ?? "abc1234",
-      headCommit: input.baseRef ?? "abc1234",
-      dirty: {
-        dirty: false,
-        trackedDirty: false,
-        untracked: false,
-        conflicted: false,
-        entries: [],
-      },
-      lock: { locked: false, reason: null },
-      push: {
-        hasLocalCommits: false,
-        remoteUpstream: null,
-        aheadCount: 0,
-        unpushed: false,
-      },
-      cleanup: { eligible: true, blockers: [] },
-    };
-  }),
-  lockAutomationWorktree: vi.fn((selector: {
-    projectDir: string;
-    taskId: string;
-    runId: string;
-  }) => {
-    const workspaceDir = `${selector.projectDir}/.worktrees/${selector.taskId}-${selector.runId}`;
-    const branch = `kota/task/${selector.taskId}/${selector.runId}`;
-    return {
-      metadata: {
-        schemaVersion: 1,
-        taskId: selector.taskId,
-        runId: selector.runId,
-        workflowId: "builder",
-        owner: "workflow:builder",
-        workspaceDir,
-        branch,
-        baseCommit: "abc1234",
-        createdAt: "2026-06-27T00:00:00.000Z",
-        updatedAt: "2026-06-27T00:00:00.000Z",
-        state: "active",
-        copiedSetupFiles: [],
-      },
-      metadataPath: `${selector.projectDir}/.kota/worktrees/${selector.taskId}-${selector.runId}.json`,
-      exists: true,
-      branch,
-      baseCommit: "abc1234",
-      headCommit: "abc1234",
-      dirty: {
-        dirty: false,
-        trackedDirty: false,
-        untracked: false,
-        conflicted: false,
-        entries: [],
-      },
-      lock: { locked: true, reason: "builder agent running" },
-      push: {
-        hasLocalCommits: false,
-        remoteUpstream: null,
-        aheadCount: 0,
-        unpushed: false,
-      },
-      cleanup: { eligible: false, blockers: ["worktree is locked: builder agent running"] },
-    };
-  }),
 }));
 
 vi.mock("#modules/git/worktree-merge-gate.js", () => ({
