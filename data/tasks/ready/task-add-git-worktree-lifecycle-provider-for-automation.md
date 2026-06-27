@@ -1,14 +1,14 @@
 ---
 id: task-add-git-worktree-lifecycle-provider-for-automation
 title: Add git worktree lifecycle provider for automation runs
-status: backlog
+status: ready
 priority: p1
 area: modules
 task_class: Platform
 depends_on: [task-record-architecture-decision-for-worktree-backed-a]
 summary: Provide a tested KOTA-owned service for creating, locking, preparing, removing, and reporting per-run git worktrees.
 created_at: 2026-06-25T14:53:29.335Z
-updated_at: 2026-06-25T14:53:29.335Z
+updated_at: 2026-06-27T04:08:01.992Z
 ---
 
 ## Problem

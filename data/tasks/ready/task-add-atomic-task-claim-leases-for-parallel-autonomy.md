@@ -1,14 +1,14 @@
 ---
 id: task-add-atomic-task-claim-leases-for-parallel-autonomy
 title: Add atomic task claim leases for parallel autonomy
-status: backlog
+status: ready
 priority: p1
 area: autonomy
 task_class: Platform
 depends_on: [task-record-architecture-decision-for-worktree-backed-a]
 summary: Prevent duplicate parallel builders by claiming queue tasks before launching isolated worktree runs and releasing or expiring claims safely.
 created_at: 2026-06-25T14:53:34.597Z
-updated_at: 2026-06-25T14:53:34.597Z
+updated_at: 2026-06-27T04:08:02.031Z
 ---
 
 ## Problem
