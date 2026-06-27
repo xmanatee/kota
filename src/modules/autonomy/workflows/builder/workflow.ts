@@ -27,6 +27,11 @@ import { cleanupMergedBranches, createPullRequest, createTaskBranch } from "./br
 import { builderRepairChecks } from "./repair-checks.js";
 import type { BuilderRunSummary } from "./run-summary.js";
 import { writeBuilderRunSummary } from "./run-summary.js";
+import {
+  createClaimTaskStep,
+  createMarkClaimPendingMergeStep,
+  createReleaseTaskClaimStep,
+} from "./task-claim-step.js";
 import { workflowWorkspaceDir } from "./workspace.js";
 
 export const agent: AgentDef = {
@@ -51,14 +56,15 @@ const inspectReadyQueue = typedCodeStep<InspectResult>({
       "pullableCount",
       "actionableCount",
       "counts",
-  ]),
+    ]),
   run: (ctx) => {
-    const repoDir = workflowWorkspaceDir(ctx);
-    const worktree = getRepoWorktreeStatus(repoDir);
+    const worktree = getRepoWorktreeStatus(workflowWorkspaceDir(ctx));
     const dirty = worktree.available && worktree.trackedDirty;
-    return { ...getRepoTaskQueueSnapshot(repoDir), dirty };
+    return { ...getRepoTaskQueueSnapshot(ctx.projectDir), dirty };
   },
 });
+
+const claimTaskStep = createClaimTaskStep(inspectReadyQueue);
 
 const builderWorkflow: WorkflowDefinitionInput = {
   name: "builder",
@@ -91,6 +97,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
         }),
     },
     inspectReadyQueue,
+    claimTaskStep,
     {
       id: "build",
       type: "agent",
@@ -108,7 +115,8 @@ const builderWorkflow: WorkflowDefinitionInput = {
         // queue is shaped by `backlog-promoter` first so the build agent never
         // silently consumes reserve work.
         const { dirty, actionableCount } = inspectReadyQueue.outputRequired(ctx);
-        return !dirty && actionableCount > 0;
+        const claim = claimTaskStep.output(ctx);
+        return !dirty && actionableCount > 0 && claim?.claimed === true;
       },
       repairLoop: {
         checks: builderRepairChecks(),
@@ -148,6 +156,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
         ]),
       run: (ctx) => writeBuilderRunSummary(ctx),
     }),
+    createReleaseTaskClaimStep(claimTaskStep),
     typedCodeStep<EvaluatorCalibrationArtifact>({
       id: "write-calibration-artifact",
       type: "code",
@@ -170,6 +179,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       },
       run: (ctx) => createPullRequest(ctx),
     },
+    createMarkClaimPendingMergeStep(claimTaskStep),
     typedCodeStep<CleanupResult>({
       id: "cleanup-merged-branches",
       type: "code",

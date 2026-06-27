@@ -29,6 +29,38 @@ vi.mock("#modules/autonomy/commit.js", () => ({
   commitWorkflowChanges: vi.fn(),
 }));
 
+vi.mock("#modules/autonomy/task-claims.js", () => ({
+  DEFAULT_TASK_CLAIM_LEASE_MS: 25_200_000,
+  claimNextQueueTask: vi.fn(() => ({
+    claimed: true,
+    taskId: "task-claimed",
+    claim: null,
+    recoveryStatus: "agent-running",
+    safeToRetry: false,
+    recoveryPath: "new-claim",
+    reason: null,
+    candidateCount: 1,
+    skipped: [],
+    activeClaims: [],
+  })),
+  markTaskClaimPendingMerge: vi.fn(() => ({
+    taskId: "task-claimed",
+    changed: true,
+    claim: null,
+    recoveryStatus: "pending-merge",
+    safeToRetry: false,
+    reason: null,
+  })),
+  releaseTaskClaim: vi.fn(() => ({
+    taskId: "task-claimed",
+    changed: true,
+    claim: null,
+    recoveryStatus: "released",
+    safeToRetry: true,
+    reason: null,
+  })),
+}));
+
 vi.mock("./run-summary.js", () => ({
   writeBuilderRunSummary: vi.fn(() => ({
     runId: "test-run-id",
@@ -118,6 +150,24 @@ describe("builder workflow workspaceDir", () => {
       expect(commitWorkflowChanges).toHaveBeenCalledWith(
         workspaceDir,
         join(projectDir, ".kota/runs/harness"),
+      );
+
+      const { claimNextQueueTask, releaseTaskClaim } =
+        await import("#modules/autonomy/task-claims.js");
+      expect(claimNextQueueTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectDir,
+          workspaceDir,
+          baseCommit: "abc1234",
+        }),
+      );
+      expect(releaseTaskClaim).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectDir,
+          taskId: "task-claimed",
+          runId: "harness-run-id",
+          workflowId: "builder",
+        }),
       );
     } finally {
       rmSync(projectDir, { recursive: true, force: true });

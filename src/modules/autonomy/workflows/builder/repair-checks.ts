@@ -44,7 +44,7 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
     {
       id: "actionable-task-claimed",
       type: "code" as const,
-      run: (ctx) => checkActionableTaskClaimed(workflowWorkspaceDir(ctx)),
+      run: (ctx) => checkActionableTaskClaimed(workflowWorkspaceDir(ctx), ctx.projectDir),
     },
     {
       id: "success-criteria-declared",

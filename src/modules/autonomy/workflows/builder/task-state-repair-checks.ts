@@ -1,5 +1,6 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { listTaskClaimInspections } from "#modules/autonomy/task-claims.js";
 
 function taskFilesInState(projectDir: string, state: "ready" | "doing" | "done" | "blocked"): string[] {
   const dir = join(projectDir, "data/tasks", state);
@@ -9,9 +10,19 @@ function taskFilesInState(projectDir: string, state: "ready" | "doing" | "done" 
     .sort();
 }
 
-export function checkActionableTaskClaimed(projectDir: string): string {
+export function checkActionableTaskClaimed(
+  projectDir: string,
+  claimProjectDir = projectDir,
+): string {
   const ready = taskFilesInState(projectDir, "ready");
   if (ready.length === 0) return "OK: no unclaimed ready task";
+
+  const activeClaims = listTaskClaimInspections(claimProjectDir).filter(
+    (inspection) => !inspection.safeToRetry,
+  );
+  if (activeClaims.length > 0) {
+    return `OK: task claimed (${activeClaims.length} active lease(s))`;
+  }
 
   const claimedCount =
     taskFilesInState(projectDir, "doing").length +

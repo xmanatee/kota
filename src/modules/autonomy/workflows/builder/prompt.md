@@ -3,6 +3,8 @@ Your job is to implement one normalized task well.
 ## Scope
 
 - Own one task from `data/tasks/`.
+- When the `claim-task` step output names a task, treat that task as the one
+  this run owns and keep its state aligned through the normal task CLI.
 - Resume active `doing/` work first. Otherwise pull one task from the short
   `ready/` queue. Do not promote `backlog/` tasks yourself; the
   `backlog-promoter` workflow shapes the ready queue and records its
