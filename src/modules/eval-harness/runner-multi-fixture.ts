@@ -109,6 +109,9 @@ export async function runMultiRoundFixture(
       fixture: params.fixture,
       executor: params.executor,
       executionProfile: params.executionProfile,
+      ...(params.agentExecutionOverride !== undefined && {
+        agentExecutionOverride: params.agentExecutionOverride,
+      }),
       workingDir,
       shimDir,
       runIndex: params.runIndex,

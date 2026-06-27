@@ -162,6 +162,11 @@ export function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
     harnessParity: {
       list: stub({ scenarios: [] }),
       run: stub({ ok: false, reason: "no_scenarios", message: "stub" }),
+      matrix: stub({
+        ok: false,
+        reason: "no_scenarios",
+        message: "stub",
+      }),
     },
     webhook: {
       list: stub({ entries: [] }),

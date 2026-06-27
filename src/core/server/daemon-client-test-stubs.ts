@@ -60,6 +60,21 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
     harnessParity: {
       list: async () => ({ scenarios: [] }),
       run: async () => ({ ok: true, outBaseDir: "", artifacts: [] }),
+      matrix: async () => ({
+        ok: true,
+        outBaseDir: "",
+        reportPath: "",
+        rows: [],
+        groups: [],
+        aggregate: {
+          groupCount: 0,
+          runnableGroupCount: 0,
+          skippedGroupCount: 0,
+          passAtK: null,
+          passHatK: null,
+        },
+        shadowComparisons: [],
+      }),
     },
     audit: {
       list: async () => ({ entries: [] }),

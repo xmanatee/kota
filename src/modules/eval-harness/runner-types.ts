@@ -15,6 +15,13 @@ import type {
 import type { ObjectiveMetricDirection, ObservedObjectiveMetric } from "./objective-metrics.js";
 import type { FixturePredicate, PredicateEvalResult, PredicateExpectationEvalResult } from "./predicates.js";
 
+export type WorkflowAgentExecutionOverride = {
+  /** Registered harness every agent step in the workflow should run through. */
+  harness: string;
+  /** Concrete model id every agent step in the workflow should receive. */
+  model: string;
+};
+
 /** Input passed to a WorkflowExecutor for a single fixture run attempt. */
 export type WorkflowExecutionRequest = {
   workflowName: string;
@@ -32,6 +39,13 @@ export type WorkflowExecutionRequest = {
    * load-bearing. Forwarded verbatim by the executor — no defaulting.
    */
   triggerPayload?: FixtureJsonObject;
+  /**
+   * Optional eval-owned override for model-matrix runs. The subprocess
+   * executor forwards this to `kota workflow exec`, whose runtime rewrites
+   * agent steps before execution so the fixture actually runs the requested
+   * matrix harness/model instead of only labelling the row with them.
+   */
+  agentExecutionOverride?: WorkflowAgentExecutionOverride;
   /**
    * Absolute path to the fixture directory when its `recordings/` tree has
    * at least one agent-step recording. The subprocess executor forwards
@@ -77,6 +91,7 @@ export type RunFixtureParams = {
   fixture: LoadedFixture;
   executor: WorkflowExecutor;
   executionProfile: ExecutionProfilePreflightResult;
+  agentExecutionOverride?: WorkflowAgentExecutionOverride;
   /** Where this run's artifact directory should live. */
   runArtifactBaseDir: string;
   runIndex: number;

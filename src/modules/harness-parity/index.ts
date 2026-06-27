@@ -19,6 +19,8 @@ import { buildHarnessParityCommand } from "./cli.js";
 import type {
   HarnessParityClient,
   HarnessParityListResult,
+  HarnessParityMatrixOptions,
+  HarnessParityMatrixResult,
   HarnessParityRunOptions,
   HarnessParityRunResult,
 } from "./client.js";
@@ -26,14 +28,18 @@ import {
   type HarnessParityDeps,
   listHarnessParityScenarios,
   runHarnessParity,
+  runHarnessParityMatrix,
 } from "./harness-parity-operations.js";
 import { harnessParityControlRoutes } from "./routes.js";
 
 function resolveDeps(ctx: ModuleContext): HarnessParityDeps {
   const moduleDir = resolve(ctx.cwd, "src/modules/harness-parity");
   return {
+    projectDir: ctx.cwd,
     scenariosRoot: join(moduleDir, "scenarios"),
+    evalFixturesRoot: join(ctx.cwd, "src/modules/eval-harness/fixtures"),
     defaultOutBaseDir: join(ctx.cwd, ".kota/runs"),
+    kotaBinaryPath: resolve(join(ctx.cwd, "bin/kota.mjs")),
     config: ctx.config,
   };
 }
@@ -78,6 +84,25 @@ function buildHarnessParityDaemonHandler(
       }
       return (await res.json()) as HarnessParityRunResult;
     },
+    matrix: async (
+      options?: HarnessParityMatrixOptions,
+    ): Promise<HarnessParityMatrixResult> => {
+      const res = await link.fetchRaw("/harness-parity/matrix", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(options ?? {}),
+      });
+      if (res.status === 400) {
+        return (await res.json()) as HarnessParityMatrixResult;
+      }
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      return (await res.json()) as HarnessParityMatrixResult;
+    },
   };
 }
 
@@ -86,7 +111,7 @@ const harnessParityModule: KotaModule = {
   version: "1.0.0",
   description:
     "Runs coding-task scenarios across every registered agent harness and captures paired artifacts.",
-  dependencies: ["rendering"],
+  dependencies: ["rendering", "model-clients", "eval-harness"],
   commands: (ctx: ModuleContext): Command[] => [
     buildHarnessParityCommand({ ctx }),
   ],
@@ -99,6 +124,9 @@ const harnessParityModule: KotaModule = {
       },
       async run(options) {
         return runHarnessParity(deps, options);
+      },
+      async matrix(options) {
+        return runHarnessParityMatrix(deps, options);
       },
     };
     return { harnessParity };

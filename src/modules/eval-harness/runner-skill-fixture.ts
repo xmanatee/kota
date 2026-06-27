@@ -10,7 +10,13 @@ import { outcomeFromExecution } from "./runner-outcome.js";
 import { writeSkillAblationRunArtifact } from "./runner-skill-artifact.js";
 import { evaluateSkillAblationDirection, skillAblationExecutionOutcome, skillAblationObjectiveMetrics, summarizeSkillAblationOutcome, topLevelObjectiveMetricsForSkillAblation } from "./runner-skill-metrics.js";
 import { evaluatePromptResolution, readAgentStepUsage, resolveSkillsPromptEvidence } from "./runner-skill-prompt.js";
-import type { FixtureRunReport, RunFixtureParams, WorkflowExecutionOutcome, WorkflowExecutor } from "./runner-types.js";
+import type {
+  FixtureRunReport,
+  RunFixtureParams,
+  WorkflowAgentExecutionOverride,
+  WorkflowExecutionOutcome,
+  WorkflowExecutor,
+} from "./runner-types.js";
 
 async function executeSkillAblationVariant(params: {
   fixture: LoadedFixture;
@@ -19,6 +25,7 @@ async function executeSkillAblationVariant(params: {
   variantIndex: number;
   executor: WorkflowExecutor;
   executionProfile: ExecutionProfilePreflightResult;
+  agentExecutionOverride?: WorkflowAgentExecutionOverride;
   workingDir: string;
   runIndex: number;
   repeatCount: number;
@@ -84,6 +91,9 @@ async function executeSkillAblationVariant(params: {
       workingDir: params.workingDir,
       budgetMs: params.spec.budgetMs,
       executionProfile: params.executionProfile,
+      ...(params.agentExecutionOverride !== undefined && {
+        agentExecutionOverride: params.agentExecutionOverride,
+      }),
       ...(params.variant.triggerPayload !== undefined && {
         triggerPayload: params.variant.triggerPayload,
       }),
@@ -178,6 +188,9 @@ export async function runSkillAblationFixture(
       variantIndex,
       executor: params.executor,
       executionProfile: params.executionProfile,
+      ...(params.agentExecutionOverride !== undefined && {
+        agentExecutionOverride: params.agentExecutionOverride,
+      }),
       workingDir: variantWorkingDir,
       runIndex: params.runIndex,
       repeatCount: params.repeatCount,

@@ -8,9 +8,100 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import type {
+  WorkflowAgentStep,
+  WorkflowCodeStep,
+  WorkflowStep,
+} from "#core/workflow/step-types.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
+import type { WorkflowDefinition } from "#core/workflow/types.js";
 import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
 import { printWorkflowError, printWorkflowText } from "../cli-output.js";
+
+type AgentExecutionOverride = {
+  harness: string;
+  model: string;
+};
+
+function trimOption(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function resolveAgentExecutionOverride(opts: {
+  agentHarness?: string;
+  agentModel?: string;
+}): AgentExecutionOverride | undefined {
+  const harness = trimOption(opts.agentHarness);
+  const model = trimOption(opts.agentModel);
+  if ((harness === undefined) !== (model === undefined)) {
+    printWorkflowError(
+      "--agent-harness and --agent-model must be provided together.",
+    );
+    process.exit(1);
+  }
+  return harness !== undefined && model !== undefined
+    ? { harness, model }
+    : undefined;
+}
+
+function overrideAgentStep(
+  step: WorkflowAgentStep,
+  override: AgentExecutionOverride,
+): WorkflowAgentStep {
+  const { tier: _tier, ...withoutTier } = step;
+  return {
+    ...withoutTier,
+    harness: override.harness,
+    model: override.model,
+  };
+}
+
+function overrideAgentOrCodeStep(
+  step: WorkflowAgentStep | WorkflowCodeStep,
+  override: AgentExecutionOverride,
+): WorkflowAgentStep | WorkflowCodeStep {
+  return step.type === "agent" ? overrideAgentStep(step, override) : step;
+}
+
+function overrideWorkflowStep(
+  step: WorkflowStep,
+  override: AgentExecutionOverride,
+): WorkflowStep {
+  if (step.type === "agent") {
+    return overrideAgentStep(step, override);
+  }
+  if (step.type === "parallel" || step.type === "foreach") {
+    return {
+      ...step,
+      steps: step.steps.map((child) =>
+        overrideAgentOrCodeStep(child, override),
+      ),
+    };
+  }
+  if (step.type === "branch") {
+    return {
+      ...step,
+      ifTrue: step.ifTrue.map((child) => overrideWorkflowStep(child, override)),
+      ifFalse: step.ifFalse.map((child) =>
+        overrideWorkflowStep(child, override),
+      ),
+    };
+  }
+  return step;
+}
+
+function overrideWorkflowAgentExecution(
+  definition: WorkflowDefinition,
+  override: AgentExecutionOverride,
+): WorkflowDefinition {
+  return {
+    ...definition,
+    steps: definition.steps.map((step) =>
+      overrideWorkflowStep(step, override),
+    ),
+  };
+}
 
 /**
  * `kota workflow exec <name>` — synchronously execute one workflow run to
@@ -34,10 +125,18 @@ export function registerExecCommand(
     )
     .option("--event <event>", "Trigger event name", "manual")
     .option("--payload <json>", "JSON object merged into the trigger payload")
+    .option("--agent-harness <name>", "Override every agent step harness")
+    .option("--agent-model <model>", "Override every agent step model")
     .action(async (
       name: string,
-      opts: { event: string; payload?: string },
+      opts: {
+        event: string;
+        payload?: string;
+        agentHarness?: string;
+        agentModel?: string;
+      },
     ) => {
+      const agentExecutionOverride = resolveAgentExecutionOverride(opts);
       let extraPayload: Record<string, unknown> | undefined;
       if (opts.payload !== undefined) {
         try {
@@ -82,6 +181,10 @@ export function registerExecCommand(
           printWorkflowError(`Workflow "${name}" is disabled.`);
           process.exit(1);
         }
+        const executionDefinition =
+          agentExecutionOverride !== undefined
+            ? overrideWorkflowAgentExecution(definition, agentExecutionOverride)
+            : definition;
 
         const bus = new EventBus();
         const pbus = new ProjectScopedEventBus(bus, deriveDirectoryScopeId(ctx.cwd));
@@ -94,7 +197,7 @@ export function registerExecCommand(
           },
         };
 
-        const { promise } = executeWorkflowRun(definition, trigger, {
+        const { promise } = executeWorkflowRun(executionDefinition, trigger, {
           projectDir: ctx.cwd,
           bus,
           pbus,

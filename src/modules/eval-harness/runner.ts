@@ -9,6 +9,7 @@ import type { FixtureRunReport, RunFixtureParams } from "./runner-types.js";
 export type {
   FixtureRunReport,
   RunFixtureParams,
+  WorkflowAgentExecutionOverride,
   WorkflowExecutionOutcome,
   WorkflowExecutionRequest,
   WorkflowExecutor,

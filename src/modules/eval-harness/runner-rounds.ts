@@ -5,7 +5,12 @@ import { evaluateObjectiveMetrics } from "./objective-metrics.js";
 import { evaluatePredicateExpectations, evaluatePredicates } from "./predicates.js";
 import { applyRoundTaskInput } from "./runner-materialize.js";
 import { outcomeFromExecution } from "./runner-outcome.js";
-import type { RoundRunReport, WorkflowExecutionOutcome, WorkflowExecutor } from "./runner-types.js";
+import type {
+  RoundRunReport,
+  WorkflowAgentExecutionOverride,
+  WorkflowExecutionOutcome,
+  WorkflowExecutor,
+} from "./runner-types.js";
 
 export async function executeRound(params: {
   round: FixtureRoundSpec;
@@ -13,6 +18,7 @@ export async function executeRound(params: {
   fixture: LoadedFixture;
   executor: WorkflowExecutor;
   executionProfile: ExecutionProfilePreflightResult;
+  agentExecutionOverride?: WorkflowAgentExecutionOverride;
   workingDir: string;
   shimDir: string | null;
   runIndex: number;
@@ -59,6 +65,9 @@ export async function executeRound(params: {
       workingDir: params.workingDir,
       budgetMs: params.round.budgetMs,
       executionProfile: params.executionProfile,
+      ...(params.agentExecutionOverride !== undefined && {
+        agentExecutionOverride: params.agentExecutionOverride,
+      }),
       ...(triggerPayload !== undefined && { triggerPayload }),
       ...(params.fixture.agentStepRecordings.length > 0 && {
         replayRecordingsRoot: params.fixture.fixtureDir,

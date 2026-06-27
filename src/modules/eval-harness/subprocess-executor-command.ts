@@ -28,6 +28,14 @@ export function workflowExecArgs(
   request: WorkflowExecutionRequest,
 ): string[] {
   const args = [kotaBinaryPath, "workflow", "exec", request.workflowName];
+  if (request.agentExecutionOverride !== undefined) {
+    args.push(
+      "--agent-harness",
+      request.agentExecutionOverride.harness,
+      "--agent-model",
+      request.agentExecutionOverride.model,
+    );
+  }
   if (request.triggerPayload !== undefined) {
     args.push("--payload", JSON.stringify(request.triggerPayload));
   }

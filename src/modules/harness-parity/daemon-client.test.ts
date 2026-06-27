@@ -86,6 +86,7 @@ describe("harness-parity module daemonClient(link)", () => {
     expect(contributed.harnessParity).toBeDefined();
     expect(typeof contributed.harnessParity!.list).toBe("function");
     expect(typeof contributed.harnessParity!.run).toBe("function");
+    expect(typeof contributed.harnessParity!.matrix).toBe("function");
   });
 
   it("routes list through GET /harness-parity/scenarios via requestStrict", async () => {
@@ -152,6 +153,53 @@ describe("harness-parity module daemonClient(link)", () => {
     const contributed = harnessParityModule.daemonClient!(transport);
     await contributed.harnessParity!.run();
     expect(calls[0]!.body).toBe("{}");
+  });
+
+  it("routes matrix through POST /harness-parity/matrix with the JSON-encoded options", async () => {
+    const { transport, calls } = makeRecordingTransport(
+      {
+        "POST /harness-parity/matrix": {
+          status: 200,
+          body: {
+            ok: true,
+            outBaseDir: "/tmp/matrix",
+            reportPath: "/tmp/matrix/model-matrix-report.json",
+            rows: [],
+            groups: [],
+            aggregate: {
+              groupCount: 0,
+              runnableGroupCount: 0,
+              skippedGroupCount: 0,
+              passAtK: null,
+              passHatK: null,
+            },
+            shadowComparisons: [],
+          },
+        },
+      },
+      {},
+    );
+    const contributed = harnessParityModule.daemonClient!(transport);
+    const result = await contributed.harnessParity!.matrix({
+      scenarios: ["demo"],
+      candidates: [{ model: "openrouter/z-ai/glm-5.2" }],
+      repeats: 2,
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      outBaseDir: "/tmp/matrix",
+      reportPath: "/tmp/matrix/model-matrix-report.json",
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.method).toBe("POST");
+    expect(calls[0]!.path).toBe("/harness-parity/matrix");
+    expect(calls[0]!.body).toBe(
+      JSON.stringify({
+        scenarios: ["demo"],
+        candidates: [{ model: "openrouter/z-ai/glm-5.2" }],
+        repeats: 2,
+      }),
+    );
   });
 
   it("preserves the typed { ok: false } discriminator on a 400 response", async () => {

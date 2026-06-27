@@ -8,6 +8,12 @@
  * (`daemonClient(link)` in `index.ts`) realize this contract; the `kota
  * harness-parity` CLI consumes it through `ctx.client.harnessParity`.
  */
+import type {
+  HarnessParityMatrixOptions,
+  HarnessParityMatrixResult,
+} from "./model-matrix-contract.js";
+
+export type * from "./model-matrix-contract.js";
 
 /** A scenario shipped under `src/modules/harness-parity/scenarios/`. */
 export type HarnessParityScenarioSummary = {
@@ -80,4 +86,7 @@ export type HarnessParityRunResult =
 export interface HarnessParityClient {
   list(): Promise<HarnessParityListResult>;
   run(options?: HarnessParityRunOptions): Promise<HarnessParityRunResult>;
+  matrix(
+    options?: HarnessParityMatrixOptions,
+  ): Promise<HarnessParityMatrixResult>;
 }

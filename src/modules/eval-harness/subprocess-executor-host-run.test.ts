@@ -82,6 +82,48 @@ describe("createSubprocessExecutor host execution", () => {
     expect(outcome.runArtifactPath).toContain("run-1-noop-abc");
   });
 
+  it("passes requested agent harness and model overrides to workflow exec", async () => {
+    const fakeKota = join(dirs.binariesDir, "kota-agent-override.mjs");
+    writeFakeKotaScript(
+      fakeKota,
+      [
+        "import { mkdirSync, writeFileSync } from 'node:fs';",
+        "import { join } from 'node:path';",
+        "writeFileSync(join(process.cwd(), 'argv.json'), JSON.stringify(process.argv.slice(2)));",
+        "const runDir = join(process.cwd(), '.kota', 'runs', 'run-1-noop-agent-override');",
+        "mkdirSync(runDir, { recursive: true });",
+        "writeFileSync(join(runDir, 'metadata.json'), JSON.stringify({",
+        "  id: 'run-1-noop-agent-override', workflow: 'noop', status: 'success',",
+        "}));",
+      ].join("\n"),
+    );
+
+    const executor = createSubprocessExecutor({ kotaBinaryPath: fakeKota });
+    const outcome = await executor.execute({
+      workflowName: "noop",
+      workingDir: dirs.workingDir,
+      budgetMs: 5_000,
+      agentExecutionOverride: {
+        harness: "openai-tools",
+        model: "openrouter/z-ai/glm-5.2",
+      },
+    });
+
+    expect(outcome.kind).toBe("completed");
+    const argv = JSON.parse(
+      readFileSync(join(dirs.workingDir, "argv.json"), "utf8"),
+    ) as string[];
+    expect(argv).toEqual([
+      "workflow",
+      "exec",
+      "noop",
+      "--agent-harness",
+      "openai-tools",
+      "--agent-model",
+      "openrouter/z-ai/glm-5.2",
+    ]);
+  });
+
   it("strips source-mode NODE_OPTIONS before invoking the dist CLI", async () => {
     const fakeKota = join(dirs.binariesDir, "kota-node-options.mjs");
     writeFakeKotaScript(

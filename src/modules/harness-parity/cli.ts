@@ -18,6 +18,7 @@ import {
 } from "#modules/rendering/primitives.js";
 import { print, printToStderr } from "#modules/rendering/transport.js";
 import type { HarnessParityArtifactSummary } from "./client.js";
+import { registerHarnessParityMatrixCommand } from "./matrix-cli.js";
 
 export type BuildHarnessParityCommandDeps = {
   ctx: ModuleContext;
@@ -134,6 +135,8 @@ export function buildHarnessParityCommand(
         if (anyHarnessFailed) process.exitCode = 1;
       },
     );
+
+  registerHarnessParityMatrixCommand(cmd, ctx);
 
   return cmd;
 }

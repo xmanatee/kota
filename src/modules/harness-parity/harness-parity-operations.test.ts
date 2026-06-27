@@ -24,17 +24,27 @@ function writeScenario(scenariosRoot: string, id: string): void {
 
 describe("harness-parity operations (local handler / daemon-down branch)", () => {
   let scenariosRoot: string;
+  let evalFixturesRoot: string;
   let outRoot: string;
   let deps: HarnessParityDeps;
 
   beforeEach(() => {
     scenariosRoot = mkdtempSync(join(tmpdir(), "kota-parity-ops-scenarios-"));
+    evalFixturesRoot = mkdtempSync(join(tmpdir(), "kota-parity-ops-eval-"));
     outRoot = mkdtempSync(join(tmpdir(), "kota-parity-ops-out-"));
-    deps = { scenariosRoot, defaultOutBaseDir: outRoot, config: {} };
+    deps = {
+      projectDir: outRoot,
+      scenariosRoot,
+      evalFixturesRoot,
+      defaultOutBaseDir: outRoot,
+      kotaBinaryPath: join(process.cwd(), "bin/kota.mjs"),
+      config: {},
+    };
   });
 
   afterEach(() => {
     rmSync(scenariosRoot, { recursive: true, force: true });
+    rmSync(evalFixturesRoot, { recursive: true, force: true });
     rmSync(outRoot, { recursive: true, force: true });
   });
 

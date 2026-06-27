@@ -11,11 +11,15 @@ import type { AgentHarness } from "#core/agent-harness/index.js";
 import { listAgentHarnessNames, resolveAgentHarness } from "#core/agent-harness/index.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
+import type { WorkflowExecutor } from "#modules/eval-harness/public-surface.js";
 import type {
   HarnessParityListResult,
+  HarnessParityMatrixOptions,
+  HarnessParityMatrixResult,
   HarnessParityRunOptions,
   HarnessParityRunResult,
 } from "./client.js";
+import { runHarnessParityModelMatrix } from "./model-matrix.js";
 import { runScenarioAcrossHarnesses } from "./runner.js";
 import {
   type LoadedScenario,
@@ -25,10 +29,18 @@ import {
 } from "./scenario.js";
 
 export type HarnessParityDeps = {
+  /** KOTA project root used for eval-harness fixture execution and source evidence. */
+  projectDir: string;
   /** Root directory containing per-scenario subdirectories. */
   scenariosRoot: string;
+  /** Root directory containing eval-harness fixtures. */
+  evalFixturesRoot: string;
   /** Default base directory for paired artifacts when `outDir` is omitted. */
   defaultOutBaseDir: string;
+  /** KOTA binary used by eval-harness subprocess execution. */
+  kotaBinaryPath: string;
+  /** Optional injected eval executor for tests or alternate host integrations. */
+  evalExecutor?: WorkflowExecutor;
   /**
    * Active KOTA config used to resolve the default model from the active
    * preset when `options.model` is omitted. The CLI / daemon route passes the
@@ -157,4 +169,11 @@ export async function runHarnessParity(
   }
 
   return summaries;
+}
+
+export async function runHarnessParityMatrix(
+  deps: HarnessParityDeps,
+  options?: HarnessParityMatrixOptions,
+): Promise<HarnessParityMatrixResult> {
+  return runHarnessParityModelMatrix(deps, options ?? {});
 }

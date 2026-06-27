@@ -114,9 +114,9 @@ exists to measure.
 
 ## What Does Not Belong Here
 
-- Scoring, regression gates, and aggregated pass@k/pass^k metrics. Those
-  are eval-harness concerns; this module is about *parity evidence*, not
-  *capability regression gating*.
+- Scoring, regression gates, and standalone aggregated pass@k/pass^k metrics
+  are eval-harness concerns; harness-parity may record model-matrix parity
+  evidence, but it is not a rollout gate.
 - Provider credentials, model discovery, or adapter registration. Harnesses
   register themselves through their own modules; this module resolves them
   by name.

@@ -70,6 +70,8 @@ const TRAJECTORY_SUMMARY_NAME = "trajectory-summary.md";
 export type HarnessParityCallOptions = {
   /** Model identifier the harness should use (resolved from the active preset by the caller). */
   model: string;
+  /** Neutral reasoning posture the harness should use. Defaults to xhigh. */
+  effort?: AgentEffort;
   /** Optional system prompt to forward to the adapter. */
   systemPrompt?: string;
   /**
@@ -1370,6 +1372,7 @@ function buildHarnessArtifact(args: {
   artifactDir: string;
   workingDir: string;
   capability: HarnessCapabilitySnapshot;
+  effort: AgentEffort;
   stageRecords: readonly HarnessParityStageRunRecord[];
   startedAt: Date;
   durationMs: number;
@@ -1410,7 +1413,7 @@ function buildHarnessArtifact(args: {
     scenarioId: args.scenario.spec.id,
     harnessName: args.harness.name,
     model: args.callOptions.model,
-    effort: DEFAULT_EFFORT,
+    effort: args.effort,
     startedAt: args.startedAt.toISOString(),
     durationMs: args.durationMs,
     turns: stages.reduce((sum, stage) => sum + stage.turns, 0),
@@ -1532,7 +1535,7 @@ export async function runScenarioOnHarness(
   const workingDir = materializeWorkingDir(scenario);
   const runStartedAt = new Date();
   const runStartMs = runStartedAt.getTime();
-  const effort: AgentEffort = DEFAULT_EFFORT;
+  const effort: AgentEffort = callOptions.effort ?? DEFAULT_EFFORT;
 
   const stageRecords: HarnessParityStageRunRecord[] = [];
   try {
@@ -1559,6 +1562,7 @@ export async function runScenarioOnHarness(
       scenario,
       harness,
       callOptions,
+      effort,
       artifactDir,
       workingDir,
       capability,

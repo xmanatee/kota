@@ -162,6 +162,9 @@ export async function runSingleWorkflowFixture(
       workingDir,
       budgetMs: spec.budgetMs,
       executionProfile: params.executionProfile,
+      ...(params.agentExecutionOverride !== undefined && {
+        agentExecutionOverride: params.agentExecutionOverride,
+      }),
       ...(spec.triggerPayload !== undefined && {
         triggerPayload: spec.triggerPayload,
       }),

@@ -238,6 +238,7 @@ export {
 export type {
   FixtureRunReport,
   RunFixtureParams,
+  WorkflowAgentExecutionOverride,
   WorkflowExecutionOutcome,
   WorkflowExecutionRequest,
   WorkflowExecutor,

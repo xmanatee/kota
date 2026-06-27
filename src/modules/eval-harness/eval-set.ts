@@ -48,6 +48,7 @@ import {
 import {
   cleanupFixtureWorkingDir,
   runFixture,
+  type WorkflowAgentExecutionOverride,
   type WorkflowExecutor,
 } from "./runner.js";
 import type {
@@ -66,6 +67,7 @@ export type EvalSetParams = {
   fixtures: readonly LoadedFixture[];
   executor: WorkflowExecutor;
   requestedProfile: ResourceProfile;
+  agentExecutionOverride?: WorkflowAgentExecutionOverride;
   runArtifactBaseDir: string;
   repeatCount: number;
   priorBaseline?: PersistedBaseline | null;
@@ -134,6 +136,9 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
         fixture,
         executor: params.executor,
         executionProfile,
+        ...(params.agentExecutionOverride !== undefined && {
+          agentExecutionOverride: params.agentExecutionOverride,
+        }),
         runArtifactBaseDir: params.runArtifactBaseDir,
         runIndex,
         repeatCount: params.repeatCount,
