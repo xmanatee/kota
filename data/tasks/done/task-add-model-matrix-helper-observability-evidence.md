@@ -1,12 +1,12 @@
 ---
 id: task-add-model-matrix-helper-observability-evidence
 title: Add model-matrix helper observability evidence
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Builder run 2026-06-27T13-04-14-521Z-builder-ys29is closed the model-matrix source-size task but its observability-obligation diagnostic still marked src/modules/harness-parity/model-matrix.test-support.ts as missing inspectable evidence.
 created_at: 2026-06-27T13:20:38.309Z
-updated_at: 2026-06-27T13:20:38.309Z
+updated_at: 2026-06-27T14:02:55.000Z
 ---
 
 ## Problem
@@ -48,3 +48,16 @@ Outcome-aware autonomy progress review.
 ## Acceptance Evidence
 
 - A follow-up run artifact or task result maps src/modules/harness-parity/model-matrix.test-support.ts to focused test assertions, structured evidence, or an explicit waiver rationale; the observability diagnostic reports no unresolved missing file for that helper; focused harness-parity tests and validate-tasks pass.
+
+## Result
+
+Added focused model-matrix assertions that prove the extracted fixing harness
+helper's emitted tool-call/tool-result frames are reflected in row-level
+`toolCounts`, row-level `trajectoryDiagnostics`, and the serialized
+`model-matrix-report.json`.
+
+## Evidence
+
+- `.kota/runs/2026-06-27T13-52-58-331Z-builder-sccfw3/model-matrix-helper-observability-resolution.json` replays the original `git:commit:981c25c0edb6` helper diff with the new focused test diff; the observability diagnostic marks `src/modules/harness-parity/model-matrix.test-support.ts` satisfied by `focused-test-assertion` with `missingFiles: []`.
+- `pnpm -s test src/modules/harness-parity/model-matrix.test.ts`
+- `pnpm -s validate-tasks`

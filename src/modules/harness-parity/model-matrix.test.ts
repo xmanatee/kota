@@ -100,6 +100,11 @@ describe("harness-parity model matrix", () => {
       toolCalls: 1,
       toolResults: 1,
     });
+    expect(baselineRows[0]?.trajectoryDiagnostics).toMatchObject({
+      warningCount: 1,
+      missingStreamingFramesCount: 0,
+      unsupportedTrajectoryCount: 0,
+    });
 
     const candidateRows = result.rows.filter((row) => row.role === "candidate");
     expect(candidateRows.map((row) => row.status)).toEqual([
@@ -132,13 +137,26 @@ describe("harness-parity model matrix", () => {
 
     const report = JSON.parse(readFileSync(result.reportPath, "utf-8")) as {
       openRouterPreflight: { authResolver: string; available: boolean };
-      rows: Array<{ status: string; skipReason?: string }>;
+      rows: Array<
+        Pick<
+          HarnessParityMatrixRow,
+          "status" | "skipReason" | "toolCounts" | "trajectoryDiagnostics"
+        >
+      >;
     };
     expect(report.openRouterPreflight.authResolver).toBe(
       "model-clients.resolveApiKey",
     );
     expect(report.openRouterPreflight.available).toBe(false);
     expect(report.rows.some((row) => row.status === "skipped")).toBe(true);
+    expect(report.rows.find((row) => row.status === "passed")).toMatchObject({
+      toolCounts: { toolCalls: 1, toolResults: 1 },
+      trajectoryDiagnostics: {
+        warningCount: 1,
+        missingStreamingFramesCount: 0,
+        unsupportedTrajectoryCount: 0,
+      },
+    });
   });
 
   it("runs OpenRouter candidates when the key is stored in project setup secrets", async () => {
