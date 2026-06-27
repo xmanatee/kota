@@ -1,13 +1,13 @@
 ---
 id: task-add-open-knowledge-format-compatibility-to-knowled
 title: Add Open Knowledge Format compatibility to knowledge
-status: backlog
+status: ready
 priority: p2
 area: knowledge
 task_class: Platform
 summary: Let KOTA import, export, and validate OKF bundles through the existing knowledge store without replacing the canonical markdown/frontmatter data model.
 created_at: 2026-06-24T15:44:37.311Z
-updated_at: 2026-06-24T15:44:37.311Z
+updated_at: 2026-06-27T15:01:09.037Z
 ---
 
 ## Problem

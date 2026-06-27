@@ -1,14 +1,14 @@
 ---
 id: task-surface-worktree-run-status-and-cleanup-controls
 title: Surface worktree run status and cleanup controls
-status: backlog
+status: ready
 priority: p1
 area: autonomy
 task_class: Product
 depends_on: [task-add-git-worktree-lifecycle-provider-for-automation, task-add-merge-gate-and-automated-conflict-resolver-for]
 summary: Expose active, pending-merge, conflicted, merged, and cleanup states for automation worktrees in CLI, daemon status, and run artifacts.
 created_at: 2026-06-25T14:53:51.690Z
-updated_at: 2026-06-25T14:53:51.690Z
+updated_at: 2026-06-27T15:01:08.998Z
 ---
 
 ## Problem
