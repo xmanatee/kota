@@ -1,0 +1,24 @@
+pnpm test src/modules/git
+PASS - 5 test files, 112 tests.
+
+pnpm exec biome check src/modules/git
+PASS - checked 7 files.
+
+pnpm typecheck
+PASS - tsc --noEmit completed.
+
+pnpm validate-tasks
+PASS - final queue validation completed after moving the task to done.
+
+Repair validation:
+
+pnpm test src/modules/git/worktree-lifecycle.test.ts
+PASS - 1 test file, 7 tests.
+
+pnpm typecheck
+PASS - tsc --noEmit completed.
+
+pnpm exec biome check src/modules/git/index.ts src/modules/git/worktree-lifecycle.ts src/modules/git/worktree-lifecycle-support.ts src/modules/git/worktree-lifecycle-types.ts src/modules/git/worktree-lifecycle.test.ts
+PASS - checked 5 files.
+
+Note: `pnpm kota task move task-add-git-worktree-lifecycle-provider-for-automation done` failed because its absolute-path `git mv` could not create `.git/index.lock` in this sandbox. The equivalent relative `git mv`, frontmatter update, `git add`, and `pnpm validate-tasks` succeeded.

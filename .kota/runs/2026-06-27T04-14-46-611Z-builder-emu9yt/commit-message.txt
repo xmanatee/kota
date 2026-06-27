@@ -1,0 +1,1 @@
+Add safe automation worktree lifecycle provider

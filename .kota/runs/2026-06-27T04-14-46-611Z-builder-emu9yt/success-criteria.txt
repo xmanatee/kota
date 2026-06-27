@@ -1,0 +1,4 @@
+1. The git module exposes a typed automation worktree lifecycle API that creates, prepares, locks, unlocks, inspects, and cleans up per-run worktrees under the ignored `.worktrees/` root.
+2. The provider records restart-safe metadata with task id, run id, workflow id, owner, branch, workspace path, base commit, head commit, lock state, and cleanup eligibility for status and merge-gate follow-ups.
+3. Cleanup refuses active locks, tracked dirt, untracked files, conflicted states, and unmerged branch work with explicit reasons before removing a worktree.
+4. Focused tests cover the happy path, existing branch collision, active lock refusal, dirty/untracked refusal, safe removal, and the documented `.worktreeinclude` setup-file inclusion mechanism.

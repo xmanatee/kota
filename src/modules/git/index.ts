@@ -13,6 +13,27 @@ import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
 import { localWriteEffect } from "#core/tools/effect.js";
 import { gitTool, runGit } from "./git.js";
 
+export type {
+	AutomationWorktreeInspection,
+	AutomationWorktreeMetadata,
+	AutomationWorktreeSelector,
+	AutomationWorktreeState,
+	CleanupEligibility,
+	CreateAutomationWorktreeInput,
+	WorktreeDirtyState,
+	WorktreeLockState,
+	WorktreePushState,
+} from "./worktree-lifecycle.js";
+export {
+	cleanupAutomationWorktree,
+	createAutomationWorktree,
+	inspectAutomationWorktree,
+	lockAutomationWorktree,
+	prepareAutomationWorktree,
+	unlockAutomationWorktree,
+	updateAutomationWorktreeState,
+} from "./worktree-lifecycle.js";
+
 const tools: ToolDef[] = [
   {
     tool: gitTool,
