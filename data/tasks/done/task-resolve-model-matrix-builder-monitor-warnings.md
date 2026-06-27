@@ -1,12 +1,12 @@
 ---
 id: task-resolve-model-matrix-builder-monitor-warnings
 title: Resolve model-matrix builder monitor warnings
-status: ready
+status: done
 priority: p2
 area: core
 summary: Add or justify observability evidence for the daemon-client test stub change from the model-matrix builder run, and handle the touched source-size advisories so future builder diagnostics do not leave the same warnings untracked.
 created_at: 2026-06-27T02:39:27.837Z
-updated_at: 2026-06-27T02:39:27.837Z
+updated_at: 2026-06-27T03:17:57.000Z
 ---
 
 ## Problem
@@ -39,10 +39,17 @@ Evidence ids:
 - run:2026-06-27T00-33-10-684Z-builder-wtiy1i
 - git:commit:e5d6ccbef8d2
 
+## Result
+
+Added focused daemon-client coverage for the shared migrated harness-parity matrix stub and reduced `src/core/server/daemon-client-test-stubs.ts` below the source-size threshold. The run artifact `.kota/runs/2026-06-27T03-03-16-056Z-builder-18hkkb/monitor-warning-diagnostics.json` records observability `ok` with no missing files and source-size `ok` with no warnings for the repair diff. The original builder-run source-size advisory for `src/modules/harness-parity/runner.ts` remains a larger module cleanup and is now tracked by `data/tasks/backlog/task-split-oversized-harness-parity-runner-source-surfa.md`.
+
 ## Initiative
 
 Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- A task note or run artifact shows observability-obligation diagnostics no longer report src/core/server/daemon-client-test-stubs.ts as missing, or records a narrow accepted rationale; source-size diagnostics no longer warn for the touched files or record typed exceptions; focused harness-parity/eval-harness validation passes.
+- `.kota/runs/2026-06-27T03-03-16-056Z-builder-18hkkb/monitor-warning-diagnostics.json` shows observability-obligation diagnostics no longer report `src/core/server/daemon-client-test-stubs.ts` as missing and source-size diagnostics no longer warn for the changed source files.
+- `data/tasks/backlog/task-split-oversized-harness-parity-runner-source-surfa.md` tracks the cited `src/modules/harness-parity/runner.ts` source-size advisory from `.kota/runs/2026-06-27T00-33-10-684Z-builder-wtiy1i/steps/build.json`.
+- Focused validation passed: `pnpm test src/core/server/daemon-client.test.ts src/modules/harness-parity/daemon-client.test.ts src/modules/harness-parity/model-matrix.test.ts src/modules/harness-parity/model-matrix-eval.test.ts src/modules/eval-harness/subprocess-executor-host-run.test.ts`.
+- `pnpm exec biome check src/core/server/daemon-client-test-stubs.ts src/core/server/daemon-client.test.ts` and `pnpm typecheck` passed.

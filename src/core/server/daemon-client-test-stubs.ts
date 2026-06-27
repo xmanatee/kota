@@ -43,6 +43,12 @@ const EMPTY_EVAL_CALIBRATION_RESULT: Awaited<
   },
 };
 
+const notFoundStub = async () => ({
+  ok: false as const,
+  reason: "not_found" as const,
+  message: "stub",
+});
+
 /**
  * Build a `Partial<DaemonClientHandlers>` covering every namespace that
  * has migrated out of `buildCoreStubDaemonClientHandlers`. Tests that
@@ -95,36 +101,12 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
           unavailable: 0,
         },
       }),
-      submitForm: async () => ({
-        ok: false as const,
-        reason: "not_found" as const,
-        message: "stub",
-      }),
-      storeSecret: async () => ({
-        ok: false as const,
-        reason: "not_found" as const,
-        message: "stub",
-      }),
-      start: async () => ({
-        ok: false as const,
-        reason: "not_found" as const,
-        message: "stub",
-      }),
-      complete: async () => ({
-        ok: false as const,
-        reason: "not_found" as const,
-        message: "stub",
-      }),
-      refresh: async () => ({
-        ok: false as const,
-        reason: "not_found" as const,
-        message: "stub",
-      }),
-      revoke: async () => ({
-        ok: false as const,
-        reason: "not_found" as const,
-        message: "stub",
-      }),
+      submitForm: notFoundStub,
+      storeSecret: notFoundStub,
+      start: notFoundStub,
+      complete: notFoundStub,
+      refresh: notFoundStub,
+      revoke: notFoundStub,
     },
     answer: {
       answer: async () => ({ ok: false, reason: "no_hits" }),
@@ -289,11 +271,7 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
     },
     ui: {
       listSurfaces: async () => ({ protocolVersion: "ui.surface.v1", surfaces: [] }),
-      executeAction: async () => ({
-        ok: false as const,
-        reason: "not_found",
-        message: "stub",
-      }),
+      executeAction: notFoundStub,
       watchEvents: async function* () {},
     },
     config: {

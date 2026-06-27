@@ -47,6 +47,15 @@ describe("assembleDaemonClientHandlers", () => {
     }
   });
 
+  it("shared migrated stubs include observable harness-parity matrix status", async () => {
+    const stubs = buildMigratedNamespaceTestStubs();
+    const result = await stubs.harnessParity?.matrix();
+    expect(result?.ok, "observable matrix status").toBe(true);
+    if (!result?.ok) throw new Error("matrix stub must report ok status");
+    expect(result.aggregate.runnableGroupCount).toBe(0);
+    expect(result.shadowComparisons).toEqual([]);
+  });
+
   it("module-contributed handlers land verbatim on the assembled map", () => {
     const customWorkflow = buildMigratedNamespaceTestStubs().workflow;
     if (!customWorkflow) throw new Error("test stub builder must include workflow");
