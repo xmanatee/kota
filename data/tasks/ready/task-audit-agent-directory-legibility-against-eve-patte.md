@@ -1,13 +1,13 @@
 ---
 id: task-audit-agent-directory-legibility-against-eve-patte
 title: Audit agent directory legibility against Eve patterns
-status: backlog
+status: ready
 priority: p2
 area: modules
 task_class: Platform
 summary: Compare KOTA's agent/module file layout with Eve's filesystem-first agent shape and close concrete legibility gaps without importing a new framework.
 created_at: 2026-06-24T15:44:37.358Z
-updated_at: 2026-06-24T15:44:37.358Z
+updated_at: 2026-06-27T05:55:37.336Z
 ---
 
 ## Problem

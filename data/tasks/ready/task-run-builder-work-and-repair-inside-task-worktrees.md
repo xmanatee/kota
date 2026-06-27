@@ -1,14 +1,14 @@
 ---
 id: task-run-builder-work-and-repair-inside-task-worktrees
 title: Run builder work and repair inside task worktrees
-status: backlog
+status: ready
 priority: p1
 area: autonomy
 task_class: Platform
 depends_on: [task-add-workflow-workspace-checkout-contract, task-add-git-worktree-lifecycle-provider-for-automation, task-add-atomic-task-claim-leases-for-parallel-autonomy]
 summary: Refactor the builder workflow so agent edits, critic repair, validation, branch creation, and commit happen in the task worktree instead of the canonical checkout.
 created_at: 2026-06-25T14:53:39.779Z
-updated_at: 2026-06-25T14:53:39.779Z
+updated_at: 2026-06-27T05:55:37.299Z
 ---
 
 ## Problem
