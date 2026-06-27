@@ -1,12 +1,12 @@
 ---
 id: task-clear-new-progress-reviewer-review-evidence-dead-l
 title: Clear new progress-reviewer review-evidence dead letters
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Resolve the two open progress-reviewer workflow-dispatch DLQs for review-evidence timeout and codex_cli_error stream disconnect. Preserve before/after diagnostics, decide whether the failed batches are still meaningful, then redrive or dismiss with durable rationale.
 created_at: 2026-06-26T14:55:51.497Z
-updated_at: 2026-06-26T14:55:51.497Z
+updated_at: 2026-06-27T03:42:26.237Z
 ---
 
 ## Problem
@@ -47,3 +47,6 @@ Outcome-aware autonomy progress review.
 ## Acceptance Evidence
 
 - A run artifact records before/after DLQ state for both cited ids, the redrive or dismissal rationale, same-shape progress-reviewer review-evidence success within the step timeout, and a no-open-progress-reviewer-DLQ check.
+- `.kota/runs/2026-06-27T03-25-12-240Z-builder-ztdxh1/dlq-87d8b051-before.json` and `.kota/runs/2026-06-27T03-25-12-240Z-builder-ztdxh1/dlq-928f95fe-before.json` preserve the original open DLQ diagnostics.
+- `.kota/runs/2026-06-27T03-25-12-240Z-builder-ztdxh1/dlq-87d8b051-after.json` and `.kota/runs/2026-06-27T03-25-12-240Z-builder-ztdxh1/dlq-928f95fe-after.json` record both items dismissed with durable rationale.
+- `.kota/runs/2026-06-27T03-25-12-240Z-builder-ztdxh1/dlq-resolution.md` records the dismissal decision, live run-count success (`review-evidence` completed in 241433ms in `2026-06-26T14-51-12-390Z-progress-reviewer-m5xqqb`), focused run-count and task-count regression checks, and the no-open-progress-reviewer-DLQ check.
