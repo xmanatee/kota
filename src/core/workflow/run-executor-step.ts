@@ -1,5 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import {
+  type KotaAgentMessage,
+  resolveAgentHarness,
+  type TrajectoryDiagnosticsMetadata,
+} from "#core/agent-harness/index.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
@@ -18,6 +23,7 @@ import {
   AgentStepRuntimeError,
   executeStep,
 } from "./steps/step-executor.js";
+import { writeAgentTrajectoryDiagnosticsArtifact } from "./steps/step-executor-agent-trajectory-diagnostics.js";
 import type { WorkflowAgentBackoffSignal, WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
@@ -198,6 +204,36 @@ function readToolCallSummary(
   }
 }
 
+function writeFailedAgentTrajectoryDiagnostics(args: {
+  step: WorkflowStep;
+  runDir: string;
+  projectDir: string;
+  messages: readonly KotaAgentMessage[];
+  log: (message: string) => void;
+}): TrajectoryDiagnosticsMetadata | undefined {
+  const { step, runDir, projectDir, messages, log } = args;
+  if (step.type !== "agent" || step.validate !== undefined) return undefined;
+  const artifactPath = join(
+    resolve(projectDir, runDir),
+    "steps",
+    `${step.id}.trajectory-diagnostics.json`,
+  );
+  if (existsSync(artifactPath)) return undefined;
+  try {
+    return writeAgentTrajectoryDiagnosticsArtifact({
+      stepId: step.id,
+      runDir,
+      projectDir,
+      harness: resolveAgentHarness(step.harness),
+      messages,
+      changedFiles: [],
+    });
+  } catch (error) {
+    log(`Trajectory diagnostics for failed step "${step.id}" could not be written: ${error instanceof Error ? error.message : String(error)}`);
+    return undefined;
+  }
+}
+
 export type SingleStepResult = {
   completed: WorkflowStepResult;
   agentBackoff?: WorkflowAgentBackoffSignal;
@@ -262,6 +298,7 @@ export async function executeWorkflowStep(
     ...context,
     reportProgress: idleMonitor?.reportProgress ?? context.reportProgress ?? (() => {}),
   };
+  const capturedAgentMessages: KotaAgentMessage[] = [];
 
   try {
     const stepPromise = executeStep(
@@ -271,7 +308,12 @@ export async function executeWorkflowStep(
       trigger,
       progressContext,
       stepAbortController,
-      (message) => run.appendAgentMessage(step.id, message),
+      (message) => {
+        if (step.type === "agent" && step.validate === undefined) {
+          capturedAgentMessages.push(message);
+        }
+        run.appendAgentMessage(step.id, message);
+      },
       (systemPromptAppend, prompt) => run.writeAgentInputs(step.id, systemPromptAppend, prompt),
       agentConfig,
       deps.bus,
@@ -379,6 +421,13 @@ export async function executeWorkflowStep(
     ) {
       agentBackoff = { kind: err.kind, reason: err.message };
     }
+    const trajectoryDiagnostics = writeFailedAgentTrajectoryDiagnostics({
+      step,
+      runDir: run.metadata.runDir,
+      projectDir: agentConfig.projectDir,
+      messages: capturedAgentMessages,
+      log: deps.log,
+    });
     const failed: WorkflowStepResult = {
       id: step.id,
       type: step.type,
@@ -391,6 +440,7 @@ export async function executeWorkflowStep(
         ? { errorKind: "idle-timeout" as const, idleTimeoutMs: idleTimeoutError.idleTimeoutMs }
         : {}),
       ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
+      ...(trajectoryDiagnostics !== undefined ? { trajectoryDiagnostics } : {}),
     };
     run.recordStep(failed);
     acc.stepResultsById[step.id] = failed;

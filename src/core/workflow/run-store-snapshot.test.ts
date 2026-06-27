@@ -73,6 +73,34 @@ describe("buildWorkflowSnapshot", () => {
     });
   });
 
+  it("marks agent steps that buffer stream frames until validation succeeds", () => {
+    const wf: WorkflowDefinition = {
+      ...baseWorkflow,
+      steps: [
+        {
+          id: "review",
+          type: "agent",
+          promptPath: "src/modules/autonomy/workflows/reviewer/prompt.md",
+          harness: "codex",
+          moduleRoot: "/test-module-root",
+          model: "gpt-5.5",
+          effort: "xhigh",
+          autonomyMode: "passive",
+          validate: (raw) =>
+            raw as object | string | number | boolean | null | undefined,
+        },
+      ],
+    };
+
+    const snap = buildWorkflowSnapshot(wf);
+
+    expect(snap.steps[0]).toMatchObject({
+      id: "review",
+      type: "agent",
+      agentMessageStreamPolicy: "buffer-until-validation-success",
+    });
+  });
+
   it("summarizes emit steps", () => {
     const wf: WorkflowDefinition = {
       ...baseWorkflow,

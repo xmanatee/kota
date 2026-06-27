@@ -184,6 +184,121 @@ describe("control monitor coverage artifacts", () => {
     );
   });
 
+  it("treats failed validation-buffered agent streams as pending coverage", () => {
+    const metadata = baseMetadata({
+      steps: [
+        {
+          id: "review",
+          type: "agent",
+          status: "failed",
+          startedAt: STARTED_AT,
+          completedAt: COMPLETED_AT,
+          durationMs: 55_000,
+          error: "Step timed out",
+        },
+      ],
+    });
+    writeJson(join(runDirPath, "workflow.json"), {
+      defaultAutonomyMode: "passive",
+      steps: [
+        {
+          id: "review",
+          type: "agent",
+          agentMessageStreamPolicy: "buffer-until-validation-success",
+        },
+      ],
+    });
+    writeJson(join(runDirPath, "steps", "review.json"), metadata.steps[0]);
+    writeJson(join(runDirPath, "steps", "review.harness-capability.json"), {
+      emitsAgentMessageStream: true,
+    });
+
+    const artifact = buildControlMonitorCoverageArtifact({
+      projectDir,
+      runDirPath,
+      metadata,
+      headSha: null,
+    });
+
+    expect(artifact.gaps.map((gap) => gap.reason)).not.toEqual(
+      expect.arrayContaining([
+        "missing-agent-step-events",
+        "missing-trajectory-diagnostics",
+      ]),
+    );
+    expect(artifact.families).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          family: "agent-step-stream",
+          status: "pending",
+          pending: 1,
+        }),
+        expect.objectContaining({
+          family: "trajectory-diagnostics",
+          status: "pending",
+          pending: 1,
+        }),
+      ]),
+    );
+  });
+
+  it("uses missing-frame diagnostics as observed stream evidence", () => {
+    const metadata = baseMetadata({
+      steps: [
+        {
+          id: "build",
+          type: "agent",
+          status: "failed",
+          startedAt: STARTED_AT,
+          completedAt: COMPLETED_AT,
+          durationMs: 55_000,
+          error: "Agent step idle timed out",
+        },
+      ],
+    });
+    writeJson(join(runDirPath, "workflow.json"), {
+      defaultAutonomyMode: "autonomous",
+      steps: [{ id: "build", type: "agent" }],
+    });
+    writeJson(join(runDirPath, "steps", "build.harness-capability.json"), {
+      emitsAgentMessageStream: true,
+    });
+    writeJson(join(runDirPath, "steps", "build.trajectory-diagnostics.json"), {
+      status: "supported",
+      counts: {
+        warningCount: 1,
+        missingStreamingFramesCount: 1,
+      },
+    });
+
+    const artifact = buildControlMonitorCoverageArtifact({
+      projectDir,
+      runDirPath,
+      metadata,
+      headSha: null,
+    });
+
+    expect(artifact.gaps.map((gap) => gap.reason)).not.toContain(
+      "missing-agent-step-events",
+    );
+    expect(artifact.families).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          family: "agent-step-stream",
+          status: "covered",
+          numerator: 1,
+          warned: 1,
+        }),
+        expect.objectContaining({
+          family: "trajectory-diagnostics",
+          status: "covered",
+          numerator: 1,
+          warned: 1,
+        }),
+      ]),
+    );
+  });
+
   it("does not treat skipped approval or owner-question gates as unresolved", () => {
     const metadata = baseMetadata({
       steps: [

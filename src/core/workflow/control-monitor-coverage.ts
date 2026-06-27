@@ -76,6 +76,7 @@ export function buildControlMonitorCoverageArtifact(
   const workflowSnapshot = readJsonObject(join(runDirPath, "workflow.json"));
   const snapshotSteps = snapshotStepsFrom(workflowSnapshot);
   const snapshotById = new Map(snapshotSteps.map((step) => [step.id, step]));
+  const stepResultById = new Map(metadata.steps.map((step) => [step.id, step]));
   const families = new Map<ControlCoverageFamilyName, ControlCoverageFamilyBuilder>();
   const gaps: ControlCoverageGap[] = [];
   const family = (name: ControlCoverageFamilyName) => {
@@ -128,14 +129,32 @@ export function buildControlMonitorCoverageArtifact(
   const externalPayloadTools: string[] = [];
 
   for (const stepId of agentStepIds) {
-    inspectAgentStream({ projectDir, runDirPath, stepId, family, addGap });
-    inspectAutonomyMode({ projectDir, runDirPath, stepId, mode: snapshotById.get(stepId)?.autonomyMode ?? null, family, addGap });
-    inspectTrajectory({ projectDir, runDirPath, stepId, family, addGap });
+    const snapshot = snapshotById.get(stepId);
+    const stepResult = stepResultById.get(stepId);
+    inspectAgentStream({
+      projectDir,
+      runDirPath,
+      stepId,
+      stepStatus: stepResult?.status ?? null,
+      streamPolicy: snapshot?.agentMessageStreamPolicy ?? null,
+      family,
+      addGap,
+    });
+    inspectAutonomyMode({ projectDir, runDirPath, stepId, mode: snapshot?.autonomyMode ?? null, family, addGap });
+    inspectTrajectory({
+      projectDir,
+      runDirPath,
+      stepId,
+      stepStatus: stepResult?.status ?? null,
+      streamPolicy: snapshot?.agentMessageStreamPolicy ?? null,
+      family,
+      addGap,
+    });
     inspectTokenBudget({
       projectDir,
       runDirPath,
       stepId,
-      maxTotalTokens: snapshotById.get(stepId)?.tokenBudgetMaxTotalTokens ?? null,
+      maxTotalTokens: snapshot?.tokenBudgetMaxTotalTokens ?? null,
       family,
       addGap,
     });

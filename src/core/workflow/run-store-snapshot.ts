@@ -43,6 +43,9 @@ function summarizeStep(step: WorkflowStep): Record<string, unknown> {
       autonomyMode: step.autonomyMode,
       allowedTools: step.allowedTools,
       disallowedTools: step.disallowedTools,
+      ...(step.validate !== undefined
+        ? { agentMessageStreamPolicy: "buffer-until-validation-success" }
+        : {}),
       ...(step.harnessOptions ? { harnessOptions: step.harnessOptions } : {}),
       ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
       ...(step.exposeOutputToAgent ? { exposeOutputToAgent: true } : {}),

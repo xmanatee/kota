@@ -17,8 +17,12 @@ export type SnapshotStep = {
   type: string;
   event: string | null;
   autonomyMode: string | null;
+  agentMessageStreamPolicy: AgentMessageStreamPolicy | null;
   tokenBudgetMaxTotalTokens: number | null;
 };
+
+export type AgentMessageStreamPolicy =
+  | "buffer-until-validation-success";
 
 export type CoverageEvent = {
   name: string;
@@ -219,6 +223,13 @@ export function snapshotStepsFrom(raw: EventJsonObject | null): SnapshotStep[] {
   );
 }
 
+function agentMessageStreamPolicy(
+  value: EventJsonValue | undefined,
+): AgentMessageStreamPolicy | null {
+  const policy = stringField(value);
+  return policy === "buffer-until-validation-success" ? policy : null;
+}
+
 function collectSnapshotStep(
   raw: EventJsonValue | undefined,
   inheritedAutonomyMode: string | null,
@@ -234,6 +245,7 @@ function collectSnapshotStep(
     type,
     event: stringField(raw.event),
     autonomyMode,
+    agentMessageStreamPolicy: agentMessageStreamPolicy(raw.agentMessageStreamPolicy),
     tokenBudgetMaxTotalTokens: numberField(tokenBudget?.maxTotalTokens),
   };
   return [

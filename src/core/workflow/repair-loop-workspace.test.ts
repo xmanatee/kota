@@ -82,7 +82,7 @@ function makeContext(projectDir: string, workspaceDir: string): WorkflowStepCont
   };
 }
 
-function makeMetadata(projectDir: string): WorkflowRunMetadata {
+function makeMetadata(_projectDir: string): WorkflowRunMetadata {
   return {
     id: "run-001",
     workflow: "test-workflow",

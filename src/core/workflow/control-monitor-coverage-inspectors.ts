@@ -1,10 +1,13 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import type { EventJsonValue } from "#core/events/event-journal.js";
 import {
+  type AgentMessageStreamPolicy,
   artifactRef,
   boolField,
   type CoverageEvent,
   fileNonEmpty,
+  isJsonObject,
   numberField,
   readJsonObject,
   runArtifactRef,
@@ -31,6 +34,19 @@ type AddGap = (
 
 function addEvidence(family: ControlCoverageFamilyBuilder, ref: string | null): void {
   if (ref) family.evidenceRefs.push(ref);
+}
+
+function countField(raw: EventJsonValue | undefined, field: string): number {
+  return isJsonObject(raw) ? numberField(raw[field]) ?? 0 : 0;
+}
+
+function trajectoryArtifactPath(runDirPath: string, stepId: string): string {
+  return join(runDirPath, "steps", `${stepId}.trajectory-diagnostics.json`);
+}
+
+function missingStreamingFrameCount(runDirPath: string, stepId: string): number {
+  const artifact = readJsonObject(trajectoryArtifactPath(runDirPath, stepId));
+  return countField(artifact?.counts, "missingStreamingFramesCount");
 }
 
 function policyBlockedCount(events: readonly CoverageEvent[]): number {
@@ -92,6 +108,8 @@ export function inspectAgentStream(args: {
   projectDir: string;
   runDirPath: string;
   stepId: string;
+  stepStatus: string | null;
+  streamPolicy: AgentMessageStreamPolicy | null;
   family: FamilyAccessor;
   addGap: AddGap;
 }): void {
@@ -100,12 +118,28 @@ export function inspectAgentStream(args: {
   const capabilityPath = join(args.runDirPath, "steps", `${args.stepId}.harness-capability.json`);
   const capability = readJsonObject(capabilityPath);
   const capabilityRef = artifactRef(args.projectDir, capabilityPath);
+  const eventsPath = join(args.runDirPath, "steps", `${args.stepId}.events.jsonl`);
+  const trajectoryPath = trajectoryArtifactPath(args.runDirPath, args.stepId);
   if (boolField(capability?.emitsAgentMessageStream) === false) {
     args.addGap("agent-step-stream", "unsupported-agent-message-stream", args.stepId, [capabilityRef]);
-  } else if (fileNonEmpty(join(args.runDirPath, "steps", `${args.stepId}.events.jsonl`))) {
+  } else if (fileNonEmpty(eventsPath)) {
     stream.numerator += 1;
-    addEvidence(stream, artifactRef(args.projectDir, join(args.runDirPath, "steps", `${args.stepId}.events.jsonl`)));
+    addEvidence(stream, artifactRef(args.projectDir, eventsPath));
+  } else if (
+    args.stepStatus === "failed" &&
+    args.streamPolicy === "buffer-until-validation-success"
+  ) {
+    stream.pending += 1;
+    addEvidence(stream, capabilityRef);
+    addEvidence(stream, artifactRef(args.projectDir, join(args.runDirPath, "steps", `${args.stepId}.json`)));
   } else {
+    const missingFrames = missingStreamingFrameCount(args.runDirPath, args.stepId);
+    if (missingFrames > 0) {
+      stream.numerator += 1;
+      stream.warned += missingFrames;
+      addEvidence(stream, artifactRef(args.projectDir, trajectoryPath));
+      return;
+    }
     args.addGap("agent-step-stream", "missing-agent-step-events", args.stepId, [capabilityRef]);
   }
 }
@@ -134,25 +168,31 @@ export function inspectTrajectory(args: {
   projectDir: string;
   runDirPath: string;
   stepId: string;
+  stepStatus: string | null;
+  streamPolicy: AgentMessageStreamPolicy | null;
   family: FamilyAccessor;
   addGap: AddGap;
 }): void {
   const trajectory = args.family("trajectory-diagnostics");
   trajectory.denominator += 1;
-  const path = join(args.runDirPath, "steps", `${args.stepId}.trajectory-diagnostics.json`);
+  const path = trajectoryArtifactPath(args.runDirPath, args.stepId);
   const artifact = readJsonObject(path);
   if (!artifact) {
+    if (
+      args.stepStatus === "failed" &&
+      args.streamPolicy === "buffer-until-validation-success"
+    ) {
+      trajectory.pending += 1;
+      addEvidence(trajectory, artifactRef(args.projectDir, join(args.runDirPath, "steps", `${args.stepId}.json`)));
+      return;
+    }
     args.addGap("trajectory-diagnostics", "missing-trajectory-diagnostics", args.stepId, [
       runArtifactRef(args.projectDir, args.runDirPath, "metadata.json"),
     ]);
     return;
   }
   const counts = readJsonObject(path)?.counts;
-  trajectory.warned += numberField(
-    counts && typeof counts === "object" && !Array.isArray(counts)
-      ? counts.warningCount
-      : undefined,
-  ) ?? 0;
+  trajectory.warned += countField(counts, "warningCount");
   if (stringField(artifact.status) === "unsupported") {
     args.addGap("trajectory-diagnostics", "unsupported-trajectory-diagnostics", args.stepId, [
       artifactRef(args.projectDir, path),
