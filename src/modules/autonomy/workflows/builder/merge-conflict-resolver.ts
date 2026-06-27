@@ -1,10 +1,14 @@
 import { appendFileSync, mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
+	type AgentCanUseTool,
+	type AgentPermissionResult,
+	composeCanUseTools,
 	createWorkflowAgentGuards,
 	resolveAgentHarness,
 	routeKotaToolControlOptions,
 	runAgentHarness,
+	shouldRouteKotaToolControl,
 } from "#core/agent-harness/index.js";
 import {
 	AUTONOMY_AGENT_DEFAULTS,
@@ -22,6 +26,19 @@ export const MERGE_CONFLICT_RESOLUTION_ATTEMPTS = 2;
 
 const MERGE_CONFLICT_RESOLVER_MAX_TURNS = 8;
 const ARTIFACT_TAIL_LIMIT = 2_000;
+export const MERGE_CONFLICT_RESOLVER_ALLOWED_TOOLS = [
+	"Read",
+	"Edit",
+	"MultiEdit",
+	"file_read",
+	"file_edit",
+	"scaffold_search_read",
+	"scaffold_edit",
+] as const;
+const MERGE_CONFLICT_RESOLVER_ALLOWED_TOOL_SET = new Set<string>(MERGE_CONFLICT_RESOLVER_ALLOWED_TOOLS);
+const MERGE_CONFLICT_RESOLVER_TOOL_DENIAL =
+	"Merge-conflict resolver may only use file read/edit tools on listed textual conflict files.";
+type MergeConflictResolverToolInput = Parameters<AgentCanUseTool>[1];
 
 const SYSTEM_PROMPT = `You are KOTA's bounded merge-conflict resolver.
 
@@ -41,6 +58,77 @@ function tail(value: string): string {
 
 function formatConflicts(conflicts: readonly MergeGateConflict[]): string {
 	return conflicts.map((conflict) => `- ${conflict.path}: ${conflict.reason}`).join("\n");
+}
+
+function toPortablePath(path: string): string {
+	return path.split(/[\\/]+/).join("/");
+}
+
+function workspaceRelativePath(workspaceDir: string, path: string): string | null {
+	const trimmed = path.trim();
+	if (!trimmed) return null;
+	const workspace = resolve(workspaceDir);
+	const absolutePath = isAbsolute(trimmed) ? resolve(trimmed) : resolve(workspace, trimmed);
+	const relativePath = relative(workspace, absolutePath);
+	if (!relativePath || relativePath.startsWith("..") || isAbsolute(relativePath)) return null;
+	return toPortablePath(relativePath);
+}
+
+function conflictPathSet(request: MergeGateResolverRequest): Set<string> {
+	const allowed = new Set<string>();
+	for (const conflict of request.conflicts) {
+		const path = workspaceRelativePath(request.workspaceDir, conflict.path);
+		if (!path) {
+			throw new Error(`Merge conflict path escapes resolver workspace: ${conflict.path}`);
+		}
+		allowed.add(path);
+	}
+	return allowed;
+}
+
+function stringInput(input: MergeConflictResolverToolInput, key: string): string | null {
+	const value = input[key];
+	return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function stringArrayInput(input: MergeConflictResolverToolInput, key: string): string[] {
+	const value = input[key];
+	if (!Array.isArray(value)) return [];
+	return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+}
+
+function toolTargetPaths(toolName: string, input: MergeConflictResolverToolInput): string[] {
+	if (toolName === "scaffold_search_read") return stringArrayInput(input, "read_paths");
+	const directPath = stringInput(input, "file_path") ?? stringInput(input, "path");
+	return directPath ? [directPath] : [];
+}
+
+function deny(message = MERGE_CONFLICT_RESOLVER_TOOL_DENIAL): AgentPermissionResult {
+	return {
+		behavior: "deny",
+		message,
+		decisionAttribution: "operator-deny",
+	};
+}
+
+export function createMergeConflictResolverToolGuard(request: MergeGateResolverRequest): AgentCanUseTool {
+	const allowedConflictPaths = conflictPathSet(request);
+	return async (toolName, input): Promise<AgentPermissionResult> => {
+		if (!MERGE_CONFLICT_RESOLVER_ALLOWED_TOOL_SET.has(toolName)) return deny();
+		const targetPaths = toolTargetPaths(toolName, input);
+		if (targetPaths.length === 0) {
+			return deny(`Merge-conflict resolver tool "${toolName}" must target a listed textual conflict file.`);
+		}
+		for (const targetPath of targetPaths) {
+			const normalizedPath = workspaceRelativePath(request.workspaceDir, targetPath);
+			if (!normalizedPath || !allowedConflictPaths.has(normalizedPath)) {
+				return deny(
+					`Merge-conflict resolver denied access to "${targetPath}"; only listed textual conflict files are allowed.`,
+				);
+			}
+		}
+		return { behavior: "allow", updatedInput: input };
+	};
 }
 
 function formatValidation(validation: MergeGateValidation | null | undefined): string {
@@ -111,6 +199,11 @@ function appendAttemptArtifact(
 export function createMergeConflictResolver(options: MergeConflictResolverOptions): MergeGateResolver {
 	return async (request) => {
 		const harness = resolveAgentHarness(options.harnessName ?? AUTONOMY_AGENT_HARNESS);
+		if (!shouldRouteKotaToolControl(harness)) {
+			throw new Error(
+				`Merge-conflict resolver requires KOTA-routable tool control; harness "${harness.name}" declares "${harness.toolControl}".`,
+			);
+		}
 		const response = await runAgentHarness(
 			harness,
 			{
@@ -121,8 +214,12 @@ export function createMergeConflictResolver(options: MergeConflictResolverOption
 				maxTurns: MERGE_CONFLICT_RESOLVER_MAX_TURNS,
 				effort: AUTONOMY_AGENT_DEFAULTS.effort,
 				...routeKotaToolControlOptions(harness, {
+					allowedTools: [...MERGE_CONFLICT_RESOLVER_ALLOWED_TOOLS],
 					disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
-					canUseTool: createWorkflowAgentGuards(),
+					canUseTool: composeCanUseTools(
+						createWorkflowAgentGuards(),
+						createMergeConflictResolverToolGuard(request),
+					),
 				}),
 				autonomyMode: "autonomous",
 			},

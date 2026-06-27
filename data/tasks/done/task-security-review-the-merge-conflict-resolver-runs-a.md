@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-merge-conflict-resolver-runs-a
 title: Security review: The merge-conflict resolver runs an autonomous agent in a worktree that can contain untrusted conflict text, but it only applies the broad workflow guard stack and does not enforce a resolver-specific read/write/tool boundary before the agent acts. A prompt injection in a conflicted file could run non-blocked shell/network commands or inspect copied ignored setup files before the post-run merge-boundary checks see filesystem state.
-status: ready
+status: done
 priority: p2
 area: security
 summary: The merge-conflict resolver runs an autonomous agent in a worktree that can contain untrusted conflict text, but it only applies the broad workflow guard stack and does not enforce a resolver-specific read/write/tool boundary before the agent acts. A prompt injection in a conflicted file could run non-blocked shell/network commands or inspect copied ignored setup files before the post-run merge-boundary checks see filesystem state.
 created_at: 2026-06-27T11:37:57.710Z
-updated_at: 2026-06-27T11:37:57.710Z
+updated_at: 2026-06-27T12:21:49.000Z
 ---
 
 ## Problem
@@ -33,6 +33,18 @@ claim:
 - The cited vulnerability is fixed or proven impossible with code-level evidence.
 - Focused regression coverage guards the fixed boundary.
 - The task records the final verification command or artifact.
+
+## Resolution
+
+The merge-conflict resolver now fails closed before invoking a harness that cannot route KOTA tool controls. KOTA-routable harnesses receive a resolver-specific allowlist limited to file read/edit tools, plus a `canUseTool` guard that denies shell, network, and any file access outside the merge gate's listed textual conflict paths. The existing post-run merge boundary checks remain in place.
+
+`pnpm kota task move ... doing` and `pnpm kota task move ... done` were both attempted, but this sandbox cannot create `.git/index.lock`; the equivalent state moves were applied directly in the working tree.
+
+## Verification
+
+- `pnpm test src/modules/autonomy/workflows/builder/merge-conflict-resolver.test.ts`
+- `pnpm run typecheck`
+- `pnpm exec biome check src/modules/autonomy/workflows/builder/merge-conflict-resolver.ts src/modules/autonomy/workflows/builder/merge-conflict-resolver.test.ts`
 
 ## Source / Intent
 
@@ -151,4 +163,4 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `src/modules/autonomy/workflows/builder/merge-conflict-resolver.test.ts` verifies the resolver passes a file-only allowlist, allows only listed conflict-file paths, denies `.kota/config.json`, path traversal, shell, and network tools, rejects non-KOTA tool-control harnesses before invocation, and rejects conflict paths that escape the workspace.
