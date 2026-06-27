@@ -25,6 +25,10 @@ import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.
 import type { BranchStepResult, CleanupResult } from "./branch-per-task.js";
 import { cleanupMergedBranches, createPullRequest, createTaskBranch } from "./branch-per-task.js";
 import {
+  createCleanupAutomationWorktreeStep,
+  createMergeGateStep,
+} from "./merge-gate-step.js";
+import {
   type BuilderWorkspaceResult,
   createPrepareBuilderWorktreeStep,
 } from "./prepare-worktree-step.js";
@@ -70,6 +74,8 @@ const inspectReadyQueue = typedCodeStep<InspectResult>({
 
 const claimTaskStep = createClaimTaskStep(inspectReadyQueue);
 const prepareWorktreeStep = createPrepareBuilderWorktreeStep(claimTaskStep);
+const mergeGateStep = createMergeGateStep();
+const cleanupAutomationWorktreeStep = createCleanupAutomationWorktreeStep();
 
 const builderWorkflow: WorkflowDefinitionInput = {
   name: "builder",
@@ -163,6 +169,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
         ]),
       run: (ctx) => writeBuilderRunSummary(ctx),
     }),
+    mergeGateStep,
     createReleaseTaskClaimStep(claimTaskStep),
     typedCodeStep<EvaluatorCalibrationArtifact>({
       id: "write-calibration-artifact",
@@ -176,6 +183,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
         ]),
       run: (ctx) => writeCalibrationArtifact(ctx),
     }),
+    cleanupAutomationWorktreeStep,
     {
       id: "create-pr",
       type: "code",
@@ -183,7 +191,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
         if (!stepCommitted("commit")(ctx)) return false;
         const branchInfo = ctx.stepOutputs["create-task-branch"] as BranchStepResult | undefined;
         const workspaceInfo = ctx.stepOutputs["prepare-worktree"] as BuilderWorkspaceResult | undefined;
-        if (workspaceInfo?.enabled === true && branchInfo?.branchPerTask !== true) return false;
+        if (workspaceInfo?.enabled === true) return false;
         return branchInfo?.branchPerTask === true;
       },
       run: (ctx) => createPullRequest(ctx),
@@ -194,7 +202,8 @@ const builderWorkflow: WorkflowDefinitionInput = {
       type: "code",
       when: (ctx) => {
         const branchInfo = ctx.stepOutputs["create-task-branch"] as BranchStepResult | undefined;
-        return branchInfo?.branchPerTask === true;
+        const workspaceInfo = ctx.stepOutputs["prepare-worktree"] as BuilderWorkspaceResult | undefined;
+        return branchInfo?.branchPerTask === true && workspaceInfo?.enabled !== true;
       },
       validate: (raw) =>
         expectStructuredOutput<CleanupResult>(raw, ["cleaned", "warnings"]),

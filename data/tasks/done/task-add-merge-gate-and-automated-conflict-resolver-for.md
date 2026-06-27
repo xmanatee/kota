@@ -1,14 +1,14 @@
 ---
 id: task-add-merge-gate-and-automated-conflict-resolver-for
 title: Add merge gate and automated conflict resolver for worktree runs
-status: ready
+status: done
 priority: p1
 area: autonomy
 task_class: Safety
 depends_on: [task-run-builder-work-and-repair-inside-task-worktrees]
 summary: Merge completed worktree branches through a validation gate that rebases, resolves bounded textual conflicts, reruns checks, and leaves unresolved work visible.
 created_at: 2026-06-25T14:53:46.305Z
-updated_at: 2026-06-27T08:26:06.324Z
+updated_at: 2026-06-27T08:49:04.000Z
 ---
 
 ## Problem
@@ -70,3 +70,18 @@ Worktree-backed KOTA autonomy.
 - A fixture transcript shows one clean merge, one auto-resolved textual
   conflict with validation rerun, and one blocked conflict that remains visible
   and resumable.
+
+Completed in builder run `2026-06-27T08-31-15-455Z-builder-qhdcq7`:
+
+- `pnpm test src/modules/autonomy src/modules/git` passed on 2026-06-27.
+- `src/modules/git/worktree-merge-gate.test.ts` covers a clean worktree branch
+  fast-forward plus cleanup, a text conflict resolved by a bounded resolver
+  with validation, and a binary conflict that records pending-merge state while
+  leaving the conflicted worktree visible.
+- Builder workflow tests cover prepared worktree runs entering `merge-gate`,
+  a configured resolver plus bounded attempt budget on the production merge
+  gate call, successful merge cleanup, PR creation being skipped for local
+  worktree integration, and legacy non-worktree branch/PR behavior staying
+  intact.
+- Fixture transcript:
+  `.kota/runs/2026-06-27T08-31-15-455Z-builder-qhdcq7/merge-gate-fixture-transcript.txt`.

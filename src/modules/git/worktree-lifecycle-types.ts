@@ -16,6 +16,8 @@ export type AutomationWorktreeMetadata = {
 	lastCleanupBlockers?: string[];
 	stateReason?: string;
 	removedAt?: string;
+	mergedAt?: string;
+	mergedCommit?: string;
 };
 
 export type WorktreeDirtyState = {

@@ -165,7 +165,7 @@ function cleanupEligibility(
 	if (metadata.state !== "merged" && headCommit && headCommit !== metadata.baseCommit) {
 		blockers.push("branch has commits that are not marked merged");
 	}
-	if (push.unpushed) {
+	if (push.unpushed && metadata.mergedCommit !== headCommit) {
 		blockers.push("branch has unpushed commits");
 	}
 	return { eligible: blockers.length === 0 && exists, blockers };

@@ -33,6 +33,18 @@ export {
 	unlockAutomationWorktree,
 	updateAutomationWorktreeState,
 } from "./worktree-lifecycle.js";
+export type {
+	MergeAutomationWorktreeInput,
+	MergeConflictKind,
+	MergeGateConflict,
+	MergeGateResolver,
+	MergeGateResolverRequest,
+	MergeGateResolverResult,
+	MergeGateResult,
+	MergeGateStatus,
+	MergeGateValidation,
+} from "./worktree-merge-gate.js";
+export { mergeAutomationWorktree } from "./worktree-merge-gate.js";
 
 const tools: ToolDef[] = [
   {

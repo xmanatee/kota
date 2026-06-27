@@ -117,6 +117,33 @@ vi.mock("#modules/autonomy/task-claims.js", () => ({
 }));
 
 vi.mock("#modules/git/worktree-lifecycle.js", () => ({
+  cleanupAutomationWorktree: vi.fn((selector: {
+    projectDir: string;
+    taskId: string;
+    runId: string;
+  }) => {
+    const workspaceDir = `${selector.projectDir}/.worktrees/${selector.taskId}-${selector.runId}`;
+    return {
+      removed: true,
+      inspection: {
+        metadata: {
+          schemaVersion: 1,
+          taskId: selector.taskId,
+          runId: selector.runId,
+          workflowId: "builder",
+          owner: "workflow:builder",
+          workspaceDir,
+          branch: `kota/task/${selector.taskId}/${selector.runId}`,
+          baseCommit: "abc1234",
+          createdAt: "2026-06-27T00:00:00.000Z",
+          updatedAt: "2026-06-27T00:00:00.000Z",
+          state: "removed",
+          copiedSetupFiles: [],
+        },
+        cleanup: { eligible: true, blockers: [] },
+      },
+    };
+  }),
   createAutomationWorktree: vi.fn((input: {
     projectDir: string;
     taskId: string;
@@ -208,6 +235,34 @@ vi.mock("#modules/git/worktree-lifecycle.js", () => ({
       cleanup: { eligible: false, blockers: ["worktree is locked: builder agent running"] },
     };
   }),
+}));
+
+vi.mock("#modules/git/worktree-merge-gate.js", () => ({
+  mergeAutomationWorktree: vi.fn((input: {
+    projectDir: string;
+    taskId: string;
+    runId: string;
+  }) => ({
+    status: "merged",
+    taskId: input.taskId,
+    runId: input.runId,
+    branch: `kota/task/${input.taskId}/${input.runId}`,
+    baseCommit: "abc1234",
+    canonicalHeadCommit: "abc1234",
+    headCommit: "def5678",
+    mergeCommit: "def5678",
+    reason: null,
+    conflicts: [],
+    resolutionAttempts: 0,
+    validation: {
+      command: ["pnpm", "test", "src/modules/git", "src/modules/autonomy/workflows/builder"],
+      exitCode: 0,
+      stdoutTail: "",
+      stderrTail: "",
+      passed: true,
+    },
+    artifactPath: `${input.projectDir}/.kota/worktrees/${input.taskId}-${input.runId}.merge-gate.json`,
+  })),
 }));
 
 vi.mock("./run-summary.js", () => ({

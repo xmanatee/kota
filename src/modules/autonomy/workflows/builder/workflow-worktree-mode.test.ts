@@ -66,6 +66,39 @@ describe("builder workflow worktree mode", () => {
       `${projectDir}/.kota/runs/harness`,
     );
 
+    const { mergeAutomationWorktree } = await import("#modules/git/worktree-merge-gate.js");
+    expect(mergeAutomationWorktree).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectDir,
+        taskId: "task-claimed",
+        runId: "harness-run-id",
+        validationCommand: ["pnpm", "test", "src/modules/git", "src/modules/autonomy/workflows/builder"],
+        resolver: expect.any(Function),
+        maxResolutionAttempts: 2,
+      }),
+    );
+
+    const { releaseTaskClaim } = await import("#modules/autonomy/task-claims.js");
+    expect(releaseTaskClaim).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectDir,
+        taskId: "task-claimed",
+        runId: "harness-run-id",
+        workflowId: "builder",
+      }),
+    );
+    expect(vi.mocked(mergeAutomationWorktree).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(releaseTaskClaim).mock.invocationCallOrder[0],
+    );
+
+    const { cleanupAutomationWorktree } = await import("#modules/git/worktree-lifecycle.js");
+    expect(cleanupAutomationWorktree).toHaveBeenCalledWith({
+      projectDir,
+      taskId: "task-claimed",
+      runId: "harness-run-id",
+    });
+    expect(result.steps["create-pr"].status).toBe("skipped");
+
     const { createAutomationWorktree } = await import("#modules/git/worktree-lifecycle.js");
     expect(createAutomationWorktree).toHaveBeenCalledWith(
       expect.objectContaining({

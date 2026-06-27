@@ -18,6 +18,7 @@ import {
   type TaskClaimTerminalResult,
 } from "#modules/autonomy/task-claims.js";
 import type { BranchStepResult } from "./branch-per-task.js";
+import { mergeGatePending, mergeGateSucceeded } from "./merge-gate-step.js";
 import { workflowWorkspaceDir } from "./workspace.js";
 
 type QueueInspection = {
@@ -94,7 +95,7 @@ export function createReleaseTaskClaimStep(
     when: (ctx) => {
       if (!stepSucceeded("write-run-summary")(ctx)) return false;
       const branchInfo = ctx.stepOutputs["create-task-branch"] as BranchStepResult | undefined;
-      return branchInfo?.branchPerTask !== true && claimTaskStep.output(ctx)?.claimed === true;
+      return (branchInfo?.branchPerTask !== true || mergeGateSucceeded(ctx)) && claimTaskStep.output(ctx)?.claimed === true;
     },
     validate: validateTaskClaimTerminalResult,
     run: (ctx) => {
@@ -117,18 +118,25 @@ export function createMarkClaimPendingMergeStep(
   return typedCodeStep<TaskClaimTerminalResult>({
     id: "mark-claim-pending-merge",
     type: "code",
-    when: (ctx) => stepSucceeded("create-pr")(ctx) && claimTaskStep.output(ctx)?.claimed === true,
+    when: (ctx) =>
+      (stepSucceeded("create-pr")(ctx) || mergeGatePending(ctx) !== undefined) &&
+      claimTaskStep.output(ctx)?.claimed === true,
     validate: validateTaskClaimTerminalResult,
     run: (ctx) => {
       const claim = claimTaskStep.outputRequired(ctx);
       if (!claim.taskId) throw new Error("Cannot mark a task claim pending without a task id");
       const pr = ctx.stepOutputs["create-pr"] as { prUrl?: string } | undefined;
+      const pending = mergeGatePending(ctx);
       return markTaskClaimPendingMerge({
         projectDir: ctx.projectDir,
         taskId: claim.taskId,
         runId: ctx.workflow.runId,
         workflowId: ctx.workflow.name,
-        evidence: pr?.prUrl ? `builder branch is pending merge at ${pr.prUrl}` : "builder branch is pending merge",
+        evidence: pending?.reason
+          ? `builder branch is pending merge: ${pending.reason}`
+          : pr?.prUrl
+            ? `builder branch is pending merge at ${pr.prUrl}`
+            : "builder branch is pending merge",
       });
     },
   });
