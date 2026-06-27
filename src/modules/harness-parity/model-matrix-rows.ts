@@ -5,6 +5,7 @@ import type {
 } from "./client.js";
 import type { MatrixModelSpec } from "./model-matrix-models.js";
 import type { HarnessParityArtifact } from "./runner.js";
+import { scaffoldEvidenceForRow } from "./scaffold-evidence.js";
 
 type TrajectoryFrameLike = {
   type?: string;
@@ -81,6 +82,11 @@ export function rowFromArtifact(args: {
     : artifact.isError
       ? "error"
       : "failed";
+  const scaffoldEvidence = scaffoldEvidenceForRow({
+    harnessName: args.harnessName,
+    scenarioId: args.scenarioId,
+    status,
+  });
   return {
     rowId: args.rowId,
     targetKind: "harness-parity-scenario",
@@ -117,6 +123,7 @@ export function rowFromArtifact(args: {
       unsupportedTrajectoryCount:
         artifact.trajectoryDiagnostics.unsupportedTrajectoryCount,
     },
+    ...(scaffoldEvidence !== undefined ? { scaffoldEvidence } : {}),
     changedFiles: [...artifact.changedFiles],
     artifactDir: artifact.artifactDir,
   };
@@ -132,6 +139,12 @@ export function skippedRow(args: {
   rowId: string;
   skipReason: string;
 }): HarnessParityMatrixRow {
+  const status = "skipped";
+  const scaffoldEvidence = scaffoldEvidenceForRow({
+    harnessName: args.harnessName,
+    scenarioId: args.scenarioId,
+    status,
+  });
   return {
     rowId: args.rowId,
     targetKind: args.targetKind ?? "harness-parity-scenario",
@@ -144,7 +157,7 @@ export function skippedRow(args: {
     scenarioId: args.scenarioId,
     repeatIndex: args.repeatIndex,
     repeatCount: args.repeatCount,
-    status: "skipped",
+    status,
     skipReason: args.skipReason,
     capabilityMetadata: args.spec.capabilityMetadata,
     durationMs: 0,
@@ -163,6 +176,7 @@ export function skippedRow(args: {
     },
     verification: null,
     trajectoryDiagnostics: null,
+    ...(scaffoldEvidence !== undefined ? { scaffoldEvidence } : {}),
     changedFiles: [],
   };
 }

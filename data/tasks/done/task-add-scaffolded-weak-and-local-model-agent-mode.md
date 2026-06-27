@@ -1,14 +1,14 @@
 ---
 id: task-add-scaffolded-weak-and-local-model-agent-mode
 title: Add scaffolded weak and local model agent mode
-status: ready
+status: done
 priority: p2
 area: modules
 task_class: Platform
 depends_on: [task-route-openai-tools-through-the-kota-tool-runner-wi, task-preserve-rich-tool-results-reasoning-and-agent-mes]
 summary: Add a constrained agent mode for local and weaker models with compound inspect/edit/verify tools, smaller action space, context packaging, and verifier-driven repair loops.
 created_at: 2026-06-25T14:23:26.692Z
-updated_at: 2026-06-27T08:26:06.367Z
+updated_at: 2026-06-27T10:46:56Z
 ---
 
 ## Problem
@@ -73,3 +73,22 @@ OpenRouter/local model parity for KOTA autonomy.
   edit-and-verify task through a fake OpenAI-compatible model.
 - A live optional artifact under `.kota/runs/<run-id>/` compares a weak/local
   model with and without the scaffold on the same scenario.
+
+Completed in builder run 2026-06-27T10-17-38-365Z-builder-wmuuo5.
+
+Evidence:
+
+- `openai-tools-scaffold` is registered as an opt-in harness mode alongside
+  `openai-tools`; the normal raw-tool path is unchanged unless this harness is
+  selected.
+- Scaffold operations cover inspect, search/read, exact edit, patch, command
+  run, and verify-plus-diff, expanding into the shared KOTA tool runner.
+- The no-network adapter fixture completes a constrained edit-and-verify task
+  through a mocked OpenAI-compatible model, including JSON-action fallback.
+- Harness-parity matrix rows now record `scaffoldEvidence` by constrained task
+  class with `supported`, `experimental`, or `rejected` status.
+- Run artifact:
+  `.kota/runs/2026-06-27T10-17-38-365Z-builder-wmuuo5/scaffold-mode-evidence.json`.
+- Validation passed:
+  `pnpm -s test src/modules/openai-tools-agent-harness src/modules/harness-parity`,
+  `pnpm -s typecheck`, `pnpm -s lint`, and `pnpm -s validate-tasks`.

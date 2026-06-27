@@ -16,7 +16,9 @@ import claudeHarnessModule from "../claude-agent-harness/index.js";
 import thinHarnessModule from "../thin-agent-harness/index.js";
 import openaiToolsHarnessModule, {
   OPENAI_TOOLS_AGENT_HARNESS_NAME,
+  OPENAI_TOOLS_SCAFFOLD_AGENT_HARNESS_NAME,
   openaiToolsAgentHarness,
+  openaiToolsScaffoldAgentHarness,
 } from "./index.js";
 
 const messagesStreamMock = vi.fn();
@@ -64,11 +66,20 @@ describe("openai-tools agent harness integration", () => {
     expect(thinHarnessModule.name).toBe("thin-agent-harness");
     expect(openaiToolsHarnessModule.name).toBe("openai-tools-agent-harness");
     expect(hasAgentHarness(OPENAI_TOOLS_AGENT_HARNESS_NAME)).toBe(true);
+    expect(hasAgentHarness(OPENAI_TOOLS_SCAFFOLD_AGENT_HARNESS_NAME)).toBe(true);
     expect(listAgentHarnessNames()).toEqual(
-      expect.arrayContaining(["claude-agent-sdk", "thin", "openai-tools"]),
+      expect.arrayContaining([
+        "claude-agent-sdk",
+        "thin",
+        "openai-tools",
+        "openai-tools-scaffold",
+      ]),
     );
     expect(resolveAgentHarness(OPENAI_TOOLS_AGENT_HARNESS_NAME)).toBe(
       openaiToolsAgentHarness,
+    );
+    expect(resolveAgentHarness(OPENAI_TOOLS_SCAFFOLD_AGENT_HARNESS_NAME)).toBe(
+      openaiToolsScaffoldAgentHarness,
     );
   });
 

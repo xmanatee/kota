@@ -246,6 +246,36 @@ describe("harness-parity model matrix", () => {
     ).toMatchObject({ status: "passed" });
   });
 
+  it("records scaffold support evidence for scaffold harness rows", async () => {
+    registerAgentHarness(fixingHarness("openai-tools-scaffold"));
+
+    const result = await runHarnessParityMatrix(
+      matrixDeps(),
+      {
+        scenarios: ["fix-add"],
+        harnesses: ["openai-tools-scaffold"],
+        baselines: [
+          { label: "local-baseline", model: "test-model", provider: "local" },
+        ],
+      },
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]?.scaffoldEvidence).toEqual({
+      harnessMode: "openai-tools-scaffold",
+      taskClass: "general-coding",
+      supportStatus: "supported",
+      reason: 'scenario verifier passed for scaffold task class "general-coding"',
+    });
+
+    const report = JSON.parse(readFileSync(result.reportPath, "utf-8")) as {
+      rows: Array<{ scaffoldEvidence?: { supportStatus: string } }>;
+    };
+    expect(report.rows[0]?.scaffoldEvidence?.supportStatus).toBe("supported");
+  });
+
   it("expands the shipped OpenRouter lab candidate set without requiring a key", async () => {
     const result = await runHarnessParityMatrix(
       matrixDeps(),
@@ -267,5 +297,4 @@ describe("harness-parity model matrix", () => {
     expect(skippedModels).toContain("openrouter/z-ai/glm-5.2");
     expect(skippedModels).toContain("openrouter/moonshotai/kimi-k2.7-code");
   });
-
 });

@@ -62,6 +62,20 @@ export type HarnessParityMatrixVerificationSummary = {
   command: string;
 };
 
+export type HarnessParityMatrixScaffoldTaskClass =
+  | "edit-and-verify"
+  | "investigation-answer"
+  | "frontend-preview"
+  | "maintenance-chain"
+  | "general-coding";
+
+export type HarnessParityMatrixScaffoldEvidence = {
+  harnessMode: "openai-tools-scaffold";
+  taskClass: HarnessParityMatrixScaffoldTaskClass;
+  supportStatus: "supported" | "experimental" | "rejected";
+  reason: string;
+};
+
 export type HarnessParityMatrixResourceProfile = {
   cpuAllocationCores: number;
   cpuKillThresholdCores: number;
@@ -140,6 +154,7 @@ export type HarnessParityMatrixRow = {
     missingStreamingFramesCount: number;
     unsupportedTrajectoryCount: number;
   } | null;
+  scaffoldEvidence?: HarnessParityMatrixScaffoldEvidence;
   changedFiles: string[];
   artifactDir?: string;
   evalHarness?: HarnessParityMatrixEvalHarnessEvidence;

@@ -22,17 +22,17 @@ import {
   emitToolResultMessages,
 } from "./adapter-agent-messages.js";
 import {
-  executeOpenaiToolCalls,
+  type executeOpenaiToolCalls,
   initializeMcpManager,
   resolveProjectDir,
   snapshotMcpToolDeclarationFingerprints,
   toolResultEntryToBlock,
 } from "./adapter-runtime.js";
 import {
-  DEFAULT_MAX_TURNS,
   OPENAI_TOOLS_AGENT_HARNESS_NAME,
   OPENAI_TOOLS_ASK_OWNER_TOOL_NAME,
 } from "./constants.js";
+import { defaultLoopMode, type OpenaiToolsLoopMode } from "./loop-mode.js";
 import {
   OPENAI_TOOLS_UNSUPPORTED_OPTIONS,
   openaiToolsReadiness,
@@ -46,7 +46,6 @@ import {
 import {
   isTextBlock,
   isToolUseBlock,
-  selectToolDefinitions,
   validateToolUseBlock,
 } from "./tool-loop.js";
 
@@ -79,9 +78,10 @@ export const openaiToolsAgentHarness: AgentHarness = {
   },
 };
 
-async function runOpenaiToolsLoop(
+export async function runOpenaiToolsLoop(
   options: AgentHarnessRunOptions,
   writer?: AgentHarnessWriter,
+  mode: OpenaiToolsLoopMode = defaultLoopMode,
 ): Promise<AgentHarnessResult> {
   rejectUnsupportedOptions(options);
   checkAborted(options.abortController?.signal);
@@ -94,7 +94,7 @@ async function runOpenaiToolsLoop(
 
   const mcpManager = await initializeMcpManager(options);
   try {
-    const system = options.systemPrompt;
+    const system = mode.systemPrompt(options.systemPrompt);
     const projectDir = resolveProjectDir(options);
     const resolved = createModelClient({
       model: options.model,
@@ -107,7 +107,7 @@ async function runOpenaiToolsLoop(
       resolved.model,
       options.modelOutputTokenLimits,
     );
-    const maxTurns = options.maxTurns ?? DEFAULT_MAX_TURNS;
+    const maxTurns = options.maxTurns ?? mode.defaultMaxTurns;
     const sessionRuntime = createOpenaiToolsSessionRuntime({
       options,
       projectDir,
@@ -153,7 +153,7 @@ async function runOpenaiToolsLoop(
       const mcpTools = mcpManager?.getTools() ?? [];
       const mcpPromptToolDeclarationFingerprints =
         snapshotMcpToolDeclarationFingerprints(mcpManager, mcpTools);
-      const tools = selectToolDefinitions(
+      const tools = mode.selectTools(
         options.allowedTools,
         options.disallowedTools,
         options.askOwner !== undefined,
@@ -204,16 +204,31 @@ async function runOpenaiToolsLoop(
       if (finalMessage.id) lastSessionId = finalMessage.id;
 
       const textBlocks = finalMessage.content.filter(isTextBlock);
-      const toolBlocks = finalMessage.content
+      let toolBlocks = finalMessage.content
         .filter(isToolUseBlock)
         .map((block) => validateToolUseBlock(block));
       emitToolCallMessages(agentMessages, toolBlocks, finalMessage.id);
       const turnText = textBlocks.map((block) => block.text).join("");
       if (turnText.length > 0) finalText = turnText;
+      let parsedJsonAction = false;
+      if (toolBlocks.length === 0 && mode.parseJsonAction) {
+        const fallbackTool = mode.parseJsonAction(
+          turnText,
+          `json_action_${turn + 1}`,
+        );
+        if (fallbackTool) {
+          toolBlocks = [fallbackTool];
+          parsedJsonAction = true;
+          emitToolCallMessages(agentMessages, toolBlocks, finalMessage.id);
+        }
+      }
+      const assistantContent = parsedJsonAction
+        ? [...finalMessage.content, ...toolBlocks]
+        : finalMessage.content;
 
       messages.push({
         role: "assistant",
-        content: finalMessage.content,
+        content: assistantContent,
       });
 
       const turnExhaustion = options.tokenBudget?.checkAfterDebit(tokenBudgetSource);
@@ -231,13 +246,17 @@ async function runOpenaiToolsLoop(
         }));
       }
 
-      if (toolBlocks.length === 0 || finalMessage.stop_reason === "end_turn") {
-        return finish(currentResult());
+      if (
+        toolBlocks.length === 0 ||
+        (finalMessage.stop_reason === "end_turn" && !parsedJsonAction)
+      ) {
+        const result = currentResult();
+        return finish(mode.finalizeResponse?.(result) ?? result);
       }
 
       let toolResults: Awaited<ReturnType<typeof executeOpenaiToolCalls>>;
       try {
-        toolResults = await executeOpenaiToolCalls(toolBlocks, options, {
+        toolResults = await mode.executeTools(toolBlocks, options, {
           mcpManager,
           mcpPromptToolDeclarationFingerprints,
           projectDir,
