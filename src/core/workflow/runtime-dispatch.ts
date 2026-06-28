@@ -14,6 +14,7 @@ import type { AgentBackoffManager } from "./agent-backoff.js";
 import { isWithinDispatchWindow } from "./dispatch-window.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { workflowUsesAgent } from "./run-executor-utils.js";
+import { formatRunId } from "./run-io.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type {
   WorkflowRunExecutionResult,
@@ -38,6 +39,13 @@ export { loadDefinitions, resolveDefinitions } from "./runtime-dispatch-definiti
 
 export const IDLE_UNCHANGED_REEMIT_MS = 30 * 60 * 1000;
 
+export type WorkflowActiveRunReservation = {
+  runId: string;
+  workflowName: string;
+  promise: Promise<WorkflowRunExecutionResult>;
+  abortController: AbortController;
+};
+
 export interface WorkflowRuntimeDispatchState {
   projectDir: string;
   workspaceDir?: string;
@@ -52,10 +60,7 @@ export interface WorkflowRuntimeDispatchState {
   definitions: WorkflowDefinition[];
   scheduleTriggers: ScheduleTriggerManager;
   pbus: ProjectScopedEventBus;
-  activeRuns: Map<
-    string,
-    { promise: Promise<WorkflowRunExecutionResult>; abortController: AbortController }
-  >;
+  activeRuns: Map<string, WorkflowActiveRunReservation>;
   backoff: AgentBackoffManager;
   /** Max concurrent agent-step workflow runs. Default 1. */
   agentConcurrency: number;
@@ -155,20 +160,20 @@ export async function runWorkflow(
   // this workflow is present in `activeRuns`, the cap check sees zero active
   // agent runs and a second agent workflow can dispatch past the cap.
   const abortController = new AbortController();
+  const reservedRunId = runId ?? formatRunId(definition.name);
   let resolveReservation!: (value: WorkflowRunExecutionResult) => void;
   let rejectReservation!: (reason?: Error) => void;
   const reservationPromise = new Promise<WorkflowRunExecutionResult>((resolve, reject) => {
     resolveReservation = resolve;
     rejectReservation = reject;
   });
-  const reservation: {
-    promise: Promise<WorkflowRunExecutionResult>;
-    abortController: AbortController;
-  } = {
+  const reservation: WorkflowActiveRunReservation = {
+    runId: reservedRunId,
+    workflowName: definition.name,
     promise: reservationPromise,
     abortController,
   };
-  state.activeRuns.set(definition.name, reservation);
+  state.activeRuns.set(reservedRunId, reservation);
   const { promise } = executeWorkflowRun(
     definition,
     trigger,
@@ -198,7 +203,7 @@ export async function runWorkflow(
       resolveAgentDef: state.resolveAgentDef,
       resolveSkillsPrompt: state.resolveSkillsPrompt,
       agentRunLimiter: state.agentRunLimiter,
-      runId,
+      runId: reservedRunId,
     },
     abortController,
   );
@@ -220,7 +225,7 @@ export async function runWorkflow(
       state.backoff.clear();
     }
   } finally {
-    state.activeRuns.delete(definition.name);
+    state.activeRuns.delete(reservedRunId);
     maybeStartNext(state);
   }
 }

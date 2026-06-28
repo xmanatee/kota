@@ -68,6 +68,7 @@ function makeState(
   projectDir: string,
   recovery: WorkflowRuntimeState["recovery"] = undefined,
   workspaceDir = projectDir,
+  activeRunId = "run-builder",
 ) {
   const logs: string[] = [];
   let storedRecovery = recovery;
@@ -78,7 +79,12 @@ function makeState(
     projectDir,
     workspaceDir,
     dispatchPaused: false,
-    activeRuns: new Map([["builder", {}]]),
+    activeRuns: new Map([
+      [
+        activeRunId,
+        { runId: activeRunId, workflowName: "builder" },
+      ],
+    ]),
     store: {
       getRecovery: () => storedRecovery ?? null,
       setRecovery: (next: WorkflowRuntimeState["recovery"] | null) => {
@@ -186,16 +192,21 @@ describe("handleDirtyCompletion", () => {
       getQueuePersistCount,
       getQueueWrites,
       logs,
-    } = makeState(projectDir, {
-      sourceRunId: "source-run",
-      sourceWorkflow: "builder",
-      dirtyCheckout: "canonical",
-      worktreeFingerprint: preRunFingerprint,
-      worktreeSummary: "M tracked.txt",
-      attempts: 0,
-      retryAttemptedBy: [],
-      updatedAt: "2026-06-21T00:00:00.000Z",
-    });
+    } = makeState(
+      projectDir,
+      {
+        sourceRunId: "source-run",
+        sourceWorkflow: "builder",
+        dirtyCheckout: "canonical",
+        worktreeFingerprint: preRunFingerprint,
+        worktreeSummary: "M tracked.txt",
+        attempts: 0,
+        retryAttemptedBy: [],
+        updatedAt: "2026-06-21T00:00:00.000Z",
+      },
+      projectDir,
+      "retry-run",
+    );
 
     handleDirtyCompletion(state, makeDefinition(), makeMetadata("retry-run"), preRunFingerprint);
 

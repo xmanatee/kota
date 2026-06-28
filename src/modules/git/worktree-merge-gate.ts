@@ -9,6 +9,12 @@ import {
 	validateResolvedMergeBoundary,
 } from "./worktree-merge-gate-finalize.js";
 import {
+	acquireMergeGateLock,
+	releaseMergeGateLock,
+	writeMergeGateMetrics,
+} from "./worktree-merge-gate-lock.js";
+import { finishCleanMerge, pendingBlocked } from "./worktree-merge-gate-results.js";
+import {
 	abortMerge,
 	classifyConflicts,
 	currentHead,
@@ -36,73 +42,6 @@ export type {
 	MergeGateStatus,
 	MergeGateValidation,
 } from "./worktree-merge-gate-types.js";
-
-function pendingBlocked(
-	selector: AutomationWorktreeSelector,
-	input: {
-		branch: string;
-		baseCommit: string;
-		canonicalHeadCommit: string;
-		headCommit: string;
-		reason: string;
-		conflicts?: MergeGateConflict[];
-		validation?: MergeGateValidation | null;
-		resolutionAttempts?: number;
-	},
-): MergeGateResult {
-	return pending(selector, {
-		branch: input.branch,
-		baseCommit: input.baseCommit,
-		canonicalHeadCommit: input.canonicalHeadCommit,
-		headCommit: input.headCommit,
-		reason: input.reason,
-		conflicts: input.conflicts ?? [],
-		resolutionAttempts: input.resolutionAttempts ?? 0,
-		validation: input.validation ?? null,
-		status: "blocked",
-	});
-}
-
-function finishCleanMerge(
-	selector: AutomationWorktreeSelector,
-	input: {
-		branch: string;
-		baseCommit: string;
-		canonicalHeadCommit: string;
-		workspaceDir: string;
-		validationCommand: readonly string[] | undefined;
-	},
-): MergeGateResult {
-	const validation = runValidation(input.workspaceDir, input.validationCommand);
-	if (validation && !validation.passed) {
-		return pendingBlocked(selector, {
-			branch: input.branch,
-			baseCommit: input.baseCommit,
-			canonicalHeadCommit: input.canonicalHeadCommit,
-			headCommit: currentHead(input.workspaceDir),
-			reason: "validation failed after clean merge",
-			validation,
-		});
-	}
-	const commit = commitResolvedMerge(input.workspaceDir, input.branch);
-	if (!commit.ok) {
-		return pendingBlocked(selector, {
-			branch: input.branch,
-			baseCommit: input.baseCommit,
-			canonicalHeadCommit: input.canonicalHeadCommit,
-			headCommit: currentHead(input.workspaceDir),
-			reason: commit.reason,
-			validation,
-		});
-	}
-	return validateAndFastForwardCanonical(selector, {
-		branch: input.branch,
-		baseCommit: input.baseCommit,
-		canonicalHeadCommit: input.canonicalHeadCommit,
-		validationCommand: input.validationCommand,
-		resolutionAttempts: 0,
-	});
-}
 
 async function resolveTextConflicts(
 	selector: AutomationWorktreeSelector,
@@ -211,7 +150,7 @@ async function resolveTextConflicts(
 	});
 }
 
-export async function mergeAutomationWorktree(input: MergeAutomationWorktreeInput): Promise<MergeGateResult> {
+async function mergeAutomationWorktreeUnlocked(input: MergeAutomationWorktreeInput): Promise<MergeGateResult> {
 	const selector: AutomationWorktreeSelector = {
 		projectDir: input.projectDir,
 		taskId: input.taskId,
@@ -285,4 +224,48 @@ export async function mergeAutomationWorktree(input: MergeAutomationWorktreeInpu
 		validationCommand: input.validationCommand,
 		resolutionAttempts: 0,
 	});
+}
+
+export async function mergeAutomationWorktree(input: MergeAutomationWorktreeInput): Promise<MergeGateResult> {
+	const selector: AutomationWorktreeSelector = {
+		projectDir: input.projectDir,
+		taskId: input.taskId,
+		runId: input.runId,
+	};
+	const lock = await acquireMergeGateLock({
+		projectDir: input.projectDir,
+		taskId: input.taskId,
+		runId: input.runId,
+		timeoutMs: input.lockTimeoutMs,
+	});
+	if (!lock.acquired) {
+		const inspection = inspectAutomationWorktree(selector);
+		const workspaceHeadCommit = inspection.exists ? currentHead(inspection.metadata.workspaceDir) : "";
+		return writeMergeGateMetrics(
+			pendingBlocked(selector, {
+				branch: inspection.branch,
+				baseCommit: inspection.metadata.baseCommit,
+				canonicalHeadCommit: currentHead(input.projectDir),
+				headCommit: workspaceHeadCommit,
+				reason: lock.reason,
+			}),
+			{
+				waitMs: lock.waitMs,
+				mergeDurationMs: 0,
+				serializedByLock: true,
+			},
+		);
+	}
+
+	const mergeStartedAt = Date.now();
+	try {
+		const result = await mergeAutomationWorktreeUnlocked(input);
+		return writeMergeGateMetrics(result, {
+			waitMs: lock.waitMs,
+			mergeDurationMs: Date.now() - mergeStartedAt,
+			serializedByLock: true,
+		});
+	} finally {
+		releaseMergeGateLock(input.projectDir);
+	}
 }

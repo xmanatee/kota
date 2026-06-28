@@ -150,6 +150,14 @@ vi.mock("#modules/git/worktree-merge-gate.js", () => ({
       stderrTail: "",
       passed: true,
     },
+    metrics: {
+      waitMs: 12,
+      mergeDurationMs: 34,
+      conflictCount: 0,
+      resolverAttempts: 0,
+      validationFailures: 0,
+      serializedByLock: true,
+    },
     artifactPath: `${input.projectDir}/.kota/worktrees/${input.taskId}-${input.runId}.merge-gate.json`,
   })),
 }));

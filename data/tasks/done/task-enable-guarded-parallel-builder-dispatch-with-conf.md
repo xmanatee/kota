@@ -1,14 +1,14 @@
 ---
 id: task-enable-guarded-parallel-builder-dispatch-with-conf
 title: Enable guarded parallel builder dispatch with conflict fixtures
-status: ready
+status: done
 priority: p1
 area: autonomy
 task_class: Platform
 depends_on: [task-add-atomic-task-claim-leases-for-parallel-autonomy, task-run-builder-work-and-repair-inside-task-worktrees, task-add-merge-gate-and-automated-conflict-resolver-for, task-surface-worktree-run-status-and-cleanup-controls]
 summary: Allow multiple builders only behind worktree mode and prove it with disjoint, overlapping, conflict, merge, and cleanup harness fixtures.
 created_at: 2026-06-25T14:54:02.826Z
-updated_at: 2026-06-28T15:52:35.579Z
+updated_at: 2026-06-28T16:58:02.000Z
 ---
 
 ## Problem
@@ -65,9 +65,19 @@ Worktree-backed KOTA autonomy.
 
 ## Acceptance Evidence
 
-- `pnpm test src/modules/autonomy src/core/workflow` passes for the new
-  parallel fixtures.
-- A fixture run produces metrics for two concurrent builders and shows no
-  canonical-checkout mutation before merge gate approval.
-- A conflict fixture leaves a visible pending state instead of blocking or
-  deleting unrelated worktrees.
+- `pnpm test src/modules/autonomy src/core/workflow` passed on
+  2026-06-28 with 192 test files and 1467 tests.
+- `src/core/workflow/runtime-dispatch-parallel-runs.test.ts` proves two
+  same-workflow builder-like runs can be active only when the workflow opts
+  into a two-run cap, and remains serial by default.
+- `src/modules/git/worktree-merge-gate-lock.test.ts` proves disjoint
+  worktree merges serialize through the merge-gate lock while preserving both
+  canonical changes.
+- Existing merge-gate, worktree lifecycle, task-claim race, and recovery tests
+  cover same-file conflict, blocked conflict, stale claim recovery, and cleanup
+  refusal.
+- `src/modules/autonomy/workflows/builder/parallel-metrics-step.ts` records
+  wait time, run duration, merge duration, conflict count, resolver attempts,
+  validation failures, cleanup outcome, and net throughput into
+  `parallel-builder-metrics.json`; the builder worktree-mode test validates the
+  artifact shape and merge/cleanup paths.

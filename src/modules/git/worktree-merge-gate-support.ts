@@ -29,7 +29,7 @@ function mergeGateArtifactPath(selector: AutomationWorktreeSelector): string {
 	return metadata.replace(/\.json$/, ".merge-gate.json");
 }
 
-function writeMergeGateArtifact(result: MergeGateResult): MergeGateResult {
+export function writeMergeGateArtifact(result: MergeGateResult): MergeGateResult {
 	mkdirSync(dirname(result.artifactPath), { recursive: true });
 	writeFileSync(result.artifactPath, `${JSON.stringify(result, null, 2)}\n`, "utf8");
 	return result;
@@ -194,6 +194,7 @@ function resultFor(
 		conflicts: MergeGateConflict[];
 		resolutionAttempts: number;
 		validation: MergeGateValidation | null;
+		metrics?: MergeGateResult["metrics"];
 	},
 ): MergeGateResult {
 	return {
@@ -209,6 +210,14 @@ function resultFor(
 		conflicts: input.conflicts,
 		resolutionAttempts: input.resolutionAttempts,
 		validation: input.validation,
+		metrics: input.metrics ?? {
+			waitMs: 0,
+			mergeDurationMs: 0,
+			conflictCount: input.conflicts.length,
+			resolverAttempts: input.resolutionAttempts,
+			validationFailures: input.validation && !input.validation.passed ? 1 : 0,
+			serializedByLock: false,
+		},
 		artifactPath: mergeGateArtifactPath(input.selector),
 	};
 }

@@ -1,8 +1,10 @@
+import type { KotaConfig } from "#core/config/config.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowNotifyConfig } from "./step-input-base.js";
 import type { WorkflowStepInput } from "./step-input-types.js";
 import type { WorkflowStep } from "./step-types.js";
 import type {
+  WorkflowRunTrigger,
   WorkflowTrigger,
   WorkflowTriggerInput,
 } from "./trigger-types.js";
@@ -48,6 +50,22 @@ export type WorkflowDefinitionInput = {
    */
   concurrencyGroup?: string;
   /**
+   * Maximum active runs for this workflow name. Defaults to 1 so workflows
+   * stay serialized unless they deliberately opt in. A resolver may inspect
+   * project config when the safe cap depends on module-owned runtime posture.
+   */
+  maxConcurrentRuns?:
+    | number
+    | ((input: WorkflowConcurrencyInput) => number);
+  /**
+   * Number of queued runs to materialize for one trigger delivery. Defaults to
+   * 1. Use with maxConcurrentRuns when one event represents multiple
+   * independent work items.
+   */
+  dispatchBurst?:
+    | number
+    | ((input: WorkflowDispatchBurstInput) => number);
+  /**
    * Optional JSON Schema object describing the expected shape of trigger payloads.
    * When present, the runtime validates each trigger payload against this schema
    * before queuing the run. Invalid payloads are rejected with a descriptive error.
@@ -77,6 +95,16 @@ export type WorkflowDefinitionInput = {
   tags?: readonly string[];
   triggers: WorkflowTriggerInput[];
   steps: WorkflowStepInput[];
+};
+
+export type WorkflowConcurrencyInput = {
+  projectDir: string;
+  config?: KotaConfig;
+  workflowName: string;
+};
+
+export type WorkflowDispatchBurstInput = WorkflowConcurrencyInput & {
+  trigger: WorkflowRunTrigger;
 };
 
 export type WorkflowContributionSource = "project" | "installed" | "foreign";
@@ -126,6 +154,18 @@ export type WorkflowDefinition = {
    * type-based defaults ("agent" or "code").
    */
   concurrencyGroup?: string;
+  /**
+   * Maximum active runs for this workflow name. Defaults to 1.
+   */
+  maxConcurrentRuns?:
+    | number
+    | ((input: WorkflowConcurrencyInput) => number);
+  /**
+   * Number of queued runs to materialize for one trigger delivery.
+   */
+  dispatchBurst?:
+    | number
+    | ((input: WorkflowDispatchBurstInput) => number);
   /** Optional JSON Schema for validating trigger payloads at enqueue time. */
   inputSchema?: Record<string, unknown>;
   /** Optional JSON Schema for validating the last step output on successful completion. */

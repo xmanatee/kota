@@ -14,7 +14,7 @@ import {
 } from "./event-batches.js";
 import { workflowUsesAgent } from "./run-executor-utils.js";
 import { WorkflowRunStore } from "./run-store.js";
-import type { WorkflowRunExecutionResult, WorkflowRuntimeState } from "./run-types.js";
+import type { WorkflowRuntimeState } from "./run-types.js";
 import type { WorkflowRuntimeConfig } from "./runtime-config.js";
 import {
   disableWorkflow,
@@ -27,6 +27,7 @@ import {
   setWorkflowInputs,
   validateDefinitions,
 } from "./runtime-definitions.js";
+import type { WorkflowActiveRunReservation } from "./runtime-dispatch.js";
 import { maybeStartNext } from "./runtime-dispatch.js";
 import {
   getDispatchWindowStatus,
@@ -102,13 +103,10 @@ export interface WorkflowRuntimeContext {
   readonly definitionSourceEnabled: Map<string, boolean>;
   readonly awaitResumeDisposers: Array<() => void>;
   /**
-   * Active runs keyed by workflow name. Same-workflow serialisation is
-   * enforced by never dispatching a workflow that already has an entry here.
+   * Active runs keyed by run id. The value carries the workflow name so
+   * dispatch can count same-workflow and group concurrency independently.
    */
-  readonly activeRuns: Map<
-    string,
-    { promise: Promise<WorkflowRunExecutionResult>; abortController: AbortController }
-  >;
+  readonly activeRuns: Map<string, WorkflowActiveRunReservation>;
 
   // Mutable lifecycle / dispatch slots. Phase helpers reassign these as the
   // runtime moves through start, dispatch, recovery, and stop.
@@ -159,13 +157,18 @@ export class WorkflowRuntime {
     );
     const wfQueue = new WorkflowQueueManager({
       store,
+      projectDir,
+      getConfig: () => ctx.config,
       idempotencyStore,
       deadLetterQueue: runtimeConfig.deadLetterQueue,
       getScopeId: () => ctx.pbus.getScopeId(),
       getActiveBackoff: () => backoff.getActive(),
       shouldSuppressBackoff: (def) => backoff.shouldSuppress(def),
       workflowUsesAgent,
-      isActiveRun: (name) => ctx.activeRuns.has(name),
+      isActiveRun: (name) =>
+        [...ctx.activeRuns.values()].some((run) => run.workflowName === name),
+      activeRunCount: (name) =>
+        [...ctx.activeRuns.values()].filter((run) => run.workflowName === name).length,
       getDefinitions: () => ctx.definitions,
       log,
     });

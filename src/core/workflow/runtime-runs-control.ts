@@ -12,8 +12,17 @@ import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WebhookRunPayload } from "./workflow-dispatcher-provider.js";
 import { workflowDispatchIdempotency } from "./workflow-idempotency.js";
 
-
 export type WorkflowRuntimeRunsControlState = WorkflowRuntimeDispatchState;
+
+function hasActiveWorkflow(
+  state: WorkflowRuntimeRunsControlState,
+  workflowName: string,
+): boolean {
+  for (const run of state.activeRuns.values()) {
+    if (run.workflowName === workflowName) return true;
+  }
+  return false;
+}
 
 function workflowDispatchResult(
   workflowName: string,
@@ -61,7 +70,7 @@ export function abortActiveRun(
   const runtimeState = state.store.readState();
   const activeEntry = (runtimeState.activeRuns ?? []).find((r) => r.runId === runId);
   if (activeEntry) {
-    const inMemory = state.activeRuns.get(activeEntry.workflow);
+    const inMemory = state.activeRuns.get(runId);
     if (inMemory) {
       inMemory.abortController.abort();
       return { ok: true };
@@ -160,7 +169,7 @@ export function enqueueWebhookRun(
       return { ok: true, runId: runIdFromWorkflowDispatchResult(replay.result) };
     }
   }
-  if (state.activeRuns.has(name)) return { ok: false, alreadyRunning: true };
+  if (hasActiveWorkflow(state, name)) return { ok: false, alreadyRunning: true };
   let idempotencyReservation: IdempotencyReservation | null = null;
   if (idempotency) {
     const claim = state.idempotencyStore.claim({

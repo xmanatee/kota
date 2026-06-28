@@ -16,6 +16,15 @@ export type MergeGateValidation = {
 	passed: boolean;
 };
 
+export type MergeGateMetrics = {
+	waitMs: number;
+	mergeDurationMs: number;
+	conflictCount: number;
+	resolverAttempts: number;
+	validationFailures: number;
+	serializedByLock: boolean;
+};
+
 export type MergeGateResolverRequest = {
 	workspaceDir: string;
 	attempt: number;
@@ -45,6 +54,7 @@ export type MergeGateResult = {
 	conflicts: MergeGateConflict[];
 	resolutionAttempts: number;
 	validation: MergeGateValidation | null;
+	metrics: MergeGateMetrics;
 	artifactPath: string;
 };
 
@@ -52,4 +62,5 @@ export type MergeAutomationWorktreeInput = AutomationWorktreeSelector & {
 	validationCommand?: readonly string[];
 	resolver?: MergeGateResolver;
 	maxResolutionAttempts?: number;
+	lockTimeoutMs?: number;
 };

@@ -50,8 +50,9 @@ export function handleDirtyCompletion(
 
   const existing = state.store.getRecovery();
 
-  const otherActiveWorkflows = [...state.activeRuns.keys()]
-    .filter((workflowName) => workflowName !== definition.name);
+  const otherActiveWorkflows = [...state.activeRuns.values()]
+    .filter((run) => run.runId !== metadata.id)
+    .map((run) => run.workflowName);
   if (otherActiveWorkflows.length > 0) {
     state.log(
       `${label} dirty after "${definition.name}" while ${otherActiveWorkflows.join(", ")} still active - deferring attribution: ${worktree.summary}`,

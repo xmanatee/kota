@@ -23,34 +23,66 @@ function requiresExclusiveAgentSlot(definition: WorkflowDefinition): boolean {
 
 function activeCountForGroup(state: WorkflowRuntimeDispatchState, group: string): number {
   let count = 0;
-  for (const workflowName of state.activeRuns.keys()) {
-    const def = state.definitions.find((d) => d.name === workflowName);
+  for (const run of state.activeRuns.values()) {
+    const def = state.definitions.find((d) => d.name === run.workflowName);
     if (def && getConcurrencyGroup(def) === group) count++;
+  }
+  return count;
+}
+
+function activeCountForWorkflow(state: WorkflowRuntimeDispatchState, workflowName: string): number {
+  let count = 0;
+  for (const run of state.activeRuns.values()) {
+    if (run.workflowName === workflowName) count++;
   }
   return count;
 }
 
 function activeAgentWorkflowCount(state: WorkflowRuntimeDispatchState): number {
   let count = 0;
-  for (const workflowName of state.activeRuns.keys()) {
-    const def = state.definitions.find((d) => d.name === workflowName);
+  for (const run of state.activeRuns.values()) {
+    const def = state.definitions.find((d) => d.name === run.workflowName);
     if (def && (usesAgentGroup(def) || workflowUsesAgent(def))) count++;
   }
   return count;
 }
 
 function hasActiveExclusiveAgentSlot(state: WorkflowRuntimeDispatchState): boolean {
-  for (const workflowName of state.activeRuns.keys()) {
-    const def = state.definitions.find((d) => d.name === workflowName);
+  for (const run of state.activeRuns.values()) {
+    const def = state.definitions.find((d) => d.name === run.workflowName);
     if (def && requiresExclusiveAgentSlot(def)) return true;
   }
   return false;
+}
+
+function maxConcurrentRunsForWorkflow(
+  state: WorkflowRuntimeDispatchState,
+  definition: WorkflowDefinition,
+): number {
+  const resolver = definition.maxConcurrentRuns;
+  const raw =
+    typeof resolver === "function"
+      ? resolver({
+          projectDir: state.projectDir,
+          config: state.config,
+          workflowName: definition.name,
+        })
+      : resolver;
+  if (raw === undefined) return 1;
+  if (!Number.isInteger(raw) || raw < 1) return 1;
+  return raw;
 }
 
 export function canDispatchDefinition(
   state: WorkflowRuntimeDispatchState,
   definition: WorkflowDefinition,
 ): boolean {
+  if (
+    activeCountForWorkflow(state, definition.name) >=
+      maxConcurrentRunsForWorkflow(state, definition)
+  ) {
+    return false;
+  }
   const group = getConcurrencyGroup(definition);
   let limit: number;
   if (workflowUsesAgent(definition) && hasActiveExclusiveAgentSlot(state)) {

@@ -1,10 +1,6 @@
-import {
-  createBatchDeadLetter,
-  createWorkflowDispatchDeadLetter,
-  type DeadLetterQueueStore,
-} from "#core/daemon/dead-letter-queue.js";
+import type { KotaConfig } from "#core/config/config.js";
+import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
-import { validatePayloadSchema } from "./payload-validator.js";
 import { getEligibleAtMs } from "./run-executor-utils.js";
 import { formatRunId, workflowRunIdFromPayload } from "./run-io.js";
 import type { WorkflowRunStore } from "./run-store.js";
@@ -12,14 +8,21 @@ import type { WorkflowQueuedRun } from "./run-types.js";
 import {
   WORKFLOW_BATCH_FLUSH_EVENT,
   type WorkflowAgentBackoffState,
-  type WorkflowBatchFlushPayload,
   type WorkflowRunTrigger,
 } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 import { workflowDispatchIdempotency } from "./workflow-idempotency.js";
+import {
+  buildBurstQueuedRuns,
+  burstDispatchSlots,
+  resolveWorkflowDispatchBurst,
+} from "./workflow-queue-burst.js";
+import { rejectInvalidTriggerPayload } from "./workflow-queue-validation.js";
 
 export type WorkflowQueueManagerConfig = {
   store: WorkflowRunStore;
+  projectDir?: string;
+  getConfig?: () => KotaConfig | undefined;
   idempotencyStore: IdempotencyStore;
   deadLetterQueue?: DeadLetterQueueStore;
   getScopeId: () => string;
@@ -29,6 +32,7 @@ export type WorkflowQueueManagerConfig = {
   ) => WorkflowAgentBackoffState | null;
   workflowUsesAgent: (definition: WorkflowDefinition) => boolean;
   isActiveRun: (workflowName: string) => boolean;
+  activeRunCount?: (workflowName: string) => number;
   getDefinitions: () => WorkflowDefinition[];
   log: (message: string) => void;
 };
@@ -92,39 +96,24 @@ export class WorkflowQueueManager {
       return;
     }
 
-    if (definition.inputSchema) {
-      const schemaError = validatePayloadSchema(definition.inputSchema, trigger.payload);
-      if (schemaError) {
-        this.config.log(
-          `Rejected trigger for workflow "${definition.name}": payload validation failed — ${schemaError}`,
-        );
-        if (this.config.deadLetterQueue) {
-          if (trigger.event === WORKFLOW_BATCH_FLUSH_EVENT) {
-            createBatchDeadLetter({
-              store: this.config.deadLetterQueue,
-              scopeId: this.config.getScopeId(),
-              payload: trigger.payload as WorkflowBatchFlushPayload,
-              reason: schemaError,
-              errorClass: "validation",
-              trigger,
-            });
-          } else {
-            createWorkflowDispatchDeadLetter({
-              store: this.config.deadLetterQueue,
-              scopeId: this.config.getScopeId(),
-              workflowName: definition.name,
-              trigger,
-              reason: schemaError,
-              errorClass: "validation",
-              owningModule: "workflow-runtime",
-            });
-          }
-        }
-        return;
-      }
-    }
+    if (
+      rejectInvalidTriggerPayload({
+        definition,
+        trigger,
+        deadLetterQueue: this.config.deadLetterQueue,
+        scopeId: this.config.getScopeId(),
+        log: this.config.log,
+      })
+    ) return;
 
-    const distinctQueuedRun = trigger.event === WORKFLOW_BATCH_FLUSH_EVENT;
+    const dispatchBurst = resolveWorkflowDispatchBurst({
+      definition,
+      trigger,
+      projectDir: this.config.projectDir ?? process.cwd(),
+      config: this.config.getConfig?.(),
+    });
+    const distinctQueuedRun =
+      trigger.event === WORKFLOW_BATCH_FLUSH_EVENT || dispatchBurst > 1;
     const existingIndex = distinctQueuedRun
       ? -1
       : this.queue.findIndex(
@@ -175,6 +164,31 @@ export class WorkflowQueueManager {
       }
     }
 
+    if (dispatchBurst > 1) {
+      const queuedSameWorkflow = this.queue.filter(
+        (item) => item.workflowName === definition.name,
+      ).length;
+      const activeSameWorkflow = this.config.activeRunCount?.(definition.name) ?? 0;
+      const slots = burstDispatchSlots({
+        dispatchBurst,
+        queuedSameWorkflow,
+        activeSameWorkflow,
+      });
+      if (slots === 0) {
+        this.config.log(
+          `Skipped workflow "${definition.name}" from event "${trigger.event}" because burst dispatch is already full`,
+        );
+        return;
+      }
+      const runs = buildBurstQueuedRuns({ queuedRun, slots });
+      this.queue.push(...runs);
+      this.persist();
+      this.config.log(
+        `${this.config.isActiveRun(definition.name) ? "Queued reruns for" : "Queued"} workflow "${definition.name}" from event "${trigger.event}" (${runs.length} run(s))`,
+      );
+      return;
+    }
+
     if (existingIndex >= 0) {
       this.queue[existingIndex] = {
         ...queuedRun,
@@ -203,10 +217,6 @@ export class WorkflowQueueManager {
     this.persist();
   }
 
-  /**
-   * Append a queued run produced by restart-resume plumbing. Dedups by `runId`
-   * so buffered delivery and a live bus match cannot both queue the same run.
-   */
   appendResumeRun(queued: WorkflowQueuedRun): void {
     this.appendRun(queued);
   }
@@ -230,8 +240,7 @@ export class WorkflowQueueManager {
   pick(canDispatch?: (def: WorkflowDefinition) => boolean): WorkflowQueuedRun | null {
     const now = Date.now();
     const activeAgentBackoff = this.config.getActiveBackoff();
-    // Re-read state at pick time so cooldown checks use the latest
-    // lastCompletion, not the potentially-stale value from enqueue time.
+    // Re-read state so cooldown checks use latest completion data.
     const freshState = this.config.store.readState();
     const eligible = this.queue
       .map((item, index) => ({ item, index }))
@@ -240,12 +249,7 @@ export class WorkflowQueueManager {
           .getDefinitions()
           .find((candidate) => candidate.name === item.workflowName);
 
-        // Re-validate cooldown against current disk state. The notBeforeMs
-        // computed at enqueue time may be stale if a concurrent finish()
-        // wrote a more recent completion after this item was enqueued.
-        // Only override when a completion actually exists in state — avoid
-        // calling getEligibleAtMs which falls back to Date.now() and can
-        // introduce clock drift relative to the captured `now`.
+        // Avoid enqueue-time cooldown drift after concurrent finish() writes.
         let effectiveNotBefore = item.notBeforeMs;
         if (definition) {
           const trigger = definition.triggers.find(
@@ -266,12 +270,10 @@ export class WorkflowQueueManager {
           }
         }
 
-        if (
-          effectiveNotBefore > now ||
-          this.config.isActiveRun(item.workflowName)
-        ) {
+        if (effectiveNotBefore > now) {
           return false;
         }
+        if (!canDispatch && this.config.isActiveRun(item.workflowName)) return false;
         if (activeAgentBackoff && definition && this.config.workflowUsesAgent(definition)) {
           return false;
         }

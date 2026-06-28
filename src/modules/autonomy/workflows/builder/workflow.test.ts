@@ -21,6 +21,32 @@ describe("builder workflow queue gating", () => {
     ]);
   });
 
+  it("opts into two-run dispatch only when builder worktree mode is enabled", () => {
+    const maxConcurrentRuns = builderWorkflow.maxConcurrentRuns;
+    const dispatchBurst = builderWorkflow.dispatchBurst;
+    if (typeof maxConcurrentRuns !== "function") {
+      throw new Error("builder maxConcurrentRuns must be config-gated");
+    }
+    if (typeof dispatchBurst !== "function") {
+      throw new Error("builder dispatchBurst must be config-gated");
+    }
+
+    const base = {
+      projectDir: "/repo",
+      workflowName: "builder",
+      trigger: {
+        event: "autonomy.queue.available",
+        schemaRef: null,
+        payload: { actionableCount: 3 },
+      },
+    };
+
+    expect(maxConcurrentRuns({ ...base, config: { modules: { builder: { branchPerTask: false } } } })).toBe(1);
+    expect(dispatchBurst({ ...base, config: { modules: { builder: { branchPerTask: false } } } })).toBe(1);
+    expect(maxConcurrentRuns({ ...base, config: { modules: { builder: { branchPerTask: true } } } })).toBe(2);
+    expect(dispatchBurst({ ...base, config: { modules: { builder: { branchPerTask: true } } } })).toBe(2);
+  });
+
   it("skips build when worktree is dirty", async () => {
     const snapshot = makeSnapshot(2, 1);
     const projectDir = makeWorkflowProject(snapshot, {

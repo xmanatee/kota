@@ -24,6 +24,7 @@ import type { RepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domai
 import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { BranchStepResult, CleanupResult } from "./branch-per-task.js";
 import { cleanupMergedBranches, createPullRequest, createTaskBranch } from "./branch-per-task.js";
+import { builderMaxConcurrentRunsFromConfig } from "./builder-config.js";
 import {
   CLAIMED_TASK_CONSISTENCY_STEP_ID,
   type ClaimedTaskConsistencyResult,
@@ -34,6 +35,7 @@ import {
   createCleanupAutomationWorktreeStep,
   createMergeGateStep,
 } from "./merge-gate-step.js";
+import { createBuilderParallelMetricsStep } from "./parallel-metrics-step.js";
 import {
   type BuilderWorkspaceResult,
   createPrepareBuilderWorktreeStep,
@@ -83,6 +85,7 @@ const prepareWorktreeStep = createPrepareBuilderWorktreeStep(claimTaskStep);
 const claimedTaskConsistencyStep = createClaimedTaskConsistencyStep(claimTaskStep);
 const mergeGateStep = createMergeGateStep();
 const cleanupAutomationWorktreeStep = createCleanupAutomationWorktreeStep();
+const builderParallelMetricsStep = createBuilderParallelMetricsStep();
 
 const builderWorkflow: WorkflowDefinitionInput = {
   name: "builder",
@@ -90,6 +93,15 @@ const builderWorkflow: WorkflowDefinitionInput = {
   tags: ["monitored"],
   recoveryCapable: true,
   defaultAutonomyMode: "autonomous",
+  maxConcurrentRuns: ({ config }) =>
+    builderMaxConcurrentRunsFromConfig(config),
+  dispatchBurst: ({ config, trigger }) => {
+    const maxRuns = builderMaxConcurrentRunsFromConfig(config);
+    const actionableCount = trigger.payload?.actionableCount;
+    if (typeof actionableCount !== "number") return 1;
+    if (!Number.isFinite(actionableCount) || actionableCount < 1) return 1;
+    return Math.min(maxRuns, Math.floor(actionableCount));
+  },
   triggers: [
     {
       event: "autonomy.queue.available",
@@ -220,6 +232,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
         expectStructuredOutput<CleanupResult>(raw, ["cleaned", "warnings"]),
       run: (ctx) => cleanupMergedBranches(ctx),
     }),
+    builderParallelMetricsStep,
     {
       id: "emit-build-committed",
       type: "emit",

@@ -27,6 +27,29 @@ export function assembleWorkflowDefinition(
   defaultAutonomyMode: AutonomyMode | undefined,
   steps: WorkflowStep[],
 ): WorkflowDefinition {
+  const maxConcurrentRuns = (() => {
+    const raw = definition.maxConcurrentRuns;
+    if (raw === undefined) return undefined;
+    if (typeof raw === "function") return raw;
+    return expectOptionalInteger(
+      raw,
+      "maxConcurrentRuns",
+      definitionPath,
+      1,
+    );
+  })();
+  const dispatchBurst = (() => {
+    const raw = definition.dispatchBurst;
+    if (raw === undefined) return undefined;
+    if (typeof raw === "function") return raw;
+    return expectOptionalInteger(
+      raw,
+      "dispatchBurst",
+      definitionPath,
+      1,
+    );
+  })();
+
   const validated: WorkflowDefinition = {
     name,
     moduleRoot,
@@ -57,6 +80,8 @@ export function assembleWorkflowDefinition(
       "concurrencyGroup",
       definitionPath,
     ),
+    ...(maxConcurrentRuns !== undefined ? { maxConcurrentRuns } : {}),
+    ...(dispatchBurst !== undefined ? { dispatchBurst } : {}),
     inputSchema:
       definition.inputSchema != null
         ? (definition.inputSchema as Record<string, unknown>)

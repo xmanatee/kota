@@ -17,6 +17,7 @@ import {
   createAutomationWorktree,
   lockAutomationWorktree,
 } from "#modules/git/worktree-lifecycle.js";
+import { builderWorktreeModeEnabledFromConfig } from "./builder-config.js";
 
 export type BuilderWorkspaceResult = {
   enabled: boolean;
@@ -44,8 +45,7 @@ function gitOutput(repoDir: string, args: string[]): string | null {
 }
 
 function builderWorktreeModeEnabled(projectDir: string): boolean {
-  const builderConfig = loadConfig(projectDir).modules?.builder;
-  return builderConfig?.branchPerTask === true;
+  return builderWorktreeModeEnabledFromConfig(loadConfig(projectDir));
 }
 
 function writeWorkspaceArtifact(
