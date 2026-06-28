@@ -30,7 +30,18 @@ export type AutomationWorktreeOperatorStatus = {
 	cleanupStatus: AutomationWorktreeCleanupStatus;
 	cleanupEligible: boolean;
 	cleanupBlockers: string[];
+	runtimeResources?: AutomationWorktreeRuntimeResources;
 	nextAction: string;
+};
+
+export type AutomationWorktreeRuntimeResources = {
+	profileId: string;
+	tempRoot?: string;
+	artifactRoot?: string;
+	ports?: {
+		start: number;
+		end: number;
+	};
 };
 
 export type AutomationWorktreeMetadata = {
@@ -46,6 +57,7 @@ export type AutomationWorktreeMetadata = {
 	updatedAt: string;
 	state: AutomationWorktreeState;
 	copiedSetupFiles: string[];
+	runtimeResources?: AutomationWorktreeRuntimeResources;
 	lastCleanupBlockers?: string[];
 	stateReason?: string;
 	removedAt?: string;

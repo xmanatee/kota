@@ -176,6 +176,7 @@ export async function runHandoffAgent(
           modelOutputTokenLimits: runtime.modelOutputTokenLimits,
           systemPrompt,
           cwd,
+          ...(runtime.env !== undefined ? { env: runtime.env } : {}),
           effort: agent.effort,
           maxTurns: budget.maxTurns,
           autonomyMode,

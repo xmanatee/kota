@@ -93,6 +93,9 @@ function isRunOptionRequested(
   if (option === "autonomyMode.supervised") return options.autonomyMode === "supervised";
   if (option === "persistSession") return options.persistSession === true;
   if (option === "resumeSessionId") return options.resumeSessionId !== undefined;
+  if (option === "env") {
+    return options.env !== undefined && Object.keys(options.env).length > 0;
+  }
   if (option === "harnessOverrides") return options.harnessOverrides !== undefined;
   if (option === "enableFileCheckpointing") return options.enableFileCheckpointing === true;
   if (option === "thinking") {

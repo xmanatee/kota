@@ -25,6 +25,7 @@ export type ToolRunnerContext = {
   toolUseId?: string;
   signal?: AbortSignal;
   cwd?: string;
+  env?: Record<string, string>;
   scopeId?: string;
   projectId?: string;
   tokenBudget?: AgentTokenBudgetLedger;

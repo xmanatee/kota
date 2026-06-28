@@ -13,7 +13,10 @@ export function validateCodeStep(
   definitionPath: string,
   index: number,
   stepLabel = `steps[${index}]`,
-  options: { allowWorkspaceDirUpdate?: boolean } = {},
+  options: {
+    allowWorkspaceDirUpdate?: boolean;
+    allowRuntimeResourcesUpdate?: boolean;
+  } = {},
 ): WorkflowCodeStep {
   if (typeof step.run !== "function") {
     throw new WorkflowDefinitionError(
@@ -39,12 +42,29 @@ export function validateCodeStep(
       definitionPath,
     );
   }
+  const updatesRuntimeResources = expectOptionalBoolean(
+    step.updatesRuntimeResources,
+    `${stepLabel}.updatesRuntimeResources`,
+    definitionPath,
+  );
+  if (
+    updatesRuntimeResources === true &&
+    options.allowRuntimeResourcesUpdate === false
+  ) {
+    throw new WorkflowDefinitionError(
+      `${stepLabel}.updatesRuntimeResources is only supported on top-level code steps`,
+      definitionPath,
+    );
+  }
 
   return {
     id: expectName(step.id, `${stepLabel}.id`, definitionPath),
     type: "code",
     run: step.run,
     ...(updatesWorkspaceDir !== undefined ? { updatesWorkspaceDir } : {}),
+    ...(updatesRuntimeResources !== undefined
+      ? { updatesRuntimeResources }
+      : {}),
     ...validateBaseStepTimeouts(step, stepLabel, definitionPath),
     when: expectOptionalFunction(
       step.when,

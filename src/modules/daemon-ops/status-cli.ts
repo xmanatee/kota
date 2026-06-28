@@ -24,6 +24,7 @@ import {
 } from "#modules/git/worktree-lifecycle.js";
 import {
   group,
+  type KVEntry,
   kvBlock,
   list,
   plain,
@@ -212,6 +213,44 @@ function worktreeRole(worktree: AutomationWorktreeOperatorStatus): SemanticRole 
   return worktree.state === "removed" ? "muted" : "info";
 }
 
+function runtimeResourceValue(worktree: AutomationWorktreeOperatorStatus): string | null {
+  const resources = worktree.runtimeResources;
+  if (resources === undefined) return null;
+  const parts = [`profile ${resources.profileId}`];
+  if (resources.ports !== undefined) {
+    parts.push(`ports ${resources.ports.start}-${resources.ports.end}`);
+  }
+  if (resources.tempRoot !== undefined) {
+    parts.push(`temp ${resources.tempRoot}`);
+  }
+  if (resources.artifactRoot !== undefined) {
+    parts.push(`artifacts ${resources.artifactRoot}`);
+  }
+  return parts.join(", ");
+}
+
+function worktreeStatusEntries(worktree: AutomationWorktreeOperatorStatus): KVEntry[] {
+  const runtimeResources = runtimeResourceValue(worktree);
+  return [
+    { label: "Owner", value: worktree.owner, role: "muted" },
+    { label: "Branch", value: worktree.branch, role: "muted" },
+    {
+      label: "Commits",
+      value: `base ${shortSha(worktree.baseCommit)}, head ${shortSha(worktree.headCommit)}`,
+      role: "muted",
+    },
+    { label: "Dirty", value: worktree.dirtyState, role: worktree.dirtyState === "conflicted" ? "error" : worktree.dirtyState === "dirty" ? "warn" : "muted" },
+    { label: "Merge", value: worktree.mergeStatus, role: worktree.state === "conflicted" ? "error" : worktree.state === "pending-merge" ? "warn" : "muted" },
+    { label: "Cleanup", value: cleanupValue(worktree), role: worktree.cleanupStatus === "blocked" ? "warn" : worktree.cleanupStatus === "eligible" ? "success" : "muted" },
+    ...(runtimeResources !== null
+      ? [{ label: "Runtime resources", value: runtimeResources, role: "info" as const }]
+      : []),
+    { label: "Workspace", value: worktree.workspaceDir, role: worktree.exists ? "muted" : "warn" },
+    { label: "Metadata", value: worktree.metadataPath, role: "muted" },
+    { label: "Next", value: worktree.nextAction, role: worktreeRole(worktree) },
+  ];
+}
+
 function buildWorktreeStatusNode(worktrees: readonly AutomationWorktreeOperatorStatus[]): RenderNode | null {
   if (worktrees.length === 0) return null;
   return group(
@@ -223,21 +262,7 @@ function buildWorktreeStatusNode(worktrees: readonly AutomationWorktreeOperatorS
           plain(`  ${worktree.taskId}  ${worktree.runId}`),
         ],
         children: [
-          kvBlock([
-            { label: "Owner", value: worktree.owner, role: "muted" },
-            { label: "Branch", value: worktree.branch, role: "muted" },
-            {
-              label: "Commits",
-              value: `base ${shortSha(worktree.baseCommit)}, head ${shortSha(worktree.headCommit)}`,
-              role: "muted",
-            },
-            { label: "Dirty", value: worktree.dirtyState, role: worktree.dirtyState === "conflicted" ? "error" : worktree.dirtyState === "dirty" ? "warn" : "muted" },
-            { label: "Merge", value: worktree.mergeStatus, role: worktree.state === "conflicted" ? "error" : worktree.state === "pending-merge" ? "warn" : "muted" },
-            { label: "Cleanup", value: cleanupValue(worktree), role: worktree.cleanupStatus === "blocked" ? "warn" : worktree.cleanupStatus === "eligible" ? "success" : "muted" },
-            { label: "Workspace", value: worktree.workspaceDir, role: worktree.exists ? "muted" : "warn" },
-            { label: "Metadata", value: worktree.metadataPath, role: "muted" },
-            { label: "Next", value: worktree.nextAction, role: worktreeRole(worktree) },
-          ]),
+          kvBlock(worktreeStatusEntries(worktree)),
         ],
       })),
     ),

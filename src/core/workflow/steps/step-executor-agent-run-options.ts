@@ -82,6 +82,9 @@ export function buildAgentHarnessRunOptions(input: {
       prompt,
       model: resolvedModel,
       cwd: workspaceDir,
+      ...(agentConfig.runtimeResources !== undefined
+        ? { env: agentConfig.runtimeResources.env }
+        : {}),
       systemPrompt,
       modelOutputTokenLimits: agentConfig.config?.modelOutputTokenLimits,
       ...(modelProvider !== undefined ? { modelProvider } : {}),

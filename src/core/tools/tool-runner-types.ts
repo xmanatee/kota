@@ -42,6 +42,7 @@ export type ToolCallExecutionOptions = {
 	clientApprovalResolver?: ToolApprovalResolver;
 	sessionId?: string;
 	cwd?: string;
+	env?: Record<string, string>;
 	workflowContext?: AgentHarnessWorkflowContext;
 	scopeId?: string;
 	projectId?: string;

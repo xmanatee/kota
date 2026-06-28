@@ -70,6 +70,12 @@ export type WorkflowCodeStepInput = WorkflowBaseStep & {
    */
   updatesWorkspaceDir?: boolean;
   /**
+   * When true, this top-level code step's validated output must include a
+   * `runtimeResources` object. The run executor threads its env into
+   * subsequent agent and tool execution without mutating process-wide env.
+   */
+  updatesRuntimeResources?: boolean;
+  /**
    * Optional runtime decoder for the step's output. When set, it runs after
    * `run()` and replaces the raw value with the validated decode. Required for
    * any code step whose output is consumed by a downstream step or `when`
@@ -87,6 +93,7 @@ export type TypedCodeStepInput<T> = WorkflowBaseStep & {
   run: (context: WorkflowStepContext) => Promise<T> | T;
   validate: CodeStepOutputValidator<T>;
   updatesWorkspaceDir?: boolean;
+  updatesRuntimeResources?: boolean;
   /**
    * Returns this step's output from a step context, decoded as `T`.
    * Returns `undefined` when the step was skipped (its `when` predicate
@@ -172,6 +179,7 @@ export function typedCodeStep<T>(
     run: (context: WorkflowStepContext) => Promise<T> | T;
     validate: CodeStepOutputValidator<T>;
     updatesWorkspaceDir?: boolean;
+    updatesRuntimeResources?: boolean;
   },
 ): TypedCodeStepInput<T> {
   const output = (context: WorkflowStepContext): T | undefined => {

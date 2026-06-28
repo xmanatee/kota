@@ -1,0 +1,221 @@
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { setBuilderPortAvailabilityCheckerForTest } from "./runtime-resource-ports.js";
+import {
+  assignBuilderRuntimeResources,
+  deterministicBuilderPortRange,
+} from "./runtime-resources.js";
+
+const tempDirs: string[] = [];
+let unavailablePorts = new Set<number>();
+let resetPortAvailabilityChecker: (() => void) | null = null;
+
+function tempProject(label: string): string {
+  const dir = mkdtempSync(join(tmpdir(), `kota-builder-runtime-${label}-`));
+  tempDirs.push(dir);
+  return dir;
+}
+
+function rangesOverlap(
+  left: { start: number; end: number },
+  right: { start: number; end: number },
+): boolean {
+  return left.start <= right.end && right.start <= left.end;
+}
+
+beforeEach(() => {
+  unavailablePorts = new Set();
+  resetPortAvailabilityChecker = setBuilderPortAvailabilityCheckerForTest(
+    async (port) => !unavailablePorts.has(port),
+  );
+});
+
+afterEach(() => {
+  resetPortAvailabilityChecker?.();
+  resetPortAvailabilityChecker = null;
+  for (const dir of tempDirs.splice(0)) {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+describe("builder runtime resource assignment", () => {
+  it("assigns deterministic non-overlapping profiles for concurrent task runs", async () => {
+    const projectDir = tempProject("profiles");
+    const alphaWorkspace = join(projectDir, "worktrees", "alpha");
+    const betaWorkspace = join(projectDir, "worktrees", "beta");
+    const alphaRunDir = join(projectDir, ".kota", "runs", "run-a");
+    const betaRunDir = join(projectDir, ".kota", "runs", "run-b");
+
+    const [alpha, beta] = await Promise.all([
+      assignBuilderRuntimeResources({
+        projectDir,
+        taskId: "task-alpha",
+        runId: "run-a",
+        workspaceDir: alphaWorkspace,
+        runDirPath: alphaRunDir,
+      }),
+      assignBuilderRuntimeResources({
+        projectDir,
+        taskId: "task-beta",
+        runId: "run-b",
+        workspaceDir: betaWorkspace,
+        runDirPath: betaRunDir,
+      }),
+    ]);
+
+    expect(alpha.profileId).toBe("task-alpha:run-a");
+    expect(beta.profileId).toBe("task-beta:run-b");
+    expect(alpha.ports).toEqual({
+      ...deterministicBuilderPortRange("task-alpha", "run-a"),
+    });
+    expect(beta.ports).toEqual({
+      ...deterministicBuilderPortRange("task-beta", "run-b"),
+    });
+    expect(rangesOverlap(alpha.ports, beta.ports)).toBe(false);
+    expect(alpha.tempRoot).toBe(join(alphaWorkspace, ".kota", "tmp", "run-a"));
+    expect(beta.tempRoot).toBe(join(betaWorkspace, ".kota", "tmp", "run-b"));
+    expect(alpha.artifactRoot).toBe(join(alphaRunDir, "artifacts"));
+    expect(beta.artifactRoot).toBe(join(betaRunDir, "artifacts"));
+    expect(alpha.env.KOTA_PORT_BASE).toBe(String(alpha.ports.start));
+    expect(beta.env.KOTA_PORT_BASE).toBe(String(beta.ports.start));
+    expect(alpha.env.TMPDIR).toBe(alpha.tempRoot);
+    expect(beta.env.TEMP).toBe(beta.tempRoot);
+    expect(alpha.preflight.setup).toContain("dependencySetup");
+    expect(alpha.preflight.dependencies).toMatchObject({
+      status: "skipped",
+      reason: "no-package-json",
+    });
+    expect(existsSync(alpha.artifactPath)).toBe(true);
+    expect(existsSync(beta.artifactPath)).toBe(true);
+    expect(JSON.parse(readFileSync(alpha.artifactPath, "utf8"))).toMatchObject({
+      profileId: "task-alpha:run-a",
+      ports: { start: alpha.ports.start, end: alpha.ports.end },
+    });
+  });
+
+  it("resolves deterministic port bucket collisions with a shared lease", async () => {
+    const projectDir = tempProject("lease-collision");
+    const firstPreferred = deterministicBuilderPortRange("task-15", "run-15");
+    const secondPreferred = deterministicBuilderPortRange("task-21", "run-21");
+    expect(firstPreferred).toEqual(secondPreferred);
+
+    const [first, second] = await Promise.all([
+      assignBuilderRuntimeResources({
+        projectDir,
+        taskId: "task-15",
+        runId: "run-15",
+        workspaceDir: join(projectDir, "worktrees", "task-15"),
+        runDirPath: join(projectDir, ".kota", "runs", "run-15"),
+      }),
+      assignBuilderRuntimeResources({
+        projectDir,
+        taskId: "task-21",
+        runId: "run-21",
+        workspaceDir: join(projectDir, "worktrees", "task-21"),
+        runDirPath: join(projectDir, ".kota", "runs", "run-21"),
+      }),
+    ]);
+
+    expect(rangesOverlap(first.ports, second.ports)).toBe(false);
+    expect([first.ports.start, second.ports.start]).toContain(
+      firstPreferred.start,
+    );
+    expect(first.preflight.portLeasePath).toBe(second.preflight.portLeasePath);
+  });
+
+  it("rejects unavailable ports during preflight before returning a profile", async () => {
+    const projectDir = tempProject("preflight");
+    const range = deterministicBuilderPortRange("task-alpha", "run-a");
+    unavailablePorts.add(range.start);
+
+    await expect(
+      assignBuilderRuntimeResources({
+        projectDir,
+        taskId: "task-alpha",
+        runId: "run-a",
+        workspaceDir: join(projectDir, "worktree"),
+        runDirPath: join(projectDir, ".kota", "runs", "run-a"),
+      }),
+    ).rejects.toThrow(`port ${range.start} is unavailable`);
+  });
+
+  it("rejects unavailable ports when reusing an existing profile lease", async () => {
+    const projectDir = tempProject("reused-lease-preflight");
+    const input = {
+      projectDir,
+      taskId: "task-reused-lease",
+      runId: "run-reused-lease",
+      workspaceDir: join(projectDir, "worktree"),
+      runDirPath: join(projectDir, ".kota", "runs", "run-reused-lease"),
+    };
+    const first = await assignBuilderRuntimeResources(input);
+    unavailablePorts.add(first.ports.start);
+
+    await expect(assignBuilderRuntimeResources(input)).rejects.toThrow(
+      `port ${first.ports.start} is unavailable`,
+    );
+  });
+
+  it("preflights dependency setup by linking prepared project dependencies", async () => {
+    const projectDir = tempProject("dependency-setup");
+    const workspaceDir = join(projectDir, "worktrees", "task-deps");
+    mkdirSync(join(projectDir, "node_modules"), { recursive: true });
+    mkdirSync(workspaceDir, { recursive: true });
+    writeFileSync(
+      join(workspaceDir, "package.json"),
+      `${JSON.stringify({ dependencies: { zod: "^4.0.0" } }, null, 2)}\n`,
+      "utf8",
+    );
+
+    const profile = await assignBuilderRuntimeResources({
+      projectDir,
+      taskId: "task-deps",
+      runId: "run-deps",
+      workspaceDir,
+      runDirPath: join(projectDir, ".kota", "runs", "run-deps"),
+    });
+
+    expect(existsSync(join(workspaceDir, "node_modules"))).toBe(true);
+    expect(profile.packageCacheRoot).toBe(
+      join(workspaceDir, ".kota", "tmp", "run-deps", "package-cache"),
+    );
+    expect(profile.env.KOTA_PACKAGE_CACHE_DIR).toBe(profile.packageCacheRoot);
+    expect(profile.preflight.dependencies).toMatchObject({
+      status: "passed",
+      action: "linked-project-node-modules",
+      path: join(workspaceDir, "node_modules"),
+      source: join(projectDir, "node_modules"),
+    });
+  });
+
+  it("rejects dependency setup failures before returning a profile", async () => {
+    const projectDir = tempProject("dependency-failure");
+    const workspaceDir = join(projectDir, "worktrees", "task-deps-fail");
+    mkdirSync(workspaceDir, { recursive: true });
+    writeFileSync(
+      join(workspaceDir, "package.json"),
+      `${JSON.stringify({ dependencies: { zod: "^4.0.0" } }, null, 2)}\n`,
+      "utf8",
+    );
+    writeFileSync(join(workspaceDir, "node_modules"), "not a directory\n");
+
+    await expect(
+      assignBuilderRuntimeResources({
+        projectDir,
+        taskId: "task-deps-fail",
+        runId: "run-deps-fail",
+        workspaceDir,
+        runDirPath: join(projectDir, ".kota", "runs", "run-deps-fail"),
+      }),
+    ).rejects.toThrow("dependency setup preflight failed");
+  });
+});

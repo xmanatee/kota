@@ -15,12 +15,20 @@ function worktreeDetail(worktree: AutomationWorktreeOperatorStatus): string {
     : worktree.cleanupStatus === "removed"
       ? "cleanup removed"
       : `cleanup blocked: ${worktree.cleanupBlockers.join("; ") || "unknown reason"}`;
+  const resources = worktree.runtimeResources;
+  const resourceSummary =
+    resources === undefined
+      ? null
+      : resources.ports === undefined
+        ? `resources ${resources.profileId}`
+        : `resources ${resources.profileId} ports ${resources.ports.start}-${resources.ports.end}`;
   return [
     `run ${worktree.runId}`,
     `branch ${worktree.branch}`,
     `dirty ${worktree.dirtyState}`,
     `merge ${worktree.mergeStatus}`,
     cleanup,
+    ...(resourceSummary !== null ? [resourceSummary] : []),
     `next ${worktree.nextAction}`,
   ].join(" · ");
 }

@@ -40,6 +40,7 @@ export function validateStep(
   workflowDefaultAutonomyMode: AutonomyMode | undefined,
   options: WorkflowValidationOptions,
   allowWorkspaceDirUpdate = true,
+  allowRuntimeResourcesUpdate = true,
 ): WorkflowStep {
   if (!step || typeof step !== "object") {
     throw new WorkflowDefinitionError(
@@ -66,6 +67,7 @@ export function validateStep(
   if (step.type === "code") {
     return validateCodeStep(step, definitionPath, index, `steps[${index}]`, {
       allowWorkspaceDirUpdate,
+      allowRuntimeResourcesUpdate,
     });
   }
   if (step.type === "parallel") {

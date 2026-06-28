@@ -95,6 +95,7 @@ export type ExecutorOptions = {
   effort: AgentEffort;
   settingSources?: readonly ClaudeAgentSdkSettingSource[];
   pathToClaudeCodeExecutable?: string;
+  env?: Record<string, string>;
   abortController?: AbortController;
   enableFileCheckpointing?: boolean;
   onMessage?: (message: KotaAgentMessage) => void | Promise<void>;
@@ -362,6 +363,9 @@ export function buildQueryOptions(options: ExecutorOptions): SDKQueryOptions {
       : undefined,
     pathToClaudeCodeExecutable:
       options.pathToClaudeCodeExecutable ?? detectLocalClaudeCodeExecutable(),
+    ...(options.env !== undefined
+      ? { env: { ...stringProcessEnv(), ...options.env } }
+      : {}),
     abortController: options.abortController,
     enableFileCheckpointing: options.enableFileCheckpointing,
     allowDangerouslySkipPermissions: permissionMode === "bypassPermissions",
@@ -369,6 +373,14 @@ export function buildQueryOptions(options: ExecutorOptions): SDKQueryOptions {
     spawnClaudeCodeProcess: spawnClaudeCodeProcessWithAbortKill,
     canUseTool: normalizeCanUseTool(options.canUseTool),
   };
+}
+
+function stringProcessEnv(): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value !== undefined) env[key] = value;
+  }
+  return env;
 }
 
 /**

@@ -62,6 +62,7 @@ export async function executeToolBlock(
 		clientApprovalResolver,
 		sessionId,
 		cwd,
+		env,
 		workflowContext,
 		scopeId,
 		projectId,
@@ -214,6 +215,7 @@ export async function executeToolBlock(
 		...(sessionId && { sessionId }),
 		toolUseId: block.id,
 		...(cwd !== undefined ? { cwd } : {}),
+		...(env !== undefined ? { env } : {}),
 		...(scopeId !== undefined ? { scopeId } : {}),
 		...(projectId !== undefined ? { projectId } : {}),
 		...(workflowContext !== undefined

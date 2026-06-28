@@ -51,6 +51,11 @@ export function buildExecutionEnv(
 ): NodeJS.ProcessEnv {
   const env = buildFilteredInheritedSubprocessEnv();
   stripEvalHarnessProviderEgressEnv(env);
+  if (context?.env !== undefined) {
+    for (const [key, value] of Object.entries(context.env)) {
+      env[key] = value;
+    }
+  }
   if (context?.sessionId) env.KOTA_SESSION_ID = context.sessionId;
   if (context?.toolUseId) env.KOTA_TOOL_USE_ID = context.toolUseId;
   return env;

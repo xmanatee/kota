@@ -39,6 +39,11 @@ const THIN_UNSUPPORTED_OPTIONS = [
     reason: "The thin harness cannot route calls through the operator approval queue.",
   },
   {
+    runOption: "env",
+    option: "env",
+    reason: "The thin harness has no local tool or subprocess environment to isolate.",
+  },
+  {
     runOption: "harnessOverrides",
     option: "harnessOverrides",
     reason: "The thin harness does not accept per-step harnessOptions.",
@@ -92,6 +97,12 @@ function rejectUnsupportedToolOptions(options: AgentHarnessRunOptions): void {
     throw new Error(
       'The "thin" agent harness does not resume native sessions. ' +
         "Drop resumeSessionId or run claude-agent-sdk.",
+    );
+  }
+  if (options.env !== undefined && Object.keys(options.env).length > 0) {
+    throw new Error(
+      'The "thin" agent harness has no local tool or subprocess environment. ' +
+        "Drop env or run a tool-capable harness.",
     );
   }
   if (options.onMessage !== undefined) {

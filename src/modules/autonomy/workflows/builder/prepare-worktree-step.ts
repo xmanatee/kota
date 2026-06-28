@@ -16,13 +16,19 @@ import {
 import {
   createAutomationWorktree,
   lockAutomationWorktree,
+  updateAutomationWorktreeRuntimeResources,
 } from "#modules/git/worktree-lifecycle.js";
 import { builderWorktreeModeEnabledFromConfig } from "./builder-config.js";
+import {
+  assignBuilderRuntimeResources,
+  type BuilderRuntimeResourceProfile,
+} from "./runtime-resources.js";
 
 export type BuilderWorkspaceResult = {
   enabled: boolean;
   projectDir: string;
   workspaceDir: string;
+  runtimeResources: BuilderRuntimeResourceProfile;
   branch: string | null;
   baseCommit: string | null;
   headCommit: string | null;
@@ -69,26 +75,37 @@ export function createPrepareBuilderWorktreeStep(
     id: "prepare-worktree",
     type: "code",
     updatesWorkspaceDir: true,
+    updatesRuntimeResources: true,
     when: (ctx) => claimTaskStep.output(ctx)?.claimed === true,
     validate: (raw) =>
       expectStructuredOutput<BuilderWorkspaceResult>(raw, [
         "enabled",
         "projectDir",
         "workspaceDir",
+        "runtimeResources",
         "taskId",
         "claimId",
       ]),
-    run: (ctx) => {
+    run: async (ctx) => {
       const claim = claimTaskStep.outputRequired(ctx);
       const taskId = claim.taskId;
       if (!taskId) throw new Error("Cannot prepare a builder worktree without a claimed task id");
 
       const claimId = `${taskId}:${ctx.workflow.runId}`;
       if (!builderWorktreeModeEnabled(ctx.projectDir)) {
+        const workspaceDir = ctx.workspaceDir ?? ctx.projectDir;
+        const runtimeResources = await assignBuilderRuntimeResources({
+          projectDir: ctx.projectDir,
+          taskId,
+          runId: ctx.workflow.runId,
+          workspaceDir,
+          runDirPath: ctx.workflow.runDirPath,
+        });
         return writeWorkspaceArtifact(ctx.workflow.runDirPath, {
           enabled: false,
           projectDir: ctx.projectDir,
-          workspaceDir: ctx.workspaceDir ?? ctx.projectDir,
+          workspaceDir,
+          runtimeResources,
           branch: gitOutput(ctx.projectDir, ["rev-parse", "--abbrev-ref", "HEAD"]),
           baseCommit: claim.claim?.baseCommit ?? gitOutput(ctx.projectDir, ["rev-parse", "HEAD"]),
           headCommit: gitOutput(ctx.projectDir, ["rev-parse", "HEAD"]),
@@ -112,6 +129,22 @@ export function createPrepareBuilderWorktreeStep(
         { projectDir: ctx.projectDir, taskId, runId: ctx.workflow.runId },
         "builder agent running",
       );
+      const runtimeResources = await assignBuilderRuntimeResources({
+        projectDir: ctx.projectDir,
+        taskId,
+        runId: ctx.workflow.runId,
+        workspaceDir: inspection.metadata.workspaceDir,
+        runDirPath: ctx.workflow.runDirPath,
+      });
+      updateAutomationWorktreeRuntimeResources(
+        { projectDir: ctx.projectDir, taskId, runId: ctx.workflow.runId },
+        {
+          profileId: runtimeResources.profileId,
+          tempRoot: runtimeResources.tempRoot,
+          artifactRoot: runtimeResources.artifactRoot,
+          ports: runtimeResources.ports,
+        },
+      );
       const claimUpdate = updateTaskClaimWorkspace({
         projectDir: ctx.projectDir,
         taskId,
@@ -132,6 +165,7 @@ export function createPrepareBuilderWorktreeStep(
         enabled: true,
         projectDir: ctx.projectDir,
         workspaceDir: inspection.metadata.workspaceDir,
+        runtimeResources,
         branch: inspection.branch,
         baseCommit: inspection.baseCommit,
         headCommit: locked.headCommit,

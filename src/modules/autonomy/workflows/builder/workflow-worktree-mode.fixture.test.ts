@@ -132,6 +132,8 @@ describe("builder workflow worktree-mode fixture", () => {
     const projectDir = initFixtureRepo();
     const fixtureRelativePath = join("src", "builder-worktree-fixture.txt");
     let buildWorkspaceDir: string | undefined;
+    let buildRuntimeProfileId: string | undefined;
+    let buildRuntimePortBase: string | undefined;
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
       projectDir,
@@ -154,8 +156,13 @@ describe("builder workflow worktree-mode fixture", () => {
         build: (ctx) => {
           const workspaceDir = ctx.workspaceDir ?? ctx.projectDir;
           buildWorkspaceDir = workspaceDir;
+          buildRuntimeProfileId = ctx.runtimeResources?.profileId;
+          buildRuntimePortBase = ctx.runtimeResources?.env.KOTA_PORT_BASE;
           if (workspaceDir === ctx.projectDir) {
             throw new Error("build step did not receive the prepared task worktree");
+          }
+          if (ctx.runtimeResources?.tempRoot === undefined) {
+            throw new Error("build step did not receive runtime resource roots");
           }
           mkdirSync(join(workspaceDir, "src"), { recursive: true });
           writeFileSync(
@@ -205,6 +212,8 @@ describe("builder workflow worktree-mode fixture", () => {
     expect(buildWorkspaceDir).toBeDefined();
     expect(buildWorkspaceDir).not.toBe(projectDir);
     expect(buildWorkspaceDir).toContain(`${projectDir}/.worktrees/`);
+    expect(buildRuntimeProfileId).toBe("task-worktree-fixture:harness-run-id");
+    expect(buildRuntimePortBase).toMatch(/^\d+$/);
 
     const workspaceDir = buildWorkspaceDir!;
     expect(existsSync(join(workspaceDir, fixtureRelativePath))).toBe(true);
@@ -240,6 +249,19 @@ describe("builder workflow worktree-mode fixture", () => {
       branch: "kota/task/task-worktree-fixture/harness-run-id",
       taskId: "task-worktree-fixture",
       claimId: "task-worktree-fixture:harness-run-id",
+      runtimeResources: {
+        profileId: "task-worktree-fixture:harness-run-id",
+        workspaceDir,
+        env: {
+          KOTA_WORKSPACE_DIR: workspaceDir,
+          KOTA_RUNTIME_PROFILE_ID: "task-worktree-fixture:harness-run-id",
+        },
+      },
     });
+    expect(
+      existsSync(
+        join(projectDir, ".kota", "runs", "harness", "builder-runtime-resources.json"),
+      ),
+    ).toBe(true);
   });
 });

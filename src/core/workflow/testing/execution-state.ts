@@ -1,4 +1,5 @@
 import type {
+  WorkflowRuntimeResources,
   WorkflowRuntimeState,
   WorkflowStepContext,
   WorkflowStepResult,
@@ -28,6 +29,7 @@ type HarnessRuntimeTrigger = {
 type HarnessExecutionInput = {
   projectDir: string;
   workspaceDir: string;
+  runtimeResources?: WorkflowRuntimeResources;
   trigger: HarnessRuntimeTrigger;
 };
 
@@ -51,6 +53,7 @@ export class HarnessExecutionState {
   readonly allStepResults: Record<string, HarnessStepResult> = {};
 
   workspaceDir: string;
+  runtimeResources: WorkflowRuntimeResources | undefined;
   restartRequested: string | undefined;
   runFailed = false;
   runError: string | undefined;
@@ -64,6 +67,7 @@ export class HarnessExecutionState {
     this.options = options;
     this.projectDir = input.projectDir;
     this.workspaceDir = input.workspaceDir;
+    this.runtimeResources = input.runtimeResources;
     this.trigger = input.trigger;
     this.stepMocks = options.stepMocks ?? {};
     this.runParallel = options.parallel ?? false;
@@ -83,6 +87,9 @@ export class HarnessExecutionState {
     return {
       projectDir: this.projectDir,
       workspaceDir: this.workspaceDir,
+      ...(this.runtimeResources !== undefined
+        ? { runtimeResources: this.runtimeResources }
+        : {}),
       workflow: {
         name: this.workflow.name,
         definitionPath: "test",

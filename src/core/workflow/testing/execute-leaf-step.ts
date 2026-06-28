@@ -1,3 +1,4 @@
+import { runtimeResourcesFromStepOutput } from "#core/workflow/runtime-resources.js";
 import type { WorkflowCodeStepInput } from "#core/workflow/step-input-code.js";
 import type { WorkflowStepInput } from "#core/workflow/step-input-types.js";
 import { workspaceDirFromStepOutput } from "#core/workflow/workspace-update.js";
@@ -153,5 +154,15 @@ export async function executeLeafStep(
     step.updatesWorkspaceDir === true
   ) {
     state.workspaceDir = workspaceDirFromStepOutput(step.id, internal.output);
+  }
+  if (
+    status === "success" &&
+    step.type === "code" &&
+    step.updatesRuntimeResources === true
+  ) {
+    state.runtimeResources = runtimeResourcesFromStepOutput(
+      step.id,
+      internal.output,
+    );
   }
 }

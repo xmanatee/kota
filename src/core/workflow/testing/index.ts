@@ -1,6 +1,7 @@
 import { tmpdir } from "node:os";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type {
+  WorkflowRuntimeResources,
   WorkflowRuntimeState,
   WorkflowStepContext,
   WorkflowStepSkipReason,
@@ -60,6 +61,7 @@ export type HarnessOptions = {
    * steps see the same checkout as projectDir.
    */
   workspaceDir?: string;
+  runtimeResources?: WorkflowRuntimeResources;
   /**
    * Mock outputs for agent steps and (optionally) tool steps.
    * Agent steps require a mock; a missing mock throws a clear error.
@@ -116,6 +118,7 @@ export class WorkflowTestHarness {
     const state = new HarnessExecutionState(this.#workflow, this.#options, {
       projectDir,
       workspaceDir: this.#options.workspaceDir ?? projectDir,
+      runtimeResources: this.#options.runtimeResources,
       trigger: {
         event: this.#options.trigger?.event ?? "runtime.idle",
         schemaRef: this.#options.trigger?.schemaRef ?? null,

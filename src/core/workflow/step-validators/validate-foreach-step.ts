@@ -77,7 +77,10 @@ export function validateForeachStep(
         definitionPath,
         innerIndex,
         `steps[${index}].steps[${innerIndex}]`,
-        { allowWorkspaceDirUpdate: false },
+        {
+          allowWorkspaceDirUpdate: false,
+          allowRuntimeResourcesUpdate: false,
+        },
       ) as WorkflowCodeStep;
     }
     return validateAgentStep(

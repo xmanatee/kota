@@ -50,6 +50,7 @@ export type SDKQueryOptions = {
   settingSources?: ClaudeAgentSdkSettingSource[];
   mcpServers?: Record<string, McpServerConfig>;
   pathToClaudeCodeExecutable?: string;
+  env?: Record<string, string>;
   allowDangerouslySkipPermissions?: boolean;
   abortController?: AbortController;
   enableFileCheckpointing?: boolean;

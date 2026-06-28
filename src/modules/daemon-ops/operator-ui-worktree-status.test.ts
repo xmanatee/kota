@@ -44,6 +44,12 @@ function worktree(
     cleanupStatus: "blocked",
     cleanupEligible: false,
     cleanupBlockers: ["worktree has conflicted paths"],
+    runtimeResources: {
+      profileId: "task-ui-worktree:run-ui",
+      tempRoot: "/repo/.worktrees/task-ui-worktree-run-ui/.kota/tmp/run-ui",
+      artifactRoot: "/repo/.kota/runs/run-ui/artifacts",
+      ports: { start: 41_000, end: 41_019 },
+    },
     nextAction: "resolve merge conflicts before merge or cleanup",
     ...overrides,
   };
@@ -61,5 +67,6 @@ describe("Status UI automation worktrees", () => {
     });
     expect(worktrees?.items[0]?.detail).toContain("merge conflicted");
     expect(worktrees?.items[0]?.detail).toContain("cleanup blocked: worktree has conflicted paths");
+    expect(worktrees?.items[0]?.detail).toContain("resources task-ui-worktree:run-ui ports 41000-41019");
   });
 });

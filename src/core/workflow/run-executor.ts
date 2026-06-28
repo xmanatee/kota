@@ -15,10 +15,11 @@ import {
 } from "./event-payloads.js";
 import { validatePayloadSchema } from "./payload-validator.js";
 import { executeGroupStep } from "./run-executor-groups.js";
+import { replayRunRuntimeState, updateRunRuntimeStateFromStep } from "./run-executor-runtime-state.js";
 import { buildSkippedResult, executeWorkflowStep } from "./run-executor-step.js";
 import { buildResumeInitialState, buildRetryInitialState } from "./run-executor-utils.js";
 import type { WorkflowRunStore } from "./run-store.js";
-import type { WorkflowRunExecutionResult, WorkflowRunStatus, WorkflowRunToolRunner, WorkflowRunWarning } from "./run-types.js";
+import type { WorkflowRunExecutionResult, WorkflowRunStatus, WorkflowRunToolRunner, WorkflowRuntimeResources, WorkflowRunWarning } from "./run-types.js";
 import { type AgentRunLimiter, createAgentRunLimiter } from "./steps/agent-run-limiter.js";
 import { createStepContext } from "./steps/step-context.js";
 import {
@@ -29,11 +30,11 @@ import {
 import { resolveWorkflowRunTokenBudget } from "./steps/step-executor-agent-token-budget.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
-import { replayWorkspaceDirUpdates, workspaceDirFromStepOutput } from "./workspace-update.js";
 
 export type RunExecutorDeps = {
   projectDir: string;
   workspaceDir?: string;
+  runtimeResources?: WorkflowRuntimeResources;
   bus: EventBus;
   /**
    * Per-project view over {@link bus}. The executor emits every workflow-
@@ -85,7 +86,10 @@ export function executeWorkflowRun(
   // tests) get a wrapper bound to their own `projectDir`. Either way the
   // run is attributed to the project producing it, never the registry's
   // default.
-  const deps: RunExecutorDeps & { pbus: ProjectScopedEventBus; workspaceDir: string } = {
+  const deps: RunExecutorDeps & {
+    pbus: ProjectScopedEventBus;
+    workspaceDir: string;
+  } = {
     ...inputDeps,
     workspaceDir: inputDeps.workspaceDir ?? inputDeps.projectDir,
     pbus:
@@ -125,11 +129,11 @@ export function executeWorkflowRun(
       const retryState = resumedFromRunId && resumeFromStep
         ? buildResumeInitialState(resumedFromRunId, resumeFromStep, definition.steps, (result) => run.recordStep(result), deps.store.runsDir)
         : buildRetryInitialState(retryOfId, definition.steps, (result) => run.recordStep(result), deps.store.runsDir);
-      deps.workspaceDir = replayWorkspaceDirUpdates(
+      replayRunRuntimeState(
+        deps,
         definition,
         retryState.retryFromIndex,
         retryState.stepResultsById,
-        deps.workspaceDir,
       );
       const { stepOutputsById, stepResultsById, stepOutputs, retryFromIndex } = retryState;
       let previousOutput = retryState.previousOutput;
@@ -161,6 +165,7 @@ export function executeWorkflowRun(
           config: deps.config,
           projectDir: deps.projectDir,
           workspaceDir: deps.workspaceDir,
+          runtimeResources: deps.runtimeResources,
           log: deps.log,
           resolveAgentDef: deps.resolveAgentDef,
           resolveSkillsPrompt: deps.resolveSkillsPrompt,
@@ -222,13 +227,7 @@ export function executeWorkflowRun(
         const { completed, agentBackoff: stepBackoff, thrownError } = await executeWorkflowStep(
           definition, step, run, trigger, context, abortController, agentConfig, acc, stepDeps, stepStartedAt,
         );
-        if (
-          completed.status === "success" &&
-          step.type === "code" &&
-          step.updatesWorkspaceDir === true
-        ) {
-          deps.workspaceDir = workspaceDirFromStepOutput(step.id, completed.output);
-        }
+        updateRunRuntimeStateFromStep(deps, step, completed);
         if (stepBackoff && !agentBackoff) agentBackoff = stepBackoff;
         if (completed.status === "success") previousOutput = completed.output;
         else if (completed.continueOnFailure) { hadWarnings = true; }

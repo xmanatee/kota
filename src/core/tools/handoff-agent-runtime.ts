@@ -17,6 +17,7 @@ export type HandoffAgentRuntime = {
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
   modelProvider?: ModelProviderSelection;
   modelOutputTokenLimits?: ModelOutputTokenLimits;
+  env?: Record<string, string>;
   delegateBudget: DelegateBudget;
   canUseTool?: AgentCanUseTool;
   askOwner?: AgentAskOwnerOptions;

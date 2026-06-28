@@ -110,6 +110,7 @@ async function runVercelLoop(
       workflowContext: options.workflowContext,
       tokenBudget: options.tokenBudget,
       cwd: options.cwd,
+      env: options.env,
     },
     flags,
     internalAbort,

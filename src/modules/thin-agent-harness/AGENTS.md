@@ -11,7 +11,7 @@ completion loop that uses the core ModelClient registry.
   seam in this module (see `src/core/agent-harness/AGENTS.md`).
 - Guardrail options (canUseTool, mcpServers, allowedTools, disallowedTools),
   session resume (`resumeSessionId`), per-step `harnessOverrides`,
-  `onMessage` subscriptions, and
+  per-run subprocess env, `onMessage` subscriptions, and
   `autonomyMode === "supervised"` are rejected at the boundary. The harness
   has no tool surface to guard, no message stream to emit, and no
   approval-queue routing, so silently ignoring those options would violate

@@ -20,6 +20,7 @@ export type {
 	AutomationWorktreeMetadata,
 	AutomationWorktreeOperatorState,
 	AutomationWorktreeOperatorStatus,
+	AutomationWorktreeRuntimeResources,
 	AutomationWorktreeSelector,
 	AutomationWorktreeState,
 	CleanupEligibility,
@@ -36,6 +37,7 @@ export {
 	lockAutomationWorktree,
 	prepareAutomationWorktree,
 	unlockAutomationWorktree,
+	updateAutomationWorktreeRuntimeResources,
 	updateAutomationWorktreeState,
 } from "./worktree-lifecycle.js";
 export type {

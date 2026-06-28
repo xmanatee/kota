@@ -8,6 +8,7 @@ import {
   createAutomationWorktree,
   listAutomationWorktreeStatuses,
   lockAutomationWorktree,
+  updateAutomationWorktreeRuntimeResources,
   updateAutomationWorktreeState,
 } from "./worktree-lifecycle.js";
 
@@ -78,6 +79,15 @@ describe("automation worktree operator statuses", () => {
       { projectDir: repo, taskId: active.metadata.taskId, runId: active.metadata.runId },
       "builder agent running",
     );
+    updateAutomationWorktreeRuntimeResources(
+      { projectDir: repo, taskId: active.metadata.taskId, runId: active.metadata.runId },
+      {
+        profileId: "task-add-worktree-provider:run-active",
+        tempRoot: join(active.metadata.workspaceDir, ".kota", "tmp", "run-active"),
+        artifactRoot: join(repo, ".kota", "runs", "run-active", "artifacts"),
+        ports: { start: 41_000, end: 41_019 },
+      },
+    );
     const pending = createFixtureWorktree(repo, "run-pending");
     updateAutomationWorktreeState(
       { projectDir: repo, taskId: pending.metadata.taskId, runId: pending.metadata.runId },
@@ -107,6 +117,12 @@ describe("automation worktree operator statuses", () => {
       cleanupEligible: false,
     });
     expect(byRun.get("run-active")?.cleanupBlockers).toContain("worktree is locked: builder agent running");
+    expect(byRun.get("run-active")?.runtimeResources).toEqual({
+      profileId: "task-add-worktree-provider:run-active",
+      tempRoot: join(active.metadata.workspaceDir, ".kota", "tmp", "run-active"),
+      artifactRoot: join(repo, ".kota", "runs", "run-active", "artifacts"),
+      ports: { start: 41_000, end: 41_019 },
+    });
     expect(byRun.get("run-pending")).toMatchObject({
       state: "pending-merge",
       mergeStatus: "pending-merge: text conflicts require review",

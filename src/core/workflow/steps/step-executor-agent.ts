@@ -13,7 +13,11 @@ import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import type { DelegateBudget } from "#core/tools/delegate-budget.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { ToolTelemetry } from "#core/tools/tool-telemetry.js";
-import type { WorkflowRunMetadata, WorkflowStepContext } from "../run-types.js";
+import type {
+  WorkflowRunMetadata,
+  WorkflowRuntimeResources,
+  WorkflowStepContext,
+} from "../run-types.js";
 import { WorkflowStepOutputValidationError } from "../step-input-code.js";
 import type { WorkflowAgentStep } from "../step-types.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
@@ -71,6 +75,7 @@ export type AgentStepConfig = {
   config?: KotaConfig;
   projectDir: string;
   workspaceDir?: string;
+  runtimeResources?: WorkflowRuntimeResources;
   log?: (message: string) => void;
   resolveAgentDef?: (name: string) => AgentDef | undefined;
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;

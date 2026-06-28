@@ -70,7 +70,10 @@ export function validateParallelGroup(
       definitionPath,
       childIndex,
       label,
-      { allowWorkspaceDirUpdate: false },
+      {
+        allowWorkspaceDirUpdate: false,
+        allowRuntimeResourcesUpdate: false,
+      },
     ) as WorkflowCodeStep;
   });
 

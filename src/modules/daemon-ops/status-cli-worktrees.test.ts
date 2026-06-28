@@ -55,7 +55,16 @@ function makeWorktree(
 function worktreeSnapshot(): StatusSnapshot {
   return makeSnap({
     worktrees: [
-      makeWorktree({ taskId: "task-active-worktree", runId: "run-active" }),
+      makeWorktree({
+        taskId: "task-active-worktree",
+        runId: "run-active",
+        runtimeResources: {
+          profileId: "task-active-worktree:run-active",
+          tempRoot: "/repo/.worktrees/task-active-worktree-run-active/.kota/tmp/run-active",
+          artifactRoot: "/repo/.kota/runs/run-active/artifacts",
+          ports: { start: 41_000, end: 41_019 },
+        },
+      }),
       makeWorktree({
         taskId: "task-pending-worktree",
         runId: "run-pending",
@@ -121,6 +130,11 @@ describe("formatStatusOutput automation worktrees", () => {
     expect(out).toContain("Cleanup");
     expect(out).toContain("eligible");
     expect(out).toContain("blocked: worktree has untracked files");
+    expect(out).toContain("Runtime resources");
+    expect(out).toContain("profile task-active-worktree:run-active");
+    expect(out).toContain("ports 41000-41019");
+    expect(out).toContain("temp /repo/.worktrees/task-active-worktree-run-active/.kota/tmp/run-active");
+    expect(out).toContain("artifacts /repo/.kota/runs/run-active/artifacts");
     expect(out).toContain("Metadata");
     expect(out).toContain("Next");
   });
@@ -137,6 +151,7 @@ describe("formatStatusOutput automation worktrees", () => {
     expect(transcript).toContain("task-active-worktree");
     expect(transcript).toContain("task-merged-worktree");
     expect(transcript).toContain("blocked: worktree has untracked files");
+    expect(transcript).toContain("Runtime resources");
 
     const runDir = locateRunDir();
     if (!runDir) return;

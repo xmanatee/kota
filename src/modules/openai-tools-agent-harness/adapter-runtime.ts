@@ -111,6 +111,7 @@ export function executeOpenaiToolCalls(
 				}
 			: {}),
 		cwd: context.projectDir,
+		...(options.env !== undefined ? { env: options.env } : {}),
 		...(options.guardrailsConfig !== undefined
 			? { guardrailsConfig: options.guardrailsConfig }
 			: {}),

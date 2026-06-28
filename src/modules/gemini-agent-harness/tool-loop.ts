@@ -122,6 +122,7 @@ export async function dispatchFunctionCall(
     workflowContext: AgentHarnessRunOptions["workflowContext"];
     tokenBudget: AgentHarnessRunOptions["tokenBudget"];
     cwd: AgentHarnessRunOptions["cwd"];
+    env: AgentHarnessRunOptions["env"];
   },
 ): Promise<DispatchResult> {
   const name = call.name;
@@ -204,6 +205,7 @@ export async function dispatchFunctionCall(
     await executeTool(name, effectiveInput, {
       toolUseId: call.id ?? name,
       ...(guardrails.cwd !== undefined ? { cwd: guardrails.cwd } : {}),
+      ...(guardrails.env !== undefined ? { env: guardrails.env } : {}),
       ...(guardrails.abortSignal !== undefined
         ? { signal: guardrails.abortSignal }
         : {}),

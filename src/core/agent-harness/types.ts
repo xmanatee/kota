@@ -92,6 +92,13 @@ export type AgentHarnessRunOptions = {
    */
   modelOutputTokenLimits?: ModelOutputTokenLimits;
   cwd?: string;
+  /**
+   * Per-run subprocess environment additions. Callers use this for isolated
+   * runtime resources such as temp roots and port ranges; adapters must merge
+   * these into the spawned process environment or declare the option
+   * unsupported.
+   */
+  env?: Record<string, string>;
   verbose?: boolean;
   systemPrompt?: AgentSystemPrompt;
   maxTurns?: number;

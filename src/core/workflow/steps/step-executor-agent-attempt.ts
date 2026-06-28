@@ -103,6 +103,9 @@ export async function runAgentAttempt(input: {
             cwd: agentConfig.workspaceDir ?? agentConfig.projectDir,
             harness: resolvedHarness.name,
             resolveAgentDef: agentConfig.resolveAgentDef ?? (() => undefined),
+            ...(agentConfig.runtimeResources !== undefined
+              ? { env: agentConfig.runtimeResources.env }
+              : {}),
             ...(agentConfig.resolveSkillsPrompt !== undefined
               ? { resolveSkillsPrompt: agentConfig.resolveSkillsPrompt }
               : {}),

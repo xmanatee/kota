@@ -103,6 +103,19 @@ export type WorkflowContextInfo = {
   runDirPath: string;
 };
 
+export type WorkflowRuntimeResourcePortRange = {
+  start: number;
+  end: number;
+};
+
+export type WorkflowRuntimeResources = {
+  profileId: string;
+  env: Record<string, string>;
+  tempRoot?: string;
+  artifactRoot?: string;
+  ports?: WorkflowRuntimeResourcePortRange;
+};
+
 export type ToolCallSummaryEntry = {
   tool: string;
   count: number;
@@ -148,6 +161,7 @@ export type WorkflowStepResult = {
 export type WorkflowStepContext = {
   projectDir: string;
   workspaceDir?: string;
+  runtimeResources?: WorkflowRuntimeResources;
   stateDir?: string;
   eventJournal?: EventJournal;
   workflow: WorkflowContextInfo;

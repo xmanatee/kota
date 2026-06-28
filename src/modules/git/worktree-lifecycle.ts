@@ -27,6 +27,7 @@ export type {
 	AutomationWorktreeMetadata,
 	AutomationWorktreeOperatorState,
 	AutomationWorktreeOperatorStatus,
+	AutomationWorktreeRuntimeResources,
 	AutomationWorktreeSelector,
 	AutomationWorktreeState,
 	CleanupEligibility,
@@ -40,6 +41,7 @@ import type {
 	AutomationWorktreeInspection,
 	AutomationWorktreeMetadata,
 	AutomationWorktreeOperatorStatus,
+	AutomationWorktreeRuntimeResources,
 	AutomationWorktreeSelector,
 	AutomationWorktreeState,
 	CleanupEligibility,
@@ -100,6 +102,15 @@ export function updateAutomationWorktreeState(
 ): AutomationWorktreeInspection {
 	const metadata = { ...readMetadata(selector), state, updatedAt: new Date().toISOString() };
 	if (reason) metadata.stateReason = reason;
+	writeMetadata(selector.projectDir, metadata);
+	return inspectAutomationWorktree(selector);
+}
+
+export function updateAutomationWorktreeRuntimeResources(
+	selector: AutomationWorktreeSelector,
+	runtimeResources: AutomationWorktreeRuntimeResources,
+): AutomationWorktreeInspection {
+	const metadata = { ...readMetadata(selector), runtimeResources, updatedAt: new Date().toISOString() };
 	writeMetadata(selector.projectDir, metadata);
 	return inspectAutomationWorktree(selector);
 }
@@ -221,6 +232,9 @@ function operatorStatusForInspection(inspection: AutomationWorktreeInspection): 
 		cleanupStatus,
 		cleanupEligible: inspection.cleanup.eligible,
 		cleanupBlockers: inspection.cleanup.blockers,
+		...(metadata.runtimeResources !== undefined
+			? { runtimeResources: metadata.runtimeResources }
+			: {}),
 		nextAction: nextActionFor(inspection, cleanupStatus),
 	};
 }

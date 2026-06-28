@@ -106,4 +106,24 @@ vi.mock("#modules/git/worktree-lifecycle.js", () => ({
     push: cleanPushState(),
     cleanup: { eligible: false, blockers: ["worktree is locked: builder agent running"] },
   })),
+  updateAutomationWorktreeRuntimeResources: vi.fn(
+    (selector: WorktreeSelector, runtimeResources: object) => ({
+      metadata: {
+        ...makeMetadata(selector, "active"),
+        runtimeResources,
+      },
+      metadataPath: `${selector.projectDir}/.kota/worktrees/${selector.taskId}-${selector.runId}.json`,
+      exists: true,
+      branch: branchName(selector),
+      baseCommit: "abc1234",
+      headCommit: "abc1234",
+      dirty: cleanDirtyState(),
+      lock: { locked: true, reason: "builder agent running" },
+      push: cleanPushState(),
+      cleanup: {
+        eligible: false,
+        blockers: ["worktree is locked: builder agent running"],
+      },
+    }),
+  ),
 }));
