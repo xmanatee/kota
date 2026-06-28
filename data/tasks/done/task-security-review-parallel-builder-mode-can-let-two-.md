@@ -1,12 +1,12 @@
 ---
 id: task-security-review-parallel-builder-mode-can-let-two-
 title: Security review: Parallel builder mode can let two runs believe they own the same stale task claim because stale recovery renames the active claim file without verifying it still contains the stale claim that was previously read.
-status: ready
+status: done
 priority: p2
 area: security
 summary: Parallel builder mode can let two runs believe they own the same stale task claim because stale recovery renames the active claim file without verifying it still contains the stale claim that was previously read.
 created_at: 2026-06-28T17:47:42.365Z
-updated_at: 2026-06-28T17:47:42.365Z
+updated_at: 2026-06-28T17:54:04.000Z
 ---
 
 ## Problem
@@ -124,3 +124,9 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Completion Evidence
+
+- `claimTask` now calls `archiveClaimIfUnchanged`, which takes a per-task mutation lock, re-reads the active claim, and archives only when the file still matches the stale claim already inspected. Changed claims return `write-conflict`.
+- `src/modules/autonomy/task-claim-races.test.ts` covers two replacement workers that both captured the same stale claim before racing; exactly one wins and the loser records `write-conflict`.
+- Verification: `pnpm test src/modules/autonomy/task-claim-races.test.ts src/modules/autonomy/task-claim-recovery.test.ts`; `pnpm typecheck`; `pnpm lint`; `pnpm validate-tasks`; source-size checks against the staged index.

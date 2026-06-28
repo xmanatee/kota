@@ -13,11 +13,22 @@ const CLAIM_WORKER_SCRIPT = `
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { claimNextQueueTask, claimTask } from "#modules/autonomy/task-claims.js";
+import {
+  archiveClaimIfUnchanged,
+  buildClaim,
+  claimNextQueueTask,
+  claimTask,
+  readActiveTaskClaim,
+  taskClaimPath,
+  writeClaim,
+} from "#modules/autonomy/task-claims.js";
 
 const raw = process.env.KOTA_CLAIM_WORKER_INPUT;
 if (!raw) throw new Error("Missing KOTA_CLAIM_WORKER_INPUT");
 const input = JSON.parse(raw);
+const staleClaim = input.operation === "replace-stale"
+  ? readActiveTaskClaim(input.projectDir, input.taskId)
+  : null;
 mkdirSync(input.readyDir, { recursive: true });
 writeFileSync(join(input.readyDir, input.workerId), "ready\\n", "utf8");
 while (!existsSync(input.startFile)) {
@@ -34,20 +45,53 @@ const common = {
   leaseMs: input.leaseMs,
   now: new Date(input.now),
 };
-const result = input.operation === "claim-task"
-  ? claimTask({
+let result;
+if (input.operation === "claim-task") {
+  result = claimTask({
       ...common,
       taskId: input.taskId,
       taskState: input.taskState,
-    })
-  : claimNextQueueTask(common);
+    });
+} else if (input.operation === "claim-next") {
+  result = claimNextQueueTask(common);
+} else {
+  if (!staleClaim) throw new Error("Missing stale claim for replacement worker");
+  const now = new Date(input.now);
+  const claim = buildClaim({
+    ...common,
+    taskId: input.taskId,
+    taskState: input.taskState,
+  }, now);
+  if (!archiveClaimIfUnchanged(input.projectDir, taskClaimPath(input.projectDir, input.taskId), staleClaim, now)) {
+    result = {
+      claimed: false,
+      taskId: input.taskId,
+      claim: null,
+      recoveryStatus: null,
+      safeToRetry: false,
+      recoveryPath: "write-conflict",
+      reason: "claim changed during stale recovery",
+    };
+  } else {
+    writeClaim(taskClaimPath(input.projectDir, input.taskId), claim, "wx");
+    result = {
+      claimed: true,
+      taskId: input.taskId,
+      claim,
+      recoveryStatus: "agent-running",
+      safeToRetry: false,
+      recoveryPath: staleClaim.status === "expired" ? "replaced-expired-claim" : "replaced-stale-claim",
+      reason: null,
+    };
+  }
+}
 process.stdout.write(JSON.stringify(result));
 `;
 
 export type ClaimWorkerResult = ClaimTaskAttempt | QueueTaskClaimResult;
 
 export type ClaimWorkerInput = {
-  operation: "claim-task" | "claim-next";
+  operation: "claim-task" | "claim-next" | "replace-stale";
   workerId: string;
   readyDir: string;
   startFile: string;

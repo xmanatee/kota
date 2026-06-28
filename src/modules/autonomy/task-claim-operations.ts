@@ -1,6 +1,7 @@
 import { existsSync, unlinkSync } from "node:fs";
 import {
   archiveClaim,
+  archiveClaimIfUnchanged,
   buildClaim,
   inspectTaskClaim,
   readActiveTaskClaim,
@@ -71,9 +72,7 @@ export function claimTask(input: ClaimTaskInput): ClaimTaskAttempt {
         `task is already claimed by ${existing.owner} (${existing.runId})`,
       );
     }
-    try {
-      archiveClaim(input.projectDir, path, existing, now);
-    } catch {
+    if (!archiveClaimIfUnchanged(input.projectDir, path, existing, now)) {
       return skippedAttempt(input.taskId, null, null, "write-conflict", "claim changed during stale recovery");
     }
   }

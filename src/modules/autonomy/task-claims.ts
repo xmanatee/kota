@@ -14,6 +14,7 @@ import {
 
 export {
   archiveClaim,
+  archiveClaimIfUnchanged,
   buildClaim,
   inspectTaskClaim,
   listTaskClaimInspections,

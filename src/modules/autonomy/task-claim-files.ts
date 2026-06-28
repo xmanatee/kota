@@ -4,6 +4,7 @@ import {
   readdirSync,
   readFileSync,
   renameSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
@@ -15,6 +16,7 @@ import {
   ACTIVE_CLAIMS_DIR,
   CLAIM_HISTORY_DIR,
   CLAIM_SCHEMA_VERSION,
+  CLAIMS_ROOT,
   type ClaimTaskInput,
   DEFAULT_TASK_CLAIM_LEASE_MS,
   safeTaskClaimSegment,
@@ -97,6 +99,46 @@ export function writeClaim(path: string, claim: TaskClaim, flag: "w" | "wx"): vo
   });
 }
 
+function taskClaimMutationLockPath(projectDir: string, taskId: string): string {
+  return join(projectDir, CLAIMS_ROOT, "locks", `${safeTaskClaimSegment(taskId)}.lock`);
+}
+
+function sameClaim(left: TaskClaim, right: TaskClaim): boolean {
+  return left.schemaVersion === right.schemaVersion &&
+    left.taskId === right.taskId &&
+    left.taskState === right.taskState &&
+    left.runId === right.runId &&
+    left.workflowId === right.workflowId &&
+    left.owner === right.owner &&
+    left.workspaceDir === right.workspaceDir &&
+    left.branch === right.branch &&
+    left.baseCommit === right.baseCommit &&
+    left.leaseMs === right.leaseMs &&
+    left.leaseAcquiredAt === right.leaseAcquiredAt &&
+    left.leaseExpiresAt === right.leaseExpiresAt &&
+    left.createdAt === right.createdAt &&
+    left.updatedAt === right.updatedAt &&
+    left.status === right.status &&
+    left.evidence === right.evidence;
+}
+
+function acquireClaimMutationLock(projectDir: string, claim: TaskClaim, now: Date): string | null {
+  const lockPath = taskClaimMutationLockPath(projectDir, claim.taskId);
+  ensureParent(lockPath);
+  try {
+    writeFileSync(lockPath, `${claim.runId}\n${now.toISOString()}\n`, {
+      encoding: "utf8",
+      flag: "wx",
+    });
+    return lockPath;
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "EEXIST") {
+      return null;
+    }
+    throw error;
+  }
+}
+
 export function buildClaim(input: ClaimTaskInput, now: Date, createdAt?: string): TaskClaim {
   const leaseMs = input.leaseMs ?? DEFAULT_TASK_CLAIM_LEASE_MS;
   const acquiredAt = now.toISOString();
@@ -166,4 +208,23 @@ export function archiveClaim(projectDir: string, path: string, claim: TaskClaim,
   const historyPath = claimHistoryPath(projectDir, claim, now);
   ensureParent(historyPath);
   renameSync(path, historyPath);
+}
+
+export function archiveClaimIfUnchanged(
+  projectDir: string,
+  path: string,
+  expected: TaskClaim,
+  now: Date,
+): boolean {
+  const lockPath = acquireClaimMutationLock(projectDir, expected, now);
+  if (!lockPath) return false;
+  try {
+    if (!existsSync(path)) return false;
+    const current = readClaimFile(path);
+    if (!sameClaim(current, expected)) return false;
+    archiveClaim(projectDir, path, current, now);
+    return true;
+  } finally {
+    unlinkSync(lockPath);
+  }
 }
