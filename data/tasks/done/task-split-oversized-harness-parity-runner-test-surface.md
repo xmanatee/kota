@@ -1,12 +1,12 @@
 ---
 id: task-split-oversized-harness-parity-runner-test-surface
 title: Split oversized harness-parity runner test surface
-status: ready
+status: done
 priority: p3
 area: modules
 summary: Recent harness-parity security and observability fixes landed, but both touched src/modules/harness-parity/runner.test.ts and left source-size advisories; the latest run reports the file at 1972 lines. Split cohesive runner test scenarios or record a narrow source-size exception so future harness-parity maintenance does not keep producing untracked advisories.
 created_at: 2026-06-28T22:54:53.104Z
-updated_at: 2026-06-28T22:54:53.104Z
+updated_at: 2026-06-28T23:00:57.441Z
 ---
 
 ## Problem
@@ -46,4 +46,9 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- Before/after line counts show src/modules/harness-parity/runner.test.ts no longer triggers the source-size guideline, or a narrow typed exception is recorded with rationale; focused harness-parity runner tests pass; typecheck and validate-tasks pass.
+- Before: `src/modules/harness-parity/runner.test.ts` was 1,972 lines and triggered the source-size guideline.
+- After: `runner.test.ts` is replaced by focused runner test files plus `runner.test-support.ts`; every changed runner test/support file is below 300 lines, with the largest split file at 261 lines.
+- Staged-state source-size check passed: `checkSourceFileSize(process.cwd())` returned `OK: changed source files are under source-size warning thresholds`.
+- Focused validation passed: `pnpm test src/modules/harness-parity/runner-*.test.ts` reported 10 files and 23 tests passing.
+- Type validation passed: `pnpm typecheck`.
+- Queue validation passed against the intended staged state with a temporary git index: `pnpm validate-tasks`.
