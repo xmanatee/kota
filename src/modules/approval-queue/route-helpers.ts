@@ -225,15 +225,14 @@ export async function writeApproveAllApprovalsMutation(
 	note: string | undefined,
 	executionContext: ToolRunnerContext | undefined,
 ): Promise<void> {
-	const preflight = await prepareApprovalExecutionBatch(
-		queue.list("pending"),
-		executionContext,
-	);
+	const pendingApprovals = queue.list("pending");
+	const pendingApprovalIds = pendingApprovals.map((item) => item.id);
+	const preflight = await prepareApprovalExecutionBatch(pendingApprovals, executionContext);
 	if (!preflight.ok) {
 		jsonResponse(res, preflight.status, preflight.body);
 		return;
 	}
-	const result = approveAllApprovalsLocal(queue, note);
+	const result = approveAllApprovalsLocal(queue, pendingApprovalIds, note);
 	if (!result.ok) {
 		await closeApprovalExecutionLeases(preflight.leases.values());
 		writeApprovalInputUnavailable(res, result.approvals);
@@ -252,9 +251,10 @@ export async function writeApproveAllApprovalsMutation(
 
 function approveAllApprovalsLocal(
 	queue: ApprovalQueue,
+	approvalIds: readonly string[],
 	note?: string,
 ): ApprovalExecutionApproveAllResult {
-	return queue.approveAllForExecution(note);
+	return queue.approvePendingForExecution(approvalIds, note);
 }
 
 function projectExecutionContext(

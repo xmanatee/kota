@@ -237,7 +237,19 @@ export class ApprovalQueue {
 	}
 
 	approveAllForExecution(note?: string): ApprovalExecutionApproveAllResult {
-		const pending = this.list("pending");
+		return this.approvePendingForExecution(
+			this.list("pending").map((item) => item.id),
+			note,
+		);
+	}
+
+	approvePendingForExecution(
+		approvalIds: readonly string[],
+		note?: string,
+	): ApprovalExecutionApproveAllResult {
+		const pending = approvalIds
+			.map((id) => this.get(id))
+			.filter((item): item is PendingApproval => item?.status === "pending");
 		const unavailable = pending.filter((item) => !this.executionInputs.has(item.id));
 		if (unavailable.length > 0) {
 			return { ok: false, reason: "input_unavailable", approvals: unavailable };

@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-approve-all-control-path-prefl
 title: Security review: The approve-all control path preflights one pending approval snapshot, then approves and executes a freshly recomputed pending set. A new approval queued during the asynchronous MCP preflight window can be included in approve-all execution without being part of the preflighted/operator-reviewed snapshot.
-status: ready
+status: done
 priority: p2
 area: security
 summary: The approve-all control path preflights one pending approval snapshot, then approves and executes a freshly recomputed pending set. A new approval queued during the asynchronous MCP preflight window can be included in approve-all execution without being part of the preflighted/operator-reviewed snapshot.
 created_at: 2026-06-28T12:25:38.764Z
-updated_at: 2026-06-28T12:25:38.764Z
+updated_at: 2026-06-28T12:42:19Z
 ---
 
 ## Problem
@@ -133,3 +133,11 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Verification: `pnpm test src/modules/approval-queue/routes-approve-all-race.test.ts src/modules/approval-queue/routes-mcp-execution.test.ts`
+  passed, including a regression where an approval queued during MCP preflight
+  remains pending.
+- Verification: `pnpm test src/modules/approval-queue/routes.test.ts src/core/daemon/approval-queue.test.ts`
+  passed.
+- Verification: `pnpm typecheck` passed.
+- Verification: `pnpm lint` exited 0 with pre-existing informational
+  `useTemplate` findings in `src/modules/autonomy/workflows/builder/workflow-root-boundary.test.ts`.
