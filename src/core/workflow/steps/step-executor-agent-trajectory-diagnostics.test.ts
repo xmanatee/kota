@@ -366,6 +366,63 @@ describe("workflow agent-step trajectory diagnostics", () => {
     );
   });
 
+  it("uses the persisted harness capability when failed-step cleanup cannot resolve the harness", async () => {
+    const harness = "trajectory-failed-registry-cleared";
+    registerAgentHarness({
+      ...makeHarness(harness, []),
+      async run(options: AgentHarnessRunOptions) {
+        await options.onMessage?.({
+          type: "status",
+          category: "agent.started",
+        });
+        clearAgentHarnessRegistryForTest();
+        throw new Error("Codex CLI run aborted.");
+      },
+    });
+    const store = new WorkflowRunStore(projectDir);
+    const bus = new EventBus();
+    const step = {
+      ...makeAgentStep(projectDir, harness),
+      retry: { maxAttempts: 1, initialDelayMs: 1, backoffFactor: 1 },
+    };
+
+    const { promise } = executeWorkflowRun(
+      makeDefinition(projectDir, step),
+      TRIGGER,
+      { projectDir, bus, store, log: () => {} },
+    );
+    const result = await promise;
+    const completedStep = result.metadata.steps[0];
+    const artifactPath = join(
+      projectDir,
+      result.metadata.runDir,
+      "steps",
+      "agent.trajectory-diagnostics.json",
+    );
+    const coveragePath = join(
+      projectDir,
+      result.metadata.runDir,
+      "control-monitor-coverage.json",
+    );
+    const coverage = JSON.parse(readFileSync(coveragePath, "utf-8")) as {
+      gaps: Array<{ reason: string }>;
+    };
+
+    expect(result.metadata.status).toBe("failed");
+    expect(completedStep).toMatchObject({
+      status: "failed",
+      trajectoryDiagnostics: {
+        artifactPath: expect.stringContaining(
+          "steps/agent.trajectory-diagnostics.json",
+        ),
+      },
+    });
+    expect(existsSync(artifactPath)).toBe(true);
+    expect(coverage.gaps.map((gap) => gap.reason)).not.toContain(
+      "missing-trajectory-diagnostics",
+    );
+  });
+
   it("rewrites diagnostics from combined initial and repair-loop frames", async () => {
     const harness = "trajectory-repair-loop";
     let runCount = 0;

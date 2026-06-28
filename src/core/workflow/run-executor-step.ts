@@ -23,7 +23,10 @@ import {
   AgentStepRuntimeError,
   executeStep,
 } from "./steps/step-executor.js";
-import { writeAgentTrajectoryDiagnosticsArtifact } from "./steps/step-executor-agent-trajectory-diagnostics.js";
+import {
+  readAgentTrajectoryDiagnosticsCapabilityArtifact,
+  writeAgentTrajectoryDiagnosticsArtifactFromCapability,
+} from "./steps/step-executor-agent-trajectory-diagnostics.js";
 import type { WorkflowAgentBackoffSignal, WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
@@ -220,11 +223,14 @@ function writeFailedAgentTrajectoryDiagnostics(args: {
   );
   if (existsSync(artifactPath)) return undefined;
   try {
-    return writeAgentTrajectoryDiagnosticsArtifact({
+    const capability =
+      readAgentTrajectoryDiagnosticsCapabilityArtifact({ stepId: step.id, runDir, projectDir }) ??
+      { emitsAgentMessageStream: resolveAgentHarness(step.harness).emitsAgentMessageStream };
+    return writeAgentTrajectoryDiagnosticsArtifactFromCapability({
       stepId: step.id,
       runDir,
       projectDir,
-      harness: resolveAgentHarness(step.harness),
+      capability,
       messages,
       changedFiles: [],
     });
