@@ -1,12 +1,12 @@
 ---
 id: task-security-review-harness-parity-accepts-requested-s
 title: Security review: Harness-parity accepts requested scenario ids and passes them into scenario loading without slug validation or a realpath containment check. A crafted id containing parent-directory segments can make the runner load a scenario tree outside the shipped scenarios root; that external scenario's verification.command is then executed with shell: true.
-status: ready
+status: done
 priority: p2
 area: security
 summary: Harness-parity accepts requested scenario ids and passes them into scenario loading without slug validation or a realpath containment check. A crafted id containing parent-directory segments can make the runner load a scenario tree outside the shipped scenarios root; that external scenario's verification.command is then executed with shell: true.
 created_at: 2026-06-28T23:20:17.917Z
-updated_at: 2026-06-28T23:20:17.917Z
+updated_at: 2026-06-28T23:27:55Z
 ---
 
 ## Problem
@@ -165,4 +165,5 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `pnpm test src/modules/harness-parity/scenario.test.ts src/modules/harness-parity/harness-parity-operations.test.ts -t "scenario loader|harness-parity operations"` passed, covering traversal-id rejection before verifier execution and symlink realpath containment.
+- `pnpm typecheck` passed.

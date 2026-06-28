@@ -11,13 +11,20 @@
  * of the pass/fail signal.
  */
 
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join, posix } from "node:path";
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+} from "node:fs";
+import { isAbsolute, join, posix, relative } from "node:path";
 
 const MAX_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_TIMEOUT_MS = 60_000;
 const STAGED_MIN_STAGE_COUNT = 2;
 const STAGED_MAX_STAGE_COUNT = 3;
+const LOWERCASE_SLUG_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
 type JsonValue =
   | string
@@ -280,7 +287,7 @@ function parseContextRetrievalTargetId(
       `${fieldName}.id must be a non-empty string.`,
     );
   }
-  if (!/^[a-z0-9][a-z0-9-]*$/.test(raw)) {
+  if (!LOWERCASE_SLUG_PATTERN.test(raw)) {
     throw new ScenarioLoadError(
       scenarioDir,
       `${fieldName}.id must be a lowercase slug, got "${raw}".`,
@@ -386,7 +393,7 @@ function parseStageId(
       `stages[${index}].id must be a non-empty string.`,
     );
   }
-  if (!/^[a-z0-9][a-z0-9-]*$/.test(raw)) {
+  if (!LOWERCASE_SLUG_PATTERN.test(raw)) {
     throw new ScenarioLoadError(
       scenarioDir,
       `stages[${index}].id must be a lowercase slug, got "${raw}".`,
@@ -556,30 +563,63 @@ function parseScenarioSpec(rawJson: string, scenarioDir: string): ScenarioSpecFi
   };
 }
 
+function assertRequestedScenarioId(scenariosRoot: string, id: string): void {
+  if (!LOWERCASE_SLUG_PATTERN.test(id)) {
+    throw new ScenarioLoadError(
+      scenariosRoot,
+      `requested scenario id must be a lowercase slug, got "${id}".`,
+    );
+  }
+}
+
+function resolveContainedScenarioDir(
+  scenariosRoot: string,
+  scenarioDir: string,
+): string {
+  const rootRealpath = realpathSync(scenariosRoot);
+  const scenarioRealpath = realpathSync(scenarioDir);
+  const relativePath = relative(rootRealpath, scenarioRealpath);
+  if (relativePath.startsWith("..") || isAbsolute(relativePath)) {
+    throw new ScenarioLoadError(
+      scenarioDir,
+      `scenario directory resolves outside scenarios root "${rootRealpath}".`,
+    );
+  }
+  return scenarioRealpath;
+}
+
 export function loadScenario(scenariosRoot: string, id: string): LoadedScenario {
+  assertRequestedScenarioId(scenariosRoot, id);
   const scenarioDir = join(scenariosRoot, id);
   if (!existsSync(scenarioDir) || !statSync(scenarioDir).isDirectory()) {
     throw new ScenarioLoadError(scenarioDir, `scenario directory not found.`);
   }
-  const specPath = join(scenarioDir, "scenario.json");
+  const realScenarioDir = resolveContainedScenarioDir(scenariosRoot, scenarioDir);
+  const specPath = join(realScenarioDir, "scenario.json");
   if (!existsSync(specPath)) {
-    throw new ScenarioLoadError(scenarioDir, `missing scenario.json at "${specPath}".`);
+    throw new ScenarioLoadError(
+      realScenarioDir,
+      `missing scenario.json at "${specPath}".`,
+    );
   }
-  const spec = parseScenarioSpec(readFileSync(specPath, "utf-8"), scenarioDir);
+  const spec = parseScenarioSpec(
+    readFileSync(specPath, "utf-8"),
+    realScenarioDir,
+  );
   if (spec.id !== id) {
     throw new ScenarioLoadError(
-      scenarioDir,
+      realScenarioDir,
       `directory name "${id}" does not match scenario.id="${spec.id}".`,
     );
   }
-  const initialStateDir = join(scenarioDir, "initial");
+  const initialStateDir = join(realScenarioDir, "initial");
   if (!existsSync(initialStateDir) || !statSync(initialStateDir).isDirectory()) {
     throw new ScenarioLoadError(
-      scenarioDir,
+      realScenarioDir,
       `missing required initial/ directory at "${initialStateDir}".`,
     );
   }
-  return { spec, scenarioDir, initialStateDir };
+  return { spec, scenarioDir: realScenarioDir, initialStateDir };
 }
 
 export function loadAllScenarios(scenariosRoot: string): LoadedScenario[] {

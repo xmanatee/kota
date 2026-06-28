@@ -1,7 +1,18 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  type AgentHarness,
+  clearAgentHarnessRegistryForTest,
+  registerAgentHarness,
+} from "#core/agent-harness/index.js";
 import {
   type HarnessParityDeps,
   listHarnessParityScenarios,
@@ -22,6 +33,26 @@ function writeScenario(scenariosRoot: string, id: string): void {
   );
 }
 
+function createNoopHarness(): AgentHarness {
+  return {
+    name: "noop",
+    description: "test no-op harness",
+    supportsMultiTurn: true,
+    supportedHookKinds: [],
+    askOwnerToolName: null,
+    emitsAgentMessageStream: false,
+    toolControl: "kota",
+    async run() {
+      return {
+        text: "done",
+        streamedText: "done",
+        turns: 1,
+        isError: false,
+      };
+    },
+  };
+}
+
 describe("harness-parity operations (local handler / daemon-down branch)", () => {
   let scenariosRoot: string;
   let evalFixturesRoot: string;
@@ -29,6 +60,7 @@ describe("harness-parity operations (local handler / daemon-down branch)", () =>
   let deps: HarnessParityDeps;
 
   beforeEach(() => {
+    clearAgentHarnessRegistryForTest();
     scenariosRoot = mkdtempSync(join(tmpdir(), "kota-parity-ops-scenarios-"));
     evalFixturesRoot = mkdtempSync(join(tmpdir(), "kota-parity-ops-eval-"));
     outRoot = mkdtempSync(join(tmpdir(), "kota-parity-ops-out-"));
@@ -43,6 +75,7 @@ describe("harness-parity operations (local handler / daemon-down branch)", () =>
   });
 
   afterEach(() => {
+    clearAgentHarnessRegistryForTest();
     rmSync(scenariosRoot, { recursive: true, force: true });
     rmSync(evalFixturesRoot, { recursive: true, force: true });
     rmSync(outRoot, { recursive: true, force: true });
@@ -78,9 +111,52 @@ describe("harness-parity operations (local handler / daemon-down branch)", () =>
     }
   });
 
+  it("rejects traversal scenario ids before an escaped verifier can run", async () => {
+    registerAgentHarness(createNoopHarness());
+    const escapedDir = mkdtempSync(
+      join(dirname(scenariosRoot), "kota-parity-ops-escaped-"),
+    );
+    const traversalId = `../${basename(escapedDir)}`;
+    const sentinelPath = join(outRoot, "escaped-verifier-ran.txt");
+    try {
+      mkdirSync(join(escapedDir, "initial"), { recursive: true });
+      writeFileSync(
+        join(escapedDir, "scenario.json"),
+        JSON.stringify({
+          id: traversalId,
+          description: "escaped scenario",
+          prompt: "do the thing",
+          verification: {
+            command: `node -e 'require("node:fs").writeFileSync(${JSON.stringify(
+              sentinelPath,
+            )}, "ran")'`,
+            timeoutMs: 1_000,
+          },
+        }),
+      );
+
+      const result = await runHarnessParity(deps, {
+        scenarios: [traversalId],
+        harnesses: ["noop"],
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.reason).toBe("scenarios_load_error");
+        expect(result.message).toContain("requested scenario id");
+      }
+      expect(existsSync(sentinelPath)).toBe(false);
+    } finally {
+      rmSync(escapedDir, { recursive: true, force: true });
+    }
+  });
+
   it("returns invalid_max_turns for a non-positive maxTurns", async () => {
     writeScenario(scenariosRoot, "demo");
-    const result = await runHarnessParity(deps, { scenarios: ["demo"], maxTurns: 0 });
+    const result = await runHarnessParity(deps, {
+      scenarios: ["demo"],
+      maxTurns: 0,
+    });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("invalid_max_turns");
   });

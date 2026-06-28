@@ -8,6 +8,7 @@ import {
   readFileSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -578,6 +579,36 @@ describe("scenario loader", () => {
       { "hello.txt": "hi" },
     );
     expect(() => loadScenario(scenariosRoot, "demo")).toThrow(ScenarioLoadError);
+  });
+
+  it("rejects symlinked scenario directories that resolve outside the scenarios root", () => {
+    const externalRoot = mkdtempSync(
+      join(tmpdir(), "kota-harness-parity-external-"),
+    );
+    try {
+      writeScenario(
+        externalRoot,
+        "escaped",
+        {
+          id: "escaped",
+          description: "escaped scenario",
+          prompt: "do the thing",
+          verification: { command: "true" },
+        },
+        { "hello.txt": "hi" },
+      );
+      symlinkSync(
+        join(externalRoot, "escaped"),
+        join(scenariosRoot, "escaped"),
+        "dir",
+      );
+
+      expect(() => loadScenario(scenariosRoot, "escaped")).toThrow(
+        /outside scenarios root/,
+      );
+    } finally {
+      rmSync(externalRoot, { recursive: true, force: true });
+    }
   });
 
   it("rejects missing verification object", () => {
