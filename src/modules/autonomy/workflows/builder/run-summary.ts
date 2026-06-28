@@ -22,7 +22,11 @@ export type BuilderRunSummary = WorkflowRunSummary & {
 /** Terminal states indicate the task the builder actually completed. */
 const TERMINAL_TASK_STATES = ["done", "blocked", "dropped"];
 
-function findTaskInChangedFiles(
+function isTerminalTaskFile(file: string): boolean {
+  return TERMINAL_TASK_STATES.some((state) => file.includes(`/${state}/`));
+}
+
+export function findTaskInChangedFiles(
   projectDir: string,
   files: string[],
 ): { taskId: string | null; taskTitle: string | null } {
@@ -33,8 +37,8 @@ function findTaskInChangedFiles(
   // Prefer tasks in terminal states — those are the ones the builder completed.
   // Newly-created backlog/ready tasks are follow-ups, not the primary work.
   const sorted = [...taskFiles].sort((a, b) => {
-    const aTerminal = TERMINAL_TASK_STATES.some((s) => a.includes(`/${s}/`));
-    const bTerminal = TERMINAL_TASK_STATES.some((s) => b.includes(`/${s}/`));
+    const aTerminal = isTerminalTaskFile(a);
+    const bTerminal = isTerminalTaskFile(b);
     if (aTerminal !== bTerminal) return aTerminal ? -1 : 1;
     return 0;
   });
@@ -55,6 +59,13 @@ function findTaskInChangedFiles(
     }
   }
   return { taskId: null, taskTitle: null };
+}
+
+export function findTerminalTaskInChangedFiles(
+  projectDir: string,
+  files: string[],
+): { taskId: string | null; taskTitle: string | null } {
+  return findTaskInChangedFiles(projectDir, files.filter(isTerminalTaskFile));
 }
 
 export function writeBuilderRunSummary(ctx: WorkflowStepContext): BuilderRunSummary {

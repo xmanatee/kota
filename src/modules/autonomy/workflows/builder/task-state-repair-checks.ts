@@ -1,6 +1,9 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { listWorkflowMutatedPaths } from "#core/workflow/steps/agent-write-scope.js";
+import type { QueueTaskClaimResult } from "#modules/autonomy/task-claims.js";
 import { listTaskClaimInspections } from "#modules/autonomy/task-claims.js";
+import { findTerminalTaskInChangedFiles } from "./run-summary.js";
 
 function taskFilesInState(projectDir: string, state: "ready" | "doing" | "done" | "blocked"): string[] {
   const dir = join(projectDir, "data/tasks", state);
@@ -46,4 +49,39 @@ export function checkActionableTaskResolved(projectDir: string): string {
     `Builder still has ${doing.length} task(s) in doing: ${doing.join(", ")}. ` +
       "Before completing the workflow, move finished work to done or honestly move blocked work to blocked.",
   );
+}
+
+function nonEmptyTaskId(value: string | null | undefined): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+export function checkClaimedTaskCommitSet(
+  projectDir: string,
+  claim: QueueTaskClaimResult | undefined,
+): string {
+  const claimedTaskId = nonEmptyTaskId(claim?.taskId);
+  if (claim?.claimed !== true || claimedTaskId === null) {
+    throw new Error("Builder cannot validate the commit set without a claimed task id");
+  }
+
+  const task = findTerminalTaskInChangedFiles(
+    projectDir,
+    listWorkflowMutatedPaths(projectDir),
+  );
+  const commitTaskId = nonEmptyTaskId(task.taskId);
+  if (commitTaskId === null) {
+    throw new Error(
+      `Builder claimed ${claimedTaskId} but the commit set does not identify a completed task. ` +
+        "Move the claimed task to done, blocked, or dropped before stopping.",
+    );
+  }
+  if (commitTaskId !== claimedTaskId) {
+    throw new Error(
+      `Builder claimed ${claimedTaskId} but the commit set identifies ${commitTaskId}. ` +
+        "Finish only the claimed task in this run; move the claimed task to a terminal state " +
+        "or revert the other task before stopping.",
+    );
+  }
+
+  return `OK: commit set resolves claimed task ${claimedTaskId}`;
 }

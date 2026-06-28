@@ -13,6 +13,7 @@ import {
   SOURCE_FILE_SIZE_SEVERE_TYPE,
 } from "#modules/autonomy/source-size-escalation.js";
 import { checkSevereSourceFileSizeForRun } from "#modules/autonomy/source-size-review-artifact.js";
+import type { QueueTaskClaimResult } from "#modules/autonomy/task-claims.js";
 import {
   checkMacosSwiftBuild,
   checkMobileTypecheck,
@@ -26,6 +27,7 @@ import {
 import {
   checkActionableTaskClaimed,
   checkActionableTaskResolved,
+  checkClaimedTaskCommitSet,
 } from "./task-state-repair-checks.js";
 import { workflowWorkspaceDir } from "./workspace.js";
 
@@ -37,6 +39,7 @@ export {
 export {
   checkActionableTaskClaimed,
   checkActionableTaskResolved,
+  checkClaimedTaskCommitSet,
 } from "./task-state-repair-checks.js";
 
 export function builderRepairChecks(): WorkflowRepairCheck[] {
@@ -63,6 +66,16 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       type: "code" as const,
       phase: 1,
       run: (ctx) => checkActionableTaskResolved(workflowWorkspaceDir(ctx)),
+    },
+    {
+      id: "claimed-task-commit-set",
+      type: "code" as const,
+      phase: 1,
+      run: (ctx) =>
+        checkClaimedTaskCommitSet(
+          workflowWorkspaceDir(ctx),
+          ctx.stepOutputs["claim-task"] as QueueTaskClaimResult | undefined,
+        ),
     },
     {
       id: "build-output",

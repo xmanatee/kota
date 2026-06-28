@@ -29,7 +29,81 @@ function initRepo(dir: string): void {
   execSync('git commit -q -m "init"', { cwd: dir });
 }
 
-describe("builder source-size repair checks", () => {
+function writeTask(
+  projectDir: string,
+  state: "ready" | "done" | "blocked" | "dropped",
+  taskId: string,
+): void {
+  const taskDir = join(projectDir, "data", "tasks", state);
+  mkdirSync(taskDir, { recursive: true });
+  writeFileSync(
+    join(taskDir, `${taskId}.md`),
+    `---
+id: ${taskId}
+title: ${taskId}
+status: ${state}
+---
+`,
+  );
+}
+
+function claimedTaskCommitSetCheck() {
+  const check = builderRepairChecks().find(
+    (candidate) => candidate.id === "claimed-task-commit-set",
+  );
+  expect(check).toMatchObject({
+    id: "claimed-task-commit-set",
+    type: "code",
+    phase: 1,
+  });
+  if (!check || check.type !== "code") {
+    throw new Error("missing claimed task commit-set check");
+  }
+  return check;
+}
+
+function claimContext(projectDir: string, taskId: string): WorkflowStepContext {
+  const runDir = ".kota/runs/test-run";
+  return {
+    projectDir,
+    workflow: {
+      name: "builder",
+      definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+      runId: "test-run",
+      runDir,
+      runDirPath: join(projectDir, runDir),
+    },
+    trigger: {
+      event: "autonomy.queue.available",
+      schemaRef: null,
+      payload: {},
+    },
+    previousOutput: null,
+    stepOutputs: {
+      "claim-task": {
+        claimed: true,
+        taskId,
+      },
+    },
+    stepResults: {},
+    stepOutputList: [],
+    runTool: async () => {
+      throw new Error("runTool is not available in this test context");
+    },
+    emit: () => {},
+    requestRestart: () => {},
+    readPrompt: () => "",
+    readRuntimeState: () => ({
+      completedRuns: 0,
+      pendingRuns: [],
+      workflows: {},
+    }),
+    reportProgress: () => {},
+    triggerWorkflow: async () => ({ runId: "queued-run", status: "queued" }),
+  };
+}
+
+describe("builder repository-backed repair checks", () => {
   let repoDir: string;
 
   beforeEach(() => {
@@ -174,5 +248,30 @@ describe("builder source-size repair checks", () => {
     } finally {
       rmSync(projectDir, { recursive: true, force: true });
     }
+  });
+
+  it("passes claimed-task commit-set repair when the terminal task matches the claim", () => {
+    writeTask(repoDir, "done", "task-claimed");
+    const check = claimedTaskCommitSetCheck();
+
+    expect(check.run(claimContext(repoDir, "task-claimed"), {} as never)).toBe(
+      "OK: commit set resolves claimed task task-claimed",
+    );
+  });
+
+  it("fails claimed-task commit-set repair before commit when a different task is terminal", () => {
+    writeTask(repoDir, "done", "task-other");
+    const check = claimedTaskCommitSetCheck();
+
+    expect(() => check.run(claimContext(repoDir, "task-claimed"), {} as never))
+      .toThrow(/claimed task-claimed but the commit set identifies task-other/);
+  });
+
+  it("fails claimed-task commit-set repair when the claimed task is not terminal", () => {
+    writeTask(repoDir, "ready", "task-claimed");
+    const check = claimedTaskCommitSetCheck();
+
+    expect(() => check.run(claimContext(repoDir, "task-claimed"), {} as never))
+      .toThrow(/commit set does not identify a completed task/);
   });
 });
