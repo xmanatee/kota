@@ -1,14 +1,14 @@
 ---
 id: task-migrate-mutating-autonomy-workflows-to-worktree-po
 title: Migrate mutating autonomy workflows to worktree policy
-status: ready
+status: done
 priority: p1
 area: autonomy
 task_class: Platform
 depends_on: [task-run-builder-work-and-repair-inside-task-worktrees, task-add-merge-gate-and-automated-conflict-resolver-for, task-surface-worktree-run-status-and-cleanup-controls]
 summary: Audit all mutating autonomy agents and either migrate them to the workspace/merge contract or document why they are control-only and safe outside it.
 created_at: 2026-06-25T14:53:56.712Z
-updated_at: 2026-06-28T15:52:35.545Z
+updated_at: 2026-06-28T16:09:41.000Z
 ---
 
 ## Problem
@@ -48,6 +48,16 @@ reason and safety mechanism for staying outside it.
   explicit exception.
 - The architecture docs or decision entry reflect the final classification.
 
+## Outcome
+
+Added `src/modules/autonomy/workflow-workspace-policy.ts` as the audited
+workflow-by-workflow policy map and connected it to the worktree-backed
+autonomy decision. Builder remains the arbitrary project-file mutator on the
+workspace/merge-gate path. Canonical exceptions now name their control-state or
+control-plane writes and safety mechanisms. `improver` now has a clean-checkout
+preflight before its agent step, and `research-retry` is narrowed to task and
+inbox writes.
+
 ## Source / Intent
 
 The user asked that KOTA automation agents learn to do all work in worktrees.
@@ -61,8 +71,7 @@ Worktree-backed KOTA autonomy.
 
 ## Acceptance Evidence
 
-- An audit artifact or decision entry lists each autonomy workflow and its
-  workspace policy.
+- Audit artifact: `.kota/runs/2026-06-28T15-56-27-564Z-builder-j6amm8/workflow-workspace-policy-audit.json`.
 - `rg -n "no worktrees|Work directly in this repository" src/modules/autonomy`
-  no longer finds stale instructions except deliberate documented exceptions.
-- `pnpm test src/modules/autonomy` passes for migrated workflows.
+  returned no matches.
+- `pnpm test src/modules/autonomy` passed.

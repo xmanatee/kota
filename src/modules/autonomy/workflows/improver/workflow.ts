@@ -1,4 +1,5 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
+import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
@@ -37,6 +38,11 @@ import {
   type ImproverTaskGovernanceEvidence,
 } from "./task-governance.js";
 
+type WorktreeInspection = {
+  dirty: boolean;
+  summary: string;
+};
+
 export const agent: AgentDef = {
   name: "improver",
   role: "Improve the autonomous development system itself using evidence from recent runs.",
@@ -64,6 +70,20 @@ const gatherRunDataStep = typedCodeStep<RunOutcomeAggregation>({
   run: ({ projectDir }) => {
     const store = new WorkflowRunStore(projectDir);
     return aggregateRunOutcomes(store.runsDir);
+  },
+});
+
+const inspectWorktree = typedCodeStep<WorktreeInspection>({
+  id: "inspect-worktree",
+  type: "code",
+  validate: (raw) =>
+    expectStructuredOutput<WorktreeInspection>(raw, ["dirty", "summary"]),
+  run: ({ projectDir }) => {
+    const worktree = getRepoWorktreeStatus(projectDir);
+    return {
+      dirty: worktree.available && worktree.dirty,
+      summary: worktree.summary,
+    };
   },
 });
 
@@ -141,6 +161,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
       run: ({ projectDir }) =>
         resetWorktreeForRecovery({ projectDir, workflowName: "improver" }),
     },
+    inspectWorktree,
     gatherRunDataStep,
     gatherHealthIssueCardsStep,
     gatherTaskGovernanceStep,
@@ -151,7 +172,9 @@ const improverWorkflow: WorkflowDefinitionInput = {
       agentName: agent.name,
       promptPath: agent.promptPath,
       harness: AUTONOMY_AGENT_HARNESS,
-      when: (ctx) => shouldRunImproverFromGate(gateEvidenceStep.output(ctx)),
+      when: (ctx) =>
+        shouldRunImproverFromGate(gateEvidenceStep.output(ctx)) &&
+        inspectWorktree.output(ctx)?.dirty === false,
       tier: AUTONOMY_AGENT_DEFAULTS.tier,
       effort: agent.effort,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,

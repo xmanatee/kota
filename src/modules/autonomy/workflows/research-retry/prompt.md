@@ -2,7 +2,7 @@ Your job is to re-attempt a single blocked research task whose sources were
 previously inaccessible. The target task id and its resource URLs are injected
 from the `inspect-candidates` step output above.
 
-Your write scope is `data/tasks/`, `data/inbox/`, and `src/modules/autonomy/`.
+Your write scope is `data/tasks/` and `data/inbox/`.
 
 ## Role
 

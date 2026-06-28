@@ -10,6 +10,10 @@ export type WorktreeBackedAutonomyDecision = {
   safetyRules: readonly SafetyRule[];
   automatedConflictResolution: readonly string[];
   pendingMergePolicy: readonly string[];
+  workflowPolicy: {
+    source: "src/modules/autonomy/workflow-workspace-policy.ts";
+    rule: string;
+  };
   rolloutOrder: readonly RolloutStep[];
   revisitsExternalPattern: {
     pattern: "Multi-Claude parallel builds";
@@ -131,6 +135,7 @@ export const WORKTREE_BACKED_AUTONOMY_DECISION = {
   constrainedFiles: [
     "src/modules/autonomy/workflows/builder/workflow.ts",
     "src/modules/autonomy/workflows/builder/branch-per-task.ts",
+    "src/modules/autonomy/workflow-workspace-policy.ts",
     "src/core/workflow/steps/step-executor-agent.ts",
     "src/core/workflow/steps/step-executor-agent-prompt.ts",
     "src/core/workflow/steps/step-executor-agent-run-options.ts",
@@ -152,6 +157,10 @@ export const WORKTREE_BACKED_AUTONOMY_DECISION = {
     "Scheduler concurrency is a maximum dispatch budget, not permission to share a checkout. " +
       "Parallel builder dispatch stays disabled until leases, workspaceDir execution, merge " +
       "gating, status visibility, cleanup, and conflict fixtures are in place.",
+    "Autonomy workflow workspace policy is recorded workflow-by-workflow in " +
+      "workflow-workspace-policy.ts: builder is worktree/merge-gated, canonical exceptions " +
+      "are limited to KOTA control-state or control-plane mutation, and external-effect " +
+      "workflows stay out of worktrees.",
   ],
   runtimeShape: [
     {
@@ -254,6 +263,13 @@ export const WORKTREE_BACKED_AUTONOMY_DECISION = {
     "Pending merge state is operator-visible through run artifacts and future status/cleanup controls; " +
       "builders do not mark the task done while integration is unresolved.",
   ],
+  workflowPolicy: {
+    source: "src/modules/autonomy/workflow-workspace-policy.ts",
+    rule:
+      "Every autonomy workflow has a recorded workspace policy. The only arbitrary project " +
+      "mutator is builder, which uses workspaceDir plus merge gate; canonical exceptions " +
+      "must name their control-state/control-plane writes and safety mechanisms.",
+  },
   rolloutOrder: [
     {
       order: 1,

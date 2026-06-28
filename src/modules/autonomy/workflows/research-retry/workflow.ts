@@ -36,7 +36,7 @@ export const agent: AgentDef = {
   promptPath: "src/modules/autonomy/workflows/research-retry/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
   skills: "all",
-  writeScope: ["data/tasks/", "data/inbox/", "src/modules/autonomy/"],
+  writeScope: ["data/tasks/", "data/inbox/"],
 };
 
 type CandidateSummary = {

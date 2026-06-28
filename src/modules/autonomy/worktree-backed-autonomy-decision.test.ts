@@ -23,6 +23,7 @@ describe("worktree-backed autonomy decision", () => {
       expect.arrayContaining([
         "src/modules/autonomy/workflows/builder/workflow.ts",
         "src/modules/autonomy/workflows/builder/branch-per-task.ts",
+        "src/modules/autonomy/workflow-workspace-policy.ts",
         "src/core/workflow/steps/step-executor-agent.ts",
         "src/core/workflow/steps/step-executor-agent-prompt.ts",
         "src/core/workflow/steps/step-executor-agent-run-options.ts",
@@ -49,6 +50,18 @@ describe("worktree-backed autonomy decision", () => {
       "mutating-autonomy-workflows",
       "guarded-parallelism",
     ]);
+  });
+
+  it("points to the workflow-by-workflow workspace policy", () => {
+    expect(WORKTREE_BACKED_AUTONOMY_DECISION.workflowPolicy).toMatchObject({
+      source: "src/modules/autonomy/workflow-workspace-policy.ts",
+    });
+    expect(WORKTREE_BACKED_AUTONOMY_DECISION.workflowPolicy.rule).toContain(
+      "workspaceDir plus merge gate",
+    );
+    expect(WORKTREE_BACKED_AUTONOMY_DECISION.workflowPolicy.rule).toContain(
+      "control-state/control-plane",
+    );
   });
 
   it("supersedes the old direct parallel-build rejection with a KOTA-native path", () => {

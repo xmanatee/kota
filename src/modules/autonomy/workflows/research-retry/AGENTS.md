@@ -10,7 +10,7 @@ can attempt.
   clean worktree before invoking the agent. It honors the recovery contract:
   it resets the worktree on `runtime.recovered` and skips the agent step on
   recovery triggers.
-- Agent writes stay limited to task/inbox/autonomy data. The outcome must
+- Agent writes stay limited to task and inbox data. The outcome must
   honestly reflect whether the source became accessible, remained blocked, or
   no longer justifies retrying.
 - The agent's browser-tool output flows through `injection-defense`; the

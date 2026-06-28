@@ -2,8 +2,31 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import improverWorkflow from "./workflow.js";
+
+const cleanWorktreeStatus = {
+  available: true,
+  dirty: false,
+  trackedDirty: false,
+  entries: [],
+  fingerprint: "",
+  summary: "clean",
+  headSha: "abc123",
+};
+
+vi.mock("#core/util/repo-worktree.js", () => ({
+  getRepoWorktreeStatus: vi.fn(() => ({
+    available: true,
+    dirty: false,
+    trackedDirty: false,
+    entries: [],
+    fingerprint: "",
+    summary: "clean",
+    headSha: "abc123",
+  })),
+}));
 
 vi.mock("#modules/autonomy/commit.js", () => ({
   commitWorkflowChanges: vi.fn(),
@@ -30,6 +53,7 @@ describe("improver workflow", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getRepoWorktreeStatus).mockReturnValue(cleanWorktreeStatus);
     projectDir = join(
       tmpdir(),
       `kota-improver-workflow-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -222,6 +246,38 @@ describe("improver workflow", () => {
     expect(result.steps.commit.status).toBe("skipped");
     expect(result.steps["write-run-summary"].status).toBe("skipped");
     expect(result.steps["request-restart"].status).toBe("skipped");
+  });
+
+  it("skips the agent step when the canonical checkout is dirty", async () => {
+    writeFailedRun();
+    vi.mocked(getRepoWorktreeStatus).mockReturnValue({
+      available: true,
+      dirty: true,
+      trackedDirty: true,
+      entries: [" M src/modules/autonomy/workflows/improver/workflow.ts"],
+      fingerprint: " M src/modules/autonomy/workflows/improver/workflow.ts",
+      summary: "M src/modules/autonomy/workflows/improver/workflow.ts",
+      headSha: "abc123",
+    });
+
+    const harness = new WorkflowTestHarness(improverWorkflow, {
+      projectDir,
+      trigger: {
+        event: "workflow.completed",
+        payload: { workflow: "builder", status: "success" },
+      },
+      stepMocks: {
+        improve: { turns: [], totalCostUsd: 0.1 },
+      },
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps["inspect-worktree"].output).toMatchObject({ dirty: true });
+    expect(result.steps.improve.status).toBe("skipped");
+    expect(result.steps["record-evidence-fingerprint"].status).toBe("skipped");
+    expect(result.steps.commit.status).toBe("skipped");
   });
 
   it("write-run-summary step exists and appears before request-restart", () => {
