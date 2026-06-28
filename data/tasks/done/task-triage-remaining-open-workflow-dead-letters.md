@@ -1,12 +1,12 @@
 ---
 id: task-triage-remaining-open-workflow-dead-letters
 title: Triage remaining open workflow dead letters
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Current open dead letters remain for a builder build timeout, a security-review investigate-candidates timeout, and an eval-harness-cadence missing claim-result metric. These ids are not resolved by the latest workflow-failure escalator run.
 created_at: 2026-06-28T13:11:09.751Z
-updated_at: 2026-06-28T13:11:09.751Z
+updated_at: 2026-06-28T15:45:23Z
 ---
 
 ## Problem
@@ -47,4 +47,8 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- Each cited dead-letter id is redriven successfully, dismissed with durable rationale, or linked to a specific blocked/ready repair task; a refreshed DLQ report no longer shows these ids as open.
+- `dlq-2cd9edfa-3573-4b28-9cfc-6c4d1ec3afb5` was dismissed during builder run `2026-06-28T15-34-25-332Z-builder-8tnohl` after confirming the failed builder claimed `task-surface-worktree-run-status-and-cleanup-controls`, that task is now `done/` with acceptance evidence, commit `4995b65c` moved it to `done/`, and the stale active task claim was released with evidence.
+- `dlq-0f0e22b8-2475-4f4f-89f3-4d90f79349b8` was dismissed during the same run after confirming it was superseded by successful security-review run `2026-06-28T12-17-50-568Z-security-review-wet7it`, which completed investigate/revalidate, created `task-security-review-the-approve-all-control-path-prefl`, and that task is now `done/` with focused approval-queue verification.
+- `dlq-bb5b609b-73e8-488e-a841-ed1a3e6a4852` was dismissed during the same run as linked to existing blocked repair task `task-add-a-scientific-claim-reproduction-fixture-to-the`, whose operator-capture unblock precondition records the missing live `claim-result.json`/eval-pass artifact.
+- Before/after diagnostics for all three cited DLQ items are exported under `.kota/runs/2026-06-28T15-34-25-332Z-builder-8tnohl/dlq-*-before.json` and `.kota/runs/2026-06-28T15-34-25-332Z-builder-8tnohl/dlq-*-after.json`.
+- Refreshed report: `pnpm kota workflow dlq list --status open --limit 20` returned `open=0 dismissed=60 redriven=1` and no open items.
