@@ -38,6 +38,7 @@ describe("agent harness readiness probes", () => {
       binaryName: "codex",
       command: "codex --version",
     });
+    expect(probe.status).toBe("missing");
   });
 
   it("reports Codex CLI path and version when the version probe succeeds", () => {
