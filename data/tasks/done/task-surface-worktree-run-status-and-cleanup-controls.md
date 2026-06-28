@@ -1,14 +1,14 @@
 ---
 id: task-surface-worktree-run-status-and-cleanup-controls
 title: Surface worktree run status and cleanup controls
-status: ready
+status: done
 priority: p1
 area: autonomy
 task_class: Product
 depends_on: [task-add-git-worktree-lifecycle-provider-for-automation, task-add-merge-gate-and-automated-conflict-resolver-for]
 summary: Expose active, pending-merge, conflicted, merged, and cleanup states for automation worktrees in CLI, daemon status, and run artifacts.
 created_at: 2026-06-25T14:53:51.690Z
-updated_at: 2026-06-27T15:01:08.998Z
+updated_at: 2026-06-27T15:16:36Z
 ---
 
 ## Problem
@@ -58,3 +58,16 @@ Worktree-backed KOTA autonomy.
   status tests pass.
 - A CLI transcript shows at least one active worktree, one merged/cleanup-ready
   worktree, and one cleanup-blocked worktree with reason.
+
+Completed in builder run `2026-06-27T15-01-35-496Z-builder-9mju9d`:
+
+- `pnpm test src/modules/git src/modules/daemon-ops src/modules/autonomy/workflows/builder` passed on 2026-06-27.
+- `kota status` now renders automation worktrees from the git lifecycle
+  projection, including task/run ids, branch, owner, base/head commits, dirty
+  and merge state, cleanup eligibility/blockers, metadata path, workspace path,
+  and next action.
+- The shared daemon UI Status surface uses the same status snapshot field.
+- Builder cleanup writes `automation-worktree-cleanup.json` when the workflow
+  cleanup step runs after a successful merge gate.
+- CLI transcript artifact:
+  `.kota/runs/2026-06-27T15-01-35-496Z-builder-9mju9d/cli-worktree-status-transcript.txt`.

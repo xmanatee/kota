@@ -8,7 +8,10 @@ import {
 import { readPrunedWorkflowRunReferences } from "#core/workflow/run-store-retention.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { AutonomyHealthEvidenceRef } from "#modules/autonomy/health-signal.js";
-import { isStaleSkippedApprovalOwnerGateGap } from "./runtime-health-audit-control-coverage-gates.js";
+import {
+  isInfrastructureAgentRuntimeCoverageGap,
+  isStaleSkippedApprovalOwnerGateGap,
+} from "./runtime-health-audit-control-coverage-gates.js";
 import {
   addPattern,
   type PatternInput,
@@ -160,6 +163,7 @@ function observationsFor(
   >();
   for (const gap of artifact.gaps) {
     if (isStaleSkippedApprovalOwnerGateGap(ctx, run, gap)) continue;
+    if (isInfrastructureAgentRuntimeCoverageGap(run, gap)) continue;
     const key = `${gap.family}\0${gap.reason}`;
     const existing = byKey.get(key) ?? {
       family: gap.family,

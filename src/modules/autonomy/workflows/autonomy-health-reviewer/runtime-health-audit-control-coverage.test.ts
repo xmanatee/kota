@@ -9,6 +9,7 @@ import {
 import { collectRuntimeHealthAudit } from "./runtime-health-audit.js";
 import {
   readyTaskPath,
+  writeRunWithAgentRuntimeCoverageGaps,
   writeRunWithApprovalOwnerGateGap,
   writeRunWithCoverage,
   writeRunWithSkippedApprovalGateGap,
@@ -172,6 +173,64 @@ describe("runtime health audit control coverage gaps", () => {
       ]),
     );
     expectNoObservableGateDiagnostics(audit);
+  });
+
+  it("ignores missing agent runtime evidence from infrastructure failed steps", () => {
+    writeRunWithAgentRuntimeCoverageGaps(projectDir, {
+      id: "transport-missing-runtime-a",
+      startedAt: "2026-06-19T10:00:00.000Z",
+      error:
+        'Agent step "review-evidence" failed (codex_cli_error): stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)',
+    });
+    writeRunWithAgentRuntimeCoverageGaps(projectDir, {
+      id: "transport-missing-runtime-b",
+      startedAt: "2026-06-19T11:00:00.000Z",
+      error: 'Step "review-evidence" timed out after 1800000ms',
+    });
+
+    const audit = collectRuntimeHealthAudit({
+      projectDir,
+      options: { nowIso: NOW, interruptedRunMinCount: 2 },
+    });
+
+    expect(audit.inspected.controlCoverageArtifacts).toBe(2);
+    expect(audit.inspected.controlCoverageGapRuns).toBe(0);
+    expectNoObservableGateDiagnostics(audit);
+  });
+
+  it("keeps missing agent runtime evidence from unclassified failed steps actionable", () => {
+    writeRunWithAgentRuntimeCoverageGaps(projectDir, {
+      id: "local-missing-runtime-a",
+      startedAt: "2026-06-19T10:00:00.000Z",
+      error: 'Agent step "review-evidence" failed: local invariant broke',
+    });
+    writeRunWithAgentRuntimeCoverageGaps(projectDir, {
+      id: "local-missing-runtime-b",
+      startedAt: "2026-06-19T11:00:00.000Z",
+      error: 'Agent step "review-evidence" failed: local invariant broke',
+    });
+
+    const audit = collectRuntimeHealthAudit({
+      projectDir,
+      options: { nowIso: NOW, interruptedRunMinCount: 2 },
+    });
+
+    expect(audit.inspected.controlCoverageArtifacts).toBe(2);
+    expect(audit.inspected.controlCoverageGapRuns).toBe(2);
+    expect(audit.patterns).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          dedupeKey:
+            "control-coverage:agent-step-stream:missing-agent-step-events",
+          observationCount: 2,
+        }),
+        expect.objectContaining({
+          dedupeKey:
+            "control-coverage:trajectory-diagnostics:missing-trajectory-diagnostics",
+          observationCount: 2,
+        }),
+      ]),
+    );
   });
 
   it("does not suppress approval gate gaps with escaping step evidence refs", () => {

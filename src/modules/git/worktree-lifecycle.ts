@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import {
 	assertCanonicalCheckoutReady,
 	comparablePath,
@@ -7,6 +7,7 @@ import {
 	emptyDirtyState,
 	emptyPushState,
 	git,
+	metadataDir,
 	metadataPath,
 	parseWorktreeList,
 	prepareAutomationWorktree,
@@ -20,8 +21,12 @@ import {
 
 export { prepareAutomationWorktree } from "./worktree-lifecycle-support.js";
 export type {
+	AutomationWorktreeCleanupStatus,
+	AutomationWorktreeDirtySummary,
 	AutomationWorktreeInspection,
 	AutomationWorktreeMetadata,
+	AutomationWorktreeOperatorState,
+	AutomationWorktreeOperatorStatus,
 	AutomationWorktreeSelector,
 	AutomationWorktreeState,
 	CleanupEligibility,
@@ -34,6 +39,7 @@ export type {
 import type {
 	AutomationWorktreeInspection,
 	AutomationWorktreeMetadata,
+	AutomationWorktreeOperatorStatus,
 	AutomationWorktreeSelector,
 	AutomationWorktreeState,
 	CleanupEligibility,
@@ -123,6 +129,24 @@ export function inspectAutomationWorktree(selector: AutomationWorktreeSelector):
 	};
 }
 
+export function listAutomationWorktreeStatuses(projectDir: string): AutomationWorktreeOperatorStatus[] {
+	const dir = metadataDir(projectDir);
+	if (!existsSync(dir)) return [];
+	return readdirSync(dir)
+		.filter((name) => name.endsWith(".json"))
+		.map((name) => readMetadataFile(projectDir, name))
+		.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+		.map((metadata) =>
+			operatorStatusForInspection(
+				inspectAutomationWorktree({
+					projectDir,
+					taskId: metadata.taskId,
+					runId: metadata.runId,
+				}),
+			),
+		);
+}
+
 export function cleanupAutomationWorktree(selector: AutomationWorktreeSelector): {
 	removed: boolean;
 	inspection: AutomationWorktreeInspection;
@@ -169,4 +193,93 @@ function cleanupEligibility(
 		blockers.push("branch has unpushed commits");
 	}
 	return { eligible: blockers.length === 0 && exists, blockers };
+}
+
+function readMetadataFile(projectDir: string, fileName: string): AutomationWorktreeMetadata {
+	return JSON.parse(readFileSync(join(metadataDir(projectDir), fileName), "utf8")) as AutomationWorktreeMetadata;
+}
+
+function operatorStatusForInspection(inspection: AutomationWorktreeInspection): AutomationWorktreeOperatorStatus {
+	const { metadata } = inspection;
+	const cleanupStatus = cleanupStatusFor(inspection);
+	return {
+		taskId: metadata.taskId,
+		runId: metadata.runId,
+		workflowId: metadata.workflowId,
+		owner: metadata.owner,
+		workspaceDir: metadata.workspaceDir,
+		metadataPath: inspection.metadataPath,
+		exists: inspection.exists,
+		branch: inspection.branch,
+		baseCommit: inspection.baseCommit,
+		headCommit: inspection.headCommit,
+		state: operatorStateFor(inspection, cleanupStatus),
+		metadataState: metadata.state,
+		dirtyState: dirtySummaryFor(inspection.dirty),
+		dirtyEntries: inspection.dirty.entries,
+		mergeStatus: mergeStatusFor(inspection),
+		cleanupStatus,
+		cleanupEligible: inspection.cleanup.eligible,
+		cleanupBlockers: inspection.cleanup.blockers,
+		nextAction: nextActionFor(inspection, cleanupStatus),
+	};
+}
+
+function operatorStateFor(
+	inspection: AutomationWorktreeInspection,
+	cleanupStatus: AutomationWorktreeOperatorStatus["cleanupStatus"],
+): AutomationWorktreeOperatorStatus["state"] {
+	if (inspection.metadata.state === "removed" && !inspection.exists) return "removed";
+	if (inspection.dirty.conflicted) return "conflicted";
+	if (inspection.metadata.state === "removed" && cleanupStatus !== "removed") return "active";
+	return inspection.metadata.state;
+}
+
+function dirtySummaryFor(dirty: WorktreeDirtyState): AutomationWorktreeOperatorStatus["dirtyState"] {
+	if (dirty.conflicted) return "conflicted";
+	if (dirty.dirty) return "dirty";
+	return "clean";
+}
+
+function cleanupStatusFor(inspection: AutomationWorktreeInspection): AutomationWorktreeOperatorStatus["cleanupStatus"] {
+	if (inspection.metadata.state === "removed" && !inspection.exists) return "removed";
+	return inspection.cleanup.eligible ? "eligible" : "blocked";
+}
+
+function mergeStatusFor(inspection: AutomationWorktreeInspection): string {
+	const { metadata } = inspection;
+	if (metadata.state === "pending-merge") {
+		return metadata.stateReason ? `pending-merge: ${metadata.stateReason}` : "pending-merge";
+	}
+	if (inspection.dirty.conflicted) return "conflicted";
+	if (metadata.state === "merged") {
+		return metadata.mergedCommit ? `merged: ${metadata.mergedCommit}` : "merged";
+	}
+	if (metadata.state === "removed") return "removed";
+	return "not merged";
+}
+
+function nextActionFor(
+	inspection: AutomationWorktreeInspection,
+	cleanupStatus: AutomationWorktreeOperatorStatus["cleanupStatus"],
+): string {
+	const { metadata } = inspection;
+	if (cleanupStatus === "removed") return "none; git worktree list and KOTA metadata both show removed";
+	if (inspection.dirty.conflicted) return "resolve merge conflicts before merge or cleanup";
+	if (cleanupStatus === "eligible") return `cleanup eligible for ${metadata.taskId}/${metadata.runId}`;
+	if (metadata.state === "pending-merge") {
+		return metadata.stateReason ? `review pending merge: ${metadata.stateReason}` : "review pending merge";
+	}
+	if (inspection.lock.locked) {
+		return inspection.lock.reason
+			? `wait for lock owner or unlock after verifying: ${inspection.lock.reason}`
+			: "wait for lock owner or unlock after verifying the run stopped";
+	}
+	if (inspection.dirty.trackedDirty || inspection.dirty.untracked) {
+		return "inspect workspace changes before cleanup";
+	}
+	if (inspection.push.unpushed) return "push or merge branch commits before cleanup";
+	if (!inspection.exists) return "inspect missing worktree path before cleanup";
+	if (metadata.state === "active") return `wait for ${metadata.owner} to finish`;
+	return "resolve cleanup blockers before removal";
 }

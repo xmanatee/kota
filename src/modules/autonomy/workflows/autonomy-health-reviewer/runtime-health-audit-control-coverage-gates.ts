@@ -9,6 +9,7 @@ import type {
   WorkflowRunMetadata,
   WorkflowStepResult,
 } from "#core/workflow/run-types.js";
+import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
 import type { RuntimeHealthAuditContext } from "./runtime-health-audit-model.js";
 
 type WorkflowHistoryRunLike = Pick<WorkflowRunMetadata, "id" | "steps">;
@@ -26,6 +27,8 @@ type TrustedSkippedGateStep = {
   id: string;
   type: "approval" | "await-event";
 };
+
+const AGENT_STEP_TIMEOUT_ERROR = /^Step "[^"]+" timed out after \d+ms$/;
 
 function hasDotSegment(path: string): boolean {
   return path.split(/[\\/]/).some((segment) => segment === "." || segment === "..");
@@ -138,4 +141,38 @@ export function isStaleSkippedApprovalOwnerGateGap(
       step.status === "skipped"
     );
   });
+}
+
+function isAgentRuntimeEvidenceGap(gap: ControlCoverageGap): boolean {
+  return (
+    (gap.family === "agent-step-stream" &&
+      gap.reason === "missing-agent-step-events") ||
+    (gap.family === "trajectory-diagnostics" &&
+      gap.reason === "missing-trajectory-diagnostics")
+  );
+}
+
+function parseAgentFailureSubtype(error: string): string | undefined {
+  const match = /\(([^)]+)\):/.exec(error);
+  return match?.[1];
+}
+
+function isInfrastructureAgentFailure(step: WorkflowStepResult): boolean {
+  if (step.type !== "agent" || step.status !== "failed") return false;
+  if (step.errorKind === "idle-timeout") return true;
+  if (typeof step.error !== "string") return false;
+  if (AGENT_STEP_TIMEOUT_ERROR.test(step.error)) return true;
+  return classifyAgentRuntimeFailure({
+    message: step.error,
+    subtype: parseAgentFailureSubtype(step.error),
+  }) !== null;
+}
+
+export function isInfrastructureAgentRuntimeCoverageGap(
+  run: WorkflowHistoryRunLike,
+  gap: ControlCoverageGap,
+): boolean {
+  if (!isAgentRuntimeEvidenceGap(gap)) return false;
+  const step = run.steps.find((candidate) => candidate.id === gap.subject);
+  return step !== undefined && isInfrastructureAgentFailure(step);
 }

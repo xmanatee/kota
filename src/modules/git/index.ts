@@ -14,8 +14,12 @@ import { localWriteEffect } from "#core/tools/effect.js";
 import { gitTool, runGit } from "./git.js";
 
 export type {
+	AutomationWorktreeCleanupStatus,
+	AutomationWorktreeDirtySummary,
 	AutomationWorktreeInspection,
 	AutomationWorktreeMetadata,
+	AutomationWorktreeOperatorState,
+	AutomationWorktreeOperatorStatus,
 	AutomationWorktreeSelector,
 	AutomationWorktreeState,
 	CleanupEligibility,
@@ -28,6 +32,7 @@ export {
 	cleanupAutomationWorktree,
 	createAutomationWorktree,
 	inspectAutomationWorktree,
+	listAutomationWorktreeStatuses,
 	lockAutomationWorktree,
 	prepareAutomationWorktree,
 	unlockAutomationWorktree,

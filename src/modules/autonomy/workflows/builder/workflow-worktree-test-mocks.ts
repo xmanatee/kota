@@ -71,6 +71,7 @@ vi.mock("#modules/git/worktree-lifecycle.js", () => ({
     removed: true,
     inspection: {
       metadata: makeMetadata(selector, "removed"),
+      metadataPath: `${selector.projectDir}/.kota/worktrees/${selector.taskId}-${selector.runId}.json`,
       cleanup: { eligible: true, blockers: [] },
     },
   })),

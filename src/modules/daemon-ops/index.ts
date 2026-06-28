@@ -913,7 +913,7 @@ const daemonModule: KotaModule = {
   name: "daemon-ops",
   version: "1.0.0",
   description: "Operator CLI and supervisor surface for the KOTA daemon runtime",
-  dependencies: ["repo-tasks", "rendering"],
+  dependencies: ["git", "repo-tasks", "rendering"],
 
   uiSurfaces: () => [buildOperatorControlUiSurface()],
 

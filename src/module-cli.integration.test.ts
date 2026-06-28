@@ -196,20 +196,21 @@ describe("module lifecycle across multiple loadAll/unloadAll cycles", () => {
 
     await expect(loader2.loadAll(projectModules)).rejects.toThrow("project module(s) failed to load");
 
-    // Tool-providing modules (memory, scheduler) should have failed
+    // Tool-providing modules (memory, scheduler, git) should have failed
     // because their tools are already registered
     const loaded = loader2.getLoadedModules();
     expect(loaded).not.toContain("memory");
     expect(loaded).not.toContain("scheduler");
+    expect(loaded).not.toContain("git");
 
     // Modules without tools and without tool-conflicting transitive
-    // dependencies should still load (daemon-ops -> repo-tasks -> rendering
-    // is an entirely tool-less subgraph). Modules like telegram declare a
-    // dependency on a tool-providing module (knowledge) and therefore fail
-    // by transitive dependency, not by tool conflict.
-    expect(loaded).toContain("daemon-ops");
+    // dependencies should still load (repo-tasks -> rendering is a
+    // tool-less subgraph). Modules like daemon-ops and telegram declare a
+    // dependency on a tool-providing module (git / knowledge) and therefore
+    // fail by transitive dependency, not by direct tool conflict.
     expect(loaded).toContain("repo-tasks");
     expect(loaded).toContain("rendering");
+    expect(loaded).not.toContain("daemon-ops");
 
     errSpy.mockRestore();
     await loader1.unloadAll();

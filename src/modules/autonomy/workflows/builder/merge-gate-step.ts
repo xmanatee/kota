@@ -1,3 +1,5 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import {
 	expectStructuredOutput,
@@ -20,7 +22,10 @@ import type { BuilderWorkspaceResult } from "./prepare-worktree-step.js";
 export type AutomationWorktreeCleanupResult = {
 	removed: boolean;
 	workspaceDir: string | null;
+	metadataPath: string | null;
+	artifactPath: string;
 	state: string | null;
+	cleanupEligible: boolean;
 	blockers: string[];
 };
 
@@ -107,7 +112,10 @@ export function createCleanupAutomationWorktreeStep(): TypedCodeStepInput<Automa
 			expectStructuredOutput<AutomationWorktreeCleanupResult>(raw, [
 				"removed",
 				"workspaceDir",
+				"metadataPath",
+				"artifactPath",
 				"state",
+				"cleanupEligible",
 				"blockers",
 			]),
 		run: (ctx) => {
@@ -118,12 +126,18 @@ export function createCleanupAutomationWorktreeStep(): TypedCodeStepInput<Automa
 				taskId: workspace.taskId,
 				runId: ctx.workflow.runId,
 			});
-			return {
+			const artifact = {
 				removed: result.removed,
 				workspaceDir: result.inspection.metadata.workspaceDir,
+				metadataPath: result.inspection.metadataPath,
+				artifactPath: join(ctx.workflow.runDirPath, "automation-worktree-cleanup.json"),
 				state: result.inspection.metadata.state,
+				cleanupEligible: result.inspection.cleanup.eligible,
 				blockers: result.inspection.cleanup.blockers,
 			};
+			mkdirSync(dirname(artifact.artifactPath), { recursive: true });
+			writeFileSync(artifact.artifactPath, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
+			return artifact;
 		},
 	});
 }

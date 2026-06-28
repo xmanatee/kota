@@ -14,6 +14,7 @@ import type {
   UiSurface,
   UiSurfaceBundle,
 } from "./operator-ui-types.js";
+import { statusWorktreeItems } from "./operator-ui-worktree-status.js";
 import type { StatusSnapshot } from "./status-cli.js";
 
 function statusEntries(snapshot: StatusSnapshot, explain: boolean): UiStatusEntry[] {
@@ -151,6 +152,14 @@ export function buildStatusUiSurface(
       result: resultSpec("Daemon status loaded."),
     }),
   ];
+  const worktreeItems = statusWorktreeItems(snapshot);
+  const nodes: UiSurface["nodes"] = [
+    { kind: "status-summary", entries: statusEntries(snapshot, options.explain === true) },
+    ...(worktreeItems.length > 0
+      ? [{ kind: "list" as const, title: "Automation worktrees", items: worktreeItems }]
+      : []),
+    { kind: "list", title: "Warnings", items: statusWarnings(snapshot, scopeId) },
+  ];
   return {
     protocolVersion: "ui.surface.v1",
     surfaceId: "status",
@@ -161,10 +170,7 @@ export function buildStatusUiSurface(
     attachmentPoint: { kind: "root" },
     order: 10,
     permissions: [{ kind: "capability-scope", scope: "read" }],
-    nodes: [
-      { kind: "status-summary", entries: statusEntries(snapshot, options.explain === true) },
-      { kind: "list", title: "Warnings", items: statusWarnings(snapshot, scopeId) },
-    ],
+    nodes,
     actions,
   };
 }

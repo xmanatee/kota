@@ -60,6 +60,10 @@ export function metadataPath(projectDir: string, taskId: string, runId: string):
 	return join(projectDir, METADATA_DIR, `${safeSegment(taskId)}-${safeSegment(runId)}.json`);
 }
 
+export function metadataDir(projectDir: string): string {
+	return join(projectDir, METADATA_DIR);
+}
+
 export function writeMetadata(projectDir: string, metadata: AutomationWorktreeMetadata): void {
 	const path = metadataPath(projectDir, metadata.taskId, metadata.runId);
 	mkdirSync(dirname(path), { recursive: true });

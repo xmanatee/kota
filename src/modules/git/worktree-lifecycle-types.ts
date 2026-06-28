@@ -1,5 +1,38 @@
 export type AutomationWorktreeState = "active" | "pending-merge" | "merged" | "removed";
 
+export type AutomationWorktreeOperatorState =
+	| "active"
+	| "pending-merge"
+	| "conflicted"
+	| "merged"
+	| "removed";
+
+export type AutomationWorktreeCleanupStatus = "eligible" | "blocked" | "removed";
+
+export type AutomationWorktreeDirtySummary = "clean" | "dirty" | "conflicted";
+
+export type AutomationWorktreeOperatorStatus = {
+	taskId: string;
+	runId: string;
+	workflowId: string;
+	owner: string;
+	workspaceDir: string;
+	metadataPath: string;
+	exists: boolean;
+	branch: string;
+	baseCommit: string;
+	headCommit: string;
+	state: AutomationWorktreeOperatorState;
+	metadataState: AutomationWorktreeState;
+	dirtyState: AutomationWorktreeDirtySummary;
+	dirtyEntries: string[];
+	mergeStatus: string;
+	cleanupStatus: AutomationWorktreeCleanupStatus;
+	cleanupEligible: boolean;
+	cleanupBlockers: string[];
+	nextAction: string;
+};
+
 export type AutomationWorktreeMetadata = {
 	schemaVersion: 1;
 	taskId: string;

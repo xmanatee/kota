@@ -3,9 +3,11 @@ import { join } from "node:path";
 
 export type StepSeed = {
   id: string;
-  type: "approval" | "await-event" | "code";
+  type: "agent" | "approval" | "await-event" | "code";
   status: "success" | "failed" | "skipped";
   event?: string;
+  error?: string;
+  errorKind?: "idle-timeout";
 };
 
 export function readyTaskPath(projectDir: string, taskId: string): string {
@@ -100,7 +102,108 @@ function stepResult(step: StepSeed, startedAt: string) {
     ...(step.status === "skipped"
       ? { skipReason: { kind: "when-predicate" } }
       : {}),
+    ...(step.error ? { error: step.error } : {}),
+    ...(step.errorKind ? { errorKind: step.errorKind } : {}),
   };
+}
+
+export function writeRunWithAgentRuntimeCoverageGaps(
+  projectDir: string,
+  args: {
+    id: string;
+    startedAt: string;
+    error: string;
+    errorKind?: "idle-timeout";
+  },
+): void {
+  const { id, startedAt } = args;
+  const runDir = join(projectDir, ".kota", "runs", id);
+  mkdirSync(runDir, { recursive: true });
+  const step: StepSeed = {
+    id: "review-evidence",
+    type: "agent",
+    status: "failed",
+    error: args.error,
+    ...(args.errorKind ? { errorKind: args.errorKind } : {}),
+  };
+  writeFileSync(
+    join(runDir, "metadata.json"),
+    JSON.stringify({
+      id,
+      workflow: "progress-reviewer",
+      status: "failed",
+      startedAt,
+      completedAt: startedAt,
+      durationMs: 1000,
+      runDir: `.kota/runs/${id}`,
+      steps: [stepResult(step, startedAt)],
+    }),
+    "utf-8",
+  );
+  writeFileSync(
+    join(runDir, "control-monitor-coverage.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      generatedAt: startedAt,
+      artifactPath: `.kota/runs/${id}/control-monitor-coverage.json`,
+      run: {
+        id,
+        workflow: "progress-reviewer",
+        triggerEvent: "workflow.batch.flushed",
+        status: "failed",
+        startedAt,
+        completedAt: startedAt,
+        headSha: "abc123",
+      },
+      monitoredSurfaceCounts: {
+        agentSteps: 1,
+        toolCalls: 0,
+        externalPayloadIngests: 0,
+        approvalRequests: 0,
+        ownerQuestionWaits: 0,
+        daemonHostControlDenials: 0,
+        runtimeProbes: 0,
+        postRunReviewLinks: 0,
+      },
+      summary: {
+        numerator: 1,
+        denominator: 3,
+        gapCount: 2,
+        unsupportedCount: 0,
+        pendingCount: 0,
+        blockedCount: 0,
+        warnedCount: 0,
+      },
+      families: [],
+      gaps: [
+        {
+          id: "agent-step-stream:missing-agent-step-events:1",
+          family: "agent-step-stream",
+          severity: "warning",
+          reason: "missing-agent-step-events",
+          subject: step.id,
+          evidenceRefs: [
+            `.kota/runs/${id}/steps/${step.id}.harness-capability.json`,
+          ],
+        },
+        {
+          id: "trajectory-diagnostics:missing-trajectory-diagnostics:2",
+          family: "trajectory-diagnostics",
+          severity: "warning",
+          reason: "missing-trajectory-diagnostics",
+          subject: step.id,
+          evidenceRefs: [`.kota/runs/${id}/metadata.json`],
+        },
+      ],
+      asyncReviewResponseMs: {
+        observations: 0,
+        min: null,
+        max: null,
+        average: null,
+      },
+    }),
+    "utf-8",
+  );
 }
 
 export function writeRunWithApprovalOwnerGateGap(
