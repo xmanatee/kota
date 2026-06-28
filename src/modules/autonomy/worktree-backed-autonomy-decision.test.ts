@@ -43,6 +43,28 @@ describe("worktree-backed autonomy decision", () => {
     ]);
   });
 
+  it("keeps permission-sensitive rollout decisions observable", () => {
+    const observableMetadata = {
+      status: WORKTREE_BACKED_AUTONOMY_DECISION.status,
+      pendingMergePolicy: WORKTREE_BACKED_AUTONOMY_DECISION.pendingMergePolicy.join("\n"),
+      rolloutOrder: WORKTREE_BACKED_AUTONOMY_DECISION.rolloutOrder.map((step) => step.name),
+      safetyRuleIds: WORKTREE_BACKED_AUTONOMY_DECISION.safetyRules.map((rule) => rule.id),
+    };
+
+    expect(observableMetadata.status).toBe("accepted");
+    expect(observableMetadata.safetyRuleIds).toEqual(
+      expect.arrayContaining([
+        "pending-conflicts-stay-visible",
+        "untracked-work-preserved",
+        "failed-validation-blocks-merge",
+      ]),
+    );
+    expect(observableMetadata.pendingMergePolicy).toContain("operator-visible");
+    expect(observableMetadata.rolloutOrder.indexOf("status-and-cleanup")).toBeLessThan(
+      observableMetadata.rolloutOrder.indexOf("guarded-parallelism"),
+    );
+  });
+
   it("captures the staged rollout order before guarded parallelism", () => {
     expect(WORKTREE_BACKED_AUTONOMY_DECISION.rolloutOrder.map((step) => step.name)).toEqual([
       "builder-workspace",
