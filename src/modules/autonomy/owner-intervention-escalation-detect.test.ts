@@ -46,6 +46,44 @@ describe("owner intervention escalation detection", () => {
     });
   });
 
+  it("keeps stale record-only health reviewer questions reportable but out of active repair escalation", () => {
+    writeQuestion(projectDir, {
+      id: "health-stale-a",
+      status: "pending",
+      runId: "health-run-a",
+      taskId: null,
+      workflowName: "autonomy-health-reviewer",
+      source: "autonomy-health-reviewer",
+      answerBehavior: "record-only",
+      createdAt: new Date(NOW - 2 * MS_PER_DAY).toISOString(),
+    });
+    writeQuestion(projectDir, {
+      id: "health-stale-b",
+      status: "pending",
+      runId: "health-run-b",
+      taskId: null,
+      workflowName: "autonomy-health-reviewer",
+      source: "autonomy-health-reviewer",
+      answerBehavior: "record-only",
+      createdAt: new Date(NOW - 2 * MS_PER_DAY).toISOString(),
+    });
+
+    const found = ownerInterventionDetection(projectDir);
+
+    expect(found.patterns).toEqual([]);
+    expect(found.ignoredPatterns).toHaveLength(1);
+    expect(found.ignoredPatterns[0]).toMatchObject({
+      kind: "repeated-stale-or-expired",
+      actionability: "ignored",
+      dimension: { kind: "workflow", value: "autonomy-health-reviewer" },
+      questionIds: ["health-stale-a", "health-stale-b"],
+      runIds: ["health-run-a", "health-run-b"],
+      taskIds: [],
+      ignoredReason:
+        "record-only owner questions preserve operator follow-up evidence without blocking workflow progress.",
+    });
+  });
+
   it("detects workflow and source recurrence across different task ids", () => {
     writeQuestion(projectDir, {
       id: "workflow-task-a",

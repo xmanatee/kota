@@ -100,6 +100,17 @@ function observationForRecord(
     };
   }
   if (unansweredPressure(record)) {
+    if (record.answerBehavior === "record-only") {
+      return {
+        kind: "repeated-stale-or-expired",
+        actionability: "ignored",
+        dimension,
+        record,
+        codeActionableReason: null,
+        ignoredReason:
+          "record-only owner questions preserve operator follow-up evidence without blocking workflow progress.",
+      };
+    }
     return {
       kind: "repeated-stale-or-expired",
       actionability: "code-actionable",

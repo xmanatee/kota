@@ -1,13 +1,13 @@
 ---
 id: task-repair-owner-intervention-pattern-d68f641b4b1d
 title: Repair recurring owner intervention for autonomy-health-reviewer
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Safety
 summary: Reduce repeated stale or expired for workflow autonomy-health-reviewer without exposing owner answers.
 created_at: 2026-06-28T12:36:42.466Z
-updated_at: 2026-06-28T12:36:42.466Z
+updated_at: 2026-06-28T15:12:38.000Z
 ---
 
 ## Problem
@@ -91,6 +91,7 @@ Outcome-aware autonomy governance.
   escalation gate on fresh evidence.
 - Operator-facing report or attention fixture showing future escalations
   include the repair task id without owner answer bodies or spend metrics.
+- Run artifact: `.kota/runs/2026-06-28T15-01-53-860Z-builder-v8pjn8/acceptance-evidence.md`
 
 <!-- owner-intervention-pattern-fingerprint: owner-intervention:repeated-stale-or-expired:code-actionable:workflow:78900ea2ae6c -->
 <!-- owner-intervention-evidence-fingerprint: 3f3363578a81904c400110a8d8cc248c978a85a99cc82d26771e687fdf13c4e6 -->
