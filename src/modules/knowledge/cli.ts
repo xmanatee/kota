@@ -11,6 +11,7 @@ import {
 } from "#modules/rendering/primitives.js";
 import { print, printToStderr, writeJson, writeStdoutLine } from "#modules/rendering/transport.js";
 import { registerKnowledgeImportCommand } from "./cli-import-command.js";
+import { registerKnowledgeOkfCommand } from "./cli-okf-command.js";
 import {
 	buildKnowledgeListNode,
 	buildKnowledgeSearchNode,
@@ -245,4 +246,5 @@ export function registerKnowledgeCommands(
 		});
 
 	registerKnowledgeImportCommand(kCmd, ctx);
+	registerKnowledgeOkfCommand(kCmd, ctx);
 }

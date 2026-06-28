@@ -181,6 +181,8 @@ describe("parseKnowledgeFile", () => {
 			"title: Meta Entry",
 			"priority: high",
 			"assignee: alice",
+			"producer.version: v2",
+			"gcp:semantic-type: fact-table",
 			"---",
 			"body",
 		]);
@@ -188,6 +190,8 @@ describe("parseKnowledgeFile", () => {
 		expect(entry).not.toBeNull();
 		expect(entry!.meta.priority).toBe("high");
 		expect(entry!.meta.assignee).toBe("alice");
+		expect(entry!.meta["producer.version"]).toBe("v2");
+		expect(entry!.meta["gcp:semantic-type"]).toBe("fact-table");
 		expect(entry!.meta.id).toBeUndefined();
 		expect(entry!.meta.title).toBeUndefined();
 	});

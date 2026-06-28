@@ -25,7 +25,7 @@ export function parseFlatFrontMatter(raw: string): {
   for (const line of split.frontmatter.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
-    const colonIdx = trimmed.indexOf(":");
+    const colonIdx = findFlatFrontMatterSeparator(trimmed);
     if (colonIdx < 1) continue;
     const key = trimmed.slice(0, colonIdx).trim();
     const val = trimmed.slice(colonIdx + 1).trim();
@@ -41,6 +41,27 @@ export function parseFlatFrontMatter(raw: string): {
   }
 
   return { attrs, body: split.body };
+}
+
+export function findFlatFrontMatterSeparator(line: string): number {
+  let fallbackColon = -1;
+  for (let index = 0; index < line.length; index++) {
+    if (line[index] !== ":") continue;
+    if (fallbackColon < 0) fallbackColon = index;
+    const next = line[index + 1];
+    if (next === undefined || /\s/.test(next)) return index;
+  }
+  return fallbackColon;
+}
+
+export function isFlatFrontMatterKey(key: string): boolean {
+  return (
+    key.length > 0 &&
+    key.trim() === key &&
+    !key.startsWith("#") &&
+    !/[\r\n\0]/.test(key) &&
+    !/:\s/.test(key)
+  );
 }
 
 export function serializeFlatFrontMatter(

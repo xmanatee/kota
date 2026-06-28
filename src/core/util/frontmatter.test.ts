@@ -95,6 +95,14 @@ describe("parseFlatFrontMatter", () => {
 		const result = parseFlatFrontMatter(raw);
 		expect(result.attrs.url).toBe("http://example.com");
 	});
+
+	it("parses dotted and colon-namespaced keys", () => {
+		const raw =
+			"---\nproducer.version: v2\ngcp:semantic-type: fact-table\n---\nbody";
+		const result = parseFlatFrontMatter(raw);
+		expect(result.attrs["producer.version"]).toBe("v2");
+		expect(result.attrs["gcp:semantic-type"]).toBe("fact-table");
+	});
 });
 
 describe("serializeFlatFrontMatter", () => {
@@ -118,6 +126,16 @@ describe("serializeFlatFrontMatter", () => {
 		const parsed = parseFlatFrontMatter(original);
 		const roundTripped = serializeFlatFrontMatter(parsed.attrs, parsed.body);
 		expect(roundTripped).toBe(original);
+	});
+
+	it("round-trips namespaced keys", () => {
+		const result = serializeFlatFrontMatter(
+			{ "producer.version": "v2", "gcp:semantic-type": "fact-table" },
+			"body",
+		);
+		const parsed = parseFlatFrontMatter(result);
+		expect(parsed.attrs["producer.version"]).toBe("v2");
+		expect(parsed.attrs["gcp:semantic-type"]).toBe("fact-table");
 	});
 
 	it("serializes empty attrs with bare delimiters", () => {
