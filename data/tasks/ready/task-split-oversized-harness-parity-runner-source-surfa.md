@@ -1,12 +1,12 @@
 ---
 id: task-split-oversized-harness-parity-runner-source-surfa
 title: Split oversized harness-parity runner source surface
-status: backlog
+status: ready
 priority: p3
 area: modules
 summary: Builder run 2026-06-27T00-33-10-684Z-builder-wtiy1i left an untracked source-file-size advisory for src/modules/harness-parity/runner.ts at 1777 lines after a touched change. Split cohesive runner helpers or record a narrow source-size cleanup exception so future harness-parity edits do not leave the same warning untracked.
 created_at: 2026-06-27T03:17:44.373Z
-updated_at: 2026-06-27T03:17:44.373Z
+updated_at: 2026-06-28T18:33:27.183Z
 ---
 
 ## Problem

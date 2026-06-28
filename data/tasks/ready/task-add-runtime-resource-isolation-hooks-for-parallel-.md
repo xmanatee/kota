@@ -1,14 +1,14 @@
 ---
 id: task-add-runtime-resource-isolation-hooks-for-parallel-
 title: Add runtime resource isolation hooks for parallel worktrees
-status: backlog
+status: ready
 priority: p2
 area: platform
 task_class: Platform
 depends_on: [task-add-workflow-workspace-checkout-contract, task-add-git-worktree-lifecycle-provider-for-automation]
 summary: Give parallel worktrees deterministic ports, temp roots, dependency setup, and future database/service isolation hooks so file isolation does not hide runtime collisions.
 created_at: 2026-06-25T14:54:07.903Z
-updated_at: 2026-06-25T14:54:07.903Z
+updated_at: 2026-06-28T18:33:27.151Z
 ---
 
 ## Problem
