@@ -287,21 +287,79 @@ describe("harness-parity runner", () => {
     expect(artifact.harnessName).toBe("fixing");
     expect(artifact.isError).toBe(false);
     expect(artifact.effort).toBe("xhigh");
+    expect(artifact.stageMode).toBe("single");
+    expect(artifact.stagedSummary).toMatchObject({
+      mode: "single",
+      passed: true,
+      stageCount: 1,
+    });
+    expect(artifact.trajectory).toMatchObject({
+      status: "unsupported",
+      emitsAgentMessageStream: false,
+      frameCount: 0,
+      artifactPath: join(artifact.artifactDir, "trajectory.json"),
+      summaryPath: join(artifact.artifactDir, "trajectory-summary.md"),
+    });
+    expect(artifact.trajectoryDiagnostics).toMatchObject({
+      warningCount: 1,
+      artifactPath: join(artifact.artifactDir, "trajectory-diagnostics.json"),
+    });
 
-    const meta = JSON.parse(
+    const artifactMetadata = JSON.parse(
       readFileSync(join(artifact.artifactDir, "run-meta.json"), "utf-8"),
     );
-    expect(meta.verification.passed).toBe(true);
-    expect(meta.effort).toBe("xhigh");
+    expect(artifactMetadata.verification).toMatchObject({
+      command: "node -e \"require('./add.js').add(2,3)===5 || process.exit(1)\"",
+      timeoutMs: 10_000,
+      passed: true,
+      exitStatus: 0,
+      timedOut: false,
+    });
+    expect(artifactMetadata.effort).toBe("xhigh");
+    expect(artifactMetadata.capability).toMatchObject({
+      emitsAgentMessageStream: false,
+      toolControl: "kota",
+    });
+    expect(artifactMetadata.stages[0]).toMatchObject({
+      stageId: "main",
+      verification: { passed: true },
+      trajectory: { status: "unsupported" },
+      trajectoryDiagnostics: { warningCount: 1 },
+    });
 
     const summary = readFileSync(
       join(artifact.artifactDir, "trace-summary.md"),
       "utf-8",
     );
     expect(summary).toContain("- effort: xhigh");
+    expect(summary).toContain("- verification: pass (exit 0)");
+    expect(summary).toContain("- trajectoryDiagnostics: warnings=1, artifact=");
+    expect(summary).toContain("- emitsAgentMessageStream: false");
 
     const trace = readFileSync(join(artifact.artifactDir, "trace.txt"), "utf-8");
     expect(trace).toContain("ran with prompt");
+
+    const verificationArtifact = JSON.parse(
+      readFileSync(join(artifact.artifactDir, "verification.json"), "utf-8"),
+    );
+    expect(verificationArtifact).toMatchObject({
+      passed: true,
+      exitStatus: 0,
+      timedOut: false,
+    });
+
+    const trajectoryArtifact = JSON.parse(
+      readFileSync(join(artifact.artifactDir, "trajectory.json"), "utf-8"),
+    );
+    expect(trajectoryArtifact).toMatchObject({
+      status: "unsupported",
+      reason:
+        "Harness capability snapshot declares emitsAgentMessageStream=false.",
+      counts: {
+        frameCount: 0,
+        truncatedFrameCount: 0,
+      },
+    });
 
     const diff = readFileSync(join(artifact.artifactDir, "diff.patch"), "utf-8");
     expect(diff).toContain("add.js");
