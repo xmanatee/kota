@@ -52,7 +52,7 @@ export type PreviewArtifactResult =
       sourcePath: string;
       artifactPath: string;
       preserved: false;
-      reason: "missing" | "not_file";
+      reason: "missing" | "not_file" | "unsafe_path";
     };
 
 export type HarnessParityArtifact = {

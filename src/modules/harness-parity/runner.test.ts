@@ -1820,6 +1820,75 @@ describe("harness-parity runner", () => {
     ]);
   });
 
+  it("rejects symlinked declared preview artifacts", async () => {
+    writePreviewArtifactScenario(
+      scenariosRoot,
+      "symlink-preview",
+      ["preview.html"],
+      'const { symlinkSync, writeFileSync } = require("node:fs");\n' +
+        'writeFileSync("outside.html", "outside content\\n");\n' +
+        'symlinkSync("outside.html", "preview.html");\n' +
+        'console.log("ok");\n',
+    );
+    const scenario = loadScenario(scenariosRoot, "symlink-preview");
+    const harness = makeHarness("previewing", () => {
+      // no-op
+    });
+
+    const artifact = await runScenarioOnHarness({
+      scenario,
+      harness,
+      callOptions: { model: "test-model" },
+      outBaseDir: outRoot,
+    });
+
+    const artifactPath = join(artifact.artifactDir, "preview.html");
+    expect(artifact.previewArtifacts).toEqual([
+      {
+        sourcePath: "preview.html",
+        artifactPath,
+        preserved: false,
+        reason: "unsafe_path",
+      },
+    ]);
+    expect(existsSync(artifactPath)).toBe(false);
+  });
+
+  it("rejects declared preview artifacts with a symlinked parent", async () => {
+    writePreviewArtifactScenario(
+      scenariosRoot,
+      "symlink-parent-preview",
+      ["linked/preview.html"],
+      'const { mkdirSync, symlinkSync, writeFileSync } = require("node:fs");\n' +
+        'mkdirSync("outside");\n' +
+        'writeFileSync("outside/preview.html", "outside content\\n");\n' +
+        'symlinkSync("outside", "linked");\n' +
+        'console.log("ok");\n',
+    );
+    const scenario = loadScenario(scenariosRoot, "symlink-parent-preview");
+    const harness = makeHarness("previewing", () => {
+      // no-op
+    });
+
+    const artifact = await runScenarioOnHarness({
+      scenario,
+      harness,
+      callOptions: { model: "test-model" },
+      outBaseDir: outRoot,
+    });
+
+    const artifactPath = join(artifact.artifactDir, "linked", "preview.html");
+    expect(artifact.previewArtifacts).toEqual([
+      {
+        sourcePath: "linked/preview.html",
+        artifactPath,
+        preserved: false,
+        reason: "unsafe_path",
+      },
+    ]);
+    expect(existsSync(artifactPath)).toBe(false);
+  });
+
   it("leaves the scenario initial/ tree untouched", async () => {
     const scenario = loadScenario(scenariosRoot, "fix-add");
     const harness = makeHarness("tampering", (workingDir) => {

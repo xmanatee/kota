@@ -1,15 +1,17 @@
 import { spawnSync } from "node:child_process";
+import type { Stats } from "node:fs";
 import {
+  copyFileSync,
   cpSync,
-  existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
+  realpathSync,
   rmSync,
-  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { DIFF_TAIL_LIMIT, TRACE_TAIL_LIMIT } from "./runner-constants.js";
 import type {
@@ -83,25 +85,75 @@ export function runVerification(
   };
 }
 
+function isInsideDirectory(parentDir: string, candidatePath: string): boolean {
+  const relativePath = relative(parentDir, candidatePath);
+  return (
+    relativePath === "" ||
+    (relativePath !== ".." &&
+      !relativePath.startsWith(`..${sep}`) &&
+      !isAbsolute(relativePath))
+  );
+}
+
+function previewSourceHasSymlinkComponent(
+  workingDir: string,
+  sourcePath: string,
+): boolean {
+  const segments = sourcePath
+    .split(/[\\/]+/)
+    .filter((segment) => segment.length > 0);
+  let current = workingDir;
+  for (const segment of segments) {
+    current = join(current, segment);
+    if (lstatSync(current).isSymbolicLink()) return true;
+  }
+  return false;
+}
+
+function isMissingPathError(err: Error): boolean {
+  return (
+    "code" in err &&
+    (err.code === "ENOENT" || err.code === "ENOTDIR")
+  );
+}
+
 export function capturePreviewArtifacts(args: {
   workingDir: string;
   artifactDir: string;
   previewArtifacts: readonly string[];
 }): PreviewArtifactResult[] {
   const results: PreviewArtifactResult[] = [];
+  const workingDirRealPath = realpathSync(args.workingDir);
   for (const sourcePath of args.previewArtifacts) {
     const source = join(args.workingDir, sourcePath);
     const artifactPath = join(args.artifactDir, sourcePath);
-    if (!existsSync(source)) {
+    let sourceStat: Stats;
+    try {
+      sourceStat = lstatSync(source);
+    } catch (err) {
+      if (err instanceof Error && isMissingPathError(err)) {
+        results.push({
+          sourcePath,
+          artifactPath,
+          preserved: false,
+          reason: "missing",
+        });
+        continue;
+      }
+      throw err;
+    }
+
+    if (previewSourceHasSymlinkComponent(args.workingDir, sourcePath)) {
       results.push({
         sourcePath,
         artifactPath,
         preserved: false,
-        reason: "missing",
+        reason: "unsafe_path",
       });
       continue;
     }
-    if (!statSync(source).isFile()) {
+
+    if (!sourceStat.isFile()) {
       results.push({
         sourcePath,
         artifactPath,
@@ -111,8 +163,18 @@ export function capturePreviewArtifacts(args: {
       continue;
     }
 
+    if (!isInsideDirectory(workingDirRealPath, realpathSync(source))) {
+      results.push({
+        sourcePath,
+        artifactPath,
+        preserved: false,
+        reason: "unsafe_path",
+      });
+      continue;
+    }
+
     mkdirSync(dirname(artifactPath), { recursive: true });
-    cpSync(source, artifactPath);
+    copyFileSync(source, artifactPath);
     results.push({ sourcePath, artifactPath, preserved: true });
   }
   return results;

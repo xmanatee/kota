@@ -1,12 +1,12 @@
 ---
 id: task-security-review-harness-parity-preview-artifact-ca
 title: Security review: Harness-parity preview artifact capture follows agent-created symlinks when deciding a declared artifact is a file, then copies or preserves that path into the run artifact directory and reports it as preserved. A harness run can leave `.kota/runs` artifacts pointing outside the materialized scenario workspace, and symlinked parent directories can cause outside-file contents to be copied into operator artifacts.
-status: ready
+status: done
 priority: p2
 area: security
 summary: Harness-parity preview artifact capture follows agent-created symlinks when deciding a declared artifact is a file, then copies or preserves that path into the run artifact directory and reports it as preserved. A harness run can leave `.kota/runs` artifacts pointing outside the materialized scenario workspace, and symlinked parent directories can cause outside-file contents to be copied into operator artifacts.
 created_at: 2026-06-28T22:12:39.285Z
-updated_at: 2026-06-28T22:12:39.285Z
+updated_at: 2026-06-28T22:26:57.043Z
 ---
 
 ## Problem
@@ -124,3 +124,12 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Resolution
+
+- `src/modules/harness-parity/runner-files.ts` now lstat-checks every declared preview artifact path component, rejects symlinked paths as `unsafe_path`, verifies the real source path remains under the materialized working directory, and copies only lstat-confirmed regular files with `copyFileSync`.
+- `src/modules/harness-parity/runner.test.ts` covers both a direct symlinked declared preview artifact and a declared artifact with a symlinked parent; both assert the artifact is not preserved.
+- Focused validation: `pnpm test src/modules/harness-parity/runner.test.ts` passed with 1 file and 23 tests.
+- Type validation: `pnpm typecheck` passed.
+- Focused style validation: `pnpm exec biome check src/modules/harness-parity/runner-files.ts src/modules/harness-parity/runner-types.ts src/modules/harness-parity/runner.test.ts` passed.
+- Queue validation: `pnpm validate-tasks` passed.
