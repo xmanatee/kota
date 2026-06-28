@@ -1,14 +1,14 @@
 ---
 id: task-migrate-mutating-autonomy-workflows-to-worktree-po
 title: Migrate mutating autonomy workflows to worktree policy
-status: backlog
+status: ready
 priority: p1
 area: autonomy
 task_class: Platform
 depends_on: [task-run-builder-work-and-repair-inside-task-worktrees, task-add-merge-gate-and-automated-conflict-resolver-for, task-surface-worktree-run-status-and-cleanup-controls]
 summary: Audit all mutating autonomy agents and either migrate them to the workspace/merge contract or document why they are control-only and safe outside it.
 created_at: 2026-06-25T14:53:56.712Z
-updated_at: 2026-06-25T14:53:56.712Z
+updated_at: 2026-06-28T15:52:35.545Z
 ---
 
 ## Problem

@@ -1,14 +1,14 @@
 ---
 id: task-enable-guarded-parallel-builder-dispatch-with-conf
 title: Enable guarded parallel builder dispatch with conflict fixtures
-status: backlog
+status: ready
 priority: p1
 area: autonomy
 task_class: Platform
 depends_on: [task-add-atomic-task-claim-leases-for-parallel-autonomy, task-run-builder-work-and-repair-inside-task-worktrees, task-add-merge-gate-and-automated-conflict-resolver-for, task-surface-worktree-run-status-and-cleanup-controls]
 summary: Allow multiple builders only behind worktree mode and prove it with disjoint, overlapping, conflict, merge, and cleanup harness fixtures.
 created_at: 2026-06-25T14:54:02.826Z
-updated_at: 2026-06-25T14:54:02.826Z
+updated_at: 2026-06-28T15:52:35.579Z
 ---
 
 ## Problem
