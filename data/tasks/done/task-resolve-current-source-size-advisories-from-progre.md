@@ -1,12 +1,12 @@
 ---
 id: task-resolve-current-source-size-advisories-from-progre
 title: Resolve current source-size advisories from progress-review batch
-status: ready
+status: done
 priority: p3
 area: architecture
 summary: Builder runs 2026-06-28T15-23-42-157Z-builder-d8xjbe and 2026-06-28T15-56-27-564Z-builder-j6amm8 left untracked source-size advisories for src/core/daemon/approval-queue.test.ts and src/modules/autonomy/worktree-backed-autonomy-decision.ts. Split cohesive helpers or record a narrow justified exception with evidence.
 created_at: 2026-06-28T16:30:11.512Z
-updated_at: 2026-06-28T16:30:11.512Z
+updated_at: 2026-06-28T17:23:28.876Z
 ---
 
 ## Problem
@@ -47,4 +47,7 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- Record before/after line counts and source-file-size diagnostics for both cited files; each advisory is gone or has a narrow documented exception/rationale; focused approval-queue/autonomy tests and task validation pass.
+- Before evidence: `.kota/runs/2026-06-28T15-23-42-157Z-builder-d8xjbe/source-file-size-review.json` reported `src/core/daemon/approval-queue.test.ts` at 634 lines, and `.kota/runs/2026-06-28T15-56-27-564Z-builder-j6amm8/source-file-size-review.json` reported `src/modules/autonomy/worktree-backed-autonomy-decision.ts` at 311 lines.
+- After line counts are recorded in `.kota/runs/2026-06-28T17-14-55-483Z-builder-b03oaq/source-size-line-counts.txt`: approval queue tests are split into 289 / 135 / 252 / 28-line files, and the worktree decision split is 247 / 65 lines.
+- Real staged-index source-size diagnostics reported `OK: changed source files are under source-size warning thresholds`.
+- Focused approval-queue/autonomy tests passed: 5 files, 55 tests. `pnpm run typecheck`, scoped Biome, and real staged-index task validation passed; details are in `.kota/runs/2026-06-28T17-14-55-483Z-builder-b03oaq/validation.txt`.
