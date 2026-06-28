@@ -497,6 +497,30 @@ describe("approval.changed events", () => {
 		});
 	});
 
+	it("emits observable events for snapshot approve-all execution", () => {
+		const first = queue.enqueue("shell", { command: "a" }, "dangerous", "r", "session-a");
+		const second = queue.enqueue("git", { command: "b" }, "dangerous", "r", "session-b");
+		const queuedLater = queue.enqueue("shell", { command: "late" }, "moderate", "r", "session-late");
+		received.length = 0;
+
+		const result = queue.approvePendingForExecution([first.id, second.id], "operator reviewed snapshot");
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) throw new Error("expected approve-all snapshot to succeed");
+		expect(result.approvals.map((approval) => approval.id)).toEqual([first.id, second.id]);
+		expect(queue.get(queuedLater.id)?.status).toBe("pending");
+		const resolved = received.filter(({ event }) => event === "approval.resolved").map(({ payload }) => payload);
+		expect(resolved).toMatchObject([
+			{ scopeId: "test-project", projectId: "test-project", id: first.id, approved: true, source: "session-a" },
+			{ scopeId: "test-project", projectId: "test-project", id: second.id, approved: true, source: "session-b" },
+		]);
+		const changed = received.filter(({ event }) => event === "approval.changed").map(({ payload }) => payload);
+		expect(changed).toEqual([
+			{ scopeId: "test-project", projectId: "test-project", id: first.id, pendingCount: 2 },
+			{ scopeId: "test-project", projectId: "test-project", id: second.id, pendingCount: 1 },
+		]);
+	});
+
 	it("emits approval.changed on reject with decremented pending count", () => {
 		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
 		received.length = 0;

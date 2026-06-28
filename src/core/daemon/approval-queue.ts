@@ -4,16 +4,8 @@ import { join } from "node:path";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { cloneEvidenceJsonObject, evidenceRetentionDurationMsFor } from "#core/evidence/policy.js";
 import type { RiskLevel } from "#core/tools/guardrails.js";
-import {
-	emitApprovalExpired,
-	emitApprovalRequested,
-	emitApprovalResolved,
-} from "./approval-queue-events.js";
-import {
-	approvalFilePath,
-	approvalFilePathForItem,
-	projectApprovalForStorage,
-} from "./approval-queue-projection.js";
+import { emitApprovalExpired, emitApprovalRequested, emitApprovalResolved } from "./approval-queue-events.js";
+import { approvalFilePath, approvalFilePathForItem, projectApprovalForStorage } from "./approval-queue-projection.js";
 
 export { isApprovalId, projectApprovalForClient } from "./approval-queue-projection.js";
 
@@ -285,8 +277,6 @@ export class ApprovalQueue {
 	}
 }
 
-// ─── Singleton ───────────────────────────────────────────────────────
-
 let _queue: ApprovalQueue | null = null;
 
 export function getApprovalQueue(dir?: string): ApprovalQueue {
@@ -294,12 +284,7 @@ export function getApprovalQueue(dir?: string): ApprovalQueue {
 	return _queue;
 }
 
-/**
- * Install a pre-built {@link ApprovalQueue} as the module-level singleton.
- * Used by the per-project runtime bundle factory to register the default
- * project's instance without re-binding the queue directory outside the
- * bundle.
- */
+// Project runtime bundle setup installs the default scope's queue instance here.
 export function setApprovalQueueInstance(queue: ApprovalQueue): void {
 	_queue = queue;
 }

@@ -1,12 +1,12 @@
 ---
 id: task-add-observability-evidence-for-approve-all-queue-f
 title: Add observability evidence for approve-all queue fix
-status: ready
+status: done
 priority: p2
 area: approval-queue
 summary: The approve-all race fix landed with changes to src/core/daemon/approval-queue.ts, but the builder diagnostic reported missing observability evidence and a source-size advisory for that runtime-sensitive file.
 created_at: 2026-06-28T13:11:09.686Z
-updated_at: 2026-06-28T13:11:09.686Z
+updated_at: 2026-06-28T15:27:49Z
 ---
 
 ## Problem
@@ -46,4 +46,7 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- A follow-up run artifact or focused test maps src/core/daemon/approval-queue.ts to inspectable observability evidence or an explicit rationale, the source-size advisory is resolved or justified, focused approval-queue tests pass, and task validation passes.
+- Run artifact `.kota/runs/2026-06-28T15-23-42-157Z-builder-d8xjbe/approval-observability-evidence.json` maps `src/core/daemon/approval-queue.ts` to the focused test assertion `src/core/daemon/approval-queue.test.ts` / `emits observable events for snapshot approve-all execution`.
+- The focused test asserts `approvePendingForExecution` emits `approval.resolved` and `approval.changed` events for the preflighted approval-id snapshot while leaving a later queued approval pending.
+- The source-size advisory is resolved: `src/core/daemon/approval-queue.ts` is 294 lines, below the 300-line guideline.
+- Validation passed: `pnpm test src/core/daemon/approval-queue.test.ts src/modules/approval-queue/routes-approve-all-race.test.ts`; `pnpm exec biome check src/core/daemon/approval-queue.ts src/core/daemon/approval-queue.test.ts`.
