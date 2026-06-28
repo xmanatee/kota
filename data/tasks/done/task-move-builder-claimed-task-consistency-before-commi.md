@@ -1,12 +1,12 @@
 ---
 id: task-move-builder-claimed-task-consistency-before-commi
 title: Move builder claimed-task consistency before commit
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Builder run 2026-06-28T12-36-26-477Z-builder-hd8dph claimed task-add-open-knowledge-format-compatibility-to-knowled but committed task-security-review-the-approve-all-control-path-prefl before the claimed-task consistency check failed. Move the mismatch gate before git commit and recover this mismatch shape so failed builders cannot land unrelated commits or strand claims.
 created_at: 2026-06-28T13:11:09.624Z
-updated_at: 2026-06-28T13:11:09.624Z
+updated_at: 2026-06-28T13:22:31.352Z
 ---
 
 ## Problem
@@ -50,3 +50,28 @@ Outcome-aware autonomy progress review.
 ## Acceptance Evidence
 
 - Focused builder workflow tests reproduce the current claimed-task/run-summary mismatch and prove no git commit is attempted, workflow.build.committed is not emitted, and the claimed task is released, marked retryable, or recovered with durable rationale; dlq-77f2249b-48e5-4c00-b1e8-a9b8784ca2a7 is cleared or superseded after validation.
+
+## Resolution
+
+Builder now runs `check-claimed-task-consistency` before `commit`, using the
+workflow-owned terminal task mutation set instead of the post-commit
+`run-summary.json`. A mismatch releases the active task claim with durable
+retry evidence, then fails before any commit or `workflow.build.committed`
+event can occur. Downstream release, calibration, emit, and restart gates also
+require an actual committed change.
+
+## Evidence
+
+- `pnpm test src/modules/autonomy/workflows/builder src/modules/autonomy/builder-commit-gates.test.ts`
+  passed, including the mismatch test asserting no `commitWorkflowChanges`
+  call, no `workflow.build.committed` event, and a released claim with evidence.
+- `pnpm run typecheck`, `pnpm run lint`, and `pnpm dev workflow validate`
+  passed.
+- `.kota/runs/2026-06-28T12-52-03-869Z-builder-dgg2jt/dlq-77f2249b-before-dismissal.json`
+  preserves the cited DLQ item before dismissal.
+- `.kota/runs/2026-06-28T12-52-03-869Z-builder-dgg2jt/dlq-77f2249b-after-dismissal.json`
+  records it dismissed as superseded by this fix.
+- `pnpm dev workflow dlq list --status open --workflow builder --json` no
+  longer lists `dlq-77f2249b-48e5-4c00-b1e8-a9b8784ca2a7`; the remaining open
+  builder DLQ is the unrelated build-timeout item
+  `dlq-2cd9edfa-3573-4b28-9cfc-6c4d1ec3afb5`.

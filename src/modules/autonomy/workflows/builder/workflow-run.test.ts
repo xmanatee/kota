@@ -41,6 +41,7 @@ describe("builder workflow run path", () => {
     });
     expect(result.steps.build.status).toBe("success");
     expect(result.steps.build.output).toMatchObject({ totalCostUsd: 0.05 });
+    expect(result.steps["check-claimed-task-consistency"].status).toBe("success");
     expect(result.steps.commit.status).toBe("success");
   });
 
@@ -108,25 +109,17 @@ describe("builder workflow run path", () => {
     });
   });
 
-  it("fails before commit emission or claim release when run-summary task differs from the claim", async () => {
+  it("fails before commit, emits nothing, and releases the claim when the pre-commit task differs from the claim", async () => {
     const snapshot = makeSnapshot(1, 0);
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
     vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
 
     const { writeBuilderRunSummary } = await import("./run-summary.js");
-    vi.mocked(writeBuilderRunSummary).mockReturnValue({
-      runId: "run-abc",
-      workflow: "builder",
+    const { findTerminalTaskInChangedFiles } = await import("./run-summary.js");
+    vi.mocked(findTerminalTaskInChangedFiles).mockReturnValueOnce({
       taskId: "task-other",
       taskTitle: "Other task",
-      outcome: "success",
-      commitSha: "abc123",
-      commitMessage: "Complete other task",
-      filesChanged: ["data/tasks/done/task-other.md"],
-      costUsd: 0.42,
-      durationMs: 480000,
-      completedAt: "2026-04-02T10:00:00Z",
     });
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
@@ -145,14 +138,25 @@ describe("builder workflow run path", () => {
     expect(result.status).toBe("failed");
     expect(result.steps["check-claimed-task-consistency"].status).toBe("failed");
     expect(result.steps["check-claimed-task-consistency"].error).toMatch(
-      /claimed task-claimed but run-summary identified task-other/,
+      /claimed task-claimed but the pre-commit set identified task-other/,
     );
+    expect(result.steps.commit).toBeUndefined();
+    expect(commitWorkflowChanges).not.toHaveBeenCalled();
+    expect(writeBuilderRunSummary).not.toHaveBeenCalled();
     expect(result.steps["emit-build-committed"]).toBeUndefined();
     expect(result.steps["release-task-claim"]).toBeUndefined();
     expect(result.emitted.find((e) => e.event === "workflow.build.committed")).toBeUndefined();
 
     const { releaseTaskClaim } = await import("#modules/autonomy/task-claims.js");
-    expect(releaseTaskClaim).not.toHaveBeenCalled();
+    expect(releaseTaskClaim).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskId: "task-claimed",
+        runId: expect.any(String),
+        workflowId: "builder",
+        evidence:
+          "builder claimed-task consistency failed before commit: pre-commit set identified task-other",
+      }),
+    );
   });
 
   it("includes inspect-ready-queue snapshot in step output", async () => {

@@ -8,7 +8,7 @@ import {
   type TypedCodeStepInput,
   typedCodeStep,
 } from "#core/workflow/step-input-code.js";
-import { stepSucceeded } from "#modules/autonomy/shared.js";
+import { stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
 import {
   claimNextQueueTask,
   DEFAULT_TASK_CLAIM_LEASE_MS,
@@ -95,6 +95,7 @@ export function createReleaseTaskClaimStep(
     type: "code",
     when: (ctx) => {
       if (!claimedTaskConsistencySucceeded(ctx)) return false;
+      if (!stepCommitted("commit")(ctx)) return false;
       const branchInfo = ctx.stepOutputs["create-task-branch"] as BranchStepResult | undefined;
       return (branchInfo?.branchPerTask !== true || mergeGateSucceeded(ctx)) && claimTaskStep.output(ctx)?.claimed === true;
     },

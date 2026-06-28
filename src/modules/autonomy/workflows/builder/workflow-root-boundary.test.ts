@@ -52,14 +52,14 @@ describe("checkModuleBoundary", () => {
 
     const disallowed = makeTmpProject();
     mkdirSync(join(disallowed, "src/core/loop"), { recursive: true });
-    writeFileSync(disallowed + "/src/core/loop/context.ts", 'import { x } from "#root/new-helper.js";\n');
+    writeFileSync(`${disallowed}/src/core/loop/context.ts`, 'import { x } from "#root/new-helper.js";\n');
     expect(() => checkModuleBoundary(disallowed)).toThrow(/Disallowed #root\/\* imports/);
     expect(() => checkModuleBoundary(disallowed)).toThrow("#root/new-helper.js");
     expect(() => checkModuleBoundary(disallowed)).toThrow("core/loop/context.ts");
 
     const testImport = makeTmpProject();
     mkdirSync(join(testImport, "src/core/tools"), { recursive: true });
-    writeFileSync(testImport + "/src/core/tools/runner.test.ts", 'import { x } from "#root/new-helper.js";\n');
+    writeFileSync(`${testImport}/src/core/tools/runner.test.ts`, 'import { x } from "#root/new-helper.js";\n');
     expect(checkModuleBoundary(testImport)).toBe("OK: no root helper drift detected");
   });
 

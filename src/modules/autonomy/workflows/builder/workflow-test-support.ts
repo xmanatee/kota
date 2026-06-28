@@ -88,6 +88,15 @@ export async function resetBuilderWorkflowMocks(): Promise<void> {
   );
   vi.mocked(worktree.getRepoHeadSha).mockReturnValue("abc1234");
 
+  const agentWriteScope = await import("#core/workflow/steps/agent-write-scope.js");
+  vi.mocked(agentWriteScope.diffMutatedPaths).mockImplementation((pre, post) => {
+    const preSet = new Set(pre);
+    return post.filter((path) => !preSet.has(path)).sort();
+  });
+  vi.mocked(agentWriteScope.listWorkflowMutatedPaths).mockReturnValue([
+    "data/tasks/done/task-claimed.md",
+  ]);
+
   const repoTasks = await import("#modules/repo-tasks/repo-tasks-domain.js");
   vi.mocked(repoTasks.getRepoTaskQueueSnapshot).mockImplementation((projectDir) =>
     queueSnapshots.get(projectDir) ?? makeEmptySnapshot(),
@@ -200,6 +209,10 @@ export async function resetBuilderWorkflowMocks(): Promise<void> {
   });
 
   const runSummary = await import("./run-summary.js");
+  vi.mocked(runSummary.findTerminalTaskInChangedFiles).mockReturnValue({
+    taskId: "task-claimed",
+    taskTitle: "Claimed task",
+  });
   vi.mocked(runSummary.writeBuilderRunSummary).mockReturnValue({
     runId: "test-run-id",
     workflow: "builder",

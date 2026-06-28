@@ -19,6 +19,15 @@ vi.mock("#core/util/repo-worktree.js", () => ({
   getRepoHeadSha: vi.fn(() => "abc1234"),
 }));
 
+vi.mock("#core/workflow/steps/agent-write-scope.js", () => ({
+  diffMutatedPaths: vi.fn((pre: readonly string[], post: readonly string[]) => {
+    const preSet = new Set(pre);
+    return post.filter((path) => !preSet.has(path)).sort();
+  }),
+  findWorkflowScratchArtifactPaths: vi.fn(() => []),
+  listWorkflowMutatedPaths: vi.fn(() => ["data/tasks/done/task-claimed.md"]),
+}));
+
 vi.mock("#modules/repo-tasks/repo-tasks-domain.js", () => ({
   getRepoTaskQueueSnapshot: vi.fn(),
   isRepoTaskQueueSnapshot: vi.fn(() => true),
@@ -146,6 +155,10 @@ vi.mock("#modules/git/worktree-merge-gate.js", () => ({
 }));
 
 vi.mock("./run-summary.js", () => ({
+  findTerminalTaskInChangedFiles: vi.fn(() => ({
+    taskId: "task-claimed",
+    taskTitle: "Claimed task",
+  })),
   writeBuilderRunSummary: vi.fn(() => ({
     runId: "test-run-id",
     workflow: "builder",

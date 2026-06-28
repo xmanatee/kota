@@ -32,10 +32,19 @@ describe("builder workflow commit and restart gates", () => {
     expect(await commitStep!.when!(ctx)).toBe(false);
   });
 
-  it("runs commit when build passes", async () => {
+  it("skips commit until the claimed-task consistency check passes", async () => {
     const ctx = makeWorkflowStepContext({
       build: "success",
       "create-task-branch": "success",
+    });
+    expect(await commitStep!.when!(ctx)).toBe(false);
+  });
+
+  it("runs commit when build and claimed-task consistency pass", async () => {
+    const ctx = makeWorkflowStepContext({
+      build: "success",
+      "create-task-branch": "success",
+      "check-claimed-task-consistency": "success",
     });
     expect(await commitStep!.when!(ctx)).toBe(true);
   });
@@ -61,7 +70,7 @@ describe("builder workflow commit and restart gates", () => {
           matched: true,
           taskId: "task-claimed",
           claimedTaskId: "task-claimed",
-          summaryTaskId: "task-claimed",
+          completedTaskId: "task-claimed",
         },
       },
     );

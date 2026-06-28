@@ -4,9 +4,14 @@ import {
   type TypedCodeStepInput,
   typedCodeStep,
 } from "#core/workflow/step-input-code.js";
+import { listWorkflowMutatedPaths } from "#core/workflow/steps/agent-write-scope.js";
 import { stepSucceeded } from "#modules/autonomy/shared.js";
-import type { QueueTaskClaimResult } from "#modules/autonomy/task-claims.js";
-import type { BuilderRunSummary } from "./run-summary.js";
+import {
+  type QueueTaskClaimResult,
+  releaseTaskClaim,
+} from "#modules/autonomy/task-claims.js";
+import { findTerminalTaskInChangedFiles } from "./run-summary.js";
+import { workflowWorkspaceDir } from "./workspace.js";
 
 export const CLAIMED_TASK_CONSISTENCY_STEP_ID = "check-claimed-task-consistency";
 
@@ -14,7 +19,7 @@ export type ClaimedTaskConsistencyResult = {
   matched: true;
   taskId: string;
   claimedTaskId: string;
-  summaryTaskId: string;
+  completedTaskId: string;
 };
 
 function nonEmptyTaskId(value: string | null | undefined): string | null {
@@ -31,13 +36,13 @@ export function createClaimedTaskConsistencyStep(
   return typedCodeStep<ClaimedTaskConsistencyResult>({
     id: CLAIMED_TASK_CONSISTENCY_STEP_ID,
     type: "code",
-    when: stepSucceeded("write-run-summary"),
+    when: stepSucceeded("create-task-branch"),
     validate: (raw) =>
       expectStructuredOutput<ClaimedTaskConsistencyResult>(raw, [
         "matched",
         "taskId",
         "claimedTaskId",
-        "summaryTaskId",
+        "completedTaskId",
       ]),
     run: (ctx) => {
       const claim = claimTaskStep.outputRequired(ctx);
@@ -46,17 +51,28 @@ export function createClaimedTaskConsistencyStep(
         throw new Error("Builder cannot validate completion without a claimed task id");
       }
 
-      const summary = ctx.stepOutputs["write-run-summary"] as BuilderRunSummary | undefined;
-      const summaryTaskId = nonEmptyTaskId(summary?.taskId);
-      if (summaryTaskId === null) {
+      const workspaceDir = workflowWorkspaceDir(ctx);
+      const task = findTerminalTaskInChangedFiles(
+        workspaceDir,
+        listWorkflowMutatedPaths(workspaceDir),
+      );
+      const completedTaskId = nonEmptyTaskId(task.taskId);
+      if (completedTaskId === null) {
+        releaseMismatchedClaim(ctx, claimedTaskId, "no terminal task in the pre-commit set");
         throw new Error(
-          `Builder claimed ${claimedTaskId} but run-summary did not identify a completed task`,
+          `Builder claimed ${claimedTaskId} but the pre-commit set did not identify a completed task; ` +
+            "released the task claim for retry and refusing to commit",
         );
       }
-      if (summaryTaskId !== claimedTaskId) {
+      if (completedTaskId !== claimedTaskId) {
+        releaseMismatchedClaim(
+          ctx,
+          claimedTaskId,
+          `pre-commit set identified ${completedTaskId}`,
+        );
         throw new Error(
-          `Builder claimed ${claimedTaskId} but run-summary identified ${summaryTaskId}; ` +
-            "refusing to emit workflow.build.committed or release the task claim",
+          `Builder claimed ${claimedTaskId} but the pre-commit set identified ${completedTaskId}; ` +
+            "released the task claim for retry and refusing to commit or emit workflow.build.committed",
         );
       }
 
@@ -64,8 +80,28 @@ export function createClaimedTaskConsistencyStep(
         matched: true,
         taskId: claimedTaskId,
         claimedTaskId,
-        summaryTaskId,
+        completedTaskId,
       };
     },
   });
+}
+
+function releaseMismatchedClaim(
+  ctx: WorkflowStepContext,
+  claimedTaskId: string,
+  reason: string,
+): void {
+  const release = releaseTaskClaim({
+    projectDir: ctx.projectDir,
+    taskId: claimedTaskId,
+    runId: ctx.workflow.runId,
+    workflowId: ctx.workflow.name,
+    evidence: `builder claimed-task consistency failed before commit: ${reason}`,
+  });
+  if (!release.safeToRetry) {
+    throw new Error(
+      `Builder claimed ${claimedTaskId} but could not release the task claim after ${reason}: ` +
+        (release.reason ?? release.recoveryStatus),
+    );
+  }
 }

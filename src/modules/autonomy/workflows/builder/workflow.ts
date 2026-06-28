@@ -155,10 +155,12 @@ const builderWorkflow: WorkflowDefinitionInput = {
         ]),
       run: (ctx) => createTaskBranch(ctx),
     }),
+    claimedTaskConsistencyStep,
     {
       id: "commit",
       type: "code",
-      when: stepSucceeded("create-task-branch"),
+      when: (ctx) =>
+        stepSucceeded("create-task-branch")(ctx) && claimedTaskConsistencySucceeded(ctx),
       run: (ctx) => commitWorkflowChanges(workflowWorkspaceDir(ctx), ctx.workflow.runDirPath),
     },
     typedCodeStep<BuilderRunSummary>({
@@ -177,13 +179,12 @@ const builderWorkflow: WorkflowDefinitionInput = {
         ]),
       run: (ctx) => writeBuilderRunSummary(ctx),
     }),
-    claimedTaskConsistencyStep,
     mergeGateStep,
     createReleaseTaskClaimStep(claimTaskStep),
     typedCodeStep<EvaluatorCalibrationArtifact>({
       id: "write-calibration-artifact",
       type: "code",
-      when: claimedTaskConsistencySucceeded,
+      when: (ctx) => claimedTaskConsistencySucceeded(ctx) && stepCommitted("commit")(ctx),
       validate: (raw) =>
         expectStructuredOutput<EvaluatorCalibrationArtifact>(raw, [
           "runId",
@@ -222,7 +223,10 @@ const builderWorkflow: WorkflowDefinitionInput = {
     {
       id: "emit-build-committed",
       type: "emit",
-      when: claimedTaskConsistencySucceeded,
+      when: (ctx) =>
+        claimedTaskConsistencySucceeded(ctx) &&
+        stepCommitted("commit")(ctx) &&
+        stepSucceeded("write-run-summary")(ctx),
       event: "workflow.build.committed",
       payload: (ctx) => {
         const summary = ctx.stepOutputs["write-run-summary"] as BuilderRunSummary | undefined;
@@ -241,7 +245,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
     {
       id: "request-restart",
       type: "restart",
-      when: claimedTaskConsistencySucceeded,
+      when: (ctx) => claimedTaskConsistencySucceeded(ctx) && stepCommitted("commit")(ctx),
       reason: "builder workflow finished validation and commit",
       requires: ["commit", CLAIMED_TASK_CONSISTENCY_STEP_ID],
     },
