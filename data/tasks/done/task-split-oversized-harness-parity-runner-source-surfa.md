@@ -1,12 +1,12 @@
 ---
 id: task-split-oversized-harness-parity-runner-source-surfa
 title: Split oversized harness-parity runner source surface
-status: ready
+status: done
 priority: p3
 area: modules
 summary: Builder run 2026-06-27T00-33-10-684Z-builder-wtiy1i left an untracked source-file-size advisory for src/modules/harness-parity/runner.ts at 1777 lines after a touched change. Split cohesive runner helpers or record a narrow source-size cleanup exception so future harness-parity edits do not leave the same warning untracked.
 created_at: 2026-06-27T03:17:44.373Z
-updated_at: 2026-06-28T18:33:27.183Z
+updated_at: 2026-06-28T21:23:07.466Z
 ---
 
 ## Problem
@@ -49,3 +49,12 @@ N/A - scoped maintenance
 - Before/after line counts for `src/modules/harness-parity/runner.ts` and any extracted helper files.
 - Staged source-size diagnostics report no unhandled warnings for changed harness-parity runner files, or the task records a valid typed source-size cleanup exception.
 - Focused validation passes: harness-parity runner/model-matrix tests, `pnpm typecheck`, and `pnpm run validate-tasks`.
+
+Completion evidence from builder run `2026-06-28T21-08-32-117Z-builder-p2tzx5`:
+
+- Before: `src/modules/harness-parity/runner.ts` was 1,777 lines.
+- After: `runner.ts` is 159 lines; extracted helpers are 9, 74, 80, 178, 178, 192, 195, 258, 284, and 298 lines. Full counts are in `.kota/runs/2026-06-28T21-08-32-117Z-builder-p2tzx5/source-size-line-counts.txt`.
+- Temporary-index source-size diagnostic returned `OK: changed source files are under source-size warning thresholds`.
+- `pnpm exec vitest run src/modules/harness-parity/runner.test.ts src/modules/harness-parity/model-matrix.test.ts src/modules/harness-parity/model-matrix-eval.test.ts` passed: 3 files, 26 tests.
+- `pnpm exec tsc --noEmit --pretty false` passed.
+- `pnpm run validate-tasks` passed against the same temporary staged index. The real Git index is not writable in this sandbox, so normal validation reports only untracked/deleted-unstaged task movement until the changes are staged by the workflow.

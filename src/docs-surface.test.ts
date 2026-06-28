@@ -12,6 +12,16 @@ const ALLOWED_DOCS = new Set([
 ]);
 const REFERENCE_SCAN_ROOTS = ["AGENTS.md", "docs", "src", "clients", "examples", "schema"];
 const TEXT_EXTENSIONS = new Set([".md", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json"]);
+const SKIPPED_SCAN_DIRECTORIES = new Set([
+  ".git",
+  ".turbo",
+  ".next",
+  ".expo",
+  ".build",
+  ".kota",
+  "dist",
+  "node_modules",
+]);
 const retiredDocsPattern =
   /docs\/(?:FOREIGN-MODULES|MCP|DAEMON|DAEMON-API|CONFIG|STORES|WORKFLOWS|LEARNING|NOTIFICATIONS)|(?:FOREIGN-MODULES|MCP|DAEMON|DAEMON-API|CONFIG|STORES|WORKFLOWS|LEARNING|NOTIFICATIONS)\.md/;
 
@@ -33,7 +43,7 @@ function listTextFiles(path: string): string[] {
   const stat = statSync(path);
   if (stat.isDirectory()) {
     return readdirSync(path)
-      .filter((entry) => ![".git", ".turbo", ".next", ".expo", ".build", "dist", "node_modules"].includes(entry))
+      .filter((entry) => !SKIPPED_SCAN_DIRECTORIES.has(entry))
       .flatMap((entry) => listTextFiles(join(path, entry)));
   }
   return TEXT_EXTENSIONS.has(extname(path)) ? [path] : [];
