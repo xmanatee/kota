@@ -1,16 +1,16 @@
-import type {
-  IdempotencyJsonObject,
-  IdempotencyReservation,
-} from "#core/daemon/idempotency-store.js";
 import {
   buildDeadLetterEventEnvelope,
   buildDeadLetterWorkflowTrigger,
 } from "./dead-letter-redrive.js";
 import { formatRunId } from "./run-io.js";
 import { maybeStartNext, type WorkflowRuntimeDispatchState } from "./runtime-dispatch.js";
+import {
+  claimWorkflowDispatchIdempotency,
+  completeWorkflowDispatchIdempotency,
+  replayWorkflowDispatchIdempotency,
+} from "./runtime-webhook-idempotency.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WebhookRunPayload } from "./workflow-dispatcher-provider.js";
-import { workflowDispatchIdempotency } from "./workflow-idempotency.js";
 
 export type WorkflowRuntimeRunsControlState = WorkflowRuntimeDispatchState;
 
@@ -22,37 +22,6 @@ function hasActiveWorkflow(
     if (run.workflowName === workflowName) return true;
   }
   return false;
-}
-
-function workflowDispatchResult(
-  workflowName: string,
-  runId: string,
-  triggerEvent: string,
-  enqueuedAtMs: number,
-): IdempotencyJsonObject {
-  return {
-    workflowName,
-    runId,
-    triggerEvent,
-    queuedAt: new Date(enqueuedAtMs).toISOString(),
-  };
-}
-
-function runIdFromWorkflowDispatchResult(result: IdempotencyJsonObject): string {
-  const runId = result.runId;
-  if (typeof runId !== "string" || runId.trim().length === 0) {
-    throw new Error("workflow dispatch idempotency result is missing runId");
-  }
-  return runId;
-}
-
-function isExpiredIdempotencyEntry(expiresAt: string | undefined): boolean {
-  if (expiresAt === undefined) return false;
-  const expiresAtMs = Date.parse(expiresAt);
-  if (Number.isNaN(expiresAtMs)) {
-    throw new Error(`invalid idempotency expiry timestamp: ${expiresAt}`);
-  }
-  return expiresAtMs <= Date.now();
 }
 
 export function abortActiveRuns(state: WorkflowRuntimeRunsControlState): { aborted: number } {
@@ -140,67 +109,24 @@ export function enqueueWebhookRun(
     schemaRef: null,
     payload: { ...webhookPayload, _runId: runId },
   };
-  const idempotency = workflowDispatchIdempotency(
+  const replayedRunId = replayWorkflowDispatchIdempotency(
     state.idempotencyStore,
     name,
     trigger,
   );
-  const existingIdempotency = idempotency
-    ? state.idempotencyStore.get(
-        idempotency.scopeId,
-        "workflow-dispatch",
-        idempotency.key,
-      )
-    : null;
-  if (
-    idempotency &&
-    existingIdempotency?.firstResult !== undefined &&
-    existingIdempotency.parameterFingerprint === idempotency.parameterFingerprint &&
-    !isExpiredIdempotencyEntry(existingIdempotency.expiresAt)
-  ) {
-    const replay = state.idempotencyStore.record({
-      scopeId: idempotency.scopeId,
-      operation: "workflow-dispatch",
-      key: idempotency.key,
-      parameterFingerprint: idempotency.parameterFingerprint,
-      result: existingIdempotency.firstResult,
-    });
-    if (replay.status === "replayed") {
-      return { ok: true, runId: runIdFromWorkflowDispatchResult(replay.result) };
-    }
-  }
+  if (replayedRunId !== null) return { ok: true, runId: replayedRunId };
   if (hasActiveWorkflow(state, name)) return { ok: false, alreadyRunning: true };
-  let idempotencyReservation: IdempotencyReservation | null = null;
-  if (idempotency) {
-    const claim = state.idempotencyStore.claim({
-      scopeId: idempotency.scopeId,
-      operation: "workflow-dispatch",
-      key: idempotency.key,
-      parameterFingerprint: idempotency.parameterFingerprint,
-    });
-    if (claim.status === "replayed") {
-      return { ok: true, runId: runIdFromWorkflowDispatchResult(claim.result) };
-    }
-    if (claim.status === "ignored") {
-      return {
-        ok: false,
-        alreadyRunning: true,
-        error: `Webhook dispatch for "${name}" is already in progress`,
-      };
-    }
-    if (claim.status === "expired") {
-      return {
-        ok: false,
-        error: `Webhook dispatch for "${name}" used an expired idempotency key; retry to claim fresh work`,
-      };
-    }
-    if (claim.status === "rejected") {
-      return {
-        ok: false,
-        error: `Webhook dispatch for "${name}" reused an idempotency key with different parameters`,
-      };
-    }
-    idempotencyReservation = claim.reservation;
+  const idempotency = claimWorkflowDispatchIdempotency(
+    state.idempotencyStore,
+    name,
+    trigger,
+  );
+  if (idempotency.status === "replayed") return { ok: true, runId: idempotency.runId };
+  if (idempotency.status === "ignored") {
+    return { ok: false, alreadyRunning: true, error: idempotency.error };
+  }
+  if (idempotency.status === "expired" || idempotency.status === "rejected") {
+    return { ok: false, error: idempotency.error };
   }
   state.wfQueue.appendRun({
     runId,
@@ -209,10 +135,14 @@ export function enqueueWebhookRun(
     enqueuedAtMs: now,
     notBeforeMs: now,
   });
-  if (idempotencyReservation) {
-    state.idempotencyStore.complete(
-      idempotencyReservation,
-      workflowDispatchResult(name, runId, trigger.event, now),
+  if (idempotency.reservation) {
+    completeWorkflowDispatchIdempotency(
+      state.idempotencyStore,
+      idempotency.reservation,
+      name,
+      runId,
+      trigger.event,
+      now,
     );
   }
   maybeStartNext(state);
