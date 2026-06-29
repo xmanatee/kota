@@ -1,12 +1,12 @@
 ---
 id: task-resolve-security-review-workflow-scan-diagnostics
 title: Resolve security-review workflow-scan diagnostics
-status: ready
+status: done
 priority: p3
 area: security
 summary: Builder run 2026-06-29T00-54-05-074Z-builder-wxfnfp closed the security-review due-target candidate-cap issue, but its diagnostics left src/modules/autonomy/workflows/security-review/workflow-scan.test-cases.ts with a missing-observability warning and a 303-line source-size advisory. Add or record inspectable observability evidence or rationale, and either split the file below the source-size guideline or record a narrow justified exception without changing due-target selection behavior.
 created_at: 2026-06-29T01:09:19.176Z
-updated_at: 2026-06-29T01:09:19.176Z
+updated_at: 2026-06-29T01:17:42.000Z
 ---
 
 ## Problem
@@ -47,4 +47,8 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- A follow-up run artifact or task acceptance section shows no unresolved observability-obligation missingFiles for src/modules/autonomy/workflows/security-review/workflow-scan.test-cases.ts or records an explicit rationale; source-size diagnostics no longer warn on the file or a justified exception is recorded; focused security-review workflow tests and pnpm validate-tasks pass.
+- `src/modules/autonomy/observability-obligation-rules.ts` now treats `.test-cases.ts` files as test-only helpers; `src/modules/autonomy/observability-obligation.test.ts` covers the security-review `.test-cases.ts` shape with `fetch` text and an observable assertion.
+- Staged observability check `checkObservabilityObligationsForRun` passed with no production runtime-observability candidates; run artifact `.kota/runs/2026-06-29T01-12-31-451Z-builder-8ai2pp/observability-obligation-review.json` records `missingFiles: []`.
+- Staged source-size check `checkSourceFileSize` passed; `src/modules/autonomy/workflows/security-review/workflow-scan.test-cases.ts` is now 291 lines.
+- `pnpm test src/modules/autonomy/observability-obligation.test.ts src/modules/autonomy/workflows/security-review/workflow.test.ts` passed with 2 test files and 25 tests.
+- `pnpm validate-tasks` passed after moving this task to `done/`.

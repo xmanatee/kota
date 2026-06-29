@@ -5,6 +5,15 @@ import {
 } from "./security-review.js";
 import { SecurityReviewProjectFixture } from "./workflow-test-fixture.js";
 
+function externalFetchDueTargets(
+  fixture: SecurityReviewProjectFixture,
+  paths: readonly string[],
+) {
+  return securityReviewDueTargetsFromPayload(fixture.projectDir, {
+    changedSurfaces: [{ surface: "external-fetch", paths: [...paths] }],
+  });
+}
+
 export function describeSecurityReviewScanTests(): void {
   describe("candidate scanning", () => {
     let fixture: SecurityReviewProjectFixture;
@@ -132,19 +141,12 @@ export function describeSecurityReviewScanTests(): void {
       fixture.writeProjectFile("notes/no-matcher.md", "No security-sensitive content here.\n");
       fixture.writeProjectFile("node_modules/generated.ts", "await fetch('https://ignored.example');\n");
 
-      const dueTargets = securityReviewDueTargetsFromPayload(fixture.projectDir, {
-        changedSurfaces: [
-          {
-            surface: "external-fetch",
-            paths: [
-              "src/modules/web-access/z-due.ts",
-              "notes/no-matcher.md",
-              "node_modules/generated.ts",
-              "../outside.ts",
-            ],
-          },
-        ],
-      });
+      const dueTargets = externalFetchDueTargets(fixture, [
+        "src/modules/web-access/z-due.ts",
+        "notes/no-matcher.md",
+        "node_modules/generated.ts",
+        "../outside.ts",
+      ]);
 
       const result = scanSecurityReviewCandidates(fixture.projectDir, {
         maxCandidates: 1,
@@ -191,17 +193,10 @@ export function describeSecurityReviewScanTests(): void {
       fixture.writeProjectFile("src/modules/web-access/b-due.ts", "await fetch(second);\n");
       fixture.writeProjectFile("src/modules/web-access/c-noise.ts", "await fetch(third);\n");
 
-      const dueTargets = securityReviewDueTargetsFromPayload(fixture.projectDir, {
-        changedSurfaces: [
-          {
-            surface: "external-fetch",
-            paths: [
-              "src/modules/web-access/a-due.ts",
-              "src/modules/web-access/b-due.ts",
-            ],
-          },
-        ],
-      });
+      const dueTargets = externalFetchDueTargets(fixture, [
+        "src/modules/web-access/a-due.ts",
+        "src/modules/web-access/b-due.ts",
+      ]);
 
       const result = scanSecurityReviewCandidates(fixture.projectDir, {
         maxCandidates: 2,
@@ -224,17 +219,10 @@ export function describeSecurityReviewScanTests(): void {
       fixture.writeProjectFile("src/modules/web-access/a-due.ts", "await fetch(first);\n");
       fixture.writeProjectFile("src/modules/web-access/b-due.ts", "await fetch(second);\n");
 
-      const dueTargets = securityReviewDueTargetsFromPayload(fixture.projectDir, {
-        changedSurfaces: [
-          {
-            surface: "external-fetch",
-            paths: [
-              "src/modules/web-access/a-due.ts",
-              "src/modules/web-access/b-due.ts",
-            ],
-          },
-        ],
-      });
+      const dueTargets = externalFetchDueTargets(fixture, [
+        "src/modules/web-access/a-due.ts",
+        "src/modules/web-access/b-due.ts",
+      ]);
 
       const result = scanSecurityReviewCandidates(fixture.projectDir, {
         maxCandidates: 1,

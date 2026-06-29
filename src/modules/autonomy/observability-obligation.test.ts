@@ -144,6 +144,10 @@ describe("observability obligation diagnostic", () => {
           "  expect(result.metadata.warnings).toEqual([]);",
           "});",
         ]),
+        diffFor("src/modules/autonomy/workflows/security-review/workflow-scan.test-cases.ts", [
+          "fixture.writeProjectFile(\"src/modules/web-access/fetch.ts\", \"await fetch(url);\");",
+          "expect(result.dueTargets.diagnostics).toEqual([]);",
+        ]),
         diffFor("data/tasks/ready/task-example.md", [
           "---",
           "id: task-example",

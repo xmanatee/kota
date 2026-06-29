@@ -147,7 +147,7 @@ function extensionOf(file: string): string {
 function isTestFile(file: string): boolean {
   return (
     /(?:^|\/)__tests__\//.test(file) ||
-    /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file) ||
+    /\.(?:test|spec|test-cases)\.[cm]?[jt]sx?$/.test(file) ||
     /\.integration\.[cm]?[jt]s$/.test(file)
   );
 }
