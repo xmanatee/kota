@@ -218,4 +218,4 @@ not expose a documented headless auth-status command, so `doctor --preset
 antigravity-cli --skip-connectivity` stays conservative even though a live
 one-shot run can work.
 
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-05T19:14:47.873Z -->
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-29T00:54:08.942Z -->
