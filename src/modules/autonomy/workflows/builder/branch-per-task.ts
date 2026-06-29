@@ -5,6 +5,7 @@ import { loadConfig } from "#core/config/config.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { REPO_TASKS_DIR } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { builderWorktreeModeEnabledFromConfig } from "./builder-config.js";
 import type { BuilderRunSummary } from "./run-summary.js";
 import { workflowWorkspaceDir } from "./workspace.js";
 
@@ -71,9 +72,8 @@ function getClaimedTaskId(ctx: WorkflowStepContext): string | null {
 export function createTaskBranch(ctx: WorkflowStepContext): BranchStepResult {
   const projectDir = workflowWorkspaceDir(ctx);
   const config = loadConfig(ctx.projectDir);
-  const builderConfig = config.modules?.builder;
 
-  if (!builderConfig?.branchPerTask) {
+  if (!builderWorktreeModeEnabledFromConfig(config)) {
     return { branchPerTask: false, branch: null, baseBranch: null, taskId: null };
   }
 

@@ -132,6 +132,12 @@ describe("builder workflow worktree mode", () => {
       mergeGateArtifactPath: `${projectDir}/.kota/worktrees/task-claimed-harness-run-id.merge-gate.json`,
     });
     expect(result.steps["create-pr"].status).toBe("skipped");
+    expect(result.steps["cleanup-builder-runtime-resources"].status).toBe("success");
+    expect(result.steps["cleanup-builder-runtime-resources"].output).toMatchObject({
+      profileId: "task-claimed:harness-run-id",
+      tempRemoved: true,
+      portLease: { released: true },
+    });
 
     const { createAutomationWorktree } = await import("#modules/git/worktree-lifecycle.js");
     expect(createAutomationWorktree).toHaveBeenCalledWith(

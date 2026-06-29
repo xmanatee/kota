@@ -45,8 +45,8 @@ or `data/watchlist.yaml`.
   cases with non-vacuous predicates.
 - **Worktree-backed autonomy.** Accepted in
   `worktree-backed-autonomy-decision.ts`: `projectDir`, leased `workspaceDir`
-  worktrees, gated merges, serial-to-parallel rollout. Per-workflow policy
-  lives in `workflow-workspace-policy.ts`; builder is worktree/merge-gated,
+  worktrees, and gated merges. Per-workflow policy lives in
+  `workflow-workspace-policy.ts`; builder is worktree/merge-gated by default,
   KOTA control-state/control-plane exceptions need explicit safety gates, and
   external-effect workflows stay out of worktrees.
 

@@ -27,11 +27,16 @@ vi.mock("#core/util/repo-worktree.js", () => ({
 }));
 
 vi.mock("#modules/repo-tasks/repo-tasks-domain.js", () => ({
+  countRepoPromotableBacklogTasks: vi.fn(() => 0),
   getRepoTaskQueueSnapshot: vi.fn(),
   isRepoTaskQueueSnapshot: vi.fn(() => true),
-  isThinPullQueue: vi.fn((snapshot) => {
-    const waitingCount = snapshot.counts.ready + snapshot.counts.backlog;
-    return snapshot.inboxCount === 0 && waitingCount > 0 && waitingCount <= 2;
+  isThinDispatchableQueue: vi.fn((snapshot, promotableBacklogCount) => {
+    const waitingCount = snapshot.counts.ready + promotableBacklogCount;
+    return (
+      snapshot.inboxCount === 0 &&
+      waitingCount <= 2 &&
+      (waitingCount > 0 || snapshot.counts.doing > 0)
+    );
   }),
   REPO_TASK_STATES: ["backlog", "ready", "doing", "blocked", "done", "dropped"],
   listFullRepoTasks: vi.fn(() => []),
@@ -144,10 +149,14 @@ describe("explorer workflow", () => {
   });
 
   it("skips explore when ready or backlog already contains work", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
+    const {
+      countRepoPromotableBacklogTasks,
+      getRepoTaskQueueSnapshot,
+    } = await import("#modules/repo-tasks/repo-tasks-domain.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(
       makeSnapshot({ inboxCount: 0, ready: 1, backlog: 2 }),
     );
+    vi.mocked(countRepoPromotableBacklogTasks).mockReturnValue(2);
 
     const harness = new WorkflowTestHarness(explorerWorkflow, {
       trigger: { event: "autonomy.queue.empty", payload: {} },
@@ -165,10 +174,14 @@ describe("explorer workflow", () => {
   });
 
   it("runs explore when only a one-item backlog tail remains and refresh is due", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
+    const {
+      countRepoPromotableBacklogTasks,
+      getRepoTaskQueueSnapshot,
+    } = await import("#modules/repo-tasks/repo-tasks-domain.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(
       makeSnapshot({ inboxCount: 0, ready: 0, backlog: 1, doing: 0 }),
     );
+    vi.mocked(countRepoPromotableBacklogTasks).mockReturnValue(1);
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
     vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);

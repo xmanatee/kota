@@ -191,6 +191,23 @@ export function isThinPullQueue(snapshot: RepoTaskQueueSnapshot): boolean {
   );
 }
 
+export function isThinDispatchableQueue(
+  snapshot: RepoTaskQueueSnapshot,
+  promotableBacklogCount: number,
+): boolean {
+  const dependencyBlockedCount = (state: "ready" | "doing"): number =>
+    snapshot.dependencyBlockedTasks.filter((task) => task.state === state).length;
+  const readyTailCount = snapshot.counts.ready - dependencyBlockedCount("ready");
+  const doingCount = snapshot.counts.doing - dependencyBlockedCount("doing");
+  const dispatchableTailCount = readyTailCount + promotableBacklogCount;
+
+  return (
+    snapshot.inboxCount === 0 &&
+    dispatchableTailCount <= 2 &&
+    (dispatchableTailCount > 0 || doingCount > 0)
+  );
+}
+
 export type RepoTaskFrontmatter = {
   id: string;
   updatedAt: string;

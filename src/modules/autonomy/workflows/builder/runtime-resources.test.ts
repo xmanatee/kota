@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setBuilderPortAvailabilityCheckerForTest } from "./runtime-resource-ports.js";
 import {
   assignBuilderRuntimeResources,
+  cleanupBuilderRuntimeResources,
   deterministicBuilderPortRange,
 } from "./runtime-resources.js";
 
@@ -98,8 +99,67 @@ describe("builder runtime resource assignment", () => {
     expect(existsSync(beta.artifactPath)).toBe(true);
     expect(JSON.parse(readFileSync(alpha.artifactPath, "utf8"))).toMatchObject({
       profileId: "task-alpha:run-a",
+      projectDir,
       ports: { start: alpha.ports.start, end: alpha.ports.end },
     });
+  });
+
+  it("cleans successful run temp roots and releases the port lease", async () => {
+    const projectDir = tempProject("cleanup");
+    const profile = await assignBuilderRuntimeResources({
+      projectDir,
+      taskId: "task-cleanup",
+      runId: "run-cleanup",
+      workspaceDir: join(projectDir, "worktree"),
+      runDirPath: join(projectDir, ".kota", "runs", "run-cleanup"),
+    });
+    const leasePath = profile.preflight.portLeasePath;
+
+    expect(existsSync(profile.tempRoot)).toBe(true);
+    expect(JSON.parse(readFileSync(leasePath, "utf8"))).toMatchObject({
+      leases: [expect.objectContaining({ profileId: profile.profileId })],
+    });
+
+    const cleanup = await cleanupBuilderRuntimeResources(profile);
+
+    expect(cleanup).toMatchObject({
+      profileId: profile.profileId,
+      tempRemoved: true,
+      blockers: [],
+      portLease: {
+        released: true,
+        releasedProfileIds: [profile.profileId],
+        remainingLeaseCount: 0,
+      },
+    });
+    expect(existsSync(profile.tempRoot)).toBe(false);
+    expect(JSON.parse(readFileSync(leasePath, "utf8"))).toMatchObject({
+      leases: [],
+    });
+    expect(existsSync(cleanup.artifactPath)).toBe(true);
+  });
+
+  it("refuses to remove temp roots outside the generated run directory", async () => {
+    const projectDir = tempProject("cleanup-safety");
+    const profile = await assignBuilderRuntimeResources({
+      projectDir,
+      taskId: "task-cleanup-safety",
+      runId: "run-cleanup-safety",
+      workspaceDir: join(projectDir, "worktree"),
+      runDirPath: join(projectDir, ".kota", "runs", "run-cleanup-safety"),
+    });
+    const unsafeTempRoot = join(projectDir, ".kota", "tmp", "wrong-run");
+    mkdirSync(unsafeTempRoot, { recursive: true });
+
+    const cleanup = await cleanupBuilderRuntimeResources({
+      ...profile,
+      tempRoot: unsafeTempRoot,
+    });
+
+    expect(cleanup.tempRemoved).toBe(false);
+    expect(cleanup.blockers[0]).toContain("does not match expected");
+    expect(existsSync(unsafeTempRoot)).toBe(true);
+    expect(cleanup.portLease.released).toBe(true);
   });
 
   it("resolves deterministic port bucket collisions with a shared lease", async () => {

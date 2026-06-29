@@ -18,8 +18,9 @@ import {
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
 import {
+  countRepoPromotableBacklogTasks,
   getRepoTaskQueueSnapshot,
-  isThinPullQueue,
+  isThinDispatchableQueue,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   assertArchitectureReadyCoverage,
@@ -58,6 +59,7 @@ type ExplorerAssessment = {
   openCount: number;
   pullableCount: number;
   actionableCount: number;
+  promotableBacklogCount: number;
   dirty: boolean;
   needsAttention: boolean;
   explorationRefreshDue: boolean;
@@ -78,14 +80,16 @@ function buildExplorerAssessment(
   const worktree = getRepoWorktreeStatus(projectDir);
   const dirty = worktree.available && worktree.trackedDirty;
   const queue = getRepoTaskQueueSnapshot(projectDir);
+  const promotableBacklogCount = countRepoPromotableBacklogTasks(projectDir);
   const explorationRefreshDue =
     !lastExplorationAt ||
     Date.now() - new Date(lastExplorationAt).getTime() >= EXPLORATION_REFRESH_MS;
   const queueEmpty = queue.inboxCount === 0 && queue.pullableCount === 0;
-  const queueThin = isThinPullQueue(queue);
+  const queueThin = isThinDispatchableQueue(queue, promotableBacklogCount);
 
   return {
     ...queue,
+    promotableBacklogCount,
     dirty,
     needsAttention: !dirty && (queueEmpty || queueThin) && explorationRefreshDue,
     explorationRefreshDue,
@@ -105,6 +109,7 @@ const inspectQueue = typedCodeStep<ExplorerAssessment>({
       "openCount",
       "pullableCount",
       "actionableCount",
+      "promotableBacklogCount",
       "dirty",
       "needsAttention",
       "explorationRefreshDue",

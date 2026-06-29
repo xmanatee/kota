@@ -21,7 +21,7 @@ describe("builder workflow queue gating", () => {
     ]);
   });
 
-  it("opts into two-run dispatch only when builder worktree mode is enabled", () => {
+  it("uses worktree-backed dispatch by default with an explicit opt-out", () => {
     const maxConcurrentRuns = builderWorkflow.maxConcurrentRuns;
     const dispatchBurst = builderWorkflow.dispatchBurst;
     if (typeof maxConcurrentRuns !== "function") {
@@ -41,10 +41,14 @@ describe("builder workflow queue gating", () => {
       },
     };
 
-    expect(maxConcurrentRuns({ ...base, config: { modules: { builder: { branchPerTask: false } } } })).toBe(1);
-    expect(dispatchBurst({ ...base, config: { modules: { builder: { branchPerTask: false } } } })).toBe(1);
+    expect(maxConcurrentRuns({ ...base, config: undefined })).toBe(2);
+    expect(dispatchBurst({ ...base, config: undefined })).toBe(2);
+    expect(maxConcurrentRuns({ ...base, config: { modules: {} } })).toBe(2);
+    expect(dispatchBurst({ ...base, config: { modules: {} } })).toBe(2);
     expect(maxConcurrentRuns({ ...base, config: { modules: { builder: { branchPerTask: true } } } })).toBe(2);
     expect(dispatchBurst({ ...base, config: { modules: { builder: { branchPerTask: true } } } })).toBe(2);
+    expect(maxConcurrentRuns({ ...base, config: { modules: { builder: { branchPerTask: false } } } })).toBe(1);
+    expect(dispatchBurst({ ...base, config: { modules: { builder: { branchPerTask: false } } } })).toBe(1);
   });
 
   it("skips build when worktree is dirty", async () => {

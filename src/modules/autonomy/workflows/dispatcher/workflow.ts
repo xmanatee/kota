@@ -2,7 +2,7 @@ import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   countRepoPromotableBacklogTasks,
   getRepoTaskQueueSnapshot,
-  isThinPullQueue,
+  isThinDispatchableQueue,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { inspectResearchRetryAvailability } from "../research-retry/precondition.js";
 import { scopeImprovementEvidenceReady } from "../scope-improver/events.js";
@@ -43,7 +43,6 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           now: new Date(),
         });
         const queueEmpty = queue.inboxCount === 0 && queue.pullableCount === 0;
-        const queueThin = isThinPullQueue(queue);
         // Builder runs only on actionable (ready+doing) work; backlog-only
         // queues route through `autonomy.queue.needs-promotion` only when at
         // least one backlog task can actually be promoted. Strategic anchors
@@ -54,6 +53,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           queue.actionableCount === 0 && promotableBacklogCount > 0;
         const blockedResearchAttemptable =
           researchRetryAvailability.attemptableCount > 0;
+        const queueThin = isThinDispatchableQueue(queue, promotableBacklogCount);
 
         if (queue.inboxCount > 0) {
           emit("autonomy.inbox.available", { inboxCount: queue.inboxCount });
@@ -106,10 +106,23 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         if (queueThin) {
           emit("autonomy.queue.thin", {
             pullableCount: queue.pullableCount,
+            promotableBacklogCount,
             dependencyBlockedTasks: queue.dependencyBlockedTasks,
             counts: queue.counts,
           });
         }
+        const emitted = [
+          queue.inboxCount > 0 && "autonomy.inbox.available",
+          queueActionable && "autonomy.queue.available",
+          queueNeedsPromotion && "autonomy.queue.needs-promotion",
+          queueEmpty && "autonomy.queue.empty",
+          blockedResearchAttemptable && "autonomy.blocked-research.attemptable",
+          securityReviewDue.due && SECURITY_REVIEW_DUE_EVENT,
+          scopeImprovementEvidence.shouldEmit &&
+            scopeImprovementEvidenceReady.name,
+          queueThin && "autonomy.queue.thin",
+        ].filter((event): event is string => Boolean(event));
+        const quiescent = emitted.length === 0;
 
         return {
           inboxCount: queue.inboxCount,
@@ -128,17 +141,11 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
             totalWeight: scopeImprovementEvidence.payload?.totalWeight ?? 0,
             evidenceIds: scopeImprovementEvidence.payload?.evidenceIds ?? [],
           },
-          emitted: [
-            queue.inboxCount > 0 && "autonomy.inbox.available",
-            queueActionable && "autonomy.queue.available",
-            queueNeedsPromotion && "autonomy.queue.needs-promotion",
-            queueEmpty && "autonomy.queue.empty",
-            blockedResearchAttemptable && "autonomy.blocked-research.attemptable",
-            securityReviewDue.due && SECURITY_REVIEW_DUE_EVENT,
-            scopeImprovementEvidence.shouldEmit &&
-              scopeImprovementEvidenceReady.name,
-            queueThin && "autonomy.queue.thin",
-          ].filter(Boolean),
+          emitted,
+          quiescent,
+          quiescentReason: quiescent
+            ? "no dispatchable autonomy work"
+            : null,
         };
       },
     },

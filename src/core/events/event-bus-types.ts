@@ -38,6 +38,23 @@ export type DaemonConfigReloadEvent =
       errorMessage: string;
     };
 
+type QueueCounts = {
+  backlog: number;
+  ready: number;
+  doing: number;
+  blocked: number;
+  done: number;
+  dropped: number;
+};
+
+type QueueDependencyBlockedTask = {
+  id: string;
+  title: string;
+  state: "backlog" | "ready" | "doing";
+  dependsOn: string[];
+  waitingOn: string[];
+};
+
 /**
  * Known event payloads. Extend this map to add new typed events.
  *
@@ -69,54 +86,37 @@ export type BusEvents = {
     projectId: ProjectId;
     pullableCount: number;
     actionableCount: number;
-    counts: {
-      backlog: number;
-      ready: number;
-      doing: number;
-      blocked: number;
-      done: number;
-      dropped: number;
-    };
+    counts: QueueCounts;
+    dependencyBlockedTasks: QueueDependencyBlockedTask[];
   };
   "autonomy.inbox.available": {
     projectId: ProjectId;
     inboxCount: number;
   };
+  "autonomy.queue.needs-promotion": {
+    projectId: ProjectId;
+    backlogCount: number;
+    promotableBacklogCount: number;
+    counts: QueueCounts;
+    dependencyBlockedTasks: QueueDependencyBlockedTask[];
+  };
   "autonomy.queue.empty": {
     projectId: ProjectId;
-    counts: {
-      backlog: number;
-      ready: number;
-      doing: number;
-      blocked: number;
-      done: number;
-      dropped: number;
-    };
+    counts: QueueCounts;
+    dependencyBlockedTasks: QueueDependencyBlockedTask[];
   };
   "autonomy.blocked-research.attemptable": {
     projectId: ProjectId;
     candidateCount: number;
     attemptableCount: number;
-    counts: {
-      backlog: number;
-      ready: number;
-      doing: number;
-      blocked: number;
-      done: number;
-      dropped: number;
-    };
+    counts: QueueCounts;
   };
   "autonomy.queue.thin": {
     projectId: ProjectId;
     pullableCount: number;
-    counts: {
-      backlog: number;
-      ready: number;
-      doing: number;
-      blocked: number;
-      done: number;
-      dropped: number;
-    };
+    promotableBacklogCount: number;
+    counts: QueueCounts;
+    dependencyBlockedTasks: QueueDependencyBlockedTask[];
   };
   "workflow.started": {
     projectId: ProjectId;

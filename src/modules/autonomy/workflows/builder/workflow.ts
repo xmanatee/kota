@@ -41,6 +41,7 @@ import {
   createPrepareBuilderWorktreeStep,
 } from "./prepare-worktree-step.js";
 import { builderRepairChecks } from "./repair-checks.js";
+import { createCleanupBuilderRuntimeResourcesStep } from "./runtime-resource-cleanup-step.js";
 import type { BuilderRunSummary } from "./run-summary.js";
 import { writeBuilderRunSummary } from "./run-summary.js";
 import {
@@ -85,6 +86,7 @@ const prepareWorktreeStep = createPrepareBuilderWorktreeStep(claimTaskStep);
 const claimedTaskConsistencyStep = createClaimedTaskConsistencyStep(claimTaskStep);
 const mergeGateStep = createMergeGateStep();
 const cleanupAutomationWorktreeStep = createCleanupAutomationWorktreeStep();
+const cleanupBuilderRuntimeResourcesStep = createCleanupBuilderRuntimeResourcesStep();
 const builderParallelMetricsStep = createBuilderParallelMetricsStep();
 
 const builderWorkflow: WorkflowDefinitionInput = {
@@ -220,6 +222,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       run: (ctx) => createPullRequest(ctx),
     },
     createMarkClaimPendingMergeStep(claimTaskStep),
+    cleanupBuilderRuntimeResourcesStep,
     typedCodeStep<CleanupResult>({
       id: "cleanup-merged-branches",
       type: "code",

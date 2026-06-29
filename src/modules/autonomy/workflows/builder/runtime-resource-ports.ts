@@ -38,6 +38,19 @@ export type BuilderPortAssignment = {
   leasePath: string;
 };
 
+export type ReleaseBuilderPortRangeInput = {
+  projectDir: string;
+  runId: string;
+  profileId: string;
+};
+
+export type ReleaseBuilderPortRangeResult = {
+  leasePath: string;
+  released: boolean;
+  releasedProfileIds: string[];
+  remainingLeaseCount: number;
+};
+
 type BuilderPortLease = {
   profileId: string;
   taskId: string;
@@ -292,5 +305,37 @@ export async function assignBuilderPortRange(
       ],
     });
     return { ports, checkedPorts, leasePath };
+  });
+}
+
+export async function releaseBuilderPortRange(
+  input: ReleaseBuilderPortRangeInput,
+): Promise<ReleaseBuilderPortRangeResult> {
+  const resourceRoot = join(input.projectDir, ".kota", "runtime-resources");
+  const leasePath = join(resourceRoot, "builder-port-leases.json");
+  return withPortLeaseLock(resourceRoot, input.runId, async () => {
+    const store = readPortLeaseStore(leasePath);
+    const releasedProfileIds = store.leases
+      .filter((lease) => lease.profileId === input.profileId)
+      .map((lease) => lease.profileId);
+    if (releasedProfileIds.length === 0) {
+      return {
+        leasePath,
+        released: false,
+        releasedProfileIds,
+        remainingLeaseCount: store.leases.length,
+      };
+    }
+
+    const leases = store.leases.filter(
+      (lease) => lease.profileId !== input.profileId,
+    );
+    writePortLeaseStore(leasePath, { schemaVersion: 1, leases });
+    return {
+      leasePath,
+      released: true,
+      releasedProfileIds,
+      remainingLeaseCount: leases.length,
+    };
   });
 }

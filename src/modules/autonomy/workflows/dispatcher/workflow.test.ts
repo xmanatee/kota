@@ -318,6 +318,9 @@ describe("dispatcher workflow", () => {
     expect(output.promotableBacklogCount).toBe(0);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.needs-promotion")).toBe(false);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.thin")).toBe(false);
+    expect(output.quiescent).toBe(true);
+    expect(output.quiescentReason).toBe("no dispatchable autonomy work");
   });
 
   it("does not emit needs-promotion when only target-invalid Meta backlog remains", async () => {
@@ -334,6 +337,8 @@ describe("dispatcher workflow", () => {
     expect(output.promotableBacklogCount).toBe(0);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.needs-promotion")).toBe(false);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.thin")).toBe(false);
+    expect(output.quiescent).toBe(true);
   });
 
   it("does not emit needs-promotion when only blocked work remains", async () => {
@@ -533,6 +538,8 @@ describe("dispatcher workflow", () => {
     expect(output.pullableCount).toBe(1);
     expect(output.actionableCount).toBe(0);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.thin")).toBe(true);
+    expect(output.quiescent).toBe(false);
+    expect(output.emitted).toContain("autonomy.queue.thin");
   });
 
   it("emits autonomy.queue.thin when two backlog tasks remain", async () => {

@@ -1,5 +1,5 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import type { WorkflowRuntimeResources } from "#core/workflow/run-types.js";
 import {
   type BuilderRuntimeDependencyPreflight,
@@ -9,6 +9,8 @@ import {
   assignBuilderPortRange,
   type BuilderRuntimeResourcePortRange,
   deterministicBuilderPortRange,
+  releaseBuilderPortRange,
+  type ReleaseBuilderPortRangeResult,
 } from "./runtime-resource-ports.js";
 
 export type {
@@ -30,6 +32,7 @@ export type BuilderRuntimeResourceProfile = Omit<
   "ports"
 > & {
   schemaVersion: 1;
+  projectDir: string;
   taskId: string;
   runId: string;
   workspaceDir: string;
@@ -47,9 +50,22 @@ export type AssignBuilderRuntimeResourcesInput = {
   runDirPath: string;
 };
 
+export type BuilderRuntimeResourceCleanupResult = {
+  schemaVersion: 1;
+  profileId: string;
+  taskId: string;
+  runId: string;
+  workspaceDir: string;
+  tempRoot: string;
+  tempRemoved: boolean;
+  blockers: string[];
+  portLease: ReleaseBuilderPortRangeResult;
+  artifactPath: string;
+};
+
 function writeProfileArtifact(
   artifactPath: string,
-  profile: BuilderRuntimeResourceProfile,
+  profile: BuilderRuntimeResourceProfile | BuilderRuntimeResourceCleanupResult,
 ): void {
   mkdirSync(dirname(artifactPath), { recursive: true });
   writeFileSync(artifactPath, `${JSON.stringify(profile, null, 2)}\n`, "utf8");
@@ -92,6 +108,7 @@ export async function assignBuilderRuntimeResources(
   const profile: BuilderRuntimeResourceProfile = {
     schemaVersion: 1,
     profileId,
+    projectDir: input.projectDir,
     taskId: input.taskId,
     runId: input.runId,
     workspaceDir: input.workspaceDir,
@@ -118,4 +135,54 @@ export async function assignBuilderRuntimeResources(
   };
   writeProfileArtifact(artifactPath, profile);
   return profile;
+}
+
+function safeToRemoveTempRoot(profile: BuilderRuntimeResourceProfile): string[] {
+  const expectedTempRoot = resolve(
+    profile.workspaceDir,
+    ".kota",
+    "tmp",
+    profile.runId,
+  );
+  const actualTempRoot = resolve(profile.tempRoot);
+  if (actualTempRoot !== expectedTempRoot) {
+    return [
+      `tempRoot ${profile.tempRoot} does not match expected ${expectedTempRoot}`,
+    ];
+  }
+  return [];
+}
+
+export async function cleanupBuilderRuntimeResources(
+  profile: BuilderRuntimeResourceProfile,
+  artifactPath = join(
+    dirname(profile.artifactPath),
+    "builder-runtime-resource-cleanup.json",
+  ),
+): Promise<BuilderRuntimeResourceCleanupResult> {
+  const blockers = safeToRemoveTempRoot(profile);
+  const tempRemoved = blockers.length === 0 && existsSync(profile.tempRoot);
+  if (tempRemoved) {
+    rmSync(profile.tempRoot, { recursive: true });
+  }
+
+  const portLease = await releaseBuilderPortRange({
+    projectDir: profile.projectDir,
+    runId: profile.runId,
+    profileId: profile.profileId,
+  });
+  const result: BuilderRuntimeResourceCleanupResult = {
+    schemaVersion: 1,
+    profileId: profile.profileId,
+    taskId: profile.taskId,
+    runId: profile.runId,
+    workspaceDir: profile.workspaceDir,
+    tempRoot: profile.tempRoot,
+    tempRemoved,
+    blockers,
+    portLease,
+    artifactPath,
+  };
+  writeProfileArtifact(artifactPath, result);
+  return result;
 }

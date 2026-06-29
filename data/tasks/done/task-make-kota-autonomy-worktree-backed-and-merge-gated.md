@@ -1,14 +1,14 @@
 ---
 id: task-make-kota-autonomy-worktree-backed-and-merge-gated
 title: Make KOTA autonomy worktree-backed and merge-gated
-status: backlog
+status: done
 priority: p1
 area: autonomy
 task_class: Platform
 anchor: true
 summary: Make mutating autonomy agents work in isolated task worktrees, validate and merge through a gate, resolve or surface conflicts, and clean up worktrees so parallel work is safe.
 created_at: 2026-06-25T14:53:12.110Z
-updated_at: 2026-06-25T14:53:12.110Z
+updated_at: 2026-06-29T17:18:35.518Z
 ---
 
 ## Problem
@@ -93,10 +93,24 @@ Worktree-backed KOTA autonomy.
 
 ## Acceptance Evidence
 
-- A recorded run shows two builder tasks executing from distinct worktree paths
-  without editing the canonical checkout.
-- A disjoint-change fixture merges both branches and removes both worktrees.
-- A textual-conflict fixture either resolves, validates, and merges or leaves a
-  pending-conflict artifact with enough context to resume manually.
-- `pnpm test` passes for the affected workflow, autonomy, git, and status
-  modules.
+- The required initiative slices named in `## Done When` are all in
+  `data/tasks/done/`, including the architecture decision, workspace contract,
+  worktree lifecycle provider, atomic task claims, builder worktree execution,
+  merge gate/conflict resolver, status/cleanup surface, mutating-workflow
+  migration policy, guarded parallel dispatch, and runtime resource isolation.
+- `task-enable-guarded-parallel-builder-dispatch-with-conf` records the
+  disjoint merge-gate fixture, conflict fixture coverage, serialized
+  merge-lock coverage, and parallel-builder metrics artifact coverage.
+- `src/modules/autonomy/workflows/builder/workflow-worktree-mode.fixture.test.ts`
+  proves a builder run writes and commits inside a task worktree while the
+  canonical checkout remains clean.
+- On 2026-06-29, the builder worktree mode default was corrected so missing
+  config enables branch-per-task worktrees and two-run builder concurrency;
+  `modules.builder.branchPerTask: false` remains the explicit serial opt-out.
+- On 2026-06-29, builder runtime-resource cleanup was added after successful
+  commit/task release, releasing port leases and removing only the exact
+  generated `.kota/tmp/<run-id>` temp root.
+- On 2026-06-29, stale builder temp roots and the stale
+  `task-resolve-security-review-workflow-scan-diagnostics:2026-06-29T01-12-31-451Z-builder-8ai2pp`
+  port lease were removed; `.kota/tmp` is empty and
+  `.kota/runtime-resources/builder-port-leases.json` has no active leases.

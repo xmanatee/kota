@@ -102,9 +102,10 @@ backlog-only state:
   work.
 - `autonomy.queue.empty` — no inbox entries and no dependency-clear pullable
   ready/backlog/doing work exists.
-- `autonomy.queue.thin` — one or two dependency-clear ready/backlog tasks
-  remain, or only active doing work remains; dependency-waiting tails stay
-  visible through `dependencyBlockedTasks` without counting as thin.
+- `autonomy.queue.thin` — one or two dispatchable ready/promotable backlog
+  tasks remain, or only active doing work remains; strategic anchors, ready-
+  invalid backlog, and dependency-waiting tails stay visible through counts and
+  `dependencyBlockedTasks` without counting as thin.
 - `autonomy.blocked-research.attemptable` — blocked research can retry; `research-retry` consumes this instead of `autonomy.queue.available`.
 
 Builder must never silently consume the backlog — the rationale is the
