@@ -1,12 +1,12 @@
 ---
 id: task-ensure-security-review-due-targets-survive-candida
 title: Ensure security-review due targets survive candidate capping
-status: ready
+status: done
 priority: p2
 area: security
-summary: The 2026-06-29 security-review run ended no-op, but its scan artifact reported due targets missed because the candidate cap was reached. Due security-review targets should be prioritized or explicitly reported as skipped before a no-findings outcome is recorded.
+summary: The security-review scanner now selects a representative candidate for each available due target before generic per-surface caps fill the review packet, while still reporting hard global-cap misses explicitly.
 created_at: 2026-06-29T00:53:58.461Z
-updated_at: 2026-06-29T00:53:58.461Z
+updated_at: 2026-06-29T00:58:22.503Z
 ---
 
 ## Problem
@@ -42,6 +42,12 @@ Evidence ids:
 
 Outcome-aware autonomy progress review.
 
+## Result
+
+The scanner now takes one representative candidate for each available due target before applying generic per-surface filling. This fixes the cited per-surface cap miss without hiding unavoidable hard global-cap misses, which remain explicit `candidate-cap` diagnostics.
+
 ## Acceptance Evidence
 
-- A focused test or replay artifact proves dueTargets are included before generic candidate caps, or that capped due targets produce an explicit non-no-op outcome; a replay of the cited security-review scan reports zero candidate-cap due-target misses; task validation passes.
+- Focused test: `pnpm test src/modules/autonomy/workflows/security-review/workflow.test.ts` passed with 20 tests.
+- Replay artifact: `.kota/runs/2026-06-29T00-54-05-074Z-builder-wxfnfp/security-review-due-target-replay.json` replays `scope:8nrg1m:run:2026-06-29T00-21-24-444Z-security-review-pn7qxo` and reports `dueTargetTotal: 9`, `dueTargetMatched: 9`, `dueTargetMissed: 0`, and `candidateCapMissCount: 0`.
+- Task validation transcript: `.kota/runs/2026-06-29T00-54-05-074Z-builder-wxfnfp/validate-tasks.txt` records `pnpm validate-tasks` passing after the staged task move.

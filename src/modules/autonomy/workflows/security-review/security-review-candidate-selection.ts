@@ -40,6 +40,10 @@ function compareDueTargets(a: SecurityReviewDueTarget, b: SecurityReviewDueTarge
     a.path.localeCompare(b.path);
 }
 
+function dueTargetKey(target: SecurityReviewDueTarget): string {
+  return `${target.surface}\0${target.path}`;
+}
+
 export function securityReviewDueTargetsFromPayload(
   projectDir: string,
   payload: WorkflowRunTrigger["payload"],
@@ -69,11 +73,11 @@ function boundCandidates(
   options: Required<SecurityReviewScanOptions>,
 ): SecurityReviewCandidate[] {
   const dueTargetKeys = new Set(
-    options.dueTargets.map((target) => `${target.surface}\0${target.path}`),
+    options.dueTargets.map(dueTargetKey),
   );
   const dueCandidateIds = new Set<string>();
   for (const candidate of candidates) {
-    if (dueTargetKeys.has(`${candidate.surface}\0${candidate.path}`)) {
+    if (dueTargetKeys.has(dueTargetKey(candidate))) {
       dueCandidateIds.add(candidate.id);
     }
   }
@@ -104,14 +108,33 @@ function boundCandidatesByPriority(
   const selectedIds = new Set<string>();
   const selectedCountsBySurface = new Map<SecurityReviewSurface, number>();
 
-  const selectCandidate = (candidate: SecurityReviewCandidate): void => {
-    if (selected.length >= options.maxCandidates) return;
+  const selectCandidate = (
+    candidate: SecurityReviewCandidate,
+    enforceSurfaceCap: boolean,
+  ): boolean => {
+    if (selected.length >= options.maxCandidates) return false;
+    if (selectedIds.has(candidate.id)) return false;
     const selectedForSurface = selectedCountsBySurface.get(candidate.surface) ?? 0;
-    if (selectedForSurface >= options.maxCandidatesPerSurface) return;
+    if (enforceSurfaceCap && selectedForSurface >= options.maxCandidatesPerSurface) {
+      return false;
+    }
     selected.push(candidate);
     selectedIds.add(candidate.id);
     selectedCountsBySurface.set(candidate.surface, selectedForSurface + 1);
+    return true;
   };
+
+  const representedDueTargetKeys = new Set<string>();
+  for (const target of options.dueTargets) {
+    const key = dueTargetKey(target);
+    if (representedDueTargetKeys.has(key)) continue;
+    const representative = candidatesForDueTarget(target, candidates).find(
+      (candidate) => !selectedIds.has(candidate.id),
+    );
+    if (!representative) continue;
+    if (!selectCandidate(representative, false)) break;
+    representedDueTargetKeys.add(key);
+  }
 
   for (const priority of [true, false]) {
     for (const surface of SECURITY_REVIEW_SURFACES) {
@@ -119,7 +142,7 @@ function boundCandidatesByPriority(
         if (candidate.surface !== surface) continue;
         if (selectedIds.has(candidate.id)) continue;
         if (dueCandidateIds.has(candidate.id) !== priority) continue;
-        selectCandidate(candidate);
+        selectCandidate(candidate, true);
       }
     }
   }

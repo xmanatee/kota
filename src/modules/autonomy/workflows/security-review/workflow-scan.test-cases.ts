@@ -183,7 +183,44 @@ export function describeSecurityReviewScanTests(): void {
       );
     });
 
-    it("reports due target cap misses when caps are exhausted by earlier due candidates", () => {
+    it("selects one representative per due target before enforcing per-surface caps", () => {
+      fixture.writeProjectFile(
+        "src/modules/web-access/a-due.ts",
+        "await fetch(first);\nawait fetch(second);\n",
+      );
+      fixture.writeProjectFile("src/modules/web-access/b-due.ts", "await fetch(second);\n");
+      fixture.writeProjectFile("src/modules/web-access/c-noise.ts", "await fetch(third);\n");
+
+      const dueTargets = securityReviewDueTargetsFromPayload(fixture.projectDir, {
+        changedSurfaces: [
+          {
+            surface: "external-fetch",
+            paths: [
+              "src/modules/web-access/a-due.ts",
+              "src/modules/web-access/b-due.ts",
+            ],
+          },
+        ],
+      });
+
+      const result = scanSecurityReviewCandidates(fixture.projectDir, {
+        maxCandidates: 2,
+        maxCandidatesPerSurface: 1,
+        dueTargets,
+      });
+
+      expect(result.candidates.map((candidate) => candidate.path)).toEqual([
+        "src/modules/web-access/a-due.ts",
+        "src/modules/web-access/b-due.ts",
+      ]);
+      expect(result.dueTargets).toMatchObject({
+        total: 2,
+        matched: 2,
+        missed: 0,
+      });
+    });
+
+    it("reports due target cap misses when the hard global cap is exhausted", () => {
       fixture.writeProjectFile("src/modules/web-access/a-due.ts", "await fetch(first);\n");
       fixture.writeProjectFile("src/modules/web-access/b-due.ts", "await fetch(second);\n");
 
