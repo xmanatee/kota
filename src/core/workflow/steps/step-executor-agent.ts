@@ -150,6 +150,7 @@ export async function executeAgentStep(
     resolvedHarness.askOwnerToolName,
     foreach,
     scopedAgent?.writeScope,
+    agentConfig.runtimeResources,
   );
   const systemPrompt = buildAgentSystemPrompt({
     config: agentConfig.config,

@@ -55,6 +55,7 @@ describe("builder workflow worktree mode", () => {
     const prepareOutput = result.steps["prepare-worktree"].output as {
       runtimeResources: {
         profileId: string;
+        agentRunDir: string;
         tempRoot: string;
         artifactRoot: string;
         ports: { start: number; end: number; size: number };
@@ -75,12 +76,14 @@ describe("builder workflow worktree mode", () => {
       runtimeResources: {
         profileId: "task-claimed:harness-run-id",
         workspaceDir: expectedWorkspaceDir,
+        agentRunDir: `${expectedWorkspaceDir}/.kota/runs/harness-run-id`,
         tempRoot: `${expectedWorkspaceDir}/.kota/tmp/harness-run-id`,
-        artifactRoot: `${projectDir}/.kota/runs/harness/artifacts`,
+        artifactRoot: `${expectedWorkspaceDir}/.kota/runs/harness-run-id/artifacts`,
         ports: { size: 20 },
         env: {
           KOTA_RUNTIME_PROFILE_ID: "task-claimed:harness-run-id",
           KOTA_WORKSPACE_DIR: expectedWorkspaceDir,
+          KOTA_RUN_DIR: `${expectedWorkspaceDir}/.kota/runs/harness-run-id`,
         },
       },
     });
@@ -89,7 +92,7 @@ describe("builder workflow worktree mode", () => {
     expect(buildRuntimePortBase).toBe(String(prepareOutput.runtimeResources.ports.start));
     expect(commitWorkflowChanges).toHaveBeenCalledWith(
       expectedWorkspaceDir,
-      `${projectDir}/.kota/runs/harness`,
+      prepareOutput.runtimeResources.agentRunDir,
     );
 
     const { mergeAutomationWorktree } = await import("#modules/git/worktree-merge-gate.js");
@@ -157,6 +160,7 @@ describe("builder workflow worktree mode", () => {
       { projectDir, taskId: "task-claimed", runId: "harness-run-id" },
       expect.objectContaining({
         profileId: "task-claimed:harness-run-id",
+        agentRunDir: prepareOutput.runtimeResources.agentRunDir,
         tempRoot: prepareOutput.runtimeResources.tempRoot,
         artifactRoot: prepareOutput.runtimeResources.artifactRoot,
         ports: expect.objectContaining({

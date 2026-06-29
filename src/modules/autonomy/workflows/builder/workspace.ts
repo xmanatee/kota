@@ -1,7 +1,33 @@
+import { isAbsolute, relative, resolve } from "node:path";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 
 export function workflowWorkspaceDir(
   ctx: Pick<WorkflowStepContext, "projectDir" | "workspaceDir">,
 ): string {
   return ctx.workspaceDir ?? ctx.projectDir;
+}
+
+export function isBuilderPathInside(parent: string, candidate: string): boolean {
+  const rel = relative(parent, candidate);
+  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+}
+
+export function builderAgentRunDir(
+  ctx: Pick<WorkflowStepContext, "projectDir" | "workspaceDir" | "runtimeResources">,
+): string {
+  const configured = ctx.runtimeResources?.agentRunDir;
+  if (configured === undefined) {
+    throw new Error("Builder runtime resources are missing agentRunDir");
+  }
+  if (!isAbsolute(configured)) {
+    throw new Error(`Builder agentRunDir must be absolute: ${configured}`);
+  }
+  const workspaceDir = resolve(workflowWorkspaceDir(ctx));
+  const agentRunDir = resolve(configured);
+  if (!isBuilderPathInside(workspaceDir, agentRunDir)) {
+    throw new Error(
+      `Builder agentRunDir must be inside the active workspace: ${configured}`,
+    );
+  }
+  return agentRunDir;
 }

@@ -1,5 +1,10 @@
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
+import { resolveAgentRunDir } from "./agent-run-dir.js";
 import { executeRepairAgentIteration } from "./repair-loop-agent-iteration.js";
 import {
   type RepairCheckResult,
@@ -34,6 +39,13 @@ type ScopedRepairAgent = {
   writeScope: readonly string[];
 };
 
+const REPAIR_NO_PROGRESS_LIMIT = 3;
+
+type RepairProgressSnapshot = {
+  key: string;
+  failureIds: string[];
+};
+
 export function buildRepairPrompt(
   attempt: number,
   maxRepairAttempts: number | undefined,
@@ -63,6 +75,47 @@ export function buildRepairPrompt(
     "Finish this repair fully, then stop.",
   );
   return lines.join("\n");
+}
+
+function gitDiffAgainstHead(workspaceDir: string): string {
+  try {
+    return execFileSync("git", ["diff", "--binary", "HEAD", "--"], {
+      cwd: workspaceDir,
+      env: withProtectedGitBareRepositoryEnv(),
+      encoding: "utf8",
+      maxBuffer: 20 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return `git diff unavailable: ${message}`;
+  }
+}
+
+function repairFailureSignature(failures: RepairCheckResult[]): string {
+  return failures
+    .map((failure) => `${failure.id}\n${failure.output.trim()}`)
+    .join("\n---\n");
+}
+
+function repairProgressSnapshot(
+  workspaceDir: string,
+  failures: RepairCheckResult[],
+): RepairProgressSnapshot {
+  const status = getRepoWorktreeStatus(workspaceDir);
+  const diff = status.available ? gitDiffAgainstHead(workspaceDir) : "";
+  const hash = createHash("sha256");
+  hash.update(repairFailureSignature(failures));
+  hash.update("\0");
+  hash.update(status.headSha);
+  hash.update("\0");
+  hash.update(status.fingerprint);
+  hash.update("\0");
+  hash.update(diff);
+  return {
+    key: hash.digest("hex"),
+    failureIds: failures.map((failure) => failure.id),
+  };
 }
 
 function resolveScopedRepairAgent(
@@ -97,9 +150,14 @@ export async function runAgentRepairLoop(
   const trajectoryMessages = [...initialResult.trajectoryMessages];
   const resolvedHarness = resolveAgentHarness(step.harness);
   const scopedAgent = resolveScopedRepairAgent(step, agentConfig);
+  const workspaceDir = context.workspaceDir ?? context.projectDir;
+  const agentRunDir = resolveAgentRunDir({
+    metadata,
+    projectDir: context.projectDir,
+    runtimeResources: context.runtimeResources,
+  });
 
   const wrap = (output: Record<string, unknown>): AgentStepResult => {
-    const workspaceDir = context.workspaceDir ?? context.projectDir;
     const postStepMutatedPaths = scopedAgent
       ? listWorkflowMutatedPaths(workspaceDir)
       : (tryListWorkflowMutatedPaths(workspaceDir) ?? []);
@@ -152,13 +210,15 @@ export async function runAgentRepairLoop(
   const { failures: initialFailures, warnings: initialWarnings } = await runChecksPhased(checks, context, step);
   let failures = initialFailures;
   warnings = initialWarnings;
+  let previousProgress = repairProgressSnapshot(workspaceDir, failures);
+  let noProgressAttempts = 0;
 
   for (let attempt = 1; failures.length > 0 && (maxRepairAttempts === undefined || attempt <= maxRepairAttempts); attempt++) {
     if (abortController.signal.aborted) break;
 
     const iteration: RepairIteration = { attempt, failures };
 
-    const repairPrompt = buildRepairPrompt(attempt, maxRepairAttempts, failures, step, context.workflow.runDirPath);
+    const repairPrompt = buildRepairPrompt(attempt, maxRepairAttempts, failures, step, agentRunDir);
     const appendRepairMessage = (message: KotaAgentMessage) => {
       trajectoryMessages.push(message);
       appendMessage(message);
@@ -197,6 +257,22 @@ export async function runAgentRepairLoop(
     const phased = await runChecksPhased(checks, context, step);
     failures = phased.failures;
     warnings = phased.warnings;
+
+    if (failures.length > 0) {
+      const progress = repairProgressSnapshot(workspaceDir, failures);
+      if (progress.key === previousProgress.key) {
+        noProgressAttempts += 1;
+      } else {
+        previousProgress = progress;
+        noProgressAttempts = 0;
+      }
+      if (noProgressAttempts >= REPAIR_NO_PROGRESS_LIMIT) {
+        throw new Error(
+          `Repair loop for step "${step.id}" made no progress after ${REPAIR_NO_PROGRESS_LIMIT} consecutive attempts. ` +
+            `Still failing: ${progress.failureIds.join(", ")}`,
+        );
+      }
+    }
 
     if (failures.length > 0 && attempt === maxRepairAttempts) {
       throw new Error(

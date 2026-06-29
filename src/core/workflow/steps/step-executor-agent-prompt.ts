@@ -4,7 +4,12 @@ import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
 import { detectInjection } from "#core/util/injection-detector.js";
-import type { WorkflowRunMetadata, WorkflowStepContext } from "../run-types.js";
+import { resolveAgentRunDir } from "../agent-run-dir.js";
+import type {
+  WorkflowRunMetadata,
+  WorkflowRuntimeResources,
+  WorkflowStepContext,
+} from "../run-types.js";
 import type { WorkflowAgentStep } from "../step-types.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import type { WorkflowDefinition } from "../types.js";
@@ -126,6 +131,7 @@ export function buildAgentPrompt(
   askOwnerToolName: string | null,
   foreach?: WorkflowStepContext["foreach"],
   agentWriteScope?: readonly string[],
+  runtimeResources?: WorkflowRuntimeResources,
 ): { systemPromptAppend: string; prompt: string } {
   const promptBody = readFileSync(
     resolve(step.moduleRoot, step.promptPath),
@@ -133,12 +139,17 @@ export function buildAgentPrompt(
   );
   const triggerPayloadKeys = Object.keys(trigger.payload);
   const exposedOutputs = getExposedStepOutputs(definition, priorStepOutputs);
+  const agentRunDir = resolveAgentRunDir({
+    metadata,
+    projectDir,
+    runtimeResources,
+  });
   const lines = [
     "Execute one KOTA workflow step in this repository.",
     `Workflow: ${definition.name}`,
     `Step: ${step.id}`,
     `Run ID: ${metadata.id}`,
-    `Run directory: ${metadata.runDir}`,
+    `Run directory: ${agentRunDir}`,
     `Workflow definition: ${metadata.definitionPath}`,
     `Prompt file: ${step.promptPath}`,
     `Project root: ${projectDir}`,

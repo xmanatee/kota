@@ -109,6 +109,9 @@ export async function executeRepairAgentIteration(
           effort: step.effort,
           thinkingEnabled: step.thinkingEnabled,
           thinkingBudget: step.thinkingBudget,
+          ...(agentConfig.runtimeResources !== undefined
+            ? { env: agentConfig.runtimeResources.env }
+            : {}),
           ...routeKotaToolControlOptions(harness, {
             allowedTools: toolScope.allowedTools,
             disallowedTools: toolScope.disallowedTools,

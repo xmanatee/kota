@@ -193,12 +193,15 @@ describe("builder workflow workspaceDir", () => {
       });
 
       const result = await harness.run();
+      const prepareOutput = result.steps["prepare-worktree"].output as {
+        runtimeResources: { agentRunDir: string };
+      };
 
       expect(result.status).toBe("success");
       expect(result.steps.commit.status).toBe("success");
       expect(commitWorkflowChanges).toHaveBeenCalledWith(
         workspaceDir,
-        join(projectDir, ".kota/runs/harness"),
+        prepareOutput.runtimeResources.agentRunDir,
       );
 
       const { claimNextQueueTask, releaseTaskClaim } =

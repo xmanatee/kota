@@ -83,6 +83,7 @@ describe("automation worktree operator statuses", () => {
       { projectDir: repo, taskId: active.metadata.taskId, runId: active.metadata.runId },
       {
         profileId: "task-add-worktree-provider:run-active",
+        agentRunDir: join(active.metadata.workspaceDir, ".kota", "runs", "run-active"),
         tempRoot: join(active.metadata.workspaceDir, ".kota", "tmp", "run-active"),
         artifactRoot: join(repo, ".kota", "runs", "run-active", "artifacts"),
         ports: { start: 41_000, end: 41_019 },
@@ -119,6 +120,7 @@ describe("automation worktree operator statuses", () => {
     expect(byRun.get("run-active")?.cleanupBlockers).toContain("worktree is locked: builder agent running");
     expect(byRun.get("run-active")?.runtimeResources).toEqual({
       profileId: "task-add-worktree-provider:run-active",
+      agentRunDir: join(active.metadata.workspaceDir, ".kota", "runs", "run-active"),
       tempRoot: join(active.metadata.workspaceDir, ".kota", "tmp", "run-active"),
       artifactRoot: join(repo, ".kota", "runs", "run-active", "artifacts"),
       ports: { start: 41_000, end: 41_019 },

@@ -1,3 +1,4 @@
+import { isAbsolute } from "node:path";
 import type {
   WorkflowRuntimeResources,
   WorkflowStepResult,
@@ -9,6 +10,7 @@ type StringRecord = { [key: string]: string };
 type ResourceOutput = {
   profileId?: WorkflowOutputValue;
   env?: WorkflowOutputValue;
+  agentRunDir?: WorkflowOutputValue;
   tempRoot?: WorkflowOutputValue;
   artifactRoot?: WorkflowOutputValue;
   ports?: WorkflowOutputValue;
@@ -36,6 +38,20 @@ function optionalString(
     );
   }
   return value;
+}
+
+function optionalAbsoluteString(
+  value: WorkflowOutputValue,
+  stepId: string,
+  field: string,
+): string | undefined {
+  const resolved = optionalString(value, stepId, field);
+  if (resolved !== undefined && !isAbsolute(resolved)) {
+    throw new Error(
+      `Step "${stepId}" updatesRuntimeResources output.runtimeResources.${field} must be an absolute path`,
+    );
+  }
+  return resolved;
 }
 
 function optionalPortRange(
@@ -100,6 +116,11 @@ export function runtimeResourcesFromStepOutput(
       `Step "${stepId}" updatesRuntimeResources output.runtimeResources.env must be a string record`,
     );
   }
+  const agentRunDir = optionalAbsoluteString(
+    resources.agentRunDir,
+    stepId,
+    "agentRunDir",
+  );
   const tempRoot = optionalString(resources.tempRoot, stepId, "tempRoot");
   const artifactRoot = optionalString(
     resources.artifactRoot,
@@ -110,6 +131,7 @@ export function runtimeResourcesFromStepOutput(
   return {
     profileId: resources.profileId,
     env: resources.env,
+    ...(agentRunDir !== undefined ? { agentRunDir } : {}),
     ...(tempRoot !== undefined ? { tempRoot } : {}),
     ...(artifactRoot !== undefined ? { artifactRoot } : {}),
     ...(ports !== undefined ? { ports } : {}),

@@ -111,6 +111,7 @@ export type WorkflowRuntimeResourcePortRange = {
 export type WorkflowRuntimeResources = {
   profileId: string;
   env: Record<string, string>;
+  agentRunDir?: string;
   tempRoot?: string;
   artifactRoot?: string;
   ports?: WorkflowRuntimeResourcePortRange;

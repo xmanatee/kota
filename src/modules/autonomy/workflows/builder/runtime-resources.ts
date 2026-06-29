@@ -36,6 +36,7 @@ export type BuilderRuntimeResourceProfile = Omit<
   taskId: string;
   runId: string;
   workspaceDir: string;
+  agentRunDir: string;
   ports: BuilderRuntimeResourcePortRange;
   packageCacheRoot: string;
   preflight: BuilderRuntimeResourcePreflight;
@@ -71,13 +72,22 @@ function writeProfileArtifact(
   writeFileSync(artifactPath, `${JSON.stringify(profile, null, 2)}\n`, "utf8");
 }
 
+function builderAgentRunDir(input: AssignBuilderRuntimeResourcesInput): string {
+  if (resolve(input.workspaceDir) === resolve(input.projectDir)) {
+    return input.runDirPath;
+  }
+  return join(input.workspaceDir, ".kota", "runs", input.runId);
+}
+
 export async function assignBuilderRuntimeResources(
   input: AssignBuilderRuntimeResourcesInput,
 ): Promise<BuilderRuntimeResourceProfile> {
   const tempRoot = join(input.workspaceDir, ".kota", "tmp", input.runId);
-  const artifactRoot = join(input.runDirPath, "artifacts");
+  const agentRunDir = builderAgentRunDir(input);
+  const artifactRoot = join(agentRunDir, "artifacts");
   const packageCacheRoot = join(tempRoot, "package-cache");
   mkdirSync(tempRoot, { recursive: true });
+  mkdirSync(agentRunDir, { recursive: true });
   mkdirSync(artifactRoot, { recursive: true });
   mkdirSync(packageCacheRoot, { recursive: true });
 
@@ -92,6 +102,7 @@ export async function assignBuilderRuntimeResources(
   const env = {
     KOTA_RUNTIME_PROFILE_ID: profileId,
     KOTA_WORKSPACE_DIR: input.workspaceDir,
+    KOTA_RUN_DIR: agentRunDir,
     KOTA_RUN_TEMP_DIR: tempRoot,
     KOTA_RUN_ARTIFACT_DIR: artifactRoot,
     KOTA_PACKAGE_CACHE_DIR: packageCacheRoot,
@@ -112,6 +123,7 @@ export async function assignBuilderRuntimeResources(
     taskId: input.taskId,
     runId: input.runId,
     workspaceDir: input.workspaceDir,
+    agentRunDir,
     tempRoot,
     artifactRoot,
     ports,
@@ -122,6 +134,7 @@ export async function assignBuilderRuntimeResources(
       ports: portAssignment.checkedPorts,
       setup: [
         "tempRoot",
+        "agentRunDir",
         "artifactRoot",
         "packageCacheRoot",
         "dependencySetup",

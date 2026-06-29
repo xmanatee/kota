@@ -36,6 +36,7 @@ export type AutomationWorktreeOperatorStatus = {
 
 export type AutomationWorktreeRuntimeResources = {
 	profileId: string;
+	agentRunDir: string;
 	tempRoot?: string;
 	artifactRoot?: string;
 	ports?: {

@@ -49,7 +49,7 @@ import {
   createMarkClaimPendingMergeStep,
   createReleaseTaskClaimStep,
 } from "./task-claim-step.js";
-import { workflowWorkspaceDir } from "./workspace.js";
+import { builderAgentRunDir, workflowWorkspaceDir } from "./workspace.js";
 
 export const agent: AgentDef = {
   name: "builder",
@@ -175,7 +175,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       type: "code",
       when: (ctx) =>
         stepSucceeded("create-task-branch")(ctx) && claimedTaskConsistencySucceeded(ctx),
-      run: (ctx) => commitWorkflowChanges(workflowWorkspaceDir(ctx), ctx.workflow.runDirPath),
+      run: (ctx) => commitWorkflowChanges(workflowWorkspaceDir(ctx), builderAgentRunDir(ctx)),
     },
     typedCodeStep<BuilderRunSummary>({
       id: "write-run-summary",

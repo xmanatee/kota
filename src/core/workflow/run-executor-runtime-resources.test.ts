@@ -106,6 +106,7 @@ describe("workflow runtime resources", () => {
     let toolEnv: Record<string, string> | undefined;
     const runtimeResources = {
       profileId: "profile-1",
+      agentRunDir: join(projectDir, ".kota", "runs", "run-1-agent"),
       tempRoot: join(projectDir, ".kota", "tmp", "profile-1"),
       artifactRoot: join(projectDir, ".kota", "runs", "run-1", "artifacts"),
       ports: { start: 41_000, end: 41_019 },
@@ -157,5 +158,8 @@ describe("workflow runtime resources", () => {
     });
     expect(toolEnv?.KOTA_PORT_BASE).toBe("41000");
     expect(agentOptions?.env?.KOTA_PORT_BASE).toBe("41000");
+    expect(agentOptions?.prompt).toContain(
+      `Run directory: ${runtimeResources.agentRunDir}`,
+    );
   }, 10_000);
 });

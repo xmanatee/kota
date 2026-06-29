@@ -49,6 +49,24 @@ afterEach(() => {
 });
 
 describe("builder runtime resource assignment", () => {
+  it("uses the canonical run directory when the workspace is the project checkout", async () => {
+    const projectDir = tempProject("root-workspace");
+    const runDirPath = join(projectDir, ".kota", "runs", "run-root");
+
+    const profile = await assignBuilderRuntimeResources({
+      projectDir,
+      taskId: "task-root",
+      runId: "run-root",
+      workspaceDir: projectDir,
+      runDirPath,
+    });
+
+    expect(profile.agentRunDir).toBe(runDirPath);
+    expect(profile.artifactRoot).toBe(join(runDirPath, "artifacts"));
+    expect(profile.env.KOTA_RUN_DIR).toBe(runDirPath);
+    expect(profile.env.KOTA_RUN_ARTIFACT_DIR).toBe(profile.artifactRoot);
+  });
+
   it("assigns deterministic non-overlapping profiles for concurrent task runs", async () => {
     const projectDir = tempProject("profiles");
     const alphaWorkspace = join(projectDir, "worktrees", "alpha");
@@ -84,8 +102,12 @@ describe("builder runtime resource assignment", () => {
     expect(rangesOverlap(alpha.ports, beta.ports)).toBe(false);
     expect(alpha.tempRoot).toBe(join(alphaWorkspace, ".kota", "tmp", "run-a"));
     expect(beta.tempRoot).toBe(join(betaWorkspace, ".kota", "tmp", "run-b"));
-    expect(alpha.artifactRoot).toBe(join(alphaRunDir, "artifacts"));
-    expect(beta.artifactRoot).toBe(join(betaRunDir, "artifacts"));
+    expect(alpha.agentRunDir).toBe(join(alphaWorkspace, ".kota", "runs", "run-a"));
+    expect(beta.agentRunDir).toBe(join(betaWorkspace, ".kota", "runs", "run-b"));
+    expect(alpha.artifactRoot).toBe(join(alpha.agentRunDir, "artifacts"));
+    expect(beta.artifactRoot).toBe(join(beta.agentRunDir, "artifacts"));
+    expect(alpha.env.KOTA_RUN_DIR).toBe(alpha.agentRunDir);
+    expect(beta.env.KOTA_RUN_ARTIFACT_DIR).toBe(beta.artifactRoot);
     expect(alpha.env.KOTA_PORT_BASE).toBe(String(alpha.ports.start));
     expect(beta.env.KOTA_PORT_BASE).toBe(String(beta.ports.start));
     expect(alpha.env.TMPDIR).toBe(alpha.tempRoot);
@@ -100,6 +122,7 @@ describe("builder runtime resource assignment", () => {
     expect(JSON.parse(readFileSync(alpha.artifactPath, "utf8"))).toMatchObject({
       profileId: "task-alpha:run-a",
       projectDir,
+      agentRunDir: alpha.agentRunDir,
       ports: { start: alpha.ports.start, end: alpha.ports.end },
     });
   });

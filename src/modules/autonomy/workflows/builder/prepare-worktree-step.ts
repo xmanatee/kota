@@ -140,6 +140,7 @@ export function createPrepareBuilderWorktreeStep(
         { projectDir: ctx.projectDir, taskId, runId: ctx.workflow.runId },
         {
           profileId: runtimeResources.profileId,
+          agentRunDir: runtimeResources.agentRunDir,
           tempRoot: runtimeResources.tempRoot,
           artifactRoot: runtimeResources.artifactRoot,
           ports: runtimeResources.ports,

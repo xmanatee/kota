@@ -20,6 +20,7 @@ import {
   checkModuleBoundary,
   checkPackageScript,
 } from "./project-repair-checks.js";
+import { checkAgentRunArtifactsStageable } from "./agent-run-artifacts.js";
 import {
   checkSuccessCriteriaDeclared,
   checkSuccessCriteriaVerified,
@@ -29,7 +30,7 @@ import {
   checkActionableTaskResolved,
   checkClaimedTaskCommitSet,
 } from "./task-state-repair-checks.js";
-import { workflowWorkspaceDir } from "./workspace.js";
+import { builderAgentRunDir, workflowWorkspaceDir } from "./workspace.js";
 
 export { checkModuleBoundary } from "./project-repair-checks.js";
 export {
@@ -53,13 +54,13 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       id: "success-criteria-declared",
       type: "code" as const,
       run: (ctx) =>
-        checkSuccessCriteriaDeclared(ctx.workflow.runDirPath, workflowWorkspaceDir(ctx)),
+        checkSuccessCriteriaDeclared(builderAgentRunDir(ctx), workflowWorkspaceDir(ctx)),
     },
     {
       id: "success-criteria-verified",
       type: "code" as const,
       phase: 1,
-      run: (ctx) => checkSuccessCriteriaVerified(ctx.workflow.runDirPath),
+      run: (ctx) => checkSuccessCriteriaVerified(builderAgentRunDir(ctx)),
     },
     {
       id: "actionable-task-resolved",
@@ -179,7 +180,15 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
     {
       id: "commit-message-exists",
       type: "code" as const,
-      run: (ctx) => checkCommitMessageExists(ctx.workflow.runDirPath, workflowWorkspaceDir(ctx)),
+      run: (ctx) =>
+        checkCommitMessageExists(builderAgentRunDir(ctx), workflowWorkspaceDir(ctx)),
+    },
+    {
+      id: "agent-run-artifacts-stageable",
+      type: "code" as const,
+      phase: 1,
+      run: (ctx) =>
+        checkAgentRunArtifactsStageable(builderAgentRunDir(ctx), workflowWorkspaceDir(ctx)),
     },
     {
       id: "commit-stageable",

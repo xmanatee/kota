@@ -134,6 +134,7 @@ describe("builder workflow worktree-mode fixture", () => {
     let buildWorkspaceDir: string | undefined;
     let buildRuntimeProfileId: string | undefined;
     let buildRuntimePortBase: string | undefined;
+    let buildRuntimeAgentRunDir: string | undefined;
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
       projectDir,
@@ -158,6 +159,7 @@ describe("builder workflow worktree-mode fixture", () => {
           buildWorkspaceDir = workspaceDir;
           buildRuntimeProfileId = ctx.runtimeResources?.profileId;
           buildRuntimePortBase = ctx.runtimeResources?.env.KOTA_PORT_BASE;
+          buildRuntimeAgentRunDir = ctx.runtimeResources?.agentRunDir;
           if (workspaceDir === ctx.projectDir) {
             throw new Error("build step did not receive the prepared task worktree");
           }
@@ -191,9 +193,12 @@ describe("builder workflow worktree-mode fixture", () => {
             "utf8",
           );
           renameSync(readyTaskPath, doneTaskPath);
-          mkdirSync(ctx.workflow.runDirPath, { recursive: true });
+          if (ctx.runtimeResources?.agentRunDir === undefined) {
+            throw new Error("build step did not receive an agent run directory");
+          }
+          mkdirSync(ctx.runtimeResources.agentRunDir, { recursive: true });
           writeFileSync(
-            join(ctx.workflow.runDirPath, "commit-message.txt"),
+            join(ctx.runtimeResources.agentRunDir, "commit-message.txt"),
             "Builder worktree fixture\n",
             "utf8",
           );
@@ -214,6 +219,9 @@ describe("builder workflow worktree-mode fixture", () => {
     expect(buildWorkspaceDir).toContain(`${projectDir}/.worktrees/`);
     expect(buildRuntimeProfileId).toBe("task-worktree-fixture:harness-run-id");
     expect(buildRuntimePortBase).toMatch(/^\d+$/);
+    expect(buildRuntimeAgentRunDir).toBe(
+      join(buildWorkspaceDir!, ".kota", "runs", "harness-run-id"),
+    );
 
     const workspaceDir = buildWorkspaceDir!;
     expect(existsSync(join(workspaceDir, fixtureRelativePath))).toBe(true);
@@ -252,9 +260,11 @@ describe("builder workflow worktree-mode fixture", () => {
       runtimeResources: {
         profileId: "task-worktree-fixture:harness-run-id",
         workspaceDir,
+        agentRunDir: buildRuntimeAgentRunDir,
         env: {
           KOTA_WORKSPACE_DIR: workspaceDir,
           KOTA_RUNTIME_PROFILE_ID: "task-worktree-fixture:harness-run-id",
+          KOTA_RUN_DIR: buildRuntimeAgentRunDir,
         },
       },
     });

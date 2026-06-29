@@ -248,6 +248,111 @@ describe("runAgentRepairLoop", () => {
     expect(decisions[1]).toHaveProperty("decisionAttribution", "operator-deny");
   });
 
+  it("passes runtime env and agentRunDir to repair iterations", async () => {
+    const harnessName = uniqueName("repair-runtime-resources");
+    const agentRunDir = join(projectDir, ".worktrees", "task", ".kota", "runs", "run-001");
+    let repairOptions: AgentHarnessRunOptions | undefined;
+    registerRepairHarness(harnessName, async (options) => {
+      repairOptions = options;
+      return {
+        text: "repair complete",
+        streamedText: "repair complete",
+        turns: 1,
+        isError: false,
+      };
+    });
+
+    let checkCount = 0;
+    const step = makeStep(projectDir, harnessName, {
+      repairLoop: {
+        maxRepairAttempts: 1,
+        checks: [
+          {
+            id: "fail-once",
+            type: "code",
+            run: () => {
+              checkCount += 1;
+              if (checkCount === 1) throw new Error("needs repair");
+              return "ok";
+            },
+          },
+        ],
+      },
+    });
+    const context = {
+      ...makeContext(projectDir),
+      runtimeResources: {
+        profileId: "profile-1",
+        agentRunDir,
+        env: { KOTA_RUN_DIR: agentRunDir },
+      },
+    };
+
+    const result = await runAgentRepairLoop(
+      step,
+      makeInitialResult(),
+      context,
+      makeMetadata(),
+      new AbortController(),
+      vi.fn(),
+      {
+        projectDir,
+        runtimeResources: context.runtimeResources,
+      },
+    );
+
+    expect(result.output).toMatchObject({
+      content: "repair complete",
+      repairIterations: [{ attempt: 1 }],
+    });
+    expect(repairOptions?.env?.KOTA_RUN_DIR).toBe(agentRunDir);
+    expect(repairOptions?.prompt).toContain(`Run directory:\n${agentRunDir}`);
+  });
+
+  it("fails repeated repair attempts that leave the same checks and diff unchanged", async () => {
+    const harnessName = uniqueName("repair-no-progress");
+    const repairRuns: string[] = [];
+    registerRepairHarness(harnessName, async (options) => {
+      repairRuns.push(options.prompt);
+      return {
+        text: "no changes",
+        streamedText: "no changes",
+        turns: 1,
+        isError: false,
+      };
+    });
+
+    initGitRepo(projectDir);
+    const step = makeStep(projectDir, harnessName, {
+      repairLoop: {
+        checks: [
+          {
+            id: "always-fails",
+            type: "code",
+            run: () => {
+              throw new Error("still failing");
+            },
+          },
+        ],
+      },
+    });
+
+    await expect(
+      runAgentRepairLoop(
+        step,
+        makeInitialResult(),
+        makeContext(projectDir),
+        makeMetadata(),
+        new AbortController(),
+        vi.fn(),
+        { projectDir },
+      ),
+    ).rejects.toThrow(
+      'Repair loop for step "agent" made no progress after 3 consecutive attempts',
+    );
+    expect(repairRuns).toHaveLength(3);
+  });
+
   it("rejects out-of-scope files written by a repair iteration", async () => {
     const harnessName = uniqueName("repair-write-scope");
     registerRepairHarness(harnessName, async () => {
