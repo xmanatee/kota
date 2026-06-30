@@ -164,15 +164,8 @@ export async function executeAgentStep(
   });
   writeInputs(systemPrompt, agentPrompt.prompt);
 
-  // Telemetry tracking and caller message capture both ride `onMessage`,
-  // which only stream-capable harnesses emit; non-stream harnesses reject it.
   const stepTelemetry = new ToolTelemetry();
 
-  // Snapshot before run so post-step writeScope diff excludes paths another
-  // step or pre-existing dirt mutated.
-  const preStepMutatedPaths = scopedAgent
-    ? listWorkflowMutatedPaths(workspaceDir)
-    : (tryListWorkflowMutatedPaths(workspaceDir) ?? []);
   const bufferAgentMessages = step.validate !== undefined;
   let successfulAttemptMessages: KotaAgentMessage[] = [];
   let lastJsonOutputFeedback: string | undefined;
@@ -209,79 +202,96 @@ export async function executeAgentStep(
   const runWithRetry = () => withRetry(runAttempt, retry, {
     log: agentConfig.log,
     abortSignal: abortController.signal,
-    // Only consume retry attempts for classified-transient failures and
-    // structured-output correction paths. Max-turn, logic, and malformed-tool
-    // errors fail hard on the first attempt.
+    // Retry only classified transients and structured-output correction paths.
     shouldRetry: (err) =>
       err instanceof JsonOutputValidationError ||
       (step.outputFormat === "json" && err instanceof WorkflowStepOutputValidationError) ||
       (err instanceof AgentStepRuntimeError && err.retryable),
   });
-  let output: WorkflowStepOutput;
-  try {
-    output = agentConfig.agentRunLimiter
-      ? await agentConfig.agentRunLimiter.run(runWithRetry, abortController.signal)
-      : await runWithRetry();
-  } finally {
-    writeAgentTokenBudgetArtifact(
-      step.id,
-      metadata,
-      agentConfig.projectDir,
-      tokenBudget,
-    );
-    removeWorkflowScratchArtifacts(workspaceDir);
-  }
 
-  if (bufferAgentMessages) {
-    for (const message of successfulAttemptMessages) appendMessage(message);
-  }
-
-  if (resolvedHarness.emitsAgentMessageStream) {
-    writeToolTelemetryArtifact(step.id, metadata, agentConfig.projectDir, stepTelemetry);
-  }
-
-  const postStepMutatedPaths = scopedAgent
-    ? listWorkflowMutatedPaths(workspaceDir)
-    : (tryListWorkflowMutatedPaths(workspaceDir) ?? []);
-  const stepMutatedPaths = diffMutatedPaths(
-    preStepMutatedPaths,
-    postStepMutatedPaths,
-  );
-  const trajectoryDiagnostics = writeAgentTrajectoryDiagnosticsArtifact({
-    stepId: step.id,
-    runDir: metadata.runDir,
-    projectDir: agentConfig.projectDir,
-    harness: resolvedHarness,
-    messages: successfulAttemptMessages,
-    changedFiles: stepMutatedPaths,
-  });
-
-  // Whole-step writeScope contract: pre/post diff so concurrent or prior-step
-  // writes do not contaminate attribution; out-of-scope writes fail the step.
-  if (scopedAgent) {
-    const violations = findWriteScopeViolations(
-      stepMutatedPaths,
-      scopedAgent.writeScope,
-    );
-    if (violations.length > 0) {
-      const violationCtx = {
-        stepId: step.id,
-        agentName: scopedAgent.agentName,
-        scope: scopedAgent.writeScope,
-        violations,
-      };
-      writeWriteScopeViolationArtifact({ ...violationCtx, metadata, projectDir: agentConfig.projectDir });
-      throw new AgentWriteScopeViolationError(violationCtx);
+  const executeWithWorkspaceAttribution = async (): Promise<AgentStepResult> => {
+    // Snapshot after the workspace lane so wait time is not attribution time.
+    const preStepMutatedPaths = scopedAgent
+      ? listWorkflowMutatedPaths(workspaceDir)
+      : (tryListWorkflowMutatedPaths(workspaceDir) ?? []);
+    let output: WorkflowStepOutput;
+    try {
+      output = await runWithRetry();
+    } finally {
+      writeAgentTokenBudgetArtifact(
+        step.id,
+        metadata,
+        agentConfig.projectDir,
+        tokenBudget,
+      );
+      removeWorkflowScratchArtifacts(workspaceDir);
     }
-  }
 
-  return {
-    output,
-    harness: resolvedHarness.name,
-    model: resolvedModel,
-    trajectoryDiagnostics,
-    trajectoryMessages: successfulAttemptMessages,
-    preStepMutatedPaths,
-    ...(tokenBudget !== undefined ? { tokenBudget } : {}),
+    if (bufferAgentMessages) {
+      for (const message of successfulAttemptMessages) appendMessage(message);
+    }
+
+    if (resolvedHarness.emitsAgentMessageStream) {
+      writeToolTelemetryArtifact(step.id, metadata, agentConfig.projectDir, stepTelemetry);
+    }
+
+    const postStepMutatedPaths = scopedAgent
+      ? listWorkflowMutatedPaths(workspaceDir)
+      : (tryListWorkflowMutatedPaths(workspaceDir) ?? []);
+    const stepMutatedPaths = diffMutatedPaths(preStepMutatedPaths, postStepMutatedPaths);
+    const trajectoryDiagnostics = writeAgentTrajectoryDiagnosticsArtifact({
+      stepId: step.id,
+      runDir: metadata.runDir,
+      projectDir: agentConfig.projectDir,
+      harness: resolvedHarness,
+      messages: successfulAttemptMessages,
+      changedFiles: stepMutatedPaths,
+    });
+
+    // Whole-step writeScope contract: pre/post diff inside the workspace lane.
+    if (scopedAgent) {
+      const violations = findWriteScopeViolations(
+        stepMutatedPaths,
+        scopedAgent.writeScope,
+      );
+      if (violations.length > 0) {
+        const violationCtx = {
+          stepId: step.id,
+          agentName: scopedAgent.agentName,
+          scope: scopedAgent.writeScope,
+          violations,
+        };
+        writeWriteScopeViolationArtifact({
+          ...violationCtx,
+          metadata,
+          projectDir: agentConfig.projectDir,
+        });
+        throw new AgentWriteScopeViolationError(violationCtx);
+      }
+    }
+
+    return {
+      output,
+      harness: resolvedHarness.name,
+      model: resolvedModel,
+      trajectoryDiagnostics,
+      trajectoryMessages: successfulAttemptMessages,
+      preStepMutatedPaths,
+      ...(tokenBudget !== undefined ? { tokenBudget } : {}),
+    };
   };
+
+  if (!agentConfig.agentRunLimiter) {
+    return await executeWithWorkspaceAttribution();
+  }
+  return scopedAgent
+    ? await agentConfig.agentRunLimiter.runExclusive(
+        workspaceDir,
+        executeWithWorkspaceAttribution,
+        abortController.signal,
+      )
+    : await agentConfig.agentRunLimiter.run(
+        executeWithWorkspaceAttribution,
+        abortController.signal,
+      );
 }

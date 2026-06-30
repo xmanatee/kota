@@ -14,13 +14,13 @@ import {
 } from "#modules/autonomy/source-size-escalation.js";
 import { checkSevereSourceFileSizeForRun } from "#modules/autonomy/source-size-review-artifact.js";
 import type { QueueTaskClaimResult } from "#modules/autonomy/task-claims.js";
+import { checkAgentRunArtifactsStageable } from "./agent-run-artifacts.js";
 import {
   checkMacosSwiftBuild,
   checkMobileTypecheck,
   checkModuleBoundary,
   checkPackageScript,
 } from "./project-repair-checks.js";
-import { checkAgentRunArtifactsStageable } from "./agent-run-artifacts.js";
 import {
   checkSuccessCriteriaDeclared,
   checkSuccessCriteriaVerified,

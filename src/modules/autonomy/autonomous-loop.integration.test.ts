@@ -181,10 +181,10 @@ function seedFixtureProject(projectDir: string): void {
     }),
   );
 
-  // .gitignore mirrors the real project: .kota/ is runtime state, not source.
+  // .gitignore mirrors the real project: runtime state is not source.
   // Without this, getRepoWorktreeStatus would report dirty when the workflow
   // runtime modifies workflow-state.json and creates run artifacts.
-  writeFileSync(join(projectDir, ".gitignore"), ".kota/\n");
+  writeFileSync(join(projectDir, ".gitignore"), ".kota/\n.worktrees/\n");
 
   // Initialize a git repo so workflow commit steps can run if a test needs them.
   // Commit all seeded files (excluding .kota/) so worktree reads as clean.
@@ -256,14 +256,19 @@ describe("autonomous workflow loop integration", () => {
         });
       });
 
+      const workflows = (await loadAutonomyWorkflowDefinitions()).filter((workflow) =>
+        ["dispatcher", "inbox-sorter", "builder", "improver"].includes(workflow.name),
+      );
+      const { setBuilderPortAvailabilityCheckerForTest } = await import(
+        "./workflows/builder/runtime-resource-ports.js"
+      );
+      const restorePortAvailability = setBuilderPortAvailabilityCheckerForTest(async () => true);
       const runtime = new WorkflowRuntime({
         config: { defaultAgentHarness: "claude-agent-sdk", defaultPreset: "claude" },
         bus,
         projectDir,
         idleIntervalMs: 10,
-        workflows: (await loadAutonomyWorkflowDefinitions()).filter((workflow) =>
-          ["dispatcher", "inbox-sorter", "builder", "improver"].includes(workflow.name),
-        ),
+        workflows,
       });
 
       runtime.start();
@@ -274,6 +279,7 @@ describe("autonomous workflow loop integration", () => {
           35_000,
         );
       } finally {
+        restorePortAvailability();
         await runtime.stop();
       }
 

@@ -1,2 +1,7 @@
-.kota/
+.kota/*
+!.kota/runs/
+.kota/runs/*
+!.kota/runs/2026-04-24T14-00-00-000Z-builder-agcf01/
+.kota/runs/2026-04-24T14-00-00-000Z-builder-agcf01/*
+!.kota/runs/2026-04-24T14-00-00-000Z-builder-agcf01/metadata.json
 node_modules/

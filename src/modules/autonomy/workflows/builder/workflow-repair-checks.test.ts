@@ -1,9 +1,11 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "./workflow-test-support.js";
+import { checkMobileTypecheck } from "./project-repair-checks.js";
 import {
   builderRepairChecks,
   checkActionableTaskClaimed,
@@ -61,6 +63,49 @@ describe("builder workflow prompt and repair checks", () => {
         if (check?.type !== "code") throw new Error(`Expected ${id} to be a code check`);
         expect(check.run(ctx, {} as never)).toBe("OK: no package project present");
       }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("skips mobile typecheck when dependencies are absent and mobile files are unchanged", () => {
+    const dir = join(tmpdir(), `kota-mobile-skip-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(join(dir, "clients/mobile"), { recursive: true });
+    try {
+      writeFileSync(join(dir, "clients/mobile/package.json"), "{}\n");
+      expect(checkMobileTypecheck(dir)).toBe(
+        "OK: mobile client dependencies not installed; no staged mobile changes",
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("skips mobile typecheck when dependency markers are incomplete and mobile files are unchanged", () => {
+    const dir = join(tmpdir(), `kota-mobile-partial-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(join(dir, "clients/mobile/node_modules"), { recursive: true });
+    try {
+      writeFileSync(join(dir, "clients/mobile/package.json"), "{}\n");
+      expect(checkMobileTypecheck(dir)).toBe(
+        "OK: mobile client dependencies not installed; no staged mobile changes",
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("requires mobile dependencies when staged mobile files changed", () => {
+    const dir = join(tmpdir(), `kota-mobile-changed-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(join(dir, "clients/mobile/src"), { recursive: true });
+    try {
+      execFileSync("git", ["init"], { cwd: dir, stdio: "ignore" });
+      writeFileSync(join(dir, "clients/mobile/package.json"), "{}\n");
+      writeFileSync(join(dir, "clients/mobile/src/App.tsx"), "export const app = true;\n");
+      execFileSync("git", ["add", "clients/mobile"], { cwd: dir, stdio: "ignore" });
+
+      expect(() => checkMobileTypecheck(dir)).toThrow(
+        /Mobile client dependencies are not installed/,
+      );
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

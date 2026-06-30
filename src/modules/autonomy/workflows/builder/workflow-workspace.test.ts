@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { setBuilderPortAvailabilityCheckerForTest } from "./runtime-resource-ports.js";
 import builderWorkflow from "./workflow.js";
 
 vi.mock("#core/config/config.js", () => ({
@@ -158,8 +159,12 @@ function makeSnapshot(ready: number, doing: number, backlog = 4) {
 }
 
 describe("builder workflow workspaceDir", () => {
+  let restorePortAvailability = () => {};
+
   beforeEach(() => {
     vi.clearAllMocks();
+    restorePortAvailability();
+    restorePortAvailability = setBuilderPortAvailabilityCheckerForTest(async () => true);
   });
 
   it("commits against workspaceDir when the workflow runs in a separate checkout", async () => {
@@ -222,6 +227,8 @@ describe("builder workflow workspaceDir", () => {
         }),
       );
     } finally {
+      restorePortAvailability();
+      restorePortAvailability = () => {};
       rmSync(projectDir, { recursive: true, force: true });
       rmSync(workspaceDir, { recursive: true, force: true });
     }

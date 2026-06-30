@@ -147,9 +147,8 @@ in the recovery protocol. A workflow opts in by:
    recovery fails, the runtime retries once and pauses dispatch; network before
    reset would leak side effects on every retry.
 
-A workflow without file mutations but with a recovery role (e.g.
-attention-digest notifying operators) may still set `recoveryCapable: true`
-with a `runtime.recovered` trigger and skip the reset step, but it must stay
-idempotent with no pre-reset network effects. A workflow with neither role
-leaves `recoveryCapable` unset with a short comment (today: `dispatcher`,
-`pr-reviewer`). Decide deliberately when adding a new autonomy workflow.
+A workflow without file mutations but with a recovery role (e.g. attention-
+digest notifying operators) may set `recoveryCapable: true` with a
+`runtime.recovered` trigger and skip reset, but must stay idempotent with no
+pre-reset network effects. A workflow with neither role leaves it unset with a
+short comment (today: `dispatcher`, `pr-reviewer`). Decide deliberately.

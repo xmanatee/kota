@@ -1,3 +1,4 @@
+node_modules
 node_modules/
 dist/
 logs/
@@ -233,6 +234,12 @@ deploy/telegram-assistant/.env
 !/.kota/runs/2026-06-27T04-14-46-611Z-builder-emu9yt/success-criteria-verified.txt
 !/.kota/runs/2026-06-27T04-14-46-611Z-builder-emu9yt/success-criteria.txt
 !/.kota/runs/2026-06-27T04-14-46-611Z-builder-emu9yt/validation-results.txt
+!/.kota/runs/2026-06-30T19-53-51-915Z-builder-ggdpuf/
+/.kota/runs/2026-06-30T19-53-51-915Z-builder-ggdpuf/*
+!/.kota/runs/2026-06-30T19-53-51-915Z-builder-ggdpuf/commit-message.txt
+!/.kota/runs/2026-06-30T19-53-51-915Z-builder-ggdpuf/dead-letter-resolution.md
+!/.kota/runs/2026-06-30T19-53-51-915Z-builder-ggdpuf/success-criteria-verified.txt
+!/.kota/runs/2026-06-30T19-53-51-915Z-builder-ggdpuf/success-criteria.txt
 !/.kota/runs/control-monitor-coverage-gap-sample/
 !/.kota/runs/control-monitor-coverage-gap-sample/**
 !/.kota/runs/recall-consolidation-screens-20260615T160041Z/

@@ -7,8 +7,8 @@ import {
 import { stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
 import type { BuilderWorkspaceResult } from "./prepare-worktree-step.js";
 import {
-  cleanupBuilderRuntimeResources,
   type BuilderRuntimeResourceCleanupResult,
+  cleanupBuilderRuntimeResources,
 } from "./runtime-resources.js";
 
 function preparedWorkspace(

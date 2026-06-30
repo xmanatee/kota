@@ -31,11 +31,12 @@ vi.mock("#modules/repo-tasks/repo-tasks-domain.js", () => ({
   getRepoTaskQueueSnapshot: vi.fn(),
   isRepoTaskQueueSnapshot: vi.fn(() => true),
   isThinDispatchableQueue: vi.fn((snapshot, promotableBacklogCount) => {
-    const waitingCount = snapshot.counts.ready + promotableBacklogCount;
+    const waitingCount =
+      snapshot.counts.ready + snapshot.counts.doing + promotableBacklogCount;
     return (
       snapshot.inboxCount === 0 &&
       waitingCount <= 2 &&
-      (waitingCount > 0 || snapshot.counts.doing > 0)
+      waitingCount > 0
     );
   }),
   REPO_TASK_STATES: ["backlog", "ready", "doing", "blocked", "done", "dropped"],
@@ -235,14 +236,19 @@ describe("explorer workflow", () => {
     expect(result.steps.explore.status).toBe("success");
   });
 
-  it("skips explore when doing already contains work", async () => {
+  it("explores when only active doing work remains", async () => {
     const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
+    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(
       makeSnapshot({ inboxCount: 0, ready: 0, backlog: 0, doing: 1 }),
     );
 
     const harness = new WorkflowTestHarness(explorerWorkflow, {
-      trigger: { event: "autonomy.queue.empty", payload: {} },
+      trigger: { event: "autonomy.queue.thin", payload: {} },
+      stepMocks: {
+        explore: { turns: [], totalCostUsd: 0.02 },
+      },
       runtimeState: { workflows: {} },
       projectDir: tempDir,
     });
@@ -251,9 +257,9 @@ describe("explorer workflow", () => {
 
     expect(result.status).toBe("success");
     expect(result.steps["inspect-queue"].output).toMatchObject({
-      needsAttention: false,
+      needsAttention: true,
     });
-    expect(result.steps.explore.status).toBe("skipped");
+    expect(result.steps.explore.status).toBe("success");
   });
 
   it("skips explore when the queue is empty but the refresh window is not due", async () => {
@@ -504,6 +510,7 @@ describe("explorer exploration-rationale repair check", () => {
       openCount: 1 + actionableCount,
       pullableCount: actionableCount,
       actionableCount,
+      promotableBacklogCount: 0,
       dirty: false,
       needsAttention: actionableCount === 0,
       explorationRefreshDue: true,

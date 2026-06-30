@@ -60,6 +60,8 @@ function worktreeSnapshot(): StatusSnapshot {
         runId: "run-active",
         runtimeResources: {
           profileId: "task-active-worktree:run-active",
+          agentRunDir:
+            "/repo/.worktrees/task-active-worktree-run-active/.kota/runs/run-active",
           tempRoot: "/repo/.worktrees/task-active-worktree-run-active/.kota/tmp/run-active",
           artifactRoot: "/repo/.kota/runs/run-active/artifacts",
           ports: { start: 41_000, end: 41_019 },

@@ -8,8 +8,10 @@
  * server infrastructure: routing, session lifecycle, SSE formatting, error handling.
  */
 
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import type { Server } from "node:http";
 import http from "node:http";
+import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 /** Configurable send behavior for the mock agent. Reset after each test. */
@@ -51,6 +53,9 @@ let server: Server;
 let baseUrl: string;
 const TEST_AUTH_TOKEN = "test-e2e-auth-token-abc123";
 const projectModules = await discoverProjectModules();
+const webDistDir = join(process.cwd(), "clients", "web", "dist");
+const webAssetName = "kota-e2e-dashboard.js";
+let seededWebDist = false;
 
 /** Collect session IDs created during tests for cleanup. */
 const createdSessionIds: string[] = [];
@@ -63,6 +68,45 @@ function waitForPort(s: Server): Promise<number> {
       s.on("listening", () => resolve((s.address() as { port: number }).port));
     }
   });
+}
+
+function seedWebDistForE2E(): void {
+  if (existsSync(join(webDistDir, "index.html"))) return;
+  mkdirSync(join(webDistDir, "assets"), { recursive: true });
+  writeFileSync(
+    join(webDistDir, "index.html"),
+    [
+      "<!doctype html>",
+      "<html>",
+      "<head><script type=\"module\" src=\"/assets/kota-e2e-dashboard.js\"></script></head>",
+      "<body><div id=\"root\">KOTA</div></body>",
+      "</html>",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+  writeFileSync(
+    join(webDistDir, "assets", webAssetName),
+    "window.__KOTA_E2E_DASHBOARD__ = true;\n",
+    "utf-8",
+  );
+  seededWebDist = true;
+}
+
+function cleanupSeededWebDist(): void {
+  if (!seededWebDist) return;
+  rmSync(join(webDistDir, "index.html"), { force: true });
+  rmSync(join(webDistDir, "assets", webAssetName), { force: true });
+  try {
+    if (readdirSync(join(webDistDir, "assets")).length === 0) {
+      rmSync(join(webDistDir, "assets"), { recursive: true, force: true });
+    }
+    if (readdirSync(webDistDir).length === 0) {
+      rmSync(webDistDir, { recursive: true, force: true });
+    }
+  } catch {
+    // Best-effort cleanup for test-only files.
+  }
 }
 
 /** Parse SSE text into structured events. */
@@ -120,6 +164,7 @@ async function createSession(): Promise<string> {
 }
 
 beforeAll(async () => {
+  seedWebDistForE2E();
   const origLog = console.log;
   console.log = () => {};
   const testConfig = { serve: { defaultAutonomyMode: "autonomous" } } as any;
@@ -145,7 +190,10 @@ beforeAll(async () => {
 
 afterAll(() => new Promise<void>((r) => {
   server.closeAllConnections();
-  server.close(() => r());
+  server.close(() => {
+    cleanupSeededWebDist();
+    r();
+  });
 }));
 
 afterEach(async () => {

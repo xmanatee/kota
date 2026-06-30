@@ -41,9 +41,9 @@ import {
   createPrepareBuilderWorktreeStep,
 } from "./prepare-worktree-step.js";
 import { builderRepairChecks } from "./repair-checks.js";
-import { createCleanupBuilderRuntimeResourcesStep } from "./runtime-resource-cleanup-step.js";
 import type { BuilderRunSummary } from "./run-summary.js";
 import { writeBuilderRunSummary } from "./run-summary.js";
+import { createCleanupBuilderRuntimeResourcesStep } from "./runtime-resource-cleanup-step.js";
 import {
   createClaimTaskStep,
   createMarkClaimPendingMergeStep,

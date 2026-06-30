@@ -9,8 +9,8 @@ import {
   assignBuilderPortRange,
   type BuilderRuntimeResourcePortRange,
   deterministicBuilderPortRange,
-  releaseBuilderPortRange,
   type ReleaseBuilderPortRangeResult,
+  releaseBuilderPortRange,
 } from "./runtime-resource-ports.js";
 
 export type {
@@ -37,6 +37,8 @@ export type BuilderRuntimeResourceProfile = Omit<
   runId: string;
   workspaceDir: string;
   agentRunDir: string;
+  tempRoot: string;
+  artifactRoot: string;
   ports: BuilderRuntimeResourcePortRange;
   packageCacheRoot: string;
   preflight: BuilderRuntimeResourcePreflight;

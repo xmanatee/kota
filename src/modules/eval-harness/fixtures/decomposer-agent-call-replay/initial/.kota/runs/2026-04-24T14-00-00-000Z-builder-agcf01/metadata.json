@@ -1,0 +1,39 @@
+{
+  "id": "2026-04-24T14-00-00-000Z-builder-agcf01",
+  "workflow": "builder",
+  "definitionPath": "src/modules/autonomy/workflows/builder/workflow.ts",
+  "trigger": {
+    "event": "autonomy.queue.available",
+    "payload": {
+      "pullableCount": 1,
+      "actionableCount": 1
+    }
+  },
+  "startedAt": "2026-04-24T14:00:00.000Z",
+  "completedAt": "2026-04-24T17:00:00.000Z",
+  "status": "failed",
+  "durationMs": 10800000,
+  "runDir": ".kota/runs/2026-04-24T14-00-00-000Z-builder-agcf01",
+  "steps": [
+    {
+      "id": "claim-task",
+      "type": "code",
+      "status": "success",
+      "startedAt": "2026-04-24T14:00:00.001Z",
+      "completedAt": "2026-04-24T14:00:00.050Z",
+      "durationMs": 49,
+      "output": {
+        "taskId": "task-fixture-agent-call-replay-target"
+      }
+    },
+    {
+      "id": "build",
+      "type": "agent",
+      "status": "failed",
+      "startedAt": "2026-04-24T14:00:00.060Z",
+      "completedAt": "2026-04-24T17:00:00.000Z",
+      "durationMs": 10800000,
+      "error": "Builder agent timed out after 10800000ms."
+    }
+  ]
+}

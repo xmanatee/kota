@@ -46,6 +46,7 @@ function worktree(
     cleanupBlockers: ["worktree has conflicted paths"],
     runtimeResources: {
       profileId: "task-ui-worktree:run-ui",
+      agentRunDir: "/repo/.worktrees/task-ui-worktree-run-ui/.kota/runs/run-ui",
       tempRoot: "/repo/.worktrees/task-ui-worktree-run-ui/.kota/tmp/run-ui",
       artifactRoot: "/repo/.kota/runs/run-ui/artifacts",
       ports: { start: 41_000, end: 41_019 },

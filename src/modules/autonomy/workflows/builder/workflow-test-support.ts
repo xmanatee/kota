@@ -1,7 +1,8 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { vi } from "vitest";
+import { afterAll, vi } from "vitest";
 import type { RepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { setBuilderPortAvailabilityCheckerForTest } from "./runtime-resource-ports.js";
 import "./workflow-test-mocks.js";
 
 type WorktreeStatus = {
@@ -16,6 +17,11 @@ type WorktreeStatus = {
 
 const queueSnapshots = new Map<string, RepoTaskQueueSnapshot>();
 const worktreeStatuses = new Map<string, WorktreeStatus>();
+let restoreBuilderPortAvailability = () => {};
+
+afterAll(() => {
+  restoreBuilderPortAvailability();
+});
 
 export function makeEmptySnapshot(): RepoTaskQueueSnapshot {
   return {
@@ -68,6 +74,8 @@ export function makeWorkflowProject(
 
 export async function resetBuilderWorkflowMocks(): Promise<void> {
   vi.clearAllMocks();
+  restoreBuilderPortAvailability();
+  restoreBuilderPortAvailability = setBuilderPortAvailabilityCheckerForTest(async () => true);
 
   const config = await import("#core/config/config.js");
   vi.mocked(config.loadConfig).mockReturnValue({

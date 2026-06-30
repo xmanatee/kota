@@ -1,0 +1,2 @@
+1. The progress-reviewer write-scope false attribution root cause is fixed or disproven with code-level evidence.
+2. Acceptance evidence records the cited DLQ state, root cause, and focused validation for the corrected attribution behavior.

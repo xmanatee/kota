@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -12,6 +13,20 @@ const PACKAGE_PROJECT_MARKERS = [
   "package.json5",
   "pnpm-workspace.yaml",
 ] as const;
+
+const MOBILE_TYPECHECK_DEPENDENCY_MARKERS = [
+  "node_modules/.bin/tsc",
+  "node_modules/expo/tsconfig.base.json",
+  "node_modules/react/package.json",
+  "node_modules/react-native/package.json",
+  "node_modules/@types/react/package.json",
+  "node_modules/@types/jest/package.json",
+] as const;
+
+const MOBILE_TYPECHECK_VALIDATION_ONLY_PATHS = new Set([
+  "clients/mobile/package.json",
+  "clients/mobile/scripts/typecheck.mjs",
+]);
 
 type ImportViolation = { file: string; specifier: string };
 
@@ -89,7 +104,39 @@ export function checkMobileTypecheck(projectDir: string): string {
   if (!existsSync(join(mobileDir, "package.json"))) {
     return "OK: no mobile client present";
   }
+  const missingDependencyMarkers = missingMobileTypecheckDependencyMarkers(mobileDir);
+  if (missingDependencyMarkers.length > 0) {
+    const stagedAppChanges = listStagedPathChanges(projectDir, "clients/mobile")
+      .filter((path) => !MOBILE_TYPECHECK_VALIDATION_ONLY_PATHS.has(path));
+    if (stagedAppChanges.length > 0) {
+      throw new Error(
+        `Mobile client dependencies are not installed; cannot run mobile typecheck for staged mobile changes. Missing: ${missingDependencyMarkers.join(", ")}. Changed: ${stagedAppChanges.join(", ")}. Run \`pnpm install\` in clients/mobile before staging mobile edits.`,
+      );
+    }
+    return "OK: mobile client dependencies not installed; no staged mobile changes";
+  }
   return runCheck("pnpm run typecheck", mobileDir, 60_000);
+}
+
+function missingMobileTypecheckDependencyMarkers(mobileDir: string): string[] {
+  return MOBILE_TYPECHECK_DEPENDENCY_MARKERS.filter((marker) => !existsSync(join(mobileDir, marker)));
+}
+
+function listStagedPathChanges(projectDir: string, pathspec: string): string[] {
+  try {
+    const output = execFileSync(
+      "git",
+      ["diff", "--cached", "--name-only", "--", pathspec],
+      {
+        cwd: projectDir,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      },
+    );
+    return output.split("\n").map((line) => line.trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
 }
 
 export function checkMacosSwiftBuild(projectDir: string): string {

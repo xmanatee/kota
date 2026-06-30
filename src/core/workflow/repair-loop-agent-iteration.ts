@@ -159,8 +159,21 @@ export async function executeRepairAgentIteration(
     }
   };
 
+  const workspaceDir = agentConfig.workspaceDir ?? agentConfig.projectDir;
+  const scopedAgent = step.agentName && agentConfig.resolveAgentDef
+    ? agentConfig.resolveAgentDef(step.agentName)
+    : undefined;
   const result = agentConfig.agentRunLimiter
-    ? await agentConfig.agentRunLimiter.run(runRepairHarness, abortController.signal)
+    ? scopedAgent
+      ? await agentConfig.agentRunLimiter.runExclusive(
+        workspaceDir,
+        runRepairHarness,
+        abortController.signal,
+      )
+      : await agentConfig.agentRunLimiter.run(
+        runRepairHarness,
+        abortController.signal,
+      )
     : await runRepairHarness();
 
   if (result.isError) {

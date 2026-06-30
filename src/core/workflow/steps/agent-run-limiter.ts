@@ -14,12 +14,21 @@ type Waiter = {
 export type AgentRunLimiter = {
   readonly limit: number;
   run<T>(operation: () => Promise<T>, signal?: AbortSignal): Promise<T>;
+  runExclusive<T>(
+    key: string,
+    operation: () => Promise<T>,
+    signal?: AbortSignal,
+  ): Promise<T>;
 };
 
 class SemaphoreAgentRunLimiter implements AgentRunLimiter {
   readonly limit: number;
   private slots: number;
   private readonly waiters: Waiter[] = [];
+  private readonly exclusiveLocks = new Map<
+    string,
+    { locked: boolean; waiters: Waiter[] }
+  >();
 
   constructor(limit: number) {
     this.limit = limit;
@@ -32,6 +41,19 @@ class SemaphoreAgentRunLimiter implements AgentRunLimiter {
       return await operation();
     } finally {
       this.release();
+    }
+  }
+
+  async runExclusive<T>(
+    key: string,
+    operation: () => Promise<T>,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    await this.acquireExclusive(key, signal);
+    try {
+      return await this.run(operation, signal);
+    } finally {
+      this.releaseExclusive(key);
     }
   }
 
@@ -72,6 +94,55 @@ class SemaphoreAgentRunLimiter implements AgentRunLimiter {
       return;
     }
     this.slots++;
+  }
+
+  private async acquireExclusive(key: string, signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) throw abortReason(signal);
+    let lock = this.exclusiveLocks.get(key);
+    if (lock === undefined) {
+      lock = { locked: false, waiters: [] };
+      this.exclusiveLocks.set(key, lock);
+    }
+    if (!lock.locked) {
+      lock.locked = true;
+      return;
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      const waiter: Waiter = {
+        resolve: () => {
+          if (waiter.signal && waiter.onAbort) {
+            waiter.signal.removeEventListener("abort", waiter.onAbort);
+          }
+          resolve();
+        },
+        reject,
+        signal,
+      };
+      if (signal) {
+        waiter.onAbort = () => {
+          const current = this.exclusiveLocks.get(key);
+          if (current !== undefined) {
+            const index = current.waiters.indexOf(waiter);
+            if (index >= 0) current.waiters.splice(index, 1);
+          }
+          reject(abortReason(signal));
+        };
+        signal.addEventListener("abort", waiter.onAbort, { once: true });
+      }
+      lock.waiters.push(waiter);
+    });
+  }
+
+  private releaseExclusive(key: string): void {
+    const lock = this.exclusiveLocks.get(key);
+    if (lock === undefined) return;
+    const next = lock.waiters.shift();
+    if (next) {
+      next.resolve();
+      return;
+    }
+    this.exclusiveLocks.delete(key);
   }
 }
 

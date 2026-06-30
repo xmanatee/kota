@@ -96,6 +96,5 @@ files:
 - src/path/to/file.ts
 ```
 
-This section does not waive positive growth, unnamed warning files, or
-unrelated oversized edits; it only keeps a reducing cleanup task from blocking
-while the touched file remains above the line guideline.
+This section does not waive positive growth, unnamed warning files, or unrelated
+oversized edits; it only keeps a reducing cleanup task from blocking.

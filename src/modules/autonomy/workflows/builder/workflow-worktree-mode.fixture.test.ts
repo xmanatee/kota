@@ -10,9 +10,10 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { setBuilderPortAvailabilityCheckerForTest } from "./runtime-resource-ports.js";
 import builderWorkflow from "./workflow.js";
 
 vi.mock("#core/config/config.js", () => ({
@@ -36,6 +37,7 @@ vi.mock("./branch-per-task.js", async () => {
 });
 
 const repos: string[] = [];
+let restorePortAvailability = () => {};
 
 function git(cwd: string, args: string[]): string {
   return execFileSync("git", args, {
@@ -121,7 +123,13 @@ function gitStatus(projectDir: string): string {
   return git(projectDir, ["status", "--porcelain=v1", "--untracked-files=all"]);
 }
 
+beforeEach(() => {
+  restorePortAvailability = setBuilderPortAvailabilityCheckerForTest(async () => true);
+});
+
 afterEach(() => {
+  restorePortAvailability();
+  restorePortAvailability = () => {};
   for (const repo of repos.splice(0)) {
     rmSync(repo, { recursive: true, force: true });
   }

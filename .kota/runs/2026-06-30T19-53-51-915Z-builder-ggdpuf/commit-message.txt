@@ -1,0 +1,5 @@
+Fix agent write-scope attribution
+
+- serialize scoped agent runs per workspace while preserving unscoped concurrency
+- make builder/test fixtures deterministic under worktree runtime resources
+- split SecretStore tests and trim the executor to clear the severe source-size batch

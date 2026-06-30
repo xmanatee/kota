@@ -1,0 +1,2 @@
+1. Verified: agent-step execution now serializes named agent harness runs per workspace and captures the write-scope pre-snapshot only after acquiring that workspace lane; repair-agent iterations use the same lane. Focused runtime coverage reproduces the builder/progress-reviewer shared-workspace overlap and passes.
+2. Verified with caveat: dead-letter-resolution.md records the canonical before state for dlq-c3d9197c-110e-495d-ab5d-12e1de7925a7, the root cause, validation commands, and the sandbox reason the canonical DLQ item could not be dismissed from this worktree.
