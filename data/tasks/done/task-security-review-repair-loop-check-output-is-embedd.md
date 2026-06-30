@@ -1,12 +1,12 @@
 ---
 id: task-security-review-repair-loop-check-output-is-embedd
 title: Security review: Repair-loop check output is embedded in the repair-agent prompt using fixed triple-backtick fences, while package-script failures can carry raw stdout and stderr into that output. A failed check containing a matching fence can break out of the data block and inject instructions before the repair prompt's actionable directives.
-status: ready
+status: done
 priority: p2
 area: security
 summary: Repair-loop check output is embedded in the repair-agent prompt using fixed triple-backtick fences, while package-script failures can carry raw stdout and stderr into that output. A failed check containing a matching fence can break out of the data block and inject instructions before the repair prompt's actionable directives.
 created_at: 2026-06-30T19:45:04.443Z
-updated_at: 2026-06-30T19:45:04.443Z
+updated_at: 2026-06-30T22:48:35.000Z
 ---
 
 ## Problem
@@ -124,3 +124,4 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Verification: `pnpm test src/core/workflow/repair-loop.test.ts`; `pnpm exec biome check src/core/workflow/repair-loop.ts src/core/workflow/repair-loop.test.ts`; `pnpm typecheck`.

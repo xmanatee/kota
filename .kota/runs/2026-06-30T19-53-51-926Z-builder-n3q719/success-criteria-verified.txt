@@ -1,0 +1,3 @@
+1. Verified: `buildRepairPrompt` now wraps each failed repair-check output in `<untrusted-content source="repair-check.output">` and chooses a Markdown fence longer than the longest backtick run in the output, so embedded triple-backtick text stays inside the data block.
+2. Verified: `src/core/workflow/repair-loop.test.ts` includes a regression where failure output contains a fence plus hostile instructions.
+3. Verified: final commands recorded in the completed task's Acceptance Evidence and run validation passed with `pnpm test src/core/workflow/repair-loop.test.ts`, `pnpm exec biome check src/core/workflow/repair-loop.ts src/core/workflow/repair-loop.test.ts`, and `pnpm typecheck`.

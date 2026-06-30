@@ -1,0 +1,3 @@
+1. Repair-loop prompts render failed repair-check output as explicitly untrusted data and prevent embedded triple-backtick output from escaping into actionable prompt directives.
+2. Focused regression coverage exercises a failed repair-check output containing a fence and hostile instructions.
+3. The task state records the final verification command or artifact.

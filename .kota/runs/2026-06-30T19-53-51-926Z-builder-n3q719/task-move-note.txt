@@ -1,0 +1,2 @@
+pnpm kota task move task-security-review-repair-loop-check-output-is-embedd doing
+failed: git mv could not create linked worktree index.lock under /Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/... due sandbox Operation not permitted

@@ -40,11 +40,44 @@ type ScopedRepairAgent = {
 };
 
 const REPAIR_NO_PROGRESS_LIMIT = 3;
+const MIN_MARKDOWN_FENCE_LENGTH = 3;
 
 type RepairProgressSnapshot = {
   key: string;
   failureIds: string[];
 };
+
+function maxBacktickRun(value: string): number {
+  let longest = 0;
+  let current = 0;
+  for (const char of value) {
+    if (char === "`") {
+      current += 1;
+      longest = Math.max(longest, current);
+    } else {
+      current = 0;
+    }
+  }
+  return longest;
+}
+
+function markdownFenceForContent(value: string): string {
+  return "`".repeat(Math.max(MIN_MARKDOWN_FENCE_LENGTH, maxBacktickRun(value) + 1));
+}
+
+function renderFailureOutput(failure: RepairCheckResult): string[] {
+  const output = failure.output.trim();
+  const fence = markdownFenceForContent(output);
+  return [
+    `## ${failure.id}`,
+    '<untrusted-content source="repair-check.output">',
+    fence,
+    output,
+    fence,
+    "</untrusted-content>",
+    "",
+  ];
+}
 
 export function buildRepairPrompt(
   attempt: number,
@@ -63,7 +96,7 @@ export function buildRepairPrompt(
     "",
   ];
   for (const failure of failures) {
-    lines.push(`## ${failure.id}`, "```", failure.output.trim(), "```", "");
+    lines.push(...renderFailureOutput(failure));
   }
   if (runDirPath) {
     lines.push("Run directory:", runDirPath, "");

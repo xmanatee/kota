@@ -1,0 +1,6 @@
+Fix repair-loop check output prompt fencing
+
+Wrap repair-check failure output as untrusted content and size Markdown
+fences from the failure text so embedded backtick fences cannot escape the
+data block. Add a regression for hostile check output and complete the
+security-review task.
