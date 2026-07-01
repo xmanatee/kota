@@ -1,0 +1,3 @@
+1. Verified: `dead-letter-resolution.md` records dlq-ca4b146f-91fc-41c9-a210-881c92bee29b, failed run `2026-07-01T09-43-55-464Z-builder-s6r1jg`, and the stale active claim for `task-classify-workflow-generated-follow-up-tasks`.
+2. Verified: `task-classify-workflow-generated-follow-up-tasks` remains in `ready/`, and builder claimed-task attribution now prefers newly terminal tasks over existing terminal-task evidence backfills while rejecting an additional newly completed task.
+3. Verified with residual blocker: canonical claim release failed with `EPERM`, daemon HTTP failed with `TypeError: fetch failed`, and `task-resolve-builder-claimed-task-commit-set-dead-lette` is blocked on an operator-captured canonical dismissal/release transcript.

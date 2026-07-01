@@ -116,11 +116,15 @@ describe("builder workflow run path", () => {
     vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
 
     const { writeBuilderRunSummary } = await import("./run-summary.js");
-    const { findTerminalTaskInChangedFiles } = await import("./run-summary.js");
-    vi.mocked(findTerminalTaskInChangedFiles).mockReturnValueOnce({
-      taskId: "task-other",
-      taskTitle: "Other task",
-    });
+    const { findTerminalTasksInChangedFiles } = await import("./run-summary.js");
+    vi.mocked(findTerminalTasksInChangedFiles).mockReturnValueOnce([
+      {
+        file: "data/tasks/done/task-other.md",
+        taskId: "task-other",
+        taskTitle: "Other task",
+        becameTerminal: true,
+      },
+    ]);
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
       projectDir: makeWorkflowProject(snapshot),

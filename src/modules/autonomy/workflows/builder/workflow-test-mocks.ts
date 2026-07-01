@@ -167,6 +167,14 @@ vi.mock("./run-summary.js", () => ({
     taskId: "task-claimed",
     taskTitle: "Claimed task",
   })),
+  findTerminalTasksInChangedFiles: vi.fn(() => [
+    {
+      file: "data/tasks/done/task-claimed.md",
+      taskId: "task-claimed",
+      taskTitle: "Claimed task",
+      becameTerminal: true,
+    },
+  ]),
   writeBuilderRunSummary: vi.fn(() => ({
     runId: "test-run-id",
     workflow: "builder",

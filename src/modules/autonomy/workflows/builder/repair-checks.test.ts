@@ -47,6 +47,16 @@ status: ${state}
   );
 }
 
+function appendTaskNote(
+  projectDir: string,
+  state: "ready" | "done" | "blocked" | "dropped",
+  taskId: string,
+  note: string,
+): void {
+  const taskPath = join(projectDir, "data", "tasks", state, `${taskId}.md`);
+  writeFileSync(taskPath, `${readFileSync(taskPath, "utf-8")}${note}\n`);
+}
+
 function claimedTaskCommitSetCheck() {
   const check = builderRepairChecks().find(
     (candidate) => candidate.id === "claimed-task-commit-set",
@@ -257,6 +267,34 @@ describe("builder repository-backed repair checks", () => {
     expect(check.run(claimContext(repoDir, "task-claimed"), {} as never)).toBe(
       "OK: commit set resolves claimed task task-claimed",
     );
+  });
+
+  it("passes claimed-task commit-set repair when acceptance evidence backfills existing done tasks", () => {
+    writeTask(repoDir, "done", "task-existing-evidence");
+    execSync("git add data/tasks/done/task-existing-evidence.md", { cwd: repoDir });
+    execSync('git commit -q -m "existing evidence task"', { cwd: repoDir });
+
+    appendTaskNote(
+      repoDir,
+      "done",
+      "task-existing-evidence",
+      "\n## Backfill\n\n- task_class: Platform",
+    );
+    writeTask(repoDir, "done", "task-claimed");
+    const check = claimedTaskCommitSetCheck();
+
+    expect(check.run(claimContext(repoDir, "task-claimed"), {} as never)).toBe(
+      "OK: commit set resolves claimed task task-claimed",
+    );
+  });
+
+  it("fails claimed-task commit-set repair when the commit set completes another task too", () => {
+    writeTask(repoDir, "done", "task-claimed");
+    writeTask(repoDir, "done", "task-other");
+    const check = claimedTaskCommitSetCheck();
+
+    expect(() => check.run(claimContext(repoDir, "task-claimed"), {} as never))
+      .toThrow(/commit set also completes task-other/);
   });
 
   it("fails claimed-task commit-set repair before commit when a different task is terminal", () => {

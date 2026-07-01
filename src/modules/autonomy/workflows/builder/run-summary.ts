@@ -1,5 +1,7 @@
+import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { writeDiffSummaryConsistencyArtifact } from "#modules/autonomy/diff-summary-consistency.js";
 import type { ObservabilityObligationReview } from "#modules/autonomy/observability-obligation.js";
@@ -21,9 +23,119 @@ export type BuilderRunSummary = WorkflowRunSummary & {
 
 /** Terminal states indicate the task the builder actually completed. */
 const TERMINAL_TASK_STATES = ["done", "blocked", "dropped"];
+const TERMINAL_TASK_STATE_SET = new Set(TERMINAL_TASK_STATES);
+
+export type ChangedTaskFile = {
+  file: string;
+  taskId: string;
+  taskTitle: string | null;
+  becameTerminal: boolean;
+};
 
 function isTerminalTaskFile(file: string): boolean {
   return TERMINAL_TASK_STATES.some((state) => file.includes(`/${state}/`));
+}
+
+function gitResult(projectDir: string, args: readonly string[]) {
+  return spawnSync("git", [...args], {
+    cwd: projectDir,
+    env: withProtectedGitBareRepositoryEnv(),
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+}
+
+function gitRefExists(projectDir: string, ref: string): boolean {
+  const result = gitResult(projectDir, ["rev-parse", "--verify", ref]);
+  if (result.error !== undefined) throw result.error;
+  return result.status === 0;
+}
+
+function hasChangesAgainstHead(projectDir: string): boolean {
+  const result = gitResult(projectDir, ["diff", "--quiet", "HEAD", "--"]);
+  if (result.error !== undefined) throw result.error;
+  return result.status !== 0;
+}
+
+function comparisonRef(projectDir: string): string | null {
+  if (!gitRefExists(projectDir, "HEAD")) return null;
+  if (hasChangesAgainstHead(projectDir)) return "HEAD";
+  return gitRefExists(projectDir, "HEAD~1") ? "HEAD~1" : "HEAD";
+}
+
+function readGitFile(projectDir: string, ref: string, file: string): string | null {
+  const result = gitResult(projectDir, ["show", `${ref}:${file}`]);
+  if (result.error !== undefined) throw result.error;
+  if (result.status !== 0) return null;
+  return result.stdout;
+}
+
+function parseTaskMetadata(content: string): {
+  taskId: string | null;
+  taskTitle: string | null;
+  status: string | null;
+} {
+  const idMatch = content.match(/^id:\s+(.+)$/m);
+  const titleMatch = content.match(/^title:\s+(.+)$/m);
+  const statusMatch = content.match(/^status:\s+(.+)$/m);
+  return {
+    taskId: idMatch ? idMatch[1].trim() : null,
+    taskTitle: titleMatch ? titleMatch[1].trim() : null,
+    status: statusMatch ? statusMatch[1].trim() : null,
+  };
+}
+
+function wasTerminalTaskAtRef(projectDir: string, ref: string | null, file: string): boolean {
+  if (ref === null) return false;
+  const oldContent = readGitFile(projectDir, ref, file);
+  if (oldContent === null) return false;
+  const oldStatus = parseTaskMetadata(oldContent).status;
+  return isTerminalTaskFile(file) || (oldStatus !== null && TERMINAL_TASK_STATE_SET.has(oldStatus));
+}
+
+export function findTerminalTasksInChangedFiles(
+  projectDir: string,
+  files: string[],
+): ChangedTaskFile[] {
+  const ref = comparisonRef(projectDir);
+  const taskFiles = files.filter(
+    (f) =>
+      f.startsWith(`${REPO_TASKS_DIR}/`) &&
+      f.endsWith(".md") &&
+      !f.endsWith("AGENTS.md") &&
+      isTerminalTaskFile(f),
+  );
+
+  const tasks: ChangedTaskFile[] = [];
+  for (const file of taskFiles) {
+    try {
+      const content = readFileSync(join(projectDir, file), "utf-8");
+      const metadata = parseTaskMetadata(content);
+      if (metadata.taskId !== null) {
+        tasks.push({
+          file,
+          taskId: metadata.taskId,
+          taskTitle: metadata.taskTitle,
+          becameTerminal: !wasTerminalTaskAtRef(projectDir, ref, file),
+        });
+      }
+    } catch {
+      // file may no longer exist at this path (e.g. moved via git mv — old path)
+    }
+  }
+  return tasks;
+}
+
+function primaryTask(tasks: ChangedTaskFile[]): {
+  taskId: string | null;
+  taskTitle: string | null;
+} {
+  const becameTerminal = tasks.filter((task) => task.becameTerminal);
+  const candidates = becameTerminal.length > 0 ? becameTerminal : tasks;
+  const task = candidates[0];
+  return task
+    ? { taskId: task.taskId, taskTitle: task.taskTitle }
+    : { taskId: null, taskTitle: null };
 }
 
 export function findTaskInChangedFiles(
@@ -43,15 +155,17 @@ export function findTaskInChangedFiles(
     return 0;
   });
 
+  const terminalTasks = findTerminalTasksInChangedFiles(projectDir, sorted);
+  if (terminalTasks.length > 0) return primaryTask(terminalTasks);
+
   for (const file of sorted) {
     try {
       const content = readFileSync(join(projectDir, file), "utf-8");
-      const idMatch = content.match(/^id:\s+(.+)$/m);
-      const titleMatch = content.match(/^title:\s+(.+)$/m);
-      if (idMatch) {
+      const metadata = parseTaskMetadata(content);
+      if (metadata.taskId !== null) {
         return {
-          taskId: idMatch[1].trim(),
-          taskTitle: titleMatch ? titleMatch[1].trim() : null,
+          taskId: metadata.taskId,
+          taskTitle: metadata.taskTitle,
         };
       }
     } catch {
@@ -65,7 +179,7 @@ export function findTerminalTaskInChangedFiles(
   projectDir: string,
   files: string[],
 ): { taskId: string | null; taskTitle: string | null } {
-  return findTaskInChangedFiles(projectDir, files.filter(isTerminalTaskFile));
+  return primaryTask(findTerminalTasksInChangedFiles(projectDir, files));
 }
 
 export function writeBuilderRunSummary(ctx: WorkflowStepContext): BuilderRunSummary {

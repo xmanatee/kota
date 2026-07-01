@@ -1,0 +1,11 @@
+Validation passed:
+
+- `pnpm test src/modules/autonomy/workflows/builder/repair-checks.test.ts src/modules/autonomy/workflows/builder/run-summary.test.ts src/modules/autonomy/workflows/builder/workflow-run.test.ts`
+  - 3 test files passed, 27 tests passed.
+- Direct repair predicate:
+  - `checkClaimedTaskCommitSet(..., task-resolve-builder-claimed-task-commit-set-dead-lette)` returned `OK: commit set resolves claimed task task-resolve-builder-claimed-task-commit-set-dead-lette`.
+- `pnpm run typecheck`
+- `pnpm run lint`
+- `pnpm run validate-tasks`
+- `pnpm dev workflow validate`
+  - 29/29 definitions valid.

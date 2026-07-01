@@ -1,0 +1,16 @@
+Canonical cleanup attempts for dlq-ca4b146f-91fc-41c9-a210-881c92bee29b
+
+1. Source-mode worktree command:
+   `pnpm dev workflow dlq show dlq-ca4b146f-91fc-41c9-a210-881c92bee29b --json`
+   Result: not found, because the worktree-local `.kota/dead-letter-queue` does not contain the canonical daemon item.
+
+2. Source-mode claim release against canonical projectDir:
+   `node --conditions=source --import tsx -e "releaseTaskClaim({ projectDir: '/Users/xmanatee/Desktop/mono/apps/kota', taskId: 'task-classify-workflow-generated-follow-up-tasks', runId: '2026-07-01T09-43-55-464Z-builder-s6r1jg', workflowId: 'builder', ... })"`
+   Result: `EPERM: operation not permitted, open '/Users/xmanatee/Desktop/mono/apps/kota/.kota/task-claims/active/task-classify-workflow-generated-follow-up-tasks.json'`.
+
+3. Daemon-control HTTP read for canonical builder DLQ:
+   `GET /workflow/dead-letter?status=open&workflow=builder&limit=20&projectId=8nrg1m`
+   Result: `TypeError: fetch failed` from the builder sandbox.
+
+Residual canonical cleanup is tracked by the blocked precondition on
+`data/tasks/blocked/task-resolve-builder-claimed-task-commit-set-dead-lette.md`.

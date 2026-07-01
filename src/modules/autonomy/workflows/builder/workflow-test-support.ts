@@ -221,6 +221,14 @@ export async function resetBuilderWorkflowMocks(): Promise<void> {
     taskId: "task-claimed",
     taskTitle: "Claimed task",
   });
+  vi.mocked(runSummary.findTerminalTasksInChangedFiles).mockReturnValue([
+    {
+      file: "data/tasks/done/task-claimed.md",
+      taskId: "task-claimed",
+      taskTitle: "Claimed task",
+      becameTerminal: true,
+    },
+  ]);
   vi.mocked(runSummary.writeBuilderRunSummary).mockReturnValue({
     runId: "test-run-id",
     workflow: "builder",

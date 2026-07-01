@@ -1,0 +1,3 @@
+1. Inspect the cited builder DLQ item and the failed run/claim evidence, preserving the evidence ids in task or run artifacts.
+2. Complete or safely return `task-classify-workflow-generated-follow-up-tasks`, and repair the claimed-task commit-set false negative that trapped the failed run.
+3. Resolve the canonical DLQ/claim state when available, or record the exact sandbox blocker and leave the claimed task blocked with a typed operator-capture precondition for the remaining canonical mutation.

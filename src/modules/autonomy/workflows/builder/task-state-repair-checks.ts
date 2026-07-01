@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { listWorkflowMutatedPaths } from "#core/workflow/steps/agent-write-scope.js";
 import type { QueueTaskClaimResult } from "#modules/autonomy/task-claims.js";
 import { listTaskClaimInspections } from "#modules/autonomy/task-claims.js";
-import { findTerminalTaskInChangedFiles } from "./run-summary.js";
+import { findTerminalTasksInChangedFiles } from "./run-summary.js";
 
 function taskFilesInState(projectDir: string, state: "ready" | "doing" | "done" | "blocked"): string[] {
   const dir = join(projectDir, "data/tasks", state);
@@ -64,22 +64,34 @@ export function checkClaimedTaskCommitSet(
     throw new Error("Builder cannot validate the commit set without a claimed task id");
   }
 
-  const task = findTerminalTaskInChangedFiles(
+  const terminalTasks = findTerminalTasksInChangedFiles(
     projectDir,
     listWorkflowMutatedPaths(projectDir),
   );
-  const commitTaskId = nonEmptyTaskId(task.taskId);
-  if (commitTaskId === null) {
+  const completedTasks = terminalTasks.some((task) => task.becameTerminal)
+    ? terminalTasks.filter((task) => task.becameTerminal)
+    : terminalTasks;
+  if (completedTasks.length === 0) {
     throw new Error(
       `Builder claimed ${claimedTaskId} but the commit set does not identify a completed task. ` +
         "Move the claimed task to done, blocked, or dropped before stopping.",
     );
   }
-  if (commitTaskId !== claimedTaskId) {
+  const matchingTask = completedTasks.find((task) => task.taskId === claimedTaskId);
+  if (matchingTask === undefined) {
+    const commitTaskId = completedTasks[0]?.taskId ?? "unknown";
     throw new Error(
       `Builder claimed ${claimedTaskId} but the commit set identifies ${commitTaskId}. ` +
         "Finish only the claimed task in this run; move the claimed task to a terminal state " +
         "or revert the other task before stopping.",
+    );
+  }
+  const otherCompletedTasks = completedTasks.filter((task) => task.taskId !== claimedTaskId);
+  if (otherCompletedTasks.length > 0) {
+    throw new Error(
+      `Builder claimed ${claimedTaskId} but the commit set also completes ${otherCompletedTasks
+        .map((task) => task.taskId)
+        .join(", ")}. Finish only the claimed task in this run.`,
     );
   }
 

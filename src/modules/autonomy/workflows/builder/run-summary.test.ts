@@ -183,6 +183,33 @@ describe("writeBuilderRunSummary", () => {
     expect(summary.taskTitle).toBe("Completed work");
   });
 
+  it("prefers the newly terminal task when committed evidence also edits existing done tasks", () => {
+    mkdirSync(join(projectDir, "data", "tasks", "done"), { recursive: true });
+    writeFileSync(
+      join(projectDir, "data", "tasks", "done", "task-existing-evidence.md"),
+      "---\nid: task-existing-evidence\ntitle: Existing evidence\nstatus: done\n---\n",
+    );
+    execSync("git add data/tasks/done/task-existing-evidence.md", { cwd: projectDir });
+    execSync("git commit -m 'Seed existing evidence task'", { cwd: projectDir });
+
+    writeFileSync(
+      join(projectDir, "data", "tasks", "done", "task-existing-evidence.md"),
+      "---\nid: task-existing-evidence\ntitle: Existing evidence\nstatus: done\n---\n\n## Backfill\n",
+    );
+    writeFileSync(
+      join(projectDir, "data", "tasks", "done", "task-completed-work.md"),
+      "---\nid: task-completed-work\ntitle: Completed work\nstatus: done\n---\n",
+    );
+    execSync("git add data/tasks/done", { cwd: projectDir });
+    execSync("git commit -m 'Complete task and backfill evidence'", { cwd: projectDir });
+
+    const ctx = makeContext(projectDir, runDirPath);
+    const summary = writeBuilderRunSummary(ctx);
+
+    expect(summary.taskId).toBe("task-completed-work");
+    expect(summary.taskTitle).toBe("Completed work");
+  });
+
   it("sets taskId and taskTitle to null when no task file is in the commit", () => {
     writeFileSync(join(projectDir, "src.ts"), "// code\n");
     execSync("git add -A && git commit -m 'Some code change'", {

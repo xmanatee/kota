@@ -10,7 +10,7 @@ import {
   type QueueTaskClaimResult,
   releaseTaskClaim,
 } from "#modules/autonomy/task-claims.js";
-import { findTerminalTaskInChangedFiles } from "./run-summary.js";
+import { findTerminalTasksInChangedFiles } from "./run-summary.js";
 import { workflowWorkspaceDir } from "./workspace.js";
 
 export const CLAIMED_TASK_CONSISTENCY_STEP_ID = "check-claimed-task-consistency";
@@ -52,19 +52,23 @@ export function createClaimedTaskConsistencyStep(
       }
 
       const workspaceDir = workflowWorkspaceDir(ctx);
-      const task = findTerminalTaskInChangedFiles(
+      const terminalTasks = findTerminalTasksInChangedFiles(
         workspaceDir,
         listWorkflowMutatedPaths(workspaceDir),
       );
-      const completedTaskId = nonEmptyTaskId(task.taskId);
-      if (completedTaskId === null) {
+      const completedTasks = terminalTasks.some((task) => task.becameTerminal)
+        ? terminalTasks.filter((task) => task.becameTerminal)
+        : terminalTasks;
+      if (completedTasks.length === 0) {
         releaseMismatchedClaim(ctx, claimedTaskId, "no terminal task in the pre-commit set");
         throw new Error(
           `Builder claimed ${claimedTaskId} but the pre-commit set did not identify a completed task; ` +
             "released the task claim for retry and refusing to commit",
         );
       }
-      if (completedTaskId !== claimedTaskId) {
+      const matchingTask = completedTasks.find((task) => task.taskId === claimedTaskId);
+      if (matchingTask === undefined) {
+        const completedTaskId = completedTasks[0]?.taskId ?? "unknown";
         releaseMismatchedClaim(
           ctx,
           claimedTaskId,
@@ -75,12 +79,25 @@ export function createClaimedTaskConsistencyStep(
             "released the task claim for retry and refusing to commit or emit workflow.build.committed",
         );
       }
+      const otherCompletedTasks = completedTasks.filter((task) => task.taskId !== claimedTaskId);
+      if (otherCompletedTasks.length > 0) {
+        const otherTaskIds = otherCompletedTasks.map((task) => task.taskId).join(", ");
+        releaseMismatchedClaim(
+          ctx,
+          claimedTaskId,
+          `pre-commit set also completed ${otherTaskIds}`,
+        );
+        throw new Error(
+          `Builder claimed ${claimedTaskId} but the pre-commit set also completed ${otherTaskIds}; ` +
+            "released the task claim for retry and refusing to commit or emit workflow.build.committed",
+        );
+      }
 
       return {
         matched: true,
         taskId: claimedTaskId,
         claimedTaskId,
-        completedTaskId,
+        completedTaskId: matchingTask.taskId,
       };
     },
   });
