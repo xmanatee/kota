@@ -69,21 +69,21 @@ resources:
   - url: https://github.com/anthropics/claude-code
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:5d00f39f29c5cd7aa28e2d508cf55ed8
-      summary: "Claude Code v2.1.186 reinforces KOTA's existing shell-output, subagent guardrail, MCP auth/status, and permission-layout directions; no additional nonduplicative KOTA task was opened from this refresh."
-      last_seen_at: "2026-06-23T12:29:41.352Z"
+      fingerprint: sha256:f8cea6de96d1994e4b7811738437918e
+      summary: "Claude Code v2.1.197 introduces Claude Sonnet 5 as the default model; KOTA keeps model selection preset-owned and existing cross-preset/model-parity tasks cover the nonduplicative local risk, so no new task was opened."
+      last_seen_at: "2026-07-01T14:22:37.688Z"
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:aed6d520c135186b99b822a7924cc3cf
-      summary: "Codex 0.142.0 adds rollout token budgets across agent threads; this run opened task-add-rollout-token-budgets-to-workflow-agent-runs for KOTA's matching provider-neutral runtime budget gap."
-      last_seen_at: "2026-06-23T12:29:41.351Z"
+      fingerprint: sha256:733aceb078164aae54e5cfe8829f3483
+      summary: "Codex 0.142.5 adds a trace-log provider-payload leak fix; this run opened task-guard-tracing-exports-against-provider-request-pay for KOTA's matching provider-payload observability canary."
+      last_seen_at: "2026-07-01T14:22:37.687Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:c2cb3ac8fbcbc49fb7edd0271cb2921c
-      summary: "Gemini CLI v0.47.0 reinforces KOTA's existing MCP discovery, policy-parse recovery, Antigravity migration, and harness-readiness directions; no new nonduplicative task was opened."
-      last_seen_at: "2026-06-21T06:09:44.587Z"
+      fingerprint: sha256:29ec461b6e895e27924957e0d910c66a
+      summary: "Gemini CLI v0.49.0 adds eval inventory/source-analysis and safety fixes; existing KOTA source-to-decision and trace-to-eval backlog tasks cover the local eval-inventory signal, so no duplicate task was opened."
+      last_seen_at: "2026-07-01T14:22:37.688Z"
   - url: https://agentclientprotocol.com/get-started/architecture
     added: "2026-05-27"
     notes: "Official Agent Client Protocol docs. Monitor architecture, schema, transport, registry, stdio/Streamable HTTP, MCP handoff, permission, and session-lifecycle changes as an interoperability signal for KOTA's module-owned ACP adapter task."
@@ -415,9 +415,9 @@ resources:
     added: "2026-05-26"
     notes: "Official latest MCP specification entry point. Monitor the current stable protocol revision and changelog so KOTA does not confuse active draft support with latest released MCP interoperability."
     snapshot:
-      fingerprint: sha256:e83bea98b14c19521c6975c6129560cb
-      summary: "Official MCP specification still resolves to stable 2025-11-25; KOTA already has tasks or completed coverage for the current nonduplicative protocol gaps."
-      last_seen_at: "2026-05-26T01:44:23.761Z"
+      fingerprint: sha256:61a7e99e40b0a577042db786922a7de0
+      summary: "MCP specification still resolves to 2025-11-25 latest; existing KOTA MCP tasks and completed protocol-alignment work cover the current local gaps."
+      last_seen_at: "2026-07-01T14:22:37.688Z"
   - url: https://modelcontextprotocol.io/specification/draft/basic/authorization
     added: "2026-05-21"
     notes: "Official MCP authorization draft - monitor HTTP protected-resource metadata, WWW-Authenticate discovery, OAuth authorization-server discovery, Bearer token validation, resource/audience binding, scope step-up, and token-handling constraints for KOTA's Streamable HTTP MCP client and server."
