@@ -252,7 +252,7 @@ export class OtlpHttpSecurityLogExporter implements SecurityLogExporter {
     if (!response.ok) {
       const body = await response.text();
       throw new Error(
-        `OTLP log export failed with HTTP ${response.status}: ${body.slice(0, 200)}`,
+        `OTLP log export failed with HTTP ${response.status}: response body omitted (${measureTelemetryPayloadBytes(body)} bytes)`,
       );
     }
   }

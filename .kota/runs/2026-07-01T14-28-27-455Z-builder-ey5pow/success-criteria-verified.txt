@@ -1,0 +1,4 @@
+1. Verified by `src/modules/tracing/provider-payload-leak-guard.test.ts`, which stubs `fetch`, drives `OpenAIModelClient.messages.stream`, and asserts the captured request/response contain all fake sentinels.
+2. Verified by the same canary: it serializes spans, security-log records, OTLP log JSON, model-client HTTP errors, tracer/security enrichment logger callbacks, and OTLP export failure callbacks, then rejects every sentinel value.
+3. Verified by explicit assertions on retained span attributes and `agent.tool_call` security-log attributes for model, workflow, status, timing, autonomy mode, turns, tokens, cost, session, tool, byte counts, omission flags, success, and result kind.
+4. Verified with focused Vitest, Biome, and TypeScript checks listed in `validation.txt`; `src/core/modules/module-deps.test.ts` passes after keeping the model-client import in the `.test.ts` file rather than the tracing support file.

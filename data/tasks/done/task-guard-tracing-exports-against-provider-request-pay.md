@@ -1,13 +1,13 @@
 ---
 id: task-guard-tracing-exports-against-provider-request-pay
 title: Guard tracing exports against provider request payload leakage
-status: ready
+status: done
 priority: p2
 area: modules
 task_class: Safety
 summary: Add a regression canary proving KOTA OpenTelemetry traces, security logs, and model-client debug paths never export raw model-provider request or response payloads.
 created_at: 2026-07-01T14:18:51.566Z
-updated_at: 2026-07-01T14:18:51.566Z
+updated_at: 2026-07-01T15:29:08.000Z
 ---
 
 ## Problem
@@ -84,3 +84,13 @@ Provider-payload observability safety.
   security-log OTLP bodies, and logger calls.
 - A short result note in this task or the run artifact naming which
   observability paths were covered and which safe metadata fields remain.
+
+## Result
+
+Added a focused provider-payload leak guard covering OpenAI-compatible request
+serialization, model-client HTTP failures, workflow span enrichment,
+security-log records, OTLP log export JSON, enrichment logger callbacks, and
+OTLP export failure callbacks. The retained metadata is limited to model id,
+workflow/run/step identifiers, status, duration, autonomy mode, turns, tokens,
+cost, session id, tool id/name, byte counts, omission flags, success, duration,
+and result content kind.

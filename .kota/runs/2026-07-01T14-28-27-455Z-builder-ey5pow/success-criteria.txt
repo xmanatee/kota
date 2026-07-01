@@ -1,0 +1,4 @@
+1. Exercise a deterministic OpenAI-compatible provider request containing unique fake prompt, tool schema, tool result, reasoning-looking text, fake API key, bearer token, and provider response sentinels without requiring live credentials.
+2. Prove exported OpenTelemetry spans, security-log records, serialized OTLP log payloads, model-client HTTP errors, and enrichment/export logger callbacks omit raw provider payloads and credentials.
+3. Prove the same guard preserves bounded operational metadata such as model id, workflow/run/step ids, status, duration, autonomy mode, turns, token counts, cost, session id, tool name/id, byte counts, omission flags, success, and result content kind.
+4. Keep existing tracing, security-log, model-client, typecheck, lint, task-state, and module-dependency validation passing.

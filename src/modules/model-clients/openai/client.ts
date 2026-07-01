@@ -13,6 +13,7 @@ import type {
 	ModelClient,
 } from "#core/model/model-client.js";
 import type { EffortTranslator } from "../reasoning.js";
+import { formatOpenAIHttpError } from "./http-error.js";
 import { buildOpenAIRequestBody } from "./request-body.js";
 import { OpenAIStream } from "./stream.js";
 import {
@@ -118,7 +119,7 @@ export class OpenAIModelClient implements ModelClient {
 
 		if (!response.ok) {
 			const text = await response.text();
-			throw new Error(`OpenAI API error ${response.status}: ${text}`);
+			throw formatOpenAIHttpError(response.status, text);
 		}
 
 		const data = (await response.json()) as OAIResponse;

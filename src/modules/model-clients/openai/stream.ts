@@ -6,6 +6,7 @@ import type {
 	KotaMessageStream,
 	KotaModelResponse,
 } from "#core/agent-harness/message-protocol.js";
+import { formatOpenAIHttpError } from "./http-error.js";
 import {
 	buildKotaModelResponse,
 	mapFinishReason,
@@ -48,7 +49,7 @@ export class OpenAIStream implements KotaMessageStream {
 		const response = await fetchFn();
 		if (!response.ok) {
 			const body = await response.text();
-			throw new Error(`OpenAI API error ${response.status}: ${body}`);
+			throw formatOpenAIHttpError(response.status, body);
 		}
 
 		let text = "";

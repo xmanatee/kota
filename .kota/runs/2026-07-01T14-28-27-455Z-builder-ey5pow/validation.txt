@@ -1,0 +1,55 @@
+Validation transcript for task-guard-tracing-exports-against-provider-request-pay
+
+Command:
+pnpm test src/core/modules/module-deps.test.ts
+
+Result:
+Test Files  1 passed (1)
+Tests       2 passed (2)
+
+Command:
+pnpm exec biome check src/modules/model-clients/openai/http-error.ts src/modules/model-clients/openai/client.ts src/modules/model-clients/openai/stream.ts src/modules/tracing/security-logs.ts src/modules/tracing/provider-payload-leak-guard.test.ts src/modules/tracing/provider-payload-leak-guard-test-support.ts
+
+Result:
+Checked 6 files. No fixes applied.
+
+Command:
+pnpm test src/core/modules/module-deps.test.ts src/modules/tracing/provider-payload-leak-guard.test.ts src/modules/tracing/security-logs.test.ts src/modules/model-clients/openai/client.test.ts src/modules/model-clients/openai/stream.test.ts
+
+Result:
+Test Files  5 passed (5)
+Tests       31 passed (31)
+
+Command:
+pnpm typecheck
+
+Result:
+tsc --noEmit completed successfully.
+
+Command:
+wc -l src/modules/tracing/provider-payload-leak-guard.test.ts src/modules/tracing/provider-payload-leak-guard-test-support.ts src/modules/tracing/security-logs.ts
+
+Result:
+295 src/modules/tracing/provider-payload-leak-guard.test.ts
+203 src/modules/tracing/provider-payload-leak-guard-test-support.ts
+408 src/modules/tracing/security-logs.ts
+
+Note:
+The new canary and support file are below the 300-line source-size guideline.
+`security-logs.ts` was already over the guideline; this task changes only the
+OTLP export error message sanitization in that file.
+
+Repair note:
+The original repair failure was `src/core/modules/module-deps.test.ts`, caused
+by a test-support file importing `#modules/model-clients` at runtime without a
+declared tracing dependency. The model-client import now lives only in
+`provider-payload-leak-guard.test.ts`, while the shared support file has no
+runtime cross-module import.
+
+Broad-suite attempt:
+`pnpm test` was attempted after the focused repair. It surfaced many unrelated
+daemon, eval-harness, harness-parity, path-policy, and symlink-save failures
+while running in the dirty repair worktree, then stopped producing output for
+several minutes during retry-timeout coverage and was interrupted. The focused
+post-check failure and touched behavior are covered by the passing commands
+above.
