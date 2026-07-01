@@ -757,3 +757,7 @@ resources:
   - url: https://arxiv.org/abs/2606.24429
     added: "2026-07-01"
     notes: "Detecting AI Coding Agents in Open Source studies multi-method detection of coding-agent traces across commits, configuration files, author identity, and bot signatures. Monitor as an autonomy/reporting signal for KOTA's own agent-authored work attribution, harness/run provenance, and post-completion quality metrics; do not mine external repositories or add a bot-account-only adoption heuristic."
+    snapshot:
+      fingerprint: sha256:3815fa046837291496f67c2e3cbdccc9
+      summary: "Detecting AI Coding Agents in Open Source is accessible; its multi-method attribution signal reinforces KOTA's completed post-completion, review-scrutiny, diff-summary, and quality-stratification reporting plus open source-to-decision coverage, so no duplicate task was opened."
+      last_seen_at: "2026-07-01T09:03:07.519Z"
