@@ -1,0 +1,8 @@
+pnpm test src/modules/autonomy/workflows/autonomy-health-reviewer/health-review.test.ts src/modules/autonomy/health-issue-cards.test.ts
+Result: passed. 2 test files passed; 12 tests passed.
+
+pnpm typecheck
+Result: passed.
+
+pnpm validate-tasks
+Result: passed.

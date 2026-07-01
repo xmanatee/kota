@@ -1,0 +1,3 @@
+1. Verified by adding run and artifact to the runtime-derived evidence policy and by the persisted artifact regression test asserting run error, daemon log, and inbox warning marker text is absent while refs and counts remain.
+2. Verified by the health issue card regression test asserting raw review artifacts with run and artifact runtime summaries are re-projected without prompt-like marker text while refs and counts remain.
+3. Verified with `pnpm test src/modules/autonomy/workflows/autonomy-health-reviewer/health-review.test.ts src/modules/autonomy/health-issue-cards.test.ts` and `pnpm typecheck`.

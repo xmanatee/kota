@@ -1,9 +1,13 @@
 import { redactSensitiveText } from "#core/evidence/policy.js";
 import type { AutonomyHealthEvidenceRef } from "./health-signal.js";
 
+// Run and artifact summaries can be copied from error.txt, daemon logs,
+// inbox warnings, or agent-produced runtime files.
 const RUNTIME_DERIVED_EVIDENCE_KINDS = new Set<AutonomyHealthEvidenceRef["kind"]>([
+  "artifact",
   "dead-letter",
   "module-log",
+  "run",
 ]);
 
 export const RUNTIME_DERIVED_SUMMARY_OMITTED =

@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-new-health-review-projection-o
 title: Security review: The new health-review projection only treats dead-letter and module-log refs as runtime-derived, so other runtime text copied into run/artifact evidence summaries, such as error.txt, daemon log, or inbox warning lines, can still be persisted into autonomy-health-review.json and re-exposed to the improver agent through health issue cards.
-status: ready
+status: done
 priority: p2
 area: security
 summary: The new health-review projection only treats dead-letter and module-log refs as runtime-derived, so other runtime text copied into run/artifact evidence summaries, such as error.txt, daemon log, or inbox warning lines, can still be persisted into autonomy-health-review.json and re-exposed to the improver agent through health issue cards.
 created_at: 2026-07-01T12:23:31.455Z
-updated_at: 2026-07-01T12:23:31.455Z
+updated_at: 2026-07-01T13:38:12.053Z
 ---
 
 ## Problem
@@ -194,3 +194,10 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/modules/autonomy/workflows/autonomy-health-reviewer/health-review.test.ts src/modules/autonomy/health-issue-cards.test.ts` passed with 2 test files and 12 tests.
+- `pnpm typecheck` passed.
+- `pnpm validate-tasks` passed.
+- Run artifacts: `.kota/runs/2026-07-01T12-38-34-981Z-builder-lae3nm/success-criteria.txt`, `.kota/runs/2026-07-01T12-38-34-981Z-builder-lae3nm/success-criteria-verified.txt`, and `.kota/runs/2026-07-01T12-38-34-981Z-builder-lae3nm/validation-results.txt`.
