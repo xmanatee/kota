@@ -1,0 +1,3 @@
+1. Workflow-generated follow-up tasks for security findings receive Safety task_class metadata before progress review counts them.
+2. Workflow-generated follow-up tasks for platform observability and runtime repair receive Platform or Meta task_class metadata instead of remaining Unclassified.
+3. Focused tests or fixtures prove representative generated tasks report expected task_class values and preserve cited evidence ids until resolution.

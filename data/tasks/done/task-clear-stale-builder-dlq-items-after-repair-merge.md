@@ -4,9 +4,10 @@ title: Clear stale builder DLQ items after repair merge
 status: done
 priority: p3
 area: platform
+task_class: Platform
 summary: The current builder DLQ investigation repaired the commit-stageable index-lock handling and found the idle-timeout item superseded, but the canonical dead-letter queue could not be mutated from the builder worktree sandbox. Dismiss, redrive, or explicitly suppress the two stale builder DLQ items with before/after evidence once daemon control or canonical write access is available.
 created_at: 2026-06-30T23:34:03.517Z
-updated_at: 2026-07-01T06:02:12.495Z
+updated_at: 2026-07-01T18:58:34.620Z
 ---
 
 ## Problem

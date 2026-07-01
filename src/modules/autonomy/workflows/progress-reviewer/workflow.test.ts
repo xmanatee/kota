@@ -30,6 +30,7 @@ import {
   initModuleEventRegistry,
   resetModuleEventRegistry,
 } from "#core/events/module-event.js";
+import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 import { validatePayloadSchema } from "#core/workflow/payload-validator.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
 import { DEFAULT_MAX_STEP_OUTPUT_BYTES } from "#core/workflow/run-executor-step.js";
@@ -160,6 +161,7 @@ function writeTask(
     area?: string;
     taskClass?: "Product" | "Safety" | "Platform" | "Meta";
     acceptanceEvidence?: string;
+    sourceIntent?: string;
   } = {},
 ): void {
   const title = options.title ?? id;
@@ -196,7 +198,7 @@ function writeTask(
     "",
     "## Source / Intent",
     "",
-    "Progress reviewer test fixture.",
+    options.sourceIntent ?? "Progress reviewer test fixture.",
     "",
     "## Initiative",
     "",
@@ -1607,6 +1609,131 @@ describe("progress-reviewer workflow", () => {
     expect(reviewInput.operatorJourneyRisks[0]?.reason).toContain(
       "Product task moved to done without transcript",
     );
+  });
+
+  it("classifies workflow-generated follow-up tasks in evidence and frontmatter", () => {
+    const projectDir = trackProjectDir("progress-reviewer-generated-task-class");
+    writeTask(projectDir, "done", "task-security-generated", {
+      title: "Security review: tighten approval replay",
+      area: "security",
+      sourceIntent: "Created by security-review workflow run security-review-run.",
+    });
+    writeTask(projectDir, "done", "task-platform-generated", {
+      title: "Add observability evidence for platform DLQ cleanup",
+      area: "platform",
+      sourceIntent: "Created by progress-reviewer workflow run progress-review-run.",
+    });
+    writeTask(projectDir, "done", "task-clear-stale-builder-dlq-items-after-repair-merge", {
+      title: "Clear stale builder DLQ items after repair merge",
+      area: "platform",
+      sourceIntent: "Follow-up from `task-resolve-current-builder-workflow-dead-letters`.",
+    });
+    writeTask(projectDir, "done", "task-meta-generated", {
+      title: "Clear runtime repair reviewer drift",
+      area: "autonomy",
+      sourceIntent: "Created by progress-reviewer workflow run progress-review-run.",
+    });
+    execFileSync("git", [
+      "add",
+      "data/tasks/done/task-security-generated.md",
+      "data/tasks/done/task-platform-generated.md",
+      "data/tasks/done/task-clear-stale-builder-dlq-items-after-repair-merge.md",
+      "data/tasks/done/task-meta-generated.md",
+    ], { cwd: projectDir });
+
+    const evidence = collectProgressReviewEvidence({
+      projectDir,
+      trigger: {
+        event: progressReviewRequested.name,
+        schemaRef: null,
+        payload: { windowMs: 3_600_000 },
+      },
+      now: NOW,
+    });
+
+    expect(evidence.taskClassDistribution).toEqual([
+      { taskClass: "Safety", count: 1 },
+      { taskClass: "Platform", count: 2 },
+      { taskClass: "Meta", count: 1 },
+    ]);
+    expect(
+      evidence.tasks.find((task) => task.taskId === "task-security-generated")?.taskClass,
+    ).toBe("Safety");
+    expect(
+      evidence.tasks.find((task) => task.taskId === "task-platform-generated")?.taskClass,
+    ).toBe("Platform");
+    expect(
+      evidence.tasks.find(
+        (task) => task.taskId === "task-clear-stale-builder-dlq-items-after-repair-merge",
+      )?.taskClass,
+    ).toBe("Platform");
+    expect(evidence.tasks.find((task) => task.taskId === "task-meta-generated")?.taskClass)
+      .toBe("Meta");
+
+    const actionResult = applyProgressReviewActions({
+      projectDir,
+      runId: "progress-review-run",
+      evidence,
+      review: reviewOutput({
+        verdict: "needs-steering",
+        summary: "Generated follow-up tasks need deterministic task_class metadata.",
+        localScope: {
+          followUpTasks: [
+            {
+              title: "Security generated follow-up",
+              summary: "Security finding follow-up should enter the Safety balance.",
+              priority: "p2",
+              area: "security",
+              evidenceIds: ["task:task-security-generated"],
+              acceptanceEvidence: "Generated task frontmatter records task_class: Safety.",
+            },
+            {
+              title: "Platform generated follow-up",
+              summary: "Platform observability follow-up should enter the Platform balance.",
+              priority: "p3",
+              area: "platform",
+              evidenceIds: ["task:task-platform-generated"],
+              acceptanceEvidence: "Generated task frontmatter records task_class: Platform.",
+            },
+            {
+              title: "Meta generated follow-up",
+              summary: "Runtime repair follow-up should enter the Meta balance with a Product/Safety link.",
+              priority: "p3",
+              area: "autonomy",
+              evidenceIds: ["task:task-meta-generated"],
+              acceptanceEvidence:
+                "Generated task frontmatter records task_class: Meta and includes a Product / Safety Link.",
+            },
+          ],
+        },
+      }),
+    });
+
+    expect(actionResult.createdTaskIds).toEqual([
+      "task-security-generated-follow-up",
+      "task-platform-generated-follow-up",
+      "task-meta-generated-follow-up",
+    ]);
+    const createdTasks = new Map(
+      actionResult.createdTaskIds.map((taskId) => {
+        const raw = readFileSync(
+          join(projectDir, "data", "tasks", "ready", `${taskId}.md`),
+          "utf-8",
+        );
+        return [taskId, { raw, attrs: parseFlatFrontMatter(raw).attrs }];
+      }),
+    );
+    expect(createdTasks.get("task-security-generated-follow-up")?.attrs.task_class).toBe(
+      "Safety",
+    );
+    expect(createdTasks.get("task-platform-generated-follow-up")?.attrs.task_class).toBe(
+      "Platform",
+    );
+    expect(createdTasks.get("task-meta-generated-follow-up")?.attrs.task_class).toBe("Meta");
+    expect(createdTasks.get("task-meta-generated-follow-up")?.raw).toContain(
+      "## Product / Safety Link",
+    );
+    expect(() => assertTaskQueueValid(projectDir, { minReady: 0 })).not.toThrow();
   });
 
   it("runs review-evidence with schema-valid JSON when raw run-count evidence exceeds the step output limit", async () => {

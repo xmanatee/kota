@@ -6,6 +6,10 @@ import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import {
+  type ClassifiedWorkflowGeneratedTask,
+  classifyWorkflowGeneratedTask,
+} from "#modules/autonomy/workflow-generated-task-class.js";
+import {
   getRepoInboxDir,
   getRepoTaskStateDir,
   listFullRepoTasks,
@@ -159,6 +163,7 @@ function buildTaskBody(args: {
   runId: string;
   review: ProgressReviewAgentOutput;
   task: ProgressReviewFollowUpTaskOutput;
+  taskClass: ClassifiedWorkflowGeneratedTask;
 }): string {
   const evidenceIds = args.task.evidenceIds.map((id) => `- ${id}`).join("\n");
   return [
@@ -192,6 +197,14 @@ function buildTaskBody(args: {
     "",
     evidenceIds,
     "",
+    ...(args.taskClass === "Meta"
+      ? [
+        "## Product / Safety Link",
+        "",
+        "This Meta follow-up protects Product and Safety execution by resolving the progress-review steering gap cited by the evidence ids above before it hides regressions or consumes builder capacity.",
+        "",
+      ]
+      : []),
     "## Initiative",
     "",
     "Outcome-aware autonomy progress review.",
@@ -233,17 +246,28 @@ export function writeFollowUpTask(args: {
   const taskPath = taskPathForId(args.projectDir, "ready", id);
   mkdirSync(dirname(taskPath), { recursive: true });
   const now = new Date().toISOString();
+  const taskClass = classifyWorkflowGeneratedTask({
+    workflowName: "progress-reviewer",
+    area: args.task.area,
+    title: args.task.title,
+    summary: args.task.summary,
+  });
   const attrs: TaskAttrs = {
     id,
     title: args.task.title,
     status: "ready",
     priority: args.task.priority,
     area: args.task.area,
+    task_class: taskClass,
     summary: args.task.summary,
     created_at: now,
     updated_at: now,
   };
-  writeFileSync(taskPath, serializeFlatFrontMatter(attrs, buildTaskBody(args)), "utf-8");
+  writeFileSync(
+    taskPath,
+    serializeFlatFrontMatter(attrs, buildTaskBody({ ...args, taskClass })),
+    "utf-8",
+  );
   stageBestEffort(args.projectDir, taskPath);
   return {
     kind: "created-task",

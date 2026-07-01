@@ -89,6 +89,8 @@ export function describeSecurityReviewTaskTests(): void {
       expect(result.skippedFindingIds).toEqual(["finding-rejected"]);
       const taskPath = join(fixture.projectDir, "data/tasks/ready", `${result.createdTaskIds[0]}.md`);
       const task = readFileSync(taskPath, "utf-8");
+      const parsed = parseFlatFrontMatter(task);
+      expect(parsed.attrs.task_class).toBe("Safety");
       expect(task).toContain("severity: high");
       expect(task).toContain("affected path: src/modules/web-access/web-fetch.ts");
       expect(task).toContain("Untrusted URL reaches fetch without an allowlist.");

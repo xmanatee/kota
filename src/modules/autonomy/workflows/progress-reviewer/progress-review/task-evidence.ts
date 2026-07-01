@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { mentionsOperatorEvidence } from "#modules/autonomy/product-evidence.js";
+import { classifyStoredWorkflowGeneratedTask } from "#modules/autonomy/workflow-generated-task-class.js";
 import {
   listFullRepoTasks,
   type RepoTaskClass,
@@ -23,6 +24,9 @@ function summarizeTask(
   source: ProgressReviewDirectorySource,
   record: RepoTaskFullRecord,
 ): ProgressReviewTaskEvidence {
+  const taskClass = record.taskClass === "Unclassified"
+    ? classifyStoredWorkflowGeneratedTask(record) ?? record.taskClass
+    : record.taskClass;
   return {
     id: sourceEvidenceId(source, `task:${record.id}`),
     kind: "task",
@@ -32,7 +36,7 @@ function summarizeTask(
     updatedAt: record.updatedAt,
     priority: record.priority,
     area: record.area,
-    taskClass: record.taskClass,
+    taskClass,
     operatorEvidenceMentioned: taskMentionsOperatorEvidence(record),
     path: join("data", "tasks", record.state, `${record.id}.md`),
     summary: sourceSummary(source, `${record.id} ${record.state}: ${record.title}`),

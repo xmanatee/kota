@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import { classifyWorkflowGeneratedTask } from "#modules/autonomy/workflow-generated-task-class.js";
 import {
   getRepoTaskStateDir,
   REPO_TASK_STATES,
@@ -250,6 +251,12 @@ export function createOrUpdateSecurityFindingTasks(
       status: target.state,
       priority: taskPriorityForSeverity(finding.severity),
       area: "security",
+      task_class: classifyWorkflowGeneratedTask({
+        workflowName: "security-review",
+        area: "security",
+        title,
+        summary: safeClaim,
+      }),
       summary: safeClaim,
       created_at: existingCreatedAt,
       updated_at: now,
