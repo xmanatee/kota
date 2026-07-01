@@ -1,0 +1,3 @@
+1. Generated progress-reviewer follow-up task frontmatter preserves bracket-wrapped title, area, and summary values as scalar strings instead of arrays.
+2. Focused regression coverage exercises bracket-wrapped scalar values through both the shared flat frontmatter helper and progress-reviewer task creation.
+3. The final task record names the verification commands, and repo lint, typecheck, task validation, and focused tests pass.

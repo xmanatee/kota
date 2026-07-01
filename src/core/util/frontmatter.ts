@@ -29,7 +29,10 @@ export function parseFlatFrontMatter(raw: string): {
     if (colonIdx < 1) continue;
     const key = trimmed.slice(0, colonIdx).trim();
     const val = trimmed.slice(colonIdx + 1).trim();
-    if (val.startsWith("[") && val.endsWith("]")) {
+    const quotedScalar = parseDoubleQuotedScalar(val);
+    if (quotedScalar !== null) {
+      attrs[key] = quotedScalar;
+    } else if (val.startsWith("[") && val.endsWith("]")) {
       attrs[key] = val
         .slice(1, -1)
         .split(",")
@@ -41,6 +44,16 @@ export function parseFlatFrontMatter(raw: string): {
   }
 
   return { attrs, body: split.body };
+}
+
+function parseDoubleQuotedScalar(value: string): string | null {
+  if (!value.startsWith("\"") || !value.endsWith("\"")) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return typeof parsed === "string" ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 export function findFlatFrontMatterSeparator(line: string): number {
@@ -73,10 +86,24 @@ export function serializeFlatFrontMatter(
     if (Array.isArray(val)) {
       lines.push(`${key}: [${val.join(", ")}]`);
     } else {
-      lines.push(`${key}: ${val}`);
+      lines.push(`${key}: ${serializeFlatFrontMatterScalar(val)}`);
     }
   }
   lines.push("---");
   lines.push(body);
   return lines.join("\n");
+}
+
+function serializeFlatFrontMatterScalar(value: string): string {
+  if (!needsQuotedFlatFrontMatterScalar(value)) return value;
+  return JSON.stringify(value);
+}
+
+function needsQuotedFlatFrontMatterScalar(value: string): boolean {
+  const trimmed = value.trim();
+  return (
+    trimmed !== value ||
+    (value.startsWith("[") && value.endsWith("]")) ||
+    (value.startsWith("\"") && value.endsWith("\""))
+  );
 }

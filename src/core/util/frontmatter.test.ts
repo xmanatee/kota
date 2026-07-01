@@ -66,6 +66,12 @@ describe("parseFlatFrontMatter", () => {
 		expect(result.attrs.tags).toEqual(["a", "b", "c"]);
 	});
 
+	it("parses double-quoted scalars before array syntax", () => {
+		const raw = "---\ntitle: \"[security]\"\nsummary: \"[a, b]\"\n---\nbody";
+		const result = parseFlatFrontMatter(raw);
+		expect(result.attrs).toEqual({ title: "[security]", summary: "[a, b]" });
+	});
+
 	it("handles CRLF line endings", () => {
 		const raw = "---\r\ntitle: Hello\r\n---\r\nbody";
 		const result = parseFlatFrontMatter(raw);
@@ -114,6 +120,18 @@ describe("serializeFlatFrontMatter", () => {
 	it("serializes array attributes", () => {
 		const result = serializeFlatFrontMatter({ tags: ["a", "b"] }, "body");
 		expect(result).toBe("---\ntags: [a, b]\n---\nbody");
+	});
+
+	it("quotes string scalars that would otherwise parse as arrays", () => {
+		const result = serializeFlatFrontMatter(
+			{ title: "[security]", summary: "[a, b]" },
+			"body",
+		);
+		expect(result).toBe("---\ntitle: \"[security]\"\nsummary: \"[a, b]\"\n---\nbody");
+		expect(parseFlatFrontMatter(result).attrs).toEqual({
+			title: "[security]",
+			summary: "[a, b]",
+		});
 	});
 
 	it("serializes empty body", () => {

@@ -1,13 +1,13 @@
 ---
 id: task-security-review-progress-reviewer-still-writes-rev
 title: Security review: Progress-reviewer still writes review-agent frontmatter fields with the flat serializer after only control-character and whitespace normalization. Bracket-wrapped scalar values such as `[security]` or `[a, b]` are parsed by the repo frontmatter reader as arrays, so untrusted review output can create malformed required task metadata and poison the task queue instead of being preserved as scalar text.
-status: ready
+status: done
 priority: p3
 area: security
 task_class: Safety
 summary: Progress-reviewer still writes review-agent frontmatter fields with the flat serializer after only control-character and whitespace normalization. Bracket-wrapped scalar values such as `[security]` or `[a, b]` are parsed by the repo frontmatter reader as arrays, so untrusted review output can create malformed required task metadata and poison the task queue instead of being preserved as scalar text.
 created_at: 2026-07-01T22:03:36.883Z
-updated_at: 2026-07-01T22:03:36.883Z
+updated_at: 2026-07-01T22:21:16.114Z
 ---
 
 ## Problem
@@ -125,3 +125,16 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Result
+
+- Shared flat frontmatter serialization now quotes string scalars that would otherwise parse as arrays, while the parser reads double-quoted scalars before applying bracket-array syntax.
+- Progress-reviewer regression coverage creates a generated follow-up task with title `[security]`, area `[a, b]`, and summary `[x]` and verifies the repo frontmatter reader preserves all three as strings.
+
+## Verification
+
+- `pnpm test src/core/util/frontmatter.test.ts`
+- `pnpm test src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts -- --runInBand`
+- `pnpm lint`
+- `pnpm typecheck`
+- `pnpm validate-tasks`

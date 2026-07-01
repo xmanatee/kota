@@ -1839,6 +1839,68 @@ describe("progress-reviewer workflow", () => {
     expect(() => assertTaskQueueValid(projectDir, { minReady: 0 })).not.toThrow();
   });
 
+  it("preserves bracket-wrapped follow-up task frontmatter fields as scalars", () => {
+    const projectDir = trackProjectDir("progress-reviewer-task-frontmatter-brackets");
+    writeTask(projectDir, "done", "task-review-source", {
+      title: "Review source task",
+      area: "security",
+      taskClass: "Safety",
+      sourceIntent: "Created by channel content containing bracket-wrapped scalars.",
+    });
+    execFileSync("git", ["add", "data/tasks/done/task-review-source.md"], { cwd: projectDir });
+
+    const evidence = collectProgressReviewEvidence({
+      projectDir,
+      trigger: {
+        event: progressReviewRequested.name,
+        schemaRef: null,
+        payload: { windowMs: 3_600_000 },
+      },
+      now: NOW,
+    });
+
+    const actionResult = applyProgressReviewActions({
+      projectDir,
+      runId: "progress-review-run",
+      evidence,
+      review: reviewOutput({
+        verdict: "needs-steering",
+        summary: "Bracket-wrapped generated task metadata should remain scalar.",
+        localScope: {
+          followUpTasks: [
+            {
+              title: "[security]",
+              summary: "[x]",
+              priority: "p2",
+              area: "[a, b]",
+              evidenceIds: ["task:task-review-source"],
+              acceptanceEvidence: "Generated task frontmatter parses bracket fields as strings.",
+            },
+          ],
+        },
+      }),
+    });
+
+    expect(actionResult.createdTaskIds).toEqual(["task-security"]);
+    const raw = readFileSync(
+      join(projectDir, "data", "tasks", "ready", "task-security.md"),
+      "utf-8",
+    );
+    expect(raw).toContain('title: "[security]"');
+    expect(raw).toContain('area: "[a, b]"');
+    expect(raw).toContain('summary: "[x]"');
+    const parsed = parseFlatFrontMatter(raw);
+    expect(parsed.attrs).toMatchObject({
+      title: "[security]",
+      area: "[a, b]",
+      summary: "[x]",
+    });
+    expect(Array.isArray(parsed.attrs.title)).toBe(false);
+    expect(Array.isArray(parsed.attrs.area)).toBe(false);
+    expect(Array.isArray(parsed.attrs.summary)).toBe(false);
+    expect(() => assertTaskQueueValid(projectDir, { minReady: 0 })).not.toThrow();
+  });
+
   it("runs review-evidence with schema-valid JSON when raw run-count evidence exceeds the step output limit", async () => {
     const projectDir = trackProjectDir("progress-reviewer-runtime-large-packet");
     const runId = "batched-builder-run";
