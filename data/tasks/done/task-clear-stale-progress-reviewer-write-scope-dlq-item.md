@@ -1,12 +1,12 @@
 ---
 id: task-clear-stale-progress-reviewer-write-scope-dlq-item
 title: Clear stale progress-reviewer write-scope DLQ item
-status: ready
+status: done
 priority: p3
 area: platform
-summary: The false-attribution root cause was repaired and the resolution task is done, but dlq-c3d9197c-110e-495d-ab5d-12e1de7925a7 remains open in the canonical dead-letter queue, keeping progress review below healthy. Redrive or dismiss it with an auditable before/after note, or add a durable suppression/rationale if it must remain open.
+summary: The false-attribution root cause was already repaired, and dlq-c3d9197c-110e-495d-ab5d-12e1de7925a7 is now dismissed in the canonical dead-letter queue with an auditable reason tied to the repair evidence.
 created_at: 2026-06-30T23:15:31.219Z
-updated_at: 2026-06-30T23:15:31.219Z
+updated_at: 2026-07-01T04:34:54.539Z
 ---
 
 ## Problem
@@ -27,6 +27,18 @@ Resolve the progress-review finding from run 2026-06-30T20-02-56-697Z-progress-r
 - The cited progress gap is fixed or explicitly disproven with evidence.
 - Acceptance evidence is recorded in this task or its run artifact.
 
+## Resolution
+
+Before cleanup, `.kota/dead-letter-queue/items.json` showed
+`dlq-c3d9197c-110e-495d-ab5d-12e1de7925a7` as `open` with
+`updatedAt: 2026-06-29T17:03:59.026Z`.
+
+The item was dismissed with `pnpm kota workflow dlq dismiss` at
+`2026-07-01T04:34:54.539Z`. The dismissal reason cites the root-cause repair
+from `task-resolve-current-progress-reviewer-write-scope-dead` and commit
+`8cef38bb`, which serialized scoped agent runs per workspace before
+write-scope attribution.
+
 ## Source / Intent
 
 Created by progress-reviewer workflow run 2026-06-30T20-02-56-697Z-progress-reviewer-9lzlx7.
@@ -45,4 +57,5 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- A run artifact or task note records the before/after state of dlq-c3d9197c-110e-495d-ab5d-12e1de7925a7, links the existing root-cause repair evidence, and shows the item dismissed/redriven or explicitly suppressed so future progress reviews no longer treat it as unresolved.
+- `pnpm kota workflow dlq show dlq-c3d9197c-110e-495d-ab5d-12e1de7925a7` now reports `status: dismissed` for workflow `progress-reviewer`.
+- `.kota/dead-letter-queue/items.json` records `dismissedAt: 2026-07-01T04:34:54.539Z` and the dismissal reason tied to `task-resolve-current-progress-reviewer-write-scope-dead` and commit `8cef38bb`.
