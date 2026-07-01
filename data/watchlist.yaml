@@ -754,3 +754,6 @@ resources:
       fingerprint: sha256:265874ad44d0fe1882afa78807e37aff
       summary: "How Coding Agents Fail Their Users is accessible; its owner-correction pressure signal is already covered by the completed owner-intervention report, while this run opened task-escalate-recurring-owner-intervention-patterns-int for the remaining adjacent-run recurrence-to-repair gap."
       last_seen_at: "2026-06-24T09:36:02.092Z"
+  - url: https://arxiv.org/abs/2606.24429
+    added: "2026-07-01"
+    notes: "Detecting AI Coding Agents in Open Source studies multi-method detection of coding-agent traces across commits, configuration files, author identity, and bot signatures. Monitor as an autonomy/reporting signal for KOTA's own agent-authored work attribution, harness/run provenance, and post-completion quality metrics; do not mine external repositories or add a bot-account-only adoption heuristic."
