@@ -297,9 +297,9 @@ resources:
   - url: https://www.anthropic.com/research
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:3047145c4e35cf152f4b228ddb9ed6aa
-      summary: "Anthropic research now surfaces the May 22 Project Glasswing update; KOTA already has a security-review scanner, so this run opened task-trigger-security-review-when-security-sensitive-co for the remaining paced queue-shaping trigger gap."
-      last_seen_at: "2026-05-25T11:39:27.852Z"
+      fingerprint: sha256:40af3f596bb086ba4971714663bd1930
+      summary: "Anthropic Research now surfaces the Jun 16 Claude Code usage study; this run opened task-expose-planning-versus-execution-decision-attribut for KOTA's nonduplicative operator-report gap around planning/execution attribution and hard success/trouble signals."
+      last_seen_at: "2026-07-01T17:01:14.241Z"
   - url: https://www.anthropic.com/engineering
     added: "2026-04-19"
     snapshot:
