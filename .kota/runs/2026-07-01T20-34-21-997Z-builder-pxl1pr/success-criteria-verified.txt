@@ -1,0 +1,4 @@
+1. Verified: generated task frontmatter scalars now pass through local normalization before `serializeFlatFrontMatter`, replacing control characters and newlines with single-line whitespace.
+2. Verified: review-agent summary and acceptance-evidence prose canonicalize CR/LF plus U+2028/U+2029 before indentation, so injected `##` headings do not become top-level task sections.
+3. Verified: `normalizes untrusted follow-up task fields before writing task files` covers newline, Unicode line-separator, frontmatter-key, delimiter, and Markdown-heading payloads and asserts stable metadata plus fixed section boundaries.
+4. Verified: `NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts` passed with 35 tests, and `pnpm run validate-tasks` passed.

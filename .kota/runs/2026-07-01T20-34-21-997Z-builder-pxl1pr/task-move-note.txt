@@ -1,0 +1,1 @@
+pnpm kota task move failed because the built dist CLI is absent in this worktree. Source-mode task moves reached git mv but could not create the parent worktree index lock under ../.git/worktrees due sandbox write restrictions. Working-tree task moves were applied manually to match the CLI lifecycle fields.

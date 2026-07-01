@@ -159,6 +159,69 @@ function stageBestEffort(projectDir: string, path: string): void {
   }
 }
 
+function isControlCharacter(code: number): boolean {
+  return code <= 0x1f || code === 0x7f;
+}
+
+function replaceCharacters(
+  value: string,
+  shouldReplace: (code: number) => boolean,
+  replacement: string,
+): string {
+  let normalized = "";
+  for (const char of value) {
+    normalized += shouldReplace(char.charCodeAt(0)) ? replacement : char;
+  }
+  return normalized;
+}
+
+function normalizeFrontMatterScalar(field: string, value: string): string {
+  const normalized = replaceCharacters(value, isControlCharacter, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) {
+    throw new Error(`progress-review follow-up task ${field} is empty after normalization`);
+  }
+  return normalized;
+}
+
+const BODY_LINE_TERMINATOR_PATTERN = /\r\n?|[\n\u2028\u2029]/g;
+
+function normalizeBodyProse(value: string): string {
+  const normalizedLineEndings = value.replace(BODY_LINE_TERMINATOR_PATTERN, "\n").trim();
+  return replaceCharacters(
+    normalizedLineEndings,
+    (code) => isControlCharacter(code) && code !== 0x0a,
+    " ",
+  )
+    .trim();
+}
+
+function renderIndentedProse(value: string): string {
+  const normalized = normalizeBodyProse(value);
+  if (!normalized) return "    (empty)";
+  return normalized
+    .split("\n")
+    .map((line) => `    ${line.trimEnd()}`)
+    .join("\n");
+}
+
+function normalizeListScalar(field: string, value: string): string {
+  return normalizeFrontMatterScalar(field, value);
+}
+
+function normalizeFollowUpTask(
+  task: ProgressReviewFollowUpTaskOutput,
+): ProgressReviewFollowUpTaskOutput {
+  return {
+    ...task,
+    title: normalizeFrontMatterScalar("title", task.title),
+    area: normalizeFrontMatterScalar("area", task.area),
+    summary: normalizeFrontMatterScalar("summary", task.summary),
+    evidenceIds: task.evidenceIds.map((id) => normalizeListScalar("evidence id", id)),
+  };
+}
+
 function buildTaskBody(args: {
   runId: string;
   review: ProgressReviewAgentOutput;
@@ -166,15 +229,16 @@ function buildTaskBody(args: {
   taskClass: ClassifiedWorkflowGeneratedTask;
 }): string {
   const evidenceIds = args.task.evidenceIds.map((id) => `- ${id}`).join("\n");
+  const runId = normalizeListScalar("run id", args.runId);
   return [
     "",
     "## Problem",
     "",
-    args.task.summary,
+    renderIndentedProse(args.task.summary),
     "",
     "## Desired Outcome",
     "",
-    `Resolve the progress-review finding from run ${args.runId}.`,
+    `Resolve the progress-review finding from run ${runId}.`,
     "",
     "## Constraints",
     "",
@@ -188,10 +252,12 @@ function buildTaskBody(args: {
     "",
     "## Source / Intent",
     "",
-    `Created by progress-reviewer workflow run ${args.runId}.`,
+    `Created by progress-reviewer workflow run ${runId}.`,
     "",
     `review verdict: ${args.review.verdict}`,
-    `review summary: ${args.review.summary}`,
+    "review summary:",
+    "",
+    renderIndentedProse(args.review.summary),
     "",
     "Evidence ids:",
     "",
@@ -211,7 +277,9 @@ function buildTaskBody(args: {
     "",
     "## Acceptance Evidence",
     "",
-    `- ${args.task.acceptanceEvidence}`,
+    "- Review-provided acceptance evidence:",
+    "",
+    renderIndentedProse(args.task.acceptanceEvidence),
     "",
   ].join("\n");
 }
@@ -223,19 +291,20 @@ export function writeFollowUpTask(args: {
   review: ProgressReviewAgentOutput;
   task: ProgressReviewFollowUpTaskOutput;
 }): ProgressReviewAppliedAction {
-  const id = `task-${slugifyTaskTitle(args.task.title)}`;
+  const task = normalizeFollowUpTask(args.task);
+  const id = `task-${slugifyTaskTitle(task.title)}`;
   if (id === "task-") {
     return {
       kind: "skipped-task",
-      title: args.task.title,
+      title: task.title,
       reason: "title produced an empty task slug",
     };
   }
-  const existing = findExistingTaskAcrossProjectDirs(args.dedupeProjectDirs, id, args.task.title);
+  const existing = findExistingTaskAcrossProjectDirs(args.dedupeProjectDirs, id, task.title);
   if (existing) {
     return {
       kind: "skipped-task",
-      title: args.task.title,
+      title: task.title,
       reason: "matching task already exists",
       existingTaskId: existing.id,
       existingState: existing.state,
@@ -248,24 +317,24 @@ export function writeFollowUpTask(args: {
   const now = new Date().toISOString();
   const taskClass = classifyWorkflowGeneratedTask({
     workflowName: "progress-reviewer",
-    area: args.task.area,
-    title: args.task.title,
-    summary: args.task.summary,
+    area: task.area,
+    title: task.title,
+    summary: task.summary,
   });
   const attrs: TaskAttrs = {
     id,
-    title: args.task.title,
+    title: task.title,
     status: "ready",
-    priority: args.task.priority,
-    area: args.task.area,
+    priority: task.priority,
+    area: task.area,
     task_class: taskClass,
-    summary: args.task.summary,
+    summary: task.summary,
     created_at: now,
     updated_at: now,
   };
   writeFileSync(
     taskPath,
-    serializeFlatFrontMatter(attrs, buildTaskBody({ ...args, taskClass })),
+    serializeFlatFrontMatter(attrs, buildTaskBody({ ...args, task, taskClass })),
     "utf-8",
   );
   stageBestEffort(args.projectDir, taskPath);
@@ -273,7 +342,7 @@ export function writeFollowUpTask(args: {
     kind: "created-task",
     taskId: id,
     path: taskPath.slice(args.projectDir.length + 1),
-    title: args.task.title,
+    title: task.title,
   };
 }
 

@@ -1,0 +1,4 @@
+1. Progress-reviewer follow-up task frontmatter scalars normalize untrusted newlines and control characters before serialization, so injected keys or delimiters cannot override task metadata.
+2. Progress-reviewer follow-up task body prose from the review agent is rendered under fixed sections without raw top-level Markdown headings, so injected headings cannot override fixed task sections.
+3. Focused regression coverage exercises newline, frontmatter-key, delimiter, and Markdown-heading payloads and proves the generated task keeps stable metadata and section boundaries.
+4. The implementation task records the final verification command or artifact before moving to done.

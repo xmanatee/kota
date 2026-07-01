@@ -1,13 +1,13 @@
 ---
 id: task-security-review-progress-reviewer-creates-follow-u
 title: Security review: Progress-reviewer creates follow-up task files from raw review-agent strings without escaping frontmatter scalars or body prose. Because the review evidence can include untrusted trigger/channel content, injected newlines, frontmatter keys, or markdown headings can alter task metadata or future workflow instructions.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: Progress-reviewer creates follow-up task files from raw review-agent strings without escaping frontmatter scalars or body prose. Because the review evidence can include untrusted trigger/channel content, injected newlines, frontmatter keys, or markdown headings can alter task metadata or future workflow instructions.
 created_at: 2026-07-01T20:32:11.313Z
-updated_at: 2026-07-01T20:32:11.313Z
+updated_at: 2026-07-01T21:00:35.449Z
 ---
 
 ## Problem
@@ -34,6 +34,13 @@ claim:
 - The cited vulnerability is fixed or proven impossible with code-level evidence.
 - Focused regression coverage guards the fixed boundary.
 - The task records the final verification command or artifact.
+
+## Result
+
+Progress-reviewer follow-up task creation now normalizes generated task
+frontmatter scalars before serialization and renders review-agent prose as
+indented body text under fixed sections, preventing injected frontmatter keys,
+delimiters, or markdown headings from overriding task metadata or sections.
 
 ## Source / Intent
 
@@ -167,3 +174,7 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts` passed.
+- `pnpm run typecheck` passed.
+- `pnpm exec biome check src/modules/autonomy/workflows/progress-reviewer/progress-review/action-writers.ts src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts` passed.
+- `pnpm run validate-tasks` passed after staging the completed task move and run artifacts.
