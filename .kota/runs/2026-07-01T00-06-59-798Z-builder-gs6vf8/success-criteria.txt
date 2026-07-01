@@ -1,0 +1,3 @@
+1. Repair-check failure output cannot close or escape the repair prompt's untrusted-content block with raw XML-like boundary markers.
+2. Focused regression coverage proves hostile repair-check output containing </untrusted-content> is escaped before rendering.
+3. The resolving run records the validation command and task-move/staging status.

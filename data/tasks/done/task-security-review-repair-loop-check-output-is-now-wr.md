@@ -1,12 +1,12 @@
 ---
 id: task-security-review-repair-loop-check-output-is-now-wr
 title: Security review: Repair-loop check output is now wrapped in an untrusted-content block with a content-derived markdown fence, but the raw failure output is inserted without escaping XML-like boundary markers. A failed project-controlled check can print </untrusted-content> and make following text appear outside the untrusted region in the repair-agent prompt, reintroducing a prompt-injection variant against the repair loop.
-status: ready
+status: done
 priority: p2
 area: security
 summary: Repair-loop check output is now wrapped in an untrusted-content block with a content-derived markdown fence, but the raw failure output is inserted without escaping XML-like boundary markers. A failed project-controlled check can print </untrusted-content> and make following text appear outside the untrusted region in the repair-agent prompt, reintroducing a prompt-injection variant against the repair loop.
 created_at: 2026-07-01T00:31:45.924Z
-updated_at: 2026-07-01T00:31:45.924Z
+updated_at: 2026-07-01T03:19:07.272Z
 ---
 
 ## Problem

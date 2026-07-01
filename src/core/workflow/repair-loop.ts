@@ -65,8 +65,16 @@ function markdownFenceForContent(value: string): string {
   return "`".repeat(Math.max(MIN_MARKDOWN_FENCE_LENGTH, maxBacktickRun(value) + 1));
 }
 
+function escapeUntrustedBlockText(value: string): string {
+  return value.replace(/[<>&]/g, (char) => {
+    if (char === "<") return "\\u003c";
+    if (char === ">") return "\\u003e";
+    return "\\u0026";
+  });
+}
+
 function renderFailureOutput(failure: RepairCheckResult): string[] {
-  const output = failure.output.trim();
+  const output = escapeUntrustedBlockText(failure.output.trim());
   const fence = markdownFenceForContent(output);
   return [
     `## ${failure.id}`,

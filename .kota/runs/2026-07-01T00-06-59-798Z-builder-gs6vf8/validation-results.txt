@@ -1,0 +1,11 @@
+pnpm test src/core/workflow/repair-loop.test.ts
+PASS: 1 test file passed, 6 tests passed.
+
+pnpm typecheck
+PASS: TypeScript completed with exit code 0.
+
+GIT_INDEX_FILE=$PWD/.kota/tmp/builder-gs6vf8.index pnpm validate-tasks
+PASS: task queue validation completed with exit code 0 against the staged alternate index.
+
+pnpm validate-tasks
+PASS: task queue validation completed with exit code 0 after final canonical staging.
