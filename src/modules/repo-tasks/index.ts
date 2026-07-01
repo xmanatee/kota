@@ -175,6 +175,9 @@ const repoTasksModule: KotaModule = {
 					};
 				} catch (err) {
 					const message = err instanceof Error ? err.message : String(err);
+					if (/invalid task id/i.test(message)) {
+						return { ok: false, reason: "invalid_id" };
+					}
 					if (/not found/i.test(message)) {
 						return { ok: false, reason: "not_found" };
 					}
@@ -247,9 +250,10 @@ const repoTasksModule: KotaModule = {
  *    other non-ok throws the daemon's `error` field; success returns
  *    `{ found: true, state, content }`.
  *  - `move(id, toState)` PATCHes `/api/tasks/<id>/move` with body
- *    `{ state: toState }`. 404 collapses to `not_found`; 409 to
- *    `already_in_state` (with the response body's `state` or `toState`);
- *    other non-ok throws; success returns the move shape.
+ *    `{ state: toState }`. 400 invalid ids collapse to `invalid_id`; 404 to
+ *    `not_found`; 409 to `already_in_state` (with the response body's
+ *    `state` or `toState`); other non-ok throws; success returns the move
+ *    shape.
  *  - `create(options)` POSTs `/api/tasks/normalized` with the full
  *    `RepoTaskCreateOptions` body. 409 → `already_exists`; 400 →
  *    `invalid_slug`; other non-ok throws; success returns `{ ok: true,
@@ -354,6 +358,13 @@ function buildRepoTasksDaemonHandler(link: DaemonTransport): RepoTasksClient {
 					throw new Error(`Unknown project: ${errBody.projectId}`);
 				}
 				return { ok: false, reason: "not_found" };
+			}
+			if (res.status === 400) {
+				const errBody = await readRepoTaskRouteError(res);
+				if (errBody?.reason === "invalid_id") {
+					return { ok: false, reason: "invalid_id" };
+				}
+				throw new Error(errBody?.error ?? "HTTP 400");
 			}
 			if (res.status === 409) {
 				const conflictBody = (await res.json().catch(() => ({}))) as {

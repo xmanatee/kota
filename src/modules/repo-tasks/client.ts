@@ -68,6 +68,7 @@ export type RepoTaskMoveResult =
       path: string;
       previousPath: string;
     }
+  | { ok: false; reason: "invalid_id" }
   | { ok: false; reason: "not_found" }
   | { ok: false; reason: "already_in_state"; state: RepoTaskState };
 

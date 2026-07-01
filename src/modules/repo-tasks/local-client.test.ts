@@ -41,4 +41,15 @@ describe("repo-tasks localClient", () => {
 			"task-commands-only-fallback-task",
 		);
 	});
+
+	it("returns a client error for traversal-shaped move ids", async () => {
+		const contributed = repoTasksModule.localClient!({
+			cwd: projectDir,
+		} as ModuleContext);
+
+		await expect(contributed.tasks!.move("../AGENTS", "doing")).resolves.toEqual({
+			ok: false,
+			reason: "invalid_id",
+		});
+	});
 });

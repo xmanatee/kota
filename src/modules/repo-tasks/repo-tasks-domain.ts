@@ -8,6 +8,7 @@ import {
   findUnfinishedTaskDependencies,
   readTaskDependencyIds,
 } from "./task-dependencies.js";
+import { isRepoTaskId } from "./task-id.js";
 
 export const REPO_DATA_DIR = "data";
 export const REPO_TASKS_DIR = join(REPO_DATA_DIR, "tasks");
@@ -537,6 +538,10 @@ export function moveTaskById(
   id: string,
   toState: RepoTaskState,
 ): MoveTaskResult {
+  if (!isRepoTaskId(id)) {
+    throw new Error("Invalid task id");
+  }
+
   const tasksDir = getRepoTasksDir(projectDir);
   let fromState: RepoTaskState | null = null;
   let fromPath: string | null = null;

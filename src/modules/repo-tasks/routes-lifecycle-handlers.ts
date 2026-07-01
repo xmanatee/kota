@@ -100,6 +100,11 @@ export async function handleTaskMove(
   id: string,
   projectDir = process.cwd(),
 ): Promise<void> {
+  if (!isRepoTaskId(id)) {
+    jsonResponse(res, 400, { reason: "invalid_id", error: "Invalid task id" });
+    return;
+  }
+
   const body = await readRouteJsonBody(req, res);
   if (body === null) return;
 
@@ -121,6 +126,10 @@ export async function handleTaskMove(
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    if (/invalid task id/i.test(message)) {
+      jsonResponse(res, 400, { reason: "invalid_id", error: "Invalid task id" });
+      return;
+    }
     if (/not found/i.test(message)) {
       jsonResponse(res, 404, { error: message });
       return;

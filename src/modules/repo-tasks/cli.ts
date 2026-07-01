@@ -166,6 +166,10 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 				print(line(plain(`Task "${id}" is already in "${targetState}".`)));
 				return;
 			}
+			if (result.reason === "invalid_id") {
+				printToStderr(line(span(`Invalid task id "${id}".`, "error")));
+				process.exit(1);
+			}
 			printToStderr(line(span(`Task "${id}" not found in any state directory`, "error")));
 			process.exit(1);
 		});

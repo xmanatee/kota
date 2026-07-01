@@ -1,0 +1,4 @@
+1. Invalid or non-canonical task ids are rejected at the HTTP task-move boundary before they reach filesystem or git path construction.
+2. moveTaskById rejects invalid or non-canonical task ids itself so local clients and future callers receive the same protection.
+3. Focused regression tests cover encoded slash or traversal-shaped ids for PATCH /api/tasks/:id/move and the local client/CLI move path.
+4. The run records the final focused validation command and result.

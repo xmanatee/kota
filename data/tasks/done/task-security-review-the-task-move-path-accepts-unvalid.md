@@ -1,12 +1,12 @@
 ---
 id: task-security-review-the-task-move-path-accepts-unvalid
 title: Security review: The task move path accepts unvalidated task ids and passes them into filesystem and git path construction. Encoded slash or traversal-shaped ids are rejected by the show route, but the move route and local client reach moveTaskById without the same canonical task-id guard.
-status: ready
+status: done
 priority: p3
 area: security
 summary: The task move path accepts unvalidated task ids and passes them into filesystem and git path construction. Encoded slash or traversal-shaped ids are rejected by the show route, but the move route and local client reach moveTaskById without the same canonical task-id guard.
 created_at: 2026-06-29T18:16:21.058Z
-updated_at: 2026-06-29T18:16:21.058Z
+updated_at: 2026-07-01T05:07:36.950Z
 ---
 
 ## Problem
@@ -138,3 +138,5 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Regression coverage added for decoded traversal ids on `PATCH /api/tasks/:id/move`, local-client move, daemon-client 400 decoding, and CLI invalid-id rendering without invoking git.
+- Validation passed: `pnpm test src/modules/repo-tasks/routes-state.test.ts src/modules/repo-tasks/local-client.test.ts src/modules/repo-tasks/daemon-client.test.ts src/modules/repo-tasks/daemon-client-move-security.test.ts src/modules/repo-tasks/cli.test.ts src/modules/repo-tasks/cli-move-security.test.ts`; `pnpm typecheck`; `git diff --cached --check -- src/modules/repo-tasks data/tasks .kota/runs/2026-07-01T03-38-38-802Z-builder-lc3xtm`; `pnpm validate-tasks`.

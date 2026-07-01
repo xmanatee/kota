@@ -2,7 +2,8 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { handleTaskMove, handleTaskStateChange } from "./routes.js";
+import { findRouteMatch } from "#core/modules/route-matcher.js";
+import { handleTaskMove, handleTaskStateChange, taskRoutes } from "./routes.js";
 import { makeProjectDir, mockRequest, mockResponse, writeTaskFile } from "./routes-test-helpers.js";
 
 vi.mock("node:child_process", () => ({
@@ -107,6 +108,19 @@ describe("task state routes", () => {
     expect(result.status).toBe(200);
     expect(result.body).toMatchObject({ fromState: "ready", toState: "doing" });
     expect(existsSync(join(projectDir, "data", "tasks", "doing", "task-mover.md"))).toBe(true);
+  });
+
+  it("returns 400 for encoded slash traversal ids on the unrestricted move route", async () => {
+    const execFile = vi.mocked(execFileSync);
+    execFile.mockClear();
+    const match = findRouteMatch(taskRoutes(), "PATCH", "/api/tasks/%2E%2E%2FAGENTS/move");
+    expect(match?.params).toEqual({ id: "../AGENTS" });
+
+    const { res, result } = mockResponse();
+    await handleTaskMove(mockRequest({ state: "doing" }), res, match?.params.id ?? "", projectDir);
+    expect(result.status).toBe(400);
+    expect(result.body).toMatchObject({ reason: "invalid_id" });
+    expect(execFile).not.toHaveBeenCalled();
   });
 
   it("returns move errors for missing, duplicate, and invalid states", async () => {
