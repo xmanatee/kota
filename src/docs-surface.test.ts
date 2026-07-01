@@ -19,6 +19,7 @@ const SKIPPED_SCAN_DIRECTORIES = new Set([
   ".expo",
   ".build",
   ".kota",
+  ".worktrees",
   "dist",
   "node_modules",
 ]);

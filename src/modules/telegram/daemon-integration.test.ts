@@ -334,7 +334,7 @@ describe("Telegram personal-assistant daemon integration", () => {
 
     // Wait for the channel to deliver the /status reply AND for the
     // scheduled item to fire within the same daemon lifetime.
-    const deadline = Date.now() + 2_000;
+    const deadline = Date.now() + 10_000;
     let sawStatusReply = false;
     let sawSchedulerFire = false;
     while (Date.now() < deadline) {

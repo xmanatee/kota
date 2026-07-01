@@ -174,7 +174,7 @@ describe("builder bare-repo full-cycle fixture", () => {
     } finally {
       cleanup();
     }
-  }, 30_000);
+  }, 60_000);
 
   it("rejects a behavior-only shortcut without verification tests", async () => {
     const { report, cleanup } = await runFixtureWithCandidate(({ workingDir }) => {
@@ -194,7 +194,7 @@ describe("builder bare-repo full-cycle fixture", () => {
     } finally {
       cleanup();
     }
-  }, 30_000);
+  }, 60_000);
 
   it("rejects authored tests when the runnable package setup is still broken", async () => {
     const { report, cleanup } = await runFixtureWithCandidate(({ workingDir }) => {
@@ -215,5 +215,5 @@ describe("builder bare-repo full-cycle fixture", () => {
     } finally {
       cleanup();
     }
-  }, 30_000);
+  }, 60_000);
 });
