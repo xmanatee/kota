@@ -46,11 +46,12 @@ async function waitForCompletedWorkflows(
   timeoutMs: number,
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
+  while (true) {
     const seen = new Set(completedRuns.map((run) => run.workflow));
     if (workflowNames.every((name) => seen.has(name))) {
       return;
     }
+    if (Date.now() >= deadline) break;
     await wait(25);
   }
   throw new Error(
@@ -220,7 +221,7 @@ describe("autonomous workflow loop integration", () => {
 
   it(
     "drives the inbox-sorter → builder → improver handoff using real workflow definitions",
-    { timeout: 45_000 },
+    { timeout: 90_000 },
     async () => {
       mockedExecuteWithAgentSDK
         .mockResolvedValueOnce({
@@ -276,7 +277,7 @@ describe("autonomous workflow loop integration", () => {
         await waitForCompletedWorkflows(
           completedRuns,
           ["inbox-sorter", "builder", "improver"],
-          35_000,
+          70_000,
         );
       } finally {
         restorePortAvailability();

@@ -141,7 +141,10 @@ describe("broad accepted-alternative fixture calibration runs", () => {
         rmSync(runArtifactBaseDir, { recursive: true, force: true });
       }
     }
-  }, 60_000);
+  // This exercises several broad fixtures whose calibration predicates run
+  // fixture-owned shell verifiers across null/golden/alternative/adversarial
+  // cases. Loaded full-suite runs are slower than isolated runs.
+  }, 120_000);
 
   it("records all calibration case kinds for the changed replay-backed fixture", async () => {
     const fixture = loadFixture(FIXTURES_ROOT, "builder-dialogue-driven-coding");

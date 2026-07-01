@@ -1,0 +1,3 @@
+Project health review evidence before persistence
+
+Redact runtime-derived autonomy health evidence in artifacts and issue cards, add regressions, and stabilize the two timed repair checks.

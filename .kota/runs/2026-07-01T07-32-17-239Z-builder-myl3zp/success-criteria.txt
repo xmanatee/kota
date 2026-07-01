@@ -1,0 +1,3 @@
+1. Runtime-derived autonomy health signal summaries from module logs and dead letters are not persisted into review artifacts as prompt-like text.
+2. Health issue cards re-project review evidence before presentation so module-log and dead-letter evidence summaries are not exposed to the improver.
+3. Regression tests and task state record the fixed evidence boundary and final verification.

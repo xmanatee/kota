@@ -1,12 +1,12 @@
 ---
 id: task-security-review-autonomy-health-review-artifacts-s
 title: Security review: Autonomy health review artifacts still persist runtime-derived summaries and evidence-ref summaries from module logs and dead-letter failure reasons. Generated task Markdown now fences that data, but the review artifact stores the raw review object and health issue cards later surface those fields, so prompt-like runtime text can still escape the intended evidence boundary.
-status: ready
+status: done
 priority: p2
 area: security
 summary: Autonomy health review artifacts still persist runtime-derived summaries and evidence-ref summaries from module logs and dead-letter failure reasons. Generated task Markdown now fences that data, but the review artifact stores the raw review object and health issue cards later surface those fields, so prompt-like runtime text can still escape the intended evidence boundary.
 created_at: 2026-07-01T07:03:06.305Z
-updated_at: 2026-07-01T07:03:06.305Z
+updated_at: 2026-07-01T08:15:37.000Z
 ---
 
 ## Problem
@@ -138,3 +138,9 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Outcome
+
+- Added a review-evidence projection that prunes `module-log` and `dead-letter` evidence summaries, replaces runtime-backed signal summaries with a bounded omission marker, and keeps stable refs/counts/dedupe metadata.
+- Applied the projection when writing `autonomy-health-review.json` and when collecting health issue cards from existing artifacts.
+- Verification: `pnpm exec vitest run src/modules/autonomy/workflows/autonomy-health-reviewer/health-review.test.ts src/modules/autonomy/health-issue-cards.test.ts`; `pnpm exec vitest run src/modules/autonomy/autonomous-loop.integration.test.ts -t "drives the inbox-sorter" --reporter=verbose`; `pnpm exec vitest run src/modules/eval-harness/accepted-alternative-fixtures.test.ts --reporter=verbose`; `pnpm exec biome check src/modules/autonomy/autonomous-loop.integration.test.ts src/modules/eval-harness/accepted-alternative-fixtures.test.ts src/modules/autonomy/health-review-evidence-policy.ts src/modules/autonomy/health-issue-cards.ts src/modules/autonomy/health-issue-cards.test.ts src/modules/autonomy/workflows/autonomy-health-reviewer/health-review.ts src/modules/autonomy/workflows/autonomy-health-reviewer/health-review.test.ts`; `pnpm validate-tasks`.

@@ -1,0 +1,3 @@
+1. `writeAutonomyHealthReviewArtifact` projects signals/groups before JSON persistence; regression coverage asserts prompt-like DLQ text is absent from `autonomy-health-review.json`.
+2. `collectRecentAutonomyHealthIssueCards` projects raw artifact groups before returning cards; regression coverage asserts module-log summaries are pruned.
+3. Verified with focused Vitest runs, Biome check, and `pnpm validate-tasks`; a broad `pnpm test` attempt was interrupted after unrelated full-suite failures and a hang.

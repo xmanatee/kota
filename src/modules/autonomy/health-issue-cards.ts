@@ -1,6 +1,10 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import {
+  projectAutonomyHealthEvidenceRefsForReview,
+  projectAutonomyHealthSummariesForReview,
+} from "./health-review-evidence-policy.js";
 import type {
   AutonomyHealthActionability,
   AutonomyHealthEvidenceRef,
@@ -128,6 +132,7 @@ function cardFromGroup(args: {
   ) {
     return null;
   }
+  const rawEvidenceRefs = evidenceRefs(args.group.evidenceRefs);
   return {
     reviewedAt: args.reviewedAt,
     dedupeKey,
@@ -135,11 +140,15 @@ function cardFromGroup(args: {
     labels: stringArray(args.group.labels),
     actionability,
     signalCount,
-    summaries: stringArray(args.group.summaries).slice(0, MAX_SUMMARIES_PER_CARD),
-    evidenceRefs: evidenceRefs(args.group.evidenceRefs).slice(
-      0,
-      MAX_EVIDENCE_REFS_PER_CARD,
-    ),
+    summaries: projectAutonomyHealthSummariesForReview(
+      stringArray(args.group.summaries),
+      rawEvidenceRefs,
+    ).slice(0, MAX_SUMMARIES_PER_CARD),
+    evidenceRefs:
+      projectAutonomyHealthEvidenceRefsForReview(rawEvidenceRefs).slice(
+        0,
+        MAX_EVIDENCE_REFS_PER_CARD,
+      ),
     createdTaskIds: args.createdTaskIds,
     ownerQuestionIds: args.ownerQuestionIds,
   };

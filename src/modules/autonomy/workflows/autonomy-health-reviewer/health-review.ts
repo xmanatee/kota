@@ -16,6 +16,11 @@ import {
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { WorkflowBatchFlushPayload } from "#core/workflow/trigger-types.js";
 import {
+  projectAutonomyHealthEvidenceRefsForReview,
+  projectAutonomyHealthSummariesForReview,
+  projectAutonomyHealthSummaryForReview,
+} from "#modules/autonomy/health-review-evidence-policy.js";
+import {
   type AutonomyHealthActionability,
   type AutonomyHealthEvidenceRef,
   type AutonomyHealthJsonObject,
@@ -755,13 +760,63 @@ export function applyAutonomyHealthReviewActions(args: {
   };
 }
 
+function projectSignalForArtifact(
+  signal: AutonomyHealthSignal,
+): AutonomyHealthSignal {
+  return {
+    ...signal,
+    summary: projectAutonomyHealthSummaryForReview(
+      signal.summary,
+      signal.evidenceRefs,
+    ),
+    evidenceRefs: projectAutonomyHealthEvidenceRefsForReview(signal.evidenceRefs),
+  };
+}
+
+function projectGroupForArtifact(
+  group: AutonomyHealthReviewGroup,
+): AutonomyHealthReviewGroup {
+  const evidenceRefs = projectAutonomyHealthEvidenceRefsForReview(
+    group.evidenceRefs,
+  );
+  return {
+    ...group,
+    summaries: projectAutonomyHealthSummariesForReview(
+      group.summaries,
+      group.evidenceRefs,
+    ),
+    evidenceRefs,
+    evidenceFingerprint: evidenceFingerprint(group.dedupeKey, evidenceRefs),
+  };
+}
+
+export function projectAutonomyHealthReviewForArtifact(
+  review: AutonomyHealthReview,
+): AutonomyHealthReview {
+  return {
+    ...review,
+    signals: review.signals.map(projectSignalForArtifact),
+    groups: review.groups.map(projectGroupForArtifact),
+  };
+}
+
+export function projectAutonomyHealthReviewArtifactForPersistence(
+  artifact: AutonomyHealthReviewArtifact,
+): AutonomyHealthReviewArtifact {
+  return {
+    ...artifact,
+    review: projectAutonomyHealthReviewForArtifact(artifact.review),
+  };
+}
+
 export function writeAutonomyHealthReviewArtifact(
   runDir: string,
   artifact: AutonomyHealthReviewArtifact,
 ): string {
   mkdirSync(runDir, { recursive: true });
   const artifactPath = join(runDir, AUTONOMY_HEALTH_REVIEW_ARTIFACT);
-  writeFileSync(artifactPath, `${JSON.stringify(artifact, null, 2)}\n`, "utf-8");
+  const projected = projectAutonomyHealthReviewArtifactForPersistence(artifact);
+  writeFileSync(artifactPath, `${JSON.stringify(projected, null, 2)}\n`, "utf-8");
   return artifactPath;
 }
 
