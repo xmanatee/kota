@@ -1,0 +1,3 @@
+1. Investigate both cited builder dead-letter ids and record their before/current state and cause.
+2. Repair or explicitly disprove the commit-stageable and idle-timeout failure modes with focused evidence.
+3. Resolve the cited items by dismissal/redrive or convert any residual canonical cleanup into an actionable task with acceptance evidence.

@@ -1,0 +1,1 @@
+Fix builder commit-stageable index-lock handling

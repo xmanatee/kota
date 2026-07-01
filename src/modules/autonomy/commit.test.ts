@@ -72,6 +72,28 @@ describe("commitWorkflowChanges", () => {
     expect(tree).toBe("change.txt");
   });
 
+  it("repair check retries staging when a transient Git index lock clears", () => {
+    writeFileSync(join(workspace.projectDir, "change.txt"), "hello\n");
+    const lockPath = join(workspace.projectDir, ".git", "index.lock");
+    writeFileSync(lockPath, "busy\n");
+    removeFileSoon(lockPath, 150);
+
+    expect(checkCommitStageable(workspace.projectDir)).toBe(
+      "OK: 1 mutated path(s) stageable",
+    );
+  });
+
+  it("repair check skips redundant staging when mutated paths are already staged", () => {
+    writeFileSync(join(workspace.projectDir, "change.txt"), "hello\n");
+    execSync("git add change.txt", { cwd: workspace.projectDir });
+    const lockPath = join(workspace.projectDir, ".git", "index.lock");
+    writeFileSync(lockPath, "busy\n");
+
+    expect(checkCommitStageable(workspace.projectDir)).toBe(
+      "OK: 1 mutated path(s) already staged",
+    );
+  });
+
   it("requires commit-message.txt when there are working tree changes", () => {
     writeFileSync(join(workspace.projectDir, "change.txt"), "hello\n");
 

@@ -35,10 +35,7 @@ function runGit(projectDir: string, command: string): string {
 }
 
 function isGitIndexLockErrorMessage(message: string): boolean {
-  return (
-    message.includes(".git/index.lock") ||
-    message.includes("index.lock") && message.includes("Another git process")
-  );
+  return message.includes("index.lock");
 }
 
 function sleepSync(ms: number): void {
@@ -138,6 +135,48 @@ function listStagedDeletions(projectDir: string): Set<string> {
   return set;
 }
 
+function listPathsNeedingStaging(projectDir: string, paths: readonly string[]): string[] {
+  if (paths.length === 0) return [];
+  const stdout = execFileSync(
+    "git",
+    [
+      "status",
+      "--porcelain=v1",
+      "-z",
+      "--untracked-files=all",
+      "--ignored=matching",
+      "--",
+      ...paths,
+    ],
+    {
+      cwd: projectDir,
+      env: withProtectedGitBareRepositoryEnv(),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  const entries = stdout.split("\0").filter((entry) => entry.length > 0);
+  const needsStaging: string[] = [];
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index] ?? "";
+    if (entry.length < 4) continue;
+    const indexStatus = entry[0];
+    const worktreeStatus = entry[1];
+    const path = entry.slice(3);
+    if (indexStatus === "R" || indexStatus === "C") {
+      index += 1;
+    }
+    if (
+      (indexStatus === "?" && worktreeStatus === "?") ||
+      (indexStatus === "!" && worktreeStatus === "!") ||
+      worktreeStatus !== " "
+    ) {
+      needsStaging.push(path);
+    }
+  }
+  return [...new Set(needsStaging)];
+}
+
 /**
  * Returns the exact set of paths `commitWorkflowChanges` would pass to
  * `git add -A -- <paths>`: the workflow-owned mutations minus any paths
@@ -168,15 +207,45 @@ export function checkCommitStageable(
 ): string {
   const pathsToStage = listCommitStagePaths(projectDir, policy);
   if (pathsToStage.length === 0) return "OK: no mutated paths to stage";
-  const result = spawnSync(
-    "git",
-    ["add", "--dry-run", "-A", "--", ...pathsToStage],
-    {
-      cwd: projectDir,
-      env: withProtectedGitBareRepositoryEnv(),
-      encoding: "utf8",
-    },
-  );
+  const pathsNeedingStaging = listPathsNeedingStaging(projectDir, pathsToStage);
+  if (pathsNeedingStaging.length === 0) {
+    return `OK: ${pathsToStage.length} mutated path(s) already staged`;
+  }
+  let result: ReturnType<typeof spawnSync>;
+  try {
+    result = withGitIndexLockRetry(() => {
+      const dryRun = spawnSync(
+        "git",
+        ["add", "--dry-run", "-A", "--", ...pathsNeedingStaging],
+        {
+          cwd: projectDir,
+          env: withProtectedGitBareRepositoryEnv(),
+          encoding: "utf8",
+        },
+      );
+      if (dryRun.status !== 0) {
+        const detail = [dryRun.stdout, dryRun.stderr]
+          .filter((s) => s && s.length > 0)
+          .join("\n")
+          .trim();
+        if (isGitIndexLockErrorMessage(detail)) {
+          throw new Error(detail);
+        }
+      }
+      return dryRun;
+    });
+  } catch (error) {
+    const message = describeError(error);
+    if (isGitIndexLockErrorMessage(message)) {
+      throw new Error(
+        `git index lock blocked staging after retries:\n${message}\n\n` +
+          "Remove the stale Git index lock or wait for the other Git process " +
+          "to finish, then rerun validation.",
+        { cause: error },
+      );
+    }
+    throw error;
+  }
   if (result.status !== 0) {
     const detail = [result.stdout, result.stderr]
       .filter((s) => s && s.length > 0)
@@ -190,7 +259,7 @@ export function checkCommitStageable(
         "committed.",
     );
   }
-  return `OK: ${pathsToStage.length} mutated path(s) stageable`;
+  return `OK: ${pathsNeedingStaging.length} mutated path(s) stageable`;
 }
 
 /**
@@ -226,10 +295,11 @@ export function commitWorkflowChanges(
 
   const alreadyStagedDeletions = listStagedDeletions(projectDir);
   const pathsToStage = mutatedPaths.filter((p) => !alreadyStagedDeletions.has(p));
+  const pathsNeedingStaging = listPathsNeedingStaging(projectDir, pathsToStage);
 
-  if (pathsToStage.length > 0) {
+  if (pathsNeedingStaging.length > 0) {
     withGitIndexLockRetry(() => {
-      execFileSync("git", ["add", "-A", "--", ...pathsToStage], {
+      execFileSync("git", ["add", "-A", "--", ...pathsNeedingStaging], {
         cwd: projectDir,
         env: withProtectedGitBareRepositoryEnv(),
         stdio: "pipe",

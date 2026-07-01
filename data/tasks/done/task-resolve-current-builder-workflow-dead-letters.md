@@ -1,12 +1,12 @@
 ---
 id: task-resolve-current-builder-workflow-dead-letters
 title: Resolve current builder workflow dead letters
-status: ready
+status: done
 priority: p2
 area: platform
 summary: Investigate and clear the open builder workflow-dispatch dead letters where one builder run idled for an hour without runtime progress and another made no progress after repeated commit-stageable repair attempts. Determine whether stale claims, worktree state, staging behavior, or runtime progress signaling caused the failures, then fix, redrive, or dismiss with durable rationale.
 created_at: 2026-06-30T19:52:57.625Z
-updated_at: 2026-06-30T19:52:57.625Z
+updated_at: 2026-06-30T23:40:00.000Z
 ---
 
 ## Problem
@@ -45,4 +45,9 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- A run artifact or task note records before/after DLQ state for both ids, explains the root cause, and includes either a successful redrive or focused validation covering builder idle-timeout progress and commit-stageable staging before both items are resolved.
+- `.kota/runs/2026-06-30T22-39-06-955Z-builder-ez3sip/dead-letter-resolution.md` records both cited DLQ items, the root causes, the superseding successful run for the idle-timeout item, the commit-stageable index-lock repair, and the sandbox limitation that prevented direct canonical dismissal.
+- `src/modules/autonomy/commit.ts` now applies the existing Git index-lock retry behavior to `checkCommitStageable`, and persistent index locks produce a specific repair message instead of the misleading gitignore/path conflict message.
+- `src/modules/autonomy/commit.test.ts` covers transient index-lock recovery for the repair-loop dry-run.
+- Focused validation passed: `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner src/modules/autonomy/commit.test.ts src/modules/autonomy/commit-paths.test.ts`.
+- Broader validation passed: `pnpm run typecheck`.
+- Residual canonical cleanup was converted into `task-clear-stale-builder-dlq-items-after-repair-merge` because this builder worktree cannot write `/Users/xmanatee/Desktop/mono/apps/kota/.kota/dead-letter-queue/items.json` and daemon-control HTTP connections from the active build step fail with `connect EPERM`.

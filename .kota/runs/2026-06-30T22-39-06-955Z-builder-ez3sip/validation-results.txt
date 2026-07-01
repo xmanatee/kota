@@ -1,0 +1,17 @@
+Focused validation:
+
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner src/modules/autonomy/commit.test.ts src/modules/autonomy/commit-paths.test.ts
+
+Result: passed, 2 files, 23 tests.
+
+Broader validation:
+
+pnpm run typecheck
+
+Result: passed.
+
+Task queue validation:
+
+pnpm run validate-tasks
+
+Result: passed.
