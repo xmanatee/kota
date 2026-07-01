@@ -11,6 +11,7 @@ import type {
   RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { CodeHealthDriftReport } from "./code-health-drift.js";
+import type { DecisionAttributionReport } from "./decision-attribution-types.js";
 import type { DiffSummaryConsistencyReport } from "./diff-summary-consistency-report.js";
 import type { OwnerInterventionReport } from "./owner-interventions.js";
 import type { PostCompletionFollowUpReport } from "./post-completion-followups.js";
@@ -18,6 +19,7 @@ import type { QualityStratificationReport } from "./quality-stratification.js";
 import type { AreaClassification } from "./task-classification.js";
 
 export type { CodeHealthDriftReport } from "./code-health-drift.js";
+export type { DecisionAttributionReport } from "./decision-attribution-types.js";
 export type { DiffSummaryConsistencyReport } from "./diff-summary-consistency-report.js";
 export type { OwnerInterventionReport } from "./owner-interventions.js";
 export type { QualityStratificationReport } from "./quality-stratification.js";
@@ -163,6 +165,7 @@ export type AutonomyReportData = {
   doneInWindow: QueueBalance;
   explorer: ExplorerBalance;
   builder: BuilderBreakdown;
+  decisionAttribution: DecisionAttributionReport;
   diffSummaryConsistency: DiffSummaryConsistencyReport;
   reviewScrutiny: ReviewScrutinyReport;
   reviewScrutinyEscalation: ReviewScrutinyEscalationReport;

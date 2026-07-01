@@ -1,0 +1,26 @@
+{
+  "id": "2026-06-30T12-00-00-000Z-builder-weak",
+  "workflow": "builder",
+  "definitionPath": "src/modules/autonomy/workflows/builder/workflow.ts",
+  "trigger": {
+    "event": "autonomy.queue.available",
+    "schemaRef": null,
+    "payload": {}
+  },
+  "startedAt": "2026-06-30T12:00:00.000Z",
+  "completedAt": "2026-06-30T12:20:00.000Z",
+  "status": "success",
+  "durationMs": 1200000,
+  "totalCostUsd": 0.18,
+  "runDir": ".kota/runs/2026-06-30T12-00-00-000Z-builder-weak",
+  "steps": [
+    {
+      "id": "test",
+      "type": "code",
+      "status": "success",
+      "startedAt": "2026-06-30T12:15:00.000Z",
+      "completedAt": "2026-06-30T12:16:00.000Z",
+      "durationMs": 60000
+    }
+  ]
+}

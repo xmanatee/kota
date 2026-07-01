@@ -1,0 +1,17 @@
+{
+  "id": "2026-06-30T11-00-00-000Z-builder-kota",
+  "workflow": "builder",
+  "definitionPath": "src/modules/autonomy/workflows/builder/workflow.ts",
+  "trigger": {
+    "event": "autonomy.queue.available",
+    "schemaRef": null,
+    "payload": {}
+  },
+  "startedAt": "2026-06-30T11:00:00.000Z",
+  "completedAt": "2026-06-30T11:20:00.000Z",
+  "status": "success",
+  "durationMs": 1200000,
+  "totalCostUsd": 0.15,
+  "runDir": ".kota/runs/2026-06-30T11-00-00-000Z-builder-kota",
+  "steps": []
+}

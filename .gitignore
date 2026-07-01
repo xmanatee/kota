@@ -9,6 +9,16 @@ deploy/telegram-assistant/.env
 /.kota/*
 !/.kota/runs/
 /.kota/runs/*
+!/.kota/runs/2026-07-01T17-02-23-245Z-builder-xdnnj7/
+/.kota/runs/2026-07-01T17-02-23-245Z-builder-xdnnj7/*
+!/.kota/runs/2026-07-01T17-02-23-245Z-builder-xdnnj7/commit-message.txt
+!/.kota/runs/2026-07-01T17-02-23-245Z-builder-xdnnj7/decision-attribution-fixture-cases.md
+!/.kota/runs/2026-07-01T17-02-23-245Z-builder-xdnnj7/decision-attribution-report-transcript.txt
+!/.kota/runs/2026-07-01T17-02-23-245Z-builder-xdnnj7/decision-attribution-sample-project/
+!/.kota/runs/2026-07-01T17-02-23-245Z-builder-xdnnj7/decision-attribution-sample-project/**
+!/.kota/runs/2026-07-01T17-02-23-245Z-builder-xdnnj7/decision-attribution-task-move-note.txt
+!/.kota/runs/2026-07-01T17-02-23-245Z-builder-xdnnj7/success-criteria-verified.txt
+!/.kota/runs/2026-07-01T17-02-23-245Z-builder-xdnnj7/success-criteria.txt
 !/.kota/runs/2026-07-01T14-28-27-455Z-builder-ey5pow/
 /.kota/runs/2026-07-01T14-28-27-455Z-builder-ey5pow/*
 !/.kota/runs/2026-07-01T14-28-27-455Z-builder-ey5pow/commit-message.txt

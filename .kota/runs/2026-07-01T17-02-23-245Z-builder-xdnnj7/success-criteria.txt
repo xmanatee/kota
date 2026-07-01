@@ -1,0 +1,5 @@
+1. The operator report classifies a bounded recent window of autonomy runs into work mode or task class, planning attribution, execution attribution, hard success signals, and trouble signals.
+2. The existing operator report surface renders aggregate counts and actionable warnings with run and task references.
+3. Focused tests or fixtures cover owner-planned/KOTA-executed work, KOTA-planned work, mixed attribution, unknown attribution, hard success with evidence, and claimed success with only weak evidence.
+4. Product-task evidence rules are preserved: green implementation tests alone are not treated as hard Product success without rendered operator-journey evidence.
+5. The owning code or local guidance documents valid visible artifact inputs and states that hidden reasoning is out of scope.

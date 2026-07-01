@@ -1,13 +1,13 @@
 ---
 id: task-expose-planning-versus-execution-decision-attribut
 title: Expose planning-versus-execution decision attribution in autonomy reports
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Product
 summary: Report how much recent agent sessions leave planning decisions to the owner versus execution decisions to KOTA, with hard success and trouble signals, so operator reports can catch overdelegation and weak success evidence.
 created_at: 2026-07-01T16:59:00.945Z
-updated_at: 2026-07-01T16:59:00.945Z
+updated_at: 2026-07-01T17:32:46.000Z
 ---
 
 ## Problem

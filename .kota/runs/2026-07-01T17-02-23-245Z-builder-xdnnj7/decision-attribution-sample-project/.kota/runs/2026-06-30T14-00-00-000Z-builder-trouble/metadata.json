@@ -1,0 +1,36 @@
+{
+  "id": "2026-06-30T14-00-00-000Z-builder-trouble",
+  "workflow": "builder",
+  "definitionPath": "src/modules/autonomy/workflows/builder/workflow.ts",
+  "trigger": {
+    "event": "autonomy.queue.available",
+    "schemaRef": null,
+    "payload": {}
+  },
+  "startedAt": "2026-06-30T14:00:00.000Z",
+  "completedAt": "2026-06-30T14:30:00.000Z",
+  "status": "failed",
+  "durationMs": 1800000,
+  "runDir": ".kota/runs/2026-06-30T14-00-00-000Z-builder-trouble",
+  "steps": [
+    {
+      "id": "test",
+      "type": "code",
+      "status": "failed",
+      "startedAt": "2026-06-30T14:20:00.000Z",
+      "completedAt": "2026-06-30T14:25:00.000Z",
+      "durationMs": 300000,
+      "output": {
+        "repairIterations": [
+          {
+            "failures": [
+              {
+                "id": "test"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

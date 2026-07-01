@@ -16,6 +16,7 @@ import {
 } from "#modules/rendering/primitives.js";
 import type { AutonomyReportData } from "./aggregate.js";
 import { renderCodeHealthDrift } from "./render-code-health-drift.js";
+import { renderDecisionAttribution } from "./render-decision-attribution.js";
 import { renderDiffSummaryConsistency } from "./render-diff-summary-consistency.js";
 import {
   renderBlockers,
@@ -55,6 +56,9 @@ export function renderAutonomyReport(data: AutonomyReportData): RenderNode {
     blank(),
     heading("Builder breakdown", 2),
     ...renderBuilderBreakdown(data.builder),
+    blank(),
+    heading("Decision attribution", 2),
+    ...renderDecisionAttribution(data.decisionAttribution),
     blank(),
     heading("Diff-summary consistency", 2),
     ...renderDiffSummaryConsistency(data.diffSummaryConsistency),

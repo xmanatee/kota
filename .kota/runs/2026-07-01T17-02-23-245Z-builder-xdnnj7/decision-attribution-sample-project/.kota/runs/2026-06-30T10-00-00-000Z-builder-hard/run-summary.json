@@ -1,0 +1,13 @@
+{
+  "runId": "2026-06-30T10-00-00-000Z-builder-hard",
+  "workflow": "builder",
+  "taskId": "task-sample-hard-success",
+  "taskTitle": "Sample hard-success Product task",
+  "outcome": "success",
+  "commitSha": "sample-hard-success-sha",
+  "commitMessage": "Add sample report section",
+  "filesChanged": [],
+  "costUsd": 0.25,
+  "durationMs": 1800000,
+  "completedAt": "2026-06-30T10:30:00.000Z"
+}

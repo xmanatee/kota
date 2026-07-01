@@ -1,0 +1,13 @@
+{
+  "runId": "2026-06-30T12-00-00-000Z-builder-weak",
+  "workflow": "builder",
+  "taskId": "task-sample-weak-product",
+  "taskTitle": "Sample weak Product evidence task",
+  "outcome": "success",
+  "commitSha": "sample-weak-product-sha",
+  "commitMessage": "Add weak Product sample",
+  "filesChanged": [],
+  "costUsd": 0.18,
+  "durationMs": 1200000,
+  "completedAt": "2026-06-30T12:20:00.000Z"
+}

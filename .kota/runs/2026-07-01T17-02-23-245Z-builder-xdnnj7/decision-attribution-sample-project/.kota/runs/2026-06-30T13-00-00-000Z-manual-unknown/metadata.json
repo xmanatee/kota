@@ -1,0 +1,16 @@
+{
+  "id": "2026-06-30T13-00-00-000Z-manual-unknown",
+  "workflow": "manual-review",
+  "definitionPath": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts",
+  "trigger": {
+    "event": "manual.sample",
+    "schemaRef": null,
+    "payload": {}
+  },
+  "startedAt": "2026-06-30T13:00:00.000Z",
+  "completedAt": "2026-06-30T13:01:00.000Z",
+  "status": "success",
+  "durationMs": 60000,
+  "runDir": ".kota/runs/2026-06-30T13-00-00-000Z-manual-unknown",
+  "steps": []
+}

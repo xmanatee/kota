@@ -1,0 +1,13 @@
+{
+  "runId": "2026-06-30T11-00-00-000Z-builder-kota",
+  "workflow": "builder",
+  "taskId": "task-sample-kota-planned",
+  "taskTitle": "Sample KOTA planned task",
+  "outcome": "success",
+  "commitSha": "sample-kota-planned-sha",
+  "commitMessage": "Repair review-scrutiny sample",
+  "filesChanged": [],
+  "costUsd": 0.15,
+  "durationMs": 1200000,
+  "completedAt": "2026-06-30T11:20:00.000Z"
+}

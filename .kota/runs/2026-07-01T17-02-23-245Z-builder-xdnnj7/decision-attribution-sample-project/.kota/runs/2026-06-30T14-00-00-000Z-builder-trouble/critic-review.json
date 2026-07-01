@@ -1,0 +1,9 @@
+{
+  "verdict": "fail",
+  "critical_issues": [
+    "Validation failed after repair-loop exhaustion."
+  ],
+  "warnings": [],
+  "summary": "Failed validation in src/modules/autonomy/report/decision-attribution.ts:1.",
+  "generatedAt": "2026-06-30T14:29:00.000Z"
+}

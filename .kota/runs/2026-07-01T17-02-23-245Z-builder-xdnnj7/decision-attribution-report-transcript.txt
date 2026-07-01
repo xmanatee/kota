@@ -1,0 +1,188 @@
+$ KOTA_PROJECT_DIR=.kota/runs/2026-07-01T17-02-23-245Z-builder-xdnnj7/decision-attribution-sample-project pnpm kota report --days 60
+
+> kota@0.1.0 kota /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-expose-planning-versus-execution-decision-attribut-2026-07-01t17-02-23-245z-builder-xdnnj7
+> node bin/kota.mjs report --days 60
+
+Autonomy report — last 60 days (2026-05-02 → 2026-07-01)
+
+Open queue
+(none)
+
+Tasks moved to done in window
+Total: 3
+
+By state
+done:         3
+
+By priority
+p2:           3 (100%)
+
+By task_class
+Product:        2 (67%)
+Platform:       1 (33%)
+
+By area
+  autonomy           3 (100%)
+
+Explorer output
+(no explorer runs)
+
+Builder breakdown
+Committed runs (resolved to a task): 3
+
+By area
+  autonomy           3      $0.58
+
+By priority
+  p2       3      $0.58
+
+Strategic vs fan-out
+  strategic    3      $0.58 (100%)
+
+Decision attribution
+Runs classified: 5
+
+Planning attribution
+  owner                2 (40%)
+  kota                 1 (20%)
+  unknown              2 (40%)
+
+Execution attribution
+  kota                 4 (80%)
+  unknown              1 (20%)
+
+Work mode / task_class
+  Product              2 (40%)
+  Platform             1 (20%)
+  workflow:builder     1 (20%)
+  workflow:manual-review   1 (20%)
+
+Hard success signals
+  committed-task-completion                    3
+  passing-validation                           2
+  accepted-critic-verdict                      1
+  rendered-product-evidence                    1
+
+Trouble signals
+  claimed-success-without-hard-evidence        1
+  failed-critic-verdict                        1
+  failed-run                                   1
+  failed-tests                                 1
+  repair-loop-exhaustion                       1
+  repeated-retries                             1
+  weak-product-success-evidence                1
+
+Warnings
+  kota-planning-without-context (1) KOTA-planned work lacks visible owner/domain context; inspect before steering more work that way.
+    refs: run:2026-06-30T11-00-00-000Z-builder-kota, task:task-sample-kota-planned
+  success-lacks-hard-evidence (2) Successful runs lacked hard success evidence or Product rendered evidence.
+    refs: run:2026-06-30T13-00-00-000Z-manual-unknown, run:2026-06-30T12-00-00-000Z-builder-weak, task:task-sample-weak-product
+
+Recent run attribution
+  workflow:builder unknown/kota    2026-06-30T14-00-00-000Z-builder-trouble (no task)
+    hard: none   trouble: failed-critic-verdict, failed-run, failed-tests, repair-loop-exhaustion, repeated-retries
+  workflow:manual-review unknown/unknown 2026-06-30T13-00-00-000Z-manual-unknown (no task)
+    hard: none   trouble: claimed-success-without-hard-evidence
+  Product          owner/kota      2026-06-30T12-00-00-000Z-builder-weak task-sample-weak-product
+    hard: committed-task-completion, passing-validation   trouble: weak-product-success-evidence
+  Platform         kota/kota       2026-06-30T11-00-00-000Z-builder-kota task-sample-kota-planned
+    hard: committed-task-completion   trouble: none
+  Product          owner/kota      2026-06-30T10-00-00-000Z-builder-hard task-sample-hard-success
+    hard: accepted-critic-verdict, committed-task-completion, passing-validation, rendered-product-evidence   trouble: none
+
+Diff-summary consistency
+Builder runs: 3   Records: 0   Mismatched: 0   Missing artifacts: 3
+
+Missing data
+    3 artifact
+
+Code-health drift
+Builder runs inspected: 3   Runs with warnings: 0   Unsupported: 3
+
+Trend
+  current   3 runs     0 warning runs     0 warning(s)     0 cleanup exception(s)
+  prior     0 runs     0 warning runs     0 warning(s)     0 cleanup exception(s)
+
+Owner interventions
+(no owner-question pressure)
+
+Review scrutiny
+Reviews: 2   Approval-like: 1   Thin acceptances: 0   Absent metrics: 6   Unsupported: 0
+
+By surface
+  critic              2 reviews     1 approval-like     0 thin     6 absent     0 unsupported
+
+Absent metric refs
+  critic            2026-06-30T14-00-00-000Z-builder-trouble critic-review.json evidenceIdCount,findingCount,followUpTaskCount
+  critic            2026-06-30T10-00-00-000Z-builder-hard task-sample-hard-success evidenceIdCount,findingCount,followUpTaskCount
+
+Review scrutiny escalation
+(no recurring thin-acceptance patterns)
+
+Trajectory diagnostics
+(no recurring trajectory diagnostic patterns)
+
+Post-completion follow-ups
+(no corrective follow-ups linked to recently completed tasks)
+
+Quality stratification
+Aggregate quality rates
+  review-scrutiny                  0% (0/1)   prior       n/a (0/0)   delta n/a   weak sample
+  code-health-drift               n/a (0/0)   prior       n/a (0/0)   delta n/a
+  post-completion-follow-up        0% (0/3)   prior       n/a (0/0)   delta n/a
+
+Largest slices
+  post-completion-follow-up/taskArea/autonomy              0% (0/3)   prior n/a (0/0)   2026-06-30T10-00-00-000Z-builder-hard, 2026-06-30T11-00-00-000Z-builder-kota
+  post-completion-follow-up/taskPriority/p2                0% (0/3)   prior n/a (0/0)   2026-06-30T10-00-00-000Z-builder-hard, 2026-06-30T11-00-00-000Z-builder-kota
+  post-completion-follow-up/workflow/builder               0% (0/3)   prior n/a (0/0)   2026-06-30T10-00-00-000Z-builder-hard, 2026-06-30T11-00-00-000Z-builder-kota
+  post-completion-follow-up/taskClass/Product              0% (0/2)   prior n/a (0/0)   weak   2026-06-30T10-00-00-000Z-builder-hard, 2026-06-30T12-00-00-000Z-builder-weak
+  post-completion-follow-up/taskClass/Platform             0% (0/1)   prior n/a (0/0)   weak   2026-06-30T11-00-00-000Z-builder-kota
+  review-scrutiny/reviewSurface/critic                     0% (0/1)   prior n/a (0/0)   weak   2026-06-30T14-00-00-000Z-builder-trouble, 2026-06-30T10-00-00-000Z-builder-hard
+  review-scrutiny/taskArea/autonomy                        0% (0/1)   prior n/a (0/0)   weak   2026-06-30T10-00-00-000Z-builder-hard
+  review-scrutiny/taskClass/Product                        0% (0/1)   prior n/a (0/0)   weak   2026-06-30T10-00-00-000Z-builder-hard
+
+Composition shifts
+  post-completion-follow-up/taskArea/autonomy 100% current mix (0 -> 3)
+  post-completion-follow-up/taskPriority/p2 100% current mix (0 -> 3)
+  post-completion-follow-up/workflow/builder 100% current mix (0 -> 3)
+  review-scrutiny/reviewSurface/critic 100% current mix (0 -> 1)
+  review-scrutiny/taskArea/autonomy 100% current mix (0 -> 1)
+
+Missing metadata
+  post-completion-follow-up  changedArea   3
+  post-completion-follow-up  harness       3
+  post-completion-follow-up  reasonFamily  3
+  review-scrutiny            changedArea   2
+  review-scrutiny            harness       2
+  review-scrutiny            taskArea      1
+  review-scrutiny            taskClass     1
+  review-scrutiny            taskPriority  1
+
+Autonomy health
+(no health signals)
+
+Blockers
+(no blocked tasks)
+
+Cost
+Total: $0.58   Finished runs: 3   Avg/run: $0.19
+
+By workflow
+  builder      3       $0.58   avg   $0.19
+
+Control coverage
+Artifacts: 0   Runs with gaps: 0   Gaps: 0   Evidence gaps: 5
+
+Control states
+pending:        0
+unsupported:    0
+blocked:        0
+warned:         0
+
+Evidence gaps
+   5x producer-missing producer-missing
+    .kota/runs/2026-06-30T10-00-00-000Z-builder-hard/control-monitor-coverage.json
+    .kota/runs/2026-06-30T11-00-00-000Z-builder-kota/control-monitor-coverage.json
+    .kota/runs/2026-06-30T12-00-00-000Z-builder-weak/control-monitor-coverage.json
+
+(no async reviewer timing observations)

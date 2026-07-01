@@ -81,6 +81,52 @@ describe("renderAutonomyReport with populated data", () => {
         ],
         closures: [],
       },
+      decisionAttribution: {
+        totalRuns: 2,
+        byPlanning: [
+          { attribution: "owner", count: 1 },
+          { attribution: "kota", count: 1 },
+        ],
+        byExecution: [{ attribution: "kota", count: 2 }],
+        byWorkMode: [
+          { workMode: "Product", count: 1 },
+          { workMode: "Platform", count: 1 },
+        ],
+        hardSuccessSignals: [
+          { signal: "committed-task-completion", count: 2 },
+          { signal: "rendered-product-evidence", count: 1 },
+        ],
+        troubleSignals: [
+          { signal: "weak-product-success-evidence", count: 1 },
+        ],
+        warnings: [
+          {
+            kind: "success-lacks-hard-evidence",
+            count: 1,
+            message:
+              "Successful runs lacked hard success evidence or Product rendered evidence.",
+            refs: ["run:r2", "task:task-product"],
+          },
+        ],
+        records: [
+          {
+            runId: "r1",
+            workflow: "builder",
+            workMode: "Product",
+            taskId: "task-product",
+            taskTitle: "Product report",
+            planning: "owner",
+            planningContext: "owner-or-domain",
+            execution: "kota",
+            hardSuccessSignals: [
+              "committed-task-completion",
+              "rendered-product-evidence",
+            ],
+            troubleSignals: [],
+            refs: ["run:r1", "task:task-product"],
+          },
+        ],
+      },
       trajectoryDiagnostics: {
         activePatterns: [
           {
@@ -187,5 +233,10 @@ describe("renderAutonomyReport with populated data", () => {
     expect(text).toContain("task-waiting");
     expect(text).toContain("task-enabler");
     expect(text).toContain("could not be linked");
+    expect(text).toContain("Decision attribution");
+    expect(text).toContain("Planning attribution");
+    expect(text).toContain("owner/kota");
+    expect(text).toContain("rendered-product-evidence");
+    expect(text).toContain("success-lacks-hard-evidence");
   });
 });

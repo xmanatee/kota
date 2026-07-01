@@ -1,0 +1,12 @@
+The builder attempted the required task transition with:
+
+pnpm kota task move task-expose-planning-versus-execution-decision-attribut done
+
+The command failed before moving the file because this sandbox cannot write
+the Git worktree index lock under the parent checkout's .git/worktrees
+directory:
+
+fatal: Unable to create '.git/worktrees/.../index.lock': Operation not permitted
+
+The task file was then moved from data/tasks/doing/ to data/tasks/done/ with
+apply_patch and its frontmatter status was updated to done.

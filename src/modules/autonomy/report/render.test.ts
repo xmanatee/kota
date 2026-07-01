@@ -10,6 +10,7 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("Tasks moved to done in window");
     expect(text).toContain("Explorer output");
     expect(text).toContain("Builder breakdown");
+    expect(text).toContain("Decision attribution");
     expect(text).toContain("Diff-summary consistency");
     expect(text).toContain("Code-health drift");
     expect(text).toContain("Owner interventions");
@@ -28,6 +29,7 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("(none)");
     expect(text).toContain("(no explorer runs)");
     expect(text).toContain("(no builder commits)");
+    expect(text).toContain("(no autonomy runs classified)");
     expect(text).toContain("(no builder runs inspected for diff-summary consistency)");
     expect(text).toContain("(no builder runs inspected for code-health drift)");
     expect(text).toContain("(no owner-question pressure)");

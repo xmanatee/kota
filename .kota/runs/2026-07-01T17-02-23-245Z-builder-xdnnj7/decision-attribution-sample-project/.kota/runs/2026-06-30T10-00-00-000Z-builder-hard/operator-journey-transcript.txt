@@ -1,0 +1,2 @@
+command: pnpm dev report --days 60
+output: Decision attribution section rendered with hard-success evidence.

@@ -1,0 +1,7 @@
+{
+  "verdict": "pass",
+  "critical_issues": [],
+  "warnings": [],
+  "summary": "Accepted with rendered report evidence in src/modules/autonomy/report/render.ts:35.",
+  "generatedAt": "2026-06-30T10:29:00.000Z"
+}

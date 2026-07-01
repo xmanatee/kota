@@ -31,6 +31,7 @@ import {
   DEFAULT_REPORT_WINDOW_DAYS,
 } from "./aggregate-types.js";
 import { buildCodeHealthDriftReport } from "./code-health-drift.js";
+import { buildDecisionAttributionReport } from "./decision-attribution.js";
 import { buildDiffSummaryConsistencyReport } from "./diff-summary-consistency-report.js";
 import { buildOwnerInterventionReport } from "./owner-interventions.js";
 import {
@@ -51,6 +52,7 @@ export {
   type CodeHealthDriftReport,
   type CostBreakdown,
   DEFAULT_REPORT_WINDOW_DAYS,
+  type DecisionAttributionReport,
   type DiffSummaryConsistencyReport,
   type ExplorerBalance,
   type ExplorerTaskAddition,
@@ -124,6 +126,11 @@ export function aggregateAutonomyReport(
     runsDir: input.runsDir,
     runs: priorRuns,
   });
+  const ownerInterventions = buildOwnerInterventionReport({
+    projectDir: input.projectDir,
+    windowStartMs,
+    windowEndMs: input.windowEndMs,
+  });
   const reviewScrutinyEscalationDetection =
     detectRecurringReviewScrutinyPatternsFromReport({
       report: reviewScrutiny,
@@ -166,6 +173,13 @@ export function aggregateAutonomyReport(
     doneInWindow,
     explorer: buildExplorerBalance(runs, taskById, input.addedFilesBySha),
     builder: buildBuilderBreakdown(runs, taskById, input.runsDir),
+    decisionAttribution: buildDecisionAttributionReport({
+      runs,
+      runsDir: input.runsDir,
+      taskById,
+      reviewRecords: reviewScrutiny.records,
+      ownerInterventions,
+    }),
     diffSummaryConsistency: buildDiffSummaryConsistencyReport({
       runs,
       runsDir: input.runsDir,
@@ -182,11 +196,7 @@ export function aggregateAutonomyReport(
       windowMs,
     ),
     codeHealthDrift,
-    ownerInterventions: buildOwnerInterventionReport({
-      projectDir: input.projectDir,
-      windowStartMs,
-      windowEndMs: input.windowEndMs,
-    }),
+    ownerInterventions,
     postCompletionFollowUps,
     qualityStratification: buildQualityStratificationReport({
       tasks: allTasks,

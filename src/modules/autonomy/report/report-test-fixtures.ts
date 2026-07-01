@@ -43,6 +43,16 @@ export const emptyAutonomyReportData: AutonomyReportData = {
     byClassification: [],
     closures: [],
   },
+  decisionAttribution: {
+    totalRuns: 0,
+    byPlanning: [],
+    byExecution: [],
+    byWorkMode: [],
+    hardSuccessSignals: [],
+    troubleSignals: [],
+    warnings: [],
+    records: [],
+  },
   diffSummaryConsistency: {
     totalBuilderRuns: 0,
     recordedRuns: 0,
