@@ -1,12 +1,12 @@
 ---
 id: task-clear-stale-builder-dlq-items-after-repair-merge
 title: Clear stale builder DLQ items after repair merge
-status: ready
+status: done
 priority: p3
 area: platform
 summary: The current builder DLQ investigation repaired the commit-stageable index-lock handling and found the idle-timeout item superseded, but the canonical dead-letter queue could not be mutated from the builder worktree sandbox. Dismiss, redrive, or explicitly suppress the two stale builder DLQ items with before/after evidence once daemon control or canonical write access is available.
 created_at: 2026-06-30T23:34:03.517Z
-updated_at: 2026-06-30T23:36:00.000Z
+updated_at: 2026-07-01T06:02:12.495Z
 ---
 
 ## Problem
@@ -34,6 +34,23 @@ mutate the canonical DLQ from its worktree sandbox.
 
 The two cited builder DLQ records are no longer treated as unresolved progress
 review findings.
+
+## Resolution
+
+Canonical daemon-control DLQ cleanup dismissed both cited items on
+2026-07-01:
+
+- `dlq-754fe914-9936-4a2c-a35d-21d5cfdc57b6` was dismissed as stale because
+  builder run `2026-06-30T19-53-51-915Z-builder-ggdpuf` completed the same
+  task and merged `8cef38bb177119e4ca81e219190324e0d052207e`.
+- `dlq-547d6311-4c9c-491f-a834-b94587f1af28` was dismissed as superseded by
+  the commit-stageable index-lock repair validated in
+  `.kota/runs/2026-06-30T22-39-06-955Z-builder-ez3sip/dead-letter-resolution.md`.
+
+Run artifacts under
+`.kota/runs/2026-07-01T04-28-10-634Z-builder-hw7ysm/` preserve before and
+after evidence. The after artifact records both items as `dismissed` and the
+canonical open-builder DLQ query with `counts.open: 0`.
 
 ## Constraints
 
@@ -68,7 +85,11 @@ Outcome-aware autonomy progress review.
 
 ## Acceptance Evidence
 
-- A before artifact or note records both ids with their current canonical state.
-- An after artifact or note shows both ids dismissed, redriven, or durably
-  suppressed, and the open builder DLQ query no longer treats them as unresolved.
-- The cleanup rationale links the completed repair task and focused validation.
+- `.kota/runs/2026-07-01T04-28-10-634Z-builder-hw7ysm/builder-dlq-before-dismissal.json`
+  records both ids with their canonical open state.
+- `.kota/runs/2026-07-01T04-28-10-634Z-builder-hw7ysm/builder-dlq-after-dismissal.json`
+  records both ids dismissed and the open builder DLQ query with
+  `counts.open: 0` and `citedIdsStillOpen: []`.
+- `.kota/runs/2026-07-01T04-28-10-634Z-builder-hw7ysm/dead-letter-resolution.md`
+  links the completed replacement run, merge commit, and
+  `.kota/runs/2026-06-30T22-39-06-955Z-builder-ez3sip/dead-letter-resolution.md`.

@@ -1,0 +1,3 @@
+1. Verified: `builder-dlq-before-dismissal.json` records both cited builder dead-letter ids from the canonical daemon DLQ with `status: "open"`.
+2. Verified: `builder-dlq-after-dismissal.json` records both cited ids dismissed with a superseded-by-repair rationale citing `.kota/runs/2026-06-30T22-39-06-955Z-builder-ez3sip/dead-letter-resolution.md`.
+3. Verified: `builder-dlq-after-dismissal.json` records the canonical open builder DLQ query with `counts.open: 0` and `citedIdsStillOpen: []`.

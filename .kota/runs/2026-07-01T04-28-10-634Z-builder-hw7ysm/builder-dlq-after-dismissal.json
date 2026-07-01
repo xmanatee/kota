@@ -1,0 +1,424 @@
+{
+  "exportedAt": "2026-07-01T06:00:39.428Z",
+  "source": "canonical daemon-control",
+  "citedIds": [
+    "dlq-754fe914-9936-4a2c-a35d-21d5cfdc57b6",
+    "dlq-547d6311-4c9c-491f-a834-b94587f1af28"
+  ],
+  "dismissalReason": "Dismissed as stale/superseded builder DLQ follow-up: dlq-754fe914 was replaced by successful builder run 2026-06-30T19-53-51-915Z-builder-ggdpuf and merge commit 8cef38bb177119e4ca81e219190324e0d052207e; dlq-547d6311 was the commit-stageable index-lock failure repaired and validated in .kota/runs/2026-06-30T22-39-06-955Z-builder-ez3sip/dead-letter-resolution.md. Redrive would duplicate completed work.",
+  "dismissals": [
+    {
+      "ok": true,
+      "item": {
+        "id": "dlq-754fe914-9936-4a2c-a35d-21d5cfdc57b6",
+        "type": "workflow-dispatch",
+        "status": "dismissed",
+        "scopeId": "8nrg1m",
+        "projectId": "8nrg1m",
+        "owningModule": "workflow-runtime",
+        "sourceEventIds": [
+          "evtj-000000128698"
+        ],
+        "affectedWorkflowNames": [
+          "builder"
+        ],
+        "failure": {
+          "reason": "Agent step \"build\" idle timed out after 3600000ms without runtime progress",
+          "retryCount": 2,
+          "lastErrorClass": "execution",
+          "firstFailedAt": "2026-06-30T15:11:15.350Z",
+          "lastFailedAt": "2026-06-30T15:11:15.350Z"
+        },
+        "source": {
+          "kind": "workflow-dispatch",
+          "workflowName": "builder",
+          "triggerEvent": "autonomy.queue.available",
+          "triggerSchemaRef": null,
+          "failedRunId": "2026-06-29T18-19-41-973Z-builder-qonf80",
+          "runDir": ".kota/runs/2026-06-29T18-19-41-973Z-builder-qonf80"
+        },
+        "redrive": {
+          "kind": "workflow",
+          "workflowName": "builder",
+          "source": {
+            "kind": "run-trigger",
+            "runId": "2026-06-29T18-19-41-973Z-builder-qonf80"
+          }
+        },
+        "redactedProjection": {
+          "workflowName": "builder",
+          "triggerEvent": "autonomy.queue.available",
+          "triggerSchemaRef": null,
+          "triggerPayload": {
+            "pullableCount": 7,
+            "actionableCount": 2,
+            "counts": {
+              "backlog": 7,
+              "ready": 2,
+              "doing": 0,
+              "blocked": 8,
+              "done": 1391,
+              "dropped": 23
+            },
+            "dependencyBlockedTasks": [
+              {
+                "id": "task-run-live-openrouter-and-local-model-rollout-evalua",
+                "title": "Run live OpenRouter and local model rollout evaluation",
+                "state": "backlog",
+                "dependsOn": [
+                  "task-add-openrouter-model-capability-catalog-and-candid",
+                  "task-make-openai-compatible-model-clients-honor-model-s",
+                  "task-route-openai-tools-through-the-kota-tool-runner-wi",
+                  "task-preserve-rich-tool-results-reasoning-and-agent-mes",
+                  "task-add-kota-owned-session-resume-for-model-client-har",
+                  "task-extend-harness-parity-and-eval-harness-with-model-",
+                  "task-add-scaffolded-weak-and-local-model-agent-mode"
+                ],
+                "waitingOn": [
+                  "task-extend-harness-parity-and-eval-harness-with-model-"
+                ]
+              },
+              {
+                "id": "task-run-shadow-semantic-reviewers-for-non-builder-auto",
+                "title": "Run shadow semantic reviewers for non builder autonomy workflows",
+                "state": "backlog",
+                "dependsOn": [
+                  "task-add-loop-quality-audits-for-autonomous-workflows",
+                  "task-add-measured-autonomy-change-promotion-decisions"
+                ],
+                "waitingOn": [
+                  "task-add-loop-quality-audits-for-autonomous-workflows",
+                  "task-add-measured-autonomy-change-promotion-decisions"
+                ]
+              }
+            ],
+            "scopeId": "8nrg1m",
+            "projectId": "8nrg1m"
+          }
+        },
+        "createdAt": "2026-06-30T15:11:15.350Z",
+        "updatedAt": "2026-07-01T06:00:39.270Z",
+        "redriveAttempts": [],
+        "retention": {
+          "kind": "expire-after-ms",
+          "durationMs": 1209600000,
+          "expiresAt": "2026-07-15T06:00:39.270Z"
+        },
+        "dismissedAt": "2026-07-01T06:00:39.270Z",
+        "dismissalReason": "Dismissed as stale/superseded builder DLQ follow-up: dlq-754fe914 was replaced by successful builder run 2026-06-30T19-53-51-915Z-builder-ggdpuf and merge commit 8cef38bb177119e4ca81e219190324e0d052207e; dlq-547d6311 was the commit-stageable index-lock failure repaired and validated in .kota/runs/2026-06-30T22-39-06-955Z-builder-ez3sip/dead-letter-resolution.md. Redrive would duplicate completed work."
+      }
+    },
+    {
+      "ok": true,
+      "item": {
+        "id": "dlq-547d6311-4c9c-491f-a834-b94587f1af28",
+        "type": "workflow-dispatch",
+        "status": "dismissed",
+        "scopeId": "8nrg1m",
+        "projectId": "8nrg1m",
+        "owningModule": "workflow-runtime",
+        "sourceEventIds": [
+          "evtj-000000129148"
+        ],
+        "affectedWorkflowNames": [
+          "builder"
+        ],
+        "failure": {
+          "reason": "Repair loop for step \"build\" made no progress after 3 consecutive attempts. Still failing: commit-stageable",
+          "retryCount": 2,
+          "lastErrorClass": "execution",
+          "firstFailedAt": "2026-06-30T19:34:48.109Z",
+          "lastFailedAt": "2026-06-30T19:34:48.109Z"
+        },
+        "source": {
+          "kind": "workflow-dispatch",
+          "workflowName": "builder",
+          "triggerEvent": "autonomy.queue.available",
+          "triggerSchemaRef": null,
+          "failedRunId": "2026-06-30T15-16-48-125Z-builder-3usmop",
+          "runDir": ".kota/runs/2026-06-30T15-16-48-125Z-builder-3usmop"
+        },
+        "redrive": {
+          "kind": "workflow",
+          "workflowName": "builder",
+          "source": {
+            "kind": "run-trigger",
+            "runId": "2026-06-30T15-16-48-125Z-builder-3usmop"
+          }
+        },
+        "redactedProjection": {
+          "workflowName": "builder",
+          "triggerEvent": "autonomy.queue.available",
+          "triggerSchemaRef": null,
+          "triggerPayload": {
+            "pullableCount": 7,
+            "actionableCount": 2,
+            "counts": {
+              "backlog": 7,
+              "ready": 2,
+              "doing": 0,
+              "blocked": 8,
+              "done": 1391,
+              "dropped": 23
+            },
+            "dependencyBlockedTasks": [
+              {
+                "id": "task-run-live-openrouter-and-local-model-rollout-evalua",
+                "title": "Run live OpenRouter and local model rollout evaluation",
+                "state": "backlog",
+                "dependsOn": [
+                  "task-add-openrouter-model-capability-catalog-and-candid",
+                  "task-make-openai-compatible-model-clients-honor-model-s",
+                  "task-route-openai-tools-through-the-kota-tool-runner-wi",
+                  "task-preserve-rich-tool-results-reasoning-and-agent-mes",
+                  "task-add-kota-owned-session-resume-for-model-client-har",
+                  "task-extend-harness-parity-and-eval-harness-with-model-",
+                  "task-add-scaffolded-weak-and-local-model-agent-mode"
+                ],
+                "waitingOn": [
+                  "task-extend-harness-parity-and-eval-harness-with-model-"
+                ]
+              },
+              {
+                "id": "task-run-shadow-semantic-reviewers-for-non-builder-auto",
+                "title": "Run shadow semantic reviewers for non builder autonomy workflows",
+                "state": "backlog",
+                "dependsOn": [
+                  "task-add-loop-quality-audits-for-autonomous-workflows",
+                  "task-add-measured-autonomy-change-promotion-decisions"
+                ],
+                "waitingOn": [
+                  "task-add-loop-quality-audits-for-autonomous-workflows",
+                  "task-add-measured-autonomy-change-promotion-decisions"
+                ]
+              }
+            ],
+            "scopeId": "8nrg1m",
+            "projectId": "8nrg1m"
+          }
+        },
+        "createdAt": "2026-06-30T19:34:48.109Z",
+        "updatedAt": "2026-07-01T06:00:39.329Z",
+        "redriveAttempts": [],
+        "retention": {
+          "kind": "expire-after-ms",
+          "durationMs": 1209600000,
+          "expiresAt": "2026-07-15T06:00:39.329Z"
+        },
+        "dismissedAt": "2026-07-01T06:00:39.329Z",
+        "dismissalReason": "Dismissed as stale/superseded builder DLQ follow-up: dlq-754fe914 was replaced by successful builder run 2026-06-30T19-53-51-915Z-builder-ggdpuf and merge commit 8cef38bb177119e4ca81e219190324e0d052207e; dlq-547d6311 was the commit-stageable index-lock failure repaired and validated in .kota/runs/2026-06-30T22-39-06-955Z-builder-ez3sip/dead-letter-resolution.md. Redrive would duplicate completed work."
+      }
+    }
+  ],
+  "afterItems": [
+    {
+      "item": {
+        "id": "dlq-754fe914-9936-4a2c-a35d-21d5cfdc57b6",
+        "type": "workflow-dispatch",
+        "status": "dismissed",
+        "scopeId": "8nrg1m",
+        "projectId": "8nrg1m",
+        "owningModule": "workflow-runtime",
+        "sourceEventIds": [
+          "evtj-000000128698"
+        ],
+        "affectedWorkflowNames": [
+          "builder"
+        ],
+        "failure": {
+          "reason": "Agent step \"build\" idle timed out after 3600000ms without runtime progress",
+          "retryCount": 2,
+          "lastErrorClass": "execution",
+          "firstFailedAt": "2026-06-30T15:11:15.350Z",
+          "lastFailedAt": "2026-06-30T15:11:15.350Z"
+        },
+        "source": {
+          "kind": "workflow-dispatch",
+          "workflowName": "builder",
+          "triggerEvent": "autonomy.queue.available",
+          "triggerSchemaRef": null,
+          "failedRunId": "2026-06-29T18-19-41-973Z-builder-qonf80",
+          "runDir": ".kota/runs/2026-06-29T18-19-41-973Z-builder-qonf80"
+        },
+        "redrive": {
+          "kind": "workflow",
+          "workflowName": "builder",
+          "source": {
+            "kind": "run-trigger",
+            "runId": "2026-06-29T18-19-41-973Z-builder-qonf80"
+          }
+        },
+        "redactedProjection": {
+          "workflowName": "builder",
+          "triggerEvent": "autonomy.queue.available",
+          "triggerSchemaRef": null,
+          "triggerPayload": {
+            "pullableCount": 7,
+            "actionableCount": 2,
+            "counts": {
+              "backlog": 7,
+              "ready": 2,
+              "doing": 0,
+              "blocked": 8,
+              "done": 1391,
+              "dropped": 23
+            },
+            "dependencyBlockedTasks": [
+              {
+                "id": "task-run-live-openrouter-and-local-model-rollout-evalua",
+                "title": "Run live OpenRouter and local model rollout evaluation",
+                "state": "backlog",
+                "dependsOn": [
+                  "task-add-openrouter-model-capability-catalog-and-candid",
+                  "task-make-openai-compatible-model-clients-honor-model-s",
+                  "task-route-openai-tools-through-the-kota-tool-runner-wi",
+                  "task-preserve-rich-tool-results-reasoning-and-agent-mes",
+                  "task-add-kota-owned-session-resume-for-model-client-har",
+                  "task-extend-harness-parity-and-eval-harness-with-model-",
+                  "task-add-scaffolded-weak-and-local-model-agent-mode"
+                ],
+                "waitingOn": [
+                  "task-extend-harness-parity-and-eval-harness-with-model-"
+                ]
+              },
+              {
+                "id": "task-run-shadow-semantic-reviewers-for-non-builder-auto",
+                "title": "Run shadow semantic reviewers for non builder autonomy workflows",
+                "state": "backlog",
+                "dependsOn": [
+                  "task-add-loop-quality-audits-for-autonomous-workflows",
+                  "task-add-measured-autonomy-change-promotion-decisions"
+                ],
+                "waitingOn": [
+                  "task-add-loop-quality-audits-for-autonomous-workflows",
+                  "task-add-measured-autonomy-change-promotion-decisions"
+                ]
+              }
+            ],
+            "scopeId": "8nrg1m",
+            "projectId": "8nrg1m"
+          }
+        },
+        "createdAt": "2026-06-30T15:11:15.350Z",
+        "updatedAt": "2026-07-01T06:00:39.270Z",
+        "redriveAttempts": [],
+        "retention": {
+          "kind": "expire-after-ms",
+          "durationMs": 1209600000,
+          "expiresAt": "2026-07-15T06:00:39.270Z"
+        },
+        "dismissedAt": "2026-07-01T06:00:39.270Z",
+        "dismissalReason": "Dismissed as stale/superseded builder DLQ follow-up: dlq-754fe914 was replaced by successful builder run 2026-06-30T19-53-51-915Z-builder-ggdpuf and merge commit 8cef38bb177119e4ca81e219190324e0d052207e; dlq-547d6311 was the commit-stageable index-lock failure repaired and validated in .kota/runs/2026-06-30T22-39-06-955Z-builder-ez3sip/dead-letter-resolution.md. Redrive would duplicate completed work."
+      }
+    },
+    {
+      "item": {
+        "id": "dlq-547d6311-4c9c-491f-a834-b94587f1af28",
+        "type": "workflow-dispatch",
+        "status": "dismissed",
+        "scopeId": "8nrg1m",
+        "projectId": "8nrg1m",
+        "owningModule": "workflow-runtime",
+        "sourceEventIds": [
+          "evtj-000000129148"
+        ],
+        "affectedWorkflowNames": [
+          "builder"
+        ],
+        "failure": {
+          "reason": "Repair loop for step \"build\" made no progress after 3 consecutive attempts. Still failing: commit-stageable",
+          "retryCount": 2,
+          "lastErrorClass": "execution",
+          "firstFailedAt": "2026-06-30T19:34:48.109Z",
+          "lastFailedAt": "2026-06-30T19:34:48.109Z"
+        },
+        "source": {
+          "kind": "workflow-dispatch",
+          "workflowName": "builder",
+          "triggerEvent": "autonomy.queue.available",
+          "triggerSchemaRef": null,
+          "failedRunId": "2026-06-30T15-16-48-125Z-builder-3usmop",
+          "runDir": ".kota/runs/2026-06-30T15-16-48-125Z-builder-3usmop"
+        },
+        "redrive": {
+          "kind": "workflow",
+          "workflowName": "builder",
+          "source": {
+            "kind": "run-trigger",
+            "runId": "2026-06-30T15-16-48-125Z-builder-3usmop"
+          }
+        },
+        "redactedProjection": {
+          "workflowName": "builder",
+          "triggerEvent": "autonomy.queue.available",
+          "triggerSchemaRef": null,
+          "triggerPayload": {
+            "pullableCount": 7,
+            "actionableCount": 2,
+            "counts": {
+              "backlog": 7,
+              "ready": 2,
+              "doing": 0,
+              "blocked": 8,
+              "done": 1391,
+              "dropped": 23
+            },
+            "dependencyBlockedTasks": [
+              {
+                "id": "task-run-live-openrouter-and-local-model-rollout-evalua",
+                "title": "Run live OpenRouter and local model rollout evaluation",
+                "state": "backlog",
+                "dependsOn": [
+                  "task-add-openrouter-model-capability-catalog-and-candid",
+                  "task-make-openai-compatible-model-clients-honor-model-s",
+                  "task-route-openai-tools-through-the-kota-tool-runner-wi",
+                  "task-preserve-rich-tool-results-reasoning-and-agent-mes",
+                  "task-add-kota-owned-session-resume-for-model-client-har",
+                  "task-extend-harness-parity-and-eval-harness-with-model-",
+                  "task-add-scaffolded-weak-and-local-model-agent-mode"
+                ],
+                "waitingOn": [
+                  "task-extend-harness-parity-and-eval-harness-with-model-"
+                ]
+              },
+              {
+                "id": "task-run-shadow-semantic-reviewers-for-non-builder-auto",
+                "title": "Run shadow semantic reviewers for non builder autonomy workflows",
+                "state": "backlog",
+                "dependsOn": [
+                  "task-add-loop-quality-audits-for-autonomous-workflows",
+                  "task-add-measured-autonomy-change-promotion-decisions"
+                ],
+                "waitingOn": [
+                  "task-add-loop-quality-audits-for-autonomous-workflows",
+                  "task-add-measured-autonomy-change-promotion-decisions"
+                ]
+              }
+            ],
+            "scopeId": "8nrg1m",
+            "projectId": "8nrg1m"
+          }
+        },
+        "createdAt": "2026-06-30T19:34:48.109Z",
+        "updatedAt": "2026-07-01T06:00:39.329Z",
+        "redriveAttempts": [],
+        "retention": {
+          "kind": "expire-after-ms",
+          "durationMs": 1209600000,
+          "expiresAt": "2026-07-15T06:00:39.329Z"
+        },
+        "dismissedAt": "2026-07-01T06:00:39.329Z",
+        "dismissalReason": "Dismissed as stale/superseded builder DLQ follow-up: dlq-754fe914 was replaced by successful builder run 2026-06-30T19-53-51-915Z-builder-ggdpuf and merge commit 8cef38bb177119e4ca81e219190324e0d052207e; dlq-547d6311 was the commit-stageable index-lock failure repaired and validated in .kota/runs/2026-06-30T22-39-06-955Z-builder-ez3sip/dead-letter-resolution.md. Redrive would duplicate completed work."
+      }
+    }
+  ],
+  "openBuilderQuery": {
+    "items": [],
+    "counts": {
+      "open": 0,
+      "dismissed": 59,
+      "redriven": 1
+    }
+  },
+  "citedIdsStillOpen": []
+}

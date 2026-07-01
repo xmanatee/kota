@@ -1,0 +1,5 @@
+Clear stale builder DLQ records
+
+- dismiss two superseded canonical builder DLQ items through daemon control
+- record before/after DLQ evidence and resolution rationale
+- close the cleanup task with validated acceptance evidence
