@@ -1,0 +1,12 @@
+Verification completed for task-security-review-autonomy-health-review-task-genera.
+
+Passing commands:
+- pnpm test src/modules/autonomy/workflows/autonomy-health-reviewer/health-review.test.ts src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit.test.ts
+- pnpm typecheck
+- pnpm lint
+- pnpm build
+- pnpm kota workflow validate
+- pnpm run validate-tasks after staging the changed paths
+
+Sandbox note:
+- pnpm kota task move failed because git mv could not create the parent worktree index lock; the task move was applied in the worktree and then staged successfully with git add -A.

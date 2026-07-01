@@ -1,12 +1,12 @@
 ---
 id: task-security-review-autonomy-health-review-task-genera
 title: Security review: Autonomy health review task generation copies runtime evidence summaries derived from module logs and dead-letter failure reasons directly into ready-task Markdown. Those task files are later treated as builder work contracts, so prompt-like text from runtime logs or failure reasons can be reintroduced as trusted agent instructions instead of isolated evidence.
-status: ready
+status: done
 priority: p2
 area: security
 summary: Autonomy health review task generation copies runtime evidence summaries derived from module logs and dead-letter failure reasons directly into ready-task Markdown. Those task files are later treated as builder work contracts, so prompt-like text from runtime logs or failure reasons can be reintroduced as trusted agent instructions instead of isolated evidence.
 created_at: 2026-07-01T03:50:46.052Z
-updated_at: 2026-07-01T03:50:46.052Z
+updated_at: 2026-07-01T04:10:49.000Z
 ---
 
 ## Problem
@@ -121,6 +121,16 @@ excerpt:
 
 Agentic security review for autonomous coding infrastructure.
 
+## Result
+
+Health-review generated tasks now render runtime-derived summaries and evidence refs as explicitly untrusted fenced JSON rather than trusted Markdown bullets. The renderer chooses a fence longer than any embedded backtick run, so prompt-like text and code fences from module logs or dead-letter reasons cannot break out into task-contract sections.
+
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Verified with `pnpm test src/modules/autonomy/workflows/autonomy-health-reviewer/health-review.test.ts src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit.test.ts`.
+- Verified with `pnpm typecheck`.
+- Verified with `pnpm lint`.
+- Verified with `pnpm build`.
+- Verified with `pnpm kota workflow validate`.
+- Verified with `pnpm run validate-tasks` after staging the changed paths.

@@ -1,0 +1,3 @@
+1. Fixed the health-review task generation vulnerability by rendering runtime-derived signal summaries and evidence refs as explicitly untrusted fenced JSON, with dynamic code-fence sizing to prevent embedded backticks from escaping into trusted task Markdown.
+2. Added a focused regression test that feeds prompt-like summaries/evidence containing Markdown headings, list items, and fenced code into generated health tasks, then asserts the generated task has only its intended trusted sections and no injected trusted bullet.
+3. Recorded verification in the completed task record and this run's verification artifact: focused tests, typecheck, lint, build, workflow validation, and task validation after staging the changed paths.
