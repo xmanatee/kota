@@ -300,7 +300,10 @@ describe("loadInstructionContext", () => {
 		try {
 			const result = loadInstructionContext(TEST_ROOT, TEST_ROOT);
 			expect(result).toContain("... (truncated)");
-			expect((result.match(/h/g) ?? []).length).toBe(8_000);
+			const leafBody = result
+				.slice(result.indexOf("\n\n", result.indexOf("### AGENTS:")) + 2)
+				.split("\n... (truncated)")[0];
+			expect(leafBody).toBe("h".repeat(MAX_FILE_LENGTH));
 		} finally {
 			rmSync(join(TEST_ROOT, "AGENTS.md"), { force: true });
 			rmSync(join(TEST_ROOT, "docs"), { recursive: true, force: true });

@@ -225,6 +225,12 @@ deploy/telegram-assistant/.env
 !/.kota/runs/2026-06-30T22-39-06-955Z-builder-ez3sip/success-criteria-verified.txt
 !/.kota/runs/2026-06-30T22-39-06-955Z-builder-ez3sip/success-criteria.txt
 !/.kota/runs/2026-06-30T22-39-06-955Z-builder-ez3sip/validation-results.txt
+!/.kota/runs/2026-06-30T23-09-19-707Z-builder-vadnsy/
+/.kota/runs/2026-06-30T23-09-19-707Z-builder-vadnsy/*
+!/.kota/runs/2026-06-30T23-09-19-707Z-builder-vadnsy/commit-message.txt
+!/.kota/runs/2026-06-30T23-09-19-707Z-builder-vadnsy/health-routing-evidence.md
+!/.kota/runs/2026-06-30T23-09-19-707Z-builder-vadnsy/success-criteria-verified.txt
+!/.kota/runs/2026-06-30T23-09-19-707Z-builder-vadnsy/success-criteria.txt
 !/.kota/runs/2026-06-22T10-02-48-890Z-builder-wetav0/validation-transcript.txt
 !/.kota/runs/2026-06-25T15-21-57-328Z-builder-05u3ok/
 /.kota/runs/2026-06-25T15-21-57-328Z-builder-05u3ok/*

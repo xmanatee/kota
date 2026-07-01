@@ -143,7 +143,7 @@ describe("security-review commit hygiene", () => {
       ]);
       expect(preflight.checks.find((check) => check.rail === "commit-stageable")).toMatchObject({
         status: "passed",
-        message: "OK: 1 mutated path(s) stageable",
+        message: "OK: 1 mutated path(s) already staged",
       });
 
       const leftoverStatus = execFileSync(

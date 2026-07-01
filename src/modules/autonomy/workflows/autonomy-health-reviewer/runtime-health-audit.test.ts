@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { DeadLetterItem } from "#core/daemon/dead-letter-queue.js";
 import {
   DAEMON_STOP_ATTEMPTS_RELATIVE_PATH,
   recordDaemonStopAttempt,
@@ -54,6 +55,67 @@ describe("runtime health audit", () => {
     const dir = join(projectDir, "data", "tasks", "ready");
     if (!existsSync(dir)) return [];
     return readdirSync(dir).filter((name) => name.endsWith(".md"));
+  }
+
+  function staleWorkflowDispatchDeadLetter(
+    overrides: {
+      id?: string;
+      workflow?: string;
+      reason?: string;
+      lastErrorClass?: DeadLetterItem["failure"]["lastErrorClass"];
+      updatedAt?: string;
+    } = {},
+  ): DeadLetterItem {
+    const id = overrides.id ?? "dlq-stale-1";
+    const workflow = overrides.workflow ?? "builder";
+    const updatedAt = overrides.updatedAt ?? "2026-06-17T08:00:00.000Z";
+    return {
+      id,
+      type: "workflow-dispatch",
+      status: "open",
+      scopeId: "scope-a",
+      projectId: "scope-a",
+      owningModule: "workflow-runtime",
+      sourceEventIds: ["evt-1"],
+      affectedWorkflowNames: [workflow],
+      failure: {
+        reason:
+          overrides.reason ?? "Payload failed validation for workflow dispatch",
+        retryCount: 2,
+        lastErrorClass: overrides.lastErrorClass ?? "validation",
+        firstFailedAt: updatedAt,
+        lastFailedAt: updatedAt,
+      },
+      source: {
+        kind: "workflow-dispatch",
+        workflowName: workflow,
+        triggerEvent: "autonomy.queue.available",
+        triggerSchemaRef: null,
+        failedRunId: `run-${workflow}-failed`,
+        runDir: `.kota/runs/run-${workflow}-failed`,
+      },
+      redrive: {
+        kind: "workflow",
+        workflowName: workflow,
+        source: { kind: "run-trigger", runId: `run-${workflow}-failed` },
+      },
+      redactedProjection: {},
+      createdAt: updatedAt,
+      updatedAt,
+      redriveAttempts: [],
+      retention: { kind: "retain" },
+    };
+  }
+
+  function writeDeadLetterQueue(items: DeadLetterItem[]): void {
+    mkdirSync(join(projectDir, ".kota", "dead-letter-queue"), {
+      recursive: true,
+    });
+    writeFileSync(
+      join(projectDir, ".kota", "dead-letter-queue", "items.json"),
+      JSON.stringify({ items }, null, 2),
+      "utf-8",
+    );
   }
 
   function writeInterruptedRun(args: {
@@ -129,54 +191,7 @@ describe("runtime health audit", () => {
   });
 
   it("creates one consolidated local repair task for stale open DLQ items", () => {
-    mkdirSync(join(projectDir, ".kota", "dead-letter-queue"), { recursive: true });
-    writeFileSync(
-      join(projectDir, ".kota", "dead-letter-queue", "items.json"),
-      JSON.stringify(
-        {
-          items: [
-            {
-              id: "dlq-stale-1",
-              type: "workflow-dispatch",
-              status: "open",
-              scopeId: "scope-a",
-              projectId: "scope-a",
-              owningModule: "workflow-runtime",
-              sourceEventIds: ["evt-1"],
-              affectedWorkflowNames: ["builder"],
-              failure: {
-                reason: "Payload failed validation for workflow dispatch",
-                retryCount: 2,
-                lastErrorClass: "validation",
-                firstFailedAt: "2026-06-17T08:00:00.000Z",
-                lastFailedAt: "2026-06-17T08:00:00.000Z",
-              },
-              source: {
-                kind: "workflow-dispatch",
-                workflowName: "builder",
-                triggerEvent: "autonomy.queue.available",
-                triggerSchemaRef: null,
-                failedRunId: "run-builder-failed",
-                runDir: ".kota/runs/run-builder-failed",
-              },
-              redrive: {
-                kind: "workflow",
-                workflowName: "builder",
-                source: { kind: "run-trigger", runId: "run-builder-failed" },
-              },
-              redactedProjection: {},
-              createdAt: "2026-06-17T08:00:00.000Z",
-              updatedAt: "2026-06-17T08:00:00.000Z",
-              redriveAttempts: [],
-              retention: { kind: "retain" },
-            },
-          ],
-        },
-        null,
-        2,
-      ),
-      "utf-8",
-    );
+    writeDeadLetterQueue([staleWorkflowDispatchDeadLetter()]);
 
     const audit = collectRuntimeHealthAudit({
       projectDir,
@@ -205,6 +220,75 @@ describe("runtime health audit", () => {
     const task = readFileSync(taskPath, "utf-8");
     expect(task).toContain(".kota/dead-letter-queue/items.json#dlq-stale-1");
     expect(task).toContain("Payload failed validation for workflow dispatch");
+  });
+
+  it("does not create a duplicate repair task when active work tracks stale DLQ evidence", () => {
+    writeDeadLetterQueue([
+      staleWorkflowDispatchDeadLetter({
+        id: "dlq-c3d9197c-110e-495d-ab5d-12e1de7925a7",
+        workflow: "progress-reviewer",
+        lastErrorClass: "execution",
+        reason:
+          'Agent step "review-evidence" (progress-reviewer) wrote tracked files outside its declared writeScope [.kota/runs/].',
+        updatedAt: "2026-06-17T08:00:00.000Z",
+      }),
+    ]);
+    const readyDir = join(projectDir, "data", "tasks", "ready");
+    mkdirSync(readyDir, { recursive: true });
+    writeFileSync(
+      join(readyDir, "task-clear-stale-progress-reviewer-write-scope-dlq-item.md"),
+      [
+        "---",
+        "id: task-clear-stale-progress-reviewer-write-scope-dlq-item",
+        "title: Clear stale progress-reviewer write-scope DLQ item",
+        "status: ready",
+        "priority: p3",
+        "area: platform",
+        "summary: Existing active work tracks the stale DLQ item.",
+        `created_at: ${NOW}`,
+        `updated_at: ${NOW}`,
+        "---",
+        "",
+        "## Problem",
+        "",
+        "dlq-c3d9197c-110e-495d-ab5d-12e1de7925a7 remains open after the root-cause repair.",
+        "",
+        "Evidence ids:",
+        "",
+        "- scope:scope-a:dead-letter:dlq-c3d9197c-110e-495d-ab5d-12e1de7925a7",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const audit = collectRuntimeHealthAudit({
+      projectDir,
+      options: { nowIso: NOW, staleDeadLetterMs: 60 * 60 * 1000 },
+    });
+
+    expect(audit.patterns).toEqual([
+      expect.objectContaining({
+        dedupeKey:
+          "dead-letter:execution:workflow-runtime:progress-reviewer",
+        category: "local-code",
+        actionability: "local-code",
+      }),
+    ]);
+
+    const actions = reviewAndApply(audit);
+
+    expect(actions.createdTaskIds).toEqual([]);
+    expect(actions.applied).toEqual([
+      expect.objectContaining({
+        kind: "skipped-task",
+        taskId: "task-clear-stale-progress-reviewer-write-scope-dlq-item",
+        dedupeKey:
+          "dead-letter:execution:workflow-runtime:progress-reviewer",
+        reason: expect.stringContaining("already tracks this evidence"),
+      }),
+    ]);
+    expect(readyTaskFiles()).toEqual([
+      "task-clear-stale-progress-reviewer-write-scope-dlq-item.md",
+    ]);
   });
 
   it("creates one root-cause repair task for repeated interrupted runs", () => {

@@ -1,12 +1,12 @@
 ---
 id: task-health-dead-letter-execution-workflow-runtime-progress-reviewer
 title: Repair autonomy health pattern dead-letter:execution:workflow-runtime:progress-reviewer
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Health signals labeled dead-letter, execution, local-code repeatedly point at dead-letter:execution:workflow-runtime:progress-reviewer; investigate and improve the local autonomy protocol, validation, prompt, or module behavior without relying on direct auto-repair.
 created_at: 2026-06-30T23:18:05.483Z
-updated_at: 2026-06-30T23:18:05.483Z
+updated_at: 2026-07-01T00:54:38.402Z
 task_class: Meta
 ---
 
@@ -58,7 +58,22 @@ Autonomy fleet health: repeated local workflow and runtime health patterns shoul
 - The relevant workflow, prompt, validator, module, or routing tests prove the regression path.
 - The repair avoids duplicate task churn for the same dedupe key.
 
+## Resolution
+
+The cited DLQ item is stale, but the progress-reviewer write-scope false
+attribution root cause was already fixed by
+`task-resolve-current-progress-reviewer-write-scope-dead`. The remaining DLQ
+store cleanup is tracked by
+`task-clear-stale-progress-reviewer-write-scope-dlq-item`.
+
+The health reviewer now checks open task states for existing tasks that record
+the same evidence before creating a new local-code health repair task. Dead
+letter matching accepts the raw evidence ref and the DLQ item id, so scoped
+progress-review evidence suppresses duplicate root-cause repair churn for the
+same stale DLQ item.
+
 ## Acceptance Evidence
 
-- Focused test output covering the repaired health pattern.
-- A follow-up `.kota/runs/` artifact, event replay, or reviewer artifact showing the pattern no longer routes incorrectly.
+- `.kota/runs/2026-06-30T23-09-19-707Z-builder-vadnsy/health-routing-evidence.md` records the cited pattern, root cause, repair, and routed outcome.
+- `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit.test.ts src/modules/autonomy/workflows/autonomy-health-reviewer/health-review.test.ts` passed with 2 files and 13 tests.
+- `pnpm run typecheck` passed.

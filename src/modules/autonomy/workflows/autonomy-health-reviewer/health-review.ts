@@ -3,12 +3,16 @@ import { createHash } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
-import { serializeFlatFrontMatter } from "#core/util/frontmatter.js";
+import {
+  parseFlatFrontMatter,
+  serializeFlatFrontMatter,
+} from "#core/util/frontmatter.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { WorkflowBatchFlushPayload } from "#core/workflow/trigger-types.js";
 import {
@@ -118,6 +122,12 @@ export type AutonomyHealthReviewArtifact = {
 };
 
 type TaskAttrs = Record<string, string | string[]>;
+const OPEN_TASK_STATES = [
+  "backlog",
+  "ready",
+  "doing",
+  "blocked",
+] as const satisfies readonly RepoTaskState[];
 
 const SEVERITY_RANK: Record<AutonomyHealthSeverity, number> = {
   info: 0,
@@ -360,6 +370,59 @@ function findExistingTask(projectDir: string, taskId: string): {
   return null;
 }
 
+function taskIdFromRaw(raw: string, fallback: string): string {
+  const id = parseFlatFrontMatter(raw).attrs.id;
+  return typeof id === "string" && id.trim().length > 0 ? id : fallback;
+}
+
+function evidenceTokens(ref: AutonomyHealthEvidenceRef): string[] {
+  const tokens = [ref.ref];
+  if (ref.kind === "dead-letter") {
+    const deadLetterId = ref.ref.split("#").at(-1)?.trim();
+    if (deadLetterId) tokens.push(deadLetterId);
+  }
+  return tokens;
+}
+
+function rawRecordsEvidenceRef(
+  raw: string,
+  ref: AutonomyHealthEvidenceRef,
+): boolean {
+  return evidenceTokens(ref).some((token) => raw.includes(token));
+}
+
+function rawRecordsGroupEvidence(
+  raw: string,
+  group: AutonomyHealthReviewGroup,
+): boolean {
+  return group.evidenceRefs.every((ref) => rawRecordsEvidenceRef(raw, ref));
+}
+
+function findOpenTaskRecordingEvidence(projectDir: string, group: AutonomyHealthReviewGroup): {
+  state: RepoTaskState;
+  taskId: string;
+  path: string;
+} | null {
+  for (const state of OPEN_TASK_STATES) {
+    const dir = join(projectDir, "data", "tasks", state);
+    if (!existsSync(dir)) continue;
+    const names = readdirSync(dir)
+      .filter((name) => name.endsWith(".md") && name !== "AGENTS.md")
+      .sort((a, b) => a.localeCompare(b));
+    for (const name of names) {
+      const path = join(dir, name);
+      const raw = readFileSync(path, "utf-8");
+      if (!rawRecordsGroupEvidence(raw, group)) continue;
+      return {
+        state,
+        taskId: taskIdFromRaw(raw, name.replace(/\.md$/, "")),
+        path,
+      };
+    }
+  }
+  return null;
+}
+
 function formatEvidenceRefs(refs: readonly AutonomyHealthEvidenceRef[]): string {
   return refs
     .map((ref) => `- ${ref.kind}: ${ref.ref}${ref.summary ? ` - ${ref.summary}` : ""}`)
@@ -516,6 +579,21 @@ function createOrRefreshTask(args: {
       taskId,
       path: relative(args.projectDir, existing.path),
       dedupeKey: args.group.dedupeKey,
+    };
+  }
+
+  const existingEvidenceTask = findOpenTaskRecordingEvidence(
+    args.projectDir,
+    args.group,
+  );
+  if (existingEvidenceTask) {
+    return {
+      kind: "skipped-task",
+      taskId: existingEvidenceTask.taskId,
+      dedupeKey: args.group.dedupeKey,
+      reason:
+        `existing ${existingEvidenceTask.state} task already tracks this evidence: ` +
+        relative(args.projectDir, existingEvidenceTask.path),
     };
   }
 

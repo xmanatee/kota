@@ -1,0 +1,4 @@
+1. The cited stale progress-reviewer write-scope DLQ root cause is identified from the referenced evidence.
+2. Autonomy health review consumption no longer creates a duplicate local-code repair task when an active task already tracks the same DLQ evidence.
+3. Focused tests cover the repaired health-reviewer regression path.
+4. The repair records enough run evidence to show the same dedupe-key pattern is handled without duplicate task churn.

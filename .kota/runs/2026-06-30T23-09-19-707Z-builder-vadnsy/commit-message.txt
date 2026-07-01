@@ -1,0 +1,6 @@
+autonomy-health-reviewer: avoid duplicate DLQ health tasks
+
+- skip local repair task creation when active work already tracks the same health evidence
+- cover stale progress-reviewer DLQ routing with a regression test
+- repair instruction truncation test to ignore checkout path text
+- align security-review preflight assertion with already-staged task files
