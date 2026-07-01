@@ -1,12 +1,12 @@
 ---
 id: task-add-observability-evidence-for-mobile-typecheck-wr
 title: Add observability evidence for mobile typecheck wrapper
-status: ready
+status: done
 priority: p3
 area: platform
 summary: Builder run 2026-06-30T19-53-51-915Z added clients/mobile/scripts/typecheck.mjs, and the observability-obligation diagnostic marked that external-process wrapper as missing inspectable observability evidence.
 created_at: 2026-07-01T00:37:05.071Z
-updated_at: 2026-07-01T00:37:05.071Z
+updated_at: 2026-07-01T06:32:20.583Z
 ---
 
 ## Problem
@@ -47,3 +47,4 @@ Outcome-aware autonomy progress review.
 ## Acceptance Evidence
 
 - A follow-up run artifact or task note maps clients/mobile/scripts/typecheck.mjs to structured logging, event/run-artifact evidence, explicit error-result evidence, focused test assertion, or a narrow waiver rationale; the observability-obligation diagnostic reports no unresolved missing file for this change.
+- Run 2026-07-01T05-40-02-218Z-builder-z62wj4 maps clients/mobile/scripts/typecheck.mjs to structured JSON-line status logging in the wrapper, a focused diagnostic assertion in src/modules/autonomy/observability-obligation.test.ts, and a fresh staged observability-obligation review artifact with `missingFiles: []`.

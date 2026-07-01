@@ -1,0 +1,2 @@
+1. Verified. The cited progress-review gap is fixed by structured JSON-line status logging in `clients/mobile/scripts/typecheck.mjs`; the staged observability-obligation diagnostic reports outcome `ok` for that file.
+2. Verified. Acceptance evidence is recorded in the done task and in this run directory, including `observability-evidence.md` and `observability-obligation-review.json` with `missingFiles: []`.

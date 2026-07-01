@@ -1,0 +1,34 @@
+{
+  "type": "observability-obligation",
+  "outcome": "ok",
+  "candidates": [
+    {
+      "file": "clients/mobile/scripts/typecheck.mjs",
+      "status": "satisfied",
+      "reasons": [
+        {
+          "kind": "external-call",
+          "message": "changed an external process, network, or delivery call path"
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "structured-log",
+          "detail": "changed production diff adds a structured log call with fields",
+          "ref": "clients/mobile/scripts/typecheck.mjs"
+        },
+        {
+          "kind": "explicit-error-result",
+          "detail": "changed production diff returns an explicit error, reason, or message result",
+          "ref": "clients/mobile/scripts/typecheck.mjs"
+        }
+      ],
+      "message": "Inspectable observability evidence found for this runtime-sensitive change."
+    }
+  ],
+  "satisfiedFiles": [
+    "clients/mobile/scripts/typecheck.mjs"
+  ],
+  "missingFiles": [],
+  "message": "OK: 1 observability-sensitive candidate file(s) have inspectable evidence"
+}

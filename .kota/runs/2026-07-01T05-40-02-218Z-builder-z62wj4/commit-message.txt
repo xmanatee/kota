@@ -1,0 +1,5 @@
+Add mobile typecheck observability evidence
+
+- emit structured status logs from the mobile typecheck wrapper
+- cover the wrapper shape in the observability-obligation diagnostic test
+- record run evidence and complete the seeded task

@@ -136,6 +136,30 @@ describe("observability obligation diagnostic", () => {
     ]);
   });
 
+  it("accepts the mobile typecheck wrapper when structured status logs are added", () => {
+    const review = detectObservabilityObligationReview(
+      diffFor("clients/mobile/scripts/typecheck.mjs", [
+        "const logger = {",
+        "  warn(message, fields) {",
+        "    writeLog(\"warn\", message, fields);",
+        "  },",
+        "};",
+        "function stagedMobilePaths() {",
+        "  const result = spawnSync(\"git\", [\"diff\"], { encoding: \"utf8\" });",
+        "  if (result.status !== 0) {",
+        "    logger.warn(\"Mobile typecheck could not inspect staged mobile changes.\", { status: \"failed\", exitCode: result.status });",
+        "  }",
+        "}",
+      ]),
+    );
+
+    expect(review.outcome).toBe("ok");
+    expect(review.satisfiedFiles).toEqual(["clients/mobile/scripts/typecheck.mjs"]);
+    expect(review.candidates[0]?.evidence).toEqual([
+      expect.objectContaining({ kind: "structured-log" }),
+    ]);
+  });
+
   it("ignores test-only and task-only changes", () => {
     const review = detectObservabilityObligationReview(
       [

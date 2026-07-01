@@ -1,0 +1,2 @@
+1. The cited progress-review gap for clients/mobile/scripts/typecheck.mjs is fixed or explicitly disproven with concrete evidence.
+2. Acceptance evidence is recorded in this task or this run artifact, mapping the wrapper to structured logging, event/run-artifact evidence, explicit error-result evidence, focused test assertion, or a narrow waiver rationale, and the observability-obligation diagnostic has no unresolved missing file for this change.
