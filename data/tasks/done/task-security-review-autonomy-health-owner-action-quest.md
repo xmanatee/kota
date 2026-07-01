@@ -1,12 +1,12 @@
 ---
 id: task-security-review-autonomy-health-owner-action-quest
 title: Security review: Autonomy health owner-action questions still persist and broadcast raw health-signal summaries from runtime-derived evidence. The new projection strips dead-letter/module-log summaries for review artifacts and cards, but the owner-question action path sends the unprojected first group summary into OwnerQuestionQueue.reason, which is emitted on owner.question.asked and forwarded by notification channels.
-status: ready
+status: done
 priority: p2
 area: security
 summary: Autonomy health owner-action questions still persist and broadcast raw health-signal summaries from runtime-derived evidence. The new projection strips dead-letter/module-log summaries for review artifacts and cards, but the owner-question action path sends the unprojected first group summary into OwnerQuestionQueue.reason, which is emitted on owner.question.asked and forwarded by notification channels.
 created_at: 2026-07-01T08:55:52.218Z
-updated_at: 2026-07-01T08:55:52.218Z
+updated_at: 2026-07-01T09:21:53Z
 ---
 
 ## Problem
@@ -152,3 +152,6 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `pnpm test src/modules/autonomy/workflows/autonomy-health-reviewer/health-review.test.ts` passed on 2026-07-01.
+- `pnpm typecheck` passed on 2026-07-01.
+- `pnpm exec biome check src/modules/autonomy/workflows/autonomy-health-reviewer/health-review.ts src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts src/modules/autonomy/workflows/autonomy-health-reviewer/health-review.test.ts` passed on 2026-07-01.

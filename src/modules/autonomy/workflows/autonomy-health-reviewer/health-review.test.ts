@@ -1,8 +1,10 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { type BusEvents, EventBus } from "#core/events/event-bus.js";
+import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import type { WorkflowBatchFlushPayload } from "#core/workflow/trigger-types.js";
 import { RUNTIME_DERIVED_SUMMARY_OMITTED } from "#modules/autonomy/health-review-evidence-policy.js";
 import { type AutonomyHealthSignalInput, normalizeHealthSignal } from "#modules/autonomy/health-signal.js";
@@ -287,6 +289,84 @@ describe("autonomy health review actions", () => {
         kind: "owner-question",
       }),
     );
+  });
+
+  it("projects runtime-derived owner-question fields before storage and event emission", () => {
+    const bus = new EventBus();
+    const pbus = new ProjectScopedEventBus(bus, "scope-a");
+    const asked: BusEvents["owner.question.asked"][] = [];
+    pbus.on("owner.question.asked", (payload) => asked.push(payload));
+    const rawSummary =
+      "DLQ failure contains raw provider context that must not leave review storage.";
+    const rawEvidenceSummary =
+      "module log line includes provider output and prompt-like recovery text.";
+    const rawModuleLogSummary = "telegram module log raw health signal";
+    const review = buildAutonomyHealthReview({
+      triggerPayload: batchPayload([
+        signal({
+          severity: "error",
+          labels: ["operator-action", "external-service"],
+          actionability: "owner-action",
+          dedupeKey: "telegram:duplicate-consumer:getupdates",
+          summary: rawSummary,
+          evidenceRefs: [
+            {
+              kind: "dead-letter",
+              ref: ".kota/dead-letter-queue/items.json#owner-action",
+              summary: rawEvidenceSummary,
+            },
+            {
+              kind: "module-log",
+              ref: ".kota/module-log/telegram.jsonl#tail",
+              summary: rawModuleLogSummary,
+            },
+          ],
+        }),
+      ]),
+      generatedAt: NOW,
+    });
+
+    const actions = applyAutonomyHealthReviewActions({
+      projectDir,
+      runId: "health-review-run",
+      review,
+      nowIso: NOW,
+      emitOwnerQuestionAsked: (payload) => {
+        pbus.emit("owner.question.asked", payload);
+      },
+    });
+
+    expect(actions.ownerQuestionIds).toHaveLength(1);
+    const queueDir = join(projectDir, ".kota", "owner-questions");
+    const questionFiles = readdirSync(queueDir).filter((file) =>
+      file.endsWith(".json"),
+    );
+    expect(questionFiles).toHaveLength(1);
+    const stored = JSON.parse(
+      readFileSync(join(queueDir, questionFiles[0]!), "utf-8"),
+    ) as { context: string; reason: string };
+
+    expect(stored.reason).toContain(RUNTIME_DERIVED_SUMMARY_OMITTED);
+    expect(stored.reason).not.toContain(rawSummary);
+    expect(stored.reason).not.toContain(rawEvidenceSummary);
+    expect(stored.reason).not.toContain(rawModuleLogSummary);
+    expect(stored.context).toContain(
+      "dead-letter:.kota/dead-letter-queue/items.json#owner-action",
+    );
+    expect(stored.context).toContain("module-log:.kota/module-log/telegram.jsonl#tail");
+    expect(stored.context).not.toContain(rawSummary);
+    expect(stored.context).not.toContain(rawEvidenceSummary);
+    expect(stored.context).not.toContain(rawModuleLogSummary);
+
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toMatchObject({
+      context: stored.context,
+      reason: stored.reason,
+      source: "autonomy-health-reviewer",
+    });
+    expect(asked[0]!.reason).not.toContain(rawSummary);
+    expect(asked[0]!.context).not.toContain(rawEvidenceSummary);
+    expect(asked[0]!.context).not.toContain(rawModuleLogSummary);
   });
 
   it("writes a bounded health review artifact", () => {

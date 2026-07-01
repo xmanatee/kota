@@ -1,0 +1,3 @@
+1. Owner-action and external-service autonomy health owner-question reason/context fields are built from the same runtime-derived evidence projection policy used for review artifacts, or from bounded metadata.
+2. Regression coverage proves dead-letter/module-log or other runtime-derived evidence summaries are omitted from both stored owner-question fields and the emitted owner.question.asked payload.
+3. The task state records the final verification command or run artifact proving the cited security boundary is fixed.

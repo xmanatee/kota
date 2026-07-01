@@ -154,6 +154,9 @@ const applyActions = typedCodeStep<ActionOutput>({
       runId: ctx.workflow.runId,
       review: buildReview.outputRequired(ctx).review,
       nowIso: new Date().toISOString(),
+      emitOwnerQuestionAsked: (payload) => {
+        ctx.emit("owner.question.asked", payload);
+      },
     }),
   }),
 });

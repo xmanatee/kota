@@ -1,0 +1,3 @@
+1. Verified in src/modules/autonomy/workflows/autonomy-health-reviewer/health-review.ts: owner-question reason/context are derived from projected health evidence fields before enqueue, and the workflow emits the same sanitized payload through ctx.emit.
+2. Verified by pnpm test src/modules/autonomy/workflows/autonomy-health-reviewer/health-review.test.ts: the regression asserts stored owner-question JSON and owner.question.asked payloads omit runtime-derived group summaries and evidenceRef.summary text.
+3. Verified by task Acceptance Evidence and the commands recorded there: focused test, typecheck, and touched-file Biome check passed for the security boundary change.

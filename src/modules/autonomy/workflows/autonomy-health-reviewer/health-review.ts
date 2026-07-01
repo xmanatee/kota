@@ -9,6 +9,7 @@ import {
 } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
+import type { BusEvents } from "#core/events/event-bus.js";
 import {
   parseFlatFrontMatter,
   serializeFlatFrontMatter,
@@ -125,6 +126,11 @@ export type AutonomyHealthReviewArtifact = {
   review: AutonomyHealthReview;
   actions: AutonomyHealthReviewActionResult;
 };
+
+type OwnerQuestionAskedPayload = Omit<
+  BusEvents["owner.question.asked"],
+  "projectId" | "scopeId"
+>;
 
 type TaskAttrs = Record<string, string | string[]>;
 const OPEN_TASK_STATES = [
@@ -662,6 +668,7 @@ function enqueueOwnerQuestion(args: {
   projectDir: string;
   runId: string;
   group: AutonomyHealthReviewGroup;
+  emitOwnerQuestionAsked?: (payload: OwnerQuestionAskedPayload) => void;
 }): AutonomyHealthAppliedAction {
   const queue = new OwnerQuestionQueue(join(args.projectDir, ".kota", "owner-questions"));
   const question = ownerQuestionForGroup(args.group);
@@ -674,15 +681,25 @@ function enqueueOwnerQuestion(args: {
       reason: `matching pending owner question already exists: ${existingId}`,
     };
   }
+  const evidenceRefs = projectAutonomyHealthEvidenceRefsForReview(
+    args.group.evidenceRefs,
+  );
+  const summary =
+    args.group.summaries[0] === undefined
+      ? "Health signal requires owner action."
+      : projectAutonomyHealthSummaryForReview(
+          args.group.summaries[0],
+          args.group.evidenceRefs,
+        );
   const item = queue.enqueue({
     context:
       `Autonomy health review run ${args.runId} grouped ${args.group.signalCount} signal(s). ` +
-      `Labels: ${args.group.labels.join(", ")}. Evidence: ${args.group.evidenceRefs
+      `Labels: ${args.group.labels.join(", ")}. Evidence: ${evidenceRefs
         .map((ref) => `${ref.kind}:${ref.ref}`)
         .join(", ")}`,
     question,
     reason:
-      `${args.group.summaries[0] ?? "Health signal requires owner action."} ` +
+      `${summary} ` +
       `Actionability is ${args.group.actionability}; local code repair should not be opened automatically.`,
     source: "autonomy-health-reviewer",
     answerBehavior: "record-only",
@@ -698,6 +715,19 @@ function enqueueOwnerQuestion(args: {
       "Treat as external/provider noise for now",
       "Escalate to a service/auth repair outside KOTA",
     ],
+  });
+  args.emitOwnerQuestionAsked?.({
+    id: item.id,
+    question: item.question,
+    reason: item.reason,
+    source: item.source,
+    context: item.context,
+    answerBehavior: item.answerBehavior,
+    origin: item.origin,
+    proposedAnswers: item.proposedAnswers ?? [],
+    timeoutMs: item.timeoutMs ?? null,
+    defaultResolution: item.defaultResolution ?? null,
+    defaultAnswer: item.defaultAnswer ?? null,
   });
   return {
     kind: "owner-question",
@@ -716,6 +746,7 @@ export function applyAutonomyHealthReviewActions(args: {
   runId: string;
   review: AutonomyHealthReview;
   nowIso: string;
+  emitOwnerQuestionAsked?: (payload: OwnerQuestionAskedPayload) => void;
 }): AutonomyHealthReviewActionResult {
   const applied = args.review.groups.map((group): AutonomyHealthAppliedAction => {
     if (shouldCreateLocalRepairTask(group)) {
@@ -733,6 +764,7 @@ export function applyAutonomyHealthReviewActions(args: {
         projectDir: args.projectDir,
         runId: args.runId,
         group,
+        emitOwnerQuestionAsked: args.emitOwnerQuestionAsked,
       });
     }
     return {
