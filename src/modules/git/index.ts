@@ -21,6 +21,7 @@ export type {
 	AutomationWorktreeOperatorState,
 	AutomationWorktreeOperatorStatus,
 	AutomationWorktreeRuntimeResources,
+	AutomationWorktreeRunState,
 	AutomationWorktreeSelector,
 	AutomationWorktreeState,
 	CleanupEligibility,

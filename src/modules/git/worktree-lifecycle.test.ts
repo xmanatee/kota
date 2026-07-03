@@ -105,7 +105,7 @@ describe("automation worktree lifecycle", () => {
 			runId: created.metadata.runId,
 		});
 		expect(blocked.removed).toBe(false);
-		expect(blocked.inspection.metadata.lastCleanupBlockers).toContain("worktree is locked: agent running");
+		expect(blocked.inspection.metadata.lastCleanupBlockers).toContain("stale worktree is locked: agent running");
 
 		const unlocked = unlockAutomationWorktree({
 			projectDir: repo,
@@ -123,6 +123,7 @@ describe("automation worktree lifecycle", () => {
 		expect(removed.inspection.exists).toBe(false);
 		expect(removed.inspection.metadata.state).toBe("removed");
 		expect(existsSync(created.metadata.workspaceDir)).toBe(false);
+		expect(git(repo, ["branch", "--list", created.metadata.branch])).toBe("");
 		expect(git(repo, ["status", "--porcelain=v1", "--untracked-files=all"])).toBe("");
 	});
 

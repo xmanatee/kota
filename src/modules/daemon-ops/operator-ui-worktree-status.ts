@@ -4,7 +4,7 @@ import type { StatusSnapshot } from "./status-cli.js";
 
 function worktreeRole(worktree: AutomationWorktreeOperatorStatus): UiRole {
   if (worktree.state === "conflicted") return "error";
-  if (worktree.cleanupStatus === "blocked" || worktree.state === "pending-merge") return "warn";
+  if (worktree.cleanupStatus === "blocked" || worktree.state === "pending-merge" || worktree.state === "stale") return "warn";
   if (worktree.cleanupStatus === "eligible" || worktree.state === "merged") return "success";
   return "muted";
 }
@@ -24,6 +24,7 @@ function worktreeDetail(worktree: AutomationWorktreeOperatorStatus): string {
         : `resources ${resources.profileId} ports ${resources.ports.start}-${resources.ports.end}`;
   return [
     `run ${worktree.runId}`,
+    `run-state ${worktree.runState}`,
     `branch ${worktree.branch}`,
     `dirty ${worktree.dirtyState}`,
     `merge ${worktree.mergeStatus}`,

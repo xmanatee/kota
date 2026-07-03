@@ -41,6 +41,7 @@ function makeWorktree(
     headCommit: "2222222222222222222222222222222222222222",
     state: "active",
     metadataState: "active",
+    runState: "active",
     dirtyState: "clean",
     dirtyEntries: [],
     mergeStatus: "not merged",
@@ -130,6 +131,8 @@ describe("formatStatusOutput automation worktrees", () => {
     expect(out).toContain("pending-merge");
     expect(out).toContain("conflicted");
     expect(out).toContain("Cleanup");
+    expect(out).toContain("Run");
+    expect(out).toContain("active");
     expect(out).toContain("eligible");
     expect(out).toContain("blocked: worktree has untracked files");
     expect(out).toContain("Runtime resources");

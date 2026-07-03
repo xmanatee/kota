@@ -18,7 +18,7 @@ function cleanupValue(worktree: AutomationWorktreeOperatorStatus): string {
 
 function worktreeRole(worktree: AutomationWorktreeOperatorStatus): SemanticRole {
   if (worktree.state === "conflicted") return "error";
-  if (worktree.cleanupStatus === "blocked" || worktree.state === "pending-merge") return "warn";
+  if (worktree.cleanupStatus === "blocked" || worktree.state === "pending-merge" || worktree.state === "stale") return "warn";
   if (worktree.cleanupStatus === "eligible" || worktree.state === "merged") return "success";
   return worktree.state === "removed" ? "muted" : "info";
 }
@@ -49,9 +49,26 @@ function worktreeStatusEntries(worktree: AutomationWorktreeOperatorStatus): KVEn
       value: `base ${worktree.baseCommit.slice(0, 8) || "unknown"}, head ${worktree.headCommit.slice(0, 8) || "unknown"}`,
       role: "muted",
     },
-    { label: "Dirty", value: worktree.dirtyState, role: worktree.dirtyState === "conflicted" ? "error" : worktree.dirtyState === "dirty" ? "warn" : "muted" },
-    { label: "Merge", value: worktree.mergeStatus, role: worktree.state === "conflicted" ? "error" : worktree.state === "pending-merge" ? "warn" : "muted" },
-    { label: "Cleanup", value: cleanupValue(worktree), role: worktree.cleanupStatus === "blocked" ? "warn" : worktree.cleanupStatus === "eligible" ? "success" : "muted" },
+    {
+      label: "Run",
+      value: worktree.runState,
+      role: worktree.runState === "active" ? "info" : worktree.state === "stale" ? "warn" : "muted",
+    },
+    {
+      label: "Dirty",
+      value: worktree.dirtyState,
+      role: worktree.dirtyState === "conflicted" ? "error" : worktree.dirtyState === "dirty" ? "warn" : "muted",
+    },
+    {
+      label: "Merge",
+      value: worktree.mergeStatus,
+      role: worktree.state === "conflicted" ? "error" : worktree.state === "pending-merge" ? "warn" : "muted",
+    },
+    {
+      label: "Cleanup",
+      value: cleanupValue(worktree),
+      role: worktree.cleanupStatus === "blocked" ? "warn" : worktree.cleanupStatus === "eligible" ? "success" : "muted",
+    },
     ...(runtimeResources !== null
       ? [{ label: "Runtime resources", value: runtimeResources, role: "info" as const }]
       : []),

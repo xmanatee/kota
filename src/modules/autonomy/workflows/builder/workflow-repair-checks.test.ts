@@ -72,6 +72,7 @@ describe("builder workflow prompt and repair checks", () => {
     const dir = join(tmpdir(), `kota-mobile-skip-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(join(dir, "clients/mobile"), { recursive: true });
     try {
+      execFileSync("git", ["init"], { cwd: dir, stdio: "ignore" });
       writeFileSync(join(dir, "clients/mobile/package.json"), "{}\n");
       expect(checkMobileTypecheck(dir)).toBe(
         "OK: mobile client dependencies not installed; no staged mobile changes",
@@ -85,10 +86,22 @@ describe("builder workflow prompt and repair checks", () => {
     const dir = join(tmpdir(), `kota-mobile-partial-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(join(dir, "clients/mobile/node_modules"), { recursive: true });
     try {
+      execFileSync("git", ["init"], { cwd: dir, stdio: "ignore" });
       writeFileSync(join(dir, "clients/mobile/package.json"), "{}\n");
       expect(checkMobileTypecheck(dir)).toBe(
         "OK: mobile client dependencies not installed; no staged mobile changes",
       );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails mobile typecheck when staged mobile changes cannot be inspected", () => {
+    const dir = join(tmpdir(), `kota-mobile-no-git-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(join(dir, "clients/mobile"), { recursive: true });
+    try {
+      writeFileSync(join(dir, "clients/mobile/package.json"), "{}\n");
+      expect(() => checkMobileTypecheck(dir)).toThrow(/Cannot inspect staged clients\/mobile changes/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

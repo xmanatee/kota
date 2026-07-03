@@ -21,6 +21,62 @@ import { loadRunsInWindow } from "#modules/workflow-ops/runs/workflow-history.js
 
 const RUN_CHECK_MAX_BUFFER = 10 * 1024 * 1024;
 const RUN_CHECK_OUTPUT_TAIL_LIMIT = 20_000;
+const RUN_CHECK_TIMEOUT_GRACE_MS = 5_000;
+const RUN_CHECK_WRAPPER_SCRIPT = `
+const { spawn } = require("node:child_process");
+const command = process.argv[1];
+const timeoutMs = Number(process.argv[2]);
+const graceMs = Number(process.argv[3]);
+const child = spawn(command, {
+  shell: true,
+  detached: process.platform !== "win32",
+  stdio: ["ignore", "pipe", "pipe"],
+});
+let timedOut = false;
+let exiting = false;
+child.stdout.pipe(process.stdout);
+child.stderr.pipe(process.stderr);
+function killTree(signal) {
+  if (child.pid === undefined) return;
+  const ignoreExited = (error) => {
+    if (!error || error.code === "ESRCH") return;
+    console.error(error.stack || String(error));
+  };
+  try {
+    if (process.platform !== "win32") process.kill(-child.pid, signal);
+    else child.kill(signal);
+  } catch (error) {
+    ignoreExited(error);
+  }
+}
+function exitFromSignal(signal) {
+  if (exiting) return;
+  exiting = true;
+  killTree(signal);
+  process.exit(signal === "SIGTERM" ? 143 : 130);
+}
+const timer = setTimeout(() => {
+  timedOut = true;
+  killTree("SIGTERM");
+  setTimeout(() => killTree("SIGKILL"), graceMs).unref();
+}, timeoutMs);
+process.on("SIGTERM", () => exitFromSignal("SIGTERM"));
+process.on("SIGINT", () => exitFromSignal("SIGINT"));
+child.on("error", (error) => {
+  clearTimeout(timer);
+  console.error(error.stack || String(error));
+  process.exit(127);
+});
+child.on("close", (code, signal) => {
+  clearTimeout(timer);
+  if (timedOut) {
+    console.error("Command timed out after " + timeoutMs + "ms: " + command);
+    process.exit(124);
+  }
+  if (signal) process.exit(signal === "SIGTERM" ? 143 : 130);
+  process.exit(code ?? 1);
+});
+`;
 const SYSTEM_COMMAND_PATH_ENTRIES = [
   "/opt/homebrew/bin",
   "/opt/homebrew/sbin",
@@ -83,15 +139,24 @@ function buildRunCheckEnv(cwd: string): NodeJS.ProcessEnv {
 }
 
 export function runCheck(command: string, cwd: string, timeoutMs = 120_000): string {
-  const result = spawnSync(command, {
-    shell: true,
+  const result = spawnSync(process.execPath, [
+    "-e",
+    RUN_CHECK_WRAPPER_SCRIPT,
+    command,
+    String(timeoutMs),
+    String(RUN_CHECK_TIMEOUT_GRACE_MS),
+  ], {
     cwd,
     env: buildRunCheckEnv(cwd),
-    timeout: timeoutMs,
+    timeout: timeoutMs + RUN_CHECK_TIMEOUT_GRACE_MS + 1_000,
     encoding: "utf-8",
     maxBuffer: RUN_CHECK_MAX_BUFFER,
+    stdio: ["ignore", "pipe", "pipe"],
   });
   const rawOutput = [result.stdout, result.stderr].filter(Boolean).join("\n");
+  if (result.error !== undefined) {
+    throw result.error;
+  }
   if (result.status !== 0) {
     throw new Error(tailTruncate(rawOutput, RUN_CHECK_OUTPUT_TAIL_LIMIT) || `Command failed: ${command}`);
   }

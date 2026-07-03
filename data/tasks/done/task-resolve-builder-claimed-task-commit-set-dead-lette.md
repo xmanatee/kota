@@ -1,13 +1,13 @@
 ---
 id: task-resolve-builder-claimed-task-commit-set-dead-lette
 title: Resolve builder claimed-task-commit-set dead letter
-status: blocked
+status: done
 priority: p1
 area: autonomy
 task_class: Platform
 summary: The current builder workflow-dispatch dead letter reports the build step exhausted repair attempts on claimed-task-commit-set while working the classification follow-up. Inspect the failed builder run referenced by the dead-letter item, clear or complete the task claim safely, and redrive or dismiss the DLQ with recorded evidence.
 created_at: 2026-07-01T12:34:02.462Z
-updated_at: 2026-07-01T13:08:27.000Z
+updated_at: 2026-07-03T00:50:23.528Z
 ---
 
 ## Problem
@@ -60,19 +60,17 @@ The cited failed builder run was inspected. The stale failed run had claimed
 `claimed-task-commit-set` repair check after editing existing `done/` task
 records alongside the claimed task state.
 
-This run repairs the builder attribution bug that made those existing
-terminal-task edits hide the task that became terminal in the commit set:
-builder summaries and claimed-task checks now prefer tasks that became terminal
-against the comparison ref, while still rejecting commit sets that newly finish
-an additional task. The separate classification task is left in `ready/` so
-this claimed run does not complete another task.
+The earlier repair run fixed the builder attribution bug that made those
+existing terminal-task edits hide the task that became terminal in the commit
+set: builder summaries and claimed-task checks now prefer tasks that became
+terminal against the comparison ref, while still rejecting commit sets that
+newly finish an additional task. The separate classification task was left in
+`ready/` by that claimed repair run and was later completed by a separate
+builder run.
 
-Canonical cleanup is still blocked from this worktree sandbox:
-
-- Direct claim release against `/Users/xmanatee/Desktop/mono/apps/kota` failed
-  with `EPERM` on the canonical `.kota/task-claims/active/...` file.
-- Daemon-control HTTP access failed with `TypeError: fetch failed`.
-- The worktree-local DLQ CLI could not see the canonical dead-letter item.
+Canonical cleanup is now complete. The prior blocked cleanup attempts are
+preserved in the cited run artifact, and the current canonical cleanup evidence
+is recorded below.
 
 ## Unblock Precondition
 
@@ -80,13 +78,27 @@ kind: operator-capture
 path: .kota/runs/canonical-builder-claimed-task-dlq-cleanup/cleanup-evidence.txt
 description: Operator-captured canonical cleanup transcript showing the before state, dismissal or redrive of dlq-ca4b146f-91fc-41c9-a210-881c92bee29b, stale claim release or expiry for task-classify-workflow-generated-follow-up-tasks, and the after state with no open builder claimed-task-commit-set DLQ item or active stale claim.
 
+## Canonical Cleanup Evidence
+
+- `dlq-ca4b146f-91fc-41c9-a210-881c92bee29b` was dismissed in the canonical
+  `.kota/dead-letter-queue/items.json` store at `2026-07-03T00:49:35.548Z`.
+- The referenced task `task-classify-workflow-generated-follow-up-tasks` is now
+  in `data/tasks/done/`.
+- `.kota/task-claims/active/` has no live claim files.
+- The leaked qONF80 validation process tree was killed, its untracked
+  `node_modules` worktree dirt was removed, and the qONF80 automation worktree
+  was cleaned through `cleanupAutomationWorktree`.
+- The remaining stale worktrees contain tracked changes, not live locks; their
+  stale `builder agent running` worktree locks were cleared after inspection.
+
 ## Acceptance Evidence
 
 - `.kota/runs/2026-07-01T12-38-34-978Z-builder-6jn9pm/dead-letter-resolution.md`
   records the cited DLQ, failed run, stale claim, root cause, and sandbox-
   blocked canonical cleanup attempts.
-- `task-classify-workflow-generated-follow-up-tasks` remains in `ready/` for a
-  future builder run instead of being completed in this claimed repair.
+- `task-classify-workflow-generated-follow-up-tasks` was completed by a later
+  builder run and now lives in `data/tasks/done/`, separate from this claimed
+  repair run.
 - The builder claimed-task repair now accepts the claimed task that became
   terminal even when the commit also edits existing terminal task records, and
   still rejects a commit set that newly completes another task.

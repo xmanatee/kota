@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -110,7 +110,12 @@ export function checkMobileTypecheck(projectDir: string): string {
       .filter((path) => !MOBILE_TYPECHECK_VALIDATION_ONLY_PATHS.has(path));
     if (stagedAppChanges.length > 0) {
       throw new Error(
-        `Mobile client dependencies are not installed; cannot run mobile typecheck for staged mobile changes. Missing: ${missingDependencyMarkers.join(", ")}. Changed: ${stagedAppChanges.join(", ")}. Run \`pnpm install\` in clients/mobile before staging mobile edits.`,
+        [
+          "Mobile client dependencies are not installed; cannot run mobile typecheck for staged mobile changes.",
+          `Missing: ${missingDependencyMarkers.join(", ")}.`,
+          `Changed: ${stagedAppChanges.join(", ")}.`,
+          "Run `pnpm install` in clients/mobile before staging mobile edits.",
+        ].join(" "),
       );
     }
     return "OK: mobile client dependencies not installed; no staged mobile changes";
@@ -123,20 +128,21 @@ function missingMobileTypecheckDependencyMarkers(mobileDir: string): string[] {
 }
 
 function listStagedPathChanges(projectDir: string, pathspec: string): string[] {
-  try {
-    const output = execFileSync(
-      "git",
-      ["diff", "--cached", "--name-only", "--", pathspec],
-      {
-        cwd: projectDir,
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "ignore"],
-      },
-    );
-    return output.split("\n").map((line) => line.trim()).filter(Boolean);
-  } catch {
-    return [];
+  const result = spawnSync(
+    "git",
+    ["diff", "--cached", "--name-only", "--", pathspec],
+    {
+      cwd: projectDir,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  if (result.error !== undefined) throw result.error;
+  if (result.status !== 0) {
+    const reason = result.stderr.trim() || result.stdout.trim() || `git exited ${result.status}`;
+    throw new Error(`Cannot inspect staged ${pathspec} changes: ${reason}`);
   }
+  return result.stdout.split("\n").map((line) => line.trim()).filter(Boolean);
 }
 
 export function checkMacosSwiftBuild(projectDir: string): string {

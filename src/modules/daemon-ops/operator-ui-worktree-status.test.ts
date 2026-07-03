@@ -38,6 +38,7 @@ function worktree(
     headCommit: "2222222222222222222222222222222222222222",
     state: "conflicted",
     metadataState: "pending-merge",
+    runState: "finished",
     dirtyState: "conflicted",
     dirtyEntries: ["UU README.md"],
     mergeStatus: "conflicted",
@@ -66,6 +67,7 @@ describe("Status UI automation worktrees", () => {
       title: "conflicted: task-ui-worktree",
       role: "error",
     });
+    expect(worktrees?.items[0]?.detail).toContain("run-state finished");
     expect(worktrees?.items[0]?.detail).toContain("merge conflicted");
     expect(worktrees?.items[0]?.detail).toContain("cleanup blocked: worktree has conflicted paths");
     expect(worktrees?.items[0]?.detail).toContain("resources task-ui-worktree:run-ui ports 41000-41019");

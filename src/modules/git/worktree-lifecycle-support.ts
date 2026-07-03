@@ -71,7 +71,42 @@ export function writeMetadata(projectDir: string, metadata: AutomationWorktreeMe
 }
 
 export function readMetadata(selector: AutomationWorktreeSelector): AutomationWorktreeMetadata {
-	return JSON.parse(readFileSync(metadataPath(selector.projectDir, selector.taskId, selector.runId), "utf8")) as AutomationWorktreeMetadata;
+	return readAutomationWorktreeMetadataPath(metadataPath(selector.projectDir, selector.taskId, selector.runId));
+}
+
+export function readAutomationWorktreeMetadataPath(path: string): AutomationWorktreeMetadata {
+	const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
+	assertAutomationWorktreeMetadata(path, parsed);
+	return parsed;
+}
+
+function assertAutomationWorktreeMetadata(path: string, value: unknown): asserts value is AutomationWorktreeMetadata {
+	if (!isRecord(value)) throw new Error(`Invalid worktree metadata at ${path}: expected object`);
+	const requiredStrings = [
+		"taskId",
+		"runId",
+		"workflowId",
+		"owner",
+		"workspaceDir",
+		"branch",
+		"baseCommit",
+		"createdAt",
+		"updatedAt",
+	] as const;
+	if (value.schemaVersion !== 1) throw new Error(`Invalid worktree metadata at ${path}: schemaVersion must be 1`);
+	for (const key of requiredStrings) {
+		if (typeof value[key] !== "string") throw new Error(`Invalid worktree metadata at ${path}: ${key} must be a string`);
+	}
+	if (!["active", "pending-merge", "merged", "removed"].includes(String(value.state))) {
+		throw new Error(`Invalid worktree metadata at ${path}: unsupported state ${String(value.state)}`);
+	}
+	if (!Array.isArray(value.copiedSetupFiles) || value.copiedSetupFiles.some((item) => typeof item !== "string")) {
+		throw new Error(`Invalid worktree metadata at ${path}: copiedSetupFiles must be a string array`);
+	}
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export function readDirtyState(repoDir: string): WorktreeDirtyState {
@@ -124,7 +159,7 @@ export function uniqueWorkspaceDir(projectDir: string, root: string, taskId: str
 	throw new Error(`No available worktree path under ${join(projectDir, root)}`);
 }
 
-function branchExists(projectDir: string, branch: string): boolean {
+export function localBranchExists(projectDir: string, branch: string): boolean {
 	return gitStatus(projectDir, ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`]) === 0;
 }
 
@@ -132,7 +167,7 @@ export function uniqueBranch(projectDir: string, taskId: string, runId: string):
 	const base = `kota/task/${safeSegment(taskId)}/${safeSegment(runId)}`;
 	for (let attempt = 1; attempt < 100; attempt += 1) {
 		const candidate = attempt === 1 ? base : `${base}-${attempt}`;
-		if (!branchExists(projectDir, candidate)) return candidate;
+		if (!localBranchExists(projectDir, candidate)) return candidate;
 	}
 	throw new Error(`No available automation branch for ${taskId}/${runId}`);
 }

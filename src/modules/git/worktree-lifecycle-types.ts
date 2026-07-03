@@ -2,6 +2,7 @@ export type AutomationWorktreeState = "active" | "pending-merge" | "merged" | "r
 
 export type AutomationWorktreeOperatorState =
 	| "active"
+	| "stale"
 	| "pending-merge"
 	| "conflicted"
 	| "merged"
@@ -10,6 +11,8 @@ export type AutomationWorktreeOperatorState =
 export type AutomationWorktreeCleanupStatus = "eligible" | "blocked" | "removed";
 
 export type AutomationWorktreeDirtySummary = "clean" | "dirty" | "conflicted";
+
+export type AutomationWorktreeRunState = "active" | "finished" | "missing" | "orphaned-running";
 
 export type AutomationWorktreeOperatorStatus = {
 	taskId: string;
@@ -24,6 +27,7 @@ export type AutomationWorktreeOperatorStatus = {
 	headCommit: string;
 	state: AutomationWorktreeOperatorState;
 	metadataState: AutomationWorktreeState;
+	runState: AutomationWorktreeRunState;
 	dirtyState: AutomationWorktreeDirtySummary;
 	dirtyEntries: string[];
 	mergeStatus: string;
@@ -101,6 +105,7 @@ export type AutomationWorktreeInspection = {
 	dirty: WorktreeDirtyState;
 	lock: WorktreeLockState;
 	push: WorktreePushState;
+	runState: AutomationWorktreeRunState;
 	cleanup: CleanupEligibility;
 };
 
