@@ -193,3 +193,5 @@ helper artifacts, without importing a benchmark suite or trusting agent prose.
   `strategy-result.json`, verifier output, and any objective metric values.
 - Evidence of a temporary shortcut/regression causing the fixture to fail,
   with the regression reverted before staging.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-07-05T15:02:44.625Z -->
