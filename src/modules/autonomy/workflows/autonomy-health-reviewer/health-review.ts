@@ -364,6 +364,10 @@ function taskIdForGroup(group: AutonomyHealthReviewGroup): string {
   return `task-health-${slugFromDedupeKey(group.dedupeKey)}`;
 }
 
+function fingerprintedTaskIdForGroup(group: AutonomyHealthReviewGroup): string {
+  return `${taskIdForGroup(group)}-${group.evidenceFingerprint.slice(0, 12)}`;
+}
+
 function taskPathForId(projectDir: string, state: RepoTaskState, taskId: string): string {
   return join(projectDir, "data", "tasks", state, `${taskId}.md`);
 }
@@ -540,8 +544,11 @@ function buildTaskBody(group: AutonomyHealthReviewGroup): string {
   ].join("\n");
 }
 
-function serializeTask(group: AutonomyHealthReviewGroup, nowIso: string): string {
-  const taskId = taskIdForGroup(group);
+function serializeTask(
+  group: AutonomyHealthReviewGroup,
+  nowIso: string,
+  taskId = taskIdForGroup(group),
+): string {
   const attrs: TaskAttrs = {
     id: taskId,
     title: taskTitle(group),
@@ -588,6 +595,53 @@ function taskAlreadyRecordsEvidence(
   );
 }
 
+function isTerminalTaskState(state: RepoTaskState): boolean {
+  return state === "done" || state === "dropped";
+}
+
+function createReadyTask(args: {
+  projectDir: string;
+  taskId: string;
+  group: AutonomyHealthReviewGroup;
+  nowIso: string;
+}): Extract<AutonomyHealthAppliedAction, { kind: "created-task" }> {
+  const taskPath = taskPathForId(args.projectDir, "ready", args.taskId);
+  mkdirSync(dirname(taskPath), { recursive: true });
+  writeFileSync(
+    taskPath,
+    serializeTask(args.group, args.nowIso, args.taskId),
+    "utf-8",
+  );
+  stageBestEffort(args.projectDir, taskPath);
+  return {
+    kind: "created-task",
+    taskId: args.taskId,
+    path: relative(args.projectDir, taskPath),
+    dedupeKey: args.group.dedupeKey,
+  };
+}
+
+function refreshReadyTask(args: {
+  projectDir: string;
+  taskId: string;
+  path: string;
+  group: AutonomyHealthReviewGroup;
+  nowIso: string;
+}): Extract<AutonomyHealthAppliedAction, { kind: "refreshed-task" }> {
+  writeFileSync(
+    args.path,
+    serializeTask(args.group, args.nowIso, args.taskId),
+    "utf-8",
+  );
+  stageBestEffort(args.projectDir, args.path);
+  return {
+    kind: "refreshed-task",
+    taskId: args.taskId,
+    path: relative(args.projectDir, args.path),
+    dedupeKey: args.group.dedupeKey,
+  };
+}
+
 function createOrRefreshTask(args: {
   projectDir: string;
   group: AutonomyHealthReviewGroup;
@@ -604,6 +658,62 @@ function createOrRefreshTask(args: {
         reason: "existing task already records this evidence",
       };
     }
+    if (isTerminalTaskState(existing.state)) {
+      const existingEvidenceTask = findOpenTaskRecordingEvidence(
+        args.projectDir,
+        args.group,
+      );
+      if (existingEvidenceTask) {
+        return {
+          kind: "skipped-task",
+          taskId: existingEvidenceTask.taskId,
+          dedupeKey: args.group.dedupeKey,
+          reason:
+            `existing ${existingEvidenceTask.state} task already tracks this evidence: ` +
+            relative(args.projectDir, existingEvidenceTask.path),
+        };
+      }
+
+      const fingerprintedTaskId = fingerprintedTaskIdForGroup(args.group);
+      const fingerprintedExisting = findExistingTask(
+        args.projectDir,
+        fingerprintedTaskId,
+      );
+      if (fingerprintedExisting) {
+        if (taskAlreadyRecordsEvidence(fingerprintedExisting.raw, args.group)) {
+          return {
+            kind: "skipped-task",
+            taskId: fingerprintedTaskId,
+            dedupeKey: args.group.dedupeKey,
+            reason: "existing task already records this evidence",
+          };
+        }
+        if (fingerprintedExisting.state !== "ready") {
+          return {
+            kind: "skipped-task",
+            taskId: fingerprintedTaskId,
+            dedupeKey: args.group.dedupeKey,
+            reason:
+              `existing task is ${fingerprintedExisting.state}; ` +
+              "leaving lifecycle state unchanged",
+          };
+        }
+        return refreshReadyTask({
+          projectDir: args.projectDir,
+          taskId: fingerprintedTaskId,
+          path: fingerprintedExisting.path,
+          group: args.group,
+          nowIso: args.nowIso,
+        });
+      }
+
+      return createReadyTask({
+        projectDir: args.projectDir,
+        taskId: fingerprintedTaskId,
+        group: args.group,
+        nowIso: args.nowIso,
+      });
+    }
     if (existing.state !== "ready") {
       return {
         kind: "skipped-task",
@@ -612,14 +722,14 @@ function createOrRefreshTask(args: {
         reason: `existing task is ${existing.state}; leaving lifecycle state unchanged`,
       };
     }
-    writeFileSync(existing.path, serializeTask(args.group, args.nowIso), "utf-8");
-    stageBestEffort(args.projectDir, existing.path);
-    return {
-      kind: "refreshed-task",
+
+    return refreshReadyTask({
+      projectDir: args.projectDir,
       taskId,
-      path: relative(args.projectDir, existing.path),
-      dedupeKey: args.group.dedupeKey,
-    };
+      path: existing.path,
+      group: args.group,
+      nowIso: args.nowIso,
+    });
   }
 
   const existingEvidenceTask = findOpenTaskRecordingEvidence(
@@ -637,16 +747,12 @@ function createOrRefreshTask(args: {
     };
   }
 
-  const taskPath = taskPathForId(args.projectDir, "ready", taskId);
-  mkdirSync(dirname(taskPath), { recursive: true });
-  writeFileSync(taskPath, serializeTask(args.group, args.nowIso), "utf-8");
-  stageBestEffort(args.projectDir, taskPath);
-  return {
-    kind: "created-task",
+  return createReadyTask({
+    projectDir: args.projectDir,
     taskId,
-    path: relative(args.projectDir, taskPath),
-    dedupeKey: args.group.dedupeKey,
-  };
+    group: args.group,
+    nowIso: args.nowIso,
+  });
 }
 
 function ownerQuestionForGroup(group: AutonomyHealthReviewGroup): string {

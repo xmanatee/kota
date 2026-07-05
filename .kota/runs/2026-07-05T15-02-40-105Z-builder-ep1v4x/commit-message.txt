@@ -1,0 +1,5 @@
+Unmask health-reviewer progress DLQ dedupe
+
+- create fingerprint-scoped health tasks after closed same-dedupe repairs
+- add regression coverage and DLQ reconciliation evidence
+- mark the progress-reviewer timeout DLQ task done

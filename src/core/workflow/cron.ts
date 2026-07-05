@@ -126,15 +126,15 @@ function getLocalParts(date: Date, tz: string): LocalParts {
   return { year, month, dom, dow, hour, minute };
 }
 
-/** Extract wall-clock date/time components in the process local timezone. */
-function getLocalPartsLocal(date: Date): LocalParts {
+/** Extract wall-clock date/time components in UTC. */
+function getUtcParts(date: Date): LocalParts {
   return {
-    year: date.getFullYear(),
-    month: date.getMonth() + 1,
-    dom: date.getDate(),
-    dow: date.getDay(),
-    hour: date.getHours(),
-    minute: date.getMinutes(),
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    dom: date.getUTCDate(),
+    dow: date.getUTCDay(),
+    hour: date.getUTCHours(),
+    minute: date.getUTCMinutes(),
   };
 }
 
@@ -166,7 +166,7 @@ function localTimeToUTC(
 /**
  * Compute the next fire time for a cron expression strictly after `from`.
  * When `timezone` is provided (IANA name), the expression is evaluated in that
- * timezone's wall-clock time. When omitted, the process local timezone is used.
+ * timezone's wall-clock time. When omitted, UTC wall-clock time is used.
  * Returns null if no match is found within 4 years.
  */
 export function getNextCronTime(expr: string, from: Date, timezone?: string): Date | null {
@@ -187,18 +187,18 @@ export function getNextCronTime(expr: string, from: Date, timezone?: string): Da
 
   // Start one minute after `from`, zero out sub-minute precision
   const start = new Date(from.getTime() + 60_000);
-  start.setSeconds(0, 0);
+  start.setUTCSeconds(0, 0);
 
   const maxMs = from.getTime() + 4 * 365 * 24 * 60 * 60 * 1000;
   let cur = start;
 
   const lp = (d: Date): LocalParts =>
-    timezone ? getLocalParts(d, timezone) : getLocalPartsLocal(d);
+    timezone ? getLocalParts(d, timezone) : getUtcParts(d);
 
   const mkDate = (y: number, mo: number, d: number, h: number, mi: number): Date =>
     timezone
       ? localTimeToUTC(y, mo, d, h, mi, timezone)
-      : new Date(y, mo - 1, d, h, mi, 0, 0);
+      : new Date(Date.UTC(y, mo - 1, d, h, mi, 0, 0));
 
   while (cur.getTime() <= maxMs) {
     const { year, month, dom, dow, hour, minute } = lp(cur);

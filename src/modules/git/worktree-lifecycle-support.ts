@@ -23,6 +23,20 @@ export const DEFAULT_WORKTREE_ROOT = ".worktrees";
 const METADATA_DIR = join(".kota", "worktrees");
 const DEFAULT_INCLUDE_FILE = ".worktreeinclude";
 
+type AutomationWorktreeRuntimeResources = NonNullable<AutomationWorktreeMetadata["runtimeResources"]>;
+type AutomationWorktreePortRange = NonNullable<AutomationWorktreeRuntimeResources["ports"]>;
+
+export type GitJsonValue = string | number | boolean | null | GitJsonValue[] | GitJsonObject;
+export type GitJsonObject = { [key: string]: GitJsonValue | undefined };
+
+export function readGitJsonFile(path: string): GitJsonValue {
+	return JSON.parse(readFileSync(path, "utf8")) as GitJsonValue;
+}
+
+export function isGitJsonObject(value: GitJsonValue | undefined): value is GitJsonObject {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export function git(cwd: string, args: string[]): string {
 	return execFileSync("git", args, {
 		cwd,
@@ -75,13 +89,16 @@ export function readMetadata(selector: AutomationWorktreeSelector): AutomationWo
 }
 
 export function readAutomationWorktreeMetadataPath(path: string): AutomationWorktreeMetadata {
-	const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
+	const parsed = readGitJsonFile(path);
 	assertAutomationWorktreeMetadata(path, parsed);
 	return parsed;
 }
 
-function assertAutomationWorktreeMetadata(path: string, value: unknown): asserts value is AutomationWorktreeMetadata {
-	if (!isRecord(value)) throw new Error(`Invalid worktree metadata at ${path}: expected object`);
+function assertAutomationWorktreeMetadata(
+	path: string,
+	value: GitJsonValue | AutomationWorktreeMetadata,
+): asserts value is AutomationWorktreeMetadata {
+	if (!isGitJsonObject(value)) throw new Error(`Invalid worktree metadata at ${path}: expected object`);
 	const requiredStrings = [
 		"taskId",
 		"runId",
@@ -103,10 +120,47 @@ function assertAutomationWorktreeMetadata(path: string, value: unknown): asserts
 	if (!Array.isArray(value.copiedSetupFiles) || value.copiedSetupFiles.some((item) => typeof item !== "string")) {
 		throw new Error(`Invalid worktree metadata at ${path}: copiedSetupFiles must be a string array`);
 	}
+	if (value.runtimeResources !== undefined) assertRuntimeResources(path, value.runtimeResources);
+	if (value.lastCleanupBlockers !== undefined && !isStringArray(value.lastCleanupBlockers)) {
+		throw new Error(`Invalid worktree metadata at ${path}: lastCleanupBlockers must be a string array`);
+	}
+	for (const key of ["stateReason", "removedAt", "mergedAt", "mergedCommit"] as const) {
+		if (value[key] !== undefined && typeof value[key] !== "string") {
+			throw new Error(`Invalid worktree metadata at ${path}: ${key} must be a string`);
+		}
+	}
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
+function assertRuntimeResources(
+	path: string,
+	value: GitJsonValue | AutomationWorktreeMetadata["runtimeResources"],
+): asserts value is AutomationWorktreeRuntimeResources {
+	if (!isGitJsonObject(value)) throw new Error(`Invalid worktree metadata at ${path}: runtimeResources must be an object`);
+	for (const key of ["profileId", "agentRunDir"] as const) {
+		if (typeof value[key] !== "string") {
+			throw new Error(`Invalid worktree metadata at ${path}: runtimeResources.${key} must be a string`);
+		}
+	}
+	for (const key of ["tempRoot", "artifactRoot"] as const) {
+		if (value[key] !== undefined && typeof value[key] !== "string") {
+			throw new Error(`Invalid worktree metadata at ${path}: runtimeResources.${key} must be a string`);
+		}
+	}
+	if (value.ports !== undefined) assertPortRange(path, value.ports);
+}
+
+function assertPortRange(
+	path: string,
+	value: GitJsonValue | AutomationWorktreePortRange,
+): asserts value is AutomationWorktreePortRange {
+	if (!isGitJsonObject(value)) throw new Error(`Invalid worktree metadata at ${path}: runtimeResources.ports must be an object`);
+	if (typeof value.start !== "number" || typeof value.end !== "number") {
+		throw new Error(`Invalid worktree metadata at ${path}: runtimeResources.ports must have numeric start and end`);
+	}
+}
+
+function isStringArray(value: GitJsonValue | undefined): value is string[] {
+	return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
 export function readDirtyState(repoDir: string): WorktreeDirtyState {

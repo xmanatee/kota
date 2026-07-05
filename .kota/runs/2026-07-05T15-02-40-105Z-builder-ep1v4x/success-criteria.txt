@@ -1,0 +1,4 @@
+1. Health-reviewer dedupe treats a completed prior repair as stale when the current evidence fingerprint is different, so new actionable progress-reviewer timeout evidence is no longer masked.
+2. A focused regression test proves the different-fingerprint-after-done behavior for the health-reviewer action path.
+3. The three cited July 3 progress-reviewer timeout DLQs are reconciled with durable before/after state and a redrive or dismissal rationale recorded in this run.
+4. The task record and run artifacts contain acceptance evidence, and queue validation passes after the task is moved to done.

@@ -1,0 +1,20 @@
+Attempted canonical command:
+
+pnpm kota task move task-unmask-current-progress-reviewer-timeout-dlqs doing
+
+Result:
+
+The built CLI reached KOTA, but `git mv` failed because this sandbox cannot
+create the parent checkout worktree index lock:
+
+fatal: Unable to create '/Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/task-unmask-current-progress-reviewer-timeout-dlqs-2026-07-05t15-02-40-105z-builder-ep1v4x/index.lock': Operation not permitted
+
+Fallback:
+
+Applied the equivalent task-state file movement in the working tree with
+status updated from `ready` to `doing`.
+
+Final staging:
+
+The final repair step ran `git add -A` successfully, so the task-state fallback
+is present in the staged diff.

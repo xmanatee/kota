@@ -146,13 +146,23 @@ function classifyRun(
 function taskIdFromStepOutputs(run: WorkflowRunMetadata): string | null {
   for (const step of run.steps) {
     const output = step.output;
-    if (!output || typeof output !== "object" || Array.isArray(output)) continue;
-    const taskId = (output as Record<string, unknown>).taskId;
-    if (typeof taskId === "string" && taskId.trim().length > 0) {
-      return taskId.trim();
+    if (hasTaskIdOutput(output) && output.taskId.trim().length > 0) {
+      return output.taskId.trim();
     }
   }
   return null;
+}
+
+function hasTaskIdOutput(
+  value: WorkflowStepResult["output"],
+): value is { readonly taskId: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    "taskId" in value &&
+    typeof value.taskId === "string"
+  );
 }
 
 function dedupeOwnerRecords(
@@ -196,12 +206,13 @@ function executionAttribution(
 
 function isOwnerExecutionStep(step: WorkflowStepResult): boolean {
   if (step.type === "approval" || step.type === "await-event") return true;
-  const output = step.output;
-  if (!output || typeof output !== "object" || Array.isArray(output)) return false;
-  const record = output as Record<string, unknown>;
+  const value = step.output;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
   return (
-    typeof record.ownerQuestionId === "string" ||
-    typeof record.decisionId === "string"
+    ("ownerQuestionId" in value && typeof value.ownerQuestionId === "string") ||
+    ("decisionId" in value && typeof value.decisionId === "string")
   );
 }
 

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
 	assertCanonicalCheckoutReady,
@@ -7,13 +7,15 @@ import {
 	emptyDirtyState,
 	emptyPushState,
 	git,
+	isGitJsonObject,
 	localBranchExists,
 	metadataDir,
 	metadataPath,
 	parseWorktreeList,
-	readAutomationWorktreeMetadataPath,
 	prepareAutomationWorktree,
+	readAutomationWorktreeMetadataPath,
 	readDirtyState,
+	readGitJsonFile,
 	readMetadata,
 	readPushState,
 	uniqueBranch,
@@ -29,8 +31,8 @@ export type {
 	AutomationWorktreeMetadata,
 	AutomationWorktreeOperatorState,
 	AutomationWorktreeOperatorStatus,
-	AutomationWorktreeRuntimeResources,
 	AutomationWorktreeRunState,
+	AutomationWorktreeRuntimeResources,
 	AutomationWorktreeSelector,
 	AutomationWorktreeState,
 	CleanupEligibility,
@@ -44,8 +46,8 @@ import type {
 	AutomationWorktreeInspection,
 	AutomationWorktreeMetadata,
 	AutomationWorktreeOperatorStatus,
-	AutomationWorktreeRuntimeResources,
 	AutomationWorktreeRunState,
+	AutomationWorktreeRuntimeResources,
 	AutomationWorktreeSelector,
 	AutomationWorktreeState,
 	CleanupEligibility,
@@ -241,8 +243,8 @@ function readAutomationWorktreeRunState(projectDir: string, runId: string): Auto
 		if (isActive) throw new Error(`Invalid workflow state: active run ${runId} has no metadata at ${runMetadataPath}`);
 		return "missing";
 	}
-	const runMetadata = JSON.parse(readFileSync(runMetadataPath, "utf8")) as unknown;
-	if (!isRecord(runMetadata) || typeof runMetadata.status !== "string") {
+	const runMetadata = readGitJsonFile(runMetadataPath);
+	if (!isGitJsonObject(runMetadata) || typeof runMetadata.status !== "string") {
 		throw new Error(`Invalid workflow run metadata at ${runMetadataPath}: missing status`);
 	}
 	if (runMetadata.status === "running") return isActive ? "active" : "orphaned-running";
@@ -253,23 +255,19 @@ function readAutomationWorktreeRunState(projectDir: string, runId: string): Auto
 function readActiveWorkflowRunIds(projectDir: string): Set<string> {
 	const statePath = join(projectDir, ".kota", "workflow-state.json");
 	if (!existsSync(statePath)) return new Set();
-	const state = JSON.parse(readFileSync(statePath, "utf8")) as unknown;
-	if (!isRecord(state)) throw new Error(`Invalid workflow state at ${statePath}: expected object`);
+	const state = readGitJsonFile(statePath);
+	if (!isGitJsonObject(state)) throw new Error(`Invalid workflow state at ${statePath}: expected object`);
 	const { activeRuns } = state;
 	if (activeRuns === undefined) return new Set();
 	if (!Array.isArray(activeRuns)) throw new Error(`Invalid workflow state at ${statePath}: activeRuns must be an array`);
 	const runIds = new Set<string>();
 	for (const [index, activeRun] of activeRuns.entries()) {
-		if (!isRecord(activeRun) || typeof activeRun.runId !== "string") {
+		if (!isGitJsonObject(activeRun) || typeof activeRun.runId !== "string") {
 			throw new Error(`Invalid workflow state at ${statePath}: activeRuns[${index}].runId must be a string`);
 		}
 		runIds.add(activeRun.runId);
 	}
 	return runIds;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function operatorStatusForInspection(inspection: AutomationWorktreeInspection): AutomationWorktreeOperatorStatus {
