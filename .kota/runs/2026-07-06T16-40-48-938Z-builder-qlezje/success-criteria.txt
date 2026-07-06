@@ -1,0 +1,3 @@
+1. Replay-protected webhook deliveries use a versioned HMAC signature that covers both X-Kota-Webhook-Timestamp and the raw request body, and that scheme rejects missing or stale timestamps.
+2. Legacy body-only webhook signatures remain documented as authentication without timestamp anti-replay, and callers cannot pair them with X-Kota-Webhook-Timestamp as if they were replay-protected.
+3. Focused regression coverage proves the fixed webhook signature boundary and the task records the final verification command.

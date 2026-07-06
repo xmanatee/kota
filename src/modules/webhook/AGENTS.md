@@ -38,16 +38,15 @@ This directory owns:
 - One route, contributed through `KotaModule.controlRoutes`:
   `POST /webhooks/:name` with a JSON body. Path-segment names must
   match `[a-zA-Z0-9_-]+`; anything else returns 404.
-- Auth is established per request by HMAC-SHA256 over the raw request
-  body using the workflow-scoped secret stored in
-  `KotaConfig.webhooks[<name>].secret`. The signature is carried in
-  `X-Kota-Webhook-Signature` and tolerates either a `sha256=<hex>`
-  prefix or bare hex. Missing or invalid signatures return 401. The
-  route opts out of the daemon Bearer-token middleware via
-  `ControlRouteRegistration.bypassAuth: true`.
-- An optional `X-Kota-Webhook-Timestamp` header (Unix milliseconds)
-  enables replay protection. Requests outside a ±5-minute window are
-  rejected with 401.
+- Auth uses the workflow-scoped secret in
+  `KotaConfig.webhooks[<name>].secret`. Legacy body-only signatures are
+  `X-Kota-Webhook-Signature: sha256=<hex>` or bare hex over the raw body,
+  authenticate the sender, and must omit `X-Kota-Webhook-Timestamp`.
+- Replay-protected deliveries use `X-Kota-Webhook-Signature:
+  sha256-v2=<hex>` over `<timestamp>.<rawBody>`, plus
+  `X-Kota-Webhook-Timestamp` as Unix milliseconds. Missing, tampered, or stale
+  timestamps outside the ±5-minute window return 401. The route opts out of
+  daemon Bearer auth via `ControlRouteRegistration.bypassAuth: true`.
 - Payload threaded through to the workflow run carries `body`, `headers`,
   `timestamp`, and a hashed `idempotencyKey`: `body` is parsed as JSON when the
   raw body is non-empty (falling back to the original string on parse
@@ -98,8 +97,8 @@ This directory owns:
   adapter. Workflows decide whether a signal creates or updates tasks, captures
   knowledge, asks the owner, replies, retries, audits, or no-ops.
 - Owns the signature-validated `POST /webhooks/:name` daemon-control
-  route, including HMAC verification, the optional anti-replay
-  timestamp window, and the per-workflow rate-limit window state. The
+  route, including body-only HMAC authentication, timestamp-bound replay
+  protection, and the per-workflow rate-limit window state. The
   daemon-control core no longer carries a webhook handler.
 - Does not own Slack or Telegram notification (those belong in
   `slack/` and `telegram/`) or retry logic (that lives in `notification`).

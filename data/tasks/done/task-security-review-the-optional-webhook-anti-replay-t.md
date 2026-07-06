@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-optional-webhook-anti-replay-t
 title: Security review: The optional webhook anti-replay timestamp is validated independently of the HMAC signature. Because the signature covers only the raw body, a captured signed body can be resent with a fresh X-Kota-Webhook-Timestamp; the five-minute timestamp check is therefore not cryptographic replay protection when dispatch idempotency has no prior accepted entry or after its retention window expires.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: The optional webhook anti-replay timestamp is validated independently of the HMAC signature. Because the signature covers only the raw body, a captured signed body can be resent with a fresh X-Kota-Webhook-Timestamp; the five-minute timestamp check is therefore not cryptographic replay protection when dispatch idempotency has no prior accepted entry or after its retention window expires.
 created_at: 2026-07-06T16:40:19.048Z
-updated_at: 2026-07-06T16:40:19.048Z
+updated_at: 2026-07-06T16:57:46.237Z
 ---
 
 ## Problem
@@ -111,3 +111,17 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Resolution
+
+Implemented a versioned webhook signature scheme:
+
+- Legacy `sha256=<hex>` or bare-hex signatures continue to authenticate only the raw body and are rejected if paired with `X-Kota-Webhook-Timestamp`.
+- Replay-protected `sha256-v2=<hex>` signatures compute HMAC-SHA256 over `<timestamp>.<rawBody>`, require `X-Kota-Webhook-Timestamp`, reject stale timestamps, and reject attempts to replay a captured signed body with a fresh unsigned timestamp.
+- The generated-secret CLI guidance and webhook module instructions now document body-only signatures as authentication without timestamp anti-replay.
+
+## Verification
+
+- `pnpm test src/modules/webhook/trigger-route.test.ts src/modules/webhook/cli.test.ts`
+- `pnpm typecheck`
+- `pnpm validate-tasks`

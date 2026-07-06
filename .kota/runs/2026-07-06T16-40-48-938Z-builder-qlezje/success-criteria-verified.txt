@@ -1,0 +1,3 @@
+1. Verified: `src/modules/webhook/trigger-route.ts` now accepts replay-protected `sha256-v2=<hex>` signatures only when the HMAC covers `<timestamp>.<rawBody>`, requires `X-Kota-Webhook-Timestamp`, and enforces the five-minute timestamp window.
+2. Verified: legacy body-only `sha256=<hex>` or bare-hex signatures remain authentication-only, the route rejects them when `X-Kota-Webhook-Timestamp` is present, and CLI/module guidance documents that they do not provide timestamp anti-replay.
+3. Verified: `pnpm test src/modules/webhook/trigger-route.test.ts src/modules/webhook/cli.test.ts`, `pnpm typecheck`, `pnpm validate-tasks`, and `pnpm test src/docs-surface.test.ts` all pass.

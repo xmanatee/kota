@@ -2,8 +2,10 @@
  * Signature-validated workflow-trigger route contributed by the webhook
  * module. External systems POST a JSON payload to
  * `POST /webhooks/:name` with an HMAC-SHA256 signature in
- * `X-Kota-Webhook-Signature` (and an optional `X-Kota-Webhook-Timestamp`
- * to opt into anti-replay) to fire the named workflow.
+ * `X-Kota-Webhook-Signature` to fire the named workflow. Legacy
+ * `sha256=<hex>` signatures cover only the raw body and authenticate the
+ * sender. Replay-protected `sha256-v2=<hex>` signatures cover
+ * `X-Kota-Webhook-Timestamp` plus the raw body.
  *
  * The route bypasses the daemon Bearer-token auth via
  * `ControlRouteRegistration.bypassAuth`; auth is established per request
@@ -36,6 +38,9 @@ import {
 const WORKFLOW_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const TIMESTAMP_TOLERANCE_MS = 5 * 60 * 1000;
 const RATE_LIMIT_WINDOW_MS = 60_000;
+const BODY_ONLY_SIGNATURE_PREFIX = "sha256=";
+const TIMESTAMPED_SIGNATURE_PREFIX = "sha256-v2=";
+const HEX_SIGNATURE_PATTERN = /^[0-9a-fA-F]+$/;
 const WEBHOOK_TRIGGER_INTERNAL_HEADERS = new Set([
   "x-kota-webhook-signature",
   "x-kota-webhook-timestamp",
@@ -61,6 +66,15 @@ type ParsedWebhookBody = {
   body: WebhookRunPayload["body"];
   bodyIdempotencyMaterial?: string;
 };
+type WebhookSignatureScheme = "body-only" | "timestamped";
+type ParsedWebhookSignature = {
+  scheme: WebhookSignatureScheme;
+  hex: string;
+};
+type VerifiedWebhookSignature =
+  | { ok: true; scheme: "body-only" }
+  | { ok: true; scheme: "timestamped"; timestamp: string }
+  | { ok: false };
 
 export class WebhookRateLimiter {
   private readonly windows = new Map<string, number[]>();
@@ -83,14 +97,73 @@ export class WebhookRateLimiter {
   }
 }
 
-function verifySignature(secret: string, rawBody: Buffer, signature: string): boolean {
-  const hexSig = signature.startsWith("sha256=") ? signature.slice(7) : signature;
-  const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
+function parseWebhookSignature(signature: string): ParsedWebhookSignature {
+  const trimmed = signature.trim();
+  if (trimmed.startsWith(TIMESTAMPED_SIGNATURE_PREFIX)) {
+    return {
+      scheme: "timestamped",
+      hex: trimmed.slice(TIMESTAMPED_SIGNATURE_PREFIX.length),
+    };
+  }
+  if (trimmed.startsWith(BODY_ONLY_SIGNATURE_PREFIX)) {
+    return {
+      scheme: "body-only",
+      hex: trimmed.slice(BODY_ONLY_SIGNATURE_PREFIX.length),
+    };
+  }
+  return { scheme: "body-only", hex: trimmed };
+}
+
+function timingSafeHexEqual(actualHex: string, expectedHex: string): boolean {
+  if (
+    actualHex.length !== expectedHex.length ||
+    !HEX_SIGNATURE_PATTERN.test(actualHex)
+  ) {
+    return false;
+  }
   try {
-    return timingSafeEqual(Buffer.from(hexSig, "hex"), Buffer.from(expected, "hex"));
+    const actual = Buffer.from(actualHex, "hex");
+    const expected = Buffer.from(expectedHex, "hex");
+    return timingSafeEqual(actual, expected);
   } catch {
     return false;
   }
+}
+
+function bodyOnlySignature(secret: string, rawBody: Buffer): string {
+  return createHmac("sha256", secret).update(rawBody).digest("hex");
+}
+
+function timestampedSignature(secret: string, timestamp: string, rawBody: Buffer): string {
+  return createHmac("sha256", secret)
+    .update(timestamp)
+    .update(".")
+    .update(rawBody)
+    .digest("hex");
+}
+
+function verifySignature(
+  secret: string,
+  rawBody: Buffer,
+  signature: string,
+  timestampHeader: string | string[] | undefined,
+): VerifiedWebhookSignature {
+  const parsed = parseWebhookSignature(signature);
+  if (parsed.scheme === "body-only") {
+    if (timestampHeader !== undefined) return { ok: false };
+    const expected = bodyOnlySignature(secret, rawBody);
+    return timingSafeHexEqual(parsed.hex, expected)
+      ? { ok: true, scheme: "body-only" }
+      : { ok: false };
+  }
+
+  if (typeof timestampHeader !== "string") return { ok: false };
+  const timestamp = timestampHeader.trim();
+  if (timestamp.length === 0) return { ok: false };
+  const expected = timestampedSignature(secret, timestamp, rawBody);
+  return timingSafeHexEqual(parsed.hex, expected)
+    ? { ok: true, scheme: "timestamped", timestamp }
+    : { ok: false };
 }
 
 function timestampWithinWindow(headerValue: string, now: number): boolean {
@@ -221,13 +294,23 @@ export function createWebhookTriggerHandler(
     }
 
     const expectedSecret = getSecret(name);
-    if (!expectedSecret || !verifySignature(expectedSecret, rawBody, signature)) {
+    const verification = expectedSecret
+      ? verifySignature(
+          expectedSecret,
+          rawBody,
+          signature,
+          req.headers["x-kota-webhook-timestamp"],
+        )
+      : { ok: false as const };
+    if (!verification.ok) {
       jsonResponse(res, 401, { error: "Invalid webhook signature" });
       return;
     }
 
-    const webhookTimestamp = req.headers["x-kota-webhook-timestamp"];
-    if (typeof webhookTimestamp === "string" && !timestampWithinWindow(webhookTimestamp, Date.now())) {
+    if (
+      verification.scheme === "timestamped" &&
+      !timestampWithinWindow(verification.timestamp, Date.now())
+    ) {
       jsonResponse(res, 401, { error: "Invalid webhook signature" });
       return;
     }
