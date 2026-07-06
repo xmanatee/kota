@@ -1,0 +1,4 @@
+1. Clean worktrees suppress or clear stale dirty-recovery records before `kota status`, `kota workflow status`, `kota ui render status`, foreground dashboard snapshots, and daemon startup report pending recovery.
+2. Dirty worktrees with a recovery record expose the same source workflow, run id, dirty checkout, worktree summary, attempt count, and next action across status surfaces.
+3. Persistent operator pause and dirty-recovery pause are represented as distinct status states, including resume messaging.
+4. Daemon startup reconciliation remains non-flashy and self-clearing after cleanup.

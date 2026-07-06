@@ -2,7 +2,17 @@ import type {
   WorkflowBatchDispatchInput,
   WorkflowBatchDispatchResult,
 } from "./event-batches.js";
-import type { WorkflowRuntimeState } from "./run-types.js";
+import {
+  reconcileWorkflowRecovery,
+  resolveWorkflowDispatchPause,
+} from "./recovery-status.js";
+import type {
+  WorkflowDispatchPauseStatus,
+  WorkflowRecoveryStatus,
+} from "./recovery-status-types.js";
+import type {
+  WorkflowRuntimeState,
+} from "./run-types.js";
 import type { WorkflowRuntimeConfig } from "./runtime-config.js";
 import {
   createWorkflowRuntimeContext,
@@ -87,6 +97,22 @@ export class WorkflowRuntime {
 
   getDispatchWindowStatus(): { blocked: boolean; opensAt?: string } {
     return getDispatchWindowStatus(this.ctx);
+  }
+
+  getRecoveryStatus(): WorkflowRecoveryStatus {
+    return reconcileWorkflowRecovery({
+      projectDir: this.ctx.projectDir,
+      workspaceDir: this.ctx.workspaceDir ?? this.ctx.runtimeConfig.workspaceDir,
+      store: this.ctx.store,
+    });
+  }
+
+  getDispatchPauseStatus(recovery = this.getRecoveryStatus()): WorkflowDispatchPauseStatus {
+    return resolveWorkflowDispatchPause({
+      projectDir: this.ctx.projectDir,
+      runtimePaused: this.ctx.dispatchPaused,
+      recovery,
+    });
   }
 
   abortActiveRuns(): { aborted: number } {

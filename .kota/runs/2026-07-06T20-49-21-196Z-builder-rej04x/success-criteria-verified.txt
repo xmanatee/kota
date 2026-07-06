@@ -1,0 +1,6 @@
+1. Verified by `workflow-ops localClient.status`, `status-cli`, Status UI, foreground dashboard snapshot, and runtime startup tests: clean tracked worktrees clear stale dirty-recovery records before status surfaces or daemon startup report pending recovery.
+2. Verified by dirty recovery fixtures across `workflow.status`, `kota status`, foreground dashboard, shared Status UI, and shared Runtime UI: dirty records expose matching source workflow, run id, checkout, summary, attempts, and next action.
+3. Verified by local pause/resume tests and status rendering tests: persistent operator pause and dirty-recovery pause remain distinct, and `workflow resume` is blocked with a dirty-recovery message until cleanup.
+4. Verified by `WorkflowRuntime.start()` startup reconciliation: stale recovery and dirty-recovery pause signals are removed after cleanup without flashing persistent pending-recovery state.
+
+Repair validation: shared Runtime and Status UI recovery tests now assert checkout, summary, attempts, and next action; the focused recovery/status suite passed, `pnpm run typecheck` passed, narrow Biome passed, and the severe source-size recheck is advisory-only for three legacy oversized files.

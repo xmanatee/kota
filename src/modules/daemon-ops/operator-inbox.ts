@@ -91,7 +91,10 @@ export function buildOperatorRuntimeInboxItems(
     historical &&
     (historical.activeRuns > 0 || historical.queuedRuns > 0 || historical.workflowPaused)
   ) {
-    const paused = historical.workflowPaused ? "; pause signal present" : "";
+    const pauseLabel = status.workflowPause?.kind === "dirty-recovery"
+      ? "dirty recovery pause"
+      : "operator pause";
+    const paused = historical.workflowPaused ? `; ${pauseLabel} present` : "";
     items.push({
       kind: "runtime",
       id: "offline-workflow-store",

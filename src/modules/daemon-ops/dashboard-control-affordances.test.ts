@@ -42,9 +42,21 @@ describe("dashboard foreground control affordances", () => {
 
 	it("shows paused dispatch with the exact resume and operator-client paths", () => {
 		const output = stripAnsi(
-			renderDashboard(makeSnapshot({ dispatchPaused: true }), []),
+			renderDashboard(
+				makeSnapshot({
+					dispatchPaused: true,
+					dispatchPause: {
+						paused: true,
+						kind: "operator",
+						source: "signal",
+						message: "Persistent operator pause.",
+						nextAction: "Run `kota workflow resume` to re-enable dispatch.",
+					},
+				}),
+				[],
+			),
 		);
-		expect(output).toContain("dispatch paused - run `kota workflow resume`");
+		expect(output).toContain("dispatch paused by operator - run `kota workflow resume`");
 		expect(output).toContain("open `kota navigate` > Runtime");
 	});
 
@@ -54,6 +66,7 @@ describe("dashboard foreground control affordances", () => {
 				makeSnapshot({
 					dispatchPaused: true,
 					recovery: {
+						status: "pending",
 						sourceRunId: "2026-07-06T00-00-00-000Z-builder-test",
 						sourceWorkflow: "builder",
 						dirtyCheckout: "workspace",
@@ -62,14 +75,17 @@ describe("dashboard foreground control affordances", () => {
 						attempts: 1,
 						retryAttemptedBy: [],
 						updatedAt: "2026-07-06T00:01:00.000Z",
+						nextAction: "Clean or stash the dirty checkout, then run `kota workflow resume`.",
 					},
 				}),
 				[],
 			),
 		);
-		expect(output).toContain("dirty workspace checkout recovery from builder");
-		expect(output).toContain("run `kota status` for details");
-		expect(output).toContain("use `kota workflow resume`");
+		expect(output).toContain(
+			"dirty workspace checkout recovery from builder (2026-07-06T00-00-00-000Z-builder-test, attempts 1)",
+		);
+		expect(output).toContain("M src/modules/daemon-ops/dashboard.ts");
+		expect(output).toContain("Clean or stash the dirty checkout");
 	});
 
 	it("shows dispatch-window blockage with inspection and reload paths", () => {

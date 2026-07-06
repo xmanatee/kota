@@ -1,8 +1,11 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
+import { writeDirtyRecoveryPauseSignal } from "./recovery-status.js";
+import { WorkflowRunStore } from "./run-store.js";
 import { PAUSE_SIGNAL_FILE, WorkflowRuntime } from "./runtime.js";
 
 describe("WorkflowRuntime dispatch pause persistence", () => {
@@ -22,6 +25,29 @@ describe("WorkflowRuntime dispatch pause persistence", () => {
 
   function pausePath(): string {
     return join(projectDir, ".kota", PAUSE_SIGNAL_FILE);
+  }
+
+  function runGit(args: string[]): string {
+    return execFileSync("git", args, {
+      cwd: projectDir,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+  }
+
+  function initializeCleanGitRepo(): void {
+    runGit(["init"]);
+    writeFileSync(join(projectDir, "tracked.txt"), "base\n", "utf8");
+    runGit(["add", "tracked.txt"]);
+    runGit([
+      "-c",
+      "user.name=KOTA Test",
+      "-c",
+      "user.email=kota@example.invalid",
+      "commit",
+      "-m",
+      "initial",
+    ]);
   }
 
   it("writes and removes the persisted operator pause marker", () => {
@@ -55,5 +81,46 @@ describe("WorkflowRuntime dispatch pause persistence", () => {
 
     expect(existsSync(pausePath())).toBe(true);
     expect(runtime.isDispatchPaused()).toBe(true);
+  });
+
+  it("clears stale dirty-recovery state during startup when the tracked checkout is clean", async () => {
+    initializeCleanGitRepo();
+    const store = new WorkflowRunStore(projectDir);
+    store.setRecovery({
+      sourceRunId: "run-stale",
+      sourceWorkflow: "builder",
+      dirtyCheckout: "canonical",
+      worktreeFingerprint: "M tracked.txt",
+      worktreeSummary: "M tracked.txt",
+      attempts: 1,
+      retryAttemptedBy: [],
+      updatedAt: "2026-07-07T00:00:00.000Z",
+    });
+    writeDirtyRecoveryPauseSignal(projectDir, {
+      status: "pending",
+      sourceRunId: "run-stale",
+      sourceWorkflow: "builder",
+      dirtyCheckout: "canonical",
+      worktreeFingerprint: "M tracked.txt",
+      worktreeSummary: "M tracked.txt",
+      attempts: 1,
+      retryAttemptedBy: [],
+      updatedAt: "2026-07-07T00:00:00.000Z",
+      nextAction: "Clean or stash the dirty checkout, then run `kota workflow resume`.",
+    });
+
+    const runtime = new WorkflowRuntime({
+      bus: new EventBus(),
+      projectDir,
+      workflows: [],
+    });
+
+    runtime.start();
+    await runtime.stop(0);
+
+    expect(store.getRecovery()).toBeNull();
+    expect(existsSync(pausePath())).toBe(false);
+    expect(runtime.getRecoveryStatus()).toEqual({ status: "none" });
+    expect(runtime.getDispatchPauseStatus()).toEqual({ paused: false, kind: "none" });
   });
 });

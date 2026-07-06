@@ -1,9 +1,11 @@
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
+import {
+  nextActionForRecovery,
+  reconcileWorkflowRecovery,
+  writeDirtyRecoveryPauseSignal,
+} from "./recovery-status.js";
 import type { WorkflowRecoveryDirtyCheckout } from "./run-types.js";
 import { queueMatchingEventFirst, type WorkflowRuntimeEventsState } from "./runtime-events.js";
-import { PAUSE_SIGNAL_FILE } from "./runtime-signals.js";
 import type { WorkflowDefinition } from "./types.js";
 
 export type WorkflowRuntimeRecoveryState = WorkflowRuntimeEventsState;
@@ -29,12 +31,6 @@ function recoveryWorktreeDir(
 
 function checkoutLabel(dirtyCheckout: WorkflowRecoveryDirtyCheckout): string {
   return dirtyCheckout === "workspace" ? "workspace checkout" : "canonical checkout";
-}
-
-function normalizeDirtyCheckout(
-  dirtyCheckout: WorkflowRecoveryDirtyCheckout | undefined,
-): WorkflowRecoveryDirtyCheckout {
-  return dirtyCheckout ?? "canonical";
 }
 
 /**
@@ -81,72 +77,87 @@ export function queueInterruptedRunRecovery(
  * operator attention.
  */
 export function queueRecovery(state: WorkflowRuntimeRecoveryState): void {
-  const recovery = state.store.getRecovery();
-  if (!recovery) return;
-  const dirtyCheckout = normalizeDirtyCheckout(recovery.dirtyCheckout);
+  const recoveryStatus = reconcileWorkflowRecovery({
+    projectDir: state.projectDir,
+    workspaceDir: state.workspaceDir ?? state.runtimeConfig.workspaceDir,
+    store: state.store,
+  });
+  if (recoveryStatus.status === "none") return;
+  const dirtyCheckout = recoveryStatus.dirtyCheckout;
 
-  const worktree = getRepoWorktreeStatus(
-    recoveryWorktreeDir(state, dirtyCheckout),
-  );
-  if (!worktree.available) {
+  if (recoveryStatus.status === "unavailable") {
     state.log(
-      `Recovery pending for ${checkoutLabel(dirtyCheckout)}, but git status is unavailable: ${worktree.summary}`,
+      `Recovery pending for ${checkoutLabel(dirtyCheckout)}, but git status is unavailable: ${recoveryStatus.worktreeSummary}`,
     );
-    return;
-  }
-  if (!worktree.trackedDirty) {
-    state.store.setRecovery(null);
     return;
   }
 
   const refreshedRecovery = {
-    ...recovery,
-    worktreeFingerprint: worktree.fingerprint,
-    worktreeSummary: worktree.summary,
+    sourceRunId: recoveryStatus.sourceRunId,
+    sourceWorkflow: recoveryStatus.sourceWorkflow,
+    dirtyCheckout,
+    worktreeFingerprint: recoveryStatus.worktreeFingerprint,
+    worktreeSummary: recoveryStatus.worktreeSummary,
+    attempts: recoveryStatus.attempts,
+    retryAttemptedBy: recoveryStatus.retryAttemptedBy,
     updatedAt: new Date().toISOString(),
   };
 
-  if (recovery.attempts >= 1) {
+  if (recoveryStatus.attempts >= 1) {
     state.store.setRecovery(refreshedRecovery);
     pauseDispatch(
       state,
-      `Recovery exhausted after a failed recovery attempt from "${recovery.sourceWorkflow}" (${recovery.sourceRunId}): ${worktree.summary}`,
+      `Recovery exhausted after a failed recovery attempt from "${recoveryStatus.sourceWorkflow}" (${recoveryStatus.sourceRunId}): ${recoveryStatus.worktreeSummary}`,
+      {
+        ...recoveryStatus,
+        updatedAt: refreshedRecovery.updatedAt,
+      },
     );
     return;
   }
 
   state.store.setRecovery({
     ...refreshedRecovery,
-    attempts: recovery.attempts + 1,
+    attempts: recoveryStatus.attempts + 1,
   });
   const queued = queueMatchingEventFirst(
     state,
     "runtime.recovered",
     {
       recoveredAt: new Date().toISOString(),
-      sourceRunId: recovery.sourceRunId,
-      sourceWorkflow: recovery.sourceWorkflow,
+      sourceRunId: recoveryStatus.sourceRunId,
+      sourceWorkflow: recoveryStatus.sourceWorkflow,
       dirtyCheckout,
-      worktreeSummary: worktree.summary,
+      worktreeSummary: recoveryStatus.worktreeSummary,
     },
     recoveryFilter,
   );
   if (queued === 0) {
     pauseDispatch(
       state,
-      `Recovery pending for dirty ${checkoutLabel(dirtyCheckout)}, but no recovery-capable workflow matched runtime.recovered: ${worktree.summary}`,
+      `Recovery pending for dirty ${checkoutLabel(dirtyCheckout)}, but no recovery-capable workflow matched runtime.recovered: ${recoveryStatus.worktreeSummary}`,
+      {
+        ...recoveryStatus,
+        attempts: recoveryStatus.attempts + 1,
+        nextAction: nextActionForRecovery({ attempts: recoveryStatus.attempts + 1 }),
+        updatedAt: refreshedRecovery.updatedAt,
+      },
     );
     return;
   }
   state.log(
-    `Queued ${queued} recovery workflow${queued === 1 ? "" : "s"} for dirty ${checkoutLabel(dirtyCheckout)} left by "${recovery.sourceWorkflow}" (${recovery.sourceRunId}): ${worktree.summary}`,
+    `Queued ${queued} recovery workflow${queued === 1 ? "" : "s"} for dirty ${checkoutLabel(dirtyCheckout)} left by "${recoveryStatus.sourceWorkflow}" (${recoveryStatus.sourceRunId}): ${recoveryStatus.worktreeSummary}`,
   );
 }
 
-function pauseDispatch(state: WorkflowRuntimeRecoveryState, reason: string): void {
+function pauseDispatch(
+  state: WorkflowRuntimeRecoveryState,
+  reason: string,
+  recoveryStatus: Exclude<ReturnType<typeof reconcileWorkflowRecovery>, { status: "none" }>,
+): void {
   state.dispatchPaused = true;
   state.wfQueue.setRuns([]);
   state.wfQueue.persist();
-  writeFileSync(join(state.projectDir, ".kota", PAUSE_SIGNAL_FILE), "");
+  writeDirtyRecoveryPauseSignal(state.projectDir, recoveryStatus);
   state.log(reason);
 }

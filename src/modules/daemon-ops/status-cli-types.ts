@@ -1,3 +1,7 @@
+import type {
+  WorkflowDispatchPauseStatus,
+  WorkflowRecoveryStatus,
+} from "#core/workflow/recovery-status-types.js";
 import type { WorkflowRecoveryState } from "#core/workflow/run-types.js";
 import type { AutomationWorktreeOperatorStatus } from "#modules/git/worktree-lifecycle.js";
 
@@ -18,6 +22,7 @@ export type StatusSnapshot = {
   activeRuns: number;
   queuedRuns: number;
   workflowPaused: boolean;
+  workflowPause?: WorkflowDispatchPauseStatus;
   sessions: number;
   pendingApprovals: number;
   projectDir: string;
@@ -34,10 +39,12 @@ export type StatusSnapshot = {
     queuedRuns: number;
     workflowPaused: boolean;
   };
-  pendingRecovery?: Pick<
-    WorkflowRecoveryState,
-    "sourceWorkflow" | "sourceRunId" | "dirtyCheckout" | "worktreeSummary" | "attempts"
-  >;
+  pendingRecovery?:
+    | Exclude<WorkflowRecoveryStatus, { status: "none" }>
+    | Pick<
+        WorkflowRecoveryState,
+        "sourceWorkflow" | "sourceRunId" | "dirtyCheckout" | "worktreeSummary" | "attempts"
+      >;
   worktrees?: AutomationWorktreeOperatorStatus[];
 };
 

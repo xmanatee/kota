@@ -68,6 +68,7 @@ export interface WorkflowRuntimeContext {
    * dispatch can count same-workflow and group concurrency independently.
    */
   readonly activeRuns: Map<string, WorkflowActiveRunReservation>;
+  workspaceDir?: string;
 
   // Mutable lifecycle / dispatch slots. Phase helpers reassign these as the
   // runtime moves through start, dispatch, recovery, and stop.

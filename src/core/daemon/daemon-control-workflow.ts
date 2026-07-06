@@ -75,8 +75,14 @@ export function handleResumeWorkflow(handle: DaemonControlHandle, res: ServerRes
     jsonResponse(res, scope.status, scope.error);
     return;
   }
-  const { already } = handle.resumeWorkflowDispatch(scope.projectId);
-  jsonResponse(res, 200, { ok: true, paused: false, ...(already && { already: true }) });
+  const { already, blocked, message } = handle.resumeWorkflowDispatch(scope.projectId);
+  jsonResponse(res, 200, {
+    ok: true,
+    paused: blocked === "dirty-recovery",
+    ...(already && { already: true }),
+    ...(blocked && { blocked }),
+    ...(message && { message }),
+  });
 }
 
 export function handleAbortWorkflow(handle: DaemonControlHandle, res: ServerResponse, url: URL): void {

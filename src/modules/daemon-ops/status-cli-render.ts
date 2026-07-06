@@ -25,6 +25,50 @@ function formatDirtyCheckout(
   return dirtyCheckout === "workspace" ? "workspace checkout" : "canonical checkout";
 }
 
+function describeDispatch(snap: StatusSnapshot): {
+  value: string;
+  role: "warn" | "muted";
+} {
+  if (!snap.workflowPaused) return { value: "running", role: "muted" };
+  switch (snap.workflowPause?.kind) {
+    case "dirty-recovery":
+      return {
+        value:
+          `paused for dirty recovery  (${snap.workflowPause.recovery.sourceWorkflow} ` +
+          `${snap.workflowPause.recovery.sourceRunId})`,
+        role: "warn",
+      };
+    case "operator":
+      return {
+        value: "paused by operator  (run `kota workflow resume`)",
+        role: "warn",
+      };
+    case "runtime":
+      return {
+        value: "paused in daemon memory  (inspect daemon before resuming)",
+        role: "warn",
+      };
+    case "none":
+    case undefined:
+      return {
+        value: "paused  (run `kota workflow resume`)",
+        role: "warn",
+      };
+  }
+}
+
+function formatRecovery(recovery: NonNullable<StatusSnapshot["pendingRecovery"]>): string {
+  const prefix = "status" in recovery && recovery.status === "unavailable"
+    ? "git status unavailable for"
+    : "dirty";
+  const nextAction = "nextAction" in recovery ? `; next: ${recovery.nextAction}` : "";
+  return (
+    `${prefix} ${formatDirtyCheckout(recovery.dirtyCheckout)} from ${recovery.sourceWorkflow} ` +
+    `(${recovery.sourceRunId}, attempts ${recovery.attempts}): ` +
+    `${recovery.worktreeSummary}${nextAction}`
+  );
+}
+
 function describeControlFile(identity: DaemonControlIdentity): {
   value: string;
   role: "success" | "warn" | "error" | "muted";
@@ -124,8 +168,9 @@ export function buildStatusNode(
   });
 
   if (snap.daemonRunning) {
+    const dispatch = describeDispatch(snap);
     entries.push(
-      { label: "Dispatch", value: snap.workflowPaused ? "paused  (run `kota workflow resume`)" : "running", role: snap.workflowPaused ? "warn" as const : "muted" as const },
+      { label: "Dispatch", value: dispatch.value, role: dispatch.role },
       { label: "Runs", value: `${snap.activeRuns} active, ${snap.queuedRuns} queued`, role: "muted" as const },
       { label: "Sessions", value: `${snap.sessions} interactive`, role: "muted" as const },
     );
@@ -135,6 +180,16 @@ export function buildStatusNode(
       { label: "Runs", value: "offline  (live run state unavailable)", role: "muted" as const },
     );
     appendOfflineStatusEntries(entries, snap);
+  }
+
+  if (snap.pendingRecovery) {
+    entries.push({
+      label: "status" in snap.pendingRecovery && snap.pendingRecovery.status === "unavailable"
+        ? "Recovery status"
+        : "Pending recovery",
+      value: formatRecovery(snap.pendingRecovery),
+      role: "warn" as const,
+    });
   }
 
   entries.push({
@@ -168,22 +223,14 @@ function appendOfflineStatusEntries(
       snap.historicalWorkflow.queuedRuns > 0 ||
       snap.historicalWorkflow.workflowPaused)
   ) {
-    const paused = snap.historicalWorkflow.workflowPaused ? ", pause signal present" : "";
+    const paused = snap.historicalWorkflow.workflowPaused
+      ? `, ${snap.workflowPause?.kind === "dirty-recovery" ? "dirty recovery pause signal" : "operator pause signal"} present`
+      : "";
     entries.push({
       label: "Historical run store",
       value:
         `${snap.historicalWorkflow.activeRuns} active, ` +
         `${snap.historicalWorkflow.queuedRuns} queued from offline files${paused}`,
-      role: "warn" as const,
-    });
-  }
-  if (snap.pendingRecovery) {
-    entries.push({
-      label: "Pending recovery",
-      value:
-        `dirty ${formatDirtyCheckout(snap.pendingRecovery.dirtyCheckout)} from ${snap.pendingRecovery.sourceWorkflow} ` +
-        `(${snap.pendingRecovery.sourceRunId}, attempts ${snap.pendingRecovery.attempts}): ` +
-        snap.pendingRecovery.worktreeSummary,
       role: "warn" as const,
     });
   }

@@ -175,6 +175,8 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       const workflows = lookupRuntime(projectId).workflowRuntime;
       const wfState = workflows.getState();
       const windowStatus = workflows.getDispatchWindowStatus();
+      const recovery = workflows.getRecoveryStatus();
+      const pause = workflows.getDispatchPauseStatus(recovery);
       return {
         activeRuns: wfState.activeRuns ?? [],
         pendingRuns: wfState.pendingRuns,
@@ -185,6 +187,8 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
         definitionsLoadedAt: wfState.definitionsLoadedAt,
         workflows: wfState.workflows,
         paused: workflows.isDispatchPaused(),
+        pause,
+        recovery,
         agentConcurrency: wfState.agentConcurrency,
         codeConcurrency: wfState.codeConcurrency,
         ...(windowStatus.blocked && {
@@ -201,6 +205,15 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
     },
     resumeWorkflowDispatch: (projectId?: ProjectId) => {
       const workflows = lookupRuntime(projectId).workflowRuntime;
+      const recovery = workflows.getRecoveryStatus();
+      const pause = workflows.getDispatchPauseStatus(recovery);
+      if (pause.kind === "dirty-recovery") {
+        return {
+          already: true,
+          blocked: "dirty-recovery" as const,
+          message: pause.nextAction,
+        };
+      }
       const already = !workflows.isDispatchPaused();
       if (!already) workflows.setDispatchPaused(false, "persistent");
       return { already };

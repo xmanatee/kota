@@ -49,7 +49,63 @@ function runtimeStatus(): WorkflowStatusSnapshot {
   };
 }
 
+function dirtyRecovery(): Exclude<
+  NonNullable<WorkflowStatusSnapshot["recovery"]>,
+  { status: "none" }
+> {
+  return {
+    status: "pending",
+    sourceWorkflow: "builder",
+    sourceRunId: "2026-07-06T20-49-21-196Z-builder-rej04x",
+    dirtyCheckout: "canonical",
+    worktreeFingerprint: "M src/core/workflow/runtime.ts",
+    worktreeSummary: "M src/core/workflow/runtime.ts",
+    attempts: 1,
+    retryAttemptedBy: [],
+    updatedAt: "2026-07-07T00:00:00.000Z",
+    nextAction: "Clean or stash the dirty checkout, then run `kota workflow resume`.",
+  };
+}
+
 describe("operator UI runtime actions", () => {
+  it("renders dirty-recovery dispatch state in the Runtime surface", () => {
+    const recovery = dirtyRecovery();
+    const surface = buildRuntimeUiSurface({
+      status: status({
+        daemonRunning: true,
+        daemonPid: 4242,
+        scopedProject: { projectId: "scope-main", projectDir: "/repo", displayName: "repo" },
+      }),
+      workflowStatus: {
+        ok: true,
+        value: {
+          ...runtimeStatus(),
+          paused: true,
+          pause: {
+            paused: true,
+            kind: "dirty-recovery",
+            source: "runtime",
+            message: "Dirty recovery pause from builder.",
+            nextAction: recovery.nextAction,
+            recovery,
+          },
+          recovery,
+        },
+      },
+      runs: { ok: true, value: { runs: [] } },
+      definitions: { ok: true, value: { source: "daemon", definitions: [] } },
+      approvals: { ok: true, value: { approvals: [] } },
+      ownerQuestions: { ok: true, value: { questions: [] } },
+      sessions: { ok: true, value: { sessions: [] } },
+    });
+
+    const rendered = renderToString(renderUiSurface(surface), { width: 120 });
+    expect(rendered).toContain("dirty canonical checkout recovery from builder");
+    expect(rendered).toContain("2026-07-06T20-49-21-196Z-builder-rej04x, attempts 1");
+    expect(rendered).toContain("M src/core/workflow/runtime.ts");
+    expect(rendered).toContain("Clean or stash the dirty checkout");
+  });
+
   it("builds executable queued and recent run supervision controls", async () => {
     const surface = buildRuntimeUiSurface({
       status: status({

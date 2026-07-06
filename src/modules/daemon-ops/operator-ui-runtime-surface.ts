@@ -21,6 +21,7 @@ import {
   launchWorkflowParameters,
   sessionLaunchParameters,
 } from "./operator-ui-launch-controls.js";
+import { formatOperatorRecoverySummary } from "./operator-ui-recovery-summary.js";
 import { runtimeRunActions } from "./operator-ui-runtime-actions.js";
 import {
   activeRunRows,
@@ -31,8 +32,36 @@ import {
   runtimeLogEntries,
   workflowRows,
 } from "./operator-ui-runtime-helpers.js";
-import type { UiSurface } from "./operator-ui-types.js";
+import type { UiStatusEntry, UiSurface } from "./operator-ui-types.js";
 import type { StatusSnapshot } from "./status-cli.js";
+
+function dispatchSummary(
+  workflowStatus: SurfaceRead<WorkflowStatusSnapshot>,
+): UiStatusEntry {
+  if (!workflowStatus.ok) {
+    return {
+      label: "Dispatch",
+      value: workflowStatus.message,
+      role: readRole(workflowStatus),
+    };
+  }
+  const pause = workflowStatus.value.pause;
+  if (pause?.kind === "dirty-recovery") {
+    return {
+      label: "Dispatch",
+      value: formatOperatorRecoverySummary(pause.recovery),
+      role: "warn",
+    };
+  }
+  if (pause?.kind === "operator") {
+    return { label: "Dispatch", value: "paused by operator", role: "warn" };
+  }
+  return {
+    label: "Dispatch",
+    value: workflowStatus.value.paused ? "paused" : "running",
+    role: workflowStatus.value.paused ? "warn" : "success",
+  };
+}
 
 export function buildRuntimeUiSurface(args: {
   status: StatusSnapshot;
@@ -135,7 +164,7 @@ export function buildRuntimeUiSurface(args: {
       {
         kind: "status-summary",
         entries: [
-          { label: "Dispatch", value: args.workflowStatus.ok ? args.workflowStatus.value.paused ? "paused" : "running" : args.workflowStatus.message, role: readRole(args.workflowStatus) },
+          dispatchSummary(args.workflowStatus),
           { label: "Active", value: `${activeCount}`, role: activeCount > 0 ? "warn" : "muted" },
           { label: "Queued", value: `${queuedCount}`, role: queuedCount > 0 ? "warn" : "muted" },
           { label: "Definitions", value: readValue(args.definitions, (definitions) => `${definitions.definitions.length}`), role: readRole(args.definitions) },

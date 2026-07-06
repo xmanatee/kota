@@ -1,0 +1,9 @@
+Reconcile dirty recovery status surfaces
+
+Add shared workflow recovery reconciliation, distinct dirty-recovery pause state, consistent status/dashboard/shared UI rendering with resume blocking, and foreground dashboard stale-recovery handling.
+
+Include full dirty checkout, summary, attempt count, and next-action details in the shared Runtime and Status UI dirty-recovery entries.
+
+Treat legacy empty dispatch pause markers as dirty-recovery state while a recovery record exists, and clear them when clean reconciliation retires stale recovery.
+
+Split live-session test support plus daemon config/event-failure helpers out of oversized files so the source-size gate remains advisory.

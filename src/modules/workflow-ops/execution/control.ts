@@ -71,6 +71,10 @@ export function registerControlCommands(wfCmd: Command, ctx: ModuleContext): voi
     .description("Resume dispatching new workflow runs")
     .action(async () => {
       const result = await ctx.client.workflow.resume();
+      if (result.blocked === "dirty-recovery") {
+        printWorkflowError(`Dispatch remains paused for dirty recovery. ${result.message ?? "Clean the checkout before resuming."}`);
+        process.exit(1);
+      }
       if (result.already) {
         printWorkflowText("Dispatch is not paused.");
         return;
@@ -134,8 +138,15 @@ export function registerControlCommands(wfCmd: Command, ctx: ModuleContext): voi
 }
 
 function printWorkflowStatus(status: WorkflowStatusSnapshot): void {
-  if (status.paused) {
-    printWorkflowText("Dispatch: PAUSED (run `kota workflow resume` to re-enable)");
+  if (status.pause?.kind === "dirty-recovery") {
+    printWorkflowText(
+      `Dispatch: PAUSED for dirty recovery (${status.pause.recovery.sourceWorkflow} ${status.pause.recovery.sourceRunId})`,
+    );
+    printWorkflowText(`Next action: ${status.pause.nextAction}`);
+  } else if (status.pause?.kind === "operator") {
+    printWorkflowText("Dispatch: PAUSED by operator (run `kota workflow resume` to re-enable)");
+  } else if (status.paused) {
+    printWorkflowText("Dispatch: PAUSED at runtime (inspect daemon before resuming)");
   } else if (status.dispatchWindowBlocked) {
     const opensAt = status.dispatchWindowOpensAt
       ? ` (opens ${formatWindowTime(status.dispatchWindowOpensAt)})`
@@ -157,6 +168,22 @@ function printWorkflowStatus(status: WorkflowStatusSnapshot): void {
   }
 
   printWorkflowText();
+  if (status.recovery && status.recovery.status !== "none") {
+    const dirtyCheckout = status.recovery.dirtyCheckout === "workspace"
+      ? "workspace checkout"
+      : "canonical checkout";
+    const prefix = status.recovery.status === "unavailable"
+      ? "Pending recovery (git status unavailable)"
+      : "Pending recovery";
+    printWorkflowText(
+      `${prefix}: dirty ${dirtyCheckout} from ${status.recovery.sourceWorkflow} ` +
+        `(${status.recovery.sourceRunId}, attempts ${status.recovery.attempts})`,
+    );
+    printWorkflowText(`Worktree: ${status.recovery.worktreeSummary}`);
+    printWorkflowText(`Next action: ${status.recovery.nextAction}`);
+    printWorkflowText();
+  }
+
   if (status.pendingRuns.length === 0) {
     printWorkflowText("Queue: empty");
   } else {

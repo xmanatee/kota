@@ -22,7 +22,17 @@ import type {
 } from "#core/modules/setup-requirements.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { GuardrailsSnapshot } from "#core/tools/guardrails.js";
-import type { ToolCallSummaryEntry, WorkflowActiveRun, WorkflowQueuedRun, WorkflowRuntimeState, WorkflowStepSkipReason } from "#core/workflow/run-types.js";
+import type {
+  WorkflowDispatchPauseStatus,
+  WorkflowRecoveryStatus,
+} from "#core/workflow/recovery-status-types.js";
+import type {
+  ToolCallSummaryEntry,
+  WorkflowActiveRun,
+  WorkflowQueuedRun,
+  WorkflowRuntimeState,
+  WorkflowStepSkipReason,
+} from "#core/workflow/run-types.js";
 import type { WorkflowAgentBackoffState } from "#core/workflow/trigger-types.js";
 import type { CapabilityReadinessResponse } from "./capability-readiness.js";
 import type { ClientIdentity } from "./client-identity.js";
@@ -144,6 +154,8 @@ export type WorkflowLiveStatus = {
   definitionsLoadedAt?: string;
   workflows: WorkflowRuntimeState["workflows"];
   paused: boolean;
+  pause?: WorkflowDispatchPauseStatus;
+  recovery?: WorkflowRecoveryStatus;
   /** True when a dispatchWindow is configured and the current time is outside it. */
   dispatchWindowBlocked?: boolean;
   /** ISO timestamp of the next time the dispatch window opens (when blocked). */
@@ -386,7 +398,11 @@ export type DaemonControlHandle = {
    */
   setActiveProjectId(projectId: ProjectId | null): SetActiveProjectResult;
   pauseWorkflowDispatch(projectId?: ProjectId): { already: boolean };
-  resumeWorkflowDispatch(projectId?: ProjectId): { already: boolean };
+  resumeWorkflowDispatch(projectId?: ProjectId): {
+    already: boolean;
+    blocked?: "dirty-recovery";
+    message?: string;
+  };
   abortActiveRuns(projectId?: ProjectId): { aborted: number };
   abortActiveRun(runId: string, projectId?: ProjectId): { ok: boolean; notFound?: boolean; queued?: boolean };
   reloadWorkflowDefinitions(projectId?: ProjectId): { count: number };

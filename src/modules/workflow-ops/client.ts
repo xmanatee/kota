@@ -98,6 +98,10 @@ export type WorkflowStatusSnapshot = WorkflowLiveStatus & {
 /** Result of `workflow.pause` / `workflow.resume`. `already` is true when the
  * call was a no-op (already paused / not paused). */
 export type WorkflowPauseResult = { paused: boolean; already: boolean };
+export type WorkflowResumeResult = WorkflowPauseResult & {
+  blocked?: "dirty-recovery";
+  message?: string;
+};
 
 /**
  * Result of `workflow.abort` (active runs).
@@ -248,7 +252,7 @@ export interface WorkflowClient {
    */
   listDefinitions(): Promise<WorkflowDefinitionsResult>;
   pause(): Promise<WorkflowPauseResult>;
-  resume(): Promise<WorkflowPauseResult>;
+  resume(): Promise<WorkflowResumeResult>;
   abort(): Promise<WorkflowAbortResult>;
   reload(): Promise<WorkflowReloadResult>;
   /**

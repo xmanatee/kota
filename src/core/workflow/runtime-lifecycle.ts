@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { installAwaitResumers } from "./awaits-resume.js";
 import { isWithinDispatchWindow, msUntilDispatchWindowOpens } from "./dispatch-window.js";
 import type { WorkflowEventBatchManager } from "./event-batches.js";
+import { writeOperatorPauseSignal } from "./recovery-status.js";
 import {
   emitIdleEvent,
   loadDefinitions as loadDefinitionsViaDispatch,
@@ -196,8 +197,7 @@ export function setDispatchPaused(
     const stateDir = join(state.projectDir, ".kota");
     const pausePath = join(stateDir, PAUSE_SIGNAL_FILE);
     if (paused) {
-      mkdirSync(stateDir, { recursive: true });
-      writeFileSync(pausePath, "");
+      writeOperatorPauseSignal(state.projectDir);
     } else {
       rmSync(pausePath, { force: true });
     }

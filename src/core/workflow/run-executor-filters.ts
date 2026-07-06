@@ -52,7 +52,7 @@ function isPayloadObject(
 export function getEligibleAtMs(
   workflowName: string,
   cooldownMs: number,
-  state: WorkflowRuntimeState,
+  state: Pick<WorkflowRuntimeState, "workflows">,
 ): number {
   const lastCompletedAt = state.workflows[workflowName]?.lastCompletion?.completedAt;
   if (!lastCompletedAt || cooldownMs <= 0) return Date.now();

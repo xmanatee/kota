@@ -6,6 +6,7 @@ import {
   scopeIdForStatus,
   uniqueActions,
 } from "./operator-ui-builder-common.js";
+import { statusEntries, statusWarnings } from "./operator-ui-status-summary.js";
 import type {
   UiActionOperation,
   UiListItem,
@@ -16,117 +17,6 @@ import type {
 } from "./operator-ui-types.js";
 import { statusWorktreeItems } from "./operator-ui-worktree-status.js";
 import type { StatusSnapshot } from "./status-cli.js";
-
-function statusEntries(snapshot: StatusSnapshot, explain: boolean): UiStatusEntry[] {
-  const entries: UiStatusEntry[] = [
-    {
-      label: "Daemon",
-      value: snapshot.daemonRunning && snapshot.daemonPid !== undefined
-        ? `running (pid ${snapshot.daemonPid})`
-        : "not running (offline mode)",
-      role: snapshot.daemonRunning ? "success" : "warn",
-    },
-    {
-      label: "Dispatch",
-      value: snapshot.daemonRunning
-        ? snapshot.workflowPaused ? "paused" : "running"
-        : "offline",
-      role: snapshot.daemonRunning && !snapshot.workflowPaused ? "success" : "warn",
-    },
-    {
-      label: "Runs",
-      value: snapshot.daemonRunning
-        ? `${snapshot.activeRuns} active, ${snapshot.queuedRuns} queued`
-        : "offline (live run state unavailable)",
-      role: snapshot.daemonRunning ? "neutral" : "muted",
-    },
-    {
-      label: "Approvals",
-      value: `${snapshot.pendingApprovals} pending`,
-      role: snapshot.pendingApprovals > 0 ? "warn" : "muted",
-    },
-  ];
-
-  if (snapshot.historicalWorkflow && !snapshot.daemonRunning) {
-    entries.push({
-      label: "Historical run store",
-      value: `${snapshot.historicalWorkflow.activeRuns} active, ${snapshot.historicalWorkflow.queuedRuns} queued from offline files`,
-      role: "warn",
-    });
-  }
-
-  if (explain) {
-    entries.push({
-      label: "Runtime source",
-      value: snapshot.daemonRunning
-        ? "daemon control API"
-        : "local files only; daemon API and event stream unavailable",
-      role: snapshot.daemonRunning ? "success" : "warn",
-    });
-  }
-
-  return entries;
-}
-
-function statusWarnings(snapshot: StatusSnapshot, scopeId: string): UiListItem[] {
-  const warnings: UiListItem[] = [];
-  if (!snapshot.daemonRunning) {
-    warnings.push({
-      id: "daemon-offline",
-      title: "Daemon is offline",
-      detail: "Dispatch, event stream, live sessions, and live run state are unavailable.",
-      role: "warn",
-      action: action({
-        surfaceId: "status",
-        actionId: "daemon.start",
-        scopeId,
-        label: "Start daemon",
-        effect: "write",
-        operation: { kind: "client-namespace", namespace: "daemonOps", method: "start" },
-        result: resultSpec("Daemon start requested."),
-      }),
-    });
-  }
-  if (snapshot.controlFile.kind === "stale") {
-    warnings.push({
-      id: "daemon-control-stale",
-      title: "Daemon control file is stale",
-      detail: `Recorded pid ${snapshot.controlFile.pid} is no longer alive.`,
-      role: "warn",
-      action: action({
-        surfaceId: "status",
-        actionId: "doctor.fix",
-        scopeId,
-        label: "Run doctor",
-        effect: "write",
-        operation: { kind: "client-namespace", namespace: "doctor", method: "fix" },
-        confirmation: {
-          mode: "required",
-          title: "Run doctor fix",
-          detail: "This can modify local daemon control files.",
-          confirmLabel: "Run fix",
-          risk: "medium",
-        },
-      }),
-    });
-  }
-  if (snapshot.pendingApprovals > 0) {
-    warnings.push({
-      id: "pending-approvals",
-      title: "Approvals require attention",
-      detail: `${snapshot.pendingApprovals} approval(s) are waiting for operator review.`,
-      role: "warn",
-      action: action({
-        surfaceId: "status",
-        actionId: "inbox.open",
-        scopeId,
-        label: "Open inbox",
-        operation: { kind: "daemon-route", method: "GET", path: "/attention" },
-      }),
-    });
-  }
-  return warnings;
-}
 
 export function buildStatusUiSurface(
   snapshot: StatusSnapshot,

@@ -17,30 +17,41 @@ function makeSnap(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
 }
 
 describe("status pending recovery checkout attribution", () => {
-  it("keeps legacy recovery state readable as a dirty worktree", () => {
+  it("shows canonical checkout recovery", () => {
     const out = formatStatusOutput(
       makeSnap({
         pendingRecovery: {
+          status: "pending",
           sourceWorkflow: "builder",
           sourceRunId: "run-legacy",
+          dirtyCheckout: "canonical",
+          worktreeFingerprint: "M README.md",
           worktreeSummary: "M README.md",
           attempts: 0,
+          retryAttemptedBy: [],
+          updatedAt: "2026-07-07T00:00:00.000Z",
+          nextAction: "Start the daemon to run recovery, or clean the checkout before resuming dispatch.",
         },
       }),
     );
 
-    expect(out).toContain("dirty worktree");
+    expect(out).toContain("dirty canonical checkout");
   });
 
   it("shows workspace checkout recovery when recovery state is attributed to a workspace", () => {
     const out = formatStatusOutput(
       makeSnap({
         pendingRecovery: {
+          status: "pending",
           sourceWorkflow: "builder",
           sourceRunId: "run-workspace",
           dirtyCheckout: "workspace",
+          worktreeFingerprint: "M README.md",
           worktreeSummary: "M README.md",
           attempts: 0,
+          retryAttemptedBy: [],
+          updatedAt: "2026-07-07T00:00:00.000Z",
+          nextAction: "Start the daemon to run recovery, or clean the checkout before resuming dispatch.",
         },
       }),
     );

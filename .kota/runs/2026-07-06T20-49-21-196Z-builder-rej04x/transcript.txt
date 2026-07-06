@@ -1,0 +1,95 @@
+# Dirty recovery status reconciliation transcript
+
+Run: 2026-07-06T20-49-21-196Z-builder-rej04x
+
+Validation commands:
+
+```
+$ pnpm run typecheck
+tsc --noEmit
+
+$ pnpm run lint
+Checked 2660 files in 2s. No fixes applied.
+
+$ pnpm run validate-tasks
+node --conditions=source --import tsx src/validate-queue.ts
+
+$ NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner src/core/workflow/runtime-lifecycle.test.ts src/core/daemon/daemon-control-workflow-recovery.test.ts src/modules/workflow-ops/local-client.test.ts src/modules/workflow-ops/local-client-recovery.test.ts src/modules/workflow-ops/daemon-client.test.ts src/modules/workflow-ops/daemon-client-recovery.test.ts src/modules/daemon-ops/dashboard.test.ts src/modules/daemon-ops/dashboard-control-affordances.test.ts src/modules/daemon-ops/status-cli.test.ts src/modules/daemon-ops/status-cli-recovery-pause.test.ts src/modules/daemon-ops/status-cli-recovery-checkout.test.ts src/modules/daemon-ops/operator-ui-runtime-actions.test.ts src/modules/daemon-ops/operator-ui-status-recovery.test.ts src/modules/daemon-ops/operator-ui.test.ts
+Test Files  14 passed (14)
+Tests       158 passed (158)
+
+$ node --conditions=source --import tsx -e "import { checkSevereSourceFileSize } from './src/modules/autonomy/source-size-escalation.ts'; console.log(checkSevereSourceFileSize(process.cwd()));"
+Advisory source-size warning(s): src/core/daemon/daemon-control-types.ts, src/core/daemon/daemon-handle.ts, src/modules/workflow-ops/index.ts.
+```
+
+Repair attempt 3 validation:
+
+```
+$ pnpm test src/core/daemon/daemon-config-reload-live-session.integration.test.ts src/core/daemon/daemon-control-workflow-recovery.test.ts src/core/workflow/runtime-lifecycle.test.ts src/modules/workflow-ops/local-client-recovery.test.ts src/modules/workflow-ops/daemon-client-recovery.test.ts src/modules/daemon-ops/status-cli-recovery-pause.test.ts src/modules/daemon-ops/status-cli-recovery-checkout.test.ts src/modules/daemon-ops/operator-ui-status-recovery.test.ts
+Test Files  8 passed (8)
+Tests       15 passed (15)
+
+$ pnpm run typecheck
+tsc --noEmit
+
+$ pnpm exec biome check src/core/daemon/daemon-handle.ts src/core/daemon/daemon-config-reload-live-session.integration.test.ts src/core/daemon/daemon-config-reload-live-session-support.integration.ts
+Checked 3 files in 12ms. No fixes applied.
+
+$ wc -l src/core/daemon/daemon-config-reload-live-session.integration.test.ts src/core/daemon/daemon-config-reload-live-session-support.integration.ts
+177 src/core/daemon/daemon-config-reload-live-session.integration.test.ts
+281 src/core/daemon/daemon-config-reload-live-session-support.integration.ts
+
+$ GIT_INDEX_FILE=.kota/tmp/repair-index GIT_OBJECT_DIRECTORY=.kota/tmp/objects GIT_ALTERNATE_OBJECT_DIRECTORIES=<repo-git-objects> node --conditions=source --import tsx -e "import { checkSevereSourceFileSize } from './src/modules/autonomy/source-size-escalation.ts'; console.log(checkSevereSourceFileSize(process.cwd()));"
+Advisory source-size warning(s): src/core/daemon/daemon-control-types.ts, src/core/daemon/daemon-handle.ts, src/modules/workflow-ops/index.ts.
+```
+
+Full-suite note: `NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner` was attempted after the focused validation above. It was stopped after unrelated broad fixture failures appeared in integration/scenario suites and before it could validate this repair.
+
+## Clean stale recovery fixture
+
+Fixture state:
+
+- tracked git checkout is clean
+- persisted recovery source is `builder run-stale`
+- persisted pause signal is `dirty-recovery`
+
+Observed surfaces:
+
+- `workflow.status` local client returned `recovery: { status: "none", clearedStale: true }`, `pause: { paused: false, kind: "none" }`, removed the pause signal, and cleared `.kota/workflow-state.json` recovery.
+- `WorkflowRuntime.start()` cleared the same stale recovery before dispatch startup state could report pending recovery.
+- `kota status` rendered no pending recovery row:
+
+```
+Project:      kota  (/Users/op/Desktop/mono/apps/kota)
+Control file: missing  (no .kota/daemon-control.json)
+Daemon:       not running  (offline mode)
+Dispatch:     offline  (daemon control API unavailable)
+Runs:         offline  (live run state unavailable)
+Approvals:    0 pending
+```
+
+## Dirty recovery fixture
+
+Fixture state:
+
+- tracked git checkout is dirty at `M tracked.txt`
+- recovery source is `improver run-dirty`
+- attempt count is `1`
+- next action is "Clean or stash the dirty checkout, then run `kota workflow resume`."
+
+Observed surfaces:
+
+- `workflow.status` local client reported `kind: "dirty-recovery"`, source `improver run-dirty`, dirty checkout `canonical`, attempt count `1`, and a worktree summary containing `tracked.txt`.
+- `workflow.resume` returned `blocked: "dirty-recovery"` and kept dispatch paused with the same next action.
+- `kota status` rendered the dirty recovery reason and next action:
+
+```
+Dispatch:         paused for dirty recovery  (builder 2026-07-06T20-49-21-196Z-builder-rej04x)
+Pending recovery: dirty canonical checkout from builder (2026-07-06T20-49-21-196Z-builder-rej04x, attempts 1): M src/core/workflow/runtime.ts; next: Clean or stash the dirty checkout, then run `kota workflow resume`.
+```
+
+- Foreground daemon dashboard rendered `dirty workspace checkout recovery from builder` with the source run id, attempt count, worktree summary, and the same next action.
+- Shared Status UI rendered `dirty recovery (builder 2026-07-06T20-49-21-196Z-builder-rej04x)`, a `Pending recovery` warning, and a `workflow.status` action.
+- Shared Runtime UI rendered `dirty recovery (builder 2026-07-06T20-49-21-196Z-builder-rej04x)` in its dispatch summary.
+
+The full deterministic `kota status` transcript is also written to `cli-status-transcript.txt` in this run directory.

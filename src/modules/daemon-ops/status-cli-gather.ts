@@ -9,8 +9,11 @@ import type { ConfiguredProject } from "#core/daemon/scope-registry.js";
 import { detectStrandedDaemonProcess } from "#core/daemon/stranded-daemon.js";
 import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
+import {
+  reconcileWorkflowRecovery,
+  resolveWorkflowDispatchPause,
+} from "#core/workflow/recovery-status.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
-import { PAUSE_SIGNAL_FILE } from "#core/workflow/runtime.js";
 import { listAutomationWorktreeStatuses } from "#modules/git/worktree-lifecycle.js";
 import { resolveDashboardForStatus } from "./status-cli-render.js";
 import type {
@@ -128,6 +131,7 @@ function liveStatusSnapshot(args: {
     activeRuns: args.status.workflow.activeRuns.length,
     queuedRuns: args.status.workflow.queueLength,
     workflowPaused: args.status.workflow.paused,
+    ...(args.status.workflow.pause && { workflowPause: args.status.workflow.pause }),
     sessions: args.status.sessions.length,
     pendingApprovals: args.pendingApprovals,
     projectDir: args.projectDir,
@@ -138,6 +142,10 @@ function liveStatusSnapshot(args: {
     ...(scopedProject != null && { scopedProject }),
     ...(wrongProject && { wrongProject }),
     ...(dashboard != null && { dashboard }),
+    ...(args.status.workflow.recovery &&
+      args.status.workflow.recovery.status !== "none" && {
+        pendingRecovery: args.status.workflow.recovery,
+      }),
     ...(args.worktrees.length > 0 && { worktrees: args.worktrees }),
   };
 }
@@ -153,7 +161,15 @@ function offlineStatusSnapshot(
   const state = store.readState();
   const queue = getApprovalQueue(join(stateDir, "approvals"));
   const strandedDaemon = detectStrandedDaemonProcess(projectDir);
-  const workflowPaused = existsSync(join(stateDir, PAUSE_SIGNAL_FILE));
+  const recovery = reconcileWorkflowRecovery({
+    projectDir,
+    store,
+  });
+  const pause = resolveWorkflowDispatchPause({
+    projectDir,
+    runtimePaused: false,
+    recovery,
+  });
   return {
     daemonRunning: false,
     activeRuns: 0,
@@ -167,17 +183,10 @@ function offlineStatusSnapshot(
     historicalWorkflow: {
       activeRuns: (state.activeRuns ?? []).length,
       queuedRuns: (state.pendingRuns ?? []).length,
-      workflowPaused,
+      workflowPaused: pause.paused,
     },
-    ...(state.recovery && {
-      pendingRecovery: {
-        sourceWorkflow: state.recovery.sourceWorkflow,
-        sourceRunId: state.recovery.sourceRunId,
-        dirtyCheckout: state.recovery.dirtyCheckout,
-        worktreeSummary: state.recovery.worktreeSummary,
-        attempts: state.recovery.attempts,
-      },
-    }),
+    ...(pause.paused && { workflowPause: pause }),
+    ...(recovery.status !== "none" && { pendingRecovery: recovery }),
     ...(strandedDaemon.kind === "stranded" && {
       strandedDaemon: { pid: strandedDaemon.pid, command: strandedDaemon.command },
     }),

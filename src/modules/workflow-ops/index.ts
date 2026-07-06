@@ -6,7 +6,7 @@
  * diff, cost, and stats.
  */
 
-import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
@@ -26,6 +26,12 @@ import {
   isWithinDispatchWindow,
   msUntilDispatchWindowOpens,
 } from "#core/workflow/dispatch-window.js";
+import {
+  clearWorkflowPauseSignal,
+  reconcileWorkflowRecovery,
+  resolveWorkflowDispatchPause,
+  writeOperatorPauseSignal,
+} from "#core/workflow/recovery-status.js";
 import { formatRunId } from "#core/workflow/run-io.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
@@ -275,6 +281,15 @@ const workflowModule: KotaModule = {
       async status() {
         const store = new WorkflowRunStore(ctx.cwd);
         const state = store.readState();
+        const recovery = reconcileWorkflowRecovery({
+          projectDir: ctx.cwd,
+          store,
+        });
+        const pause = resolveWorkflowDispatchPause({
+          projectDir: ctx.cwd,
+          runtimePaused: false,
+          recovery,
+        });
         const config = loadConfig(ctx.cwd);
         const dispatchWindow = config.scheduler?.dispatchWindow;
         const windowBlocked = dispatchWindow ? !isWithinDispatchWindow(dispatchWindow) : false;
@@ -292,7 +307,9 @@ const workflowModule: KotaModule = {
           ...(state.agentBackoff && { agentBackoff: state.agentBackoff }),
           ...(state.definitionsLoadedAt && { definitionsLoadedAt: state.definitionsLoadedAt }),
           workflows: state.workflows,
-          paused: existsSync(join(store.rootDir, PAUSE_SIGNAL_FILE)),
+          paused: pause.paused,
+          pause,
+          recovery,
           pendingAbort: existsSync(join(store.rootDir, ABORT_SIGNAL_FILE)),
           ...(windowBlocked && { dispatchWindowBlocked: true }),
           ...(windowOpensAt && { dispatchWindowOpensAt: windowOpensAt }),
@@ -304,14 +321,31 @@ const workflowModule: KotaModule = {
         const store = new WorkflowRunStore(ctx.cwd);
         const pausePath = join(store.rootDir, PAUSE_SIGNAL_FILE);
         if (existsSync(pausePath)) return { paused: true, already: true };
-        writeFileSync(pausePath, "");
+        writeOperatorPauseSignal(ctx.cwd);
         return { paused: true, already: false };
       },
       async resume() {
         const store = new WorkflowRunStore(ctx.cwd);
+        const recovery = reconcileWorkflowRecovery({
+          projectDir: ctx.cwd,
+          store,
+        });
+        const pause = resolveWorkflowDispatchPause({
+          projectDir: ctx.cwd,
+          runtimePaused: false,
+          recovery,
+        });
+        if (pause.kind === "dirty-recovery") {
+          return {
+            paused: true,
+            already: true,
+            blocked: "dirty-recovery",
+            message: pause.nextAction,
+          };
+        }
         const pausePath = join(store.rootDir, PAUSE_SIGNAL_FILE);
         if (!existsSync(pausePath)) return { paused: false, already: true };
-        rmSync(pausePath);
+        clearWorkflowPauseSignal(ctx.cwd);
         return { paused: false, already: false };
       },
       async abort() {
@@ -587,12 +621,22 @@ export function buildWorkflowDaemonHandler(
       return { paused: result.paused, already: result.already ?? false };
     },
     resume: async () => {
-      const result = await link.request<{ paused: boolean; already?: boolean }>(
+      const result = await link.request<{
+        paused: boolean;
+        already?: boolean;
+        blocked?: "dirty-recovery";
+        message?: string;
+      }>(
         "POST",
         "/workflow/resume",
       );
       if (!result) throw new Error("Daemon unreachable while resuming dispatch");
-      return { paused: result.paused, already: result.already ?? false };
+      return {
+        paused: result.paused,
+        already: result.already ?? false,
+        ...(result.blocked && { blocked: result.blocked }),
+        ...(result.message && { message: result.message }),
+      };
     },
     abort: async () => {
       const result = await link.request<{ aborted: number }>(
