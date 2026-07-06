@@ -1,12 +1,12 @@
 ---
 id: task-reconcile-dirty-recovery-pause-state-across-status
 title: Reconcile dirty recovery pause state across status and startup
-status: backlog
+status: ready
 priority: p1
 area: workflow-runtime
 summary: Make dirty-checkout recovery pause reasons accurate, self-clearing when the worktree is clean, and visible consistently across daemon dashboard, status, workflow status, and shared UI.
 created_at: 2026-07-06T15:16:35.786Z
-updated_at: 2026-07-06T15:16:35.786Z
+updated_at: 2026-07-06T20:38:12.876Z
 task_class: Platform
 ---
 
