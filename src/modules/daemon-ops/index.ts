@@ -152,6 +152,23 @@ export {
 const DAEMON_CHILD_ENV = "KOTA_DAEMON_CHILD";
 const DAEMON_PROJECT_DIR_OPTION_DESCRIPTION =
   "Project directory the daemon operates on (overrides KOTA_PROJECT_DIR env and cwd)";
+const DAEMON_HOST_HELP = [
+  "Foreground daemon mode:",
+  "  This command hosts and monitors the daemon. It is not the interactive operator console.",
+  "  Open the console with `kota navigate` or bare `kota`.",
+  "  Inspect and control workflow dispatch with `kota workflow status`, `pause`, `resume`, and `follow`.",
+  "  Render the shared operator controls with `kota ui render operator-control`.",
+].join("\n");
+const DAEMON_COMMAND_DESCRIPTION = [
+  "Run the KOTA daemon host and foreground dashboard.",
+  "",
+  DAEMON_HOST_HELP,
+].join("\n");
+const DAEMON_START_DESCRIPTION = [
+  "Start the KOTA daemon host and foreground dashboard.",
+  "",
+  DAEMON_HOST_HELP,
+].join("\n");
 
 function printDaemonError(message: string): void {
   printToStderr(line(span(message, "error")));
@@ -1015,18 +1032,21 @@ const daemonModule: KotaModule = {
 
     const cmd = addDaemonStartOptions(
       new Command("daemon")
-        .description("Run KOTA as a long-running daemon with autonomous workflows"),
-    ).action(async (opts: DaemonStartOptions) => {
-      await startDaemon(opts);
-    });
+        .description(DAEMON_COMMAND_DESCRIPTION),
+    )
+      .action(async (opts: DaemonStartOptions) => {
+        await startDaemon(opts);
+      });
 
     cmd.addCommand(
       addDaemonStartOptions(
         new Command("start")
-          .description("Start KOTA as a long-running daemon with autonomous workflows"),
-      ).action(async (opts: DaemonStartOptions, command: Command) => {
-        await startDaemon(opts, command);
-      }),
+          .summary("Start the KOTA daemon host and foreground dashboard")
+          .description(DAEMON_START_DESCRIPTION),
+      )
+        .action(async (opts: DaemonStartOptions, command: Command) => {
+          await startDaemon(opts, command);
+        }),
     );
 
     cmd

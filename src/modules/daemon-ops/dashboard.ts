@@ -1,4 +1,8 @@
-import type { WorkflowQueuedRun, WorkflowRunStatus } from "#core/workflow/run-types.js";
+import type {
+	WorkflowQueuedRun,
+	WorkflowRecoveryState,
+	WorkflowRunStatus,
+} from "#core/workflow/run-types.js";
 import type { WorkflowAgentBackoffState } from "#core/workflow/trigger-types.js";
 import {
 	blank,
@@ -50,6 +54,7 @@ export type DashboardSnapshot = {
 	dispatchWindowBlocked?: boolean;
 	dispatchWindowOpensAt?: string;
 	agentBackoff?: WorkflowAgentBackoffState;
+	recovery?: WorkflowRecoveryState;
 	definitionCount: number;
 	sessionCount: number;
 	taskQueue?: DashboardTaskQueue;
@@ -109,16 +114,38 @@ function pendingRunLine(run: WorkflowQueuedRun): LineNode {
 	return line(...spans);
 }
 
+function dirtyCheckoutLabel(recovery: WorkflowRecoveryState): string {
+	if (recovery.dirtyCheckout === "workspace") return "workspace checkout";
+	return "canonical checkout";
+}
+
 function describeOperationalState(
 	snapshot: DashboardSnapshot,
 	pendingRuns: readonly WorkflowQueuedRun[],
 ): TextSpan[] {
-	if (snapshot.dispatchPaused) return [span("dispatch paused", "warn")];
+	if (snapshot.recovery) {
+		return [
+			span(
+				`dirty ${dirtyCheckoutLabel(snapshot.recovery)} recovery from ${snapshot.recovery.sourceWorkflow}`,
+				"warn",
+			),
+			plain(" - run `kota status` for details; after cleanup use `kota workflow resume`"),
+		];
+	}
+	if (snapshot.dispatchPaused) {
+		return [
+			span("dispatch paused", "warn"),
+			plain(" - run `kota workflow resume` or open `kota navigate` > Runtime"),
+		];
+	}
 	if (snapshot.dispatchWindowBlocked) {
 		const opens = snapshot.dispatchWindowOpensAt
 			? ` until ${new Date(snapshot.dispatchWindowOpensAt).toLocaleTimeString()}`
 			: "";
-		return [span(`outside dispatch window${opens}`, "warn")];
+		return [
+			span(`outside dispatch window${opens}`, "warn"),
+			plain(" - inspect with `kota workflow status`; reload config with `kota daemon reload`"),
+		];
 	}
 	if (snapshot.agentBackoff) {
 		return [
@@ -126,6 +153,7 @@ function describeOperationalState(
 				`agent backoff ${snapshot.agentBackoff.kind} until ${new Date(snapshot.agentBackoff.until).toLocaleTimeString()}`,
 				"warn",
 			),
+			plain(" - inspect with `kota workflow status`; fix provider/setup before resume"),
 		];
 	}
 	if (snapshot.activeRuns.length > 0) {
@@ -143,10 +171,18 @@ function describeOperationalState(
 	}
 	if (snapshot.taskQueue) {
 		if (taskQueueHasDispatchableWork(snapshot.taskQueue)) {
-			return [plain("dispatchable work available; waiting for idle dispatch")];
+			return [
+				plain(
+					"dispatchable work available; waiting for idle dispatch - inspect `kota workflow status`",
+				),
+			];
 		}
 		if (snapshot.taskQueue.openCount > 0) {
-			return [plain("open work parked; no dispatchable tasks")];
+			return [
+				plain(
+					"open work parked; no dispatchable tasks - inspect `kota status` or open `kota navigate` > Work",
+				),
+			];
 		}
 	}
 	if (pendingRuns.length > 0) {
@@ -158,7 +194,11 @@ function describeOperationalState(
 		const tail = wait.role ? span(wait.text, wait.role) : plain(wait.text);
 		return [head, tail];
 	}
-	return [plain("idle; waiting for work")];
+	return [
+		plain(
+			"idle; no queued or dispatchable work - review `kota inbox` or open `kota navigate` > Inbox",
+		),
+	];
 }
 
 type StatCell = { label: string; value: string; valueRole?: SemanticRole };
@@ -320,6 +360,8 @@ export function buildDashboardNode(
 		children.push(blank());
 	}
 
+	children.push(...renderControlHelp());
+
 	if (logs.length > 0) {
 		children.push(sectionRule("Activity"));
 		const visible = logs.slice(-MAX_LOG_LINES);
@@ -329,6 +371,28 @@ export function buildDashboardNode(
 	}
 
 	return stack(...children);
+}
+
+function renderControlHelp(): RenderNode[] {
+	return [
+		line(span("Controls", undefined, true)),
+		line(plain("  Host/dashboard only; this terminal does not read commands.")),
+		line(plain("  Controls use the daemon API through these clients:")),
+		line(
+			plain("  status `kota status`  inbox `kota inbox`  workflow `kota workflow status`"),
+		),
+		line(
+			plain("  pause `kota workflow pause`  resume `kota workflow resume`"),
+		),
+		line(plain("  follow `kota workflow follow`  client `kota navigate` or bare `kota`")),
+		line(
+			plain(
+				"  ui `kota ui render operator-control`  reload `kota daemon reload`",
+			),
+		),
+		line(plain("  stop `kota daemon stop`")),
+		blank(),
+	];
 }
 
 function taskQueueHasSignal(task: DashboardTaskQueue): boolean {

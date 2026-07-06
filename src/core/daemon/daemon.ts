@@ -288,6 +288,7 @@ export class Daemon {
       dispatchWindowBlocked: dispatchWindow.blocked,
       dispatchWindowOpensAt: dispatchWindow.opensAt,
       agentBackoff: wfState.agentBackoff,
+      recovery: wfState.recovery,
       definitionCount: this.ctx.workflows.getDefinitionCount(),
       sessionCount: this.ctx.sessions.size,
     };

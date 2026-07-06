@@ -3,15 +3,15 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import {
+	markAutomationWorktreeMerged,
+	markAutomationWorktreePendingMerge,
+} from "./worktree-lifecycle.js";
+import {
 	git,
 	metadataPath,
 	readDirtyState,
 } from "./worktree-lifecycle-support.js";
 import type { AutomationWorktreeSelector } from "./worktree-lifecycle-types.js";
-import {
-	markAutomationWorktreeMerged,
-	markAutomationWorktreePendingMerge,
-} from "./worktree-lifecycle.js";
 import type {
 	MergeGateConflict,
 	MergeGateResult,

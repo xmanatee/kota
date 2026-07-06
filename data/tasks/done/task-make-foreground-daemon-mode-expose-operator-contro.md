@@ -1,12 +1,12 @@
 ---
 id: task-make-foreground-daemon-mode-expose-operator-contro
 title: Make foreground daemon mode expose operator control affordances
-status: ready
+status: done
 priority: p1
 area: daemon-ops
 summary: Make pnpm dev daemon / kota daemon clearly present how to pause, resume, follow, inspect, and open the operator client instead of looking like an uncontrollable monitor.
 created_at: 2026-07-06T15:16:35.790Z
-updated_at: 2026-07-06T15:23:04.225Z
+updated_at: 2026-07-06T15:42:29.352Z
 task_class: Product
 ---
 
@@ -85,3 +85,16 @@ uncontrollable or stuck surface.
   exact resume/control path.
 - Tests covering dashboard rendering for running, paused, dirty-recovery,
   idle/no-actionable-work, and non-TTY modes.
+
+## Completion Notes
+
+- Added a foreground dashboard controls section that names the host/dashboard
+  boundary and the canonical status, inbox, workflow, navigator, UI, and
+  daemon command paths.
+- Added explicit state guidance for paused dispatch, dispatch windows, agent
+  backoff, dirty-checkout recovery, dispatchable work, parked work, and idle
+  no-work states.
+- Updated `kota daemon --help` and `kota daemon start --help` to distinguish
+  daemon host/dashboard mode from `kota navigate` and bare `kota`.
+- Evidence transcript: `.kota/runs/2026-07-06T15-29-18-210Z-builder-v70rd2/transcript.txt`.
+- Validation run: `pnpm test src/modules/daemon-ops/dashboard.test.ts src/modules/daemon-ops/index.test.ts`, `pnpm typecheck`, `pnpm build`, and targeted `biome check`.

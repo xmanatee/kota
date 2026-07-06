@@ -1,0 +1,4 @@
+1. Foreground daemon dashboard output on a TTY includes concise operator affordances for status, workflow status, pause, resume, follow, opening the operator client, reload, and stop.
+2. Paused, dirty-recovery, idle, and blocked/no-actionable dispatch states render an explicit reason plus the canonical next command or UI action instead of only a generic paused/blocked label.
+3. `kota daemon --help` and `kota daemon start --help` describe daemon mode as a host/dashboard surface and point operators to `kota navigate` or bare `kota` for the interactive operator console.
+4. The implemented help and dashboard affordances are available through both source-mode `pnpm dev daemon` and the built `kota daemon` command path.

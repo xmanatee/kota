@@ -1,0 +1,203 @@
+$ pnpm dev daemon --help
+[sandbox blocked pnpm dev: tsx CLI could not create its IPC pipe]
+
+> kota@0.1.0 dev /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-make-foreground-daemon-mode-expose-operator-contro-2026-07-06t15-29-18-210z-builder-v70rd2
+> NODE_OPTIONS=--conditions=source tsx src/cli.ts daemon --help
+
+node:net:1918
+      const error = new UVExceptionWithHostPort(rval, 'listen', address, port);
+                    ^
+
+Error: listen EPERM: operation not permitted /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-make-foreground-daemon-mode-expose-operator-contro-2026-07-06t15-29-18-210z-builder-v70rd2/.kota/tmp/2026-07-06T15-29-18-210Z-builder-v70rd2/tsx-501/24625.pipe
+    at Server.setupListenHandle [as _listen2] (node:net:1918:21)
+    at listenInCluster (node:net:1997:12)
+    at Server.listen (node:net:2119:5)
+
+$ node --conditions=source --import tsx src/cli.ts daemon --help  # same source entrypoint without tsx CLI IPC
+Usage: kota daemon [options] [command]
+
+Run the KOTA daemon host and foreground dashboard.
+
+Foreground daemon mode:
+  This command hosts and monitors the daemon. It is not the interactive operator
+console.
+  Open the console with `kota navigate` or bare `kota`.
+  Inspect and control workflow dispatch with `kota workflow status`, `pause`,
+`resume`, and `follow`.
+  Render the shared operator controls with `kota ui render operator-control`.
+
+Options:
+  -v, --verbose              Show debug output
+  --preset <id>              Preset bundle (claude | codex | openrouter |
+                             openrouter-lab | gemini | gemini-cli |
+                             antigravity-cli). Overrides KOTA_PRESET and
+                             config.defaultPreset for this daemon process
+  --poll-interval <seconds>  Scheduler poll interval in seconds (default: "30")
+  --project-dir <path>       Project directory the daemon operates on (overrides
+                             KOTA_PROJECT_DIR env and cwd)
+  --log-format <format>      Log format: text (default) or json
+  -h, --help                 display help for command
+
+Commands:
+  start [options]            Start the KOTA daemon host and foreground dashboard
+  status [options]           Show daemon health summary (exits 0 if reachable)
+  pid [options]              Print the PID of the running daemon (exits non-zero
+                             if not running)
+  stop [options]             Gracefully stop the running daemon (exits 0 on
+                             success)
+  reload [options]           Reload daemon config and re-register module
+                             workflow contributions without restart
+  install [options]          Register the KOTA daemon as a user-level OS service
+                             (launchd on macOS, systemd on Linux)
+  uninstall                  Remove the KOTA daemon OS service installed by
+                             'daemon install'
+  qr                         Print a QR code encoding the daemon URL and auth
+                             token for mobile client setup
+
+$ kota daemon --help  # built CLI via node bin/kota.mjs
+Usage: kota daemon [options] [command]
+
+Run the KOTA daemon host and foreground dashboard.
+
+Foreground daemon mode:
+  This command hosts and monitors the daemon. It is not the interactive operator
+console.
+  Open the console with `kota navigate` or bare `kota`.
+  Inspect and control workflow dispatch with `kota workflow status`, `pause`,
+`resume`, and `follow`.
+  Render the shared operator controls with `kota ui render operator-control`.
+
+Options:
+  -v, --verbose              Show debug output
+  --preset <id>              Preset bundle (claude | codex | openrouter |
+                             openrouter-lab | gemini | gemini-cli |
+                             antigravity-cli). Overrides KOTA_PRESET and
+                             config.defaultPreset for this daemon process
+  --poll-interval <seconds>  Scheduler poll interval in seconds (default: "30")
+  --project-dir <path>       Project directory the daemon operates on (overrides
+                             KOTA_PROJECT_DIR env and cwd)
+  --log-format <format>      Log format: text (default) or json
+  -h, --help                 display help for command
+
+Commands:
+  start [options]            Start the KOTA daemon host and foreground dashboard
+  status [options]           Show daemon health summary (exits 0 if reachable)
+  pid [options]              Print the PID of the running daemon (exits non-zero
+                             if not running)
+  stop [options]             Gracefully stop the running daemon (exits 0 on
+                             success)
+  reload [options]           Reload daemon config and re-register module
+                             workflow contributions without restart
+  install [options]          Register the KOTA daemon as a user-level OS service
+                             (launchd on macOS, systemd on Linux)
+  uninstall                  Remove the KOTA daemon OS service installed by
+                             'daemon install'
+  qr                         Print a QR code encoding the daemon URL and auth
+                             token for mobile client setup
+
+$ kota daemon start --help  # built CLI via node bin/kota.mjs
+Usage: kota daemon start [options]
+
+Start the KOTA daemon host and foreground dashboard.
+
+Foreground daemon mode:
+  This command hosts and monitors the daemon. It is not the interactive operator
+console.
+  Open the console with `kota navigate` or bare `kota`.
+  Inspect and control workflow dispatch with `kota workflow status`, `pause`,
+`resume`, and `follow`.
+  Render the shared operator controls with `kota ui render operator-control`.
+
+Options:
+  -v, --verbose              Show debug output
+  --preset <id>              Preset bundle (claude | codex | openrouter |
+                             openrouter-lab | gemini | gemini-cli |
+                             antigravity-cli). Overrides KOTA_PRESET and
+                             config.defaultPreset for this daemon process
+  --poll-interval <seconds>  Scheduler poll interval in seconds (default: "30")
+  --project-dir <path>       Project directory the daemon operates on (overrides
+                             KOTA_PROJECT_DIR env and cwd)
+  --log-format <format>      Log format: text (default) or json
+  -h, --help                 display help for command
+
+$ rendered daemon dashboard snapshot (running)
+KOTA Daemon  pid 4242  up 1h 15m  running
+
+  Completed  668       Sessions  1
+  Cost       $1930.84  Defs      14
+  Active     0         Pending   0
+  Paused     no
+
+State
+  dispatchable work available; waiting for idle dispatch - inspect `kota workflow status`
+
+Work
+  Ready 3  Backlog 10  Blocked 8
+  Open 9  Dispatchable 9  Actionable 3  Promotable 6  Pullable 3
+
+Controls
+  Host/dashboard only; this terminal does not read commands.
+  Controls use the daemon API through these clients:
+  status `kota status`  inbox `kota inbox`  workflow `kota workflow status`
+  pause `kota workflow pause`  resume `kota workflow resume`
+  follow `kota workflow follow`  client `kota navigate` or bare `kota`
+  ui `kota ui render operator-control`  reload `kota daemon reload`
+  stop `kota daemon stop`
+Activity -------------------------------------------------------------------------------------------
+  Daemon ready (pid 4242): 14 workflows, 0 scheduled items, poll 30s
+
+$ rendered daemon dashboard snapshot (paused dispatch)
+KOTA Daemon  pid 4242  up 1h 15m  running
+
+  Completed  668       Sessions  1
+  Cost       $1930.84  Defs      14
+  Active     0         Pending   0
+  Paused     yes
+
+State
+  dispatch paused - run `kota workflow resume` or open `kota navigate` > Runtime
+
+Work
+  Ready 3  Backlog 10  Blocked 8
+  Open 9  Dispatchable 9  Actionable 3  Promotable 6  Pullable 3
+
+Controls
+  Host/dashboard only; this terminal does not read commands.
+  Controls use the daemon API through these clients:
+  status `kota status`  inbox `kota inbox`  workflow `kota workflow status`
+  pause `kota workflow pause`  resume `kota workflow resume`
+  follow `kota workflow follow`  client `kota navigate` or bare `kota`
+  ui `kota ui render operator-control`  reload `kota daemon reload`
+  stop `kota daemon stop`
+
+
+$ rendered daemon dashboard snapshot (dirty recovery)
+KOTA Daemon  pid 4242  up 1h 15m  running
+
+  Completed  668       Sessions  1
+  Cost       $1930.84  Defs      14
+  Active     0         Pending   0
+  Paused     yes
+
+State
+  dirty workspace checkout recovery from builder - run `kota status` for details; after cleanup use `kota workflow resume`
+
+Work
+  Ready 3  Backlog 10  Blocked 8
+  Open 9  Dispatchable 9  Actionable 3  Promotable 6  Pullable 3
+
+Controls
+  Host/dashboard only; this terminal does not read commands.
+  Controls use the daemon API through these clients:
+  status `kota status`  inbox `kota inbox`  workflow `kota workflow status`
+  pause `kota workflow pause`  resume `kota workflow resume`
+  follow `kota workflow follow`  client `kota navigate` or bare `kota`
+  ui `kota ui render operator-control`  reload `kota daemon reload`
+  stop `kota daemon stop`
+
+$ pnpm test src/modules/daemon-ops/dashboard-control-affordances.test.ts src/modules/daemon-ops/daemon-help.test.ts src/modules/daemon-ops/dashboard.test.ts src/modules/daemon-ops/index.test.ts
+> kota@0.1.0 test
+> NODE_OPTIONS=--conditions=source vitest run src/modules/daemon-ops/dashboard-control-affordances.test.ts src/modules/daemon-ops/daemon-help.test.ts src/modules/daemon-ops/dashboard.test.ts src/modules/daemon-ops/index.test.ts
+
+Test Files  4 passed (4)
+Tests       62 passed (62)

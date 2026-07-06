@@ -131,8 +131,8 @@ dirty-worktree bounce loops.
 
 ## Recovery Contract
 
-Every autonomy workflow whose steps can mutate tracked files must participate
-in the recovery protocol. A workflow opts in by:
+Every autonomy workflow whose steps can mutate tracked files opts into
+recovery by:
 
 1. Setting `recoveryCapable: true` in its definition.
 2. Adding a `runtime.recovered` trigger (the runtime filters recovery dispatch
@@ -140,17 +140,14 @@ in the recovery protocol. A workflow opts in by:
 3. Running a reset step first to restore a safe base before heavier work. Use
    `resetWorktreeForRecovery` from `#modules/autonomy/recovery.js`; it stashes
    tracked dirt and can switch from a `kota/task/*` branch to the base branch.
-4. Gating the workflow's expensive work step (the agent call) so it does not
-   run on the recovery trigger. Use the `onNormalTrigger` predicate to skip
-   the agent step during recovery; pair it with an existing "skip when dirty"
-   guard for a complete safety net. Improver is the exception: its analysis
-   runs after stash because its role is evidence review, not task progress.
-5. Ensuring the reset step is idempotent and has no network side effects. If
-   recovery fails, the runtime retries once and pauses dispatch; network before
-   reset would leak side effects on every retry.
+4. Gating expensive agent work with `onNormalTrigger` so it skips recovery
+   triggers; pair this with the existing dirty guard. Improver may still
+   analyze after stash because it reviews evidence, not task progress.
+5. Keeping reset idempotent and network-free. If recovery fails, the runtime
+   retries once and pauses dispatch; pre-reset network effects would leak.
 
 A workflow without file mutations but with a recovery role (e.g. attention-
-digest notifying operators) may set `recoveryCapable: true` with a
-`runtime.recovered` trigger and skip reset, but must stay idempotent with no
-pre-reset network effects. A workflow with neither role leaves it unset with a
-short comment (today: `dispatcher`, `pr-reviewer`). Decide deliberately.
+digest notifications) may set `recoveryCapable: true` with `runtime.recovered`
+and skip reset, but must stay idempotent and network-free before reset. A
+workflow with neither role leaves it unset with a short comment (today:
+`dispatcher`, `pr-reviewer`). Decide deliberately.

@@ -1,0 +1,1 @@
+Daemon dashboard exposes foreground control paths
