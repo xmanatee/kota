@@ -1,13 +1,13 @@
 ---
 id: task-resolve-webhook-trigger-route-diagnostics
 title: Resolve webhook trigger route diagnostics
-status: ready
+status: done
 priority: p3
 area: webhook
 task_class: Product
 summary: Recent webhook Safety fixes landed, but builder diagnostics now leave webhook trigger route and route/CLI test source-size advisories plus a prior observability-obligation warning on the same runtime-sensitive surface. Split cohesive route/test helpers or record narrow justified exceptions, and add or recheck inspectable observability evidence without weakening signature verification or sensitive-header filtering.
 created_at: 2026-07-06T17:22:18.945Z
-updated_at: 2026-07-06T17:22:18.945Z
+updated_at: 2026-07-06T17:34:04.325Z
 ---
 
 ## Problem
@@ -53,3 +53,11 @@ Outcome-aware autonomy progress review.
 - Review-provided acceptance evidence:
 
     A follow-up run artifact or diagnostic recheck shows webhook route and test source-size advisories resolved or covered by narrow typed exceptions, maps trigger-route.ts to focused test/explicit rationale observability evidence with no unresolved missing files, and records passing focused webhook route/CLI tests plus task validation.
+
+## Resolution Evidence
+
+- Split the oversized webhook trigger route and route/CLI test surfaces into focused module-owned helpers and suites. Touched webhook source/test files are now below the 300-line source-size guideline.
+- `.kota/runs/2026-07-06T17-09-57-782Z-builder-3f2n9j/source-file-size-review.json` records outcome `ok`, `warnings: []`, and `OK: changed source files are under source-size warning thresholds`.
+- `.kota/runs/2026-07-06T17-09-57-782Z-builder-3f2n9j/observability-obligation-review.json` records outcome `ok`, maps `src/modules/webhook/trigger-route.ts` and extracted webhook helpers to focused test assertions, and has `missingFiles: []`.
+- `.kota/runs/2026-07-06T17-09-57-782Z-builder-3f2n9j/transcript.txt` records an operator-route transcript for a signed `/webhooks/deploy` delivery, sensitive-header filtering in the forwarded workflow payload, and a tampered-signature `401` response.
+- Validation passed: `pnpm test src/modules/webhook/trigger-route.test.ts src/modules/webhook/trigger-route-security.test.ts src/modules/webhook/cli.test.ts`, `pnpm typecheck`, and `pnpm validate-tasks`.

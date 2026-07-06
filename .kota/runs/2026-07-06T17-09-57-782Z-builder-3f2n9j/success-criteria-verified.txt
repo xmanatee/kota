@@ -1,0 +1,3 @@
+1. Verified by splitting oversized webhook route/test files and recording `source-file-size-review.json` with outcome `ok`, no warnings, and all touched webhook source/test files below the 300-line guideline.
+2. Verified by `observability-obligation-review.json`: outcome `ok`, `missingFiles: []`, and focused test assertion evidence for `src/modules/webhook/trigger-route.ts` and extracted webhook helpers without changing signature verification or sensitive-header filtering semantics.
+3. Verified by `transcript.txt`, `validation.txt`, and task evidence: the operator-route transcript shows signed webhook delivery and tampered-signature rejection, focused webhook route/CLI tests passed, `pnpm typecheck` passed, and `pnpm validate-tasks` passed.

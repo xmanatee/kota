@@ -1,0 +1,32 @@
+Commands run:
+
+- pnpm exec biome check --write src/modules/webhook/cli.test.ts src/modules/webhook/cli-test-support.ts src/modules/webhook/trigger-route.ts src/modules/webhook/trigger-route-auth.ts src/modules/webhook/trigger-route-payload.ts src/modules/webhook/trigger-route.test.ts src/modules/webhook/trigger-route-security.test.ts src/modules/webhook/trigger-route-test-support.ts
+  - Result: passed; fixed 1 file.
+- pnpm test src/modules/webhook/trigger-route.test.ts src/modules/webhook/trigger-route-security.test.ts src/modules/webhook/cli.test.ts
+  - Result: passed; 3 files, 32 tests.
+- node --conditions=source --import tsx -e "import { checkSevereSourceFileSizeForRun } from './src/modules/autonomy/source-size-review-artifact.ts'; console.log(checkSevereSourceFileSizeForRun(process.cwd(), '.kota/runs/2026-07-06T17-09-57-782Z-builder-3f2n9j'));"
+  - Result: OK: changed source files are under source-size warning thresholds.
+- node --conditions=source --import tsx -e "import { checkObservabilityObligationsForRun } from './src/modules/autonomy/observability-obligation.ts'; console.log(checkObservabilityObligationsForRun(process.cwd(), '.kota/runs/2026-07-06T17-09-57-782Z-builder-3f2n9j'));"
+  - Result: OK: 5 observability-sensitive candidate file(s) have inspectable evidence.
+- pnpm typecheck
+  - Result: passed.
+- pnpm validate-tasks
+  - Result: passed.
+- pnpm test src/strict-types-policy.integration.test.ts
+  - Result: passed; 1 file, 1 test.
+- pnpm test src/modules/webhook/cli.test.ts src/modules/webhook/trigger-route-security.test.ts
+  - Result: passed; 2 files, 22 tests.
+- pnpm hygiene
+  - Result: passed; staged changes show no repo hygiene issues.
+- git diff --cached --check
+  - Result: passed; no whitespace errors.
+- pnpm exec biome check src/modules/webhook/cli-test-support.ts src/modules/webhook/trigger-route-security.test.ts
+  - Result: passed; 2 files checked, no fixes applied.
+- node --conditions=source --import tsx <no-listen webhook route transcript generator>
+  - Result: passed; wrote transcript.txt showing a signed `/webhooks/deploy` delivery returning 200, forwarded workflow payload with sensitive headers omitted, and tampered signature returning 401. A literal curl server probe could not bind 127.0.0.1 in this sandbox (`listen EPERM`), so the transcript invokes the same route handler in process with HTTP-equivalent request headers/body.
+- node --conditions=source --import tsx -e "checkProductOperatorEvidence(...)"
+  - Result: passed; Product operator evidence detector returned `refs: ["run:transcript.txt"]`.
+- pnpm validate-tasks
+  - Result: passed after adding transcript evidence.
+- git diff --check
+  - Result: passed; no whitespace errors after adding transcript evidence.

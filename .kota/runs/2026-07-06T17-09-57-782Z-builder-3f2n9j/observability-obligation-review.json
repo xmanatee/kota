@@ -1,0 +1,141 @@
+{
+  "type": "observability-obligation",
+  "outcome": "ok",
+  "candidates": [
+    {
+      "file": "src/modules/webhook/cli-test-support.ts",
+      "status": "satisfied",
+      "reasons": [
+        {
+          "kind": "channel-delivery",
+          "message": "changed channel delivery, webhook, callback, or transport behavior"
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "focused-test-assertion",
+          "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+          "ref": "src/modules/webhook/trigger-route-security.test.ts"
+        }
+      ],
+      "message": "Inspectable observability evidence found for this runtime-sensitive change."
+    },
+    {
+      "file": "src/modules/webhook/trigger-route-auth.ts",
+      "status": "satisfied",
+      "reasons": [
+        {
+          "kind": "approval-permission",
+          "message": "changed approval, permission, guardrail, secret, or credential behavior"
+        },
+        {
+          "kind": "channel-delivery",
+          "message": "changed channel delivery, webhook, callback, or transport behavior"
+        },
+        {
+          "kind": "daemon-route",
+          "message": "changed daemon route, server, request, or response handling"
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "focused-test-assertion",
+          "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+          "ref": "src/modules/webhook/trigger-route-security.test.ts"
+        }
+      ],
+      "message": "Inspectable observability evidence found for this runtime-sensitive change."
+    },
+    {
+      "file": "src/modules/webhook/trigger-route-payload.ts",
+      "status": "satisfied",
+      "reasons": [
+        {
+          "kind": "approval-permission",
+          "message": "changed approval, permission, guardrail, secret, or credential behavior"
+        },
+        {
+          "kind": "channel-delivery",
+          "message": "changed channel delivery, webhook, callback, or transport behavior"
+        },
+        {
+          "kind": "daemon-route",
+          "message": "changed daemon route, server, request, or response handling"
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "focused-test-assertion",
+          "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+          "ref": "src/modules/webhook/trigger-route-security.test.ts"
+        }
+      ],
+      "message": "Inspectable observability evidence found for this runtime-sensitive change."
+    },
+    {
+      "file": "src/modules/webhook/trigger-route-test-support.ts",
+      "status": "satisfied",
+      "reasons": [
+        {
+          "kind": "error-handling",
+          "message": "changed runtime error handling or failure-state behavior"
+        },
+        {
+          "kind": "approval-permission",
+          "message": "changed approval, permission, guardrail, secret, or credential behavior"
+        },
+        {
+          "kind": "channel-delivery",
+          "message": "changed channel delivery, webhook, callback, or transport behavior"
+        },
+        {
+          "kind": "daemon-route",
+          "message": "changed daemon route, server, request, or response handling"
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "focused-test-assertion",
+          "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+          "ref": "src/modules/webhook/trigger-route-security.test.ts"
+        }
+      ],
+      "message": "Inspectable observability evidence found for this runtime-sensitive change."
+    },
+    {
+      "file": "src/modules/webhook/trigger-route.ts",
+      "status": "satisfied",
+      "reasons": [
+        {
+          "kind": "approval-permission",
+          "message": "changed approval, permission, guardrail, secret, or credential behavior"
+        },
+        {
+          "kind": "channel-delivery",
+          "message": "changed channel delivery, webhook, callback, or transport behavior"
+        },
+        {
+          "kind": "daemon-route",
+          "message": "changed daemon route, server, request, or response handling"
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "focused-test-assertion",
+          "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+          "ref": "src/modules/webhook/trigger-route-security.test.ts"
+        }
+      ],
+      "message": "Inspectable observability evidence found for this runtime-sensitive change."
+    }
+  ],
+  "satisfiedFiles": [
+    "src/modules/webhook/cli-test-support.ts",
+    "src/modules/webhook/trigger-route-auth.ts",
+    "src/modules/webhook/trigger-route-payload.ts",
+    "src/modules/webhook/trigger-route-test-support.ts",
+    "src/modules/webhook/trigger-route.ts"
+  ],
+  "missingFiles": [],
+  "message": "OK: 5 observability-sensitive candidate file(s) have inspectable evidence"
+}

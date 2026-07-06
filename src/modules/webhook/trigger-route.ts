@@ -19,62 +19,22 @@
  * this module, not by daemon-handle state.
  */
 
-import { createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { KotaConfig } from "#core/config/config.js";
 import { jsonResponse, readBody } from "#core/daemon/daemon-control-utils.js";
-import {
-  hashIdempotencyMaterial,
-  type IdempotencyJsonObject,
-  type IdempotencyJsonValue,
-} from "#core/daemon/idempotency-store.js";
 import type { ControlRouteRegistration } from "#core/modules/module-types.js";
 import { getWorkflowDefinitionsSource } from "#core/workflow/workflow-definitions-provider.js";
+import { getWorkflowDispatcher } from "#core/workflow/workflow-dispatcher-provider.js";
 import {
-  getWorkflowDispatcher,
-  type WebhookRunPayload,
-} from "#core/workflow/workflow-dispatcher-provider.js";
+  timestampWithinWebhookWindow,
+  verifyWebhookSignature,
+} from "./trigger-route-auth.js";
+import { buildWebhookRunPayload } from "./trigger-route-payload.js";
 
 const WORKFLOW_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
-const TIMESTAMP_TOLERANCE_MS = 5 * 60 * 1000;
 const RATE_LIMIT_WINDOW_MS = 60_000;
-const BODY_ONLY_SIGNATURE_PREFIX = "sha256=";
-const TIMESTAMPED_SIGNATURE_PREFIX = "sha256-v2=";
-const HEX_SIGNATURE_PATTERN = /^[0-9a-fA-F]+$/;
-const WEBHOOK_TRIGGER_INTERNAL_HEADERS = new Set([
-  "x-kota-webhook-signature",
-  "x-kota-webhook-timestamp",
-  "x-kota-idempotency-key",
-  "idempotency-key",
-]);
-const SECRET_BEARING_WEBHOOK_HEADERS = new Set([
-  "authorization",
-  "cookie",
-  "set-cookie",
-  "proxy-authorization",
-  "x-forwarded-auth",
-  "x-forwarded-authorization",
-  "x-api-key",
-  "x-auth-token",
-  "x-original-auth",
-  "x-original-authorization",
-]);
-const SECRET_BEARING_HEADER_SUFFIXES = new Set(["authorization", "token", "key", "secret"]);
 
 type WebhookSecretLookup = (name: string) => string | undefined;
-type ParsedWebhookBody = {
-  body: WebhookRunPayload["body"];
-  bodyIdempotencyMaterial?: string;
-};
-type WebhookSignatureScheme = "body-only" | "timestamped";
-type ParsedWebhookSignature = {
-  scheme: WebhookSignatureScheme;
-  hex: string;
-};
-type VerifiedWebhookSignature =
-  | { ok: true; scheme: "body-only" }
-  | { ok: true; scheme: "timestamped"; timestamp: string }
-  | { ok: false };
 
 export class WebhookRateLimiter {
   private readonly windows = new Map<string, number[]>();
@@ -95,170 +55,6 @@ export class WebhookRateLimiter {
     this.windows.set(name, timestamps);
     return null;
   }
-}
-
-function parseWebhookSignature(signature: string): ParsedWebhookSignature {
-  const trimmed = signature.trim();
-  if (trimmed.startsWith(TIMESTAMPED_SIGNATURE_PREFIX)) {
-    return {
-      scheme: "timestamped",
-      hex: trimmed.slice(TIMESTAMPED_SIGNATURE_PREFIX.length),
-    };
-  }
-  if (trimmed.startsWith(BODY_ONLY_SIGNATURE_PREFIX)) {
-    return {
-      scheme: "body-only",
-      hex: trimmed.slice(BODY_ONLY_SIGNATURE_PREFIX.length),
-    };
-  }
-  return { scheme: "body-only", hex: trimmed };
-}
-
-function timingSafeHexEqual(actualHex: string, expectedHex: string): boolean {
-  if (
-    actualHex.length !== expectedHex.length ||
-    !HEX_SIGNATURE_PATTERN.test(actualHex)
-  ) {
-    return false;
-  }
-  try {
-    const actual = Buffer.from(actualHex, "hex");
-    const expected = Buffer.from(expectedHex, "hex");
-    return timingSafeEqual(actual, expected);
-  } catch {
-    return false;
-  }
-}
-
-function bodyOnlySignature(secret: string, rawBody: Buffer): string {
-  return createHmac("sha256", secret).update(rawBody).digest("hex");
-}
-
-function timestampedSignature(secret: string, timestamp: string, rawBody: Buffer): string {
-  return createHmac("sha256", secret)
-    .update(timestamp)
-    .update(".")
-    .update(rawBody)
-    .digest("hex");
-}
-
-function verifySignature(
-  secret: string,
-  rawBody: Buffer,
-  signature: string,
-  timestampHeader: string | string[] | undefined,
-): VerifiedWebhookSignature {
-  const parsed = parseWebhookSignature(signature);
-  if (parsed.scheme === "body-only") {
-    if (timestampHeader !== undefined) return { ok: false };
-    const expected = bodyOnlySignature(secret, rawBody);
-    return timingSafeHexEqual(parsed.hex, expected)
-      ? { ok: true, scheme: "body-only" }
-      : { ok: false };
-  }
-
-  if (typeof timestampHeader !== "string") return { ok: false };
-  const timestamp = timestampHeader.trim();
-  if (timestamp.length === 0) return { ok: false };
-  const expected = timestampedSignature(secret, timestamp, rawBody);
-  return timingSafeHexEqual(parsed.hex, expected)
-    ? { ok: true, scheme: "timestamped", timestamp }
-    : { ok: false };
-}
-
-function timestampWithinWindow(headerValue: string, now: number): boolean {
-  const ts = parseInt(headerValue, 10);
-  if (Number.isNaN(ts)) return false;
-  return Math.abs(now - ts) <= TIMESTAMP_TOLERANCE_MS;
-}
-
-function trimmedHeader(req: IncomingMessage, key: string): string | undefined {
-  const value = req.headers[key];
-  return typeof value === "string" && value.trim().length > 0
-    ? value.trim()
-    : undefined;
-}
-
-function isJsonObject(value: IdempotencyJsonValue): value is IdempotencyJsonObject {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function stringProperty(value: IdempotencyJsonValue, key: string): string | undefined {
-  if (!isJsonObject(value)) return undefined;
-  const candidate = value[key];
-  return typeof candidate === "string" && candidate.trim().length > 0
-    ? candidate.trim()
-    : undefined;
-}
-
-function isWebhookTriggerInternalHeader(headerName: string): boolean {
-  return WEBHOOK_TRIGGER_INTERNAL_HEADERS.has(headerName.toLowerCase());
-}
-
-function isSecretBearingWebhookHeader(headerName: string): boolean {
-  const normalized = headerName.toLowerCase();
-  if (SECRET_BEARING_WEBHOOK_HEADERS.has(normalized)) return true;
-  const parts = normalized.split(/[-_]/);
-  const suffix = parts[parts.length - 1];
-  return SECRET_BEARING_HEADER_SUFFIXES.has(suffix);
-}
-
-function parseWebhookBody(rawBody: Buffer): ParsedWebhookBody {
-  if (rawBody.length > 0) {
-    try {
-      const body = JSON.parse(rawBody.toString()) as IdempotencyJsonValue;
-      const bodyKey =
-        stringProperty(body, "idempotencyKey") ??
-        stringProperty(body, "externalId");
-      return {
-        body,
-        ...(bodyKey
-          ? { bodyIdempotencyMaterial: `webhook-body-key:${hashIdempotencyMaterial([bodyKey])}` }
-          : {}),
-      };
-    } catch {
-      return { body: rawBody.toString() };
-    }
-  }
-  return { body: null };
-}
-
-function webhookIdempotencyKey(
-  req: IncomingMessage,
-  rawBody: Buffer,
-  parsed: ParsedWebhookBody,
-): string {
-  const headerKey =
-    trimmedHeader(req, "x-kota-idempotency-key") ??
-    trimmedHeader(req, "idempotency-key");
-  if (headerKey) {
-    return `webhook-header:${hashIdempotencyMaterial([headerKey])}`;
-  }
-  if (parsed.bodyIdempotencyMaterial) return parsed.bodyIdempotencyMaterial;
-  return `webhook-body:${hashIdempotencyMaterial([rawBody.toString("base64")])}`;
-}
-
-function buildPayload(
-  req: IncomingMessage,
-  rawBody: Buffer,
-): WebhookRunPayload {
-  const parsed = parseWebhookBody(rawBody);
-  const headers: Record<string, string> = {};
-  for (const [key, val] of Object.entries(req.headers)) {
-    if (
-      !isWebhookTriggerInternalHeader(key) &&
-      !isSecretBearingWebhookHeader(key) &&
-      typeof val === "string"
-    ) {
-      headers[key] = val;
-    }
-  }
-  return {
-    body: parsed.body,
-    headers,
-    timestamp: new Date().toISOString(),
-    idempotencyKey: webhookIdempotencyKey(req, rawBody, parsed),
-  };
 }
 
 export type WebhookTriggerHandlerOptions = {
@@ -295,7 +91,7 @@ export function createWebhookTriggerHandler(
 
     const expectedSecret = getSecret(name);
     const verification = expectedSecret
-      ? verifySignature(
+      ? verifyWebhookSignature(
           expectedSecret,
           rawBody,
           signature,
@@ -309,7 +105,7 @@ export function createWebhookTriggerHandler(
 
     if (
       verification.scheme === "timestamped" &&
-      !timestampWithinWindow(verification.timestamp, Date.now())
+      !timestampWithinWebhookWindow(verification.timestamp, Date.now())
     ) {
       jsonResponse(res, 401, { error: "Invalid webhook signature" });
       return;
@@ -336,7 +132,7 @@ export function createWebhookTriggerHandler(
       }
     }
 
-    const payload = buildPayload(req, rawBody);
+    const payload = buildWebhookRunPayload(req, rawBody);
     const result = dispatcher.enqueueWebhookRun(name, payload);
     if (result.notFound) {
       jsonResponse(res, 404, {

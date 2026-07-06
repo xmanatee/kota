@@ -1,121 +1,18 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { Command } from "commander";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { rmSync } from "node:fs";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
-import { registerWebhookCommands } from "./cli.js";
-import type { WebhookClient } from "./client.js";
 import {
-  generateWebhookSecret,
-  listWebhooks,
-  removeWebhookSecret,
-} from "./webhook-operations.js";
-
-const { FAKE_HOME } = vi.hoisted(() => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { join } = require("node:path") as typeof import("node:path");
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { tmpdir } = require("node:os") as typeof import("node:os");
-  return { FAKE_HOME: join(tmpdir(), `kota-webhook-cli-home-${Date.now()}`) };
-});
-
-vi.mock("node:os", async (importOriginal) => {
-  const original = await importOriginal<typeof import("node:os")>();
-  return { ...original, homedir: () => FAKE_HOME };
-});
-
-function workflowDef(
-  name: string,
-  triggers: RegisteredWorkflowDefinitionInput["triggers"],
-): RegisteredWorkflowDefinitionInput {
-  return {
-    name,
-    triggers,
-    steps: [],
-    enabled: true,
-    definitionPath: `src/modules/test/workflows/${name}/workflow.ts`,
-  } as unknown as RegisteredWorkflowDefinitionInput;
-}
-
-function stubCtxWithLocalClient(
-  cwd: string,
-  workflows: RegisteredWorkflowDefinitionInput[] = [],
-): ModuleContext {
-  const ctxBase = {
-    cwd,
-    config: {},
-    getContributedWorkflows: () => workflows,
-  } as unknown as ModuleContext;
-  const webhook: WebhookClient = {
-    async list() {
-      return listWebhooks(ctxBase);
-    },
-    async secretGenerate(workflow) {
-      return generateWebhookSecret(ctxBase, workflow);
-    },
-    async secretRemove(workflow) {
-      return removeWebhookSecret(ctxBase, workflow);
-    },
-  };
-  return new Proxy(ctxBase, {
-    get(target, prop, receiver) {
-      if (prop === "client") return { webhook };
-      return Reflect.get(target, prop, receiver);
-    },
-  });
-}
-
-function makeProjectDir(): string {
-  return mkdtempSync(join(tmpdir(), "kota-webhook-cli-"));
-}
-
-afterEach(() => {
-  rmSync(FAKE_HOME, { recursive: true, force: true });
-});
-
-function trustProjectConfig(projectDir: string): void {
-  mkdirSync(join(FAKE_HOME, ".kota"), { recursive: true });
-  writeFileSync(
-    join(FAKE_HOME, ".kota", "config.json"),
-    JSON.stringify({ trustedProjects: [projectDir] }),
-  );
-}
-
-function makeProgram(ctx: ModuleContext): Command {
-  const program = new Command();
-  program.exitOverride();
-  const webhookCmd = program.command("webhook").description("Manage webhook secrets");
-  registerWebhookCommands(webhookCmd, ctx);
-  return program;
-}
-
-async function captureOutput(
-  fn: () => Promise<void>,
-): Promise<{ out: string; err: string }> {
-  const outLines: string[] = [];
-  const errLines: string[] = [];
-  const logSpy = vi.spyOn(console, "log").mockImplementation((...args) => {
-    outLines.push(`${args.join(" ")}\n`);
-  });
-  const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation((data) => {
-    outLines.push(String(data));
-    return true;
-  });
-  const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation((data) => {
-    errLines.push(String(data));
-    return true;
-  });
-  try {
-    await fn();
-  } finally {
-    logSpy.mockRestore();
-    stdoutSpy.mockRestore();
-    stderrSpy.mockRestore();
-  }
-  return { out: outLines.join(""), err: errLines.join("") };
-}
+  captureOutput,
+  cleanupFakeHome,
+  makeProgram,
+  makeProjectDir,
+  projectConfigExists,
+  readProjectConfig,
+  stubCtxWithLocalClient,
+  trustProjectConfig,
+  workflowDef,
+  writeProjectConfig,
+} from "./cli-test-support.js";
 
 describe("kota webhook list", () => {
   let projectDir: string;
@@ -131,6 +28,7 @@ describe("kota webhook list", () => {
 
   afterEach(() => {
     rmSync(projectDir, { recursive: true, force: true });
+    cleanupFakeHome();
   });
 
   it("shows webhook-triggered workflows with no-secret status", async () => {
@@ -150,11 +48,9 @@ describe("kota webhook list", () => {
 
   it("shows configured status when a secret exists in config", async () => {
     trustProjectConfig(projectDir);
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
-    writeFileSync(
-      join(projectDir, ".kota", "config.json"),
-      JSON.stringify({ webhooks: { "my-webhook-flow": { secret: "abc123" } } }),
-    );
+    writeProjectConfig(projectDir, {
+      webhooks: { "my-webhook-flow": { secret: "abc123" } },
+    });
 
     const { out } = await captureOutput(async () => {
       await makeProgram(ctx).parseAsync(["node", "kota", "webhook", "list"]);
@@ -165,11 +61,9 @@ describe("kota webhook list", () => {
 
   it("never prints secret values", async () => {
     trustProjectConfig(projectDir);
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
-    writeFileSync(
-      join(projectDir, ".kota", "config.json"),
-      JSON.stringify({ webhooks: { "my-webhook-flow": { secret: "supersecretvalue" } } }),
-    );
+    writeProjectConfig(projectDir, {
+      webhooks: { "my-webhook-flow": { secret: "supersecretvalue" } },
+    });
 
     const { out } = await captureOutput(async () => {
       await makeProgram(ctx).parseAsync(["node", "kota", "webhook", "list"]);
@@ -189,6 +83,7 @@ describe("kota webhook secret generate", () => {
 
   afterEach(() => {
     rmSync(projectDir, { recursive: true, force: true });
+    cleanupFakeHome();
   });
 
   it("generates a 64-char hex secret and writes it to .kota/config.json", async () => {
@@ -203,13 +98,14 @@ describe("kota webhook secret generate", () => {
       ]);
     });
 
-    const configPath = join(projectDir, ".kota", "config.json");
-    expect(existsSync(configPath)).toBe(true);
-    const saved = JSON.parse(readFileSync(configPath, "utf-8"));
+    expect(projectConfigExists(projectDir)).toBe(true);
+    const saved = readProjectConfig(projectDir) as {
+      webhooks?: Record<string, { secret?: string }>;
+    };
     const secret = saved.webhooks?.["my-webhook-flow"]?.secret;
     expect(typeof secret).toBe("string");
     expect(secret).toHaveLength(64);
-    expect(/^[0-9a-f]+$/.test(secret)).toBe(true);
+    expect(/^[0-9a-f]+$/.test(secret ?? "")).toBe(true);
   });
 
   it("prints the generated secret once", async () => {
@@ -224,8 +120,9 @@ describe("kota webhook secret generate", () => {
       ]);
     });
 
-    const configPath = join(projectDir, ".kota", "config.json");
-    const saved = JSON.parse(readFileSync(configPath, "utf-8"));
+    const saved = readProjectConfig(projectDir) as {
+      webhooks?: Record<string, { secret?: string }>;
+    };
     const secret = saved.webhooks?.["my-webhook-flow"]?.secret;
     expect(out).toContain(secret);
   });
@@ -250,11 +147,9 @@ describe("kota webhook secret generate", () => {
 
   it("warns when overwriting an existing secret", async () => {
     trustProjectConfig(projectDir);
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
-    writeFileSync(
-      join(projectDir, ".kota", "config.json"),
-      JSON.stringify({ webhooks: { "my-webhook-flow": { secret: "old-secret" } } }),
-    );
+    writeProjectConfig(projectDir, {
+      webhooks: { "my-webhook-flow": { secret: "old-secret" } },
+    });
 
     const { err } = await captureOutput(async () => {
       await makeProgram(ctx).parseAsync([
@@ -285,11 +180,7 @@ describe("kota webhook secret generate", () => {
   });
 
   it("preserves other config fields when writing", async () => {
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
-    writeFileSync(
-      join(projectDir, ".kota", "config.json"),
-      JSON.stringify({ model: "claude-opus-4", webhooks: {} }),
-    );
+    writeProjectConfig(projectDir, { model: "claude-opus-4", webhooks: {} });
 
     await captureOutput(async () => {
       await makeProgram(ctx).parseAsync([
@@ -302,9 +193,10 @@ describe("kota webhook secret generate", () => {
       ]);
     });
 
-    const saved = JSON.parse(
-      readFileSync(join(projectDir, ".kota", "config.json"), "utf-8"),
-    );
+    const saved = readProjectConfig(projectDir) as {
+      model?: string;
+      webhooks?: Record<string, { secret?: string }>;
+    };
     expect(saved.model).toBe("claude-opus-4");
     expect(saved.webhooks?.["my-webhook-flow"]?.secret).toBeTruthy();
   });
@@ -321,17 +213,17 @@ describe("kota webhook secret remove", () => {
 
   afterEach(() => {
     rmSync(projectDir, { recursive: true, force: true });
+    cleanupFakeHome();
   });
 
   it("removes webhook entry from config", async () => {
     trustProjectConfig(projectDir);
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
-    writeFileSync(
-      join(projectDir, ".kota", "config.json"),
-      JSON.stringify({
-        webhooks: { "my-webhook-flow": { secret: "todelete" }, other: { secret: "keep" } },
-      }),
-    );
+    writeProjectConfig(projectDir, {
+      webhooks: {
+        "my-webhook-flow": { secret: "todelete" },
+        other: { secret: "keep" },
+      },
+    });
 
     await captureOutput(async () => {
       await makeProgram(ctx).parseAsync([
@@ -344,20 +236,18 @@ describe("kota webhook secret remove", () => {
       ]);
     });
 
-    const saved = JSON.parse(
-      readFileSync(join(projectDir, ".kota", "config.json"), "utf-8"),
-    );
+    const saved = readProjectConfig(projectDir) as {
+      webhooks?: Record<string, { secret?: string }>;
+    };
     expect(saved.webhooks?.["my-webhook-flow"]).toBeUndefined();
     expect(saved.webhooks?.other?.secret).toBe("keep");
   });
 
   it("removes webhooks key entirely when last entry is deleted", async () => {
     trustProjectConfig(projectDir);
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
-    writeFileSync(
-      join(projectDir, ".kota", "config.json"),
-      JSON.stringify({ webhooks: { "my-webhook-flow": { secret: "only" } } }),
-    );
+    writeProjectConfig(projectDir, {
+      webhooks: { "my-webhook-flow": { secret: "only" } },
+    });
 
     await captureOutput(async () => {
       await makeProgram(ctx).parseAsync([
@@ -370,9 +260,7 @@ describe("kota webhook secret remove", () => {
       ]);
     });
 
-    const saved = JSON.parse(
-      readFileSync(join(projectDir, ".kota", "config.json"), "utf-8"),
-    );
+    const saved = readProjectConfig(projectDir) as { webhooks?: unknown };
     expect(saved.webhooks).toBeUndefined();
   });
 
