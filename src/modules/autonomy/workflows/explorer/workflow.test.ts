@@ -31,8 +31,10 @@ vi.mock("#modules/repo-tasks/repo-tasks-domain.js", () => ({
   getRepoTaskQueueSnapshot: vi.fn(),
   isRepoTaskQueueSnapshot: vi.fn(() => true),
   isThinDispatchableQueue: vi.fn((snapshot, promotableBacklogCount) => {
+    const backlogCount =
+      promotableBacklogCount ?? snapshot.promotableBacklogCount ?? 0;
     const waitingCount =
-      snapshot.counts.ready + snapshot.counts.doing + promotableBacklogCount;
+      snapshot.counts.ready + snapshot.counts.doing + backlogCount;
     return (
       snapshot.inboxCount === 0 &&
       waitingCount <= 2 &&
@@ -64,14 +66,31 @@ function makeSnapshot({
   blocked = 0,
   done = 0,
   dropped = 0,
+  promotableBacklogCount,
+}: {
+  inboxCount?: number;
+  ready?: number;
+  backlog?: number;
+  doing?: number;
+  blocked?: number;
+  done?: number;
+  dropped?: number;
+  promotableBacklogCount?: number;
 } = {}) {
+  const effectivePromotableBacklogCount = promotableBacklogCount ?? backlog;
   const counts = { backlog, ready, doing, blocked, done, dropped };
+  const actionableCount = ready + doing;
+  const dispatchableCount =
+    inboxCount + actionableCount + effectivePromotableBacklogCount;
   return {
     counts,
     inboxCount,
     openCount: inboxCount + backlog + ready + doing + blocked,
     pullableCount: backlog + ready + doing,
-    actionableCount: ready + doing,
+    actionableCount,
+    promotableBacklogCount: effectivePromotableBacklogCount,
+    dispatchableCount,
+    hasDispatchableWork: dispatchableCount > 0,
     dependencyBlockedTasks: [],
     headSha: "abc1234",
   };
@@ -150,14 +169,10 @@ describe("explorer workflow", () => {
   });
 
   it("skips explore when ready or backlog already contains work", async () => {
-    const {
-      countRepoPromotableBacklogTasks,
-      getRepoTaskQueueSnapshot,
-    } = await import("#modules/repo-tasks/repo-tasks-domain.js");
+    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(
       makeSnapshot({ inboxCount: 0, ready: 1, backlog: 2 }),
     );
-    vi.mocked(countRepoPromotableBacklogTasks).mockReturnValue(2);
 
     const harness = new WorkflowTestHarness(explorerWorkflow, {
       trigger: { event: "autonomy.queue.empty", payload: {} },
@@ -174,15 +189,47 @@ describe("explorer workflow", () => {
     expect(result.steps.explore.status).toBe("skipped");
   });
 
+  it("runs explore when open backlog is parked but no task is dispatchable", async () => {
+    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(
+      makeSnapshot({
+        inboxCount: 0,
+        ready: 0,
+        backlog: 5,
+        doing: 0,
+        promotableBacklogCount: 0,
+      }),
+    );
+
+    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+
+    const harness = new WorkflowTestHarness(explorerWorkflow, {
+      trigger: { event: "autonomy.queue.empty", payload: {} },
+      stepMocks: {
+        explore: { turns: [], totalCostUsd: 0.02 },
+      },
+      runtimeState: { workflows: {} },
+      projectDir: tempDir,
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps["inspect-queue"].output).toMatchObject({
+      pullableCount: 5,
+      dispatchableCount: 0,
+      hasDispatchableWork: false,
+      needsAttention: true,
+    });
+    expect(result.steps.explore.status).toBe("success");
+  });
+
   it("runs explore when only a one-item backlog tail remains and refresh is due", async () => {
-    const {
-      countRepoPromotableBacklogTasks,
-      getRepoTaskQueueSnapshot,
-    } = await import("#modules/repo-tasks/repo-tasks-domain.js");
+    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(
       makeSnapshot({ inboxCount: 0, ready: 0, backlog: 1, doing: 0 }),
     );
-    vi.mocked(countRepoPromotableBacklogTasks).mockReturnValue(1);
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
     vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
@@ -504,6 +551,7 @@ describe("explorer exploration-rationale repair check", () => {
     actionableCount: number,
     overrides: { strategicReadyCoverageGap?: boolean } = {},
   ) {
+    const dispatchableCount = actionableCount;
     return {
       counts: { backlog: 0, ready: actionableCount, doing: 0, blocked: 1, done: 0, dropped: 0 },
       inboxCount: 0,
@@ -511,6 +559,8 @@ describe("explorer exploration-rationale repair check", () => {
       pullableCount: actionableCount,
       actionableCount,
       promotableBacklogCount: 0,
+      dispatchableCount,
+      hasDispatchableWork: dispatchableCount > 0,
       dirty: false,
       needsAttention: actionableCount === 0,
       explorationRefreshDue: true,

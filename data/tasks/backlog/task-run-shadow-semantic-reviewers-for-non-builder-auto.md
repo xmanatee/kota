@@ -8,7 +8,7 @@ task_class: Meta
 depends_on: [task-add-loop-quality-audits-for-autonomous-workflows, task-add-measured-autonomy-change-promotion-decisions]
 summary: Evaluate candidate critic or semantic-review gates for decomposer, explorer, inbox-sorter, research-retry, and security-review in advisory shadow mode before making any new reviewer blocking.
 created_at: 2026-06-25T14:51:40.532Z
-updated_at: 2026-06-25T14:53:35.000Z
+updated_at: 2026-07-06T14:02:50.000Z
 ---
 
 ## Problem
@@ -119,6 +119,13 @@ Local mapping:
 ## Initiative
 
 Measured multi-agent review.
+
+## Product / Safety Link
+
+Safety: adds independent review for non-builder workflows that can create,
+move, classify, or recommend work, while keeping reviewer promotion measured
+and advisory first. The safety outcome is fewer unchecked queue/research/security
+decisions without introducing an unmeasured universal critic.
 
 ## Acceptance Evidence
 

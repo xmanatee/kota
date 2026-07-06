@@ -155,12 +155,18 @@ function makeSnapshot(ready: number, doing: number, backlog = 4) {
     done: 0,
     dropped: 0,
   };
+  const actionableCount = ready + doing;
+  const promotableBacklogCount = backlog;
+  const dispatchableCount = actionableCount + promotableBacklogCount;
   return {
     counts,
     inboxCount: 0,
     openCount: counts.backlog + counts.ready + counts.doing + counts.blocked,
     pullableCount: counts.backlog + counts.ready + counts.doing,
-    actionableCount: ready + doing,
+    actionableCount,
+    promotableBacklogCount,
+    dispatchableCount,
+    hasDispatchableWork: dispatchableCount > 0,
     dependencyBlockedTasks: [],
     headSha: "abc1234",
   };

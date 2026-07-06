@@ -1,6 +1,5 @@
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
-  countRepoPromotableBacklogTasks,
   getRepoTaskQueueSnapshot,
   isThinDispatchableQueue,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
@@ -35,25 +34,24 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
       type: "code",
       run: ({ projectDir, emit }) => {
         const queue = getRepoTaskQueueSnapshot(projectDir);
-        const promotableBacklogCount = countRepoPromotableBacklogTasks(projectDir);
         const researchRetryAvailability = inspectResearchRetryAvailability(projectDir);
         const securityReviewDue = inspectSecurityReviewDue(projectDir);
         const scopeImprovementEvidence = inspectScopeImprovementEvidenceGate({
           projectDir,
           now: new Date(),
         });
-        const queueEmpty = queue.inboxCount === 0 && queue.pullableCount === 0;
-        // Builder runs only on actionable (ready+doing) work; backlog-only
-        // queues route through `autonomy.queue.needs-promotion` only when at
-        // least one backlog task can actually be promoted. Strategic anchors
-        // stay in backlog as tracking records and must not keep waking the
-        // promoter forever.
+        const queueEmpty = !queue.hasDispatchableWork;
+        // Builder runs only on actionable (ready+doing) work; backlog-only queues
+        // route through `autonomy.queue.needs-promotion` only when the canonical
+        // task snapshot says at least one backlog task can actually be promoted.
+        // Strategic anchors, blocked tails, and Meta tasks missing a
+        // Product/Safety link are open records, not dispatchable work.
         const queueActionable = queue.actionableCount > 0;
         const queueNeedsPromotion =
-          queue.actionableCount === 0 && promotableBacklogCount > 0;
+          queue.actionableCount === 0 && queue.promotableBacklogCount > 0;
         const blockedResearchAttemptable =
           researchRetryAvailability.attemptableCount > 0;
-        const queueThin = isThinDispatchableQueue(queue, promotableBacklogCount);
+        const queueThin = isThinDispatchableQueue(queue);
 
         if (queue.inboxCount > 0) {
           emit("autonomy.inbox.available", { inboxCount: queue.inboxCount });
@@ -62,6 +60,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           emit("autonomy.queue.available", {
             pullableCount: queue.pullableCount,
             actionableCount: queue.actionableCount,
+            dispatchableCount: queue.dispatchableCount,
             counts: queue.counts,
             dependencyBlockedTasks: queue.dependencyBlockedTasks,
           });
@@ -69,7 +68,8 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         if (queueNeedsPromotion) {
           emit("autonomy.queue.needs-promotion", {
             backlogCount: queue.counts.backlog,
-            promotableBacklogCount,
+            promotableBacklogCount: queue.promotableBacklogCount,
+            dispatchableCount: queue.dispatchableCount,
             counts: queue.counts,
             dependencyBlockedTasks: queue.dependencyBlockedTasks,
           });
@@ -106,7 +106,8 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         if (queueThin) {
           emit("autonomy.queue.thin", {
             pullableCount: queue.pullableCount,
-            promotableBacklogCount,
+            promotableBacklogCount: queue.promotableBacklogCount,
+            dispatchableCount: queue.dispatchableCount,
             dependencyBlockedTasks: queue.dependencyBlockedTasks,
             counts: queue.counts,
           });
@@ -128,8 +129,9 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           inboxCount: queue.inboxCount,
           pullableCount: queue.pullableCount,
           actionableCount: queue.actionableCount,
+          dispatchableCount: queue.dispatchableCount,
           dependencyBlockedTasks: queue.dependencyBlockedTasks,
-          promotableBacklogCount,
+          promotableBacklogCount: queue.promotableBacklogCount,
           researchRetryCandidateCount: researchRetryAvailability.candidateCount,
           researchRetryAttemptableCount: researchRetryAvailability.attemptableCount,
           securityReviewDue,

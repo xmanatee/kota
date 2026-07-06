@@ -162,6 +162,9 @@ describe("renderDashboard", () => {
 						openCount: 12,
 						pullableCount: 8,
 						actionableCount: 2,
+						promotableBacklogCount: 1,
+						dispatchableCount: 6,
+						hasDispatchableWork: true,
 						counts: {
 							backlog: 6,
 							ready: 2,
@@ -190,6 +193,9 @@ describe("renderDashboard", () => {
 						openCount: 12,
 						pullableCount: 8,
 						actionableCount: 2,
+						promotableBacklogCount: 1,
+						dispatchableCount: 6,
+						hasDispatchableWork: true,
 						counts: {
 							backlog: 6,
 							ready: 2,
@@ -215,6 +221,9 @@ describe("renderDashboard", () => {
 			openCount: 0,
 			pullableCount: 0,
 			actionableCount: 0,
+			promotableBacklogCount: 0,
+			dispatchableCount: 0,
+			hasDispatchableWork: false,
 			counts: {
 				backlog: 0,
 				ready: 0,
@@ -228,6 +237,39 @@ describe("renderDashboard", () => {
 			renderDashboard(makeSnapshot({ taskQueue: emptyQueue }), []),
 		);
 		expect(output).not.toContain("Work");
+	});
+
+	it("does not report parked open tasks as dispatchable work", () => {
+		const output = stripAnsi(
+			renderDashboard(
+				makeSnapshot({
+					taskQueue: {
+						inboxCount: 0,
+						openCount: 15,
+						pullableCount: 5,
+						actionableCount: 0,
+						promotableBacklogCount: 0,
+						dispatchableCount: 0,
+						hasDispatchableWork: false,
+						counts: {
+							backlog: 7,
+							ready: 0,
+							doing: 0,
+							blocked: 8,
+							done: 1411,
+							dropped: 23,
+						},
+					},
+				}),
+				[],
+			),
+		);
+
+		expect(output).toContain("open work parked; no dispatchable tasks");
+		expect(output).not.toContain("work available; waiting for idle dispatch");
+		expect(output).toContain("Dispatchable 0");
+		expect(output).toContain("Promotable 0");
+		expect(output).toContain("Pullable 5");
 	});
 
 	it("shows last completed workflow", () => {
@@ -342,6 +384,9 @@ describe("renderDashboard - owner transcript regression fixture", () => {
 			openCount: 8,
 			pullableCount: 1,
 			actionableCount: 1,
+			promotableBacklogCount: 0,
+			dispatchableCount: 1,
+			hasDispatchableWork: true,
 			counts: {
 				backlog: 0,
 				ready: 1,

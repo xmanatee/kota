@@ -178,6 +178,9 @@ describe("builder workflow queue gating", () => {
       ...makeSnapshot(1, 0, 0),
       pullableCount: 0,
       actionableCount: 0,
+      promotableBacklogCount: 0,
+      dispatchableCount: 0,
+      hasDispatchableWork: false,
       dependencyBlockedTasks: [
         {
           id: "task-dependent",

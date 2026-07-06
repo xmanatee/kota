@@ -86,6 +86,7 @@ export type BusEvents = {
     projectId: ProjectId;
     pullableCount: number;
     actionableCount: number;
+    dispatchableCount?: number;
     counts: QueueCounts;
     dependencyBlockedTasks: QueueDependencyBlockedTask[];
   };
@@ -97,6 +98,7 @@ export type BusEvents = {
     projectId: ProjectId;
     backlogCount: number;
     promotableBacklogCount: number;
+    dispatchableCount?: number;
     counts: QueueCounts;
     dependencyBlockedTasks: QueueDependencyBlockedTask[];
   };
@@ -115,6 +117,7 @@ export type BusEvents = {
     projectId: ProjectId;
     pullableCount: number;
     promotableBacklogCount: number;
+    dispatchableCount?: number;
     counts: QueueCounts;
     dependencyBlockedTasks: QueueDependencyBlockedTask[];
   };

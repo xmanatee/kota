@@ -9,6 +9,7 @@ import {
 	createAutomationWorktree,
 	inspectAutomationWorktree,
 	lockAutomationWorktree,
+	markAutomationWorktreeMerged,
 	prepareAutomationWorktree,
 	unlockAutomationWorktree,
 	updateAutomationWorktreeState,
@@ -211,10 +212,9 @@ describe("automation worktree lifecycle", () => {
 		git(created.metadata.workspaceDir, ["add", "committed.txt"]);
 		git(created.metadata.workspaceDir, ["commit", "--quiet", "-m", "workspace commit"]);
 
-		updateAutomationWorktreeState(
+		markAutomationWorktreeMerged(
 			{ projectDir: repo, taskId: created.metadata.taskId, runId: created.metadata.runId },
-			"merged",
-			"merge gate accepted branch",
+			created.baseCommit,
 		);
 		const blocked = cleanupAutomationWorktree({
 			projectDir: repo,
@@ -261,10 +261,17 @@ describe("automation worktree lifecycle", () => {
 			unpushed: false,
 		});
 
-		updateAutomationWorktreeState(
+		expect(() =>
+			updateAutomationWorktreeState(
+				{ projectDir: repo, taskId: created.metadata.taskId, runId: created.metadata.runId },
+				"merged" as never,
+				"merge gate accepted branch",
+			),
+		).toThrow("Use markAutomationWorktreeMerged");
+
+		markAutomationWorktreeMerged(
 			{ projectDir: repo, taskId: created.metadata.taskId, runId: created.metadata.runId },
-			"merged",
-			"merge gate accepted branch",
+			pushed.headCommit,
 		);
 		const removed = cleanupAutomationWorktree({
 			projectDir: repo,

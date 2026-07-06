@@ -29,6 +29,9 @@ export type DashboardTaskQueue = {
 	openCount: number;
 	pullableCount: number;
 	actionableCount: number;
+	promotableBacklogCount: number;
+	dispatchableCount: number;
+	hasDispatchableWork: boolean;
 };
 
 export type DashboardSnapshot = {
@@ -138,8 +141,13 @@ function describeOperationalState(
 			),
 		];
 	}
-	if (snapshot.taskQueue && (snapshot.taskQueue.inboxCount > 0 || snapshot.taskQueue.pullableCount > 0)) {
-		return [plain("work available; waiting for idle dispatch")];
+	if (snapshot.taskQueue) {
+		if (taskQueueHasDispatchableWork(snapshot.taskQueue)) {
+			return [plain("dispatchable work available; waiting for idle dispatch")];
+		}
+		if (snapshot.taskQueue.openCount > 0) {
+			return [plain("open work parked; no dispatchable tasks")];
+		}
 	}
 	if (pendingRuns.length > 0) {
 		const next = pendingRuns.reduce((best, run) =>
@@ -251,7 +259,10 @@ export function buildDashboardNode(
 		children.push(
 			line(
 				plain(
-					`  Pullable ${task.pullableCount}  Actionable ${task.actionableCount}  Open ${task.openCount}`,
+					`  Open ${task.openCount}  Dispatchable ${task.dispatchableCount}` +
+						`  Actionable ${task.actionableCount}` +
+						`  Promotable ${task.promotableBacklogCount}` +
+						`  Pullable ${task.pullableCount}`,
 				),
 			),
 		);
@@ -322,6 +333,7 @@ export function buildDashboardNode(
 
 function taskQueueHasSignal(task: DashboardTaskQueue): boolean {
 	if (task.inboxCount > 0) return true;
+	if (taskQueueHasDispatchableWork(task)) return true;
 	if (task.pullableCount > 0) return true;
 	if (task.actionableCount > 0) return true;
 	if (task.openCount > 0) return true;
@@ -331,6 +343,16 @@ function taskQueueHasSignal(task: DashboardTaskQueue): boolean {
 	if (counts.backlog > 0) return true;
 	if (counts.blocked > 0) return true;
 	return false;
+}
+
+function taskQueueHasDispatchableWork(task: DashboardTaskQueue): boolean {
+	return (
+		task.hasDispatchableWork ||
+		task.dispatchableCount > 0 ||
+		task.inboxCount > 0 ||
+		task.actionableCount > 0 ||
+		task.promotableBacklogCount > 0
+	);
 }
 
 function formatQueueCountsRow(task: DashboardTaskQueue): string {

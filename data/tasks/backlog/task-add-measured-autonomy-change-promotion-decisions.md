@@ -7,7 +7,7 @@ area: autonomy
 task_class: Meta
 summary: Record hypothesis, baseline, rollout mode, eval deltas, and promote/hold/rollback decisions for autonomy workflow, prompt, harness, and reviewer changes so improvements are judged by evidence instead of vibes.
 created_at: 2026-06-25T14:51:40.531Z
-updated_at: 2026-06-25T14:53:35.000Z
+updated_at: 2026-07-06T14:02:50.000Z
 ---
 
 ## Problem
@@ -114,6 +114,14 @@ Local mapping:
 ## Initiative
 
 Evidence-backed autonomy changes.
+
+## Product / Safety Link
+
+Safety: prevents prompt, workflow, harness, model-routing, and reviewer changes
+from being promoted after one convincing run or vague critic approval. The
+owner-visible safety outcome is that autonomous repairs and self-improvements
+must carry baseline, candidate, rollout, and rollback evidence before they
+change production behavior.
 
 ## Acceptance Evidence
 

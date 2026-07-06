@@ -7,7 +7,7 @@ area: autonomy
 task_class: Meta
 summary: Audit autonomy workflow loops for explicit completion checks, stopping brakes, context hygiene, safe retries, and independent verifier signals.
 created_at: 2026-06-24T15:44:37.109Z
-updated_at: 2026-06-24T15:44:37.109Z
+updated_at: 2026-07-06T14:02:50.000Z
 ---
 
 ## Problem
@@ -101,6 +101,14 @@ Local mapping:
 
 Reliable autonomy loops: KOTA should verify that its self-running workflows
 stop, retry, remember, and escalate for explicit reasons.
+
+## Product / Safety Link
+
+Safety: closes the repeated daemon reliability blocker where long-running
+autonomy can cycle, retry, or park without objective stop, verifier, and
+dispatch signals. The owner-visible safety outcome is lower runaway cost,
+clearer operator state, and fewer self-improvement loops accepted on agent
+self-report alone.
 
 ## Acceptance Evidence
 

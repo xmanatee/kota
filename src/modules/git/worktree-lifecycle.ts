@@ -105,11 +105,48 @@ export function unlockAutomationWorktree(selector: AutomationWorktreeSelector): 
 
 export function updateAutomationWorktreeState(
 	selector: AutomationWorktreeSelector,
-	state: Exclude<AutomationWorktreeState, "removed">,
+	state: Exclude<AutomationWorktreeState, "removed" | "merged">,
 	reason?: string,
 ): AutomationWorktreeInspection {
-	const metadata = { ...readMetadata(selector), state, updatedAt: new Date().toISOString() };
+	if ((state as string) === "merged") {
+		throw new Error("Use markAutomationWorktreeMerged(selector, mergedCommit) for merged worktrees.");
+	}
+	const nextState: AutomationWorktreeState = state;
+	const metadata = { ...readMetadata(selector), state: nextState, updatedAt: new Date().toISOString() };
 	if (reason) metadata.stateReason = reason;
+	writeMetadata(selector.projectDir, metadata);
+	return inspectAutomationWorktree(selector);
+}
+
+export function markAutomationWorktreePendingMerge(
+	selector: AutomationWorktreeSelector,
+	reason: string,
+): AutomationWorktreeInspection {
+	const metadata = {
+		...readMetadata(selector),
+		state: "pending-merge" as const,
+		stateReason: reason,
+		updatedAt: new Date().toISOString(),
+	};
+	writeMetadata(selector.projectDir, metadata);
+	return inspectAutomationWorktree(selector);
+}
+
+export function markAutomationWorktreeMerged(
+	selector: AutomationWorktreeSelector,
+	mergedCommit: string,
+	reason = "merge gate accepted branch",
+): AutomationWorktreeInspection {
+	const now = new Date().toISOString();
+	const metadata = {
+		...readMetadata(selector),
+		state: "merged" as const,
+		stateReason: reason,
+		mergedAt: now,
+		mergedCommit,
+		updatedAt: now,
+		lastCleanupBlockers: [],
+	};
 	writeMetadata(selector.projectDir, metadata);
 	return inspectAutomationWorktree(selector);
 }

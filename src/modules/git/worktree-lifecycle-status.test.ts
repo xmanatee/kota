@@ -8,6 +8,7 @@ import {
   createAutomationWorktree,
   listAutomationWorktreeStatuses,
   lockAutomationWorktree,
+  markAutomationWorktreeMerged,
   updateAutomationWorktreeRuntimeResources,
   updateAutomationWorktreeState,
 } from "./worktree-lifecycle.js";
@@ -131,10 +132,9 @@ describe("automation worktree operator statuses", () => {
       "text conflicts require review",
     );
     const merged = createFixtureWorktree(repo, "run-merged");
-    updateAutomationWorktreeState(
+    markAutomationWorktreeMerged(
       { projectDir: repo, taskId: merged.metadata.taskId, runId: merged.metadata.runId },
-      "merged",
-      "merge gate accepted branch",
+      merged.headCommit,
     );
     const conflicted = createFixtureWorktree(repo, "run-conflicted");
 

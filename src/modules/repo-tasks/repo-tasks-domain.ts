@@ -67,6 +67,9 @@ export type RepoTaskQueueSnapshot = {
   openCount: number;
   pullableCount: number;
   actionableCount: number;
+  promotableBacklogCount: number;
+  dispatchableCount: number;
+  hasDispatchableWork: boolean;
   dependencyBlockedTasks: RepoTaskDependencyWait[];
   headSha: string;
 };
@@ -86,6 +89,12 @@ export function isRepoTaskQueueSnapshot(
     typeof value.pullableCount === "number" &&
     "actionableCount" in value &&
     typeof value.actionableCount === "number" &&
+    "promotableBacklogCount" in value &&
+    typeof value.promotableBacklogCount === "number" &&
+    "dispatchableCount" in value &&
+    typeof value.dispatchableCount === "number" &&
+    "hasDispatchableWork" in value &&
+    typeof value.hasDispatchableWork === "boolean" &&
     "dependencyBlockedTasks" in value &&
     Array.isArray(value.dependencyBlockedTasks)
   );
@@ -141,6 +150,22 @@ export function getRepoTaskQueueSnapshot(
   }
   const dependencyBlockedCount = (state: RepoTaskState): number =>
     dependencyBlockedByState.get(state) ?? 0;
+  const actionableCount =
+    counts.ready +
+    counts.doing -
+    dependencyBlockedCount("ready") -
+    dependencyBlockedCount("doing");
+  const waitingBacklogIds = new Set(
+    dependencyBlockedTasks
+      .filter((wait) => wait.state === "backlog")
+      .map((wait) => wait.id),
+  );
+  const promotableBacklogCount = countRepoPromotableBacklogTasksWithWaits(
+    projectDir,
+    waitingBacklogIds,
+  );
+  const dispatchableCount =
+    inboxCount + actionableCount + promotableBacklogCount;
 
   return {
     counts,
@@ -158,11 +183,10 @@ export function getRepoTaskQueueSnapshot(
       dependencyBlockedCount("backlog") -
       dependencyBlockedCount("ready") -
       dependencyBlockedCount("doing"),
-    actionableCount:
-      counts.ready +
-      counts.doing -
-      dependencyBlockedCount("ready") -
-      dependencyBlockedCount("doing"),
+    actionableCount,
+    promotableBacklogCount,
+    dispatchableCount,
+    hasDispatchableWork: dispatchableCount > 0,
     dependencyBlockedTasks,
     headSha: getRepoHeadSha(projectDir),
   };
@@ -172,6 +196,13 @@ export function countRepoPromotableBacklogTasks(projectDir: string): number {
   const waitingIds = new Set(
     listRepoTaskDependencyWaits(projectDir, ["backlog"]).map((wait) => wait.id),
   );
+  return countRepoPromotableBacklogTasksWithWaits(projectDir, waitingIds);
+}
+
+function countRepoPromotableBacklogTasksWithWaits(
+  projectDir: string,
+  waitingIds: ReadonlySet<string>,
+): number {
   return listFullRepoTasks(projectDir, ["backlog"]).filter((record) =>
     !record.anchor &&
     !waitingIds.has(record.id) &&
@@ -179,22 +210,9 @@ export function countRepoPromotableBacklogTasks(projectDir: string): number {
   ).length;
 }
 
-export function isThinPullQueue(snapshot: RepoTaskQueueSnapshot): boolean {
-  const dependencyBlockedTailCount = snapshot.dependencyBlockedTasks.filter(
-    (task) => task.state === "ready" || task.state === "backlog",
-  ).length;
-  const pullableTailCount =
-    snapshot.counts.ready + snapshot.counts.backlog - dependencyBlockedTailCount;
-  return (
-    snapshot.inboxCount === 0 &&
-    pullableTailCount <= 2 &&
-    (pullableTailCount > 0 || snapshot.counts.doing > 0)
-  );
-}
-
 export function isThinDispatchableQueue(
   snapshot: RepoTaskQueueSnapshot,
-  promotableBacklogCount: number,
+  promotableBacklogCount = snapshot.promotableBacklogCount,
 ): boolean {
   const dependencyBlockedCount = (state: "ready" | "doing"): number =>
     snapshot.dependencyBlockedTasks.filter((task) => task.state === state).length;

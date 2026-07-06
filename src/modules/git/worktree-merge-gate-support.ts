@@ -6,10 +6,12 @@ import {
 	git,
 	metadataPath,
 	readDirtyState,
-	readMetadata,
-	writeMetadata,
 } from "./worktree-lifecycle-support.js";
 import type { AutomationWorktreeSelector } from "./worktree-lifecycle-types.js";
+import {
+	markAutomationWorktreeMerged,
+	markAutomationWorktreePendingMerge,
+} from "./worktree-lifecycle.js";
 import type {
 	MergeGateConflict,
 	MergeGateResult,
@@ -33,30 +35,6 @@ export function writeMergeGateArtifact(result: MergeGateResult): MergeGateResult
 	mkdirSync(dirname(result.artifactPath), { recursive: true });
 	writeFileSync(result.artifactPath, `${JSON.stringify(result, null, 2)}\n`, "utf8");
 	return result;
-}
-
-function updatePendingState(selector: AutomationWorktreeSelector, reason: string): void {
-	const metadata = readMetadata(selector);
-	writeMetadata(selector.projectDir, {
-		...metadata,
-		state: "pending-merge",
-		stateReason: reason,
-		updatedAt: new Date().toISOString(),
-	});
-}
-
-function updateMergedState(selector: AutomationWorktreeSelector, mergeCommit: string): void {
-	const now = new Date().toISOString();
-	const metadata = readMetadata(selector);
-	writeMetadata(selector.projectDir, {
-		...metadata,
-		state: "merged",
-		stateReason: "merge gate accepted branch",
-		mergedAt: now,
-		mergedCommit: mergeCommit,
-		updatedAt: now,
-		lastCleanupBlockers: [],
-	});
 }
 
 export function runGit(cwd: string, args: string[]): { ok: boolean; stdout: string; stderr: string } {
@@ -230,7 +208,7 @@ export function pending(
 ): MergeGateResult {
 	const status = input.status ?? "pending-conflict";
 	const reason = input.reason ?? "merge gate blocked";
-	updatePendingState(selector, reason);
+	markAutomationWorktreePendingMerge(selector, reason);
 	return writeMergeGateArtifact(
 		resultFor({
 			...input,
@@ -248,7 +226,7 @@ export function merged(
 		mergeCommit: string;
 	},
 ): MergeGateResult {
-	updateMergedState(selector, input.mergeCommit);
+	markAutomationWorktreeMerged(selector, input.mergeCommit);
 	return writeMergeGateArtifact(
 		resultFor({
 			...input,

@@ -7,7 +7,7 @@ area: autonomy
 task_class: Meta
 summary: Summarize watched multi-agent and evaluation resources into KOTA decisions, existing task coverage, and remaining gaps without adding a parallel external-link catalog.
 created_at: 2026-06-25T14:51:40.624Z
-updated_at: 2026-06-25T14:53:35.000Z
+updated_at: 2026-07-06T14:02:50.000Z
 ---
 
 ## Problem
@@ -96,6 +96,13 @@ Research synthesis:
 ## Initiative
 
 Research-to-local-decision traceability.
+
+## Product / Safety Link
+
+Product: keeps the owner-facing research intake from becoming a duplicate task
+generator or hidden second backlog. The product outcome is one clear local
+disposition per useful source, mapped to existing tasks, docs, or explicit
+no-op decisions instead of repeated rereading and queue churn.
 
 ## Acceptance Evidence
 

@@ -7,7 +7,7 @@ area: modules
 task_class: Meta
 summary: Turn recurring run-artifact failures, trajectory diagnostics, and review-scrutiny findings into bounded eval-harness candidate fixtures before autonomy prompts, reviewers, or harnesses are changed.
 created_at: 2026-06-25T14:51:40.590Z
-updated_at: 2026-06-25T14:53:35.000Z
+updated_at: 2026-07-06T14:02:50.000Z
 ---
 
 ## Problem
@@ -110,6 +110,13 @@ Local mapping:
 ## Initiative
 
 Trace-backed eval growth.
+
+## Product / Safety Link
+
+Safety: prevents recurring autonomy failures from being patched by memory or
+prompt tweaks without preserving a replayable evaluation target. The safety
+outcome is that real run-trace failures become bounded regression candidates
+before reviewer, harness, or workflow behavior is promoted.
 
 ## Acceptance Evidence
 

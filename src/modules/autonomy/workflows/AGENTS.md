@@ -100,8 +100,10 @@ backlog-only state:
   consumes this and writes a deterministic promotion rationale before builder
   resumes. Strategic anchors and ready-invalid tasks do not count as promotable
   work.
-- `autonomy.queue.empty` — no inbox entries and no dependency-clear pullable
-  ready/backlog/doing work exists.
+- `autonomy.queue.empty` — no dispatchable task work exists: no inbox entries,
+  no dependency-clear actionable ready/doing work, and no legal promotable
+  backlog work. Open anchors, dependency-waiting tasks, and ready-invalid Meta
+  tasks may still be visible in counts.
 - `autonomy.queue.thin` — one or two dispatchable ready/promotable backlog
   tasks remain, or only active doing work remains; strategic anchors, ready-
   invalid backlog, and dependency-waiting tails stay visible through counts and

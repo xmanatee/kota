@@ -37,6 +37,9 @@ function makeSnapshot(inboxCount: number) {
     openCount: inboxCount,
     pullableCount: 0,
     actionableCount: 0,
+    promotableBacklogCount: 0,
+    dispatchableCount: inboxCount,
+    hasDispatchableWork: inboxCount > 0,
     dependencyBlockedTasks: [],
     headSha: "abc1234",
   };

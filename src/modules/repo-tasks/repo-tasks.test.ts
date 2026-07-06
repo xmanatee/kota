@@ -8,7 +8,7 @@ import {
   countRepoPromotableBacklogTasks,
   countRepoTaskState,
   getRepoTaskQueueSnapshot,
-  isThinPullQueue,
+  isThinDispatchableQueue,
   REPO_INBOX_DIR,
   REPO_TASK_STATES,
   REPO_TASKS_DIR,
@@ -144,6 +144,9 @@ describe("repo task helpers", () => {
       openCount: 3,
       pullableCount: 2,
       actionableCount: 2,
+      promotableBacklogCount: 0,
+      dispatchableCount: 3,
+      hasDispatchableWork: true,
       dependencyBlockedTasks: [],
       headSha: expect.any(String),
     });
@@ -187,6 +190,9 @@ describe("repo task helpers", () => {
     expect(snapshot.counts.ready).toBe(1);
     expect(snapshot.pullableCount).toBe(1);
     expect(snapshot.actionableCount).toBe(0);
+    expect(snapshot.promotableBacklogCount).toBe(1);
+    expect(snapshot.dispatchableCount).toBe(1);
+    expect(snapshot.hasDispatchableWork).toBe(true);
     expect(snapshot.dependencyBlockedTasks).toEqual([
       {
         id: "task-dependent",
@@ -235,23 +241,77 @@ describe("repo task helpers", () => {
     expect(getRepoTaskQueueSnapshot(projectDir).dependencyBlockedTasks).toEqual([]);
   });
 
-  it("detects a one-item backlog tail with no ready or doing work", () => {
-    writeFileSync(join(projectDir, REPO_TASKS_DIR, "backlog", "task-tail.md"), "task");
+  it("distinguishes open pullable records from dispatchable task work", () => {
+    writeFileSync(
+      join(projectDir, REPO_TASKS_DIR, "backlog", "task-meta-no-link.md"),
+      [
+        "---",
+        "id: task-meta-no-link",
+        "title: Meta without link",
+        "status: backlog",
+        "priority: p1",
+        "area: autonomy",
+        "task_class: Meta",
+        "summary: Meta without link",
+        "updated_at: 2026-05-08T00:00:00.000Z",
+        "---",
+        "",
+        "## Problem",
+        "",
+        "Meta work exists but has no actionable Product/Safety blocker.",
+        "",
+      ].join("\n"),
+    );
+    writeFileSync(
+      join(projectDir, REPO_TASKS_DIR, "backlog", "task-anchor.md"),
+      [
+        "---",
+        "id: task-anchor",
+        "title: Anchor",
+        "status: backlog",
+        "priority: p2",
+        "area: architecture",
+        "summary: Anchor",
+        "updated_at: 2026-05-08T00:00:00.000Z",
+        "anchor: true",
+        "---",
+        "",
+      ].join("\n"),
+    );
 
-    expect(isThinPullQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(true);
+    const snapshot = getRepoTaskQueueSnapshot(projectDir);
+
+    expect(snapshot.openCount).toBe(2);
+    expect(snapshot.pullableCount).toBe(2);
+    expect(snapshot.actionableCount).toBe(0);
+    expect(snapshot.promotableBacklogCount).toBe(0);
+    expect(snapshot.dispatchableCount).toBe(0);
+    expect(snapshot.hasDispatchableWork).toBe(false);
   });
 
-  it("detects a single ready task as thin", () => {
+  it("detects a one-item promotable backlog tail as dispatchable-thin", () => {
+    writeFileSync(
+      join(projectDir, REPO_TASKS_DIR, "backlog", "task-tail.md"),
+      taskFixture("task-tail", "backlog"),
+    );
+
+    expect(isThinDispatchableQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(true);
+  });
+
+  it("detects a single ready task as dispatchable-thin", () => {
     writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-ready.md"), "task");
 
-    expect(isThinPullQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(true);
+    expect(isThinDispatchableQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(true);
   });
 
-  it("detects two dependency-clear pull tasks as thin", () => {
+  it("detects two dependency-clear dispatchable tasks as thin", () => {
     writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-a.md"), "task");
-    writeFileSync(join(projectDir, REPO_TASKS_DIR, "backlog", "task-b.md"), "task");
+    writeFileSync(
+      join(projectDir, REPO_TASKS_DIR, "backlog", "task-b.md"),
+      taskFixture("task-b", "backlog"),
+    );
 
-    expect(isThinPullQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(true);
+    expect(isThinDispatchableQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(true);
   });
 
   it("does not treat dependency-blocked ready and backlog tails as thin", () => {
@@ -287,24 +347,27 @@ describe("repo task helpers", () => {
         waitingOn: ["task-enabler"],
       },
     ]);
-    expect(isThinPullQueue(snapshot)).toBe(false);
+    expect(isThinDispatchableQueue(snapshot)).toBe(false);
   });
 
-  it("does not treat three or more dependency-clear pull tasks as thin", () => {
+  it("does not treat three or more dispatchable tasks as thin", () => {
     writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-a.md"), "task");
     writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-b.md"), "task");
-    writeFileSync(join(projectDir, REPO_TASKS_DIR, "backlog", "task-c.md"), "task");
+    writeFileSync(
+      join(projectDir, REPO_TASKS_DIR, "backlog", "task-c.md"),
+      taskFixture("task-c", "backlog"),
+    );
 
-    expect(isThinPullQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(false);
+    expect(isThinDispatchableQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(false);
   });
 
   it("is thin when only a doing task remains and nothing waits behind it", () => {
     writeFileSync(join(projectDir, REPO_TASKS_DIR, "doing", "task-active.md"), "task");
 
-    expect(isThinPullQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(true);
+    expect(isThinDispatchableQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(true);
   });
 
   it("is not thin when queue is empty", () => {
-    expect(isThinPullQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(false);
+    expect(isThinDispatchableQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(false);
   });
 });
