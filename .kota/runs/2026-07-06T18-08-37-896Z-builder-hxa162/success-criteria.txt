@@ -1,0 +1,2 @@
+1. A builder task claim owned by a terminal interrupted or failed run is treated as safe to retry before its time lease expires, so the daemon-backed TUI task is no longer blocked by run 2026-07-06T15-29-18-209Z-builder-njj4hw.
+2. The run records acceptance evidence showing the cited stale-claim gap is fixed or disproven, and task validation passes.

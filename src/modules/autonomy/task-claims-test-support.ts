@@ -141,6 +141,21 @@ export function writeTask(projectDir: string, state: string, id: string, updated
   );
 }
 
+export function writeOwnerRunMetadata(
+  projectDir: string,
+  runId: string,
+  workflowId: string,
+  status: string,
+): void {
+  const runDir = join(projectDir, ".kota", "runs", runId);
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(
+    join(runDir, "metadata.json"),
+    `${JSON.stringify({ id: runId, workflow: workflowId, status }, null, 2)}\n`,
+    "utf8",
+  );
+}
+
 export function claimInput(projectDir: string, taskId: string, runId: string, now: Date) {
   return {
     projectDir,

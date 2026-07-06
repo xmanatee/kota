@@ -1,0 +1,9 @@
+Attempted task move command:
+NODE_OPTIONS=--conditions=source node --import tsx src/cli.ts task move task-recover-stale-builder-claim-blocking-the-daemon-ba doing
+
+Result:
+The source-mode task CLI reached the normal lifecycle implementation, but git mv failed because this sandbox cannot create the shared worktree index lock outside the writable task worktree:
+
+fatal: Unable to create '/Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/task-recover-stale-builder-claim-blocking-the-daemon-ba-2026-07-06t18-08-37-896z-builder-hxa162/index.lock': Operation not permitted
+
+The task state move in this branch was applied manually with the same data-file outcome.

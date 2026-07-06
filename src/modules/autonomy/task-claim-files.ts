@@ -8,6 +8,9 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import type { KotaJsonObject, KotaJsonValue } from "#core/agent-harness/message-protocol.js";
+import { readOptionalJsonFile } from "#core/util/json-file.js";
+import type { WorkflowRunStatus } from "#core/workflow/run-types.js";
 import {
   REPO_TASK_STATES,
   type RepoTaskState,
@@ -48,6 +51,43 @@ function isTaskClaimStatus(value: string | undefined): value is TaskClaimStatus 
 
 function isRepoTaskState(value: string | undefined): value is RepoTaskState {
   return REPO_TASK_STATES.includes(value as RepoTaskState);
+}
+
+type OwnerRunStatus = WorkflowRunStatus | "running";
+
+function isJsonObject(value: KotaJsonValue | undefined): value is KotaJsonObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isOwnerRunStatus(value: KotaJsonValue | undefined): value is OwnerRunStatus {
+  return (
+    value === "running" ||
+    value === "success" ||
+    value === "failed" ||
+    value === "interrupted" ||
+    value === "completed-with-warnings"
+  );
+}
+
+function isUnsuccessfulTerminalRunStatus(value: OwnerRunStatus): boolean {
+  return value === "failed" || value === "interrupted";
+}
+
+function readOwnerRunStatus(projectDir: string, claim: TaskClaim): OwnerRunStatus | null {
+  const metadataPath = join(projectDir, ".kota", "runs", claim.runId, "metadata.json");
+  const metadata = readOptionalJsonFile<KotaJsonValue>(metadataPath);
+  if (metadata === null) return null;
+  if (!isJsonObject(metadata)) {
+    throw new Error(`Malformed owner workflow run metadata: ${metadataPath}`);
+  }
+  if (
+    metadata.id !== claim.runId ||
+    metadata.workflow !== claim.workflowId ||
+    !isOwnerRunStatus(metadata.status)
+  ) {
+    throw new Error(`Malformed owner workflow run metadata: ${metadataPath}`);
+  }
+  return metadata.status;
 }
 
 function readClaimFile(path: string): TaskClaim {
@@ -183,6 +223,23 @@ export function inspectTaskClaim(
   return { claim, path, recoveryStatus: "agent-running", safeToRetry: false };
 }
 
+export function inspectTaskClaimWithOwnerRun(
+  projectDir: string,
+  claim: TaskClaim,
+  path: string,
+  now: Date = new Date(),
+): TaskClaimInspection {
+  const inspection = inspectTaskClaim(claim, path, now);
+  if (inspection.recoveryStatus !== "agent-running") return inspection;
+
+  const ownerRunStatus = readOwnerRunStatus(projectDir, claim);
+  if (ownerRunStatus !== null && isUnsuccessfulTerminalRunStatus(ownerRunStatus)) {
+    return { claim, path, recoveryStatus: "stale", safeToRetry: true };
+  }
+
+  return inspection;
+}
+
 export function readActiveTaskClaim(projectDir: string, taskId: string): TaskClaim | null {
   const path = taskClaimPath(projectDir, taskId);
   if (!existsSync(path)) return null;
@@ -200,7 +257,7 @@ export function listTaskClaimInspections(
     .sort()
     .map((name) => {
       const path = join(dir, name);
-      return inspectTaskClaim(readClaimFile(path), path, now);
+      return inspectTaskClaimWithOwnerRun(projectDir, readClaimFile(path), path, now);
     });
 }
 

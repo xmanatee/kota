@@ -1,0 +1,12 @@
+Validation run from task worktree:
+
+- `pnpm test src/modules/autonomy/task-claim-recovery.test.ts src/modules/autonomy/task-claim-races.test.ts`
+  passed: 2 files, 5 tests.
+- `pnpm test src/strict-types-policy.integration.test.ts` passed after the
+  repair removed raw strict-type boundary patterns from the new claim metadata
+  decoder.
+- `pnpm test src/modules/autonomy/task-claim-recovery.test.ts` passed after
+  the repair: 1 file, 2 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed.
+- `pnpm validate-tasks` passed against the real staged index after `git add -A`.

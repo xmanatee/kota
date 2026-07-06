@@ -1,0 +1,2 @@
+1. Verified. `inspectTaskClaimWithOwnerRun` now treats active claims owned by `failed` or `interrupted` workflow runs as stale and retryable. The regression test covers an interrupted owner run before lease expiry, and `claim-recovery-evidence.json` replays the cited TUI claim as `replaced-stale-claim`.
+2. Verified. Acceptance evidence is recorded in `claim-recovery-evidence.json`, the task record, and `validation.txt`. Focused tests, typecheck, lint, and temporary-index task validation passed.

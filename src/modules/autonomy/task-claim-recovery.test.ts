@@ -10,7 +10,12 @@ import {
   taskClaimPath,
   updateTaskClaimWorkspace,
 } from "./task-claims.js";
-import { claimInput, makeProject, writeTask } from "./task-claims-test-support.js";
+import {
+  claimInput,
+  makeProject,
+  writeOwnerRunMetadata,
+  writeTask,
+} from "./task-claims-test-support.js";
 
 let projectDir: string;
 
@@ -123,5 +128,34 @@ describe("task claim recovery lifecycle", () => {
       safeToRetry: true,
     });
     expect(existsSync(taskClaimPath(projectDir, "task-alpha"))).toBe(false);
+  });
+
+  it("replaces an active claim when the owning builder run has already ended unsuccessfully", () => {
+    writeTask(projectDir, "ready", "task-alpha", "2026-06-27T00:00:00.000Z");
+    const acquiredAt = new Date("2026-06-27T01:00:00.000Z");
+    const original = claimTask({
+      ...claimInput(projectDir, "task-alpha", "run-interrupted", acquiredAt),
+      leaseMs: 7 * 60 * 60 * 1_000,
+    });
+    expect(original).toMatchObject({
+      claimed: true,
+      recoveryPath: "new-claim",
+    });
+
+    const beforeLeaseExpiry = new Date("2026-06-27T02:00:00.000Z");
+    const blocked = claimTask(claimInput(projectDir, "task-alpha", "run-blocked", beforeLeaseExpiry));
+    expect(blocked).toMatchObject({
+      claimed: false,
+      recoveryPath: "skipped-active-claim",
+      recoveryStatus: "agent-running",
+    });
+
+    writeOwnerRunMetadata(projectDir, "run-interrupted", "builder", "interrupted");
+    const replacement = claimTask(claimInput(projectDir, "task-alpha", "run-retry", beforeLeaseExpiry));
+    expect(replacement).toMatchObject({
+      claimed: true,
+      recoveryPath: "replaced-stale-claim",
+    });
+    expect(replacement.claim?.runId).toBe("run-retry");
   });
 });

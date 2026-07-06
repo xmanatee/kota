@@ -4,6 +4,7 @@ import {
   archiveClaimIfUnchanged,
   buildClaim,
   inspectTaskClaim,
+  inspectTaskClaimWithOwnerRun,
   readActiveTaskClaim,
   taskClaimPath,
   writeClaim,
@@ -49,7 +50,7 @@ export function claimTask(input: ClaimTaskInput): ClaimTaskAttempt {
   const existing = readActiveTaskClaim(input.projectDir, input.taskId);
 
   if (existing) {
-    const inspection = inspectTaskClaim(existing, path, now);
+    const inspection = inspectTaskClaimWithOwnerRun(input.projectDir, existing, path, now);
     if (sameWorkflowRun(existing, input) && existing.status === "active") {
       const resumed = buildClaim(input, now, existing.createdAt);
       writeClaim(path, resumed, "w");
@@ -82,7 +83,7 @@ export function claimTask(input: ClaimTaskInput): ClaimTaskAttempt {
     writeClaim(path, claim, "wx");
   } catch {
     const conflict = readActiveTaskClaim(input.projectDir, input.taskId);
-    const inspection = conflict ? inspectTaskClaim(conflict, path, now) : null;
+    const inspection = conflict ? inspectTaskClaimWithOwnerRun(input.projectDir, conflict, path, now) : null;
     return skippedAttempt(input.taskId, conflict, inspection, "write-conflict", "claim write lost an atomic race");
   }
   const recoveryPath =
@@ -118,7 +119,7 @@ function mismatchResult(
     taskId: input.taskId,
     changed: false,
     claim,
-    recoveryStatus: inspectTaskClaim(claim, path, now).recoveryStatus,
+    recoveryStatus: inspectTaskClaimWithOwnerRun(input.projectDir, claim, path, now).recoveryStatus,
     safeToRetry: false,
     reason: `claim belongs to ${claim.workflowId}/${claim.runId}`,
   };

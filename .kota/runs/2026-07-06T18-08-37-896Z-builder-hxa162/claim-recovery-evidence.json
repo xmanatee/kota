@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "sourceFinding": {
+    "progressReviewRunId": "2026-07-06T18-04-40-124Z-progress-reviewer-j2c2j6",
+    "citedBuilderRuns": [
+      "2026-07-06T17-22-34-577Z-builder-zos2wu",
+      "2026-07-06T17-54-22-700Z-builder-m131hk"
+    ],
+    "blockedTaskId": "task-replace-readline-navigator-with-a-real-daemon-back"
+  },
+  "canonicalClaimBeforeFix": {
+    "taskId": "task-replace-readline-navigator-with-a-real-daemon-back",
+    "ownerRunId": "2026-07-06T15-29-18-209Z-builder-njj4hw",
+    "claimStatus": "active",
+    "leaseAcquiredAt": "2026-07-06T15:29:21.333Z",
+    "leaseExpiresAt": "2026-07-06T22:29:21.333Z",
+    "ownerRunStatus": "interrupted",
+    "ownerRunError": "Agent step \"build\" failed (aborted): Codex CLI run aborted."
+  },
+  "replayWithFixedCode": {
+    "now": "2026-07-06T18:08:40.956Z",
+    "input": "Copied the canonical active claim and owner-run metadata into an isolated temp project without mutating canonical .kota state.",
+    "beforeClaimInspection": {
+      "recoveryStatus": "stale",
+      "safeToRetry": true
+    },
+    "claimNextQueueTaskResult": {
+      "claimed": true,
+      "taskId": "task-replace-readline-navigator-with-a-real-daemon-back",
+      "recoveryStatus": "agent-running",
+      "safeToRetry": false,
+      "recoveryPath": "replaced-stale-claim",
+      "candidateCount": 1,
+      "skippedCount": 0
+    },
+    "afterActiveClaim": {
+      "taskId": "task-replace-readline-navigator-with-a-real-daemon-back",
+      "runId": "probe-builder-run",
+      "recoveryStatus": "agent-running",
+      "safeToRetry": false
+    }
+  }
+}

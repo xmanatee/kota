@@ -17,6 +17,7 @@ export {
   archiveClaimIfUnchanged,
   buildClaim,
   inspectTaskClaim,
+  inspectTaskClaimWithOwnerRun,
   listTaskClaimInspections,
   readActiveTaskClaim,
   taskClaimPath,
