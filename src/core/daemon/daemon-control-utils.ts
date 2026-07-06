@@ -10,12 +10,60 @@ import type {
 } from "./daemon-control-types.js";
 import type { ProjectId } from "./scope-registry.js";
 
-export function readBody(req: IncomingMessage): Promise<Buffer> {
+export class RequestBodyTooLargeError extends Error {
+  constructor(readonly limitBytes: number) {
+    super(`Request body exceeds ${limitBytes} bytes`);
+    this.name = "RequestBodyTooLargeError";
+  }
+}
+
+export type ReadBodyOptions = {
+  limitBytes?: number;
+};
+
+export function readBody(
+  req: IncomingMessage,
+  options: ReadBodyOptions = {},
+): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on("data", (chunk: Buffer) => chunks.push(chunk));
-    req.on("end", () => resolve(Buffer.concat(chunks)));
-    req.on("error", reject);
+    let totalBytes = 0;
+    let settled = false;
+
+    const cleanup = (keepErrorListener = false) => {
+      req.off("data", onData);
+      req.off("end", onEnd);
+      if (!keepErrorListener) req.off("error", onError);
+    };
+    const fail = (error: Error, keepErrorListener = false) => {
+      if (settled) return;
+      settled = true;
+      cleanup(keepErrorListener);
+      reject(error);
+    };
+    const onData = (chunk: Buffer) => {
+      totalBytes += chunk.length;
+      if (
+        options.limitBytes !== undefined &&
+        totalBytes > options.limitBytes
+      ) {
+        fail(new RequestBodyTooLargeError(options.limitBytes), true);
+        req.resume();
+        return;
+      }
+      chunks.push(chunk);
+    };
+    const onEnd = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(Buffer.concat(chunks, totalBytes));
+    };
+    const onError = (error: Error) => fail(error);
+
+    req.on("data", onData);
+    req.on("end", onEnd);
+    req.on("error", onError);
   });
 }
 

@@ -1,5 +1,11 @@
 import { createHmac } from "node:crypto";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  createWebhookTriggerHandler,
+  WEBHOOK_TRIGGER_BODY_LIMIT_BYTES,
+  WebhookRateLimiter,
+} from "./trigger-route.js";
 import {
   registerDispatcher,
   resetWorkflowRuntimeProvidersForTest,
@@ -10,6 +16,30 @@ import {
   type WebhookRouteTestServer,
 } from "./trigger-route-test-support.js";
 
+function responseRecorder(): {
+  res: ServerResponse;
+  status: () => number;
+  body: () => string;
+} {
+  let status = 0;
+  let body = "";
+  const res = {
+    writeHead(nextStatus: number) {
+      status = nextStatus;
+      return res;
+    },
+    end(chunk?: string | Buffer) {
+      if (chunk !== undefined) body += chunk.toString();
+      return res;
+    },
+  } as never as ServerResponse;
+  return {
+    res,
+    status: () => status,
+    body: () => body,
+  };
+}
+
 describe("webhook trigger route security edges", () => {
   let server: WebhookRouteTestServer;
 
@@ -19,6 +49,52 @@ describe("webhook trigger route security edges", () => {
 
   afterEach(async () => {
     await server.stop();
+  });
+
+  it("rejects unsigned oversized requests before attaching body readers", async () => {
+    const getSecret = vi.fn(() => WEBHOOK_SECRET);
+    const handler = createWebhookTriggerHandler({
+      getSecret,
+      rateLimiter: new WebhookRateLimiter(),
+    });
+    const req = {
+      headers: {
+        "content-length": String(WEBHOOK_TRIGGER_BODY_LIMIT_BYTES + 1),
+      },
+      on(event: string) {
+        if (event === "data") throw new Error("request body was buffered");
+        return req;
+      },
+    } as never as IncomingMessage;
+    const recorder = responseRecorder();
+
+    await handler(req, recorder.res, { name: "deploy" });
+
+    expect(recorder.status()).toBe(401);
+    expect(JSON.parse(recorder.body())).toMatchObject({
+      error: "Missing X-Kota-Webhook-Signature header",
+    });
+    expect(getSecret).not.toHaveBeenCalled();
+  });
+
+  it("returns 413 for signed payloads over the webhook body cap without dispatching", async () => {
+    const fn = registerDispatcher({ ok: true, runId: "oversized-run" });
+    const body = Buffer.alloc(WEBHOOK_TRIGGER_BODY_LIMIT_BYTES + 1, "x");
+    const res = await globalThis.fetch(`http://127.0.0.1:${server.port}/webhooks/deploy`, {
+      method: "POST",
+      headers: {
+        "X-Kota-Webhook-Signature": signBodyOnly(WEBHOOK_SECRET, body),
+        "Content-Type": "application/json",
+      },
+      body,
+    });
+
+    expect(res.status).toBe(413);
+    await expect(res.json()).resolves.toMatchObject({
+      error: "Webhook payload too large",
+      limitBytes: WEBHOOK_TRIGGER_BODY_LIMIT_BYTES,
+    });
+    expect(fn).not.toHaveBeenCalled();
   });
 
   it("omits sensitive request headers while preserving non-sensitive headers", async () => {

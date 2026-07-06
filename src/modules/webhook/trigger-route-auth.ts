@@ -16,6 +16,8 @@ export type VerifiedWebhookSignature =
   | { ok: true; scheme: "timestamped"; timestamp: string }
   | { ok: false };
 
+export type WebhookSignatureHeaderPrecheck = { ok: true } | { ok: false };
+
 function parseWebhookSignature(signature: string): ParsedWebhookSignature {
   const trimmed = signature.trim();
   if (trimmed.startsWith(TIMESTAMPED_SIGNATURE_PREFIX)) {
@@ -31,6 +33,26 @@ function parseWebhookSignature(signature: string): ParsedWebhookSignature {
     };
   }
   return { scheme: "body-only", hex: trimmed };
+}
+
+export function precheckWebhookSignatureHeaders(
+  signature: string,
+  timestampHeader: string | string[] | undefined,
+  now: number,
+): WebhookSignatureHeaderPrecheck {
+  const parsed = parseWebhookSignature(signature);
+  if (parsed.hex.length !== 64 || !HEX_SIGNATURE_PATTERN.test(parsed.hex)) {
+    return { ok: false };
+  }
+
+  if (parsed.scheme === "body-only") {
+    return timestampHeader === undefined ? { ok: true } : { ok: false };
+  }
+
+  if (typeof timestampHeader !== "string") return { ok: false };
+  const timestamp = timestampHeader.trim();
+  if (timestamp.length === 0) return { ok: false };
+  return timestampWithinWebhookWindow(timestamp, now) ? { ok: true } : { ok: false };
 }
 
 function timingSafeHexEqual(actualHex: string, expectedHex: string): boolean {

@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-signature-validated-webhook-co
 title: Security review: The signature-validated webhook control route bypasses daemon bearer auth but buffers the entire request body before checking that a signature header exists, and the shared body reader has no byte limit. An unauthenticated caller that can reach the daemon listener can send an oversized body to /webhooks/:name and force unbounded memory allocation before the request is rejected.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: The signature-validated webhook control route bypasses daemon bearer auth but buffers the entire request body before checking that a signature header exists, and the shared body reader has no byte limit. An unauthenticated caller that can reach the daemon listener can send an oversized body to /webhooks/:name and force unbounded memory allocation before the request is rejected.
 created_at: 2026-07-06T18:04:37.550Z
-updated_at: 2026-07-06T18:04:37.550Z
+updated_at: 2026-07-06T20:27:34.184Z
 ---
 
 ## Problem
@@ -104,10 +104,19 @@ excerpt:
 
 > webhookTriggerControlRoutes registers POST /webhooks/:name with bypassAuth: true.
 
+## Resolution
+
+- `POST /webhooks/:name` now rejects missing signatures, missing workflow secrets, and malformed signature/timestamp metadata before reading the request body.
+- Signed webhook bodies are read through the shared daemon body reader with the webhook route's `WEBHOOK_TRIGGER_BODY_LIMIT_BYTES` cap; over-cap payloads return 413 and do not reach the dispatcher.
+- Regression coverage proves unsigned oversized requests do not attach body readers, and signed over-cap requests return 413 without dispatching.
+
 ## Initiative
 
 Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `pnpm test src/modules/webhook/trigger-route.test.ts src/modules/webhook/trigger-route-security.test.ts` passed.
+- `pnpm exec biome check src/core/daemon/daemon-control-utils.ts src/modules/webhook/trigger-route.ts src/modules/webhook/trigger-route-auth.ts src/modules/webhook/trigger-route-security.test.ts` passed.
+- `pnpm typecheck` passed.
+- `pnpm run validate-tasks` passed after final staging.

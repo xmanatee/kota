@@ -1,0 +1,14 @@
+Passed:
+
+- `pnpm test src/modules/webhook/trigger-route.test.ts src/modules/webhook/trigger-route-security.test.ts`
+- `pnpm exec biome check src/core/daemon/daemon-control-utils.ts src/modules/webhook/trigger-route.ts src/modules/webhook/trigger-route-auth.ts src/modules/webhook/trigger-route-security.test.ts`
+- `pnpm typecheck`
+- `git diff --check -- .gitignore src/core/daemon/daemon-control-utils.ts src/modules/webhook/trigger-route.ts src/modules/webhook/trigger-route-auth.ts src/modules/webhook/trigger-route-security.test.ts data/tasks .kota/runs/2026-07-06T18-33-49-519Z-builder-9iprub`
+- `env GIT_INDEX_FILE=.kota/tmp/2026-07-06T18-33-49-519Z-builder-9iprub/validation2.index GIT_OBJECT_DIRECTORY=.kota/tmp/2026-07-06T18-33-49-519Z-builder-9iprub/validation-objects GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects pnpm run validate-tasks`
+- `pnpm run validate-tasks`
+- `git diff --cached --check -- .gitignore src/core/daemon/daemon-control-utils.ts src/modules/webhook/trigger-route.ts src/modules/webhook/trigger-route-auth.ts src/modules/webhook/trigger-route-security.test.ts data/tasks .kota/runs/2026-07-06T18-33-49-519Z-builder-9iprub`
+
+Notes:
+
+- The source-mode task move commands failed at `git mv` because the sandbox could not create the parent worktree Git index lock at that point in the run. The equivalent task file transitions were applied manually, then final `git add -A` succeeded and real-index task validation passed.
+- A temporary-index validation was also run before final staging, using a writable index/object directory plus the real object database as read-only alternates.

@@ -21,11 +21,16 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { KotaConfig } from "#core/config/config.js";
-import { jsonResponse, readBody } from "#core/daemon/daemon-control-utils.js";
+import {
+  jsonResponse,
+  RequestBodyTooLargeError,
+  readBody,
+} from "#core/daemon/daemon-control-utils.js";
 import type { ControlRouteRegistration } from "#core/modules/module-types.js";
 import { getWorkflowDefinitionsSource } from "#core/workflow/workflow-definitions-provider.js";
 import { getWorkflowDispatcher } from "#core/workflow/workflow-dispatcher-provider.js";
 import {
+  precheckWebhookSignatureHeaders,
   timestampWithinWebhookWindow,
   verifyWebhookSignature,
 } from "./trigger-route-auth.js";
@@ -33,6 +38,7 @@ import { buildWebhookRunPayload } from "./trigger-route-payload.js";
 
 const WORKFLOW_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const RATE_LIMIT_WINDOW_MS = 60_000;
+export const WEBHOOK_TRIGGER_BODY_LIMIT_BYTES = 1024 * 1024;
 
 type WebhookSecretLookup = (name: string) => string | undefined;
 
@@ -75,14 +81,6 @@ export function createWebhookTriggerHandler(
       return;
     }
 
-    let rawBody: Buffer;
-    try {
-      rawBody = await readBody(req);
-    } catch {
-      jsonResponse(res, 500, { error: "Internal error" });
-      return;
-    }
-
     const signature = req.headers["x-kota-webhook-signature"];
     if (!signature || typeof signature !== "string") {
       jsonResponse(res, 401, { error: "Missing X-Kota-Webhook-Signature header" });
@@ -90,14 +88,43 @@ export function createWebhookTriggerHandler(
     }
 
     const expectedSecret = getSecret(name);
-    const verification = expectedSecret
-      ? verifyWebhookSignature(
-          expectedSecret,
-          rawBody,
-          signature,
-          req.headers["x-kota-webhook-timestamp"],
-        )
-      : { ok: false as const };
+    if (!expectedSecret) {
+      jsonResponse(res, 401, { error: "Invalid webhook signature" });
+      return;
+    }
+    const headerPrecheck = precheckWebhookSignatureHeaders(
+      signature,
+      req.headers["x-kota-webhook-timestamp"],
+      Date.now(),
+    );
+    if (!headerPrecheck.ok) {
+      jsonResponse(res, 401, { error: "Invalid webhook signature" });
+      return;
+    }
+
+    let rawBody: Buffer;
+    try {
+      rawBody = await readBody(req, {
+        limitBytes: WEBHOOK_TRIGGER_BODY_LIMIT_BYTES,
+      });
+    } catch (error) {
+      if (error instanceof RequestBodyTooLargeError) {
+        jsonResponse(res, 413, {
+          error: "Webhook payload too large",
+          limitBytes: error.limitBytes,
+        });
+        return;
+      }
+      jsonResponse(res, 500, { error: "Internal error" });
+      return;
+    }
+
+    const verification = verifyWebhookSignature(
+      expectedSecret,
+      rawBody,
+      signature,
+      req.headers["x-kota-webhook-timestamp"],
+    );
     if (!verification.ok) {
       jsonResponse(res, 401, { error: "Invalid webhook signature" });
       return;

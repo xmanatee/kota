@@ -1,0 +1,3 @@
+1. The cited pre-auth webhook body-buffering vulnerability is fixed with code-level evidence: unsigned or structurally invalid webhook requests are rejected before body reads, and signed bodies are capped.
+2. Focused regression coverage proves the unsigned oversized pre-read boundary and the signed over-cap 413 boundary without dispatching a workflow run.
+3. The completed task record names the verification commands that prove the fixed boundary.

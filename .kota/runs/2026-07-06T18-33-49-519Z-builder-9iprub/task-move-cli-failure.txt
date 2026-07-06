@@ -1,0 +1,13 @@
+The canonical task move command was attempted in source mode because `pnpm kota` requires absent dist files in this worktree:
+
+node --conditions=source --import tsx src/cli.ts task move task-security-review-the-signature-validated-webhook-co doing
+
+and later:
+
+node --conditions=source --import tsx src/cli.ts task move task-security-review-the-signature-validated-webhook-co done
+
+Both reached the task move implementation and failed at `git mv` because this sandbox cannot create the parent worktree Git index lock:
+
+fatal: Unable to create '/Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/task-security-review-the-signature-validated-webhook-co-2026-07-06t18-33-49-519z-builder-9iprub/index.lock': Operation not permitted
+
+The equivalent task file transitions were applied in the working tree with `status` and `updated_at` updated.
