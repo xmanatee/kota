@@ -1,12 +1,12 @@
 ---
 id: task-replace-readline-navigator-with-a-real-daemon-back
 title: Replace readline navigator with a real daemon-backed TUI client
-status: backlog
+status: ready
 priority: p1
 area: client
 summary: Turn bare kota / kota navigate into the full daemon-backed terminal client promised by the completed CLI task, with real TUI state, live run supervision, actions, and transcript evidence.
 created_at: 2026-07-06T15:16:35.431Z
-updated_at: 2026-07-06T15:16:35.431Z
+updated_at: 2026-07-06T15:23:04.183Z
 task_class: Product
 ---
 

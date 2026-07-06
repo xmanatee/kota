@@ -1,12 +1,12 @@
 ---
 id: task-make-foreground-daemon-mode-expose-operator-contro
 title: Make foreground daemon mode expose operator control affordances
-status: backlog
+status: ready
 priority: p1
 area: daemon-ops
 summary: Make pnpm dev daemon / kota daemon clearly present how to pause, resume, follow, inspect, and open the operator client instead of looking like an uncontrollable monitor.
 created_at: 2026-07-06T15:16:35.790Z
-updated_at: 2026-07-06T15:16:35.790Z
+updated_at: 2026-07-06T15:23:04.225Z
 task_class: Product
 ---
 
