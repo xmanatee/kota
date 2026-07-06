@@ -115,7 +115,10 @@ function renderNode(node: UiNode): RenderNode {
           node.rows.map((row) => ({
             cells: node.columns.map((column) => {
               const cell = row.cells.find((candidate) => candidate.columnId === column.id);
-              return { spans: [span(cell?.value ?? "", cell?.role ?? column.role)] };
+              const rowAction = row.action && column.id === node.columns[node.columns.length - 1]?.id
+                ? `  ${row.action.label}: ${operationLabel(row.action)}`
+                : "";
+              return { spans: [span(`${cell?.value ?? ""}${rowAction}`, cell?.role ?? column.role)] };
             }),
           })),
         ),

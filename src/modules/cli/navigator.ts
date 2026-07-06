@@ -1,32 +1,33 @@
-import { createInterface } from "node:readline";
 import type { KotaClient } from "#core/server/kota-client.js";
-import type {
-  UiAction,
-  UiJsonValue,
-  UiSurface,
-  UiSurfaceBundle,
-} from "#modules/daemon-ops/operator-ui.js";
+import type { UiSurfaceBundle } from "#modules/daemon-ops/operator-ui.js";
+import { statusBanner } from "#modules/rendering/primitives.js";
 import {
-  line,
-  type RenderNode,
-  span,
-  statusBanner,
-} from "#modules/rendering/primitives.js";
+  renderToString,
+  TerminalScreenSession,
+  type TerminalTransport,
+} from "#modules/rendering/transport.js";
 import {
-  collectLiveEventTypes,
+  executeActionCommand,
+  executeSelectedAction,
+} from "./navigator-action-execution.js";
+import {
+  parseNavigatorInput,
+  reduceNavigatorState,
+} from "./navigator-commands.js";
+import { collectLiveEventTypes } from "./navigator-live-events.js";
+import { renderNavigatorFrame } from "./navigator-render.js";
+import {
   createNavigatorState,
   markLiveEvent,
   markLiveSubscribed,
   type NavigatorKeymap,
   type NavigatorState,
   type NavigatorThemePreference,
-  parseNavigatorInput,
-  reduceNavigatorState,
-  renderNavigatorFrame,
   withBundle,
 } from "./navigator-state.js";
 import type { NavigatorOutput, NavigatorPrompt } from "./navigator-types.js";
 
+export { createTerminalPrompt } from "./navigator-terminal-prompt.js";
 export type { NavigatorOutput, NavigatorPrompt } from "./navigator-types.js";
 
 export type NavigatorResizeSource = {
@@ -66,6 +67,15 @@ export function createStdoutResizeSource(stdout: NodeJS.WriteStream = process.st
   };
 }
 
+export function createTerminalScreenOutput(transport: TerminalTransport): NavigatorOutput {
+  const session = new TerminalScreenSession({ stream: transport.stream });
+  session.start();
+  return {
+    write: (node) => session.writeFrame(renderToString(node, transport.context())),
+    close: () => session.stop(),
+  };
+}
+
 async function loadBundle(client: KotaClient, output: NavigatorOutput): Promise<UiSurfaceBundle> {
   try {
     return await client.ui.listSurfaces();
@@ -74,94 +84,6 @@ async function loadBundle(client: KotaClient, output: NavigatorOutput): Promise<
     output.write(statusBanner("error", "Unable to load shared UI surfaces", msg));
     return EMPTY_SURFACE_BUNDLE;
   }
-}
-
-function parseActionCommand(raw: string): {
-  surfaceId: string;
-  actionId: string;
-  parameters?: UiJsonValue;
-  confirmed: boolean;
-} | { error: string } {
-  const parts = raw.trim().split(/\s+/);
-  if (parts.length < 3) {
-    return { error: 'Expected action <surface-id> <action-id> [--yes] [json-parameters].' };
-  }
-  const [, surfaceId, actionId, ...rest] = parts;
-  let confirmed = false;
-  const jsonParts: string[] = [];
-  for (const part of rest) {
-    if (part === "--yes" || part === "-y") {
-      confirmed = true;
-      continue;
-    }
-    jsonParts.push(part);
-  }
-  if (jsonParts.length === 0) {
-    return { surfaceId, actionId, confirmed };
-  }
-  const rawJson = jsonParts.join(" ");
-  try {
-    return {
-      surfaceId,
-      actionId,
-      confirmed,
-      parameters: JSON.parse(rawJson) as UiJsonValue,
-    };
-  } catch (err) {
-    return {
-      error: `Action parameters must be valid JSON: ${err instanceof Error ? err.message : String(err)}`,
-    };
-  }
-}
-
-function findAction(surface: UiSurface, actionId: string): UiAction | null {
-  return surface.actions.find((action) => action.actionId === actionId) ?? null;
-}
-
-function renderActionResult(result: Awaited<ReturnType<KotaClient["ui"]["executeAction"]>>): RenderNode {
-  if (result.ok) return statusBanner("success", "UI action executed", result.message);
-  return statusBanner("error", `UI action failed: ${result.reason}`, result.message);
-}
-
-async function executeActionCommand(
-  raw: string,
-  client: KotaClient,
-  prompt: NavigatorPrompt,
-  output: NavigatorOutput,
-  bundle: UiSurfaceBundle,
-): Promise<void> {
-  const parsed = parseActionCommand(raw);
-  if ("error" in parsed) {
-    output.write(line(span(parsed.error, "warn")));
-    return;
-  }
-  const surface = bundle.surfaces.find((candidate) => candidate.surfaceId === parsed.surfaceId);
-  if (!surface) {
-    output.write(line(span(`Unknown surface "${parsed.surfaceId}".`, "warn")));
-    return;
-  }
-  const action = findAction(surface, parsed.actionId);
-  if (!action) {
-    output.write(line(span(`Unknown action "${parsed.actionId}" on ${surface.surfaceId}.`, "warn")));
-    return;
-  }
-  if (action.readiness.state === "disabled") {
-    output.write(statusBanner("warn", `${action.label} is disabled`, action.readiness.message));
-    return;
-  }
-  if (action.confirmation.mode === "required" && !parsed.confirmed) {
-    const answer = await prompt.ask(`${action.confirmation.title} — type ${JSON.stringify(action.confirmation.confirmLabel)} to continue: `);
-    if (answer === null || answer.trim() !== action.confirmation.confirmLabel) {
-      output.write(line(span(`Skipped ${surface.surfaceId}/${action.actionId}.`, "warn")));
-      return;
-    }
-  }
-  const result = await client.ui.executeAction({
-    surfaceId: parsed.surfaceId,
-    actionId: parsed.actionId,
-    parameters: parsed.parameters,
-  });
-  output.write(renderActionResult(result));
 }
 
 function startLiveUpdateLoop(args: {
@@ -221,7 +143,7 @@ export async function runNavigator(opts: NavigatorOptions): Promise<void> {
   try {
     output.write(renderNavigatorFrame(state));
     while (true) {
-      const raw = await prompt.ask("kota:tui> ");
+      const raw = await prompt.ask(state.view.kind === "palette" ? "kota:tui> " : "");
       if (raw === null) return;
       const command = parseNavigatorInput(raw, state);
       if (command.type === "quit") return;
@@ -231,7 +153,15 @@ export async function runNavigator(opts: NavigatorOptions): Promise<void> {
         continue;
       }
       if (command.type === "action") {
-        await executeActionCommand(command.raw, client, prompt, output, state.bundle);
+        const message = await executeActionCommand(command.raw, client, prompt, state.bundle);
+        state = { ...withBundle(state, await loadBundle(client, output)), message };
+        output.write(renderNavigatorFrame(state));
+        continue;
+      }
+      if (command.type === "open-selected" && state.focus === "actions") {
+        const message = await executeSelectedAction(state, client, prompt);
+        state = { ...withBundle(state, await loadBundle(client, output)), message };
+        output.write(renderNavigatorFrame(state));
         continue;
       }
       state = reduceNavigatorState(state, command);
@@ -240,34 +170,7 @@ export async function runNavigator(opts: NavigatorOptions): Promise<void> {
   } finally {
     resizeUnsubscribe?.();
     await liveUpdates.stop();
+    output.close?.();
     prompt.close();
   }
-}
-
-export function createReadlinePrompt(): NavigatorPrompt {
-  const rl = createInterface({
-    input: process.stdin,
-    output: process.stderr,
-    terminal: process.stdin.isTTY === true,
-  });
-  return {
-    ask: (text) =>
-      new Promise<string | null>((resolve) => {
-        let resolved = false;
-        const onClose = () => {
-          if (!resolved) {
-            resolved = true;
-            resolve(null);
-          }
-        };
-        rl.once("close", onClose);
-        rl.question(text, (answer) => {
-          rl.removeListener("close", onClose);
-          if (resolved) return;
-          resolved = true;
-          resolve(answer);
-        });
-      }),
-    close: () => rl.close(),
-  };
 }

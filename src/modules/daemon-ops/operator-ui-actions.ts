@@ -55,6 +55,49 @@ function booleanParameter(
   return typeof value === "boolean" ? value : false;
 }
 
+async function triggerRunFollowUp(args: {
+  client: KotaClient;
+  runId: string;
+  kind: "retry" | "replay" | "resume";
+  fromStep?: string;
+}): Promise<UiActionExecutionResult> {
+  const found = await args.client.workflow.getRun(args.runId);
+  if (!found.found) return { ok: false, reason: "not_found", message: `Run ${args.runId} was not found.` };
+  const run = found.run;
+  if (run.status === "running") {
+    return { ok: false, reason: "active", message: `Run ${args.runId} is still running.` };
+  }
+  if (args.kind === "retry" && (run.status === "success" || run.status === "completed-with-warnings")) {
+    return { ok: false, reason: "invalid-input", message: `Run ${args.runId} completed successfully; use replay instead.` };
+  }
+  if (args.kind === "resume" && run.status === "success") {
+    return { ok: false, reason: "invalid-input", message: `Run ${args.runId} completed successfully; use replay instead.` };
+  }
+  const replayPayload = { ...(run.triggerPayload ?? {}) };
+  delete replayPayload._runId;
+  const payload =
+    args.kind === "retry"
+      ? { retryOf: args.runId }
+      : args.kind === "replay"
+        ? { ...replayPayload, replayOf: args.runId, replayTriggeredAt: new Date().toISOString() }
+        : { resumedFromRunId: args.runId, resumeFromStep: args.fromStep, resumeTriggeredAt: new Date().toISOString() };
+  const result = await args.client.workflow.triggerByName(run.workflow, {
+    event: args.kind === "retry" ? "retry" : args.kind === "replay" ? "workflow.replay" : "resume",
+    payload,
+  });
+  if (!result.ok) {
+    return { ok: false, reason: result.reason, message: `Workflow ${run.workflow} is already queued.` };
+  }
+  return {
+    ok: true,
+    message: args.kind === "retry"
+      ? `Queued retry of ${run.workflow} from ${args.runId}.`
+      : args.kind === "replay"
+        ? `Queued replay of ${run.workflow} from ${args.runId}.`
+        : `Queued resume of ${run.workflow} from ${args.fromStep}.`,
+  };
+}
+
 export async function executeUiAction(args: {
   action: UiAction;
   client?: KotaClient;
@@ -152,6 +195,30 @@ export async function executeUiAction(args: {
     const result = await client.workflow.abortRun(runId);
     if (!result.ok) return { ok: false, reason: result.reason, message: `Unable to abort run ${runId}: ${result.reason}.` };
     return { ok: true, message: `Run ${runId} aborted.` };
+  }
+  if (action.operation.namespace === "workflow" && action.operation.method === "cancelRun") {
+    const runId = stringParameter(parameters, "runId");
+    if (!runId) return { ok: false, reason: "invalid-input", message: "runId is required." };
+    const result = await client.workflow.cancelRun(runId);
+    if (!result.ok) return { ok: false, reason: result.reason, message: `Unable to cancel run ${runId}: ${result.reason}.` };
+    return { ok: true, message: `Queued run ${runId} cancelled.` };
+  }
+  if (action.operation.namespace === "workflow" && action.operation.method === "retryRun") {
+    const runId = stringParameter(parameters, "runId");
+    if (!runId) return { ok: false, reason: "invalid-input", message: "runId is required." };
+    return triggerRunFollowUp({ client, runId, kind: "retry" });
+  }
+  if (action.operation.namespace === "workflow" && action.operation.method === "replayRun") {
+    const runId = stringParameter(parameters, "runId");
+    if (!runId) return { ok: false, reason: "invalid-input", message: "runId is required." };
+    return triggerRunFollowUp({ client, runId, kind: "replay" });
+  }
+  if (action.operation.namespace === "workflow" && action.operation.method === "resumeRun") {
+    const runId = stringParameter(parameters, "runId");
+    const fromStep = stringParameter(parameters, "fromStep");
+    if (!runId) return { ok: false, reason: "invalid-input", message: "runId is required." };
+    if (!fromStep) return { ok: false, reason: "invalid-input", message: "fromStep is required." };
+    return triggerRunFollowUp({ client, runId, kind: "resume", fromStep });
   }
   if (action.operation.namespace === "sessions" && action.operation.method === "list") {
     const result = await client.sessions.list();

@@ -4,7 +4,7 @@ import { loadConfig } from "#core/config/config.js";
 import { resolveProjectDir } from "#core/config/project-dir.js";
 import type { ClientIdentity } from "#core/daemon/client-identity.js";
 import { Daemon, RESTART_EXIT_CODE } from "#core/daemon/daemon.js";
-import type { DaemonLiveStatus, InteractiveSession } from "#core/daemon/daemon-control.js";
+import type { DaemonLiveStatus, InteractiveSession, WorkflowRunDetail } from "#core/daemon/daemon-control.js";
 import type {
   ConfiguredProject,
   ProjectId,
@@ -779,6 +779,17 @@ function routeForUiNamespaceOperation(
       message: `Run ${runId} aborted.`,
     };
   }
+  if (operation.namespace === "workflow" && operation.method === "cancelRun") {
+    const runId = stringUiParameter(parameters, "runId");
+    if (!runId) {
+      return { method: "DELETE", path: "/workflow/runs/", message: "runId is required." };
+    }
+    return {
+      method: "DELETE",
+      path: `/workflow/runs/${encodeURIComponent(runId)}`,
+      message: `Queued run ${runId} cancelled.`,
+    };
+  }
   if (operation.namespace === "workflow" && operation.method === "listDefinitions") {
     return { method: "GET", path: "/workflow/definitions", message: "Workflow definitions loaded." };
   }
@@ -806,14 +817,81 @@ function routeForUiNamespaceOperation(
   return null;
 }
 
+function uiActionResultFromTrigger(
+  runId: string,
+  action: "retry" | "replay" | "resume",
+  result: UiJsonValue | null,
+): UiActionExecutionResult {
+  if (result === null) {
+    return {
+      ok: false,
+      reason: "unavailable",
+      message: `Unable to queue ${action} for run ${runId}.`,
+    };
+  }
+  return {
+    ok: true,
+    message: action === "retry"
+      ? `Queued retry from ${runId}.`
+      : action === "replay"
+        ? `Queued replay from ${runId}.`
+        : `Queued resume from ${runId}.`,
+  };
+}
+
+async function executeDaemonRunFollowUp(
+  link: DaemonTransport,
+  parameters: UiJsonValue | undefined,
+  action: "retry" | "replay" | "resume",
+): Promise<UiActionExecutionResult> {
+  const runId = stringUiParameter(parameters, "runId");
+  if (!runId) return { ok: false, reason: "invalid-input", message: "runId is required." };
+  const fromStep = stringUiParameter(parameters, "fromStep");
+  if (action === "resume" && !fromStep) return { ok: false, reason: "invalid-input", message: "fromStep is required." };
+  const run = await link.request<WorkflowRunDetail>(
+    "GET",
+    `/workflow/runs/${encodeURIComponent(runId)}`,
+    undefined,
+    { timeoutMs: 10_000 },
+  );
+  if (run === null) return { ok: false, reason: "not_found", message: `Run ${runId} was not found.` };
+  if (run.status === "running") return { ok: false, reason: "active", message: `Run ${runId} is still running.` };
+  if (action === "retry" && (run.status === "success" || run.status === "completed-with-warnings")) {
+    return { ok: false, reason: "invalid-input", message: `Run ${runId} completed successfully; use replay instead.` };
+  }
+  const replayPayload = uiObjectParameter(run.triggerPayload as UiJsonValue | undefined) ?? {};
+  const { _runId: _discarded, ...cleanPayload } = replayPayload;
+  const payload = action === "retry"
+    ? { retryOf: runId }
+    : action === "replay"
+      ? { ...cleanPayload, replayOf: runId, replayTriggeredAt: new Date().toISOString() }
+      : { resumedFromRunId: runId, resumeFromStep: fromStep, resumeTriggeredAt: new Date().toISOString() };
+  const result = await link.request<UiJsonValue>(
+    "POST",
+    "/workflow/trigger",
+    { name: run.workflow, payload },
+    { timeoutMs: 10_000 },
+  );
+  return uiActionResultFromTrigger(runId, action, result);
+}
+
 function daemonUiNamespaceExecutor(link: DaemonTransport): UiClientNamespaceExecutor {
   return async (operation, parameters) => {
     if (operation.namespace === "daemonOps" && operation.method === "start") {
       return { ok: true, message: "Daemon already running." };
     }
+    if (operation.namespace === "workflow" && operation.method === "retryRun") {
+      return executeDaemonRunFollowUp(link, parameters, "retry");
+    }
+    if (operation.namespace === "workflow" && operation.method === "replayRun") {
+      return executeDaemonRunFollowUp(link, parameters, "replay");
+    }
+    if (operation.namespace === "workflow" && operation.method === "resumeRun") {
+      return executeDaemonRunFollowUp(link, parameters, "resume");
+    }
     const route = routeForUiNamespaceOperation(operation, parameters);
     if (route) {
-      if (route.path === "/workflow/runs//abort") {
+      if (route.path === "/workflow/runs//abort" || route.path === "/workflow/runs/") {
         return { ok: false, reason: "invalid-input", message: route.message };
       }
       const result = await link.request<UiJsonValue>(
@@ -854,7 +932,13 @@ async function executeActionFromBundle(args: {
 }
 
 function buildLocalUiClient(ctx: ModuleContext): UiClient {
-  const listSurfaces = () => buildSharedUiSurfaceBundle(ctx);
+  const listSurfaces = async (): Promise<UiSurfaceBundle> => {
+    const status = await gatherStatus(ctx.cwd);
+    if (!status.daemonRunning) {
+      return { protocolVersion: "ui.surface.v1", surfaces: [] };
+    }
+    return buildSharedUiSurfaceBundle(ctx);
+  };
   return {
     listSurfaces,
     executeAction: async (input) => {

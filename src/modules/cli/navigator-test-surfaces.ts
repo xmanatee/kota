@@ -1,13 +1,14 @@
 import {
   buildOperatorControlUiSurface,
   type UiAction,
+  type UiNode,
   type UiSurface,
   type UiSurfaceBundle,
 } from "#modules/daemon-ops/operator-ui.js";
 import type { RenderNode } from "#modules/rendering/primitives.js";
 import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";
-import type { NavigatorOutput, NavigatorPrompt } from "./navigator.js";
+import type { NavigatorOutput, NavigatorPrompt } from "./navigator-types.js";
 
 export function makePrompt(answers: string[]): NavigatorPrompt {
   let i = 0;
@@ -60,12 +61,13 @@ function navigationAction(surfaceId: string, actionId: string, label: string): U
   };
 }
 
-function navigationSurface(args: {
+export function navigationSurface(args: {
   surfaceId: string;
   title: string;
   intent: UiSurface["intent"];
   order: number;
   actions: readonly UiAction[];
+  nodes?: readonly UiNode[];
 }): UiSurface {
   return {
     protocolVersion: "ui.surface.v1",
@@ -77,7 +79,7 @@ function navigationSurface(args: {
     attachmentPoint: { kind: "intent", intent: args.intent },
     order: args.order,
     permissions: [{ kind: "capability-scope", scope: "read" }],
-    nodes: [{ kind: "text", title: args.title, body: `${args.title} body.` }],
+    nodes: args.nodes ?? [{ kind: "text", title: args.title, body: `${args.title} body.` }],
     actions: args.actions,
   };
 }

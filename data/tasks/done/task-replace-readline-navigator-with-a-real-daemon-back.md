@@ -1,12 +1,12 @@
 ---
 id: task-replace-readline-navigator-with-a-real-daemon-back
 title: Replace readline navigator with a real daemon-backed TUI client
-status: ready
+status: done
 priority: p1
 area: client
 summary: Turn bare kota / kota navigate into the full daemon-backed terminal client promised by the completed CLI task, with real TUI state, live run supervision, actions, and transcript evidence.
 created_at: 2026-07-06T15:16:35.431Z
-updated_at: 2026-07-06T15:23:04.183Z
+updated_at: 2026-07-06T18:46:47.622Z
 task_class: Product
 ---
 
@@ -93,3 +93,13 @@ client, not a thin status renderer.
 - Transcript showing offline daemon behavior and the start/reconnect affordance.
 - Focused tests for navigator state, action execution, live-event update
   handling, and non-TTY refusal/scripted command stability.
+
+## Completion Evidence
+
+- `.kota/runs/2026-07-06T18-08-37-897Z-builder-n8qu44/transcript.txt`
+  records the online navigation/control fixture, direct raw-key TTY behavior,
+  queued/recent run supervision controls, and the normal no-daemon offline
+  start/reconnect fixture.
+- `pnpm test src/modules/cli/navigator.test.ts src/modules/cli/navigator-actions.test.ts src/modules/cli/navigator-operator-console.test.ts src/modules/cli/navigator-terminal-prompt.test.ts src/modules/daemon-ops/index.test.ts src/modules/daemon-ops/local-ui-client.test.ts src/modules/daemon-ops/operator-ui.test.ts src/modules/daemon-ops/operator-ui-runtime-actions.test.ts`
+  passed during the source-size repair.
+- `pnpm typecheck`, `pnpm lint`, and `pnpm validate-tasks` passed.

@@ -21,13 +21,13 @@ import {
   launchWorkflowParameters,
   sessionLaunchParameters,
 } from "./operator-ui-launch-controls.js";
+import { runtimeRunActions } from "./operator-ui-runtime-actions.js";
 import {
   activeRunRows,
   approvalRows,
   ownerQuestionRows,
   queuedRunRows,
   recentRunRows,
-  runAbortParameters,
   runtimeLogEntries,
   workflowRows,
 } from "./operator-ui-runtime-helpers.js";
@@ -61,6 +61,7 @@ export function buildRuntimeUiSurface(args: {
     },
     result: resultSpec("Workflow queued."),
   });
+  const runActions = runtimeRunActions(scopeId);
   const actions = [
     action({
       surfaceId: "runs",
@@ -111,23 +112,7 @@ export function buildRuntimeUiSurface(args: {
       },
       result: resultSpec("Active workflow runs aborted."),
     }),
-    action({
-      surfaceId: "runs",
-      actionId: "run.abort",
-      scopeId,
-      label: "Abort one run",
-      effect: "write",
-      operation: { kind: "client-namespace", namespace: "workflow", method: "abortRun" },
-      parameters: runAbortParameters(),
-      confirmation: {
-        mode: "required",
-        title: "Abort workflow run",
-        detail: "This asks one active workflow run to stop.",
-        confirmLabel: "Abort run",
-        risk: "high",
-      },
-      result: resultSpec("Workflow run aborted."),
-    }),
+    ...runActions.all,
     launch,
   ];
 
@@ -161,9 +146,9 @@ export function buildRuntimeUiSurface(args: {
       },
       { kind: "progress", label: "Agent run slots", value: Math.min(activeCount, agentLimit), max: Math.max(1, agentLimit), role: activeCount > 0 ? "warn" : "info" },
       { kind: "progress", label: "Code run slots", value: Math.min(activeCount, codeLimit), max: Math.max(1, codeLimit), role: activeCount > 0 ? "warn" : "info" },
-      { kind: "table", title: "Active run supervision", columns: NAME_STATE_DETAIL_COLUMNS, rows: activeRunRows(args.workflowStatus) },
-      { kind: "table", title: "Queued workflow runs", columns: NAME_STATE_DETAIL_COLUMNS, rows: queuedRunRows(args.workflowStatus) },
-      { kind: "table", title: "Recent run results", columns: NAME_STATE_DETAIL_COLUMNS, rows: recentRunRows(args.runs) },
+      { kind: "table", title: "Active run supervision", columns: NAME_STATE_DETAIL_COLUMNS, rows: activeRunRows(args.workflowStatus, runActions.abortOneRun) },
+      { kind: "table", title: "Queued workflow runs", columns: NAME_STATE_DETAIL_COLUMNS, rows: queuedRunRows(args.workflowStatus, runActions.cancelQueuedRun) },
+      { kind: "table", title: "Recent run results", columns: NAME_STATE_DETAIL_COLUMNS, rows: recentRunRows(args.runs, { retry: runActions.retryRun, replay: runActions.replayRun, resume: runActions.resumeRun }) },
       { kind: "table", title: "Workflow definitions and schedules", columns: NAME_STATE_DETAIL_COLUMNS, rows: workflowRows(args.definitions) },
       { kind: "table", title: "Approvals", columns: NAME_STATE_DETAIL_COLUMNS, rows: approvalRows(args.approvals) },
       { kind: "table", title: "Owner questions", columns: NAME_STATE_DETAIL_COLUMNS, rows: ownerQuestionRows(args.ownerQuestions) },

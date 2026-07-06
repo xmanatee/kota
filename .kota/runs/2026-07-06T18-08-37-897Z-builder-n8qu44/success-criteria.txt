@@ -1,0 +1,6 @@
+1. Bare `kota` and `kota navigate` launch the same full daemon-backed terminal client on a TTY while preserving scripted/non-TTY behavior and explicit `kota run` behavior.
+2. The first client screen identifies daemon/project connection state, dispatch state, active and pending work, inbox counts, setup gaps, and live-event status.
+3. Workflow controls are discoverable and executable from the client, including safe read actions, dispatch pause/resume, active-run abort, queued-run cancellation, and failed-run retry/replay/resume with unavailable-action reasons shown.
+4. The active-run view updates from live daemon events and exposes a path to logs or step output without requiring a separate memorized command.
+5. Offline daemon state is explicit and offers a clear start or reconnect path instead of empty or misleading controls.
+6. Acceptance evidence includes transcripts for online navigation, read and safe write actions, dispatch pause/resume, queued/recent run controls, and offline behavior, plus focused tests for navigator state, action execution, live-event handling, direct TTY key input, and non-TTY/scripted command stability.

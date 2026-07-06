@@ -11,7 +11,7 @@
 import { Command } from "commander";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import { getTerminalTransport } from "#modules/rendering/transport.js";
-import { createReadlinePrompt, createStdoutResizeSource, refuseNonTtyLaunch, runNavigator } from "./navigator.js";
+import { createStdoutResizeSource, createTerminalPrompt, createTerminalScreenOutput, refuseNonTtyLaunch, runNavigator } from "./navigator.js";
 
 const cliModule: KotaModule = {
   name: "cli",
@@ -28,10 +28,11 @@ const cliModule: KotaModule = {
           process.exitCode = 1;
           return;
         }
+        const transport = getTerminalTransport();
         await runNavigator({
           client: ctx.client,
-          prompt: createReadlinePrompt(),
-          output: getTerminalTransport(),
+          prompt: createTerminalPrompt(),
+          output: createTerminalScreenOutput(transport),
           resizeSource: createStdoutResizeSource(),
         });
       });

@@ -1,0 +1,219 @@
+$ kota
+# TTY launch path: shouldLaunchDefaultOperatorConsole(["node", "kota"], true) -> kota navigate.
+# Normal screens read direct raw keys: j/k/tab/enter/r/q, with no readline prompt.
+# The `kota:tui>` line prompt appears only after opening the command palette.
+
+KOTA Terminal Client
+----------------------------------------
+Daemon-backed shared UI client. Status, Work/Runs, Inbox, Setup, Modules/Agents, and Stores are controlled through the shared action protocol.
+focus:surfaces  width:100  theme:auto  live:event-stream 0
+j/k move  tab focus  enter open  : palette  r refresh  q quit
+
+Operator overview ----------------------------------------------------------------------------------
+Daemon:          running (pid 4242)
+Project:         scope-main
+Dispatch:        running
+Active / queued: 1 active, 2 queued
+Inbox:           1 approvals, 1 owner questions, 1 failed runs
+Setup gaps:      missing 1, pending 1
+Live events:     0 received
+
+Run supervision ------------------------------------------------------------------------------------
+runs opens active, queued, and recent runs; l opens live events; tab focuses actions; enter executes the selected action.
+- workflow.pause  Pause dispatch  ready
+- workflow.resume  Resume dispatch  ready
+- run.abort  Abort one run  ready
+- run.cancel-queued  Cancel queued run  ready
+- run.retry  Retry failed run  ready
+- run.replay  Replay run  ready
+- run.resume  Resume run from step  ready
+
+Surfaces -------------------------------------------------------------------------------------------
+>  1  status  Status  Status  scope-main
+   2  scopes  Status  Scopes  scope-main
+   3  inbox  Inbox  Inbox  scope-main
+   4  runs  Work  Runs and Automations  scope-main
+   5  modules-agents  Work  Modules and Agents  scope-main
+   6  stores  Knowledge  Stores  scope-main
+   7  setup  Setup  Setup  scope-main
+
+input: status
+
+Status
+----------------------------------------
+Status
+
+Daemon:         running (pid 4242)
+Dispatch:       running
+Runs:           1 active, 2 queued
+Approvals:      1 pending
+Runtime source: daemon control API
+Actions --------------------------------------------------------------------------------------------
+- > daemon.start  Start daemon  write  ready  daemonOps.start
+-   status.explain  Explain status  read  ready  workflow.status
+
+input: runs
+
+Runs and Automations
+----------------------------------------
+Work
+
+Dispatch:        running
+Active:          1
+Queued:          2
+Definitions:     12
+Approvals:       1
+Owner questions: 1
+Sessions:        1
+Active run supervision -----------------------------------------------------------------------------
+Name          State       Detail
+run-active-1  builder     started 2026-07-07T00:00:00.000Z  Abort one run: workflow.abortRun
+Queued workflow runs -------------------------------------------------------------------------------
+Name          State       Detail
+queued-run-1  improver    enqueued 2026-07-07T00:01:00.000Z  Cancel queued run: workflow.cancelRun
+Recent run results ---------------------------------------------------------------------------------
+Name          State           Detail
+run-failed-1  builder failed  2026-07-07T00:02:00.000Z  Retry failed run: workflow.retryRun
+run-success-1 builder success 2026-07-07T00:03:00.000Z  Replay run: workflow.replayRun
+Live run event stream ------------------------------------------------------------------------------
+sse /events
+- 2026-07-07T00:00:00.000Z  info  workflow.builder: Active run run-active-1 is executing.
+Run controls ---------------------------------------------------------------------------------------
+Refresh workflow status  read  none  ready  workflow.status
+Pause dispatch  write  required  ready  workflow.pause
+Resume dispatch  write  none  ready  workflow.resume
+Abort one run  write  required  ready  workflow.abortRun
+Cancel queued run  write  required  ready  workflow.cancelRun
+Retry failed run  write  required  ready  workflow.retryRun
+Replay run  write  required  ready  workflow.replayRun
+Resume run from step  write  required  ready  workflow.resumeRun
+Actions --------------------------------------------------------------------------------------------
+- > workflow.status  Refresh workflow status  read  ready  workflow.status
+-   workflow.pause  Pause dispatch  write  ready  workflow.pause
+-   workflow.resume  Resume dispatch  write  ready  workflow.resume
+-   run.abort  Abort one run  write  ready  workflow.abortRun
+-   run.cancel-queued  Cancel queued run  write  ready  workflow.cancelRun
+-   run.retry  Retry failed run  write  ready  workflow.retryRun
+-   run.replay  Replay run  write  ready  workflow.replayRun
+-   run.resume  Resume run from step  write  ready  workflow.resumeRun
+
+input: tab
+input: enter
+UI action executed: 1 active, 2 queued.
+
+input: inbox
+
+Inbox
+----------------------------------------
+Inbox
+
+Runtime:         0
+Approvals:       1
+Owner questions: 1
+Blocked:         0
+Setup:           2
+Failed runs:     1
+
+input: setup
+
+Setup
+----------------------------------------
+Setup
+
+ready:       8
+missing:     1
+pending:     1
+unavailable: 0
+
+input: modules
+
+Modules and Agents
+----------------------------------------
+Work
+
+Modules and Agents ---------------------------------------------------------------------------------
+Modules and Agents body.
+Actions --------------------------------------------------------------------------------------------
+- > modules.list  List modules  read  ready  modules.list
+-   agents.list  List agents  read  ready  agents.list
+
+input: stores
+
+Stores
+----------------------------------------
+Knowledge
+
+Stores ---------------------------------------------------------------------------------------------
+Stores body.
+Actions --------------------------------------------------------------------------------------------
+- > memory.list  List memory  read  ready  memory.list
+-   knowledge.list  List knowledge  read  ready  knowledge.list
+
+$ kota navigate
+# Same navigator with deterministic running-daemon fixture.
+
+input: action runs workflow.pause
+confirm: Pause dispatch
+UI action executed: Workflow dispatch paused.
+
+input: action runs workflow.resume
+UI action executed: Workflow dispatch resumed.
+
+input: runs
+input: tab
+input: j
+input: j
+input: j
+input: enter
+confirm: Abort run
+UI action executed: Run run-active-1 aborted.
+
+input: runs
+input: tab
+input: j
+input: j
+input: j
+input: j
+input: enter
+confirm: Cancel queued run
+UI action executed: Queued run queued-run-1 cancelled.
+
+input: runs
+input: tab
+input: j
+input: j
+input: j
+input: j
+input: j
+input: enter
+confirm: Retry run
+UI action executed: Queued retry from run-failed-1.
+
+input: :
+kota:tui> action runs run.resume --yes {"runId":"run-failed-1","fromStep":"build"}
+UI action executed: Queued resume of builder from build.
+
+$ kota
+# Offline shared UI fixture from the normal local no-daemon client path:
+# client.ui.listSurfaces() -> { protocolVersion: "ui.surface.v1", surfaces: [] }.
+
+KOTA Terminal Client
+----------------------------------------
+Daemon-backed shared UI client. Status, Work/Runs, Inbox, Setup, Modules/Agents, and Stores are controlled through the shared action protocol.
+focus:surfaces  width:100  theme:auto  live:not subscribed 0
+j/k move  tab focus  enter open  : palette  r refresh  q quit
+
+WARN Daemon offline or shared UI unavailable
+  Start with `kota daemon start`, then press r to reconnect.
+Offline controls -----------------------------------------------------------------------------------
+- start  `kota daemon start`
+- reconnect  press r or type refresh
+- scripted  use one-shot commands such as `kota status`, `kota inbox`, or `kota run <prompt>`
+
+Run supervision ------------------------------------------------------------------------------------
+No Work/Runs surface is exposed by the current UI bundle.
+
+Surfaces -------------------------------------------------------------------------------------------
+No shared UI surfaces are available for this view.
+
+# No secret-valued setup action was executed; transcripts contain no secret values.

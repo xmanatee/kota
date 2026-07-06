@@ -13,6 +13,7 @@ import {
   unavailableRows,
 } from "./operator-ui-builder-common.js";
 import type {
+  UiAction,
   UiActionParameterSpec,
   UiLogEntry,
   UiTableRow,
@@ -49,7 +50,10 @@ export function workflowRows(definitions: SurfaceRead<WorkflowDefinitionsResult>
   }));
 }
 
-export function activeRunRows(status: SurfaceRead<WorkflowStatusSnapshot>): UiTableRow[] {
+export function activeRunRows(
+  status: SurfaceRead<WorkflowStatusSnapshot>,
+  abortAction?: UiAction,
+): UiTableRow[] {
   if (!status.ok) return unavailableRows(status.message);
   if (status.value.activeRuns.length === 0) return emptyRows("Active runs");
   return status.value.activeRuns.map((run) => ({
@@ -59,10 +63,14 @@ export function activeRunRows(status: SurfaceRead<WorkflowStatusSnapshot>): UiTa
       { columnId: "state", value: run.workflow, role: "success" },
       { columnId: "detail", value: `started ${run.startedAt}`, role: "muted" },
     ],
+    ...(abortAction ? { action: abortAction } : {}),
   }));
 }
 
-export function queuedRunRows(status: SurfaceRead<WorkflowStatusSnapshot>): UiTableRow[] {
+export function queuedRunRows(
+  status: SurfaceRead<WorkflowStatusSnapshot>,
+  cancelAction?: UiAction,
+): UiTableRow[] {
   if (!status.ok) return unavailableRows(status.message);
   if (status.value.pendingRuns.length === 0) return emptyRows("Queued runs");
   return status.value.pendingRuns.map((run, index) => ({
@@ -72,10 +80,14 @@ export function queuedRunRows(status: SurfaceRead<WorkflowStatusSnapshot>): UiTa
       { columnId: "state", value: run.workflowName, role: "warn" },
       { columnId: "detail", value: `enqueued ${new Date(run.enqueuedAtMs).toISOString()}; not-before ${new Date(run.notBeforeMs).toISOString()}`, role: "muted" },
     ],
+    ...(cancelAction ? { action: cancelAction } : {}),
   }));
 }
 
-export function recentRunRows(runs: SurfaceRead<WorkflowRunsListResult>): UiTableRow[] {
+export function recentRunRows(
+  runs: SurfaceRead<WorkflowRunsListResult>,
+  actions: { retry: UiAction; replay: UiAction; resume: UiAction },
+): UiTableRow[] {
   if (!runs.ok) return unavailableRows(runs.message);
   if (runs.value.runs.length === 0) return emptyRows("Recent runs");
   return runs.value.runs.map((run) => ({
@@ -85,6 +97,11 @@ export function recentRunRows(runs: SurfaceRead<WorkflowRunsListResult>): UiTabl
       { columnId: "state", value: `${run.workflow} ${run.status}`, role: run.status === "failed" ? "error" : run.status === "success" ? "success" : "warn" },
       { columnId: "detail", value: `${run.startedAt}${run.totalCostUsd !== undefined ? `  $${run.totalCostUsd.toFixed(4)}` : ""}`, role: "muted" },
     ],
+    action: run.status === "failed" || run.status === "interrupted"
+      ? actions.retry
+      : run.status === "success" || run.status === "completed-with-warnings"
+        ? actions.replay
+        : actions.resume,
   }));
 }
 
@@ -150,8 +167,42 @@ export function runtimeLogEntries(args: {
 }
 
 export function runAbortParameters(): UiActionParameterSpec {
+  return runIdParameters("Run id");
+}
+
+export function runCancelParameters(): UiActionParameterSpec {
+  return runIdParameters("Queued run id");
+}
+
+export function runRetryParameters(): UiActionParameterSpec {
+  return runIdParameters("Failed run id");
+}
+
+export function runReplayParameters(): UiActionParameterSpec {
+  return runIdParameters("Completed run id");
+}
+
+export function runResumeParameters(): UiActionParameterSpec {
   return {
-    fields: [{ id: "runId", label: "Run id", input: "text", required: true }],
+    fields: [
+      { id: "runId", label: "Failed run id", input: "text", required: true },
+      { id: "fromStep", label: "Resume from step", input: "text", required: true },
+    ],
+    schema: {
+      type: "object",
+      required: ["runId", "fromStep"],
+      properties: {
+        runId: { type: "string" },
+        fromStep: { type: "string" },
+      },
+      additionalProperties: false,
+    },
+  };
+}
+
+function runIdParameters(label: string): UiActionParameterSpec {
+  return {
+    fields: [{ id: "runId", label, input: "text", required: true }],
     schema: {
       type: "object",
       required: ["runId"],

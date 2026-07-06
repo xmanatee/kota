@@ -7,4 +7,5 @@ export interface NavigatorPrompt {
 
 export interface NavigatorOutput {
   write(node: RenderNode): void;
+  close?(): void;
 }

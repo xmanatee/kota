@@ -1,0 +1,14 @@
+{
+  "outcome": "advisory",
+  "warnings": [
+    {
+      "type": "source-file-size",
+      "file": "src/modules/daemon-ops/index.ts",
+      "lines": 1647,
+      "threshold": 300,
+      "changedLines": 84,
+      "message": "Changed source file src/modules/daemon-ops/index.ts is 1647 line(s), above the 300-line source-size guideline."
+    }
+  ],
+  "message": "Advisory source-size warning(s): src/modules/daemon-ops/index.ts."
+}
