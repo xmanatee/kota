@@ -1,0 +1,3 @@
+1. Verified in src/modules/webhook/trigger-route.ts by classifying authorization-suffixed headers and common forwarded/original auth headers as secret-bearing before payload construction.
+2. Verified in src/modules/webhook/trigger-route.test.ts by asserting x-forwarded-authorization and x-original-authorization are omitted while x-forwarded-for and x-forwarded-host remain.
+3. Verified by recording `pnpm test src/modules/webhook/trigger-route.test.ts` and `pnpm exec biome check src/modules/webhook/trigger-route.ts src/modules/webhook/trigger-route.test.ts` in the completed task.

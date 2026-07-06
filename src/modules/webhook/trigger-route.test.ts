@@ -275,6 +275,13 @@ describe("webhook module signature-validated trigger route", () => {
         "X-Custom-Token": "secret-custom-token",
         "X-Signing-Key": "secret-signing-key",
         "X-Client-Secret": "secret-client-secret",
+        "X-Forwarded-Authorization": "Bearer secret-forwarded",
+        "X-Original-Authorization": "Bearer secret-original",
+        "X-Forwarded-Auth": "Bearer secret-forwarded-auth",
+        "X-Original-Auth": "Bearer secret-original-auth",
+        "X-Client-Authorization": "Bearer secret-client-authorization",
+        "X-Forwarded-For": "203.0.113.42",
+        "X-Forwarded-Host": "deploy.example.test",
         "X-Request-ID": "request-42",
         "X-Source": "ci",
       },
@@ -286,6 +293,8 @@ describe("webhook module signature-validated trigger route", () => {
     expect(passedHeaders).toEqual(
       expect.objectContaining({
         "content-type": "application/json",
+        "x-forwarded-for": "203.0.113.42",
+        "x-forwarded-host": "deploy.example.test",
         "x-request-id": "request-42",
         "x-source": "ci",
       }),
@@ -300,6 +309,11 @@ describe("webhook module signature-validated trigger route", () => {
       "x-custom-token",
       "x-signing-key",
       "x-client-secret",
+      "x-forwarded-authorization",
+      "x-original-authorization",
+      "x-forwarded-auth",
+      "x-original-auth",
+      "x-client-authorization",
     ]) {
       expect(passedHeaders).not.toHaveProperty(header);
     }

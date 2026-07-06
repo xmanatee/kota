@@ -1,0 +1,1 @@
+Harden webhook trigger header filtering

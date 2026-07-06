@@ -47,10 +47,14 @@ const SECRET_BEARING_WEBHOOK_HEADERS = new Set([
   "cookie",
   "set-cookie",
   "proxy-authorization",
+  "x-forwarded-auth",
+  "x-forwarded-authorization",
   "x-api-key",
   "x-auth-token",
+  "x-original-auth",
+  "x-original-authorization",
 ]);
-const SECRET_BEARING_HEADER_SUFFIXES = new Set(["token", "key", "secret"]);
+const SECRET_BEARING_HEADER_SUFFIXES = new Set(["authorization", "token", "key", "secret"]);
 
 type WebhookSecretLookup = (name: string) => string | undefined;
 type ParsedWebhookBody = {

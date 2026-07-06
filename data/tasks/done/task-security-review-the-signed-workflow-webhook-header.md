@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-signed-workflow-webhook-header
 title: Security review: The signed workflow webhook header filter still forwards authorization-bearing proxy headers such as x-forwarded-authorization or x-original-authorization. Those names are not exact matches and their suffix is authorization, which is not in the token/key/secret suffix denylist, so a valid signed request can still place bearer credentials into the workflow trigger payload and agent prompt context.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: The signed workflow webhook header filter still forwards authorization-bearing proxy headers such as x-forwarded-authorization or x-original-authorization. Those names are not exact matches and their suffix is authorization, which is not in the token/key/secret suffix denylist, so a valid signed request can still place bearer credentials into the workflow trigger payload and agent prompt context.
 created_at: 2026-07-06T16:40:19.032Z
-updated_at: 2026-07-06T16:40:19.032Z
+updated_at: 2026-07-06T16:44:13.069Z
 ---
 
 ## Problem
@@ -125,3 +125,8 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/modules/webhook/trigger-route.test.ts`
+- `pnpm exec biome check src/modules/webhook/trigger-route.ts src/modules/webhook/trigger-route.test.ts`

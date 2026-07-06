@@ -1,0 +1,3 @@
+1. The webhook trigger payload omits authorization-bearing forwarded/original/proxy headers, including x-forwarded-authorization and x-original-authorization, before enqueueing workflow runs.
+2. Focused regression coverage proves those headers are omitted while non-sensitive forwarded metadata remains in the payload.
+3. The task state records the final verification command or artifact for the fixed security boundary.
