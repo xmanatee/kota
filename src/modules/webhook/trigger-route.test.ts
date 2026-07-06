@@ -258,6 +258,54 @@ describe("webhook module signature-validated trigger route", () => {
     expect(passedHeaders).not.toHaveProperty("x-kota-idempotency-key");
   });
 
+  it("omits sensitive request headers while preserving non-sensitive headers", async () => {
+    const fn = registerDispatcher({ ok: true, runId: "test-run-id" });
+    const bodyStr = JSON.stringify({ event: "push" });
+    const res = await globalThis.fetch(`http://127.0.0.1:${port}/webhooks/deploy`, {
+      method: "POST",
+      headers: {
+        "X-Kota-Webhook-Signature": sign(WEBHOOK_SECRET, bodyStr),
+        "Content-Type": "application/json",
+        Authorization: "Bearer secret-auth",
+        Cookie: "session=secret-cookie",
+        "Set-Cookie": "session=secret-set-cookie",
+        "Proxy-Authorization": "Basic secret-proxy",
+        "X-API-Key": "secret-api-key",
+        "X-Auth-Token": "secret-auth-token",
+        "X-Custom-Token": "secret-custom-token",
+        "X-Signing-Key": "secret-signing-key",
+        "X-Client-Secret": "secret-client-secret",
+        "X-Request-ID": "request-42",
+        "X-Source": "ci",
+      },
+      body: bodyStr,
+    });
+
+    expect(res.status).toBe(200);
+    const passedHeaders = fn.mock.calls[0][1].headers;
+    expect(passedHeaders).toEqual(
+      expect.objectContaining({
+        "content-type": "application/json",
+        "x-request-id": "request-42",
+        "x-source": "ci",
+      }),
+    );
+    for (const header of [
+      "authorization",
+      "cookie",
+      "set-cookie",
+      "proxy-authorization",
+      "x-api-key",
+      "x-auth-token",
+      "x-custom-token",
+      "x-signing-key",
+      "x-client-secret",
+    ]) {
+      expect(passedHeaders).not.toHaveProperty(header);
+    }
+    expect(JSON.stringify(fn.mock.calls[0][1])).not.toContain("secret-");
+  });
+
   it("derives a stable idempotency key from repeated signed bodies", async () => {
     const fn = registerDispatcher({ ok: true, runId: "test-run-id" });
     const bodyStr = JSON.stringify({ event: "push", ref: "refs/heads/main" });

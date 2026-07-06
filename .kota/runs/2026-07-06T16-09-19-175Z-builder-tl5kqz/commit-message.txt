@@ -1,0 +1,5 @@
+Filter sensitive webhook trigger headers
+
+Omit secret-bearing inbound request headers from signature-validated webhook trigger payloads before workflow dispatch.
+Add focused trigger-route regression coverage and mark the security-review task done with verification evidence.
+Keep the webhook module AGENTS guidance within the docs-surface line ratchet.

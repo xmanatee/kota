@@ -51,8 +51,9 @@ This directory owns:
 - Payload threaded through to the workflow run carries `body`, `headers`,
   `timestamp`, and a hashed `idempotencyKey`: `body` is parsed as JSON when the
   raw body is non-empty (falling back to the original string on parse
-  failure); `headers` excludes the webhook signature, timestamp, and raw
-  idempotency-key headers; `timestamp` is the daemon's ISO receive time.
+  failure); `headers` excludes the webhook signature, timestamp, raw
+  idempotency-key headers, and common secret-bearing request headers;
+  `timestamp` is the daemon's ISO receive time.
 - Per-workflow rate limiting is enforced before enqueueing. The
   workflow's `webhookRateLimit.maxPerMinute` (looked up via the
   `workflow-definitions` provider seam) caps deliveries in a sliding
@@ -101,5 +102,4 @@ This directory owns:
   timestamp window, and the per-workflow rate-limit window state. The
   daemon-control core no longer carries a webhook handler.
 - Does not own Slack or Telegram notification (those belong in
-  `slack/` and `telegram/`).
-- Does not own retry logic (that lives in the `notification` module).
+  `slack/` and `telegram/`) or retry logic (that lives in `notification`).

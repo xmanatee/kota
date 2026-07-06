@@ -1,0 +1,4 @@
+1. Verified by `pnpm test src/modules/webhook/trigger-route.test.ts`: the dispatcher payload omits authorization, cookie, set-cookie, proxy-authorization, x-api-key, x-auth-token, and token/key/secret-suffixed webhook request headers.
+2. Verified by `pnpm test src/modules/webhook/trigger-route.test.ts`: non-sensitive headers such as content-type, x-request-id, and x-source remain in the dispatcher payload.
+3. Verified by `pnpm test src/modules/webhook/trigger-route.test.ts`: the focused trigger-route regression suite passes with 15 tests.
+4. Verified in `data/tasks/done/task-security-review-the-signature-validated-webhook-tr.md`: the task records the final verification command and passing test count.

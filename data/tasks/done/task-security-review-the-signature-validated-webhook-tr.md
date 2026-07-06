@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-signature-validated-webhook-tr
 title: Security review: The signature-validated webhook trigger forwards arbitrary inbound headers into workflow trigger payloads without filtering common secret-bearing headers, so Authorization/Cookie/API-token material can be persisted in run artifacts and exposed to agent prompts.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: The signature-validated webhook trigger forwards arbitrary inbound headers into workflow trigger payloads without filtering common secret-bearing headers, so Authorization/Cookie/API-token material can be persisted in run artifacts and exposed to agent prompts.
 created_at: 2026-07-06T15:28:52.421Z
-updated_at: 2026-07-06T15:28:52.421Z
+updated_at: 2026-07-06T16:20:05.437Z
 ---
 
 ## Problem
@@ -111,3 +111,4 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Verification: `pnpm test src/modules/webhook/trigger-route.test.ts` passed with 15 tests.

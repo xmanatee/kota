@@ -36,6 +36,21 @@ import {
 const WORKFLOW_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const TIMESTAMP_TOLERANCE_MS = 5 * 60 * 1000;
 const RATE_LIMIT_WINDOW_MS = 60_000;
+const WEBHOOK_TRIGGER_INTERNAL_HEADERS = new Set([
+  "x-kota-webhook-signature",
+  "x-kota-webhook-timestamp",
+  "x-kota-idempotency-key",
+  "idempotency-key",
+]);
+const SECRET_BEARING_WEBHOOK_HEADERS = new Set([
+  "authorization",
+  "cookie",
+  "set-cookie",
+  "proxy-authorization",
+  "x-api-key",
+  "x-auth-token",
+]);
+const SECRET_BEARING_HEADER_SUFFIXES = new Set(["token", "key", "secret"]);
 
 type WebhookSecretLookup = (name: string) => string | undefined;
 type ParsedWebhookBody = {
@@ -99,6 +114,18 @@ function stringProperty(value: IdempotencyJsonValue, key: string): string | unde
     : undefined;
 }
 
+function isWebhookTriggerInternalHeader(headerName: string): boolean {
+  return WEBHOOK_TRIGGER_INTERNAL_HEADERS.has(headerName.toLowerCase());
+}
+
+function isSecretBearingWebhookHeader(headerName: string): boolean {
+  const normalized = headerName.toLowerCase();
+  if (SECRET_BEARING_WEBHOOK_HEADERS.has(normalized)) return true;
+  const parts = normalized.split(/[-_]/);
+  const suffix = parts[parts.length - 1];
+  return SECRET_BEARING_HEADER_SUFFIXES.has(suffix);
+}
+
 function parseWebhookBody(rawBody: Buffer): ParsedWebhookBody {
   if (rawBody.length > 0) {
     try {
@@ -142,10 +169,8 @@ function buildPayload(
   const headers: Record<string, string> = {};
   for (const [key, val] of Object.entries(req.headers)) {
     if (
-      key !== "x-kota-webhook-signature" &&
-      key !== "x-kota-webhook-timestamp" &&
-      key !== "x-kota-idempotency-key" &&
-      key !== "idempotency-key" &&
+      !isWebhookTriggerInternalHeader(key) &&
+      !isSecretBearingWebhookHeader(key) &&
       typeof val === "string"
     ) {
       headers[key] = val;

@@ -1,0 +1,4 @@
+1. Signature-validated webhook trigger payloads omit sensitive inbound request headers before workflow dispatch, including authorization, cookie, set-cookie, proxy-authorization, x-api-key, x-auth-token, and token/key/secret-suffixed header names.
+2. Non-sensitive inbound request headers still reach the dispatcher payload.
+3. Focused regression coverage proves the fixed webhook trigger-route boundary.
+4. The task state records the final verification command or artifact.
