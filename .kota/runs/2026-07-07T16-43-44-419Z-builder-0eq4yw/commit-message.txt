@@ -1,0 +1,7 @@
+Require concrete rendered evidence artifacts
+
+Tighten operator-client completion validation so placeholder transcript paths
+and missing artifact references do not satisfy done evidence, recognize
+documented Runtime Probe sections as daemon-route runtime proof, split focused
+regression coverage out of oversized legacy tests, and preserve the CLI/control
+task audit closeout artifacts.

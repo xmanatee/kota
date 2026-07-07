@@ -1,0 +1,5 @@
+1. Verified by the final stale-current `rg` audit in `transcript.txt`, which returns no live current claim that the readline navigator, passive daemon dashboard, or shallow operator console is still the completed operator client.
+2. Verified by `data/tasks/done/task-make-bare-kota-launch-the-full-daemon-backed-cli-c.md`, which now records `Closure / Supersession` links to the terminal-client and foreground-daemon repair evidence.
+3. Verified by source-mode help output plus `docs/ARCHITECTURE.md`, `src/modules/cli/AGENTS.md`, `src/modules/cli/index.ts`, `src/modules/daemon-ops/AGENTS.md`, and daemon dashboard/help source hits distinguishing CLI client, daemon host, workflow control, status, inbox, and shared UI render paths.
+4. Verified by `transcript.txt` and `validation.txt`, which include the final audit searches, source-mode task validation, focused evidence-gate regression tests, repair-attempt 2 move/runtime-probe regressions, and typecheck passing.
+5. Verified by moving `task-audit-and-close-legacy-cli-control-task-records` to `done/` and adding closeout links to evidence for all four dependency tasks.

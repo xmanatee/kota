@@ -29,6 +29,7 @@ import {
 } from "./task-dependencies.js";
 import {
   declaresRenderedEvidence,
+  hasConcreteRenderedEvidence,
   hasNamedRenderedEvidence,
   requiresRenderedCompletionEvidence,
 } from "./task-rendered-evidence.js";
@@ -377,7 +378,12 @@ function hasFreshBlockedActionMarker(
  */
 const CLIENT_CHANNEL_AREAS: ReadonlySet<string> = new Set(["client", "channel"]);
 
-export { declaresRenderedEvidence, hasNamedRenderedEvidence } from "./task-rendered-evidence.js";
+export {
+  declaresRenderedEvidence,
+  hasConcreteRenderedEvidence,
+  hasConcreteRenderedEvidenceReference,
+  hasNamedRenderedEvidence,
+} from "./task-rendered-evidence.js";
 
 function isCompletionEvidenceGateEffective(updatedAt: string | string[] | undefined): boolean {
   const value = Array.isArray(updatedAt) ? updatedAt.join(",") : updatedAt;
@@ -869,15 +875,16 @@ export function validateTaskQueue(
         taskClass: readTaskClass(attrs),
         body,
       }) &&
-      !hasNamedRenderedEvidence(body)
+      !hasConcreteRenderedEvidence(body, projectDir)
     ) {
       findings.push({
         code: "done-operator-client-missing-rendered-evidence",
         severity: "error",
         message: `${entry.path} is a new done operator-facing client/control task but its ` +
-          `## Acceptance Evidence section does not name rendered/runtime proof. ` +
+          `evidence sections do not reference an existing rendered/runtime proof artifact. ` +
           `Add a CLI/dashboard/status transcript, web screenshot or trace, native snapshot/screenshot, ` +
-          `rendered fixture, daemon route runtime probe, or operator-capture precondition before completion.`,
+          `rendered fixture, or daemon route runtime probe at a concrete local path before completion. ` +
+          `Placeholders such as \`.kota/runs/<run-id>/transcript.txt\` do not satisfy done evidence.`,
         paths: [entry.path],
       });
     }

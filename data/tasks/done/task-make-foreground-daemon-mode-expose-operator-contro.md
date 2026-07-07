@@ -6,17 +6,17 @@ priority: p1
 area: daemon-ops
 summary: Make pnpm dev daemon / kota daemon clearly present how to pause, resume, follow, inspect, and open the operator client instead of looking like an uncontrollable monitor.
 created_at: 2026-07-06T15:16:35.790Z
-updated_at: 2026-07-06T15:42:29.352Z
+updated_at: 2026-07-07T16:54:53.000Z
 task_class: Product
 ---
 
 ## Problem
 
 `pnpm dev daemon` / `kota daemon` starts the daemon host and, on a TTY, renders
-the daemon dashboard. The dashboard looks like the main live operator surface,
-but it is passive: it does not accept pause/resume/follow/status commands and
-does not clearly point to `kota workflow`, `kota status`, `kota inbox`,
-`kota ui`, or `kota navigate`.
+the daemon dashboard. At creation time the dashboard looked like the main live
+operator surface, but it was passive: it did not accept pause/resume/follow/status
+commands and did not clearly point to `kota workflow`, `kota status`,
+`kota inbox`, `kota ui`, or `kota navigate`.
 
 When dispatch is paused or no work is being dispatched, the dashboard can read
 as "stuck" even when the runtime is intentionally waiting or protected. The

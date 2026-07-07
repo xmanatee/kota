@@ -1,22 +1,23 @@
 ---
 id: task-audit-and-close-legacy-cli-control-task-records
 title: Audit and close legacy CLI control task records
-status: ready
+status: done
 priority: p2
 area: repo-tasks
-summary: After the operator-control fixes land, audit the old completed CLI/control tasks and current docs/help so no stale or overclaimed task record remains as the source of truth.
+summary: After the operator-control fixes landed, audit the old completed CLI/control tasks and current docs/help so no stale or overclaimed task record remains as the source of truth.
 depends_on: [task-replace-readline-navigator-with-a-real-daemon-back, task-make-foreground-daemon-mode-expose-operator-contro, task-reconcile-dirty-recovery-pause-state-across-status, task-add-completion-evidence-gates-for-operator-client-]
 created_at: 2026-07-06T15:16:45.700Z
-updated_at: 2026-07-07T16:46:24.344Z
+updated_at: 2026-07-07T16:58:36.249Z
 task_class: Meta
 ---
 
 ## Problem
 
-Several historical task records and docs now say the CLI/operator control
-experience is complete, while the current product still has legacy behavior:
-the foreground daemon dashboard is passive, the full CLI client is still a
-readline navigator, and stale recovery status can persist offline.
+Several historical task records and docs said the CLI/operator control
+experience was complete while, before the repair slice, the product still had
+legacy behavior: the foreground daemon dashboard was passive, the full CLI
+client was still a readline navigator, and stale recovery status could persist
+offline.
 
 If the implementation tasks land without auditing the old records and help
 text, the queue will still contain contradictory sources of truth about what
@@ -79,3 +80,26 @@ completed records as current truth.
 - Transcript of `pnpm kota validate-tasks` or source-mode equivalent passing.
 - Links in the task closeout to the implementation evidence for the four
   dependency tasks.
+
+## Completion Notes
+
+Audit transcript for this closure:
+`.kota/runs/2026-07-07T16-43-44-419Z-builder-0eq4yw/transcript.txt`.
+Source-mode task validation:
+`.kota/runs/2026-07-07T16-43-44-419Z-builder-0eq4yw/validation.txt`.
+
+Dependency evidence:
+
+- `task-replace-readline-navigator-with-a-real-daemon-back`:
+  `.kota/runs/2026-07-06T18-08-37-897Z-builder-n8qu44/transcript.txt`.
+- `task-make-foreground-daemon-mode-expose-operator-contro`:
+  `.kota/runs/2026-07-06T15-29-18-210Z-builder-v70rd2/transcript.txt`.
+- `task-reconcile-dirty-recovery-pause-state-across-status`:
+  `.kota/runs/2026-07-06T20-49-21-196Z-builder-rej04x/transcript.txt`.
+- `task-add-completion-evidence-gates-for-operator-client-`:
+  `.kota/runs/2026-07-07T15-50-32-148Z-builder-smt7x7/validation-transcript.txt`.
+
+Current truth after reconciliation: bare `kota` and `kota navigate` are the
+shared UI CLI client entry points; `kota daemon` is the foreground host and
+dashboard with control-path hints; workflow control remains under
+`kota workflow`; status/inbox have dedicated snapshot commands.

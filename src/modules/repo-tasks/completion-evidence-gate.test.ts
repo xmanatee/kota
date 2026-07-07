@@ -111,6 +111,7 @@ describe("operator client completion evidence gate", () => {
   });
 
   it("accepts a new done full-CLI Product task with transcript evidence", () => {
+    const transcriptPath = ".kota/runs/2026-07-08T00-00-00-000Z-builder-test/transcript.txt";
     writeTaskBody(
       projectDir,
       "done",
@@ -118,16 +119,96 @@ describe("operator client completion evidence gate", () => {
       fullCliTask(
         "task-evidenced-full-cli",
         [
-          "- Full CLI transcript under `.kota/runs/<run-id>/transcript.txt` showing",
+          `- Full CLI transcript under \`${transcriptPath}\` showing`,
           "  scopes, workflows, modules, setup, approvals, owner requests, model controls,",
           "  and live run supervision.",
           "- Unit and integration tests for CLI routing and action execution.",
         ].join("\n"),
       ),
     );
+    mkdirSync(join(projectDir, ".kota", "runs", "2026-07-08T00-00-00-000Z-builder-test"), {
+      recursive: true,
+    });
+    writeFileSync(join(projectDir, transcriptPath), "kota\nscopes\nworkflows\nmodules\n");
 
     const result = validateTaskQueue(projectDir);
     expect(result.findings.some((f) => f.code === "done-operator-client-missing-rendered-evidence")).toBe(false);
+  });
+
+  it("accepts a new done daemon route Product task with a Runtime Probe section", () => {
+    writeTaskBody(
+      projectDir,
+      "done",
+      "task-evidenced-daemon-route",
+      `---
+id: task-evidenced-daemon-route
+title: Surface dashboard URL in /api/dashboard
+status: done
+priority: p1
+area: client
+summary: Expose dashboard availability through a daemon control route.
+created_at: 2026-07-08T00:00:00Z
+updated_at: 2026-07-08T00:00:00Z
+task_class: Product
+---
+
+## Problem
+
+Dashboard URL state is implicit.
+
+## Desired Outcome
+
+Daemon exposes dashboard availability through a route-level runtime probe.
+
+## Constraints
+
+Do not leak control tokens.
+
+## Done When
+
+- Daemon route returns dashboard availability.
+- Runtime probe verifies the route shape.
+
+## Source / Intent
+
+Operator-facing daemon route evidence needs a runtime predicate.
+
+## Initiative
+
+Daemon control observability.
+
+## Acceptance Evidence
+
+- Runtime probe declared in the task's \`## Runtime Probe\` section.
+
+## Runtime Probe
+
+command: pnpm run probe:dashboard-route
+timeoutMs: 5000
+`,
+    );
+
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.some((f) => f.code === "done-operator-client-missing-rendered-evidence")).toBe(false);
+  });
+
+  it("rejects a new done full-CLI Product task with only placeholder transcript evidence", () => {
+    writeTaskBody(
+      projectDir,
+      "done",
+      "task-placeholder-full-cli",
+      fullCliTask(
+        "task-placeholder-full-cli",
+        [
+          "- Full CLI transcript under `.kota/runs/<run-id>/transcript.txt` showing",
+          "  scopes, workflows, modules, setup, approvals, owner requests, model controls,",
+          "  and live run supervision.",
+        ].join("\n"),
+      ),
+    );
+
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.some((f) => f.code === "done-operator-client-missing-rendered-evidence")).toBe(true);
   });
 
   it("does not flag new done internal client refactors with ordinary test evidence", () => {
@@ -193,4 +274,5 @@ Native-client testability.
       expect(hasNamedRenderedEvidence(`## Acceptance Evidence\n\n- ${evidence}\n`)).toBe(true);
     }
   });
+
 });

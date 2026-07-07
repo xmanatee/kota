@@ -6,16 +6,17 @@ priority: p1
 area: client
 summary: Turn bare kota / kota navigate into the full daemon-backed terminal client promised by the completed CLI task, with real TUI state, live run supervision, actions, and transcript evidence.
 created_at: 2026-07-06T15:16:35.431Z
-updated_at: 2026-07-06T18:46:47.622Z
+updated_at: 2026-07-07T16:54:53.000Z
 task_class: Product
 ---
 
 ## Problem
 
 The completed task `task-make-bare-kota-launch-the-full-daemon-backed-cli-c`
-claims the default CLI should be a full daemon-backed CLI/TUI client, but the
-current implementation is still a readline command loop over rendered shared
-surfaces. It has useful plumbing, but not the product promised by the task:
+claimed the default CLI should be a full daemon-backed CLI/TUI client, but at
+creation time the implementation was still a readline command loop over
+rendered shared surfaces. It had useful plumbing, but not the product promised
+by the task:
 no real full-screen interaction model, no persistent panes, no first-class live
 run supervision view, no direct action affordances, and no operator-grade
 pause/resume/abort workflow from the client itself.

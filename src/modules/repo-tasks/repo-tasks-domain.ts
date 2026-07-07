@@ -10,6 +10,8 @@ import {
 } from "./task-dependencies.js";
 import { isRepoTaskId } from "./task-id.js";
 import {
+  hasConcreteRenderedEvidence,
+  hasConcreteRenderedEvidenceReference,
   hasNamedRenderedEvidence,
   requiresRenderedCompletionEvidence,
 } from "./task-rendered-evidence.js";
@@ -265,6 +267,7 @@ const ACTIONABLE_TASK_STATES: ReadonlySet<RepoTaskState> = new Set([
 export function getRepoTaskStateTransitionBlocker(
   task: RepoTaskTransitionCheckInput,
   toState: RepoTaskState,
+  projectDir?: string,
 ): string | null {
   if (toState === "done" && !hasConcreteTaskAcceptanceEvidence(task.body)) {
     return "missing concrete ## Acceptance Evidence. Add a command, artifact, " +
@@ -274,11 +277,19 @@ export function getRepoTaskStateTransitionBlocker(
   if (
     toState === "done" &&
     requiresRenderedCompletionEvidence(task) &&
-    !hasNamedRenderedEvidence(task.body)
+    !(projectDir
+      ? hasConcreteRenderedEvidence(task.body, projectDir)
+      : hasConcreteRenderedEvidenceReference(task.body))
   ) {
-    return "operator-facing client work needs rendered/runtime ## Acceptance Evidence before completion. " +
-      "Add a CLI/dashboard/status transcript, screenshot, trace, native snapshot, rendered fixture, " +
-      "runtime probe, or operator-capture precondition.";
+    const hasConcreteReference = hasConcreteRenderedEvidenceReference(task.body);
+    const suffix = hasConcreteReference
+      ? "Referenced evidence artifacts must exist under the project and look like rendered/runtime proof."
+      : hasNamedRenderedEvidence(task.body)
+      ? "Placeholders such as `.kota/runs/<run-id>/transcript.txt` are not concrete evidence."
+      : "Add a CLI/dashboard/status transcript, screenshot, trace, native snapshot, rendered fixture, or runtime probe.";
+    return "operator-facing client work needs rendered/runtime ## Acceptance Evidence proof " +
+      "at a concrete local path before completion. " +
+      suffix;
   }
 
   if (
@@ -296,8 +307,9 @@ export function getRepoTaskStateTransitionBlocker(
 function assertTaskStateTransitionAllowed(
   task: RepoTaskTransitionCheckInput,
   toState: RepoTaskState,
+  projectDir: string,
 ): void {
-  const blocker = getRepoTaskStateTransitionBlocker(task, toState);
+  const blocker = getRepoTaskStateTransitionBlocker(task, toState, projectDir);
   if (blocker === null) return;
   throw new Error(`Task "${task.id}" cannot move to "${toState}": ${blocker}`);
 }
@@ -609,6 +621,7 @@ export function moveTaskById(
       body,
     },
     toState,
+    projectDir,
   );
   attrs.status = toState;
   attrs.updated_at = new Date().toISOString();

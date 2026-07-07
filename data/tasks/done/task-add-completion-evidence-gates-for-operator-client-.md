@@ -6,17 +6,17 @@ priority: p2
 area: repo-tasks
 summary: Prevent CLI/UI/operator-client tasks from being marked done without the rendered transcript or runtime evidence their acceptance criteria require.
 created_at: 2026-07-06T15:16:35.734Z
-updated_at: 2026-07-07T16:35:52.000Z
+updated_at: 2026-07-07T16:54:53.000Z
 task_class: Meta
 ---
 
 ## Problem
 
-The completed full CLI client task contains strong acceptance evidence
-requirements, but the current code still leaves the operator with a shallow
-readline navigator and a passive daemon dashboard. That means at least one
-operator-client task reached `done/` without evidence proving the actual
-operator journey.
+The completed full CLI client task contained strong acceptance evidence
+requirements, but at creation time the code still left the operator with a
+shallow readline navigator and a passive daemon dashboard. That meant at least
+one operator-client task had reached `done/` without evidence proving the
+actual operator journey.
 
 Task policy already says client/channel work needs rendered transcripts,
 screenshots, runtime probes, or equivalent artifacts, but the queue tooling
@@ -75,3 +75,15 @@ controls, approvals, owner requests, setup, and workflow supervision.
   evidence failing with a clear error.
 - Validator fixture showing a valid CLI transcript evidence reference passing.
 - Transcript of the task move or validation command demonstrating the new gate.
+
+## Completion Notes
+
+This gate now protects future Product/client closures. The historical full-CLI
+overclaim is explicitly reconciled in
+`task-make-bare-kota-launch-the-full-daemon-backed-cli-c` and superseded by the
+later terminal-client and foreground-daemon repair tasks.
+
+Evidence transcript:
+`.kota/runs/2026-07-07T15-50-32-148Z-builder-smt7x7/validation-transcript.txt`.
+Criteria verification:
+`.kota/runs/2026-07-07T15-50-32-148Z-builder-smt7x7/success-criteria-verified.txt`.

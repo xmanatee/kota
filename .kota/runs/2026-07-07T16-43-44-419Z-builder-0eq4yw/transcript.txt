@@ -1,0 +1,95 @@
+# Legacy CLI/control task closure audit transcript
+
+Run: 2026-07-07T16-43-44-419Z-builder-0eq4yw
+
+## Task lifecycle
+
+```
+$ pnpm kota task move task-audit-and-close-legacy-cli-control-task-records doing
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module .../dist/core/util/node-options.js
+```
+
+The built CLI path was unavailable because this worktree has no `dist/`.
+Source-mode task movement was used instead.
+
+```
+$ pnpm dev -- task move task-audit-and-close-legacy-cli-control-task-records doing
+Moved "task-audit-and-close-legacy-cli-control-task-records" from "ready" to "doing".
+
+$ NODE_OPTIONS=--conditions=source node --import tsx src/cli.ts task move task-audit-and-close-legacy-cli-control-task-records done
+fatal: Unable to create .../index.lock: Operation not permitted
+Fatal: Command failed: git mv ...
+
+$ pnpm dev -- task move task-audit-and-close-legacy-cli-control-task-records done
+Moved "task-audit-and-close-legacy-cli-control-task-records" from "doing" to "done".
+```
+
+## Stale-current claim audit
+
+```
+$ rg -n -i 'current .*readline|current implementation is still|current experience is still|shallow operator console|daemon dashboard is passive|dashboard is passive' data/tasks docs src/modules/cli src/modules/daemon-ops
+```
+
+No output.
+
+```
+$ rg -n -i 'readline navigator|readline menu|readline command loop|five-option readline|passive daemon dashboard|passive dashboard|old readline navigator' data/tasks docs src/modules/cli src/modules/daemon-ops
+data/tasks/done/task-make-bare-kota-launch-the-full-daemon-backed-cli-c.md:19:audited experience was still a shallow readline menu with five numbered
+data/tasks/done/task-make-bare-kota-launch-the-full-daemon-backed-cli-c.md:82:  former five-option readline menu is no longer the primary product
+data/tasks/done/task-replace-readline-navigator-with-a-real-daemon-back.md:3:title: Replace readline navigator with a real daemon-backed TUI client
+data/tasks/done/task-replace-readline-navigator-with-a-real-daemon-back.md:17:creation time the implementation was still a readline command loop over
+data/tasks/done/task-replace-readline-navigator-with-a-real-daemon-back.md:31:terminal client, not a readline menu. The client must make the daemon,
+data/tasks/done/task-audit-and-close-legacy-cli-control-task-records.md:19:client was still a readline navigator, and stale recovery status could persist
+data/tasks/done/task-audit-and-close-legacy-cli-control-task-records.md:52:  navigator or passive daemon dashboard is the completed full operator client.
+data/tasks/done/task-add-completion-evidence-gates-for-operator-client-.md:17:shallow readline navigator and a passive daemon dashboard. That meant at least
+```
+
+These remaining hits are reconciled historical context or the closure task's
+own audit criterion. The overclaimed full-CLI task now has a
+`Closure / Supersession` section pointing to the terminal-client and foreground
+daemon repair evidence.
+
+## Help and docs check
+
+```
+$ NODE_OPTIONS=--conditions=source node --import tsx src/cli.ts --help
+Default client:
+  bare kota on a TTY launches the shared UI CLI client.
+  Use kota run <prompt> for the explicit prompt path; pipes keep one-shot behavior.
+
+$ NODE_OPTIONS=--conditions=source node --import tsx src/cli.ts daemon --help
+Foreground daemon mode:
+  This command hosts and monitors the daemon. It is not the interactive operator console.
+  Open the console with `kota navigate` or bare `kota`.
+  Inspect and control workflow dispatch with `kota workflow status`, `pause`, `resume`, and `follow`.
+  Render the shared operator controls with `kota ui render operator-control`.
+
+$ NODE_OPTIONS=--conditions=source node --import tsx src/cli.ts navigate --help
+Usage: kota navigate [options]
+Open the shared UI CLI client (TTY only)
+
+$ NODE_OPTIONS=--conditions=source node --import tsx src/cli.ts workflow --help
+Usage: kota workflow|wf [options] [command]
+Inspect automation workflow runs and control the daemon.
+```
+
+```
+$ rg -n -i 'bare `kota` and `kota navigate` open|This command hosts and monitors the daemon|Open the console with `kota navigate`|Inspect and control workflow dispatch|kota status|kota inbox|kota ui render operator-control|Open the shared UI CLI client' docs src/modules/cli/AGENTS.md src/modules/daemon-ops/AGENTS.md src/modules/cli/index.ts src/modules/daemon-ops/index.ts src/modules/daemon-ops/dashboard-render-support.ts
+src/modules/daemon-ops/dashboard-render-support.ts:144:			plain("  status `kota status`  inbox `kota inbox`  workflow `kota workflow status`"),
+src/modules/daemon-ops/dashboard-render-support.ts:148:		line(plain("  ui `kota ui render operator-control`  reload `kota daemon reload`")),
+src/modules/daemon-ops/index.ts:157:  "  This command hosts and monitors the daemon. It is not the interactive operator console.",
+src/modules/daemon-ops/index.ts:158:  "  Open the console with `kota navigate` or bare `kota`.",
+src/modules/daemon-ops/index.ts:159:  "  Inspect and control workflow dispatch with `kota workflow status`, `pause`, `resume`, and `follow`.",
+src/modules/daemon-ops/index.ts:160:  "  Render the shared operator controls with `kota ui render operator-control`.",
+src/modules/cli/index.ts:24:      .description("Open the shared UI CLI client (TTY only)")
+docs/ARCHITECTURE.md:188:`kota` and `kota navigate` open the shared UI CLI client, `kota daemon` hosts
+```
+
+## Validation
+
+```
+$ pnpm run validate-tasks -- --summary
+task-queue-valid: errors=0 warnings=0
+ready: count=1 strategic=1
+strategic-ready-coverage: status=strategic-ready strategic-actionable=3
+```

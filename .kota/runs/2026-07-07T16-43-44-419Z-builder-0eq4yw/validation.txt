@@ -1,0 +1,75 @@
+$ pnpm run validate-tasks -- --summary
+
+> kota@0.1.0 validate-tasks /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-audit-and-close-legacy-cli-control-task-records-2026-07-07t16-43-44-419z-builder-0eq4yw
+> node --conditions=source --import tsx src/validate-queue.ts -- --summary
+
+task-queue-valid: errors=0 warnings=0
+ready: count=1 strategic=1
+strategic-ready-coverage: status=strategic-ready strategic-actionable=3
+
+$ pnpm vitest run --configLoader runner src/modules/repo-tasks/completion-evidence-gate.test.ts src/modules/repo-tasks/cli.test.ts
+
+Test Files  2 passed (2)
+Tests  41 passed (41)
+
+$ pnpm vitest run --configLoader runner src/modules/repo-tasks/task-queue-validation.test.ts
+
+Test Files  1 passed (1)
+Tests  63 passed (63)
+
+$ node --import tsx -e "import { validateTaskQueue } from './src/modules/repo-tasks/task-queue-validation.ts'; const r=validateTaskQueue(process.cwd()); console.log(JSON.stringify({errorCount:r.errorCount, errors:r.findings.filter(f=>f.severity==='error')}, null, 2));"
+
+{
+  "errorCount": 0,
+  "errors": []
+}
+
+$ pnpm typecheck
+
+tsc --noEmit passed.
+
+$ pnpm lint
+
+biome check src/ passed.
+
+## Repair attempt 2 validation
+
+$ pnpm test src/modules/repo-tasks/task-queue-validation.test.ts src/modules/repo-tasks/completion-evidence-gate.test.ts src/modules/repo-tasks/cli.test.ts
+
+Test Files  3 passed (3)
+Tests  107 passed (107)
+
+$ pnpm run typecheck
+
+tsc --noEmit passed.
+
+$ pnpm run validate-tasks
+
+task queue validation passed with exit code 0.
+
+$ pnpm run lint
+
+biome check src/ passed.
+
+## Repair attempt 3 validation
+
+$ pnpm test src/modules/repo-tasks/completion-evidence-gate.test.ts src/modules/repo-tasks/task-rendered-evidence.test.ts src/modules/repo-tasks/cli.test.ts
+
+Test Files  3 passed (3)
+Tests  44 passed (44)
+
+$ node --conditions=source --import tsx -e "import { checkSevereSourceFileSize } from './src/modules/autonomy/source-size-escalation.ts'; console.log(checkSevereSourceFileSize(process.cwd()));"
+
+Advisory source-size warning(s): src/modules/repo-tasks/repo-tasks-domain.ts, src/modules/repo-tasks/task-queue-validation.ts.
+
+$ pnpm validate-tasks
+
+task queue validation passed with exit code 0.
+
+$ pnpm typecheck
+
+tsc --noEmit passed.
+
+$ pnpm lint
+
+biome check src/ passed.

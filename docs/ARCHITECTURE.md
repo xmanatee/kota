@@ -185,9 +185,9 @@ exist, while retention policy consumers and scenario-specific adapters still
 need their follow-up slices; Telegram cannot receive true online presence or
 message deletion signals through the Bot API; some less central credentials
 still flow through env/config before every module has setup declarations; bare
-`kota` now opens a shallow operator console shared with `kota navigate`, while
-`kota ui` renders and executes the shared surface graph through the same client
-contract.
+`kota` and `kota navigate` open the shared UI CLI client, `kota daemon` hosts
+and monitors the daemon with control-path hints, and `kota ui` renders and
+executes the shared surface graph through the same client contract.
 
 ## Context Gathering
 

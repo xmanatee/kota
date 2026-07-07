@@ -6,7 +6,7 @@ priority: p1
 area: workflow-runtime
 summary: Make dirty-checkout recovery pause reasons accurate, self-clearing when the worktree is clean, and visible consistently across daemon dashboard, status, workflow status, and shared UI.
 created_at: 2026-07-06T15:16:35.786Z
-updated_at: 2026-07-06T21:16:42.985Z
+updated_at: 2026-07-07T16:54:53.000Z
 task_class: Platform
 ---
 
@@ -86,3 +86,13 @@ accurate, explainable, and never stale.
   reason across daemon dashboard/status/workflow/shared UI.
 - Focused tests for recovery reconciliation, offline status rendering, daemon
   startup reconciliation, and workflow resume/pause messaging.
+
+## Completion Notes
+
+- Evidence transcript:
+  `.kota/runs/2026-07-06T20-49-21-196Z-builder-rej04x/transcript.txt`.
+- Criteria verification:
+  `.kota/runs/2026-07-06T20-49-21-196Z-builder-rej04x/success-criteria-verified.txt`.
+- Focused recovery/status validation passed for workflow local/daemon clients,
+  daemon startup reconciliation, `kota status`, dashboard rendering, and shared
+  Status/Runtime UI recovery surfaces.

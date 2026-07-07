@@ -1,0 +1,5 @@
+1. Audit `data/tasks`, `docs`, `src/modules/cli`, and `src/modules/daemon-ops` for stale claims that the old readline navigator or passive daemon dashboard is the completed full operator client, and reconcile any hits.
+2. Reconcile the completed full-CLI task record with current evidence or explicit superseding task ids.
+3. Confirm CLI help and local AGENTS/docs distinguish daemon host mode, shared UI client mode, workflow control commands, and status/inbox commands.
+4. Capture acceptance evidence transcripts for the audit commands and source-mode task validation.
+5. Move the task to `done/` only after queue validation passes and the closeout links the four dependency task evidence records.

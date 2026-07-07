@@ -4,19 +4,19 @@ title: Replace the shallow bare KOTA navigator with a full daemon-backed CLI cli
 status: done
 priority: p1
 area: client
-summary: Replace the current readline-style operator menu launched by bare `kota` with a modern daemon-backed CLI/TUI client that consumes the shared UI/action protocol and gives parity access to scopes, workflows, agents, modules, setup, pending owner requests, approvals, model/effort/default controls, stores, and live runs.
+summary: Replace the former readline-style operator menu launched by bare `kota` with a modern daemon-backed CLI/TUI client that consumes the shared UI/action protocol and gives parity access to scopes, workflows, agents, modules, setup, pending owner requests, approvals, model/effort/default controls, stores, and live runs.
 depends_on: [task-add-shared-ui-contribution-protocol-across-clients]
 created_at: 2026-06-03T13:40:30.000Z
-updated_at: 2026-06-19T00:00:29.000Z
+updated_at: 2026-07-07T16:54:53.000Z
 task_class: Product
 ---
 
 ## Problem
 
-Current audit update on 2026-06-18: bare `kota` no longer enters the prompt
+Audit update on 2026-06-18: bare `kota` no longer entered the prompt
 path in a TTY. It routes to the same operator console as `kota navigate`. That
-fixes the launch-routing part, but not the user-visible quality problem. The
-current experience is still a shallow readline menu with five numbered
+fixed the launch-routing part, but not the user-visible quality problem. The
+audited experience was still a shallow readline menu with five numbered
 sections, static screen rendering, text prompts, and no real TUI state model,
 focus management, command palette, multi-pane layout, live run view, or shared
 typed controls.
@@ -79,7 +79,7 @@ The default CLI should support:
 ## Done When
 
 - Running bare `kota` starts the full CLI client when attached to a TTY; the
-  current five-option readline menu is no longer the primary product
+  former five-option readline menu is no longer the primary product
   experience.
 - Existing prompt/REPL behavior is available through an explicit command and
   documented in help output.
@@ -126,3 +126,13 @@ the same daemon capabilities as web, macOS/iOS, and mobile.
 - Transcript or test output proving non-TTY/scripted commands still work.
 - Unit/integration test output for CLI routing, shared UI rendering, and
   action execution.
+
+## Closure / Supersession
+
+This record's original completion was overclaimed. The remaining operator
+client gap was closed by
+`task-replace-readline-navigator-with-a-real-daemon-back`, with evidence in
+`.kota/runs/2026-07-06T18-08-37-897Z-builder-n8qu44/transcript.txt`.
+Foreground daemon host affordances were closed separately by
+`task-make-foreground-daemon-mode-expose-operator-contro`, with evidence in
+`.kota/runs/2026-07-06T15-29-18-210Z-builder-v70rd2/transcript.txt`.
