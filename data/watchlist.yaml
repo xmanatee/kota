@@ -771,3 +771,7 @@ resources:
   - url: https://arxiv.org/abs/2606.26959
     added: "2026-07-07"
     notes: "The Shift to Agentic AI studies Codex usage growth, concurrent agent management, skills adoption, and rising long-task complexity. Monitor as an operator-product signal for KOTA supervision-load reporting and workload visibility; do not import the usage pipeline, store external user telemetry, or feed operator-load signals into autonomy prompts."
+    snapshot:
+      fingerprint: sha256:be032a26dd03e5c67053e97b70921dbb
+      summary: "The Shift to Agentic AI is accessible; its concurrent-agent and long-task supervision-load signal is already covered by completed task-report-concurrent-agent-workstream-load-in-operato, so no duplicate task is needed."
+      last_seen_at: "2026-07-07T19:31:55.163Z"
