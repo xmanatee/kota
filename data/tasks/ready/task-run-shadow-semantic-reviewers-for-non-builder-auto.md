@@ -1,14 +1,14 @@
 ---
 id: task-run-shadow-semantic-reviewers-for-non-builder-auto
 title: Run shadow semantic reviewers for non builder autonomy workflows
-status: backlog
+status: ready
 priority: p1
 area: autonomy
 task_class: Meta
 depends_on: [task-add-loop-quality-audits-for-autonomous-workflows, task-add-measured-autonomy-change-promotion-decisions]
 summary: Evaluate candidate critic or semantic-review gates for decomposer, explorer, inbox-sorter, research-retry, and security-review in advisory shadow mode before making any new reviewer blocking.
 created_at: 2026-06-25T14:51:40.532Z
-updated_at: 2026-07-06T14:02:50.000Z
+updated_at: 2026-07-07T06:33:13.242Z
 ---
 
 ## Problem
