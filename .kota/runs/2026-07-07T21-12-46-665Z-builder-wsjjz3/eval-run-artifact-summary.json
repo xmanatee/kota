@@ -1,0 +1,135 @@
+{
+  "evalRun": ".kota/eval-runs/2026-07-07T22-10-44-182Z",
+  "report": {
+    "startedAt": "2026-07-07T22:10:44.183Z",
+    "completedAt": "2026-07-07T22:10:50.238Z",
+    "repeatCount": 1,
+    "aggregate": {
+      "fixtureCount": 1,
+      "repeatCount": 1,
+      "passAtK": 1,
+      "passHatK": 1
+    },
+    "runOutcomes": [
+      {
+        "fixtureId": "builder-feature-slice-development",
+        "runIndex": 0,
+        "outcome": "pass"
+      }
+    ]
+  },
+  "fixtureRun": {
+    "fixtureId": "builder-feature-slice-development",
+    "outcome": "pass",
+    "executionMode": "replay",
+    "predicateCount": 16,
+    "failedPredicates": [],
+    "objectiveMetrics": [
+      {
+        "fixtureId": "builder-feature-slice-development",
+        "name": "feature_slice_module_coverage",
+        "unit": "modules",
+        "direction": "higher_is_better",
+        "source": {
+          "kind": "json-file",
+          "path": "feature-slice-result.json",
+          "pointer": "/metrics/touchedModuleCoverage"
+        },
+        "value": 3,
+        "runIndex": 0,
+        "repeatCount": 1,
+        "resourceProfile": {
+          "hostClass": "local-dev",
+          "cpuAllocationCores": 16,
+          "cpuKillThresholdCores": 16,
+          "memoryAllocationMB": 131072,
+          "memoryKillThresholdMB": 131072
+        },
+        "executionProfile": {
+          "status": "non-gating",
+          "backendKind": "host-subprocess",
+          "verification": "unverified",
+          "gateEligible": false,
+          "reason": "host-subprocess-unverified"
+        }
+      }
+    ]
+  },
+  "verifierCalibration": {
+    "fixtureId": "builder-feature-slice-development",
+    "passed": true,
+    "calibratedPredicates": [
+      {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-feature-slice.mjs",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-feature-slice.mjs --self-test-shortcuts",
+        "timeoutMs": 10000
+      }
+    ],
+    "objectiveMetricCount": 1,
+    "cases": [
+      {
+        "id": "null",
+        "expected": "fail",
+        "caseKind": "null",
+        "passed": true,
+        "scoringPassed": false,
+        "predicateFailures": 1,
+        "objectiveMetrics": [],
+        "objectiveMetricError": "missing-source"
+      },
+      {
+        "id": "golden",
+        "expected": "pass",
+        "caseKind": "golden",
+        "passed": true,
+        "scoringPassed": true,
+        "predicateFailures": 0,
+        "objectiveMetrics": [
+          {
+            "fixtureId": "builder-feature-slice-development",
+            "name": "feature_slice_module_coverage",
+            "unit": "modules",
+            "direction": "higher_is_better",
+            "source": {
+              "kind": "json-file",
+              "path": "feature-slice-result.json",
+              "pointer": "/metrics/touchedModuleCoverage"
+            },
+            "value": 3,
+            "runIndex": 0,
+            "repeatCount": 1,
+            "resourceProfile": {
+              "hostClass": "local-dev",
+              "cpuAllocationCores": 16,
+              "cpuKillThresholdCores": 16,
+              "memoryAllocationMB": 131072,
+              "memoryKillThresholdMB": 131072
+            },
+            "executionProfile": {
+              "status": "non-gating",
+              "backendKind": "host-subprocess",
+              "verification": "unverified",
+              "gateEligible": false,
+              "reason": "host-subprocess-unverified"
+            }
+          }
+        ]
+      },
+      {
+        "id": "adversarial",
+        "expected": "fail",
+        "caseKind": "adversarial",
+        "passed": true,
+        "scoringPassed": false,
+        "predicateFailures": 1,
+        "objectiveMetrics": [],
+        "objectiveMetricError": "missing-source"
+      }
+    ]
+  }
+}

@@ -22,6 +22,7 @@ export { deterministicBuilderPortRange };
 export type BuilderRuntimeResourcePreflight = {
   checkedAt: string;
   ports: number[];
+  portAvailability: "checked" | "skipped-eval-harness-replay";
   setup: string[];
   dependencies: BuilderRuntimeDependencyPreflight;
   portLeasePath: string;
@@ -134,6 +135,7 @@ export async function assignBuilderRuntimeResources(
     preflight: {
       checkedAt: new Date().toISOString(),
       ports: portAssignment.checkedPorts,
+      portAvailability: portAssignment.portAvailability,
       setup: [
         "tempRoot",
         "agentRunDir",

@@ -1,0 +1,141 @@
+$ pnpm exec vitest run src/modules/autonomy/workflows/builder/runtime-resources.test.ts src/modules/eval-harness/fixture-discovery.test.ts --configLoader runner --silent=true
+
+ RUN  v4.1.0 /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-feature-slice-development-fixture-to-the-eva-2026-07-07t21-12-46-665z-builder-wsjjz3
+
+
+ Test Files  2 passed (2)
+      Tests  15 passed (15)
+   Start at  06:40:25
+   Duration  24.42s (transform 117ms, setup 61ms, import 130ms, tests 24.31s, environment 0ms)
+
+
+$ pnpm build
+
+> kota@0.1.0 build /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-feature-slice-development-fixture-to-the-eva-2026-07-07t21-12-46-665z-builder-wsjjz3
+> rm -rf dist && tsc -p tsconfig.json
+
+
+$ pnpm run validate-tasks
+
+> kota@0.1.0 validate-tasks /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-feature-slice-development-fixture-to-the-eva-2026-07-07t21-12-46-665z-builder-wsjjz3
+> node --conditions=source --import tsx src/validate-queue.ts
+
+$ node scripts/check-feature-slice.mjs --baseline-only
+{
+  "status": "ok",
+  "command": "node --test --test-name-pattern ^regression: test/feature-slice.test.mjs",
+  "regressionCases": 3
+}
+
+$ node scripts/check-feature-slice.mjs --self-test-shortcuts
+{
+  "status": "passed",
+  "shortcutGuards": [
+    "hardcoded-single-feature-case",
+    "skipped-regression-evidence",
+    "single-module-shortcut",
+    "catalog-bypass-hardcoded-output"
+  ]
+}
+
+$ temporary golden fixture copy: node scripts/check-feature-slice.mjs
+{
+  "status": "ok",
+  "featureCases": 3,
+  "regressionCases": 3,
+  "evidence": "feature-slice-result.json",
+  "touchedModuleCoverage": 3
+}
+
+$ temporary hardcoded-output/catalog-bypass fixture copy: node scripts/check-feature-slice.mjs
+Rejected as expected with: observed behavior did not match expectations: feature=catalog-backed-service-contract; regression=
+
+$ pnpm test src/modules/eval-harness/feature-slice-development-fixture.test.ts
+Test Files  1 passed (1)
+Tests  3 passed (3)
+
+$ pnpm exec biome check src/modules/eval-harness/feature-slice-development-fixture.test.ts
+Checked 1 file. No fixes applied.
+
+$ pnpm kota eval run --fixture builder-feature-slice-development --repeats 1
+eval-set done: 1 fixtures x 1 runs -> pass@k=100.0% pass^k=100.0%
+fixture diagnostics: stable-pass=0 stable-fail=0 repeat-unstable=0 insufficient-sample=1 non-gating=1
+artifacts: .kota/eval-runs/2026-07-07T22-10-44-182Z
+metric builder-feature-slice-development.feature_slice_module_coverage mean=3.000 modules n=1
+
+$ pnpm exec biome check --write src/modules/autonomy/workflows/builder/runtime-resource-ports.ts src/modules/autonomy/workflows/builder/runtime-resource-port-leases.ts src/modules/autonomy/workflows/builder/runtime-resources.test.ts src/modules/autonomy/workflows/builder/runtime-resources.test-helpers.ts src/modules/eval-harness/fixtures/builder-feature-slice-development/initial/scripts/check-feature-slice.mjs src/modules/eval-harness/fixtures/builder-feature-slice-development/initial/scripts/check-feature-slice-shared.mjs src/modules/eval-harness/fixtures/builder-feature-slice-development/initial/scripts/check-feature-slice-observations.mjs
+Checked 4 files in 27ms. Fixed 1 file.
+
+$ TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner --silent=true src/modules/autonomy/workflows/builder/runtime-resources.test.ts
+Test Files  1 passed (1)
+Tests  10 passed (10)
+
+$ node scripts/check-feature-slice.mjs --self-test-shortcuts
+{
+  "status": "passed",
+  "shortcutGuards": [
+    "hardcoded-single-feature-case",
+    "skipped-regression-evidence",
+    "single-module-shortcut"
+  ]
+}
+
+$ node scripts/check-feature-slice.mjs --baseline-only
+{
+  "status": "ok",
+  "command": "node --test --test-name-pattern ^regression: test/feature-slice.test.mjs",
+  "regressionCases": 3
+}
+
+$ TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner --silent=true src/modules/autonomy/workflows/builder/runtime-resources.test.ts src/modules/eval-harness/fixture-discovery.test.ts
+Test Files  2 passed (2)
+Tests  15 passed (15)
+
+$ pnpm build
+tsc -p tsconfig.json completed successfully.
+
+$ pnpm run validate-tasks
+node --conditions=source --import tsx src/validate-queue.ts completed successfully.
+
+$ git diff --cached --name-only --diff-filter=ACMR | rg '\.(ts|tsx|js|jsx|mjs|cjs)$' | xargs wc -l
+Largest staged changed source file: src/modules/autonomy/workflows/builder/runtime-resources.test.ts at 298 lines.
+
+$ node --conditions=source --import tsx -e 'import { checkSevereSourceFileSize } from "#modules/autonomy/source-size-escalation.js"; console.log(checkSevereSourceFileSize(process.cwd()))'
+OK: changed source files are under source-size warning thresholds
+
+$ node --conditions=source --import tsx -e 'import { checkSourceFileSize } from "#modules/autonomy/source-size-check.js"; console.log(checkSourceFileSize(process.cwd()))'
+OK: changed source files are under source-size warning thresholds
+- [task-untracked] Task files must be tracked before a run finishes: data/tasks/done/task-add-a-feature-slice-development-fixture-to-the-eva.md. Fix: run `git add data/tasks/done/task-add-a-feature-slice-development-fixture-to-the-eva.md`
+- [task-deleted-unstaged] Task file deletions must be staged: data/tasks/doing/task-add-a-feature-slice-development-fixture-to-the-eva.md. Fix: run `git add data/tasks/doing/task-add-a-feature-slice-development-fixture-to-the-eva.md`
+ ELIFECYCLE  Command failed with exit code 1.
+
+$ git add -A -- data/tasks/done/task-add-a-feature-slice-development-fixture-to-the-eva.md data/tasks/doing/task-add-a-feature-slice-development-fixture-to-the-eva.md
+staged task move after pnpm kota task move failed at git mv index lock
+
+$ pnpm run validate-tasks
+
+> kota@0.1.0 validate-tasks /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-feature-slice-development-fixture-to-the-eva-2026-07-07t21-12-46-665z-builder-wsjjz3
+> node --conditions=source --import tsx src/validate-queue.ts
+
+
+$ pnpm exec vitest run src/modules/autonomy/workflows/builder/agent-run-artifacts.test.ts src/modules/autonomy/workflows/builder/runtime-resources.test.ts src/modules/eval-harness/fixture-discovery.test.ts --configLoader runner --silent=true
+
+ RUN  v4.1.0 /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-feature-slice-development-fixture-to-the-eva-2026-07-07t21-12-46-665z-builder-wsjjz3
+
+
+ Test Files  3 passed (3)
+      Tests  17 passed (17)
+   Start at  06:44:22
+   Duration  24.54s (transform 153ms, setup 89ms, import 160ms, tests 24.81s, environment 0ms)
+
+
+$ pnpm build
+
+> kota@0.1.0 build /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-feature-slice-development-fixture-to-the-eva-2026-07-07t21-12-46-665z-builder-wsjjz3
+> rm -rf dist && tsc -p tsconfig.json
+
+
+$ pnpm run validate-tasks
+
+> kota@0.1.0 validate-tasks /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-feature-slice-development-fixture-to-the-eva-2026-07-07t21-12-46-665z-builder-wsjjz3
+> node --conditions=source --import tsx src/validate-queue.ts

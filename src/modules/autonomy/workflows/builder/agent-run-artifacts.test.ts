@@ -64,4 +64,17 @@ describe("builder agent run artifacts", () => {
       "OK: 3 agent run artifact(s) stageable",
     );
   });
+
+  it("accepts required artifacts that are already staged and clean", () => {
+    const repo = initRepo();
+    const agentRunDir = join(repo, ".kota", "runs", "run-1");
+    writeRequiredArtifacts(agentRunDir);
+    execFileSync("git", ["add", "-A", "--", ".kota/runs/run-1"], {
+      cwd: repo,
+    });
+
+    expect(checkAgentRunArtifactsStageable(agentRunDir, repo)).toBe(
+      "OK: 3 agent run artifact(s) stageable",
+    );
+  });
 });

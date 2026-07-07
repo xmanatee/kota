@@ -1,0 +1,8 @@
+$ pnpm kota task move task-add-a-feature-slice-development-fixture-to-the-eva done
+
+Failed in this sandbox because git mv could not create the parent-repo worktree index lock:
+
+fatal: Unable to create '/Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/task-add-a-feature-slice-development-fixture-to-the-eva-2026-07-07t21-12-46-665z-builder-wsjjz3/index.lock': Operation not permitted
+
+The task file was then moved in the workspace with the same state transition:
+data/tasks/doing/task-add-a-feature-slice-development-fixture-to-the-eva.md -> data/tasks/done/task-add-a-feature-slice-development-fixture-to-the-eva.md

@@ -1,0 +1,7 @@
+1. Add a shipped `builder-feature-slice-development` eval fixture with `fixture.json`, `notes.md`, and a minimal `initial/` project tree.
+2. Seed the fixture initial queue with a valid ready task describing a feature slice and acceptance evidence.
+3. Make the initial project pass baseline regression checks while failing the missing feature predicate through `preRunExpectations`.
+4. Add final predicates for done task state, verifier pass, structured `feature-slice-result.json` evidence, adjacent regression preservation, and shortcut resistance.
+5. Include verifier calibration or shortcut-regression evidence showing an obvious shortcut fails, with no shortcut left staged.
+6. Prove `pnpm kota eval list` loads the new fixture and capture the transcript under this run directory.
+7. Prove `pnpm kota eval run --fixture builder-feature-slice-development --repeats 1` passes and capture transcript plus run artifacts under this run directory.

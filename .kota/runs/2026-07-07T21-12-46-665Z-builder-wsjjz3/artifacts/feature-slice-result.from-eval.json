@@ -1,0 +1,103 @@
+{
+  "sourcePath": ".kota/eval-runs/2026-07-07T22-10-44-182Z/builder-feature-slice-development-0/verifier-calibration.json#golden",
+  "schemaVersion": 1,
+  "status": "passed",
+  "featureBehavior": {
+    "id": "gift-wrap-checkout-slice",
+    "cases": [
+      {
+        "id": "gift-wrap-fee-and-receipt",
+        "passed": true,
+        "observed": {
+          "serviceCents": 499,
+          "totalCents": 4299,
+          "receipt": "3 x Notebook: $36.00\n2 x Pen: $5.00\nBulk discount: -$3.00\nGift wrap: $4.99\nGift message: For Ada\nShipping: FREE\nTotal: $42.99"
+        }
+      },
+      {
+        "id": "gift-wrap-fulfillment-metadata",
+        "passed": true,
+        "observed": {
+          "serviceCents": 499,
+          "totalCents": 3898,
+          "serviceSkus": [
+            "svc-gift-wrap"
+          ],
+          "giftWrap": {
+            "requested": true,
+            "applied": true,
+            "message": "For Lin"
+          }
+        }
+      },
+      {
+        "id": "catalog-backed-service-contract",
+        "passed": true,
+        "observed": {
+          "catalogService": {
+            "sku": "svc-gift-wrap",
+            "label": "Gift wrap",
+            "priceCents": 499
+          },
+          "serviceLine": {
+            "sku": "svc-gift-wrap",
+            "label": "Gift wrap",
+            "priceCents": 499,
+            "message": "Catalog probe"
+          },
+          "serviceCents": 499,
+          "serviceSkus": [
+            "svc-gift-wrap"
+          ],
+          "receipt": "3 x Notebook: $36.00\n2 x Pen: $5.00\nBulk discount: -$3.00\nGift wrap: $4.99\nGift message: Catalog probe\nShipping: FREE\nTotal: $42.99",
+          "catalogBypassShortcuts": []
+        }
+      }
+    ]
+  },
+  "regressionBehaviors": [
+    {
+      "id": "bulk-discount-preserved",
+      "passed": true,
+      "observed": {
+        "merchandiseCents": 4100,
+        "discountCents": 300,
+        "serviceCents": 0,
+        "shippingCents": 0,
+        "totalCents": 3800
+      }
+    },
+    {
+      "id": "free-shipping-preserved",
+      "passed": true,
+      "observed": {
+        "merchandiseCents": 5600,
+        "discountCents": 0,
+        "serviceCents": 0,
+        "shippingCents": 0,
+        "totalCents": 5600
+      }
+    },
+    {
+      "id": "receipt-format-preserved",
+      "passed": true,
+      "observed": {
+        "receipt": "3 x Notebook: $36.00\n2 x Pen: $5.00\nBulk discount: -$3.00\nShipping: FREE\nTotal: $38.00"
+      }
+    }
+  ],
+  "commandsRun": [
+    "node --test --test-name-pattern ^feature: test/feature-slice.test.mjs",
+    "node --test --test-name-pattern ^regression: test/feature-slice.test.mjs"
+  ],
+  "filesOrModulesInvolved": [
+    "src/catalog.mjs",
+    "src/pricing.mjs",
+    "src/receipt-renderer.mjs"
+  ],
+  "metrics": {
+    "featureCasesPassed": 3,
+    "regressionCasesPassed": 3,
+    "touchedModuleCoverage": 3
+  }
+}

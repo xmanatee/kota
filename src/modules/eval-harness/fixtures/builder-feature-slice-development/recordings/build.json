@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "workflowName": "builder",
+  "stepId": "build",
+  "sourceRunId": "2026-07-07T21-12-46-665Z-builder-wsjjz3-feature-slice-replay",
+  "response": {
+    "text": "Feature-slice development fixture task completed. Gift-wrap checkout now flows through catalog, pricing, fulfillment metadata, and receipt rendering; the verifier records feature and regression evidence; shortcut guards pass; and the seeded task is moved to done.",
+    "subtype": "success",
+    "turns": 1,
+    "totalCostUsd": 0,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "sessionId": "builder-feature-slice-development-replay"
+  },
+  "fileOperations": [
+    {
+      "op": "delete",
+      "path": "data/tasks/ready/task-add-gift-wrap-checkout-slice.md"
+    },
+    {
+      "op": "write",
+      "path": "data/tasks/done/task-add-gift-wrap-checkout-slice.md",
+      "content": "---\nid: task-add-gift-wrap-checkout-slice\ntitle: Add gift-wrap checkout support\nstatus: done\npriority: p2\narea: eval-harness\nsummary: Implement gift-wrap checkout behavior across the tiny catalog, pricing, and receipt layers while preserving existing discount, shipping, and receipt behavior.\ncreated_at: 2026-05-27T00:00:00.000Z\nupdated_at: 2026-05-27T01:00:00.000Z\n---\n\n## Problem\n\nThe fixture storefront already prices normal carts, applies the notebook bulk\ndiscount, keeps free shipping based on merchandise subtotal, and renders a\nplain receipt. Customers can request gift wrap in the cart shape, but the\ncatalog has no gift-wrap service, pricing never applies the service fee, and\nthe receipt/fulfillment output does not show the requested service.\n\n## Desired Outcome\n\nAdd the gift-wrap checkout feature as one product slice. A gift-wrap cart must\nuse a catalog-backed service, add a `$4.99` service fee, show a receipt line\nand gift message, and expose fulfillment metadata for `svc-gift-wrap`.\n\nUse this command as the local verification command:\n\n```sh\nnode scripts/check-feature-slice.mjs\n```\n\n## Constraints\n\n- Keep the project dependency-free; use built-in Node.js APIs.\n- Do not edit `scripts/check-feature-slice.mjs`; it is the fixture scorer.\n- Do not edit `test/feature-slice.test.mjs`; it defines targeted feature and\n  regression behavior.\n- Do not write `feature-slice-result.json` directly as the implementation. The\n  verifier writes that artifact from observed behavior.\n- Preserve the existing notebook discount, free-shipping threshold, and plain\n  receipt formatting.\n\n## Done When\n\n- Gift-wrap checkout adds the catalog-backed `svc-gift-wrap` service fee and\n  renders the gift-wrap receipt line.\n- Fulfillment metadata records the gift-wrap service and requested message.\n- Adjacent regression checks for discount, shipping, and plain receipt output\n  still pass.\n- `node scripts/check-feature-slice.mjs` exits successfully and writes\n  `feature-slice-result.json` with feature behavior, regression behaviors,\n  commands run, and files or modules involved.\n- `node scripts/check-feature-slice.mjs --self-test-shortcuts` exits\n  successfully, proving fake artifacts, skipped regressions, and single-module\n  shortcuts are rejected.\n- This task has moved from `data/tasks/ready/` to `data/tasks/done/`.\n\n## Acceptance Evidence\n\n- Command output from `node scripts/check-feature-slice.mjs`.\n- The generated `feature-slice-result.json` artifact.\n- Command output from `node scripts/check-feature-slice.mjs --self-test-shortcuts`.\n- The fixture run artifact records the `feature_slice_module_coverage`\n  objective metric.\n\n## Source / Intent\n\nEval-harness fixture seed for measuring feature-slice development. The point is\nto prove a builder can add one coherent product behavior across related code\npaths and preserve neighboring behavior with executable evidence.\n\n## Initiative\n\nOutcome-grade autonomy evaluation: builder quality should include feature-level\ndevelopment, not only localized fixes or test-only changes.\n"
+    },
+    {
+      "op": "write",
+      "path": "src/catalog.mjs",
+      "content": "const PRODUCTS = {\n  notebook: {\n    sku: \"notebook\",\n    label: \"Notebook\",\n    priceCents: 1200,\n  },\n  pen: {\n    sku: \"pen\",\n    label: \"Pen\",\n    priceCents: 250,\n  },\n  planner: {\n    sku: \"planner\",\n    label: \"Planner\",\n    priceCents: 2800,\n  },\n};\n\nconst SERVICES = {\n  \"gift-wrap\": {\n    sku: \"svc-gift-wrap\",\n    label: \"Gift wrap\",\n    priceCents: 499,\n  },\n};\n\nexport function getProduct(sku) {\n  const product = PRODUCTS[sku];\n  if (product === undefined) {\n    throw new Error(`Unknown product sku: ${sku}`);\n  }\n  return product;\n}\n\nexport function getService(serviceId) {\n  return SERVICES[serviceId] ?? null;\n}\n\nexport function listCatalogSkus() {\n  return Object.keys(PRODUCTS).sort();\n}\n"
+    },
+    {
+      "op": "write",
+      "path": "src/pricing.mjs",
+      "content": "import { getProduct, getService } from \"./catalog.mjs\";\n\nfunction itemSubtotalCents(item) {\n  const product = getProduct(item.sku);\n  return product.priceCents * item.quantity;\n}\n\nfunction notebookQuantity(items) {\n  return items\n    .filter((item) => item.sku === \"notebook\")\n    .reduce((sum, item) => sum + item.quantity, 0);\n}\n\nfunction giftWrapLine(cart) {\n  if (cart.giftWrap !== true) return null;\n  const service = getService(\"gift-wrap\");\n  if (service === null) {\n    throw new Error(\"Gift-wrap service is missing from the catalog\");\n  }\n  return {\n    sku: service.sku,\n    label: service.label,\n    priceCents: service.priceCents,\n    message: cart.giftMessage ?? null,\n  };\n}\n\nexport function priceCart(cart) {\n  const items = cart.items.map((item) => {\n    const product = getProduct(item.sku);\n    return {\n      sku: product.sku,\n      label: product.label,\n      quantity: item.quantity,\n      unitPriceCents: product.priceCents,\n      subtotalCents: itemSubtotalCents(item),\n    };\n  });\n  const merchandiseCents = items.reduce(\n    (sum, item) => sum + item.subtotalCents,\n    0,\n  );\n  const discountCents = notebookQuantity(items) >= 3 ? 300 : 0;\n  const giftWrap = giftWrapLine(cart);\n  const serviceLines = giftWrap === null ? [] : [giftWrap];\n  const serviceCents = serviceLines.reduce(\n    (sum, service) => sum + service.priceCents,\n    0,\n  );\n  const shippingCents = merchandiseCents >= 4000 ? 0 : 599;\n  const totalCents =\n    merchandiseCents - discountCents + serviceCents + shippingCents;\n\n  return {\n    items,\n    serviceLines,\n    giftWrap: {\n      requested: cart.giftWrap === true,\n      applied: giftWrap !== null,\n      message: cart.giftMessage ?? null,\n    },\n    totals: {\n      merchandiseCents,\n      discountCents,\n      serviceCents,\n      shippingCents,\n      totalCents,\n    },\n  };\n}\n"
+    },
+    {
+      "op": "write",
+      "path": "src/receipt-renderer.mjs",
+      "content": "export function formatMoney(cents) {\n  return `$${(cents / 100).toFixed(2)}`;\n}\n\nexport function renderReceipt(pricedCart) {\n  const lines = pricedCart.items.map(\n    (item) =>\n      `${item.quantity} x ${item.label}: ${formatMoney(item.subtotalCents)}`,\n  );\n  if (pricedCart.totals.discountCents > 0) {\n    lines.push(`Bulk discount: -${formatMoney(pricedCart.totals.discountCents)}`);\n  }\n  for (const service of pricedCart.serviceLines) {\n    lines.push(`${service.label}: ${formatMoney(service.priceCents)}`);\n    if (service.message !== null && service.message !== \"\") {\n      lines.push(`Gift message: ${service.message}`);\n    }\n  }\n  lines.push(\n    pricedCart.totals.shippingCents === 0\n      ? \"Shipping: FREE\"\n      : `Shipping: ${formatMoney(pricedCart.totals.shippingCents)}`,\n  );\n  lines.push(`Total: ${formatMoney(pricedCart.totals.totalCents)}`);\n  return lines.join(\"\\n\");\n}\n"
+    },
+    {
+      "op": "write",
+      "path": "{{runDir}}/success-criteria.txt",
+      "content": "1. Add the catalog-backed gift-wrap service and apply its service fee in checkout pricing.\n2. Render gift-wrap receipt output and preserve the gift message.\n3. Expose gift-wrap fulfillment metadata with `svc-gift-wrap`.\n4. Keep discount, shipping, and plain receipt regression behavior passing.\n5. Pass `node scripts/check-feature-slice.mjs` and write structured feature/regression evidence.\n6. Pass `node scripts/check-feature-slice.mjs --self-test-shortcuts`.\n7. Move `task-add-gift-wrap-checkout-slice` from ready to done.\n"
+    },
+    {
+      "op": "write",
+      "path": "{{runDir}}/success-criteria-verified.txt",
+      "content": "1. `src/catalog.mjs` defines `gift-wrap` as catalog service `svc-gift-wrap`, and `src/pricing.mjs` applies its 499-cent fee.\n2. `src/receipt-renderer.mjs` renders `Gift wrap: $4.99` and the gift message from observed service lines.\n3. `buildCheckoutSummary` exposes `fulfillment.serviceSkus` from priced service lines, so the verifier observes `svc-gift-wrap`.\n4. The verifier runs regression tests for notebook discount, free shipping, and plain receipt formatting.\n5. `pnpm test` runs `node scripts/check-feature-slice.mjs`, which writes `feature-slice-result.json` with feature behavior, regression behaviors, commands, and involved modules.\n6. The fixture predicates run `node scripts/check-feature-slice.mjs --self-test-shortcuts`, covering fake artifacts, skipped regressions, and single-module shortcuts.\n7. The replay deletes the ready task and writes the done task with `status: done`.\n"
+    },
+    {
+      "op": "write",
+      "path": "{{runDir}}/commit-message.txt",
+      "content": "Add gift-wrap feature-slice eval fixture result\n\nImplements the gift-wrap checkout slice across catalog, pricing, and receipt behavior, leaves verifier evidence to the scorer, and moves the seeded fixture task to done.\n"
+    }
+  ]
+}

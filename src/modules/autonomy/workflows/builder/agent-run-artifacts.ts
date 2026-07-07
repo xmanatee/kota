@@ -18,6 +18,8 @@ function assertStageable(workspaceDir: string, filePath: string): void {
   }
 
   const rel = relative(workspaceRoot, resolvedFile);
+  if (isTrackedWithoutUnstagedChanges(workspaceRoot, rel)) return;
+
   const result = spawnSync("git", ["add", "--dry-run", "-A", "--", rel], {
     cwd: workspaceRoot,
     env: withProtectedGitBareRepositoryEnv(),
@@ -32,6 +34,23 @@ function assertStageable(workspaceDir: string, filePath: string): void {
       `Required agent run artifact is not stageable: ${rel}\n${detail}`,
     );
   }
+}
+
+function isTrackedWithoutUnstagedChanges(workspaceRoot: string, rel: string): boolean {
+  const env = withProtectedGitBareRepositoryEnv();
+  const tracked = spawnSync("git", ["ls-files", "--error-unmatch", "--", rel], {
+    cwd: workspaceRoot,
+    env,
+    stdio: "ignore",
+  });
+  if (tracked.status !== 0) return false;
+
+  const clean = spawnSync("git", ["diff", "--quiet", "--", rel], {
+    cwd: workspaceRoot,
+    env,
+    stdio: "ignore",
+  });
+  return clean.status === 0;
 }
 
 export function checkAgentRunArtifactsStageable(

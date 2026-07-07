@@ -1,0 +1,189 @@
+{
+  "id": "builder-feature-slice-development",
+  "description": "Replay-backed builder fixture for implementing one checkout feature slice across catalog, pricing, and receipt layers while preserving adjacent regressions through structured verifier evidence.",
+  "role": "builder",
+  "workflowName": "builder",
+  "budgetMs": 1800000,
+  "predicates": [
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-feature-slice.mjs",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-feature-slice.mjs --self-test-shortcuts",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "file-exists",
+      "path": "feature-slice-result.json"
+    },
+    {
+      "kind": "file-contains",
+      "path": "feature-slice-result.json",
+      "needle": "\"featureBehavior\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "feature-slice-result.json",
+      "needle": "\"gift-wrap-checkout-slice\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "feature-slice-result.json",
+      "needle": "\"regressionBehaviors\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "feature-slice-result.json",
+      "needle": "\"bulk-discount-preserved\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "feature-slice-result.json",
+      "needle": "\"receipt-format-preserved\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "feature-slice-result.json",
+      "needle": "\"touchedModuleCoverage\": 3"
+    },
+    {
+      "kind": "file-contains",
+      "path": "feature-slice-result.json",
+      "needle": "\"src/catalog.mjs\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "feature-slice-result.json",
+      "needle": "\"src/pricing.mjs\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "feature-slice-result.json",
+      "needle": "\"src/receipt-renderer.mjs\""
+    },
+    {
+      "kind": "file-absent",
+      "path": "data/tasks/ready/task-add-gift-wrap-checkout-slice.md"
+    },
+    {
+      "kind": "file-exists",
+      "path": "data/tasks/done/task-add-gift-wrap-checkout-slice.md"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/tasks/done/task-add-gift-wrap-checkout-slice.md",
+      "needle": "status: done"
+    },
+    {
+      "kind": "git-changes-within",
+      "allowedPaths": [
+        "feature-slice-result.json",
+        "src/catalog.mjs",
+        "src/pricing.mjs",
+        "src/receipt-renderer.mjs",
+        "data/tasks/ready/task-add-gift-wrap-checkout-slice.md",
+        "data/tasks/done/task-add-gift-wrap-checkout-slice.md"
+      ]
+    }
+  ],
+  "objectiveMetrics": [
+    {
+      "name": "feature_slice_module_coverage",
+      "unit": "modules",
+      "direction": "higher_is_better",
+      "source": {
+        "kind": "json-file",
+        "path": "feature-slice-result.json",
+        "pointer": "/metrics/touchedModuleCoverage"
+      }
+    }
+  ],
+  "verifierCalibration": {
+    "null": {},
+    "golden": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/src/catalog.mjs",
+          "targetPath": "src/catalog.mjs"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/src/pricing.mjs",
+          "targetPath": "src/pricing.mjs"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/src/receipt-renderer.mjs",
+          "targetPath": "src/receipt-renderer.mjs"
+        }
+      ]
+    },
+    "adversarial": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/feature-slice-result.json",
+          "targetPath": "feature-slice-result.json"
+        }
+      ]
+    }
+  },
+  "tags": [
+    "autonomy",
+    "builder-discipline",
+    "feature-slice",
+    "agent-call-replay",
+    "objective-metric"
+  ],
+  "provenance": {
+    "kind": "smoke-fixture",
+    "justification": "Synthetic FeatureBench-inspired builder canary for one compact product feature slice: the builder must implement gift-wrap checkout behavior across catalog, pricing, and receipt layers, then prove the feature and adjacent regressions through a deterministic local artifact. It uses the existing agent-step replay path so `pnpm kota eval run` remains network-free while predicates, verifier calibration, shortcut self-tests, and the feature_slice_module_coverage objective metric grade the produced behavior. No past KOTA failure run exists for this exact measurement gap."
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-feature-slice.mjs --baseline-only",
+        "timeoutMs": 10000
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-feature-slice.mjs",
+        "timeoutMs": 20000
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-feature-slice.mjs --self-test-shortcuts",
+        "timeoutMs": 10000
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/ready/task-add-gift-wrap-checkout-slice.md"
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "feature-slice-result.json"
+      },
+      "expected": "fail"
+    }
+  ],
+  "controlDecisions": [
+    "act"
+  ]
+}

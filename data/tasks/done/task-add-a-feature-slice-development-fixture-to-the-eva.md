@@ -1,13 +1,13 @@
 ---
 id: task-add-a-feature-slice-development-fixture-to-the-eva
 title: Add a feature-slice development fixture to the eval harness
-status: ready
+status: done
 priority: p2
 area: modules
 task_class: Meta
 summary: Seed a compact eval-harness fixture where a builder implements a feature slice spanning multiple existing behaviors, proves it through executable tests, and preserves adjacent features.
 created_at: 2026-07-07T21:09:25.350Z
-updated_at: 2026-07-07T21:09:25.350Z
+updated_at: 2026-07-07T21:39:55.300Z
 ---
 
 ## Problem

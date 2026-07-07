@@ -1,52 +1,25 @@
 import {
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
-  rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { setBuilderPortAvailabilityCheckerForTest } from "./runtime-resource-ports.js";
+import { describe, expect, it } from "vitest";
 import {
   assignBuilderRuntimeResources,
   cleanupBuilderRuntimeResources,
   deterministicBuilderPortRange,
 } from "./runtime-resources.js";
+import {
+  installRuntimeResourceTestHooks,
+  markPortUnavailable,
+  rangesOverlap,
+  tempProject,
+  withEvalHarnessReplayRoot,
+} from "./runtime-resources.test-helpers.js";
 
-const tempDirs: string[] = [];
-let unavailablePorts = new Set<number>();
-let resetPortAvailabilityChecker: (() => void) | null = null;
-
-function tempProject(label: string): string {
-  const dir = mkdtempSync(join(tmpdir(), `kota-builder-runtime-${label}-`));
-  tempDirs.push(dir);
-  return dir;
-}
-
-function rangesOverlap(
-  left: { start: number; end: number },
-  right: { start: number; end: number },
-): boolean {
-  return left.start <= right.end && right.start <= left.end;
-}
-
-beforeEach(() => {
-  unavailablePorts = new Set();
-  resetPortAvailabilityChecker = setBuilderPortAvailabilityCheckerForTest(
-    async (port) => !unavailablePorts.has(port),
-  );
-});
-
-afterEach(() => {
-  resetPortAvailabilityChecker?.();
-  resetPortAvailabilityChecker = null;
-  for (const dir of tempDirs.splice(0)) {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
+installRuntimeResourceTestHooks();
 
 describe("builder runtime resource assignment", () => {
   it("uses the canonical run directory when the workspace is the project checkout", async () => {
@@ -218,7 +191,7 @@ describe("builder runtime resource assignment", () => {
   it("rejects unavailable ports during preflight before returning a profile", async () => {
     const projectDir = tempProject("preflight");
     const range = deterministicBuilderPortRange("task-alpha", "run-a");
-    unavailablePorts.add(range.start);
+    markPortUnavailable(range.start);
 
     await expect(
       assignBuilderRuntimeResources({
@@ -231,6 +204,27 @@ describe("builder runtime resource assignment", () => {
     ).rejects.toThrow(`port ${range.start} is unavailable`);
   });
 
+  it("skips port listen preflight for eval-harness replay subprocesses", async () => {
+    const projectDir = tempProject("replay-port-preflight");
+    const range = deterministicBuilderPortRange("task-replay", "run-replay");
+    markPortUnavailable(range.start);
+    const profile = await withEvalHarnessReplayRoot(projectDir, () =>
+      assignBuilderRuntimeResources({
+        projectDir,
+        taskId: "task-replay",
+        runId: "run-replay",
+        workspaceDir: join(projectDir, "worktree"),
+        runDirPath: join(projectDir, ".kota", "runs", "run-replay"),
+      }),
+    );
+
+    expect(profile.ports).toEqual(range);
+    expect(profile.preflight.ports).toHaveLength(range.size);
+    expect(profile.preflight.portAvailability).toBe(
+      "skipped-eval-harness-replay",
+    );
+  });
+
   it("rejects unavailable ports when reusing an existing profile lease", async () => {
     const projectDir = tempProject("reused-lease-preflight");
     const input = {
@@ -241,7 +235,7 @@ describe("builder runtime resource assignment", () => {
       runDirPath: join(projectDir, ".kota", "runs", "run-reused-lease"),
     };
     const first = await assignBuilderRuntimeResources(input);
-    unavailablePorts.add(first.ports.start);
+    markPortUnavailable(first.ports.start);
 
     await expect(assignBuilderRuntimeResources(input)).rejects.toThrow(
       `port ${first.ports.start} is unavailable`,

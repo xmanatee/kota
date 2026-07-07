@@ -1,0 +1,7 @@
+1. Added `src/modules/eval-harness/fixtures/builder-feature-slice-development/` with `fixture.json`, `notes.md`, replay recordings, calibration data, and a minimal local `initial/` checkout project.
+2. Seeded `initial/data/tasks/ready/task-add-gift-wrap-checkout-slice.md`; fixture discovery and task validation load it without schema or provenance errors.
+3. Verified the initial project passes `node scripts/check-feature-slice.mjs --baseline-only` and fails `node scripts/check-feature-slice.mjs`; the same expectations are declared in `preRunExpectations`.
+4. Final predicates require the verifier command, done task state, structured `feature-slice-result.json` fields, adjacent regression evidence, module coverage, and bounded changed paths.
+5. Shortcut resistance is covered by `--self-test-shortcuts`, the focused feature-slice fixture test, and verifier calibration: null/adversarial fake-artifact cases fail, hardcoded output/catalog-bypass is rejected, and the golden case passes.
+6. Captured `pnpm kota eval list` output in `eval-list-transcript.txt`; it includes `builder-feature-slice-development`.
+7. Captured `pnpm kota eval run --fixture builder-feature-slice-development --repeats 1` in `eval-run-transcript.txt`; the fixture passes, `eval-run-artifact-summary.json` records 16 passing predicates and objective metric value `3`, and `artifacts/feature-slice-result.from-eval.json` preserves the generated feature/regression evidence with `catalog-backed-service-contract`.

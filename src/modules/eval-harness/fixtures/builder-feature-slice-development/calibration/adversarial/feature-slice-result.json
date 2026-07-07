@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "status": "passed",
+  "featureBehavior": {
+    "id": "gift-wrap-checkout-slice",
+    "cases": [
+      {
+        "id": "gift-wrap-fee-and-receipt",
+        "passed": true
+      },
+      {
+        "id": "gift-wrap-fulfillment-metadata",
+        "passed": true
+      }
+    ]
+  },
+  "regressionBehaviors": [
+    {
+      "id": "bulk-discount-preserved",
+      "passed": true
+    },
+    {
+      "id": "free-shipping-preserved",
+      "passed": true
+    },
+    {
+      "id": "receipt-format-preserved",
+      "passed": true
+    }
+  ],
+  "commandsRun": [
+    "not actually run"
+  ],
+  "filesOrModulesInvolved": [
+    "src/catalog.mjs",
+    "src/pricing.mjs",
+    "src/receipt-renderer.mjs"
+  ],
+  "metrics": {
+    "featureCasesPassed": 2,
+    "regressionCasesPassed": 3,
+    "touchedModuleCoverage": 3
+  }
+}
