@@ -761,3 +761,6 @@ resources:
       fingerprint: sha256:3815fa046837291496f67c2e3cbdccc9
       summary: "Detecting AI Coding Agents in Open Source is accessible; its multi-method attribution signal reinforces KOTA's completed post-completion, review-scrutiny, diff-summary, and quality-stratification reporting plus open source-to-decision coverage, so no duplicate task was opened."
       last_seen_at: "2026-07-01T09:03:07.519Z"
+  - url: https://arxiv.org/abs/2606.22678
+    added: "2026-07-07"
+    notes: "RigorBench studies process discipline in autonomous coding agents across planning, verification, recovery, abstention, and atomicity dimensions. Monitor as an autonomy/reporting signal for projecting KOTA's existing trajectory diagnostics into bounded operator-facing discipline scores; do not import the benchmark runner, external weights, or an LLM process judge."
