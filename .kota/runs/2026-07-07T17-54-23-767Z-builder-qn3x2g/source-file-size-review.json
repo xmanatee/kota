@@ -1,0 +1,22 @@
+{
+  "outcome": "advisory",
+  "warnings": [
+    {
+      "type": "source-file-size",
+      "file": "src/core/events/event-bus-types.ts",
+      "lines": 591,
+      "threshold": 300,
+      "changedLines": 17,
+      "message": "Changed source file src/core/events/event-bus-types.ts is 591 line(s), above the 300-line source-size guideline."
+    },
+    {
+      "type": "source-file-size",
+      "file": "src/modules/autonomy/workflows/explorer/workflow.ts",
+      "lines": 322,
+      "threshold": 300,
+      "changedLines": 0,
+      "message": "Changed source file src/modules/autonomy/workflows/explorer/workflow.ts is 322 line(s), above the 300-line source-size guideline."
+    }
+  ],
+  "message": "Advisory source-size warning(s): src/core/events/event-bus-types.ts, src/modules/autonomy/workflows/explorer/workflow.ts."
+}

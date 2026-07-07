@@ -1,0 +1,54 @@
+{
+  "scenario": "ready task has an active pending-merge claim",
+  "snapshot": {
+    "counts": {
+      "backlog": 0,
+      "ready": 1,
+      "doing": 0,
+      "blocked": 0,
+      "done": 0,
+      "dropped": 0
+    },
+    "inboxCount": 0,
+    "openCount": 1,
+    "pullableCount": 1,
+    "actionableCount": 0,
+    "promotableBacklogCount": 0,
+    "dispatchableCount": 0,
+    "hasDispatchableWork": false,
+    "dependencyBlockedTasks": [],
+    "claimBlockedTasks": [
+      {
+        "id": "task-pending",
+        "title": "Pending merge task",
+        "state": "ready",
+        "claimStatus": "pending-merge",
+        "recoveryStatus": "pending-merge",
+        "recoveryPath": "skipped-pending-merge",
+        "owner": "workflow:builder",
+        "runId": "run-pending",
+        "workflowId": "builder",
+        "evidence": "builder branch is pending merge"
+      }
+    ],
+    "headSha": "552714c9c7f3bfc884ba80566974cae388a0272a"
+  },
+  "observed": {
+    "ordinaryActionableCount": 0,
+    "visibleReadyCount": 1,
+    "claimBlockedTasks": [
+      {
+        "id": "task-pending",
+        "title": "Pending merge task",
+        "state": "ready",
+        "claimStatus": "pending-merge",
+        "recoveryStatus": "pending-merge",
+        "recoveryPath": "skipped-pending-merge",
+        "owner": "workflow:builder",
+        "runId": "run-pending",
+        "workflowId": "builder",
+        "evidence": "builder branch is pending merge"
+      }
+    ]
+  }
+}

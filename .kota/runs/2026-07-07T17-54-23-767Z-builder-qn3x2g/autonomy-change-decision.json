@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "autonomy-change-decision",
+  "runId": "2026-07-07T17-54-23-767Z-builder-qn3x2g",
+  "createdAt": "2026-07-07T18:18:55.000Z",
+  "taskIds": [
+    "task-make-queue-availability-claim-aware-for-pending-me"
+  ],
+  "affectedSurfaces": [
+    "dispatcher queue-shape event routing",
+    "builder actionable queue gate",
+    "explorer empty/thin queue assessment",
+    "operator-visible queue event payloads"
+  ],
+  "changeClasses": [
+    "workflow"
+  ],
+  "hypothesis": "Subtracting non-retryable active task claims from autonomy queue actionability will stop duplicate builder dispatch for pending-merge tasks while keeping the blocked task visible in queue payloads.",
+  "sourceRefs": [
+    "data/tasks/done/task-make-queue-availability-claim-aware-for-pending-me.md",
+    ".kota/runs/2026-07-07T17-54-23-767Z-builder-qn3x2g/claim-aware-queue-snapshot.json",
+    ".kota/runs/2026-07-07T17-54-23-767Z-builder-qn3x2g/validation-transcript.txt",
+    ".kota/runs/2026-07-07T17-54-23-767Z-builder-qn3x2g/source-file-size-review.json"
+  ],
+  "baselineRefs": [
+    "src/modules/repo-tasks/repo-tasks-domain.ts",
+    "src/modules/autonomy/task-claims.ts",
+    "src/modules/autonomy/workflows/dispatcher/workflow.ts",
+    "src/modules/autonomy/workflows/builder/workflow.ts",
+    "src/modules/autonomy/workflows/explorer/workflow.ts"
+  ],
+  "candidateRefs": [
+    "src/modules/autonomy/queue-availability.ts",
+    "src/modules/autonomy/queue-availability.test.ts",
+    "src/modules/autonomy/task-claim-recovery.test.ts",
+    "src/modules/autonomy/workflows/builder/workflow-claim-aware.test.ts",
+    "src/modules/autonomy/workflows/builder/workflow-workspace.test.ts",
+    "src/modules/autonomy/workflows/dispatcher/workflow-claim-aware.test.ts",
+    "src/modules/autonomy/workflows/dispatcher/workflow.test.ts",
+    "src/modules/autonomy/workflows/explorer/workflow.test.ts"
+  ],
+  "metricsCompared": [
+    {
+      "name": "pending-merge queue dispatch behavior",
+      "baseline": "dispatcher and explorer derived queue availability from raw ready/doing counts, so a pending-merge ready task could still look actionable",
+      "candidate": "focused tests prove pending-merge ready claims reduce actionability to zero, suppress queue.available and queue.thin, and expose claimBlockedTasks on the empty payload",
+      "unit": "local workflow and helper tests",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "builder duplicate-claim prevention",
+      "baseline": "builder could wake on a queue.available trigger even when the only visible ready task was not claimable",
+      "candidate": "builder claim-aware gate test proves claim-task and build skip when the claim-aware snapshot reports zero actionable work",
+      "unit": "local builder workflow test",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "repair gate health",
+      "baseline": "post-check repair reported one failing workspace test, missing autonomy-change decision evidence, and a blocking source-size batch with seven warnings",
+      "candidate": "focused test suite passes, the workspace test has the missing claim-inspection mock, and the source-size gate is advisory-only with two legacy warnings",
+      "unit": "repair validation gates",
+      "direction": "improved",
+      "qualitySignal": true
+    }
+  ],
+  "rolloutMode": "canary",
+  "decision": "promote",
+  "rationale": "The workflow change is narrow: dispatcher, builder, and explorer now consume a shared claim-aware queue wrapper while the repo-task snapshot contract remains raw. Deterministic tests cover the pending-merge ready-task case, builder skip behavior, dispatcher payload visibility, existing dependency-blocked routing, and the workspaceDir regression from the repair report.",
+  "ownerSafetyExceptions": [],
+  "followUpTaskIds": []
+}

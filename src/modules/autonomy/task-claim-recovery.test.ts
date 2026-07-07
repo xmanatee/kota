@@ -1,6 +1,7 @@
 import { existsSync, rmSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  claimNextQueueTask,
   claimTask,
   expireTaskClaim,
   listTaskClaimInspections,
@@ -13,6 +14,7 @@ import {
 import {
   claimInput,
   makeProject,
+  queueInput,
   writeOwnerRunMetadata,
   writeTask,
 } from "./task-claims-test-support.js";
@@ -161,5 +163,40 @@ describe("task claim recovery lifecycle", () => {
       safeToRetry: false,
     });
     expect(replacement.claim?.runId).toBe("run-retry");
+  });
+
+  it("reports no ordinary queue claim when the only ready task is pending merge", () => {
+    writeTask(projectDir, "ready", "task-alpha", "2026-06-27T00:00:00.000Z");
+    const original = claimTask(
+      claimInput(projectDir, "task-alpha", "run-a", new Date("2026-06-27T01:00:00.000Z")),
+    );
+    expect(original.claimed).toBe(true);
+    markTaskClaimPendingMerge({
+      projectDir,
+      taskId: "task-alpha",
+      runId: "run-a",
+      workflowId: "builder",
+      evidence: "merge gate is pending",
+      now: new Date("2026-06-27T01:00:01.000Z"),
+    });
+
+    const result = claimNextQueueTask(
+      queueInput(projectDir, "run-b", new Date("2026-06-27T01:00:02.000Z")),
+    );
+
+    expect(result).toMatchObject({
+      claimed: false,
+      taskId: null,
+      recoveryPath: "no-actionable-task",
+      reason: "all candidate tasks are claimed",
+      candidateCount: 1,
+    });
+    expect(result.skipped).toHaveLength(1);
+    expect(result.skipped[0]).toMatchObject({
+      taskId: "task-alpha",
+      recoveryStatus: "pending-merge",
+      safeToRetry: false,
+      recoveryPath: "skipped-pending-merge",
+    });
   });
 });

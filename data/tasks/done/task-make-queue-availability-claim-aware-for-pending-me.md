@@ -1,13 +1,13 @@
 ---
 id: task-make-queue-availability-claim-aware-for-pending-me
 title: Make queue availability claim-aware for pending-merge tasks
-status: ready
+status: done
 priority: p1
 area: autonomy
 task_class: Meta
 summary: Prevent dispatcher/explorer queue counts from treating ready tasks with active pending-merge claims as claimable builder work, and surface recovery-only availability separately.
 created_at: 2026-07-07T17:49:22.415Z
-updated_at: 2026-07-07T17:49:22.415Z
+updated_at: 2026-07-07T18:20:42.000Z
 ---
 
 ## Problem
@@ -93,10 +93,6 @@ count.
 
 ## Acceptance Evidence
 
-- Focused test transcript covering repo-task queue snapshot accounting,
-  dispatcher event emission, and builder claim behavior for a ready task with a
-  `pending-merge` active claim.
-- `.kota/runs/<run-id>/` artifact or CLI transcript showing a queue snapshot in
-  that state with ordinary `actionableCount` at zero plus an explicit
-  pending-merge/recovery summary for the visible task.
-- `pnpm run validate-tasks` passes.
+- `pnpm test src/modules/autonomy/queue-availability.test.ts src/modules/autonomy/task-claim-recovery.test.ts src/modules/autonomy/workflows/builder/workflow-claim-aware.test.ts src/modules/autonomy/workflows/builder/workflow-workspace.test.ts src/modules/autonomy/workflows/dispatcher/workflow-claim-aware.test.ts src/modules/autonomy/workflows/dispatcher/workflow.test.ts src/modules/autonomy/workflows/explorer/workflow.test.ts` passes, covering claim-aware queue accounting, dispatcher event emission, builder claim behavior, and the repaired workspaceDir regression for a ready task with a `pending-merge` active claim.
+- `.kota/runs/2026-07-07T17-54-23-767Z-builder-qn3x2g/claim-aware-queue-snapshot.json` shows a queue snapshot with ordinary `actionableCount` at zero plus an explicit pending-merge/recovery summary for the visible task.
+- `pnpm run typecheck`, `pnpm run lint`, `pnpm run validate-tasks`, `autonomy-change-decision`, and `source-file-size-severe` pass or report advisory-only findings.

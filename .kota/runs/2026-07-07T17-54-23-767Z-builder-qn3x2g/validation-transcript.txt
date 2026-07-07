@@ -1,0 +1,19 @@
+Commands run:
+
+pnpm test src/modules/autonomy/queue-availability.test.ts src/modules/autonomy/task-claim-recovery.test.ts src/modules/autonomy/workflows/builder/workflow-claim-aware.test.ts src/modules/autonomy/workflows/builder/workflow-workspace.test.ts src/modules/autonomy/workflows/dispatcher/workflow-claim-aware.test.ts src/modules/autonomy/workflows/dispatcher/workflow.test.ts src/modules/autonomy/workflows/explorer/workflow.test.ts
+Result: passed, 7 test files, 51 tests.
+
+pnpm run typecheck
+Result: passed.
+
+pnpm run lint
+Result: passed, biome checked 2729 files with no fixes applied.
+
+pnpm run validate-tasks
+Result: passed before and after moving the task to done.
+
+node --conditions=source --import tsx -e "import { checkAutonomyChangeDecisionForRun } from './src/modules/autonomy/autonomy-change-decision.ts'; console.log(checkAutonomyChangeDecisionForRun(process.cwd(), './.kota/runs/2026-07-07T17-54-23-767Z-builder-qn3x2g'));"
+Result: OK: autonomy-change-decision.json covers 3 material autonomy file(s).
+
+node --conditions=source --import tsx -e "import { checkSevereSourceFileSizeForRun } from './src/modules/autonomy/source-size-review-artifact.ts'; console.log(checkSevereSourceFileSizeForRun(process.cwd(), './.kota/runs/2026-07-07T17-54-23-767Z-builder-qn3x2g'));"
+Result: advisory-only source-size warnings for src/core/events/event-bus-types.ts and src/modules/autonomy/workflows/explorer/workflow.ts.

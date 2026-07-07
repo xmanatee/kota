@@ -1,0 +1,5 @@
+1. Queue snapshot accounting identifies ready or doing tasks with active non-retryable claims, including pending-merge, and excludes them from ordinary actionable/dispatchable work.
+2. Dispatcher queue-shape decisions do not emit normal availability solely because a ready task has a pending-merge claim, and thin/empty assessment is based on ordinary dispatchability.
+3. Builder claim tests cover the case where a visible ready task would be skipped with skipped-pending-merge and no ordinary work remains.
+4. Operator-visible queue payloads or run artifacts name the blocked task id, claim status, and recovery path for pending-merge/recovery-only visible work.
+5. Existing dependency-blocked backlog and ready/doing count behavior remains covered and task validation passes.

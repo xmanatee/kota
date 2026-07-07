@@ -55,6 +55,19 @@ type QueueDependencyBlockedTask = {
   waitingOn: string[];
 };
 
+type QueueClaimBlockedTask = {
+  id: string;
+  title: string;
+  state: "ready" | "doing";
+  claimStatus: string;
+  recoveryStatus: string;
+  recoveryPath: string;
+  owner: string;
+  runId: string;
+  workflowId: string;
+  evidence: string | null;
+};
+
 /**
  * Known event payloads. Extend this map to add new typed events.
  *
@@ -89,6 +102,7 @@ export type BusEvents = {
     dispatchableCount?: number;
     counts: QueueCounts;
     dependencyBlockedTasks: QueueDependencyBlockedTask[];
+    claimBlockedTasks?: QueueClaimBlockedTask[];
   };
   "autonomy.inbox.available": {
     projectId: ProjectId;
@@ -101,11 +115,13 @@ export type BusEvents = {
     dispatchableCount?: number;
     counts: QueueCounts;
     dependencyBlockedTasks: QueueDependencyBlockedTask[];
+    claimBlockedTasks?: QueueClaimBlockedTask[];
   };
   "autonomy.queue.empty": {
     projectId: ProjectId;
     counts: QueueCounts;
     dependencyBlockedTasks: QueueDependencyBlockedTask[];
+    claimBlockedTasks?: QueueClaimBlockedTask[];
   };
   "autonomy.blocked-research.attemptable": {
     projectId: ProjectId;
@@ -120,6 +136,7 @@ export type BusEvents = {
     dispatchableCount?: number;
     counts: QueueCounts;
     dependencyBlockedTasks: QueueDependencyBlockedTask[];
+    claimBlockedTasks?: QueueClaimBlockedTask[];
   };
   "workflow.started": {
     projectId: ProjectId;

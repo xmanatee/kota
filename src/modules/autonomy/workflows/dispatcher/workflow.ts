@@ -1,8 +1,8 @@
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
-  getRepoTaskQueueSnapshot,
-  isThinDispatchableQueue,
-} from "#modules/repo-tasks/repo-tasks-domain.js";
+  getClaimAwareRepoTaskQueueSnapshot,
+  isThinClaimAwareDispatchableQueue,
+} from "#modules/autonomy/queue-availability.js";
 import { inspectResearchRetryAvailability } from "../research-retry/precondition.js";
 import { scopeImprovementEvidenceReady } from "../scope-improver/events.js";
 import {
@@ -33,7 +33,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
       id: "assess-and-dispatch",
       type: "code",
       run: ({ projectDir, emit }) => {
-        const queue = getRepoTaskQueueSnapshot(projectDir);
+        const queue = getClaimAwareRepoTaskQueueSnapshot(projectDir);
         const researchRetryAvailability = inspectResearchRetryAvailability(projectDir);
         const securityReviewDue = inspectSecurityReviewDue(projectDir);
         const scopeImprovementEvidence = inspectScopeImprovementEvidenceGate({
@@ -51,7 +51,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           queue.actionableCount === 0 && queue.promotableBacklogCount > 0;
         const blockedResearchAttemptable =
           researchRetryAvailability.attemptableCount > 0;
-        const queueThin = isThinDispatchableQueue(queue);
+        const queueThin = isThinClaimAwareDispatchableQueue(queue);
 
         if (queue.inboxCount > 0) {
           emit("autonomy.inbox.available", { inboxCount: queue.inboxCount });
@@ -63,6 +63,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
             dispatchableCount: queue.dispatchableCount,
             counts: queue.counts,
             dependencyBlockedTasks: queue.dependencyBlockedTasks,
+            claimBlockedTasks: queue.claimBlockedTasks,
           });
         }
         if (queueNeedsPromotion) {
@@ -72,12 +73,14 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
             dispatchableCount: queue.dispatchableCount,
             counts: queue.counts,
             dependencyBlockedTasks: queue.dependencyBlockedTasks,
+            claimBlockedTasks: queue.claimBlockedTasks,
           });
         }
         if (queueEmpty) {
           emit("autonomy.queue.empty", {
             counts: queue.counts,
             dependencyBlockedTasks: queue.dependencyBlockedTasks,
+            claimBlockedTasks: queue.claimBlockedTasks,
           });
         }
         if (blockedResearchAttemptable) {
@@ -109,6 +112,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
             promotableBacklogCount: queue.promotableBacklogCount,
             dispatchableCount: queue.dispatchableCount,
             dependencyBlockedTasks: queue.dependencyBlockedTasks,
+            claimBlockedTasks: queue.claimBlockedTasks,
             counts: queue.counts,
           });
         }
@@ -131,6 +135,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           actionableCount: queue.actionableCount,
           dispatchableCount: queue.dispatchableCount,
           dependencyBlockedTasks: queue.dependencyBlockedTasks,
+          claimBlockedTasks: queue.claimBlockedTasks,
           promotableBacklogCount: queue.promotableBacklogCount,
           researchRetryCandidateCount: researchRetryAvailability.candidateCount,
           researchRetryAttemptableCount: researchRetryAvailability.attemptableCount,

@@ -44,6 +44,7 @@ vi.mock("#modules/autonomy/task-claims.js", () => ({
   taskClaimPath: vi.fn((projectDir: string, taskId: string) =>
     `${projectDir}/.kota/task-claims/active/${taskId}.json`
   ),
+  listTaskClaimInspections: vi.fn(() => []),
   claimNextQueueTask: vi.fn(() => ({
     claimed: true,
     taskId: "task-claimed",

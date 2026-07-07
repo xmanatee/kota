@@ -4,6 +4,10 @@ import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import {
+  getClaimAwareRepoTaskQueueSnapshot,
+  isThinClaimAwareDispatchableQueue,
+} from "#modules/autonomy/queue-availability.js";
+import {
   onRecoveryTrigger,
   resetWorktreeForRecovery,
 } from "#modules/autonomy/recovery.js";
@@ -17,10 +21,6 @@ import {
   runCheck,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
-import {
-  getRepoTaskQueueSnapshot,
-  isThinDispatchableQueue,
-} from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   assertArchitectureReadyCoverage,
   assertStrategicReadyCoverage,
@@ -53,7 +53,7 @@ export const agent: AgentDef = {
 export const EXPLORATION_REFRESH_MS = 30 * 60 * 1000;
 
 type ExplorerAssessment = {
-  counts: ReturnType<typeof getRepoTaskQueueSnapshot>["counts"];
+  counts: ReturnType<typeof getClaimAwareRepoTaskQueueSnapshot>["counts"];
   inboxCount: number;
   openCount: number;
   pullableCount: number;
@@ -80,12 +80,12 @@ function buildExplorerAssessment(
 ): ExplorerAssessment {
   const worktree = getRepoWorktreeStatus(projectDir);
   const dirty = worktree.available && worktree.trackedDirty;
-  const queue = getRepoTaskQueueSnapshot(projectDir);
+  const queue = getClaimAwareRepoTaskQueueSnapshot(projectDir);
   const explorationRefreshDue =
     !lastExplorationAt ||
     Date.now() - new Date(lastExplorationAt).getTime() >= EXPLORATION_REFRESH_MS;
   const queueEmpty = !queue.hasDispatchableWork;
-  const queueThin = isThinDispatchableQueue(queue);
+  const queueThin = isThinClaimAwareDispatchableQueue(queue);
 
   return {
     ...queue,

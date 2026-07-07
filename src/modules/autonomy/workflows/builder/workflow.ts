@@ -8,6 +8,10 @@ import {
   writeCalibrationArtifact,
 } from "#modules/autonomy/evaluator-calibration.js";
 import {
+  type ClaimAwareRepoTaskQueueSnapshot,
+  getClaimAwareRepoTaskQueueSnapshot,
+} from "#modules/autonomy/queue-availability.js";
+import {
   onRecoveryTrigger,
   resetWorktreeForRecovery,
 } from "#modules/autonomy/recovery.js";
@@ -20,8 +24,6 @@ import {
   stepCommitted,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
-import type { RepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
-import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { BranchStepResult, CleanupResult } from "./branch-per-task.js";
 import { cleanupMergedBranches, createPullRequest, createTaskBranch } from "./branch-per-task.js";
 import { builderMaxConcurrentRunsFromConfig } from "./builder-config.js";
@@ -62,7 +64,7 @@ export const agent: AgentDef = {
   writeScope: [],
 };
 
-type InspectResult = RepoTaskQueueSnapshot & { dirty: boolean };
+type InspectResult = ClaimAwareRepoTaskQueueSnapshot & { dirty: boolean };
 
 const inspectReadyQueue = typedCodeStep<InspectResult>({
   id: "inspect-ready-queue",
@@ -77,7 +79,7 @@ const inspectReadyQueue = typedCodeStep<InspectResult>({
   run: (ctx) => {
     const worktree = getRepoWorktreeStatus(workflowWorkspaceDir(ctx));
     const dirty = worktree.available && worktree.trackedDirty;
-    return { ...getRepoTaskQueueSnapshot(ctx.projectDir), dirty };
+    return { ...getClaimAwareRepoTaskQueueSnapshot(ctx.projectDir), dirty };
   },
 });
 
