@@ -1,0 +1,3 @@
+1. GET /workflow/runs/:id rejects decoded traversal or other non-path-safe run ids before the workflow run store can read outside .kota/runs.
+2. Focused regression coverage proves /workflow/runs/..%2foutside returns a client error and does not call the run lookup.
+3. The task is moved to done with final verification recorded in the task and run artifacts.

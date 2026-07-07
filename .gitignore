@@ -446,6 +446,12 @@ deploy/telegram-assistant/.env
 !/.kota/runs/control-monitor-coverage-gap-sample/**
 !/.kota/runs/recall-consolidation-screens-20260615T160041Z/
 !/.kota/runs/recall-consolidation-screens-20260615T160041Z/**
+!/.kota/runs/2026-07-07T03-03-15-217Z-builder-4j4v5a/
+/.kota/runs/2026-07-07T03-03-15-217Z-builder-4j4v5a/*
+!/.kota/runs/2026-07-07T03-03-15-217Z-builder-4j4v5a/commit-message.txt
+!/.kota/runs/2026-07-07T03-03-15-217Z-builder-4j4v5a/success-criteria-verified.txt
+!/.kota/runs/2026-07-07T03-03-15-217Z-builder-4j4v5a/success-criteria.txt
+!/.kota/runs/2026-07-07T03-03-15-217Z-builder-4j4v5a/validation-results.txt
 # Eval-harness fixtures legitimately seed prior run state; the runner copies
 # `initial/` verbatim into an isolated tmpdir at fixture-run time.
 !src/modules/eval-harness/fixtures/**/initial/.kota/

@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-authenticated-daemon-control-g
 title: Security review: The authenticated daemon-control GET /workflow/runs/:id route accepts a decoded route parameter as a filesystem path segment. An id such as '..%2fsome-dir' is decoded before the handler sees it, then WorkflowRunStore.getRun joins it under runsDir without applying the existing path-safe run-id validation. This lets an authenticated client make the daemon attempt to read metadata.json outside the runs directory and can expose metadata-shaped files or produce route errors from malformed JSON.
-status: ready
+status: done
 priority: p3
 area: security
 task_class: Safety
 summary: The authenticated daemon-control GET /workflow/runs/:id route accepts a decoded route parameter as a filesystem path segment. An id such as '..%2fsome-dir' is decoded before the handler sees it, then WorkflowRunStore.getRun joins it under runsDir without applying the existing path-safe run-id validation. This lets an authenticated client make the daemon attempt to read metadata.json outside the runs directory and can expose metadata-shaped files or produce route errors from malformed JSON.
 created_at: 2026-07-07T02:44:01.504Z
-updated_at: 2026-07-07T02:44:01.504Z
+updated_at: 2026-07-07T03:16:19.892Z
 ---
 
 ## Problem
@@ -125,3 +125,17 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Completion
+
+Fixed `GET /workflow/runs/:id` by validating the decoded route `id` with
+`validateWorkflowRunId` before calling `handle.getWorkflowRun`. Added a daemon
+control regression for `/workflow/runs/..%2foutside` that returns 400 and
+asserts the run lookup is not called.
+
+Verification:
+
+- `pnpm test src/core/daemon/daemon-control.test.ts`
+- `pnpm exec biome check src/core/daemon/daemon-control-workflow.ts src/core/daemon/daemon-control.test.ts`
+- `pnpm run typecheck`
+- `pnpm run validate-tasks`

@@ -1,0 +1,3 @@
+1. Verified by `handleGetWorkflowRun` validating the decoded route parameter with `validateWorkflowRunId` and returning 400 before `handle.getWorkflowRun` for invalid run ids.
+2. Verified by `pnpm test src/core/daemon/daemon-control.test.ts`: the new `/workflow/runs/..%2foutside` regression passes and asserts the lookup is not called.
+3. Verified by recording the validation commands in the task completion note and this run's validation-results.txt artifact, then moving the task to done and running task validation.

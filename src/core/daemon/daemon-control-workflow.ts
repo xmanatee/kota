@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { validateWorkflowRunId } from "#core/workflow/run-io.js";
 import type { DaemonControlHandle } from "./daemon-control-types.js";
 import { jsonResponse, readBody, resolveProjectIdParam } from "./daemon-control-utils.js";
 
@@ -51,7 +52,14 @@ export function handleGetWorkflowRun(
     jsonResponse(res, scope.status, scope.error);
     return;
   }
-  const run = handle.getWorkflowRun(params.id, scope.projectId);
+  let runId: string;
+  try {
+    runId = validateWorkflowRunId(params.id, "Workflow run route parameter");
+  } catch {
+    jsonResponse(res, 400, { error: "Invalid workflow run id" });
+    return;
+  }
+  const run = handle.getWorkflowRun(runId, scope.projectId);
   if (!run) {
     jsonResponse(res, 404, { error: "Run not found" });
     return;

@@ -1731,6 +1731,22 @@ describe("DaemonControlServer", () => {
       expect(body.error).toBeTruthy();
     });
 
+    it("rejects encoded traversal before looking up a run", async () => {
+      const getWorkflowRun = vi.fn(() => {
+        throw new Error("getWorkflowRun should not be called for invalid run ids");
+      });
+      handle = makeHandle({ getWorkflowRun });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/workflow/runs/..%2foutside");
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toBeTruthy();
+      expect(getWorkflowRun).not.toHaveBeenCalled();
+    });
+
     it("returns 401 without token", async () => {
       const res = await fetchNoToken(port, "/workflow/runs/run-1");
       expect(res.status).toBe(401);
