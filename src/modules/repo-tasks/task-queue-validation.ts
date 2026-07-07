@@ -27,6 +27,11 @@ import {
   parseTaskDependencyIds,
   TASK_DEPENDENCIES_FIELD,
 } from "./task-dependencies.js";
+import {
+  declaresRenderedEvidence,
+  hasNamedRenderedEvidence,
+  requiresRenderedCompletionEvidence,
+} from "./task-rendered-evidence.js";
 
 export type TaskQueueValidationSeverity = "error" | "warning";
 
@@ -130,6 +135,9 @@ const ACTIONABLE_META_STATES: ReadonlySet<RepoTaskState> = new Set(["ready", "do
 const FAN_OUT_CONSOLIDATION_TASK_PREFIX = "task-fan-out-consolidation-";
 const DEFAULT_STALE_BLOCKED_DAYS = 14;
 const BLOCKED_ACTION_COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000;
+// Historical done records before this builder run remain audit inputs; moveTaskById
+// enforces the stricter completion evidence gate on every future transition.
+const COMPLETION_EVIDENCE_GATE_EFFECTIVE_AT = Date.parse("2026-07-07T15:50:32.148Z");
 
 const ACTIVE_QUALITY_SECTION_HEADINGS = [
   "Source / Intent",
@@ -369,42 +377,12 @@ function hasFreshBlockedActionMarker(
  */
 const CLIENT_CHANNEL_AREAS: ReadonlySet<string> = new Set(["client", "channel"]);
 
-const RENDERED_EVIDENCE_DECLARATION_KEYWORDS = [
-  /\bscreenshots?\b/i,
-  /\bscreencasts?\b/i,
-  /\brendered (?:artifact|evidence|fixture|view|snapshot|output|screenshot)s?\b/i,
-  /\btranscripts?\b/i,
-  /\bruntime probes?\b/i,
-  /\bvisual evidence\b/i,
-] as const;
+export { declaresRenderedEvidence, hasNamedRenderedEvidence } from "./task-rendered-evidence.js";
 
-const ACCEPTED_RENDERED_EVIDENCE_KEYWORDS = [
-  /\bscreenshots?\b/i,
-  /\bscreencasts?\b/i,
-  /\brendered (?:artifact|evidence|fixture|view|snapshot|output)s?\b/i,
-  /\btranscripts?\b/i,
-  /\bruntime probes?\b/i,
-  /\bsnapshot tests?\b/i,
-  /\b(?:rendered|output)\s+fixtures?\b/i,
-  /\boperator[- ]capture(?:d)?\b/i,
-] as const;
-
-function getDeliverableSections(raw: string): string {
-  return [
-    extractSection(raw, "Desired Outcome") ?? "",
-    extractSection(raw, "Done When") ?? "",
-  ].join("\n");
-}
-
-export function declaresRenderedEvidence(raw: string): boolean {
-  const text = getDeliverableSections(raw);
-  return RENDERED_EVIDENCE_DECLARATION_KEYWORDS.some((re) => re.test(text));
-}
-
-export function hasNamedRenderedEvidence(raw: string): boolean {
-  const section = extractSection(raw, "Acceptance Evidence");
-  if (!section) return false;
-  return ACCEPTED_RENDERED_EVIDENCE_KEYWORDS.some((re) => re.test(section));
+function isCompletionEvidenceGateEffective(updatedAt: string | string[] | undefined): boolean {
+  const value = Array.isArray(updatedAt) ? updatedAt.join(",") : updatedAt;
+  const ms = Date.parse(value ?? "");
+  return !Number.isNaN(ms) && ms >= COMPLETION_EVIDENCE_GATE_EFFECTIVE_AT;
 }
 
 export function listRootLevelBuiltInModuleFiles(projectDir: string): string[] {
@@ -634,7 +612,7 @@ export function validateTaskQueue(
     seenStates.push(entry.state);
     seenTaskStates.set(entry.taskId, seenStates);
 
-    const { attrs } = parseFlatFrontMatter(entry.raw);
+    const { attrs, body } = parseFlatFrontMatter(entry.raw);
     const actualId = String(attrs.id || "");
     if (actualId !== entry.taskId) {
       findings.push({
@@ -879,6 +857,29 @@ export function validateTaskQueue(
           });
         }
       }
+    }
+
+    if (
+      entry.state === "done" &&
+      isCompletionEvidenceGateEffective(attrs.updated_at) &&
+      requiresRenderedCompletionEvidence({
+        title: typeof attrs.title === "string" ? attrs.title : null,
+        area: typeof attrs.area === "string" ? attrs.area : null,
+        summary: typeof attrs.summary === "string" ? attrs.summary : null,
+        taskClass: readTaskClass(attrs),
+        body,
+      }) &&
+      !hasNamedRenderedEvidence(body)
+    ) {
+      findings.push({
+        code: "done-operator-client-missing-rendered-evidence",
+        severity: "error",
+        message: `${entry.path} is a new done operator-facing client/control task but its ` +
+          `## Acceptance Evidence section does not name rendered/runtime proof. ` +
+          `Add a CLI/dashboard/status transcript, web screenshot or trace, native snapshot/screenshot, ` +
+          `rendered fixture, daemon route runtime probe, or operator-capture precondition before completion.`,
+        paths: [entry.path],
+      });
     }
 
     if (hasDishonestSourceAccessCompletion(entry)) {

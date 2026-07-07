@@ -1,12 +1,12 @@
 ---
 id: task-add-completion-evidence-gates-for-operator-client-
 title: Add completion evidence gates for operator client tasks
-status: ready
+status: done
 priority: p2
 area: repo-tasks
 summary: Prevent CLI/UI/operator-client tasks from being marked done without the rendered transcript or runtime evidence their acceptance criteria require.
 created_at: 2026-07-06T15:16:35.734Z
-updated_at: 2026-07-07T15:48:44.000Z
+updated_at: 2026-07-07T16:35:52.000Z
 task_class: Meta
 ---
 

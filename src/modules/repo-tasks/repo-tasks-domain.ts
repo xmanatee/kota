@@ -9,6 +9,10 @@ import {
   readTaskDependencyIds,
 } from "./task-dependencies.js";
 import { isRepoTaskId } from "./task-id.js";
+import {
+  hasNamedRenderedEvidence,
+  requiresRenderedCompletionEvidence,
+} from "./task-rendered-evidence.js";
 
 export const REPO_DATA_DIR = "data";
 export const REPO_TASKS_DIR = join(REPO_DATA_DIR, "tasks");
@@ -246,6 +250,9 @@ export type RepoTaskClass =
 
 export type RepoTaskTransitionCheckInput = {
   id: string;
+  title: string | null;
+  area: string | null;
+  summary: string | null;
   taskClass: RepoTaskClass;
   body: string;
 };
@@ -262,6 +269,16 @@ export function getRepoTaskStateTransitionBlocker(
   if (toState === "done" && !hasConcreteTaskAcceptanceEvidence(task.body)) {
     return "missing concrete ## Acceptance Evidence. Add a command, artifact, " +
       "transcript, screenshot, fixture, demo, or validation bullet before completing it.";
+  }
+
+  if (
+    toState === "done" &&
+    requiresRenderedCompletionEvidence(task) &&
+    !hasNamedRenderedEvidence(task.body)
+  ) {
+    return "operator-facing client work needs rendered/runtime ## Acceptance Evidence before completion. " +
+      "Add a CLI/dashboard/status transcript, screenshot, trace, native snapshot, rendered fixture, " +
+      "runtime probe, or operator-capture precondition.";
   }
 
   if (
@@ -583,6 +600,9 @@ export function moveTaskById(
   assertTaskStateTransitionAllowed(
     {
       id,
+      title: typeof attrs.title === "string" ? attrs.title : null,
+      area: typeof attrs.area === "string" ? attrs.area : null,
+      summary: typeof attrs.summary === "string" ? attrs.summary : null,
       taskClass: parseTaskClass(
         typeof attrs.task_class === "string" ? attrs.task_class : undefined,
       ),

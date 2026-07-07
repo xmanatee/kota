@@ -48,20 +48,20 @@ sub-slice tasks exist in the queue.
 
 `area: client` and `area: channel` tasks that declare a screenshot, screencast,
 rendered artifact/fixture, transcript, runtime probe, or visual evidence in
-their `## Desired Outcome` or `## Done When` must also name at least one of
-those artifact kinds in `## Acceptance Evidence`. The validator enforces this
-as `client-task-missing-rendered-evidence`. Prose substitutes ("branch
-description covers the visual change", "implementation tests pass") do not
-satisfy the gate.
+`## Desired Outcome` or `## Done When` must name one of those artifact kinds in
+`## Acceptance Evidence`. Completion has the same bar: Product tasks targeting
+CLI, daemon control, setup/auth, approvals, owner requests, workflow control,
+dashboard/status, or another operator client may not move to `done/` without
+inspectable rendered/runtime proof. The validator enforces this as
+`client-task-missing-rendered-evidence` or
+`done-operator-client-missing-rendered-evidence`; prose substitutes and
+implementation tests alone do not satisfy either gate.
 
 Per surface, accepted artifact kinds:
 
-- macOS / iOS / native: PNG/screencast under `.kota/runs/<run-id>/`, or a
-  rendered Swift snapshot fixture committed alongside the test.
-- Mobile (React Native / web): rendered DOM or screenshot fixture, or a video
-  capture under `.kota/runs/<run-id>/`.
-- Web dashboard: screenshot under `.kota/runs/<run-id>/`, or a Playwright
-  trace/HTML report.
+- macOS / iOS / native: PNG/screencast under `.kota/runs/<run-id>/`, or a rendered Swift snapshot fixture committed alongside the test.
+- Mobile (React Native / web): rendered DOM or screenshot fixture, or a video capture under `.kota/runs/<run-id>/`.
+- Web dashboard: screenshot under `.kota/runs/<run-id>/`, or a Playwright trace/HTML report.
 - CLI: full transcript captured to `.kota/runs/<run-id>/transcript.txt`
   showing the command, arguments, and output (with secrets redacted).
 - Telegram / Slack: rendered message fixture (JSON or markdown) checked in

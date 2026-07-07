@@ -1,0 +1,4 @@
+1. Moving or validating a newly completed operator-client task without rendered/runtime proof fails with a clear error.
+2. The evidence recognizer accepts CLI transcripts, dashboard/status transcripts, web screenshots/traces, native snapshots/screenshots, and daemon route runtime probes.
+3. Regression coverage mirrors the overclaimed full-CLI task shape with strong client acceptance criteria but only test evidence.
+4. Non-client internal refactor tasks remain unaffected by the operator-client completion gate.
