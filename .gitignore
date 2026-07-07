@@ -9,6 +9,17 @@ deploy/telegram-assistant/.env
 /.kota/*
 !/.kota/runs/
 /.kota/runs/*
+!/.kota/runs/2026-07-07T18-36-34-787Z-builder-drzwm4/
+/.kota/runs/2026-07-07T18-36-34-787Z-builder-drzwm4/*
+!/.kota/runs/2026-07-07T18-36-34-787Z-builder-drzwm4/autonomy-change-decision.json
+!/.kota/runs/2026-07-07T18-36-34-787Z-builder-drzwm4/commit-message.txt
+!/.kota/runs/2026-07-07T18-36-34-787Z-builder-drzwm4/focused-test-transcript.txt
+!/.kota/runs/2026-07-07T18-36-34-787Z-builder-drzwm4/report-transcript.txt
+!/.kota/runs/2026-07-07T18-36-34-787Z-builder-drzwm4/success-criteria.txt
+!/.kota/runs/2026-07-07T18-36-34-787Z-builder-drzwm4/success-criteria-verified.txt
+!/.kota/runs/2026-07-07T18-36-34-787Z-builder-drzwm4/supervision-load-report.json
+!/.kota/runs/2026-07-07T18-36-34-787Z-builder-drzwm4/task-move-done-cli-failure.txt
+!/.kota/runs/2026-07-07T18-36-34-787Z-builder-drzwm4/validation.txt
 !/.kota/runs/2026-07-07T17-54-23-767Z-builder-qn3x2g/
 /.kota/runs/2026-07-07T17-54-23-767Z-builder-qn3x2g/*
 !/.kota/runs/2026-07-07T17-54-23-767Z-builder-qn3x2g/claim-aware-queue-snapshot.json

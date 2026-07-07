@@ -1,0 +1,11 @@
+$ pnpm kota task move task-report-concurrent-agent-workstream-load-in-operato done
+
+The packaged task CLI failed while invoking git mv because this managed
+worktree cannot create the linked-worktree index lock under the canonical
+checkout:
+
+fatal: Unable to create '/Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/task-report-concurrent-agent-workstream-load-in-operato-2026-07-07t18-36-34-787z-builder-drzwm4/index.lock': Operation not permitted
+
+The task state was completed with an apply_patch move inside the writable
+worktree, preserving the same lifecycle metadata shape (`status: done`,
+updated_at refreshed, file under data/tasks/done/).

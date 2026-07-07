@@ -9,6 +9,47 @@ export const baseReportWindow = {
 
 export const emptyAutonomyReportData: AutonomyReportData = {
   ...baseReportWindow,
+  supervisionLoad: {
+    generatedAt: baseReportWindow.windowEndedAt,
+    status: "normal",
+    counts: {
+      activeRuns: 0,
+      activeTaskClaims: 0,
+      pendingMergeTaskClaims: 0,
+      blockedClaimRecoveries: 0,
+      pendingApprovals: 0,
+      pendingOwnerQuestions: 0,
+      openDeadLetters: 0,
+      attentionItems: 0,
+      postCompletionFollowUps: 0,
+      reviewEvidenceGaps: 0,
+    },
+    score: {
+      status: "normal",
+      score: 0,
+      knownScore: 0,
+      unknownEvidenceCount: 0,
+    },
+    thresholds: {
+      busyAt: 3,
+      overloadedAt: 6,
+      weights: {
+        activeRuns: 1,
+        activeTaskClaims: 1,
+        pendingMergeTaskClaims: 2,
+        blockedClaimRecoveries: 2,
+        pendingApprovals: 2,
+        pendingOwnerQuestions: 2,
+        openDeadLetters: 2,
+        attentionItems: 1,
+        postCompletionFollowUps: 1,
+        reviewEvidenceGaps: 1,
+      },
+    },
+    evidence: [],
+    workstreams: [],
+    topReferences: [],
+  },
   openQueue: {
     total: 0,
     byPriority: [],

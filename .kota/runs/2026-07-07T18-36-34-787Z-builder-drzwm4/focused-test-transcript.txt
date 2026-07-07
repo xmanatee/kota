@@ -1,0 +1,13 @@
+$ pnpm test src/modules/autonomy/report/supervision-load.test.ts src/modules/autonomy/report/report-cli-supervision-load.test.ts src/modules/autonomy/report/render.test.ts
+
+> kota@0.1.0 test /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-report-concurrent-agent-workstream-load-in-operato-2026-07-07t18-36-34-787z-builder-drzwm4
+> TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true src/modules/autonomy/report/supervision-load.test.ts src/modules/autonomy/report/report-cli-supervision-load.test.ts src/modules/autonomy/report/render.test.ts
+
+
+ RUN  v4.1.0 /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-report-concurrent-agent-workstream-load-in-operato-2026-07-07t18-36-34-787z-builder-drzwm4
+
+
+ Test Files  3 passed (3)
+      Tests  11 passed (11)
+   Start at  04:05:00
+   Duration  477ms (transform 507ms, setup 113ms, import 623ms, tests 58ms, environment 0ms)

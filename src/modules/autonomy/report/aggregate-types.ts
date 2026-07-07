@@ -26,6 +26,7 @@ import type {
   ProcessDisciplineReport,
 } from "./process-discipline-report.js";
 import type { QualityStratificationReport } from "./quality-stratification.js";
+import type { SupervisionLoadReport } from "./supervision-load.js";
 import type { AreaClassification } from "./task-classification.js";
 
 export type { ShadowSemanticReviewReport } from "../shadow-semantic-review-types.js";
@@ -41,6 +42,15 @@ export type {
   ProcessDisciplineReportRecord,
 } from "./process-discipline-report.js";
 export type { QualityStratificationReport } from "./quality-stratification.js";
+export type {
+  SupervisionLoadCounts,
+  SupervisionLoadEvidence,
+  SupervisionLoadReport,
+  SupervisionLoadScore,
+  SupervisionLoadStatus,
+  SupervisionLoadThresholds,
+  SupervisionLoadWorkstreamGroup,
+} from "./supervision-load.js";
 
 export const DEFAULT_REPORT_WINDOW_DAYS = 7;
 
@@ -201,6 +211,7 @@ export type AutonomyReportData = {
   windowStartedAt: string;
   windowEndedAt: string;
   windowDays: number;
+  supervisionLoad: SupervisionLoadReport;
   openQueue: QueueBalance;
   doneInWindow: QueueBalance;
   explorer: ExplorerBalance;

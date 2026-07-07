@@ -1,0 +1,16 @@
+1. Verified: `supervision-load-report.json` is parseable `kota report --json`
+   output with `supervisionLoad.counts`, `status`, deterministic threshold
+   weights, unknown-store evidence, workstream grouping fields, and
+   `topReferences`.
+2. Verified: `report-transcript.txt` shows `pnpm kota report` rendering the
+   Supervision load section with active-run, task-claim, approval,
+   owner-question, dead-letter, attention, post-completion, and review-evidence
+   counts. The implementation lives in the operator report path and does not
+   add supervision-load context to autonomy prompts or queue-shaping events.
+3. Verified: `focused-test-transcript.txt` shows the focused report tests
+   passing. Those tests cover normal load, overloaded load, pending-merge load,
+   missing/unreadable store evidence, multi-scope grouping, JSON output, and
+   rendered text output.
+4. Verified: run artifacts include `report-transcript.txt`,
+   `supervision-load-report.json`, and `focused-test-transcript.txt`.
+5. Verified: `pnpm run validate-tasks` passed after staging the task move.

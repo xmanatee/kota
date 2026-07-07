@@ -37,6 +37,7 @@ import {
   renderTrajectoryDiagnostics,
 } from "./render-run-sections.js";
 import { renderShadowSemanticReviews } from "./render-shadow-semantic-reviews.js";
+import { renderSupervisionLoad } from "./render-supervision-load.js";
 
 export function renderAutonomyReport(data: AutonomyReportData): RenderNode {
   return stack(
@@ -47,6 +48,9 @@ export function renderAutonomyReport(data: AutonomyReportData): RenderNode {
       span(`${data.windowStartedAt.slice(0, 10)} → ${data.windowEndedAt.slice(0, 10)}`, "muted"),
       plain(")"),
     ),
+    blank(),
+    heading("Supervision load", 2),
+    ...renderSupervisionLoad(data.supervisionLoad),
     blank(),
     heading("Open queue", 2),
     ...renderQueueBalance(data.openQueue),

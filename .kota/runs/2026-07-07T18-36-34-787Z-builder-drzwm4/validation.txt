@@ -1,0 +1,18 @@
+Validation commands run:
+
+1. `pnpm test src/modules/autonomy/report/supervision-load.test.ts src/modules/autonomy/report/report-cli-supervision-load.test.ts src/modules/autonomy/report/render.test.ts`
+   - Passed: 3 files, 11 tests.
+   - Full transcript: `.kota/runs/2026-07-07T18-36-34-787Z-builder-drzwm4/focused-test-transcript.txt`
+2. `pnpm run typecheck`
+   - Passed.
+3. `pnpm run lint`
+   - Passed after import-order fixes.
+4. `pnpm run build`
+   - Passed and enabled packaged `pnpm kota` report evidence.
+5. `pnpm run validate-tasks`
+   - Initial run failed because the task move was unstaged after the CLI `git mv`
+     permission failure.
+   - Passed after `git add -A` staged the manual task move.
+6. Repair checks after source-size split:
+   - `pnpm test src/modules/autonomy/report/supervision-load.test.ts src/modules/autonomy/report/report-cli-supervision-load.test.ts src/modules/autonomy/report/render.test.ts` passed.
+   - `autonomy-change-decision.json` added for the reviewer-class report change.

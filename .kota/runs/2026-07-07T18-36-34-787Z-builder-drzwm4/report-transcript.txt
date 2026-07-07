@@ -1,0 +1,182 @@
+$ pnpm kota report
+
+> kota@0.1.0 kota /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-report-concurrent-agent-workstream-load-in-operato-2026-07-07t18-36-34-787z-builder-drzwm4
+> node bin/kota.mjs report
+
+Autonomy report — last 7 days (2026-06-30 → 2026-07-07)
+
+Supervision load
+Status: unknown (known score 3; busy >= 3, overloaded >= 6)
+
+Counts
+active runs:                  0
+task claims:                  unknown
+pending-merge claims:         unknown
+blocked claim recoveries:     unknown
+pending approvals:            unknown
+pending owner questions:      unknown
+open dead letters:            unknown
+attention items:              2
+post-completion follow-ups:   1
+review evidence gaps:         0
+
+Evidence
+  available active-runs: active-runs store read
+  missing   task-claims: task-claims store is not available
+  missing   approvals: approvals store is not available
+  missing   owner-questions: owner-questions store is not available
+  missing   dead-letters: dead-letter store is not available
+  available attention-items: attention detector read existing task and run surfaces
+
+Top references
+  attention-item attention-1 - Blocked backlog: 12 blocked tasks
+  attention-item attention-2 task=task-extend-harness-parity-and-eval-harness-with-model- - Stale blocker: task-extend-harness-parity-and-eval-harness-with-model- (blocked 10d)
+  post-completion-follow-up task-run-shadow-semantic-reviewers-for-non-builder-auto task=task-run-shadow-semantic-reviewers-for-non-builder-auto - follow-up for task-add-loop-quality-audits-for-autonomous-workflows
+
+Open queue
+Total: 15
+
+By state
+backlog:      2
+blocked:      12
+ready:        1
+
+By priority
+p1:           7 (47%)
+p2:           7 (47%)
+p3:           1 (7%)
+
+By task_class
+Platform:       3 (20%)
+Meta:           6 (40%)
+Unclassified:   6 (40%)
+
+By area
+  modules            5 (33%)
+  workflow-runtime   4 (27%)
+  architecture       3 (20%)
+  autonomy           1 (7%)
+  ops                1 (7%)
+  research           1 (7%)
+
+Waiting on tasks
+  task-run-live-openrouter-and-local-model-rollout-evalua (backlog) -> task-extend-harness-parity-and-eval-harness-with-model-
+
+Tasks moved to done in window
+Total: 42
+
+By state
+done:         42
+
+By priority
+p1:           11 (26%)
+p2:           23 (55%)
+p3:           8 (19%)
+
+By task_class
+Safety:         10 (24%)
+Product:        6 (14%)
+Platform:       3 (7%)
+Meta:           12 (29%)
+Unclassified:   11 (26%)
+
+By area
+  security          15 (36%)
+  autonomy          11 (26%)
+  platform           5 (12%)
+  workflow-runtime   3 (7%)
+  client             2 (5%)
+  modules            2 (5%)
+  repo-tasks         2 (5%)
+  daemon-ops         1 (2%)
+  webhook            1 (2%)
+
+Explorer output
+(no explorer runs)
+
+Builder breakdown
+(no builder commits)
+
+Decision attribution
+(no autonomy runs classified)
+
+Diff-summary consistency
+(no builder runs inspected for diff-summary consistency)
+
+Code-health drift
+(no builder runs inspected for code-health drift)
+
+Owner interventions
+(no owner-question pressure)
+
+Review scrutiny
+(no reviewer artifacts)
+
+Review scrutiny escalation
+(no recurring thin-acceptance patterns)
+
+Shadow semantic reviews
+(no shadow semantic review artifacts)
+
+Trajectory diagnostics
+(no recurring trajectory diagnostic patterns)
+
+Process discipline
+(no process-discipline records)
+
+Autonomy change decisions
+(no autonomy change decisions)
+
+Post-completion follow-ups
+Corrective follow-ups: 1   Linked completed tasks: 1
+
+By reason
+  security                 1 (100%)
+  review-scrutiny          1 (100%)
+  operator-report          1 (100%)
+
+Linked follow-ups
+  ready   security,review-scrutiny,operator-report task-add-loop-quality-audits-for-autonomous-workflows -> task-run-shadow-semantic-reviewers-for-non-builder-auto
+    task:task-add-loop-quality-audits-for-autonomous-workflows
+
+Quality stratification
+Aggregate quality rates
+  review-scrutiny                 n/a (0/0)   prior       n/a (0/0)   delta n/a
+  code-health-drift               n/a (0/0)   prior       n/a (0/0)   delta n/a
+  post-completion-follow-up       2% (1/42)   prior      1% (1/100)   delta +1.4pp
+
+Largest slices
+  post-completion-follow-up/taskPriority/p2                0% (0/23)   prior 2% (1/55)   task-add-completion-evidence-gates-for-operator-client-, task-add-source-to-decision-coverage-report-for-agent-r
+  post-completion-follow-up/taskArea/security              0% (0/15)   prior 0% (0/14)   task-security-review-autonomy-health-owner-action-quest, task-security-review-autonomy-health-review-artifacts-s
+  post-completion-follow-up/taskClass/Meta                 8% (1/12)   prior 13% (1/8)   task-add-completion-evidence-gates-for-operator-client-, task-add-loop-quality-audits-for-autonomous-workflows
+  post-completion-follow-up/taskArea/autonomy              9% (1/11)   prior 3% (1/40)   task-add-loop-quality-audits-for-autonomous-workflows, task-add-measured-autonomy-change-promotion-decisions
+  post-completion-follow-up/taskPriority/p1                9% (1/11)   prior 0% (0/22)   task-add-loop-quality-audits-for-autonomous-workflows, task-add-measured-autonomy-change-promotion-decisions
+  post-completion-follow-up/taskClass/Unclassified         0% (0/11)   prior 0% (0/59)   task-add-observability-evidence-for-mobile-typecheck-wr, task-clear-stale-progress-reviewer-write-scope-dlq-item
+  post-completion-follow-up/taskClass/Safety               0% (0/10)   prior 0% (0/10)   task-guard-tracing-exports-against-provider-request-pay, task-report-process-discipline-scores-from-trajectory-d
+  post-completion-follow-up/taskPriority/p3                0% (0/8)   prior 0% (0/23)   task-add-observability-evidence-for-mobile-typecheck-wr, task-classify-workflow-generated-follow-up-tasks
+
+Composition shifts
+  post-completion-follow-up/taskClass/Unclassified 16% current mix (59 -> 11)
+  post-completion-follow-up/taskArea/security 52% current mix (14 -> 15)
+  post-completion-follow-up/taskArea/modules 7% current mix (26 -> 2)
+  post-completion-follow-up/taskClass/Meta 60% current mix (8 -> 12)
+  post-completion-follow-up/taskClass/Platform 13% current mix (21 -> 3)
+
+Missing metadata
+  post-completion-follow-up  changedArea   42
+  post-completion-follow-up  harness       42
+  post-completion-follow-up  reasonFamily  41
+  post-completion-follow-up  workflow      42
+
+Autonomy health
+(no health signals)
+
+Blockers
+Blocked tasks: 12
+operator-capture:       12 (100%)
+
+Cost
+(no finished runs in window)
+
+Control coverage
+(no control coverage artifacts)

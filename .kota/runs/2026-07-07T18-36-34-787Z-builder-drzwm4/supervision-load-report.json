@@ -1,0 +1,1408 @@
+{
+  "windowStartedAt": "2026-06-30T18:55:07.839Z",
+  "windowEndedAt": "2026-07-07T18:55:07.839Z",
+  "windowDays": 7,
+  "supervisionLoad": {
+    "generatedAt": "2026-07-07T18:55:07.839Z",
+    "status": "unknown",
+    "counts": {
+      "activeRuns": 0,
+      "activeTaskClaims": null,
+      "pendingMergeTaskClaims": null,
+      "blockedClaimRecoveries": null,
+      "pendingApprovals": null,
+      "pendingOwnerQuestions": null,
+      "openDeadLetters": null,
+      "attentionItems": 2,
+      "postCompletionFollowUps": 1,
+      "reviewEvidenceGaps": 0
+    },
+    "score": {
+      "status": "unknown",
+      "score": null,
+      "knownScore": 3,
+      "unknownEvidenceCount": 4
+    },
+    "thresholds": {
+      "busyAt": 3,
+      "overloadedAt": 6,
+      "weights": {
+        "activeRuns": 1,
+        "activeTaskClaims": 1,
+        "pendingMergeTaskClaims": 2,
+        "blockedClaimRecoveries": 2,
+        "pendingApprovals": 2,
+        "pendingOwnerQuestions": 2,
+        "openDeadLetters": 2,
+        "attentionItems": 1,
+        "postCompletionFollowUps": 1,
+        "reviewEvidenceGaps": 1
+      }
+    },
+    "evidence": [
+      {
+        "source": "active-runs",
+        "status": "available",
+        "path": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-report-concurrent-agent-workstream-load-in-operato-2026-07-07t18-36-34-787z-builder-drzwm4/.kota/runs",
+        "message": "active-runs store read"
+      },
+      {
+        "source": "task-claims",
+        "status": "missing",
+        "path": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-report-concurrent-agent-workstream-load-in-operato-2026-07-07t18-36-34-787z-builder-drzwm4/.kota/task-claims/active",
+        "message": "task-claims store is not available"
+      },
+      {
+        "source": "approvals",
+        "status": "missing",
+        "path": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-report-concurrent-agent-workstream-load-in-operato-2026-07-07t18-36-34-787z-builder-drzwm4/.kota/approvals",
+        "message": "approvals store is not available"
+      },
+      {
+        "source": "owner-questions",
+        "status": "missing",
+        "path": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-report-concurrent-agent-workstream-load-in-operato-2026-07-07t18-36-34-787z-builder-drzwm4/.kota/owner-questions",
+        "message": "owner-questions store is not available"
+      },
+      {
+        "source": "dead-letters",
+        "status": "missing",
+        "path": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-report-concurrent-agent-workstream-load-in-operato-2026-07-07t18-36-34-787z-builder-drzwm4/.kota/dead-letter-queue/items.json",
+        "message": "dead-letter store is not available"
+      },
+      {
+        "source": "attention-items",
+        "status": "available",
+        "path": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-report-concurrent-agent-workstream-load-in-operato-2026-07-07t18-36-34-787z-builder-drzwm4/data/tasks + /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-report-concurrent-agent-workstream-load-in-operato-2026-07-07t18-36-34-787z-builder-drzwm4/.kota/runs",
+        "message": "attention detector read existing task and run surfaces"
+      }
+    ],
+    "workstreams": [],
+    "topReferences": [
+      {
+        "kind": "attention-item",
+        "id": "attention-1",
+        "reason": "Blocked backlog: 12 blocked tasks",
+        "workflow": null,
+        "taskId": null,
+        "taskTitle": null,
+        "scopeId": null,
+        "projectId": null
+      },
+      {
+        "kind": "attention-item",
+        "id": "attention-2",
+        "reason": "Stale blocker: task-extend-harness-parity-and-eval-harness-with-model- (blocked 10d)",
+        "workflow": null,
+        "taskId": "task-extend-harness-parity-and-eval-harness-with-model-",
+        "taskTitle": null,
+        "scopeId": null,
+        "projectId": null
+      },
+      {
+        "kind": "post-completion-follow-up",
+        "id": "task-run-shadow-semantic-reviewers-for-non-builder-auto",
+        "reason": "follow-up for task-add-loop-quality-audits-for-autonomous-workflows",
+        "workflow": null,
+        "taskId": "task-run-shadow-semantic-reviewers-for-non-builder-auto",
+        "taskTitle": "Run shadow semantic reviewers for non builder autonomy workflows",
+        "scopeId": null,
+        "projectId": null
+      }
+    ]
+  },
+  "openQueue": {
+    "total": 15,
+    "byPriority": [
+      {
+        "priority": "p1",
+        "count": 7
+      },
+      {
+        "priority": "p2",
+        "count": 7
+      },
+      {
+        "priority": "p3",
+        "count": 1
+      }
+    ],
+    "byArea": [
+      {
+        "area": "modules",
+        "count": 5
+      },
+      {
+        "area": "workflow-runtime",
+        "count": 4
+      },
+      {
+        "area": "architecture",
+        "count": 3
+      },
+      {
+        "area": "autonomy",
+        "count": 1
+      },
+      {
+        "area": "ops",
+        "count": 1
+      },
+      {
+        "area": "research",
+        "count": 1
+      }
+    ],
+    "byState": [
+      {
+        "state": "backlog",
+        "count": 2
+      },
+      {
+        "state": "blocked",
+        "count": 12
+      },
+      {
+        "state": "ready",
+        "count": 1
+      }
+    ],
+    "byTaskClass": [
+      {
+        "taskClass": "Platform",
+        "count": 3
+      },
+      {
+        "taskClass": "Meta",
+        "count": 6
+      },
+      {
+        "taskClass": "Unclassified",
+        "count": 6
+      }
+    ],
+    "waitingOnTasks": [
+      {
+        "taskId": "task-run-live-openrouter-and-local-model-rollout-evalua",
+        "title": "Run live OpenRouter and local model rollout evaluation",
+        "state": "backlog",
+        "waitingOn": [
+          "task-extend-harness-parity-and-eval-harness-with-model-"
+        ]
+      }
+    ]
+  },
+  "doneInWindow": {
+    "total": 42,
+    "byPriority": [
+      {
+        "priority": "p1",
+        "count": 11
+      },
+      {
+        "priority": "p2",
+        "count": 23
+      },
+      {
+        "priority": "p3",
+        "count": 8
+      }
+    ],
+    "byArea": [
+      {
+        "area": "security",
+        "count": 15
+      },
+      {
+        "area": "autonomy",
+        "count": 11
+      },
+      {
+        "area": "platform",
+        "count": 5
+      },
+      {
+        "area": "workflow-runtime",
+        "count": 3
+      },
+      {
+        "area": "client",
+        "count": 2
+      },
+      {
+        "area": "modules",
+        "count": 2
+      },
+      {
+        "area": "repo-tasks",
+        "count": 2
+      },
+      {
+        "area": "daemon-ops",
+        "count": 1
+      },
+      {
+        "area": "webhook",
+        "count": 1
+      }
+    ],
+    "byState": [
+      {
+        "state": "done",
+        "count": 42
+      }
+    ],
+    "byTaskClass": [
+      {
+        "taskClass": "Safety",
+        "count": 10
+      },
+      {
+        "taskClass": "Product",
+        "count": 6
+      },
+      {
+        "taskClass": "Platform",
+        "count": 3
+      },
+      {
+        "taskClass": "Meta",
+        "count": 12
+      },
+      {
+        "taskClass": "Unclassified",
+        "count": 11
+      }
+    ],
+    "waitingOnTasks": []
+  },
+  "explorer": {
+    "totalRuns": 0,
+    "totalTaskAdditions": 0,
+    "unresolvedTaskAdditions": 0,
+    "byClassification": [
+      {
+        "classification": "strategic",
+        "tasks": 0
+      },
+      {
+        "classification": "fan-out",
+        "tasks": 0
+      },
+      {
+        "classification": "other",
+        "tasks": 0
+      }
+    ],
+    "taskAdditions": []
+  },
+  "builder": {
+    "totalCommittedRuns": 0,
+    "unresolvedClosures": 0,
+    "byArea": [],
+    "byPriority": [],
+    "byClassification": [],
+    "closures": []
+  },
+  "decisionAttribution": {
+    "totalRuns": 0,
+    "byPlanning": [],
+    "byExecution": [],
+    "byWorkMode": [],
+    "hardSuccessSignals": [],
+    "troubleSignals": [],
+    "warnings": [],
+    "records": []
+  },
+  "diffSummaryConsistency": {
+    "totalBuilderRuns": 0,
+    "recordedRuns": 0,
+    "runsWithMismatches": 0,
+    "totalMismatches": 0,
+    "byCategory": [],
+    "missingData": [],
+    "examples": []
+  },
+  "reviewScrutiny": {
+    "totalReviews": 0,
+    "approvalLikeDecisions": 0,
+    "thinAcceptances": 0,
+    "absentMetricCount": 0,
+    "unsupportedArtifacts": 0,
+    "bySurface": [
+      {
+        "surface": "critic",
+        "reviews": 0,
+        "approvalLikeDecisions": 0,
+        "thinAcceptances": 0,
+        "absentMetricCount": 0,
+        "unsupportedArtifacts": 0
+      },
+      {
+        "surface": "progress-reviewer",
+        "reviews": 0,
+        "approvalLikeDecisions": 0,
+        "thinAcceptances": 0,
+        "absentMetricCount": 0,
+        "unsupportedArtifacts": 0
+      },
+      {
+        "surface": "pr-reviewer",
+        "reviews": 0,
+        "approvalLikeDecisions": 0,
+        "thinAcceptances": 0,
+        "absentMetricCount": 0,
+        "unsupportedArtifacts": 0
+      },
+      {
+        "surface": "semantic-gate",
+        "reviews": 0,
+        "approvalLikeDecisions": 0,
+        "thinAcceptances": 0,
+        "absentMetricCount": 0,
+        "unsupportedArtifacts": 0
+      }
+    ],
+    "thinAcceptanceRefs": [],
+    "absentMetricRefs": [],
+    "records": [],
+    "unsupported": []
+  },
+  "reviewScrutinyEscalation": {
+    "activePatterns": [],
+    "cooldownPatterns": [],
+    "belowThresholdPatterns": []
+  },
+  "shadowSemanticReviews": {
+    "totalArtifacts": 0,
+    "reviewed": 0,
+    "catches": 0,
+    "falsePositiveAnnotations": 0,
+    "skippedTargetResolution": 0,
+    "malformedArtifacts": 0,
+    "errorArtifacts": 0,
+    "totalCostUsd": 0,
+    "averageDurationMs": null,
+    "byWorkflow": [],
+    "records": [],
+    "unsupported": []
+  },
+  "trajectoryDiagnostics": {
+    "activePatterns": []
+  },
+  "processDiscipline": {
+    "rubricVersion": "process-discipline-v1",
+    "weakSampleThreshold": 3,
+    "totalRecords": 0,
+    "records": [],
+    "groups": []
+  },
+  "autonomyChangeDecisions": {
+    "totalDecisions": 0,
+    "invalidArtifacts": [],
+    "decisions": []
+  },
+  "codeHealthDrift": {
+    "totalBuilderRuns": 0,
+    "runsWithWarnings": 0,
+    "unsupportedArtifacts": 0,
+    "byWarningFamily": [],
+    "bySurfaceArea": [],
+    "repeatedSurfaces": [],
+    "trendBuckets": [
+      {
+        "bucket": "current",
+        "totalBuilderRuns": 0,
+        "runsWithWarnings": 0,
+        "warningRecords": 0,
+        "cleanupExceptionRuns": 0,
+        "unsupportedArtifacts": 0
+      },
+      {
+        "bucket": "prior",
+        "totalBuilderRuns": 0,
+        "runsWithWarnings": 0,
+        "warningRecords": 0,
+        "cleanupExceptionRuns": 0,
+        "unsupportedArtifacts": 0
+      }
+    ],
+    "records": []
+  },
+  "ownerInterventions": {
+    "totalQuestions": 0,
+    "pending": 0,
+    "stalePending": 0,
+    "answered": 0,
+    "answeredCorrections": 0,
+    "dismissed": 0,
+    "timeouts": 0,
+    "legacyUnknown": 0,
+    "byStatus": [],
+    "byOutcome": [],
+    "byAnswerBehavior": [],
+    "bySource": [],
+    "byWorkflow": [],
+    "byTask": [],
+    "records": [],
+    "recurringPatterns": {
+      "activePatterns": [],
+      "ignoredPatterns": [],
+      "belowThresholdPatterns": []
+    }
+  },
+  "postCompletionFollowUps": {
+    "totalCorrectiveFollowUps": 1,
+    "linkedCompletedTaskCount": 1,
+    "byReason": [
+      {
+        "reason": "security",
+        "count": 1
+      },
+      {
+        "reason": "review-scrutiny",
+        "count": 1
+      },
+      {
+        "reason": "operator-report",
+        "count": 1
+      }
+    ],
+    "completedTaskIds": [
+      "task-add-loop-quality-audits-for-autonomous-workflows"
+    ],
+    "activeFollowUpTaskIds": [
+      "task-run-shadow-semantic-reviewers-for-non-builder-auto"
+    ],
+    "links": [
+      {
+        "completedTaskId": "task-add-loop-quality-audits-for-autonomous-workflows",
+        "completedTaskTitle": "Add loop quality audits for autonomous workflows",
+        "activeFollowUpTaskId": "task-run-shadow-semantic-reviewers-for-non-builder-auto",
+        "activeFollowUpTitle": "Run shadow semantic reviewers for non builder autonomy workflows",
+        "activeFollowUpState": "ready",
+        "reasons": [
+          "security",
+          "review-scrutiny",
+          "operator-report"
+        ],
+        "matchedRefs": [
+          "task:task-add-loop-quality-audits-for-autonomous-workflows"
+        ],
+        "sourceRunIds": [],
+        "sourceCommitRefs": [],
+        "sourceArtifactPaths": []
+      }
+    ],
+    "truncatedLinkCount": 0
+  },
+  "qualityStratification": {
+    "weakSampleThreshold": 3,
+    "aggregates": [
+      {
+        "signal": "review-scrutiny",
+        "current": {
+          "sampleCount": 0,
+          "numeratorCount": 0,
+          "denominatorCount": 0,
+          "rate": null
+        },
+        "prior": {
+          "sampleCount": 0,
+          "numeratorCount": 0,
+          "denominatorCount": 0,
+          "rate": null
+        },
+        "rateDelta": null,
+        "weakEvidence": false
+      },
+      {
+        "signal": "code-health-drift",
+        "current": {
+          "sampleCount": 0,
+          "numeratorCount": 0,
+          "denominatorCount": 0,
+          "rate": null
+        },
+        "prior": {
+          "sampleCount": 0,
+          "numeratorCount": 0,
+          "denominatorCount": 0,
+          "rate": null
+        },
+        "rateDelta": null,
+        "weakEvidence": false
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "current": {
+          "sampleCount": 42,
+          "numeratorCount": 1,
+          "denominatorCount": 42,
+          "rate": 0.023809523809523808
+        },
+        "prior": {
+          "sampleCount": 100,
+          "numeratorCount": 1,
+          "denominatorCount": 100,
+          "rate": 0.01
+        },
+        "rateDelta": 0.013809523809523808,
+        "weakEvidence": false
+      }
+    ],
+    "slices": [
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskPriority",
+        "value": "p2",
+        "current": {
+          "sampleCount": 23,
+          "numeratorCount": 0,
+          "denominatorCount": 23,
+          "rate": 0
+        },
+        "prior": {
+          "sampleCount": 55,
+          "numeratorCount": 1,
+          "denominatorCount": 55,
+          "rate": 0.01818181818181818
+        },
+        "rateDelta": -0.01818181818181818,
+        "weakEvidence": false,
+        "references": [
+          {
+            "taskId": "task-add-completion-evidence-gates-for-operator-client-"
+          },
+          {
+            "taskId": "task-add-source-to-decision-coverage-report-for-agent-r"
+          },
+          {
+            "taskId": "task-audit-and-close-legacy-cli-control-task-records"
+          },
+          {
+            "taskId": "task-expose-planning-versus-execution-decision-attribut"
+          },
+          {
+            "taskId": "task-guard-tracing-exports-against-provider-request-pay"
+          }
+        ]
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskArea",
+        "value": "security",
+        "current": {
+          "sampleCount": 15,
+          "numeratorCount": 0,
+          "denominatorCount": 15,
+          "rate": 0
+        },
+        "prior": {
+          "sampleCount": 14,
+          "numeratorCount": 0,
+          "denominatorCount": 14,
+          "rate": 0
+        },
+        "rateDelta": 0,
+        "weakEvidence": false,
+        "references": [
+          {
+            "taskId": "task-security-review-autonomy-health-owner-action-quest"
+          },
+          {
+            "taskId": "task-security-review-autonomy-health-review-artifacts-s"
+          },
+          {
+            "taskId": "task-security-review-autonomy-health-review-task-genera"
+          },
+          {
+            "taskId": "task-security-review-fixture-candidate-task-creation-co"
+          },
+          {
+            "taskId": "task-security-review-progress-reviewer-creates-follow-u"
+          }
+        ]
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskClass",
+        "value": "Meta",
+        "current": {
+          "sampleCount": 12,
+          "numeratorCount": 1,
+          "denominatorCount": 12,
+          "rate": 0.08333333333333333
+        },
+        "prior": {
+          "sampleCount": 8,
+          "numeratorCount": 1,
+          "denominatorCount": 8,
+          "rate": 0.125
+        },
+        "rateDelta": -0.04166666666666667,
+        "weakEvidence": false,
+        "references": [
+          {
+            "taskId": "task-add-completion-evidence-gates-for-operator-client-"
+          },
+          {
+            "taskId": "task-add-loop-quality-audits-for-autonomous-workflows"
+          },
+          {
+            "taskId": "task-add-measured-autonomy-change-promotion-decisions"
+          },
+          {
+            "taskId": "task-add-source-to-decision-coverage-report-for-agent-r"
+          },
+          {
+            "taskId": "task-audit-and-close-legacy-cli-control-task-records"
+          }
+        ]
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskArea",
+        "value": "autonomy",
+        "current": {
+          "sampleCount": 11,
+          "numeratorCount": 1,
+          "denominatorCount": 11,
+          "rate": 0.09090909090909091
+        },
+        "prior": {
+          "sampleCount": 40,
+          "numeratorCount": 1,
+          "denominatorCount": 40,
+          "rate": 0.025
+        },
+        "rateDelta": 0.06590909090909092,
+        "weakEvidence": false,
+        "references": [
+          {
+            "taskId": "task-add-loop-quality-audits-for-autonomous-workflows"
+          },
+          {
+            "taskId": "task-add-measured-autonomy-change-promotion-decisions"
+          },
+          {
+            "taskId": "task-add-source-to-decision-coverage-report-for-agent-r"
+          },
+          {
+            "taskId": "task-classify-workflow-generated-follow-up-tasks"
+          },
+          {
+            "taskId": "task-expose-planning-versus-execution-decision-attribut"
+          }
+        ]
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskPriority",
+        "value": "p1",
+        "current": {
+          "sampleCount": 11,
+          "numeratorCount": 1,
+          "denominatorCount": 11,
+          "rate": 0.09090909090909091
+        },
+        "prior": {
+          "sampleCount": 22,
+          "numeratorCount": 0,
+          "denominatorCount": 22,
+          "rate": 0
+        },
+        "rateDelta": 0.09090909090909091,
+        "weakEvidence": false,
+        "references": [
+          {
+            "taskId": "task-add-loop-quality-audits-for-autonomous-workflows"
+          },
+          {
+            "taskId": "task-add-measured-autonomy-change-promotion-decisions"
+          },
+          {
+            "taskId": "task-make-bare-kota-launch-the-full-daemon-backed-cli-c"
+          },
+          {
+            "taskId": "task-make-foreground-daemon-mode-expose-operator-contro"
+          },
+          {
+            "taskId": "task-make-queue-availability-claim-aware-for-pending-me"
+          }
+        ]
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskClass",
+        "value": "Unclassified",
+        "current": {
+          "sampleCount": 11,
+          "numeratorCount": 0,
+          "denominatorCount": 11,
+          "rate": 0
+        },
+        "prior": {
+          "sampleCount": 59,
+          "numeratorCount": 0,
+          "denominatorCount": 59,
+          "rate": 0
+        },
+        "rateDelta": 0,
+        "weakEvidence": false,
+        "references": [
+          {
+            "taskId": "task-add-observability-evidence-for-mobile-typecheck-wr"
+          },
+          {
+            "taskId": "task-clear-stale-progress-reviewer-write-scope-dlq-item"
+          },
+          {
+            "taskId": "task-resolve-current-builder-workflow-dead-letters"
+          },
+          {
+            "taskId": "task-resolve-current-progress-reviewer-write-scope-dead"
+          },
+          {
+            "taskId": "task-security-review-autonomy-health-owner-action-quest"
+          }
+        ]
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskClass",
+        "value": "Safety",
+        "current": {
+          "sampleCount": 10,
+          "numeratorCount": 0,
+          "denominatorCount": 10,
+          "rate": 0
+        },
+        "prior": {
+          "sampleCount": 10,
+          "numeratorCount": 0,
+          "denominatorCount": 10,
+          "rate": 0
+        },
+        "rateDelta": 0,
+        "weakEvidence": false,
+        "references": [
+          {
+            "taskId": "task-guard-tracing-exports-against-provider-request-pay"
+          },
+          {
+            "taskId": "task-report-process-discipline-scores-from-trajectory-d"
+          },
+          {
+            "taskId": "task-security-review-fixture-candidate-task-creation-co"
+          },
+          {
+            "taskId": "task-security-review-progress-reviewer-creates-follow-u"
+          },
+          {
+            "taskId": "task-security-review-progress-reviewer-still-writes-rev"
+          }
+        ]
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskPriority",
+        "value": "p3",
+        "current": {
+          "sampleCount": 8,
+          "numeratorCount": 0,
+          "denominatorCount": 8,
+          "rate": 0
+        },
+        "prior": {
+          "sampleCount": 23,
+          "numeratorCount": 0,
+          "denominatorCount": 23,
+          "rate": 0
+        },
+        "rateDelta": 0,
+        "weakEvidence": false,
+        "references": [
+          {
+            "taskId": "task-add-observability-evidence-for-mobile-typecheck-wr"
+          },
+          {
+            "taskId": "task-classify-workflow-generated-follow-up-tasks"
+          },
+          {
+            "taskId": "task-clear-stale-builder-dlq-items-after-repair-merge"
+          },
+          {
+            "taskId": "task-clear-stale-progress-reviewer-write-scope-dlq-item"
+          },
+          {
+            "taskId": "task-resolve-webhook-trigger-route-diagnostics"
+          }
+        ]
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskClass",
+        "value": "Product",
+        "current": {
+          "sampleCount": 6,
+          "numeratorCount": 0,
+          "denominatorCount": 6,
+          "rate": 0
+        },
+        "prior": {
+          "sampleCount": 2,
+          "numeratorCount": 0,
+          "denominatorCount": 2,
+          "rate": 0
+        },
+        "rateDelta": 0,
+        "weakEvidence": true,
+        "references": [
+          {
+            "taskId": "task-expose-planning-versus-execution-decision-attribut"
+          },
+          {
+            "taskId": "task-make-bare-kota-launch-the-full-daemon-backed-cli-c"
+          },
+          {
+            "taskId": "task-make-foreground-daemon-mode-expose-operator-contro"
+          },
+          {
+            "taskId": "task-replace-readline-navigator-with-a-real-daemon-back"
+          },
+          {
+            "taskId": "task-report-concurrent-agent-workstream-load-in-operato"
+          }
+        ]
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskArea",
+        "value": "platform",
+        "current": {
+          "sampleCount": 5,
+          "numeratorCount": 0,
+          "denominatorCount": 5,
+          "rate": 0
+        },
+        "prior": {
+          "sampleCount": 4,
+          "numeratorCount": 0,
+          "denominatorCount": 4,
+          "rate": 0
+        },
+        "rateDelta": 0,
+        "weakEvidence": false,
+        "references": [
+          {
+            "taskId": "task-add-observability-evidence-for-mobile-typecheck-wr"
+          },
+          {
+            "taskId": "task-clear-stale-builder-dlq-items-after-repair-merge"
+          },
+          {
+            "taskId": "task-clear-stale-progress-reviewer-write-scope-dlq-item"
+          },
+          {
+            "taskId": "task-resolve-current-builder-workflow-dead-letters"
+          },
+          {
+            "taskId": "task-resolve-current-progress-reviewer-write-scope-dead"
+          }
+        ]
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskArea",
+        "value": "workflow-runtime",
+        "current": {
+          "sampleCount": 3,
+          "numeratorCount": 0,
+          "denominatorCount": 3,
+          "rate": 0
+        },
+        "prior": {
+          "sampleCount": 0,
+          "numeratorCount": 0,
+          "denominatorCount": 0,
+          "rate": null
+        },
+        "rateDelta": null,
+        "weakEvidence": false,
+        "references": [
+          {
+            "taskId": "task-reconcile-dirty-recovery-pause-state-across-status"
+          },
+          {
+            "taskId": "task-recover-stale-builder-claim-blocking-the-daemon-ba"
+          },
+          {
+            "taskId": "task-resolve-recent-runtime-observability-warnings"
+          }
+        ]
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskClass",
+        "value": "Platform",
+        "current": {
+          "sampleCount": 3,
+          "numeratorCount": 0,
+          "denominatorCount": 3,
+          "rate": 0
+        },
+        "prior": {
+          "sampleCount": 21,
+          "numeratorCount": 0,
+          "denominatorCount": 21,
+          "rate": 0
+        },
+        "rateDelta": 0,
+        "weakEvidence": false,
+        "references": [
+          {
+            "taskId": "task-clear-stale-builder-dlq-items-after-repair-merge"
+          },
+          {
+            "taskId": "task-reconcile-dirty-recovery-pause-state-across-status"
+          },
+          {
+            "taskId": "task-resolve-builder-claimed-task-commit-set-dead-lette"
+          }
+        ]
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskArea",
+        "value": "client",
+        "current": {
+          "sampleCount": 2,
+          "numeratorCount": 0,
+          "denominatorCount": 2,
+          "rate": 0
+        },
+        "prior": {
+          "sampleCount": 1,
+          "numeratorCount": 0,
+          "denominatorCount": 1,
+          "rate": 0
+        },
+        "rateDelta": 0,
+        "weakEvidence": true,
+        "references": [
+          {
+            "taskId": "task-make-bare-kota-launch-the-full-daemon-backed-cli-c"
+          },
+          {
+            "taskId": "task-replace-readline-navigator-with-a-real-daemon-back"
+          }
+        ]
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskArea",
+        "value": "modules",
+        "current": {
+          "sampleCount": 2,
+          "numeratorCount": 0,
+          "denominatorCount": 2,
+          "rate": 0
+        },
+        "prior": {
+          "sampleCount": 26,
+          "numeratorCount": 0,
+          "denominatorCount": 26,
+          "rate": 0
+        },
+        "rateDelta": 0,
+        "weakEvidence": true,
+        "references": [
+          {
+            "taskId": "task-guard-tracing-exports-against-provider-request-pay"
+          },
+          {
+            "taskId": "task-promote-run-trace-failures-into-eval-candidates"
+          }
+        ]
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskArea",
+        "value": "repo-tasks",
+        "current": {
+          "sampleCount": 2,
+          "numeratorCount": 0,
+          "denominatorCount": 2,
+          "rate": 0
+        },
+        "prior": {
+          "sampleCount": 0,
+          "numeratorCount": 0,
+          "denominatorCount": 0,
+          "rate": null
+        },
+        "rateDelta": null,
+        "weakEvidence": true,
+        "references": [
+          {
+            "taskId": "task-add-completion-evidence-gates-for-operator-client-"
+          },
+          {
+            "taskId": "task-audit-and-close-legacy-cli-control-task-records"
+          }
+        ]
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "reasonFamily",
+        "value": "operator-report",
+        "current": {
+          "sampleCount": 1,
+          "numeratorCount": 1,
+          "denominatorCount": 1,
+          "rate": 1
+        },
+        "prior": {
+          "sampleCount": 1,
+          "numeratorCount": 1,
+          "denominatorCount": 1,
+          "rate": 1
+        },
+        "rateDelta": 0,
+        "weakEvidence": true,
+        "references": [
+          {
+            "taskId": "task-add-loop-quality-audits-for-autonomous-workflows"
+          }
+        ]
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "reasonFamily",
+        "value": "review-scrutiny",
+        "current": {
+          "sampleCount": 1,
+          "numeratorCount": 1,
+          "denominatorCount": 1,
+          "rate": 1
+        },
+        "prior": {
+          "sampleCount": 1,
+          "numeratorCount": 1,
+          "denominatorCount": 1,
+          "rate": 1
+        },
+        "rateDelta": 0,
+        "weakEvidence": true,
+        "references": [
+          {
+            "taskId": "task-add-loop-quality-audits-for-autonomous-workflows"
+          }
+        ]
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "reasonFamily",
+        "value": "security",
+        "current": {
+          "sampleCount": 1,
+          "numeratorCount": 1,
+          "denominatorCount": 1,
+          "rate": 1
+        },
+        "prior": {
+          "sampleCount": 1,
+          "numeratorCount": 1,
+          "denominatorCount": 1,
+          "rate": 1
+        },
+        "rateDelta": 0,
+        "weakEvidence": true,
+        "references": [
+          {
+            "taskId": "task-add-loop-quality-audits-for-autonomous-workflows"
+          }
+        ]
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskArea",
+        "value": "daemon-ops",
+        "current": {
+          "sampleCount": 1,
+          "numeratorCount": 0,
+          "denominatorCount": 1,
+          "rate": 0
+        },
+        "prior": {
+          "sampleCount": 0,
+          "numeratorCount": 0,
+          "denominatorCount": 0,
+          "rate": null
+        },
+        "rateDelta": null,
+        "weakEvidence": true,
+        "references": [
+          {
+            "taskId": "task-make-foreground-daemon-mode-expose-operator-contro"
+          }
+        ]
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskArea",
+        "value": "webhook",
+        "current": {
+          "sampleCount": 1,
+          "numeratorCount": 0,
+          "denominatorCount": 1,
+          "rate": 0
+        },
+        "prior": {
+          "sampleCount": 0,
+          "numeratorCount": 0,
+          "denominatorCount": 0,
+          "rate": null
+        },
+        "rateDelta": null,
+        "weakEvidence": true,
+        "references": [
+          {
+            "taskId": "task-resolve-webhook-trigger-route-diagnostics"
+          }
+        ]
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskArea",
+        "value": "approval-queue",
+        "current": {
+          "sampleCount": 0,
+          "numeratorCount": 0,
+          "denominatorCount": 0,
+          "rate": null
+        },
+        "prior": {
+          "sampleCount": 1,
+          "numeratorCount": 0,
+          "denominatorCount": 1,
+          "rate": 0
+        },
+        "rateDelta": null,
+        "weakEvidence": true,
+        "references": []
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskArea",
+        "value": "architecture",
+        "current": {
+          "sampleCount": 0,
+          "numeratorCount": 0,
+          "denominatorCount": 0,
+          "rate": null
+        },
+        "prior": {
+          "sampleCount": 7,
+          "numeratorCount": 0,
+          "denominatorCount": 7,
+          "rate": 0
+        },
+        "rateDelta": null,
+        "weakEvidence": false,
+        "references": []
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskArea",
+        "value": "core",
+        "current": {
+          "sampleCount": 0,
+          "numeratorCount": 0,
+          "denominatorCount": 0,
+          "rate": null
+        },
+        "prior": {
+          "sampleCount": 5,
+          "numeratorCount": 0,
+          "denominatorCount": 5,
+          "rate": 0
+        },
+        "rateDelta": null,
+        "weakEvidence": false,
+        "references": []
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskArea",
+        "value": "knowledge",
+        "current": {
+          "sampleCount": 0,
+          "numeratorCount": 0,
+          "denominatorCount": 0,
+          "rate": null
+        },
+        "prior": {
+          "sampleCount": 2,
+          "numeratorCount": 0,
+          "denominatorCount": 2,
+          "rate": 0
+        },
+        "rateDelta": null,
+        "weakEvidence": true,
+        "references": []
+      }
+    ],
+    "missingDimensions": [
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "changedArea",
+        "count": 42
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "harness",
+        "count": 42
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "reasonFamily",
+        "count": 41
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "workflow",
+        "count": 42
+      }
+    ],
+    "compositionShifts": [
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskClass",
+        "value": "Unclassified",
+        "currentSampleCount": 11,
+        "priorSampleCount": 59,
+        "currentShare": 0.2619047619047619,
+        "priorShare": 0.59,
+        "shareDelta": -0.32809523809523805
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskArea",
+        "value": "security",
+        "currentSampleCount": 15,
+        "priorSampleCount": 14,
+        "currentShare": 0.35714285714285715,
+        "priorShare": 0.14,
+        "shareDelta": 0.21714285714285714
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskArea",
+        "value": "modules",
+        "currentSampleCount": 2,
+        "priorSampleCount": 26,
+        "currentShare": 0.047619047619047616,
+        "priorShare": 0.26,
+        "shareDelta": -0.2123809523809524
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskClass",
+        "value": "Meta",
+        "currentSampleCount": 12,
+        "priorSampleCount": 8,
+        "currentShare": 0.2857142857142857,
+        "priorShare": 0.08,
+        "shareDelta": 0.20571428571428568
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskClass",
+        "value": "Platform",
+        "currentSampleCount": 3,
+        "priorSampleCount": 21,
+        "currentShare": 0.07142857142857142,
+        "priorShare": 0.21,
+        "shareDelta": -0.13857142857142857
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskArea",
+        "value": "autonomy",
+        "currentSampleCount": 11,
+        "priorSampleCount": 40,
+        "currentShare": 0.2619047619047619,
+        "priorShare": 0.4,
+        "shareDelta": -0.1380952380952381
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskClass",
+        "value": "Safety",
+        "currentSampleCount": 10,
+        "priorSampleCount": 10,
+        "currentShare": 0.23809523809523808,
+        "priorShare": 0.1,
+        "shareDelta": 0.13809523809523808
+      },
+      {
+        "signal": "post-completion-follow-up",
+        "dimension": "taskClass",
+        "value": "Product",
+        "currentSampleCount": 6,
+        "priorSampleCount": 2,
+        "currentShare": 0.14285714285714285,
+        "priorShare": 0.02,
+        "shareDelta": 0.12285714285714285
+      }
+    ]
+  },
+  "health": {
+    "totalSignals": 0,
+    "totalGroups": 0,
+    "bySeverity": [],
+    "byLabel": [],
+    "byScope": [],
+    "bySource": [],
+    "byActionability": [],
+    "topGroups": []
+  },
+  "blockers": {
+    "totalBlocked": 12,
+    "byKind": [
+      {
+        "kind": "operator-capture",
+        "count": 12
+      }
+    ]
+  },
+  "cost": {
+    "totalCostUsd": 0,
+    "finishedRuns": 0,
+    "averagePerFinishedRun": 0,
+    "byWorkflow": []
+  },
+  "controlCoverage": {
+    "artifactCount": 0,
+    "runsWithGaps": 0,
+    "totalGaps": 0,
+    "pendingFamilies": 0,
+    "unsupportedFamilies": 0,
+    "blockedFamilies": 0,
+    "warnedFamilies": 0,
+    "evidenceGapCount": 0,
+    "producerMissingEvidenceRefs": 0,
+    "policyPrunedEvidenceRefs": 0,
+    "asyncReviewResponseMs": {
+      "observations": 0,
+      "min": null,
+      "max": null,
+      "average": null
+    },
+    "evidenceGaps": [],
+    "topGaps": [],
+    "recentArtifactPaths": []
+  }
+}

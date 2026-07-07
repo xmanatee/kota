@@ -42,6 +42,7 @@ import {
 import { buildProcessDisciplineReport } from "./process-discipline-report.js";
 import { buildQualityStratificationReport } from "./quality-stratification.js";
 import { buildShadowSemanticReviewReport } from "./shadow-semantic-reviews.js";
+import { buildSupervisionLoadReport } from "./supervision-load.js";
 
 export {
   type AreaCount,
@@ -72,6 +73,7 @@ export {
   type ReportPriority,
   type ShadowSemanticReviewReport,
   type StateCount,
+  type SupervisionLoadReport,
   type TaskClassCount,
   type TrajectoryDiagnosticPatternSummary,
   type TrajectoryDiagnosticReport,
@@ -171,11 +173,21 @@ export function aggregateAutonomyReport(
   const priorPostCompletionFollowUps = summarizePostCompletionFollowUpLinks(
     priorPostCompletionFollowUpLinks,
   );
+  const supervisionLoad = buildSupervisionLoadReport({
+    projectDir: input.projectDir,
+    runsDir: input.runsDir,
+    runs: reportRuns,
+    tasks: allTasks,
+    windowEndMs: input.windowEndMs,
+    reviewScrutiny,
+    postCompletionFollowUps,
+  });
 
   return {
     windowStartedAt: new Date(windowStartMs).toISOString(),
     windowEndedAt: new Date(input.windowEndMs).toISOString(),
     windowDays,
+    supervisionLoad,
     openQueue,
     doneInWindow,
     explorer: buildExplorerBalance(runs, taskById, input.addedFilesBySha),

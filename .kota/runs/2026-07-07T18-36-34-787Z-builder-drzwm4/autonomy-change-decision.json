@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "autonomy-change-decision",
+  "runId": "2026-07-07T18-36-34-787Z-builder-drzwm4",
+  "createdAt": "2026-07-07T19:05:00.000Z",
+  "taskIds": [
+    "task-report-concurrent-agent-workstream-load-in-operato"
+  ],
+  "affectedSurfaces": [
+    "operator autonomy report",
+    "kota report CLI and JSON output",
+    "review-scrutiny-derived supervision-load evidence"
+  ],
+  "changeClasses": [
+    "reviewer"
+  ],
+  "hypothesis": "An operator-only supervision-load section will make concurrent autonomy workstreams and human-action pressure visible without changing dispatch, prompts, or reviewer pass/fail behavior.",
+  "sourceRefs": [
+    "data/tasks/done/task-report-concurrent-agent-workstream-load-in-operato.md",
+    ".kota/runs/2026-07-07T18-36-34-787Z-builder-drzwm4/success-criteria.txt",
+    ".kota/runs/2026-07-07T18-36-34-787Z-builder-drzwm4/success-criteria-verified.txt"
+  ],
+  "baselineRefs": [
+    "src/modules/autonomy/report/aggregate.ts",
+    "src/modules/autonomy/report/render.ts",
+    "src/modules/autonomy/report/report-cli.ts"
+  ],
+  "candidateRefs": [
+    "src/modules/autonomy/report/supervision-load.ts",
+    "src/modules/autonomy/report/supervision-load-readers.ts",
+    "src/modules/autonomy/report/supervision-load-references.ts",
+    "src/modules/autonomy/report/supervision-load-workstreams.ts",
+    "src/modules/autonomy/report/render-supervision-load.ts",
+    "src/modules/autonomy/report/supervision-load.test.ts",
+    "src/modules/autonomy/report/report-cli-supervision-load.test.ts",
+    ".kota/runs/2026-07-07T18-36-34-787Z-builder-drzwm4/report-transcript.txt",
+    ".kota/runs/2026-07-07T18-36-34-787Z-builder-drzwm4/supervision-load-report.json",
+    ".kota/runs/2026-07-07T18-36-34-787Z-builder-drzwm4/focused-test-transcript.txt"
+  ],
+  "metricsCompared": [
+    {
+      "name": "focused supervision-load report tests",
+      "baseline": "autonomy reports had no supervision-load aggregation, rendered section, or focused CLI/JSON coverage",
+      "candidate": "focused report tests cover normal load, overloaded load, pending-merge pressure, missing/unreadable evidence, multi-scope grouping, rendered output, and JSON output",
+      "unit": "vitest",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "operator-visible load evidence",
+      "baseline": "operators had to inspect active runs, task claims, approvals, owner questions, dead letters, and attention items as separate surfaces",
+      "candidate": "report transcript and JSON artifact expose bounded counts, status, thresholds, unknown evidence, workstreams, and top references together",
+      "unit": "run artifact",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "autonomy execution posture",
+      "baseline": "no dispatch gate used operator supervision load as autonomy input",
+      "candidate": "the new signal remains in operator report aggregation and rendering only, with no agent prompt or queue-shaping path added",
+      "unit": "surface boundary",
+      "direction": "unchanged",
+      "qualitySignal": true
+    }
+  ],
+  "rolloutMode": "advisory",
+  "decision": "promote",
+  "rationale": "The reviewer-class change is limited to operator reporting: it reuses existing runtime artifacts and review-scrutiny counts, reports missing stores as unknown evidence, and leaves workflow dispatch and agent prompts unchanged. The focused tests and captured report artifacts prove the operator-visible behavior while the repair split keeps the implementation under the source-size guideline.",
+  "ownerSafetyExceptions": [],
+  "followUpTaskIds": []
+}

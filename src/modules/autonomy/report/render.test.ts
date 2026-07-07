@@ -6,6 +6,7 @@ describe("renderAutonomyReport", () => {
   it("renders all dimension headings even when data is empty", () => {
     const text = renderReport(empty);
     expect(text).toContain("Autonomy report");
+    expect(text).toContain("Supervision load");
     expect(text).toContain("Open queue");
     expect(text).toContain("Tasks moved to done in window");
     expect(text).toContain("Explorer output");
@@ -28,6 +29,9 @@ describe("renderAutonomyReport", () => {
 
   it("emits placeholder lines when sections are empty", () => {
     const text = renderReport(empty);
+    expect(text).toContain("Status: normal");
+    expect(text).toContain("active runs");
+    expect(text).toContain("(no evidence sources checked)");
     expect(text).toContain("(none)");
     expect(text).toContain("(no explorer runs)");
     expect(text).toContain("(no builder commits)");

@@ -1,0 +1,5 @@
+1. The autonomy report JSON includes a supervision-load section with bounded counts, deterministic threshold metadata, status, unknown-store evidence, grouping, and top run/task references.
+2. The rendered `kota report` output includes an operator-visible supervision-load section that reports active runs, claims, approvals, owner questions, dead letters, attention items, pending-merge pressure, and corrective follow-up pressure without exposing the section to agent prompts.
+3. Focused tests cover normal load, overloaded load, pending-merge load, missing/unreadable store evidence, multi-scope grouping, and JSON plus rendered text output.
+4. Acceptance artifacts under this run directory include a report transcript, structured JSON output, and focused test transcript.
+5. Task validation passes after the implementation task is moved to done.

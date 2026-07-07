@@ -1,13 +1,13 @@
 ---
 id: task-report-concurrent-agent-workstream-load-in-operato
 title: Report concurrent agent workstream load in operator reports
-status: ready
+status: done
 priority: p1
 area: autonomy
 task_class: Product
 summary: Add an operator-visible supervision-load section that summarizes concurrent KOTA workstreams, pending human decisions, and overload warnings from existing runtime artifacts so parallel autonomy remains inspectable.
 created_at: 2026-07-07T18:31:57.812Z
-updated_at: 2026-07-07T18:31:57.812Z
+updated_at: 2026-07-07T18:52:06.806Z
 ---
 
 ## Problem
@@ -126,15 +126,28 @@ reconstructing active, pending, and blocked workstreams from many surfaces.
 Safety: makes review-load pressure visible before overloaded supervision
 weakens approval, merge, or task-completion scrutiny.
 
+## Result
+
+`kota report` now renders a Supervision load section and the structured report
+JSON includes `supervisionLoad`. The section reads the existing runs directory,
+task-claim files, approval files, owner-question files, dead-letter queue,
+attention detector, review-scrutiny counts, and post-completion follow-up
+links. Missing or unreadable stores are reported as unknown evidence instead of
+zero counts, and focused fixtures cover normal, overloaded, pending-merge,
+missing/unreadable, multi-scope, JSON, and rendered output cases.
+
 ## Acceptance Evidence
 
-- Transcript under `.kota/runs/<run-id>/report-transcript.txt` showing the
-  report command and the rendered supervision-load section.
-- JSON artifact under `.kota/runs/<run-id>/supervision-load-report.json` or
-  equivalent `kota report --json` output with counts, status, threshold
-  metadata, unknown-store evidence, and top references.
-- Focused test transcript covering normal, overloaded, pending-merge, and
-  missing-store cases.
-- Diff review showing the new section reads existing stores/artifacts and does
-  not expose supervision-load signals to autonomy agent prompts.
-- `pnpm run validate-tasks` passes.
+- `.kota/runs/2026-07-07T18-36-34-787Z-builder-drzwm4/report-transcript.txt`
+  shows `pnpm kota report` rendering the Supervision load section with status,
+  counts, unknown store evidence, and top references.
+- `.kota/runs/2026-07-07T18-36-34-787Z-builder-drzwm4/supervision-load-report.json`
+  is parseable `kota report --json` output with `supervisionLoad.counts`,
+  `status`, threshold weights, unknown-store evidence, and top references.
+- `.kota/runs/2026-07-07T18-36-34-787Z-builder-drzwm4/focused-test-transcript.txt`
+  shows the focused report tests passing, including normal load, overloaded
+  load, pending-merge load, missing/unreadable store evidence, multi-scope
+  grouping, JSON output, and rendered text output.
+- `src/modules/autonomy/report/supervision-load.ts` reads existing report,
+  task, run, claim, approval, owner-question, dead-letter, and attention
+  surfaces without adding an agent-prompt path.
