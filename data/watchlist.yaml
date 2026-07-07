@@ -764,3 +764,7 @@ resources:
   - url: https://arxiv.org/abs/2606.22678
     added: "2026-07-07"
     notes: "RigorBench studies process discipline in autonomous coding agents across planning, verification, recovery, abstention, and atomicity dimensions. Monitor as an autonomy/reporting signal for projecting KOTA's existing trajectory diagnostics into bounded operator-facing discipline scores; do not import the benchmark runner, external weights, or an LLM process judge."
+    snapshot:
+      fingerprint: sha256:9b7fe3a4cb5474b0d0e2e8cca36a6c51
+      summary: "RigorBench is accessible; its process-discipline benchmark signal is already covered by completed task-report-process-discipline-scores-from-trajectory-d, so no duplicate task is needed."
+      last_seen_at: "2026-07-07T15:16:37.127Z"
