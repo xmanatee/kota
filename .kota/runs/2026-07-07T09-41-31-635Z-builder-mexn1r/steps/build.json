@@ -1,0 +1,42 @@
+{
+  "id": "build",
+  "type": "agent",
+  "status": "success",
+  "startedAt": "2026-07-07T09:56:57.039Z",
+  "completedAt": "2026-07-07T10:29:46.953Z",
+  "durationMs": 1969914,
+  "costUsd": 0,
+  "output": {
+    "content": {
+      "redacted": true,
+      "reason": "provider-payload",
+      "bytes": 12883
+    },
+    "sessionId": "019f3c02-6601-7d22-a7af-36132cebd692",
+    "turns": 1,
+    "totalCostUsd": 0,
+    "inputTokens": 15268507,
+    "outputTokens": 69116,
+    "repairIterations": [],
+    "repairWarnings": [
+      {
+        "id": "source-file-size",
+        "passed": false,
+        "output": "[\n  {\n    \"type\": \"source-file-size\",\n    \"file\": \"src/modules/eval-harness/cli.ts\",\n    \"lines\": 738,\n    \"threshold\": 300,\n    \"changedLines\": 8,\n    \"message\": \"Changed source file src/modules/eval-harness/cli.ts is 738 line(s), above the 300-line source-size guideline.\"\n  }\n]",
+        "severity": "warning"
+      }
+    ]
+  },
+  "harness": "codex",
+  "model": "gpt-5.5",
+  "trajectoryDiagnostics": {
+    "artifactPath": ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/steps/build.trajectory-diagnostics.json",
+    "warningCount": 0,
+    "unsupportedTrajectoryCount": 0,
+    "missingStreamingFramesCount": 0,
+    "missingFinalVerificationAfterEditCount": 0,
+    "repeatedIdenticalFailingCommandCount": 0,
+    "editAfterSuccessfulVerificationCount": 0,
+    "longPreambleWithoutTaskTouchCount": 0
+  }
+}

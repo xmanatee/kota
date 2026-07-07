@@ -1,0 +1,14 @@
+{
+  "outcome": "advisory",
+  "warnings": [
+    {
+      "type": "source-file-size",
+      "file": "src/modules/eval-harness/cli.ts",
+      "lines": 738,
+      "threshold": 300,
+      "changedLines": 8,
+      "message": "Changed source file src/modules/eval-harness/cli.ts is 738 line(s), above the 300-line source-size guideline."
+    }
+  ],
+  "message": "Advisory source-size warning(s): src/modules/eval-harness/cli.ts."
+}

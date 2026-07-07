@@ -1,0 +1,53 @@
+{
+  "event": "autonomy.queue.available",
+  "schemaRef": null,
+  "eventId": "evtj-000000146608",
+  "payload": {
+    "pullableCount": 5,
+    "actionableCount": 3,
+    "dispatchableCount": 4,
+    "counts": {
+      "backlog": 4,
+      "ready": 3,
+      "doing": 0,
+      "blocked": 10,
+      "done": 1425,
+      "dropped": 23
+    },
+    "dependencyBlockedTasks": [
+      {
+        "id": "task-audit-and-close-legacy-cli-control-task-records",
+        "title": "Audit and close legacy CLI control task records",
+        "state": "backlog",
+        "dependsOn": [
+          "task-replace-readline-navigator-with-a-real-daemon-back",
+          "task-make-foreground-daemon-mode-expose-operator-contro",
+          "task-reconcile-dirty-recovery-pause-state-across-status",
+          "task-add-completion-evidence-gates-for-operator-client-"
+        ],
+        "waitingOn": [
+          "task-add-completion-evidence-gates-for-operator-client-"
+        ]
+      },
+      {
+        "id": "task-run-live-openrouter-and-local-model-rollout-evalua",
+        "title": "Run live OpenRouter and local model rollout evaluation",
+        "state": "backlog",
+        "dependsOn": [
+          "task-add-openrouter-model-capability-catalog-and-candid",
+          "task-make-openai-compatible-model-clients-honor-model-s",
+          "task-route-openai-tools-through-the-kota-tool-runner-wi",
+          "task-preserve-rich-tool-results-reasoning-and-agent-mes",
+          "task-add-kota-owned-session-resume-for-model-client-har",
+          "task-extend-harness-parity-and-eval-harness-with-model-",
+          "task-add-scaffolded-weak-and-local-model-agent-mode"
+        ],
+        "waitingOn": [
+          "task-extend-harness-parity-and-eval-harness-with-model-"
+        ]
+      }
+    ],
+    "scopeId": "8nrg1m",
+    "projectId": "8nrg1m"
+  }
+}

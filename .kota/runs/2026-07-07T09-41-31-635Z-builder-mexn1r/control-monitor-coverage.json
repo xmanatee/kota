@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-07T10:30:13.754Z",
+  "artifactPath": ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/control-monitor-coverage.json",
+  "run": {
+    "id": "2026-07-07T09-41-31-635Z-builder-mexn1r",
+    "workflow": "builder",
+    "triggerEvent": "autonomy.queue.available",
+    "status": "success",
+    "startedAt": "2026-07-07T09:56:12.402Z",
+    "completedAt": "2026-07-07T10:30:03.716Z",
+    "headSha": "ced7867bc0dff764801a3b092e15a66d08a1db5d"
+  },
+  "monitoredSurfaceCounts": {
+    "agentSteps": 1,
+    "toolCalls": 0,
+    "externalPayloadIngests": 0,
+    "approvalRequests": 0,
+    "ownerQuestionWaits": 0,
+    "daemonHostControlDenials": 0,
+    "runtimeProbes": 0,
+    "postRunReviewLinks": 1
+  },
+  "summary": {
+    "numerator": 4,
+    "denominator": 4,
+    "gapCount": 0,
+    "unsupportedCount": 0,
+    "pendingCount": 0,
+    "blockedCount": 0,
+    "warnedCount": 0
+  },
+  "families": [
+    {
+      "family": "agent-step-stream",
+      "numerator": 1,
+      "denominator": 1,
+      "pending": 0,
+      "blocked": 0,
+      "warned": 0,
+      "evidenceRefs": [
+        ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/steps/build.events.jsonl"
+      ],
+      "gapIds": [],
+      "status": "covered"
+    },
+    {
+      "family": "autonomy-mode",
+      "numerator": 1,
+      "denominator": 1,
+      "pending": 0,
+      "blocked": 0,
+      "warned": 0,
+      "evidenceRefs": [
+        ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/workflow.json"
+      ],
+      "gapIds": [],
+      "status": "covered"
+    },
+    {
+      "family": "trajectory-diagnostics",
+      "numerator": 1,
+      "denominator": 1,
+      "pending": 0,
+      "blocked": 0,
+      "warned": 0,
+      "evidenceRefs": [
+        ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/steps/build.trajectory-diagnostics.json"
+      ],
+      "gapIds": [],
+      "status": "covered"
+    },
+    {
+      "family": "tool-policy",
+      "numerator": 0,
+      "denominator": 0,
+      "pending": 0,
+      "blocked": 0,
+      "warned": 0,
+      "evidenceRefs": [],
+      "gapIds": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "injection-defense",
+      "numerator": 0,
+      "denominator": 0,
+      "pending": 0,
+      "blocked": 0,
+      "warned": 0,
+      "evidenceRefs": [],
+      "gapIds": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "approval-owner-gates",
+      "numerator": 0,
+      "denominator": 0,
+      "pending": 0,
+      "blocked": 0,
+      "warned": 0,
+      "evidenceRefs": [],
+      "gapIds": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "runtime-probe",
+      "numerator": 0,
+      "denominator": 0,
+      "pending": 0,
+      "blocked": 0,
+      "warned": 0,
+      "evidenceRefs": [],
+      "gapIds": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "async-reviewers",
+      "numerator": 1,
+      "denominator": 1,
+      "pending": 0,
+      "blocked": 0,
+      "warned": 0,
+      "evidenceRefs": [
+        ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/critic-review.json"
+      ],
+      "gapIds": [],
+      "status": "covered"
+    }
+  ],
+  "gaps": [],
+  "asyncReviewResponseMs": {
+    "observations": 0,
+    "min": null,
+    "max": null,
+    "average": null
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 2,
+  "surface": "critic",
+  "runId": "2026-07-07T09-41-31-635Z-builder-mexn1r",
+  "workflow": "builder",
+  "generatedAt": "2026-07-07T10:29:46.800Z",
+  "artifact": "critic-review.json",
+  "reviewerPromptHash": "f6e5054b3887",
+  "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+  "decision": "pass",
+  "signals": {
+    "issueCount": 0,
+    "warningCount": 0,
+    "reviewBodyLength": 305,
+    "citedFileLineCount": 2
+  },
+  "absentMetrics": [
+    "evidenceIdCount",
+    "findingCount",
+    "followUpTaskCount"
+  ],
+  "thinAcceptance": false
+}

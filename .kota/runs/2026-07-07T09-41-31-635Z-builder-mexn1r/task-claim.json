@@ -1,0 +1,103 @@
+{
+  "claimed": true,
+  "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+  "claim": {
+    "schemaVersion": 1,
+    "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+    "taskState": "ready",
+    "runId": "2026-07-07T09-41-31-635Z-builder-mexn1r",
+    "workflowId": "builder",
+    "owner": "workflow:builder",
+    "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota",
+    "branch": "main",
+    "baseCommit": "4c769e6bbf98c9b070d911c10d6fc9d3a99ca8b5",
+    "leaseMs": 25200000,
+    "leaseAcquiredAt": "2026-07-07T09:56:14.488Z",
+    "leaseExpiresAt": "2026-07-07T16:56:14.488Z",
+    "createdAt": "2026-07-07T09:56:14.488Z",
+    "updatedAt": "2026-07-07T09:56:14.488Z",
+    "status": "active",
+    "evidence": null
+  },
+  "recoveryStatus": "agent-running",
+  "safeToRetry": false,
+  "recoveryPath": "new-claim",
+  "reason": null,
+  "candidateCount": 2,
+  "skipped": [
+    {
+      "claimed": false,
+      "taskId": "task-run-shadow-semantic-reviewers-for-non-builder-auto",
+      "claim": {
+        "schemaVersion": 1,
+        "taskId": "task-run-shadow-semantic-reviewers-for-non-builder-auto",
+        "taskState": "ready",
+        "runId": "2026-07-07T06-33-49-256Z-builder-79nvwh",
+        "workflowId": "builder",
+        "owner": "workflow:builder",
+        "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-run-shadow-semantic-reviewers-for-non-builder-auto-2026-07-07t06-33-49-256z-builder-79nvwh",
+        "branch": "kota/task/task-run-shadow-semantic-reviewers-for-non-builder-auto/2026-07-07t06-33-49-256z-builder-79nvwh",
+        "baseCommit": "f875c2a8812c5abaed45a065a11e5484de83a0c1",
+        "leaseMs": 25200000,
+        "leaseAcquiredAt": "2026-07-07T07:08:22.727Z",
+        "leaseExpiresAt": "2026-07-07T14:08:22.727Z",
+        "createdAt": "2026-07-07T07:08:22.727Z",
+        "updatedAt": "2026-07-07T09:31:42.317Z",
+        "status": "pending-merge",
+        "evidence": "builder branch is pending merge: validation failed after merge gate integration"
+      },
+      "recoveryStatus": "pending-merge",
+      "safeToRetry": false,
+      "recoveryPath": "skipped-pending-merge",
+      "reason": "task is already claimed by workflow:builder (2026-07-07T06-33-49-256Z-builder-79nvwh)"
+    }
+  ],
+  "activeClaims": [
+    {
+      "claim": {
+        "schemaVersion": 1,
+        "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+        "taskState": "ready",
+        "runId": "2026-07-07T09-41-31-635Z-builder-mexn1r",
+        "workflowId": "builder",
+        "owner": "workflow:builder",
+        "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota",
+        "branch": "main",
+        "baseCommit": "4c769e6bbf98c9b070d911c10d6fc9d3a99ca8b5",
+        "leaseMs": 25200000,
+        "leaseAcquiredAt": "2026-07-07T09:56:14.488Z",
+        "leaseExpiresAt": "2026-07-07T16:56:14.488Z",
+        "createdAt": "2026-07-07T09:56:14.488Z",
+        "updatedAt": "2026-07-07T09:56:14.488Z",
+        "status": "active",
+        "evidence": null
+      },
+      "path": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/task-claims/active/task-promote-run-trace-failures-into-eval-candidates.json",
+      "recoveryStatus": "agent-running",
+      "safeToRetry": false
+    },
+    {
+      "claim": {
+        "schemaVersion": 1,
+        "taskId": "task-run-shadow-semantic-reviewers-for-non-builder-auto",
+        "taskState": "ready",
+        "runId": "2026-07-07T06-33-49-256Z-builder-79nvwh",
+        "workflowId": "builder",
+        "owner": "workflow:builder",
+        "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-run-shadow-semantic-reviewers-for-non-builder-auto-2026-07-07t06-33-49-256z-builder-79nvwh",
+        "branch": "kota/task/task-run-shadow-semantic-reviewers-for-non-builder-auto/2026-07-07t06-33-49-256z-builder-79nvwh",
+        "baseCommit": "f875c2a8812c5abaed45a065a11e5484de83a0c1",
+        "leaseMs": 25200000,
+        "leaseAcquiredAt": "2026-07-07T07:08:22.727Z",
+        "leaseExpiresAt": "2026-07-07T14:08:22.727Z",
+        "createdAt": "2026-07-07T07:08:22.727Z",
+        "updatedAt": "2026-07-07T09:31:42.317Z",
+        "status": "pending-merge",
+        "evidence": "builder branch is pending merge: validation failed after merge gate integration"
+      },
+      "path": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/task-claims/active/task-run-shadow-semantic-reviewers-for-non-builder-auto.json",
+      "recoveryStatus": "pending-merge",
+      "safeToRetry": false
+    }
+  ]
+}

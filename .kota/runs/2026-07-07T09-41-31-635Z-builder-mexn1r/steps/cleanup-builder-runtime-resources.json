@@ -1,0 +1,27 @@
+{
+  "id": "cleanup-builder-runtime-resources",
+  "type": "code",
+  "status": "success",
+  "startedAt": "2026-07-07T10:29:56.714Z",
+  "completedAt": "2026-07-07T10:29:56.762Z",
+  "durationMs": 48,
+  "output": {
+    "schemaVersion": 1,
+    "profileId": "task-promote-run-trace-failures-into-eval-candidates:2026-07-07T09-41-31-635Z-builder-mexn1r",
+    "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+    "runId": "2026-07-07T09-41-31-635Z-builder-mexn1r",
+    "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r",
+    "tempRoot": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/tmp/2026-07-07T09-41-31-635Z-builder-mexn1r",
+    "tempRemoved": false,
+    "blockers": [],
+    "portLease": {
+      "leasePath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/runtime-resources/builder-port-leases.json",
+      "released": true,
+      "releasedProfileIds": [
+        "task-promote-run-trace-failures-into-eval-candidates:2026-07-07T09-41-31-635Z-builder-mexn1r"
+      ],
+      "remainingLeaseCount": 0
+    },
+    "artifactPath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/builder-runtime-resource-cleanup.json"
+  }
+}

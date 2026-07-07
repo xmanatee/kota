@@ -1,0 +1,114 @@
+{
+  "name": "builder",
+  "description": "Build KOTA by shipping one cohesive improvement per workflow run.",
+  "enabled": true,
+  "definitionPath": "src/modules/autonomy/workflows/builder/workflow.ts",
+  "defaultAutonomyMode": "autonomous",
+  "triggers": [
+    {
+      "event": "autonomy.queue.available",
+      "cooldownMs": 0
+    },
+    {
+      "event": "runtime.recovered",
+      "cooldownMs": 0
+    }
+  ],
+  "steps": [
+    {
+      "id": "reset-for-recovery",
+      "type": "code"
+    },
+    {
+      "id": "inspect-ready-queue",
+      "type": "code"
+    },
+    {
+      "id": "claim-task",
+      "type": "code"
+    },
+    {
+      "id": "prepare-worktree",
+      "type": "code"
+    },
+    {
+      "id": "build",
+      "type": "agent",
+      "promptPath": "src/modules/autonomy/workflows/builder/prompt.md",
+      "model": "gpt-5.5",
+      "effort": "xhigh",
+      "autonomyMode": "autonomous",
+      "disallowedTools": [
+        "Agent",
+        "EnterWorktree",
+        "ExitWorktree",
+        "Task"
+      ]
+    },
+    {
+      "id": "create-task-branch",
+      "type": "code"
+    },
+    {
+      "id": "check-claimed-task-consistency",
+      "type": "code"
+    },
+    {
+      "id": "commit",
+      "type": "code"
+    },
+    {
+      "id": "write-run-summary",
+      "type": "code"
+    },
+    {
+      "id": "merge-gate",
+      "type": "code"
+    },
+    {
+      "id": "release-task-claim",
+      "type": "code"
+    },
+    {
+      "id": "write-calibration-artifact",
+      "type": "code"
+    },
+    {
+      "id": "cleanup-automation-worktree",
+      "type": "code"
+    },
+    {
+      "id": "create-pr",
+      "type": "code"
+    },
+    {
+      "id": "mark-claim-pending-merge",
+      "type": "code"
+    },
+    {
+      "id": "cleanup-builder-runtime-resources",
+      "type": "code"
+    },
+    {
+      "id": "cleanup-merged-branches",
+      "type": "code"
+    },
+    {
+      "id": "write-parallel-builder-metrics",
+      "type": "code"
+    },
+    {
+      "id": "emit-build-committed",
+      "type": "emit",
+      "event": "workflow.build.committed"
+    },
+    {
+      "id": "request-restart",
+      "type": "restart",
+      "requires": [
+        "commit",
+        "check-claimed-task-consistency"
+      ]
+    }
+  ]
+}

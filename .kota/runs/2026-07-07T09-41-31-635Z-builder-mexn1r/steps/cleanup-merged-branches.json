@@ -1,0 +1,11 @@
+{
+  "id": "cleanup-merged-branches",
+  "type": "code",
+  "status": "skipped",
+  "startedAt": "2026-07-07T10:29:56.819Z",
+  "completedAt": "2026-07-07T10:29:56.820Z",
+  "durationMs": 1,
+  "skipReason": {
+    "kind": "when-predicate"
+  }
+}

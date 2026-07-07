@@ -1,0 +1,12 @@
+{
+  "id": "reset-for-recovery",
+  "type": "code",
+  "status": "skipped",
+  "startedAt": "2026-07-07T09:56:13.115Z",
+  "completedAt": "2026-07-07T09:56:13.260Z",
+  "durationMs": 145,
+  "skipReason": {
+    "kind": "when-predicate",
+    "label": "recovery-only-step"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "commit",
+  "type": "code",
+  "status": "success",
+  "startedAt": "2026-07-07T10:29:47.304Z",
+  "completedAt": "2026-07-07T10:29:47.593Z",
+  "durationMs": 289,
+  "output": {
+    "committed": true,
+    "message": "Promote run trace failures into eval candidates",
+    "sha": "ced7867bc0dff764801a3b092e15a66d08a1db5d"
+  }
+}

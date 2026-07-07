@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "profileId": "task-promote-run-trace-failures-into-eval-candidates:2026-07-07T09-41-31-635Z-builder-mexn1r",
+  "projectDir": "/Users/xmanatee/Desktop/mono/apps/kota",
+  "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+  "runId": "2026-07-07T09-41-31-635Z-builder-mexn1r",
+  "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r",
+  "agentRunDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r",
+  "tempRoot": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/tmp/2026-07-07T09-41-31-635Z-builder-mexn1r",
+  "artifactRoot": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/artifacts",
+  "ports": {
+    "start": 30820,
+    "end": 30839,
+    "size": 20
+  },
+  "packageCacheRoot": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/tmp/2026-07-07T09-41-31-635Z-builder-mexn1r/package-cache",
+  "env": {
+    "KOTA_RUNTIME_PROFILE_ID": "task-promote-run-trace-failures-into-eval-candidates:2026-07-07T09-41-31-635Z-builder-mexn1r",
+    "KOTA_WORKSPACE_DIR": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r",
+    "KOTA_RUN_DIR": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r",
+    "KOTA_RUN_TEMP_DIR": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/tmp/2026-07-07T09-41-31-635Z-builder-mexn1r",
+    "KOTA_RUN_ARTIFACT_DIR": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/artifacts",
+    "KOTA_PACKAGE_CACHE_DIR": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/tmp/2026-07-07T09-41-31-635Z-builder-mexn1r/package-cache",
+    "KOTA_PORT_RANGE_START": "30820",
+    "KOTA_PORT_RANGE_END": "30839",
+    "KOTA_PORT_BASE": "30820",
+    "npm_config_cache": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/tmp/2026-07-07T09-41-31-635Z-builder-mexn1r/package-cache/npm",
+    "npm_config_store_dir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/tmp/2026-07-07T09-41-31-635Z-builder-mexn1r/package-cache/pnpm-store",
+    "YARN_CACHE_FOLDER": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/tmp/2026-07-07T09-41-31-635Z-builder-mexn1r/package-cache/yarn",
+    "TMPDIR": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/tmp/2026-07-07T09-41-31-635Z-builder-mexn1r",
+    "TMP": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/tmp/2026-07-07T09-41-31-635Z-builder-mexn1r",
+    "TEMP": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/tmp/2026-07-07T09-41-31-635Z-builder-mexn1r"
+  },
+  "preflight": {
+    "checkedAt": "2026-07-07T09:56:56.913Z",
+    "ports": [
+      30820,
+      30821,
+      30822,
+      30823,
+      30824,
+      30825,
+      30826,
+      30827,
+      30828,
+      30829,
+      30830,
+      30831,
+      30832,
+      30833,
+      30834,
+      30835,
+      30836,
+      30837,
+      30838,
+      30839
+    ],
+    "setup": [
+      "tempRoot",
+      "agentRunDir",
+      "artifactRoot",
+      "packageCacheRoot",
+      "dependencySetup",
+      "portLease",
+      "ports"
+    ],
+    "dependencies": {
+      "status": "passed",
+      "action": "linked-project-node-modules",
+      "checkedAt": "2026-07-07T09:56:16.069Z",
+      "path": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/node_modules",
+      "source": "/Users/xmanatee/Desktop/mono/apps/kota/node_modules"
+    },
+    "portLeasePath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/runtime-resources/builder-port-leases.json"
+  },
+  "artifactPath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/builder-runtime-resources.json"
+}

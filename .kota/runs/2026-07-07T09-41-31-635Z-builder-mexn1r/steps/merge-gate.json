@@ -1,0 +1,50 @@
+{
+  "id": "merge-gate",
+  "type": "code",
+  "status": "success",
+  "startedAt": "2026-07-07T10:29:47.896Z",
+  "completedAt": "2026-07-07T10:29:54.646Z",
+  "durationMs": 6750,
+  "output": {
+    "status": "merged",
+    "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+    "runId": "2026-07-07T09-41-31-635Z-builder-mexn1r",
+    "branch": "kota/task/task-promote-run-trace-failures-into-eval-candidates/2026-07-07t09-41-31-635z-builder-mexn1r",
+    "baseCommit": "4c769e6bbf98c9b070d911c10d6fc9d3a99ca8b5",
+    "canonicalHeadCommit": "4c769e6bbf98c9b070d911c10d6fc9d3a99ca8b5",
+    "headCommit": "ced7867bc0dff764801a3b092e15a66d08a1db5d",
+    "mergeCommit": "ced7867bc0dff764801a3b092e15a66d08a1db5d",
+    "reason": null,
+    "conflicts": [],
+    "resolutionAttempts": 0,
+    "validation": {
+      "command": [
+        "pnpm",
+        "test",
+        "src/modules/git",
+        "src/modules/autonomy/workflows/builder"
+      ],
+      "exitCode": 0,
+      "stdoutTail": {
+        "redacted": true,
+        "reason": "tool-io",
+        "bytes": 8252
+      },
+      "stderrTail": {
+        "redacted": true,
+        "reason": "tool-io",
+        "bytes": 56
+      },
+      "passed": true
+    },
+    "metrics": {
+      "waitMs": 1,
+      "mergeDurationMs": 6705,
+      "conflictCount": 0,
+      "resolverAttempts": 0,
+      "validationFailures": 0,
+      "serializedByLock": true
+    },
+    "artifactPath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r.merge-gate.json"
+  }
+}

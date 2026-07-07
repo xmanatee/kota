@@ -1,0 +1,11 @@
+{
+  "id": "mark-claim-pending-merge",
+  "type": "code",
+  "status": "skipped",
+  "startedAt": "2026-07-07T10:29:56.710Z",
+  "completedAt": "2026-07-07T10:29:56.710Z",
+  "durationMs": 0,
+  "skipReason": {
+    "kind": "when-predicate"
+  }
+}

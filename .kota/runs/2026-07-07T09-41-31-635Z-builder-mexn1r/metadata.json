@@ -1,0 +1,995 @@
+{
+  "id": "2026-07-07T09-41-31-635Z-builder-mexn1r",
+  "workflow": "builder",
+  "definitionPath": "src/modules/autonomy/workflows/builder/workflow.ts",
+  "trigger": {
+    "event": "autonomy.queue.available",
+    "schemaRef": null,
+    "eventId": "evtj-000000146608",
+    "payload": {
+      "pullableCount": 5,
+      "actionableCount": 3,
+      "dispatchableCount": 4,
+      "counts": {
+        "backlog": 4,
+        "ready": 3,
+        "doing": 0,
+        "blocked": 10,
+        "done": 1425,
+        "dropped": 23
+      },
+      "dependencyBlockedTasks": [
+        {
+          "id": "task-audit-and-close-legacy-cli-control-task-records",
+          "title": "Audit and close legacy CLI control task records",
+          "state": "backlog",
+          "dependsOn": [
+            "task-replace-readline-navigator-with-a-real-daemon-back",
+            "task-make-foreground-daemon-mode-expose-operator-contro",
+            "task-reconcile-dirty-recovery-pause-state-across-status",
+            "task-add-completion-evidence-gates-for-operator-client-"
+          ],
+          "waitingOn": [
+            "task-add-completion-evidence-gates-for-operator-client-"
+          ]
+        },
+        {
+          "id": "task-run-live-openrouter-and-local-model-rollout-evalua",
+          "title": "Run live OpenRouter and local model rollout evaluation",
+          "state": "backlog",
+          "dependsOn": [
+            "task-add-openrouter-model-capability-catalog-and-candid",
+            "task-make-openai-compatible-model-clients-honor-model-s",
+            "task-route-openai-tools-through-the-kota-tool-runner-wi",
+            "task-preserve-rich-tool-results-reasoning-and-agent-mes",
+            "task-add-kota-owned-session-resume-for-model-client-har",
+            "task-extend-harness-parity-and-eval-harness-with-model-",
+            "task-add-scaffolded-weak-and-local-model-agent-mode"
+          ],
+          "waitingOn": [
+            "task-extend-harness-parity-and-eval-harness-with-model-"
+          ]
+        }
+      ],
+      "scopeId": "8nrg1m",
+      "projectId": "8nrg1m"
+    }
+  },
+  "tags": [
+    "monitored"
+  ],
+  "startedAt": "2026-07-07T09:56:12.402Z",
+  "status": "success",
+  "runDir": ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r",
+  "steps": [
+    {
+      "id": "reset-for-recovery",
+      "type": "code",
+      "status": "skipped",
+      "startedAt": "2026-07-07T09:56:13.115Z",
+      "completedAt": "2026-07-07T09:56:13.260Z",
+      "durationMs": 145,
+      "skipReason": {
+        "kind": "when-predicate",
+        "label": "recovery-only-step"
+      }
+    },
+    {
+      "id": "inspect-ready-queue",
+      "type": "code",
+      "status": "success",
+      "startedAt": "2026-07-07T09:56:13.261Z",
+      "completedAt": "2026-07-07T09:56:14.091Z",
+      "durationMs": 830,
+      "output": {
+        "counts": {
+          "backlog": 4,
+          "ready": 2,
+          "doing": 0,
+          "blocked": 11,
+          "done": 1425,
+          "dropped": 23
+        },
+        "inboxCount": 0,
+        "openCount": 17,
+        "pullableCount": 4,
+        "actionableCount": 2,
+        "promotableBacklogCount": 1,
+        "dispatchableCount": 3,
+        "hasDispatchableWork": true,
+        "dependencyBlockedTasks": [
+          {
+            "id": "task-audit-and-close-legacy-cli-control-task-records",
+            "title": "Audit and close legacy CLI control task records",
+            "state": "backlog",
+            "dependsOn": [
+              "task-replace-readline-navigator-with-a-real-daemon-back",
+              "task-make-foreground-daemon-mode-expose-operator-contro",
+              "task-reconcile-dirty-recovery-pause-state-across-status",
+              "task-add-completion-evidence-gates-for-operator-client-"
+            ],
+            "waitingOn": [
+              "task-add-completion-evidence-gates-for-operator-client-"
+            ]
+          },
+          {
+            "id": "task-run-live-openrouter-and-local-model-rollout-evalua",
+            "title": "Run live OpenRouter and local model rollout evaluation",
+            "state": "backlog",
+            "dependsOn": [
+              "task-add-openrouter-model-capability-catalog-and-candid",
+              "task-make-openai-compatible-model-clients-honor-model-s",
+              "task-route-openai-tools-through-the-kota-tool-runner-wi",
+              "task-preserve-rich-tool-results-reasoning-and-agent-mes",
+              "task-add-kota-owned-session-resume-for-model-client-har",
+              "task-extend-harness-parity-and-eval-harness-with-model-",
+              "task-add-scaffolded-weak-and-local-model-agent-mode"
+            ],
+            "waitingOn": [
+              "task-extend-harness-parity-and-eval-harness-with-model-"
+            ]
+          }
+        ],
+        "headSha": "4c769e6bbf98c9b070d911c10d6fc9d3a99ca8b5",
+        "dirty": false
+      }
+    },
+    {
+      "id": "claim-task",
+      "type": "code",
+      "status": "success",
+      "startedAt": "2026-07-07T09:56:14.384Z",
+      "completedAt": "2026-07-07T09:56:14.528Z",
+      "durationMs": 144,
+      "output": {
+        "claimed": true,
+        "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+        "claim": {
+          "schemaVersion": 1,
+          "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+          "taskState": "ready",
+          "runId": "2026-07-07T09-41-31-635Z-builder-mexn1r",
+          "workflowId": "builder",
+          "owner": "workflow:builder",
+          "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota",
+          "branch": "main",
+          "baseCommit": "4c769e6bbf98c9b070d911c10d6fc9d3a99ca8b5",
+          "leaseMs": 25200000,
+          "leaseAcquiredAt": "2026-07-07T09:56:14.488Z",
+          "leaseExpiresAt": "2026-07-07T16:56:14.488Z",
+          "createdAt": "2026-07-07T09:56:14.488Z",
+          "updatedAt": "2026-07-07T09:56:14.488Z",
+          "status": "active",
+          "evidence": null
+        },
+        "recoveryStatus": "agent-running",
+        "safeToRetry": false,
+        "recoveryPath": "new-claim",
+        "reason": null,
+        "candidateCount": 2,
+        "skipped": [
+          {
+            "claimed": false,
+            "taskId": "task-run-shadow-semantic-reviewers-for-non-builder-auto",
+            "claim": {
+              "schemaVersion": 1,
+              "taskId": "task-run-shadow-semantic-reviewers-for-non-builder-auto",
+              "taskState": "ready",
+              "runId": "2026-07-07T06-33-49-256Z-builder-79nvwh",
+              "workflowId": "builder",
+              "owner": "workflow:builder",
+              "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-run-shadow-semantic-reviewers-for-non-builder-auto-2026-07-07t06-33-49-256z-builder-79nvwh",
+              "branch": "kota/task/task-run-shadow-semantic-reviewers-for-non-builder-auto/2026-07-07t06-33-49-256z-builder-79nvwh",
+              "baseCommit": "f875c2a8812c5abaed45a065a11e5484de83a0c1",
+              "leaseMs": 25200000,
+              "leaseAcquiredAt": "2026-07-07T07:08:22.727Z",
+              "leaseExpiresAt": "2026-07-07T14:08:22.727Z",
+              "createdAt": "2026-07-07T07:08:22.727Z",
+              "updatedAt": "2026-07-07T09:31:42.317Z",
+              "status": "pending-merge",
+              "evidence": "builder branch is pending merge: validation failed after merge gate integration"
+            },
+            "recoveryStatus": "pending-merge",
+            "safeToRetry": false,
+            "recoveryPath": "skipped-pending-merge",
+            "reason": "task is already claimed by workflow:builder (2026-07-07T06-33-49-256Z-builder-79nvwh)"
+          }
+        ],
+        "activeClaims": [
+          {
+            "claim": {
+              "schemaVersion": 1,
+              "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+              "taskState": "ready",
+              "runId": "2026-07-07T09-41-31-635Z-builder-mexn1r",
+              "workflowId": "builder",
+              "owner": "workflow:builder",
+              "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota",
+              "branch": "main",
+              "baseCommit": "4c769e6bbf98c9b070d911c10d6fc9d3a99ca8b5",
+              "leaseMs": 25200000,
+              "leaseAcquiredAt": "2026-07-07T09:56:14.488Z",
+              "leaseExpiresAt": "2026-07-07T16:56:14.488Z",
+              "createdAt": "2026-07-07T09:56:14.488Z",
+              "updatedAt": "2026-07-07T09:56:14.488Z",
+              "status": "active",
+              "evidence": null
+            },
+            "path": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/task-claims/active/task-promote-run-trace-failures-into-eval-candidates.json",
+            "recoveryStatus": "agent-running",
+            "safeToRetry": false
+          },
+          {
+            "claim": {
+              "schemaVersion": 1,
+              "taskId": "task-run-shadow-semantic-reviewers-for-non-builder-auto",
+              "taskState": "ready",
+              "runId": "2026-07-07T06-33-49-256Z-builder-79nvwh",
+              "workflowId": "builder",
+              "owner": "workflow:builder",
+              "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-run-shadow-semantic-reviewers-for-non-builder-auto-2026-07-07t06-33-49-256z-builder-79nvwh",
+              "branch": "kota/task/task-run-shadow-semantic-reviewers-for-non-builder-auto/2026-07-07t06-33-49-256z-builder-79nvwh",
+              "baseCommit": "f875c2a8812c5abaed45a065a11e5484de83a0c1",
+              "leaseMs": 25200000,
+              "leaseAcquiredAt": "2026-07-07T07:08:22.727Z",
+              "leaseExpiresAt": "2026-07-07T14:08:22.727Z",
+              "createdAt": "2026-07-07T07:08:22.727Z",
+              "updatedAt": "2026-07-07T09:31:42.317Z",
+              "status": "pending-merge",
+              "evidence": "builder branch is pending merge: validation failed after merge gate integration"
+            },
+            "path": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/task-claims/active/task-run-shadow-semantic-reviewers-for-non-builder-auto.json",
+            "recoveryStatus": "pending-merge",
+            "safeToRetry": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "prepare-worktree",
+      "type": "code",
+      "status": "success",
+      "startedAt": "2026-07-07T09:56:14.670Z",
+      "completedAt": "2026-07-07T09:56:56.985Z",
+      "durationMs": 42315,
+      "output": {
+        "enabled": true,
+        "projectDir": "/Users/xmanatee/Desktop/mono/apps/kota",
+        "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r",
+        "runtimeResources": {
+          "schemaVersion": 1,
+          "profileId": "task-promote-run-trace-failures-into-eval-candidates:2026-07-07T09-41-31-635Z-builder-mexn1r",
+          "projectDir": "/Users/xmanatee/Desktop/mono/apps/kota",
+          "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+          "runId": "2026-07-07T09-41-31-635Z-builder-mexn1r",
+          "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r",
+          "agentRunDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r",
+          "tempRoot": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/tmp/2026-07-07T09-41-31-635Z-builder-mexn1r",
+          "artifactRoot": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/artifacts",
+          "ports": {
+            "start": 30820,
+            "end": 30839,
+            "size": 20
+          },
+          "packageCacheRoot": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/tmp/2026-07-07T09-41-31-635Z-builder-mexn1r/package-cache",
+          "env": {
+            "KOTA_RUNTIME_PROFILE_ID": "task-promote-run-trace-failures-into-eval-candidates:2026-07-07T09-41-31-635Z-builder-mexn1r",
+            "KOTA_WORKSPACE_DIR": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r",
+            "KOTA_RUN_DIR": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r",
+            "KOTA_RUN_TEMP_DIR": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/tmp/2026-07-07T09-41-31-635Z-builder-mexn1r",
+            "KOTA_RUN_ARTIFACT_DIR": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/artifacts",
+            "KOTA_PACKAGE_CACHE_DIR": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/tmp/2026-07-07T09-41-31-635Z-builder-mexn1r/package-cache",
+            "KOTA_PORT_RANGE_START": "30820",
+            "KOTA_PORT_RANGE_END": "30839",
+            "KOTA_PORT_BASE": "30820",
+            "npm_config_cache": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/tmp/2026-07-07T09-41-31-635Z-builder-mexn1r/package-cache/npm",
+            "npm_config_store_dir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/tmp/2026-07-07T09-41-31-635Z-builder-mexn1r/package-cache/pnpm-store",
+            "YARN_CACHE_FOLDER": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/tmp/2026-07-07T09-41-31-635Z-builder-mexn1r/package-cache/yarn",
+            "TMPDIR": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/tmp/2026-07-07T09-41-31-635Z-builder-mexn1r",
+            "TMP": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/tmp/2026-07-07T09-41-31-635Z-builder-mexn1r",
+            "TEMP": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/tmp/2026-07-07T09-41-31-635Z-builder-mexn1r"
+          },
+          "preflight": {
+            "checkedAt": "2026-07-07T09:56:56.913Z",
+            "ports": [
+              30820,
+              30821,
+              30822,
+              30823,
+              30824,
+              30825,
+              30826,
+              30827,
+              30828,
+              30829,
+              30830,
+              30831,
+              30832,
+              30833,
+              30834,
+              30835,
+              30836,
+              30837,
+              30838,
+              30839
+            ],
+            "setup": [
+              "tempRoot",
+              "agentRunDir",
+              "artifactRoot",
+              "packageCacheRoot",
+              "dependencySetup",
+              "portLease",
+              "ports"
+            ],
+            "dependencies": {
+              "status": "passed",
+              "action": "linked-project-node-modules",
+              "checkedAt": "2026-07-07T09:56:16.069Z",
+              "path": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/node_modules",
+              "source": "/Users/xmanatee/Desktop/mono/apps/kota/node_modules"
+            },
+            "portLeasePath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/runtime-resources/builder-port-leases.json"
+          },
+          "artifactPath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/builder-runtime-resources.json"
+        },
+        "branch": "kota/task/task-promote-run-trace-failures-into-eval-candidates/2026-07-07t09-41-31-635z-builder-mexn1r",
+        "baseCommit": "4c769e6bbf98c9b070d911c10d6fc9d3a99ca8b5",
+        "headCommit": "4c769e6bbf98c9b070d911c10d6fc9d3a99ca8b5",
+        "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+        "claimId": "task-promote-run-trace-failures-into-eval-candidates:2026-07-07T09-41-31-635Z-builder-mexn1r",
+        "claimPath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/task-claims/active/task-promote-run-trace-failures-into-eval-candidates.json",
+        "metadataPath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r.json",
+        "copiedSetupFiles": []
+      }
+    },
+    {
+      "id": "build",
+      "type": "agent",
+      "status": "success",
+      "startedAt": "2026-07-07T09:56:57.039Z",
+      "completedAt": "2026-07-07T10:29:46.953Z",
+      "durationMs": 1969914,
+      "costUsd": 0,
+      "output": {
+        "content": {
+          "redacted": true,
+          "reason": "provider-payload",
+          "bytes": 12883
+        },
+        "sessionId": "019f3c02-6601-7d22-a7af-36132cebd692",
+        "turns": 1,
+        "totalCostUsd": 0,
+        "inputTokens": 15268507,
+        "outputTokens": 69116,
+        "repairIterations": [],
+        "repairWarnings": [
+          {
+            "id": "source-file-size",
+            "passed": false,
+            "output": "[\n  {\n    \"type\": \"source-file-size\",\n    \"file\": \"src/modules/eval-harness/cli.ts\",\n    \"lines\": 738,\n    \"threshold\": 300,\n    \"changedLines\": 8,\n    \"message\": \"Changed source file src/modules/eval-harness/cli.ts is 738 line(s), above the 300-line source-size guideline.\"\n  }\n]",
+            "severity": "warning"
+          }
+        ]
+      },
+      "harness": "codex",
+      "model": "gpt-5.5",
+      "trajectoryDiagnostics": {
+        "artifactPath": ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/steps/build.trajectory-diagnostics.json",
+        "warningCount": 0,
+        "unsupportedTrajectoryCount": 0,
+        "missingStreamingFramesCount": 0,
+        "missingFinalVerificationAfterEditCount": 0,
+        "repeatedIdenticalFailingCommandCount": 0,
+        "editAfterSuccessfulVerificationCount": 0,
+        "longPreambleWithoutTaskTouchCount": 0
+      }
+    },
+    {
+      "id": "create-task-branch",
+      "type": "code",
+      "status": "success",
+      "startedAt": "2026-07-07T10:29:47.003Z",
+      "completedAt": "2026-07-07T10:29:47.064Z",
+      "durationMs": 61,
+      "output": {
+        "branchPerTask": true,
+        "branch": "kota/task/task-promote-run-trace-failures-into-eval-candidates/2026-07-07t09-41-31-635z-builder-mexn1r",
+        "baseBranch": "main",
+        "taskId": "task-promote-run-trace-failures-into-eval-candidates"
+      }
+    },
+    {
+      "id": "check-claimed-task-consistency",
+      "type": "code",
+      "status": "success",
+      "startedAt": "2026-07-07T10:29:47.105Z",
+      "completedAt": "2026-07-07T10:29:47.259Z",
+      "durationMs": 154,
+      "output": {
+        "matched": true,
+        "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+        "claimedTaskId": "task-promote-run-trace-failures-into-eval-candidates",
+        "completedTaskId": "task-promote-run-trace-failures-into-eval-candidates"
+      }
+    },
+    {
+      "id": "commit",
+      "type": "code",
+      "status": "success",
+      "startedAt": "2026-07-07T10:29:47.304Z",
+      "completedAt": "2026-07-07T10:29:47.593Z",
+      "durationMs": 289,
+      "output": {
+        "committed": true,
+        "message": "Promote run trace failures into eval candidates",
+        "sha": "ced7867bc0dff764801a3b092e15a66d08a1db5d"
+      }
+    },
+    {
+      "id": "write-run-summary",
+      "type": "code",
+      "status": "success",
+      "startedAt": "2026-07-07T10:29:47.638Z",
+      "completedAt": "2026-07-07T10:29:47.846Z",
+      "durationMs": 208,
+      "output": {
+        "runId": "2026-07-07T09-41-31-635Z-builder-mexn1r",
+        "workflow": "builder",
+        "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+        "taskTitle": "Promote run trace failures into eval candidates",
+        "outcome": "success",
+        "commitSha": "ced7867bc0dff764801a3b092e15a66d08a1db5d",
+        "commitMessage": "Promote run trace failures into eval candidates",
+        "filesChanged": [
+          ".gitignore",
+          ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/commit-message.txt",
+          ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/fixture-candidate-report/fixture-candidates.json",
+          ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/fixture-candidate-report/fixture-candidates.md",
+          ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/fixture-candidates-transcript.txt",
+          ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/success-criteria-verified.txt",
+          ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/success-criteria.txt",
+          "data/tasks/done/task-promote-run-trace-failures-into-eval-candidates.md",
+          "src/modules/eval-harness/cli-fixture-candidates.test.ts",
+          "src/modules/eval-harness/cli.ts",
+          "src/modules/eval-harness/fixture-candidates-artifacts.ts",
+          "src/modules/eval-harness/fixture-candidates-classify.ts",
+          "src/modules/eval-harness/fixture-candidates-duplicates.ts",
+          "src/modules/eval-harness/fixture-candidates-patterns.ts",
+          "src/modules/eval-harness/fixture-candidates-proposals.test.ts",
+          "src/modules/eval-harness/fixture-candidates-proposals.ts",
+          "src/modules/eval-harness/fixture-candidates-task-writer.ts",
+          "src/modules/eval-harness/fixture-candidates-types.ts",
+          "src/modules/eval-harness/fixture-candidates.test.ts",
+          "src/modules/eval-harness/fixture-candidates.ts",
+          "src/modules/eval-harness/index.ts",
+          "src/modules/eval-harness/public-surface.ts"
+        ],
+        "costUsd": 0,
+        "durationMs": 1969914,
+        "completedAt": "2026-07-07T10:29:47.782Z",
+        "observabilityObligations": {
+          "type": "observability-obligation",
+          "outcome": "ok",
+          "candidates": [
+            {
+              "file": "src/modules/eval-harness/cli.ts",
+              "status": "satisfied",
+              "reasons": [
+                {
+                  "kind": "agent-harness-execution",
+                  "message": "changed agent harness execution, model, session, or trajectory behavior"
+                }
+              ],
+              "evidence": [
+                {
+                  "kind": "focused-test-assertion",
+                  "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+                  "ref": "src/modules/eval-harness/cli-fixture-candidates.test.ts"
+                }
+              ],
+              "message": "Inspectable observability evidence found for this runtime-sensitive change."
+            },
+            {
+              "file": "src/modules/eval-harness/fixture-candidates-artifacts.ts",
+              "status": "satisfied",
+              "reasons": [
+                {
+                  "kind": "agent-harness-execution",
+                  "message": "changed agent harness execution, model, session, or trajectory behavior"
+                }
+              ],
+              "evidence": [
+                {
+                  "kind": "focused-test-assertion",
+                  "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+                  "ref": "src/modules/eval-harness/cli-fixture-candidates.test.ts"
+                }
+              ],
+              "message": "Inspectable observability evidence found for this runtime-sensitive change."
+            },
+            {
+              "file": "src/modules/eval-harness/fixture-candidates-classify.ts",
+              "status": "satisfied",
+              "reasons": [
+                {
+                  "kind": "agent-harness-execution",
+                  "message": "changed agent harness execution, model, session, or trajectory behavior"
+                }
+              ],
+              "evidence": [
+                {
+                  "kind": "focused-test-assertion",
+                  "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+                  "ref": "src/modules/eval-harness/cli-fixture-candidates.test.ts"
+                }
+              ],
+              "message": "Inspectable observability evidence found for this runtime-sensitive change."
+            },
+            {
+              "file": "src/modules/eval-harness/fixture-candidates-duplicates.ts",
+              "status": "satisfied",
+              "reasons": [
+                {
+                  "kind": "agent-harness-execution",
+                  "message": "changed agent harness execution, model, session, or trajectory behavior"
+                }
+              ],
+              "evidence": [
+                {
+                  "kind": "focused-test-assertion",
+                  "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+                  "ref": "src/modules/eval-harness/cli-fixture-candidates.test.ts"
+                }
+              ],
+              "message": "Inspectable observability evidence found for this runtime-sensitive change."
+            },
+            {
+              "file": "src/modules/eval-harness/fixture-candidates-patterns.ts",
+              "status": "satisfied",
+              "reasons": [
+                {
+                  "kind": "agent-harness-execution",
+                  "message": "changed agent harness execution, model, session, or trajectory behavior"
+                }
+              ],
+              "evidence": [
+                {
+                  "kind": "focused-test-assertion",
+                  "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+                  "ref": "src/modules/eval-harness/cli-fixture-candidates.test.ts"
+                }
+              ],
+              "message": "Inspectable observability evidence found for this runtime-sensitive change."
+            },
+            {
+              "file": "src/modules/eval-harness/fixture-candidates-proposals.ts",
+              "status": "satisfied",
+              "reasons": [
+                {
+                  "kind": "agent-harness-execution",
+                  "message": "changed agent harness execution, model, session, or trajectory behavior"
+                }
+              ],
+              "evidence": [
+                {
+                  "kind": "focused-test-assertion",
+                  "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+                  "ref": "src/modules/eval-harness/cli-fixture-candidates.test.ts"
+                }
+              ],
+              "message": "Inspectable observability evidence found for this runtime-sensitive change."
+            },
+            {
+              "file": "src/modules/eval-harness/fixture-candidates-task-writer.ts",
+              "status": "satisfied",
+              "reasons": [
+                {
+                  "kind": "agent-harness-execution",
+                  "message": "changed agent harness execution, model, session, or trajectory behavior"
+                }
+              ],
+              "evidence": [
+                {
+                  "kind": "focused-test-assertion",
+                  "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+                  "ref": "src/modules/eval-harness/cli-fixture-candidates.test.ts"
+                }
+              ],
+              "message": "Inspectable observability evidence found for this runtime-sensitive change."
+            },
+            {
+              "file": "src/modules/eval-harness/fixture-candidates-types.ts",
+              "status": "satisfied",
+              "reasons": [
+                {
+                  "kind": "agent-harness-execution",
+                  "message": "changed agent harness execution, model, session, or trajectory behavior"
+                }
+              ],
+              "evidence": [
+                {
+                  "kind": "focused-test-assertion",
+                  "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+                  "ref": "src/modules/eval-harness/cli-fixture-candidates.test.ts"
+                }
+              ],
+              "message": "Inspectable observability evidence found for this runtime-sensitive change."
+            },
+            {
+              "file": "src/modules/eval-harness/fixture-candidates.ts",
+              "status": "satisfied",
+              "reasons": [
+                {
+                  "kind": "agent-harness-execution",
+                  "message": "changed agent harness execution, model, session, or trajectory behavior"
+                }
+              ],
+              "evidence": [
+                {
+                  "kind": "explicit-error-result",
+                  "detail": "changed production diff returns an explicit error, reason, or message result",
+                  "ref": "src/modules/eval-harness/fixture-candidates.ts"
+                },
+                {
+                  "kind": "focused-test-assertion",
+                  "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+                  "ref": "src/modules/eval-harness/cli-fixture-candidates.test.ts"
+                }
+              ],
+              "message": "Inspectable observability evidence found for this runtime-sensitive change."
+            },
+            {
+              "file": "src/modules/eval-harness/index.ts",
+              "status": "satisfied",
+              "reasons": [
+                {
+                  "kind": "agent-harness-execution",
+                  "message": "changed agent harness execution, model, session, or trajectory behavior"
+                }
+              ],
+              "evidence": [
+                {
+                  "kind": "focused-test-assertion",
+                  "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+                  "ref": "src/modules/eval-harness/cli-fixture-candidates.test.ts"
+                }
+              ],
+              "message": "Inspectable observability evidence found for this runtime-sensitive change."
+            },
+            {
+              "file": "src/modules/eval-harness/public-surface.ts",
+              "status": "satisfied",
+              "reasons": [
+                {
+                  "kind": "agent-harness-execution",
+                  "message": "changed agent harness execution, model, session, or trajectory behavior"
+                }
+              ],
+              "evidence": [
+                {
+                  "kind": "focused-test-assertion",
+                  "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+                  "ref": "src/modules/eval-harness/cli-fixture-candidates.test.ts"
+                }
+              ],
+              "message": "Inspectable observability evidence found for this runtime-sensitive change."
+            }
+          ],
+          "satisfiedFiles": [
+            "src/modules/eval-harness/cli.ts",
+            "src/modules/eval-harness/fixture-candidates-artifacts.ts",
+            "src/modules/eval-harness/fixture-candidates-classify.ts",
+            "src/modules/eval-harness/fixture-candidates-duplicates.ts",
+            "src/modules/eval-harness/fixture-candidates-patterns.ts",
+            "src/modules/eval-harness/fixture-candidates-proposals.ts",
+            "src/modules/eval-harness/fixture-candidates-task-writer.ts",
+            "src/modules/eval-harness/fixture-candidates-types.ts",
+            "src/modules/eval-harness/fixture-candidates.ts",
+            "src/modules/eval-harness/index.ts",
+            "src/modules/eval-harness/public-surface.ts"
+          ],
+          "missingFiles": [],
+          "message": "OK: 11 observability-sensitive candidate file(s) have inspectable evidence"
+        },
+        "sourceFileSize": {
+          "outcome": "advisory",
+          "warnings": [
+            {
+              "type": "source-file-size",
+              "file": "src/modules/eval-harness/cli.ts",
+              "lines": 738,
+              "threshold": 300,
+              "changedLines": 8,
+              "message": "Changed source file src/modules/eval-harness/cli.ts is 738 line(s), above the 300-line source-size guideline."
+            }
+          ],
+          "message": "Advisory source-size warning(s): src/modules/eval-harness/cli.ts."
+        },
+        "warnings": [
+          {
+            "type": "source-file-size",
+            "file": "src/modules/eval-harness/cli.ts",
+            "lines": 738,
+            "threshold": 300,
+            "changedLines": 8,
+            "message": "Changed source file src/modules/eval-harness/cli.ts is 738 line(s), above the 300-line source-size guideline."
+          }
+        ]
+      }
+    },
+    {
+      "id": "merge-gate",
+      "type": "code",
+      "status": "success",
+      "startedAt": "2026-07-07T10:29:47.896Z",
+      "completedAt": "2026-07-07T10:29:54.646Z",
+      "durationMs": 6750,
+      "output": {
+        "status": "merged",
+        "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+        "runId": "2026-07-07T09-41-31-635Z-builder-mexn1r",
+        "branch": "kota/task/task-promote-run-trace-failures-into-eval-candidates/2026-07-07t09-41-31-635z-builder-mexn1r",
+        "baseCommit": "4c769e6bbf98c9b070d911c10d6fc9d3a99ca8b5",
+        "canonicalHeadCommit": "4c769e6bbf98c9b070d911c10d6fc9d3a99ca8b5",
+        "headCommit": "ced7867bc0dff764801a3b092e15a66d08a1db5d",
+        "mergeCommit": "ced7867bc0dff764801a3b092e15a66d08a1db5d",
+        "reason": null,
+        "conflicts": [],
+        "resolutionAttempts": 0,
+        "validation": {
+          "command": [
+            "pnpm",
+            "test",
+            "src/modules/git",
+            "src/modules/autonomy/workflows/builder"
+          ],
+          "exitCode": 0,
+          "stdoutTail": {
+            "redacted": true,
+            "reason": "tool-io",
+            "bytes": 8252
+          },
+          "stderrTail": {
+            "redacted": true,
+            "reason": "tool-io",
+            "bytes": 56
+          },
+          "passed": true
+        },
+        "metrics": {
+          "waitMs": 1,
+          "mergeDurationMs": 6705,
+          "conflictCount": 0,
+          "resolverAttempts": 0,
+          "validationFailures": 0,
+          "serializedByLock": true
+        },
+        "artifactPath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r.merge-gate.json"
+      }
+    },
+    {
+      "id": "release-task-claim",
+      "type": "code",
+      "status": "success",
+      "startedAt": "2026-07-07T10:29:54.698Z",
+      "completedAt": "2026-07-07T10:29:54.740Z",
+      "durationMs": 42,
+      "output": {
+        "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+        "changed": true,
+        "claim": {
+          "schemaVersion": 1,
+          "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+          "taskState": "ready",
+          "runId": "2026-07-07T09-41-31-635Z-builder-mexn1r",
+          "workflowId": "builder",
+          "owner": "workflow:builder",
+          "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r",
+          "branch": "kota/task/task-promote-run-trace-failures-into-eval-candidates/2026-07-07t09-41-31-635z-builder-mexn1r",
+          "baseCommit": "4c769e6bbf98c9b070d911c10d6fc9d3a99ca8b5",
+          "leaseMs": 25200000,
+          "leaseAcquiredAt": "2026-07-07T09:56:14.488Z",
+          "leaseExpiresAt": "2026-07-07T16:56:14.488Z",
+          "createdAt": "2026-07-07T09:56:14.488Z",
+          "updatedAt": "2026-07-07T10:29:54.739Z",
+          "status": "released",
+          "evidence": "builder workflow committed changes in the selected workspace"
+        },
+        "recoveryStatus": "released",
+        "safeToRetry": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "write-calibration-artifact",
+      "type": "code",
+      "status": "success",
+      "startedAt": "2026-07-07T10:29:54.787Z",
+      "completedAt": "2026-07-07T10:29:54.831Z",
+      "durationMs": 44,
+      "output": {
+        "runId": "2026-07-07T09-41-31-635Z-builder-mexn1r",
+        "workflow": "builder",
+        "completedAt": "2026-07-07T10:29:47.782Z",
+        "verdict": "pass",
+        "warningCount": 0,
+        "criticalIssueCount": 0,
+        "repairIterations": 0,
+        "finalIterationFailures": [],
+        "criticFailureCount": 0,
+        "terminalRunStatus": "success",
+        "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+        "taskFinalState": "done",
+        "sourceFilesChanged": [
+          ".gitignore",
+          ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/commit-message.txt",
+          ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/fixture-candidate-report/fixture-candidates.json",
+          ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/fixture-candidate-report/fixture-candidates.md",
+          ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/fixture-candidates-transcript.txt",
+          ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/success-criteria-verified.txt",
+          ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/success-criteria.txt",
+          "src/modules/eval-harness/cli-fixture-candidates.test.ts",
+          "src/modules/eval-harness/cli.ts",
+          "src/modules/eval-harness/fixture-candidates-artifacts.ts",
+          "src/modules/eval-harness/fixture-candidates-classify.ts",
+          "src/modules/eval-harness/fixture-candidates-duplicates.ts",
+          "src/modules/eval-harness/fixture-candidates-patterns.ts",
+          "src/modules/eval-harness/fixture-candidates-proposals.test.ts",
+          "src/modules/eval-harness/fixture-candidates-proposals.ts",
+          "src/modules/eval-harness/fixture-candidates-task-writer.ts",
+          "src/modules/eval-harness/fixture-candidates-types.ts",
+          "src/modules/eval-harness/fixture-candidates.test.ts",
+          "src/modules/eval-harness/fixture-candidates.ts",
+          "src/modules/eval-harness/index.ts",
+          "src/modules/eval-harness/public-surface.ts"
+        ],
+        "criticPromptHash": "f6e5054b3887"
+      }
+    },
+    {
+      "id": "cleanup-automation-worktree",
+      "type": "code",
+      "status": "success",
+      "startedAt": "2026-07-07T10:29:54.877Z",
+      "completedAt": "2026-07-07T10:29:56.647Z",
+      "durationMs": 1770,
+      "output": {
+        "removed": true,
+        "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r",
+        "metadataPath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r.json",
+        "artifactPath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/automation-worktree-cleanup.json",
+        "state": "removed",
+        "cleanupEligible": false,
+        "blockers": []
+      }
+    },
+    {
+      "id": "create-pr",
+      "type": "code",
+      "status": "skipped",
+      "startedAt": "2026-07-07T10:29:56.706Z",
+      "completedAt": "2026-07-07T10:29:56.706Z",
+      "durationMs": 0,
+      "skipReason": {
+        "kind": "when-predicate"
+      }
+    },
+    {
+      "id": "mark-claim-pending-merge",
+      "type": "code",
+      "status": "skipped",
+      "startedAt": "2026-07-07T10:29:56.710Z",
+      "completedAt": "2026-07-07T10:29:56.710Z",
+      "durationMs": 0,
+      "skipReason": {
+        "kind": "when-predicate"
+      }
+    },
+    {
+      "id": "cleanup-builder-runtime-resources",
+      "type": "code",
+      "status": "success",
+      "startedAt": "2026-07-07T10:29:56.714Z",
+      "completedAt": "2026-07-07T10:29:56.762Z",
+      "durationMs": 48,
+      "output": {
+        "schemaVersion": 1,
+        "profileId": "task-promote-run-trace-failures-into-eval-candidates:2026-07-07T09-41-31-635Z-builder-mexn1r",
+        "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+        "runId": "2026-07-07T09-41-31-635Z-builder-mexn1r",
+        "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r",
+        "tempRoot": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/tmp/2026-07-07T09-41-31-635Z-builder-mexn1r",
+        "tempRemoved": false,
+        "blockers": [],
+        "portLease": {
+          "leasePath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/runtime-resources/builder-port-leases.json",
+          "released": true,
+          "releasedProfileIds": [
+            "task-promote-run-trace-failures-into-eval-candidates:2026-07-07T09-41-31-635Z-builder-mexn1r"
+          ],
+          "remainingLeaseCount": 0
+        },
+        "artifactPath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/builder-runtime-resource-cleanup.json"
+      }
+    },
+    {
+      "id": "cleanup-merged-branches",
+      "type": "code",
+      "status": "skipped",
+      "startedAt": "2026-07-07T10:29:56.819Z",
+      "completedAt": "2026-07-07T10:29:56.820Z",
+      "durationMs": 1,
+      "skipReason": {
+        "kind": "when-predicate"
+      }
+    },
+    {
+      "id": "write-parallel-builder-metrics",
+      "type": "code",
+      "status": "success",
+      "startedAt": "2026-07-07T10:29:56.824Z",
+      "completedAt": "2026-07-07T10:29:56.870Z",
+      "durationMs": 46,
+      "output": {
+        "runId": "2026-07-07T09-41-31-635Z-builder-mexn1r",
+        "workflow": "builder",
+        "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+        "workspaceMode": "worktree",
+        "waitMs": 1,
+        "runDurationMs": 1969914,
+        "mergeDurationMs": 6705,
+        "conflictCount": 0,
+        "resolverAttempts": 0,
+        "validationFailures": 0,
+        "cleanupOutcome": "removed",
+        "cleanupBlockers": [],
+        "cleanupArtifactPath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/automation-worktree-cleanup.json",
+        "netThroughputPerHour": 1.8212908905100627,
+        "artifactPath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/parallel-builder-metrics.json",
+        "mergeGateArtifactPath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r.merge-gate.json"
+      }
+    },
+    {
+      "id": "emit-build-committed",
+      "type": "emit",
+      "status": "success",
+      "startedAt": "2026-07-07T10:29:56.919Z",
+      "completedAt": "2026-07-07T10:29:57.714Z",
+      "durationMs": 795,
+      "output": {
+        "event": "workflow.build.committed",
+        "payload": {
+          "runId": "2026-07-07T09-41-31-635Z-builder-mexn1r",
+          "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+          "commitMessage": "Promote run trace failures into eval candidates",
+          "costUsd": 0,
+          "durationMs": 1969914
+        }
+      }
+    },
+    {
+      "id": "request-restart",
+      "type": "restart",
+      "status": "success",
+      "startedAt": "2026-07-07T10:29:58.575Z",
+      "completedAt": "2026-07-07T10:30:03.615Z",
+      "durationMs": 5040,
+      "output": {
+        "event": "runtime.restart_requested",
+        "payload": {
+          "reason": "builder workflow finished validation and commit",
+          "workflow": "builder",
+          "runId": "2026-07-07T09-41-31-635Z-builder-mexn1r",
+          "requires": [
+            "commit",
+            "check-claimed-task-consistency"
+          ]
+        }
+      }
+    }
+  ],
+  "completedAt": "2026-07-07T10:30:03.716Z",
+  "durationMs": 2031311,
+  "totalCostUsd": 0
+}

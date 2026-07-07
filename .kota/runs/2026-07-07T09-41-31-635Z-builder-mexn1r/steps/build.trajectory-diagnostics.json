@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "status": "supported",
+  "emitsAgentMessageStream": true,
+  "counts": {
+    "warningCount": 0,
+    "unsupportedTrajectoryCount": 0,
+    "missingStreamingFramesCount": 0,
+    "missingFinalVerificationAfterEditCount": 0,
+    "repeatedIdenticalFailingCommandCount": 0,
+    "editAfterSuccessfulVerificationCount": 0,
+    "longPreambleWithoutTaskTouchCount": 0
+  },
+  "diagnostics": []
+}

@@ -1,0 +1,292 @@
+{
+  "id": "write-run-summary",
+  "type": "code",
+  "status": "success",
+  "startedAt": "2026-07-07T10:29:47.638Z",
+  "completedAt": "2026-07-07T10:29:47.846Z",
+  "durationMs": 208,
+  "output": {
+    "runId": "2026-07-07T09-41-31-635Z-builder-mexn1r",
+    "workflow": "builder",
+    "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+    "taskTitle": "Promote run trace failures into eval candidates",
+    "outcome": "success",
+    "commitSha": "ced7867bc0dff764801a3b092e15a66d08a1db5d",
+    "commitMessage": "Promote run trace failures into eval candidates",
+    "filesChanged": [
+      ".gitignore",
+      ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/commit-message.txt",
+      ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/fixture-candidate-report/fixture-candidates.json",
+      ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/fixture-candidate-report/fixture-candidates.md",
+      ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/fixture-candidates-transcript.txt",
+      ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/success-criteria-verified.txt",
+      ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/success-criteria.txt",
+      "data/tasks/done/task-promote-run-trace-failures-into-eval-candidates.md",
+      "src/modules/eval-harness/cli-fixture-candidates.test.ts",
+      "src/modules/eval-harness/cli.ts",
+      "src/modules/eval-harness/fixture-candidates-artifacts.ts",
+      "src/modules/eval-harness/fixture-candidates-classify.ts",
+      "src/modules/eval-harness/fixture-candidates-duplicates.ts",
+      "src/modules/eval-harness/fixture-candidates-patterns.ts",
+      "src/modules/eval-harness/fixture-candidates-proposals.test.ts",
+      "src/modules/eval-harness/fixture-candidates-proposals.ts",
+      "src/modules/eval-harness/fixture-candidates-task-writer.ts",
+      "src/modules/eval-harness/fixture-candidates-types.ts",
+      "src/modules/eval-harness/fixture-candidates.test.ts",
+      "src/modules/eval-harness/fixture-candidates.ts",
+      "src/modules/eval-harness/index.ts",
+      "src/modules/eval-harness/public-surface.ts"
+    ],
+    "costUsd": 0,
+    "durationMs": 1969914,
+    "completedAt": "2026-07-07T10:29:47.782Z",
+    "observabilityObligations": {
+      "type": "observability-obligation",
+      "outcome": "ok",
+      "candidates": [
+        {
+          "file": "src/modules/eval-harness/cli.ts",
+          "status": "satisfied",
+          "reasons": [
+            {
+              "kind": "agent-harness-execution",
+              "message": "changed agent harness execution, model, session, or trajectory behavior"
+            }
+          ],
+          "evidence": [
+            {
+              "kind": "focused-test-assertion",
+              "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+              "ref": "src/modules/eval-harness/cli-fixture-candidates.test.ts"
+            }
+          ],
+          "message": "Inspectable observability evidence found for this runtime-sensitive change."
+        },
+        {
+          "file": "src/modules/eval-harness/fixture-candidates-artifacts.ts",
+          "status": "satisfied",
+          "reasons": [
+            {
+              "kind": "agent-harness-execution",
+              "message": "changed agent harness execution, model, session, or trajectory behavior"
+            }
+          ],
+          "evidence": [
+            {
+              "kind": "focused-test-assertion",
+              "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+              "ref": "src/modules/eval-harness/cli-fixture-candidates.test.ts"
+            }
+          ],
+          "message": "Inspectable observability evidence found for this runtime-sensitive change."
+        },
+        {
+          "file": "src/modules/eval-harness/fixture-candidates-classify.ts",
+          "status": "satisfied",
+          "reasons": [
+            {
+              "kind": "agent-harness-execution",
+              "message": "changed agent harness execution, model, session, or trajectory behavior"
+            }
+          ],
+          "evidence": [
+            {
+              "kind": "focused-test-assertion",
+              "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+              "ref": "src/modules/eval-harness/cli-fixture-candidates.test.ts"
+            }
+          ],
+          "message": "Inspectable observability evidence found for this runtime-sensitive change."
+        },
+        {
+          "file": "src/modules/eval-harness/fixture-candidates-duplicates.ts",
+          "status": "satisfied",
+          "reasons": [
+            {
+              "kind": "agent-harness-execution",
+              "message": "changed agent harness execution, model, session, or trajectory behavior"
+            }
+          ],
+          "evidence": [
+            {
+              "kind": "focused-test-assertion",
+              "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+              "ref": "src/modules/eval-harness/cli-fixture-candidates.test.ts"
+            }
+          ],
+          "message": "Inspectable observability evidence found for this runtime-sensitive change."
+        },
+        {
+          "file": "src/modules/eval-harness/fixture-candidates-patterns.ts",
+          "status": "satisfied",
+          "reasons": [
+            {
+              "kind": "agent-harness-execution",
+              "message": "changed agent harness execution, model, session, or trajectory behavior"
+            }
+          ],
+          "evidence": [
+            {
+              "kind": "focused-test-assertion",
+              "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+              "ref": "src/modules/eval-harness/cli-fixture-candidates.test.ts"
+            }
+          ],
+          "message": "Inspectable observability evidence found for this runtime-sensitive change."
+        },
+        {
+          "file": "src/modules/eval-harness/fixture-candidates-proposals.ts",
+          "status": "satisfied",
+          "reasons": [
+            {
+              "kind": "agent-harness-execution",
+              "message": "changed agent harness execution, model, session, or trajectory behavior"
+            }
+          ],
+          "evidence": [
+            {
+              "kind": "focused-test-assertion",
+              "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+              "ref": "src/modules/eval-harness/cli-fixture-candidates.test.ts"
+            }
+          ],
+          "message": "Inspectable observability evidence found for this runtime-sensitive change."
+        },
+        {
+          "file": "src/modules/eval-harness/fixture-candidates-task-writer.ts",
+          "status": "satisfied",
+          "reasons": [
+            {
+              "kind": "agent-harness-execution",
+              "message": "changed agent harness execution, model, session, or trajectory behavior"
+            }
+          ],
+          "evidence": [
+            {
+              "kind": "focused-test-assertion",
+              "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+              "ref": "src/modules/eval-harness/cli-fixture-candidates.test.ts"
+            }
+          ],
+          "message": "Inspectable observability evidence found for this runtime-sensitive change."
+        },
+        {
+          "file": "src/modules/eval-harness/fixture-candidates-types.ts",
+          "status": "satisfied",
+          "reasons": [
+            {
+              "kind": "agent-harness-execution",
+              "message": "changed agent harness execution, model, session, or trajectory behavior"
+            }
+          ],
+          "evidence": [
+            {
+              "kind": "focused-test-assertion",
+              "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+              "ref": "src/modules/eval-harness/cli-fixture-candidates.test.ts"
+            }
+          ],
+          "message": "Inspectable observability evidence found for this runtime-sensitive change."
+        },
+        {
+          "file": "src/modules/eval-harness/fixture-candidates.ts",
+          "status": "satisfied",
+          "reasons": [
+            {
+              "kind": "agent-harness-execution",
+              "message": "changed agent harness execution, model, session, or trajectory behavior"
+            }
+          ],
+          "evidence": [
+            {
+              "kind": "explicit-error-result",
+              "detail": "changed production diff returns an explicit error, reason, or message result",
+              "ref": "src/modules/eval-harness/fixture-candidates.ts"
+            },
+            {
+              "kind": "focused-test-assertion",
+              "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+              "ref": "src/modules/eval-harness/cli-fixture-candidates.test.ts"
+            }
+          ],
+          "message": "Inspectable observability evidence found for this runtime-sensitive change."
+        },
+        {
+          "file": "src/modules/eval-harness/index.ts",
+          "status": "satisfied",
+          "reasons": [
+            {
+              "kind": "agent-harness-execution",
+              "message": "changed agent harness execution, model, session, or trajectory behavior"
+            }
+          ],
+          "evidence": [
+            {
+              "kind": "focused-test-assertion",
+              "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+              "ref": "src/modules/eval-harness/cli-fixture-candidates.test.ts"
+            }
+          ],
+          "message": "Inspectable observability evidence found for this runtime-sensitive change."
+        },
+        {
+          "file": "src/modules/eval-harness/public-surface.ts",
+          "status": "satisfied",
+          "reasons": [
+            {
+              "kind": "agent-harness-execution",
+              "message": "changed agent harness execution, model, session, or trajectory behavior"
+            }
+          ],
+          "evidence": [
+            {
+              "kind": "focused-test-assertion",
+              "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+              "ref": "src/modules/eval-harness/cli-fixture-candidates.test.ts"
+            }
+          ],
+          "message": "Inspectable observability evidence found for this runtime-sensitive change."
+        }
+      ],
+      "satisfiedFiles": [
+        "src/modules/eval-harness/cli.ts",
+        "src/modules/eval-harness/fixture-candidates-artifacts.ts",
+        "src/modules/eval-harness/fixture-candidates-classify.ts",
+        "src/modules/eval-harness/fixture-candidates-duplicates.ts",
+        "src/modules/eval-harness/fixture-candidates-patterns.ts",
+        "src/modules/eval-harness/fixture-candidates-proposals.ts",
+        "src/modules/eval-harness/fixture-candidates-task-writer.ts",
+        "src/modules/eval-harness/fixture-candidates-types.ts",
+        "src/modules/eval-harness/fixture-candidates.ts",
+        "src/modules/eval-harness/index.ts",
+        "src/modules/eval-harness/public-surface.ts"
+      ],
+      "missingFiles": [],
+      "message": "OK: 11 observability-sensitive candidate file(s) have inspectable evidence"
+    },
+    "sourceFileSize": {
+      "outcome": "advisory",
+      "warnings": [
+        {
+          "type": "source-file-size",
+          "file": "src/modules/eval-harness/cli.ts",
+          "lines": 738,
+          "threshold": 300,
+          "changedLines": 8,
+          "message": "Changed source file src/modules/eval-harness/cli.ts is 738 line(s), above the 300-line source-size guideline."
+        }
+      ],
+      "message": "Advisory source-size warning(s): src/modules/eval-harness/cli.ts."
+    },
+    "warnings": [
+      {
+        "type": "source-file-size",
+        "file": "src/modules/eval-harness/cli.ts",
+        "lines": 738,
+        "threshold": 300,
+        "changedLines": 8,
+        "message": "Changed source file src/modules/eval-harness/cli.ts is 738 line(s), above the 300-line source-size guideline."
+      }
+    ]
+  }
+}

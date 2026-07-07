@@ -1,0 +1,14 @@
+{
+  "id": "check-claimed-task-consistency",
+  "type": "code",
+  "status": "success",
+  "startedAt": "2026-07-07T10:29:47.105Z",
+  "completedAt": "2026-07-07T10:29:47.259Z",
+  "durationMs": 154,
+  "output": {
+    "matched": true,
+    "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+    "claimedTaskId": "task-promote-run-trace-failures-into-eval-candidates",
+    "completedTaskId": "task-promote-run-trace-failures-into-eval-candidates"
+  }
+}

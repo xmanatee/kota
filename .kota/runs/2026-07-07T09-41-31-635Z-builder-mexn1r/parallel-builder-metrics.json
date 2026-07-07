@@ -1,0 +1,18 @@
+{
+  "runId": "2026-07-07T09-41-31-635Z-builder-mexn1r",
+  "workflow": "builder",
+  "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+  "workspaceMode": "worktree",
+  "waitMs": 1,
+  "runDurationMs": 1969914,
+  "mergeDurationMs": 6705,
+  "conflictCount": 0,
+  "resolverAttempts": 0,
+  "validationFailures": 0,
+  "cleanupOutcome": "removed",
+  "cleanupBlockers": [],
+  "cleanupArtifactPath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/automation-worktree-cleanup.json",
+  "netThroughputPerHour": 1.8212908905100627,
+  "artifactPath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/parallel-builder-metrics.json",
+  "mergeGateArtifactPath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r.merge-gate.json"
+}

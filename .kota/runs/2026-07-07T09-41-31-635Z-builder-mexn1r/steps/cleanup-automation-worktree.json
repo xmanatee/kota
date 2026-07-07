@@ -1,0 +1,17 @@
+{
+  "id": "cleanup-automation-worktree",
+  "type": "code",
+  "status": "success",
+  "startedAt": "2026-07-07T10:29:54.877Z",
+  "completedAt": "2026-07-07T10:29:56.647Z",
+  "durationMs": 1770,
+  "output": {
+    "removed": true,
+    "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r",
+    "metadataPath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r.json",
+    "artifactPath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/automation-worktree-cleanup.json",
+    "state": "removed",
+    "cleanupEligible": false,
+    "blockers": []
+  }
+}

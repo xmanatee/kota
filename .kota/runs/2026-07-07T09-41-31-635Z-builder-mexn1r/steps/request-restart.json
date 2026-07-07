@@ -1,0 +1,20 @@
+{
+  "id": "request-restart",
+  "type": "restart",
+  "status": "success",
+  "startedAt": "2026-07-07T10:29:58.575Z",
+  "completedAt": "2026-07-07T10:30:03.615Z",
+  "durationMs": 5040,
+  "output": {
+    "event": "runtime.restart_requested",
+    "payload": {
+      "reason": "builder workflow finished validation and commit",
+      "workflow": "builder",
+      "runId": "2026-07-07T09-41-31-635Z-builder-mexn1r",
+      "requires": [
+        "commit",
+        "check-claimed-task-consistency"
+      ]
+    }
+  }
+}

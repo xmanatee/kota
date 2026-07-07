@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "runId": "2026-07-07T09-41-31-635Z-builder-mexn1r",
+  "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+  "taskTitle": "Promote run trace failures into eval candidates",
+  "commitSha": "ced7867bc0dff764801a3b092e15a66d08a1db5d",
+  "declared": {
+    "commitSubject": "Promote run trace failures into eval candidates",
+    "commitMessageFile": null,
+    "taskTitle": "Promote run trace failures into eval candidates",
+    "taskSummary": "Turn recurring run-artifact failures, trajectory diagnostics, and review-scrutiny findings into bounded eval-harness candidate fixtures before autonomy prompts, reviewers, or harnesses are changed."
+  },
+  "facts": {
+    "changedFileCount": 22,
+    "changedFiles": [
+      ".gitignore",
+      ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/commit-message.txt",
+      ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/fixture-candidate-report/fixture-candidates.json",
+      ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/fixture-candidate-report/fixture-candidates.md",
+      ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/fixture-candidates-transcript.txt",
+      ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/success-criteria-verified.txt",
+      ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/success-criteria.txt",
+      "data/tasks/done/task-promote-run-trace-failures-into-eval-candidates.md",
+      "src/modules/eval-harness/cli-fixture-candidates.test.ts",
+      "src/modules/eval-harness/cli.ts",
+      "src/modules/eval-harness/fixture-candidates-artifacts.ts",
+      "src/modules/eval-harness/fixture-candidates-classify.ts",
+      "src/modules/eval-harness/fixture-candidates-duplicates.ts",
+      "src/modules/eval-harness/fixture-candidates-patterns.ts",
+      "src/modules/eval-harness/fixture-candidates-proposals.test.ts",
+      "src/modules/eval-harness/fixture-candidates-proposals.ts",
+      "src/modules/eval-harness/fixture-candidates-task-writer.ts",
+      "src/modules/eval-harness/fixture-candidates-types.ts",
+      "src/modules/eval-harness/fixture-candidates.test.ts",
+      "src/modules/eval-harness/fixture-candidates.ts",
+      "src/modules/eval-harness/index.ts",
+      "src/modules/eval-harness/public-surface.ts"
+    ],
+    "truncatedChangedFileCount": 0,
+    "topLevelAreas": [
+      ".gitignore",
+      ".kota",
+      "data",
+      "src"
+    ],
+    "moduleNames": [
+      "eval-harness"
+    ],
+    "fileBuckets": [
+      {
+        "bucket": "production",
+        "count": 11
+      },
+      {
+        "bucket": "run-artifact",
+        "count": 6
+      },
+      {
+        "bucket": "test",
+        "count": 3
+      },
+      {
+        "bucket": "other",
+        "count": 1
+      },
+      {
+        "bucket": "task",
+        "count": 1
+      }
+    ],
+    "addedFileCount": 11,
+    "deletedFileCount": 0,
+    "renamedFileCount": 1,
+    "modifiedFileCount": 10,
+    "taskFileCount": 1,
+    "productionFileCount": 11,
+    "testFileCount": 3,
+    "docFileCount": 1,
+    "generatedOrBaselineChanged": false,
+    "largeDiff": true,
+    "taskMovedToDone": true
+  },
+  "mismatches": [
+    {
+      "category": "module-mentioned-not-touched",
+      "severity": "advisory",
+      "message": "Declared summary names module(s) not present in changed paths.",
+      "evidence": {
+        "mentionedModules": [
+          "autonomy"
+        ],
+        "touchedModules": [
+          "eval-harness"
+        ]
+      }
+    }
+  ],
+  "missingData": [
+    "commit-message-file"
+  ]
+}

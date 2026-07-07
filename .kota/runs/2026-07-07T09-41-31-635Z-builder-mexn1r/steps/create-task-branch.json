@@ -1,0 +1,14 @@
+{
+  "id": "create-task-branch",
+  "type": "code",
+  "status": "success",
+  "startedAt": "2026-07-07T10:29:47.003Z",
+  "completedAt": "2026-07-07T10:29:47.064Z",
+  "durationMs": 61,
+  "output": {
+    "branchPerTask": true,
+    "branch": "kota/task/task-promote-run-trace-failures-into-eval-candidates/2026-07-07t09-41-31-635z-builder-mexn1r",
+    "baseBranch": "main",
+    "taskId": "task-promote-run-trace-failures-into-eval-candidates"
+  }
+}

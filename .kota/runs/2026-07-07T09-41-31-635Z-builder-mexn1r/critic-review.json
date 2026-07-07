@@ -1,0 +1,8 @@
+{
+  "verdict": "pass",
+  "critical_issues": [],
+  "warnings": [],
+  "summary": "The done state is supported: the CLI/report mining path is implemented in src/modules/eval-harness/fixture-candidates.ts:215 and the focused tests cover redaction, duplicates, pattern detection, dispositions, and accepted task creation in src/modules/eval-harness/fixture-candidates-proposals.test.ts:115.",
+  "generatedAt": "2026-07-07T10:29:46.800Z",
+  "reviewerPromptHash": "f6e5054b3887"
+}
