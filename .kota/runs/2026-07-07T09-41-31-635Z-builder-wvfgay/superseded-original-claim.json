@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "taskId": "task-run-shadow-semantic-reviewers-for-non-builder-auto",
+  "taskState": "ready",
+  "runId": "2026-07-07T06-33-49-255Z-builder-s5hnlo",
+  "workflowId": "builder",
+  "owner": "workflow:builder",
+  "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-run-shadow-semantic-reviewers-for-non-builder-auto-2026-07-07t06-33-49-255z-builder-s5hnlo",
+  "branch": "kota/task/task-run-shadow-semantic-reviewers-for-non-builder-auto/2026-07-07t06-33-49-255z-builder-s5hnlo",
+  "baseCommit": "dcdc606463c87778d4a5f22efbbe2fc389e12823",
+  "leaseMs": 25200000,
+  "leaseAcquiredAt": "2026-07-07T06:34:05.473Z",
+  "leaseExpiresAt": "2026-07-07T13:34:05.473Z",
+  "createdAt": "2026-07-07T06:34:05.473Z",
+  "updatedAt": "2026-07-07T06:34:27.880Z",
+  "status": "active",
+  "evidence": "prepared builder worktree /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-run-shadow-semantic-reviewers-for-non-builder-auto-2026-07-07t06-33-49-255z-builder-s5hnlo"
+}

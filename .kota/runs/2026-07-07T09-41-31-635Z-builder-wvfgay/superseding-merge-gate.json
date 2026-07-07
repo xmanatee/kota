@@ -1,0 +1,34 @@
+{
+  "status": "blocked",
+  "taskId": "task-run-shadow-semantic-reviewers-for-non-builder-auto",
+  "runId": "2026-07-07T06-33-49-256Z-builder-79nvwh",
+  "branch": "kota/task/task-run-shadow-semantic-reviewers-for-non-builder-auto/2026-07-07t06-33-49-256z-builder-79nvwh",
+  "baseCommit": "f875c2a8812c5abaed45a065a11e5484de83a0c1",
+  "canonicalHeadCommit": "f875c2a8812c5abaed45a065a11e5484de83a0c1",
+  "headCommit": "e5f93ac12d682b786a0cd0e514a801d9ed9c6d99",
+  "mergeCommit": null,
+  "reason": "validation failed after merge gate integration",
+  "conflicts": [],
+  "resolutionAttempts": 0,
+  "validation": {
+    "command": [
+      "pnpm",
+      "test",
+      "src/modules/git",
+      "src/modules/autonomy/workflows/builder"
+    ],
+    "exitCode": 1,
+    "stdoutTail": "\n> kota@0.1.0 test /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-run-shadow-semantic-reviewers-for-non-builder-auto-2026-07-07t06-33-49-256z-builder-79nvwh\n> TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source vitest run --silent src/modules/git src/modules/autonomy/workflows/builder\n\n ELIFECYCLE  Test failed. See above for more details.\n",
+    "stderrTail": "file:///Users/xmanatee/Desktop/mono/apps/kota/node_modules/.pnpm/vitest@4.1.0_@opentelemetry+api@1.9.1_@types+node@22.19.15_vite@8.0.0_@types+node@22.19.15_esbuild@0.27.4_tsx@4.21.0_/node_modules/vitest/dist/chunks/cac.CWGDZnXT.js:697\n\t\t\tthrow new TypeError(`Unexpected value \"--silent=${value}\". Use \"--silent=true ${value}\" instead.`);\n\t\t\t      ^\n\nTypeError: Unexpected value \"--silent=src/modules/git\". Use \"--silent=true src/modules/git\" instead.\n    at Object.transform (file:///Users/xmanatee/Desktop/mono/apps/kota/node_modules/.pnpm/vitest@4.1.0_@opentelemetry+api@1.9.1_@types+node@22.19.15_vite@8.0.0_@types+node@22.19.15_esbuild@0.27.4_tsx@4.21.0_/node_modules/vitest/dist/chunks/cac.CWGDZnXT.js:697:10)\n    at transform (file:///Users/xmanatee/Desktop/mono/apps/kota/node_modules/.pnpm/vitest@4.1.0_@opentelemetry+api@1.9.1_@types+node@22.19.15_vite@8.0.0_@types+node@22.19.15_esbuild@0.27.4_tsx@4.21.0_/node_modules/vitest/dist/chunks/cac.CWGDZnXT.js:2173:39)\n    at setDotProp (file:///Users/xmanatee/Desktop/mono/apps/kota/node_modules/.pnpm/vitest@4.1.0_@opentelemetry+api@1.9.1_@types+node@22.19.15_vite@8.0.0_@types+node@22.19.15_esbuild@0.27.4_tsx@4.21.0_/node_modules/vitest/dist/chunks/cac.CWGDZnXT.js:208:22)\n    at CAC.mri (file:///Users/xmanatee/Desktop/mono/apps/kota/node_modules/.pnpm/vitest@4.1.0_@opentelemetry+api@1.9.1_@types+node@22.19.15_vite@8.0.0_@types+node@22.19.15_esbuild@0.27.4_tsx@4.21.0_/node_modules/vitest/dist/chunks/cac.CWGDZnXT.js:592:9)\n    at CAC.parse (file:///Users/xmanatee/Desktop/mono/apps/kota/node_modules/.pnpm/vitest@4.1.0_@opentelemetry+api@1.9.1_@types+node@22.19.15_vite@8.0.0_@types+node@22.19.15_esbuild@0.27.4_tsx@4.21.0_/node_modules/vitest/dist/chunks/cac.CWGDZnXT.js:509:27)\n    at file:///Users/xmanatee/Desktop/mono/apps/kota/node_modules/.pnpm/vitest@4.1.0_@opentelemetry+api@1.9.1_@types+node@22.19.15_vite@8.0.0_@types+node@22.19.15_esbuild@0.27.4_tsx@4.21.0_/node_modules/vitest/dist/cli.js:29:13\n    at ModuleJob.run (node:internal/modules/esm/module_job:345:25)\n    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:651:26)\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)\n\nNode.js v22.19.0\n",
+    "passed": false
+  },
+  "metrics": {
+    "waitMs": 1,
+    "mergeDurationMs": 619,
+    "conflictCount": 0,
+    "resolverAttempts": 0,
+    "validationFailures": 1,
+    "serializedByLock": true
+  },
+  "artifactPath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/worktrees/task-run-shadow-semantic-reviewers-for-non-builder-auto-2026-07-07t06-33-49-256z-builder-79nvwh.merge-gate.json"
+}

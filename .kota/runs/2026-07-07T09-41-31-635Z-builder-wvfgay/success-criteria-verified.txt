@@ -1,0 +1,4 @@
+1. Verified: the original claim from builder run 2026-07-07T06-33-49-255Z-builder-s5hnlo is archived in canonical claim history, and a later active claim from 2026-07-07T06-33-49-256Z-builder-79nvwh supersedes it in pending-merge state.
+2. Verified: canonical before-state and claim evidence were captured under this run directory.
+3. Verified: direct canonical dismissal was attempted with the recorded rationale but failed with EPERM while writing items.json.tmp, so the task is blocked on a typed operator-capture precondition.
+4. Verified: the task record was moved to blocked in the worktree and now records the evidence, dismissal rationale, and remaining unblock condition.

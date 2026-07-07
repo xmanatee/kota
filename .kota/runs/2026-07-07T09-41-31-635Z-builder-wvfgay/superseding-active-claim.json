@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "taskId": "task-run-shadow-semantic-reviewers-for-non-builder-auto",
+  "taskState": "ready",
+  "runId": "2026-07-07T06-33-49-256Z-builder-79nvwh",
+  "workflowId": "builder",
+  "owner": "workflow:builder",
+  "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-run-shadow-semantic-reviewers-for-non-builder-auto-2026-07-07t06-33-49-256z-builder-79nvwh",
+  "branch": "kota/task/task-run-shadow-semantic-reviewers-for-non-builder-auto/2026-07-07t06-33-49-256z-builder-79nvwh",
+  "baseCommit": "f875c2a8812c5abaed45a065a11e5484de83a0c1",
+  "leaseMs": 25200000,
+  "leaseAcquiredAt": "2026-07-07T07:08:22.727Z",
+  "leaseExpiresAt": "2026-07-07T14:08:22.727Z",
+  "createdAt": "2026-07-07T07:08:22.727Z",
+  "updatedAt": "2026-07-07T09:31:42.317Z",
+  "status": "pending-merge",
+  "evidence": "builder branch is pending merge: validation failed after merge gate integration"
+}

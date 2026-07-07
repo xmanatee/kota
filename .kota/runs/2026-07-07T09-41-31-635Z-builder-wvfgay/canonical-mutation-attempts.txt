@@ -1,0 +1,23 @@
+Command:
+node -e "fetch('http://127.0.0.1:52636/health').then(async r=>{console.log(r.status); console.log(await r.text())}).catch(e=>{console.error(e.message); process.exit(1)})"
+
+Result:
+fetch failed
+
+Command:
+TMPDIR=/private/tmp node --conditions=source --import tsx src/cli.ts workflow dlq show dlq-418d397f-9567-497d-b2b9-6591cfc0bcca --json
+
+Working directory:
+/Users/xmanatee/Desktop/mono/apps/kota
+
+Result:
+Succeeded. The canonical local client read the item with status "open".
+
+Command:
+TMPDIR=/private/tmp node --conditions=source --import tsx src/cli.ts workflow dlq dismiss dlq-418d397f-9567-497d-b2b9-6591cfc0bcca --reason "Dismissed as superseded by builder run 2026-07-07T06-33-49-256Z-builder-79nvwh: the original run 2026-07-07T06-33-49-255Z-builder-s5hnlo failed from a Codex websocket reset, its task claim was archived at 2026-07-07T07:08:22.727Z, and the later run claimed task-run-shadow-semantic-reviewers-for-non-builder-auto and reached pending-merge evidence. Redriving the stale trigger would duplicate recovered work."
+
+Working directory:
+/Users/xmanatee/Desktop/mono/apps/kota
+
+Result:
+Fatal: /Users/xmanatee/Desktop/mono/apps/kota/.kota/dead-letter-queue/items.json: failed to write JSON file atomically: EPERM: operation not permitted, open '/Users/xmanatee/Desktop/mono/apps/kota/.kota/dead-letter-queue/items.json.tmp'

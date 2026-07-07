@@ -1,0 +1,4 @@
+1. Establish whether the active claim from builder run 2026-07-07T06-33-49-255Z-builder-s5hnlo still blocks task-run-shadow-semantic-reviewers-for-non-builder-auto.
+2. Preserve canonical DLQ and claim evidence for dlq-418d397f-9567-497d-b2b9-6591cfc0bcca and the cited failed run.
+3. Redrive or dismiss the DLQ item when possible, or move the task to blocked with a concrete operator-capture precondition when canonical mutation is unavailable.
+4. Keep task state aligned with reality and record acceptance evidence in the task or run artifacts.
