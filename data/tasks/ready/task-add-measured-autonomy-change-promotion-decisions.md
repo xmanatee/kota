@@ -1,13 +1,13 @@
 ---
 id: task-add-measured-autonomy-change-promotion-decisions
 title: Add measured autonomy change promotion decisions
-status: backlog
+status: ready
 priority: p1
 area: autonomy
 task_class: Meta
 summary: Record hypothesis, baseline, rollout mode, eval deltas, and promote/hold/rollback decisions for autonomy workflow, prompt, harness, and reviewer changes so improvements are judged by evidence instead of vibes.
 created_at: 2026-06-25T14:51:40.531Z
-updated_at: 2026-07-06T14:02:50.000Z
+updated_at: 2026-07-07T03:21:27.550Z
 ---
 
 ## Problem

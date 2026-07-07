@@ -1,13 +1,13 @@
 ---
 id: task-add-source-to-decision-coverage-report-for-agent-r
 title: Add source to decision coverage report for agent resources
-status: backlog
+status: ready
 priority: p2
 area: autonomy
 task_class: Meta
 summary: Summarize watched multi-agent and evaluation resources into KOTA decisions, existing task coverage, and remaining gaps without adding a parallel external-link catalog.
 created_at: 2026-06-25T14:51:40.624Z
-updated_at: 2026-07-06T14:02:50.000Z
+updated_at: 2026-07-07T03:21:27.586Z
 ---
 
 ## Problem
