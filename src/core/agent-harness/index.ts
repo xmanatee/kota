@@ -71,6 +71,23 @@ export type {
   KotaToolUseBlock,
 } from "./message-protocol.js";
 export type {
+  ProcessDisciplineAbstentionEvidence,
+  ProcessDisciplineAggregate,
+  ProcessDisciplineDimension,
+  ProcessDisciplineDimensionRecord,
+  ProcessDisciplineDimensionStatus,
+  ProcessDisciplineEvidence,
+  ProcessDisciplineGrade,
+  ProcessDisciplineRecord,
+  ProcessDisciplineSourceKind,
+  ProcessDisciplineSourceRef,
+} from "./process-discipline.js";
+export {
+  buildProcessDisciplineRecord,
+  PROCESS_DISCIPLINE_DIMENSIONS,
+  PROCESS_DISCIPLINE_RUBRIC_VERSION,
+} from "./process-discipline.js";
+export type {
   AgentHarnessAdapterKind,
   AgentHarnessAuthProbe,
   AgentHarnessAuthStatus,
@@ -137,6 +154,10 @@ export {
   TRAJECTORY_DIAGNOSTICS_ARTIFACT_NAME,
   trajectoryDiagnosticsMetadata,
 } from "./trajectory-diagnostics.js";
+export type {
+  StagedTrajectoryDiagnosticsArtifact,
+  TrajectoryDiagnosticsProjectionArtifact,
+} from "./trajectory-diagnostics-projection.js";
 export type {
   AgentAskOwnerOptions,
   AgentCanUseTool,

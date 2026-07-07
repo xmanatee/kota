@@ -26,6 +26,7 @@ import {
 } from "./render-health-sections.js";
 import { renderOwnerInterventions } from "./render-owner-interventions.js";
 import { renderPostCompletionFollowUps } from "./render-post-completion-followups.js";
+import { renderProcessDiscipline } from "./render-process-discipline.js";
 import { renderQualityStratification } from "./render-quality-stratification.js";
 import { renderQueueBalance } from "./render-queue.js";
 import {
@@ -82,6 +83,9 @@ export function renderAutonomyReport(data: AutonomyReportData): RenderNode {
     blank(),
     heading("Trajectory diagnostics", 2),
     ...renderTrajectoryDiagnostics(data.trajectoryDiagnostics),
+    blank(),
+    heading("Process discipline", 2),
+    ...renderProcessDiscipline(data.processDiscipline),
     blank(),
     heading("Autonomy change decisions", 2),
     ...renderAutonomyChangeDecisions(data.autonomyChangeDecisions),

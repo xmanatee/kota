@@ -1,0 +1,180 @@
+{
+  "rubricVersion": "process-discipline-v1",
+  "weakSampleThreshold": 3,
+  "totalRecords": 1,
+  "records": [
+    {
+      "runId": "2026-07-07T09-41-31-635Z-builder-mexn1r",
+      "workflow": "builder",
+      "stepId": "build",
+      "harness": "codex",
+      "taskId": "task-promote-run-trace-failures-into-eval-candidates",
+      "taskClass": "Meta",
+      "taskArea": "modules",
+      "sourceArtifactPath": ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/steps/build.trajectory-diagnostics.json",
+      "processDiscipline": {
+        "version": 1,
+        "rubricVersion": "process-discipline-v1",
+        "source": {
+          "kind": "workflow-agent-step",
+          "artifactPath": ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/steps/build.trajectory-diagnostics.json"
+        },
+        "aggregate": {
+          "score": 100,
+          "maxScore": 100,
+          "grade": "good",
+          "supportedDimensions": 4,
+          "missingEvidenceDimensions": 1,
+          "unsupportedDimensions": 0
+        },
+        "dimensions": [
+          {
+            "dimension": "planning-fidelity",
+            "status": "supported",
+            "score": 20,
+            "maxScore": 20,
+            "summary": "No long pre-implementation tool sequence missed task-relevant changed files.",
+            "reasons": [],
+            "evidence": [
+              {
+                "code": "clean",
+                "summary": "No long pre-implementation tool sequence missed task-relevant changed files.",
+                "details": []
+              }
+            ]
+          },
+          {
+            "dimension": "verification-coverage",
+            "status": "supported",
+            "score": 20,
+            "maxScore": 20,
+            "summary": "File-editing activity was followed by a final verification-like signal.",
+            "reasons": [],
+            "evidence": [
+              {
+                "code": "clean",
+                "summary": "File-editing activity was followed by a final verification-like signal.",
+                "details": []
+              }
+            ]
+          },
+          {
+            "dimension": "recovery-efficiency",
+            "status": "supported",
+            "score": 20,
+            "maxScore": 20,
+            "summary": "No identical failing command was retried without an intervening edit.",
+            "reasons": [],
+            "evidence": [
+              {
+                "code": "clean",
+                "summary": "No identical failing command was retried without an intervening edit.",
+                "details": []
+              }
+            ]
+          },
+          {
+            "dimension": "abstention-quality",
+            "status": "missing-evidence",
+            "score": null,
+            "maxScore": 20,
+            "summary": "No no-op, blocked, or unsupported outcome evidence is available for abstention quality.",
+            "reasons": [
+              "missing-abstention-outcome"
+            ],
+            "evidence": []
+          },
+          {
+            "dimension": "atomic-transition-integrity",
+            "status": "supported",
+            "score": 20,
+            "maxScore": 20,
+            "summary": "No post-verification edit occurred without fresh verification evidence.",
+            "reasons": [],
+            "evidence": [
+              {
+                "code": "clean",
+                "summary": "No post-verification edit occurred without fresh verification evidence.",
+                "details": []
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "groups": [
+    {
+      "dimension": "harness",
+      "value": "codex",
+      "sampleCount": 1,
+      "averageScore": 100,
+      "gradeCounts": [
+        {
+          "grade": "good",
+          "count": 1
+        }
+      ],
+      "weakSample": true,
+      "missingEvidenceDimensions": 1,
+      "unsupportedDimensions": 0,
+      "sourceArtifactPaths": [
+        ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/steps/build.trajectory-diagnostics.json"
+      ]
+    },
+    {
+      "dimension": "taskArea",
+      "value": "modules",
+      "sampleCount": 1,
+      "averageScore": 100,
+      "gradeCounts": [
+        {
+          "grade": "good",
+          "count": 1
+        }
+      ],
+      "weakSample": true,
+      "missingEvidenceDimensions": 1,
+      "unsupportedDimensions": 0,
+      "sourceArtifactPaths": [
+        ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/steps/build.trajectory-diagnostics.json"
+      ]
+    },
+    {
+      "dimension": "taskClass",
+      "value": "Meta",
+      "sampleCount": 1,
+      "averageScore": 100,
+      "gradeCounts": [
+        {
+          "grade": "good",
+          "count": 1
+        }
+      ],
+      "weakSample": true,
+      "missingEvidenceDimensions": 1,
+      "unsupportedDimensions": 0,
+      "sourceArtifactPaths": [
+        ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/steps/build.trajectory-diagnostics.json"
+      ]
+    },
+    {
+      "dimension": "workflow",
+      "value": "builder",
+      "sampleCount": 1,
+      "averageScore": 100,
+      "gradeCounts": [
+        {
+          "grade": "good",
+          "count": 1
+        }
+      ],
+      "weakSample": true,
+      "missingEvidenceDimensions": 1,
+      "unsupportedDimensions": 0,
+      "sourceArtifactPaths": [
+        ".kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/steps/build.trajectory-diagnostics.json"
+      ]
+    }
+  ]
+}

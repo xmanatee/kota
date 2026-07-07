@@ -1,0 +1,96 @@
+Validation commands run:
+
+- `pnpm test src/core/agent-harness/process-discipline.test.ts src/modules/autonomy/report/aggregate.test.ts src/modules/autonomy/report/render.test.ts src/modules/autonomy/report/report-cli.test.ts`
+  - Result: passed, 4 test files, 37 tests.
+- `pnpm test src/core/workflow/steps/step-executor-agent-trajectory-diagnostics.test.ts src/modules/harness-parity/trajectory-diagnostics.test.ts src/modules/harness-parity/runner-trajectory-diagnostics.test.ts src/modules/harness-parity/runner-trajectory-stream.test.ts src/modules/harness-parity/runner-single.test.ts`
+  - Result: passed, 5 test files, 24 tests.
+- `pnpm run typecheck`
+  - Result: passed.
+- `pnpm run lint`
+  - Result: passed.
+- `pnpm run validate-tasks`
+  - Initial unstaged result: failed because the task move had not yet been staged.
+  - Temporary staged-index result: passed with `GIT_INDEX_FILE=/private/tmp/kota-builder-k0smbw.index`, `GIT_OBJECT_DIRECTORY=/private/tmp/kota-builder-k0smbw-objects`, and the real object store configured as an alternate.
+  - The original completion attempt recorded a real-index pass after staging; repair attempt 2 could not refresh the real index in this sandbox because the Git index lives outside the writable root. See the Repair attempt 2 staging notes below.
+- Repair attempt 1:
+  - `pnpm exec biome check --write src/core/agent-harness/index.ts src/core/agent-harness/process-discipline-types.ts src/core/agent-harness/process-discipline.ts src/core/agent-harness/process-discipline.test.ts src/modules/autonomy/report/aggregate-types.ts src/modules/autonomy/report/aggregate.ts src/modules/autonomy/report/process-discipline-report.ts src/modules/autonomy/report/process-discipline-report.test.ts src/modules/autonomy/report/render-process-discipline.ts src/modules/autonomy/report/render.test.ts src/modules/autonomy/report/render.ts src/modules/autonomy/report/report-cli-process-discipline.test.ts src/modules/autonomy/report/report-cli.test.ts src/modules/autonomy/report/report-test-fixtures.ts`
+    - Result: passed, no fixes applied.
+  - `pnpm test src/core/agent-harness/process-discipline.test.ts src/modules/autonomy/report/process-discipline-report.test.ts src/modules/autonomy/report/report-cli-process-discipline.test.ts src/modules/autonomy/report/aggregate.test.ts src/modules/autonomy/report/render.test.ts src/modules/autonomy/report/report-cli.test.ts`
+    - Result: passed, 6 test files, 38 tests.
+  - `pnpm exec biome check src/core/agent-harness/index.ts src/core/agent-harness/process-discipline-types.ts src/core/agent-harness/process-discipline.ts src/core/agent-harness/process-discipline.test.ts src/modules/autonomy/report/aggregate-types.ts src/modules/autonomy/report/aggregate.ts src/modules/autonomy/report/process-discipline-report.ts src/modules/autonomy/report/process-discipline-report.test.ts src/modules/autonomy/report/render-process-discipline.ts src/modules/autonomy/report/render.test.ts src/modules/autonomy/report/render.ts src/modules/autonomy/report/report-cli-process-discipline.test.ts src/modules/autonomy/report/report-cli.test.ts src/modules/autonomy/report/report-test-fixtures.ts`
+    - Result: passed.
+  - `pnpm run typecheck`
+    - Result: passed.
+  - `node --conditions=source --import tsx -e 'import { checkAutonomyChangeDecisionForRun } from "./src/modules/autonomy/autonomy-change-decision.js"; console.log(checkAutonomyChangeDecisionForRun(process.cwd(), ".kota/runs/2026-07-07T13-11-58-632Z-builder-k0smbw"));'`
+    - Result: passed, `OK: autonomy-change-decision.json covers 3 material autonomy file(s)`.
+  - `node --conditions=source --import tsx -e 'import { checkSevereSourceFileSizeForRun } from "./src/modules/autonomy/source-size-review-artifact.js"; console.log(checkSevereSourceFileSizeForRun(process.cwd(), ".kota/runs/2026-07-07T13-11-58-632Z-builder-k0smbw"));'`
+    - Result: passed, `OK: changed source files are under source-size warning thresholds`.
+
+- Repair attempt 2:
+  - `pnpm test src/core/agent-harness/process-discipline.test.ts`
+    - Result: passed, 1 test file, 8 tests.
+  - `pnpm test src/modules/autonomy/report/process-discipline-report.test.ts src/modules/autonomy/report/render.test.ts src/modules/autonomy/report/report-cli-process-discipline.test.ts src/modules/harness-parity/runner-staged.test.ts`
+    - Result: passed, 4 test files, 10 tests.
+  - `pnpm test src/core/agent-harness/process-discipline.test.ts && pnpm run typecheck`
+    - Result: passed; the focused process-discipline suite remained green and `tsc --noEmit` passed.
+  - `pnpm test src/modules/autonomy/report/process-discipline-report.test.ts src/modules/autonomy/report/render.test.ts src/modules/autonomy/report/report-cli-process-discipline.test.ts src/modules/harness-parity/runner-staged.test.ts src/modules/harness-parity/runner-trajectory-diagnostics.test.ts`
+    - Result: passed, 5 test files, 11 tests.
+  - `pnpm test src/core/agent-harness/process-discipline.test.ts src/modules/autonomy/report/process-discipline-report.test.ts src/modules/autonomy/report/render.test.ts src/modules/autonomy/report/report-cli-process-discipline.test.ts src/modules/harness-parity/runner-staged.test.ts src/modules/harness-parity/runner-trajectory-diagnostics.test.ts && pnpm run typecheck && pnpm run lint`
+    - Result: passed, 6 test files, 19 tests; `tsc --noEmit` passed; `biome check src/` passed.
+  - `git add -A`
+    - Result: failed in this sandbox with `Unable to create '/Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/task-report-process-discipline-scores-from-trajectory-d-2026-07-07t13-11-58-632z-builder-k0smbw/index.lock': Operation not permitted`.
+  - `GIT_INDEX_FILE=$PWD/.kota/tmp/repair-attempt-2.index GIT_OBJECT_DIRECTORY=$PWD/.kota/tmp/repair-attempt-2-objects GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects git add -A`
+    - Result: passed; temporary staged index showed the complete repair as staged-only changes.
+  - `GIT_INDEX_FILE=$PWD/.kota/tmp/repair-attempt-2.index GIT_OBJECT_DIRECTORY=$PWD/.kota/tmp/repair-attempt-2-objects GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects pnpm run validate-tasks`
+    - Result: passed.
+  - `pnpm exec biome check --write src/modules/autonomy/report/process-discipline-report.ts && pnpm test src/core/agent-harness/process-discipline.test.ts src/modules/autonomy/report/process-discipline-report.test.ts src/modules/harness-parity/runner-staged.test.ts && pnpm run typecheck`
+    - Result: passed; Biome reported no fixes, 3 test files / 12 tests passed, and `tsc --noEmit` passed.
+  - `pnpm exec biome check --write src/core/agent-harness/index.ts src/core/agent-harness/trajectory-diagnostics.ts src/core/agent-harness/process-discipline.ts src/core/agent-harness/process-discipline.test.ts src/modules/autonomy/report/process-discipline-report.ts && pnpm test src/core/agent-harness/process-discipline.test.ts src/modules/autonomy/report/process-discipline-report.test.ts src/modules/harness-parity/runner-staged.test.ts && pnpm run typecheck`
+    - Result: passed after renaming the shared projection artifact type; Biome reported no fixes, 3 test files / 12 tests passed, and `tsc --noEmit` passed.
+
+- Repair attempt 3:
+  - Split the oversized process-discipline scorer into focused aggregate,
+    dimension, evidence, and projection helpers; split staged-diagnostics
+    assertions into `process-discipline-staged.test.ts`.
+  - `pnpm exec biome check --write src/core/agent-harness/process-discipline.ts src/core/agent-harness/process-discipline-aggregate.ts src/core/agent-harness/process-discipline-dimensions.ts src/core/agent-harness/process-discipline-evidence.ts src/core/agent-harness/process-discipline-types.ts src/core/agent-harness/process-discipline.test.ts src/core/agent-harness/process-discipline-staged.test.ts src/core/agent-harness/trajectory-diagnostics-projection.ts src/core/agent-harness/index.ts src/modules/autonomy/report/process-discipline-report.ts src/modules/autonomy/report/process-discipline-report.test.ts src/modules/autonomy/report/report-cli-process-discipline.test.ts src/modules/autonomy/report/render-process-discipline.ts src/modules/autonomy/report/render.test.ts src/modules/autonomy/report/render.ts src/modules/autonomy/report/aggregate.ts src/modules/autonomy/report/aggregate-types.ts src/modules/autonomy/report/report-test-fixtures.ts`
+    - Result: passed, fixed 3 files.
+  - `pnpm test src/core/agent-harness/process-discipline.test.ts src/core/agent-harness/process-discipline-staged.test.ts src/modules/autonomy/report/process-discipline-report.test.ts src/modules/autonomy/report/report-cli-process-discipline.test.ts src/modules/autonomy/report/render.test.ts`
+    - Result: passed, 5 test files, 16 tests.
+  - `pnpm typecheck`
+    - Result: passed.
+  - Line-count check: process-discipline split files are all below 300 lines
+    (`process-discipline-dimensions.ts` 192, `process-discipline.test.ts` 212,
+    `process-discipline-report.ts` 282).
+  - `git add -A`
+    - Result: failed in this sandbox with `Unable to create '/Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/task-report-process-discipline-scores-from-trajectory-d-2026-07-07t13-11-58-632z-builder-k0smbw/index.lock': Operation not permitted`.
+  - Temporary staged-index refresh: copied the real index to
+    `.kota/tmp/repair-attempt-3.index`, used writable object directory
+    `.kota/tmp/repair-attempt-3-objects`, and ran `git add -A` there.
+    - Result: passed; the temporary staged diff excludes
+      `src/core/agent-harness/trajectory-diagnostics.ts` and includes the split
+      files.
+  - `GIT_INDEX_FILE=$PWD/.kota/tmp/repair-attempt-3.index GIT_OBJECT_DIRECTORY=$PWD/.kota/tmp/repair-attempt-3-objects GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects node --conditions=source --import tsx -e 'import { checkSevereSourceFileSizeForRun } from "./src/modules/autonomy/source-size-review-artifact.ts"; console.log(checkSevereSourceFileSizeForRun(process.cwd(), ".kota/runs/2026-07-07T13-11-58-632Z-builder-k0smbw"));'`
+    - Result: passed, `OK: changed source files are under source-size warning thresholds`; `source-file-size-review.json` now records `outcome: "ok"` with no warnings.
+  - `GIT_INDEX_FILE=$PWD/.kota/tmp/repair-attempt-3.index GIT_OBJECT_DIRECTORY=$PWD/.kota/tmp/repair-attempt-3-objects GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects pnpm run validate-tasks`
+    - Result: passed.
+
+- Repair attempt 4:
+  - Verified the previously untracked split helper/projection files are
+    intentional source and test files referenced by the staged implementation:
+    `src/core/agent-harness/process-discipline-aggregate.ts`,
+    `src/core/agent-harness/process-discipline-dimensions.ts`,
+    `src/core/agent-harness/process-discipline-evidence.ts`,
+    `src/core/agent-harness/trajectory-diagnostics-projection.ts`, and
+    `src/core/agent-harness/process-discipline-staged.test.ts`.
+  - `pnpm test src/core/agent-harness/process-discipline.test.ts src/core/agent-harness/process-discipline-staged.test.ts src/modules/autonomy/report/process-discipline-report.test.ts src/modules/autonomy/report/report-cli-process-discipline.test.ts src/modules/autonomy/report/render.test.ts`
+    - Result: passed, 5 test files, 16 tests.
+  - `git add -A`
+    - Result: passed; the real staged index now includes the previously
+      untracked process-discipline helper, projection, and staged-test files.
+
+Additional artifacts:
+
+- `.kota/runs/2026-07-07T13-11-58-632Z-builder-k0smbw/process-discipline-report.json`
+- `.kota/runs/2026-07-07T13-11-58-632Z-builder-k0smbw/autonomy-change-decision.json`
+- `.kota/runs/2026-07-07T13-11-58-632Z-builder-k0smbw/source-file-size-review.json`
+- `.kota/runs/2026-07-07T13-11-58-632Z-builder-k0smbw/task-move-done-attempt.txt`

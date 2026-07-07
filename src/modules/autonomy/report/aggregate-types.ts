@@ -22,6 +22,9 @@ import type { DecisionAttributionReport } from "./decision-attribution-types.js"
 import type { DiffSummaryConsistencyReport } from "./diff-summary-consistency-report.js";
 import type { OwnerInterventionReport } from "./owner-interventions.js";
 import type { PostCompletionFollowUpReport } from "./post-completion-followups.js";
+import type {
+  ProcessDisciplineReport,
+} from "./process-discipline-report.js";
 import type { QualityStratificationReport } from "./quality-stratification.js";
 import type { AreaClassification } from "./task-classification.js";
 
@@ -30,6 +33,13 @@ export type { CodeHealthDriftReport } from "./code-health-drift.js";
 export type { DecisionAttributionReport } from "./decision-attribution-types.js";
 export type { DiffSummaryConsistencyReport } from "./diff-summary-consistency-report.js";
 export type { OwnerInterventionReport } from "./owner-interventions.js";
+export type {
+  ProcessDisciplineGradeCount,
+  ProcessDisciplineGroupDimension,
+  ProcessDisciplineGroupSummary,
+  ProcessDisciplineReport,
+  ProcessDisciplineReportRecord,
+} from "./process-discipline-report.js";
 export type { QualityStratificationReport } from "./quality-stratification.js";
 
 export const DEFAULT_REPORT_WINDOW_DAYS = 7;
@@ -201,6 +211,7 @@ export type AutonomyReportData = {
   reviewScrutinyEscalation: ReviewScrutinyEscalationReport;
   shadowSemanticReviews: ShadowSemanticReviewReport;
   trajectoryDiagnostics: TrajectoryDiagnosticReport;
+  processDiscipline: ProcessDisciplineReport;
   autonomyChangeDecisions: AutonomyChangeDecisionReport;
   codeHealthDrift: CodeHealthDriftReport;
   ownerInterventions: OwnerInterventionReport;

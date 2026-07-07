@@ -39,6 +39,7 @@ import {
   buildPostCompletionCorrectiveLinks,
   summarizePostCompletionFollowUpLinks,
 } from "./post-completion-followups.js";
+import { buildProcessDisciplineReport } from "./process-discipline-report.js";
 import { buildQualityStratificationReport } from "./quality-stratification.js";
 import { buildShadowSemanticReviewReport } from "./shadow-semantic-reviews.js";
 
@@ -64,6 +65,7 @@ export {
   type HealthTopGroup,
   type OwnerInterventionReport,
   type PriorityCount,
+  type ProcessDisciplineReport,
   type QualityStratificationReport,
   type QueueBalance,
   type QueueDependencyWait,
@@ -204,6 +206,11 @@ export function aggregateAutonomyReport(
       input.windowEndMs,
       windowMs,
     ),
+    processDiscipline: buildProcessDisciplineReport({
+      runs,
+      runsDir: input.runsDir,
+      taskById,
+    }),
     autonomyChangeDecisions: buildAutonomyChangeDecisionReport({
       runs,
       runsDir: input.runsDir,

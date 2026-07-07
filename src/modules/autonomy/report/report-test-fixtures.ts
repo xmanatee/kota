@@ -1,4 +1,5 @@
 import type { AutonomyReportData } from "./aggregate.js";
+import { PROCESS_DISCIPLINE_RUBRIC_VERSION } from "./process-discipline-report.js";
 
 export const baseReportWindow = {
   windowStartedAt: "2026-04-22T12:00:00.000Z",
@@ -99,6 +100,13 @@ export const emptyAutonomyReportData: AutonomyReportData = {
     unsupported: [],
   },
   trajectoryDiagnostics: { activePatterns: [] },
+  processDiscipline: {
+    rubricVersion: PROCESS_DISCIPLINE_RUBRIC_VERSION,
+    weakSampleThreshold: 3,
+    totalRecords: 0,
+    records: [],
+    groups: [],
+  },
   autonomyChangeDecisions: {
     totalDecisions: 0,
     invalidArtifacts: [],

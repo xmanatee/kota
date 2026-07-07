@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "autonomy-change-decision",
+  "runId": "2026-07-07T13-11-58-632Z-builder-k0smbw",
+  "createdAt": "2026-07-07T13:40:00.000Z",
+  "taskIds": [
+    "task-report-process-discipline-scores-from-trajectory-d"
+  ],
+  "affectedSurfaces": [
+    "agent harness process-discipline rubric",
+    "workflow agent-step trajectory diagnostics projection",
+    "operator report process-discipline section"
+  ],
+  "changeClasses": [
+    "harness"
+  ],
+  "hypothesis": "Projecting existing trajectory diagnostics into typed process-discipline records will make autonomy and harness quality comparisons more inspectable without replacing outcome gates or rollout decisions.",
+  "sourceRefs": [
+    "task:task-report-process-discipline-scores-from-trajectory-d",
+    ".kota/runs/2026-07-07T13-11-58-632Z-builder-k0smbw/process-discipline-report.json",
+    ".kota/runs/2026-07-07T13-11-58-632Z-builder-k0smbw/validation.txt"
+  ],
+  "baselineRefs": [
+    "src/core/agent-harness/trajectory-diagnostics.ts",
+    "src/modules/autonomy/report/aggregate-trajectory.ts",
+    "data/tasks/done/task-add-trajectory-quality-diagnostics-for-lucky-pass-.md",
+    "data/tasks/done/task-write-trajectory-quality-diagnostics-for-workflow-.md"
+  ],
+  "candidateRefs": [
+    "src/core/agent-harness/process-discipline-types.ts",
+    "src/core/agent-harness/process-discipline.ts",
+    "src/core/agent-harness/process-discipline.test.ts",
+    "src/modules/autonomy/report/process-discipline-report.ts",
+    "src/modules/autonomy/report/process-discipline-report.test.ts",
+    "src/modules/autonomy/report/render-process-discipline.ts",
+    "src/modules/autonomy/report/report-cli-process-discipline.test.ts"
+  ],
+  "metricsCompared": [
+    {
+      "name": "process-discipline rubric coverage",
+      "baseline": "trajectory diagnostics exposed warning counts but no typed per-dimension process-discipline record",
+      "candidate": "focused tests cover clean, missing verification, repeated failure, edit-after-pass, unsupported stream, and blocked/no-op abstention evidence",
+      "unit": "local test coverage",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "operator report visibility",
+      "baseline": "kota report did not expose grouped process-discipline scores",
+      "candidate": "report aggregation, rendering, and JSON smoke tests expose grouped process-discipline records without cost or raw-output fields",
+      "unit": "operator report surface",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "rollout evidence depth",
+      "baseline": "no score existed for live-window harness or workflow comparison",
+      "candidate": "advisory score exists with local deterministic tests, but no multi-run live comparison has been accumulated yet",
+      "unit": "governance evidence",
+      "direction": "unknown",
+      "qualitySignal": true
+    }
+  ],
+  "rolloutMode": "advisory",
+  "decision": "needs-more-data",
+  "rationale": "The implementation adds an advisory operator-report signal backed by deterministic local tests and existing trajectory artifacts. It does not make the score a pass/fail gate or promote any harness, reviewer, prompt, or workflow route; live-window comparisons should accumulate before relying on this score for rollout decisions.",
+  "ownerSafetyExceptions": [],
+  "followUpTaskIds": []
+}

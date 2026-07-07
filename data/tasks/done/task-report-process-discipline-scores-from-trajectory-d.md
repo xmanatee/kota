@@ -1,13 +1,13 @@
 ---
 id: task-report-process-discipline-scores-from-trajectory-d
 title: Report process-discipline scores from trajectory diagnostics
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Safety
 summary: Project existing trajectory diagnostics into a compact process-discipline score so KOTA can compare autonomous runs by planning, verification, recovery, abstention, and atomicity signals without importing an external benchmark.
 created_at: 2026-07-07T13:07:28.913Z
-updated_at: 2026-07-07T13:07:28.913Z
+updated_at: 2026-07-07T13:27:30.000Z
 ---
 
 ## Problem
@@ -156,3 +156,20 @@ success before rollout or queue-shaping decisions rely on it.
   does not persist prompts, raw tool outputs, secrets, full diffs, costs, or
   hidden reasoning.
 - `pnpm run validate-tasks` passes.
+
+## Completion Notes
+
+- Added `process-discipline-v1` projection records over existing trajectory
+  diagnostics with per-dimension evidence, missing/unsupported states, aggregate
+  grades, and bounded source artifact refs.
+- `kota report` JSON now includes `processDiscipline`; rendered output includes
+  a compact Process discipline section grouped by workflow, harness, task class,
+  and task area.
+- Acceptance artifact:
+  `.kota/runs/2026-07-07T13-11-58-632Z-builder-k0smbw/process-discipline-report.json`.
+- Validation: targeted process-discipline/autonomy-report tests, existing
+  trajectory/harness-parity tests, `pnpm run typecheck`, and `pnpm run lint`
+  passed. `pnpm run validate-tasks` passed after final staging. Canonical task
+  move was attempted but could not create the external worktree Git
+  `index.lock`, so the equivalent state move was applied in the working tree
+  and the failure is recorded in the run artifacts.

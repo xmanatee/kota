@@ -1,0 +1,5 @@
+1. A stable typed process-discipline schema projects existing trajectory diagnostics into per-dimension evidence, unsupported or missing-evidence reasons, an aggregate grade or score, and sanitized source artifact references.
+2. Workflow agent-step diagnostics and harness-parity diagnostics both flow through shared projection logic or deliberately thin adapters.
+3. `kota report` text and JSON output expose a concise recent-runs process-discipline section grouped by workflow, harness, task class, and area without replacing existing quality stratification.
+4. Focused tests cover disciplined success, missing final verification, repeated identical failing commands, edit-after-pass, unsupported native stream evidence, no-op or blocked abstention evidence, and small-sample report rendering.
+5. Validation evidence shows the relevant trajectory-diagnostics, autonomy-report, harness-parity, task-validation, and targeted test paths remain green or records any environment-only blocker honestly.

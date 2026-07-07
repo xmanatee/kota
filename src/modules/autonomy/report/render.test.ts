@@ -17,6 +17,7 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("Review scrutiny");
     expect(text).toContain("Review scrutiny escalation");
     expect(text).toContain("Trajectory diagnostics");
+    expect(text).toContain("Process discipline");
     expect(text).toContain("Autonomy change decisions");
     expect(text).toContain("Post-completion follow-ups");
     expect(text).toContain("Quality stratification");
@@ -37,6 +38,7 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("(no reviewer artifacts)");
     expect(text).toContain("(no recurring thin-acceptance patterns)");
     expect(text).toContain("(no recurring trajectory diagnostic patterns)");
+    expect(text).toContain("(no process-discipline records)");
     expect(text).toContain("(no autonomy change decisions)");
     expect(text).toContain(
       "(no corrective follow-ups linked to recently completed tasks)",
@@ -66,10 +68,49 @@ describe("renderAutonomyReport", () => {
       },
     });
 
-    const trajectorySection = section(text, "Trajectory diagnostics", "Blockers");
+    const trajectorySection = section(text, "Trajectory diagnostics", "Process discipline");
     expect(trajectorySection).toContain("explorer/explore");
     expect(trajectorySection).toContain("task-repair-trajectory-diagnostic-pattern");
     expect(trajectorySection).not.toMatch(/\$|cost|throughput/i);
+  });
+
+  it("renders small-sample process-discipline groups without cost fields", () => {
+    const text = renderReport({
+      ...empty,
+      processDiscipline: {
+        rubricVersion: "process-discipline-v1",
+        weakSampleThreshold: 3,
+        totalRecords: 1,
+        records: [],
+        groups: [
+          {
+            dimension: "workflow",
+            value: "builder",
+            sampleCount: 1,
+            averageScore: 75,
+            gradeCounts: [{ grade: "caution", count: 1 }],
+            weakSample: true,
+            missingEvidenceDimensions: 1,
+            unsupportedDimensions: 0,
+            sourceArtifactPaths: [
+              ".kota/runs/r1/steps/build.trajectory-diagnostics.json",
+            ],
+          },
+        ],
+      },
+    });
+
+    const processSection = section(
+      text,
+      "Process discipline",
+      "Autonomy change decisions",
+    );
+    expect(processSection).toContain("process-discipline-v1");
+    expect(processSection).toContain("workflow/builder");
+    expect(processSection).toContain("75/100");
+    expect(processSection).toContain("weak sample");
+    expect(processSection).toContain("missing=1");
+    expect(processSection).not.toMatch(/\$|cost|throughput/i);
   });
 
   it("renders post-completion corrective follow-ups without cost fields", () => {
