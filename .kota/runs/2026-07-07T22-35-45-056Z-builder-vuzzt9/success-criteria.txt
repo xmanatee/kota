@@ -1,0 +1,3 @@
+1. Fix the supervision-load workstream terminal-control exposure by sanitizing rendered workstream string fields before they reach terminal spans.
+2. Add focused regression coverage using an active workflow run whose trigger payload scopeId contains ANSI and bidi controls.
+3. Record the final verification command or artifact in the completed task state and run artifacts.

@@ -36,18 +36,23 @@ export function renderSupervisionLoad(
     lines.push(blank());
     lines.push(line(span("Workstreams", "muted", true)));
     for (const group of report.workstreams.slice(0, 8)) {
+      const workflow = safeTerminalLineText(group.workflow);
+      const taskClass = safeTerminalLineText(group.taskClass);
+      const scope = group.scopeId
+        ? ` scope=${safeTerminalLineText(group.scopeId)}`
+        : "";
       lines.push(line(
         plain("  "),
-        span(group.workflow.padEnd(22), "info"),
+        span(workflow.padEnd(22), "info"),
         plain(" "),
-        span(group.taskClass, taskClassRole(group.taskClass)),
+        span(taskClass, taskClassRole(group.taskClass)),
         plain(" "),
         span(priorityLabel(group.priority), priorityRole(group.priority)),
         plain(` runs=${group.activeRuns} claims=${group.taskClaims}`),
         group.pendingMergeTaskClaims > 0
           ? span(` pending-merge=${group.pendingMergeTaskClaims}`, "warn")
           : plain(""),
-        group.scopeId ? plain(` scope=${group.scopeId}`) : plain(""),
+        plain(scope),
       ));
     }
   }

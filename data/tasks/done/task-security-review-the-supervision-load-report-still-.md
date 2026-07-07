@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-supervision-load-report-still-
 title: Security review: The supervision-load report still renders workstream scope IDs from workflow trigger payloads without terminal-control stripping, so a queued workflow payload containing ANSI or bidi controls can reach operator terminal output even though top references now sanitize the same class of data.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: The supervision-load report still renders workstream scope IDs from workflow trigger payloads without terminal-control stripping, so a queued workflow payload containing ANSI or bidi controls can reach operator terminal output even though top references now sanitize the same class of data.
 created_at: 2026-07-07T22:28:35.321Z
-updated_at: 2026-07-07T22:28:35.321Z
+updated_at: 2026-07-07T22:44:10.288Z
 ---
 
 ## Problem
@@ -125,3 +125,10 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `NODE_OPTIONS=--conditions=source pnpm exec vitest run src/modules/autonomy/report/report-cli-supervision-load.test.ts --configLoader runner --silent=true`
+- `pnpm typecheck`
+- `pnpm validate-tasks`
+- `pnpm exec biome check src/modules/autonomy/report/render-supervision-load.ts src/modules/autonomy/report/report-cli-supervision-load.test.ts`

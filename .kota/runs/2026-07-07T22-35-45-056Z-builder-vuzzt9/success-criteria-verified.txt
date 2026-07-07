@@ -1,0 +1,3 @@
+1. Verified: `renderSupervisionLoad` now applies `safeTerminalLineText` to workstream `workflow`, `taskClass`, and `scopeId` text before rendering those values through `span` or `plain`.
+2. Verified: `report-cli-supervision-load.test.ts` now creates a running workflow metadata fixture whose trigger payload `scopeId` contains ANSI, C1 ANSI, OSC, and bidi controls, and asserts no raw terminal or bidi controls reach no-color `kota report` output.
+3. Verified: the completed task records the final verification commands, and the focused regression test, typecheck, task validation, and touched-file biome check passed.

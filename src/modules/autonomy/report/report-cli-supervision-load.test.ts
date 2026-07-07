@@ -74,6 +74,38 @@ function writeApproval(projectDir: string): void {
   );
 }
 
+function writeRunningRun(projectDir: string, scopeId: string): void {
+  const id = "run-active-terminal-control";
+  const dir = join(projectDir, ".kota", "runs", id);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, "metadata.json"),
+    `${JSON.stringify(
+      {
+        id,
+        workflow: "builder",
+        definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+        trigger: {
+          event: "autonomy.queue.available",
+          schemaRef: null,
+          payload: {
+            taskId: "task-arch-1",
+            scopeId,
+            projectId: "project-a",
+          },
+        },
+        startedAt: new Date().toISOString(),
+        status: "running",
+        runDir: `.kota/runs/${id}`,
+        steps: [],
+      },
+      null,
+      2,
+    )}\n`,
+    "utf-8",
+  );
+}
+
 async function captureNoColorStdout(
   fn: () => Promise<void> | void,
 ): Promise<string> {
@@ -165,6 +197,25 @@ describe("kota report CLI supervision load", () => {
 
     expect(out).toContain("approval-terminal-control");
     expect(out).toContain("Bashred approval (dangerousgreen)");
+    expect(out).not.toContain(CSI_RED);
+    expect(out).not.toContain(OSC_TITLE);
+    expect(out).not.toMatch(RAW_TERMINAL_CONTROL_PATTERN);
+    expect(out).not.toMatch(UNICODE_BIDI_CONTROL_PATTERN);
+  });
+
+  it("strips terminal controls from active-run workstream scope ids", async () => {
+    writeTask(projectDir, "task-arch-1");
+    writeRunningRun(
+      projectDir,
+      `scope${CSI_RED}red${CSI_RESET}${OSC_TITLE}${C1_CSI_GREEN}green${RIGHT_TO_LEFT_OVERRIDE}`,
+    );
+
+    const out = await captureNoColorStdout(async () => {
+      await makeProgram().parseAsync(["node", "kota", "report"]);
+    });
+
+    expect(out).toContain("Workstreams");
+    expect(out).toContain("scope=scoperedgreen");
     expect(out).not.toContain(CSI_RED);
     expect(out).not.toContain(OSC_TITLE);
     expect(out).not.toMatch(RAW_TERMINAL_CONTROL_PATTERN);
