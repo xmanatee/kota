@@ -1,13 +1,13 @@
 ---
 id: task-audit-and-close-legacy-cli-control-task-records
 title: Audit and close legacy CLI control task records
-status: backlog
+status: ready
 priority: p2
 area: repo-tasks
 summary: After the operator-control fixes land, audit the old completed CLI/control tasks and current docs/help so no stale or overclaimed task record remains as the source of truth.
 depends_on: [task-replace-readline-navigator-with-a-real-daemon-back, task-make-foreground-daemon-mode-expose-operator-contro, task-reconcile-dirty-recovery-pause-state-across-status, task-add-completion-evidence-gates-for-operator-client-]
 created_at: 2026-07-06T15:16:45.700Z
-updated_at: 2026-07-06T15:16:45.700Z
+updated_at: 2026-07-07T16:46:24.344Z
 task_class: Meta
 ---
 
