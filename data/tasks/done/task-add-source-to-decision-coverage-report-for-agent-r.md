@@ -1,13 +1,13 @@
 ---
 id: task-add-source-to-decision-coverage-report-for-agent-r
 title: Add source to decision coverage report for agent resources
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Meta
 summary: Summarize watched multi-agent and evaluation resources into KOTA decisions, existing task coverage, and remaining gaps without adding a parallel external-link catalog.
 created_at: 2026-06-25T14:51:40.624Z
-updated_at: 2026-07-07T03:21:27.586Z
+updated_at: 2026-07-07T06:46:57.363Z
 ---
 
 ## Problem
@@ -112,3 +112,12 @@ no-op decisions instead of repeated rereading and queue churn.
   duplicate-safe task mapping.
 - Sample report section showing at least one adopted source, one source covered
   by an open task, one rejected/no-op source, and one unmapped gap.
+
+## Completion Notes
+
+- Added `kota report sources` for deterministic watchlist-to-task/local-decision
+  coverage without web fetching or a parallel source catalog.
+- Evidence transcript:
+  `.kota/runs/2026-07-07T05-35-23-899Z-builder-0jh48q/source-coverage-transcript.txt`.
+- Focused validation: `pnpm test src/modules/autonomy/report/source-decision-coverage.test.ts src/modules/autonomy/report/report-cli.test.ts`,
+  `pnpm typecheck`, targeted Biome check, and `pnpm validate-tasks`.

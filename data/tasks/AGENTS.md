@@ -30,9 +30,9 @@ describes scheduling and lifecycle.
 - `## Acceptance Evidence` names the transcript, screenshot, fixture, command,
   artifact, or demo that proves the task's outcome. User-facing CLI/UI work
   needs rendered-output evidence, not only implementation tests.
-- Keep required research links visible when they are central to the work. If
-  source access fails, record the blocker honestly instead of treating the task
-  as complete.
+- Keep required research links and source-to-decision refs visible in `## Source
+  / Intent` or decision sections when central. Cite existing watchlist refs,
+  not copied metadata; if source access fails, record the blocker honestly.
 
 ## Strategic Anchor Tasks
 

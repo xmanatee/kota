@@ -1,0 +1,45 @@
+$ KOTA_RENDERER_THEME=no-color node --conditions=source --import tsx src/cli.ts report sources --source https://www.anthropic.com/research --source https://github.com/zsworld6/projdevbench --source https://github.com/anthropics/claude-code --source https://arxiv.org/abs/2606.24429 --source https://github.com/SWE-agent/SWE-agent
+Source decision coverage - 5 selected of 111 watchlist sources
+Warnings: 0 stale, 0 unverified (stale threshold 45 days)
+
+By disposition
+  adopt                      1
+  partial-adopt              1
+  reject                     1
+  watch                      0
+  no-op                      1
+  needs-research             1
+
+By coverage status
+  covered-by-done-task       2
+  covered-by-open-task       1
+  local-decision             3
+  unmapped                   1
+
+Records by disposition
+  adopt (1)
+    https://www.anthropic.com/research
+      coverage: covered-by-done-task
+      decision: Mapped to local task coverage: task-expose-planning-versus-execution-decision-attribut, task-trigger-security-review-when-security-sensitive-co.
+      done: task-expose-planning-versus-execution-decision-attribut (done), task-trigger-security-review-when-security-sensitive-co (done)
+  partial-adopt (1)
+    https://github.com/zsworld6/projdevbench
+      coverage: covered-by-open-task, local-decision
+      decision: Mapped to local task coverage: task-add-algorithmic-resource-budget-canaries-to-the-ev.
+      open: task-add-algorithmic-resource-budget-canaries-to-the-ev (blocked)
+      gap: Open task coverage remains: task-add-algorithmic-resource-budget-canaries-to-the-ev.
+  reject (1)
+    https://github.com/anthropics/claude-code
+      coverage: covered-by-done-task, local-decision
+      decision: Multi-Claude parallel builds: reject against builder, critic, workspaceDir, task claim lease, git worktree lifecycle, merge gate, scheduler concurrency.
+      done: task-add-mcp-resource-template-listing-and-resource-list-pagi (done), task-add-preset-harness-readiness-reporting (done), task-add-rollout-token-budgets-to-workflow-agent-runs (done), task-define-execution-subprocess-environment-policy (done), task-emit-typed-daemon-config-reload-events-into-tracing (done), task-gate-shell-environment-overrides-in-tool-guardrails (done), task-harden-shell-working-directory-guardrails-against- (done), task-normalize-github-issue-comment-mentions-into-typed-workflow-events (done), task-prove-inbound-workflow-notifications-cannot-resolv (done), task-record-per-tool-call-telemetry-in-agent-step-artifacts (done), task-reject-skill-frontmatter-tool-policy-declarations- (done), task-route-trusted-github-mention-comments-through-an-on-demand-response-workflow (done), task-support-paginated-mcp-toolslist-in-the-client-runtime (done)
+      refs: src/modules/autonomy/AGENTS.md#external-pattern-decisions, src/modules/autonomy/external-pattern-decisions.ts
+  no-op (1)
+    https://arxiv.org/abs/2606.24429
+      coverage: local-decision
+      decision: Detecting AI Coding Agents in Open Source is accessible; its multi-method attribution signal reinforces KOTA's completed post-completion, review-scrutiny, diff-summary, and quality-stratification reporting plus open s...
+  needs-research (1)
+    https://github.com/SWE-agent/SWE-agent
+      coverage: unmapped
+      decision: No local decision marker or task mapping found.
+      gap: No task id, exact source reference, or local decision marker maps this source.

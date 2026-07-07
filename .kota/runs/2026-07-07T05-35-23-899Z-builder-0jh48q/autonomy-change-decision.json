@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "autonomy-change-decision",
+  "runId": "2026-07-07T05-35-23-899Z-builder-0jh48q",
+  "createdAt": "2026-07-07T06:08:26.000Z",
+  "taskIds": [
+    "task-add-source-to-decision-coverage-report-for-agent-r"
+  ],
+  "affectedSurfaces": [
+    "operator report",
+    "autonomy source coverage review",
+    "critic/reviewer evidence"
+  ],
+  "changeClasses": [
+    "reviewer",
+    "critic-gate"
+  ],
+  "hypothesis": "A deterministic source-to-decision report will improve research-heavy autonomy review by mapping watched agent and evaluation resources to local tasks, local decisions, explicit no-ops, and unmapped gaps without creating a parallel source catalog.",
+  "sourceRefs": [
+    "task:task-add-source-to-decision-coverage-report-for-agent-r",
+    "data/watchlist.yaml",
+    "src/modules/autonomy/AGENTS.md#External Pattern Decisions"
+  ],
+  "baselineRefs": [
+    "data/tasks/ready/task-add-source-to-decision-coverage-report-for-agent-r.md",
+    "docs/STANDARDS.md",
+    "data/tasks/AGENTS.md"
+  ],
+  "candidateRefs": [
+    "src/modules/autonomy/report/report-cli.ts",
+    "src/modules/autonomy/report/source-decision-coverage.ts",
+    "src/modules/autonomy/report/source-decision-coverage-record.ts",
+    "src/modules/autonomy/report/source-decision-coverage-matching.ts",
+    "src/modules/autonomy/report/source-decision-coverage-types.ts",
+    "src/modules/autonomy/report/render-source-decision-coverage.ts",
+    "src/modules/autonomy/report/source-decision-coverage.test.ts",
+    "src/modules/autonomy/report/report-cli.test.ts",
+    ".kota/runs/2026-07-07T05-35-23-899Z-builder-0jh48q/source-coverage-transcript.txt"
+  ],
+  "metricsCompared": [
+    {
+      "name": "focused source coverage tests",
+      "baseline": "no deterministic builder or CLI coverage for source-to-decision mapping",
+      "candidate": "source coverage and report CLI tests cover grouped text output, JSON output, stale warnings, no-op signals, local decisions, and task mappings",
+      "unit": "vitest",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "operator rendered evidence",
+      "baseline": "watchlist-to-task and watchlist-to-decision coverage required manual grep across data and local guidance",
+      "candidate": "source-coverage-transcript.txt shows the report grouping adopted, open-task, rejected/no-op, and unmapped sources",
+      "unit": "run artifact",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "source catalog discipline",
+      "baseline": "future research task guidance did not name the source-to-decision disposition surfaces explicitly",
+      "candidate": "task guidance points future source dispositions at tasks, local AGENTS/docs, or watchlist snapshots without adding a second source catalog",
+      "unit": "AGENTS guidance",
+      "direction": "improved",
+      "qualitySignal": true
+    }
+  ],
+  "rolloutMode": "advisory",
+  "decision": "promote",
+  "rationale": "The change is read-only report behavior over local watchlist, task, and decision data. Focused tests exercise deterministic mapping and CLI rendering, and the run transcript gives reviewer-visible output. The report flags gaps instead of creating tasks or fetching external sources, so it improves review evidence without changing workflow execution.",
+  "ownerSafetyExceptions": [],
+  "followUpTaskIds": []
+}

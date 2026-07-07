@@ -55,6 +55,35 @@ function writeTask(
   writeFileSync(join(dir, `${id}.md`), content, "utf-8");
 }
 
+function writeWatchlist(projectDir: string, entries: readonly string[]): void {
+  mkdirSync(join(projectDir, "data"), { recursive: true });
+  writeFileSync(
+    join(projectDir, "data", "watchlist.yaml"),
+    ["resources:", ...entries, ""].join("\n"),
+    "utf-8",
+  );
+}
+
+function watchlistEntry(args: {
+  url: string;
+  summary?: string;
+  lastSeen?: string;
+}): string {
+  const lines = [
+    `  - url: ${args.url}`,
+    '    added: "2026-07-01"',
+  ];
+  if (args.summary !== undefined && args.lastSeen !== undefined) {
+    lines.push(
+      "    snapshot:",
+      "      fingerprint: sha256:test",
+      `      summary: "${args.summary}"`,
+      `      last_seen_at: "${args.lastSeen}"`,
+    );
+  }
+  return lines.join("\n");
+}
+
 function initSourceRepoWithAddedFile(dir: string): void {
   execFileSync("git", ["init", "--quiet"], { cwd: dir, stdio: "ignore" });
   execFileSync("git", ["config", "user.email", "test@example.com"], {
@@ -211,6 +240,93 @@ describe("kota report CLI", () => {
         ]);
       }),
     ).rejects.toThrow(/--days must be a positive integer/);
+  });
+
+  it("renders focused source-to-decision coverage", async () => {
+    writeWatchlist(projectDir, [
+      watchlistEntry({
+        url: "https://example.com/adopted",
+        summary: "Covered by task-done-source.",
+        lastSeen: "2026-07-06T00:00:00.000Z",
+      }),
+      watchlistEntry({
+        url: "https://example.com/open",
+        summary: "Remaining local gap opened task-open-source.",
+        lastSeen: "2026-07-06T00:00:00.000Z",
+      }),
+      watchlistEntry({
+        url: "https://example.com/noop",
+        summary: "No duplicate task is needed for KOTA.",
+        lastSeen: "2026-07-06T00:00:00.000Z",
+      }),
+      watchlistEntry({ url: "https://example.com/unmapped" }),
+    ]);
+    writeTask(projectDir, "done", "task-done-source", {
+      priority: "p2",
+      area: "autonomy",
+      body:
+        "## Problem\n\nFixture.\n\n## Source / Intent\n\nSource-to-decision refs: https://example.com/adopted\n",
+    });
+    writeTask(projectDir, "ready", "task-open-source", {
+      priority: "p2",
+      area: "autonomy",
+      body:
+        "## Problem\n\nFixture.\n\n## Source / Intent\n\nSource-to-decision refs: https://example.com/open\n",
+    });
+
+    const out = await captureStdout(async () => {
+      await makeProgram().parseAsync([
+        "node",
+        "kota",
+        "report",
+        "sources",
+        "--limit",
+        "4",
+      ]);
+    });
+
+    expect(out).toContain("Source decision coverage");
+    expect(out).toContain("adopt");
+    expect(out).toContain("partial-adopt");
+    expect(out).toContain("no-op");
+    expect(out).toContain("needs-research");
+    expect(out).toContain("covered-by-done-task");
+    expect(out).toContain("covered-by-open-task");
+    expect(out).toContain("local-decision");
+    expect(out).toContain("unmapped");
+  });
+
+  it("emits source coverage JSON", async () => {
+    writeWatchlist(projectDir, [
+      watchlistEntry({
+        url: "https://example.com/adopted",
+        summary: "Covered by task-done-source.",
+        lastSeen: "2026-07-06T00:00:00.000Z",
+      }),
+    ]);
+    writeTask(projectDir, "done", "task-done-source", {
+      priority: "p2",
+      area: "autonomy",
+      body:
+        "## Problem\n\nFixture.\n\n## Source / Intent\n\nSource-to-decision refs: https://example.com/adopted\n",
+    });
+
+    const out = await captureStdout(async () => {
+      await makeProgram().parseAsync([
+        "node",
+        "kota",
+        "report",
+        "sources",
+        "--json",
+      ]);
+    });
+
+    const parsed = JSON.parse(out.trim());
+    expect(parsed.records[0]).toMatchObject({
+      source: "https://example.com/adopted",
+      disposition: "adopt",
+      coverageStatuses: ["covered-by-done-task"],
+    });
   });
 
   it("rejects implicit nested bare repository discovery when collecting added files", () => {

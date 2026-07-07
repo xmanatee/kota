@@ -1,0 +1,5 @@
+1. Verified: `buildSourceDecisionCoverageReport` reads watchlist entries, local task files, and local decision markers to emit source coverage records.
+2. Verified: `kota report sources` renders grouped operator-facing output by disposition and coverage status, with JSON support.
+3. Verified: fixture and local transcript output flag done-task coverage, open-task coverage, local reject/no-op decisions, and unmapped sources.
+4. Verified: focused tests cover source grouping, stale/unverified warnings, duplicate-safe task mapping, renderer output, and CLI JSON/text behavior.
+5. Verified: `data/tasks/AGENTS.md` now documents source-to-decision reference guidance without duplicating watchlist metadata.

@@ -1,0 +1,30 @@
+CLI evidence:
+KOTA_RENDERER_THEME=no-color node --conditions=source --import tsx src/cli.ts report sources --source https://www.anthropic.com/research --source https://github.com/zsworld6/projdevbench --source https://github.com/anthropics/claude-code --source https://arxiv.org/abs/2606.24429 --source https://github.com/SWE-agent/SWE-agent
+Result: pass; transcript stored in source-coverage-transcript.txt.
+
+Focused tests:
+pnpm test src/modules/autonomy/report/source-decision-coverage.test.ts src/modules/autonomy/report/report-cli.test.ts
+Result: pass, 2 files / 10 tests.
+
+Docs surface repair:
+pnpm test src/docs-surface.test.ts
+Result: pass, 1 file / 5 tests.
+
+Typecheck:
+pnpm typecheck
+Result: pass.
+
+Lint:
+pnpm lint
+Result: pass.
+
+Task queue validation:
+pnpm validate-tasks
+Result: pass after staging the task move.
+
+Autonomy change decision:
+node --conditions=source --import tsx -e "import { runAutonomyChangeDecisionCheck } from './src/modules/autonomy/autonomy-change-decision-check.ts'; console.log(runAutonomyChangeDecisionCheck({ projectDir: process.cwd(), runDirPath: './.kota/runs/2026-07-07T05-35-23-899Z-builder-0jh48q' }));"
+Result: pass, autonomy-change-decision.json covers 1 material autonomy file.
+
+Broad test note:
+pnpm test was attempted before this recovery pass. It reset the staged repair checkout, produced unrelated dirty-worktree integration failures across daemon/workflow/harness fixtures, then hung and was interrupted. The targeted repair checks above are the validation proof for this repair.

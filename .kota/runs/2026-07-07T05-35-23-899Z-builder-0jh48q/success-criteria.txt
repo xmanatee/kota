@@ -1,0 +1,5 @@
+1. Build a deterministic source-to-decision report from watchlist entries, task files, and local decision markers.
+2. Expose the report through an operator-facing CLI output that groups sources by disposition and coverage status.
+3. Flag covered-by-done-task, covered-by-open-task, rejected/no-op local decision, and unmapped source records.
+4. Add fixture-backed tests for grouping, stale-source warnings, and duplicate-safe task mapping.
+5. Update local guidance so future research tasks leave source-to-decision references without duplicating watchlist data.
