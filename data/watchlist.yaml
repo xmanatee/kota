@@ -768,3 +768,6 @@ resources:
       fingerprint: sha256:9b7fe3a4cb5474b0d0e2e8cca36a6c51
       summary: "RigorBench is accessible; its process-discipline benchmark signal is already covered by completed task-report-process-discipline-scores-from-trajectory-d, so no duplicate task is needed."
       last_seen_at: "2026-07-07T15:16:37.127Z"
+  - url: https://arxiv.org/abs/2606.26959
+    added: "2026-07-07"
+    notes: "The Shift to Agentic AI studies Codex usage growth, concurrent agent management, skills adoption, and rising long-task complexity. Monitor as an operator-product signal for KOTA supervision-load reporting and workload visibility; do not import the usage pipeline, store external user telemetry, or feed operator-load signals into autonomy prompts."
