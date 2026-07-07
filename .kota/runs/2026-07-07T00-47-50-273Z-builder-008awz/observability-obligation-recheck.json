@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "type": "observability-obligation-recheck",
+  "generatedAt": "2026-07-07T02:20:54.204Z",
+  "sourceFinding": {
+    "progressReviewRunId": "2026-07-06T18-34-01-614Z-progress-reviewer-imo4t5",
+    "citedEvidenceIds": [
+      "artifact:2026-07-06T18-08-37-896Z-builder-hxa162:observability-obligation-review.json",
+      "run:2026-07-06T18-33-49-519Z-builder-9iprub",
+      "git:commit:c511534f5c8c",
+      "git:commit:e7c10c6b79f0"
+    ],
+    "note": "The cited task-claim observability artifact is not present in this checkout run directory, so this recheck targets the cited production commit and file directly instead of inferring from the seeded task."
+  },
+  "rechecks": [
+    {
+      "sourceCommit": "c511534f5c8c",
+      "sourceRunId": "2026-07-06T18-08-37-896Z-builder-hxa162",
+      "productionFiles": [
+        "src/modules/autonomy/task-claim-files.ts"
+      ],
+      "evidenceFiles": [
+        "src/modules/autonomy/task-claim-recovery.test.ts"
+      ],
+      "review": {
+        "type": "observability-obligation",
+        "outcome": "ok",
+        "candidates": [
+          {
+            "file": "src/modules/autonomy/task-claim-files.ts",
+            "status": "satisfied",
+            "reasons": [
+              {
+                "kind": "agent-harness-execution",
+                "message": "changed agent harness execution, model, session, or trajectory behavior"
+              }
+            ],
+            "evidence": [
+              {
+                "kind": "focused-test-assertion",
+                "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+                "ref": "src/modules/autonomy/task-claim-recovery.test.ts"
+              }
+            ],
+            "message": "Inspectable observability evidence found for this runtime-sensitive change."
+          }
+        ],
+        "satisfiedFiles": [
+          "src/modules/autonomy/task-claim-files.ts"
+        ],
+        "missingFiles": [],
+        "message": "OK: 1 observability-sensitive candidate file(s) have inspectable evidence"
+      }
+    },
+    {
+      "sourceCommit": "e7c10c6b79f0",
+      "sourceRunId": "2026-07-06T18-33-49-519Z-builder-9iprub",
+      "productionFiles": [
+        "src/core/daemon/daemon-control-utils.ts"
+      ],
+      "evidenceFiles": [
+        "src/core/daemon/daemon-control-utils.test.ts",
+        "src/modules/webhook/trigger-route-security.test.ts"
+      ],
+      "review": {
+        "type": "observability-obligation",
+        "outcome": "ok",
+        "candidates": [
+          {
+            "file": "src/core/daemon/daemon-control-utils.ts",
+            "status": "satisfied",
+            "reasons": [
+              {
+                "kind": "daemon-route",
+                "message": "changed daemon route, server, request, or response handling"
+              }
+            ],
+            "evidence": [
+              {
+                "kind": "focused-test-assertion",
+                "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+                "ref": "src/core/daemon/daemon-control-utils.test.ts"
+              }
+            ],
+            "message": "Inspectable observability evidence found for this runtime-sensitive change."
+          }
+        ],
+        "satisfiedFiles": [
+          "src/core/daemon/daemon-control-utils.ts"
+        ],
+        "missingFiles": [],
+        "message": "OK: 1 observability-sensitive candidate file(s) have inspectable evidence"
+      }
+    }
+  ],
+  "currentFollowUpReview": {
+    "type": "observability-obligation",
+    "outcome": "ok",
+    "candidates": [],
+    "satisfiedFiles": [],
+    "missingFiles": [],
+    "message": "OK: no staged production runtime-observability obligation candidates"
+  }
+}

@@ -1,13 +1,13 @@
 ---
 id: task-resolve-recent-runtime-observability-warnings
 title: Resolve recent runtime observability warnings
-status: ready
+status: done
 priority: p2
 area: workflow-runtime
 task_class: Meta
 summary: Builder runs 2026-07-06T18-08-37-896Z-builder-hxa162 and 2026-07-06T18-33-49-519Z-builder-9iprub landed runtime-sensitive task-claim and daemon body-reader changes, but their observability-obligation diagnostics reported missing inspectable evidence for src/modules/autonomy/task-claim-files.ts and src/core/daemon/daemon-control-utils.ts.
 created_at: 2026-07-06T20:41:30.692Z
-updated_at: 2026-07-06T20:41:30.692Z
+updated_at: 2026-07-07T02:23:12.399Z
 ---
 
 ## Problem
@@ -57,3 +57,8 @@ Outcome-aware autonomy progress review.
 - Review-provided acceptance evidence:
 
     A follow-up run artifact or diagnostic recheck maps both cited files to structured logging, typed events, run-artifact evidence, explicit error-result evidence, focused test assertions, or a narrow waiver rationale; the observability-obligation diagnostic reports no unresolved missing files for those changes; focused task-claim recovery and webhook route/body-limit tests plus validate-tasks pass.
+- `.kota/runs/2026-07-07T00-47-50-273Z-builder-008awz/observability-obligation-recheck.json` preserves the cited evidence ids and replays `git:commit:c511534f5c8c` plus the focused task-claim recovery test evidence, reporting `outcome: "ok"`, `satisfiedFiles: ["src/modules/autonomy/task-claim-files.ts"]`, and `missingFiles: []`.
+- The same recheck artifact replays `git:commit:e7c10c6b79f0` plus the focused core daemon body-limit test evidence, reporting `outcome: "ok"`, `satisfiedFiles: ["src/core/daemon/daemon-control-utils.ts"]`, and `missingFiles: []`.
+- `src/modules/autonomy/task-claim-recovery.test.ts` now asserts the observable retry status for stale active claims whose owner run ended unsuccessfully.
+- `src/core/daemon/daemon-control-utils.test.ts` covers body-reader success under the cap and the observable `RequestBodyTooLargeError` result when the cap is exceeded.
+- `.kota/runs/2026-07-07T00-47-50-273Z-builder-008awz/validation.txt` records the focused test, Biome, whitespace, temporary-index validation, and final real-index task-validation commands that passed.

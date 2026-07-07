@@ -1,0 +1,3 @@
+1. The cited observability gap for `src/modules/autonomy/task-claim-files.ts` and `src/core/daemon/daemon-control-utils.ts` is either fixed or explicitly disproven with inspectable evidence.
+2. Acceptance evidence is recorded in this run or the task, preserving the cited evidence ids and mapping both files to structured logging, typed events, run-artifact evidence, explicit error-result evidence, focused test assertions, or a narrow waiver rationale.
+3. The observability-obligation diagnostic reports no unresolved missing files for this follow-up, and focused task-claim recovery tests, webhook route/body-limit tests, and task validation pass.

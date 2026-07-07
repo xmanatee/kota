@@ -130,7 +130,7 @@ describe("task claim recovery lifecycle", () => {
     expect(existsSync(taskClaimPath(projectDir, "task-alpha"))).toBe(false);
   });
 
-  it("replaces an active claim when the owning builder run has already ended unsuccessfully", () => {
+  it("records an observable stale-claim status when the owning builder run has already ended unsuccessfully", () => {
     writeTask(projectDir, "ready", "task-alpha", "2026-06-27T00:00:00.000Z");
     const acquiredAt = new Date("2026-06-27T01:00:00.000Z");
     const original = claimTask({
@@ -152,9 +152,13 @@ describe("task claim recovery lifecycle", () => {
 
     writeOwnerRunMetadata(projectDir, "run-interrupted", "builder", "interrupted");
     const replacement = claimTask(claimInput(projectDir, "task-alpha", "run-retry", beforeLeaseExpiry));
+    const status = replacement.recoveryStatus;
+    expect(status).toBe("agent-running");
     expect(replacement).toMatchObject({
       claimed: true,
+      recoveryStatus: "agent-running",
       recoveryPath: "replaced-stale-claim",
+      safeToRetry: false,
     });
     expect(replacement.claim?.runId).toBe("run-retry");
   });

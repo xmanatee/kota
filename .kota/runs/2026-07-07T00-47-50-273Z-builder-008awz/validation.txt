@@ -1,0 +1,19 @@
+Passed:
+
+- `pnpm test src/modules/autonomy/task-claim-recovery.test.ts src/core/daemon/daemon-control-utils.test.ts src/modules/webhook/trigger-route.test.ts src/modules/webhook/trigger-route-security.test.ts src/modules/autonomy/observability-obligation.test.ts`
+  - 5 test files passed, 31 tests passed.
+- `pnpm exec biome check src/modules/autonomy/task-claim-recovery.test.ts src/core/daemon/daemon-control-utils.test.ts`
+- `pnpm test src/core/daemon/daemon-control-utils.test.ts src/modules/autonomy/task-claim-recovery.test.ts`
+  - 2 test files passed, 4 tests passed after the import-order fix.
+- `env GIT_INDEX_FILE=.kota/tmp/2026-07-07T00-47-50-273Z-builder-008awz/validation.index GIT_OBJECT_DIRECTORY=.kota/tmp/2026-07-07T00-47-50-273Z-builder-008awz/validation-objects GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects pnpm run validate-tasks`
+- `git diff --check -- .gitignore src/core/daemon/daemon-control-utils.test.ts src/modules/autonomy/task-claim-recovery.test.ts data/tasks .kota/runs/2026-07-07T00-47-50-273Z-builder-008awz`
+- `env GIT_INDEX_FILE=.kota/tmp/2026-07-07T00-47-50-273Z-builder-008awz/validation.index GIT_OBJECT_DIRECTORY=.kota/tmp/2026-07-07T00-47-50-273Z-builder-008awz/validation-objects GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects git diff --cached --check -- .gitignore src/core/daemon/daemon-control-utils.test.ts src/modules/autonomy/task-claim-recovery.test.ts data/tasks .kota/runs/2026-07-07T00-47-50-273Z-builder-008awz`
+- `git add -A`
+- `pnpm run validate-tasks`
+- `git diff --cached --check -- .gitignore src/core/daemon/daemon-control-utils.test.ts src/modules/autonomy/task-claim-recovery.test.ts data/tasks .kota/runs/2026-07-07T00-47-50-273Z-builder-008awz`
+
+Notes:
+
+- `pnpm kota task move task-resolve-recent-runtime-observability-warnings doing` and `pnpm kota task move task-resolve-recent-runtime-observability-warnings done` both reached `git mv` and failed because this sandbox cannot create the shared worktree Git index lock under `/Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/.../index.lock`.
+- The equivalent task file transitions were applied manually in the writable worktree.
+- A direct real-index `pnpm run validate-tasks` after the manual move initially failed because the task move had not been staged. After the final `git add -A` succeeded, real-index `pnpm run validate-tasks` passed.
