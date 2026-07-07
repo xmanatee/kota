@@ -278,12 +278,16 @@ export function getRepoTaskStateTransitionBlocker(
     toState === "done" &&
     requiresRenderedCompletionEvidence(task) &&
     !(projectDir
-      ? hasConcreteRenderedEvidence(task.body, projectDir)
-      : hasConcreteRenderedEvidenceReference(task.body))
+      ? hasConcreteRenderedEvidence(task.body, projectDir, task.id)
+      : hasConcreteRenderedEvidenceReference(task.body, task.id))
   ) {
-    const hasConcreteReference = hasConcreteRenderedEvidenceReference(task.body);
+    const hasConcreteReference = hasConcreteRenderedEvidenceReference(task.body, task.id);
+    const hasUntiedDirectoryReference = !hasConcreteReference &&
+      hasConcreteRenderedEvidenceReference(task.body);
     const suffix = hasConcreteReference
       ? "Referenced evidence artifacts must exist under the project and look like rendered/runtime proof."
+      : hasUntiedDirectoryReference
+      ? `Directory evidence under run/evidence roots must be scoped to task id ${task.id}.`
       : hasNamedRenderedEvidence(task.body)
       ? "Placeholders such as `.kota/runs/<run-id>/transcript.txt` are not concrete evidence."
       : "Add a CLI/dashboard/status transcript, screenshot, trace, native snapshot, rendered fixture, or runtime probe.";

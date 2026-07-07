@@ -875,7 +875,7 @@ export function validateTaskQueue(
         taskClass: readTaskClass(attrs),
         body,
       }) &&
-      !hasConcreteRenderedEvidence(body, projectDir)
+      !hasConcreteRenderedEvidence(body, projectDir, entry.taskId)
     ) {
       findings.push({
         code: "done-operator-client-missing-rendered-evidence",

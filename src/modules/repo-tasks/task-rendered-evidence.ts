@@ -1,5 +1,6 @@
-import { type Dirent, readdirSync, statSync } from "node:fs";
-import { basename, extname, isAbsolute, join, relative, resolve } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
+import { pathContainsRenderedProof } from "./task-rendered-evidence-artifacts.js";
+import { isConcreteEvidencePathReference } from "./task-rendered-evidence-paths.js";
 
 const CLIENT_CHANNEL_AREAS: ReadonlySet<string> = new Set(["client", "channel"]);
 
@@ -35,24 +36,6 @@ const CONCRETE_RENDERED_EVIDENCE_SECTIONS = [
   "Closure / Supersession",
 ] as const;
 
-const VISUAL_PROOF_EXTENSIONS = new Set([
-  ".gif",
-  ".html",
-  ".jpeg",
-  ".jpg",
-  ".mov",
-  ".mp4",
-  ".png",
-  ".webm",
-  ".webp",
-]);
-const TEXT_PROOF_EXTENSIONS = new Set([".json", ".md", ".txt"]);
-const ARCHIVE_PROOF_EXTENSIONS = new Set([".zip"]);
-const TEXT_PROOF_NAME_RE =
-  /(^|[-_.])(capture|chat|conversation|exchange|fixture|message|messages|probe|proof|rendered|reply|screenshot|screencast|snapshot|slack|status|telegram|trace|transcript)([-_.]|$)/;
-const PREFLIGHT_ONLY_TEXT_RE =
-  /^(build|install|lint|setup|smoke|smoke-test|static-test|test|tests|typecheck|unit|validation)([-_.].*)?\.(log|txt)$/;
-const MAX_RENDERED_EVIDENCE_SCAN_DEPTH = 4;
 const RUNTIME_PROBE_SCRIPT_RE = /^[A-Za-z0-9][A-Za-z0-9:_./-]*$/;
 
 const OPERATOR_CLIENT_SURFACE_KEYWORDS = [
@@ -184,66 +167,25 @@ function resolveEvidencePath(projectDir: string, evidencePath: string): string |
   return absolute;
 }
 
-function fileLooksLikeRenderedProof(path: string): boolean {
-  let stats: ReturnType<typeof statSync>;
-  try {
-    stats = statSync(path);
-  } catch {
-    return false;
-  }
-  if (!stats.isFile() || stats.size === 0) return false;
-
-  const name = basename(path).toLowerCase();
-  const nameLooksLikeProof = TEXT_PROOF_NAME_RE.test(name);
-  if (PREFLIGHT_ONLY_TEXT_RE.test(name) && !nameLooksLikeProof) return false;
-
-  const ext = extname(name);
-  if (VISUAL_PROOF_EXTENSIONS.has(ext)) return true;
-  if (ARCHIVE_PROOF_EXTENSIONS.has(ext)) return /\btrace\b/i.test(name);
-  return TEXT_PROOF_EXTENSIONS.has(ext) && nameLooksLikeProof;
-}
-
-function directoryContainsRenderedProof(path: string, depth = 0): boolean {
-  if (depth > MAX_RENDERED_EVIDENCE_SCAN_DEPTH) return false;
-  let entries: Dirent[];
-  try {
-    entries = readdirSync(path, { withFileTypes: true });
-  } catch {
-    return false;
-  }
-
-  for (const entry of entries) {
-    const childPath = join(path, entry.name);
-    if (entry.isFile() && fileLooksLikeRenderedProof(childPath)) return true;
-    if (entry.isDirectory() && directoryContainsRenderedProof(childPath, depth + 1)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function pathContainsRenderedProof(path: string): boolean {
-  let stats: ReturnType<typeof statSync>;
-  try {
-    stats = statSync(path);
-  } catch {
-    return false;
-  }
-  if (stats.isFile()) return fileLooksLikeRenderedProof(path);
-  if (stats.isDirectory()) return directoryContainsRenderedProof(path);
-  return false;
-}
-
-export function hasConcreteRenderedEvidenceReference(raw: string): boolean {
+export function hasConcreteRenderedEvidenceReference(
+  raw: string,
+  taskId?: string | null,
+): boolean {
   if (hasRuntimeProbeDeclaration(raw)) return true;
   const evidenceText = getConcreteEvidenceSections(raw);
   if (!ACCEPTED_RENDERED_EVIDENCE_KEYWORDS.some((pattern) => pattern.test(evidenceText))) {
     return false;
   }
-  return extractEvidencePathReferences(evidenceText).length > 0;
+  return extractEvidencePathReferences(evidenceText).some((evidencePath) =>
+    isConcreteEvidencePathReference(evidencePath, { taskId })
+  );
 }
 
-export function hasConcreteRenderedEvidence(raw: string, projectDir: string): boolean {
+export function hasConcreteRenderedEvidence(
+  raw: string,
+  projectDir: string,
+  taskId?: string | null,
+): boolean {
   if (hasRuntimeProbeDeclaration(raw)) return true;
   const evidenceText = getConcreteEvidenceSections(raw);
   if (!ACCEPTED_RENDERED_EVIDENCE_KEYWORDS.some((pattern) => pattern.test(evidenceText))) {
@@ -252,7 +194,9 @@ export function hasConcreteRenderedEvidence(raw: string, projectDir: string): bo
 
   return extractEvidencePathReferences(evidenceText).some((evidencePath) => {
     const resolved = resolveEvidencePath(projectDir, evidencePath);
-    return resolved !== null && pathContainsRenderedProof(resolved);
+    return resolved !== null &&
+      isConcreteEvidencePathReference(evidencePath, { taskId }) &&
+      pathContainsRenderedProof(resolved, projectDir, { taskId });
   });
 }
 

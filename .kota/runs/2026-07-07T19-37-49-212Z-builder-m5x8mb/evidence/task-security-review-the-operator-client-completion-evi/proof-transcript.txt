@@ -1,0 +1,24 @@
+Command:
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source pnpm exec vitest run src/modules/repo-tasks/task-rendered-evidence.test.ts src/modules/repo-tasks/completion-evidence-gate-scoped-directory.test.ts src/modules/repo-tasks/completion-evidence-gate.test.ts --configLoader runner --silent=true
+
+Result:
+Test Files  3 passed (3)
+Tests  17 passed (17)
+
+Command:
+pnpm exec biome check src/modules/repo-tasks/repo-tasks-domain.ts src/modules/repo-tasks/task-queue-validation.ts src/modules/repo-tasks/task-rendered-evidence.ts src/modules/repo-tasks/task-rendered-evidence-paths.ts src/modules/repo-tasks/task-rendered-evidence-artifacts.ts src/modules/repo-tasks/task-rendered-evidence.test.ts src/modules/repo-tasks/completion-evidence-gate.test.ts src/modules/repo-tasks/completion-evidence-gate-scoped-directory.test.ts
+
+Result:
+Checked 8 files in 11ms. No fixes applied.
+
+Command:
+pnpm exec tsc --noEmit --pretty false
+
+Result:
+Passed with no output.
+
+Command:
+pnpm validate-tasks
+
+Result:
+Passed.

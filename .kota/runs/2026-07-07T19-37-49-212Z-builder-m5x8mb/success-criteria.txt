@@ -1,0 +1,3 @@
+1. The done-state rendered evidence helper rejects broad directory references such as `.kota/runs/`, `.kota/`, project root, and other generic directories even when they contain unrelated proof-looking descendants, and rejects task-unscoped `.kota/runs/<run-id>/` directories with unrelated transcripts.
+2. The helper still accepts concrete proof files and narrowly scoped proof directories that are tied to the task id and directly contain rendered/runtime evidence.
+3. Focused regression tests cover the directory-bypass boundary and the task records the final verification evidence.

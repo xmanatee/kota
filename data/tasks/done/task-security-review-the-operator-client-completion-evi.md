@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-operator-client-completion-evi
 title: Security review: The operator-client completion evidence gate can be satisfied by a broad directory reference such as `.kota/runs/`, because move-to-done trusts `hasConcreteRenderedEvidence()` and that helper recursively accepts any proof-looking file under the referenced directory. This can let unrelated run artifacts satisfy a task's concrete evidence requirement.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: The operator-client completion evidence gate can be satisfied by a broad directory reference such as `.kota/runs/`, because move-to-done trusts `hasConcreteRenderedEvidence()` and that helper recursively accepts any proof-looking file under the referenced directory. This can let unrelated run artifacts satisfy a task's concrete evidence requirement.
 created_at: 2026-07-07T19:27:40.275Z
-updated_at: 2026-07-07T19:27:40.275Z
+updated_at: 2026-07-07T19:45:07Z
 ---
 
 ## Problem
@@ -74,7 +74,7 @@ excerpt:
 
 
 
-> extractEvidencePathReferences accepts path-like references that end with `/`, so a broad directory reference is treated as evidence input.
+> extractEvidencePathReferences accepts path-like references that end in `/`, so a broad directory reference is treated as evidence input.
 
 Evidence 3:
 
@@ -110,4 +110,7 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Proof transcript under `.kota/runs/2026-07-07T19-37-49-212Z-builder-m5x8mb/evidence/task-security-review-the-operator-client-completion-evi/proof-transcript.txt`.
+- `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source pnpm exec vitest run src/modules/repo-tasks/task-rendered-evidence.test.ts src/modules/repo-tasks/completion-evidence-gate-scoped-directory.test.ts src/modules/repo-tasks/completion-evidence-gate.test.ts --configLoader runner --silent=true` passed: 3 files, 17 tests.
+- `pnpm exec biome check src/modules/repo-tasks/repo-tasks-domain.ts src/modules/repo-tasks/task-queue-validation.ts src/modules/repo-tasks/task-rendered-evidence.ts src/modules/repo-tasks/task-rendered-evidence-paths.ts src/modules/repo-tasks/task-rendered-evidence-artifacts.ts src/modules/repo-tasks/task-rendered-evidence.test.ts src/modules/repo-tasks/completion-evidence-gate.test.ts src/modules/repo-tasks/completion-evidence-gate-scoped-directory.test.ts` passed.
+- `pnpm exec tsc --noEmit --pretty false` and `pnpm validate-tasks` passed.
