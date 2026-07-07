@@ -10,6 +10,12 @@ import type {
   RepoTaskClass,
   RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
+import type {
+  AutonomyChangeClass,
+  AutonomyDecision,
+  AutonomyDecisionMetric,
+  AutonomyRolloutMode,
+} from "../autonomy-change-decision.js";
 import type { CodeHealthDriftReport } from "./code-health-drift.js";
 import type { DecisionAttributionReport } from "./decision-attribution-types.js";
 import type { DiffSummaryConsistencyReport } from "./diff-summary-consistency-report.js";
@@ -130,6 +136,28 @@ export type TrajectoryDiagnosticReport = {
   activePatterns: TrajectoryDiagnosticPatternSummary[];
 };
 
+export type AutonomyChangeDecisionSummary = {
+  runId: string;
+  createdAt: string;
+  taskIds: string[];
+  affectedSurfaces: string[];
+  changeClasses: AutonomyChangeClass[];
+  baselineRefs: string[];
+  candidateRefs: string[];
+  metricsCompared: AutonomyDecisionMetric[];
+  rolloutMode: AutonomyRolloutMode;
+  decision: AutonomyDecision;
+  rationale: string;
+  ownerSafetyExceptions: string[];
+  followUpTaskIds: string[];
+};
+
+export type AutonomyChangeDecisionReport = {
+  totalDecisions: number;
+  invalidArtifacts: { runId: string; path: string; reason: string }[];
+  decisions: AutonomyChangeDecisionSummary[];
+};
+
 export type HealthCountRow<TKey extends string> = {
   [key in TKey]: string;
 } & {
@@ -170,6 +198,7 @@ export type AutonomyReportData = {
   reviewScrutiny: ReviewScrutinyReport;
   reviewScrutinyEscalation: ReviewScrutinyEscalationReport;
   trajectoryDiagnostics: TrajectoryDiagnosticReport;
+  autonomyChangeDecisions: AutonomyChangeDecisionReport;
   codeHealthDrift: CodeHealthDriftReport;
   ownerInterventions: OwnerInterventionReport;
   postCompletionFollowUps: PostCompletionFollowUpReport;

@@ -15,6 +15,7 @@ import {
   stack,
 } from "#modules/rendering/primitives.js";
 import type { AutonomyReportData } from "./aggregate.js";
+import { renderAutonomyChangeDecisions } from "./render-autonomy-change-decisions.js";
 import { renderCodeHealthDrift } from "./render-code-health-drift.js";
 import { renderDecisionAttribution } from "./render-decision-attribution.js";
 import { renderDiffSummaryConsistency } from "./render-diff-summary-consistency.js";
@@ -77,6 +78,9 @@ export function renderAutonomyReport(data: AutonomyReportData): RenderNode {
     blank(),
     heading("Trajectory diagnostics", 2),
     ...renderTrajectoryDiagnostics(data.trajectoryDiagnostics),
+    blank(),
+    heading("Autonomy change decisions", 2),
+    ...renderAutonomyChangeDecisions(data.autonomyChangeDecisions),
     blank(),
     heading("Post-completion follow-ups", 2),
     ...renderPostCompletionFollowUps(data.postCompletionFollowUps),

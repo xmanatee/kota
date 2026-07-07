@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "autonomy-change-decision",
+  "runId": "2026-07-07T03-24-23-871Z-builder-vtkuo4",
+  "createdAt": "2026-07-07T04:12:45.000Z",
+  "taskIds": [
+    "task-add-measured-autonomy-change-promotion-decisions"
+  ],
+  "affectedSurfaces": [
+    "builder repair loop",
+    "operator report",
+    "autonomy module guidance"
+  ],
+  "changeClasses": [
+    "workflow",
+    "prompt",
+    "harness",
+    "model-routing",
+    "reviewer",
+    "critic-gate",
+    "improver-gate",
+    "repair-loop"
+  ],
+  "hypothesis": "Material autonomy workflow, reviewer, and repair-loop changes are safer when they carry a typed decision artifact with baseline and candidate evidence before promotion.",
+  "sourceRefs": [
+    "task:task-add-measured-autonomy-change-promotion-decisions",
+    "src/modules/autonomy/AGENTS.md"
+  ],
+  "baselineRefs": [
+    "data/tasks/ready/task-add-measured-autonomy-change-promotion-decisions.md",
+    ".kota/runs/2026-07-07T03-24-23-871Z-builder-vtkuo4/validation.txt"
+  ],
+  "candidateRefs": [
+    "src/modules/autonomy/autonomy-change-decision.ts",
+    "src/modules/autonomy/autonomy-change-decision-artifact.ts",
+    "src/modules/autonomy/autonomy-change-decision-classification.ts",
+    "src/modules/autonomy/autonomy-change-decision-run-check.ts",
+    "src/modules/autonomy/autonomy-change-decision-types.ts",
+    "src/modules/autonomy/report/autonomy-change-decisions.ts",
+    "src/modules/autonomy/workflows/builder/repair-checks.ts"
+  ],
+  "metricsCompared": [
+    {
+      "name": "focused autonomy-decision tests",
+      "baseline": "missing schema/report/check coverage",
+      "candidate": "5 files / 218 tests passed",
+      "unit": "vitest",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "report integration tests",
+      "baseline": "operator report did not surface decisions",
+      "candidate": "2 files / 22 tests passed",
+      "unit": "vitest",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "instruction cap",
+      "baseline": "src/modules/autonomy/AGENTS.md exceeded 8000 bytes",
+      "candidate": "7984 bytes",
+      "unit": "bytes",
+      "direction": "improved",
+      "qualitySignal": true
+    }
+  ],
+  "rolloutMode": "blocking",
+  "decision": "promote",
+  "rationale": "Focused validation proves the schema, report surface, repair-loop gate, task state, and original instruction-file cap repair; broad full-suite failures were unrelated to the cap repair and occurred in a dirty/staged workflow checkout.",
+  "ownerSafetyExceptions": [],
+  "followUpTaskIds": []
+}

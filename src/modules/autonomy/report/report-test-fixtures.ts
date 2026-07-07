@@ -85,6 +85,11 @@ export const emptyAutonomyReportData: AutonomyReportData = {
     belowThresholdPatterns: [],
   },
   trajectoryDiagnostics: { activePatterns: [] },
+  autonomyChangeDecisions: {
+    totalDecisions: 0,
+    invalidArtifacts: [],
+    decisions: [],
+  },
   codeHealthDrift: {
     totalBuilderRuns: 0,
     runsWithWarnings: 0,

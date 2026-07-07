@@ -1,4 +1,8 @@
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
+import {
+  AUTONOMY_CHANGE_DECISION_CHECK_ID,
+  checkAutonomyChangeDecisionForRun,
+} from "#modules/autonomy/autonomy-change-decision.js";
 import { checkCommitStageable } from "#modules/autonomy/commit.js";
 import { createCriticCheck } from "#modules/autonomy/critic.js";
 import { checkDocBloat } from "#modules/autonomy/doc-bloat-check.js";
@@ -159,6 +163,16 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       phase: 1,
       run: (ctx) =>
         checkObservabilityObligationsForRun(
+          workflowWorkspaceDir(ctx),
+          ctx.workflow.runDirPath,
+        ),
+    },
+    {
+      id: AUTONOMY_CHANGE_DECISION_CHECK_ID,
+      type: "code" as const,
+      phase: 1,
+      run: (ctx) =>
+        checkAutonomyChangeDecisionForRun(
           workflowWorkspaceDir(ctx),
           ctx.workflow.runDirPath,
         ),

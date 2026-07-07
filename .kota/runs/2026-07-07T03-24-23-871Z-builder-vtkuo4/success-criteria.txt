@@ -1,0 +1,5 @@
+1. Add a typed schema, parser, writer, reader, and builder repair check for autonomy-change-decision artifacts.
+2. Cover a fixture-backed autonomy prompt/workflow/reviewer/harness decision flow with baseline, candidate, and decision evidence.
+3. Include recent autonomy decisions in the operator report with run refs, compared metrics, rollout mode, and decision.
+4. Reject malformed decision artifacts and missing required evidence for staged material autonomy changes.
+5. Test promote, hold, rollback, and needs-more-data outcomes, including a cheaper/faster candidate held for pass^k quality regression.

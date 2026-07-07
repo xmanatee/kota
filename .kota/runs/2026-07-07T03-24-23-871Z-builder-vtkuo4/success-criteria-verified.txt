@@ -1,0 +1,5 @@
+1. Verified. `src/modules/autonomy/autonomy-change-decision.ts` exposes the public autonomy decision surface, with schema/types, parser/writer/reader, material-change detection, and repair-check logic split into focused helper modules.
+2. Verified. Focused tests cover baseline/candidate/decision evidence for autonomy change artifacts and report reading.
+3. Verified. `kota report` aggregation includes `autonomyChangeDecisions`, rendered with run refs, metrics, rollout mode, and decision.
+4. Verified. Parser tests reject malformed/missing fields, and `checkAutonomyChangeDecisionForRun` rejects staged material autonomy changes without a valid artifact.
+5. Verified. Tests cover promote, hold, rollback, and needs-more-data, including a cheaper/faster candidate held for a pass^k quality regression.

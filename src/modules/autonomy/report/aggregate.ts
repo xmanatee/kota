@@ -30,6 +30,7 @@ import {
   type AutonomyReportInput,
   DEFAULT_REPORT_WINDOW_DAYS,
 } from "./aggregate-types.js";
+import { buildAutonomyChangeDecisionReport } from "./autonomy-change-decisions.js";
 import { buildCodeHealthDriftReport } from "./code-health-drift.js";
 import { buildDecisionAttributionReport } from "./decision-attribution.js";
 import { buildDiffSummaryConsistencyReport } from "./diff-summary-consistency-report.js";
@@ -42,6 +43,8 @@ import { buildQualityStratificationReport } from "./quality-stratification.js";
 
 export {
   type AreaCount,
+  type AutonomyChangeDecisionReport,
+  type AutonomyChangeDecisionSummary,
   type AutonomyHealthBreakdown,
   type AutonomyReportData,
   type AutonomyReportInput,
@@ -195,6 +198,10 @@ export function aggregateAutonomyReport(
       input.windowEndMs,
       windowMs,
     ),
+    autonomyChangeDecisions: buildAutonomyChangeDecisionReport({
+      runs,
+      runsDir: input.runsDir,
+    }),
     codeHealthDrift,
     ownerInterventions,
     postCompletionFollowUps,

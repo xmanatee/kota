@@ -1,12 +1,11 @@
 # Autonomy Module
 
-Owns KOTA's autonomous development loop.
+Owns KOTA's autonomous loop.
 
-- Keep autonomous workflows/helpers here; no parallel workflow catalog in core.
-- Durable learning belongs in the narrowest useful scoped `AGENTS.md`.
-  Evidence lives in run artifacts and git history; no second lessons store or
-  injected summaries.
-- Promote lessons only from repeated run evidence; retract or narrow when code,
+- Keep workflows/helpers here; no parallel workflow catalog in core.
+- Durable learning belongs in the narrowest useful scoped `AGENTS.md`; evidence
+  lives in run artifacts/git history, not a second lessons store.
+- Promote lessons only from repeated run evidence; retract/narrow when code,
   behavior, or ownership changes.
 - Workflow prompts stay role-focused; shared policy belongs here or nearby.
 - Shipped autonomy workflows get harness/model/effort from the active preset;
@@ -33,6 +32,10 @@ or `data/watchlist.yaml`.
 - **Infrastructure noise is not statistical noise.** Split allocation from
   kill thresholds, report resource profile, distinguish `pass@k` from
   `pass^k`. Judge-repetition per fixture belongs here too.
+- **Autonomy changes need decisions.** Material workflow/prompt/harness/model-
+  routing/reviewer/critic/improver gate/repair-loop changes carry
+  `autonomy-change-decision.json`: baseline/candidate refs, metrics, rollout,
+  and promote/hold/rollback/needs-more-data rationale.
 - **Context resets beat compaction.** Prefer fresh-session handoffs via
   run artifacts over in-session compaction for distinct-phase workflows.
 - **Untrusted content is an injection surface.** Tool-risk gating
@@ -44,19 +47,18 @@ or `data/watchlist.yaml`.
   reference-only; seed `eval-harness` from local failures or justified smoke
   cases with non-vacuous predicates.
 - **Worktree-backed autonomy.** Accepted in
-  `worktree-backed-autonomy-decision.ts`: `projectDir`, leased `workspaceDir`
-  worktrees, and gated merges. Per-workflow policy lives in
-  `workflow-workspace-policy.ts`; builder is worktree/merge-gated by default,
-  KOTA control-state/control-plane exceptions need explicit safety gates, and
-  external-effect workflows stay out of worktrees.
+  `worktree-backed-autonomy-decision.ts`: `projectDir`, leased `workspaceDir`,
+  gated merges. Per-workflow policy lives in `workflow-workspace-policy.ts`;
+  builder is worktree/merge-gated by default, KOTA control exceptions need
+  explicit safety gates, and external-effect workflows stay out of worktrees.
 
 ## Live-Run Evaluator Calibration
 
 Fixture `pass^k` catches generator drift; run artifacts catch evaluator drift.
-Pass-contradiction needs later final failure overlap
-(`verdict==="fail"` or failed terminal status); `criticFailureCount>0` alone
-is diagnostic. Mechanical repair is iteration noise. PWW escalation needs
-later final hedging/failing overlap; prompt-hash changes reset the window.
+Pass-contradiction needs later final failure overlap (`verdict==="fail"` or
+failed terminal status); `criticFailureCount>0` alone is diagnostic. Mechanical
+repair is iteration noise. PWW escalation needs later final hedging/failing
+overlap; prompt-hash changes reset the window.
 Drift creates/recreates/promotes `task-evaluator-calibration-drift-repair` in
 `ready/`; regression bridges to attention digest. Recreate noops when the prior
 repair commit is newer than the latest artifact. Critic blocks weak rendered
@@ -97,15 +99,14 @@ Verdicts on peer patterns vs KOTA primitives live in
   boundary; tools ≈ `guardrails.ts` + risk; runtime ≈ `approval-queue` +
   autonomy mode + `injection-defense`.
 - **Opus 4.7 harness defaults at agent-step layer.** Delegate-don't-pair:
-  front-load intent, constraints, success criteria; use `xhigh`, adaptive
-  thinking, batch-upfront, and judicious subagents. Task contracts enforce this;
-  no clarification loops or fixed reasoning caps.
-- **Tool-design hygiene.** High bar for new tools; prefer discoverable
+  front-load intent/constraints/success criteria; use `xhigh`, adaptive
+  thinking, batch-upfront, subagents; no clarification loops/fixed caps.
+- **Tool-design hygiene.** High bar for tools; prefer discoverable
   surfaces (read, grep, scoped `AGENTS.md`, prompt state).
 - **`ask_owner` uses `askOwnerSteps`**
   (`#core/workflow/ask-owner-step.js`): ask → await → consume, restart-safe.
-  Gate on real prior-step output, 10 min budget, consume every
-  `AwaitedOwnerOutcome` kind. Do not import `#core/tools/ask-owner.js`.
+  Gate on real prior-step output, 10 min budget, consume every outcome kind.
+  Do not import `#core/tools/ask-owner.js`.
 
 ## Scoped Contracts
 
@@ -122,10 +123,9 @@ autonomy agents.
 
 ## Multi-Client Fan-Out Consolidation
 
-`fan-out-consolidator` seeds one `area: client` review task per closed
-multi-client fan-out batch (idempotent by capability key, ≤1 primary surface
-per closed task); `area: client` forces rendered evidence. Detection + body in
-`fan-out-consolidation.ts`.
+`fan-out-consolidator` seeds one `area: client` review task per closed batch
+(idempotent by capability key, ≤1 primary surface per task); `area: client`
+forces rendered evidence. Detection + body in `fan-out-consolidation.ts`.
 
 ## Empty-Queue Loop Shape
 
@@ -147,8 +147,8 @@ Workflow gating only:
 
 ## Agent Judge Runtime Contract
 
-The shared agent-step retry classifier (see
-`src/core/workflow/steps/AGENTS.md`) governs autonomy judges. Judge-backed
-repair checks (critic, improver semantic gate) catch runaway turn/token throws
-and warn — editing code cannot shrink a judge's budget — while the primitive
-still throws. Unclassified SDK failures reject the check.
+The shared agent-step retry classifier (`src/core/workflow/steps/AGENTS.md`)
+governs autonomy judges. Judge-backed repair checks (critic, improver semantic
+gate) catch runaway turn/token throws and warn — editing code cannot shrink a
+judge's budget — while the primitive still throws. Unclassified SDK failures
+reject the check.

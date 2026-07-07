@@ -1,0 +1,28 @@
+Validation for task-add-measured-autonomy-change-promotion-decisions
+
+1. pnpm test src/modules/autonomy/autonomy-change-decision.test.ts src/modules/autonomy/report/autonomy-change-decisions.test.ts src/modules/autonomy/report/render.test.ts src/modules/autonomy/workflows/builder/repair-checks.test.ts src/core/loop/instruction-files.test.ts
+   Result: passed. 5 test files, 218 tests. Confirms the instruction-file cap repair and focused autonomy-decision behavior.
+
+2. pnpm test src/modules/autonomy/report/aggregate.test.ts src/modules/autonomy/report/report-cli.test.ts
+   Result: passed. 2 test files, 22 tests.
+
+3. pnpm run typecheck
+   Result: passed.
+
+4. pnpm run lint
+   Result: passed after the repair import-order fix. Biome checked src/.
+
+5. pnpm run validate-tasks
+   Result: passed after staging the task move.
+
+6. pnpm test src/strict-types-policy.integration.test.ts
+   Result: passed. 1 test file, 1 test.
+
+7. node --conditions=source --import tsx -e "checkAutonomyChangeDecisionForRun(...)"
+   Result: passed. `autonomy-change-decision.json` covers the staged material autonomy files.
+
+8. pnpm test
+   Result: interrupted with exit 130 after many unrelated integration failures in the dirty/staged workflow checkout; not used as repair proof. The original failing instruction-file guard is covered by item 1.
+
+9. node --conditions=source --import tsx -e "checkAutonomyChangeDecisionForRun(...); checkSevereSourceFileSizeForRun(...)"
+   Result: passed. The staged autonomy decision artifact covers 4 material autonomy files, and the staged source files are under source-size warning thresholds.

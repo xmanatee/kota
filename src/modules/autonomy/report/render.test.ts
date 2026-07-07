@@ -17,6 +17,7 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("Review scrutiny");
     expect(text).toContain("Review scrutiny escalation");
     expect(text).toContain("Trajectory diagnostics");
+    expect(text).toContain("Autonomy change decisions");
     expect(text).toContain("Post-completion follow-ups");
     expect(text).toContain("Quality stratification");
     expect(text).toContain("Autonomy health");
@@ -36,6 +37,7 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("(no reviewer artifacts)");
     expect(text).toContain("(no recurring thin-acceptance patterns)");
     expect(text).toContain("(no recurring trajectory diagnostic patterns)");
+    expect(text).toContain("(no autonomy change decisions)");
     expect(text).toContain(
       "(no corrective follow-ups linked to recently completed tasks)",
     );
