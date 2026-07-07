@@ -134,6 +134,28 @@ describe("serializeFlatFrontMatter", () => {
 		});
 	});
 
+	it("quotes string scalars containing CR, LF, or NUL", () => {
+		const summary = "run\npriority: p0\rstatus: done\0tail";
+		const result = serializeFlatFrontMatter({ summary, priority: "p2" }, "body");
+		expect(result).toContain(
+			'summary: "run\\npriority: p0\\rstatus: done\\u0000tail"',
+		);
+		expect(result).not.toContain("\npriority: p0");
+		expect(parseFlatFrontMatter(result).attrs).toEqual({
+			summary,
+			priority: "p2",
+		});
+	});
+
+	it("rejects unsafe keys and array entries", () => {
+		expect(() => serializeFlatFrontMatter({ "bad\nkey": "value" }, "body")).toThrow(
+			/invalid flat frontmatter key/,
+		);
+		expect(() =>
+			serializeFlatFrontMatter({ tags: ["safe", "bad\npriority: p0"] }, "body"),
+		).toThrow(/array values must not contain CR, LF, or NUL/);
+	});
+
 	it("serializes empty body", () => {
 		const result = serializeFlatFrontMatter({ title: "Hi" }, "");
 		expect(result).toBe("---\ntitle: Hi\n---\n");

@@ -1,13 +1,13 @@
 ---
 id: task-security-review-fixture-candidate-task-creation-co
 title: Security review: Fixture-candidate task creation copies the run metadata id into task frontmatter through a serializer that does not quote embedded newlines, so a crafted local run artifact can inject or override task frontmatter fields when --create-task writes a backlog task.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: Fixture-candidate task creation copies the run metadata id into task frontmatter through a serializer that does not quote embedded newlines, so a crafted local run artifact can inject or override task frontmatter fields when --create-task writes a backlog task.
 created_at: 2026-07-07T11:45:55.089Z
-updated_at: 2026-07-07T11:45:55.089Z
+updated_at: 2026-07-07T12:17:28.390Z
 ---
 
 ## Problem
@@ -125,3 +125,10 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/core/util/frontmatter.test.ts src/modules/eval-harness/fixture-candidates-proposals.test.ts`
+- `pnpm exec biome check src/core/util/frontmatter.ts src/core/util/frontmatter.test.ts src/modules/eval-harness/fixture-candidates-proposals.test.ts`
+- `pnpm typecheck`
+- `pnpm validate-tasks`

@@ -83,8 +83,11 @@ export function serializeFlatFrontMatter(
 ): string {
   const lines: string[] = ["---"];
   for (const [key, val] of Object.entries(attrs)) {
+    if (!isFlatFrontMatterKey(key)) {
+      throw new Error(`invalid flat frontmatter key ${JSON.stringify(key)}`);
+    }
     if (Array.isArray(val)) {
-      lines.push(`${key}: [${val.join(", ")}]`);
+      lines.push(`${key}: ${serializeFlatFrontMatterArray(val)}`);
     } else {
       lines.push(`${key}: ${serializeFlatFrontMatterScalar(val)}`);
     }
@@ -99,10 +102,20 @@ function serializeFlatFrontMatterScalar(value: string): string {
   return JSON.stringify(value);
 }
 
+function serializeFlatFrontMatterArray(values: readonly string[]): string {
+  for (const value of values) {
+    if (/[\r\n\0]/.test(value)) {
+      throw new Error("flat frontmatter array values must not contain CR, LF, or NUL");
+    }
+  }
+  return `[${values.join(", ")}]`;
+}
+
 function needsQuotedFlatFrontMatterScalar(value: string): boolean {
   const trimmed = value.trim();
   return (
     trimmed !== value ||
+    /[\r\n\0]/.test(value) ||
     (value.startsWith("[") && value.endsWith("]")) ||
     (value.startsWith("\"") && value.endsWith("\""))
   );

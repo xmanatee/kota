@@ -1,0 +1,3 @@
+1. `src/core/util/frontmatter.ts` now JSON-quotes scalar values containing CR, LF, or NUL and rejects unsafe keys or array entries; `pnpm test src/core/util/frontmatter.test.ts src/modules/eval-harness/fixture-candidates-proposals.test.ts` passed.
+2. `src/modules/eval-harness/fixture-candidates-proposals.test.ts` now seeds a run id of `run-injected\npriority: p0`, creates the backlog task, and asserts parsed frontmatter keeps `priority` at `p2` while summary/title contain the run id text; the focused test command passed.
+3. The task record includes a `## Verification` section listing the focused tests, touched-file Biome check, typecheck, and task validation commands.

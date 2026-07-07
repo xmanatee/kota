@@ -1,0 +1,3 @@
+1. The frontmatter serializer prevents CR/LF/NUL scalar values from creating additional parsed frontmatter fields, and unsafe frontmatter keys or array entries fail before serialization.
+2. Fixture-candidate task creation has a regression test where metadata.id contains a newline plus `priority: p0`, and the generated task preserves that text in the summary while parsing `priority` as `p2`.
+3. The task record names the final verification commands before the task is completed.
