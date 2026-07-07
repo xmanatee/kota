@@ -775,3 +775,6 @@ resources:
       fingerprint: sha256:be032a26dd03e5c67053e97b70921dbb
       summary: "The Shift to Agentic AI is accessible; its concurrent-agent and long-task supervision-load signal is already covered by completed task-report-concurrent-agent-workstream-load-in-operato, so no duplicate task is needed."
       last_seen_at: "2026-07-07T19:31:55.163Z"
+  - url: https://arxiv.org/abs/2602.10975
+    added: "2026-07-07"
+    notes: "FeatureBench evaluates end-to-end feature-oriented coding tasks with execution-based verification and test/dependency-graph-derived slices spanning multiple commits and PRs. Monitor as an eval-harness signal for compact feature-slice fixtures with adjacent regression proof; do not import the benchmark, external environments, or automated repository-mining pipeline."
