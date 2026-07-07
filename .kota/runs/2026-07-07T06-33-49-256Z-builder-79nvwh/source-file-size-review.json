@@ -1,0 +1,30 @@
+{
+  "outcome": "advisory",
+  "warnings": [
+    {
+      "type": "source-file-size",
+      "file": "src/daemon.integration.test.ts",
+      "lines": 693,
+      "threshold": 300,
+      "changedLines": 17,
+      "message": "Changed source file src/daemon.integration.test.ts is 693 line(s), above the 300-line source-size guideline."
+    },
+    {
+      "type": "source-file-size",
+      "file": "src/modules/autonomy/workflows/research-retry/workflow.test.ts",
+      "lines": 439,
+      "threshold": 300,
+      "changedLines": 40,
+      "message": "Changed source file src/modules/autonomy/workflows/research-retry/workflow.test.ts is 439 line(s), above the 300-line source-size guideline."
+    },
+    {
+      "type": "source-file-size",
+      "file": "src/workflow-runtime.integration.test.ts",
+      "lines": 2784,
+      "threshold": 300,
+      "changedLines": 16,
+      "message": "Changed source file src/workflow-runtime.integration.test.ts is 2784 line(s), above the 300-line source-size guideline."
+    }
+  ],
+  "message": "Advisory source-size warning(s): src/daemon.integration.test.ts, src/modules/autonomy/workflows/research-retry/workflow.test.ts, src/workflow-runtime.integration.test.ts."
+}

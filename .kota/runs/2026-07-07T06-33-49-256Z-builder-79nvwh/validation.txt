@@ -1,0 +1,71 @@
+Validation run from project worktree:
+
+1. pnpm test src/modules/autonomy/shadow-semantic-review.test.ts src/modules/autonomy/workflows/inbox-sorter/workflow.test.ts src/modules/autonomy/workflows/research-retry/workflow.test.ts src/modules/autonomy/report/report-shadow-semantic-reviews.test.ts src/modules/autonomy/report/shadow-semantic-reviews.test.ts src/modules/autonomy/report/render.test.ts
+   Result: passed
+   Tests: 26 passed across 5 files
+
+2. pnpm typecheck
+   Result: passed
+
+3. pnpm lint
+   Result: passed
+   Note: `pnpm lint:fix` was run first to apply Biome import-order fixes, then `pnpm lint` passed with no fixes applied.
+
+4. pnpm run validate-tasks
+   Result: passed after moving `task-run-shadow-semantic-reviewers-for-non-builder-auto` to done.
+
+Repair validation:
+
+5. node --conditions=source --import tsx -e "import { checkAutonomyChangeDecisionForRun } from './src/modules/autonomy/autonomy-change-decision.js'; console.log(checkAutonomyChangeDecisionForRun(process.cwd(), './.kota/runs/2026-07-07T06-33-49-256Z-builder-79nvwh'));"
+   Result: passed
+   Output: OK: autonomy-change-decision.json covers staged material autonomy files.
+
+6. node --conditions=source --import tsx -e "import { checkSevereSourceFileSizeForRun } from './src/modules/autonomy/source-size-review-artifact.js'; console.log(checkSevereSourceFileSizeForRun(process.cwd(), './.kota/runs/2026-07-07T06-33-49-256Z-builder-79nvwh'));"
+   Result: non-blocking advisory
+   Output: Advisory source-size warning(s): src/modules/autonomy/workflows/research-retry/workflow.test.ts.
+
+7. pnpm test
+   Result: passed
+   Tests: 11899 passed, 10 skipped across 1029 files
+   Duration: 292.43s
+
+8. pnpm exec vitest run src/workflow-runtime.integration.test.ts -t "supports an explorer|supports event-driven|coalesces a rerun|recovers queued follow-up" --reporter=verbose
+   Result: passed
+
+9. pnpm exec vitest run src/daemon.integration.test.ts -t "recovers queued follow-up workflows after restart-triggering builds" --reporter=verbose
+   Result: passed
+
+10. pnpm exec vitest run src/workflow-runtime.integration.test.ts src/daemon.integration.test.ts --reporter=verbose
+    Result: passed
+    Tests: 67 passed across 2 files
+
+11. pnpm exec vitest run src/modules/autonomy/shared-run-check.test.ts --reporter=verbose
+    Result: passed
+    Tests: 1 passed
+
+Repair attempt 3 validation:
+
+12. NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner --silent=true src/modules/autonomy/shadow-semantic-review.test.ts src/modules/autonomy/workflows/inbox-sorter/workflow.test.ts src/modules/autonomy/workflows/research-retry/workflow.test.ts
+    Result: passed
+    Tests: 22 passed across 3 files
+    Note: `--configLoader runner` avoids Vite writing bundled config files under `node_modules/.vite-temp`, which is outside this worktree's writable sandbox.
+
+13. pnpm run typecheck
+    Result: passed
+
+14. pnpm run validate-tasks -- --min-ready 0
+    Result: passed
+
+Repair attempt 4 validation:
+
+15. pnpm exec biome check --write src/modules/autonomy/shadow-semantic-review-test-support.ts src/modules/autonomy/shadow-semantic-review-runtime.test.ts src/modules/autonomy/shadow-semantic-review-blocking.test.ts
+    Result: passed
+    Note: The former monolithic shadow semantic review test was split into focused files of 86, 175, and 90 lines.
+
+16. env RUN_DIR=/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-run-shadow-semantic-reviewers-for-non-builder-auto-2026-07-07t06-33-49-256z-builder-79nvwh/.kota/runs/2026-07-07T06-33-49-256Z-builder-79nvwh node --conditions=source --import tsx -e "import { checkSevereSourceFileSizeForRun } from './src/modules/autonomy/source-size-review-artifact.ts'; console.log(checkSevereSourceFileSizeForRun(process.cwd(), process.env.RUN_DIR));"
+    Result: non-blocking advisory
+    Output: Advisory source-size warning(s): src/daemon.integration.test.ts, src/modules/autonomy/workflows/research-retry/workflow.test.ts, src/workflow-runtime.integration.test.ts.
+
+17. pnpm exec vitest run --silent=true src/modules/autonomy/shadow-semantic-review-runtime.test.ts src/modules/autonomy/shadow-semantic-review-blocking.test.ts
+    Result: passed
+    Tests: 8 passed across 2 files

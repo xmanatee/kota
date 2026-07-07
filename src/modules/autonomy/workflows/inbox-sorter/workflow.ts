@@ -9,6 +9,12 @@ import {
   resetWorktreeForRecovery,
 } from "#modules/autonomy/recovery.js";
 import {
+  createShadowSemanticReviewStep,
+  type ExecutableShadowSemanticReviewerDeclaration,
+  workflowMutationArtifacts,
+} from "#modules/autonomy/shadow-semantic-review.js";
+import type { ShadowSemanticReviewTargetResolution } from "#modules/autonomy/shadow-semantic-review-types.js";
+import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
   AUTONOMY_AGENT_HARNESS,
@@ -54,6 +60,63 @@ const inspectInbox = typedCodeStep<InboxSorterAssessment>({
       inboxCount: queue.inboxCount,
       needsAttention: queue.inboxCount > 0,
     };
+  },
+});
+
+function resolveInboxSorterShadowTarget(
+  ctx: Parameters<ExecutableShadowSemanticReviewerDeclaration["targetResolver"]>[0],
+): ShadowSemanticReviewTargetResolution {
+  const inspection = inspectInbox.output(ctx);
+  if (!inspection?.needsAttention) {
+    return {
+      kind: "skip",
+      reason: "Inbox sorter had no target: inbox was empty or inspection was skipped.",
+      citedArtifacts: ["metadata:inspect-inbox"],
+    };
+  }
+  if (!stepSucceeded("sort-inbox")(ctx)) {
+    return {
+      kind: "skip",
+      reason: "Inbox sorter target unavailable because the sort-inbox step did not succeed.",
+      citedArtifacts: ["metadata:sort-inbox"],
+    };
+  }
+  return {
+    kind: "target",
+    target: {
+      id: `${ctx.workflow.runId}:inbox-sorter`,
+      kind: "task-queue",
+      summary:
+        "Review inbox sorting output for intent preservation, duplicate avoidance, task-format compliance, and queue classification quality.",
+      artifacts: [
+        {
+          path: "metadata:inspect-inbox",
+          content: JSON.stringify(inspection, null, 2),
+        },
+        ...workflowMutationArtifacts(ctx.workspaceDir ?? ctx.projectDir),
+      ],
+    },
+  };
+}
+
+const inboxSorterShadowReview = createShadowSemanticReviewStep({
+  id: "shadow-semantic-review",
+  when: onNormalTrigger,
+  declaration: {
+    id: "inbox-sorter-queue-triage",
+    mode: "advisory",
+    targetKind: "task-queue",
+    promotionCandidateRef:
+      "task-run-shadow-semantic-reviewers-for-non-builder-auto#inbox-sorter",
+    reviewer: {
+      id: "queue-triage-shadow-reviewer-v1",
+      systemPrompt:
+        "You are an advisory semantic reviewer for KOTA inbox and queue triage. Judge only the declared artifacts. Do not inspect hidden reasoning, unrelated files, broad run logs, or conversation state.",
+      question:
+        "Does this inbox-sorter output preserve source intent, avoid duplicate or speculative tasks, respect data/task AGENTS instructions, and leave queue state honest?",
+      maxTurns: 6,
+    },
+    targetResolver: resolveInboxSorterShadowTarget,
   },
 });
 
@@ -121,6 +184,7 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
         ],
       },
     },
+    inboxSorterShadowReview,
     {
       id: "commit",
       type: "code",

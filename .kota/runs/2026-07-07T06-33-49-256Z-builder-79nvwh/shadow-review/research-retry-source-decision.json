@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "shadow-semantic-review",
+  "runId": "2026-07-07T06-33-49-256Z-builder-79nvwh",
+  "workflow": "research-retry",
+  "generatedAt": "2026-07-07T06:33:49.256Z",
+  "declarationId": "research-retry-source-decision",
+  "reviewerProfileId": "source-decision-shadow-reviewer-v1",
+  "reviewerPromptHash": "sample000002",
+  "mode": "advisory",
+  "targetKind": "source-decision",
+  "promotionCandidateRef": "task-run-shadow-semantic-reviewers-for-non-builder-auto#research-retry",
+  "status": "skipped",
+  "decision": "skip",
+  "summary": "Sample skipped target-resolution artifact for a run with no selected source-decision target.",
+  "citedArtifacts": [
+    "metadata:inspect-candidates"
+  ],
+  "findings": [],
+  "skippedReason": "Research-retry had no selected source-decision target.",
+  "costUsd": null,
+  "durationMs": null
+}

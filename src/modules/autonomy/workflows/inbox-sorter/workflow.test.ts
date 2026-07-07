@@ -14,6 +14,30 @@ vi.mock("#core/util/repo-worktree.js", () => ({
   }),
 }));
 
+vi.mock("#core/agent-harness/index.js", async () => {
+  const actual = await vi.importActual<typeof import("#core/agent-harness/index.js")>(
+    "#core/agent-harness/index.js",
+  );
+  return {
+    ...actual,
+    createWorkflowAgentGuards: vi.fn(() => () => ({ allow: true })),
+    resolveAgentHarness: vi.fn(() => ({ name: "mock-harness" })),
+    routeKotaToolControlOptions: vi.fn(() => ({})),
+    runAgentHarness: vi.fn(async () => ({
+      text: JSON.stringify({
+        decision: "pass",
+        summary: "No advisory findings.",
+        citedArtifacts: [],
+        findings: [],
+      }),
+      streamedText: "",
+      turns: 1,
+      isError: false,
+      totalCostUsd: 0,
+    })),
+  };
+});
+
 vi.mock("#modules/repo-tasks/repo-tasks-domain.js", () => ({
   getRepoTaskQueueSnapshot: vi.fn(),
   REPO_INBOX_DIR: "data/inbox",

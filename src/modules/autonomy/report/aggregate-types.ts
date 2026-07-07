@@ -16,6 +16,7 @@ import type {
   AutonomyDecisionMetric,
   AutonomyRolloutMode,
 } from "../autonomy-change-decision.js";
+import type { ShadowSemanticReviewReport } from "../shadow-semantic-review-types.js";
 import type { CodeHealthDriftReport } from "./code-health-drift.js";
 import type { DecisionAttributionReport } from "./decision-attribution-types.js";
 import type { DiffSummaryConsistencyReport } from "./diff-summary-consistency-report.js";
@@ -24,6 +25,7 @@ import type { PostCompletionFollowUpReport } from "./post-completion-followups.j
 import type { QualityStratificationReport } from "./quality-stratification.js";
 import type { AreaClassification } from "./task-classification.js";
 
+export type { ShadowSemanticReviewReport } from "../shadow-semantic-review-types.js";
 export type { CodeHealthDriftReport } from "./code-health-drift.js";
 export type { DecisionAttributionReport } from "./decision-attribution-types.js";
 export type { DiffSummaryConsistencyReport } from "./diff-summary-consistency-report.js";
@@ -197,6 +199,7 @@ export type AutonomyReportData = {
   diffSummaryConsistency: DiffSummaryConsistencyReport;
   reviewScrutiny: ReviewScrutinyReport;
   reviewScrutinyEscalation: ReviewScrutinyEscalationReport;
+  shadowSemanticReviews: ShadowSemanticReviewReport;
   trajectoryDiagnostics: TrajectoryDiagnosticReport;
   autonomyChangeDecisions: AutonomyChangeDecisionReport;
   codeHealthDrift: CodeHealthDriftReport;

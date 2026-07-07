@@ -8,7 +8,7 @@ task_class: Meta
 depends_on: [task-add-loop-quality-audits-for-autonomous-workflows, task-add-measured-autonomy-change-promotion-decisions]
 summary: Evaluate candidate critic or semantic-review gates for decomposer, explorer, inbox-sorter, research-retry, and security-review in advisory shadow mode before making any new reviewer blocking.
 created_at: 2026-06-25T14:51:40.532Z
-updated_at: 2026-07-07T06:33:13.242Z
+updated_at: 2026-07-07T11:03:09.000Z
 ---
 
 ## Problem
@@ -135,3 +135,18 @@ decisions without introducing an unmeasured universal critic.
   resolution.
 - Sample `.kota/runs/<run-id>/shadow-review/*.json` artifacts plus report
   output showing reviewer findings without blocking the original workflow.
+
+## Recovery Note
+
+Builder run `2026-07-07T09-56-24-988Z-builder-8kwfdp` recovered the prior
+shadow-review branch content, but the canonical active claim for run
+`2026-07-07T06-33-49-256Z-builder-79nvwh` still reports `pending-merge`.
+This task is left in `ready/`, but it cannot be claimed again until that
+canonical pending-merge claim is released or superseded.
+
+Recovered evidence for the prior branch remains available at:
+
+- `.kota/runs/2026-07-07T06-33-49-256Z-builder-79nvwh/shadow-review/inbox-sorter-queue-triage.json`
+- `.kota/runs/2026-07-07T06-33-49-256Z-builder-79nvwh/shadow-review/research-retry-source-decision.json`
+- `.kota/runs/2026-07-07T06-33-49-256Z-builder-79nvwh/report-transcript.txt`
+- `.kota/runs/2026-07-07T06-33-49-256Z-builder-79nvwh/validation.txt`

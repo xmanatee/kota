@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "shadow-semantic-review",
+  "runId": "2026-07-07T06-33-49-256Z-builder-79nvwh",
+  "workflow": "inbox-sorter",
+  "generatedAt": "2026-07-07T06:33:49.256Z",
+  "declarationId": "inbox-sorter-queue-triage",
+  "reviewerProfileId": "queue-triage-shadow-reviewer-v1",
+  "reviewerPromptHash": "sample000001",
+  "mode": "advisory",
+  "targetKind": "task-queue",
+  "promotionCandidateRef": "task-run-shadow-semantic-reviewers-for-non-builder-auto#inbox-sorter",
+  "status": "reviewed",
+  "decision": "warn",
+  "target": {
+    "id": "sample-inbox-sorter-target",
+    "summary": "Sample queue-triage target for report evidence.",
+    "artifactPaths": [
+      "metadata:inspect-inbox",
+      "git:staged-diff"
+    ]
+  },
+  "summary": "Sample advisory review caught a duplicate-task risk without blocking the workflow outcome.",
+  "citedArtifacts": [
+    "git:staged-diff"
+  ],
+  "findings": [
+    {
+      "severity": "critical",
+      "summary": "Sample catch: a created task duplicates an existing source-intent thread and needs a source trace before promotion.",
+      "citedArtifacts": [
+        "git:staged-diff"
+      ],
+      "falsePositive": false
+    }
+  ],
+  "costUsd": 0.04,
+  "durationMs": 2000
+}

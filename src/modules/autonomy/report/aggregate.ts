@@ -40,6 +40,7 @@ import {
   summarizePostCompletionFollowUpLinks,
 } from "./post-completion-followups.js";
 import { buildQualityStratificationReport } from "./quality-stratification.js";
+import { buildShadowSemanticReviewReport } from "./shadow-semantic-reviews.js";
 
 export {
   type AreaCount,
@@ -67,6 +68,7 @@ export {
   type QueueBalance,
   type QueueDependencyWait,
   type ReportPriority,
+  type ShadowSemanticReviewReport,
   type StateCount,
   type TaskClassCount,
   type TrajectoryDiagnosticPatternSummary,
@@ -192,6 +194,10 @@ export function aggregateAutonomyReport(
       projectDir: input.projectDir,
       detection: reviewScrutinyEscalationDetection,
       config: { nowMs: input.windowEndMs, windowMs },
+    }),
+    shadowSemanticReviews: buildShadowSemanticReviewReport({
+      runs,
+      runsDir: input.runsDir,
     }),
     trajectoryDiagnostics: buildTrajectoryDiagnosticReport(
       input.runsDir,

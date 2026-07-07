@@ -43,6 +43,21 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function initializeFixtureGitRepo(projectDir: string): void {
+  writeFileSync(join(projectDir, ".gitignore"), ".kota/\n");
+  execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
+  execFileSync("git", ["config", "user.name", "Kota Tests"], {
+    cwd: projectDir,
+    stdio: "ignore",
+  });
+  execFileSync("git", ["config", "user.email", "kota@example.com"], {
+    cwd: projectDir,
+    stdio: "ignore",
+  });
+  execFileSync("git", ["add", ".gitignore"], { cwd: projectDir, stdio: "ignore" });
+  execFileSync("git", ["commit", "-m", "init"], { cwd: projectDir, stdio: "ignore" });
+}
+
 async function waitUntil(
   predicate: () => boolean,
   timeoutMs = 1_000,
@@ -65,6 +80,7 @@ describe("WorkflowRuntime", () => {
     );
     mkdirSync(join(projectDir, "src", "modules", "autonomy", "workflows", "builder"), { recursive: true });
     mkdirSync(join(projectDir, "src", "modules", "test", "workflows", "formatter"), { recursive: true });
+    initializeFixtureGitRepo(projectDir);
     mockedExecuteWithAgentSDK.mockReset();
   });
 

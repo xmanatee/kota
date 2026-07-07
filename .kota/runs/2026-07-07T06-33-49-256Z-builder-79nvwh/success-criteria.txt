@@ -1,0 +1,6 @@
+1. Non-builder autonomy workflows can declare a typed shadow semantic reviewer with a target resolver, reviewer profile/prompt, output schema, and advisory/blocking mode without using a universal builder critic wrapper.
+2. At least two representative non-builder workflows are wired in with focused fixtures: one task/queue-shaped workflow and one research, security, or source-decision-shaped workflow.
+3. Successful workflow runs can write advisory shadow-review artifacts under the run directory without changing the original workflow outcome.
+4. Operator report output includes shadow review catches, false-positive annotations, skipped target-resolution cases, cost/duration, run references, and promotion-candidate/declaration references.
+5. Tests cover target resolution, skipped reviews, malformed artifacts, hidden-context exclusion, advisory mode preserving workflow outcome, report formatting, and blocking promotion requiring an autonomy-change-decision artifact.
+6. Acceptance evidence includes sample shadow-review JSON artifacts and a focused validation transcript for the implemented behavior.

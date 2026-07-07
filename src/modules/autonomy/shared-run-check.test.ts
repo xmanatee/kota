@@ -44,7 +44,7 @@ describe("runCheck", () => {
       runCheck(
         `${shellQuote(process.execPath)} -e ${shellQuote(childScript)} ${shellQuote(pidFile)}`,
         dir,
-        250,
+        2_000,
       ),
     ).toThrow(/Command timed out/);
 

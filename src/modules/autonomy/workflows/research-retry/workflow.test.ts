@@ -14,6 +14,46 @@ vi.mock("#core/util/repo-worktree.js", () => ({
   getRepoWorktreeStatus: vi.fn(),
 }));
 
+vi.mock("#core/agent-harness/index.js", async () => {
+  const actual = await vi.importActual<typeof import("#core/agent-harness/index.js")>(
+    "#core/agent-harness/index.js",
+  );
+  return {
+    ...actual,
+    createWorkflowAgentGuards: vi.fn(() => () => ({ allow: true })),
+    resolveAgentHarness: vi.fn(() => ({ name: "mock-harness" })),
+    routeKotaToolControlOptions: vi.fn(() => ({})),
+    runAgentHarness: vi.fn(async () => ({
+      text: JSON.stringify({
+        decision: "pass",
+        summary: "No advisory findings.",
+        citedArtifacts: [],
+        findings: [],
+      }),
+      streamedText: "",
+      turns: 1,
+      isError: false,
+      totalCostUsd: 0,
+    })),
+  };
+});
+
+vi.mock("#modules/autonomy/recovery.js", async () => {
+  const actual = await vi.importActual<typeof import("#modules/autonomy/recovery.js")>(
+    "#modules/autonomy/recovery.js",
+  );
+  return {
+    ...actual,
+    resetWorktreeForRecovery: vi.fn(() => ({
+      stashed: false,
+      stashSummary: "test reset",
+      branchRestored: false,
+      previousBranch: null,
+      currentBranch: "main",
+    })),
+  };
+});
+
 vi.mock("./candidates.js", async () => {
   const actual = await vi.importActual<typeof import("./candidates.js")>(
     "./candidates.js",

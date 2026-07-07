@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "autonomy-change-decision",
+  "runId": "2026-07-07T09-56-24-988Z-builder-8kwfdp",
+  "createdAt": "2026-07-07T11:03:09.000Z",
+  "taskIds": [
+    "task-recover-shadow-review-branch-blocked-by-merge-gate"
+  ],
+  "affectedSurfaces": [
+    "non-builder autonomy workflows",
+    "shadow semantic reviewers",
+    "operator report",
+    "builder merge-gate recovery"
+  ],
+  "changeClasses": [
+    "workflow",
+    "reviewer",
+    "critic-gate"
+  ],
+  "hypothesis": "Recovering the prior advisory shadow-review branch with the merge-gate test-script fix preserves non-blocking reviewer observability for selected non-builder workflows without making the stale pending-merge task terminal in this run.",
+  "sourceRefs": [
+    "task:task-recover-shadow-review-branch-blocked-by-merge-gate",
+    "task:task-run-shadow-semantic-reviewers-for-non-builder-auto",
+    ".kota/runs/2026-07-07T06-33-49-256Z-builder-79nvwh/autonomy-change-decision.json",
+    ".kota/runs/2026-07-07T09-56-24-988Z-builder-8kwfdp/merge-gate-recovery-evidence.md"
+  ],
+  "baselineRefs": [
+    "data/tasks/ready/task-run-shadow-semantic-reviewers-for-non-builder-auto.md",
+    "src/modules/autonomy/report/review-scrutiny.ts",
+    "src/modules/autonomy/workflows/builder/workflow.ts",
+    "package.json"
+  ],
+  "candidateRefs": [
+    "package.json",
+    "src/modules/autonomy/shadow-semantic-review.ts",
+    "src/modules/autonomy/shadow-semantic-review-artifact.ts",
+    "src/modules/autonomy/shadow-semantic-review-prompt.ts",
+    "src/modules/autonomy/shadow-semantic-review-targets.ts",
+    "src/modules/autonomy/shadow-semantic-review-types.ts",
+    "src/modules/autonomy/workflows/inbox-sorter/workflow.ts",
+    "src/modules/autonomy/workflows/research-retry/workflow.ts",
+    "src/modules/autonomy/workflows/research-retry/shadow-review.ts",
+    "src/modules/autonomy/report/shadow-semantic-reviews.ts",
+    "src/modules/autonomy/report/render-shadow-semantic-reviews.ts",
+    ".kota/runs/2026-07-07T06-33-49-256Z-builder-79nvwh/shadow-review/inbox-sorter-queue-triage.json",
+    ".kota/runs/2026-07-07T06-33-49-256Z-builder-79nvwh/shadow-review/research-retry-source-decision.json",
+    ".kota/runs/2026-07-07T06-33-49-256Z-builder-79nvwh/report-transcript.txt"
+  ],
+  "metricsCompared": [
+    {
+      "name": "merge-gate path argument handling",
+      "baseline": "the recovered branch used a package test script with bare --silent, causing appended path arguments to be parsed as the silent option value",
+      "candidate": "package.json uses --silent=true so pnpm test <paths> forwards path arguments to Vitest during merge-gate validation",
+      "unit": "package script behavior",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "focused shadow-review behavior tests",
+      "baseline": "non-builder workflows had no typed advisory semantic-review protocol or artifact parser",
+      "candidate": "shadow review, workflow, and report CLI tests cover advisory artifacts, skipped targets, malformed reviewer output, hidden-context exclusion, and report rendering",
+      "unit": "vitest",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "workflow rollout posture",
+      "baseline": "builder critic was the only mature semantic review path",
+      "candidate": "inbox-sorter and research-retry run advisory reviewer steps that write artifacts without changing commit success unless later promoted",
+      "unit": "workflow integration",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "commit-set ownership",
+      "baseline": "the recovered branch content was associated with a stale pending merge for task-run-shadow-semantic-reviewers-for-non-builder-auto",
+      "candidate": "this run completes only task-recover-shadow-review-branch-blocked-by-merge-gate and returns the shadow-review task to ready for separate verification",
+      "unit": "task lifecycle",
+      "direction": "improved",
+      "qualitySignal": true
+    }
+  ],
+  "rolloutMode": "advisory",
+  "decision": "promote",
+  "rationale": "The recovery keeps the shadow reviewers advisory-only, preserves artifact-scoped reviewer inputs, fixes the merge-gate test-script failure that blocked the prior branch, and avoids closing the original shadow-review task under this run's separate claim. Blocking reviewer promotion remains gated by a future measured autonomy-change decision.",
+  "ownerSafetyExceptions": [],
+  "followUpTaskIds": []
+}

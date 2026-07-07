@@ -1,0 +1,10 @@
+Task CLI `git mv` and the final real `git add -A` attempt failed while Git
+tried to write the linked worktree metadata path outside the sandbox writable
+roots:
+
+/Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/task-recover-shadow-review-branch-blocked-by-merge-gate-2026-07-07t09-56-24-988z-builder-8kwfdp
+
+Those failures were recorded as `Operation not permitted` while creating index
+locks. A temporary index/object store was used for task validation evidence,
+but the real index could not be updated from this sandbox after the repair
+files changed.

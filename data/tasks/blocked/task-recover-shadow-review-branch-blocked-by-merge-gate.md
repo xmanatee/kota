@@ -1,13 +1,13 @@
 ---
 id: task-recover-shadow-review-branch-blocked-by-merge-gate
 title: Recover shadow-review branch blocked by merge-gate validation
-status: ready
+status: blocked
 priority: p1
 area: workflow-runtime
 task_class: Meta
 summary: Resolve the pending merge for builder run 2026-07-07T06-33-49-256Z-builder-79nvwh. The shadow-review branch changed the test script so merge-gate path arguments were parsed as a Vitest --silent value, leaving the p1 task ready with a pending-merge claim despite a build-committed event.
 created_at: 2026-07-07T10:38:43.389Z
-updated_at: 2026-07-07T10:38:43.389Z
+updated_at: 2026-07-07T11:20:00Z
 ---
 
 ## Problem
@@ -57,3 +57,47 @@ Outcome-aware autonomy progress review.
 - Review-provided acceptance evidence:
 
     A run artifact or transcript shows the shadow-review branch is either merged after passing merge-gate validation or explicitly superseded; the active pending-merge claim for task-run-shadow-semantic-reviewers-for-non-builder-auto is released or resolved; the task is moved to done or returned to actionable ready with rationale; and a later progress-review or task-claim snapshot no longer reports run 2026-07-07T06-33-49-256Z-builder-79nvwh as pending merge.
+
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/2026-07-07T09-56-24-988Z-builder-8kwfdp/operator-claim-after-release.json
+description: from an environment that can write /Users/xmanatee/Desktop/mono/apps/kota/.kota/task-claims or through a live daemon control path, release or supersede the canonical active claim for task-run-shadow-semantic-reviewers-for-non-builder-auto run 2026-07-07T06-33-49-256Z-builder-79nvwh, then capture after-state JSON showing no active pending-merge claim for that run and the task either claimable from ready or intentionally superseded
+```
+
+## Status (2026-07-07 repair)
+
+Recovered the blocked shadow-review branch by applying the implementation from
+`e5f93ac12d682b786a0cd0e514a801d9ed9c6d99` onto the current branch while
+preserving later recovery/progress commits. The merge-gate script mismatch is
+fixed in `package.json`: `pnpm test <paths>` now expands to
+`vitest run --configLoader runner --silent=true <paths>`, so path arguments are
+not parsed as a `--silent` value.
+
+The old pending-merge claim from run
+`2026-07-07T06-33-49-256Z-builder-79nvwh` is not released yet. A
+`releaseTaskClaim` attempt against the canonical checkout reached the correct
+claim path but failed with `EPERM` because this sandbox cannot write
+`/Users/xmanatee/Desktop/mono/apps/kota/.kota/task-claims`. The task is
+therefore blocked on the operator-captured canonical claim release above rather
+than marked done from worktree-local recovery evidence alone.
+
+Evidence:
+
+- `.kota/runs/2026-07-07T09-56-24-988Z-builder-8kwfdp/merge-gate-recovery-evidence.md`
+- `.kota/runs/2026-07-07T09-56-24-988Z-builder-8kwfdp/claim-release-attempt.json`
+- `.kota/runs/2026-07-07T09-56-24-988Z-builder-8kwfdp/autonomy-change-decision.json`
+- `.kota/runs/2026-07-07T06-33-49-256Z-builder-79nvwh/shadow-review/inbox-sorter-queue-triage.json`
+- `.kota/runs/2026-07-07T06-33-49-256Z-builder-79nvwh/shadow-review/research-retry-source-decision.json`
+- `.kota/runs/2026-07-07T06-33-49-256Z-builder-79nvwh/report-transcript.txt`
+
+Validation:
+
+- `pnpm test src/modules/git src/modules/autonomy/workflows/builder` passed.
+- Focused shadow-review/report workflow tests passed.
+- `pnpm run typecheck` passed.
+- `pnpm run lint` passed.
+- Current-run autonomy decision check passed.
+- Task validation passed against the temporary staged view documented in
+  `.kota/runs/2026-07-07T09-56-24-988Z-builder-8kwfdp/task-validation.txt`.

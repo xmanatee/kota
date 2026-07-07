@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "attemptedAt": "2026-07-07T11:12:00.000Z",
+  "operation": "releaseTaskClaim",
+  "projectDir": "/Users/xmanatee/Desktop/mono/apps/kota",
+  "taskId": "task-run-shadow-semantic-reviewers-for-non-builder-auto",
+  "runId": "2026-07-07T06-33-49-256Z-builder-79nvwh",
+  "workflowId": "builder",
+  "result": "blocked",
+  "error": {
+    "code": "EPERM",
+    "syscall": "open",
+    "path": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/task-claims/active/task-run-shadow-semantic-reviewers-for-non-builder-auto.json",
+    "message": "operation not permitted"
+  },
+  "afterState": {
+    "activeClaimPath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/task-claims/active/task-run-shadow-semantic-reviewers-for-non-builder-auto.json",
+    "activeExists": true,
+    "status": "pending-merge",
+    "runId": "2026-07-07T06-33-49-256Z-builder-79nvwh",
+    "evidence": "builder branch is pending merge: validation failed after merge gate integration"
+  },
+  "nextRequiredAction": "Release or supersede the canonical active claim from an environment that can write /Users/xmanatee/Desktop/mono/apps/kota/.kota/task-claims, then capture after-state JSON showing no active pending-merge claim for this run."
+}

@@ -1,0 +1,6 @@
+1. Verified: `src/modules/autonomy/shadow-semantic-review-types.ts` and `src/modules/autonomy/shadow-semantic-review.ts` define a typed declaration/protocol with target resolvers, reviewer profiles, strict output parsing, and shadow/advisory/blocking modes.
+2. Verified: `inbox-sorter` is wired with a task/queue-shaped advisory reviewer, and `research-retry` is wired with a source-decision-shaped advisory reviewer, with focused workflow/helper/report tests.
+3. Verified: `runShadowSemanticReview` writes reviewed, skipped, malformed, and error artifacts under `<runDir>/shadow-review/` while advisory mode does not throw on fail or malformed reviewer output.
+4. Verified: `kota report` aggregates shadow semantic reviews with catches, false-positive annotations, skipped target-resolution cases, malformed/error artifacts, cost/duration, run references, and promotion candidate refs.
+5. Verified: tests cover target resolution, unstaged/untracked workflow mutation previewing, skipped reviews, malformed reviewer output/artifacts, prompt hidden-context exclusion, advisory mode preserving workflow outcome, report formatting, and blocking mode requiring a promoted autonomy-change-decision artifact.
+6. Verified: sample shadow-review artifacts and a report transcript are present under `.kota/runs/2026-07-07T06-33-49-256Z-builder-79nvwh/`, and validation commands passed.

@@ -1,0 +1,47 @@
+$ kota report --json
+{
+  "shadowSemanticReviews": {
+    "totalArtifacts": 2,
+    "reviewed": 1,
+    "catches": 1,
+    "falsePositiveAnnotations": 0,
+    "skippedTargetResolution": 1,
+    "malformedArtifacts": 0,
+    "errorArtifacts": 0,
+    "totalCostUsd": 0.04,
+    "averageDurationMs": 2000,
+    "byWorkflow": [
+      {
+        "workflow": "inbox-sorter",
+        "artifacts": 1,
+        "catches": 1,
+        "falsePositiveAnnotations": 0,
+        "skippedTargetResolution": 0,
+        "malformedArtifacts": 0,
+        "totalCostUsd": 0.04
+      },
+      {
+        "workflow": "research-retry",
+        "artifacts": 1,
+        "catches": 0,
+        "falsePositiveAnnotations": 0,
+        "skippedTargetResolution": 1,
+        "malformedArtifacts": 0,
+        "totalCostUsd": 0
+      }
+    ]
+  }
+}
+
+$ kota report
+Shadow semantic reviews
+Artifacts: 2   Reviewed: 1   Catches: 1   False positives: 0   Skipped: 1   Malformed: 0   Errors: 0
+Cost: $0.0400   Avg duration: 2s
+
+By workflow
+  inbox-sorter         1 artifacts     1 catches     0 false+     0 skipped     0 malformed    $0.0400
+  research-retry       1 artifacts     0 catches     0 false+     1 skipped     0 malformed    $0.0000
+
+Recent review refs
+  inbox-sorter       inbox-sorter-queue-triage        1 catch / 0 false+ .kota/runs/2026-07-07T06-33-49-256Z-builder-79nvwh/shadow-review/inbox-sorter-queue-triage.json
+  research-retry     research-retry-source-decision   Research-retry had no selected source-decision target. .kota/runs/2026-07-07T06-33-49-256Z-builder-79nvwh/shadow-review/research-retry-source-decision.json

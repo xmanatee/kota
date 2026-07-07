@@ -1,0 +1,24 @@
+Command:
+
+NODE_OPTIONS=--conditions=source GIT_INDEX_FILE=.kota/tmp/2026-07-07T09-56-24-988Z-builder-8kwfdp/git-index-final/index GIT_OBJECT_DIRECTORY=.kota/tmp/2026-07-07T09-56-24-988Z-builder-8kwfdp/git-objects GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects node --import tsx src/validate-queue.ts --min-ready 0
+
+Result: passed.
+
+Note: the temporary Git index/object store was used after earlier real-index
+write attempts failed with `Operation not permitted`.
+
+Final command after `git add -A` succeeded:
+
+NODE_OPTIONS=--conditions=source node --import tsx src/validate-queue.ts --min-ready 0
+
+Final result: passed against the real staged index.
+
+Repair-check validation after post-check repair:
+
+node --conditions=source --import tsx -e "import { checkAutonomyChangeDecisionForRun } from './src/modules/autonomy/autonomy-change-decision.js'; console.log(checkAutonomyChangeDecisionForRun(process.cwd(), './.kota/runs/2026-07-07T09-56-24-988Z-builder-8kwfdp'));"
+
+Result: OK: autonomy-change-decision.json covers 10 material autonomy file(s)
+
+node --conditions=source --import tsx -e "import { checkClaimedTaskCommitSet } from './src/modules/autonomy/workflows/builder/task-state-repair-checks.js'; console.log(checkClaimedTaskCommitSet(process.cwd(), { claimed: true, taskId: 'task-recover-shadow-review-branch-blocked-by-merge-gate' }));"
+
+Result: OK: commit set resolves claimed task task-recover-shadow-review-branch-blocked-by-merge-gate

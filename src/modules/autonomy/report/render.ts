@@ -35,6 +35,7 @@ import {
   renderReviewScrutinyEscalation,
   renderTrajectoryDiagnostics,
 } from "./render-run-sections.js";
+import { renderShadowSemanticReviews } from "./render-shadow-semantic-reviews.js";
 
 export function renderAutonomyReport(data: AutonomyReportData): RenderNode {
   return stack(
@@ -75,6 +76,9 @@ export function renderAutonomyReport(data: AutonomyReportData): RenderNode {
     blank(),
     heading("Review scrutiny escalation", 2),
     ...renderReviewScrutinyEscalation(data.reviewScrutinyEscalation),
+    blank(),
+    heading("Shadow semantic reviews", 2),
+    ...renderShadowSemanticReviews(data.shadowSemanticReviews),
     blank(),
     heading("Trajectory diagnostics", 2),
     ...renderTrajectoryDiagnostics(data.trajectoryDiagnostics),

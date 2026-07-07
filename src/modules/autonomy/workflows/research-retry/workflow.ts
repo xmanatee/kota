@@ -23,11 +23,14 @@ import {
   checkResearchRetryCapability,
   evaluateCandidate,
   type MarkAttemptResult,
-  type ResearchRetryCapability,
-  type ResearchRetryMarker,
-  type ResearchRetrySkipReason,
   writeMarkerForCandidate,
 } from "./precondition.js";
+import {
+  type CandidateSummary,
+  createResearchRetryShadowReviewStep,
+  type ExaminedCandidate,
+  type InspectResult,
+} from "./shadow-review.js";
 
 export const agent: AgentDef = {
   name: "research-retry",
@@ -37,29 +40,6 @@ export const agent: AgentDef = {
   ...AUTONOMY_AGENT_DEFAULTS,
   skills: "all",
   writeScope: ["data/tasks/", "data/inbox/"],
-};
-
-type CandidateSummary = {
-  id: string;
-  updatedAt: string;
-  urls: string[];
-};
-
-type ExaminedCandidate = {
-  id: string;
-  fingerprint: string;
-  marker: ResearchRetryMarker | null;
-  skipReason: ResearchRetrySkipReason;
-};
-
-type InspectResult = {
-  dirty: boolean;
-  candidateCount: number;
-  capability: ResearchRetryCapability;
-  candidate: CandidateSummary | null;
-  fingerprint: string | null;
-  marker: ResearchRetryMarker | null;
-  examined: ExaminedCandidate[];
 };
 
 function summarizeCandidate(candidate: ResearchRetryCandidate): CandidateSummary {
@@ -152,6 +132,11 @@ const markAttempt = typedCodeStep<MarkAttemptResult>({
   },
 });
 
+const researchRetryShadowReview = createResearchRetryShadowReviewStep({
+  inspectCandidates,
+  markAttempt,
+});
+
 const researchRetryWorkflow: WorkflowDefinitionInput = {
   name: "research-retry",
   description:
@@ -222,6 +207,7 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
       },
     },
     markAttempt,
+    researchRetryShadowReview,
     {
       id: "commit",
       type: "code",
