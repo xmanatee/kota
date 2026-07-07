@@ -10,9 +10,31 @@ export type JsonObject = { readonly [key: string]: JsonValue | undefined };
 
 export type FixtureCandidateStatus = "viable" | "needs-review" | "rejected";
 
+export type FixtureCandidateDisposition =
+  | "proposed"
+  | "accepted"
+  | "rejected"
+  | "duplicate"
+  | "needs-owner-evidence";
+
+export type FixtureCandidatePatternKind =
+  | "recurring-trajectory-warning"
+  | "review-scrutiny-thin-acceptance"
+  | "repair-loop-failure"
+  | "workflow-schema-validation-failure"
+  | "terminal-trace";
+
+export type FixtureCandidateEvaluatorType =
+  | "deterministic-predicate"
+  | "artifact-schema-check"
+  | "trajectory-check"
+  | "model-graded-rubric"
+  | "human-review-checklist";
+
 export const FIXTURE_CANDIDATE_REASON_CODES = [
   "artifact-malformed",
   "duplicate-existing-fixture",
+  "duplicate-existing-task",
   "operator-capture-required",
   "privacy-secret-like-value",
   "reproducibility-auth-walled",
@@ -37,6 +59,30 @@ export type FixtureCandidateStructuredArtifact = {
   path: string;
   kind: "json" | "jsonl" | "text";
   signal: string;
+};
+
+export type FixtureCandidatePattern = {
+  kind: FixtureCandidatePatternKind;
+  signature: string;
+  title: string;
+  summary: string;
+  evidencePaths: readonly string[];
+  occurrenceCount: number;
+};
+
+export type FixtureCandidateDuplicateReference = {
+  kind: "fixture" | "task";
+  id: string;
+  path: string;
+  state?: string;
+  reason: string;
+};
+
+export type FixtureCandidateAcceptedAction = {
+  kind: "task";
+  id: string;
+  path: string;
+  state: "backlog";
 };
 
 export type FixtureCandidateSafety = {
@@ -65,8 +111,14 @@ export type FixtureCandidateRecord = {
   taskId: string | null;
   taskFinalState: string | null;
   status: FixtureCandidateStatus;
+  disposition: FixtureCandidateDisposition;
+  proposalFingerprint: string;
+  failurePattern: FixtureCandidatePattern;
   reasonCodes: readonly FixtureCandidateReasonCode[];
   reasonSummary: string;
+  preservationRationale: string;
+  minimalFixtureInputs: readonly string[];
+  suggestedEvaluator: FixtureCandidateEvaluatorType;
   terminalEvidence: {
     commandCount: number;
     commands: readonly FixtureCandidateCommand[];
@@ -81,7 +133,10 @@ export type FixtureCandidateRecord = {
   duplicateCoverage: {
     covered: boolean;
     fixtureIds: readonly string[];
+    taskIds: readonly string[];
   };
+  duplicateReferences: readonly FixtureCandidateDuplicateReference[];
+  acceptedAction: FixtureCandidateAcceptedAction | null;
 };
 
 export type FixtureCandidateReport = {
@@ -92,7 +147,9 @@ export type FixtureCandidateReport = {
     workflow: string | null;
     limit: number;
     since: string | null;
+    createTask: boolean;
   };
+  dispositionTotals: Record<FixtureCandidateDisposition, number>;
   totals: {
     scannedRuns: number;
     viable: number;
@@ -109,6 +166,8 @@ export type FixtureCandidateMiningOptions = {
   workflow?: string;
   limit?: number;
   since?: string;
+  createTask?: boolean;
+  nowIso?: string;
 };
 
 export type FixtureCandidateMiningResult = {
@@ -149,6 +208,17 @@ export type CalibrationArtifact = {
 
 export type DuplicateCoverage = {
   coveredRunIds: ReadonlyMap<string, readonly string[]>;
+  taskReferencesByRunId: ReadonlyMap<string, readonly FixtureCandidateDuplicateReference[]>;
+  taskReferencesByFingerprint: ReadonlyMap<string, readonly FixtureCandidateDuplicateReference[]>;
+};
+
+export type RunPatternSignal = {
+  kind: FixtureCandidatePatternKind;
+  signature: string;
+  title: string;
+  summary: string;
+  evidencePaths: readonly string[];
+  suggestedEvaluator: FixtureCandidateEvaluatorType;
 };
 
 export type RunEvidence = {
@@ -162,6 +232,7 @@ export type RunEvidence = {
   malformedArtifacts: readonly FixtureCandidateStructuredArtifact[];
   taskStateMoves: readonly string[];
   operatorCaptureMentioned: boolean;
+  patternSignals: readonly RunPatternSignal[];
 };
 
 export function stableUnique(values: readonly string[]): readonly string[] {

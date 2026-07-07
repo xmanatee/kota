@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import {
   collectCommandsFromJson,
   collectCommandsFromText,
@@ -12,9 +12,9 @@ import {
   parseStringArray,
   readJsonValue,
 } from "./fixture-candidates-json.js";
+import { collectPatternSignals } from "./fixture-candidates-patterns.js";
 import type {
   CalibrationArtifact,
-  DuplicateCoverage,
   FixtureCandidateCommand,
   FixtureCandidateStructuredArtifact,
   JsonValue,
@@ -96,39 +96,6 @@ function parseCalibration(path: string): CalibrationArtifact | null {
     taskFinalState: parseNullableString(raw.taskFinalState),
     sourceFilesChanged: parseStringArray(raw.sourceFilesChanged),
   };
-}
-
-function parseFixtureProvenance(path: string): { sourceRunId: string | null; id: string } {
-  const raw = readJsonValue(path);
-  if (!isJsonObject(raw)) return { sourceRunId: null, id: basename(path) };
-  const id = parseString(raw.id) ?? basename(path);
-  const provenance = raw.provenance;
-  if (!isJsonObject(provenance)) return { sourceRunId: null, id };
-  const kind = parseString(provenance.kind);
-  const sourceRunId = parseString(provenance.sourceRunId);
-  return {
-    id,
-    sourceRunId: kind === "real-failure" && sourceRunId !== undefined
-      ? sourceRunId
-      : null,
-  };
-}
-
-export function collectDuplicateCoverage(projectDir: string): DuplicateCoverage {
-  const fixtureRoot = join(projectDir, "src/modules/eval-harness/fixtures");
-  const byRun = new Map<string, string[]>();
-  if (!existsSync(fixtureRoot)) return { coveredRunIds: byRun };
-  for (const entry of readdirSync(fixtureRoot, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const fixturePath = join(fixtureRoot, entry.name, "fixture.json");
-    if (!existsSync(fixturePath)) continue;
-    const provenance = parseFixtureProvenance(fixturePath);
-    if (provenance.sourceRunId === null) continue;
-    const fixtures = byRun.get(provenance.sourceRunId) ?? [];
-    fixtures.push(provenance.id);
-    byRun.set(provenance.sourceRunId, fixtures.sort());
-  }
-  return { coveredRunIds: byRun };
 }
 
 function collectStrings(value: JsonValue | undefined, out: string[]): void {
@@ -292,5 +259,6 @@ export function readRunEvidence(runDir: string): RunEvidence {
     malformedArtifacts,
     taskStateMoves: collectTaskMoves(changedPaths, textEvidence),
     operatorCaptureMentioned: OPERATOR_CAPTURE.test(textEvidence),
+    patternSignals: collectPatternSignals(runDir, metadata, textEvidence),
   };
 }

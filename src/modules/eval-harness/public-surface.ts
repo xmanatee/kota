@@ -114,9 +114,15 @@ export {
   summarizeControlDecisionCoverage,
 } from "./fixture.js";
 export type {
+  FixtureCandidateAcceptedAction,
   FixtureCandidateCommand,
+  FixtureCandidateDisposition,
+  FixtureCandidateDuplicateReference,
+  FixtureCandidateEvaluatorType,
   FixtureCandidateMiningOptions,
   FixtureCandidateMiningResult,
+  FixtureCandidatePattern,
+  FixtureCandidatePatternKind,
   FixtureCandidateReasonCode,
   FixtureCandidateRecord,
   FixtureCandidateReport,

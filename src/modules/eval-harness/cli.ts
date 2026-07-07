@@ -690,6 +690,10 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
     .option("--workflow <name>", "Only include runs from this workflow")
     .option("--limit <n>", `Maximum recent runs to scan when --run-id is absent (default ${20})`, "20")
     .option("--since <iso>", "Only scan runs at or after this ISO timestamp when --run-id is absent")
+    .option(
+      "--create-task",
+      "Create backlog tasks for proposed candidates and mark them accepted in the report",
+    )
     .action((opts: {
       outputDir: string;
       runId: string[];
@@ -697,6 +701,7 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
       workflow?: string;
       limit: string;
       since?: string;
+      createTask?: boolean;
     }) => {
       const limit = parsePositiveInt(opts.limit, "limit");
       if (opts.since !== undefined && Number.isNaN(Date.parse(opts.since))) {
@@ -709,6 +714,7 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
         ...(opts.workflow !== undefined && { workflow: opts.workflow }),
         limit,
         ...(opts.since !== undefined && { since: opts.since }),
+        ...(opts.createTask === true && { createTask: true }),
       });
       print(stack(
         line(
@@ -720,6 +726,8 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
           span(`${result.report.totals.needsReview} needs-review`, "warn"),
           plain("  "),
           span(`${result.report.totals.rejected} rejected`, "error"),
+          plain("  "),
+          span(`${result.report.dispositionTotals.accepted} accepted`, "info"),
         ),
         line(span(`json: ${result.jsonPath}`, "muted")),
         line(span(`summary: ${result.summaryPath}`, "muted")),

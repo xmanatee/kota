@@ -1,0 +1,6 @@
+1. `kota eval fixture-candidates` scans recent autonomy run artifacts and outputs trace-derived eval candidate proposals.
+2. Candidate generation detects recurring trajectory warnings, review-scrutiny thin acceptances, repair-loop failures, and workflow schema or validation failures.
+3. Candidate generation is duplicate-aware against existing eval fixtures and open or done tasks.
+4. Secret/redaction tests prove sensitive fields do not enter candidate outputs.
+5. An accepted candidate path can create a normalized follow-up task with artifact references for builder-owned fixture implementation.
+6. Tests cover proposed, duplicate, rejected, and needs-owner-evidence dispositions.

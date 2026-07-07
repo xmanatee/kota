@@ -1,13 +1,13 @@
 ---
 id: task-promote-run-trace-failures-into-eval-candidates
 title: Promote run trace failures into eval candidates
-status: ready
+status: done
 priority: p2
 area: modules
 task_class: Meta
 summary: Turn recurring run-artifact failures, trajectory diagnostics, and review-scrutiny findings into bounded eval-harness candidate fixtures before autonomy prompts, reviewers, or harnesses are changed.
 created_at: 2026-06-25T14:51:40.590Z
-updated_at: 2026-07-07T06:33:13.271Z
+updated_at: 2026-07-07T10:13:00.516Z
 ---
 
 ## Problem

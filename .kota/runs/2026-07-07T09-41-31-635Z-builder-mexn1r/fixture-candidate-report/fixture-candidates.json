@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "input": {
+    "runsDir": ".kota/runs/2026-07-01T17-02-23-245Z-builder-xdnnj7/decision-attribution-sample-project/.kota/runs",
+    "runIds": [
+      "2026-06-30T14-00-00-000Z-builder-trouble"
+    ],
+    "workflow": null,
+    "limit": 20,
+    "since": null,
+    "createTask": false
+  },
+  "dispositionTotals": {
+    "proposed": 0,
+    "accepted": 0,
+    "rejected": 1,
+    "duplicate": 0,
+    "needs-owner-evidence": 0
+  },
+  "totals": {
+    "scannedRuns": 1,
+    "viable": 0,
+    "needsReview": 0,
+    "rejected": 1
+  },
+  "candidates": [
+    {
+      "runId": "2026-06-30T14-00-00-000Z-builder-trouble",
+      "workflow": "builder",
+      "runStatus": "failed",
+      "taskId": null,
+      "taskFinalState": null,
+      "status": "rejected",
+      "disposition": "rejected",
+      "proposalFingerprint": "fixture-candidate:builder:c0f25a431e9127df",
+      "failurePattern": {
+        "kind": "repair-loop-failure",
+        "signature": "repair-loop:builder:test",
+        "title": "Repair-loop failure in builder",
+        "summary": "Failed builder run includes repair-loop failure evidence.",
+        "evidencePaths": [
+          ".kota/runs/2026-06-30T14-00-00-000Z-builder-trouble/metadata.json"
+        ],
+        "occurrenceCount": 1
+      },
+      "reasonCodes": [
+        "trace-too-sparse",
+        "verifier-no-state-signal"
+      ],
+      "reasonSummary": "rejected: trace-too-sparse, verifier-no-state-signal",
+      "preservationRationale": "Preserve the repair-loop failure as a regression target for deterministic repair checks and workflow execution behavior.",
+      "minimalFixtureInputs": [
+        ".kota/runs/2026-06-30T14-00-00-000Z-builder-trouble/critic-review.json",
+        ".kota/runs/2026-06-30T14-00-00-000Z-builder-trouble/metadata.json"
+      ],
+      "suggestedEvaluator": "deterministic-predicate",
+      "terminalEvidence": {
+        "commandCount": 0,
+        "commands": [],
+        "verificationCommands": [],
+        "taskStateMoves": []
+      },
+      "changedPaths": [],
+      "structuredArtifacts": [
+        {
+          "path": "critic-review.json",
+          "kind": "json",
+          "signal": "object keys: critical_issues, generatedAt, summary, verdict, warnings"
+        }
+      ],
+      "safety": {
+        "redactionCount": 0,
+        "findings": []
+      },
+      "reproducibility": {
+        "localOnly": true,
+        "requiredServices": [],
+        "generatedArtifacts": [
+          "critic-review.json"
+        ],
+        "hostAssumptions": []
+      },
+      "verifierHints": {
+        "stateTargets": [
+          ".kota/runs/<run-id>/critic-review.json"
+        ],
+        "objectiveMetricCandidates": [],
+        "noOpChecks": [
+          "no-op leaves .kota/runs/<run-id>/critic-review.json absent or unchanged"
+        ],
+        "partialAblationChecks": []
+      },
+      "duplicateCoverage": {
+        "covered": false,
+        "fixtureIds": [],
+        "taskIds": []
+      },
+      "duplicateReferences": [],
+      "acceptedAction": null
+    }
+  ]
+}

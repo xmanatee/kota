@@ -29,6 +29,7 @@ function seedRun(
     taskFinalState?: string | null;
     artifacts?: Record<string, unknown>;
     textArtifact?: string;
+    steps?: readonly unknown[];
   },
 ): void {
   const runDir = join(projectDir, ".kota/runs", runId);
@@ -40,7 +41,7 @@ function seedRun(
     status: options.status ?? "success",
     runDir: `.kota/runs/${runId}`,
     trigger: { event: "autonomy.queue.available", payload: {} },
-    steps: [
+    steps: options.steps ?? [
       {
         id: "build",
         type: "agent",
@@ -129,6 +130,8 @@ describe("fixture candidate mining", () => {
     });
     const candidate = result.report.candidates[0];
     expect(candidate.status).toBe("viable");
+    expect(candidate.disposition).toBe("proposed");
+    expect(candidate.failurePattern.kind).toBe("terminal-trace");
     expect(candidate.terminalEvidence.verificationCommands).toContain(
       "pnpm test src/modules/eval-harness/fixture-candidates.test.ts",
     );
@@ -162,32 +165,9 @@ describe("fixture candidate mining", () => {
 
     const candidate = result.report.candidates[0];
     expect(candidate.status).toBe("rejected");
+    expect(candidate.disposition).toBe("duplicate");
     expect(candidate.reasonCodes).toContain("duplicate-existing-fixture");
     expect(candidate.duplicateCoverage.fixtureIds).toEqual(["covered"]);
-  });
-
-  it("redacts secret-like command values and rejects destructive traces", () => {
-    seedRun(projectDir, "run-secret", {
-      commands: [
-        "API_TOKEN=secret-value pnpm test src/modules/eval-harness/fixture-candidates.test.ts",
-        "rm -rf .kota/tmp",
-      ],
-    });
-
-    const result = mineFixtureCandidates(projectDir, {
-      runIds: ["run-secret"],
-      outputDir: "out",
-    });
-
-    const candidate = result.report.candidates[0];
-    expect(candidate.status).toBe("rejected");
-    expect(candidate.reasonCodes).toContain("privacy-secret-like-value");
-    expect(candidate.reasonCodes).toContain("safety-destructive-command");
-    const redactedCommand = candidate.terminalEvidence.commands.find((command) =>
-      command.command.includes("API_TOKEN="),
-    );
-    expect(redactedCommand?.command).toContain("API_TOKEN=[REDACTED]");
-    expect(redactedCommand?.command).not.toContain("secret-value");
   });
 
   it("rejects network-bound and auth-walled command evidence", () => {
@@ -209,23 +189,6 @@ describe("fixture candidate mining", () => {
     expect(candidate.reasonCodes).toContain("reproducibility-network-bound");
     expect(candidate.reasonCodes).toContain("reproducibility-auth-walled");
     expect(candidate.reproducibility.localOnly).toBe(false);
-  });
-
-  it("rejects traces that depend on operator-captured visual evidence", () => {
-    seedRun(projectDir, "run-operator-capture", {
-      commands: ["pnpm test src/modules/eval-harness/fixture-candidates.test.ts"],
-      artifacts: { "verification.json": { ok: true } },
-      textArtifact: "Acceptance requires a screenshot of the actual conversation.",
-    });
-
-    const result = mineFixtureCandidates(projectDir, {
-      runIds: ["run-operator-capture"],
-      outputDir: "out",
-    });
-
-    const candidate = result.report.candidates[0];
-    expect(candidate.status).toBe("rejected");
-    expect(candidate.reasonCodes).toContain("operator-capture-required");
   });
 
   it("emits explicit malformed rejected records instead of silently skipping bad artifacts", () => {

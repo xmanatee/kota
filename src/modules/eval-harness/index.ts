@@ -77,7 +77,7 @@ const evalHarnessModule: KotaModule = {
   // "claude-agent-sdk" slot when KOTA_EVAL_HARNESS_REPLAY_ROOT is set. The
   // subprocess executor is the only production caller that sets that env,
   // so operator and daemon runs are unaffected.
-  dependencies: ["autonomy", "rendering", "claude-agent-harness"],
+  dependencies: ["autonomy", "rendering", "claude-agent-harness", "repo-tasks"],
   events: [evalHarnessSetCompleted],
   commands: (ctx) => [buildEvalCommand(ctx)],
   routes: (ctx) => evalHarnessRoutes(ctx),

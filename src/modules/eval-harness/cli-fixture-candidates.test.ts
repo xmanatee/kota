@@ -93,13 +93,87 @@ describe("kota eval fixture-candidates CLI", () => {
       ".kota/runs/candidate-output/fixture-candidates.md",
     );
     const report = JSON.parse(readFileSync(reportPath, "utf-8")) as {
-      candidates: Array<{ runId: string; status: string }>;
+      candidates: Array<{ runId: string; status: string; disposition: string }>;
     };
     expect(report.candidates[0]).toMatchObject({
       runId,
       status: "viable",
+      disposition: "proposed",
     });
     expect(readFileSync(summaryPath, "utf-8")).toContain("Viable: 1");
     expect(writes.join("\n")).toContain("fixture candidates:");
+  });
+
+  it("creates accepted backlog tasks when requested", async () => {
+    const runId = "run-cli-accepted-candidate";
+    const runDir = join(projectDir, ".kota/runs", runId);
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(
+      join(runDir, "metadata.json"),
+      JSON.stringify(
+        {
+          id: runId,
+          workflow: "builder",
+          status: "success",
+          startedAt: "2026-06-01T00:00:00.000Z",
+          steps: [
+            {
+              id: "build",
+              type: "agent",
+              status: "success",
+              output: {
+                content: "$ pnpm test src/modules/eval-harness/fixture-candidates.test.ts",
+              },
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+    );
+    writeFileSync(
+      join(runDir, "run-summary.json"),
+      JSON.stringify(
+        {
+          runId,
+          workflow: "builder",
+          taskId: "task-cli-accepted-candidate",
+          taskTitle: "CLI accepted candidate",
+          filesChanged: ["src/modules/eval-harness/fixture-candidates.ts"],
+        },
+        null,
+        2,
+      ),
+    );
+    writeFileSync(
+      join(runDir, "verification.json"),
+      JSON.stringify({ ok: true }, null, 2),
+    );
+
+    const cmd = buildEvalCommand(makeFakeCtx(projectDir));
+    await cmd.parseAsync(
+      [
+        "fixture-candidates",
+        "--run-id",
+        runId,
+        "--output-dir",
+        ".kota/runs/candidate-output",
+        "--create-task",
+      ],
+      { from: "user" },
+    );
+
+    const report = JSON.parse(
+      readFileSync(
+        join(projectDir, ".kota/runs/candidate-output/fixture-candidates.json"),
+        "utf-8",
+      ),
+    ) as {
+      candidates: Array<{ disposition: string; acceptedAction: { path: string } | null }>;
+    };
+    expect(report.candidates[0]?.disposition).toBe("accepted");
+    const acceptedPath = report.candidates[0]?.acceptedAction?.path;
+    expect(acceptedPath).toMatch(/^data\/tasks\/backlog\/task-eval-candidate-/);
+    expect(readFileSync(join(projectDir, acceptedPath ?? ""), "utf-8")).toContain(runId);
   });
 });

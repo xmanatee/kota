@@ -1,23 +1,28 @@
 import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import {
-  collectDuplicateCoverage,
-  readRunEvidence,
-} from "./fixture-candidates-artifacts.js";
+import { readRunEvidence } from "./fixture-candidates-artifacts.js";
 import {
   malformedCandidate,
   toCandidate,
 } from "./fixture-candidates-classify.js";
+import { collectDuplicateCoverage } from "./fixture-candidates-duplicates.js";
 import {
   isJsonObject,
   parseString,
   readJsonValue,
 } from "./fixture-candidates-json.js";
+import { createCandidateTask } from "./fixture-candidates-task-writer.js";
 
 export type {
+  FixtureCandidateAcceptedAction,
   FixtureCandidateCommand,
+  FixtureCandidateDisposition,
+  FixtureCandidateDuplicateReference,
+  FixtureCandidateEvaluatorType,
   FixtureCandidateMiningOptions,
   FixtureCandidateMiningResult,
+  FixtureCandidatePattern,
+  FixtureCandidatePatternKind,
   FixtureCandidateReasonCode,
   FixtureCandidateRecord,
   FixtureCandidateReport,
@@ -32,10 +37,13 @@ export {
 } from "./fixture-candidates-types.js";
 
 import type {
+  FixtureCandidateDisposition,
+  FixtureCandidateDuplicateReference,
   FixtureCandidateMiningOptions,
   FixtureCandidateMiningResult,
   FixtureCandidateRecord,
   FixtureCandidateReport,
+  RunEvidence,
 } from "./fixture-candidates-types.js";
 
 const DEFAULT_LIMIT = 20;
@@ -90,6 +98,71 @@ function reportTotals(candidates: readonly FixtureCandidateRecord[]): FixtureCan
   };
 }
 
+function dispositionTotals(
+  candidates: readonly FixtureCandidateRecord[],
+): Record<FixtureCandidateDisposition, number> {
+  return {
+    proposed: candidates.filter((candidate) => candidate.disposition === "proposed").length,
+    accepted: candidates.filter((candidate) => candidate.disposition === "accepted").length,
+    rejected: candidates.filter((candidate) => candidate.disposition === "rejected").length,
+    duplicate: candidates.filter((candidate) => candidate.disposition === "duplicate").length,
+    "needs-owner-evidence": candidates.filter((candidate) =>
+      candidate.disposition === "needs-owner-evidence"
+    ).length,
+  };
+}
+
+function uniqueTaskReferences(
+  references: readonly FixtureCandidateDuplicateReference[],
+): readonly FixtureCandidateDuplicateReference[] {
+  const byKey = new Map<string, FixtureCandidateDuplicateReference>();
+  for (const reference of references) {
+    byKey.set(`${reference.kind}:${reference.id}:${reference.path}`, reference);
+  }
+  return [...byKey.values()].sort((a, b) =>
+    a.kind.localeCompare(b.kind) || a.path.localeCompare(b.path) || a.id.localeCompare(b.id)
+  );
+}
+
+function toCandidateWithDuplicateCoverage(
+  evidence: RunEvidence,
+  coverage: ReturnType<typeof collectDuplicateCoverage>,
+  patternOccurrenceCounts: ReadonlyMap<string, number>,
+): FixtureCandidateRecord {
+  const duplicateFixtures = coverage.coveredRunIds.get(evidence.metadata.id) ?? [];
+  const duplicateRunTasks = coverage.taskReferencesByRunId.get(evidence.metadata.id) ?? [];
+  let candidate = toCandidate(evidence, {
+    duplicateFixtures,
+    duplicateTaskReferences: duplicateRunTasks,
+    patternOccurrenceCounts,
+  });
+  const duplicateFingerprintTasks =
+    coverage.taskReferencesByFingerprint.get(candidate.proposalFingerprint) ?? [];
+  if (duplicateFingerprintTasks.length > 0) {
+    candidate = toCandidate(evidence, {
+      duplicateFixtures,
+      duplicateTaskReferences: uniqueTaskReferences([
+        ...duplicateRunTasks,
+        ...duplicateFingerprintTasks,
+      ]),
+      patternOccurrenceCounts,
+    });
+  }
+  return candidate;
+}
+
+function collectPatternOccurrenceCounts(
+  evidences: readonly RunEvidence[],
+): ReadonlyMap<string, number> {
+  const counts = new Map<string, number>();
+  for (const evidence of evidences) {
+    for (const signal of evidence.patternSignals) {
+      counts.set(signal.signature, (counts.get(signal.signature) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
 function renderSummary(report: FixtureCandidateReport): string {
   const lines = [
     "# Fixture Candidates",
@@ -98,6 +171,10 @@ function renderSummary(report: FixtureCandidateReport): string {
     `Viable: ${report.totals.viable}`,
     `Needs review: ${report.totals.needsReview}`,
     `Rejected: ${report.totals.rejected}`,
+    `Proposed: ${report.dispositionTotals.proposed}`,
+    `Accepted: ${report.dispositionTotals.accepted}`,
+    `Duplicate: ${report.dispositionTotals.duplicate}`,
+    `Needs owner evidence: ${report.dispositionTotals["needs-owner-evidence"]}`,
     "",
   ];
   for (const candidate of report.candidates) {
@@ -106,13 +183,27 @@ function renderSummary(report: FixtureCandidateReport): string {
       "",
       `- workflow: ${candidate.workflow}`,
       `- status: ${candidate.status}`,
+      `- disposition: ${candidate.disposition}`,
+      `- pattern: ${candidate.failurePattern.kind}`,
+      `- evaluator: ${candidate.suggestedEvaluator}`,
       `- reasons: ${candidate.reasonCodes.length === 0 ? "none" : candidate.reasonCodes.join(", ")}`,
       `- task: ${candidate.taskId ?? "unknown"}`,
       `- commands: ${candidate.terminalEvidence.commandCount}`,
       `- changed paths: ${candidate.changedPaths.length}`,
       `- verifier targets: ${candidate.verifierHints.stateTargets.length}`,
+      `- evidence: ${candidate.failurePattern.evidencePaths.join(", ") || "metadata only"}`,
       "",
     );
+    if (candidate.duplicateReferences.length > 0) {
+      lines.push("  duplicates:");
+      for (const reference of candidate.duplicateReferences.slice(0, 4)) {
+        lines.push(`  - ${reference.kind}:${reference.id} ${reference.path}`);
+      }
+      lines.push("");
+    }
+    if (candidate.acceptedAction !== null) {
+      lines.push(`  accepted task: ${candidate.acceptedAction.path}`, "");
+    }
     for (const command of candidate.terminalEvidence.commands.slice(0, 4)) {
       lines.push(`  - ${command.command}`);
     }
@@ -128,7 +219,8 @@ export function mineFixtureCandidates(
   const runsDir = resolveRunsDir(projectDir, options);
   const runIds = selectRunIds(runsDir, options);
   const coverage = collectDuplicateCoverage(projectDir);
-  const candidates: FixtureCandidateRecord[] = [];
+  const evidences: RunEvidence[] = [];
+  const malformedCandidates: FixtureCandidateRecord[] = [];
   for (const runId of runIds) {
     const runDir = join(runsDir, runId);
     try {
@@ -136,12 +228,26 @@ export function mineFixtureCandidates(
       if (options.workflow !== undefined && evidence.metadata.workflow !== options.workflow) {
         continue;
       }
-      candidates.push(
-        toCandidate(evidence, coverage.coveredRunIds.get(evidence.metadata.id) ?? []),
-      );
+      evidences.push(evidence);
     } catch (err) {
-      candidates.push(malformedCandidate(runId, err instanceof Error ? err.message : String(err)));
+      malformedCandidates.push(malformedCandidate(runId, err instanceof Error ? err.message : String(err)));
     }
+  }
+  const patternOccurrenceCounts = collectPatternOccurrenceCounts(evidences);
+  let candidates: FixtureCandidateRecord[] = [
+    ...evidences.map((evidence) =>
+      toCandidateWithDuplicateCoverage(evidence, coverage, patternOccurrenceCounts)
+    ),
+    ...malformedCandidates,
+  ];
+  if (options.createTask === true) {
+    const nowIso = options.nowIso ?? new Date().toISOString();
+    candidates = candidates.map((candidate) => {
+      const acceptedAction = createCandidateTask(projectDir, candidate, nowIso);
+      return acceptedAction === null
+        ? candidate
+        : { ...candidate, disposition: "accepted", acceptedAction };
+    });
   }
   candidates.sort((a, b) => a.runId.localeCompare(b.runId));
   const report: FixtureCandidateReport = {
@@ -152,7 +258,9 @@ export function mineFixtureCandidates(
       workflow: options.workflow ?? null,
       limit: options.limit ?? DEFAULT_LIMIT,
       since: options.since ?? null,
+      createTask: options.createTask === true,
     },
+    dispositionTotals: dispositionTotals(candidates),
     totals: reportTotals(candidates),
     candidates,
   };

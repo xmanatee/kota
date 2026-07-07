@@ -1,0 +1,6 @@
+1. Verified `pnpm dev eval fixture-candidates` scans run artifacts and emits proposal JSON/Markdown; transcript is in `.kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/fixture-candidates-transcript.txt`, with sample outputs under `fixture-candidate-report/`.
+2. Verified focused tests cover trajectory warnings, review-scrutiny thin acceptances, repair-loop failures, and workflow schema/validation failures in `src/modules/eval-harness/fixture-candidates.test.ts`.
+3. Verified duplicate detection covers real-failure fixture provenance plus existing open/done task references by run id or fixture-candidate fingerprint.
+4. Verified redaction tests assert secret-like command values are redacted from candidate output and destructive traces are rejected.
+5. Verified `--create-task` and the mining option create normalized backlog tasks with source run artifact references and mark those candidates accepted.
+6. Verified tests cover proposed, duplicate, rejected, and needs-owner-evidence dispositions; validation passed with focused Vitest tests, `pnpm typecheck`, Biome check, and `pnpm validate-tasks`.

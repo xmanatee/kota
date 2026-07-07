@@ -1,0 +1,8 @@
+$ pnpm dev eval fixture-candidates --runs-dir .kota/runs/2026-07-01T17-02-23-245Z-builder-xdnnj7/decision-attribution-sample-project/.kota/runs --run-id 2026-06-30T14-00-00-000Z-builder-trouble --output-dir .kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/fixture-candidate-report
+
+> kota@0.1.0 dev /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r
+> NODE_OPTIONS=--conditions=source tsx src/cli.ts eval fixture-candidates --runs-dir .kota/runs/2026-07-01T17-02-23-245Z-builder-xdnnj7/decision-attribution-sample-project/.kota/runs --run-id 2026-06-30T14-00-00-000Z-builder-trouble --output-dir .kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/fixture-candidate-report
+
+fixture candidates: 1 scanned  0 viable  0 needs-review  1 rejected  0 accepted
+json: /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/fixture-candidate-report/fixture-candidates.json
+summary: /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-promote-run-trace-failures-into-eval-candidates-2026-07-07t09-41-31-635z-builder-mexn1r/.kota/runs/2026-07-07T09-41-31-635Z-builder-mexn1r/fixture-candidate-report/fixture-candidates.md
