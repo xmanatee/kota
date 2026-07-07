@@ -1,0 +1,111 @@
+{
+  "successfulRun": {
+    "id": "2026-07-07T00-47-50-272Z-builder-rwmd89",
+    "workflow": "builder",
+    "status": "success",
+    "startedAt": "2026-07-07T00:47:50.533Z",
+    "completedAt": "2026-07-07T02:11:51.324Z",
+    "steps": [
+      {
+        "id": "reset-for-recovery",
+        "status": "skipped",
+        "output": null
+      },
+      {
+        "id": "inspect-ready-queue",
+        "status": "success",
+        "output": null
+      },
+      {
+        "id": "claim-task",
+        "status": "success",
+        "output": "task-add-loop-quality-audits-for-autonomous-workflows"
+      },
+      {
+        "id": "prepare-worktree",
+        "status": "success",
+        "output": "task-add-loop-quality-audits-for-autonomous-workflows"
+      },
+      {
+        "id": "build",
+        "status": "success",
+        "output": null
+      },
+      {
+        "id": "create-task-branch",
+        "status": "success",
+        "output": "task-add-loop-quality-audits-for-autonomous-workflows"
+      },
+      {
+        "id": "check-claimed-task-consistency",
+        "status": "success",
+        "output": "task-add-loop-quality-audits-for-autonomous-workflows"
+      },
+      {
+        "id": "commit",
+        "status": "success",
+        "output": null
+      },
+      {
+        "id": "write-run-summary",
+        "status": "success",
+        "output": "task-add-loop-quality-audits-for-autonomous-workflows"
+      },
+      {
+        "id": "merge-gate",
+        "status": "success",
+        "output": "task-add-loop-quality-audits-for-autonomous-workflows"
+      },
+      {
+        "id": "release-task-claim",
+        "status": "success",
+        "output": "task-add-loop-quality-audits-for-autonomous-workflows"
+      },
+      {
+        "id": "write-calibration-artifact",
+        "status": "success",
+        "output": "task-add-loop-quality-audits-for-autonomous-workflows"
+      },
+      {
+        "id": "cleanup-automation-worktree",
+        "status": "success",
+        "output": null
+      },
+      {
+        "id": "create-pr",
+        "status": "skipped",
+        "output": null
+      },
+      {
+        "id": "mark-claim-pending-merge",
+        "status": "skipped",
+        "output": null
+      },
+      {
+        "id": "cleanup-builder-runtime-resources",
+        "status": "success",
+        "output": "task-add-loop-quality-audits-for-autonomous-workflows"
+      },
+      {
+        "id": "cleanup-merged-branches",
+        "status": "skipped",
+        "output": null
+      },
+      {
+        "id": "write-parallel-builder-metrics",
+        "status": "success",
+        "output": "task-add-loop-quality-audits-for-autonomous-workflows"
+      },
+      {
+        "id": "emit-build-committed",
+        "status": "success",
+        "output": null
+      },
+      {
+        "id": "request-restart",
+        "status": "success",
+        "output": null
+      }
+    ]
+  }
+}

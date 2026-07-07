@@ -1,0 +1,7 @@
+Attempt 1: daemon-control HTTP dismissal.
+Target: http://127.0.0.1:49731/workflow/dead-letter/dlq-9362cac4-7574-4718-bbf4-31ff4d2f65ef?projectId=8nrg1m
+Result: TypeError: fetch failed; cause: connect EPERM 127.0.0.1:49731.
+
+Attempt 2: canonical source-mode CLI dismissal.
+Command: NODE_OPTIONS=--conditions=source node --import tsx src/cli.ts workflow dlq dismiss dlq-9362cac4-7574-4718-bbf4-31ff4d2f65ef --reason <stale/superseded rationale>
+Result: Fatal: /Users/xmanatee/Desktop/mono/apps/kota/.kota/dead-letter-queue/items.json: failed to write JSON file atomically: EPERM: operation not permitted, open '/Users/xmanatee/Desktop/mono/apps/kota/.kota/dead-letter-queue/items.json.tmp'

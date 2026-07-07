@@ -1,0 +1,4 @@
+Block stale builder DLQ on canonical dismissal
+
+- record stale/superseded DLQ evidence and mutation failures
+- move the follow-up task to blocked with an operator-capture precondition

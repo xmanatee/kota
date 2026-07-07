@@ -9,6 +9,17 @@ deploy/telegram-assistant/.env
 /.kota/*
 !/.kota/runs/
 /.kota/runs/*
+!/.kota/runs/2026-07-07T02-12-16-204Z-builder-xh6p1j/
+/.kota/runs/2026-07-07T02-12-16-204Z-builder-xh6p1j/*
+!/.kota/runs/2026-07-07T02-12-16-204Z-builder-xh6p1j/canonical-dead-letter-open-item.json
+!/.kota/runs/2026-07-07T02-12-16-204Z-builder-xh6p1j/canonical-mutation-attempts.txt
+!/.kota/runs/2026-07-07T02-12-16-204Z-builder-xh6p1j/commit-message.txt
+!/.kota/runs/2026-07-07T02-12-16-204Z-builder-xh6p1j/dead-letter-resolution.md
+!/.kota/runs/2026-07-07T02-12-16-204Z-builder-xh6p1j/failed-run-summary.json
+!/.kota/runs/2026-07-07T02-12-16-204Z-builder-xh6p1j/operator-dead-letter-after-dismissal.json
+!/.kota/runs/2026-07-07T02-12-16-204Z-builder-xh6p1j/success-criteria-verified.txt
+!/.kota/runs/2026-07-07T02-12-16-204Z-builder-xh6p1j/success-criteria.txt
+!/.kota/runs/2026-07-07T02-12-16-204Z-builder-xh6p1j/superseding-run-summary.json
 !/.kota/runs/2026-07-07T00-47-50-273Z-builder-008awz/
 /.kota/runs/2026-07-07T00-47-50-273Z-builder-008awz/*
 !/.kota/runs/2026-07-07T00-47-50-273Z-builder-008awz/commit-message.txt

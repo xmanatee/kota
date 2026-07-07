@@ -1,0 +1,3 @@
+1. The cited dead-letter item `dlq-9362cac4-7574-4718-bbf4-31ff4d2f65ef` is inspected from available canonical or preserved evidence, with its failed run cause recorded.
+2. The failed builder run `2026-07-07T00-47-50-272Z-builder-rwmd89` is classified as needing redrive or as superseded by later completed work, with evidence for the decision.
+3. The task records acceptance evidence showing the dead-letter was dismissed/redriven where possible, or records the exact runtime boundary that prevents direct mutation plus the durable rationale.
