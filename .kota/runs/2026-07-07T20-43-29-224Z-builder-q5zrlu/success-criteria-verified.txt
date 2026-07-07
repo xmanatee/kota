@@ -1,0 +1,3 @@
+1. Verified: `renderSupervisionLoad` now applies shared terminal-control stripping to dynamic top-reference fields before rendering, including approval-derived reason text.
+2. Verified: `src/modules/autonomy/report/report-cli-supervision-load.test.ts` creates a pending approval with ANSI, OSC, C1, and bidi controls and asserts rendered `kota report` output has no raw terminal or bidi controls.
+3. Verified: focused test output is captured in `.kota/runs/2026-07-07T20-43-29-224Z-builder-q5zrlu/verification.txt`; the task record now includes the final verification command.

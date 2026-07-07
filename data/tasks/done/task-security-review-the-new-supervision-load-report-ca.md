@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-new-supervision-load-report-ca
 title: Security review: The new supervision-load report can render pending approval tool text from approval records without stripping terminal control sequences. Approval CLI output sanitizes this same class of text, but the report path reads the stored tool name, places it into a top-reference reason, and writes it through the generic renderer, which emits span text directly. A hostile MCP/imported tool name or malformed approval record could forge or hide text in an operator-facing report.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: The new supervision-load report can render pending approval tool text from approval records without stripping terminal control sequences. Approval CLI output sanitizes this same class of text, but the report path reads the stored tool name, places it into a top-reference reason, and writes it through the generic renderer, which emits span text directly. A hostile MCP/imported tool name or malformed approval record could forge or hide text in an operator-facing report.
 created_at: 2026-07-07T20:34:38.403Z
-updated_at: 2026-07-07T20:34:38.403Z
+updated_at: 2026-07-07T20:49:35.000Z
 ---
 
 ## Problem
@@ -139,3 +139,9 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/modules/autonomy/report/report-cli-supervision-load.test.ts src/modules/approval-queue/cli.test.ts` (captured in `.kota/runs/2026-07-07T20-43-29-224Z-builder-q5zrlu/verification.txt`)
+- `pnpm typecheck`
+- `pnpm exec biome check src/modules/rendering/safe-terminal-text.ts src/modules/approval-queue/cli.ts src/modules/autonomy/report/render-supervision-load.ts src/modules/autonomy/report/report-cli-supervision-load.test.ts`

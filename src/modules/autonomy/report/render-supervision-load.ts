@@ -7,6 +7,7 @@ import {
   type RenderNode,
   span,
 } from "#modules/rendering/primitives.js";
+import { safeTerminalLineText } from "#modules/rendering/safe-terminal-text.js";
 import type { SupervisionLoadReport } from "./aggregate.js";
 import { priorityLabel, priorityRole, taskClassRole } from "./render-common.js";
 
@@ -55,13 +56,17 @@ export function renderSupervisionLoad(
     lines.push(blank());
     lines.push(line(span("Top references", "muted", true)));
     for (const ref of report.topReferences) {
-      const task = ref.taskId ? ` task=${ref.taskId}` : "";
-      const workflow = ref.workflow ? ` workflow=${ref.workflow}` : "";
-      const scope = ref.scopeId ? ` scope=${ref.scopeId}` : "";
+      const id = safeTerminalLineText(ref.id);
+      const task = ref.taskId ? ` task=${safeTerminalLineText(ref.taskId)}` : "";
+      const workflow = ref.workflow
+        ? ` workflow=${safeTerminalLineText(ref.workflow)}`
+        : "";
+      const scope = ref.scopeId ? ` scope=${safeTerminalLineText(ref.scopeId)}` : "";
+      const reason = safeTerminalLineText(ref.reason);
       lines.push(line(
         plain("  "),
         span(ref.kind, referenceRole(ref.kind)),
-        plain(` ${ref.id}${workflow}${task}${scope} - ${ref.reason}`),
+        plain(` ${id}${workflow}${task}${scope} - ${reason}`),
       ));
     }
   }

@@ -16,6 +16,12 @@ deploy/telegram-assistant/.env
 !/.kota/runs/2026-07-07T19-37-49-212Z-builder-m5x8mb/evidence/**
 !/.kota/runs/2026-07-07T19-37-49-212Z-builder-m5x8mb/success-criteria.txt
 !/.kota/runs/2026-07-07T19-37-49-212Z-builder-m5x8mb/success-criteria-verified.txt
+!/.kota/runs/2026-07-07T20-43-29-224Z-builder-q5zrlu/
+/.kota/runs/2026-07-07T20-43-29-224Z-builder-q5zrlu/*
+!/.kota/runs/2026-07-07T20-43-29-224Z-builder-q5zrlu/commit-message.txt
+!/.kota/runs/2026-07-07T20-43-29-224Z-builder-q5zrlu/success-criteria.txt
+!/.kota/runs/2026-07-07T20-43-29-224Z-builder-q5zrlu/success-criteria-verified.txt
+!/.kota/runs/2026-07-07T20-43-29-224Z-builder-q5zrlu/verification.txt
 !/.kota/runs/2026-07-07T18-36-34-787Z-builder-drzwm4/
 /.kota/runs/2026-07-07T18-36-34-787Z-builder-drzwm4/*
 !/.kota/runs/2026-07-07T18-36-34-787Z-builder-drzwm4/autonomy-change-decision.json
