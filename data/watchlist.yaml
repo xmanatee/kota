@@ -778,3 +778,7 @@ resources:
   - url: https://arxiv.org/abs/2602.10975
     added: "2026-07-07"
     notes: "FeatureBench evaluates end-to-end feature-oriented coding tasks with execution-based verification and test/dependency-graph-derived slices spanning multiple commits and PRs. Monitor as an eval-harness signal for compact feature-slice fixtures with adjacent regression proof; do not import the benchmark, external environments, or automated repository-mining pipeline."
+    snapshot:
+      fingerprint: sha256:628750b9fada4e5fc8ba986644fef927
+      summary: "FeatureBench is accessible; its feature-oriented executable-evaluation signal is already covered by completed task-add-a-feature-slice-development-fixture-to-the-eva, so no duplicate task was opened."
+      last_seen_at: "2026-07-07T22:32:15.503Z"
