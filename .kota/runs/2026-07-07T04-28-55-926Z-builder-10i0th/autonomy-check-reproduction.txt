@@ -1,0 +1,5 @@
+$ node --import tsx - <<check agent-run-dir artifact>>
+OK: autonomy-change-decision.json covers 1 material autonomy file(s)
+
+$ node --import tsx - <<check canonical run-dir artifact>>
+autonomy-change-decision: staged material autonomy changes require autonomy-change-decision.json; classes=critic-gate files=src/modules/autonomy/report/source-decision-coverage-matching.ts

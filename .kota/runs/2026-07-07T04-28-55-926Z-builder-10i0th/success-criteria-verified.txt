@@ -1,0 +1,3 @@
+1. Verified: the DLQ was caused by the builder autonomy-change-decision check reading the canonical workflow run directory instead of the worktree agent run directory; `repair-checks.ts` now uses `builderAgentRunDir(ctx)`.
+2. Verified: `autonomy-check-reproduction.txt` shows the repaired check passes against the failed worktree while the old canonical lookup reproduces the missing-artifact failure.
+3. Verified: `claim-release-attempt.json` and `dlq-redrive-simulation-attempt.json` capture the canonical `EPERM` blockers, and the task record now has an `operator-capture` unblock precondition instead of claiming completion.

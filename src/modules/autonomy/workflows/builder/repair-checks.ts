@@ -174,7 +174,7 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       run: (ctx) =>
         checkAutonomyChangeDecisionForRun(
           workflowWorkspaceDir(ctx),
-          ctx.workflow.runDirPath,
+          builderAgentRunDir(ctx),
         ),
     },
     {

@@ -1,0 +1,10 @@
+{
+  "ok": false,
+  "attemptedAt": "2026-07-07T05:30:00.000Z",
+  "operation": "releaseTaskClaim",
+  "projectDir": "/Users/xmanatee/Desktop/mono/apps/kota",
+  "taskId": "task-add-source-to-decision-coverage-report-for-agent-r",
+  "runId": "2026-07-07T03-24-23-872Z-builder-bfdsot",
+  "workflowId": "builder",
+  "error": "EPERM: operation not permitted, open '/Users/xmanatee/Desktop/mono/apps/kota/.kota/task-claims/active/task-add-source-to-decision-coverage-report-for-agent-r.json'"
+}

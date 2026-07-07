@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AUTONOMY_CHANGE_DECISION_ARTIFACT } from "#modules/autonomy/autonomy-change-decision.js";
 import "./workflow-test-support.js";
 import { checkMobileTypecheck } from "./project-repair-checks.js";
 import {
@@ -133,6 +134,97 @@ describe("builder workflow prompt and repair checks", () => {
       severity: "warning",
       phase: 1,
     });
+  });
+
+  it("reads autonomy change decisions from the builder agent run directory", () => {
+    const dir = join(
+      tmpdir(),
+      `kota-builder-agent-decision-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
+    const agentRunDir = join(dir, ".kota", "runs", "agent-run");
+    const canonicalRunDir = join(dir, ".kota", "runs", "canonical-run");
+    const workflowDir = join(dir, "src", "modules", "autonomy", "workflows", "builder");
+    mkdirSync(workflowDir, { recursive: true });
+    mkdirSync(agentRunDir, { recursive: true });
+    mkdirSync(canonicalRunDir, { recursive: true });
+
+    try {
+      execFileSync("git", ["init", "-q"], { cwd: dir });
+      execFileSync("git", ["config", "user.email", "test@test"], { cwd: dir });
+      execFileSync("git", ["config", "user.name", "Test"], { cwd: dir });
+      writeFileSync(join(dir, "README.md"), "init\n");
+      execFileSync("git", ["add", "README.md"], { cwd: dir });
+      execFileSync("git", ["commit", "-q", "-m", "init"], { cwd: dir });
+
+      writeFileSync(
+        join(workflowDir, "workflow.ts"),
+        "export const workflow = { repairLoop: true };\n",
+      );
+      execFileSync("git", ["add", "src/modules/autonomy/workflows/builder/workflow.ts"], {
+        cwd: dir,
+      });
+      writeFileSync(
+        join(agentRunDir, AUTONOMY_CHANGE_DECISION_ARTIFACT),
+        `${JSON.stringify(
+          {
+            schemaVersion: 1,
+            artifactType: "autonomy-change-decision",
+            runId: "agent-run",
+            createdAt: "2026-07-07T00:00:00.000Z",
+            taskIds: ["task-builder-agent-run-decision"],
+            affectedSurfaces: ["builder repair loop"],
+            changeClasses: ["workflow", "repair-loop"],
+            hypothesis:
+              "Worktree-mode builder checks should read decision artifacts where the agent writes them.",
+            sourceRefs: ["task:task-builder-agent-run-decision"],
+            baselineRefs: [join(canonicalRunDir, AUTONOMY_CHANGE_DECISION_ARTIFACT)],
+            candidateRefs: [join(agentRunDir, AUTONOMY_CHANGE_DECISION_ARTIFACT)],
+            metricsCompared: [
+              {
+                name: "decision artifact lookup",
+                baseline: "missing in canonical workflow run directory",
+                candidate: "present in builder agent run directory",
+                unit: "path",
+                direction: "improved",
+                qualitySignal: true,
+              },
+            ],
+            rolloutMode: "blocking",
+            decision: "promote",
+            rationale:
+              "The repair check now uses the same run directory contract exposed to the builder agent.",
+            ownerSafetyExceptions: [],
+            followUpTaskIds: [],
+          },
+          null,
+          2,
+        )}\n`,
+      );
+
+      const check = builderRepairChecks().find(
+        (candidate) => candidate.id === AUTONOMY_CHANGE_DECISION_ARTIFACT.replace(".json", ""),
+      );
+      expect(check?.type).toBe("code");
+      if (check?.type !== "code") throw new Error("Expected autonomy-change-decision code check");
+
+      expect(
+        check.run(
+          {
+            projectDir: dir,
+            workspaceDir: dir,
+            runtimeResources: {
+              profileId: "profile-1",
+              agentRunDir,
+              env: {},
+            },
+            workflow: { runDirPath: canonicalRunDir },
+          } as never,
+          {} as never,
+        ),
+      ).toContain("covers 1 material autonomy file");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("fails repair when ready work remains unclaimed", () => {

@@ -9,6 +9,17 @@ deploy/telegram-assistant/.env
 /.kota/*
 !/.kota/runs/
 /.kota/runs/*
+!/.kota/runs/2026-07-07T04-28-55-926Z-builder-10i0th/
+/.kota/runs/2026-07-07T04-28-55-926Z-builder-10i0th/*
+!/.kota/runs/2026-07-07T04-28-55-926Z-builder-10i0th/autonomy-check-reproduction.txt
+!/.kota/runs/2026-07-07T04-28-55-926Z-builder-10i0th/canonical-dead-letter-open-item.json
+!/.kota/runs/2026-07-07T04-28-55-926Z-builder-10i0th/claim-release-attempt.json
+!/.kota/runs/2026-07-07T04-28-55-926Z-builder-10i0th/commit-message.txt
+!/.kota/runs/2026-07-07T04-28-55-926Z-builder-10i0th/dead-letter-resolution.md
+!/.kota/runs/2026-07-07T04-28-55-926Z-builder-10i0th/dlq-redrive-simulation-attempt.json
+!/.kota/runs/2026-07-07T04-28-55-926Z-builder-10i0th/success-criteria-verified.txt
+!/.kota/runs/2026-07-07T04-28-55-926Z-builder-10i0th/success-criteria.txt
+!/.kota/runs/2026-07-07T04-28-55-926Z-builder-10i0th/validation.txt
 !/.kota/runs/2026-07-07T03-24-23-871Z-builder-vtkuo4/
 /.kota/runs/2026-07-07T03-24-23-871Z-builder-vtkuo4/*
 !/.kota/runs/2026-07-07T03-24-23-871Z-builder-vtkuo4/autonomy-change-decision.json

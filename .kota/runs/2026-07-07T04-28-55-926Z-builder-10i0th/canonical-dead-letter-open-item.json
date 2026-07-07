@@ -1,0 +1,110 @@
+{
+  "id": "dlq-19bcae8b-7144-4738-a513-8d13d3ece5a0",
+  "type": "workflow-dispatch",
+  "status": "open",
+  "scopeId": "8nrg1m",
+  "projectId": "8nrg1m",
+  "owningModule": "workflow-runtime",
+  "sourceEventIds": [
+    "evtj-000000144906"
+  ],
+  "affectedWorkflowNames": [
+    "builder"
+  ],
+  "failure": {
+    "reason": "Repair loop for step \"build\" made no progress after 3 consecutive attempts. Still failing: autonomy-change-decision",
+    "retryCount": 2,
+    "lastErrorClass": "execution",
+    "firstFailedAt": "2026-07-07T05:10:13.277Z",
+    "lastFailedAt": "2026-07-07T05:10:13.277Z"
+  },
+  "source": {
+    "kind": "workflow-dispatch",
+    "workflowName": "builder",
+    "triggerEvent": "autonomy.queue.available",
+    "triggerSchemaRef": null,
+    "failedRunId": "2026-07-07T03-24-23-872Z-builder-bfdsot",
+    "runDir": ".kota/runs/2026-07-07T03-24-23-872Z-builder-bfdsot"
+  },
+  "redrive": {
+    "kind": "workflow",
+    "workflowName": "builder",
+    "source": {
+      "kind": "run-trigger",
+      "runId": "2026-07-07T03-24-23-872Z-builder-bfdsot"
+    }
+  },
+  "redactedProjection": {
+    "workflowName": "builder",
+    "triggerEvent": "autonomy.queue.available",
+    "triggerSchemaRef": null,
+    "triggerPayload": {
+      "pullableCount": 5,
+      "actionableCount": 2,
+      "dispatchableCount": 4,
+      "counts": {
+        "backlog": 6,
+        "ready": 2,
+        "doing": 0,
+        "blocked": 9,
+        "done": 1423,
+        "dropped": 23
+      },
+      "dependencyBlockedTasks": [
+        {
+          "id": "task-audit-and-close-legacy-cli-control-task-records",
+          "title": "Audit and close legacy CLI control task records",
+          "state": "backlog",
+          "dependsOn": [
+            "task-replace-readline-navigator-with-a-real-daemon-back",
+            "task-make-foreground-daemon-mode-expose-operator-contro",
+            "task-reconcile-dirty-recovery-pause-state-across-status",
+            "task-add-completion-evidence-gates-for-operator-client-"
+          ],
+          "waitingOn": [
+            "task-add-completion-evidence-gates-for-operator-client-"
+          ]
+        },
+        {
+          "id": "task-run-live-openrouter-and-local-model-rollout-evalua",
+          "title": "Run live OpenRouter and local model rollout evaluation",
+          "state": "backlog",
+          "dependsOn": [
+            "task-add-openrouter-model-capability-catalog-and-candid",
+            "task-make-openai-compatible-model-clients-honor-model-s",
+            "task-route-openai-tools-through-the-kota-tool-runner-wi",
+            "task-preserve-rich-tool-results-reasoning-and-agent-mes",
+            "task-add-kota-owned-session-resume-for-model-client-har",
+            "task-extend-harness-parity-and-eval-harness-with-model-",
+            "task-add-scaffolded-weak-and-local-model-agent-mode"
+          ],
+          "waitingOn": [
+            "task-extend-harness-parity-and-eval-harness-with-model-"
+          ]
+        },
+        {
+          "id": "task-run-shadow-semantic-reviewers-for-non-builder-auto",
+          "title": "Run shadow semantic reviewers for non builder autonomy workflows",
+          "state": "backlog",
+          "dependsOn": [
+            "task-add-loop-quality-audits-for-autonomous-workflows",
+            "task-add-measured-autonomy-change-promotion-decisions"
+          ],
+          "waitingOn": [
+            "task-add-measured-autonomy-change-promotion-decisions"
+          ]
+        }
+      ],
+      "scopeId": "8nrg1m",
+      "projectId": "8nrg1m"
+    }
+  },
+  "createdAt": "2026-07-07T05:10:13.277Z",
+  "updatedAt": "2026-07-07T05:10:13.277Z",
+  "redriveAttempts": [],
+  "retention": {
+    "kind": "expire-after-ms",
+    "durationMs": 2592000000,
+    "expiresAt": "2026-08-06T05:10:13.277Z"
+  }
+}

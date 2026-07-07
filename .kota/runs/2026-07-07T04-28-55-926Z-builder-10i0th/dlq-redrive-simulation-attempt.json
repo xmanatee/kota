@@ -1,0 +1,9 @@
+{
+  "command": "node --import tsx src/cli.ts workflow dlq redrive dlq-19bcae8b-7144-4738-a513-8d13d3ece5a0 --simulation --json --reason <redacted summary>",
+  "cwd": "/Users/xmanatee/Desktop/mono/apps/kota",
+  "status": 1,
+  "signal": null,
+  "stdout": "",
+  "stderr": "Fatal: /Users/xmanatee/Desktop/mono/apps/kota/.kota/dead-letter-queue/items.json: failed to write JSON file atomically: EPERM: operation not permitted, open '/Users/xmanatee/Desktop/mono/apps/kota/.kota/dead-letter-queue/items.json.tmp'\n",
+  "error": null
+}

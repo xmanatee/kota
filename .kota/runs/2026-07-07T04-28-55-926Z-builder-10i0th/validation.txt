@@ -1,0 +1,6 @@
+Passed:
+- TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner src/modules/autonomy/workflows/builder/workflow-repair-checks.test.ts
+- pnpm exec biome check src/modules/autonomy/workflows/builder/repair-checks.ts src/modules/autonomy/workflows/builder/workflow-repair-checks.test.ts
+- TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source pnpm run validate-tasks
+- pnpm run typecheck
+- TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node --import tsx src/cli.ts workflow validate
