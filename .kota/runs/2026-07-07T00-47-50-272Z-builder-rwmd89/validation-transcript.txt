@@ -1,0 +1,70 @@
+$ pnpm test src/modules/autonomy/loop-quality-audit.test.ts
+
+> kota@0.1.0 test /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-loop-quality-audits-for-autonomous-workflows-2026-07-07t00-47-50-272z-builder-rwmd89
+> NODE_OPTIONS=--conditions=source vitest run src/modules/autonomy/loop-quality-audit.test.ts
+
+Test Files  1 passed (1)
+Tests       5 passed (5)
+
+$ pnpm run typecheck
+
+> kota@0.1.0 typecheck /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-loop-quality-audits-for-autonomous-workflows-2026-07-07t00-47-50-272z-builder-rwmd89
+> tsc --noEmit
+
+PASS
+
+$ pnpm run lint
+
+> kota@0.1.0 lint /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-loop-quality-audits-for-autonomous-workflows-2026-07-07t00-47-50-272z-builder-rwmd89
+> biome check src/
+
+Checked 2669 files in 826ms. No fixes applied.
+
+$ pnpm dev workflow validate
+
+> kota@0.1.0 dev /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-loop-quality-audits-for-autonomous-workflows-2026-07-07t00-47-50-272z-builder-rwmd89
+> NODE_OPTIONS=--conditions=source tsx src/cli.ts workflow validate
+
+29/29 definitions valid.
+
+$ pnpm run validate-tasks
+
+> kota@0.1.0 validate-tasks /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-loop-quality-audits-for-autonomous-workflows-2026-07-07t00-47-50-272z-builder-rwmd89
+> node --conditions=source --import tsx src/validate-queue.ts
+
+PASS
+
+$ pnpm run hygiene
+
+> kota@0.1.0 hygiene /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-loop-quality-audits-for-autonomous-workflows-2026-07-07t00-47-50-272z-builder-rwmd89
+> node --conditions=source --import tsx src/check-hygiene.ts
+
+OK: staged changes show no repo hygiene issues
+
+$ env NODE_OPTIONS=--conditions=source pnpm vitest run --configLoader runner src/modules/autonomy/loop-quality-audit.test.ts
+
+Test Files  1 passed (1)
+Tests       5 passed (5)
+
+$ pnpm run typecheck
+
+> kota@0.1.0 typecheck /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-loop-quality-audits-for-autonomous-workflows-2026-07-07t00-47-50-272z-builder-rwmd89
+> tsc --noEmit
+
+PASS
+
+$ pnpm exec biome check src/modules/autonomy/loop-quality-audit-agent-checks.ts src/modules/autonomy/loop-quality-audit-rule-data.ts src/modules/autonomy/loop-quality-audit-rules.ts src/modules/autonomy/loop-quality-audit-runtime-checks.ts src/modules/autonomy/loop-quality-audit-safety-checks.ts
+
+Checked 5 files in 4ms. No fixes applied.
+
+$ wc -l src/modules/autonomy/loop-quality-audit-agent-checks.ts src/modules/autonomy/loop-quality-audit-rule-data.ts src/modules/autonomy/loop-quality-audit-rules.ts src/modules/autonomy/loop-quality-audit-runtime-checks.ts src/modules/autonomy/loop-quality-audit-safety-checks.ts
+
+148 src/modules/autonomy/loop-quality-audit-agent-checks.ts
+ 63 src/modules/autonomy/loop-quality-audit-rule-data.ts
+ 47 src/modules/autonomy/loop-quality-audit-rules.ts
+ 88 src/modules/autonomy/loop-quality-audit-runtime-checks.ts
+ 68 src/modules/autonomy/loop-quality-audit-safety-checks.ts
+
+$ env NODE_OPTIONS=--conditions=source node --import tsx -e "const { checkSevereSourceFileSize } = await import('./src/modules/autonomy/source-size-escalation.ts'); console.log(checkSevereSourceFileSize(process.cwd()));"
+
+OK: changed source files are under source-size warning thresholds

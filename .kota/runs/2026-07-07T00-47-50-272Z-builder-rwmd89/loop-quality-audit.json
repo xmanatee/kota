@@ -1,0 +1,3912 @@
+{
+  "schemaVersion": 1,
+  "summary": {
+    "workflowCount": 26,
+    "findingCount": 18,
+    "warningCount": 18,
+    "errorCount": 0
+  },
+  "workflows": [
+    {
+      "workflow": "attention-digest",
+      "definitionPath": "src/modules/autonomy/workflows/attention-digest/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/attention-digest/workflow.ts",
+              "detail": "code-only workflow does not complete from agent self-report"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "warning",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/attention-digest/workflow.ts",
+              "detail": "no typed evidence found for repeat-brake"
+            }
+          ],
+          "finding": {
+            "id": "loop.repeatable-without-brake",
+            "severity": "warning",
+            "workflow": "attention-digest",
+            "check": "repeat-brake",
+            "message": "repeatable trigger has no cooldown, batch bound, timeout, concurrency cap, or retry brake",
+            "evidence": [
+              {
+                "ref": "src/modules/autonomy/workflows/attention-digest/workflow.ts",
+                "detail": "no typed evidence found for repeat-brake"
+              }
+            ]
+          }
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/attention-digest/workflow.ts:steps.0.reset-for-recovery",
+              "detail": "step predicate gates progress"
+            }
+          ]
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/attention-digest/workflow.ts",
+              "detail": "no agent context is accumulated"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "independent-verifier",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "human-gate",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/attention-digest/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "autonomy-health-reviewer",
+      "definitionPath": "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts",
+              "detail": "code-only workflow does not complete from agent self-report"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts:triggers.0.cooldownMs",
+              "detail": "trigger cooldown"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts:triggers.0",
+              "detail": "scheduled cadence"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts:triggers.2.batch",
+              "detail": "bounded trigger batch"
+            }
+          ]
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts:triggers.0",
+              "detail": "trigger-level spin brake"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts:triggers.2",
+              "detail": "trigger-level spin brake"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts:steps.0.reset-for-recovery",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts:steps.1.inspect-worktree",
+              "detail": "step id \"inspect-worktree\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts:steps.2.build-runtime-audit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts:steps.3.build-review",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts:steps.4.apply-actions",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts:steps.5.write-artifact",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts:steps.6.write-runtime-audit-artifact",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts:steps.7.write-commit-message",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts:steps.8.validate-before-commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts:steps.9.commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts:steps.10.emit-attention",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts:steps.11.request-restart",
+              "detail": "step predicate gates progress"
+            }
+          ]
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts",
+              "detail": "no agent context is accumulated"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts:steps.5.write-artifact",
+              "detail": "step id \"write-artifact\" records retry or idempotency posture"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts:steps.6.write-runtime-audit-artifact",
+              "detail": "step id \"write-runtime-audit-artifact\" records retry or idempotency posture"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts:steps.8.validate-before-commit",
+              "detail": "step id \"validate-before-commit\" records retry or idempotency posture"
+            }
+          ]
+        },
+        {
+          "check": "independent-verifier",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "human-gate",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "backlog-promoter",
+      "definitionPath": "src/modules/autonomy/workflows/backlog-promoter/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/backlog-promoter/workflow.ts",
+              "detail": "code-only workflow does not complete from agent self-report"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/backlog-promoter/workflow.ts:triggers.0.cooldownMs",
+              "detail": "trigger cooldown"
+            }
+          ]
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/backlog-promoter/workflow.ts:triggers.0",
+              "detail": "trigger-level spin brake"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/backlog-promoter/workflow.ts:steps.0.reset-for-recovery",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/backlog-promoter/workflow.ts:steps.1.inspect-backlog",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/backlog-promoter/workflow.ts:steps.1.inspect-backlog",
+              "detail": "step id \"inspect-backlog\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/backlog-promoter/workflow.ts:steps.2.write-rationale",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/backlog-promoter/workflow.ts:steps.3.apply-promotion",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/backlog-promoter/workflow.ts:steps.4.write-commit-message",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/backlog-promoter/workflow.ts:steps.5.validate-before-commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/backlog-promoter/workflow.ts:steps.6.commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/backlog-promoter/workflow.ts:steps.7.emit-promoted",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/backlog-promoter/workflow.ts:steps.8.request-restart",
+              "detail": "step predicate gates progress"
+            }
+          ]
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/backlog-promoter/workflow.ts",
+              "detail": "no agent context is accumulated"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/backlog-promoter/workflow.ts:steps.5.validate-before-commit",
+              "detail": "step id \"validate-before-commit\" records retry or idempotency posture"
+            }
+          ]
+        },
+        {
+          "check": "independent-verifier",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "human-gate",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/backlog-promoter/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "blocked-promoter",
+      "definitionPath": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts",
+              "detail": "code-only workflow does not complete from agent self-report"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts:triggers.0.cooldownMs",
+              "detail": "trigger cooldown"
+            }
+          ]
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts:triggers.0",
+              "detail": "trigger-level spin brake"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts:steps.0.reset-for-recovery",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts:steps.1.inspect-blocked",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts:steps.1.inspect-blocked",
+              "detail": "step id \"inspect-blocked\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts:steps.2.promote-deterministic",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts:steps.3.blocked-promoter-ask-ask",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts:steps.4.blocked-promoter-ask-wait",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts:steps.5.blocked-promoter-ask-consume",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts:steps.6.apply-ask-outcome",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts:steps.7.promote-after-approval",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts:steps.8.instruct-operator-capture",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts:steps.9.write-blocker-actions",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts:steps.10.write-commit-message",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts:steps.11.validate-before-commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts:steps.12.commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts:steps.13.emit-promoted",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts:steps.14.emit-operator-capture-instructed",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts:steps.15.request-restart",
+              "detail": "step predicate gates progress"
+            }
+          ]
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts",
+              "detail": "no agent context is accumulated"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts:steps.11.validate-before-commit",
+              "detail": "step id \"validate-before-commit\" records retry or idempotency posture"
+            }
+          ]
+        },
+        {
+          "check": "independent-verifier",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "human-gate",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "builder",
+      "definitionPath": "src/modules/autonomy/workflows/builder/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build.repairLoop.actionable-task-claimed",
+              "detail": "objective completion repair check"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:maxConcurrentRuns",
+              "detail": "workflow concurrency brake"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:dispatchBurst",
+              "detail": "dispatch burst cap"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build",
+              "detail": "step timeout"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build",
+              "detail": "step idle timeout"
+            }
+          ]
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.0.reset-for-recovery",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.1.inspect-ready-queue",
+              "detail": "step id \"inspect-ready-queue\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.2.claim-task",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.3.prepare-worktree",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.5.create-task-branch",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.6.check-claimed-task-consistency",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.7.commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.8.write-run-summary",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.9.merge-gate",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.9.merge-gate",
+              "detail": "step id \"merge-gate\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.10.release-task-claim",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.11.write-calibration-artifact",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.12.cleanup-automation-worktree",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.13.create-pr",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.14.mark-claim-pending-merge",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.14.mark-claim-pending-merge",
+              "detail": "step id \"mark-claim-pending-merge\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.15.cleanup-builder-runtime-resources",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.16.cleanup-merged-branches",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.17.write-parallel-builder-metrics",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.18.emit-build-committed",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.19.request-restart",
+              "detail": "step predicate gates progress"
+            }
+          ]
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.1.inspect-ready-queue",
+              "detail": "step id \"inspect-ready-queue\" is context/evidence shaped"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build.repairLoop.success-criteria-declared",
+              "detail": "repair check keeps run artifacts or context hygiene reviewable"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build.repairLoop.success-criteria-verified",
+              "detail": "repair check keeps run artifacts or context hygiene reviewable"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build.repairLoop.no-scratch-artifacts",
+              "detail": "repair check keeps run artifacts or context hygiene reviewable"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build.repairLoop.observability-obligation",
+              "detail": "repair check keeps run artifacts or context hygiene reviewable"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build.repairLoop.agent-run-artifacts-stageable",
+              "detail": "repair check keeps run artifacts or context hygiene reviewable"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.8.write-run-summary",
+              "detail": "step id \"write-run-summary\" is context/evidence shaped"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.11.write-calibration-artifact",
+              "detail": "step id \"write-calibration-artifact\" is context/evidence shaped"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build.repairLoop.claimed-task-commit-set",
+              "detail": "repair check validates mutation safety before commit"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build.repairLoop.task-queue-valid",
+              "detail": "repair check validates mutation safety before commit"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build.repairLoop.no-scratch-artifacts",
+              "detail": "repair check validates mutation safety before commit"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build.repairLoop.agent-run-artifacts-stageable",
+              "detail": "repair check validates mutation safety before commit"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build.repairLoop.commit-stageable",
+              "detail": "repair check validates mutation safety before commit"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.6.check-claimed-task-consistency",
+              "detail": "step id \"check-claimed-task-consistency\" records retry or idempotency posture"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.11.write-calibration-artifact",
+              "detail": "step id \"write-calibration-artifact\" records retry or idempotency posture"
+            }
+          ]
+        },
+        {
+          "check": "independent-verifier",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build.repairLoop.workflow-validate",
+              "detail": "independent repair-loop verifier"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build.repairLoop.task-queue-valid",
+              "detail": "independent repair-loop verifier"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build.repairLoop.typecheck",
+              "detail": "independent repair-loop verifier"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build.repairLoop.test",
+              "detail": "independent repair-loop verifier"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build.repairLoop.mobile-typecheck",
+              "detail": "independent repair-loop verifier"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build.repairLoop.module-boundary",
+              "detail": "independent repair-loop verifier"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build.repairLoop.doc-bloat",
+              "detail": "independent repair-loop verifier"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build.repairLoop.repo-hygiene",
+              "detail": "independent repair-loop verifier"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build.repairLoop.critic-review",
+              "detail": "independent repair-loop verifier"
+            }
+          ]
+        },
+        {
+          "check": "human-gate",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/builder/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "daily-digest",
+      "definitionPath": "src/modules/autonomy/workflows/daily-digest/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/daily-digest/workflow.ts",
+              "detail": "code-only workflow does not complete from agent self-report"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/daily-digest/workflow.ts:triggers.0",
+              "detail": "scheduled cadence"
+            }
+          ]
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "warning",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/daily-digest/workflow.ts",
+              "detail": "no typed evidence found for no-progress-detection"
+            }
+          ],
+          "finding": {
+            "id": "loop.no-progress-detection.missing",
+            "severity": "warning",
+            "workflow": "daily-digest",
+            "check": "no-progress-detection",
+            "message": "repeatable workflow has no visible no-progress gate, marker, cooldown, or bounded batch",
+            "evidence": [
+              {
+                "ref": "src/modules/autonomy/workflows/daily-digest/workflow.ts",
+                "detail": "no typed evidence found for no-progress-detection"
+              }
+            ]
+          }
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/daily-digest/workflow.ts",
+              "detail": "no agent context is accumulated"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "independent-verifier",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "human-gate",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/daily-digest/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "decomposer",
+      "definitionPath": "src/modules/autonomy/workflows/decomposer/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/decomposer/workflow.ts:steps.6.decompose.repairLoop.task-queue-valid",
+              "detail": "objective completion repair check"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/decomposer/workflow.ts:steps.6.decompose",
+              "detail": "step timeout"
+            }
+          ]
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/decomposer/workflow.ts:steps.0.reset-for-recovery",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/decomposer/workflow.ts:steps.1.assess-failure",
+              "detail": "bounded inspection output feeds later decision"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/decomposer/workflow.ts:steps.1.assess-failure",
+              "detail": "step id \"assess-failure\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/decomposer/workflow.ts:steps.2.escalate-task-not-found-ask",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/decomposer/workflow.ts:steps.3.escalate-task-not-found-wait",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/decomposer/workflow.ts:steps.4.escalate-task-not-found-consume",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/decomposer/workflow.ts:steps.5.apply-escalation-outcome",
+              "detail": "bounded inspection output feeds later decision"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/decomposer/workflow.ts:steps.6.decompose",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/decomposer/workflow.ts:steps.7.commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/decomposer/workflow.ts:steps.8.request-restart",
+              "detail": "step predicate gates progress"
+            }
+          ]
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/decomposer/workflow.ts:steps.1.assess-failure",
+              "detail": "explicit bounded output is exposed to agent context"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/decomposer/workflow.ts:steps.1.assess-failure",
+              "detail": "step id \"assess-failure\" is context/evidence shaped"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/decomposer/workflow.ts:steps.5.apply-escalation-outcome",
+              "detail": "explicit bounded output is exposed to agent context"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/decomposer/workflow.ts:steps.6.decompose.repairLoop.no-scratch-artifacts",
+              "detail": "repair check keeps run artifacts or context hygiene reviewable"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/decomposer/workflow.ts:steps.6.decompose.repairLoop.task-queue-valid",
+              "detail": "repair check validates mutation safety before commit"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/decomposer/workflow.ts:steps.6.decompose.repairLoop.no-scratch-artifacts",
+              "detail": "repair check validates mutation safety before commit"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/decomposer/workflow.ts:steps.6.decompose.repairLoop.commit-stageable",
+              "detail": "repair check validates mutation safety before commit"
+            }
+          ]
+        },
+        {
+          "check": "independent-verifier",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/decomposer/workflow.ts:steps.6.decompose.repairLoop.task-queue-valid",
+              "detail": "independent repair-loop verifier"
+            }
+          ]
+        },
+        {
+          "check": "human-gate",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/decomposer/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "dispatcher",
+      "definitionPath": "src/modules/autonomy/workflows/dispatcher/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/dispatcher/workflow.ts",
+              "detail": "code-only workflow does not complete from agent self-report"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/dispatcher/workflow.ts:triggers.0.cooldownMs",
+              "detail": "trigger cooldown"
+            }
+          ]
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/dispatcher/workflow.ts:triggers.0",
+              "detail": "trigger-level spin brake"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/dispatcher/workflow.ts:steps.0.assess-and-dispatch",
+              "detail": "step id \"assess-and-dispatch\" records or gates loop progress"
+            }
+          ]
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/dispatcher/workflow.ts",
+              "detail": "no agent context is accumulated"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "independent-verifier",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "human-gate",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/dispatcher/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "evaluator-calibration-monitor",
+      "definitionPath": "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts",
+              "detail": "code-only workflow does not complete from agent self-report"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "warning",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts",
+              "detail": "no typed evidence found for repeat-brake"
+            }
+          ],
+          "finding": {
+            "id": "loop.repeatable-without-brake",
+            "severity": "warning",
+            "workflow": "evaluator-calibration-monitor",
+            "check": "repeat-brake",
+            "message": "repeatable trigger has no cooldown, batch bound, timeout, concurrency cap, or retry brake",
+            "evidence": [
+              {
+                "ref": "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts",
+                "detail": "no typed evidence found for repeat-brake"
+              }
+            ]
+          }
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts:steps.0.reset-for-recovery",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts:steps.1.evaluate-calibration",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts:steps.2.propose-repair",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts:steps.3.apply-repair",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts:steps.4.write-artifact",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts:steps.5.write-commit-message",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts:steps.6.validate-before-commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts:steps.7.commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts:steps.8.emit-regression",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts:steps.9.emit-health-signal",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts:steps.10.request-restart",
+              "detail": "step predicate gates progress"
+            }
+          ]
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts",
+              "detail": "no agent context is accumulated"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts:steps.4.write-artifact",
+              "detail": "step id \"write-artifact\" records retry or idempotency posture"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts:steps.6.validate-before-commit",
+              "detail": "step id \"validate-before-commit\" records retry or idempotency posture"
+            }
+          ]
+        },
+        {
+          "check": "independent-verifier",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "human-gate",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "evaluator-calibration-notify",
+      "definitionPath": "src/modules/autonomy/workflows/evaluator-calibration-notify/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/evaluator-calibration-notify/workflow.ts",
+              "detail": "code-only workflow does not complete from agent self-report"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "warning",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/evaluator-calibration-notify/workflow.ts",
+              "detail": "no typed evidence found for repeat-brake"
+            }
+          ],
+          "finding": {
+            "id": "loop.repeatable-without-brake",
+            "severity": "warning",
+            "workflow": "evaluator-calibration-notify",
+            "check": "repeat-brake",
+            "message": "repeatable trigger has no cooldown, batch bound, timeout, concurrency cap, or retry brake",
+            "evidence": [
+              {
+                "ref": "src/modules/autonomy/workflows/evaluator-calibration-notify/workflow.ts",
+                "detail": "no typed evidence found for repeat-brake"
+              }
+            ]
+          }
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "warning",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/evaluator-calibration-notify/workflow.ts",
+              "detail": "no typed evidence found for no-progress-detection"
+            }
+          ],
+          "finding": {
+            "id": "loop.no-progress-detection.missing",
+            "severity": "warning",
+            "workflow": "evaluator-calibration-notify",
+            "check": "no-progress-detection",
+            "message": "repeatable workflow has no visible no-progress gate, marker, cooldown, or bounded batch",
+            "evidence": [
+              {
+                "ref": "src/modules/autonomy/workflows/evaluator-calibration-notify/workflow.ts",
+                "detail": "no typed evidence found for no-progress-detection"
+              }
+            ]
+          }
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/evaluator-calibration-notify/workflow.ts",
+              "detail": "no agent context is accumulated"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "independent-verifier",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "human-gate",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/evaluator-calibration-notify/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "explorer",
+      "definitionPath": "src/modules/autonomy/workflows/explorer/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:steps.3.explore.repairLoop.task-queue-valid",
+              "detail": "objective completion repair check"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:triggers.0.cooldownMs",
+              "detail": "trigger cooldown"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:triggers.1.cooldownMs",
+              "detail": "trigger cooldown"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:steps.3.explore",
+              "detail": "step timeout"
+            }
+          ]
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:triggers.0",
+              "detail": "trigger-level spin brake"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:triggers.1",
+              "detail": "trigger-level spin brake"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:steps.0.reset-for-recovery",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:steps.1.inspect-queue",
+              "detail": "bounded inspection output feeds later decision"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:steps.1.inspect-queue",
+              "detail": "step id \"inspect-queue\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:steps.2.inspect-watchlist",
+              "detail": "bounded inspection output feeds later decision"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:steps.2.inspect-watchlist",
+              "detail": "step id \"inspect-watchlist\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:steps.3.explore",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:steps.4.record-exploration",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:steps.4.record-exploration",
+              "detail": "step id \"record-exploration\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:steps.5.apply-watchlist-updates",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:steps.6.commit",
+              "detail": "step predicate gates progress"
+            }
+          ]
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:steps.1.inspect-queue",
+              "detail": "explicit bounded output is exposed to agent context"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:steps.1.inspect-queue",
+              "detail": "step id \"inspect-queue\" is context/evidence shaped"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:steps.2.inspect-watchlist",
+              "detail": "explicit bounded output is exposed to agent context"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:steps.2.inspect-watchlist",
+              "detail": "step id \"inspect-watchlist\" is context/evidence shaped"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:steps.3.explore.repairLoop.no-scratch-artifacts",
+              "detail": "repair check keeps run artifacts or context hygiene reviewable"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:steps.3.explore.repairLoop.task-queue-valid",
+              "detail": "repair check validates mutation safety before commit"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:steps.3.explore.repairLoop.no-scratch-artifacts",
+              "detail": "repair check validates mutation safety before commit"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:steps.3.explore.repairLoop.commit-stageable",
+              "detail": "repair check validates mutation safety before commit"
+            }
+          ]
+        },
+        {
+          "check": "independent-verifier",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts:steps.3.explore.repairLoop.task-queue-valid",
+              "detail": "independent repair-loop verifier"
+            }
+          ]
+        },
+        {
+          "check": "human-gate",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/explorer/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "fan-out-consolidator",
+      "definitionPath": "src/modules/autonomy/workflows/fan-out-consolidator/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/fan-out-consolidator/workflow.ts",
+              "detail": "code-only workflow does not complete from agent self-report"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "warning",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/fan-out-consolidator/workflow.ts",
+              "detail": "no typed evidence found for repeat-brake"
+            }
+          ],
+          "finding": {
+            "id": "loop.repeatable-without-brake",
+            "severity": "warning",
+            "workflow": "fan-out-consolidator",
+            "check": "repeat-brake",
+            "message": "repeatable trigger has no cooldown, batch bound, timeout, concurrency cap, or retry brake",
+            "evidence": [
+              {
+                "ref": "src/modules/autonomy/workflows/fan-out-consolidator/workflow.ts",
+                "detail": "no typed evidence found for repeat-brake"
+              }
+            ]
+          }
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/fan-out-consolidator/workflow.ts:steps.0.reset-for-recovery",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/fan-out-consolidator/workflow.ts:steps.1.detect-and-seed",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/fan-out-consolidator/workflow.ts:steps.2.write-artifact",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/fan-out-consolidator/workflow.ts:steps.3.write-commit-message",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/fan-out-consolidator/workflow.ts:steps.4.validate-before-commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/fan-out-consolidator/workflow.ts:steps.5.commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/fan-out-consolidator/workflow.ts:steps.6.request-restart",
+              "detail": "step predicate gates progress"
+            }
+          ]
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/fan-out-consolidator/workflow.ts",
+              "detail": "no agent context is accumulated"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/fan-out-consolidator/workflow.ts:steps.2.write-artifact",
+              "detail": "step id \"write-artifact\" records retry or idempotency posture"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/fan-out-consolidator/workflow.ts:steps.4.validate-before-commit",
+              "detail": "step id \"validate-before-commit\" records retry or idempotency posture"
+            }
+          ]
+        },
+        {
+          "check": "independent-verifier",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "human-gate",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/fan-out-consolidator/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "github-mention-intake",
+      "definitionPath": "src/modules/autonomy/workflows/github-mention-intake/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-intake/workflow.ts",
+              "detail": "code-only workflow does not complete from agent self-report"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-intake/workflow.ts:steps.7.approve-comment",
+              "detail": "step timeout"
+            }
+          ]
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-intake/workflow.ts:steps.0.reset-for-recovery",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-intake/workflow.ts:steps.1.assess-mention-intake",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-intake/workflow.ts:steps.1.assess-mention-intake",
+              "detail": "step id \"assess-mention-intake\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-intake/workflow.ts:steps.2.create-task",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-intake/workflow.ts:steps.3.write-commit-message",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-intake/workflow.ts:steps.4.validate-before-commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-intake/workflow.ts:steps.5.commit-task",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-intake/workflow.ts:steps.6.prepare-comment",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-intake/workflow.ts:steps.7.approve-comment",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-intake/workflow.ts:steps.8.post-comment",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-intake/workflow.ts:steps.9.emit-intake-comment-posted",
+              "detail": "step predicate gates progress"
+            }
+          ]
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-intake/workflow.ts",
+              "detail": "no agent context is accumulated"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-intake/workflow.ts:steps.4.validate-before-commit",
+              "detail": "step id \"validate-before-commit\" records retry or idempotency posture"
+            }
+          ]
+        },
+        {
+          "check": "independent-verifier",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "human-gate",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-intake/workflow.ts:steps.7.approve-comment",
+              "detail": "human gate step"
+            }
+          ]
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-intake/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "github-mention-responder",
+      "definitionPath": "src/modules/autonomy/workflows/github-mention-responder/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-responder/workflow.ts:steps.1.draft-response",
+              "detail": "agent output has typed validation"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-responder/workflow.ts:steps.1.draft-response",
+              "detail": "step timeout"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-responder/workflow.ts:steps.3.approve-comment",
+              "detail": "step timeout"
+            }
+          ]
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-responder/workflow.ts:steps.0.assess-mention",
+              "detail": "step id \"assess-mention\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-responder/workflow.ts:steps.1.draft-response",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-responder/workflow.ts:steps.2.prepare-comment",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-responder/workflow.ts:steps.3.approve-comment",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-responder/workflow.ts:steps.4.post-comment",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-responder/workflow.ts:steps.5.emit-response-posted",
+              "detail": "step predicate gates progress"
+            }
+          ]
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-responder/workflow.ts:steps.0.assess-mention",
+              "detail": "step id \"assess-mention\" is context/evidence shaped"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "warning",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-responder/workflow.ts",
+              "detail": "no typed evidence found for mutating-retry-safety"
+            }
+          ],
+          "finding": {
+            "id": "loop.mutating-retry-safety.missing",
+            "severity": "warning",
+            "workflow": "github-mention-responder",
+            "check": "mutating-retry-safety",
+            "message": "mutating workflow has no typed idempotency, marker, task validation, or stageability evidence",
+            "evidence": [
+              {
+                "ref": "src/modules/autonomy/workflows/github-mention-responder/workflow.ts",
+                "detail": "no typed evidence found for mutating-retry-safety"
+              }
+            ]
+          }
+        },
+        {
+          "check": "independent-verifier",
+          "status": "warning",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-responder/workflow.ts",
+              "detail": "no typed evidence found for independent-verifier"
+            }
+          ],
+          "finding": {
+            "id": "loop.verifier.missing",
+            "severity": "warning",
+            "workflow": "github-mention-responder",
+            "check": "independent-verifier",
+            "message": "agent loop can mark done without an independent verifier, test, validation, or critic signal",
+            "evidence": [
+              {
+                "ref": "src/modules/autonomy/workflows/github-mention-responder/workflow.ts",
+                "detail": "no typed evidence found for independent-verifier"
+              }
+            ]
+          }
+        },
+        {
+          "check": "human-gate",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-responder/workflow.ts:steps.3.approve-comment",
+              "detail": "human gate step"
+            }
+          ]
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/github-mention-responder/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "improver",
+      "definitionPath": "src/modules/autonomy/workflows/improver/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.6.improve.repairLoop.workflow-validate",
+              "detail": "objective completion repair check"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.6.improve",
+              "detail": "step timeout"
+            }
+          ]
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.0.clean-recovery-state",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.1.inspect-worktree",
+              "detail": "step id \"inspect-worktree\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.2.gather-run-data",
+              "detail": "bounded inspection output feeds later decision"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.3.gather-health-issue-cards",
+              "detail": "bounded inspection output feeds later decision"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.4.gather-task-governance",
+              "detail": "bounded inspection output feeds later decision"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.5.gate-evidence",
+              "detail": "step id \"gate-evidence\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.6.improve",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.7.record-evidence-fingerprint",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.7.record-evidence-fingerprint",
+              "detail": "step id \"record-evidence-fingerprint\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.8.commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.9.write-run-summary",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.10.request-restart",
+              "detail": "step predicate gates progress"
+            }
+          ]
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.1.inspect-worktree",
+              "detail": "step id \"inspect-worktree\" is context/evidence shaped"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.2.gather-run-data",
+              "detail": "explicit bounded output is exposed to agent context"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.2.gather-run-data",
+              "detail": "step id \"gather-run-data\" is context/evidence shaped"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.3.gather-health-issue-cards",
+              "detail": "explicit bounded output is exposed to agent context"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.3.gather-health-issue-cards",
+              "detail": "step id \"gather-health-issue-cards\" is context/evidence shaped"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.4.gather-task-governance",
+              "detail": "explicit bounded output is exposed to agent context"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.4.gather-task-governance",
+              "detail": "step id \"gather-task-governance\" is context/evidence shaped"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.5.gate-evidence",
+              "detail": "step id \"gate-evidence\" is context/evidence shaped"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.6.improve.repairLoop.no-scratch-artifacts",
+              "detail": "repair check keeps run artifacts or context hygiene reviewable"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.7.record-evidence-fingerprint",
+              "detail": "step id \"record-evidence-fingerprint\" is context/evidence shaped"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.9.write-run-summary",
+              "detail": "step id \"write-run-summary\" is context/evidence shaped"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.6.improve.repairLoop.task-queue-valid",
+              "detail": "repair check validates mutation safety before commit"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.6.improve.repairLoop.no-scratch-artifacts",
+              "detail": "repair check validates mutation safety before commit"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.6.improve.repairLoop.commit-stageable",
+              "detail": "repair check validates mutation safety before commit"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.7.record-evidence-fingerprint",
+              "detail": "step id \"record-evidence-fingerprint\" records retry or idempotency posture"
+            }
+          ]
+        },
+        {
+          "check": "independent-verifier",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.6.improve.repairLoop.workflow-validate",
+              "detail": "independent repair-loop verifier"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.6.improve.repairLoop.task-queue-valid",
+              "detail": "independent repair-loop verifier"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.6.improve.repairLoop.typecheck",
+              "detail": "independent repair-loop verifier"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.6.improve.repairLoop.test",
+              "detail": "independent repair-loop verifier"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.6.improve.repairLoop.doc-bloat",
+              "detail": "independent repair-loop verifier"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.6.improve.repairLoop.repo-hygiene",
+              "detail": "independent repair-loop verifier"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts:steps.6.improve.repairLoop.semantic-quality-gate",
+              "detail": "independent repair-loop verifier"
+            }
+          ]
+        },
+        {
+          "check": "human-gate",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/improver/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "inbox-sorter",
+      "definitionPath": "src/modules/autonomy/workflows/inbox-sorter/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/inbox-sorter/workflow.ts:steps.2.sort-inbox.repairLoop.task-queue-valid",
+              "detail": "objective completion repair check"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/inbox-sorter/workflow.ts:triggers.0.cooldownMs",
+              "detail": "trigger cooldown"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/inbox-sorter/workflow.ts:steps.2.sort-inbox",
+              "detail": "step timeout"
+            }
+          ]
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/inbox-sorter/workflow.ts:triggers.0",
+              "detail": "trigger-level spin brake"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/inbox-sorter/workflow.ts:steps.0.reset-for-recovery",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/inbox-sorter/workflow.ts:steps.1.inspect-inbox",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/inbox-sorter/workflow.ts:steps.1.inspect-inbox",
+              "detail": "step id \"inspect-inbox\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/inbox-sorter/workflow.ts:steps.2.sort-inbox",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/inbox-sorter/workflow.ts:steps.3.commit",
+              "detail": "step predicate gates progress"
+            }
+          ]
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/inbox-sorter/workflow.ts:steps.1.inspect-inbox",
+              "detail": "step id \"inspect-inbox\" is context/evidence shaped"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/inbox-sorter/workflow.ts:steps.2.sort-inbox.repairLoop.no-scratch-artifacts",
+              "detail": "repair check keeps run artifacts or context hygiene reviewable"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/inbox-sorter/workflow.ts:steps.2.sort-inbox.repairLoop.task-queue-valid",
+              "detail": "repair check validates mutation safety before commit"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/inbox-sorter/workflow.ts:steps.2.sort-inbox.repairLoop.no-scratch-artifacts",
+              "detail": "repair check validates mutation safety before commit"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/inbox-sorter/workflow.ts:steps.2.sort-inbox.repairLoop.commit-stageable",
+              "detail": "repair check validates mutation safety before commit"
+            }
+          ]
+        },
+        {
+          "check": "independent-verifier",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/inbox-sorter/workflow.ts:steps.2.sort-inbox.repairLoop.task-queue-valid",
+              "detail": "independent repair-loop verifier"
+            }
+          ]
+        },
+        {
+          "check": "human-gate",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/inbox-sorter/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "owner-intervention-escalator",
+      "definitionPath": "src/modules/autonomy/workflows/owner-intervention-escalator/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/owner-intervention-escalator/workflow.ts",
+              "detail": "code-only workflow does not complete from agent self-report"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "warning",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/owner-intervention-escalator/workflow.ts",
+              "detail": "no typed evidence found for repeat-brake"
+            }
+          ],
+          "finding": {
+            "id": "loop.repeatable-without-brake",
+            "severity": "warning",
+            "workflow": "owner-intervention-escalator",
+            "check": "repeat-brake",
+            "message": "repeatable trigger has no cooldown, batch bound, timeout, concurrency cap, or retry brake",
+            "evidence": [
+              {
+                "ref": "src/modules/autonomy/workflows/owner-intervention-escalator/workflow.ts",
+                "detail": "no typed evidence found for repeat-brake"
+              }
+            ]
+          }
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/owner-intervention-escalator/workflow.ts:steps.0.reset-for-recovery",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/owner-intervention-escalator/workflow.ts:steps.1.inspect-patterns",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/owner-intervention-escalator/workflow.ts:steps.1.inspect-patterns",
+              "detail": "step id \"inspect-patterns\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/owner-intervention-escalator/workflow.ts:steps.2.propose-tasks",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/owner-intervention-escalator/workflow.ts:steps.3.apply-tasks",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/owner-intervention-escalator/workflow.ts:steps.4.write-artifact",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/owner-intervention-escalator/workflow.ts:steps.5.write-commit-message",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/owner-intervention-escalator/workflow.ts:steps.6.validate-before-commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/owner-intervention-escalator/workflow.ts:steps.7.commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/owner-intervention-escalator/workflow.ts:steps.8.emit-attention",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/owner-intervention-escalator/workflow.ts:steps.9.request-restart",
+              "detail": "step predicate gates progress"
+            }
+          ]
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/owner-intervention-escalator/workflow.ts",
+              "detail": "no agent context is accumulated"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/owner-intervention-escalator/workflow.ts:steps.4.write-artifact",
+              "detail": "step id \"write-artifact\" records retry or idempotency posture"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/owner-intervention-escalator/workflow.ts:steps.6.validate-before-commit",
+              "detail": "step id \"validate-before-commit\" records retry or idempotency posture"
+            }
+          ]
+        },
+        {
+          "check": "independent-verifier",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "human-gate",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/owner-intervention-escalator/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "pr-reviewer",
+      "definitionPath": "src/modules/autonomy/workflows/pr-reviewer/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/pr-reviewer/workflow.ts:steps.1.review",
+              "detail": "agent output has typed validation"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/pr-reviewer/workflow.ts:steps.1.review",
+              "detail": "step timeout"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/pr-reviewer/workflow.ts:steps.4.approve-comment",
+              "detail": "step timeout"
+            }
+          ]
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/pr-reviewer/workflow.ts:steps.0.assess-pr",
+              "detail": "step id \"assess-pr\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/pr-reviewer/workflow.ts:steps.1.review",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/pr-reviewer/workflow.ts:steps.2.prepare-comment",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/pr-reviewer/workflow.ts:steps.3.comment-policy",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/pr-reviewer/workflow.ts:steps.4.approve-comment",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/pr-reviewer/workflow.ts:steps.5.post-comment",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/pr-reviewer/workflow.ts:steps.6.emit-review-posted",
+              "detail": "step predicate gates progress"
+            }
+          ]
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/pr-reviewer/workflow.ts:steps.0.assess-pr",
+              "detail": "step id \"assess-pr\" is context/evidence shaped"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/pr-reviewer/workflow.ts:steps.1.review",
+              "detail": "step id \"review\" is context/evidence shaped"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/pr-reviewer/workflow.ts:steps.6.emit-review-posted",
+              "detail": "step id \"emit-review-posted\" is context/evidence shaped"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "warning",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/pr-reviewer/workflow.ts",
+              "detail": "no typed evidence found for mutating-retry-safety"
+            }
+          ],
+          "finding": {
+            "id": "loop.mutating-retry-safety.missing",
+            "severity": "warning",
+            "workflow": "pr-reviewer",
+            "check": "mutating-retry-safety",
+            "message": "mutating workflow has no typed idempotency, marker, task validation, or stageability evidence",
+            "evidence": [
+              {
+                "ref": "src/modules/autonomy/workflows/pr-reviewer/workflow.ts",
+                "detail": "no typed evidence found for mutating-retry-safety"
+              }
+            ]
+          }
+        },
+        {
+          "check": "independent-verifier",
+          "status": "warning",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/pr-reviewer/workflow.ts",
+              "detail": "no typed evidence found for independent-verifier"
+            }
+          ],
+          "finding": {
+            "id": "loop.verifier.missing",
+            "severity": "warning",
+            "workflow": "pr-reviewer",
+            "check": "independent-verifier",
+            "message": "agent loop can mark done without an independent verifier, test, validation, or critic signal",
+            "evidence": [
+              {
+                "ref": "src/modules/autonomy/workflows/pr-reviewer/workflow.ts",
+                "detail": "no typed evidence found for independent-verifier"
+              }
+            ]
+          }
+        },
+        {
+          "check": "human-gate",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/pr-reviewer/workflow.ts:steps.4.approve-comment",
+              "detail": "human gate step"
+            }
+          ]
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/pr-reviewer/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "progress-reviewer",
+      "definitionPath": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:steps.4.review-evidence",
+              "detail": "agent output has typed validation"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:triggers.0.cooldownMs",
+              "detail": "trigger cooldown"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:triggers.1.cooldownMs",
+              "detail": "trigger cooldown"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:triggers.1",
+              "detail": "scheduled cadence"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:triggers.2.batch",
+              "detail": "bounded trigger batch"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:triggers.3.batch",
+              "detail": "bounded trigger batch"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:steps.4.review-evidence",
+              "detail": "step timeout"
+            }
+          ]
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:triggers.0",
+              "detail": "trigger-level spin brake"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:triggers.1",
+              "detail": "trigger-level spin brake"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:triggers.2",
+              "detail": "trigger-level spin brake"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:triggers.3",
+              "detail": "trigger-level spin brake"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:steps.0.reset-for-recovery",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:steps.1.inspect-worktree",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:steps.1.inspect-worktree",
+              "detail": "step id \"inspect-worktree\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:steps.2.collect-evidence",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:steps.3.prepare-review-input",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:steps.3.prepare-review-input",
+              "detail": "bounded inspection output feeds later decision"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:steps.4.review-evidence",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:steps.5.apply-actions",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:steps.6.write-artifact",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:steps.7.write-commit-message",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:steps.8.validate-before-commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:steps.9.commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:steps.10.emit-attention",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:steps.11.request-restart",
+              "detail": "step predicate gates progress"
+            }
+          ]
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:steps.1.inspect-worktree",
+              "detail": "step id \"inspect-worktree\" is context/evidence shaped"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:steps.2.collect-evidence",
+              "detail": "step id \"collect-evidence\" is context/evidence shaped"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:steps.3.prepare-review-input",
+              "detail": "explicit bounded output is exposed to agent context"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:steps.3.prepare-review-input",
+              "detail": "step id \"prepare-review-input\" is context/evidence shaped"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:steps.4.review-evidence",
+              "detail": "step id \"review-evidence\" is context/evidence shaped"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:steps.6.write-artifact",
+              "detail": "step id \"write-artifact\" is context/evidence shaped"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:steps.6.write-artifact",
+              "detail": "step id \"write-artifact\" records retry or idempotency posture"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts:steps.8.validate-before-commit",
+              "detail": "step id \"validate-before-commit\" records retry or idempotency posture"
+            }
+          ]
+        },
+        {
+          "check": "independent-verifier",
+          "status": "warning",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts",
+              "detail": "no typed evidence found for independent-verifier"
+            }
+          ],
+          "finding": {
+            "id": "loop.verifier.missing",
+            "severity": "warning",
+            "workflow": "progress-reviewer",
+            "check": "independent-verifier",
+            "message": "agent loop can mark done without an independent verifier, test, validation, or critic signal",
+            "evidence": [
+              {
+                "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts",
+                "detail": "no typed evidence found for independent-verifier"
+              }
+            ]
+          }
+        },
+        {
+          "check": "human-gate",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "repo-ai-checks",
+      "definitionPath": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts:steps.2.run-checks.foreach:steps.0.run-check",
+              "detail": "agent output has typed validation"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts:runTimeoutMs",
+              "detail": "workflow timeout"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts:steps.2.run-checks",
+              "detail": "step timeout"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts:steps.2.run-checks.foreach:steps.0.run-check",
+              "detail": "step timeout"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts:steps.7.approve-comment",
+              "detail": "step timeout"
+            }
+          ]
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts:steps.0.assess-pr",
+              "detail": "step id \"assess-pr\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts:steps.1.discover-checks",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts:steps.2.run-checks",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts:steps.3.summarize-results",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts:steps.4.emit-summary",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts:steps.5.prepare-comment",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts:steps.6.comment-policy",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts:steps.7.approve-comment",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts:steps.8.post-comment",
+              "detail": "step predicate gates progress"
+            }
+          ]
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts:steps.0.assess-pr",
+              "detail": "step id \"assess-pr\" is context/evidence shaped"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts:steps.4.emit-summary",
+              "detail": "step id \"emit-summary\" is context/evidence shaped"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "warning",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts",
+              "detail": "no typed evidence found for mutating-retry-safety"
+            }
+          ],
+          "finding": {
+            "id": "loop.mutating-retry-safety.missing",
+            "severity": "warning",
+            "workflow": "repo-ai-checks",
+            "check": "mutating-retry-safety",
+            "message": "mutating workflow has no typed idempotency, marker, task validation, or stageability evidence",
+            "evidence": [
+              {
+                "ref": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts",
+                "detail": "no typed evidence found for mutating-retry-safety"
+              }
+            ]
+          }
+        },
+        {
+          "check": "independent-verifier",
+          "status": "warning",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts",
+              "detail": "no typed evidence found for independent-verifier"
+            }
+          ],
+          "finding": {
+            "id": "loop.verifier.missing",
+            "severity": "warning",
+            "workflow": "repo-ai-checks",
+            "check": "independent-verifier",
+            "message": "agent loop can mark done without an independent verifier, test, validation, or critic signal",
+            "evidence": [
+              {
+                "ref": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts",
+                "detail": "no typed evidence found for independent-verifier"
+              }
+            ]
+          }
+        },
+        {
+          "check": "human-gate",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts:steps.7.approve-comment",
+              "detail": "human gate step"
+            }
+          ]
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "research-retry",
+      "definitionPath": "src/modules/autonomy/workflows/research-retry/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/research-retry/workflow.ts:steps.2.retry.repairLoop.task-queue-valid",
+              "detail": "objective completion repair check"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/research-retry/workflow.ts:triggers.0.cooldownMs",
+              "detail": "trigger cooldown"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/research-retry/workflow.ts:steps.2.retry",
+              "detail": "step timeout"
+            }
+          ]
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/research-retry/workflow.ts:triggers.0",
+              "detail": "trigger-level spin brake"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/research-retry/workflow.ts:steps.0.reset-for-recovery",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/research-retry/workflow.ts:steps.1.inspect-candidates",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/research-retry/workflow.ts:steps.1.inspect-candidates",
+              "detail": "bounded inspection output feeds later decision"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/research-retry/workflow.ts:steps.1.inspect-candidates",
+              "detail": "step id \"inspect-candidates\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/research-retry/workflow.ts:steps.2.retry",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/research-retry/workflow.ts:steps.3.mark-attempt",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/research-retry/workflow.ts:steps.3.mark-attempt",
+              "detail": "step id \"mark-attempt\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/research-retry/workflow.ts:steps.4.commit",
+              "detail": "step predicate gates progress"
+            }
+          ]
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/research-retry/workflow.ts:steps.1.inspect-candidates",
+              "detail": "explicit bounded output is exposed to agent context"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/research-retry/workflow.ts:steps.1.inspect-candidates",
+              "detail": "step id \"inspect-candidates\" is context/evidence shaped"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/research-retry/workflow.ts:steps.2.retry.repairLoop.no-scratch-artifacts",
+              "detail": "repair check keeps run artifacts or context hygiene reviewable"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/research-retry/workflow.ts:steps.2.retry.repairLoop.task-queue-valid",
+              "detail": "repair check validates mutation safety before commit"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/research-retry/workflow.ts:steps.2.retry.repairLoop.no-scratch-artifacts",
+              "detail": "repair check validates mutation safety before commit"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/research-retry/workflow.ts:steps.2.retry.repairLoop.commit-stageable",
+              "detail": "repair check validates mutation safety before commit"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/research-retry/workflow.ts:steps.3.mark-attempt",
+              "detail": "step id \"mark-attempt\" records retry or idempotency posture"
+            }
+          ]
+        },
+        {
+          "check": "independent-verifier",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/research-retry/workflow.ts:steps.2.retry.repairLoop.task-queue-valid",
+              "detail": "independent repair-loop verifier"
+            }
+          ]
+        },
+        {
+          "check": "human-gate",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/research-retry/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "review-scrutiny-escalator",
+      "definitionPath": "src/modules/autonomy/workflows/review-scrutiny-escalator/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/review-scrutiny-escalator/workflow.ts",
+              "detail": "code-only workflow does not complete from agent self-report"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "warning",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/review-scrutiny-escalator/workflow.ts",
+              "detail": "no typed evidence found for repeat-brake"
+            }
+          ],
+          "finding": {
+            "id": "loop.repeatable-without-brake",
+            "severity": "warning",
+            "workflow": "review-scrutiny-escalator",
+            "check": "repeat-brake",
+            "message": "repeatable trigger has no cooldown, batch bound, timeout, concurrency cap, or retry brake",
+            "evidence": [
+              {
+                "ref": "src/modules/autonomy/workflows/review-scrutiny-escalator/workflow.ts",
+                "detail": "no typed evidence found for repeat-brake"
+              }
+            ]
+          }
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/review-scrutiny-escalator/workflow.ts:steps.0.reset-for-recovery",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/review-scrutiny-escalator/workflow.ts:steps.1.inspect-patterns",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/review-scrutiny-escalator/workflow.ts:steps.1.inspect-patterns",
+              "detail": "step id \"inspect-patterns\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/review-scrutiny-escalator/workflow.ts:steps.2.propose-tasks",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/review-scrutiny-escalator/workflow.ts:steps.3.apply-tasks",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/review-scrutiny-escalator/workflow.ts:steps.4.write-artifact",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/review-scrutiny-escalator/workflow.ts:steps.5.write-commit-message",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/review-scrutiny-escalator/workflow.ts:steps.6.validate-before-commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/review-scrutiny-escalator/workflow.ts:steps.7.commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/review-scrutiny-escalator/workflow.ts:steps.8.emit-attention",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/review-scrutiny-escalator/workflow.ts:steps.9.request-restart",
+              "detail": "step predicate gates progress"
+            }
+          ]
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/review-scrutiny-escalator/workflow.ts",
+              "detail": "no agent context is accumulated"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/review-scrutiny-escalator/workflow.ts:steps.4.write-artifact",
+              "detail": "step id \"write-artifact\" records retry or idempotency posture"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/review-scrutiny-escalator/workflow.ts:steps.6.validate-before-commit",
+              "detail": "step id \"validate-before-commit\" records retry or idempotency posture"
+            }
+          ]
+        },
+        {
+          "check": "independent-verifier",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "human-gate",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/review-scrutiny-escalator/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "scope-improver",
+      "definitionPath": "src/modules/autonomy/workflows/scope-improver/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts",
+              "detail": "code-only workflow does not complete from agent self-report"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts:triggers.0.cooldownMs",
+              "detail": "trigger cooldown"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts:triggers.1.cooldownMs",
+              "detail": "trigger cooldown"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts:triggers.1",
+              "detail": "scheduled cadence"
+            }
+          ]
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts:triggers.0",
+              "detail": "trigger-level spin brake"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts:triggers.1",
+              "detail": "trigger-level spin brake"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts:steps.0.reset-for-recovery",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts:steps.1.inspect-worktree",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts:steps.1.inspect-worktree",
+              "detail": "step id \"inspect-worktree\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts:steps.2.collect-scope-inputs",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts:steps.3.discover-candidates",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts:steps.4.gather-evidence",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts:steps.5.recommend-improvements",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts:steps.6.apply-recommendations",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts:steps.7.record-zero-action-cooldown",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts:steps.7.record-zero-action-cooldown",
+              "detail": "step id \"record-zero-action-cooldown\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts:steps.8.write-artifact",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts:steps.9.write-commit-message",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts:steps.10.validate-before-commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts:steps.11.commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts:steps.12.emit-applied",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts:steps.13.request-restart",
+              "detail": "step predicate gates progress"
+            }
+          ]
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts",
+              "detail": "no agent context is accumulated"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts:steps.8.write-artifact",
+              "detail": "step id \"write-artifact\" records retry or idempotency posture"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts:steps.10.validate-before-commit",
+              "detail": "step id \"validate-before-commit\" records retry or idempotency posture"
+            }
+          ]
+        },
+        {
+          "check": "independent-verifier",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "human-gate",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/scope-improver/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "security-review",
+      "definitionPath": "src/modules/autonomy/workflows/security-review/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.4.investigate-candidates",
+              "detail": "agent output has typed validation"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.7.revalidate-findings",
+              "detail": "agent output has typed validation"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:triggers.0.cooldownMs",
+              "detail": "trigger cooldown"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:triggers.1.cooldownMs",
+              "detail": "trigger cooldown"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.4.investigate-candidates",
+              "detail": "step timeout"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.7.revalidate-findings",
+              "detail": "step timeout"
+            }
+          ]
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:triggers.0",
+              "detail": "trigger-level spin brake"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:triggers.1",
+              "detail": "trigger-level spin brake"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.0.reset-for-recovery",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.1.capture-mutation-baseline",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.2.scan-candidates",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.2.scan-candidates",
+              "detail": "bounded inspection output feeds later decision"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.3.record-empty-scan",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.3.record-empty-scan",
+              "detail": "step id \"record-empty-scan\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.4.investigate-candidates",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.5.record-investigation-findings",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.5.record-investigation-findings",
+              "detail": "bounded inspection output feeds later decision"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.5.record-investigation-findings",
+              "detail": "step id \"record-investigation-findings\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.6.record-no-findings",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.6.record-no-findings",
+              "detail": "step id \"record-no-findings\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.7.revalidate-findings",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.8.record-revalidation",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.8.record-revalidation",
+              "detail": "bounded inspection output feeds later decision"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.8.record-revalidation",
+              "detail": "step id \"record-revalidation\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.9.create-follow-up-tasks",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.10.write-commit-message",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.11.validate-before-commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.12.commit",
+              "detail": "step predicate gates progress"
+            }
+          ]
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.2.scan-candidates",
+              "detail": "explicit bounded output is exposed to agent context"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.5.record-investigation-findings",
+              "detail": "explicit bounded output is exposed to agent context"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.8.record-revalidation",
+              "detail": "explicit bounded output is exposed to agent context"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts:steps.11.validate-before-commit",
+              "detail": "step id \"validate-before-commit\" records retry or idempotency posture"
+            }
+          ]
+        },
+        {
+          "check": "independent-verifier",
+          "status": "warning",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts",
+              "detail": "no typed evidence found for independent-verifier"
+            }
+          ],
+          "finding": {
+            "id": "loop.verifier.missing",
+            "severity": "warning",
+            "workflow": "security-review",
+            "check": "independent-verifier",
+            "message": "agent loop can mark done without an independent verifier, test, validation, or critic signal",
+            "evidence": [
+              {
+                "ref": "src/modules/autonomy/workflows/security-review/workflow.ts",
+                "detail": "no typed evidence found for independent-verifier"
+              }
+            ]
+          }
+        },
+        {
+          "check": "human-gate",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/security-review/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "trajectory-diagnostic-escalator",
+      "definitionPath": "src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.ts",
+              "detail": "code-only workflow does not complete from agent self-report"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "warning",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.ts",
+              "detail": "no typed evidence found for repeat-brake"
+            }
+          ],
+          "finding": {
+            "id": "loop.repeatable-without-brake",
+            "severity": "warning",
+            "workflow": "trajectory-diagnostic-escalator",
+            "check": "repeat-brake",
+            "message": "repeatable trigger has no cooldown, batch bound, timeout, concurrency cap, or retry brake",
+            "evidence": [
+              {
+                "ref": "src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.ts",
+                "detail": "no typed evidence found for repeat-brake"
+              }
+            ]
+          }
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.ts:steps.0.reset-for-recovery",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.ts:steps.1.inspect-patterns",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.ts:steps.1.inspect-patterns",
+              "detail": "step id \"inspect-patterns\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.ts:steps.2.propose-tasks",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.ts:steps.3.apply-tasks",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.ts:steps.4.write-artifact",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.ts:steps.5.write-commit-message",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.ts:steps.6.validate-before-commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.ts:steps.7.commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.ts:steps.8.emit-attention",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.ts:steps.9.request-restart",
+              "detail": "step predicate gates progress"
+            }
+          ]
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.ts",
+              "detail": "no agent context is accumulated"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.ts:steps.4.write-artifact",
+              "detail": "step id \"write-artifact\" records retry or idempotency posture"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.ts:steps.6.validate-before-commit",
+              "detail": "step id \"validate-before-commit\" records retry or idempotency posture"
+            }
+          ]
+        },
+        {
+          "check": "independent-verifier",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "human-gate",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "workflow-failure-escalator",
+      "definitionPath": "src/modules/autonomy/workflows/workflow-failure-escalator/workflow.ts",
+      "checks": [
+        {
+          "check": "completion-evidence",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/workflow-failure-escalator/workflow.ts",
+              "detail": "code-only workflow does not complete from agent self-report"
+            }
+          ]
+        },
+        {
+          "check": "repeat-brake",
+          "status": "warning",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/workflow-failure-escalator/workflow.ts",
+              "detail": "no typed evidence found for repeat-brake"
+            }
+          ],
+          "finding": {
+            "id": "loop.repeatable-without-brake",
+            "severity": "warning",
+            "workflow": "workflow-failure-escalator",
+            "check": "repeat-brake",
+            "message": "repeatable trigger has no cooldown, batch bound, timeout, concurrency cap, or retry brake",
+            "evidence": [
+              {
+                "ref": "src/modules/autonomy/workflows/workflow-failure-escalator/workflow.ts",
+                "detail": "no typed evidence found for repeat-brake"
+              }
+            ]
+          }
+        },
+        {
+          "check": "no-progress-detection",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/workflow-failure-escalator/workflow.ts:steps.0.reset-for-recovery",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/workflow-failure-escalator/workflow.ts:steps.1.inspect-patterns",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/workflow-failure-escalator/workflow.ts:steps.1.inspect-patterns",
+              "detail": "step id \"inspect-patterns\" records or gates loop progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/workflow-failure-escalator/workflow.ts:steps.2.propose-tasks",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/workflow-failure-escalator/workflow.ts:steps.3.apply-tasks",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/workflow-failure-escalator/workflow.ts:steps.4.write-artifact",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/workflow-failure-escalator/workflow.ts:steps.5.write-commit-message",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/workflow-failure-escalator/workflow.ts:steps.6.validate-before-commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/workflow-failure-escalator/workflow.ts:steps.7.commit",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/workflow-failure-escalator/workflow.ts:steps.8.emit-attention",
+              "detail": "step predicate gates progress"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/workflow-failure-escalator/workflow.ts:steps.9.request-restart",
+              "detail": "step predicate gates progress"
+            }
+          ]
+        },
+        {
+          "check": "context-hygiene",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/workflow-failure-escalator/workflow.ts",
+              "detail": "no agent context is accumulated"
+            }
+          ]
+        },
+        {
+          "check": "mutating-retry-safety",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/workflow-failure-escalator/workflow.ts:steps.4.write-artifact",
+              "detail": "step id \"write-artifact\" records retry or idempotency posture"
+            },
+            {
+              "ref": "src/modules/autonomy/workflows/workflow-failure-escalator/workflow.ts:steps.6.validate-before-commit",
+              "detail": "step id \"validate-before-commit\" records retry or idempotency posture"
+            }
+          ]
+        },
+        {
+          "check": "independent-verifier",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "human-gate",
+          "status": "not-applicable",
+          "evidence": []
+        },
+        {
+          "check": "workflow-completed-self-trigger",
+          "status": "pass",
+          "evidence": [
+            {
+              "ref": "src/modules/autonomy/workflows/workflow-failure-escalator/workflow.ts",
+              "detail": "workflow.completed triggers are absent or narrowed away from this workflow"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "id": "loop.repeatable-without-brake",
+      "severity": "warning",
+      "workflow": "attention-digest",
+      "check": "repeat-brake",
+      "message": "repeatable trigger has no cooldown, batch bound, timeout, concurrency cap, or retry brake",
+      "evidence": [
+        {
+          "ref": "src/modules/autonomy/workflows/attention-digest/workflow.ts",
+          "detail": "no typed evidence found for repeat-brake"
+        }
+      ]
+    },
+    {
+      "id": "loop.no-progress-detection.missing",
+      "severity": "warning",
+      "workflow": "daily-digest",
+      "check": "no-progress-detection",
+      "message": "repeatable workflow has no visible no-progress gate, marker, cooldown, or bounded batch",
+      "evidence": [
+        {
+          "ref": "src/modules/autonomy/workflows/daily-digest/workflow.ts",
+          "detail": "no typed evidence found for no-progress-detection"
+        }
+      ]
+    },
+    {
+      "id": "loop.repeatable-without-brake",
+      "severity": "warning",
+      "workflow": "evaluator-calibration-monitor",
+      "check": "repeat-brake",
+      "message": "repeatable trigger has no cooldown, batch bound, timeout, concurrency cap, or retry brake",
+      "evidence": [
+        {
+          "ref": "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts",
+          "detail": "no typed evidence found for repeat-brake"
+        }
+      ]
+    },
+    {
+      "id": "loop.repeatable-without-brake",
+      "severity": "warning",
+      "workflow": "evaluator-calibration-notify",
+      "check": "repeat-brake",
+      "message": "repeatable trigger has no cooldown, batch bound, timeout, concurrency cap, or retry brake",
+      "evidence": [
+        {
+          "ref": "src/modules/autonomy/workflows/evaluator-calibration-notify/workflow.ts",
+          "detail": "no typed evidence found for repeat-brake"
+        }
+      ]
+    },
+    {
+      "id": "loop.no-progress-detection.missing",
+      "severity": "warning",
+      "workflow": "evaluator-calibration-notify",
+      "check": "no-progress-detection",
+      "message": "repeatable workflow has no visible no-progress gate, marker, cooldown, or bounded batch",
+      "evidence": [
+        {
+          "ref": "src/modules/autonomy/workflows/evaluator-calibration-notify/workflow.ts",
+          "detail": "no typed evidence found for no-progress-detection"
+        }
+      ]
+    },
+    {
+      "id": "loop.repeatable-without-brake",
+      "severity": "warning",
+      "workflow": "fan-out-consolidator",
+      "check": "repeat-brake",
+      "message": "repeatable trigger has no cooldown, batch bound, timeout, concurrency cap, or retry brake",
+      "evidence": [
+        {
+          "ref": "src/modules/autonomy/workflows/fan-out-consolidator/workflow.ts",
+          "detail": "no typed evidence found for repeat-brake"
+        }
+      ]
+    },
+    {
+      "id": "loop.mutating-retry-safety.missing",
+      "severity": "warning",
+      "workflow": "github-mention-responder",
+      "check": "mutating-retry-safety",
+      "message": "mutating workflow has no typed idempotency, marker, task validation, or stageability evidence",
+      "evidence": [
+        {
+          "ref": "src/modules/autonomy/workflows/github-mention-responder/workflow.ts",
+          "detail": "no typed evidence found for mutating-retry-safety"
+        }
+      ]
+    },
+    {
+      "id": "loop.verifier.missing",
+      "severity": "warning",
+      "workflow": "github-mention-responder",
+      "check": "independent-verifier",
+      "message": "agent loop can mark done without an independent verifier, test, validation, or critic signal",
+      "evidence": [
+        {
+          "ref": "src/modules/autonomy/workflows/github-mention-responder/workflow.ts",
+          "detail": "no typed evidence found for independent-verifier"
+        }
+      ]
+    },
+    {
+      "id": "loop.repeatable-without-brake",
+      "severity": "warning",
+      "workflow": "owner-intervention-escalator",
+      "check": "repeat-brake",
+      "message": "repeatable trigger has no cooldown, batch bound, timeout, concurrency cap, or retry brake",
+      "evidence": [
+        {
+          "ref": "src/modules/autonomy/workflows/owner-intervention-escalator/workflow.ts",
+          "detail": "no typed evidence found for repeat-brake"
+        }
+      ]
+    },
+    {
+      "id": "loop.mutating-retry-safety.missing",
+      "severity": "warning",
+      "workflow": "pr-reviewer",
+      "check": "mutating-retry-safety",
+      "message": "mutating workflow has no typed idempotency, marker, task validation, or stageability evidence",
+      "evidence": [
+        {
+          "ref": "src/modules/autonomy/workflows/pr-reviewer/workflow.ts",
+          "detail": "no typed evidence found for mutating-retry-safety"
+        }
+      ]
+    },
+    {
+      "id": "loop.verifier.missing",
+      "severity": "warning",
+      "workflow": "pr-reviewer",
+      "check": "independent-verifier",
+      "message": "agent loop can mark done without an independent verifier, test, validation, or critic signal",
+      "evidence": [
+        {
+          "ref": "src/modules/autonomy/workflows/pr-reviewer/workflow.ts",
+          "detail": "no typed evidence found for independent-verifier"
+        }
+      ]
+    },
+    {
+      "id": "loop.verifier.missing",
+      "severity": "warning",
+      "workflow": "progress-reviewer",
+      "check": "independent-verifier",
+      "message": "agent loop can mark done without an independent verifier, test, validation, or critic signal",
+      "evidence": [
+        {
+          "ref": "src/modules/autonomy/workflows/progress-reviewer/workflow.ts",
+          "detail": "no typed evidence found for independent-verifier"
+        }
+      ]
+    },
+    {
+      "id": "loop.mutating-retry-safety.missing",
+      "severity": "warning",
+      "workflow": "repo-ai-checks",
+      "check": "mutating-retry-safety",
+      "message": "mutating workflow has no typed idempotency, marker, task validation, or stageability evidence",
+      "evidence": [
+        {
+          "ref": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts",
+          "detail": "no typed evidence found for mutating-retry-safety"
+        }
+      ]
+    },
+    {
+      "id": "loop.verifier.missing",
+      "severity": "warning",
+      "workflow": "repo-ai-checks",
+      "check": "independent-verifier",
+      "message": "agent loop can mark done without an independent verifier, test, validation, or critic signal",
+      "evidence": [
+        {
+          "ref": "src/modules/autonomy/workflows/repo-ai-checks/workflow.ts",
+          "detail": "no typed evidence found for independent-verifier"
+        }
+      ]
+    },
+    {
+      "id": "loop.repeatable-without-brake",
+      "severity": "warning",
+      "workflow": "review-scrutiny-escalator",
+      "check": "repeat-brake",
+      "message": "repeatable trigger has no cooldown, batch bound, timeout, concurrency cap, or retry brake",
+      "evidence": [
+        {
+          "ref": "src/modules/autonomy/workflows/review-scrutiny-escalator/workflow.ts",
+          "detail": "no typed evidence found for repeat-brake"
+        }
+      ]
+    },
+    {
+      "id": "loop.verifier.missing",
+      "severity": "warning",
+      "workflow": "security-review",
+      "check": "independent-verifier",
+      "message": "agent loop can mark done without an independent verifier, test, validation, or critic signal",
+      "evidence": [
+        {
+          "ref": "src/modules/autonomy/workflows/security-review/workflow.ts",
+          "detail": "no typed evidence found for independent-verifier"
+        }
+      ]
+    },
+    {
+      "id": "loop.repeatable-without-brake",
+      "severity": "warning",
+      "workflow": "trajectory-diagnostic-escalator",
+      "check": "repeat-brake",
+      "message": "repeatable trigger has no cooldown, batch bound, timeout, concurrency cap, or retry brake",
+      "evidence": [
+        {
+          "ref": "src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.ts",
+          "detail": "no typed evidence found for repeat-brake"
+        }
+      ]
+    },
+    {
+      "id": "loop.repeatable-without-brake",
+      "severity": "warning",
+      "workflow": "workflow-failure-escalator",
+      "check": "repeat-brake",
+      "message": "repeatable trigger has no cooldown, batch bound, timeout, concurrency cap, or retry brake",
+      "evidence": [
+        {
+          "ref": "src/modules/autonomy/workflows/workflow-failure-escalator/workflow.ts",
+          "detail": "no typed evidence found for repeat-brake"
+        }
+      ]
+    }
+  ]
+}

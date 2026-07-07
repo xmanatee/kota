@@ -7,6 +7,7 @@ import {
 } from "#core/modules/runtime-module-discovery.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { autonomyHealthSignal } from "./health-signal.js";
+import { buildLoopQualityAuditCommand } from "./loop-quality-audit-cli.js";
 import { buildReportCommand } from "./report/report-cli.js";
 import { buildAttentionCommand } from "./workflows/attention-digest/attention-cli.js";
 import { attentionRoutes } from "./workflows/attention-digest/attention-route.js";
@@ -110,6 +111,7 @@ const autonomyModule: KotaModule = {
     buildDigestCommand(),
     buildAttentionCommand(),
     buildReportCommand(),
+    buildLoopQualityAuditCommand(discoverAutonomyWorkflowDefinitions),
   ],
   routes: (ctx) => [
     ...digestRoutes({ projectDir: ctx.cwd }),

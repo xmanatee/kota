@@ -1,0 +1,47 @@
+$ pnpm dev loop-quality --artifact .kota/runs/2026-07-07T00-47-50-272Z-builder-rwmd89/loop-quality-audit.json
+
+> kota@0.1.0 dev /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-loop-quality-audits-for-autonomous-workflows-2026-07-07t00-47-50-272z-builder-rwmd89
+> NODE_OPTIONS=--conditions=source tsx src/cli.ts loop-quality --artifact .kota/runs/2026-07-07T00-47-50-272Z-builder-rwmd89/loop-quality-audit.json
+
+Loop quality audit: 26 workflow(s), 18 finding(s), 0 error(s), 18 warning(s)
+
+Representative pass output:
+
+builder
+  pass completion-evidence - src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build.repairLoop.actionable-task-claimed
+  pass repeat-brake - src/modules/autonomy/workflows/builder/workflow.ts:maxConcurrentRuns
+  pass no-progress-detection - src/modules/autonomy/workflows/builder/workflow.ts:steps.0.reset-for-recovery
+  pass context-hygiene - src/modules/autonomy/workflows/builder/workflow.ts:steps.1.inspect-ready-queue
+  pass mutating-retry-safety - src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build.repairLoop.claimed-task-commit-set
+  pass independent-verifier - src/modules/autonomy/workflows/builder/workflow.ts:steps.4.build.repairLoop.workflow-validate
+  not-applicable human-gate
+  pass workflow-completed-self-trigger - src/modules/autonomy/workflows/builder/workflow.ts
+
+dispatcher
+  pass completion-evidence - src/modules/autonomy/workflows/dispatcher/workflow.ts
+  pass repeat-brake - src/modules/autonomy/workflows/dispatcher/workflow.ts:triggers.0.cooldownMs
+  pass no-progress-detection - src/modules/autonomy/workflows/dispatcher/workflow.ts:triggers.0
+  pass context-hygiene - src/modules/autonomy/workflows/dispatcher/workflow.ts
+  not-applicable mutating-retry-safety
+  not-applicable independent-verifier
+  not-applicable human-gate
+  pass workflow-completed-self-trigger - src/modules/autonomy/workflows/dispatcher/workflow.ts
+
+Representative warning output with stable finding ids and evidence refs:
+
+attention-digest
+  loop.repeatable-without-brake repeatable trigger has no cooldown, batch bound, timeout, concurrency cap, or retry brake
+    evidence: src/modules/autonomy/workflows/attention-digest/workflow.ts (no typed evidence found for repeat-brake)
+
+daily-digest
+  loop.no-progress-detection.missing repeatable workflow has no visible no-progress gate, marker, cooldown, or bounded batch
+    evidence: src/modules/autonomy/workflows/daily-digest/workflow.ts (no typed evidence found for no-progress-detection)
+
+github-mention-responder
+  loop.mutating-retry-safety.missing mutating workflow has no typed idempotency, marker, task validation, or stageability evidence
+    evidence: src/modules/autonomy/workflows/github-mention-responder/workflow.ts (no typed evidence found for mutating-retry-safety)
+  loop.verifier.missing agent loop can mark done without an independent verifier, test, validation, or critic signal
+    evidence: src/modules/autonomy/workflows/github-mention-responder/workflow.ts (no typed evidence found for independent-verifier)
+
+Full structured output:
+.kota/runs/2026-07-07T00-47-50-272Z-builder-rwmd89/loop-quality-audit.json

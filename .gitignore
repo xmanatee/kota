@@ -9,6 +9,14 @@ deploy/telegram-assistant/.env
 /.kota/*
 !/.kota/runs/
 /.kota/runs/*
+!/.kota/runs/2026-07-07T00-47-50-272Z-builder-rwmd89/
+/.kota/runs/2026-07-07T00-47-50-272Z-builder-rwmd89/*
+!/.kota/runs/2026-07-07T00-47-50-272Z-builder-rwmd89/commit-message.txt
+!/.kota/runs/2026-07-07T00-47-50-272Z-builder-rwmd89/loop-quality-audit.json
+!/.kota/runs/2026-07-07T00-47-50-272Z-builder-rwmd89/loop-quality-transcript.txt
+!/.kota/runs/2026-07-07T00-47-50-272Z-builder-rwmd89/success-criteria-verified.txt
+!/.kota/runs/2026-07-07T00-47-50-272Z-builder-rwmd89/success-criteria.txt
+!/.kota/runs/2026-07-07T00-47-50-272Z-builder-rwmd89/validation-transcript.txt
 !/.kota/runs/2026-07-06T20-49-21-196Z-builder-rej04x/
 /.kota/runs/2026-07-06T20-49-21-196Z-builder-rej04x/*
 !/.kota/runs/2026-07-06T20-49-21-196Z-builder-rej04x/cli-status-transcript.txt

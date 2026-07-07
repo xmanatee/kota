@@ -1,0 +1,6 @@
+Add autonomy loop-quality audit
+
+- add typed loop-quality classifier and `kota loop-quality` command
+- split audit checks into focused rule files under source-size thresholds
+- cover shipped workflow rails and missing-rail fixtures
+- record run audit, CLI transcript, and validation evidence

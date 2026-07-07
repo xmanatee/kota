@@ -1,0 +1,5 @@
+1. Implemented `auditLoopQuality` plus `kota loop-quality`, which inspect autonomy workflow definitions and emit typed `LoopQualityFinding` records.
+2. Added focused tests covering builder, improver, dispatcher, research-retry, and autonomy-health-reviewer as the event-driven workflow.
+3. Added fixture coverage for missing completion evidence, repeatable loops without brakes, mutating actions without retry/idempotency posture, verifier-less done paths, and self-triggering `workflow.completed` filters.
+4. Generated `.kota/runs/2026-07-07T00-47-50-272Z-builder-rwmd89/loop-quality-audit.json` with pass/non-applicable checks and actionable warnings with evidence refs for shipped workflows.
+5. Verified findings, non-findings, deterministic output, CLI rendering of stable finding ids, workflow validation, task validation, typecheck, and lint; transcripts are in the run directory.

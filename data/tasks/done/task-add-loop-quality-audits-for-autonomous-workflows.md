@@ -1,13 +1,13 @@
 ---
 id: task-add-loop-quality-audits-for-autonomous-workflows
 title: Add loop quality audits for autonomous workflows
-status: ready
+status: done
 priority: p1
 area: autonomy
 task_class: Meta
 summary: Audit autonomy workflow loops for explicit completion checks, stopping brakes, context hygiene, safe retries, and independent verifier signals.
 created_at: 2026-06-24T15:44:37.109Z
-updated_at: 2026-07-06T20:38:12.904Z
+updated_at: 2026-07-07T01:42:09.467Z
 ---
 
 ## Problem

@@ -1,0 +1,5 @@
+1. A deterministic loop-quality audit surface inspects autonomy workflow definitions and returns typed findings.
+2. Focused coverage includes builder, improver, dispatcher, research-retry, and at least one event-driven workflow.
+3. Representative fixtures detect missing completion evidence, repeatable loops without brakes, mutating actions without retry or idempotency posture, and verifier-less done paths.
+4. Healthy shipped workflows pass or produce actionable warnings with evidence references.
+5. Tests cover findings, non-findings, deterministic output, and workflow-name self-trigger regression protection.
