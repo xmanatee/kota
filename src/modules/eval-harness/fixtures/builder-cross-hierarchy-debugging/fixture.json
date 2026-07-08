@@ -1,0 +1,165 @@
+{
+  "id": "builder-cross-hierarchy-debugging",
+  "description": "Live-builder fixture for tracing a downstream signal-routing failure through gateway and flow layers to the upstream channel registry root cause, with structured causal-trace evidence.",
+  "role": "builder",
+  "workflowName": "builder",
+  "budgetMs": 1800000,
+  "predicates": [
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-debug-trace.mjs",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-debug-trace.mjs --self-test-shortcuts",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "file-exists",
+      "path": "debug-trace-result.json"
+    },
+    {
+      "kind": "file-contains",
+      "path": "debug-trace-result.json",
+      "needle": "\"symptom\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "debug-trace-result.json",
+      "needle": "\"file\": \"src/gateway.mjs\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "debug-trace-result.json",
+      "needle": "\"rootCause\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "debug-trace-result.json",
+      "needle": "\"file\": \"src/channel-registry.mjs\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "debug-trace-result.json",
+      "needle": "\"causalPath\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "debug-trace-result.json",
+      "needle": "\"verification\""
+    },
+    {
+      "kind": "file-absent",
+      "path": "data/tasks/ready/task-fix-cross-hierarchy-signal-routing.md"
+    },
+    {
+      "kind": "file-exists",
+      "path": "data/tasks/done/task-fix-cross-hierarchy-signal-routing.md"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/tasks/done/task-fix-cross-hierarchy-signal-routing.md",
+      "needle": "status: done"
+    },
+    {
+      "kind": "git-changes-within",
+      "allowedPaths": [
+        "debug-trace-result.json",
+        "src/channel-registry.mjs",
+        "data/tasks/ready/task-fix-cross-hierarchy-signal-routing.md",
+        "data/tasks/done/task-fix-cross-hierarchy-signal-routing.md"
+      ]
+    }
+  ],
+  "objectiveMetrics": [
+    {
+      "name": "causal_path_coverage",
+      "unit": "layers",
+      "direction": "higher_is_better",
+      "source": {
+        "kind": "json-file",
+        "path": "debug-trace-result.json",
+        "pointer": "/metrics/causalPathCoverage"
+      }
+    }
+  ],
+  "verifierCalibration": {
+    "null": {},
+    "golden": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/src/channel-registry.mjs",
+          "targetPath": "src/channel-registry.mjs"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/debug-trace-result.json",
+          "targetPath": "debug-trace-result.json"
+        }
+      ]
+    },
+    "adversarial": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/src/channel-registry.mjs",
+          "targetPath": "src/channel-registry.mjs"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/debug-trace-result.json",
+          "targetPath": "debug-trace-result.json"
+        }
+      ]
+    }
+  },
+  "tags": [
+    "autonomy",
+    "builder-discipline",
+    "debugging",
+    "cross-hierarchy",
+    "live-builder",
+    "objective-metric"
+  ],
+  "provenance": {
+    "kind": "smoke-fixture",
+    "justification": "Synthetic live-builder canary for Phoenix-bench-shaped hierarchy debugging work: the builder receives a concrete downstream signal-routing failure, must trace causality through interacting local files, patch the upstream registry root cause, and leave machine-checkable causal-trace evidence. No past KOTA failure run exists for this exact measurement gap, so this is a smoke fixture rather than a regression-gated real-failure fixture."
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-debug-trace.mjs --baseline-fails",
+        "timeoutMs": 10000
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-debug-trace.mjs",
+        "timeoutMs": 20000
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "debug-trace-result.json"
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/ready/task-fix-cross-hierarchy-signal-routing.md"
+      },
+      "expected": "pass"
+    }
+  ],
+  "controlDecisions": [
+    "act"
+  ]
+}

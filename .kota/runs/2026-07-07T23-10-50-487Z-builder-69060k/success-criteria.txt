@@ -1,0 +1,7 @@
+1. Add a shipped eval-harness fixture under src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/ with fixture.json, notes.md, and a minimal initial project/task tree.
+2. Seed the initial project with a downstream failing symptom whose upstream root cause must be changed, and include task acceptance evidence requiring debug-trace-result.json.
+3. Configure preRunExpectations and final predicates so the baseline fails missing-fix/missing-artifact checks and the completed run must move the task to done, pass verification, write a structured causal trace, and avoid verifier or symptom-only shortcuts.
+4. Include verifier calibration or regression evidence that a symptom-only patch fails, and revert any temporary shortcut before staging.
+5. Verify pnpm dev eval list loads the new fixture without provenance or schema errors.
+6. Verify pnpm dev eval run --fixture builder-cross-hierarchy-debugging --repeats 1 completes with predicates passing and objective metric output/artifacts visible.
+7. Keep task state honest, stage all changes, and write the workflow commit message artifact without committing.

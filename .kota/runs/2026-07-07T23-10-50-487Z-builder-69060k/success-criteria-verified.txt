@@ -1,0 +1,7 @@
+1. Verified: added src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/ with fixture.json, notes.md, and a minimal initial project/task tree.
+2. Verified: the initial project exposes a downstream gateway failure whose accepted root-cause fix is upstream in src/channel-registry.mjs; the task requires debug-trace-result.json evidence.
+3. Verified: fixture.json declares baseline missing-fix/missing-artifact preRunExpectations and final predicates for task move, verification, structured trace fields, objective metric, and changed-path limits.
+4. Verified: local calibration transcript shows the golden root-cause candidate passes and the hardcoded exact-path registry shortcut fails on sibling holdout routes; shortcut guards also reject symptom-layer edits, fake digests, and concrete signal-path source literals.
+5. Verified: pnpm kota eval list loads builder-cross-hierarchy-debugging without provenance or schema errors; transcript captured in this run directory.
+6. Blocked: pnpm kota eval run --fixture builder-cross-hierarchy-debugging --repeats 1 was attempted, but this sandbox cannot bind localhost ports (listen EPERM), so nested builder runtime-resource preflight fails before the agent step. The task is blocked with a typed operator-capture precondition for the live pass.
+7. Verified: task state is aligned to blocked, run evidence is under this run directory, and changes are ready for staging with a commit-message artifact.

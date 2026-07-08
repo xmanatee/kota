@@ -1,13 +1,13 @@
 ---
 id: task-add-a-cross-hierarchy-signal-flow-debugging-fixtur
 title: Add a cross-hierarchy signal-flow debugging fixture to the eval harness
-status: ready
+status: blocked
 priority: p2
 area: modules
 task_class: Meta
 summary: Seed an eval-harness fixture where the builder must trace a bug through interacting files and fix the root cause from structured failure evidence instead of patching the symptom file.
 created_at: 2026-07-07T23:04:35.954Z
-updated_at: 2026-07-07T23:04:35.954Z
+updated_at: 2026-07-07T23:24:11.566Z
 ---
 
 ## Problem
@@ -100,6 +100,35 @@ The fixture should make cross-hierarchy debugging observable:
 - `pnpm kota eval run --fixture <new-fixture-id> --repeats 1` completes with
   the cross-hierarchy debugging predicates passing and any objective metric
   visible in the run artifact and aggregate output.
+
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/cross-hierarchy-debugging-live-pass
+description: live eval-harness pass artifact — operator runs `pnpm kota eval run --fixture builder-cross-hierarchy-debugging --repeats 1 --keep` in an environment where the nested builder harness can bind localhost ports and reach its model provider, then stores eval-run-transcript.txt, eval-set-report.json, the per-run fixture-run.json, and the produced debug-trace-result.json evidence under .kota/runs/cross-hierarchy-debugging-live-pass/
+```
+
+## Status (2026-07-08 builder)
+
+The fixture files, minimal initial project, cross-layer signal-routing
+verifier, objective metric, verifier calibration, symptom-only shortcut guards,
+and exact-path hardcoded registry shortcut calibration case have been
+implemented. Local validation passed for the expected baseline downstream
+failure, shortcut self-test, golden root-cause candidate, adversarial
+hardcoded-registry candidate, and `pnpm kota eval list`. A repair pass on
+2026-07-08 strengthened the scorer with sibling holdout behavior checks and a
+source guard against concrete full signal-path literals in
+`src/channel-registry.mjs`.
+
+The required live eval was attempted from
+`.kota/runs/2026-07-07T23-10-50-487Z-builder-69060k/eval-run-builder-cross-hierarchy-debugging.txt`.
+It failed before the nested builder agent step because this sandbox cannot
+bind localhost ports (`listen EPERM: operation not permitted 127.0.0.1:30000`),
+and builder runtime-resource preflight therefore failed on leased port ranges.
+No nested builder-produced `debug-trace-result.json` was produced, so this
+task remains blocked on the operator-captured live pass above rather than
+marked done.
 
 ## Source / Intent
 

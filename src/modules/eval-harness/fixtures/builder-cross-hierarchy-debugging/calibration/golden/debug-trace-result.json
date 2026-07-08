@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "failingEvidence": {
+    "command": "node --test test/signal-flow.test.mjs",
+    "exitCode": 1,
+    "outputExcerpt": "visible-line-a-pressure routed plant-alpha/line-a/press/pump-7 to queue/ambient-monitor, expected queue/safety-cutoff"
+  },
+  "symptom": {
+    "file": "src/gateway.mjs",
+    "layer": "gateway dispatch",
+    "observed": "gateway emitted queue/ambient-monitor for a pressure alarm that should have used queue/safety-cutoff"
+  },
+  "rootCause": {
+    "file": "src/channel-registry.mjs",
+    "layer": "channel registry",
+    "fix": "restore ancestor prefix lookup for hierarchical signal paths before falling back to the site rule"
+  },
+  "causalPath": [
+    "src/gateway.mjs: dispatchAlert exposed the wrong downstream queue topic",
+    "src/signal-flow.mjs: buildSignalFlow delegated channel selection to the registry",
+    "src/channel-registry.mjs: resolveChannel skipped ancestor prefixes and fell back to plant-alpha"
+  ],
+  "verification": {
+    "command": "node --test test/signal-flow.test.mjs",
+    "exitCode": 0,
+    "status": "passed",
+    "behaviorDigest": "f89e949aceee22a974a0e0553418e3b9650cd77c85fcface0198d27805c78f66",
+    "cases": [
+      "visible-line-a-pressure",
+      "hidden-line-b-pressure",
+      "adjacent-temperature-route",
+      "holdout-line-a-pressure-sibling",
+      "holdout-line-b-pressure-sibling",
+      "holdout-temperature-sibling"
+    ]
+  },
+  "metrics": {
+    "causalPathCoverage": 3,
+    "regressionCasesPassed": 6
+  }
+}

@@ -1,0 +1,51 @@
+# Local calibration for builder-cross-hierarchy-debugging
+workingDir=/private/tmp/kota-cross-hierarchy-cal.1r098L
+$ cp -R initial/. <tmp>; git init; git commit initial
+$ node scripts/check-debug-trace.mjs --baseline-fails
+{
+  "status": "ok",
+  "command": "node --test test/signal-flow.test.mjs",
+  "failureNeedles": [
+    "visible-line-a-pressure",
+    "hidden-line-b-pressure",
+    "adjacent-temperature-route",
+    "queue/ambient-monitor",
+    "queue/safety-cutoff"
+  ]
+}
+$ node scripts/check-debug-trace.mjs --self-test-shortcuts
+{
+  "status": "passed",
+  "shortcutGuards": [
+    "symptom-as-root-cause",
+    "missing-flow-layer",
+    "fake-verification-digest",
+    "symptom-only-changed-path",
+    "exact-path-behavior",
+    "concrete-signal-path-source"
+  ]
+}
+$ cp calibration/golden/* into workspace; node scripts/check-debug-trace.mjs
+{
+  "status": "ok",
+  "command": "node --test test/signal-flow.test.mjs",
+  "artifact": "debug-trace-result.json",
+  "behaviorDigest": "f89e949aceee22a974a0e0553418e3b9650cd77c85fcface0198d27805c78f66",
+  "cases": 6,
+  "causalPathCoverage": 3
+}
+$ cp adversarial exact-path channel-registry/artifact into workspace; node scripts/check-debug-trace.mjs (expected fail)
+post-fix behavior invalid:
+- holdout-line-a-pressure-sibling topic was "queue/ambient-monitor", expected "queue/safety-cutoff"
+- holdout-line-a-pressure-sibling severity was "info", expected "critical"
+- holdout-line-a-pressure-sibling ruleKey was "plant-alpha", expected "plant-alpha/line-a/press"
+- holdout-line-a-pressure-sibling owner was "site-ops", expected "pressure-safety"
+- holdout-line-b-pressure-sibling topic was "queue/ambient-monitor", expected "queue/safety-cutoff"
+- holdout-line-b-pressure-sibling severity was "info", expected "critical"
+- holdout-line-b-pressure-sibling ruleKey was "plant-alpha", expected "plant-alpha/line-b/press"
+- holdout-line-b-pressure-sibling owner was "site-ops", expected "pressure-safety"
+- holdout-temperature-sibling topic was "queue/ambient-monitor", expected "queue/thermal-watch"
+- holdout-temperature-sibling severity was "info", expected "warning"
+- holdout-temperature-sibling ruleKey was "plant-alpha", expected "plant-alpha/line-a/temp"
+- holdout-temperature-sibling owner was "site-ops", expected "thermal-ops"
+adversarial shortcut failed as expected

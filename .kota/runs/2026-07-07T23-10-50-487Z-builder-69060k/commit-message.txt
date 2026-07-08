@@ -1,0 +1,8 @@
+Add cross-hierarchy debugging eval fixture
+
+Seed the live-builder signal-routing fixture with calibration evidence and
+make its debug-trace verifier reject symptom-layer and exact-path hardcoded
+registry shortcuts. Split the verifier into small dependency-free helper
+modules so the source-size repair gate stays below the severe threshold, and
+leave the owning task blocked for operator capture of the live nested builder
+eval in an environment that can pass runtime-resource preflight.
