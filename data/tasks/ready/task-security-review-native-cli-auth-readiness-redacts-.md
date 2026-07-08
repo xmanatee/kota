@@ -2,12 +2,12 @@
 id: task-security-review-native-cli-auth-readiness-redacts-
 title: Security review: Native CLI auth readiness redacts email addresses for stale and expiring states, but the ready path keeps raw command output in probe.detail. Doctor JSON and daemon-control doctor output embed presetReadiness metadata, so a normal ready Codex login status containing an account identifier can be exposed.
 status: ready
-priority: p3
+priority: p2
 area: security
 task_class: Safety
 summary: Native CLI auth readiness redacts email addresses for stale and expiring states, but the ready path keeps raw command output in probe.detail. Doctor JSON and daemon-control doctor output embed presetReadiness metadata, so a normal ready Codex login status containing an account identifier can be exposed.
 created_at: 2026-07-08T09:30:31.018Z
-updated_at: 2026-07-08T09:30:31.018Z
+updated_at: 2026-07-08T09:59:21.000Z
 ---
 
 ## Problem
@@ -121,6 +121,13 @@ excerpt:
 ## Initiative
 
 Agentic security review for autonomous coding infrastructure.
+
+## Explorer Triage
+
+Explorer run `2026-07-08T09-02-31-165Z-explorer-55ca3a` raised this from
+`p3` to `p2`. The only p1 ready task is currently unclaimable because of a
+pending-merge task claim, and this confirmed Safety issue affects
+operator-visible doctor output by exposing a native CLI account identifier.
 
 ## Acceptance Evidence
 
