@@ -1,13 +1,13 @@
 ---
 id: task-security-review-queued-mcp-approvals-only-pin-the-
 title: Security review: Queued MCP approvals only pin the prompt-time tool declaration fingerprint, not the MCP server transport identity. If the server command, args, or URL changes while exposing the same tool declaration, an operator approval can execute a different server than the one implied when the approval was queued.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Queued MCP approvals only pin the prompt-time tool declaration fingerprint, not the MCP server transport identity. If the server command, args, or URL changes while exposing the same tool declaration, an operator approval can execute a different server than the one implied when the approval was queued.
 created_at: 2026-07-08T09:30:31.001Z
-updated_at: 2026-07-08T09:30:31.001Z
+updated_at: 2026-07-08T09:44:43.916Z
 ---
 
 ## Problem
@@ -139,3 +139,11 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Completion Evidence
+
+- `pnpm test src/core/daemon/approval-queue-mcp.test.ts src/core/tools/tool-runner-mcp-approval.test.ts src/modules/approval-queue/routes-mcp-execution.test.ts src/modules/approval-queue/routes-approve-all-race.test.ts`
+- `pnpm test src/core/mcp/manager-declaration-fingerprint.test.ts src/core/mcp/manager-declaration-task-fingerprint.test.ts src/core/tools/tool-runner-mcp-declaration-contract.test.ts`
+- `pnpm typecheck`
+- `pnpm lint`
+- `pnpm validate-tasks`

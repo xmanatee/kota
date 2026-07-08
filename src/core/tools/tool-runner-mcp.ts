@@ -8,16 +8,21 @@ const MCP_DECLARATION_CHANGED_REASON = "mcp_declaration_changed_since_prompt";
 
 export function mcpPromptDeclarationForApproval(
 	toolName: string,
+	mcpManager: McpManager | undefined,
 	promptFingerprints: McpPromptToolDeclarationFingerprints | undefined,
 ): ApprovalMcpPromptDeclaration | undefined {
 	const promptDeclarationFingerprint = promptFingerprints?.get(toolName);
 	if (promptDeclarationFingerprint === undefined) return undefined;
+	const serverTransportIdentityFingerprint =
+		mcpManager?.getToolServerTransportIdentityFingerprint(toolName);
+	if (serverTransportIdentityFingerprint === undefined) return undefined;
 	const parsed = parseToolName(toolName);
 	if (!parsed) return undefined;
 	return {
 		server: parsed.server,
 		tool: parsed.tool,
 		promptDeclarationFingerprint,
+		serverTransportIdentityFingerprint,
 	};
 }
 

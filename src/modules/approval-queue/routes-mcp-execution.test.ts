@@ -89,7 +89,12 @@ function mcpServerScript(toolDescription: string, toolResult: string): string {
 	`;
 }
 
-function writeMcpConfig(projectDir: string, toolDescription: string, toolResult = "remote executed"): void {
+function writeMcpConfig(
+	projectDir: string,
+	toolDescription: string,
+	toolResult = "remote executed",
+	serverOverrides: Record<string, unknown> = {},
+): void {
 	mkdirSync(join(projectDir, ".kota"), { recursive: true });
 	writeFileSync(
 		join(projectDir, ".kota", "mcp.json"),
@@ -98,6 +103,7 @@ function writeMcpConfig(projectDir: string, toolDescription: string, toolResult 
 				remote: {
 					command: "node",
 					args: ["-e", mcpServerScript(toolDescription, toolResult)],
+					...serverOverrides,
 				},
 			},
 		}, null, 2),
@@ -106,15 +112,23 @@ function writeMcpConfig(projectDir: string, toolDescription: string, toolResult 
 
 const MCP_OPERATION_TOOL_NAMES = MCP_MANAGED_OPERATION_TOOL_PREFIXES.map((prefix) => `${prefix}remote__list`);
 
-async function currentMcpFingerprint(projectDir: string): Promise<string> {
+type McpPromptSnapshot = {
+	declarationFingerprint: string;
+	serverTransportIdentityFingerprint: string;
+};
+
+async function currentMcpPromptSnapshot(projectDir: string): Promise<McpPromptSnapshot> {
 	const config = McpManager.loadConfig(projectDir);
 	if (!config) throw new Error("expected MCP test config");
 	const manager = new McpManager({ projectDir });
 	try {
 		await manager.initialize(config);
-		const fingerprint = manager.getToolDeclarationFingerprint("mcp__remote__lookup");
-		if (!fingerprint) throw new Error("expected MCP declaration fingerprint");
-		return fingerprint;
+		const declarationFingerprint = manager.getToolDeclarationFingerprint("mcp__remote__lookup");
+		const serverTransportIdentityFingerprint =
+			manager.getToolServerTransportIdentityFingerprint("mcp__remote__lookup");
+		if (!declarationFingerprint) throw new Error("expected MCP declaration fingerprint");
+		if (!serverTransportIdentityFingerprint) throw new Error("expected MCP server transport identity fingerprint");
+		return { declarationFingerprint, serverTransportIdentityFingerprint };
 	} finally {
 		await manager.close();
 	}
@@ -178,8 +192,9 @@ describe("approval route MCP execution", () => {
 		const projectDir = mkdtempSync(join(tmpdir(), "kota-approval-mcp-stale-"));
 		try {
 			writeMcpConfig(projectDir, "Current lookup declaration");
-			const currentFingerprint = await currentMcpFingerprint(projectDir);
+			const currentSnapshot = await currentMcpPromptSnapshot(projectDir);
 			const promptFingerprint = "a".repeat(64);
+			const serverTransportIdentityFingerprint = "b".repeat(64);
 			const item = queue.enqueue(
 				"mcp__remote__lookup",
 				{ query: "deploy" },
@@ -190,7 +205,12 @@ describe("approval route MCP execution", () => {
 				undefined,
 				undefined,
 				undefined,
-				{ server: "remote", tool: "lookup", promptDeclarationFingerprint: promptFingerprint },
+				{
+					server: "remote",
+					tool: "lookup",
+					promptDeclarationFingerprint: promptFingerprint,
+					serverTransportIdentityFingerprint,
+				},
 			);
 			const { res, result } = mockResponse();
 
@@ -204,7 +224,117 @@ describe("approval route MCP execution", () => {
 				mcp: {
 					tool: "mcp__remote__lookup",
 					promptDeclarationFingerprintPrefix: promptFingerprint.slice(0, 12),
-					currentDeclarationFingerprintPrefix: currentFingerprint.slice(0, 12),
+					currentDeclarationFingerprintPrefix: currentSnapshot.declarationFingerprint.slice(0, 12),
+					promptServerTransportIdentityFingerprintPrefix:
+						serverTransportIdentityFingerprint.slice(0, 12),
+				},
+			});
+			expect(queue.get(item.id)?.status).toBe("pending");
+			expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
+		} finally {
+			rmSync(projectDir, { recursive: true, force: true });
+		}
+	});
+
+	it("rejects an MCP approval when the server transport identity changed under the same tool declaration", async () => {
+		const projectDir = mkdtempSync(join(tmpdir(), "kota-approval-mcp-transport-"));
+		try {
+			const toolDescription = "Stable lookup declaration";
+			writeMcpConfig(projectDir, toolDescription, "old remote");
+			const promptSnapshot = await currentMcpPromptSnapshot(projectDir);
+			writeMcpConfig(projectDir, toolDescription, "new remote");
+			const currentSnapshot = await currentMcpPromptSnapshot(projectDir);
+			expect(currentSnapshot.declarationFingerprint).toBe(promptSnapshot.declarationFingerprint);
+			expect(currentSnapshot.serverTransportIdentityFingerprint).not.toBe(
+				promptSnapshot.serverTransportIdentityFingerprint,
+			);
+			const item = queue.enqueue(
+				"mcp__remote__lookup",
+				{ query: "deploy" },
+				"moderate",
+				"remote lookup",
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				{
+					server: "remote",
+					tool: "lookup",
+					promptDeclarationFingerprint: promptSnapshot.declarationFingerprint,
+					serverTransportIdentityFingerprint:
+						promptSnapshot.serverTransportIdentityFingerprint,
+				},
+			);
+			const { res, result } = mockResponse();
+
+			await withCwd(projectDir, () =>
+				handleApproveApproval(mockRequest(), res, item.id, null, queue)
+			);
+
+			expect(result.status).toBe(409);
+			expect(result.body).toMatchObject({
+				reason: "mcp_server_transport_changed_since_prompt",
+				mcp: {
+					tool: "mcp__remote__lookup",
+					promptDeclarationFingerprintPrefix:
+						promptSnapshot.declarationFingerprint.slice(0, 12),
+					currentDeclarationFingerprintPrefix:
+						currentSnapshot.declarationFingerprint.slice(0, 12),
+					promptServerTransportIdentityFingerprintPrefix:
+						promptSnapshot.serverTransportIdentityFingerprint.slice(0, 12),
+					currentServerTransportIdentityFingerprintPrefix:
+						currentSnapshot.serverTransportIdentityFingerprint.slice(0, 12),
+				},
+			});
+			expect(queue.get(item.id)?.status).toBe("pending");
+			expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
+		} finally {
+			rmSync(projectDir, { recursive: true, force: true });
+		}
+	});
+
+	it("rejects an MCP approval when redacted transport metadata cannot safely pin env values", async () => {
+		const projectDir = mkdtempSync(join(tmpdir(), "kota-approval-mcp-ambiguous-"));
+		try {
+			writeMcpConfig(projectDir, "Env lookup declaration", "remote executed", {
+				env: { KOTA_MCP_TOKEN: "one" },
+			});
+			const promptSnapshot = await currentMcpPromptSnapshot(projectDir);
+			const item = queue.enqueue(
+				"mcp__remote__lookup",
+				{ query: "deploy" },
+				"moderate",
+				"remote lookup",
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				{
+					server: "remote",
+					tool: "lookup",
+					promptDeclarationFingerprint: promptSnapshot.declarationFingerprint,
+					serverTransportIdentityFingerprint:
+						promptSnapshot.serverTransportIdentityFingerprint,
+				},
+			);
+			const { res, result } = mockResponse();
+
+			await withCwd(projectDir, () =>
+				handleApproveApproval(mockRequest(), res, item.id, null, queue)
+			);
+
+			expect(result.status).toBe(409);
+			expect(result.body).toMatchObject({
+				reason: "mcp_server_transport_identity_ambiguous",
+				mcp: {
+					tool: "mcp__remote__lookup",
+					promptServerTransportIdentityFingerprintPrefix:
+						promptSnapshot.serverTransportIdentityFingerprint.slice(0, 12),
+					currentServerTransportIdentityFingerprintPrefix:
+						promptSnapshot.serverTransportIdentityFingerprint.slice(0, 12),
+					message: expect.stringContaining("stdio environment values"),
 				},
 			});
 			expect(queue.get(item.id)?.status).toBe("pending");
@@ -218,7 +348,7 @@ describe("approval route MCP execution", () => {
 		const projectDir = mkdtempSync(join(tmpdir(), "kota-approval-mcp-fresh-"));
 		try {
 			writeMcpConfig(projectDir, "Fresh lookup declaration", "remote executed");
-			const promptFingerprint = await currentMcpFingerprint(projectDir);
+			const promptSnapshot = await currentMcpPromptSnapshot(projectDir);
 			const item = queue.enqueue(
 				"mcp__remote__lookup",
 				{ query: "deploy" },
@@ -229,7 +359,13 @@ describe("approval route MCP execution", () => {
 				undefined,
 				undefined,
 				undefined,
-				{ server: "remote", tool: "lookup", promptDeclarationFingerprint: promptFingerprint },
+				{
+					server: "remote",
+					tool: "lookup",
+					promptDeclarationFingerprint: promptSnapshot.declarationFingerprint,
+					serverTransportIdentityFingerprint:
+						promptSnapshot.serverTransportIdentityFingerprint,
+				},
 			);
 			const { res, result } = mockResponse();
 

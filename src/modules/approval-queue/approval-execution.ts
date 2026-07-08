@@ -20,7 +20,9 @@ type McpApprovalFailureReason =
 	| "mcp_approval_missing_declaration"
 	| "mcp_approval_source_mismatch"
 	| "mcp_approval_manager_unavailable"
-	| "mcp_declaration_changed_since_prompt";
+	| "mcp_declaration_changed_since_prompt"
+	| "mcp_server_transport_changed_since_prompt"
+	| "mcp_server_transport_identity_ambiguous";
 
 type McpApprovalFailureBody = {
 	error: string;
@@ -32,6 +34,8 @@ type McpApprovalFailureBody = {
 		remoteTool?: string;
 		promptDeclarationFingerprintPrefix?: string;
 		currentDeclarationFingerprintPrefix?: string | null;
+		promptServerTransportIdentityFingerprintPrefix?: string;
+		currentServerTransportIdentityFingerprintPrefix?: string | null;
 		message?: string;
 	};
 };
@@ -45,6 +49,13 @@ export type ApprovalExecutionPreflightBatch =
 	| { ok: false; status: 409; body: McpApprovalFailureBody };
 
 const MCP_DECLARATION_CHANGED_REASON = "mcp_declaration_changed_since_prompt";
+const MCP_SERVER_TRANSPORT_CHANGED_REASON = "mcp_server_transport_changed_since_prompt";
+const MCP_SERVER_TRANSPORT_IDENTITY_AMBIGUOUS_REASON =
+	"mcp_server_transport_identity_ambiguous";
+
+function fingerprintPrefix(fingerprint: string): string {
+	return fingerprint.slice(0, 12);
+}
 
 function approvalExecutionContext(
 	base: ToolRunnerContext | undefined,
@@ -88,7 +99,11 @@ async function prepareMcpApprovalExecution(
 
 	const parsed = parseToolName(item.tool);
 	const declaration = item.mcpPromptDeclaration;
-	if (!parsed || !declaration) {
+	if (
+		!parsed ||
+		!declaration ||
+		typeof declaration.serverTransportIdentityFingerprint !== "string"
+	) {
 		return {
 			ok: false,
 			status: 409,
@@ -107,7 +122,9 @@ async function prepareMcpApprovalExecution(
 				server: declaration.server,
 				remoteTool: declaration.tool,
 				promptDeclarationFingerprintPrefix:
-					declaration.promptDeclarationFingerprint.slice(0, 12),
+					fingerprintPrefix(declaration.promptDeclarationFingerprint),
+				promptServerTransportIdentityFingerprintPrefix:
+					fingerprintPrefix(declaration.serverTransportIdentityFingerprint),
 			}),
 		};
 	}
@@ -123,7 +140,9 @@ async function prepareMcpApprovalExecution(
 				server: declaration.server,
 				remoteTool: declaration.tool,
 				promptDeclarationFingerprintPrefix:
-					declaration.promptDeclarationFingerprint.slice(0, 12),
+					fingerprintPrefix(declaration.promptDeclarationFingerprint),
+				promptServerTransportIdentityFingerprintPrefix:
+					fingerprintPrefix(declaration.serverTransportIdentityFingerprint),
 				message: "No current MCP configuration is available for this approval scope.",
 			}),
 		};
@@ -142,7 +161,9 @@ async function prepareMcpApprovalExecution(
 				server: declaration.server,
 				remoteTool: declaration.tool,
 				promptDeclarationFingerprintPrefix:
-					declaration.promptDeclarationFingerprint.slice(0, 12),
+					fingerprintPrefix(declaration.promptDeclarationFingerprint),
+				promptServerTransportIdentityFingerprintPrefix:
+					fingerprintPrefix(declaration.serverTransportIdentityFingerprint),
 				message: redactSensitiveText(err instanceof Error ? err.message : String(err)),
 			}),
 		};
@@ -159,9 +180,59 @@ async function prepareMcpApprovalExecution(
 				server: declaration.server,
 				remoteTool: declaration.tool,
 				promptDeclarationFingerprintPrefix:
-					declaration.promptDeclarationFingerprint.slice(0, 12),
+					fingerprintPrefix(declaration.promptDeclarationFingerprint),
 				currentDeclarationFingerprintPrefix:
-					currentFingerprint?.slice(0, 12) ?? null,
+					currentFingerprint === undefined ? null : fingerprintPrefix(currentFingerprint),
+				promptServerTransportIdentityFingerprintPrefix:
+					fingerprintPrefix(declaration.serverTransportIdentityFingerprint),
+			}),
+		};
+	}
+
+	const currentTransportIdentity = mcpManager.getToolServerTransportIdentity(item.tool);
+	if (
+		!currentTransportIdentity ||
+		currentTransportIdentity.fingerprint !== declaration.serverTransportIdentityFingerprint
+	) {
+		await mcpManager.close().catch(() => {});
+		return {
+			ok: false,
+			status: 409,
+			body: mcpFailureBody(MCP_SERVER_TRANSPORT_CHANGED_REASON, item, {
+				tool: item.tool,
+				server: declaration.server,
+				remoteTool: declaration.tool,
+				promptDeclarationFingerprintPrefix:
+					fingerprintPrefix(declaration.promptDeclarationFingerprint),
+				currentDeclarationFingerprintPrefix:
+					currentFingerprint === undefined ? null : fingerprintPrefix(currentFingerprint),
+				promptServerTransportIdentityFingerprintPrefix:
+					fingerprintPrefix(declaration.serverTransportIdentityFingerprint),
+				currentServerTransportIdentityFingerprintPrefix:
+					currentTransportIdentity === undefined
+						? null
+						: fingerprintPrefix(currentTransportIdentity.fingerprint),
+			}),
+		};
+	}
+	if (currentTransportIdentity.match.kind === "ambiguous") {
+		await mcpManager.close().catch(() => {});
+		return {
+			ok: false,
+			status: 409,
+			body: mcpFailureBody(MCP_SERVER_TRANSPORT_IDENTITY_AMBIGUOUS_REASON, item, {
+				tool: item.tool,
+				server: declaration.server,
+				remoteTool: declaration.tool,
+				promptDeclarationFingerprintPrefix:
+					fingerprintPrefix(declaration.promptDeclarationFingerprint),
+				currentDeclarationFingerprintPrefix:
+					currentFingerprint === undefined ? null : fingerprintPrefix(currentFingerprint),
+				promptServerTransportIdentityFingerprintPrefix:
+					fingerprintPrefix(declaration.serverTransportIdentityFingerprint),
+				currentServerTransportIdentityFingerprintPrefix:
+					fingerprintPrefix(currentTransportIdentity.fingerprint),
+				message: currentTransportIdentity.match.reason,
 			}),
 		};
 	}

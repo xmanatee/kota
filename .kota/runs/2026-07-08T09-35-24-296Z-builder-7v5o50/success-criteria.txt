@@ -1,0 +1,3 @@
+1. MCP approval declarations persist a prompt-time server transport identity fingerprint alongside the prompt declaration fingerprint.
+2. Approval execution rejects a queued MCP approval when the current server transport identity fingerprint differs from the stored prompt-time identity, even if the tool declaration fingerprint is unchanged.
+3. Focused regression coverage proves the stored metadata and execution-time rejection boundary.

@@ -54,6 +54,7 @@ describe("tool runner MCP approval metadata", () => {
 	it("persists prompt-visible MCP declaration metadata when supervised mode queues an MCP tool", async () => {
 		const mockEnqueue = vi.fn(() => ({ id: "q-mcp-supervised" }));
 		const promptFingerprint = "a".repeat(64);
+		const serverTransportIdentityFingerprint = "b".repeat(64);
 		mockGetApprovalQueue.mockReturnValue({ enqueue: mockEnqueue } as never);
 		mockAssess.mockReturnValue({
 			tool: "mcp__remote__deploy",
@@ -71,6 +72,7 @@ describe("tool runner MCP approval metadata", () => {
 					isMcpTool: vi.fn(() => true),
 					isToolReadOnly: vi.fn(() => false),
 					getToolDeclarationFingerprint: vi.fn(() => promptFingerprint),
+					getToolServerTransportIdentityFingerprint: vi.fn(() => serverTransportIdentityFingerprint),
 				} as never,
 				mcpPromptToolDeclarationFingerprints: new Map([
 					["mcp__remote__deploy", promptFingerprint],
@@ -93,6 +95,7 @@ describe("tool runner MCP approval metadata", () => {
 				server: "remote",
 				tool: "deploy",
 				promptDeclarationFingerprint: promptFingerprint,
+				serverTransportIdentityFingerprint,
 			},
 		);
 		expect(mockExecuteTool).not.toHaveBeenCalled();

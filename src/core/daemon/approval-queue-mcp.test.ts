@@ -19,6 +19,7 @@ describe("ApprovalQueue MCP metadata", () => {
 
 	it("stores MCP prompt declaration metadata on enqueued items", () => {
 		const fingerprint = "a".repeat(64);
+		const serverTransportIdentityFingerprint = "b".repeat(64);
 		const item = queue.enqueue(
 			"mcp__remote__lookup",
 			{ query: "status" },
@@ -33,6 +34,7 @@ describe("ApprovalQueue MCP metadata", () => {
 				server: "remote",
 				tool: "lookup",
 				promptDeclarationFingerprint: fingerprint,
+				serverTransportIdentityFingerprint,
 			},
 		);
 
@@ -40,6 +42,7 @@ describe("ApprovalQueue MCP metadata", () => {
 			server: "remote",
 			tool: "lookup",
 			promptDeclarationFingerprint: fingerprint,
+			serverTransportIdentityFingerprint,
 		});
 		expect(queue.get(item.id)?.mcpPromptDeclaration).toEqual(item.mcpPromptDeclaration);
 	});

@@ -149,6 +149,7 @@ export async function executeToolBlock(
 				sessionId,
 				timeoutMs: guardrailsConfig?.approvalTimeoutMs,
 				context: approvalContext,
+				mcpManager,
 				promptFingerprints: mcpPromptToolDeclarationFingerprints,
 			});
 			return errorEntry(
@@ -181,6 +182,7 @@ export async function executeToolBlock(
 				sessionId,
 				timeoutMs: guardrailsConfig?.approvalTimeoutMs,
 				context: approvalContext,
+				mcpManager,
 				promptFingerprints: mcpPromptToolDeclarationFingerprints,
 			});
 			return errorEntry(

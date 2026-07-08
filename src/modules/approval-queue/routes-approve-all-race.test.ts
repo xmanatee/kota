@@ -55,37 +55,6 @@ function mockRequest(body: Record<string, unknown> = {}): IncomingMessage {
 	return req as unknown as IncomingMessage;
 }
 
-function mcpServerScript(toolDescription: string, toolResult: string): string {
-	return `
-		const readline = require("readline");
-		const rl = readline.createInterface({ input: process.stdin });
-		const write = (message) => process.stdout.write(JSON.stringify(message) + "\\n");
-		rl.on("line", (line) => {
-			let msg;
-			try { msg = JSON.parse(line); } catch { return; }
-			if (msg.method === "initialize") {
-				write({ jsonrpc: "2.0", id: msg.id, result: {
-					protocolVersion: "2024-11-05",
-					capabilities: { tools: {} },
-					serverInfo: { name: "approval-route-race-test" }
-				}});
-			} else if (msg.method === "tools/list") {
-				write({ jsonrpc: "2.0", id: msg.id, result: {
-					tools: [{ name: "lookup", description: ${JSON.stringify(toolDescription)}, inputSchema: { type: "object" } }]
-				}});
-			} else if (msg.method === "tools/call" && msg.params.name === "lookup") {
-				write({ jsonrpc: "2.0", id: msg.id, result: {
-					content: [{ type: "text", text: ${JSON.stringify(toolResult)} }]
-				}});
-			} else if (msg.method === "shutdown") {
-				write({ jsonrpc: "2.0", id: msg.id, result: {} });
-			} else if (msg.method === "exit") {
-				process.exit(0);
-			}
-		});
-	`;
-}
-
 function gatedInitializeMcpServerScript(
 	toolDescription: string,
 	toolResult: string,
@@ -146,15 +115,23 @@ function writeMcpConfig(projectDir: string, script: string): void {
 	);
 }
 
-async function currentMcpFingerprint(projectDir: string): Promise<string> {
+type McpPromptSnapshot = {
+	declarationFingerprint: string;
+	serverTransportIdentityFingerprint: string;
+};
+
+async function currentMcpPromptSnapshot(projectDir: string): Promise<McpPromptSnapshot> {
 	const config = McpManager.loadConfig(projectDir);
 	if (!config) throw new Error("expected MCP test config");
 	const manager = new McpManager({ projectDir });
 	try {
 		await manager.initialize(config);
-		const fingerprint = manager.getToolDeclarationFingerprint("mcp__remote__lookup");
-		if (!fingerprint) throw new Error("expected MCP declaration fingerprint");
-		return fingerprint;
+		const declarationFingerprint = manager.getToolDeclarationFingerprint("mcp__remote__lookup");
+		const serverTransportIdentityFingerprint =
+			manager.getToolServerTransportIdentityFingerprint("mcp__remote__lookup");
+		if (!declarationFingerprint) throw new Error("expected MCP declaration fingerprint");
+		if (!serverTransportIdentityFingerprint) throw new Error("expected MCP server transport identity fingerprint");
+		return { declarationFingerprint, serverTransportIdentityFingerprint };
 	} finally {
 		await manager.close();
 	}
@@ -195,19 +172,19 @@ describe("approval approve-all preflight race", () => {
 		const projectDir = mkdtempSync(join(tmpdir(), "kota-approval-mcp-race-"));
 		try {
 			const toolDescription = "Approve-all race lookup declaration";
-			writeMcpConfig(projectDir, mcpServerScript(toolDescription, "remote executed"));
-			const promptFingerprint = await currentMcpFingerprint(projectDir);
 			const markerPath = join(projectDir, "preflight-started.txt");
 			const releasePath = join(projectDir, "release-preflight.txt");
-			writeMcpConfig(
-				projectDir,
-				gatedInitializeMcpServerScript(
-					toolDescription,
-					"remote executed",
-					markerPath,
-					releasePath,
-				),
+			const gatedScript = gatedInitializeMcpServerScript(
+				toolDescription,
+				"remote executed",
+				markerPath,
+				releasePath,
 			);
+			writeMcpConfig(projectDir, gatedScript);
+			writeFileSync(releasePath, "prompt");
+			const promptSnapshot = await currentMcpPromptSnapshot(projectDir);
+			rmSync(releasePath, { force: true });
+			rmSync(markerPath, { force: true });
 			const preflighted = queue.enqueue(
 				"mcp__remote__lookup",
 				{ query: "deploy" },
@@ -218,7 +195,13 @@ describe("approval approve-all preflight race", () => {
 				undefined,
 				undefined,
 				undefined,
-				{ server: "remote", tool: "lookup", promptDeclarationFingerprint: promptFingerprint },
+				{
+					server: "remote",
+					tool: "lookup",
+					promptDeclarationFingerprint: promptSnapshot.declarationFingerprint,
+					serverTransportIdentityFingerprint:
+						promptSnapshot.serverTransportIdentityFingerprint,
+				},
 			);
 			const { res, result } = mockResponse();
 

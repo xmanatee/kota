@@ -21,6 +21,7 @@ export type ApprovalMcpPromptDeclaration = {
 	server: string;
 	tool: string;
 	promptDeclarationFingerprint: string;
+	serverTransportIdentityFingerprint: string;
 };
 
 export type PendingApproval = {

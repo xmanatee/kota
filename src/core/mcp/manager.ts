@@ -689,6 +689,18 @@ export class McpManager {
     return this.toolMap.get(name)?.declaration.fingerprint;
   }
 
+  getToolServerTransportIdentity(name: string): RemoteMcpServerIdentity | undefined {
+    const serverName = this.toolMap.get(name)?.serverConfigName ??
+      this.operationMap.get(name)?.serverName;
+    return serverName === undefined
+      ? undefined
+      : this.remoteTaskServerIdentities.get(serverName);
+  }
+
+  getToolServerTransportIdentityFingerprint(name: string): string | undefined {
+    return this.getToolServerTransportIdentity(name)?.fingerprint;
+  }
+
   getToolDeclarationDriftDiagnostics(): readonly McpToolDeclarationDriftDiagnostic[] {
     return this.toolDeclarationDriftDiagnostics.map((diagnostic) => ({
       ...diagnostic,
