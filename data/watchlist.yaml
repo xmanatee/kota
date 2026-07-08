@@ -69,21 +69,21 @@ resources:
   - url: https://github.com/anthropics/claude-code
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:f8cea6de96d1994e4b7811738437918e
-      summary: "Claude Code v2.1.197 introduces Claude Sonnet 5 as the default model; KOTA keeps model selection preset-owned and existing cross-preset/model-parity tasks cover the nonduplicative local risk, so no new task was opened."
-      last_seen_at: "2026-07-01T14:22:37.688Z"
+      fingerprint: sha256:8cada414624dd3b31638b86dafc1a91a
+      summary: "Claude Code releases now highlight login-expiry, stale-session recovery, and headless hook streaming reliability; this run opened task-warn-before-native-cli-harness-auth-expires-during for KOTA's local native-CLI readiness warning gap."
+      last_seen_at: "2026-07-08T06:19:08.180Z"
   - url: https://github.com/openai/codex
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:733aceb078164aae54e5cfe8829f3483
-      summary: "Codex 0.142.5 adds a trace-log provider-payload leak fix; this run opened task-guard-tracing-exports-against-provider-request-pay for KOTA's matching provider-payload observability canary."
-      last_seen_at: "2026-07-01T14:22:37.687Z"
+      fingerprint: sha256:c95e281c2eab290756ff86de7faf6e7a
+      summary: "Codex releases advanced alpha prereleases after stable 0.142.5; the stable trace-payload fix is already covered by an existing KOTA provider-payload canary, so no duplicate task was opened."
+      last_seen_at: "2026-07-08T06:19:08.181Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:29ec461b6e895e27924957e0d910c66a
-      summary: "Gemini CLI v0.49.0 adds eval inventory/source-analysis and safety fixes; existing KOTA source-to-decision and trace-to-eval backlog tasks cover the local eval-inventory signal, so no duplicate task was opened."
-      last_seen_at: "2026-07-01T14:22:37.688Z"
+      fingerprint: sha256:57d14bb10e9afac7279224f1d3c3ec31
+      summary: "Gemini CLI nightly adds sandbox/gitconfig and string-literal hardening; KOTA's existing protected Git bare-repo work covers adjacent subprocess safety, so no duplicate task was opened from this snapshot."
+      last_seen_at: "2026-07-08T06:19:08.180Z"
   - url: https://agentclientprotocol.com/get-started/architecture
     added: "2026-05-27"
     notes: "Official Agent Client Protocol docs. Monitor architecture, schema, transport, registry, stdio/Streamable HTTP, MCP handoff, permission, and session-lifecycle changes as an interoperability signal for KOTA's module-owned ACP adapter task."
