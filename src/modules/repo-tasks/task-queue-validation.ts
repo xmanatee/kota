@@ -14,10 +14,14 @@ import {
 } from "./blocked-precondition.js";
 import {
   getRepoTaskStateDir,
+  getRepoTaskStateTransitionBlocker,
   hasConcreteTaskAcceptanceEvidence,
   hasProductSafetyTaskLink,
+  listFullRepoTasks,
+  listRepoTaskDependencyWaits,
   REPO_TASK_STATES,
   REPO_TASKS_DIR,
+  type RepoTaskFullRecord,
   type RepoTaskState,
   TASK_INITIATIVE_PLACEHOLDER,
   TASK_SOURCE_INTENT_PLACEHOLDER,
@@ -64,7 +68,11 @@ export type TaskQueueReadyCoverageEvidence = {
   status: TaskQueueReadyCoverageStatus;
 };
 
-export type TaskQueueValidationOptions = {
+export type StrategicReadyCoverageOptions = {
+  excludedTaskIds?: readonly string[];
+};
+
+export type TaskQueueValidationOptions = StrategicReadyCoverageOptions & {
   minReady?: number;
   recommendedMinReady?: number;
   recommendedMinBacklog?: number;
@@ -451,25 +459,99 @@ export function hasArchitectureReadyCoverageGap(projectDir: string): boolean {
   return remainingArchitectureDebt.length > 0 && !hasStrategicReadyArchitectureTask(projectDir);
 }
 
-export function hasStrategicReadyCoverageGap(projectDir: string): boolean {
-  const entries = listTaskEntries(projectDir);
-  const readyEntries = entries.filter((entry) => entry.state === "ready");
+const STRATEGIC_READY_COVERAGE_STATES: RepoTaskState[] = ["ready", "backlog", "doing"];
+
+function strategicCoverageExcludedTaskIds(
+  options: StrategicReadyCoverageOptions,
+): ReadonlySet<string> {
+  return new Set(options.excludedTaskIds ?? []);
+}
+
+function isBacklogStrategicCoverageCandidate(
+  projectDir: string,
+  task: RepoTaskFullRecord,
+): boolean {
+  if (task.state !== "backlog") return true;
+  if (task.anchor) return false;
+  return getRepoTaskStateTransitionBlocker(task, "ready", projectDir) === null;
+}
+
+function listStrategicReadyCoverageTasks(
+  projectDir: string,
+  options: StrategicReadyCoverageOptions = {},
+): RepoTaskFullRecord[] {
+  const excludedTaskIds = strategicCoverageExcludedTaskIds(options);
+  const dependencyBlockedTaskIds = new Set(
+    listRepoTaskDependencyWaits(projectDir, STRATEGIC_READY_COVERAGE_STATES).map(
+      (wait) => wait.id,
+    ),
+  );
+  return listFullRepoTasks(projectDir, STRATEGIC_READY_COVERAGE_STATES).filter(
+    (task) =>
+      !excludedTaskIds.has(task.id) &&
+      !dependencyBlockedTaskIds.has(task.id) &&
+      isBacklogStrategicCoverageCandidate(projectDir, task),
+  );
+}
+
+export function hasStrategicReadyCoverageGap(
+  projectDir: string,
+  options: StrategicReadyCoverageOptions = {},
+): boolean {
+  const coverageTasks = listStrategicReadyCoverageTasks(projectDir, options);
+  const readyEntries = coverageTasks.filter((entry) => entry.state === "ready");
   if (readyEntries.length === 0) {
     return false;
   }
   const hasReadyStrategicTask = readyEntries.some((entry) =>
-    isStrategicPriority(readTaskPriority(entry)),
+    isStrategicPriority(entry.priority),
   );
   if (hasReadyStrategicTask) {
     return false;
   }
-  const actionableEntries = entries.filter((entry) =>
-    entry.state === "ready" || entry.state === "backlog" || entry.state === "doing",
-  );
-  return !actionableEntries.some((entry) => isStrategicPriority(readTaskPriority(entry)));
+  return !coverageTasks.some((entry) => isStrategicPriority(entry.priority));
 }
 
-function inspectReadyCoverage(entries: TaskFileEntry[]): TaskQueueReadyCoverageEvidence {
+function inspectReadyCoverageFromTaskRecords(
+  coverageTasks: readonly RepoTaskFullRecord[],
+): TaskQueueReadyCoverageEvidence {
+  const readyEntries = coverageTasks.filter((entry) => entry.state === "ready");
+  const strategicReadyCount = readyEntries.filter((entry) =>
+    isStrategicPriority(entry.priority),
+  ).length;
+  const strategicActionableCount = coverageTasks.filter((entry) =>
+    isStrategicPriority(entry.priority),
+  ).length;
+
+  if (readyEntries.length === 0) {
+    return {
+      readyCount: 0,
+      strategicReadyCount,
+      strategicActionableCount,
+      status: "empty-ready",
+    };
+  }
+
+  if (strategicReadyCount > 0) {
+    return {
+      readyCount: readyEntries.length,
+      strategicReadyCount,
+      strategicActionableCount,
+      status: "strategic-ready",
+    };
+  }
+
+  return {
+    readyCount: readyEntries.length,
+    strategicReadyCount,
+    strategicActionableCount,
+    status: strategicActionableCount > 0 ? "non-strategic-ready" : "p3-only-ready",
+  };
+}
+
+function inspectReadyCoverageFromEntries(
+  entries: readonly TaskFileEntry[],
+): TaskQueueReadyCoverageEvidence {
   const readyEntries = entries.filter((entry) => entry.state === "ready");
   const strategicReadyCount = readyEntries.filter((entry) =>
     isStrategicPriority(readTaskPriority(entry)),
@@ -503,6 +585,22 @@ function inspectReadyCoverage(entries: TaskFileEntry[]): TaskQueueReadyCoverageE
     strategicActionableCount,
     status: strategicActionableCount > 0 ? "non-strategic-ready" : "p3-only-ready",
   };
+}
+
+function inspectReadyCoverage(
+  projectDir: string,
+  entries: readonly TaskFileEntry[],
+  options: StrategicReadyCoverageOptions,
+): TaskQueueReadyCoverageEvidence {
+  try {
+    return inspectReadyCoverageFromTaskRecords(
+      listStrategicReadyCoverageTasks(projectDir, options),
+    );
+  } catch {
+    // Malformed task files must remain structured validation findings instead
+    // of aborting the whole validation result while building summary evidence.
+    return inspectReadyCoverageFromEntries(entries);
+  }
 }
 
 export function formatTaskQueueValidationSummary(
@@ -1038,7 +1136,13 @@ export function validateTaskQueue(
   const errorCount = findings.filter((finding) => finding.severity === "error").length;
   const warningCount = findings.filter((finding) => finding.severity === "warning").length;
 
-  return { findings, counts, readyCoverage: inspectReadyCoverage(entries), errorCount, warningCount };
+  return {
+    findings,
+    counts,
+    readyCoverage: inspectReadyCoverage(projectDir, entries, options),
+    errorCount,
+    warningCount,
+  };
 }
 
 export function assertArchitectureReadyCoverage(projectDir: string): string {
@@ -1052,8 +1156,11 @@ export function assertArchitectureReadyCoverage(projectDir: string): string {
   );
 }
 
-export function assertStrategicReadyCoverage(projectDir: string): string {
-  if (!hasStrategicReadyCoverageGap(projectDir)) {
+export function assertStrategicReadyCoverage(
+  projectDir: string,
+  options: StrategicReadyCoverageOptions = {},
+): string {
+  if (!hasStrategicReadyCoverageGap(projectDir, options)) {
     return "strategic-ready-coverage-ok";
   }
   throw new Error(

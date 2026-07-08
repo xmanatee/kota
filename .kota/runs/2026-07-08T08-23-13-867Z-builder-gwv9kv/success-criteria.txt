@@ -1,0 +1,5 @@
+1. Explorer inspect-queue reports a strategic ready coverage gap when the only ordinary dispatchable ready work is p3 and a p1/p2 ready task is blocked by a non-retryable pending-merge claim.
+2. Strategic ready coverage stays satisfied when a p1/p2 ready task is ordinary claimable work or when claim inspection marks the task safe to retry.
+3. The explorer strategic-ready-coverage repair check uses the same claim-aware semantics as inspect-queue.
+4. Focused tests cover the current pending-merge shape, a safe-to-retry claim, dependency-blocked tasks, and an ordinary p2 ready task.
+5. Existing relevant claim-aware queue availability, dispatcher, builder claim, and task validation checks pass.

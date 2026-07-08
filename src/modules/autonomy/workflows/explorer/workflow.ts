@@ -22,9 +22,11 @@ import {
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
 import {
+  assertClaimAwareStrategicReadyCoverage,
+  hasClaimAwareStrategicReadyCoverageGapForQueue,
+} from "#modules/autonomy/strategic-ready-coverage.js";
+import {
   assertArchitectureReadyCoverage,
-  assertStrategicReadyCoverage,
-  hasStrategicReadyCoverageGap,
 } from "#modules/repo-tasks/task-queue-validation.js";
 import {
   checkExplorationRationale,
@@ -92,7 +94,10 @@ function buildExplorerAssessment(
     dirty,
     needsAttention: !dirty && (queueEmpty || queueThin) && explorationRefreshDue,
     explorationRefreshDue,
-    strategicReadyCoverageGap: hasStrategicReadyCoverageGap(projectDir),
+    strategicReadyCoverageGap: hasClaimAwareStrategicReadyCoverageGapForQueue(
+      projectDir,
+      queue,
+    ),
     strategicBlockedAlternatives: listStrategicBlockedAlternatives(projectDir),
   };
 }
@@ -250,7 +255,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
             id: "strategic-ready-coverage",
             type: "code" as const,
             phase: 1,
-            run: ({ projectDir }) => assertStrategicReadyCoverage(projectDir),
+            run: ({ projectDir }) => assertClaimAwareStrategicReadyCoverage(projectDir),
           },
           {
             id: "exploration-rationale",

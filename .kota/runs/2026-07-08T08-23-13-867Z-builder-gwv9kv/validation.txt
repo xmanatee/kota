@@ -1,0 +1,36 @@
+Validation run on 2026-07-08 from the task worktree.
+
+Commands:
+
+- pnpm test src/modules/repo-tasks/task-queue-validation.test.ts
+  Result: passed, 65 tests.
+
+- pnpm test src/modules/autonomy/strategic-ready-coverage.test.ts src/modules/autonomy/queue-availability.test.ts src/modules/autonomy/workflows/explorer/workflow.test.ts
+  Result: passed, 3 files, 28 tests.
+
+- pnpm test src/modules/autonomy/workflows/dispatcher/workflow-claim-aware.test.ts src/modules/autonomy/workflows/builder/workflow-claim-aware.test.ts src/modules/autonomy/workflows/builder/workflow.test.ts
+  Result: passed, 3 files, 10 tests.
+
+- pnpm test src/modules/autonomy/task-claim-recovery.test.ts src/modules/autonomy/task-claim-races.test.ts
+  Result: passed, 2 files, 7 tests.
+
+- pnpm run validate-tasks
+  Result: passed.
+
+- pnpm run typecheck
+  Result: passed.
+
+- pnpm run lint
+  Result: passed.
+
+- pnpm dev task move task-make-strategic-ready-coverage-claim-aware-for-pend done
+  Result: passed; task moved from doing to done.
+
+- pnpm run validate-tasks
+  Result: passed after the task moved to done.
+
+- node --conditions=source --import tsx -e "import { checkAutonomyChangeDecisionForRun } from './src/modules/autonomy/autonomy-change-decision.js'; console.log(checkAutonomyChangeDecisionForRun(process.cwd(), './.kota/runs/2026-07-08T08-23-13-867Z-builder-gwv9kv'));"
+  Result: passed, OK: autonomy-change-decision.json covers 1 material autonomy file(s).
+
+- node --conditions=source --import tsx -e "import { readAutonomyChangeDecisionArtifact } from './src/modules/autonomy/autonomy-change-decision.js'; const result = readAutonomyChangeDecisionArtifact('./.kota/runs/2026-07-08T08-23-13-867Z-builder-gwv9kv/autonomy-change-decision.json'); if (result.kind !== 'valid') { throw new Error(JSON.stringify(result)); } console.log('valid autonomy-change-decision artifact');"
+  Result: passed, valid autonomy-change-decision artifact.

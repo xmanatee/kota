@@ -1,13 +1,13 @@
 ---
 id: task-make-strategic-ready-coverage-claim-aware-for-pend
 title: Make strategic ready coverage claim-aware for pending-merge tasks
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Meta
 summary: Exclude active pending-merge claimed tasks from explorer and task-validation strategic ready coverage so p3-only dispatchable queues cannot be masked by unclaimable p1/p2 work.
 created_at: 2026-07-08T08:26:37.422Z
-updated_at: 2026-07-08T08:26:37.422Z
+updated_at: 2026-07-08T08:48:01.246Z
 ---
 
 ## Problem
@@ -144,3 +144,11 @@ has drifted to low-priority cleanup.
 - Focused validation or coverage tests showing `assertStrategicReadyCoverage`
   and the explorer repair-loop check use matching claim-aware semantics.
 - `pnpm run validate-tasks`.
+
+## Completion Notes
+
+- Implemented claim-aware strategic coverage through the autonomy-owned
+  adapter in `src/modules/autonomy/strategic-ready-coverage.ts` and the neutral
+  `excludedTaskIds` coverage option in repo-tasks validation.
+- Validation transcript:
+  `.kota/runs/2026-07-08T08-23-13-867Z-builder-gwv9kv/validation.txt`.

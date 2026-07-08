@@ -68,6 +68,7 @@ summary: ${overrides.summary ?? "Summary."}
 created_at: ${overrides.created_at ?? "2026-03-28T00:00:00Z"}
 updated_at: ${overrides.updated_at ?? "2026-03-28T00:00:00Z"}
 ${overrides.depends_on ? `depends_on: ${overrides.depends_on}\n` : ""}
+${overrides.anchor ? `anchor: ${overrides.anchor}\n` : ""}
 ${overrides.task_class ? `task_class: ${overrides.task_class}\n` : ""}
 ---
 
@@ -861,6 +862,33 @@ Has an outcome.
     );
   });
 
+  it("does not let dependency-blocked or anchor strategic tasks satisfy ready coverage", () => {
+    writeTask(projectDir, "ready", "task-alpha", { priority: "p3" });
+    writeTask(projectDir, "ready", "task-dependent-ready", {
+      priority: "p2",
+      depends_on: "[task-blocker]",
+    });
+    writeTask(projectDir, "backlog", "task-dependent-backlog", {
+      priority: "p2",
+      depends_on: "[task-blocker]",
+    });
+    writeTask(projectDir, "backlog", "task-anchor", {
+      priority: "p2",
+      anchor: "true",
+    });
+    writeTask(projectDir, "doing", "task-blocker", { priority: "p3" });
+    execSync("git add data && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    const result = assertTaskQueueValid(projectDir, { minReady: 1 });
+    expect(formatTaskQueueValidationSummary(result)).toContain(
+      "strategic-ready-coverage: status=p3-only-ready strategic-actionable=0",
+    );
+    expect(hasStrategicReadyCoverageGap(projectDir)).toBe(true);
+  });
+
   it("accepts a ready queue with a substantive p2 task", () => {
     writeTask(projectDir, "ready", "task-alpha", { priority: "p2" });
     writeTask(projectDir, "backlog", "task-beta", { priority: "p3" });
@@ -870,6 +898,26 @@ Has an outcome.
     });
 
     expect(hasStrategicReadyCoverageGap(projectDir)).toBe(false);
+  });
+
+  it("can ignore excluded ready task ids when checking strategic coverage", () => {
+    writeTask(projectDir, "ready", "task-alpha", { priority: "p3" });
+    writeTask(projectDir, "ready", "task-strategic", { priority: "p2" });
+    execSync("git add data && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    expect(
+      hasStrategicReadyCoverageGap(projectDir, {
+        excludedTaskIds: ["task-strategic"],
+      }),
+    ).toBe(true);
+    expect(() =>
+      assertStrategicReadyCoverage(projectDir, {
+        excludedTaskIds: ["task-strategic"],
+      }),
+    ).toThrow("data/tasks/ready must keep at least one p0/p1/p2 task");
   });
 
   it("reports an architecture-ready coverage gap while root-level project module files remain", () => {

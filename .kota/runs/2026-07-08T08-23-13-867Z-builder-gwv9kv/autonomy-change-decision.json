@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "autonomy-change-decision",
+  "runId": "2026-07-08T08-23-13-867Z-builder-gwv9kv",
+  "createdAt": "2026-07-08T08:53:41Z",
+  "taskIds": [
+    "task-make-strategic-ready-coverage-claim-aware-for-pend"
+  ],
+  "affectedSurfaces": [
+    "explorer strategic ready coverage assessment",
+    "explorer strategic-ready-coverage repair check",
+    "repo task queue validation ready-coverage evidence",
+    "autonomy task-claim filtering for queue coverage"
+  ],
+  "changeClasses": [
+    "workflow"
+  ],
+  "hypothesis": "Applying claim-aware ordinary-dispatchability filtering to strategic ready coverage will prevent a pending-merge p1 or p2 ready task from masking a p3-only dispatchable queue, while preserving visibility for claim-blocked tasks and safe-to-retry claims.",
+  "sourceRefs": [
+    "data/tasks/done/task-make-strategic-ready-coverage-claim-aware-for-pend.md",
+    ".kota/runs/2026-07-08T08-23-13-867Z-builder-gwv9kv/success-criteria.txt",
+    ".kota/runs/2026-07-08T08-23-13-867Z-builder-gwv9kv/success-criteria-verified.txt",
+    ".kota/runs/2026-07-08T08-23-13-867Z-builder-gwv9kv/validation.txt"
+  ],
+  "baselineRefs": [
+    "src/modules/autonomy/workflows/explorer/workflow.ts",
+    "src/modules/autonomy/queue-availability.ts",
+    "src/modules/repo-tasks/task-queue-validation.ts"
+  ],
+  "candidateRefs": [
+    "src/modules/autonomy/strategic-ready-coverage.ts",
+    "src/modules/autonomy/strategic-ready-coverage.test.ts",
+    "src/modules/autonomy/workflows/explorer/workflow.ts",
+    "src/modules/repo-tasks/task-queue-validation.ts",
+    "src/modules/repo-tasks/task-queue-validation.test.ts"
+  ],
+  "metricsCompared": [
+    {
+      "name": "pending-merge strategic ready coverage",
+      "baseline": "explorer computed strategicReadyCoverageGap from raw task files, so an unclaimable pending-merge p1 or p2 ready task could satisfy coverage even when ordinary dispatchable ready work was p3-only",
+      "candidate": "explorer inspect-queue and the strategic-ready-coverage repair check both exclude non-retryable claim-blocked tasks through the autonomy-owned coverage adapter",
+      "unit": "focused autonomy coverage tests",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "safe-to-retry and dependency semantics",
+      "baseline": "strategic coverage did not share task-claim retry semantics and raw ready/backlog evidence could count dependency-blocked or anchor tasks",
+      "candidate": "focused tests cover pending-merge exclusion, expired safe-to-retry strategic claims, ordinary p2 ready work, dependency-blocked ready/backlog tasks, and strategic anchors",
+      "unit": "repo-task and autonomy tests",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "local validation",
+      "baseline": "task started with a known explorer coverage blind spot and no claim-aware strategic ready coverage adapter",
+      "candidate": "focused repo-task, autonomy, dispatcher, builder, task-claim, validate-tasks, typecheck, and lint checks passed with the task moved to done",
+      "unit": "validation transcript",
+      "direction": "improved",
+      "qualitySignal": true
+    }
+  ],
+  "rolloutMode": "canary",
+  "decision": "promote",
+  "rationale": "The workflow behavior change is narrow and aligns explorer's strategic coverage signal with the existing claim-aware queue snapshot. Repo-tasks keeps a neutral excludedTaskIds option instead of depending on autonomy, and autonomy owns the task-claim filtering. The recorded focused tests cover the pending-merge failure shape, safe retry claims, ordinary strategic work, dependency blockers, and existing queue availability behavior.",
+  "ownerSafetyExceptions": [],
+  "followUpTaskIds": []
+}

@@ -1,0 +1,5 @@
+1. Verified by `src/modules/autonomy/strategic-ready-coverage.test.ts`: a p1 ready task with a non-retryable pending-merge claim is excluded, so a p3 ordinary ready tail reports a strategic-ready coverage gap.
+2. Verified by `src/modules/autonomy/strategic-ready-coverage.test.ts`: ordinary p2 ready work and an expired safe-to-retry p2 claim both satisfy strategic-ready coverage.
+3. Verified in `src/modules/autonomy/workflows/explorer/workflow.ts`: inspect-queue and the strategic-ready-coverage repair check both route through the autonomy claim-aware coverage adapter.
+4. Verified by focused tests in `src/modules/autonomy/strategic-ready-coverage.test.ts` and `src/modules/repo-tasks/task-queue-validation.test.ts`: pending-merge, safe-to-retry, dependency-blocked ready/backlog, anchor, and ordinary p2 coverage cases are covered.
+5. Verified by passing claim-aware queue availability, dispatcher, builder claim, task validation, typecheck, and lint commands recorded in `validation.txt`.
