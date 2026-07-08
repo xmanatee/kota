@@ -31,6 +31,12 @@ import type {
   WorkflowSimulationRequest,
   WorkflowSimulationResult,
 } from "./simulation/types.js";
+import type {
+  WorkflowStateRecoveryListInput,
+  WorkflowStateRecoveryListResult,
+  WorkflowStateRecoveryResolveInput,
+  WorkflowStateRecoveryResolveResult,
+} from "./state-recovery-provider.js";
 
 export type {
   WorkflowTrialAttemptReport,
@@ -234,6 +240,12 @@ export type WorkflowDefinitionsResult = {
  */
 export interface WorkflowClient {
   listRuns(filter?: WorkflowRunsListFilter): Promise<WorkflowRunsListResult>;
+  listStateRecoveryActions(
+    filter?: Omit<WorkflowStateRecoveryListInput, "projectDir">,
+  ): Promise<WorkflowStateRecoveryListResult>;
+  resolveStateRecovery(
+    input: Omit<WorkflowStateRecoveryResolveInput, "projectDir">,
+  ): Promise<WorkflowStateRecoveryResolveResult>;
   listDeadLetters(filter?: WorkflowDeadLetterListFilter): Promise<WorkflowDeadLetterListResult>;
   getDeadLetter(id: string, projectId?: string): Promise<WorkflowDeadLetterGetResult>;
   dismissDeadLetter(id: string, reason: string, projectId?: string): Promise<WorkflowDeadLetterMutationResult>;

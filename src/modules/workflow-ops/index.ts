@@ -54,6 +54,7 @@ import { registerDeadLetterCommand } from "./execution/dead-letter.js";
 import { registerExecCommand } from "./execution/exec.js";
 import { registerGcCommand } from "./execution/gc.js";
 import { registerRunCommand } from "./execution/run.js";
+import { registerStateRecoveryCommand } from "./execution/state-recovery.js";
 import {
   registerTrialCommand,
   runLocalWorkflowTrial,
@@ -76,6 +77,12 @@ import { registerStepInspectCommand } from "./runs/step-inspect.js";
 import { registerSimulationCommand } from "./simulation/cli.js";
 import { simulateAutomation } from "./simulation/engine.js";
 import { workflowSimulationControlRoutes } from "./simulation/routes.js";
+import { resolveWorkflowStateRecoveryProject } from "./state-recovery-project.js";
+import {
+  WORKFLOW_STATE_RECOVERY_PROVIDER_TYPE,
+  type WorkflowStateRecoveryProvider,
+} from "./state-recovery-provider.js";
+import { workflowStateRecoveryControlRoutes } from "./state-recovery-routes.js";
 import { eventJournalForProject, listRuns } from "./utils.js";
 
 export function buildWorkflowCommand(ctx: ModuleContext): Command {
@@ -106,6 +113,7 @@ export function buildWorkflowCommand(ctx: ModuleContext): Command {
   registerTriggerCommands(wfCmd, ctx);
   registerTriggersCommand(wfCmd, ctx);
   registerDeadLetterCommand(wfCmd, ctx);
+  registerStateRecoveryCommand(wfCmd, ctx);
   registerExecCommand(wfCmd, ctx);
   registerValidateCommand(wfCmd, ctx);
   registerControlCommands(wfCmd, ctx);
@@ -115,6 +123,18 @@ export function buildWorkflowCommand(ctx: ModuleContext): Command {
   registerGcCommand(wfCmd, ctx);
 
   return wfCmd;
+}
+
+async function resolveLocalStateRecoveryProvider(
+  ctx: Pick<ModuleContext, "getProvider">,
+): Promise<WorkflowStateRecoveryProvider | null> {
+  const registered = ctx.getProvider(WORKFLOW_STATE_RECOVERY_PROVIDER_TYPE);
+  if (registered) return registered;
+  // The CLI command loader skips module onLoad hooks, so autonomy's provider
+  // is absent in offline commands mode. Keep this dynamic to avoid creating a
+  // load-time cycle: autonomy depends on workflow-ops for the command surface.
+  const loaded = await import("#modules/autonomy/workflow-state-recovery.js");
+  return loaded.createWorkflowStateRecoveryProvider();
 }
 
 const workflowModule: KotaModule = {
@@ -128,6 +148,7 @@ const workflowModule: KotaModule = {
     ...workflowTrialControlRoutes(ctx),
     ...workflowExplainControlRoutes(ctx),
     ...workflowSimulationControlRoutes(ctx),
+    ...workflowStateRecoveryControlRoutes(ctx),
   ],
   localClient: (ctx) => {
     const handler: WorkflowClient = {
@@ -160,6 +181,44 @@ const workflowModule: KotaModule = {
             tags: r.tags,
           })),
         };
+      },
+      async listStateRecoveryActions(filter) {
+        const provider = await resolveLocalStateRecoveryProvider(ctx);
+        if (!provider) {
+          return {
+            ok: false,
+            reason: "provider_unavailable",
+            message: "Workflow state recovery provider is unavailable",
+          };
+        }
+        const project = resolveWorkflowStateRecoveryProject(ctx, filter);
+        if (!project.ok) {
+          return {
+            ok: false,
+            reason: "provider_unavailable",
+            message: project.message,
+          };
+        }
+        return provider.list({ ...(filter ?? {}), projectDir: project.projectDir });
+      },
+      async resolveStateRecovery(input) {
+        const provider = await resolveLocalStateRecoveryProvider(ctx);
+        if (!provider) {
+          return {
+            ok: false,
+            reason: "provider_unavailable",
+            message: "Workflow state recovery provider is unavailable",
+          };
+        }
+        const project = resolveWorkflowStateRecoveryProject(ctx, input);
+        if (!project.ok) {
+          return {
+            ok: false,
+            reason: "provider_unavailable",
+            message: project.message,
+          };
+        }
+        return provider.resolve({ ...input, projectDir: project.projectDir });
       },
       async listDeadLetters(filter) {
         const store = deadLetterStoreForProject(ctx.cwd);
@@ -537,6 +596,49 @@ export function buildWorkflowDaemonHandler(
         `/workflow/runs${query}`,
       );
       return { runs: result?.runs ?? [] };
+    },
+    listStateRecoveryActions: async (filter) => {
+      const params = new URLSearchParams();
+      if (filter?.projectId) params.set("projectId", filter.projectId);
+      if (filter?.scopeId) params.set("scopeId", filter.scopeId);
+      const query = params.toString() ? `?${params.toString()}` : "";
+      const resp = await fetchJson("GET", `/workflow/state-recovery${query}`);
+      if (!resp) {
+        throw new Error("Daemon unreachable while listing workflow state recovery actions");
+      }
+      if (!resp.ok && resp.status !== 503) {
+        throw new Error("Daemon unreachable while listing workflow state recovery actions");
+      }
+      return (await resp.json()) as Awaited<
+        ReturnType<WorkflowClient["listStateRecoveryActions"]>
+      >;
+    },
+    resolveStateRecovery: async (input) => {
+      const params = new URLSearchParams();
+      if (input.projectId) params.set("projectId", input.projectId);
+      if (input.scopeId) params.set("scopeId", input.scopeId);
+      const query = params.toString() ? `?${params.toString()}` : "";
+      const body = {
+        action: input.action,
+        rationale: input.rationale,
+        ...(input.runId !== undefined ? { runId: input.runId } : {}),
+        ...(input.actor !== undefined ? { actor: input.actor } : {}),
+        ...(input.artifactRunId !== undefined ? { artifactRunId: input.artifactRunId } : {}),
+      };
+      const resp = await fetchJson(
+        "POST",
+        `/workflow/state-recovery/claims/${encodeURIComponent(input.taskId)}/resolve${query}`,
+        body,
+      );
+      if (!resp) {
+        throw new Error(`Daemon unreachable while resolving workflow state for "${input.taskId}"`);
+      }
+      if (!resp.ok && resp.status !== 400 && resp.status !== 404 && resp.status !== 409 && resp.status !== 503) {
+        throw new Error(`Daemon unreachable while resolving workflow state for "${input.taskId}"`);
+      }
+      return (await resp.json()) as Awaited<
+        ReturnType<WorkflowClient["resolveStateRecovery"]>
+      >;
     },
     listDeadLetters: async (filter) => {
       const params = new URLSearchParams();

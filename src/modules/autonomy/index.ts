@@ -6,9 +6,11 @@ import {
   listModuleDirectories,
 } from "#core/modules/runtime-module-discovery.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { WORKFLOW_STATE_RECOVERY_PROVIDER_TYPE } from "#modules/workflow-ops/state-recovery-provider.js";
 import { autonomyHealthSignal } from "./health-signal.js";
 import { buildLoopQualityAuditCommand } from "./loop-quality-audit-cli.js";
 import { buildReportCommand } from "./report/report-cli.js";
+import { createWorkflowStateRecoveryProvider } from "./workflow-state-recovery.js";
 import { buildAttentionCommand } from "./workflows/attention-digest/attention-cli.js";
 import { attentionRoutes } from "./workflows/attention-digest/attention-route.js";
 import { buildDigestCommand } from "./workflows/daily-digest/digest-cli.js";
@@ -107,6 +109,12 @@ const autonomyModule: KotaModule = {
   ],
   workflows: async () => await discoverAutonomyWorkflowDefinitions(),
   agents: async () => await discoverAutonomyAgents(),
+  onLoad: (ctx) => {
+    ctx.registerProvider(
+      WORKFLOW_STATE_RECOVERY_PROVIDER_TYPE,
+      createWorkflowStateRecoveryProvider(),
+    );
+  },
   commands: () => [
     buildDigestCommand(),
     buildAttentionCommand(),

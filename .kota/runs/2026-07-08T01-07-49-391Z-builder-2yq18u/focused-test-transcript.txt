@@ -1,0 +1,13 @@
+$ pnpm test src/modules/autonomy/workflow-state-recovery-actions.test.ts src/modules/autonomy/workflow-state-recovery-observability.test.ts src/modules/autonomy/queue-availability.test.ts src/modules/autonomy/workflows/attention-digest/state-recovery.test.ts src/modules/workflow-ops/daemon-client-recovery.test.ts
+
+> kota@0.1.0 test /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-canonical-recovery-actions-for-stale-workflow-2026-07-08t01-07-49-391z-builder-2yq18u
+> TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true src/modules/autonomy/workflow-state-recovery-actions.test.ts src/modules/autonomy/workflow-state-recovery-observability.test.ts src/modules/autonomy/queue-availability.test.ts src/modules/autonomy/workflows/attention-digest/state-recovery.test.ts src/modules/workflow-ops/daemon-client-recovery.test.ts
+
+
+ RUN  v4.1.0 /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-canonical-recovery-actions-for-stale-workflow-2026-07-08t01-07-49-391z-builder-2yq18u
+
+
+ Test Files  5 passed (5)
+      Tests  12 passed (12)
+   Start at  11:31:21
+   Duration  868ms (transform 1.06s, setup 146ms, import 1.26s, tests 90ms, environment 0ms)

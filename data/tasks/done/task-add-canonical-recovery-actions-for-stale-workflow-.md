@@ -1,13 +1,13 @@
 ---
 id: task-add-canonical-recovery-actions-for-stale-workflow-
 title: Add canonical recovery actions for stale workflow claims
-status: ready
+status: done
 priority: p1
 area: workflow-runtime
 task_class: Meta
 summary: Give KOTA a daemon-owned recovery path for stale pending-merge task claims and related dead-letter items so empty queues can recover without sandbox-local canonical state mutation.
 created_at: 2026-07-08T00:54:52.499Z
-updated_at: 2026-07-08T00:54:52.499Z
+updated_at: 2026-07-08T01:41:00.000Z
 ---
 
 ## Problem

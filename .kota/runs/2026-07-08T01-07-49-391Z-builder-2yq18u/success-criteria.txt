@@ -1,0 +1,5 @@
+1. A daemon-owned or workflow-runtime-owned operation lists pending-merge task claims with run, worktree, merge-gate, related dead-letter evidence, and a safe next action.
+2. The operation releases or marks superseded stale pending-merge claims only with a required rationale and a recorded before/after recovery artifact.
+3. Related dead-letter recovery is linked through the existing dismiss/redrive paths, without adding a second dead-letter store or command family.
+4. Queue inspection, attention output, or operator status output points operators to the canonical recovery action when ready work is blocked only by pending-merge claims.
+5. Focused tests cover safe release, unresolved merge refusal, scope isolation, related DLQ linking, idempotent repeat recovery, and the empty-queue claim-blocked reporting path.

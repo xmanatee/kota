@@ -8,6 +8,7 @@ import {
   markTaskClaimPendingMerge,
   releaseTaskClaim,
   resumeTaskClaim,
+  supersedeTaskClaim,
   taskClaimPath,
   updateTaskClaimWorkspace,
 } from "./task-claims.js";
@@ -163,6 +164,37 @@ describe("task claim recovery lifecycle", () => {
       safeToRetry: false,
     });
     expect(replacement.claim?.runId).toBe("run-retry");
+  });
+
+  it("archives a superseded claim and lets a later run replace it", () => {
+    writeTask(projectDir, "ready", "task-alpha", "2026-06-27T00:00:00.000Z");
+    const original = claimTask(
+      claimInput(projectDir, "task-alpha", "run-a", new Date("2026-06-27T01:00:00.000Z")),
+    );
+    expect(original.claimed).toBe(true);
+
+    const superseded = supersedeTaskClaim({
+      projectDir,
+      taskId: "task-alpha",
+      runId: "run-a",
+      workflowId: "builder",
+      evidence: "operator superseded stale pending-merge claim",
+      now: new Date("2026-06-27T01:00:01.000Z"),
+    });
+    expect(superseded).toMatchObject({
+      changed: true,
+      recoveryStatus: "superseded",
+      safeToRetry: true,
+    });
+    expect(existsSync(taskClaimPath(projectDir, "task-alpha"))).toBe(false);
+
+    const replacement = claimTask(
+      claimInput(projectDir, "task-alpha", "run-b", new Date("2026-06-27T01:00:02.000Z")),
+    );
+    expect(replacement).toMatchObject({
+      claimed: true,
+      recoveryPath: "new-claim",
+    });
   });
 
   it("reports no ordinary queue claim when the only ready task is pending merge", () => {

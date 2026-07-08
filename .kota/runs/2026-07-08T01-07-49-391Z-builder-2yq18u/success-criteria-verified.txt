@@ -1,0 +1,5 @@
+1. `kota workflow state-recovery` list/resolve surfaces are backed by the workflow state recovery provider; list output includes claim, owner run, worktree, related DLQ, and recommended action data.
+2. Audited release/supersede resolution requires a rationale and writes `workflow-state-recovery.json` before/after artifacts; this repair also blocks release when the pending-merge claim evidence still names an unresolved merge.
+3. Related DLQ entries are linked from recovery output and artifacts with the existing `workflow dlq dismiss` and `workflow dlq redrive` command paths.
+4. Claim-blocked queue snapshots, attention digest output, and dashboard/status rendering point to `pnpm kota workflow state-recovery list` when pending-merge claims block ready work. The refreshed CLI transcript shows queue availability changing from `dispatchableCount: 0` to `dispatchableCount: 1` after recovery.
+5. Verified after this repair with focused recovery/queue tests, Biome on touched source files, `pnpm run typecheck`, and `pnpm run validate-tasks`; the focused test and CLI recovery transcripts are in this run directory.

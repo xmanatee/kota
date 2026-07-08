@@ -25,6 +25,12 @@ export type DashboardTaskQueue = {
 	promotableBacklogCount: number;
 	dispatchableCount: number;
 	hasDispatchableWork: boolean;
+	claimBlockedTasks?: Array<{
+		id: string;
+		claimStatus: string;
+		recoveryCommand: string;
+		resolveCommand: string;
+	}>;
 };
 
 export type DashboardRecovery =

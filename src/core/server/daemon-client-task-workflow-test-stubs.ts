@@ -37,6 +37,12 @@ export function buildTaskAndWorkflowTestStubs(): Pick<
       cancelRun: async () => ({ ok: false as const, reason: "not_found" as const }),
       abortRun: async () => ({ ok: false as const, reason: "not_found" as const }),
       getRun: async () => ({ found: false as const }),
+      listStateRecoveryActions: async () => ({ ok: true as const, claims: [] }),
+      resolveStateRecovery: async () => ({
+        ok: false as const,
+        reason: "not_found" as const,
+        message: "not found",
+      }),
       listDeadLetters: async () => ({
         items: [],
         counts: { open: 0, dismissed: 0, redriven: 0 },

@@ -29,6 +29,7 @@ export {
   markTaskClaimPendingMerge,
   releaseTaskClaim,
   resumeTaskClaim,
+  supersedeTaskClaim,
   updateTaskClaimWorkspace,
 } from "./task-claim-operations.js";
 export {

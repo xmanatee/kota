@@ -31,6 +31,8 @@ export type RepoTaskClaimBlock = {
   runId: string;
   workflowId: string;
   evidence: string | null;
+  recoveryCommand: string;
+  resolveCommand: string;
 };
 
 export type ClaimAwareRepoTaskQueueSnapshot = RepoTaskQueueSnapshot & {
@@ -69,6 +71,8 @@ function listClaimBlockedTasks(
       runId: inspection.claim.runId,
       workflowId: inspection.claim.workflowId,
       evidence: inspection.claim.evidence,
+      recoveryCommand: "pnpm kota workflow state-recovery list",
+      resolveCommand: `pnpm kota workflow state-recovery resolve ${task.id} --action <release|supersede> --reason "<reason>"`,
     });
   }
 

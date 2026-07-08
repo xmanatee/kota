@@ -1,4 +1,5 @@
 import { type KotaClient, KotaClientProjectError } from "./kota-client.js";
+import { createScopedWorkflowClient } from "./project-scoped-workflow-client.js";
 import {
   mergeScopeSelector,
   normalizeScopeSelector,
@@ -63,37 +64,13 @@ function createScopedKotaClient(
       createProjectScopedKotaClient(base, nextProjectId),
     forScope: (nextScopeId) =>
       createScopeScopedKotaClient(base, nextScopeId),
-    workflow: {
-      ...base.workflow,
-      listDeadLetters: (filter) =>
-        scoped(selectedId, () =>
-          base.workflow.listDeadLetters(withScope(filter, selector)),
-        ),
-      getDeadLetter: (id) =>
-        scoped(selectedId, () =>
-          base.workflow.getDeadLetter(id, selectedId),
-        ),
-      dismissDeadLetter: (id, reason) =>
-        scoped(selectedId, () =>
-          base.workflow.dismissDeadLetter(id, reason, selectedId),
-        ),
-      redriveDeadLetter: (id, options) =>
-        scoped(selectedId, () =>
-          base.workflow.redriveDeadLetter(id, options, selectedId),
-        ),
-      exportDeadLetterDiagnostics: (id) =>
-        scoped(selectedId, () =>
-          base.workflow.exportDeadLetterDiagnostics(id, selectedId),
-        ),
-      status: (filter) =>
-        scoped(selectedId, () =>
-          base.workflow.status(withScope(filter, selector)),
-        ),
-      trial: (name, options) =>
-        scoped(selectedId, () =>
-          base.workflow.trial(name, withScope(options, selector)),
-        ),
-    },
+    workflow: createScopedWorkflowClient({
+      base: base.workflow,
+      selector,
+      selectedId,
+      scoped,
+      withScope,
+    }),
     memory: {
       list: (filter) =>
         scoped(selectedId, () =>

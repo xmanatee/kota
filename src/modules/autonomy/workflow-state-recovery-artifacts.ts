@@ -1,0 +1,63 @@
+import { mkdirSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { writeJsonFileAtomic } from "#core/util/json-file.js";
+import { formatRunId } from "#core/workflow/run-io.js";
+import type {
+  WorkflowStateRecoveryArtifact,
+  WorkflowStateRecoveryClaim,
+  WorkflowStateRecoveryResolveInput,
+} from "#modules/workflow-ops/state-recovery-provider.js";
+
+function artifactPath(input: WorkflowStateRecoveryResolveInput): string {
+  const runId = input.artifactRunId ?? formatRunId("workflow-state-recovery");
+  return join(input.projectDir, ".kota", "runs", runId, "workflow-state-recovery.json");
+}
+
+function writeArtifact(
+  path: string,
+  artifact: WorkflowStateRecoveryArtifact,
+): void {
+  mkdirSync(dirname(path), { recursive: true });
+  writeJsonFileAtomic(path, artifact);
+}
+
+function buildArtifact(input: {
+  resolveInput: WorkflowStateRecoveryResolveInput;
+  before: WorkflowStateRecoveryClaim | null;
+  after: WorkflowStateRecoveryClaim | null;
+  result: WorkflowStateRecoveryArtifact["result"];
+  message: string;
+  createdAt: string;
+}): WorkflowStateRecoveryArtifact {
+  return {
+    schemaVersion: 1,
+    createdAt: input.createdAt,
+    projectDir: input.resolveInput.projectDir,
+    actor: input.resolveInput.actor ?? "workflow-state-recovery",
+    taskId: input.resolveInput.taskId,
+    requestedRunId: input.resolveInput.runId ?? null,
+    action: input.resolveInput.action,
+    rationale: input.resolveInput.rationale,
+    before: input.before,
+    after: input.after,
+    relatedDeadLetters: input.before?.relatedDeadLetters ?? [],
+    result: input.result,
+    message: input.message,
+  };
+}
+
+export function finishResolve(input: {
+  resolveInput: WorkflowStateRecoveryResolveInput;
+  before: WorkflowStateRecoveryClaim | null;
+  after: WorkflowStateRecoveryClaim | null;
+  result: WorkflowStateRecoveryArtifact["result"];
+  message: string;
+}): { artifactPath: string; artifact: WorkflowStateRecoveryArtifact } {
+  const path = artifactPath(input.resolveInput);
+  const artifact = buildArtifact({
+    ...input,
+    createdAt: new Date().toISOString(),
+  });
+  writeArtifact(path, artifact);
+  return { artifactPath: path, artifact };
+}

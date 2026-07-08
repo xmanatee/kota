@@ -8,14 +8,20 @@ export const ACTIVE_CLAIMS_DIR = join(CLAIMS_ROOT, "active");
 export const CLAIM_HISTORY_DIR = join(CLAIMS_ROOT, "history");
 export const CLAIM_CANDIDATE_STATES: readonly RepoTaskState[] = ["doing", "ready"];
 
-export type TaskClaimStatus = "active" | "pending-merge" | "released" | "expired";
+export type TaskClaimStatus =
+  | "active"
+  | "pending-merge"
+  | "released"
+  | "expired"
+  | "superseded";
 
 export type TaskClaimRecoveryStatus =
   | "agent-running"
   | "pending-merge"
   | "stale"
   | "expired"
-  | "released";
+  | "released"
+  | "superseded";
 
 export type TaskClaimRecoveryPath =
   | "new-claim"
@@ -23,6 +29,7 @@ export type TaskClaimRecoveryPath =
   | "resumed-stale-claim"
   | "replaced-stale-claim"
   | "replaced-expired-claim"
+  | "replaced-superseded-claim"
   | "skipped-active-claim"
   | "skipped-pending-merge"
   | "write-conflict"

@@ -109,4 +109,44 @@ describe("dashboard foreground control affordances", () => {
 		expect(output).toContain("review `kota inbox`");
 		expect(output).toContain("open `kota navigate` > Inbox");
 	});
+
+	it("shows canonical workflow state recovery when work is claim-blocked", () => {
+		const output = stripAnsi(
+			renderDashboard(
+				makeSnapshot({
+					taskQueue: {
+						counts: {
+							backlog: 0,
+							ready: 1,
+							doing: 0,
+							blocked: 0,
+							done: 0,
+							dropped: 0,
+						},
+						inboxCount: 0,
+						openCount: 1,
+						pullableCount: 1,
+						actionableCount: 0,
+						promotableBacklogCount: 0,
+						dispatchableCount: 0,
+						hasDispatchableWork: false,
+						claimBlockedTasks: [
+							{
+								id: "task-pending",
+								claimStatus: "pending-merge",
+								recoveryCommand: "pnpm kota workflow state-recovery list",
+								resolveCommand:
+									'pnpm kota workflow state-recovery resolve task-pending --action <release|supersede> --reason "<reason>"',
+							},
+						],
+					},
+				}),
+				[],
+			),
+		);
+		expect(output).toContain("ready work blocked by pending-merge claim");
+		expect(output).toContain("pnpm kota workflow state-recovery list");
+		expect(output).toContain("Claim-blocked");
+		expect(output).toContain("task-pending");
+	});
 });

@@ -46,7 +46,11 @@ function ensureParent(path: string): void {
 }
 
 function isTaskClaimStatus(value: string | undefined): value is TaskClaimStatus {
-  return value === "active" || value === "pending-merge" || value === "released" || value === "expired";
+  return value === "active" ||
+    value === "pending-merge" ||
+    value === "released" ||
+    value === "expired" ||
+    value === "superseded";
 }
 
 function isRepoTaskState(value: string | undefined): value is RepoTaskState {
@@ -215,6 +219,9 @@ export function inspectTaskClaim(
   }
   if (claim.status === "released") {
     return { claim, path, recoveryStatus: "released", safeToRetry: true };
+  }
+  if (claim.status === "superseded") {
+    return { claim, path, recoveryStatus: "superseded", safeToRetry: true };
   }
   const expiresAt = Date.parse(claim.leaseExpiresAt);
   if (!Number.isFinite(expiresAt) || expiresAt <= now.getTime()) {

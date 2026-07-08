@@ -1,0 +1,2 @@
+$ pnpm run validate-tasks
+passed

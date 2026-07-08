@@ -89,6 +89,8 @@ export function claimTask(input: ClaimTaskInput): ClaimTaskAttempt {
   const recoveryPath =
     existing?.status === "expired"
       ? "replaced-expired-claim"
+      : existing?.status === "superseded"
+        ? "replaced-superseded-claim"
       : existing
         ? "replaced-stale-claim"
         : "new-claim";
@@ -224,6 +226,32 @@ export function releaseTaskClaim(input: TaskClaimMutationInput): TaskClaimTermin
     changed: true,
     claim: released,
     recoveryStatus: "released",
+    safeToRetry: true,
+    reason: null,
+  };
+}
+
+export function supersedeTaskClaim(input: TaskClaimMutationInput): TaskClaimTerminalResult {
+  const now = input.now ?? new Date();
+  const path = taskClaimPath(input.projectDir, input.taskId);
+  const claim = readActiveTaskClaim(input.projectDir, input.taskId);
+  if (!claim) return missingResult(input.taskId);
+  if (!mutationActorMatches(claim, input)) return mismatchResult(claim, path, input, now);
+
+  const superseded = {
+    ...claim,
+    status: "superseded" as const,
+    updatedAt: now.toISOString(),
+    evidence: input.evidence,
+  };
+  writeClaim(path, superseded, "w");
+  archiveClaim(input.projectDir, path, superseded, now);
+  if (existsSync(path)) unlinkSync(path);
+  return {
+    taskId: input.taskId,
+    changed: true,
+    claim: superseded,
+    recoveryStatus: "superseded",
     safeToRetry: true,
     reason: null,
   };

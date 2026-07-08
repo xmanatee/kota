@@ -40,6 +40,9 @@ describe("builder workflow claim-aware queue gating", () => {
           runId: "run-pending",
           workflowId: "builder",
           evidence: "builder branch is pending merge",
+          recoveryCommand: "pnpm kota workflow state-recovery list",
+          resolveCommand:
+            'pnpm kota workflow state-recovery resolve task-owned --action <release|supersede> --reason "<reason>"',
         },
       ],
     };

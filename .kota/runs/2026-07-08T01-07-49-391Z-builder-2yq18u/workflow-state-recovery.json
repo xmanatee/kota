@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-07-08T02:32:52.790Z",
+  "projectDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-canonical-recovery-actions-for-stale-workflow-2026-07-08t01-07-49-391z-builder-2yq18u/.kota/tmp/2026-07-08T01-07-49-391Z-builder-2yq18u/kota-task-claims-1783477971152-o8nyx1308ec",
+  "actor": "workflow-state-recovery",
+  "taskId": "task-demo",
+  "requestedRunId": null,
+  "action": "supersede",
+  "rationale": "interrupted demo run has no merge blocker",
+  "before": {
+    "claim": {
+      "taskId": "task-demo",
+      "taskState": "ready",
+      "runId": "run-demo",
+      "workflowId": "builder",
+      "owner": "workflow:builder:run-demo",
+      "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-canonical-recovery-actions-for-stale-workflow-2026-07-08t01-07-49-391z-builder-2yq18u/.kota/tmp/2026-07-08T01-07-49-391Z-builder-2yq18u/kota-task-claims-1783477971152-o8nyx1308ec/.worktrees/run-demo",
+      "branch": "kota/task/task-demo/run-demo",
+      "baseCommit": "base-commit",
+      "status": "pending-merge",
+      "evidence": "builder run failed after validation",
+      "updatedAt": "2026-06-27T00:02:00.000Z"
+    },
+    "claimPath": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-canonical-recovery-actions-for-stale-workflow-2026-07-08t01-07-49-391z-builder-2yq18u/.kota/tmp/2026-07-08T01-07-49-391Z-builder-2yq18u/kota-task-claims-1783477971152-o8nyx1308ec/.kota/task-claims/active/task-demo.json",
+    "recoveryStatus": "pending-merge",
+    "safeToRetry": false,
+    "ownerRunStatus": "interrupted",
+    "worktree": {
+      "found": false,
+      "metadataPath": null,
+      "state": null,
+      "runState": null,
+      "dirtyState": null,
+      "dirtyEntries": [],
+      "cleanupBlockers": [],
+      "mergeStatus": null,
+      "headCommit": null
+    },
+    "relatedDeadLetters": [],
+    "recommendedAction": {
+      "kind": "supersede",
+      "reason": "owner run ended unsuccessfully and no unresolved merge blocker is visible"
+    }
+  },
+  "after": null,
+  "relatedDeadLetters": [],
+  "result": "superseded",
+  "message": "Task claim task-demo/run-demo superseded."
+}

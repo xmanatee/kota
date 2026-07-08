@@ -1,0 +1,189 @@
+# CLI transcript: workflow state recovery and queue availability
+# Demo project: /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-canonical-recovery-actions-for-stale-workflow-2026-07-08t01-07-49-391z-builder-2yq18u/.kota/tmp/2026-07-08T01-07-49-391Z-builder-2yq18u/kota-task-claims-1783477971152-o8nyx1308ec
+
+$ node --conditions=source --import tsx -e "import { getClaimAwareRepoTaskQueueSnapshot } from './src/modules/autonomy/queue-availability.ts'; const s = getClaimAwareRepoTaskQueueSnapshot(process.argv[1]); console.log(JSON.stringify({ actionableCount: s.actionableCount, dispatchableCount: s.dispatchableCount, hasDispatchableWork: s.hasDispatchableWork, claimBlockedTasks: s.claimBlockedTasks }, null, 2));" /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-canonical-recovery-actions-for-stale-workflow-2026-07-08t01-07-49-391z-builder-2yq18u/.kota/tmp/2026-07-08T01-07-49-391Z-builder-2yq18u/kota-task-claims-1783477971152-o8nyx1308ec
+{
+  "actionableCount": 0,
+  "dispatchableCount": 0,
+  "hasDispatchableWork": false,
+  "claimBlockedTasks": [
+    {
+      "id": "task-demo",
+      "title": "task-demo",
+      "state": "ready",
+      "claimStatus": "pending-merge",
+      "recoveryStatus": "pending-merge",
+      "recoveryPath": "skipped-pending-merge",
+      "owner": "workflow:builder:run-demo",
+      "runId": "run-demo",
+      "workflowId": "builder",
+      "evidence": "builder run failed after validation",
+      "recoveryCommand": "pnpm kota workflow state-recovery list",
+      "resolveCommand": "pnpm kota workflow state-recovery resolve task-demo --action <release|supersede> --reason \"<reason>\""
+    }
+  ]
+}
+
+$ node --conditions=source --import tsx /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-canonical-recovery-actions-for-stale-workflow-2026-07-08t01-07-49-391z-builder-2yq18u/src/cli.ts workflow state-recovery list --json
+{
+  "ok": true,
+  "claims": [
+    {
+      "claim": {
+        "taskId": "task-demo",
+        "taskState": "ready",
+        "runId": "run-demo",
+        "workflowId": "builder",
+        "owner": "workflow:builder:run-demo",
+        "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-canonical-recovery-actions-for-stale-workflow-2026-07-08t01-07-49-391z-builder-2yq18u/.kota/tmp/2026-07-08T01-07-49-391Z-builder-2yq18u/kota-task-claims-1783477971152-o8nyx1308ec/.worktrees/run-demo",
+        "branch": "kota/task/task-demo/run-demo",
+        "baseCommit": "base-commit",
+        "status": "pending-merge",
+        "evidence": "builder run failed after validation",
+        "updatedAt": "2026-06-27T00:02:00.000Z"
+      },
+      "claimPath": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-canonical-recovery-actions-for-stale-workflow-2026-07-08t01-07-49-391z-builder-2yq18u/.kota/tmp/2026-07-08T01-07-49-391Z-builder-2yq18u/kota-task-claims-1783477971152-o8nyx1308ec/.kota/task-claims/active/task-demo.json",
+      "recoveryStatus": "pending-merge",
+      "safeToRetry": false,
+      "ownerRunStatus": "interrupted",
+      "worktree": {
+        "found": false,
+        "metadataPath": null,
+        "state": null,
+        "runState": null,
+        "dirtyState": null,
+        "dirtyEntries": [],
+        "cleanupBlockers": [],
+        "mergeStatus": null,
+        "headCommit": null
+      },
+      "relatedDeadLetters": [],
+      "recommendedAction": {
+        "kind": "supersede",
+        "reason": "owner run ended unsuccessfully and no unresolved merge blocker is visible"
+      }
+    }
+  ]
+}
+
+$ node --conditions=source --import tsx /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-canonical-recovery-actions-for-stale-workflow-2026-07-08t01-07-49-391z-builder-2yq18u/src/cli.ts workflow state-recovery resolve task-demo --action supersede --reason "interrupted demo run has no merge blocker" --artifact-run-id recovery-demo --json
+{
+  "ok": true,
+  "action": "supersede",
+  "message": "Task claim task-demo/run-demo superseded.",
+  "artifactPath": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-canonical-recovery-actions-for-stale-workflow-2026-07-08t01-07-49-391z-builder-2yq18u/.kota/tmp/2026-07-08T01-07-49-391Z-builder-2yq18u/kota-task-claims-1783477971152-o8nyx1308ec/.kota/runs/recovery-demo/workflow-state-recovery.json",
+  "artifact": {
+    "schemaVersion": 1,
+    "createdAt": "2026-07-08T02:32:52.790Z",
+    "projectDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-canonical-recovery-actions-for-stale-workflow-2026-07-08t01-07-49-391z-builder-2yq18u/.kota/tmp/2026-07-08T01-07-49-391Z-builder-2yq18u/kota-task-claims-1783477971152-o8nyx1308ec",
+    "actor": "workflow-state-recovery",
+    "taskId": "task-demo",
+    "requestedRunId": null,
+    "action": "supersede",
+    "rationale": "interrupted demo run has no merge blocker",
+    "before": {
+      "claim": {
+        "taskId": "task-demo",
+        "taskState": "ready",
+        "runId": "run-demo",
+        "workflowId": "builder",
+        "owner": "workflow:builder:run-demo",
+        "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-canonical-recovery-actions-for-stale-workflow-2026-07-08t01-07-49-391z-builder-2yq18u/.kota/tmp/2026-07-08T01-07-49-391Z-builder-2yq18u/kota-task-claims-1783477971152-o8nyx1308ec/.worktrees/run-demo",
+        "branch": "kota/task/task-demo/run-demo",
+        "baseCommit": "base-commit",
+        "status": "pending-merge",
+        "evidence": "builder run failed after validation",
+        "updatedAt": "2026-06-27T00:02:00.000Z"
+      },
+      "claimPath": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-canonical-recovery-actions-for-stale-workflow-2026-07-08t01-07-49-391z-builder-2yq18u/.kota/tmp/2026-07-08T01-07-49-391Z-builder-2yq18u/kota-task-claims-1783477971152-o8nyx1308ec/.kota/task-claims/active/task-demo.json",
+      "recoveryStatus": "pending-merge",
+      "safeToRetry": false,
+      "ownerRunStatus": "interrupted",
+      "worktree": {
+        "found": false,
+        "metadataPath": null,
+        "state": null,
+        "runState": null,
+        "dirtyState": null,
+        "dirtyEntries": [],
+        "cleanupBlockers": [],
+        "mergeStatus": null,
+        "headCommit": null
+      },
+      "relatedDeadLetters": [],
+      "recommendedAction": {
+        "kind": "supersede",
+        "reason": "owner run ended unsuccessfully and no unresolved merge blocker is visible"
+      }
+    },
+    "after": null,
+    "relatedDeadLetters": [],
+    "result": "superseded",
+    "message": "Task claim task-demo/run-demo superseded."
+  }
+}
+
+$ node --conditions=source --import tsx -e "import { getClaimAwareRepoTaskQueueSnapshot } from './src/modules/autonomy/queue-availability.ts'; const s = getClaimAwareRepoTaskQueueSnapshot(process.argv[1]); console.log(JSON.stringify({ actionableCount: s.actionableCount, dispatchableCount: s.dispatchableCount, hasDispatchableWork: s.hasDispatchableWork, claimBlockedTasks: s.claimBlockedTasks }, null, 2));" /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-canonical-recovery-actions-for-stale-workflow-2026-07-08t01-07-49-391z-builder-2yq18u/.kota/tmp/2026-07-08T01-07-49-391Z-builder-2yq18u/kota-task-claims-1783477971152-o8nyx1308ec
+{
+  "actionableCount": 1,
+  "dispatchableCount": 1,
+  "hasDispatchableWork": true,
+  "claimBlockedTasks": []
+}
+
+$ node --conditions=source --import tsx /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-canonical-recovery-actions-for-stale-workflow-2026-07-08t01-07-49-391z-builder-2yq18u/src/cli.ts workflow state-recovery list --json
+{
+  "ok": true,
+  "claims": []
+}
+
+$ node -e "console.log(require('node:fs').readFileSync('/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-canonical-recovery-actions-for-stale-workflow-2026-07-08t01-07-49-391z-builder-2yq18u/.kota/tmp/2026-07-08T01-07-49-391Z-builder-2yq18u/kota-task-claims-1783477971152-o8nyx1308ec/.kota/runs/recovery-demo/workflow-state-recovery.json', 'utf8'))"
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-07-08T02:32:52.790Z",
+  "projectDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-canonical-recovery-actions-for-stale-workflow-2026-07-08t01-07-49-391z-builder-2yq18u/.kota/tmp/2026-07-08T01-07-49-391Z-builder-2yq18u/kota-task-claims-1783477971152-o8nyx1308ec",
+  "actor": "workflow-state-recovery",
+  "taskId": "task-demo",
+  "requestedRunId": null,
+  "action": "supersede",
+  "rationale": "interrupted demo run has no merge blocker",
+  "before": {
+    "claim": {
+      "taskId": "task-demo",
+      "taskState": "ready",
+      "runId": "run-demo",
+      "workflowId": "builder",
+      "owner": "workflow:builder:run-demo",
+      "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-canonical-recovery-actions-for-stale-workflow-2026-07-08t01-07-49-391z-builder-2yq18u/.kota/tmp/2026-07-08T01-07-49-391Z-builder-2yq18u/kota-task-claims-1783477971152-o8nyx1308ec/.worktrees/run-demo",
+      "branch": "kota/task/task-demo/run-demo",
+      "baseCommit": "base-commit",
+      "status": "pending-merge",
+      "evidence": "builder run failed after validation",
+      "updatedAt": "2026-06-27T00:02:00.000Z"
+    },
+    "claimPath": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-canonical-recovery-actions-for-stale-workflow-2026-07-08t01-07-49-391z-builder-2yq18u/.kota/tmp/2026-07-08T01-07-49-391Z-builder-2yq18u/kota-task-claims-1783477971152-o8nyx1308ec/.kota/task-claims/active/task-demo.json",
+    "recoveryStatus": "pending-merge",
+    "safeToRetry": false,
+    "ownerRunStatus": "interrupted",
+    "worktree": {
+      "found": false,
+      "metadataPath": null,
+      "state": null,
+      "runState": null,
+      "dirtyState": null,
+      "dirtyEntries": [],
+      "cleanupBlockers": [],
+      "mergeStatus": null,
+      "headCommit": null
+    },
+    "relatedDeadLetters": [],
+    "recommendedAction": {
+      "kind": "supersede",
+      "reason": "owner run ended unsuccessfully and no unresolved merge blocker is visible"
+    }
+  },
+  "after": null,
+  "relatedDeadLetters": [],
+  "result": "superseded",
+  "message": "Task claim task-demo/run-demo superseded."
+}

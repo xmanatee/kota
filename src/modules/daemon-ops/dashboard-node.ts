@@ -110,6 +110,14 @@ function describeOperationalState(snapshot: DashboardSnapshot): TextSpan[] {
 		if (taskQueueHasDispatchableWork(snapshot.taskQueue)) {
 			return [plain("dispatchable work available; waiting for idle dispatch - inspect `kota workflow status`")];
 		}
+		const claimBlocked = snapshot.taskQueue.claimBlockedTasks?.[0];
+		if (claimBlocked) {
+			return [
+				plain(
+					`ready work blocked by pending-merge claim - run \`${claimBlocked.recoveryCommand}\``,
+				),
+			];
+		}
 		if (snapshot.taskQueue.openCount > 0) {
 			return [plain("open work parked; no dispatchable tasks - inspect `kota status` or open `kota navigate` > Work")];
 		}
@@ -145,6 +153,16 @@ function renderWorkSection(snapshot: DashboardSnapshot): RenderNode[] {
 					`  Pullable ${task.pullableCount}`,
 			),
 		),
+		...(task.claimBlockedTasks?.length
+			? [
+					line(
+						span("  Claim-blocked ", "warn"),
+						plain(
+							`${task.claimBlockedTasks.map((item) => item.id).join(", ")} - run \`${task.claimBlockedTasks[0]!.recoveryCommand}\``,
+						),
+					),
+				]
+			: []),
 		blank(),
 	];
 }

@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
+import { getClaimAwareRepoTaskQueueSnapshot } from "#modules/autonomy/queue-availability.js";
 import { loadRecentRuns, type RunSummary } from "#modules/autonomy/shared.js";
 import {
   parseBlockedPrecondition,
@@ -231,6 +232,24 @@ function blockedAttentionItems(projectDir: string): AttentionItem[] {
   return items;
 }
 
+function claimBlockedQueueAttentionItems(projectDir: string): AttentionItem[] {
+  const snapshot = getClaimAwareRepoTaskQueueSnapshot(projectDir);
+  if (snapshot.hasDispatchableWork) return [];
+  const pendingMergeBlocks = snapshot.claimBlockedTasks.filter(
+    (task) => task.claimStatus === "pending-merge",
+  );
+  if (pendingMergeBlocks.length === 0) return [];
+
+  const ids = pendingMergeBlocks.map((task) => task.id).join(", ");
+  const first = pendingMergeBlocks[0]!;
+  return [
+    {
+      label: "Pending-merge claim blocks queue",
+      detail: `${ids}. Run \`${first.recoveryCommand}\`, then \`${first.resolveCommand}\`.`,
+    },
+  ];
+}
+
 function detectAttentionItems(
   projectDir: string,
   recentRuns: RunSummary[],
@@ -257,6 +276,7 @@ function detectAttentionItems(
   }
 
   items.push(...blockedAttentionItems(projectDir));
+  items.push(...claimBlockedQueueAttentionItems(projectDir));
 
   const readyCount = countRepoTaskState(projectDir, "ready");
   if (readyCount === 0) {
