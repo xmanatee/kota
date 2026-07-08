@@ -134,9 +134,9 @@ describe("dashboard foreground control affordances", () => {
 							{
 								id: "task-pending",
 								claimStatus: "pending-merge",
-								recoveryCommand: "pnpm kota workflow state-recovery list",
+								recoveryCommand: "pnpm dev workflow state-recovery list",
 								resolveCommand:
-									'pnpm kota workflow state-recovery resolve task-pending --action <release|supersede> --reason "<reason>"',
+									'pnpm dev workflow state-recovery resolve task-pending --action <release|supersede> --reason "<reason>"',
 							},
 						],
 					},
@@ -145,7 +145,7 @@ describe("dashboard foreground control affordances", () => {
 			),
 		);
 		expect(output).toContain("ready work blocked by pending-merge claim");
-		expect(output).toContain("pnpm kota workflow state-recovery list");
+		expect(output).toContain("pnpm dev workflow state-recovery list");
 		expect(output).toContain("Claim-blocked");
 		expect(output).toContain("task-pending");
 	});

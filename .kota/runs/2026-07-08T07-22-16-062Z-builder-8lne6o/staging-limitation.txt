@@ -1,0 +1,2 @@
+$ git add -A
+fatal: Unable to create '/Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/task-make-generated-workflow-recovery-commands-use-a-ru-2026-07-08t07-22-16-062z-builder-8lne6o/index.lock': Operation not permitted

@@ -1,0 +1,5 @@
+1. Claim-blocked queue payloads and attention/status output advertise a runnable source-mode `workflow state-recovery` command in this development checkout instead of the failing dist-backed command.
+2. Focused tests pin both generated `recoveryCommand`/`resolveCommand` strings and at least one rendered operator surface that includes them.
+3. Run evidence includes a CLI transcript or equivalent fixture proving the advertised command reaches `workflow state-recovery list` and reports pending-merge recovery state.
+4. Existing workflow state-recovery safety coverage still proves unresolved pending-merge blockers are refused.
+5. `pnpm run validate-tasks` passes with this task present in the queue.

@@ -1,0 +1,10 @@
+$ pnpm dev task move task-make-generated-workflow-recovery-commands-use-a-ru done
+
+> kota@0.1.0 dev /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-make-generated-workflow-recovery-commands-use-a-ru-2026-07-08t07-22-16-062z-builder-8lne6o
+> node --conditions=source --import tsx src/cli.ts task move task-make-generated-workflow-recovery-commands-use-a-ru done
+
+fatal: Unable to create '/Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/task-make-generated-workflow-recovery-commands-use-a-ru-2026-07-08t07-22-16-062z-builder-8lne6o/index.lock': Operation not permitted
+Fatal: Command failed: git mv /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-make-generated-workflow-recovery-commands-use-a-ru-2026-07-08t07-22-16-062z-builder-8lne6o/data/tasks/doing/task-make-generated-workflow-recovery-commands-use-a-ru.md /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-make-generated-workflow-recovery-commands-use-a-ru-2026-07-08t07-22-16-062z-builder-8lne6o/data/tasks/done/task-make-generated-workflow-recovery-commands-use-a-ru.md
+fatal: Unable to create '/Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/task-make-generated-workflow-recovery-commands-use-a-ru-2026-07-08t07-22-16-062z-builder-8lne6o/index.lock': Operation not permitted
+
+ ELIFECYCLE  Command failed with exit code 1.

@@ -5,6 +5,10 @@ import {
   type RepoTaskQueueSnapshot,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
+  workflowStateRecoveryListCommand,
+  workflowStateRecoveryResolveCommand,
+} from "#modules/workflow-ops/state-recovery-command.js";
+import {
   listTaskClaimInspections,
   type TaskClaimInspection,
   type TaskClaimRecoveryPath,
@@ -71,8 +75,8 @@ function listClaimBlockedTasks(
       runId: inspection.claim.runId,
       workflowId: inspection.claim.workflowId,
       evidence: inspection.claim.evidence,
-      recoveryCommand: "pnpm kota workflow state-recovery list",
-      resolveCommand: `pnpm kota workflow state-recovery resolve ${task.id} --action <release|supersede> --reason "<reason>"`,
+      recoveryCommand: workflowStateRecoveryListCommand(),
+      resolveCommand: workflowStateRecoveryResolveCommand(task.id),
     });
   }
 

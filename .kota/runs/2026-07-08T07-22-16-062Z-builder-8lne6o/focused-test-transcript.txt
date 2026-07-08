@@ -1,0 +1,13 @@
+
+> kota@0.1.0 test /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-make-generated-workflow-recovery-commands-use-a-ru-2026-07-08t07-22-16-062z-builder-8lne6o
+> TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true src/modules/workflow-ops/state-recovery-command.test.ts src/modules/autonomy/queue-availability.test.ts src/modules/autonomy/workflows/attention-digest/state-recovery.test.ts src/modules/daemon-ops/dashboard-control-affordances.test.ts src/modules/autonomy/workflows/dispatcher/workflow-claim-aware.test.ts src/modules/autonomy/workflows/builder/workflow-claim-aware.test.ts src/modules/autonomy/workflow-state-recovery-actions.test.ts
+
+
+ RUN  v4.1.0 /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-make-generated-workflow-recovery-commands-use-a-ru-2026-07-08t07-22-16-062z-builder-8lne6o
+
+
+ Test Files  7 passed (7)
+      Tests  18 passed (18)
+   Start at  16:28:16
+   Duration  624ms (transform 1.26s, setup 221ms, import 1.51s, tests 110ms, environment 0ms)
+

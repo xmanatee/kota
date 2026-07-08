@@ -1,13 +1,13 @@
 ---
 id: task-make-generated-workflow-recovery-commands-use-a-ru
 title: Make generated workflow recovery commands use a runnable CLI entrypoint
-status: ready
+status: done
 priority: p2
 area: workflow-runtime
 task_class: Platform
 summary: Ensure claim-blocked queue payloads and attention/status output point operators at a workflow state-recovery command that works in the current checkout, with coverage for dist-backed and source-mode CLI surfaces.
 created_at: 2026-07-08T06:57:44.715Z
-updated_at: 2026-07-08T06:57:44.715Z
+updated_at: 2026-07-08T07:31:15.000Z
 ---
 
 ## Problem
@@ -119,8 +119,21 @@ preserving merge-gate and claim-safety boundaries.
 
 ## Acceptance Evidence
 
-- Focused test transcript covering generated recovery commands and at least one
-  rendered operator surface.
-- CLI transcript showing the advertised command reaches
-  `workflow state-recovery list` and reports pending-merge recovery state.
-- `pnpm run validate-tasks` passes.
+- `.kota/runs/2026-07-08T07-22-16-062Z-builder-8lne6o/focused-test-transcript.txt`
+  covers generated recovery commands, a rendered attention digest surface, a
+  rendered dashboard surface, dispatcher/builder claim-aware behavior, and the
+  existing pending-merge refusal safety path.
+- `.kota/runs/2026-07-08T07-22-16-062Z-builder-8lne6o/cli-transcript.txt`
+  shows the advertised `pnpm dev workflow state-recovery list --json` command
+  reaches `workflow state-recovery` and reports pending-merge recovery state.
+- `.kota/runs/2026-07-08T07-22-16-062Z-builder-8lne6o/validation.txt`
+  records `pnpm run validate-tasks` after the task is moved to `done`.
+
+## Completion Notes
+
+Implemented source-vs-package command generation for workflow state-recovery
+hints. Source-loaded checkouts now advertise `pnpm dev workflow
+state-recovery ...`; dist-backed installs continue to advertise `pnpm kota
+workflow state-recovery ...`. The `pnpm dev` script now uses the repo's
+source-loader pattern so the advertised source-mode entrypoint runs without
+the `tsx` CLI IPC path.

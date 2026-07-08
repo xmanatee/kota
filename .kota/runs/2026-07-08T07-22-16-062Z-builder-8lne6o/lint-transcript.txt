@@ -1,0 +1,5 @@
+
+> kota@0.1.0 lint /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-make-generated-workflow-recovery-commands-use-a-ru-2026-07-08t07-22-16-062z-builder-8lne6o
+> biome check src/
+
+Checked 2762 files in 755ms. No fixes applied.

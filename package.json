@@ -33,7 +33,7 @@
     }
   },
   "scripts": {
-    "dev": "NODE_OPTIONS=--conditions=source tsx src/cli.ts",
+    "dev": "node --conditions=source --import tsx src/cli.ts",
     "build": "rm -rf dist && tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
     "test": "TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true",

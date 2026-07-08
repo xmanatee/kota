@@ -1,0 +1,45 @@
+$ pnpm dev workflow state-recovery list --json
+
+> kota@0.1.0 dev /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-make-generated-workflow-recovery-commands-use-a-ru-2026-07-08t07-22-16-062z-builder-8lne6o
+> node --conditions=source --import tsx src/cli.ts workflow state-recovery list --json
+
+{
+  "ok": true,
+  "claims": [
+    {
+      "claim": {
+        "taskId": "task-run-shadow-semantic-reviewers-for-non-builder-auto",
+        "taskState": "ready",
+        "runId": "2026-07-07T06-33-49-256Z-builder-79nvwh",
+        "workflowId": "builder",
+        "owner": "workflow:builder",
+        "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-make-generated-workflow-recovery-commands-use-a-ru-2026-07-08t07-22-16-062z-builder-8lne6o/.worktrees/2026-07-07T06-33-49-256Z-builder-79nvwh",
+        "branch": "kota/task/task-run-shadow-semantic-reviewers-for-non-builder-auto/2026-07-07T06-33-49-256Z-builder-79nvwh",
+        "baseCommit": "base-commit",
+        "status": "pending-merge",
+        "evidence": "builder branch is pending merge: validation failed after merge gate integration",
+        "updatedAt": "2026-07-08T07:30:00.000Z"
+      },
+      "claimPath": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-make-generated-workflow-recovery-commands-use-a-ru-2026-07-08t07-22-16-062z-builder-8lne6o/.kota/task-claims/active/task-run-shadow-semantic-reviewers-for-non-builder-auto.json",
+      "recoveryStatus": "pending-merge",
+      "safeToRetry": false,
+      "ownerRunStatus": null,
+      "worktree": {
+        "found": false,
+        "metadataPath": null,
+        "state": null,
+        "runState": null,
+        "dirtyState": null,
+        "dirtyEntries": [],
+        "cleanupBlockers": [],
+        "mergeStatus": null,
+        "headCommit": null
+      },
+      "relatedDeadLetters": [],
+      "recommendedAction": {
+        "kind": "blocked",
+        "reason": "pending-merge evidence still names merge blockers that need review"
+      }
+    }
+  ]
+}

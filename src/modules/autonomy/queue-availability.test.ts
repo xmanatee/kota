@@ -59,9 +59,9 @@ describe("claim-aware queue availability", () => {
         runId: "run-a",
         workflowId: "builder",
         evidence: "merge gate is pending",
-        recoveryCommand: "pnpm kota workflow state-recovery list",
+        recoveryCommand: "pnpm dev workflow state-recovery list",
         resolveCommand:
-          'pnpm kota workflow state-recovery resolve task-alpha --action <release|supersede> --reason "<reason>"',
+          'pnpm dev workflow state-recovery resolve task-alpha --action <release|supersede> --reason "<reason>"',
       },
     ]);
     expect(isThinClaimAwareDispatchableQueue(snapshot)).toBe(false);

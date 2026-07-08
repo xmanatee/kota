@@ -61,9 +61,9 @@ describe("attention digest workflow state recovery hints", () => {
     expect(emittedEvents).toHaveLength(1);
     const text = emittedEvents[0].payload.text as string;
     expect(text).toContain("Pending-merge claim blocks queue");
-    expect(text).toContain("pnpm kota workflow state-recovery list");
+    expect(text).toContain("pnpm dev workflow state-recovery list");
     expect(text).toContain(
-      'pnpm kota workflow state-recovery resolve task-pending --action <release|supersede> --reason "<reason>"',
+      'pnpm dev workflow state-recovery resolve task-pending --action <release|supersede> --reason "<reason>"',
     );
   });
 });

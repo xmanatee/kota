@@ -1,0 +1,5 @@
+1. Verified by `focused-test-transcript.txt`: generated claim-blocked payloads, attention digest text, and dashboard/status output now use `pnpm dev workflow state-recovery ...` under source-mode tests instead of the stale `pnpm kota ...` command.
+2. Verified by `focused-test-transcript.txt`: focused tests cover `recoveryCommand`/`resolveCommand` strings, attention digest rendering, dashboard rendering, dispatcher claim-aware payloads, and builder claim-aware gating.
+3. Verified by `cli-transcript.txt`: the advertised `pnpm dev workflow state-recovery list --json` command reaches the existing `workflow state-recovery` command and reports the seeded pending-merge recovery state.
+4. Verified by `focused-test-transcript.txt`: `src/modules/autonomy/workflow-state-recovery-actions.test.ts` still covers refusal when unresolved pending-merge evidence reports merge blockers.
+5. Verified by `validation.txt`: `pnpm run validate-tasks` passes when the moved task paths are staged in a writable temporary git index/object store; `staging-limitation.txt` records that this sandbox cannot update the real worktree git index.

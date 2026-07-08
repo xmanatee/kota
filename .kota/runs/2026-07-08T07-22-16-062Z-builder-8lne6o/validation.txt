@@ -1,0 +1,7 @@
+$ GIT_INDEX_FILE=.kota/tmp/2026-07-08T07-22-16-062Z-builder-8lne6o/validation.index GIT_OBJECT_DIRECTORY=.kota/tmp/2026-07-08T07-22-16-062Z-builder-8lne6o/git-objects GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects git read-tree HEAD
+$ GIT_INDEX_FILE=.kota/tmp/2026-07-08T07-22-16-062Z-builder-8lne6o/validation.index GIT_OBJECT_DIRECTORY=.kota/tmp/2026-07-08T07-22-16-062Z-builder-8lne6o/git-objects GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects git add -- data/tasks/ready/task-make-generated-workflow-recovery-commands-use-a-ru.md data/tasks/done/task-make-generated-workflow-recovery-commands-use-a-ru.md
+$ GIT_INDEX_FILE=.kota/tmp/2026-07-08T07-22-16-062Z-builder-8lne6o/validation.index GIT_OBJECT_DIRECTORY=.kota/tmp/2026-07-08T07-22-16-062Z-builder-8lne6o/git-objects GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects pnpm run validate-tasks
+
+> kota@0.1.0 validate-tasks /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-make-generated-workflow-recovery-commands-use-a-ru-2026-07-08t07-22-16-062z-builder-8lne6o
+> node --conditions=source --import tsx src/validate-queue.ts
+

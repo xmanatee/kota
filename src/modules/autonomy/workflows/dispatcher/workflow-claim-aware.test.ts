@@ -62,9 +62,9 @@ describe("dispatcher claim-aware queue availability", () => {
       runId: "run-pending",
       workflowId: "builder",
       evidence: "builder branch is pending merge",
-      recoveryCommand: "pnpm kota workflow state-recovery list",
+      recoveryCommand: "pnpm dev workflow state-recovery list",
       resolveCommand:
-        'pnpm kota workflow state-recovery resolve task-pending --action <release|supersede> --reason "<reason>"',
+        'pnpm dev workflow state-recovery resolve task-pending --action <release|supersede> --reason "<reason>"',
     };
     const output = result.steps["assess-and-dispatch"].output as {
       pullableCount?: number;

@@ -1,0 +1,13 @@
+Command attempted:
+
+TMPDIR=/private/tmp node --conditions=source --import tsx src/cli.ts task move task-make-generated-workflow-recovery-commands-use-a-ru doing
+
+Result:
+
+The source-mode task CLI reached the `git mv` transition path, but the sandbox
+cannot create the parent worktree git index lock:
+
+fatal: Unable to create '/Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/task-make-generated-workflow-recovery-commands-use-a-ru-2026-07-08t07-22-16-062z-builder-8lne6o/index.lock': Operation not permitted
+
+The task file was moved manually inside the writable worktree with matching
+frontmatter status and timestamp.
