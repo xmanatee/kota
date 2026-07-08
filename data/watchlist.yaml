@@ -792,3 +792,7 @@ resources:
   - url: https://arxiv.org/abs/2605.26457
     added: "2026-07-08"
     notes: "Verus-SpecGym studies agentic specification autoformalization: translating informal programming requirements into faithful executable/formal specs and testing them against official plus adversarial cases. Monitor as an eval-harness signal for spec-faithfulness fixtures; do not import Verus, Harbor, Codeforces data, Docker environments, or the external benchmark corpus."
+    snapshot:
+      fingerprint: sha256:93d106847914ebeff21f1ef1b2228417
+      summary: "Verus-SpecGym is accessible; its executable spec-faithfulness and adversarial-counterexample signal is already covered by completed task-add-a-formal-spec-faithfulness-fixture-to-the-eval, so no duplicate task is needed."
+      last_seen_at: "2026-07-08T04:01:41.981Z"
