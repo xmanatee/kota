@@ -785,3 +785,7 @@ resources:
   - url: https://arxiv.org/abs/2605.15226
     added: "2026-07-07"
     notes: "Phoenix-bench studies agentic hardware-engineering debugging with repository navigation, hierarchy-aware localization, executable verification, and maintenance-style patching. Monitor as an eval-harness signal for cross-hierarchy root-cause debugging from structured failure evidence; do not import Verilator, EDA tooling, Docker environments, or the external benchmark corpus."
+    snapshot:
+      fingerprint: sha256:b5cea6d89c2c1cdedff9f4565eadad1b
+      summary: "Phoenix-bench is accessible; its cross-hierarchy hardware-debugging signal is already covered by blocked task-add-a-cross-hierarchy-signal-flow-debugging-fixtur, which borrows the root-cause/testbench-feedback shape without importing Verilator, EDA, Docker, or the external corpus."
+      last_seen_at: "2026-07-08T00:22:08.876Z"
