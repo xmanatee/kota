@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   claimTask,
@@ -113,6 +114,28 @@ describe("workflow state recovery actions", () => {
         after: null,
       },
     });
+  });
+
+  it("rejects traversal artifactRunId values without writing outside .kota/runs", () => {
+    const provider = createWorkflowStateRecoveryProvider();
+
+    const resolved = provider.resolve({
+      projectDir,
+      taskId: "task-missing",
+      action: "release",
+      rationale: "invalid artifact run id must not write an artifact",
+      artifactRunId: "../../escaped",
+    });
+
+    expect(resolved).toMatchObject({
+      ok: false,
+      reason: "invalid_input",
+      message: expect.stringContaining("path-safe segment"),
+    });
+    expect(resolved).not.toHaveProperty("artifactPath");
+    expect(existsSync(join(projectDir, "escaped", "workflow-state-recovery.json"))).toBe(false);
+    expect(existsSync(join(projectDir, ".kota", "escaped", "workflow-state-recovery.json"))).toBe(false);
+    expect(existsSync(join(projectDir, ".kota", "runs"))).toBe(false);
   });
 
   it("refuses release when claim evidence still says the merge is pending", () => {

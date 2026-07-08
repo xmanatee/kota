@@ -104,6 +104,21 @@ describe("workflow-ops localClient recovery status", () => {
     expect(existsSync(join(projectDir, ".kota", PAUSE_SIGNAL_FILE))).toBe(false);
   });
 
+  it("rejects invalid state-recovery artifact run ids before provider dispatch", async () => {
+    const result = await buildHandler(projectDir).resolveStateRecovery({
+      taskId: "task-a",
+      action: "release",
+      rationale: "operator requested recovery",
+      artifactRunId: "../escaped",
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      reason: "invalid_input",
+      message: expect.stringContaining("path-safe segment"),
+    });
+  });
+
   it("status exposes dirty recovery details and resume keeps dispatch paused", async () => {
     initializeCleanGitRepo(projectDir);
     writeFileSync(join(projectDir, "tracked.txt"), "dirty\n", "utf8");

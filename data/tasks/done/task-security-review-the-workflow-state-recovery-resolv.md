@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-workflow-state-recovery-resolv
 title: Security review: The workflow state-recovery resolve route accepts artifactRunId as an arbitrary string and the artifact writer uses it directly as a path segment, allowing a control-scoped caller to traverse out of .kota/runs and write workflow-state-recovery.json elsewhere on the filesystem.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: The workflow state-recovery resolve route accepts artifactRunId as an arbitrary string and the artifact writer uses it directly as a path segment, allowing a control-scoped caller to traverse out of .kota/runs and write workflow-state-recovery.json elsewhere on the filesystem.
 created_at: 2026-07-08T02:56:12.924Z
-updated_at: 2026-07-08T02:56:12.924Z
+updated_at: 2026-07-08T03:08:08.682Z
 ---
 
 ## Problem
@@ -125,3 +125,9 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/modules/autonomy/workflow-state-recovery-actions.test.ts src/modules/workflow-ops/local-client-recovery.test.ts src/modules/workflow-ops/state-recovery-routes.test.ts`
+- `pnpm typecheck`
+- `pnpm lint`

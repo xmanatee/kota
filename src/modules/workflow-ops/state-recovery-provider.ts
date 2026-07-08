@@ -1,5 +1,6 @@
 import { defineProviderToken } from "#core/modules/provider-registry.js";
 import type { ScopeSelector } from "#core/server/scope-selector.js";
+import { validateWorkflowRunId } from "#core/workflow/run-io.js";
 
 export type WorkflowStateRecoveryAction = "release" | "supersede";
 
@@ -110,6 +111,7 @@ export type WorkflowStateRecoveryResolveResult =
       reason:
         | "provider_unavailable"
         | "not_found"
+        | "invalid_input"
         | "invalid_action"
         | "unsafe"
         | "write_conflict";
@@ -122,6 +124,26 @@ export type WorkflowStateRecoveryProvider = {
   list(input: WorkflowStateRecoveryListInput): WorkflowStateRecoveryListResult;
   resolve(input: WorkflowStateRecoveryResolveInput): WorkflowStateRecoveryResolveResult;
 };
+
+export function validateWorkflowStateRecoveryArtifactRunId(
+  artifactRunId: string | undefined,
+): { ok: true; artifactRunId?: string } | { ok: false; message: string } {
+  if (artifactRunId === undefined) return { ok: true };
+  try {
+    return {
+      ok: true,
+      artifactRunId: validateWorkflowRunId(
+        artifactRunId,
+        "Workflow state recovery artifactRunId",
+      ),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
 
 export const WORKFLOW_STATE_RECOVERY_PROVIDER_TYPE =
   defineProviderToken<WorkflowStateRecoveryProvider>("workflow-state-recovery");

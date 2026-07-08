@@ -5,6 +5,7 @@ import type {
   WorkflowStateRecoveryResolveInput,
   WorkflowStateRecoveryResolveResult,
 } from "#modules/workflow-ops/state-recovery-provider.js";
+import { validateWorkflowStateRecoveryArtifactRunId } from "#modules/workflow-ops/state-recovery-provider.js";
 import {
   readActiveTaskClaim,
   releaseTaskClaim,
@@ -160,7 +161,20 @@ export function createWorkflowStateRecoveryProvider(): WorkflowStateRecoveryProv
       };
     },
     resolve(input) {
-      return resolvePendingMergeClaim(input);
+      const artifactRunId = validateWorkflowStateRecoveryArtifactRunId(input.artifactRunId);
+      if (!artifactRunId.ok) {
+        return {
+          ok: false,
+          reason: "invalid_input",
+          message: artifactRunId.message,
+        };
+      }
+      return resolvePendingMergeClaim({
+        ...input,
+        ...(artifactRunId.artifactRunId !== undefined
+          ? { artifactRunId: artifactRunId.artifactRunId }
+          : {}),
+      });
     },
   };
 }

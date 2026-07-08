@@ -1,7 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
-import { formatRunId } from "#core/workflow/run-io.js";
+import { formatRunId, validateWorkflowRunId } from "#core/workflow/run-io.js";
 import type {
   WorkflowStateRecoveryArtifact,
   WorkflowStateRecoveryClaim,
@@ -9,7 +9,12 @@ import type {
 } from "#modules/workflow-ops/state-recovery-provider.js";
 
 function artifactPath(input: WorkflowStateRecoveryResolveInput): string {
-  const runId = input.artifactRunId ?? formatRunId("workflow-state-recovery");
+  const runId = input.artifactRunId === undefined
+    ? formatRunId("workflow-state-recovery")
+    : validateWorkflowRunId(
+        input.artifactRunId,
+        "Workflow state recovery artifactRunId",
+      );
   return join(input.projectDir, ".kota", "runs", runId, "workflow-state-recovery.json");
 }
 

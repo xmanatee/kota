@@ -79,6 +79,7 @@ import { simulateAutomation } from "./simulation/engine.js";
 import { workflowSimulationControlRoutes } from "./simulation/routes.js";
 import { resolveWorkflowStateRecoveryProject } from "./state-recovery-project.js";
 import {
+  validateWorkflowStateRecoveryArtifactRunId,
   WORKFLOW_STATE_RECOVERY_PROVIDER_TYPE,
   type WorkflowStateRecoveryProvider,
 } from "./state-recovery-provider.js";
@@ -202,6 +203,14 @@ const workflowModule: KotaModule = {
         return provider.list({ ...(filter ?? {}), projectDir: project.projectDir });
       },
       async resolveStateRecovery(input) {
+        const artifactRunId = validateWorkflowStateRecoveryArtifactRunId(input.artifactRunId);
+        if (!artifactRunId.ok) {
+          return {
+            ok: false,
+            reason: "invalid_input",
+            message: artifactRunId.message,
+          };
+        }
         const provider = await resolveLocalStateRecoveryProvider(ctx);
         if (!provider) {
           return {
@@ -218,7 +227,13 @@ const workflowModule: KotaModule = {
             message: project.message,
           };
         }
-        return provider.resolve({ ...input, projectDir: project.projectDir });
+        return provider.resolve({
+          ...input,
+          projectDir: project.projectDir,
+          ...(artifactRunId.artifactRunId !== undefined
+            ? { artifactRunId: artifactRunId.artifactRunId }
+            : {}),
+        });
       },
       async listDeadLetters(filter) {
         const store = deadLetterStoreForProject(ctx.cwd);

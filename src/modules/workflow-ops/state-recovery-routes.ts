@@ -8,7 +8,10 @@ import type {
   WorkflowStateRecoveryAction,
   WorkflowStateRecoveryResolveInput,
 } from "./state-recovery-provider.js";
-import { WORKFLOW_STATE_RECOVERY_PROVIDER_TYPE } from "./state-recovery-provider.js";
+import {
+  validateWorkflowStateRecoveryArtifactRunId,
+  WORKFLOW_STATE_RECOVERY_PROVIDER_TYPE,
+} from "./state-recovery-provider.js";
 
 function isRecoveryAction(value: string | undefined): value is WorkflowStateRecoveryAction {
   return value === "release" || value === "supersede";
@@ -32,6 +35,10 @@ function readResolveBody(body: ResolveBodyFields):
   if (body.rationale === undefined || body.rationale.trim().length === 0) {
     return { ok: false, message: "Body must include non-empty string `rationale`" };
   }
+  const artifactRunId = validateWorkflowStateRecoveryArtifactRunId(body.artifactRunId);
+  if (!artifactRunId.ok) {
+    return { ok: false, message: artifactRunId.message };
+  }
   return {
     ok: true,
     value: {
@@ -39,7 +46,9 @@ function readResolveBody(body: ResolveBodyFields):
       rationale: body.rationale,
       ...(typeof body.runId === "string" ? { runId: body.runId } : {}),
       ...(typeof body.actor === "string" ? { actor: body.actor } : {}),
-      ...(typeof body.artifactRunId === "string" ? { artifactRunId: body.artifactRunId } : {}),
+      ...(artifactRunId.artifactRunId !== undefined
+        ? { artifactRunId: artifactRunId.artifactRunId }
+        : {}),
     },
   };
 }
