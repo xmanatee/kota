@@ -789,3 +789,6 @@ resources:
       fingerprint: sha256:b5cea6d89c2c1cdedff9f4565eadad1b
       summary: "Phoenix-bench is accessible; its cross-hierarchy hardware-debugging signal is already covered by blocked task-add-a-cross-hierarchy-signal-flow-debugging-fixtur, which borrows the root-cause/testbench-feedback shape without importing Verilator, EDA, Docker, or the external corpus."
       last_seen_at: "2026-07-08T00:22:08.876Z"
+  - url: https://arxiv.org/abs/2605.26457
+    added: "2026-07-08"
+    notes: "Verus-SpecGym studies agentic specification autoformalization: translating informal programming requirements into faithful executable/formal specs and testing them against official plus adversarial cases. Monitor as an eval-harness signal for spec-faithfulness fixtures; do not import Verus, Harbor, Codeforces data, Docker environments, or the external benchmark corpus."
