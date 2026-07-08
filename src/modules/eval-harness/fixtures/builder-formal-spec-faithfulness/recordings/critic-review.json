@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "workflowName": "builder",
+  "stepId": "critic-review",
+  "sourceRunId": "synthetic-builder-formal-spec-faithfulness-2026-07-08",
+  "response": {
+    "text": "{\n  \"verdict\": \"pass\",\n  \"critical_issues\": [],\n  \"warnings\": [],\n  \"summary\": \"The replayed formal-spec-faithfulness fixture satisfies the task: the executable return-label contract matches the informal requirements, accepts official and valid alternative cases, rejects adversarial invalid approvals, records structured result evidence and objective metrics, preserves source/verifier files, and moves the task to done.\"\n}",
+    "subtype": "success",
+    "turns": 1,
+    "totalCostUsd": 0,
+    "inputTokens": 0,
+    "outputTokens": 0
+  },
+  "fileOperations": []
+}

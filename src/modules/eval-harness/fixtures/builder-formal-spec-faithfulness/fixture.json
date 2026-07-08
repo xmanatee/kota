@@ -1,0 +1,190 @@
+{
+  "id": "builder-formal-spec-faithfulness",
+  "description": "Replay-backed builder fixture for authoring a faithful executable spec contract from informal return-label requirements, with shortcut calibration for vacuous and overfit specs.",
+  "role": "builder",
+  "workflowName": "builder",
+  "budgetMs": 1800000,
+  "predicates": [
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-spec-faithfulness.mjs",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-spec-faithfulness.mjs --self-test-shortcuts",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "file-exists",
+      "path": "src/spec-contract.mjs"
+    },
+    {
+      "kind": "file-exists",
+      "path": "spec-faithfulness-result.json"
+    },
+    {
+      "kind": "file-exists",
+      "path": "spec-faithfulness-verification.json"
+    },
+    {
+      "kind": "file-contains",
+      "path": "spec-faithfulness-result.json",
+      "needle": "\"finalVerdict\": \"pass\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "spec-faithfulness-result.json",
+      "needle": "\"verificationCommand\": \"node scripts/check-spec-faithfulness.mjs\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "spec-faithfulness-result.json",
+      "needle": "\"FSF-6\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "spec-faithfulness-result.json",
+      "needle": "\"valid-alternate-output-shape\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "spec-faithfulness-result.json",
+      "needle": "\"missing-assumption-approved\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "spec-faithfulness-result.json",
+      "needle": "\"adversarialRejections\": 5"
+    },
+    {
+      "kind": "file-absent",
+      "path": "data/tasks/ready/task-author-return-label-spec-contract.md"
+    },
+    {
+      "kind": "file-exists",
+      "path": "data/tasks/done/task-author-return-label-spec-contract.md"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/tasks/done/task-author-return-label-spec-contract.md",
+      "needle": "status: done"
+    },
+    {
+      "kind": "git-changes-within",
+      "allowedPaths": [
+        "src/spec-contract.mjs",
+        "spec-faithfulness-result.json",
+        "spec-faithfulness-verification.json",
+        "data/tasks/ready/task-author-return-label-spec-contract.md",
+        "data/tasks/done/task-author-return-label-spec-contract.md"
+      ]
+    }
+  ],
+  "objectiveMetrics": [
+    {
+      "name": "adversarial_rejections",
+      "unit": "cases",
+      "direction": "higher_is_better",
+      "source": {
+        "kind": "json-file",
+        "path": "spec-faithfulness-result.json",
+        "pointer": "/objectiveMetrics/adversarialRejections"
+      }
+    }
+  ],
+  "verifierCalibration": {
+    "null": {},
+    "golden": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/src/spec-contract.mjs",
+          "targetPath": "src/spec-contract.mjs"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/spec-faithfulness-result.json",
+          "targetPath": "spec-faithfulness-result.json"
+        }
+      ]
+    },
+    "acceptedAlternatives": [
+      {
+        "id": "predicate-table-contract",
+        "setup": [
+          {
+            "kind": "copy-fixture-file",
+            "sourcePath": "calibration/accepted-alternatives/predicate-table-contract/src/spec-contract.mjs",
+            "targetPath": "src/spec-contract.mjs"
+          },
+          {
+            "kind": "copy-fixture-file",
+            "sourcePath": "calibration/accepted-alternatives/predicate-table-contract/spec-faithfulness-result.json",
+            "targetPath": "spec-faithfulness-result.json"
+          }
+        ]
+      }
+    ],
+    "adversarial": {
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/src/spec-contract.mjs",
+          "targetPath": "src/spec-contract.mjs"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/spec-faithfulness-result.json",
+          "targetPath": "spec-faithfulness-result.json"
+        }
+      ]
+    }
+  },
+  "tags": [
+    "autonomy",
+    "builder-discipline",
+    "formal-spec-faithfulness",
+    "agent-call-replay",
+    "objective-metric"
+  ],
+  "provenance": {
+    "kind": "smoke-fixture",
+    "justification": "Synthetic replay-backed builder canary for Verus-SpecGym-shaped specification-faithfulness risk: the builder must translate compact informal requirements into an executable local contract that accepts valid alternatives and rejects adversarial counterexamples, rather than writing a vacuous or overfit spec artifact. The fixture uses KOTA's existing replay, verifier-calibration, accepted-alternative, predicate, subprocess, and objective-metric paths; it does not import a formal-verification toolchain or external corpus. No past KOTA failure run exists for this exact measurement gap."
+  },
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-spec-faithfulness.mjs",
+        "timeoutMs": 20000
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-spec-faithfulness.mjs --self-test-shortcuts",
+        "timeoutMs": 15000
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/ready/task-author-return-label-spec-contract.md"
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "spec-faithfulness-result.json"
+      },
+      "expected": "fail"
+    }
+  ],
+  "controlDecisions": [
+    "act"
+  ]
+}

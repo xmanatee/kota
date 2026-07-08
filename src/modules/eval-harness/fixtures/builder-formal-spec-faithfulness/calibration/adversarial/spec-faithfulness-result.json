@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "requirementIds": ["FSF-1", "FSF-2", "FSF-3", "FSF-4", "FSF-5", "FSF-6"],
+  "specContractPath": "src/spec-contract.mjs",
+  "verificationCommand": "node scripts/check-spec-faithfulness.mjs",
+  "localVerificationCommands": [
+    "node scripts/check-spec-faithfulness.mjs",
+    "node scripts/check-spec-faithfulness.mjs --self-test-shortcuts"
+  ],
+  "acceptedValidCases": [
+    "official-standard-approved",
+    "official-store-routed",
+    "official-invalid-request",
+    "valid-gold-extended-window",
+    "valid-alternate-output-shape"
+  ],
+  "rejectedAdversarialCases": [
+    "too-late-standard-approved",
+    "excluded-gift-card-approved",
+    "damaged-item-approved",
+    "missing-assumption-approved",
+    "store-purchase-label-approved"
+  ],
+  "finalVerdict": "pass",
+  "objectiveMetrics": {
+    "validCasesAccepted": 5,
+    "adversarialRejections": 0,
+    "requirementIdsCovered": 6
+  },
+  "sourcePacket": {
+    "requirementsSha256": "cbfd91adf422f8fc55e35ab6642475e2de09081188aaef3ca2f4a7e104647e7c",
+    "officialExamplesSha256": "b429f8257d5518a3dfe4bdda6ed629ff30d7d5f19d8f1c1f7a729420a4d29f53",
+    "adversarialCasesSha256": "19422782fd956bab7ecfcf3a32e9fd2c2d280e116f07045f4bf2884fdf4679c4"
+  }
+}

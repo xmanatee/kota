@@ -1,0 +1,3 @@
+Add formal spec faithfulness eval fixture
+
+Seeds a replay-backed builder eval fixture for executable spec faithfulness, with official and adversarial return-label cases, verifier calibration, an accepted-alternative spec shape, shortcut self-tests, structured result evidence, and objective metric reporting.

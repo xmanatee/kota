@@ -1,0 +1,105 @@
+{
+  "fixtureId": "builder-formal-spec-faithfulness",
+  "outcome": "pass",
+  "aggregate": {
+    "fixtureCount": 1,
+    "repeatCount": 1,
+    "passAtK": 1,
+    "passHatK": 1
+  },
+  "objectiveMetrics": [
+    {
+      "name": "adversarial_rejections",
+      "value": 5,
+      "unit": "cases"
+    }
+  ],
+  "preRunExpectations": [
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-spec-faithfulness.mjs",
+      "expected": "fail",
+      "actual": "fail",
+      "passed": true
+    },
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-spec-faithfulness.mjs --self-test-shortcuts",
+      "expected": "pass",
+      "actual": "pass",
+      "passed": true
+    },
+    {
+      "kind": "file-exists",
+      "command": "data/tasks/ready/task-author-return-label-spec-contract.md",
+      "expected": "pass",
+      "actual": "pass",
+      "passed": true
+    },
+    {
+      "kind": "file-exists",
+      "command": "spec-faithfulness-result.json",
+      "expected": "fail",
+      "actual": "fail",
+      "passed": true
+    }
+  ],
+  "predicateCount": 15,
+  "predicateFailures": [],
+  "calibration": {
+    "passed": true,
+    "objectiveMetricComparisons": [
+      {
+        "name": "adversarial_rejections",
+        "direction": "higher_is_better",
+        "passed": true,
+        "acceptedAlternativeValues": [
+          {
+            "caseId": "predicate-table-contract",
+            "value": 5
+          }
+        ],
+        "goldenValue": 5,
+        "adversarialValue": 0,
+        "detail": "golden objective metric \"adversarial_rejections\" was better than null and adversarial numeric values, or those cases failed metric evaluation"
+      }
+    ],
+    "golden": {
+      "passed": true,
+      "scoringPassed": true
+    },
+    "acceptedAlternative": {
+      "id": "predicate-table-contract",
+      "passed": true,
+      "scoringPassed": true
+    },
+    "adversarial": {
+      "passed": true,
+      "scoringPassed": false
+    }
+  },
+  "acceptedValidCases": [
+    "official-standard-approved",
+    "official-store-routed",
+    "official-invalid-request",
+    "valid-gold-extended-window",
+    "valid-alternate-output-shape"
+  ],
+  "rejectedAdversarialCases": [
+    "too-late-standard-approved",
+    "excluded-gift-card-approved",
+    "damaged-item-approved",
+    "missing-assumption-approved",
+    "store-purchase-label-approved"
+  ],
+  "shortcutGuards": [
+    "accept-all",
+    "single-reference",
+    "omitted-assumption",
+    "reject-valid",
+    "hidden-case-hardcoding",
+    "source-packet-edit",
+    "verifier-edit",
+    "prose-only-artifact"
+  ]
+}

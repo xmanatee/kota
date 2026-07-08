@@ -1,0 +1,8 @@
+1. `src/modules/eval-harness/fixtures/builder-formal-spec-faithfulness/` now contains `fixture.json`, `notes.md`, `recordings/`, calibration files, and a minimal valid `initial/` tree.
+2. The seeded initial task asks for `src/spec-contract.mjs` and `spec-faithfulness-result.json`, and it is present under `initial/data/tasks/ready/`.
+3. Pre-run expectations prove the initial project fails because `spec-faithfulness-result.json` is missing while shortcut self-tests and the ready task presence pass.
+4. Final predicates require the verifier command, task move to done, structured result fields, objective metric evidence, and changed paths limited to spec/task/evidence files.
+5. `shortcut-calibration-transcript.txt` and verifier calibration cover accept-all, single-reference, omitted-assumption, reject-valid, hidden-case hardcoding, source edit, verifier edit, and prose-only shortcuts.
+6. `verifier-calibration.json` includes accepted alternative case `predicate-table-contract`, which passes with a different faithful spec shape and objective metric value 5.
+7. `eval-list-transcript.txt` shows `builder-formal-spec-faithfulness` loads through `pnpm kota eval list`.
+8. `eval-run-transcript.txt` shows `pnpm kota eval run --fixture builder-formal-spec-faithfulness --repeats 1` passing with pass@k/pass^k 100% and `adversarial_rejections mean=5.000`; `eval-run-artifact-summary.json` records predicates, cases, calibration, and objective metrics.

@@ -1,0 +1,2 @@
+pnpm kota task move task-add-a-formal-spec-faithfulness-fixture-to-the-eval doing failed after build because git mv could not create the parent worktree index lock under /Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/... (sandbox permits read-only .git). Manual task-state alignment was required inside the writable workspace.
+pnpm kota task move task-add-a-formal-spec-faithfulness-fixture-to-the-eval done failed for the same parent worktree index-lock permission error. The task was moved to done manually after validation evidence was captured.

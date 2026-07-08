@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "shortcutGuards": [
+    "accept-all",
+    "single-reference",
+    "omitted-assumption",
+    "reject-valid",
+    "hidden-case-hardcoding",
+    "source-packet-edit",
+    "verifier-edit",
+    "prose-only-artifact"
+  ]
+}

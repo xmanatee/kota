@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "official-standard-approved",
+      "expected": "accept",
+      "requirementIds": ["FSF-1", "FSF-2", "FSF-6"],
+      "request": {
+        "purchaseChannel": "online",
+        "daysSinceDelivery": 12,
+        "itemCategory": "apparel",
+        "condition": "like-new",
+        "memberTier": "standard",
+        "proofOfPurchase": true
+      },
+      "decision": {
+        "outcome": "label-approved",
+        "labelRequired": true,
+        "feeCents": 0,
+        "reasonCode": "within-standard-window"
+      }
+    },
+    {
+      "id": "official-store-routed",
+      "expected": "accept",
+      "requirementIds": ["FSF-1", "FSF-4", "FSF-6"],
+      "request": {
+        "purchaseChannel": "store",
+        "daysSinceDelivery": 5,
+        "itemCategory": "apparel",
+        "condition": "new",
+        "memberTier": "standard",
+        "proofOfPurchase": true
+      },
+      "decision": {
+        "outcome": "in-store-return-required",
+        "labelRequired": false,
+        "reasonCode": "store-purchase"
+      }
+    },
+    {
+      "id": "official-invalid-request",
+      "expected": "accept",
+      "requirementIds": ["FSF-1", "FSF-6"],
+      "request": {
+        "purchaseChannel": "online",
+        "daysSinceDelivery": -1,
+        "itemCategory": "apparel",
+        "condition": "new",
+        "memberTier": "standard",
+        "proofOfPurchase": true
+      },
+      "decision": {
+        "outcome": "invalid-request",
+        "labelRequired": false,
+        "reasonCode": "invalid-days-since-delivery"
+      }
+    }
+  ]
+}

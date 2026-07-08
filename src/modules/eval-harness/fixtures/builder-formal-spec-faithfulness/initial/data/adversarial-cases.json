@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "too-late-standard-approved",
+      "expected": "reject",
+      "exposes": "accept-too-much behavior",
+      "requirementIds": ["FSF-1", "FSF-2"],
+      "request": {
+        "purchaseChannel": "online",
+        "daysSinceDelivery": 31,
+        "itemCategory": "apparel",
+        "condition": "new",
+        "memberTier": "standard",
+        "proofOfPurchase": true
+      },
+      "decision": {
+        "outcome": "label-approved",
+        "labelRequired": true,
+        "feeCents": 0,
+        "reasonCode": "within-standard-window"
+      }
+    },
+    {
+      "id": "excluded-gift-card-approved",
+      "expected": "reject",
+      "exposes": "omitted excluded-category assumption",
+      "requirementIds": ["FSF-1", "FSF-5"],
+      "request": {
+        "purchaseChannel": "online",
+        "daysSinceDelivery": 3,
+        "itemCategory": "gift-card",
+        "condition": "new",
+        "memberTier": "gold",
+        "proofOfPurchase": true
+      },
+      "decision": {
+        "eligible": true,
+        "method": "prepaid-label",
+        "chargeCents": 0,
+        "reasonCode": "gold-window"
+      }
+    },
+    {
+      "id": "damaged-item-approved",
+      "expected": "reject",
+      "exposes": "omitted condition assumption",
+      "requirementIds": ["FSF-1", "FSF-5"],
+      "request": {
+        "purchaseChannel": "online",
+        "daysSinceDelivery": 7,
+        "itemCategory": "apparel",
+        "condition": "damaged",
+        "memberTier": "gold",
+        "proofOfPurchase": true
+      },
+      "decision": {
+        "outcome": "label-approved",
+        "labelRequired": true,
+        "feeCents": 0,
+        "reasonCode": "gold-window"
+      }
+    },
+    {
+      "id": "missing-assumption-approved",
+      "expected": "reject",
+      "exposes": "omitted input assumptions",
+      "requirementIds": ["FSF-1"],
+      "request": {
+        "purchaseChannel": "online",
+        "itemCategory": "apparel",
+        "condition": "new",
+        "memberTier": "standard",
+        "proofOfPurchase": true
+      },
+      "decision": {
+        "outcome": "label-approved",
+        "labelRequired": true,
+        "feeCents": 0,
+        "reasonCode": "within-standard-window"
+      }
+    },
+    {
+      "id": "store-purchase-label-approved",
+      "expected": "reject",
+      "exposes": "accept-too-much behavior",
+      "requirementIds": ["FSF-1", "FSF-4"],
+      "request": {
+        "purchaseChannel": "store",
+        "daysSinceDelivery": 2,
+        "itemCategory": "apparel",
+        "condition": "new",
+        "memberTier": "gold",
+        "proofOfPurchase": true
+      },
+      "decision": {
+        "eligible": true,
+        "method": "prepaid-label",
+        "chargeCents": 0,
+        "reasonCode": "gold-window"
+      }
+    },
+    {
+      "id": "valid-gold-extended-window",
+      "expected": "accept",
+      "exposes": "reject-valid behavior",
+      "requirementIds": ["FSF-1", "FSF-3", "FSF-6"],
+      "request": {
+        "purchaseChannel": "online",
+        "daysSinceDelivery": 44,
+        "itemCategory": "apparel",
+        "condition": "like-new",
+        "memberTier": "gold",
+        "proofOfPurchase": true
+      },
+      "decision": {
+        "outcome": "label-approved",
+        "labelRequired": true,
+        "feeCents": 0,
+        "reasonCode": "gold-window"
+      }
+    },
+    {
+      "id": "valid-alternate-output-shape",
+      "expected": "accept",
+      "exposes": "single-reference overfitting",
+      "requirementIds": ["FSF-1", "FSF-2", "FSF-6"],
+      "request": {
+        "purchaseChannel": "online",
+        "daysSinceDelivery": 20,
+        "itemCategory": "apparel",
+        "condition": "new",
+        "memberTier": "standard",
+        "proofOfPurchase": true
+      },
+      "decision": {
+        "eligible": true,
+        "method": "prepaid-label",
+        "chargeCents": 0,
+        "reasonCode": "within-standard-window"
+      }
+    }
+  ]
+}

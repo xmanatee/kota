@@ -1,13 +1,13 @@
 ---
 id: task-add-a-formal-spec-faithfulness-fixture-to-the-eval
 title: Add a formal-spec faithfulness fixture to the eval harness
-status: ready
+status: done
 priority: p2
 area: modules
 task_class: Meta
 summary: Seed an eval-harness fixture where a builder must author a small executable formal/spec contract that matches informal requirements, not just a verifier-accepted but behaviorally wrong specification.
 created_at: 2026-07-08T03:21:28.463Z
-updated_at: 2026-07-08T03:21:28.463Z
+updated_at: 2026-07-08T03:50:00.000Z
 ---
 
 ## Problem
@@ -181,3 +181,19 @@ contract was satisfied.
 - Run artifact from the same eval execution showing predicate details,
   accepted valid cases, rejected adversarial cases, calibration results, and
   any objective metric values.
+
+## Result
+
+Added `builder-formal-spec-faithfulness`, a replay-backed eval-harness fixture
+that asks the builder to author an executable return-label decision spec from
+informal local requirements. The fixture includes official examples,
+adversarial cases, a weak initial spec, verifier calibration, an accepted
+alternative spec shape, replay recordings, structured result evidence, shortcut
+self-tests, and an `adversarial_rejections` objective metric.
+
+## Evidence
+
+- `.kota/runs/2026-07-08T03-33-33-534Z-builder-enaiyt/eval-list-transcript.txt`
+- `.kota/runs/2026-07-08T03-33-33-534Z-builder-enaiyt/eval-run-transcript.txt`
+- `.kota/runs/2026-07-08T03-33-33-534Z-builder-enaiyt/shortcut-calibration-transcript.txt`
+- `.kota/runs/2026-07-08T03-33-33-534Z-builder-enaiyt/eval-run-artifact-summary.json`

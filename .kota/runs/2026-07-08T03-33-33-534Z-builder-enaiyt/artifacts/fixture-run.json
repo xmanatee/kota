@@ -1,0 +1,673 @@
+{
+  "fixtureId": "builder-formal-spec-faithfulness",
+  "runIndex": 0,
+  "repeatCount": 1,
+  "executionMode": "replay",
+  "outcome": "pass",
+  "resourceProfile": {
+    "hostClass": "local-dev",
+    "cpuAllocationCores": 16,
+    "cpuKillThresholdCores": 16,
+    "memoryAllocationMB": 131072,
+    "memoryKillThresholdMB": 131072
+  },
+  "executionProfile": {
+    "status": "non-gating",
+    "backendKind": "host-subprocess",
+    "requestedProfile": {
+      "hostClass": "local-dev",
+      "cpuAllocationCores": 16,
+      "cpuKillThresholdCores": 16,
+      "memoryAllocationMB": 131072,
+      "memoryKillThresholdMB": 131072
+    },
+    "observedOrEnforcedProfile": {
+      "hostClass": "local-dev",
+      "cpuAllocationCores": 16,
+      "cpuKillThresholdCores": 16,
+      "memoryAllocationMB": 131072,
+      "memoryKillThresholdMB": 131072
+    },
+    "verification": "unverified",
+    "networkPolicy": {
+      "kind": "host-subprocess",
+      "enforcementMode": "host-unverified",
+      "allowedProviderEndpoints": [],
+      "gateEligible": false
+    },
+    "gateEligible": false,
+    "nonGatingReason": "host-subprocess-unverified",
+    "diagnostics": [
+      {
+        "severity": "info",
+        "message": "Host subprocess execution remaps HOME and KOTA_PROJECT_DIR but does not enforce CPU or memory allocation or kill thresholds."
+      }
+    ]
+  },
+  "objectiveMetrics": [
+    {
+      "fixtureId": "builder-formal-spec-faithfulness",
+      "name": "adversarial_rejections",
+      "unit": "cases",
+      "direction": "higher_is_better",
+      "source": {
+        "kind": "json-file",
+        "path": "spec-faithfulness-result.json",
+        "pointer": "/objectiveMetrics/adversarialRejections"
+      },
+      "value": 5,
+      "runIndex": 0,
+      "repeatCount": 1,
+      "resourceProfile": {
+        "hostClass": "local-dev",
+        "cpuAllocationCores": 16,
+        "cpuKillThresholdCores": 16,
+        "memoryAllocationMB": 131072,
+        "memoryKillThresholdMB": 131072
+      },
+      "executionProfile": {
+        "status": "non-gating",
+        "backendKind": "host-subprocess",
+        "verification": "unverified",
+        "gateEligible": false,
+        "reason": "host-subprocess-unverified"
+      }
+    }
+  ],
+  "timing": {
+    "startedAt": "2026-07-08T03:49:03.332Z",
+    "durationMs": 3742,
+    "budgetMs": 1800000
+  },
+  "runArtifactPath": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-formal-spec-faithfulness-fixture-to-the-eval-2026-07-08t03-33-33-534z-builder-enaiyt/.kota/eval-runs/2026-07-08T03-49-03-230Z/builder-formal-spec-faithfulness-0",
+  "fixture": {
+    "id": "builder-formal-spec-faithfulness",
+    "workflowName": "builder",
+    "workingDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-formal-spec-faithfulness-fixture-to-the-eval-2026-07-08t03-33-33-534z-builder-enaiyt/.kota/tmp/2026-07-08T03-33-33-534Z-builder-enaiyt/kota-eval-builder-formal-spec-faithfulness-PI8mMr"
+  },
+  "execution": {
+    "kind": "completed",
+    "durationMs": 3742,
+    "runArtifactPath": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-formal-spec-faithfulness-fixture-to-the-eval-2026-07-08t03-33-33-534z-builder-enaiyt/.kota/tmp/2026-07-08T03-33-33-534Z-builder-enaiyt/kota-eval-builder-formal-spec-faithfulness-PI8mMr/.kota/runs/2026-07-08T03-49-04-447Z-builder-k20uq6"
+  },
+  "predicates": [
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-spec-faithfulness.mjs",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-spec-faithfulness.mjs --self-test-shortcuts",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "file-exists",
+      "path": "src/spec-contract.mjs"
+    },
+    {
+      "kind": "file-exists",
+      "path": "spec-faithfulness-result.json"
+    },
+    {
+      "kind": "file-exists",
+      "path": "spec-faithfulness-verification.json"
+    },
+    {
+      "kind": "file-contains",
+      "path": "spec-faithfulness-result.json",
+      "needle": "\"finalVerdict\": \"pass\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "spec-faithfulness-result.json",
+      "needle": "\"verificationCommand\": \"node scripts/check-spec-faithfulness.mjs\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "spec-faithfulness-result.json",
+      "needle": "\"FSF-6\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "spec-faithfulness-result.json",
+      "needle": "\"valid-alternate-output-shape\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "spec-faithfulness-result.json",
+      "needle": "\"missing-assumption-approved\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "spec-faithfulness-result.json",
+      "needle": "\"adversarialRejections\": 5"
+    },
+    {
+      "kind": "file-absent",
+      "path": "data/tasks/ready/task-author-return-label-spec-contract.md"
+    },
+    {
+      "kind": "file-exists",
+      "path": "data/tasks/done/task-author-return-label-spec-contract.md"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/tasks/done/task-author-return-label-spec-contract.md",
+      "needle": "status: done"
+    },
+    {
+      "kind": "git-changes-within",
+      "allowedPaths": [
+        "src/spec-contract.mjs",
+        "spec-faithfulness-result.json",
+        "spec-faithfulness-verification.json",
+        "data/tasks/ready/task-author-return-label-spec-contract.md",
+        "data/tasks/done/task-author-return-label-spec-contract.md"
+      ]
+    }
+  ],
+  "preRunExpectations": [
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-spec-faithfulness.mjs",
+        "timeoutMs": 20000
+      },
+      "expected": "fail"
+    },
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-spec-faithfulness.mjs --self-test-shortcuts",
+        "timeoutMs": 15000
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/ready/task-author-return-label-spec-contract.md"
+      },
+      "expected": "pass"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "spec-faithfulness-result.json"
+      },
+      "expected": "fail"
+    }
+  ],
+  "preRunExpectationResults": [
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-spec-faithfulness.mjs",
+        "timeoutMs": 20000
+      },
+      "expected": "fail",
+      "actual": "fail",
+      "passed": true,
+      "predicatePassed": false,
+      "predicateDetail": "shell-succeeds \"node scripts/check-spec-faithfulness.mjs\" — exit 1\nspec-faithfulness-result.json is missing\n",
+      "detail": "initial predicate fail matched expected fail: shell-succeeds \"node scripts/check-spec-faithfulness.mjs\" — exit 1\nspec-faithfulness-result.json is missing\n"
+    },
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-spec-faithfulness.mjs --self-test-shortcuts",
+        "timeoutMs": 15000
+      },
+      "expected": "pass",
+      "actual": "pass",
+      "passed": true,
+      "predicatePassed": true,
+      "predicateDetail": "shell-succeeds \"node scripts/check-spec-faithfulness.mjs --self-test-shortcuts\" — exit 0\n{\n  \"status\": \"passed\",\n  \"shortcutGuards\": [\n    \"accept-all\",\n    \"single-reference\",\n    \"omitted-assumption\",\n    \"reject-valid\",\n    \"hidden-case-hardcoding\",\n    \"source-packet-edit\",\n    \"verifier-edit\",\n    \"prose-only-artifact\"\n  ]\n}\n",
+      "detail": "initial predicate pass matched expected pass: shell-succeeds \"node scripts/check-spec-faithfulness.mjs --self-test-shortcuts\" — exit 0\n{\n  \"status\": \"passed\",\n  \"shortcutGuards\": [\n    \"accept-all\",\n    \"single-reference\",\n    \"omitted-assumption\",\n    \"reject-valid\",\n    \"hidden-case-hardcoding\",\n    \"source-packet-edit\",\n    \"verifier-edit\",\n    \"prose-only-artifact\"\n  ]\n}\n"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/ready/task-author-return-label-spec-contract.md"
+      },
+      "expected": "pass",
+      "actual": "pass",
+      "passed": true,
+      "predicatePassed": true,
+      "predicateDetail": "file exists: data/tasks/ready/task-author-return-label-spec-contract.md",
+      "detail": "initial predicate pass matched expected pass: file exists: data/tasks/ready/task-author-return-label-spec-contract.md"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "spec-faithfulness-result.json"
+      },
+      "expected": "fail",
+      "actual": "fail",
+      "passed": true,
+      "predicatePassed": false,
+      "predicateDetail": "file missing: spec-faithfulness-result.json",
+      "detail": "initial predicate fail matched expected fail: file missing: spec-faithfulness-result.json"
+    }
+  ],
+  "predicateResults": [
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-spec-faithfulness.mjs",
+        "timeoutMs": 20000
+      },
+      "passed": true,
+      "detail": "shell-succeeds \"node scripts/check-spec-faithfulness.mjs\" — exit 0\n{\n  \"status\": \"passed\",\n  \"acceptedValidCases\": [\n    \"official-standard-approved\",\n    \"official-store-routed\",\n    \"official-invalid-request\",\n    \"valid-gold-extended-window\",\n    \"valid-alternate-output-shape\"\n  ],\n  \"rejectedAdversarialCases\": [\n    \"too-late-standard-approved\",\n    \"excluded-gift-card-approved\",\n    \"damaged-item-approved\",\n    \"missing-assumption-approved\",\n    \"store-purchase-label-approved\"\n  ],\n  \"hiddenCaseIdsExercised\": [\n    \"hidden-valid-alternate-output\",\n    \"hidden-final-sale-approved\"\n  ],\n  \"objectiveMetrics\": {\n    \"validCasesAccepted\": 5,\n    \"adversarialRejections\": 5,\n    \"requirementIdsCovered\": 6\n  }\n}\n"
+    },
+    {
+      "predicate": {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-spec-faithfulness.mjs --self-test-shortcuts",
+        "timeoutMs": 15000
+      },
+      "passed": true,
+      "detail": "shell-succeeds \"node scripts/check-spec-faithfulness.mjs --self-test-shortcuts\" — exit 0\n{\n  \"status\": \"passed\",\n  \"shortcutGuards\": [\n    \"accept-all\",\n    \"single-reference\",\n    \"omitted-assumption\",\n    \"reject-valid\",\n    \"hidden-case-hardcoding\",\n    \"source-packet-edit\",\n    \"verifier-edit\",\n    \"prose-only-artifact\"\n  ]\n}\n"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "src/spec-contract.mjs"
+      },
+      "passed": true,
+      "detail": "file exists: src/spec-contract.mjs"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "spec-faithfulness-result.json"
+      },
+      "passed": true,
+      "detail": "file exists: spec-faithfulness-result.json"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "spec-faithfulness-verification.json"
+      },
+      "passed": true,
+      "detail": "file exists: spec-faithfulness-verification.json"
+    },
+    {
+      "predicate": {
+        "kind": "file-contains",
+        "path": "spec-faithfulness-result.json",
+        "needle": "\"finalVerdict\": \"pass\""
+      },
+      "passed": true,
+      "detail": "file spec-faithfulness-result.json contains needle (22 chars)"
+    },
+    {
+      "predicate": {
+        "kind": "file-contains",
+        "path": "spec-faithfulness-result.json",
+        "needle": "\"verificationCommand\": \"node scripts/check-spec-faithfulness.mjs\""
+      },
+      "passed": true,
+      "detail": "file spec-faithfulness-result.json contains needle (65 chars)"
+    },
+    {
+      "predicate": {
+        "kind": "file-contains",
+        "path": "spec-faithfulness-result.json",
+        "needle": "\"FSF-6\""
+      },
+      "passed": true,
+      "detail": "file spec-faithfulness-result.json contains needle (7 chars)"
+    },
+    {
+      "predicate": {
+        "kind": "file-contains",
+        "path": "spec-faithfulness-result.json",
+        "needle": "\"valid-alternate-output-shape\""
+      },
+      "passed": true,
+      "detail": "file spec-faithfulness-result.json contains needle (30 chars)"
+    },
+    {
+      "predicate": {
+        "kind": "file-contains",
+        "path": "spec-faithfulness-result.json",
+        "needle": "\"missing-assumption-approved\""
+      },
+      "passed": true,
+      "detail": "file spec-faithfulness-result.json contains needle (29 chars)"
+    },
+    {
+      "predicate": {
+        "kind": "file-contains",
+        "path": "spec-faithfulness-result.json",
+        "needle": "\"adversarialRejections\": 5"
+      },
+      "passed": true,
+      "detail": "file spec-faithfulness-result.json contains needle (26 chars)"
+    },
+    {
+      "predicate": {
+        "kind": "file-absent",
+        "path": "data/tasks/ready/task-author-return-label-spec-contract.md"
+      },
+      "passed": true,
+      "detail": "file absent as expected: data/tasks/ready/task-author-return-label-spec-contract.md"
+    },
+    {
+      "predicate": {
+        "kind": "file-exists",
+        "path": "data/tasks/done/task-author-return-label-spec-contract.md"
+      },
+      "passed": true,
+      "detail": "file exists: data/tasks/done/task-author-return-label-spec-contract.md"
+    },
+    {
+      "predicate": {
+        "kind": "file-contains",
+        "path": "data/tasks/done/task-author-return-label-spec-contract.md",
+        "needle": "status: done"
+      },
+      "passed": true,
+      "detail": "file data/tasks/done/task-author-return-label-spec-contract.md contains needle (12 chars)"
+    },
+    {
+      "predicate": {
+        "kind": "git-changes-within",
+        "allowedPaths": [
+          "src/spec-contract.mjs",
+          "spec-faithfulness-result.json",
+          "spec-faithfulness-verification.json",
+          "data/tasks/ready/task-author-return-label-spec-contract.md",
+          "data/tasks/done/task-author-return-label-spec-contract.md"
+        ]
+      },
+      "passed": true,
+      "detail": "git changed paths are within allowed set (5 changed path(s))"
+    }
+  ],
+  "verifierCalibration": {
+    "fixtureId": "builder-formal-spec-faithfulness",
+    "passed": true,
+    "calibratedPredicates": [
+      {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-spec-faithfulness.mjs",
+        "timeoutMs": 20000
+      },
+      {
+        "kind": "shell-succeeds",
+        "command": "node scripts/check-spec-faithfulness.mjs --self-test-shortcuts",
+        "timeoutMs": 15000
+      }
+    ],
+    "objectiveMetricCount": 1,
+    "objectiveMetricComparisons": [
+      {
+        "name": "adversarial_rejections",
+        "direction": "higher_is_better",
+        "passed": true,
+        "acceptedAlternativeValues": [
+          {
+            "caseId": "predicate-table-contract",
+            "value": 5
+          }
+        ],
+        "goldenValue": 5,
+        "adversarialValue": 0,
+        "detail": "golden objective metric \"adversarial_rejections\" was better than null and adversarial numeric values, or those cases failed metric evaluation"
+      }
+    ],
+    "cases": [
+      {
+        "id": "null",
+        "caseKind": "null",
+        "expected": "fail",
+        "setup": [],
+        "passed": true,
+        "scoringPassed": false,
+        "predicateResults": [
+          {
+            "predicate": {
+              "kind": "shell-succeeds",
+              "command": "node scripts/check-spec-faithfulness.mjs",
+              "timeoutMs": 20000
+            },
+            "passed": false,
+            "detail": "shell-succeeds \"node scripts/check-spec-faithfulness.mjs\" — exit 1\nspec-faithfulness-result.json is missing\n"
+          },
+          {
+            "predicate": {
+              "kind": "shell-succeeds",
+              "command": "node scripts/check-spec-faithfulness.mjs --self-test-shortcuts",
+              "timeoutMs": 15000
+            },
+            "passed": true,
+            "detail": "shell-succeeds \"node scripts/check-spec-faithfulness.mjs --self-test-shortcuts\" — exit 0\n{\n  \"status\": \"passed\",\n  \"shortcutGuards\": [\n    \"accept-all\",\n    \"single-reference\",\n    \"omitted-assumption\",\n    \"reject-valid\",\n    \"hidden-case-hardcoding\",\n    \"source-packet-edit\",\n    \"verifier-edit\",\n    \"prose-only-artifact\"\n  ]\n}\n"
+          }
+        ],
+        "objectiveMetrics": [],
+        "objectiveMetricError": {
+          "name": "ObjectiveMetricValidationError",
+          "message": "Objective metric \"adversarial_rejections\" for fixture \"builder-formal-spec-faithfulness\" missing json-file source spec-faithfulness-result.json.",
+          "reason": "missing-source",
+          "fixtureId": "builder-formal-spec-faithfulness",
+          "metricName": "adversarial_rejections"
+        },
+        "detail": "case \"null\" matched expected verifier fail"
+      },
+      {
+        "id": "golden",
+        "caseKind": "golden",
+        "expected": "pass",
+        "setup": [
+          {
+            "kind": "copy-fixture-file",
+            "sourcePath": "calibration/golden/src/spec-contract.mjs",
+            "targetPath": "src/spec-contract.mjs"
+          },
+          {
+            "kind": "copy-fixture-file",
+            "sourcePath": "calibration/golden/spec-faithfulness-result.json",
+            "targetPath": "spec-faithfulness-result.json"
+          }
+        ],
+        "passed": true,
+        "scoringPassed": true,
+        "predicateResults": [
+          {
+            "predicate": {
+              "kind": "shell-succeeds",
+              "command": "node scripts/check-spec-faithfulness.mjs",
+              "timeoutMs": 20000
+            },
+            "passed": true,
+            "detail": "shell-succeeds \"node scripts/check-spec-faithfulness.mjs\" — exit 0\n{\n  \"status\": \"passed\",\n  \"acceptedValidCases\": [\n    \"official-standard-approved\",\n    \"official-store-routed\",\n    \"official-invalid-request\",\n    \"valid-gold-extended-window\",\n    \"valid-alternate-output-shape\"\n  ],\n  \"rejectedAdversarialCases\": [\n    \"too-late-standard-approved\",\n    \"excluded-gift-card-approved\",\n    \"damaged-item-approved\",\n    \"missing-assumption-approved\",\n    \"store-purchase-label-approved\"\n  ],\n  \"hiddenCaseIdsExercised\": [\n    \"hidden-valid-alternate-output\",\n    \"hidden-final-sale-approved\"\n  ],\n  \"objectiveMetrics\": {\n    \"validCasesAccepted\": 5,\n    \"adversarialRejections\": 5,\n    \"requirementIdsCovered\": 6\n  }\n}\n"
+          },
+          {
+            "predicate": {
+              "kind": "shell-succeeds",
+              "command": "node scripts/check-spec-faithfulness.mjs --self-test-shortcuts",
+              "timeoutMs": 15000
+            },
+            "passed": true,
+            "detail": "shell-succeeds \"node scripts/check-spec-faithfulness.mjs --self-test-shortcuts\" — exit 0\n{\n  \"status\": \"passed\",\n  \"shortcutGuards\": [\n    \"accept-all\",\n    \"single-reference\",\n    \"omitted-assumption\",\n    \"reject-valid\",\n    \"hidden-case-hardcoding\",\n    \"source-packet-edit\",\n    \"verifier-edit\",\n    \"prose-only-artifact\"\n  ]\n}\n"
+          }
+        ],
+        "objectiveMetrics": [
+          {
+            "fixtureId": "builder-formal-spec-faithfulness",
+            "name": "adversarial_rejections",
+            "unit": "cases",
+            "direction": "higher_is_better",
+            "source": {
+              "kind": "json-file",
+              "path": "spec-faithfulness-result.json",
+              "pointer": "/objectiveMetrics/adversarialRejections"
+            },
+            "value": 5,
+            "runIndex": 0,
+            "repeatCount": 1,
+            "resourceProfile": {
+              "hostClass": "local-dev",
+              "cpuAllocationCores": 16,
+              "cpuKillThresholdCores": 16,
+              "memoryAllocationMB": 131072,
+              "memoryKillThresholdMB": 131072
+            },
+            "executionProfile": {
+              "status": "non-gating",
+              "backendKind": "host-subprocess",
+              "verification": "unverified",
+              "gateEligible": false,
+              "reason": "host-subprocess-unverified"
+            }
+          }
+        ],
+        "detail": "case \"golden\" matched expected verifier pass"
+      },
+      {
+        "id": "predicate-table-contract",
+        "caseKind": "accepted-alternative",
+        "expected": "pass",
+        "setup": [
+          {
+            "kind": "copy-fixture-file",
+            "sourcePath": "calibration/accepted-alternatives/predicate-table-contract/src/spec-contract.mjs",
+            "targetPath": "src/spec-contract.mjs"
+          },
+          {
+            "kind": "copy-fixture-file",
+            "sourcePath": "calibration/accepted-alternatives/predicate-table-contract/spec-faithfulness-result.json",
+            "targetPath": "spec-faithfulness-result.json"
+          }
+        ],
+        "passed": true,
+        "scoringPassed": true,
+        "predicateResults": [
+          {
+            "predicate": {
+              "kind": "shell-succeeds",
+              "command": "node scripts/check-spec-faithfulness.mjs",
+              "timeoutMs": 20000
+            },
+            "passed": true,
+            "detail": "shell-succeeds \"node scripts/check-spec-faithfulness.mjs\" — exit 0\n{\n  \"status\": \"passed\",\n  \"acceptedValidCases\": [\n    \"official-standard-approved\",\n    \"official-store-routed\",\n    \"official-invalid-request\",\n    \"valid-gold-extended-window\",\n    \"valid-alternate-output-shape\"\n  ],\n  \"rejectedAdversarialCases\": [\n    \"too-late-standard-approved\",\n    \"excluded-gift-card-approved\",\n    \"damaged-item-approved\",\n    \"missing-assumption-approved\",\n    \"store-purchase-label-approved\"\n  ],\n  \"hiddenCaseIdsExercised\": [\n    \"hidden-valid-alternate-output\",\n    \"hidden-final-sale-approved\"\n  ],\n  \"objectiveMetrics\": {\n    \"validCasesAccepted\": 5,\n    \"adversarialRejections\": 5,\n    \"requirementIdsCovered\": 6\n  }\n}\n"
+          },
+          {
+            "predicate": {
+              "kind": "shell-succeeds",
+              "command": "node scripts/check-spec-faithfulness.mjs --self-test-shortcuts",
+              "timeoutMs": 15000
+            },
+            "passed": true,
+            "detail": "shell-succeeds \"node scripts/check-spec-faithfulness.mjs --self-test-shortcuts\" — exit 0\n{\n  \"status\": \"passed\",\n  \"shortcutGuards\": [\n    \"accept-all\",\n    \"single-reference\",\n    \"omitted-assumption\",\n    \"reject-valid\",\n    \"hidden-case-hardcoding\",\n    \"source-packet-edit\",\n    \"verifier-edit\",\n    \"prose-only-artifact\"\n  ]\n}\n"
+          }
+        ],
+        "objectiveMetrics": [
+          {
+            "fixtureId": "builder-formal-spec-faithfulness",
+            "name": "adversarial_rejections",
+            "unit": "cases",
+            "direction": "higher_is_better",
+            "source": {
+              "kind": "json-file",
+              "path": "spec-faithfulness-result.json",
+              "pointer": "/objectiveMetrics/adversarialRejections"
+            },
+            "value": 5,
+            "runIndex": 0,
+            "repeatCount": 1,
+            "resourceProfile": {
+              "hostClass": "local-dev",
+              "cpuAllocationCores": 16,
+              "cpuKillThresholdCores": 16,
+              "memoryAllocationMB": 131072,
+              "memoryKillThresholdMB": 131072
+            },
+            "executionProfile": {
+              "status": "non-gating",
+              "backendKind": "host-subprocess",
+              "verification": "unverified",
+              "gateEligible": false,
+              "reason": "host-subprocess-unverified"
+            }
+          }
+        ],
+        "detail": "case \"predicate-table-contract\" matched expected verifier pass"
+      },
+      {
+        "id": "adversarial",
+        "caseKind": "adversarial",
+        "expected": "fail",
+        "setup": [
+          {
+            "kind": "copy-fixture-file",
+            "sourcePath": "calibration/adversarial/src/spec-contract.mjs",
+            "targetPath": "src/spec-contract.mjs"
+          },
+          {
+            "kind": "copy-fixture-file",
+            "sourcePath": "calibration/adversarial/spec-faithfulness-result.json",
+            "targetPath": "spec-faithfulness-result.json"
+          }
+        ],
+        "passed": true,
+        "scoringPassed": false,
+        "predicateResults": [
+          {
+            "predicate": {
+              "kind": "shell-succeeds",
+              "command": "node scripts/check-spec-faithfulness.mjs",
+              "timeoutMs": 20000
+            },
+            "passed": false,
+            "detail": "shell-succeeds \"node scripts/check-spec-faithfulness.mjs\" — exit 1\nspec case suite failed:\n- too-late-standard-approved: expected reject but spec returned accept\n- excluded-gift-card-approved: expected reject but spec returned accept\n- damaged-item-approved: expected reject but spec returned accept\n- missing-assumption-approved: expected reject but spec returned accept\n- store-purchase-label-approved: expected reject but spec returned accept\n- hidden-final-sale-approved: expected reject but spec returned accept\n"
+          },
+          {
+            "predicate": {
+              "kind": "shell-succeeds",
+              "command": "node scripts/check-spec-faithfulness.mjs --self-test-shortcuts",
+              "timeoutMs": 15000
+            },
+            "passed": true,
+            "detail": "shell-succeeds \"node scripts/check-spec-faithfulness.mjs --self-test-shortcuts\" — exit 0\n{\n  \"status\": \"passed\",\n  \"shortcutGuards\": [\n    \"accept-all\",\n    \"single-reference\",\n    \"omitted-assumption\",\n    \"reject-valid\",\n    \"hidden-case-hardcoding\",\n    \"source-packet-edit\",\n    \"verifier-edit\",\n    \"prose-only-artifact\"\n  ]\n}\n"
+          }
+        ],
+        "objectiveMetrics": [
+          {
+            "fixtureId": "builder-formal-spec-faithfulness",
+            "name": "adversarial_rejections",
+            "unit": "cases",
+            "direction": "higher_is_better",
+            "source": {
+              "kind": "json-file",
+              "path": "spec-faithfulness-result.json",
+              "pointer": "/objectiveMetrics/adversarialRejections"
+            },
+            "value": 0,
+            "runIndex": 0,
+            "repeatCount": 1,
+            "resourceProfile": {
+              "hostClass": "local-dev",
+              "cpuAllocationCores": 16,
+              "cpuKillThresholdCores": 16,
+              "memoryAllocationMB": 131072,
+              "memoryKillThresholdMB": 131072
+            },
+            "executionProfile": {
+              "status": "non-gating",
+              "backendKind": "host-subprocess",
+              "verification": "unverified",
+              "gateEligible": false,
+              "reason": "host-subprocess-unverified"
+            }
+          }
+        ],
+        "detail": "case \"adversarial\" matched expected verifier fail"
+      }
+    ]
+  }
+}

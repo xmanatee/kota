@@ -1,0 +1,17 @@
+{
+  "name": "kota-builder-formal-spec-faithfulness-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "true",
+    "dev": "node \"$KOTA_DIST_DIR/cli.js\"",
+    "typecheck": "true",
+    "lint": "true",
+    "lint:fix": "true",
+    "test": "node scripts/check-spec-faithfulness.mjs",
+    "verify": "node scripts/check-spec-faithfulness.mjs",
+    "self-test": "node scripts/check-spec-faithfulness.mjs --self-test-shortcuts",
+    "validate-tasks": "node \"$KOTA_DIST_DIR/validate-queue.js\"",
+    "kota": "node \"$KOTA_DIST_DIR/cli.js\""
+  }
+}

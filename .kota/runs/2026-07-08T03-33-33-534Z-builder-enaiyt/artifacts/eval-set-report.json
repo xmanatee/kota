@@ -1,0 +1,546 @@
+{
+  "startedAt": "2026-07-08T03:49:03.231Z",
+  "completedAt": "2026-07-08T03:49:07.900Z",
+  "repeatCount": 1,
+  "resourceProfile": {
+    "hostClass": "local-dev",
+    "cpuAllocationCores": 16,
+    "cpuKillThresholdCores": 16,
+    "memoryAllocationMB": 131072,
+    "memoryKillThresholdMB": 131072
+  },
+  "executionProfile": {
+    "status": "non-gating",
+    "backendKind": "host-subprocess",
+    "requestedProfile": {
+      "hostClass": "local-dev",
+      "cpuAllocationCores": 16,
+      "cpuKillThresholdCores": 16,
+      "memoryAllocationMB": 131072,
+      "memoryKillThresholdMB": 131072
+    },
+    "observedOrEnforcedProfile": {
+      "hostClass": "local-dev",
+      "cpuAllocationCores": 16,
+      "cpuKillThresholdCores": 16,
+      "memoryAllocationMB": 131072,
+      "memoryKillThresholdMB": 131072
+    },
+    "verification": "unverified",
+    "networkPolicy": {
+      "kind": "host-subprocess",
+      "enforcementMode": "host-unverified",
+      "allowedProviderEndpoints": [],
+      "gateEligible": false
+    },
+    "gateEligible": false,
+    "nonGatingReason": "host-subprocess-unverified",
+    "diagnostics": [
+      {
+        "severity": "info",
+        "message": "Host subprocess execution remaps HOME and KOTA_PROJECT_DIR but does not enforce CPU or memory allocation or kill thresholds."
+      }
+    ]
+  },
+  "runs": [
+    {
+      "fixtureId": "builder-formal-spec-faithfulness",
+      "runIndex": 0,
+      "repeatCount": 1,
+      "executionMode": "replay",
+      "outcome": "pass",
+      "resourceProfile": {
+        "hostClass": "local-dev",
+        "cpuAllocationCores": 16,
+        "cpuKillThresholdCores": 16,
+        "memoryAllocationMB": 131072,
+        "memoryKillThresholdMB": 131072
+      },
+      "executionProfile": {
+        "status": "non-gating",
+        "backendKind": "host-subprocess",
+        "requestedProfile": {
+          "hostClass": "local-dev",
+          "cpuAllocationCores": 16,
+          "cpuKillThresholdCores": 16,
+          "memoryAllocationMB": 131072,
+          "memoryKillThresholdMB": 131072
+        },
+        "observedOrEnforcedProfile": {
+          "hostClass": "local-dev",
+          "cpuAllocationCores": 16,
+          "cpuKillThresholdCores": 16,
+          "memoryAllocationMB": 131072,
+          "memoryKillThresholdMB": 131072
+        },
+        "verification": "unverified",
+        "networkPolicy": {
+          "kind": "host-subprocess",
+          "enforcementMode": "host-unverified",
+          "allowedProviderEndpoints": [],
+          "gateEligible": false
+        },
+        "gateEligible": false,
+        "nonGatingReason": "host-subprocess-unverified",
+        "diagnostics": [
+          {
+            "severity": "info",
+            "message": "Host subprocess execution remaps HOME and KOTA_PROJECT_DIR but does not enforce CPU or memory allocation or kill thresholds."
+          }
+        ]
+      },
+      "objectiveMetrics": [
+        {
+          "fixtureId": "builder-formal-spec-faithfulness",
+          "name": "adversarial_rejections",
+          "unit": "cases",
+          "direction": "higher_is_better",
+          "source": {
+            "kind": "json-file",
+            "path": "spec-faithfulness-result.json",
+            "pointer": "/objectiveMetrics/adversarialRejections"
+          },
+          "value": 5,
+          "runIndex": 0,
+          "repeatCount": 1,
+          "resourceProfile": {
+            "hostClass": "local-dev",
+            "cpuAllocationCores": 16,
+            "cpuKillThresholdCores": 16,
+            "memoryAllocationMB": 131072,
+            "memoryKillThresholdMB": 131072
+          },
+          "executionProfile": {
+            "status": "non-gating",
+            "backendKind": "host-subprocess",
+            "verification": "unverified",
+            "gateEligible": false,
+            "reason": "host-subprocess-unverified"
+          }
+        }
+      ],
+      "timing": {
+        "startedAt": "2026-07-08T03:49:03.332Z",
+        "durationMs": 3742,
+        "budgetMs": 1800000
+      },
+      "runArtifactPath": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-formal-spec-faithfulness-fixture-to-the-eval-2026-07-08t03-33-33-534z-builder-enaiyt/.kota/eval-runs/2026-07-08T03-49-03-230Z/builder-formal-spec-faithfulness-0"
+    }
+  ],
+  "perFixture": [
+    {
+      "fixtureId": "builder-formal-spec-faithfulness",
+      "repeatCount": 1,
+      "passedAny": true,
+      "passedAll": true,
+      "observedPassRate": 1
+    }
+  ],
+  "fixtureDiagnostics": {
+    "perFixture": [
+      {
+        "fixtureId": "builder-formal-spec-faithfulness",
+        "repeatCount": 1,
+        "outcomes": [
+          "pass"
+        ],
+        "outcomeCounts": {
+          "pass": 1,
+          "fail": 0,
+          "timeout": 0,
+          "error": 0,
+          "configuration-error": 0
+        },
+        "observedPassRate": 1,
+        "repeatVariance": 0,
+        "diagnosticClass": "insufficient-sample",
+        "warnings": [
+          "insufficient-sample",
+          "non-gating-execution-profile"
+        ]
+      }
+    ],
+    "aggregate": {
+      "fixtureCount": 1,
+      "stablePass": 0,
+      "stableFail": 0,
+      "repeatUnstable": 0,
+      "insufficientSample": 1,
+      "nonGating": 1,
+      "lowSignalWarnings": 0
+    }
+  },
+  "aggregate": {
+    "fixtureCount": 1,
+    "repeatCount": 1,
+    "passAtK": 1,
+    "passHatK": 1
+  },
+  "controlDecisionCoverage": {
+    "counts": {
+      "act": 1,
+      "ask": 0,
+      "refuse": 0,
+      "stop": 0,
+      "confirm": 0,
+      "recover": 0
+    },
+    "missingDecisions": [
+      "ask",
+      "refuse",
+      "stop",
+      "confirm",
+      "recover"
+    ],
+    "missingDecisionWarnings": [
+      {
+        "decision": "ask",
+        "message": "No eval fixture declares control decision \"ask\"."
+      },
+      {
+        "decision": "refuse",
+        "message": "No eval fixture declares control decision \"refuse\"."
+      },
+      {
+        "decision": "stop",
+        "message": "No eval fixture declares control decision \"stop\"."
+      },
+      {
+        "decision": "confirm",
+        "message": "No eval fixture declares control decision \"confirm\"."
+      },
+      {
+        "decision": "recover",
+        "message": "No eval fixture declares control decision \"recover\"."
+      }
+    ]
+  },
+  "objectiveMetrics": [
+    {
+      "fixtureId": "builder-formal-spec-faithfulness",
+      "name": "adversarial_rejections",
+      "unit": "cases",
+      "direction": "higher_is_better",
+      "sampleCount": 1,
+      "values": [
+        5
+      ],
+      "min": 5,
+      "max": 5,
+      "mean": 5,
+      "resourceProfileComparison": {
+        "status": "comparable",
+        "resourceProfile": {
+          "hostClass": "local-dev",
+          "cpuAllocationCores": 16,
+          "cpuKillThresholdCores": 16,
+          "memoryAllocationMB": 131072,
+          "memoryKillThresholdMB": 131072
+        }
+      },
+      "executionProfileComparison": {
+        "status": "not-comparable",
+        "reason": "non-gating-execution-profile",
+        "executionProfiles": [
+          {
+            "status": "non-gating",
+            "backendKind": "host-subprocess",
+            "verification": "unverified",
+            "gateEligible": false,
+            "reason": "host-subprocess-unverified"
+          }
+        ]
+      }
+    }
+  ],
+  "codeHealth": {
+    "diagnosticRunCount": 0,
+    "runsWithWarnings": 0,
+    "fixturesWithWarnings": 0,
+    "totalWarnings": 0,
+    "warningCounts": {
+      "source-size-growth": 0,
+      "duplicated-implementation-chunk": 0,
+      "complexity-concentration": 0
+    }
+  },
+  "runConfiguration": {
+    "fingerprint": "fea57d20d863039d4390d496c9dc3a4df4f425299db4f84e73488f68453bc102",
+    "summary": {
+      "activePreset": "codex (env) via codex",
+      "fixtureManifest": "1 fixture(s) 8e2726cd8b9f",
+      "sourceIdentity": "bd9f074ae2f8 (dirty, 0d26a8514162)",
+      "resolvedHarnessModelEvidence": "claude-agent-sdk/claude-opus-4-7 x1",
+      "resourceProfile": "local-dev cpu=16/16 memoryMB=131072/131072",
+      "executionProfile": "non-gating/host-subprocess/unverified/host-subprocess-unverified"
+    },
+    "components": {
+      "activePreset": {
+        "id": "codex",
+        "source": "env",
+        "harness": "codex",
+        "defaultModel": "gpt-5.5",
+        "defaultEffort": "xhigh",
+        "tiers": {
+          "fast": "gpt-5.4-mini",
+          "balanced": "gpt-5.4",
+          "capable": "gpt-5.5"
+        }
+      },
+      "fixtureManifest": {
+        "fixtureCount": 1,
+        "hash": "8e2726cd8b9f35e060bb15e6375596a1ee34d64ac9408c26ea746d295d88aecd",
+        "fixtures": [
+          {
+            "id": "builder-formal-spec-faithfulness",
+            "mode": "single-workflow",
+            "role": "builder",
+            "workflowNames": [
+              "builder"
+            ],
+            "specHash": "8eb5caf3af4577d4edf0c9b0e01dbf38a6159e2fe5f9af9aae6dadf1545c2ac3"
+          }
+        ]
+      },
+      "sourceIdentity": {
+        "status": "available",
+        "headSha": "bd9f074ae2f8ba5189d405bab572deabcb7b0ff6",
+        "dirty": true,
+        "statusHash": "ec87a5b439a7659e91eb32b38d027bcf5589afde83a04098d731f9679e207884",
+        "sourceHash": "0d26a85141621ce3f5a785f48ac882abf7dc45c268782bd85f1bbfaecef36a78"
+      },
+      "resolvedHarnessModelEvidence": {
+        "status": "complete",
+        "observations": [
+          {
+            "fixtureId": "builder-formal-spec-faithfulness",
+            "runIndex": 0,
+            "workflowRunId": "2026-07-08T03-49-04-447Z-builder-k20uq6",
+            "workflowName": "builder",
+            "stepId": "build",
+            "harness": "claude-agent-sdk",
+            "model": "claude-opus-4-7"
+          }
+        ],
+        "missingArtifacts": [],
+        "distinctHarnessModels": [
+          {
+            "harness": "claude-agent-sdk",
+            "model": "claude-opus-4-7",
+            "count": 1
+          }
+        ]
+      },
+      "resourceProfile": {
+        "hostClass": "local-dev",
+        "cpuAllocationCores": 16,
+        "cpuKillThresholdCores": 16,
+        "memoryAllocationMB": 131072,
+        "memoryKillThresholdMB": 131072
+      },
+      "executionProfile": {
+        "status": "non-gating",
+        "backendKind": "host-subprocess",
+        "requestedProfile": {
+          "hostClass": "local-dev",
+          "cpuAllocationCores": 16,
+          "cpuKillThresholdCores": 16,
+          "memoryAllocationMB": 131072,
+          "memoryKillThresholdMB": 131072
+        },
+        "observedOrEnforcedProfile": {
+          "hostClass": "local-dev",
+          "cpuAllocationCores": 16,
+          "cpuKillThresholdCores": 16,
+          "memoryAllocationMB": 131072,
+          "memoryKillThresholdMB": 131072
+        },
+        "verification": "unverified",
+        "networkPolicy": {
+          "kind": "host-subprocess",
+          "enforcementMode": "host-unverified",
+          "allowedProviderEndpoints": [],
+          "gateEligible": false
+        },
+        "gateEligible": false,
+        "nonGatingReason": "host-subprocess-unverified",
+        "diagnostics": [
+          {
+            "severity": "info",
+            "message": "Host subprocess execution remaps HOME and KOTA_PROJECT_DIR but does not enforce CPU or memory allocation or kill thresholds."
+          }
+        ]
+      }
+    }
+  },
+  "componentAttribution": {
+    "schemaVersion": 1,
+    "summary": "component attribution recorded for current eval set; no prior baseline comparison",
+    "artifactPath": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-formal-spec-faithfulness-fixture-to-the-eval-2026-07-08t03-33-33-534z-builder-enaiyt/.kota/eval-runs/2026-07-08T03-49-03-230Z/eval-set-report.json",
+    "baseline": {
+      "status": "no-baseline",
+      "reason": null,
+      "priorRunArtifactBaseDir": null,
+      "candidateRunArtifactBaseDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-formal-spec-faithfulness-fixture-to-the-eval-2026-07-08t03-33-33-534z-builder-enaiyt/.kota/eval-runs/2026-07-08T03-49-03-230Z",
+      "changedComponents": []
+    },
+    "components": [
+      {
+        "id": "model-preset",
+        "label": "model and preset",
+        "status": "stable",
+        "summary": "model and preset evidence is recorded",
+        "evidence": [
+          "activePreset=codex (env) via codex",
+          "tierEvidence=fast:gpt-5.4-mini,balanced:gpt-5.4,capable:gpt-5.5",
+          "resolvedHarnessModel=claude-agent-sdk/claude-opus-4-7 x1"
+        ],
+        "candidateExplanation": null
+      },
+      {
+        "id": "harness-execution",
+        "label": "harness adapter and execution path",
+        "status": "unsupported",
+        "summary": "harness adapter and execution path are recorded",
+        "evidence": [
+          "harness=codex",
+          "executionMode=replay",
+          "executionProfile=non-gating/host-subprocess/unverified/host-subprocess-unverified"
+        ],
+        "candidateExplanation": null
+      },
+      {
+        "id": "prompt-skill-context",
+        "label": "prompt, skill, and context inputs",
+        "status": "stable",
+        "summary": "prompt, skill, and context evidence is bounded to declared artifacts",
+        "evidence": [
+          "skillAblationRuns=0",
+          "selectedSkills=none",
+          "contextWarnings=0"
+        ],
+        "candidateExplanation": null
+      },
+      {
+        "id": "fixture-verifier",
+        "label": "fixture and verifier",
+        "status": "stable",
+        "summary": "fixture and verifier evidence is recorded",
+        "evidence": [
+          "fixtureManifest=1 fixture(s) 8e2726cd8b9f",
+          "verifierWarnings=0",
+          "objectiveMetrics=1",
+          "codeHealthWarnings=0"
+        ],
+        "candidateExplanation": null
+      },
+      {
+        "id": "environment-resource",
+        "label": "environment and resources",
+        "status": "unsupported",
+        "summary": "resource profile and execution preflight are recorded",
+        "evidence": [
+          "resourceProfile=local-dev cpu=16/16 memoryMB=131072/131072",
+          "executionProfile=non-gating/host-subprocess/unverified/host-subprocess-unverified",
+          "timeoutEnvelope=runs=1,budgetMs=1800000,maxDurationMs=3742,deadlineHits=0,cleanReturns=1",
+          "networkPolicy=host-subprocess/host-unverified/endpoints=none/gateEligible=false",
+          "preflightDiagnostics=1"
+        ],
+        "candidateExplanation": null
+      },
+      {
+        "id": "feedback-loop",
+        "label": "feedback loop",
+        "status": "stable",
+        "summary": "feedback channels are summarized from predicate and trajectory artifacts",
+        "evidence": [
+          "predicateKinds=file-absent,file-contains,file-exists,git-changes-within,shell-succeeds",
+          "failedPredicates=0",
+          "trajectoryWarnings=0"
+        ],
+        "candidateExplanation": null
+      }
+    ],
+    "diagnostics": {
+      "verifierCalibration": {
+        "status": "present",
+        "artifactCount": 1,
+        "warningCount": 0,
+        "codes": []
+      },
+      "trajectoryDiagnostics": {
+        "status": "missing",
+        "artifactCount": 0,
+        "warningCount": 0,
+        "codes": []
+      },
+      "contextRetrievalDiagnostics": {
+        "status": "missing",
+        "artifactCount": 0,
+        "warningCount": 0,
+        "codes": []
+      }
+    },
+    "perFixture": [
+      {
+        "fixtureId": "builder-formal-spec-faithfulness",
+        "outcomeDelta": "no-baseline",
+        "diagnosticDelta": "no-baseline",
+        "prior": null,
+        "candidate": {
+          "outcomes": [
+            "pass"
+          ],
+          "observedPassRate": 1,
+          "diagnosticClass": "insufficient-sample",
+          "warnings": [
+            "insufficient-sample",
+            "non-gating-execution-profile"
+          ]
+        },
+        "addedWarnings": [],
+        "removedWarnings": [],
+        "artifactEvidence": {
+          "runCount": 1,
+          "childRunArtifactCount": 1,
+          "predicateCount": 15,
+          "failedPredicateCount": 0,
+          "predicateKinds": [
+            "file-absent",
+            "file-contains",
+            "file-exists",
+            "git-changes-within",
+            "shell-succeeds"
+          ],
+          "verifierCalibration": {
+            "status": "present",
+            "artifactCount": 1,
+            "warningCount": 0,
+            "codes": []
+          },
+          "trajectoryDiagnostics": {
+            "status": "missing",
+            "artifactCount": 0,
+            "warningCount": 0,
+            "codes": []
+          },
+          "contextRetrievalDiagnostics": {
+            "status": "missing",
+            "artifactCount": 0,
+            "warningCount": 0,
+            "codes": []
+          }
+        },
+        "objectiveMetricDeltas": [
+          {
+            "name": "adversarial_rejections",
+            "status": "no-baseline",
+            "priorMean": null,
+            "candidateMean": 5,
+            "delta": null
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+1. Add a replay-backed `builder-formal-spec-faithfulness` eval fixture with `fixture.json`, `notes.md`, `recordings/`, calibration files, and a minimal valid `initial/` tree.
+2. Seed an initial ready task that asks the replayed builder to author a bounded executable spec/contract and `spec-faithfulness-result.json` evidence.
+3. Make the initial project fail before replay because the executable spec or result artifact is absent, vacuous, or incomplete, and record those failures in `preRunExpectations`.
+4. Require final predicates for task completion, local spec verification, structured result fields, objective metric evidence, and changed paths limited to accepted implementation/task/evidence files.
+5. Calibrate the verifier so accept-all, single-reference, omitted-assumption, reject-valid, hidden-case hardcoding, source edit, verifier edit, and prose-only shortcut candidates fail.
+6. Include at least one accepted-alternative calibration case for a meaningfully different faithful spec shape.
+7. Prove `pnpm kota eval list` loads the fixture without schema or provenance errors.
+8. Prove `pnpm kota eval run --fixture builder-formal-spec-faithfulness --repeats 1` passes deterministically through replay and exposes objective metric evidence in artifacts/output.

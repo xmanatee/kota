@@ -1,0 +1,101 @@
+
+> kota@0.1.0 kota /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-formal-spec-faithfulness-fixture-to-the-eval-2026-07-08t03-33-33-534z-builder-enaiyt
+> node bin/kota.mjs eval run --fixture builder-formal-spec-faithfulness --repeats 1
+
+[eval-harness] replay adapter active; claude-agent-sdk overridden from /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-formal-spec-faithfulness-fixture-to-the-eval-2026-07-08t03-33-33-534z-builder-enaiyt/src/modules/eval-harness/fixtures/builder-formal-spec-faithfulness
+[module:rendering] Registered as provider for "rendering"
+[module:knowledge] Registered as provider for "knowledge"
+[module:knowledge] Registered as provider for "capability-readiness"
+[module:memory] Registered as provider for "memory"
+[module:memory] Registered as provider for "capability-readiness"
+[module:history] Registered as provider for "history"
+[module:history] Registered as provider for "history-project"
+[module:history] Registered as provider for "capability-readiness"
+[module:repo-tasks] Registered as provider for "repo-tasks"
+[module:repo-tasks] Registered as provider for "capability-readiness"
+[module:recall] Registered as provider for "recall"
+[module:recall] Registered as provider for "capability-readiness"
+[module:recall] recall: registered 4 contributor(s)
+[module:model-clients] Registered as provider for "model-pricing"
+[module:answer] Registered as provider for "answer"
+[module:answer] Registered as provider for "capability-readiness"
+[module:answer] answer: cited-answer seam ready
+[module:antigravity-cli-agent-harness] Registered agent harness "antigravity-cli" (Antigravity CLI text).
+[module:github-webhook] WARN: github-webhook: no secret configured — webhook route not registered
+[module:github] WARN: GitHub module: modules.github.token is required but missing — module inactive
+[module:autonomy] Registered as provider for "workflow-state-recovery"
+[module:capture] Registered as provider for "capture"
+[module:capture] Registered as provider for "capability-readiness"
+[module:capture] capture: registered 4 contributor(s)
+[module:claude-agent-harness] Registered agent harness "claude-agent-sdk" (Claude Agent SDK).
+[module:codex-agent-harness] Registered agent harness "codex" (Codex CLI exec).
+[module:email] WARN: email module: smtp.host, from, and to are required — module inactive
+[module:gemini-agent-harness] Registered agent harness "gemini" (Google Gen AI SDK tool loop).
+[module:gemini-cli-agent-harness] Registered agent harness "gemini-cli" (Gemini CLI headless).
+[module:google-workspace] WARN: Google Workspace module: modules.google-workspace.clientId, clientSecret, and refreshToken are required — module inactive
+[module:google-workspace] Registered as provider for "capability-readiness"
+[module:injection-defense] injection-defense: screening 7 configured tool(s) plus external-content provenance on modes: autonomous
+[module:openai-tools-agent-harness] Registered agent harness "openai-tools" (OpenAI-compatible tool loop).
+[module:openai-tools-agent-harness] Registered agent harness "openai-tools-scaffold" (scaffolded weak/local model loop).
+[module:resource-discovery] Registered as provider for "resource-discovery"
+[module:retract] Registered as provider for "retract"
+[module:retract] Registered as provider for "capability-readiness"
+[module:retract] retract: registered 4 contributor(s)
+[module:scheduler] Registered as provider for "notification-hub"
+[module:slack-channel] WARN: slack-channel module: botToken and appToken are required — module inactive
+[module:sqlite-memory] Registered as provider for "memory"
+[module:sqlite-memory] SQLite memory provider registered
+[module:telegram] Registered as provider for "capability-readiness"
+[module:thin-agent-harness] Registered agent harness "thin" (single-turn ModelClient loop).
+[module:tool-cache] Tool result cache enabled
+[module:tool-retry] Tool retry middleware enabled
+[module:transcription-whisper] WARN: transcription-whisper: modules.transcription-whisper.apiKey is required — provider inactive
+[module:vercel-agent-harness] Registered agent harness "vercel" (Vercel AI SDK tool loop).
+[module:voice-openai-tts] WARN: voice-openai-tts: modules.voice-openai-tts.apiKey is required — provider inactive
+[module:voice-whisper-local] voice-whisper-local: binaryPath and modelPath required — provider inactive (local STT opt-in)
+[module:web] Registered as provider for "capability-readiness"
+Starting workflow "builder" (2026-07-08T03-49-04-447Z-builder-k20uq6)
+Starting step "inspect-ready-queue" (code) in workflow "builder"
+Completed step "inspect-ready-queue" (code) in workflow "builder" [92ms]
+Starting step "claim-task" (code) in workflow "builder"
+Completed step "claim-task" (code) in workflow "builder" [11ms]
+Starting step "prepare-worktree" (code) in workflow "builder"
+Completed step "prepare-worktree" (code) in workflow "builder" [182ms]
+Starting step "build" (agent) in workflow "builder"
+Completed step "build" (agent) in workflow "builder" [2149ms, 1 turn(s), $0.00, success]
+Starting step "create-task-branch" (code) in workflow "builder"
+Completed step "create-task-branch" (code) in workflow "builder" [20ms]
+Starting step "check-claimed-task-consistency" (code) in workflow "builder"
+Completed step "check-claimed-task-consistency" (code) in workflow "builder" [74ms]
+Starting step "commit" (code) in workflow "builder"
+Completed step "commit" (code) in workflow "builder" [144ms]
+Starting step "write-run-summary" (code) in workflow "builder"
+Completed step "write-run-summary" (code) in workflow "builder" [96ms]
+Starting step "merge-gate" (code) in workflow "builder"
+Completed step "merge-gate" (code) in workflow "builder" [384ms]
+Starting step "release-task-claim" (code) in workflow "builder"
+Completed step "release-task-claim" (code) in workflow "builder" [0ms]
+Starting step "write-calibration-artifact" (code) in workflow "builder"
+Completed step "write-calibration-artifact" (code) in workflow "builder" [1ms]
+Starting step "cleanup-automation-worktree" (code) in workflow "builder"
+Completed step "cleanup-automation-worktree" (code) in workflow "builder" [97ms]
+Starting step "cleanup-builder-runtime-resources" (code) in workflow "builder"
+Completed step "cleanup-builder-runtime-resources" (code) in workflow "builder" [1ms]
+Starting step "write-parallel-builder-metrics" (code) in workflow "builder"
+Completed step "write-parallel-builder-metrics" (code) in workflow "builder" [0ms]
+Starting step "emit-build-committed" (emit) in workflow "builder"
+Completed step "emit-build-committed" (emit) in workflow "builder" [1ms]
+Starting step "request-restart" (restart) in workflow "builder"
+Completed step "request-restart" (restart) in workflow "builder" [0ms]
+Completed workflow "builder" (2026-07-08T03-49-04-447Z-builder-k20uq6)
+eval-set done: 1 fixtures × 1 runs → pass@k=100.0% pass^k=100.0%
+fixture diagnostics: stable-pass=0 stable-fail=0 repeat-unstable=0 insufficient-sample=1 non-gating=1
+artifacts: /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-formal-spec-faithfulness-fixture-to-the-eval-2026-07-08t03-33-33-534z-builder-enaiyt/.kota/eval-runs/2026-07-08T03-49-03-230Z
+configuration: fea57d20d863 codex (env) via codex
+  fixtures: 1 fixture(s) 8e2726cd8b9f
+  source: bd9f074ae2f8 (dirty, 0d26a8514162)
+  harness/model: claude-agent-sdk/claude-opus-4-7 x1
+attribution: no-baseline changed=none
+  summary: component attribution recorded for current eval set; no prior baseline comparison
+  report: /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-formal-spec-faithfulness-fixture-to-the-eval-2026-07-08t03-33-33-534z-builder-enaiyt/.kota/eval-runs/2026-07-08T03-49-03-230Z/eval-set-report.json
+metric builder-formal-spec-faithfulness.adversarial_rejections mean=5.000 cases n=1

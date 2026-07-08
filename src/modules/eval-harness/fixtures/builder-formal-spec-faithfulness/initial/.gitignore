@@ -1,0 +1,10 @@
+.codex/
+node_modules/
+.worktrees/
+.kota/*
+!.kota/runs/
+.kota/runs/**
+!.kota/runs/**/
+!.kota/runs/**/success-criteria.txt
+!.kota/runs/**/success-criteria-verified.txt
+!.kota/runs/**/commit-message.txt
