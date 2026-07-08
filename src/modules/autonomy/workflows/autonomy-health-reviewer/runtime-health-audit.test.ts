@@ -222,6 +222,68 @@ describe("runtime health audit", () => {
     expect(task).toContain("Payload failed validation for workflow dispatch");
   });
 
+  it("keeps classified agent transport DLQs separate from local execution repairs", () => {
+    writeDeadLetterQueue([
+      staleWorkflowDispatchDeadLetter({
+        id: "dlq-provider-transport",
+        lastErrorClass: "execution",
+        reason:
+          'Repair agent for step "build" failed: Reconnecting... 2/5 (stream disconnected before completion: idle timeout waiting for websocket)',
+      }),
+      staleWorkflowDispatchDeadLetter({
+        id: "dlq-local-execution",
+        lastErrorClass: "execution",
+        reason:
+          'Repair loop for step "build" made no progress after 3 consecutive attempts. Still failing: autonomy-change-decision',
+      }),
+    ]);
+
+    const audit = collectRuntimeHealthAudit({
+      projectDir,
+      options: { nowIso: NOW, staleDeadLetterMs: 60 * 60 * 1000 },
+    });
+
+    expect(audit.patterns).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          dedupeKey: "dead-letter:provider:workflow-runtime:builder",
+          category: "external-service/auth",
+          actionability: "external-service",
+          labels: expect.arrayContaining([
+            "dead-letter",
+            "external-service",
+            "provider",
+          ]),
+        }),
+        expect.objectContaining({
+          dedupeKey: "dead-letter:execution:workflow-runtime:builder",
+          category: "local-code",
+          actionability: "local-code",
+          labels: expect.arrayContaining([
+            "dead-letter",
+            "execution",
+            "local-code",
+          ]),
+        }),
+      ]),
+    );
+
+    const actions = reviewAndApply(audit);
+    expect(actions.createdTaskIds).toEqual([
+      "task-health-dead-letter-execution-workflow-runtime-builder",
+    ]);
+    const taskPath = join(
+      projectDir,
+      "data",
+      "tasks",
+      "ready",
+      "task-health-dead-letter-execution-workflow-runtime-builder.md",
+    );
+    const task = readFileSync(taskPath, "utf-8");
+    expect(task).toContain("dlq-local-execution");
+    expect(task).not.toContain("dlq-provider-transport");
+  });
+
   it("does not create a duplicate repair task when active work tracks stale DLQ evidence", () => {
     writeDeadLetterQueue([
       staleWorkflowDispatchDeadLetter({

@@ -1,6 +1,10 @@
 import { join } from "node:path";
-import type { DeadLetterItem } from "#core/daemon/dead-letter-queue.js";
+import type {
+  DeadLetterFailureClass,
+  DeadLetterItem,
+} from "#core/daemon/dead-letter-queue.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
 import {
   addPattern,
   type PatternInput,
@@ -19,17 +23,31 @@ function dlqWorkflowKey(item: DeadLetterItem): string {
   return workflow ?? item.owningModule;
 }
 
+function parseAgentFailureSubtype(reason: string): string | undefined {
+  const match = /\(([^)]+)\):/.exec(reason);
+  return match?.[1];
+}
+
 function deadLetterCategory(
   item: DeadLetterItem,
-): Pick<PatternInput, "category" | "actionability" | "labels" | "severity"> {
-  switch (item.failure.lastErrorClass) {
+): Pick<PatternInput, "category" | "actionability" | "labels" | "severity"> & {
+  failureClass: DeadLetterFailureClass;
+} {
+  const agentFailureClass = classifyAgentRuntimeFailure({
+    message: item.failure.reason,
+    subtype: parseAgentFailureSubtype(item.failure.reason),
+  })?.kind;
+  const failureClass = agentFailureClass ?? item.failure.lastErrorClass;
+
+  switch (failureClass) {
     case "auth":
     case "provider":
     case "rate_limit":
       return {
+        failureClass,
         category: "external-service/auth",
         actionability: "external-service",
-        labels: ["dead-letter", "external-service", item.failure.lastErrorClass],
+        labels: ["dead-letter", "external-service", failureClass],
         severity: "warning",
       };
     case "schema":
@@ -37,9 +55,10 @@ function deadLetterCategory(
     case "execution":
     case "unknown":
       return {
+        failureClass,
         category: "local-code",
         actionability: "local-code",
-        labels: ["dead-letter", "local-code", item.failure.lastErrorClass],
+        labels: ["dead-letter", "local-code", failureClass],
         severity: "error",
       };
   }
@@ -62,7 +81,7 @@ export function scanDeadLetters(ctx: RuntimeHealthAuditContext): void {
     const workflowKey = dlqWorkflowKey(item);
     addPattern(ctx, {
       dedupeKey:
-        `dead-letter:${item.failure.lastErrorClass}:${item.owningModule}:${workflowKey}`.toLowerCase(),
+        `dead-letter:${classification.failureClass}:${item.owningModule}:${workflowKey}`.toLowerCase(),
       category: classification.category,
       severity: classification.severity,
       actionability: classification.actionability,

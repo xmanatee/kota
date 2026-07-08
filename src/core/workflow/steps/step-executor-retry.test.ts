@@ -22,6 +22,16 @@ describe("classifyAgentRuntimeFailure", () => {
     ).toEqual({ kind: "provider", retryable: true });
   });
 
+  it("classifies Codex CLI websocket protocol resets as provider failures", () => {
+    expect(
+      classifyAgentRuntimeFailure({
+        subtype: "codex_cli_error",
+        message:
+          'Agent step "build" failed (codex_cli_error): Reconnecting... 2/2 (stream disconnected before completion: WebSocket protocol error: Connection reset without closing handshake)',
+      }),
+    ).toEqual({ kind: "provider", retryable: true });
+  });
+
   it("classifies Codex CLI DNS lookup stream disconnects as provider failures", () => {
     expect(
       classifyAgentRuntimeFailure({

@@ -267,6 +267,13 @@ export function classifyAgentRuntimeFailure(
     return { kind: "provider", retryable: true };
   }
   if (
+    /stream disconnected before completion:\s*WebSocket protocol error:\s*Connection reset without closing handshake/i.test(
+      input.message,
+    )
+  ) {
+    return { kind: "provider", retryable: true };
+  }
+  if (
     /stream disconnected before completion:\s*failed to lookup address information:\s*nodename nor servname provided, or not known/i.test(
       input.message,
     )
