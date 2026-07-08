@@ -85,7 +85,7 @@ function namedMatch(match: RegExpExecArray, name: string): string | undefined {
   return value && value.length > 0 ? value : undefined;
 }
 
-function redactNativeAuthDetail(value: string): string {
+export function redactAgentHarnessAuthDetail(value: string): string {
   return value.replace(
     /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
     "[redacted-email]",
@@ -135,7 +135,7 @@ export function probeNativeCliAuth(
         status: "stale",
         required: spec.required,
         command,
-        detail: redactNativeAuthDetail(status.detail),
+        detail: redactAgentHarnessAuthDetail(status.detail),
         summary: spec.staleSummary ?? `${command} login is stale`,
         ...(expiredAt !== undefined ? { expiredAt } : {}),
         renewalSummary: nativeCliRenewalSummary(spec),
@@ -147,17 +147,18 @@ export function probeNativeCliAuth(
         status: "missing",
         required: spec.required,
         command,
-        detail: status.detail,
+        detail: redactAgentHarnessAuthDetail(status.detail),
         summary: spec.missingSummary,
       };
     }
+    const detail = redactAgentHarnessAuthDetail(status.detail);
     return {
       kind: "harness-managed-login",
       status: "error",
       required: spec.required,
       command,
-      detail: status.detail,
-      summary: `${command} failed: ${status.detail}`,
+      detail,
+      summary: `${command} failed: ${detail}`,
     };
   }
 
@@ -171,7 +172,7 @@ export function probeNativeCliAuth(
       status: "stale",
       required: spec.required,
       command,
-      detail: redactNativeAuthDetail(status.output),
+      detail: redactAgentHarnessAuthDetail(status.output),
       summary: spec.staleSummary ?? `${command} login is stale`,
       ...(expiredAt !== undefined ? { expiredAt } : {}),
       renewalSummary: nativeCliRenewalSummary(spec),
@@ -185,7 +186,7 @@ export function probeNativeCliAuth(
       status: "expiring",
       required: spec.required,
       command,
-      detail: redactNativeAuthDetail(status.output),
+      detail: redactAgentHarnessAuthDetail(status.output),
       summary: spec.expiringSummary ?? `${command} login expires soon`,
       ...(expiresAt !== undefined ? { expiresAt } : {}),
       renewalSummary: nativeCliRenewalSummary(spec),
@@ -197,7 +198,7 @@ export function probeNativeCliAuth(
       status: "ready",
       required: spec.required,
       command,
-      detail: status.output,
+      detail: redactAgentHarnessAuthDetail(status.output),
       summary: spec.readySummary,
     };
   }
@@ -207,7 +208,7 @@ export function probeNativeCliAuth(
       status: "missing",
       required: spec.required,
       command,
-      detail: status.output,
+      detail: redactAgentHarnessAuthDetail(status.output),
       summary: spec.missingSummary,
     };
   }
@@ -216,7 +217,7 @@ export function probeNativeCliAuth(
     status: "error",
     required: spec.required,
     command,
-    detail: status.output,
+    detail: redactAgentHarnessAuthDetail(status.output),
     summary: `${command} returned an unrecognized auth status`,
   };
 }

@@ -1,0 +1,3 @@
+1. Verified: `probeNativeCliAuth` now redacts account email addresses in command-output detail for ready, missing, stale, expiring, and unrecognized/error auth status branches; the command-error summary also uses the redacted detail.
+2. Verified: focused regression tests cover ready, missing, and unrecognized auth output containing `operator@example.com`, and doctor report metadata serialization containing harness-managed auth detail.
+3. Verified: `data/tasks/done/task-security-review-native-cli-auth-readiness-redacts-.md` records the passing focused Vitest command and `pnpm typecheck`; `pnpm validate-tasks` passes after moving the task to done.

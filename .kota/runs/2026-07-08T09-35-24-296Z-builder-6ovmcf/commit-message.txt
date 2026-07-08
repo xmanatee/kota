@@ -1,0 +1,3 @@
+Redact native auth readiness account details
+
+Apply auth detail redaction to every native CLI auth command-output path and sanitize preset readiness metadata before doctor reports serialize it. Add focused coverage for ready, missing, and unrecognized auth output with account identifiers.

@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "autonomy-change-decision",
+  "runId": "2026-07-08T09-35-24-296Z-builder-6ovmcf",
+  "createdAt": "2026-07-08T10:15:35Z",
+  "taskIds": [
+    "task-security-review-native-cli-auth-readiness-redacts-"
+  ],
+  "affectedSurfaces": [
+    "agent harness readiness auth probes",
+    "native CLI harness-managed login metadata",
+    "doctor preset readiness report metadata",
+    "daemon-control doctor JSON output"
+  ],
+  "changeClasses": [
+    "harness"
+  ],
+  "hypothesis": "Redacting account identifiers from every native CLI auth readiness detail and from serialized doctor preset readiness metadata will close the confirmed operator-visible account leak without weakening readiness state, login checks, or daemon-control doctor output.",
+  "sourceRefs": [
+    "data/tasks/done/task-security-review-native-cli-auth-readiness-redacts-.md",
+    ".kota/runs/2026-07-08T09-35-24-296Z-builder-6ovmcf/success-criteria.txt",
+    ".kota/runs/2026-07-08T09-35-24-296Z-builder-6ovmcf/success-criteria-verified.txt"
+  ],
+  "baselineRefs": [
+    "src/core/agent-harness/readiness-node-probes.ts",
+    "src/modules/doctor/doctor-checks.ts",
+    "src/modules/doctor/doctor-control-routes.ts"
+  ],
+  "candidateRefs": [
+    "src/core/agent-harness/readiness-node-probes.ts",
+    "src/core/agent-harness/readiness.ts",
+    "src/core/agent-harness/index.ts",
+    "src/core/agent-harness/readiness.test.ts",
+    "src/modules/doctor/doctor-checks.ts",
+    "src/modules/doctor/doctor.test.ts"
+  ],
+  "metricsCompared": [
+    {
+      "name": "native CLI auth detail redaction coverage",
+      "baseline": "probeNativeCliAuth only redacted stale and expiring auth output, while ready, missing, command-error, and unrecognized output could expose account identifiers through probe.detail",
+      "candidate": "probeNativeCliAuth routes every returned auth detail through redactAgentHarnessAuthDetail, and focused tests cover ready, missing, and unrecognized output containing operator@example.com",
+      "unit": "focused readiness tests",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "doctor metadata account exposure",
+      "baseline": "doctor report metadata embedded raw PresetHarnessReadiness, and daemon-control doctor JSON serialized that metadata without an additional auth-detail redaction boundary",
+      "candidate": "doctor report metadata and extracted top-level presetReadiness use redacted harness-managed auth probe detail, with a regression test asserting JSON output excludes operator@example.com",
+      "unit": "focused doctor tests",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "local validation",
+      "baseline": "the task started from a confirmed low-severity Safety finding with no ready-path redaction coverage",
+      "candidate": "focused Vitest coverage passed for src/core/agent-harness/readiness.test.ts and src/modules/doctor/doctor.test.ts, pnpm typecheck passed, and the task records both verification commands in done state",
+      "unit": "task verification record",
+      "direction": "improved",
+      "qualitySignal": true
+    }
+  ],
+  "rolloutMode": "canary",
+  "decision": "promote",
+  "rationale": "The harness-class change is narrowly scoped to redacting sensitive account identifiers at readiness serialization boundaries. It preserves the existing auth statuses, summaries, command names, and login-state decisions while reducing exposure in probe detail and doctor JSON metadata. Focused regression tests cover the vulnerable ready path, related missing and unrecognized paths, and the doctor report serialization surface.",
+  "ownerSafetyExceptions": [],
+  "followUpTaskIds": []
+}

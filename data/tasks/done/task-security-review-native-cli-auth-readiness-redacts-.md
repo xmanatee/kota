@@ -1,13 +1,13 @@
 ---
 id: task-security-review-native-cli-auth-readiness-redacts-
 title: Security review: Native CLI auth readiness redacts email addresses for stale and expiring states, but the ready path keeps raw command output in probe.detail. Doctor JSON and daemon-control doctor output embed presetReadiness metadata, so a normal ready Codex login status containing an account identifier can be exposed.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: Native CLI auth readiness redacts email addresses for stale and expiring states, but the ready path keeps raw command output in probe.detail. Doctor JSON and daemon-control doctor output embed presetReadiness metadata, so a normal ready Codex login status containing an account identifier can be exposed.
 created_at: 2026-07-08T09:30:31.018Z
-updated_at: 2026-07-08T09:59:21.000Z
+updated_at: 2026-07-08T10:09:06.799Z
 ---
 
 ## Problem
@@ -132,3 +132,8 @@ operator-visible doctor output by exposing a native CLI account identifier.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner --silent=true src/core/agent-harness/readiness.test.ts src/modules/doctor/doctor.test.ts` — passed 57 tests.
+- `pnpm typecheck` — passed.

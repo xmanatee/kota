@@ -1,0 +1,3 @@
+1. Native CLI auth probe details redact account identifiers for every branch that returns command output, including ready, missing, stale, expiring, and unrecognized or error output.
+2. Focused regression tests cover ready, missing, and unrecognized auth status output with account identifiers so doctor metadata cannot expose raw account text through preset readiness.
+3. The task state records the final verification command or artifact before completion.

@@ -17,6 +17,11 @@ import {
 import { homedir } from "node:os";
 import { join } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
+import {
+  type AgentHarnessAuthProbe,
+  type AgentHarnessReadiness,
+  redactAgentHarnessAuthDetail,
+} from "#core/agent-harness/index.js";
 import { loadConfig } from "#core/config/config.js";
 import { secretReferenceName } from "#core/config/secret-reference.js";
 import type { CapabilityReadinessResponse } from "#core/daemon/capability-readiness.js";
@@ -445,10 +450,53 @@ function authCheckStatus(
   return "fail";
 }
 
+function redactAuthProbeMetadata(
+  probe: AgentHarnessAuthProbe,
+): AgentHarnessAuthProbe {
+  const detail = redactAgentHarnessAuthDetail(probe.detail);
+  switch (probe.status) {
+    case "ready":
+    case "expiring":
+    case "stale":
+    case "missing":
+    case "unverifiable":
+    case "error":
+      return { ...probe, detail };
+  }
+}
+
+function redactHarnessReadinessMetadata(
+  readiness: AgentHarnessReadiness,
+): AgentHarnessReadiness {
+  const localAuth =
+    readiness.localAuth === undefined
+      ? undefined
+      : redactAuthProbeMetadata(readiness.localAuth);
+  return {
+    ...readiness,
+    ...(localAuth !== undefined ? { localAuth } : {}),
+  };
+}
+
+function redactPresetReadinessMetadata(
+  readiness: PresetHarnessReadiness,
+): PresetHarnessReadiness {
+  const adapter = redactHarnessReadinessMetadata(readiness.adapter);
+  const auth =
+    readiness.auth.mode === "harness-managed-login"
+      ? {
+          ...readiness.auth,
+          probe: redactAuthProbeMetadata(readiness.auth.probe),
+        }
+      : readiness.auth;
+  return { ...readiness, adapter, auth };
+}
+
 function renderPresetReadinessChecks(
   readiness: PresetHarnessReadiness,
   sourceLabel: string,
 ): CheckResult[] {
+  const metadataReadiness = redactPresetReadinessMetadata(readiness);
   const sourceDetail =
     `source: ${sourceLabel}, harness: ${readiness.harnessId}, defaultModel: ${readiness.defaultModel}`;
   const authStatus = authCheckStatus(readiness);
@@ -463,7 +511,7 @@ function renderPresetReadinessChecks(
       label: `Preset: ${readiness.presetId}`,
       status: presetStatus,
       detail: `${presetReadinessSummary(readiness)} (${sourceDetail})`,
-      metadata: { presetReadiness: readiness },
+      metadata: { presetReadiness: metadataReadiness },
     },
     pass(
       `Preset tiers: ${readiness.presetId}`,
@@ -538,7 +586,7 @@ function extractPresetReadiness(
 ): PresetHarnessReadiness | undefined {
   for (const check of checks) {
     if (check.metadata?.presetReadiness) {
-      return check.metadata.presetReadiness;
+      return redactPresetReadinessMetadata(check.metadata.presetReadiness);
     }
   }
   return undefined;

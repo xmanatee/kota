@@ -121,7 +121,8 @@ describe("agent harness readiness probes", () => {
         }),
         readCommandOutput: (command, args) => ({
           status: "ready",
-          output: `${command} ${args.join(" ")} -> Logged in using ChatGPT`,
+          output:
+            `${command} ${args.join(" ")} -> Logged in using ChatGPT as operator@example.com`,
         }),
       }),
     );
@@ -133,6 +134,8 @@ describe("agent harness readiness probes", () => {
       command: "codex login status",
       summary: "Codex ChatGPT login active",
     });
+    expect(probe.detail).toContain("[redacted-email]");
+    expect(probe.detail).not.toContain("operator@example.com");
   });
 
   it("reports native CLI login expiry warnings before clean ready", () => {
@@ -193,7 +196,7 @@ describe("agent harness readiness probes", () => {
         }),
         readCommandOutput: () => ({
           status: "ready",
-          output: "Logged in using API key",
+          output: "Logged in using API key for operator@example.com",
         }),
       }),
     );
@@ -204,5 +207,41 @@ describe("agent harness readiness probes", () => {
       required: true,
       summary: "Codex ChatGPT login not active; run `codex login`",
     });
+    expect(probe.detail).toContain("[redacted-email]");
+    expect(probe.detail).not.toContain("operator@example.com");
+  });
+
+  it("redacts account identifiers from unrecognized native CLI auth output", () => {
+    const probe = probeNativeCliAuth(
+      {
+        binaryName: "codex",
+        statusArgs: ["login", "status"],
+        required: true,
+        readyPattern: /logged in using chatgpt/i,
+        missingPattern: /not logged in|api key/i,
+        readySummary: "Codex ChatGPT login active",
+        missingSummary: "Codex ChatGPT login not active; run `codex login`",
+      },
+      fakeDeps({
+        resolveBinary: () => ({
+          status: "ready",
+          executablePath: "/opt/bin/codex",
+        }),
+        readCommandOutput: () => ({
+          status: "ready",
+          output:
+            "Authenticated with an unknown Codex mode for operator@example.com",
+        }),
+      }),
+    );
+
+    expect(probe).toMatchObject({
+      kind: "harness-managed-login",
+      status: "error",
+      required: true,
+      summary: "codex login status returned an unrecognized auth status",
+    });
+    expect(probe.detail).toContain("[redacted-email]");
+    expect(probe.detail).not.toContain("operator@example.com");
   });
 });

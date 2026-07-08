@@ -113,6 +113,7 @@ export {
   probeNativeCliAuth,
   probeNativeCliRuntime,
   probeNodePackageRuntime,
+  redactAgentHarnessAuthDetail,
 } from "./readiness.js";
 export {
   clearAgentHarnessRegistryForTest,

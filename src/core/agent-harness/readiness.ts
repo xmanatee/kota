@@ -4,6 +4,7 @@ export {
   probeNativeCliAuth,
   probeNativeCliRuntime,
   probeNodePackageRuntime,
+  redactAgentHarnessAuthDetail,
 } from "./readiness-node-probes.js";
 export type {
   AgentHarnessAdapterKind,

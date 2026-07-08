@@ -95,6 +95,7 @@ function registerReadinessHarness(
   name: string,
   adapterKind: AgentHarnessAdapterKind,
   authStatus: "ready" | "expiring" | "missing" = "ready",
+  authDetail?: string,
 ): void {
   const hasHarnessManagedAuth =
     name === "codex" ||
@@ -120,6 +121,7 @@ function registerReadinessHarness(
         : "Antigravity CLI login not active; run `agy` and sign in";
   const authProbe = makeHarnessAuthProbe({
     authCommand,
+    authDetail,
     authMissingSummary,
     authReadySummary,
     authStatus,
@@ -172,6 +174,7 @@ function registerReadinessHarness(
 
 function makeHarnessAuthProbe(args: {
   readonly authCommand: string;
+  readonly authDetail?: string;
   readonly authMissingSummary: string;
   readonly authReadySummary: string;
   readonly authStatus: "ready" | "expiring" | "missing";
@@ -202,7 +205,8 @@ function makeHarnessAuthProbe(args: {
     required: true,
     command: args.authCommand,
     detail:
-      args.authStatus === "ready" ? args.authReadySummary : "Not logged in",
+      args.authDetail ??
+      (args.authStatus === "ready" ? args.authReadySummary : "Not logged in"),
     summary:
       args.authStatus === "ready"
         ? args.authReadySummary
@@ -716,6 +720,45 @@ describe("kota doctor --preset preflight", () => {
     expect(presetRow?.status).toBe("pass");
     expect(presetRow?.detail).toContain("harness-managed auth");
     expect(presetRow?.detail).toContain("Codex ChatGPT login active");
+  });
+
+  it("redacts harness-managed auth detail from doctor report metadata", async () => {
+    clearAgentHarnessRegistryForTest();
+    registerReadinessHarness("claude-agent-sdk", "agent-sdk");
+    registerReadinessHarness(
+      "codex",
+      "native-cli",
+      "ready",
+      "Logged in using ChatGPT as operator@example.com",
+    );
+    registerReadinessHarness("openai-tools", "provider-sdk");
+    registerReadinessHarness("gemini", "provider-sdk");
+    registerReadinessHarness("gemini-cli", "native-cli", "ready");
+    registerReadinessHarness("antigravity-cli", "native-cli", "ready");
+
+    const report = await runDoctorReport(projectDir, {
+      preset: "codex",
+      skipConnectivity: true,
+    });
+    const encoded = JSON.stringify(report);
+    const presetRow = report.checks.find((r) => r.label === "Preset: codex");
+    const rowReadiness = presetRow?.metadata?.presetReadiness;
+
+    expect(encoded).toContain("[redacted-email]");
+    expect(encoded).not.toContain("operator@example.com");
+    expect(rowReadiness?.adapter.localAuth?.detail).toContain("[redacted-email]");
+    expect(report.presetReadiness?.adapter.localAuth?.detail).toContain(
+      "[redacted-email]",
+    );
+    expect(rowReadiness?.auth.mode).toBe("harness-managed-login");
+    if (rowReadiness?.auth.mode === "harness-managed-login") {
+      expect(rowReadiness.auth.probe.detail).toContain("[redacted-email]");
+    }
+    if (report.presetReadiness?.auth.mode === "harness-managed-login") {
+      expect(report.presetReadiness.auth.probe.detail).toContain(
+        "[redacted-email]",
+      );
+    }
   });
 
   it("fails for codex preset when Codex ChatGPT login is not active", async () => {
