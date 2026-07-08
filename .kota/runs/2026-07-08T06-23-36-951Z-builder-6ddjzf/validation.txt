@@ -1,0 +1,42 @@
+Command:
+pnpm exec biome check src/core/agent-harness/readiness-types.ts src/core/agent-harness/readiness-node-probes.ts src/core/agent-harness/readiness.test.ts src/core/agent-harness/capability-snapshot.ts src/core/model/preset-readiness.ts src/core/model/preset-readiness.test.ts src/modules/gemini-cli-agent-harness/auth-readiness.ts src/modules/gemini-cli-agent-harness/auth-readiness.test.ts src/modules/doctor/doctor-checks.ts src/modules/doctor/doctor.test.ts src/core/workflow/steps/step-executor-agent-capability-unverifiable-auth.test.ts src/modules/harness-parity/runner-readiness.test.ts src/modules/codex-agent-harness/adapter.ts
+
+Result:
+Checked 13 files in 12ms. No fixes applied.
+
+Command:
+pnpm run lint
+
+Result:
+biome check src/ passed; checked 2760 files with no fixes applied.
+
+Command:
+pnpm run typecheck
+
+Result:
+tsc --noEmit passed.
+
+Command:
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner --silent=true src/core/agent-harness/readiness.test.ts src/core/model/preset-readiness.test.ts src/modules/gemini-cli-agent-harness/auth-readiness.test.ts src/modules/doctor/doctor.test.ts src/core/workflow/steps/step-executor-agent-capability-unverifiable-auth.test.ts src/modules/harness-parity/runner-readiness.test.ts
+
+Result:
+Test Files  6 passed (6)
+Tests  70 passed (70)
+
+Command:
+pnpm run validate-tasks
+
+Result:
+Passed after staging the task move.
+
+Earlier note:
+The first source-mode task move reached git mv and failed with an index.lock permission error. A later `git add -A` succeeded, and the final staged task move validates.
+
+Repair check:
+node --conditions=source --import tsx -e "import { checkAutonomyChangeDecisionForRun } from './src/modules/autonomy/autonomy-change-decision.js'; console.log(checkAutonomyChangeDecisionForRun(process.cwd(), './.kota/runs/2026-07-08T06-23-36-951Z-builder-6ddjzf'));"
+
+Result:
+OK: autonomy-change-decision.json covers 6 material autonomy file(s)
+
+Artifact parse:
+valid autonomy-change-decision artifact

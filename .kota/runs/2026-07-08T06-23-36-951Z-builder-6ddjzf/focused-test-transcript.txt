@@ -1,0 +1,14 @@
+Command:
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner --silent=true src/core/agent-harness/readiness.test.ts src/core/model/preset-readiness.test.ts src/modules/gemini-cli-agent-harness/auth-readiness.test.ts src/modules/doctor/doctor.test.ts src/core/workflow/steps/step-executor-agent-capability-unverifiable-auth.test.ts src/modules/harness-parity/runner-readiness.test.ts
+
+Result:
+Test Files  6 passed (6)
+Tests  70 passed (70)
+
+Covered:
+- shared native CLI auth parser ready/missing/expiring precedence
+- preset readiness pass-with-warning and stale failure semantics
+- Gemini CLI cache parsing for refreshable, unexpired, near-expiry, expired, malformed, and missing cache states
+- doctor rendering for expiring gemini-cli auth under --skip-connectivity
+- workflow step capability artifact preservation of expiring auth fields
+- harness-parity run-meta and parity JSON preservation of expiring auth fields

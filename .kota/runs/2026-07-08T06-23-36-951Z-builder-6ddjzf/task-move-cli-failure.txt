@@ -1,0 +1,9 @@
+Attempted command:
+NODE_OPTIONS=--conditions=source node --import tsx src/cli.ts task move task-warn-before-native-cli-harness-auth-expires-during doing
+
+Result:
+The source-mode CLI resolved and attempted the task move, but git mv failed because the sandbox cannot write the parent worktree git index:
+
+fatal: Unable to create '/Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/task-warn-before-native-cli-harness-auth-expires-during-2026-07-08t06-23-36-951z-builder-6ddjzf/index.lock': Operation not permitted
+
+The task file was moved manually to keep task state aligned with active work.

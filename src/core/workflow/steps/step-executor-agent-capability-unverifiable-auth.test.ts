@@ -180,4 +180,61 @@ describe("workflow agent-step capability artifacts for unverifiable auth", () =>
       },
     });
   });
+
+  it("serializes expiring required auth without blocking native harness launch", async () => {
+    const readiness: AgentHarnessReadiness = {
+      adapterKind: "native-cli",
+      localRuntime: {
+        kind: "native-cli",
+        status: "ready",
+        required: true,
+        command: "fake-native --version",
+        binaryName: "fake-native",
+        executablePath: "/opt/bin/fake-native",
+        version: "fake-native 1.0.0",
+        summary: "fake-native 1.0.0 at /opt/bin/fake-native",
+      },
+      localAuth: {
+        kind: "harness-managed-login",
+        status: "expiring",
+        required: true,
+        command: "fake-native auth status",
+        detail:
+          "Fake native login expires at 2026-06-22T00:30:00.000Z",
+        summary: "Fake native login expires soon",
+        expiresAt: "2026-06-22T00:30:00.000Z",
+        renewalSummary: "run `fake-native login` before unattended runs",
+      },
+      optionalRuntimes: [],
+      unsupportedOptions: [],
+    };
+    const run = vi.fn(async () => AGENT_OK_RESULT);
+    const harnessName = "capability-native-expiring-auth";
+    registerAgentHarness(makeHarness(harnessName, run, readiness));
+
+    const step = makeAgentStep(projectDir, harnessName);
+    const { promise } = executeWorkflowRun(
+      makeDefinition(projectDir, step),
+      TRIGGER,
+      { projectDir, bus, store, log: () => {} },
+    );
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("success");
+    expect(run).toHaveBeenCalledTimes(1);
+
+    expect(readCapabilityArtifact(projectDir, result.metadata.runDir)).toMatchObject({
+      harnessName,
+      localReadiness: {
+        localAuth: {
+          kind: "harness-managed-login",
+          status: "expiring",
+          required: true,
+          summary: "Fake native login expires soon",
+          expiresAt: "2026-06-22T00:30:00.000Z",
+          renewalSummary: "run `fake-native login` before unattended runs",
+        },
+      },
+    });
+  });
 });

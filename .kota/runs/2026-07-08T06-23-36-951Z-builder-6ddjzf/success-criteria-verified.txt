@@ -1,0 +1,7 @@
+1. Verified. `AgentHarnessAuthProbe` now includes `expiring` and `stale` harness-managed auth states with renewal metadata and optional `expiresAt` / `expiredAt` fields.
+2. Verified. Preset readiness treats `expiring` as boolean-ready while doctor renders it as warning; `stale` remains not ready. Covered by `src/core/model/preset-readiness.test.ts`.
+3. Verified. `kota doctor --preset gemini-cli --skip-connectivity --json` renders expiring auth with `expiresAt` and `renewalSummary`; see `doctor-expiring-auth-transcript.txt`.
+4. Verified. Workflow agent-step and harness-parity capability artifacts preserve expiring auth fields; see `harness-capability-expiring-auth-fixture.json` and focused tests.
+5. Verified. `geminiCliAuthReadiness()` tests cover refreshable credentials, unexpired non-refreshable credentials, near-expiry non-refreshable credentials, expired non-refreshable credentials, malformed cache, and missing cache.
+6. Verified. `probeNativeCliAuth()` tests cover near-expiry status output taking precedence over clean-ready output while preserving the existing Codex API-key-only missing behavior.
+7. Verified. Focused tests, Biome check, `pnpm run typecheck`, and `pnpm run validate-tasks` pass. The readiness paths remain local/non-networked.

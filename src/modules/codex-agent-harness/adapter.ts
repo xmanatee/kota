@@ -89,10 +89,17 @@ function codexReadiness(): AgentHarnessReadiness {
       statusArgs: ["login", "status"],
       required: true,
       readyPattern: /logged in using chatgpt/i,
+      expiringPattern:
+        /(?:login|session|auth(?:entication)?) (?:will )?expires? soon|expiresAt=(?<expiresAt>\S+)/i,
+      stalePattern:
+        /(?:login|session|auth(?:entication)?) (?:expired|is stale)/i,
       missingPattern:
         /not logged in|not authenticated|logged out|no login|login required|api key/i,
       readySummary: "Codex ChatGPT login active",
+      expiringSummary: "Codex ChatGPT login expires soon",
+      staleSummary: "Codex ChatGPT login expired",
       missingSummary: "Codex ChatGPT login not active; run `codex login`",
+      renewalSummary: "run `codex login` before unattended runs",
     }),
     optionalRuntimes: [],
     unsupportedOptions: CODEX_UNSUPPORTED_OPTIONS,

@@ -10,6 +10,8 @@ export type AgentHarnessAdapterKind =
 export type AgentHarnessRuntimeStatus = "ready" | "missing" | "error";
 export type AgentHarnessAuthStatus =
   | "ready"
+  | "expiring"
+  | "stale"
   | "missing"
   | "unverifiable"
   | "error";
@@ -106,6 +108,26 @@ export type AgentHarnessAuthProbe =
     }
   | {
       readonly kind: "harness-managed-login";
+      readonly status: "expiring";
+      readonly required: boolean;
+      readonly command: string;
+      readonly detail: string;
+      readonly summary: string;
+      readonly expiresAt?: string;
+      readonly renewalSummary: string;
+    }
+  | {
+      readonly kind: "harness-managed-login";
+      readonly status: "stale";
+      readonly required: boolean;
+      readonly command: string;
+      readonly detail: string;
+      readonly summary: string;
+      readonly expiredAt?: string;
+      readonly renewalSummary: string;
+    }
+  | {
+      readonly kind: "harness-managed-login";
       readonly status: "missing";
       readonly required: boolean;
       readonly command: string;
@@ -184,9 +206,14 @@ export type NativeCliAuthProbeSpec = {
   readonly statusArgs: readonly string[];
   readonly required: boolean;
   readonly readyPattern: RegExp;
+  readonly expiringPattern?: RegExp;
+  readonly stalePattern?: RegExp;
   readonly missingPattern: RegExp;
   readonly readySummary: string;
+  readonly expiringSummary?: string;
+  readonly staleSummary?: string;
   readonly missingSummary: string;
+  readonly renewalSummary?: string;
 };
 
 export type NodePackageRuntimeProbeSpec = {

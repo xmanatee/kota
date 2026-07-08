@@ -30,7 +30,7 @@ export type HarnessRequiredReadinessFailure = {
   readonly kind: AgentHarnessRuntimeProbe["kind"] | AgentHarnessAuthProbe["kind"];
   readonly status: Exclude<
     AgentHarnessRuntimeProbe["status"] | AgentHarnessAuthProbe["status"],
-    "ready"
+    "ready" | "expiring"
   >;
   readonly summary: string;
 };
@@ -40,6 +40,9 @@ export type HarnessCapabilityReadinessProbeSummary = {
   readonly status: AgentHarnessRuntimeProbe["status"] | AgentHarnessAuthProbe["status"];
   readonly required: boolean;
   readonly summary: string;
+  readonly expiresAt?: string;
+  readonly expiredAt?: string;
+  readonly renewalSummary?: string;
 };
 
 export type HarnessCapabilityReadinessSummary = {
@@ -102,11 +105,28 @@ function mergeUnsupportedOptions(
 function summarizeProbe(
   probe: AgentHarnessRuntimeProbe | AgentHarnessAuthProbe,
 ): HarnessCapabilityReadinessProbeSummary {
+  const expiryMetadata =
+    probe.kind === "harness-managed-login" && probe.status === "expiring"
+      ? {
+          ...(probe.expiresAt !== undefined
+            ? { expiresAt: probe.expiresAt }
+            : {}),
+          renewalSummary: probe.renewalSummary,
+        }
+      : probe.kind === "harness-managed-login" && probe.status === "stale"
+        ? {
+            ...(probe.expiredAt !== undefined
+              ? { expiredAt: probe.expiredAt }
+              : {}),
+            renewalSummary: probe.renewalSummary,
+          }
+        : {};
   return {
     kind: probe.kind,
     status: probe.status,
     required: probe.required,
     summary: probe.summary,
+    ...expiryMetadata,
   };
 }
 
@@ -129,7 +149,13 @@ function appendRequiredReadinessFailure(
   surface: HarnessRequiredReadinessFailure["surface"],
   probe: AgentHarnessRuntimeProbe | AgentHarnessAuthProbe,
 ): void {
-  if (!probe.required || probe.status === "ready") return;
+  if (
+    !probe.required ||
+    probe.status === "ready" ||
+    probe.status === "expiring"
+  ) {
+    return;
+  }
   failures.push({
     surface,
     kind: probe.kind,

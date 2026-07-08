@@ -1,0 +1,33 @@
+Command:
+HOME=/private/tmp/kota-gemini-expiring-home USERPROFILE=/private/tmp/kota-gemini-expiring-home NODE_OPTIONS=--conditions=source node --import tsx src/cli.ts doctor --preset gemini-cli --skip-connectivity --json
+
+Fake local cache:
+/private/tmp/kota-gemini-expiring-home/.gemini/oauth_creds.json contained a redacted non-refreshable access_token with expiry_date set to Date.now() + 30 minutes.
+
+Relevant JSON excerpt:
+{
+  "label": "Preset: gemini-cli",
+  "status": "warn",
+  "detail": "harness-managed auth expiring (Gemini CLI Google login expires soon, expiresAt=2026-07-08T07:09:36.513Z; run `gemini` and sign in again before unattended runs); runtime 0.45.2 at /opt/homebrew/bin/gemini (source: flag, harness: gemini-cli, defaultModel: gemini-2.5-pro)"
+}
+
+{
+  "label": "Preset auth: gemini-cli",
+  "status": "warn",
+  "detail": "harness-managed auth expiring (Gemini CLI Google login expires soon, expiresAt=2026-07-08T07:09:36.513Z; run `gemini` and sign in again before unattended runs)"
+}
+
+{
+  "localAuth": {
+    "kind": "harness-managed-login",
+    "status": "expiring",
+    "required": true,
+    "command": "gemini",
+    "detail": "cached non-refreshable OAuth access token expires at 2026-07-08T07:09:36.513Z",
+    "summary": "Gemini CLI Google login expires soon",
+    "expiresAt": "2026-07-08T07:09:36.513Z",
+    "renewalSummary": "run `gemini` and sign in again before unattended runs"
+  }
+}
+
+The output contains no access token or account identifier.

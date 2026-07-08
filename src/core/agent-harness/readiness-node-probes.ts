@@ -71,6 +71,31 @@ export function probeNativeCliRuntime(
   };
 }
 
+function matchAuthPattern(
+  pattern: RegExp | undefined,
+  value: string,
+): RegExpExecArray | null {
+  if (pattern === undefined) return null;
+  pattern.lastIndex = 0;
+  return pattern.exec(value);
+}
+
+function namedMatch(match: RegExpExecArray, name: string): string | undefined {
+  const value = match.groups?.[name]?.trim();
+  return value && value.length > 0 ? value : undefined;
+}
+
+function redactNativeAuthDetail(value: string): string {
+  return value.replace(
+    /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
+    "[redacted-email]",
+  );
+}
+
+function nativeCliRenewalSummary(spec: NativeCliAuthProbeSpec): string {
+  return spec.renewalSummary ?? spec.missingSummary;
+}
+
 export function probeNativeCliAuth(
   spec: NativeCliAuthProbeSpec,
   deps: AgentHarnessRuntimeProbeDeps = NODE_RUNTIME_PROBE_DEPS,
@@ -100,7 +125,23 @@ export function probeNativeCliAuth(
 
   const status = deps.readCommandOutput(binary.executablePath, spec.statusArgs);
   if (status.status === "error") {
-    if (spec.missingPattern.test(status.detail)) {
+    const staleMatch = matchAuthPattern(spec.stalePattern, status.detail);
+    if (staleMatch) {
+      const expiredAt =
+        namedMatch(staleMatch, "expiredAt") ??
+        namedMatch(staleMatch, "expiresAt");
+      return {
+        kind: "harness-managed-login",
+        status: "stale",
+        required: spec.required,
+        command,
+        detail: redactNativeAuthDetail(status.detail),
+        summary: spec.staleSummary ?? `${command} login is stale`,
+        ...(expiredAt !== undefined ? { expiredAt } : {}),
+        renewalSummary: nativeCliRenewalSummary(spec),
+      };
+    }
+    if (matchAuthPattern(spec.missingPattern, status.detail)) {
       return {
         kind: "harness-managed-login",
         status: "missing",
@@ -120,7 +161,37 @@ export function probeNativeCliAuth(
     };
   }
 
-  if (spec.readyPattern.test(status.output)) {
+  const staleMatch = matchAuthPattern(spec.stalePattern, status.output);
+  if (staleMatch) {
+    const expiredAt =
+      namedMatch(staleMatch, "expiredAt") ??
+      namedMatch(staleMatch, "expiresAt");
+    return {
+      kind: "harness-managed-login",
+      status: "stale",
+      required: spec.required,
+      command,
+      detail: redactNativeAuthDetail(status.output),
+      summary: spec.staleSummary ?? `${command} login is stale`,
+      ...(expiredAt !== undefined ? { expiredAt } : {}),
+      renewalSummary: nativeCliRenewalSummary(spec),
+    };
+  }
+  const expiringMatch = matchAuthPattern(spec.expiringPattern, status.output);
+  if (expiringMatch) {
+    const expiresAt = namedMatch(expiringMatch, "expiresAt");
+    return {
+      kind: "harness-managed-login",
+      status: "expiring",
+      required: spec.required,
+      command,
+      detail: redactNativeAuthDetail(status.output),
+      summary: spec.expiringSummary ?? `${command} login expires soon`,
+      ...(expiresAt !== undefined ? { expiresAt } : {}),
+      renewalSummary: nativeCliRenewalSummary(spec),
+    };
+  }
+  if (matchAuthPattern(spec.readyPattern, status.output)) {
     return {
       kind: "harness-managed-login",
       status: "ready",
@@ -130,7 +201,7 @@ export function probeNativeCliAuth(
       summary: spec.readySummary,
     };
   }
-  if (spec.missingPattern.test(status.output)) {
+  if (matchAuthPattern(spec.missingPattern, status.output)) {
     return {
       kind: "harness-managed-login",
       status: "missing",

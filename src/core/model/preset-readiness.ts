@@ -87,6 +87,33 @@ function collectAdapterReadiness(preset: Preset): AgentHarnessReadiness {
   }
 }
 
+function harnessManagedAuthSummary(
+  probe: AgentHarnessAuthProbe,
+  ready: boolean,
+): string {
+  if (probe.status === "expiring") {
+    const expiresAt =
+      probe.expiresAt !== undefined ? `, expiresAt=${probe.expiresAt}` : "";
+    return (
+      `harness-managed auth expiring (${probe.summary}${expiresAt}; ` +
+      `${probe.renewalSummary})`
+    );
+  }
+  if (probe.status === "stale") {
+    const expiredAt =
+      probe.expiredAt !== undefined ? `, expiredAt=${probe.expiredAt}` : "";
+    return (
+      `harness-managed auth stale (${probe.summary}${expiredAt}; ` +
+      `${probe.renewalSummary})`
+    );
+  }
+  if (ready) return `harness-managed auth ready (${probe.summary})`;
+  if (probe.status === "unverifiable") {
+    return `harness-managed auth unverifiable (${probe.summary})`;
+  }
+  return `harness-managed auth not ready (${probe.summary})`;
+}
+
 function collectAuthReadiness(
   preset: Preset,
   env: NodeJS.ProcessEnv,
@@ -102,18 +129,17 @@ function collectAuthReadiness(
       summary:
         `harness-managed auth readiness is unavailable for "${preset.harness}"`,
     } satisfies AgentHarnessAuthProbe;
-    const ready = !probe.required || probe.status === "ready";
+    const ready =
+      !probe.required ||
+      probe.status === "ready" ||
+      probe.status === "expiring";
     return {
       mode: "harness-managed-login",
       ready,
       alternatives: [],
       missing: [],
       probe,
-      summary: ready
-        ? `harness-managed auth ready (${probe.summary})`
-        : probe.status === "unverifiable"
-          ? `harness-managed auth unverifiable (${probe.summary})`
-        : `harness-managed auth not ready (${probe.summary})`,
+      summary: harnessManagedAuthSummary(probe, ready),
     };
   }
 

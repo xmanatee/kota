@@ -1,0 +1,29 @@
+{
+  "workflowStepArtifact": {
+    "harnessName": "capability-native-expiring-auth",
+    "localReadiness": {
+      "localAuth": {
+        "kind": "harness-managed-login",
+        "status": "expiring",
+        "required": true,
+        "summary": "Fake native login expires soon",
+        "expiresAt": "2026-06-22T00:30:00.000Z",
+        "renewalSummary": "run `fake-native login` before unattended runs"
+      }
+    }
+  },
+  "harnessParityCompactArtifact": {
+    "capability": {
+      "localReadiness": {
+        "localAuth": {
+          "kind": "harness-managed-login",
+          "status": "expiring",
+          "required": true,
+          "summary": "fake login expires soon",
+          "expiresAt": "2026-06-22T00:30:00.000Z",
+          "renewalSummary": "run `fake login` before unattended runs"
+        }
+      }
+    }
+  }
+}

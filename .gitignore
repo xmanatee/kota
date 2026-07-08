@@ -9,6 +9,17 @@ deploy/telegram-assistant/.env
 /.kota/*
 !/.kota/runs/
 /.kota/runs/*
+!/.kota/runs/2026-07-08T06-23-36-951Z-builder-6ddjzf/
+/.kota/runs/2026-07-08T06-23-36-951Z-builder-6ddjzf/*
+!/.kota/runs/2026-07-08T06-23-36-951Z-builder-6ddjzf/autonomy-change-decision.json
+!/.kota/runs/2026-07-08T06-23-36-951Z-builder-6ddjzf/commit-message.txt
+!/.kota/runs/2026-07-08T06-23-36-951Z-builder-6ddjzf/doctor-expiring-auth-transcript.txt
+!/.kota/runs/2026-07-08T06-23-36-951Z-builder-6ddjzf/focused-test-transcript.txt
+!/.kota/runs/2026-07-08T06-23-36-951Z-builder-6ddjzf/harness-capability-expiring-auth-fixture.json
+!/.kota/runs/2026-07-08T06-23-36-951Z-builder-6ddjzf/success-criteria.txt
+!/.kota/runs/2026-07-08T06-23-36-951Z-builder-6ddjzf/success-criteria-verified.txt
+!/.kota/runs/2026-07-08T06-23-36-951Z-builder-6ddjzf/task-move-cli-failure.txt
+!/.kota/runs/2026-07-08T06-23-36-951Z-builder-6ddjzf/validation.txt
 !/.kota/runs/2026-07-08T04-09-54-396Z-builder-gcgpjm/
 /.kota/runs/2026-07-08T04-09-54-396Z-builder-gcgpjm/*
 !/.kota/runs/2026-07-08T04-09-54-396Z-builder-gcgpjm/commit-message.txt

@@ -1,11 +1,15 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   type AgentHarness,
+  type AgentHarnessAuthProbe,
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
 } from "#core/agent-harness/index.js";
 import { getPreset } from "./preset.js";
-import { collectPresetHarnessReadiness } from "./preset-readiness.js";
+import {
+  collectPresetHarnessReadiness,
+  isPresetHarnessReadinessReady,
+} from "./preset-readiness.js";
 
 function registerGeminiReadinessHarness(): void {
   const harness: AgentHarness = {
@@ -45,8 +49,9 @@ function registerGeminiReadinessHarness(): void {
 }
 
 function registerCodexReadinessHarness(
-  authStatus: "ready" | "missing" | "error",
+  authStatus: "ready" | "expiring" | "stale" | "missing" | "error",
 ): void {
+  const authProbe = makeCodexAuthProbe(authStatus);
   const harness: AgentHarness = {
     name: "codex",
     description: "test codex harness",
@@ -67,20 +72,7 @@ function registerCodexReadinessHarness(
         version: "codex-cli 0.130.0",
         summary: "codex-cli 0.130.0 at /opt/bin/codex",
       },
-      localAuth: {
-        kind: "harness-managed-login",
-        status: authStatus,
-        required: true,
-        command: "codex login status",
-        detail:
-          authStatus === "ready"
-            ? "Logged in using ChatGPT"
-            : "Not logged in",
-        summary:
-          authStatus === "ready"
-            ? "Codex ChatGPT login active"
-            : "Codex ChatGPT login not active; run `codex login`",
-      },
+      localAuth: authProbe,
       optionalRuntimes: [],
       unsupportedOptions: [],
     }),
@@ -92,6 +84,56 @@ function registerCodexReadinessHarness(
     }),
   };
   registerAgentHarness(harness);
+}
+
+function makeCodexAuthProbe(
+  status: "ready" | "expiring" | "stale" | "missing" | "error",
+): AgentHarnessAuthProbe {
+  if (status === "ready") {
+    return {
+      kind: "harness-managed-login",
+      status,
+      required: true,
+      command: "codex login status",
+      detail: "Logged in using ChatGPT",
+      summary: "Codex ChatGPT login active",
+    };
+  }
+  if (status === "expiring") {
+    return {
+      kind: "harness-managed-login",
+      status,
+      required: true,
+      command: "codex login status",
+      detail: "Logged in using ChatGPT; expires at 2026-06-22T00:30:00.000Z",
+      summary: "Codex ChatGPT login expires soon",
+      expiresAt: "2026-06-22T00:30:00.000Z",
+      renewalSummary: "run `codex login` before unattended runs",
+    };
+  }
+  if (status === "stale") {
+    return {
+      kind: "harness-managed-login",
+      status,
+      required: true,
+      command: "codex login status",
+      detail: "Codex ChatGPT login expired at 2026-06-21T23:59:00.000Z",
+      summary: "Codex ChatGPT login expired",
+      expiredAt: "2026-06-21T23:59:00.000Z",
+      renewalSummary: "run `codex login` before unattended runs",
+    };
+  }
+  return {
+    kind: "harness-managed-login",
+    status,
+    required: true,
+    command: "codex login status",
+    detail: status === "error" ? "login status failed" : "Not logged in",
+    summary:
+      status === "error"
+        ? "Codex ChatGPT login probe failed"
+        : "Codex ChatGPT login not active; run `codex login`",
+  };
 }
 
 function registerAntigravityReadinessHarness(): void {
@@ -219,6 +261,49 @@ describe("preset harness readiness", () => {
       summary:
         "harness-managed auth ready (Codex ChatGPT login active)",
     });
+  });
+
+  it("treats expiring harness-managed auth as ready with a warning summary", () => {
+    registerCodexReadinessHarness("expiring");
+
+    const readiness = collectPresetHarnessReadiness(getPreset("codex"), {
+      env: {},
+      now: () => new Date("2026-05-14T00:00:00.000Z"),
+    });
+
+    expect(readiness.auth).toMatchObject({
+      mode: "harness-managed-login",
+      ready: true,
+      probe: {
+        status: "expiring",
+        expiresAt: "2026-06-22T00:30:00.000Z",
+        renewalSummary: "run `codex login` before unattended runs",
+      },
+      summary:
+        "harness-managed auth expiring (Codex ChatGPT login expires soon, expiresAt=2026-06-22T00:30:00.000Z; run `codex login` before unattended runs)",
+    });
+    expect(isPresetHarnessReadinessReady(readiness)).toBe(true);
+  });
+
+  it("treats stale locally observable harness auth as not ready", () => {
+    registerCodexReadinessHarness("stale");
+
+    const readiness = collectPresetHarnessReadiness(getPreset("codex"), {
+      env: {},
+      now: () => new Date("2026-05-14T00:00:00.000Z"),
+    });
+
+    expect(readiness.auth).toMatchObject({
+      mode: "harness-managed-login",
+      ready: false,
+      probe: {
+        status: "stale",
+        expiredAt: "2026-06-21T23:59:00.000Z",
+      },
+      summary:
+        "harness-managed auth stale (Codex ChatGPT login expired, expiredAt=2026-06-21T23:59:00.000Z; run `codex login` before unattended runs)",
+    });
+    expect(isPresetHarnessReadinessReady(readiness)).toBe(false);
   });
 
   it("includes Antigravity CLI preset tiers while preserving harness-managed auth failure", () => {

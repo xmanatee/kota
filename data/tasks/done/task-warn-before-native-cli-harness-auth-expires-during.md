@@ -1,13 +1,13 @@
 ---
 id: task-warn-before-native-cli-harness-auth-expires-during
 title: Warn before native CLI harness auth expires during long-running autonomy
-status: ready
+status: done
 priority: p2
 area: architecture
 task_class: Platform
 summary: Surface expiring harness-managed native CLI login state in preset readiness, doctor, and workflow artifacts so unattended Codex, Claude, Gemini CLI, or Antigravity runs fail preflight or warn before background sessions are interrupted.
 created_at: 2026-07-08T06:16:15.721Z
-updated_at: 2026-07-08T06:16:15.721Z
+updated_at: 2026-07-08T06:45:00.000Z
 ---
 
 ## Problem
@@ -149,3 +149,14 @@ state.
 - A workflow or harness-parity capability artifact fixture showing the same
   auth warning preserved in structured JSON without credential contents.
 - `pnpm run validate-tasks` passes with this ready task present.
+
+## Completion Notes
+
+Implemented expiring and stale harness-managed auth states, preserved warning
+metadata through preset readiness, doctor JSON, workflow capability artifacts,
+and harness-parity compact artifacts, and covered Gemini CLI cache parsing plus
+native CLI expiry-output parsing with focused tests.
+
+Validation evidence lives under
+`.kota/runs/2026-07-08T06-23-36-951Z-builder-6ddjzf/`. Focused tests,
+typecheck, Biome, and `pnpm run validate-tasks` pass.

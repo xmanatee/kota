@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "autonomy-change-decision",
+  "runId": "2026-07-08T06-23-36-951Z-builder-6ddjzf",
+  "createdAt": "2026-07-08T06:48:16.000Z",
+  "taskIds": [
+    "task-warn-before-native-cli-harness-auth-expires-during"
+  ],
+  "affectedSurfaces": [
+    "agent harness readiness contract",
+    "preset readiness aggregation",
+    "native CLI auth status parsing",
+    "Gemini CLI cached-auth readiness",
+    "doctor preset readiness output",
+    "workflow and harness-parity capability artifacts"
+  ],
+  "changeClasses": [
+    "harness",
+    "model-routing"
+  ],
+  "hypothesis": "Representing locally observable native CLI auth expiry as explicit readiness warning or stale states will let operators see risky harness-managed login state before unattended long-running autonomy depends on it, without adding provider network calls to default readiness.",
+  "sourceRefs": [
+    "data/tasks/done/task-warn-before-native-cli-harness-auth-expires-during.md",
+    ".kota/runs/2026-07-08T06-23-36-951Z-builder-6ddjzf/focused-test-transcript.txt",
+    ".kota/runs/2026-07-08T06-23-36-951Z-builder-6ddjzf/doctor-expiring-auth-transcript.txt",
+    ".kota/runs/2026-07-08T06-23-36-951Z-builder-6ddjzf/harness-capability-expiring-auth-fixture.json",
+    ".kota/runs/2026-07-08T06-23-36-951Z-builder-6ddjzf/validation.txt"
+  ],
+  "baselineRefs": [
+    "src/core/agent-harness/readiness-types.ts",
+    "src/core/agent-harness/readiness-node-probes.ts",
+    "src/core/model/preset-readiness.ts",
+    "src/modules/gemini-cli-agent-harness/auth-readiness.ts",
+    "src/modules/doctor/doctor-checks.ts"
+  ],
+  "candidateRefs": [
+    "src/core/agent-harness/capability-snapshot.ts",
+    "src/core/agent-harness/readiness-node-probes.ts",
+    "src/core/agent-harness/readiness-types.ts",
+    "src/core/model/preset-readiness.ts",
+    "src/modules/codex-agent-harness/adapter.ts",
+    "src/modules/gemini-cli-agent-harness/auth-readiness.ts",
+    "src/core/agent-harness/readiness.test.ts",
+    "src/core/model/preset-readiness.test.ts",
+    "src/modules/gemini-cli-agent-harness/auth-readiness.test.ts",
+    "src/modules/doctor/doctor.test.ts",
+    "src/core/workflow/steps/step-executor-agent-capability-unverifiable-auth.test.ts",
+    "src/modules/harness-parity/runner-readiness.test.ts"
+  ],
+  "metricsCompared": [
+    {
+      "name": "focused native CLI auth-expiry coverage",
+      "baseline": "readiness tests covered ready, missing, error, and unverifiable auth states but had no expiring or stale locally observable auth semantics",
+      "candidate": "6 focused test files passed with 70 tests covering parser precedence, preset warning/failure aggregation, Gemini CLI cache states, doctor rendering, workflow capability artifacts, and harness-parity artifacts",
+      "unit": "vitest",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "default readiness network posture",
+      "baseline": "native CLI readiness stayed local but could only report clean ready or coarse missing/unverifiable state",
+      "candidate": "local status-output parsing and documented Gemini CLI cache inspection surface expiry warnings and stale non-refreshable credentials without provider network calls",
+      "unit": "code review and focused tests",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "repo validation",
+      "baseline": "task started from a ready item without expiring-auth readiness artifacts",
+      "candidate": "Biome, lint, typecheck, focused tests, and validate-tasks pass with the task moved to done and evidence stored in the run directory",
+      "unit": "local validation",
+      "direction": "improved",
+      "qualitySignal": true
+    }
+  ],
+  "rolloutMode": "canary",
+  "decision": "promote",
+  "rationale": "The change is a narrow extension of existing harness readiness and preset aggregation surfaces. Expiring auth is intentionally pass-with-warning for non-refreshable near-expiry credentials, stale locally observable auth remains a failure, refreshable credentials stay ready, and unverifiable native auth remains unverifiable. Focused tests and redacted artifacts prove the behavior without introducing live provider calls.",
+  "ownerSafetyExceptions": [],
+  "followUpTaskIds": []
+}

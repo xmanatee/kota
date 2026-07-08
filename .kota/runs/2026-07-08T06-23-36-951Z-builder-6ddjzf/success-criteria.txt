@@ -1,0 +1,7 @@
+1. Harness auth readiness can represent locally observable expiring or stale auth without overloading ready, missing, error, or unverifiable.
+2. Preset readiness aggregation treats expiring auth as pass-with-warning, and tests cover readiness readiness/failure semantics.
+3. Doctor renders an expiring-auth warning for a native CLI preset under skip-connectivity with a renewal action and redacted detail.
+4. Workflow agent-step and harness-parity capability snapshots preserve auth expiry warnings in structured JSON.
+5. Gemini CLI auth readiness has focused tests for refreshable credentials, unexpired non-refreshable credentials, near-expiry non-refreshable credentials, expired non-refreshable credentials, malformed cache, and missing cache.
+6. Native CLI auth probing has focused tests for near-expiry status output while preserving existing missing/API-key-only behavior.
+7. No default readiness path performs a provider network call, and task validation passes.

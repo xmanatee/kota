@@ -37,6 +37,16 @@ afterEach(() => {
         version: "1.0.0",
         summary: "fake-sdk available.",
       },
+      localAuth: {
+        kind: "harness-managed-login",
+        status: "expiring",
+        required: true,
+        command: "fake auth status",
+        detail: "fake login expires at 2026-06-22T00:30:00.000Z",
+        summary: "fake login expires soon",
+        expiresAt: "2026-06-22T00:30:00.000Z",
+        renewalSummary: "run `fake login` before unattended runs",
+      },
       optionalRuntimes: [],
       unsupportedOptions,
     };
@@ -71,6 +81,11 @@ afterEach(() => {
         reason: "Readiness-only fake harness cannot route approvals.",
       },
     ]);
+    expect(meta.capability.localReadiness.localAuth).toMatchObject({
+      status: "expiring",
+      expiresAt: "2026-06-22T00:30:00.000Z",
+      renewalSummary: "run `fake login` before unattended runs",
+    });
 
     const summary = readFileSync(
       join(artifacts[0]!.artifactDir, "trace-summary.md"),
@@ -80,6 +95,7 @@ afterEach(() => {
     expect(summary).toContain(
       '- autonomyMode="supervised" [autonomyMode.supervised]: Readiness-only fake harness cannot route approvals.',
     );
+    expect(summary).toContain("auth: expiring - fake login expires soon");
 
     const parity = JSON.parse(
       readFileSync(join(outRoot, "fix-add", "parity.json"), "utf-8"),
@@ -91,5 +107,12 @@ afterEach(() => {
         reason: "Readiness-only fake harness cannot route approvals.",
       },
     ]);
+    expect(
+      parity.artifacts[0].capability.localReadiness.localAuth,
+    ).toMatchObject({
+      status: "expiring",
+      expiresAt: "2026-06-22T00:30:00.000Z",
+      renewalSummary: "run `fake login` before unattended runs",
+    });
   });
 });

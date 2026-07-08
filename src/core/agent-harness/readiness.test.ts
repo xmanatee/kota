@@ -135,6 +135,46 @@ describe("agent harness readiness probes", () => {
     });
   });
 
+  it("reports native CLI login expiry warnings before clean ready", () => {
+    const probe = probeNativeCliAuth(
+      {
+        binaryName: "codex",
+        statusArgs: ["login", "status"],
+        required: true,
+        readyPattern: /logged in using chatgpt/i,
+        expiringPattern: /login expires soon.*expiresAt=(?<expiresAt>\S+)/i,
+        missingPattern: /not logged in|api key/i,
+        readySummary: "Codex ChatGPT login active",
+        expiringSummary: "Codex ChatGPT login expires soon",
+        missingSummary: "Codex ChatGPT login not active; run `codex login`",
+        renewalSummary: "run `codex login` before unattended runs",
+      },
+      fakeDeps({
+        resolveBinary: () => ({
+          status: "ready",
+          executablePath: "/opt/bin/codex",
+        }),
+        readCommandOutput: () => ({
+          status: "ready",
+          output:
+            "Logged in using ChatGPT as operator@example.com; login expires soon; expiresAt=2026-06-22T00:30:00.000Z",
+        }),
+      }),
+    );
+
+    expect(probe).toMatchObject({
+      kind: "harness-managed-login",
+      status: "expiring",
+      required: true,
+      command: "codex login status",
+      summary: "Codex ChatGPT login expires soon",
+      expiresAt: "2026-06-22T00:30:00.000Z",
+      renewalSummary: "run `codex login` before unattended runs",
+    });
+    expect(probe.detail).toContain("[redacted-email]");
+    expect(probe.detail).not.toContain("operator@example.com");
+  });
+
   it("reports Codex auth missing when login status is absent or API-key-only", () => {
     const probe = probeNativeCliAuth(
       {

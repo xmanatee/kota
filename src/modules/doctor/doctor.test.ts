@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type AgentHarness,
   type AgentHarnessAdapterKind,
+  type AgentHarnessAuthProbe,
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
 } from "#core/agent-harness/index.js";
@@ -82,7 +83,10 @@ vi.mock("#modules/model-clients/factory.js", () => ({
 }));
 
 function makeTmpDir(): string {
-  const dir = join(tmpdir(), `kota-doctor-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  const dir = join(
+    tmpdir(),
+    `kota-doctor-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  );
   mkdirSync(dir, { recursive: true });
   return dir;
 }
@@ -90,10 +94,18 @@ function makeTmpDir(): string {
 function registerReadinessHarness(
   name: string,
   adapterKind: AgentHarnessAdapterKind,
-  authStatus: "ready" | "missing" = "ready",
+  authStatus: "ready" | "expiring" | "missing" = "ready",
 ): void {
+  const hasHarnessManagedAuth =
+    name === "codex" ||
+    name === "gemini-cli" ||
+    name === "antigravity-cli";
   const authCommand =
-    name === "codex" ? "codex login status" : name === "gemini-cli" ? "gemini" : "agy";
+    name === "codex"
+      ? "codex login status"
+      : name === "gemini-cli"
+        ? "gemini"
+        : "agy";
   const authReadySummary =
     name === "codex"
       ? "Codex ChatGPT login active"
@@ -106,6 +118,13 @@ function registerReadinessHarness(
       : name === "gemini-cli"
         ? "Gemini CLI login not active; run `gemini` and sign in"
         : "Antigravity CLI login not active; run `agy` and sign in";
+  const authProbe = makeHarnessAuthProbe({
+    authCommand,
+    authMissingSummary,
+    authReadySummary,
+    authStatus,
+    name,
+  });
   const harness: AgentHarness = {
     name,
     description: `${name} test harness`,
@@ -124,20 +143,9 @@ function registerReadinessHarness(
         version: "1.0.0",
         summary: `${name}-runtime@1.0.0`,
       },
-      ...(name === "codex" || name === "gemini-cli" || name === "antigravity-cli"
+      ...(hasHarnessManagedAuth
         ? {
-            localAuth: {
-              kind: "harness-managed-login",
-              status: authStatus,
-              required: true,
-              command: authCommand,
-              detail:
-                authStatus === "ready"
-                  ? authReadySummary
-                  : "Not logged in",
-              summary:
-                authStatus === "ready" ? authReadySummary : authMissingSummary,
-            },
+            localAuth: authProbe,
           }
         : {}),
       optionalRuntimes: [],
@@ -162,9 +170,51 @@ function registerReadinessHarness(
   registerAgentHarness(harness);
 }
 
+function makeHarnessAuthProbe(args: {
+  readonly authCommand: string;
+  readonly authMissingSummary: string;
+  readonly authReadySummary: string;
+  readonly authStatus: "ready" | "expiring" | "missing";
+  readonly name: string;
+}): AgentHarnessAuthProbe {
+  if (args.authStatus === "expiring") {
+    const expiresAt = "2026-06-22T00:30:00.000Z";
+    return {
+      kind: "harness-managed-login",
+      status: "expiring",
+      required: true,
+      command: args.authCommand,
+      detail: `${args.name} cached login expires at ${expiresAt}`,
+      summary:
+        args.name === "gemini-cli"
+          ? "Gemini CLI Google login expires soon"
+          : `${args.authReadySummary} expires soon`,
+      expiresAt,
+      renewalSummary:
+        args.name === "gemini-cli"
+          ? "run `gemini` and sign in again before unattended runs"
+          : args.authMissingSummary,
+    };
+  }
+  return {
+    kind: "harness-managed-login",
+    status: args.authStatus,
+    required: true,
+    command: args.authCommand,
+    detail:
+      args.authStatus === "ready" ? args.authReadySummary : "Not logged in",
+    summary:
+      args.authStatus === "ready"
+        ? args.authReadySummary
+        : args.authMissingSummary,
+  };
+}
+
 beforeEach(() => {
   vi.mocked(loadConfig).mockReturnValue({});
-  strandedDaemonMocks.detectStrandedDaemonProcess.mockReturnValue({ kind: "none" });
+  strandedDaemonMocks.detectStrandedDaemonProcess.mockReturnValue({
+    kind: "none",
+  });
   clearAgentHarnessRegistryForTest();
   registerReadinessHarness("claude-agent-sdk", "agent-sdk");
   registerReadinessHarness("codex", "native-cli", "ready");
@@ -691,6 +741,33 @@ describe("kota doctor --preset preflight", () => {
     expect(presetRow?.status).toBe("pass");
     expect(presetRow?.detail).toContain("harness-managed auth");
     expect(presetRow?.detail).toContain("Gemini CLI Google login cached");
+  });
+
+  it("warns for expiring gemini-cli auth under skip-connectivity", async () => {
+    clearAgentHarnessRegistryForTest();
+    registerReadinessHarness("claude-agent-sdk", "agent-sdk");
+    registerReadinessHarness("codex", "native-cli", "ready");
+    registerReadinessHarness("openai-tools", "provider-sdk");
+    registerReadinessHarness("gemini", "provider-sdk");
+    registerReadinessHarness("gemini-cli", "native-cli", "expiring");
+    registerReadinessHarness("antigravity-cli", "native-cli", "ready");
+
+    const results = await runDoctorChecks(projectDir, {
+      preset: "gemini-cli",
+      skipConnectivity: true,
+    });
+    const presetRow = results.find((r) => r.label === "Preset: gemini-cli");
+    const authRow = results.find((r) => r.label === "Preset auth: gemini-cli");
+
+    expect(presetRow?.status).toBe("warn");
+    expect(presetRow?.detail).toContain("harness-managed auth expiring");
+    expect(presetRow?.detail).toContain("expiresAt=2026-06-22T00:30:00.000Z");
+    expect(presetRow?.detail).toContain(
+      "run `gemini` and sign in again before unattended runs",
+    );
+    expect(authRow?.status).toBe("warn");
+    expect(authRow?.detail).toContain("Gemini CLI Google login expires soon");
+    expect(authRow?.detail).not.toContain("operator@example.com");
   });
 
   it("keeps antigravity-cli preset independent of Gemini API-key env auth", async () => {
