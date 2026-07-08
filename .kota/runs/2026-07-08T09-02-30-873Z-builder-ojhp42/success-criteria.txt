@@ -1,0 +1,4 @@
+1. Provider-connectivity doctor details no longer include any substring of the resolved provider API key on success or authentication failure.
+2. Doctor report JSON no longer includes any substring of the resolved provider API key.
+3. Focused regression coverage guards resolved and inline configured API key display.
+4. The owned task records the final verification command before completion.

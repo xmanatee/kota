@@ -1,0 +1,4 @@
+1. Verified by replacing provider-connectivity key details with non-secret indicators and removing all `apiKey.slice(...)` rendering from `src/modules/doctor/doctor-checks.ts`.
+2. Verified by `runDoctorReport` regression coverage asserting JSON does not contain the full resolved key or its first eight characters.
+3. Verified by provider-connectivity tests covering success, authentication failure, report JSON, and inline `config.modelProvider.apiKey` display.
+4. Verified by completion evidence recorded in `data/tasks/done/task-security-review-the-doctor-provider-connectivity-c.md`.

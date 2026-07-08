@@ -18,6 +18,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import { loadConfig } from "#core/config/config.js";
+import { secretReferenceName } from "#core/config/secret-reference.js";
 import type { CapabilityReadinessResponse } from "#core/daemon/capability-readiness.js";
 import type {
   DaemonLiveStatus,
@@ -341,6 +342,14 @@ const PROBE_MODEL: Record<string, string> = {
   gemini: getPreset("gemini").tiers.fast,
 };
 
+function providerCredentialDisplay(requiredKeyName: string, explicitKey: string | undefined, apiKey: string): string {
+  if (!requiredKeyName) return "(not required)";
+  if (!apiKey) return "(not set)";
+  const explicitSecretName = explicitKey ? secretReferenceName(explicitKey) : null;
+  const displayName = explicitSecretName ?? (explicitKey ? "config.modelProvider.apiKey" : requiredKeyName);
+  return `${displayName}=(set)`;
+}
+
 export async function checkProviderConnectivity(projectDir: string): Promise<CheckResult[]> {
   const config = loadConfig(projectDir);
   const mpConfig = config.modelProvider;
@@ -362,9 +371,7 @@ export async function checkProviderConnectivity(projectDir: string): Promise<Che
   const model = PROBE_MODEL[providerType] ?? modelSpec;
 
   const label = `Provider connectivity: ${providerType}`;
-  const keyDisplay = requiredKeyName
-    ? apiKey ? `${apiKey.slice(0, 8)}...` : "(not set)"
-    : "(not required)";
+  const keyDisplay = providerCredentialDisplay(requiredKeyName, explicitKey, apiKey);
 
   if (requiredKeyName && !apiKey) {
     return [warn(label, `API key not set — export ${requiredKeyName} or add apiKey to config.modelProvider`)];

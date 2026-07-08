@@ -13,7 +13,7 @@ import { loadConfig } from "#core/config/config.js";
 import type { StrandedDaemonInspection } from "#core/daemon/stranded-daemon.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
-import { checkProviderConnectivity, runDoctorChecks, runDoctorFixes } from "./index.js";
+import { checkProviderConnectivity, runDoctorChecks, runDoctorFixes, runDoctorReport } from "./index.js";
 
 const strandedDaemonMocks = vi.hoisted(() => ({
   detectStrandedDaemonProcess: vi.fn<() => StrandedDaemonInspection>(() => ({ kind: "none" })),
@@ -567,6 +567,9 @@ describe("kota doctor — provider connectivity check", () => {
 
   it("passes when the model client responds successfully", async () => {
     const { createModelClient } = await import("#core/model/model-client.js");
+    const { resolveApiKey } = await import("#modules/model-clients/factory.js");
+    const secret = "sk-ant-sensitive-provider-key";
+    vi.mocked(resolveApiKey).mockReturnValue(secret);
     vi.mocked(createModelClient).mockReturnValueOnce({
       client: {
         messages: {
@@ -581,10 +584,16 @@ describe("kota doctor — provider connectivity check", () => {
     const results = await checkProviderConnectivity(projectDir);
     expect(results[0]?.status).toBe("pass");
     expect(results[0]?.detail).toContain("Reachable");
+    expect(results[0]?.detail).toContain("key: ANTHROPIC_API_KEY=(set)");
+    expect(results[0]?.detail).not.toContain(secret);
+    expect(results[0]?.detail).not.toContain(secret.slice(0, 8));
   });
 
   it("fails with authentication error on 401/403 response", async () => {
     const { createModelClient } = await import("#core/model/model-client.js");
+    const { resolveApiKey } = await import("#modules/model-clients/factory.js");
+    const secret = "sk-ant-auth-failure-key";
+    vi.mocked(resolveApiKey).mockReturnValue(secret);
     const authErr = Object.assign(new Error("Authentication failed"), { status: 401 });
     // Mimic Anthropic SDK AuthenticationError check via message pattern
     vi.mocked(createModelClient).mockReturnValueOnce({
@@ -602,6 +611,36 @@ describe("kota doctor — provider connectivity check", () => {
     const results = await checkProviderConnectivity(projectDir);
     expect(results[0]?.status).toBe("fail");
     expect(results[0]?.detail).toContain("Authentication failed");
+    expect(results[0]?.detail).toContain("key: ANTHROPIC_API_KEY=(set)");
+    expect(results[0]?.detail).not.toContain(secret);
+    expect(results[0]?.detail).not.toContain(secret.slice(0, 8));
+  });
+
+  it("keeps resolved API key material out of doctor report JSON", async () => {
+    const { resolveApiKey } = await import("#modules/model-clients/factory.js");
+    const secret = "sk-ant-json-report-secret";
+    vi.mocked(resolveApiKey).mockReturnValue(secret);
+
+    const report = await runDoctorReport(projectDir);
+    const encoded = JSON.stringify(report);
+    expect(encoded).toContain("ANTHROPIC_API_KEY=(set)");
+    expect(encoded).not.toContain(secret);
+    expect(encoded).not.toContain(secret.slice(0, 8));
+  });
+
+  it("does not expose inline config API key values", async () => {
+    const { resolveApiKey } = await import("#modules/model-clients/factory.js");
+    const explicitKey = "sk-inline-config-provider-key";
+    vi.mocked(loadConfig).mockReturnValueOnce({
+      model: "anthropic/claude-haiku-4-5-20251001",
+      modelProvider: { type: "anthropic", apiKey: explicitKey },
+    });
+    vi.mocked(resolveApiKey).mockReturnValueOnce(explicitKey);
+
+    const results = await checkProviderConnectivity(projectDir);
+    expect(results[0]?.detail).toContain("key: config.modelProvider.apiKey=(set)");
+    expect(results[0]?.detail).not.toContain(explicitKey);
+    expect(results[0]?.detail).not.toContain(explicitKey.slice(0, 8));
   });
 
   it("fails with unreachable message on network error", async () => {

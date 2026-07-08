@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-doctor-provider-connectivity-c
 title: Security review: The doctor provider-connectivity check exposes the first eight characters of the resolved provider API key in operator and daemon-control output.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: The doctor provider-connectivity check exposes the first eight characters of the resolved provider API key in operator and daemon-control output.
 created_at: 2026-07-08T07:07:20.507Z
-updated_at: 2026-07-08T09:05:57Z
+updated_at: 2026-07-08T09:14:33.205Z
 ---
 
 ## Problem
@@ -136,3 +136,10 @@ remain immovable.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Completion Evidence
+
+- `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner --silent=true src/modules/doctor/doctor.test.ts`
+- `pnpm exec biome check src/modules/doctor/doctor-checks.ts src/modules/doctor/doctor.test.ts`
+- `pnpm run validate-tasks`
+- `pnpm run typecheck`
