@@ -1,0 +1,8 @@
+{
+  "entries": [
+    {
+      "file": "src/modules/workflow-ops/state-recovery-command.ts",
+      "rationale": "The helper formats deterministic operator recovery command hints and performs no I/O, logging, event emission, or error handling. Observability for this runtime-sensitive command surface is the explicit command payload exposed to claim-blocked queue snapshots; src/modules/workflow-ops/state-recovery-command.test.ts now includes diagnostic evidence assertions for both source-mode and package entrypoints, and src/modules/autonomy/queue-availability.test.ts covers the command strings in the emitted queue payload."
+    }
+  ]
+}

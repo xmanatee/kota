@@ -1,0 +1,10 @@
+$ pnpm test src/modules/workflow-ops/state-recovery-command.test.ts src/modules/workflow-ops/state-recovery-routes.test.ts src/modules/autonomy/workflow-state-recovery-actions.test.ts src/modules/autonomy/workflow-state-recovery-observability.test.ts src/modules/autonomy/workflows/attention-digest/state-recovery.test.ts
+
+> kota@0.1.0 test /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-observability-evidence-for-workflow-recovery-c-2026-07-08t07-45-38-648z-builder-lh87x1
+> TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true src/modules/workflow-ops/state-recovery-command.test.ts src/modules/workflow-ops/state-recovery-routes.test.ts src/modules/autonomy/workflow-state-recovery-actions.test.ts src/modules/autonomy/workflow-state-recovery-observability.test.ts src/modules/autonomy/workflows/attention-digest/state-recovery.test.ts
+
+RUN v4.1.0 /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-observability-evidence-for-workflow-recovery-c-2026-07-08t07-45-38-648z-builder-lh87x1
+
+Test Files 5 passed (5)
+Tests 14 passed (14)
+Duration 256ms

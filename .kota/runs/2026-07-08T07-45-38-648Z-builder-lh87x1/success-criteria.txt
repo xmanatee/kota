@@ -1,0 +1,3 @@
+1. The progress-review gap from run 2026-07-08T07-45-15-471Z-progress-reviewer-1kuc1k is resolved for src/modules/workflow-ops/state-recovery-command.ts with focused assertion evidence or an explicit run artifact.
+2. The task keeps the cited evidence ids visible and records acceptance evidence showing the observability-obligation diagnostic no longer lists src/modules/workflow-ops/state-recovery-command.ts as missing.
+3. Focused workflow-ops/state-recovery tests and task validation pass.

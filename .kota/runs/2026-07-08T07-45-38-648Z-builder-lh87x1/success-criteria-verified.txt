@@ -1,0 +1,3 @@
+1. Verified by adding the focused diagnostic-evidence assertion in `src/modules/workflow-ops/state-recovery-command.test.ts` and recording the no-extra-production-signal rationale in `observability-obligation-rationale.json`.
+2. Verified in `data/tasks/done/task-add-observability-evidence-for-workflow-recovery-c.md` and `observability-evidence.md`; the cited run, commit, and task ids remain visible, and `observability-obligation-review.json` reports `outcome: "ok"` with `missingFiles: []`.
+3. Verified by `focused-test-transcript.txt` and `validate-tasks.txt`; the focused state-recovery suite passed 5 files / 14 tests, and `pnpm run validate-tasks` passed after the task moved to `done`.

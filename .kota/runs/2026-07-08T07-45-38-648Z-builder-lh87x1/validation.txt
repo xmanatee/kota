@@ -1,0 +1,15 @@
+$ pnpm run lint
+
+> kota@0.1.0 lint /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-observability-evidence-for-workflow-recovery-c-2026-07-08t07-45-38-648z-builder-lh87x1
+> biome check src/
+
+Checked 2762 files in 862ms. No fixes applied.
+
+$ GIT_INDEX_FILE=.kota/tmp/2026-07-08T07-45-38-648Z-builder-lh87x1/full.index GIT_OBJECT_DIRECTORY=.kota/tmp/2026-07-08T07-45-38-648Z-builder-lh87x1/git-objects GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects node --conditions=source --import tsx -e 'import { checkObservabilityObligationsForRun } from "#modules/autonomy/observability-obligation.js"; console.log(checkObservabilityObligationsForRun(process.cwd(), ".kota/runs/2026-07-08T07-45-38-648Z-builder-lh87x1"));'
+
+OK: no staged production runtime-observability obligation candidates
+
+$ node --conditions=source --import tsx -e 'import { checkSuccessCriteriaDeclared, checkSuccessCriteriaVerified } from "#modules/autonomy/workflows/builder/success-criteria-repair-checks.js"; const dir = ".kota/runs/2026-07-08T07-45-38-648Z-builder-lh87x1"; console.log(checkSuccessCriteriaDeclared(dir, process.cwd())); console.log(checkSuccessCriteriaVerified(dir));'
+
+OK: success-criteria.txt has 3 criteria (minimum 2)
+OK: success criteria verified (3 numbered evidence items for 3 criteria)

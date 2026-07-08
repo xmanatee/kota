@@ -24,6 +24,32 @@ describe("workflow state recovery command hints", () => {
     );
   });
 
+  it("keeps recovery command diagnostic evidence tied to explicit assertions", () => {
+    const diagnosticEvidence = {
+      source: {
+        recoveryCommand: workflowStateRecoveryListCommand("source"),
+        resolveCommand: workflowStateRecoveryResolveCommand("task-alpha", "source"),
+      },
+      package: {
+        recoveryCommand: workflowStateRecoveryListCommand("package"),
+        resolveCommand: workflowStateRecoveryResolveCommand("task-alpha", "package"),
+      },
+    };
+
+    expect(diagnosticEvidence).toEqual({
+      source: {
+        recoveryCommand: "pnpm dev workflow state-recovery list",
+        resolveCommand:
+          'pnpm dev workflow state-recovery resolve task-alpha --action <release|supersede> --reason "<reason>"',
+      },
+      package: {
+        recoveryCommand: "pnpm kota workflow state-recovery list",
+        resolveCommand:
+          'pnpm kota workflow state-recovery resolve task-alpha --action <release|supersede> --reason "<reason>"',
+      },
+    });
+  });
+
   it("detects source versus package module URLs", () => {
     expect(
       resolveWorkflowStateRecoveryCliEntrypoint(

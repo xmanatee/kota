@@ -1,0 +1,13 @@
+$ pnpm run validate-tasks
+
+> kota@0.1.0 validate-tasks /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-observability-evidence-for-workflow-recovery-c-2026-07-08t07-45-38-648z-builder-lh87x1
+> node --conditions=source --import tsx src/validate-queue.ts
+
+exit 0
+
+$ pnpm run validate-tasks
+
+> kota@0.1.0 validate-tasks /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-observability-evidence-for-workflow-recovery-c-2026-07-08t07-45-38-648z-builder-lh87x1
+> node --conditions=source --import tsx src/validate-queue.ts
+
+exit 0 after moving task-add-observability-evidence-for-workflow-recovery-c to done
