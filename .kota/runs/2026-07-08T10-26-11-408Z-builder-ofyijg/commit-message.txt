@@ -1,0 +1,4 @@
+Add MCP approval observability evidence
+
+- map the prior transport-identity approval diff to focused metadata assertions
+- record the observability recheck artifact and close the follow-up task

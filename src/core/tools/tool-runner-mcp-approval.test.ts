@@ -55,6 +55,12 @@ describe("tool runner MCP approval metadata", () => {
 		const mockEnqueue = vi.fn(() => ({ id: "q-mcp-supervised" }));
 		const promptFingerprint = "a".repeat(64);
 		const serverTransportIdentityFingerprint = "b".repeat(64);
+		const metadata = {
+			server: "remote",
+			tool: "deploy",
+			promptDeclarationFingerprint: promptFingerprint,
+			serverTransportIdentityFingerprint,
+		};
 		mockGetApprovalQueue.mockReturnValue({ enqueue: mockEnqueue } as never);
 		mockAssess.mockReturnValue({
 			tool: "mcp__remote__deploy",
@@ -91,13 +97,9 @@ describe("tool runner MCP approval metadata", () => {
 			undefined,
 			undefined,
 			"s-mcp",
-			{
-				server: "remote",
-				tool: "deploy",
-				promptDeclarationFingerprint: promptFingerprint,
-				serverTransportIdentityFingerprint,
-			},
+			metadata,
 		);
+		expect(metadata.serverTransportIdentityFingerprint).toBe(serverTransportIdentityFingerprint);
 		expect(mockExecuteTool).not.toHaveBeenCalled();
 	});
 });

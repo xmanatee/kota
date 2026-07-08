@@ -1,0 +1,159 @@
+{
+  "type": "observability-obligation-recheck",
+  "sourceRunId": "2026-07-08T09-35-24-296Z-builder-7v5o50",
+  "progressReviewRunId": "2026-07-08T09-55-37-918Z-progress-reviewer-29tjxq",
+  "sourceCommit": "bcf3e436f856",
+  "sourceTaskId": "task-security-review-queued-mcp-approvals-only-pin-the-",
+  "evidenceIds": [
+    "event:evtj-000000158780",
+    "task:task-security-review-queued-mcp-approvals-only-pin-the-",
+    "git:commit:bcf3e436f856"
+  ],
+  "citedMissingFiles": [
+    "src/core/daemon/approval-queue.ts",
+    "src/core/tools/tool-runner-approval-queue.ts",
+    "src/core/tools/tool-runner-execute-block.ts",
+    "src/core/tools/tool-runner-mcp.ts"
+  ],
+  "detectorResolution": "The replayed MCP approval transport identity change is now mapped to focused metadata assertions in the related core approval queue and tool-runner tests; no cited file remains missing.",
+  "evidenceMappings": [
+    {
+      "file": "src/core/daemon/approval-queue.ts",
+      "status": "satisfied",
+      "evidence": [
+        {
+          "kind": "focused-test-assertion",
+          "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+          "ref": "src/core/daemon/approval-queue-mcp.test.ts"
+        }
+      ]
+    },
+    {
+      "file": "src/core/tools/tool-runner-approval-queue.ts",
+      "status": "satisfied",
+      "evidence": [
+        {
+          "kind": "focused-test-assertion",
+          "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+          "ref": "src/core/tools/tool-runner-mcp-approval.test.ts"
+        }
+      ]
+    },
+    {
+      "file": "src/core/tools/tool-runner-execute-block.ts",
+      "status": "satisfied",
+      "evidence": [
+        {
+          "kind": "focused-test-assertion",
+          "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+          "ref": "src/core/tools/tool-runner-mcp-approval.test.ts"
+        }
+      ]
+    },
+    {
+      "file": "src/core/tools/tool-runner-mcp.ts",
+      "status": "satisfied",
+      "evidence": [
+        {
+          "kind": "focused-test-assertion",
+          "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+          "ref": "src/core/tools/tool-runner-mcp-approval.test.ts"
+        }
+      ]
+    }
+  ],
+  "review": {
+    "type": "observability-obligation",
+    "outcome": "ok",
+    "candidates": [
+      {
+        "file": "src/core/daemon/approval-queue.ts",
+        "status": "satisfied",
+        "reasons": [
+          {
+            "kind": "approval-permission",
+            "message": "changed approval, permission, guardrail, secret, or credential behavior"
+          },
+          {
+            "kind": "daemon-route",
+            "message": "changed daemon route, server, request, or response handling"
+          }
+        ],
+        "evidence": [
+          {
+            "kind": "focused-test-assertion",
+            "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+            "ref": "src/core/daemon/approval-queue-mcp.test.ts"
+          }
+        ],
+        "message": "Inspectable observability evidence found for this runtime-sensitive change."
+      },
+      {
+        "file": "src/core/tools/tool-runner-approval-queue.ts",
+        "status": "satisfied",
+        "reasons": [
+          {
+            "kind": "tool-execution",
+            "message": "changed tool execution, tool policy, or tool telemetry behavior"
+          },
+          {
+            "kind": "approval-permission",
+            "message": "changed approval, permission, guardrail, secret, or credential behavior"
+          }
+        ],
+        "evidence": [
+          {
+            "kind": "focused-test-assertion",
+            "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+            "ref": "src/core/tools/tool-runner-mcp-approval.test.ts"
+          }
+        ],
+        "message": "Inspectable observability evidence found for this runtime-sensitive change."
+      },
+      {
+        "file": "src/core/tools/tool-runner-execute-block.ts",
+        "status": "satisfied",
+        "reasons": [
+          {
+            "kind": "tool-execution",
+            "message": "changed tool execution, tool policy, or tool telemetry behavior"
+          }
+        ],
+        "evidence": [
+          {
+            "kind": "focused-test-assertion",
+            "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+            "ref": "src/core/tools/tool-runner-mcp-approval.test.ts"
+          }
+        ],
+        "message": "Inspectable observability evidence found for this runtime-sensitive change."
+      },
+      {
+        "file": "src/core/tools/tool-runner-mcp.ts",
+        "status": "satisfied",
+        "reasons": [
+          {
+            "kind": "tool-execution",
+            "message": "changed tool execution, tool policy, or tool telemetry behavior"
+          }
+        ],
+        "evidence": [
+          {
+            "kind": "focused-test-assertion",
+            "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+            "ref": "src/core/tools/tool-runner-mcp-approval.test.ts"
+          }
+        ],
+        "message": "Inspectable observability evidence found for this runtime-sensitive change."
+      }
+    ],
+    "satisfiedFiles": [
+      "src/core/daemon/approval-queue.ts",
+      "src/core/tools/tool-runner-approval-queue.ts",
+      "src/core/tools/tool-runner-execute-block.ts",
+      "src/core/tools/tool-runner-mcp.ts"
+    ],
+    "missingFiles": [],
+    "message": "OK: 4 observability-sensitive candidate file(s) have inspectable evidence"
+  }
+}

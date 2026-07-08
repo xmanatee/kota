@@ -1,0 +1,3 @@
+1. Verified by `observability-obligation-recheck.json`: the replayed MCP approval transport identity change reports `outcome: "ok"`, `missingFiles: []`, and maps each cited production file to focused metadata assertions.
+2. Verified in `data/tasks/done/task-add-observability-evidence-for-mcp-approval-transp.md` and `observability-evidence.md`; the cited event, task, and commit ids remain visible, and acceptance evidence is recorded in both places.
+3. Verified by focused tests (`4` files, `21` tests), focused Biome check, and `pnpm run validate-tasks` after moving the task to `done`.

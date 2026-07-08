@@ -1,0 +1,8 @@
+Validation completed:
+
+- `pnpm test src/core/daemon/approval-queue-mcp.test.ts src/core/tools/tool-runner-mcp-approval.test.ts src/modules/approval-queue/routes-mcp-execution.test.ts src/modules/autonomy/observability-obligation.test.ts` passed: 4 files, 21 tests.
+- `pnpm exec biome check src/core/daemon/approval-queue-mcp.test.ts src/core/tools/tool-runner-mcp-approval.test.ts src/modules/autonomy/observability-obligation.test.ts` passed.
+- `pnpm run validate-tasks` passed before and after moving the task to `done`.
+- `observability-obligation-recheck.json` replayed `git:commit:bcf3e436f856` with the follow-up metadata assertion diff and reported `outcome: "ok"` with `missingFiles: []`.
+- Current staged observability check passed: `OK: no staged production runtime-observability obligation candidates`.
+- `git diff --check` passed.

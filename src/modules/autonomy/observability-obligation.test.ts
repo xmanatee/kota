@@ -171,6 +171,85 @@ describe("observability obligation diagnostic", () => {
     ]);
   });
 
+  it("accepts MCP approval transport identity changes when metadata assertions cover the core paths", () => {
+    const review = detectObservabilityObligationReview(
+      [
+        diffFor("src/core/daemon/approval-queue.ts", [
+          "export type ApprovalMcpPromptDeclaration = {",
+          "  serverTransportIdentityFingerprint: string;",
+          "};",
+        ]),
+        diffFor("src/core/tools/tool-runner-approval-queue.ts", [
+          "export function enqueueToolApproval(args: {",
+          "  mcpManager?: McpManager | undefined;",
+          "}) {",
+          "  const mcpPromptDeclaration = mcpPromptDeclarationForApproval(",
+          "    args.toolName,",
+          "    args.mcpManager,",
+          "    args.promptFingerprints,",
+          "  );",
+          "}",
+        ]),
+        diffFor("src/core/tools/tool-runner-execute-block.ts", [
+          "const queued = enqueueToolApproval({",
+          "  toolName: block.name,",
+          "  mcpManager,",
+          "  promptFingerprints: mcpPromptToolDeclarationFingerprints,",
+          "});",
+        ]),
+        diffFor("src/core/tools/tool-runner-mcp.ts", [
+          "export function mcpPromptDeclarationForApproval(",
+          "  toolName: string,",
+          "  mcpManager: McpManager | undefined,",
+          "  promptFingerprints: McpPromptToolDeclarationFingerprints | undefined,",
+          "): ApprovalMcpPromptDeclaration | undefined {",
+          "  const serverTransportIdentityFingerprint =",
+          "    mcpManager?.getToolServerTransportIdentityFingerprint(toolName);",
+          "  return { serverTransportIdentityFingerprint };",
+          "}",
+        ]),
+        diffFor("src/core/daemon/approval-queue-mcp.test.ts", [
+          "const metadata = queue.get(item.id)?.mcpPromptDeclaration;",
+          "expect(metadata).toEqual(item.mcpPromptDeclaration);",
+          "expect(metadata?.serverTransportIdentityFingerprint).toBe(serverTransportIdentityFingerprint);",
+        ]),
+        diffFor("src/core/tools/tool-runner-mcp-approval.test.ts", [
+          "const metadata = {",
+          "  serverTransportIdentityFingerprint,",
+          "};",
+          "expect(metadata.serverTransportIdentityFingerprint).toBe(serverTransportIdentityFingerprint);",
+        ]),
+      ].join("\n"),
+    );
+
+    expect(review.outcome).toBe("ok");
+    expect(review.satisfiedFiles).toEqual([
+      "src/core/daemon/approval-queue.ts",
+      "src/core/tools/tool-runner-approval-queue.ts",
+      "src/core/tools/tool-runner-execute-block.ts",
+      "src/core/tools/tool-runner-mcp.ts",
+    ]);
+    expect(review.missingFiles).toEqual([]);
+    expect(review.candidates.map((candidate) => candidate.evidence[0])).toEqual([
+      expect.objectContaining({
+        kind: "focused-test-assertion",
+        ref: "src/core/daemon/approval-queue-mcp.test.ts",
+      }),
+      expect.objectContaining({
+        kind: "focused-test-assertion",
+        ref: "src/core/tools/tool-runner-mcp-approval.test.ts",
+      }),
+      expect.objectContaining({
+        kind: "focused-test-assertion",
+        ref: "src/core/tools/tool-runner-mcp-approval.test.ts",
+      }),
+      expect.objectContaining({
+        kind: "focused-test-assertion",
+        ref: "src/core/tools/tool-runner-mcp-approval.test.ts",
+      }),
+    ]);
+  });
+
   it("accepts the mobile typecheck wrapper when structured status logs are added", () => {
     const review = detectObservabilityObligationReview(
       diffFor("clients/mobile/scripts/typecheck.mjs", [

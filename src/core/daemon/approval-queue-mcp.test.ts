@@ -44,6 +44,8 @@ describe("ApprovalQueue MCP metadata", () => {
 			promptDeclarationFingerprint: fingerprint,
 			serverTransportIdentityFingerprint,
 		});
-		expect(queue.get(item.id)?.mcpPromptDeclaration).toEqual(item.mcpPromptDeclaration);
+		const metadata = queue.get(item.id)?.mcpPromptDeclaration;
+		expect(metadata).toEqual(item.mcpPromptDeclaration);
+		expect(metadata?.serverTransportIdentityFingerprint).toBe(serverTransportIdentityFingerprint);
 	});
 });

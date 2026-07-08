@@ -1,0 +1,3 @@
+1. The cited MCP approval observability gap is fixed or explicitly disproven by evidence that maps each flagged production file to inspectable metadata/error assertions or run-artifact rationale.
+2. The cited evidence ids remain visible, and this task or the run directory records acceptance evidence showing the observability-obligation recheck has no unresolved missing files.
+3. Focused approval/MCP tests, the observability-obligation diagnostic test, and task validation pass.
