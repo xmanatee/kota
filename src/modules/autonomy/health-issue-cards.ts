@@ -39,11 +39,15 @@ type RawReviewArtifact = {
   actions?: AutonomyHealthJsonValue;
 };
 
+type CardActionIds = {
+  createdTaskIds: string[];
+  ownerQuestionIds: string[];
+};
+
 type ReviewArtifactEntry = {
   generatedAt: string;
   groups: AutonomyHealthJsonValue[];
-  createdTaskIds: string[];
-  ownerQuestionIds: string[];
+  actionIdsByDedupeKey: Map<string, CardActionIds>;
 };
 
 const DEFAULT_CARD_LIMIT = 12;
@@ -75,6 +79,45 @@ function isActionability(
 function stringArray(value: AutonomyHealthJsonValue | undefined): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((entry): entry is string => typeof entry === "string");
+}
+
+function emptyCardActionIds(): CardActionIds {
+  return { createdTaskIds: [], ownerQuestionIds: [] };
+}
+
+function mutableActionIdsFor(
+  map: Map<string, CardActionIds>,
+  dedupeKey: string,
+): CardActionIds {
+  const existing = map.get(dedupeKey);
+  if (existing) return existing;
+  const created = emptyCardActionIds();
+  map.set(dedupeKey, created);
+  return created;
+}
+
+function actionIdsByDedupeKey(
+  value: AutonomyHealthJsonValue | undefined,
+): Map<string, CardActionIds> {
+  const map = new Map<string, CardActionIds>();
+  if (!isAutonomyHealthJsonObject(value) || !Array.isArray(value.applied)) {
+    return map;
+  }
+  for (const action of value.applied) {
+    if (!isAutonomyHealthJsonObject(action)) continue;
+    if (typeof action.dedupeKey !== "string") continue;
+    const ids = mutableActionIdsFor(map, action.dedupeKey);
+    if (action.kind === "created-task" && typeof action.taskId === "string") {
+      ids.createdTaskIds.push(action.taskId);
+    }
+    if (
+      action.kind === "owner-question" &&
+      typeof action.questionId === "string"
+    ) {
+      ids.ownerQuestionIds.push(action.questionId);
+    }
+  }
+  return map;
 }
 
 function evidenceRefs(
@@ -116,8 +159,7 @@ function readJson(path: string): RawReviewArtifact | null {
 function cardFromGroup(args: {
   group: AutonomyHealthJsonValue | undefined;
   reviewedAt: string;
-  createdTaskIds: string[];
-  ownerQuestionIds: string[];
+  actionIds: CardActionIds;
 }): AutonomyHealthIssueCard | null {
   if (!isAutonomyHealthJsonObject(args.group)) return null;
   const dedupeKey = args.group.dedupeKey;
@@ -149,8 +191,8 @@ function cardFromGroup(args: {
         0,
         MAX_EVIDENCE_REFS_PER_CARD,
       ),
-    createdTaskIds: args.createdTaskIds,
-    ownerQuestionIds: args.ownerQuestionIds,
+    createdTaskIds: [...args.actionIds.createdTaskIds],
+    ownerQuestionIds: [...args.actionIds.ownerQuestionIds],
   };
 }
 
@@ -185,8 +227,7 @@ export function collectRecentAutonomyHealthIssueCards(
     reviewArtifacts.push({
       generatedAt: artifact.generatedAt,
       groups,
-      createdTaskIds: stringArray(actions?.createdTaskIds),
-      ownerQuestionIds: stringArray(actions?.ownerQuestionIds),
+      actionIdsByDedupeKey: actionIdsByDedupeKey(actions),
     });
   }
 
@@ -202,8 +243,12 @@ export function collectRecentAutonomyHealthIssueCards(
         const card = cardFromGroup({
           group,
           reviewedAt: artifact.generatedAt,
-          createdTaskIds: artifact.createdTaskIds,
-          ownerQuestionIds: artifact.ownerQuestionIds,
+          actionIds:
+            isAutonomyHealthJsonObject(group) &&
+            typeof group.dedupeKey === "string"
+              ? artifact.actionIdsByDedupeKey.get(group.dedupeKey) ??
+                emptyCardActionIds()
+              : emptyCardActionIds(),
         });
         if (!card) continue;
         const existing = cardsByDedupe.get(card.dedupeKey);

@@ -49,7 +49,14 @@ describe("autonomy health issue cards", () => {
           actions: {
             createdTaskIds: ["task-health-workflow-improver-interrupted-run"],
             ownerQuestionIds: [],
-            applied: [],
+            applied: [
+              {
+                kind: "created-task",
+                taskId: "task-health-workflow-improver-interrupted-run",
+                path: "data/tasks/ready/task-health-workflow-improver-interrupted-run.md",
+                dedupeKey: "workflow:improver:interrupted-run",
+              },
+            ],
           },
         },
         null,
@@ -86,7 +93,14 @@ describe("autonomy health issue cards", () => {
           actions: {
             createdTaskIds: ["task-health-workflow-builder-runtime-warning"],
             ownerQuestionIds: [],
-            applied: [],
+            applied: [
+              {
+                kind: "created-task",
+                taskId: "task-health-workflow-builder-runtime-warning",
+                path: "data/tasks/ready/task-health-workflow-builder-runtime-warning.md",
+                dedupeKey: "workflow:builder:runtime-warning",
+              },
+            ],
           },
         },
         null,
@@ -117,6 +131,86 @@ describe("autonomy health issue cards", () => {
     );
     expect(JSON.stringify(evidence)).not.toContain("SECRET");
     expect(JSON.stringify(evidence)).not.toContain("costRanking");
+  });
+
+  it("attributes review actions to the matching health issue card", () => {
+    writeFileSync(
+      join(runsDir, "review-1", "autonomy-health-review.json"),
+      JSON.stringify(
+        {
+          generatedAt: "2026-06-17T12:30:00.000Z",
+          review: {
+            groups: [
+              {
+                dedupeKey: "dead-letter:execution:workflow-runtime:builder",
+                labels: ["dead-letter", "execution", "local-code"],
+                severity: "error",
+                actionability: "local-code",
+                signalCount: 1,
+                summaries: [],
+                evidenceRefs: [
+                  {
+                    kind: "dead-letter",
+                    ref: ".kota/dead-letter-queue/items.json#dlq-local",
+                  },
+                ],
+              },
+              {
+                dedupeKey: "dead-letter:provider:workflow-runtime:builder",
+                labels: ["dead-letter", "external-service", "provider"],
+                severity: "warning",
+                actionability: "external-service",
+                signalCount: 1,
+                summaries: [],
+                evidenceRefs: [
+                  {
+                    kind: "dead-letter",
+                    ref: ".kota/dead-letter-queue/items.json#dlq-provider",
+                  },
+                ],
+              },
+            ],
+          },
+          actions: {
+            createdTaskIds: ["task-health-dead-letter-builder"],
+            ownerQuestionIds: ["question-provider"],
+            applied: [
+              {
+                kind: "skipped-task",
+                taskId: "task-health-dead-letter-builder",
+                dedupeKey: "dead-letter:execution:workflow-runtime:builder",
+                reason: "existing blocked task already tracks this evidence",
+              },
+              {
+                kind: "owner-question",
+                questionId: "question-provider",
+                dedupeKey: "dead-letter:provider:workflow-runtime:builder",
+                question:
+                  "Autonomy health pattern dead-letter:provider:workflow-runtime:builder needs owner/setup action.",
+              },
+            ],
+          },
+        },
+        null,
+        2,
+      ),
+      "utf-8",
+    );
+
+    const evidence = collectRecentAutonomyHealthIssueCards(runsDir);
+
+    expect(evidence.issueCards).toEqual([
+      expect.objectContaining({
+        dedupeKey: "dead-letter:execution:workflow-runtime:builder",
+        createdTaskIds: [],
+        ownerQuestionIds: [],
+      }),
+      expect.objectContaining({
+        dedupeKey: "dead-letter:provider:workflow-runtime:builder",
+        createdTaskIds: [],
+        ownerQuestionIds: ["question-provider"],
+      }),
+    ]);
   });
 
   it("prunes runtime-derived summaries from raw review artifacts before card output", () => {
