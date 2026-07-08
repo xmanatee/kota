@@ -2,12 +2,12 @@
 id: task-security-review-the-doctor-provider-connectivity-c
 title: Security review: The doctor provider-connectivity check exposes the first eight characters of the resolved provider API key in operator and daemon-control output.
 status: ready
-priority: p3
+priority: p2
 area: security
 task_class: Safety
 summary: The doctor provider-connectivity check exposes the first eight characters of the resolved provider API key in operator and daemon-control output.
 created_at: 2026-07-08T07:07:20.507Z
-updated_at: 2026-07-08T07:07:20.507Z
+updated_at: 2026-07-08T09:05:57Z
 ---
 
 ## Problem
@@ -121,6 +121,17 @@ excerpt:
 ## Initiative
 
 Agentic security review for autonomous coding infrastructure.
+
+## Priority Note
+
+Explorer run `2026-07-08T08-23-14-096Z-explorer-y3b7x0` raised this from
+`p3` to `p2` because the queue had a strategic-ready coverage gap: the other
+ready `p1` item was blocked by a pending-merge claim, and all surfaced
+strategic blocked alternatives still required operator-captured evidence. The
+confirmed leak exposes resolved provider secret material in both operator text
+and daemon-control JSON, so it is the right immediately actionable Safety item
+to keep ahead of lower-impact cleanup while the operator-capture blockers
+remain immovable.
 
 ## Acceptance Evidence
 
