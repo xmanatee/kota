@@ -1,13 +1,13 @@
 ---
 id: task-add-formal-spec-fixture-observability-evidence
 title: Add formal spec fixture observability evidence
-status: ready
+status: done
 priority: p2
 area: modules
 task_class: Platform
 summary: Builder run 2026-07-08T03-33-33-534Z-builder-enaiyt completed the formal-spec faithfulness eval fixture, but its observability-obligation review reports five runtime-sensitive fixture files without inspectable structured logging, event, run-artifact, explicit error-result, focused test assertion, or waiver rationale.
 created_at: 2026-07-08T04:09:04.427Z
-updated_at: 2026-07-08T04:09:04.427Z
+updated_at: 2026-07-08T04:17:36.751Z
 ---
 
 ## Problem
@@ -51,3 +51,8 @@ Outcome-aware autonomy progress review.
 - Review-provided acceptance evidence:
 
     A follow-up builder run or explicit run artifact maps each missing formal-spec fixture file from observability-obligation-review.json to structured logging, focused assertions, explicit error-result evidence, run-artifact rationale, or an explicit waiver; the observability-obligation diagnostic reports no unresolved missing files for this change; focused eval-harness verifier/calibration tests and task validation pass.
+
+- `.kota/runs/2026-07-08T04-09-54-396Z-builder-gcgpjm/observability-obligation-rationale.json` maps all five cited formal-spec fixture files to explicit fixture-asset rationale and the source run's verifier/calibration artifacts.
+- `.kota/runs/2026-07-08T04-09-54-396Z-builder-gcgpjm/observability-obligation-recheck.json` rechecks source commit `eff12b32` for run `2026-07-08T03-33-33-534Z-builder-enaiyt`; the review reports `outcome: "ok"` and `missingFiles: []`.
+- `.kota/runs/2026-07-08T04-09-54-396Z-builder-gcgpjm/observability-obligation-review.json` records the current-change diagnostic with `outcome: "ok"` and `missingFiles: []`.
+- Validation: `pnpm test src/modules/autonomy/observability-obligation.test.ts src/modules/eval-harness/fixture-discovery.test.ts src/modules/eval-harness/accepted-alternative-fixtures.test.ts` passed; `node --conditions=source --import tsx src/cli.ts eval run --fixture builder-formal-spec-faithfulness --repeats 1` passed with `pass@k=100.0%`, `pass^k=100.0%`, and `adversarial_rejections=5`; `git add -A` and `pnpm run validate-tasks` passed.

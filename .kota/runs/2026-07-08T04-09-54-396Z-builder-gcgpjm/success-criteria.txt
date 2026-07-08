@@ -1,0 +1,2 @@
+1. The cited formal-spec fixture observability gap is fixed or explicitly disproven with evidence for all five reported files.
+2. Acceptance evidence is recorded in this task or this run directory, and focused observability/eval-harness validation plus task validation pass.

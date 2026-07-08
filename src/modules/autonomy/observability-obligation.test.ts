@@ -185,6 +185,33 @@ describe("observability obligation diagnostic", () => {
     expect(review.candidates).toEqual([]);
   });
 
+  it("ignores eval fixture assets even when they contain runtime-shaped terms", () => {
+    const formalSpecMissingFiles = [
+      "src/modules/eval-harness/fixtures/builder-formal-spec-faithfulness/calibration/accepted-alternatives/predicate-table-contract/src/spec-contract.mjs",
+      "src/modules/eval-harness/fixtures/builder-formal-spec-faithfulness/calibration/adversarial/src/spec-contract.mjs",
+      "src/modules/eval-harness/fixtures/builder-formal-spec-faithfulness/initial/scripts/check-spec-faithfulness/cases.mjs",
+      "src/modules/eval-harness/fixtures/builder-formal-spec-faithfulness/initial/scripts/check-spec-faithfulness/self-tests.mjs",
+      "src/modules/eval-harness/fixtures/builder-formal-spec-faithfulness/initial/src/spec-contract.mjs",
+    ];
+
+    const review = detectObservabilityObligationReview(
+      formalSpecMissingFiles
+        .map((file) =>
+          diffFor(file, [
+            "export function validateHarnessModelCase(request, decision) {",
+            "  const model = request.model;",
+            "  if (!decision) throw new Error('missing decision');",
+            "  return { accepted: Boolean(model) };",
+            "}",
+          ]),
+        )
+        .join("\n"),
+    );
+
+    expect(review.outcome).toBe("ok");
+    expect(review.candidates).toEqual([]);
+  });
+
   it("writes a redacted run artifact from the staged-diff check", () => {
     initRepo(repoDir);
     const srcDir = join(repoDir, "src", "core", "workflow");

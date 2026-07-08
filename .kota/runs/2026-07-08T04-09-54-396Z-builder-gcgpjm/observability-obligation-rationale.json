@@ -1,0 +1,24 @@
+{
+  "entries": [
+    {
+      "file": "src/modules/eval-harness/fixtures/builder-formal-spec-faithfulness/calibration/accepted-alternatives/predicate-table-contract/src/spec-contract.mjs",
+      "rationale": "Eval fixture calibration asset, not production runtime code. The fixture's accepted-alternative verifier calibration in .kota/runs/2026-07-08T03-33-33-534Z-builder-enaiyt/artifacts/verifier-calibration.json proves this alternate faithful contract scores successfully."
+    },
+    {
+      "file": "src/modules/eval-harness/fixtures/builder-formal-spec-faithfulness/calibration/adversarial/src/spec-contract.mjs",
+      "rationale": "Eval fixture calibration asset, not production runtime code. The fixture's adversarial verifier calibration in .kota/runs/2026-07-08T03-33-33-534Z-builder-enaiyt/artifacts/verifier-calibration.json proves this weak contract fails scoring as intended."
+    },
+    {
+      "file": "src/modules/eval-harness/fixtures/builder-formal-spec-faithfulness/initial/scripts/check-spec-faithfulness/cases.mjs",
+      "rationale": "Fixture-local verifier data loader, not production runtime code. The source run's fixture-run.json and eval-run transcript show the checker consumed official, adversarial, and shortcut cases and produced deterministic accepted/rejected case evidence."
+    },
+    {
+      "file": "src/modules/eval-harness/fixtures/builder-formal-spec-faithfulness/initial/scripts/check-spec-faithfulness/self-tests.mjs",
+      "rationale": "Fixture-local shortcut self-test catalog, not production runtime code. The source run's shortcut-calibration transcript and fixture-run.json show all shortcut guards executed, including accept-all, source-packet edit, verifier edit, and prose-only artifact guards."
+    },
+    {
+      "file": "src/modules/eval-harness/fixtures/builder-formal-spec-faithfulness/initial/src/spec-contract.mjs",
+      "rationale": "Seed implementation intentionally starts weak to make the pre-run verifier fail. The source run's eval-set report records the initial preRunExpectations failure and the final fixture pass after the replayed builder writes the executable contract."
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "type": "observability-obligation",
+  "outcome": "ok",
+  "candidates": [],
+  "satisfiedFiles": [],
+  "missingFiles": [],
+  "message": "OK: no staged production runtime-observability obligation candidates"
+}

@@ -1,0 +1,1 @@
+Source-mode `kota task move` updated the task file state and location, but its internal `git add` failed while writing git index/object metadata. A later explicit `git add -A` succeeded and staged the final task rename.

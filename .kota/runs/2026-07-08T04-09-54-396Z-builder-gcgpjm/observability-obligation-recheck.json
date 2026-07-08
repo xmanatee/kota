@@ -1,0 +1,25 @@
+{
+  "type": "observability-obligation-recheck",
+  "sourceRunId": "2026-07-08T03-33-33-534Z-builder-enaiyt",
+  "progressReviewRunId": "2026-07-08T04-01-45-125Z-progress-reviewer-13dmov",
+  "sourceCommit": "eff12b32",
+  "sourceTaskId": "task-add-a-formal-spec-faithfulness-fixture-to-the-eval",
+  "citedMissingFiles": [
+    "src/modules/eval-harness/fixtures/builder-formal-spec-faithfulness/calibration/accepted-alternatives/predicate-table-contract/src/spec-contract.mjs",
+    "src/modules/eval-harness/fixtures/builder-formal-spec-faithfulness/calibration/adversarial/src/spec-contract.mjs",
+    "src/modules/eval-harness/fixtures/builder-formal-spec-faithfulness/initial/scripts/check-spec-faithfulness/cases.mjs",
+    "src/modules/eval-harness/fixtures/builder-formal-spec-faithfulness/initial/scripts/check-spec-faithfulness/self-tests.mjs",
+    "src/modules/eval-harness/fixtures/builder-formal-spec-faithfulness/initial/src/spec-contract.mjs"
+  ],
+  "rationaleArtifact": ".kota/runs/2026-07-08T04-09-54-396Z-builder-gcgpjm/observability-obligation-rationale.json",
+  "rationaleEntryCount": 5,
+  "detectorResolution": "src/**/fixtures/** is excluded from production runtime observability obligations; the cited files are eval fixture assets with verifier/calibration evidence.",
+  "review": {
+    "type": "observability-obligation",
+    "outcome": "ok",
+    "candidates": [],
+    "satisfiedFiles": [],
+    "missingFiles": [],
+    "message": "OK: no staged production runtime-observability obligation candidates"
+  }
+}

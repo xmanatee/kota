@@ -30,6 +30,7 @@ const EXCLUDED_PATH_PARTS = new Set([
   "build",
   "coverage",
   "dist",
+  "fixtures",
   "generated",
   "__generated__",
   "node_modules",

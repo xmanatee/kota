@@ -1,0 +1,16 @@
+Validation commands and results:
+
+- `pnpm test src/modules/autonomy/observability-obligation.test.ts src/modules/eval-harness/fixture-discovery.test.ts src/modules/eval-harness/accepted-alternative-fixtures.test.ts`
+  - Passed: 3 test files, 15 tests.
+- `pnpm build`
+  - Passed. Required before the fixture replay because `bin/kota.mjs` resolves compiled `dist/` imports.
+- `node --conditions=source --import tsx src/cli.ts eval run --fixture builder-formal-spec-faithfulness --repeats 1`
+  - Passed: 1 fixture x 1 run, pass@k=100.0%, pass^k=100.0%, adversarial_rejections=5.
+- `pnpm exec biome check src/modules/autonomy/observability-obligation-rules.ts src/modules/autonomy/observability-obligation.test.ts`
+  - Passed: 2 files checked.
+- `git add -A`
+  - Passed on the final staging attempt.
+- `pnpm run validate-tasks`
+  - Passed.
+
+An earlier task-move CLI attempt updated the task file but failed during its internal `git add`; the final explicit staging command succeeded before task validation.

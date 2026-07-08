@@ -1,0 +1,5 @@
+Exclude eval fixtures from observability obligations
+
+- ignore fixture assets in the production runtime observability diagnostic
+- cover the formal-spec fixture paths with a focused regression test
+- record rationale and clean recheck artifacts for the cited progress finding
