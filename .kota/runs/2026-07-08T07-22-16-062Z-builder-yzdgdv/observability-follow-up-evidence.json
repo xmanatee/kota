@@ -1,0 +1,47 @@
+{
+  "taskId": "task-add-codex-auth-expiry-adapter-observability-eviden",
+  "sourceFinding": {
+    "progressReviewerRunId": "2026-07-08T06-59-45-384Z-progress-reviewer-aihj18",
+    "builderRunId": "2026-07-08T06-23-36-951Z-builder-6ddjzf",
+    "commit": "b02b6d72e8b3",
+    "taskId": "task-warn-before-native-cli-harness-auth-expires-during",
+    "file": "src/modules/codex-agent-harness/adapter.ts"
+  },
+  "resolution": {
+    "kind": "focused-test-evidence",
+    "summary": "Codex adapter readiness tests now assert expiring and stale ChatGPT auth status metadata directly from codexAgentHarness.readiness(). The observability-obligation diagnostic has a regression case that models the cited adapter auth-expiry diff plus the related adapter test and marks adapter.ts satisfied by focused-test-assertion evidence.",
+    "evidence": [
+      {
+        "kind": "focused-adapter-test",
+        "file": "src/modules/codex-agent-harness/adapter.test.ts",
+        "assertions": [
+          "expiring Codex auth reports status=expiring, expiresAt, renewalSummary, and redacted detail",
+          "stale Codex auth reports status=stale, renewalSummary, and redacted detail"
+        ]
+      },
+      {
+        "kind": "observability-diagnostic-regression",
+        "file": "src/modules/autonomy/observability-obligation.test.ts",
+        "assertions": [
+          "diagnostic outcome is ok for the modeled adapter auth-expiry diff plus related adapter test",
+          "src/modules/codex-agent-harness/adapter.ts is in satisfiedFiles and not missingFiles",
+          "evidence kind is focused-test-assertion with ref src/modules/codex-agent-harness/adapter.test.ts"
+        ]
+      }
+    ]
+  },
+  "validation": [
+    {
+      "command": "TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner --silent=true src/modules/codex-agent-harness/adapter.test.ts src/core/agent-harness/readiness.test.ts src/modules/autonomy/observability-obligation.test.ts",
+      "result": "passed: 3 files, 22 tests"
+    },
+    {
+      "command": "pnpm exec biome check src/modules/codex-agent-harness/adapter.test.ts src/modules/autonomy/observability-obligation.test.ts",
+      "result": "passed: Checked 2 files. No fixes applied."
+    },
+    {
+      "command": "pnpm run validate-tasks",
+      "result": "passed"
+    }
+  ]
+}

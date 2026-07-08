@@ -1,13 +1,13 @@
 ---
 id: task-add-codex-auth-expiry-adapter-observability-eviden
 title: Add Codex auth-expiry adapter observability evidence
-status: ready
+status: done
 priority: p2
 area: modules
 task_class: Platform
 summary: Builder run 2026-07-08T06-23-36-951Z-builder-6ddjzf completed the native CLI auth-expiry task, but its observability-obligation review still marks src/modules/codex-agent-harness/adapter.ts as missing inspectable evidence for the runtime-sensitive adapter change.
 created_at: 2026-07-08T07:12:22.125Z
-updated_at: 2026-07-08T07:12:22.125Z
+updated_at: 2026-07-08T07:53:53.977Z
 ---
 
 ## Problem
@@ -53,3 +53,7 @@ Outcome-aware autonomy progress review.
 - Review-provided acceptance evidence:
 
     A follow-up run artifact or focused test maps src/modules/codex-agent-harness/adapter.ts to inspectable observability evidence or a narrow waiver rationale, the observability-obligation diagnostic no longer reports that file as unresolved for this change, and focused adapter/readiness tests plus validate-tasks pass.
+
+- Follow-up evidence from builder run 2026-07-08T07-22-16-062Z-builder-yzdgdv:
+
+    `src/modules/codex-agent-harness/adapter.test.ts` now asserts the Codex adapter's own `readiness()` output for expiring and stale ChatGPT auth status metadata, including renewal guidance and redacted auth detail. `src/modules/autonomy/observability-obligation.test.ts` models the cited `git:commit:b02b6d72e8b3` adapter auth-expiry diff alongside that related adapter test and asserts the diagnostic returns `outcome: "ok"`, keeps `src/modules/codex-agent-harness/adapter.ts` out of `missingFiles`, and records `focused-test-assertion` evidence pointing at `src/modules/codex-agent-harness/adapter.test.ts`. Run artifact `.kota/runs/2026-07-08T07-22-16-062Z-builder-yzdgdv/observability-follow-up-evidence.json` records the mapping. Focused validation passed with `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner --silent=true src/modules/codex-agent-harness/adapter.test.ts src/core/agent-harness/readiness.test.ts src/modules/autonomy/observability-obligation.test.ts` (3 files, 22 tests), `pnpm exec biome check src/modules/codex-agent-harness/adapter.test.ts src/modules/autonomy/observability-obligation.test.ts`, and `pnpm run validate-tasks`.

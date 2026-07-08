@@ -1,0 +1,4 @@
+1. Fixed with evidence: adapter-level tests now assert Codex expiring/stale auth readiness metadata, and an observability-obligation regression models the cited adapter auth-expiry diff as satisfied by the related adapter test.
+2. Recorded acceptance evidence in data/tasks/done/task-add-codex-auth-expiry-adapter-observability-eviden.md and .kota/runs/2026-07-08T07-22-16-062Z-builder-yzdgdv/observability-follow-up-evidence.json.
+3. Verified by the new observability-obligation regression: src/modules/codex-agent-harness/adapter.ts is in satisfiedFiles, absent from missingFiles, and has focused-test-assertion evidence.
+4. Verified focused tests, formatting, and task validation: focused vitest passed 3 files / 22 tests, biome passed on touched tests, and pnpm run validate-tasks passed.

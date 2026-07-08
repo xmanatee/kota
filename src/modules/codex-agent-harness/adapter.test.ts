@@ -7,12 +7,13 @@ import {
 } from "./adapter.js";
 
 const spawnMock = vi.hoisted(() => vi.fn());
+const spawnSyncMock = vi.hoisted(() => vi.fn());
 
 vi.mock("node:child_process", async () => {
   const actual = await vi.importActual<typeof import("node:child_process")>(
     "node:child_process",
   );
-  return { ...actual, spawn: spawnMock };
+  return { ...actual, spawn: spawnMock, spawnSync: spawnSyncMock };
 });
 
 type MockChild = EventEmitter & {
@@ -58,8 +59,37 @@ function mockCodexProcess(options: {
   };
 }
 
+function mockCodexReadinessProbe(options: {
+  authOutput: string;
+  authStatus?: number;
+}): void {
+  spawnSyncMock.mockImplementation(
+    (command: string, args: readonly string[]) => {
+      if (command === "which" && args.join(" ") === "codex") {
+        return { status: 0, stdout: "/opt/bin/codex\n", stderr: "" };
+      }
+      if (command === "/opt/bin/codex" && args.join(" ") === "--version") {
+        return { status: 0, stdout: "codex 0.130.0\n", stderr: "" };
+      }
+      if (command === "/opt/bin/codex" && args.join(" ") === "login status") {
+        return {
+          status: options.authStatus ?? 0,
+          stdout: options.authStatus === undefined ? options.authOutput : "",
+          stderr: options.authStatus === undefined ? "" : options.authOutput,
+        };
+      }
+      return {
+        status: 1,
+        stdout: "",
+        stderr: `unexpected command: ${command} ${args.join(" ")}`,
+      };
+    },
+  );
+}
+
 beforeEach(() => {
   spawnMock.mockReset();
+  spawnSyncMock.mockReset();
 });
 
 afterEach(() => {
@@ -167,6 +197,47 @@ describe("codexAgentHarness", () => {
       outputTokens: 7,
       isError: false,
     });
+  });
+
+  it("reports Codex auth expiry warnings in adapter readiness status metadata", () => {
+    mockCodexReadinessProbe({
+      authOutput:
+        "Logged in using ChatGPT as operator@example.com; expiresAt=2026-07-09T00:00:00.000Z",
+    });
+
+    const readiness = codexAgentHarness.readiness?.();
+
+    expect(readiness?.localAuth).toMatchObject({
+      kind: "harness-managed-login",
+      status: "expiring",
+      required: true,
+      command: "codex login status",
+      summary: "Codex ChatGPT login expires soon",
+      expiresAt: "2026-07-09T00:00:00.000Z",
+      renewalSummary: "run `codex login` before unattended runs",
+    });
+    expect(readiness?.localAuth?.detail).toContain("[redacted-email]");
+    expect(readiness?.localAuth?.detail).not.toContain("operator@example.com");
+  });
+
+  it("reports stale Codex auth as adapter readiness status metadata", () => {
+    mockCodexReadinessProbe({
+      authStatus: 1,
+      authOutput: "Authentication expired for operator@example.com",
+    });
+
+    const readiness = codexAgentHarness.readiness?.();
+
+    expect(readiness?.localAuth).toMatchObject({
+      kind: "harness-managed-login",
+      status: "stale",
+      required: true,
+      command: "codex login status",
+      summary: "Codex ChatGPT login expired",
+      renewalSummary: "run `codex login` before unattended runs",
+    });
+    expect(readiness?.localAuth?.detail).toContain("[redacted-email]");
+    expect(readiness?.localAuth?.detail).not.toContain("operator@example.com");
   });
 
   it("maps passive runs to Codex CLI read-only sandbox", async () => {

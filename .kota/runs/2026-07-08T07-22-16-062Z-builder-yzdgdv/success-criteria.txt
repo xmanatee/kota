@@ -1,0 +1,4 @@
+1. The cited progress-review gap for src/modules/codex-agent-harness/adapter.ts is fixed or explicitly disproven with evidence.
+2. Acceptance evidence is recorded in this task or in this run directory.
+3. The observability-obligation diagnostic no longer reports src/modules/codex-agent-harness/adapter.ts as unresolved for this follow-up.
+4. Focused Codex adapter/readiness tests and task validation pass.

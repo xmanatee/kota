@@ -136,6 +136,41 @@ describe("observability obligation diagnostic", () => {
     ]);
   });
 
+  it("accepts Codex adapter auth-expiry changes when adapter readiness status tests are present", () => {
+    const review = detectObservabilityObligationReview(
+      [
+        diffFor("src/modules/codex-agent-harness/adapter.ts", [
+          "      expiringPattern:",
+          "        /(?:login|session|auth(?:entication)?) (?:will )?expires? soon|expiresAt=(?<expiresAt>\\S+)/i,",
+          "      stalePattern:",
+          "        /(?:login|session|auth(?:entication)?) (?:expired|is stale)/i,",
+          '      expiringSummary: "Codex ChatGPT login expires soon",',
+          '      staleSummary: "Codex ChatGPT login expired",',
+          '      renewalSummary: "run `codex login` before unattended runs",',
+        ]),
+        diffFor("src/modules/codex-agent-harness/adapter.test.ts", [
+          '  it("reports Codex auth expiry warnings in adapter readiness status metadata", () => {',
+          "    const readiness = codexAgentHarness.readiness?.();",
+          "    expect(readiness?.localAuth).toMatchObject({",
+          '      status: "expiring",',
+          '      summary: "Codex ChatGPT login expires soon",',
+          "    });",
+          "  });",
+        ]),
+      ].join("\n"),
+    );
+
+    expect(review.outcome).toBe("ok");
+    expect(review.satisfiedFiles).toContain("src/modules/codex-agent-harness/adapter.ts");
+    expect(review.missingFiles).not.toContain("src/modules/codex-agent-harness/adapter.ts");
+    expect(review.candidates[0]?.evidence).toEqual([
+      expect.objectContaining({
+        kind: "focused-test-assertion",
+        ref: "src/modules/codex-agent-harness/adapter.test.ts",
+      }),
+    ]);
+  });
+
   it("accepts the mobile typecheck wrapper when structured status logs are added", () => {
     const review = detectObservabilityObligationReview(
       diffFor("clients/mobile/scripts/typecheck.mjs", [
