@@ -34,9 +34,9 @@ export const MODEL_PRICING_SOURCES = {
 	},
 	openai: {
 		provider: "openai",
-		url: "https://openai.com/api/pricing/",
-		observedAt: "2026-05-16",
-		scope: "OpenAI API standard processing rates for context lengths under 270K tokens.",
+		url: "https://developers.openai.com/api/docs/pricing",
+		observedAt: "2026-07-11",
+		scope: "OpenAI API standard processing rates, including GPT-5.6 long-context and cache multipliers.",
 	},
 	google: {
 		provider: "google",
@@ -52,6 +52,32 @@ export const MODEL_PRICING_SOURCES = {
 			"OpenRouter /models per-token pricing converted to per-million-token KOTA pricing rows.",
 	},
 } as const satisfies Record<string, PricingSource>;
+
+function gpt56Pricing(input: number, output: number): ModelPricing {
+	return {
+		kind: "input-token-tiered",
+		tiers: [
+			{
+				maxInputTokens: 272_000,
+				rates: {
+					input,
+					output,
+					cacheRead: input * 0.1,
+					cacheWrite: input * 1.25,
+				},
+			},
+			{
+				maxInputTokens: null,
+				rates: {
+					input: input * 2,
+					output: output * 1.5,
+					cacheRead: input * 0.2,
+					cacheWrite: input * 2.5,
+				},
+			},
+		],
+	};
+}
 
 const SHIPPED_MODEL_PRICING_STATUS: Record<string, ShippedModelPricingStatus> = {
 	"claude-sonnet-4-6": {
@@ -72,22 +98,22 @@ const SHIPPED_MODEL_PRICING_STATUS: Record<string, ShippedModelPricingStatus> = 
 		pricing: { kind: "flat", input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25 },
 		source: MODEL_PRICING_SOURCES.anthropic,
 	},
-	"gpt-5.5": {
+	"gpt-5.6-sol": {
 		kind: "priced",
-		model: "gpt-5.5",
-		pricing: { kind: "flat", input: 5, output: 30, cacheRead: 0.5, cacheWrite: 5 },
+		model: "gpt-5.6-sol",
+		pricing: gpt56Pricing(5, 30),
 		source: MODEL_PRICING_SOURCES.openai,
 	},
-	"gpt-5.4": {
+	"gpt-5.6-terra": {
 		kind: "priced",
-		model: "gpt-5.4",
-		pricing: { kind: "flat", input: 2.5, output: 15, cacheRead: 0.25, cacheWrite: 2.5 },
+		model: "gpt-5.6-terra",
+		pricing: gpt56Pricing(2.5, 15),
 		source: MODEL_PRICING_SOURCES.openai,
 	},
-	"gpt-5.4-mini": {
+	"gpt-5.6-luna": {
 		kind: "priced",
-		model: "gpt-5.4-mini",
-		pricing: { kind: "flat", input: 0.75, output: 4.5, cacheRead: 0.075, cacheWrite: 0.75 },
+		model: "gpt-5.6-luna",
+		pricing: gpt56Pricing(1, 6),
 		source: MODEL_PRICING_SOURCES.openai,
 	},
 	"gemini-2.5-pro": {

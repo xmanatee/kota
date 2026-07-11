@@ -35,10 +35,10 @@ describe("model output-token limit resolver", () => {
   });
 
   it("honors provider-prefixed model strings by matching the model id", () => {
-    expect(resolveModelOutputTokenLimit("openai/gpt-5.4-mini")).toEqual({
-      model: "openai/gpt-5.4-mini",
-      matchedModel: "gpt-5.4-mini",
-      maxTokens: 4096,
+    expect(resolveModelOutputTokenLimit("openai/gpt-5.6-luna")).toEqual({
+      model: "openai/gpt-5.6-luna",
+      matchedModel: "gpt-5.6-luna",
+      maxTokens: 128_000,
       source: "shipped-preset",
     });
   });

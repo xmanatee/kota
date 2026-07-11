@@ -30,21 +30,20 @@ function workspaceOutput(input: WorkflowTerminalFinalizerInput): BuilderWorkspac
 
 function writeArtifact(
   artifact: BuilderTerminalWorktreeFinalizerArtifact,
-): BuilderTerminalWorktreeFinalizerArtifact {
+): void {
   mkdirSync(dirname(artifact.artifactPath), { recursive: true });
   writeFileSync(artifact.artifactPath, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
-  return artifact;
 }
 
 export async function finalizeBuilderTerminalWorktree(
   input: WorkflowTerminalFinalizerInput,
-): Promise<BuilderTerminalWorktreeFinalizerArtifact | null> {
+): Promise<void> {
   const workspace = workspaceOutput(input);
-  if (!workspace?.taskId) return null;
+  if (!workspace?.taskId) return;
   const runDirPath = join(input.projectDir, input.metadata.runDir);
   const artifactPath = join(runDirPath, "terminal-worktree-finalizer.json");
   if (input.metadata.status === "success" || input.metadata.status === "completed-with-warnings") {
-    return null;
+    return;
   }
 
   const selector = {
@@ -71,7 +70,7 @@ export async function finalizeBuilderTerminalWorktree(
     const reason = removed
       ? "terminal builder worktree had no unresolved cleanup blockers"
       : "terminal builder worktree preserved for recovery review";
-    return writeArtifact({
+    writeArtifact({
       attempted: true,
       reason,
       taskId: workspace.taskId,
@@ -84,7 +83,7 @@ export async function finalizeBuilderTerminalWorktree(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     input.log(`Builder terminal worktree finalizer preserved error artifact: ${message}`);
-    return writeArtifact({
+    writeArtifact({
       attempted: true,
       reason: message,
       taskId: workspace.taskId,

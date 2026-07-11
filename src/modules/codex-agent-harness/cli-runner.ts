@@ -29,11 +29,22 @@ type CodexCliEvent = {
 
 function mapEffortToCodexReasoning(
   effort: AgentEffort,
-): "low" | "medium" | "high" | "xhigh" {
+): "low" | "medium" | "high" | "xhigh" | "max" {
   if (effort === "low") return "low";
   if (effort === "medium") return "medium";
   if (effort === "high") return "high";
-  return "xhigh";
+  return effort;
+}
+
+function buildCodexEnvironment(
+  overrides: Record<string, string> | undefined,
+): NodeJS.ProcessEnv {
+  const env = withProtectedGitBareRepositoryEnv({
+    ...process.env,
+    ...(overrides ?? {}),
+  });
+  delete env.OPENAI_API_KEY;
+  return env;
 }
 
 function parseCodexEvent(line: string): CodexCliEvent | null {
@@ -83,7 +94,13 @@ export async function collectTextFromCodexCli(args: {
   const cliArgs = [
     "exec",
     "--json",
+    "--ephemeral",
     "--ignore-user-config",
+    "--strict-config",
+    "--disable",
+    "plugins",
+    "--disable",
+    "hooks",
     "--model",
     args.model,
     "--cd",
@@ -94,8 +111,6 @@ export async function collectTextFromCodexCli(args: {
     "--color",
     "never",
     "-c",
-    'preferred_auth_method="chatgpt"',
-    "-c",
     `model_reasoning_effort="${mapEffortToCodexReasoning(args.effort)}"`,
     "-c",
     'approval_policy="never"',
@@ -104,10 +119,7 @@ export async function collectTextFromCodexCli(args: {
 
   const child = spawn("codex", cliArgs, {
     cwd: args.cwd,
-    env: withProtectedGitBareRepositoryEnv({
-      ...process.env,
-      ...(args.env ?? {}),
-    }),
+    env: buildCodexEnvironment(args.env),
     stdio: ["pipe", "pipe", "pipe"],
   });
 

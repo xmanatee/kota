@@ -231,7 +231,7 @@ describe("OpenAIModelClient", () => {
 			).toThrow(/"ollama".*effort="xhigh".*claude-agent-sdk/s);
 		});
 
-		it("emits reasoning.effort on the wire for the openai preset", async () => {
+		it("emits reasoning_effort on the Chat Completions wire for OpenAI", async () => {
 			const fetchMock = setupMockFetch(emptyStreamResponse());
 			const client = new OpenAIModelClient({
 				baseUrl: "http://localhost/v1",
@@ -240,14 +240,16 @@ describe("OpenAIModelClient", () => {
 				effortTranslator: openaiReasoningEffortTranslator,
 			});
 			const stream = client.messages.stream({
-				model: "o3-mini",
+				model: "gpt-5.6-sol",
 				max_tokens: 100,
 				messages: [{ role: "user", content: "hi" }],
 				effort: "xhigh",
 			});
 			await stream.finalMessage();
 			const body = JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body);
-			expect(body.reasoning).toEqual({ effort: "high" });
+			expect(body.max_completion_tokens).toBe(100);
+			expect(body.max_tokens).toBeUndefined();
+			expect(body.reasoning_effort).toBe("xhigh");
 		});
 
 		it("emits a thinking config on the wire for the anthropic-oai preset", async () => {
@@ -288,6 +290,7 @@ describe("OpenAIModelClient", () => {
 			await stream.finalMessage();
 			const body = JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body);
 			expect(body.reasoning).toBeUndefined();
+			expect(body.reasoning_effort).toBeUndefined();
 			expect(body.thinking).toBeUndefined();
 		});
 	});

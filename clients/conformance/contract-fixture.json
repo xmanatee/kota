@@ -1996,16 +1996,16 @@
                       "value": "claude-opus-4-7"
                     },
                     {
-                      "label": "gpt-5.5",
-                      "value": "gpt-5.5"
+                      "label": "gpt-5.6-sol",
+                      "value": "gpt-5.6-sol"
                     },
                     {
-                      "label": "gpt-5.4-mini",
-                      "value": "gpt-5.4-mini"
+                      "label": "gpt-5.6-luna",
+                      "value": "gpt-5.6-luna"
                     },
                     {
-                      "label": "gpt-5.4",
-                      "value": "gpt-5.4"
+                      "label": "gpt-5.6-terra",
+                      "value": "gpt-5.6-terra"
                     },
                     {
                       "label": "openrouter/openai/gpt-4.1-mini",
@@ -2048,7 +2048,7 @@
                       "value": "high"
                     },
                     {
-                      "label": "XHigh",
+                      "label": "Extra high",
                       "value": "xhigh"
                     },
                     {
@@ -2128,16 +2128,16 @@
                           "value": "claude-opus-4-7"
                         },
                         {
-                          "label": "gpt-5.5",
-                          "value": "gpt-5.5"
+                          "label": "gpt-5.6-sol",
+                          "value": "gpt-5.6-sol"
                         },
                         {
-                          "label": "gpt-5.4-mini",
-                          "value": "gpt-5.4-mini"
+                          "label": "gpt-5.6-luna",
+                          "value": "gpt-5.6-luna"
                         },
                         {
-                          "label": "gpt-5.4",
-                          "value": "gpt-5.4"
+                          "label": "gpt-5.6-terra",
+                          "value": "gpt-5.6-terra"
                         },
                         {
                           "label": "openrouter/openai/gpt-4.1-mini",
@@ -2180,7 +2180,7 @@
                           "value": "high"
                         },
                         {
-                          "label": "XHigh",
+                          "label": "Extra high",
                           "value": "xhigh"
                         },
                         {
@@ -2222,16 +2222,16 @@
                           "claude-sonnet-4-6",
                           "claude-haiku-4-5-20251001",
                           "claude-opus-4-7",
-                          "gpt-5.5",
-                          "gpt-5.4-mini",
-                          "gpt-5.4",
+                          "gpt-5.6-sol",
+                          "gpt-5.6-luna",
+                          "gpt-5.6-terra",
                           "openrouter/openai/gpt-4.1-mini",
                           "gemini-2.5-pro",
                           "gemini-2.5-flash-lite",
                           "gemini-2.5-flash",
                           "gemini-3.5-flash"
                         ],
-                        "default": "gpt-5.5"
+                        "default": "gpt-5.6-sol"
                       },
                       "effort": {
                         "type": "string",
@@ -2811,16 +2811,16 @@
                             "value": "claude-opus-4-7"
                           },
                           {
-                            "label": "gpt-5.5",
-                            "value": "gpt-5.5"
+                            "label": "gpt-5.6-sol",
+                            "value": "gpt-5.6-sol"
                           },
                           {
-                            "label": "gpt-5.4-mini",
-                            "value": "gpt-5.4-mini"
+                            "label": "gpt-5.6-luna",
+                            "value": "gpt-5.6-luna"
                           },
                           {
-                            "label": "gpt-5.4",
-                            "value": "gpt-5.4"
+                            "label": "gpt-5.6-terra",
+                            "value": "gpt-5.6-terra"
                           },
                           {
                             "label": "openrouter/openai/gpt-4.1-mini",
@@ -2863,7 +2863,7 @@
                             "value": "high"
                           },
                           {
-                            "label": "XHigh",
+                            "label": "Extra high",
                             "value": "xhigh"
                           },
                           {
@@ -2905,16 +2905,16 @@
                             "claude-sonnet-4-6",
                             "claude-haiku-4-5-20251001",
                             "claude-opus-4-7",
-                            "gpt-5.5",
-                            "gpt-5.4-mini",
-                            "gpt-5.4",
+                            "gpt-5.6-sol",
+                            "gpt-5.6-luna",
+                            "gpt-5.6-terra",
                             "openrouter/openai/gpt-4.1-mini",
                             "gemini-2.5-pro",
                             "gemini-2.5-flash-lite",
                             "gemini-2.5-flash",
                             "gemini-3.5-flash"
                           ],
-                          "default": "gpt-5.5"
+                          "default": "gpt-5.6-sol"
                         },
                         "effort": {
                           "type": "string",
@@ -3410,16 +3410,16 @@
                         "value": "claude-opus-4-7"
                       },
                       {
-                        "label": "gpt-5.5",
-                        "value": "gpt-5.5"
+                        "label": "gpt-5.6-sol",
+                        "value": "gpt-5.6-sol"
                       },
                       {
-                        "label": "gpt-5.4-mini",
-                        "value": "gpt-5.4-mini"
+                        "label": "gpt-5.6-luna",
+                        "value": "gpt-5.6-luna"
                       },
                       {
-                        "label": "gpt-5.4",
-                        "value": "gpt-5.4"
+                        "label": "gpt-5.6-terra",
+                        "value": "gpt-5.6-terra"
                       },
                       {
                         "label": "openrouter/openai/gpt-4.1-mini",
@@ -3462,7 +3462,7 @@
                         "value": "high"
                       },
                       {
-                        "label": "XHigh",
+                        "label": "Extra high",
                         "value": "xhigh"
                       },
                       {
@@ -3504,16 +3504,16 @@
                         "claude-sonnet-4-6",
                         "claude-haiku-4-5-20251001",
                         "claude-opus-4-7",
-                        "gpt-5.5",
-                        "gpt-5.4-mini",
-                        "gpt-5.4",
+                        "gpt-5.6-sol",
+                        "gpt-5.6-luna",
+                        "gpt-5.6-terra",
                         "openrouter/openai/gpt-4.1-mini",
                         "gemini-2.5-pro",
                         "gemini-2.5-flash-lite",
                         "gemini-2.5-flash",
                         "gemini-3.5-flash"
                       ],
-                      "default": "gpt-5.5"
+                      "default": "gpt-5.6-sol"
                     },
                     "effort": {
                       "type": "string",

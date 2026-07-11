@@ -13,24 +13,21 @@ describe("openaiReasoningEffortTranslator", () => {
 		);
 	});
 
-	it("maps low/medium/high to their o-series values verbatim", () => {
+	it("maps every supported effort to the same OpenAI value", () => {
 		expect(openaiReasoningEffortTranslator.apply("low")).toEqual({
-			reasoning: { effort: "low" },
+			reasoning_effort: "low",
 		});
 		expect(openaiReasoningEffortTranslator.apply("medium")).toEqual({
-			reasoning: { effort: "medium" },
+			reasoning_effort: "medium",
 		});
 		expect(openaiReasoningEffortTranslator.apply("high")).toEqual({
-			reasoning: { effort: "high" },
+			reasoning_effort: "high",
 		});
-	});
-
-	it("collapses xhigh and max onto the o-series high ceiling", () => {
 		expect(openaiReasoningEffortTranslator.apply("xhigh")).toEqual({
-			reasoning: { effort: "high" },
+			reasoning_effort: "xhigh",
 		});
 		expect(openaiReasoningEffortTranslator.apply("max")).toEqual({
-			reasoning: { effort: "high" },
+			reasoning_effort: "max",
 		});
 	});
 });

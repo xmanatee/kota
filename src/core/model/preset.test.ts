@@ -80,6 +80,23 @@ describe("shipped preset registry", () => {
     expect(hasPreset(SHIPPED_DEFAULT_PRESET_ID)).toBe(true);
   });
 
+  it("maps the Codex quality tiers to the GPT-5.6 family", () => {
+    expect(getPreset("codex")).toMatchObject({
+      defaultModel: "gpt-5.6-sol",
+      tiers: {
+        fast: "gpt-5.6-luna",
+        balanced: "gpt-5.6-terra",
+        capable: "gpt-5.6-sol",
+      },
+      outputTokenLimits: {
+        fast: 128_000,
+        balanced: 128_000,
+        capable: 128_000,
+      },
+      defaultEffort: "xhigh",
+    });
+  });
+
   it("exposes OpenRouter lab preset metadata for diagnostics while keeping it non-default", () => {
     const preset = getPreset("openrouter-lab");
     const metadata = {
@@ -158,8 +175,8 @@ describe("mergePresetTiers and resolvePresetTierModel", () => {
   });
 
   it("operator overrides win on a per-tier basis", () => {
-    const merged = mergePresetTiers(codex, { capable: "gpt-5.5-override" });
-    expect(merged.capable).toBe("gpt-5.5-override");
+    const merged = mergePresetTiers(codex, { capable: "gpt-5.6-sol-override" });
+    expect(merged.capable).toBe("gpt-5.6-sol-override");
     expect(merged.fast).toBe(codex.tiers.fast);
     expect(merged.balanced).toBe(codex.tiers.balanced);
   });

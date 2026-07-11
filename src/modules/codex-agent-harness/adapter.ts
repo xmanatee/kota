@@ -83,6 +83,7 @@ function codexReadiness(): AgentHarnessReadiness {
       binaryName: "codex",
       versionArgs: ["--version"],
       required: true,
+      minimumVersion: "0.144.1",
     }),
     localAuth: probeNativeCliAuth({
       binaryName: "codex",

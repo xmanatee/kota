@@ -14,7 +14,8 @@ import type {
 
 export type OpenAIRequestBody = {
 	model: string;
-	max_tokens: number;
+	max_tokens?: number;
+	max_completion_tokens?: number;
 	messages: ReturnType<typeof toOpenAIMessages>;
 	stream: boolean;
 	tools?: ReturnType<typeof toOpenAITools>;
@@ -25,6 +26,7 @@ export type OpenAIRequestBody = {
 	structured_outputs?: boolean;
 	provider?: OAIRequestOptions["provider"];
 	include_reasoning?: true;
+	reasoning_effort?: OAIReasoningEffort;
 	reasoning?: { effort: OAIReasoningEffort };
 	thinking?: object;
 };
@@ -43,12 +45,17 @@ export function buildOpenAIRequestBody(
 ): OpenAIRequestBody {
 	validateOutputTokenLimit(params.model, params.max_tokens, options);
 	validateMultimodalInput(params.model, params.messages, options);
+	validateOpenAIGpt56ChatCompletionsTools(params, options);
 	const body: OpenAIRequestBody = {
 		model: params.model,
-		max_tokens: params.max_tokens,
 		messages: toOpenAIMessages(params.system, params.messages),
 		stream,
 	};
+	if (options.presetName === "openai") {
+		body.max_completion_tokens = params.max_tokens;
+	} else {
+		body.max_tokens = params.max_tokens;
+	}
 	applyToolOptions(params, body, options);
 	applyRequestOptions(params.model, body, options);
 	if (stream) {
@@ -56,6 +63,20 @@ export function buildOpenAIRequestBody(
 	}
 	applyReasoningOptions(params, body, options);
 	return body;
+}
+
+function validateOpenAIGpt56ChatCompletionsTools(
+	params: MessageStreamParams | MessageCreateParams,
+	options: OpenAIRequestBodyOptions,
+): void {
+	if (options.presetName !== "openai") return;
+	if (!/^gpt-5\.6(?:-(?:sol|terra|luna))?$/.test(params.model)) return;
+	const tools = "tools" in params ? params.tools : undefined;
+	if (tools === undefined || tools.length === 0) return;
+	throw new Error(
+		`GPT-5.6 function tools are incompatible with OpenAI Chat Completions at its default reasoning effort and KOTA's supported effort levels. ` +
+			"Use a Responses API-capable harness or the Codex harness.",
+	);
 }
 
 function validateOutputTokenLimit(

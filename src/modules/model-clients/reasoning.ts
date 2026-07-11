@@ -20,23 +20,15 @@ export type EffortTranslator = {
 	apply(effort: AgentEffort): ReasoningWirePatch;
 };
 
-/** OpenAI o-series reasoning.effort accepts `low | medium | high`. */
-const OPENAI_EFFORT_MAP: Record<AgentEffort, "low" | "medium" | "high"> = {
-	low: "low",
-	medium: "medium",
-	high: "high",
-	xhigh: "high",
-	max: "high",
-};
-
 /**
- * Reasoning translator for OpenAI-o-series endpoints.
- * Wire shape: `{ reasoning: { effort: "low" | "medium" | "high" } }`.
+ * Reasoning translator for OpenAI Chat Completions. Model-specific support is
+ * validated by the provider instead of silently lowering a requested quality
+ * level.
  */
 export const openaiReasoningEffortTranslator: EffortTranslator = {
 	wireSurface: "openai-reasoning-effort",
 	apply(effort) {
-		return { reasoning: { effort: OPENAI_EFFORT_MAP[effort] } };
+		return { reasoning_effort: effort };
 	},
 };
 

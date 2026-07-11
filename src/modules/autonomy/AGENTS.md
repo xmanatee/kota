@@ -98,9 +98,9 @@ Verdicts on peer patterns vs KOTA primitives live in
 - **Trustworthy-agents four-layer injection defense.** Model/harness ≈ SDK
   boundary; tools ≈ `guardrails.ts` + risk; runtime ≈ `approval-queue` +
   autonomy mode + `injection-defense`.
-- **Opus 4.7 harness defaults at agent-step layer.** Delegate-don't-pair:
-  front-load intent/constraints/success criteria; use `xhigh`, adaptive
-  thinking, batch-upfront, subagents; no clarification loops/fixed caps.
+- **Quality-first capable-tier defaults at agent-step layer.** Delegate-don't-pair:
+  front-load intent/constraints/success criteria; use the active preset's
+  capable model and `xhigh`-class effort; no clarification loops/fixed caps.
 - **Tool-design hygiene.** High bar for tools; prefer discoverable
   surfaces (read, grep, scoped `AGENTS.md`, prompt state).
 - **`ask_owner` uses `askOwnerSteps`**

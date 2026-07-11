@@ -69,7 +69,7 @@ function mockCodexReadinessProbe(options: {
         return { status: 0, stdout: "/opt/bin/codex\n", stderr: "" };
       }
       if (command === "/opt/bin/codex" && args.join(" ") === "--version") {
-        return { status: 0, stdout: "codex 0.130.0\n", stderr: "" };
+        return { status: 0, stdout: "codex-cli 0.144.1\n", stderr: "" };
       }
       if (command === "/opt/bin/codex" && args.join(" ") === "login status") {
         return {
@@ -132,10 +132,14 @@ describe("codexAgentHarness", () => {
     const result = await codexAgentHarness.run(
       {
         prompt: "please echo",
-        model: "gpt-5.5",
+        model: "gpt-5.6-sol",
         effort: "xhigh",
         systemPrompt: "be brief",
         cwd: "/repo",
+        env: {
+          OPENAI_API_KEY: "must-not-reach-codex",
+          KOTA_TEST_ENV: "preserved",
+        },
         onMessage,
       },
       writer,
@@ -146,18 +150,28 @@ describe("codexAgentHarness", () => {
       expect.arrayContaining([
         "exec",
         "--json",
+        "--ephemeral",
         "--ignore-user-config",
+        "--strict-config",
+        "--disable",
+        "plugins",
+        "--disable",
+        "hooks",
         "--model",
-        "gpt-5.5",
+        "gpt-5.6-sol",
         "--cd",
         "/repo",
         "--sandbox",
         "workspace-write",
-        "-c",
-        'preferred_auth_method="chatgpt"',
       ]),
       expect.objectContaining({ cwd: "/repo" }),
     );
+    expect(spawnMock.mock.calls[0][1]).not.toContain(
+      'preferred_auth_method="chatgpt"',
+    );
+    const spawnEnv = spawnMock.mock.calls[0][2].env as NodeJS.ProcessEnv;
+    expect(spawnEnv.OPENAI_API_KEY).toBeUndefined();
+    expect(spawnEnv.KOTA_TEST_ENV).toBe("preserved");
     expect(process.stdinText()).toContain("## System instructions\n\nbe brief");
     expect(process.stdinText()).toContain("## Task\n\nplease echo");
     expect(writer.write).toHaveBeenCalledWith("all done");
@@ -252,7 +266,7 @@ describe("codexAgentHarness", () => {
 
     await codexAgentHarness.run({
       prompt: "inspect",
-      model: "gpt-5.5",
+      model: "gpt-5.6-sol",
       effort: "medium",
       autonomyMode: "passive",
     });
@@ -262,12 +276,33 @@ describe("codexAgentHarness", () => {
     );
   });
 
+  it("passes max reasoning effort to current Codex models without lowering it", async () => {
+    mockCodexProcess({
+      stdoutLines: [
+        JSON.stringify({
+          type: "item.completed",
+          item: { type: "agent_message", text: "ok" },
+        }),
+      ],
+    });
+
+    await codexAgentHarness.run({
+      prompt: "inspect",
+      model: "gpt-5.6-sol",
+      effort: "max",
+    });
+
+    expect(spawnMock.mock.calls[0][1]).toEqual(
+      expect.arrayContaining(['model_reasoning_effort="max"']),
+    );
+  });
+
   it("returns a structured error when the Codex CLI exits non-zero", async () => {
     mockCodexProcess({ code: 1, stderr: "not logged in" });
 
     const result = await codexAgentHarness.run({
       prompt: "x",
-      model: "gpt-5.5",
+      model: "gpt-5.6-sol",
       effort: "xhigh",
     });
 
@@ -285,7 +320,7 @@ describe("codexAgentHarness", () => {
 
     const run = codexAgentHarness.run({
       prompt: "x",
-      model: "gpt-5.5",
+      model: "gpt-5.6-sol",
       effort: "xhigh",
       abortController,
     });
@@ -315,7 +350,7 @@ describe("codexAgentHarness", () => {
     await expect(
       codexAgentHarness.run({
         prompt: "x",
-        model: "gpt-5.5",
+        model: "gpt-5.6-sol",
         effort: "xhigh",
         canUseTool: async () => ({ behavior: "allow" }),
       }),
@@ -324,7 +359,7 @@ describe("codexAgentHarness", () => {
     await expect(
       codexAgentHarness.run({
         prompt: "x",
-        model: "gpt-5.5",
+        model: "gpt-5.6-sol",
         effort: "xhigh",
         allowedTools: ["Read"],
       }),
@@ -333,7 +368,7 @@ describe("codexAgentHarness", () => {
     await expect(
       codexAgentHarness.run({
         prompt: "x",
-        model: "gpt-5.5",
+        model: "gpt-5.6-sol",
         effort: "xhigh",
         disallowedTools: ["Bash"],
       }),
@@ -342,7 +377,7 @@ describe("codexAgentHarness", () => {
     await expect(
       codexAgentHarness.run({
         prompt: "x",
-        model: "gpt-5.5",
+        model: "gpt-5.6-sol",
         effort: "xhigh",
         autonomyMode: "supervised",
       }),
@@ -351,7 +386,7 @@ describe("codexAgentHarness", () => {
     await expect(
       codexAgentHarness.run({
         prompt: "x",
-        model: "gpt-5.5",
+        model: "gpt-5.6-sol",
         effort: "xhigh",
         mcpServers: { foo: { type: "stdio", command: "bar" } },
       }),

@@ -67,7 +67,12 @@ export function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
     },
     workflow: {
       listRuns: stub({ runs: [] }),
-      listStateRecoveryActions: stub({ ok: true as const, claims: [] }),
+      listStateRecoveryActions: stub({
+        ok: true as const,
+        claims: [],
+        worktrees: [],
+        deadLetters: [],
+      }),
       resolveStateRecovery: stub({
         ok: false as const,
         reason: "not_found" as const,

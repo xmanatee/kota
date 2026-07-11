@@ -36,8 +36,8 @@ export type MessageStreamParams = {
 	thinking?: KotaThinkingConfig;
 	/**
 	 * Declared reasoning posture for this call. Providers that expose a
-	 * reasoning control translate this verbatim at the wire boundary
-	 * (e.g. OpenAI o-series → `reasoning.effort`, Anthropic → `thinking`).
+	 * reasoning control translate this at the wire boundary
+	 * (e.g. OpenAI Chat Completions → `reasoning_effort`, Anthropic → `thinking`).
 	 * Providers without a declared mapping throw loudly when this is set
 	 * rather than silently falling back to the default reasoning budget.
 	 */

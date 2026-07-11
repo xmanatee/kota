@@ -49,6 +49,7 @@ export type AgentHarnessRuntimeProbe =
       readonly command: string;
       readonly binaryName: string;
       readonly executablePath?: string;
+      readonly version?: string;
       readonly detail: string;
       readonly summary: string;
     }
@@ -198,6 +199,7 @@ export type NativeCliRuntimeProbeSpec = {
   readonly binaryName: string;
   readonly versionArgs: readonly string[];
   readonly required: boolean;
+  readonly minimumVersion?: string;
   readonly missingSummary?: string;
 };
 

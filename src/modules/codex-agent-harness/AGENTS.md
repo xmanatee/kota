@@ -11,17 +11,20 @@ route a run through this adapter.
 
 ## Provider Routing
 
-Models are passed to `codex exec --model` verbatim (for example `gpt-5.5`,
-`gpt-5.4`, `gpt-5.4-mini`). The adapter also passes
-`preferred_auth_method="chatgpt"` so an exported `OPENAI_API_KEY` does not
-accidentally take priority over the local Codex login.
+Models are passed to `codex exec --model` verbatim. The shipped Codex preset
+maps fast, balanced, and capable work to GPT-5.6 Luna, Terra, and Sol. The
+adapter removes `OPENAI_API_KEY` from the child process so an exported API key
+does not take priority over the local Codex login.
+
+KOTA supports Codex CLI `0.144.1` or newer for this GPT-5.6 integration.
 
 Reasoning effort maps to Codex CLI's `model_reasoning_effort` config:
 
 - `low` -> `low`
 - `medium` -> `medium`
 - `high` -> `high`
-- `xhigh` / `max` -> `xhigh`
+- `xhigh` -> `xhigh`
+- `max` -> `max`
 
 ## Loop Shape
 
@@ -29,7 +32,8 @@ The adapter runs one non-interactive CLI process per KOTA harness call:
 
 1. Compose the KOTA system prompt, workflow rails, and task prompt into one
    stdin prompt for `codex exec -`.
-2. Spawn `codex exec --json --ignore-user-config --sandbox <mode> --model <model>`.
+2. Spawn an ephemeral, strict-config `codex exec --json` process with user
+   plugins and hooks disabled, plus the selected sandbox and model.
 3. Parse JSONL events from stdout. `item.completed` agent-message events are
    streamed to the optional `AgentHarnessWriter` and collected as final text.
 4. Read the final `turn.completed` usage event for token counts and return the
@@ -52,6 +56,6 @@ deterministic `askOwnerSteps` recipe outside the agent step.
 The adapter still carries KOTA's workflow rails in the prompt: agents must not
 run `git commit` and must not stop or control the daemon that launched them.
 Post-step workflow checks remain responsible for validating repo state.
-It also passes `--ignore-user-config` so operator-global Codex MCP servers,
-hooks, or config profiles cannot make daemon-launched workflow steps fail
-before the KOTA prompt runs; Codex auth still comes from `CODEX_HOME`.
+It also passes `--ignore-user-config` and explicitly disables plugins and hooks
+so operator-global extensions cannot affect daemon-launched workflow steps;
+Codex auth still comes from `CODEX_HOME`.

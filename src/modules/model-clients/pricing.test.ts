@@ -8,9 +8,9 @@ import {
 } from "./pricing.js";
 
 const TARGET_NON_ANTHROPIC_MODELS = [
-	"gpt-5.5",
-	"gpt-5.4",
-	"gpt-5.4-mini",
+	"gpt-5.6-sol",
+	"gpt-5.6-terra",
+	"gpt-5.6-luna",
 	"gemini-2.5-pro",
 	"gemini-2.5-flash",
 	"gemini-2.5-flash-lite",
@@ -58,6 +58,49 @@ describe("shipped model pricing provider", () => {
 		}
 	});
 
+	it("records the official GPT-5.6 standard and cache rates", () => {
+		const provider = createShippedModelPricingProvider();
+		expect(provider.getPricing("gpt-5.6-sol")).toEqual({
+			kind: "input-token-tiered",
+			tiers: [
+				{
+					maxInputTokens: 272_000,
+					rates: { input: 5, output: 30, cacheRead: 0.5, cacheWrite: 6.25 },
+				},
+				{
+					maxInputTokens: null,
+					rates: { input: 10, output: 45, cacheRead: 1, cacheWrite: 12.5 },
+				},
+			],
+		});
+		expect(provider.getPricing("gpt-5.6-terra")).toEqual({
+			kind: "input-token-tiered",
+			tiers: [
+				{
+					maxInputTokens: 272_000,
+					rates: { input: 2.5, output: 15, cacheRead: 0.25, cacheWrite: 3.125 },
+				},
+				{
+					maxInputTokens: null,
+					rates: { input: 5, output: 22.5, cacheRead: 0.5, cacheWrite: 6.25 },
+				},
+			],
+		});
+		expect(provider.getPricing("gpt-5.6-luna")).toEqual({
+			kind: "input-token-tiered",
+			tiers: [
+				{
+					maxInputTokens: 272_000,
+					rates: { input: 1, output: 6, cacheRead: 0.1, cacheWrite: 1.25 },
+				},
+				{
+					maxInputTokens: null,
+					rates: { input: 2, output: 9, cacheRead: 0.2, cacheWrite: 2.5 },
+				},
+			],
+		});
+	});
+
 	it("keeps unknown models outside the provider", () => {
 		const provider = createShippedModelPricingProvider();
 		expect(getShippedModelPricingStatus("unknown-provider-model")).toBeNull();
@@ -68,7 +111,7 @@ describe("shipped model pricing provider", () => {
 		const sources = Object.values(MODEL_PRICING_SOURCES);
 		expect(sources.map((source) => source.url)).toEqual([
 			"https://platform.claude.com/docs/en/about-claude/pricing",
-			"https://openai.com/api/pricing/",
+			"https://developers.openai.com/api/docs/pricing",
 			"https://ai.google.dev/gemini-api/docs/pricing",
 			"https://openrouter.ai/api/v1/models",
 		]);

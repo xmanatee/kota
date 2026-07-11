@@ -12,6 +12,23 @@ export { NODE_RUNTIME_PROBE_DEPS } from "./readiness-node-deps.js";
 
 import { NODE_RUNTIME_PROBE_DEPS } from "./readiness-node-deps.js";
 
+function parseNumericVersion(value: string): readonly [number, number, number] | null {
+  const match = value.match(/(?:^|\D)(\d+)\.(\d+)\.(\d+)(?:\D|$)/);
+  if (!match) return null;
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+function compareVersions(
+  left: readonly [number, number, number],
+  right: readonly [number, number, number],
+): number {
+  for (let index = 0; index < left.length; index += 1) {
+    const difference = left[index] - right[index];
+    if (difference !== 0) return difference;
+  }
+  return 0;
+}
+
 export function probeNativeCliRuntime(
   spec: NativeCliRuntimeProbeSpec,
   deps: AgentHarnessRuntimeProbeDeps = NODE_RUNTIME_PROBE_DEPS,
@@ -57,6 +74,37 @@ export function probeNativeCliRuntime(
       detail: version.detail,
       summary: `${command} failed: ${version.detail}`,
     };
+  }
+
+  if (spec.minimumVersion !== undefined) {
+    const installed = parseNumericVersion(version.version);
+    const minimum = parseNumericVersion(spec.minimumVersion);
+    if (installed === null || minimum === null) {
+      return {
+        kind: "native-cli",
+        status: "error",
+        required: spec.required,
+        command,
+        binaryName: spec.binaryName,
+        executablePath: binary.executablePath,
+        version: version.version,
+        detail: `Could not compare installed version "${version.version}" with required version "${spec.minimumVersion}".`,
+        summary: `${spec.binaryName} version compatibility could not be determined`,
+      };
+    }
+    if (compareVersions(installed, minimum) < 0) {
+      return {
+        kind: "native-cli",
+        status: "error",
+        required: spec.required,
+        command,
+        binaryName: spec.binaryName,
+        executablePath: binary.executablePath,
+        version: version.version,
+        detail: `${spec.binaryName} ${spec.minimumVersion} or newer is the supported KOTA runtime.`,
+        summary: `${spec.binaryName} ${spec.minimumVersion} or newer is supported; found ${version.version}`,
+      };
+    }
   }
 
   return {

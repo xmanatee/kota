@@ -135,7 +135,7 @@ export function launchDefaultParameters(): UiActionParameterSpec {
     { label: "Low", value: "low" },
     { label: "Medium", value: "medium" },
     { label: "High", value: "high" },
-    { label: "XHigh", value: "xhigh" },
+    { label: "Extra high", value: "xhigh" },
     { label: "Max", value: "max" },
   ];
   return {

@@ -3,6 +3,7 @@ import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { MessageStreamParams } from "#core/model/model-client.js";
 import { openRouterCapabilitiesToOpenAIModelCapabilities } from "../openrouter-capabilities.js";
 import { getOpenRouterModelCapabilities } from "../openrouter-catalog.js";
+import { openaiReasoningEffortTranslator } from "../reasoning.js";
 import { buildOpenAIRequestBody } from "./request-body.js";
 import type { OAIRequestOptions } from "./types.js";
 
@@ -54,6 +55,40 @@ function openRouterBody(
 }
 
 describe("OpenAI request body model capabilities", () => {
+	it("uses the Chat Completions reasoning field for direct GPT-5.6 requests", () => {
+		const body = buildOpenAIRequestBody(
+			baseParams("gpt-5.6-sol", 128_000, { effort: "xhigh" }),
+			true,
+			{
+				presetName: "openai",
+				effortTranslator: openaiReasoningEffortTranslator,
+				requestOptions: {},
+			},
+		);
+
+		expect(body.max_completion_tokens).toBe(128_000);
+		expect(body.max_tokens).toBeUndefined();
+		expect(body.reasoning_effort).toBe("xhigh");
+		expect(body.reasoning).toBeUndefined();
+	});
+
+	it("rejects GPT-5.6 function tools on direct Chat Completions", () => {
+		expect(() =>
+			buildOpenAIRequestBody(
+				baseParams("gpt-5.6-terra", 128_000, {
+					tools: [lookupTool],
+					effort: "xhigh",
+				}),
+				true,
+				{
+					presetName: "openai",
+					effortTranslator: openaiReasoningEffortTranslator,
+					requestOptions: {},
+				},
+			),
+		).toThrow(/GPT-5\.6.*function tools.*Responses API/);
+	});
+
 	it("builds an exact GLM 5.2 request with reasoning and routing", () => {
 		const responseFormat = {
 			type: "json_schema" as const,

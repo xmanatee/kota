@@ -68,6 +68,34 @@ describe("agent harness readiness probes", () => {
     });
   });
 
+  it("reports an installed native CLI below the required version as an error", () => {
+    const probe = probeNativeCliRuntime(
+      {
+        binaryName: "codex",
+        versionArgs: ["--version"],
+        required: true,
+        minimumVersion: "0.144.1",
+      },
+      fakeDeps({
+        resolveBinary: () => ({
+          status: "ready",
+          executablePath: "/opt/bin/codex",
+        }),
+        readCommandVersion: () => ({
+          status: "ready",
+          version: "codex-cli 0.141.0",
+        }),
+      }),
+    );
+
+    expect(probe).toMatchObject({
+      kind: "native-cli",
+      status: "error",
+      version: "codex-cli 0.141.0",
+      summary: "codex 0.144.1 or newer is supported; found codex-cli 0.141.0",
+    });
+  });
+
   it("keeps a missing Gemini CLI informational when the SDK package is ready", () => {
     const deps = fakeDeps({
       resolveBinary: () => ({ status: "missing", detail: "gemini not found" }),
