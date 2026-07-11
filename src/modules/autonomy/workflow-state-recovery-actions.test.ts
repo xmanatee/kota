@@ -150,7 +150,7 @@ describe("workflow state recovery actions", () => {
     const listed = provider.list({ projectDir });
     expect(listed.ok).toBe(true);
     expect(listed.ok ? listed.claims[0]?.recommendedAction : null).toMatchObject({
-      kind: "blocked",
+      kind: "needs-review",
       reason: "pending-merge evidence still names merge blockers that need review",
     });
 
@@ -170,7 +170,7 @@ describe("workflow state recovery actions", () => {
         result: "refused",
         before: {
           recommendedAction: {
-            kind: "blocked",
+            kind: "needs-review",
           },
         },
         after: {
@@ -193,7 +193,7 @@ describe("workflow state recovery actions", () => {
     const listed = provider.list({ projectDir });
     expect(listed.ok).toBe(true);
     expect(listed.ok ? listed.claims[0]?.recommendedAction : null).toMatchObject({
-      kind: "blocked",
+      kind: "needs-review",
     });
 
     const resolved = provider.resolve({

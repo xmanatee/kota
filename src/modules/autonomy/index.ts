@@ -1,11 +1,12 @@
 import { fileURLToPath } from "node:url";
 import type { AgentDef } from "#core/agents/agent-types.js";
-import type { KotaModule } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import {
   importModuleExports,
   listModuleDirectories,
 } from "#core/modules/runtime-module-discovery.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { reconcileAutomationWorktrees } from "#modules/git/worktree-lifecycle.js";
 import { WORKFLOW_STATE_RECOVERY_PROVIDER_TYPE } from "#modules/workflow-ops/state-recovery-provider.js";
 import { autonomyHealthSignal } from "./health-signal.js";
 import { buildLoopQualityAuditCommand } from "./loop-quality-audit-cli.js";
@@ -86,6 +87,27 @@ async function discoverAutonomyAgents(): Promise<AgentDef[]> {
     .filter((agent): agent is AgentDef => agent !== undefined);
 }
 
+function reconcileBuilderWorktreesFromRuntime(
+  ctx: ModuleRuntimeContext,
+  source: string,
+): void {
+  try {
+    const result = reconcileAutomationWorktrees(ctx.cwd);
+    if (result.inspected === 0) return;
+    ctx.log.info(
+      `Automation worktree reconciliation after ${source}: inspected=${result.inspected} ` +
+        `active=${result.active} unlocked=${result.unlocked} removed=${result.removed} ` +
+        `preserved=${result.preserved}`,
+    );
+  } catch (error) {
+    ctx.log.warn(
+      `Automation worktree reconciliation after ${source} failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+}
+
 const autonomyModule: KotaModule = {
   name: "autonomy",
   version: "1.0.0",
@@ -114,6 +136,10 @@ const autonomyModule: KotaModule = {
       WORKFLOW_STATE_RECOVERY_PROVIDER_TYPE,
       createWorkflowStateRecoveryProvider(),
     );
+    ctx.events.subscribe("workflow.interrupted.alert", (payload) => {
+      if (payload.workflow !== "builder") return;
+      reconcileBuilderWorktreesFromRuntime(ctx, `workflow.interrupted.alert ${payload.runId}`);
+    });
   },
   commands: () => [
     buildDigestCommand(),

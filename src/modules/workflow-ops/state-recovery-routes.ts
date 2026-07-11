@@ -23,6 +23,11 @@ type ResolveBodyFields = {
   runId?: string;
   actor?: string;
   artifactRunId?: string;
+  supersededByCommit?: string;
+  cleanupWorktree?: boolean;
+  discardWorktreeChanges?: boolean;
+  dismissDeadLetters?: boolean;
+  completeTask?: boolean;
 };
 
 function readResolveBody(body: ResolveBodyFields):
@@ -49,6 +54,21 @@ function readResolveBody(body: ResolveBodyFields):
       ...(artifactRunId.artifactRunId !== undefined
         ? { artifactRunId: artifactRunId.artifactRunId }
         : {}),
+      ...(typeof body.supersededByCommit === "string"
+        ? { supersededByCommit: body.supersededByCommit }
+        : {}),
+      ...(typeof body.cleanupWorktree === "boolean"
+        ? { cleanupWorktree: body.cleanupWorktree }
+        : {}),
+      ...(typeof body.discardWorktreeChanges === "boolean"
+        ? { discardWorktreeChanges: body.discardWorktreeChanges }
+        : {}),
+      ...(typeof body.dismissDeadLetters === "boolean"
+        ? { dismissDeadLetters: body.dismissDeadLetters }
+        : {}),
+      ...(typeof body.completeTask === "boolean"
+        ? { completeTask: body.completeTask }
+        : {}),
     },
   };
 }
@@ -59,6 +79,14 @@ function stringField(
 ): string | undefined {
   const value = body[key];
   return typeof value === "string" ? value : undefined;
+}
+
+function booleanField(
+  body: Awaited<ReturnType<typeof readBody>>,
+  key: keyof ResolveBodyFields,
+): boolean | undefined {
+  const value = body[key];
+  return typeof value === "boolean" ? value : undefined;
 }
 
 export function workflowStateRecoveryControlRoutes(
@@ -108,6 +136,11 @@ export function workflowStateRecoveryControlRoutes(
           runId: stringField(rawBody, "runId"),
           actor: stringField(rawBody, "actor"),
           artifactRunId: stringField(rawBody, "artifactRunId"),
+          supersededByCommit: stringField(rawBody, "supersededByCommit"),
+          cleanupWorktree: booleanField(rawBody, "cleanupWorktree"),
+          discardWorktreeChanges: booleanField(rawBody, "discardWorktreeChanges"),
+          dismissDeadLetters: booleanField(rawBody, "dismissDeadLetters"),
+          completeTask: booleanField(rawBody, "completeTask"),
         });
         if (!body.ok) {
           jsonResponse(res, 400, { error: body.message });

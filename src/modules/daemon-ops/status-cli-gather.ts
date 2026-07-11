@@ -22,6 +22,8 @@ import type {
   StatusSnapshot,
 } from "./status-cli-types.js";
 
+type WorktreeStatus = ReturnType<typeof listAutomationWorktreeStatuses>[number];
+
 export function classifyDaemonControlFile(
   projectDir: string,
   options: { processIsAlive?: (pid: number) => boolean } = {},
@@ -55,7 +57,11 @@ export async function gatherStatus(
   const link = getDaemonTransport(stateDir);
   const controlFile = classifyDaemonControlFile(projectDir);
   const projectName = basename(projectDir) || projectDir;
-  const worktrees = listAutomationWorktreeStatuses(projectDir);
+  const allWorktrees = sortWorktreeStatuses(listAutomationWorktreeStatuses(projectDir));
+  const worktreeSummary = summarizeWorktrees(allWorktrees, options.includeRemovedWorktrees === true);
+  const worktrees = allWorktrees.filter(
+    (worktree) => options.includeRemovedWorktrees === true || worktree.state !== "removed",
+  );
 
   if (link) {
     const statusPath = options.projectId
@@ -89,11 +95,53 @@ export async function gatherStatus(
         projectsView,
         explicitProjectId: options.projectId,
         worktrees,
+        worktreeSummary,
       });
     }
   }
 
-  return offlineStatusSnapshot(projectDir, projectName, controlFile, worktrees);
+  return offlineStatusSnapshot(projectDir, projectName, controlFile, worktrees, worktreeSummary);
+}
+
+function sortWorktreeStatuses(worktrees: WorktreeStatus[]): WorktreeStatus[] {
+  return [...worktrees].sort((a, b) => {
+    const byPriority = worktreePriority(a) - worktreePriority(b);
+    return byPriority !== 0 ? byPriority : b.runId.localeCompare(a.runId);
+  });
+}
+
+function worktreePriority(worktree: WorktreeStatus): number {
+  if (worktree.state === "active") return 0;
+  if (worktree.state === "stale" && worktree.dirtyState !== "clean") return 1;
+  if (worktree.state === "stale") return 2;
+  if (
+    worktree.cleanupStatus === "blocked" ||
+    worktree.state === "pending-merge" ||
+    worktree.state === "conflicted"
+  ) return 3;
+  if (worktree.cleanupEligible || worktree.state === "merged") return 4;
+  return 5;
+}
+
+function summarizeWorktrees(
+  worktrees: WorktreeStatus[],
+  includeRemoved: boolean,
+): NonNullable<StatusSnapshot["worktreeSummary"]> | undefined {
+  if (worktrees.length === 0) return undefined;
+  return {
+    active: worktrees.filter((worktree) => worktree.state === "active").length,
+    staleDirty: worktrees.filter(
+      (worktree) => worktree.state === "stale" && worktree.dirtyState !== "clean",
+    ).length,
+    staleClean: worktrees.filter(
+      (worktree) => worktree.state === "stale" && worktree.dirtyState === "clean",
+    ).length,
+    blocked: worktrees.filter(
+      (worktree) => worktree.cleanupStatus === "blocked" && worktree.state !== "removed",
+    ).length,
+    cleanupEligible: worktrees.filter((worktree) => worktree.cleanupEligible).length,
+    removedHidden: includeRemoved ? 0 : worktrees.filter((worktree) => worktree.state === "removed").length,
+  };
 }
 
 function liveStatusSnapshot(args: {
@@ -110,7 +158,8 @@ function liveStatusSnapshot(args: {
     activeProjectId: string | null;
   } | null;
   explicitProjectId: string | undefined;
-  worktrees: ReturnType<typeof listAutomationWorktreeStatuses>;
+  worktrees: WorktreeStatus[];
+  worktreeSummary: NonNullable<StatusSnapshot["worktreeSummary"]> | undefined;
 }): StatusSnapshot {
   const daemonProjectDir = args.identity?.projectDir;
   const wrongProject = daemonProjectDir != null && daemonProjectDir !== args.projectDir;
@@ -147,6 +196,7 @@ function liveStatusSnapshot(args: {
         pendingRecovery: args.status.workflow.recovery,
       }),
     ...(args.worktrees.length > 0 && { worktrees: args.worktrees }),
+    ...(args.worktreeSummary !== undefined && { worktreeSummary: args.worktreeSummary }),
   };
 }
 
@@ -154,7 +204,8 @@ function offlineStatusSnapshot(
   projectDir: string,
   projectName: string,
   controlFile: DaemonControlIdentity,
-  worktrees: ReturnType<typeof listAutomationWorktreeStatuses>,
+  worktrees: WorktreeStatus[],
+  worktreeSummary: NonNullable<StatusSnapshot["worktreeSummary"]> | undefined,
 ): StatusSnapshot {
   const stateDir = join(projectDir, ".kota");
   const store = new WorkflowRunStore(projectDir);
@@ -191,6 +242,7 @@ function offlineStatusSnapshot(
       strandedDaemon: { pid: strandedDaemon.pid, command: strandedDaemon.command },
     }),
     ...(worktrees.length > 0 && { worktrees }),
+    ...(worktreeSummary !== undefined && { worktreeSummary }),
   };
 }
 

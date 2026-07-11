@@ -8,7 +8,9 @@ import {
   type RenderNode,
   type SemanticRole,
   span,
+  stack,
 } from "#modules/rendering/primitives.js";
+import type { StatusSnapshot } from "./status-cli-types.js";
 
 function cleanupValue(worktree: AutomationWorktreeOperatorStatus): string {
   if (worktree.cleanupStatus === "removed") return "removed";
@@ -24,6 +26,7 @@ function worktreeRole(worktree: AutomationWorktreeOperatorStatus): SemanticRole 
 }
 
 function runtimeResourceValue(worktree: AutomationWorktreeOperatorStatus): string | null {
+  if (worktree.runState !== "active") return null;
   const resources = worktree.runtimeResources;
   if (resources === undefined) return null;
   const parts = [`profile ${resources.profileId}`];
@@ -80,20 +83,34 @@ function worktreeStatusEntries(worktree: AutomationWorktreeOperatorStatus): KVEn
 
 export function buildWorktreeStatusNode(
   worktrees: readonly AutomationWorktreeOperatorStatus[],
+  summary?: StatusSnapshot["worktreeSummary"],
 ): RenderNode | null {
-  if (worktrees.length === 0) return null;
+  if (worktrees.length === 0 && summary === undefined) return null;
+  const summaryNode = summary
+    ? kvBlock([
+        { label: "Active", value: String(summary.active), role: summary.active > 0 ? "info" : "muted" },
+        { label: "Stale dirty", value: String(summary.staleDirty), role: summary.staleDirty > 0 ? "warn" : "muted" },
+        { label: "Stale clean", value: String(summary.staleClean), role: summary.staleClean > 0 ? "warn" : "muted" },
+        { label: "Blocked", value: String(summary.blocked), role: summary.blocked > 0 ? "warn" : "muted" },
+        { label: "Cleanup eligible", value: String(summary.cleanupEligible), role: summary.cleanupEligible > 0 ? "success" : "muted" },
+        { label: "Removed hidden", value: String(summary.removedHidden), role: "muted" },
+      ])
+    : null;
+  const detailNode = worktrees.length > 0
+    ? list(
+        worktrees.map((worktree) => ({
+          spans: [
+            span(worktree.state, worktreeRole(worktree), true),
+            plain(`  ${worktree.taskId}  ${worktree.runId}`),
+          ],
+          children: [
+            kvBlock(worktreeStatusEntries(worktree)),
+          ],
+        })),
+      )
+    : null;
   return group(
     "Automation worktrees",
-    list(
-      worktrees.map((worktree) => ({
-        spans: [
-          span(worktree.state, worktreeRole(worktree), true),
-          plain(`  ${worktree.taskId}  ${worktree.runId}`),
-        ],
-        children: [
-          kvBlock(worktreeStatusEntries(worktree)),
-        ],
-      })),
-    ),
+    summaryNode && detailNode ? stack(summaryNode, detailNode) : summaryNode ?? detailNode!,
   );
 }

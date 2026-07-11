@@ -15,10 +15,49 @@ export type HistoryStats = {
   p95DurationMs: number | null;
 };
 
-export function loadRunsInWindow(runsDir: string, cutoffMs: number): WorkflowRunMetadata[] {
+export type StoredWorkflowRunFilter = {
+  sinceMs?: number;
+  untilMs?: number;
+  workflow?: string;
+  tag?: string;
+  causedByRunId?: string;
+};
+
+const VALID_RUN_STATUSES = new Set([
+  "running",
+  "success",
+  "failed",
+  "interrupted",
+  "completed-with-warnings",
+]);
+
+function isWorkflowRunMetadata(value: WorkflowRunMetadata | null): value is WorkflowRunMetadata {
+  if (!value || typeof value !== "object") return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.workflow === "string" &&
+    typeof value.startedAt === "string" &&
+    Number.isFinite(new Date(value.startedAt).getTime()) &&
+    typeof value.status === "string" &&
+    VALID_RUN_STATUSES.has(value.status)
+  );
+}
+
+export function loadRunsInWindow(
+  runsDir: string,
+  cutoffMs: number,
+  untilMs = Number.POSITIVE_INFINITY,
+): WorkflowRunMetadata[] {
+  return listStoredWorkflowRuns(runsDir, { sinceMs: cutoffMs, untilMs });
+}
+
+export function listStoredWorkflowRuns(
+  runsDir: string,
+  filter: StoredWorkflowRunFilter = {},
+): WorkflowRunMetadata[] {
   let dirs: string[];
   try {
-    dirs = readdirSync(runsDir).sort().reverse();
+    dirs = readdirSync(runsDir);
   } catch {
     return [];
   }
@@ -26,11 +65,21 @@ export function loadRunsInWindow(runsDir: string, cutoffMs: number): WorkflowRun
   for (const dir of dirs) {
     const metadataPath = join(runsDir, dir, "metadata.json");
     const metadata = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
-    if (!metadata) continue;
-    if (new Date(metadata.startedAt).getTime() < cutoffMs) break;
+    if (!isWorkflowRunMetadata(metadata)) continue;
+    const startedAtMs = new Date(metadata.startedAt).getTime();
+    if (filter.untilMs !== undefined && startedAtMs > filter.untilMs) continue;
+    if (filter.sinceMs !== undefined && startedAtMs < filter.sinceMs) continue;
+    if (filter.workflow !== undefined && metadata.workflow !== filter.workflow) continue;
+    if (filter.tag !== undefined && !(metadata.tags ?? []).includes(filter.tag)) continue;
+    if (filter.causedByRunId !== undefined && metadata.causedBy?.runId !== filter.causedByRunId) {
+      continue;
+    }
     runs.push(metadata);
   }
-  return runs;
+  return runs.sort((a, b) => {
+    const byStartedAt = new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime();
+    return byStartedAt !== 0 ? byStartedAt : b.id.localeCompare(a.id);
+  });
 }
 
 export function computeHistoryStats(runs: WorkflowRunMetadata[]): HistoryStats {

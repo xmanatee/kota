@@ -59,6 +59,61 @@ import type {
 
 const WORKFLOW_TERMINAL_STATUSES = new Set(["success", "failed", "interrupted", "completed-with-warnings"]);
 
+export type DisposedAutomationWorktreeResult = {
+	removed: boolean;
+	inspection: AutomationWorktreeInspection;
+	message: string;
+	blockers: string[];
+	uniqueCommits: string[];
+};
+
+export type AutomationWorktreeUniqueCommits = {
+	commits: string[];
+	branchAhead: number | null;
+	branchBehind: number | null;
+	error?: string;
+};
+
+export type AutomationWorktreeReconcileAction =
+	| "active"
+	| "removed"
+	| "preserved"
+	| "unlocked-preserved"
+	| "unlocked-removed";
+
+export type AutomationWorktreeReconcileItem = {
+	taskId: string;
+	runId: string;
+	workflowId: string;
+	action: AutomationWorktreeReconcileAction;
+	runState: AutomationWorktreeRunState;
+	metadataState: AutomationWorktreeState;
+	dirtyState: AutomationWorktreeOperatorStatus["dirtyState"];
+	lockedBefore: boolean;
+	unlocked: boolean;
+	removed: boolean;
+	blockers: string[];
+	message: string;
+};
+
+export type AutomationWorktreeReconcileResult = {
+	inspected: number;
+	active: number;
+	unlocked: number;
+	removed: number;
+	preserved: number;
+	preservedDirty: number;
+	preservedBlocked: number;
+	items: AutomationWorktreeReconcileItem[];
+};
+
+export type DisposeAutomationWorktreeInput = AutomationWorktreeSelector & {
+	reason: string;
+	disposition: "released" | "superseded";
+	supersededByCommit?: string;
+	discardWorktreeChanges?: boolean;
+};
+
 export function createAutomationWorktree(input: CreateAutomationWorktreeInput): AutomationWorktreeInspection {
 	assertCanonicalCheckoutReady(input.projectDir);
 	const baseRef = input.baseRef ?? "HEAD";
@@ -188,12 +243,7 @@ export function inspectAutomationWorktree(selector: AutomationWorktreeSelector):
 }
 
 export function listAutomationWorktreeStatuses(projectDir: string): AutomationWorktreeOperatorStatus[] {
-	const dir = metadataDir(projectDir);
-	if (!existsSync(dir)) return [];
-	return readdirSync(dir)
-		.filter(isAutomationWorktreeMetadataFileName)
-		.map((name) => readMetadataFile(projectDir, name))
-		.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+	return listAutomationWorktreeMetadata(projectDir)
 		.map((metadata) =>
 			operatorStatusForInspection(
 				inspectAutomationWorktree({
@@ -230,9 +280,265 @@ export function cleanupAutomationWorktree(selector: AutomationWorktreeSelector):
 	return { removed: true, inspection: inspectAutomationWorktree(selector) };
 }
 
+export function reconcileAutomationWorktrees(projectDir: string): AutomationWorktreeReconcileResult {
+	const items: AutomationWorktreeReconcileItem[] = [];
+	for (const metadata of listAutomationWorktreeMetadata(projectDir)) {
+		if (metadata.state === "removed") continue;
+		const selector = { projectDir, taskId: metadata.taskId, runId: metadata.runId };
+		const before = inspectAutomationWorktree(selector);
+		const lockedBefore = before.lock.locked;
+		if (before.runState === "active") {
+			items.push(reconcileItem(before, {
+				action: "active",
+				lockedBefore,
+				unlocked: false,
+				removed: false,
+				blockers: before.cleanup.blockers,
+				message: "owning workflow run is active; worktree left untouched",
+			}));
+			continue;
+		}
+
+		let current = before;
+		let unlocked = false;
+		let unlockBlocker: string | null = null;
+		if (shouldUnlockTerminalWorktreeLock(before)) {
+			try {
+				unlockAutomationWorktree(selector);
+				unlocked = true;
+				current = inspectAutomationWorktree(selector);
+			} catch (error) {
+				unlockBlocker = `failed to unlock terminal builder worktree: ${
+					error instanceof Error ? error.message : String(error)
+				}`;
+				current = before;
+			}
+		}
+
+		const cleanup = cleanupAutomationWorktree(selector);
+		current = cleanup.inspection;
+		const removed = cleanup.removed;
+		const dirtyState = dirtySummaryFor(current.dirty);
+		const blockers = [...(current.metadata.lastCleanupBlockers ?? current.cleanup.blockers)];
+		if (unlockBlocker !== null) blockers.unshift(unlockBlocker);
+		items.push(reconcileItem(current, {
+			action: removed
+				? unlocked ? "unlocked-removed" : "removed"
+				: unlocked ? "unlocked-preserved" : "preserved",
+			lockedBefore,
+			unlocked,
+			removed,
+			blockers,
+			message: removed
+				? "stale cleanup-eligible worktree removed"
+				: unlockBlocker !== null
+					? "stale worktree preserved because unlock failed"
+				: dirtyState === "dirty" || dirtyState === "conflicted"
+					? "stale worktree preserved with workspace-change blockers"
+					: "stale worktree preserved with cleanup blockers",
+		}));
+	}
+	return summarizeReconcileItems(items);
+}
+
+function shouldUnlockTerminalWorktreeLock(inspection: AutomationWorktreeInspection): boolean {
+	return (
+		inspection.metadata.workflowId === "builder" &&
+		inspection.runState === "finished" &&
+		inspection.lock.locked
+	);
+}
+
+function listAutomationWorktreeMetadata(projectDir: string): AutomationWorktreeMetadata[] {
+	const dir = metadataDir(projectDir);
+	if (!existsSync(dir)) return [];
+	return readdirSync(dir)
+		.filter(isAutomationWorktreeMetadataFileName)
+		.map((name) => readMetadataFile(projectDir, name))
+		.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+function reconcileItem(
+	inspection: AutomationWorktreeInspection,
+	fields: Omit<
+		AutomationWorktreeReconcileItem,
+		"taskId" | "runId" | "workflowId" | "runState" | "metadataState" | "dirtyState"
+	>,
+): AutomationWorktreeReconcileItem {
+	return {
+		taskId: inspection.metadata.taskId,
+		runId: inspection.metadata.runId,
+		workflowId: inspection.metadata.workflowId,
+		runState: inspection.runState,
+		metadataState: inspection.metadata.state,
+		dirtyState: dirtySummaryFor(inspection.dirty),
+		...fields,
+	};
+}
+
+function summarizeReconcileItems(
+	items: AutomationWorktreeReconcileItem[],
+): AutomationWorktreeReconcileResult {
+	const preserved = items.filter((item) => !item.removed && item.action !== "active");
+	return {
+		inspected: items.length,
+		active: items.filter((item) => item.action === "active").length,
+		unlocked: items.filter((item) => item.unlocked).length,
+		removed: items.filter((item) => item.removed).length,
+		preserved: preserved.length,
+		preservedDirty: preserved.filter((item) => item.dirtyState !== "clean").length,
+		preservedBlocked: preserved.filter((item) => item.dirtyState === "clean").length,
+		items,
+	};
+}
+
+export function listAutomationWorktreeUniqueCommits(
+	projectDir: string,
+	branchOrCommit: string,
+): AutomationWorktreeUniqueCommits {
+	if (!branchOrCommit) return { commits: [], branchAhead: null, branchBehind: null };
+	let commits: string[] = [];
+	let error: string | undefined;
+	try {
+		const output = git(projectDir, ["log", "--format=%H %s", `HEAD..${branchOrCommit}`]);
+		commits = output ? output.split("\n").filter(Boolean) : [];
+	} catch (caught) {
+		commits = [];
+		error = `failed to inspect unique commits for ${branchOrCommit}: ${
+			caught instanceof Error ? caught.message : String(caught)
+		}`;
+	}
+	let branchAhead: number | null = null;
+	let branchBehind: number | null = null;
+	try {
+		const output = git(projectDir, ["rev-list", "--left-right", "--count", `HEAD...${branchOrCommit}`]);
+		const [left, right] = output.split(/\s+/).map((part) => Number.parseInt(part, 10));
+		if (Number.isFinite(left)) branchBehind = left;
+		if (Number.isFinite(right)) branchAhead = right;
+	} catch (caught) {
+		branchAhead = null;
+		branchBehind = null;
+		error ??= `failed to inspect branch relation for ${branchOrCommit}: ${
+			caught instanceof Error ? caught.message : String(caught)
+		}`;
+	}
+	return {
+		commits,
+		branchAhead,
+		branchBehind,
+		...(error !== undefined ? { error } : {}),
+	};
+}
+
+export function disposeAutomationWorktree(
+	input: DisposeAutomationWorktreeInput,
+): DisposedAutomationWorktreeResult {
+	const before = inspectAutomationWorktree(input);
+	const unique = listAutomationWorktreeUniqueCommits(
+		input.projectDir,
+		before.branch || before.headCommit,
+	);
+	const blockers: string[] = [];
+	if (!before.exists) blockers.push("worktree path is missing");
+	if (before.runState === "active") blockers.push("worktree run is active");
+	if (before.dirty.conflicted) blockers.push("worktree has conflicted paths");
+	if (before.dirty.dirty && input.discardWorktreeChanges !== true) {
+		blockers.push("worktree has local changes and discardWorktreeChanges was not accepted");
+	}
+	if (unique.error !== undefined) blockers.push(unique.error);
+	if (unique.commits.length > 0 && !input.supersededByCommit) {
+		blockers.push("branch has unique commits and no superseding commit was provided");
+	}
+	if (input.supersededByCommit !== undefined) {
+		try {
+			git(input.projectDir, ["cat-file", "-e", `${input.supersededByCommit}^{commit}`]);
+		} catch (caught) {
+			blockers.push(
+				`superseding commit does not exist: ${input.supersededByCommit}: ${
+					caught instanceof Error ? caught.message : String(caught)
+				}`,
+			);
+		}
+	}
+	if (blockers.length > 0) {
+		writeMetadata(input.projectDir, {
+			...before.metadata,
+			updatedAt: new Date().toISOString(),
+			lastCleanupBlockers: blockers,
+		});
+		return {
+			removed: false,
+			inspection: inspectAutomationWorktree(input),
+			message: `Refused to dispose automation worktree ${before.metadata.taskId}/${before.metadata.runId}`,
+			blockers,
+			uniqueCommits: unique.commits,
+		};
+	}
+
+	if (before.lock.locked) {
+		try {
+			git(input.projectDir, ["worktree", "unlock", before.metadata.workspaceDir]);
+		} catch (caught) {
+			const message = `failed to unlock worktree before disposition: ${
+				caught instanceof Error ? caught.message : String(caught)
+			}`;
+			writeMetadata(input.projectDir, {
+				...before.metadata,
+				updatedAt: new Date().toISOString(),
+				lastCleanupBlockers: [message],
+			});
+			return {
+				removed: false,
+				inspection: inspectAutomationWorktree(input),
+				message,
+				blockers: [message],
+				uniqueCommits: unique.commits,
+			};
+		}
+	}
+
+	const forceRemove =
+		before.dirty.dirty ||
+		before.metadata.state === "pending-merge" ||
+		unique.commits.length > 0;
+	git(input.projectDir, [
+		"worktree",
+		"remove",
+		...(forceRemove ? ["--force"] : []),
+		before.metadata.workspaceDir,
+	]);
+	deleteLocalBranch(input.projectDir, before.metadata.branch, unique.commits.length > 0);
+	const now = new Date().toISOString();
+	writeMetadata(input.projectDir, {
+		...before.metadata,
+		state: "removed",
+		stateReason: [
+			`disposed as ${input.disposition}: ${input.reason}`,
+			...(input.supersededByCommit !== undefined
+				? [`superseded by ${input.supersededByCommit}`]
+				: []),
+		].join("; "),
+		removedAt: now,
+		updatedAt: now,
+		lastCleanupBlockers: [],
+	});
+	return {
+		removed: true,
+		inspection: inspectAutomationWorktree(input),
+		message: `Disposed automation worktree ${before.metadata.taskId}/${before.metadata.runId}`,
+		blockers: [],
+		uniqueCommits: unique.commits,
+	};
+}
+
 function deleteMergedLocalBranch(projectDir: string, branch: string): void {
 	if (!localBranchExists(projectDir, branch)) return;
 	git(projectDir, ["branch", "-d", branch]);
+}
+
+function deleteLocalBranch(projectDir: string, branch: string, force: boolean): void {
+	if (!localBranchExists(projectDir, branch)) return;
+	git(projectDir, ["branch", force ? "-D" : "-d", branch]);
 }
 
 function cleanupEligibility(
@@ -330,7 +636,7 @@ function operatorStatusForInspection(inspection: AutomationWorktreeInspection): 
 		cleanupStatus,
 		cleanupEligible: inspection.cleanup.eligible,
 		cleanupBlockers: inspection.cleanup.blockers,
-		...(metadata.runtimeResources !== undefined
+		...(inspection.runState === "active" && metadata.runtimeResources !== undefined
 			? { runtimeResources: metadata.runtimeResources }
 			: {}),
 		nextAction: nextActionFor(inspection, cleanupStatus),

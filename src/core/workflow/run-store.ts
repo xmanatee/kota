@@ -215,8 +215,6 @@ export class WorkflowRunStore {
     const dirs = readdirSync(this.runsDir).sort().reverse();
     const runs: WorkflowRunMetadata[] = [];
     for (const dir of dirs) {
-      // When filtering by causedByRunId, scan all dirs to avoid missing matches
-      if (!opts?.causedByRunId && runs.length >= limit) break;
       const meta = readOptionalJsonFile<WorkflowRunMetadata>(join(this.runsDir, dir, "metadata.json"));
       if (!meta) continue;
       if (opts?.workflow && meta.workflow !== opts.workflow) continue;
@@ -224,7 +222,12 @@ export class WorkflowRunStore {
       if (opts?.causedByRunId && meta.causedBy?.runId !== opts.causedByRunId) continue;
       runs.push(meta);
     }
-    return opts?.causedByRunId ? runs.slice(0, limit) : runs;
+    return runs
+      .sort((a, b) => {
+        const byStartedAt = new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime();
+        return byStartedAt !== 0 ? byStartedAt : b.id.localeCompare(a.id);
+      })
+      .slice(0, limit);
   }
 
   getRun(id: string): WorkflowRunMetadata | null {

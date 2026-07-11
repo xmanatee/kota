@@ -88,11 +88,14 @@ function buildExplorerAssessment(
     Date.now() - new Date(lastExplorationAt).getTime() >= EXPLORATION_REFRESH_MS;
   const queueEmpty = !queue.hasDispatchableWork;
   const queueThin = isThinClaimAwareDispatchableQueue(queue);
+  const locallyBlocked =
+    queue.claimBlockedTasks.length > 0 ||
+    queue.dependencyBlockedTasks.length > 0;
 
   return {
     ...queue,
     dirty,
-    needsAttention: !dirty && (queueEmpty || queueThin) && explorationRefreshDue,
+    needsAttention: !dirty && !locallyBlocked && (queueEmpty || queueThin) && explorationRefreshDue,
     explorationRefreshDue,
     strategicReadyCoverageGap: hasClaimAwareStrategicReadyCoverageGapForQueue(
       projectDir,

@@ -6,10 +6,9 @@
  * invariants the migration relies on:
  *
  *  1. The workflow-ops module exposes a `daemonClient(link)` factory and the
- *     factory contributes the `workflow` namespace with the fifteen contract
- *     methods.
+ *     factory contributes the `workflow` namespace contract methods.
  *  2. Each method routes through the expected HTTP method + path with the
- *     expected query/body shape (byte-for-byte against the prior core stub).
+ *     expected query/body shape.
  *  3. The success arm decodes correctly for each method.
  *  4. The throw-on-`null` arm fires with the byte-for-byte error string for
  *     each of the twelve methods that throw on transport failure.

@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -73,6 +73,27 @@ describe("workflow history", () => {
     it("returns empty array when runs directory does not exist", () => {
       const runs = loadRunsInWindow("/nonexistent/path", Date.now() - 86400_000);
       expect(runs).toHaveLength(0);
+    });
+
+    it("continues past older metadata in non-chronological directories", () => {
+      const sampleDir = join(store.runsDir, "sample-run");
+      mkdirSync(sampleDir, { recursive: true });
+      writeFileSync(
+        join(sampleDir, "metadata.json"),
+        JSON.stringify({
+          id: "sample-run",
+          workflow: "sample",
+          status: "success",
+          startedAt: new Date(Date.now() - 30 * 86400_000).toISOString(),
+        }),
+      );
+
+      const trigger = { event: "test", schemaRef: null, payload: {} };
+      const run = store.createRun(minimalWorkflow("builder"), trigger);
+      run.finish({ status: "success", durationMs: 1000 });
+
+      const runs = loadRunsInWindow(store.runsDir, Date.now() - 86400_000);
+      expect(runs.map((item) => item.workflow)).toEqual(["builder"]);
     });
   });
 

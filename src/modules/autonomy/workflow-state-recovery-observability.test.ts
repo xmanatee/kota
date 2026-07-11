@@ -59,6 +59,8 @@ describe("workflow state recovery observability", () => {
     return {
       found: true,
       metadataPath: ".kota/worktrees/task-run.json",
+      workspaceDir: ".worktrees/task-run",
+      branch: "kota/task/task-run",
       state,
       runState,
       dirtyState: "clean",
@@ -66,6 +68,10 @@ describe("workflow state recovery observability", () => {
       cleanupBlockers: [],
       mergeStatus: state,
       headCommit: null,
+      uniqueCommits: [],
+      uniqueCommitCount: 0,
+      branchAhead: 0,
+      branchBehind: 0,
     };
   }
 
@@ -160,6 +166,12 @@ describe("workflow state recovery observability", () => {
     const listed = provider.list({ projectDir });
 
     expect(listed.ok).toBe(true);
+    expect(listed.ok ? listed.worktrees : null).toEqual([]);
+    expect(listed.ok ? listed.deadLetters : null).toEqual([
+      expect.objectContaining({
+        id: deadLetter.id,
+      }),
+    ]);
     const claim = listed.ok ? listed.claims[0] : null;
     expect(claim?.recommendedAction).toMatchObject({ kind: "supersede" });
     expect(claim?.relatedDeadLetters).toEqual([

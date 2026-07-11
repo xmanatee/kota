@@ -6,6 +6,7 @@ import {
   type AutomationWorktreeInspection,
   type AutomationWorktreeMetadata,
   inspectAutomationWorktree,
+  listAutomationWorktreeUniqueCommits,
 } from "#modules/git/worktree-lifecycle.js";
 import type {
   WorkflowStateRecoveryRecommendedAction,
@@ -89,10 +90,17 @@ function mergeStatusForMetadata(metadata: AutomationWorktreeMetadata): string {
 
 function worktreeEvidenceFromInspection(
   inspection: AutomationWorktreeInspection,
+  projectDir: string,
 ): WorkflowStateRecoveryWorktreeEvidence {
+  const unique = listAutomationWorktreeUniqueCommits(
+    projectDir,
+    inspection.branch || inspection.headCommit,
+  );
   return {
     found: inspection.exists,
     metadataPath: inspection.metadataPath,
+    workspaceDir: inspection.metadata.workspaceDir,
+    branch: inspection.branch || inspection.metadata.branch,
     state: inspection.metadata.state,
     runState: inspection.runState,
     dirtyState: dirtyStateForInspection(inspection),
@@ -100,20 +108,29 @@ function worktreeEvidenceFromInspection(
     cleanupBlockers: inspection.cleanup.blockers,
     mergeStatus: mergeStatusForMetadata(inspection.metadata),
     headCommit: inspection.headCommit || null,
+    uniqueCommits: unique.commits,
+    uniqueCommitCount: unique.commits.length,
+    ...(unique.error !== undefined ? { uniqueCommitError: unique.error } : {}),
+    branchAhead: unique.branchAhead,
+    branchBehind: unique.branchBehind,
   };
 }
 
 function worktreeEvidenceFromMetadata(
   path: string,
   metadata: AutomationWorktreeMetadata,
+  inspectionError?: string,
 ): WorkflowStateRecoveryWorktreeEvidence {
   const cleanupBlockers = [
     ...(metadata.lastCleanupBlockers ?? []),
     ...(metadata.state === "pending-merge" ? ["worktree is pending merge"] : []),
+    ...(inspectionError !== undefined ? [`worktree inspection failed: ${inspectionError}`] : []),
   ];
   return {
     found: existsSync(metadata.workspaceDir),
     metadataPath: path,
+    workspaceDir: metadata.workspaceDir,
+    branch: metadata.branch,
     state: metadata.state,
     runState: null,
     dirtyState: null,
@@ -121,6 +138,13 @@ function worktreeEvidenceFromMetadata(
     cleanupBlockers,
     mergeStatus: mergeStatusForMetadata(metadata),
     headCommit: metadata.mergedCommit ?? null,
+    uniqueCommits: [],
+    uniqueCommitCount: 0,
+    ...(inspectionError !== undefined
+      ? { uniqueCommitError: `worktree inspection failed: ${inspectionError}` }
+      : {}),
+    branchAhead: null,
+    branchBehind: null,
   };
 }
 
@@ -128,6 +152,8 @@ function missingWorktreeEvidence(path: string): WorkflowStateRecoveryWorktreeEvi
   return {
     found: false,
     metadataPath: existsSync(path) ? path : null,
+    workspaceDir: null,
+    branch: null,
     state: null,
     runState: null,
     dirtyState: null,
@@ -135,6 +161,10 @@ function missingWorktreeEvidence(path: string): WorkflowStateRecoveryWorktreeEvi
     cleanupBlockers: [],
     mergeStatus: null,
     headCommit: null,
+    uniqueCommits: [],
+    uniqueCommitCount: 0,
+    branchAhead: null,
+    branchBehind: null,
   };
 }
 
@@ -152,10 +182,17 @@ export function readWorktreeEvidence(
           taskId: claim.taskId,
           runId: claim.runId,
         }),
+        projectDir,
       );
     }
-  } catch {
-    if (metadata !== null) return worktreeEvidenceFromMetadata(path, metadata);
+  } catch (error) {
+    if (metadata !== null) {
+      return worktreeEvidenceFromMetadata(
+        path,
+        metadata,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
   }
   if (metadata !== null) return worktreeEvidenceFromMetadata(path, metadata);
   return missingWorktreeEvidence(path);
@@ -203,8 +240,15 @@ export function recommendedActionFor(
 
   if (worktreeBlocked || claimBlocked) {
     return {
-      kind: "blocked",
+      kind: "needs-review",
       reason: "pending-merge evidence still names merge blockers that need review",
+    };
+  }
+
+  if (worktree.uniqueCommitError !== undefined) {
+    return {
+      kind: "needs-review",
+      reason: worktree.uniqueCommitError,
     };
   }
 

@@ -1,13 +1,13 @@
 ---
 id: task-recover-source-to-decision-builder-dead-letter-and
 title: Recover source-to-decision builder dead-letter and claim
-status: blocked
+status: done
 priority: p1
 area: workflow-runtime
 task_class: Meta
 summary: Resolve open dead-letter dlq-19bcae8b-7144-4738-a513-8d13d3ece5a0 from the failed builder run for task-add-source-to-decision-coverage-report-for-agent-r, recover or release the active claim, then redrive or dismiss the item with recorded rationale.
 created_at: 2026-07-07T05:17:24.396Z
-updated_at: 2026-07-07T05:25:38Z
+updated_at: 2026-07-09T03:26:20.000Z
 ---
 
 ## Problem
@@ -56,7 +56,7 @@ Outcome-aware autonomy progress review.
 
     The active claim for task-add-source-to-decision-coverage-report-for-agent-r is released, recovered, or superseded with evidence; dlq-19bcae8b-7144-4738-a513-8d13d3ece5a0 is dismissed or redriven with rationale; and a subsequent dead-letter count or progress-review packet no longer reports that item open.
 
-## Unblock Precondition
+## Historical Unblock Precondition
 
 ```
 kind: operator-capture
@@ -86,5 +86,16 @@ Evidence in `.kota/runs/2026-07-07T04-28-55-926Z-builder-10i0th/`:
   failed with `EPERM` while writing `items.json.tmp`.
 - `dead-letter-resolution.md` records the rationale and remaining blocker.
 
-This task is blocked on canonical runtime-state mutation evidence rather than
-marked done from the worktree-local fix alone.
+Historical blocker: this was waiting on canonical runtime-state mutation
+evidence after the worktree-local fix was recorded.
+
+## Closure (2026-07-09)
+
+Canonical recovery state is now resolved:
+
+- The source-to-decision builder DLQ was dismissed as superseded by recovered
+  canonical implementation evidence.
+- `workflow state-recovery list --json` reports no stale claim for
+  `task-add-source-to-decision-coverage-report-for-agent-r`.
+- `workflow worktrees reconcile --json` reports no unresolved automation
+  worktrees.

@@ -68,7 +68,7 @@ describe("computeStatsRows", () => {
     writeRun(runsDir, "r1", "builder", "success", now, 60_000, 0.10);
     writeRun(runsDir, "r2", "explorer", "success", now, 30_000, 0.05);
     const cutoffMs = Date.now() - 24 * 60 * 60 * 1000;
-    const rows = computeStatsRows(runsDir, cutoffMs, "builder");
+    const rows = computeStatsRows(runsDir, cutoffMs, { workflow: "builder" });
     expect(rows).toHaveLength(1);
     expect(rows[0].workflow).toBe("builder");
   });

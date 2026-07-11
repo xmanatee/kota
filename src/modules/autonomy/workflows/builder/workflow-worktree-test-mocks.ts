@@ -75,6 +75,48 @@ vi.mock("#modules/git/worktree-lifecycle.js", () => ({
       cleanup: { eligible: true, blockers: [] },
     },
   })),
+  inspectAutomationWorktree: vi.fn((selector: WorktreeSelector) => ({
+    metadata: makeMetadata(selector, "active"),
+    metadataPath: `${selector.projectDir}/.kota/worktrees/${selector.taskId}-${selector.runId}.json`,
+    exists: true,
+    branch: branchName(selector),
+    baseCommit: "abc1234",
+    headCommit: "abc1234",
+    dirty: cleanDirtyState(),
+    lock: { locked: true, reason: "builder agent running" },
+    push: cleanPushState(),
+    cleanup: {
+      eligible: false,
+      blockers: ["worktree is locked: builder agent running"],
+    },
+  })),
+  listAutomationWorktreeUniqueCommits: vi.fn(() => ({
+    commits: [],
+    branchAhead: 0,
+    branchBehind: 0,
+  })),
+  reconcileAutomationWorktrees: vi.fn(() => ({
+    inspected: 0,
+    active: 0,
+    unlocked: 0,
+    removed: 0,
+    preserved: 0,
+    preservedDirty: 0,
+    preservedBlocked: 0,
+    items: [],
+  })),
+  unlockAutomationWorktree: vi.fn((selector: WorktreeSelector) => ({
+    metadata: makeMetadata(selector, "active"),
+    metadataPath: `${selector.projectDir}/.kota/worktrees/${selector.taskId}-${selector.runId}.json`,
+    exists: true,
+    branch: branchName(selector),
+    baseCommit: "abc1234",
+    headCommit: "abc1234",
+    dirty: cleanDirtyState(),
+    lock: { locked: false, reason: null },
+    push: cleanPushState(),
+    cleanup: { eligible: true, blockers: [] },
+  })),
   createAutomationWorktree: vi.fn((input: CreateWorktreeInput) => {
     const baseCommit = input.baseRef ?? "abc1234";
     return {

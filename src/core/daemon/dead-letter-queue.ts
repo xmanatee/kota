@@ -221,6 +221,71 @@ type DeadLetterQueueSnapshot = {
 
 const STORE_FILE = "items.json";
 
+function unionStrings(a: readonly string[], b: readonly string[]): string[] {
+  return [...new Set([...a, ...b])].sort();
+}
+
+function normalizeDeadLetterReason(reason: string): string {
+  return reason
+    .replace(/\b\d{4}-\d{2}-\d{2}T[0-9A-Za-z:.-]+Z-[a-z0-9-]+\b/g, "<run-id>")
+    .replace(/\bdlq-[0-9a-f-]{36}\b/g, "<dlq-id>");
+}
+
+function deadLetterSourceFingerprint(source: DeadLetterSource): string {
+  switch (source.kind) {
+    case "workflow-dispatch":
+      return JSON.stringify({
+        kind: source.kind,
+        workflowName: source.workflowName,
+        triggerEvent: source.triggerEvent,
+        triggerSchemaRef: source.triggerSchemaRef,
+      });
+    case "batch-envelope":
+      return JSON.stringify({
+        kind: source.kind,
+        workflowName: source.workflowName,
+        triggerIndex: source.triggerIndex,
+        sourceEventName: source.sourceEventName,
+        groupingKey: source.groupingKey,
+      });
+    case "event-envelope":
+      return JSON.stringify({
+        kind: source.kind,
+        eventName: source.eventName,
+      });
+    case "confirmed-action-dispatch":
+      return JSON.stringify({
+        kind: source.kind,
+        decisionId: source.decisionId,
+        actionId: source.actionId,
+        adapterName: source.adapterName,
+        workflowName: source.workflowName,
+        stepId: source.stepId,
+      });
+  }
+}
+
+export function deadLetterWorkflowName(item: DeadLetterItem): string | undefined {
+  if (item.source.kind === "workflow-dispatch") return item.source.workflowName;
+  if (item.source.kind === "batch-envelope") return item.source.workflowName;
+  if (item.source.kind === "confirmed-action-dispatch") return item.source.workflowName;
+  if (item.redrive.kind === "workflow") return item.redrive.workflowName;
+  return item.affectedWorkflowNames[0];
+}
+
+export function deadLetterDuplicateFingerprint(item: DeadLetterItem): string {
+  return JSON.stringify({
+    type: item.type,
+    scopeId: item.scopeId,
+    projectId: item.projectId,
+    owningModule: item.owningModule,
+    affectedWorkflowNames: [...item.affectedWorkflowNames].sort(),
+    failureClass: item.failure.lastErrorClass,
+    reason: normalizeDeadLetterReason(item.failure.reason),
+    source: deadLetterSourceFingerprint(item.source),
+  });
+}
+
 export class DeadLetterQueueStore {
   private readonly filePath: string;
 
@@ -302,6 +367,40 @@ export class DeadLetterQueueStore {
       ),
     };
     const snapshot = this.readSnapshot();
+    const duplicateIndex = snapshot.items.findIndex(
+      (existing) =>
+        existing.status === "open" &&
+        deadLetterDuplicateFingerprint(existing) === deadLetterDuplicateFingerprint(item),
+    );
+    if (duplicateIndex !== -1) {
+      const existing = snapshot.items[duplicateIndex]!;
+      const next: DeadLetterItem = {
+        ...existing,
+        sourceEventIds: unionStrings(existing.sourceEventIds, item.sourceEventIds),
+        affectedWorkflowNames: unionStrings(
+          existing.affectedWorkflowNames,
+          item.affectedWorkflowNames,
+        ),
+        failure: {
+          ...existing.failure,
+          reason: item.failure.reason,
+          retryCount: existing.failure.retryCount + item.failure.retryCount,
+          lastErrorClass: item.failure.lastErrorClass,
+          lastFailedAt: item.failure.lastFailedAt,
+        },
+        redactedProjection: item.redactedProjection,
+        updatedAt: now,
+        retention: resolveDeadLetterRetention(
+          input.retention,
+          new Date(now),
+          input.scopeId,
+          "open",
+        ),
+      };
+      snapshot.items[duplicateIndex] = next;
+      this.writeSnapshot(snapshot);
+      return next;
+    }
     snapshot.items.push(item);
     this.writeSnapshot(snapshot);
     return item;

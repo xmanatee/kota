@@ -4,6 +4,7 @@ import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import {
   createWorkflowDispatchDeadLetter,
+  type DeadLetterFailureClass,
   type DeadLetterQueueStore,
 } from "#core/daemon/dead-letter-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
@@ -174,6 +175,12 @@ export async function runWorkflow(
     abortController,
   };
   state.activeRuns.set(reservedRunId, reservation);
+  let reservationReleased = false;
+  const releaseReservation = () => {
+    if (reservationReleased) return;
+    state.activeRuns.delete(reservedRunId);
+    reservationReleased = true;
+  };
   const { promise } = executeWorkflowRun(
     definition,
     trigger,
@@ -211,8 +218,16 @@ export async function runWorkflow(
 
   try {
     const result = await promise;
-    recordFailedWorkflowDispatchDeadLetter(state, definition, trigger, result.metadata);
+    recordFailedWorkflowDispatchDeadLetter(
+      state,
+      definition,
+      trigger,
+      result.metadata,
+      result.agentBackoff?.kind,
+    );
     handleDirtyCompletion(state, definition, result.metadata, preRunFingerprint);
+    releaseReservation();
+    await runTerminalFinalizer(state, definition, trigger, result.metadata, workspaceDir);
     if (result.agentBackoff) {
       state.backoff.apply(result.agentBackoff);
       return;
@@ -225,8 +240,33 @@ export async function runWorkflow(
       state.backoff.clear();
     }
   } finally {
-    state.activeRuns.delete(reservedRunId);
+    releaseReservation();
     maybeStartNext(state);
+  }
+}
+
+async function runTerminalFinalizer(
+  state: WorkflowRuntimeDispatchState,
+  definition: WorkflowDefinition,
+  trigger: WorkflowRunTrigger,
+  metadata: WorkflowRunMetadata,
+  workspaceDir: string,
+): Promise<void> {
+  if (definition.terminalFinalizer === undefined) return;
+  try {
+    await definition.terminalFinalizer({
+      projectDir: state.projectDir,
+      workspaceDir,
+      metadata,
+      trigger,
+      log: state.log,
+    });
+  } catch (error) {
+    state.log(
+      `Workflow "${definition.name}" terminal finalizer failed for ${metadata.id}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
   }
 }
 
@@ -235,6 +275,7 @@ function recordFailedWorkflowDispatchDeadLetter(
   definition: WorkflowDefinition,
   trigger: WorkflowRunTrigger,
   metadata: WorkflowRunMetadata,
+  agentFailureClass?: DeadLetterFailureClass,
 ): void {
   if (metadata.status !== "failed") return;
   if (state.deadLetterQueue === undefined) return;
@@ -245,7 +286,7 @@ function recordFailedWorkflowDispatchDeadLetter(
     workflowName: definition.name,
     trigger,
     reason: failedStep?.error ?? `Workflow "${definition.name}" failed`,
-    errorClass: "execution",
+    errorClass: agentFailureClass ?? "execution",
     failedRun: metadata,
     retryCount: failedStep === undefined ? 1 : retryCountForStep(definition.steps, failedStep),
     owningModule: "workflow-runtime",

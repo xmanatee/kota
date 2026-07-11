@@ -46,8 +46,17 @@ export type StatusSnapshot = {
         "sourceWorkflow" | "sourceRunId" | "dirtyCheckout" | "worktreeSummary" | "attempts"
       >;
   worktrees?: AutomationWorktreeOperatorStatus[];
+  worktreeSummary?: {
+    active: number;
+    staleDirty: number;
+    staleClean: number;
+    blocked: number;
+    cleanupEligible: number;
+    removedHidden: number;
+  };
 };
 
 export type StatusGatherOptions = {
   projectId?: string;
+  includeRemovedWorktrees?: boolean;
 };

@@ -11,6 +11,7 @@ import {
 	lockAutomationWorktree,
 	markAutomationWorktreeMerged,
 	prepareAutomationWorktree,
+	reconcileAutomationWorktrees,
 	unlockAutomationWorktree,
 	updateAutomationWorktreeState,
 } from "./worktree-lifecycle.js";
@@ -63,6 +64,39 @@ function createFixtureWorktree(repo: string, runId = "run-1") {
 		workflowId: "builder",
 		owner: "test-owner",
 	});
+}
+
+function writeWorkflowState(repo: string, activeRunIds: string[]): void {
+	mkdirSync(join(repo, ".kota"), { recursive: true });
+	writeFileSync(
+		join(repo, ".kota", "workflow-state.json"),
+		`${JSON.stringify({
+			completedRuns: 0,
+			pendingRuns: [],
+			activeRuns: activeRunIds.map((runId) => ({ runId, workflow: "builder", startedAt: "2026-01-01T00:00:00.000Z" })),
+			workflows: {},
+		}, null, 2)}\n`,
+		"utf8",
+	);
+}
+
+function writeRunMetadata(repo: string, runId: string, status: string): void {
+	const runDir = join(repo, ".kota", "runs", runId);
+	mkdirSync(runDir, { recursive: true });
+	writeFileSync(
+		join(runDir, "metadata.json"),
+		`${JSON.stringify({
+			id: runId,
+			workflow: "builder",
+			definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+			trigger: { event: "test", payload: {} },
+			startedAt: "2026-01-01T00:00:00.000Z",
+			status,
+			runDir: `.kota/runs/${runId}`,
+			steps: [],
+		}, null, 2)}\n`,
+		"utf8",
+	);
 }
 
 afterEach(() => {
@@ -282,5 +316,90 @@ describe("automation worktree lifecycle", () => {
 		expect(removed.removed).toBe(true);
 		expect(removed.inspection.metadata.stateReason).toBe("merge gate accepted branch");
 		expect(removed.inspection.metadata.removedAt).toBeTruthy();
+	});
+
+	it("reconciles a failed dirty stale worktree by unlocking and preserving blockers", () => {
+		const repo = initRepo("reconcile-dirty-failed");
+		const created = createFixtureWorktree(repo, "run-failed");
+		lockAutomationWorktree(
+			{ projectDir: repo, taskId: created.metadata.taskId, runId: created.metadata.runId },
+			"builder agent running",
+		);
+		writeWorkflowState(repo, []);
+		writeRunMetadata(repo, created.metadata.runId, "failed");
+		writeFileSync(join(created.metadata.workspaceDir, "README.md"), "# Changed\n", "utf8");
+
+		const result = reconcileAutomationWorktrees(repo);
+		const item = result.items.find((candidate) => candidate.runId === created.metadata.runId);
+		const after = inspectAutomationWorktree({
+			projectDir: repo,
+			taskId: created.metadata.taskId,
+			runId: created.metadata.runId,
+		});
+
+		expect(item).toMatchObject({
+			action: "unlocked-preserved",
+			unlocked: true,
+			removed: false,
+			dirtyState: "dirty",
+		});
+		expect(after.exists).toBe(true);
+		expect(after.lock.locked).toBe(false);
+		expect(after.metadata.lastCleanupBlockers).toContain("worktree has uncommitted tracked changes");
+	});
+
+	it("reconciles a clean interrupted stale worktree by unlocking and removing it", () => {
+		const repo = initRepo("reconcile-clean-interrupted");
+		const created = createFixtureWorktree(repo, "run-interrupted");
+		lockAutomationWorktree(
+			{ projectDir: repo, taskId: created.metadata.taskId, runId: created.metadata.runId },
+			"builder agent running",
+		);
+		writeWorkflowState(repo, []);
+		writeRunMetadata(repo, created.metadata.runId, "interrupted");
+
+		const result = reconcileAutomationWorktrees(repo);
+		const item = result.items.find((candidate) => candidate.runId === created.metadata.runId);
+		const after = inspectAutomationWorktree({
+			projectDir: repo,
+			taskId: created.metadata.taskId,
+			runId: created.metadata.runId,
+		});
+
+		expect(item).toMatchObject({
+			action: "unlocked-removed",
+			unlocked: true,
+			removed: true,
+			dirtyState: "clean",
+		});
+		expect(after.exists).toBe(false);
+		expect(after.metadata.state).toBe("removed");
+	});
+
+	it("leaves an active builder worktree locked and untouched", () => {
+		const repo = initRepo("reconcile-active");
+		const created = createFixtureWorktree(repo, "run-active");
+		lockAutomationWorktree(
+			{ projectDir: repo, taskId: created.metadata.taskId, runId: created.metadata.runId },
+			"builder agent running",
+		);
+		writeWorkflowState(repo, [created.metadata.runId]);
+		writeRunMetadata(repo, created.metadata.runId, "running");
+
+		const result = reconcileAutomationWorktrees(repo);
+		const item = result.items.find((candidate) => candidate.runId === created.metadata.runId);
+		const after = inspectAutomationWorktree({
+			projectDir: repo,
+			taskId: created.metadata.taskId,
+			runId: created.metadata.runId,
+		});
+
+		expect(item).toMatchObject({
+			action: "active",
+			unlocked: false,
+			removed: false,
+		});
+		expect(after.exists).toBe(true);
+		expect(after.lock).toEqual({ locked: true, reason: "builder agent running" });
 	});
 });

@@ -1,9 +1,8 @@
-import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { EventJournal } from "#core/events/event-journal.js";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import { listStoredWorkflowRuns } from "./runs/workflow-history.js";
 
 export function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
@@ -33,20 +32,7 @@ export function statusIcon(status: string): string {
 }
 
 export function listRuns(store: WorkflowRunStore, limit: number): WorkflowRunMetadata[] {
-  let dirs: string[];
-  try {
-    dirs = readdirSync(store.runsDir).sort().reverse();
-  } catch {
-    return [];
-  }
-  const runs: WorkflowRunMetadata[] = [];
-  for (const dir of dirs) {
-    if (runs.length >= limit) break;
-    const metadataPath = join(store.runsDir, dir, "metadata.json");
-    const metadata = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
-    if (metadata) runs.push(metadata);
-  }
-  return runs;
+  return listStoredWorkflowRuns(store.runsDir).slice(0, limit);
 }
 
 export function eventJournalForProject(projectDir: string): EventJournal {

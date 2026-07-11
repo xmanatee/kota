@@ -33,6 +33,9 @@ function buildArtifact(input: {
   result: WorkflowStateRecoveryArtifact["result"];
   message: string;
   createdAt: string;
+  dismissedDeadLetterIds?: string[];
+  worktreeCleanup?: WorkflowStateRecoveryArtifact["worktreeCleanup"];
+  taskMove?: WorkflowStateRecoveryArtifact["taskMove"];
 }): WorkflowStateRecoveryArtifact {
   return {
     schemaVersion: 1,
@@ -46,6 +49,11 @@ function buildArtifact(input: {
     before: input.before,
     after: input.after,
     relatedDeadLetters: input.before?.relatedDeadLetters ?? [],
+    ...(input.dismissedDeadLetterIds !== undefined
+      ? { dismissedDeadLetterIds: input.dismissedDeadLetterIds }
+      : {}),
+    ...(input.worktreeCleanup !== undefined ? { worktreeCleanup: input.worktreeCleanup } : {}),
+    ...(input.taskMove !== undefined ? { taskMove: input.taskMove } : {}),
     result: input.result,
     message: input.message,
   };
@@ -57,6 +65,9 @@ export function finishResolve(input: {
   after: WorkflowStateRecoveryClaim | null;
   result: WorkflowStateRecoveryArtifact["result"];
   message: string;
+  dismissedDeadLetterIds?: string[];
+  worktreeCleanup?: WorkflowStateRecoveryArtifact["worktreeCleanup"];
+  taskMove?: WorkflowStateRecoveryArtifact["taskMove"];
 }): { artifactPath: string; artifact: WorkflowStateRecoveryArtifact } {
   const path = artifactPath(input.resolveInput);
   const artifact = buildArtifact({

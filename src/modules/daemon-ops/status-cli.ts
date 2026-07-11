@@ -31,12 +31,16 @@ export function buildStatusCommand(_ctx: ModuleContext): Command {
       "--explain",
       "Show where each runtime verdict came from, including offline/stale state",
     )
-    .action(async (opts: { project?: string; explain?: boolean }) => {
+    .option(
+      "--all-worktrees",
+      "Include removed automation worktree metadata in the status output",
+    )
+    .action(async (opts: { project?: string; explain?: boolean; allWorktrees?: boolean }) => {
       const projectDir = resolveProjectDir();
-      const snap = await gatherStatus(
-        projectDir,
-        opts.project ? { projectId: opts.project } : {},
-      );
+      const snap = await gatherStatus(projectDir, {
+        ...(opts.project ? { projectId: opts.project } : {}),
+        ...(opts.allWorktrees === true ? { includeRemovedWorktrees: true } : {}),
+      });
       print(buildStatusNode(snap, { explain: opts.explain === true }));
       if (snap.pendingApprovals > 0) process.exit(1);
     });

@@ -128,6 +128,13 @@ export function assembleWorkflowDefinition(
         ...(onSuccess !== undefined ? { onSuccess } : {}),
       };
     })(),
+    terminalFinalizer: (() => {
+      if (definition.terminalFinalizer === undefined) return undefined;
+      if (typeof definition.terminalFinalizer !== "function") {
+        throw new WorkflowDefinitionError("terminalFinalizer must be a function", definitionPath);
+      }
+      return definition.terminalFinalizer;
+    })(),
     tags: (() => {
       const raw = definition.tags;
       if (raw === undefined) return [];

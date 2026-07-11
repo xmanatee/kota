@@ -25,10 +25,13 @@ type StatsRow = {
 export function computeStatsRows(
   runsDir: string,
   cutoffMs: number,
-  workflowFilter?: string,
+  options: { untilMs?: number; workflow?: string } = {},
 ): StatsRow[] {
-  const allRuns = loadRunsInWindow(runsDir, cutoffMs);
-  const filtered = workflowFilter ? allRuns.filter((r) => r.workflow === workflowFilter) : allRuns;
+  const untilMs = options.untilMs ?? Number.POSITIVE_INFINITY;
+  const allRuns = loadRunsInWindow(runsDir, cutoffMs, untilMs);
+  const filtered = options.workflow
+    ? allRuns.filter((r) => r.workflow === options.workflow)
+    : allRuns;
   const wfNames = [...new Set(filtered.map((r) => r.workflow))].sort();
   return wfNames.map((name) => {
     const wfRuns = filtered.filter((r) => r.workflow === name);
@@ -44,7 +47,8 @@ export function computeStatsRows(
   });
 }
 
-export function buildStatsNode(rows: StatsRow[], days: number): RenderNode {
+export function buildStatsNode(rows: StatsRow[], windowLabel: string | number): RenderNode {
+  const label = typeof windowLabel === "number" ? `${windowLabel}-day window` : windowLabel;
   return stack(
     columns(
       [
@@ -78,8 +82,17 @@ export function buildStatsNode(rows: StatsRow[], days: number): RenderNode {
       }),
     ),
     blank(),
-    line(plain(`(${days}-day window)`)),
+    line(plain(`(${label})`)),
   );
+}
+
+function parseDateMs(value: string | undefined, label: string): number | null {
+  if (value === undefined) return null;
+  const parsed = /^\d+$/.test(value) ? Number(value) : new Date(value).getTime();
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`--${label} must be an ISO date or timestamp, got "${value}"`);
+  }
+  return parsed;
 }
 
 export function registerStatsCommand(wfCmd: Command): void {
@@ -88,23 +101,51 @@ export function registerStatsCommand(wfCmd: Command): void {
     .description("Show aggregate workflow health: success rate, duration, and cost")
     .option("-w, --workflow <name>", "Filter by workflow name")
     .option("--days <n>", "Lookback window in days", "7")
+    .option("--since <date>", "Start of the stats window (ISO date or timestamp)")
+    .option("--until <date>", "End of the stats window (ISO date or timestamp)")
     .option("--json", "Output as JSON")
-    .action((opts: { workflow?: string; days: string; json?: boolean }) => {
+    .action((opts: { workflow?: string; days: string; since?: string; until?: string; json?: boolean }) => {
+      let sinceMs: number | null;
+      let untilMs: number | null;
+      try {
+        sinceMs = parseDateMs(opts.since, "since");
+        untilMs = parseDateMs(opts.until, "until");
+      } catch (error) {
+        print(line(plain(error instanceof Error ? error.message : String(error))));
+        process.exit(1);
+      }
       const days = Math.max(1, Number.parseInt(opts.days, 10) || 7);
-      const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
+      const cutoffMs = sinceMs ?? Date.now() - days * 24 * 60 * 60 * 1000;
+      const upperMs = untilMs ?? Number.POSITIVE_INFINITY;
+      if (upperMs < cutoffMs) {
+        print(line(plain("--until must be greater than or equal to --since")));
+        process.exit(1);
+      }
+      const windowLabel = sinceMs !== null || untilMs !== null
+        ? `${new Date(cutoffMs).toISOString()}..${Number.isFinite(upperMs) ? new Date(upperMs).toISOString() : "now"}`
+        : `${days}-day window`;
       const store = new WorkflowRunStore();
-      const rows = computeStatsRows(store.runsDir, cutoffMs, opts.workflow);
+      const rows = computeStatsRows(store.runsDir, cutoffMs, {
+        untilMs: upperMs,
+        workflow: opts.workflow,
+      });
 
       if (opts.json) {
-        writeJson(rows, { pretty: true });
+        writeJson({
+          window: {
+            since: new Date(cutoffMs).toISOString(),
+            until: Number.isFinite(upperMs) ? new Date(upperMs).toISOString() : null,
+          },
+          rows,
+        }, { pretty: true });
         return;
       }
 
       if (rows.length === 0) {
-        print(line(plain(`No runs found in the last ${days} day${days === 1 ? "" : "s"}.`)));
+        print(line(plain(`No runs found in ${windowLabel}.`)));
         return;
       }
 
-      print(buildStatsNode(rows, days));
+      print(buildStatsNode(rows, windowLabel));
     });
 }

@@ -15,6 +15,7 @@ import {
   onRecoveryTrigger,
   resetWorktreeForRecovery,
 } from "#modules/autonomy/recovery.js";
+import { reconcileAutomationWorktrees } from "#modules/git/worktree-lifecycle.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HARNESS,
@@ -51,6 +52,7 @@ import {
   createMarkClaimPendingMergeStep,
   createReleaseTaskClaimStep,
 } from "./task-claim-step.js";
+import { finalizeBuilderTerminalWorktree } from "./terminal-worktree-finalizer.js";
 import { builderAgentRunDir, workflowWorkspaceDir } from "./workspace.js";
 
 export const agent: AgentDef = {
@@ -65,6 +67,7 @@ export const agent: AgentDef = {
 };
 
 type InspectResult = ClaimAwareRepoTaskQueueSnapshot & { dirty: boolean };
+type ReconcileWorktreesResult = ReturnType<typeof reconcileAutomationWorktrees>;
 
 const inspectReadyQueue = typedCodeStep<InspectResult>({
   id: "inspect-ready-queue",
@@ -83,6 +86,22 @@ const inspectReadyQueue = typedCodeStep<InspectResult>({
   },
 });
 
+const reconcileWorktreesForRecoveryStep = typedCodeStep<ReconcileWorktreesResult>({
+  id: "reconcile-worktrees-for-recovery",
+  type: "code",
+  when: onRecoveryTrigger,
+  validate: (raw) =>
+    expectStructuredOutput<ReconcileWorktreesResult>(raw, [
+      "inspected",
+      "active",
+      "unlocked",
+      "removed",
+      "preserved",
+      "items",
+    ]),
+  run: (ctx) => reconcileAutomationWorktrees(ctx.projectDir),
+});
+
 const claimTaskStep = createClaimTaskStep(inspectReadyQueue);
 const prepareWorktreeStep = createPrepareBuilderWorktreeStep(claimTaskStep);
 const claimedTaskConsistencyStep = createClaimedTaskConsistencyStep(claimTaskStep);
@@ -97,6 +116,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
   tags: ["monitored"],
   recoveryCapable: true,
   defaultAutonomyMode: "autonomous",
+  terminalFinalizer: finalizeBuilderTerminalWorktree,
   maxConcurrentRuns: ({ config }) =>
     builderMaxConcurrentRunsFromConfig(config),
   dispatchBurst: ({ config, trigger }) => {
@@ -130,6 +150,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
           restoreBaseBranch: true,
         }),
     },
+    reconcileWorktreesForRecoveryStep,
     inspectReadyQueue,
     claimTaskStep,
     prepareWorktreeStep,

@@ -15,6 +15,7 @@ import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata, WorkflowStepResult } from "#core/workflow/run-types.js";
 import type { BuilderRunSummary } from "#modules/autonomy/workflows/builder/run-summary.js";
+import { listStoredWorkflowRuns } from "../runs/workflow-history.js";
 import {
   parseKotaAgentMessageLine,
   projectAgentMessageToRunStreamEvents,
@@ -113,23 +114,10 @@ export function listRunMetadata(
   offset: number,
   since?: number,
   causedByRunId?: string,
+  workflow?: string,
+  tag?: string,
 ): WorkflowRunMetadata[] {
-  let dirs: string[];
-  try {
-    dirs = readdirSync(store.runsDir).sort().reverse();
-  } catch {
-    return [];
-  }
-  const runs: WorkflowRunMetadata[] = [];
-  for (const dir of dirs) {
-    if (since === undefined && causedByRunId === undefined && runs.length >= offset + limit) break;
-    const metadataPath = join(store.runsDir, dir, "metadata.json");
-    const metadata = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
-    if (!metadata) continue;
-    if (since !== undefined && new Date(metadata.startedAt).getTime() < since) break;
-    if (causedByRunId !== undefined && metadata.causedBy?.runId !== causedByRunId) continue;
-    runs.push(metadata);
-  }
+  const runs = listStoredWorkflowRuns(store.runsDir, { sinceMs: since, causedByRunId, workflow, tag });
   if (since !== undefined) return runs;
   if (causedByRunId !== undefined) return runs.slice(offset, offset + limit);
   return runs.slice(offset, offset + limit);
@@ -143,9 +131,11 @@ export function handleWorkflowRuns(
   const rawSince = url.searchParams.get("since");
   const since =
     rawSince !== null && !Number.isNaN(Number(rawSince)) ? Number(rawSince) : undefined;
+  const workflow = url.searchParams.get("workflow") ?? undefined;
+  const tag = url.searchParams.get("tag") ?? undefined;
 
   if (since !== undefined) {
-    const runs = listRunMetadata(store, 0, 0, since);
+    const runs = listRunMetadata(store, 0, 0, since, undefined, workflow, tag);
     jsonResponse(res, 200, { runs: runs.map(toSummary), since });
     return;
   }
@@ -160,7 +150,7 @@ export function handleWorkflowRuns(
   const offset = Number.isNaN(rawOffset) || rawOffset < 0 ? 0 : rawOffset;
   const causedByRunId = url.searchParams.get("causedByRunId") ?? undefined;
 
-  const runs = listRunMetadata(store, limit, offset, undefined, causedByRunId);
+  const runs = listRunMetadata(store, limit, offset, undefined, causedByRunId, workflow, tag);
   jsonResponse(res, 200, { runs: runs.map(toSummary), limit, offset });
 }
 

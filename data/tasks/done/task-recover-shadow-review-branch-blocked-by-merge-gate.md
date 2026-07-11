@@ -1,13 +1,13 @@
 ---
 id: task-recover-shadow-review-branch-blocked-by-merge-gate
 title: Recover shadow-review branch blocked by merge-gate validation
-status: blocked
+status: done
 priority: p1
 area: workflow-runtime
 task_class: Meta
 summary: Resolve the pending merge for builder run 2026-07-07T06-33-49-256Z-builder-79nvwh. The shadow-review branch changed the test script so merge-gate path arguments were parsed as a Vitest --silent value, leaving the p1 task ready with a pending-merge claim despite a build-committed event.
 created_at: 2026-07-07T10:38:43.389Z
-updated_at: 2026-07-07T11:20:00Z
+updated_at: 2026-07-09T03:26:20.000Z
 ---
 
 ## Problem
@@ -58,7 +58,7 @@ Outcome-aware autonomy progress review.
 
     A run artifact or transcript shows the shadow-review branch is either merged after passing merge-gate validation or explicitly superseded; the active pending-merge claim for task-run-shadow-semantic-reviewers-for-non-builder-auto is released or resolved; the task is moved to done or returned to actionable ready with rationale; and a later progress-review or task-claim snapshot no longer reports run 2026-07-07T06-33-49-256Z-builder-79nvwh as pending merge.
 
-## Unblock Precondition
+## Historical Unblock Precondition
 
 ```
 kind: operator-capture
@@ -75,13 +75,10 @@ fixed in `package.json`: `pnpm test <paths>` now expands to
 `vitest run --configLoader runner --silent=true <paths>`, so path arguments are
 not parsed as a `--silent` value.
 
-The old pending-merge claim from run
-`2026-07-07T06-33-49-256Z-builder-79nvwh` is not released yet. A
-`releaseTaskClaim` attempt against the canonical checkout reached the correct
-claim path but failed with `EPERM` because this sandbox cannot write
-`/Users/xmanatee/Desktop/mono/apps/kota/.kota/task-claims`. The task is
-therefore blocked on the operator-captured canonical claim release above rather
-than marked done from worktree-local recovery evidence alone.
+Historical blocker: the old pending-merge claim from run
+`2026-07-07T06-33-49-256Z-builder-79nvwh` was not writable from that builder
+sandbox; the canonical release/supersede had to be performed from the main
+checkout or daemon control path.
 
 Evidence:
 
@@ -101,3 +98,14 @@ Validation:
 - Current-run autonomy decision check passed.
 - Task validation passed against the temporary staged view documented in
   `.kota/runs/2026-07-07T09-56-24-988Z-builder-8kwfdp/task-validation.txt`.
+
+## Closure (2026-07-09)
+
+Canonical recovery state is now resolved:
+
+- `workflow state-recovery list --json` reports no pending claims and no
+  unresolved automation worktrees.
+- `workflow worktrees reconcile --json` reports `inspected: 0`.
+- `git worktree list --porcelain` shows only the main checkout.
+- `task-run-shadow-semantic-reviewers-for-non-builder-auto` is now in
+  `data/tasks/done/`, not `ready/`.

@@ -62,6 +62,7 @@ import {
 } from "./execution/trial.js";
 import { registerTriggerCommands } from "./execution/trigger.js";
 import { registerTriggersCommand } from "./execution/triggers.js";
+import { registerWorktreesCommand } from "./execution/worktrees.js";
 import { explainAutomation } from "./graph/index.js";
 import { workflowExplainControlRoutes } from "./routes/explain.js";
 import { workflowRoutes } from "./routes/routes.js";
@@ -72,6 +73,7 @@ import { registerRunDiffCommand } from "./runs/run-diff.js";
 import { registerExportCommand } from "./runs/run-export.js";
 import { registerRunListCommands } from "./runs/run-list.js";
 import { registerRunShowCommand } from "./runs/run-show.js";
+import { listStoredWorkflowRuns } from "./runs/workflow-history.js";
 import { registerStatsCommand } from "./runs/run-stats.js";
 import { registerStepInspectCommand } from "./runs/step-inspect.js";
 import { registerSimulationCommand } from "./simulation/cli.js";
@@ -84,7 +86,7 @@ import {
   type WorkflowStateRecoveryProvider,
 } from "./state-recovery-provider.js";
 import { workflowStateRecoveryControlRoutes } from "./state-recovery-routes.js";
-import { eventJournalForProject, listRuns } from "./utils.js";
+import { eventJournalForProject } from "./utils.js";
 
 export function buildWorkflowCommand(ctx: ModuleContext): Command {
   const wfCmd = new Command("workflow")
@@ -115,6 +117,7 @@ export function buildWorkflowCommand(ctx: ModuleContext): Command {
   registerTriggersCommand(wfCmd, ctx);
   registerDeadLetterCommand(wfCmd, ctx);
   registerStateRecoveryCommand(wfCmd, ctx);
+  registerWorktreesCommand(wfCmd, ctx);
   registerExecCommand(wfCmd, ctx);
   registerValidateCommand(wfCmd, ctx);
   registerControlCommands(wfCmd, ctx);
@@ -156,15 +159,12 @@ const workflowModule: KotaModule = {
       async listRuns(filter) {
         const store = new WorkflowRunStore(ctx.cwd);
         const limit = filter?.limit ?? 60;
-        const runs = filter?.causedByRunId
-          ? store.listRuns({ causedByRunId: filter.causedByRunId, limit })
-          : listRuns(store, limit);
-        const filtered = filter?.workflow
-          ? runs.filter((r) => r.workflow === filter.workflow)
-          : runs;
-        const tagFiltered = filter?.tag
-          ? filtered.filter((r) => (r.tags ?? []).includes(filter.tag as string))
-          : filtered;
+        const tag = filter?.tag;
+        const tagFiltered = listStoredWorkflowRuns(store.runsDir, {
+          workflow: filter?.workflow,
+          causedByRunId: filter?.causedByRunId,
+          ...(tag !== undefined ? { tag } : {}),
+        }).slice(0, limit);
         return {
           runs: tagFiltered.map((r) => ({
             id: r.id,
@@ -529,10 +529,9 @@ const workflowModule: KotaModule = {
 
 /**
  * Daemon-side `WorkflowClient` backed by the typed `DaemonTransport`. Routes
- * the fifteen `workflow` namespace methods through the daemon HTTP control
- * routes.
+ * workflow namespace methods through the daemon HTTP control routes.
  *
- * Wire contract per method (preserved byte-for-byte from the prior core stub):
+ * Wire contract per method:
  *
  *  - `listRuns(filter)` → `GET /workflow/runs[?workflow=...&limit=...&tag=...&causedByRunId=...]`.
  *    Soft-falls through on transport failure: returns `{ runs: [] }`.
@@ -639,6 +638,17 @@ export function buildWorkflowDaemonHandler(
         ...(input.runId !== undefined ? { runId: input.runId } : {}),
         ...(input.actor !== undefined ? { actor: input.actor } : {}),
         ...(input.artifactRunId !== undefined ? { artifactRunId: input.artifactRunId } : {}),
+        ...(input.supersededByCommit !== undefined
+          ? { supersededByCommit: input.supersededByCommit }
+          : {}),
+        ...(input.cleanupWorktree !== undefined ? { cleanupWorktree: input.cleanupWorktree } : {}),
+        ...(input.discardWorktreeChanges !== undefined
+          ? { discardWorktreeChanges: input.discardWorktreeChanges }
+          : {}),
+        ...(input.dismissDeadLetters !== undefined
+          ? { dismissDeadLetters: input.dismissDeadLetters }
+          : {}),
+        ...(input.completeTask !== undefined ? { completeTask: input.completeTask } : {}),
       };
       const resp = await fetchJson(
         "POST",

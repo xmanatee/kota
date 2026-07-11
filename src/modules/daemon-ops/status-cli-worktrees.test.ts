@@ -55,6 +55,14 @@ function makeWorktree(
 
 function worktreeSnapshot(): StatusSnapshot {
   return makeSnap({
+    worktreeSummary: {
+      active: 1,
+      staleDirty: 0,
+      staleClean: 0,
+      blocked: 3,
+      cleanupEligible: 1,
+      removedHidden: 66,
+    },
     worktrees: [
       makeWorktree({
         taskId: "task-active-worktree",
@@ -127,6 +135,8 @@ describe("formatStatusOutput automation worktrees", () => {
   it("renders lifecycle, cleanup, metadata, and next action details", () => {
     const out = formatStatusOutput(worktreeSnapshot());
     expect(out).toContain("Automation worktrees");
+    expect(out).toContain("Removed hidden");
+    expect(out).toContain("66");
     expect(out).toContain("task-active-worktree");
     expect(out).toContain("pending-merge");
     expect(out).toContain("conflicted");
@@ -142,6 +152,45 @@ describe("formatStatusOutput automation worktrees", () => {
     expect(out).toContain("artifacts /repo/.kota/runs/run-active/artifacts");
     expect(out).toContain("Metadata");
     expect(out).toContain("Next");
+  });
+
+  it("can render only the compact summary when removed worktree metadata is hidden", () => {
+    const out = formatStatusOutput(makeSnap({
+      worktrees: [],
+      worktreeSummary: {
+        active: 0,
+        staleDirty: 0,
+        staleClean: 0,
+        blocked: 0,
+        cleanupEligible: 0,
+        removedHidden: 66,
+      },
+    }));
+    expect(out).toContain("Automation worktrees");
+    expect(out).toContain("Removed hidden");
+    expect(out).toContain("66");
+    expect(out).not.toContain("Workspace");
+  });
+
+  it("does not render historical runtime resources for non-active worktrees", () => {
+    const out = formatStatusOutput(makeSnap({
+      worktrees: [
+        makeWorktree({
+          taskId: "task-stale-worktree",
+          runId: "run-stale",
+          state: "stale",
+          runState: "finished",
+          runtimeResources: {
+            profileId: "task-stale-worktree:run-stale",
+            agentRunDir: "/repo/.worktrees/task-stale-worktree/.kota/runs/run-stale",
+            ports: { start: 42_000, end: 42_019 },
+          },
+        }),
+      ],
+    }));
+    expect(out).toContain("task-stale-worktree");
+    expect(out).not.toContain("Runtime resources");
+    expect(out).not.toContain("ports 42000-42019");
   });
 
   it("writes a deterministic CLI transcript with active, merged, and cleanup-blocked worktrees", () => {

@@ -85,14 +85,14 @@ describe("workflow-ops daemonClient recovery responses", () => {
 
   it("exposes and routes workflow state recovery list requests", async () => {
     const { transport, calls } = makeFetchRecordingTransport(
-      jsonResponse(200, { ok: true, claims: [] }),
+      jsonResponse(200, { ok: true, claims: [], worktrees: [], deadLetters: [] }),
     );
     const wf = workflowOpsModule.daemonClient!(transport).workflow!;
 
     expect(typeof wf.listStateRecoveryActions).toBe("function");
     const result = await wf.listStateRecoveryActions({ projectId: "project-a" });
 
-    expect(result).toEqual({ ok: true, claims: [] });
+    expect(result).toEqual({ ok: true, claims: [], worktrees: [], deadLetters: [] });
     expect(calls[0]).toEqual({
       path: "/workflow/state-recovery?projectId=project-a",
       init: { method: "GET" },

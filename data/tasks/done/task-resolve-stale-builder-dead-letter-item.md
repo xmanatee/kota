@@ -1,13 +1,13 @@
 ---
 id: task-resolve-stale-builder-dead-letter-item
 title: Resolve stale builder dead-letter item
-status: blocked
+status: done
 priority: p2
 area: workflow-runtime
 task_class: Meta
 summary: Review open dead-letter dlq-9362cac4-7574-4718-bbf4-31ff4d2f65ef from builder workflow-dispatch failure, decide whether the failed run was superseded by later successful builder work or still needs redrive, then redrive or dismiss it with recorded rationale.
 created_at: 2026-07-07T02:48:09.179Z
-updated_at: 2026-07-07T02:55:07.608Z
+updated_at: 2026-07-09T03:26:20.000Z
 ---
 
 ## Problem
@@ -56,7 +56,7 @@ Outcome-aware autonomy progress review.
 
     Dead-letter queue item is dismissed or redriven with a run artifact or transcript recording the rationale, and a follow-up progress-review evidence packet reports zero open dead letters or cites the redrive outcome.
 
-## Unblock Precondition
+## Historical Unblock Precondition
 
 ```
 kind: operator-capture
@@ -80,5 +80,16 @@ Evidence summary:
 - Daemon HTTP dismissal was blocked by `connect EPERM 127.0.0.1:49731`.
 - Direct canonical CLI dismissal reached KOTA code but failed to write `items.json.tmp` with `EPERM`.
 
-This task is blocked on operator-captured canonical dismissal evidence rather
-than marked done from a worktree-local rationale alone.
+Historical blocker: this was waiting on operator-captured canonical dismissal
+evidence after the worktree-local rationale was recorded.
+
+## Closure (2026-07-09)
+
+Canonical recovery state is now resolved:
+
+- The stale builder DLQ was dismissed as superseded by the later successful
+  loop-quality builder run and canonical task completion evidence.
+- `workflow state-recovery list --json` reports no related stale builder
+  worktree or pending claim.
+- `workflow worktrees reconcile --json` reports no unresolved automation
+  worktrees.

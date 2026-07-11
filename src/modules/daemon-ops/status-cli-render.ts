@@ -209,7 +209,7 @@ export function buildStatusNode(
   }
 
   const status = kvBlock(entries);
-  const worktreeStatus = buildWorktreeStatusNode(snap.worktrees ?? []);
+  const worktreeStatus = buildWorktreeStatusNode(snap.worktrees ?? [], snap.worktreeSummary);
   return worktreeStatus ? stack(status, worktreeStatus) : status;
 }
 

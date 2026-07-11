@@ -12,7 +12,7 @@ import {
   span,
   stack,
 } from "#modules/rendering/primitives.js";
-import { print, printToStderr } from "#modules/rendering/transport.js";
+import { print, printToStderr, writeJson } from "#modules/rendering/transport.js";
 import { formatDate, formatDuration, statusIcon } from "../utils.js";
 import type { HistoryStats } from "./workflow-history.js";
 import { computeHistoryStats, loadRunsInWindow } from "./workflow-history.js";
@@ -39,6 +39,7 @@ export function registerRunListCommands(wfCmd: Command, ctx: ModuleContext): voi
     .option("-s, --status <status>", "Filter by run status (success, failed, interrupted, completed-with-warnings, running)")
     .option("-t, --tag <tag>", "Filter by tag")
     .option("--caused-by <run-id>", "Filter by upstream run ID (show runs triggered by this run)")
+    .option("--json", "Output as JSON")
     .action(async (opts) => {
       const validStatuses = ["success", "failed", "interrupted", "completed-with-warnings", "running"];
       if (opts.status && !validStatuses.includes(opts.status)) {
@@ -50,13 +51,13 @@ export function registerRunListCommands(wfCmd: Command, ctx: ModuleContext): voi
 
       const result = await ctx.client.workflow.listRuns({
         workflow: opts.workflow,
+        tag: opts.tag,
         limit: limit * 3,
         causedByRunId,
       });
 
       const filtered = result.runs
         .filter((r) => !opts.status || r.status === opts.status)
-        .filter((r) => !opts.tag || (r.tags ?? []).includes(opts.tag as string));
       const page: RunRow[] = filtered.slice(0, limit).map((r) => ({
         id: r.id,
         workflow: r.workflow,
@@ -69,6 +70,11 @@ export function registerRunListCommands(wfCmd: Command, ctx: ModuleContext): voi
         triggeredByRunId: r.triggeredByRunId,
         tags: r.tags,
       }));
+
+      if (opts.json) {
+        writeJson({ runs: page }, { pretty: true });
+        return;
+      }
 
       if (page.length === 0) {
         print(line(plain("No runs found.")));

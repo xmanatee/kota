@@ -1,6 +1,7 @@
 import type { KotaConfig } from "#core/config/config.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowNotifyConfig } from "./step-input-base.js";
+import type { WorkflowRunMetadata } from "./run-types.js";
 import type { WorkflowStepInput } from "./step-input-types.js";
 import type { WorkflowStep } from "./step-types.js";
 import type {
@@ -92,10 +93,28 @@ export type WorkflowDefinitionInput = {
    * (onFailure: true, onSuccess: false).
    */
   notify?: WorkflowNotifyConfig;
+  /**
+   * Optional workflow-owned terminal callback. Core runtime invokes this after
+   * a run reaches a terminal state; the contributing workflow owns any
+   * module-specific cleanup logic executed by the callback.
+   */
+  terminalFinalizer?: WorkflowTerminalFinalizer;
   tags?: readonly string[];
   triggers: WorkflowTriggerInput[];
   steps: WorkflowStepInput[];
 };
+
+export type WorkflowTerminalFinalizerInput = {
+  projectDir: string;
+  workspaceDir: string;
+  metadata: WorkflowRunMetadata;
+  trigger: WorkflowRunTrigger;
+  log: (message: string) => void;
+};
+
+export type WorkflowTerminalFinalizer = (
+  input: WorkflowTerminalFinalizerInput,
+) => void | Promise<void>;
 
 export type WorkflowConcurrencyInput = {
   projectDir: string;
@@ -181,6 +200,7 @@ export type WorkflowDefinition = {
    * Omit to use defaults (onFailure: true, onSuccess: false).
    */
   notify?: WorkflowNotifyConfig;
+  terminalFinalizer?: WorkflowTerminalFinalizer;
   tags: readonly string[];
   definitionPath: string;
   triggers: WorkflowTrigger[];

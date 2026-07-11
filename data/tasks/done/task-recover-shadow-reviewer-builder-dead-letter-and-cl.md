@@ -1,13 +1,13 @@
 ---
 id: task-recover-shadow-reviewer-builder-dead-letter-and-cl
 title: Recover shadow reviewer builder dead-letter and claim
-status: blocked
+status: done
 priority: p1
 area: workflow-runtime
 task_class: Meta
 summary: Resolve open dead-letter dlq-418d397f-9567-497d-b2b9-6591cfc0bcca from failed builder run 2026-07-07T06-33-49-255Z-builder-s5hnlo, recover or release the active claim for task-run-shadow-semantic-reviewers-for-non-builder-auto, then redrive or dismiss the item with recorded rationale.
 created_at: 2026-07-07T07:08:11.043Z
-updated_at: 2026-07-07T09:49:15Z
+updated_at: 2026-07-09T03:26:20.000Z
 ---
 
 ## Problem
@@ -57,7 +57,7 @@ Outcome-aware autonomy progress review.
 
     The active claim for task-run-shadow-semantic-reviewers-for-non-builder-auto from run 2026-07-07T06-33-49-255Z-builder-s5hnlo is released, recovered, or superseded with evidence; dlq-418d397f-9567-497d-b2b9-6591cfc0bcca is redriven or dismissed with rationale; and a later dead-letter count or progress-review packet no longer reports that item open.
 
-## Unblock Precondition
+## Historical Unblock Precondition
 
 ```
 kind: operator-capture
@@ -95,5 +95,16 @@ Recommended dismissal rationale:
 
     Dismissed as superseded by builder run 2026-07-07T06-33-49-256Z-builder-79nvwh: the original run 2026-07-07T06-33-49-255Z-builder-s5hnlo failed from a Codex websocket reset, its task claim was archived at 2026-07-07T07:08:22.727Z, and the later run claimed task-run-shadow-semantic-reviewers-for-non-builder-auto and reached pending-merge evidence. Redriving the stale trigger would duplicate recovered work.
 
-This task is blocked on canonical runtime-state mutation evidence rather than
-marked done from a worktree-local rationale alone.
+Historical blocker: this was waiting on canonical runtime-state mutation
+evidence after the worktree-local rationale was recorded.
+
+## Closure (2026-07-09)
+
+Canonical recovery state is now resolved:
+
+- The stale claim chain for
+  `task-run-shadow-semantic-reviewers-for-non-builder-auto` has no active
+  pending-merge entry in `workflow state-recovery list --json`.
+- The stale builder DLQ for `2026-07-07T06-33-49-255Z-builder-s5hnlo` was
+  dismissed as superseded by later recovered work.
+- `workflow state-recovery list --json` reports no unresolved worktrees.
