@@ -43,7 +43,7 @@ function modelResponse(
 
 describe("runDelegate token budgets", () => {
   afterEach(() => {
-    setDelegateConfig({ model: "gpt-5.5" });
+    setDelegateConfig({ model: "gpt-5.6-sol" });
   });
 
   it("uses a runner-context token budget for child delegate turns", async () => {

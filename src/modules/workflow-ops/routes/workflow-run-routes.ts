@@ -15,11 +15,11 @@ import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata, WorkflowStepResult } from "#core/workflow/run-types.js";
 import type { BuilderRunSummary } from "#modules/autonomy/workflows/builder/run-summary.js";
-import { listStoredWorkflowRuns } from "../runs/workflow-history.js";
 import {
   parseKotaAgentMessageLine,
   projectAgentMessageToRunStreamEvents,
 } from "../runs/stream-projection.js";
+import { listStoredWorkflowRuns } from "../runs/workflow-history.js";
 import { readStepEvents } from "../runs/workflow-logs.js";
 
 type RunSummary = {

@@ -73,9 +73,9 @@ import { registerRunDiffCommand } from "./runs/run-diff.js";
 import { registerExportCommand } from "./runs/run-export.js";
 import { registerRunListCommands } from "./runs/run-list.js";
 import { registerRunShowCommand } from "./runs/run-show.js";
-import { listStoredWorkflowRuns } from "./runs/workflow-history.js";
 import { registerStatsCommand } from "./runs/run-stats.js";
 import { registerStepInspectCommand } from "./runs/step-inspect.js";
+import { listStoredWorkflowRuns } from "./runs/workflow-history.js";
 import { registerSimulationCommand } from "./simulation/cli.js";
 import { simulateAutomation } from "./simulation/engine.js";
 import { workflowSimulationControlRoutes } from "./simulation/routes.js";
@@ -145,7 +145,7 @@ const workflowModule: KotaModule = {
   name: "workflow-ops",
   version: "1.0.0",
   description: "Automation workflow CLI surface — kota workflow/automation list/show/run/trial/control/validate/definitions/deps/logs/gc/export/diff/cost/stats",
-  dependencies: ["rendering"],
+  dependencies: ["git", "rendering"],
   commands: (ctx) => [buildWorkflowCommand(ctx)],
   routes: (ctx) => workflowRoutes(ctx),
   controlRoutes: (ctx) => [

@@ -363,7 +363,7 @@ export async function runScriptedAgentSession(opts: {
   }));
   await openaiToolsAgentHarness.run({
     prompt: opts.prompt,
-    model: "openai/gpt-5.4-mini",
+    model: "openai/gpt-5.6-luna",
     effort: "xhigh",
     systemPrompt: "be terse",
     clientApprovalResolver: async () => ({ outcome: "allow" }),

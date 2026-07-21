@@ -97,7 +97,7 @@ describe("codex agent harness integration", () => {
     const result = await harness.run(
       {
         prompt: "say ok",
-        model: "gpt-5.5",
+        model: "gpt-5.6-sol",
         effort: "xhigh",
       },
       writer,

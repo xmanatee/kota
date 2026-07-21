@@ -30,7 +30,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
 
       const persisted = await openaiToolsAgentHarness.run({
         prompt: "please echo",
-        model: "openai/gpt-5.4-mini",
+        model: "openai/gpt-5.6-luna",
         effort: "xhigh",
         cwd: projectDir,
         persistSession: true,
@@ -52,7 +52,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
         messages: KotaMessage[];
       };
       expect(record.context).toMatchObject({
-        model: "openai/gpt-5.4-mini",
+        model: "openai/gpt-5.6-luna",
         providerName: "openai",
         cwd: projectDir,
       });
@@ -62,7 +62,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
       queueEnd("continued with context");
       const resumed = await openaiToolsAgentHarness.run({
         prompt: "continue",
-        model: "openai/gpt-5.4-mini",
+        model: "openai/gpt-5.6-luna",
         effort: "xhigh",
         cwd: projectDir,
         resumeSessionId: persisted.sessionId,
@@ -93,7 +93,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
       await expect(
         openaiToolsAgentHarness.run({
           prompt: "continue",
-          model: "openai/gpt-5.4-mini",
+          model: "openai/gpt-5.6-luna",
           effort: "xhigh",
           cwd: projectDir,
           resumeSessionId: "ots_00000000-0000-0000-0000-000000000000",
@@ -111,7 +111,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
       queueEnd("saved");
       const persisted = await openaiToolsAgentHarness.run({
         prompt: "save",
-        model: "openai/gpt-5.4-mini",
+        model: "openai/gpt-5.6-luna",
         effort: "xhigh",
         cwd: projectDir,
         persistSession: true,
@@ -120,7 +120,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
       await expect(
         openaiToolsAgentHarness.run({
           prompt: "resume",
-          model: "openai/gpt-5.5",
+          model: "openai/gpt-5.6-sol",
           effort: "xhigh",
           cwd: projectDir,
           resumeSessionId: persisted.sessionId,
@@ -135,7 +135,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
       await expect(
         openaiToolsAgentHarness.run({
           prompt: "resume",
-          model: "openai/gpt-5.4-mini",
+          model: "openai/gpt-5.6-luna",
           effort: "xhigh",
           cwd: projectDir,
           resumeSessionId: persisted.sessionId,
@@ -145,8 +145,8 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
       await expect(
         openaiToolsAgentHarness.run({
           prompt: "resume",
-          model: "openai/gpt-5.4-mini",
-          modelOutputTokenLimits: { "openai/gpt-5.4-mini": 7777 },
+          model: "openai/gpt-5.6-luna",
+          modelOutputTokenLimits: { "openai/gpt-5.6-luna": 7777 },
           effort: "xhigh",
           cwd: projectDir,
           resumeSessionId: persisted.sessionId,
@@ -164,7 +164,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
       queueEnd("saved");
       const persisted = await openaiToolsAgentHarness.run({
         prompt: "save",
-        model: "openai/gpt-5.4-mini",
+        model: "openai/gpt-5.6-luna",
         effort: "xhigh",
         cwd: projectDir,
         persistSession: true,
@@ -174,7 +174,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
       await expect(
         openaiToolsAgentHarness.run({
           prompt: "resume",
-          model: "openai/gpt-5.4-mini",
+          model: "openai/gpt-5.6-luna",
           effort: "xhigh",
           cwd: projectDir,
           resumeSessionId: persisted.sessionId,
@@ -187,7 +187,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
       await expect(
         openaiToolsAgentHarness.run({
           prompt: "resume",
-          model: "openai/gpt-5.4-mini",
+          model: "openai/gpt-5.6-luna",
           effort: "xhigh",
           cwd: projectDir,
           resumeSessionId: persisted.sessionId,

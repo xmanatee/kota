@@ -2638,7 +2638,7 @@ describe("progress-reviewer workflow", () => {
         sourceEventIds: [`evtj-${String(index).padStart(12, "0")}`],
         affectedWorkflowNames: ["trajectory-diagnostic-escalator"],
         failure: {
-          reason: "Malformed trajectory diagnostics artifact",
+          reason: `Malformed trajectory diagnostics artifact ${index}`,
           lastErrorClass: "execution",
           failedAt: NOW.toISOString(),
         },

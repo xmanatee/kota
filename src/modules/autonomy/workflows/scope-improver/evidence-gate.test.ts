@@ -104,6 +104,7 @@ function writeOpenDeadLetter(projectDir: string): void {
     },
     redrive: { kind: "none", reason: "test fixture" },
     redactedProjection: {},
+    retention: { kind: "retain" },
   });
 }
 

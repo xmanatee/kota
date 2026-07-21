@@ -45,7 +45,7 @@ describe("eval component attribution", () => {
     expect(attribution.summary).toContain("no observed component");
     expect(attribution.perFixture[0]?.outcomeDelta).toBe("unchanged");
     expect(model?.evidence).toContain(
-      "tierEvidence=fast:gpt-5.4-mini,balanced:gpt-5.4,capable:gpt-5.5",
+      "tierEvidence=fast:gpt-5.6-luna,balanced:gpt-5.6-terra,capable:gpt-5.6-sol",
     );
     expect(harness?.evidence).toContain("executionMode=live");
     expect(environment?.evidence).toContain(

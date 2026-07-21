@@ -1,7 +1,7 @@
 import type { KotaConfig } from "#core/config/config.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
-import type { WorkflowNotifyConfig } from "./step-input-base.js";
 import type { WorkflowRunMetadata } from "./run-types.js";
+import type { WorkflowNotifyConfig } from "./step-input-base.js";
 import type { WorkflowStepInput } from "./step-input-types.js";
 import type { WorkflowStep } from "./step-types.js";
 import type {

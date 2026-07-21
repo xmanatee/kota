@@ -1,3 +1,9 @@
+import { deadLetterStoreForProject } from "#core/daemon/dead-letter-queue.js";
+import {
+  type DisposedAutomationWorktreeResult,
+  disposeAutomationWorktree,
+} from "#modules/git/worktree-lifecycle.js";
+import { moveTaskById } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type {
   WorkflowStateRecoveryArtifact,
   WorkflowStateRecoveryClaim,
@@ -5,12 +11,6 @@ import type {
   WorkflowStateRecoveryResolveInput,
   WorkflowStateRecoveryResolveResult,
 } from "#modules/workflow-ops/state-recovery-provider.js";
-import { deadLetterStoreForProject } from "#core/daemon/dead-letter-queue.js";
-import {
-  disposeAutomationWorktree,
-  type DisposedAutomationWorktreeResult,
-} from "#modules/git/worktree-lifecycle.js";
-import { moveTaskById } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { validateWorkflowStateRecoveryArtifactRunId } from "#modules/workflow-ops/state-recovery-provider.js";
 import {
   readActiveTaskClaim,
@@ -22,9 +22,9 @@ import {
 import { finishResolve } from "./workflow-state-recovery-artifacts.js";
 import {
   findPendingMergeClaim,
+  listPendingMergeClaims,
   listRecoveryDeadLetters,
   listRecoveryWorktrees,
-  listPendingMergeClaims,
   projectClaim,
 } from "./workflow-state-recovery-claims.js";
 

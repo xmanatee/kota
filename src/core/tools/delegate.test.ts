@@ -13,15 +13,15 @@ import {
 } from "./delegate-test-support.js";
 
 const TIER_MODELS = {
-  fast: "openai/gpt-5.4-mini",
-  balanced: "openai/gpt-5.4",
-  capable: "openai/gpt-5.5",
+  fast: "openai/gpt-5.6-luna",
+  balanced: "openai/gpt-5.6-terra",
+  capable: "openai/gpt-5.6-sol",
 };
 
 describe("runDelegate model output-token limits", () => {
   afterEach(() => {
     clearAgentHarnessRegistryForTest();
-    setDelegateConfig({ model: "gpt-5.5" });
+    setDelegateConfig({ model: "gpt-5.6-sol" });
   });
 
   it("uses the selected non-default tier model's output-token budget", async () => {
@@ -30,7 +30,7 @@ describe("runDelegate model output-token limits", () => {
         new TestStream(modelResponse([{ type: "text", text: "fast done" }])),
     );
     setDelegateConfig({
-      model: "openai/gpt-5.5",
+      model: "openai/gpt-5.6-sol",
       modelTiers: TIER_MODELS,
       client: modelClient(stream),
     });
@@ -43,13 +43,13 @@ describe("runDelegate model output-token limits", () => {
     expect(result.is_error).toBeUndefined();
     expect(stream).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: "openai/gpt-5.4-mini",
-        max_tokens: 4096,
+        model: "openai/gpt-5.6-luna",
+        max_tokens: 128_000,
       }),
     );
   });
 
-  it("changes the requested output-token budget when routing selects a different model", async () => {
+  it("honors configured output-token budgets when routing selects a different model", async () => {
     const stream = vi
       .fn()
       .mockReturnValueOnce(
@@ -59,8 +59,12 @@ describe("runDelegate model output-token limits", () => {
         new TestStream(modelResponse([{ type: "text", text: "capable done" }])),
       );
     setDelegateConfig({
-      model: "openai/gpt-5.5",
+      model: "openai/gpt-5.6-sol",
       modelTiers: TIER_MODELS,
+      modelOutputTokenLimits: {
+        "gpt-5.6-luna": 4096,
+        "gpt-5.6-sol": 16384,
+      },
       client: modelClient(stream),
     });
 
@@ -68,11 +72,11 @@ describe("runDelegate model output-token limits", () => {
     await runDelegate({ task: "Plan the migration phases", mode: "explore" });
 
     expect(stream.mock.calls[0][0]).toMatchObject({
-      model: "openai/gpt-5.4-mini",
+      model: "openai/gpt-5.6-luna",
       max_tokens: 4096,
     });
     expect(stream.mock.calls[1][0]).toMatchObject({
-      model: "openai/gpt-5.5",
+      model: "openai/gpt-5.6-sol",
       max_tokens: 16384,
     });
   });
@@ -83,7 +87,7 @@ describe("runDelegate model output-token limits", () => {
         new TestStream(modelResponse([{ type: "text", text: "unused" }])),
     );
     setDelegateConfig({
-      model: "openai/gpt-5.5",
+      model: "openai/gpt-5.6-sol",
       modelTiers: {
         ...TIER_MODELS,
         fast: "openai/operator-model",
@@ -105,7 +109,7 @@ describe("runDelegate model output-token limits", () => {
         new TestStream(modelResponse([{ type: "text", text: "custom done" }])),
     );
     setDelegateConfig({
-      model: "openai/gpt-5.5",
+      model: "openai/gpt-5.6-sol",
       modelTiers: {
         ...TIER_MODELS,
         fast: "openai/operator-model",
@@ -145,7 +149,7 @@ describe("runDelegate model output-token limits", () => {
       }),
     });
     setDelegateConfig({
-      model: "openai/gpt-5.5",
+      model: "openai/gpt-5.6-sol",
       modelTiers: {
         ...TIER_MODELS,
         fast: "openai/operator-model",

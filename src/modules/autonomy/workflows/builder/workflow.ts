@@ -15,7 +15,6 @@ import {
   onRecoveryTrigger,
   resetWorktreeForRecovery,
 } from "#modules/autonomy/recovery.js";
-import { reconcileAutomationWorktrees } from "#modules/git/worktree-lifecycle.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HARNESS,
@@ -25,6 +24,7 @@ import {
   stepCommitted,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
+import { reconcileAutomationWorktrees } from "#modules/git/worktree-lifecycle.js";
 import type { BranchStepResult, CleanupResult } from "./branch-per-task.js";
 import { cleanupMergedBranches, createPullRequest, createTaskBranch } from "./branch-per-task.js";
 import { builderMaxConcurrentRunsFromConfig } from "./builder-config.js";

@@ -91,8 +91,9 @@ const historyModule: KotaModule = {
 		),
 
 	localClient: (ctx) => {
-		const projectStores = createHistoryProjectStores(ctx.cwd, () =>
-			getHistoryProvider(),
+		const projectStores = createHistoryProjectStores(
+			ctx.cwd,
+			getLoadedHistoryProvider,
 		);
 		const handler: HistoryClient = {
 			async list(filter) {
@@ -152,6 +153,14 @@ const historyModule: KotaModule = {
 
 	daemonClient: (link) => ({ history: buildHistoryDaemonHandler(link) }),
 };
+
+function getLoadedHistoryProvider() {
+	try {
+		return getHistoryProvider();
+	} catch {
+		return null;
+	}
+}
 
 /**
  * Daemon-side `HistoryClient` backed by the typed `DaemonTransport`. Calls

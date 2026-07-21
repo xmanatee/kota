@@ -22,7 +22,7 @@ afterEach(() => {
 
 describe("runDelegate runner context", () => {
   afterEach(() => {
-    setDelegateConfig({ model: "gpt-5.5" });
+    setDelegateConfig({ model: "gpt-5.6-sol" });
   });
 
   it("passes selected project context through the bounded shell runner", async () => {
@@ -93,7 +93,7 @@ describe("runDelegate runner context", () => {
 
 describe("runDelegate recursive budget", () => {
   afterEach(() => {
-    setDelegateConfig({ model: "gpt-5.5" });
+    setDelegateConfig({ model: "gpt-5.6-sol" });
   });
 
   it("runs a normal delegate call under the default budget and reports budget status", async () => {

@@ -16,7 +16,6 @@ import {
 import { formatAuthError } from "#core/model/auth-error.js";
 import { createModelClient } from "#core/model/model-client.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
-import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
 import type { ConversationRecord } from "#core/modules/provider-types.js";
 import { expandUserPromptReferences } from "#core/prompt-input/index.js";
 import type { KotaClient } from "#core/server/kota-client.js";
@@ -441,7 +440,6 @@ export async function resolveRunContinue(
   opts: { continue?: boolean | string; resumeHere?: boolean },
 ): Promise<ResumeConversationSelection | undefined> {
   if (!opts.continue) return undefined;
-  await ensureCliProvidersFor(["history"]);
   if (typeof opts.continue === "string") {
     return resolveExplicitConversationResume(client, opts.continue, {
       resumeHere: opts.resumeHere,

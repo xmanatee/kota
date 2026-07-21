@@ -17,7 +17,7 @@ const sampleRunConfiguration: EvalRunConfiguration = {
     activePreset: "codex (default) via codex",
     fixtureManifest: "3 fixture(s) fixture-hash",
     sourceIdentity: "abc123 (clean, source-hash)",
-    resolvedHarnessModelEvidence: "codex/gpt-5.5 x3",
+    resolvedHarnessModelEvidence: "codex/gpt-5.6-sol x3",
     resourceProfile: "autonomy-cadence cpu=2/2 memoryMB=4096/4096",
     executionProfile: "verified/container/enforced/verified-profile",
   },
@@ -26,12 +26,12 @@ const sampleRunConfiguration: EvalRunConfiguration = {
       id: "codex",
       source: "default",
       harness: "codex",
-      defaultModel: "gpt-5.5",
+      defaultModel: "gpt-5.6-sol",
       defaultEffort: "xhigh",
       tiers: {
-        fast: "gpt-5.4-mini",
-        balanced: "gpt-5.4",
-        capable: "gpt-5.5",
+        fast: "gpt-5.6-luna",
+        balanced: "gpt-5.6-terra",
+        capable: "gpt-5.6-sol",
       },
     },
     fixtureManifest: {
@@ -51,7 +51,7 @@ const sampleRunConfiguration: EvalRunConfiguration = {
       observations: [],
       missingArtifacts: [],
       distinctHarnessModels: [
-        { harness: "codex", model: "gpt-5.5", count: 3 },
+        { harness: "codex", model: "gpt-5.6-sol", count: 3 },
       ],
     },
     resourceProfile: {

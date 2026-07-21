@@ -99,12 +99,12 @@ function runConfiguration(
       id: "codex",
       source: "default",
       harness: "codex",
-      defaultModel: "gpt-5.5",
+      defaultModel: "gpt-5.6-sol",
       defaultEffort: "xhigh",
       tiers: {
-        fast: "gpt-5.4-mini",
-        balanced: "gpt-5.4",
-        capable: "gpt-5.5",
+        fast: "gpt-5.6-luna",
+        balanced: "gpt-5.6-terra",
+        capable: "gpt-5.6-sol",
       },
     },
     fixtureManifest: {
@@ -124,7 +124,7 @@ function runConfiguration(
       observations: [],
       missingArtifacts: [],
       distinctHarnessModels: [
-        { harness: "codex", model: "gpt-5.5", count: 4 },
+        { harness: "codex", model: "gpt-5.6-sol", count: 4 },
       ],
     },
     resourceProfile: stableProfile,

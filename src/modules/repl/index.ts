@@ -92,6 +92,10 @@ function streamWriter(stream: ReplOutputStream): AgentHarnessWriter {
   };
 }
 
+function promptIfOpen(rl: ReadlineInterface, isClosed: boolean): void {
+  if (!isClosed) rl.prompt();
+}
+
 const REPL_COMMANDS: Record<string, string> = {
   "/help": "Show available commands",
   "/status": "Show session info (harness, model, turn count)",
@@ -173,6 +177,10 @@ export async function runHarnessRepl(options: HarnessReplOptions): Promise<void>
     prompt: "kota> ",
     terminal: false,
   });
+  let isClosed = false;
+  rl.once("close", () => {
+    isClosed = true;
+  });
 
   const state: ReplState = {
     transcript: [...(options.initialTranscript ?? [])],
@@ -220,7 +228,7 @@ export async function runHarnessRepl(options: HarnessReplOptions): Promise<void>
     return "continue";
   };
 
-  rl.prompt();
+  promptIfOpen(rl, isClosed);
 
   for await (const rawLine of rl) {
     const action = await processLine(rawLine);
@@ -228,7 +236,7 @@ export async function runHarnessRepl(options: HarnessReplOptions): Promise<void>
       rl.close();
       break;
     }
-    rl.prompt();
+    promptIfOpen(rl, isClosed);
   }
 
   chrome.showGoodbye();

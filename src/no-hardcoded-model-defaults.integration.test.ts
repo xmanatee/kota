@@ -17,6 +17,8 @@
  *     id lands here when a vendor releases a new tier.
  *   - src/modules/model-clients/pricing.ts — provider-shaped pricing
  *     coverage owned by the model-clients module.
+ *   - src/modules/model-clients/openai/request-body.ts — OpenAI adapter
+ *     capability validation for model-specific wire constraints.
  *   - src/modules/claude-agent-harness/adapter.ts — claude harness's
  *     SDK-internal model allowlist (per-adapter probe table).
  */
@@ -31,6 +33,7 @@ const REPO_ROOT = join(SRC_DIR, "..");
 const ALLOWLIST = new Set<string>([
   "src/core/model/preset.ts",
   "src/modules/model-clients/pricing.ts",
+  "src/modules/model-clients/openai/request-body.ts",
   "src/modules/claude-agent-harness/adapter.ts",
   // The grep test itself names the patterns; that file is the one place
   // the literal regex source must live.

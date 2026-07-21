@@ -242,7 +242,7 @@ describe("telegramModule", () => {
       undefined,
       makeStubClient(),
       {
-        model: "gpt-5.5",
+        model: "gpt-5.6-sol",
         serve: { defaultAutonomyMode: "passive" },
       } as ModuleRuntimeContext["config"],
     );
@@ -276,7 +276,7 @@ describe("telegramModule", () => {
       undefined,
       makeStubClient(),
       {
-        model: "openai/gpt-5.5",
+        model: "openai/gpt-5.6-sol",
         serve: { defaultAutonomyMode: "supervised" },
       } as ModuleRuntimeContext["config"],
     );
@@ -362,7 +362,7 @@ describe("telegramModule", () => {
           undefined,
           makeStubClient(),
           {
-            model: "gpt-5.5",
+            model: "gpt-5.6-sol",
             serve: { defaultAutonomyMode: "passive" },
           } as ModuleRuntimeContext["config"],
         ),
@@ -394,7 +394,7 @@ describe("telegramModule", () => {
           undefined,
           makeStubClient(),
           {
-            model: "gpt-5.5",
+            model: "gpt-5.6-sol",
             modelProvider: { type: "openai" },
             serve: { defaultAutonomyMode: "passive" },
           } as ModuleRuntimeContext["config"],
@@ -470,7 +470,7 @@ describe("telegramModule", () => {
           undefined,
           makeStubClient(),
           {
-            model: "openai/gpt-5.5",
+            model: "openai/gpt-5.6-sol",
             serve: { defaultAutonomyMode: "supervised" },
           } as ModuleRuntimeContext["config"],
         ),

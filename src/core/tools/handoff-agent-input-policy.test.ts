@@ -80,7 +80,7 @@ describe("handoff_agent input and policy rejection", () => {
   afterEach(() => {
     rmSync(projectDir, { recursive: true, force: true });
     clearAgentHarnessRegistryForTest();
-    setDelegateConfig({ model: "gpt-5.5" });
+    setDelegateConfig({ model: "gpt-5.6-sol" });
   });
 
   it("rejects passive handoffs on harnesses that cannot enforce KOTA tool scope", async () => {

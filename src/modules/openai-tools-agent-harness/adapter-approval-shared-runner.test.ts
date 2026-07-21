@@ -19,7 +19,7 @@ describe("openaiToolsAgentHarness shared runner approval paths", () => {
 
 		const result = await openaiToolsAgentHarness.run({
 			prompt: "go",
-			model: "openai/gpt-5.4-mini",
+			model: "openai/gpt-5.6-luna",
 			effort: "xhigh",
 			guardrailsConfig: {
 				policies: { safe: "allow", moderate: "allow", dangerous: "allow" },
@@ -57,7 +57,7 @@ describe("openaiToolsAgentHarness shared runner approval paths", () => {
 
 		const result = await openaiToolsAgentHarness.run({
 			prompt: "go",
-			model: "openai/gpt-5.4-mini",
+			model: "openai/gpt-5.6-luna",
 			effort: "xhigh",
 			guardrailsConfig: {
 				policies: { safe: "allow", moderate: "allow", dangerous: "allow" },
@@ -86,7 +86,7 @@ describe("openaiToolsAgentHarness shared runner approval paths", () => {
 
 		const result = await openaiToolsAgentHarness.run({
 			prompt: "go",
-			model: "openai/gpt-5.4-mini",
+			model: "openai/gpt-5.6-luna",
 			effort: "xhigh",
 			guardrailsConfig: {
 				policies: { safe: "allow", moderate: "allow", dangerous: "allow" },

@@ -77,14 +77,14 @@ describe("codex agent harness x fix-arithmetic-bug scenario", () => {
 
     const result = await codexAgentHarness.run({
       prompt: loaded.spec.prompt,
-      model: "gpt-5.5",
+      model: "gpt-5.6-sol",
       effort: "xhigh",
       cwd: workingDir,
     });
 
     expect(spawnMock).toHaveBeenCalledWith(
       "codex",
-      expect.arrayContaining(["--cd", workingDir, "--model", "gpt-5.5"]),
+      expect.arrayContaining(["--cd", workingDir, "--model", "gpt-5.6-sol"]),
       expect.objectContaining({ cwd: workingDir }),
     );
     expect(process.stdinText()).toContain(loaded.spec.prompt);

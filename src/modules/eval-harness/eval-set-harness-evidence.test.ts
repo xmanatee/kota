@@ -47,7 +47,7 @@ describe("runEvalSet harness evidence", () => {
                   type: "agent",
                   status: "success",
                   harness: "codex",
-                  model: "gpt-5.5",
+                  model: "gpt-5.6-sol",
                 },
               ],
             }),
@@ -68,10 +68,10 @@ describe("runEvalSet harness evidence", () => {
       report.runConfiguration.components.resolvedHarnessModelEvidence,
     ).toMatchObject({
       status: "complete",
-      distinctHarnessModels: [{ harness: "codex", model: "gpt-5.5", count: 1 }],
+      distinctHarnessModels: [{ harness: "codex", model: "gpt-5.6-sol", count: 1 }],
     });
     expect(report.runConfiguration.summary.resolvedHarnessModelEvidence).toBe(
-      "codex/gpt-5.5 x1",
+      "codex/gpt-5.6-sol x1",
     );
   });
 

@@ -38,7 +38,7 @@ const SAMPLE: EvalHarnessSetCompletedPayload = {
     activePreset: "codex (default) via codex",
     fixtureManifest: "1 fixture abc123",
     sourceIdentity: "abc123 (clean, def456)",
-    resolvedHarnessModelEvidence: "codex/gpt-5.5 x1",
+    resolvedHarnessModelEvidence: "codex/gpt-5.6-sol x1",
     resourceProfile: "test cpu=1/1 memoryMB=1024/1024",
     executionProfile: "verified/container/enforced/verified-profile",
   },

@@ -89,7 +89,7 @@ describe("openai-tools agent harness integration", () => {
     const result = await harness.run(
       {
         prompt: "say ok",
-        model: "openai/gpt-5.4-mini",
+        model: "openai/gpt-5.6-luna",
         effort: "xhigh",
       },
       writer,

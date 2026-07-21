@@ -28,7 +28,7 @@ describe("openaiToolsAgentHarness shared runner", () => {
 
 		await openaiToolsAgentHarness.run({
 			prompt: "delete temp files",
-			model: "openai/gpt-5.4-mini",
+			model: "openai/gpt-5.6-luna",
 			effort: "xhigh",
 			guardrailsConfig: {
 				policies: { safe: "allow", moderate: "allow", dangerous: "confirm" },
@@ -60,7 +60,7 @@ describe("openaiToolsAgentHarness shared runner", () => {
 
 		await openaiToolsAgentHarness.run({
 			prompt: "delete temp files",
-			model: "openai/gpt-5.4-mini",
+			model: "openai/gpt-5.6-luna",
 			effort: "xhigh",
 		});
 
@@ -88,7 +88,7 @@ describe("openaiToolsAgentHarness shared runner", () => {
 
 		await openaiToolsAgentHarness.run({
 			prompt: "run a command",
-			model: "openai/gpt-5.4-mini",
+			model: "openai/gpt-5.6-luna",
 			effort: "xhigh",
 			autonomyMode: "supervised",
 			workflowContext: {
@@ -113,7 +113,7 @@ describe("openaiToolsAgentHarness shared runner", () => {
 
 		await openaiToolsAgentHarness.run({
 			prompt: "deny",
-			model: "openai/gpt-5.4-mini",
+			model: "openai/gpt-5.6-luna",
 			effort: "xhigh",
 			guardrailsConfig: {
 				policies: { safe: "allow", moderate: "allow", dangerous: "allow" },
@@ -143,7 +143,7 @@ describe("openaiToolsAgentHarness shared runner", () => {
 
 		await openaiToolsAgentHarness.run({
 			prompt: "try the tool",
-			model: "openai/gpt-5.4-mini",
+			model: "openai/gpt-5.6-luna",
 			effort: "xhigh",
 		});
 
@@ -175,7 +175,7 @@ describe("openaiToolsAgentHarness shared runner", () => {
 
 		const run = openaiToolsAgentHarness.run({
 			prompt: "read both",
-			model: "openai/gpt-5.4-mini",
+			model: "openai/gpt-5.6-luna",
 			effort: "xhigh",
 		});
 		await vi.waitFor(() => expect(started).toEqual(["read_slow", "read_fast"]));

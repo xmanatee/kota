@@ -5,6 +5,11 @@ import {
   deadLetterWorkflowName,
 } from "#core/daemon/dead-letter-queue.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import {
+  type AutomationWorktreeUniqueCommits,
+  listAutomationWorktreeStatuses,
+  listAutomationWorktreeUniqueCommits,
+} from "#modules/git/worktree-lifecycle.js";
 import type {
   WorkflowStateRecoveryClaim,
   WorkflowStateRecoveryClaimSnapshot,
@@ -12,11 +17,6 @@ import type {
   WorkflowStateRecoveryRecommendedAction,
   WorkflowStateRecoveryWorktree,
 } from "#modules/workflow-ops/state-recovery-provider.js";
-import {
-  type AutomationWorktreeUniqueCommits,
-  listAutomationWorktreeStatuses,
-  listAutomationWorktreeUniqueCommits,
-} from "#modules/git/worktree-lifecycle.js";
 import {
   listTaskClaimInspections,
   type TaskClaim,

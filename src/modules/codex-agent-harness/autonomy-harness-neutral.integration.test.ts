@@ -88,7 +88,7 @@ function makeAgentStep(moduleRoot: string): WorkflowAgentStep {
     type: "agent",
     promptPath: "prompt.md",
     moduleRoot,
-    model: "gpt-5.5",
+    model: "gpt-5.6-sol",
     effort: "xhigh",
     autonomyMode: "autonomous",
     harness: CODEX_AGENT_HARNESS_NAME,
@@ -138,7 +138,7 @@ describe("autonomy agent step on codex", () => {
 
     expect(result).toMatchObject({
       harness: CODEX_AGENT_HARNESS_NAME,
-      model: "gpt-5.5",
+      model: "gpt-5.6-sol",
       output: {
         content: "done",
         inputTokens: 1,

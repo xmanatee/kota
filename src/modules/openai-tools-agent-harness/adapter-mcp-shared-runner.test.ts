@@ -22,7 +22,7 @@ describe("openaiToolsAgentHarness MCP shared runner", () => {
 
 		await openaiToolsAgentHarness.run({
 			prompt: "call mcp",
-			model: "openai/gpt-5.4-mini",
+			model: "openai/gpt-5.6-luna",
 			effort: "xhigh",
 			mcpServers: {
 				remote: {
@@ -68,7 +68,7 @@ describe("openaiToolsAgentHarness MCP shared runner", () => {
 		try {
 			await openaiToolsAgentHarness.run({
 				prompt: "refresh mcp",
-				model: "openai/gpt-5.4-mini",
+				model: "openai/gpt-5.6-luna",
 				effort: "xhigh",
 				mcpServers: {
 					remote: {
@@ -104,7 +104,7 @@ describe("openaiToolsAgentHarness MCP shared runner", () => {
 			queueEnd("saved");
 			const persisted = await openaiToolsAgentHarness.run({
 				prompt: "save mcp state",
-				model: "openai/gpt-5.4-mini",
+				model: "openai/gpt-5.6-luna",
 				effort: "xhigh",
 				cwd: projectDir,
 				persistSession: true,
@@ -121,7 +121,7 @@ describe("openaiToolsAgentHarness MCP shared runner", () => {
 			await expect(
 				openaiToolsAgentHarness.run({
 					prompt: "resume",
-					model: "openai/gpt-5.4-mini",
+					model: "openai/gpt-5.6-luna",
 					effort: "xhigh",
 					cwd: projectDir,
 					resumeSessionId: persisted.sessionId,

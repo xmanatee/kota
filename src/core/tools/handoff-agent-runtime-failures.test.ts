@@ -81,7 +81,7 @@ describe("handoff_agent runtime failure handling", () => {
   afterEach(() => {
     rmSync(projectDir, { recursive: true, force: true });
     clearAgentHarnessRegistryForTest();
-    setDelegateConfig({ model: "gpt-5.5" });
+    setDelegateConfig({ model: "gpt-5.6-sol" });
   });
 
   it("routes transfer handoffs to an existing child session when resume_session_id is set", async () => {

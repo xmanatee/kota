@@ -91,7 +91,7 @@ describe("handoff_agent", () => {
   afterEach(() => {
     rmSync(projectDir, { recursive: true, force: true });
     clearAgentHarnessRegistryForTest();
-    setDelegateConfig({ model: "gpt-5.5" });
+    setDelegateConfig({ model: "gpt-5.6-sol" });
   });
 
   it("dispatches a registered agent with trace links, workflow metadata, and validated structured output", async () => {

@@ -74,7 +74,7 @@ beforeEach(() => {
   getAllToolsMock.mockReturnValue([TEST_TOOL]);
   getSecretStoreMock.mockReturnValue(null);
   createModelClientMock.mockReturnValue({
-    model: "openai/gpt-5.4-mini",
+    model: "openai/gpt-5.6-luna",
     providerName: "openai",
     client: {
       messages: {
@@ -99,7 +99,7 @@ describe("openaiToolsAgentHarness token budget", () => {
 
     const result = await openaiToolsAgentHarness.run({
       prompt: "answer directly",
-      model: "openai/gpt-5.4-mini",
+      model: "openai/gpt-5.6-luna",
       effort: "xhigh",
       tokenBudget,
     });
@@ -137,7 +137,7 @@ describe("openaiToolsAgentHarness token budget", () => {
 
     const result = await openaiToolsAgentHarness.run({
       prompt: "please echo",
-      model: "openai/gpt-5.4-mini",
+      model: "openai/gpt-5.6-luna",
       effort: "xhigh",
       tokenBudget,
     });
@@ -193,7 +193,7 @@ describe("openaiToolsAgentHarness token budget", () => {
 
     const result = await openaiToolsAgentHarness.run({
       prompt: "please echo",
-      model: "openai/gpt-5.4-mini",
+      model: "openai/gpt-5.6-luna",
       effort: "xhigh",
       tokenBudget,
       cwd: executionCwd,

@@ -225,7 +225,7 @@ describe("openaiToolsAgentHarness — happy path tool loop", () => {
     const result = await openaiToolsAgentHarness.run(
       {
         prompt: "please echo",
-        model: "openai/gpt-5.4-mini",
+        model: "openai/gpt-5.6-luna",
         effort: "xhigh",
         systemPrompt: "be brief",
       },
@@ -234,7 +234,7 @@ describe("openaiToolsAgentHarness — happy path tool loop", () => {
 
     expect(streamCallSnapshots).toHaveLength(2);
     expect(streamCallSnapshots[0].system).toBe("be brief");
-    expect(streamCallSnapshots[0].maxTokens).toBe(4096);
+    expect(streamCallSnapshots[0].maxTokens).toBe(128_000);
     expect(streamCallSnapshots[0].tools).toEqual([TEST_TOOL]);
     expect(streamCallSnapshots[0].messages).toEqual([
       { role: "user", content: "please echo" },
@@ -306,7 +306,7 @@ describe("openaiToolsAgentHarness — happy path tool loop", () => {
 
     await openaiToolsAgentHarness.run({
       prompt: "read token",
-      model: "openai/gpt-5.4-mini",
+      model: "openai/gpt-5.6-luna",
       effort: "xhigh",
     });
 
@@ -369,7 +369,7 @@ describe("openaiToolsAgentHarness — happy path tool loop", () => {
     const frames: KotaAgentMessage[] = [];
     const result = await openaiToolsAgentHarness.run({
       prompt: "please echo",
-      model: "openai/gpt-5.4-mini",
+      model: "openai/gpt-5.6-luna",
       effort: "xhigh",
       onMessage: (message) => {
         frames.push(message);
@@ -482,7 +482,7 @@ describe("openaiToolsAgentHarness — happy path tool loop", () => {
 
       await openaiToolsAgentHarness.run({
         prompt: "read credentials",
-        model: "openai/gpt-5.4-mini",
+        model: "openai/gpt-5.6-luna",
         effort: "xhigh",
         cwd: projectDir,
       });
@@ -537,7 +537,7 @@ describe("openaiToolsAgentHarness — guardrails", () => {
 
     const result = await openaiToolsAgentHarness.run({
       prompt: "go",
-      model: "openai/gpt-5.4-mini",
+      model: "openai/gpt-5.6-luna",
       effort: "xhigh",
       canUseTool,
     });
@@ -595,7 +595,7 @@ describe("openaiToolsAgentHarness — guardrails", () => {
 
     const result = await openaiToolsAgentHarness.run({
       prompt: "go",
-      model: "openai/gpt-5.4-mini",
+      model: "openai/gpt-5.6-luna",
       effort: "xhigh",
       canUseTool,
     });
@@ -644,7 +644,7 @@ describe("openaiToolsAgentHarness — guardrails", () => {
 
     await openaiToolsAgentHarness.run({
       prompt: "go",
-      model: "openai/gpt-5.4-mini",
+      model: "openai/gpt-5.6-luna",
       effort: "xhigh",
       disallowedTools: ["echo_tool"],
       canUseTool,
@@ -685,7 +685,7 @@ describe("openaiToolsAgentHarness — guardrails", () => {
 
     await openaiToolsAgentHarness.run({
       prompt: "go",
-      model: "openai/gpt-5.4-mini",
+      model: "openai/gpt-5.6-luna",
       effort: "xhigh",
       allowedTools: ["echo_tool"],
     });
@@ -718,7 +718,7 @@ describe("openaiToolsAgentHarness — protocol errors", () => {
     await expect(
       openaiToolsAgentHarness.run({
         prompt: "go",
-        model: "openai/gpt-5.4-mini",
+        model: "openai/gpt-5.6-luna",
         effort: "xhigh",
       }),
     ).rejects.toThrow(/malformed JSON arguments/);
@@ -746,7 +746,7 @@ describe("openaiToolsAgentHarness — protocol errors", () => {
     await expect(
       openaiToolsAgentHarness.run({
         prompt: "go",
-        model: "openai/gpt-5.4-mini",
+        model: "openai/gpt-5.6-luna",
         effort: "xhigh",
       }),
     ).rejects.toThrow(/missing tool name/);
@@ -769,7 +769,7 @@ describe("openaiToolsAgentHarness — unsupported options rejection", () => {
 
     await openaiToolsAgentHarness.run({
       prompt: "x",
-      model: "openai/gpt-5.4-mini",
+      model: "openai/gpt-5.6-luna",
       effort: "xhigh",
       mcpServers: {},
     });
@@ -792,7 +792,7 @@ describe("openaiToolsAgentHarness — unsupported options rejection", () => {
 
     await openaiToolsAgentHarness.run({
       prompt: "x",
-      model: "openai/gpt-5.4-mini",
+      model: "openai/gpt-5.6-luna",
       effort: "xhigh",
       autonomyMode: "supervised",
     });
@@ -804,7 +804,7 @@ describe("openaiToolsAgentHarness — unsupported options rejection", () => {
     await expect(
       openaiToolsAgentHarness.run({
         prompt: "x",
-        model: "openai/gpt-5.4-mini",
+        model: "openai/gpt-5.6-luna",
         effort: "xhigh",
         harnessOverrides: { foo: "bar" },
       }),
@@ -815,7 +815,7 @@ describe("openaiToolsAgentHarness — unsupported options rejection", () => {
     await expect(
       openaiToolsAgentHarness.run({
         prompt: "x",
-        model: "openai/gpt-5.4-mini",
+        model: "openai/gpt-5.6-luna",
         effort: "xhigh",
         thinkingEnabled: true,
       }),
@@ -837,7 +837,7 @@ describe("openaiToolsAgentHarness — unsupported options rejection", () => {
     );
     await openaiToolsAgentHarness.run({
       prompt: "x",
-      model: "openai/gpt-5.4-mini",
+      model: "openai/gpt-5.6-luna",
       effort: "xhigh",
       systemPrompt: "## Project context\n\nProject is named KOTA.",
     });
@@ -868,7 +868,7 @@ describe("openaiToolsAgentHarness — reasoning-effort passthrough", () => {
     );
     await openaiToolsAgentHarness.run({
       prompt: "x",
-      model: "openai/gpt-5.4-mini",
+      model: "openai/gpt-5.6-luna",
       effort: "xhigh",
     });
     expect(messagesStreamMock.mock.calls[0][0]).toMatchObject({ effort: "xhigh" });
@@ -908,12 +908,12 @@ describe("openaiToolsAgentHarness — limits", () => {
 
     await openaiToolsAgentHarness.run({
       prompt: "go",
-      model: "openai/gpt-5.5",
+      model: "openai/gpt-5.6-sol",
       effort: "xhigh",
     });
 
     expect(streamCallSnapshots[0]).toMatchObject({
-      maxTokens: 16384,
+      maxTokens: 128_000,
     });
   });
 
@@ -978,7 +978,7 @@ describe("openaiToolsAgentHarness — limits", () => {
 
     const result = await openaiToolsAgentHarness.run({
       prompt: "go",
-      model: "openai/gpt-5.4-mini",
+      model: "openai/gpt-5.6-luna",
       effort: "xhigh",
       maxTurns: 2,
     });
