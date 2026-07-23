@@ -3,6 +3,10 @@ import { join } from "node:path";
 import type { ChannelStatus } from "#core/channels/channel.js";
 import { initEventBus } from "#core/events/event-bus.js";
 import { EventJournal, installEventJournal } from "#core/events/event-journal.js";
+import type {
+  WorkflowCompletion,
+  WorkflowRuntimeState,
+} from "#core/workflow/run-types.js";
 import type { DaemonConfig } from "./daemon-config.js";
 import {
   recordEventEmitFailureDeadLetter,
@@ -12,7 +16,7 @@ import { buildDaemonInit, type DaemonRuntimeContext } from "./daemon-init.js";
 import { DaemonLogger } from "./daemon-logger.js";
 import { runDaemonShutdown } from "./daemon-shutdown.js";
 import { runDaemonStartup } from "./daemon-startup.js";
-import type { DaemonState } from "./daemon-state.js";
+import type { DaemonState, DaemonStopReason } from "./daemon-state.js";
 import { loadDaemonStateFromDisk, saveDaemonStateToDisk } from "./daemon-state-persistence.js";
 import {
   anyDaemonWorkflowRuntimeBusy,
@@ -31,6 +35,25 @@ export type { DaemonState } from "./daemon-state.js";
 
 export const RESTART_EXIT_CODE = 75;
 const DEFAULT_SHUTDOWN_GRACE_PERIOD_MS = 60_000;
+
+function latestWorkflowCompletion(
+  workflows: WorkflowRuntimeState["workflows"],
+): (WorkflowCompletion & { workflow: string }) | undefined {
+  let latest: (WorkflowCompletion & { workflow: string }) | undefined;
+  for (const [workflow, state] of Object.entries(workflows)) {
+    const completion = state.lastCompletion;
+    if (
+      completion !== undefined &&
+      (latest === undefined ||
+        completion.completedAt > latest.completedAt ||
+        (completion.completedAt === latest.completedAt &&
+          completion.runId > latest.runId))
+    ) {
+      latest = { workflow, ...completion };
+    }
+  }
+  return latest;
+}
 
 /**
  * The daemon orchestrator. Owns one `DaemonRuntimeContext` and dispatches
@@ -64,7 +87,6 @@ export class Daemon {
     const loaded = loadDaemonStateFromDisk(stateDir);
     const state: DaemonState = loaded ?? {
       startedAt: new Date().toISOString(),
-      completedRuns: 0,
       pid: process.pid,
     };
     state.pid = process.pid;
@@ -138,8 +160,11 @@ export class Daemon {
       await runDaemonStartup(this.ctx, {
         requestRestart: (reason) => this.requestRestart(reason),
         maybeRestart: () => this.maybeRestart(),
-        onSignalStop: (gracePeriodMs) => {
-          void this.stop(gracePeriodMs);
+        onSignalStop: (signal, gracePeriodMs) => {
+          void this.stop(
+            gracePeriodMs,
+            signal === "SIGINT" ? "sigint" : "sigterm",
+          );
         },
       });
     } catch (err) {
@@ -147,6 +172,7 @@ export class Daemon {
         workflowsStopArgs: [1, 1_000],
         saveState: false,
         logShutdown: false,
+        stopReason: "programmatic",
       });
       throw err;
     }
@@ -156,13 +182,17 @@ export class Daemon {
     }
   }
 
-  async stop(gracePeriodMs = DEFAULT_SHUTDOWN_GRACE_PERIOD_MS): Promise<void> {
+  async stop(
+    gracePeriodMs = DEFAULT_SHUTDOWN_GRACE_PERIOD_MS,
+    reason: DaemonStopReason = "programmatic",
+  ): Promise<void> {
     if (this.ctx.stopping) return;
     this.ctx.stopping = true;
     await runDaemonShutdown(this.ctx, {
       workflowsStopArgs: [gracePeriodMs],
       saveState: true,
       logShutdown: true,
+      stopReason: reason,
     });
   }
 
@@ -188,16 +218,23 @@ export class Daemon {
     const dispatchWindow = this.ctx.workflows.getDispatchWindowStatus();
     const recovery = this.ctx.workflows.getRecoveryStatus();
     const dispatchPause = this.ctx.workflows.getDispatchPauseStatus(recovery);
+    const lastCompletion = latestWorkflowCompletion(wfState.workflows);
     return {
       pid: this.ctx.state.pid,
       startedAt: this.ctx.state.startedAt,
       running: this.ctx.running,
       stopping: this.ctx.stopping,
-      completedRuns: this.ctx.state.completedRuns,
+      completedRuns: wfState.completedRuns,
       totalCostUsd: wfState.totalCostUsd,
-      lastCompletedWorkflow: this.ctx.state.lastCompletedWorkflow,
-      lastCompletedAt: this.ctx.state.lastCompletedAt,
-      lastCompletedStatus: this.ctx.state.lastCompletedStatus,
+      totalInputTokens: wfState.totalInputTokens,
+      totalOutputTokens: wfState.totalOutputTokens,
+      ...(lastCompletion !== undefined
+        ? {
+            lastCompletedWorkflow: lastCompletion.workflow,
+            lastCompletedAt: lastCompletion.completedAt,
+            lastCompletedStatus: lastCompletion.status,
+          }
+        : {}),
       activeRuns: wfState.activeRuns ?? [],
       pendingRuns: wfState.pendingRuns,
       dispatchPaused: dispatchPause.paused,
@@ -246,7 +283,7 @@ export class Daemon {
   }
 
   private async finishRestart(): Promise<void> {
-    await this.stop();
+    await this.stop(DEFAULT_SHUTDOWN_GRACE_PERIOD_MS, "restart");
     const restartExit = this.ctx.config.restartExit ?? ((code: number) => {
       process.exit(code);
     });

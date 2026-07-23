@@ -1,6 +1,10 @@
 import type { EventBus } from "#core/events/event-bus.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
+import {
+  activeTimingMetadata,
+  type ActiveTimeoutSnapshot,
+} from "./active-timeout.js";
 import { buildStepCompletedPayload } from "./event-payloads.js";
 import type { StepAccumulators } from "./run-executor-step.js";
 import type { WorkflowStepContext, WorkflowStepResult } from "./run-types.js";
@@ -55,8 +59,13 @@ export function recordCompletedGroup(
       deps.definition.defaultAutonomyMode,
     ),
   );
+  const timing = result.activeDurationMs ?? result.durationMs;
+  const suspended =
+    result.hostSuspendedMs === undefined
+      ? ""
+      : `, host suspended ${result.hostSuspendedMs}ms`;
   deps.log(
-    `Completed step "${step.id}" (${step.type}) in workflow "${deps.definition.name}" [${result.durationMs}ms]`,
+    `Completed step "${step.id}" (${step.type}) in workflow "${deps.definition.name}" [${timing}ms${suspended}]`,
   );
 }
 
@@ -65,6 +74,7 @@ export function recordFailedGroup(
   stepStartedAt: number,
   error: Error,
   deps: GroupStepDeps,
+  timing?: ActiveTimeoutSnapshot,
 ): void {
   const failed: WorkflowStepResult = {
     id: step.id,
@@ -73,6 +83,7 @@ export function recordFailedGroup(
     startedAt: new Date(stepStartedAt).toISOString(),
     completedAt: new Date().toISOString(),
     durationMs: Date.now() - stepStartedAt,
+    ...activeTimingMetadata(timing),
     error: error.message,
     ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
   };

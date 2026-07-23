@@ -49,6 +49,12 @@ export function buildStepCompletedPayload(
     stepType: result.type,
     status: result.status,
     durationMs: result.durationMs,
+    ...(result.activeDurationMs !== undefined
+      ? { activeDurationMs: result.activeDurationMs }
+      : {}),
+    ...(result.hostSuspendedMs !== undefined
+      ? { hostSuspendedMs: result.hostSuspendedMs }
+      : {}),
     ...(result.costUsd != null ? { costUsd: result.costUsd } : {}),
     runDir: metadata.runDir,
     definitionPath: metadata.definitionPath,

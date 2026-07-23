@@ -1,6 +1,7 @@
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { installAwaitResumers } from "./awaits-resume.js";
+import { dismissSupersededWorkflowDeadLetters } from "./dead-letter-supersession.js";
 import { isWithinDispatchWindow, msUntilDispatchWindowOpens } from "./dispatch-window.js";
 import type { WorkflowEventBatchManager } from "./event-batches.js";
 import { writeOperatorPauseSignal } from "./recovery-status.js";
@@ -64,6 +65,13 @@ export function startRuntime(state: WorkflowRuntimeLifecycleState): void {
   }
 
   state.definitions = loadDefinitionsViaDispatch(state);
+  if (state.deadLetterQueue !== undefined) {
+    dismissSupersededWorkflowDeadLetters({
+      deadLetterQueue: state.deadLetterQueue,
+      runStore: state.store,
+      log: state.log,
+    });
+  }
   state.wfQueue.restorePending();
   queueInterruptedRunRecovery(state, interrupted);
   queueRecovery(state);

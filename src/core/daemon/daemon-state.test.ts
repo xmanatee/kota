@@ -4,7 +4,6 @@ import { assertDaemonState } from "./daemon-state.js";
 
 const validState = {
   startedAt: "2026-01-01T00:00:00.000Z",
-  completedRuns: 0,
   pid: 12345,
 };
 
@@ -16,9 +15,8 @@ describe("assertDaemonState", () => {
   it("accepts a fully populated state", () => {
     const full = {
       ...validState,
-      lastCompletedWorkflow: "builder",
-      lastCompletedAt: "2026-01-01T01:00:00.000Z",
-      lastCompletedStatus: "success",
+      lastStoppedAt: "2026-01-01T02:00:00.000Z",
+      lastStopReason: "sigint",
     };
     expect(() => assertDaemonState("/path", full)).not.toThrow();
   });
@@ -40,21 +38,6 @@ describe("assertDaemonState", () => {
     expect(() => assertDaemonState("/p", bad)).toThrow(JsonFileError);
   });
 
-  it("throws when completedRuns is missing", () => {
-    const { completedRuns: _c, ...bad } = validState;
-    expect(() => assertDaemonState("/p", bad)).toThrow(JsonFileError);
-  });
-
-  it("throws when completedRuns is negative", () => {
-    const bad = { ...validState, completedRuns: -1 };
-    expect(() => assertDaemonState("/p", bad)).toThrow(JsonFileError);
-  });
-
-  it("throws when completedRuns is not an integer", () => {
-    const bad = { ...validState, completedRuns: 1.5 };
-    expect(() => assertDaemonState("/p", bad)).toThrow(JsonFileError);
-  });
-
   it("throws when pid is missing", () => {
     const { pid: _p, ...bad } = validState;
     expect(() => assertDaemonState("/p", bad)).toThrow(JsonFileError);
@@ -70,31 +53,13 @@ describe("assertDaemonState", () => {
     expect(() => assertDaemonState("/p", bad)).toThrow(JsonFileError);
   });
 
-  it("throws when lastCompletedWorkflow is present but empty", () => {
-    const bad = { ...validState, lastCompletedWorkflow: "" };
-    expect(() => assertDaemonState("/p", bad)).toThrow(JsonFileError);
-  });
-
-  it("throws when lastCompletedAt is present but whitespace-only", () => {
-    const bad = { ...validState, lastCompletedAt: "  " };
-    expect(() => assertDaemonState("/p", bad)).toThrow(JsonFileError);
-  });
-
-  it("throws when lastCompletedStatus is an unknown value", () => {
-    const bad = { ...validState, lastCompletedStatus: "pending" };
-    expect(() => assertDaemonState("/p", bad)).toThrow(JsonFileError);
-  });
-
-  it("accepts all valid lastCompletedStatus values", () => {
-    for (const status of [
-      "success",
-      "failed",
-      "interrupted",
-      "completed-with-warnings",
-    ] as const) {
-      const s = { ...validState, lastCompletedStatus: status };
-      expect(() => assertDaemonState("/p", s)).not.toThrow();
-    }
+  it("throws when lastStoppedAt or lastStopReason is invalid", () => {
+    expect(() =>
+      assertDaemonState("/p", { ...validState, lastStoppedAt: "" }),
+    ).toThrow(JsonFileError);
+    expect(() =>
+      assertDaemonState("/p", { ...validState, lastStopReason: "unknown" }),
+    ).toThrow(JsonFileError);
   });
 
   it("throws contain the path in error message", () => {

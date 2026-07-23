@@ -28,6 +28,8 @@ evidence ids plus the count; do not enumerate every item.
 Return no follow-up when the evidence is healthy or too thin. Create follow-up
 task proposals only for concrete, non-duplicate work with acceptance evidence.
 Ask owner questions only when the evidence shows a steering decision that the
-repo cannot infer safely.
+repo cannot infer safely. Give each question a stable lowercase `topicKey`
+describing the underlying decision, such as `operator-capture:model-matrix`;
+reuse that key when later evidence concerns the same unresolved decision.
 
 Return only a fenced JSON block matching the requested schema.

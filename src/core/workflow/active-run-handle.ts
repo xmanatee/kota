@@ -24,6 +24,8 @@ import type {
 export type FinishUpdate = {
   status: WorkflowRunStatus;
   durationMs: number;
+  activeDurationMs?: number;
+  hostSuspendedMs?: number;
   error?: string;
   warnings?: WorkflowRunWarning[];
 };
@@ -173,19 +175,29 @@ export function createActiveRunHandle(opts: {
     finish: (update) => {
       const totalCostUsd = metadata.steps
         .filter((s) => s.type === "agent")
-        .reduce((sum, s) => {
-          if (s.output && typeof s.output === "object" && !Array.isArray(s.output)) {
-            const cost = (s.output as Record<string, unknown>).totalCostUsd;
-            if (typeof cost === "number") return sum + cost;
-          }
-          return sum;
-        }, 0);
+        .reduce((sum, step) => sum + (step.costUsd ?? 0), 0);
+      const inputTokens = metadata.steps.reduce(
+        (sum, step) => sum + (step.inputTokens ?? 0),
+        0,
+      );
+      const outputTokens = metadata.steps.reduce(
+        (sum, step) => sum + (step.outputTokens ?? 0),
+        0,
+      );
       const completed: WorkflowRunMetadata = {
         ...metadata,
         status: update.status,
         completedAt: new Date().toISOString(),
         durationMs: update.durationMs,
+        ...(update.activeDurationMs !== undefined
+          ? { activeDurationMs: update.activeDurationMs }
+          : {}),
+        ...(update.hostSuspendedMs !== undefined
+          ? { hostSuspendedMs: update.hostSuspendedMs }
+          : {}),
         totalCostUsd,
+        inputTokens,
+        outputTokens,
         ...(update.warnings && update.warnings.length > 0 ? { warnings: update.warnings } : {}),
       };
       if (update.error) {
@@ -212,6 +224,10 @@ export function createActiveRunHandle(opts: {
       const freshState = readState();
       freshState.completedRuns += 1;
       freshState.totalCostUsd = (freshState.totalCostUsd ?? 0) + totalCostUsd;
+      freshState.totalInputTokens =
+        (freshState.totalInputTokens ?? 0) + inputTokens;
+      freshState.totalOutputTokens =
+        (freshState.totalOutputTokens ?? 0) + outputTokens;
       const existingWorkflow = freshState.workflows[workflowName];
       const existingCompletedMs = existingWorkflow?.lastCompletion?.completedAt
         ? new Date(existingWorkflow.lastCompletion.completedAt).getTime()

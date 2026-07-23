@@ -98,6 +98,8 @@ export function buildLaunchdPlist(
     `  <dict>`,
     `    <key>KOTA_PROJECT_DIR</key>`,
     `    <string>${plistString(projectDir)}</string>`,
+    `    <key>KOTA_DAEMON_LOG_FORMAT</key>`,
+    `    <string>json</string>`,
     ...(path
       ? [
           `    <key>PATH</key>`,
@@ -144,6 +146,7 @@ export function buildSystemdUnit(
     `ExecStart=${process.execPath} ${execArgs}`,
     `WorkingDirectory=${projectDir}`,
     systemdEnvironment("KOTA_PROJECT_DIR", projectDir),
+    systemdEnvironment("KOTA_DAEMON_LOG_FORMAT", "json"),
     ...(path ? [systemdEnvironment("PATH", path)] : []),
     ...(nodeOptions ? [systemdEnvironment("NODE_OPTIONS", nodeOptions)] : []),
     `Restart=on-failure`,

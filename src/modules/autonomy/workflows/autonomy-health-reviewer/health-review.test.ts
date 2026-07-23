@@ -395,6 +395,7 @@ describe("autonomy health review actions", () => {
       actions: {
         createdTaskIds: [],
         ownerQuestionIds: [],
+        dismissedOwnerQuestionIds: [],
         applied: [],
         touchedTaskQueue: false,
       },
@@ -466,6 +467,7 @@ describe("autonomy health review actions", () => {
       actions: {
         createdTaskIds: [],
         ownerQuestionIds: [],
+        dismissedOwnerQuestionIds: [],
         applied: [],
         touchedTaskQueue: false,
       },

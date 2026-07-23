@@ -89,7 +89,6 @@ function makeRecordingTransport(responder: RequestResponder): {
 const SAMPLE_DAEMON_STATUS: DaemonLiveStatus = {
   pid: 1234,
   startedAt: "2026-05-05T05:00:00Z",
-  completedRuns: 0,
   running: true,
   workflow: {
     activeRuns: [],

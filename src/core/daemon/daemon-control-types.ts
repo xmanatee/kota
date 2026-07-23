@@ -150,6 +150,8 @@ export type WorkflowLiveStatus = {
   queueLength: number;
   completedRuns: number;
   totalCostUsd?: number;
+  totalInputTokens?: number;
+  totalOutputTokens?: number;
   agentBackoff?: WorkflowAgentBackoffState;
   definitionsLoadedAt?: string;
   workflows: WorkflowRuntimeState["workflows"];

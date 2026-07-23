@@ -83,9 +83,10 @@ export const progressReviewOutputSchema = {
       type: "array",
       items: {
         type: "object",
-        required: ["question", "reason", "evidenceIds"],
+        required: ["topicKey", "question", "reason", "evidenceIds"],
         additionalProperties: false,
         properties: {
+          topicKey: { type: "string", pattern: "^[a-z0-9][a-z0-9:_-]*$" },
           question: { type: "string" },
           reason: { type: "string" },
           evidenceIds: { type: "array", items: { type: "string" } },

@@ -165,6 +165,7 @@ function emptyActions(): AutonomyHealthReviewActionResult {
   return {
     createdTaskIds: [],
     ownerQuestionIds: [],
+    dismissedOwnerQuestionIds: [],
     applied: [],
     touchedTaskQueue: false,
   };

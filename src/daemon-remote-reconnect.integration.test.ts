@@ -217,7 +217,6 @@ function makeHandle(
   return {
     getDaemonLiveState: () => ({
       startedAt: STARTED_AT,
-      completedRuns: 0,
       pid: 1,
       running: true,
     }),

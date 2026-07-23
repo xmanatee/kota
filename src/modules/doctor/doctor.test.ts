@@ -285,7 +285,6 @@ describe("kota doctor — offline path", () => {
       JSON.stringify({
         pid: 99999999,
         startedAt: "2026-04-22T10:00:00.000Z",
-        completedRuns: 3,
       }),
     );
     const results = await runDoctorChecks(projectDir);
@@ -521,7 +520,6 @@ describe("kota doctor --fix", () => {
       JSON.stringify({
         pid: 99999999,
         startedAt: "2026-04-22T10:00:00.000Z",
-        completedRuns: 3,
       }),
     );
     const repairs = runDoctorFixes(projectDir);

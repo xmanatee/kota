@@ -16,7 +16,6 @@ function daemonStatus(pid: number): DaemonLiveStatus {
   return {
     pid,
     startedAt: "2026-06-20T19:00:00.000Z",
-    completedRuns: 0,
     running: true,
     workflow: {
       activeRuns: [],

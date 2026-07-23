@@ -27,7 +27,7 @@ const DEFAULT_SHUTDOWN_GRACE_PERIOD_MS = 60_000;
 export type DaemonStartupHooks = {
   requestRestart: (reason: string) => void;
   maybeRestart: () => void;
-  onSignalStop: (gracePeriodMs: number) => void;
+  onSignalStop: (signal: NodeJS.Signals, gracePeriodMs: number) => void;
 };
 
 /**
@@ -48,7 +48,8 @@ export async function runDaemonStartup(
     ctx.config.config?.daemon?.shutdownGracePeriodMs ??
     DEFAULT_SHUTDOWN_GRACE_PERIOD_MS;
   ctx.shutdownHandler = (signal?: NodeJS.Signals) => {
-    hooks.onSignalStop(signal === "SIGINT" ? 1 : gracePeriodMs);
+    if (signal === undefined) return;
+    hooks.onSignalStop(signal, signal === "SIGINT" ? 1 : gracePeriodMs);
   };
   process.on("SIGINT", ctx.shutdownHandler);
   process.on("SIGTERM", ctx.shutdownHandler);
@@ -111,14 +112,7 @@ export async function runDaemonStartup(
     moduleCrashAlertOpts: ctx.config.config?.moduleMonitoring,
     getWorkflowNotify: (name) => ctx.workflows.getDefinitions().find((d) => d.name === name)?.notify,
     onDueItems: (items) => handleDueItems(ctx, items),
-    onWorkflowCompleted: (payload) => {
-      ctx.state.completedRuns += 1;
-      ctx.state.lastCompletedWorkflow = payload.workflow;
-      ctx.state.lastCompletedAt = new Date().toISOString();
-      ctx.state.lastCompletedStatus = payload.status;
-      saveDaemonStateToDisk(ctx.stateDir, ctx.state);
-      hooks.maybeRestart();
-    },
+    onWorkflowCompleted: () => hooks.maybeRestart(),
     onRestartRequested: (reason) => hooks.requestRestart(reason),
     onLog: ctx.log,
   });

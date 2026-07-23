@@ -157,11 +157,11 @@ describe("daemon operates against external project fixture", () => {
       try {
         const deadline = Date.now() + 5000;
         while (Date.now() < deadline) {
-          if (daemon.getState().completedRuns >= 1) break;
+          if (daemon.getDashboardSnapshot().completedRuns >= 1) break;
           await wait(25);
         }
         expect(
-          daemon.getState().completedRuns,
+          daemon.getDashboardSnapshot().completedRuns,
           "at least one workflow run must complete",
         ).toBeGreaterThanOrEqual(1);
       } finally {

@@ -31,6 +31,15 @@ function scanTextEvidenceFile(args: {
 
   for (let index = 0; index < lines.length; index++) {
     const text = lines[index] ?? "";
+    const timestamp = /"ts"\s*:\s*"([^"]+)"/.exec(text)?.[1];
+    const timestampMs = timestamp === undefined ? Number.NaN : Date.parse(timestamp);
+    if (args.sourceKind === "daemon" && !Number.isFinite(timestampMs)) continue;
+    if (
+      Number.isFinite(timestampMs) &&
+      timestampMs < args.ctx.windowStartMs
+    ) {
+      continue;
+    }
     const normalized = normalizeLogCode(text);
     if (
       /(shutdown|graceful stop|daemon stop|stopping daemon).*(timeout|timed out|hung|stuck)/.test(
@@ -56,13 +65,17 @@ function scanTextEvidenceFile(args: {
     }
 
     if (/(runtime warning|runtime failure|dead-letter|interrupted run)/.test(normalized)) {
+      const sourceLabel = args.sourceKind === "inbox" ? "inbox" : "daemon";
       addPattern(args.ctx, {
-        dedupeKey: `inbox:runtime-warning:${stableHash(normalized)}`,
+        dedupeKey: `${sourceLabel}:runtime-warning:${stableHash(normalized)}`,
         category: "operator-action",
         severity: "warning",
         actionability: "owner-action",
         labels: ["operator-action", "runtime", "warning"],
-        summary: "Operator inbox captured a runtime warning that needs routing.",
+        summary:
+          args.sourceKind === "inbox"
+            ? "Operator inbox captured a runtime warning that needs routing."
+            : "Recent daemon evidence captured a runtime warning that needs routing.",
         source: { kind: args.sourceKind, id: args.sourceId },
         evidenceRefs: [
           {

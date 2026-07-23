@@ -1,6 +1,7 @@
 import type { DaemonRuntimeContext } from "./daemon-init.js";
 import { releaseInstanceLock } from "./daemon-instance-lock.js";
 import { saveDaemonStateToDisk } from "./daemon-state-persistence.js";
+import type { DaemonStopReason } from "./daemon-state.js";
 import { stopDaemonWorkflowRuntimes } from "./daemon-workflows.js";
 
 /**
@@ -25,6 +26,7 @@ export type DaemonShutdownOptions = {
   workflowsStopArgs: [number] | [number, number];
   saveState: boolean;
   logShutdown: boolean;
+  stopReason: DaemonStopReason;
 };
 
 export async function runDaemonShutdown(
@@ -72,6 +74,8 @@ export async function runDaemonShutdown(
   }
 
   if (options.saveState) {
+    ctx.state.lastStoppedAt = new Date().toISOString();
+    ctx.state.lastStopReason = options.stopReason;
     saveDaemonStateToDisk(ctx.stateDir, ctx.state);
   }
 

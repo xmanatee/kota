@@ -278,7 +278,7 @@ describe("Daemon", () => {
     const startPromise = daemon.start();
     await wait(80);
 
-    const state = daemon.getState();
+    const state = daemon.getDashboardSnapshot();
     expect(state.completedRuns).toBeGreaterThanOrEqual(1);
     expect(state.lastCompletedWorkflow).toBe("builder");
     expect(state.lastCompletedStatus).toBe("success");
@@ -469,11 +469,15 @@ describe("Daemon", () => {
     await daemon.stop();
     await startPromise;
 
-    const state = JSON.parse(
+    const daemonState = JSON.parse(
       readFileSync(join(stateDir, "daemon-state.json"), "utf-8"),
     );
-    expect(state.completedRuns).toBeGreaterThanOrEqual(1);
-    expect(state.lastCompletedWorkflow).toBe("builder");
+    const workflowState = JSON.parse(
+      readFileSync(join(stateDir, "workflow-state.json"), "utf-8"),
+    );
+    expect(workflowState.completedRuns).toBeGreaterThanOrEqual(1);
+    expect(daemonState.completedRuns).toBeUndefined();
+    expect(daemonState.lastCompletedWorkflow).toBeUndefined();
   });
 
   it("can be started again after stop", async () => {
@@ -557,10 +561,10 @@ describe("Daemon", () => {
       const startPromise = daemon.start();
       await wait(120);
 
-      const state = daemon.getState();
+      const state = daemon.getDashboardSnapshot();
       expect(state.lastCompletedStatus).toBe("failed");
       expect(state.lastCompletedWorkflow).toBe("builder");
-      expect(state.completedRuns).toBeGreaterThanOrEqual(1);
+      expect(daemon.getDashboardSnapshot().completedRuns).toBeGreaterThanOrEqual(1);
       expect(process.exitCode).not.toBe(RESTART_EXIT_CODE);
       expect(daemon.isRunning()).toBe(true);
 
@@ -636,7 +640,7 @@ describe("Daemon", () => {
       const secondStart = secondDaemon.start();
       await wait(200);
 
-      expect(secondDaemon.getState().lastCompletedWorkflow).toBe("improver");
+      expect(secondDaemon.getDashboardSnapshot().lastCompletedWorkflow).toBe("improver");
 
       await secondDaemon.stop();
       await secondStart;

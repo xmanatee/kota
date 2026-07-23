@@ -18,17 +18,15 @@ export type WorkflowBaseStep = {
   when?: WorkflowPredicate;
   continueOnFailure?: boolean;
   /**
-   * Maximum time in milliseconds this step is allowed to run. If the step does
-   * not complete within this deadline the run fails with a timeout error and the
-   * normal failure path executes (failed record, workflow.failure.alert emitted).
-   * When omitted, the executor applies DEFAULT_STEP_TIMEOUT_MS as a hang rail.
-   * Set this only when a step has a clearer operational deadline.
+   * Maximum active runtime in milliseconds. Host suspension is excluded. If the
+   * step exceeds this limit, the normal failure path executes. When omitted, the
+   * executor applies DEFAULT_STEP_TIMEOUT_MS.
    */
   timeoutMs?: number;
   /**
    * Maximum idle gap in milliseconds between trusted runtime progress
-   * signals. Unlike timeoutMs, this is not a wall-clock cap: productive long
-   * steps may exceed it in total as long as they keep reporting progress.
+   * signals. Productive long steps may exceed it in total as long as they keep
+   * reporting progress.
    * Agent progress comes from typed harness message events; code steps report
    * explicit heartbeats through ctx.reportProgress(...).
    */

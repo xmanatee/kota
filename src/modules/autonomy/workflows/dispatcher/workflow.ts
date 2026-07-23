@@ -40,7 +40,11 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           projectDir,
           now: new Date(),
         });
-        const queueEmpty = !queue.hasDispatchableWork;
+        const queueBlocked =
+          !queue.hasDispatchableWork &&
+          (queue.dependencyBlockedTasks.length > 0 ||
+            queue.claimBlockedTasks.length > 0);
+        const queueEmpty = !queue.hasDispatchableWork && !queueBlocked;
         // Builder runs only on actionable (ready+doing) work; backlog-only queues
         // route through `autonomy.queue.needs-promotion` only when the canonical
         // task snapshot says at least one backlog task can actually be promoted.
@@ -151,7 +155,9 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           emitted,
           quiescent,
           quiescentReason: quiescent
-            ? "no dispatchable autonomy work"
+            ? queueBlocked
+              ? "work is dependency- or claim-blocked"
+              : "no autonomy routing condition matched"
             : null,
         };
       },

@@ -44,7 +44,7 @@ export type RunOutcomeAggregation = {
   topRepairFailures24h: RepairCheckTally[];
   topRepairFailures7d: RepairCheckTally[];
   durationOutliers: DurationOutlier[];
-  // Runs whose terminal failure was an agent step hitting its wall-clock
+  // Runs whose terminal failure was an agent step hitting its active-runtime
   // `timeoutMs` rail. These are infrastructure signals (SDK transport stalls,
   // upstream provider hangs), not autonomy-quality signals: editing prompts,
   // validators, or queue shaping cannot fix a stuck SDK stream. They are
@@ -73,7 +73,7 @@ export type RunOutcomeAggregation = {
   // no-oped. The outlier list still ships to the agent in `durationOutliers`
   // so it can be inspected when improver does fire on a real failure.
   //
-  // Agent-step wall-clock timeouts and classified provider/auth/rate-limit
+  // Agent-step active-runtime timeouts and classified provider/auth/rate-limit
   // agent failures are likewise excluded: these are infrastructure signals,
   // not the autonomy prompt/process surface improver tunes. Firing on them
   // burns agent slots while the same upstream outage or operator credential

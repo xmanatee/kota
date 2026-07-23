@@ -231,7 +231,6 @@ export async function startDaemonWithLiveSessionReload(
   const handle = buildDaemonHandle({
     getState: () => ({
       startedAt: "2026-01-01T00:00:00.000Z",
-      completedRuns: 0,
       pid: 1234,
     }),
     isRunning: () => true,

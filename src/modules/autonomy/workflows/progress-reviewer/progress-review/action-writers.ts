@@ -1,10 +1,8 @@
-import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import {
   type ClassifiedWorkflowGeneratedTask,
   classifyWorkflowGeneratedTask,
@@ -144,19 +142,6 @@ function findExistingInboxEntry(
     }
   }
   return null;
-}
-
-function stageBestEffort(projectDir: string, path: string): void {
-  try {
-    execFileSync("git", ["add", path], {
-      cwd: projectDir,
-      env: withProtectedGitBareRepositoryEnv(),
-      stdio: "ignore",
-    });
-  } catch {
-    // The workflow commit step stages final tracked changes. In tests and
-    // sandboxed runs, the file on disk is still the important mutation.
-  }
 }
 
 function isControlCharacter(code: number): boolean {
@@ -337,7 +322,6 @@ export function writeFollowUpTask(args: {
     serializeFlatFrontMatter(attrs, buildTaskBody({ ...args, task, taskClass })),
     "utf-8",
   );
-  stageBestEffort(args.projectDir, taskPath);
   return {
     kind: "created-task",
     taskId: id,
@@ -346,29 +330,14 @@ export function writeFollowUpTask(args: {
   };
 }
 
-function findPendingOwnerQuestion(queue: OwnerQuestionQueue, question: string): string | null {
-  const normalized = question.trim().toLowerCase();
-  const existing = queue.list("pending").find(
-    (item) => item.question.trim().toLowerCase() === normalized,
-  );
-  return existing?.id ?? null;
-}
-
 export function enqueueOwnerQuestion(args: {
   projectDir: string;
   runId: string;
   question: ProgressReviewOwnerQuestionOutput;
 }): ProgressReviewAppliedAction {
   const queue = new OwnerQuestionQueue(join(args.projectDir, ".kota", "owner-questions"));
-  const existingId = findPendingOwnerQuestion(queue, args.question.question);
-  if (existingId) {
-    return {
-      kind: "skipped-owner-question",
-      question: args.question.question,
-      reason: `matching pending owner question already exists: ${existingId}`,
-    };
-  }
-  const item = queue.enqueue({
+  const { item, created } = queue.enqueueDeduplicated({
+    dedupeKey: `progress-reviewer:${args.question.topicKey}`,
     context: `Progress review run ${args.runId} cited evidence ids: ${args.question.evidenceIds.join(", ")}`,
     question: args.question.question,
     reason: args.question.reason,
@@ -383,5 +352,12 @@ export function enqueueOwnerQuestion(args: {
     },
     proposedAnswers: args.question.proposedAnswers,
   });
+  if (!created) {
+    return {
+      kind: "skipped-owner-question",
+      question: args.question.question,
+      reason: `matching pending owner question already exists: ${item.id}`,
+    };
+  }
   return { kind: "owner-question", questionId: item.id, question: item.question };
 }

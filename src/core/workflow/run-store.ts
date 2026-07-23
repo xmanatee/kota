@@ -72,6 +72,12 @@ export class WorkflowRunStore {
       workflows: state?.workflows ?? {},
       ...(state?.activeRuns !== undefined ? { activeRuns: state.activeRuns } : {}),
       ...(state?.totalCostUsd != null ? { totalCostUsd: state.totalCostUsd } : {}),
+      ...(state?.totalInputTokens != null
+        ? { totalInputTokens: state.totalInputTokens }
+        : {}),
+      ...(state?.totalOutputTokens != null
+        ? { totalOutputTokens: state.totalOutputTokens }
+        : {}),
       ...(state?.definitionsLoadedAt ? { definitionsLoadedAt: state.definitionsLoadedAt } : {}),
       ...(state?.agentBackoff ? { agentBackoff: state.agentBackoff } : {}),
       ...(state?.recovery ? { recovery: state.recovery } : {}),

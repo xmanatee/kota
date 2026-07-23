@@ -71,6 +71,10 @@ export class ScheduleTriggerManager {
     const timer = setTimeout(() => {
       if (this.isStopping()) return;
       const now = Date.now();
+      if (now < nextFireMs) {
+        this.scheduleNextFire(key, definition, trigger, nextFireMs);
+        return;
+      }
 
       // Interval triggers (not cron) respect the dispatch window.
       if (trigger.intervalMs != null) {
@@ -96,7 +100,11 @@ export class ScheduleTriggerManager {
       if (trigger.intervalMs != null) {
         nextMs = now + trigger.intervalMs;
       } else {
-        const next = getNextCronTime(trigger.schedule!, new Date(now), trigger.timezone);
+        const next = getNextCronTime(
+          trigger.schedule!,
+          new Date(Math.max(now, nextFireMs)),
+          trigger.timezone,
+        );
         if (!next) return;
         nextMs = next.getTime();
       }

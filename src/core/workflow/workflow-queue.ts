@@ -240,8 +240,8 @@ export class WorkflowQueueManager {
   pick(canDispatch?: (def: WorkflowDefinition) => boolean): WorkflowQueuedRun | null {
     const now = Date.now();
     const activeAgentBackoff = this.config.getActiveBackoff();
-    // Re-read state so cooldown checks use latest completion data.
     const freshState = this.config.store.readState();
+    let timingChanged = false;
     const eligible = this.queue
       .map((item, index) => ({ item, index }))
       .filter(({ item }) => {
@@ -270,6 +270,10 @@ export class WorkflowQueueManager {
           }
         }
 
+        if (effectiveNotBefore !== item.notBeforeMs) {
+          item.notBeforeMs = effectiveNotBefore;
+          timingChanged = true;
+        }
         if (effectiveNotBefore > now) {
           return false;
         }
@@ -282,7 +286,10 @@ export class WorkflowQueueManager {
       })
       .sort((a, b) => a.item.enqueuedAtMs - b.item.enqueuedAtMs);
 
-    if (eligible.length === 0) return null;
+    if (eligible.length === 0) {
+      if (timingChanged) this.persist();
+      return null;
+    }
     const picked = eligible[0];
     this.queue.splice(picked.index, 1);
     this.persist();

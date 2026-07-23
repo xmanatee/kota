@@ -88,7 +88,6 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
   return {
     getDaemonLiveState: vi.fn(() => ({
       startedAt: "2026-01-01T00:00:00.000Z",
-      completedRuns: 0,
       pid: 9999,
       running: true,
     })),

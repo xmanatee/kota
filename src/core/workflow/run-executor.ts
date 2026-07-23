@@ -9,6 +9,10 @@ import type { EventJournal } from "#core/events/event-journal.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { createDelegateBudget } from "#core/tools/delegate-budget.js";
 import {
+  activeTimingMetadata,
+  createActiveTimeout,
+} from "./active-timeout.js";
+import {
   buildStepStartedPayload,
   buildWorkflowCompletedPayload,
   buildWorkflowStartedPayload,
@@ -103,14 +107,17 @@ export function executeWorkflowRun(
   const delegateBudget = createDelegateBudget();
   const runTokenBudget = resolveWorkflowRunTokenBudget(deps.config);
 
-  let runTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
-  if (definition.runTimeoutMs !== undefined) {
-    runTimeoutHandle = setTimeout(() => {
-      abortController.abort(
-        new Error(`Workflow "${definition.name}" run timed out after ${definition.runTimeoutMs}ms`),
-      );
-    }, definition.runTimeoutMs);
-  }
+  const runTimeout =
+    definition.runTimeoutMs === undefined
+      ? undefined
+      : createActiveTimeout(
+          definition.runTimeoutMs,
+          () =>
+            new Error(
+              `Workflow "${definition.name}" run timed out after ${definition.runTimeoutMs}ms of active runtime`,
+            ),
+          (error) => abortController.abort(error),
+        );
 
   deps.pbus.emit(
     "workflow.started",
@@ -247,9 +254,12 @@ export function executeWorkflowRun(
       }
       if (outputWarnings.length > 0) hadWarnings = true;
       const finalStatus = hadWarnings ? "completed-with-warnings" : "success";
+      const timing = runTimeout?.snapshot();
+      runTimeout?.dispose();
       const completed = run.finish({
         status: finalStatus,
         durationMs: Date.now() - startedAt,
+        ...activeTimingMetadata(timing),
         ...(outputWarnings.length > 0 ? { warnings: outputWarnings } : {}),
       });
       deps.pbus.emit(
@@ -273,9 +283,12 @@ export function executeWorkflowRun(
         abortController.signal.aborted || err.name === "AbortError"
           ? "interrupted"
           : "failed";
+      const timing = runTimeout?.snapshot();
+      runTimeout?.dispose();
       const completed = run.finish({
         status,
         durationMs: Date.now() - startedAt,
+        ...activeTimingMetadata(timing),
         error: err.message,
       });
       deps.pbus.emit(
@@ -290,7 +303,7 @@ export function executeWorkflowRun(
         ...(agentBackoff ? { agentBackoff } : {}),
       };
     } finally {
-      clearTimeout(runTimeoutHandle);
+      runTimeout?.dispose();
     }
   })();
 

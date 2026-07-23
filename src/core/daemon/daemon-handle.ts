@@ -183,6 +183,8 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
         queueLength: wfState.queueLength,
         completedRuns: wfState.completedRuns,
         totalCostUsd: wfState.totalCostUsd,
+        totalInputTokens: wfState.totalInputTokens,
+        totalOutputTokens: wfState.totalOutputTokens,
         agentBackoff: wfState.agentBackoff,
         definitionsLoadedAt: wfState.definitionsLoadedAt,
         workflows: wfState.workflows,

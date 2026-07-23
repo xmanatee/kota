@@ -26,6 +26,7 @@ export type ProgressReviewFindingGroup = {
 };
 
 export type ProgressReviewOwnerQuestionOutput = {
+  topicKey: string;
   question: string;
   reason: string;
   evidenceIds: string[];

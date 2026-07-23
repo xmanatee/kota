@@ -75,7 +75,6 @@ function makeReloadSubject(
   const handle = buildDaemonHandle({
     getState: () => ({
       startedAt: "2026-01-01T00:00:00.000Z",
-      completedRuns: 0,
       pid: 1234,
     }),
     isRunning: () => true,
@@ -142,7 +141,6 @@ function makeWorkflowRunSubject(metadata: WorkflowRunMetadata): ReturnType<typeo
   return buildDaemonHandle({
     getState: () => ({
       startedAt: "2026-01-01T00:00:00.000Z",
-      completedRuns: 0,
       pid: 1234,
     }),
     isRunning: () => true,
@@ -474,7 +472,6 @@ describe("buildDaemonHandle sessions", () => {
     const handle = buildDaemonHandle({
       getState: () => ({
         startedAt: "2026-01-01T00:00:00.000Z",
-        completedRuns: 0,
         pid: 1234,
       }),
       isRunning: () => true,

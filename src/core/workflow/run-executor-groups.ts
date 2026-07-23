@@ -1,4 +1,10 @@
 import {
+  activeTimingMetadata,
+  createActiveTimeout,
+  rejectWhenActiveTimeoutExpires,
+  type ActiveTimeoutSnapshot,
+} from "./active-timeout.js";
+import {
   buildChildContext,
   type GroupStep,
   type GroupStepDeps,
@@ -7,7 +13,7 @@ import {
   recordFailedGroup,
 } from "./run-executor-group-support.js";
 import { DEFAULT_STEP_TIMEOUT_MS } from "./run-executor-step.js";
-import type { WorkflowStepContext } from "./run-types.js";
+import type { WorkflowStepContext, WorkflowStepResult } from "./run-types.js";
 import type { WorkflowBranchStep, WorkflowForeachStep, WorkflowParallelGroup } from "./step-types.js";
 import { type BranchGroupResult, executeBranchStepGroup } from "./steps/step-executor-branch.js";
 import {
@@ -17,8 +23,58 @@ import {
 } from "./steps/step-executor-foreach.js";
 import {
   executeParallelStepGroup,
-  type ParallelAgentDeps,
+  type ParallelGroupResult,
 } from "./steps/step-executor-parallel.js";
+
+type TimedGroupExecution<T> =
+  | { completed: true; result: T; timing: ActiveTimeoutSnapshot }
+  | { completed: false; outcome: GroupStepOutcome };
+
+async function executeTimedGroup<T>(
+  step: GroupStep,
+  stepStartedAt: number,
+  deps: GroupStepDeps,
+  execute: (abortController: AbortController) => Promise<T>,
+): Promise<TimedGroupExecution<T>> {
+  const abortController = new AbortController();
+  const forwardAbort = () => {
+    abortController.abort(deps.runAbortController.signal.reason);
+  };
+  deps.runAbortController.signal.addEventListener("abort", forwardAbort, { once: true });
+  const timeoutMs = step.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS;
+  const activeTimeout = createActiveTimeout(
+    timeoutMs,
+    () => new Error(`Step "${step.id}" timed out after ${timeoutMs}ms of active runtime`),
+    (error) => abortController.abort(error),
+  );
+  try {
+    const result = await Promise.race([
+      execute(abortController),
+      rejectWhenActiveTimeoutExpires(activeTimeout),
+    ]);
+    return { completed: true, result, timing: activeTimeout.snapshot() };
+  } catch (caught) {
+    const error = caught instanceof Error ? caught : new Error(String(caught));
+    recordFailedGroup(step, stepStartedAt, error, deps, activeTimeout.snapshot());
+    if (step.continueOnFailure) {
+      return {
+        completed: false,
+        outcome: { previousOutput: deps.previousOutput, hadWarnings: true },
+      };
+    }
+    throw error;
+  } finally {
+    activeTimeout.dispose();
+    deps.runAbortController.signal.removeEventListener("abort", forwardAbort);
+  }
+}
+
+function applyGroupTiming(
+  result: WorkflowStepResult,
+  timing: ActiveTimeoutSnapshot,
+): void {
+  Object.assign(result, activeTimingMetadata(timing));
+}
 
 async function executeParallelGroup(
   step: WorkflowParallelGroup,
@@ -26,23 +82,31 @@ async function executeParallelGroup(
   stepStartedAt: number,
   deps: GroupStepDeps,
 ): Promise<GroupStepOutcome> {
-  const parallelDeps: ParallelAgentDeps = {
-    definition: deps.definition,
-    run: deps.run,
-    trigger: deps.trigger,
-    runAbortController: deps.runAbortController,
-    agentConfig: deps.agentConfig,
-    acc: deps.acc,
-    bus: deps.bus,
-    pbus: deps.pbus,
-    log: deps.log,
-  };
-  const result = await executeParallelStepGroup(
+  const execution = await executeTimedGroup<ParallelGroupResult>(
     step,
-    context,
     stepStartedAt,
-    parallelDeps,
+    deps,
+    (abortController) =>
+      executeParallelStepGroup(
+        step,
+        context,
+        stepStartedAt,
+        {
+          definition: deps.definition,
+          run: deps.run,
+          trigger: deps.trigger,
+          runAbortController: abortController,
+          agentConfig: deps.agentConfig,
+          acc: deps.acc,
+          bus: deps.bus,
+          pbus: deps.pbus,
+          log: deps.log,
+        },
+      ),
   );
+  if (!execution.completed) return execution.outcome;
+  const result = execution.result;
+  applyGroupTiming(result.groupResult, execution.timing);
   recordCompletedGroup(step, result.groupResult, deps);
   for (const child of result.innerResults) {
     deps.acc.stepResultsById[child.id] = child;
@@ -80,44 +144,22 @@ async function executeBranchGroup(
   stepStartedAt: number,
   deps: GroupStepDeps,
 ): Promise<GroupStepOutcome> {
-  const stepAbortController = new AbortController();
-  const forwardAbort = () => {
-    stepAbortController.abort(deps.runAbortController.signal.reason);
-  };
-  deps.runAbortController.signal.addEventListener("abort", forwardAbort, { once: true });
-  const timeoutMs = step.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS;
-  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutHandle = setTimeout(() => {
-      const error = new Error(`Step "${step.id}" timed out after ${timeoutMs}ms`);
-      stepAbortController.abort(error);
-      reject(error);
-    }, timeoutMs);
-  });
-  let groupResult: BranchGroupResult | undefined;
-  try {
-    groupResult = await Promise.race([
+  const execution = await executeTimedGroup<BranchGroupResult>(
+    step,
+    stepStartedAt,
+    deps,
+    (abortController) =>
       executeBranchStepGroup(
         step,
         context,
         stepStartedAt,
-        { ...deps, runAbortController: stepAbortController },
+        { ...deps, runAbortController: abortController },
         (currentStepId = step.id) => buildChildContext(currentStepId, deps),
       ),
-      timeoutPromise,
-    ]);
-  } catch (err) {
-    const error = err instanceof Error ? err : new Error(String(err));
-    recordFailedGroup(step, stepStartedAt, error, deps);
-    if (step.continueOnFailure) {
-      return { previousOutput: deps.previousOutput, hadWarnings: true };
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeoutHandle);
-    deps.runAbortController.signal.removeEventListener("abort", forwardAbort);
-  }
-
+  );
+  if (!execution.completed) return execution.outcome;
+  const groupResult = execution.result;
+  applyGroupTiming(groupResult.branchResult, execution.timing);
   recordCompletedGroup(step, groupResult.branchResult, deps);
   if (groupResult.branchFailed) {
     if (step.continueOnFailure) {
@@ -158,47 +200,25 @@ async function executeForeachGroup(
   stepStartedAt: number,
   deps: GroupStepDeps,
 ): Promise<GroupStepOutcome> {
-  const stepAbortController = new AbortController();
-  const forwardAbort = () => {
-    stepAbortController.abort(deps.runAbortController.signal.reason);
-  };
-  deps.runAbortController.signal.addEventListener("abort", forwardAbort, { once: true });
-  const timeoutMs = step.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS;
-  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutHandle = setTimeout(() => {
-      const error = new Error(`Step "${step.id}" timed out after ${timeoutMs}ms`);
-      stepAbortController.abort(error);
-      reject(error);
-    }, timeoutMs);
-  });
-  let groupResult: ForeachGroupResult | undefined;
-  try {
-    groupResult = await Promise.race([
+  const execution = await executeTimedGroup<ForeachGroupResult>(
+    step,
+    stepStartedAt,
+    deps,
+    (abortController) =>
       executeForeachStepGroup(
         step,
         buildChildContext(step.id, deps),
         stepStartedAt,
         {
           ...deps,
-          runAbortController: stepAbortController,
+          runAbortController: abortController,
           priorItemResults: priorForeachItemResults(step, deps),
         },
       ),
-      timeoutPromise,
-    ]);
-  } catch (err) {
-    const error = err instanceof Error ? err : new Error(String(err));
-    recordFailedGroup(step, stepStartedAt, error, deps);
-    if (step.continueOnFailure) {
-      return { previousOutput: deps.previousOutput, hadWarnings: true };
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeoutHandle);
-    deps.runAbortController.signal.removeEventListener("abort", forwardAbort);
-  }
-
+  );
+  if (!execution.completed) return execution.outcome;
+  const groupResult = execution.result;
+  applyGroupTiming(groupResult.groupResult, execution.timing);
   recordCompletedGroup(step, groupResult.groupResult, deps);
   if (groupResult.groupFailed) {
     if (step.continueOnFailure) {

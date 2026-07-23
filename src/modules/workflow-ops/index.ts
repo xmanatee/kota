@@ -378,6 +378,12 @@ const workflowModule: KotaModule = {
           queueLength: state.pendingRuns.length,
           completedRuns: state.completedRuns,
           ...(state.totalCostUsd !== undefined && { totalCostUsd: state.totalCostUsd }),
+          ...(state.totalInputTokens !== undefined && {
+            totalInputTokens: state.totalInputTokens,
+          }),
+          ...(state.totalOutputTokens !== undefined && {
+            totalOutputTokens: state.totalOutputTokens,
+          }),
           ...(state.agentBackoff && { agentBackoff: state.agentBackoff }),
           ...(state.definitionsLoadedAt && { definitionsLoadedAt: state.definitionsLoadedAt }),
           workflows: state.workflows,

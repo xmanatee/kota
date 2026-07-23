@@ -41,6 +41,7 @@ export type OwnerQuestionOrigin =
     };
 
 export type OwnerQuestionEnqueueInput = {
+  dedupeKey?: string;
   context: string;
   question: string;
   reason: string;
@@ -56,6 +57,7 @@ export type OwnerQuestionEnqueueInput = {
 export type PendingOwnerQuestion = {
   id: string;
   seq: number;
+  dedupeKey?: string;
   context: string;
   question: string;
   reason: string;
@@ -134,9 +136,14 @@ export class OwnerQuestionQueue {
   }
 
   enqueue(input: OwnerQuestionEnqueueInput): PendingOwnerQuestion {
+    const dedupeKey = input.dedupeKey?.trim().toLowerCase();
+    if (input.dedupeKey !== undefined && !dedupeKey) {
+      throw new Error("Owner question dedupeKey must not be empty");
+    }
     const item: PendingOwnerQuestion = {
       id: randomUUID().slice(0, 8),
       seq: _enqueueSeq++,
+      ...(dedupeKey !== undefined ? { dedupeKey } : {}),
       context: input.context,
       question: input.question,
       reason: input.reason,
@@ -168,6 +175,21 @@ export class OwnerQuestionQueue {
       this.pbus.emit("owner.question.changed", { id: item.id, pendingCount: this.count("pending") });
     }
     return item;
+  }
+
+  enqueueDeduplicated(
+    input: OwnerQuestionEnqueueInput & { dedupeKey: string },
+  ): { item: PendingOwnerQuestion; created: boolean } {
+    const dedupeKey = input.dedupeKey.trim().toLowerCase();
+    if (!dedupeKey) throw new Error("Owner question dedupeKey must not be empty");
+    const existing = this.list("pending").find(
+      (item) => item.dedupeKey === dedupeKey,
+    );
+    if (existing) return { item: existing, created: false };
+    return {
+      item: this.enqueue({ ...input, dedupeKey }),
+      created: true,
+    };
   }
 
   get(id: string): PendingOwnerQuestion | null {

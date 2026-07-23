@@ -87,6 +87,8 @@ export type WorkflowRuntimeState = {
   activeRuns?: WorkflowActiveRun[];
   completedRuns: number;
   totalCostUsd?: number;
+  totalInputTokens?: number;
+  totalOutputTokens?: number;
   definitionsLoadedAt?: string;
   agentBackoff?: WorkflowAgentBackoffState;
   recovery?: WorkflowRecoveryState;
@@ -130,7 +132,11 @@ export type WorkflowStepResult = {
   startedAt: string;
   completedAt: string;
   durationMs: number;
+  activeDurationMs?: number;
+  hostSuspendedMs?: number;
   costUsd?: number;
+  inputTokens?: number;
+  outputTokens?: number;
   output?: unknown;
   error?: string;
   errorKind?: "idle-timeout";
@@ -293,7 +299,11 @@ export type WorkflowRunMetadata = {
   completedAt?: string;
   status: WorkflowRunStatus | "running";
   durationMs?: number;
+  activeDurationMs?: number;
+  hostSuspendedMs?: number;
   totalCostUsd?: number;
+  inputTokens?: number;
+  outputTokens?: number;
   runDir: string;
   steps: WorkflowStepResult[];
   warnings?: WorkflowRunWarning[];

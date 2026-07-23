@@ -9,6 +9,11 @@ import type { EventBus } from "#core/events/event-bus.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
+import {
+  activeTimingMetadata,
+  createActiveTimeout,
+  rejectWhenActiveTimeoutExpires,
+} from "./active-timeout.js";
 import { buildStepCompletedPayload, resolveStepAutonomyMode } from "./event-payloads.js";
 import type { ToolCallSummaryEntry, WorkflowRunMetadata, WorkflowRunWarning, WorkflowStepContext, WorkflowStepResult, WorkflowStepSkipReason } from "./run-types.js";
 import {
@@ -272,17 +277,14 @@ export async function executeWorkflowStep(
   const timeoutMs = skipDefaultTimeout
     ? undefined
     : ("timeoutMs" in step ? (step.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS) : DEFAULT_STEP_TIMEOUT_MS);
-  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-  const timeoutPromise =
+  const activeTimeout =
     timeoutMs === undefined
       ? null
-      : new Promise<never>((_, reject) => {
-          timeoutHandle = setTimeout(() => {
-            const err = new Error(`Step "${step.id}" timed out after ${timeoutMs}ms`);
-            stepAbortController.abort(err);
-            reject(err);
-          }, timeoutMs);
-        });
+      : createActiveTimeout(
+          timeoutMs,
+          () => new Error(`Step "${step.id}" timed out after ${timeoutMs}ms of active runtime`),
+          (error) => stepAbortController.abort(error),
+        );
   const idleTimeoutMs = "idleTimeoutMs" in step ? step.idleTimeoutMs : undefined;
   const idleMonitor =
     step.type !== "agent" &&
@@ -325,23 +327,40 @@ export async function executeWorkflowStep(
       deps.bus,
     );
     const racePromises: Promise<unknown>[] = [stepPromise];
-    if (timeoutPromise !== null) racePromises.push(timeoutPromise);
+    if (activeTimeout !== null) {
+      racePromises.push(rejectWhenActiveTimeoutExpires(activeTimeout));
+    }
     if (idleMonitor !== undefined) racePromises.push(idleMonitor.timeout);
     const rawResult = await (racePromises.length === 1
       ? stepPromise
       : Promise.race(racePromises));
+    const timing = activeTimeout?.snapshot();
+    activeTimeout?.dispose();
+    idleMonitor?.dispose();
     // Agent steps return an AgentStepResult wrapper so the resolved harness
     // and model can be promoted to top-level fields on the step result; every
     // other step type returns its output directly.
     const isAgentResult = step.type === "agent";
     const agentResult = isAgentResult ? (rawResult as AgentStepResult) : undefined;
     const rawOutput = isAgentResult ? (rawResult as AgentStepResult).output : rawResult;
-    const stepCostUsd =
+    const agentUsage =
       step.type === "agent" &&
       rawOutput != null &&
       typeof rawOutput === "object" &&
       !Array.isArray(rawOutput)
-        ? ((rawOutput as Record<string, unknown>).totalCostUsd as number | undefined)
+        ? (rawOutput as Record<string, unknown>)
+        : undefined;
+    const stepCostUsd =
+      typeof agentUsage?.totalCostUsd === "number"
+        ? agentUsage.totalCostUsd
+        : undefined;
+    const inputTokens =
+      typeof agentUsage?.inputTokens === "number"
+        ? agentUsage.inputTokens
+        : undefined;
+    const outputTokens =
+      typeof agentUsage?.outputTokens === "number"
+        ? agentUsage.outputTokens
         : undefined;
 
     const { output, warning: truncationWarning } = applyOutputSizeLimit(
@@ -363,7 +382,10 @@ export async function executeWorkflowStep(
       startedAt: new Date(stepStartedAt).toISOString(),
       completedAt: new Date().toISOString(),
       durationMs: Date.now() - stepStartedAt,
+      ...activeTimingMetadata(timing),
       ...(stepCostUsd != null ? { costUsd: stepCostUsd } : {}),
+      ...(inputTokens !== undefined ? { inputTokens } : {}),
+      ...(outputTokens !== undefined ? { outputTokens } : {}),
       output,
       ...(toolCalls != null ? { toolCalls } : {}),
       ...(agentResult
@@ -387,7 +409,12 @@ export async function executeWorkflowStep(
         resolveStepAutonomyMode(step, definition.defaultAutonomyMode),
       ),
     );
-    const logDetails: string[] = [`${completed.durationMs}ms`];
+    const logDetails: string[] = [
+      `${completed.activeDurationMs ?? completed.durationMs}ms`,
+    ];
+    if (completed.hostSuspendedMs !== undefined) {
+      logDetails.push(`host suspended ${completed.hostSuspendedMs}ms`);
+    }
     if (completed.type === "agent" && completed.output && typeof completed.output === "object") {
       const o = completed.output as { turns?: unknown; totalCostUsd?: unknown; subtype?: unknown };
       if (typeof o.turns === "number") logDetails.push(`${o.turns} turn(s)`);
@@ -399,6 +426,9 @@ export async function executeWorkflowStep(
     );
     return { completed, ...(truncationWarning ? { truncationWarning } : {}) };
   } catch (error) {
+    const timing = activeTimeout?.snapshot();
+    activeTimeout?.dispose();
+    idleMonitor?.dispose();
     // If the step-level controller was aborted by the deadline (not the run-level abort),
     // surface a plain Error so the run gets status "failed" rather than "interrupted".
     const abortReason = stepAbortController.signal.reason;
@@ -441,6 +471,7 @@ export async function executeWorkflowStep(
       startedAt: new Date(stepStartedAt).toISOString(),
       completedAt: new Date().toISOString(),
       durationMs: Date.now() - stepStartedAt,
+      ...activeTimingMetadata(timing),
       error: err.message,
       ...(idleTimeoutError !== undefined
         ? { errorKind: "idle-timeout" as const, idleTimeoutMs: idleTimeoutError.idleTimeoutMs }
@@ -463,7 +494,7 @@ export async function executeWorkflowStep(
     );
     return { completed: failed, agentBackoff, thrownError: err };
   } finally {
-    clearTimeout(timeoutHandle);
+    activeTimeout?.dispose();
     idleMonitor?.dispose();
     runAbortController.signal.removeEventListener("abort", forwardRunAbort);
   }

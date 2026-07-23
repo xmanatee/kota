@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   existsSync,
@@ -14,7 +13,6 @@ import {
   parseFlatFrontMatter,
   serializeFlatFrontMatter,
 } from "#core/util/frontmatter.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { WorkflowBatchFlushPayload } from "#core/workflow/trigger-types.js";
 import {
   projectAutonomyHealthEvidenceRefsForReview,
@@ -117,6 +115,7 @@ export type AutonomyHealthAppliedAction =
 export type AutonomyHealthReviewActionResult = {
   createdTaskIds: string[];
   ownerQuestionIds: string[];
+  dismissedOwnerQuestionIds: string[];
   applied: AutonomyHealthAppliedAction[];
   touchedTaskQueue: boolean;
 };
@@ -563,19 +562,6 @@ function serializeTask(
   return serializeFlatFrontMatter(attrs, buildTaskBody(group));
 }
 
-function stageBestEffort(projectDir: string, path: string): void {
-  try {
-    execFileSync("git", ["add", path], {
-      cwd: projectDir,
-      env: withProtectedGitBareRepositoryEnv(),
-      stdio: "ignore",
-    });
-  } catch {
-    // The commit step stages the final path set. Staging here keeps
-    // validate-tasks aligned in live git worktrees.
-  }
-}
-
 function shouldCreateLocalRepairTask(group: AutonomyHealthReviewGroup): boolean {
   if (group.actionability !== "local-code") return false;
   return (
@@ -612,7 +598,6 @@ function createReadyTask(args: {
     serializeTask(args.group, args.nowIso, args.taskId),
     "utf-8",
   );
-  stageBestEffort(args.projectDir, taskPath);
   return {
     kind: "created-task",
     taskId: args.taskId,
@@ -633,7 +618,6 @@ function refreshReadyTask(args: {
     serializeTask(args.group, args.nowIso, args.taskId),
     "utf-8",
   );
-  stageBestEffort(args.projectDir, args.path);
   return {
     kind: "refreshed-task",
     taskId: args.taskId,
@@ -759,17 +743,6 @@ function ownerQuestionForGroup(group: AutonomyHealthReviewGroup): string {
   return `Autonomy health pattern ${group.dedupeKey} needs owner/setup action; what should KOTA do next?`;
 }
 
-function findPendingOwnerQuestion(
-  queue: OwnerQuestionQueue,
-  question: string,
-): string | null {
-  const normalized = question.trim().toLowerCase();
-  const existing = queue
-    .list("pending")
-    .find((item) => item.question.trim().toLowerCase() === normalized);
-  return existing?.id ?? null;
-}
-
 function enqueueOwnerQuestion(args: {
   projectDir: string;
   runId: string;
@@ -778,15 +751,6 @@ function enqueueOwnerQuestion(args: {
 }): AutonomyHealthAppliedAction {
   const queue = new OwnerQuestionQueue(join(args.projectDir, ".kota", "owner-questions"));
   const question = ownerQuestionForGroup(args.group);
-  const existingId = findPendingOwnerQuestion(queue, question);
-  if (existingId) {
-    return {
-      kind: "skipped-owner-question",
-      questionId: existingId,
-      dedupeKey: args.group.dedupeKey,
-      reason: `matching pending owner question already exists: ${existingId}`,
-    };
-  }
   const evidenceRefs = projectAutonomyHealthEvidenceRefsForReview(
     args.group.evidenceRefs,
   );
@@ -797,7 +761,8 @@ function enqueueOwnerQuestion(args: {
           args.group.summaries[0],
           args.group.evidenceRefs,
         );
-  const item = queue.enqueue({
+  const { item, created } = queue.enqueueDeduplicated({
+    dedupeKey: `autonomy-health-reviewer:${args.group.dedupeKey}`,
     context:
       `Autonomy health review run ${args.runId} grouped ${args.group.signalCount} signal(s). ` +
       `Labels: ${args.group.labels.join(", ")}. Evidence: ${evidenceRefs
@@ -822,6 +787,14 @@ function enqueueOwnerQuestion(args: {
       "Escalate to a service/auth repair outside KOTA",
     ],
   });
+  if (!created) {
+    return {
+      kind: "skipped-owner-question",
+      questionId: item.id,
+      dedupeKey: args.group.dedupeKey,
+      reason: `matching pending owner question already exists: ${item.id}`,
+    };
+  }
   args.emitOwnerQuestionAsked?.({
     id: item.id,
     question: item.question,
@@ -854,6 +827,30 @@ export function applyAutonomyHealthReviewActions(args: {
   nowIso: string;
   emitOwnerQuestionAsked?: (payload: OwnerQuestionAskedPayload) => void;
 }): AutonomyHealthReviewActionResult {
+  const activeDedupeKeys = new Set(
+    args.review.groups.map(
+      (group) => `autonomy-health-reviewer:${group.dedupeKey}`,
+    ),
+  );
+  const ownerQuestions = new OwnerQuestionQueue(
+    join(args.projectDir, ".kota", "owner-questions"),
+  );
+  const dismissedOwnerQuestionIds = ownerQuestions
+    .list("pending")
+    .filter(
+      (item) =>
+        item.source === "autonomy-health-reviewer" &&
+        item.dedupeKey !== undefined &&
+        !activeDedupeKeys.has(item.dedupeKey),
+    )
+    .map((item) => {
+      ownerQuestions.dismiss(
+        item.id,
+        "Superseded because the latest autonomy health review no longer reports this pattern",
+        "autonomy-health-reviewer",
+      );
+      return item.id;
+    });
   const applied = args.review.groups.map((group): AutonomyHealthAppliedAction => {
     if (shouldCreateLocalRepairTask(group)) {
       return createOrRefreshTask({
@@ -893,6 +890,7 @@ export function applyAutonomyHealthReviewActions(args: {
         action.kind === "owner-question",
       )
       .map((action) => action.questionId),
+    dismissedOwnerQuestionIds,
     applied,
     touchedTaskQueue: applied.some(actionTouchesTaskQueue),
   };

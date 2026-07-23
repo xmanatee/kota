@@ -12,6 +12,7 @@ import type { EventJournal } from "#core/events/event-journal.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import type { AgentBackoffManager } from "./agent-backoff.js";
+import { dismissSupersededWorkflowDeadLetters } from "./dead-letter-supersession.js";
 import { isWithinDispatchWindow } from "./dispatch-window.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { workflowUsesAgent } from "./run-executor-utils.js";
@@ -225,6 +226,18 @@ export async function runWorkflow(
       result.metadata,
       result.agentBackoff?.kind,
     );
+    if (
+      state.deadLetterQueue !== undefined &&
+      (result.metadata.status === "success" ||
+        result.metadata.status === "completed-with-warnings")
+    ) {
+      dismissSupersededWorkflowDeadLetters({
+        deadLetterQueue: state.deadLetterQueue,
+        runStore: state.store,
+        successfulRun: result.metadata,
+        log: state.log,
+      });
+    }
     handleDirtyCompletion(state, definition, result.metadata, preRunFingerprint);
     releaseReservation();
     await runTerminalFinalizer(state, definition, trigger, result.metadata, workspaceDir);

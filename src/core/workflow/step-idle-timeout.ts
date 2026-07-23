@@ -1,5 +1,9 @@
 import type { KotaAgentMessageType } from "#core/agent-harness/agent-message.js";
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
+import {
+  createActiveTimeout,
+  rejectWhenActiveTimeoutExpires,
+} from "./active-timeout.js";
 import { AgentStepRuntimeError } from "./steps/step-executor-retry.js";
 
 export type WorkflowStepProgressEvent =
@@ -58,45 +62,15 @@ export function createStepIdleTimeoutMonitor(args: {
   abortController: AbortController;
   createError: (idleForMs: number) => Error;
 }): StepIdleTimeoutMonitor {
-  let settled = false;
-  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-  let lastProgressAt = Date.now();
-  let rejectTimeout: (error: Error) => void = () => {};
-
-  const timeout = new Promise<never>((_, reject) => {
-    rejectTimeout = reject;
-  });
-
-  const clear = () => {
-    if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
-    timeoutHandle = undefined;
-  };
-
-  const fire = () => {
-    if (settled) return;
-    settled = true;
-    const error = args.createError(Date.now() - lastProgressAt);
-    rejectTimeout(error);
-    args.abortController.abort(error);
-  };
-
-  const schedule = () => {
-    clear();
-    timeoutHandle = setTimeout(fire, args.idleTimeoutMs);
-  };
-
-  schedule();
+  const activeTimeout = createActiveTimeout(
+    args.idleTimeoutMs,
+    args.createError,
+    (error) => args.abortController.abort(error),
+  );
 
   return {
-    reportProgress: (_event) => {
-      if (settled) return;
-      lastProgressAt = Date.now();
-      schedule();
-    },
-    timeout,
-    dispose: () => {
-      settled = true;
-      clear();
-    },
+    reportProgress: () => activeTimeout.reset(),
+    timeout: rejectWhenActiveTimeoutExpires(activeTimeout),
+    dispose: activeTimeout.dispose,
   };
 }

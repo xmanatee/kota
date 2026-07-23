@@ -168,7 +168,6 @@ function makeLiveStatus(overrides: Partial<DaemonLiveStatus> = {}): DaemonLiveSt
   return {
     pid: 12345,
     startedAt: new Date(Date.now() - 3_600_000).toISOString(),
-    completedRuns: 10,
     running: true,
     workflow: {
       activeRuns: [],

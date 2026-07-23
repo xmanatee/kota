@@ -341,6 +341,15 @@ export function assertWorkflowRuntimeState(
   if (!Array.isArray(value.pendingRuns) || value.pendingRuns.some((item) => !isQueuedRun(item))) {
     fail(path, "workflow state has invalid pendingRuns");
   }
+  for (const field of ["totalCostUsd", "totalInputTokens", "totalOutputTokens"]) {
+    const metric = value[field];
+    if (
+      metric !== undefined &&
+      (typeof metric !== "number" || !Number.isFinite(metric) || metric < 0)
+    ) {
+      fail(path, `workflow state has invalid ${field}`);
+    }
+  }
   if (!isPlainObject(value.workflows)) fail(path, "workflow state has invalid workflows");
   if (value.agentBackoff !== undefined && !isWorkflowAgentBackoffState(value.agentBackoff)) {
     fail(path, "workflow state has invalid agentBackoff");

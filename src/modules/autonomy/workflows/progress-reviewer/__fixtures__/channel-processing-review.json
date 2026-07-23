@@ -29,6 +29,7 @@
   },
   "ownerQuestions": [
     {
+      "topicKey": "channel-rendered-routing-evidence",
       "question": "Should channel progress reviews require rendered message fixtures for every channel batch?",
       "reason": "The current evidence shows channel activity but not the operator-visible routed outcome.",
       "evidenceIds": ["event:1"],

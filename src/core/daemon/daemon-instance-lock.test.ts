@@ -55,7 +55,6 @@ describe("daemon instance lock", () => {
       JSON.stringify({
         pid: 4242,
         startedAt: "2026-06-16T01:10:03.990Z",
-        completedRuns: 15038,
       }),
     );
     mockedIsProcessAlive.mockReturnValue(true);

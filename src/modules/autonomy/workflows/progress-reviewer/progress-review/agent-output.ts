@@ -23,6 +23,7 @@ const reviewFollowUpTaskSchema = z.object({
 }).strict();
 
 const reviewOwnerQuestionSchema = z.object({
+  topicKey: z.string().regex(/^[a-z0-9][a-z0-9:_-]*$/),
   question: z.string().min(1),
   reason: z.string().min(1),
   evidenceIds: z.array(z.string().min(1)).min(1),

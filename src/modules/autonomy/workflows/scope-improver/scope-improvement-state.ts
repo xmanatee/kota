@@ -1,7 +1,5 @@
-import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import {
   SCOPE_IMPROVEMENT_CONFIG_PATH,
   SCOPE_IMPROVEMENT_DEFAULT_MAX_ACTIONS_PER_RUN,
@@ -75,18 +73,6 @@ export function readScopeImprovementState(
         )
       : [],
   };
-}
-
-export function stageBestEffort(projectDir: string, path: string): void {
-  try {
-    execFileSync("git", ["add", path], {
-      cwd: projectDir,
-      env: withProtectedGitBareRepositoryEnv(),
-      stdio: "ignore",
-    });
-  } catch {
-    // The terminal commit step stages the final tracked diff.
-  }
 }
 
 export function isScopeImprovementWriteAllowed(

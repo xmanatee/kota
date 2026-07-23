@@ -1,8 +1,6 @@
-import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { classifyWorkflowGeneratedTask } from "#modules/autonomy/workflow-generated-task-class.js";
 import {
   getRepoTaskStateDir,
@@ -200,19 +198,6 @@ function buildFindingTaskBody(args: {
   ].join("\n");
 }
 
-function stageBestEffort(projectDir: string, path: string): void {
-  try {
-    execFileSync("git", ["add", path], {
-      cwd: projectDir,
-      env: withProtectedGitBareRepositoryEnv(),
-      stdio: "ignore",
-    });
-  } catch {
-    // The workflow commit step stages the final path set; direct task creation
-    // remains useful in test or sandbox environments without a writable index.
-  }
-}
-
 export type SecurityFindingTaskResult = {
   createdTaskIds: string[];
   updatedTaskIds: string[];
@@ -266,7 +251,6 @@ export function createOrUpdateSecurityFindingTasks(
       serializeFlatFrontMatter(attrs, buildFindingTaskBody({ runId: args.runId, finding })),
       "utf-8",
     );
-    stageBestEffort(projectDir, target.path);
     taskPaths.push(target.path);
     if (target.kind === "update") updatedTaskIds.push(target.id);
     else createdTaskIds.push(target.id);

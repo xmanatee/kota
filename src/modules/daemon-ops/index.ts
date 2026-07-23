@@ -366,6 +366,12 @@ export function buildDaemonStatusNode(
   if (wf.totalCostUsd != null && wf.totalCostUsd > 0) {
     stateEntries.push({ label: "Cost", value: `$${wf.totalCostUsd.toFixed(2)} total` });
   }
+  if (wf.totalInputTokens != null || wf.totalOutputTokens != null) {
+    stateEntries.push({
+      label: "Agent tokens",
+      value: `${(wf.totalInputTokens ?? 0).toLocaleString()} in / ${(wf.totalOutputTokens ?? 0).toLocaleString()} out`,
+    });
+  }
 
   const activitySummary = `${wf.activeRuns.length} active · ${wf.pendingRuns.length} pending · ${wf.completedRuns} completed`;
   const activityChildren: RenderNode[] = [

@@ -89,8 +89,9 @@ state reconstruct from append-only artifacts, or is it lost?*
 
 Recoverable surfaces (append-only or file-backed; survive crash):
 
-- **Daemon state** (`.kota/daemon-state.json`) — `completedRuns`, last-run
-  fields, pid, startedAt. Written on every completion.
+- **Daemon state** (`.kota/daemon-state.json`) — process lifecycle, pid, start
+  time, and explicit stop reason. Workflow summaries and counters live only in
+  the workflow run store.
 - **Workflow runtime** — run store (`.kota/runs/`), persisted queue, recovery
   record. Interrupted runs detected on startup and, when the worktree is
   dirty, `runtime.recovered` is queued first.

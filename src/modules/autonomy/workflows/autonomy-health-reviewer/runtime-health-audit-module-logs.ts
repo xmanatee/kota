@@ -41,9 +41,10 @@ function stringField(
   return typeof value === "string" && value.trim() ? value : null;
 }
 
-function logLineText(line: string): string {
-  const parsed = parseJsonLine(line);
-  if (!parsed) return line;
+function logLineText(
+  parsed: AutonomyHealthJsonObject,
+  line: string,
+): string {
   return (
     stringField(parsed, "message") ??
     stringField(parsed, "msg") ??
@@ -181,18 +182,28 @@ export function scanModuleLogs(ctx: RuntimeHealthAuditContext): void {
     ctx.inspected.moduleLogFiles += 1;
     const lines = readFileSync(absolutePath, "utf-8")
       .split(/\r?\n/)
-      .filter((line) => line.trim().length > 0)
-      .slice(-MAX_LOG_LINES_PER_FILE);
+      .map((line, index) => ({ line, lineNumber: index + 1 }))
+      .filter((entry) => entry.line.trim().length > 0)
+      .slice(-MAX_LOG_LINES_PER_FILE)
+      .flatMap((entry) => {
+        const parsed = parseJsonLine(entry.line);
+        if (!parsed) return [];
+        const timestamp = stringField(parsed, "ts");
+        const timestampMs = timestamp === null ? Number.NaN : Date.parse(timestamp);
+        if (!Number.isFinite(timestampMs) || timestampMs < ctx.windowStartMs) {
+          return [];
+        }
+        return [{ ...entry, text: logLineText(parsed, entry.line) }];
+      });
     ctx.inspected.moduleLogLines += lines.length;
 
     const localPatterns = new Map<string, PatternInput[]>();
-    for (let index = 0; index < lines.length; index++) {
-      const text = logLineText(lines[index]!);
+    for (const line of lines) {
       const pattern = classifyLogObservation({
         moduleName,
         path: repoPath,
-        lineNumber: index + 1,
-        text,
+        lineNumber: line.lineNumber,
+        text: line.text,
       });
       if (!pattern) continue;
       const list = localPatterns.get(pattern.dedupeKey) ?? [];

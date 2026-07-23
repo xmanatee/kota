@@ -35,7 +35,6 @@ describe("stranded daemon detection", () => {
       JSON.stringify({
         pid: 4242,
         startedAt: "2026-06-05T00:51:24.000Z",
-        completedRuns: 10,
       }),
     );
 

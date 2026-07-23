@@ -65,7 +65,6 @@ function makeHandle(
   return {
     getDaemonLiveState: vi.fn(() => ({
       startedAt: "2026-04-29T01:00:00.000Z",
-      completedRuns: 0,
       pid: 12345,
       running: true,
     })),

@@ -199,6 +199,8 @@ export type BusEvents = {
     stepType: "tool" | "agent" | "emit" | "restart" | "code" | "parallel" | "trigger" | "branch" | "foreach" | "approval" | "await-event";
     status: "success" | "failed" | "skipped";
     durationMs: number;
+    activeDurationMs?: number;
+    hostSuspendedMs?: number;
     costUsd?: number;
     runDir: string;
     definitionPath: string;

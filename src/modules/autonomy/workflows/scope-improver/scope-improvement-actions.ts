@@ -13,7 +13,6 @@ import { slugifyTaskTitle } from "#modules/repo-tasks/repo-tasks-operations.js";
 import {
   isScopeImprovementWriteAllowed,
   readScopeImprovementConfig,
-  stageBestEffort,
   writeScopeImprovementState,
 } from "./scope-improvement-state.js";
 import {
@@ -74,7 +73,6 @@ function writeTask(args: {
     serializeFlatFrontMatter(taskAttrs(id, args.recommendation), taskBody(args)),
     "utf-8",
   );
-  stageBestEffort(args.projectDir, path);
   return {
     kind: "created-task",
     taskId: id,
@@ -173,7 +171,6 @@ function writeSafeEdit(args: {
     ].join("\n"),
     "utf-8",
   );
-  stageBestEffort(args.projectDir, path);
   return {
     kind: "safe-edit",
     path: args.recommendation.path,
@@ -187,18 +184,8 @@ function enqueueQuestion(args: {
   recommendation: Extract<ScopeImprovementRecommendation, { kind: "owner-question" }>;
 }): ScopeImprovementAppliedAction {
   const queue = new OwnerQuestionQueue(join(args.projectDir, ".kota", "owner-questions"));
-  const existing = queue.list("pending").find(
-    (item) =>
-      item.question.trim().toLowerCase() ===
-      args.recommendation.question.trim().toLowerCase(),
-  );
-  if (existing) {
-    return skipped(
-      args.recommendation.signature,
-      `matching pending owner question already exists: ${existing.id}`,
-    );
-  }
-  const item = queue.enqueue({
+  const { item, created } = queue.enqueueDeduplicated({
+    dedupeKey: `scope-improver:${args.recommendation.signature}`,
     context:
       `Scope improvement run ${args.runId} cited evidence ids: ` +
       args.recommendation.evidenceIds.join(", "),
@@ -215,6 +202,12 @@ function enqueueQuestion(args: {
     },
     proposedAnswers: args.recommendation.proposedAnswers,
   });
+  if (!created) {
+    return skipped(
+      args.recommendation.signature,
+      `matching pending owner question already exists: ${item.id}`,
+    );
+  }
   return {
     kind: "owner-question",
     questionId: item.id,

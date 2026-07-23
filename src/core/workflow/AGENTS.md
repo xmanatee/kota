@@ -79,7 +79,8 @@ Await-event steps bypass the default step hang rail
 (`DEFAULT_STEP_TIMEOUT_MS`) when no explicit `timeoutMs` is set, because
 operator-loop waits can legitimately exceed it. The protocol-level
 deadline is `awaitTimeoutMs`, which produces the typed timeout output;
-`timeoutMs` (when explicitly set) still applies as a hard hang rail.
+`timeoutMs` (when explicitly set) still applies as an active-runtime hang rail;
+host suspension does not consume it.
 
 External producers can bridge daemon-down gaps by writing the delivery sibling
 directly, using the same event or timeout delivery shapes.

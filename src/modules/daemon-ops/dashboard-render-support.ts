@@ -88,6 +88,10 @@ export function renderStatRows(
 ): LineNode[] {
 	const costStr =
 		snapshot.totalCostUsd != null ? `$${snapshot.totalCostUsd.toFixed(2)}` : "-";
+	const tokenStr =
+		snapshot.totalInputTokens != null || snapshot.totalOutputTokens != null
+			? `${(snapshot.totalInputTokens ?? 0).toLocaleString()} / ${(snapshot.totalOutputTokens ?? 0).toLocaleString()}`
+			: "-";
 	const pausedCell: StatCell = snapshot.dispatchPaused
 		? {
 				label: "Paused",
@@ -107,6 +111,9 @@ export function renderStatRows(
 		[
 			{ label: "Cost", value: costStr },
 			{ label: "Defs", value: String(snapshot.definitionCount) },
+		],
+		[
+			{ label: "Tokens in/out", value: tokenStr },
 		],
 		[
 			{ label: "Active", value: String(snapshot.activeRuns.length) },

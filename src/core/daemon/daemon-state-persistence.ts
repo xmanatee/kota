@@ -9,7 +9,16 @@ export function loadDaemonStateFromDisk(stateDir: string): DaemonState | null {
   const state = readOptionalJsonFile<unknown>(path);
   if (state === null) return null;
   assertDaemonState(path, state);
-  return state;
+  return {
+    startedAt: state.startedAt,
+    pid: state.pid,
+    ...(state.lastStoppedAt !== undefined
+      ? { lastStoppedAt: state.lastStoppedAt }
+      : {}),
+    ...(state.lastStopReason !== undefined
+      ? { lastStopReason: state.lastStopReason }
+      : {}),
+  };
 }
 
 export function saveDaemonStateToDisk(stateDir: string, state: DaemonState): void {
