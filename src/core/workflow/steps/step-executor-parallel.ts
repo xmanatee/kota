@@ -10,7 +10,7 @@ import type { WorkflowDefinition } from "../types.js";
 import { evaluateStepRunDecision } from "./step-executor.js";
 import type { AgentStepConfig } from "./step-executor-agent.js";
 
-export type ParallelGroupResult = {
+type ParallelGroupResult = {
   groupResult: WorkflowStepResult;
   innerResults: WorkflowStepResult[];
   hadNewWarnings: boolean;

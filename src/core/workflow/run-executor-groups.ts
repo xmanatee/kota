@@ -21,17 +21,14 @@ import {
   type ForeachGroupResult,
   type ForeachItemResult,
 } from "./steps/step-executor-foreach.js";
-import {
-  executeParallelStepGroup,
-  type ParallelGroupResult,
-} from "./steps/step-executor-parallel.js";
+import { executeParallelStepGroup } from "./steps/step-executor-parallel.js";
 
 type TimedGroupExecution<T> =
   | { completed: true; result: T; timing: ActiveTimeoutSnapshot }
   | { completed: false; outcome: GroupStepOutcome };
 
 async function executeTimedGroup<T>(
-  step: GroupStep,
+  step: WorkflowBranchStep | WorkflowForeachStep,
   stepStartedAt: number,
   deps: GroupStepDeps,
   execute: (abortController: AbortController) => Promise<T>,
@@ -82,31 +79,7 @@ async function executeParallelGroup(
   stepStartedAt: number,
   deps: GroupStepDeps,
 ): Promise<GroupStepOutcome> {
-  const execution = await executeTimedGroup<ParallelGroupResult>(
-    step,
-    stepStartedAt,
-    deps,
-    (abortController) =>
-      executeParallelStepGroup(
-        step,
-        context,
-        stepStartedAt,
-        {
-          definition: deps.definition,
-          run: deps.run,
-          trigger: deps.trigger,
-          runAbortController: abortController,
-          agentConfig: deps.agentConfig,
-          acc: deps.acc,
-          bus: deps.bus,
-          pbus: deps.pbus,
-          log: deps.log,
-        },
-      ),
-  );
-  if (!execution.completed) return execution.outcome;
-  const result = execution.result;
-  applyGroupTiming(result.groupResult, execution.timing);
+  const result = await executeParallelStepGroup(step, context, stepStartedAt, deps);
   recordCompletedGroup(step, result.groupResult, deps);
   for (const child of result.innerResults) {
     deps.acc.stepResultsById[child.id] = child;
