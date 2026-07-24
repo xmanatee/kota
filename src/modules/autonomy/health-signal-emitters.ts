@@ -31,6 +31,7 @@ export function buildEvaluatorCalibrationDriftHealthSignal(args: {
     ],
     actionability: "informational",
     dedupeKey: `workflow:evaluator-calibration-monitor:evaluator-drift:${driftKey || "unknown"}`,
+    observationCount: 1,
     createdAt: args.createdAt,
   });
 }

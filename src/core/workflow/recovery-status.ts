@@ -201,7 +201,7 @@ export function reconcileWorkflowRecovery(input: {
     return unavailableRecovery(recovery, dirtyCheckout, worktree.summary);
   }
 
-  if (!worktree.trackedDirty) {
+  if (!worktree.dirty) {
     input.store.setRecovery(null);
     clearDirtyRecoveryPauseSignal(input.projectDir);
     return { status: "none", clearedStale: true };

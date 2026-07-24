@@ -127,6 +127,11 @@ queues any workflows that listen to `runtime.recovered`, and then pauses
 dispatch if the same dirty state still cannot be repaired. Do not reintroduce
 dirty-worktree bounce loops.
 
+Canonical task writers use the repo-tasks domain mutation API, which stages
+each exact task/inbox path as part of the operation. Canonical tracked mutators
+share the workspace-policy concurrency group. A workflow must not bypass
+either contract with direct task writes or a private staging helper.
+
 ## Recovery Contract
 
 Every autonomy workflow whose steps can mutate tracked files opts into
@@ -137,7 +142,8 @@ recovery by:
    to recovery-capable workflows only; the validation layer rejects mismatches).
 3. Running a reset step first to restore a safe base before heavier work. Use
    `resetWorktreeForRecovery` from `#modules/autonomy/recovery.js`; it stashes
-   tracked dirt and can switch from a `kota/task/*` branch to the base branch.
+   tracked and untracked dirt and can switch from a `kota/task/*` branch to the
+   base branch.
 4. Gating expensive agent work with `onNormalTrigger` so it skips recovery
    triggers; pair this with the existing dirty guard. Improver may still
    analyze after stash because it reviews evidence, not task progress.

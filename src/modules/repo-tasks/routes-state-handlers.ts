@@ -1,18 +1,16 @@
-import { execFileSync } from "node:child_process";
-import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import { jsonResponse } from "#core/server/session-pool.js";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import {
   type DaemonTaskStatusResponse,
   getRepoInboxDir,
   getRepoTasksDir,
+  moveTaskById,
   type RepoTaskState,
+  writeRepoTaskFile,
 } from "./repo-tasks-domain.js";
 import { readRouteJsonBody } from "./route-body.js";
-import { logGitStageFailure } from "./route-git.js";
 import {
   COUNTED_STATES,
   countMarkdownFiles,
@@ -21,7 +19,6 @@ import {
   listTaskFiles,
   readStateTasks,
   tryReadUtf8,
-  updateStatusFrontmatter,
 } from "./route-task-files.js";
 
 const ALLOWED_TARGET_STATES: readonly RepoTaskState[] = ["backlog", "ready", "blocked", "dropped"];
@@ -54,38 +51,8 @@ export async function handleTaskStateChange(
     return;
   }
 
-  const srcPath = join(tasksDir, found.state, found.filename);
-  const destDir = join(tasksDir, newState);
-  const destPath = join(destDir, found.filename);
-  const updated = updateStatusFrontmatter(found.content, newState);
-
   try {
-    mkdirSync(destDir, { recursive: true });
-    try {
-      execFileSync("git", ["mv", srcPath, destPath], {
-        cwd: projectDir,
-        env: withProtectedGitBareRepositoryEnv(),
-      });
-    } catch {
-      renameSync(srcPath, destPath);
-      try {
-        execFileSync("git", ["add", srcPath, destPath], {
-          cwd: projectDir,
-          env: withProtectedGitBareRepositoryEnv(),
-        });
-      } catch (error) {
-        logGitStageFailure(`move ${found.filename}`, error instanceof Error ? error.message : String(error));
-      }
-    }
-    writeFileSync(destPath, updated, "utf-8");
-    try {
-      execFileSync("git", ["add", destPath], {
-        cwd: projectDir,
-        env: withProtectedGitBareRepositoryEnv(),
-      });
-    } catch (error) {
-      logGitStageFailure(`write ${found.filename}`, error instanceof Error ? error.message : String(error));
-    }
+    moveTaskById(projectDir, id, newState as RepoTaskState);
     jsonResponse(res, 200, { id, state: newState });
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
@@ -137,15 +104,7 @@ export async function handleTaskBodyUpdate(
   const newContent = `${updatedFm}\n\n${bodyText.trim()}\n`;
   const filePath = join(tasksDir, found.state, found.filename);
   try {
-    writeFileSync(filePath, newContent, "utf-8");
-    try {
-      execFileSync("git", ["add", filePath], {
-        cwd: projectDir,
-        env: withProtectedGitBareRepositoryEnv(),
-      });
-    } catch (error) {
-      logGitStageFailure(`edit ${found.filename}`, error instanceof Error ? error.message : String(error));
-    }
+    writeRepoTaskFile(projectDir, filePath, newContent);
     const { attrs, body: parsedBody } = parseFlatFrontMatter(newContent);
     jsonResponse(res, 200, {
       id: attrs.id,

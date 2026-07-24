@@ -67,7 +67,7 @@ const inspectCandidates = typedCodeStep<InspectResult>({
     ]),
   run: ({ projectDir }) => {
     const worktree = getRepoWorktreeStatus(projectDir);
-    const dirty = worktree.available && worktree.trackedDirty;
+    const dirty = worktree.available && worktree.dirty;
     const capability = checkResearchRetryCapability(projectDir);
     const candidates = listResearchRetryCandidates(projectDir);
 

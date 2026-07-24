@@ -47,12 +47,12 @@ const inspectInbox = typedCodeStep<InboxSorterAssessment>({
     expectStructuredOutput<InboxSorterAssessment>(raw, ["inboxCount", "needsAttention"]),
   run: ({ projectDir }) => {
     const status = getRepoWorktreeStatus(projectDir);
-    const nonInboxTracked = status.entries.filter(
-      (e) => !e.startsWith("??") && !e.includes(REPO_INBOX_DIR),
+    const nonInboxChanges = status.entries.filter(
+      (entry) => !entry.includes(REPO_INBOX_DIR),
     );
-    if (status.available && nonInboxTracked.length > 0) {
+    if (status.available && nonInboxChanges.length > 0) {
       throw new Error(
-        `Repository has tracked changes outside inbox: ${nonInboxTracked.join(", ")}`,
+        `Repository has changes outside inbox: ${nonInboxChanges.join(", ")}`,
       );
     }
     const queue = getRepoTaskQueueSnapshot(projectDir);

@@ -27,7 +27,10 @@ import {
   type InboundSignalReceivedPayload,
   inboundSignalReceived,
 } from "#modules/inbound-signals/events.js";
-import { getRepoTaskStateDir } from "#modules/repo-tasks/repo-tasks-domain.js";
+import {
+  getRepoTaskStateDir,
+  writeRepoTaskFile,
+} from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   createNormalizedTask,
   showTask,
@@ -480,10 +483,10 @@ function boundedBody(body: string): string {
     : `${trimmed.slice(0, MAX_COMMENT_BODY_CHARS - 28).trimEnd()}\n\n[Response truncated]`;
 }
 
-function writeTaskBody(path: string, body: string): void {
+function writeTaskBody(projectDir: string, path: string, body: string): void {
   const content = readFileSync(path, "utf-8");
   const { attrs } = parseFlatFrontMatter(content);
-  writeFileSync(path, serializeFlatFrontMatter(attrs, body), "utf-8");
+  writeRepoTaskFile(projectDir, path, serializeFlatFrontMatter(attrs, body));
 }
 
 function taskReferenceResponse(fields: NormalizedMentionFields, task: CreatedTaskReference): string {
@@ -603,7 +606,7 @@ const createTask = typedCodeStep<CreatedTaskReference>({
     if (!result.ok) {
       throw new Error(`failed to create GitHub mention task: ${result.reason}${result.message ? `: ${result.message}` : ""}`);
     }
-    writeTaskBody(result.path, assessment.taskBody);
+    writeTaskBody(ctx.projectDir, result.path, assessment.taskBody);
     return {
       kind: "created",
       taskId: result.id,

@@ -13,6 +13,11 @@ served at `/api/tasks`.
   `hasDispatchableWork`). Other modules must consume those fields rather than
   recalculating actionability from raw state counts, and declare `repo-tasks`
   in their module `dependencies`.
+- Every production mutation under `data/tasks/` or `data/inbox/` must use the
+  domain write/move operations. Those operations stage the exact changed path
+  before returning; staging failure is an operation failure, never a
+  best-effort warning. Workflows and routes must not write these files
+  directly or maintain a second move/staging implementation.
 - The core daemon no longer proxies task status. `/api/tasks` is computed
   directly from disk in this module.
 - Owns the default `RepoTasksProvider` registration. Substring/grep ranking

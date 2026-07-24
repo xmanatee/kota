@@ -111,7 +111,7 @@ export function registerStateRecoveryCommand(wfCmd: Command, ctx: ModuleContext)
         printWorkflowText("No unresolved workflow recovery state found.");
         return;
       }
-      printWorkflowText(`Pending-merge task claims: ${result.claims.length}`);
+      printWorkflowText(`Unresolved task claims: ${result.claims.length}`);
       for (const claim of result.claims) {
         printClaimSummary(claim);
       }
@@ -127,7 +127,7 @@ export function registerStateRecoveryCommand(wfCmd: Command, ctx: ModuleContext)
 
   recovery
     .command("resolve <task-id>")
-    .description("Release or supersede one stale pending-merge task claim")
+    .description("Release or supersede one unresolved task claim")
     .requiredOption("--action <action>", "Recovery action: release or supersede")
     .requiredOption("--reason <reason>", "Required recovery rationale")
     .option("--run-id <runId>", "Require the active claim to belong to this run id")

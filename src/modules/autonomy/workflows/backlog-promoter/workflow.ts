@@ -38,7 +38,7 @@ const inspectBacklog = typedCodeStep<Inspection>({
     expectStructuredOutput<Inspection>(raw, ["dirty", "rationale"]),
   run: ({ projectDir }) => {
     const worktree = getRepoWorktreeStatus(projectDir);
-    const dirty = worktree.available && worktree.trackedDirty;
+    const dirty = worktree.available && worktree.dirty;
     const rationale = buildPromotionRationale(projectDir, {
       batchLimit: PROMOTION_BATCH_LIMIT,
     });

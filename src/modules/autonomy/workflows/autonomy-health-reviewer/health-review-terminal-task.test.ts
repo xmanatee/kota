@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -31,6 +32,7 @@ function signal(
     ],
     actionability: "local-code",
     dedupeKey: "workflow:builder:runtime-warning",
+    observationCount: 1,
     createdAt: NOW,
     ...overrides,
   });
@@ -74,6 +76,8 @@ describe("autonomy health review terminal task handling", () => {
       tmpdir(),
       `kota-health-review-terminal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
+    mkdirSync(projectDir, { recursive: true });
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
   });
 
   afterEach(() => {

@@ -1,9 +1,7 @@
-import { execFileSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import { jsonResponse } from "#core/server/session-pool.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type {
   RepoTaskState as ContractRepoTaskState,
   RepoTaskCreateOptions,
@@ -13,6 +11,7 @@ import {
   getRepoInboxDir,
   moveTaskById,
   REPO_TASK_STATES,
+  writeRepoInboxFile,
 } from "./repo-tasks-domain.js";
 import {
   captureInboxTask,
@@ -21,7 +20,6 @@ import {
   showTask,
 } from "./repo-tasks-operations.js";
 import { readRouteJsonBody } from "./route-body.js";
-import { logGitStageFailure } from "./route-git.js";
 import { isRepoTaskId } from "./task-id.js";
 
 const ALLOWED_PRIORITIES: readonly RepoTaskPriority[] = ["p0", "p1", "p2", "p3"];
@@ -61,15 +59,11 @@ export async function handleTaskCreate(
   const filePath = join(getRepoInboxDir(projectDir), filename);
   try {
     mkdirSync(getRepoInboxDir(projectDir), { recursive: true });
-    writeFileSync(filePath, `# ${title}\n${summary ? `\n${summary}\n` : ""}`, "utf-8");
-    try {
-      execFileSync("git", ["add", filePath], {
-        cwd: projectDir,
-        env: withProtectedGitBareRepositoryEnv(),
-      });
-    } catch (error) {
-      logGitStageFailure(`create ${filename}`, error instanceof Error ? error.message : String(error));
-    }
+    writeRepoInboxFile(
+      projectDir,
+      filePath,
+      `# ${title}\n${summary ? `\n${summary}\n` : ""}`,
+    );
     jsonResponse(res, 201, { id, state: "inbox" });
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });

@@ -13,27 +13,23 @@ import type {
 } from "#modules/workflow-ops/state-recovery-provider.js";
 import { validateWorkflowStateRecoveryArtifactRunId } from "#modules/workflow-ops/state-recovery-provider.js";
 import {
-  readActiveTaskClaim,
   releaseTaskClaim,
   supersedeTaskClaim,
-  type TaskClaimInspection,
-  taskClaimPath,
 } from "./task-claims.js";
 import { finishResolve } from "./workflow-state-recovery-artifacts.js";
 import {
-  findPendingMergeClaim,
-  listPendingMergeClaims,
+  findRecoveryClaim,
+  listRecoveryClaims,
   listRecoveryDeadLetters,
   listRecoveryWorktrees,
-  projectClaim,
 } from "./workflow-state-recovery-claims.js";
 
 function resolveMissingClaim(
   input: WorkflowStateRecoveryResolveInput,
 ): WorkflowStateRecoveryResolveResult {
   const message = input.runId
-    ? `No pending-merge task claim found for ${input.taskId}/${input.runId}`
-    : `No pending-merge task claim found for ${input.taskId}`;
+    ? `No unresolved task claim found for ${input.taskId}/${input.runId}`
+    : `No unresolved task claim found for ${input.taskId}`;
   const written = finishResolve({
     resolveInput: input,
     before: null,
@@ -58,7 +54,7 @@ function refuseResolve(
   const written = finishResolve({
     resolveInput: input,
     before,
-    after: findPendingMergeClaim(input.projectDir, input.taskId),
+    after: findRecoveryClaim(input.projectDir, input.taskId),
     result: "refused",
     message,
   });
@@ -88,7 +84,7 @@ function mutateClaim(
       const written = finishResolve({
         resolveInput: input,
         before,
-        after: findPendingMergeClaim(input.projectDir, input.taskId),
+        after: findRecoveryClaim(input.projectDir, input.taskId),
         result: "refused",
         message: cleanup.message,
         worktreeCleanup,
@@ -135,7 +131,7 @@ function mutateClaim(
     );
   }
 
-  const after = findPendingMergeClaim(input.projectDir, input.taskId);
+  const after = findRecoveryClaim(input.projectDir, input.taskId);
   const dismissedDeadLetterIds = input.dismissDeadLetters === true
     ? dismissRelatedDeadLetters(input.projectDir, before, input.rationale)
     : [];
@@ -170,26 +166,10 @@ function mutateClaim(
   };
 }
 
-function resolvePendingMergeClaim(
+function resolveRecoveryClaim(
   input: WorkflowStateRecoveryResolveInput,
 ): WorkflowStateRecoveryResolveResult {
-  const active = readActiveTaskClaim(input.projectDir, input.taskId);
-  if (active !== null && active.status !== "pending-merge") {
-    const inspection: TaskClaimInspection = {
-      claim: active,
-      path: taskClaimPath(input.projectDir, input.taskId),
-      recoveryStatus: "agent-running",
-      safeToRetry: false,
-    };
-    return refuseResolve(
-      input,
-      projectClaim(input.projectDir, inspection),
-      `Active task claim ${input.taskId} is ${active.status}, not pending-merge`,
-      "invalid_action",
-    );
-  }
-
-  const before = findPendingMergeClaim(input.projectDir, input.taskId);
+  const before = findRecoveryClaim(input.projectDir, input.taskId);
   if (!before) return resolveMissingClaim(input);
   if (input.runId !== undefined && before.claim.runId !== input.runId) {
     return resolveMissingClaim(input);
@@ -285,7 +265,7 @@ export function createWorkflowStateRecoveryProvider(): WorkflowStateRecoveryProv
     list(input) {
       return {
         ok: true,
-        claims: listPendingMergeClaims(input.projectDir),
+        claims: listRecoveryClaims(input.projectDir),
         worktrees: listRecoveryWorktrees(input.projectDir),
         deadLetters: listRecoveryDeadLetters(input.projectDir),
       };
@@ -299,7 +279,7 @@ export function createWorkflowStateRecoveryProvider(): WorkflowStateRecoveryProv
           message: artifactRunId.message,
         };
       }
-      return resolvePendingMergeClaim({
+      return resolveRecoveryClaim({
         ...input,
         ...(artifactRunId.artifactRunId !== undefined
           ? { artifactRunId: artifactRunId.artifactRunId }

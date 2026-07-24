@@ -140,4 +140,4 @@ path: .kota/runs/2026-06-20T20-54-52-875Z-builder-2jwlhx/source-access/mimo-code
 description: operator-provided readable content, screenshot transcript, or reachable snapshot for https://mimo.xiaomi.com/blog/mimo-code-long-horizon so the MiMo Code long-horizon source can be dispositioned without inferring from unread content
 ```
 
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-07-05T15:02:44.625Z -->
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-07-23T23:11:20.617Z -->

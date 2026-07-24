@@ -182,6 +182,30 @@ describe("handleDirtyCompletion", () => {
     );
   });
 
+  it("attributes an untracked file to the workflow that introduced it", () => {
+    const projectDir = makeCleanProjectDir();
+    dirs.push(projectDir);
+    const preRunFingerprint = getRepoWorktreeStatus(projectDir).fingerprint;
+    writeFileSync(join(projectDir, "untracked.txt"), "preserve me\n");
+    const { state, getRecovery, emit } = makeState(projectDir);
+
+    handleDirtyCompletion(state, makeDefinition(), makeMetadata(), preRunFingerprint);
+
+    expect(getRecovery()).toMatchObject({
+      sourceRunId: "run-builder",
+      sourceWorkflow: "builder",
+      dirtyCheckout: "canonical",
+      attempts: 0,
+      worktreeFingerprint: "?? untracked.txt",
+    });
+    expect(emit).toHaveBeenCalledWith(
+      "runtime.restart_requested",
+      expect.objectContaining({
+        runId: "run-builder",
+      }),
+    );
+  });
+
   it("pauses dispatch when an existing recovery fingerprint is still dirty", () => {
     const projectDir = makeProjectDir();
     dirs.push(projectDir);

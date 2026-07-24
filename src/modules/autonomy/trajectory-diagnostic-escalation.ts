@@ -1,11 +1,9 @@
-import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
-  writeFileSync,
 } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import {
@@ -16,7 +14,6 @@ import {
   type TrajectoryDiagnosticsCounts,
 } from "#core/agent-harness/index.js";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import {
   getRepoTaskStateDir,
@@ -24,6 +21,7 @@ import {
   moveTaskById,
   REPO_TASK_STATES,
   type RepoTaskState,
+  writeRepoTaskFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { loadRunsInWindow } from "#modules/workflow-ops/runs/workflow-history.js";
 
@@ -733,13 +731,6 @@ function buildTrajectoryDiagnosticTaskBody(
   ].join("\n");
 }
 
-function stagePath(projectDir: string, path: string): void {
-  execFileSync("git", ["add", path], {
-    cwd: projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-  });
-}
-
 export function applyTrajectoryDiagnosticEscalation(
   proposal: TrajectoryDiagnosticEscalationProposal,
   ctx: TrajectoryDiagnosticEscalationContext,
@@ -766,16 +757,15 @@ export function applyTrajectoryDiagnosticEscalation(
         `trajectory-diagnostic-escalation: refusing to overwrite existing ${targetPath}`,
       );
     }
-    writeFileSync(
+    writeRepoTaskFile(
+      ctx.projectDir,
       targetPath,
       buildTrajectoryDiagnosticTaskFile(
         pattern,
         "ready",
         taskTimestamps(null, ctx.nowIso),
       ),
-      "utf-8",
     );
-    stagePath(ctx.projectDir, targetPath);
     return {
       kind: "created",
       taskId: pattern.taskId,
@@ -790,16 +780,15 @@ export function applyTrajectoryDiagnosticEscalation(
         `trajectory-diagnostic-escalation: expected ${pattern.taskId} in ready/ for refresh`,
       );
     }
-    writeFileSync(
+    writeRepoTaskFile(
+      ctx.projectDir,
       targetPath,
       buildTrajectoryDiagnosticTaskFile(
         pattern,
         "ready",
         taskTimestamps(existing, ctx.nowIso),
       ),
-      "utf-8",
     );
-    stagePath(ctx.projectDir, targetPath);
     return {
       kind: "refreshed",
       taskId: pattern.taskId,
@@ -811,16 +800,15 @@ export function applyTrajectoryDiagnosticEscalation(
   if (proposal.action === "promote") {
     const move = moveTaskById(ctx.projectDir, pattern.taskId, "ready");
     const promoted = findExistingTask(ctx.projectDir, pattern.taskId);
-    writeFileSync(
+    writeRepoTaskFile(
+      ctx.projectDir,
       targetPath,
       buildTrajectoryDiagnosticTaskFile(
         pattern,
         "ready",
         taskTimestamps(promoted, ctx.nowIso),
       ),
-      "utf-8",
     );
-    stagePath(ctx.projectDir, targetPath);
     return {
       kind: "promoted",
       taskId: pattern.taskId,
@@ -845,26 +833,22 @@ export function applyTrajectoryDiagnosticEscalation(
       `trajectory-diagnostic-escalation: refusing to overwrite existing ${targetPath}`,
     );
   }
-  execFileSync("git", ["mv", previousPath, targetPath], {
-    cwd: ctx.projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-  });
-  writeFileSync(
+  const move = moveTaskById(ctx.projectDir, pattern.taskId, "ready");
+  writeRepoTaskFile(
+    ctx.projectDir,
     targetPath,
     buildTrajectoryDiagnosticTaskFile(
       pattern,
       "ready",
       taskTimestamps(existing, ctx.nowIso),
     ),
-    "utf-8",
   );
-  stagePath(ctx.projectDir, targetPath);
   return {
     kind: "recreated",
     taskId: pattern.taskId,
     patternFingerprint: pattern.fingerprint,
     previousState: proposal.previousState,
-    path: targetPath.slice(ctx.projectDir.length + 1),
+    path: move.path,
   };
 }
 

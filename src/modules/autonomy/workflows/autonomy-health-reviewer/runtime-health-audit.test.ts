@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -24,6 +25,7 @@ describe("runtime health audit", () => {
       `kota-runtime-health-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
     mkdirSync(projectDir, { recursive: true });
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
   });
 
   afterEach(() => {
@@ -48,7 +50,14 @@ describe("runtime health audit", () => {
   function writeModuleLog(moduleName: string, lines: string[]): void {
     const dir = join(projectDir, ".kota", "modules", moduleName);
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, "logs.jsonl"), `${lines.join("\n")}\n`, "utf-8");
+    const timestamped = lines.map((line) =>
+      JSON.stringify({ ts: NOW, ...(JSON.parse(line) as Record<string, unknown>) }),
+    );
+    writeFileSync(
+      join(dir, "logs.jsonl"),
+      `${timestamped.join("\n")}\n`,
+      "utf-8",
+    );
   }
 
   function readyTaskFiles(): string[] {
@@ -510,6 +519,7 @@ describe("runtime health audit", () => {
         dedupeKey: "daemon:shutdown-timeout",
         category: "local-code",
         actionability: "local-code",
+        severity: "warning",
         evidenceRefs: [
           expect.objectContaining({
             kind: "artifact",
@@ -520,7 +530,20 @@ describe("runtime health audit", () => {
     ]);
 
     const actions = reviewAndApply(audit);
-    expect(actions.createdTaskIds).toEqual([
+    expect(actions.createdTaskIds).toEqual([]);
+
+    recordDaemonStopAttempt({
+      projectDir,
+      attemptedAt: "2026-06-19T11:30:00.000Z",
+      timeoutSec: 3,
+      result: { ok: false, reason: "timeout", pid: 12345 },
+    });
+    const repeatedAudit = collectRuntimeHealthAudit({
+      projectDir,
+      options: { nowIso: NOW },
+    });
+    const repeatedActions = reviewAndApply(repeatedAudit);
+    expect(repeatedActions.createdTaskIds).toEqual([
       "task-health-daemon-shutdown-timeout",
     ]);
   });

@@ -203,4 +203,4 @@ resource exhaustion.
 - Evidence of a temporary sample-only or threshold-relaxing shortcut causing
   the fixture to fail, with the shortcut reverted before staging.
 
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-07-07T00:17:22.196Z -->
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-07-23T23:11:20.617Z -->

@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { splitFrontMatter } from "#core/util/frontmatter.js";
 import {
   getRepoTaskStateDir,
   REPO_TASK_STATES,
   type RepoTaskState,
+  writeRepoTaskFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { extractResourceUrls, listResearchRetryCandidates } from "./candidates.js";
 import { isPlaywrightAvailable, readBrowserConfig } from "./runtime-detect.js";
@@ -241,7 +242,7 @@ export function writeMarkerForCandidate(args: {
     return { written: false, reason: "marker already current" };
   }
   const rebuilt = `---\n${split.frontmatter}\n---\n${newBody}`;
-  writeFileSync(located.path, rebuilt);
+  writeRepoTaskFile(projectDir, located.path, rebuilt);
 
   return {
     written: true,

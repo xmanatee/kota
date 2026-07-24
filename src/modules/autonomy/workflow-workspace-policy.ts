@@ -21,10 +21,14 @@ export type AutonomyWorkflowWorkspacePolicy = {
 };
 
 const CANONICAL_CONTROL_SAFETY = [
-  "normal path checks the canonical checkout is clean before writing",
-  "commit path validates the task queue or owning protocol before staging",
+  "normal path checks the canonical checkout for tracked and untracked changes before writing",
+  "task mutations stage exact paths through the repo-tasks API before validation",
+  "tracked canonical mutators share one runtime concurrency group",
   "commit-stageable dry-run covers the exact canonical path set",
 ] as const;
+
+export const AUTONOMY_CANONICAL_MUTATION_CONCURRENCY_GROUP =
+  "autonomy-canonical-mutation";
 
 export const AUTONOMY_WORKFLOW_WORKSPACE_POLICIES = [
   {
@@ -170,9 +174,10 @@ export const AUTONOMY_WORKFLOW_WORKSPACE_POLICIES = [
     trackedMutationScope: "autonomy-control-plane",
     writes: ["src/modules/autonomy/", "src/core/workflow/", "docs and task governance surfaces"],
     reason:
-      "Improver repairs KOTA-owned autonomy control-plane files from aggregated run evidence; until non-task worktree leases exist, it stays canonical and serialized by clean-checkout and validation gates.",
+      "Improver repairs KOTA-owned autonomy control-plane files from aggregated run evidence; until non-task worktree leases exist, it stays canonical and shares the tracked-mutation concurrency group.",
     safetyMechanisms: [
       "clean-checkout preflight gates the agent step",
+      "tracked canonical mutators share one runtime concurrency group",
       "broad build, workflow validation, task validation, typecheck, lint, and test repair-loop checks",
       "commit-stageable dry-run covers the canonical path set",
       "restart happens only after a committed change",
@@ -288,4 +293,18 @@ export function workflowWorkspacePolicyFor(
   return AUTONOMY_WORKFLOW_WORKSPACE_POLICIES.find(
     (policy) => policy.workflow === workflow,
   );
+}
+
+export function autonomyWorkflowConcurrencyGroupFor(
+  workflow: string,
+): string | undefined {
+  const policy = workflowWorkspacePolicyFor(workflow);
+  if (
+    policy?.kind === "canonical-control-state" &&
+    policy.trackedMutationScope !== "runtime-state" &&
+    policy.trackedMutationScope !== "none"
+  ) {
+    return AUTONOMY_CANONICAL_MUTATION_CONCURRENCY_GROUP;
+  }
+  return undefined;
 }

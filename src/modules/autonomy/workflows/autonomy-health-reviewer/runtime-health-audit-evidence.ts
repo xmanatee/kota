@@ -49,7 +49,7 @@ function scanTextEvidenceFile(args: {
       addPattern(args.ctx, {
         dedupeKey: "daemon:shutdown-timeout",
         category: "local-code",
-        severity: "error",
+        severity: "warning",
         actionability: "local-code",
         labels: ["daemon", "local-code", "shutdown", "runtime"],
         summary: "Daemon shutdown or graceful stop evidence reports a timeout.",
@@ -132,7 +132,7 @@ function scanDaemonStopAttempts(ctx: RuntimeHealthAuditContext): void {
       addPattern(ctx, {
         dedupeKey: "daemon:shutdown-timeout",
         category: "local-code",
-        severity: "error",
+        severity: "warning",
         actionability: "local-code",
         labels: ["daemon", "local-code", "shutdown", "runtime"],
         summary: `Daemon stop timed out after ${parsed.timeoutSec}s for pid ${parsed.result.pid}.`,

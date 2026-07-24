@@ -196,3 +196,5 @@ a symptom or produce a source-only explanation.
   any objective metric values.
 - Evidence of a temporary symptom-only shortcut causing the fixture to fail,
   with the shortcut reverted before staging.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-07-23T23:11:20.617Z -->

@@ -48,6 +48,7 @@ export function signalForPattern(
     evidenceRefs: pattern.evidenceRefs,
     actionability: pattern.actionability,
     dedupeKey: pattern.dedupeKey,
+    observationCount: pattern.observationCount,
     createdAt,
   };
   return normalizeHealthSignal(input);

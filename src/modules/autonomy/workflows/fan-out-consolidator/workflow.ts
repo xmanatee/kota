@@ -53,7 +53,7 @@ const detectAndSeed = typedCodeStep<DetectionInspection>({
     ]),
   run: ({ projectDir }) => {
     const worktree = getRepoWorktreeStatus(projectDir);
-    const dirty = worktree.available && worktree.trackedDirty;
+    const dirty = worktree.available && worktree.dirty;
     if (dirty) {
       const now = new Date();
       return {

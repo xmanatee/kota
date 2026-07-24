@@ -55,6 +55,7 @@ export type AutonomyHealthSignalInput = {
   evidenceRefs: readonly AutonomyHealthEvidenceRef[];
   actionability: AutonomyHealthActionability;
   dedupeKey: string;
+  observationCount: number;
   createdAt: string;
 };
 
@@ -68,6 +69,7 @@ export type AutonomyHealthSignal = {
   evidenceRefs: AutonomyHealthEvidenceRef[];
   actionability: AutonomyHealthActionability;
   dedupeKey: string;
+  observationCount: number;
   createdAt: string;
 };
 
@@ -230,6 +232,16 @@ function assertIsoDate(
   return normalized;
 }
 
+function assertPositiveInteger(
+  value: AutonomyHealthJsonValue | undefined,
+  field: string,
+): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
+    throw new Error(`${field} must be a positive integer`);
+  }
+  return value;
+}
+
 function stableJson(value: AutonomyHealthJsonValue | undefined): string {
   if (Array.isArray(value)) {
     return `[${value.map((entry) => stableJson(entry)).join(",")}]`;
@@ -263,6 +275,10 @@ function normalizeWithoutSignalId(input: AutonomyHealthSignalInput): Omit<
   if (!DEDUPE_KEY_RE.test(dedupeKey)) {
     throw new Error("dedupeKey must be a stable lowercase token path");
   }
+  const observationCount = assertPositiveInteger(
+    input.observationCount,
+    "observationCount",
+  );
   const createdAt = assertIsoDate(input.createdAt, "createdAt");
   return {
     source,
@@ -273,6 +289,7 @@ function normalizeWithoutSignalId(input: AutonomyHealthSignalInput): Omit<
     evidenceRefs,
     actionability,
     dedupeKey,
+    observationCount,
     createdAt,
   };
 }
@@ -342,6 +359,7 @@ const healthSignalPayloadSchema: ModuleEventPayloadSchema = {
       filterable: true,
     },
     dedupeKey: { type: "string", filterable: true },
+    observationCount: { type: "number" },
     createdAt: { type: "string", format: "date-time" },
   },
 };
@@ -359,6 +377,7 @@ export const autonomyHealthSignal =
       "evidenceRefs",
       "actionability",
       "dedupeKey",
+      "observationCount",
       "createdAt",
     ],
     {
@@ -393,6 +412,7 @@ export const autonomyHealthSignal =
             ],
             actionability: "local-code",
             dedupeKey: "workflow:builder:runtime-warning",
+            observationCount: 1,
             createdAt: "2026-06-17T12:00:00.000Z",
           },
         },

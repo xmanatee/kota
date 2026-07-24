@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseFlatFrontMatter, splitFrontMatter } from "#core/util/frontmatter.js";
 import {
@@ -20,6 +20,7 @@ import {
   getUnfinishedTaskDependencies,
   type MoveTaskResult,
   moveTaskById,
+  writeRepoTaskFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { readTaskDependencyIds } from "#modules/repo-tasks/task-dependencies.js";
 
@@ -44,12 +45,8 @@ export function listBlockedTasksWithPreconditions(
 ): BlockedTaskRecord[] {
   const dir = getRepoTaskStateDir(projectDir, "blocked");
   const records: BlockedTaskRecord[] = [];
-  let entries: string[];
-  try {
-    entries = readdirSync(dir);
-  } catch {
-    return records;
-  }
+  if (!existsSync(dir)) return records;
+  const entries = readdirSync(dir);
   for (const fileName of entries) {
     if (!fileName.endsWith(".md") || fileName === "AGENTS.md") continue;
     const filePath = join(dir, fileName);
@@ -227,11 +224,12 @@ export function answerApprovesPromotion(
  * next cycle does not re-ask within the cadence window.
  */
 export function applyAskOutcome(args: {
+  projectDir: string;
   candidate: OwnerAskCandidate;
   approved: boolean;
   now: Date;
 }): AskOutcomeApplication[] {
-  const { candidate, approved, now } = args;
+  const { projectDir, candidate, approved, now } = args;
   const stamp = now.toISOString();
   const filePath = candidate.taskPath;
   if (!existsSync(filePath)) {
@@ -268,7 +266,7 @@ export function applyAskOutcome(args: {
     });
   }
   const rebuilt = `---\n${split.frontmatter}\n---\n${body}`;
-  writeFileSync(filePath, rebuilt);
+  writeRepoTaskFile(projectDir, filePath, rebuilt);
   return applications;
 }
 
@@ -372,10 +370,11 @@ export type OperatorCaptureInstruction = {
  * artifact.
  */
 export function applyOperatorCaptureInstruction(args: {
+  projectDir: string;
   candidate: OperatorCaptureInstructCandidate;
   now: Date;
 }): OperatorCaptureInstruction {
-  const { candidate, now } = args;
+  const { projectDir, candidate, now } = args;
   const stamp = now.toISOString();
   const filePath = candidate.taskPath;
   if (!existsSync(filePath)) {
@@ -389,7 +388,7 @@ export function applyOperatorCaptureInstruction(args: {
   const marker: OperatorCaptureInstructedMarker = { lastInstructedAt: stamp };
   const body = upsertOperatorCaptureInstructedMarker(split.body, marker);
   const rebuilt = `---\n${split.frontmatter}\n---\n${body}`;
-  writeFileSync(filePath, rebuilt);
+  writeRepoTaskFile(projectDir, filePath, rebuilt);
   return {
     taskId: candidate.taskId,
     taskPath: filePath,

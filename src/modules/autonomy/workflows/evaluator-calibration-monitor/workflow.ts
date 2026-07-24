@@ -86,7 +86,7 @@ const inspectGate = typedCodeStep<GateInspection>({
     ]),
   run: ({ projectDir }) => {
     const worktree = getRepoWorktreeStatus(projectDir);
-    const dirty = worktree.available && worktree.trackedDirty;
+    const dirty = worktree.available && worktree.dirty;
     const runsDir = join(projectDir, ".kota", "runs");
     const config = {
       thresholdRate: readNumberEnv(

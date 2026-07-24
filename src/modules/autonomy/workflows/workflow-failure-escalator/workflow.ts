@@ -88,7 +88,7 @@ const inspectPatterns = typedCodeStep<Inspection>({
     ]),
   run: ({ projectDir }) => {
     const worktree = getRepoWorktreeStatus(projectDir);
-    const dirty = worktree.available && worktree.trackedDirty;
+    const dirty = worktree.available && worktree.dirty;
     const thresholds = {
       consecutiveFailureRuns: readPositiveIntegerEnv(
         "KOTA_WORKFLOW_FAILURE_CONSECUTIVE_RUNS",

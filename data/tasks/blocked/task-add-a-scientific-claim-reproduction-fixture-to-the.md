@@ -183,4 +183,4 @@ The fixture is present and listed by `pnpm kota eval list`, but the required
 The latest local artifacts for this fixture stop before a complete
 `eval-set-report.json`, so there is no pass artifact to promote from.
 
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-27T00:33:14.643Z -->
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-07-23T23:11:20.617Z -->

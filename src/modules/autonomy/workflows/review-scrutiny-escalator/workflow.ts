@@ -73,7 +73,7 @@ const inspectPatterns = typedCodeStep<Inspection>({
   run: ({ projectDir }) => {
     const config = readReviewScrutinyEscalatorConfig();
     const worktree = getRepoWorktreeStatus(projectDir);
-    const dirty = worktree.available && worktree.trackedDirty;
+    const dirty = worktree.available && worktree.dirty;
     if (dirty) {
       return {
         dirty,

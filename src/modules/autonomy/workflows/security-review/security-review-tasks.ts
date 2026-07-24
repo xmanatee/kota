@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { classifyWorkflowGeneratedTask } from "#modules/autonomy/workflow-generated-task-class.js";
@@ -6,6 +6,7 @@ import {
   getRepoTaskStateDir,
   REPO_TASK_STATES,
   type RepoTaskState,
+  writeRepoTaskFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { slugifyTaskTitle } from "#modules/repo-tasks/repo-tasks-operations.js";
 import { writeJsonArtifact } from "./security-review-candidates.js";
@@ -246,10 +247,10 @@ export function createOrUpdateSecurityFindingTasks(
       created_at: existingCreatedAt,
       updated_at: now,
     };
-    writeFileSync(
+    writeRepoTaskFile(
+      projectDir,
       target.path,
       serializeFlatFrontMatter(attrs, buildFindingTaskBody({ runId: args.runId, finding })),
-      "utf-8",
     );
     taskPaths.push(target.path);
     if (target.kind === "update") updatedTaskIds.push(target.id);

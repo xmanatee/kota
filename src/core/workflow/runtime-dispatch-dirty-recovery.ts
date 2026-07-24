@@ -41,7 +41,7 @@ export function handleDirtyCompletion(
   const dirtyCheckout = dirtyCheckoutFor(state);
   const label = checkoutLabel(dirtyCheckout);
 
-  if (!worktree.trackedDirty) {
+  if (!worktree.dirty) {
     if (state.store.getRecovery()) {
       state.store.setRecovery(null);
     }

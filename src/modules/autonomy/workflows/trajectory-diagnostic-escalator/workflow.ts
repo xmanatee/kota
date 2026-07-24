@@ -83,7 +83,7 @@ const inspectPatterns = typedCodeStep<Inspection>({
     ]),
   run: ({ projectDir }) => {
     const worktree = getRepoWorktreeStatus(projectDir);
-    const dirty = worktree.available && worktree.trackedDirty;
+    const dirty = worktree.available && worktree.dirty;
     const thresholdRuns = readPositiveIntegerEnv(
       "KOTA_TRAJECTORY_DIAGNOSTIC_PATTERN_RUNS",
       DEFAULT_TRAJECTORY_DIAGNOSTIC_PATTERN_RUNS,

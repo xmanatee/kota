@@ -194,4 +194,4 @@ helper artifacts, without importing a benchmark suite or trusting agent prose.
 - Evidence of a temporary shortcut/regression causing the fixture to fail,
   with the regression reverted before staging.
 
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-07-05T15:02:44.625Z -->
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-07-23T23:11:20.617Z -->

@@ -126,7 +126,7 @@ export const inspectWorktree = typedCodeStep<WorktreeInspection>({
   validate: (raw) => expectStructuredOutput<WorktreeInspection>(raw, ["dirty"]),
   run: ({ projectDir }) => {
     const worktree = getRepoWorktreeStatus(projectDir);
-    return { dirty: worktree.available && worktree.trackedDirty };
+    return { dirty: worktree.available && worktree.dirty };
   },
 });
 

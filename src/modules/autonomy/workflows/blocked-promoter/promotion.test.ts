@@ -460,6 +460,7 @@ describe("applyOperatorCaptureInstruction", () => {
     const candidates = listOperatorCaptureInstructCandidates(records, dir, Date.now());
     const now = new Date("2026-05-02T16:00:00.000Z");
     const result = applyOperatorCaptureInstruction({
+      projectDir: dir,
       candidate: candidates[0],
       now,
     });
@@ -489,7 +490,11 @@ describe("applyOperatorCaptureInstruction", () => {
     const records = listBlockedTasksWithPreconditions(dir);
     const candidates = listOperatorCaptureInstructCandidates(records, dir, Date.now());
     const now = new Date("2026-05-02T16:00:00.000Z");
-    applyOperatorCaptureInstruction({ candidate: candidates[0], now });
+    applyOperatorCaptureInstruction({
+      projectDir: dir,
+      candidate: candidates[0],
+      now,
+    });
     const taskBody = readFileSync(candidates[0].taskPath, "utf-8");
     const matches = taskBody.match(/blocked-promoter-operator-capture-instructed/g) ?? [];
     expect(matches).toHaveLength(1);

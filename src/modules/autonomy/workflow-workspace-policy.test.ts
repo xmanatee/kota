@@ -3,7 +3,9 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
+  AUTONOMY_CANONICAL_MUTATION_CONCURRENCY_GROUP,
   AUTONOMY_WORKFLOW_WORKSPACE_POLICIES,
+  autonomyWorkflowConcurrencyGroupFor,
   workflowWorkspacePolicyFor,
 } from "./workflow-workspace-policy.js";
 
@@ -62,6 +64,17 @@ describe("autonomy workflow workspace policy", () => {
     expect(arbitraryMutators[0]?.kind).toBe("worktree-merge-gated");
     expect(sourceFor("builder")).toContain("prepareWorktreeStep");
     expect(sourceFor("builder")).toContain("mergeGateStep");
+  });
+
+  it("serializes every tracked canonical mutator through one runtime group", () => {
+    for (const policy of AUTONOMY_WORKFLOW_WORKSPACE_POLICIES) {
+      const expected =
+        policy.kind === "canonical-control-state" &&
+        policy.trackedMutationScope !== "runtime-state"
+          ? AUTONOMY_CANONICAL_MUTATION_CONCURRENCY_GROUP
+          : undefined;
+      expect(autonomyWorkflowConcurrencyGroupFor(policy.workflow)).toBe(expected);
+    }
   });
 
   it("backs the improver canonical exception with a clean-checkout agent gate", () => {

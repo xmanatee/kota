@@ -22,6 +22,7 @@ const baseSignal: AutonomyHealthSignalInput = {
   ],
   actionability: "local-code",
   dedupeKey: "workflow:builder:runtime-warning",
+  observationCount: 1,
   createdAt: "2026-06-17T12:00:00.000Z",
 };
 
@@ -69,5 +70,14 @@ describe("autonomy health signal contract", () => {
         actionability: "bad" as AutonomyHealthSignalInput["actionability"],
       }),
     ).toThrow(/actionability/);
+  });
+
+  it("requires a positive observation count", () => {
+    expect(() =>
+      normalizeHealthSignal({
+        ...baseSignal,
+        observationCount: 0,
+      }),
+    ).toThrow(/observationCount/);
   });
 });

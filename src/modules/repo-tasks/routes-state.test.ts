@@ -20,8 +20,14 @@ describe("task state routes", () => {
 
   beforeEach(() => {
     projectDir = makeProjectDir();
-    vi.mocked(execFileSync).mockImplementation(() => {
-      throw new Error("not a git repo");
+    vi.mocked(execFileSync).mockImplementation((_file: unknown, args?: unknown) => {
+      const argv = Array.isArray(args) ? (args as string[]) : [];
+      if (argv[0] === "mv") {
+        const [, src, dst] = argv;
+        writeFileSync(dst, readFileSync(src, "utf-8"));
+        rmSync(src);
+      }
+      return Buffer.from("");
     });
   });
 
@@ -30,7 +36,7 @@ describe("task state routes", () => {
   });
 
   it("moves a task from ready to backlog and updates frontmatter", async () => {
-    writeTaskFile(projectDir, "ready", "task-x", {
+    writeTaskFile(projectDir, "ready", "x", {
       id: "task-x",
       title: "X",
       priority: "p2",
@@ -42,14 +48,14 @@ describe("task state routes", () => {
     expect(result.status).toBe(200);
     expect((result.body as Record<string, string>).state).toBe("backlog");
 
-    const newPath = join(projectDir, "data", "tasks", "backlog", "task-task-x.md");
+    const newPath = join(projectDir, "data", "tasks", "backlog", "task-x.md");
     expect(existsSync(newPath)).toBe(true);
     expect(readFileSync(newPath, "utf-8")).toContain("status: backlog");
-    expect(existsSync(join(projectDir, "data", "tasks", "ready", "task-task-x.md"))).toBe(false);
+    expect(existsSync(join(projectDir, "data", "tasks", "ready", "task-x.md"))).toBe(false);
   });
 
   it("moves a task to dropped", async () => {
-    writeTaskFile(projectDir, "backlog", "task-y", {
+    writeTaskFile(projectDir, "backlog", "y", {
       id: "task-y",
       title: "Y",
       priority: "p3",
@@ -60,7 +66,34 @@ describe("task state routes", () => {
     await handleTaskStateChange(mockRequest({ state: "dropped" }), res, "task-y", projectDir);
     expect(result.status).toBe(200);
     expect((result.body as Record<string, string>).state).toBe("dropped");
-    expect(existsSync(join(projectDir, "data", "tasks", "dropped", "task-task-y.md"))).toBe(true);
+    expect(existsSync(join(projectDir, "data", "tasks", "dropped", "task-y.md"))).toBe(true);
+  });
+
+  it("fails without mutating task state when git cannot stage the move", async () => {
+    writeTaskFile(projectDir, "ready", "git-failure", {
+      id: "task-git-failure",
+      title: "Git failure",
+      priority: "p2",
+      status: "ready",
+    });
+    vi.mocked(execFileSync).mockImplementationOnce(() => {
+      throw new Error("git mv failed");
+    });
+
+    const { res, result } = mockResponse();
+    await handleTaskStateChange(
+      mockRequest({ state: "backlog" }),
+      res,
+      "task-git-failure",
+      projectDir,
+    );
+
+    expect(result.status).toBe(500);
+    expect(
+      existsSync(
+        join(projectDir, "data", "tasks", "ready", "task-git-failure.md"),
+      ),
+    ).toBe(true);
   });
 
   it("returns 200 with no-op when state is same", async () => {

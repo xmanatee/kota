@@ -12,6 +12,7 @@ import { autonomyHealthSignal } from "./health-signal.js";
 import { buildLoopQualityAuditCommand } from "./loop-quality-audit-cli.js";
 import { buildReportCommand } from "./report/report-cli.js";
 import { createWorkflowStateRecoveryProvider } from "./workflow-state-recovery.js";
+import { autonomyWorkflowConcurrencyGroupFor } from "./workflow-workspace-policy.js";
 import { buildAttentionCommand } from "./workflows/attention-digest/attention-cli.js";
 import { attentionRoutes } from "./workflows/attention-digest/attention-route.js";
 import { buildDigestCommand } from "./workflows/daily-digest/digest-cli.js";
@@ -73,11 +74,24 @@ async function discoverAutonomyWorkflowDefinitions(): Promise<
   RegisteredWorkflowDefinitionInput[]
 > {
   const modules = await discoverAutonomyWorkflowModules();
-  return modules.map(({ name, workflow }) => ({
-    ...workflow,
-    definitionPath: `src/modules/autonomy/workflows/${name}/workflow.ts`,
-    moduleRoot: KOTA_INSTALL_ROOT,
-  }));
+  return modules.map(({ name, workflow }) => {
+    const concurrencyGroup = autonomyWorkflowConcurrencyGroupFor(name);
+    if (
+      concurrencyGroup !== undefined &&
+      workflow.concurrencyGroup !== undefined &&
+      workflow.concurrencyGroup !== concurrencyGroup
+    ) {
+      throw new Error(
+        `Autonomy workflow "${name}" concurrencyGroup must match its workspace policy`,
+      );
+    }
+    return {
+      ...workflow,
+      ...(concurrencyGroup !== undefined ? { concurrencyGroup } : {}),
+      definitionPath: `src/modules/autonomy/workflows/${name}/workflow.ts`,
+      moduleRoot: KOTA_INSTALL_ROOT,
+    };
+  });
 }
 
 async function discoverAutonomyAgents(): Promise<AgentDef[]> {

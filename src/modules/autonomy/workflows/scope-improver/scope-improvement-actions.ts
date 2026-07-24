@@ -8,6 +8,7 @@ import {
   listFullRepoTasks,
   REPO_TASK_STATES,
   type RepoTaskState,
+  writeRepoTaskFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { slugifyTaskTitle } from "#modules/repo-tasks/repo-tasks-operations.js";
 import {
@@ -68,10 +69,10 @@ function writeTask(args: {
   }
   const path = taskPathForId(args.projectDir, "ready", id);
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(
+  writeRepoTaskFile(
+    args.projectDir,
     path,
     serializeFlatFrontMatter(taskAttrs(id, args.recommendation), taskBody(args)),
-    "utf-8",
   );
   return {
     kind: "created-task",

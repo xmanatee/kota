@@ -53,7 +53,7 @@ const inspectBlocked = typedCodeStep<InspectResult>({
     ]),
   run: ({ projectDir }) => {
     const worktree = getRepoWorktreeStatus(projectDir);
-    const dirty = worktree.available && worktree.trackedDirty;
+    const dirty = worktree.available && worktree.dirty;
     const records = listBlockedTasksWithPreconditions(projectDir);
     const now = Date.now();
     const ownerAsk = pickOwnerAskCandidate(records, now);
@@ -176,7 +176,12 @@ const applyOutcome = typedCodeStep<AskOutcomeApplication[]>({
     if (outcome.kind === "answered") {
       approved = answerApprovesPromotion(outcome.answer, candidate.proposedAnswers);
     }
-    return applyAskOutcome({ candidate, approved, now: new Date() });
+    return applyAskOutcome({
+      projectDir: ctx.projectDir,
+      candidate,
+      approved,
+      now: new Date(),
+    });
   },
 });
 
@@ -218,7 +223,7 @@ const instructOperatorCapture = typedCodeStep<{
     );
     const now = new Date();
     const instructions = candidates.map((candidate) =>
-      applyOperatorCaptureInstruction({ candidate, now }),
+      applyOperatorCaptureInstruction({ projectDir, candidate, now }),
     );
     return { instructions };
   },

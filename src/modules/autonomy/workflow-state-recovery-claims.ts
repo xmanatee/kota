@@ -219,9 +219,13 @@ export function projectClaim(
   };
 }
 
-export function listPendingMergeClaims(projectDir: string): WorkflowStateRecoveryClaim[] {
+export function listRecoveryClaims(projectDir: string): WorkflowStateRecoveryClaim[] {
   return listTaskClaimInspections(projectDir)
-    .filter((inspection) => inspection.claim.status === "pending-merge")
+    .filter((inspection) =>
+      inspection.recoveryStatus === "pending-merge" ||
+      inspection.recoveryStatus === "stale" ||
+      inspection.recoveryStatus === "expired"
+    )
     .map((inspection) => projectClaim(projectDir, inspection))
     .sort((a, b) => a.claim.taskId.localeCompare(b.claim.taskId));
 }
@@ -280,9 +284,11 @@ export function listRecoveryDeadLetters(projectDir: string): WorkflowStateRecove
   );
 }
 
-export function findPendingMergeClaim(
+export function findRecoveryClaim(
   projectDir: string,
   taskId: string,
 ): WorkflowStateRecoveryClaim | null {
-  return listPendingMergeClaims(projectDir).find((claim) => claim.claim.taskId === taskId) ?? null;
+  return listRecoveryClaims(projectDir).find(
+    (claim) => claim.claim.taskId === taskId,
+  ) ?? null;
 }

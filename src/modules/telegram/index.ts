@@ -413,6 +413,7 @@ function emitTelegramPollConflictHealthSignal(
     ],
     actionability: "external-service",
     dedupeKey,
+    observationCount: 1,
     createdAt: new Date().toISOString(),
   });
 

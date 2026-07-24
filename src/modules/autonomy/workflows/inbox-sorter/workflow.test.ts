@@ -106,7 +106,7 @@ describe("inbox-sorter workflow", () => {
     expect(result.steps.commit.status).toBe("skipped");
   });
 
-  it("allows untracked files outside inbox", async () => {
+  it("rejects untracked files outside inbox", async () => {
     const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
     vi.mocked(getRepoWorktreeStatus).mockReturnValue({
       available: true,
@@ -118,6 +118,33 @@ describe("inbox-sorter workflow", () => {
       headSha: "abc1234",
     });
     const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1));
+
+    const harness = new WorkflowTestHarness(inboxSorterWorkflow, {
+      trigger: { event: "autonomy.inbox.available", payload: {} },
+      stepMocks: {
+        "sort-inbox": { turns: [], totalCostUsd: 0.01 },
+      },
+    });
+
+    const result = await harness.run();
+    expect(result.steps["inspect-inbox"].status).toBe("failed");
+  });
+
+  it("allows untracked inbox entries", async () => {
+    const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
+    vi.mocked(getRepoWorktreeStatus).mockReturnValue({
+      available: true,
+      dirty: true,
+      trackedDirty: false,
+      entries: ["?? data/inbox/task-capture.md"],
+      fingerprint: "?? data/inbox/task-capture.md",
+      summary: "data/inbox/task-capture.md",
+      headSha: "abc1234",
+    });
+    const { getRepoTaskQueueSnapshot } = await import(
+      "#modules/repo-tasks/repo-tasks-domain.js"
+    );
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1));
 
     const harness = new WorkflowTestHarness(inboxSorterWorkflow, {

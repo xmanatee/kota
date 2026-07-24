@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
@@ -13,6 +13,7 @@ import {
   listFullRepoTasks,
   REPO_TASK_STATES,
   type RepoTaskState,
+  writeRepoTaskFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { slugifyTaskTitle } from "#modules/repo-tasks/repo-tasks-operations.js";
 import type {
@@ -317,10 +318,10 @@ export function writeFollowUpTask(args: {
     created_at: now,
     updated_at: now,
   };
-  writeFileSync(
+  writeRepoTaskFile(
+    args.projectDir,
     taskPath,
     serializeFlatFrontMatter(attrs, buildTaskBody({ ...args, task, taskClass })),
-    "utf-8",
   );
   return {
     kind: "created-task",

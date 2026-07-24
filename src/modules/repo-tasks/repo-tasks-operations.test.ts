@@ -23,6 +23,10 @@ vi.mock("node:child_process", () => ({
   execFileSync: vi.fn(),
 }));
 
+beforeEach(() => {
+  vi.mocked(execFileSync).mockReset();
+});
+
 function makeProjectDir(): string {
   const dir = join(
     tmpdir(),
@@ -82,7 +86,6 @@ describe("showTask", () => {
 
   beforeEach(() => {
     projectDir = makeProjectDir();
-    vi.mocked(execFileSync).mockClear();
   });
 
   afterEach(() => {
@@ -160,13 +163,28 @@ describe("createNormalizedTask", () => {
       expect(result.path).toContain('$(touch should-not-run)');
       expect(execFileSync).toHaveBeenCalledWith(
         "git",
-        ["add", result.path],
+        ["add", "-A", "--", "data/tasks/backlog/task-literal-path-task.md"],
         expect.objectContaining({
           cwd: unsafeProjectDir,
-          stdio: "ignore",
+          stdio: "pipe",
         }),
       );
     }
+  });
+
+  it("fails the task operation when exact-path staging fails", () => {
+    vi.mocked(execFileSync).mockImplementationOnce(() => {
+      throw new Error("stage failed");
+    });
+
+    expect(() =>
+      createNormalizedTask(projectDir, {
+        title: "Cannot stage",
+        priority: "p2",
+        area: "core",
+        state: "backlog",
+      }),
+    ).toThrow("stage failed");
   });
 
   it("returns invalid_slug for empty title", () => {

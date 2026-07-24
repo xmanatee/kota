@@ -5,7 +5,6 @@
  * HTTP routes route through these functions so the two transports cannot
  * diverge in behavior.
  */
-import { execFileSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -13,11 +12,9 @@ import {
   readFileSync,
   renameSync,
   rmSync,
-  writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type {
   RepoTaskCaptureResult,
   RepoTaskCreateOptions,
@@ -27,6 +24,7 @@ import type {
   RepoTaskShowResult,
   RepoTaskState,
 } from "./client.js";
+import { stageRepoPaths } from "./repo-file-mutations.js";
 import {
   getRepoInboxDir,
   getRepoTasksDir,
@@ -34,6 +32,8 @@ import {
   TASK_ACCEPTANCE_EVIDENCE_PLACEHOLDER,
   TASK_INITIATIVE_PLACEHOLDER,
   TASK_SOURCE_INTENT_PLACEHOLDER,
+  writeRepoInboxFile,
+  writeRepoTaskFile,
 } from "./repo-tasks-domain.js";
 import { isRepoTaskId } from "./task-id.js";
 
@@ -146,16 +146,11 @@ export function createNormalizedTask(
     updated_at: now,
   };
 
-  writeFileSync(filePath, serializeFlatFrontMatter(attrs, buildNormalizedTaskBody()), "utf-8");
-  try {
-    execFileSync("git", ["add", filePath], {
-      cwd: projectDir,
-      env: withProtectedGitBareRepositoryEnv(),
-      stdio: "ignore",
-    });
-  } catch {
-    // Caller's responsibility: the file is on disk; staging is best effort.
-  }
+  writeRepoTaskFile(
+    projectDir,
+    filePath,
+    serializeFlatFrontMatter(attrs, buildNormalizedTaskBody()),
+  );
   return { ok: true, id, path: filePath };
 }
 
@@ -189,7 +184,7 @@ export function captureInboxTask(
     };
   }
 
-  writeFileSync(filePath, `# ${title}\n`, "utf-8");
+  writeRepoInboxFile(projectDir, filePath, `# ${title}\n`);
   return { ok: true, id, path: filePath };
 }
 
@@ -212,31 +207,28 @@ export function gcTerminalTasks(
 
   for (const state of TERMINAL_STATES) {
     const dir = join(tasksDir, state);
-    let files: string[];
-    try {
-      files = readdirSync(dir).filter((f) => f.endsWith(".md") && f !== "AGENTS.md");
-    } catch {
-      continue;
-    }
+    if (!existsSync(dir)) continue;
+    const files = readdirSync(dir).filter(
+      (file) => file.endsWith(".md") && file !== "AGENTS.md",
+    );
     for (const file of files) {
       const filePath = join(dir, file);
-      let updatedAt: Date | null = null;
-      try {
-        const content = readFileSync(filePath, "utf-8");
-        const { attrs } = parseFlatFrontMatter(content);
-        const raw = attrs.updated_at;
-        if (raw) updatedAt = new Date(String(raw));
-      } catch {
-        continue;
-      }
+      const content = readFileSync(filePath, "utf-8");
+      const { attrs } = parseFlatFrontMatter(content);
+      const raw = attrs.updated_at;
+      const updatedAt = raw ? new Date(String(raw)) : null;
       if (!updatedAt || Number.isNaN(updatedAt.getTime()) || updatedAt >= cutoff) continue;
       if (deleteMode) {
-        if (!dryRun) rmSync(filePath);
+        if (!dryRun) {
+          rmSync(filePath);
+          stageRepoPaths(projectDir, [filePath]);
+        }
         deleted.push(file);
       } else {
         if (!dryRun) {
           mkdirSync(archiveDir, { recursive: true });
           renameSync(filePath, join(archiveDir, file));
+          stageRepoPaths(projectDir, [filePath]);
         }
         archived.push(file);
       }

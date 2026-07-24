@@ -19,11 +19,9 @@
  * rendered/runtime artifacts that span the surface family.
  */
 
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { serializeFlatFrontMatter } from "#core/util/frontmatter.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { classifyTaskShape } from "#modules/autonomy/report/task-classification.js";
 import {
   getRepoTaskStateDir,
@@ -32,6 +30,7 @@ import {
   REPO_TASK_STATES,
   type RepoTaskFullRecord,
   type RepoTaskState,
+  writeRepoTaskFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 export const FAN_OUT_CONSOLIDATION_TASK_PREFIX = "task-fan-out-consolidation-";
@@ -369,15 +368,11 @@ export function applyConsolidationProposal(
       `fan-out-consolidation: target file already exists at ${targetPath} but proposer said no existing task — disk state changed mid-run`,
     );
   }
-  writeFileSync(
+  writeRepoTaskFile(
+    ctx.projectDir,
     targetPath,
     buildConsolidationTaskFile(proposal.taskId, proposal.batch, ctx.nowIso),
-    "utf-8",
   );
-  execFileSync("git", ["add", targetPath], {
-    cwd: ctx.projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-  });
   return {
     kind: "created",
     capabilityKey: proposal.capabilityKey,

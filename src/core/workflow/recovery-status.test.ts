@@ -78,8 +78,9 @@ describe("workflow recovery dispatch pause reconciliation", () => {
 
   function initializeCleanGitRepo(): void {
     runGit(["init"]);
+    writeFileSync(join(projectDir, ".gitignore"), ".kota/\n", "utf8");
     writeFileSync(join(projectDir, "tracked.txt"), "base\n", "utf8");
-    runGit(["add", "tracked.txt"]);
+    runGit(["add", ".gitignore", "tracked.txt"]);
     runGit([
       "-c",
       "user.name=KOTA Test",

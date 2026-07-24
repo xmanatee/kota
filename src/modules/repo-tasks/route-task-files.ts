@@ -99,7 +99,3 @@ export function findTaskInOpenStates(
   }
   return null;
 }
-
-export function updateStatusFrontmatter(content: string, newStatus: string): string {
-  return content.replace(/^(status:\s*)\S+/m, `$1${newStatus}`);
-}

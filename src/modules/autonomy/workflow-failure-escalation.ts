@@ -1,9 +1,7 @@
-import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { readRepairIterations } from "#core/workflow/repair-iteration-output.js";
 import type { WorkflowRunMetadata, WorkflowRunWarning } from "#core/workflow/run-types.js";
 import {
@@ -12,6 +10,7 @@ import {
   moveTaskById,
   REPO_TASK_STATES,
   type RepoTaskState,
+  writeRepoTaskFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { loadRunsInWindow } from "#modules/workflow-ops/runs/workflow-history.js";
 import { hasInfrastructureAgentFailure } from "./run-outcome-aggregation.js";
@@ -806,13 +805,6 @@ function buildWorkflowFailureTaskBody(pattern: WorkflowFailurePattern): string {
   return lines.join("\n");
 }
 
-function stagePath(projectDir: string, path: string): void {
-  execFileSync("git", ["add", path], {
-    cwd: projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-  });
-}
-
 export function applyWorkflowFailureEscalation(
   proposal: WorkflowFailureEscalationProposal,
   ctx: WorkflowFailureEscalationContext,
@@ -839,16 +831,15 @@ export function applyWorkflowFailureEscalation(
         `workflow-failure-escalation: refusing to overwrite existing ${targetPath}`,
       );
     }
-    writeFileSync(
+    writeRepoTaskFile(
+      ctx.projectDir,
       targetPath,
       buildWorkflowFailureTaskFile(
         pattern,
         "ready",
         taskTimestamps(null, ctx.nowIso),
       ),
-      "utf-8",
     );
-    stagePath(ctx.projectDir, targetPath);
     return {
       kind: "created",
       taskId: pattern.taskId,
@@ -863,16 +854,15 @@ export function applyWorkflowFailureEscalation(
         `workflow-failure-escalation: expected ${pattern.taskId} in ready/ for refresh`,
       );
     }
-    writeFileSync(
+    writeRepoTaskFile(
+      ctx.projectDir,
       targetPath,
       buildWorkflowFailureTaskFile(
         pattern,
         "ready",
         taskTimestamps(existing, ctx.nowIso),
       ),
-      "utf-8",
     );
-    stagePath(ctx.projectDir, targetPath);
     return {
       kind: "refreshed",
       taskId: pattern.taskId,
@@ -884,16 +874,15 @@ export function applyWorkflowFailureEscalation(
   if (proposal.action === "promote") {
     const move = moveTaskById(ctx.projectDir, pattern.taskId, "ready");
     const promoted = findExistingTask(ctx.projectDir, pattern.taskId);
-    writeFileSync(
+    writeRepoTaskFile(
+      ctx.projectDir,
       targetPath,
       buildWorkflowFailureTaskFile(
         pattern,
         "ready",
         taskTimestamps(promoted, ctx.nowIso),
       ),
-      "utf-8",
     );
-    stagePath(ctx.projectDir, targetPath);
     return {
       kind: "promoted",
       taskId: pattern.taskId,
@@ -918,26 +907,22 @@ export function applyWorkflowFailureEscalation(
       `workflow-failure-escalation: refusing to overwrite existing ${targetPath}`,
     );
   }
-  execFileSync("git", ["mv", previousPath, targetPath], {
-    cwd: ctx.projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-  });
-  writeFileSync(
+  const move = moveTaskById(ctx.projectDir, pattern.taskId, "ready");
+  writeRepoTaskFile(
+    ctx.projectDir,
     targetPath,
     buildWorkflowFailureTaskFile(
       pattern,
       "ready",
       taskTimestamps(existing, ctx.nowIso),
     ),
-    "utf-8",
   );
-  stagePath(ctx.projectDir, targetPath);
   return {
     kind: "recreated",
     taskId: pattern.taskId,
     patternFingerprint: pattern.fingerprint,
     previousState: proposal.previousState,
-    path: targetPath.slice(ctx.projectDir.length + 1),
+    path: move.path,
   };
 }
 

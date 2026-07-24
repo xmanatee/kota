@@ -258,4 +258,71 @@ describe("workflow state recovery actions", () => {
     });
     expect(existsSync(taskClaimPath(projectDir, "task-supersede"))).toBe(false);
   });
+
+  it("lists and supersedes an active claim whose owner run failed", () => {
+    writeTask(
+      projectDir,
+      "ready",
+      "task-failed-active",
+      "2026-06-27T00:00:00.000Z",
+    );
+    const claimed = claimTask(
+      claimInput(
+        projectDir,
+        "task-failed-active",
+        "run-failed-active",
+        new Date("2026-06-27T00:01:00.000Z"),
+      ),
+    );
+    expect(claimed.claimed).toBe(true);
+    writeOwnerRunMetadata(
+      projectDir,
+      "run-failed-active",
+      "builder",
+      "failed",
+    );
+    const provider = createWorkflowStateRecoveryProvider();
+
+    const listed = provider.list({ projectDir });
+    expect(listed).toMatchObject({
+      ok: true,
+      claims: [
+        {
+          claim: {
+            taskId: "task-failed-active",
+            status: "active",
+          },
+          recoveryStatus: "stale",
+          ownerRunStatus: "failed",
+          recommendedAction: {
+            kind: "supersede",
+          },
+        },
+      ],
+    });
+
+    const resolved = provider.resolve({
+      projectDir,
+      taskId: "task-failed-active",
+      runId: "run-failed-active",
+      action: "supersede",
+      rationale: "terminal failed run cannot retain an active task lease",
+      artifactRunId: "run-failed-active-recovery",
+    });
+
+    expect(resolved).toMatchObject({
+      ok: true,
+      action: "supersede",
+      artifact: {
+        result: "superseded",
+        before: {
+          recoveryStatus: "stale",
+        },
+        after: null,
+      },
+    });
+    expect(
+      existsSync(taskClaimPath(projectDir, "task-failed-active")),
+    ).toBe(false);
+  });
 });

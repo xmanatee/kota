@@ -23,7 +23,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
@@ -35,6 +35,7 @@ import {
   moveTaskById,
   REPO_TASK_STATES,
   type RepoTaskState,
+  writeRepoTaskFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   type CalibrationDriftKind,
@@ -240,10 +241,6 @@ export function applyCalibrationRepair(
   }
 
   if (proposal.action === "recreate") {
-    const previousPath = join(
-      getRepoTaskStateDir(ctx.projectDir, proposal.previousState),
-      `${proposal.taskId}.md`,
-    );
     const targetPath = join(
       getRepoTaskStateDir(ctx.projectDir, "ready"),
       `${proposal.taskId}.md`,
@@ -254,23 +251,16 @@ export function applyCalibrationRepair(
         `calibration-repair: refusing to overwrite existing ${targetPath} during recreate`,
       );
     }
-    execFileSync("git", ["mv", previousPath, targetPath], {
-      cwd: ctx.projectDir,
-      env: withProtectedGitBareRepositoryEnv(),
-    });
-    writeFileSync(
+    const move = moveTaskById(ctx.projectDir, proposal.taskId, "ready");
+    writeRepoTaskFile(
+      ctx.projectDir,
       targetPath,
       buildCalibrationRepairTaskFile(proposal.taskId, "ready", ctx),
-      "utf-8",
     );
-    execFileSync("git", ["add", targetPath], {
-      cwd: ctx.projectDir,
-      env: withProtectedGitBareRepositoryEnv(),
-    });
     return {
       kind: "recreated",
       taskId: proposal.taskId,
-      path: targetPath.slice(ctx.projectDir.length + 1),
+      path: move.path,
       previousState: proposal.previousState,
     };
   }
@@ -284,15 +274,11 @@ export function applyCalibrationRepair(
       `calibration-repair: target file already exists at ${targetPath} but proposer said no existing task — disk state changed mid-run`,
     );
   }
-  writeFileSync(
+  writeRepoTaskFile(
+    ctx.projectDir,
     targetPath,
     buildCalibrationRepairTaskFile(proposal.taskId, "ready", ctx),
-    "utf-8",
   );
-  execFileSync("git", ["add", targetPath], {
-    cwd: ctx.projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-  });
   return {
     kind: "created",
     taskId: proposal.taskId,

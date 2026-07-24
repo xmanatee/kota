@@ -34,6 +34,7 @@ function signal(
     ],
     actionability: "local-code",
     dedupeKey: "workflow:builder:runtime-warning",
+    observationCount: 1,
     createdAt: NOW,
     ...overrides,
   });
@@ -80,6 +81,7 @@ describe("autonomy health review actions", () => {
     );
     runDir = join(projectDir, ".kota", "runs", "health-review-run");
     mkdirSync(runDir, { recursive: true });
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
   });
 
   afterEach(() => {
@@ -198,15 +200,6 @@ describe("autonomy health review actions", () => {
   });
 
   it("creates a staged task that passes task queue validation", () => {
-    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
-    execFileSync("git", ["config", "user.email", "t@example.com"], {
-      cwd: projectDir,
-    });
-    execFileSync("git", ["config", "user.name", "test"], { cwd: projectDir });
-    execFileSync("git", ["config", "commit.gpgsign", "false"], {
-      cwd: projectDir,
-    });
-
     const review = buildAutonomyHealthReview({
       triggerPayload: batchPayload([signal(), signal()]),
       generatedAt: NOW,

@@ -79,7 +79,7 @@ const inspectWorktree = typedCodeStep<WorktreeInspection>({
   validate: (raw) => expectStructuredOutput<WorktreeInspection>(raw, ["dirty"]),
   run: ({ projectDir }) => {
     const worktree = getRepoWorktreeStatus(projectDir);
-    return { dirty: worktree.available && worktree.trackedDirty };
+    return { dirty: worktree.available && worktree.dirty };
   },
 });
 
@@ -275,11 +275,6 @@ const autonomyHealthReviewerWorkflow: WorkflowDefinitionInput = {
   description:
     "Batch typed autonomy health signals and persisted runtime evidence into deduped review artifacts, repair tasks, owner questions, and attention items.",
   recoveryCapable: true,
-  // This code-only workflow can create or refresh task files. Keep it in the
-  // explicit agent group, which the runtime treats as an exclusive slot for
-  // code-only workflows, so scoped agent writeScope snapshots do not attribute
-  // its uncommitted task mutations to a concurrently running agent step.
-  concurrencyGroup: "agent",
   triggers: [
     {
       event: AUTONOMY_HEALTH_AUDIT_SCHEDULE_EVENT,

@@ -106,4 +106,4 @@ container reached healthy state. It does not capture an actual Telegram
 `/status` exchange or another bot interaction performed through the staging
 deployment, so the task remains blocked pending the operator-capture artifact.
 
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-06-30T15:13:38.057Z -->
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-07-23T23:11:20.617Z -->

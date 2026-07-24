@@ -45,7 +45,7 @@ export function queueInterruptedRunRecovery(
   if (interrupted.length === 0) return;
   const dirtyCheckout = runtimeDirtyCheckout(state);
   const worktree = getRepoWorktreeStatus(recoveryWorktreeDir(state, dirtyCheckout));
-  if (!worktree.available || !worktree.trackedDirty) return;
+  if (!worktree.available || !worktree.dirty) return;
 
   const queued = queueMatchingEventFirst(
     state,

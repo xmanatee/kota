@@ -1,13 +1,12 @@
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import {
   getRepoTaskStateDir,
   getRepoTasksDir,
   moveTaskById,
   REPO_TASK_STATES,
+  writeRepoTaskFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { buildReviewScrutinyTaskBody } from "./review-scrutiny-escalation-task-body.js";
 import {
@@ -144,13 +143,6 @@ function buildReviewScrutinyTaskFile(
   );
 }
 
-function stagePath(projectDir: string, path: string): void {
-  execFileSync("git", ["add", path], {
-    cwd: projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-  });
-}
-
 function writeReadyTask(
   projectDir: string,
   pattern: ReviewScrutinyPatternCandidate,
@@ -160,12 +152,11 @@ function writeReadyTask(
   const targetDir = getRepoTaskStateDir(projectDir, "ready");
   const targetPath = join(targetDir, `${pattern.taskId}.md`);
   mkdirSync(targetDir, { recursive: true });
-  writeFileSync(
+  writeRepoTaskFile(
+    projectDir,
     targetPath,
     buildReviewScrutinyTaskFile(pattern, taskTimestamps(existing, nowIso)),
-    "utf-8",
   );
-  stagePath(projectDir, targetPath);
   return targetPath;
 }
 
@@ -229,16 +220,13 @@ export function applyReviewScrutinyEscalation(
   if (existsSync(targetPath)) {
     throw new Error(`review-scrutiny-escalation: refusing to overwrite existing ${targetPath}`);
   }
-  execFileSync("git", ["mv", previousPath, targetPath], {
-    cwd: ctx.projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-  });
-  const written = writeReadyTask(ctx.projectDir, pattern, existing, ctx.nowIso);
+  const move = moveTaskById(ctx.projectDir, pattern.taskId, "ready");
+  writeReadyTask(ctx.projectDir, pattern, existing, ctx.nowIso);
   return {
     kind: "recreated",
     taskId: pattern.taskId,
     patternFingerprint: pattern.fingerprint,
     previousState: proposal.previousState,
-    path: written.slice(ctx.projectDir.length + 1),
+    path: move.path,
   };
 }

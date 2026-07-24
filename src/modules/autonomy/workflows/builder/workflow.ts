@@ -81,7 +81,7 @@ const inspectReadyQueue = typedCodeStep<InspectResult>({
     ]),
   run: (ctx) => {
     const worktree = getRepoWorktreeStatus(workflowWorkspaceDir(ctx));
-    const dirty = worktree.available && worktree.trackedDirty;
+    const dirty = worktree.available && worktree.dirty;
     return { ...getClaimAwareRepoTaskQueueSnapshot(ctx.projectDir), dirty };
   },
 });

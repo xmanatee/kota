@@ -37,6 +37,20 @@ describe("resetWorktreeForRecovery", () => {
     expect(getRepoWorktreeStatus(dir).trackedDirty).toBe(false);
   });
 
+  it("stashes untracked dirt and leaves worktree clean", () => {
+    const dir = initRepo();
+    writeFileSync(join(dir, "untracked.txt"), "preserve me\n");
+    expect(getRepoWorktreeStatus(dir).dirty).toBe(true);
+
+    const result = resetWorktreeForRecovery({
+      projectDir: dir,
+      workflowName: "health-reviewer",
+    });
+
+    expect(result.stashed).toBe(true);
+    expect(getRepoWorktreeStatus(dir).dirty).toBe(false);
+  });
+
   it("switches from kota/task/* back to base branch when restoreBaseBranch is true", () => {
     const dir = initRepo();
     execFileSync("git", ["checkout", "-b", "kota/task/foo"], { cwd: dir, stdio: "ignore" });

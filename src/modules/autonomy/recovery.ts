@@ -39,7 +39,7 @@ function getCurrentBranch(projectDir: string): string {
 /**
  * Reset the worktree to a safe base before a recovery-capable workflow runs.
  *
- * Stashes any tracked dirt (idempotent: no-op when already clean) and
+ * Stashes any dirt (idempotent: no-op when already clean) and
  * optionally switches back to the base branch when the workflow is on a
  * per-task branch. Designed to be called as the first substantive step when
  * `trigger.event === "runtime.recovered"`.
@@ -56,8 +56,8 @@ export function resetWorktreeForRecovery(
   const status = getRepoWorktreeStatus(projectDir);
 
   let stashed = false;
-  let stashSummary = "worktree clean (no tracked changes)";
-  if (status.available && status.trackedDirty) {
+  let stashSummary = "worktree clean";
+  if (status.available && status.dirty) {
     const result = spawnSync(
       "git",
       ["stash", "push", "--include-untracked", "-m", `Recovery: ${workflowName} auto-stash`],
@@ -72,7 +72,7 @@ export function resetWorktreeForRecovery(
       throw new Error(`git stash failed for ${workflowName}: ${result.stderr}`);
     }
     stashed = true;
-    stashSummary = result.stdout.trim() || "stashed tracked changes";
+    stashSummary = result.stdout.trim() || "stashed worktree changes";
   }
 
   const currentBranch = getCurrentBranch(projectDir);

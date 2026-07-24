@@ -1,9 +1,10 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { getRepoHeadSha } from "#core/util/repo-worktree.js";
+import { writeAndStageRepoMarkdownFile } from "./repo-file-mutations.js";
 import {
   findUnfinishedTaskDependencies,
   readTaskDependencyIds,
@@ -116,6 +117,32 @@ export function getRepoInboxDir(projectDir: string): string {
 
 export function getRepoTaskStateDir(projectDir: string, state: RepoTaskState): string {
   return join(getRepoTasksDir(projectDir), state);
+}
+
+export function writeRepoTaskFile(
+  projectDir: string,
+  filePath: string,
+  content: string,
+): void {
+  writeAndStageRepoMarkdownFile({
+    projectDir,
+    rootDir: getRepoTasksDir(projectDir),
+    filePath,
+    content,
+  });
+}
+
+export function writeRepoInboxFile(
+  projectDir: string,
+  filePath: string,
+  content: string,
+): void {
+  writeAndStageRepoMarkdownFile({
+    projectDir,
+    rootDir: getRepoInboxDir(projectDir),
+    filePath,
+    content,
+  });
 }
 
 export function countRepoTaskState(projectDir: string, state: RepoTaskState): number {
@@ -631,15 +658,12 @@ export function moveTaskById(
   attrs.updated_at = new Date().toISOString();
   const updated = serializeFlatFrontMatter(attrs, body);
 
+  mkdirSync(dirname(dstPath), { recursive: true });
   execFileSync("git", ["mv", fromPath, dstPath], {
     cwd: projectDir,
     env: withProtectedGitBareRepositoryEnv(),
   });
-  writeFileSync(dstPath, updated, "utf-8");
-  execFileSync("git", ["add", dstPath], {
-    cwd: projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-  });
+  writeRepoTaskFile(projectDir, dstPath, updated);
 
   return {
     id,
