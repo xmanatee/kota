@@ -49,9 +49,11 @@ This directory owns:
 - Payload threaded through to the workflow run carries `body`, `headers`,
   `timestamp`, and a hashed `idempotencyKey`: `body` is parsed as JSON when the
   raw body is non-empty (falling back to the original string on parse
-  failure); `headers` excludes the webhook signature, timestamp, raw
-  idempotency-key headers, and common secret-bearing request headers;
-  `timestamp` is the daemon's ISO receive time.
+  failure); `idempotencyKey` comes only from signed body material (a body
+  `idempotencyKey`/`externalId`, then the raw body), while unsigned request
+  idempotency headers are ignored; `headers` excludes the webhook signature,
+  timestamp, raw idempotency-key headers, and common secret-bearing request
+  headers; `timestamp` is the daemon's ISO receive time.
 - Per-workflow rate limiting is enforced before enqueueing. The
   workflow's `webhookRateLimit.maxPerMinute` (looked up via the
   `workflow-definitions` provider seam) caps deliveries in a sliding

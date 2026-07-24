@@ -1,0 +1,3 @@
+1. Webhook replay identity no longer trusts unsigned idempotency headers and is derived only from authenticated request-body material.
+2. Focused regression coverage changes only the idempotency header and proves both deliveries resolve to the same durable workflow dispatch.
+3. The webhook module contract and task record describe the fixed boundary and include the final verification command.

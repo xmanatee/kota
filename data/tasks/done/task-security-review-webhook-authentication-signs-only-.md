@@ -1,13 +1,13 @@
 ---
 id: task-security-review-webhook-authentication-signs-only-
 title: Security review: Webhook authentication signs only the timestamp and body, while an unsigned `X-Kota-Idempotency-Key` takes precedence when deriving the workflow dispatch key. A captured valid request can therefore be replayed within the five-minute signature window with different idempotency headers; every signature remains valid while durable replay detection sees a distinct delivery. A fresh probe confirmed identical signed bodies produced different dispatch keys.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: Webhook authentication signs only the timestamp and body, while an unsigned `X-Kota-Idempotency-Key` takes precedence when deriving the workflow dispatch key. A captured valid request can therefore be replayed within the five-minute signature window with different idempotency headers; every signature remains valid while durable replay detection sees a distinct delivery. A fresh probe confirmed identical signed bodies produced different dispatch keys.
 created_at: 2026-07-24T19:04:07.858Z
-updated_at: 2026-07-24T19:04:07.858Z
+updated_at: 2026-07-24T20:53:16.678Z
 ---
 
 ## Problem
@@ -119,3 +119,22 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Resolution
+
+Webhook dispatch identity now ignores unsigned `X-Kota-Idempotency-Key` and
+`Idempotency-Key` request headers. It is derived only from signed body
+`idempotencyKey`/`externalId` fields or the signed raw body bytes. The live
+route-to-runtime regression
+`src/modules/webhook/trigger-route-replay.integration.test.ts` replays one
+signature with two header values and verifies that both responses return the
+same run ID, only one run remains queued, and durable replay state records one
+duplicate.
+
+## Verification
+
+- `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run src/modules/webhook --configLoader runner --silent=true` — 11 files and 117 tests passed.
+- `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run src/task-files.test.ts --configLoader runner --silent=true` — 5 tests passed.
+- `./node_modules/.bin/biome check src/modules/webhook/trigger-route-payload.ts src/modules/webhook/trigger-route-replay.integration.test.ts`
+- `./node_modules/.bin/tsc --noEmit`
+- `node --conditions=source --import tsx src/validate-queue.ts`

@@ -36,13 +36,6 @@ type ParsedWebhookBody = {
   bodyIdempotencyMaterial?: string;
 };
 
-function trimmedHeader(req: IncomingMessage, key: string): string | undefined {
-  const value = req.headers[key];
-  return typeof value === "string" && value.trim().length > 0
-    ? value.trim()
-    : undefined;
-}
-
 function isJsonObject(value: IdempotencyJsonValue): value is IdempotencyJsonObject {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -91,16 +84,9 @@ function parseWebhookBody(rawBody: Buffer): ParsedWebhookBody {
 }
 
 function webhookIdempotencyKey(
-  req: IncomingMessage,
   rawBody: Buffer,
   parsed: ParsedWebhookBody,
 ): string {
-  const headerKey =
-    trimmedHeader(req, "x-kota-idempotency-key") ??
-    trimmedHeader(req, "idempotency-key");
-  if (headerKey) {
-    return `webhook-header:${hashIdempotencyMaterial([headerKey])}`;
-  }
   if (parsed.bodyIdempotencyMaterial) return parsed.bodyIdempotencyMaterial;
   return `webhook-body:${hashIdempotencyMaterial([rawBody.toString("base64")])}`;
 }
@@ -124,6 +110,6 @@ export function buildWebhookRunPayload(
     body: parsed.body,
     headers,
     timestamp: new Date().toISOString(),
-    idempotencyKey: webhookIdempotencyKey(req, rawBody, parsed),
+    idempotencyKey: webhookIdempotencyKey(rawBody, parsed),
   };
 }
