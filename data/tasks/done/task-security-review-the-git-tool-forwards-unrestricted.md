@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-git-tool-forwards-unrestricted
 title: Security review: The Git tool forwards unrestricted `log` arguments, including Git's file-writing `--output=<path>` option. Non-push calls receive no invocation-specific effect, so the static moderate-risk effect is allowed by default. An agent can therefore use `-1 --format=%B --output=/absolute/path` to overwrite files outside the project without confirmation. A local probe confirmed the command wrote the HEAD commit message to an absolute temporary path.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: The Git tool forwards unrestricted `log` arguments, including Git's file-writing `--output=<path>` option. Non-push calls receive no invocation-specific effect, so the static moderate-risk effect is allowed by default. An agent can therefore use `-1 --format=%B --output=/absolute/path` to overwrite files outside the project without confirmation. A local probe confirmed the command wrote the HEAD commit message to an absolute temporary path.
 created_at: 2026-07-24T17:17:05.890Z
-updated_at: 2026-07-24T17:17:05.890Z
+updated_at: 2026-07-24T18:21:18.074Z
 ---
 
 ## Problem
@@ -125,3 +125,9 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- Command: `node --conditions=source ./node_modules/vitest/vitest.mjs run src/modules/git/*.test.ts --configLoader runner --silent=true`
+- Result: 9 Git-module test files passed with 94 tests, including 17 focused argument-boundary regressions that prove direct and parser-confused `log --output` forms cannot create or overwrite an absolute target and an in-project symlink cannot redirect `push` to an external repository.
+- Additional checks: `node ./node_modules/typescript/bin/tsc --noEmit` and focused Biome checks passed.

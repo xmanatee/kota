@@ -3,6 +3,16 @@ import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import {
+	parseAddArguments,
+	parseBranchArguments,
+	parseCommitArguments,
+	parseDiffArguments,
+	parseLogArguments,
+	parseShowArguments,
+	parseStatusArguments,
+} from "./git-arguments.js";
+import { parsePushArguments } from "./push-arguments.js";
 import { protectedNonLeaseForcePushTarget } from "./push-safety.js";
 
 export const gitTool: KotaTool = {
@@ -22,7 +32,7 @@ export const gitTool: KotaTool = {
 			args: {
 				type: "string",
 				description:
-					"Operation-specific arguments. " +
+					"Operation-specific arguments are strictly parsed; unsupported flags and project-external local paths are rejected. " +
 					"status: (none). " +
 					"diff: optional path or ref (e.g. 'HEAD~3', 'src/', 'main..feature'). " +
 					"log: optional format flags (default: --oneline -20). " +
@@ -131,7 +141,17 @@ async function readGitRemoteGroup(
 	return values;
 }
 
-async function opStatus(context?: ToolRunnerContext): Promise<ToolResult> {
+function argumentError(message: string): ToolResult {
+	return { content: `Error: ${message}`, is_error: true };
+}
+
+function projectDir(context?: ToolRunnerContext): string {
+	return context?.cwd ?? process.cwd();
+}
+
+async function opStatus(args: string, context?: ToolRunnerContext): Promise<ToolResult> {
+	const parsed = parseStatusArguments(args);
+	if (!parsed.ok) return argumentError(parsed.message);
 	const result = await git(["status", "--short", "--branch"], context);
 	if (result.code !== 0) {
 		return { content: `Error: ${result.stderr.trim() || result.stdout.trim()}`, is_error: true };
@@ -140,20 +160,26 @@ async function opStatus(context?: ToolRunnerContext): Promise<ToolResult> {
 }
 
 async function opDiff(args: string, context?: ToolRunnerContext): Promise<ToolResult> {
-	const parts = args ? args.split(/\s+/) : [];
-	const result = await git(["diff", "--stat", ...parts], context);
+	const parsed = parseDiffArguments(args, projectDir(context));
+	if (!parsed.ok) return argumentError(parsed.message);
+	const safeOptions = ["--no-ext-diff", "--no-textconv"];
+	const result = await git(["diff", ...safeOptions, "--stat", ...parsed.value], context);
 	if (result.code !== 0) {
 		return { content: `Error: ${result.stderr.trim()}`, is_error: true };
 	}
-	const full = await git(["diff", ...parts], context);
+	const full = await git(["diff", ...safeOptions, ...parsed.value], context);
 	const diff = full.stdout.trim();
 	if (!diff) return { content: "(no changes)" };
 	return { content: truncateDiff(diff) };
 }
 
 async function opLog(args: string, context?: ToolRunnerContext): Promise<ToolResult> {
-	const parts = args ? args.split(/\s+/) : ["--oneline", "-20"];
-	const result = await git(["log", ...parts], context);
+	const parsed = parseLogArguments(args, projectDir(context));
+	if (!parsed.ok) return argumentError(parsed.message);
+	const result = await git(
+		["log", "--no-ext-diff", "--no-textconv", ...parsed.value],
+		context,
+	);
 	if (result.code !== 0) {
 		return { content: `Error: ${result.stderr.trim()}`, is_error: true };
 	}
@@ -161,21 +187,21 @@ async function opLog(args: string, context?: ToolRunnerContext): Promise<ToolRes
 }
 
 async function opShow(args: string, context?: ToolRunnerContext): Promise<ToolResult> {
-	const ref = args?.trim() || "HEAD";
-	const result = await git(["show", "--stat", ref], context);
+	const parsed = parseShowArguments(args, projectDir(context));
+	if (!parsed.ok) return argumentError(parsed.message);
+	const safeOptions = ["--no-ext-diff", "--no-textconv"];
+	const result = await git(["show", ...safeOptions, "--stat", parsed.value, "--"], context);
 	if (result.code !== 0) {
 		return { content: `Error: ${result.stderr.trim()}`, is_error: true };
 	}
-	const full = await git(["show", ref], context);
+	const full = await git(["show", ...safeOptions, parsed.value, "--"], context);
 	return { content: truncateDiff(full.stdout.trim()) };
 }
 
 async function opAdd(args: string, context?: ToolRunnerContext): Promise<ToolResult> {
-	if (!args?.trim()) {
-		return { content: "Error: file paths required (e.g. 'src/foo.ts' or '.')", is_error: true };
-	}
-	const parts = args.split(/\s+/);
-	const result = await git(["add", ...parts], context);
+	const parsed = parseAddArguments(args, projectDir(context));
+	if (!parsed.ok) return argumentError(parsed.message);
+	const result = await git(["add", "--", ...parsed.value], context);
 	if (result.code !== 0) {
 		return { content: `Error: ${result.stderr.trim()}`, is_error: true };
 	}
@@ -184,10 +210,9 @@ async function opAdd(args: string, context?: ToolRunnerContext): Promise<ToolRes
 }
 
 async function opCommit(args: string, context?: ToolRunnerContext): Promise<ToolResult> {
-	if (!args?.trim()) {
-		return { content: "Error: commit message required", is_error: true };
-	}
-	const result = await git(["commit", "-m", args.trim()], context);
+	const parsed = parseCommitArguments(args);
+	if (!parsed.ok) return argumentError(parsed.message);
+	const result = await git(["commit", "-m", parsed.value], context);
 	if (result.code !== 0) {
 		const msg = result.stderr.trim() || result.stdout.trim();
 		return { content: `Error: ${msg}`, is_error: true };
@@ -196,41 +221,52 @@ async function opCommit(args: string, context?: ToolRunnerContext): Promise<Tool
 }
 
 async function opBranch(args: string, context?: ToolRunnerContext): Promise<ToolResult> {
-	const parts = args?.trim().split(/\s+/) ?? [];
-	if (!args?.trim()) {
+	const parsed = parseBranchArguments(args);
+	if (!parsed.ok) return argumentError(parsed.message);
+	if (parsed.value.action === "list") {
 		const result = await git(["branch", "-vv"], context);
 		return { content: result.stdout.trim() || "(no branches)" };
 	}
-	if (parts[0] === "checkout" || parts[0] === "switch") {
-		const name = parts[1];
-		if (!name) return { content: "Error: branch name required", is_error: true };
-		const result = await git(["checkout", name], context);
+	if (parsed.value.action === "switch") {
+		const result = await git(["switch", parsed.value.name], context);
 		if (result.code !== 0) {
 			return { content: `Error: ${result.stderr.trim()}`, is_error: true };
 		}
-		return { content: result.stderr.trim() || `Switched to ${name}` };
+		return {
+			content: result.stderr.trim() || `Switched to ${parsed.value.name}`,
+		};
 	}
-	if (parts[0] === "-d" || parts[0] === "-D") {
-		const name = parts[1];
-		if (!name) return { content: "Error: branch name required for delete", is_error: true };
-		if (PROTECTED_BRANCHES.has(name)) {
-			return { content: `Blocked: cannot delete protected branch '${name}'`, is_error: true };
+	if (parsed.value.action === "delete") {
+		if (PROTECTED_BRANCHES.has(parsed.value.name)) {
+			return {
+				content: `Blocked: cannot delete protected branch '${parsed.value.name}'`,
+				is_error: true,
+			};
 		}
-		const result = await git(["branch", parts[0], name], context);
+		const result = await git(
+			["branch", parsed.value.force ? "-D" : "-d", "--", parsed.value.name],
+			context,
+		);
 		if (result.code !== 0) {
 			return { content: `Error: ${result.stderr.trim()}`, is_error: true };
 		}
-		return { content: result.stdout.trim() || `Deleted branch ${name}` };
+		return {
+			content: result.stdout.trim() || `Deleted branch ${parsed.value.name}`,
+		};
 	}
-	const result = await git(["checkout", "-b", parts[0]], context);
+	const result = await git(["switch", "-c", parsed.value.name], context);
 	if (result.code !== 0) {
 		return { content: `Error: ${result.stderr.trim()}`, is_error: true };
 	}
-	return { content: result.stderr.trim() || `Created and switched to ${parts[0]}` };
+	return {
+		content:
+			result.stderr.trim() || `Created and switched to ${parsed.value.name}`,
+	};
 }
 
 async function opPush(args: string, context?: ToolRunnerContext): Promise<ToolResult> {
-	const parts = args?.trim().split(/\s+/).filter(Boolean) ?? [];
+	const parsed = parsePushArguments(args, projectDir(context));
+	if (!parsed.ok) return argumentError(parsed.message);
 	const currentBranch = await getCurrentBranch(context);
 	let protectedTarget: string | null;
 	try {
@@ -258,7 +294,7 @@ async function opPush(args: string, context?: ToolRunnerContext): Promise<ToolRe
 		};
 	}
 
-	const result = await git(["push", ...parts], context);
+	const result = await git(["push", ...parsed.value], context);
 	if (result.code !== 0) {
 		return { content: `Error: ${result.stderr.trim()}`, is_error: true };
 	}
@@ -266,7 +302,7 @@ async function opPush(args: string, context?: ToolRunnerContext): Promise<ToolRe
 }
 
 const OPS: Record<string, (args: string, context?: ToolRunnerContext) => Promise<ToolResult>> = {
-	status: (_args, context) => opStatus(context),
+	status: opStatus,
 	diff: opDiff,
 	log: opLog,
 	show: opShow,
@@ -277,11 +313,14 @@ const OPS: Record<string, (args: string, context?: ToolRunnerContext) => Promise
 };
 
 export async function runGit(input: Record<string, unknown>, context?: ToolRunnerContext): Promise<ToolResult> {
-	const op = input.op as string;
+	const op = typeof input.op === "string" ? input.op : "";
 	if (!op) return { content: "Error: op is required", is_error: true };
 	const handler = OPS[op];
 	if (!handler) {
 		return { content: `Error: unknown op '${op}'. Valid: ${Object.keys(OPS).join(", ")}`, is_error: true };
 	}
-	return handler((input.args as string) ?? "", context);
+	if (input.args !== undefined && typeof input.args !== "string") {
+		return { content: "Error: args must be a string", is_error: true };
+	}
+	return handler(input.args ?? "", context);
 }

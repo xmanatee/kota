@@ -1,0 +1,3 @@
+1. Every Git tool operation validates its operation-specific argument grammar before invoking Git, with read operations rejecting file-writing, configuration, and execution-capable options and all path-taking operations rejecting targets outside the project.
+2. A focused regression test proves `runGit({ op: "log", ... })` cannot create or overwrite an absolute-path `--output` target, with adjacent coverage for the shared argument boundary.
+3. The normalized task records the final focused verification command and its result.

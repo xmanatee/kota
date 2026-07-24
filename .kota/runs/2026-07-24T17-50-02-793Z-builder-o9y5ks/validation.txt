@@ -1,0 +1,9 @@
+PASS  node --conditions=source ./node_modules/vitest/vitest.mjs run src/modules/git/*.test.ts --configLoader runner --silent=true
+      9 test files passed; 94 tests passed, including bare --format/--pretty parser-confusion and external-repository symlink push regressions.
+
+PASS  node ./node_modules/typescript/bin/tsc --noEmit
+
+PASS  ./node_modules/.bin/biome check src/modules/git/AGENTS.md src/modules/git/git-arguments.ts src/modules/git/push-arguments.ts src/modules/git/git.ts src/modules/git/git-arguments-security.test.ts
+      Checked 4 source files; no fixes applied.
+
+PASS  node --conditions=source --import tsx src/validate-queue.ts

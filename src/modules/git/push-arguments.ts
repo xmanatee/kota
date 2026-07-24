@@ -1,3 +1,9 @@
+import { isAbsolute } from "node:path";
+import {
+	type GitArgumentResult,
+	validateProjectPath,
+} from "./git-arguments.js";
+
 const OPTIONS_WITH_SEPARATE_VALUES = new Set([
 	"--exec",
 	"--push-option",
@@ -61,6 +67,13 @@ const SUPPORTED_LONG_OPTIONS_WITH_INLINE_VALUES = new Set([
 	"--repo",
 	"--signed",
 ]);
+const DISALLOWED_EXECUTION_OPTIONS = new Set([
+	"--exec",
+	"--receive-pack",
+	"--signed",
+]);
+const PUSH_SHORT_FLAGS = new Set(["4", "6", "d", "f", "n", "q", "u", "v"]);
+const RECURSE_SUBMODULE_VALUES = new Set(["check", "no", "on-demand", "only"]);
 
 export type PushArgumentAnalysis = {
 	forceWithLease: boolean;
@@ -165,4 +178,129 @@ export function analyzePushArguments(args: string): PushArgumentAnalysis {
 		targetsTags: parts.includes("--tags"),
 		unsupportedLongOption,
 	};
+}
+
+function valid<T>(value: T): GitArgumentResult<T> {
+	return { ok: true, value };
+}
+
+function invalid<T>(message: string): GitArgumentResult<T> {
+	return { ok: false, message };
+}
+
+function optionName(argument: string): string {
+	const separator = argument.indexOf("=");
+	return separator < 0 ? argument : argument.slice(0, separator);
+}
+
+function validatePushRepository(
+	repository: string,
+	projectDir: string,
+): GitArgumentResult<string> {
+	if (repository.startsWith("file:") || repository.startsWith("~")) {
+		return invalid(`Git push target "${repository}" is outside the project`);
+	}
+	if (
+		isAbsolute(repository) ||
+		/^[A-Za-z]:[\\/]/.test(repository) ||
+		repository.startsWith("\\\\")
+	) {
+		return validateProjectPath(repository, projectDir);
+	}
+	if (repository.includes("://") || /^[^/\\]+:.+$/.test(repository)) {
+		return valid(repository);
+	}
+	return validateProjectPath(repository, projectDir);
+}
+
+export function parsePushArguments(
+	args: string,
+	projectDir: string,
+): GitArgumentResult<string[]> {
+	const parsed = args.trim().split(/\s+/).filter(Boolean);
+	const positionals: string[] = [];
+	let repositoryOption: string | null = null;
+	let optionsEnded = false;
+
+	for (let index = 0; index < parsed.length; index += 1) {
+		const argument = parsed[index];
+		if (!optionsEnded && argument === "--") {
+			optionsEnded = true;
+			continue;
+		}
+		if (!optionsEnded && argument.startsWith("--")) {
+			const name = optionName(argument);
+			if (DISALLOWED_EXECUTION_OPTIONS.has(name)) {
+				return invalid(`Git push option "${name}" is not allowed`);
+			}
+			if (name === "--repo") {
+				const inlineValue = argument.includes("=")
+					? argument.slice(argument.indexOf("=") + 1)
+					: undefined;
+				const value = inlineValue ?? parsed[index + 1];
+				if (!value) return invalid('Git push option "--repo" requires a value');
+				repositoryOption = value;
+				if (inlineValue === undefined) index += 1;
+				continue;
+			}
+			if (name === "--push-option") {
+				const inlineValue = argument.includes("=")
+					? argument.slice(argument.indexOf("=") + 1)
+					: undefined;
+				const value = inlineValue ?? parsed[index + 1];
+				if (!value) {
+					return invalid('Git push option "--push-option" requires a value');
+				}
+				if (inlineValue === undefined) index += 1;
+				continue;
+			}
+			if (name === "--recurse-submodules") {
+				const inlineValue = argument.includes("=")
+					? argument.slice(argument.indexOf("=") + 1)
+					: undefined;
+				const value = inlineValue ?? parsed[index + 1];
+				if (value === undefined || !RECURSE_SUBMODULE_VALUES.has(value)) {
+					return invalid(
+						'Git push option "--recurse-submodules" has an invalid value',
+					);
+				}
+				if (inlineValue === undefined) index += 1;
+				continue;
+			}
+			const separator = argument.indexOf("=");
+			const supported =
+				(separator < 0 && SUPPORTED_LONG_OPTIONS.has(name)) ||
+				(separator >= 0 &&
+					SUPPORTED_LONG_OPTIONS_WITH_INLINE_VALUES.has(name));
+			if (!supported) {
+				return invalid(
+					`unable to verify push safety: unsupported or abbreviated push option: ${name}`,
+				);
+			}
+			continue;
+		}
+		if (!optionsEnded && argument === "-o") {
+			if (parsed[index + 1] === undefined) {
+				return invalid('Git push option "-o" requires a value');
+			}
+			index += 1;
+			continue;
+		}
+		if (!optionsEnded && argument.startsWith("-o") && argument.length > 2) {
+			continue;
+		}
+		if (!optionsEnded && /^-[^-]+$/.test(argument)) {
+			const flags = [...argument.slice(1)];
+			if (flags.every((flag) => PUSH_SHORT_FLAGS.has(flag))) continue;
+			return invalid(`Git push option "${argument}" is not allowed`);
+		}
+		positionals.push(argument);
+	}
+
+	const repository = repositoryOption ?? positionals[0];
+	if (repository !== undefined) {
+		const target = validatePushRepository(repository, projectDir);
+		if (!target.ok) return target;
+	}
+	return valid(parsed);
 }

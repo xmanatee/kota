@@ -1,0 +1,3 @@
+1. Verified: status, diff, log, show, add, commit, branch, and push now route through operation-specific validation; read operations force-disable external diff/text conversion and all path-taking parsers reject lexical and symlink-resolved project escapes.
+2. Verified: the focused security suite passes 17 regressions, including unchanged-content and nonexistent-file assertions for direct and bare-`--format`/`--pretty` parser-confused absolute `log --output` targets plus a live push assertion proving an in-project symlink cannot write a branch to an external bare repository.
+3. Verified: the completed task contains the exact Git-module test command and passing result in its `## Verification` section.
