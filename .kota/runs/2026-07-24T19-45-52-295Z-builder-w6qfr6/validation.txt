@@ -1,0 +1,176 @@
+Command:
+NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run src/modules/git/index.test.ts src/modules/git/push-safety.test.ts src/modules/git/git-arguments-security.test.ts src/modules/git/git.test.ts --configLoader runner --silent=true
+
+Result:
+Test Files  4 passed (4)
+Tests       66 passed (66)
+
+Command:
+./node_modules/.bin/biome check src/modules/git/push-safety.ts src/modules/git/index.test.ts
+
+Result:
+Checked 2 files in 4ms. No fixes applied.
+
+Command:
+./node_modules/.bin/tsc --noEmit
+
+Result:
+Passed with no diagnostics.
+
+Command:
+node --conditions=source --import tsx src/validate-queue.ts
+
+Result:
+Passed with no diagnostics.
+
+Command:
+git diff --check
+
+Result:
+Passed with no diagnostics.
+
+Repair-stage validation used the sandbox-local Git index documented in
+staging-limitation.txt.
+
+Command:
+node --conditions=source --import tsx src/validate-queue.ts
+
+Result:
+Passed with no diagnostics.
+
+Command:
+NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run src/modules/repo-tasks/task-queue-validation.test.ts -t "is structurally consistent and tracked" --configLoader runner --silent=true
+
+Result:
+Test Files  1 passed (1)
+Tests       1 passed, 64 skipped (65)
+
+Command:
+NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run src/modules/repo-tasks/task-queue-validation.test.ts -t "task queue validation" --configLoader runner --silent=true
+
+Result:
+Test Files  1 passed (1)
+Tests       43 passed, 22 skipped (65)
+
+Repair attempt 2:
+
+Command:
+node --conditions=source --import tsx src/validate-queue.ts
+
+Result:
+Passed with no diagnostics using the sandbox-local staged index.
+
+Command:
+NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run src/modules/repo-tasks/task-queue-validation.test.ts -t "is structurally consistent and tracked" --configLoader runner --silent=true
+
+Result:
+Test Files  1 passed (1)
+Tests       1 passed, 64 skipped (65)
+
+Note:
+The `pnpm validate-tasks` launcher could not verify its registry signature
+without network access, so the same repository validation entrypoint was run
+directly from the installed dependencies.
+
+Repair attempt 3:
+
+Command:
+node --conditions=source --import tsx src/validate-queue.ts
+
+Result:
+Passed with no diagnostics using the sandbox-local staged index. The canonical
+worktree index remains read-only to the managed builder sandbox, so the exact
+full staged index is preserved at the path documented in
+staging-limitation.txt for the workflow host handoff.
+
+Repair attempt 4:
+
+Command:
+node --conditions=source --import tsx src/validate-queue.ts
+
+Result:
+Passed with no diagnostics using the sandbox-local staged index after adding
+the completed task record and all run artifacts.
+
+Command:
+NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run src/modules/repo-tasks/task-queue-validation.test.ts -t "is structurally consistent and tracked" --configLoader runner --silent=true
+
+Result:
+Test Files  1 passed (1)
+Tests       1 passed, 64 skipped (65)
+
+Command:
+git diff --cached --check
+
+Result:
+Passed with no diagnostics for the complete sandbox-local staged tree.
+
+Repair attempt 5:
+
+Command:
+git add -A
+
+Result:
+The managed sandbox rejected canonical `index.lock` creation. All changes were
+instead restaged with `git add -A` in the repository-local repair index
+documented in `staging-limitation.txt`.
+
+Command:
+node --conditions=source --import tsx src/validate-queue.ts
+
+Result:
+Passed with no diagnostics using the complete repository-local staged index.
+
+Command:
+NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run src/modules/repo-tasks/task-queue-validation.test.ts -t "is structurally consistent and tracked" --configLoader runner --silent=true
+
+Result:
+Test Files  1 passed (1)
+Tests       1 passed, 64 skipped (65)
+
+Command:
+git diff --cached --check
+
+Result:
+Passed with no diagnostics for the complete repository-local staged tree.
+
+Repair attempt 7:
+
+Command:
+git add -A
+
+Result:
+The first canonical staging attempt was rejected at `index.lock`. The complete
+tree was refreshed in the repository-local repair index and passed queue
+validation, 5 focused Git-effect/task-queue tests, and
+`git diff --cached --check`. A final canonical `git add -A` retry succeeded;
+the real worktree index now contains the completed task rename and all changes.
+
+Repair attempt 6:
+
+Command:
+git add -A
+
+Result:
+The managed sandbox again rejected canonical `index.lock` creation. The
+complete tree was refreshed in the repository-local repair index documented
+in `staging-limitation.txt`.
+
+Command:
+node --conditions=source --import tsx src/validate-queue.ts
+
+Result:
+Passed with no diagnostics using the complete repository-local staged index.
+
+Command:
+NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run src/modules/repo-tasks/task-queue-validation.test.ts -t "is structurally consistent and tracked" --configLoader runner --silent=true
+
+Result:
+Test Files  1 passed (1)
+Tests       1 passed, 64 skipped (65)
+
+Command:
+git diff --cached --check
+
+Result:
+Passed with no diagnostics for the complete repository-local staged tree.

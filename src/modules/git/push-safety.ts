@@ -1,9 +1,11 @@
 import {
+	localDestructiveEffect,
 	networkDestructiveEffect,
 	networkWriteEffect,
 	type ToolEffect,
 } from "#core/tools/effect.js";
 import type { ToolEffectResolver } from "#core/tools/tool-effect-registry.js";
+import { parseBranchArguments } from "./git-arguments.js";
 import {
 	analyzePushArguments,
 	type PushArgumentAnalysis,
@@ -185,6 +187,11 @@ function pushEffect(args: string): ToolEffect {
 
 export const resolveGitToolEffect: ToolEffectResolver = (input) => {
 	const operation = typeof input.op === "string" ? input.op : "";
-	if (operation !== "push") return undefined;
-	return pushEffect(typeof input.args === "string" ? input.args : "");
+	const args = typeof input.args === "string" ? input.args : "";
+	if (operation === "push") return pushEffect(args);
+	if (operation !== "branch") return undefined;
+
+	const branch = parseBranchArguments(args);
+	if (!branch.ok || branch.value.action !== "delete") return undefined;
+	return localDestructiveEffect();
 };

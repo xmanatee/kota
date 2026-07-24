@@ -1,0 +1,8 @@
+The initial task move and repair attempts 5–6 could not create the canonical
+worktree's `index.lock`. During repair attempt 7, the complete tree was first
+staged and validated through the repository-local repair index at
+`.kota/tmp/2026-07-24T19-45-52-295Z-builder-w6qfr6/repair-index`.
+
+A final canonical `git add -A` retry then succeeded. The completed task rename,
+implementation, regression, and run artifacts are now staged in the real
+worktree index; no host staging handoff remains.

@@ -78,4 +78,15 @@ describe("git tool effects", () => {
 			args: "origin",
 		}).risk).toBe("dangerous");
 	});
+
+	it("classifies branch deletion as dangerous before the runner executes", () => {
+		registerGitTool();
+
+		for (const args of ["-d merged-feature", "-D unmerged-feature"]) {
+			expect(classifyRisk("git", { op: "branch", args })).toMatchObject({
+				risk: "dangerous",
+				reason: "git invocation has a destructive local-fs effect",
+			});
+		}
+	});
 });

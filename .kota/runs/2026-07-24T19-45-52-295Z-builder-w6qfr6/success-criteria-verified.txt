@@ -1,0 +1,3 @@
+1. Verified: `resolveGitToolEffect` parses branch arguments and returns `localDestructiveEffect()` for both `-d` and `-D`; `riskFromEffect` maps destructive effects to dangerous.
+2. Verified: `src/modules/git/index.test.ts` exercises `classifyRisk` for merged and forced branch deletion and asserts the destructive local-filesystem guardrail reason without invoking the runner.
+3. Verified: the completed task record includes the focused Vitest command and its 4-file, 66-test passing result.

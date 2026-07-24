@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-git-tool-accepts-branch-d-name
 title: Security review: The Git tool accepts `branch -D <name>` and deletes an unmerged branch, but invocation-specific effect resolution handles only pushes. The deletion therefore retains the moderate static effect and is allowed by default instead of entering the dangerous confirmation or approval queue. A fresh probe confirmed deletion of a branch whose tip differed from main.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: The Git tool accepts `branch -D <name>` and deletes an unmerged branch, but invocation-specific effect resolution handles only pushes. The deletion therefore retains the moderate static effect and is allowed by default instead of entering the dangerous confirmation or approval queue. A fresh probe confirmed deletion of a branch whose tip differed from main.
 created_at: 2026-07-24T19:04:07.850Z
-updated_at: 2026-07-24T19:04:07.850Z
+updated_at: 2026-07-24T19:52:50.456Z
 ---
 
 ## Problem
@@ -131,3 +131,9 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+`NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run src/modules/git/index.test.ts src/modules/git/push-safety.test.ts src/modules/git/git-arguments-security.test.ts src/modules/git/git.test.ts --configLoader runner --silent=true`
+
+Result: 4 test files passed; 66 tests passed.
