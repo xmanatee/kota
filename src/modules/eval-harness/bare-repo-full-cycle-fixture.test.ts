@@ -168,7 +168,10 @@ describe("builder bare-repo full-cycle fixture", () => {
       moveTaskToDone(workingDir);
     });
     try {
-      expect(report.run.outcome).toBe("pass");
+      expect(
+        report.run.outcome,
+        JSON.stringify(report.predicateResults.filter((result) => !result.passed)),
+      ).toBe("pass");
       expect(report.predicateResults.filter((result) => !result.passed)).toEqual([]);
       expect(report.objectiveMetrics[0]?.value).toBe(4);
     } finally {

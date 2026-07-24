@@ -1,7 +1,7 @@
 import type { DaemonRuntimeContext } from "./daemon-init.js";
 import { releaseInstanceLock } from "./daemon-instance-lock.js";
-import { saveDaemonStateToDisk } from "./daemon-state-persistence.js";
 import type { DaemonStopReason } from "./daemon-state.js";
+import { saveDaemonStateToDisk } from "./daemon-state-persistence.js";
 import { stopDaemonWorkflowRuntimes } from "./daemon-workflows.js";
 
 /**

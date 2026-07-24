@@ -36,7 +36,7 @@ function createNestedBareRepoWithHookConfig(dir: string): {
 beforeAll(() => {
 	testDir = join(tmpdir(), `kota-git-test-${Date.now()}`);
 	mkdirSync(testDir, { recursive: true });
-	gitExec("init", testDir);
+	gitExec("init -b main", testDir);
 	gitExec("config user.email test@test.com", testDir);
 	gitExec("config user.name Test", testDir);
 	writeFileSync(join(testDir, "README.md"), "# Test\n");
@@ -78,7 +78,7 @@ describe("git tool", () => {
 		it("uses runner context cwd instead of daemon cwd", async () => {
 			const scopedDir = mkdtempSync(join(tmpdir(), "kota-git-context-"));
 			try {
-				gitExec("init", scopedDir);
+				gitExec("init -b main", scopedDir);
 				gitExec("config user.email test@test.com", scopedDir);
 				gitExec("config user.name Test", scopedDir);
 				writeFileSync(join(scopedDir, "README.md"), "# Scoped\n");

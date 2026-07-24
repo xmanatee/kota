@@ -113,6 +113,8 @@ describe("createSubprocessExecutor container execution", () => {
         "  home: process.env.HOME,",
         "  projectDir: process.env.KOTA_PROJECT_DIR,",
         "  distDir: process.env.KOTA_DIST_DIR,",
+        "  cacheDir: process.env.XDG_CACHE_HOME,",
+        "  storeDir: process.env.npm_config_store_dir,",
         "  nodeOptions: process.env.NODE_OPTIONS,",
         "  path: process.env.PATH,",
         `  preset: process.env.${PRESET_ENV_VAR},`,
@@ -157,8 +159,14 @@ describe("createSubprocessExecutor container execution", () => {
       readFileSync(join(dirs.workingDir, "env.json"), "utf8"),
     ) as Record<string, string>;
     expect(envCapture.home).toBe(dirs.workingDir);
-    expect(envCapture.projectDir).toBe(dirs.workingDir);
-    expect(envCapture.distDir).toBe("/opt/kota/dist");
+      expect(envCapture.projectDir).toBe(dirs.workingDir);
+      expect(envCapture.distDir).toBe("/opt/kota/dist");
+      expect(envCapture.cacheDir).toBe(
+        join(dirs.workingDir, "node_modules", ".kota-eval-runtime", "cache"),
+      );
+      expect(envCapture.storeDir).toBe(
+        join(dirs.workingDir, "node_modules", ".kota-eval-runtime", "pnpm-store"),
+      );
     expect(envCapture.preset).toBe("claude");
     expect(envCapture.replayRoot).toBe(replayRoot);
     expect(envCapture.replayContent).toBe("recorded");

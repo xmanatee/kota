@@ -181,15 +181,33 @@ function seedFixtureProject(projectDir: string): void {
       },
     }),
   );
+  writeFileSync(
+    join(projectDir, "pnpm-lock.yaml"),
+    [
+      "lockfileVersion: '9.0'",
+      "",
+      "settings:",
+      "  autoInstallPeers: true",
+      "  excludeLinksFromLockfile: false",
+      "",
+      "importers:",
+      "",
+      "  .: {}",
+      "",
+    ].join("\n"),
+  );
 
   // .gitignore mirrors the real project: runtime state is not source.
   // Without this, getRepoWorktreeStatus would report dirty when the workflow
   // runtime modifies workflow-state.json and creates run artifacts.
-  writeFileSync(join(projectDir, ".gitignore"), ".kota/\n.worktrees/\n");
+  writeFileSync(
+    join(projectDir, ".gitignore"),
+    ".kota/\n.worktrees/\nnode_modules/\n",
+  );
 
   // Initialize a git repo so workflow commit steps can run if a test needs them.
   // Commit all seeded files (excluding .kota/) so worktree reads as clean.
-  execSync("git init && git add .", { cwd: projectDir });
+  execSync("git init -b main && git add .", { cwd: projectDir });
   execSync('git -c user.email="test@test" -c user.name="Test" commit -m "init"', {
     cwd: projectDir,
   });
@@ -229,6 +247,19 @@ describe("autonomous workflow loop integration", () => {
           streamedText: "",
           turns: 1,
           totalCostUsd: 0.01,
+          isError: false,
+        } as never)
+        .mockResolvedValueOnce({
+          text: JSON.stringify({
+            decision: "pass",
+            summary: "Inbox sorter artifacts are consistent.",
+            citedArtifacts: [],
+            findings: [],
+          }),
+          streamedText: "",
+          turns: 1,
+          totalCostUsd: 0.01,
+          subtype: "success",
           isError: false,
         } as never)
         .mockResolvedValue({
@@ -326,7 +357,7 @@ describe("autonomous workflow loop integration", () => {
         readFileSync(join(runsDir, builderRunDir!, "steps", "build.json"), "utf-8"),
       );
       expect(buildStep.status).toBe("failed");
-      expect(buildStep.error).toContain("error_max_turns");
+      expect(buildStep.error).toContain("max turns");
 
       // post-build commit should not have run on a failed build step
       expect(existsSync(join(runsDir, builderRunDir!, "steps", "commit.json"))).toBe(false);

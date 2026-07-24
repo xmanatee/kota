@@ -19,7 +19,28 @@ export class SecurityReviewProjectFixture {
       `kota-security-review-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
     mkdirSync(this.projectDir, { recursive: true });
-    execFileSync("git", ["init"], { cwd: this.projectDir, stdio: "ignore" });
+    writeFileSync(join(this.projectDir, ".gitignore"), ".kota/\n", "utf-8");
+    execFileSync("git", ["init", "-q", "-b", "main"], {
+      cwd: this.projectDir,
+      stdio: "ignore",
+    });
+    execFileSync("git", ["add", ".gitignore"], {
+      cwd: this.projectDir,
+      stdio: "ignore",
+    });
+    execFileSync(
+      "git",
+      [
+        "-c",
+        "user.name=KOTA Test",
+        "-c",
+        "user.email=kota@example.invalid",
+        "commit",
+        "-m",
+        "initial",
+      ],
+      { cwd: this.projectDir, stdio: "ignore" },
+    );
   }
 
   cleanup(): void {

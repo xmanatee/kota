@@ -51,6 +51,23 @@ function distCliExecutionEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return envWithoutSourceConditionNodeOption(env);
 }
 
+function fixtureRuntimeEnv(workingDir: string): Record<string, string> {
+  const runtimeRoot = join(
+    workingDir,
+    "node_modules",
+    ".kota-eval-runtime",
+  );
+  return {
+    COREPACK_HOME: join(runtimeRoot, "corepack"),
+    PNPM_HOME: join(runtimeRoot, "pnpm-home"),
+    XDG_CACHE_HOME: join(runtimeRoot, "cache"),
+    XDG_DATA_HOME: join(runtimeRoot, "data"),
+    XDG_STATE_HOME: join(runtimeRoot, "state"),
+    npm_config_cache: join(runtimeRoot, "npm-cache"),
+    npm_config_store_dir: join(runtimeRoot, "pnpm-store"),
+  };
+}
+
 function hostParentExecutionEnv(
   options: SubprocessExecutorOptions,
   baseEnv: NodeJS.ProcessEnv = process.env,
@@ -90,6 +107,7 @@ export function hostExecutionEnv(
       KOTA_PROJECT_DIR: request.workingDir,
       KOTA_DIST_DIR: kotaDistDir,
       PATH: pathWithShims,
+      ...fixtureRuntimeEnv(request.workingDir),
       ...envWithReplay(request),
     }),
   );
@@ -113,6 +131,7 @@ export function containerExecutionEnv(
       KOTA_PROJECT_DIR: request.workingDir,
       KOTA_DIST_DIR: kotaDistDir,
       PATH: pathWithShims,
+      ...fixtureRuntimeEnv(request.workingDir),
       ...containerNetworkEnv(networkPolicy),
       ...envWithReplay(request),
     }),

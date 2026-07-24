@@ -44,6 +44,15 @@ function makeProjectDir(): string {
   return projectDir;
 }
 
+function commitFixtureFiles(projectDir: string): void {
+  execFileSync("git", ["add", "-A"], { cwd: projectDir, stdio: "ignore" });
+  execFileSync(
+    "git",
+    ["-c", "user.email=t@t", "-c", "user.name=T", "commit", "-m", "fixture"],
+    { cwd: projectDir, stdio: "ignore" },
+  );
+}
+
 const idleWorkflow: RegisteredWorkflowDefinitionInput = {
   name: "idle-listener",
   definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
@@ -397,6 +406,7 @@ describe("runtime idle dispatch", () => {
     const harnessName =
       `runtime-dispatch-agent-hold-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     writeFileSync(join(projectDir, "prompt.md"), "Investigate.\n");
+    commitFixtureFiles(projectDir);
 
     let agentActive = false;
     let healthStarted = false;

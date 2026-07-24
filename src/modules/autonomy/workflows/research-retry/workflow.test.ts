@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
   mkdirSync,
   mkdtempSync,
@@ -367,6 +368,10 @@ describe("research-retry workflow", () => {
       "./precondition.js"
     );
     const projectDir = mkdtempSync(join(tmpdir(), "research-retry-mark-"));
+    execFileSync("git", ["init", "-q", "-b", "main"], {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
     const blockedDir = join(projectDir, "data", "tasks", "blocked");
     mkdirSync(blockedDir, { recursive: true });
     const taskFile = join(blockedDir, "task-x.md");

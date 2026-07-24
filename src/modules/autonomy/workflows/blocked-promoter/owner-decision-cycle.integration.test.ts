@@ -143,6 +143,7 @@ function blockedTaskBody(): string {
 
 function setupProjectDir(): string {
   const dir = mkdtempSync(join(tmpdir(), "owner-decision-cycle-"));
+  writeFileSync(join(dir, ".gitignore"), ".kota/\n");
   for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
     mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
     writeFileSync(join(dir, "data", "tasks", state, "AGENTS.md"), `# ${state}\n`);
@@ -151,7 +152,7 @@ function setupProjectDir(): string {
     join(dir, "data", "tasks", "blocked", "task-pick-variant.md"),
     blockedTaskBody(),
   );
-  execFileSync("git", ["init", "--quiet"], { cwd: dir });
+  execFileSync("git", ["init", "--quiet", "-b", "main"], { cwd: dir });
   execFileSync("git", ["config", "user.email", "t@t"], { cwd: dir });
   execFileSync("git", ["config", "user.name", "t"], { cwd: dir });
   execFileSync("git", ["add", "-A"], { cwd: dir });
@@ -167,6 +168,7 @@ function makeDaemon(projectDir: string): Daemon {
     idleIntervalMs: 5_000,
     pollIntervalMs: 60_000,
     shutdownGracePeriodMs: 10_000,
+    restartExit: vi.fn(),
     workflows: [
       registerWorkflowDefinition(
         "src/modules/autonomy/workflows/blocked-promoter/workflow.ts",

@@ -23,7 +23,7 @@ describe("dispatcher claim-aware queue availability", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("does not emit queue availability or thin solely for a pending-merge ready task", async () => {
+  it("stays quiescent for a pending-merge ready task", async () => {
     writeTask(projectDir, "ready", "task-pending", "2026-06-27T00:00:00.000Z");
     const claim = claimTask({
       projectDir,
@@ -71,17 +71,18 @@ describe("dispatcher claim-aware queue availability", () => {
       actionableCount?: number;
       dispatchableCount?: number;
       claimBlockedTasks?: unknown[];
+      quiescent?: boolean;
+      quiescentReason?: string | null;
     };
 
     expect(output.pullableCount).toBe(1);
     expect(output.actionableCount).toBe(0);
     expect(output.dispatchableCount).toBe(0);
     expect(output.claimBlockedTasks).toEqual([expectedClaimBlock]);
+    expect(output.quiescent).toBe(true);
+    expect(output.quiescentReason).toBe("work is dependency- or claim-blocked");
     expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.thin")).toBe(false);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(true);
-    const emptyPayload = result.emitted.find((e) => e.event === "autonomy.queue.empty")
-      ?.payload as { claimBlockedTasks?: unknown[] } | undefined;
-    expect(emptyPayload?.claimBlockedTasks).toEqual([expectedClaimBlock]);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(false);
   });
 });

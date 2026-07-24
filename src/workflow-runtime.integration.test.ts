@@ -58,6 +58,14 @@ function initializeFixtureGitRepo(projectDir: string): void {
   execFileSync("git", ["commit", "-m", "init"], { cwd: projectDir, stdio: "ignore" });
 }
 
+function commitFixtureFiles(projectDir: string): void {
+  execFileSync("git", ["add", "-A"], { cwd: projectDir, stdio: "ignore" });
+  execFileSync("git", ["commit", "-m", "fixture"], {
+    cwd: projectDir,
+    stdio: "ignore",
+  });
+}
+
 async function waitUntil(
   predicate: () => boolean,
   timeoutMs = 1_000,
@@ -753,6 +761,7 @@ describe("WorkflowRuntime", () => {
       join(projectDir, "src", "modules", "test", "workflows", "formatter", "prompt.md"),
       "Handle changes.\n",
     );
+    commitFixtureFiles(projectDir);
 
     let releaseFirstRun: (() => void) | null = null;
     mockedExecuteWithAgentSDK
@@ -2060,6 +2069,7 @@ describe("WorkflowRuntime", () => {
         join(projectDir, "src", "modules", "test", "workflows", "formatter", "prompt.md"),
         "Format.\n",
       );
+      commitFixtureFiles(projectDir);
 
       const runtime = new WorkflowRuntime({
         config: { defaultAgentHarness: "claude-agent-sdk" },
@@ -2141,6 +2151,7 @@ describe("WorkflowRuntime", () => {
         join(projectDir, "src", "modules", "test", "workflows", "formatter", "prompt.md"),
         "Format.\n",
       );
+      commitFixtureFiles(projectDir);
 
       const runtime = new WorkflowRuntime({
         config: { defaultAgentHarness: "claude-agent-sdk" },

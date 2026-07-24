@@ -64,6 +64,8 @@ describe("createSubprocessExecutor host preflight and env filtering", () => {
         "  home: process.env.HOME,",
         "  projectDir: process.env.KOTA_PROJECT_DIR,",
         "  distDir: process.env.KOTA_DIST_DIR,",
+        "  cacheDir: process.env.XDG_CACHE_HOME,",
+        "  storeDir: process.env.npm_config_store_dir,",
         "  path: process.env.PATH,",
         "  nodeOptions: process.env.NODE_OPTIONS,",
         "  preset: process.env.KOTA_PRESET,",
@@ -109,6 +111,12 @@ describe("createSubprocessExecutor host preflight and env filtering", () => {
       expect(envCapture.home).toBe(dirs.workingDir);
       expect(envCapture.projectDir).toBe(dirs.workingDir);
       expect(envCapture.distDir).toBe(join(dirname(dirname(fakeKota)), "dist"));
+      expect(envCapture.cacheDir).toBe(
+        join(dirs.workingDir, "node_modules", ".kota-eval-runtime", "cache"),
+      );
+      expect(envCapture.storeDir).toBe(
+        join(dirs.workingDir, "node_modules", ".kota-eval-runtime", "pnpm-store"),
+      );
       expect(envCapture.path).toBe(process.env.PATH);
       expect(envCapture.nodeOptions).toBe("--max-old-space-size=2048");
       expect(envCapture.preset).toBe("claude");

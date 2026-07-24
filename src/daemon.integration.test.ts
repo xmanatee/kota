@@ -59,6 +59,14 @@ function initializeFixtureGitRepo(projectDir: string): void {
   execFileSync("git", ["commit", "-m", "init"], { cwd: projectDir, stdio: "ignore" });
 }
 
+function commitFixtureFiles(projectDir: string): void {
+  execFileSync("git", ["add", "-A"], { cwd: projectDir, stdio: "ignore" });
+  execFileSync("git", ["commit", "-m", "fixture"], {
+    cwd: projectDir,
+    stdio: "ignore",
+  });
+}
+
 describe("Daemon", () => {
   let projectDir: string;
   let stateDir: string;
@@ -485,6 +493,7 @@ describe("Daemon", () => {
       join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
+    commitFixtureFiles(projectDir);
     mockedExecuteWithAgentSDK.mockResolvedValue({
       text: "done",
       streamedText: "",

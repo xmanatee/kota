@@ -1,8 +1,8 @@
 import {
+  type ActiveTimeoutSnapshot,
   activeTimingMetadata,
   createActiveTimeout,
   rejectWhenActiveTimeoutExpires,
-  type ActiveTimeoutSnapshot,
 } from "./active-timeout.js";
 import {
   buildChildContext,

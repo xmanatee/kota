@@ -31,9 +31,10 @@ describe("Daemon dashboard snapshot recovery state", () => {
   }
 
   function initializeCleanGitRepo(): void {
-    runGit(["init"]);
+    runGit(["init", "-q", "-b", "main"]);
+    writeFileSync(join(projectDir, ".gitignore"), ".kota/\n", "utf8");
     writeFileSync(join(projectDir, "tracked.txt"), "base\n", "utf8");
-    runGit(["add", "tracked.txt"]);
+    runGit(["add", ".gitignore", "tracked.txt"]);
     runGit([
       "-c",
       "user.name=KOTA Test",

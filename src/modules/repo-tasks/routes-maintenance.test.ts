@@ -8,9 +8,7 @@ vi.mock("node:child_process", () => ({
   execSync: vi.fn(() => {
     throw new Error("not a git repo");
   }),
-  execFileSync: vi.fn(() => {
-    throw new Error("not a git repo");
-  }),
+  execFileSync: vi.fn(),
 }));
 
 describe("task maintenance routes", () => {

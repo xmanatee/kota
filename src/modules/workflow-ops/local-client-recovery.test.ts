@@ -44,9 +44,10 @@ function runGit(projectDir: string, args: string[]): string {
 }
 
 function initializeCleanGitRepo(projectDir: string): void {
-  runGit(projectDir, ["init"]);
+  runGit(projectDir, ["init", "-q", "-b", "main"]);
+  writeFileSync(join(projectDir, ".gitignore"), ".kota/\n", "utf8");
   writeFileSync(join(projectDir, "tracked.txt"), "base\n", "utf8");
-  runGit(projectDir, ["add", "tracked.txt"]);
+  runGit(projectDir, ["add", ".gitignore", "tracked.txt"]);
   runGit(projectDir, [
     "-c",
     "user.name=KOTA Test",

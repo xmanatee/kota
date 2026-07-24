@@ -26,7 +26,8 @@ function makeAgentStep(id: string, costUsd: number, durationMs: number): Workflo
     startedAt: new Date().toISOString(),
     completedAt: new Date().toISOString(),
     durationMs,
-    output: { content: "ok", totalCostUsd: costUsd },
+    output: { content: "ok" },
+    costUsd,
   };
 }
 

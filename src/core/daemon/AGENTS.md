@@ -3,8 +3,7 @@
 This directory contains the daemon host, control API, scheduler persistence,
 and live runtime state.
 
-- Keep daemon runtime ownership here: process lifecycle, control-plane hosting,
-  session/channel hosting, scheduling, and runtime state.
+- Keep daemon ownership here: lifecycle, control plane, sessions/channels, scheduling, and state.
 - Autonomous workflow execution belongs in `src/core/workflow/`, not in ad hoc
   daemon behavior.
 - The control API is a daemon-owned protocol. Exact routes, payload fields,

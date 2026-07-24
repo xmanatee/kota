@@ -241,6 +241,7 @@ function makeStepResult(
   id: string,
   type: WorkflowStepResult["type"],
   output?: unknown,
+  costUsd?: number,
 ): WorkflowStepResult {
   return {
     id,
@@ -250,6 +251,7 @@ function makeStepResult(
     completedAt: new Date().toISOString(),
     durationMs: 100,
     output,
+    costUsd,
   };
 }
 
@@ -276,17 +278,17 @@ describe("WorkflowRunStore cost aggregation", () => {
     expect(completed.totalCostUsd).toBe(0);
   });
 
-  it("sums totalCostUsd across agent step outputs", () => {
+  it("sums costUsd across agent step results", () => {
     const run = store.createRun(minimalWorkflow, { event: "test", schemaRef: null, payload: {} });
-    run.recordStep(makeStepResult("step1", "agent", { content: "ok", totalCostUsd: 0.01 }));
-    run.recordStep(makeStepResult("step2", "agent", { content: "ok", totalCostUsd: 0.02 }));
+    run.recordStep(makeStepResult("step1", "agent", { content: "ok" }, 0.01));
+    run.recordStep(makeStepResult("step2", "agent", { content: "ok" }, 0.02));
     const completed = run.finish({ status: "success", durationMs: 200 });
     expect(completed.totalCostUsd).toBeCloseTo(0.03);
   });
 
   it("ignores cost from non-agent steps", () => {
     const run = store.createRun(minimalWorkflow, { event: "test", schemaRef: null, payload: {} });
-    run.recordStep(makeStepResult("s1", "agent", { content: "ok", totalCostUsd: 0.05 }));
+    run.recordStep(makeStepResult("s1", "agent", { content: "ok" }, 0.05));
     run.recordStep(makeStepResult("s2", "code", { result: "done" }));
     run.recordStep(makeStepResult("s3", "tool", { content: "ok", totalCostUsd: 99 }));
     const completed = run.finish({ status: "success", durationMs: 300 });
@@ -296,7 +298,7 @@ describe("WorkflowRunStore cost aggregation", () => {
   it("treats agent steps with no cost output as zero", () => {
     const run = store.createRun(minimalWorkflow, { event: "test", schemaRef: null, payload: {} });
     run.recordStep(makeStepResult("s1", "agent", { content: "ok" }));
-    run.recordStep(makeStepResult("s2", "agent", { content: "ok", totalCostUsd: 0.03 }));
+    run.recordStep(makeStepResult("s2", "agent", { content: "ok" }, 0.03));
     const completed = run.finish({ status: "success", durationMs: 200 });
     expect(completed.totalCostUsd).toBeCloseTo(0.03);
   });
@@ -305,11 +307,11 @@ describe("WorkflowRunStore cost aggregation", () => {
     const trigger = { event: "test", schemaRef: null, payload: {} };
 
     const run1 = store.createRun(minimalWorkflow, trigger);
-    run1.recordStep(makeStepResult("s1", "agent", { content: "ok", totalCostUsd: 0.10 }));
+    run1.recordStep(makeStepResult("s1", "agent", { content: "ok" }, 0.10));
     run1.finish({ status: "success", durationMs: 100 });
 
     const run2 = store.createRun(minimalWorkflow, trigger);
-    run2.recordStep(makeStepResult("s1", "agent", { content: "ok", totalCostUsd: 0.20 }));
+    run2.recordStep(makeStepResult("s1", "agent", { content: "ok" }, 0.20));
     run2.finish({ status: "success", durationMs: 100 });
 
     const state = store.readState();
@@ -323,7 +325,7 @@ describe("WorkflowRunStore cost aggregation", () => {
     expect(state.totalCostUsd).toBeUndefined();
 
     const run = store.createRun(minimalWorkflow, { event: "test", schemaRef: null, payload: {} });
-    run.recordStep(makeStepResult("s1", "agent", { content: "ok", totalCostUsd: 0.05 }));
+    run.recordStep(makeStepResult("s1", "agent", { content: "ok" }, 0.05));
     run.finish({ status: "success", durationMs: 100 });
 
     const updated = store.readState();

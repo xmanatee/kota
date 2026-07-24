@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,6 +17,10 @@ describe("repo-tasks localClient", () => {
 			`kota-repo-tasks-local-${Date.now()}-${Math.random().toString(36).slice(2)}`,
 		);
 		mkdirSync(projectDir, { recursive: true });
+		execFileSync("git", ["init", "-q", "-b", "main"], {
+			cwd: projectDir,
+			stdio: "ignore",
+		});
 	});
 
 	afterEach(() => {

@@ -99,7 +99,7 @@ describe("renderDashboard", () => {
 		const output = stripAnsi(
 			renderDashboard(makeSnapshot({ dispatchPaused: true }), []),
 		);
-		expect(output).toContain("Paused     yes");
+		expect(output).toMatch(/Paused\s+yes(\s|$)/m);
 	});
 
 	it("shows active runs with duration", () => {

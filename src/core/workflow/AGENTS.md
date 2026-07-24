@@ -3,7 +3,6 @@
 This directory owns workflow definitions, validation, execution, repair loops,
 and persisted run state.
 
-- Keep workflow protocols strict, restart-safe, and easy to reason about.
 - Put top-level autonomous execution semantics here, not in prompts or scheduler side channels.
 - Workflows are the only automation surface: hooks, cron-like jobs, standing
   orders, inbound webhooks, and autonomous loops compile to typed workflows.

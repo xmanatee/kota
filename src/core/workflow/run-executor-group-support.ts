@@ -2,8 +2,8 @@ import type { EventBus } from "#core/events/event-bus.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
 import {
-  activeTimingMetadata,
   type ActiveTimeoutSnapshot,
+  activeTimingMetadata,
 } from "./active-timeout.js";
 import { buildStepCompletedPayload } from "./event-payloads.js";
 import type { StepAccumulators } from "./run-executor-step.js";

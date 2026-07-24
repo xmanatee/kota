@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -27,6 +28,10 @@ describe("runtime health audit control coverage gaps", () => {
       `kota-runtime-health-control-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
     mkdirSync(projectDir, { recursive: true });
+    execFileSync("git", ["init", "-q", "-b", "main"], {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
   });
 
   afterEach(() => {
