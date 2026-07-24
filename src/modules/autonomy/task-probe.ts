@@ -34,7 +34,6 @@ export type TaskProbeResult = {
 const PROBE_SECTION_RE = /(?:^|\n)## +Runtime Probe\s*\n([\s\S]*?)(?=\n## |\n?$)/;
 const CODE_FENCE_RE = /^\s*```[\w]*\n([\s\S]*?)\n```/;
 const DEFAULT_PROBE_TIMEOUT_MS = 120_000;
-const MAX_PROBE_TIMEOUT_MS = 30 * 60 * 1000;
 const MAX_PROBE_OUTPUT_CHARS = 20_000;
 const PROBE_MAX_BUFFER = 10 * 1024 * 1024;
 const TRUSTED_PROBE_TASK_STATES = ["ready", "doing", "blocked", "done", "backlog"] as const;
@@ -74,18 +73,19 @@ export function extractTaskProbe(taskContent: string): TaskProbe | null {
     );
   }
 
+  const parsed = parseConstrainedProbeCommand(command);
   const timeoutRaw = attrs.timeoutMs;
   const timeoutMs = timeoutRaw === undefined
     ? DEFAULT_PROBE_TIMEOUT_MS
-    : Number.parseInt(timeoutRaw, 10);
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    : Number(timeoutRaw);
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) {
     throw new Error(
       `Runtime Probe timeoutMs must be a positive integer (got "${timeoutRaw}").`,
     );
   }
-  if (timeoutMs > MAX_PROBE_TIMEOUT_MS) {
+  if (timeoutMs > parsed.maxTimeoutMs) {
     throw new Error(
-      `Runtime Probe timeoutMs ${timeoutMs} exceeds the cap of ${MAX_PROBE_TIMEOUT_MS} ms.`,
+      `Runtime Probe timeoutMs ${timeoutMs} exceeds the cap of ${parsed.maxTimeoutMs} ms for this command.`,
     );
   }
 
@@ -95,8 +95,6 @@ export function extractTaskProbe(taskContent: string): TaskProbe | null {
       throw new Error(`Runtime Probe section has unknown field "${key}".`);
     }
   }
-
-  const parsed = parseConstrainedProbeCommand(command);
 
   return {
     command,

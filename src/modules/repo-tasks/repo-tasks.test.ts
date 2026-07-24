@@ -282,7 +282,7 @@ describe("repo task helpers", () => {
     const snapshot = getRepoTaskQueueSnapshot(projectDir);
 
     expect(snapshot.openCount).toBe(2);
-    expect(snapshot.pullableCount).toBe(2);
+    expect(snapshot.pullableCount).toBe(0);
     expect(snapshot.actionableCount).toBe(0);
     expect(snapshot.promotableBacklogCount).toBe(0);
     expect(snapshot.dispatchableCount).toBe(0);

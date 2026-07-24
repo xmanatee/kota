@@ -312,7 +312,7 @@ describe("dispatcher workflow", () => {
     const result = await harness.run();
 
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
-    expect(output.pullableCount).toBe(1);
+    expect(output.pullableCount).toBe(0);
     expect(output.actionableCount).toBe(0);
     expect(output.promotableBacklogCount).toBe(0);
     expect(output.dispatchableCount).toBe(0);
@@ -333,7 +333,7 @@ describe("dispatcher workflow", () => {
     const result = await harness.run();
 
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
-    expect(output.pullableCount).toBe(1);
+    expect(output.pullableCount).toBe(0);
     expect(output.actionableCount).toBe(0);
     expect(output.promotableBacklogCount).toBe(0);
     expect(output.dispatchableCount).toBe(0);

@@ -31,6 +31,7 @@ export type TaskClaimRecoveryPath =
   | "replaced-expired-claim"
   | "replaced-superseded-claim"
   | "skipped-active-claim"
+  | "skipped-stale-worktree"
   | "skipped-pending-merge"
   | "write-conflict"
   | "no-actionable-task";

@@ -43,7 +43,7 @@ describe("claim-aware queue availability", () => {
     );
 
     expect(snapshot.counts.ready).toBe(1);
-    expect(snapshot.pullableCount).toBe(1);
+    expect(snapshot.pullableCount).toBe(0);
     expect(snapshot.actionableCount).toBe(0);
     expect(snapshot.dispatchableCount).toBe(0);
     expect(snapshot.hasDispatchableWork).toBe(false);

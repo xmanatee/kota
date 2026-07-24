@@ -65,12 +65,20 @@ export function claimTask(input: ClaimTaskInput): ClaimTaskAttempt {
       };
     }
     if (!inspection.safeToRetry) {
+      const recoveryPath =
+        inspection.recoveryStatus === "pending-merge"
+          ? "skipped-pending-merge"
+          : inspection.recoveryStatus === "stale"
+            ? "skipped-stale-worktree"
+            : "skipped-active-claim";
       return skippedAttempt(
         input.taskId,
         existing,
         inspection,
-        inspection.recoveryStatus === "pending-merge" ? "skipped-pending-merge" : "skipped-active-claim",
-        `task is already claimed by ${existing.owner} (${existing.runId})`,
+        recoveryPath,
+        recoveryPath === "skipped-stale-worktree"
+          ? `previous run ${existing.runId} has a preserved dirty worktree; inspect with "kota workflow state-recovery list"`
+          : `task is already claimed by ${existing.owner} (${existing.runId})`,
       );
     }
     if (!archiveClaimIfUnchanged(input.projectDir, path, existing, now)) {

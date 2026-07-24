@@ -127,6 +127,17 @@ describe("extractTaskProbe", () => {
     expect(() => extractTaskProbe(task)).toThrow(/positive integer/);
   });
 
+  it("rejects partially numeric and fractional timeoutMs values", () => {
+    for (const timeoutMs of ["120000ms", "1.5"]) {
+      const task = [
+        "## Runtime Probe",
+        "command: pnpm test",
+        `timeoutMs: ${timeoutMs}`,
+      ].join("\n");
+      expect(() => extractTaskProbe(task)).toThrow(/positive integer/);
+    }
+  });
+
   it("throws when timeoutMs exceeds the cap", () => {
     const task = [
       "## Runtime Probe",
@@ -152,6 +163,51 @@ describe("extractTaskProbe", () => {
     ].join("\n");
     const probe = extractTaskProbe(task);
     expect(probe?.args).toEqual(["run", "check:types", "--", "--filter=a:b"]);
+  });
+
+  it("accepts one provenance-pinned eval fixture run with a long timeout", () => {
+    const task = [
+      "## Runtime Probe",
+      "command: pnpm kota eval run --fixture builder-scientific-claim-reproduction --repeats 1 --keep",
+      `timeoutMs: ${4 * 60 * 60 * 1000}`,
+    ].join("\n");
+    const probe = extractTaskProbe(task);
+    expect(probe).toEqual({
+      command:
+        "pnpm kota eval run --fixture builder-scientific-claim-reproduction --repeats 1 --keep",
+      executable: "pnpm",
+      args: [
+        "kota",
+        "eval",
+        "run",
+        "--fixture",
+        "builder-scientific-claim-reproduction",
+        "--repeats",
+        "1",
+        "--keep",
+      ],
+      timeoutMs: 4 * 60 * 60 * 1000,
+    });
+  });
+
+  it("rejects broad or multi-fixture kota commands", () => {
+    expect(() =>
+      makeProbe("pnpm kota eval run --repeats 1 --keep"),
+    ).toThrow(/exactly one eval fixture/);
+    expect(() =>
+      makeProbe(
+        "pnpm kota eval run --fixture fixture-a --fixture fixture-b --repeats 1 --keep",
+      ),
+    ).toThrow(/must end with/);
+  });
+
+  it("keeps package-script probes capped at thirty minutes", () => {
+    const task = [
+      "## Runtime Probe",
+      "command: pnpm test",
+      `timeoutMs: ${30 * 60 * 1000 + 1}`,
+    ].join("\n");
+    expect(() => extractTaskProbe(task)).toThrow(/exceeds the cap/);
   });
 
   it("rejects shell control operators in command text", () => {

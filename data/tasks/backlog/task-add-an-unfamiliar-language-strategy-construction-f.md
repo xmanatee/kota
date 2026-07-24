@@ -1,12 +1,12 @@
 ---
 id: task-add-an-unfamiliar-language-strategy-construction-f
 title: Add an unfamiliar-language strategy-construction fixture to the eval harness
-status: blocked
+status: backlog
 priority: p2
 area: modules
 summary: Seed an eval-harness fixture where the builder must learn a tiny unfamiliar language by writing and debugging helper code against local examples and hidden tests, so strategy construction is artifact-graded rather than treated as ordinary JavaScript patching.
 created_at: 2026-06-20T22:32:36.456Z
-updated_at: 2026-06-20T22:47:40.355Z
+updated_at: 2026-07-24T14:11:48.677Z
 ---
 
 ## Problem
@@ -77,9 +77,8 @@ The fixture should make unfamiliar-rule strategy construction observable:
   examples.
 - Keep this out of `pnpm test` unless replay-backed. A live-builder fixture
   belongs in `pnpm kota eval run` and cadence, not the standard unit test path.
-- If the implementation environment cannot make a live nested agent call, do
-  not mark the task done from fixture-load evidence alone. Reposition it
-  honestly with a typed operator-capture precondition for the live pass.
+- Do not mark the task done from fixture-load evidence alone. The trusted host
+  Runtime Probe below must complete the live nested-agent pass.
 
 ## Done When
 
@@ -105,13 +104,10 @@ The fixture should make unfamiliar-rule strategy construction observable:
 - The fixture includes at least one regression check showing a shortcut
   candidate fails, then the shortcut is reverted before staging.
 
-## Unblock Precondition
+## Runtime Probe
 
-```
-kind: operator-capture
-path: .kota/runs/unfamiliar-language-strategy-construction-live-pass
-description: live eval-harness pass artifact — operator runs `pnpm kota eval run --fixture builder-unfamiliar-language-strategy-construction --repeats 1 --keep` in an environment where the nested builder harness has an active Codex login, then stores eval-run-transcript.txt, eval-set-report.json, the per-run fixture-run.json, and the produced strategy-result.json evidence under .kota/runs/unfamiliar-language-strategy-construction-live-pass/
-```
+command: pnpm kota eval run --fixture builder-unfamiliar-language-strategy-construction --repeats 1 --keep
+timeoutMs: 14400000
 
 ## Status (2026-06-20 builder)
 
@@ -127,19 +123,18 @@ The required live eval was attempted from run
 It reached the nested builder workflow and failed before the agent turn because
 the `codex` harness reported `localAuth missing: Codex ChatGPT login not
 active; run codex login`. No `strategy-result.json` was produced by a nested
-builder run, so this task is blocked on the operator-captured live pass above
-rather than marked done.
+builder run, so that attempt did not satisfy the live-evidence requirement.
+
+## Status (2026-07-24 recovery)
+
+The daemon host has an authenticated Codex harness. The live pass is now owned
+by the provenance-pinned Runtime Probe above, so the earlier builder-sandbox
+authentication limitation is no longer an operator precondition.
 
 ## Source / Intent
 
-Explorer run `2026-06-20T22-09-37-261Z-explorer-psqhar` reviewed a zero
-actionable queue (`ready=0`, `doing=0`, `backlog=0`). The strategic blocked
-alternatives all still require operator-captured artifacts and were not
-movable:
-
-- `task-add-a-scientific-claim-reproduction-fixture-to-the`
-- `task-add-cross-preset-runtime-parity-gate`
-- `task-capture-an-end-to-end-coding-task-parity-artifact-`
+Explorer run `2026-06-20T22-09-37-261Z-explorer-psqhar` created this task after
+reviewing a zero-actionable queue.
 
 External source checked:
 
@@ -193,5 +188,3 @@ helper artifacts, without importing a benchmark suite or trusting agent prose.
   `strategy-result.json`, verifier output, and any objective metric values.
 - Evidence of a temporary shortcut/regression causing the fixture to fail,
   with the regression reverted before staging.
-
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-07-23T23:11:20.617Z -->

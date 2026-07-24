@@ -1,5 +1,8 @@
-import { existsSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createAutomationWorktree } from "#modules/git/worktree-lifecycle.js";
 import {
   claimNextQueueTask,
   claimTask,
@@ -21,6 +24,16 @@ import {
 } from "./task-claims-test-support.js";
 
 let projectDir: string;
+
+function initializeGitProject(): void {
+  writeFileSync(join(projectDir, ".gitignore"), ".kota/\n.worktrees/\n", "utf8");
+  writeFileSync(join(projectDir, "README.md"), "# Claim recovery fixture\n", "utf8");
+  execFileSync("git", ["init", "--quiet", "--initial-branch=main"], { cwd: projectDir });
+  execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: projectDir });
+  execFileSync("git", ["config", "user.name", "Test"], { cwd: projectDir });
+  execFileSync("git", ["add", "."], { cwd: projectDir });
+  execFileSync("git", ["commit", "--quiet", "-m", "initial"], { cwd: projectDir });
+}
 
 describe("task claim recovery lifecycle", () => {
   beforeEach(() => {
@@ -164,6 +177,54 @@ describe("task claim recovery lifecycle", () => {
       safeToRetry: false,
     });
     expect(replacement.claim?.runId).toBe("run-retry");
+  });
+
+  it("preserves a failed run claim while its dirty worktree awaits disposition", () => {
+    writeTask(projectDir, "ready", "task-alpha", "2026-06-27T00:00:00.000Z");
+    initializeGitProject();
+    const acquiredAt = new Date("2026-06-27T01:00:00.000Z");
+    expect(
+      claimTask(claimInput(projectDir, "task-alpha", "run-failed", acquiredAt)),
+    ).toMatchObject({ claimed: true });
+    const worktree = createAutomationWorktree({
+      projectDir,
+      taskId: "task-alpha",
+      runId: "run-failed",
+      workflowId: "builder",
+      owner: "workflow:builder:run-failed",
+    });
+    writeFileSync(
+      join(worktree.metadata.workspaceDir, "README.md"),
+      "# Preserved builder work\n",
+      "utf8",
+    );
+    writeOwnerRunMetadata(projectDir, "run-failed", "builder", "failed");
+
+    expect(
+      listTaskClaimInspections(
+        projectDir,
+        new Date("2026-06-27T02:00:00.000Z"),
+      )[0],
+    ).toMatchObject({
+      recoveryStatus: "stale",
+      safeToRetry: false,
+    });
+    expect(
+      claimTask(
+        claimInput(
+          projectDir,
+          "task-alpha",
+          "run-retry",
+          new Date("2026-06-27T02:00:00.000Z"),
+        ),
+      ),
+    ).toMatchObject({
+      claimed: false,
+      recoveryStatus: "stale",
+      safeToRetry: false,
+      recoveryPath: "skipped-stale-worktree",
+      reason: expect.stringContaining("workflow state-recovery list"),
+    });
   });
 
   it("archives a superseded claim and lets a later run replace it", () => {

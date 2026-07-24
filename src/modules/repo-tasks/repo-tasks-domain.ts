@@ -209,13 +209,7 @@ export function getRepoTaskQueueSnapshot(
       counts.ready +
       counts.doing +
       counts.blocked,
-    pullableCount:
-      counts.backlog +
-      counts.ready +
-      counts.doing -
-      dependencyBlockedCount("backlog") -
-      dependencyBlockedCount("ready") -
-      dependencyBlockedCount("doing"),
+    pullableCount: actionableCount + promotableBacklogCount,
     actionableCount,
     promotableBacklogCount,
     dispatchableCount,

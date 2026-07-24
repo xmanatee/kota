@@ -33,8 +33,11 @@ Your job is to implement one normalized task well.
   not satisfy a declared rendered-evidence requirement. If headless capture
   is impossible, move the task to `blocked/` with an explicit
   `operator-capture` precondition rather than completing it without the
-  artifact. See `data/tasks/AGENTS.md` for accepted artifact kinds per
-  surface.
+  artifact. Use `operator-capture` only when success requires
+  operator-controlled credentials, approval, physical action, or an external
+  environment. When only the builder sandbox prevents a trusted host command,
+  declare that command as a Runtime Probe instead. See `data/tasks/AGENTS.md`
+  for accepted artifact kinds per surface.
 - Use `pnpm kota task move <id> <state>` for every task state transition.
 - Before staging, run the narrowest validation that proves the change, and
   broaden it when the touched behavior warrants more coverage. Fix failures

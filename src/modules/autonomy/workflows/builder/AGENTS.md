@@ -61,10 +61,12 @@ an optional runtime probe the critic runs before judging.
 - A probe is declared inside the task body as a `## Runtime Probe` section.
   The section body is `key: value` lines, optionally wrapped in a fenced
   code block. Recognized keys: `command` (required) and `timeoutMs`
-  (optional, defaults to 120000, capped at 30 minutes). The command must be a
-  single constrained package-script invocation (`pnpm run <script>` or
-  `pnpm test`), not a shell pipeline. Malformed declarations fail
-  loudly — the critic does not silently skip a broken probe.
+  (optional, defaults to 120000). The command must be one constrained
+  package-script invocation (`pnpm run <script>` or `pnpm test`, capped at 30
+  minutes) or one provenance-pinned live fixture
+  (`pnpm kota eval run --fixture <id> --repeats 1 --keep`, capped at four
+  hours), not a shell pipeline. Malformed declarations fail loudly — the
+  critic does not silently skip a broken probe.
 - A builder run may not add or mutate the probe it is about to execute. The
   critic only runs a probe whose parsed command and timeout match the task
   file's declaration in `git HEAD`; otherwise it records a rejected

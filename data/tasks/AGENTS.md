@@ -71,12 +71,15 @@ Per surface, accepted artifact kinds:
   `src/modules/autonomy/workflows/builder/AGENTS.md`) or a transcript of the
   curl invocation in the run directory.
 
-If the artifact must be captured by an operator (no headless capture path
-exists), document an explicit operator-capture precondition in the task —
-either inline in `## Acceptance Evidence` or by moving the task to
-`blocked/` with an `operator-capture` precondition. Internal refactors that
-do not change visible behavior remain exempt; pick a non-client area
-(`architecture`, `core`, `modules`, ...) for those.
+If the artifact requires a credential enrollment, approval, physical action,
+or external environment that only an operator controls, document an explicit
+operator-capture precondition in the task — either inline in
+`## Acceptance Evidence` or by moving the task to `blocked/` with an
+`operator-capture` precondition. A builder-agent sandbox limitation is not an
+operator precondition when the trusted host can run the evidence command as a
+Runtime Probe. Internal refactors that do not change visible behavior remain
+exempt; pick a non-client area (`architecture`, `core`, `modules`, ...) for
+those.
 
 ## Queue Rules
 
@@ -110,8 +113,10 @@ Precondition` using the typed vocabulary enforced by the validator:
   probe is satisfied (`playwright` or `storageState:<path>`).
 - `owner-decision` — re-ask through blocked-promoter on the 14-day cadence; promote only after the workflow writes a resolved marker.
 - `operator-capture` — promote when the named evidence file exists, or when its
-  directory contains operator-visible proof; preflight/smoke-only directories
-  stay blocked and refresh the 14-day marker.
+  directory contains operator-visible proof; use only for evidence requiring
+  operator-controlled credentials, approval, physical action, or an external
+  environment. Preflight/smoke-only directories stay blocked and refresh the
+  14-day marker.
 
 Do not use `blocked/` as a parking lot. If a blocked task has been reviewed,
 move/drop/rescope it or refresh the exact action marker. Queue validation emits

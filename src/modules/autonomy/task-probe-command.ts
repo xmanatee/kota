@@ -1,9 +1,13 @@
 export type ParsedProbeCommand = {
   executable: "pnpm";
   args: string[];
+  maxTimeoutMs: number;
 };
 
 const PNPM_SCRIPT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9:_./-]*$/;
+const FIXTURE_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
+const PACKAGE_SCRIPT_MAX_TIMEOUT_MS = 30 * 60 * 1000;
+const EVAL_FIXTURE_MAX_TIMEOUT_MS = 4 * 60 * 60 * 1000;
 
 export function parseConstrainedProbeCommand(command: string): ParsedProbeCommand {
   const tokens = tokenizeProbeCommand(command);
@@ -17,11 +21,14 @@ export function parseConstrainedProbeCommand(command: string): ParsedProbeComman
   }
 
   const args = tokens.slice(1);
-  validatePnpmProbeArgs(args);
-  return { executable: "pnpm", args };
+  return {
+    executable: "pnpm",
+    args,
+    maxTimeoutMs: validatePnpmProbeArgs(args),
+  };
 }
 
-function validatePnpmProbeArgs(args: string[]): void {
+function validatePnpmProbeArgs(args: string[]): number {
   const subcommand = args[0];
   if (!subcommand) {
     throw new Error("Runtime Probe pnpm command must include a subcommand.");
@@ -32,15 +39,42 @@ function validatePnpmProbeArgs(args: string[]): void {
     if (!script || !PNPM_SCRIPT_PATTERN.test(script)) {
       throw new Error("Runtime Probe pnpm run command must name one package script.");
     }
-    return;
+    return PACKAGE_SCRIPT_MAX_TIMEOUT_MS;
   }
 
   if (subcommand === "test") {
-    return;
+    return PACKAGE_SCRIPT_MAX_TIMEOUT_MS;
+  }
+
+  if (subcommand === "kota") {
+    const expectedPrefix = ["eval", "run", "--fixture"];
+    if (!expectedPrefix.every((token, index) => args[index + 1] === token)) {
+      throw new Error(
+        'Runtime Probe "pnpm kota" command must run exactly one eval fixture.',
+      );
+    }
+    const fixtureId = args[4];
+    if (!fixtureId || !FIXTURE_ID_PATTERN.test(fixtureId)) {
+      throw new Error(
+        "Runtime Probe eval command must name one lowercase fixture id.",
+      );
+    }
+    const suffix = args.slice(5);
+    if (
+      suffix.length !== 3 ||
+      suffix[0] !== "--repeats" ||
+      suffix[1] !== "1" ||
+      suffix[2] !== "--keep"
+    ) {
+      throw new Error(
+        'Runtime Probe eval command must end with "--repeats 1 --keep".',
+      );
+    }
+    return EVAL_FIXTURE_MAX_TIMEOUT_MS;
   }
 
   throw new Error(
-    `Runtime Probe pnpm subcommand "${subcommand}" is not allowed; use "pnpm run <script>" or "pnpm test".`,
+    `Runtime Probe pnpm subcommand "${subcommand}" is not allowed; use "pnpm run <script>", "pnpm test", or one constrained "pnpm kota eval run".`,
   );
 }
 

@@ -12,6 +12,10 @@ import type { KotaJsonObject, KotaJsonValue } from "#core/agent-harness/message-
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunStatus } from "#core/workflow/run-types.js";
 import {
+  type AutomationWorktreeOperatorStatus,
+  listAutomationWorktreeStatuses,
+} from "#modules/git/worktree-lifecycle.js";
+import {
   REPO_TASK_STATES,
   type RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
@@ -235,15 +239,27 @@ export function inspectTaskClaimWithOwnerRun(
   claim: TaskClaim,
   path: string,
   now: Date = new Date(),
+  worktrees?: readonly AutomationWorktreeOperatorStatus[],
 ): TaskClaimInspection {
-  const inspection = inspectTaskClaim(claim, path, now);
-  if (inspection.recoveryStatus !== "agent-running") return inspection;
-
-  const ownerRunStatus = readOwnerRunStatus(projectDir, claim);
-  if (ownerRunStatus !== null && isUnsuccessfulTerminalRunStatus(ownerRunStatus)) {
-    return { claim, path, recoveryStatus: "stale", safeToRetry: true };
+  let inspection = inspectTaskClaim(claim, path, now);
+  if (inspection.recoveryStatus === "agent-running") {
+    const ownerRunStatus = readOwnerRunStatus(projectDir, claim);
+    if (ownerRunStatus !== null && isUnsuccessfulTerminalRunStatus(ownerRunStatus)) {
+      inspection = { claim, path, recoveryStatus: "stale", safeToRetry: true };
+    }
   }
-
+  if (
+    inspection.recoveryStatus === "stale" &&
+    (worktrees ?? listAutomationWorktreeStatuses(projectDir)).some(
+      (worktree) =>
+        worktree.taskId === claim.taskId &&
+        worktree.runId === claim.runId &&
+        worktree.exists &&
+        (worktree.dirtyState === "dirty" || worktree.dirtyState === "conflicted"),
+    )
+  ) {
+    return { ...inspection, safeToRetry: false };
+  }
   return inspection;
 }
 
@@ -259,13 +275,21 @@ export function listTaskClaimInspections(
 ): TaskClaimInspection[] {
   const dir = join(projectDir, ACTIVE_CLAIMS_DIR);
   if (!existsSync(dir)) return [];
-  return readdirSync(dir)
+  const paths = readdirSync(dir)
     .filter((name) => name.endsWith(".json"))
     .sort()
-    .map((name) => {
-      const path = join(dir, name);
-      return inspectTaskClaimWithOwnerRun(projectDir, readClaimFile(path), path, now);
-    });
+    .map((name) => join(dir, name));
+  if (paths.length === 0) return [];
+  const worktrees = listAutomationWorktreeStatuses(projectDir);
+  return paths.map((path) =>
+    inspectTaskClaimWithOwnerRun(
+      projectDir,
+      readClaimFile(path),
+      path,
+      now,
+      worktrees,
+    ),
+  );
 }
 
 export function archiveClaim(projectDir: string, path: string, claim: TaskClaim, now: Date): void {

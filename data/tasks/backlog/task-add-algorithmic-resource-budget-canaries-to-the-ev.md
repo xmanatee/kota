@@ -1,13 +1,13 @@
 ---
 id: task-add-algorithmic-resource-budget-canaries-to-the-ev
 title: Add algorithmic resource-budget canaries to the eval harness
-status: blocked
+status: backlog
 priority: p2
 area: modules
 task_class: Meta
 summary: Seed a compact builder fixture where a naive solution passes small examples but fails deterministic large-input time or memory canaries, making scalable design and resource management artifact-graded.
 created_at: 2026-06-22T23:35:15.496Z
-updated_at: 2026-06-22T23:53:47.000Z
+updated_at: 2026-07-24T14:11:46.609Z
 ---
 
 ## Problem
@@ -76,9 +76,8 @@ The fixture should make scalable-design failure observable:
   or special-cases visible examples should fail.
 - Keep this out of `pnpm test` unless replay-backed. A live-builder fixture
   belongs in `pnpm kota eval run` and cadence, not the standard unit test path.
-- If the implementation environment cannot make a live nested agent call, do
-  not mark the task done from fixture-load evidence alone. Reposition it
-  honestly with a typed operator-capture precondition for the live pass.
+- Do not mark the task done from fixture-load evidence alone. The trusted host
+  Runtime Probe below must complete the live nested-agent pass.
 
 ## Done When
 
@@ -106,13 +105,10 @@ The fixture should make scalable-design failure observable:
   threshold-relaxing shortcut fails, then the shortcut is reverted before
   staging.
 
-## Unblock Precondition
+## Runtime Probe
 
-```
-kind: operator-capture
-path: .kota/runs/algorithmic-resource-budget-canary-live-pass
-description: live eval-harness pass artifact — operator runs `pnpm kota eval run --fixture builder-algorithmic-resource-budget-canary --repeats 1 --keep` in an environment where the nested builder harness has an active Codex login, then stores eval-run-transcript.txt, eval-set-report.json, the per-run fixture-run.json, and the produced resource-budget-result.json evidence under .kota/runs/algorithmic-resource-budget-canary-live-pass/
-```
+command: pnpm kota eval run --fixture builder-algorithmic-resource-budget-canary --repeats 1 --keep
+timeoutMs: 14400000
 
 ## Status (2026-06-23 builder)
 
@@ -127,20 +123,19 @@ The required live eval was attempted from run
 It reached the nested builder agent step, then failed because the required
 Codex harness was not logged in (`localAuth missing: Codex ChatGPT login not
 active; run codex login`). No live builder-produced
-`resource-budget-result.json` was produced, so this task remains blocked on
-the operator-captured live pass above rather than marked done.
+`resource-budget-result.json` was produced, so that attempt did not satisfy the
+live-evidence requirement.
+
+## Status (2026-07-24 recovery)
+
+The daemon host has an authenticated Codex harness. The live pass is now owned
+by the provenance-pinned Runtime Probe above, so the earlier builder-sandbox
+authentication limitation is no longer an operator precondition.
 
 ## Source / Intent
 
-Explorer run `2026-06-22T23-00-20-991Z-explorer-whdo09` reviewed an empty
-actionable queue (`ready=0`, `doing=0`, `backlog=0`). The strategic blocked
-alternatives all still require operator-captured artifacts and were not
-movable:
-
-- `task-add-a-scientific-claim-reproduction-fixture-to-the`
-- `task-add-an-unfamiliar-language-strategy-construction-f`
-- `task-add-cross-preset-runtime-parity-gate`
-- `task-capture-an-end-to-end-coding-task-parity-artifact-`
+Explorer run `2026-06-22T23-00-20-991Z-explorer-whdo09` created this task after
+reviewing an empty actionable queue.
 
 External sources checked:
 
@@ -202,5 +197,3 @@ resource exhaustion.
   and any objective metrics.
 - Evidence of a temporary sample-only or threshold-relaxing shortcut causing
   the fixture to fail, with the shortcut reverted before staging.
-
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-07-23T23:11:20.617Z -->

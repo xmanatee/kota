@@ -21,6 +21,8 @@ function recoveryPathForClaim(
 ): TaskClaimRecoveryPath {
   return recoveryStatus === "pending-merge"
     ? "skipped-pending-merge"
+    : recoveryStatus === "stale"
+      ? "skipped-stale-worktree"
     : "skipped-active-claim";
 }
 
@@ -102,6 +104,10 @@ export function getClaimAwareRepoTaskQueueSnapshot(
 
   return {
     ...snapshot,
+    pullableCount: Math.max(
+      0,
+      snapshot.pullableCount - claimBlockedTasks.length,
+    ),
     actionableCount,
     dispatchableCount,
     hasDispatchableWork: dispatchableCount > 0,

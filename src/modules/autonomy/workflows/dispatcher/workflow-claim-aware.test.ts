@@ -75,7 +75,7 @@ describe("dispatcher claim-aware queue availability", () => {
       quiescentReason?: string | null;
     };
 
-    expect(output.pullableCount).toBe(1);
+    expect(output.pullableCount).toBe(0);
     expect(output.actionableCount).toBe(0);
     expect(output.dispatchableCount).toBe(0);
     expect(output.claimBlockedTasks).toEqual([expectedClaimBlock]);

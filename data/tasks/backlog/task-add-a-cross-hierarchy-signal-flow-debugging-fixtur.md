@@ -1,13 +1,13 @@
 ---
 id: task-add-a-cross-hierarchy-signal-flow-debugging-fixtur
 title: Add a cross-hierarchy signal-flow debugging fixture to the eval harness
-status: blocked
+status: backlog
 priority: p2
 area: modules
 task_class: Meta
 summary: Seed an eval-harness fixture where the builder must trace a bug through interacting files and fix the root cause from structured failure evidence instead of patching the symptom file.
 created_at: 2026-07-07T23:04:35.954Z
-updated_at: 2026-07-07T23:24:11.566Z
+updated_at: 2026-07-24T14:11:42.405Z
 ---
 
 ## Problem
@@ -75,9 +75,8 @@ The fixture should make cross-hierarchy debugging observable:
   running the verification command.
 - Keep this out of `pnpm test` unless replay-backed. A live-builder fixture
   belongs in `pnpm kota eval run` and cadence, not the standard unit test path.
-- If the implementation environment cannot make a live nested agent call, do
-  not mark the task done from fixture-load evidence alone. Reposition it
-  honestly with a typed operator-capture precondition for the live pass.
+- Do not mark the task done from fixture-load evidence alone. The trusted host
+  Runtime Probe below must complete the live nested-agent pass.
 
 ## Done When
 
@@ -101,13 +100,10 @@ The fixture should make cross-hierarchy debugging observable:
   the cross-hierarchy debugging predicates passing and any objective metric
   visible in the run artifact and aggregate output.
 
-## Unblock Precondition
+## Runtime Probe
 
-```
-kind: operator-capture
-path: .kota/runs/cross-hierarchy-debugging-live-pass
-description: live eval-harness pass artifact — operator runs `pnpm kota eval run --fixture builder-cross-hierarchy-debugging --repeats 1 --keep` in an environment where the nested builder harness can bind localhost ports and reach its model provider, then stores eval-run-transcript.txt, eval-set-report.json, the per-run fixture-run.json, and the produced debug-trace-result.json evidence under .kota/runs/cross-hierarchy-debugging-live-pass/
-```
+command: pnpm kota eval run --fixture builder-cross-hierarchy-debugging --repeats 1 --keep
+timeoutMs: 14400000
 
 ## Status (2026-07-08 builder)
 
@@ -126,24 +122,20 @@ The required live eval was attempted from
 It failed before the nested builder agent step because this sandbox cannot
 bind localhost ports (`listen EPERM: operation not permitted 127.0.0.1:30000`),
 and builder runtime-resource preflight therefore failed on leased port ranges.
-No nested builder-produced `debug-trace-result.json` was produced, so this
-task remains blocked on the operator-captured live pass above rather than
-marked done.
+No nested builder-produced `debug-trace-result.json` was produced, so that
+attempt did not satisfy the live-evidence requirement.
+
+## Status (2026-07-24 recovery)
+
+The daemon host can bind the leased localhost range and has an authenticated
+Codex harness. The live pass is now owned by the provenance-pinned Runtime
+Probe above, so the earlier builder-sandbox limitation is no longer an
+operator precondition.
 
 ## Source / Intent
 
-Explorer run `2026-07-07T22-35-45-413Z-explorer-kna8gn` reviewed an empty
-dispatchable queue. The only ready task is blocked by a pending merge claim,
-the OpenRouter rollout task is dependency-blocked, and the surfaced strategic
-blocked alternatives all still require operator-captured evidence rather than
-a new builder slice:
-
-- `task-extend-harness-parity-and-eval-harness-with-model-`
-- `task-add-a-scientific-claim-reproduction-fixture-to-the`
-- `task-add-algorithmic-resource-budget-canaries-to-the-ev`
-- `task-add-an-unfamiliar-language-strategy-construction-f`
-- `task-add-cross-preset-runtime-parity-gate`
-- `task-capture-an-end-to-end-coding-task-parity-artifact-`
+Explorer run `2026-07-07T22-35-45-413Z-explorer-kna8gn` created this task after
+reviewing an empty dispatchable queue.
 
 External source checked:
 
@@ -196,5 +188,3 @@ a symptom or produce a source-only explanation.
   any objective metric values.
 - Evidence of a temporary symptom-only shortcut causing the fixture to fail,
   with the shortcut reverted before staging.
-
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-07-23T23:11:20.617Z -->

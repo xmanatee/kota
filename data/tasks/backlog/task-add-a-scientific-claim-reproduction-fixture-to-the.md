@@ -1,12 +1,12 @@
 ---
 id: task-add-a-scientific-claim-reproduction-fixture-to-the
 title: Add a scientific-claim reproduction fixture to the eval harness
-status: blocked
+status: backlog
 priority: p2
 area: modules
 summary: Seed an eval-harness fixture where the builder reconstructs a small underspecified computational workflow from a paper-like claim, executes deterministic evidence, and records whether the claim is supported or refuted.
 created_at: 2026-05-27T08:12:34.216Z
-updated_at: 2026-05-27T08:28:25.000Z
+updated_at: 2026-07-24T14:11:44.529Z
 ---
 
 ## Problem
@@ -69,9 +69,8 @@ The fixture should make the scientific-reproduction failure mode observable:
   without executing the analysis.
 - Keep this out of `pnpm test` unless replay-backed. A live-builder fixture
   belongs in `pnpm kota eval run` and cadence, not the standard unit test path.
-- If the implementation environment cannot make a live agent call, do not mark
-  the task done from fixture-load evidence alone. Reposition it honestly with a
-  typed operator-capture precondition for the live pass.
+- Do not mark the task done from fixture-load evidence alone. The trusted host
+  Runtime Probe below must complete the live nested-agent pass.
 
 ## Done When
 
@@ -94,13 +93,10 @@ The fixture should make the scientific-reproduction failure mode observable:
   the claim-evidence predicates passing and any objective metric visible in the
   run artifact and aggregate output.
 
-## Unblock Precondition
+## Runtime Probe
 
-```
-kind: operator-capture
-path: .kota/runs/scientific-claim-reproduction-live-pass
-description: live eval-harness pass artifact — operator runs `pnpm kota eval run --fixture builder-scientific-claim-reproduction --repeats 1 --keep` in an environment where the nested builder agent can reach its model provider, then stores eval-run-transcript.txt, eval-set-report.json, the per-run fixture-run.json, and the produced claim-result.json evidence under .kota/runs/scientific-claim-reproduction-live-pass/
-```
+command: pnpm kota eval run --fixture builder-scientific-claim-reproduction --repeats 1 --keep
+timeoutMs: 14400000
 
 ## Status (2026-05-27 builder)
 
@@ -112,22 +108,13 @@ The required live eval was attempted from run
 `.kota/runs/2026-05-27T08-15-53-541Z-builder-ad3yfx/eval-run-transcript.txt`.
 It reached the nested builder agent step, then failed because the nested Codex
 harness could not reach `https://api.openai.com/v1/responses` in this
-environment. No `claim-result.json` was produced, so this task is blocked on
-the operator-captured live pass above rather than marked done.
+environment. No `claim-result.json` was produced, so that attempt did not
+satisfy the live-evidence requirement.
 
 ## Source / Intent
 
-Explorer run `2026-05-27T08-10-22-693Z-explorer-zfupdd` reviewed a zero
-actionable queue. The strategic blocked alternatives all still require
-operator-captured artifacts and were not movable:
-
-- `task-add-a-black-box-behavior-reconstruction-fixture-to`
-- `task-add-a-scorable-empirical-code-optimization-fixture`
-- `task-add-cross-preset-runtime-parity-gate`
-- `task-add-streamable-http-transport-to-the-mcp-server`
-- `task-capture-an-end-to-end-coding-task-parity-artifact-`
-- `task-enable-autonomous-access-to-auth-walled-sources-so`
-- `task-introduce-a-rich-cli-rendering-abstraction-for-all`
+Explorer run `2026-05-27T08-10-22-693Z-explorer-zfupdd` created this task after
+reviewing a zero-actionable queue.
 
 External source checked:
 
@@ -183,4 +170,8 @@ The fixture is present and listed by `pnpm kota eval list`, but the required
 The latest local artifacts for this fixture stop before a complete
 `eval-set-report.json`, so there is no pass artifact to promote from.
 
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-07-23T23:11:20.617Z -->
+## Status (2026-07-24 recovery)
+
+The daemon host has an authenticated Codex harness. The live pass is now owned
+by the provenance-pinned Runtime Probe above, so the earlier builder-sandbox
+network limitation is no longer an operator precondition.
