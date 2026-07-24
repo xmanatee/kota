@@ -69,7 +69,7 @@ const EXPLICIT_ERROR_RESULT_RE =
   /\breturn\s+\{[\s\S]{0,240}\b(?:error|reason|message)\s*:|\b(?:error|reason|message)\s*:\s*(?:error|err|String\(|formatErrorMessage)/m;
 const TEST_ASSERTION_RE = /\b(?:expect\s*\(|assert(?:\.\w+)?\s*\()/;
 const TEST_OBSERVABILITY_TERM_RE =
-  /\b(?:log|event|emit|artifact|warning|error|failure|status|metadata|observable|observability|diagnostic)\b/i;
+  /\b(?:log|event|emit|artifact|warning|error|failure|status|metadata|effect|risk|observable|observability|diagnostic)\b/i;
 
 const REASON_RULES: ReasonRule[] = [
   {

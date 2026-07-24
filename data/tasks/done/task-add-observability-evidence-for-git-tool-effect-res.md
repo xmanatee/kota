@@ -1,13 +1,13 @@
 ---
 id: task-add-observability-evidence-for-git-tool-effect-res
 title: Add observability evidence for Git tool effect resolution
-status: ready
+status: done
 priority: p2
 area: modules
 task_class: Platform
 summary: Builder run 2026-07-24T11-36-24-622Z-builder-nxwngn landed the protected-push security repair, but its observability-obligation review still marks src/core/tools/module-factory/actions.ts and src/core/tools/tool-effect-registry.ts as lacking inspectable evidence.
 created_at: 2026-07-24T17:52:54.264Z
-updated_at: 2026-07-24T17:52:54.264Z
+updated_at: 2026-07-24T18:57:27.712Z
 ---
 
 ## Problem
@@ -52,3 +52,13 @@ Outcome-aware autonomy progress review.
 - Review-provided acceptance evidence:
 
     A follow-up artifact or diagnostic recheck maps both cited files to focused assertions, explicit error results, structured events or logging, or a narrow documented rationale; the observability diagnostic reports missingFiles empty; focused tool-effect and Git safety tests plus task validation pass.
+- Follow-up artifact:
+  `.kota/runs/2026-07-24T18-41-20-573Z-builder-859rx3/observability-obligation-recheck.json`.
+- Replaying commit `a12bc133f190` now maps
+  `src/core/tools/module-factory/actions.ts` and
+  `src/core/tools/tool-effect-registry.ts` to the focused risk assertion in
+  `src/core/tools/guardrails-resolved-effects.test.ts`; the diagnostic reports
+  `outcome: ok` and `missingFiles: []`.
+- The focused observability, resolved-effect, Git classification, push-safety,
+  and live Git push regression suite passed (6 files, 39 tests). Biome,
+  TypeScript, and task validation also passed.

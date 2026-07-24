@@ -1,0 +1,2 @@
+1. Replay the cited protected-push commit with focused assertion evidence so the observability diagnostic maps both cited core tool-effect files and reports `missingFiles: []`, while preserving the cited evidence ids.
+2. Record acceptance evidence showing the focused observability, tool-effect, Git safety, and task-validation checks pass.

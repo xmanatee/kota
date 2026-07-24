@@ -1,5 +1,7 @@
+import { randomUUID } from "node:crypto";
 import {
   existsSync,
+  linkSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -141,10 +143,20 @@ function readClaimFile(path: string): TaskClaim {
 
 export function writeClaim(path: string, claim: TaskClaim, flag: "w" | "wx"): void {
   ensureParent(path);
-  writeFileSync(path, `${JSON.stringify(claim, null, 2)}\n`, {
-    encoding: "utf8",
-    flag,
-  });
+  const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    writeFileSync(temporaryPath, `${JSON.stringify(claim, null, 2)}\n`, {
+      encoding: "utf8",
+      flag: "wx",
+    });
+    if (flag === "wx") {
+      linkSync(temporaryPath, path);
+    } else {
+      renameSync(temporaryPath, path);
+    }
+  } finally {
+    if (existsSync(temporaryPath)) unlinkSync(temporaryPath);
+  }
 }
 
 function taskClaimMutationLockPath(projectDir: string, taskId: string): string {

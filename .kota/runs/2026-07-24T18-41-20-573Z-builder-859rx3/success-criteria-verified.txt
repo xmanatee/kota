@@ -1,0 +1,2 @@
+1. Verified by replaying commit `a12bc133f190`: both cited core tool-effect files map to `focused-test-assertion` evidence in `src/core/tools/guardrails-resolved-effects.test.ts`, and the recheck artifact reports `outcome: "ok"` with `missingFiles: []` while retaining all three source evidence ids.
+2. Verified by 39 focused tests across observability, resolved effects, Git classification, push safety, and live push regressions; Biome, TypeScript, and final task validation also passed, with results recorded in `observability-obligation-recheck.json`.

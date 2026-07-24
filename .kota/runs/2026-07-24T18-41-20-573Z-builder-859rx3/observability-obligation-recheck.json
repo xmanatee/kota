@@ -1,0 +1,57 @@
+{
+  "type": "observability-obligation-recheck",
+  "sourceEvidenceIds": [
+    "run:2026-07-24T11-36-24-622Z-builder-nxwngn",
+    "artifact:2026-07-24T11-36-24-622Z-builder-nxwngn:observability-obligation-review.json",
+    "git:commit:a12bc133f190"
+  ],
+  "replayedCommit": "a12bc133f190",
+  "baseline": {
+    "outcome": "warning",
+    "missingFiles": [
+      "src/core/tools/module-factory/actions.ts",
+      "src/core/tools/tool-effect-registry.ts"
+    ]
+  },
+  "recheck": {
+    "outcome": "ok",
+    "satisfiedFiles": [
+      "src/core/tools/guardrails-classify.ts",
+      "src/core/tools/index.ts",
+      "src/core/tools/module-factory/actions.ts",
+      "src/core/tools/tool-effect-registry.ts"
+    ],
+    "missingFiles": [],
+    "evidence": [
+      {
+        "file": "src/core/tools/module-factory/actions.ts",
+        "kind": "focused-test-assertion",
+        "ref": "src/core/tools/guardrails-resolved-effects.test.ts"
+      },
+      {
+        "file": "src/core/tools/tool-effect-registry.ts",
+        "kind": "focused-test-assertion",
+        "ref": "src/core/tools/guardrails-resolved-effects.test.ts"
+      }
+    ]
+  },
+  "detectorResolution": "Focused assertions over resolved tool effects and risk classifications are inspectable metadata evidence for tool-execution changes.",
+  "verification": [
+    {
+      "command": "TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true src/modules/autonomy/observability-obligation-tool-effects.test.ts src/modules/autonomy/observability-obligation.test.ts src/core/tools/guardrails-resolved-effects.test.ts src/modules/git/index.test.ts src/modules/git/push-safety.test.ts src/modules/git/git-push-regression.test.ts",
+      "result": "passed: 6 files, 39 tests"
+    },
+    {
+      "command": "node_modules/.bin/biome check src/modules/autonomy/observability-obligation-rules.ts src/modules/autonomy/observability-obligation-tool-effects.test.ts",
+      "result": "passed"
+    },
+    {
+      "command": "node_modules/.bin/tsc --noEmit",
+      "result": "passed"
+    },
+    {
+      "command": "NODE_OPTIONS=--conditions=source node --import tsx src/validate-queue.ts",
+      "result": "passed"
+    }
+  ]
+}
