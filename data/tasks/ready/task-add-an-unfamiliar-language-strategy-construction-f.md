@@ -1,12 +1,12 @@
 ---
 id: task-add-an-unfamiliar-language-strategy-construction-f
 title: Add an unfamiliar-language strategy-construction fixture to the eval harness
-status: backlog
+status: ready
 priority: p2
 area: modules
 summary: Seed an eval-harness fixture where the builder must learn a tiny unfamiliar language by writing and debugging helper code against local examples and hidden tests, so strategy construction is artifact-graded rather than treated as ordinary JavaScript patching.
 created_at: 2026-06-20T22:32:36.456Z
-updated_at: 2026-07-24T14:11:48.677Z
+updated_at: 2026-07-24T21:20:04.254Z
 ---
 
 ## Problem
