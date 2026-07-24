@@ -1,4 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,6 +20,8 @@ export type { CoreKotaConfig, KotaConfig, ModuleConfigSliceFields } from "./conf
 const CONFIG_FILENAME = "config.json";
 const GLOBAL_DIR = join(homedir(), ".kota");
 const PROJECT_DIR = ".kota";
+const PROJECT_CONFIG_DIR_MODE = 0o700;
+const PROJECT_CONFIG_FILE_MODE = 0o600;
 
 export type ProjectConfigTrustReason =
   | "kota-self-project"
@@ -254,8 +263,19 @@ export function updateProjectConfig(
 ): void {
   const configDir = join(cwd, PROJECT_DIR);
   const configPath = join(configDir, CONFIG_FILENAME);
+  if (!existsSync(configDir)) {
+    mkdirSync(configDir, { recursive: true, mode: PROJECT_CONFIG_DIR_MODE });
+  }
+  chmodSync(configDir, PROJECT_CONFIG_DIR_MODE);
+  if (existsSync(configPath)) {
+    chmodSync(configPath, PROJECT_CONFIG_FILE_MODE);
+  }
+
   const existing = (readConfigFile(configPath) ?? {}) as Partial<KotaConfig>;
   const updated = update(existing);
-  if (!existsSync(configDir)) mkdirSync(configDir, { recursive: true });
-  writeFileSync(configPath, `${JSON.stringify(updated, null, 2)}\n`, "utf-8");
+  writeFileSync(configPath, `${JSON.stringify(updated, null, 2)}\n`, {
+    encoding: "utf-8",
+    mode: PROJECT_CONFIG_FILE_MODE,
+  });
+  chmodSync(configPath, PROJECT_CONFIG_FILE_MODE);
 }

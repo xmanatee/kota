@@ -1,13 +1,13 @@
 ---
 id: task-security-review-webhook-secrets-are-written-into-k
 title: Security review: Webhook secrets are written into `.kota/config.json` through the generic config writer, which creates the directory and file without restrictive modes and does not repair existing permissions. Under a standard `022` umask, a fresh CLI generation produced a `0755` `.kota` directory and `0644` secret-bearing config, allowing other local accounts to read the HMAC secret and forge workflow triggers.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: Webhook secrets are written into `.kota/config.json` through the generic config writer, which creates the directory and file without restrictive modes and does not repair existing permissions. Under a standard `022` umask, a fresh CLI generation produced a `0755` `.kota` directory and `0644` secret-bearing config, allowing other local accounts to read the HMAC secret and forge workflow triggers.
 created_at: 2026-07-24T19:04:07.867Z
-updated_at: 2026-07-24T19:04:07.867Z
+updated_at: 2026-07-24T21:14:37.392Z
 ---
 
 ## Problem
@@ -116,3 +116,11 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run src/core/config src/modules/config src/modules/webhook/webhook-operations.test.ts src/modules/webhook/cli.test.ts --configLoader runner --silent=true` — 17 files and 205 tests passed.
+- `node_modules/.bin/tsc --noEmit` — passed.
+- `node_modules/.bin/biome check src/core/config/config.ts src/core/config/project-config-writer.test.ts` — passed.
+- `node --conditions=source --import tsx src/validate-queue.ts` — passed against the final canonical staged task state.
+- `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run src/task-files.test.ts --configLoader runner --silent=true` — 5 tests passed against the final canonical staged task state.

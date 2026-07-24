@@ -1,0 +1,8 @@
+The initial task transition could not create the canonical worktree's
+`index.lock`, so task lifecycle mutations and queue validation used the
+workflow-local repair index under `.kota/tmp/2026-07-24T21-02-25-830Z-builder-30txor/`.
+
+After implementation and validation, the required canonical `git add -A`
+succeeded. The completed task rename, security fix, regression coverage, and
+run artifacts are staged in the real worktree index; no host staging handoff
+remains.

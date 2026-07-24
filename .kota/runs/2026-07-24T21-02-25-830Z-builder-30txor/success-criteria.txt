@@ -1,0 +1,3 @@
+1. Project config writes that can persist webhook HMAC secrets create `.kota` with mode `0700` and `config.json` with mode `0600`.
+2. The project config writer repairs permissive pre-existing directory and file modes while preserving and updating configuration content.
+3. Focused permission regressions and task-queue validation pass, and the completed task records the final verification command.

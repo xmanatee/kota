@@ -1,0 +1,3 @@
+1. Verified `updateProjectConfig` creates `.kota` with mode `0700`, writes `config.json` with mode `0600`, and stores webhook HMAC secrets only after the directory is restricted.
+2. Verified permissive `0755`/`0644` pre-existing storage is changed to `0700`/`0600` before mutation, while unrelated config remains intact and the webhook secret rotates.
+3. Verified 205 focused config/webhook tests, TypeScript, Biome, diff hygiene, and task-queue validation pass; the completed task and run validation artifact record the commands.

@@ -1,0 +1,24 @@
+PASS — focused regression
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run src/core/config/project-config-writer.test.ts src/modules/webhook/webhook-operations.test.ts src/modules/webhook/cli.test.ts --configLoader runner --silent=true
+3 files passed; 24 tests passed.
+
+PASS — broader config and webhook regression
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run src/core/config src/modules/config src/modules/webhook/webhook-operations.test.ts src/modules/webhook/cli.test.ts --configLoader runner --silent=true
+17 files passed; 205 tests passed.
+
+PASS — typecheck
+node_modules/.bin/tsc --noEmit
+
+PASS — formatting and lint
+node_modules/.bin/biome check src/core/config/config.ts src/core/config/project-config-writer.test.ts
+
+PASS — queue validation
+node --conditions=source --import tsx src/validate-queue.ts
+Executed after the task moved to `done` and the final canonical worktree state was staged.
+
+PASS — task-file regression
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run src/task-files.test.ts --configLoader runner --silent=true
+1 file passed; 5 tests passed against the final canonical staged task state.
+
+PASS — diff hygiene
+git diff --check
