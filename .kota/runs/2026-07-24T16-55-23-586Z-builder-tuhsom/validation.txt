@@ -1,0 +1,97 @@
+Webhook timestamp-bound signature verification
+
+PASS
+NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run src/modules/webhook --configLoader runner --silent=true
+10 test files passed; 116 tests passed.
+
+PASS
+node_modules/.bin/biome check src/modules/webhook/trigger-route-auth.ts src/modules/webhook/trigger-route.ts src/modules/webhook/trigger-route-test-support.ts src/modules/webhook/trigger-route.test.ts src/modules/webhook/trigger-route-security.test.ts src/modules/webhook/cli.ts src/modules/webhook/cli.test.ts
+7 files checked; no fixes applied.
+
+PASS
+node_modules/.bin/tsc --noEmit
+
+PASS
+git diff --check
+
+PASS
+GIT_INDEX_FILE=<run-scoped-index> GIT_OBJECT_DIRECTORY=<run-scoped-objects> GIT_ALTERNATE_OBJECT_DIRECTORIES=<repository-objects> node --conditions=source --import tsx src/validate-queue.ts
+
+Repair validation
+
+PASS
+NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run src/docs-surface.test.ts --configLoader runner --silent=true
+1 test file passed; 5 tests passed.
+
+PASS
+NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run src/modules/webhook --configLoader runner --silent=true
+10 test files passed; 116 tests passed.
+
+PASS
+GIT_INDEX_FILE=<run-scoped-index> GIT_OBJECT_DIRECTORY=<run-scoped-objects> GIT_ALTERNATE_OBJECT_DIRECTORIES=<repository-objects> node --conditions=source --import tsx src/validate-queue.ts
+
+PASS
+GIT_INDEX_FILE=<run-scoped-index> GIT_OBJECT_DIRECTORY=<run-scoped-objects> GIT_ALTERNATE_OBJECT_DIRECTORIES=<repository-objects> NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run src/modules/repo-tasks/task-queue-validation.test.ts -t "current repo task queue" --configLoader runner --silent=true
+1 test file passed; 2 tests passed and 63 skipped.
+
+Post-check repair attempt 2
+
+PASS
+NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run src/modules/webhook --configLoader runner --silent=true
+10 test files passed; 116 tests passed.
+
+PASS
+GIT_INDEX_FILE=<run-scoped-index> GIT_OBJECT_DIRECTORY=<run-scoped-objects> GIT_ALTERNATE_OBJECT_DIRECTORIES=<repository-objects> node --conditions=source --import tsx src/validate-queue.ts
+
+PASS
+GIT_INDEX_FILE=<run-scoped-index> GIT_OBJECT_DIRECTORY=<run-scoped-objects> GIT_ALTERNATE_OBJECT_DIRECTORIES=<repository-objects> NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run src/modules/repo-tasks/task-queue-validation.test.ts -t "current repo task queue" --configLoader runner --silent=true
+1 test file passed; 2 tests passed and 63 skipped.
+
+PASS
+GIT_INDEX_FILE=<run-scoped-index> GIT_OBJECT_DIRECTORY=<run-scoped-objects> GIT_ALTERNATE_OBJECT_DIRECTORIES=<repository-objects> git diff --cached --check
+
+Post-check repair attempt 4
+
+PASS
+GIT_INDEX_FILE=<run-scoped-index> GIT_OBJECT_DIRECTORY=<run-scoped-objects> GIT_ALTERNATE_OBJECT_DIRECTORIES=<repository-objects> node --conditions=source --import tsx src/validate-queue.ts
+
+PASS
+GIT_INDEX_FILE=<run-scoped-index> GIT_OBJECT_DIRECTORY=<run-scoped-objects> GIT_ALTERNATE_OBJECT_DIRECTORIES=<repository-objects> NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run src/modules/repo-tasks/task-queue-validation.test.ts -t "current repo task queue" --configLoader runner --silent=true
+1 test file passed; 2 tests passed and 63 skipped.
+
+PASS
+GIT_INDEX_FILE=<run-scoped-index> GIT_OBJECT_DIRECTORY=<run-scoped-objects> GIT_ALTERNATE_OBJECT_DIRECTORIES=<repository-objects> git diff --cached --check
+
+INFRASTRUCTURE NOTE
+The package-manager shim could not verify the pinned pnpm release because
+registry fetches are unavailable in this sandbox. The already-installed local
+Node, tsx, and Vitest entrypoints were used for the equivalent checks above.
+
+SANDBOX LIMITATION
+git add -A
+Unable to create the canonical worktree index lock under the parent checkout's
+read-only `.git/worktrees/` directory: Operation not permitted. The complete
+snapshot is staged in the run-scoped index documented by
+`staging-limitation.txt`.
+
+SANDBOX LIMITATION
+git add -A
+Unable to create the canonical worktree index lock under the parent checkout's
+read-only `.git/worktrees/` directory: Operation not permitted. The final
+snapshot is staged and validated in the run-scoped index documented by
+`staging-limitation.txt`.
+
+Post-check repair attempt 3
+
+PASS
+GIT_INDEX_FILE=<run-scoped-index> GIT_OBJECT_DIRECTORY=<run-scoped-objects> GIT_ALTERNATE_OBJECT_DIRECTORIES=<repository-objects> node --conditions=source --import tsx src/validate-queue.ts
+
+PASS
+GIT_INDEX_FILE=<run-scoped-index> GIT_OBJECT_DIRECTORY=<run-scoped-objects> GIT_ALTERNATE_OBJECT_DIRECTORIES=<repository-objects> NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run src/modules/repo-tasks/task-queue-validation.test.ts -t "current repo task queue" --configLoader runner --silent=true
+1 test file passed; 2 tests passed and 63 skipped.
+
+PASS
+git diff --check
+
+PASS
+GIT_INDEX_FILE=<run-scoped-index> GIT_OBJECT_DIRECTORY=<run-scoped-objects> GIT_ALTERNATE_OBJECT_DIRECTORIES=<repository-objects> git diff --cached --check

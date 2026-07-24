@@ -9,9 +9,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   registerDefinitions,
   registerDispatcher,
-  signBodyOnly,
   signTimestamped,
   startWebhookRouteTestServer,
+  timestampedWebhookHeaders,
   WEBHOOK_SECRET,
   type WebhookRouteTestServer,
 } from "./trigger-route-test-support.js";
@@ -33,7 +33,7 @@ describe("webhook module signature-validated trigger route", () => {
     const res = await globalThis.fetch(`http://127.0.0.1:${server.port}/webhooks/deploy`, {
       method: "POST",
       headers: {
-        "X-Kota-Webhook-Signature": signBodyOnly(WEBHOOK_SECRET, bodyStr),
+        ...timestampedWebhookHeaders(WEBHOOK_SECRET, bodyStr),
         "Content-Type": "application/json",
       },
       body: bodyStr,
@@ -58,17 +58,26 @@ describe("webhook module signature-validated trigger route", () => {
     registerDispatcher({ ok: true, runId: "unused" });
     const res = await globalThis.fetch(`http://127.0.0.1:${server.port}/webhooks/deploy`, {
       method: "POST",
-      headers: { "X-Kota-Webhook-Signature": "sha256=badhex" },
+      headers: {
+        "X-Kota-Webhook-Signature": "sha256-v2=badhex",
+        "X-Kota-Webhook-Timestamp": String(Date.now()),
+      },
     });
     expect(res.status).toBe(401);
   });
 
   it("returns 401 when signature hex has malformed trailing data", async () => {
     registerDispatcher({ ok: true, runId: "unused" });
+    const timestamp = String(Date.now());
     const res = await globalThis.fetch(`http://127.0.0.1:${server.port}/webhooks/deploy`, {
       method: "POST",
       headers: {
-        "X-Kota-Webhook-Signature": `${signBodyOnly(WEBHOOK_SECRET, "")}zz`,
+        "X-Kota-Webhook-Signature": `${signTimestamped(
+          WEBHOOK_SECRET,
+          timestamp,
+          "",
+        )}zz`,
+        "X-Kota-Webhook-Timestamp": timestamp,
       },
     });
     expect(res.status).toBe(401);
@@ -80,7 +89,7 @@ describe("webhook module signature-validated trigger route", () => {
       `http://127.0.0.1:${server.port}/webhooks/unknown-secret`,
       {
         method: "POST",
-        headers: { "X-Kota-Webhook-Signature": signBodyOnly(WEBHOOK_SECRET, "") },
+        headers: timestampedWebhookHeaders(WEBHOOK_SECRET, ""),
       },
     );
     expect(res.status).toBe(401);
@@ -90,7 +99,7 @@ describe("webhook module signature-validated trigger route", () => {
     registerDispatcher({ ok: false, notFound: true });
     const res = await globalThis.fetch(`http://127.0.0.1:${server.port}/webhooks/deploy`, {
       method: "POST",
-      headers: { "X-Kota-Webhook-Signature": signBodyOnly(WEBHOOK_SECRET, "") },
+      headers: timestampedWebhookHeaders(WEBHOOK_SECRET, ""),
     });
     expect(res.status).toBe(404);
   });
@@ -99,7 +108,7 @@ describe("webhook module signature-validated trigger route", () => {
     registerDispatcher({ ok: false, alreadyRunning: true });
     const res = await globalThis.fetch(`http://127.0.0.1:${server.port}/webhooks/deploy`, {
       method: "POST",
-      headers: { "X-Kota-Webhook-Signature": signBodyOnly(WEBHOOK_SECRET, "") },
+      headers: timestampedWebhookHeaders(WEBHOOK_SECRET, ""),
     });
     expect(res.status).toBe(409);
   });
@@ -108,7 +117,7 @@ describe("webhook module signature-validated trigger route", () => {
     registerDispatcher({ ok: true, runId: "no-bearer-runid" });
     const res = await globalThis.fetch(`http://127.0.0.1:${server.port}/webhooks/deploy`, {
       method: "POST",
-      headers: { "X-Kota-Webhook-Signature": signBodyOnly(WEBHOOK_SECRET, "") },
+      headers: timestampedWebhookHeaders(WEBHOOK_SECRET, ""),
     });
     expect(res.status).toBe(200);
   });
@@ -149,17 +158,17 @@ describe("webhook module signature-validated trigger route", () => {
   it("returns 429 with Retry-After header when rate limit is exceeded", async () => {
     registerDispatcher({ ok: true, runId: "rate-limit" });
     registerDefinitions({ deploy: { maxPerMinute: 2 } });
-    const sig = signBodyOnly(WEBHOOK_SECRET, "");
+    const headers = timestampedWebhookHeaders(WEBHOOK_SECRET, "");
     for (let i = 0; i < 2; i++) {
       const res = await globalThis.fetch(`http://127.0.0.1:${server.port}/webhooks/deploy`, {
         method: "POST",
-        headers: { "X-Kota-Webhook-Signature": sig },
+        headers,
       });
       expect(res.status).toBe(200);
     }
     const res = await globalThis.fetch(`http://127.0.0.1:${server.port}/webhooks/deploy`, {
       method: "POST",
-      headers: { "X-Kota-Webhook-Signature": sig },
+      headers,
     });
     expect(res.status).toBe(429);
     const retryAfter = res.headers.get("retry-after");

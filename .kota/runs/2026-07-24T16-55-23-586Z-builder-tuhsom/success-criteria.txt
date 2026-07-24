@@ -1,0 +1,3 @@
+1. The bearer-auth-bypassing workflow webhook route accepts only `sha256-v2` signatures bound to a fresh `X-Kota-Webhook-Timestamp` and the raw body; body-only `sha256=` and bare-hex signatures cannot dispatch a workflow.
+2. Focused route and signing-guidance regression coverage proves the required timestamp-bound contract while preserving workflow-scoped HMAC authentication and delivery idempotency as defense in depth.
+3. The completed task records the exact successful verification command and points to inspectable regression evidence.

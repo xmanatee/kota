@@ -1,0 +1,27 @@
+The sandbox cannot create the canonical worktree index lock under the shared
+`.git/worktrees/` directory. The initial normal task CLI invocation therefore
+updated the task file but could not stage it.
+
+Post-check repair attempt 2 retried the required `git add -A`; it failed at the
+same canonical index lock with `Operation not permitted`. The sandbox grants
+read-only access to that parent-checkout Git metadata, so this run cannot
+replace the canonical index without violating its filesystem boundary.
+
+Post-check repair attempt 3 retried `git add -A` before validation and received
+the same filesystem denial. No project file is unstaged in the run-scoped
+index, including the completed task file and these run artifacts.
+
+The complete final snapshot is staged in the writable run-scoped index:
+
+.kota/tmp/2026-07-24T16-55-23-586Z-builder-tuhsom/git-index
+
+New staged blobs live in the sibling `git-objects` directory, with the
+repository object database configured as an alternate. Queue validation runs
+against that index so the canonical task mutation contract remains inspectable.
+
+Post-check repair attempt 4 retried the required canonical `git add -A` and
+received the same `Operation not permitted` denial while Git tried to create
+the parent checkout's worktree `index.lock`. The workflow's staging and commit
+helpers were inspected; they also use the canonical Git index and provide no
+host-side promotion path that can cross this sandbox boundary. The final
+snapshot remains fully staged and validated in the run-scoped index above.

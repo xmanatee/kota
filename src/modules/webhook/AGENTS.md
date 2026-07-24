@@ -39,14 +39,13 @@ This directory owns:
   `POST /webhooks/:name` with a JSON body. Path-segment names must
   match `[a-zA-Z0-9_-]+`; anything else returns 404.
 - Auth uses the workflow-scoped secret in
-  `KotaConfig.webhooks[<name>].secret`. Legacy body-only signatures are
-  `X-Kota-Webhook-Signature: sha256=<hex>` or bare hex over the raw body,
-  authenticate the sender, and must omit `X-Kota-Webhook-Timestamp`.
-- Replay-protected deliveries use `X-Kota-Webhook-Signature:
+  `KotaConfig.webhooks[<name>].secret`. Every delivery must use
+  `X-Kota-Webhook-Signature:
   sha256-v2=<hex>` over `<timestamp>.<rawBody>`, plus
   `X-Kota-Webhook-Timestamp` as Unix milliseconds. Missing, tampered, or stale
-  timestamps outside the ±5-minute window return 401. The route opts out of
-  daemon Bearer auth via `ControlRouteRegistration.bypassAuth: true`.
+  timestamps outside the ±5-minute window return 401, as do body-only
+  `sha256=<hex>` and bare-hex signatures. The route opts out of daemon Bearer
+  auth via `ControlRouteRegistration.bypassAuth: true`.
 - Payload threaded through to the workflow run carries `body`, `headers`,
   `timestamp`, and a hashed `idempotencyKey`: `body` is parsed as JSON when the
   raw body is non-empty (falling back to the original string on parse
@@ -97,8 +96,8 @@ This directory owns:
   adapter. Workflows decide whether a signal creates or updates tasks, captures
   knowledge, asks the owner, replies, retries, audits, or no-ops.
 - Owns the signature-validated `POST /webhooks/:name` daemon-control
-  route, including body-only HMAC authentication, timestamp-bound replay
-  protection, and the per-workflow rate-limit window state. The
+  route, including timestamp-bound HMAC authentication and the per-workflow
+  rate-limit window state. The
   daemon-control core no longer carries a webhook handler.
 - Does not own Slack or Telegram notification (those belong in
   `slack/` and `telegram/`) or retry logic (that lives in `notification`).

@@ -1,0 +1,3 @@
+1. Verified: the route parser and HMAC verifier accept only `sha256-v2=<hex>` over `<timestamp>.<rawBody>`, require a fresh signed Unix-ms timestamp, and focused live-route tests prove body-only `sha256=<hex>` and bare-hex requests return 401 without dispatch.
+2. Verified: all 116 webhook module tests pass; module guidance, generated-secret CLI output, and the shipped GitHub Actions example require timestamp-bound signing, while the existing hashed delivery idempotency key remains unchanged as defense in depth.
+3. Verified: the task is in `done/` with the exact successful module-test and typecheck commands plus the inspectable `validation.txt` run artifact.

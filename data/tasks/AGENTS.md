@@ -1,13 +1,10 @@
 # Tasks
 
-This directory is the normalized live work queue after ideas leave
-`data/inbox/`.
+This directory is the normalized live work queue after ideas leave `data/inbox/`.
 
-State directories define their own lifecycle contracts. Read the local
-`AGENTS.md` before touching tasks in a state directory.
+State directories define their own lifecycle contracts. Read the local `AGENTS.md` before touching tasks in a state directory.
 
-State and priority are separate concepts. Priority describes importance; state
-describes scheduling and lifecycle.
+State and priority are separate concepts. Priority describes importance; state describes scheduling and lifecycle.
 
 ## Task Format
 
@@ -98,8 +95,7 @@ those.
   broken. A ready/doing `task_class: Meta` task must include a
   `## Product / Safety Link` section naming the Product or Safety blocker it
   closes; otherwise it belongs outside the actionable queue.
-- Use `pnpm kota task move <id> <state>` to move tasks between state directories.
-  The move command owns lifecycle metadata and file movement.
+- Use `pnpm kota task move <id> <state>` to move tasks between state directories. The move command owns lifecycle metadata and file movement.
 - Before finishing, ensure task validation would pass: unique ids, tracked task
   files, no stale deletes, and matching status/directories.
 
@@ -120,5 +116,4 @@ Precondition` using the typed vocabulary enforced by the validator:
 
 Do not use `blocked/` as a parking lot. If a blocked task has been reviewed,
 move/drop/rescope it or refresh the exact action marker. Queue validation emits
-`blocked-task-stale` when a blocked task ages past the stale threshold without
-a fresh owner ask or operator-capture instruction marker.
+`blocked-task-stale` after the stale threshold without a fresh owner ask or operator-capture instruction marker.

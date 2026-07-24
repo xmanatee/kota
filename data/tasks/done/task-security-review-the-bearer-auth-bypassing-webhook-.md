@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-bearer-auth-bypassing-webhook-
 title: Security review: The bearer-auth-bypassing webhook route still accepts body-only and bare-hex HMAC signatures with no timestamp. A captured signed request therefore remains cryptographically valid indefinitely and can trigger the workflow again after the seven-day idempotency record expires.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: The bearer-auth-bypassing webhook route still accepts body-only and bare-hex HMAC signatures with no timestamp. A captured signed request therefore remains cryptographically valid indefinitely and can trigger the workflow again after the seven-day idempotency record expires.
 created_at: 2026-07-24T11:35:59.575Z
-updated_at: 2026-07-24T11:35:59.575Z
+updated_at: 2026-07-24T17:11:54.549Z
 ---
 
 ## Problem
@@ -153,3 +153,9 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Final Verification
+
+- `NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run src/modules/webhook --configLoader runner --silent=true` — 10 test files and 116 tests passed, including explicit rejection of body-only `sha256=<hex>` and bare-hex signatures.
+- `node_modules/.bin/tsc --noEmit` — passed.
+- Run artifact: `.kota/runs/2026-07-24T16-55-23-586Z-builder-tuhsom/validation.txt`.

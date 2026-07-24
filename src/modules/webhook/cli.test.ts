@@ -141,8 +141,9 @@ describe("kota webhook secret generate", () => {
 
     expect(out).toContain("sha256-v2=");
     expect(out).toContain("X-Kota-Webhook-Timestamp");
-    expect(out).toContain("without timestamp anti-replay");
-    expect(out).not.toContain("Optional replay protection");
+    expect(out).toContain("Deliveries must sign");
+    expect(out).not.toContain("sha256=<hex>");
+    expect(out).not.toContain("Legacy body-only");
   });
 
   it("warns when overwriting an existing secret", async () => {

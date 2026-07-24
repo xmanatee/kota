@@ -65,7 +65,7 @@ export function registerWebhookCommands(webhookCmd: Command, ctx: ModuleContext)
         line(span(result.secret, "success", true)),
         blank(),
         line(span(
-          "Replay-protected deliveries sign the current Unix ms timestamp plus the raw body:",
+          "Deliveries must sign the current Unix ms timestamp plus the raw body:",
           "muted",
         )),
         blank(),
@@ -75,12 +75,7 @@ export function registerWebhookCommands(webhookCmd: Command, ctx: ModuleContext)
           `  const sig = "sha256-v2=" + require("crypto").createHmac("sha256", secret).update(timestamp).update(".").update(rawBody).digest("hex");`,
         )),
         line(span(`  // Set header: X-Kota-Webhook-Signature: <sig>`, "muted")),
-        line(span(`  // Set header: X-Kota-Webhook-Timestamp: ${Date.now()}`, "muted")),
-        blank(),
-        line(span(
-          "Legacy body-only signatures use sha256=<hex> over rawBody and authenticate the sender without timestamp anti-replay.",
-          "muted",
-        )),
+        line(span(`  // Set header: X-Kota-Webhook-Timestamp: <timestamp>`, "muted")),
       ));
     });
 

@@ -2,10 +2,9 @@
  * Signature-validated workflow-trigger route contributed by the webhook
  * module. External systems POST a JSON payload to
  * `POST /webhooks/:name` with an HMAC-SHA256 signature in
- * `X-Kota-Webhook-Signature` to fire the named workflow. Legacy
- * `sha256=<hex>` signatures cover only the raw body and authenticate the
- * sender. Replay-protected `sha256-v2=<hex>` signatures cover
- * `X-Kota-Webhook-Timestamp` plus the raw body.
+ * `X-Kota-Webhook-Signature` to fire the named workflow.
+ * `sha256-v2=<hex>` signatures cover `X-Kota-Webhook-Timestamp` plus the
+ * raw body and are accepted only within the route's replay window.
  *
  * The route bypasses the daemon Bearer-token auth via
  * `ControlRouteRegistration.bypassAuth`; auth is established per request
@@ -130,10 +129,7 @@ export function createWebhookTriggerHandler(
       return;
     }
 
-    if (
-      verification.scheme === "timestamped" &&
-      !timestampWithinWebhookWindow(verification.timestamp, Date.now())
-    ) {
+    if (!timestampWithinWebhookWindow(verification.timestamp, Date.now())) {
       jsonResponse(res, 401, { error: "Invalid webhook signature" });
       return;
     }

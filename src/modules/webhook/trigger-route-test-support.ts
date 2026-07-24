@@ -47,6 +47,17 @@ export function signTimestamped(
     .digest("hex")}`;
 }
 
+export function timestampedWebhookHeaders(
+  secret: string,
+  body: string | Buffer,
+  timestamp = String(Date.now()),
+): Record<string, string> {
+  return {
+    "X-Kota-Webhook-Signature": signTimestamped(secret, timestamp, body),
+    "X-Kota-Webhook-Timestamp": timestamp,
+  };
+}
+
 function makeHandle(): DaemonControlHandle {
   return {
     getDaemonLiveState: vi.fn(() => ({

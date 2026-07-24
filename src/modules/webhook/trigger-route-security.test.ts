@@ -12,6 +12,7 @@ import {
   signBodyOnly,
   signTimestamped,
   startWebhookRouteTestServer,
+  timestampedWebhookHeaders,
   WEBHOOK_SECRET,
   type WebhookRouteTestServer,
 } from "./trigger-route-test-support.js";
@@ -83,7 +84,7 @@ describe("webhook trigger route security edges", () => {
     const res = await globalThis.fetch(`http://127.0.0.1:${server.port}/webhooks/deploy`, {
       method: "POST",
       headers: {
-        "X-Kota-Webhook-Signature": signBodyOnly(WEBHOOK_SECRET, body),
+        ...timestampedWebhookHeaders(WEBHOOK_SECRET, body),
         "Content-Type": "application/json",
       },
       body,
@@ -103,7 +104,7 @@ describe("webhook trigger route security edges", () => {
     const res = await globalThis.fetch(`http://127.0.0.1:${server.port}/webhooks/deploy`, {
       method: "POST",
       headers: {
-        "X-Kota-Webhook-Signature": signBodyOnly(WEBHOOK_SECRET, bodyStr),
+        ...timestampedWebhookHeaders(WEBHOOK_SECRET, bodyStr),
         "Content-Type": "application/json",
         Authorization: "Bearer secret-auth",
         Cookie: "session=secret-cookie",
@@ -162,11 +163,12 @@ describe("webhook trigger route security edges", () => {
   it("derives a stable idempotency key from repeated signed bodies", async () => {
     const fn = registerDispatcher({ ok: true, runId: "test-run-id" });
     const bodyStr = JSON.stringify({ event: "push", ref: "refs/heads/main" });
+    const headers = timestampedWebhookHeaders(WEBHOOK_SECRET, bodyStr);
     for (let i = 0; i < 2; i++) {
       const res = await globalThis.fetch(`http://127.0.0.1:${server.port}/webhooks/deploy`, {
         method: "POST",
         headers: {
-          "X-Kota-Webhook-Signature": signBodyOnly(WEBHOOK_SECRET, bodyStr),
+          ...headers,
           "Content-Type": "application/json",
         },
         body: bodyStr,
@@ -179,14 +181,31 @@ describe("webhook trigger route security edges", () => {
     expect(fn.mock.calls[0][1].idempotencyKey).toMatch(/^webhook-body:/);
   });
 
-  it("accepts bare hex signature without the sha256= prefix", async () => {
-    registerDispatcher({ ok: true, runId: "bare-hex" });
+  it("rejects body-only sha256 signatures without a timestamp", async () => {
+    const fn = registerDispatcher({ ok: true, runId: "body-only" });
+    const bodyStr = JSON.stringify({ event: "push" });
+    const res = await globalThis.fetch(`http://127.0.0.1:${server.port}/webhooks/deploy`, {
+      method: "POST",
+      headers: {
+        "X-Kota-Webhook-Signature": signBodyOnly(WEBHOOK_SECRET, bodyStr),
+        "Content-Type": "application/json",
+      },
+      body: bodyStr,
+    });
+
+    expect(res.status).toBe(401);
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  it("rejects bare hex body-only signatures", async () => {
+    const fn = registerDispatcher({ ok: true, runId: "bare-hex" });
     const bareHex = createHmac("sha256", WEBHOOK_SECRET).update("").digest("hex");
     const res = await globalThis.fetch(`http://127.0.0.1:${server.port}/webhooks/deploy`, {
       method: "POST",
       headers: { "X-Kota-Webhook-Signature": bareHex },
     });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(401);
+    expect(fn).not.toHaveBeenCalled();
   });
 
   it("rejects body-only signatures that include a timestamp header", async () => {
@@ -268,7 +287,7 @@ describe("webhook trigger route security edges", () => {
       `http://127.0.0.1:${server.port}/webhooks/${encodeURIComponent("bad name")}`,
       {
         method: "POST",
-        headers: { "X-Kota-Webhook-Signature": signBodyOnly(WEBHOOK_SECRET, "") },
+        headers: timestampedWebhookHeaders(WEBHOOK_SECRET, ""),
       },
     );
     expect(res.status).toBe(404);
@@ -278,7 +297,7 @@ describe("webhook trigger route security edges", () => {
     resetWorkflowRuntimeProvidersForTest();
     const res = await globalThis.fetch(`http://127.0.0.1:${server.port}/webhooks/deploy`, {
       method: "POST",
-      headers: { "X-Kota-Webhook-Signature": signBodyOnly(WEBHOOK_SECRET, "") },
+      headers: timestampedWebhookHeaders(WEBHOOK_SECRET, ""),
     });
     expect(res.status).toBe(503);
   });

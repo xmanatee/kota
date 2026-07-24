@@ -25,9 +25,8 @@ verify them before completion:
 - `$KOTA_RUN_DIR/success-criteria.txt`
 - `$KOTA_RUN_DIR/success-criteria-verified.txt`
 
-`$KOTA_RUN_DIR` is the workflow-provided, agent-writable run directory. In
-worktree mode it lives inside the selected task worktree, not the canonical
-checkout's `.kota/runs/` directory.
+`$KOTA_RUN_DIR` is the workflow-provided, agent-writable run directory. In worktree
+mode it lives inside the selected task worktree, not the canonical checkout's `.kota/runs/` directory.
 These files must be stageable from the active workspace; if a `.gitignore`
 rule hides them, add the precise run-specific exception instead of leaving
 the evidence disposable.
@@ -98,5 +97,4 @@ files:
 - src/path/to/file.ts
 ```
 
-This section does not waive positive growth, unnamed warning files, or unrelated
-oversized edits; it only keeps a reducing cleanup task from blocking.
+This section does not waive positive growth, unnamed warning files, or unrelated oversized edits; it only keeps a reducing cleanup task from blocking.

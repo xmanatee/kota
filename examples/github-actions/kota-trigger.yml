@@ -38,9 +38,9 @@ jobs:
 
           TIMESTAMP=$(date +%s%3N)
 
-          SIG=$(printf '%s' "$PAYLOAD" \
+          SIG=$(printf '%s.%s' "$TIMESTAMP" "$PAYLOAD" \
             | openssl dgst -sha256 -hmac "$KOTA_WEBHOOK_SECRET" \
-            | awk '{print "sha256="$2}')
+            | awk '{print "sha256-v2="$2}')
 
           RESPONSE=$(curl -sf -w "\n%{http_code}" -X POST \
             "${KOTA_DAEMON_URL}/webhooks/${WORKFLOW_NAME}" \
