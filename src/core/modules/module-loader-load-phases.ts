@@ -124,7 +124,10 @@ export function commitModuleTools(
   tools: readonly ToolDef[],
 ): void {
   for (const def of tools) {
-    registerTool(def.tool, def.runner, mod.name, { effect: def.effect });
+    registerTool(def.tool, def.runner, mod.name, {
+      effect: def.effect,
+      ...(def.resolveEffect ? { resolveEffect: def.resolveEffect } : {}),
+    });
     if (def.group) registerCustomGroup(def.group, [def.tool.name]);
   }
   state.moduleToolCounts.set(mod.name, tools.length);

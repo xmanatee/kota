@@ -94,6 +94,12 @@ type ResolvedToolEffect =
   | { source: "manifest"; risk: RiskLevel }
   | { source: "registry"; risk: RiskLevel };
 
+const RISK_RANK: Record<RiskLevel, number> = {
+  safe: 0,
+  moderate: 1,
+  dangerous: 2,
+};
+
 const BENIGN_ENVIRONMENT_OVERRIDE_NAMES = new Set([
   "CI",
   "FORCE_COLOR",
@@ -391,7 +397,22 @@ export function classifyToolCallInputEffectOverride(
   input: ToolCallInput,
 ): ToolCallInputEffectOverride | null {
   if (name === "web_fetch" || name === "http_request") {
-    return classifySaveToLocalWrite(input);
+    const localWrite = classifySaveToLocalWrite(input);
+    if (localWrite) return localWrite;
+  }
+
+  const inputEffect = getToolEffect(name, input);
+  if (inputEffect) {
+    const risk = riskFromEffect(inputEffect);
+    const staticEffect =
+      findModuleManifestToolEffect(name)?.effect ?? getToolEffect(name);
+    if (!staticEffect || RISK_RANK[risk] >= RISK_RANK[riskFromEffect(staticEffect)]) {
+      return {
+        kind: inputEffect.kind,
+        risk,
+        reason: `${name} invocation has a ${inputEffect.kind} ${inputEffect.scope} effect`,
+      };
+    }
   }
   return null;
 }

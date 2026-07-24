@@ -1,0 +1,19 @@
+Repair attempts 11 through 13 hit a sandbox restriction while
+creating the real worktree index lock under the shared `.git/worktrees/`
+directory.
+
+The complete working-tree snapshot is staged in the writable run-scoped index:
+
+.kota/tmp/2026-07-24T11-36-24-622Z-builder-nxwngn/git-index
+
+New staged blobs live in the sibling `git-objects` directory, using the
+repository object database as an alternate.
+
+That snapshot includes the completed task path, configured-destination repair,
+final shorthand and option-parsing fixes, tests, success-criteria artifacts,
+this note, and the refreshed commit message. The canonical index retains the
+earlier staged implementation, but the sandbox rejected its latest `git add -A`
+with `index.lock: Operation not permitted`. The run-scoped index was rebuilt
+from `HEAD`, staged with `git add -A`, and verified to have no unstaged or
+untracked non-ignored paths. Direct queue validation passed against the final
+working tree.

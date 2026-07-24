@@ -14,6 +14,7 @@ import { registration as handoffAgent } from "./handoff-agent.js";
 import { registration as moduleFactory } from "./module-factory/index.js";
 import { assertToolStructuredOutput } from "./output-schema.js";
 import { getTodoState, registration as todo } from "./todo.js";
+import * as toolEffectRegistry from "./tool-effect-registry.js";
 import { deregisterToolsFromGroups, registerCustomGroup, runEnableTools } from "./tool-groups.js";
 import { assertNotMcpManagedToolName } from "./tool-name-policy.js";
 import type { ToolResult, ToolResultBlock } from "./tool-result.js";
@@ -57,6 +58,8 @@ export type ToolRegistration = {
    * annotations, and autonomy-mode posture. See `./effect.ts`.
    */
   effect: ToolEffect;
+  /** Invocation-specific effect escalation for tools that expose multiple operations. */
+  resolveEffect?: toolEffectRegistry.ToolEffectResolver;
   /** Tool group for progressive disclosure. Undefined = core (always available). */
   group?: string;
 };
@@ -91,17 +94,18 @@ let _initialized = false;
 export function getCoreRegistrations(): readonly ToolRegistration[] {
   if (!_coreRegistrations) {
     _coreRegistrations = registrationImports.map((fn) => fn());
+    toolEffectRegistry.setCoreToolEffects(_coreRegistrations);
   }
   return _coreRegistrations;
 }
 
-/**
- * Returns the effect descriptor of a tool by name, checking core then
- * module-registered tools. Undefined when the tool is not registered.
- */
-export function getToolEffect(name: string): ToolEffect | undefined {
-  return getCoreRegistrations().find((r) => r.tool.name === name)?.effect
-    ?? moduleToolMeta.get(name)?.effect;
+/** Returns the static effect, or the invocation-specific effect when input is provided. */
+export function getToolEffect(
+  name: string,
+  input?: Parameters<ToolRunner>[0],
+): ToolEffect | undefined {
+  getCoreRegistrations();
+  return toolEffectRegistry.resolveRegisteredToolEffect(name, input);
 }
 
 // ─── Build runners and tools from registrations (lazy) ───────────────
@@ -152,14 +156,11 @@ export async function executeTool(
 const customToolNames = new Set<string>();
 /** Maps module name → set of tool names it registered. */
 const moduleToolOwners = new Map<string, Set<string>>();
-/** Effect metadata for module-registered tools. */
-const moduleToolMeta = new Map<string, { effect: ToolEffect }>();
-
 export function registerTool(
   tool: KotaTool,
   runner: ToolRunner,
   moduleName?: string,
-  meta?: { effect: ToolEffect },
+  meta?: toolEffectRegistry.ToolEffectMetadata,
 ): void {
   ensureInit();
   assertNotMcpManagedToolName(tool.name);
@@ -170,7 +171,7 @@ export function registerTool(
   runners[tool.name] = runner;
   customToolNames.add(tool.name);
   if (meta) {
-    moduleToolMeta.set(tool.name, { effect: meta.effect });
+    toolEffectRegistry.setModuleToolEffect(tool.name, meta);
   }
   if (moduleName) {
     let owned = moduleToolOwners.get(moduleName);
@@ -190,7 +191,7 @@ export function deregisterTool(name: string): boolean {
   tools.splice(idx, 1);
   delete runners[name];
   customToolNames.delete(name);
-  moduleToolMeta.delete(name);
+  toolEffectRegistry.deleteModuleToolEffect(name);
   // Remove from module ownership tracking
   for (const [owner, owned] of moduleToolOwners) {
     if (owned.delete(name) && owned.size === 0) {
@@ -210,7 +211,7 @@ export function deregisterModuleTools(moduleName: string): void {
     if (idx >= 0) tools.splice(idx, 1);
     delete runners[name];
     customToolNames.delete(name);
-    moduleToolMeta.delete(name);
+    toolEffectRegistry.deleteModuleToolEffect(name);
   }
   deregisterToolsFromGroups(owned);
   moduleToolOwners.delete(moduleName);
@@ -259,7 +260,7 @@ export function resolveRegisteredToolSetByEffect(
   const resolvedRunners: { [name: string]: ToolRunner } = {};
   for (const tool of tools) {
     if (!customToolNames.has(tool.name)) continue;
-    const meta = moduleToolMeta.get(tool.name);
+    const meta = toolEffectRegistry.getModuleToolEffectMetadata(tool.name);
     const runner = runners[tool.name];
     if (!meta || !runner || !include(meta.effect, tool)) continue;
     resolvedTools.push(tool);
@@ -277,7 +278,7 @@ export function clearCustomTools(): void {
   }
   customToolNames.clear();
   moduleToolOwners.clear();
-  moduleToolMeta.clear();
+  toolEffectRegistry.clearModuleToolEffects();
   clearModuleCapabilityManifestProjections();
 }
 

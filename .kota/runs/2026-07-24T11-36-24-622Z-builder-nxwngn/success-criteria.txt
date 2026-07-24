@@ -1,0 +1,4 @@
+1. Git push parsing identifies force semantics from flags and `+` refspecs, resolves each destination, and rejects non-lease forced updates targeting protected `main` or `master` branches regardless of source or refspec syntax.
+2. Git push tool effects classify pushes as external-network mutations and classify forced pushes as dangerous without weakening existing protected-branch authorization.
+3. Focused bare-remote regressions cover positive force refspecs and feature-to-protected-branch force pushes, while valid non-protected pushes and force-with-lease behavior remain intentional.
+4. The protected-branch security task records fresh verification evidence and reaches `done` only after applicable tests and validation pass.

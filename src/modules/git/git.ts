@@ -3,6 +3,7 @@ import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import { protectedNonLeaseForcePushTarget } from "./push-safety.js";
 
 export const gitTool: KotaTool = {
 	name: "git",
@@ -69,6 +70,65 @@ function git(args: string[], context?: ToolRunnerContext): Promise<{ stdout: str
 
 function getCurrentBranch(context?: ToolRunnerContext): Promise<string> {
 	return git(["rev-parse", "--abbrev-ref", "HEAD"], context).then((r) => r.stdout.trim());
+}
+
+async function readGitConfigValues(
+	key: string,
+	context?: ToolRunnerContext,
+): Promise<readonly string[]> {
+	const result = await git(["config", "--null", "--get-all", key], context);
+	if (result.code === 1) return [];
+	if (result.code !== 0) {
+		throw new Error(result.stderr.trim() || `git config failed for ${key}`);
+	}
+	const values = result.stdout.split("\0");
+	if (values.at(-1) === "") values.pop();
+	return values;
+}
+
+async function readGitConfigBoolean(
+	key: string,
+	context?: ToolRunnerContext,
+): Promise<boolean | null> {
+	const result = await git(["config", "--bool", "--get", key], context);
+	if (result.code === 1) return null;
+	if (result.code !== 0) {
+		throw new Error(result.stderr.trim() || `git config failed for ${key}`);
+	}
+	return result.stdout.trim() === "true";
+}
+
+async function hasGitRemote(
+	name: string,
+	context?: ToolRunnerContext,
+): Promise<boolean> {
+	const result = await git(["remote"], context);
+	if (result.code !== 0) {
+		throw new Error(result.stderr.trim() || "git remote failed");
+	}
+	return result.stdout.split(/\r?\n/).includes(name);
+}
+
+async function readGitRemoteGroup(
+	name: string,
+	context?: ToolRunnerContext,
+): Promise<readonly string[]> {
+	const result = await git(
+		["config", "--null", "--get-regexp", "^remotes\\."],
+		context,
+	);
+	if (result.code === 1) return [];
+	if (result.code !== 0) {
+		throw new Error(result.stderr.trim() || "git config failed for remote groups");
+	}
+	const values: string[] = [];
+	for (const entry of result.stdout.split("\0")) {
+		if (!entry) continue;
+		const separator = entry.indexOf("\n");
+		if (separator < 0 || entry.slice(0, separator) !== `remotes.${name}`) continue;
+		values.push(...entry.slice(separator + 1).split(/\s+/).filter(Boolean));
+	}
+	return values;
 }
 
 async function opStatus(context?: ToolRunnerContext): Promise<ToolResult> {
@@ -171,15 +231,31 @@ async function opBranch(args: string, context?: ToolRunnerContext): Promise<Tool
 
 async function opPush(args: string, context?: ToolRunnerContext): Promise<ToolResult> {
 	const parts = args?.trim().split(/\s+/).filter(Boolean) ?? [];
-
-	if (parts.some((p) => p === "--force" || p === "-f")) {
-		const branch = await getCurrentBranch(context);
-		if (PROTECTED_BRANCHES.has(branch)) {
-			return {
-				content: `Blocked: force-push to '${branch}' is not allowed. Use --force-with-lease for safety.`,
-				is_error: true,
-			};
-		}
+	const currentBranch = await getCurrentBranch(context);
+	let protectedTarget: string | null;
+	try {
+		protectedTarget = await protectedNonLeaseForcePushTarget(
+			args,
+			currentBranch,
+			{
+				getAll: (key) => readGitConfigValues(key, context),
+				getBoolean: (key) => readGitConfigBoolean(key, context),
+				getRemoteGroup: (name) => readGitRemoteGroup(name, context),
+				hasRemote: (name) => hasGitRemote(name, context),
+			},
+		);
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		return {
+			content: `Error: unable to verify push safety: ${message}`,
+			is_error: true,
+		};
+	}
+	if (protectedTarget) {
+		return {
+			content: `Blocked: force-push to protected branch '${protectedTarget}' is not allowed. Use --force-with-lease for safety.`,
+			is_error: true,
+		};
 	}
 
 	const result = await git(["push", ...parts], context);

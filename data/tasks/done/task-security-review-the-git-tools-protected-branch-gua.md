@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-git-tools-protected-branch-gua
 title: Security review: The git tool's protected-branch guard can be bypassed with a force refspec such as `origin +HEAD:main`. The operation is also classified as a local write, so the default moderate-risk policy allows this destructive remote update without approval.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: The git tool's protected-branch guard can be bypassed with a force refspec such as `origin +HEAD:main`. The operation is also classified as a local write, so the default moderate-risk policy allows this destructive remote update without approval.
 created_at: 2026-07-24T11:35:59.566Z
-updated_at: 2026-07-24T11:35:59.566Z
+updated_at: 2026-07-24T16:41:28.000Z
 ---
 
 ## Problem
@@ -139,3 +139,10 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run src/core/tools/tool-runner.test.ts src/core/tools/tool-runner-permission.test.ts src/core/tools/guardrails.test.ts src/core/tools/guardrails-resolved-effects.test.ts src/modules/git/index.test.ts src/modules/git/git.test.ts src/modules/git/git-push-regression.test.ts src/modules/git/push-safety.test.ts src/core/modules/module-loader.test.ts src/modules/workflow-ops/execution/trial.test.ts src/docs-surface.test.ts src/strict-types-policy.integration.test.ts --configLoader runner --silent=true` — 282 tests passed, including `--repo`, separate option values, `@`, `heads/main`, and abbreviated-option regressions.
+- `./node_modules/.bin/biome check src/`, `NODE_OPTIONS=--conditions=source ./node_modules/.bin/tsc --noEmit`, and `node --conditions=source --import tsx src/validate-queue.ts` — passed.
+- The severe source-size gate passed. It retained advisory warnings for three pre-existing oversized core files touched by small protocol changes: `module-loader-load-phases.ts` (+3 lines), `module-types.ts` (+7), and `guardrails-classify.ts` (+21).
+- The full suite reached 12,020 passing tests. Its remaining failures were environmental: pnpm registry signatures could not be fetched, and the sandbox made the worktree's real Git index read-only; the docs-surface failure found during that run was fixed and rechecked.

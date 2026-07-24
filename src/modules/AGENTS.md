@@ -43,6 +43,10 @@ This directory contains the project-owned modules.
 - Dynamic system-prompt providers must gate on the session's effective tool
   policy and return an empty string when their tool is unavailable. Tool
   descriptions own input shape; dynamic prompt text owns conversational timing.
+- Multi-operation tools whose risk changes by input use `ToolDef.resolveEffect`
+  to escalate the invocation. Keep the static effect aligned with the tool's
+  broad discovery/MCP scope; runtime classification never accepts a lower
+  invocation risk than the static or manifest declaration.
 
 ## Workflow contribution precedence
 

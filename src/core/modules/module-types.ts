@@ -31,6 +31,7 @@ import type {
 } from "#core/server/kota-client.js";
 import type { ToolEffect } from "#core/tools/effect.js";
 import type { ToolRunner } from "#core/tools/index.js";
+import type { ToolEffectResolver } from "#core/tools/tool-effect-registry.js";
 import type { ToolMiddlewareFn } from "#core/tools/tool-middleware.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "#core/workflow/types.js";
@@ -177,6 +178,12 @@ export type ToolDef = {
    * autonomy-mode posture, and MCP annotations. See `#core/tools/effect.js`.
    */
   effect: ToolEffect;
+  /**
+   * Invocation-specific effect escalation for multi-operation tools. The
+   * static effect remains the conservative baseline and discovery/MCP
+   * projection.
+   */
+  resolveEffect?: ToolEffectResolver;
 };
 
 export type ModuleRouteMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";

@@ -71,7 +71,10 @@ export function handleCreate(
 	if (tools.length > 0) {
 		for (const def of tools) {
 			try {
-				registerTool(def.tool, def.runner, manifest.name);
+				registerTool(def.tool, def.runner, manifest.name, {
+					effect: def.effect,
+					...(def.resolveEffect ? { resolveEffect: def.resolveEffect } : {}),
+				});
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
 				deregisterModuleTools(manifest.name);
