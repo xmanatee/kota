@@ -1,12 +1,12 @@
 ---
 id: task-health-control-coverage-agent-step-stream-missing-agent-step-events
 title: Repair autonomy health pattern control-coverage:agent-step-stream:missing-agent-step-events
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Health signals labeled agent-step-stream, control-coverage, local-code, missing-agent-step-events, runtime repeatedly point at control-coverage:agent-step-stream:missing-agent-step-events; investigate and improve the local autonomy protocol, validation, prompt, or module behavior without relying on direct auto-repair.
 created_at: 2026-07-24T22:55:50.311Z
-updated_at: 2026-07-24T22:55:50.311Z
+updated_at: 2026-07-25T08:41:35.000Z
 task_class: Meta
 ---
 
@@ -82,3 +82,31 @@ Autonomy fleet health: repeated local workflow and runtime health patterns shoul
 
 - Focused test output covering the repaired health pattern.
 - A follow-up `.kota/runs/` artifact, event replay, or reviewer artifact showing the pattern no longer routes incorrectly.
+
+## Resolution
+
+The cited builder and security-review runs were both interrupted by the same
+daemon restart after the harness-capability artifact was written but before an
+agent-step result was recorded. The monitor treated that incomplete lifecycle
+as evidence that a streaming harness had failed to emit events.
+
+Commit `baefd49eae4ed148947acb4f143fba829312ea13`, which landed after this task
+was generated and is present in this builder's base commit, repairs that root
+cause without changing either specialized workflow: an interrupted run with
+no step result now records agent-step stream and trajectory coverage as
+pending. The focused regression covers this generic lifecycle state without a
+workflow-name allowlist. The existing autonomy-health dedupe key remains
+unchanged, so later reviews update the same group instead of creating a second
+repair identity.
+
+## Completion Evidence
+
+- Focused tests:
+  `src/core/workflow/control-monitor-coverage.test.ts` and
+  `src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit-control-coverage.test.ts`,
+  plus the terminal-task dedupe regression passed (3 files, 15 tests).
+- Replay:
+  `.kota/runs/2026-07-25T08-27-06-877Z-builder-egqm95/control-monitor-coverage-replay.json`
+  re-evaluates both cited runs on current code. Each now has pending stream and
+  trajectory coverage with no `missing-agent-step-events` or
+  `missing-trajectory-diagnostics` gap.

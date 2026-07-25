@@ -1,0 +1,4 @@
+1. Identify the repeated missing-agent-step-events root cause from both cited run artifacts.
+2. Verify the local control-coverage repair classifies interrupted, result-less agent steps accurately without workflow-name allowlists or direct auto-repair.
+3. Prove the generic regression and autonomy-health routing path with focused tests.
+4. Preserve the dedupe key and record a replay artifact showing both cited runs no longer produce the false gap.

@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "replayedAt": "2026-07-25T08:41:35.000Z",
+  "implementationCommit": "baefd49eae4ed148947acb4f143fba829312ea13",
+  "headSha": "55fc6d40727b5ae8c9e2beb2689c48daebb0b254",
+  "sourceEvidence": [
+    ".kota/runs/2026-07-24T19-45-52-295Z-builder-kubiqi/control-monitor-coverage.json",
+    ".kota/runs/2026-07-24T20-36-32-226Z-security-review-yqlm1v/control-monitor-coverage.json"
+  ],
+  "results": [
+    {
+      "runId": "2026-07-24T19-45-52-295Z-builder-kubiqi",
+      "sourceStatus": "interrupted",
+      "agentStepStream": {
+        "family": "agent-step-stream",
+        "numerator": 0,
+        "denominator": 1,
+        "pending": 1,
+        "blocked": 0,
+        "warned": 0,
+        "evidenceRefs": [
+          ".kota/runs/2026-07-24T19-45-52-295Z-builder-kubiqi/steps/build.harness-capability.json"
+        ],
+        "gapIds": [],
+        "status": "pending"
+      },
+      "trajectoryDiagnostics": {
+        "family": "trajectory-diagnostics",
+        "numerator": 0,
+        "denominator": 1,
+        "pending": 1,
+        "blocked": 0,
+        "warned": 0,
+        "evidenceRefs": [
+          ".kota/runs/2026-07-24T19-45-52-295Z-builder-kubiqi/metadata.json"
+        ],
+        "gapIds": [],
+        "status": "pending"
+      },
+      "matchingGaps": []
+    },
+    {
+      "runId": "2026-07-24T20-36-32-226Z-security-review-yqlm1v",
+      "sourceStatus": "interrupted",
+      "agentStepStream": {
+        "family": "agent-step-stream",
+        "numerator": 0,
+        "denominator": 1,
+        "pending": 1,
+        "blocked": 0,
+        "warned": 0,
+        "evidenceRefs": [
+          ".kota/runs/2026-07-24T20-36-32-226Z-security-review-yqlm1v/steps/investigate-candidates.harness-capability.json"
+        ],
+        "gapIds": [],
+        "status": "pending"
+      },
+      "trajectoryDiagnostics": {
+        "family": "trajectory-diagnostics",
+        "numerator": 0,
+        "denominator": 1,
+        "pending": 1,
+        "blocked": 0,
+        "warned": 0,
+        "evidenceRefs": [
+          ".kota/runs/2026-07-24T20-36-32-226Z-security-review-yqlm1v/metadata.json"
+        ],
+        "gapIds": [],
+        "status": "pending"
+      },
+      "matchingGaps": []
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+1. Verified: both cited runs were interrupted by one daemon restart after harness capability capture and before any agent-step result or message artifact was persisted.
+2. Verified: commit baefd49eae4ed148947acb4f143fba829312ea13 generically maps interrupted runs with no step result to pending stream and trajectory coverage; both cited run replays contain no matching false gap.
+3. Verified: the focused control-monitor, autonomy-health reviewer, and terminal-task dedupe suites passed 15 of 15 tests.
+4. Verified: the task retains autonomy-health-dedupe-key control-coverage:agent-step-stream:missing-agent-step-events and the run replay records both original evidence refs.

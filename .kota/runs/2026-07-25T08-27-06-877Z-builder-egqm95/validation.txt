@@ -1,0 +1,18 @@
+Focused validation:
+
+NODE_OPTIONS=--conditions=source TMPDIR=/private/tmp ./node_modules/.bin/vitest run src/core/workflow/control-monitor-coverage.test.ts src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit-control-coverage.test.ts src/modules/autonomy/workflows/autonomy-health-reviewer/health-review-terminal-task.test.ts --configLoader runner --silent=true
+
+Result: passed
+Test Files: 3 passed (3)
+Tests: 15 passed (15)
+Duration: 361ms
+
+Replay validation:
+
+Both source artifacts were rebuilt through buildControlMonitorCoverageArtifact at HEAD 55fc6d40727b5ae8c9e2beb2689c48daebb0b254. Both classify agent-step-stream and trajectory-diagnostics as pending, and both matchingGaps arrays are empty.
+
+Queue validation:
+
+node --conditions=source --import tsx src/validate-queue.ts
+
+Result: passed.
