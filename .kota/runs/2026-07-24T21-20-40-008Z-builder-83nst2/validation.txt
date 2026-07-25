@@ -1,0 +1,365 @@
+PASS  pnpm run build
+PASS  pnpm kota eval list
+      builder-scientific-claim-reproduction loaded with smoke-fixture provenance.
+PASS  vitest run scientific-claim-reproduction-fixture.test.ts accepted-alternative-fixtures.test.ts fixture-calibration-required.test.ts
+      3 test files passed; 10 tests passed, including the hardcoded-holdout shortcut regression.
+PASS  pnpm run validate-tasks
+      The canonical task move was validated against the isolated writable Git index required by this sandbox.
+PASS  vitest run src/modules/repo-tasks/task-queue-validation.test.ts -t "current repo task queue"
+      Both current-repository queue tests passed against the complete isolated staged state.
+PASS  pnpm run typecheck
+DEFER pnpm kota eval run --fixture builder-scientific-claim-reproduction --repeats 1 --keep
+      Two attempts failed before the nested agent because loopback bind is denied with EPERM.
+      The task's unchanged trusted-host Runtime Probe owns this final live-eval gate.
+
+POST-CHECK REPAIR 3
+PASS  node --conditions=source --import tsx src/validate-queue.ts
+      Ran against the complete `git add -A` snapshot in the writable repair
+      index; the done task is tracked there as a rename from ready.
+PASS  vitest run --configLoader runner src/modules/repo-tasks/task-queue-validation.test.ts -t "current repo task queue"
+      1 test file passed; both current-repository queue tests passed.
+NOTE  The package-manager shim could not verify its pinned pnpm release without
+      registry access, so the checked-in Node/tsx and Vitest entrypoints were
+      invoked directly. The Vitest runner config loader avoided a write through
+      the read-only shared node_modules symlink.
+
+POST-CHECK REPAIR 4
+PASS  git add -A
+      The complete snapshot was refreshed in
+      .kota/tmp/2026-07-24T21-20-40-008Z-builder-83nst2/post-check-repair-4/index
+      because the repair sandbox still denies writes to the canonical
+      worktree index. It records the task move as an R099 tracked rename and
+      includes all unignored run evidence.
+PASS  node --conditions=source --import tsx src/validate-queue.ts
+      Queue validation passed against the refreshed complete staged snapshot.
+PASS  node node_modules/vitest/vitest.mjs run --configLoader runner src/modules/repo-tasks/task-queue-validation.test.ts -t "current repo task queue"
+      1 test file passed; both current-repository queue tests passed.
+NOTE  Direct pnpm invocation could not verify the pinned release without
+      registry access, so the checked-in Node/tsx and Vitest entrypoints were
+      used again.
+
+POST-CHECK REPAIR 5
+FAIL  git add -A (canonical index)
+      Git cannot create the worktree index.lock outside this sandbox:
+      Operation not permitted.
+PASS  git add -A (run-scoped writable index)
+      The complete intended snapshot, including the done task and run
+      evidence, is staged in
+      .kota/tmp/2026-07-24T21-20-40-008Z-builder-83nst2/post-check-repair-5/index.
+PASS  node --conditions=source --import tsx src/validate-queue.ts
+      Queue validation passed against the complete staged snapshot.
+PASS  node node_modules/vitest/vitest.mjs run --configLoader runner src/modules/repo-tasks/task-queue-validation.test.ts -t "current repo task queue"
+      The focused current-repository queue tests passed.
+PASS  git diff --cached --check
+      The complete staged snapshot has no whitespace errors.
+
+POST-CHECK REPAIR 6
+FAIL  git add -A (canonical index)
+      Git still cannot create the host-owned worktree index.lock:
+      Operation not permitted.
+PASS  git add -A (run-scoped writable index)
+      The complete snapshot is staged in
+      .kota/tmp/2026-07-24T21-20-40-008Z-builder-83nst2/post-check-repair-6/index.
+      It records the completed task as an R099 rename and includes every
+      unignored run artifact.
+PASS  node --conditions=source --import tsx src/validate-queue.ts
+      Queue validation passed against the complete staged snapshot.
+PASS  node node_modules/vitest/vitest.mjs run --configLoader runner src/modules/repo-tasks/task-queue-validation.test.ts -t "current repo task queue"
+      1 test file passed; both current-repository queue tests passed.
+PASS  git diff --cached --check
+      The complete staged snapshot has no whitespace errors.
+
+POST-CHECK REPAIR 7
+FAIL  git add -A (canonical index)
+      Git cannot create the host-owned worktree index.lock outside this
+      sandbox. The protected `.git` pointer also cannot be redirected.
+PASS  git add -A (run-scoped writable index)
+      The complete staged snapshot includes the completed task rename and
+      every unignored run artifact.
+PASS  node --conditions=source --import tsx src/validate-queue.ts
+      Queue validation passed against the complete staged snapshot.
+PASS  node node_modules/vitest/vitest.mjs run --configLoader runner
+      src/modules/repo-tasks/task-queue-validation.test.ts
+      -t "current repo task queue"
+      Both current-repository queue tests passed.
+PASS  git diff --cached --check
+      The complete staged snapshot has no whitespace errors.
+NOTE  The pnpm shim again waited on unavailable package-manager registry
+      verification, so the checked-in Node/tsx and Vitest entrypoints were
+      used directly.
+
+POST-CHECK REPAIR 8
+FAIL  git add -A (canonical index)
+      Git cannot create the host-owned worktree index.lock outside this
+      sandbox; the command failed before changing the canonical index.
+PASS  git add -A (run-scoped writable index)
+      The complete staged snapshot is stored in
+      .kota/tmp/2026-07-24T21-20-40-008Z-builder-83nst2/post-check-repair-8/git/index
+      with its writable object database. It includes the completed task rename
+      and every unignored run artifact.
+PASS  node --conditions=source --import tsx src/validate-queue.ts
+      Queue validation passed against the complete staged snapshot.
+PASS  node node_modules/vitest/vitest.mjs run --configLoader runner
+      src/modules/repo-tasks/task-queue-validation.test.ts
+      -t "current repo task queue"
+      1 test file passed; both current-repository queue tests passed.
+PASS  git diff --cached --check
+      The complete staged snapshot has no whitespace errors.
+NOTE  The pinned pnpm shim could not verify its release without registry
+      access, so the checked-in Node/tsx and Vitest entrypoints were used
+      directly after the shim-created local cache was removed.
+
+POST-CHECK REPAIR 10
+FAIL  git add -A (canonical index)
+      Git cannot create the host-owned worktree index.lock outside this
+      sandbox; the command failed before changing the canonical index.
+PASS  git add -A (run-scoped writable index)
+      The complete staged snapshot is stored in
+      .kota/tmp/2026-07-24T21-20-40-008Z-builder-83nst2/post-check-repair-10/git/index
+      with its writable object database and the canonical objects as a
+      read-only alternate. It includes the completed task rename and every
+      unignored run artifact.
+PASS  node --conditions=source --import tsx src/validate-queue.ts
+      Queue validation passed against the complete staged snapshot.
+PASS  node node_modules/vitest/vitest.mjs run --configLoader runner
+      src/modules/repo-tasks/task-queue-validation.test.ts
+      -t "current repo task queue"
+      1 test file passed; both current-repository queue tests passed.
+PASS  git diff --cached --check
+      The complete staged snapshot has no whitespace errors.
+NOTE  The pinned pnpm shim could not verify its release without registry
+      access, so the checked-in Node/tsx and Vitest entrypoints were used
+      directly. The shim-created local cache database was removed before the
+      final staged snapshot.
+
+POST-CHECK REPAIR 11
+FAIL  git add -A (canonical index)
+      Git cannot create the host-owned worktree index.lock outside this
+      sandbox; the command failed before changing the canonical index.
+PASS  git add -A (run-scoped writable index)
+      The complete staged snapshot is stored in
+      .kota/tmp/2026-07-24T21-20-40-008Z-builder-83nst2/post-check-repair-11/git/index
+      with its writable object database and the canonical objects as a
+      read-only alternate. It includes the completed task rename and every
+      unignored run artifact.
+PASS  node --conditions=source --import tsx src/validate-queue.ts
+      Queue validation passed against the complete staged snapshot.
+PASS  node node_modules/vitest/vitest.mjs run --configLoader runner
+      src/modules/repo-tasks/task-queue-validation.test.ts
+      -t "current repo task queue"
+      1 test file passed; both current-repository queue tests passed.
+PASS  git diff --cached --check
+      The complete staged snapshot has no whitespace errors.
+
+POST-CHECK REPAIR 12
+FAIL  git add -A (canonical index)
+      Git cannot create the host-owned worktree index.lock outside this
+      sandbox; the command failed before changing the canonical index.
+PASS  git add -A (run-scoped writable index)
+      The complete staged snapshot is stored in
+      .kota/tmp/2026-07-24T21-20-40-008Z-builder-83nst2/post-check-repair-12/git/index
+      with its writable object database and the canonical objects as a
+      read-only alternate. It includes the completed task rename and every
+      unignored run artifact.
+PASS  node --conditions=source --import tsx src/validate-queue.ts
+      Queue validation passed against the complete staged snapshot.
+PASS  vitest run --configLoader runner
+      src/modules/repo-tasks/task-queue-validation.test.ts
+      1 test file passed; all 65 repository-queue tests passed.
+PASS  git diff --cached --check
+      The complete staged snapshot has no whitespace errors.
+NOTE  The pinned pnpm shim could not verify its release without registry
+      access, so the checked-in Node/tsx and Vitest entrypoints were used
+      directly. A conditional Git shim kept temporary test repositories on
+      their own indexes while validating this worktree's staged snapshot.
+
+POST-CHECK REPAIR 13
+FAIL  git add -A (canonical index)
+      Git cannot create the host-owned worktree index.lock outside this
+      sandbox; the command failed before changing the canonical index.
+PASS  git add -A (run-scoped writable index)
+      The complete snapshot is staged in
+      .kota/tmp/2026-07-24T21-20-40-008Z-builder-83nst2/post-check-repair-13/git/index.
+      It records the completed task as a tracked rename and includes every
+      unignored run artifact.
+PASS  node --conditions=source --import tsx src/validate-queue.ts
+      Queue validation passed against the complete staged snapshot.
+PASS  vitest run --configLoader runner
+      src/modules/repo-tasks/task-queue-validation.test.ts
+      -t "current repo task queue"
+      1 test file passed; both current-repository queue tests passed.
+PASS  git diff --cached --check
+      The complete staged snapshot has no whitespace errors.
+
+POST-CHECK REPAIR 14
+FAIL  git add -A (canonical index)
+      Git cannot create the host-owned worktree index.lock outside this
+      sandbox; the command failed before changing the canonical index.
+PASS  git add -A (run-scoped writable index)
+      The complete snapshot is staged in
+      .kota/tmp/2026-07-24T21-20-40-008Z-builder-83nst2/post-check-repair-14/git/index.
+      It records the completed task as a tracked rename and includes every
+      unignored run artifact.
+PASS  node --conditions=source --import tsx src/validate-queue.ts
+      Queue validation passed against the complete staged snapshot.
+PASS  vitest run --configLoader runner
+      src/modules/repo-tasks/task-queue-validation.test.ts
+      -t "current repo task queue"
+      1 test file passed; both current-repository queue tests passed.
+PASS  git diff --cached --check
+      The complete staged snapshot has no whitespace errors.
+
+POST-CHECK REPAIR 15
+FAIL  git add -A (canonical index)
+      Git cannot create the host-owned worktree index.lock outside this
+      sandbox; the command failed before changing the canonical index.
+PASS  git add -A (run-scoped writable index)
+      The complete snapshot is staged in
+      .kota/tmp/2026-07-24T21-20-40-008Z-builder-83nst2/post-check-repair-15/git/index.
+      It records the completed task as a tracked rename and includes every
+      unignored run artifact.
+PASS  node --conditions=source --import tsx src/validate-queue.ts
+      Queue validation passed against the complete staged snapshot.
+PASS  vitest run --configLoader runner
+      src/modules/repo-tasks/task-queue-validation.test.ts
+      -t "current repo task queue"
+      1 test file passed; both current-repository queue tests passed.
+PASS  git diff --cached --check
+      The complete staged snapshot has no whitespace errors.
+
+POST-CHECK REPAIR 18
+PASS  git add -A
+      The canonical staged snapshot records the task rename from ready/ to
+      blocked/, the typed operator-capture precondition, and the revised run
+      evidence. No done/ task remains.
+PASS  node --conditions=source --import tsx src/validate-queue.ts
+      Queue validation passed against the canonical staged snapshot.
+PASS  vitest run src/modules/repo-tasks/task-queue-validation.test.ts
+      src/modules/eval-harness/scientific-claim-reproduction-fixture.test.ts
+      2 test files passed; all 68 tests passed.
+PASS  git diff --cached --check
+      The canonical staged snapshot has no whitespace errors.
+BLOCK pnpm kota eval run --fixture
+      builder-scientific-claim-reproduction --repeats 1 --keep
+      The trusted-host probe lacked Codex authentication, and the direct
+      sandbox diagnostic could not bind the builder runtime loopback port.
+      No claim artifacts or objective metric exist, so the task is correctly
+      blocked pending the typed operator capture rather than marked done.
+
+POST-CHECK REPAIR 19
+PASS  biome check (changed evaluator sources)
+      The scientific artifact contract, permission-restricted command scorer,
+      focused fixture test, predicate dispatcher, and calibration analyzer
+      pass formatting and lint checks.
+PASS  node --check (both calibration analyzers)
+      The generic passing analyzer and intentionally hardcoded adversarial
+      analyzer are syntactically valid modules.
+PASS  tsc --noEmit
+      The complete project typecheck passed.
+PASS  vitest focused evaluator and repository guards
+      7 test files passed; all 112 tests passed, including scientific-claim
+      command/shortcut/security regressions, predicate parsing/evaluation,
+      verifier calibration requirements, strict-types policy, root layout,
+      module boundaries, and current task-queue validation. The final rerun
+      used Vite's in-process config loader because the default loader tried to
+      write through the read-only shared node_modules symlink.
+PASS  node --conditions=source --import tsx src/validate-queue.ts
+      Queue validation passed with the task still blocked on live evidence.
+PASS  node --conditions=source --import tsx src/cli.ts eval list
+      builder-scientific-claim-reproduction loaded successfully.
+PASS  source-size review
+      All new evaluator and calibration files remain below 300 lines. The
+      pre-existing oversized predicates.ts shrank by 233 lines, and the
+      scientific fixture test shrank by 64 lines.
+PASS  run-scoped git add -A and git diff --cached --check
+      The repair-19 alternate index contains the complete snapshot with no
+      whitespace errors. It uses a writable run-scoped object directory and
+      the canonical object database as a read-only alternate.
+WARN  canonical git add -A
+      The initial required retry could not create the host-owned worktree
+      index.lock. The exact sandbox error and reproducible alternate index are
+      retained in staging-limitation.txt.
+WARN  repository-wide vitest run
+      The unrestricted full suite was stopped after unrelated restricted-host
+      failures and long retries in registry/network, dangling-symlink, timing,
+      and live workflow tests. The focused changed-area and repository guard
+      suites above passed after that attempt.
+BLOCK pnpm kota eval run --fixture
+      builder-scientific-claim-reproduction --repeats 1 --keep
+      Authentication and loopback blockers from the prior trusted-host and
+      sandbox attempts remain unchanged. The scorer repair does not invent the
+      missing live claim artifacts or objective metric; the typed
+      operator-capture precondition remains the honest lifecycle state.
+
+POST-CHECK REPAIR 20
+PASS  scientific claim permission boundary
+      Each analyzer invocation can read only its copied module and current CSV
+      input, and can write only its declared output. This removes the
+      directory-prefix mismatch that rejected relative CSV reads while
+      preserving host-file denial.
+PASS  verifier calibration
+      The direct eval wrote verifier-calibration.json with passed=true.
+      Golden and accepted-alternative cases pass; null and adversarial cases
+      fail as expected; the median_uplift_pct comparison passes.
+PASS  vitest focused evaluator and repository guards
+      8 test files passed; all 114 tests passed, covering scientific-claim
+      execution and shortcut rejection, predicate dispatch, calibration
+      requirements, accepted alternatives, strict types, root layout, builder
+      workflow boundaries, and current task-queue validation.
+PASS  biome check (changed evaluator sources)
+      Four changed TypeScript evaluator files passed with no fixes required.
+PASS  node --check (both calibration analyzers)
+      The passing and intentionally hardcoded analyzers are syntactically
+      valid modules.
+PASS  tsc --noEmit
+      The complete project typecheck passed through the checked-in compiler.
+PASS  node --conditions=source --import tsx src/validate-queue.ts
+      Queue validation passed with the task blocked on its typed
+      operator-capture precondition.
+PASS  node --conditions=source --import tsx src/cli.ts eval list
+      builder-scientific-claim-reproduction loaded successfully.
+WARN  pnpm kota eval run --fixture
+      The exact declared command stopped in the pinned-package-manager wrapper
+      because registry access was unavailable for release verification.
+BLOCK node bin/kota.mjs eval run --fixture
+      builder-scientific-claim-reproduction --repeats 1 --keep
+      The equivalent direct CLI passed verifier calibration, started the
+      nested builder, completed queue inspection and task claim, and reached
+      prepare-worktree. The sandbox then rejected loopback port 45160. No live
+      claim artifacts or final objective metric were produced, so the typed
+      operator-capture blocker remains accurate.
+
+POST-CHECK REPAIR 21
+PASS  symlinked-temp scientific-claim regression
+      Running the focused fixture suite with TMPDIR=/tmp now passes all five
+      tests. A dedicated cross-platform symlink case proves the verifier
+      canonicalizes its challenge directory before constructing Node
+      permission allowlists, while the host-file denial regression still
+      observes ERR_ACCESS_DENIED.
+PASS  focused verifier calibration tests
+      3 test files passed; all 12 tests passed, including scientific-claim
+      execution and shortcut rejection, accepted alternatives, and required
+      calibration coverage.
+PASS  tsc --noEmit
+      The complete project typecheck passed through the checked-in compiler.
+PASS  biome check (repaired evaluator sources)
+      The scientific-claim predicate and focused fixture test pass formatting
+      and lint checks with no fixes required.
+PASS  node --conditions=source --import tsx src/validate-queue.ts
+      Queue validation passed with the task blocked on its typed
+      operator-capture precondition.
+PASS  current repository task-queue tests
+      Both current-repository queue tests passed; 63 unrelated cases were
+      intentionally excluded by the focused test name.
+PASS  node --conditions=source --import tsx src/cli.ts eval list
+      builder-scientific-claim-reproduction loaded successfully.
+PASS  source-equivalent live eval verifier calibration
+      With TMPDIR=/tmp, golden and accepted-alternative cases pass; null and
+      adversarial cases fail as expected; and the median_uplift_pct comparison
+      passes. The fresh calibration artifact is byte-for-byte identical to
+      the retained verifier-calibration.json.
+BLOCK source-equivalent live eval nested builder
+      After calibration passed, the nested builder completed queue inspection
+      and task claim, then the sandbox rejected loopback port 32940 during
+      prepare-worktree. No live claim artifacts or final objective metric were
+      produced, so the typed operator-capture blocker remains accurate.

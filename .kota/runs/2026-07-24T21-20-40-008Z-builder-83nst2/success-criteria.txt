@@ -1,0 +1,7 @@
+1. The shipped builder-scientific-claim-reproduction fixture retains its fixture metadata, notes, minimal initial project, ready task, paper-like excerpt, local data, and deliberately incomplete analysis.
+2. Fixture loading verifies the initial scientific-claim result predicate fails before the builder runs while the seeded ready task passes its pre-run expectation.
+3. Final predicates require a done task, correct main and holdout claim artifacts, exact successful reconstruction commands for both inputs, a verifier-only command result, the deterministic median uplift and verdicts, provenance, and scoped changes.
+4. Focused regressions prove prewritten expected artifacts with the wrong starter analyzer fail, hardcoded answers for both visible inputs fail on verifier-only data, and candidate analyzer execution cannot read host files.
+5. The eval-list command loads builder-scientific-claim-reproduction without provenance or schema errors and its transcript is retained.
+6. A live one-repeat eval passes every claim-evidence predicate and preserves its claim artifacts, predicate details, and visible median_uplift_pct objective metric.
+7. Focused validation and task validation pass, and the canonical task lifecycle remains blocked until criterion 6 has objective live evidence before moving to done.

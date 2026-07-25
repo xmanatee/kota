@@ -1,0 +1,256 @@
+{
+  "fixtureId": "builder-scientific-claim-reproduction",
+  "passed": true,
+  "calibratedPredicates": [
+    {
+      "kind": "lx12-scientific-claim-result",
+      "mainPath": "claim-result.json",
+      "holdoutPath": "claim-holdout-result.json",
+      "maxErrorPct": 0.000001
+    }
+  ],
+  "objectiveMetricCount": 1,
+  "objectiveMetricComparisons": [
+    {
+      "name": "median_uplift_pct",
+      "direction": "higher_is_better",
+      "passed": true,
+      "acceptedAlternativeValues": [
+        {
+          "caseId": "audited-json-evidence",
+          "value": 30
+        }
+      ],
+      "goldenValue": 30,
+      "adversarialValue": 0,
+      "detail": "golden objective metric \"median_uplift_pct\" was better than null and adversarial numeric values, or those cases failed metric evaluation"
+    }
+  ],
+  "cases": [
+    {
+      "id": "null",
+      "caseKind": "null",
+      "expected": "fail",
+      "setup": [],
+      "passed": true,
+      "scoringPassed": false,
+      "predicateResults": [
+        {
+          "predicate": {
+            "kind": "lx12-scientific-claim-result",
+            "mainPath": "claim-result.json",
+            "holdoutPath": "claim-holdout-result.json",
+            "maxErrorPct": 0.000001
+          },
+          "passed": false,
+          "detail": "lx12-scientific-claim-result failed:\n- main artifact: claim-result.json is missing\n- holdout artifact: claim-holdout-result.json is missing"
+        }
+      ],
+      "objectiveMetrics": [],
+      "objectiveMetricError": {
+        "name": "ObjectiveMetricValidationError",
+        "message": "Objective metric \"median_uplift_pct\" for fixture \"builder-scientific-claim-reproduction\" missing json-file source claim-result.json.",
+        "reason": "missing-source",
+        "fixtureId": "builder-scientific-claim-reproduction",
+        "metricName": "median_uplift_pct"
+      },
+      "detail": "case \"null\" matched expected verifier fail"
+    },
+    {
+      "id": "golden",
+      "caseKind": "golden",
+      "expected": "pass",
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/claim-result.json",
+          "targetPath": "claim-result.json"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/claim-holdout-result.json",
+          "targetPath": "claim-holdout-result.json"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/analyze-claim.mjs",
+          "targetPath": "scripts/analyze-claim.mjs"
+        }
+      ],
+      "passed": true,
+      "scoringPassed": true,
+      "predicateResults": [
+        {
+          "predicate": {
+            "kind": "lx12-scientific-claim-result",
+            "mainPath": "claim-result.json",
+            "holdoutPath": "claim-holdout-result.json",
+            "maxErrorPct": 0.000001
+          },
+          "passed": true,
+          "detail": "lx12-scientific-claim-result verified claim-result.json, claim-holdout-result.json, both declared analyzer commands, and a permission-restricted command against verifier-only data"
+        }
+      ],
+      "objectiveMetrics": [
+        {
+          "fixtureId": "builder-scientific-claim-reproduction",
+          "name": "median_uplift_pct",
+          "unit": "percent",
+          "direction": "higher_is_better",
+          "source": {
+            "kind": "json-file",
+            "path": "claim-result.json",
+            "pointer": "/metric/value"
+          },
+          "value": 30,
+          "runIndex": 0,
+          "repeatCount": 1,
+          "resourceProfile": {
+            "hostClass": "local-dev",
+            "cpuAllocationCores": 16,
+            "cpuKillThresholdCores": 16,
+            "memoryAllocationMB": 131072,
+            "memoryKillThresholdMB": 131072
+          },
+          "executionProfile": {
+            "status": "non-gating",
+            "backendKind": "host-subprocess",
+            "verification": "unverified",
+            "gateEligible": false,
+            "reason": "host-subprocess-unverified"
+          }
+        }
+      ],
+      "detail": "case \"golden\" matched expected verifier pass"
+    },
+    {
+      "id": "audited-json-evidence",
+      "caseKind": "accepted-alternative",
+      "expected": "pass",
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/accepted-alternatives/audited-json-evidence/claim-result.json",
+          "targetPath": "claim-result.json"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/accepted-alternatives/audited-json-evidence/claim-holdout-result.json",
+          "targetPath": "claim-holdout-result.json"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/analyze-claim.mjs",
+          "targetPath": "scripts/analyze-claim.mjs"
+        }
+      ],
+      "passed": true,
+      "scoringPassed": true,
+      "predicateResults": [
+        {
+          "predicate": {
+            "kind": "lx12-scientific-claim-result",
+            "mainPath": "claim-result.json",
+            "holdoutPath": "claim-holdout-result.json",
+            "maxErrorPct": 0.000001
+          },
+          "passed": true,
+          "detail": "lx12-scientific-claim-result verified claim-result.json, claim-holdout-result.json, both declared analyzer commands, and a permission-restricted command against verifier-only data"
+        }
+      ],
+      "objectiveMetrics": [
+        {
+          "fixtureId": "builder-scientific-claim-reproduction",
+          "name": "median_uplift_pct",
+          "unit": "percent",
+          "direction": "higher_is_better",
+          "source": {
+            "kind": "json-file",
+            "path": "claim-result.json",
+            "pointer": "/metric/value"
+          },
+          "value": 30,
+          "runIndex": 0,
+          "repeatCount": 1,
+          "resourceProfile": {
+            "hostClass": "local-dev",
+            "cpuAllocationCores": 16,
+            "cpuKillThresholdCores": 16,
+            "memoryAllocationMB": 131072,
+            "memoryKillThresholdMB": 131072
+          },
+          "executionProfile": {
+            "status": "non-gating",
+            "backendKind": "host-subprocess",
+            "verification": "unverified",
+            "gateEligible": false,
+            "reason": "host-subprocess-unverified"
+          }
+        }
+      ],
+      "detail": "case \"audited-json-evidence\" matched expected verifier pass"
+    },
+    {
+      "id": "adversarial",
+      "caseKind": "adversarial",
+      "expected": "fail",
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/claim-result.json",
+          "targetPath": "claim-result.json"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/claim-holdout-result.json",
+          "targetPath": "claim-holdout-result.json"
+        }
+      ],
+      "passed": true,
+      "scoringPassed": false,
+      "predicateResults": [
+        {
+          "predicate": {
+            "kind": "lx12-scientific-claim-result",
+            "mainPath": "claim-result.json",
+            "holdoutPath": "claim-holdout-result.json",
+            "maxErrorPct": 0.000001
+          },
+          "passed": false,
+          "detail": "lx12-scientific-claim-result failed:\n- main artifact: metric.value 0 differs from expected 30\n- holdout artifact: verdict \"refuted\" is not supported\n- holdout artifact: metric.value 30 differs from expected 60\n- holdout artifact: metric.treatment_median 13 differs from expected 16\n- holdout artifact: command must be \"node scripts/analyze-claim.mjs --data data/claims/lx12-holdout.csv --output claim-holdout-result.json\"\n- holdout artifact: provenance.data must be data/claims/lx12-holdout.csv\n- holdout artifact: provenance.row_ids.control must be HC1,HC2,HC3\n- holdout artifact: provenance.row_ids.lx12 must be HT1,HT2,HT3"
+        }
+      ],
+      "objectiveMetrics": [
+        {
+          "fixtureId": "builder-scientific-claim-reproduction",
+          "name": "median_uplift_pct",
+          "unit": "percent",
+          "direction": "higher_is_better",
+          "source": {
+            "kind": "json-file",
+            "path": "claim-result.json",
+            "pointer": "/metric/value"
+          },
+          "value": 0,
+          "runIndex": 0,
+          "repeatCount": 1,
+          "resourceProfile": {
+            "hostClass": "local-dev",
+            "cpuAllocationCores": 16,
+            "cpuKillThresholdCores": 16,
+            "memoryAllocationMB": 131072,
+            "memoryKillThresholdMB": 131072
+          },
+          "executionProfile": {
+            "status": "non-gating",
+            "backendKind": "host-subprocess",
+            "verification": "unverified",
+            "gateEligible": false,
+            "reason": "host-subprocess-unverified"
+          }
+        }
+      ],
+      "detail": "case \"adversarial\" matched expected verifier fail"
+    }
+  ]
+}

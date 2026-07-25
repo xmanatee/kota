@@ -1,0 +1,5 @@
+$ pnpm kota eval list
+exit: 0
+
+builder-scientific-claim-reproduction  (builder → builder)  decisions=act [autonomy, builder-discipline, scientific-claim, objective-metric, live-llm]
+  Builder reconstructs a small paper-like claim analysis from local data, produces machine-readable claim evidence, and distinguishes support from refutation through deterministic predicates.

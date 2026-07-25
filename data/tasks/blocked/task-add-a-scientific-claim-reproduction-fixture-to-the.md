@@ -1,12 +1,12 @@
 ---
 id: task-add-a-scientific-claim-reproduction-fixture-to-the
 title: Add a scientific-claim reproduction fixture to the eval harness
-status: ready
+status: blocked
 priority: p2
 area: modules
 summary: Seed an eval-harness fixture where the builder reconstructs a small underspecified computational workflow from a paper-like claim, executes deterministic evidence, and records whether the claim is supported or refuted.
 created_at: 2026-05-27T08:12:34.216Z
-updated_at: 2026-07-24T21:20:04.239Z
+updated_at: 2026-07-24T23:41:15.979Z
 ---
 
 ## Problem
@@ -98,6 +98,14 @@ The fixture should make the scientific-reproduction failure mode observable:
 command: pnpm kota eval run --fixture builder-scientific-claim-reproduction --repeats 1 --keep
 timeoutMs: 14400000
 
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/scientific-claim-reproduction-live-pass/
+description: authenticated trusted-host live eval evidence — operator ensures the Codex login is visible to the constrained Runtime Probe, runs `pnpm kota eval run --fixture builder-scientific-claim-reproduction --repeats 1 --keep`, and captures the passing transcript, eval-set-report.json, predicate details, claim-result.json, claim-holdout-result.json, and objective metric under .kota/runs/scientific-claim-reproduction-live-pass/
+```
+
 ## Status (2026-05-27 builder)
 
 The fixture files, minimal initial project, scorer, objective metric, and
@@ -170,8 +178,35 @@ The fixture is present and listed by `pnpm kota eval list`, but the required
 The latest local artifacts for this fixture stop before a complete
 `eval-set-report.json`, so there is no pass artifact to promote from.
 
-## Status (2026-07-24 recovery)
+## Status (2026-07-25 live-probe blocker)
 
-The daemon host has an authenticated Codex harness. The live pass is now owned
-by the provenance-pinned Runtime Probe above, so the earlier builder-sandbox
-network limitation is no longer an operator precondition.
+The provenance-pinned Runtime Probe reached a trusted host but stopped before
+the nested builder because Codex authentication was unavailable to the probe.
+A direct builder-sandbox retry also stopped before the nested agent because the
+sandbox rejects the loopback listener required by the builder runtime. Neither
+attempt produced `claim-result.json`, predicate results, or an objective metric,
+so the task remains blocked until the operator-capture precondition above is
+satisfied.
+
+## Status (2026-07-25 scorer hardening)
+
+The trusted scientific-claim predicate now reruns both declared analysis
+commands and one verifier-only data shape from a permission-restricted
+temporary directory. Focused regressions prove that prewriting both expected
+artifacts while retaining the wrong starter analyzer fails, hardcoding answers
+for both visible data sets fails on verifier-only data, and candidate code
+cannot read host files. The scorer resolves the temporary directory to its
+canonical path before granting each analyzer process access only to its copied
+module and current CSV input. This keeps relative analyzer reads working when
+the host temp path is a symlink such as `/tmp` while preserving host-file
+denial.
+
+The post-repair direct eval produced
+`.kota/runs/2026-07-24T21-20-40-008Z-builder-83nst2/verifier-calibration.json`
+with `passed: true`: golden and accepted-alternative cases pass, null and
+adversarial cases fail as expected, and the objective-metric comparison passes.
+A regression and direct eval using the symlinked `/tmp` path now pass the same
+calibration before execution reaches the nested builder's `prepare-worktree`
+step and stops at the sandbox's loopback-listener preflight. The remaining
+product criterion is the authenticated trusted-host live eval evidence named
+by the operator-capture precondition.

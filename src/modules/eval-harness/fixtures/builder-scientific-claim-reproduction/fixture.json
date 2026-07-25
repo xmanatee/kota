@@ -74,6 +74,11 @@
           "kind": "copy-fixture-file",
           "sourcePath": "calibration/golden/claim-holdout-result.json",
           "targetPath": "claim-holdout-result.json"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/analyze-claim.mjs",
+          "targetPath": "scripts/analyze-claim.mjs"
         }
       ]
     },
@@ -90,6 +95,11 @@
             "kind": "copy-fixture-file",
             "sourcePath": "calibration/accepted-alternatives/audited-json-evidence/claim-holdout-result.json",
             "targetPath": "claim-holdout-result.json"
+          },
+          {
+            "kind": "copy-fixture-file",
+            "sourcePath": "calibration/analyze-claim.mjs",
+            "targetPath": "scripts/analyze-claim.mjs"
           }
         ]
       }

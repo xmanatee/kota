@@ -1,5 +1,13 @@
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -40,132 +48,12 @@ const TEST_EXECUTION_PROFILE: ExecutionProfilePreflightResult = {
   diagnostics: [],
 };
 
-const passingAnalyzer = `import { readFileSync, writeFileSync } from "node:fs";
-
-const FILTERS = {
-  cohort: "mature",
-  phase: "week6",
-  site: "greenhouse-a",
-  include_in_claim: "yes",
-  quality_flag: "ok",
-};
-const THRESHOLD_PCT = 40;
-
-function parseArgs(argv) {
-  const args = {
-    dataPath: "data/claims/lx12-biomass.csv",
-    outputPath: "claim-result.json",
-  };
-  for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] === "--data") {
-      args.dataPath = argv[++i];
-    } else if (argv[i] === "--output") {
-      args.outputPath = argv[++i];
-    } else {
-      throw new Error(\`Unknown argument: \${argv[i]}\`);
-    }
-  }
-  return args;
-}
-
-function parseCsv(path) {
-  const [headerLine, ...lines] = readFileSync(path, "utf8").trim().split("\\n");
-  const headers = headerLine.split(",");
-  return lines.map((line) => {
-    const values = line.split(",");
-    return Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""]));
-  });
-}
-
-function median(values) {
-  const sorted = [...values].sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 1
-    ? sorted[middle]
-    : (sorted[middle - 1] + sorted[middle]) / 2;
-}
-
-const { dataPath, outputPath } = parseArgs(process.argv.slice(2));
-const claimRows = parseCsv(dataPath).filter((row) =>
-  row.cohort === FILTERS.cohort &&
-  row.phase === FILTERS.phase &&
-  row.site === FILTERS.site &&
-  row.include_in_claim === FILTERS.include_in_claim &&
-  row.quality_flag === FILTERS.quality_flag
+const CALIBRATION_ROOT = join(FIXTURES_ROOT, FIXTURE_ID, "calibration");
+const passingAnalyzer = readFileSync(join(CALIBRATION_ROOT, "analyze-claim.mjs"), "utf8");
+const shortcutAnalyzer = readFileSync(
+  join(CALIBRATION_ROOT, "adversarial", "hardcoded-analyze-claim.mjs"),
+  "utf8",
 );
-const groups = {
-  control: claimRows.filter((row) => row.treatment === "control"),
-  lx12: claimRows.filter((row) => row.treatment === "lx12"),
-};
-const controlMedian = median(groups.control.map((row) => Number(row.dry_biomass_g)));
-const treatmentMedian = median(groups.lx12.map((row) => Number(row.dry_biomass_g)));
-const upliftPct = ((treatmentMedian - controlMedian) / controlMedian) * 100;
-const verdict = upliftPct >= THRESHOLD_PCT ? "supported" : "refuted";
-
-writeFileSync(outputPath, JSON.stringify({
-  schemaVersion: 1,
-  claimId: "claim-lx12-mature-week6-biomass",
-  verdict,
-  metric: {
-    name: "median_uplift_pct",
-    value: Number(upliftPct.toFixed(6)),
-    control_median: Number(controlMedian.toFixed(6)),
-    treatment_median: Number(treatmentMedian.toFixed(6)),
-    threshold_pct: THRESHOLD_PCT,
-  },
-  command: \`node scripts/analyze-claim.mjs --data \${dataPath} --output \${outputPath}\`,
-  provenance: {
-    data: dataPath,
-    method: "median",
-    filters: FILTERS,
-    row_ids: {
-      control: groups.control.map((row) => row.row_id),
-      lx12: groups.lx12.map((row) => row.row_id),
-    },
-  },
-}, null, 2) + "\\n");
-`;
-
-const shortcutAnalyzer = `import { writeFileSync } from "node:fs";
-
-function outputPath(argv) {
-  const index = argv.indexOf("--output");
-  return index === -1 ? "claim-result.json" : argv[index + 1];
-}
-
-// Token bait still is not enough: readFile median include_in_claim quality_flag cohort phase site.
-writeFileSync(
-  outputPath(process.argv.slice(2)),
-  JSON.stringify({
-    schemaVersion: 1,
-    claimId: "claim-lx12-mature-week6-biomass",
-    verdict: "refuted",
-    metric: {
-      name: "median_uplift_pct",
-      value: 30,
-      control_median: 10,
-      treatment_median: 13,
-      threshold_pct: 40
-    },
-    command: "node scripts/analyze-claim.mjs --data data/claims/lx12-biomass.csv --output claim-result.json",
-    provenance: {
-      data: "data/claims/lx12-biomass.csv",
-      method: "median",
-      filters: {
-        cohort: "mature",
-        phase: "week6",
-        site: "greenhouse-a",
-        include_in_claim: "yes",
-        quality_flag: "ok"
-      },
-      row_ids: {
-        control: ["C01", "C02", "C03", "C04", "C05"],
-        lx12: ["T01", "T02", "T03", "T04", "T05"]
-      }
-    }
-  }, null, 2) + "\\n"
-);
-`;
 
 describe("builder scientific claim reproduction fixture", () => {
   it("runs as a live-builder fixture without replay recordings", async () => {
@@ -221,14 +109,65 @@ describe("builder scientific claim reproduction fixture", () => {
     });
     try {
       expect(replayRecordingsRoot).toBeUndefined();
+      expect(
+        report.predicateResults.find(
+          (result) => result.predicate.kind === "lx12-scientific-claim-result",
+        )?.passed,
+      ).toBe(true);
     } finally {
       cleanupFixtureWorkingDir(report.workingDir);
       rmSync(runArtifactBaseDir, { recursive: true, force: true });
     }
   });
 
-  it("rejects a hardcoded main-data claim result that ignores holdout data", () => {
+  it("accepts a passing analyzer when the temp directory uses a symlinked path", () => {
     const fixture = loadFixture(FIXTURES_ROOT, FIXTURE_ID);
+    if (!isSingleWorkflowFixtureSpec(fixture.spec)) {
+      throw new Error(`${FIXTURE_ID} must stay a single-workflow fixture`);
+    }
+    const claimPredicate = fixture.spec.predicates[0];
+    const workingDir = mkdtempSync(join(tmpdir(), "kota-scientific-symlink-"));
+    const tempRoot = mkdtempSync(join(tmpdir(), "kota-scientific-temp-root-"));
+    const realTempDir = join(tempRoot, "real");
+    const linkedTempDir = join(tempRoot, "linked");
+    const originalTmpdir = process.env.TMPDIR;
+    try {
+      cpSync(fixture.initialStateDir, workingDir, { recursive: true });
+      writeFileSync(join(workingDir, "scripts/analyze-claim.mjs"), passingAnalyzer);
+      for (const [dataPath, outputPath] of [
+        ["data/claims/lx12-biomass.csv", "claim-result.json"],
+        ["data/claims/lx12-holdout.csv", "claim-holdout-result.json"],
+      ] as const) {
+        const result = spawnSync(
+          process.execPath,
+          ["scripts/analyze-claim.mjs", "--data", dataPath, "--output", outputPath],
+          { cwd: workingDir, encoding: "utf8" },
+        );
+        expect(result.status).toBe(0);
+      }
+      mkdirSync(realTempDir);
+      symlinkSync(realTempDir, linkedTempDir, "dir");
+      process.env.TMPDIR = linkedTempDir;
+
+      const result = evaluatePredicate(workingDir, claimPredicate);
+      expect(result.passed).toBe(true);
+    } finally {
+      if (originalTmpdir === undefined) {
+        delete process.env.TMPDIR;
+      } else {
+        process.env.TMPDIR = originalTmpdir;
+      }
+      rmSync(workingDir, { recursive: true, force: true });
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects hardcoded answers for both known data sets", () => {
+    const fixture = loadFixture(FIXTURES_ROOT, FIXTURE_ID);
+    if (!isSingleWorkflowFixtureSpec(fixture.spec)) {
+      throw new Error(`${FIXTURE_ID} must stay a single-workflow fixture`);
+    }
+    const claimPredicate = fixture.spec.predicates[0];
     const workingDir = mkdtempSync(join(tmpdir(), "kota-scientific-shortcut-"));
     try {
       cpSync(fixture.initialStateDir, workingDir, { recursive: true });
@@ -266,16 +205,18 @@ describe("builder scientific claim reproduction fixture", () => {
         ["scripts/check-claim.mjs", "--max-error-pct", "0.000001"],
         { cwd: workingDir, encoding: "utf8" },
       );
-      expect(result.status).toBe(1);
-      expect(result.stdout).toContain("holdout artifact");
-      expect(result.stdout).toContain("verdict");
-      expect(result.stdout).toContain("provenance.data");
+      expect(result.status).toBe(0);
+
+      const predicateResult = evaluatePredicate(workingDir, claimPredicate);
+      expect(predicateResult.passed).toBe(false);
+      expect(predicateResult.detail).toContain("verifier artifact");
+      expect(predicateResult.detail).toContain("No hardcoded answer");
     } finally {
       rmSync(workingDir, { recursive: true, force: true });
     }
   });
 
-  it("uses trusted predicate code instead of executing mutable fixture scripts", () => {
+  it("rejects prewritten expected artifacts when the analyzer still computes the wrong procedure", () => {
     const fixture = loadFixture(FIXTURES_ROOT, FIXTURE_ID);
     if (!isSingleWorkflowFixtureSpec(fixture.spec)) {
       throw new Error(`${FIXTURE_ID} must stay a single-workflow fixture`);
@@ -301,19 +242,58 @@ describe("builder scientific claim reproduction fixture", () => {
         expect(result.status).toBe(0);
       }
 
+      const checker = spawnSync(
+        process.execPath,
+        ["scripts/check-claim.mjs", "--max-error-pct", "0.000001"],
+        { cwd: workingDir, encoding: "utf8" },
+      );
+      expect(checker.status).toBe(0);
       writeFileSync(
         join(workingDir, "scripts/analyze-claim.mjs"),
-        'import { writeFileSync } from "node:fs"; writeFileSync("host-executed-analyzer", "yes");\n',
-      );
-      writeFileSync(
-        join(workingDir, "scripts/check-claim.mjs"),
-        'import { writeFileSync } from "node:fs"; writeFileSync("host-executed-checker", "yes");\n',
+        readFileSync(
+          join(fixture.initialStateDir, "scripts/analyze-claim.mjs"),
+          "utf8",
+        ),
       );
 
       const result = evaluatePredicate(workingDir, claimPredicate);
-      expect(result.passed).toBe(true);
-      expect(existsSync(join(workingDir, "host-executed-analyzer"))).toBe(false);
-      expect(existsSync(join(workingDir, "host-executed-checker"))).toBe(false);
+      expect(result.passed).toBe(false);
+      expect(result.detail).toContain("main command artifact");
+      expect(result.detail).toContain("metric.name");
+    } finally {
+      rmSync(workingDir, { recursive: true, force: true });
+    }
+  });
+
+  it("executes the analyzer with host filesystem access denied", () => {
+    const fixture = loadFixture(FIXTURES_ROOT, FIXTURE_ID);
+    if (!isSingleWorkflowFixtureSpec(fixture.spec)) {
+      throw new Error(`${FIXTURE_ID} must stay a single-workflow fixture`);
+    }
+    const claimPredicate = fixture.spec.predicates[0];
+    const workingDir = mkdtempSync(join(tmpdir(), "kota-scientific-permission-"));
+    try {
+      cpSync(fixture.initialStateDir, workingDir, { recursive: true });
+      writeFileSync(join(workingDir, "scripts/analyze-claim.mjs"), passingAnalyzer);
+      for (const [dataPath, outputPath] of [
+        ["data/claims/lx12-biomass.csv", "claim-result.json"],
+        ["data/claims/lx12-holdout.csv", "claim-holdout-result.json"],
+      ] as const) {
+        const result = spawnSync(
+          process.execPath,
+          ["scripts/analyze-claim.mjs", "--data", dataPath, "--output", outputPath],
+          { cwd: workingDir, encoding: "utf8" },
+        );
+        expect(result.status).toBe(0);
+      }
+      writeFileSync(
+        join(workingDir, "scripts/analyze-claim.mjs"),
+        'import { readFileSync } from "node:fs"; readFileSync("/etc/hosts");\n',
+      );
+
+      const result = evaluatePredicate(workingDir, claimPredicate);
+      expect(result.passed).toBe(false);
+      expect(result.detail).toContain("ERR_ACCESS_DENIED");
     } finally {
       rmSync(workingDir, { recursive: true, force: true });
     }

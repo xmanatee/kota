@@ -1,0 +1,109 @@
+The initial builder attempt could not stage against the shared worktree Git
+directory at:
+
+/Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/task-add-a-scientific-claim-reproduction-fixture-to-the-2026-07-24t21-20-40-008z-builder-83nst2
+
+The canonical task CLI initially failed when Git could not create index.lock,
+so the task was moved through the same CLI using an isolated writable index and
+object database under `/private/tmp`. During post-check repair attempts 3, 4,
+and 5, the canonical index remained read-only. Attempt 5 first retried the
+required canonical `git add -A`, which failed with `Operation not permitted`,
+then refreshed the complete staged snapshot in the run-scoped writable index.
+That index contains the task move and all unignored run evidence, and queue
+validation passes against its exact staged state. The workflow host must apply
+the same `git add -A` to the canonical index before commit.
+
+Post-check repair attempt 6 retried the canonical `git add -A`; the sandbox
+again denied creation of the same `index.lock`. The complete snapshot was
+refreshed at
+`.kota/tmp/2026-07-24T21-20-40-008Z-builder-83nst2/post-check-repair-6/index`,
+and both queue validation and the focused repository-queue tests pass against
+that index.
+
+Post-check repair attempt 7 again retried ordinary `git add -A`, then tested a
+run-scoped default Git directory as a narrower fallback. The filesystem policy
+correctly rejected both the host-owned canonical `index.lock` and any change
+to the worktree's `.git` pointer, so the canonical repository was left
+untouched. The complete snapshot was refreshed in
+`.kota/tmp/2026-07-24T21-20-40-008Z-builder-83nst2/post-check-repair-7/git/index`
+with its writable object directory. Queue validation and the focused
+current-repository tests pass against that exact staged state. The workflow
+host still must apply `git add -A` to its canonical index before commit.
+
+Post-check repair attempt 8 retried the required canonical `git add -A`; the
+sandbox again rejected creation of the parent checkout's `index.lock` before
+changing any files. The complete staged snapshot was therefore refreshed at
+`.kota/tmp/2026-07-24T21-20-40-008Z-builder-83nst2/post-check-repair-8/git/index`
+with a writable object directory. Validation below was run with that index and
+object database, while the host-owned canonical index remained unchanged.
+
+Post-check repair attempt 10 retried the required canonical `git add -A`; the
+sandbox again rejected creation of the parent checkout's `index.lock` before
+changing any files. The complete staged snapshot was refreshed at
+`.kota/tmp/2026-07-24T21-20-40-008Z-builder-83nst2/post-check-repair-10/git/index`
+with a writable object directory and the canonical object database as a
+read-only alternate. The workflow host still must apply `git add -A` to the
+canonical index before commit.
+
+Post-check repair attempt 11 retried the required canonical `git add -A`; the
+sandbox again rejected creation of the parent checkout's `index.lock` before
+changing any files. The complete staged snapshot was refreshed at
+`.kota/tmp/2026-07-24T21-20-40-008Z-builder-83nst2/post-check-repair-11/git/index`
+with a writable object directory and the canonical object database as a
+read-only alternate. In that snapshot the task is a tracked rename into
+`done/`, and both queue validation and the focused repository-queue tests pass.
+The workflow host still must apply `git add -A` to the canonical index before
+commit.
+
+Post-check repair attempt 12 retried the required canonical `git add -A`; the
+sandbox again rejected creation of the parent checkout's `index.lock` before
+changing any files. The complete staged snapshot was refreshed at
+`.kota/tmp/2026-07-24T21-20-40-008Z-builder-83nst2/post-check-repair-12/git/index`
+with a writable object directory and the canonical object database as a
+read-only alternate. The workflow host still must apply `git add -A` to the
+canonical index before commit.
+
+Post-check repair attempt 13 retried the required canonical `git add -A`; the
+sandbox again rejected creation of the parent checkout's `index.lock` before
+changing any files. The complete staged snapshot was refreshed at
+`.kota/tmp/2026-07-24T21-20-40-008Z-builder-83nst2/post-check-repair-13/git/index`
+with a writable object directory and the canonical object database as a
+read-only alternate. The workflow host still must apply `git add -A` to the
+canonical index before commit.
+
+Post-check repair attempt 14 retried ordinary `git add -A` after the workflow
+host had staged the tracked deletion and `.gitignore` update. The sandbox still
+denied the canonical `index.lock`, leaving the new `done/` task and run evidence
+unstaged there. The complete snapshot was therefore refreshed in the
+run-scoped repair-14 index and validated against that exact state.
+
+Post-check repair attempt 15 retried ordinary `git add -A`; the sandbox again
+denied creation of the host-owned canonical `index.lock` before changing the
+index. The complete snapshot was refreshed in the run-scoped repair-15 index,
+including the tracked task rename and every unignored run artifact.
+
+Post-check repair attempt 17 retried ordinary `git add -A`; the sandbox again
+denied creation of the host-owned canonical `index.lock` before changing the
+index. The complete snapshot was refreshed in the run-scoped repair-17 index,
+including the tracked task rename, every unignored run artifact, and the final
+commit message. Queue validation and the focused repository-queue tests pass
+against that exact staged state. A final `git add -A` retry then succeeded, so
+the canonical index now contains the same complete snapshot.
+
+Post-check repair attempt 18 found that the workflow host had staged the prior
+snapshot, but the sandbox again could not create the canonical `index.lock`
+for the corrective lifecycle move. The task CLI therefore moved the task from
+`done/` to `blocked/` through the run-scoped repair-18 index. That snapshot is
+the staging source for the typed operator-capture precondition and the revised
+run evidence. A final `git add -A` retry succeeded, so the canonical index now
+contains the same complete corrective snapshot.
+
+Post-check repair attempt 19 retried ordinary `git add -A` after hardening the
+scientific scorer. The sandbox again denied creation of the host-owned
+canonical `index.lock` before changing that index. The complete snapshot was
+therefore refreshed at
+`.kota/tmp/2026-07-24T21-20-40-008Z-builder-83nst2/post-check-repair-19/git/index`
+with a writable object directory and the canonical object database as a
+read-only alternate. That snapshot includes the command-aware scorer, hidden
+verifier-data calibration, shortcut and filesystem-denial regressions, honest
+blocked task state, run evidence, and final commit message.

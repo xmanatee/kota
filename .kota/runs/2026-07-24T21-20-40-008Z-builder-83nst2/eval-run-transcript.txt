@@ -1,0 +1,69 @@
+$ pnpm kota eval run --fixture builder-scientific-claim-reproduction --repeats 1 --keep
+exit: 1
+
+Attempt 1 reached the nested builder prepare-worktree step, then failed:
+Builder runtime resource preflight failed: port 38220 is unavailable
+
+Attempt 2 selected a different deterministic range and failed at the same boundary:
+Builder runtime resource preflight failed: port 46760 is unavailable
+
+$ node -e '<bind a temporary server to 127.0.0.1:46760>'
+exit: 1
+EPERM listen EPERM: operation not permitted 127.0.0.1:46760
+
+The builder sandbox forbids loopback listeners, so neither attempt reached the
+nested agent and no claim evidence was scored. The unchanged task declaration
+pins the exact command above as a trusted-host Runtime Probe; that host probe
+must pass before the workflow accepts this task.
+
+Post-check repair attempt 18:
+
+$ pnpm kota eval run --fixture builder-scientific-claim-reproduction --repeats 1 --keep
+exit: 1
+
+The local package-manager shim could not verify the repository-pinned pnpm
+release without registry access, so this invocation stopped before KOTA ran.
+
+$ node bin/kota.mjs eval run --fixture builder-scientific-claim-reproduction --repeats 1 --keep
+exit: 1
+
+The equivalent direct CLI diagnostic reached the builder prepare-worktree step
+and failed its runtime resource preflight because port 49080 was unavailable.
+No nested agent ran and no claim-result.json or objective metric was produced.
+
+The trusted-host Runtime Probe reported separately by the workflow also stopped
+before the nested builder because Codex authentication was unavailable. The
+task therefore remains blocked on an authenticated operator capture rather than
+claiming completion from fixture-load evidence.
+
+Post-check repair attempt 20:
+
+$ pnpm kota eval run --fixture builder-scientific-claim-reproduction --repeats 1 --keep
+exit: 1
+
+The pinned-package-manager wrapper again stopped before KOTA ran because its
+release signature could not be verified without registry access.
+
+$ node bin/kota.mjs eval run --fixture builder-scientific-claim-reproduction --repeats 1 --keep
+exit: 1
+
+Verifier calibration passed every case and its objective-metric comparison;
+the structured result is retained as `verifier-calibration.json`. The eval then
+started the nested builder, completed queue inspection and task claim, and
+reached `prepare-worktree` before the sandbox rejected loopback port 45160.
+No live claim artifacts or final objective metric were produced, so the typed
+operator-capture blocker remains accurate.
+
+Post-check repair attempt 21:
+
+$ TMPDIR=/tmp node --conditions=source --import tsx src/cli.ts eval run --fixture builder-scientific-claim-reproduction --repeats 1 --keep
+exit: 1
+
+Verifier calibration passed through the macOS `/tmp` to `/private/tmp` symlink:
+the golden and accepted-alternative cases passed, the null and adversarial
+cases failed as expected, and the objective-metric comparison passed. The
+retained `verifier-calibration.json` is byte-for-byte identical to the fresh
+result. Execution then started the nested builder, completed queue inspection
+and task claim, and reached `prepare-worktree` before the sandbox rejected
+loopback port 32940. No live claim artifacts or final objective metric were
+produced, so the typed operator-capture blocker remains accurate.

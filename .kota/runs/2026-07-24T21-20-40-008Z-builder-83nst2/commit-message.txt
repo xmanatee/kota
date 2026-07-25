@@ -1,0 +1,1 @@
+Canonicalize scientific claim verifier permission paths
