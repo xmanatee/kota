@@ -11,6 +11,10 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  resolveScientificClaimAnalyzerSandbox,
+  spawnScientificClaimAnalyzer,
+} from "./scientific-claim-analyzer-sandbox.js";
+import {
   SCIENTIFIC_CLAIM_ANALYZER_PATH as ANALYZER_PATH,
   HOLDOUT_CLAIM_EXPECTED as HOLDOUT_EXPECTED,
   MAIN_CLAIM_EXPECTED as MAIN_EXPECTED,
@@ -18,10 +22,6 @@ import {
   VERIFIER_CLAIM_EXPECTED as VERIFIER_EXPECTED,
   validateScientificClaimArtifactFile as validateArtifactFile,
 } from "./scientific-claim-artifact.js";
-import {
-  resolveScientificClaimNetworkSandbox,
-  spawnScientificClaimAnalyzer,
-} from "./scientific-claim-network-sandbox.js";
 
 /**
  * Fixture-owned scientific claim scorer. Trusted code validates submitted
@@ -114,7 +114,7 @@ function verifyAnalyzerExecution(
       label: "verifier artifact",
     },
   ] as const;
-  const isolation = resolveScientificClaimNetworkSandbox();
+  const isolation = resolveScientificClaimAnalyzerSandbox();
   if (isolation.kind === "unavailable") {
     return {
       issues: [isolation.issue],

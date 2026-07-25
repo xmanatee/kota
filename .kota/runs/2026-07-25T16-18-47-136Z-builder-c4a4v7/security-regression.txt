@@ -1,0 +1,29 @@
+Security regression: scientific-claim analyzer host signaling
+
+The production boundary verifier launches a detached, same-UID sentinel and an
+analyzer that calls process.kill(sentinelPid, "SIGKILL"). It accepts the
+boundary only when the analyzer receives EPERM/ESRCH and the sentinel is still
+alive. The deterministic regression also proves a passthrough boundary is
+rejected after delivering the signal, without exposing the evaluator process.
+
+macOS boundary:
+- sandbox-exec profile denies network* and signal.
+- Both restrictions are capability-tested before analyzer execution.
+
+Linux boundary:
+- unshare creates user, network, PID, and proc/mount namespaces.
+- --fork, --mount-proc, and --kill-child keep the analyzer inside the PID
+  boundary and tear down its process tree on evaluator timeout.
+- The same live network and host-signal probes must pass.
+
+Focused result:
+- 3 test files passed
+- 12 tests passed
+- TypeScript typecheck passed
+
+Current builder sandbox result:
+- Nested macOS sandbox-exec returned status 71 (sandbox_apply: Operation not
+  permitted).
+- The resolver reported kind=unavailable after both capability probes failed,
+  so agent-produced JavaScript was not executed. This is the intended
+  fail-closed path when the host cannot establish the boundary.

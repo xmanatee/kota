@@ -1,0 +1,3 @@
+1. VERIFIED — macOS adds Seatbelt signal denial; Linux adds PID, proc, and network namespaces; both candidates must pass live network and SIGKILL-sentinel probes before execution. Analyzer timeouts use SIGKILL and Linux unshare uses --kill-child.
+2. VERIFIED — scientific-claim-analyzer-sandbox.test.ts runs the malicious process.kill() probe, accepts only a denial that leaves its sentinel alive, rejects /usr/bin/env passthrough, and confirms the evaluator test process remains alive.
+3. VERIFIED — the task Verification section and validation/security-regression run artifacts record fresh commands and outcomes.

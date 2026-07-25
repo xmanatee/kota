@@ -1,0 +1,13 @@
+PASS
+
+Focused tests:
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true src/modules/eval-harness/scientific-claim-analyzer-sandbox.test.ts src/modules/eval-harness/scientific-claim-reproduction-fixture.test.ts src/modules/eval-harness/accepted-alternative-fixtures.test.ts
+Result: 3 test files passed; 12 tests passed.
+
+Formatting/lint:
+node_modules/.bin/biome check src/modules/eval-harness/scientific-claim-analyzer-sandbox.ts src/modules/eval-harness/scientific-claim-sandbox-capabilities.ts src/modules/eval-harness/scientific-claim-analyzer-sandbox.test.ts src/modules/eval-harness/scientific-claim-predicate.ts src/modules/eval-harness/accepted-alternative-fixtures.test.ts src/modules/eval-harness/scientific-claim-reproduction-fixture.test.ts
+Result: 6 files checked; no fixes required.
+
+Typecheck:
+node_modules/.bin/tsc --noEmit
+Result: passed.

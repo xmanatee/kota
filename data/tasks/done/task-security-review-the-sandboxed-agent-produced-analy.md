@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-sandboxed-agent-produced-analy
 title: Security review: The sandboxed, agent-produced analyzer can still signal and terminate its parent or other same-UID host processes. The macOS profile denies only network operations, the Linux configuration creates no PID namespace, and Node's permission model does not restrict process.kill(). A malicious analyzer can therefore terminate the synchronous evaluator and potentially the daemon hosting an eval cadence.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: The sandboxed, agent-produced analyzer can still signal and terminate its parent or other same-UID host processes. The macOS profile denies only network operations, the Linux configuration creates no PID namespace, and Node's permission model does not restrict process.kill(). A malicious analyzer can therefore terminate the synchronous evaluator and potentially the daemon hosting an eval cadence.
 created_at: 2026-07-25T16:14:36.565Z
-updated_at: 2026-07-25T16:14:36.565Z
+updated_at: 2026-07-25T16:39:03.886Z
 ---
 
 ## Problem
@@ -111,3 +111,10 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `.kota/runs/2026-07-25T16-18-47-136Z-builder-c4a4v7/security-regression.txt`
+  records the sentinel attack regression and fail-closed host capability result.
+
+## Verification
+
+- `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true src/modules/eval-harness/scientific-claim-analyzer-sandbox.test.ts src/modules/eval-harness/scientific-claim-reproduction-fixture.test.ts src/modules/eval-harness/accepted-alternative-fixtures.test.ts`
+- `node_modules/.bin/tsc --noEmit`

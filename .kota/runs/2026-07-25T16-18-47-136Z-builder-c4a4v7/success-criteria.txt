@@ -1,0 +1,3 @@
+1. Agent-produced scientific-claim analyzers execute only after a live boundary probe proves both network denial and host-process signal isolation; unsupported boundaries fail closed.
+2. Focused regression coverage runs process.kill() against a same-UID sentinel and proves an accepted boundary keeps both the sentinel and evaluator alive while a passthrough boundary is rejected.
+3. The task and run evidence record the final focused verification commands and results.

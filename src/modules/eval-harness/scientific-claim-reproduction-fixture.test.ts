@@ -28,13 +28,13 @@ import {
 const FIXTURE_ID = "builder-scientific-claim-reproduction";
 const FIXTURES_ROOT = join(process.cwd(), "src/modules/eval-harness/fixtures");
 
-vi.mock("./scientific-claim-network-sandbox.js", async (importOriginal) => {
+vi.mock("./scientific-claim-analyzer-sandbox.js", async (importOriginal) => {
   const actual = await importOriginal<
-    typeof import("./scientific-claim-network-sandbox.js")
+    typeof import("./scientific-claim-analyzer-sandbox.js")
   >();
   return {
     ...actual,
-    resolveScientificClaimNetworkSandbox: () => ({
+    resolveScientificClaimAnalyzerSandbox: () => ({
       kind: "darwin-seatbelt" as const,
       command: "/usr/bin/env",
       prefixArgs: [],
