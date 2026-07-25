@@ -18,6 +18,14 @@ served at `/api/tasks`.
   before returning; staging failure is an operation failure, never a
   best-effort warning. Workflows and routes must not write these files
   directly or maintain a second move/staging implementation.
+- Native agent sandboxes may protect Git metadata even when task files are
+  writable. Builder repair retries the repo-tasks domain's claim-scoped staging
+  operation from the host before queue validation; do not replace that bridge
+  with broad workflow-owned `git add` logic.
+- State moves rename and rewrite first, then stage the exact source and
+  destination paths together. Keep a real linked-worktree regression around
+  repeated moves so a staged deletion plus untracked destination cannot pass
+  as a completed transition.
 - The core daemon no longer proxies task status. `/api/tasks` is computed
   directly from disk in this module.
 - Owns the default `RepoTasksProvider` registration. Substring/grep ranking

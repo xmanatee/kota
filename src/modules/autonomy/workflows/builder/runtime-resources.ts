@@ -22,7 +22,10 @@ export { deterministicBuilderPortRange };
 export type BuilderRuntimeResourcePreflight = {
   checkedAt: string;
   ports: number[];
-  portAvailability: "checked" | "skipped-eval-harness-replay";
+  portAvailability:
+    | "checked"
+    | "skipped-eval-harness-replay"
+    | "skipped-host-restricted";
   setup: string[];
   dependencies: BuilderRuntimeDependencyPreflight;
   portLeasePath: string;

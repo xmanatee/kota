@@ -33,6 +33,7 @@ import {
   checkActionableTaskClaimed,
   checkActionableTaskResolved,
   checkClaimedTaskCommitSet,
+  checkClaimedTaskStateStaged,
 } from "./task-state-repair-checks.js";
 import { builderAgentRunDir, workflowWorkspaceDir } from "./workspace.js";
 
@@ -45,6 +46,7 @@ export {
   checkActionableTaskClaimed,
   checkActionableTaskResolved,
   checkClaimedTaskCommitSet,
+  checkClaimedTaskStateStaged,
 } from "./task-state-repair-checks.js";
 
 export function builderRepairChecks(): WorkflowRepairCheck[] {
@@ -92,6 +94,16 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       type: "code" as const,
       phase: 1,
       run: (ctx) => checkPackageScript(workflowWorkspaceDir(ctx), "pnpm dev workflow validate"),
+    },
+    {
+      id: "claimed-task-state-staged",
+      type: "code" as const,
+      phase: 1,
+      run: (ctx) =>
+        checkClaimedTaskStateStaged(
+          workflowWorkspaceDir(ctx),
+          ctx.stepOutputs["claim-task"] as QueueTaskClaimResult | undefined,
+        ),
     },
     {
       id: "task-queue-valid",

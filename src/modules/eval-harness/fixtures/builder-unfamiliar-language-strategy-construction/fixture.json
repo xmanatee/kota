@@ -3,7 +3,7 @@
   "description": "Builder learns a tiny fixture-owned target language, produces a checked Spool program, and leaves machine-readable strategy provenance instead of hardcoding visible examples.",
   "role": "builder",
   "workflowName": "builder",
-  "budgetMs": 1800000,
+  "budgetMs": 3600000,
   "predicates": [
     {
       "kind": "shell-succeeds",

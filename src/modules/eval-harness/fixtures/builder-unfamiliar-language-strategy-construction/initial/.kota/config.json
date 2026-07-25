@@ -1,0 +1,7 @@
+{
+  "modules": {
+    "builder": {
+      "branchPerTask": false
+    }
+  }
+}

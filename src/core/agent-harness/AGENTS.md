@@ -68,6 +68,8 @@ injected by call sites.
   local runtime probe, harness-managed local auth probe when the preset has no
   `authEnv`, optional peer runtime probes, and unsupported neutral option
   boundaries without making provider network calls.
+- `resolveIsolatedHostAuthEnv` — optional non-secret login-locator projection
+  when trusted host runners replace `HOME`; tokens remain outside this contract.
 - `unsupportedRunOptions` — unsupported neutral option declarations checked
   before hooks or adapter launch. Native CLI adapters that cannot route
   KOTA's tool gate must declare `canUseTool`, `allowedTools`, and

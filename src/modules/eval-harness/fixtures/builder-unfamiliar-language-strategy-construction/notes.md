@@ -21,11 +21,24 @@ weighted checksum. A builder can solve it directly or with an auditable helper
 that emits `programs/solution.spool`, but the final evidence must be the target
 language program plus `strategy-result.json`.
 
+The initial ignore rules keep only the builder protocol's success-criteria and
+commit-message files stageable under its dynamic run directory. Other runtime
+state stays ignored, and `.kota/` remains outside the fixture's solution-path
+predicate.
+
 ## Execution
 
 This is a live-builder fixture and intentionally does not ship recordings. Keep
 it out of `pnpm test`; it belongs in `pnpm kota eval run` and cadence-style
-eval execution where a real builder can construct the strategy.
+eval execution where a real builder can construct the strategy. Its one-hour
+workflow budget leaves room for the real agent turn plus critic review and
+repair without weakening the four-hour trusted-host probe boundary.
+
+The fixture uses the builder's supported serial checkout mode. Worktree
+creation and merge behavior have their own workflow regressions; keeping this
+canary in one isolated fixture checkout makes its pass/fail signal about
+strategy construction and leaves the final task state and strategy artifact
+directly inspectable by the eval predicates.
 
 ## Scoring
 

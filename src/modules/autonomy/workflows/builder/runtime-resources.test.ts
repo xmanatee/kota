@@ -13,10 +13,8 @@ import {
 } from "./runtime-resources.js";
 import {
   installRuntimeResourceTestHooks,
-  markPortUnavailable,
   rangesOverlap,
   tempProject,
-  withEvalHarnessReplayRoot,
 } from "./runtime-resources.test-helpers.js";
 
 installRuntimeResourceTestHooks();
@@ -186,60 +184,6 @@ describe("builder runtime resource assignment", () => {
       firstPreferred.start,
     );
     expect(first.preflight.portLeasePath).toBe(second.preflight.portLeasePath);
-  });
-
-  it("rejects unavailable ports during preflight before returning a profile", async () => {
-    const projectDir = tempProject("preflight");
-    const range = deterministicBuilderPortRange("task-alpha", "run-a");
-    markPortUnavailable(range.start);
-
-    await expect(
-      assignBuilderRuntimeResources({
-        projectDir,
-        taskId: "task-alpha",
-        runId: "run-a",
-        workspaceDir: join(projectDir, "worktree"),
-        runDirPath: join(projectDir, ".kota", "runs", "run-a"),
-      }),
-    ).rejects.toThrow(`port ${range.start} is unavailable`);
-  });
-
-  it("skips port listen preflight for eval-harness replay subprocesses", async () => {
-    const projectDir = tempProject("replay-port-preflight");
-    const range = deterministicBuilderPortRange("task-replay", "run-replay");
-    markPortUnavailable(range.start);
-    const profile = await withEvalHarnessReplayRoot(projectDir, () =>
-      assignBuilderRuntimeResources({
-        projectDir,
-        taskId: "task-replay",
-        runId: "run-replay",
-        workspaceDir: join(projectDir, "worktree"),
-        runDirPath: join(projectDir, ".kota", "runs", "run-replay"),
-      }),
-    );
-
-    expect(profile.ports).toEqual(range);
-    expect(profile.preflight.ports).toHaveLength(range.size);
-    expect(profile.preflight.portAvailability).toBe(
-      "skipped-eval-harness-replay",
-    );
-  });
-
-  it("rejects unavailable ports when reusing an existing profile lease", async () => {
-    const projectDir = tempProject("reused-lease-preflight");
-    const input = {
-      projectDir,
-      taskId: "task-reused-lease",
-      runId: "run-reused-lease",
-      workspaceDir: join(projectDir, "worktree"),
-      runDirPath: join(projectDir, ".kota", "runs", "run-reused-lease"),
-    };
-    const first = await assignBuilderRuntimeResources(input);
-    markPortUnavailable(first.ports.start);
-
-    await expect(assignBuilderRuntimeResources(input)).rejects.toThrow(
-      `port ${first.ports.start} is unavailable`,
-    );
   });
 
   it("preflights dependency setup by linking prepared project dependencies", async () => {

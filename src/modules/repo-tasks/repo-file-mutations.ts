@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
@@ -44,6 +44,38 @@ export function stageRepoPaths(projectDir: string, filePaths: string[]): void {
     env: withProtectedGitBareRepositoryEnv(),
     stdio: "pipe",
   });
+}
+
+export function stageExistingOrTrackedRepoPaths(
+  projectDir: string,
+  filePaths: string[],
+): string[] {
+  const stageablePaths = filePaths.filter((filePath) => {
+    if (existsSync(filePath)) return true;
+    try {
+      execFileSync(
+        "git",
+        [
+          "ls-files",
+          "--error-unmatch",
+          "--",
+          repoRelativePath(projectDir, filePath),
+        ],
+        {
+          cwd: projectDir,
+          env: withProtectedGitBareRepositoryEnv(),
+          stdio: "ignore",
+        },
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  if (stageablePaths.length > 0) {
+    stageRepoPaths(projectDir, stageablePaths);
+  }
+  return stageablePaths;
 }
 
 export function writeAndStageRepoMarkdownFile(args: {

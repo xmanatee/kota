@@ -164,9 +164,8 @@ fixtures or affects pass@k/pass^k.
   typed completion event, regressions through the typed regression event,
   per-run evidence as artifacts, and baseline as one row.
 - No cost signals leak into agent-facing context (autonomy rule).
-- Fixture working dirs materialize under the OS tmpdir, never inside the repo.
-  Always go through harness entry points; do not mutate a fixture's initial
-  state at runtime.
+- Fixture workspaces live under the OS tmpdir, never in the repo; use harness
+  entry points and retain host login only through the adapter's non-secret auth locator.
 - The replay adapter is module-owned. Do not add a parallel fixture-scoped
   mock layer under `src/core/agent-harness/`; the adapter registers through
   the standard registry and swaps in via the subprocess executor's env seam.

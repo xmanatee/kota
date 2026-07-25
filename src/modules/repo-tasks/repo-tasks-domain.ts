@@ -1,10 +1,18 @@
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { getRepoHeadSha } from "#core/util/repo-worktree.js";
-import { writeAndStageRepoMarkdownFile } from "./repo-file-mutations.js";
+import {
+  stageExistingOrTrackedRepoPaths,
+  writeAndStageRepoMarkdownFile,
+} from "./repo-file-mutations.js";
 import {
   findUnfinishedTaskDependencies,
   readTaskDependencyIds,
@@ -597,9 +605,35 @@ export type MoveTaskResult = {
 };
 
 /**
- * Move a normalized task file between state directories, atomically updating
- * the `status` and `updated_at` frontmatter fields and staging both the
- * rename and the rewritten file with `git`.
+ * Stage every existing or indexed state path for one task id.
+ *
+ * The state mover uses this after its filesystem rename. The builder repair
+ * loop may retry the same domain-owned operation from the host process when a
+ * native agent sandbox protects Git metadata, keeping the retry claim-scoped
+ * instead of broad-staging the task queue.
+ */
+export function stageRepoTaskStateMutation(
+  projectDir: string,
+  id: string,
+): string[] {
+  if (!isRepoTaskId(id)) {
+    throw new Error("Invalid task id");
+  }
+  const tasksDir = getRepoTasksDir(projectDir);
+  const paths = stageExistingOrTrackedRepoPaths(
+    projectDir,
+    REPO_TASK_STATES.map((state) => join(tasksDir, state, `${id}.md`)),
+  );
+  if (paths.length === 0) {
+    throw new Error(`Task "${id}" has no existing or indexed state path`);
+  }
+  return paths.map((filePath) => filePath.slice(projectDir.length + 1));
+}
+
+/**
+ * Move a normalized task file between state directories, updating the
+ * `status` and `updated_at` frontmatter fields before staging the exact source
+ * and destination paths together.
  *
  * This is the single mechanism for state transitions; the `kota task move`
  * CLI and autonomy workflows both call it. Throws when the task is not found,
@@ -632,6 +666,9 @@ export function moveTaskById(
     throw new Error(`Task "${id}" is already in "${toState}"`);
   }
   const dstPath = join(tasksDir, toState, `${id}.md`);
+  if (existsSync(dstPath)) {
+    throw new Error(`Task "${id}" already exists in "${toState}"`);
+  }
   const content = readFileSync(fromPath, "utf-8");
   const { attrs, body } = parseFlatFrontMatter(content);
   assertTaskStateTransitionAllowed(
@@ -653,11 +690,15 @@ export function moveTaskById(
   const updated = serializeFlatFrontMatter(attrs, body);
 
   mkdirSync(dirname(dstPath), { recursive: true });
-  execFileSync("git", ["mv", fromPath, dstPath], {
-    cwd: projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-  });
-  writeRepoTaskFile(projectDir, dstPath, updated);
+  renameSync(fromPath, dstPath);
+  writeFileSync(dstPath, updated, "utf-8");
+  try {
+    stageRepoTaskStateMutation(projectDir, id);
+  } catch (stageError) {
+    renameSync(dstPath, fromPath);
+    writeFileSync(fromPath, content, "utf-8");
+    throw stageError;
+  }
 
   return {
     id,

@@ -1,12 +1,12 @@
 ---
 id: task-add-an-unfamiliar-language-strategy-construction-f
 title: Add an unfamiliar-language strategy-construction fixture to the eval harness
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Seed an eval-harness fixture where the builder must learn a tiny unfamiliar language by writing and debugging helper code against local examples and hidden tests, so strategy construction is artifact-graded rather than treated as ordinary JavaScript patching.
 created_at: 2026-06-20T22:32:36.456Z
-updated_at: 2026-07-24T21:20:04.254Z
+updated_at: 2026-07-25T04:13:40.037Z
 ---
 
 ## Problem
@@ -130,6 +130,56 @@ builder run, so that attempt did not satisfy the live-evidence requirement.
 The daemon host has an authenticated Codex harness. The live pass is now owned
 by the provenance-pinned Runtime Probe above, so the earlier builder-sandbox
 authentication limitation is no longer an operator precondition.
+
+## Status (2026-07-25 Runtime Probe repair)
+
+The eval harness now preserves the active adapter's non-secret local-login
+locator when it isolates the fixture subprocess home. For Codex, the trusted
+host resolves `CODEX_HOME` from the OS account even though the Runtime Probe
+intentionally strips `HOME`; the fixture still receives its own isolated
+`HOME`, and no token value is projected through this contract.
+
+The next trusted-host run reached the nested builder and solved all ten
+verifier cases with `hidden_case_pass_count: 6`, but queue validation found
+the rewritten done task untracked after a linked-worktree state transition.
+The canonical repo-tasks mover now completes the filesystem rename and
+frontmatter rewrite before staging the exact source and destination paths
+together; a real linked-worktree regression covers ready → doing → done.
+
+The remaining repair-loop paths are now deterministic. New builder runs fall
+forward from an occupied deterministic port block to the next unleased,
+available block, while reuse of an existing lease still fails loudly if its
+ports become unavailable. The fixture preconfigures only the required
+success-criteria and commit-message artifacts as stageable under its dynamic
+run directory, so the nested critic no longer forces a choice between builder
+evidence rails and the solution-path constraint. Its one-hour workflow budget
+also covers the observed real agent and critic duration. The canary uses the
+builder's supported serial checkout mode so unrelated worktree merge and
+task-projection behavior cannot mask the strategy-construction result; the
+linked-worktree state-transition defect remains covered by its owning
+repo-tasks regression. The task-declared trusted-host Runtime Probe remains the
+authoritative complete-path gate.
+
+The retained post-check run
+`.kota/eval-runs/2026-07-25T06-53-55-344Z/` then confirmed that the serial
+builder again solved all ten verifier cases and reported
+`hidden_case_pass_count: 6`. Its remaining `task-queue-valid` failure came from
+the native Codex workspace sandbox protecting Git metadata: file edits and the
+final task state were present, but neither the initial turn nor four repair
+turns could stage the untracked done-task destination. Builder repair now
+retries the repo-tasks domain's exact, claim-scoped staging operation from the
+host before queue validation, without granting the native agent direct write
+access to Git metadata or broad-staging unrelated task paths.
+
+A deterministic replay copied that retained live workspace into a writable
+real-Git checkout and ran the production host repair operation. It staged the
+ready-to-done transition as an R098 rename; the unchanged Spool verifier passed
+all ten cases with `hidden_case_pass_count: 6`, shortcut self-tests passed, and
+task validation reported zero errors and warnings. A fresh sandbox diagnostic
+then reached the nested build step, but the current parent sandbox denied
+nested Codex app-server initialization before its first turn. That diagnostic
+is not represented as a successful Runtime Probe; the unchanged trusted-host
+probe remains the rollout gate.
 
 ## Source / Intent
 

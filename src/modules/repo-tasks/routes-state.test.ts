@@ -76,8 +76,12 @@ describe("task state routes", () => {
       priority: "p2",
       status: "ready",
     });
-    vi.mocked(execFileSync).mockImplementationOnce(() => {
-      throw new Error("git mv failed");
+    vi.mocked(execFileSync).mockImplementation((_file: unknown, args?: unknown) => {
+      const argv = Array.isArray(args) ? (args as string[]) : [];
+      if (argv[0] === "add") {
+        throw new Error("git add failed");
+      }
+      return Buffer.from("");
     });
 
     const { res, result } = mockResponse();

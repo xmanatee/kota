@@ -232,6 +232,17 @@ export type AgentHarness = {
    */
   readonly readiness?: AgentHarnessReadinessProbe;
   /**
+   * Resolve non-secret environment locators needed to preserve a
+   * harness-managed login when a trusted host runner replaces `HOME`.
+   *
+   * Adapters must return locator variables only (for example `CODEX_HOME`),
+   * never tokens or other credential values. Environment-authenticated
+   * harnesses use their preset's `authEnv` contract instead.
+   */
+  readonly resolveIsolatedHostAuthEnv?: (
+    env: NodeJS.ProcessEnv,
+  ) => Readonly<Record<string, string>>;
+  /**
    * Static declaration of neutral run options this adapter cannot honor.
    * `runAgentHarness` checks these before hooks or adapter spawn so a caller
    * that depends on KOTA guardrails cannot accidentally fall through to a

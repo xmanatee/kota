@@ -1,0 +1,311 @@
+^D{
+  "shortcutSelfTest": [
+    {
+      "candidate": "hardcoded-visible.spool",
+      "shortcutRejected": true,
+      "report": {
+        "schemaVersion": 1,
+        "programInstructionCount": 7,
+        "visibleCasePassCount": 4,
+        "hiddenCasePassCount": 6,
+        "totalCasePassCount": 10,
+        "cases": [
+          {
+            "id": "visible-harbor",
+            "visibility": "visible",
+            "expected": "K728.4DOO.R5CW.B",
+            "actual": "K728.4DOO.R5CW.B",
+            "passed": true
+          },
+          {
+            "id": "visible-lunar",
+            "visibility": "visible",
+            "expected": "ZXA3.BHK7.KCJ5",
+            "actual": "ZXA3.BHK7.KCJ5",
+            "passed": true
+          },
+          {
+            "id": "visible-digits",
+            "visibility": "visible",
+            "expected": "GF1W.Q38J.KV",
+            "actual": "GF1W.Q38J.KV",
+            "passed": true
+          },
+          {
+            "id": "visible-edge",
+            "visibility": "visible",
+            "expected": "C485.J",
+            "actual": "C485.J",
+            "passed": true
+          },
+          {
+            "id": "hidden-north",
+            "visibility": "hidden",
+            "expected": "YDB6.24A7.8FQZ.P",
+            "actual": "YDB6.24A7.8FQZ.P",
+            "passed": true
+          },
+          {
+            "id": "hidden-punctuation",
+            "visibility": "hidden",
+            "expected": "16BF.9MRS.2JLU.K",
+            "actual": "16BF.9MRS.2JLU.K",
+            "passed": true
+          },
+          {
+            "id": "hidden-long",
+            "visibility": "hidden",
+            "expected": "U97T.RQG5.38D0.TKP1.PZ22.3",
+            "actual": "U97T.RQG5.38D0.TKP1.PZ22.3",
+            "passed": true
+          },
+          {
+            "id": "hidden-mixed",
+            "visibility": "hidden",
+            "expected": "GXFV.BJLR.F97O.DNLG.FG",
+            "actual": "GXFV.BJLR.F97O.DNLG.FG",
+            "passed": true
+          },
+          {
+            "id": "hidden-single",
+            "visibility": "hidden",
+            "expected": "Z0V",
+            "actual": "Z0V",
+            "passed": true
+          },
+          {
+            "id": "hidden-rail-offset",
+            "visibility": "hidden",
+            "expected": "IRTM.LXPP.FU",
+            "actual": "IRTM.LXPP.FU",
+            "passed": true
+          }
+        ],
+        "shortcutGuard": [
+          "programPath must be programs/solution.spool, got /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-an-unfamiliar-language-strategy-construction-f-2026-07-25t00-42-56-972z-builder-vyyjvc/.kota/tmp/2026-07-25T00-42-56-972Z-builder-vyyjvc/kota-spool-shortcuts-bZ66GX/hardcoded-visible.spool",
+          "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-an-unfamiliar-language-strategy-construction-f-2026-07-25t00-42-56-972z-builder-vyyjvc/.kota/tmp/2026-07-25T00-42-56-972Z-builder-vyyjvc/kota-spool-shortcuts-bZ66GX/hardcoded-visible.spool embeds expected output for visible-harbor"
+        ],
+        "strategyIssues": [
+          "strategy programPath programs/solution.spool does not match /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-an-unfamiliar-language-strategy-construction-f-2026-07-25t00-42-56-972z-builder-vyyjvc/.kota/tmp/2026-07-25T00-42-56-972Z-builder-vyyjvc/kota-spool-shortcuts-bZ66GX/hardcoded-visible.spool"
+        ],
+        "passed": false
+      }
+    },
+    {
+      "candidate": "javascript-shaped.spool",
+      "shortcutRejected": true,
+      "report": {
+        "schemaVersion": 1,
+        "programInstructionCount": 0,
+        "visibleCasePassCount": 0,
+        "hiddenCasePassCount": 0,
+        "totalCasePassCount": 0,
+        "cases": [
+          {
+            "id": "visible-harbor",
+            "visibility": "visible",
+            "expected": "K728.4DOO.R5CW.B",
+            "actual": null,
+            "passed": false,
+            "error": "line 1: unknown Spool instruction IMPORT"
+          },
+          {
+            "id": "visible-lunar",
+            "visibility": "visible",
+            "expected": "ZXA3.BHK7.KCJ5",
+            "actual": null,
+            "passed": false,
+            "error": "line 1: unknown Spool instruction IMPORT"
+          },
+          {
+            "id": "visible-digits",
+            "visibility": "visible",
+            "expected": "GF1W.Q38J.KV",
+            "actual": null,
+            "passed": false,
+            "error": "line 1: unknown Spool instruction IMPORT"
+          },
+          {
+            "id": "visible-edge",
+            "visibility": "visible",
+            "expected": "C485.J",
+            "actual": null,
+            "passed": false,
+            "error": "line 1: unknown Spool instruction IMPORT"
+          },
+          {
+            "id": "hidden-north",
+            "visibility": "hidden",
+            "expected": "YDB6.24A7.8FQZ.P",
+            "actual": null,
+            "passed": false,
+            "error": "line 1: unknown Spool instruction IMPORT"
+          },
+          {
+            "id": "hidden-punctuation",
+            "visibility": "hidden",
+            "expected": "16BF.9MRS.2JLU.K",
+            "actual": null,
+            "passed": false,
+            "error": "line 1: unknown Spool instruction IMPORT"
+          },
+          {
+            "id": "hidden-long",
+            "visibility": "hidden",
+            "expected": "U97T.RQG5.38D0.TKP1.PZ22.3",
+            "actual": null,
+            "passed": false,
+            "error": "line 1: unknown Spool instruction IMPORT"
+          },
+          {
+            "id": "hidden-mixed",
+            "visibility": "hidden",
+            "expected": "GXFV.BJLR.F97O.DNLG.FG",
+            "actual": null,
+            "passed": false,
+            "error": "line 1: unknown Spool instruction IMPORT"
+          },
+          {
+            "id": "hidden-single",
+            "visibility": "hidden",
+            "expected": "Z0V",
+            "actual": null,
+            "passed": false,
+            "error": "line 1: unknown Spool instruction IMPORT"
+          },
+          {
+            "id": "hidden-rail-offset",
+            "visibility": "hidden",
+            "expected": "IRTM.LXPP.FU",
+            "actual": null,
+            "passed": false,
+            "error": "line 1: unknown Spool instruction IMPORT"
+          }
+        ],
+        "shortcutGuard": [
+          "programPath must be programs/solution.spool, got /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-an-unfamiliar-language-strategy-construction-f-2026-07-25t00-42-56-972z-builder-vyyjvc/.kota/tmp/2026-07-25T00-42-56-972Z-builder-vyyjvc/kota-spool-shortcuts-bZ66GX/javascript-shaped.spool",
+          "missing required Spool instruction READ",
+          "missing required Spool instruction CLEAN36",
+          "missing required Spool instruction SHIFT36",
+          "missing required Spool instruction RAIL",
+          "missing required Spool instruction CHECKSUM36",
+          "missing required Spool instruction GROUP",
+          "missing required Spool instruction EMIT",
+          "program has 0 instruction(s); expected at least 7",
+          "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-an-unfamiliar-language-strategy-construction-f-2026-07-25t00-42-56-972z-builder-vyyjvc/.kota/tmp/2026-07-25T00-42-56-972Z-builder-vyyjvc/kota-spool-shortcuts-bZ66GX/javascript-shaped.spool contains JavaScript-shaped bypass token /\\bimport\\b/i",
+          "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-an-unfamiliar-language-strategy-construction-f-2026-07-25t00-42-56-972z-builder-vyyjvc/.kota/tmp/2026-07-25T00-42-56-972Z-builder-vyyjvc/kota-spool-shortcuts-bZ66GX/javascript-shaped.spool contains JavaScript-shaped bypass token /\\bconsole\\./i"
+        ],
+        "strategyIssues": [
+          "visibleCasePassCount must be 0",
+          "hiddenCasePassCount must be 0",
+          "totalCasePassCount does not match verifier results",
+          "programInstructionCount must be 0",
+          "strategy programPath programs/solution.spool does not match /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-an-unfamiliar-language-strategy-construction-f-2026-07-25t00-42-56-972z-builder-vyyjvc/.kota/tmp/2026-07-25T00-42-56-972Z-builder-vyyjvc/kota-spool-shortcuts-bZ66GX/javascript-shaped.spool"
+        ],
+        "passed": false
+      }
+    },
+    {
+      "candidate": "missing.spool",
+      "shortcutRejected": true,
+      "report": {
+        "schemaVersion": 1,
+        "programInstructionCount": 0,
+        "visibleCasePassCount": 0,
+        "hiddenCasePassCount": 0,
+        "totalCasePassCount": 0,
+        "cases": [
+          {
+            "id": "visible-harbor",
+            "visibility": "visible",
+            "expected": "K728.4DOO.R5CW.B",
+            "actual": null,
+            "passed": false,
+            "error": "missing target-language program: /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-an-unfamiliar-language-strategy-construction-f-2026-07-25t00-42-56-972z-builder-vyyjvc/.kota/tmp/2026-07-25T00-42-56-972Z-builder-vyyjvc/kota-spool-shortcuts-bZ66GX/missing.spool"
+          },
+          {
+            "id": "visible-lunar",
+            "visibility": "visible",
+            "expected": "ZXA3.BHK7.KCJ5",
+            "actual": null,
+            "passed": false,
+            "error": "missing target-language program: /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-an-unfamiliar-language-strategy-construction-f-2026-07-25t00-42-56-972z-builder-vyyjvc/.kota/tmp/2026-07-25T00-42-56-972Z-builder-vyyjvc/kota-spool-shortcuts-bZ66GX/missing.spool"
+          },
+          {
+            "id": "visible-digits",
+            "visibility": "visible",
+            "expected": "GF1W.Q38J.KV",
+            "actual": null,
+            "passed": false,
+            "error": "missing target-language program: /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-an-unfamiliar-language-strategy-construction-f-2026-07-25t00-42-56-972z-builder-vyyjvc/.kota/tmp/2026-07-25T00-42-56-972Z-builder-vyyjvc/kota-spool-shortcuts-bZ66GX/missing.spool"
+          },
+          {
+            "id": "visible-edge",
+            "visibility": "visible",
+            "expected": "C485.J",
+            "actual": null,
+            "passed": false,
+            "error": "missing target-language program: /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-an-unfamiliar-language-strategy-construction-f-2026-07-25t00-42-56-972z-builder-vyyjvc/.kota/tmp/2026-07-25T00-42-56-972Z-builder-vyyjvc/kota-spool-shortcuts-bZ66GX/missing.spool"
+          },
+          {
+            "id": "hidden-north",
+            "visibility": "hidden",
+            "expected": "YDB6.24A7.8FQZ.P",
+            "actual": null,
+            "passed": false,
+            "error": "missing target-language program: /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-an-unfamiliar-language-strategy-construction-f-2026-07-25t00-42-56-972z-builder-vyyjvc/.kota/tmp/2026-07-25T00-42-56-972Z-builder-vyyjvc/kota-spool-shortcuts-bZ66GX/missing.spool"
+          },
+          {
+            "id": "hidden-punctuation",
+            "visibility": "hidden",
+            "expected": "16BF.9MRS.2JLU.K",
+            "actual": null,
+            "passed": false,
+            "error": "missing target-language program: /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-an-unfamiliar-language-strategy-construction-f-2026-07-25t00-42-56-972z-builder-vyyjvc/.kota/tmp/2026-07-25T00-42-56-972Z-builder-vyyjvc/kota-spool-shortcuts-bZ66GX/missing.spool"
+          },
+          {
+            "id": "hidden-long",
+            "visibility": "hidden",
+            "expected": "U97T.RQG5.38D0.TKP1.PZ22.3",
+            "actual": null,
+            "passed": false,
+            "error": "missing target-language program: /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-an-unfamiliar-language-strategy-construction-f-2026-07-25t00-42-56-972z-builder-vyyjvc/.kota/tmp/2026-07-25T00-42-56-972Z-builder-vyyjvc/kota-spool-shortcuts-bZ66GX/missing.spool"
+          },
+          {
+            "id": "hidden-mixed",
+            "visibility": "hidden",
+            "expected": "GXFV.BJLR.F97O.DNLG.FG",
+            "actual": null,
+            "passed": false,
+            "error": "missing target-language program: /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-an-unfamiliar-language-strategy-construction-f-2026-07-25t00-42-56-972z-builder-vyyjvc/.kota/tmp/2026-07-25T00-42-56-972Z-builder-vyyjvc/kota-spool-shortcuts-bZ66GX/missing.spool"
+          },
+          {
+            "id": "hidden-single",
+            "visibility": "hidden",
+            "expected": "Z0V",
+            "actual": null,
+            "passed": false,
+            "error": "missing target-language program: /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-an-unfamiliar-language-strategy-construction-f-2026-07-25t00-42-56-972z-builder-vyyjvc/.kota/tmp/2026-07-25T00-42-56-972Z-builder-vyyjvc/kota-spool-shortcuts-bZ66GX/missing.spool"
+          },
+          {
+            "id": "hidden-rail-offset",
+            "visibility": "hidden",
+            "expected": "IRTM.LXPP.FU",
+            "actual": null,
+            "passed": false,
+            "error": "missing target-language program: /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-an-unfamiliar-language-strategy-construction-f-2026-07-25t00-42-56-972z-builder-vyyjvc/.kota/tmp/2026-07-25T00-42-56-972Z-builder-vyyjvc/kota-spool-shortcuts-bZ66GX/missing.spool"
+          }
+        ],
+        "shortcutGuard": [
+          "missing target-language program: /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-an-unfamiliar-language-strategy-construction-f-2026-07-25t00-42-56-972z-builder-vyyjvc/.kota/tmp/2026-07-25T00-42-56-972Z-builder-vyyjvc/kota-spool-shortcuts-bZ66GX/missing.spool"
+        ],
+        "strategyIssues": [
+          "programPath must be programs/solution.spool",
+          "visibleCasePassCount must be 0",
+          "strategy programPath notes.md does not match /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-an-unfamiliar-language-strategy-construction-f-2026-07-25t00-42-56-972z-builder-vyyjvc/.kota/tmp/2026-07-25T00-42-56-972Z-builder-vyyjvc/kota-spool-shortcuts-bZ66GX/missing.spool"
+        ],
+        "passed": false
+      }
+    }
+  ]
+}

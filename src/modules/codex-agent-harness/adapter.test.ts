@@ -1,9 +1,12 @@
 import { EventEmitter } from "node:events";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CODEX_AGENT_HARNESS_NAME,
   codexAgentHarness,
+  resolveCodexIsolatedHostAuthEnv,
 } from "./adapter.js";
 
 const spawnMock = vi.hoisted(() => vi.fn());
@@ -109,6 +112,27 @@ describe("codexAgentHarness", () => {
       expect.arrayContaining(["allowedTools", "disallowedTools", "canUseTool"]),
     );
     expect(unsupported).not.toContain("onMessage");
+  });
+
+  it("preserves the Codex login locator when a trusted host replaces HOME", () => {
+    expect(
+      resolveCodexIsolatedHostAuthEnv({
+        HOME: "/operator",
+      }),
+    ).toEqual({
+      CODEX_HOME: "/operator/.codex",
+    });
+    expect(
+      resolveCodexIsolatedHostAuthEnv({
+        HOME: "/operator",
+        CODEX_HOME: "/custom/codex-home",
+      }),
+    ).toEqual({
+      CODEX_HOME: "/custom/codex-home",
+    });
+    expect(resolveCodexIsolatedHostAuthEnv({})).toEqual({
+      CODEX_HOME: join(homedir(), ".codex"),
+    });
   });
 
   it("runs codex exec through ChatGPT auth and parses JSONL output", async () => {

@@ -102,6 +102,7 @@ function envForKeys(
 
 function providerEgressAuthEnvForRun(
   backend: SubprocessIsolationBackend,
+  env: NodeJS.ProcessEnv,
 ): Record<string, string> | undefined {
   if (
     backend.kind !== "container" ||
@@ -109,18 +110,35 @@ function providerEgressAuthEnvForRun(
   ) {
     return undefined;
   }
-  return envForKeys(providerEgressAuthEnvKeysFor(backend.networkPolicy.provider));
+  return envForKeys(
+    providerEgressAuthEnvKeysFor(backend.networkPolicy.provider),
+    env,
+  );
 }
 
-function executorExtraEnvForRun(
+function isolatedHostAuthEnvForRun(
+  activePreset: ReturnType<typeof resolveActivePresetFromConfig>,
+  backend: SubprocessIsolationBackend,
+  env: NodeJS.ProcessEnv,
+): Readonly<Record<string, string>> {
+  if (backend.kind !== "host-subprocess" || activePreset.authEnv.length > 0) {
+    return {};
+  }
+  const harness = resolveAgentHarness(activePreset.harness);
+  return harness.resolveIsolatedHostAuthEnv?.(env) ?? {};
+}
+
+export function executorExtraEnvForRun(
   projectDir: string,
   backend: SubprocessIsolationBackend,
+  env: NodeJS.ProcessEnv = process.env,
 ): Record<string, string> {
-  const activePreset = resolveActivePresetFromConfig(loadConfig(projectDir));
+  const activePreset = resolveActivePresetFromConfig(loadConfig(projectDir), env);
   return {
     [PRESET_ENV_VAR]: activePreset.id,
-    ...(envForKeys(activePreset.authEnv) ?? {}),
-    ...(providerEgressAuthEnvForRun(backend) ?? {}),
+    ...(envForKeys(activePreset.authEnv, env) ?? {}),
+    ...isolatedHostAuthEnvForRun(activePreset, backend, env),
+    ...(providerEgressAuthEnvForRun(backend, env) ?? {}),
   };
 }
 

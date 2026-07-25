@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "autonomy-change-decision",
+  "runId": "2026-07-25T00-42-56-972Z-builder-vyyjvc",
+  "createdAt": "2026-07-25T04:38:24.000Z",
+  "taskIds": [
+    "task-add-an-unfamiliar-language-strategy-construction-f"
+  ],
+  "affectedSurfaces": [
+    "agent harness trusted-host auth locator contract",
+    "Codex CLI local-login resolution",
+    "eval harness host-subprocess isolation environment",
+    "unfamiliar-language live eval execution",
+    "unfamiliar-language fixture workspace mode",
+    "repo-task linked-worktree state-transition staging",
+    "builder host-side claimed-task staging repair",
+    "builder runtime-resource port selection",
+    "live fixture builder-evidence stageability"
+  ],
+  "changeClasses": [
+    "workflow",
+    "harness",
+    "model-routing"
+  ],
+  "hypothesis": "Preserving only the active native harness's non-secret login locator, falling forward from occupied unleased port blocks, recording host-restricted socket probes without treating every port as occupied, preconfiguring mandatory builder evidence paths, running this strategy canary in its supported serial checkout mode, and retrying claim-scoped task staging from the host will let the trusted-host fixture complete without forwarding credential values, granting agents Git-metadata write access, weakening solution-path isolation, or coupling its score to unrelated merge machinery.",
+  "sourceRefs": [
+    "data/tasks/done/task-add-an-unfamiliar-language-strategy-construction-f.md",
+    ".kota/runs/2026-07-25T00-42-56-972Z-builder-vyyjvc/success-criteria.txt",
+    ".kota/runs/2026-07-25T00-42-56-972Z-builder-vyyjvc/success-criteria-verified.txt",
+    ".kota/runs/2026-07-25T00-42-56-972Z-builder-vyyjvc/validation.txt"
+  ],
+  "baselineRefs": [
+    ".kota/runs/2026-07-24T21-20-40-008Z-builder-83nst2/eval-run-transcript.txt",
+    "src/core/agent-harness/types.ts",
+    "src/modules/eval-harness/eval-operations.ts"
+  ],
+  "candidateRefs": [
+    "src/core/agent-harness/types.ts",
+    "src/modules/codex-agent-harness/adapter.ts",
+    "src/modules/codex-agent-harness/adapter.test.ts",
+    "src/modules/eval-harness/eval-operations.ts",
+    "src/modules/eval-harness/eval-operations-host-auth.test.ts",
+    "src/modules/eval-harness/unfamiliar-language-strategy-fixture.test.ts",
+    "src/modules/eval-harness/fixtures/builder-unfamiliar-language-strategy-construction/initial/.kota/config.json",
+    "src/modules/autonomy/workflows/builder/runtime-resource-ports.ts",
+    "src/modules/autonomy/workflows/builder/runtime-resource-ports.test.ts",
+    "src/modules/autonomy/workflows/builder/runtime-resources.ts",
+    "src/modules/autonomy/workflows/builder/runtime-resources.test.ts",
+    "src/modules/autonomy/workflows/builder/claimed-task-state-staging.test.ts",
+    "src/modules/autonomy/workflows/builder/repair-checks.ts",
+    "src/modules/autonomy/workflows/builder/repair-checks.test.ts",
+    "src/modules/autonomy/workflows/builder/task-state-repair-checks.ts",
+    "src/modules/repo-tasks/repo-file-mutations.ts",
+    "src/modules/repo-tasks/repo-tasks-domain.ts",
+    "src/modules/repo-tasks/repo-task-move-staging.test.ts",
+    ".kota/runs/2026-07-25T00-42-56-972Z-builder-vyyjvc/focused-tests-transcript.txt",
+    ".kota/runs/2026-07-25T00-42-56-972Z-builder-vyyjvc/host-staging-replay.txt",
+    ".kota/runs/2026-07-25T00-42-56-972Z-builder-vyyjvc/sandbox-live-eval-preflight.txt"
+  ],
+  "metricsCompared": [
+    {
+      "name": "HOME-isolated Codex auth locator coverage",
+      "baseline": "The eval host subprocess replaced HOME and supplied no harness-managed login locator, so the authenticated host Codex CLI appeared logged out.",
+      "candidate": "Focused adapter and eval-operation tests pass for explicit CODEX_HOME, operator HOME, stripped HOME, and container isolation paths.",
+      "unit": "focused Vitest cases",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "credential isolation boundary",
+      "baseline": "Eval subprocess isolation had no typed adapter seam for preserving non-secret native-login locations.",
+      "candidate": "The neutral harness contract accepts locator-only environment projection; Codex returns CODEX_HOME, token values remain outside the contract, HOME stays isolated, and containers receive no host locator.",
+      "unit": "typed boundary and regression assertions",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "unfamiliar-language live eval startup",
+      "baseline": "The prior live eval stopped at Codex readiness because local authentication was missing inside the isolated subprocess.",
+      "candidate": "The trusted-host live eval passed authentication and port preflight, solved all 10 fixture cases, and exposed the later task-transition staging defect now covered by the linked-worktree repair.",
+      "unit": "captured eval transcripts",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "linked-worktree task transition staging",
+      "baseline": "The retained live run ended with the ready task deletion staged and the rewritten done task untracked, so task-queue-valid correctly failed.",
+      "candidate": "A real-Git linked-worktree regression performs ready-to-doing-to-done and observes one complete staged rename with no untracked task destination; the focused repo-tasks suite passes 130 tests.",
+      "unit": "focused Vitest cases and retained live-run Git status",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "builder preferred-port collision recovery",
+      "baseline": "A new builder run aborted when any port in its first deterministic block was occupied, even when later unleased blocks were available.",
+      "candidate": "The allocator checks successive unleased blocks and leases the first fully available range; existing lease reuse still fails loudly when its assigned range becomes unavailable.",
+      "unit": "focused builder runtime-resource regression",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "restricted-host port preflight",
+      "baseline": "A host sandbox returning EPERM for every loopback listen was indistinguishable from 1,000 occupied port blocks, so builder preparation failed before the agent turn.",
+      "candidate": "The allocator records permission-denied probes as skipped-host-restricted and retains the deterministic lease; five runtime and workspace test files pass 17 cases while real occupied-port behavior remains enforced.",
+      "unit": "focused builder runtime-resource regressions and sandbox diagnostic",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "fixture evidence-rail compatibility",
+      "baseline": "The nested builder had to edit .gitignore to make mandatory run artifacts stageable, contradicting the fixture solution-path constraint and consuming its 30-minute budget in repair.",
+      "candidate": "The initial fixture narrowly exposes the three mandatory run artifacts, keeps other runtime state ignored, excludes .kota from solution scoring, and allows one hour for agent plus critic completion.",
+      "unit": "focused real-Git fixture regression and workflow budget",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "strategy-canary workspace isolation",
+      "baseline": "The live strategy fixture also exercised task worktree projection and merge, so a task-queue failure in that independent subsystem prevented the eval predicates from observing an otherwise valid strategy artifact.",
+      "candidate": "The fixture opts into the supported serial builder mode; a focused fixture regression proves the config is loaded and tracked while production linked-worktree transitions remain covered by the repo-tasks regression.",
+      "unit": "fixture configuration and focused regressions",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "native-sandbox claimed-task staging",
+      "baseline": "The retained serial canary solved every verifier case, but the native Codex sandbox protected Git metadata; the done-task destination stayed untracked through the initial turn and four repair turns, so task-queue-valid failed.",
+      "candidate": "A host-side builder repair check reuses the repo-tasks domain's exact staging operation for the claimed task before queue validation; focused real-Git regressions cover both the native-sandbox filesystem outcome and repeated linked-worktree moves.",
+      "unit": "retained live-run evidence and focused Vitest cases",
+      "direction": "improved",
+      "qualitySignal": true
+    }
+  ],
+  "rolloutMode": "canary",
+  "decision": "promote",
+  "rationale": "The auth change is a narrow adapter-owned projection of a non-secret login directory into trusted host subprocesses. Focused tests cover HOME-less Runtime Probe execution, custom login locations, environment-authenticated presets, and the container non-forwarding boundary. Retained trusted-host canaries progressed through the agent solution and reported the expected objective metric, exposing task-transition staging and fixture evidence-rail defects after authentication. The repo-tasks owner now stages both sides after the final rewrite, the allocator falls forward from occupied preferred blocks, explicitly records host-restricted socket probes, and the fixture narrowly makes required run artifacts stageable. The strategy canary now uses the supported serial checkout mode so its score is not contingent on separate worktree merge machinery; the linked-worktree path remains protected by its owning real-Git regression. The latest retained serial run then isolated the remaining failure to the native agent sandbox's protected Git metadata. Builder repair now retries the same repo-tasks exact-path staging operation from the host for only the claimed task before queue validation, preserving sandbox isolation and avoiding broad workflow-owned staging. A writable real-Git replay of the exact retained live output proves that operation produces the complete task rename and clears queue validation while preserving all ten passing verifier cases. A fresh sandbox diagnostic reached the nested agent but could not initialize nested Codex under the parent sandbox, so it is not represented as a successful Runtime Probe. The unchanged trusted-host Runtime Probe remains the rollout gate for the complete path.",
+  "ownerSafetyExceptions": [],
+  "followUpTaskIds": []
+}

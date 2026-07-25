@@ -59,3 +59,6 @@ Post-step workflow checks remain responsible for validating repo state.
 It also passes `--ignore-user-config` and explicitly disables plugins and hooks
 so operator-global extensions cannot affect daemon-launched workflow steps;
 Codex auth still comes from `CODEX_HOME`.
+Trusted host isolation may replace `HOME`; the adapter projects only the
+resolved `CODEX_HOME` locator so local login remains available without
+restoring the operator home environment.

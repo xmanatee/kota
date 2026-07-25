@@ -7,6 +7,8 @@
  * through it rather than requiring `OPENAI_API_KEY`.
  */
 
+import { homedir } from "node:os";
+import { join } from "node:path";
 import type {
   AgentHarness,
   AgentHarnessReadiness,
@@ -22,6 +24,19 @@ import {
 import { collectTextFromCodexCli } from "./cli-runner.js";
 
 export const CODEX_AGENT_HARNESS_NAME = "codex";
+
+function resolveCodexHome(env: NodeJS.ProcessEnv): string {
+  const explicitCodexHome = env.CODEX_HOME?.trim();
+  if (explicitCodexHome) return explicitCodexHome;
+  const home = env.HOME?.trim();
+  return join(home || homedir(), ".codex");
+}
+
+export function resolveCodexIsolatedHostAuthEnv(
+  env: NodeJS.ProcessEnv,
+): Readonly<Record<string, string>> {
+  return { CODEX_HOME: resolveCodexHome(env) };
+}
 
 const CODEX_UNSUPPORTED_OPTIONS = [
   {
@@ -203,6 +218,7 @@ export const codexAgentHarness: AgentHarness = {
   toolControl: "native",
   unsupportedRunOptions: CODEX_UNSUPPORTED_OPTIONS,
   readiness: codexReadiness,
+  resolveIsolatedHostAuthEnv: resolveCodexIsolatedHostAuthEnv,
   async run(
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,

@@ -1,0 +1,83 @@
+Sandbox-only diagnostic; this is not the task-declared trusted-host Runtime
+Probe. The builder tool sandbox rejects loopback listeners with EPERM, so the
+post-check runtime-probe.json remains the authoritative live-eval transcript.
+
+$ node bin/kota.mjs eval run --fixture builder-unfamiliar-language-strategy-construction --repeats 1 --keep
+[module:rendering] Registered as provider for "rendering"
+[module:knowledge] Registered as provider for "knowledge"
+[module:knowledge] Registered as provider for "capability-readiness"
+[module:memory] Registered as provider for "memory"
+[module:memory] Registered as provider for "capability-readiness"
+[module:history] Registered as provider for "history"
+[module:history] Registered as provider for "history-project"
+[module:history] Registered as provider for "capability-readiness"
+[module:repo-tasks] Registered as provider for "repo-tasks"
+[module:repo-tasks] Registered as provider for "capability-readiness"
+[module:recall] Registered as provider for "recall"
+[module:recall] Registered as provider for "capability-readiness"
+[module:recall] recall: registered 4 contributor(s)
+[module:model-clients] Registered as provider for "model-pricing"
+[module:answer] Registered as provider for "answer"
+[module:answer] Registered as provider for "capability-readiness"
+[module:answer] answer: cited-answer seam ready
+[module:antigravity-cli-agent-harness] Registered agent harness "antigravity-cli" (Antigravity CLI text).
+[module:github-webhook] WARN: github-webhook: no secret configured — webhook route not registered
+[module:github] WARN: GitHub module: modules.github.token is required but missing — module inactive
+[module:autonomy] Registered as provider for "workflow-state-recovery"
+[module:capture] Registered as provider for "capture"
+[module:capture] Registered as provider for "capability-readiness"
+[module:capture] capture: registered 4 contributor(s)
+[module:claude-agent-harness] Registered agent harness "claude-agent-sdk" (Claude Agent SDK).
+[module:codex-agent-harness] Registered agent harness "codex" (Codex CLI exec).
+[module:email] WARN: email module: smtp.host, from, and to are required — module inactive
+[module:gemini-agent-harness] Registered agent harness "gemini" (Google Gen AI SDK tool loop).
+[module:gemini-cli-agent-harness] Registered agent harness "gemini-cli" (Gemini CLI headless).
+[module:google-workspace] WARN: Google Workspace module: modules.google-workspace.clientId, clientSecret, and refreshToken are required — module inactive
+[module:google-workspace] Registered as provider for "capability-readiness"
+[module:injection-defense] injection-defense: screening 7 configured tool(s) plus external-content provenance on modes: autonomous
+[module:openai-tools-agent-harness] Registered agent harness "openai-tools" (OpenAI-compatible tool loop).
+[module:openai-tools-agent-harness] Registered agent harness "openai-tools-scaffold" (scaffolded weak/local model loop).
+[module:resource-discovery] Registered as provider for "resource-discovery"
+[module:retract] Registered as provider for "retract"
+[module:retract] Registered as provider for "capability-readiness"
+[module:retract] retract: registered 4 contributor(s)
+[module:scheduler] Registered as provider for "notification-hub"
+[module:slack-channel] WARN: slack-channel module: botToken and appToken are required — module inactive
+[module:sqlite-memory] Registered as provider for "memory"
+[module:sqlite-memory] SQLite memory provider registered
+[module:telegram] Registered as provider for "capability-readiness"
+[module:thin-agent-harness] Registered agent harness "thin" (single-turn ModelClient loop).
+[module:tool-cache] Tool result cache enabled
+[module:tool-retry] Tool retry middleware enabled
+[module:transcription-whisper] WARN: transcription-whisper: modules.transcription-whisper.apiKey is required — provider inactive
+[module:vercel-agent-harness] Registered agent harness "vercel" (Vercel AI SDK tool loop).
+[module:voice-openai-tts] WARN: voice-openai-tts: modules.voice-openai-tts.apiKey is required — provider inactive
+[module:voice-whisper-local] voice-whisper-local: binaryPath and modelPath required — provider inactive (local STT opt-in)
+[module:web] Registered as provider for "capability-readiness"
+Starting workflow "builder" (2026-07-25T06-14-24-804Z-builder-9vfric)
+Starting step "inspect-ready-queue" (code) in workflow "builder"
+Completed step "inspect-ready-queue" (code) in workflow "builder" [18ms]
+Starting step "claim-task" (code) in workflow "builder"
+Completed step "claim-task" (code) in workflow "builder" [6ms]
+Starting step "prepare-worktree" (code) in workflow "builder"
+Failed step "prepare-worktree" (code) in workflow "builder": Builder runtime resource preflight failed: port 44220 is unavailable
+Failed workflow "builder" (2026-07-25T06-14-24-804Z-builder-9vfric): Builder runtime resource preflight failed: port 44220 is unavailable
+eval-harness objective metric error: Objective metric "hidden_case_pass_count" for fixture "builder-unfamiliar-language-strategy-construction" missing json-file source strategy-result.json.
+[ELIFECYCLE] Command failed with exit code 1.
+
+Post-repair diagnostic (2026-07-25T07:43Z):
+
+- The allocator classified the loopback EPERM as
+  `skipped-host-restricted`, and `prepare-worktree` completed.
+- The nested `build` step then failed before its first model turn because the
+  current parent sandbox denied Codex app-server initialization with EPERM.
+- The retained live workspace from eval run
+  `2026-07-25T06-53-55-344Z` was copied into a writable real-Git checkout.
+  Running the production `checkClaimedTaskStateStaged` operation recorded the
+  task move as an R098 rename; the Spool checker passed 10/10 cases with
+  `hiddenCasePassCount: 6`, shortcut self-tests passed, and queue validation
+  reported zero errors and warnings.
+
+The retained-workspace replay isolates and proves the repaired host-staging
+boundary. It is deterministic repair evidence, not a replacement for the
+unchanged task-declared trusted-host Runtime Probe.

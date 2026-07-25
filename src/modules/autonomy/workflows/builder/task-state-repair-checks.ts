@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { listWorkflowMutatedPaths } from "#core/workflow/steps/agent-write-scope.js";
 import type { QueueTaskClaimResult } from "#modules/autonomy/task-claims.js";
 import { listTaskClaimInspections } from "#modules/autonomy/task-claims.js";
+import { stageRepoTaskStateMutation } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { findTerminalTasksInChangedFiles } from "./run-summary.js";
 
 function taskFilesInState(projectDir: string, state: "ready" | "doing" | "done" | "blocked"): string[] {
@@ -53,6 +54,18 @@ export function checkActionableTaskResolved(projectDir: string): string {
 
 function nonEmptyTaskId(value: string | null | undefined): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+export function checkClaimedTaskStateStaged(
+  projectDir: string,
+  claim: QueueTaskClaimResult | undefined,
+): string {
+  const claimedTaskId = nonEmptyTaskId(claim?.taskId);
+  if (claim?.claimed !== true || claimedTaskId === null) {
+    throw new Error("Builder cannot stage task state without a claimed task id");
+  }
+  const paths = stageRepoTaskStateMutation(projectDir, claimedTaskId);
+  return `OK: staged ${paths.length} state path(s) for claimed task ${claimedTaskId}`;
 }
 
 export function checkClaimedTaskCommitSet(

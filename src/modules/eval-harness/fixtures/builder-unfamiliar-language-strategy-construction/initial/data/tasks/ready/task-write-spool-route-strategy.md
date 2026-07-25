@@ -61,7 +61,9 @@ Write `strategy-result.json` with:
   a hardcoded list of visible example outputs.
 - Keep changed paths to `programs/solution.spool`, optional
   `scripts/generate-solution.mjs`, `strategy-result.json`, and this task's
-  state move.
+  state move. The workflow's required success-criteria and commit-message
+  artifacts remain under `.kota/runs/<run-id>/`; they are preconfigured as
+  stageable runtime evidence and excluded from fixture solution scope.
 - Do not commit from the agent step; the workflow commit step handles that.
 
 ## Done When

@@ -1,0 +1,172 @@
+PASS  node_modules/.bin/tsc -p tsconfig.json
+      The repository compiled successfully, including the trusted-host auth bridge.
+PASS  vitest run adapter.test.ts eval-operations-host-auth.test.ts subprocess-executor-host-env.test.ts
+      3 test files passed; all 16 tests passed with TMPDIR=/private/tmp.
+      The Runtime Probe's HOME-less environment resolves CODEX_HOME through
+      the active Codex adapter without restoring HOME or forwarding token data.
+PASS  vitest run focused protocol/docs/task/eval regression set
+      10 test files passed; all 53 tests passed, including strict-types,
+      docs-surface, task-files, neutral harness protocol, fixture loading,
+      eval aggregation, accepted-alternative calibration, and host auth.
+PASS  biome check (5 touched TypeScript files)
+      No formatting, lint, or import-order issues.
+PASS  env -i PATH=<inherited> CODEX_HOME=<operator-codex-home> codex login status
+      The same minimal-environment shape used by Runtime Probes reports
+      "Logged in using ChatGPT".
+PASS  pnpm kota eval list (pnpm 10.32.1 from the verified local store)
+      builder-unfamiliar-language-strategy-construction loaded without schema or provenance errors.
+PASS  vitest run fixture.test.ts eval-set.test.ts
+      2 test files passed; all 14 tests passed with TMPDIR=/private/tmp.
+PASS  node scripts/check-strategy.mjs --self-test-shortcuts
+      Visible-output hardcoding, JavaScript-shaped output, and prose-only/missing target artifacts were all rejected.
+DEFER pnpm kota eval run --fixture builder-unfamiliar-language-strategy-construction --repeats 1 --keep
+      Verifier calibration passed and the nested builder reached prepare-worktree.
+      The builder sandbox rejects every 127.0.0.1 listener with EPERM, so the
+      task-declared trusted-host Runtime Probe owns the authoritative live pass.
+      The prior trusted-host auth failure is repaired at the eval subprocess
+      boundary and covered by the focused tests above.
+PASS  node --conditions=source --import tsx src/validate-queue.ts
+      The canonical queue validates against the complete staged ready-to-done task move.
+PASS  git diff --cached --check
+      The complete intended snapshot has no whitespace errors.
+PASS  git add -A
+      The first repair staging attempt hit the intermittent external
+      index.lock restriction; an immediate exact retry staged the complete
+      repair snapshot. git diff --exit-code confirms no unstaged changes.
+PASS  TMPDIR=/private/tmp node_modules/.bin/vitest run --configLoader runner src/core/loop/instruction-files.test.ts
+      The post-check repair passes all 201 instruction-file tests; the eval
+      harness instructions are 7,987 bytes, below the 8,000-byte cap.
+PASS  readAutonomyChangeDecisionArtifact
+      The run-scoped decision parses under schema version 1 and covers the
+      staged harness and model-routing change classes.
+NOTE  pnpm exec could not verify its registry signature while the registry was
+      unreachable. The installed Vitest binary ran the focused test with the
+      non-bundling config loader to keep its temp output inside writable roots.
+FAIL  retained trusted-host Runtime Probe, before repair
+      Nested run 2026-07-25T04-43-57-774Z-builder-391a6h solved all 10
+      verifier cases and wrote hidden_case_pass_count=6, but task-queue-valid
+      rejected data/tasks/done/task-write-spool-route-strategy.md as untracked.
+PASS  linked-worktree task-move staging regression
+      5 focused test files passed; all 130 tests passed. The new real-Git test
+      performs ready -> doing -> done and requires the complete staged rename
+      with no untracked task destination.
+PASS  node_modules/.bin/tsc -p tsconfig.json --noEmit
+      The task-move staging repair and its regression test compile cleanly.
+PASS  biome check (repo-tasks repair files)
+      No formatting, lint, or import-order issues remain.
+READY task-declared trusted-host Runtime Probe
+      The post-check runner owns the fresh end-to-end pass and runtime-probe.json.
+PASS  builder preferred-port fallback regression
+      The builder runtime-resource suite now falls forward from an unavailable
+      deterministic block, preserves checked-range evidence, and continues to
+      reject unavailable ports when reusing an established lease.
+PASS  unfamiliar-language builder-evidence stageability regression
+      A real Git fixture copy proves the three mandatory run artifacts are
+      stageable, unrelated runtime noise remains ignored, and the final
+      git-changes-within solution predicate stays narrow.
+DEFER sandbox live-eval diagnostic
+      sandbox-live-eval-preflight.txt records the expected EPERM loopback
+      limitation of the builder tool sandbox. It is explicitly not acceptance
+      evidence; the trusted-host runtime-probe.json is authoritative.
+PASS  final focused validation matrix
+      14 test files passed; all 371 tests passed, covering linked-worktree
+      task moves, task CLI/routes/queue validation, isolated Codex auth,
+      eval fixture loading/scoring, autonomy decisions, instruction limits,
+      strict types, and task-file integrity.
+PASS  emitted TypeScript build and current queue validation
+      dist contains the repaired repo-task mover, the temporary diagnostic
+      port bypass is absent, and task-queue-valid reports zero errors/warnings.
+PASS  autonomy-change-decision parser and diff checks
+      The updated decision artifact is schema-valid; staged and unstaged
+      whitespace checks pass.
+PASS  final repair-attempt focused matrix
+      11 test files passed; all 55 tests passed, covering port fallback,
+      fixture evidence stageability, isolated Codex auth, linked-worktree task
+      moves, fixture loading/calibration, autonomy decisions, task integrity,
+      strict types, and docs surfaces.
+PASS  final typecheck, Biome, queue validation, and build
+      TypeScript reports no errors, Biome reports no issues in the 10 touched
+      TypeScript files, the task queue validates, and dist contains the source
+      repairs the trusted-host Runtime Probe executes.
+PASS  serial strategy-canary regression
+      The isolated fixture config resolves branchPerTask=false under the same
+      HOME shape used by the eval subprocess, is tracked in the fixture's
+      initial Git snapshot, and leaves required run artifacts stageable without
+      widening the solution-path predicate.
+PASS  post-critic focused matrix
+      11 test files passed; all 55 tests passed after the serial-canary repair,
+      including the production linked-worktree state-transition regression.
+PASS  post-critic compile and queue gates
+      Direct local Biome and TypeScript binaries passed, current dist was
+      emitted, queue validation exited zero, and cached/unstaged diff checks
+      reported no whitespace errors.
+NOTE  pnpm exec registry verification unavailable
+      The package-manager wrapper could not reach the registry to verify its
+      signature. The checked-in local Biome and TypeScript binaries completed
+      the same deterministic gates without network access.
+READY task-declared trusted-host Runtime Probe
+      The unchanged post-check command now runs the strategy canary in its
+      supported serial checkout, keeping worktree merge projection outside this
+      fixture's measurement while its owning real-Git regression remains green.
+FAIL  retained serial trusted-host Runtime Probe, before host-stage repair
+      Eval run 2026-07-25T06-53-55-344Z again solved all 10 verifier cases and
+      reported hidden_case_pass_count=6. The native Codex workspace sandbox
+      protected Git metadata, leaving the done-task destination untracked
+      through the initial turn and four repair turns; task-queue-valid was the
+      only remaining failed check.
+PASS  claimed-task host-stage focused regressions
+      Four focused test files passed all 24 tests. Real Git coverage proves
+      builder repair reuses the repo-tasks domain's exact, claim-scoped staging
+      operation before queue validation and preserves repeated linked-worktree
+      ready -> doing -> done staging.
+PASS  claimed-task host-stage compile and formatting
+      TypeScript reports no errors and Biome reports no issues in the six
+      touched implementation and regression files.
+PASS  expanded post-check validation matrix
+      Nineteen test files passed all 381 tests, including repo-task CLI and
+      queue validation, builder repair/workspace wiring, fixture scoring,
+      isolated Codex auth, autonomy decisions, module dependencies, strict
+      types, instruction limits, task integrity, and docs-surface ratchets.
+READY task-declared trusted-host Runtime Probe
+      The unchanged post-check command now exercises the host staging bridge
+      without granting the native agent direct Git-metadata write access.
+PASS  restricted-host port-preflight regression
+      Five builder runtime/workspace test files passed all 17 tests. EPERM or
+      EACCES from the loopback probe is now recorded as
+      skipped-host-restricted; occupied ports still fall forward and reused
+      unavailable leases still fail.
+DEFER fresh sandboxed live-eval diagnostic
+      Eval run 2026-07-25T07-43-18-005Z reached the nested build step after
+      the restricted-host port skip. The current parent sandbox then denied
+      nested Codex app-server initialization with EPERM before its first turn.
+      This is not a fixture predicate result and cannot replace the trusted-host
+      Runtime Probe.
+PASS  retained live-output host-stage replay
+      The retained 2026-07-25T06-53-55-344Z live workspace was copied into a
+      writable real-Git checkout. The production host repair staged the
+      ready-to-done task rename as R098, check-strategy passed all 10 cases
+      with hidden_case_pass_count=6, the shortcut self-test passed, and
+      task-queue-valid reported zero errors and warnings.
+PASS  final broad post-repair matrix
+      Twenty-one test files passed all 387 tests before the port-preflight
+      cases were split into their focused file; the post-split five-file
+      runtime/workspace matrix passed all 17 tests. TypeScript no-emit and
+      emitted builds passed.
+PASS  blocking source-size gate
+      The complete staged candidate is advisory-only: adapter.test.ts and
+      repo-tasks-domain.ts remain above the line guideline, below the severe
+      four-file batch threshold, with no substantial-growth blocker.
+PASS  canonical final staging
+      The final ordinary git add -A retry succeeded. The canonical index
+      contains the complete 39-file repair snapshot, cached whitespace checks
+      pass, and no unstaged companion changes remain.
+PASS  post-check repair attempt 8
+      The route rollback regression now injects failure at the exact-path
+      git-add boundary used by the filesystem-first state mover. Both focused
+      repo-task files passed all 11 tests, and the full suite passed all 12,097
+      tests across 1,064 files with 10 tests skipped.
+PASS  post-check repair attempt 9
+      The filesystem-first state mover now rejects an existing destination
+      before mutation, preserving both conflicting task files. Three focused
+      repo-task files passed all 46 tests; TypeScript no-emit, focused Biome,
+      and cached/unstaged whitespace checks passed.

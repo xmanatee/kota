@@ -1,0 +1,62 @@
+Command:
+pnpm test src/modules/autonomy/workflows/builder/runtime-resources.test.ts src/modules/eval-harness/unfamiliar-language-strategy-fixture.test.ts src/modules/eval-harness/eval-operations-host-auth.test.ts src/modules/eval-harness/fixture.test.ts src/modules/eval-harness/accepted-alternative-fixtures.test.ts src/modules/codex-agent-harness/adapter.test.ts src/modules/repo-tasks/repo-task-move-staging.test.ts src/modules/autonomy/autonomy-change-decision.test.ts src/task-files.test.ts src/strict-types-policy.integration.test.ts src/docs-surface.test.ts
+
+Result:
+Test Files  11 passed (11)
+Tests       55 passed (55)
+Duration    4.26s
+
+Additional validation:
+- `pnpm typecheck` passed.
+- Biome checked 10 touched TypeScript files with no fixes required.
+- `node --conditions=source --import tsx src/validate-queue.ts` exited 0.
+- `pnpm build` emitted current `dist/` artifacts for the trusted-host Runtime
+  Probe.
+- The unfamiliar-language fixture regression loaded
+  `modules.builder.branchPerTask: false` under the same isolated-HOME shape as
+  the eval subprocess, proved `.kota/config.json` belongs to the initial Git
+  snapshot, and kept required builder evidence stageable without widening the
+  solution predicate.
+
+Post-check repair command:
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner src/modules/repo-tasks/repo-task-move-staging.test.ts src/modules/autonomy/workflows/builder/claimed-task-state-staging.test.ts src/modules/autonomy/workflows/builder/repair-checks.test.ts src/modules/autonomy/workflows/builder/workflow-repair-checks.test.ts
+
+Result:
+Test Files  4 passed (4)
+Tests       24 passed (24)
+Duration    0.89s
+
+The added real-Git cases reproduce the native-sandbox result as a tracked
+ready-task deletion plus an untracked done-task destination, then prove the
+host repair check stages only the claimed task through the repo-tasks domain
+before task-queue validation.
+
+Expanded post-check matrix:
+Test Files  19 passed (19)
+Tests       381 passed (381)
+Duration    4.51s
+
+This matrix also covers the complete repo-task CLI and queue validator,
+builder workspace/repair wiring, fixture loading and calibration, isolated
+Codex auth, autonomy-decision parsing, module dependencies, strict types,
+instruction-file limits, task-file integrity, and docs-surface ratchets.
+
+Restricted-host port-preflight command:
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner src/modules/autonomy/workflows/builder/runtime-resource-ports.test.ts src/modules/autonomy/workflows/builder/runtime-resources.test.ts src/modules/autonomy/workflows/builder/workflow-workspace.test.ts src/modules/autonomy/workflows/builder/workflow-worktree-mode.fixture.test.ts src/modules/autonomy/autonomous-loop.integration.test.ts
+
+Result:
+Test Files  5 passed (5)
+Tests       17 passed (17)
+Duration    4.00s
+
+Biome passed for the affected runtime-resource implementation and test files.
+TypeScript no-emit typecheck and the emitted build both passed.
+
+Final broad matrix before the focused port-test extraction:
+Test Files  21 passed (21)
+Tests       387 passed (387)
+Duration    5.48s
+
+Moving the four port-preflight cases into their own focused file changed test
+placement only. The post-extraction five-file matrix above passed all 17
+runtime/workspace cases, and the final TypeScript build passed.

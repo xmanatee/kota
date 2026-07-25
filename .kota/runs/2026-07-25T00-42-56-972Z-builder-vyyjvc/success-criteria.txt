@@ -1,0 +1,8 @@
+1. The shipped fixture contains fixture.json, notes.md, and a minimal initial project with local Spool documentation, examples, interpreter, verifier, and an incomplete target-language solution.
+2. The fixture's initial task is valid under task validation, starts in data/tasks/ready, and describes the unfamiliar-language strategy outcome and acceptance evidence.
+3. Fixture pre-run expectations prove the initial project fails the final outcome predicates before the builder runs.
+4. Final predicates require the nested task to move to done, visible and hidden verifier cases to pass, strategy-result.json to expose the required strategy and provenance fields, and changes to stay within the allowed solution, helper, artifact, and task paths.
+5. Deterministic shortcut checks reject verifier tampering, visible-example hardcoding, prose-only output, target-language bypasses, and other unauditable solutions.
+6. The fixture loads through the eval CLI without schema or provenance errors.
+7. The provenance-pinned live eval completes with every unfamiliar-language predicate passing and reports the objective metric in run and aggregate evidence.
+8. A regression check proves a shortcut candidate fails, and the shortcut is reverted before the final changes are staged.

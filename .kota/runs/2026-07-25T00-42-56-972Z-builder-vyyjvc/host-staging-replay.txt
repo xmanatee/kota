@@ -1,0 +1,31 @@
+Evidence kind: deterministic replay of retained live builder output
+Source eval run: .kota/eval-runs/2026-07-25T06-53-55-344Z
+Source nested run: 2026-07-25T06-53-56-437Z-builder-8ccb7r
+
+The retained nested builder had already produced the complete Spool strategy,
+passed every visible and hidden case, and moved the task file to done. Its only
+terminal repair-check failure was task-queue-valid because the native agent
+sandbox could not stage the untracked done-task destination.
+
+Replay procedure:
+
+1. Copy the retained working tree and Git state to a writable checkout under
+   /private/tmp.
+2. Invoke the emitted production checkClaimedTaskStateStaged operation with
+   task id task-write-spool-route-strategy.
+3. Inspect the real Git index, run scripts/check-strategy.mjs, run the shortcut
+   self-test, and run the KOTA queue validator.
+
+Results:
+
+- Host repair: OK; staged 1 state path for the claimed task.
+- Git index: R098 ready/task-write-spool-route-strategy.md ->
+  done/task-write-spool-route-strategy.md.
+- Strategy checker: passed=true, visibleCasePassCount=4,
+  hiddenCasePassCount=6, totalCasePassCount=10.
+- Shortcut checker: all shortcut candidates rejected.
+- Queue validator: errors=0, warnings=0, ready=0.
+
+This replay isolates the candidate host-staging behavior against the exact live
+output that previously failed. It does not claim to be a fresh Runtime Probe;
+the unchanged trusted-host command remains the authoritative rollout gate.

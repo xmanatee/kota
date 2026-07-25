@@ -1,0 +1,17 @@
+The canonical worktree Git directory is outside the builder sandbox's writable
+roots:
+
+/Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/task-add-an-unfamiliar-language-strategy-construction-f-2026-07-25t00-42-56-972z-builder-vyyjvc
+
+Earlier repair attempts populated the canonical index with the original task
+rename, fixture, and evidence snapshot. During post-critic repair, the sandbox
+stopped permitting writes to both the external index and the shared object
+database: repeated exact `git add -A` attempts failed to create `index.lock`,
+and `git hash-object -w` failed to create an object-store temporary file.
+
+A run-scoped writable index and object database validated the complete intended
+snapshot, but was not treated as a substitute for the canonical index consumed
+by review checks. After the deterministic gates completed, a final ordinary
+`git add -A` retry regained the external lock and staged the complete repair.
+The canonical index now has no unstaged companion changes; the temporary index
+is evidence only.

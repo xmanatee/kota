@@ -30,7 +30,10 @@ export type BuilderPortResourceInput = {
 export type BuilderPortAssignment = {
   ports: BuilderRuntimeResourcePortRange;
   checkedPorts: number[];
-  portAvailability: "checked" | "skipped-eval-harness-replay";
+  portAvailability:
+    | "checked"
+    | "skipped-eval-harness-replay"
+    | "skipped-host-restricted";
   leasePath: string;
 };
 
@@ -47,7 +50,21 @@ export type ReleaseBuilderPortRangeResult = {
   remainingLeaseCount: number;
 };
 
-type PortAvailabilityChecker = (port: number) => Promise<boolean>;
+export type BuilderPortAvailability =
+  | "available"
+  | "unavailable"
+  | "permission-denied";
+type PortAvailabilityChecker = (
+  port: number,
+) => Promise<BuilderPortAvailability | boolean>;
+type PortPreflight =
+  | (Pick<BuilderPortAssignment, "checkedPorts" | "portAvailability"> & {
+      available: true;
+    })
+  | {
+      available: false;
+      unavailablePort: number;
+    };
 
 const EVAL_HARNESS_REPLAY_ROOT_ENV = "KOTA_EVAL_HARNESS_REPLAY_ROOT";
 
@@ -74,12 +91,18 @@ export function deterministicBuilderPortRange(
   return portRangeForBlock(deterministicBuilderPortBlock(taskId, runId));
 }
 
-function portAvailable(port: number): Promise<boolean> {
+function portAvailable(port: number): Promise<BuilderPortAvailability> {
   return new Promise((resolve) => {
     const server = createServer();
-    server.once("error", () => resolve(false));
+    server.once("error", (error: NodeJS.ErrnoException) => {
+      resolve(
+        error.code === "EACCES" || error.code === "EPERM"
+          ? "permission-denied"
+          : "unavailable",
+      );
+    });
     server.listen({ host: "127.0.0.1", port }, () => {
-      server.close(() => resolve(true));
+      server.close(() => resolve("available"));
     });
   });
 }
@@ -110,22 +133,39 @@ function evalHarnessReplayActive(): boolean {
 
 async function preflightPorts(
   range: BuilderRuntimeResourcePortRange,
-): Promise<Pick<BuilderPortAssignment, "checkedPorts" | "portAvailability">> {
+): Promise<PortPreflight> {
   const ports = portsInRange(range);
   if (evalHarnessReplayActive()) {
     return {
+      available: true,
       checkedPorts: ports,
       portAvailability: "skipped-eval-harness-replay",
     };
   }
   for (const port of ports) {
-    if (!(await portAvailabilityChecker(port))) {
-      throw new Error(
-        `Builder runtime resource preflight failed: port ${port} is unavailable`,
-      );
+    const checkedAvailability = await portAvailabilityChecker(port);
+    const availability =
+      checkedAvailability === true
+        ? "available"
+        : checkedAvailability === false
+          ? "unavailable"
+          : checkedAvailability;
+    if (availability === "permission-denied") {
+      return {
+        available: true,
+        checkedPorts: [],
+        portAvailability: "skipped-host-restricted",
+      };
+    }
+    if (availability === "unavailable") {
+      return { available: false, unavailablePort: port };
     }
   }
-  return { checkedPorts: ports, portAvailability: "checked" };
+  return {
+    available: true,
+    checkedPorts: ports,
+    portAvailability: "checked",
+  };
 }
 
 function rangesOverlap(
@@ -135,16 +175,26 @@ function rangesOverlap(
   return left.start <= right.end && right.start <= left.end;
 }
 
-function nextUnleasedPortRange(
+async function nextAvailablePortRange(
   preferredBlock: number,
   leases: BuilderPortLease[],
-): BuilderRuntimeResourcePortRange {
+): Promise<{
+  ports: BuilderRuntimeResourcePortRange;
+  preflight: Extract<PortPreflight, { available: true }>;
+}> {
+  let foundUnleasedRange = false;
   for (let offset = 0; offset < BUILDER_PORT_BLOCK_COUNT; offset += 1) {
     const block = (preferredBlock + offset) % BUILDER_PORT_BLOCK_COUNT;
     const candidate = portRangeForBlock(block);
-    if (!leases.some((lease) => rangesOverlap(lease.ports, candidate))) {
-      return candidate;
-    }
+    if (leases.some((lease) => rangesOverlap(lease.ports, candidate))) continue;
+    foundUnleasedRange = true;
+    const preflight = await preflightPorts(candidate);
+    if (preflight.available) return { ports: candidate, preflight };
+  }
+  if (foundUnleasedRange) {
+    throw new Error(
+      "Builder runtime resource preflight failed: no available builder port ranges remain",
+    );
   }
   throw new Error(
     "Builder runtime resource preflight failed: no unleased builder port ranges remain",
@@ -164,6 +214,11 @@ export async function assignBuilderPortRange(
     const existing = leases.find((lease) => lease.profileId === profileId);
     if (existing !== undefined) {
       const preflight = await preflightPorts(existing.ports);
+      if (!preflight.available) {
+        throw new Error(
+          `Builder runtime resource preflight failed: port ${preflight.unavailablePort} is unavailable`,
+        );
+      }
       const refreshed = leases.map((lease) =>
         lease.profileId === profileId ? { ...lease, updatedAt: now } : lease,
       );
@@ -176,11 +231,10 @@ export async function assignBuilderPortRange(
       };
     }
 
-    const ports = nextUnleasedPortRange(
+    const assignment = await nextAvailablePortRange(
       deterministicBuilderPortBlock(input.taskId, input.runId),
       leases,
     );
-    const preflight = await preflightPorts(ports);
     writePortLeaseStore(leasePath, {
       schemaVersion: 1,
       leases: [
@@ -191,16 +245,16 @@ export async function assignBuilderPortRange(
           runId: input.runId,
           workspaceDir: input.workspaceDir,
           runDirPath: input.runDirPath,
-          ports,
+          ports: assignment.ports,
           createdAt: now,
           updatedAt: now,
         },
       ],
     });
     return {
-      ports,
-      checkedPorts: preflight.checkedPorts,
-      portAvailability: preflight.portAvailability,
+      ports: assignment.ports,
+      checkedPorts: assignment.preflight.checkedPorts,
+      portAvailability: assignment.preflight.portAvailability,
       leasePath,
     };
   });
