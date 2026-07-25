@@ -242,6 +242,48 @@ describe("control monitor coverage artifacts", () => {
     );
   });
 
+  it("treats daemon-interrupted agent steps without results as pending coverage", () => {
+    const metadata = baseMetadata({
+      status: "interrupted",
+      steps: [],
+    });
+    writeJson(join(runDirPath, "workflow.json"), {
+      defaultAutonomyMode: "autonomous",
+      steps: [{ id: "build", type: "agent" }],
+    });
+    writeJson(join(runDirPath, "steps", "build.harness-capability.json"), {
+      emitsAgentMessageStream: true,
+    });
+
+    const artifact = buildControlMonitorCoverageArtifact({
+      projectDir,
+      runDirPath,
+      metadata,
+      headSha: null,
+    });
+
+    expect(artifact.gaps.map((gap) => gap.reason)).not.toEqual(
+      expect.arrayContaining([
+        "missing-agent-step-events",
+        "missing-trajectory-diagnostics",
+      ]),
+    );
+    expect(artifact.families).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          family: "agent-step-stream",
+          status: "pending",
+          pending: 1,
+        }),
+        expect.objectContaining({
+          family: "trajectory-diagnostics",
+          status: "pending",
+          pending: 1,
+        }),
+      ]),
+    );
+  });
+
   it("uses missing-frame diagnostics as observed stream evidence", () => {
     const metadata = baseMetadata({
       steps: [
