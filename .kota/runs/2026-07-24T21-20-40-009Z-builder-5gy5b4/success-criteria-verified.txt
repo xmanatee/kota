@@ -1,0 +1,5 @@
+1. Verified a symbolic-link `.kota` directory is rejected before its external directory or config file is chmodded, read, or rewritten.
+2. Verified a symbolic-link `.kota/config.json` is rejected before the real config directory or external target changes; hard links and non-regular files are rejected at the same boundary.
+3. Verified the isolated helper anchors the canonical project root by inode before creating or entering `.kota`; direct root and ancestor replacements after identity capture are rejected while both replacement destinations remain unmodified.
+4. Verified normal creation and permission repair produce `0700`/`0600` even when serialization fails before replacement; the original file remains intact, root/ancestor/config-directory swaps leave relocated or external configs unchanged, and 216 focused config/webhook/strict-type tests pass.
+5. Verified the completed task records the commands, moved through the task CLI to `done`, and passes queue plus task-file validation through the workflow repair index.

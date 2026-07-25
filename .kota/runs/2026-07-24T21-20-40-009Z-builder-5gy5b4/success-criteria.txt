@@ -1,0 +1,5 @@
+1. Project configuration updates reject a symbolic-link `.kota` directory before chmod, read, or write can affect its target.
+2. Project configuration updates reject a symbolic-link `.kota/config.json` file before chmod, read, or write can affect its target.
+3. The accepted configuration destination is contained by the real project root and the writer replaces only a regular file without following links.
+4. Focused regression tests prove rejected links leave external directories, files, modes, and contents unchanged while normal configuration updates still succeed.
+5. The task records the fresh verification commands and moves to `done`.

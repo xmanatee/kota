@@ -3,6 +3,7 @@
 Kernel-owned configuration and secrets management.
 
 - `config.ts` — KOTA configuration schema, layered loading (global < project < overrides), and sanitization.
+- `project-config-writer.ts` — no-follow, atomic project configuration mutation inside the verified real project root.
 - `config-warnings.ts` — validation of unknown config keys and invalid concurrency settings.
 - `project-dir.ts` — single source of truth for resolving the project directory
   the daemon and operator CLI act on. Operator surfaces that need a project

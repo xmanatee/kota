@@ -1,0 +1,49 @@
+The task CLI could not write the host-owned worktree index or Git object
+database in this sandbox. Task lifecycle mutations and their exact-path
+staging therefore used the workflow-local repair index and object directory
+under `.kota/tmp/2026-07-24T21-20-40-009Z-builder-5gy5b4/`, with the canonical
+object database configured read-only as an alternate.
+
+The task domain command performed both `ready -> doing` and `doing -> done`
+transitions. Queue validation and task-file tests pass against that repair
+index. A final canonical staging retry transferred the verified working-tree
+changes into the real index.
+
+Post-check repair attempt 14 initially retried canonical `git add -A`; the
+managed sandbox again denied creation of the host-owned worktree `index.lock`.
+After the complete working tree, including the `done/` task destination, was
+verified in the workflow-local repair index, a final canonical `git add -A`
+retry succeeded. No host-side staging handoff remains.
+
+Post-check repair attempt 16 again found the canonical worktree index
+host-owned: `git add -A` could not create its `index.lock`. The complete repair
+was staged with `git add -A` in the existing workflow-local repair index under
+`.kota/tmp/2026-07-24T21-20-40-009Z-builder-5gy5b4/`; staged diff hygiene,
+queue validation, task-file validation, and the full repo-task queue validation
+suite passed against that index. A final canonical `git add -A` retry then
+succeeded, transferring the same verified snapshot into the real worktree
+index; no host-side staging handoff remains.
+
+Post-check repair attempt 17 again found the canonical worktree index
+host-owned: `git add -A` could not create its `index.lock`. The complete
+root-anchor repair was staged with `git add -A` in the existing writable
+workflow repair index, where staged diff, queue, task-file, and repo-task queue
+validation all passed. A final canonical `git add -A` retry succeeded and
+transferred the same snapshot into the real worktree index; no host-side
+staging handoff remains.
+
+Post-check repair attempt 18 again found the canonical worktree index
+host-owned on the first `git add -A` attempt. The final input-hygiene repair
+was staged and validated through the existing writable workflow repair index
+before two canonical staging retries. Both retries were rejected before
+writing because the sandbox cannot create the host-owned `index.lock`; the
+writable workflow repair index contains the complete final snapshot.
+
+Post-check repair attempt 20 again found the canonical worktree index
+host-owned on the first `git add -A` attempt. The anchored-directory-creation
+repair was staged in the existing writable workflow repair index; staged diff,
+queue, task-file, and repo-task queue validation all passed there before the
+canonical staging retry. That retry was also rejected before writing because
+the sandbox could not create the host-owned `index.lock`. A final canonical
+`git add -A` then succeeded and transferred the same verified snapshot into
+the real worktree index; no host-side staging handoff remains.

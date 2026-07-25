@@ -1,10 +1,7 @@
 import {
-  chmodSync,
   existsSync,
-  mkdirSync,
   readFileSync,
   realpathSync,
-  writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
@@ -16,12 +13,11 @@ import type { KotaConfig } from "./config-types.js";
 
 export { buildUserProfile, expandAlias } from "./config-text.js";
 export type { CoreKotaConfig, KotaConfig, ModuleConfigSliceFields } from "./config-types.js";
+export { updateProjectConfig } from "./project-config-writer.js";
 
 const CONFIG_FILENAME = "config.json";
 const GLOBAL_DIR = join(homedir(), ".kota");
 const PROJECT_DIR = ".kota";
-const PROJECT_CONFIG_DIR_MODE = 0o700;
-const PROJECT_CONFIG_FILE_MODE = 0o600;
 
 export type ProjectConfigTrustReason =
   | "kota-self-project"
@@ -250,32 +246,4 @@ export function loadConfig(
   overrides?: Partial<KotaConfig>,
 ): KotaConfig {
   return loadConfigWithDiagnostics(cwd, overrides).config;
-}
-
-/**
- * Update the project-local `.kota/config.json` by applying a mutation
- * function to the raw (unsanitized) config object. Creates the file and
- * directory if they do not exist.
- */
-export function updateProjectConfig(
-  cwd: string,
-  update: (raw: Partial<KotaConfig>) => Partial<KotaConfig>,
-): void {
-  const configDir = join(cwd, PROJECT_DIR);
-  const configPath = join(configDir, CONFIG_FILENAME);
-  if (!existsSync(configDir)) {
-    mkdirSync(configDir, { recursive: true, mode: PROJECT_CONFIG_DIR_MODE });
-  }
-  chmodSync(configDir, PROJECT_CONFIG_DIR_MODE);
-  if (existsSync(configPath)) {
-    chmodSync(configPath, PROJECT_CONFIG_FILE_MODE);
-  }
-
-  const existing = (readConfigFile(configPath) ?? {}) as Partial<KotaConfig>;
-  const updated = update(existing);
-  writeFileSync(configPath, `${JSON.stringify(updated, null, 2)}\n`, {
-    encoding: "utf-8",
-    mode: PROJECT_CONFIG_FILE_MODE,
-  });
-  chmodSync(configPath, PROJECT_CONFIG_FILE_MODE);
 }

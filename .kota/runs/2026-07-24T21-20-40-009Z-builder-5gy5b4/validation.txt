@@ -1,0 +1,242 @@
+PASS — focused red/green regression
+Before implementation, project-config-writer.test.ts had 3 expected failures for directory symlinks, file symlinks, and non-regular config destinations. After implementation, all 7 focused tests pass, including atomic-failure and hard-link coverage.
+
+PASS — config, webhook, and strict-type regression
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run src/core/config src/modules/config src/modules/webhook/webhook-operations.test.ts src/modules/webhook/cli.test.ts src/strict-types-policy.integration.test.ts --configLoader runner --silent=true
+18 files passed; 211 tests passed.
+
+PASS — typecheck
+node_modules/.bin/tsc --noEmit
+
+PASS — formatting and lint
+node_modules/.bin/biome check src/core/config/config.ts src/core/config/project-config-writer.ts src/core/config/project-config-writer.test.ts
+
+PASS — built-subprocess regression
+node_modules/.bin/tsc -p tsconfig.json
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run src/built-cli-mcp-server.integration.test.ts src/package-bin.integration.test.ts src/preset-parity.integration.test.ts src/modules/eval-harness/replay-smoke.test.ts --configLoader runner --silent=true
+4 files passed; 14 tests passed and 10 skipped.
+
+PASS — queue validation
+GIT_INDEX_FILE=<run-repair-index> GIT_OBJECT_DIRECTORY=<run-repair-objects> GIT_ALTERNATE_OBJECT_DIRECTORIES=<canonical-objects> node --conditions=source --import tsx src/validate-queue.ts
+
+PASS — task-file regression
+The same repair-index environment ran src/task-files.test.ts: 1 file and 5 tests passed.
+
+PASS — staged diff hygiene
+git diff --cached --check
+The staged source-size repair check also reports that every changed source file is under the warning threshold.
+
+PASS — post-check repair attempt 2
+The workflow-local repair index was rebuilt from HEAD and all worktree changes were staged with `git add -A`.
+`node --conditions=source --import tsx src/validate-queue.ts` passed against that index.
+The `current repo task queue` assertions in `src/modules/repo-tasks/task-queue-validation.test.ts` passed (2 passed, 63 skipped).
+
+PARTIAL — full suite
+1058 test files ran: 1049 passed and 3 skipped; 12063 tests passed and 22 skipped. Build-dependent failures were resolved by the passing built-subprocess rerun above, and queue tracking passed against the authoritative repair index. The remaining unrelated pnpm supply-chain policy check could not initialize the pinned pnpm binary because this sandbox cannot reach the registry signing metadata.
+
+PASS — post-check repair attempt 3
+The workflow-local repair index was rebuilt from `HEAD`, then every worktree
+change was staged with `git add -A`. Direct queue validation passed, and
+`src/modules/repo-tasks/task-queue-validation.test.ts -t "current repo task queue"`
+passed with 2 tests passed and 63 skipped.
+
+PASS — post-check repair attempt 4
+The workflow-local repair index was rebuilt from `HEAD`, then every intentional
+worktree change was staged with `git add -A`. Direct queue validation passed,
+and the focused current-repo queue test passed with 2 tests passed and 63
+skipped. Staged diff hygiene passed, and the package-manager bootstrap residue
+from the attempted wrapper invocation was removed before the final staging.
+
+PASS — post-check repair attempt 5
+The missing `done/` task destination and every other intentional worktree
+change were staged with `git add -A` in the workflow-local repair index.
+`node --conditions=source --import tsx src/validate-queue.ts` passed, and
+`node_modules/.bin/vitest run src/modules/repo-tasks/task-queue-validation.test.ts
+-t "current repo task queue" --configLoader runner` passed with 2 tests passed
+and 63 skipped. The `pnpm` wrapper could not initialize because registry
+signature metadata is unavailable in this network-restricted sandbox; the
+installed local Node and Vitest entrypoints completed the underlying checks.
+
+PASS — post-check repair attempt 6
+The workflow-local repair index was refreshed with `git add -A`, including the
+completed task destination reported missing by the repair check. Direct queue
+validation passed. A cwd-aware Git wrapper exposed that index only to this
+worktree while keeping temporary fixture repositories isolated, and the full
+`src/modules/repo-tasks/task-queue-validation.test.ts` file passed: 65 tests.
+`git diff --cached --check` also passed. Package-manager bootstrap residue from
+the unavailable registry check was removed before the final staging refresh.
+
+PASS — post-check repair attempt 7
+The workflow-local repair index was refreshed with `git add -A`, including the
+completed `done/` task file reported missing by the repair check.
+`node --conditions=source --import tsx src/validate-queue.ts` passed, and the
+focused `current repo task queue` assertions passed with 2 tests passed and 63
+skipped. `git diff --cached --check` passed. The `pnpm` wrapper could not verify
+its pinned release because registry signature metadata was unreachable, so the
+installed Node, TSX, and Vitest entrypoints ran the underlying checks directly.
+
+PASS — post-check repair attempt 8
+The workflow-local repair index was refreshed with `git add -A`, including the
+completed `done/` task file reported missing by both repair checks.
+`node --conditions=source --import tsx src/validate-queue.ts` passed, and the
+focused `current repo task queue` assertions passed with 2 tests passed and 63
+skipped. `git diff --cached --check` passed. The pinned `pnpm` release could not
+verify registry signatures without network access, so the installed Node, TSX,
+and Vitest entrypoints ran the same underlying checks directly.
+
+PASS — post-check repair attempt 9
+The workflow-local repair index was refreshed with `git add -A`, including the
+completed `done/` task file reported missing by both repair checks.
+`node --conditions=source --import tsx src/validate-queue.ts` passed, and the
+focused `current repo task queue` assertions passed with 2 tests passed and 63
+skipped. `git diff --cached --check` passed.
+
+PASS — post-check repair attempt 10
+The workflow-local repair index was refreshed with `git add -A`, including the
+completed `done/` task file reported missing by both repair checks.
+`node --conditions=source --import tsx src/validate-queue.ts` passed, and
+`git diff --cached --check` passed.
+
+PASS — post-check repair attempt 11
+Canonical `git add -A` was attempted first and the host-owned worktree index
+again rejected its lock file with `Operation not permitted`. The writable
+workflow repair index was rebuilt from `HEAD` and refreshed with `git add -A`;
+its staged patch contains exactly the intended source changes, run artifacts,
+and the `ready/` to `done/` task rename. Direct queue validation passed, the
+complete `src/modules/repo-tasks/task-queue-validation.test.ts` file passed all
+65 tests, and `git diff --cached --check` passed.
+
+PASS — post-check repair attempt 12
+Canonical `git add -A` was attempted first and the host-owned worktree index
+again rejected its lock file with `Operation not permitted`. The writable
+workflow repair index was rebuilt from `HEAD` and refreshed with `git add -A`,
+including the completed `done/` task file and commit-message artifact. Direct
+queue validation passed, and the focused `current repo task queue` assertions
+passed with 2 tests passed and 63 skipped. The pinned `pnpm` launcher did not
+complete its unavailable registry bootstrap, so the installed Node, TSX, and
+Vitest entrypoints ran the same underlying checks directly.
+
+PASS — post-check repair attempt 13
+Canonical `git add -A` was attempted first and the host-owned worktree index
+again rejected its lock file with `Operation not permitted`. The writable
+workflow repair index was refreshed with `git add -A`, including the completed
+`done/` task file, new writer, and run artifacts. Direct queue validation and
+`git diff --cached --check` passed. With the cwd-aware Git wrapper exposing that
+staged index only to this worktree, the complete
+`src/modules/repo-tasks/task-queue-validation.test.ts` file passed all 65 tests.
+
+PASS — post-check repair attempt 14
+Canonical `git add -A` was attempted first and the host-owned worktree index
+again rejected its lock file with `Operation not permitted`. The complete
+working tree was refreshed with `git add -A` in the writable workflow repair
+index, including the completed `done/` task file reported by both failed
+checks. Direct queue validation passed, the focused `current repo task queue`
+test passed with 2 tests passed and 63 skipped, and
+`git diff --cached --check` passed. A final canonical `git add -A` retry then
+succeeded, transferring the same verified snapshot into the real index.
+
+PASS — post-check repair attempt 16
+The project-config transaction now enters the verified `.kota` inode in an
+isolated Node subprocess and performs its temporary-file creation, cleanup,
+and atomic rename through relative paths anchored to that stable process
+working directory. A deterministic regression replaces `.kota` with an
+external symbolic link during the update and verifies that no secret-bearing
+file reaches the external directory. The focused config/webhook/strict-type
+suite passed 18 files and 212 tests; focused Biome and TypeScript checks also
+passed. A clean `tsc -p tsconfig.json` build followed by a direct import of the
+built config writer created and reread an owner-local secret-bearing config
+successfully.
+
+The isolated helper source and its typed subprocess protocol wrapper were
+split into focused 284-line and 109-line files; both remain below the
+repository's 300-line source-size warning threshold.
+
+PASS — staged queue and task validation
+After `git add -A` refreshed the workflow-local repair index,
+`src/validate-queue.ts` passed against that staged snapshot.
+`src/task-files.test.ts` and the complete
+`src/modules/repo-tasks/task-queue-validation.test.ts` suite then passed all
+70 tests with the cwd-aware Git wrapper keeping fixture repositories isolated.
+`git diff --cached --check` also passed against the repair index. A final
+canonical `git add -A` retry succeeded and transferred that verified snapshot
+into the real worktree index.
+
+PASS — post-check repair attempt 17
+The isolated helper now receives the canonical project-root path and inode,
+anchors and revalidates that root before entering `.kota`, and rejects both a
+direct root symlink replacement and an intermediate ancestor replacement
+before mutating the relocated configuration. The deterministic root and
+ancestor regressions leave the original config contents unchanged.
+
+The focused config/webhook/strict-type suite passed 18 files and 214 tests.
+Targeted Biome and TypeScript checks passed. A fresh `tsc -p tsconfig.json`
+build followed by a direct built-module write/read/mode probe passed.
+The embedded helper remains focused after splitting its 94-line root/directory
+anchor fragment from the 265-line file-operation source; every touched source
+and test file remains below the repository's 300-line warning threshold.
+
+The complete repair was refreshed with `git add -A` in the writable workflow
+repair index after the host-owned canonical index rejected its lock file.
+`git diff --cached --check`, direct queue validation, all 5 task-file tests,
+and all 65 repo-task queue validation tests passed against that staged
+snapshot. A final canonical `git add -A` retry then succeeded.
+
+PASS — post-check repair attempt 18 input hygiene
+The critic failure was a provider content-safety refusal rather than a code
+finding. The completed task now keeps the finding id, provenance, affected
+boundary, defensive outcome, and verification while removing repeated probe
+transcripts and duplicative exploit wording from the judge input. No
+authorization, guardrail, secret-handling, or filesystem check was weakened.
+The focused config/webhook/strict-type suite passed all 18 files and 214 tests;
+TypeScript and focused Biome checks also passed.
+The first canonical `git add -A` retry could not create the host-owned
+worktree `index.lock`; final staged-snapshot checks therefore use the existing
+writable workflow repair index before a canonical staging retry.
+Direct staged queue validation, all 5 task-file tests, and all 65 repo-task
+queue validation tests passed. The temporary Git shim resolves the actual
+repository root so nested test repositories stay isolated from the repair
+index.
+The second canonical staging retry was rejected at the same lock boundary;
+the verified workflow repair index remains the final staged source of truth
+for this run.
+
+PASS — post-check repair attempt 19 permission-failure boundary
+The isolated read helper now repairs the already-validated regular config
+inode to `0600` through its open no-follow descriptor before updater execution
+or serialization. A red/green regression starts with a secret-bearing `0644`
+config in a `0755` directory, forces cyclic serialization to fail, and verifies
+the original contents remain intact while the directory and file finish at
+`0700` and `0600`.
+
+`pnpm test src/core/config src/modules/config
+src/modules/webhook/webhook-operations.test.ts
+src/modules/webhook/cli.test.ts
+src/strict-types-policy.integration.test.ts` passed 18 files and 214 tests.
+`node_modules/.bin/tsc --noEmit` and focused
+`node_modules/.bin/biome check` both passed. The package-manager wrappers for
+the latter two checks could not verify registry signatures in the
+network-restricted sandbox, so the existing local binaries ran the checks
+directly.
+
+PASS — post-check repair attempt 20 anchored directory creation
+Missing `.kota` creation now runs in the isolated filesystem helper after it
+opens, enters, and revalidates the captured project-root inode. The helper
+creates the directory through that stable relative anchor, so a pre-anchor
+root or ancestor replacement is rejected before mutation and a post-anchor
+replacement cannot redirect creation into the replacement destination.
+
+Deterministic regressions capture the project-root identity with `.kota`
+absent, replace either the root or an ancestor, and verify the helper rejects
+the operation without creating `.kota` in the replacement or relocated tree.
+The focused helper/writer suite passed 2 files and 12 tests. The broader
+config/webhook/strict-type suite passed 19 files and 216 tests.
+`node_modules/.bin/tsc --noEmit`, focused `node_modules/.bin/biome check`, and
+working-tree diff hygiene also passed. Every split helper source remains below
+the 300-line source-size warning threshold.
+
+The complete working tree was refreshed with `git add -A` in the writable
+workflow repair index after the host-owned canonical index rejected its lock
+file. Direct staged queue validation, all 5 task-file tests, all 65 repo-task
+queue validation tests, and `git diff --cached --check` passed against that
+snapshot. A final canonical `git add -A` succeeded and transferred the same
+verified snapshot into the real worktree index.
