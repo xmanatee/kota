@@ -1,0 +1,14 @@
+The required canonical `git add -A` initially succeeded and staged the task
+rename, fixture repair, and run evidence. The final refresh after writing the
+commit message could not create the linked-worktree index lock:
+
+fatal: Unable to create '/Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/index.lock': Operation not permitted
+
+The complete final snapshot is staged in the run-scoped writable index at
+`.kota/tmp/2026-07-25T17-29-08-285Z-builder-crbk5n/git/index`, with new objects
+under the adjacent `objects/` directory and the canonical object database used
+as a read-only alternate. KOTA's task API performed both successful lifecycle
+transitions against that index. Queue validation, focused current-queue tests,
+and `git diff --cached --check` passed against it. The builder repair loop's
+claim-scoped host staging bridge must refresh the canonical index before
+commit.

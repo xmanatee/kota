@@ -1,0 +1,207 @@
+{
+  "fixtureId": "builder-cross-hierarchy-debugging",
+  "passed": true,
+  "calibratedPredicates": [
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-debug-trace.mjs",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "shell-succeeds",
+      "command": "node scripts/check-debug-trace.mjs --self-test-shortcuts",
+      "timeoutMs": 10000
+    }
+  ],
+  "objectiveMetricCount": 1,
+  "objectiveMetricComparisons": [
+    {
+      "name": "regression_cases_passed",
+      "direction": "higher_is_better",
+      "passed": true,
+      "acceptedAlternativeValues": [],
+      "goldenValue": 6,
+      "adversarialValue": 3,
+      "detail": "golden objective metric \"regression_cases_passed\" was better than null and adversarial numeric values, or those cases failed metric evaluation"
+    }
+  ],
+  "cases": [
+    {
+      "id": "null",
+      "caseKind": "null",
+      "expected": "fail",
+      "setup": [],
+      "passed": true,
+      "scoringPassed": false,
+      "predicateResults": [
+        {
+          "predicate": {
+            "kind": "shell-succeeds",
+            "command": "node scripts/check-debug-trace.mjs",
+            "timeoutMs": 20000
+          },
+          "passed": false,
+          "detail": "shell-succeeds \"node scripts/check-debug-trace.mjs\" — exit 1\nnode --test test/signal-flow.test.mjs failed after candidate fix:\n✖ signal route: visible-line-a-pressure (0.658084ms)\n✖ signal route: hidden-line-b-pressure (0.349167ms)\n✖ signal route: adjacent-temperature-route (0.07375ms)\nℹ tests 3\nℹ suites 0\nℹ pass 0\nℹ fail 3\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 35.348917\n\n✖ failing tests:\n\ntest at test/signal-flow.test.mjs:42:3\n✖ signal route: visible-line-a-pressure (0.658084ms)\n  AssertionError [ERR_ASSERTION]: visible-line-a-pressure routed plant-alpha/line-a/press/pump-7 to queue/ambient-monitor, expected queue/safety-cutoff\n  + actual - expected\n  \n  + 'queue/ambient-monitor'\n  - 'queue/safety-cutoff'\n           ^\n  \n      at TestContext.<anonymous> (file:///Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/.kota/tmp/2026-07-25T17-29-08-285Z-builder-crbk5n/kota-eval-builder-cross-hierarchy-debugging-2qoMuF/test/signal-flow.test.mjs:44:12)\n      at Test.runInAsyncScope (node:async_hooks:226:14)\n      at Test.run (node:internal/test_runner/test:1382:25)\n      at Test.start (node:internal/test_runner/test:1242:17)\n      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {\n    generatedMessage: false,\n    code: 'ERR_ASSERTION',\n    actual: 'queue/ambient-monitor',\n    expected: 'queue/safety-cutoff',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n\ntest at test/signal-flow.test.mjs:42:3\n✖ signal route: hidden-line-b-pressure (0.349167ms)\n  AssertionError [ERR_ASSERTION]: hidden-line-b-pressure routed plant-alpha/line-b/press/pump-2 to queue/ambient-monitor, expected queue/safety-cutoff\n  + actual - expected\n  \n  + 'queue/ambient-monitor'\n  - 'queue/safety-cutoff'\n           ^\n  \n      at TestContext.<anonymous> (file:///Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/.kota/tmp/2026-07-25T17-29-08-285Z-builder-crbk5n/kota-eval-builder-cross-hierarchy-debugging-2qoMuF/test/signal-flow.test.mjs:44:12)\n      at Test.runInAsyncScope (node:async_hooks:226:14)\n      at Test.run (node:internal/test_runner/test:1382:25)\n      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)\n      at Test.postRun (node:internal/test_runner/test:1522:19)\n      at Test.run (node:internal/test_runner/test:1447:12)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {\n    generatedMessage: false,\n    code: 'ERR_ASSERTION',\n    actual: 'queue/ambient-monitor',\n    expected: 'queue/safety-cutoff',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n\ntest at test/signal-flow.test.mjs:42:3\n✖ signal route: adjacent-temperature-route (0.07375ms)\n  AssertionError [ERR_ASSERTION]: adjacent-temperature-route routed plant-alpha/line-a/temp/probe-4 to queue/ambient-monitor, expected queue/thermal-watch\n  + actual - expected\n  \n  + 'queue/ambient-monitor'\n  - 'queue/thermal-watch'\n           ^\n  \n      at TestContext.<anonymous> (file:///Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/.kota/tmp/2026-07-25T17-29-08-285Z-builder-crbk5n/kota-eval-builder-cross-hierarchy-debugging-2qoMuF/test/signal-flow.test.mjs:44:12)\n      at Test.runInAsyncScope (node:async_hooks:226:14)\n      at Test.run (node:internal/test_runner/test:1382:25)\n      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)\n      at Test.postRun (node:internal/test_runner/test:1522:19)\n      at Test.run (node:internal/test_runner/test:1447:12)\n      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {\n    generatedMessage: false,\n    code: 'ERR_ASSERTION',\n    actual: 'queue/ambient-monitor',\n    expected: 'queue/thermal-watch',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n\n"
+        },
+        {
+          "predicate": {
+            "kind": "shell-succeeds",
+            "command": "node scripts/check-debug-trace.mjs --self-test-shortcuts",
+            "timeoutMs": 10000
+          },
+          "passed": true,
+          "detail": "shell-succeeds \"node scripts/check-debug-trace.mjs --self-test-shortcuts\" — exit 0\n{\n  \"status\": \"passed\",\n  \"shortcutGuards\": [\n    \"symptom-as-root-cause\",\n    \"missing-flow-layer\",\n    \"fake-verification-digest\",\n    \"symptom-only-changed-path\",\n    \"exact-path-behavior\",\n    \"concrete-signal-path-source\"\n  ]\n}\n"
+        }
+      ],
+      "objectiveMetrics": [],
+      "objectiveMetricError": {
+        "name": "ObjectiveMetricValidationError",
+        "message": "Objective metric \"regression_cases_passed\" for fixture \"builder-cross-hierarchy-debugging\" missing json-file source debug-trace-result.json.",
+        "reason": "missing-source",
+        "fixtureId": "builder-cross-hierarchy-debugging",
+        "metricName": "regression_cases_passed"
+      },
+      "detail": "case \"null\" matched expected verifier fail"
+    },
+    {
+      "id": "golden",
+      "caseKind": "golden",
+      "expected": "pass",
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/src/channel-registry.mjs",
+          "targetPath": "src/channel-registry.mjs"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/golden/debug-trace-result.json",
+          "targetPath": "debug-trace-result.json"
+        }
+      ],
+      "passed": true,
+      "scoringPassed": true,
+      "predicateResults": [
+        {
+          "predicate": {
+            "kind": "shell-succeeds",
+            "command": "node scripts/check-debug-trace.mjs",
+            "timeoutMs": 20000
+          },
+          "passed": true,
+          "detail": "shell-succeeds \"node scripts/check-debug-trace.mjs\" — exit 0\n{\n  \"status\": \"ok\",\n  \"command\": \"node --test test/signal-flow.test.mjs\",\n  \"artifact\": \"debug-trace-result.json\",\n  \"behaviorDigest\": \"f89e949aceee22a974a0e0553418e3b9650cd77c85fcface0198d27805c78f66\",\n  \"cases\": 6,\n  \"causalPathCoverage\": 3\n}\n"
+        },
+        {
+          "predicate": {
+            "kind": "shell-succeeds",
+            "command": "node scripts/check-debug-trace.mjs --self-test-shortcuts",
+            "timeoutMs": 10000
+          },
+          "passed": true,
+          "detail": "shell-succeeds \"node scripts/check-debug-trace.mjs --self-test-shortcuts\" — exit 0\n{\n  \"status\": \"passed\",\n  \"shortcutGuards\": [\n    \"symptom-as-root-cause\",\n    \"missing-flow-layer\",\n    \"fake-verification-digest\",\n    \"symptom-only-changed-path\",\n    \"exact-path-behavior\",\n    \"concrete-signal-path-source\"\n  ]\n}\n"
+        }
+      ],
+      "objectiveMetrics": [
+        {
+          "fixtureId": "builder-cross-hierarchy-debugging",
+          "name": "regression_cases_passed",
+          "unit": "cases",
+          "direction": "higher_is_better",
+          "source": {
+            "kind": "json-file",
+            "path": "debug-trace-result.json",
+            "pointer": "/metrics/regressionCasesPassed"
+          },
+          "value": 6,
+          "runIndex": 0,
+          "repeatCount": 1,
+          "resourceProfile": {
+            "hostClass": "local-dev",
+            "cpuAllocationCores": 16,
+            "cpuKillThresholdCores": 16,
+            "memoryAllocationMB": 131072,
+            "memoryKillThresholdMB": 131072
+          },
+          "executionProfile": {
+            "status": "non-gating",
+            "backendKind": "host-subprocess",
+            "verification": "unverified",
+            "gateEligible": false,
+            "reason": "host-subprocess-unverified"
+          }
+        }
+      ],
+      "detail": "case \"golden\" matched expected verifier pass"
+    },
+    {
+      "id": "adversarial",
+      "caseKind": "adversarial",
+      "expected": "fail",
+      "setup": [
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/src/channel-registry.mjs",
+          "targetPath": "src/channel-registry.mjs"
+        },
+        {
+          "kind": "copy-fixture-file",
+          "sourcePath": "calibration/adversarial/debug-trace-result.json",
+          "targetPath": "debug-trace-result.json"
+        }
+      ],
+      "passed": true,
+      "scoringPassed": false,
+      "predicateResults": [
+        {
+          "predicate": {
+            "kind": "shell-succeeds",
+            "command": "node scripts/check-debug-trace.mjs",
+            "timeoutMs": 20000
+          },
+          "passed": false,
+          "detail": "shell-succeeds \"node scripts/check-debug-trace.mjs\" — exit 1\npost-fix behavior invalid:\n- holdout-line-a-pressure-sibling topic was \"queue/ambient-monitor\", expected \"queue/safety-cutoff\"\n- holdout-line-a-pressure-sibling severity was \"info\", expected \"critical\"\n- holdout-line-a-pressure-sibling ruleKey was \"plant-alpha\", expected \"plant-alpha/line-a/press\"\n- holdout-line-a-pressure-sibling owner was \"site-ops\", expected \"pressure-safety\"\n- holdout-line-b-pressure-sibling topic was \"queue/ambient-monitor\", expected \"queue/safety-cutoff\"\n- holdout-line-b-pressure-sibling severity was \"info\", expected \"critical\"\n- holdout-line-b-pressure-sibling ruleKey was \"plant-alpha\", expected \"plant-alpha/line-b/press\"\n- holdout-line-b-pressure-sibling owner was \"site-ops\", expected \"pressure-safety\"\n- holdout-temperature-sibling topic was \"queue/ambient-monitor\", expected \"queue/thermal-watch\"\n- holdout-temperature-sibling severity was \"info\", expected \"warning\"\n- holdout-temperature-sibling ruleKey was \"plant-alpha\", expected \"plant-alpha/line-a/temp\"\n- holdout-temperature-sibling owner was \"site-ops\", expected \"thermal-ops\"\n"
+        },
+        {
+          "predicate": {
+            "kind": "shell-succeeds",
+            "command": "node scripts/check-debug-trace.mjs --self-test-shortcuts",
+            "timeoutMs": 10000
+          },
+          "passed": true,
+          "detail": "shell-succeeds \"node scripts/check-debug-trace.mjs --self-test-shortcuts\" — exit 0\n{\n  \"status\": \"passed\",\n  \"shortcutGuards\": [\n    \"symptom-as-root-cause\",\n    \"missing-flow-layer\",\n    \"fake-verification-digest\",\n    \"symptom-only-changed-path\",\n    \"exact-path-behavior\",\n    \"concrete-signal-path-source\"\n  ]\n}\n"
+        }
+      ],
+      "objectiveMetrics": [
+        {
+          "fixtureId": "builder-cross-hierarchy-debugging",
+          "name": "regression_cases_passed",
+          "unit": "cases",
+          "direction": "higher_is_better",
+          "source": {
+            "kind": "json-file",
+            "path": "debug-trace-result.json",
+            "pointer": "/metrics/regressionCasesPassed"
+          },
+          "value": 3,
+          "runIndex": 0,
+          "repeatCount": 1,
+          "resourceProfile": {
+            "hostClass": "local-dev",
+            "cpuAllocationCores": 16,
+            "cpuKillThresholdCores": 16,
+            "memoryAllocationMB": 131072,
+            "memoryKillThresholdMB": 131072
+          },
+          "executionProfile": {
+            "status": "non-gating",
+            "backendKind": "host-subprocess",
+            "verification": "unverified",
+            "gateEligible": false,
+            "reason": "host-subprocess-unverified"
+          }
+        }
+      ],
+      "detail": "case \"adversarial\" matched expected verifier fail"
+    }
+  ]
+}

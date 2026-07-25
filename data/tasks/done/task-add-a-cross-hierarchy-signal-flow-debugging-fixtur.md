@@ -1,13 +1,13 @@
 ---
 id: task-add-a-cross-hierarchy-signal-flow-debugging-fixtur
 title: Add a cross-hierarchy signal-flow debugging fixture to the eval harness
-status: ready
+status: done
 priority: p2
 area: modules
 task_class: Meta
 summary: Seed an eval-harness fixture where the builder must trace a bug through interacting files and fix the root cause from structured failure evidence instead of patching the symptom file.
 created_at: 2026-07-07T23:04:35.954Z
-updated_at: 2026-07-25T17:29:01.516Z
+updated_at: 2026-07-25T17:50:42.119Z
 ---
 
 ## Problem
@@ -131,6 +131,21 @@ The daemon host can bind the leased localhost range and has an authenticated
 Codex harness. The live pass is now owned by the provenance-pinned Runtime
 Probe above, so the earlier builder-sandbox limitation is no longer an
 operator precondition.
+
+## Status (2026-07-25 builder)
+
+A fresh live diagnostic caught a current verifier-calibration regression
+before the nested agent ran: the adversarial artifact reported the same
+`causal_path_coverage` value as golden. The fixture now reports the behavioral
+`regression_cases_passed` objective metric instead, with golden `6` versus the
+exact-path adversarial shortcut's visible-only `3`; the retained
+`verifier-calibration.json` passes every case and the objective comparison.
+
+The sandbox diagnostic then completed nested queue inspection, task claim, and
+worktree preparation before the sandboxed Codex CLI failed to initialize its
+in-process app-server client. This candidate remains gated by the unchanged
+trusted-host Runtime Probe above. The workflow must record a passing
+`runtime-probe.json` before it commits the terminal task state.
 
 ## Source / Intent
 

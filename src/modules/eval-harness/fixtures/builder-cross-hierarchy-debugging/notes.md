@@ -28,7 +28,11 @@ test files. It also probes sibling holdout signal paths and rejects concrete
 full-path literals in `src/channel-registry.mjs`, so exact-output lookup
 tables do not satisfy the root-cause requirement. The artifact must name the
 failing command, downstream symptom file, upstream root-cause file, causal
-path, verification result, and a numeric `causalPathCoverage` metric.
+path, verification result, and numeric path and regression coverage fields.
+Path completeness remains a predicate contract. The objective metric reports
+`regressionCasesPassed`, which separates the general fix's six visible and
+holdout passes from the adversarial exact-path shortcut's three visible-only
+passes.
 
 The adversarial calibration case applies a tempting `src/channel-registry.mjs`
 shortcut that maps the three visible test paths exactly plus a plausible trace

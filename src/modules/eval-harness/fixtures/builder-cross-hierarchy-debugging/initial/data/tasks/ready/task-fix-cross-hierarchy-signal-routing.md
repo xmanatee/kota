@@ -70,7 +70,8 @@ node scripts/check-debug-trace.mjs
 - Command output from `node scripts/check-debug-trace.mjs`.
 - The generated `debug-trace-result.json` artifact.
 - Command output from `node scripts/check-debug-trace.mjs --self-test-shortcuts`.
-- The fixture run artifact records the `causal_path_coverage` objective metric.
+- The fixture run artifact records the `regression_cases_passed` objective
+  metric.
 
 ## Source / Intent
 

@@ -1,0 +1,39 @@
++zsh:5> node -e 'const fs = require("node:fs"); for (const path of process.argv.slice(1)) JSON.parse(fs.readFileSync(path, "utf8"));' src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/fixture.json src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/calibration/adversarial/debug-trace-result.json
++zsh:6> node node_modules/typescript/bin/tsc --noEmit
++zsh:7> git diff --check
++zsh:8> KOTA_ALT_ROOT=/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/.kota/tmp/2026-07-25T17-29-08-285Z-builder-crbk5n/git
++zsh:9> KOTA_ALT_INDEX=/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/.kota/tmp/2026-07-25T17-29-08-285Z-builder-crbk5n/git/index
++zsh:10> KOTA_ALT_OBJECTS=/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/.kota/tmp/2026-07-25T17-29-08-285Z-builder-crbk5n/git/objects
++zsh:11> KOTA_CANONICAL_OBJECTS=+zsh:11> git rev-parse --git-path objects
++zsh:11> KOTA_CANONICAL_OBJECTS=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects
++zsh:12> GIT_INDEX_FILE=/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/.kota/tmp/2026-07-25T17-29-08-285Z-builder-crbk5n/git/index GIT_OBJECT_DIRECTORY=/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/.kota/tmp/2026-07-25T17-29-08-285Z-builder-crbk5n/git/objects GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects git add -A
++zsh:13> GIT_INDEX_FILE=/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/.kota/tmp/2026-07-25T17-29-08-285Z-builder-crbk5n/git/index GIT_OBJECT_DIRECTORY=/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/.kota/tmp/2026-07-25T17-29-08-285Z-builder-crbk5n/git/objects GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects node '--conditions=source' --import /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/node_modules/tsx/dist/loader.mjs src/validate-queue.ts
+(node:15984) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
++zsh:14> GIT_INDEX_FILE=/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/.kota/tmp/2026-07-25T17-29-08-285Z-builder-crbk5n/git/index GIT_OBJECT_DIRECTORY=/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/.kota/tmp/2026-07-25T17-29-08-285Z-builder-crbk5n/git/objects GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects NODE_OPTIONS='--conditions=source' TMPDIR=/private/tmp node node_modules/vitest/vitest.mjs run --configLoader runner src/modules/repo-tasks/task-queue-validation.test.ts -t 'current repo task queue'
+
+ RUN  v4.1.0 /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n
+
+
+ Test Files  1 passed (1)
+      Tests  2 passed | 63 skipped (65)
+   Start at  18:52:56
+   Duration  351ms (transform 50ms, setup 25ms, import 50ms, tests 220ms, environment 0ms)
+
++zsh:15> GIT_INDEX_FILE=/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/.kota/tmp/2026-07-25T17-29-08-285Z-builder-crbk5n/git/index GIT_OBJECT_DIRECTORY=/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/.kota/tmp/2026-07-25T17-29-08-285Z-builder-crbk5n/git/objects GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects git diff --cached --check
++zsh:16> GIT_INDEX_FILE=/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/.kota/tmp/2026-07-25T17-29-08-285Z-builder-crbk5n/git/index GIT_OBJECT_DIRECTORY=/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/.kota/tmp/2026-07-25T17-29-08-285Z-builder-crbk5n/git/objects GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects git diff --cached --stat
+ .gitignore                                         |  13 ++
+ .../deterministic-validation.txt                   | 135 ++++++++++++++
+ .../eval-list-transcript.txt                       |  76 ++++++++
+ .../sandbox-live-eval-diagnostic.txt               |  67 +++++++
+ .../success-criteria-verified.txt                  |   4 +
+ .../success-criteria.txt                           |   4 +
+ .../task-lifecycle.txt                             |  12 ++
+ .../validation.txt                                 |   0
+ .../verifier-calibration.json                      | 207 +++++++++++++++++++++
+ ...cross-hierarchy-signal-flow-debugging-fixtur.md |  19 +-
+ .../adversarial/debug-trace-result.json            |   2 +-
+ .../builder-cross-hierarchy-debugging/fixture.json |   6 +-
+ .../task-fix-cross-hierarchy-signal-routing.md     |   3 +-
+ .../builder-cross-hierarchy-debugging/notes.md     |   6 +-
+ 14 files changed, 546 insertions(+), 8 deletions(-)

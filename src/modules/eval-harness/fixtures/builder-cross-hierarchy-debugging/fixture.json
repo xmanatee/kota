@@ -74,13 +74,13 @@
   ],
   "objectiveMetrics": [
     {
-      "name": "causal_path_coverage",
-      "unit": "layers",
+      "name": "regression_cases_passed",
+      "unit": "cases",
       "direction": "higher_is_better",
       "source": {
         "kind": "json-file",
         "path": "debug-trace-result.json",
-        "pointer": "/metrics/causalPathCoverage"
+        "pointer": "/metrics/regressionCasesPassed"
       }
     }
   ],

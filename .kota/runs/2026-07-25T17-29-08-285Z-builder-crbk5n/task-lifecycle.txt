@@ -1,0 +1,16 @@
+The first transition could not write the protected linked-worktree index.
+Both successful transitions used KOTA's task API with a run-scoped writable
+Git index and object store; final canonical staging succeeded.
+
+Fatal: Command failed: git add -A -- data/tasks/ready/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur.md data/tasks/doing/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur.md
+error: unable to create temporary file: Operation not permitted
+error: data/tasks/doing/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur.md: failed to insert into database
+error: unable to index file 'data/tasks/doing/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur.md'
+fatal: adding files failed
+
+Moved "task-add-a-cross-hierarchy-signal-flow-debugging-fixtur" from "ready" to "doing".
+(node:7738) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+Moved "task-add-a-cross-hierarchy-signal-flow-debugging-fixtur" from "doing" to "done".
+(node:14245) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)

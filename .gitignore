@@ -900,6 +900,19 @@ deploy/telegram-assistant/.env
 !/.kota/runs/2026-07-25T12-37-16-778Z-builder-vq7677/success-criteria.txt
 !/.kota/runs/2026-07-25T12-37-16-778Z-builder-vq7677/success-criteria-verified.txt
 !/.kota/runs/2026-07-25T12-37-16-778Z-builder-vq7677/validation.txt
+!/.kota/runs/2026-07-25T17-29-08-285Z-builder-crbk5n/
+/.kota/runs/2026-07-25T17-29-08-285Z-builder-crbk5n/*
+!/.kota/runs/2026-07-25T17-29-08-285Z-builder-crbk5n/commit-message.txt
+!/.kota/runs/2026-07-25T17-29-08-285Z-builder-crbk5n/deterministic-validation.txt
+!/.kota/runs/2026-07-25T17-29-08-285Z-builder-crbk5n/eval-list-transcript.txt
+!/.kota/runs/2026-07-25T17-29-08-285Z-builder-crbk5n/runtime-probe.json
+!/.kota/runs/2026-07-25T17-29-08-285Z-builder-crbk5n/sandbox-live-eval-diagnostic.txt
+!/.kota/runs/2026-07-25T17-29-08-285Z-builder-crbk5n/staging-limitation.txt
+!/.kota/runs/2026-07-25T17-29-08-285Z-builder-crbk5n/success-criteria.txt
+!/.kota/runs/2026-07-25T17-29-08-285Z-builder-crbk5n/success-criteria-verified.txt
+!/.kota/runs/2026-07-25T17-29-08-285Z-builder-crbk5n/task-lifecycle.txt
+!/.kota/runs/2026-07-25T17-29-08-285Z-builder-crbk5n/validation.txt
+!/.kota/runs/2026-07-25T17-29-08-285Z-builder-crbk5n/verifier-calibration.json
 # Eval-harness fixtures legitimately seed prior run state; the runner copies
 # `initial/` verbatim into an isolated tmpdir at fixture-run time.
 !src/modules/eval-harness/fixtures/**/initial/.kota/

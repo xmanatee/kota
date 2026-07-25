@@ -1,0 +1,7 @@
+1. The shipped builder-cross-hierarchy-debugging fixture contains valid fixture.json and notes.md files plus a minimal, dependency-free layered initial project.
+2. The fixture's initial task remains in data/tasks/ready/, passes repository task validation, and describes the cross-hierarchy root-cause debugging outcome and acceptance evidence.
+3. The initial project exposes the downstream gateway symptom, fails the final predicates before the builder runs, and declares the expected missing-fix and missing-artifact failures in preRunExpectations.
+4. Final predicates require the nested task to reach done, the real verification command to pass, debug-trace-result.json to identify the symptom, upstream root cause, causal path, command, and result, and changed paths to stay within the accepted implementation and task-evidence surface.
+5. Deterministic calibration proves that symptom-only and hardcoded exact-path shortcuts fail while the general ancestor-prefix root-cause fix passes, with every temporary shortcut reverted before staging.
+6. pnpm kota eval list loads builder-cross-hierarchy-debugging without provenance or schema errors and its transcript is retained in the run directory.
+7. The provenance-pinned trusted-host runtime probe completes one live builder repeat with every cross-hierarchy debugging predicate passing and regression_cases_passed visible in the retained run artifact and aggregate output.

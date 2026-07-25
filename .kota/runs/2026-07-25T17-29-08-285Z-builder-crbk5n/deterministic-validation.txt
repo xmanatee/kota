@@ -1,0 +1,135 @@
++zsh:4> KOTA_FIXTURE_DIR=/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging
++zsh:5> KOTA_FIXTURE_TMP=+zsh:5> mktemp -d /private/tmp/kota-cross-hierarchy-current.XXXXXX
++zsh:5> KOTA_FIXTURE_TMP=/private/tmp/kota-cross-hierarchy-current.eKpLPr
++zsh:6> cp -R /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/initial/. /private/tmp/kota-cross-hierarchy-current.eKpLPr/
++zsh:7> git -C /private/tmp/kota-cross-hierarchy-current.eKpLPr init -q -b main
++zsh:8> git -C /private/tmp/kota-cross-hierarchy-current.eKpLPr config user.email kota-fixture@example.invalid
++zsh:9> git -C /private/tmp/kota-cross-hierarchy-current.eKpLPr config user.name 'KOTA Fixture Validation'
++zsh:10> git -C /private/tmp/kota-cross-hierarchy-current.eKpLPr add -A
++zsh:11> git -C /private/tmp/kota-cross-hierarchy-current.eKpLPr commit -q -m initial
++zsh:12> node /private/tmp/kota-cross-hierarchy-current.eKpLPr/scripts/check-debug-trace.mjs --baseline-fails
+{
+  "status": "ok",
+  "command": "node --test test/signal-flow.test.mjs",
+  "failureNeedles": [
+    "visible-line-a-pressure",
+    "hidden-line-b-pressure",
+    "adjacent-temperature-route",
+    "queue/ambient-monitor",
+    "queue/safety-cutoff"
+  ]
+}
++zsh:13> node /private/tmp/kota-cross-hierarchy-current.eKpLPr/scripts/check-debug-trace.mjs --self-test-shortcuts
+{
+  "status": "passed",
+  "shortcutGuards": [
+    "symptom-as-root-cause",
+    "missing-flow-layer",
+    "fake-verification-digest",
+    "symptom-only-changed-path",
+    "exact-path-behavior",
+    "concrete-signal-path-source"
+  ]
+}
++zsh:14> cp /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/calibration/golden/src/channel-registry.mjs /private/tmp/kota-cross-hierarchy-current.eKpLPr/src/channel-registry.mjs
++zsh:15> cp /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/calibration/golden/debug-trace-result.json /private/tmp/kota-cross-hierarchy-current.eKpLPr/debug-trace-result.json
++zsh:16> node /private/tmp/kota-cross-hierarchy-current.eKpLPr/scripts/check-debug-trace.mjs
+{
+  "status": "ok",
+  "command": "node --test test/signal-flow.test.mjs",
+  "artifact": "debug-trace-result.json",
+  "behaviorDigest": "f89e949aceee22a974a0e0553418e3b9650cd77c85fcface0198d27805c78f66",
+  "cases": 6,
+  "causalPathCoverage": 3
+}
++zsh:17> git -C /private/tmp/kota-cross-hierarchy-current.eKpLPr restore .
++zsh:18> rm -f /private/tmp/kota-cross-hierarchy-current.eKpLPr/debug-trace-result.json
++zsh:19> cp /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/calibration/adversarial/src/channel-registry.mjs /private/tmp/kota-cross-hierarchy-current.eKpLPr/src/channel-registry.mjs
++zsh:20> cp /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/calibration/adversarial/debug-trace-result.json /private/tmp/kota-cross-hierarchy-current.eKpLPr/debug-trace-result.json
++zsh:21> node --test /private/tmp/kota-cross-hierarchy-current.eKpLPr/test/signal-flow.test.mjs
+✔ signal route: visible-line-a-pressure (0.331375ms)
+✔ signal route: hidden-line-b-pressure (0.057208ms)
+✔ signal route: adjacent-temperature-route (0.040584ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 33.641458
++zsh:22> node /private/tmp/kota-cross-hierarchy-current.eKpLPr/scripts/check-debug-trace.mjs
+post-fix behavior invalid:
+- holdout-line-a-pressure-sibling topic was "queue/ambient-monitor", expected "queue/safety-cutoff"
+- holdout-line-a-pressure-sibling severity was "info", expected "critical"
+- holdout-line-a-pressure-sibling ruleKey was "plant-alpha", expected "plant-alpha/line-a/press"
+- holdout-line-a-pressure-sibling owner was "site-ops", expected "pressure-safety"
+- holdout-line-b-pressure-sibling topic was "queue/ambient-monitor", expected "queue/safety-cutoff"
+- holdout-line-b-pressure-sibling severity was "info", expected "critical"
+- holdout-line-b-pressure-sibling ruleKey was "plant-alpha", expected "plant-alpha/line-b/press"
+- holdout-line-b-pressure-sibling owner was "site-ops", expected "pressure-safety"
+- holdout-temperature-sibling topic was "queue/ambient-monitor", expected "queue/thermal-watch"
+- holdout-temperature-sibling severity was "info", expected "warning"
+- holdout-temperature-sibling ruleKey was "plant-alpha", expected "plant-alpha/line-a/temp"
+- holdout-temperature-sibling owner was "site-ops", expected "thermal-ops"
++zsh:23> git -C /private/tmp/kota-cross-hierarchy-current.eKpLPr restore .
++zsh:24> rm -f /private/tmp/kota-cross-hierarchy-current.eKpLPr/debug-trace-result.json
++zsh:25> node /private/tmp/kota-cross-hierarchy-current.eKpLPr/scripts/check-debug-trace.mjs --baseline-fails
+{
+  "status": "ok",
+  "command": "node --test test/signal-flow.test.mjs",
+  "failureNeedles": [
+    "visible-line-a-pressure",
+    "hidden-line-b-pressure",
+    "adjacent-temperature-route",
+    "queue/ambient-monitor",
+    "queue/safety-cutoff"
+  ]
+}
++zsh:26> rm -r /private/tmp/kota-cross-hierarchy-current.eKpLPr
++zsh:4> KOTA_SOURCE_ROOT=/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n
++zsh:5> KOTA_FIXTURE_TMP=+zsh:5> mktemp -d /private/tmp/kota-cross-hierarchy-task-validation.XXXXXX
++zsh:5> KOTA_FIXTURE_TMP=/private/tmp/kota-cross-hierarchy-task-validation.taHrPg
++zsh:6> cp -R /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/initial/. /private/tmp/kota-cross-hierarchy-task-validation.taHrPg/
++zsh:7> git -C /private/tmp/kota-cross-hierarchy-task-validation.taHrPg init -q -b main
++zsh:8> git -C /private/tmp/kota-cross-hierarchy-task-validation.taHrPg config user.email kota-fixture@example.invalid
++zsh:9> git -C /private/tmp/kota-cross-hierarchy-task-validation.taHrPg config user.name 'KOTA Fixture Validation'
++zsh:10> git -C /private/tmp/kota-cross-hierarchy-task-validation.taHrPg add -A
++zsh:11> git -C /private/tmp/kota-cross-hierarchy-task-validation.taHrPg commit -q -m initial
++zsh:12> cd /private/tmp/kota-cross-hierarchy-task-validation.taHrPg
++zsh:13> NODE_OPTIONS='--conditions=source' /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/node_modules/.bin/tsx /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/src/validate-queue.ts
+node:net:2145
+      const error = new UVExceptionWithHostPort(rval, 'listen', address, port);
+                    ^
+
+Error: listen EINVAL: invalid argument /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/.kota/tmp/2026-07-25T17-29-08-285Z-builder-crbk5n/tsx-501/13118.pipe
+    at Server.setupListenHandle [as _listen2] (node:net:2145:21)
+    at listenInCluster (node:net:2224:12)
+    at Server.listen (node:net:2361:5)
+    at file:///Users/xmanatee/Desktop/mono/apps/kota/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/cli.mjs:53:31537
+    at new Promise (<anonymous>)
+    at createIpcServer (file:///Users/xmanatee/Desktop/mono/apps/kota/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/cli.mjs:53:31515)
+    at async file:///Users/xmanatee/Desktop/mono/apps/kota/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/cli.mjs:55:459 {
+  code: 'EINVAL',
+  errno: -22,
+  syscall: 'listen',
+  address: '/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/.kota/tmp/2026-07-25T17-29-08-285Z-builder-crbk5n/tsx-501/13118.pipe',
+  port: -1
+}
+
+Node.js v26.5.0
++zsh:4> KOTA_SOURCE_ROOT=/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n
++zsh:5> KOTA_FIXTURE_TMP=+zsh:5> mktemp -d /private/tmp/kota-cross-hierarchy-task-validation.XXXXXX
++zsh:5> KOTA_FIXTURE_TMP=/private/tmp/kota-cross-hierarchy-task-validation.NYdMRl
++zsh:6> cp -R /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/src/modules/eval-harness/fixtures/builder-cross-hierarchy-debugging/initial/. /private/tmp/kota-cross-hierarchy-task-validation.NYdMRl/
++zsh:7> git -C /private/tmp/kota-cross-hierarchy-task-validation.NYdMRl init -q -b main
++zsh:8> git -C /private/tmp/kota-cross-hierarchy-task-validation.NYdMRl config user.email kota-fixture@example.invalid
++zsh:9> git -C /private/tmp/kota-cross-hierarchy-task-validation.NYdMRl config user.name 'KOTA Fixture Validation'
++zsh:10> git -C /private/tmp/kota-cross-hierarchy-task-validation.NYdMRl add -A
++zsh:11> git -C /private/tmp/kota-cross-hierarchy-task-validation.NYdMRl commit -q -m initial
++zsh:12> cd /private/tmp/kota-cross-hierarchy-task-validation.NYdMRl
++zsh:13> node '--conditions=source' --import /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/node_modules/tsx/dist/loader.mjs /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n/src/validate-queue.ts
+(node:13331) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
++zsh:14> cd /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-a-cross-hierarchy-signal-flow-debugging-fixtur-2026-07-25t17-29-08-285z-builder-crbk5n
++zsh:15> rm -r /private/tmp/kota-cross-hierarchy-task-validation.NYdMRl
