@@ -1,0 +1,4 @@
+1. A run artifact records canonical workflow state-recovery before and after state for both cited stale builder claims and both cited dead letters.
+2. Neither existing P1 repair retains a stale active claim; each is claimable, actively progressing, or explicitly superseded with durable rationale, without a duplicate repair task.
+3. The improver dead letter reaches a terminal disposition, and the security-review dead letter remains linked to its existing repair task or reaches a terminal disposition.
+4. The owned reconciliation task records acceptance evidence, reaches done through the task CLI, and task validation passes.

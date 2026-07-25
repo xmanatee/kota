@@ -1,0 +1,64 @@
+{
+  "capturedAt": "2026-07-25T17:05:12+01:00",
+  "projectDir": "/Users/xmanatee/Desktop/mono/apps/kota",
+  "sourceCommand": "kota workflow state-recovery list --json",
+  "claims": [
+    {
+      "taskId": "task-repair-workflow-failure-pattern-e178cde33f3a",
+      "runId": "2026-07-25T10-03-33-551Z-builder-ugava5",
+      "claimStatus": "active",
+      "recoveryStatus": "stale",
+      "ownerRunStatus": "failed",
+      "worktreeState": "active",
+      "dirtyState": "conflicted",
+      "uniqueCommits": [
+        "467c730c2f6da33c3bb057755c39b74d4ee9e0b5 fix provider unavailable workflow classification"
+      ],
+      "recommendedAction": "needs-review"
+    },
+    {
+      "taskId": "task-restore-defensive-security-review-after-classifier",
+      "runId": "2026-07-25T09-38-44-202Z-builder-ye6m9n",
+      "claimStatus": "active",
+      "recoveryStatus": "stale",
+      "ownerRunStatus": "failed",
+      "worktreeState": "active",
+      "dirtyState": "dirty",
+      "uniqueCommits": [],
+      "recommendedAction": "needs-review"
+    }
+  ],
+  "deadLetters": [
+    {
+      "id": "dlq-d042a107-c7ee-4d7b-946d-458124f2befd",
+      "workflow": "security-review",
+      "status": "open",
+      "failureClass": "execution",
+      "linkedTaskId": "task-restore-defensive-security-review-after-classifier"
+    },
+    {
+      "id": "dlq-69c2533c-359d-47ba-91d3-74a3c45e4b1f",
+      "workflow": "improver",
+      "status": "open",
+      "failureClass": "execution"
+    }
+  ],
+  "dispositionEvidence": {
+    "builderFailure": {
+      "staleCommit": "467c730c2f6da33c3bb057755c39b74d4ee9e0b5",
+      "supersedingCommit": "0eb76a9f5965be3ddb20c85b67c234abdba5999c",
+      "reason": "The landed commit contains the same provider-unavailable outcome plus broader provenance, stream-disconnect, high-demand, detector, and aggregation coverage."
+    },
+    "securityReview": {
+      "supersedingCommit": "18a12e397024aa0b74639ebde859f9b639de81b5",
+      "reason": "The landed commit reduces classifier exposure through compact candidate metadata while retaining complete scan evidence; the dirty worktree remains preserved until a trusted comparison confirms no unique change is lost."
+    },
+    "improver": {
+      "successfulRunsAfterFailure": 13,
+      "repairCommit": "5a2de0459",
+      "classificationCommit": "0eb76a9f5965be3ddb20c85b67c234abdba5999c",
+      "reason": "Later success supersedes the stale workflow.completed event; dismissal avoids duplicating already completed improver work."
+    },
+    "duplicateRepairTasks": []
+  }
+}

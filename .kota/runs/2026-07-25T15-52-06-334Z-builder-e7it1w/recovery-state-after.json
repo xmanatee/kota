@@ -1,0 +1,43 @@
+{
+  "capturedAt": "2026-07-25T17:05:12+01:00",
+  "projectDir": "/Users/xmanatee/Desktop/mono/apps/kota",
+  "sourceCommand": "kota workflow state-recovery list --json",
+  "result": "unchanged",
+  "claims": [
+    {
+      "taskId": "task-repair-workflow-failure-pattern-e178cde33f3a",
+      "runId": "2026-07-25T10-03-33-551Z-builder-ugava5",
+      "claimStatus": "active",
+      "recoveryStatus": "stale",
+      "recommendedAction": "needs-review"
+    },
+    {
+      "taskId": "task-restore-defensive-security-review-after-classifier",
+      "runId": "2026-07-25T09-38-44-202Z-builder-ye6m9n",
+      "claimStatus": "active",
+      "recoveryStatus": "stale",
+      "recommendedAction": "needs-review"
+    }
+  ],
+  "deadLetters": [
+    {
+      "id": "dlq-d042a107-c7ee-4d7b-946d-458124f2befd",
+      "workflow": "security-review",
+      "status": "open",
+      "linkedTaskId": "task-restore-defensive-security-review-after-classifier"
+    },
+    {
+      "id": "dlq-69c2533c-359d-47ba-91d3-74a3c45e4b1f",
+      "workflow": "improver",
+      "status": "open"
+    }
+  ],
+  "blocker": {
+    "kind": "builder-sandbox-canonical-state-write",
+    "daemonControl": "offline",
+    "daemonUrl": "http://127.0.0.1:64537",
+    "taskMoveError": "Git linked-worktree index.lock creation was denied",
+    "deadLetterDismissalError": "EPERM while creating canonical .kota/dead-letter-queue/items.json.tmp",
+    "safeRecoveryState": "Both stale claims retain needs-review because their preserved worktrees contain merge or local-change blockers."
+  }
+}

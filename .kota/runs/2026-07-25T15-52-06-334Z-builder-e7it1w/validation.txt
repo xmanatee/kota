@@ -1,0 +1,3 @@
+PASS  node --conditions=source --import tsx src/validate-queue.ts
+PASS  recovery-state-before.json and recovery-state-after.json parse as JSON
+PASS  git diff --check

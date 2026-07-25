@@ -16,6 +16,15 @@ deploy/telegram-assistant/.env
 !/.kota/runs/2026-07-25T13-47-32-416Z-builder-bvup3r/success-criteria-verified.txt
 !/.kota/runs/2026-07-25T13-47-32-416Z-builder-bvup3r/success-criteria.txt
 !/.kota/runs/2026-07-25T13-47-32-416Z-builder-bvup3r/validation.txt
+!/.kota/runs/2026-07-25T15-52-06-334Z-builder-e7it1w/
+/.kota/runs/2026-07-25T15-52-06-334Z-builder-e7it1w/*
+!/.kota/runs/2026-07-25T15-52-06-334Z-builder-e7it1w/commit-message.txt
+!/.kota/runs/2026-07-25T15-52-06-334Z-builder-e7it1w/recovery-blocker.md
+!/.kota/runs/2026-07-25T15-52-06-334Z-builder-e7it1w/recovery-state-after.json
+!/.kota/runs/2026-07-25T15-52-06-334Z-builder-e7it1w/recovery-state-before.json
+!/.kota/runs/2026-07-25T15-52-06-334Z-builder-e7it1w/success-criteria-verified.txt
+!/.kota/runs/2026-07-25T15-52-06-334Z-builder-e7it1w/success-criteria.txt
+!/.kota/runs/2026-07-25T15-52-06-334Z-builder-e7it1w/validation.txt
 !/.kota/runs/2026-07-25T13-47-32-415Z-builder-tbraj6/
 /.kota/runs/2026-07-25T13-47-32-415Z-builder-tbraj6/*
 !/.kota/runs/2026-07-25T13-47-32-415Z-builder-tbraj6/commit-message.txt

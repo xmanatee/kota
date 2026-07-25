@@ -1,0 +1,4 @@
+1. NOT VERIFIED — before and after artifacts exist, but canonical state is unchanged because the trusted mutation path is unavailable.
+2. NOT VERIFIED — both cited P1 repairs still retain stale active claims; supersession evidence and the exact trusted-host precondition are recorded.
+3. NOT VERIFIED — the improver dead letter is still open after its atomic write was denied; the security-review dead letter remains linked to its existing repair task.
+4. NOT VERIFIED — acceptance and blocker evidence are recorded and task validation passes, but the owned task is blocked through the task CLI because canonical recovery is incomplete.
