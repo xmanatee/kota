@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
@@ -7,6 +7,7 @@ import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.
 import {
 	cleanupAutomationWorktree,
 	createAutomationWorktree,
+	disposeAutomationWorktree,
 	inspectAutomationWorktree,
 	lockAutomationWorktree,
 	markAutomationWorktreeMerged,
@@ -237,6 +238,57 @@ describe("automation worktree lifecycle", () => {
 		expect(unmerged.inspection.metadata.lastCleanupBlockers).toContain(
 			"branch has commits that are not marked merged",
 		);
+	});
+
+	it("disposes a conflicted terminal worktree only after explicit supersession and discard", () => {
+		const repo = initRepo("dispose-conflict");
+		const created = createFixtureWorktree(repo, "run-conflict");
+		writeWorkflowState(repo, []);
+		writeRunMetadata(repo, created.metadata.runId, "failed");
+
+		writeFileSync(join(created.metadata.workspaceDir, "README.md"), "# Branch\n", "utf8");
+		git(created.metadata.workspaceDir, ["add", "README.md"]);
+		git(created.metadata.workspaceDir, ["commit", "--quiet", "-m", "branch change"]);
+		writeFileSync(join(repo, "README.md"), "# Canonical\n", "utf8");
+		git(repo, ["add", "README.md"]);
+		git(repo, ["commit", "--quiet", "-m", "canonical replacement"]);
+		const supersedingCommit = git(repo, ["rev-parse", "HEAD"]);
+		const merge = spawnSync(
+			"git",
+			["merge", "main"],
+			{
+				cwd: created.metadata.workspaceDir,
+				env: withProtectedGitBareRepositoryEnv(),
+				encoding: "utf8",
+			},
+		);
+		expect(merge.status).not.toBe(0);
+
+		const refused = disposeAutomationWorktree({
+			projectDir: repo,
+			taskId: created.metadata.taskId,
+			runId: created.metadata.runId,
+			disposition: "superseded",
+			reason: "canonical replacement exists",
+			supersededByCommit: supersedingCommit,
+		});
+		expect(refused.removed).toBe(false);
+		expect(refused.blockers).toContain(
+			"worktree has conflicted paths and discardWorktreeChanges was not accepted",
+		);
+
+		const disposed = disposeAutomationWorktree({
+			projectDir: repo,
+			taskId: created.metadata.taskId,
+			runId: created.metadata.runId,
+			disposition: "superseded",
+			reason: "canonical replacement exists",
+			supersededByCommit: supersedingCommit,
+			discardWorktreeChanges: true,
+		});
+		expect(disposed.removed).toBe(true);
+		expect(disposed.inspection.metadata.state).toBe("removed");
+		expect(existsSync(created.metadata.workspaceDir)).toBe(false);
 	});
 
 	it("refuses cleanup when merged metadata has unpushed branch commits", () => {

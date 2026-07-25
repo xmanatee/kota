@@ -1,6 +1,9 @@
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import { createAutomationWorktree } from "#modules/git/worktree-lifecycle.js";
 import {
   claimTask,
   markTaskClaimPendingMerge,
@@ -220,6 +223,87 @@ describe("workflow state recovery actions", () => {
       },
     });
     expect(existsSync(taskClaimPath(projectDir, "task-conflict"))).toBe(true);
+  });
+
+  it("supersedes a dirty terminal worktree only with an explicit replacement and discard", () => {
+    const taskId = "task-dirty-recovery";
+    const runId = "run-dirty-recovery";
+    writeTask(projectDir, "ready", taskId, "2026-06-27T00:00:00.000Z");
+    writeFileSync(join(projectDir, ".gitignore"), ".kota/\n.worktrees/\n", "utf8");
+    const gitEnv = {
+      ...withProtectedGitBareRepositoryEnv(),
+      GIT_AUTHOR_NAME: "Test",
+      GIT_AUTHOR_EMAIL: "test@example.com",
+      GIT_COMMITTER_NAME: "Test",
+      GIT_COMMITTER_EMAIL: "test@example.com",
+    };
+    const git = (args: string[]): string =>
+      execFileSync("git", args, {
+        cwd: projectDir,
+        env: gitEnv,
+        encoding: "utf8",
+      }).trim();
+    git(["init", "--quiet", "--initial-branch=main"]);
+    git(["add", ".gitignore", "data/tasks/ready"]);
+    git(["commit", "--quiet", "-m", "fixture"]);
+
+    const worktree = createAutomationWorktree({
+      projectDir,
+      taskId,
+      runId,
+      workflowId: "builder",
+      owner: `workflow:builder:${runId}`,
+    });
+    const claimed = claimTask({
+      ...claimInput(projectDir, taskId, runId, new Date("2026-06-27T00:01:00.000Z")),
+      workspaceDir: worktree.metadata.workspaceDir,
+      branch: worktree.metadata.branch,
+      baseCommit: worktree.metadata.baseCommit,
+    });
+    expect(claimed.claimed).toBe(true);
+    const pending = markTaskClaimPendingMerge({
+      projectDir,
+      taskId,
+      runId,
+      workflowId: "builder",
+      evidence: "merge conflict needs resolution",
+      now: new Date("2026-06-27T00:02:00.000Z"),
+    });
+    expect(pending.changed).toBe(true);
+    writeOwnerRunMetadata(projectDir, runId, "builder", "failed");
+    writeFileSync(join(worktree.metadata.workspaceDir, "uncommitted.txt"), "stale\n", "utf8");
+
+    const provider = createWorkflowStateRecoveryProvider();
+    const listed = provider.list({ projectDir });
+    expect(listed.ok).toBe(true);
+    expect(listed.ok ? listed.claims[0]?.recommendedAction.kind : null).toBe("needs-review");
+    expect(listed.ok ? listed.claims[0]?.worktree.uniqueCommitCount : null).toBe(0);
+
+    const resolved = provider.resolve({
+      projectDir,
+      taskId,
+      runId,
+      action: "supersede",
+      rationale: "canonical replacement was reviewed and accepted",
+      artifactRunId: "run-dirty-recovery-resolution",
+      supersededByCommit: git(["rev-parse", "HEAD"]),
+      cleanupWorktree: true,
+      discardWorktreeChanges: true,
+    });
+
+    expect(resolved).toMatchObject({
+      ok: true,
+      action: "supersede",
+      artifact: {
+        result: "superseded",
+        worktreeCleanup: {
+          attempted: true,
+          removed: true,
+        },
+      },
+    });
+    expect(existsSync(worktree.metadata.workspaceDir)).toBe(false);
+    expect(existsSync(taskClaimPath(projectDir, taskId))).toBe(false);
   });
 
   it("writes a before and after artifact when superseding a failed stale claim", () => {

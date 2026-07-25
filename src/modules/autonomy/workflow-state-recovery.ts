@@ -195,8 +195,8 @@ function isAcceptedRecoveryAction(
     input.supersededByCommit !== undefined &&
     input.cleanupWorktree === true &&
     before.recommendedAction.kind === "needs-review" &&
-    before.worktree.uniqueCommitCount > 0 &&
-    before.worktree.dirtyState !== "conflicted"
+    (before.worktree.dirtyState === "clean" ||
+      input.discardWorktreeChanges === true)
   );
 }
 

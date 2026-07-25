@@ -108,10 +108,24 @@ export function writePackageJson(dir: string, scripts: Record<string, string>): 
   );
 }
 
-export function makeContext(projectDir: string, runDirPath?: string, workspaceDir?: string) {
+export function makeContext(
+  projectDir: string,
+  runDirPath?: string,
+  workspaceDir?: string,
+  agentRunDir?: string,
+) {
   return {
     projectDir,
     ...(workspaceDir !== undefined ? { workspaceDir } : {}),
+    ...(agentRunDir !== undefined
+      ? {
+          runtimeResources: {
+            profileId: "critic-test",
+            env: {},
+            agentRunDir,
+          },
+        }
+      : {}),
     workflow: {
       name: "builder",
       runId: "test-run",

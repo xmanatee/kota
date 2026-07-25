@@ -68,6 +68,74 @@ describe("critic runtime probes", () => {
     expect(userMessage).toContain("Provenance: trusted");
   });
 
+  it("writes builder probe evidence into the active workspace run directory", async () => {
+    const canonicalDir = makeTmpDir();
+    const workspaceDir = makeTmpDir();
+    writePackageJson(workspaceDir, {
+      "probe:pass": "node -e \"console.log('workspace-probe')\"",
+    });
+    const taskContent = [
+      "---",
+      "title: Workspace probe",
+      "---",
+      "## Runtime Probe",
+      "command: pnpm run probe:pass",
+      "timeoutMs: 5000",
+    ].join("\n");
+    commitReadyTask(workspaceDir, "task-workspace-probe.md", taskContent);
+    moveReadyTaskToDoing(workspaceDir, "task-workspace-probe.md");
+    const canonicalRunDir = makeRunDir(canonicalDir);
+    const workspaceRunDir = makeRunDir(workspaceDir);
+    setApiResponse({
+      verdict: "pass",
+      critical_issues: [],
+      warnings: [],
+      summary: "Workspace probe passed.",
+    });
+
+    const check = createCriticCheck();
+    await (check as CodeCheck).run(
+      makeContext(canonicalDir, canonicalRunDir, workspaceDir, workspaceRunDir),
+      TEST_PARENT_STEP,
+    );
+
+    expect(existsSync(join(workspaceRunDir, "runtime-probe.json"))).toBe(true);
+    expect(existsSync(join(canonicalRunDir, "runtime-probe.json"))).toBe(false);
+  });
+
+  it("rejects an ignored workspace probe artifact before executing the probe", async () => {
+    const canonicalDir = makeTmpDir();
+    const workspaceDir = makeTmpDir();
+    writePackageJson(workspaceDir, {
+      "probe:touch":
+        "node -e \"require('node:fs').writeFileSync('probe-ran.txt', 'yes')\"",
+    });
+    const taskContent = [
+      "---",
+      "title: Ignored workspace probe",
+      "---",
+      "## Runtime Probe",
+      "command: pnpm run probe:touch",
+      "timeoutMs: 5000",
+    ].join("\n");
+    commitReadyTask(workspaceDir, "task-ignored-probe.md", taskContent);
+    moveReadyTaskToDoing(workspaceDir, "task-ignored-probe.md");
+    writeFileSync(join(workspaceDir, ".gitignore"), ".kota/\n");
+    const canonicalRunDir = makeRunDir(canonicalDir);
+    const workspaceRunDir = makeRunDir(workspaceDir);
+
+    const check = createCriticCheck();
+    await expect(
+      (check as CodeCheck).run(
+        makeContext(canonicalDir, canonicalRunDir, workspaceDir, workspaceRunDir),
+        TEST_PARENT_STEP,
+      ),
+    ).rejects.toThrow(/artifact is ignored and cannot be committed/);
+
+    expect(existsSync(join(workspaceDir, "probe-ran.txt"))).toBe(false);
+    expect(mockRunAgentHarness).not.toHaveBeenCalled();
+  });
+
   it("records a failing probe verdict and surfaces the failure in the critic prompt", async () => {
     const dir = makeTmpDir();
     writePackageJson(dir, {

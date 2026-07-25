@@ -441,7 +441,9 @@ export function disposeAutomationWorktree(
 	const blockers: string[] = [];
 	if (!before.exists) blockers.push("worktree path is missing");
 	if (before.runState === "active") blockers.push("worktree run is active");
-	if (before.dirty.conflicted) blockers.push("worktree has conflicted paths");
+	if (before.dirty.conflicted && input.discardWorktreeChanges !== true) {
+		blockers.push("worktree has conflicted paths and discardWorktreeChanges was not accepted");
+	}
 	if (before.dirty.dirty && input.discardWorktreeChanges !== true) {
 		blockers.push("worktree has local changes and discardWorktreeChanges was not accepted");
 	}

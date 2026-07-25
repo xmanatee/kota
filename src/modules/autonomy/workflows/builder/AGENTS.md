@@ -75,9 +75,10 @@ an optional runtime probe the critic runs before judging.
   rather than the workflow's full environment. Probes do not route through the
   agent tool loop, so the constrained runner and pre-run provenance check are
   the boundary for this surface. Authors own their commands.
-- The probe result lands as `runtime-probe.json` in the run directory and
-  is threaded into the critic's prompt with instructions to treat failure
-  as a critical issue unless the probe itself is miscalibrated.
+- The probe result lands as `runtime-probe.json` in the active workspace's
+  run directory, is committed with the builder change, and is threaded into
+  the critic's prompt with instructions to treat failure as a critical issue
+  unless the probe itself is miscalibrated.
 - The critic still exercises calibrated judgment. It can accept a failed
   probe when the failure is environmental (network outage, missing binary)
   and unrelated to the staged change, but must justify that in the verdict

@@ -158,7 +158,8 @@ export function createCriticCheck(options?: {
       const diffStat = getStagedDiff(reviewDir);
       const diffContent = getStagedDiffContent(reviewDir);
       const changedFiles = getChangedFiles(reviewDir);
-      const runDir = options?.runDirPath ?? ctx.workflow.runDirPath;
+      const workspaceRunDir = ctx.runtimeResources?.agentRunDir;
+      const runDir = options?.runDirPath ?? workspaceRunDir ?? ctx.workflow.runDirPath;
       const taskId = taskIdFromReviewTargetPath(target.path);
       const fallbackFileLineCitations = fileLineCitationsFromUnifiedDiff(diffContent);
       const verdictContext = {
@@ -169,7 +170,15 @@ export function createCriticCheck(options?: {
         fallbackFileLineCitations,
       };
 
-      const probeResult = runProbeIfDeclared(taskContent, target.path, reviewDir, runDir);
+      const probeResult = runProbeIfDeclared(
+        taskContent,
+        target.path,
+        reviewDir,
+        runDir,
+        options?.runDirPath === undefined && workspaceRunDir !== undefined
+          ? reviewDir
+          : undefined,
+      );
       const productEvidence = checkProductOperatorEvidence({
         taskContent,
         taskState: target.state,
