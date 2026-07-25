@@ -1,0 +1,21 @@
+{
+  "sourceRunIds": [
+    "2026-07-25T09-14-56-651Z-improver-prqywv",
+    "2026-07-25T09-24-31-753Z-improver-tjgbxw",
+    "2026-07-25T09-26-03-561Z-improver-io2la2",
+    "2026-07-25T09-29-23-402Z-improver-wmk8bc",
+    "2026-07-25T09-30-59-295Z-improver-bpr4fn",
+    "2026-07-25T09-34-08-252Z-improver-fpx9u6",
+    "2026-07-25T09-35-50-155Z-improver-nyjinx",
+    "2026-07-25T09-37-37-104Z-improver-53qru2",
+    "2026-07-25T09-39-36-515Z-improver-ph4nok"
+  ],
+  "classification": {
+    "kind": "provider",
+    "retryable": true,
+    "matchingRunCount": 9
+  },
+  "persistentPatterns": [],
+  "expectedHistoricalPattern": "workflow-failure:consecutive-failures:improver:step-error:046dff6a1668",
+  "implementationCommit": "0eb76a9f5965be3ddb20c85b67c234abdba5999c"
+}

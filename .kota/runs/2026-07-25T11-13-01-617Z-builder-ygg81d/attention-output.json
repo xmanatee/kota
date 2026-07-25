@@ -1,0 +1,13 @@
+{
+  "digest": {
+    "items": [
+      {
+        "label": "Workflow failure escalated",
+        "detail": "improver consecutive failure (step improve error 6339604e1fd6); task task-repair-workflow-failure-pattern-a2330c235e96; action created; runs 2026-07-25T09-35-50-155Z-improver-nyjinx, 2026-07-25T09-37-37-104Z-improver-53qru2, 2026-07-25T09-39-36-515Z-improver-ph4nok"
+      }
+    ],
+    "text": "Attention digest (1 item):\n• *Workflow failure escalated*: improver consecutive failure (step improve error 6339604e1fd6); task task-repair-workflow-failure-pattern-a2330c235e96; action created; runs 2026-07-25T09-35-50-155Z-improver-nyjinx, 2026-07-25T09-37-37-104Z-improver-53qru2, 2026-07-25T09-39-36-515Z-improver-ph4nok"
+  },
+  "containsGeneratedTaskId": true,
+  "containsCostOrThroughputField": false
+}

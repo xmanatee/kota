@@ -1,0 +1,11 @@
+The final `git add -A` attempt could not write the worktree index because the
+managed agent filesystem exposes the canonical `.git/worktrees/...` metadata
+read-only:
+
+fatal: Unable to create '/Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/task-repair-workflow-failure-pattern-a2330c235e96-2026-07-25t11-13-01-617z-builder-ygg81d/index.lock': Operation not permitted
+
+All final paths were instead staged and validated in the workspace-local index
+`.kota/tmp/2026-07-25T11-13-01-617Z-builder-ygg81d/task-state.index`, with a
+workspace-local object directory and the canonical object database mounted as
+a read-only alternate. The workflow's host-side terminal commit step must
+repeat its normal exact-path staging. No commit was attempted.

@@ -1,0 +1,33 @@
+Validation completed 2026-07-25.
+
+1. Canonical detector replay
+   Input: metadata.json from all nine improver run ids cited by the task.
+   Outcome: PASS — 9 classifications were provider/retryable and persistentPatterns was empty.
+   Artifact: detector-regression.json.
+
+2. Focused runtime and escalation coverage
+   Command: TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true src/core/workflow/steps/step-executor-retry.test.ts src/modules/autonomy/run-outcome-aggregation.test.ts src/modules/autonomy/workflow-failure-escalation.test.ts src/modules/autonomy/workflows/workflow-failure-escalator/workflow.test.ts
+   Outcome: PASS — 4 test files, 53 tests.
+
+3. Attention-output fixture
+   Input: buildWorkflowFailureAttentionDigest for the improver pattern and generated task id.
+   Outcome: PASS — task id present; no cost or throughput fields.
+   Artifact: attention-output.json.
+
+4. Type checking
+   Command: node_modules/.bin/tsc --noEmit
+   Outcome: PASS.
+
+5. Task queue validation
+   Command: node --conditions=source --import tsx src/validate-queue.ts
+   Environment: the exact ready-to-done transition staged in the workspace-local validation index.
+   Outcome: PASS.
+
+6. Patch hygiene
+   Command: git diff --cached --check
+   Environment: the workspace-local validation index.
+   Outcome: PASS.
+
+The repository-pinned pnpm bootstrap could not verify its registry signature
+without network access. Existing local project binaries and the source-mode
+task CLI were used without changing package policy or dependencies.

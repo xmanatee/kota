@@ -1,12 +1,12 @@
 ---
 id: task-repair-workflow-failure-pattern-a2330c235e96
 title: Repair persistent improver workflow failure pattern
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Fix the local cause behind improver's persistent consecutive failure signal (step improve error 6339604e1fd6).
 created_at: 2026-07-25T09:32:01.124Z
-updated_at: 2026-07-25T10:03:25.548Z
+updated_at: 2026-07-25T11:23:42.381Z
 task_class: Meta
 ---
 
@@ -73,6 +73,19 @@ the detector crossed the local-code threshold on concrete run artifacts.
   have caught this recurrence.
 - Operator-facing attention output still reports future escalations with
   the generated task id and without cost fields.
+
+## Result
+
+Commit `0eb76a9f5` landed after this task was generated and added the exact
+provenance-bound Codex CLI provider classification required by the cited
+failures. Replaying all nine canonical improver metadata files now classifies
+each circuit-open 503 as `provider` and returns no persistent failure patterns.
+Focused runtime, aggregation, detector, and attention-workflow coverage passes
+53 tests; the generated attention fixture names this task id and contains no
+cost or throughput fields. Replay and output evidence is retained under
+`.kota/runs/2026-07-25T11-13-01-617Z-builder-ygg81d/`; the implementation's
+promote decision is retained under
+`.kota/runs/2026-07-25T10-03-33-551Z-builder-jyv1kl/`.
 
 ## Source / Intent
 

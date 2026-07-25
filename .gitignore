@@ -31,6 +31,15 @@ deploy/telegram-assistant/.env
 !/.kota/runs/2026-07-25T10-03-33-551Z-builder-jyv1kl/success-criteria-verified.txt
 !/.kota/runs/2026-07-25T10-03-33-551Z-builder-jyv1kl/success-criteria.txt
 !/.kota/runs/2026-07-25T10-03-33-551Z-builder-jyv1kl/validation.txt
+!/.kota/runs/2026-07-25T11-13-01-617Z-builder-ygg81d/
+/.kota/runs/2026-07-25T11-13-01-617Z-builder-ygg81d/*
+!/.kota/runs/2026-07-25T11-13-01-617Z-builder-ygg81d/attention-output.json
+!/.kota/runs/2026-07-25T11-13-01-617Z-builder-ygg81d/commit-message.txt
+!/.kota/runs/2026-07-25T11-13-01-617Z-builder-ygg81d/detector-regression.json
+!/.kota/runs/2026-07-25T11-13-01-617Z-builder-ygg81d/staging-limitation.txt
+!/.kota/runs/2026-07-25T11-13-01-617Z-builder-ygg81d/success-criteria-verified.txt
+!/.kota/runs/2026-07-25T11-13-01-617Z-builder-ygg81d/success-criteria.txt
+!/.kota/runs/2026-07-25T11-13-01-617Z-builder-ygg81d/validation.txt
 !/.kota/runs/2026-07-24T21-20-40-008Z-builder-83nst2/
 /.kota/runs/2026-07-24T21-20-40-008Z-builder-83nst2/*
 !/.kota/runs/2026-07-24T21-20-40-008Z-builder-83nst2/commit-message.txt

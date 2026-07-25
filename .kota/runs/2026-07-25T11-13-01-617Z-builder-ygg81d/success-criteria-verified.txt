@@ -1,0 +1,3 @@
+1. Verified by replaying all nine cited canonical improver metadata files: every circuit-open 503 classifies as provider/retryable and the detector returns no persistent patterns.
+2. Verified by focused Vitest coverage: 4 runtime, aggregation, detector, and escalator files passed all 53 tests; TypeScript typechecking also passed.
+3. Verified by the generated attention-output.json fixture and workflow test: the digest includes task-repair-workflow-failure-pattern-a2330c235e96 and rejects cost or throughput fields.
