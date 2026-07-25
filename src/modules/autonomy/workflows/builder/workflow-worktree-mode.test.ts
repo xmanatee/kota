@@ -183,4 +183,89 @@ describe("builder workflow worktree mode", () => {
       }),
     );
   });
+
+  it("keeps a dirty-canonical merge as pending instead of failing the run", async () => {
+    const snapshot = makeSnapshot(1, 0);
+    const projectDir = makeWorkflowProject(snapshot);
+
+    const { loadConfig } = await import("#core/config/config.js");
+    vi.mocked(loadConfig).mockReturnValue({
+      modules: { builder: { branchPerTask: true } },
+    });
+
+    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+
+    const { mergeAutomationWorktree } = await import(
+      "#modules/git/worktree-merge-gate.js"
+    );
+    vi.mocked(mergeAutomationWorktree).mockResolvedValue({
+      status: "blocked",
+      taskId: "task-claimed",
+      runId: "harness-run-id",
+      branch: "kota/task/task-claimed/harness-run-id",
+      baseCommit: "abc1234",
+      canonicalHeadCommit: "abc1234",
+      headCommit: "def5678",
+      mergeCommit: null,
+      reason: "canonical checkout is dirty before merge gate: M  concurrent.ts",
+      conflicts: [],
+      resolutionAttempts: 0,
+      validation: null,
+      metrics: {
+        waitMs: 0,
+        mergeDurationMs: 4,
+        conflictCount: 0,
+        resolverAttempts: 0,
+        validationFailures: 0,
+        serializedByLock: true,
+      },
+      artifactPath: `${projectDir}/.kota/worktrees/task-claimed-harness-run-id.merge-gate.json`,
+    });
+
+    const harness = new WorkflowTestHarness(builderWorkflow, {
+      projectDir,
+      trigger: {
+        event: "autonomy.queue.available",
+        payload: {
+          pullableCount: 1,
+          actionableCount: 1,
+          counts: snapshot.counts,
+          branchPerTask: true,
+        },
+      },
+      stepMocks: {
+        build: { turns: [], totalCostUsd: 0.05 },
+      },
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps["merge-gate"]).toMatchObject({
+      status: "success",
+      output: {
+        status: "blocked",
+        reason: "canonical checkout is dirty before merge gate: M  concurrent.ts",
+      },
+    });
+    expect(result.steps["release-task-claim"].status).toBe("skipped");
+    expect(result.steps["mark-claim-pending-merge"].status).toBe("success");
+    expect(result.steps["cleanup-automation-worktree"].status).toBe("skipped");
+
+    const { markTaskClaimPendingMerge, releaseTaskClaim } = await import(
+      "#modules/autonomy/task-claims.js"
+    );
+    expect(markTaskClaimPendingMerge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectDir,
+        taskId: "task-claimed",
+        runId: "harness-run-id",
+        workflowId: "builder",
+        evidence:
+          "builder branch is pending merge: canonical checkout is dirty before merge gate: M  concurrent.ts",
+      }),
+    );
+    expect(releaseTaskClaim).not.toHaveBeenCalled();
+  });
 });

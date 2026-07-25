@@ -105,6 +105,43 @@ describe("automation worktree merge gate", () => {
 		expect(existsSync(created.metadata.workspaceDir)).toBe(false);
 	});
 
+	it("persists a pending merge when the canonical checkout becomes dirty", async () => {
+		const repo = initRepo("canonical-dirty");
+		const created = createFixtureWorktree(repo);
+		commitFile(created.metadata.workspaceDir, "feature.txt", "ready\n", "add feature");
+		writeFileSync(join(repo, "concurrent.txt"), "canonical mutation in progress\n", "utf8");
+
+		const result = await mergeAutomationWorktree({
+			projectDir: repo,
+			taskId: created.metadata.taskId,
+			runId: created.metadata.runId,
+			validationCommand: ["node", "-e", "process.exit(0)"],
+		});
+
+		expect(result.status).toBe("blocked");
+		expect(result.reason).toBe(
+			"canonical checkout is dirty before merge gate: ?? concurrent.txt",
+		);
+		expect(readFileSync(join(repo, "concurrent.txt"), "utf8")).toBe(
+			"canonical mutation in progress\n",
+		);
+		expect(existsSync(join(repo, "feature.txt"))).toBe(false);
+		expect(JSON.parse(readFileSync(result.artifactPath, "utf8"))).toMatchObject({
+			status: "blocked",
+			reason: "canonical checkout is dirty before merge gate: ?? concurrent.txt",
+		});
+
+		const inspection = inspectAutomationWorktree({
+			projectDir: repo,
+			taskId: created.metadata.taskId,
+			runId: created.metadata.runId,
+		});
+		expect(inspection.metadata.state).toBe("pending-merge");
+		expect(inspection.metadata.stateReason).toBe(
+			"canonical checkout is dirty before merge gate: ?? concurrent.txt",
+		);
+	});
+
 	it("invokes a bounded resolver for text conflicts and validates the resolved merge before fast-forwarding", async () => {
 		const repo = initRepo("text");
 		commitFile(repo, "settings.txt", "value=base\n", "add settings");

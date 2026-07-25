@@ -1,5 +1,5 @@
 import { inspectAutomationWorktree } from "./worktree-lifecycle.js";
-import { assertCanonicalCheckoutReady } from "./worktree-lifecycle-support.js";
+import { readDirtyState } from "./worktree-lifecycle-support.js";
 import type { AutomationWorktreeSelector } from "./worktree-lifecycle-types.js";
 import {
 	captureMergeIndexSnapshot,
@@ -156,7 +156,6 @@ async function mergeAutomationWorktreeUnlocked(input: MergeAutomationWorktreeInp
 		taskId: input.taskId,
 		runId: input.runId,
 	};
-	assertCanonicalCheckoutReady(selector.projectDir);
 	const inspection = inspectAutomationWorktree(selector);
 	const { metadata } = inspection;
 	const branch = inspection.branch;
@@ -164,6 +163,7 @@ async function mergeAutomationWorktreeUnlocked(input: MergeAutomationWorktreeInp
 	const workspaceDir = metadata.workspaceDir;
 	const canonicalHeadCommit = currentHead(selector.projectDir);
 	const workspaceHeadCommit = currentHead(workspaceDir);
+	const canonicalDirty = readDirtyState(selector.projectDir);
 
 	if (!inspection.exists) {
 		return pendingBlocked(selector, {
@@ -172,6 +172,15 @@ async function mergeAutomationWorktreeUnlocked(input: MergeAutomationWorktreeInp
 			canonicalHeadCommit,
 			headCommit: workspaceHeadCommit,
 			reason: "worktree path is missing",
+		});
+	}
+	if (canonicalDirty.trackedDirty || canonicalDirty.untracked) {
+		return pendingBlocked(selector, {
+			branch,
+			baseCommit,
+			canonicalHeadCommit,
+			headCommit: workspaceHeadCommit,
+			reason: `canonical checkout is dirty before merge gate: ${canonicalDirty.entries.join(", ")}`,
 		});
 	}
 	if (inspection.dirty.dirty) {
