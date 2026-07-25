@@ -135,6 +135,11 @@ type MutationBaseline = {
   preExistingMutatedPaths: string[];
 };
 
+type SecurityReviewAgentCandidatePacket = Pick<
+  SecurityReviewCandidatePacket,
+  "artifactPath" | "candidateCount" | "candidates" | "truncated"
+>;
+
 type SecurityReviewPreflightRail =
   | "task-validation"
   | "scratch-artifacts"
@@ -174,26 +179,41 @@ function securityReviewCommitPolicy(
   };
 }
 
-const scanCandidates = typedCodeStep<SecurityReviewCandidatePacket>({
+function projectCandidatePacketForAgent(
+  packet: SecurityReviewCandidatePacket,
+): SecurityReviewAgentCandidatePacket {
+  // Coverage diagnostics grow with the changed commit range. They remain in
+  // the scan artifact; the reviewer needs only the bounded judgment inputs.
+  return {
+    candidates: packet.candidates,
+    candidateCount: packet.candidateCount,
+    artifactPath: packet.artifactPath,
+    truncated: packet.truncated,
+  };
+}
+
+const scanCandidates = typedCodeStep<SecurityReviewAgentCandidatePacket>({
   id: "scan-candidates",
   type: "code",
   when: onNormalTrigger,
   exposeOutputToAgent: true,
   validate: (raw) =>
-    expectStructuredOutput<SecurityReviewCandidatePacket>(raw, [
+    expectStructuredOutput<SecurityReviewAgentCandidatePacket>(raw, [
       "candidates",
       "candidateCount",
       "artifactPath",
       "truncated",
     ]),
-  run: ({ projectDir, trigger, workflow }) =>
-    scanAndWriteSecurityReviewCandidates(projectDir, workflow.runDirPath, {
+  run: ({ projectDir, trigger, workflow }) => {
+    const packet = scanAndWriteSecurityReviewCandidates(projectDir, workflow.runDirPath, {
       maxCandidates: SECURITY_REVIEW_MAX_CANDIDATES,
       maxCandidatesPerSurface: SECURITY_REVIEW_MAX_CANDIDATES_PER_SURFACE,
       dueTargets: trigger.event === SECURITY_REVIEW_DUE_EVENT
         ? securityReviewDueTargetsFromPayload(projectDir, trigger.payload)
         : [],
-    }),
+    });
+    return projectCandidatePacketForAgent(packet);
+  },
 });
 
 const recordEmptyScan = typedCodeStep<{ written: true; artifactPath: string }>({
