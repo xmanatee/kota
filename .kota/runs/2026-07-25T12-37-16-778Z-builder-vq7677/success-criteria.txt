@@ -1,0 +1,2 @@
+1. Dismiss dlq-76a47a9a-4a59-4ad7-bc61-833291ca543d through KOTA's canonical dead-letter control with a durable rationale naming task-make-builder-merge-conflict-recovery-compatible-wi and candidate run 2026-07-25T12-37-16-777Z-builder-mxhqzo.
+2. Preserve canonical before/after diagnostics and an open builder dead-letter listing that omits the dismissed item.

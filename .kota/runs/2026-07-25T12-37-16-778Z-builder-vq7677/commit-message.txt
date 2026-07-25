@@ -1,0 +1,5 @@
+Dismiss superseded builder dead letter
+
+- record canonical before and after diagnostics
+- preserve the native-harness supersession rationale
+- close the task after the open builder list clears

@@ -1,21 +1,22 @@
 ---
 id: task-dismiss-superseded-native-harness-builder-dead-let
 title: Dismiss superseded native-harness builder dead letter
-status: ready
+status: done
 priority: p1
 area: autonomy
 task_class: Meta
 summary: Dismiss dlq-76a47a9a-4a59-4ad7-bc61-833291ca543d after the native-tool merge-conflict fallback lands canonically, preserving before/after diagnostics and the supersession rationale.
 created_at: 2026-07-25T13:13:29.083Z
-updated_at: 2026-07-25T13:13:29.083Z
+updated_at: 2026-07-25T13:29:16.774Z
 ---
 
 ## Problem
 
 Builder run `2026-07-25T12-37-16-777Z-builder-mxhqzo` fixed the native-tool
 merge-conflict resolver failure, but its managed worktree could not mutate the
-canonical dead-letter store. The cited item remains open even though redriving
-its stale source run would not exercise the candidate fix.
+canonical dead-letter store. The cited item remained open until this follow-up
+dismissed it after the candidate fix reached canonical `main`; redriving its
+stale source run would not have exercised that fix.
 
 ## Desired Outcome
 
@@ -66,3 +67,12 @@ Outcome-aware autonomy progress review.
 - A run artifact records the canonical item before dismissal, the dismissal
   result and rationale, the item after dismissal, and an open builder
   dead-letter list that omits the cited id.
+- Builder run `2026-07-25T12-37-16-778Z-builder-vq7677` confirmed canonical
+  `main` contains candidate commit `7e87c2c5f`, dismissed the item through the
+  authenticated daemon dead-letter control route without redrive, and recorded:
+  - `dead-letter-before-dismissal.json` with canonical status `open`;
+  - `dead-letter-after-dismissal.json` with canonical status `dismissed` and
+    the stored supersession rationale;
+  - `open-builder-dead-letters.json` with an empty filtered item list; and
+  - `dead-letter-resolution.md` tying the before/after evidence to the
+    superseding task and candidate run.

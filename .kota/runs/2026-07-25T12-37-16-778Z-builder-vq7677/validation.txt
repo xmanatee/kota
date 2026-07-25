@@ -1,0 +1,25 @@
+Validation completed 2026-07-25.
+
+PASS  Canonical ancestry
+      git merge-base --is-ancestor 7e87c2c5fb9c2571a76cd3db2ce84e51a6cc3d15 main
+      Canonical main 5ae82c42c64ffd61e0b03f65be06dc1c7808343a contains
+      7e87c2c5fb9c2571a76cd3db2ce84e51a6cc3d15
+      (Handle native merge resolver fallback).
+
+PASS  Dead-letter evidence and live canonical state probe
+      Before artifact status: open
+      After artifact status: dismissed
+      Redrive attempts: 0
+      Live canonical status: dismissed
+      Open builder item count: 0
+      Cited id present in open builder list: false
+      The stored dismissal reason includes
+      task-make-builder-merge-conflict-recovery-compatible-wi and candidate
+      run 2026-07-25T12-37-16-777Z-builder-mxhqzo.
+
+PASS  NODE_OPTIONS=--conditions=source node --import tsx src/validate-queue.ts
+      No diagnostics; exit 0.
+
+PASS  git diff --cached --check
+      Executed against the real worktree index after the final ordinary
+      git add -A; no diagnostics; exit 0.

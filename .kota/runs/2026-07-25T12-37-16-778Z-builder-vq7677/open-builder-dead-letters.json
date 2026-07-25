@@ -1,0 +1,18 @@
+{
+  "checkedAt": "2026-07-25T13:28:07Z",
+  "query": {
+    "status": "open",
+    "workflow": "builder",
+    "limit": 200,
+    "scopeId": "8nrg1m"
+  },
+  "items": [],
+  "counts": {
+    "open": 2,
+    "dismissed": 29,
+    "redriven": 0
+  },
+  "omittedId": "dlq-76a47a9a-4a59-4ad7-bc61-833291ca543d",
+  "omissionVerified": true,
+  "note": "items reflects the filtered builder query; counts are the store-wide totals returned by the existing command."
+}

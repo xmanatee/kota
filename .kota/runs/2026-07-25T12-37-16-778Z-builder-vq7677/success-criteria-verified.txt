@@ -1,0 +1,2 @@
+1. Verified. Canonical main contains candidate commit 7e87c2c5f from task-make-builder-merge-conflict-recovery-compatible-wi and run 2026-07-25T12-37-16-777Z-builder-mxhqzo; dead-letter-after-dismissal.json records the cited id as dismissed through KOTA's daemon control with the stored supersession rationale and no redrive.
+2. Verified. dead-letter-before-dismissal.json records the canonical open item, dead-letter-after-dismissal.json records its dismissed state, and open-builder-dead-letters.json records an empty filtered open-builder item list that omits the cited id.

@@ -1,0 +1,106 @@
+{
+  "item": {
+    "id": "dlq-76a47a9a-4a59-4ad7-bc61-833291ca543d",
+    "type": "workflow-dispatch",
+    "status": "dismissed",
+    "scopeId": "8nrg1m",
+    "projectId": "8nrg1m",
+    "owningModule": "workflow-runtime",
+    "sourceEventIds": [
+      "evtj-000000173081"
+    ],
+    "affectedWorkflowNames": [
+      "builder"
+    ],
+    "failure": {
+      "reason": "Merge-conflict resolver requires KOTA-routable tool control; harness \"codex\" declares \"native\".",
+      "retryCount": 1,
+      "lastErrorClass": "execution",
+      "firstFailedAt": "2026-07-25T10:39:25.002Z",
+      "lastFailedAt": "2026-07-25T10:39:25.002Z"
+    },
+    "source": {
+      "kind": "workflow-dispatch",
+      "workflowName": "builder",
+      "triggerEvent": "autonomy.queue.available",
+      "triggerSchemaRef": null,
+      "failedRunId": "2026-07-25T10-03-33-551Z-builder-ugava5",
+      "runDir": ".kota/runs/2026-07-25T10-03-33-551Z-builder-ugava5"
+    },
+    "redrive": {
+      "kind": "workflow",
+      "workflowName": "builder",
+      "source": {
+        "kind": "run-trigger",
+        "runId": "2026-07-25T10-03-33-551Z-builder-ugava5"
+      }
+    },
+    "redactedProjection": {
+      "workflowName": "builder",
+      "triggerEvent": "autonomy.queue.available",
+      "triggerSchemaRef": null,
+      "triggerPayload": {
+        "pullableCount": 8,
+        "actionableCount": 6,
+        "dispatchableCount": 8,
+        "counts": {
+          "backlog": 4,
+          "ready": 7,
+          "doing": 0,
+          "blocked": 6,
+          "done": 1464,
+          "dropped": 23
+        },
+        "dependencyBlockedTasks": [
+          {
+            "id": "task-run-live-openrouter-and-local-model-rollout-evalua",
+            "title": "Run live OpenRouter and local model rollout evaluation",
+            "state": "backlog",
+            "dependsOn": [
+              "task-add-openrouter-model-capability-catalog-and-candid",
+              "task-make-openai-compatible-model-clients-honor-model-s",
+              "task-route-openai-tools-through-the-kota-tool-runner-wi",
+              "task-preserve-rich-tool-results-reasoning-and-agent-mes",
+              "task-add-kota-owned-session-resume-for-model-client-har",
+              "task-extend-harness-parity-and-eval-harness-with-model-",
+              "task-add-scaffolded-weak-and-local-model-agent-mode"
+            ],
+            "waitingOn": [
+              "task-extend-harness-parity-and-eval-harness-with-model-"
+            ]
+          }
+        ],
+        "claimBlockedTasks": [
+          {
+            "id": "task-restore-defensive-security-review-after-classifier",
+            "title": "Restore defensive security review after classifier refusal",
+            "state": "ready",
+            "claimStatus": "active",
+            "recoveryStatus": "stale",
+            "recoveryPath": "skipped-stale-worktree",
+            "owner": "workflow:builder",
+            "runId": "2026-07-25T09-38-44-202Z-builder-ye6m9n",
+            "workflowId": "builder",
+            "evidence": "prepared builder worktree /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-restore-defensive-security-review-after-classifier-2026-07-25t09-38-44-202z-builder-ye6m9n",
+            "recoveryCommand": "pnpm kota workflow state-recovery list",
+            "resolveCommand": "pnpm kota workflow state-recovery resolve task-restore-defensive-security-review-after-classifier --action <release|supersede> --reason \"<reason>\""
+          }
+        ],
+        "scopeId": "8nrg1m",
+        "projectId": "8nrg1m"
+      }
+    },
+    "createdAt": "2026-07-25T10:39:25.002Z",
+    "updatedAt": "2026-07-25T13:27:43.629Z",
+    "redriveAttempts": [],
+    "retention": {
+      "kind": "expire-after-ms",
+      "durationMs": 1209600000,
+      "expiresAt": "2026-08-08T13:27:43.629Z"
+    },
+    "dismissedAt": "2026-07-25T13:27:43.629Z",
+    "dismissalReason": "Superseded by task-make-builder-merge-conflict-recovery-compatible-wi, candidate run 2026-07-25T12-37-16-777Z-builder-mxhqzo, canonical commit 7e87c2c5f. The candidate replaces the native-tool resolver throw with a deterministic pending-merge fallback; redriving failed run 2026-07-25T10-03-33-551Z-builder-ugava5 would reuse its stale conflicted worktree and would not exercise the canonical fix."
+  },
+  "exportedAt": "2026-07-25T13:27:53.975Z",
+  "storePath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/dead-letter-queue/items.json"
+}
