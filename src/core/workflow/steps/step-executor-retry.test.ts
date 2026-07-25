@@ -85,6 +85,48 @@ describe("classifyAgentRuntimeFailure", () => {
     ).toEqual({ kind: "provider", retryable: true });
   });
 
+  it("classifies Codex CLI HTTP 503 responses as provider failures", () => {
+    expect(
+      classifyAgentRuntimeFailure({
+        subtype: "codex_cli_error",
+        message:
+          "unexpected status 503 Service Unavailable: Service Unavailable, url: https://chatgpt.com/backend-api/codex/responses, cf-ray: a20a34385ba9b235-LHR, auth error: 503, auth error code: biscuit_baker_service_me_circuit_open",
+      }),
+    ).toEqual({ kind: "provider", retryable: true });
+    expect(
+      classifyAgentRuntimeFailure({
+        message:
+          'Repair agent for step "improve" failed: unexpected status 503 Service Unavailable: Service Unavailable, url: https://chatgpt.com/backend-api/codex/responses, cf-ray: a20a34385ba9b235-LHR',
+      }),
+    ).toEqual({ kind: "provider", retryable: true });
+  });
+
+  it("classifies Codex CLI internal-server stream disconnects as provider failures", () => {
+    expect(
+      classifyAgentRuntimeFailure({
+        subtype: "codex_cli_error",
+        message:
+          "Reconnecting... 2/5 (stream disconnected before completion: Internal server error)",
+      }),
+    ).toEqual({ kind: "provider", retryable: true });
+    expect(
+      classifyAgentRuntimeFailure({
+        message:
+          'Repair agent for step "build" failed: Reconnecting... 2/5 (stream disconnected before completion: Internal server error)',
+      }),
+    ).toEqual({ kind: "provider", retryable: true });
+  });
+
+  it("classifies Codex CLI high-demand responses as provider failures", () => {
+    expect(
+      classifyAgentRuntimeFailure({
+        subtype: "codex_cli_error",
+        message:
+          "Reconnecting... 2/5 (We're currently experiencing high demand, which may cause temporary errors.)",
+      }),
+    ).toEqual({ kind: "provider", retryable: true });
+  });
+
   it("classifies no-detail Codex CLI exits as provider failures", () => {
     expect(
       classifyAgentRuntimeFailure({
@@ -120,6 +162,24 @@ describe("classifyAgentRuntimeFailure", () => {
       classifyAgentRuntimeFailure({
         message:
           "stream disconnected before completion: error sending request for url (https://example.test/internal)",
+      }),
+    ).toBeNull();
+    expect(
+      classifyAgentRuntimeFailure({
+        message:
+          "unexpected status 503 Service Unavailable, url: https://chatgpt.com/backend-api/codex/responses",
+      }),
+    ).toBeNull();
+    expect(
+      classifyAgentRuntimeFailure({
+        message:
+          "Reconnecting... 2/5 (stream disconnected before completion: Internal server error)",
+      }),
+    ).toBeNull();
+    expect(
+      classifyAgentRuntimeFailure({
+        message:
+          "Reconnecting... 2/5 (We're currently experiencing high demand, which may cause temporary errors.)",
       }),
     ).toBeNull();
   });

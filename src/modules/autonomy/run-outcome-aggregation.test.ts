@@ -721,6 +721,27 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
       'Agent step "explore" failed (codex_cli_error): stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)',
     );
     writeAgentRuntimeFailureRun(
+      "codex-http-503",
+      "builder",
+      "build",
+      "2026-04-21T04:10:00.000Z",
+      'Agent step "build" failed (codex_cli_error): unexpected status 503 Service Unavailable: Service Unavailable, url: https://chatgpt.com/backend-api/codex/responses, cf-ray: a20a34385ba9b235-LHR, auth error: 503, auth error code: biscuit_baker_service_me_circuit_open',
+    );
+    writeAgentRuntimeFailureRun(
+      "codex-internal-server-disconnect",
+      "builder",
+      "build",
+      "2026-04-21T04:20:00.000Z",
+      'Agent step "build" failed (codex_cli_error): Reconnecting... 2/5 (stream disconnected before completion: Internal server error)',
+    );
+    writeAgentRuntimeFailureRun(
+      "codex-high-demand",
+      "progress-reviewer",
+      "review-evidence",
+      "2026-04-21T04:25:00.000Z",
+      'Agent step "review-evidence" failed (codex_cli_error): Reconnecting... 2/5 (We\'re currently experiencing high demand, which may cause temporary errors.)',
+    );
+    writeAgentRuntimeFailureRun(
       "codex-silent-exit",
       "explorer",
       "explore",

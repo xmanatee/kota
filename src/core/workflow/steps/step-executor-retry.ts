@@ -155,6 +155,29 @@ function parseApiErrorStatus(text: string): number | undefined {
   return Number.isInteger(parsed) ? parsed : undefined;
 }
 
+const WRAPPED_CODEX_CLI_FAILURE_PREFIX =
+  /^(?:Agent step "[^"]+" failed \(codex_cli_error\)|Repair agent for step "[^"]+" failed): /;
+
+function hasCodexCliFailureProvenance(input: AgentFailureContext): boolean {
+  return (
+    input.subtype === "codex_cli_error" ||
+    WRAPPED_CODEX_CLI_FAILURE_PREFIX.test(input.message)
+  );
+}
+
+function parseCodexCliHttpStatus(
+  input: AgentFailureContext,
+): number | undefined {
+  if (!hasCodexCliFailureProvenance(input)) return undefined;
+  const match =
+    /unexpected status\s+(\d{3})\b[^\r\n]*\burl:\s*https:\/\/chatgpt\.com\/backend-api\/codex\/responses(?:\/compact)?\b/i.exec(
+      input.message,
+    );
+  if (!match) return undefined;
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isInteger(parsed) ? parsed : undefined;
+}
+
 const CODEX_RECONNECT_REQUEST_TIMEOUT =
   /Reconnecting\.\.\. \d+\/\d+ \(request timed out\)$/;
 const WRAPPED_CODEX_RECONNECT_REQUEST_TIMEOUT =
@@ -167,6 +190,20 @@ function isCodexReconnectRequestTimeout(
     return CODEX_RECONNECT_REQUEST_TIMEOUT.test(input.message);
   }
   return WRAPPED_CODEX_RECONNECT_REQUEST_TIMEOUT.test(input.message);
+}
+
+function isCodexProviderReconnectFailure(
+  input: AgentFailureContext,
+): boolean {
+  if (!hasCodexCliFailureProvenance(input)) return false;
+  return (
+    /Reconnecting\.\.\. \d+\/\d+ \(stream disconnected before completion:\s*Internal server error\)$/i.test(
+      input.message,
+    ) ||
+    /Reconnecting\.\.\. \d+\/\d+ \(We're currently experiencing high demand, which may cause temporary errors\.\)$/i.test(
+      input.message,
+    )
+  );
 }
 
 /**
@@ -213,6 +250,12 @@ export function classifyAgentRuntimeFailure(
   const apiStatus = parseApiErrorStatus(input.message);
   if (apiStatus !== undefined) {
     const byText = classifyHttpStatus(apiStatus);
+    if (byText) return byText;
+  }
+
+  const codexCliHttpStatus = parseCodexCliHttpStatus(input);
+  if (codexCliHttpStatus !== undefined) {
+    const byText = classifyHttpStatus(codexCliHttpStatus);
     if (byText) return byText;
   }
 
@@ -288,6 +331,9 @@ export function classifyAgentRuntimeFailure(
     return { kind: "provider", retryable: true };
   }
   if (isCodexReconnectRequestTimeout(input)) {
+    return { kind: "provider", retryable: true };
+  }
+  if (isCodexProviderReconnectFailure(input)) {
     return { kind: "provider", retryable: true };
   }
   if (

@@ -284,6 +284,50 @@ describe("detectPersistentWorkflowFailurePatternsFromRuns", () => {
     expect(patterns).toEqual([]);
   });
 
+  it.each([
+    [
+      "HTTP 503",
+      'Agent step "build" failed (codex_cli_error): unexpected status 503 Service Unavailable: Service Unavailable, url: https://chatgpt.com/backend-api/codex/responses, cf-ray: a20a34385ba9b235-LHR, auth error: 503, auth error code: biscuit_baker_service_me_circuit_open',
+    ],
+    [
+      "internal-server stream disconnect",
+      'Agent step "build" failed (codex_cli_error): Reconnecting... 2/5 (stream disconnected before completion: Internal server error)',
+    ],
+    [
+      "high-demand response",
+      'Agent step "build" failed (codex_cli_error): Reconnecting... 2/5 (We\'re currently experiencing high demand, which may cause temporary errors.)',
+    ],
+  ])("ignores classified Codex %s failures", (_label, error) => {
+    const patterns = detectPersistentWorkflowFailurePatternsFromRuns(
+      [
+        makeRun({
+          id: "provider-a",
+          workflow: "builder",
+          hoursAgo: 3,
+          status: "failed",
+          stepError: error,
+        }),
+        makeRun({
+          id: "provider-b",
+          workflow: "builder",
+          hoursAgo: 2,
+          status: "failed",
+          stepError: error,
+        }),
+        makeRun({
+          id: "provider-c",
+          workflow: "builder",
+          hoursAgo: 1,
+          status: "failed",
+          stepError: error,
+        }),
+      ],
+      { nowMs: NOW },
+    );
+
+    expect(patterns).toEqual([]);
+  });
+
   it("ignores classified harness-readiness failures", () => {
     const error =
       'Agent step "improve" failed (harness_readiness): Required agent harness "codex" readiness failed: localRuntime missing: codex executable not found on PATH';
