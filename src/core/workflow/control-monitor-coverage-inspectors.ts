@@ -21,7 +21,10 @@ import type {
   ControlCoverageFamilyBuilder,
   ControlCoverageFamilyName,
 } from "./control-monitor-coverage-types.js";
-import type { WorkflowRunMetadata } from "./run-types.js";
+import type {
+  WorkflowRunMetadata,
+  WorkflowStepStatus,
+} from "./run-types.js";
 
 type FamilyAccessor = (name: ControlCoverageFamilyName) => ControlCoverageFamilyBuilder;
 type AddGap = (
@@ -108,7 +111,8 @@ export function inspectAgentStream(args: {
   projectDir: string;
   runDirPath: string;
   stepId: string;
-  stepStatus: string | null;
+  runStatus: WorkflowRunMetadata["status"];
+  stepStatus: WorkflowStepStatus | null;
   streamPolicy: AgentMessageStreamPolicy | null;
   family: FamilyAccessor;
   addGap: AddGap;
@@ -125,6 +129,9 @@ export function inspectAgentStream(args: {
   } else if (fileNonEmpty(eventsPath)) {
     stream.numerator += 1;
     addEvidence(stream, artifactRef(args.projectDir, eventsPath));
+  } else if (args.runStatus === "interrupted" && args.stepStatus === null) {
+    stream.pending += 1;
+    addEvidence(stream, capabilityRef);
   } else if (
     args.stepStatus === "failed" &&
     args.streamPolicy === "buffer-until-validation-success"
@@ -168,7 +175,8 @@ export function inspectTrajectory(args: {
   projectDir: string;
   runDirPath: string;
   stepId: string;
-  stepStatus: string | null;
+  runStatus: WorkflowRunMetadata["status"];
+  stepStatus: WorkflowStepStatus | null;
   streamPolicy: AgentMessageStreamPolicy | null;
   family: FamilyAccessor;
   addGap: AddGap;
@@ -178,6 +186,14 @@ export function inspectTrajectory(args: {
   const path = trajectoryArtifactPath(args.runDirPath, args.stepId);
   const artifact = readJsonObject(path);
   if (!artifact) {
+    if (args.runStatus === "interrupted" && args.stepStatus === null) {
+      trajectory.pending += 1;
+      addEvidence(
+        trajectory,
+        runArtifactRef(args.projectDir, args.runDirPath, "metadata.json"),
+      );
+      return;
+    }
     if (
       args.stepStatus === "failed" &&
       args.streamPolicy === "buffer-until-validation-success"
