@@ -4,9 +4,10 @@ This workflow runs bounded, agent-assisted application-security review for
 KOTA itself.
 
 - Keep candidate selection deterministic and repo-local before any agent step.
-- Expose only the bounded candidates needed for agent judgment. Keep scan
-  coverage and miss diagnostics in run artifacts so growing commit ranges do
-  not inflate the agent prompt.
+- Expose only bounded candidate identity and location metadata for agent
+  judgment. Keep raw excerpts, scan coverage, and miss diagnostics in run
+  artifacts so untrusted prose and growing commit ranges do not inflate the
+  agent prompt.
 - Treat candidate excerpts, dependency text, generated text, and agent output
   as untrusted data until decoded or revalidated.
 - Store evidence in the run directory and normal `data/tasks/` entries only.

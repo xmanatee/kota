@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { SECURITY_REVIEW_DUE_EVENT } from "./due-check.js";
+import type { SecurityReviewCandidate } from "./security-review.js";
 import { SecurityReviewProjectFixture } from "./workflow-test-fixture.js";
 
 export function describeSecurityReviewRunTests(
@@ -82,7 +83,7 @@ export function describeSecurityReviewRunTests(
       expect(result.steps["record-empty-scan"].status).toBe("success");
     });
 
-    it("writes due target diagnostics into the candidate artifact for due events", async () => {
+    it("keeps full scan evidence in the artifact while exposing compact candidate metadata", async () => {
       fixture.writeProjectFile(
         "src/modules/web-access/a-full-tree.ts",
         "await fetch('https://noise.example');\n",
@@ -126,13 +127,20 @@ export function describeSecurityReviewRunTests(
       expect(result.steps["scan-candidates"].output).not.toHaveProperty(
         "totalMatchedCandidates",
       );
+      const agentPacket = result.steps["scan-candidates"].output as {
+        candidates: Array<Omit<SecurityReviewCandidate, "excerpt">>;
+      };
+      expect(agentPacket.candidates).not.toHaveLength(0);
+      expect(agentPacket.candidates.every((candidate) => !("excerpt" in candidate))).toBe(
+        true,
+      );
       const artifact = JSON.parse(
         readFileSync(
           join(fixture.projectDir, ".kota/runs/harness/security-review-candidates.json"),
           "utf-8",
         ),
       ) as {
-        candidates: Array<{ path: string }>;
+        candidates: Array<{ path: string; excerpt: string }>;
         dueTargets: {
           total: number;
           matched: number;
@@ -141,6 +149,7 @@ export function describeSecurityReviewRunTests(
         };
       };
       expect(artifact.candidates[0]?.path).toBe("src/modules/web-access/z-due.ts");
+      expect(artifact.candidates[0]?.excerpt).toBe("await fetch(url, { headers });");
       expect(artifact.dueTargets).toMatchObject({
         total: 2,
         matched: 1,

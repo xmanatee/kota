@@ -37,6 +37,7 @@ import {
   type SecurityFindingTaskResult,
   type SecurityInvestigationOutput,
   type SecurityRevalidationOutput,
+  type SecurityReviewCandidate,
   type SecurityReviewCandidatePacket,
   scanAndWriteSecurityReviewCandidates,
   securityReviewDueTargetsFromPayload,
@@ -135,10 +136,14 @@ type MutationBaseline = {
   preExistingMutatedPaths: string[];
 };
 
+type SecurityReviewAgentCandidate = Omit<SecurityReviewCandidate, "excerpt">;
+
 type SecurityReviewAgentCandidatePacket = Pick<
   SecurityReviewCandidatePacket,
-  "artifactPath" | "candidateCount" | "candidates" | "truncated"
->;
+  "artifactPath" | "candidateCount" | "truncated"
+> & {
+  candidates: SecurityReviewAgentCandidate[];
+};
 
 type SecurityReviewPreflightRail =
   | "task-validation"
@@ -182,10 +187,16 @@ function securityReviewCommitPolicy(
 function projectCandidatePacketForAgent(
   packet: SecurityReviewCandidatePacket,
 ): SecurityReviewAgentCandidatePacket {
-  // Coverage diagnostics grow with the changed commit range. They remain in
-  // the scan artifact; the reviewer needs only the bounded judgment inputs.
+  // Raw excerpts and coverage diagnostics remain in the scan artifact. The
+  // reviewer can inspect cited files without preloading untrusted prose.
   return {
-    candidates: packet.candidates,
+    candidates: packet.candidates.map((candidate) => ({
+      id: candidate.id,
+      surface: candidate.surface,
+      path: candidate.path,
+      line: candidate.line,
+      matcher: candidate.matcher,
+    })),
     candidateCount: packet.candidateCount,
     artifactPath: packet.artifactPath,
     truncated: packet.truncated,
