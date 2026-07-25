@@ -6,7 +6,7 @@ priority: p1
 area: autonomy
 summary: Fix the local cause behind improver's persistent consecutive failure signal (step improve error 6339604e1fd6).
 created_at: 2026-07-25T09:32:01.124Z
-updated_at: 2026-07-25T09:38:36.533Z
+updated_at: 2026-07-25T09:39:52.118Z
 task_class: Meta
 ---
 
@@ -19,7 +19,7 @@ signal is considered local and code-actionable.
 
 Pattern fingerprint: `workflow-failure:consecutive-failures:improver:step-error:046dff6a1668`
 Root-cause fingerprint: `workflow-failure-root:improver:079aebe7f475`
-Evidence fingerprint: `cc0f107116fb0f515bde726709331bc306f91cb3dcb7db9ad4905cfdeb6afd8a`
+Evidence fingerprint: `780cfaa3d51dc88dc987a44b14c70088fb72b31ec80ef68827676fd36405d3e4`
 
 ## Failure Evidence
 
@@ -27,10 +27,11 @@ Evidence fingerprint: `cc0f107116fb0f515bde726709331bc306f91cb3dcb7db9ad4905cfde
 - Workflow: improver
 - Failure class: step-error:improve:6339604e1fd6
 - Signal: step improve error 6339604e1fd6
-- Run ids: 2026-07-25T09-14-56-651Z-improver-prqywv, 2026-07-25T09-24-31-753Z-improver-tjgbxw, 2026-07-25T09-26-03-561Z-improver-io2la2, 2026-07-25T09-29-23-402Z-improver-wmk8bc, 2026-07-25T09-30-59-295Z-improver-bpr4fn, 2026-07-25T09-34-08-252Z-improver-fpx9u6, 2026-07-25T09-35-50-155Z-improver-nyjinx
-- Window: 2026-07-25T09:24:25.742Z to 2026-07-25T09:38:20.033Z
-- Actionable reason: improver has 7 consecutive failed completed runs with the same owned failure class (step improve error 6339604e1fd6).
+- Run ids: 2026-07-25T09-14-56-651Z-improver-prqywv, 2026-07-25T09-24-31-753Z-improver-tjgbxw, 2026-07-25T09-26-03-561Z-improver-io2la2, 2026-07-25T09-29-23-402Z-improver-wmk8bc, 2026-07-25T09-30-59-295Z-improver-bpr4fn, 2026-07-25T09-34-08-252Z-improver-fpx9u6, 2026-07-25T09-35-50-155Z-improver-nyjinx, 2026-07-25T09-37-37-104Z-improver-53qru2
+- Window: 2026-07-25T09:24:25.742Z to 2026-07-25T09:39:30.013Z
+- Actionable reason: improver has 8 consecutive failed completed runs with the same owned failure class (step improve error 6339604e1fd6).
 
+- run 2026-07-25T09-37-37-104Z-improver-53qru2 failed at step improve: Agent step "improve" failed (codex_cli_error): unexpected status <n> Service Unavailable: Service Unavailable, url: https://chatgpt.com/backend-api/codex/responses, cf-ray: <hash>-LHR, auth error: <n>, auth error code: biscuit_baker_serv...
 - run 2026-07-25T09-35-50-155Z-improver-nyjinx failed at step improve: Agent step "improve" failed (codex_cli_error): unexpected status <n> Service Unavailable: Service Unavailable, url: https://chatgpt.com/backend-api/codex/responses, cf-ray: <hash>-LHR, auth error: <n>, auth error code: biscuit_baker_serv...
 - run 2026-07-25T09-34-08-252Z-improver-fpx9u6 failed at step improve: Agent step "improve" failed (codex_cli_error): unexpected status <n> Service Unavailable: Service Unavailable, url: https://chatgpt.com/backend-api/codex/responses, cf-ray: <hash>-LHR, auth error: <n>, auth error code: biscuit_baker_serv...
 - run 2026-07-25T09-30-59-295Z-improver-bpr4fn failed at step improve: Agent step "improve" failed (codex_cli_error): unexpected status <n> Service Unavailable: Service Unavailable, url: https://chatgpt.com/backend-api/codex/responses, cf-ray: <hash>-LHR, auth error: <n>, auth error code: biscuit_baker_serv...
@@ -93,4 +94,4 @@ into deterministic, reviewable repair work.
   the task id without cost fields.
 
 <!-- workflow-failure-pattern-fingerprint: workflow-failure:consecutive-failures:improver:step-error:046dff6a1668 -->
-<!-- workflow-failure-evidence-fingerprint: cc0f107116fb0f515bde726709331bc306f91cb3dcb7db9ad4905cfdeb6afd8a -->
+<!-- workflow-failure-evidence-fingerprint: 780cfaa3d51dc88dc987a44b14c70088fb72b31ec80ef68827676fd36405d3e4 -->
