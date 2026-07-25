@@ -10,7 +10,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { isSingleWorkflowFixtureSpec, loadFixture } from "./fixture.js";
 import type {
   ExecutionProfilePreflightResult,
@@ -27,6 +27,21 @@ import {
 
 const FIXTURE_ID = "builder-scientific-claim-reproduction";
 const FIXTURES_ROOT = join(process.cwd(), "src/modules/eval-harness/fixtures");
+
+vi.mock("./scientific-claim-network-sandbox.js", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("./scientific-claim-network-sandbox.js")
+  >();
+  return {
+    ...actual,
+    resolveScientificClaimNetworkSandbox: () => ({
+      kind: "darwin-seatbelt" as const,
+      command: "/usr/bin/env",
+      prefixArgs: [],
+      evidence: "test-scoped analyzer process boundary",
+    }),
+  };
+});
 
 const TEST_PROFILE: ResourceProfile = {
   cpuAllocationCores: 2,
@@ -298,4 +313,5 @@ describe("builder scientific claim reproduction fixture", () => {
       rmSync(workingDir, { recursive: true, force: true });
     }
   });
+
 });

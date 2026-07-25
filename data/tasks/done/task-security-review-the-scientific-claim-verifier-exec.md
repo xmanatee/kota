@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-scientific-claim-verifier-exec
 title: Security review: The scientific-claim verifier executes agent-produced JavaScript without a network isolation boundary. On supported Node 22 runtimes, --permission does not restrict network APIs, allowing a malicious or prompt-injected analyzer to access loopback services, cloud metadata, or exfiltrate verifier-only data. Container isolation selected for workflow execution does not contain this post-run predicate.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: The scientific-claim verifier executes agent-produced JavaScript without a network isolation boundary. On supported Node 22 runtimes, --permission does not restrict network APIs, allowing a malicious or prompt-injected analyzer to access loopback services, cloud metadata, or exfiltrate verifier-only data. Container isolation selected for workflow execution does not contain this post-run predicate.
 created_at: 2026-07-25T13:40:27.052Z
-updated_at: 2026-07-25T13:40:27.052Z
+updated_at: 2026-07-25T14:16:21.868Z
 ---
 
 ## Problem
@@ -125,3 +125,11 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run src/modules/eval-harness/scientific-claim-network-sandbox.test.ts src/modules/eval-harness/scientific-claim-reproduction-fixture.test.ts src/modules/eval-harness/accepted-alternative-fixtures.test.ts --configLoader runner --silent=true` passed (10 tests).
+- `node_modules/.bin/tsc --noEmit` and `node_modules/.bin/tsc -p tsconfig.json` passed.
+- `node_modules/.bin/biome check` passed for every touched TypeScript file.
+- The post-build replay, built-CLI, instruction-cap, and docs ratchet set passed (215 tests).
+- `.kota/runs/2026-07-25T13-47-32-415Z-builder-tbraj6/security-regression.txt` records the focused boundary evidence and the package-manager validation limitation.

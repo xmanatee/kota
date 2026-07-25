@@ -1,0 +1,35 @@
+Scientific-claim analyzer network-boundary regression
+
+PASS
+Command:
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run src/modules/eval-harness/scientific-claim-network-sandbox.test.ts src/modules/eval-harness/scientific-claim-reproduction-fixture.test.ts src/modules/eval-harness/accepted-alternative-fixtures.test.ts --configLoader runner --silent=true
+Result: 3 files passed, 10 tests passed.
+
+The dedicated regression writes a valid analyzer that reads verifier-only CSV
+and attempts to send it to 127.0.0.1. On hosts that admit a nested OS sandbox,
+the loopback listener receives no bytes and the analyzer still completes. This
+managed builder host denies both loopback listening and nested sandbox setup,
+so the same regression exercised the fail-closed branch: the verifier refused
+to start the agent-produced analyzer and the listener received no bytes.
+
+PASS
+Command: node_modules/.bin/tsc --noEmit
+Result: no type errors.
+
+PASS
+Command: node_modules/.bin/biome check <touched TypeScript files>
+Result: 5 files checked with no diagnostics.
+
+PASS
+Command:
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run src/docs-surface.test.ts src/core/loop/instruction-files.test.ts src/modules/eval-harness/replay-smoke.test.ts src/built-cli-mcp-server.integration.test.ts src/package-bin.integration.test.ts --configLoader runner --silent=true
+Result: 5 files passed, 215 tests passed after building dist with
+node_modules/.bin/tsc -p tsconfig.json.
+
+ENVIRONMENTAL LIMITATION
+The full suite reached 12,088 passing tests before failing package-manager and
+pre-build gates. The pre-build failures passed after dist was built. The
+remaining supply-chain-policy test invokes pnpm, which correctly refused to
+switch to pinned pnpm@10.32.1 because the restricted builder could not reach
+the registry to verify its release signature. No package-manager safety check
+was bypassed.

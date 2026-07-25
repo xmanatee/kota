@@ -7,7 +7,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   isSingleWorkflowFixtureSpec,
   type LoadedFixture,
@@ -26,6 +26,21 @@ import {
 } from "./runner.js";
 
 const FIXTURES_ROOT = join(process.cwd(), "src/modules/eval-harness/fixtures");
+
+vi.mock("./scientific-claim-network-sandbox.js", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("./scientific-claim-network-sandbox.js")
+  >();
+  return {
+    ...actual,
+    resolveScientificClaimNetworkSandbox: () => ({
+      kind: "darwin-seatbelt" as const,
+      command: "/usr/bin/env",
+      prefixArgs: [],
+      evidence: "test-scoped analyzer process boundary",
+    }),
+  };
+});
 
 const BROAD_ACCEPTED_ALTERNATIVES = new Map([
   ["builder-scientific-claim-reproduction", ["audited-json-evidence"]],

@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import {
   existsSync,
   lstatSync,
@@ -19,6 +18,10 @@ import {
   VERIFIER_CLAIM_EXPECTED as VERIFIER_EXPECTED,
   validateScientificClaimArtifactFile as validateArtifactFile,
 } from "./scientific-claim-artifact.js";
+import {
+  resolveScientificClaimNetworkSandbox,
+  spawnScientificClaimAnalyzer,
+} from "./scientific-claim-network-sandbox.js";
 
 /**
  * Fixture-owned scientific claim scorer. Trusted code validates submitted
@@ -72,28 +75,28 @@ function readCandidateFile(
 function verifyAnalyzerExecution(
   workingDir: string,
   tolerance: number,
-): string[] {
+): { issues: string[]; isolationEvidence?: string } {
   const analyzer = readCandidateFile(
     workingDir,
     ANALYZER_PATH,
     "analyzer command",
     ANALYZER_MAX_BYTES,
   );
-  if (!analyzer.ok) return [analyzer.issue];
+  if (!analyzer.ok) return { issues: [analyzer.issue] };
   const mainData = readCandidateFile(
     workingDir,
     MAIN_EXPECTED.dataPath,
     "main command input",
     DATA_MAX_BYTES,
   );
-  if (!mainData.ok) return [mainData.issue];
+  if (!mainData.ok) return { issues: [mainData.issue] };
   const holdoutData = readCandidateFile(
     workingDir,
     HOLDOUT_EXPECTED.dataPath,
     "holdout command input",
     DATA_MAX_BYTES,
   );
-  if (!holdoutData.ok) return [holdoutData.issue];
+  if (!holdoutData.ok) return { issues: [holdoutData.issue] };
   const commandCases = [
     {
       expected: MAIN_EXPECTED,
@@ -111,35 +114,41 @@ function verifyAnalyzerExecution(
       label: "verifier artifact",
     },
   ] as const;
+  const isolation = resolveScientificClaimNetworkSandbox();
+  if (isolation.kind === "unavailable") {
+    return {
+      issues: [isolation.issue],
+      isolationEvidence: isolation.evidence,
+    };
+  }
 
   const challengeDir = realpathSync(
     mkdtempSync(join(tmpdir(), "kota-lx12-verifier-")),
   );
   try {
-    mkdirSync(join(challengeDir, "scripts"), { recursive: true });
-    mkdirSync(join(challengeDir, "data", "claims"), { recursive: true });
-    writeFileSync(
-      join(challengeDir, ANALYZER_PATH),
-      analyzer.content,
-      { encoding: "utf-8", mode: 0o400 },
-    );
-    for (const commandCase of commandCases) {
+    const issues: string[] = [];
+    for (const [index, commandCase] of commandCases.entries()) {
+      const caseDir = join(challengeDir, `case-${index + 1}`);
+      mkdirSync(join(caseDir, "scripts"), { recursive: true });
+      mkdirSync(join(caseDir, "data", "claims"), { recursive: true });
+      const isolatedCaseDir = realpathSync(caseDir);
       writeFileSync(
-        join(challengeDir, commandCase.expected.dataPath),
+        join(isolatedCaseDir, ANALYZER_PATH),
+        analyzer.content,
+        { encoding: "utf-8", mode: 0o400 },
+      );
+      writeFileSync(
+        join(isolatedCaseDir, commandCase.expected.dataPath),
         commandCase.content,
         { encoding: "utf-8", mode: 0o400 },
       );
-    }
-
-    const issues: string[] = [];
-    for (const commandCase of commandCases) {
-      const output = join(challengeDir, commandCase.expected.outputPath);
-      const result = spawnSync(
-        process.execPath,
+      const output = join(isolatedCaseDir, commandCase.expected.outputPath);
+      const execution = spawnScientificClaimAnalyzer(
+        isolation,
         [
           "--permission",
-          `--allow-fs-read=${join(challengeDir, ANALYZER_PATH)}`,
-          `--allow-fs-read=${join(challengeDir, commandCase.expected.dataPath)}`,
+          `--allow-fs-read=${join(isolatedCaseDir, ANALYZER_PATH)}`,
+          `--allow-fs-read=${join(isolatedCaseDir, commandCase.expected.dataPath)}`,
           `--allow-fs-write=${output}`,
           ANALYZER_PATH,
           "--data",
@@ -148,14 +157,17 @@ function verifyAnalyzerExecution(
           commandCase.expected.outputPath,
         ],
         {
-          cwd: challengeDir,
-          encoding: "utf-8",
+          cwd: isolatedCaseDir,
           env: { LANG: "C", LC_ALL: "C", NO_COLOR: "1" },
           maxBuffer: 4 * 1024 * 1024,
-          stdio: ["ignore", "pipe", "pipe"],
           timeout: ANALYZER_TIMEOUT_MS,
         },
       );
+      if (!execution.started) {
+        issues.push(`${commandCase.label}: ${execution.issue}`);
+        continue;
+      }
+      const { result } = execution;
       if (result.status !== 0 || result.error !== undefined) {
         const combined = [result.stdout, result.stderr, result.error?.message]
           .filter(
@@ -177,14 +189,14 @@ function verifyAnalyzerExecution(
       }
       issues.push(
         ...validateArtifactFile(
-          challengeDir,
+          isolatedCaseDir,
           commandCase.expected,
           tolerance,
           commandCase.label,
         ),
       );
     }
-    return issues;
+    return { issues, isolationEvidence: isolation.evidence };
   } finally {
     rmSync(challengeDir, { recursive: true, force: true });
   }
@@ -195,6 +207,7 @@ export function evaluateScientificClaimResult(
   predicate: ScientificClaimResultPredicate,
 ): ScientificClaimPredicateEvaluation {
   const issues: string[] = [];
+  let isolationEvidence: string | undefined;
   if (!Number.isFinite(predicate.maxErrorPct) || predicate.maxErrorPct < 0) {
     issues.push(`maxErrorPct must be a non-negative number, got ${predicate.maxErrorPct}`);
   }
@@ -209,14 +222,19 @@ export function evaluateScientificClaimResult(
     ...validateArtifactFile(workingDir, HOLDOUT_EXPECTED, predicate.maxErrorPct, "holdout artifact"),
   );
   if (issues.length === 0) {
-    issues.push(...verifyAnalyzerExecution(workingDir, predicate.maxErrorPct));
+    const verification = verifyAnalyzerExecution(
+      workingDir,
+      predicate.maxErrorPct,
+    );
+    issues.push(...verification.issues);
+    isolationEvidence = verification.isolationEvidence;
   }
 
   return {
     passed: issues.length === 0,
     detail:
       issues.length === 0
-        ? `lx12-scientific-claim-result verified ${predicate.mainPath}, ${predicate.holdoutPath}, both declared analyzer commands, and a permission-restricted command against verifier-only data`
+        ? `lx12-scientific-claim-result verified ${predicate.mainPath}, ${predicate.holdoutPath}, both declared analyzer commands, and a filesystem-permission-restricted command against verifier-only data inside ${isolationEvidence ?? "an unavailable network boundary"}`
         : `lx12-scientific-claim-result failed:\n- ${issues.join("\n- ")}`,
   };
 }

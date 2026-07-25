@@ -1,0 +1,28 @@
+PASS  focused security, fixture, calibration, strict-types, and root-layout set
+      5 test files passed; 13 tests passed.
+
+PASS  typecheck
+      node_modules/.bin/tsc --noEmit
+
+PASS  build
+      node_modules/.bin/tsc -p tsconfig.json
+
+PASS  touched TypeScript checks
+      node_modules/.bin/biome check <five touched TypeScript files>
+
+PASS  post-build replay, built CLI, docs, and instruction-cap set
+      5 test files passed; 215 tests passed.
+
+PASS  final task queue
+      node --conditions=source --import tsx src/validate-queue.ts
+      Run against the workflow's alternate writable index because the managed
+      filesystem exposes the canonical worktree Git index read-only.
+
+PASS  diff hygiene
+      git diff --check
+
+ENVIRONMENTAL  full repository suite
+      12,088 tests passed in the initial broad run. Pre-build failures were
+      cleared by the subsequent build and 215-test rerun. The remaining pnpm
+      supply-chain-policy test could not verify pinned pnpm@10.32.1 against the
+      unreachable registry and correctly refused to bypass signature checks.

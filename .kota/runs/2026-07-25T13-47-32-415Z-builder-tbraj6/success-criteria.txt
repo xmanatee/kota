@@ -1,0 +1,3 @@
+1. Every agent-produced scientific-claim analyzer invocation runs only after a fail-closed OS network-isolation capability check, while retaining the existing filesystem, child-process, worker, and secret restrictions.
+2. Focused regression coverage attempts to send verifier-only CSV data to a loopback listener and proves the analyzer cannot connect, including a fail-closed assertion on hosts where the isolation boundary is unavailable.
+3. The task records fresh focused validation evidence and reaches done only after the fixed predicate, calibration path, and task queue validate.

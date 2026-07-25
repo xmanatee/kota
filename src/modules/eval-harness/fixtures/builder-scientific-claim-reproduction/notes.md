@@ -20,11 +20,14 @@ parses those artifacts in trusted code, then copies the candidate analyzer into
 a fresh permission-restricted temporary directory and runs it against
 the two declared inputs plus verifier-only filtered data. Each child receives
 no inherited credentials, can read only its copied analyzer and current CSV
-input, can write only its declared result, and cannot spawn child processes or
-workers. These command probes reject candidates that prewrite the two known
-artifacts while leaving a nonfunctional analyzer, or hardcode answers for only
-the visible data. The `median_uplift_pct` objective metric is reported from
-`claim-result.json`; predicates still own pass/fail.
+input, can write only its declared result, cannot spawn child processes or
+workers, and runs behind a capability-verified OS network sandbox. The
+predicate fails closed without that boundary. These command probes reject
+candidates that prewrite the two known artifacts while leaving a nonfunctional
+analyzer, hardcode answers for only the visible data, or attempt to send
+verifier-only data to host or external services. The `median_uplift_pct`
+objective metric is reported from `claim-result.json`; predicates still own
+pass/fail.
 
 This stays out of `pnpm test` because the fixture invokes a live builder agent.
 The co-located unit test only verifies fixture wiring and shortcut rejection in
