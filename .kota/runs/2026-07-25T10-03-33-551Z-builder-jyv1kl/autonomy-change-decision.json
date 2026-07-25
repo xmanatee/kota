@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "autonomy-change-decision",
+  "runId": "2026-07-25T10-03-33-551Z-builder-jyv1kl",
+  "createdAt": "2026-07-25T10:48:30Z",
+  "taskIds": [
+    "task-repair-workflow-failure-pattern-652db4854da6"
+  ],
+  "affectedSurfaces": [
+    "agent-step runtime failure classification",
+    "autonomy run-outcome actionable-evidence gating",
+    "persistent workflow failure escalation"
+  ],
+  "changeClasses": [
+    "workflow"
+  ],
+  "hypothesis": "Recognizing provenance-bound Codex CLI 503, internal-server reconnect, and high-demand responses as provider failures will prevent upstream outages from generating local workflow repair tasks while leaving unclassified local failures actionable.",
+  "sourceRefs": [
+    "data/tasks/done/task-repair-workflow-failure-pattern-652db4854da6.md",
+    ".kota/runs/2026-07-25T09-25-10-911Z-progress-reviewer-8q9xdq/metadata.json",
+    ".kota/runs/2026-07-25T09-29-23-366Z-progress-reviewer-54wn6v/metadata.json",
+    ".kota/runs/2026-07-25T09-35-50-065Z-progress-reviewer-o0f8t1/metadata.json"
+  ],
+  "baselineRefs": [
+    "a704b199de3ae66673881b9c3e1798dd26155fcc",
+    "src/core/workflow/steps/step-executor-retry.ts",
+    "src/modules/autonomy/workflow-failure-escalation.ts"
+  ],
+  "candidateRefs": [
+    "0eb76a9f5965be3ddb20c85b67c234abdba5999c",
+    "src/core/workflow/steps/step-executor-retry.ts",
+    "src/core/workflow/steps/step-executor-retry.test.ts",
+    "src/modules/autonomy/run-outcome-aggregation.test.ts",
+    "src/modules/autonomy/workflow-failure-escalation.test.ts",
+    "src/modules/autonomy/workflows/workflow-failure-escalator/workflow.test.ts",
+    ".kota/runs/2026-07-25T10-03-33-551Z-builder-jyv1kl/detector-regression.json",
+    ".kota/runs/2026-07-25T10-03-33-551Z-builder-jyv1kl/validation.txt"
+  ],
+  "metricsCompared": [
+    {
+      "name": "historical progress-reviewer 503 classification",
+      "baseline": "The three cited failures had no failureKind and crossed the consecutive local-failure threshold.",
+      "candidate": "The exact codex_cli_error response classifies as provider and the detector returns no persistent pattern.",
+      "unit": "classification and detector outcomes",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "untrusted 503 text classification boundary",
+      "baseline": "No provenance-bound parser existed for Codex backend response statuses.",
+      "candidate": "Only codex_cli_error subtype or the runtime-owned wrapped prefix plus the exact Codex responses URL enables HTTP status classification.",
+      "unit": "negative and positive focused assertions",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "operator escalation payload contract",
+      "baseline": "Future local failure escalations named the repair task id and omitted cost data.",
+      "candidate": "The existing workflow fixture continues to assert the generated task id is present and cost and throughput fields are absent.",
+      "unit": "workflow fixture assertions",
+      "direction": "unchanged",
+      "qualitySignal": true
+    }
+  ],
+  "rolloutMode": "promoted",
+  "decision": "promote",
+  "rationale": "Commit 0eb76a9f5 landed after this task was generated and directly addresses its cited evidence. The classification is grounded in the exact status, Codex backend URL, and runtime-owned provenance instead of a broad Service Unavailable text match. Focused tests cover the runtime classifier, aggregate actionable-evidence gate, persistent-pattern detector, and operator attention payload. No threshold was weakened and unrelated 503 text remains unclassified.",
+  "ownerSafetyExceptions": [],
+  "followUpTaskIds": []
+}

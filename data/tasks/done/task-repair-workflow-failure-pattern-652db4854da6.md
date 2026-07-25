@@ -1,12 +1,12 @@
 ---
 id: task-repair-workflow-failure-pattern-652db4854da6
 title: Repair persistent progress-reviewer workflow failure pattern
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Fix the local cause behind progress-reviewer's persistent consecutive failure signal (step review-evidence error 5e07f703d5ac).
 created_at: 2026-07-25T09:38:36.541Z
-updated_at: 2026-07-25T09:38:36.541Z
+updated_at: 2026-07-25T10:55:31.199Z
 task_class: Meta
 ---
 
@@ -67,6 +67,17 @@ the detector crossed the local-code threshold on concrete run artifacts.
   have caught this recurrence.
 - Operator-facing attention output still reports future escalations with
   the generated task id and without cost fields.
+
+## Result
+
+Commit `0eb76a9f5` landed after this task was generated and added the exact
+provenance-bound Codex CLI provider classification this evidence required.
+Replaying the three cited metadata files now classifies the circuit-open 503
+as `provider` and returns no persistent failure patterns. Focused runtime,
+aggregation, detector, and attention-workflow coverage passes 53 tests; the
+attention fixture still requires generated task ids and rejects cost or
+throughput fields. The decision and replay output are retained under
+`.kota/runs/2026-07-25T10-03-33-551Z-builder-jyv1kl/`.
 
 ## Source / Intent
 

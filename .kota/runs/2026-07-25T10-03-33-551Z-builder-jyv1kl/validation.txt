@@ -1,0 +1,32 @@
+Validation completed 2026-07-25.
+
+1. Focused runtime and escalation coverage
+   Command: TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true src/core/workflow/steps/step-executor-retry.test.ts src/modules/autonomy/run-outcome-aggregation.test.ts src/modules/autonomy/workflow-failure-escalation.test.ts src/modules/autonomy/workflows/workflow-failure-escalator/workflow.test.ts
+   Outcome: PASS — 4 test files, 53 tests.
+
+2. Historical detector replay
+   Input: metadata.json from the three progress-reviewer run ids cited by the task.
+   Outcome: PASS — classification {"kind":"provider","retryable":true}; persistentPatterns [].
+   Artifact: detector-regression.json.
+
+3. Type checking
+   Command: node_modules/.bin/tsc --noEmit
+   Outcome: PASS.
+
+4. Task queue validation
+   Command: node --conditions=source --import tsx src/validate-queue.ts
+   Environment: the final staged worktree state with the exact ready-to-done transition.
+   Outcome: PASS.
+
+5. Autonomy decision artifact coverage
+   Command: TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true src/modules/autonomy/autonomy-change-decision.test.ts
+   Outcome: PASS — 1 test file, 4 tests.
+
+6. Patch hygiene
+   Command: git diff --check
+   Outcome: PASS.
+
+The installed pnpm 11 attempted to bootstrap the repository-pinned pnpm 10
+from the package-manager registry, which is unavailable in this run. Existing
+local project binaries and the source-mode task CLI were used without changing
+package policy or dependencies.

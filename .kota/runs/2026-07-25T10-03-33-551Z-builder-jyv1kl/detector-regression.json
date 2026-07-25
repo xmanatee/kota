@@ -1,0 +1,13 @@
+{
+  "sourceRunIds": [
+    "2026-07-25T09-25-10-911Z-progress-reviewer-8q9xdq",
+    "2026-07-25T09-29-23-366Z-progress-reviewer-54wn6v",
+    "2026-07-25T09-35-50-065Z-progress-reviewer-o0f8t1"
+  ],
+  "classification": {
+    "kind": "provider",
+    "retryable": true
+  },
+  "persistentPatterns": [],
+  "expectedHistoricalPattern": "workflow-failure:consecutive-failures:progress-reviewer:step-error:22eb9aa80092"
+}

@@ -1,0 +1,3 @@
+1. The exact progress-reviewer Codex CLI 503 circuit-open failure is classified as provider infrastructure and no longer produces the persistent local-failure pattern.
+2. Focused runtime, run-outcome aggregation, and failure-detector tests cover the classification boundary and the cited recurrence.
+3. Workflow-failure attention coverage continues to name generated repair task ids and excludes cost and throughput fields.
