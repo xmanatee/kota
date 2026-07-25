@@ -20,24 +20,23 @@ describe("builder claimed-task host staging", () => {
   });
 
   it("retries domain-owned staging for only the claimed task before queue validation", () => {
-    expect(
-      checkClaimedTaskStateStaged("/repo", {
-        claimed: true,
-        taskId: "task-claimed",
-      } as never),
-    ).toBe("OK: staged 2 state path(s) for claimed task task-claimed");
+    const status = checkClaimedTaskStateStaged("/repo", {
+      claimed: true,
+      taskId: "task-claimed",
+    } as never);
+
+    expect(status).toBe(
+      "OK: staged 2 state path(s) for claimed task task-claimed",
+    );
     expect(mocks.stageRepoTaskStateMutation).toHaveBeenCalledWith(
       "/repo",
       "task-claimed",
     );
 
     const checks = builderRepairChecks();
-    expect(
-      checks.findIndex(
-        (candidate) => candidate.id === "claimed-task-state-staged",
-      ),
-    ).toBeLessThan(
-      checks.findIndex((candidate) => candidate.id === "task-queue-valid"),
+    const metadata = checks.map((candidate) => candidate.id);
+    expect(metadata.indexOf("claimed-task-state-staged")).toBeLessThan(
+      metadata.indexOf("task-queue-valid"),
     );
   });
 });

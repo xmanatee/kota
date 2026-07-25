@@ -115,11 +115,11 @@ describe("codexAgentHarness", () => {
   });
 
   it("preserves the Codex login locator when a trusted host replaces HOME", () => {
-    expect(
-      resolveCodexIsolatedHostAuthEnv({
-        HOME: "/operator",
-      }),
-    ).toEqual({
+    const metadata = resolveCodexIsolatedHostAuthEnv({
+      HOME: "/operator",
+    });
+
+    expect(metadata).toEqual({
       CODEX_HOME: "/operator/.codex",
     });
     expect(

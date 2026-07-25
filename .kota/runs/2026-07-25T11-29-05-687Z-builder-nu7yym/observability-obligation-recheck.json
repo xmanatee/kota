@@ -1,0 +1,125 @@
+{
+  "type": "observability-obligation-recheck",
+  "sourceRunId": "2026-07-25T00-42-56-972Z-builder-vyyjvc",
+  "progressReviewRunId": "2026-07-25T08-27-36-915Z-progress-reviewer-96ef1s",
+  "replayedCommit": "fac736f86b753d8ab072bb4ff2e8594e7a3665fd",
+  "sourceEvidenceIds": [
+    "artifact:2026-07-25T00-42-56-972Z-builder-vyyjvc:observability-obligation-review.json",
+    "artifact:2026-07-25T00-42-56-972Z-builder-vyyjvc:run-summary.json"
+  ],
+  "baseline": {
+    "outcome": "warning",
+    "missingFiles": [
+      "src/core/agent-harness/types.ts",
+      "src/modules/autonomy/workflows/builder/repair-checks.ts",
+      "src/modules/autonomy/workflows/builder/runtime-resource-ports.ts",
+      "src/modules/autonomy/workflows/builder/runtime-resources.test-helpers.ts",
+      "src/modules/autonomy/workflows/builder/runtime-resources.ts",
+      "src/modules/autonomy/workflows/builder/task-state-repair-checks.ts",
+      "src/modules/codex-agent-harness/adapter.ts"
+    ]
+  },
+  "detectorResolution": "The recheck prefers basename-matched focused tests over broader directory or module matches and excludes *.test-helpers.ts from production runtime obligations. Six executable or protocol files map to focused assertions or a narrow type-only rationale; the cited test helper maps to the explicit test-only exclusion.",
+  "evidenceMappings": [
+    {
+      "file": "src/core/agent-harness/types.ts",
+      "status": "satisfied",
+      "evidence": {
+        "kind": "run-artifact-rationale",
+        "ref": "observability-obligation-rationale.json",
+        "detail": "Type-only optional harness protocol declaration; concrete Codex adapter and eval-host behavior has focused coverage."
+      }
+    },
+    {
+      "file": "src/modules/autonomy/workflows/builder/repair-checks.ts",
+      "status": "satisfied",
+      "evidence": {
+        "kind": "focused-test-assertion",
+        "ref": "src/modules/autonomy/workflows/builder/claimed-task-state-staging.test.ts",
+        "detail": "Asserts the staged-state check status and its ordering before queue validation."
+      }
+    },
+    {
+      "file": "src/modules/autonomy/workflows/builder/runtime-resource-ports.ts",
+      "status": "satisfied",
+      "evidence": {
+        "kind": "focused-test-assertion",
+        "ref": "src/modules/autonomy/workflows/builder/runtime-resource-ports.test.ts",
+        "detail": "Asserts skipped-host-restricted preflight metadata and unavailable-port errors."
+      }
+    },
+    {
+      "file": "src/modules/autonomy/workflows/builder/runtime-resources.test-helpers.ts",
+      "status": "waived",
+      "evidence": {
+        "kind": "test-only-detector-exclusion",
+        "ref": "observability-obligation-rationale.json",
+        "detail": "The helper has no production import path and *.test-helpers.ts is now excluded from production runtime-observability candidates."
+      }
+    },
+    {
+      "file": "src/modules/autonomy/workflows/builder/runtime-resources.ts",
+      "status": "satisfied",
+      "evidence": {
+        "kind": "focused-test-assertion",
+        "ref": "src/modules/autonomy/workflows/builder/runtime-resources.test.ts",
+        "detail": "Asserts the generated runtime profile metadata and artifact-backed run-directory projection."
+      }
+    },
+    {
+      "file": "src/modules/autonomy/workflows/builder/task-state-repair-checks.ts",
+      "status": "satisfied",
+      "evidence": {
+        "kind": "focused-test-assertion",
+        "ref": "src/modules/autonomy/workflows/builder/claimed-task-state-staging.test.ts",
+        "detail": "Asserts the explicit staging status and the exact claimed task passed to the domain mutator."
+      }
+    },
+    {
+      "file": "src/modules/codex-agent-harness/adapter.ts",
+      "status": "satisfied",
+      "evidence": {
+        "kind": "focused-test-assertion",
+        "ref": "src/modules/codex-agent-harness/adapter.test.ts",
+        "detail": "Asserts the non-secret CODEX_HOME locator metadata for default, explicit, and HOME-replaced cases."
+      }
+    }
+  ],
+  "recheck": {
+    "outcome": "ok",
+    "satisfiedFiles": [
+      "src/core/agent-harness/types.ts",
+      "src/modules/autonomy/workflows/builder/repair-checks.ts",
+      "src/modules/autonomy/workflows/builder/runtime-resource-ports.ts",
+      "src/modules/autonomy/workflows/builder/runtime-resources.ts",
+      "src/modules/autonomy/workflows/builder/task-state-repair-checks.ts",
+      "src/modules/codex-agent-harness/adapter.ts"
+    ],
+    "excludedFiles": [
+      "src/modules/autonomy/workflows/builder/runtime-resources.test-helpers.ts"
+    ],
+    "missingFiles": []
+  },
+  "verification": [
+    {
+      "command": "TMPDIR=<run-temp> NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true src/modules/autonomy/observability-obligation.test.ts src/modules/autonomy/observability-obligation-unfamiliar-language.test.ts src/modules/autonomy/observability-obligation-tool-effects.test.ts src/modules/autonomy/workflows/builder/claimed-task-state-staging.test.ts src/modules/autonomy/workflows/builder/runtime-resource-ports.test.ts src/modules/autonomy/workflows/builder/runtime-resources.test.ts src/modules/codex-agent-harness/adapter.test.ts src/modules/eval-harness/eval-operations-host-auth.test.ts",
+      "result": "passed: 8 files, 36 tests"
+    },
+    {
+      "command": "node_modules/.bin/biome check <7 changed TypeScript files>",
+      "result": "passed: Checked 7 files. No fixes applied."
+    },
+    {
+      "command": "node_modules/.bin/tsc --noEmit",
+      "result": "passed"
+    },
+    {
+      "command": "NODE_OPTIONS=--conditions=source node --import tsx src/validate-queue.ts",
+      "result": "passed with the task in done state"
+    },
+    {
+      "command": "checkObservabilityObligationsForRun(<workspace>, <run-directory>)",
+      "result": "passed: no staged production runtime-observability obligation candidates"
+    }
+  ]
+}

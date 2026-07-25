@@ -1,13 +1,13 @@
 ---
 id: task-resolve-unfamiliar-language-builder-runtime-observ
 title: Resolve unfamiliar-language builder runtime observability gaps
-status: ready
+status: done
 priority: p2
 area: modules
 task_class: Platform
 summary: Map the seven runtime-sensitive files identified by the unfamiliar-language builder run to inspectable observability evidence or narrow, documented waivers so the successful autonomy and harness changes are operationally diagnosable.
 created_at: 2026-07-25T08:59:04.901Z
-updated_at: 2026-07-25T08:59:04.901Z
+updated_at: 2026-07-25T12:05:39.143Z
 ---
 
 ## Problem
@@ -51,3 +51,13 @@ Outcome-aware autonomy progress review.
 - Review-provided acceptance evidence:
 
     A follow-up diagnostic artifact maps every currently missing file to structured logging, a typed event, run-artifact evidence, an explicit error result, a focused assertion, or a justified waiver; the observability-obligation recheck reports no unresolved missing files for this change; focused tests for the cited evidence paths pass.
+
+- Resolution artifact:
+  `.kota/runs/2026-07-25T11-29-05-687Z-builder-nu7yym/observability-obligation-recheck.json`
+  maps all seven cited files. Six map to focused assertions or a narrow
+  type-only rationale; `runtime-resources.test-helpers.ts` maps to the
+  production-detector exclusion for `*.test-helpers.ts`.
+- The replayed `fac736f86b753d8ab072bb4ff2e8594e7a3665fd` diff reports
+  `outcome: ok` and `missingFiles: []`.
+- Focused validation passed: 8 test files / 36 tests, Biome on all changed
+  TypeScript files, and `tsc --noEmit`.

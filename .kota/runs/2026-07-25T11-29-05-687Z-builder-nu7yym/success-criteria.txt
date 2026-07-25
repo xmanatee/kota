@@ -1,0 +1,2 @@
+1. The seven runtime-sensitive files cited by the progress review map to focused observable assertions or narrow, documented rationale evidence, and a replayed observability recheck reports no missing files.
+2. Focused tests for the mapped builder, Codex harness, and observability-diagnostic paths pass, and the completed task records the acceptance evidence.

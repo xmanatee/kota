@@ -1,0 +1,2 @@
+1. Verified: the recheck artifact maps all seven cited files, the replay reports outcome=ok and missingFiles=[], six production/protocol paths have focused or rationale evidence, and the test-only helper has a documented detector exclusion.
+2. Verified: 8 focused test files / 36 tests, Biome, TypeScript typecheck, task-queue validation, the staged observability diagnostic, and diff hygiene all pass; the done task links the acceptance artifact.

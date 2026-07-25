@@ -286,6 +286,14 @@ describe("observability obligation diagnostic", () => {
           "fixture.writeProjectFile(\"src/modules/web-access/fetch.ts\", \"await fetch(url);\");",
           "expect(result.dueTargets.diagnostics).toEqual([]);",
         ]),
+        diffFor(
+          "src/modules/autonomy/workflows/builder/runtime-resources.test-helpers.ts",
+          [
+            "export function installRuntimeTestHook() {",
+            "  return { permission: \"test-only\" };",
+            "}",
+          ],
+        ),
         diffFor("data/tasks/ready/task-example.md", [
           "---",
           "id: task-example",

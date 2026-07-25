@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "autonomy-change-decision",
+  "runId": "2026-07-25T11-29-05-687Z-builder-nu7yym",
+  "createdAt": "2026-07-25T12:07:08Z",
+  "taskIds": [
+    "task-resolve-unfamiliar-language-builder-runtime-observ"
+  ],
+  "affectedSurfaces": [
+    "builder observability-obligation repair check",
+    "runtime-sensitive candidate filtering",
+    "focused-test evidence selection"
+  ],
+  "changeClasses": [
+    "workflow",
+    "reviewer"
+  ],
+  "hypothesis": "Excluding explicit *.test-helpers.ts files from production obligations and preferring basename-matched focused tests will remove test-only false positives and prevent unrelated same-directory assertions from satisfying runtime evidence without weakening production coverage.",
+  "sourceRefs": [
+    "data/tasks/done/task-resolve-unfamiliar-language-builder-runtime-observ.md",
+    ".kota/runs/2026-07-25T00-42-56-972Z-builder-vyyjvc/observability-obligation-review.json",
+    ".kota/runs/2026-07-25T08-27-36-915Z-progress-reviewer-96ef1s/progress-review.json"
+  ],
+  "baselineRefs": [
+    "fac736f86b753d8ab072bb4ff2e8594e7a3665fd",
+    ".kota/runs/2026-07-25T00-42-56-972Z-builder-vyyjvc/observability-obligation-review.json",
+    "src/modules/autonomy/observability-obligation-rules.ts"
+  ],
+  "candidateRefs": [
+    "src/modules/autonomy/observability-obligation-rules.ts",
+    "src/modules/autonomy/observability-obligation.test.ts",
+    "src/modules/autonomy/observability-obligation-unfamiliar-language.test.ts",
+    ".kota/runs/2026-07-25T11-29-05-687Z-builder-nu7yym/observability-obligation-rationale.json",
+    ".kota/runs/2026-07-25T11-29-05-687Z-builder-nu7yym/observability-obligation-recheck.json",
+    ".kota/runs/2026-07-25T11-29-05-687Z-builder-nu7yym/validation.txt"
+  ],
+  "metricsCompared": [
+    {
+      "name": "cited unresolved runtime files",
+      "baseline": "The source diagnostic reported seven missing files, including one test-only helper.",
+      "candidate": "The replay reports missingFiles=[]; six runtime/protocol files map to focused or rationale evidence and the test-only helper maps to an explicit detector exclusion.",
+      "unit": "unresolved cited files",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "focused-test evidence specificity",
+      "baseline": "The first qualifying same-directory or same-module test won, so an unrelated earlier test could be recorded as the evidence ref.",
+      "candidate": "The detector ranks basename matches before directory and module matches; the replay selects runtime-resource-ports.test.ts, runtime-resources.test.ts, and adapter.test.ts for their matching sources.",
+      "unit": "evidence reference ownership",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "diagnostic regression coverage",
+      "baseline": "No regression replayed the seven-file unfamiliar-language finding or asserted test-helper exclusion.",
+      "candidate": "Eight focused test files pass with 36 assertions, including the seven-file replay, test-only exclusion, existing tool-effect cases, builder runtime paths, and Codex host-auth projection.",
+      "unit": "focused test outcome",
+      "direction": "improved",
+      "qualitySignal": true
+    }
+  ],
+  "rolloutMode": "promoted",
+  "decision": "promote",
+  "rationale": "The candidate narrows only false-positive and evidence-selection behavior. Explicit *.test-helpers.ts files cannot execute in the production runtime and remain documented in the recheck artifact; all six production/protocol paths retain evidence. Exact filename matches now outrank broad directory/module associations, so the recorded diagnostic ref becomes more truthful. Focused regressions, typecheck, formatting, queue validation, and the staged observability check pass.",
+  "ownerSafetyExceptions": [],
+  "followUpTaskIds": []
+}

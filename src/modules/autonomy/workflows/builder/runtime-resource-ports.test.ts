@@ -72,9 +72,10 @@ describe("builder runtime resource port preflight", () => {
       runDirPath: join(projectDir, ".kota", "runs", "run-restricted"),
     });
 
+    const metadata = profile.preflight;
     expect(profile.ports).toEqual(range);
-    expect(profile.preflight.ports).toEqual([]);
-    expect(profile.preflight.portAvailability).toBe("skipped-host-restricted");
+    expect(metadata.ports).toEqual([]);
+    expect(metadata.portAvailability).toBe("skipped-host-restricted");
   });
 
   it("rejects unavailable ports when reusing an existing profile lease", async () => {

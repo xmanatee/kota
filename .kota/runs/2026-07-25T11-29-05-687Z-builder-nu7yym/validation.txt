@@ -1,0 +1,24 @@
+PASS focused tests
+  8 test files, 36 tests.
+
+PASS formatting and lint
+  node_modules/.bin/biome check src/modules/autonomy/observability-obligation-rules.ts src/modules/autonomy/observability-obligation.test.ts src/modules/autonomy/observability-obligation-unfamiliar-language.test.ts src/modules/autonomy/workflows/builder/claimed-task-state-staging.test.ts src/modules/autonomy/workflows/builder/runtime-resource-ports.test.ts src/modules/autonomy/workflows/builder/runtime-resources.test.ts src/modules/codex-agent-harness/adapter.test.ts
+  Checked 7 files. No fixes applied.
+
+PASS typecheck
+  node_modules/.bin/tsc --noEmit
+
+PASS task queue
+  NODE_OPTIONS=--conditions=source node --import tsx src/validate-queue.ts
+  Validated with the completed task staged in the isolated builder index.
+
+PASS cited observability replay
+  Commit fac736f86b753d8ab072bb4ff2e8594e7a3665fd plus the focused evidence diff produced outcome=ok and missingFiles=[].
+
+PASS staged observability diagnostic
+  checkObservabilityObligationsForRun(...)
+  OK: no staged production runtime-observability obligation candidates.
+
+PASS diff hygiene
+  git diff --check
+  git diff --cached --check (isolated builder index)

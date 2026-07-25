@@ -1,0 +1,13 @@
+The builder sandbox cannot write the shared worktree index:
+
+  fatal: Unable to create .../.git/worktrees/.../index.lock: Operation not permitted
+
+The failed task move rolled back its working-tree mutation. Task transitions were then completed through the normal KOTA task CLI using an isolated builder index and writable object directory. The full final change set stages cleanly there, `git diff --cached --check` passes, task validation passes, and the staged observability diagnostic reports no candidates.
+
+The workflow host should replay:
+
+  git add -A
+  git diff --cached --check
+  git status --short
+
+No direct commit was created.

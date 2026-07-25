@@ -1,0 +1,12 @@
+{
+  "entries": [
+    {
+      "file": "src/core/agent-harness/types.ts",
+      "rationale": "The cited change only declares the optional non-secret login-locator projection on the harness protocol and has no executable branch to log. Concrete behavior is inspectable in src/modules/codex-agent-harness/adapter.test.ts and src/modules/eval-harness/eval-operations-host-auth.test.ts."
+    },
+    {
+      "file": "src/modules/autonomy/workflows/builder/runtime-resources.test-helpers.ts",
+      "rationale": "This module is imported only by co-located tests and installs an injected port-preflight checker; it has no production runtime import path. The resulting skipped-host-restricted metadata and unavailable-port error are asserted in src/modules/autonomy/workflows/builder/runtime-resource-ports.test.ts."
+    }
+  ]
+}

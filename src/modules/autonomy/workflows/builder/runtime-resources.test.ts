@@ -32,10 +32,11 @@ describe("builder runtime resource assignment", () => {
       runDirPath,
     });
 
-    expect(profile.agentRunDir).toBe(runDirPath);
-    expect(profile.artifactRoot).toBe(join(runDirPath, "artifacts"));
-    expect(profile.env.KOTA_RUN_DIR).toBe(runDirPath);
-    expect(profile.env.KOTA_RUN_ARTIFACT_DIR).toBe(profile.artifactRoot);
+    const metadata = profile;
+    expect(metadata.agentRunDir).toBe(runDirPath);
+    expect(metadata.artifactRoot).toBe(join(runDirPath, "artifacts"));
+    expect(metadata.env.KOTA_RUN_DIR).toBe(runDirPath);
+    expect(metadata.env.KOTA_RUN_ARTIFACT_DIR).toBe(metadata.artifactRoot);
   });
 
   it("assigns deterministic non-overlapping profiles for concurrent task runs", async () => {

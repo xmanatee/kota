@@ -148,7 +148,7 @@ function extensionOf(file: string): string {
 function isTestFile(file: string): boolean {
   return (
     /(?:^|\/)__tests__\//.test(file) ||
-    /\.(?:test|spec|test-cases)\.[cm]?[jt]sx?$/.test(file) ||
+    /\.(?:test|spec|test-cases|test-helpers)\.[cm]?[jt]sx?$/.test(file) ||
     /\.integration\.[cm]?[jt]s$/.test(file)
   );
 }
@@ -204,37 +204,54 @@ function pushEvidence(
   evidence.push(next);
 }
 
-function relatedTestFile(candidateFile: string, testFile: string): boolean {
+function relatedTestRank(candidateFile: string, testFile: string): number | null {
   const sourceBase = basename(candidateFile).replace(/\.[cm]?[jt]sx?$/, "");
   const testBase = basename(testFile);
-  if (testBase.includes(sourceBase)) return true;
+  if (testBase.includes(sourceBase)) return 0;
   const sourceDir = dirname(candidateFile);
-  if (testFile.startsWith(`${sourceDir}/`)) return true;
+  if (testFile.startsWith(`${sourceDir}/`)) return 1;
   const moduleMatch = /^src\/modules\/([^/]+)\//.exec(candidateFile);
-  if (moduleMatch) return testFile.startsWith(`src/modules/${moduleMatch[1]}/`);
+  if (moduleMatch && testFile.startsWith(`src/modules/${moduleMatch[1]}/`)) {
+    return 2;
+  }
   const coreMatch = /^src\/core\/([^/]+)\//.exec(candidateFile);
-  if (coreMatch) return testFile.startsWith(`src/core/${coreMatch[1]}/`);
-  return false;
+  if (coreMatch && testFile.startsWith(`src/core/${coreMatch[1]}/`)) {
+    return 2;
+  }
+  return null;
 }
 
 function detectFocusedTestAssertion(
   candidateFile: string,
   fileDiffs: readonly FileDiff[],
 ): ObservabilityEvidence | null {
+  let bestMatch:
+    | {
+        file: string;
+        rank: number;
+      }
+    | undefined;
   for (const fileDiff of fileDiffs) {
     const file = normalizeObservabilityPath(fileDiff.file);
-    if (!isTestFile(file) || !relatedTestFile(candidateFile, file)) continue;
+    if (!isTestFile(file)) continue;
+    const rank = relatedTestRank(candidateFile, file);
+    if (rank === null || (bestMatch !== undefined && rank >= bestMatch.rank)) {
+      continue;
+    }
     const text = addedText(fileDiff);
     if (!TEST_ASSERTION_RE.test(text) || !TEST_OBSERVABILITY_TERM_RE.test(text)) {
       continue;
     }
-    return {
-      kind: "focused-test-assertion",
-      detail: "related test diff asserts an observable warning, error, event, artifact, or metadata result",
-      ref: file,
-    };
+    bestMatch = { file, rank };
   }
-  return null;
+  return bestMatch
+    ? {
+        kind: "focused-test-assertion",
+        detail:
+          "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+        ref: bestMatch.file,
+      }
+    : null;
 }
 
 export function detectObservabilityEvidence(

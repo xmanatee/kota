@@ -1,0 +1,7 @@
+Command:
+TMPDIR=<run-temp> NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true src/modules/autonomy/observability-obligation.test.ts src/modules/autonomy/observability-obligation-unfamiliar-language.test.ts src/modules/autonomy/observability-obligation-tool-effects.test.ts src/modules/autonomy/workflows/builder/claimed-task-state-staging.test.ts src/modules/autonomy/workflows/builder/runtime-resource-ports.test.ts src/modules/autonomy/workflows/builder/runtime-resources.test.ts src/modules/codex-agent-harness/adapter.test.ts src/modules/eval-harness/eval-operations-host-auth.test.ts
+
+Result:
+Test Files  8 passed (8)
+Tests       36 passed (36)
+Duration    667ms
