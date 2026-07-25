@@ -114,6 +114,18 @@ export function describeSecurityReviewRunTests(
       const result = await harness.run();
 
       expect(result.status).toBe("success");
+      expect(result.steps["scan-candidates"].output).toEqual(
+        expect.objectContaining({
+          candidates: expect.any(Array),
+          candidateCount: expect.any(Number),
+          artifactPath: expect.stringContaining("security-review-candidates.json"),
+          truncated: expect.any(Boolean),
+        }),
+      );
+      expect(result.steps["scan-candidates"].output).not.toHaveProperty("dueTargets");
+      expect(result.steps["scan-candidates"].output).not.toHaveProperty(
+        "totalMatchedCandidates",
+      );
       const artifact = JSON.parse(
         readFileSync(
           join(fixture.projectDir, ".kota/runs/harness/security-review-candidates.json"),
