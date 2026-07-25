@@ -1,0 +1,22 @@
+{
+  "outcome": "advisory",
+  "warnings": [
+    {
+      "type": "source-file-size",
+      "file": "src/modules/autonomy/workflows/autonomy-health-reviewer/health-review.ts",
+      "lines": 995,
+      "threshold": 300,
+      "changedLines": 6,
+      "message": "Changed source file src/modules/autonomy/workflows/autonomy-health-reviewer/health-review.ts is 995 line(s), above the 300-line source-size guideline."
+    },
+    {
+      "type": "source-file-size",
+      "file": "src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit.test.ts",
+      "lines": 577,
+      "threshold": 300,
+      "changedLines": 2,
+      "message": "Changed source file src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit.test.ts is 577 line(s), above the 300-line source-size guideline."
+    }
+  ],
+  "message": "Advisory source-size warning(s): src/modules/autonomy/workflows/autonomy-health-reviewer/health-review.ts, src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit.test.ts."
+}

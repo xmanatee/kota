@@ -1,0 +1,8 @@
+The sandbox allows source writes in this worktree but protects its linked Git metadata under the canonical checkout. A normal `git add` fails while creating the external worktree index lock/object.
+
+The canonical task CLI was retained by supplying a run-local copy of the current index plus a run-local object directory with the canonical object store as an alternate. The final complete patch is staged in:
+
+- index: .kota/runs/2026-07-25T11-13-01-618Z-builder-5d6snx/builder-index
+- objects: .kota/runs/2026-07-25T11-13-01-618Z-builder-5d6snx/builder-objects
+
+Those implementation-only staging files remain ignored. The workflow's trusted host commit step must perform the ordinary final `git add -A` against the linked worktree metadata before committing.

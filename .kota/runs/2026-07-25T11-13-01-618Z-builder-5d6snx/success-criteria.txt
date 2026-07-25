@@ -1,0 +1,2 @@
+1. Autonomy-health task routing keeps warning groups with distinct dedupe keys separate even when every evidence ref overlaps, while same-key active work remains deduplicated.
+2. Focused tests and a replay artifact prove both groups are tracked on the first review and a replay creates no duplicate task churn, with the task's cited evidence ids preserved through resolution.

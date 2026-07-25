@@ -320,6 +320,8 @@ describe("runtime health audit", () => {
         `updated_at: ${NOW}`,
         "---",
         "",
+        "<!-- autonomy-health-dedupe-key: dead-letter:execution:workflow-runtime:progress-reviewer -->",
+        "",
         "## Problem",
         "",
         "dlq-c3d9197c-110e-495d-ab5d-12e1de7925a7 remains open after the root-cause repair.",

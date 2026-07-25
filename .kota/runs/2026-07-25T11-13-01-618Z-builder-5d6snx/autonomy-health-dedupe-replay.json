@@ -1,0 +1,40 @@
+{
+  "runId": "2026-07-25T11-13-01-618Z-builder-5d6snx",
+  "sourceReviewArtifact": ".kota/runs/2026-07-24T22-55-48-899Z-autonomy-health-reviewer-qn6a54/autonomy-health-review.json",
+  "sharedEvidenceRefs": [
+    ".kota/runs/2026-07-24T19-45-52-295Z-builder-kubiqi/control-monitor-coverage.json",
+    ".kota/runs/2026-07-24T20-36-32-226Z-security-review-yqlm1v/control-monitor-coverage.json"
+  ],
+  "groups": [
+    {
+      "dedupeKey": "control-coverage:agent-step-stream:missing-agent-step-events",
+      "firstRun": {
+        "kind": "created-task",
+        "taskId": "task-health-control-coverage-agent-step-stream-missing-agent-step-events"
+      },
+      "replay": {
+        "kind": "skipped-task",
+        "reason": "existing task already records this evidence"
+      }
+    },
+    {
+      "dedupeKey": "control-coverage:trajectory-diagnostics:missing-trajectory-diagnostics",
+      "firstRun": {
+        "kind": "created-task",
+        "taskId": "task-health-control-coverage-trajectory-diagnostics-missing-trajectory-diagnostics"
+      },
+      "replay": {
+        "kind": "skipped-task",
+        "reason": "existing task already records this evidence"
+      }
+    }
+  ],
+  "firstRunCreatedTaskCount": 2,
+  "replayCreatedTaskCount": 0,
+  "replayTaskFileCount": 2,
+  "verification": {
+    "testFile": "src/modules/autonomy/workflows/autonomy-health-reviewer/health-review-dedupe.test.ts",
+    "test": "tracks distinct shared-evidence groups without replay churn",
+    "status": "passed"
+  }
+}

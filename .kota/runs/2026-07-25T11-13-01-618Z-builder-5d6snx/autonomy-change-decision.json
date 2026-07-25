@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "autonomy-change-decision",
+  "runId": "2026-07-25T11-13-01-618Z-builder-5d6snx",
+  "createdAt": "2026-07-25T11:36:21Z",
+  "taskIds": [
+    "task-preserve-distinct-autonomy-health-groups-during-ta"
+  ],
+  "affectedSurfaces": [
+    "autonomy-health reviewer local repair task routing",
+    "open task evidence deduplication",
+    "autonomy-health replay idempotency"
+  ],
+  "changeClasses": [
+    "workflow",
+    "reviewer"
+  ],
+  "hypothesis": "Requiring an open task to record the exact autonomy-health dedupe marker before shared evidence can suppress a repair group will preserve distinct health identities while retaining same-key replay idempotency.",
+  "sourceRefs": [
+    "data/tasks/done/task-preserve-distinct-autonomy-health-groups-during-ta.md",
+    ".kota/runs/2026-07-25T11-13-01-618Z-builder-5d6snx/success-criteria.txt",
+    ".kota/runs/2026-07-25T11-13-01-618Z-builder-5d6snx/success-criteria-verified.txt"
+  ],
+  "baselineRefs": [
+    "5a2de04590c7bac74fff419000da73485cee8a62",
+    ".kota/runs/2026-07-24T22-55-48-899Z-autonomy-health-reviewer-qn6a54/autonomy-health-review.json",
+    "src/modules/autonomy/workflows/autonomy-health-reviewer/health-review.ts"
+  ],
+  "candidateRefs": [
+    "src/modules/autonomy/workflows/autonomy-health-reviewer/health-review.ts",
+    "src/modules/autonomy/workflows/autonomy-health-reviewer/health-review-dedupe.test.ts",
+    "src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit.test.ts",
+    ".kota/runs/2026-07-25T11-13-01-618Z-builder-5d6snx/autonomy-health-dedupe-replay.json",
+    ".kota/runs/2026-07-25T11-13-01-618Z-builder-5d6snx/validation.txt"
+  ],
+  "metricsCompared": [
+    {
+      "name": "distinct shared-evidence groups explicitly tracked",
+      "baseline": "The cited review created the agent-step-stream task and skipped the trajectory-diagnostics group because both groups cited the same two artifacts.",
+      "candidate": "The focused regression creates one task for each dedupe key from two shared evidence refs.",
+      "unit": "created repair tasks per two-group review",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "same-input replay task churn",
+      "baseline": "Evidence-only cross-group suppression avoided duplicate files but conflated group identity.",
+      "candidate": "Replaying the two-group review creates zero new tasks and returns one same-key skipped action for each existing task.",
+      "unit": "created repair tasks on replay",
+      "direction": "unchanged",
+      "qualitySignal": true
+    },
+    {
+      "name": "same-key active task consolidation",
+      "baseline": "An active task explicitly tracking stale DLQ evidence suppressed a duplicate health repair task.",
+      "candidate": "The existing stale-DLQ regression still suppresses the duplicate after making its autonomy-health dedupe identity explicit.",
+      "unit": "focused regression outcome",
+      "direction": "unchanged",
+      "qualitySignal": true
+    }
+  ],
+  "rolloutMode": "promoted",
+  "decision": "promote",
+  "rationale": "The baseline artifact directly demonstrates the false merge: two warning groups with different dedupe keys and the same evidence refs produced only one task. The candidate narrows suppression to tasks that explicitly declare the matching group identity, keeps evidence matching as the second condition, and preserves the canonical same-key fast path. Focused tests cover the original cross-group failure, a no-churn replay, terminal same-key behavior, and an explicitly identified active stale-DLQ task. The change is deterministic and does not alter severity thresholds, actionability routing, prompts, or owner-question behavior.",
+  "ownerSafetyExceptions": [],
+  "followUpTaskIds": []
+}

@@ -1,0 +1,2 @@
+1. Verified: open-task evidence matching now also requires the exact autonomy-health dedupe marker; the focused regression creates separate agent-step-stream and trajectory-diagnostics tasks from two shared evidence refs, while the existing same-key stale-DLQ regression still passes.
+2. Verified: replaying the same two-group review creates zero tasks and returns two same-key skipped actions. The replay outcome is recorded in autonomy-health-dedupe-replay.json, and the original progress-review evidence ids remain in the completed task.

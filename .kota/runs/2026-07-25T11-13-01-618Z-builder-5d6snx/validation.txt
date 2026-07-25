@@ -1,0 +1,30 @@
+Validation summary
+
+PASS  Autonomy-health reviewer plus task-file validation
+      7 test files, 36 tests
+      NODE_OPTIONS=--conditions=source node node_modules/vitest/vitest.mjs run src/modules/autonomy/workflows/autonomy-health-reviewer src/task-files.test.ts --configLoader runner --silent=true
+
+PASS  Focused Biome check
+      health-review.ts, health-review-dedupe.test.ts, runtime-health-audit.test.ts
+
+PASS  TypeScript typecheck
+      node_modules/.bin/tsc --noEmit
+
+PASS  Task queue validation
+      node --conditions=source --import tsx src/validate-queue.ts
+
+PASS  Measured autonomy-change decision
+      autonomy-change-decision.json covers the staged reviewer implementation.
+
+PASS  Observability obligation
+      No staged production runtime-observability candidates.
+
+ADVISORY  Source-file size
+      health-review.ts and runtime-health-audit.test.ts remain above the 300-line guideline.
+      Net growth is 6 and 2 lines respectively, there are two warnings, and no severe blocking reason applies.
+      The structured review is preserved in source-file-size-review.json.
+
+Environment notes
+
+- The repository-pinned pnpm bootstrap could not verify its registry signature while the registry was unreachable. Validation used the already-installed repository binaries and the package scripts' equivalent Node entrypoints.
+- The agent sandbox cannot write the linked worktree Git index/object database outside this workspace. Task transitions used the canonical KOTA task CLI with a run-local Git index/object store; final staging evidence uses the same isolated index.

@@ -418,7 +418,10 @@ function rawRecordsGroupEvidence(
   raw: string,
   group: AutonomyHealthReviewGroup,
 ): boolean {
-  return group.evidenceRefs.every((ref) => rawRecordsEvidenceRef(raw, ref));
+  return (
+    raw.includes(`<!-- autonomy-health-dedupe-key: ${group.dedupeKey} -->`) &&
+    group.evidenceRefs.every((ref) => rawRecordsEvidenceRef(raw, ref))
+  );
 }
 
 function findOpenTaskRecordingEvidence(projectDir: string, group: AutonomyHealthReviewGroup): {
@@ -586,8 +589,11 @@ function taskAlreadyRecordsEvidence(
   group: AutonomyHealthReviewGroup,
 ): boolean {
   return (
-    raw.includes(`autonomy-health-evidence-fingerprint: ${group.evidenceFingerprint}`) ||
-    group.evidenceRefs.every((ref) => raw.includes(ref.ref))
+    raw.includes(`<!-- autonomy-health-dedupe-key: ${group.dedupeKey} -->`) &&
+    (raw.includes(
+      `autonomy-health-evidence-fingerprint: ${group.evidenceFingerprint}`,
+    ) ||
+      group.evidenceRefs.every((ref) => raw.includes(ref.ref)))
   );
 }
 

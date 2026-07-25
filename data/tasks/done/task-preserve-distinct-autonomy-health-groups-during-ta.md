@@ -1,13 +1,13 @@
 ---
 id: task-preserve-distinct-autonomy-health-groups-during-ta
 title: Preserve distinct autonomy health groups during task deduplication
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Meta
 summary: Repair autonomy-health action routing so groups with different dedupe keys are not collapsed merely because they cite overlapping evidence. The current review incorrectly treated missing trajectory diagnostics as covered by the missing agent-step-events task.
 created_at: 2026-07-25T00:44:43.334Z
-updated_at: 2026-07-25T00:44:43.334Z
+updated_at: 2026-07-25T11:38:06.120Z
 ---
 
 ## Problem
@@ -55,3 +55,32 @@ Outcome-aware autonomy progress review.
 - Review-provided acceptance evidence:
 
     A focused autonomy-health reviewer test supplies two warning groups with shared evidence refs but distinct dedupe keys and proves each remains explicitly tracked, while a replay artifact proves rerunning the same groups creates no duplicate task churn.
+
+## Resolution
+
+The cited reviewer artifact directly reproduced the routing defect: the
+agent-step-stream and trajectory-diagnostics groups had distinct dedupe keys
+but shared both control-monitor evidence refs. The first group created a task,
+then `findOpenTaskRecordingEvidence` treated those refs alone as proof that the
+first task also covered the second group.
+
+Open-task evidence matching now requires the exact
+`autonomy-health-dedupe-key` marker as well as the evidence refs. This keeps
+evidence-based consolidation scoped to one health identity. An explicitly
+identified same-key task still suppresses duplicate work, and canonical task
+replay remains idempotent.
+
+## Completion Evidence
+
+- `src/modules/autonomy/workflows/autonomy-health-reviewer/health-review-dedupe.test.ts`
+  supplies two warning groups with the same two evidence refs and different
+  dedupe keys. The first pass creates both tasks; replay creates none and
+  returns two same-key skipped actions.
+- The autonomy-health reviewer directory plus task-file validation passed:
+  7 files, 36 tests. Focused Biome checks and the repository TypeScript
+  typecheck also passed.
+- `.kota/runs/2026-07-25T11-13-01-618Z-builder-5d6snx/autonomy-health-dedupe-replay.json`
+  records the two-group first pass and no-churn replay.
+- `.kota/runs/2026-07-25T11-13-01-618Z-builder-5d6snx/autonomy-change-decision.json`
+  compares the cited baseline artifact with the candidate and records the
+  promotion decision.
