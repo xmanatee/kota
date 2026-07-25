@@ -1,0 +1,40 @@
+Validation completed 2026-07-25.
+
+PASS  Canonical ancestry
+      ee01b83cc67f7726d0eb06aa6a645424ba600e76,
+      18a12e397024aa0b74639ebde859f9b639de81b5, and
+      72b9364e1116e6d2f5b2adc16d054063cd56ca33 are ancestors of main.
+
+PASS  Security-review path attribution
+      The four security-review paths named by the failed merge gate exactly
+      equal the four paths changed by 18a12e397024.
+
+PASS  Builder-run supersession
+      2026-07-25T14-45-12-341Z-builder-y0bn4a failed at merge-gate after
+      committing its task result. 2026-07-25T15-52-06-334Z-builder-e7it1w
+      claimed the same task, reports status success, and records a merged
+      merge-gate result.
+
+PASS  Separate defensive-review recovery ownership
+      The active claim for
+      task-restore-defensive-security-review-after-classifier still names run
+      2026-07-25T09-38-44-202Z-builder-ye6m9n, and its dirty worktree remains
+      preserved. It was not discarded by this disposition.
+
+PASS  Canonical dead-letter disposition
+      The authenticated daemon control mutation returned status dismissed,
+      zero redrive attempts, and an empty filtered open-builder list. A
+      subsequent canonical store read confirmed the same terminal state and
+      omission.
+
+PASS  JSON artifact parsing
+      dead-letter-before-dismissal.json,
+      dead-letter-after-dismissal.json, and
+      open-builder-dead-letters.json parse as JSON.
+
+PASS  NODE_OPTIONS=--conditions=source node --import tsx src/validate-queue.ts
+      Executed with the exact task transition and run files staged in the
+      isolated validation index; no diagnostics, exit 0.
+
+PASS  git diff --cached --check
+      Executed against the isolated validation index; no diagnostics, exit 0.

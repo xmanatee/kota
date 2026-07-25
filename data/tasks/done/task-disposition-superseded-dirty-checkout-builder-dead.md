@@ -1,13 +1,13 @@
 ---
 id: task-disposition-superseded-dirty-checkout-builder-dead
 title: Disposition superseded dirty-checkout builder dead letter
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Meta
 summary: Resolve dlq-a5b25dd4-77c7-4bf4-929b-15dd3deadaf0 after the dirty-checkout preservation fix and subsequent successful builder run. Confirm that no unique security-review changes remain stranded, then dismiss the item as superseded or safely redrive it to a terminal result.
 created_at: 2026-07-25T16:18:35.098Z
-updated_at: 2026-07-25T16:18:35.098Z
+updated_at: 2026-07-25T17:08:54.432Z
 ---
 
 ## Problem
@@ -27,6 +27,22 @@ Resolve the progress-review finding from run 2026-07-25T16-15-58-223Z-progress-r
 
 - The cited progress gap is fixed or explicitly disproven with evidence.
 - Acceptance evidence is recorded in this task or its run artifact.
+
+## Resolution
+
+Dead letter `dlq-a5b25dd4-77c7-4bf4-929b-15dd3deadaf0` was dismissed through
+KOTA's authenticated daemon control route. Redrive was rejected because the
+failure was a merge-gate checkout condition, not unfinished task execution:
+commit `ee01b83cc67f` changed dirty-checkout handling to preserve the builder
+branch, and run `2026-07-25T15-52-06-334Z-builder-e7it1w` subsequently merged
+the same claimed task successfully.
+
+The four security-review paths named by the failed merge gate are exactly the
+four paths changed by landed commit `18a12e397024`. A separate older
+defensive-review worktree still has additional local changes, but it remains
+preserved and attributed to
+`task-restore-defensive-security-review-after-classifier`; those changes were
+not created by, and were not discarded with, this dead-letter disposition.
 
 ## Source / Intent
 
@@ -57,3 +73,13 @@ Outcome-aware autonomy progress review.
 - Review-provided acceptance evidence:
 
     A run artifact records the dead letter before and after disposition; verifies whether commit ee01b83cc67f and the later successful builder run supersede its dirty-checkout failure; confirms preserved security-review changes were merged or explicitly superseded; and shows the item dismissed or redriven with durable rationale and absent from the open builder dead-letter projection.
+- `.kota/runs/2026-07-25T16-18-47-137Z-builder-mp7c4x/dead-letter-before-dismissal.json`
+  preserves the canonical open item and failed run.
+- `.kota/runs/2026-07-25T16-18-47-137Z-builder-mp7c4x/dead-letter-after-dismissal.json`
+  records the authenticated dismissal time and stored rationale.
+- `.kota/runs/2026-07-25T16-18-47-137Z-builder-mp7c4x/dead-letter-resolution.md`
+  ties the exact dirty path set to `18a12e397024`, verifies the later merged
+  builder run, and distinguishes the separately preserved defensive-review
+  worktree.
+- `.kota/runs/2026-07-25T16-18-47-137Z-builder-mp7c4x/open-builder-dead-letters.json`
+  records an empty filtered open-builder projection after dismissal.

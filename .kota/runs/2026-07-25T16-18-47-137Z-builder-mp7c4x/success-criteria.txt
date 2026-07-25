@@ -1,0 +1,2 @@
+1. Resolve dlq-a5b25dd4-77c7-4bf4-929b-15dd3deadaf0 to a justified terminal state after verifying the dirty-checkout fix, later builder success, and security-review path attribution.
+2. Preserve canonical before/after disposition evidence and prove that the cited item is absent from the open builder dead-letter projection.

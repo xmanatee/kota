@@ -1,0 +1,2 @@
+1. Verified. ee01b83cc67f and 18a12e397024 are on canonical main; run 2026-07-25T15-52-06-334Z-builder-e7it1w successfully merged the same task; the four dirty security-review paths match the landed security-review commit; and dead-letter-after-dismissal.json records the cited item as dismissed with no redrive.
+2. Verified. dead-letter-before-dismissal.json records the canonical open item, dead-letter-after-dismissal.json records its terminal dismissal and rationale, and open-builder-dead-letters.json records an empty filtered item list that omits the cited id.

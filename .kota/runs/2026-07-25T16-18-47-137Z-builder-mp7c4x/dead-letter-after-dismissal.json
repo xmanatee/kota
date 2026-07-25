@@ -1,0 +1,34 @@
+{
+  "item": {
+    "id": "dlq-a5b25dd4-77c7-4bf4-929b-15dd3deadaf0",
+    "type": "workflow-dispatch",
+    "status": "dismissed",
+    "scopeId": "8nrg1m",
+    "projectId": "8nrg1m",
+    "sourceEventIds": [
+      "evtj-000000174935"
+    ],
+    "affectedWorkflowNames": [
+      "builder"
+    ],
+    "source": {
+      "kind": "workflow-dispatch",
+      "workflowName": "builder",
+      "triggerEvent": "autonomy.queue.available",
+      "failedRunId": "2026-07-25T14-45-12-341Z-builder-y0bn4a",
+      "runDir": ".kota/runs/2026-07-25T14-45-12-341Z-builder-y0bn4a"
+    },
+    "createdAt": "2026-07-25T15:33:04.168Z",
+    "updatedAt": "2026-07-25T17:04:10.178Z",
+    "dismissedAt": "2026-07-25T17:04:10.178Z",
+    "dismissalReason": "Superseded by dirty-checkout branch-preservation fix ee01b83cc67f and successful builder run 2026-07-25T15-52-06-334Z-builder-e7it1w, whose merge gate merged the same task. The concurrent security-review dirt cited by the failure landed as 18a12e397024; separate defensive-review work remains preserved under task-restore-defensive-security-review-after-classifier. Evidence: builder run 2026-07-25T16-18-47-137Z-builder-mp7c4x.",
+    "redriveAttempts": [],
+    "retention": {
+      "kind": "expire-after-ms",
+      "durationMs": 1209600000,
+      "expiresAt": "2026-08-08T17:04:10.178Z"
+    }
+  },
+  "captureSequence": "after authenticated dismissal",
+  "runId": "2026-07-25T16-18-47-137Z-builder-mp7c4x"
+}

@@ -1,0 +1,18 @@
+{
+  "checkedAt": "2026-07-25T17:04:10.178Z",
+  "query": {
+    "status": "open",
+    "workflow": "builder",
+    "limit": 200,
+    "projectId": "8nrg1m"
+  },
+  "items": [],
+  "counts": {
+    "open": 2,
+    "dismissed": 30,
+    "redriven": 0
+  },
+  "omittedId": "dlq-a5b25dd4-77c7-4bf4-929b-15dd3deadaf0",
+  "omissionVerified": true,
+  "note": "items is the filtered builder query; counts are store-wide totals."
+}

@@ -1,0 +1,5 @@
+Dismiss superseded dirty-checkout builder dead letter
+
+- record canonical before and after disposition evidence
+- tie the failed dirty path set to the landed security-review commit
+- close the task after the open builder projection clears

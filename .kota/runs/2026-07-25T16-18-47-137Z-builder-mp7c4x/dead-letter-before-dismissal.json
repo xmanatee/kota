@@ -1,0 +1,37 @@
+{
+  "item": {
+    "id": "dlq-a5b25dd4-77c7-4bf4-929b-15dd3deadaf0",
+    "type": "workflow-dispatch",
+    "status": "open",
+    "scopeId": "8nrg1m",
+    "projectId": "8nrg1m",
+    "sourceEventIds": [
+      "evtj-000000174935"
+    ],
+    "affectedWorkflowNames": [
+      "builder"
+    ],
+    "failure": {
+      "reason": "Cannot create automation worktree from dirty checkout: M  src/modules/autonomy/workflows/security-review/AGENTS.md, M  src/modules/autonomy/workflows/security-review/prompt.md, MM src/modules/autonomy/workflows/security-review/workflow-run.test-cases.ts, M  src/modules/autonomy/workflows/security-review/workflow.ts, ?? .pnpm-store/v11/index.db, ?? .pnpm-store/v11/index.db-shm, ?? .pnpm-store/v11/index.db-wal",
+      "retryCount": 1,
+      "lastErrorClass": "execution",
+      "firstFailedAt": "2026-07-25T15:33:04.168Z",
+      "lastFailedAt": "2026-07-25T15:33:04.168Z"
+    },
+    "source": {
+      "kind": "workflow-dispatch",
+      "workflowName": "builder",
+      "triggerEvent": "autonomy.queue.available",
+      "failedRunId": "2026-07-25T14-45-12-341Z-builder-y0bn4a",
+      "runDir": ".kota/runs/2026-07-25T14-45-12-341Z-builder-y0bn4a"
+    },
+    "createdAt": "2026-07-25T15:33:04.168Z",
+    "updatedAt": "2026-07-25T15:33:04.168Z",
+    "redriveAttempts": []
+  },
+  "captureSequence": "before authenticated dismissal",
+  "runId": "2026-07-25T16-18-47-137Z-builder-mp7c4x",
+  "openBuilderItemIds": [
+    "dlq-a5b25dd4-77c7-4bf4-929b-15dd3deadaf0"
+  ]
+}
