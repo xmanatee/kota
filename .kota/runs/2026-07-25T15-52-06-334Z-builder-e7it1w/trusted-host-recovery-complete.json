@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "completedAt": "2026-07-25T23:26:50.312Z",
+  "actor": "codex",
+  "rootFixCommit": "c9af9d4df6a148fc513c01e673a2c58cff759081",
+  "dispositions": [
+    {
+      "taskId": "task-repair-workflow-failure-pattern-e178cde33f3a",
+      "runId": "2026-07-25T10-03-33-551Z-builder-ugava5",
+      "action": "superseded",
+      "supersededByCommit": "0eb76a9f5",
+      "discardedStaleCommit": "467c730c2f6da33c3bb057755c39b74d4ee9e0b5",
+      "worktreeRemoved": true,
+      "taskCompleted": true,
+      "artifact": ".kota/runs/manual-recovery-provider-2026-07-26/workflow-state-recovery.json"
+    },
+    {
+      "taskId": "task-restore-defensive-security-review-after-classifier",
+      "runId": "2026-07-25T09-38-44-202Z-builder-ye6m9n",
+      "action": "superseded",
+      "supersededByCommit": "18a12e397",
+      "worktreeRemoved": true,
+      "taskCompleted": true,
+      "artifact": ".kota/runs/manual-recovery-security-2026-07-26/workflow-state-recovery.json"
+    },
+    {
+      "taskId": "task-reconcile-stale-recovery-state-blocking-existing-p",
+      "runId": "2026-07-25T14-45-12-341Z-builder-y0bn4a",
+      "action": "superseded",
+      "supersededByCommit": "8e995e897",
+      "discardedStaleCommit": "484d399ffccf2e3117ea9b371256956ea8f31016",
+      "worktreeRemoved": true
+    }
+  ],
+  "deadLetters": [
+    {
+      "id": "dlq-d042a107-c7ee-4d7b-946d-458124f2befd",
+      "workflow": "security-review",
+      "action": "dismissed",
+      "supersededByCommit": "18a12e397"
+    },
+    {
+      "id": "dlq-69c2533c-359d-47ba-91d3-74a3c45e4b1f",
+      "workflow": "improver",
+      "action": "dismissed",
+      "reason": "transient provider error followed by successful improver runs"
+    }
+  ],
+  "after": {
+    "unresolvedClaims": 0,
+    "staleWorktrees": 0,
+    "openDeadLetters": 0
+  }
+}

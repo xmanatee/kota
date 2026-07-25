@@ -1,12 +1,12 @@
 ---
 id: task-repair-workflow-failure-pattern-e178cde33f3a
 title: Repair persistent builder workflow failure pattern
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Fix the local cause behind builder's persistent consecutive failure signal (step build error bcf26d672efe).
 created_at: 2026-07-25T09:38:36.526Z
-updated_at: 2026-07-25T09:38:36.526Z
+updated_at: 2026-07-25T23:26:31.429Z
 task_class: Meta
 ---
 
