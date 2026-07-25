@@ -1,0 +1,4 @@
+1. Both cited metadata files show daemon interruption after harness capability setup and before an agent-step result, so no trajectory finalizer could run.
+2. Replaying both runs through the current control monitor reports trajectory-diagnostics as pending with no matching missing-diagnostics gap.
+3. Focused control-coverage and runtime-health routing tests passed.
+4. Same-evidence replay dedupe and terminal-task evidence-fingerprint tests passed without creating parallel repair identities.

@@ -1,0 +1,4 @@
+1. Identify the repeated root cause from both cited control-monitor artifacts.
+2. Verify the shared autonomy coverage surface now classifies the interrupted trajectory lifecycle accurately.
+3. Prove the regression through focused control-coverage and health-routing tests.
+4. Verify health-review replay and terminal-task handling avoid duplicate churn for the same dedupe key and evidence.

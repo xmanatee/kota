@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "replayedAt": "2026-07-25T14:33:45.863Z",
+  "implementationCommit": "baefd49eae4ed148947acb4f143fba829312ea13",
+  "headSha": "a329359c6a0aa425efaa2a7ff854711bd217e818",
+  "sourceEvidence": [
+    ".kota/runs/2026-07-24T19-45-52-295Z-builder-kubiqi/control-monitor-coverage.json",
+    ".kota/runs/2026-07-24T20-36-32-226Z-security-review-yqlm1v/control-monitor-coverage.json"
+  ],
+  "results": [
+    {
+      "runId": "2026-07-24T19-45-52-295Z-builder-kubiqi",
+      "sourceStatus": "interrupted",
+      "trajectoryDiagnostics": {
+        "family": "trajectory-diagnostics",
+        "numerator": 0,
+        "denominator": 1,
+        "pending": 1,
+        "blocked": 0,
+        "warned": 0,
+        "evidenceRefs": [
+          ".kota/runs/2026-07-24T19-45-52-295Z-builder-kubiqi/metadata.json"
+        ],
+        "gapIds": [],
+        "status": "pending"
+      },
+      "matchingGaps": []
+    },
+    {
+      "runId": "2026-07-24T20-36-32-226Z-security-review-yqlm1v",
+      "sourceStatus": "interrupted",
+      "trajectoryDiagnostics": {
+        "family": "trajectory-diagnostics",
+        "numerator": 0,
+        "denominator": 1,
+        "pending": 1,
+        "blocked": 0,
+        "warned": 0,
+        "evidenceRefs": [
+          ".kota/runs/2026-07-24T20-36-32-226Z-security-review-yqlm1v/metadata.json"
+        ],
+        "gapIds": [],
+        "status": "pending"
+      },
+      "matchingGaps": []
+    }
+  ]
+}

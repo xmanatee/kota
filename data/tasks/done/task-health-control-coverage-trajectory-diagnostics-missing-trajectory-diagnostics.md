@@ -1,12 +1,12 @@
 ---
 id: task-health-control-coverage-trajectory-diagnostics-missing-trajectory-diagnostics
 title: Repair autonomy health pattern control-coverage:trajectory-diagnostics:missing-trajectory-diagnostics
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Health signals labeled control-coverage, local-code, missing-trajectory-diagnostics, runtime, trajectory-diagnostics repeatedly point at control-coverage:trajectory-diagnostics:missing-trajectory-diagnostics; investigate and improve the local autonomy protocol, validation, prompt, or module behavior without relying on direct auto-repair.
 created_at: 2026-07-25T09:15:03.512Z
-updated_at: 2026-07-25T09:15:03.512Z
+updated_at: 2026-07-25T14:34:51.238Z
 task_class: Meta
 ---
 
@@ -82,3 +82,30 @@ Autonomy fleet health: repeated local workflow and runtime health patterns shoul
 
 - Focused test output covering the repaired health pattern.
 - A follow-up `.kota/runs/` artifact, event replay, or reviewer artifact showing the pattern no longer routes incorrectly.
+
+## Resolution
+
+The two cited runs were interrupted by the same daemon restart after their
+agent harness-capability artifacts were written but before either agent step
+recorded a result. The agent-step finalizer therefore had no opportunity to
+write trajectory diagnostics. Control coverage incorrectly treated that
+incomplete lifecycle as a missing diagnostic instead of pending evidence.
+
+Commit `baefd49eae4ed148947acb4f143fba829312ea13`, already present in this
+builder's base commit, repairs the shared lifecycle boundary without changing
+builder or security-review: an interrupted run with no agent-step result now
+records trajectory diagnostics coverage as pending. The regression is generic
+and has no workflow-name allowlist. Health review retains the original
+`control-coverage:trajectory-diagnostics:missing-trajectory-diagnostics`
+dedupe key, so replays of the same evidence cannot create parallel repair
+identities.
+
+## Completion Evidence
+
+- Focused validation passed across control coverage, runtime-health routing,
+  same-evidence replay dedupe, and terminal-task fingerprint handling (4 test
+  files, 16 tests).
+- `.kota/runs/2026-07-25T13-47-32-416Z-builder-bvup3r/control-monitor-coverage-replay.json`
+  rebuilds both cited artifacts on the current implementation. Both now report
+  trajectory diagnostics as pending and contain no
+  `missing-trajectory-diagnostics` gap.
