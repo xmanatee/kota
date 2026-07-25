@@ -1,0 +1,37 @@
+{
+  "type": "observability-obligation",
+  "outcome": "ok",
+  "candidates": [
+    {
+      "file": "src/modules/autonomy/workflows/builder/merge-conflict-resolver.ts",
+      "status": "satisfied",
+      "reasons": [
+        {
+          "kind": "error-handling",
+          "message": "changed runtime error handling or failure-state behavior"
+        },
+        {
+          "kind": "retry-recovery",
+          "message": "changed retry, recovery, timeout, abort, or restart behavior"
+        },
+        {
+          "kind": "agent-harness-execution",
+          "message": "changed agent harness execution, model, session, or trajectory behavior"
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "focused-test-assertion",
+          "detail": "related test diff asserts an observable warning, error, event, artifact, or metadata result",
+          "ref": "src/modules/autonomy/workflows/builder/merge-conflict-resolver.test.ts"
+        }
+      ],
+      "message": "Inspectable observability evidence found for this runtime-sensitive change."
+    }
+  ],
+  "satisfiedFiles": [
+    "src/modules/autonomy/workflows/builder/merge-conflict-resolver.ts"
+  ],
+  "missingFiles": [],
+  "message": "OK: 1 observability-sensitive candidate file(s) have inspectable evidence"
+}

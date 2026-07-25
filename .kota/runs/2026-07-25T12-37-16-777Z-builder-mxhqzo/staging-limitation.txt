@@ -1,0 +1,5 @@
+The initial managed builder workspace allowed source and artifact writes but denied writes to the worktree's shared Git administrative directory outside the writable root. Direct `git add` could not create the central worktree index lock during that attempt.
+
+Task transitions were performed through the required task CLI with an isolated temporary Git index/object store so the domain mutation path, lifecycle metadata, and exact-path staging logic still ran. The workflow commit step owns final exact-path staging and commit after the repair gates pass.
+
+The post-check repair environment allowed `git add -A`; the final index now contains the task transition, named DLQ follow-up, source changes, and selected run artifacts.

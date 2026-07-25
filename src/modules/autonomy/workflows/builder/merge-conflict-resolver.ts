@@ -26,6 +26,7 @@ export const MERGE_CONFLICT_RESOLUTION_ATTEMPTS = 2;
 
 const MERGE_CONFLICT_RESOLVER_MAX_TURNS = 8;
 const ARTIFACT_TAIL_LIMIT = 2_000;
+const UNSUPPORTED_TOOL_CONTROL_SUBTYPE = "unsupported-tool-control";
 export const MERGE_CONFLICT_RESOLVER_ALLOWED_TOOLS = [
 	"Read",
 	"Edit",
@@ -200,9 +201,17 @@ export function createMergeConflictResolver(options: MergeConflictResolverOption
 	return async (request) => {
 		const harness = resolveAgentHarness(options.harnessName ?? AUTONOMY_AGENT_HARNESS);
 		if (!shouldRouteKotaToolControl(harness)) {
-			throw new Error(
-				`Merge-conflict resolver requires KOTA-routable tool control; harness "${harness.name}" declares "${harness.toolControl}".`,
-			);
+			const summary =
+				`Merge-conflict resolver was not dispatched because harness "${harness.name}" declares ` +
+				`"${harness.toolControl}" tool control, so KOTA cannot enforce the bounded conflict-file guard; ` +
+				"the merge remains pending for recovery review.";
+			appendAttemptArtifact(options, request, {
+				resolved: false,
+				summary,
+				isError: false,
+				subtype: UNSUPPORTED_TOOL_CONTROL_SUBTYPE,
+			});
+			return { resolved: false, summary };
 		}
 		const response = await runAgentHarness(
 			harness,

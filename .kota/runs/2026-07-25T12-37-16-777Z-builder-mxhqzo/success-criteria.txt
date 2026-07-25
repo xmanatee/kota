@@ -1,0 +1,2 @@
+1. Native-tool builder harnesses do not throw from merge-conflict recovery; the resolver declines dispatch and leaves a deterministic pending-merge result without weakening the bounded merge gate.
+2. Focused tests exercise the native and KOTA-routable paths, while the task/run artifacts record validation evidence and explicitly assign the cited dead letter's post-merge dismissal to a ready follow-up task.

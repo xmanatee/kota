@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "autonomy-change-decision",
+  "runId": "2026-07-25T12-37-16-777Z-builder-mxhqzo",
+  "createdAt": "2026-07-25T13:01:20.000Z",
+  "taskIds": [
+    "task-make-builder-merge-conflict-recovery-compatible-wi"
+  ],
+  "affectedSurfaces": [
+    "builder merge-conflict resolver",
+    "builder worktree merge gate",
+    "native-tool harness recovery"
+  ],
+  "changeClasses": [
+    "workflow",
+    "harness"
+  ],
+  "hypothesis": "Turning an unsupported native-tool resolver dispatch into an explicit unresolved result will preserve the bounded merge safety gate while allowing builder runs to terminate in pending-merge recovery instead of dead-lettering.",
+  "sourceRefs": [
+    "task:task-make-builder-merge-conflict-recovery-compatible-wi",
+    "dead-letter:dlq-76a47a9a-4a59-4ad7-bc61-833291ca543d",
+    ".kota/runs/2026-07-25T10-03-33-551Z-builder-ugava5/steps/merge-gate.json"
+  ],
+  "baselineRefs": [
+    "src/modules/autonomy/workflows/builder/merge-conflict-resolver.ts",
+    ".kota/runs/2026-07-25T10-03-33-551Z-builder-ugava5/steps/merge-gate.json"
+  ],
+  "candidateRefs": [
+    "src/modules/autonomy/workflows/builder/merge-conflict-resolver.ts",
+    "src/modules/autonomy/workflows/builder/merge-conflict-resolver.test.ts",
+    ".kota/runs/2026-07-25T12-37-16-777Z-builder-mxhqzo/validation.txt",
+    ".kota/runs/2026-07-25T12-37-16-777Z-builder-mxhqzo/dead-letter-disposition.json"
+  ],
+  "metricsCompared": [
+    {
+      "name": "native-tool merge-conflict outcome",
+      "baseline": "merge-gate step threw before resolver dispatch and the workflow created an execution dead letter",
+      "candidate": "real Git/worktree conflict fixture returns pending-conflict after one non-dispatched resolver attempt and persists pending-merge metadata",
+      "unit": "terminal workflow outcome",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "bounded resolver regression coverage",
+      "baseline": "KOTA-routable guard coverage passed while native tool control only asserted a thrown error",
+      "candidate": "33 builder/git test files and 269 tests pass, including guarded KOTA routing and native Codex safe fallback",
+      "unit": "vitest",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "merge safety posture",
+      "baseline": "native harness was prevented from bypassing KOTA tool guards by throwing",
+      "candidate": "native harness is still never invoked, conflicts remain unstaged and pending, and recovery review retains the preserved worktree",
+      "unit": "safety boundary",
+      "direction": "unchanged",
+      "qualitySignal": true
+    }
+  ],
+  "rolloutMode": "canary",
+  "decision": "promote",
+  "rationale": "The change narrows failure handling without widening tool access: unsupported native-tool harnesses are not dispatched, the resolver records why it declined, and the existing merge gate owns the deterministic pending-merge state. Focused and full builder/git tests plus typecheck and lint prove the candidate behavior.",
+  "ownerSafetyExceptions": [],
+  "followUpTaskIds": [
+    "task-dismiss-superseded-native-harness-builder-dead-let"
+  ]
+}

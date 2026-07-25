@@ -1,0 +1,5 @@
+Handle native merge resolver fallback
+
+- keep unguardable native-tool conflicts pending instead of throwing
+- cover native Codex and guarded KOTA resolver paths with a real worktree fixture
+- track canonical dismissal of the superseded builder dead letter

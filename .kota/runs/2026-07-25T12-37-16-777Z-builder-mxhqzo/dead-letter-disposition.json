@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "dead-letter:dlq-76a47a9a-4a59-4ad7-bc61-833291ca543d",
+  "sourceRunId": "2026-07-25T10-03-33-551Z-builder-ugava5",
+  "candidateRunId": "2026-07-25T12-37-16-777Z-builder-mxhqzo",
+  "observedStatus": "open",
+  "chosenDisposition": "dismiss",
+  "dispositionState": "tracked-follow-up",
+  "followUpTaskId": "task-dismiss-superseded-native-harness-builder-dead-let",
+  "rationale": "The candidate replaces the native-tool resolver throw with a deterministic pending-merge result. Redriving the old run is unsafe evidence because it would reuse the old run's preserved conflicted worktree and currently loaded source rather than exercise this candidate.",
+  "candidateEvidence": {
+    "focusedFixture": "A real Git/worktree text conflict configured with a codex-named native-tool harness returned pending-conflict, persisted pending-merge metadata, and never invoked the harness.",
+    "regressionGate": "The KOTA-routable guarded resolver path remains covered.",
+    "validation": "33 builder/git test files and 269 tests passed; typecheck and Biome passed."
+  },
+  "mutationAttempts": [
+    {
+      "path": "canonical local dead-letter client",
+      "outcome": "blocked",
+      "detail": "The managed filesystem denied the atomic write to the canonical .kota/dead-letter-queue/items.json."
+    },
+    {
+      "path": "authenticated daemon control route",
+      "outcome": "blocked",
+      "detail": "The managed network sandbox denied the loopback connection to the running daemon control port."
+    }
+  ],
+  "remainingAction": "Ready task task-dismiss-superseded-native-harness-builder-dead-let owns the canonical dismissal after this candidate is merged; do not redrive the stale source run."
+}

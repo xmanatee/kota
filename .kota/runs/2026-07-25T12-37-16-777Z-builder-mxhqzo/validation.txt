@@ -1,0 +1,19 @@
+Validation completed for builder native-tool merge-conflict recovery.
+
+PASS  ./node_modules/.bin/biome check src/
+      Checked 2794 files; no fixes required.
+
+PASS  ./node_modules/.bin/tsc --noEmit
+
+PASS  TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run src/modules/git src/modules/autonomy/workflows/builder --configLoader runner --silent=true
+      33 test files passed; 269 tests passed.
+
+PASS  node --conditions=source --import tsx src/validate-queue.ts
+
+PASS  TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run --configLoader runner --silent=true src/task-files.test.ts
+      1 test file passed; 5 tests passed after the DLQ follow-up task was added.
+
+PASS  Builder repair helpers
+      Success criteria, claimed-task commit set/state, run-artifact stageability, commit stageability, source-size thresholds, repository hygiene, and observability evidence passed against the isolated staged index.
+
+The focused fixture creates divergent canonical and task-worktree edits to one textual file. With a codex-named harness declaring native tool control, merge recovery returns pending-conflict after one attempt, persists pending-merge state, records the unsupported-tool-control attempt, and does not invoke the harness. The existing KOTA-routable resolver guard test also passes.
