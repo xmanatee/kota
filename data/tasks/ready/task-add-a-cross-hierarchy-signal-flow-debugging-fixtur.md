@@ -1,13 +1,13 @@
 ---
 id: task-add-a-cross-hierarchy-signal-flow-debugging-fixtur
 title: Add a cross-hierarchy signal-flow debugging fixture to the eval harness
-status: backlog
+status: ready
 priority: p2
 area: modules
 task_class: Meta
 summary: Seed an eval-harness fixture where the builder must trace a bug through interacting files and fix the root cause from structured failure evidence instead of patching the symptom file.
 created_at: 2026-07-07T23:04:35.954Z
-updated_at: 2026-07-24T14:11:42.405Z
+updated_at: 2026-07-25T17:29:01.516Z
 ---
 
 ## Problem

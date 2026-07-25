@@ -1,13 +1,13 @@
 ---
 id: task-add-algorithmic-resource-budget-canaries-to-the-ev
 title: Add algorithmic resource-budget canaries to the eval harness
-status: backlog
+status: ready
 priority: p2
 area: modules
 task_class: Meta
 summary: Seed a compact builder fixture where a naive solution passes small examples but fails deterministic large-input time or memory canaries, making scalable design and resource management artifact-graded.
 created_at: 2026-06-22T23:35:15.496Z
-updated_at: 2026-07-24T14:11:46.609Z
+updated_at: 2026-07-25T17:29:01.548Z
 ---
 
 ## Problem
