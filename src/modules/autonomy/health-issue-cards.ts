@@ -23,7 +23,7 @@ export type AutonomyHealthIssueCard = {
   signalCount: number;
   summaries: string[];
   evidenceRefs: AutonomyHealthEvidenceRef[];
-  createdTaskIds: string[];
+  taskIds: string[];
   ownerQuestionIds: string[];
 };
 
@@ -40,7 +40,7 @@ type RawReviewArtifact = {
 };
 
 type CardActionIds = {
-  createdTaskIds: string[];
+  taskIds: string[];
   ownerQuestionIds: string[];
 };
 
@@ -82,7 +82,7 @@ function stringArray(value: AutonomyHealthJsonValue | undefined): string[] {
 }
 
 function emptyCardActionIds(): CardActionIds {
-  return { createdTaskIds: [], ownerQuestionIds: [] };
+  return { taskIds: [], ownerQuestionIds: [] };
 }
 
 function mutableActionIdsFor(
@@ -107,11 +107,17 @@ function actionIdsByDedupeKey(
     if (!isAutonomyHealthJsonObject(action)) continue;
     if (typeof action.dedupeKey !== "string") continue;
     const ids = mutableActionIdsFor(map, action.dedupeKey);
-    if (action.kind === "created-task" && typeof action.taskId === "string") {
-      ids.createdTaskIds.push(action.taskId);
+    if (
+      (action.kind === "created-task" ||
+        action.kind === "refreshed-task" ||
+        action.kind === "skipped-task") &&
+      typeof action.taskId === "string"
+    ) {
+      ids.taskIds.push(action.taskId);
     }
     if (
-      action.kind === "owner-question" &&
+      (action.kind === "owner-question" ||
+        action.kind === "skipped-owner-question") &&
       typeof action.questionId === "string"
     ) {
       ids.ownerQuestionIds.push(action.questionId);
@@ -191,7 +197,7 @@ function cardFromGroup(args: {
         0,
         MAX_EVIDENCE_REFS_PER_CARD,
       ),
-    createdTaskIds: [...args.actionIds.createdTaskIds],
+    taskIds: [...args.actionIds.taskIds],
     ownerQuestionIds: [...args.actionIds.ownerQuestionIds],
   };
 }

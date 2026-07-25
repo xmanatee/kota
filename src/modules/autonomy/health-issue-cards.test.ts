@@ -119,7 +119,7 @@ describe("autonomy health issue cards", () => {
         severity: "warning",
         actionability: "local-code",
         signalCount: 2,
-        createdTaskIds: ["task-health-workflow-builder-runtime-warning"],
+        taskIds: ["task-health-workflow-builder-runtime-warning"],
       }),
     ]);
     expect(evidence.issueCards).not.toEqual(
@@ -188,6 +188,12 @@ describe("autonomy health issue cards", () => {
                 question:
                   "Autonomy health pattern dead-letter:provider:workflow-runtime:builder needs owner/setup action.",
               },
+              {
+                kind: "skipped-owner-question",
+                questionId: "question-existing-provider",
+                dedupeKey: "dead-letter:provider:workflow-runtime:builder",
+                reason: "existing owner question already tracks this evidence",
+              },
             ],
           },
         },
@@ -202,13 +208,13 @@ describe("autonomy health issue cards", () => {
     expect(evidence.issueCards).toEqual([
       expect.objectContaining({
         dedupeKey: "dead-letter:execution:workflow-runtime:builder",
-        createdTaskIds: [],
+        taskIds: ["task-health-dead-letter-builder"],
         ownerQuestionIds: [],
       }),
       expect.objectContaining({
         dedupeKey: "dead-letter:provider:workflow-runtime:builder",
-        createdTaskIds: [],
-        ownerQuestionIds: ["question-provider"],
+        taskIds: [],
+        ownerQuestionIds: ["question-provider", "question-existing-provider"],
       }),
     ]);
   });

@@ -84,7 +84,6 @@ function healthEvidenceFingerprint(
   const material = cards
     .map((card) => ({
       actionability: card.actionability,
-      createdTaskIds: [...card.createdTaskIds].sort(compareStrings),
       dedupeKey: card.dedupeKey,
       evidenceRefs: card.evidenceRefs
         .map((ref) => ({
@@ -102,6 +101,7 @@ function healthEvidenceFingerprint(
       severity: card.severity,
       signalCount: card.signalCount,
       summaries: [...card.summaries].sort(compareStrings),
+      taskIds: [...card.taskIds].sort(compareStrings),
     }))
     .sort((left, right) => left.dedupeKey.localeCompare(right.dedupeKey));
   return createHash("sha256")
