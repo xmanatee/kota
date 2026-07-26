@@ -7,7 +7,8 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
+import { resolveExecutableVerifierSandbox } from "./executable-verifier-sandbox.js";
 import { loadFixture } from "./fixture.js";
 import type {
   ExecutionProfilePreflightResult,
@@ -21,10 +22,18 @@ import {
   type WorkflowExecutionRequest,
   type WorkflowExecutor,
 } from "./runner.js";
+import { writeFakeContainerBackend } from "./subprocess-executor-test-helpers.js";
 
 const FIXTURE_ID = "builder-bare-repo-full-cycle";
 const FIXTURES_ROOT = join(process.cwd(), "src/modules/eval-harness/fixtures");
 const TASK_ID = "task-repair-project-code-full-cycle";
+const TEST_CONTAINER_DIR = mkdtempSync(join(tmpdir(), "kota-verifier-runtime-"));
+const TEST_CONTAINER = join(TEST_CONTAINER_DIR, "fake-container.mjs");
+writeFakeContainerBackend(TEST_CONTAINER);
+
+afterAll(() => {
+  rmSync(TEST_CONTAINER_DIR, { recursive: true, force: true });
+});
 
 const TEST_PROFILE: ResourceProfile = {
   cpuAllocationCores: 2,
@@ -44,6 +53,21 @@ const TEST_EXECUTION_PROFILE: ExecutionProfilePreflightResult = {
   gateEligible: true,
   eligibilityReason: "verified-profile",
   diagnostics: [],
+};
+
+const TEST_PREDICATE_CONTEXT = {
+  executableVerifierSandbox: resolveExecutableVerifierSandbox(
+    {
+      kind: "container",
+      executable: TEST_CONTAINER,
+      image: "kota-eval:test",
+      kotaBinaryPath: "/opt/kota/bin/kota.mjs",
+    },
+    {
+      PATH: process.env.PATH,
+      KOTA_FAKE_CONTAINER_USE_HOST_PATH: "1",
+    },
+  ),
 };
 
 function writeFileEnsuringDir(path: string, content: string): void {
@@ -136,6 +160,7 @@ async function runFixtureWithCandidate(
     join(tmpdir(), "kota-bare-repo-full-cycle-"),
   );
   const executor: WorkflowExecutor = {
+    predicateContext: TEST_PREDICATE_CONTEXT,
     preflight: () => TEST_EXECUTION_PROFILE,
     execute: async (request): Promise<WorkflowExecutionOutcome> => {
       mutate(request);

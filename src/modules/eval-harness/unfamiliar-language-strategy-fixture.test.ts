@@ -8,12 +8,15 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import {
   isSingleWorkflowFixtureSpec,
   loadFixture,
 } from "./fixture.js";
+import { fixtureScoringContext } from "./fixture-scoring-context.js";
 import { evaluatePredicate } from "./predicates.js";
+import { TEST_EXECUTION_PROFILE } from "./runner-test-profiles.js";
+import { createFakeExecutableVerifierSandbox } from "./subprocess-executor-test-helpers.js";
 
 const FIXTURE_ID = "builder-unfamiliar-language-strategy-construction";
 const FIXTURES_ROOT = join(process.cwd(), "src/modules/eval-harness/fixtures");
@@ -23,6 +26,9 @@ const REQUIRED_RUN_ARTIFACTS = [
   "success-criteria-verified.txt",
   "commit-message.txt",
 ] as const;
+const TEST_VERIFIER = createFakeExecutableVerifierSandbox();
+
+afterAll(TEST_VERIFIER.cleanup);
 
 function git(workingDir: string, args: string[]): ReturnType<typeof spawnSync> {
   return spawnSync("git", args, {
@@ -107,9 +113,18 @@ describe("unfamiliar-language strategy fixture", () => {
       if (changedPathPredicate?.kind !== "git-changes-within") {
         throw new Error("Fixture is missing its git-changes-within predicate.");
       }
-      expect(evaluatePredicate(workingDir, changedPathPredicate)).toMatchObject({
-        passed: true,
-      });
+      const result = await evaluatePredicate(
+        workingDir,
+        changedPathPredicate,
+        fixtureScoringContext({
+          capabilities: {
+            executableVerifierSandbox: TEST_VERIFIER.sandbox,
+          },
+          fixture,
+          executionProfile: TEST_EXECUTION_PROFILE,
+        }),
+      );
+      expect(result).toMatchObject({ passed: true });
     } finally {
       rmSync(workingDir, { recursive: true, force: true });
     }

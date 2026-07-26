@@ -1,7 +1,11 @@
-import { spawn } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+  forceRemoveContainer,
+  type IsolatedContainerProcessResult,
+  runIsolatedContainerProcess,
+} from "./isolated-container-process.js";
 import {
   type AvailableScientificClaimAnalyzerSandbox,
   type PreparedAnalyzerFilesystem,
@@ -10,8 +14,6 @@ import {
   scientificClaimAnalyzerContainerArgs,
 } from "./scientific-claim-analyzer-container.js";
 import type { SubprocessIsolationBackend } from "./subprocess-executor-types.js";
-
-const CONTAINER_ID_PATTERN = /^[a-f0-9]{12,64}$/i;
 
 export type { ScientificClaimAnalyzerInvocation } from "./scientific-claim-analyzer-container.js";
 
@@ -34,103 +36,7 @@ export type ScientificClaimAnalyzerExecution =
       issue: string;
     };
 
-export type ScientificClaimAnalyzerProcessResult = {
-  error?: Error;
-  signal: NodeJS.Signals | null;
-  status: number | null;
-  stderr: string;
-  stdout: string;
-};
-
-function forceRemoveContainer(command: string, cidFile: string): Promise<void> {
-  let containerId: string;
-  try {
-    containerId = readFileSync(cidFile, "utf8").trim();
-  } catch {
-    return Promise.resolve();
-  }
-  if (!CONTAINER_ID_PATTERN.test(containerId)) return Promise.resolve();
-  return new Promise((resolve) => {
-    const child = spawn(command, ["rm", "--force", containerId], {
-      env: { ...process.env },
-      stdio: ["ignore", "ignore", "ignore"],
-    });
-    const timeout = setTimeout(() => child.kill("SIGKILL"), 5_000);
-    const finish = () => {
-      clearTimeout(timeout);
-      resolve();
-    };
-    child.once("close", finish);
-    child.once("error", finish);
-  });
-}
-
-function analyzerProcessError(message: string, code: string): Error {
-  const error = new Error(message);
-  error.name = code;
-  return error;
-}
-
-function runAnalyzerContainer(
-  command: string,
-  args: readonly string[],
-  options: {
-    cwd: string;
-    maxBuffer: number;
-    timeout: number;
-  },
-): Promise<ScientificClaimAnalyzerProcessResult> {
-  return new Promise((resolve) => {
-    const child = spawn(command, args, {
-      cwd: options.cwd,
-      env: { ...process.env },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    const stdout: Buffer[] = [];
-    const stderr: Buffer[] = [];
-    let stdoutBytes = 0;
-    let stderrBytes = 0;
-    let processError: Error | undefined;
-
-    const capture = (target: Buffer[], chunk: Buffer, stream: "stdout" | "stderr") => {
-      const currentBytes = stream === "stdout" ? stdoutBytes : stderrBytes;
-      if (currentBytes + chunk.byteLength <= options.maxBuffer) {
-        target.push(chunk);
-        if (stream === "stdout") stdoutBytes += chunk.byteLength;
-        else stderrBytes += chunk.byteLength;
-        return;
-      }
-      processError ??= analyzerProcessError(
-        `${stream} exceeded ${options.maxBuffer} bytes`,
-        "ERR_CHILD_PROCESS_STDIO_MAXBUFFER",
-      );
-      child.kill("SIGKILL");
-    };
-
-    child.stdout.on("data", (chunk: Buffer) => capture(stdout, chunk, "stdout"));
-    child.stderr.on("data", (chunk: Buffer) => capture(stderr, chunk, "stderr"));
-    child.once("error", (error) => {
-      processError ??= error;
-    });
-    const timeout = setTimeout(() => {
-      processError ??= analyzerProcessError(
-        `analyzer container exceeded ${options.timeout}ms timeout`,
-        "ETIMEDOUT",
-      );
-      child.kill("SIGKILL");
-    }, options.timeout);
-    child.once("close", (status, signal) => {
-      clearTimeout(timeout);
-      resolve({
-        ...(processError !== undefined && { error: processError }),
-        status,
-        signal,
-        stdout: Buffer.concat(stdout).toString("utf8"),
-        stderr: Buffer.concat(stderr).toString("utf8"),
-      });
-    });
-  });
-}
+export type ScientificClaimAnalyzerProcessResult = IsolatedContainerProcessResult;
 
 /** Agent-produced analyzers require the same configured OCI backend as gated evals. */
 export function resolveScientificClaimAnalyzerSandbox(
@@ -182,7 +88,7 @@ export async function spawnScientificClaimAnalyzer(
   const controlDir = mkdtempSync(join(tmpdir(), "kota-analyzer-container-"));
   const cidFile = join(controlDir, "cid");
   try {
-    const result = await runAnalyzerContainer(
+    const result = await runIsolatedContainerProcess(
       isolation.command,
       scientificClaimAnalyzerContainerArgs({
         isolation,
@@ -193,12 +99,14 @@ export async function spawnScientificClaimAnalyzer(
       }),
       {
         cwd: filesystem.workingDir,
+        env: { ...process.env },
+        label: "analyzer container",
         maxBuffer: options.maxBuffer,
         timeout: options.timeout,
       },
     );
     if (result.error !== undefined || result.status !== 0) {
-      await forceRemoveContainer(isolation.command, cidFile);
+      await forceRemoveContainer(isolation.command, cidFile, { ...process.env });
     }
     return { started: true, isolation, result };
   } finally {

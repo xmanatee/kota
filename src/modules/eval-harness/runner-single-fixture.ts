@@ -2,6 +2,7 @@
 import { join } from "node:path";
 import { finalizeCodeHealthDiagnostics } from "./code-health-diagnostics.js";
 import { type FixtureRun, resourceProfileFromExecutionProfile } from "./fixture-run.js";
+import { fixtureScoringContext } from "./fixture-scoring-context.js";
 import { evaluateObjectiveMetricsForOutcome } from "./objective-metrics.js";
 import { evaluatePredicateExpectations, evaluatePredicates } from "./predicates.js";
 import { writeRunArtifact } from "./runner-artifact.js";
@@ -21,6 +22,11 @@ export async function runSingleWorkflowFixture(
     );
   }
   const { workingDir, shimDir } = materializeFixtureWorkingDir(params.fixture);
+  const scoringContext = fixtureScoringContext({
+    capabilities: params.executor.predicateContext,
+    fixture: params.fixture,
+    executionProfile: params.executionProfile,
+  });
   const codeHealthBaseline = codeHealthBaselineFor(workingDir, spec);
   const startedAt = new Date();
   const startMs = startedAt.getTime();
@@ -28,7 +34,7 @@ export async function runSingleWorkflowFixture(
   const preRunSanity = await evaluatePredicateExpectations(
     workingDir,
     spec.preRunExpectations,
-    params.executor.predicateContext,
+    scoringContext,
   );
   const resourceProfile = resourceProfileFromExecutionProfile(
     params.executionProfile,
@@ -40,7 +46,7 @@ export async function runSingleWorkflowFixture(
   const verifierCalibration = await evaluateVerifierCalibration({
     fixture: params.fixture,
     executionProfile: params.executionProfile,
-    predicateContext: params.executor.predicateContext,
+    predicateContext: scoringContext,
     runIndex: params.runIndex,
     repeatCount: params.repeatCount,
   });
@@ -193,7 +199,7 @@ export async function runSingleWorkflowFixture(
   const { passed, results } = await evaluatePredicates(
     workingDir,
     spec.predicates,
-    params.executor.predicateContext,
+    scoringContext,
   );
   const outcome = outcomeFromExecution(executionOutcome, passed);
   const codeHealthDiagnostics = finalCodeHealthFor({
@@ -203,7 +209,7 @@ export async function runSingleWorkflowFixture(
     outcome,
   });
   const { objectiveMetrics, objectiveMetricErrors } =
-    evaluateObjectiveMetricsForOutcome({
+    await evaluateObjectiveMetricsForOutcome({
       fixtureId: spec.id,
       metricSpecs: spec.objectiveMetrics ?? [],
       workingDir,
@@ -211,6 +217,7 @@ export async function runSingleWorkflowFixture(
       runIndex: params.runIndex,
       repeatCount: params.repeatCount,
       outcome,
+      scoringContext,
     });
 
   const run: FixtureRun = {

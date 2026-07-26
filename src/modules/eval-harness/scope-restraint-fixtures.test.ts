@@ -7,7 +7,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { loadFixture } from "./fixture.js";
 import type {
   ExecutionProfilePreflightResult,
@@ -21,8 +21,12 @@ import {
   type WorkflowExecutionRequest,
   type WorkflowExecutor,
 } from "./runner.js";
+import { createFakeExecutableVerifierSandbox } from "./subprocess-executor-test-helpers.js";
 
 const FIXTURES_ROOT = join(process.cwd(), "src/modules/eval-harness/fixtures");
+const TEST_VERIFIER = createFakeExecutableVerifierSandbox();
+
+afterAll(TEST_VERIFIER.cleanup);
 
 const TEST_PROFILE: ResourceProfile = {
   cpuAllocationCores: 2,
@@ -72,6 +76,9 @@ async function runShippedFixture(
     join(tmpdir(), `kota-scope-restraint-${fixtureId}-`),
   );
   const executor: WorkflowExecutor = {
+    predicateContext: {
+      executableVerifierSandbox: TEST_VERIFIER.sandbox,
+    },
     preflight: () => TEST_EXECUTION_PROFILE,
     execute: async (request): Promise<WorkflowExecutionOutcome> => {
       execute(request);

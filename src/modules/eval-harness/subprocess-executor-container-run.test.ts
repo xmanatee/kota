@@ -133,6 +133,11 @@ describe("createSubprocessExecutor container execution", () => {
       kotaBinaryPath: fakeKota,
       isolationBackend: containerBackend(fakeContainer, containerKotaBinaryPath),
     });
+    expect(executor.predicateContext?.executableVerifierSandbox).toMatchObject({
+      kind: "oci-container",
+      command: fakeContainer,
+      image: "kota-eval:latest",
+    });
     const preflight = executor.preflight(containerProfile());
     if (preflight.status !== "verified") throw new Error("unreachable");
 

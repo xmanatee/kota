@@ -1,0 +1,9 @@
+The managed filesystem exposes the linked worktree Git index outside the
+writable workspace. Git therefore cannot lock the host index directly.
+
+All task transitions and the final git add -A use the sandbox-local index and
+object store at .kota/tmp/2026-07-26T09-17-25-482Z-builder-yhb38n, with the
+canonical object store configured read-only as an alternate. The staged diff
+is complete there. The workflow commit step must use those GIT_INDEX_FILE,
+GIT_OBJECT_DIRECTORY, and GIT_ALTERNATE_OBJECT_DIRECTORIES values, or replay
+git add -A from a host context that can lock the linked-worktree index.

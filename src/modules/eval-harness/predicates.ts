@@ -9,7 +9,6 @@
  * here rather than pushing logic into the fixture author.
  */
 
-import { spawnSync } from "node:child_process";
 import {
   existsSync,
   lstatSync,
@@ -19,7 +18,7 @@ import {
   statSync,
 } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import type { ExecutableVerifier } from "./executable-verifier-sandbox.js";
 import type { ScientificClaimAnalyzerSandbox } from "./scientific-claim-analyzer-sandbox.js";
 import {
   evaluateScientificClaimResult,
@@ -178,6 +177,7 @@ export type PredicateEvalResult = {
 };
 
 export type PredicateEvaluationContext = {
+  executableVerifier?: ExecutableVerifier;
   scientificClaimAnalyzerSandbox?: ScientificClaimAnalyzerSandbox;
 };
 
@@ -209,6 +209,9 @@ export type PredicateExpectationEvalResult = {
 const SHELL_PREDICATE_MAX_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_SHELL_TIMEOUT_MS = 60_000;
 const OUTPUT_TAIL_LIMIT = 4_000;
+const GIT_PREDICATE_TIMEOUT_MS = 30_000;
+const GIT_PREDICATE_PREFIX =
+  "git -c core.fsmonitor=false -c core.hooksPath=/dev/null --no-pager";
 const DEFAULT_GIT_CHANGE_IGNORED_PREFIXES = [".kota/"] as const;
 
 type JsonValue =
@@ -293,14 +296,32 @@ type GitCommandOutput =
   | { ok: true; stdout: string }
   | { ok: false; detail: string };
 
-function runGitCapture(workingDir: string, args: readonly string[]): GitCommandOutput {
-  const result = spawnSync("git", args, {
-    cwd: workingDir,
-    env: withProtectedGitBareRepositoryEnv(),
-    encoding: "utf-8",
-    stdio: ["ignore", "pipe", "pipe"],
+async function runGitCapture(
+  workingDir: string,
+  verifier: ExecutableVerifier | undefined,
+  label: string,
+  command: string,
+): Promise<GitCommandOutput> {
+  if (verifier === undefined) {
+    return {
+      ok: false,
+      detail:
+        "git predicate requires a verified isolated verifier; refusing evaluator-host git execution",
+    };
+  }
+  const execution = await verifier({
+    workingDir,
+    command,
+    timeoutMs: GIT_PREDICATE_TIMEOUT_MS,
     maxBuffer: 4 * 1024 * 1024,
   });
+  if (!execution.started) {
+    return {
+      ok: false,
+      detail: `verified isolated verifier unavailable for ${label}: ${execution.issue}`,
+    };
+  }
+  const { result } = execution;
   if (result.status === 0 && result.error === undefined) {
     return { ok: true, stdout: result.stdout };
   }
@@ -310,7 +331,7 @@ function runGitCapture(workingDir: string, args: readonly string[]): GitCommandO
     .trim();
   return {
     ok: false,
-    detail: `git ${args.join(" ")} failed${combined ? `: ${tail(combined, OUTPUT_TAIL_LIMIT)}` : ""}`,
+    detail: `${label} failed inside ${execution.isolation.evidence}${combined ? `: ${tail(combined, OUTPUT_TAIL_LIMIT)}` : ""}`,
   };
 }
 
@@ -352,29 +373,41 @@ function ignoredGitChangePath(path: string): boolean {
   );
 }
 
-function readGitChangedPaths(workingDir: string): GitCommandOutput & {
+async function readGitChangedPaths(
+  workingDir: string,
+  verifier: ExecutableVerifier | undefined,
+): Promise<GitCommandOutput & {
   paths?: string[];
-} {
-  const root = runGitCapture(workingDir, ["rev-list", "--max-parents=0", "HEAD"]);
+}> {
+  const root = await runGitCapture(
+    workingDir,
+    verifier,
+    "git rev-list",
+    `${GIT_PREDICATE_PREFIX} rev-list --max-parents=0 HEAD`,
+  );
   if (!root.ok) return root;
   const rootCommit = root.stdout.trim().split("\n").find((line) => line.length > 0);
   if (rootCommit === undefined) {
     return { ok: false, detail: "git rev-list found no root commit" };
   }
+  if (!/^[0-9a-f]{40,64}$/i.test(rootCommit)) {
+    return { ok: false, detail: "git rev-list returned an invalid root commit id" };
+  }
 
-  const committed = runGitCapture(workingDir, [
-    "diff",
-    "--name-status",
-    "--find-renames",
-    `${rootCommit}..HEAD`,
-  ]);
+  const committed = await runGitCapture(
+    workingDir,
+    verifier,
+    "git diff",
+    `${GIT_PREDICATE_PREFIX} diff --no-ext-diff --no-textconv --name-status --find-renames ${rootCommit}..HEAD`,
+  );
   if (!committed.ok) return committed;
 
-  const workingTree = runGitCapture(workingDir, [
-    "status",
-    "--porcelain=v1",
-    "--untracked-files=all",
-  ]);
+  const workingTree = await runGitCapture(
+    workingDir,
+    verifier,
+    "git status",
+    `${GIT_PREDICATE_PREFIX} status --porcelain=v1 --untracked-files=all`,
+  );
   if (!workingTree.ok) return workingTree;
 
   const paths = new Set<string>();
@@ -387,11 +420,12 @@ function readGitChangedPaths(workingDir: string): GitCommandOutput & {
   return { ok: true, stdout: "", paths: [...paths].sort() };
 }
 
-function evaluateGitChangesWithin(
+async function evaluateGitChangesWithin(
   workingDir: string,
   predicate: Extract<FixturePredicate, { kind: "git-changes-within" }>,
-): PredicateEvalResult {
-  const changed = readGitChangedPaths(workingDir);
+  verifier: ExecutableVerifier | undefined,
+): Promise<PredicateEvalResult> {
+  const changed = await readGitChangedPaths(workingDir, verifier);
   if (!changed.ok) {
     return {
       predicate,
@@ -419,24 +453,43 @@ function evaluateGitChangesWithin(
   };
 }
 
-function evaluateShell(
+async function evaluateShell(
   workingDir: string,
   predicate: Extract<FixturePredicate, { kind: "shell-succeeds" | "shell-fails" }>,
-): PredicateEvalResult {
+  verifier: ExecutableVerifier | undefined,
+): Promise<PredicateEvalResult> {
   const timeoutMs = resolvedShellTimeout(predicate.timeoutMs);
-  const result = spawnSync(predicate.command, {
-    shell: true,
-    cwd: workingDir,
-    env: withProtectedGitBareRepositoryEnv(),
-    timeout: timeoutMs,
-    encoding: "utf-8",
+  if (verifier === undefined) {
+    return {
+      predicate,
+      passed: false,
+      detail:
+        "executable scoring requires a verified isolated verifier; refusing evaluator-host shell execution",
+    };
+  }
+  const execution = await verifier({
+    workingDir,
+    command: predicate.command,
+    timeoutMs,
     maxBuffer: 4 * 1024 * 1024,
   });
+  if (!execution.started) {
+    return {
+      predicate,
+      passed: false,
+      detail: `verified isolated verifier unavailable: ${execution.issue}`,
+    };
+  }
+  const { result } = execution;
   const expectsSuccess = predicate.kind === "shell-succeeds";
-  const timedOut = result.signal === "SIGTERM" || result.error?.message.includes("ETIMEDOUT");
-  const succeeded = !timedOut && result.status === 0;
-  const passed = expectsSuccess ? succeeded : !succeeded;
-  const combined = [result.stdout, result.stderr].filter(Boolean).join("\n");
+  const timedOut = result.error?.name === "ETIMEDOUT";
+  const completed =
+    result.error === undefined && result.signal === null && result.status !== null;
+  const succeeded = completed && result.status === 0;
+  const passed = completed && (expectsSuccess ? succeeded : !succeeded);
+  const combined = [result.stdout, result.stderr, result.error?.message]
+    .filter(Boolean)
+    .join("\n");
   const statusDesc = timedOut
     ? `timeout after ${timeoutMs}ms`
     : result.status === null
@@ -445,7 +498,7 @@ function evaluateShell(
   return {
     predicate,
     passed,
-    detail: `${expectsSuccess ? "shell-succeeds" : "shell-fails"} "${predicate.command}" — ${statusDesc}\n${tail(combined, OUTPUT_TAIL_LIMIT)}`,
+    detail: `${expectsSuccess ? "shell-succeeds" : "shell-fails"} "${predicate.command}" inside ${execution.isolation.evidence} — ${statusDesc}\n${tail(combined, OUTPUT_TAIL_LIMIT)}`,
   };
 }
 
@@ -957,14 +1010,20 @@ function evaluateEnvironmentStateAudit(
   };
 }
 
+type AsynchronousFixturePredicate =
+  | ScientificClaimResultPredicate
+  | Extract<
+      FixturePredicate,
+      { kind: "git-changes-within" | "shell-succeeds" | "shell-fails" }
+    >;
 type SynchronousFixturePredicate = Exclude<
   FixturePredicate,
-  ScientificClaimResultPredicate
+  AsynchronousFixturePredicate
 >;
 
 export function evaluatePredicate(
   workingDir: string,
-  predicate: ScientificClaimResultPredicate,
+  predicate: AsynchronousFixturePredicate,
   context?: PredicateEvaluationContext,
 ): Promise<PredicateEvalResult>;
 export function evaluatePredicate(
@@ -990,7 +1049,11 @@ export function evaluatePredicate(
     case "file-contains":
       return evaluateFileContains(workingDir, predicate);
     case "git-changes-within":
-      return evaluateGitChangesWithin(workingDir, predicate);
+      return evaluateGitChangesWithin(
+        workingDir,
+        predicate,
+        context.executableVerifier,
+      );
     case "lx12-scientific-claim-result": {
       return evaluateScientificClaimResult(
         workingDir,
@@ -1006,7 +1069,7 @@ export function evaluatePredicate(
     }
     case "shell-succeeds":
     case "shell-fails":
-      return evaluateShell(workingDir, predicate);
+      return evaluateShell(workingDir, predicate, context.executableVerifier);
     case "run-emits-event":
       return evaluateRunEmitsEvent(workingDir, predicate);
     case "run-omits-event":

@@ -1,0 +1,14 @@
+Security regression evidence
+
+- No verifier capability: shell predicate fails and its evaluator-host marker is absent.
+- No verifier capability: shell metric raises source-failed and its evaluator-host marker is absent.
+- No verifier capability: a git-changes predicate fails before the repository's malicious core.fsmonitor can create its evaluator-host marker. With a verifier, rev-list, diff, and status all cross the isolated boundary with fsmonitor and hooks disabled.
+- OCI verifier: Docker-compatible arguments require no image pull, network none, IPC none, a read-only root, all capabilities dropped, no-new-privileges, non-root host UID/GID, CPU/memory/PID/fd limits, bounded tmpfs, and a fixed minimal command environment.
+- OPENAI_API_KEY injected into the evaluator environment is absent from both the container CLI environment and command environment.
+- Initial scripts/score.mjs overlays the candidate copy as a read-only bind; replacing the candidate target with a symlink rejects before launch.
+- A failed rm --force confirmation rejects the scoring result.
+
+Focused proof: src/modules/eval-harness/executable-verifier-sandbox.test.ts,
+src/modules/eval-harness/git-changes-predicate.test.ts,
+src/modules/eval-harness/predicates.test.ts, and
+src/modules/eval-harness/runner-objective-metrics.test.ts.

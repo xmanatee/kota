@@ -1,6 +1,7 @@
 
 import type { FixtureRoundSpec, LoadedFixture } from "./fixture.js";
 import type { ExecutionProfilePreflightResult } from "./fixture-run.js";
+import { fixtureScoringContext } from "./fixture-scoring-context.js";
 import { evaluateObjectiveMetricsForOutcome } from "./objective-metrics.js";
 import { evaluatePredicateExpectations, evaluatePredicates } from "./predicates.js";
 import { applyRoundTaskInput } from "./runner-materialize.js";
@@ -32,10 +33,15 @@ export async function executeRound(params: {
     params.fixture.fixtureDir,
     params.workingDir,
   );
+  const scoringContext = fixtureScoringContext({
+    capabilities: params.executor.predicateContext,
+    fixture: params.fixture,
+    executionProfile: params.executionProfile,
+  });
   const preRunSanity = await evaluatePredicateExpectations(
     params.workingDir,
     params.round.preRunExpectations,
-    params.executor.predicateContext,
+    scoringContext,
   );
   if (!preRunSanity.passed) {
     executionOutcome = {
@@ -88,11 +94,11 @@ export async function executeRound(params: {
   const { passed, results } = await evaluatePredicates(
     params.workingDir,
     params.round.predicates,
-    params.executor.predicateContext,
+    scoringContext,
   );
   const outcome = outcomeFromExecution(executionOutcome, passed);
   const { objectiveMetrics, objectiveMetricErrors } =
-    evaluateObjectiveMetricsForOutcome({
+    await evaluateObjectiveMetricsForOutcome({
       fixtureId: params.fixture.spec.id,
       metricSpecs: params.round.objectiveMetrics ?? [],
       workingDir: params.workingDir,
@@ -100,6 +106,7 @@ export async function executeRound(params: {
       runIndex: params.runIndex,
       repeatCount: params.repeatCount,
       outcome,
+      scoringContext,
     });
   return {
     round: params.round,

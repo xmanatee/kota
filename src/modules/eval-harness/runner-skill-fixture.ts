@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { isSkillAblationFixtureSpec, type LoadedFixture, type SkillAblationFixtureSpecFile, type SkillAblationVariantSpec } from "./fixture.js";
 import { type ExecutionProfilePreflightResult, type FixtureRun, resourceProfileFromExecutionProfile, type SkillAblationRun, type SkillAblationVariantRun } from "./fixture-run.js";
+import { fixtureScoringContext } from "./fixture-scoring-context.js";
 import { evaluatePredicateExpectations, evaluatePredicates } from "./predicates.js";
 import { fixtureExecutionMode, materializeFixtureWorkingDirAt, resolveSkillAblationVariantWorkingDir } from "./runner-materialize.js";
 import { outcomeFromExecution } from "./runner-outcome.js";
@@ -41,12 +42,17 @@ async function executeSkillAblationVariant(params: {
     workingDir: params.workingDir,
     variant: params.variant,
   });
+  const scoringContext = fixtureScoringContext({
+    capabilities: params.executor.predicateContext,
+    fixture: params.fixture,
+    executionProfile: params.executionProfile,
+  });
   const startedAt = new Date();
   const startMs = startedAt.getTime();
   const preRunSanity = await evaluatePredicateExpectations(
     params.workingDir,
     params.variant.preRunExpectations,
-    params.executor.predicateContext,
+    scoringContext,
   );
   let executionOutcome: WorkflowExecutionOutcome;
   if (!preRunSanity.passed) {
@@ -114,7 +120,7 @@ async function executeSkillAblationVariant(params: {
   const predicateEvaluation = await evaluatePredicates(
     params.workingDir,
     params.variant.predicates,
-    params.executor.predicateContext,
+    scoringContext,
   );
   const observedOutcome = outcomeFromExecution(
     executionOutcome,

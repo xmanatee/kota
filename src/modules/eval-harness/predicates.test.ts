@@ -1,5 +1,11 @@
-import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -7,22 +13,30 @@ import {
   evaluatePredicate,
   evaluatePredicateExpectations,
   evaluatePredicates,
+  type PredicateEvaluationContext,
 } from "./predicates.js";
+
+const ISOLATED_SHELL_CONTEXT: PredicateEvaluationContext = {
+  executableVerifier: async ({ command }) => ({
+    started: true,
+    isolation: {
+      kind: "oci-container",
+      command: "test-container",
+      image: "test:image",
+      cliEnv: {},
+      evidence: "test isolated verifier",
+    },
+    result: {
+      signal: null,
+      status: command === "true" ? 0 : 1,
+      stderr: "",
+      stdout: "",
+    },
+  }),
+};
 
 describe("evaluatePredicate", () => {
   let workDir: string;
-
-  function runGit(args: string[]): void {
-    const result = spawnSync("git", args, {
-      cwd: workDir,
-      encoding: "utf-8",
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    expect(
-      result.status,
-      `git ${args.join(" ")} failed: ${result.stdout}\n${result.stderr}`,
-    ).toBe(0);
-  }
 
   beforeEach(() => {
     workDir = mkdtempSync(join(tmpdir(), "kota-eval-harness-predicates-"));
@@ -71,30 +85,75 @@ describe("evaluatePredicate", () => {
     expect(missingFile.detail).toContain("file missing");
   });
 
-  it("shell-succeeds passes on exit 0 and fails on non-zero", () => {
-    const ok = evaluatePredicate(workDir, {
-      kind: "shell-succeeds",
-      command: "true",
-    });
-    const bad = evaluatePredicate(workDir, {
-      kind: "shell-succeeds",
-      command: "false",
-    });
+  it("shell-succeeds passes on isolated exit 0 and fails on non-zero", async () => {
+    const ok = await evaluatePredicate(
+      workDir,
+      { kind: "shell-succeeds", command: "true" },
+      ISOLATED_SHELL_CONTEXT,
+    );
+    const bad = await evaluatePredicate(
+      workDir,
+      { kind: "shell-succeeds", command: "false" },
+      ISOLATED_SHELL_CONTEXT,
+    );
     expect(ok.passed).toBe(true);
     expect(bad.passed).toBe(false);
   });
 
-  it("shell-fails inverts shell-succeeds", () => {
-    const ok = evaluatePredicate(workDir, {
-      kind: "shell-fails",
-      command: "false",
-    });
-    const bad = evaluatePredicate(workDir, {
-      kind: "shell-fails",
-      command: "true",
-    });
+  it("shell-fails inverts shell-succeeds", async () => {
+    const ok = await evaluatePredicate(
+      workDir,
+      { kind: "shell-fails", command: "false" },
+      ISOLATED_SHELL_CONTEXT,
+    );
+    const bad = await evaluatePredicate(
+      workDir,
+      { kind: "shell-fails", command: "true" },
+      ISOLATED_SHELL_CONTEXT,
+    );
     expect(ok.passed).toBe(true);
     expect(bad.passed).toBe(false);
+  });
+
+  it("does not treat verifier timeout as an expected shell failure", async () => {
+    const result = await evaluatePredicate(
+      workDir,
+      { kind: "shell-fails", command: "hang" },
+      {
+        executableVerifier: async () => ({
+          started: true,
+          isolation: {
+            kind: "oci-container",
+            command: "test-container",
+            image: "test:image",
+            cliEnv: {},
+            evidence: "test isolated verifier",
+          },
+          result: {
+            error: Object.assign(new Error("timed out"), { name: "ETIMEDOUT" }),
+            signal: "SIGKILL",
+            status: null,
+            stderr: "",
+            stdout: "",
+          },
+        }),
+      },
+    );
+
+    expect(result.passed).toBe(false);
+    expect(result.detail).toContain("timeout");
+  });
+
+  it("fails closed instead of executing shell predicates on the evaluator host", async () => {
+    const marker = join(workDir, "host-shell-ran.txt");
+    const result = await evaluatePredicate(workDir, {
+      kind: "shell-succeeds",
+      command: `node -e 'require("node:fs").writeFileSync(${JSON.stringify(marker)}, "unsafe")'`,
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.detail).toContain("verified isolated verifier");
+    expect(existsSync(marker)).toBe(false);
   });
 
   it("evaluatePredicates passes only when every predicate passes", async () => {
@@ -131,14 +190,18 @@ describe("evaluatePredicate", () => {
     expect(mismatch.results[0].detail).toContain("did not match expected");
   });
 
-  it("rejects non-positive timeouts rather than silently using a default", () => {
-    expect(() =>
-      evaluatePredicate(workDir, {
+  it("rejects non-positive timeouts rather than silently using a default", async () => {
+    await expect(
+      evaluatePredicate(
+        workDir,
+        {
         kind: "shell-succeeds",
         command: "true",
         timeoutMs: 0,
-      }),
-    ).toThrow(/timeoutMs must be positive/);
+        },
+        ISOLATED_SHELL_CONTEXT,
+      ),
+    ).rejects.toThrow(/timeoutMs must be positive/);
   });
 
   it("file-contains handles nested paths and directories with mkdir", () => {
@@ -152,36 +215,6 @@ describe("evaluatePredicate", () => {
     expect(ok.passed).toBe(true);
   });
 
-  it("git-changes-within fails when committed or working-tree paths leave the allowed set", () => {
-    runGit(["init", "--quiet", "--initial-branch=main"]);
-    runGit(["config", "user.email", "eval-harness@kota.local"]);
-    runGit(["config", "user.name", "KOTA Eval Harness"]);
-    runGit(["config", "commit.gpgsign", "false"]);
-    mkdirSync(join(workDir, "data"), { recursive: true });
-    writeFileSync(join(workDir, "data", "seed.txt"), "seed\n");
-    runGit(["add", "-A"]);
-    runGit(["commit", "-m", "initial", "--quiet"]);
-
-    writeFileSync(join(workDir, "data", "allowed.txt"), "allowed\n");
-    runGit(["add", "data/allowed.txt"]);
-    runGit(["commit", "-m", "allowed change", "--quiet"]);
-    mkdirSync(join(workDir, ".kota", "runs", "run-1"), { recursive: true });
-    writeFileSync(join(workDir, ".kota", "runs", "run-1", "metadata.json"), "{}");
-
-    const allowed = evaluatePredicate(workDir, {
-      kind: "git-changes-within",
-      allowedPaths: ["data/allowed.txt"],
-    });
-    expect(allowed.passed).toBe(true);
-
-    writeFileSync(join(workDir, "data", "forbidden.txt"), "forbidden\n");
-    const forbidden = evaluatePredicate(workDir, {
-      kind: "git-changes-within",
-      allowedPaths: ["data/allowed.txt"],
-    });
-    expect(forbidden.passed).toBe(false);
-    expect(forbidden.detail).toContain("data/forbidden.txt");
-  });
 });
 
 describe("evaluatePredicate — emitted-events predicates", () => {

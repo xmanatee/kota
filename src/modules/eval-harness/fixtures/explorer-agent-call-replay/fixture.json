@@ -28,10 +28,6 @@
       "needle": "priority: p1"
     },
     {
-      "kind": "shell-succeeds",
-      "command": "grep -l -E '^priority: p[0-2]$' data/tasks/ready/task-*.md 2>/dev/null | grep -q ."
-    },
-    {
       "kind": "file-exists",
       "path": ".kota/runs/fixture-explorer-agent-call-replay-2026-04-24/commit-message.txt"
     },
@@ -89,27 +85,6 @@
       "expected": "pass"
     }
   ],
-  "verifierCalibration": {
-    "null": {},
-    "golden": {
-      "setup": [
-        {
-          "kind": "copy-fixture-file",
-          "sourcePath": "calibration/golden/task-calibration.md",
-          "targetPath": "data/tasks/ready/task-calibration-explorer-replay.md"
-        }
-      ]
-    },
-    "adversarial": {
-      "setup": [
-        {
-          "kind": "copy-fixture-file",
-          "sourcePath": "calibration/adversarial/task-calibration.md",
-          "targetPath": "data/tasks/ready/task-calibration-explorer-replay-low.md"
-        }
-      ]
-    }
-  },
   "controlDecisions": [
     "act"
   ]

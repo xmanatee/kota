@@ -7,6 +7,10 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+  type ExecutableVerifierSandbox,
+  resolveExecutableVerifierSandbox,
+} from "./executable-verifier-sandbox.js";
 
 export type SubprocessTestDirs = {
   binariesDir: string;
@@ -63,7 +67,10 @@ export function writeFakeContainerBackend(path: string): void {
       "  console.log(JSON.stringify([{ Internal: internal, Labels: labels }]));",
       "  process.exit(0);",
       "}",
-      "if (args[0] === 'rm' && args[1] === '--force') process.exit(0);",
+      "if (args[0] === 'rm' && args[1] === '--force') {",
+      "  if (process.env.KOTA_FAKE_CONTAINER_REMOVE_LOG) appendFileSync(process.env.KOTA_FAKE_CONTAINER_REMOVE_LOG, `${args[2]}\\n`);",
+      "  process.exit(process.env.KOTA_FAKE_CONTAINER_REMOVE_FAIL === '1' ? 73 : 0);",
+      "}",
       "if (args[0] !== 'run') process.exit(64);",
       "const env = {};",
       "const envFiles = [];",
@@ -78,8 +85,9 @@ export function writeFakeContainerBackend(path: string): void {
       "  const arg = args[index];",
       "  if (arg === '--rm' || arg === '--init' || arg === '--read-only') { index += 1; continue; }",
       "  if (arg === '--mount') { mounts.push(args[index + 1]); index += 2; continue; }",
-      "  if (arg === '--network' || arg === '--cpus' || arg === '--memory-reservation' || arg === '--memory' || arg === '--memory-swap' || arg === '--pids-limit' || arg === '--ulimit' || arg === '--tmpfs' || arg === '--cap-drop' || arg === '--security-opt' || arg === '--user') { index += 2; continue; }",
+      "  if (arg === '--network' || arg === '--ipc' || arg === '--pull' || arg === '--cpus' || arg === '--memory-reservation' || arg === '--memory' || arg === '--memory-swap' || arg === '--pids-limit' || arg === '--ulimit' || arg === '--tmpfs' || arg === '--cap-drop' || arg === '--security-opt' || arg === '--user') { index += 2; continue; }",
       "  if (arg === '--cidfile') { cidFile = args[index + 1]; index += 2; continue; }",
+      "  if (arg === '--name') { index += 2; continue; }",
       "  if (arg === '--entrypoint') { entrypoint = args[index + 1]; index += 2; continue; }",
       "  if (arg === '--workdir') { workdir = args[index + 1]; index += 2; continue; }",
       "  if (arg === '--env') {",
@@ -133,11 +141,35 @@ export function writeFakeContainerBackend(path: string): void {
       "}",
       "const result = spawnSync(command, commandArgs, {",
       "  cwd: workdir,",
-      "  env: { PATH: process.env.PATH, ...env, KOTA_FAKE_CONTAINER_VISIBLE_MOUNTS: JSON.stringify(mountTargets) },",
+      "  env: { PATH: process.env.PATH, ...env, ...(process.env.KOTA_FAKE_CONTAINER_USE_HOST_PATH === '1' ? { PATH: process.env.PATH } : {}), KOTA_FAKE_CONTAINER_VISIBLE_MOUNTS: JSON.stringify(mountTargets) },",
       "  stdio: ['ignore', 'inherit', 'inherit'],",
       "});",
       "process.exit(result.status ?? 1);",
       "}",
     ].join("\n"),
   );
+}
+
+export function createFakeExecutableVerifierSandbox(): {
+  sandbox: ExecutableVerifierSandbox;
+  cleanup: () => void;
+} {
+  const runtimeDir = mkdtempSync(join(tmpdir(), "kota-test-verifier-runtime-"));
+  const fakeContainer = join(runtimeDir, "fake-container.mjs");
+  writeFakeContainerBackend(fakeContainer);
+  return {
+    sandbox: resolveExecutableVerifierSandbox(
+      {
+        kind: "container",
+        executable: fakeContainer,
+        image: "kota-eval:test",
+        kotaBinaryPath: "/opt/kota/bin/kota.mjs",
+      },
+      {
+        PATH: process.env.PATH,
+        KOTA_FAKE_CONTAINER_USE_HOST_PATH: "1",
+      },
+    ),
+    cleanup: () => rmSync(runtimeDir, { recursive: true, force: true }),
+  };
 }

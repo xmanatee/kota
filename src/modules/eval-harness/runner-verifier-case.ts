@@ -85,13 +85,14 @@ export async function evaluateVerifierCalibrationCase(params: {
     let objectiveMetrics: ObservedObjectiveMetric[] = [];
     let objectiveMetricError: SerializedCalibrationError | undefined;
     try {
-      objectiveMetrics = evaluateObjectiveMetrics({
+      objectiveMetrics = await evaluateObjectiveMetrics({
         fixtureId: params.fixture.spec.id,
         metricSpecs: params.objectiveMetricSpecs,
         workingDir,
         executionProfile: params.executionProfile,
         runIndex: params.runIndex,
         repeatCount: params.repeatCount,
+        scoringContext: params.predicateContext,
       });
     } catch (error) {
       objectiveMetricError =

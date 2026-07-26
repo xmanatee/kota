@@ -61,11 +61,11 @@ Fix rejected fixtures; do not work around the loader.
 
 ## Predicate Contract
 
-Predicates inspect final fixture state deterministically; agent self-report is
-never signal. New kinds extend the union and evaluator. Agent-written verifiers
-fail closed outside offline disposable containers with hard memory, CPU, PID,
-and descriptor limits. Await launch and cleanup asynchronously; run cases
-sequentially so cadence cannot block the daemon or overrun resources.
+Predicates score final state, never self-report. Extend union/evaluator with new
+kinds. Agent verifiers and Git/shell predicates/metrics require fail-closed
+offline containers; hard-limit memory/CPU/PIDs/FDs; strip credentials. Only the
+candidate tree is writable; existing `initial/scripts/` are immutable scorer
+overlays. Launch/cleanup async; cases run sequentially.
 
 Fixtures also declare `preRunExpectations`: initial predicate results. At
 least one must be `expected: "fail"`; mismatches are fixture config errors.

@@ -1,0 +1,17 @@
+Validation date: 2026-07-26
+Command: sh .kota/tmp/2026-07-26T09-17-25-482Z-builder-yhb38n/verify-isolated-verifier.sh
+Result: PASS (exit 0)
+
+- ./node_modules/.bin/tsc -p tsconfig.json: passed
+- Biome check of 34 touched TypeScript files: passed, no fixes required
+- Focused Vitest boundary/integration set: 15 files passed, 76 tests passed, including the malicious `core.fsmonitor` host-execution regression
+- Shipped fixture load and pre-run expectation checks: 1 file passed, 2 tests passed, 3 skipped by filter
+- Normalized task queue validation: errors=0, warnings=0
+- Post-transition normalized task queue validation: errors=0, warnings=0; task status=done
+- Post-check instruction ratchets: 2 files passed, 206 tests passed; eval-harness AGENTS.md is 171 lines and 7,983 bytes
+- Severe source-size gate: passed; three pre-existing oversized touched files remain as advisory warnings (`predicates.ts`, `predicates.test.ts`, and `runner.test.ts`)
+
+The repository pnpm launcher could not reach the package registry to verify its
+signature. The verification script therefore uses the already-installed,
+lockfile-selected local TypeScript, Biome, Vitest, and tsx executables and does
+not require network access.

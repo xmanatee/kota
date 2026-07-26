@@ -1,13 +1,13 @@
 ---
 id: task-security-review-after-the-isolated-fixture-executo
 title: Security review: After the isolated fixture executor returns, shell predicates and shell-backed objective metrics execute commands from the agent-mutated working directory directly on the evaluator host. They inherit the evaluator environment and host network/process access. Shipped scorers import agent-written modules, so malicious fixture output can execute arbitrary host code, access daemon credentials, exfiltrate data, or leave detached processes outside the configured container boundary.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: After the isolated fixture executor returns, shell predicates and shell-backed objective metrics execute commands from the agent-mutated working directory directly on the evaluator host. They inherit the evaluator environment and host network/process access. Shipped scorers import agent-written modules, so malicious fixture output can execute arbitrary host code, access daemon credentials, exfiltrate data, or leave detached processes outside the configured container boundary.
 created_at: 2026-07-26T09:54:27.237Z
-updated_at: 2026-07-26T09:54:27.237Z
+updated_at: 2026-07-26T11:49:24.993Z
 ---
 
 ## Problem
@@ -125,3 +125,22 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Resolution
+
+Fixed on 2026-07-26. Git and shell predicates plus shell-backed objective
+metrics no longer spawn from the evaluator host. They now share the fixture's
+verified container backend and execution profile through a disposable offline
+verifier with a secret-free command environment, read-only fixture-owned
+scorer overlays, bounded resources/output/time, and confirmed forced container
+cleanup. Missing isolation, abnormal execution, mutable scorer-path tricks,
+and unconfirmed cleanup all fail closed. Git scoring also disables repository
+fsmonitor and hooks, so agent-controlled Git configuration cannot introduce an
+extra executable scorer path.
+
+Final verification command:
+
+`sh .kota/tmp/2026-07-26T09-17-25-482Z-builder-yhb38n/verify-isolated-verifier.sh`
+
+The tracked result is in
+`.kota/runs/2026-07-26T09-17-25-482Z-builder-yhb38n/validation.txt`.

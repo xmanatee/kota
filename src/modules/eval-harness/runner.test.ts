@@ -1,9 +1,13 @@
 import {
+  mkdtempSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
+import { resolveExecutableVerifierSandbox } from "./executable-verifier-sandbox.js";
 import { loadFixture } from "./fixture.js";
 import {
   cleanupFixtureWorkingDir,
@@ -22,6 +26,29 @@ import {
   setupFixtureTree,
   TEST_EXECUTION_PROFILE,
 } from "./runner-test-profiles.js";
+import { writeFakeContainerBackend } from "./subprocess-executor-test-helpers.js";
+
+const TEST_CONTAINER_DIR = mkdtempSync(join(tmpdir(), "kota-verifier-runtime-"));
+const TEST_CONTAINER = join(TEST_CONTAINER_DIR, "fake-container.mjs");
+writeFakeContainerBackend(TEST_CONTAINER);
+const TEST_PREDICATE_CONTEXT = {
+  executableVerifierSandbox: resolveExecutableVerifierSandbox(
+    {
+      kind: "container",
+      executable: TEST_CONTAINER,
+      image: "kota-eval:test",
+      kotaBinaryPath: "/opt/kota/bin/kota.mjs",
+    },
+    {
+      PATH: process.env.PATH,
+      KOTA_FAKE_CONTAINER_USE_HOST_PATH: "1",
+    },
+  ),
+};
+
+afterAll(() => {
+  rmSync(TEST_CONTAINER_DIR, { recursive: true, force: true });
+});
 
 describe("runFixture verifier calibration", () => {
   let fixturesRoot: string;
@@ -39,6 +66,7 @@ describe("runFixture verifier calibration", () => {
   it("passes when the executor satisfies every predicate", async () => {
     const fixture = loadFixture(fixturesRoot, "mini");
     const executor: WorkflowExecutor = {
+      predicateContext: TEST_PREDICATE_CONTEXT,
       preflight: () => TEST_EXECUTION_PROFILE,
       execute: async ({ workingDir }) => {
         writeFileSync(join(workingDir, "output.txt"), "done");
@@ -84,6 +112,7 @@ describe("runFixture verifier calibration", () => {
     const fixture = loadFixture(fixturesRoot, "calibrated-shell");
     let executorCalls = 0;
     const executor: WorkflowExecutor = {
+      predicateContext: TEST_PREDICATE_CONTEXT,
       preflight: () => TEST_EXECUTION_PROFILE,
       execute: async ({ workingDir }) => {
         executorCalls++;
@@ -133,6 +162,7 @@ describe("runFixture verifier calibration", () => {
     const fixture = loadFixture(fixturesRoot, "null-false-positive");
     let executorCalls = 0;
     const executor: WorkflowExecutor = {
+      predicateContext: TEST_PREDICATE_CONTEXT,
       preflight: () => TEST_EXECUTION_PROFILE,
       execute: async () => {
         executorCalls++;
@@ -173,6 +203,7 @@ describe("runFixture verifier calibration", () => {
     );
     const fixture = loadFixture(fixturesRoot, "golden-false-negative");
     const executor: WorkflowExecutor = {
+      predicateContext: TEST_PREDICATE_CONTEXT,
       preflight: () => TEST_EXECUTION_PROFILE,
       execute: async () => ({ kind: "completed", durationMs: 5, runArtifactPath: null }),
     };
@@ -212,6 +243,7 @@ describe("runFixture verifier calibration", () => {
     const fixture = loadFixture(fixturesRoot, "alternative-false-negative");
     let executorCalls = 0;
     const executor: WorkflowExecutor = {
+      predicateContext: TEST_PREDICATE_CONTEXT,
       preflight: () => TEST_EXECUTION_PROFILE,
       execute: async () => {
         executorCalls++;
@@ -255,6 +287,7 @@ describe("runFixture verifier calibration", () => {
     );
     const fixture = loadFixture(fixturesRoot, "adversarial-false-positive");
     const executor: WorkflowExecutor = {
+      predicateContext: TEST_PREDICATE_CONTEXT,
       preflight: () => TEST_EXECUTION_PROFILE,
       execute: async () => ({ kind: "completed", durationMs: 5, runArtifactPath: null }),
     };

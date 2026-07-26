@@ -12,6 +12,7 @@ import type {
   FixtureRunOutcome,
   ResourceProfile,
 } from "./fixture-run.js";
+import type { FixtureScoringCapabilities } from "./fixture-scoring-context.js";
 import type {
   ObjectiveMetricDirection,
   ObjectiveMetricObservationError,
@@ -20,7 +21,6 @@ import type {
 import type {
   FixturePredicate,
   PredicateEvalResult,
-  PredicateEvaluationContext,
   PredicateExpectationEvalResult,
 } from "./predicates.js";
 
@@ -92,7 +92,7 @@ export type WorkflowExecutionOutcome =
  * executor reuses the existing workflow runtime while tests inject a mock.
  */
 export type WorkflowExecutor = {
-  predicateContext?: PredicateEvaluationContext;
+  predicateContext?: FixtureScoringCapabilities;
   preflight(requestedProfile: ResourceProfile): ExecutionProfilePreflightResult;
   execute(request: WorkflowExecutionRequest): Promise<WorkflowExecutionOutcome>;
 };

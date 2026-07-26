@@ -10,6 +10,7 @@
 import { spawn } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { writeStderr } from "#modules/rendering/transport.js";
+import { resolveExecutableVerifierSandbox } from "./executable-verifier-sandbox.js";
 import type { WorkflowExecutionOutcome, WorkflowExecutor } from "./runner.js";
 import { resolveScientificClaimAnalyzerSandbox } from "./scientific-claim-analyzer-sandbox.js";
 import {
@@ -57,6 +58,8 @@ export function createSubprocessExecutor(
   const isolationBackend = options.isolationBackend ?? { kind: "host-subprocess" };
   return {
     predicateContext: {
+      executableVerifierSandbox:
+        resolveExecutableVerifierSandbox(isolationBackend),
       scientificClaimAnalyzerSandbox:
         resolveScientificClaimAnalyzerSandbox(isolationBackend),
     },

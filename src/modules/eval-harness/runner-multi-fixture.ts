@@ -2,6 +2,7 @@
 import { join } from "node:path";
 import { type CodeHealthRoundDiagnostics, evaluateCodeHealthRound, finalizeCodeHealthDiagnostics } from "./code-health-diagnostics.js";
 import { type FixtureRun, type FixtureRunOutcome, resourceProfileFromExecutionProfile } from "./fixture-run.js";
+import { fixtureScoringContext } from "./fixture-scoring-context.js";
 import {
   evaluateObjectiveMetricsForOutcome,
   type ObjectiveMetricObservationError,
@@ -27,6 +28,11 @@ export async function runMultiRoundFixture(
     );
   }
   const { workingDir, shimDir } = materializeFixtureWorkingDir(params.fixture);
+  const scoringContext = fixtureScoringContext({
+    capabilities: params.executor.predicateContext,
+    fixture: params.fixture,
+    executionProfile: params.executionProfile,
+  });
   const codeHealthBaseline = codeHealthBaselineFor(workingDir, spec);
   const codeHealthRounds: CodeHealthRoundDiagnostics[] = [];
   const startedAt = new Date();
@@ -41,7 +47,7 @@ export async function runMultiRoundFixture(
   const verifierCalibration = await evaluateVerifierCalibration({
     fixture: params.fixture,
     executionProfile: params.executionProfile,
-    predicateContext: params.executor.predicateContext,
+    predicateContext: scoringContext,
     runIndex: params.runIndex,
     repeatCount: params.repeatCount,
   });
@@ -157,7 +163,7 @@ export async function runMultiRoundFixture(
     const aggregate = await evaluatePredicates(
       workingDir,
       spec.aggregatePredicates ?? [],
-      params.executor.predicateContext,
+      scoringContext,
     );
     aggregatePredicateResults = aggregate.results;
     aggregatePredicatesPassed = aggregate.passed;
@@ -179,7 +185,7 @@ export async function runMultiRoundFixture(
     } satisfies WorkflowExecutionOutcome);
   if (failedRound === undefined) {
     ({ objectiveMetrics, objectiveMetricErrors } =
-      evaluateObjectiveMetricsForOutcome({
+      await evaluateObjectiveMetricsForOutcome({
         fixtureId: spec.id,
         metricSpecs: spec.aggregateObjectiveMetrics ?? [],
         workingDir,
@@ -187,6 +193,7 @@ export async function runMultiRoundFixture(
         runIndex: params.runIndex,
         repeatCount: params.repeatCount,
         outcome,
+        scoringContext,
       }));
   }
   const codeHealthDiagnostics =

@@ -5,7 +5,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { isSkillAblationFixtureSpec, loadFixture } from "./fixture.js";
 import {
   cleanupFixtureWorkingDir,
@@ -21,6 +21,11 @@ import {
   setupFixtureTree,
   TEST_EXECUTION_PROFILE,
 } from "./runner-test-profiles.js";
+import { createFakeExecutableVerifierSandbox } from "./subprocess-executor-test-helpers.js";
+
+const TEST_VERIFIER = createFakeExecutableVerifierSandbox();
+
+afterAll(TEST_VERIFIER.cleanup);
 
 describe("runFixture skill-ablation", () => {
   let fixturesRoot: string;
@@ -40,6 +45,9 @@ describe("runFixture skill-ablation", () => {
     const fixture = loadFixture(fixturesRoot, "skill-ablation-mini");
     const calls: string[] = [];
     const executor: WorkflowExecutor = {
+      predicateContext: {
+        executableVerifierSandbox: TEST_VERIFIER.sandbox,
+      },
       preflight: () => TEST_EXECUTION_PROFILE,
       execute: async ({ workflowName, workingDir }) => {
         calls.push(workflowName);

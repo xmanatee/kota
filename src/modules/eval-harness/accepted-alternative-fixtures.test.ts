@@ -8,6 +8,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
+import { resolveExecutableVerifierSandbox } from "./executable-verifier-sandbox.js";
 import {
   isSingleWorkflowFixtureSpec,
   type LoadedFixture,
@@ -32,6 +33,18 @@ const TEST_CONTAINER_DIR = mkdtempSync(join(tmpdir(), "kota-analyzer-runtime-"))
 const TEST_CONTAINER = join(TEST_CONTAINER_DIR, "fake-container.mjs");
 writeFakeContainerBackend(TEST_CONTAINER);
 const TEST_PREDICATE_CONTEXT = {
+  executableVerifierSandbox: resolveExecutableVerifierSandbox(
+    {
+      kind: "container",
+      executable: TEST_CONTAINER,
+      image: "kota-eval:test",
+      kotaBinaryPath: "/opt/kota/bin/kota.mjs",
+    },
+    {
+      PATH: process.env.PATH,
+      KOTA_FAKE_CONTAINER_USE_HOST_PATH: "1",
+    },
+  ),
   scientificClaimAnalyzerSandbox: resolveScientificClaimAnalyzerSandbox({
     kind: "container",
     executable: TEST_CONTAINER,
@@ -136,7 +149,7 @@ describe("broad accepted-alternative fixture calibration runs", () => {
       });
 
       try {
-        expect(executorCalls).toBe(1);
+        expect(executorCalls, fixtureId).toBe(1);
         const calibration = JSON.parse(
           readFileSync(
             join(report.run.runArtifactPath, "verifier-calibration.json"),

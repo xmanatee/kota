@@ -1,0 +1,4 @@
+1. Executable predicates and shell-backed objective metrics run only inside a verified offline OCI verifier boundary with bounded CPU, memory, PIDs, descriptors, output, and duration.
+2. The verifier receives a minimal secret-free environment, mounts the candidate workspace only inside the container, and overlays fixture-owned scorer files from the pristine initial tree as immutable read-only mounts.
+3. Missing isolation and abnormal verifier termination fail closed, and container cleanup removes the complete verifier process tree.
+4. Focused regressions prove the boundary, the final verification command is recorded, and the normalized Safety task is moved to done.
