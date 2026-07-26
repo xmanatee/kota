@@ -28,6 +28,7 @@ import {
   type TelegramBotOptions,
   TelegramTransport,
 } from "./bot.js";
+import { ERROR_BACKOFF_MS } from "./client.js";
 import { TELEGRAM_SIGNAL_ALLOWED_UPDATES } from "./inbound-signal.js";
 import { resetTelegramPollingOwnersForTests } from "./polling-ownership.js";
 import type { TelegramProjectSelection } from "./project-selection.js";
@@ -491,6 +492,67 @@ describe("TelegramBot", () => {
       "https://api.telegram.org/bottest-token/getMe",
       expect.any(Object),
     );
+  });
+
+  it("retries a transient getMe failure before polling", async () => {
+    vi.useFakeTimers();
+    const bot = new TelegramBot(botOptions({ token: "test-token" }));
+    let getMeAttempts = 0;
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/getMe")) {
+        getMeAttempts++;
+        if (getMeAttempts === 1) {
+          return {
+            status: 504,
+            json: () =>
+              Promise.resolve({
+                ok: false,
+                error_code: 504,
+                description: "Gateway Timeout",
+              }),
+          };
+        }
+        return {
+          status: 200,
+          json: () =>
+            Promise.resolve({
+              ok: true,
+              result: { id: 1, first_name: "TestBot" },
+            }),
+        };
+      }
+      if (url.endsWith("/getUpdates")) {
+        bot.stop();
+        return {
+          status: 200,
+          json: () => Promise.resolve({ ok: true, result: [] }),
+        };
+      }
+      throw new Error(`unexpected URL ${url}`);
+    });
+
+    const started = bot.start();
+    await vi.advanceTimersByTimeAsync(ERROR_BACKOFF_MS);
+    await started;
+
+    expect(getMeAttempts).toBe(2);
+    vi.useRealTimers();
+  });
+
+  it("does not retry a permanent getMe API error", async () => {
+    const bot = new TelegramBot(botOptions({ token: "bad-token" }));
+    fetchMock.mockResolvedValue({
+      status: 401,
+      json: () =>
+        Promise.resolve({
+          ok: false,
+          error_code: 401,
+          description: "Unauthorized",
+        }),
+    });
+
+    await expect(bot.start()).rejects.toThrow("Telegram API getMe: Unauthorized");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("treats getUpdates conflict as terminal instead of retrying forever", async () => {

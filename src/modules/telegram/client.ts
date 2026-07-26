@@ -133,6 +133,7 @@ type TelegramApiResponse<T> = {
   ok: boolean;
   result: T;
   description?: string;
+  error_code?: number;
 };
 
 type TelegramApiBodyValue =
@@ -149,10 +150,34 @@ export class TelegramApiError extends Error {
   constructor(
     readonly method: string,
     readonly description: string,
+    readonly errorCode?: number,
   ) {
     super(`Telegram API ${method}: ${description}`);
     this.name = "TelegramApiError";
   }
+}
+
+export class TelegramApiTransportError extends Error {
+  constructor(
+    readonly method: string,
+    readonly description: string,
+    readonly statusCode?: number,
+  ) {
+    super(`Telegram API ${method}: ${description}`);
+    this.name = "TelegramApiTransportError";
+  }
+}
+
+export function isRetryableTelegramApiFailure(error: unknown): boolean {
+  if (error instanceof TelegramApiTransportError) {
+    return error.statusCode === undefined ||
+      error.statusCode === 408 ||
+      error.statusCode === 429 ||
+      error.statusCode >= 500;
+  }
+  return error instanceof TelegramApiError &&
+    (error.errorCode === 429 ||
+      (error.errorCode !== undefined && error.errorCode >= 500));
 }
 
 export function isTelegramGetUpdatesConflict(error: unknown): boolean {
@@ -179,16 +204,27 @@ export async function callTelegramApi<T>(
       signal: options?.signal,
     });
   } catch (err) {
-    throw new Error(`Telegram API ${method}: network error: ${(err as Error).message}`);
+    throw new TelegramApiTransportError(
+      method,
+      `network error: ${(err as Error).message}`,
+    );
   }
   let data: TelegramApiResponse<T>;
   try {
     data = (await res.json()) as TelegramApiResponse<T>;
   } catch {
-    throw new Error(`Telegram API ${method}: non-JSON response (HTTP ${res.status})`);
+    throw new TelegramApiTransportError(
+      method,
+      `non-JSON response (HTTP ${res.status})`,
+      res.status,
+    );
   }
   if (!data.ok) {
-    throw new TelegramApiError(method, data.description ?? "unknown error");
+    throw new TelegramApiError(
+      method,
+      data.description ?? "unknown error",
+      data.error_code,
+    );
   }
   return data.result;
 }

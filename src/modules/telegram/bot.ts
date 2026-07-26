@@ -41,6 +41,7 @@ import {
   callTelegramApi,
   downloadTelegramFile,
   ERROR_BACKOFF_MS,
+  isRetryableTelegramApiFailure,
   isTelegramGetUpdatesConflict,
   POLL_TIMEOUT_S,
   splitMessage,
@@ -265,7 +266,22 @@ export class TelegramBot {
     this.releasePollingOwner = releasePollingOwner;
     this.running = true;
     try {
-      const me = await callTelegramApi<TelegramUser>(this.token, "getMe");
+      let me: TelegramUser | null = null;
+      while (this.running && me === null) {
+        try {
+          me = await callTelegramApi<TelegramUser>(this.token, "getMe");
+        } catch (error) {
+          if (!this.running) break;
+          if (!isRetryableTelegramApiFailure(error)) throw error;
+          printTerminalDiagnostic(
+            "[kota-telegram] Startup error:",
+            "error",
+            (error as Error).message,
+          );
+          await sleep(ERROR_BACKOFF_MS);
+        }
+      }
+      if (me === null) return;
       printTerminalDiagnostic(`[kota-telegram] Bot: @${me.username ?? me.first_name}`);
       printTerminalDiagnostic("[kota-telegram] Listening for messages...");
 
