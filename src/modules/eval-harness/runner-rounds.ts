@@ -32,9 +32,10 @@ export async function executeRound(params: {
     params.fixture.fixtureDir,
     params.workingDir,
   );
-  const preRunSanity = evaluatePredicateExpectations(
+  const preRunSanity = await evaluatePredicateExpectations(
     params.workingDir,
     params.round.preRunExpectations,
+    params.executor.predicateContext,
   );
   if (!preRunSanity.passed) {
     executionOutcome = {
@@ -83,9 +84,10 @@ export async function executeRound(params: {
     };
   }
 
-  const { passed, results } = evaluatePredicates(
+  const { passed, results } = await evaluatePredicates(
     params.workingDir,
     params.round.predicates,
+    params.executor.predicateContext,
   );
   const outcome = outcomeFromExecution(executionOutcome, passed);
   const objectiveMetrics = evaluateObjectiveMetrics({

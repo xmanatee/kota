@@ -1,30 +1,19 @@
-import { type SpawnSyncReturns, spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
-  resolveLinuxAnalyzerRuntimeFiles,
-  spawnScientificClaimLinuxAnalyzer,
-} from "./scientific-claim-linux-filesystem-boundary.js";
-import { probeScientificClaimAnalyzerBoundary } from "./scientific-claim-sandbox-capabilities.js";
+  type AvailableScientificClaimAnalyzerSandbox,
+  type PreparedAnalyzerFilesystem,
+  prepareAnalyzerFilesystem,
+  type ScientificClaimAnalyzerInvocation,
+  scientificClaimAnalyzerContainerArgs,
+} from "./scientific-claim-analyzer-container.js";
+import type { SubprocessIsolationBackend } from "./subprocess-executor-types.js";
 
-const DARWIN_SANDBOX_EXEC = "/usr/bin/sandbox-exec";
-const DARWIN_ANALYZER_PROFILE =
-  "(version 1) (allow default) (deny network*) (deny signal)";
-const LINUX_UNSHARE_PATHS = ["/usr/bin/unshare", "/bin/unshare"] as const;
+const CONTAINER_ID_PATTERN = /^[a-f0-9]{12,64}$/i;
 
-type AvailableScientificClaimAnalyzerSandbox =
-  | {
-      kind: "darwin-seatbelt";
-      command: string;
-      prefixArgs: readonly string[];
-      evidence: string;
-    }
-  | {
-      kind: "linux-disposable-root-namespaces";
-      command: string;
-      prefixArgs: readonly string[];
-      runtimeFiles: readonly string[];
-      evidence: string;
-    };
+export type { ScientificClaimAnalyzerInvocation } from "./scientific-claim-analyzer-container.js";
 
 export type ScientificClaimAnalyzerSandbox =
   | AvailableScientificClaimAnalyzerSandbox
@@ -38,114 +27,134 @@ export type ScientificClaimAnalyzerExecution =
   | {
       started: true;
       isolation: AvailableScientificClaimAnalyzerSandbox;
-      result: SpawnSyncReturns<string>;
+      result: ScientificClaimAnalyzerProcessResult;
     }
   | {
       started: false;
       issue: string;
     };
 
-export type ScientificClaimAnalyzerInvocation = {
-  nodeOptions: readonly string[];
-  scriptPath: string;
-  scriptArgs: readonly string[];
+export type ScientificClaimAnalyzerProcessResult = {
+  error?: Error;
+  signal: NodeJS.Signals | null;
+  status: number | null;
+  stderr: string;
+  stdout: string;
 };
 
-function resolveDarwinSeatbelt(): ScientificClaimAnalyzerSandbox | null {
-  if (process.platform !== "darwin" || !existsSync(DARWIN_SANDBOX_EXEC)) {
-    return null;
-  }
-  const prefixArgs = ["-p", DARWIN_ANALYZER_PROFILE] as const;
-  const capability = probeScientificClaimAnalyzerBoundary({
-    kind: "darwin-loopback-denial",
-    command: DARWIN_SANDBOX_EXEC,
-    prefixArgs,
-  });
-  if (!capability.networkDenied || !capability.hostSignalsDenied) {
-    return {
-      kind: "unavailable",
-      evidence: "macOS analyzer process isolation unavailable",
-      issue: capability.issues.join("; "),
-    };
-  }
-  return {
-    kind: "darwin-seatbelt",
-    command: DARWIN_SANDBOX_EXEC,
-    prefixArgs,
-    evidence: "macOS sandbox-exec network and host-signal denial",
-  };
-}
-
-function resolveLinuxNamespaces(): ScientificClaimAnalyzerSandbox | null {
-  if (process.platform !== "linux") return null;
-  const command = LINUX_UNSHARE_PATHS.find((path) => existsSync(path));
-  if (command === undefined) return null;
-  let runtimeFiles: readonly string[];
+function forceRemoveContainer(command: string, cidFile: string): Promise<void> {
+  let containerId: string;
   try {
-    runtimeFiles = resolveLinuxAnalyzerRuntimeFiles();
-  } catch (error) {
-    return {
-      kind: "unavailable",
-      evidence: "Linux analyzer process isolation unavailable",
-      issue: error instanceof Error ? error.message : String(error),
-    };
+    containerId = readFileSync(cidFile, "utf8").trim();
+  } catch {
+    return Promise.resolve();
   }
-  const prefixArgs = [
-    "--user",
-    "--map-root-user",
-    "--mount",
-    "--net",
-    "--pid",
-    "--fork",
-    "--kill-child",
-    "--",
-  ] as const;
-  const capability = probeScientificClaimAnalyzerBoundary({
-    kind: "linux-network-namespace",
-    command,
-    prefixArgs,
-    runtimeFiles,
+  if (!CONTAINER_ID_PATTERN.test(containerId)) return Promise.resolve();
+  return new Promise((resolve) => {
+    const child = spawn(command, ["rm", "--force", containerId], {
+      env: { ...process.env },
+      stdio: ["ignore", "ignore", "ignore"],
+    });
+    const timeout = setTimeout(() => child.kill("SIGKILL"), 5_000);
+    const finish = () => {
+      clearTimeout(timeout);
+      resolve();
+    };
+    child.once("close", finish);
+    child.once("error", finish);
   });
-  if (
-    !capability.networkDenied ||
-    !capability.hostSignalsDenied ||
-    !capability.pathnameUnixSocketDenied
-  ) {
+}
+
+function analyzerProcessError(message: string, code: string): Error {
+  const error = new Error(message);
+  error.name = code;
+  return error;
+}
+
+function runAnalyzerContainer(
+  command: string,
+  args: readonly string[],
+  options: {
+    cwd: string;
+    maxBuffer: number;
+    timeout: number;
+  },
+): Promise<ScientificClaimAnalyzerProcessResult> {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd,
+      env: { ...process.env },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+    let stdoutBytes = 0;
+    let stderrBytes = 0;
+    let processError: Error | undefined;
+
+    const capture = (target: Buffer[], chunk: Buffer, stream: "stdout" | "stderr") => {
+      const currentBytes = stream === "stdout" ? stdoutBytes : stderrBytes;
+      if (currentBytes + chunk.byteLength <= options.maxBuffer) {
+        target.push(chunk);
+        if (stream === "stdout") stdoutBytes += chunk.byteLength;
+        else stderrBytes += chunk.byteLength;
+        return;
+      }
+      processError ??= analyzerProcessError(
+        `${stream} exceeded ${options.maxBuffer} bytes`,
+        "ERR_CHILD_PROCESS_STDIO_MAXBUFFER",
+      );
+      child.kill("SIGKILL");
+    };
+
+    child.stdout.on("data", (chunk: Buffer) => capture(stdout, chunk, "stdout"));
+    child.stderr.on("data", (chunk: Buffer) => capture(stderr, chunk, "stderr"));
+    child.once("error", (error) => {
+      processError ??= error;
+    });
+    const timeout = setTimeout(() => {
+      processError ??= analyzerProcessError(
+        `analyzer container exceeded ${options.timeout}ms timeout`,
+        "ETIMEDOUT",
+      );
+      child.kill("SIGKILL");
+    }, options.timeout);
+    child.once("close", (status, signal) => {
+      clearTimeout(timeout);
+      resolve({
+        ...(processError !== undefined && { error: processError }),
+        status,
+        signal,
+        stdout: Buffer.concat(stdout).toString("utf8"),
+        stderr: Buffer.concat(stderr).toString("utf8"),
+      });
+    });
+  });
+}
+
+/** Agent-produced analyzers require the same configured OCI backend as gated evals. */
+export function resolveScientificClaimAnalyzerSandbox(
+  backend: SubprocessIsolationBackend,
+): ScientificClaimAnalyzerSandbox {
+  if (backend.kind !== "container") {
     return {
       kind: "unavailable",
-      evidence: "Linux analyzer process isolation unavailable",
-      issue: capability.issues.join("; "),
+      evidence: "analyzer resource isolation unavailable",
+      issue:
+        "scientific-claim analyzer verification requires --isolation container; " +
+        "refusing to execute agent-produced JavaScript in the evaluator host process",
     };
   }
   return {
-    kind: "linux-disposable-root-namespaces",
-    command,
-    prefixArgs,
-    runtimeFiles,
+    kind: "oci-container",
+    command: backend.executable,
+    image: backend.image,
     evidence:
-      "Linux unshare file-closed disposable root, PID, proc, and network namespaces",
+      "disposable offline OCI container with hard memory, CPU, PID, and file-descriptor limits",
   };
 }
 
-/**
- * Resolve network and host-process isolation before agent-produced code runs.
- * Linux candidates must additionally hide host pathname Unix sockets behind
- * their disposable filesystem root.
- */
-export function resolveScientificClaimAnalyzerSandbox(): ScientificClaimAnalyzerSandbox {
-  const sandbox = resolveDarwinSeatbelt() ?? resolveLinuxNamespaces();
-  return (
-    sandbox ?? {
-      kind: "unavailable",
-      evidence: "analyzer process isolation unavailable",
-      issue:
-        `scientific-claim analyzer process/network isolation unavailable on ${process.platform}; ` +
-        "refusing to execute agent-produced JavaScript",
-    }
-  );
-}
-
-export function spawnScientificClaimAnalyzer(
+export async function spawnScientificClaimAnalyzer(
   isolation: ScientificClaimAnalyzerSandbox,
   invocation: ScientificClaimAnalyzerInvocation,
   options: {
@@ -156,46 +165,43 @@ export function spawnScientificClaimAnalyzer(
     timeout: number;
     writablePaths: readonly string[];
   },
-): ScientificClaimAnalyzerExecution {
+): Promise<ScientificClaimAnalyzerExecution> {
   if (isolation.kind === "unavailable") {
     return { started: false, issue: isolation.issue };
   }
-  const { readOnlyPaths, writablePaths, ...spawnOptions } = options;
-  if (isolation.kind === "linux-disposable-root-namespaces") {
+  let filesystem: PreparedAnalyzerFilesystem;
+  try {
+    filesystem = prepareAnalyzerFilesystem(options);
+  } catch (error) {
     return {
-      started: true,
-      isolation,
-      result: spawnScientificClaimLinuxAnalyzer({
-        command: isolation.command,
-        prefixArgs: isolation.prefixArgs,
-        runtimeFiles: isolation.runtimeFiles,
-        readOnlyPaths,
-        writablePaths,
-        nodeOptions: invocation.nodeOptions,
-        scriptPath: invocation.scriptPath,
-        scriptArgs: invocation.scriptArgs,
-        options: spawnOptions,
-      }),
+      started: false,
+      issue: error instanceof Error ? error.message : String(error),
     };
   }
-  return {
-    started: true,
-    isolation,
-    result: spawnSync(
+
+  const controlDir = mkdtempSync(join(tmpdir(), "kota-analyzer-container-"));
+  const cidFile = join(controlDir, "cid");
+  try {
+    const result = await runAnalyzerContainer(
       isolation.command,
-      [
-        ...isolation.prefixArgs,
-        process.execPath,
-        ...invocation.nodeOptions,
-        invocation.scriptPath,
-        ...invocation.scriptArgs,
-      ],
+      scientificClaimAnalyzerContainerArgs({
+        isolation,
+        invocation,
+        filesystem,
+        env: options.env,
+        cidFile,
+      }),
       {
-        ...spawnOptions,
-        encoding: "utf8",
-        killSignal: "SIGKILL",
-        stdio: ["ignore", "pipe", "pipe"],
+        cwd: filesystem.workingDir,
+        maxBuffer: options.maxBuffer,
+        timeout: options.timeout,
       },
-    ),
-  };
+    );
+    if (result.error !== undefined || result.status !== 0) {
+      await forceRemoveContainer(isolation.command, cidFile);
+    }
+    return { started: true, isolation, result };
+  } finally {
+    rmSync(controlDir, { recursive: true, force: true });
+  }
 }

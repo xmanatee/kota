@@ -11,7 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  resolveScientificClaimAnalyzerSandbox,
+  type ScientificClaimAnalyzerSandbox,
   spawnScientificClaimAnalyzer,
 } from "./scientific-claim-analyzer-sandbox.js";
 import {
@@ -72,10 +72,11 @@ function readCandidateFile(
   return { ok: true, content: readFileSync(absolute, "utf-8") };
 }
 
-function verifyAnalyzerExecution(
+async function verifyAnalyzerExecution(
   workingDir: string,
   tolerance: number,
-): { issues: string[]; isolationEvidence?: string } {
+  isolation: ScientificClaimAnalyzerSandbox,
+): Promise<{ issues: string[]; isolationEvidence?: string }> {
   const analyzer = readCandidateFile(
     workingDir,
     ANALYZER_PATH,
@@ -114,7 +115,6 @@ function verifyAnalyzerExecution(
       label: "verifier artifact",
     },
   ] as const;
-  const isolation = resolveScientificClaimAnalyzerSandbox();
   if (isolation.kind === "unavailable") {
     return {
       issues: [isolation.issue],
@@ -143,7 +143,7 @@ function verifyAnalyzerExecution(
         { encoding: "utf-8", mode: 0o400 },
       );
       const output = join(isolatedCaseDir, commandCase.expected.outputPath);
-      const execution = spawnScientificClaimAnalyzer(
+      const execution = await spawnScientificClaimAnalyzer(
         isolation,
         {
           nodeOptions: [
@@ -210,10 +210,11 @@ function verifyAnalyzerExecution(
   }
 }
 
-export function evaluateScientificClaimResult(
+export async function evaluateScientificClaimResult(
   workingDir: string,
   predicate: ScientificClaimResultPredicate,
-): ScientificClaimPredicateEvaluation {
+  isolation: ScientificClaimAnalyzerSandbox,
+): Promise<ScientificClaimPredicateEvaluation> {
   const issues: string[] = [];
   let isolationEvidence: string | undefined;
   if (!Number.isFinite(predicate.maxErrorPct) || predicate.maxErrorPct < 0) {
@@ -230,9 +231,10 @@ export function evaluateScientificClaimResult(
     ...validateArtifactFile(workingDir, HOLDOUT_EXPECTED, predicate.maxErrorPct, "holdout artifact"),
   );
   if (issues.length === 0) {
-    const verification = verifyAnalyzerExecution(
+    const verification = await verifyAnalyzerExecution(
       workingDir,
       predicate.maxErrorPct,
+      isolation,
     );
     issues.push(...verification.issues);
     isolationEvidence = verification.isolationEvidence;

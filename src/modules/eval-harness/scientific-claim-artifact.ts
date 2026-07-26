@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 export const SCIENTIFIC_CLAIM_ANALYZER_PATH = "scripts/analyze-claim.mjs";
@@ -6,6 +6,7 @@ export const SCIENTIFIC_CLAIM_ANALYZER_PATH = "scripts/analyze-claim.mjs";
 const CLAIM_ID = "claim-lx12-mature-week6-biomass";
 const METRIC_NAME = "median_uplift_pct";
 const THRESHOLD_PCT = 40;
+const ARTIFACT_MAX_BYTES = 256 * 1024;
 const EXPECTED_FILTERS: { readonly [key: string]: string } = {
   cohort: "mature",
   phase: "week6",
@@ -123,6 +124,16 @@ function readJsonObject(root: string, path: string, label: string): ParsedJsonOb
     return { ok: false, issue: `${label}: ${path} is missing` };
   }
   try {
+    const file = lstatSync(absolute);
+    if (!file.isFile()) {
+      return { ok: false, issue: `${label}: ${path} must be a regular file` };
+    }
+    if (file.size > ARTIFACT_MAX_BYTES) {
+      return {
+        ok: false,
+        issue: `${label}: ${path} exceeds ${ARTIFACT_MAX_BYTES} bytes`,
+      };
+    }
     const parsed: JsonValue = JSON.parse(readFileSync(absolute, "utf-8"));
     if (!isJsonObject(parsed)) {
       return { ok: false, issue: `${label}: ${path} is not a JSON object` };

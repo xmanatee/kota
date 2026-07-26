@@ -97,16 +97,16 @@ describe("evaluatePredicate", () => {
     expect(bad.passed).toBe(false);
   });
 
-  it("evaluatePredicates passes only when every predicate passes", () => {
+  it("evaluatePredicates passes only when every predicate passes", async () => {
     writeFileSync(join(workDir, "file.txt"), "content");
-    const { passed, results } = evaluatePredicates(workDir, [
+    const { passed, results } = await evaluatePredicates(workDir, [
       { kind: "file-exists", path: "file.txt" },
       { kind: "file-contains", path: "file.txt", needle: "cont" },
     ]);
     expect(passed).toBe(true);
     expect(results).toHaveLength(2);
 
-    const mixed = evaluatePredicates(workDir, [
+    const mixed = await evaluatePredicates(workDir, [
       { kind: "file-exists", path: "file.txt" },
       { kind: "file-exists", path: "missing.txt" },
     ]);
@@ -114,9 +114,9 @@ describe("evaluatePredicate", () => {
     expect(mixed.results.find((r) => !r.passed)?.detail).toContain("file missing");
   });
 
-  it("evaluatePredicateExpectations accepts both initially true invariants and initially false outcome predicates", () => {
+  it("evaluatePredicateExpectations accepts both initially true invariants and initially false outcome predicates", async () => {
     writeFileSync(join(workDir, "seed.txt"), "seed");
-    const { passed, results } = evaluatePredicateExpectations(workDir, [
+    const { passed, results } = await evaluatePredicateExpectations(workDir, [
       { predicate: { kind: "file-exists", path: "seed.txt" }, expected: "pass" },
       { predicate: { kind: "file-exists", path: "output.txt" }, expected: "fail" },
     ]);
@@ -124,7 +124,7 @@ describe("evaluatePredicate", () => {
     expect(results.map((r) => r.actual)).toEqual(["pass", "fail"]);
     expect(results.every((r) => r.passed)).toBe(true);
 
-    const mismatch = evaluatePredicateExpectations(workDir, [
+    const mismatch = await evaluatePredicateExpectations(workDir, [
       { predicate: { kind: "file-exists", path: "seed.txt" }, expected: "fail" },
     ]);
     expect(mismatch.passed).toBe(false);

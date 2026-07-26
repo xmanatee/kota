@@ -168,7 +168,12 @@ export class TelegramApiTransportError extends Error {
   }
 }
 
-export function isRetryableTelegramApiFailure(error: unknown): boolean {
+// Catch values stay opaque until these Bot API classifiers narrow them.
+type TelegramApiFailureCandidate = unknown;
+
+export function isRetryableTelegramApiFailure(
+  error: TelegramApiFailureCandidate,
+): boolean {
   if (error instanceof TelegramApiTransportError) {
     return error.statusCode === undefined ||
       error.statusCode === 408 ||
@@ -180,7 +185,9 @@ export function isRetryableTelegramApiFailure(error: unknown): boolean {
       (error.errorCode !== undefined && error.errorCode >= 500));
 }
 
-export function isTelegramGetUpdatesConflict(error: unknown): boolean {
+export function isTelegramGetUpdatesConflict(
+  error: TelegramApiFailureCandidate,
+): boolean {
   return error instanceof TelegramApiError &&
     error.method === "getUpdates" &&
     /Conflict:\s*terminated by other getUpdates request/i.test(error.description);

@@ -25,9 +25,10 @@ export async function runSingleWorkflowFixture(
   const startedAt = new Date();
   const startMs = startedAt.getTime();
   let executionOutcome: WorkflowExecutionOutcome;
-  const preRunSanity = evaluatePredicateExpectations(
+  const preRunSanity = await evaluatePredicateExpectations(
     workingDir,
     spec.preRunExpectations,
+    params.executor.predicateContext,
   );
   const resourceProfile = resourceProfileFromExecutionProfile(
     params.executionProfile,
@@ -36,9 +37,10 @@ export async function runSingleWorkflowFixture(
     params.runArtifactBaseDir,
     `${params.fixture.spec.id}-${params.runIndex}`,
   );
-  const verifierCalibration = evaluateVerifierCalibration({
+  const verifierCalibration = await evaluateVerifierCalibration({
     fixture: params.fixture,
     executionProfile: params.executionProfile,
+    predicateContext: params.executor.predicateContext,
     runIndex: params.runIndex,
     repeatCount: params.repeatCount,
   });
@@ -182,9 +184,10 @@ export async function runSingleWorkflowFixture(
     };
   }
 
-  const { passed, results } = evaluatePredicates(
+  const { passed, results } = await evaluatePredicates(
     workingDir,
     spec.predicates,
+    params.executor.predicateContext,
   );
   const outcome = outcomeFromExecution(executionOutcome, passed);
   const codeHealthDiagnostics = finalCodeHealthFor({

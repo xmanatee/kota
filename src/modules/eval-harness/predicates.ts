@@ -20,6 +20,7 @@ import {
 } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import type { ScientificClaimAnalyzerSandbox } from "./scientific-claim-analyzer-sandbox.js";
 import {
   evaluateScientificClaimResult,
   type ScientificClaimResultPredicate,
@@ -175,6 +176,17 @@ export type PredicateEvalResult = {
   /** Short explanation — always present, for artifact readability. */
   detail: string;
 };
+
+export type PredicateEvaluationContext = {
+  scientificClaimAnalyzerSandbox?: ScientificClaimAnalyzerSandbox;
+};
+
+const UNAVAILABLE_SCIENTIFIC_CLAIM_ANALYZER_SANDBOX = {
+  kind: "unavailable",
+  evidence: "analyzer resource isolation unavailable",
+  issue:
+    "scientific-claim analyzer verification has no configured resource-isolated container boundary",
+} as const satisfies ScientificClaimAnalyzerSandbox;
 
 export type PredicateExpectedResult = "pass" | "fail";
 
@@ -945,10 +957,31 @@ function evaluateEnvironmentStateAudit(
   };
 }
 
+type SynchronousFixturePredicate = Exclude<
+  FixturePredicate,
+  ScientificClaimResultPredicate
+>;
+
+export function evaluatePredicate(
+  workingDir: string,
+  predicate: ScientificClaimResultPredicate,
+  context?: PredicateEvaluationContext,
+): Promise<PredicateEvalResult>;
+export function evaluatePredicate(
+  workingDir: string,
+  predicate: SynchronousFixturePredicate,
+  context?: PredicateEvaluationContext,
+): PredicateEvalResult;
 export function evaluatePredicate(
   workingDir: string,
   predicate: FixturePredicate,
-): PredicateEvalResult {
+  context?: PredicateEvaluationContext,
+): PredicateEvalResult | Promise<PredicateEvalResult>;
+export function evaluatePredicate(
+  workingDir: string,
+  predicate: FixturePredicate,
+  context: PredicateEvaluationContext = {},
+): PredicateEvalResult | Promise<PredicateEvalResult> {
   switch (predicate.kind) {
     case "file-exists":
       return evaluateFileExists(workingDir, predicate);
@@ -959,8 +992,17 @@ export function evaluatePredicate(
     case "git-changes-within":
       return evaluateGitChangesWithin(workingDir, predicate);
     case "lx12-scientific-claim-result": {
-      const result = evaluateScientificClaimResult(workingDir, predicate);
-      return { predicate, ...result };
+      return evaluateScientificClaimResult(
+        workingDir,
+        predicate,
+        context.scientificClaimAnalyzerSandbox ??
+          UNAVAILABLE_SCIENTIFIC_CLAIM_ANALYZER_SANDBOX,
+      ).then(
+        (result): PredicateEvalResult => ({
+          predicate,
+          ...result,
+        }),
+      );
     }
     case "shell-succeeds":
     case "shell-fails":
@@ -981,23 +1023,33 @@ export function evaluatePredicate(
  * passes only when every predicate passes — this is the deterministic
  * pass/fail signal the scoring layer consumes.
  */
-export function evaluatePredicates(
+export async function evaluatePredicates(
   workingDir: string,
   predicates: readonly FixturePredicate[],
-): { passed: boolean; results: PredicateEvalResult[] } {
-  const results = predicates.map((p) => evaluatePredicate(workingDir, p));
+  context: PredicateEvaluationContext = {},
+): Promise<{ passed: boolean; results: PredicateEvalResult[] }> {
+  const results: PredicateEvalResult[] = [];
+  for (const predicate of predicates) {
+    results.push(await evaluatePredicate(workingDir, predicate, context));
+  }
   return { passed: results.every((r) => r.passed), results };
 }
 
-export function evaluatePredicateExpectations(
+export async function evaluatePredicateExpectations(
   workingDir: string,
   expectations: readonly FixturePredicateExpectation[],
-): { passed: boolean; results: PredicateExpectationEvalResult[] } {
-  const results = expectations.map((expectation) => {
-    const predicateResult = evaluatePredicate(workingDir, expectation.predicate);
+  context: PredicateEvaluationContext = {},
+): Promise<{ passed: boolean; results: PredicateExpectationEvalResult[] }> {
+  const results: PredicateExpectationEvalResult[] = [];
+  for (const expectation of expectations) {
+    const predicateResult = await evaluatePredicate(
+      workingDir,
+      expectation.predicate,
+      context,
+    );
     const actual: PredicateExpectedResult = predicateResult.passed ? "pass" : "fail";
     const passed = actual === expectation.expected;
-    return {
+    results.push({
       predicate: expectation.predicate,
       expected: expectation.expected,
       actual,
@@ -1007,7 +1059,7 @@ export function evaluatePredicateExpectations(
       detail: passed
         ? `initial predicate ${actual} matched expected ${expectation.expected}: ${predicateResult.detail}`
         : `initial predicate ${actual} did not match expected ${expectation.expected}: ${predicateResult.detail}`,
-    };
-  });
+    });
+  }
   return { passed: results.every((r) => r.passed), results };
 }

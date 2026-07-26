@@ -1,0 +1,40 @@
+Scientific-claim analyzer resource-exhaustion regression
+
+Production boundary
+- Analyzer verification receives the executor's configured Docker-compatible backend explicitly.
+- Host-subprocess runs return an unavailable boundary and never launch agent-produced JavaScript.
+- Every analyzer case uses a fresh `run --rm --init` container with network none, a read-only root, a read-only exact case-directory mount, one writable output-file mount, no capabilities, no-new-privileges, and the host uid/gid.
+- Hard resource controls are `--memory 256m`, `--memory-swap 256m`, `--cpus 0.5`, `--pids-limit 32`, `--ulimit cpu=10:10`, `--ulimit nofile=64:64`, and a 16 MiB noexec tmpfs.
+- The 15-second host timeout and output buffer remain secondary controls. A timed-out or output-flooded container is force-removed by its validated CID.
+- Trusted artifact validation rejects non-regular outputs and logical sizes above 256 KiB before `readFileSync`, so a successful analyzer cannot turn its writable result-file mount into unbounded host allocation.
+
+Regression evidence
+- The Docker-compatible test runtime captured and asserted every production resource, filesystem, privilege, and network argument.
+- The allocation-pressure analyzer retained unbounded arrays after an initial delay; while its execution promise was still pending, a 25 ms evaluator heartbeat won a `Promise.race`. The bounded test runtime then terminated the analyzer in under the five-second outer budget with a non-zero status.
+- A successful analyzer created an 8 GiB sparse result through the real predicate execution path. The evaluator rejected the file at the 256 KiB metadata check without loading it into host memory.
+- Analyzer launch, output capture, timeout termination, exact-CID cleanup, scientific predicate evaluation, and calibration propagation are asynchronous. Verification cases stay sequential to avoid multiplying the resource ceiling.
+- Existing scientific-claim live-fixture and accepted-alternative calibration tests passed through the explicit predicate boundary.
+
+Commands
+- TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true src/modules/eval-harness/scientific-claim-analyzer-sandbox.test.ts src/modules/eval-harness/scientific-claim-reproduction-fixture.test.ts src/modules/eval-harness/accepted-alternative-fixtures.test.ts
+  Result: 3 files, 12 tests passed.
+- TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true src/modules/eval-harness/scientific-claim-analyzer-sandbox.test.ts src/modules/eval-harness/scientific-claim-reproduction-fixture.test.ts src/modules/eval-harness/accepted-alternative-fixtures.test.ts src/modules/eval-harness/subprocess-executor-container-run.test.ts src/modules/eval-harness/subprocess-executor-container-preflight.test.ts
+  Result: 5 files, 22 tests passed.
+- TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true src/modules/eval-harness/scientific-claim-analyzer-sandbox.test.ts src/modules/eval-harness/scientific-claim-reproduction-fixture.test.ts src/modules/eval-harness/accepted-alternative-fixtures.test.ts src/modules/eval-harness/predicates.test.ts src/modules/eval-harness/fixture-discovery.test.ts
+  Result: 5 files, 48 tests passed after the asynchronous repair.
+- pnpm build
+  Result: passed.
+- TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true src/modules/eval-harness
+  Result: 69 files, 326 tests passed after the asynchronous predicate propagation.
+- node_modules/.bin/tsc --noEmit
+  Result: passed.
+- node_modules/.bin/biome check <touched eval-harness files>
+  Result: passed.
+- node --conditions=source --import tsx src/validate-queue.ts
+  Result: passed with the run-local task-transition index.
+- NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner src/modules/eval-harness/scientific-claim-reproduction-fixture.test.ts src/modules/eval-harness/scientific-claim-analyzer-sandbox.test.ts
+  Result: 2 files, 10 tests passed, including the 8 GiB sparse-result regression.
+
+Post-check validation repair
+- The strict-types post-check exposed two Telegram Bot API catch-boundary parameters. The staged `src/modules/telegram/client.ts` change gives those related classifiers one module-owned candidate type without changing their runtime behavior; the strict-types policy and focused Telegram tests pass.
+- `pnpm validate-tasks` could not start because the offline registry could not verify pnpm 10.32.1; the equivalent direct source validator passed.

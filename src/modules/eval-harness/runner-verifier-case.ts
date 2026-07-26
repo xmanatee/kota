@@ -4,7 +4,10 @@ import { dirname } from "node:path";
 import type { LoadedFixture, VerifierCalibrationCaseSpec, VerifierCalibrationSetupOperation } from "./fixture.js";
 import type { ExecutionProfilePreflightResult } from "./fixture-run.js";
 import { evaluateObjectiveMetrics, type ObjectiveMetricSpec, ObjectiveMetricValidationError, type ObservedObjectiveMetric } from "./objective-metrics.js";
-import type { FixturePredicate } from "./predicates.js";
+import type {
+  FixturePredicate,
+  PredicateEvaluationContext,
+} from "./predicates.js";
 import { evaluatePredicates } from "./predicates.js";
 import { materializeFixtureWorkingDir, relativePathInside } from "./runner-materialize.js";
 import type { SerializedCalibrationError, VerifierCalibrationCaseResult } from "./runner-types.js";
@@ -55,15 +58,16 @@ function applyVerifierCalibrationSetup(params: {
   }
 }
 
-export function evaluateVerifierCalibrationCase(params: {
+export async function evaluateVerifierCalibrationCase(params: {
   fixture: LoadedFixture;
   caseSpec: VerifierCalibrationCaseSpec;
   predicates: readonly FixturePredicate[];
   objectiveMetricSpecs: readonly ObjectiveMetricSpec[];
   executionProfile: ExecutionProfilePreflightResult;
+  predicateContext?: PredicateEvaluationContext;
   runIndex: number;
   repeatCount: number;
-}): VerifierCalibrationCaseResult {
+}): Promise<VerifierCalibrationCaseResult> {
   const { workingDir } = materializeFixtureWorkingDir(params.fixture);
   try {
     for (const operation of params.caseSpec.setup) {
@@ -73,7 +77,11 @@ export function evaluateVerifierCalibrationCase(params: {
         operation,
       });
     }
-    const predicateEvaluation = evaluatePredicates(workingDir, params.predicates);
+    const predicateEvaluation = await evaluatePredicates(
+      workingDir,
+      params.predicates,
+      params.predicateContext,
+    );
     let objectiveMetrics: ObservedObjectiveMetric[] = [];
     let objectiveMetricError: SerializedCalibrationError | undefined;
     try {

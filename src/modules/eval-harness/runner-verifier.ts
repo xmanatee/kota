@@ -4,7 +4,11 @@ import { join } from "node:path";
 import { isMultiRoundFixtureSpec, isSkillAblationFixtureSpec, type LoadedFixture, verifierCalibrationPredicatesForSpec } from "./fixture.js";
 import type { ExecutionProfilePreflightResult, FixtureRunConfigurationError } from "./fixture-run.js";
 import type { ObjectiveMetricSpec } from "./objective-metrics.js";
-import type { VerifierCalibrationRunResult } from "./runner-types.js";
+import type { PredicateEvaluationContext } from "./predicates.js";
+import type {
+  VerifierCalibrationCaseResult,
+  VerifierCalibrationRunResult,
+} from "./runner-types.js";
 import { evaluateVerifierCalibrationCase } from "./runner-verifier-case.js";
 import { compareObjectiveMetricCalibration } from "./runner-verifier-metrics.js";
 
@@ -23,27 +27,32 @@ function collectObjectiveMetricSpecs(
   return [...(spec.objectiveMetrics ?? [])];
 }
 
-export function evaluateVerifierCalibration(params: {
+export async function evaluateVerifierCalibration(params: {
   fixture: LoadedFixture;
   executionProfile: ExecutionProfilePreflightResult;
+  predicateContext?: PredicateEvaluationContext;
   runIndex: number;
   repeatCount: number;
-}): VerifierCalibrationRunResult | undefined {
+}): Promise<VerifierCalibrationRunResult | undefined> {
   const spec = params.fixture.spec.verifierCalibration;
   if (spec === undefined) return undefined;
   const predicates = verifierCalibrationPredicatesForSpec(params.fixture.spec);
   const objectiveMetricSpecs = collectObjectiveMetricSpecs(params.fixture.spec);
-  const cases = spec.cases.map((caseSpec) =>
-    evaluateVerifierCalibrationCase({
-      fixture: params.fixture,
-      caseSpec,
-      predicates,
-      objectiveMetricSpecs,
-      executionProfile: params.executionProfile,
-      runIndex: params.runIndex,
-      repeatCount: params.repeatCount,
-    }),
-  );
+  const cases: VerifierCalibrationCaseResult[] = [];
+  for (const caseSpec of spec.cases) {
+    cases.push(
+      await evaluateVerifierCalibrationCase({
+        fixture: params.fixture,
+        caseSpec,
+        predicates,
+        objectiveMetricSpecs,
+        executionProfile: params.executionProfile,
+        predicateContext: params.predicateContext,
+        runIndex: params.runIndex,
+        repeatCount: params.repeatCount,
+      }),
+    );
+  }
   const objectiveMetricCalibration = compareObjectiveMetricCalibration({
     objectiveMetricSpecs,
     cases,

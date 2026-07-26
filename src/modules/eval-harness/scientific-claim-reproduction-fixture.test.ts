@@ -10,13 +10,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { isSingleWorkflowFixtureSpec, loadFixture } from "./fixture.js";
 import type {
   ExecutionProfilePreflightResult,
   ResourceProfile,
 } from "./fixture-run.js";
-import { evaluatePredicate } from "./predicates.js";
 import { OFFLINE_CONTAINER_NETWORK_POLICY } from "./provider-egress.js";
 import {
   cleanupFixtureWorkingDir,
@@ -24,24 +23,16 @@ import {
   type WorkflowExecutionOutcome,
   type WorkflowExecutor,
 } from "./runner.js";
+import {
+  cleanupScientificClaimTestContainer,
+  evaluateClaimPredicate,
+  TEST_PREDICATE_CONTEXT,
+  writeAndRunAnalyzer,
+} from "./scientific-claim-reproduction-test-helpers.js";
 
 const FIXTURE_ID = "builder-scientific-claim-reproduction";
 const FIXTURES_ROOT = join(process.cwd(), "src/modules/eval-harness/fixtures");
-
-vi.mock("./scientific-claim-analyzer-sandbox.js", async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import("./scientific-claim-analyzer-sandbox.js")
-  >();
-  return {
-    ...actual,
-    resolveScientificClaimAnalyzerSandbox: () => ({
-      kind: "darwin-seatbelt" as const,
-      command: "/usr/bin/env",
-      prefixArgs: [],
-      evidence: "test-scoped analyzer process boundary",
-    }),
-  };
-});
+afterAll(cleanupScientificClaimTestContainer);
 
 const TEST_PROFILE: ResourceProfile = {
   cpuAllocationCores: 2,
@@ -77,6 +68,7 @@ describe("builder scientific claim reproduction fixture", () => {
 
     let replayRecordingsRoot: string | undefined;
     const executor: WorkflowExecutor = {
+      predicateContext: TEST_PREDICATE_CONTEXT,
       preflight: () => TEST_EXECUTION_PROFILE,
       execute: async (request): Promise<WorkflowExecutionOutcome> => {
         replayRecordingsRoot = request.replayRecordingsRoot;
@@ -135,7 +127,7 @@ describe("builder scientific claim reproduction fixture", () => {
     }
   });
 
-  it("accepts a passing analyzer when the temp directory uses a symlinked path", () => {
+  it("accepts a passing analyzer when the temp directory uses a symlinked path", async () => {
     const fixture = loadFixture(FIXTURES_ROOT, FIXTURE_ID);
     if (!isSingleWorkflowFixtureSpec(fixture.spec)) {
       throw new Error(`${FIXTURE_ID} must stay a single-workflow fixture`);
@@ -148,23 +140,12 @@ describe("builder scientific claim reproduction fixture", () => {
     const originalTmpdir = process.env.TMPDIR;
     try {
       cpSync(fixture.initialStateDir, workingDir, { recursive: true });
-      writeFileSync(join(workingDir, "scripts/analyze-claim.mjs"), passingAnalyzer);
-      for (const [dataPath, outputPath] of [
-        ["data/claims/lx12-biomass.csv", "claim-result.json"],
-        ["data/claims/lx12-holdout.csv", "claim-holdout-result.json"],
-      ] as const) {
-        const result = spawnSync(
-          process.execPath,
-          ["scripts/analyze-claim.mjs", "--data", dataPath, "--output", outputPath],
-          { cwd: workingDir, encoding: "utf8" },
-        );
-        expect(result.status).toBe(0);
-      }
+      writeAndRunAnalyzer(workingDir, passingAnalyzer);
       mkdirSync(realTempDir);
       symlinkSync(realTempDir, linkedTempDir, "dir");
       process.env.TMPDIR = linkedTempDir;
 
-      const result = evaluatePredicate(workingDir, claimPredicate);
+      const result = await evaluateClaimPredicate(workingDir, claimPredicate);
       expect(result.passed).toBe(true);
     } finally {
       if (originalTmpdir === undefined) {
@@ -177,7 +158,7 @@ describe("builder scientific claim reproduction fixture", () => {
     }
   });
 
-  it("rejects hardcoded answers for both known data sets", () => {
+  it("rejects hardcoded answers for both known data sets", async () => {
     const fixture = loadFixture(FIXTURES_ROOT, FIXTURE_ID);
     if (!isSingleWorkflowFixtureSpec(fixture.spec)) {
       throw new Error(`${FIXTURE_ID} must stay a single-workflow fixture`);
@@ -186,34 +167,7 @@ describe("builder scientific claim reproduction fixture", () => {
     const workingDir = mkdtempSync(join(tmpdir(), "kota-scientific-shortcut-"));
     try {
       cpSync(fixture.initialStateDir, workingDir, { recursive: true });
-      writeFileSync(
-        join(workingDir, "scripts/analyze-claim.mjs"),
-        shortcutAnalyzer,
-      );
-      const seed = spawnSync(
-        process.execPath,
-        [
-          "scripts/analyze-claim.mjs",
-          "--data",
-          "data/claims/lx12-biomass.csv",
-          "--output",
-          "claim-result.json",
-        ],
-        { cwd: workingDir, encoding: "utf8" },
-      );
-      expect(seed.status).toBe(0);
-      const holdoutSeed = spawnSync(
-        process.execPath,
-        [
-          "scripts/analyze-claim.mjs",
-          "--data",
-          "data/claims/lx12-holdout.csv",
-          "--output",
-          "claim-holdout-result.json",
-        ],
-        { cwd: workingDir, encoding: "utf8" },
-      );
-      expect(holdoutSeed.status).toBe(0);
+      writeAndRunAnalyzer(workingDir, shortcutAnalyzer);
 
       const result = spawnSync(
         process.execPath,
@@ -222,7 +176,7 @@ describe("builder scientific claim reproduction fixture", () => {
       );
       expect(result.status).toBe(0);
 
-      const predicateResult = evaluatePredicate(workingDir, claimPredicate);
+      const predicateResult = await evaluateClaimPredicate(workingDir, claimPredicate);
       expect(predicateResult.passed).toBe(false);
       expect(predicateResult.detail).toContain("verifier artifact");
       expect(predicateResult.detail).toContain("No hardcoded answer");
@@ -231,7 +185,7 @@ describe("builder scientific claim reproduction fixture", () => {
     }
   });
 
-  it("rejects prewritten expected artifacts when the analyzer still computes the wrong procedure", () => {
+  it("rejects prewritten expected artifacts when the analyzer still computes the wrong procedure", async () => {
     const fixture = loadFixture(FIXTURES_ROOT, FIXTURE_ID);
     if (!isSingleWorkflowFixtureSpec(fixture.spec)) {
       throw new Error(`${FIXTURE_ID} must stay a single-workflow fixture`);
@@ -241,21 +195,7 @@ describe("builder scientific claim reproduction fixture", () => {
     const workingDir = mkdtempSync(join(tmpdir(), "kota-scientific-boundary-"));
     try {
       cpSync(fixture.initialStateDir, workingDir, { recursive: true });
-      writeFileSync(
-        join(workingDir, "scripts/analyze-claim.mjs"),
-        passingAnalyzer,
-      );
-      for (const [dataPath, outputPath] of [
-        ["data/claims/lx12-biomass.csv", "claim-result.json"],
-        ["data/claims/lx12-holdout.csv", "claim-holdout-result.json"],
-      ] as const) {
-        const result = spawnSync(
-          process.execPath,
-          ["scripts/analyze-claim.mjs", "--data", dataPath, "--output", outputPath],
-          { cwd: workingDir, encoding: "utf8" },
-        );
-        expect(result.status).toBe(0);
-      }
+      writeAndRunAnalyzer(workingDir, passingAnalyzer);
 
       const checker = spawnSync(
         process.execPath,
@@ -271,7 +211,7 @@ describe("builder scientific claim reproduction fixture", () => {
         ),
       );
 
-      const result = evaluatePredicate(workingDir, claimPredicate);
+      const result = await evaluateClaimPredicate(workingDir, claimPredicate);
       expect(result.passed).toBe(false);
       expect(result.detail).toContain("main command artifact");
       expect(result.detail).toContain("metric.name");
@@ -280,7 +220,7 @@ describe("builder scientific claim reproduction fixture", () => {
     }
   });
 
-  it("executes the analyzer with host filesystem access denied", () => {
+  it("executes the analyzer with host filesystem access denied", async () => {
     const fixture = loadFixture(FIXTURES_ROOT, FIXTURE_ID);
     if (!isSingleWorkflowFixtureSpec(fixture.spec)) {
       throw new Error(`${FIXTURE_ID} must stay a single-workflow fixture`);
@@ -289,24 +229,13 @@ describe("builder scientific claim reproduction fixture", () => {
     const workingDir = mkdtempSync(join(tmpdir(), "kota-scientific-permission-"));
     try {
       cpSync(fixture.initialStateDir, workingDir, { recursive: true });
-      writeFileSync(join(workingDir, "scripts/analyze-claim.mjs"), passingAnalyzer);
-      for (const [dataPath, outputPath] of [
-        ["data/claims/lx12-biomass.csv", "claim-result.json"],
-        ["data/claims/lx12-holdout.csv", "claim-holdout-result.json"],
-      ] as const) {
-        const result = spawnSync(
-          process.execPath,
-          ["scripts/analyze-claim.mjs", "--data", dataPath, "--output", outputPath],
-          { cwd: workingDir, encoding: "utf8" },
-        );
-        expect(result.status).toBe(0);
-      }
+      writeAndRunAnalyzer(workingDir, passingAnalyzer);
       writeFileSync(
         join(workingDir, "scripts/analyze-claim.mjs"),
         'import { readFileSync } from "node:fs"; readFileSync("/etc/hosts");\n',
       );
 
-      const result = evaluatePredicate(workingDir, claimPredicate);
+      const result = await evaluateClaimPredicate(workingDir, claimPredicate);
       expect(result.passed).toBe(false);
       expect(result.detail).toContain("ERR_ACCESS_DENIED");
     } finally {
@@ -314,4 +243,37 @@ describe("builder scientific claim reproduction fixture", () => {
     }
   });
 
+  it("rejects a sparse analyzer result before reading it into host memory", async () => {
+    const fixture = loadFixture(FIXTURES_ROOT, FIXTURE_ID);
+    if (!isSingleWorkflowFixtureSpec(fixture.spec)) {
+      throw new Error(`${FIXTURE_ID} must stay a single-workflow fixture`);
+    }
+    const claimPredicate = fixture.spec.predicates[0];
+    const workingDir = mkdtempSync(join(tmpdir(), "kota-scientific-sparse-result-"));
+    try {
+      cpSync(fixture.initialStateDir, workingDir, { recursive: true });
+      writeAndRunAnalyzer(workingDir, passingAnalyzer);
+      writeFileSync(
+        join(workingDir, "scripts/analyze-claim.mjs"),
+        `
+import { closeSync, ftruncateSync, openSync } from "node:fs";
+const outputIndex = process.argv.indexOf("--output");
+if (outputIndex === -1) throw new Error("missing --output");
+const output = process.argv[outputIndex + 1];
+const descriptor = openSync(output, "w");
+ftruncateSync(descriptor, 8 * 1024 * 1024 * 1024);
+closeSync(descriptor);
+`,
+      );
+
+      const result = await evaluateClaimPredicate(workingDir, claimPredicate);
+
+      expect(result.passed).toBe(false);
+      expect(result.detail).toContain(
+        "main command artifact: claim-result.json exceeds 262144 bytes",
+      );
+    } finally {
+      rmSync(workingDir, { recursive: true, force: true });
+    }
+  });
 });

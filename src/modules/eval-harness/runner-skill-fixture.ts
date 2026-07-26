@@ -43,9 +43,10 @@ async function executeSkillAblationVariant(params: {
   });
   const startedAt = new Date();
   const startMs = startedAt.getTime();
-  const preRunSanity = evaluatePredicateExpectations(
+  const preRunSanity = await evaluatePredicateExpectations(
     params.workingDir,
     params.variant.preRunExpectations,
+    params.executor.predicateContext,
   );
   let executionOutcome: WorkflowExecutionOutcome;
   if (!preRunSanity.passed) {
@@ -110,9 +111,10 @@ async function executeSkillAblationVariant(params: {
       runArtifactPath: null,
     };
   }
-  const predicateEvaluation = evaluatePredicates(
+  const predicateEvaluation = await evaluatePredicates(
     params.workingDir,
     params.variant.predicates,
+    params.executor.predicateContext,
   );
   const observedOutcome = outcomeFromExecution(
     executionOutcome,

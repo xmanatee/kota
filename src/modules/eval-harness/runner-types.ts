@@ -13,7 +13,12 @@ import type {
   ResourceProfile,
 } from "./fixture-run.js";
 import type { ObjectiveMetricDirection, ObservedObjectiveMetric } from "./objective-metrics.js";
-import type { FixturePredicate, PredicateEvalResult, PredicateExpectationEvalResult } from "./predicates.js";
+import type {
+  FixturePredicate,
+  PredicateEvalResult,
+  PredicateEvaluationContext,
+  PredicateExpectationEvalResult,
+} from "./predicates.js";
 
 export type WorkflowAgentExecutionOverride = {
   /** Registered harness every agent step in the workflow should run through. */
@@ -83,6 +88,7 @@ export type WorkflowExecutionOutcome =
  * executor reuses the existing workflow runtime while tests inject a mock.
  */
 export type WorkflowExecutor = {
+  predicateContext?: PredicateEvaluationContext;
   preflight(requestedProfile: ResourceProfile): ExecutionProfilePreflightResult;
   execute(request: WorkflowExecutionRequest): Promise<WorkflowExecutionOutcome>;
 };

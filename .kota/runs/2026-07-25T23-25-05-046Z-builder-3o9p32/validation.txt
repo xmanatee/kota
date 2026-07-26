@@ -1,0 +1,20 @@
+PASS: focused scientific-claim security suite — 3 files, 12 tests.
+PASS: expanded scientific-claim plus container executor suite — 5 files, 22 tests.
+PASS: pnpm build.
+PASS: eval-harness module suite — 69 files, 326 tests (after generated dist prerequisite).
+PASS: node_modules/.bin/tsc --noEmit.
+PASS: Biome check across every touched eval-harness source and test file.
+PASS: post-check repair suite — docs size, instruction cap, strict types, and Telegram behavior (4 files, 259 tests).
+PASS: Biome check for the repair-touched Telegram sources and eval-harness instructions.
+PASS: post-check repair attempt 2 — focused analyzer/container suite (5 files, 22 tests), typecheck, Biome, and git diff whitespace checks.
+PASS: post-check repair attempt 3 — strict-types policy plus Telegram bot behavior (2 files, 53 tests), typecheck, and focused Biome.
+PASS: post-check repair attempt 4 — the analyzer container implementation is present in the staged run-local index; focused security tests (3 files, 12 tests), typecheck, and focused Biome pass.
+PASS: post-check repair attempt 8 — analyzer execution and cleanup are asynchronous; the allocation-pressure heartbeat regression, focused predicate suite (5 files, 48 tests), build, typecheck, and full eval-harness suite (69 files, 326 tests) pass.
+PASS: full Vitest rerun cleared the supplied strict-types failure — 1,063 files and 12,115 tests passed.
+PASS: staged source-file-size-severe review is advisory-only; one pre-existing predicates.ts warning remains and the oversized-batch blocker is cleared.
+PASS: git diff --check.
+PASS: node --conditions=source --import tsx src/validate-queue.ts (run-local task-transition index).
+PASS: post-check repair attempt 10 — an 8 GiB sparse analyzer result is rejected at the 256 KiB pre-read artifact boundary; focused analyzer tests (2 files, 10 tests), typecheck, and focused Biome pass.
+PASS: post-check repair attempt 11 — reusable analyzer test setup moved to a 51-line helper, reducing the touched reproduction fixture test to 279 lines; Telegram catch values use one named opaque boundary type; the staged source-size review is advisory-only with three warnings; focused analyzer tests (2 files, 10 tests), strict-types ratchet, typecheck, focused Biome, queue validation, and staged diff checks pass.
+ENVIRONMENTAL FAILURE: pnpm validate-tasks could not start because the offline registry could not verify pnpm 10.32.1; direct source validation passed.
+ENVIRONMENTAL FAILURE: the full Vitest rerun's sole remaining test invoked that same unavailable pnpm shim from pnpm-supply-chain-policy.integration.test.ts (1 failed; no product or strict-types failures).

@@ -11,6 +11,7 @@ import { spawn } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { writeStderr } from "#modules/rendering/transport.js";
 import type { WorkflowExecutionOutcome, WorkflowExecutor } from "./runner.js";
+import { resolveScientificClaimAnalyzerSandbox } from "./scientific-claim-analyzer-sandbox.js";
 import {
   containerKotaDistDir,
   containerRunArgs,
@@ -55,6 +56,10 @@ export function createSubprocessExecutor(
 ): WorkflowExecutor {
   const isolationBackend = options.isolationBackend ?? { kind: "host-subprocess" };
   return {
+    predicateContext: {
+      scientificClaimAnalyzerSandbox:
+        resolveScientificClaimAnalyzerSandbox(isolationBackend),
+    },
     preflight(requestedProfile) {
       return preflightExecutionProfile(
         isolationBackend,

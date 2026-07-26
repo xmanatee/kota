@@ -34,9 +34,10 @@ export async function runMultiRoundFixture(
     params.runArtifactBaseDir,
     `${spec.id}-${params.runIndex}`,
   );
-  const verifierCalibration = evaluateVerifierCalibration({
+  const verifierCalibration = await evaluateVerifierCalibration({
     fixture: params.fixture,
     executionProfile: params.executionProfile,
+    predicateContext: params.executor.predicateContext,
     runIndex: params.runIndex,
     repeatCount: params.repeatCount,
   });
@@ -145,9 +146,10 @@ export async function runMultiRoundFixture(
   let objectiveMetrics: ObservedObjectiveMetric[] = [];
   const failedRound = roundResults.find((result) => result.outcome !== "pass");
   if (failedRound === undefined) {
-    const aggregate = evaluatePredicates(
+    const aggregate = await evaluatePredicates(
       workingDir,
       spec.aggregatePredicates ?? [],
+      params.executor.predicateContext,
     );
     aggregatePredicateResults = aggregate.results;
     aggregatePredicatesPassed = aggregate.passed;

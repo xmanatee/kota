@@ -1,0 +1,3 @@
+1. Scientific-claim analyzers execute only in a disposable OCI container with hard memory, CPU, PID, and file-descriptor limits, host-subprocess evaluation fails closed, and analyzer artifacts are size-bounded before host reads.
+2. Focused regression coverage proves the full resource-control invocation and terminates an allocation-heavy analyzer without blocking or destabilizing the evaluator.
+3. The task and run artifacts record the implementation boundary, focused and module-wide validation, and any unrelated validation limitation.

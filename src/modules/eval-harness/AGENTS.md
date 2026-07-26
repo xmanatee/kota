@@ -61,9 +61,11 @@ Fix rejected fixtures; do not work around the loader.
 
 ## Predicate Contract
 
-Predicates are small and deterministic. They inspect the final fixture working
-directory; agent self-report is never signal. New kinds extend the predicate
-union and evaluator.
+Predicates inspect final fixture state deterministically; agent self-report is
+never signal. New kinds extend the union and evaluator. Agent-written verifiers
+fail closed outside offline disposable containers with hard memory, CPU, PID,
+and descriptor limits. Await launch and cleanup asynchronously; run cases
+sequentially so cadence cannot block the daemon or overrun resources.
 
 Fixtures also declare `preRunExpectations`: initial predicate results. At
 least one must be `expected: "fail"`; mismatches are fixture config errors.
@@ -90,12 +92,10 @@ pass/fail.
 
 ## Baseline Persistence And Regression Surfacing
 
-Only the cadence persists the last accepted aggregate as the next baseline in
-the KOTA state root, per-project and per-host-class, never in the repo. First
-run records and skips the gate.
-`not-gated` rolls the baseline forward, including non-load-bearing comparison
-reasons, so regressions compare with the latest accepted result. `gated` holds
-the baseline until the next clear run or manual reset.
+Cadence alone persists the latest accepted aggregate in KOTA state, keyed by
+project and host class; the first run records without gating. `not-gated`
+advances the baseline even for comparison drift, while `gated` holds it until a
+clear run or manual reset.
 
 On `gated`, cadence emits a typed regression event; a bridge workflow forwards
 it through attention. Consumers subscribe to the typed event, not generic
@@ -135,10 +135,9 @@ for a replay adapter. Replay subprocesses force `KOTA_PRESET=claude`; container
 subprocesses bind-mount the recording root read-only at the same absolute path.
 Production selection is unchanged.
 
-The adapter substitutes `{{runDir}}` in recorded paths, writes operations to
-the fixture working dir, and `git add -A`s them so repair checks see the tree
-the real agent produced. Every recording's `sourceRunId` must match the
-fixture's `real-failure` provenance.
+The adapter expands `{{runDir}}`, applies operations to the fixture workspace,
+and stages them for repair checks. Recording `sourceRunId` must match
+`real-failure` provenance.
 `pnpm kota eval record-agent-step` is the authoring surface (`--step <id>`
 walks the source commit diff; `--judge <label>` lifts `<runDir>/<label>.json`;
 `--source-commit-sha` handles pre-SHA sources).

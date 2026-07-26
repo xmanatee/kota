@@ -100,7 +100,7 @@ describe("loadAllFixtures", () => {
     );
   });
 
-  it("shipped fixture pre-run expectations match their initial trees", () => {
+  it("shipped fixture pre-run expectations match their initial trees", async () => {
     const fixtures = loadAllFixtures(
       join(process.cwd(), "src/modules/eval-harness/fixtures"),
     );
@@ -115,7 +115,7 @@ describe("loadAllFixtures", () => {
             ? fixture.spec.variants.map((variant) => variant.preRunExpectations)
             : [fixture.spec.rounds[0].preRunExpectations];
         for (const expectations of expectationSets) {
-          const result = evaluatePredicateExpectations(
+          const result = await evaluatePredicateExpectations(
             workDir,
             expectations,
           );

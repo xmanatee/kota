@@ -7,7 +7,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import {
   isSingleWorkflowFixtureSpec,
   type LoadedFixture,
@@ -24,22 +24,24 @@ import {
   runFixture,
   type WorkflowExecutor,
 } from "./runner.js";
+import { resolveScientificClaimAnalyzerSandbox } from "./scientific-claim-analyzer-sandbox.js";
+import { writeFakeContainerBackend } from "./subprocess-executor-test-helpers.js";
 
 const FIXTURES_ROOT = join(process.cwd(), "src/modules/eval-harness/fixtures");
+const TEST_CONTAINER_DIR = mkdtempSync(join(tmpdir(), "kota-analyzer-runtime-"));
+const TEST_CONTAINER = join(TEST_CONTAINER_DIR, "fake-container.mjs");
+writeFakeContainerBackend(TEST_CONTAINER);
+const TEST_PREDICATE_CONTEXT = {
+  scientificClaimAnalyzerSandbox: resolveScientificClaimAnalyzerSandbox({
+    kind: "container",
+    executable: TEST_CONTAINER,
+    image: "kota-eval:test",
+    kotaBinaryPath: "/opt/kota/bin/kota.mjs",
+  }),
+};
 
-vi.mock("./scientific-claim-analyzer-sandbox.js", async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import("./scientific-claim-analyzer-sandbox.js")
-  >();
-  return {
-    ...actual,
-    resolveScientificClaimAnalyzerSandbox: () => ({
-      kind: "darwin-seatbelt" as const,
-      command: "/usr/bin/env",
-      prefixArgs: [],
-      evidence: "test-scoped analyzer process boundary",
-    }),
-  };
+afterAll(() => {
+  rmSync(TEST_CONTAINER_DIR, { recursive: true, force: true });
 });
 
 const BROAD_ACCEPTED_ALTERNATIVES = new Map([
@@ -115,6 +117,7 @@ describe("broad accepted-alternative fixture calibration runs", () => {
       );
       let executorCalls = 0;
       const executor: WorkflowExecutor = {
+        predicateContext: TEST_PREDICATE_CONTEXT,
         preflight: () => TEST_EXECUTION_PROFILE,
         execute: async ({ workingDir }) => {
           executorCalls++;
@@ -168,6 +171,7 @@ describe("broad accepted-alternative fixture calibration runs", () => {
     );
     let executorCalls = 0;
     const executor: WorkflowExecutor = {
+      predicateContext: TEST_PREDICATE_CONTEXT,
       preflight: () => TEST_EXECUTION_PROFILE,
       execute: async ({ workingDir }) => {
         executorCalls++;
