@@ -231,6 +231,7 @@ export async function runSkillAblationFixture(
     resourceProfile,
     executionProfile: params.executionProfile,
     objectiveMetrics,
+    objectiveMetricErrors: [],
     skillAblation,
     timing: {
       startedAt: startedAt.toISOString(),
@@ -255,6 +256,7 @@ export async function runSkillAblationFixture(
       (variant) => variant.preRunExpectationResults,
     ),
     objectiveMetrics,
+    objectiveMetricErrors: [],
     workingDir: parentWorkingDir,
     executionOutcome,
   };

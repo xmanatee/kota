@@ -13,7 +13,10 @@ import type {
   SkillAblationExpectedOutcome,
   SkillAblationSkillProvenance,
 } from "./fixture.js";
-import type { ObservedObjectiveMetric } from "./objective-metrics.js";
+import type {
+  ObjectiveMetricObservationError,
+  ObservedObjectiveMetric,
+} from "./objective-metrics.js";
 import type {
   PredicateEvalResult,
   PredicateExpectationEvalResult,
@@ -131,6 +134,7 @@ export type FixtureRoundRun = {
   workflowName: string;
   outcome: FixtureRunOutcome;
   objectiveMetrics: readonly ObservedObjectiveMetric[];
+  objectiveMetricErrors: readonly ObjectiveMetricObservationError[];
   timing: TimingEnvelope;
   /** Workflow run artifact path reported by the executor for this round. */
   runArtifactPath: string | null;
@@ -232,6 +236,11 @@ export type FixtureRun = {
    * when the fixture declares no objective metrics.
    */
   objectiveMetrics: readonly ObservedObjectiveMetric[];
+  /**
+   * Metric extraction failures retained after a non-passing capability
+   * outcome. Passing runs reject these errors before producing a run record.
+   */
+  objectiveMetricErrors: readonly ObjectiveMetricObservationError[];
   /**
    * Optional deterministic source-tree diagnostics for fixtures that
    * explicitly opt in. Advisory only; pass/fail scoring remains predicate

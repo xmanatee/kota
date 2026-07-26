@@ -189,6 +189,7 @@ export function fixtureRun(
     resourceProfile: config.components.resourceProfile,
     executionProfile: config.components.executionProfile,
     objectiveMetrics: [],
+    objectiveMetricErrors: [],
     timing: {
       startedAt: "2026-04-27T12:00:00.000Z",
       durationMs: 10,

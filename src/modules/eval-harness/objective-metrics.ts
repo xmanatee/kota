@@ -9,6 +9,7 @@ import type {
   ExecutionProfilePreflightResult,
   ExecutionProfileRejectionReason,
   ExecutionProfileVerification,
+  FixtureRunOutcome,
   ResourceProfile,
 } from "./fixture-run.js";
 import {
@@ -103,6 +104,19 @@ export type ObservedObjectiveMetric = {
   executionProfile: ObjectiveMetricExecutionProfileSummary;
   comparisonBaseline?: ObjectiveMetricComparisonBaseline;
   comparison?: ObjectiveMetricComparison;
+};
+
+export type ObjectiveMetricObservationError = {
+  fixtureId: string;
+  metricName: string;
+  source: ObjectiveMetricSource;
+  reason: ObjectiveMetricValidationReason;
+  message: string;
+};
+
+export type ObjectiveMetricEvaluation = {
+  objectiveMetrics: ObservedObjectiveMetric[];
+  objectiveMetricErrors: ObjectiveMetricObservationError[];
 };
 
 export type ObjectiveMetricResourceComparison =
@@ -570,6 +584,53 @@ export function evaluateObjectiveMetrics(params: {
       ...(comparison !== undefined && { comparison }),
     };
   });
+}
+
+/**
+ * Capability failure is already a scored outcome, so an unavailable advisory
+ * metric must not abort the remaining eval set. Preserve the extraction error
+ * as run evidence. Passing runs keep the strict metric contract.
+ */
+export function evaluateObjectiveMetricsForOutcome(
+  params: {
+    fixtureId: string;
+    metricSpecs: readonly ObjectiveMetricSpec[];
+    workingDir: string;
+    executionProfile: ExecutionProfilePreflightResult;
+    runIndex: number;
+    repeatCount: number;
+    outcome: FixtureRunOutcome;
+  },
+): ObjectiveMetricEvaluation {
+  if (params.outcome === "pass") {
+    return {
+      objectiveMetrics: evaluateObjectiveMetrics(params),
+      objectiveMetricErrors: [],
+    };
+  }
+
+  const objectiveMetrics: ObservedObjectiveMetric[] = [];
+  const objectiveMetricErrors: ObjectiveMetricObservationError[] = [];
+  for (const metricSpec of params.metricSpecs) {
+    try {
+      objectiveMetrics.push(
+        ...evaluateObjectiveMetrics({
+          ...params,
+          metricSpecs: [metricSpec],
+        }),
+      );
+    } catch (error) {
+      if (!(error instanceof ObjectiveMetricValidationError)) throw error;
+      objectiveMetricErrors.push({
+        fixtureId: params.fixtureId,
+        metricName: metricSpec.name,
+        source: metricSpec.source,
+        reason: error.reason,
+        message: error.message,
+      });
+    }
+  }
+  return { objectiveMetrics, objectiveMetricErrors };
 }
 
 function uniqueByJson<T>(items: readonly T[]): T[] {

@@ -175,6 +175,7 @@ export type {
   ObjectiveMetricDirection,
   ObjectiveMetricExecutionComparison,
   ObjectiveMetricExecutionProfileSummary,
+  ObjectiveMetricObservationError,
   ObjectiveMetricResourceComparison,
   ObjectiveMetricSource,
   ObjectiveMetricSpec,

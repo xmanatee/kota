@@ -1,7 +1,7 @@
 
 import type { FixtureRoundSpec, LoadedFixture } from "./fixture.js";
 import type { ExecutionProfilePreflightResult } from "./fixture-run.js";
-import { evaluateObjectiveMetrics } from "./objective-metrics.js";
+import { evaluateObjectiveMetricsForOutcome } from "./objective-metrics.js";
 import { evaluatePredicateExpectations, evaluatePredicates } from "./predicates.js";
 import { applyRoundTaskInput } from "./runner-materialize.js";
 import { outcomeFromExecution } from "./runner-outcome.js";
@@ -52,6 +52,7 @@ export async function executeRound(params: {
       preRunExpectationResults: preRunSanity.results,
       predicateResults: [],
       objectiveMetrics: [],
+      objectiveMetricErrors: [],
       timing: {
         startedAt: startedAt.toISOString(),
         durationMs: executionOutcome.durationMs,
@@ -90,14 +91,16 @@ export async function executeRound(params: {
     params.executor.predicateContext,
   );
   const outcome = outcomeFromExecution(executionOutcome, passed);
-  const objectiveMetrics = evaluateObjectiveMetrics({
-    fixtureId: params.fixture.spec.id,
-    metricSpecs: params.round.objectiveMetrics ?? [],
-    workingDir: params.workingDir,
-    executionProfile: params.executionProfile,
-    runIndex: params.runIndex,
-    repeatCount: params.repeatCount,
-  });
+  const { objectiveMetrics, objectiveMetricErrors } =
+    evaluateObjectiveMetricsForOutcome({
+      fixtureId: params.fixture.spec.id,
+      metricSpecs: params.round.objectiveMetrics ?? [],
+      workingDir: params.workingDir,
+      executionProfile: params.executionProfile,
+      runIndex: params.runIndex,
+      repeatCount: params.repeatCount,
+      outcome,
+    });
   return {
     round: params.round,
     roundIndex: params.roundIndex,
@@ -106,6 +109,7 @@ export async function executeRound(params: {
     preRunExpectationResults: preRunSanity.results,
     predicateResults: results,
     objectiveMetrics,
+    objectiveMetricErrors,
     timing: {
       startedAt: startedAt.toISOString(),
       durationMs: executionOutcome.durationMs,

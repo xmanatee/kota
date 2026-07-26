@@ -3,7 +3,10 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { MultiRoundFixtureSpecFile } from "./fixture.js";
 import type { ExecutionProfilePreflightResult, FixtureRoundRun, FixtureRun } from "./fixture-run.js";
-import type { ObservedObjectiveMetric } from "./objective-metrics.js";
+import type {
+  ObjectiveMetricObservationError,
+  ObservedObjectiveMetric,
+} from "./objective-metrics.js";
 import type { PredicateEvalResult } from "./predicates.js";
 import type { RoundRunReport, VerifierCalibrationRunResult } from "./runner-types.js";
 
@@ -14,6 +17,7 @@ export function roundRunSummary(result: RoundRunReport): FixtureRoundRun {
     workflowName: result.round.workflowName,
     outcome: result.outcome,
     objectiveMetrics: result.objectiveMetrics,
+    objectiveMetricErrors: result.objectiveMetricErrors,
     timing: result.timing,
     runArtifactPath: result.executionOutcome.runArtifactPath,
   };
@@ -30,6 +34,7 @@ export function writeMultiRoundRunArtifact(
     roundResults: readonly RoundRunReport[];
     aggregatePredicateResults: readonly PredicateEvalResult[];
     objectiveMetrics: ObservedObjectiveMetric[];
+    objectiveMetricErrors: ObjectiveMetricObservationError[];
     verifierCalibration?: VerifierCalibrationRunResult;
   },
 ): void {
@@ -62,10 +67,12 @@ export function writeMultiRoundRunArtifact(
           predicates: result.round.predicates,
           predicateResults: result.predicateResults,
           objectiveMetrics: result.objectiveMetrics,
+          objectiveMetricErrors: result.objectiveMetricErrors,
         })),
         aggregatePredicates: payload.spec.aggregatePredicates ?? [],
         aggregatePredicateResults: payload.aggregatePredicateResults,
         objectiveMetrics: payload.objectiveMetrics,
+        objectiveMetricErrors: payload.objectiveMetricErrors,
         ...(payload.verifierCalibration !== undefined && {
           verifierCalibration: payload.verifierCalibration,
         }),

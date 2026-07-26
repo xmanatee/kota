@@ -76,9 +76,10 @@ Skill-ablation fixtures use `mode: "skill-ablation"` for no-skill control
 and explicit-skill treatments, recording prompt/provenance evidence under
 `skillAblation`. Single-workflow fixtures are default when `mode` is absent.
 
-Objective metrics are deterministic fixture-path evidence, not a second
-benchmark runner. Pass/fail gating stays predicate-only unless a fixture adds
-a threshold predicate; compare metric deltas only for compatible profiles.
+Objective metrics are deterministic fixture evidence, not a second runner.
+Predicates gate unless a fixture defines a metric threshold; compare only
+compatible profiles. Metric errors fail passing runs; failed runs retain them
+and let the eval set continue.
 
 `verifierCalibration` runs before workflow execution with fixture-owned setup,
 writes `verifier-calibration.json`, and fails as fixture errors. Use

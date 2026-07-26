@@ -2,7 +2,11 @@
 import { join } from "node:path";
 import { type CodeHealthRoundDiagnostics, evaluateCodeHealthRound, finalizeCodeHealthDiagnostics } from "./code-health-diagnostics.js";
 import { type FixtureRun, type FixtureRunOutcome, resourceProfileFromExecutionProfile } from "./fixture-run.js";
-import { evaluateObjectiveMetrics, type ObservedObjectiveMetric } from "./objective-metrics.js";
+import {
+  evaluateObjectiveMetricsForOutcome,
+  type ObjectiveMetricObservationError,
+  type ObservedObjectiveMetric,
+} from "./objective-metrics.js";
 import type { PredicateEvalResult } from "./predicates.js";
 import { evaluatePredicates } from "./predicates.js";
 import { codeHealthBaselineFor } from "./runner-code-health.js";
@@ -70,6 +74,7 @@ export async function runMultiRoundFixture(
       resourceProfile,
       executionProfile: params.executionProfile,
       objectiveMetrics: [],
+      objectiveMetricErrors: [],
       configurationError,
       ...(codeHealthDiagnostics !== undefined && { codeHealthDiagnostics }),
       rounds: [],
@@ -89,6 +94,7 @@ export async function runMultiRoundFixture(
       roundResults: [],
       aggregatePredicateResults: [],
       objectiveMetrics: [],
+      objectiveMetricErrors: [],
       verifierCalibration,
     });
     return {
@@ -96,6 +102,7 @@ export async function runMultiRoundFixture(
       predicateResults: [],
       preRunExpectationResults: [],
       objectiveMetrics: [],
+      objectiveMetricErrors: [],
       workingDir,
       executionOutcome,
     };
@@ -144,6 +151,7 @@ export async function runMultiRoundFixture(
   let aggregatePredicateResults: PredicateEvalResult[] = [];
   let aggregatePredicatesPassed = true;
   let objectiveMetrics: ObservedObjectiveMetric[] = [];
+  let objectiveMetricErrors: ObjectiveMetricObservationError[] = [];
   const failedRound = roundResults.find((result) => result.outcome !== "pass");
   if (failedRound === undefined) {
     const aggregate = await evaluatePredicates(
@@ -153,14 +161,6 @@ export async function runMultiRoundFixture(
     );
     aggregatePredicateResults = aggregate.results;
     aggregatePredicatesPassed = aggregate.passed;
-    objectiveMetrics = evaluateObjectiveMetrics({
-      fixtureId: spec.id,
-      metricSpecs: spec.aggregateObjectiveMetrics ?? [],
-      workingDir,
-      executionProfile: params.executionProfile,
-      runIndex: params.runIndex,
-      repeatCount: params.repeatCount,
-    });
   }
 
   const outcome: FixtureRunOutcome =
@@ -177,6 +177,18 @@ export async function runMultiRoundFixture(
       runArtifactPath:
         roundResults[roundResults.length - 1]?.executionOutcome.runArtifactPath ?? null,
     } satisfies WorkflowExecutionOutcome);
+  if (failedRound === undefined) {
+    ({ objectiveMetrics, objectiveMetricErrors } =
+      evaluateObjectiveMetricsForOutcome({
+        fixtureId: spec.id,
+        metricSpecs: spec.aggregateObjectiveMetrics ?? [],
+        workingDir,
+        executionProfile: params.executionProfile,
+        runIndex: params.runIndex,
+        repeatCount: params.repeatCount,
+        outcome,
+      }));
+  }
   const codeHealthDiagnostics =
     spec.codeHealthDiagnostics !== undefined && codeHealthBaseline !== undefined
       ? finalizeCodeHealthDiagnostics({
@@ -194,6 +206,7 @@ export async function runMultiRoundFixture(
     resourceProfile,
     executionProfile: params.executionProfile,
     objectiveMetrics,
+    objectiveMetricErrors,
     ...(codeHealthDiagnostics !== undefined && { codeHealthDiagnostics }),
     rounds: roundResults.map(roundRunSummary),
     timing: {
@@ -213,6 +226,7 @@ export async function runMultiRoundFixture(
     roundResults,
     aggregatePredicateResults,
     objectiveMetrics,
+    objectiveMetricErrors,
     ...(verifierCalibration !== undefined && { verifierCalibration }),
   });
 
@@ -226,6 +240,7 @@ export async function runMultiRoundFixture(
       failedRound?.preRunExpectationResults ??
       roundResults.flatMap((result) => result.preRunExpectationResults),
     objectiveMetrics,
+    objectiveMetricErrors,
     workingDir,
     executionOutcome,
   };

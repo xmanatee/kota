@@ -36,6 +36,7 @@ const BASE_RUN: FixtureRun = {
   resourceProfile: RESOURCE_PROFILE,
   executionProfile: EXECUTION_PROFILE,
   objectiveMetrics: [],
+  objectiveMetricErrors: [],
   timing: {
     startedAt: "2026-05-17T00:00:00.000Z",
     durationMs: 10,

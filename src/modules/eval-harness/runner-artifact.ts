@@ -2,7 +2,10 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExecutionProfilePreflightResult, FixtureRun } from "./fixture-run.js";
-import type { ObservedObjectiveMetric } from "./objective-metrics.js";
+import type {
+  ObjectiveMetricObservationError,
+  ObservedObjectiveMetric,
+} from "./objective-metrics.js";
 import type { FixturePredicate, PredicateEvalResult, PredicateExpectationEvalResult } from "./predicates.js";
 import type { VerifierCalibrationRunResult, WorkflowExecutionOutcome } from "./runner-types.js";
 
@@ -19,6 +22,7 @@ export function writeRunArtifact(
     preRunExpectationResults: PredicateExpectationEvalResult[];
     predicateResults: PredicateEvalResult[];
     objectiveMetrics: ObservedObjectiveMetric[];
+    objectiveMetricErrors: ObjectiveMetricObservationError[];
     verifierCalibration?: VerifierCalibrationRunResult;
   },
 ): void {
@@ -42,6 +46,7 @@ export function writeRunArtifact(
         preRunExpectationResults: payload.preRunExpectationResults,
         predicateResults: payload.predicateResults,
         objectiveMetrics: payload.objectiveMetrics,
+        objectiveMetricErrors: payload.objectiveMetricErrors,
         ...(payload.verifierCalibration !== undefined && {
           verifierCalibration: payload.verifierCalibration,
         }),

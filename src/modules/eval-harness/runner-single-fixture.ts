@@ -2,7 +2,7 @@
 import { join } from "node:path";
 import { finalizeCodeHealthDiagnostics } from "./code-health-diagnostics.js";
 import { type FixtureRun, resourceProfileFromExecutionProfile } from "./fixture-run.js";
-import { evaluateObjectiveMetrics } from "./objective-metrics.js";
+import { evaluateObjectiveMetricsForOutcome } from "./objective-metrics.js";
 import { evaluatePredicateExpectations, evaluatePredicates } from "./predicates.js";
 import { writeRunArtifact } from "./runner-artifact.js";
 import { codeHealthBaselineFor, finalCodeHealthFor } from "./runner-code-health.js";
@@ -73,6 +73,7 @@ export async function runSingleWorkflowFixture(
       resourceProfile,
       executionProfile: params.executionProfile,
       objectiveMetrics: [],
+      objectiveMetricErrors: [],
       configurationError,
       ...(codeHealthDiagnostics !== undefined && { codeHealthDiagnostics }),
       timing: {
@@ -93,6 +94,7 @@ export async function runSingleWorkflowFixture(
       preRunExpectationResults: [],
       predicateResults: [],
       objectiveMetrics: [],
+      objectiveMetricErrors: [],
       verifierCalibration,
     });
     return {
@@ -100,6 +102,7 @@ export async function runSingleWorkflowFixture(
       predicateResults: [],
       preRunExpectationResults: [],
       objectiveMetrics: [],
+      objectiveMetricErrors: [],
       workingDir,
       executionOutcome,
     };
@@ -128,6 +131,7 @@ export async function runSingleWorkflowFixture(
       resourceProfile,
       executionProfile: params.executionProfile,
       objectiveMetrics: [],
+      objectiveMetricErrors: [],
       ...(codeHealthDiagnostics !== undefined && { codeHealthDiagnostics }),
       timing: {
         startedAt: startedAt.toISOString(),
@@ -147,6 +151,7 @@ export async function runSingleWorkflowFixture(
       preRunExpectationResults: preRunSanity.results,
       predicateResults: [],
       objectiveMetrics: [],
+      objectiveMetricErrors: [],
       ...(verifierCalibration !== undefined && { verifierCalibration }),
     });
     return {
@@ -154,6 +159,7 @@ export async function runSingleWorkflowFixture(
       predicateResults: [],
       preRunExpectationResults: preRunSanity.results,
       objectiveMetrics: [],
+      objectiveMetricErrors: [],
       workingDir,
       executionOutcome,
     };
@@ -196,14 +202,16 @@ export async function runSingleWorkflowFixture(
     baseline: codeHealthBaseline,
     outcome,
   });
-  const objectiveMetrics = evaluateObjectiveMetrics({
-    fixtureId: spec.id,
-    metricSpecs: spec.objectiveMetrics ?? [],
-    workingDir,
-    executionProfile: params.executionProfile,
-    runIndex: params.runIndex,
-    repeatCount: params.repeatCount,
-  });
+  const { objectiveMetrics, objectiveMetricErrors } =
+    evaluateObjectiveMetricsForOutcome({
+      fixtureId: spec.id,
+      metricSpecs: spec.objectiveMetrics ?? [],
+      workingDir,
+      executionProfile: params.executionProfile,
+      runIndex: params.runIndex,
+      repeatCount: params.repeatCount,
+      outcome,
+    });
 
   const run: FixtureRun = {
     fixtureId: params.fixture.spec.id,
@@ -214,6 +222,7 @@ export async function runSingleWorkflowFixture(
     resourceProfile,
     executionProfile: params.executionProfile,
     objectiveMetrics,
+    objectiveMetricErrors,
     ...(codeHealthDiagnostics !== undefined && { codeHealthDiagnostics }),
     timing: {
       startedAt: startedAt.toISOString(),
@@ -234,6 +243,7 @@ export async function runSingleWorkflowFixture(
     preRunExpectationResults: preRunSanity.results,
     predicateResults: results,
     objectiveMetrics,
+    objectiveMetricErrors,
     ...(verifierCalibration !== undefined && { verifierCalibration }),
   });
 
@@ -242,6 +252,7 @@ export async function runSingleWorkflowFixture(
     predicateResults: results,
     preRunExpectationResults: preRunSanity.results,
     objectiveMetrics,
+    objectiveMetricErrors,
     workingDir,
     executionOutcome,
   };

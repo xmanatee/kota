@@ -176,4 +176,64 @@ describe("runEvalSet aggregation", () => {
       passed: false,
     });
   });
+
+  it("continues after a failed fixture cannot produce an advisory metric", async () => {
+    seedFixture(
+      fixturesRoot,
+      "alpha",
+      { kind: "file-exists", path: "alpha.txt" },
+      [
+        {
+          name: "quality_score",
+          unit: "score",
+          direction: "higher_is_better",
+          source: { kind: "text-file", path: "metric.txt" },
+        },
+      ],
+    );
+    seedFixture(fixturesRoot, "beta", {
+      kind: "file-exists",
+      path: "beta.txt",
+    });
+    const fixtures = loadAllFixtures(fixturesRoot);
+
+    const report = await runEvalSet({
+      projectDir: fixturesRoot,
+      fixtures,
+      executor: {
+        preflight: () => EXECUTION_PROFILE,
+        execute: async ({ workingDir }) => {
+          if (workingDir.includes("beta")) {
+            writeFileSync(join(workingDir, "beta.txt"), "ok");
+          }
+          return { kind: "completed", durationMs: 5, runArtifactPath: null };
+        },
+      },
+      requestedProfile: PROFILE,
+      runArtifactBaseDir: runsRoot,
+      repeatCount: 1,
+    });
+
+    expect(report.runs).toHaveLength(2);
+    expect(report.runs[0]).toMatchObject({
+      fixtureId: "alpha",
+      outcome: "fail",
+      objectiveMetrics: [],
+      objectiveMetricErrors: [
+        {
+          metricName: "quality_score",
+          reason: "missing-source",
+        },
+      ],
+    });
+    expect(report.runs[1]).toMatchObject({
+      fixtureId: "beta",
+      outcome: "pass",
+    });
+    expect(report.aggregate).toMatchObject({
+      fixtureCount: 2,
+      passAtK: 0.5,
+      passHatK: 0.5,
+    });
+  });
 });

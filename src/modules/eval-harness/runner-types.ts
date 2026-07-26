@@ -12,7 +12,11 @@ import type {
   FixtureRunOutcome,
   ResourceProfile,
 } from "./fixture-run.js";
-import type { ObjectiveMetricDirection, ObservedObjectiveMetric } from "./objective-metrics.js";
+import type {
+  ObjectiveMetricDirection,
+  ObjectiveMetricObservationError,
+  ObservedObjectiveMetric,
+} from "./objective-metrics.js";
 import type {
   FixturePredicate,
   PredicateEvalResult,
@@ -109,6 +113,7 @@ export type FixtureRunReport = {
   predicateResults: PredicateEvalResult[];
   preRunExpectationResults: PredicateExpectationEvalResult[];
   objectiveMetrics: ObservedObjectiveMetric[];
+  objectiveMetricErrors: ObjectiveMetricObservationError[];
   workingDir: string;
   executionOutcome: WorkflowExecutionOutcome;
 };
@@ -121,6 +126,7 @@ export type RoundRunReport = {
   preRunExpectationResults: PredicateExpectationEvalResult[];
   predicateResults: PredicateEvalResult[];
   objectiveMetrics: ObservedObjectiveMetric[];
+  objectiveMetricErrors: ObjectiveMetricObservationError[];
   timing: {
     startedAt: string;
     durationMs: number;

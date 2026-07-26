@@ -244,6 +244,42 @@ describe("runFixture objective metrics", () => {
       expect((caught as ObjectiveMetricValidationError).reason).toBe(
         testCase.reason,
       );
+
+      const failedReport = await runFixture({
+        fixture,
+        executor: {
+          preflight: () => TEST_EXECUTION_PROFILE,
+          execute: async ({ workingDir }) => {
+            if (testCase.fileContent !== null) {
+              writeFileSync(join(workingDir, "metric.txt"), testCase.fileContent);
+            }
+            return { kind: "completed", durationMs: 5, runArtifactPath: null };
+          },
+        },
+        executionProfile: TEST_EXECUTION_PROFILE,
+        runArtifactBaseDir: runsRoot,
+        runIndex: 1,
+        repeatCount: 2,
+      });
+      expect(failedReport.run.outcome).toBe("fail");
+      expect(failedReport.objectiveMetrics).toEqual([]);
+      expect(failedReport.objectiveMetricErrors).toEqual([
+        expect.objectContaining({
+          fixtureId: testCase.id,
+          metricName: "quality_score",
+          reason: testCase.reason,
+        }),
+      ]);
+      const failedArtifact = JSON.parse(
+        readFileSync(
+          join(failedReport.run.runArtifactPath, "fixture-run.json"),
+          "utf-8",
+        ),
+      );
+      expect(failedArtifact.objectiveMetricErrors).toEqual(
+        failedReport.objectiveMetricErrors,
+      );
+      cleanupFixtureWorkingDir(failedReport.workingDir);
     }
   });
 });
