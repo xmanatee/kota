@@ -1,0 +1,24 @@
+1. VERIFIED — Runtime Probes execute only after a live Linux Bubblewrap check proves an empty mount/network/IPC boundary, an invisible tmpfs workspace overlay, and a PID namespace that kills a deliberately detached child. A live host `core_pattern` gate rejects pipe handlers; accepted file-pattern hosts lock the core hard limit at zero and exercise a fresh post-exec abort. Regular-file aliases with outside names are mounted read-only; every FIFO/socket/device inode rejects launch. Other hosts fail closed.
+2. VERIFIED — staged/untracked integration fixtures attempt sibling reads/writes, a real outside-inode hard-link write, host Unix-socket access, package-created pathname IPC, `osascript` delegation, and detached survival. Enforced runs emit package launch/socket/child-ready evidence, while survival would be reported through a host-observed inherited output pipe rather than a workspace marker hidden by the tmpfs overlay. The dedicated coredump integration proves package code cannot launch behind a host pipe handler and requires actual post-exec abort execution whenever the OS boundary is enforced.
+3. VERIFIED — the builder Runtime Probe AGENTS contract, completed task Verification section, autonomy decision, security regression, and validation artifacts record the new authorization boundary and fresh green checks.
+
+Post-check repair attempt 10 removed the bypassable Darwin execution path and
+made the kernel PID namespace, not launcher process-group cleanup, the recorded
+process-lifetime boundary. TypeScript, focused Biome, and the 6-file containment
+suite passed; the suite covered 39 tests.
+
+Post-check repair attempt 11 removed the shared writable workspace bind. Probe
+writes now use Bubblewrap's invisible tmpfs overlay, all pre-existing pathname
+IPC/device inodes reject regardless of link count, and the enforced hostile
+fixture cannot succeed without proving package code ran and the probe passed.
+
+Post-check repair attempt 12's pre-exec dumpability approach was rejected because
+ordinary exec restores dumpability. Attempt 13 instead refuses piped host core
+handlers, locks `RLIMIT_CORE` at hard zero on accepted file-pattern hosts, and
+executes an aborting child in the live capability preflight. Detached survival
+remains observed through inherited host-observed witness pipes.
+
+Attempt-13 TypeScript, focused Biome, queue/diff checks, 46 focused Runtime
+Probe tests, and 32 guard tests passed. The complete suite passed 1068 files and
+12133 tests; only the unrelated registry-dependent pnpm signature check failed
+because signed release metadata was unreachable.

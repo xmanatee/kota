@@ -61,11 +61,19 @@ describe("critic runtime probes", () => {
       sourcePath: "data/tasks/ready/task-probed.md",
     });
     expect(artifact.output).toContain("probe-output-marker");
+    expect(artifact.execution).toBe("os-contained-command");
+    expect(artifact.isolation).toEqual({
+      status: "enforced",
+      kind: "linux-bubblewrap",
+      processBoundary: "pid-namespace",
+      evidence: "test process boundary",
+    });
 
     const userMessage = getPromptArg(mockRunAgentHarness.mock.calls[0]);
     expect(userMessage).toContain("## Runtime Probe Result");
     expect(userMessage).toContain("Command: pnpm run probe:pass");
     expect(userMessage).toContain("Provenance: trusted");
+    expect(userMessage).toContain("Isolation: enforced");
   });
 
   it("writes builder probe evidence into the active workspace run directory", async () => {

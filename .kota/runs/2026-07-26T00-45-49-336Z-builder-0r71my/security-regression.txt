@@ -1,0 +1,109 @@
+Runtime Probe mutable-workspace containment regression
+
+Baseline
+
+- Git-HEAD provenance authenticated only the task declaration.
+- The critic then launched pnpm directly from the mutable workspace.
+- Staged or untracked package scripts therefore executed as daemon-host code.
+
+Final boundary
+
+- Executable probes require Linux prlimit and Bubblewrap. Bubblewrap exposes only
+  pinned read-only runtime paths and a disposable tmpfs overlay of the project
+  inside empty mount, network, IPC, and PID namespaces. Package-created files
+  and pathname IPC are invisible to the host. Git and external regular-file
+  aliases are nested read-only mounts.
+- Before launch, the resolver reads the live host `core_pattern`. A pipe pattern
+  rejects execution because Linux ignores `RLIMIT_CORE=0` for pipe handlers and
+  launches them in the host's initial namespaces. Accepted file-pattern hosts
+  enter Bubblewrap through prlimit with both core limits locked at zero. The
+  capability program then execs a fresh Node child and requires its deliberate
+  abort to terminate with `SIGABRT`, covering the post-exec fatal-signal path
+  before mutable package code may run.
+- The live capability program launches a detached child. After the sandbox
+  command exits, any survivor writes to an inherited pipe observed by trusted
+  host code. The witness is outside the project tmpfs overlay, so namespace
+  teardown evidence cannot pass merely because a marker was hidden. The
+  enforced artifact records `processBoundary: "pid-namespace"`.
+- macOS Seatbelt execution was removed. Its inherited filesystem/network policy
+  does not stop package code from escaping launcher process-group cleanup with
+  `setsid` or `spawn(..., { detached: true })`. macOS and every unsupported host
+  now record `verdict=fail`, `execution=not-executed`, and
+  `isolation.status=unavailable`; there is no host fallback.
+- Before launch, every FIFO, pathname socket, device, or other active special
+  inode rejects execution regardless of link count because namespace isolation
+  cannot sever host pathname IPC. Inode link counts additionally find regular
+  workspace files with outside names and freeze their root file or bounded
+  top-level tree. Ordinary symlinks remain constrained by the empty root.
+- The task-probe public surface exposes only `runTaskProbe`; callers cannot
+  inject an arbitrary object that merely claims to provide a sandbox.
+
+Regression result
+
+- `critic-runtime-probe-sandbox.integration.test.ts` preserves trusted
+  git-HEAD task provenance while supplying staged and untracked package code.
+  Each hostile package attempts sibling reads/writes, an outside-inode regular
+  hard-link write, host Unix-socket access, `osascript` delegation, and a
+  detached child that writes after its launcher exits. Enforced runs must pass
+  and emit package-originated launch and socket-creation evidence; unsupported
+  hosts must record explicit failed non-execution. Neither package-created
+  names may appear in the host workspace, and inherited output must contain the
+  child-ready handshake but not the delayed survival witness.
+- A separate integration creates a real ordinary single-link FIFO and proves
+  package code never launches. Focused unit coverage verifies regular-file
+  protection, ordinary FIFO rejection, and a Linux pathname-socket inode case.
+- The fixed Node supervisor still kills the initial process group on timeout
+  and launcher exit as defense in depth. It is not described or accepted as
+  the descendant lifetime boundary.
+
+Fresh repair-attempt-10 evidence
+
+- `node_modules/.bin/tsc --noEmit` passed.
+- Focused Biome over the 12 touched Runtime Probe source/test files passed.
+- The 6-file focused containment suite passed 39 tests, including real FIFO
+  rejection and staged/untracked detached-process attempts.
+- The complete suite passed 1068 files and 12129 tests after the detached-child
+  readiness handshake landed. The only failure was the unrelated
+  registry-dependent pnpm signature check in the network-restricted host.
+
+Fresh repair-attempt-11 evidence
+
+- `node_modules/.bin/tsc --noEmit` passed.
+- Focused Biome over the repaired scanner, sandbox spec, and regressions passed.
+- The 6-file Runtime Probe suite passed 39 tests; the Linux-only live pathname
+  socket case was skipped on this macOS host.
+- The expanded 10-file Runtime Probe/strict-types/layout/docs/task suite passed
+  52 tests with only that Linux-only socket case skipped.
+- The complete suite passed 1068 files and 12129 tests, with 3 files and 15
+  tests skipped. Its only failure was the unrelated registry-dependent pnpm
+  signature check because signed release metadata was unreachable.
+
+Fresh repair-attempt-12 evidence
+
+- `node_modules/.bin/tsc --noEmit` passed.
+- Focused Biome over the eight repaired source/test files passed.
+- The 4-file coredump/process-containment suite passed all 20 tests.
+- The 7-file Runtime Probe suite passed 45 tests with one Linux-only live
+  pathname-socket case skipped on macOS. The expanded 13-file guard suite
+  passed 66 tests with the same skip.
+- The complete suite passed 1068 files and 12132 tests, with 3 files and 15
+  tests skipped. Its only failure was the unrelated registry-dependent pnpm
+  signature check because signed release metadata was unreachable.
+- The critic rejected this attempt because ordinary exec restores dumpability;
+  the pre-exec `setpriv` and seccomp transition test did not contain a later
+  abort when the host configured a piped core handler.
+
+Fresh repair-attempt-13 evidence
+
+- The sandbox specification rejects empty and piped host core patterns and
+  places `--core=0:0` before Bubblewrap on accepted file-pattern hosts.
+- The live Linux capability gate performs a fresh exec followed by `abort()` and
+  requires `SIGABRT`; the dedicated integration either proves package abort
+  execution under the enforced boundary or proves package code never starts on
+  a host with a piped handler.
+- TypeScript, focused Biome, queue validation, diff hygiene, and the 9-file guard
+  suite passed. The 8-file Runtime Probe suite passed 46 tests with the Linux
+  coredump file and one Linux pathname-socket case skipped on macOS.
+- The complete suite passed 1068 files and 12133 tests. Only the unrelated
+  registry-dependent pnpm signature test failed because signed release metadata
+  was unreachable in the network-restricted environment.

@@ -1,0 +1,159 @@
+PASS: focused Biome check across all touched Runtime Probe source and test files.
+PASS: node_modules/.bin/tsc --noEmit.
+PASS: focused repaired sandbox, toolchain, runner, and escape suite — 5 files passed, 1 nested-Seatbelt integration file skipped; 36 tests passed and 2 nested-only cases skipped.
+PASS: expanded critic, Runtime Probe, strict-types, root-layout, and docs-surface suite — 14 files passed, 1 nested-Seatbelt integration file skipped; 71 tests passed and 2 nested-only cases skipped.
+PASS: the current macOS host's real sandbox-exec parser accepted the generated deny-default Seatbelt profile.
+PASS: focused docs-surface suite — 1 file, 5 tests; builder/AGENTS.md remains within the 100-line ratchet.
+PASS: node --conditions=source --import tsx src/validate-queue.ts using the run-local task-transition index.
+PASS: git diff --check.
+PASS: autonomy-change-decision.json parsed through the production artifact reader.
+PASS: staged autonomy-change-decision repair check covers critic-gate and reviewer change classes.
+PASS: staged source-size warning and severe gates report every changed source file below threshold after splitting sandbox specification, capability resolution, toolchain pinning, and probe execution.
+ENVIRONMENTAL: the current host's known-good deny-default preflight proves restrictive nested Seatbelt application is denied with status 71, so native hostile integration cases skip explicitly rather than accepting nested non-execution as boundary proof. A no-op default-allow profile is not used for this determination. The production resolver remains fail-closed on the same denial.
+
+PASS: canonical `git add -A` ultimately transferred the complete repaired snapshot after it passed `git diff --cached --check` in both the workflow-local `git-index` and a fresh `repair-1.index`; see `staging-limitation.txt` for the initial linked-index denial.
+
+PASS: post-check repair attempt 2 removes the Linux host-root bind, excludes host state and filesystem IPC, pins read-only Node/pnpm runtime paths, and stages the complete refreshed snapshot.
+
+PASS: post-check repair attempt 3 replaces macOS default-allow with a deny-default project/runtime allow-list, rejects outside reads and host-program delegation in the live capability gate, and makes native Darwin hostile regressions require enforced execution.
+
+PASS: the complete 24-path repaired snapshot is staged in the workflow-local index, passes `git diff --cached --check`, has no unstaged paths in that index, covers 3 material autonomy files in the decision gate, and stays below source-size warning and severe thresholds.
+
+PASS: after independently verifying the workflow-local snapshot, a final canonical `git add -A` retry succeeded; all 24 paths are present in the canonical staged diff with no unstaged repair changes.
+
+PASS: post-check repair attempt 4 replaces the orchestration-sensitive `CODEX_SANDBOX` skip condition with a live status-71 Seatbelt application preflight; stripped environment markers can no longer make the nested-host integration fail spuriously, while native Darwin still requires enforced execution.
+
+PASS: the repair-runner reproduction with `CODEX_SANDBOX` removed skips the 2 nested-only hostile integration cases from the live preflight instead of failing their native-Darwin assertions. The complete Vitest suite then passed 1066 files and 12123 tests; only `pnpm-supply-chain-policy.integration.test.ts` failed after 70 seconds because the unavailable registry prevented pnpm signature verification, matching the environmental limitation below.
+
+PASS: post-check repair attempt 5 replaces the insufficient default-allow host probe with a known-good restrictive Seatbelt profile. This covers managed macOS hosts that permit a no-op nested profile but reject profiles that tighten their parent sandbox; capable native hosts still run both hostile fixtures and require enforced isolation.
+
+PASS: fresh repair-5 checks — TypeScript passed; focused Biome passed; the six-file Runtime Probe suite passed 5 files and 36 tests with 1 native integration file and 2 cases skipped by the restrictive live preflight. The complete Vitest suite no longer reports either containment assertion failure: 1066 files and 12123 tests passed, 4 files and 16 tests skipped.
+
+STAGED: all repair-5 source, task, run-evidence, and commit-message changes are present in the run-local `git-index`; `git diff --cached --check` passes and `git diff --name-only` is empty under that index. A subsequent canonical `git add -A` retry succeeded and transferred the same complete snapshot, so review checks see the repair directly.
+
+PASS: post-check repair attempt 6 aligns the macOS capability gate with Seatbelt's operation model. The profile now grants `file-test-existence` only over the same explicit parent, system, pinned toolchain, and workspace allow-list as file reads, so the gate's `access(2)` check can authenticate pnpm without gaining visibility into other host paths. The native integration assertion also prints the fail-closed diagnostic on any future boundary regression.
+
+PASS: fresh repair-6 checks — TypeScript passed; focused Biome passed; the six-file Runtime Probe suite passed 5 files and 36 tests with 1 native integration file and 2 cases skipped because this session rejects restrictive nested Seatbelt. The complete suite passed 1066 files and 12123 tests, with 4 files and 16 tests skipped. Its sole failure remains the unrelated registry-dependent `pnpm-supply-chain-policy.integration.test.ts` check after pnpm could not verify/download 10.32.1 in the network-restricted environment.
+
+STAGED: the complete repair-6 source, task, run-evidence, and commit-message snapshot is present in the workflow run-local `git-index`; `git diff --cached --check` passes and `git diff --name-only` is empty under that index.
+
+ENVIRONMENTAL: pnpm 10.32.1 could not pass the local registry signature/version-switch check because registry fetches are unavailable. The installed TypeScript, Biome, Vitest, and source-mode KOTA entrypoints ran the equivalent checks directly.
+
+PASS: post-check repair attempt 7 keeps both staged and untracked hostile containment cases active on every host. Each case now requires either capability-checked OS containment or an explicit failed `not-executed` result; managed Seatbelt refusal no longer skips the security regression.
+
+PASS: fresh repair-7 checks — focused Biome and TypeScript passed; the 15-file critic/Runtime Probe/strict-types/layout/docs suite passed all 73 tests, including both hostile cases. The complete suite passed 1067 files and 12125 tests, with 3 files and 14 unrelated tests skipped. Its sole failure remains the registry-dependent `pnpm-supply-chain-policy.integration.test.ts` check because pnpm signature verification cannot fetch the registry in this environment.
+
+STAGED: the complete repair-7 source, task, run-evidence, and commit-message snapshot is present in the workflow run-local `git-index`; `git diff --cached --check` passes and no repair changes remain unstaged through that index. The linked canonical index denied its lock file, as recorded in `staging-limitation.txt`.
+
+PASS: post-check repair attempt 8 detects regular-file inodes with names outside the workspace, freezes their root file or bounded top-level tree, and exercises direct hard-link writes plus relinking in the live capability check.
+
+PASS: fresh repair-8 checks — TypeScript and focused Biome passed; the 16-file critic/Runtime Probe/strict-types/layout/docs suite passed all 74 tests, including staged and untracked hard-link escape attempts and the protected-path native Seatbelt parser.
+
+PASS: the complete suite passed 1068 files and 12126 tests, with 3 files and 14 unrelated tests skipped. Its sole failure remains the registry-dependent `pnpm-supply-chain-policy.integration.test.ts` check because pnpm signature verification cannot fetch signed release metadata in this environment.
+
+STAGED: the complete repair-8 source, task, run-evidence, and commit-message snapshot is present in the workflow run-local `git-index`; `git diff --cached --check` passes and no repair changes remain unstaged through that index. The linked canonical index denied its lock file, as recorded in `staging-limitation.txt`.
+
+PASS: post-check repair attempt 9 removes the unsupported Darwin `ulimit -v`,
+uses a short-circuit resource setup chain, and adds a trusted process-group
+supervisor that kills sandbox descendants on timeout and launcher exit.
+
+PASS: fresh repair-9 checks — TypeScript and focused Biome passed; the 16-file
+critic/Runtime Probe/strict-types/layout/docs suite passed all 78 tests. New
+behavioral coverage executed the complete generated Darwin limit chain, proved
+a rejected limit prevents package launch, and proved timeout and early-exit
+descendants cannot create delayed markers.
+
+PASS: the complete repair-9 suite passed 1068 files and 12130 tests, with 3
+files and 14 tests skipped. Its sole failure remained the unrelated
+registry-dependent `pnpm-supply-chain-policy.integration.test.ts` because the
+environment could not fetch signed pnpm release metadata.
+
+STAGED: canonical `git add -A` captured the complete repair-9 snapshot. The
+staged diff passes `git diff --cached --check`, contains all 26 task/source/run
+paths, and has no unstaged repair changes.
+
+PASS: post-check repair attempt 10 makes a capability-checked Linux PID
+namespace the only executable Runtime Probe process-lifetime boundary. The live
+preflight starts a ready-confirmed detached child and rejects containment if it
+survives namespace teardown. macOS and other hosts now fail closed instead of
+treating an escapable process group as complete descendant containment.
+
+PASS: external hard-link discovery now inspects every multiply linked
+non-directory inode. External regular files remain read-only mounts; an
+external FIFO, socket, symlink, device, or other special inode rejects package
+launch. Focused coverage uses a real FIFO and proves package code never starts,
+plus a socket-kind unit assertion.
+
+PASS: fresh repair-10 TypeScript, repository-wide Biome, task validation, and
+`git diff --check` checks passed. The expanded 16-file critic/Runtime Probe/
+strict-types/layout/docs suite reported 76 passing tests and only the AGENTS
+line-count ratchet; after restoring the ratchet, a 3-file rerun passed all 11
+affected tests and the complete suite also passed that coverage.
+
+PASS: the complete repair-10 suite passed 1068 files and 12129 tests, with 3
+files and 14 tests skipped. Its sole failure remained the unrelated
+registry-dependent `pnpm-supply-chain-policy.integration.test.ts` because this
+environment could not fetch signed pnpm release metadata.
+
+PASS: post-check repair attempt 11 replaces the shared writable workspace bind
+with Bubblewrap's invisible tmpfs overlay, rejects every pre-existing pathname
+IPC/device inode regardless of link count, and makes the enforced staged and
+untracked branches require a passing probe plus package-originated launch and
+socket evidence.
+
+PASS: fresh repair-11 TypeScript and focused Biome checks passed. The 6-file
+Runtime Probe suite passed 39 tests; one Linux-only live pathname-socket test
+was skipped on this macOS host.
+
+PASS: after restoring the builder AGENTS.md 100-line ratchet, the expanded
+10-file Runtime Probe/strict-types/root-layout/docs/task suite passed 52 tests;
+only the Linux-only live pathname-socket case was skipped. Queue validation,
+repository-wide Biome, autonomy-decision JSON parsing, and `git diff --check`
+also passed.
+
+PASS: the complete repair-11 suite passed 1068 files and 12129 tests, with 3
+files and 15 tests skipped. Its sole failure remained the unrelated
+registry-dependent `pnpm-supply-chain-policy.integration.test.ts` because this
+environment could not fetch signed pnpm release metadata.
+
+REJECTED: post-check repair attempt 12 set dumpability only before exec. An
+ordinary executable restores dumpability, while Linux ignores `RLIMIT_CORE=0`
+for a piped core handler, so that attempt did not remove the host side channel.
+
+PASS: detached-descendant verification now uses inherited host-observed pipes.
+The live capability child writes its survival witness to fd 3, and the hostile
+integration child inherits captured stderr after an IPC readiness handshake.
+Neither proof depends on a host check of a path hidden by the workspace tmpfs.
+
+PASS: repair-12 TypeScript and focused Biome checks passed. The initial 4-file
+coredump/process-containment suite passed all 20 tests on this macOS host; its
+hostile cases exercised the required fail-closed non-execution branch.
+
+PASS: the repair-12 7-file Runtime Probe suite passed 45 tests with one
+Linux-only live pathname-socket case skipped on macOS. The expanded 13-file
+Runtime Probe/strict-types/layout/docs/task/decision suite passed 66 tests with
+the same skip. Repository-wide Biome checked 2809 files and queue validation
+passed.
+
+PASS: the complete repair-12 suite passed 1068 files and 12132 tests, with 3
+files and 15 tests skipped. Its sole failure remained the unrelated
+registry-dependent `pnpm-supply-chain-policy.integration.test.ts` because this
+environment could not fetch signed pnpm release metadata.
+
+PASS: post-check repair attempt 13 removes the invalid pre-exec dumpability
+claim. Linux hosts with piped `core_pattern` handlers fail closed before package
+launch. Accepted file-pattern hosts enter Bubblewrap behind `--core=0:0`, and
+the live capability program requires a freshly execed child to abort with
+`SIGABRT` before mutable package code may run.
+
+PASS: repair-13 TypeScript and focused Biome checks passed. The 8-file Runtime
+Probe suite passed 7 files and 46 tests; the dedicated Linux coredump file and
+one Linux pathname-socket case were skipped on macOS. The 9-file strict-types,
+root-layout, docs/task, autonomy-decision, and source-size guard suite passed all
+32 tests. Queue validation and `git diff --check` passed; builder/AGENTS.md
+remains at its 100-line ratchet.
+
+PASS: the complete repair-13 suite passed 1068 files and 12133 tests, with 4
+files and 16 tests skipped. Its sole failure remained the unrelated
+registry-dependent `pnpm-supply-chain-policy.integration.test.ts` because the
+network-restricted environment could not fetch signed pnpm release metadata.

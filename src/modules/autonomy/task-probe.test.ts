@@ -1,21 +1,5 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { extractTaskProbe, runTaskProbe, type TaskProbe } from "./task-probe.js";
-
-function makeTmpDir(): string {
-  const dir = join(tmpdir(), `kota-task-probe-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-  mkdirSync(dir, { recursive: true });
-  return dir;
-}
-
-function writePackageJson(dir: string, scripts: Record<string, string>): void {
-  writeFileSync(
-    join(dir, "package.json"),
-    JSON.stringify({ name: "probe-fixture", version: "0.0.0", scripts }, null, 2),
-  );
-}
+import { extractTaskProbe, type TaskProbe } from "./task-probe.js";
 
 function makeProbe(command: string): TaskProbe {
   const probe = extractTaskProbe([
@@ -240,58 +224,5 @@ describe("extractTaskProbe", () => {
       "command: pnpm exec sh",
     ].join("\n");
     expect(() => extractTaskProbe(task)).toThrow(/subcommand "exec" is not allowed/);
-  });
-});
-
-describe("runTaskProbe", () => {
-  it("produces a pass verdict for exit code 0", () => {
-    const dir = makeTmpDir();
-    writePackageJson(dir, {
-      "probe:pass": "node -e \"process.exit(0)\"",
-    });
-    const result = runTaskProbe(makeProbe("pnpm run probe:pass"), dir);
-    expect(result.verdict).toBe("pass");
-    expect(result.exitCode).toBe(0);
-    expect(result.execution).toBe("constrained-direct-command");
-    expect(typeof result.durationMs).toBe("number");
-  });
-
-  it("produces a fail verdict for a non-zero exit code and captures output", () => {
-    const dir = makeTmpDir();
-    writePackageJson(dir, {
-      "probe:fail": "node -e \"console.error('oops'); process.exit(3)\"",
-    });
-    const result = runTaskProbe(makeProbe("pnpm run probe:fail"), dir);
-    expect(result.verdict).toBe("fail");
-    expect(result.exitCode).toBe(3);
-    expect(result.output).toContain("oops");
-  });
-
-  it("captures stdout output on pass", () => {
-    const dir = makeTmpDir();
-    writePackageJson(dir, {
-      "probe:stdout": "node -e \"console.log('hello-probe')\"",
-    });
-    const result = runTaskProbe(makeProbe("pnpm run probe:stdout"), dir);
-    expect(result.verdict).toBe("pass");
-    expect(result.output).toContain("hello-probe");
-  });
-
-  it("does not inherit arbitrary workflow environment values", () => {
-    const dir = makeTmpDir();
-    writePackageJson(dir, {
-      "probe:env": "node -e \"console.log(process.env.KOTA_PROBE_SECRET ?? 'missing')\"",
-    });
-    const previous = process.env.KOTA_PROBE_SECRET;
-    process.env.KOTA_PROBE_SECRET = "probe-secret-value";
-    try {
-      const result = runTaskProbe(makeProbe("pnpm run probe:env"), dir);
-      expect(result.verdict).toBe("pass");
-      expect(result.output).toContain("missing");
-      expect(result.output).not.toContain("probe-secret-value");
-    } finally {
-      if (previous === undefined) delete process.env.KOTA_PROBE_SECRET;
-      else process.env.KOTA_PROBE_SECRET = previous;
-    }
   });
 });

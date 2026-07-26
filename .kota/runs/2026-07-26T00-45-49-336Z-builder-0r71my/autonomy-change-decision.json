@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "autonomy-change-decision",
+  "runId": "2026-07-26T00-45-49-336Z-builder-0r71my",
+  "createdAt": "2026-07-26T03:38:18Z",
+  "taskIds": [
+    "task-security-review-runtime-probe-provenance-authentic"
+  ],
+  "affectedSurfaces": [
+    "builder critic Runtime Probe execution",
+    "Runtime Probe provenance and isolation artifacts"
+  ],
+  "changeClasses": [
+    "critic-gate",
+    "reviewer"
+  ],
+  "hypothesis": "Requiring a capability-proven OS boundary after task-command provenance validation will preserve runtime outcome evidence while preventing mutable staged or untracked workspace code from acting as an implicitly authorized daemon-host command.",
+  "sourceRefs": [
+    "data/tasks/done/task-security-review-runtime-probe-provenance-authentic.md",
+    ".kota/runs/2026-07-26T00-45-49-336Z-builder-0r71my/success-criteria.txt"
+  ],
+  "baselineRefs": [
+    "src/modules/autonomy/critic-runtime-probe.ts",
+    "src/modules/autonomy/task-probe.ts",
+    "src/modules/autonomy/critic-runtime-probe.test.ts"
+  ],
+  "candidateRefs": [
+    "src/modules/autonomy/task-probe-sandbox-spec.ts",
+    "src/modules/autonomy/task-probe-hard-links.ts",
+    "src/modules/autonomy/task-probe-hard-links.test.ts",
+    "src/modules/autonomy/task-probe-sandbox-capability-program.ts",
+    "src/modules/autonomy/task-probe-sandbox.ts",
+    "src/modules/autonomy/task-probe-sandbox.test.ts",
+    "src/modules/autonomy/task-probe-toolchain.ts",
+    "src/modules/autonomy/task-probe-toolchain.test.ts",
+    "src/modules/autonomy/task-probe-runner.ts",
+    "src/modules/autonomy/task-probe-runner.test.ts",
+    "src/modules/autonomy/critic-runtime-probe-sandbox.integration.test.ts",
+    ".kota/runs/2026-07-26T00-45-49-336Z-builder-0r71my/security-regression.txt",
+    ".kota/runs/2026-07-26T00-45-49-336Z-builder-0r71my/validation.txt"
+  ],
+  "metricsCompared": [
+    {
+      "name": "mutable package-script host escape coverage",
+      "baseline": "A trusted task declaration executed staged or untracked package scripts directly in the daemon host context, and the existing positive test used an untracked package.json as executable authority.",
+      "candidate": "Focused staged and untracked regressions preserve git-HEAD task provenance while attempting outside-project reads and writes, regular-file hard-link writes, host filesystem IPC, package-created pathname IPC, host-program delegation, and detached-process survival through a host-observed inherited pipe. Enforced runs must pass and emit package-originated launch/socket/child-ready evidence while the disposable tmpfs overlay keeps created names off the host. A fail-closed core-pattern gate rejects host pipe handlers before package launch; accepted hosts lock RLIMIT_CORE at hard zero and the live capability check exercises an ordinary post-exec abort. Ordinary FIFO and Linux pathname-socket regressions prove every pre-existing IPC inode rejects launch regardless of link count. Unsupported hosts require explicit failed non-execution.",
+      "unit": "focused integration cases",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "probe execution-boundary evidence",
+      "baseline": "runtime-probe.json recorded only constrained command parsing and task provenance.",
+      "candidate": "runtime-probe.json distinguishes Linux PID-namespace-contained execution from not-executed failure and records the process-lifetime boundary explicitly.",
+      "unit": "typed artifact assertions",
+      "direction": "improved",
+      "qualitySignal": true
+    }
+  ],
+  "rolloutMode": "blocking",
+  "decision": "promote",
+  "rationale": "The previous critic path authenticated only task text before executing mutable workspace code. The candidate retains that provenance check but makes kernel-enforced OS containment a separate mandatory authorization boundary. Executable probes require Linux Bubblewrap with an empty mount/network/IPC namespace, pinned read-only runtime code, a disposable tmpfs overlay of the project, Git and external regular-file aliases overmounted read-only, hard resource limits, and a PID namespace. Package-created files and pathname IPC never reach the host workspace. Because Linux ignores RLIMIT_CORE for piped core handlers and launches those handlers in initial namespaces, the resolver reads the live host core_pattern and refuses execution whenever it names a pipe. Accepted file-pattern hosts lock both core limits at zero before Bubblewrap, and the capability program execs a fresh child that aborts before mutable package code may run. The live preflight also spawns a detached child and rejects the boundary if that child writes a survival witness to an inherited host-observed pipe after namespace teardown; the proof does not rely on a path hidden by the overlay. Darwin Seatbelt was removed as an execution option because launcher process groups can be escaped with setsid or detached spawn; macOS and other hosts now record failed non-execution instead of claiming incomplete process containment. Before launch, every FIFO, pathname socket, device, or other active special inode rejects regardless of link count because namespace policy cannot sever host pathname IPC; ordinary symlinks remain constrained by the empty root. The public task-probe surface no longer accepts an injected sandbox object. Focused tests cover the namespace and artifact contract, core-pattern rejection and live post-exec abort, process-group timeout cleanup as defense in depth, ordinary FIFO rejection, a Linux live pathname socket, and staged/untracked filesystem, host-service, package-execution, and detached-process escape attempts.",
+  "ownerSafetyExceptions": [],
+  "followUpTaskIds": []
+}

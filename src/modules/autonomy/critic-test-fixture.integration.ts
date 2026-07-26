@@ -24,6 +24,19 @@ const mockCreateWorkflowAgentGuards = vi.hoisted(
   () => vi.fn(() => vi.fn(async () => ({ behavior: "allow" }))),
 );
 
+vi.mock("./task-probe-sandbox.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./task-probe-sandbox.js")>()),
+  resolveTaskProbeSandbox: vi.fn(() => ({
+    status: "available",
+    kind: "linux-bubblewrap",
+    processBoundary: "pid-namespace",
+    command: "/usr/bin/env",
+    prefixArgs: [],
+    probeExecutable: "pnpm",
+    evidence: "test process boundary",
+  })),
+}));
+
 vi.mock("#core/agent-harness/index.js", async () => {
   const actual = await vi.importActual<typeof import("#core/agent-harness/index.js")>(
     "#core/agent-harness/index.js",

@@ -69,11 +69,11 @@ an optional runtime probe the critic runs before judging.
   critic only runs a probe whose parsed command and timeout match the task
   file's declaration in `git HEAD`; otherwise it records a rejected
   `runtime-probe.json` and fails before execution.
-- The critic runs the probe directly via `spawnSync` from its own step,
-  using a non-shell process invocation and a minimal subprocess environment
-  rather than the workflow's full environment. Probes do not route through the
-  agent tool loop, so the constrained runner and pre-run provenance check are
-  the boundary for this surface. Authors own their commands.
+- Probes run only after a live, fail-closed check; Git-HEAD authenticates the
+  predicate, not execution. Linux requires Bubblewrap mount/network/IPC/PID
+  namespaces and teardown plus a non-piped `core_pattern` and hard-zero core
+  limit; pipe-handler and non-Linux hosts record `not-executed`. A tmpfs overlay
+  holds writes; outside-name inodes freeze and pathname IPC/device inodes reject.
 - The probe result lands as `runtime-probe.json` in the active workspace's
   run directory, is committed with the builder change, and is threaded into
   the critic's prompt with instructions to treat failure as a critical issue

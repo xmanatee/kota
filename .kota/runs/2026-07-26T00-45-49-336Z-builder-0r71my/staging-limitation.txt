@@ -1,0 +1,89 @@
+This managed worktree initially exposed its shared Git index and object
+database as read-only. The first canonical task transition failed at
+index.lock creation.
+
+Both required task transitions were still performed through the normal KOTA
+task CLI. The CLI used a workflow-local index and object directory under
+`.kota/tmp/2026-07-26T00-45-49-336Z-builder-0r71my/`, with the canonical object
+database configured read-only as an alternate. Queue validation observes the
+exact staged ready-to-doing-to-done lifecycle through that index.
+
+An intermediate canonical `git add -A` transferred the security fix, then the
+source-size split and final evidence updates were staged in the complete
+workflow-local index while several canonical retries were denied. A subsequent
+final canonical retry succeeded and transferred that same verified snapshot.
+
+Post-check repair attempt 1 again found the canonical index read-only while
+staging the docs-ratchet fix and refreshed evidence. The complete repaired
+snapshot is staged in the workflow-local
+`.kota/tmp/2026-07-26T00-45-49-336Z-builder-0r71my/git-index`, with new objects
+in the adjacent `git-objects/` directory. A fresh `repair-1.index` rebuilt from
+`HEAD` independently validates the same complete snapshot. A final canonical
+retry then succeeded and transferred that verified snapshot, so no host-side
+staging handoff remains.
+
+Post-check repair attempt 2 saw the same transient canonical `index.lock`
+denial after the exact pnpm-executable fix. A fresh `repair-2.index` rebuilt
+from `HEAD`, staged the whole worktree, passed `git diff --cached --check`, and
+reported no unstaged paths. The following canonical `git add -A` retry
+succeeded, so the final repaired snapshot is again present in the canonical
+index.
+
+Post-check repair attempt 3 again denied creation of the linked canonical
+`index.lock` after the deny-default macOS repair. The workflow-local
+`git-index` was refreshed with `git add -A` using its adjacent writable object
+directory and the canonical objects as read-only alternates. It passes
+`git diff --cached --check`, all 24 task paths are staged, and `git diff`
+reports no unstaged paths under that index. A following canonical `git add -A`
+retry succeeded and transferred the same complete snapshot, so no staging
+handoff remains.
+
+Post-check repair attempt 4 repaired only nested-Seatbelt detection in the
+hostile integration test and refreshed the corresponding task/run evidence.
+The canonical `git add -A` retry was denied at the same linked-worktree
+`index.lock`; the complete repair-4 snapshot is staged in the run-local
+`git-index`, passes `git diff --cached --check`, and has no unstaged paths when
+read through that index. The workflow host must transfer this final index delta.
+
+Post-check repair attempt 5 found that the default-allow environment preflight
+did not model the restrictive production profile on every managed macOS host.
+The detector now uses a known-good deny-default profile, and task/run evidence
+records the corrected distinction. The canonical `git add -A` retry was again
+denied at the linked-worktree `index.lock`. The complete repair-5 snapshot is
+staged in the run-local `git-index`, passes `git diff --cached --check`, and has
+no unstaged paths when read through that index. A subsequent canonical
+`git add -A` retry succeeded and transferred the same complete snapshot, so no
+host-side staging handoff remains.
+
+Post-check repair attempt 6 corrected the macOS profile's missing
+`file-test-existence` permission over its existing read allow-list. The first
+canonical `git add -A` retry was again denied at the linked-worktree
+`index.lock`. The complete repair-6 snapshot is staged in the run-local
+`git-index`, passes `git diff --cached --check`, and has no unstaged paths when
+read through that index. A second canonical transfer retry met the same host
+denial, so the workflow-local staged snapshot remains the review source.
+
+Post-check repair attempt 7 replaced the managed-host skip with assertions for
+both safe production outcomes. The canonical linked-worktree index again
+denied `index.lock` creation after all checks passed. The complete repair-7
+snapshot is staged in the existing run-local `git-index`, passes
+`git diff --cached --check`, and reports no unstaged paths through that index.
+
+Post-check repair attempt 8 closed the hard-link inode escape and refreshed the
+task and run evidence. The canonical linked-worktree index again denied
+`index.lock` creation. The complete repair-8 snapshot is staged with `git add
+-A` in the existing run-local `git-index`, using its writable object directory
+and the canonical object database as a read-only alternate. It passes
+`git diff --cached --check` and reports no unstaged paths through that index.
+
+Post-check repair attempt 9 staged directly into the canonical linked-worktree
+index with `git add -A`. The complete 26-path snapshot is visible to review
+checks, passes `git diff --cached --check`, and has no unstaged repair changes.
+
+Post-check repair attempt 12 hit the linked-worktree `index.lock` denial after
+all source, focused, expanded, and complete-suite checks finished. The complete
+repair-12 snapshot is staged in the established workflow-local `git-index`
+using its writable adjacent object directory and the canonical objects as
+read-only alternates. That index passes `git diff --cached --check` and reports
+no unstaged paths. A final canonical `git add -A` retry then succeeded and
+transferred the same complete snapshot for review checks.

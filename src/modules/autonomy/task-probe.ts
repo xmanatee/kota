@@ -3,6 +3,8 @@ import { basename } from "node:path";
 import { buildRequiredInheritedSubprocessEnv } from "#core/modules/subprocess-env.js";
 import { parseConstrainedProbeCommand } from "./task-probe-command.js";
 
+export { runTaskProbe } from "./task-probe-runner.js";
+
 export type TaskProbe = {
   command: string;
   executable: "pnpm";
@@ -27,15 +29,24 @@ export type TaskProbeResult = {
   durationMs: number;
   output: string;
   probe: TaskProbe;
-  execution: "constrained-direct-command";
+  execution: "os-contained-command" | "not-executed";
+  isolation?:
+    | {
+        status: "enforced";
+        kind: "linux-bubblewrap";
+        processBoundary: "pid-namespace";
+        evidence: string;
+      }
+    | {
+        status: "unavailable";
+        reason: string;
+      };
   provenance?: TaskProbeProvenance;
 };
 
 const PROBE_SECTION_RE = /(?:^|\n)## +Runtime Probe\s*\n([\s\S]*?)(?=\n## |\n?$)/;
 const CODE_FENCE_RE = /^\s*```[\w]*\n([\s\S]*?)\n```/;
 const DEFAULT_PROBE_TIMEOUT_MS = 120_000;
-const MAX_PROBE_OUTPUT_CHARS = 20_000;
-const PROBE_MAX_BUFFER = 10 * 1024 * 1024;
 const TRUSTED_PROBE_TASK_STATES = ["ready", "doing", "blocked", "done", "backlog"] as const;
 
 export function extractTaskProbe(taskContent: string): TaskProbe | null {
@@ -109,33 +120,6 @@ function stripCodeFence(section: string): string {
   return fenced ? fenced[1] : section;
 }
 
-export function runTaskProbe(probe: TaskProbe, projectDir: string): TaskProbeResult {
-  const start = Date.now();
-  const result = spawnSync(probe.executable, probe.args, {
-    cwd: projectDir,
-    env: buildTaskProbeEnv(),
-    timeout: probe.timeoutMs,
-    encoding: "utf-8",
-    maxBuffer: PROBE_MAX_BUFFER,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  const durationMs = Date.now() - start;
-  const combined = [result.stdout ?? "", result.stderr ?? ""]
-    .filter((part) => part.length > 0)
-    .join("\n");
-  const output = truncateTail(combined, MAX_PROBE_OUTPUT_CHARS);
-  const exitCode = result.status ?? -1;
-  const verdict: "pass" | "fail" = exitCode === 0 ? "pass" : "fail";
-  return {
-    verdict,
-    exitCode,
-    durationMs,
-    output,
-    probe,
-    execution: "constrained-direct-command",
-  };
-}
-
 export function verifyTaskProbeProvenance(args: {
   projectDir: string;
   taskPath: string;
@@ -184,7 +168,7 @@ export function rejectedTaskProbeResult(
     durationMs: 0,
     output: `Runtime Probe not executed: ${reason}`,
     probe,
-    execution: "constrained-direct-command",
+    execution: "not-executed",
     provenance: {
       status: "untrusted",
       reason,
@@ -212,24 +196,19 @@ function sameProbeDeclaration(left: TaskProbe, right: TaskProbe): boolean {
   );
 }
 
-function buildTaskProbeEnv(): NodeJS.ProcessEnv {
-  return {
-    ...buildRequiredInheritedSubprocessEnv(),
-    NO_COLOR: "1",
-    KOTA_RUNTIME_PROBE: "1",
-  };
-}
-
-function truncateTail(text: string, limit: number): string {
-  if (text.length <= limit) return text;
-  return `[... ${text.length - limit} chars truncated — showing tail ...]\n${text.slice(-limit)}`;
-}
-
 export function formatProbeBlock(result: TaskProbeResult): string {
   const lines = [
     "## Runtime Probe Result",
     `Command: ${result.probe.command}`,
     `Execution: ${result.execution}`,
+    ...(result.isolation
+      ? [
+          `Isolation: ${result.isolation.status}` +
+            (result.isolation.status === "enforced"
+              ? ` (${result.isolation.kind}, process boundary ${result.isolation.processBoundary}: ${result.isolation.evidence})`
+              : ` (${result.isolation.reason})`),
+        ]
+      : []),
     `Verdict: ${result.verdict}`,
     `Exit code: ${result.exitCode}`,
     `Duration: ${result.durationMs} ms`,
