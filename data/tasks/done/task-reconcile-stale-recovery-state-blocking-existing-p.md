@@ -1,13 +1,13 @@
 ---
 id: task-reconcile-stale-recovery-state-blocking-existing-p
 title: Reconcile stale recovery state blocking existing P1 repairs
-status: blocked
+status: done
 priority: p1
 area: autonomy
 task_class: Meta
 summary: Use the canonical workflow state-recovery path to release or supersede the stale builder claims for the existing builder-failure and defensive-security-review tasks, then disposition the open improver dead letter without duplicating either underlying repair.
 created_at: 2026-07-25T14:44:27.087Z
-updated_at: 2026-07-25T16:06:45.475Z
+updated_at: 2026-07-25T23:27:42.789Z
 ---
 
 ## Problem

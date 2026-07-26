@@ -33,6 +33,7 @@ deploy/telegram-assistant/.env
 !/.kota/runs/2026-07-25T15-52-06-334Z-builder-e7it1w/recovery-state-before.json
 !/.kota/runs/2026-07-25T15-52-06-334Z-builder-e7it1w/success-criteria-verified.txt
 !/.kota/runs/2026-07-25T15-52-06-334Z-builder-e7it1w/success-criteria.txt
+!/.kota/runs/2026-07-25T15-52-06-334Z-builder-e7it1w/trusted-host-recovery-complete.json
 !/.kota/runs/2026-07-25T15-52-06-334Z-builder-e7it1w/validation.txt
 !/.kota/runs/2026-07-25T16-18-47-137Z-builder-mp7c4x/
 /.kota/runs/2026-07-25T16-18-47-137Z-builder-mp7c4x/*

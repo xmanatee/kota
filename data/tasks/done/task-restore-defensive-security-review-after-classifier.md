@@ -1,13 +1,13 @@
 ---
 id: task-restore-defensive-security-review-after-classifier
 title: Restore defensive security review after classifier refusal
-status: ready
+status: done
 priority: p1
 area: autonomy
 task_class: Meta
 summary: Repair the security-review execution path so the current defensive review of high-risk repository changes can complete without the investigate-candidates step being rejected by the cybersecurity classifier.
 created_at: 2026-07-25T08:59:04.931Z
-updated_at: 2026-07-25T08:59:04.931Z
+updated_at: 2026-07-25T23:26:39.877Z
 ---
 
 ## Problem
