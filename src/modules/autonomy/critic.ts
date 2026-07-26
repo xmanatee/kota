@@ -255,11 +255,17 @@ export function createCriticCheck(options?: {
       }
       if (response.isError) {
         const recovered = parseVerdict(response.text);
-        return handleVerdict(recovered, runDir, "critic-review.json", verdictContext);
+        return handleVerdict(recovered, runDir, "critic-review.json", {
+          ...verdictContext,
+          failureDetailMode: "artifact-reference",
+        });
       }
 
       const verdict = parseVerdict(response.text);
-      return handleVerdict(verdict, runDir, "critic-review.json", verdictContext);
+      return handleVerdict(verdict, runDir, "critic-review.json", {
+        ...verdictContext,
+        failureDetailMode: "artifact-reference",
+      });
     },
   };
 }

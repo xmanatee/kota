@@ -155,11 +155,17 @@ export function createImproverSemanticCheck(options?: {
       }
       if (response.isError) {
         const recovered = parseVerdict(response.text);
-        return handleVerdict(recovered, runDir, ARTIFACT_NAME, verdictContext);
+        return handleVerdict(recovered, runDir, ARTIFACT_NAME, {
+          ...verdictContext,
+          failureDetailMode: "artifact-reference",
+        });
       }
 
       const verdict = parseVerdict(response.text);
-      return handleVerdict(verdict, runDir, ARTIFACT_NAME, verdictContext);
+      return handleVerdict(verdict, runDir, ARTIFACT_NAME, {
+        ...verdictContext,
+        failureDetailMode: "artifact-reference",
+      });
     },
   };
 }

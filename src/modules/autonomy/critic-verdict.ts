@@ -128,6 +128,8 @@ export function handleVerdict(
     reviewerPromptHash?: string;
     taskId?: string;
     fallbackFileLineCitations?: readonly string[];
+    /** Keep agent-generated reviewer prose discoverable without preloading it into a repair prompt. */
+    failureDetailMode?: "inline" | "artifact-reference";
   },
 ): string {
   const verdict = normalizeAcceptedVerdictScrutiny(
@@ -170,6 +172,12 @@ export function handleVerdict(
   }
 
   if (verdict.verdict === "fail" && verdict.critical_issues.length > 0) {
+    if (runDir && context?.failureDetailMode === "artifact-reference") {
+      throw new Error(
+        `Critic found ${verdict.critical_issues.length} critical issue(s). ` +
+          `Review ${join(runDir, artifactName)} for the complete actionable evidence.`,
+      );
+    }
     throw new Error(
       `Critic found ${verdict.critical_issues.length} critical issue(s):\n` +
         verdict.critical_issues.map((issue, i) => `  ${i + 1}. ${issue}`).join("\n") +

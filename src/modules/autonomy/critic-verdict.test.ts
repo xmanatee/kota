@@ -91,6 +91,39 @@ describe("critic verdict handling", () => {
     expect(artifact.critical_issues).toHaveLength(1);
   });
 
+  it("keeps detailed failure evidence out of the repair-loop error", () => {
+    const dir = makeTmpDir();
+    const runDir = makeRunDir(dir);
+    const issue =
+      "A concrete security-sensitive reproduction belongs in the durable verdict artifact.";
+
+    let thrownMessage = "";
+    try {
+      handleVerdict(
+        {
+          verdict: "fail",
+          critical_issues: [issue],
+          warnings: [],
+          summary: "Detailed remediation evidence is available.",
+        },
+        runDir,
+        "critic-review.json",
+        { failureDetailMode: "artifact-reference" },
+      );
+    } catch (error) {
+      thrownMessage = error instanceof Error ? error.message : String(error);
+    }
+
+    expect(thrownMessage).toContain(`Review ${join(runDir, "critic-review.json")}`);
+    expect(thrownMessage).not.toContain(issue);
+    expect(thrownMessage).not.toContain("Detailed remediation evidence");
+    const artifact = JSON.parse(
+      readFileSync(join(runDir, "critic-review.json"), "utf8"),
+    );
+    expect(artifact.critical_issues).toEqual([issue]);
+    expect(artifact.summary).toBe("Detailed remediation evidence is available.");
+  });
+
   it("passes with warnings and writes critic-review.json", async () => {
     const dir = makeTmpDir();
     writeDoingTask(dir, "task-baz.md", "---\ntitle: Do baz\n---\nDo baz.");
