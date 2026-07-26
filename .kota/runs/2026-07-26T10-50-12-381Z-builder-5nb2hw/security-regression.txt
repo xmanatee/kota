@@ -1,0 +1,13 @@
+Security regression: objective-metric artifact reads
+
+RED evidence:
+- The new focused suite initially failed all 5 tests.
+- Relative traversal and absolute metric paths loaded successfully.
+- JSON and text symlinks were followed to host targets.
+- A 2 MiB sparse JSON artifact was allocated and its parse error exposed a content prefix.
+- A 2 MiB sparse text artifact was allocated and classified only as nonnumeric.
+
+GREEN evidence:
+- Command: ./node_modules/.bin/vitest run src/modules/eval-harness/objective-metrics-file-security.test.ts src/modules/eval-harness/runner-objective-metrics.test.ts src/modules/eval-harness/fixture-external-and-metrics.test.ts src/modules/eval-harness/objective-metrics-isolation.test.ts --configLoader runner
+- Result: 4 test files passed; 17 tests passed.
+- Coverage includes JSON and text sources, pass and fail outcome collection, host-target symlinks, 2 MiB sparse artifacts, non-regular entries, contained-path declarations, and redacted invalid-content errors.

@@ -1,3 +1,4 @@
+import { isAbsolute, normalize, sep } from "node:path";
 import { z } from "zod";
 import {
   type ObjectiveMetricJsonValue,
@@ -36,18 +37,32 @@ const jsonPointerSchema = z.string().refine(
   "must be an empty string or an RFC6901-style pointer starting with '/'",
 );
 
+const metricArtifactPathSchema = z
+  .string()
+  .min(1)
+  .refine((value) => {
+    if (value.includes("\0") || isAbsolute(value)) return false;
+    const normalized = normalize(value);
+    return (
+      normalized !== "." &&
+      normalized !== ".." &&
+      !normalized.startsWith(`..${sep}`) &&
+      !isAbsolute(normalized)
+    );
+  }, "must be a relative path contained within the fixture working directory");
+
 const objectiveMetricSourceSchema = z.discriminatedUnion("kind", [
   z
     .object({
       kind: z.literal("json-file"),
-      path: z.string().min(1),
+      path: metricArtifactPathSchema,
       pointer: jsonPointerSchema,
     })
     .strict(),
   z
     .object({
       kind: z.literal("text-file"),
-      path: z.string().min(1),
+      path: metricArtifactPathSchema,
       pattern: z.string().min(1).optional(),
     })
     .strict(),

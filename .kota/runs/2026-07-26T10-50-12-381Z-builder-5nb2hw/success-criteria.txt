@@ -1,0 +1,3 @@
+1. JSON and text objective-metric artifacts are read only from relative contained regular files through a no-follow validated descriptor, with a small logical-size cap before allocation and no untrusted contents in typed errors.
+2. Focused regressions cover symlinked host targets and oversized sparse JSON/text artifacts for both passing and failed outcomes.
+3. The task records a fresh focused verification command and its result before moving to done.

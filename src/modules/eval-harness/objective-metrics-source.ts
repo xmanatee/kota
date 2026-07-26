@@ -1,5 +1,4 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { readObjectiveMetricArtifact } from "./objective-metric-artifact-reader.js";
 import {
   type ObjectiveMetricJsonValue,
   type ObjectiveMetricSource,
@@ -26,7 +25,7 @@ function parseNumericText(
   if (!/^[+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:e[+-]?\d+)?$/i.test(text)) {
     throw new ObjectiveMetricValidationError(
       "nonnumeric-value",
-      `Objective metric "${metricName}" for fixture "${fixtureId}" produced nonnumeric value from ${sourceDescription}: ${JSON.stringify(text)}.`,
+      `Objective metric "${metricName}" for fixture "${fixtureId}" produced a nonnumeric value from ${sourceDescription}.`,
       { fixtureId, metricName },
     );
   }
@@ -34,7 +33,7 @@ function parseNumericText(
   if (!Number.isFinite(value)) {
     throw new ObjectiveMetricValidationError(
       "nonnumeric-value",
-      `Objective metric "${metricName}" for fixture "${fixtureId}" produced nonfinite value from ${sourceDescription}: ${JSON.stringify(text)}.`,
+      `Objective metric "${metricName}" for fixture "${fixtureId}" produced a nonfinite value from ${sourceDescription}.`,
       { fixtureId, metricName },
     );
   }
@@ -74,23 +73,19 @@ function extractJsonFileMetric(
   metricName: string,
   source: Extract<ObjectiveMetricSource, { kind: "json-file" }>,
 ): number {
-  const filePath = join(workingDir, source.path);
-  if (!existsSync(filePath) || !statSync(filePath).isFile()) {
-    throw new ObjectiveMetricValidationError(
-      "missing-source",
-      `Objective metric "${metricName}" for fixture "${fixtureId}" missing json-file source ${source.path}.`,
-      { fixtureId, metricName },
-    );
-  }
+  const content = readObjectiveMetricArtifact({
+    workingDir,
+    fixtureId,
+    metricName,
+    relativePath: source.path,
+  });
   let document: ObjectiveMetricJsonValue;
   try {
-    document = JSON.parse(
-      readFileSync(filePath, "utf-8"),
-    ) as ObjectiveMetricJsonValue;
-  } catch (error) {
+    document = JSON.parse(content) as ObjectiveMetricJsonValue;
+  } catch {
     throw new ObjectiveMetricValidationError(
       "source-failed",
-      `Objective metric "${metricName}" for fixture "${fixtureId}" could not parse ${source.path} as JSON: ${(error as Error).message}`,
+      `Objective metric "${metricName}" for fixture "${fixtureId}" could not parse ${source.path} as JSON.`,
       { fixtureId, metricName },
     );
   }
@@ -98,7 +93,7 @@ function extractJsonFileMetric(
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new ObjectiveMetricValidationError(
       value === undefined ? "missing-source" : "nonnumeric-value",
-      `Objective metric "${metricName}" for fixture "${fixtureId}" expected finite numeric JSON value at ${source.path}${source.pointer}; got ${JSON.stringify(value)}.`,
+      `Objective metric "${metricName}" for fixture "${fixtureId}" expected a finite numeric JSON value at ${source.path}${source.pointer}.`,
       { fixtureId, metricName },
     );
   }
@@ -111,15 +106,12 @@ function extractTextFileMetric(
   metricName: string,
   source: Extract<ObjectiveMetricSource, { kind: "text-file" }>,
 ): number {
-  const filePath = join(workingDir, source.path);
-  if (!existsSync(filePath) || !statSync(filePath).isFile()) {
-    throw new ObjectiveMetricValidationError(
-      "missing-source",
-      `Objective metric "${metricName}" for fixture "${fixtureId}" missing text-file source ${source.path}.`,
-      { fixtureId, metricName },
-    );
-  }
-  const content = readFileSync(filePath, "utf-8");
+  const content = readObjectiveMetricArtifact({
+    workingDir,
+    fixtureId,
+    metricName,
+    relativePath: source.path,
+  });
   if (source.pattern === undefined) {
     return parseNumericText(content, fixtureId, metricName, source.path);
   }

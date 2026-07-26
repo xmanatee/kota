@@ -1,13 +1,13 @@
 ---
 id: task-security-review-json-and-text-objective-metric-sou
 title: Security review: JSON and text objective-metric sources are agent-controlled filesystem entries, but the evaluator follows symbolic links and reads the entire target on the host without a size limit. An isolated agent can leave a metric path pointing at a host file, or create a large sparse metric artifact, causing unauthorized host reads or evaluator/daemon memory exhaustion after the container exits. The new failed-run collection path attempts these reads even when the fixture has already failed.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: JSON and text objective-metric sources are agent-controlled filesystem entries, but the evaluator follows symbolic links and reads the entire target on the host without a size limit. An isolated agent can leave a metric path pointing at a host file, or create a large sparse metric artifact, causing unauthorized host reads or evaluator/daemon memory exhaustion after the container exits. The new failed-run collection path attempts these reads even when the fixture has already failed.
 created_at: 2026-07-26T09:54:27.245Z
-updated_at: 2026-07-26T09:54:27.245Z
+updated_at: 2026-07-26T13:07:46.295Z
 ---
 
 ## Problem
@@ -125,3 +125,18 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Result
+
+JSON and text objective metrics now accept only contained relative artifact
+paths and read them through a shared descriptor boundary. The reader rejects
+symlink path components and non-regular entries, opens with `O_NOFOLLOW`,
+checks descriptor identity and type with `fstat`, enforces a 1 MiB logical-size
+limit before allocation, and performs a bounded descriptor read before parsing.
+Typed JSON and numeric errors no longer include candidate-controlled contents.
+
+## Verification
+
+- `./node_modules/.bin/vitest run src/modules/eval-harness/objective-metrics-file-security.test.ts src/modules/eval-harness/runner-objective-metrics.test.ts src/modules/eval-harness/fixture-external-and-metrics.test.ts src/modules/eval-harness/objective-metrics-isolation.test.ts --configLoader runner` — 4 files and 17 tests passed.
+- `./node_modules/.bin/tsc --noEmit` — passed.
+- `./node_modules/.bin/biome check src/modules/eval-harness/objective-metric-artifact-reader.ts src/modules/eval-harness/objective-metrics-source.ts src/modules/eval-harness/objective-metrics-spec.ts src/modules/eval-harness/objective-metrics-file-security.test.ts` — passed.

@@ -1,0 +1,4 @@
+Resolved in repair attempt 5: canonical `git add -A` completed successfully. The
+canonical index now includes `objective-metric-artifact-reader.ts`,
+`objective-metrics-file-security.test.ts`, the task transition, and the required
+run evidence; no staging replay remains outstanding.

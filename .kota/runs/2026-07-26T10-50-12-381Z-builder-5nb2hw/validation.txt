@@ -1,0 +1,18 @@
+PASS: ./node_modules/.bin/tsc --noEmit
+PASS: ./node_modules/.bin/biome check src/modules/eval-harness/objective-metric-artifact-reader.ts src/modules/eval-harness/objective-metrics-source.ts src/modules/eval-harness/objective-metrics-spec.ts src/modules/eval-harness/objective-metrics-file-security.test.ts
+PASS: ./node_modules/.bin/vitest run src/modules/eval-harness/objective-metrics-file-security.test.ts src/modules/eval-harness/runner-objective-metrics.test.ts src/modules/eval-harness/fixture-external-and-metrics.test.ts src/modules/eval-harness/objective-metrics-isolation.test.ts --configLoader runner (4 files, 17 tests)
+PASS: ./node_modules/.bin/vitest run src/strict-types-policy.integration.test.ts --configLoader runner (1 file, 1 test)
+PASS: node --conditions=source --import tsx src/validate-queue.ts with the writable claim-scoped Git index/object environment
+PASS (repair attempt 1): focused Vitest suite (4 files, 17 tests), `tsc --noEmit`, focused Biome check, and strict-types policy rerun successfully.
+PASS (repair attempt 1): complete change set staged in `.kota/tmp/2026-07-26T10-50-12-381Z-builder-5nb2hw/repair.index`; both new source/test files are `A`, and `git diff --cached --check` passes.
+BLOCKED BY SANDBOX (repair attempt 1): canonical `git add -A` cannot create the linked-worktree `index.lock` outside the writable workspace; no repository plumbing was bypassed.
+
+NON-BLOCKING ENVIRONMENT FAILURE: a broader fixture-discovery run loaded the shipped fixtures, then builder-algorithmic-resource-budget-canary's unrelated pre-run `pnpm test` timed out after an offline registry fetch failure. The other 4 selected files passed (21 tests); this failure is outside the objective-metric boundary and was not treated as product evidence.
+EXPECTED SANDBOX LIMITATION: task validation against the parent repository's read-only linked-worktree index reported only the unstaged ready deletion/done addition. The same validation passed against the claim-scoped writable index; the workflow host owns final staging replay.
+PASS (repair attempt 3): the objective-metric artifact reader, focused security regression test, task-state change, and run evidence are staged in the refreshed writable repair index; `git diff --cached --check` passes there.
+BLOCKED BY SANDBOX (repair attempt 3): canonical `git add -A` still cannot create the linked-worktree `index.lock` outside the writable workspace; the workflow host must replay staging before review or commit.
+PASS (repair attempt 4): `./node_modules/.bin/tsc -p tsconfig.json --pretty false` completed in 11.20s, proving the TypeScript compile-and-emit body of the `build` package script.
+PASS (repair attempt 4): the focused objective-metric suite passed again (4 files, 17 tests); focused Biome and the strict-types policy test also passed.
+INFRASTRUCTURE DIAGNOSIS (repair attempt 4): plain `pnpm build` never started the package script. The installed pnpm first tried to download and verify the repo-pinned pnpm 10.32.1, then failed because the restricted environment could not reach the registry. No repository package-manager integrity policy was bypassed or weakened.
+PASS (repair attempt 5): the focused objective-metric suite passed (4 files, 17 tests), and canonical `git add -A` staged both new security files with the complete deliverable.
+PASS (repair attempt 5): `node --conditions=source --import tsx src/validate-queue.ts` passed against the canonical index.

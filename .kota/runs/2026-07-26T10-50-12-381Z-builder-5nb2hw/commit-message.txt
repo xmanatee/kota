@@ -1,0 +1,5 @@
+Harden objective metric artifact reads
+
+Reject escaping, symlinked, non-regular, and oversized JSON/text metric
+artifacts through a bounded descriptor reader, with regressions for both
+passing and failed eval outcomes.
