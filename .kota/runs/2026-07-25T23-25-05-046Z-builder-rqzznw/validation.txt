@@ -1,0 +1,31 @@
+PASS  focused analyzer and fixture regressions
+      3 test files passed; 15 tests passed.
+
+ENV   full Vitest suite
+      1,063 test files and 12,116 tests passed. The only suite failure was the
+      unrelated pnpm supply-chain policy test: the offline host could not fetch
+      registry metadata needed to verify the pnpm release signature.
+
+PASS  typecheck
+      node_modules/.bin/tsc --noEmit
+
+PASS  touched TypeScript checks
+      node_modules/.bin/biome check <seven touched TypeScript files>
+
+PASS  strict production types ratchet
+      src/strict-types-policy.integration.test.ts
+
+PASS  diff hygiene
+      git diff --check
+
+PASS  task queue
+      node --conditions=source --import tsx src/validate-queue.ts
+      Passed against the final canonical staged state.
+
+PASS  docs and task-file guards
+      src/docs-surface.test.ts and src/task-files.test.ts
+      2 test files passed; 10 tests passed. Builder AGENTS.md is now 100 lines.
+
+NOTE  pnpm launcher unavailable
+      pnpm's registry-signature version check could not reach the registry, so
+      the already-installed local Vitest binary ran the focused repair check.

@@ -19,8 +19,7 @@ This directory contains the builder workflow definition and its prompt.
 
 ## Success Criteria
 
-The builder must declare concrete success criteria before implementation and
-verify them before completion:
+The builder must declare concrete success criteria before implementation and verify them before completion:
 
 - `$KOTA_RUN_DIR/success-criteria.txt`
 - `$KOTA_RUN_DIR/success-criteria-verified.txt`

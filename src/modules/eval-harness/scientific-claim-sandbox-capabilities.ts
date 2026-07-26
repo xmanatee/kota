@@ -1,6 +1,10 @@
-import { type SpawnSyncReturns, spawnSync } from "node:child_process";
+import {
+  runScientificClaimCapabilityProbe as probe,
+  describeScientificClaimCapabilityProbeFailure as probeFailure,
+  scientificClaimCapabilityProbePassed as probePassed,
+} from "./scientific-claim-capability-probe.js";
+import { probeScientificClaimPathnameUnixSocketIsolation } from "./scientific-claim-pathname-socket-capability.js";
 
-const CAPABILITY_PROBE_TIMEOUT_MS = 2_000;
 const HOST_SIGNAL_DENIED = "KOTA_HOST_SIGNAL_DENIED";
 const HOST_SIGNAL_ISOLATED = "KOTA_HOST_SIGNAL_ISOLATED";
 
@@ -115,45 +119,6 @@ sentinel.once("message", () => {
 });
 `;
 
-function probe(
-  command: string,
-  args: readonly string[],
-): SpawnSyncReturns<string> {
-  return spawnSync(command, args, {
-    encoding: "utf8",
-    env: { LANG: "C", LC_ALL: "C", NO_COLOR: "1" },
-    killSignal: "SIGKILL",
-    maxBuffer: 64 * 1024,
-    stdio: ["ignore", "pipe", "pipe"],
-    timeout: CAPABILITY_PROBE_TIMEOUT_MS,
-  });
-}
-
-function probePassed(
-  result: SpawnSyncReturns<string>,
-  evidence: string,
-): boolean {
-  return result.status === 0 && result.stdout.includes(evidence);
-}
-
-function probeFailure(
-  label: string,
-  result: SpawnSyncReturns<string>,
-): string {
-  const diagnostics = [result.stdout, result.stderr, result.error?.message]
-    .filter(
-      (value): value is string =>
-        typeof value === "string" && value.length > 0,
-    )
-    .join("\n")
-    .trim();
-  const outcome =
-    result.signal !== null
-      ? `signal ${result.signal}`
-      : `status ${result.status ?? "unknown"}`;
-  return `${label} failed (${outcome})${diagnostics.length > 0 ? `: ${diagnostics}` : ""}`;
-}
-
 export type ScientificClaimHostSignalProbe =
   | { denied: true }
   | { denied: false; issue: string };
@@ -177,45 +142,66 @@ export function probeScientificClaimHostSignalIsolation(
       };
 }
 
-export type ScientificClaimNetworkProbeKind =
-  | "darwin-loopback-denial"
-  | "linux-network-namespace";
+export type ScientificClaimNetworkProbe =
+  | {
+      kind: "darwin-loopback-denial";
+      command: string;
+      prefixArgs: readonly string[];
+    }
+  | {
+      kind: "linux-network-namespace";
+      command: string;
+      prefixArgs: readonly string[];
+      runtimeFiles: readonly string[];
+    };
 
 export type ScientificClaimAnalyzerBoundaryProbe = {
   networkDenied: boolean;
   hostSignalsDenied: boolean;
+  pathnameUnixSocketDenied: boolean;
   issues: string[];
 };
 
 export function probeScientificClaimAnalyzerBoundary(
-  command: string,
-  prefixArgs: readonly string[],
-  networkProbeKind: ScientificClaimNetworkProbeKind,
+  boundary: ScientificClaimNetworkProbe,
 ): ScientificClaimAnalyzerBoundaryProbe {
   const [networkProbe, networkEvidence] =
-    networkProbeKind === "darwin-loopback-denial"
+    boundary.kind === "darwin-loopback-denial"
       ? [LOOPBACK_DENIAL_PROBE, "KOTA_NETWORK_PROBE_ERROR:EPERM"]
       : [LINUX_NAMESPACE_PROBE, "KOTA_NETWORK_NAMESPACE_ISOLATED"];
-  const networkResult = probe(command, [
-    ...prefixArgs,
+  const networkResult = probe(boundary.command, [
+    ...boundary.prefixArgs,
     process.execPath,
     "-e",
     networkProbe,
   ]);
   const hostSignalProbe = probeScientificClaimHostSignalIsolation(
-    command,
-    prefixArgs,
+    boundary.command,
+    boundary.prefixArgs,
   );
+  const pathnameUnixSocketProbe =
+    boundary.kind === "linux-network-namespace"
+      ? probeScientificClaimPathnameUnixSocketIsolation({
+          command: boundary.command,
+          prefixArgs: boundary.prefixArgs,
+          runtimeFiles: boundary.runtimeFiles,
+        })
+      : null;
   const networkDenied = probePassed(networkResult, networkEvidence);
   const hostSignalsDenied = hostSignalProbe.denied;
+  const pathnameUnixSocketDenied = pathnameUnixSocketProbe?.denied ?? true;
   return {
     networkDenied,
     hostSignalsDenied,
+    pathnameUnixSocketDenied,
     issues: [
       ...(networkDenied
         ? []
         : [probeFailure("network-isolation capability probe", networkResult)]),
       ...(hostSignalsDenied ? [] : [hostSignalProbe.issue]),
+      ...(pathnameUnixSocketProbe === null || pathnameUnixSocketProbe.denied
+        ? []
+        : [pathnameUnixSocketProbe.issue]),
     ],
   };
 }

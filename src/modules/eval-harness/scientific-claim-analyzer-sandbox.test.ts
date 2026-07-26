@@ -17,6 +17,12 @@ import {
   resolveScientificClaimAnalyzerSandbox,
   spawnScientificClaimAnalyzer,
 } from "./scientific-claim-analyzer-sandbox.js";
+import {
+  LINUX_ANALYZER_FILESYSTEM_BOUNDARY,
+  linuxAnalyzerBoundaryArgs,
+  linuxAnalyzerInvocationArgs,
+} from "./scientific-claim-linux-filesystem-boundary.js";
+import { probeScientificClaimPathnameUnixSocketIsolation } from "./scientific-claim-pathname-socket-capability.js";
 import { probeScientificClaimHostSignalIsolation } from "./scientific-claim-sandbox-capabilities.js";
 
 const FIXTURE_ID = "builder-scientific-claim-reproduction";
@@ -77,26 +83,146 @@ process.exit(result.status ?? 1);
   return boundaryPath;
 }
 
+function writeFilesystemBoundaryBypass(workingDir: string): string {
+  const boundaryPath = join(workingDir, "filesystem-boundary-bypass.cjs");
+  writeFileSync(
+    boundaryPath,
+    `
+const { spawnSync } = require("node:child_process");
+const args = process.argv.slice(2);
+const markerIndex = args.indexOf("kota-analyzer-boundary");
+if (markerIndex === -1) process.exit(8);
+const boundaryArgs = args.slice(markerIndex + 1);
+const [
+  ,
+  isolatedWorkingDir,
+  command,
+  runtimeFileCount,
+  readFileCount,
+  writeFileCount,
+] = boundaryArgs;
+const commandArgs = boundaryArgs.slice(
+  6 + Number(runtimeFileCount) + Number(readFileCount) + Number(writeFileCount),
+);
+const result = spawnSync(command, commandArgs, {
+  cwd: isolatedWorkingDir,
+  encoding: "utf8",
+  env: process.env,
+  maxBuffer: 64 * 1024,
+  stdio: ["ignore", "pipe", "pipe"],
+});
+process.stdout.write(result.stdout ?? "");
+process.stderr.write(result.stderr ?? "");
+process.exit(result.status ?? 1);
+`,
+  );
+  return boundaryPath;
+}
+
 describe("scientific claim analyzer process sandbox", () => {
+  it("builds the Linux disposable root from exact files, never host runtime directories", () => {
+    expect(LINUX_ANALYZER_FILESYSTEM_BOUNDARY).not.toMatch(
+      /mount_runtime_dir|mount --bind "\$working_dir"|mount[^\n]*\/(?:usr|bin|lib|lib64)(?:\s|$)/,
+    );
+    expect(
+      linuxAnalyzerBoundaryArgs({
+        prefixArgs: ["--isolate", "--"],
+        sandboxRoot: "/tmp/root",
+        workingDir: "/tmp/work",
+        nodePath: "/usr/bin/node",
+        runtimeFiles: ["/usr/bin/node", "/lib/ld.so"],
+        readOnlyPaths: ["/tmp/work/analyzer.mjs", "/tmp/work/input.csv"],
+        writablePaths: ["/tmp/work/output.json"],
+        nodeArgs: ["analyzer.mjs"],
+      }).slice(-12),
+    ).toEqual([
+      "/tmp/root",
+      "/tmp/work",
+      "/usr/bin/node",
+      "2",
+      "2",
+      "1",
+      "/usr/bin/node",
+      "/lib/ld.so",
+      "/tmp/work/analyzer.mjs",
+      "/tmp/work/input.csv",
+      "/tmp/work/output.json",
+      "analyzer.mjs",
+    ]);
+    expect(LINUX_ANALYZER_FILESYSTEM_BOUNDARY).not.toContain("--skip-chdir");
+    expect(LINUX_ANALYZER_FILESYSTEM_BOUNDARY).toContain(
+      'exec "$chroot_path" "$root" "$node_path" "$@"',
+    );
+    const invocationArgs = linuxAnalyzerInvocationArgs({
+      workingDir: "/tmp/work",
+      nodeOptions: ["--permission", "--allow-fs-read=/tmp/work/input.csv"],
+      scriptPath: "analyzer.mjs",
+      scriptArgs: ["--data", "input.csv"],
+    });
+    expect(invocationArgs).toMatchObject([
+      "--permission",
+      "--allow-fs-read=/tmp/work/input.csv",
+      "-e",
+      expect.stringContaining("process.chdir(workingDir)"),
+      "/tmp/work",
+      "analyzer.mjs",
+      "--data",
+      "input.csv",
+    ]);
+  });
+
+  it("enters the private working directory while preserving relative analyzer arguments", () => {
+    const workingDir = mkdtempSync(join(tmpdir(), "kota-analyzer-bootstrap-"));
+    const analyzer = join(workingDir, "analyzer.mjs");
+    try {
+      writeFileSync(
+        analyzer,
+        `process.stdout.write(JSON.stringify({ cwd: process.cwd(), argv: process.argv.slice(1) }));`,
+      );
+      const result = spawnSync(
+        process.execPath,
+        linuxAnalyzerInvocationArgs({
+          workingDir,
+          nodeOptions: ["--permission", `--allow-fs-read=${workingDir}`],
+          scriptPath: "analyzer.mjs",
+          scriptArgs: ["--data", "input.csv"],
+        }),
+        { encoding: "utf8" },
+      );
+
+      expect(result.status, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toEqual({
+        cwd: workingDir,
+        argv: ["analyzer.mjs", "--data", "input.csv"],
+      });
+    } finally {
+      rmSync(workingDir, { recursive: true, force: true });
+    }
+  });
+
   it("does not start the analyzer when isolation is unavailable", () => {
     const workingDir = mkdtempSync(join(tmpdir(), "kota-network-fail-closed-"));
     const marker = join(workingDir, "analyzer-ran");
+    const analyzer = join(workingDir, "analyzer.mjs");
     try {
+      writeFileSync(
+        analyzer,
+        `require("node:fs").writeFileSync(${JSON.stringify(marker)}, "ran")`,
+      );
       const execution = spawnScientificClaimAnalyzer(
         {
           kind: "unavailable",
           evidence: "test boundary unavailable",
           issue: "network isolation unavailable",
         },
-        [
-          "-e",
-          `require("node:fs").writeFileSync(${JSON.stringify(marker)}, "ran")`,
-        ],
+        { nodeOptions: [], scriptPath: analyzer, scriptArgs: [] },
         {
           cwd: workingDir,
           env: { LANG: "C", LC_ALL: "C", NO_COLOR: "1" },
           maxBuffer: 64 * 1024,
+          readOnlyPaths: [],
           timeout: 1_000,
+          writablePaths: [],
         },
       );
 
@@ -138,6 +264,30 @@ describe("scientific claim analyzer process sandbox", () => {
     }
     expect(capability.issue).toContain("KOTA_HOST_SIGNAL_DELIVERED");
     expect(() => process.kill(process.pid, 0)).not.toThrow();
+  });
+
+  it("rejects a Linux boundary that leaves a host pathname Unix socket visible", () => {
+    const workingDir = mkdtempSync(join(tmpdir(), "kota-socket-capability-"));
+    try {
+      const boundaryBypass = writeFilesystemBoundaryBypass(workingDir);
+      const capability = probeScientificClaimPathnameUnixSocketIsolation({
+        command: process.execPath,
+        prefixArgs: [boundaryBypass],
+        runtimeFiles: [process.execPath],
+      });
+
+      expect(capability.denied).toBe(false);
+      if (capability.denied) {
+        throw new Error(
+          "filesystem boundary bypass unexpectedly hid the host socket",
+        );
+      }
+      expect(capability.issue).toMatch(
+        /KOTA_PATHNAME_UNIX_SOCKET_CONNECTED|KOTA_PATHNAME_UNIX_SOCKET_SERVER_ERROR:.*(?:EACCES|EPERM)/,
+      );
+    } finally {
+      rmSync(workingDir, { recursive: true, force: true });
+    }
   });
 
   it("prevents the analyzer from sending verifier-only data to a loopback listener", async () => {

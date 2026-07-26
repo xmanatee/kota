@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-linux-analyzer-boundary-isolat
 title: Security review: The Linux analyzer boundary isolates IP networking but retains the host filesystem, including pathname-based Unix-domain sockets. Node's permission model has no network/socket permission, so analyzer code can connect to same-UID host services such as container-runtime or database sockets despite the network namespace. The capability probe checks only network interfaces and host signaling, so it accepts this incomplete boundary.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: The Linux analyzer boundary isolates IP networking but retains the host filesystem, including pathname-based Unix-domain sockets. Node's permission model has no network/socket permission, so analyzer code can connect to same-UID host services such as container-runtime or database sockets despite the network namespace. The capability probe checks only network interfaces and host signaling, so it accepts this incomplete boundary.
 created_at: 2026-07-25T17:58:21.126Z
-updated_at: 2026-07-25T17:58:21.126Z
+updated_at: 2026-07-26T00:11:58.413Z
 ---
 
 ## Problem
@@ -97,3 +97,14 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `.kota/runs/2026-07-25T23-25-05-046Z-builder-rqzznw/security-regression.txt`
+  records the disposable-root implementation and the fail-closed live host
+  pathname-socket regression.
+
+## Verification
+
+- `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true src/modules/eval-harness/accepted-alternative-fixtures.test.ts src/modules/eval-harness/scientific-claim-analyzer-sandbox.test.ts src/modules/eval-harness/scientific-claim-reproduction-fixture.test.ts` (3 files, 15 tests passed)
+- `node_modules/.bin/tsc --noEmit`
+- `node_modules/.bin/biome check src/modules/eval-harness/scientific-claim-analyzer-sandbox.ts src/modules/eval-harness/scientific-claim-analyzer-sandbox.test.ts src/modules/eval-harness/scientific-claim-predicate.ts src/modules/eval-harness/scientific-claim-sandbox-capabilities.ts src/modules/eval-harness/scientific-claim-capability-probe.ts src/modules/eval-harness/scientific-claim-pathname-socket-capability.ts src/modules/eval-harness/scientific-claim-linux-filesystem-boundary.ts`
+- `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true src/strict-types-policy.integration.test.ts`
+- Full Vitest suite: 1,063 files and 12,116 tests passed; only the unrelated pnpm supply-chain policy test failed because the offline host could not verify the pnpm registry signature.

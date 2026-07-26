@@ -145,22 +145,30 @@ function verifyAnalyzerExecution(
       const output = join(isolatedCaseDir, commandCase.expected.outputPath);
       const execution = spawnScientificClaimAnalyzer(
         isolation,
-        [
-          "--permission",
-          `--allow-fs-read=${join(isolatedCaseDir, ANALYZER_PATH)}`,
-          `--allow-fs-read=${join(isolatedCaseDir, commandCase.expected.dataPath)}`,
-          `--allow-fs-write=${output}`,
-          ANALYZER_PATH,
-          "--data",
-          commandCase.expected.dataPath,
-          "--output",
-          commandCase.expected.outputPath,
-        ],
+        {
+          nodeOptions: [
+            "--permission",
+            `--allow-fs-read=${isolatedCaseDir}`,
+            `--allow-fs-write=${output}`,
+          ],
+          scriptPath: ANALYZER_PATH,
+          scriptArgs: [
+            "--data",
+            commandCase.expected.dataPath,
+            "--output",
+            commandCase.expected.outputPath,
+          ],
+        },
         {
           cwd: isolatedCaseDir,
           env: { LANG: "C", LC_ALL: "C", NO_COLOR: "1" },
           maxBuffer: 4 * 1024 * 1024,
+          readOnlyPaths: [
+            join(isolatedCaseDir, ANALYZER_PATH),
+            join(isolatedCaseDir, commandCase.expected.dataPath),
+          ],
           timeout: ANALYZER_TIMEOUT_MS,
+          writablePaths: [output],
         },
       );
       if (!execution.started) {

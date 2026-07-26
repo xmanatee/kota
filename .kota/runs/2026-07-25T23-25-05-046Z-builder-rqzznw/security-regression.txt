@@ -1,0 +1,45 @@
+Scientific-claim Linux analyzer pathname-socket boundary regression
+
+PASS
+Command:
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true src/modules/eval-harness/accepted-alternative-fixtures.test.ts src/modules/eval-harness/scientific-claim-analyzer-sandbox.test.ts src/modules/eval-harness/scientific-claim-reproduction-fixture.test.ts
+Result: 3 files passed, 15 tests passed.
+
+The Linux launcher now creates a disposable tmpfs root without bind-mounting
+any host directory. It resolves a clean Node process's startup shared objects,
+validates every runtime dependency as a regular file, and mounts those files
+individually. The analyzer and selected input are exact read-only file mounts;
+the pre-created output is one exact writable file mount. The verifier working
+directory exists inside the new root but is not mounted from the host.
+
+The capability probe creates its host pathname socket inside that verifier
+working directory. The prior directory bind would expose the socket; the new
+root contains only the selected regular files and the probe requires ENOENT,
+EACCES, or EPERM before accepting the boundary. A structural regression also
+rejects runtime-directory and working-directory bind mounts.
+
+After chroot resets cwd to the private root, a trusted inline Node bootstrap
+enters the mirrored in-root working directory before importing the analyzer.
+Candidate arguments therefore remain relative and keep the fixture's audited
+command provenance stable without retaining a host cwd handle. The live
+pathname-socket requirement is Linux-specific;
+the macOS Seatbelt capability path continues to verify its existing network and
+host-signal controls without depending on a Linux filesystem-boundary probe.
+
+ENV
+Command: full Vitest suite via the installed local binary
+Result: 1,063 files and 12,116 tests passed. The sole remaining failure was the
+unrelated pnpm supply-chain policy test because the offline host could not
+verify the pnpm registry signature.
+
+PASS
+Command: node_modules/.bin/tsc --noEmit
+Result: no type errors.
+
+PASS
+Command: node_modules/.bin/biome check <seven touched TypeScript files>
+Result: 7 files checked with no diagnostics.
+
+PASS
+Command: TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true src/strict-types-policy.integration.test.ts
+Result: 1 file passed, 1 test passed.

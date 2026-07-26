@@ -1,0 +1,1 @@
+Isolate Linux analyzers from host Unix sockets

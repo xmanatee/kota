@@ -1,5 +1,9 @@
 import { type SpawnSyncReturns, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import {
+  resolveLinuxAnalyzerRuntimeFiles,
+  spawnScientificClaimLinuxAnalyzer,
+} from "./scientific-claim-linux-filesystem-boundary.js";
 import { probeScientificClaimAnalyzerBoundary } from "./scientific-claim-sandbox-capabilities.js";
 
 const DARWIN_SANDBOX_EXEC = "/usr/bin/sandbox-exec";
@@ -7,12 +11,20 @@ const DARWIN_ANALYZER_PROFILE =
   "(version 1) (allow default) (deny network*) (deny signal)";
 const LINUX_UNSHARE_PATHS = ["/usr/bin/unshare", "/bin/unshare"] as const;
 
-type AvailableScientificClaimAnalyzerSandbox = {
-  kind: "darwin-seatbelt" | "linux-pid-network-namespaces";
-  command: string;
-  prefixArgs: readonly string[];
-  evidence: string;
-};
+type AvailableScientificClaimAnalyzerSandbox =
+  | {
+      kind: "darwin-seatbelt";
+      command: string;
+      prefixArgs: readonly string[];
+      evidence: string;
+    }
+  | {
+      kind: "linux-disposable-root-namespaces";
+      command: string;
+      prefixArgs: readonly string[];
+      runtimeFiles: readonly string[];
+      evidence: string;
+    };
 
 export type ScientificClaimAnalyzerSandbox =
   | AvailableScientificClaimAnalyzerSandbox
@@ -33,16 +45,22 @@ export type ScientificClaimAnalyzerExecution =
       issue: string;
     };
 
+export type ScientificClaimAnalyzerInvocation = {
+  nodeOptions: readonly string[];
+  scriptPath: string;
+  scriptArgs: readonly string[];
+};
+
 function resolveDarwinSeatbelt(): ScientificClaimAnalyzerSandbox | null {
   if (process.platform !== "darwin" || !existsSync(DARWIN_SANDBOX_EXEC)) {
     return null;
   }
   const prefixArgs = ["-p", DARWIN_ANALYZER_PROFILE] as const;
-  const capability = probeScientificClaimAnalyzerBoundary(
-    DARWIN_SANDBOX_EXEC,
+  const capability = probeScientificClaimAnalyzerBoundary({
+    kind: "darwin-loopback-denial",
+    command: DARWIN_SANDBOX_EXEC,
     prefixArgs,
-    "darwin-loopback-denial",
-  );
+  });
   if (!capability.networkDenied || !capability.hostSignalsDenied) {
     return {
       kind: "unavailable",
@@ -62,22 +80,37 @@ function resolveLinuxNamespaces(): ScientificClaimAnalyzerSandbox | null {
   if (process.platform !== "linux") return null;
   const command = LINUX_UNSHARE_PATHS.find((path) => existsSync(path));
   if (command === undefined) return null;
+  let runtimeFiles: readonly string[];
+  try {
+    runtimeFiles = resolveLinuxAnalyzerRuntimeFiles();
+  } catch (error) {
+    return {
+      kind: "unavailable",
+      evidence: "Linux analyzer process isolation unavailable",
+      issue: error instanceof Error ? error.message : String(error),
+    };
+  }
   const prefixArgs = [
     "--user",
     "--map-root-user",
+    "--mount",
     "--net",
     "--pid",
     "--fork",
-    "--mount-proc",
     "--kill-child",
     "--",
   ] as const;
-  const capability = probeScientificClaimAnalyzerBoundary(
+  const capability = probeScientificClaimAnalyzerBoundary({
+    kind: "linux-network-namespace",
     command,
     prefixArgs,
-    "linux-network-namespace",
-  );
-  if (!capability.networkDenied || !capability.hostSignalsDenied) {
+    runtimeFiles,
+  });
+  if (
+    !capability.networkDenied ||
+    !capability.hostSignalsDenied ||
+    !capability.pathnameUnixSocketDenied
+  ) {
     return {
       kind: "unavailable",
       evidence: "Linux analyzer process isolation unavailable",
@@ -85,17 +118,19 @@ function resolveLinuxNamespaces(): ScientificClaimAnalyzerSandbox | null {
     };
   }
   return {
-    kind: "linux-pid-network-namespaces",
+    kind: "linux-disposable-root-namespaces",
     command,
     prefixArgs,
-    evidence: "Linux unshare PID, proc, and network namespaces",
+    runtimeFiles,
+    evidence:
+      "Linux unshare file-closed disposable root, PID, proc, and network namespaces",
   };
 }
 
 /**
- * Resolve both network and host-process isolation before agent-produced code
- * runs. Each candidate boundary must fail a live network probe and a live
- * attempt to SIGKILL a disposable same-UID host sentinel.
+ * Resolve network and host-process isolation before agent-produced code runs.
+ * Linux candidates must additionally hide host pathname Unix sockets behind
+ * their disposable filesystem root.
  */
 export function resolveScientificClaimAnalyzerSandbox(): ScientificClaimAnalyzerSandbox {
   const sandbox = resolveDarwinSeatbelt() ?? resolveLinuxNamespaces();
@@ -112,25 +147,51 @@ export function resolveScientificClaimAnalyzerSandbox(): ScientificClaimAnalyzer
 
 export function spawnScientificClaimAnalyzer(
   isolation: ScientificClaimAnalyzerSandbox,
-  nodeArgs: readonly string[],
+  invocation: ScientificClaimAnalyzerInvocation,
   options: {
     cwd: string;
     env: NodeJS.ProcessEnv;
     maxBuffer: number;
+    readOnlyPaths: readonly string[];
     timeout: number;
+    writablePaths: readonly string[];
   },
 ): ScientificClaimAnalyzerExecution {
   if (isolation.kind === "unavailable") {
     return { started: false, issue: isolation.issue };
+  }
+  const { readOnlyPaths, writablePaths, ...spawnOptions } = options;
+  if (isolation.kind === "linux-disposable-root-namespaces") {
+    return {
+      started: true,
+      isolation,
+      result: spawnScientificClaimLinuxAnalyzer({
+        command: isolation.command,
+        prefixArgs: isolation.prefixArgs,
+        runtimeFiles: isolation.runtimeFiles,
+        readOnlyPaths,
+        writablePaths,
+        nodeOptions: invocation.nodeOptions,
+        scriptPath: invocation.scriptPath,
+        scriptArgs: invocation.scriptArgs,
+        options: spawnOptions,
+      }),
+    };
   }
   return {
     started: true,
     isolation,
     result: spawnSync(
       isolation.command,
-      [...isolation.prefixArgs, process.execPath, ...nodeArgs],
+      [
+        ...isolation.prefixArgs,
+        process.execPath,
+        ...invocation.nodeOptions,
+        invocation.scriptPath,
+        ...invocation.scriptArgs,
+      ],
       {
-        ...options,
+        ...spawnOptions,
         encoding: "utf8",
         killSignal: "SIGKILL",
         stdio: ["ignore", "pipe", "pipe"],

@@ -1,0 +1,14 @@
+The managed builder can write the task worktree but cannot create the linked
+worktree's canonical Git index lock under the parent checkout. A direct task
+transition and a direct git index operation both failed with:
+
+fatal: Unable to create '/Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/task-security-review-the-linux-analyzer-boundary-isolat-2026-07-25t23-25-05-046z-builder-rqzznw/index.lock': Operation not permitted
+
+The source-mode task CLI was then run with a run-scoped writable Git index and
+object directory, seeded from HEAD with the canonical object store configured
+as an alternate. Both ready -> doing and doing -> done transitions succeeded
+through the normal task domain, and task validation passed against that index.
+
+A final canonical `git add -A` retry succeeded after validation. The complete
+change is staged in the linked worktree's canonical index, and task validation
+also passes against that final staged state; no host-side staging replay remains.
