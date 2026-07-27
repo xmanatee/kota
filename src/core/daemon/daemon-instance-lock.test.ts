@@ -121,15 +121,13 @@ describe("daemon instance lock", () => {
     };
     writeControlFile(stateDir, { ...owner, port: 3921 });
 
-    expect(
-      releaseInstanceLock(stateDir, {
-        ...owner,
-        token: "different-daemon-token",
-      }),
-    ).toBe(false);
+    releaseInstanceLock(stateDir, {
+      ...owner,
+      token: "different-daemon-token",
+    });
     expect(existsSync(controlPath)).toBe(true);
 
-    expect(releaseInstanceLock(stateDir, owner)).toBe(true);
+    releaseInstanceLock(stateDir, owner);
     expect(existsSync(controlPath)).toBe(false);
   });
 });

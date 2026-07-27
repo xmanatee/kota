@@ -100,7 +100,7 @@ export function writeControlFile(stateDir: string, payload: DaemonControlFilePay
 export function releaseInstanceLock(
   stateDir: string,
   owner: DaemonInstanceIdentity,
-): boolean {
+): void {
   const controlPath = join(stateDir, CONTROL_FILE);
   const current = readOptionalJsonFile<DaemonControlFilePayload>(controlPath);
   if (
@@ -109,8 +109,7 @@ export function releaseInstanceLock(
     current.startedAt !== owner.startedAt ||
     current.token !== owner.token
   ) {
-    return false;
+    return;
   }
   rmSync(controlPath);
-  return true;
 }
