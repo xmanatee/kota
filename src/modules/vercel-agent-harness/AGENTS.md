@@ -22,9 +22,12 @@ The adapter calls `streamText` with KOTA tools, optional system text,
 multi-step tool loop; the adapter forwards streamed text and normalizes final
 usage, steps, finish reason, and text into `AgentHarnessResult`.
 
-Guardrails are applied inside `Tool.execute`. Filtered tools are not exposed to
-the model, and `canUseTool` can update inputs, return a denial as a tool
-result, or interrupt the run.
+Every `Tool.execute` call uses the shared permissioned tool runner, so autonomy
+mode, configured guardrails, client or queued approval, idempotency,
+middleware, secret masking, and telemetry match other KOTA-hosted loops.
+Filtered tools are not exposed to the model and are denied again at runtime;
+`canUseTool` can update inputs, return a denial as a tool result, or interrupt
+the run.
 
 ## Reasoning Effort
 

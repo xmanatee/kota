@@ -28,6 +28,7 @@ vi.mock("@google/genai", () => ({
 vi.mock("#core/tools/index.js", () => ({
   executeTool: (...args: unknown[]) => executeToolMock(...args),
   getAllTools: () => getAllToolsMock(),
+  getToolEffect: () => undefined,
 }));
 
 vi.mock("#core/config/secrets.js", () => ({
@@ -98,10 +99,6 @@ describe("geminiAgentHarness — registration", () => {
         expect.objectContaining({
           option: "mcpServers",
           runOption: "mcpServers",
-        }),
-        expect.objectContaining({
-          option: 'autonomyMode="supervised"',
-          runOption: "autonomyMode.supervised",
         }),
         expect.objectContaining({
           option: "thinkingEnabled/thinkingBudget",
@@ -549,17 +546,6 @@ describe("geminiAgentHarness — unsupported options rejection", () => {
         mcpServers: { foo: { type: "stdio", command: "bar" } } as never,
       }),
     ).rejects.toThrow(/does not host MCP servers/);
-  });
-
-  it("rejects supervised autonomy mode", async () => {
-    await expect(
-      geminiAgentHarness.run({
-        prompt: "x",
-        model: "gemini-2.5-flash",
-        effort: "xhigh",
-        autonomyMode: "supervised",
-      }),
-    ).rejects.toThrow(/operator approval queue/);
   });
 
   it("rejects per-step harnessOverrides", async () => {

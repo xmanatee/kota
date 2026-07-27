@@ -28,6 +28,7 @@ vi.mock("@google/genai", () => ({
 vi.mock("#core/tools/index.js", () => ({
   executeTool: (...args: unknown[]) => executeToolMock(...args),
   getAllTools: () => getAllToolsMock(),
+  getToolEffect: () => undefined,
 }));
 
 import { loadScenario } from "#modules/harness-parity/scenario.js";
@@ -123,7 +124,7 @@ describe("gemini agent harness × fix-arithmetic-bug scenario", () => {
     vi.clearAllMocks();
   });
 
-  it("dispatches the scenario's tool calls through executeTool, ending on STOP", async () => {
+  it("dispatches the scenario's tool calls through the shared runner, ending on STOP", async () => {
     const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "fix-arithmetic-bug");
 
     // Script the multi-step tool loop the model would drive: read add.js,

@@ -1,0 +1,3 @@
+1. Gemini and Vercel KOTA-hosted tool calls execute through the shared permissioned runner with autonomy mode, configured guardrails, client approval, scoped approval identity, idempotency, middleware, secret masking, and telemetry preserved.
+2. Focused regressions prove dangerous tool calls honor deny, confirm, and queue policies across the OpenAI, Gemini, and Vercel KOTA-hosted tool-loop adapters.
+3. Fresh verification evidence is recorded in the task and run artifacts, and the task state is transitioned through the canonical task CLI to reflect the verified result.

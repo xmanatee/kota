@@ -4,7 +4,7 @@ import {
   type AgentHarnessResult,
   type AgentHarnessRunOptions,
   type AgentHarnessWriter,
-  agentHarnessToolRunnerContext,
+  agentHarnessToolExecutionOptions,
 } from "#core/agent-harness/index.js";
 import { runWithAskOwnerSource } from "#core/tools/ask-owner.js";
 import {
@@ -105,14 +105,7 @@ async function runVercelLoop(
   const tools = buildVercelToolSet(
     ai,
     kotaTools,
-    {
-      canUseTool: options.canUseTool,
-      abortSignal: options.abortController?.signal,
-      toolRunnerContext: agentHarnessToolRunnerContext(options),
-      tokenBudget: options.tokenBudget,
-      cwd: options.cwd,
-      env: options.env,
-    },
+    agentHarnessToolExecutionOptions(options, { resultLimit: 50_000 }),
     flags,
     internalAbort,
   );

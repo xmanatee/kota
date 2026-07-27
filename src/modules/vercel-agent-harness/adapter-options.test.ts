@@ -18,17 +18,6 @@ describe("vercelAgentHarness — unsupported options rejection", () => {
     ).rejects.toThrow(/does not host MCP servers/);
   });
 
-  it("rejects supervised autonomy mode", async () => {
-    await expect(
-      vercelAgentHarness.run({
-        prompt: "x",
-        model: "openai/gpt-4o-mini",
-        effort: "xhigh",
-        autonomyMode: "supervised",
-      }),
-    ).rejects.toThrow(/operator approval queue/);
-  });
-
   it("rejects per-step harnessOverrides (no validateStepOptions)", async () => {
     await expect(
       vercelAgentHarness.run({

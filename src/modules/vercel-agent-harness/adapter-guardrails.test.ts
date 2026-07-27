@@ -2,19 +2,133 @@ import { describe, expect, it, vi } from "vitest";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import {
   captureStreamTextArgs,
-  createRejectedStreamTextStub,
+  confirmActionMock,
   createStreamTextStub,
+  enqueueApprovalMock,
   executeToolMock,
   getAllToolsMock,
   getSecretStoreMock,
-  runAndCaptureToolExecute,
-  silenceRejectedStreamTextStub,
+  getToolEffectMock,
   streamTextMock,
   TEST_TOOL,
   vercelAgentHarness,
 } from "./adapter-test-support.js";
+import { runAndCaptureToolExecute } from "./adapter-tool-test-support.js";
 
 describe("vercelAgentHarness — guardrails", () => {
+  const useDangerousToolEffect = (): void => {
+    getToolEffectMock.mockReturnValue({
+      kind: "destructive",
+      scope: "local-fs",
+      idempotent: false,
+      openWorld: false,
+    });
+  };
+
+  it("blocks a dangerous tool under a deny policy through the shared runner", async () => {
+    useDangerousToolEffect();
+    const { toolExecute } = await runAndCaptureToolExecute({
+      harness: vercelAgentHarness,
+      guardrailsConfig: {
+        policies: { safe: "allow", moderate: "allow", dangerous: "deny" },
+      },
+    });
+
+    const result = await toolExecute({ text: "delete" }, { toolCallId: "deny_1" });
+
+    expect(executeToolMock).not.toHaveBeenCalled();
+    expect(result.isError).toBe(true);
+    expect(result.content).toContain("Blocked by guardrails");
+  });
+
+  it("requires confirmation for a dangerous tool before execution", async () => {
+    useDangerousToolEffect();
+    confirmActionMock.mockResolvedValue(false);
+    const { toolExecute } = await runAndCaptureToolExecute({
+      harness: vercelAgentHarness,
+      guardrailsConfig: {
+        policies: { safe: "allow", moderate: "allow", dangerous: "confirm" },
+      },
+    });
+
+    const result = await toolExecute(
+      { text: "delete" },
+      { toolCallId: "confirm_1" },
+    );
+
+    expect(confirmActionMock).toHaveBeenCalledWith(
+      expect.stringContaining("Allow echo_tool?"),
+    );
+    expect(executeToolMock).not.toHaveBeenCalled();
+    expect(result.content).toContain("requires confirmation");
+  });
+
+  it("queues a dangerous supervised call with its session identity", async () => {
+    useDangerousToolEffect();
+    const { toolExecute } = await runAndCaptureToolExecute({
+      harness: vercelAgentHarness,
+      autonomyMode: "supervised",
+      sessionContext: {
+        sessionId: "vercel-session",
+        scopeId: "scope-a",
+        projectId: "scope-a",
+      },
+    });
+
+    const result = await toolExecute(
+      { text: "delete" },
+      { toolCallId: "queue_1" },
+    );
+
+    expect(enqueueApprovalMock).toHaveBeenCalledWith(
+      "echo_tool",
+      { text: "delete" },
+      "dangerous",
+      expect.any(String),
+      "vercel-session",
+      undefined,
+      undefined,
+      undefined,
+      "vercel-session",
+    );
+    expect(executeToolMock).not.toHaveBeenCalled();
+    expect(result.content).toContain("approval-vercel");
+  });
+
+  it("uses client approval for a queued dangerous call before execution", async () => {
+    useDangerousToolEffect();
+    executeToolMock.mockResolvedValue({ content: "executed" });
+    const clientApprovalResolver = vi.fn().mockResolvedValue({ outcome: "allow" });
+    const { toolExecute } = await runAndCaptureToolExecute({
+      harness: vercelAgentHarness,
+      guardrailsConfig: {
+        policies: { safe: "allow", moderate: "allow", dangerous: "queue" },
+      },
+      clientApprovalResolver,
+      sessionContext: {
+        sessionId: "vercel-client-session",
+        scopeId: "scope-a",
+        projectId: "scope-a",
+      },
+    });
+
+    const result = await toolExecute(
+      { text: "ship" },
+      { toolCallId: "client_1" },
+    );
+
+    expect(clientApprovalResolver).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "client_1",
+        toolName: "echo_tool",
+        sessionId: "vercel-client-session",
+      }),
+    );
+    expect(enqueueApprovalMock).not.toHaveBeenCalled();
+    expect(executeToolMock).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ isError: false, content: "executed" });
+  });
+
   it("denies through canUseTool by returning a tool result with isError", async () => {
     const canUseTool = vi.fn().mockResolvedValue({
       behavior: "deny",
@@ -138,13 +252,21 @@ describe("vercelAgentHarness — guardrails", () => {
   });
 
   it("ends the loop with isError when canUseTool deny carries interrupt: true", async () => {
-    const stub = createRejectedStreamTextStub("aborted");
-    silenceRejectedStreamTextStub(stub);
     streamTextMock.mockImplementation((args) => {
       const toolExecute = args.tools?.echo_tool?.execute;
       if (!toolExecute) throw new Error("echo_tool execute was not registered");
-      void toolExecute({ text: "x" }, { toolCallId: "call_int" });
-      return stub;
+      const interrupted = toolExecute(
+        { text: "x" },
+        { toolCallId: "call_int" },
+      ).then(() => {
+        throw new Error("aborted");
+      });
+      return {
+        text: interrupted,
+        totalUsage: interrupted,
+        steps: interrupted,
+        finishReason: interrupted,
+      };
     });
 
     const canUseTool = vi.fn().mockResolvedValue({
@@ -159,8 +281,6 @@ describe("vercelAgentHarness — guardrails", () => {
       effort: "xhigh",
       canUseTool,
     });
-
-    await new Promise((resolve) => setImmediate(resolve));
 
     const result = await promise;
     expect(result.isError).toBe(true);

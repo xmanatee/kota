@@ -1,13 +1,14 @@
 import type { ToolSet } from "ai";
 import type {
-  AgentCanUseTool,
-  AgentHarnessRunOptions,
-  AgentHarnessToolRunnerContext,
   KotaTool,
 } from "#core/agent-harness/index.js";
 import type { ToolCallInput } from "#core/tools/guardrails-classify.js";
-import { executeTool, getAllTools } from "#core/tools/index.js";
-import { maskToolResultSecrets } from "#core/tools/secret-masking.js";
+import { getAllTools } from "#core/tools/index.js";
+import {
+  executeToolCalls,
+  type ToolCallExecutionOptions,
+  ToolPermissionInterruptedError,
+} from "#core/tools/tool-runner.js";
 
 export const VERCEL_ASK_OWNER_TOOL_NAME = "ask_owner";
 
@@ -44,14 +45,7 @@ export function selectToolDefinitions(
 export function buildVercelToolSet(
   ai: typeof import("ai"),
   kotaTools: readonly KotaTool[],
-  guardrails: {
-    canUseTool: AgentCanUseTool | undefined;
-    abortSignal: AbortSignal | undefined;
-    toolRunnerContext: AgentHarnessToolRunnerContext;
-    tokenBudget: AgentHarnessRunOptions["tokenBudget"];
-    cwd: AgentHarnessRunOptions["cwd"];
-    env: AgentHarnessRunOptions["env"];
-  },
+  executionOptions: ToolCallExecutionOptions,
   flags: LoopFlags,
   internalAbort: AbortController,
 ): ToolSet {
@@ -72,56 +66,36 @@ export function buildVercelToolSet(
           );
         }
 
-        let effectiveInput: ToolCallInput = input;
-        if (guardrails.canUseTool) {
-          const toolAbort = new AbortController();
-          if (guardrails.abortSignal) {
-            if (guardrails.abortSignal.aborted) {
-              toolAbort.abort(guardrails.abortSignal.reason);
-            } else {
-              guardrails.abortSignal.addEventListener(
-                "abort",
-                () => toolAbort.abort(guardrails.abortSignal?.reason),
-                { once: true },
-              );
-            }
+        try {
+          const [result] = await executeToolCalls(
+            [
+              {
+                type: "tool_use",
+                id: options.toolCallId,
+                name: kotaTool.name,
+                input,
+              },
+            ],
+            executionOptions,
+          );
+          if (!result) {
+            throw new Error(
+              `Vercel tool runner returned no result for "${kotaTool.name}".`,
+            );
           }
-          const decision = await guardrails.canUseTool(kotaTool.name, input, {
-            signal: toolAbort.signal,
-            suggestions: [],
-            toolUseId: options.toolCallId,
-          });
-          if (decision.behavior === "deny") {
-            if (decision.interrupt === true) {
-              flags.interrupted = true;
-              flags.interruptMessage = decision.message;
-              internalAbort.abort(
-                new Error(`canUseTool interrupted the loop: ${decision.message}`),
-              );
-              return { isError: true, content: decision.message };
-            }
-            return { isError: true, content: decision.message };
-          }
-          if (
-            decision.behavior === "allow" &&
-            isPlainToolInput(decision.updatedInput)
-          ) {
-            effectiveInput = decision.updatedInput;
-          }
+          return {
+            isError: result.is_error === true,
+            content: result.content,
+          };
+        } catch (error) {
+          if (!(error instanceof ToolPermissionInterruptedError)) throw error;
+          flags.interrupted = true;
+          flags.interruptMessage = error.result.content;
+          internalAbort.abort(
+            new Error(`canUseTool interrupted the loop: ${error.result.content}`),
+          );
+          return { isError: true, content: error.result.content };
         }
-
-        const result = maskToolResultSecrets(await executeTool(kotaTool.name, effectiveInput, {
-          toolUseId: options.toolCallId,
-          ...(guardrails.cwd !== undefined ? { cwd: guardrails.cwd } : {}),
-          ...(guardrails.env !== undefined ? { env: guardrails.env } : {}),
-          ...(guardrails.abortSignal !== undefined ? { signal: guardrails.abortSignal } : {}),
-          ...guardrails.toolRunnerContext,
-          ...(guardrails.tokenBudget !== undefined ? { tokenBudget: guardrails.tokenBudget } : {}),
-        }));
-        return {
-          isError: result.is_error === true,
-          content: result.content,
-        };
       },
     });
   }

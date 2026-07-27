@@ -1,0 +1,23 @@
+PASS  ./node_modules/.bin/tsc --noEmit
+PASS  ./node_modules/.bin/biome check src/
+      Checked 2,843 files. No fixes applied.
+PASS  git diff --check
+PASS  task queue validation
+PASS  claimed-task-commit-set
+      OK: commit set resolves claimed task task-security-review-the-gemini-and-vercel-kota-hosted-
+PASS  autonomy-change-decision
+      autonomy-change-decision.json covers 13 material autonomy files.
+PASS  source-file-size-severe
+      New permission-policy coverage was split into focused files; the prior
+      substantial-growth failure is gone. The remaining 686-line legacy
+      adapter.test.ts changed by -14 lines and is advisory only.
+PASS  TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run src/strict-types-policy.integration.test.ts src/core/agent-harness src/core/tools/tool-runner.test.ts src/core/tools/tool-runner-permission.test.ts src/core/tools/autonomy-mode-boundary.integration.test.ts src/modules/openai-tools-agent-harness src/modules/gemini-agent-harness src/modules/vercel-agent-harness --configLoader runner --reporter=dot
+      44 test files passed; 263 tests passed.
+
+NON-GATING ENVIRONMENT LIMITATION
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run --configLoader runner --silent=true --reporter=dot
+      1,075 test files passed; 12,178 tests passed.
+      Remaining failures were subprocess gates requiring absent dist/cli.js or
+      the project-pinned pnpm binary, which could not verify its registry
+      signature without network access. The change-related strict-types ratchet
+      failure seen in this broad attempt was fixed and independently rerun green.

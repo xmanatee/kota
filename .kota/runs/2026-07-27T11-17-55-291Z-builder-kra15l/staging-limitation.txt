@@ -1,0 +1,21 @@
+The implementation, task evidence, and run evidence are complete, but this
+native agent sandbox cannot write the host-owned linked-worktree Git index at:
+
+/Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/task-security-review-the-gemini-and-vercel-kota-hosted-2026-07-27t11-17-55-291z-builder-kra15l/index.lock
+
+The canonical task transition completed against an isolated index and moved
+the evidence-bearing task to done:
+
+GIT_INDEX_FILE=$PWD/.kota/tmp/repair-index \
+GIT_OBJECT_DIRECTORY=$PWD/.kota/tmp/repair-objects \
+GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects \
+node --conditions=source --import tsx src/cli.ts task move \
+task-security-review-the-gemini-and-vercel-kota-hosted- done
+
+The same isolated index stages and validates the exact final commit set without
+altering the host repository metadata. The trusted host only needs to replay:
+
+git add -A
+
+This sandbox attempted the required default-index command first; it failed at
+index.lock with Operation not permitted. No direct commit was attempted.

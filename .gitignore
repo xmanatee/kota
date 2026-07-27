@@ -1025,3 +1025,13 @@ __pycache__/
 !/.kota/runs/2026-07-27T07-12-42-944Z-improver-agi39a/autonomy-change-decision.json
 !/.kota/runs/2026-07-27T07-12-42-944Z-improver-agi39a/commit-message.txt
 !/.kota/runs/2026-07-27T07-12-42-944Z-improver-agi39a/staging-limitation.txt
+!/.kota/runs/2026-07-27T11-17-55-291Z-builder-kra15l/
+/.kota/runs/2026-07-27T11-17-55-291Z-builder-kra15l/*
+!/.kota/runs/2026-07-27T11-17-55-291Z-builder-kra15l/autonomy-change-decision.json
+!/.kota/runs/2026-07-27T11-17-55-291Z-builder-kra15l/commit-message.txt
+!/.kota/runs/2026-07-27T11-17-55-291Z-builder-kra15l/security-regression.txt
+!/.kota/runs/2026-07-27T11-17-55-291Z-builder-kra15l/source-file-size-review.json
+!/.kota/runs/2026-07-27T11-17-55-291Z-builder-kra15l/staging-limitation.txt
+!/.kota/runs/2026-07-27T11-17-55-291Z-builder-kra15l/success-criteria-verified.txt
+!/.kota/runs/2026-07-27T11-17-55-291Z-builder-kra15l/success-criteria.txt
+!/.kota/runs/2026-07-27T11-17-55-291Z-builder-kra15l/validation.txt

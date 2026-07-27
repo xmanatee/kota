@@ -7,12 +7,14 @@ import type {
 } from "@google/genai";
 import type {
   AgentCanUseTool,
-  AgentHarnessRunOptions,
-  AgentHarnessToolRunnerContext,
   KotaTool,
 } from "#core/agent-harness/index.js";
-import { executeTool, getAllTools } from "#core/tools/index.js";
-import { maskToolResultSecrets } from "#core/tools/secret-masking.js";
+import { getAllTools } from "#core/tools/index.js";
+import {
+  executeToolCalls,
+  type ToolCallExecutionOptions,
+  ToolPermissionInterruptedError,
+} from "#core/tools/tool-runner.js";
 import { GEMINI_ASK_OWNER_TOOL_NAME } from "./constants.js";
 
 type ToolInput = Parameters<AgentCanUseTool>[1];
@@ -115,16 +117,7 @@ function functionResponsePart(
 
 export async function dispatchFunctionCall(
   call: FunctionCall,
-  guardrails: {
-    canUseTool: AgentCanUseTool | undefined;
-    allowedTools: readonly string[] | undefined;
-    disallowedTools: readonly string[] | undefined;
-    abortSignal: AbortSignal | undefined;
-    toolRunnerContext: AgentHarnessToolRunnerContext;
-    tokenBudget: AgentHarnessRunOptions["tokenBudget"];
-    cwd: AgentHarnessRunOptions["cwd"];
-    env: AgentHarnessRunOptions["env"];
-  },
+  executionOptions: ToolCallExecutionOptions,
 ): Promise<DispatchResult> {
   const name = call.name;
   if (typeof name !== "string" || name.length === 0) {
@@ -141,84 +134,36 @@ export async function dispatchFunctionCall(
     );
   }
   const validatedInput = args ?? {};
-
-  const denySet = new Set(guardrails.disallowedTools ?? []);
-  if (denySet.has(name)) {
-    const message = `Tool "${name}" is in disallowedTools and cannot run.`;
-    const part = functionResponsePart(call, { error: message });
-    return {
-      responsePart: part,
-      denial: { responsePart: part, interrupt: false, message },
-    };
-  }
-  if (
-    guardrails.allowedTools &&
-    guardrails.allowedTools.length > 0 &&
-    !guardrails.allowedTools.includes(name)
-  ) {
-    const message = `Tool "${name}" is not in allowedTools and cannot run.`;
-    const part = functionResponsePart(call, { error: message });
-    return {
-      responsePart: part,
-      denial: { responsePart: part, interrupt: false, message },
-    };
-  }
-
-  let effectiveInput: ToolInput = validatedInput;
-  if (guardrails.canUseTool) {
-    const toolAbort = new AbortController();
-    if (guardrails.abortSignal) {
-      if (guardrails.abortSignal.aborted) {
-        toolAbort.abort(guardrails.abortSignal.reason);
-      } else {
-        guardrails.abortSignal.addEventListener(
-          "abort",
-          () => toolAbort.abort(guardrails.abortSignal?.reason),
-          { once: true },
-        );
-      }
-    }
-    const decision = await guardrails.canUseTool(name, validatedInput, {
-      signal: toolAbort.signal,
-      suggestions: [],
-      toolUseId: call.id ?? name,
-    });
-    if (decision.behavior === "deny") {
-      const part = functionResponsePart(call, { error: decision.message });
-      return {
-        responsePart: part,
-        denial: {
-          responsePart: part,
-          interrupt: decision.interrupt === true,
-          message: decision.message,
+  try {
+    const [result] = await executeToolCalls(
+      [
+        {
+          type: "tool_use",
+          id: call.id ?? name,
+          name,
+          input: validatedInput,
         },
-      };
+      ],
+      executionOptions,
+    );
+    if (!result) {
+      throw new Error(`Gemini tool runner returned no result for "${name}".`);
     }
-    if (
-      decision.behavior === "allow" &&
-      isPlainToolInput(decision.updatedInput)
-    ) {
-      effectiveInput = decision.updatedInput;
-    }
+    const body =
+      result.is_error === true
+        ? { error: result.content }
+        : { output: result.content };
+    return { responsePart: functionResponsePart(call, body) };
+  } catch (error) {
+    if (!(error instanceof ToolPermissionInterruptedError)) throw error;
+    const part = functionResponsePart(call, { error: error.result.content });
+    return {
+      responsePart: part,
+      denial: {
+        responsePart: part,
+        interrupt: true,
+        message: error.result.content,
+      },
+    };
   }
-
-  const result = maskToolResultSecrets(
-    await executeTool(name, effectiveInput, {
-      toolUseId: call.id ?? name,
-      ...(guardrails.cwd !== undefined ? { cwd: guardrails.cwd } : {}),
-      ...(guardrails.env !== undefined ? { env: guardrails.env } : {}),
-      ...(guardrails.abortSignal !== undefined
-        ? { signal: guardrails.abortSignal }
-        : {}),
-      ...guardrails.toolRunnerContext,
-      ...(guardrails.tokenBudget !== undefined
-        ? { tokenBudget: guardrails.tokenBudget }
-        : {}),
-    }),
-  );
-  const body =
-    result.is_error === true
-      ? { error: result.content }
-      : { output: result.content };
-  return { responsePart: functionResponsePart(call, body) };
 }

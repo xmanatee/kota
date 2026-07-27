@@ -33,6 +33,7 @@ vi.mock("@ai-sdk/openai", () => ({
 vi.mock("#core/tools/index.js", () => ({
   executeTool: (...args: unknown[]) => executeToolMock(...args),
   getAllTools: () => getAllToolsMock(),
+  getToolEffect: () => undefined,
 }));
 
 import { loadScenario } from "#modules/harness-parity/scenario.js";
@@ -105,7 +106,7 @@ describe("vercel agent harness × fix-arithmetic-bug scenario", () => {
     vi.clearAllMocks();
   });
 
-  it("dispatches the scenario's tool calls through executeTool, ending with end_turn-equivalent", async () => {
+  it("dispatches the scenario's tool calls through the shared runner, ending with end_turn-equivalent", async () => {
     const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "fix-arithmetic-bug");
 
     streamTextMock.mockImplementation(

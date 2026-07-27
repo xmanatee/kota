@@ -29,10 +29,6 @@ describe("vercelAgentHarness — registration", () => {
           runOption: "mcpServers",
         }),
         expect.objectContaining({
-          option: 'autonomyMode="supervised"',
-          runOption: "autonomyMode.supervised",
-        }),
-        expect.objectContaining({
           option: "thinkingEnabled/thinkingBudget",
           runOption: "thinking",
         }),

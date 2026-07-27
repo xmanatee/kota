@@ -1,0 +1,4 @@
+Route hosted tool loops through shared guardrails
+
+Send Gemini and Vercel tool calls through the shared permissioned runner and
+cover deny, confirm, and approval-queue paths across hosted adapters.

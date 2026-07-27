@@ -19,7 +19,7 @@ import {
   type AgentHarnessResult,
   type AgentHarnessRunOptions,
   type AgentHarnessWriter,
-  agentHarnessToolRunnerContext,
+  agentHarnessToolExecutionOptions,
 } from "#core/agent-harness/index.js";
 import { runWithAskOwnerSource } from "#core/tools/ask-owner.js";
 import {
@@ -244,16 +244,10 @@ async function runGeminiLoop(
     const responseParts: Part[] = [];
     let interruptDenial: DenialOutcome | undefined;
     for (const call of functionCalls) {
-      const dispatched = await dispatchFunctionCall(call, {
-        canUseTool: options.canUseTool,
-        allowedTools: options.allowedTools,
-        disallowedTools: options.disallowedTools,
-        abortSignal: options.abortController?.signal,
-        toolRunnerContext: agentHarnessToolRunnerContext(options),
-        tokenBudget: options.tokenBudget,
-        cwd: options.cwd,
-        env: options.env,
-      });
+      const dispatched = await dispatchFunctionCall(
+        call,
+        agentHarnessToolExecutionOptions(options, { resultLimit: 50_000 }),
+      );
       responseParts.push(dispatched.responsePart);
       if (dispatched.denial?.interrupt && !interruptDenial) {
         interruptDenial = dispatched.denial;

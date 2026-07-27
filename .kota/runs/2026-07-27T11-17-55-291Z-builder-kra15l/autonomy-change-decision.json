@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "autonomy-change-decision",
+  "runId": "2026-07-27T11-17-55-291Z-builder-kra15l",
+  "createdAt": "2026-07-27T11:54:05Z",
+  "taskIds": [
+    "task-security-review-the-gemini-and-vercel-kota-hosted-"
+  ],
+  "affectedSurfaces": [
+    "Gemini KOTA-hosted tool execution loop",
+    "Vercel KOTA-hosted tool execution loop",
+    "shared agent-harness tool-runner option projection",
+    "OpenAI-tools hosted adapter option parity"
+  ],
+  "changeClasses": [
+    "harness",
+    "model-routing"
+  ],
+  "hypothesis": "Routing every Gemini and Vercel hosted tool call through the same shared permissioned execution primitive as OpenAI-tools, with one neutral projection of harness run options, will eliminate adapter-specific authorization bypasses while preserving provider-native transcripts and loop behavior.",
+  "sourceRefs": [
+    "data/tasks/done/task-security-review-the-gemini-and-vercel-kota-hosted-.md",
+    ".kota/runs/2026-07-27T11-17-55-291Z-builder-kra15l/security-regression.txt",
+    ".kota/runs/2026-07-27T11-17-55-291Z-builder-kra15l/success-criteria.txt"
+  ],
+  "baselineRefs": [
+    "src/modules/gemini-agent-harness/tool-loop.ts",
+    "src/modules/vercel-agent-harness/adapter-tools.ts",
+    "src/modules/openai-tools-agent-harness/adapter-runtime.ts",
+    "src/core/tools/tool-runner.ts"
+  ],
+  "candidateRefs": [
+    "src/core/agent-harness/tool-execution-options.ts",
+    "src/core/agent-harness/tool-execution-options.test.ts",
+    "src/modules/gemini-agent-harness/adapter.ts",
+    "src/modules/gemini-agent-harness/tool-loop.ts",
+    "src/modules/gemini-agent-harness/adapter-permission-policy.test.ts",
+    "src/modules/openai-tools-agent-harness/adapter-runtime.ts",
+    "src/modules/vercel-agent-harness/adapter.ts",
+    "src/modules/vercel-agent-harness/adapter-tools.ts",
+    "src/modules/vercel-agent-harness/adapter-guardrails.test.ts",
+    ".kota/runs/2026-07-27T11-17-55-291Z-builder-kra15l/source-file-size-review.json",
+    ".kota/runs/2026-07-27T11-17-55-291Z-builder-kra15l/validation.txt"
+  ],
+  "metricsCompared": [
+    {
+      "name": "hosted adapter authorization path",
+      "baseline": "Gemini and Vercel applied catalog and canUseTool checks locally, then called executeTool directly without shared effect assessment, configured guardrail policy, confirmation, approval queueing, idempotency, middleware, or execution telemetry.",
+      "candidate": "Gemini, Vercel, and OpenAI-tools project neutral run options through agentHarnessToolExecutionOptions and execute tool calls through executeToolCalls; provider adapters retain only wire translation and interruption handling.",
+      "unit": "KOTA-hosted tool-loop adapters using the permissioned runner",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "dangerous-policy regression coverage",
+      "baseline": "The shared runner had policy tests, but Gemini and Vercel adapter regressions did not prove deny, confirm, supervised queue, and client-approval behavior at their provider seams.",
+      "candidate": "Focused Gemini and Vercel suites exercise dangerous deny, rejected confirmation, scoped supervised queueing, and client approval; existing OpenAI-tools and shared-runner suites cover the same boundary.",
+      "unit": "provider-seam permission policy cases",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "shared execution-option drift",
+      "baseline": "OpenAI-tools manually projected authorization and runtime fields while Gemini and Vercel projected smaller, inconsistent subsets.",
+      "candidate": "One typed helper projects autonomy mode, guardrails, client approval, scope and session identity, workflow context, idempotency, token budget, environment, abort signal, and tool filters for every KOTA-hosted adapter.",
+      "unit": "duplicated adapter-owned option projections",
+      "direction": "improved",
+      "qualitySignal": true
+    }
+  ],
+  "rolloutMode": "blocking",
+  "decision": "promote",
+  "rationale": "This is a fail-closed repair to a confirmed high-severity authorization bypass. The candidate removes direct registered-tool execution from Gemini and Vercel and reuses the existing shared runner whose effect classification, configured policies, confirmation, client approval, scoped approval queue, idempotency, middleware, secret masking, token accounting, and telemetry are already established. Adapter-local code remains responsible only for provider wire shapes and translating an interrupt denial into the provider loop's terminal result. Focused regressions prove deny, confirm, queue, client approval, canUseTool denial/interruption, normal execution, and option projection, while the broader targeted matrix verifies the shared runner and all three KOTA-hosted adapters.",
+  "ownerSafetyExceptions": [],
+  "followUpTaskIds": []
+}

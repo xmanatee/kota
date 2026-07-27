@@ -1,0 +1,14 @@
+{
+  "outcome": "advisory",
+  "warnings": [
+    {
+      "type": "source-file-size",
+      "file": "src/modules/gemini-agent-harness/adapter.test.ts",
+      "lines": 686,
+      "threshold": 300,
+      "changedLines": -14,
+      "message": "Changed source file src/modules/gemini-agent-harness/adapter.test.ts is 686 line(s), above the 300-line source-size guideline."
+    }
+  ],
+  "message": "Advisory source-size warning(s): src/modules/gemini-agent-harness/adapter.test.ts."
+}

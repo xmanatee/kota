@@ -26,6 +26,7 @@ vi.mock("@ai-sdk/openai", () => ({
 vi.mock("#core/tools/index.js", () => ({
   executeTool: vi.fn(),
   getAllTools: () => getAllToolsMock(),
+  getToolEffect: () => undefined,
 }));
 
 vi.mock("#core/config/secrets.js", () => ({

@@ -1,6 +1,6 @@
 import {
 	type AgentHarnessRunOptions,
-	agentHarnessToolRunnerContext,
+	agentHarnessToolExecutionOptions,
 	type KotaMessage,
 	type KotaToolResultBlock,
 } from "#core/agent-harness/index.js";
@@ -100,11 +100,14 @@ export function executeOpenaiToolCalls(
 		messages: KotaMessage[];
 	},
 ): Promise<ToolResultEntry[]> {
-	const toolRunnerContext = agentHarnessToolRunnerContext(options);
 	return executeToolCalls(toolBlocks, {
-		resultLimit: 50_000,
-		verbose: options.verbose === true,
-		autonomyMode: options.autonomyMode ?? "autonomous",
+		...agentHarnessToolExecutionOptions(options, {
+			resultLimit: 50_000,
+			cwd: context.projectDir,
+			...(context.abortSignal !== undefined
+				? { signal: context.abortSignal }
+				: {}),
+		}),
 		...(context.mcpManager !== undefined ? { mcpManager: context.mcpManager } : {}),
 		...(context.mcpPromptToolDeclarationFingerprints !== undefined
 			? {
@@ -112,36 +115,6 @@ export function executeOpenaiToolCalls(
 						context.mcpPromptToolDeclarationFingerprints,
 				}
 			: {}),
-		cwd: context.projectDir,
-		...(options.env !== undefined ? { env: options.env } : {}),
-		...(options.guardrailsConfig !== undefined
-			? { guardrailsConfig: options.guardrailsConfig }
-			: {}),
-		...(options.clientApprovalResolver !== undefined
-			? { clientApprovalResolver: options.clientApprovalResolver }
-			: {}),
-		...(toolRunnerContext.sessionId !== undefined
-			? { sessionId: toolRunnerContext.sessionId }
-			: {}),
-		...(toolRunnerContext.scopeId !== undefined
-			? { scopeId: toolRunnerContext.scopeId }
-			: {}),
-		...(toolRunnerContext.projectId !== undefined
-			? { projectId: toolRunnerContext.projectId }
-			: {}),
-		...(toolRunnerContext.workflow !== undefined
-			? { workflowContext: toolRunnerContext.workflow }
-			: {}),
 		messages: context.messages,
-		...(options.idempotencyStore !== undefined
-			? { idempotencyStore: options.idempotencyStore }
-			: {}),
-		...(options.tokenBudget !== undefined
-			? { tokenBudget: options.tokenBudget }
-			: {}),
-		...(context.abortSignal !== undefined ? { signal: context.abortSignal } : {}),
-		canUseTool: options.canUseTool,
-		allowedTools: options.allowedTools,
-		disallowedTools: options.disallowedTools,
 	});
 }

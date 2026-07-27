@@ -150,6 +150,8 @@ export {
   agentTokenUsageFromModelUsage,
   TOKEN_BUDGET_EXHAUSTED_SUBTYPE,
 } from "./token-budget.js";
+export type { AgentHarnessToolExecutionOverrides } from "./tool-execution-options.js";
+export { agentHarnessToolExecutionOptions } from "./tool-execution-options.js";
 export type {
   TrajectoryDiagnostic,
   TrajectoryDiagnosticCode,

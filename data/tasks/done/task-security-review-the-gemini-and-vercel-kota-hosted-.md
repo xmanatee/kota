@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-gemini-and-vercel-kota-hosted-
 title: Security review: The Gemini and Vercel KOTA-hosted tool loops execute registered tools directly, bypassing the shared effect assessment, configured guardrail policy, confirmation, and approval-queue path. In autonomous mode, where per-tool guardrail policy is supposed to decide, a dangerous tool can execute even when its policy requires confirmation or denial.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: The Gemini and Vercel KOTA-hosted tool loops execute registered tools directly, bypassing the shared effect assessment, configured guardrail policy, confirmation, and approval-queue path. In autonomous mode, where per-tool guardrail policy is supposed to decide, a dangerous tool can execute even when its policy requires confirmation or denial.
 created_at: 2026-07-27T10:43:55.794Z
-updated_at: 2026-07-27T10:43:55.794Z
+updated_at: 2026-07-27T11:56:56.703Z
 ---
 
 ## Problem
@@ -124,4 +124,6 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Security regression record: `.kota/runs/2026-07-27T11-17-55-291Z-builder-kra15l/security-regression.txt`.
+- Final verification command: `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run src/strict-types-policy.integration.test.ts src/core/agent-harness src/core/tools/tool-runner.test.ts src/core/tools/tool-runner-permission.test.ts src/core/tools/autonomy-mode-boundary.integration.test.ts src/modules/openai-tools-agent-harness src/modules/gemini-agent-harness src/modules/vercel-agent-harness --configLoader runner --reporter=dot`
+- Result: 44 test files passed; 263 tests passed. TypeScript, Biome, and diff-check gates also passed.

@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, expect, vi } from "vitest";
 import type {
-  AgentCanUseTool,
   AgentHarness,
   AgentHarnessRunOptions,
 } from "#core/agent-harness/index.js";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import { resolvePreset, resolveTierModel } from "#core/model/preset.js";
+import type { ToolEffect } from "#core/tools/effect.js";
 
 type ToolValue =
   | string
@@ -76,6 +77,8 @@ type LanguageModel = {
   modelId: string;
 };
 
+type EnqueueApproval = ApprovalQueue["enqueue"];
+
 type CreateOpenAIOptions = {
   apiKey?: string;
 };
@@ -83,7 +86,7 @@ type CreateOpenAIOptions = {
 export let VERCEL_AGENT_HARNESS_NAME = "";
 export let vercelAgentHarness: AgentHarness;
 
-const VERCEL_TEST_MODEL = `openai/${resolveTierModel(
+export const VERCEL_TEST_MODEL = `openai/${resolveTierModel(
   resolvePreset({ flag: "codex" }).preset,
   "fast",
 )}`;
@@ -117,16 +120,28 @@ const executeToolMock = vi.hoisted(() =>
 const getAllToolsMock = vi.hoisted(() =>
   vi.fn<() => readonly KotaTool[]>(),
 );
+const getToolEffectMock = vi.hoisted(() =>
+  vi.fn<(name: string, input?: ToolInput) => ToolEffect | undefined>(),
+);
 const getSecretStoreMock = vi.hoisted(() =>
   vi.fn<() => SecretMasker | null>(),
 );
+const confirmActionMock = vi.hoisted(() =>
+  vi.fn<(message: string) => Promise<boolean>>(),
+);
+const enqueueApprovalMock = vi.hoisted(() =>
+  vi.fn<EnqueueApproval>(),
+);
 
 export {
+  confirmActionMock,
   createOpenAIMock,
   dynamicToolMock,
+  enqueueApprovalMock,
   executeToolMock,
   getAllToolsMock,
   getSecretStoreMock,
+  getToolEffectMock,
   jsonSchemaMock,
   stepCountIsMock,
   streamTextMock,
@@ -150,6 +165,18 @@ vi.mock("#core/tools/index.js", () => ({
     context: ExecuteToolContext,
   ) => executeToolMock(name, input, context),
   getAllTools: () => getAllToolsMock(),
+  getToolEffect: (name: string, input?: ToolInput) =>
+    getToolEffectMock(name, input),
+}));
+
+vi.mock("#core/util/confirm.js", () => ({
+  confirmAction: (message: string) => confirmActionMock(message),
+}));
+
+vi.mock("#core/daemon/approval-queue.js", () => ({
+  getApprovalQueue: () => ({
+    enqueue: (...args: Parameters<EnqueueApproval>) => enqueueApprovalMock(...args),
+  }),
 }));
 
 vi.mock("#core/config/secrets.js", () => ({
@@ -181,9 +208,22 @@ beforeEach(async () => {
   }));
   executeToolMock.mockReset();
   getAllToolsMock.mockReset();
+  getToolEffectMock.mockReset();
   getSecretStoreMock.mockReset();
+  confirmActionMock.mockReset();
+  enqueueApprovalMock.mockReset();
   getAllToolsMock.mockReturnValue([TEST_TOOL]);
   getSecretStoreMock.mockReturnValue(null);
+  confirmActionMock.mockResolvedValue(true);
+  enqueueApprovalMock.mockReturnValue({
+    id: "approval-vercel",
+    tool: "echo_tool",
+    input: { text: "queued" },
+    risk: "dangerous",
+    reason: "test approval",
+    createdAt: "2026-07-27T00:00:00.000Z",
+    status: "pending",
+  });
 
   const adapter = await import("./adapter.js");
   VERCEL_AGENT_HARNESS_NAME = adapter.VERCEL_AGENT_HARNESS_NAME;
@@ -234,36 +274,4 @@ export function captureStreamTextArgs(): StreamTextArgs {
   const call = streamTextMock.mock.calls.at(-1);
   if (!call) throw new Error("streamText was not called");
   return call[0];
-}
-
-export async function runAndCaptureToolExecute(opts: {
-  harness: Pick<AgentHarness, "run">;
-  canUseTool?: AgentCanUseTool;
-  allowedTools?: string[];
-  disallowedTools?: string[];
-  cwd?: string;
-  sessionContext?: AgentHarnessRunOptions["sessionContext"];
-  workflowContext?: AgentHarnessRunOptions["workflowContext"];
-}): Promise<{
-  toolExecute: ToolExecuteFn;
-  streamArgs: StreamTextArgs;
-}> {
-  streamTextMock.mockImplementation(() => createStreamTextStub());
-
-  await opts.harness.run({
-    prompt: "go",
-    model: VERCEL_TEST_MODEL,
-    effort: "xhigh",
-    ...(opts.canUseTool ? { canUseTool: opts.canUseTool } : {}),
-    ...(opts.allowedTools ? { allowedTools: opts.allowedTools } : {}),
-    ...(opts.disallowedTools ? { disallowedTools: opts.disallowedTools } : {}),
-    ...(opts.cwd ? { cwd: opts.cwd } : {}),
-    ...(opts.sessionContext ? { sessionContext: opts.sessionContext } : {}),
-    ...(opts.workflowContext ? { workflowContext: opts.workflowContext } : {}),
-  });
-
-  const streamArgs = captureStreamTextArgs();
-  const toolExecute = streamArgs.tools?.echo_tool?.execute;
-  if (!toolExecute) throw new Error("echo_tool execute was not registered");
-  return { toolExecute, streamArgs };
 }

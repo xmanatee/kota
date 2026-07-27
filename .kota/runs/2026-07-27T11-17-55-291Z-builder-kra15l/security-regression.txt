@@ -1,0 +1,30 @@
+Finding: agent-harness-kota-tool-loop-guardrail-bypass
+Disposition: fixed
+
+Gemini and Vercel no longer call executeTool directly from their hosted tool
+loops. Both project AgentHarnessRunOptions through
+agentHarnessToolExecutionOptions and execute each call through executeToolCalls,
+the same shared permissioned primitive already used by the OpenAI hosted
+adapter. This preserves autonomy policy, configured effect guardrails,
+confirmation/client approval/approval queue routing, scoped session identity,
+idempotency, middleware, secret masking, token budgets, and execution telemetry.
+
+Regression coverage exercises deny, confirm, supervised queue, client approval,
+canUseTool denial/interruption, and normal execution paths for the OpenAI,
+Gemini, and Vercel hosted adapters.
+
+Final focused verification:
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run src/strict-types-policy.integration.test.ts src/core/agent-harness src/core/tools/tool-runner.test.ts src/core/tools/tool-runner-permission.test.ts src/core/tools/autonomy-mode-boundary.integration.test.ts src/modules/openai-tools-agent-harness src/modules/gemini-agent-harness src/modules/vercel-agent-harness --configLoader runner --reporter=dot
+
+Result: 44 test files passed; 263 tests passed.
+
+Additional gates:
+- ./node_modules/.bin/tsc --noEmit — passed.
+- ./node_modules/.bin/biome check src/ — passed, 2,843 files checked.
+- git diff --check — passed.
+
+An exploratory full-suite run completed 1,075 test files and 12,178 tests
+successfully. Its remaining subprocess failures require the absent dist/cli.js
+build or the project-pinned pnpm binary, whose registry signature cannot be
+verified without network access. The one change-related strict-types finding
+from that run was fixed and is included in the passing focused command above.

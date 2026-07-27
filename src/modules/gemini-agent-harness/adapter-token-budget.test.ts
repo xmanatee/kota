@@ -22,6 +22,7 @@ vi.mock("@google/genai", () => ({
 vi.mock("#core/tools/index.js", () => ({
   executeTool: (...args: unknown[]) => executeToolMock(...args),
   getAllTools: () => getAllToolsMock(),
+  getToolEffect: () => undefined,
 }));
 
 vi.mock("#core/config/secrets.js", () => ({

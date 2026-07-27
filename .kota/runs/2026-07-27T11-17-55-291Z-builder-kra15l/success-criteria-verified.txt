@@ -1,0 +1,3 @@
+1. Verified: Gemini and Vercel now project every shared harness authorization and execution resource into executeToolCalls; OpenAI uses the same projection helper.
+2. Verified: focused adapter and shared-runner regressions cover deny, confirm, supervised queue, and client approval across OpenAI, Gemini, and Vercel; the final matrix passed 44 files and 263 tests.
+3. Verified: the task and run artifacts name the exact final command and results, and the canonical task CLI moved the task to done. The linked-worktree metadata mount prevented updating the host-owned index; an isolated index verified the exact final commit set and the replay is recorded for the host.

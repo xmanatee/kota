@@ -22,9 +22,11 @@ executes emitted function calls through core tool paths, appends
 `functionResponse` parts, and repeats until the model returns no function
 calls or the max turn limit fires.
 
-Guardrails are applied inside the loop. Filtered tools are hidden from the
-catalog and denied at runtime if called; `canUseTool` can update inputs,
-deny with a tool response, or interrupt the run.
+Every call uses the shared permissioned tool runner, so autonomy mode,
+configured guardrails, client or queued approval, idempotency, middleware,
+secret masking, and telemetry match other KOTA-hosted loops. Filtered tools
+are hidden from the catalog and denied again at runtime; `canUseTool` can
+update inputs, deny with a tool response, or interrupt the run.
 
 ## Reasoning Effort
 
