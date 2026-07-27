@@ -245,11 +245,11 @@ export function releaseInstanceLock(
   stateDir: string,
   owner: DaemonInstanceIdentity,
 ): void {
-  const controlPath = join(stateDir, CONTROL_FILE);
-  const current = readOptionalJsonFile<DaemonControlFilePayload>(controlPath);
-  if (current !== null && ownerMatches(current, owner)) rmSync(controlPath);
-
   const lockPath = join(stateDir, INSTANCE_LOCK_FILE);
   const lockOwner = readInstanceOwner(lockPath);
   if (lockOwner !== null && ownerMatches(lockOwner, owner)) rmSync(lockPath);
+
+  const controlPath = join(stateDir, CONTROL_FILE);
+  const current = readOptionalJsonFile<DaemonControlFilePayload>(controlPath);
+  if (current !== null && ownerMatches(current, owner)) rmSync(controlPath);
 }

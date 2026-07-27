@@ -4,24 +4,7 @@ import type { DaemonStopReason } from "./daemon-state.js";
 import { saveDaemonStateToDisk } from "./daemon-state-persistence.js";
 import { stopDaemonWorkflowRuntimes } from "./daemon-workflows.js";
 
-/**
- * Single unified teardown for the daemon. Both `stop()` and the failed-start
- * cleanup path call this with parameters describing how aggressive
- * `workflows.stop` should be and whether final state should be saved and
- * announced. Keeping one body closes the drift between the two paths by
- * construction.
- *
- * `workflowsStopArgs`: passed straight to `WorkflowRuntime.stop`.
- * - normal stop: `[gracePeriodMs]`
- * - failed-start cleanup: `[1, 1_000]` (drain instantly, then abort fast)
- *
- * `saveState`: persist daemon-state.json before announcing the stop. Failed
- * start skips this — it never owned the on-disk pid/started-at slot.
- *
- * `logShutdown`: emit the "Daemon shutting down..." / "Daemon stopped." log
- * lines that operators key off of. Failed start runs silently because the
- * "Daemon starting..." line never fired.
- */
+/** Shared teardown for normal stops and failed startup cleanup. */
 export type DaemonShutdownOptions = {
   workflowsStopArgs: [number] | [number, number];
   saveState: boolean;
