@@ -4,7 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isProcessAlive } from "#core/util/process-alive.js";
-import { acquireInstanceLock, CONTROL_FILE, writeControlFile } from "./daemon-instance-lock.js";
+import {
+  acquireInstanceLock,
+  CONTROL_FILE,
+  releaseInstanceLock,
+  writeControlFile,
+} from "./daemon-instance-lock.js";
 
 vi.mock("node:child_process", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:child_process")>();
@@ -104,5 +109,27 @@ describe("daemon instance lock", () => {
     expect(fileMode(stateDir)).toBe(0o700);
     expect(fileMode(controlPath)).toBe(0o600);
     expect(existsSync(tmpPath)).toBe(false);
+  });
+
+  it("releases only the control file owned by the stopping daemon", () => {
+    const stateDir = join(tmpDir, ".kota");
+    const controlPath = join(stateDir, CONTROL_FILE);
+    const owner = {
+      pid: 12345,
+      startedAt: "2026-06-04T10:00:00.000Z",
+      token: "owner-token",
+    };
+    writeControlFile(stateDir, { ...owner, port: 3921 });
+
+    expect(
+      releaseInstanceLock(stateDir, {
+        ...owner,
+        token: "different-daemon-token",
+      }),
+    ).toBe(false);
+    expect(existsSync(controlPath)).toBe(true);
+
+    expect(releaseInstanceLock(stateDir, owner)).toBe(true);
+    expect(existsSync(controlPath)).toBe(false);
   });
 });

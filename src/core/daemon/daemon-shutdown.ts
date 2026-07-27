@@ -56,7 +56,11 @@ export async function runDaemonShutdown(
   await ctx.controlServer.stop();
   await ctx.config.unloadModules?.();
 
-  releaseInstanceLock(ctx.stateDir);
+  releaseInstanceLock(ctx.stateDir, {
+    pid: ctx.state.pid,
+    startedAt: ctx.state.startedAt,
+    token: ctx.token,
+  });
 
   ctx.unsubscribe?.();
   ctx.unsubscribe = null;
