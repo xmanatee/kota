@@ -1,0 +1,36 @@
+Validation completed 2026-07-27.
+
+Focused and related Runtime Probe suite:
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node node_modules/vitest/vitest.mjs run src/modules/autonomy/critic-runtime-probe-artifact.test.ts src/modules/autonomy/critic-runtime-probe-sandbox.integration.test.ts src/modules/autonomy/critic-runtime-probe.test.ts src/modules/autonomy/task-probe-coredump.integration.test.ts src/modules/autonomy/task-probe-hard-links.test.ts src/modules/autonomy/task-probe-runner.test.ts src/modules/autonomy/task-probe-sandbox.test.ts src/modules/autonomy/task-probe-toolchain.test.ts src/modules/autonomy/task-probe.test.ts --configLoader runner
+PASS — 8 test files passed, 1 skipped; 52 tests passed, 2 skipped.
+
+TypeScript:
+node_modules/.bin/tsc --noEmit
+PASS
+
+Biome:
+node_modules/.bin/biome check src/
+PASS — Checked 2827 files. No fixes applied.
+
+Source-policy guards:
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node node_modules/vitest/vitest.mjs run src/strict-types-policy.integration.test.ts src/root-layout.test.ts --configLoader runner
+PASS — 2 test files passed; 3 tests passed.
+
+Autonomy decision parser:
+node --conditions=source --import tsx --input-type=module -e <readAutonomyChangeDecisionArtifact check>
+PASS — valid autonomy decision for task-security-review-the-runtime-probe-artifact-check-u
+
+Queue validation (task in doing state, using the writable run-specific Git
+index/object database described in staging-limitation.txt):
+node --conditions=source --import tsx src/validate-queue.ts
+PASS
+
+git diff --check
+PASS
+
+Critic repair recheck:
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node node_modules/vitest/vitest.mjs run src/modules/autonomy/critic-runtime-probe-artifact.test.ts --configLoader runner
+PASS — 1 test file passed; 6 tests passed.
+
+node node_modules/@biomejs/biome/bin/biome check src/modules/autonomy/critic-runtime-probe.ts src/modules/autonomy/critic-runtime-probe-artifact-writer.ts src/modules/autonomy/critic-runtime-probe-artifact-writer-source.ts src/modules/autonomy/critic-runtime-probe-artifact.test.ts
+PASS — Checked 4 files. No fixes applied.

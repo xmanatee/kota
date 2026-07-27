@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-runtime-probe-artifact-check-u
 title: Security review: The Runtime Probe artifact check uses lexical containment and git ignore status but does not reject symbolic links. It also runs before the probe command. An agent can pre-create runtime-probe.json as a symlink, or workspace probe code can create it during execution; the subsequent writeFileSync follows that link and overwrites an arbitrary daemon-user-writable target.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: The Runtime Probe artifact check uses lexical containment and git ignore status but does not reject symbolic links. It also runs before the probe command. An agent can pre-create runtime-probe.json as a symlink, or workspace probe code can create it during execution; the subsequent writeFileSync follows that link and overwrites an arbitrary daemon-user-writable target.
 created_at: 2026-07-26T01:23:53.754Z
-updated_at: 2026-07-26T01:23:53.754Z
+updated_at: 2026-07-27T03:16:36.376Z
 ---
 
 ## Problem
@@ -139,3 +139,10 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node node_modules/vitest/vitest.mjs run src/modules/autonomy/critic-runtime-probe-artifact.test.ts src/modules/autonomy/critic-runtime-probe-sandbox.integration.test.ts src/modules/autonomy/critic-runtime-probe.test.ts src/modules/autonomy/task-probe-coredump.integration.test.ts src/modules/autonomy/task-probe-hard-links.test.ts src/modules/autonomy/task-probe-runner.test.ts src/modules/autonomy/task-probe-sandbox.test.ts src/modules/autonomy/task-probe-toolchain.test.ts src/modules/autonomy/task-probe.test.ts --configLoader runner` — 8 files passed, 1 platform-skipped; 52 tests passed, 2 platform-skipped.
+- `node_modules/.bin/tsc --noEmit` — passed.
+- `node_modules/.bin/biome check src/` — 2,825 files checked with no fixes or findings.
+- `.kota/runs/2026-07-27T02-48-33-019Z-builder-7p7wnk/security-regression.txt` records the focused external-target preservation evidence.

@@ -1,0 +1,3 @@
+1. Runtime Probe artifact writes cannot follow a pre-planted or probe-created runtime-probe.json symbolic link or overwrite its target.
+2. The post-probe artifact path is resolved through real workspace and run-directory paths, rejects escaping or invalid parent components, and atomically accepts only a private regular file.
+3. Focused regressions cover both symlink timings and a probe-created run-directory escape, and the task records fresh verification evidence.

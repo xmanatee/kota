@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "autonomy-change-decision",
+  "runId": "2026-07-27T02-48-33-019Z-builder-7p7wnk",
+  "createdAt": "2026-07-27T03:14:42Z",
+  "taskIds": [
+    "task-security-review-the-runtime-probe-artifact-check-u"
+  ],
+  "affectedSurfaces": [
+    "builder critic Runtime Probe artifact emission",
+    "Runtime Probe run-directory containment and stageability validation"
+  ],
+  "changeClasses": [
+    "reviewer",
+    "critic-gate"
+  ],
+  "hypothesis": "Re-resolving the real artifact parent after probe execution and performing every mutation relative to an isolated process cwd verified against the captured run-directory inode will preserve committed Runtime Probe evidence while preventing builder-controlled links, special files, or raced parent components from redirecting the daemon's artifact write.",
+  "sourceRefs": [
+    "data/tasks/done/task-security-review-the-runtime-probe-artifact-check-u.md",
+    ".kota/runs/2026-07-27T02-48-33-019Z-builder-7p7wnk/success-criteria.txt"
+  ],
+  "baselineRefs": [
+    "src/modules/autonomy/critic-runtime-probe.ts",
+    "src/modules/autonomy/critic-runtime-probe.test.ts"
+  ],
+  "candidateRefs": [
+    "src/modules/autonomy/critic-runtime-probe.ts",
+    "src/modules/autonomy/critic-runtime-probe-artifact-writer.ts",
+    "src/modules/autonomy/critic-runtime-probe-artifact-writer-source.ts",
+    "src/modules/autonomy/critic-runtime-probe-artifact.test.ts",
+    ".kota/runs/2026-07-27T02-48-33-019Z-builder-7p7wnk/security-regression.txt",
+    ".kota/runs/2026-07-27T02-48-33-019Z-builder-7p7wnk/validation.txt"
+  ],
+  "metricsCompared": [
+    {
+      "name": "artifact redirection regression coverage",
+      "baseline": "The pre-execution lexical stageability check accepted runtime-probe.json links, and writeFileSync followed either a pre-planted or probe-created link into an external daemon-user-writable target.",
+      "candidate": "Focused cases execute the probe, reject pre-planted and probe-created artifact links, preserve the external target byte-for-byte, reject a probe-created non-regular artifact, reject a probe-created run-directory link that resolves outside the real workspace, and simulate a parent-path swap after capturing the legitimate run-directory inode.",
+      "unit": "focused security regression cases",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "artifact write boundary",
+      "baseline": "Artifact containment was lexical, checked only before execution, and the final pathname write followed links without checking the opened inode.",
+      "candidate": "The final path is rebuilt from real workspace and run-directory paths after execution; builder stageability is checked again; an isolated helper verifies its cwd against the captured run-directory inode; and all writes and atomic installation use relative names within that stable kernel directory reference.",
+      "unit": "filesystem invariants asserted by production code and focused tests",
+      "direction": "improved",
+      "qualitySignal": true
+    }
+  ],
+  "rolloutMode": "blocking",
+  "decision": "promote",
+  "rationale": "This is a fail-closed correction to an existing Safety boundary, not a new probe capability. The pre-execution ignored-path gate remains to avoid running a probe whose evidence cannot be committed, while every result path now repeats real-path containment and stageability checks after execution. Final writes run in an isolated process whose cwd must match the captured run-directory inode; all filesystem mutations use relative names, and a private no-follow temporary regular file is atomically renamed into place only after the existing entry and absolute run-directory path are revalidated. The focused suite demonstrates both attacker-controlled symlink timings, a parent-directory escape, and the exact capture-then-parent-swap race without modifying the external target; the broader Runtime Probe suite preserves trusted, rejected, failed, ignored, sandbox, coredump, hard-link, runner, parser, and toolchain behavior.",
+  "ownerSafetyExceptions": [],
+  "followUpTaskIds": []
+}

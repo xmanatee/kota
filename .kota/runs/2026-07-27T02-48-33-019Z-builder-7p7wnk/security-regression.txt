@@ -1,0 +1,29 @@
+Runtime Probe artifact-link security regression
+
+Command:
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node node_modules/vitest/vitest.mjs run src/modules/autonomy/critic-runtime-probe-artifact.test.ts --configLoader runner
+
+Result:
+Test Files  1 passed (1)
+Tests       6 passed (6)
+
+The focused cases execute the declared probe before the final artifact write,
+then prove all of the following:
+
+- a pre-planted runtime-probe.json symlink is rejected and its external target
+  remains exactly "ORIGINAL";
+- a runtime-probe.json symlink created during probe execution is rejected and
+  its external target remains exactly "ORIGINAL";
+- a probe-created directory at the artifact pathname is rejected as
+  non-regular; and
+- a probe-created run-directory symlink resolving outside the real workspace
+  is rejected before any artifact appears in the outside directory; and
+- a deterministic parent-race fixture captures the legitimate run-directory
+  inode, swaps its pathname to an external-directory symlink before starting
+  the isolated writer, and proves neither the outside target nor either
+  runtime-probe.json pathname is modified.
+
+The positive case also proves the inode-anchored helper can install a regular
+artifact. The broader validation suite preserves the trusted,
+rejected-provenance, failed, ignored, no-probe, sandbox, coredump, hard-link,
+runner, parser, and toolchain contracts around the hardened write boundary.
