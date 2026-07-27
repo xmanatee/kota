@@ -5,7 +5,6 @@ import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
 import { writeControlMonitorCoverageArtifactBestEffort } from "./control-monitor-coverage.js";
 import { ensureDir, writeJsonFile, writeStrictJsonFile } from "./run-io.js";
 import { createWorkflowRun } from "./run-store-creation.js";
-import { migrateLegacyWorkflowState } from "./run-store-legacy-migration.js";
 import { pruneWorkflowRuns } from "./run-store-retention.js";
 import { STATE_FILE } from "./run-store-snapshot.js";
 import {
@@ -63,7 +62,6 @@ export class WorkflowRunStore {
   readState(): WorkflowRuntimeState {
     const state = readOptionalJsonFile<unknown>(this.statePath);
     if (state !== null) {
-      if (isPlainObject(state)) migrateLegacyWorkflowState(state);
       assertWorkflowRuntimeState(this.statePath, state);
     }
     return {
