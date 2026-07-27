@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "completedAt": "2026-07-27T02:49:44.990Z",
+  "actor": "codex-trusted-host",
+  "verifyingRunId": "2026-07-26T22-41-09-783Z-builder-8rsy94",
+  "recoveredRunId": "2026-07-26T09-17-25-482Z-builder-8rzg8e",
+  "taskId": "task-add-algorithmic-resource-budget-canaries-to-the-ev",
+  "preservedPatch": {
+    "path": ".kota/runs/2026-07-26T22-41-09-783Z-builder-8rsy94/preserved-stale-worktree.patch",
+    "sha256": "941147cf27a8d365b57c9ac25f75d614298e4cb02767758dd4ef829f31221fd1"
+  },
+  "disposition": {
+    "action": "supersede",
+    "supersededByCommit": "e3fff1ce96f94fc41535b68875d79b5d767d8d4a",
+    "claim": "superseded",
+    "worktree": "removed",
+    "deadLetterId": "dlq-4485507f-d964-48df-9c7a-ff7642eb1f23",
+    "deadLetter": "dismissed",
+    "underlyingTask": "ready"
+  },
+  "recoveryArtifact": ".kota/runs/2026-07-26T22-41-09-783Z-builder-8rsy94/workflow-state-recovery.json"
+}

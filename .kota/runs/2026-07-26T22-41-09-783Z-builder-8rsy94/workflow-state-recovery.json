@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-07-27T02:49:44.990Z",
+  "projectDir": "/Users/xmanatee/Desktop/mono/apps/kota",
+  "actor": "codex-trusted-host",
+  "taskId": "task-add-algorithmic-resource-budget-canaries-to-the-ev",
+  "requestedRunId": "2026-07-26T09-17-25-482Z-builder-8rzg8e",
+  "action": "supersede",
+  "rationale": "Builder recovery run 2026-07-26T22-41-09-783Z-builder-8rsy94 preserved the complete uncommitted delta in preserved-stale-worktree.patch (sha256 941147cf27a8d365b57c9ac25f75d614298e4cb02767758dd4ef829f31221fd1); critic-review.json proves the branch remained bypassable, and canonical commit 6d0e68e9c already prevents detailed evaluator findings from being copied into future repair prompts.",
+  "before": {
+    "claim": {
+      "taskId": "task-add-algorithmic-resource-budget-canaries-to-the-ev",
+      "taskState": "ready",
+      "runId": "2026-07-26T09-17-25-482Z-builder-8rzg8e",
+      "workflowId": "builder",
+      "owner": "workflow:builder",
+      "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-algorithmic-resource-budget-canaries-to-the-ev-2026-07-26t09-17-25-482z-builder-8rzg8e",
+      "branch": "kota/task/task-add-algorithmic-resource-budget-canaries-to-the-ev/2026-07-26t09-17-25-482z-builder-8rzg8e",
+      "baseCommit": "099cfb99b7df3016cccceb0187fb8371cc4ba6aa",
+      "status": "active",
+      "evidence": "prepared builder worktree /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-algorithmic-resource-budget-canaries-to-the-ev-2026-07-26t09-17-25-482z-builder-8rzg8e",
+      "updatedAt": "2026-07-26T09:17:35.266Z"
+    },
+    "claimPath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/task-claims/active/task-add-algorithmic-resource-budget-canaries-to-the-ev.json",
+    "recoveryStatus": "stale",
+    "safeToRetry": false,
+    "ownerRunStatus": "failed",
+    "worktree": {
+      "found": true,
+      "metadataPath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/worktrees/task-add-algorithmic-resource-budget-canaries-to-the-ev-2026-07-26t09-17-25-482z-builder-8rzg8e.json",
+      "workspaceDir": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-algorithmic-resource-budget-canaries-to-the-ev-2026-07-26t09-17-25-482z-builder-8rzg8e",
+      "branch": "kota/task/task-add-algorithmic-resource-budget-canaries-to-the-ev/2026-07-26t09-17-25-482z-builder-8rzg8e",
+      "state": "active",
+      "runState": "finished",
+      "dirtyState": "dirty",
+      "dirtyEntries": [
+        "M  .gitignore",
+        "A  .kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/commit-message.txt",
+        "A  .kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/eval-list-transcript.txt",
+        "A  .kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/runtime-probe.json",
+        "A  .kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/staging-limitation.txt",
+        "A  .kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/success-criteria-verified.txt",
+        "A  .kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/success-criteria.txt",
+        "A  .kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/validation.txt",
+        "R  data/tasks/ready/task-add-algorithmic-resource-budget-canaries-to-the-ev.md -> data/tasks/blocked/task-add-algorithmic-resource-budget-canaries-to-the-ev.md",
+        "M  src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/calibration/adversarial/src/inversions.mjs",
+        "M  src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/calibration/golden/src/inversions.mjs",
+        "M  src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/fixture.json",
+        "M  src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/AGENTS.md",
+        "M  src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/data/tasks/ready/task-implement-scalable-inversion-counter.md",
+        "MM src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/check-resource-budget.mjs",
+        "A  src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/hardcoded-prefix-inversions.mjs",
+        "MM src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/resource-budget-cases.mjs",
+        "MM src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/resource-budget-evaluator.mjs",
+        "M  src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/sample-only-inversions.mjs",
+        "A  src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/underreported-quadratic-inversions.mjs",
+        "M  src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/src/inversions.mjs",
+        "M  src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/notes.md",
+        "?? src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/prototype-leak-inversions.mjs"
+      ],
+      "cleanupBlockers": [
+        "worktree has uncommitted tracked changes",
+        "worktree has untracked files"
+      ],
+      "mergeStatus": "not merged",
+      "headCommit": "099cfb99b7df3016cccceb0187fb8371cc4ba6aa",
+      "uniqueCommits": [],
+      "uniqueCommitCount": 0,
+      "branchAhead": 0,
+      "branchBehind": 11
+    },
+    "relatedDeadLetters": [
+      {
+        "id": "dlq-4485507f-d964-48df-9c7a-ff7642eb1f23",
+        "status": "open",
+        "type": "workflow-dispatch",
+        "failureClass": "execution",
+        "sourceKind": "workflow-dispatch",
+        "workflowName": "builder",
+        "affectedWorkflowNames": [
+          "builder"
+        ],
+        "reason": "Repair agent for step \"build\" failed: This content was flagged for possible cybersecurity risk. If this seems wrong, try rephrasing your request. To get authorized for security work, join the Trusted Access for Cyber program: https://chatgpt.com/cyber",
+        "duplicateFingerprint": "{\"type\":\"workflow-dispatch\",\"scopeId\":\"8nrg1m\",\"projectId\":\"8nrg1m\",\"owningModule\":\"workflow-runtime\",\"affectedWorkflowNames\":[\"builder\"],\"failureClass\":\"execution\",\"reason\":\"Repair agent for step \\\"build\\\" failed: This content was flagged for possible cybersecurity risk. If this seems wrong, try rephrasing your request. To get authorized for security work, join the Trusted Access for Cyber program: https://chatgpt.com/cyber\",\"source\":\"{\\\"kind\\\":\\\"workflow-dispatch\\\",\\\"workflowName\\\":\\\"builder\\\",\\\"triggerEvent\\\":\\\"autonomy.queue.available\\\",\\\"triggerSchemaRef\\\":null}\"}",
+        "duplicateCount": 1,
+        "recommendedAction": {
+          "kind": "needs-review",
+          "reason": "open DLQ item needs redrive, dismissal, or linked recovery evidence"
+        },
+        "dismissCommand": "pnpm kota workflow dlq dismiss dlq-4485507f-d964-48df-9c7a-ff7642eb1f23 --reason \"<reason>\"",
+        "redriveCommand": "pnpm kota workflow dlq redrive dlq-4485507f-d964-48df-9c7a-ff7642eb1f23 --reason \"<reason>\""
+      }
+    ],
+    "recommendedAction": {
+      "kind": "needs-review",
+      "reason": "pending-merge evidence still names merge blockers that need review"
+    }
+  },
+  "after": null,
+  "relatedDeadLetters": [
+    {
+      "id": "dlq-4485507f-d964-48df-9c7a-ff7642eb1f23",
+      "status": "open",
+      "type": "workflow-dispatch",
+      "failureClass": "execution",
+      "sourceKind": "workflow-dispatch",
+      "workflowName": "builder",
+      "affectedWorkflowNames": [
+        "builder"
+      ],
+      "reason": "Repair agent for step \"build\" failed: This content was flagged for possible cybersecurity risk. If this seems wrong, try rephrasing your request. To get authorized for security work, join the Trusted Access for Cyber program: https://chatgpt.com/cyber",
+      "duplicateFingerprint": "{\"type\":\"workflow-dispatch\",\"scopeId\":\"8nrg1m\",\"projectId\":\"8nrg1m\",\"owningModule\":\"workflow-runtime\",\"affectedWorkflowNames\":[\"builder\"],\"failureClass\":\"execution\",\"reason\":\"Repair agent for step \\\"build\\\" failed: This content was flagged for possible cybersecurity risk. If this seems wrong, try rephrasing your request. To get authorized for security work, join the Trusted Access for Cyber program: https://chatgpt.com/cyber\",\"source\":\"{\\\"kind\\\":\\\"workflow-dispatch\\\",\\\"workflowName\\\":\\\"builder\\\",\\\"triggerEvent\\\":\\\"autonomy.queue.available\\\",\\\"triggerSchemaRef\\\":null}\"}",
+      "duplicateCount": 1,
+      "recommendedAction": {
+        "kind": "needs-review",
+        "reason": "open DLQ item needs redrive, dismissal, or linked recovery evidence"
+      },
+      "dismissCommand": "pnpm kota workflow dlq dismiss dlq-4485507f-d964-48df-9c7a-ff7642eb1f23 --reason \"<reason>\"",
+      "redriveCommand": "pnpm kota workflow dlq redrive dlq-4485507f-d964-48df-9c7a-ff7642eb1f23 --reason \"<reason>\""
+    }
+  ],
+  "dismissedDeadLetterIds": [
+    "dlq-4485507f-d964-48df-9c7a-ff7642eb1f23"
+  ],
+  "worktreeCleanup": {
+    "attempted": true,
+    "removed": true,
+    "message": "Disposed automation worktree task-add-algorithmic-resource-budget-canaries-to-the-ev/2026-07-26T09-17-25-482Z-builder-8rzg8e",
+    "blockers": []
+  },
+  "result": "superseded",
+  "message": "Task claim task-add-algorithmic-resource-budget-canaries-to-the-ev/2026-07-26T09-17-25-482Z-builder-8rzg8e superseded. Related worktree removed. Dismissed 1 related DLQ item(s)."
+}

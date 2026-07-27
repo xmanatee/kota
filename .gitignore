@@ -975,4 +975,6 @@ __pycache__/
 !/.kota/runs/2026-07-26T22-41-09-783Z-builder-8rsy94/recovery-state-before.json
 !/.kota/runs/2026-07-26T22-41-09-783Z-builder-8rsy94/success-criteria-verified.txt
 !/.kota/runs/2026-07-26T22-41-09-783Z-builder-8rsy94/success-criteria.txt
+!/.kota/runs/2026-07-26T22-41-09-783Z-builder-8rsy94/trusted-host-recovery-complete.json
 !/.kota/runs/2026-07-26T22-41-09-783Z-builder-8rsy94/validation.txt
+!/.kota/runs/2026-07-26T22-41-09-783Z-builder-8rsy94/workflow-state-recovery.json
