@@ -5,8 +5,9 @@
  * All known secret values are masked in tool output before reaching the LLM context.
  */
 
+import { existsSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import {
   EnvProvider,
   escapeRegex,
@@ -27,6 +28,25 @@ export type SecretStoreOptions = {
   globalDir: string;
 };
 
+function canonicalizeTrustedRoot(path: string): string {
+  let existingPath = resolve(path);
+  const missingComponents: string[] = [];
+  while (!existsSync(existingPath)) {
+    const parent = dirname(existingPath);
+    if (parent === existingPath) break;
+    missingComponents.unshift(basename(existingPath));
+    existingPath = parent;
+  }
+  return join(realpathSync.native(existingPath), ...missingComponents);
+}
+
+function canonicalizeStorageDirectoryParent(path: string): string {
+  const absolutePath = resolve(path);
+  const parent = dirname(absolutePath);
+  if (parent === absolutePath) return canonicalizeTrustedRoot(absolutePath);
+  return join(canonicalizeTrustedRoot(parent), basename(absolutePath));
+}
+
 export class SecretStore {
   private providers: (EnvProvider | FileProvider | KeychainProvider)[];
   private projectFileProvider: FileProvider;
@@ -36,8 +56,10 @@ export class SecretStore {
   private maskRegex: RegExp | null = null;
 
   constructor(cwd?: string, options?: SecretStoreOptions) {
-    const projectDir = cwd || process.cwd();
-    const globalDir = options?.globalDir ?? GLOBAL_DIR;
+    const projectDir = canonicalizeTrustedRoot(cwd || process.cwd());
+    const globalDir = canonicalizeStorageDirectoryParent(
+      options?.globalDir ?? GLOBAL_DIR,
+    );
 
     this.projectFileProvider = new FileProvider(
       join(projectDir, PROJECT_DIR, SECRETS_FILE),

@@ -1,0 +1,3 @@
+1. Verified by direct-file and parent-directory symlink regressions: provider reads/writes throw, while target contents and 0644/0755 modes remain unchanged.
+2. Verified by the anchored helper implementation and atomic-replacement regression: O_NOFOLLOW/O_EXCL temp creation, inode-checked rename, realpath containment, fsync, and 0600/0700 permissions all pass.
+3. Verified with focused config/module tests (15 files and 162 tests passing), build, typecheck, lint, and the full suite (12,186 passing plus the staged task-queue guard rerun).

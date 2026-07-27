@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-file-backed-secret-provider-fo
 title: Security review: The file-backed secret provider follows symbolic links when loading, writing, and chmodding .kota/secrets.json. A malicious repository can make that path a symlink to another daemon-user-writable file; a normal secret write then replaces the target with secret JSON and changes its permissions.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: The file-backed secret provider follows symbolic links when loading, writing, and chmodding .kota/secrets.json. A malicious repository can make that path a symlink to another daemon-user-writable file; a normal secret write then replaces the target with secret JSON and changes its permissions.
 created_at: 2026-07-27T03:25:52.681Z
-updated_at: 2026-07-27T03:25:52.681Z
+updated_at: 2026-07-27T10:12:46.519Z
 ---
 
 ## Problem
@@ -139,3 +139,9 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/core/config src/core/modules/module-context.test.ts src/strict-types-policy.integration.test.ts` passed: 15 files, 162 tests.
+- `pnpm build`, `pnpm typecheck`, and `pnpm lint` passed.
+- Full `pnpm test` passed 12,186 tests; its sole remaining queue-tracking failure was rerun successfully against the workflow's staged index.

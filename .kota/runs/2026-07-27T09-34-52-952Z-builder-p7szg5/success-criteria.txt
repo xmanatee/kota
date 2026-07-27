@@ -1,0 +1,3 @@
+1. File-backed secret reads and writes reject a symbolic-link secret file or parent component without changing the link target's contents or permissions.
+2. Secret persistence verifies realpath containment and stable file identities, creates files with no-follow semantics, and atomically replaces them with owner-only permissions.
+3. Focused regression tests cover direct links, parent-directory links, atomic replacement, normal storage behavior, and the task records the passing verification commands.

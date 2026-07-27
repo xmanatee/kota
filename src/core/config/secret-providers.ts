@@ -3,9 +3,9 @@
  */
 
 import { execSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { platform } from "node:os";
-import { dirname } from "node:path";
+import { SecretFileStorage } from "./secret-file-storage.js";
 
 export interface SecretProvider {
   readonly name: string;
@@ -15,9 +15,6 @@ export interface SecretProvider {
   remove(key: string): boolean;
   list(): string[];
 }
-
-const SECRET_DIR_MODE = 0o700;
-const SECRET_FILE_MODE = 0o600;
 
 // --- Env Provider ---
 
@@ -79,11 +76,11 @@ export class FileProvider implements SecretProvider {
   readonly name: string;
   readonly writable = true;
 
-  private filePath: string;
   private data: Record<string, string> | null = null;
+  private storage: SecretFileStorage;
 
   constructor(filePath: string, name?: string) {
-    this.filePath = filePath;
+    this.storage = new SecretFileStorage(filePath);
     this.name = name ?? "file";
   }
 
@@ -92,13 +89,12 @@ export class FileProvider implements SecretProvider {
   }
 
   set(key: string, value: string): void {
-    const data = this.load();
-    data[key] = value;
+    const data = { ...this.load(), [key]: value };
     this.save(data);
   }
 
   remove(key: string): boolean {
-    const data = this.load();
+    const data = { ...this.load() };
     if (!(key in data)) return false;
     delete data[key];
     this.save(data);
@@ -111,13 +107,12 @@ export class FileProvider implements SecretProvider {
 
   private load(): Record<string, string> {
     if (this.data) return this.data;
-    if (!existsSync(this.filePath)) {
+    const raw = this.storage.read();
+    if (raw === undefined) {
       this.data = {};
       return this.data;
     }
-    this.secureExistingStorage();
     try {
-      const raw = readFileSync(this.filePath, "utf-8");
       const parsed = JSON.parse(raw);
       this.data = typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
         ? parsed
@@ -129,24 +124,8 @@ export class FileProvider implements SecretProvider {
   }
 
   private save(data: Record<string, string>): void {
+    this.storage.write(`${JSON.stringify(data, null, 2)}\n`);
     this.data = data;
-    this.ensureStorageDir();
-    writeFileSync(this.filePath, `${JSON.stringify(data, null, 2)}\n`, {
-      encoding: "utf-8",
-      mode: SECRET_FILE_MODE,
-    });
-    chmodSync(this.filePath, SECRET_FILE_MODE);
-  }
-
-  private ensureStorageDir(): void {
-    const dir = dirname(this.filePath);
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: SECRET_DIR_MODE });
-    chmodSync(dir, SECRET_DIR_MODE);
-  }
-
-  private secureExistingStorage(): void {
-    this.ensureStorageDir();
-    chmodSync(this.filePath, SECRET_FILE_MODE);
   }
 }
 

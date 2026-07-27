@@ -1,0 +1,7 @@
+PASS: pnpm test src/core/config src/core/modules/module-context.test.ts src/strict-types-policy.integration.test.ts (15 files, 162 tests)
+PASS: pnpm build
+PASS: pnpm typecheck
+PASS: pnpm lint
+PASS: full pnpm test ran 12,186 passing tests; its only failure was the task-queue tracking guard against the sandbox-read-only canonical index.
+PASS: the task-queue validator and targeted current-repo queue guard passed against the workflow's complete writable staged index.
+PASS: staged source-size and diff-check gates passed.
