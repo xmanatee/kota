@@ -1,5 +1,6 @@
 import { buildFilteredInheritedSubprocessEnv } from "#core/modules/subprocess-env.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
+import { sessionEnvironmentForExecution } from "#core/tools/session-environment.js";
 
 const PROVIDER_EGRESS_ENV_PREFIX = "KOTA_EVAL_PROVIDER_EGRESS_";
 const PROVIDER_EGRESS_AUTH_ENV_KEYS = "KOTA_EVAL_PROVIDER_EGRESS_AUTH_ENV_KEYS";
@@ -32,14 +33,27 @@ function providerEgressAuthEnvKeys(env: NodeJS.ProcessEnv): string[] {
   });
 }
 
-function stripEvalHarnessProviderEgressEnv(env: NodeJS.ProcessEnv): void {
-  const providerEgressActive = env.KOTA_EVAL_PROVIDER_EGRESS_ACTIVE === "1";
-  const authEnvKeys = providerEgressAuthEnvKeys(env);
+type ProviderEgressBoundary = {
+  active: boolean;
+  authEnvKeys: ReadonlySet<string>;
+};
+
+function providerEgressBoundary(env: NodeJS.ProcessEnv): ProviderEgressBoundary {
+  return {
+    active: env.KOTA_EVAL_PROVIDER_EGRESS_ACTIVE === "1",
+    authEnvKeys: new Set(providerEgressAuthEnvKeys(env)),
+  };
+}
+
+function stripEvalHarnessProviderEgressEnv(
+  env: NodeJS.ProcessEnv,
+  boundary: ProviderEgressBoundary,
+): void {
   for (const key of Object.keys(env)) {
     if (
       key.startsWith(PROVIDER_EGRESS_ENV_PREFIX) ||
-      authEnvKeys.includes(key) ||
-      (providerEgressActive && PROVIDER_EGRESS_PROXY_ENV_KEYS.has(key))
+      boundary.authEnvKeys.has(key) ||
+      (boundary.active && PROVIDER_EGRESS_PROXY_ENV_KEYS.has(key))
     ) {
       delete env[key];
     }
@@ -50,12 +64,18 @@ export function buildExecutionEnv(
   context?: ToolRunnerContext,
 ): NodeJS.ProcessEnv {
   const env = buildFilteredInheritedSubprocessEnv();
-  stripEvalHarnessProviderEgressEnv(env);
+  // Capture the inherited eval boundary before caller/session overlays merge.
+  // Those lower-trust inputs cannot disable it or restore filtered credentials.
+  const providerBoundary = providerEgressBoundary(env);
   if (context?.env !== undefined) {
     for (const [key, value] of Object.entries(context.env)) {
       env[key] = value;
     }
   }
+  for (const [key, value] of Object.entries(sessionEnvironmentForExecution(context))) {
+    env[key] = value;
+  }
+  stripEvalHarnessProviderEgressEnv(env, providerBoundary);
   if (context?.sessionId) env.KOTA_SESSION_ID = context.sessionId;
   if (context?.toolUseId) env.KOTA_TOOL_USE_ID = context.toolUseId;
   return env;

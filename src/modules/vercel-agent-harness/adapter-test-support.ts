@@ -50,6 +50,7 @@ type ExecuteToolResult = {
 };
 
 type ExecuteToolContext = {
+  sessionId?: string;
   toolUseId?: string;
   cwd?: string;
   workflow?: AgentHarnessRunOptions["workflowContext"];
@@ -241,6 +242,7 @@ export async function runAndCaptureToolExecute(opts: {
   allowedTools?: string[];
   disallowedTools?: string[];
   cwd?: string;
+  sessionContext?: AgentHarnessRunOptions["sessionContext"];
   workflowContext?: AgentHarnessRunOptions["workflowContext"];
 }): Promise<{
   toolExecute: ToolExecuteFn;
@@ -256,6 +258,7 @@ export async function runAndCaptureToolExecute(opts: {
     ...(opts.allowedTools ? { allowedTools: opts.allowedTools } : {}),
     ...(opts.disallowedTools ? { disallowedTools: opts.disallowedTools } : {}),
     ...(opts.cwd ? { cwd: opts.cwd } : {}),
+    ...(opts.sessionContext ? { sessionContext: opts.sessionContext } : {}),
     ...(opts.workflowContext ? { workflowContext: opts.workflowContext } : {}),
   });
 

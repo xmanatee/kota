@@ -73,10 +73,16 @@ describe("vercelAgentHarness — guardrails", () => {
       scopeId: "scope-1",
       projectId: "scope-1",
     };
+    const sessionContext = {
+      sessionId: "session-1",
+      scopeId: "scope-1",
+      projectId: "scope-1",
+    };
 
     const { toolExecute } = await runAndCaptureToolExecute({
       harness: vercelAgentHarness,
       cwd: executionCwd,
+      sessionContext,
       workflowContext,
     });
     const result = await toolExecute(
@@ -93,6 +99,7 @@ describe("vercelAgentHarness — guardrails", () => {
       { text: "context" },
       expect.objectContaining({
         toolUseId: "call_context",
+        sessionId: "session-1",
         cwd: executionCwd,
         workflow: workflowContext,
         scopeId: "scope-1",

@@ -62,6 +62,9 @@ notification forwarding.
   escalation notifications.
 - Interactive sessions use configured autonomy explicitly. Missing
   session-autonomy config is a startup error, not a hidden fallback.
+- Interactive harness sessions own one project-scoped tool-runtime identity
+  for the conversation and erase its credential overlay on clear, project
+  switch, or bot shutdown.
 - Inbound voice/audio messages route through the `transcription` module
   before reaching the session loop. The bot never calls a transcription
   vendor API directly; absence of a registered provider surfaces as an

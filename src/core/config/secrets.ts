@@ -139,14 +139,6 @@ export class SecretStore {
     });
   }
 
-  /** Inject a secret into process.env for shell/code_exec tool use. */
-  inject(key: string): boolean {
-    const value = this.get(key);
-    if (value === null) return false;
-    process.env[key] = value;
-    return true;
-  }
-
   /** Get the count of known secret values (for diagnostics). */
   getKnownCount(): number {
     return this.knownSecrets.size;

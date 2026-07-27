@@ -12,6 +12,10 @@ processes, code REPL, computer use, and screenshot tools.
   language-keyed REPL session singletons from this module. Core callers reach
   the capability through `#modules/execution/...` imports; do not add a
   re-export shim back under `#core/tools/`.
+- Long-lived REPLs and background process groups bind their cleanup to the
+  scoped session environment that launched them. Session teardown must stop
+  those resources before their inherited credential environment can outlive
+  its authorization boundary.
 - GUI coordinate actions use one explicit convention: `screenshot` records
   native capture size, displayed image size, and display-to-native scale
   factors; `computer_use` coordinate actions must choose `coordinate_space:

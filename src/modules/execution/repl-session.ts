@@ -2,6 +2,10 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { ToolRunnerContext } from "#core/tools/index.js";
+import {
+  registerSessionEnvironmentResource,
+  sessionEnvironmentVersionForExecution,
+} from "#core/tools/session-environment.js";
 import { DONE_MARKER, ENV_MARKER, NODE_WRAPPER, PYTHON_WRAPPER, SENTINEL } from "./code-wrappers.js";
 import { buildExecutionEnv } from "./execution-env.js";
 
@@ -47,6 +51,8 @@ export class REPLSession {
   private language: Language;
   private alive = false;
   private cwd: string | null = null;
+  private environmentVersion: number | null = null;
+  private detachEnvironmentCleanup: (() => void) | null = null;
 
   constructor(language: Language) {
     this.language = language;
@@ -67,12 +73,24 @@ export class REPLSession {
     });
 
     this.cwd = cwd;
+    this.environmentVersion = sessionEnvironmentVersionForExecution(context);
+    this.detachEnvironmentCleanup = registerSessionEnvironmentResource(
+      context,
+      () => this.kill(),
+    );
     this.alive = true;
     // Guard: only update state if this is still the current process.
     // Prevents old process's exit event from resetting a new session.
     const ref = this.proc;
-    ref.on("exit", () => { if (this.proc === ref) this.alive = false; });
-    ref.on("error", () => { if (this.proc === ref) this.alive = false; });
+    const markDead = () => {
+      if (this.proc !== ref) return;
+      this.alive = false;
+      this.environmentVersion = null;
+      this.detachEnvironmentCleanup?.();
+      this.detachEnvironmentCleanup = null;
+    };
+    ref.on("exit", markDead);
+    ref.on("error", markDead);
   }
 
   async execute(
@@ -81,7 +99,13 @@ export class REPLSession {
     context?: ToolRunnerContext,
   ): Promise<{ output: string; isError: boolean }> {
     const cwd = context?.cwd ?? process.cwd();
-    if (this.alive && this.cwd !== cwd) this.kill();
+    const environmentVersion = sessionEnvironmentVersionForExecution(context);
+    if (
+      this.alive &&
+      (this.cwd !== cwd || this.environmentVersion !== environmentVersion)
+    ) {
+      this.kill();
+    }
     const crashRestarted = !this.alive && this.proc !== null;
     if (!this.alive || !this.proc) this.start(cwd, context);
     const proc = this.proc!;
@@ -184,6 +208,8 @@ export class REPLSession {
   }
 
   kill(): void {
+    this.detachEnvironmentCleanup?.();
+    this.detachEnvironmentCleanup = null;
     if (this.proc) {
       sendSignal(this.proc, "SIGTERM");
       const ref = this.proc;
@@ -194,6 +220,7 @@ export class REPLSession {
     this.alive = false;
     this.proc = null;
     this.cwd = null;
+    this.environmentVersion = null;
   }
 
   isAlive(): boolean {

@@ -29,6 +29,7 @@ import {
   createGuardrailsSnapshot,
   getDefaultConfig as getDefaultGuardrails,
 } from "#core/tools/guardrails.js";
+import { registerSessionEnvironment } from "#core/tools/session-environment.js";
 import { enableGroup } from "#core/tools/tool-groups.js";
 import { buildSessionWarmup } from "#root/init.js";
 import { Context } from "./context.js";
@@ -50,6 +51,8 @@ export function initAgentSession(
 ): void {
   const projectDir = options.projectRuntime?.project.projectDir ?? options.projectDir ?? process.cwd();
   state.projectDir = projectDir;
+  state.scopeId = options.projectRuntime?.project.projectId
+    ?? deriveDirectoryScopeId(projectDir);
   state.sessionId = `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   state.sessionLabel = options.label;
   if (!isAutonomyMode(options.autonomyMode)) {
@@ -258,6 +261,10 @@ export function initAgentSession(
     tryEmit("session.state", { sessionId: state.sessionId, from, to, meta });
   });
   state.stateMachine.transition("initializing");
+  registerSessionEnvironment({
+    sessionId: state.sessionId,
+    scopeId: state.scopeId,
+  });
   state.initPromise = runInitModules(state);
 
   state.sigintHandler = () => {

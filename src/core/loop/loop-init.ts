@@ -36,6 +36,7 @@ export interface AgentLoopState {
   sessionId: string;
   sessionLabel: string | undefined;
   projectDir: string;
+  scopeId: string;
   context: Context;
   client: ModelClient;
   model: string;

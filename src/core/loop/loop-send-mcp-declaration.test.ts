@@ -66,6 +66,7 @@ function testLoopState(mcpManager: AgentLoopState["mcpManager"]): AgentLoopState
     sessionId: "session-test",
     sessionLabel: undefined,
     projectDir: process.cwd(),
+    scopeId: "scope-test",
     context: new Context("KOTA"),
     client: {} as never,
     model: "claude-sonnet-4-6",
@@ -171,5 +172,10 @@ describe("runSend MCP declaration refresh", () => {
     expect(result).toBe("done");
     expect(manager.getTools).toHaveBeenCalledTimes(3);
     expect(mockExecuteToolCalls).toHaveBeenCalledTimes(2);
+    expect(mockExecuteToolCalls.mock.calls[0][1]).toMatchObject({
+      sessionId: "session-test",
+      scopeId: "scope-test",
+      projectId: "scope-test",
+    });
   });
 });

@@ -987,3 +987,10 @@ __pycache__/
 !/.kota/runs/2026-07-27T02-48-33-019Z-builder-7p7wnk/success-criteria.txt
 !/.kota/runs/2026-07-27T02-48-33-019Z-builder-7p7wnk/validation.txt
 !/.kota/runs/2026-07-26T22-41-09-783Z-builder-8rsy94/workflow-state-recovery.json
+!/.kota/runs/2026-07-27T04-10-24-256Z-builder-be4qa1/
+/.kota/runs/2026-07-27T04-10-24-256Z-builder-be4qa1/*
+!/.kota/runs/2026-07-27T04-10-24-256Z-builder-be4qa1/autonomy-change-decision.json
+!/.kota/runs/2026-07-27T04-10-24-256Z-builder-be4qa1/commit-message.txt
+!/.kota/runs/2026-07-27T04-10-24-256Z-builder-be4qa1/success-criteria.txt
+!/.kota/runs/2026-07-27T04-10-24-256Z-builder-be4qa1/success-criteria-verified.txt
+!/.kota/runs/2026-07-27T04-10-24-256Z-builder-be4qa1/validation.txt

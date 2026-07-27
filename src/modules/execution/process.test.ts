@@ -1,4 +1,9 @@
 import { describe, expect, it } from "vitest";
+import {
+  injectSessionEnvironmentVariable,
+  registerSessionEnvironment,
+  unregisterSessionEnvironment,
+} from "#core/tools/session-environment.js";
 import { getActiveProcessCount, runProcess } from "./process.js";
 import { envProbeCommand, installProcessTestHooks, waitForExit } from "./process-test-support.js";
 
@@ -62,6 +67,39 @@ describe("process tool", () => {
 
       expect(result.is_error).toBeUndefined();
       expect(result.content).toContain("missing|missing|missing|missing");
+    });
+
+    it("terminates a credential-bearing process when its session tears down", async () => {
+      const context = {
+        sessionId: "session-bg-secret",
+        scopeId: "project-bg-secret",
+      };
+      registerSessionEnvironment(context);
+      try {
+        injectSessionEnvironmentVariable(
+          context,
+          "KOTA_BACKGROUND_PROCESS_SECRET",
+          "background-secret",
+        );
+
+        const result = await runProcess(
+          {
+            action: "start",
+            command:
+              "printf '%s' \"${KOTA_BACKGROUND_PROCESS_SECRET-missing}\"; sleep 30",
+          },
+          context,
+        );
+        expect(result.content).toContain("background-secret");
+        expect(getActiveProcessCount()).toBe(1);
+
+        unregisterSessionEnvironment(context);
+
+        expect(await waitForExit("p1")).toContain("exited");
+        expect(getActiveProcessCount()).toBe(0);
+      } finally {
+        unregisterSessionEnvironment(context);
+      }
     });
 
     it("increments process IDs", async () => {

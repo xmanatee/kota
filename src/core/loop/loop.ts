@@ -116,6 +116,7 @@ export class AgentSession implements AgentLoopState {
   initialized = false;
   initPromise!: Promise<void>;
   projectDir!: string;
+  scopeId!: string;
   projectContext!: string;
   instructionContext!: string;
   conversationId: string | null = null;

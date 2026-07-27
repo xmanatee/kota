@@ -31,6 +31,7 @@ import type {
   AgentHarnessReadinessProbe,
   AgentHarnessUnsupportedOption,
 } from "./readiness.js";
+import type { AgentHarnessSessionContext } from "./session-context.js";
 
 /**
  * KOTA-native portable system-prompt text every harness-neutral caller
@@ -119,6 +120,12 @@ export type AgentHarnessRunOptions = {
   autonomyMode?: AutonomyMode;
   persistSession?: boolean;
   resumeSessionId?: string;
+  /**
+   * Session/scope identity routed only to KOTA-owned tool execution. The
+   * harness runner creates an invocation-local identity when callers do not
+   * own a longer-lived interactive session.
+   */
+  sessionContext?: AgentHarnessSessionContext;
   workflowContext?: AgentHarnessWorkflowContext;
   /**
    * Shared per-run token budget ledger. KOTA-controlled loops must check this

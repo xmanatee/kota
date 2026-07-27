@@ -25,6 +25,7 @@ conveniences. New capabilities should prefer module-owned tools.
 ## Runtime infrastructure
 
 - `tool-groups`, `tool-middleware`, `tool-runner`, `tool-telemetry`, `tool-result`, `tool-adapters`, `tool-adapter-types`, `tool-adapters-zod` — tool execution pipeline.
+- `session-environment` — live session- and scope-keyed credential overlays for execution tools; registrations own teardown and stale approvals cannot recreate an ended session's overlay.
 - `guardrails`, `guardrails-classify`, `audit-store` — risk assessment and audit storage.
 - `module-factory/` — module lifecycle: `addLoadedModule`/`resetModuleFactory` called from loop-init.
 
@@ -135,4 +136,3 @@ No file under `src/core/` may import from `#modules/execution/...` — not
 production code, not tests. The repo-wide guard in
 `src/core/agent-harness/no-module-imports-in-core.test.ts` rejects every
 `#modules/*` subpath under `src/core/` at every commit.
-

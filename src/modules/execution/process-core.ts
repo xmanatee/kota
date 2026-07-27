@@ -1,9 +1,11 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import type { ToolRunnerContext } from "#core/tools/index.js";
+import { registerSessionEnvironmentResource } from "#core/tools/session-environment.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { line, span } from "#modules/rendering/primitives.js";
 import { printToStderr } from "#modules/rendering/transport.js";
 import { buildExecutionEnv } from "./execution-env.js";
+import * as processLifecycle from "./process-lifecycle.js";
 
 const MAX_BUFFER_LINES = 500;
 const MAX_PROCESSES = 5;
@@ -22,6 +24,7 @@ type ManagedProcess = {
   killing: boolean;
   stdoutPartial: string;
   stderrPartial: string;
+  detachEnvironmentCleanup: (() => void) | null;
 };
 
 const processes = new Map<string, ManagedProcess>();
@@ -134,7 +137,7 @@ export async function startProcess(
     cwd,
     env: buildExecutionEnv(context),
     stdio: ["pipe", "pipe", "pipe"],
-    detached: false,
+    detached: process.platform !== "win32",
   });
 
   const mp: ManagedProcess = {
@@ -149,7 +152,12 @@ export async function startProcess(
     killing: false,
     stdoutPartial: "",
     stderrPartial: "",
+    detachEnvironmentCleanup: null,
   };
+  mp.detachEnvironmentCleanup = registerSessionEnvironmentResource(
+    context,
+    () => processLifecycle.beginProcessTermination(mp),
+  );
   const initialActivity = createInitialActivityWaiter();
 
   proc.stdout?.on("data", (chunk: Buffer) => {
@@ -163,6 +171,7 @@ export async function startProcess(
   });
 
   proc.on("close", (code) => {
+    processLifecycle.detachEnvironmentCleanup(mp);
     if (mp.stdoutPartial) appendLine(mp, mp.stdoutPartial);
     if (mp.stderrPartial) appendLine(mp, `[stderr] ${mp.stderrPartial}`);
     mp.stdoutPartial = "";
@@ -177,6 +186,7 @@ export async function startProcess(
   });
 
   proc.on("error", (err) => {
+    processLifecycle.detachEnvironmentCleanup(mp);
     mp.exited = true;
     mp.exitedAt = Date.now();
     mp.exitCode = -1;
@@ -241,7 +251,7 @@ export function sendSignal(processId: string, sig: string): ToolResult {
 
   const signal = (sig || "SIGTERM") as NodeJS.Signals;
   try {
-    const delivered = mp.proc.kill(signal);
+    const delivered = processLifecycle.deliverProcessSignal(mp, signal);
     if (!delivered) {
       return { content: `Process ${processId} is no longer running (signal not delivered).` };
     }
@@ -274,16 +284,7 @@ export function listProcesses(): ToolResult {
 
 export function cleanupProcesses(): void {
   for (const mp of processes.values()) {
-    if (!mp.exited && !mp.killing) {
-      mp.killing = true;
-      try { mp.proc.kill("SIGTERM"); } catch { /* already dead */ }
-      const timer = setTimeout(() => {
-        if (!mp.exited) {
-          try { mp.proc.kill("SIGKILL"); } catch { /* already dead */ }
-        }
-      }, 2000);
-      timer.unref();
-    }
+    processLifecycle.beginProcessTermination(mp);
   }
 }
 

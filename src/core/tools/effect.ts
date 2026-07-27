@@ -27,7 +27,9 @@ export type ToolEffectKind = "read" | "write" | "destructive";
  * - `local-fs`         — host filesystem under the project root.
  * - `daemon-state`     — persisted KOTA state (modules, queues, history,
  *                        approvals, scheduler).
- * - `process-env`      — host process environment inherited by later tools.
+ * - `process-env`      — environment inherited by later execution subprocesses.
+ *                        Credential tools use a session-local overlay and never
+ *                        mutate the daemon's own `process.env`.
  * - `external-network` — outbound network call (HTTP, MCP server, third-party
  *                        SaaS).
  * - `operator-surface` — surface visible to the operator (notifications,
@@ -101,7 +103,7 @@ export function daemonWriteEffect(opts?: { idempotent?: boolean }): ToolEffect {
   };
 }
 
-/** Injects a credential into the host process environment for later tool calls. */
+/** Injects a credential into a session-local subprocess environment. */
 export function credentialInjectionEffect(): ToolEffect {
   return {
     kind: "write",

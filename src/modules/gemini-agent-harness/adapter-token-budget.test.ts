@@ -198,6 +198,11 @@ describe("geminiAgentHarness token budget", () => {
       scopeId: "scope-1",
       projectId: "scope-1",
     };
+    const sessionContext = {
+      sessionId: "session-1",
+      scopeId: "scope-1",
+      projectId: "scope-1",
+    };
 
     const result = await geminiAgentHarness.run({
       prompt: "use the tool",
@@ -205,6 +210,7 @@ describe("geminiAgentHarness token budget", () => {
       effort: "xhigh",
       tokenBudget,
       cwd: executionCwd,
+      sessionContext,
       workflowContext,
     });
 
@@ -214,6 +220,7 @@ describe("geminiAgentHarness token budget", () => {
       { text: "ping" },
       expect.objectContaining({
         toolUseId: "call_1",
+        sessionId: "session-1",
         cwd: executionCwd,
         workflow: workflowContext,
         scopeId: "scope-1",

@@ -1,4 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
+import {
+  injectSessionEnvironmentVariable,
+  registerSessionEnvironment,
+  unregisterSessionEnvironment,
+} from "#core/tools/session-environment.js";
 import { buildExecutionEnv } from "./execution-env.js";
 
 const SAVED_ENV: Record<string, string | undefined> = {};
@@ -18,7 +23,12 @@ const TOUCHED_KEYS = [
   "KOTA_EVAL_PROVIDER_EGRESS_SCOPE",
   "KOTA_EVAL_PROVIDER_EGRESS_TASK_BOUNDARY",
   "KOTA_EVAL_PROVIDER_EGRESS_AGENT_HARNESS",
+  "KOTA_SESSION_ENV_ISOLATION_TEST",
 ] as const;
+
+const SESSION_A_PROJECT_A = { sessionId: "session-a", scopeId: "project-a" };
+const SESSION_B_PROJECT_A = { sessionId: "session-b", scopeId: "project-a" };
+const SESSION_A_PROJECT_B = { sessionId: "session-a", scopeId: "project-b" };
 
 for (const key of TOUCHED_KEYS) {
   SAVED_ENV[key] = process.env[key];
@@ -40,10 +50,41 @@ function clearTouchedEnv(): void {
 
 describe("buildExecutionEnv", () => {
   afterEach(() => {
+    unregisterSessionEnvironment(SESSION_A_PROJECT_A);
+    unregisterSessionEnvironment(SESSION_B_PROJECT_A);
+    unregisterSessionEnvironment(SESSION_A_PROJECT_B);
     restoreEnv();
   });
 
-  it("strips eval-harness provider-egress proxy and auth env from task subprocesses", () => {
+  it("passes credentials only to executions in the authorized session and project", () => {
+    clearTouchedEnv();
+    registerSessionEnvironment(SESSION_A_PROJECT_A);
+    registerSessionEnvironment(SESSION_B_PROJECT_A);
+    registerSessionEnvironment(SESSION_A_PROJECT_B);
+    injectSessionEnvironmentVariable(
+      SESSION_A_PROJECT_A,
+      "KOTA_SESSION_ENV_ISOLATION_TEST",
+      "authorized-value",
+    );
+
+    expect(
+      buildExecutionEnv(SESSION_A_PROJECT_A).KOTA_SESSION_ENV_ISOLATION_TEST,
+    ).toBe("authorized-value");
+    expect(
+      buildExecutionEnv(SESSION_B_PROJECT_A).KOTA_SESSION_ENV_ISOLATION_TEST,
+    ).toBeUndefined();
+    expect(
+      buildExecutionEnv(SESSION_A_PROJECT_B).KOTA_SESSION_ENV_ISOLATION_TEST,
+    ).toBeUndefined();
+    expect(process.env.KOTA_SESSION_ENV_ISOLATION_TEST).toBeUndefined();
+
+    unregisterSessionEnvironment(SESSION_A_PROJECT_A);
+    expect(
+      buildExecutionEnv(SESSION_A_PROJECT_A).KOTA_SESSION_ENV_ISOLATION_TEST,
+    ).toBeUndefined();
+  });
+
+  it("strips eval provider credentials after caller and session overlays merge", () => {
     clearTouchedEnv();
     process.env.HTTP_PROXY = "http://provider-proxy:8080";
     process.env.HTTPS_PROXY = "http://provider-proxy:8080";
@@ -64,10 +105,21 @@ describe("buildExecutionEnv", () => {
     process.env.KOTA_EVAL_PROVIDER_EGRESS_TASK_BOUNDARY =
       "kota-tool-provider-env-filter";
     process.env.KOTA_EVAL_PROVIDER_EGRESS_AGENT_HARNESS = "openai-tools";
+    registerSessionEnvironment(SESSION_A_PROJECT_A);
+    injectSessionEnvironmentVariable(
+      SESSION_A_PROJECT_A,
+      "OPENAI_API_KEY",
+      "approved-provider-credential",
+    );
 
     const env = buildExecutionEnv({
-      sessionId: "session-1",
+      ...SESSION_A_PROJECT_A,
       toolUseId: "tool-1",
+      env: {
+        HTTPS_PROXY: "http://restored-proxy:8080",
+        OPENAI_API_KEY: "restored-provider-credential",
+        KOTA_EVAL_PROVIDER_EGRESS_ACTIVE: "0",
+      },
     });
 
     expect(env.HTTP_PROXY).toBeUndefined();
@@ -85,7 +137,7 @@ describe("buildExecutionEnv", () => {
     expect(env.KOTA_EVAL_PROVIDER_EGRESS_SCOPE).toBeUndefined();
     expect(env.KOTA_EVAL_PROVIDER_EGRESS_TASK_BOUNDARY).toBeUndefined();
     expect(env.KOTA_EVAL_PROVIDER_EGRESS_AGENT_HARNESS).toBeUndefined();
-    expect(env.KOTA_SESSION_ID).toBe("session-1");
+    expect(env.KOTA_SESSION_ID).toBe(SESSION_A_PROJECT_A.sessionId);
     expect(env.KOTA_TOOL_USE_ID).toBe("tool-1");
   });
 

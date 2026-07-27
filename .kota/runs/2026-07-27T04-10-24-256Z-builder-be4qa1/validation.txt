@@ -1,0 +1,42 @@
+REPAIR ATTEMPT 2
+PASS  NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run src/core/tools/session-environment.test.ts src/core/agent-harness/runner-session-environment.test.ts src/core/agent-harness/runner.test.ts src/core/loop/loop-session-environment.test.ts src/core/loop/loop-send-mcp-declaration.test.ts src/core/loop/loop.test.ts src/modules/secrets/index.test.ts src/modules/execution/execution-env.test.ts src/modules/execution/repl-session.test.ts src/modules/execution/process.test.ts src/modules/execution/process-lifecycle-edge-cases.test.ts --configLoader runner
+      11 files, 121 tests
+PASS  ./node_modules/.bin/tsc --noEmit
+PASS  ./node_modules/.bin/biome check src/core/tools/session-environment.ts src/core/tools/session-environment.test.ts src/core/agent-harness/runner-session-environment.test.ts src/core/loop/loop-session-environment.test.ts src/modules/execution/process-lifecycle.ts
+      5 files
+
+PASS  NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run src/core/tools/session-environment.test.ts src/core/agent-harness/runner-session-environment.test.ts src/core/agent-harness/runner.test.ts src/core/loop/loop-session-environment.test.ts src/core/loop/loop-send-mcp-declaration.test.ts src/core/loop/loop.test.ts src/modules/secrets/index.test.ts src/modules/execution/execution-env.test.ts src/modules/execution/repl-session.test.ts src/modules/execution/process.test.ts src/modules/execution/process-lifecycle-edge-cases.test.ts --configLoader runner
+      11 files, 121 tests
+PASS  NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run src/core/tools/tool-runner.test.ts src/modules/approval-queue/execution-scope.test.ts src/modules/execution/code-exec.test.ts --configLoader runner
+      3 files, 105 tests
+PASS  ./node_modules/.bin/tsc --noEmit
+PASS  ./node_modules/.bin/biome check src/
+      2,831 files
+PASS  NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run src/strict-types-policy.integration.test.ts src/root-layout.test.ts src/core/agent-harness/no-module-imports-in-core.test.ts src/core/modules/module-deps.test.ts --configLoader runner
+      4 files, 7 tests
+PASS  ./node_modules/.bin/tsc -p tsconfig.json
+PASS  NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run src/built-cli-mcp-server.integration.test.ts src/package-bin.integration.test.ts src/preset-parity.integration.test.ts --configLoader runner
+      3 files, 8 tests passed, 10 platform/configuration cases skipped
+PASS  node dist/validate-queue.js
+PASS  actionable-task-resolved
+      OK: no in-progress task left open
+PASS  claimed-task-commit-set
+      OK: commit set resolves claimed task task-security-review-the-getsecret-tool-writes-an-appro
+PASS  autonomy-change-decision
+      OK: autonomy-change-decision.json covers 1 material autonomy file
+PASS  source-file-size-severe
+      Advisory only: src/core/modules/module-manifest.ts, src/modules/secrets/index.ts
+
+FULL-SUITE CONTEXT
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run --configLoader runner --silent=true
+      1,070 files passed, 4 skipped, 5 failed; 12,161 tests passed, 24 skipped, 7 failed.
+      The failures were environment/bootstrap-only: four test files initially required an absent dist build, while pnpm-supply-chain-policy could not query pnpm config because the installed package-manager wrapper refused an unverifiable registry/signature fetch. After building dist, non-replay compiled-CLI checks were rerun separately. Replay fixtures still reach pnpm inside their workflow repair checks and remain blocked by the same package-manager refusal. The refusal was not bypassed.
+
+REPAIR ATTEMPT 4
+PASS  NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run src/core/tools/session-environment.test.ts src/core/agent-harness/runner-session-environment.test.ts src/core/agent-harness/runner.test.ts src/core/agent-harness/neutral-protocol-shape.test.ts src/core/loop/loop-session-environment.test.ts src/core/loop/loop-send-mcp-declaration.test.ts src/core/loop/loop.test.ts src/core/workflow/steps/step-executor-foreach.test.ts src/modules/secrets/index.test.ts src/modules/execution/execution-env.test.ts src/modules/execution/repl-session.test.ts src/modules/execution/process.test.ts src/modules/execution/process-lifecycle-edge-cases.test.ts src/modules/openai-tools-agent-harness/adapter-token-budget.test.ts src/modules/openai-tools-agent-harness/adapter-session-resume.test.ts src/modules/gemini-agent-harness/adapter-token-budget.test.ts src/modules/vercel-agent-harness/adapter-guardrails.test.ts src/modules/telegram/harness-session-agent.test.ts src/modules/telegram/bot.test.ts src/modules/telegram/telegram-project-scope.integration.test.ts --configLoader runner
+      20 files, 231 tests
+PASS  ./node_modules/.bin/tsc --noEmit
+PASS  ./node_modules/.bin/biome check src/
+      2,832 files
+PASS  source-file-size-severe (shadow staged diff)
+      Advisory only: src/core/modules/module-manifest.ts, src/modules/secrets/index.ts, src/modules/telegram/bot.ts (-110 net lines)

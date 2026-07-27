@@ -4,6 +4,7 @@ import { resetProviderRegistry } from "#core/modules/provider-registry.js";
 import { resetAgentStatusProviders } from "#core/tools/agent-status.js";
 import { resetCustomTools } from "#core/tools/custom-tool.js";
 import { resetModuleFactory } from "#core/tools/module-factory/index.js";
+import { unregisterSessionEnvironment } from "#core/tools/session-environment.js";
 import { resetGroups } from "#core/tools/tool-groups.js";
 import { resetToolTelemetry } from "#core/tools/tool-telemetry.js";
 import { resetChangeTracker } from "./file-changes.js";
@@ -15,6 +16,10 @@ export function runClose(state: AgentLoopState, errored: boolean): void {
     if (!controller.signal.aborted) controller.abort(new Error("Session closed"));
   }
   state.closed = true;
+  unregisterSessionEnvironment({
+    sessionId: state.sessionId,
+    scopeId: state.scopeId,
+  });
   if (errored && state.stateMachine.canTransition("error")) {
     state.stateMachine.transition("error");
   }

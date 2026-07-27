@@ -190,6 +190,11 @@ describe("openaiToolsAgentHarness token budget", () => {
       scopeId: "scope-1",
       projectId: "scope-1",
     };
+    const sessionContext = {
+      sessionId: "session-1",
+      scopeId: "scope-1",
+      projectId: "scope-1",
+    };
 
     const result = await openaiToolsAgentHarness.run({
       prompt: "please echo",
@@ -197,6 +202,7 @@ describe("openaiToolsAgentHarness token budget", () => {
       effort: "xhigh",
       tokenBudget,
       cwd: executionCwd,
+      sessionContext,
       workflowContext,
     });
 
@@ -206,6 +212,7 @@ describe("openaiToolsAgentHarness token budget", () => {
       { text: "hello" },
       expect.objectContaining({
         toolUseId: "call_1",
+        sessionId: "session-1",
         cwd: executionCwd,
         workflow: workflowContext,
         scopeId: "scope-1",

@@ -19,7 +19,8 @@ import { getSecretStore, initSecretStore } from "#core/config/secrets.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { credentialInjectionEffect } from "#core/tools/effect.js";
-import type { ToolResult } from "#core/tools/index.js";
+import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
+import { injectSessionEnvironmentVariable } from "#core/tools/session-environment.js";
 import { columns, line, plain, span, stack } from "#modules/rendering/primitives.js";
 import { print, printToStderr, writeStdout } from "#modules/rendering/transport.js";
 import type {
@@ -38,8 +39,8 @@ function ensureLocalStore(ctx: ModuleContext): ReturnType<typeof initSecretStore
 const getSecretTool: KotaTool = {
   name: "get_secret",
   description:
-    "Retrieve a secret (API key, token, credential) and inject it into the environment. " +
-    "The actual value is injected into process.env for use by shell/code_exec tools. " +
+    "Retrieve a secret (API key, token, credential) and inject it into this session's execution environment. " +
+    "The actual value is available only to shell/code_exec tools in the same project and session. " +
     "You receive a masked placeholder — never the real value. " +
     "Use this before running commands that need credentials.",
   input_schema: {
@@ -56,7 +57,10 @@ const getSecretTool: KotaTool = {
 
 /** Build the get_secret tool runner with context-injected secret access. */
 function makeGetSecretRunner(ctx: ModuleContext) {
-  return async (input: Record<string, unknown>): Promise<ToolResult> => {
+  return async (
+    input: Record<string, unknown>,
+    runnerContext?: ToolRunnerContext,
+  ): Promise<ToolResult> => {
     const name = input.name as string;
     if (!name || typeof name !== "string") {
       return { content: "Error: secret name is required", is_error: true };
@@ -74,12 +78,11 @@ function makeGetSecretRunner(ctx: ModuleContext) {
       return { content: `Secret "${name}" not found.${hint}`, is_error: true };
     }
 
-    // Inject into process.env so shell/code_exec tools can use it
-    process.env[name] = value;
-    ctx.log.debug(`Secret "${name}" injected into environment`);
+    injectSessionEnvironmentVariable(runnerContext ?? {}, name, value);
+    ctx.log.debug(`Secret "${name}" injected into the session environment`);
 
     return {
-      content: `Secret "${name}" injected into environment as $${name}. Value: <secret:${name}>`,
+      content: `Secret "${name}" injected into this session's environment as $${name}. Value: <secret:${name}>`,
     };
   };
 }

@@ -1,0 +1,1 @@
+Isolate get_secret across harness sessions and scopes

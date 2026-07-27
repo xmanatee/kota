@@ -125,19 +125,6 @@ describe("SecretStore", () => {
     expect(masked).toBe("token: <secret:FULL>");
   });
 
-  it("injects secrets into process.env", () => {
-    const store = new SecretStore(dir);
-    store.set("INJECT_TEST", "injected-value-xyz");
-    expect(store.inject("INJECT_TEST")).toBe(true);
-    expect(process.env.INJECT_TEST).toBe("injected-value-xyz");
-    delete process.env.INJECT_TEST;
-  });
-
-  it("inject returns false for missing secrets", () => {
-    const store = new SecretStore(dir);
-    expect(store.inject("NONEXISTENT")).toBe(false);
-  });
-
   it("handles regex special characters in secret values", () => {
     const store = new SecretStore(dir);
     store.set("REGEX_KEY", "value+with.special*chars");

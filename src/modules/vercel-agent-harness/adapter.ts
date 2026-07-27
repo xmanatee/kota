@@ -1,9 +1,10 @@
 import type { ModelMessage } from "ai";
-import type {
-  AgentHarness,
-  AgentHarnessResult,
-  AgentHarnessRunOptions,
-  AgentHarnessWriter,
+import {
+  type AgentHarness,
+  type AgentHarnessResult,
+  type AgentHarnessRunOptions,
+  type AgentHarnessWriter,
+  agentHarnessToolRunnerContext,
 } from "#core/agent-harness/index.js";
 import { runWithAskOwnerSource } from "#core/tools/ask-owner.js";
 import {
@@ -107,7 +108,7 @@ async function runVercelLoop(
     {
       canUseTool: options.canUseTool,
       abortSignal: options.abortController?.signal,
-      workflowContext: options.workflowContext,
+      toolRunnerContext: agentHarnessToolRunnerContext(options),
       tokenBudget: options.tokenBudget,
       cwd: options.cwd,
       env: options.env,

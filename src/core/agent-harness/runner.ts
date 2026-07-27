@@ -10,6 +10,12 @@
  * wrapper.
  */
 
+import { randomUUID } from "node:crypto";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import {
+  registerSessionEnvironment,
+  unregisterSessionEnvironment,
+} from "#core/tools/session-environment.js";
 import {
   type HarnessHookKind,
   hasHarnessHooks,
@@ -19,6 +25,10 @@ import type {
   AgentHarnessUnsupportedOption,
   AgentHarnessUnsupportedRunOption,
 } from "./readiness.js";
+import {
+  type AgentHarnessSessionContext,
+  declaredAgentHarnessSessionContext,
+} from "./session-context.js";
 import {
   type AgentTokenBudgetExhaustion,
   type AgentTokenBudgetSource,
@@ -30,6 +40,22 @@ import type {
   AgentHarnessRunOptions,
   AgentHarnessWriter,
 } from "./types.js";
+
+function createInvocationSessionContext(
+  options: AgentHarnessRunOptions,
+): AgentHarnessSessionContext | undefined {
+  const declared = declaredAgentHarnessSessionContext(options);
+  if (declared !== undefined) return declared;
+  const workflow = options.workflowContext;
+  const scopeId = workflow?.scopeId ??
+    (options.cwd === undefined ? undefined : deriveDirectoryScopeId(options.cwd));
+  if (scopeId === undefined) return undefined;
+  return {
+    sessionId: `harness:${randomUUID()}`,
+    scopeId,
+    projectId: workflow?.projectId ?? scopeId,
+  };
+}
 
 function assertAdapterHonorsRegisteredHooks(harness: AgentHarness): void {
   const supported = new Set(harness.supportedHookKinds);
@@ -230,20 +256,29 @@ export async function runAgentHarness(
     if (exhaustion) return tokenBudgetErrorResult(exhaustion);
   }
 
-  for (const hook of listHarnessHooks("preRun")) {
-    await hook.handler({ harness, options });
+  const sessionContext = createInvocationSessionContext(options);
+  const effectiveOptions = sessionContext === undefined || options.sessionContext !== undefined
+    ? options
+    : { ...options, sessionContext };
+  if (sessionContext !== undefined) registerSessionEnvironment(sessionContext);
+  try {
+    for (const hook of listHarnessHooks("preRun")) {
+      await hook.handler({ harness, options: effectiveOptions });
+    }
+
+    const result = applyResultOnlyTokenBudgetDebit(
+      harness,
+      effectiveOptions,
+      await harness.run(effectiveOptions, writer),
+      initialDebitCount,
+    );
+
+    for (const hook of listHarnessHooks("postRun")) {
+      await hook.handler({ harness, options: effectiveOptions, result });
+    }
+
+    return result;
+  } finally {
+    if (sessionContext !== undefined) unregisterSessionEnvironment(sessionContext);
   }
-
-  const result = applyResultOnlyTokenBudgetDebit(
-    harness,
-    options,
-    await harness.run(options, writer),
-    initialDebitCount,
-  );
-
-  for (const hook of listHarnessHooks("postRun")) {
-    await hook.handler({ harness, options, result });
-  }
-
-  return result;
 }

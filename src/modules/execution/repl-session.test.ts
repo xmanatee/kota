@@ -2,6 +2,11 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  injectSessionEnvironmentVariable,
+  registerSessionEnvironment,
+  unregisterSessionEnvironment,
+} from "#core/tools/session-environment.js";
 import { DONE_MARKER, SENTINEL } from "./code-wrappers.js";
 import { cleanupSessions, findPythonBinary, REPLSession, sessions } from "./repl-session.js";
 
@@ -36,9 +41,13 @@ describe("REPLSession", () => {
 
 describe("REPLSession execute (cross-module: code-wrappers → subprocess)", () => {
   let session: REPLSession;
+  const sessionA = { sessionId: "repl-session-a", scopeId: "repl-project-a" };
+  const sessionB = { sessionId: "repl-session-b", scopeId: "repl-project-a" };
 
   afterEach(() => {
     session?.kill();
+    unregisterSessionEnvironment(sessionA);
+    unregisterSessionEnvironment(sessionB);
   });
 
   it("executes Python code and returns output", async () => {
@@ -61,6 +70,48 @@ describe("REPLSession execute (cross-module: code-wrappers → subprocess)", () 
     const result = await session.execute("print(x)", 10_000);
     expect(result.isError).toBe(false);
     expect(result.output).toContain("42");
+  });
+
+  it("restarts across sessions so credentials and REPL state cannot cross", async () => {
+    registerSessionEnvironment(sessionA);
+    registerSessionEnvironment(sessionB);
+    injectSessionEnvironmentVariable(
+      sessionA,
+      "KOTA_REPL_SESSION_SECRET",
+      "session-a-secret",
+    );
+    session = new REPLSession("node");
+
+    const authorized = await session.execute(
+      "globalThis.sessionOnly = 'session-a-state'; console.log(process.env.KOTA_REPL_SESSION_SECRET ?? 'missing')",
+      10_000,
+      sessionA,
+    );
+    const isolated = await session.execute(
+      "console.log(process.env.KOTA_REPL_SESSION_SECRET ?? 'missing'); console.log(typeof globalThis.sessionOnly)",
+      10_000,
+      sessionB,
+    );
+
+    expect(authorized.output).toContain("session-a-secret");
+    expect(isolated.output).toContain("missing\nundefined");
+    expect(isolated.output).not.toContain("session-a-secret");
+  });
+
+  it("kills a credential-bearing REPL when its session tears down", async () => {
+    registerSessionEnvironment(sessionA);
+    injectSessionEnvironmentVariable(
+      sessionA,
+      "KOTA_REPL_SESSION_SECRET",
+      "temporary-value",
+    );
+    session = new REPLSession("node");
+    await session.execute("console.log('started')", 10_000, sessionA);
+    expect(session.isAlive()).toBe(true);
+
+    unregisterSessionEnvironment(sessionA);
+
+    expect(session.isAlive()).toBe(false);
   });
 
   it("collects stderr alongside stdout", async () => {

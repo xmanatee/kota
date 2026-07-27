@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "autonomy-change-decision",
+  "runId": "2026-07-27T04-10-24-256Z-builder-be4qa1",
+  "createdAt": "2026-07-27T08:03:47Z",
+  "taskIds": [
+    "task-security-review-the-getsecret-tool-writes-an-appro"
+  ],
+  "affectedSurfaces": [
+    "agent-harness tool-runtime session lifecycle",
+    "persistent Telegram harness sessions",
+    "KOTA-routable adapter execution context",
+    "session-scoped execution credential cleanup"
+  ],
+  "changeClasses": [
+    "harness",
+    "model-routing"
+  ],
+  "hypothesis": "Giving every harness invocation a tool-runtime session identity distinct from its trace span, routing that identity through every KOTA-owned tool loop, and applying inherited provider-egress filtering after all execution overlays merge will isolate approved credentials across concurrent workflow items, projects, and interactive sessions without weakening approval or injection-defense boundaries.",
+  "sourceRefs": [
+    "data/tasks/done/task-security-review-the-getsecret-tool-writes-an-appro.md",
+    ".kota/runs/2026-07-27T04-10-24-256Z-builder-be4qa1/success-criteria.txt"
+  ],
+  "baselineRefs": [
+    "src/core/agent-harness/runner.ts",
+    "src/modules/secrets/index.ts",
+    "src/modules/execution/execution-env.ts"
+  ],
+  "candidateRefs": [
+    "src/core/agent-harness/runner.ts",
+    "src/core/agent-harness/session-context.ts",
+    "src/core/agent-harness/runner-session-environment.test.ts",
+    "src/core/tools/session-environment.ts",
+    "src/modules/secrets/index.test.ts",
+    "src/modules/execution/execution-env.test.ts",
+    "src/modules/openai-tools-agent-harness/adapter-runtime.ts",
+    "src/modules/gemini-agent-harness/tool-loop.ts",
+    "src/modules/vercel-agent-harness/adapter-tools.ts",
+    "src/modules/telegram/bot.ts",
+    "src/modules/telegram/harness-session-agent.ts",
+    "src/modules/telegram/harness-session-agent.test.ts",
+    ".kota/runs/2026-07-27T04-10-24-256Z-builder-be4qa1/validation.txt"
+  ],
+  "metricsCompared": [
+    {
+      "name": "cross-session credential isolation",
+      "baseline": "get_secret assigned the approved value to daemon process.env, so later execution environments for unrelated sessions and projects inherited it.",
+      "candidate": "Focused regressions prove process.env stays unchanged and only the exact live scopeId plus sessionId overlay receives the credential; unrelated and ended sessions receive no value.",
+      "unit": "security boundary assertions",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "harness credential lifetime",
+      "baseline": "Harness runs had no credential-overlay lifecycle, so daemon-global values could survive successful and failed runs.",
+      "candidate": "The neutral harness wrapper assigns a unique tool-runtime session per invocation and erases it after successful and throwing adapters. Persistent Telegram conversations own an outer reference until clear, project switch, or shutdown, and long-lived subprocess resources terminate with that owner.",
+      "unit": "focused lifecycle cases",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "concurrent agent execution isolation",
+      "baseline": "Concurrent foreach agents for the same run and step reused one workflow span as their credential-map key.",
+      "candidate": "A concurrent same-span regression proves each harness invocation receives a distinct session id and can observe only its own credential value.",
+      "unit": "parallel isolation assertions",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "eval provider credential boundary",
+      "baseline": "Execution filtering ran before caller and session overlays, allowing get_secret or context.env to restore provider auth and proxy values.",
+      "candidate": "The inherited provider-egress boundary is captured before merging and enforced afterward; a regression proves both session and caller overlays cannot restore filtered auth, proxy, or policy variables.",
+      "unit": "final environment assertions",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "approval and risk posture",
+      "baseline": "get_secret was moderate risk and queued in supervised mode before daemon-global injection.",
+      "candidate": "get_secret remains moderate risk and supervised-queued, while approved execution fails closed when the originating scoped session is no longer live.",
+      "unit": "guardrail and approval assertions",
+      "direction": "unchanged",
+      "qualitySignal": true
+    }
+  ],
+  "rolloutMode": "blocking",
+  "decision": "promote",
+  "rationale": "This is a fail-closed repair to a confirmed high-severity credential boundary. The candidate preserves approval and risk classification, removes daemon process.env mutation, keys overlays by canonical scope plus a runtime session identity that is not a reusable trace span, and requires that identity to be live. KOTA-routable adapters receive the same typed context; persistent Telegram sessions own explicit teardown; final execution filtering prevents provider auth or proxy restoration after overlay merge. REPLs and background groups remain bound to session teardown. Focused tests cover cross-session, cross-project, stale approval, concurrent same-span agents, persistent channel lifecycle, provider-egress bypass attempts, and successful or exceptional cleanup.",
+  "ownerSafetyExceptions": [],
+  "followUpTaskIds": []
+}

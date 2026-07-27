@@ -2,6 +2,7 @@ import type { ToolSet } from "ai";
 import type {
   AgentCanUseTool,
   AgentHarnessRunOptions,
+  AgentHarnessToolRunnerContext,
   KotaTool,
 } from "#core/agent-harness/index.js";
 import type { ToolCallInput } from "#core/tools/guardrails-classify.js";
@@ -46,7 +47,7 @@ export function buildVercelToolSet(
   guardrails: {
     canUseTool: AgentCanUseTool | undefined;
     abortSignal: AbortSignal | undefined;
-    workflowContext: AgentHarnessRunOptions["workflowContext"];
+    toolRunnerContext: AgentHarnessToolRunnerContext;
     tokenBudget: AgentHarnessRunOptions["tokenBudget"];
     cwd: AgentHarnessRunOptions["cwd"];
     env: AgentHarnessRunOptions["env"];
@@ -114,13 +115,7 @@ export function buildVercelToolSet(
           ...(guardrails.cwd !== undefined ? { cwd: guardrails.cwd } : {}),
           ...(guardrails.env !== undefined ? { env: guardrails.env } : {}),
           ...(guardrails.abortSignal !== undefined ? { signal: guardrails.abortSignal } : {}),
-          ...(guardrails.workflowContext !== undefined
-            ? {
-                workflow: guardrails.workflowContext,
-                scopeId: guardrails.workflowContext.scopeId,
-                projectId: guardrails.workflowContext.projectId,
-              }
-            : {}),
+          ...guardrails.toolRunnerContext,
           ...(guardrails.tokenBudget !== undefined ? { tokenBudget: guardrails.tokenBudget } : {}),
         }));
         return {

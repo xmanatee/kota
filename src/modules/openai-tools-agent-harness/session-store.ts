@@ -108,6 +108,7 @@ export function buildOpenaiToolsSessionContext(input: {
   resolved: ResolvedProvider;
   outputTokenLimit: ResolvedModelOutputTokenLimit;
 }): OpenaiToolsSessionContext {
+  const executionScope = input.options.sessionContext ?? input.options.workflowContext;
   return {
     model: input.resolved.model,
     providerName: input.resolved.providerName,
@@ -122,11 +123,11 @@ export function buildOpenaiToolsSessionContext(input: {
         : {}),
     },
     scope: {
-      ...(input.options.workflowContext?.scopeId !== undefined
-        ? { scopeId: input.options.workflowContext.scopeId }
+      ...(executionScope?.scopeId !== undefined
+        ? { scopeId: executionScope.scopeId }
         : {}),
-      ...(input.options.workflowContext?.projectId !== undefined
-        ? { projectId: input.options.workflowContext.projectId }
+      ...(executionScope?.projectId !== undefined
+        ? { projectId: executionScope.projectId }
         : {}),
     },
   };

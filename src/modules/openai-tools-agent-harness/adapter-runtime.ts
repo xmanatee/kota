@@ -1,7 +1,8 @@
-import type {
-	AgentHarnessRunOptions,
-	KotaMessage,
-	KotaToolResultBlock,
+import {
+	type AgentHarnessRunOptions,
+	agentHarnessToolRunnerContext,
+	type KotaMessage,
+	type KotaToolResultBlock,
 } from "#core/agent-harness/index.js";
 import { McpManager, type McpServerConfig } from "#core/mcp/manager.js";
 import {
@@ -99,6 +100,7 @@ export function executeOpenaiToolCalls(
 		messages: KotaMessage[];
 	},
 ): Promise<ToolResultEntry[]> {
+	const toolRunnerContext = agentHarnessToolRunnerContext(options);
 	return executeToolCalls(toolBlocks, {
 		resultLimit: 50_000,
 		verbose: options.verbose === true,
@@ -118,13 +120,17 @@ export function executeOpenaiToolCalls(
 		...(options.clientApprovalResolver !== undefined
 			? { clientApprovalResolver: options.clientApprovalResolver }
 			: {}),
-		...(options.workflowContext !== undefined
-			? {
-					sessionId: options.workflowContext.spanId,
-					workflowContext: options.workflowContext,
-					scopeId: options.workflowContext.scopeId,
-					projectId: options.workflowContext.projectId,
-				}
+		...(toolRunnerContext.sessionId !== undefined
+			? { sessionId: toolRunnerContext.sessionId }
+			: {}),
+		...(toolRunnerContext.scopeId !== undefined
+			? { scopeId: toolRunnerContext.scopeId }
+			: {}),
+		...(toolRunnerContext.projectId !== undefined
+			? { projectId: toolRunnerContext.projectId }
+			: {}),
+		...(toolRunnerContext.workflow !== undefined
+			? { workflowContext: toolRunnerContext.workflow }
 			: {}),
 		messages: context.messages,
 		...(options.idempotencyStore !== undefined

@@ -13,12 +13,13 @@ import type {
   Part,
   ThinkingConfig,
 } from "@google/genai";
-import type {
-  AgentEffort,
-  AgentHarness,
-  AgentHarnessResult,
-  AgentHarnessRunOptions,
-  AgentHarnessWriter,
+import {
+  type AgentEffort,
+  type AgentHarness,
+  type AgentHarnessResult,
+  type AgentHarnessRunOptions,
+  type AgentHarnessWriter,
+  agentHarnessToolRunnerContext,
 } from "#core/agent-harness/index.js";
 import { runWithAskOwnerSource } from "#core/tools/ask-owner.js";
 import {
@@ -248,7 +249,7 @@ async function runGeminiLoop(
         allowedTools: options.allowedTools,
         disallowedTools: options.disallowedTools,
         abortSignal: options.abortController?.signal,
-        workflowContext: options.workflowContext,
+        toolRunnerContext: agentHarnessToolRunnerContext(options),
         tokenBudget: options.tokenBudget,
         cwd: options.cwd,
         env: options.env,

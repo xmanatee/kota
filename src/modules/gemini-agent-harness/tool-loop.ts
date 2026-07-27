@@ -8,6 +8,7 @@ import type {
 import type {
   AgentCanUseTool,
   AgentHarnessRunOptions,
+  AgentHarnessToolRunnerContext,
   KotaTool,
 } from "#core/agent-harness/index.js";
 import { executeTool, getAllTools } from "#core/tools/index.js";
@@ -119,7 +120,7 @@ export async function dispatchFunctionCall(
     allowedTools: readonly string[] | undefined;
     disallowedTools: readonly string[] | undefined;
     abortSignal: AbortSignal | undefined;
-    workflowContext: AgentHarnessRunOptions["workflowContext"];
+    toolRunnerContext: AgentHarnessToolRunnerContext;
     tokenBudget: AgentHarnessRunOptions["tokenBudget"];
     cwd: AgentHarnessRunOptions["cwd"];
     env: AgentHarnessRunOptions["env"];
@@ -209,13 +210,7 @@ export async function dispatchFunctionCall(
       ...(guardrails.abortSignal !== undefined
         ? { signal: guardrails.abortSignal }
         : {}),
-      ...(guardrails.workflowContext !== undefined
-        ? {
-            workflow: guardrails.workflowContext,
-            scopeId: guardrails.workflowContext.scopeId,
-            projectId: guardrails.workflowContext.projectId,
-          }
-        : {}),
+      ...guardrails.toolRunnerContext,
       ...(guardrails.tokenBudget !== undefined
         ? { tokenBudget: guardrails.tokenBudget }
         : {}),

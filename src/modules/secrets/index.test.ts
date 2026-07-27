@@ -15,12 +15,21 @@ import {
 } from "#core/tools/autonomy-mode.js";
 import { riskFromEffect } from "#core/tools/effect.js";
 import { assess, getDefaultConfig } from "#core/tools/guardrails.js";
-import { clearCustomTools, registerTool } from "#core/tools/index.js";
+import { clearCustomTools, executeTool, registerTool } from "#core/tools/index.js";
+import {
+  registerSessionEnvironment,
+  sessionEnvironmentForExecution,
+  unregisterSessionEnvironment,
+} from "#core/tools/session-environment.js";
 import { executeToolCalls } from "#core/tools/tool-runner.js";
+import { approvedApprovalResponse } from "#modules/approval-queue/approval-execution.js";
 import secretsModule from "./index.js";
 
 const SECRET_NAME = "KOTA_GET_SECRET_TOOL_TEST_TOKEN";
 const SECRET_VALUE = "test-secret-value";
+const SESSION_CONTEXT = { sessionId: "secrets-session-a", scopeId: "secrets-project-a" };
+const OTHER_SESSION_CONTEXT = { sessionId: "secrets-session-b", scopeId: "secrets-project-a" };
+const OTHER_PROJECT_CONTEXT = { sessionId: "secrets-session-a", scopeId: "secrets-project-b" };
 
 function logNoop(): ModuleContext["log"] {
   return {
@@ -71,6 +80,9 @@ async function runGetSecret(
       resultLimit: 10_000,
       verbose: false,
       autonomyMode,
+      sessionId: SESSION_CONTEXT.sessionId,
+      scopeId: SESSION_CONTEXT.scopeId,
+      projectId: SESSION_CONTEXT.scopeId,
       guardrailsConfig: supervisedGuardrailsConfig(getDefaultConfig()),
     },
   );
@@ -92,6 +104,9 @@ describe("secrets module get_secret tool gating", () => {
   });
 
   afterEach(() => {
+    unregisterSessionEnvironment(SESSION_CONTEXT);
+    unregisterSessionEnvironment(OTHER_SESSION_CONTEXT);
+    unregisterSessionEnvironment(OTHER_PROJECT_CONTEXT);
     clearCustomTools();
     resetApprovalQueue();
     rmSync(projectDir, { recursive: true, force: true });
@@ -119,7 +134,7 @@ describe("secrets module get_secret tool gating", () => {
     expect(resolveAutonomyGate("supervised", assessment).action).toBe("queue");
   });
 
-  it("denies passive get_secret calls before injecting into process.env", async () => {
+  it("denies passive get_secret calls before creating a credential overlay", async () => {
     registerGetSecret(projectDir);
 
     const results = await runGetSecret("passive");
@@ -131,7 +146,7 @@ describe("secrets module get_secret tool gating", () => {
     expect(getApprovalQueue().list()).toEqual([]);
   });
 
-  it("queues supervised get_secret calls before injecting into process.env", async () => {
+  it("queues supervised get_secret calls before creating a credential overlay", async () => {
     registerGetSecret(projectDir);
 
     const results = await runGetSecret("supervised");
@@ -151,5 +166,65 @@ describe("secrets module get_secret tool gating", () => {
       status: "pending",
     });
     expect(JSON.stringify(queued[0])).not.toContain(SECRET_NAME);
+  });
+
+  it("executes an approval into only its originating live session overlay", async () => {
+    registerGetSecret(projectDir);
+    registerSessionEnvironment(SESSION_CONTEXT);
+    registerSessionEnvironment(OTHER_SESSION_CONTEXT);
+    await runGetSecret("supervised");
+    const queued = getApprovalQueue().list("pending")[0];
+    if (queued === undefined) throw new Error("get_secret approval was not queued");
+    const approved = getApprovalQueue().approveForExecution(queued.id);
+    if (!approved.ok) throw new Error("get_secret approval input was unavailable");
+
+    const response = await approvedApprovalResponse(approved.approval, {
+      scopeId: SESSION_CONTEXT.scopeId,
+      projectId: SESSION_CONTEXT.scopeId,
+      cwd: projectDir,
+    });
+
+    expect(response.execution.status).toBe("succeeded");
+    expect(process.env[SECRET_NAME]).toBeUndefined();
+    expect(sessionEnvironmentForExecution(SESSION_CONTEXT)).toEqual({
+      [SECRET_NAME]: SECRET_VALUE,
+    });
+    expect(sessionEnvironmentForExecution(OTHER_SESSION_CONTEXT)).toEqual({});
+  });
+
+  it("injects only into the authorized live session and project", async () => {
+    registerGetSecret(projectDir);
+    registerSessionEnvironment(SESSION_CONTEXT);
+    registerSessionEnvironment(OTHER_SESSION_CONTEXT);
+    registerSessionEnvironment(OTHER_PROJECT_CONTEXT);
+
+    const result = await executeTool(
+      "get_secret",
+      { name: SECRET_NAME },
+      SESSION_CONTEXT,
+    );
+
+    expect(result.is_error).not.toBe(true);
+    expect(result.content).toContain(`<secret:${SECRET_NAME}>`);
+    expect(process.env[SECRET_NAME]).toBeUndefined();
+    expect(sessionEnvironmentForExecution(SESSION_CONTEXT)).toEqual({
+      [SECRET_NAME]: SECRET_VALUE,
+    });
+    expect(sessionEnvironmentForExecution(OTHER_SESSION_CONTEXT)).toEqual({});
+    expect(sessionEnvironmentForExecution(OTHER_PROJECT_CONTEXT)).toEqual({});
+  });
+
+  it("rejects credential injection without an active scoped session", async () => {
+    registerGetSecret(projectDir);
+
+    const result = await executeTool("get_secret", { name: SECRET_NAME });
+
+    expect(result).toMatchObject({
+      is_error: true,
+      content: expect.stringContaining(
+        "Credential injection requires an active session and project scope",
+      ),
+    });
+    expect(process.env[SECRET_NAME]).toBeUndefined();
   });
 });

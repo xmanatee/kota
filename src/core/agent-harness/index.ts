@@ -128,6 +128,14 @@ export {
   shouldRouteKotaToolControl,
 } from "./runner.js";
 export type {
+  AgentHarnessSessionContext,
+  AgentHarnessToolRunnerContext,
+} from "./session-context.js";
+export {
+  agentHarnessToolRunnerContext,
+  declaredAgentHarnessSessionContext,
+} from "./session-context.js";
+export type {
   AgentTokenBudgetConfig,
   AgentTokenBudgetDebit,
   AgentTokenBudgetDiagnostic,

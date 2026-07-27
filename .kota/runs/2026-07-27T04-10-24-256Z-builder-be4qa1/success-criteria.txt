@@ -1,0 +1,3 @@
+1. Replace daemon-global credential injection with an exact session-and-project environment overlay, expose it only to authorized execution tools, and erase it on session teardown.
+2. Preserve get_secret approval and moderate-risk boundaries while proving that daemon process.env, unrelated sessions, unrelated projects, and long-lived REPL state cannot inherit an approved credential.
+3. Land focused regressions and record reproducible validation evidence in the task and run artifacts.

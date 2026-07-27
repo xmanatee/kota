@@ -11,24 +11,12 @@
  * invoke `broadcastToChats` to deliver reminders to active sessions.
  */
 
-import {
-  type AgentEffort,
-  type AgentHarness,
-  resolveAgentHarness,
-  runAgentHarness,
-} from "#core/agent-harness/index.js";
-import {
-  type AgentHarnessTranscriptTurn,
-  composeAgentHarnessTranscriptPrompt,
-} from "#core/agent-harness/transcript.js";
+import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
-import { CostTracker } from "#core/loop/cost.js";
 import { AgentSession, type LoopOptions } from "#core/loop/loop.js";
-import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
 import { NullTransport, ProxyTransport } from "#core/loop/transport.js";
-import type { ModelProviderSelection } from "#core/model/model-client.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
@@ -53,6 +41,7 @@ import {
   type TelegramUser,
   type TelegramVoice,
 } from "./client.js";
+import { TelegramHarnessSessionAgent } from "./harness-session-agent.js";
 import {
   emitTelegramMessageInboundSignal,
   emitTelegramUpdateInboundSignal,
@@ -137,106 +126,6 @@ type TelegramSession = {
   lastActive: number;
   identity: ChannelUserIdentity;
 };
-
-type TelegramHarnessSessionAgentOptions = {
-  harness: AgentHarness;
-  model: string;
-  modelProvider?: ModelProviderSelection;
-  modelOutputTokenLimits?: KotaConfig["modelOutputTokenLimits"];
-  effort: AgentEffort;
-  cwd: string;
-  config: KotaConfig;
-  autonomyMode: AutonomyMode;
-  verbose?: boolean;
-  proxy: ProxyTransport;
-};
-
-class TelegramHarnessSessionAgent implements TelegramSessionAgent {
-  private readonly transcript: AgentHarnessTranscriptTurn[] = [];
-  private readonly costTracker = new CostTracker();
-  private abortController: AbortController | null = null;
-
-  constructor(private readonly options: TelegramHarnessSessionAgentOptions) {}
-
-  async send(text: string): Promise<void> {
-    const abortController = new AbortController();
-    this.abortController = abortController;
-    const prompt = composeAgentHarnessTranscriptPrompt(this.transcript, text);
-    let streamedText = "";
-    const writer = {
-      write: (chunk: string): boolean => {
-        streamedText += chunk;
-        this.options.proxy.emit({ type: "text", content: chunk });
-        return true;
-      },
-    };
-
-    try {
-      const result = await runAgentHarness(
-        this.options.harness,
-        {
-          prompt,
-          model: this.options.model,
-          cwd: this.options.cwd,
-          effort: this.options.effort,
-          autonomyMode: this.options.autonomyMode,
-          verbose: this.options.verbose ?? this.options.config.verbose,
-          systemPrompt: buildKotaSystemPrompt(
-            this.options.config,
-            undefined,
-            this.options.cwd,
-            this.options.cwd,
-          ),
-          modelOutputTokenLimits: this.options.modelOutputTokenLimits,
-          abortController,
-          ...(this.options.modelProvider !== undefined
-            ? { modelProvider: this.options.modelProvider }
-            : {}),
-        },
-        writer,
-      );
-      if (!streamedText && result.text) {
-        this.options.proxy.emit({ type: "text", content: result.text });
-      }
-      this.recordCost(result);
-      this.transcript.push({
-        user: text,
-        assistant: result.text || streamedText,
-      });
-    } finally {
-      if (this.abortController === abortController) {
-        this.abortController = null;
-      }
-    }
-  }
-
-  close(): void {
-    this.abortController?.abort(new Error("Telegram harness session closed."));
-    this.abortController = null;
-  }
-
-  getCostSummary(): string {
-    return this.costTracker.getSummary();
-  }
-
-  private recordCost(result: {
-    totalCostUsd?: number;
-    inputTokens?: number;
-    outputTokens?: number;
-  }): void {
-    if (result.totalCostUsd !== undefined) {
-      this.costTracker.addRawCost(result.totalCostUsd);
-      return;
-    }
-    if (result.inputTokens === undefined && result.outputTokens === undefined) {
-      return;
-    }
-    this.costTracker.addUsage(this.options.model, {
-      input_tokens: result.inputTokens ?? 0,
-      output_tokens: result.outputTokens ?? 0,
-    });
-  }
-}
 
 // --- TelegramBot ---
 
@@ -808,6 +697,7 @@ export class TelegramBot {
         modelOutputTokenLimits: config.modelOutputTokenLimits,
         effort: backend.preset.defaultEffort,
         cwd: target.projectDir,
+        scopeId: target.projectId,
         config,
         autonomyMode: this.options.autonomyMode,
         verbose: this.options.verbose ?? config.verbose,

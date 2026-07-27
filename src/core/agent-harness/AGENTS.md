@@ -1,9 +1,8 @@
 # Agent Harness Protocol
 
-This directory hosts the harness-neutral boundary the session/step/delegate
-layer calls instead of invoking a specific agent runtime (Claude Agent SDK,
-OpenAI codex, thin ModelClient loop, etc.). Adapters that implement this
-protocol live in modules — the core only owns the interface and the registry.
+This is the harness-neutral boundary used by sessions, steps, and delegates
+instead of a specific agent runtime. Adapters live in modules; core owns only
+the protocol and registry.
 
 ## Protocol
 
@@ -20,16 +19,15 @@ protocol live in modules — the core only owns the interface and the registry.
   every adapter consumes.
 - Streaming text goes through the optional `writer` so operators see live
   output regardless of which harness runs.
-- Tool risk gating, commit guards, daemon control guards, and injection-defense
-  middleware are expressed through neutral run options (`canUseTool`,
-  `mcpServers`, `allowedTools`, `disallowedTools`). Adapters with a
-  KOTA-routable tool loop must honor the supported options. Adapters that
-  cannot honor an option must declare it in `unsupportedRunOptions`, so
-  `runAgentHarness` fails before hooks or adapter launch instead of silently
-  weakening guardrails. `src/rails-cross-harness.integration.test.ts`,
-  `src/abort-cross-harness.integration.test.ts`, and
-  `src/mcp-servers-cross-harness.integration.test.ts` enforce this
-  apply-or-reject boundary.
+- Neutral options carry tool risk, commit/daemon guards, and injection defense
+  (`canUseTool`, `mcpServers`, `allowedTools`, `disallowedTools`). KOTA-routable
+  loops must honor them; other adapters list unsupported options in
+  `unsupportedRunOptions`, making `runAgentHarness` reject them before hooks or
+  launch. The cross-harness rails, abort, and MCP-server integration tests
+  enforce this apply-or-reject boundary.
+- `sessionContext` is tool-runtime identity, not workflow trace/span metadata.
+  `runAgentHarness` creates one per invocation; persistent interactive callers
+  register one outer lifetime and reuse its context through teardown.
 - `guards.ts` hosts the harness-neutral `canUseTool` primitives
   (`createAgentCommitGuard`, `createDaemonHostControlGuard`,
   `composeCanUseTools`, `createWorkflowAgentGuards`). Callers reach for
