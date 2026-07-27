@@ -100,6 +100,9 @@ export function buildAgentHarnessRunOptions(input: {
       ...(agentConfig.config?.guardrails !== undefined
         ? { guardrailsConfig: agentConfig.config.guardrails }
         : {}),
+		...(agentConfig.approvalQueue !== undefined
+			? { approvalQueue: agentConfig.approvalQueue }
+			: {}),
       ...(agentConfig.idempotencyStore !== undefined
         ? { idempotencyStore: agentConfig.idempotencyStore }
         : {}),

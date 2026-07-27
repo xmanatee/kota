@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { resetSecretStore } from "#core/config/secrets.js";
+import { resetSecretStores } from "#core/config/secrets.js";
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
 import { buildConfiguredProject } from "#core/daemon/scope-registry.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
@@ -19,7 +19,7 @@ import { buildResourceDiscoverySnapshotReader } from "./snapshot.js";
 
 afterEach(() => {
   resetProviderRegistry();
-  resetSecretStore();
+  resetSecretStores();
 });
 
 describe("resource discovery scoped snapshot sources", () => {

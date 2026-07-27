@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resetSecretStore } from "#core/config/secrets.js";
+import { resetSecretStores } from "#core/config/secrets.js";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
 import { IMPORTED_SKILL_PROVENANCE_FILE } from "#core/modules/imported-skills.js";
@@ -19,7 +19,7 @@ import { buildResourceDiscoverySnapshotReader, configuredMcpServers } from "./sn
 
 afterEach(() => {
   resetProviderRegistry();
-  resetSecretStore();
+  resetSecretStores();
   vi.restoreAllMocks();
 });
 
@@ -72,7 +72,7 @@ describe("configuredMcpServers", () => {
 describe("buildResourceDiscoverySnapshotReader", () => {
   it("does not invoke live capability readiness probes while building advisory snapshots", async () => {
     resetProviderRegistry();
-    resetSecretStore();
+    resetSecretStores();
     const dir = mkdtempSync(join(tmpdir(), "resource-discovery-readiness-"));
     const registry = initProviderRegistry();
     const probe = vi.fn(async () => [{

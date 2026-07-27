@@ -59,6 +59,10 @@ const confirmActionMock = vi.hoisted(() =>
 );
 const enqueueApprovalMock = vi.hoisted(() => vi.fn<EnqueueApproval>());
 
+export const approvalQueueMock = {
+	enqueue: (...args: Parameters<EnqueueApproval>) => enqueueApprovalMock(...args),
+} as ApprovalQueue;
+
 export {
 	confirmActionMock,
 	createModelClientMock,
@@ -84,7 +88,7 @@ vi.mock("#core/tools/index.js", () => ({
 }));
 
 vi.mock("#core/config/secrets.js", () => ({
-	getSecretStore: vi.fn(() => null),
+	maskKnownSecretValues: (text: string) => text,
 }));
 
 vi.mock("#core/util/confirm.js", () => ({
@@ -133,6 +137,7 @@ function pendingApprovalFromCall(
 	] = args;
 	const item: PendingApproval = {
 		id,
+		scopeId: "scope-test",
 		tool,
 		input,
 		risk,

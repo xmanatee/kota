@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApprovalQueue, resetApprovalQueue } from "#core/daemon/approval-queue.js";
+import { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { WorkflowApprovalStepInput } from "../step-input-control-flow.js";
 import { WorkflowTestHarness } from "../testing/index.js";
 import type { WorkflowDefinitionInput } from "../types.js";
@@ -11,11 +11,6 @@ import { executeApprovalStep } from "./step-executor-approval.js";
 const { mockEmit } = vi.hoisted(() => ({ mockEmit: vi.fn() }));
 
 let testQueue: ApprovalQueue;
-vi.mock("#core/daemon/approval-queue.js", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("#core/daemon/approval-queue.js")>();
-  return { ...mod, getApprovalQueue: () => testQueue };
-});
-
 let tmpDir: string;
 
 beforeEach(() => {
@@ -26,7 +21,6 @@ beforeEach(() => {
 
 afterEach(() => {
   rmSync(tmpDir, { recursive: true, force: true });
-  resetApprovalQueue();
 });
 
 function makeContext() {
@@ -34,6 +28,7 @@ function makeContext() {
     projectDir: "/project",
     workflow: { name: "test-wf", definitionPath: "src/wf.ts", runId: "run-1", runDir: ".kota/runs/run-1", runDirPath: "/project/.kota/runs/run-1" },
     trigger: { event: "runtime.idle" as const, payload: {} },
+    approvalQueue: testQueue,
     previousOutput: null,
     stepOutputs: {},
     stepResults: {},

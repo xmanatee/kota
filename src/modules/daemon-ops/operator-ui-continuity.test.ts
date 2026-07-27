@@ -112,6 +112,7 @@ describe("operator continuity UI surface", () => {
       approvals: ok({
         approvals: [{
           id: "approval-1",
+          scopeId: "scope-test",
           tool: "shell.exec",
           input: {},
           risk: "dangerous",

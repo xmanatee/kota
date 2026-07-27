@@ -42,9 +42,6 @@ export async function finalizeBuilderTerminalWorktree(
   if (!workspace?.taskId) return;
   const runDirPath = join(input.projectDir, input.metadata.runDir);
   const artifactPath = join(runDirPath, "terminal-worktree-finalizer.json");
-  if (input.metadata.status === "success" || input.metadata.status === "completed-with-warnings") {
-    return;
-  }
 
   const selector = {
     projectDir: input.projectDir,

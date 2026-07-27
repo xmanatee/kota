@@ -239,6 +239,24 @@ function createScopedKotaClient(
           base.approvals.reject(id, reason, withScope(project, selector)),
         ),
     },
+    secrets: {
+      list: (project) =>
+        scoped(selectedId, () =>
+          base.secrets.list(withScope(project, selector)),
+        ),
+      get: (name, project) =>
+        scoped(selectedId, () =>
+          base.secrets.get(name, withScope(project, selector)),
+        ),
+      set: (name, value, scope, project) =>
+        scoped(selectedId, () =>
+          base.secrets.set(name, value, scope, withScope(project, selector)),
+        ),
+      remove: (name, scope, project) =>
+        scoped(selectedId, () =>
+          base.secrets.remove(name, scope, withScope(project, selector)),
+        ),
+    },
     ownerDecisions: {
       list: (filter) =>
         scoped(selectedId, () =>

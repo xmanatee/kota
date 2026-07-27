@@ -23,6 +23,7 @@
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
+import { getProjectSecretStore, type SecretStore } from "#core/config/secrets.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
@@ -76,6 +77,7 @@ export type ProjectRuntime = {
   readonly scheduler: Scheduler;
   readonly moduleLogStore: ModuleLogStore;
   readonly approvalQueue: ApprovalQueue;
+  readonly secretStore: SecretStore;
   readonly deadLetterQueue: DeadLetterQueueStore;
   readonly idempotencyStore: IdempotencyStore;
   readonly ownerDecisionStore: OwnerDecisionStore;
@@ -124,6 +126,7 @@ export function createProjectRuntime(
   const scheduler = new Scheduler(projectDir, undefined, pbus);
   const moduleLogStore = new ModuleLogStore(projectDir);
   const approvalQueue = new ApprovalQueue(join(projectDir, ".kota", "approvals"), pbus);
+  const secretStore = getProjectSecretStore(projectDir);
   const deadLetterQueue = new DeadLetterQueueStore(
     join(projectDir, ".kota", "dead-letter-queue"),
   );
@@ -149,6 +152,7 @@ export function createProjectRuntime(
     config: opts.config,
     deadLetterQueue,
     eventJournal: opts.eventJournal,
+    approvalQueue,
     idempotencyStore,
     workflows: opts.workflows,
     model: opts.model,
@@ -184,6 +188,7 @@ export function createProjectRuntime(
     scheduler,
     moduleLogStore,
     approvalQueue,
+    secretStore,
     deadLetterQueue,
     idempotencyStore,
     ownerDecisionStore,

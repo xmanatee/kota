@@ -123,6 +123,7 @@ function makeApproval(
 ): PendingApproval {
   return {
     id,
+    scopeId: "scope-test",
     tool: "shell",
     input: { command: `echo ${id}` },
     risk: "moderate",
@@ -382,6 +383,23 @@ describe("approval-queue module daemonClient(link)", () => {
     const contributed = approvalQueueModule.daemonClient!(transport);
     const result = await contributed.approvals!.approve("deadbeef");
     expect(result).toEqual({ ok: false, reason: "input_unavailable" });
+  });
+
+	it("collapses a typed 409 scope mismatch response into { ok: false, reason: 'scope_mismatch' }", async () => {
+		const { transport } = makeRecordingTransport(() =>
+			new Response(
+				JSON.stringify({
+					error: "Approval belongs to a different project scope",
+					reason: "approval_scope_mismatch",
+				}),
+				{ status: 409, headers: { "Content-Type": "application/json" } },
+			),
+		);
+    const contributed = approvalQueueModule.daemonClient!(transport);
+
+    const result = await contributed.approvals!.approve("deadbeef");
+
+    expect(result).toEqual({ ok: false, reason: "scope_mismatch" });
   });
 
   it("throws the typed unknown-project error from approve instead of returning not_found", async () => {

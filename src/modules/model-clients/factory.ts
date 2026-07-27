@@ -9,7 +9,7 @@
  */
 
 import type { KotaConfig } from "#core/config/config.js";
-import { getSecretStore, SecretStore } from "#core/config/secrets.js";
+import { getProjectSecretStore } from "#core/config/secrets.js";
 import type { ModelClient, ProviderFactoryOptions, ResolvedProvider } from "#core/model/model-client.js";
 import { AnthropicModelClient } from "./anthropic.js";
 import { FailoverModelClient } from "./failover-client.js";
@@ -83,10 +83,7 @@ function lookupSecret(
 ): string {
 	const injected = options.secretResolver?.(key);
 	if (injected) return injected;
-	if (options.projectDir) {
-		return new SecretStore(options.projectDir).get(key) ?? "";
-	}
-	return getSecretStore()?.get(key) ?? process.env[key] ?? "";
+	return getProjectSecretStore(options.projectDir ?? process.cwd()).get(key) ?? "";
 }
 
 function resolveSecretReference(

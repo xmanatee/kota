@@ -27,6 +27,7 @@ import { resetEventBus } from "#core/events/event-bus.js";
 import type { RouteRegistration } from "#core/modules/module-types.js";
 import { handleListModules } from "#modules/module-manager/routes.js";
 import { taskRoutes } from "#modules/repo-tasks/routes.js";
+import { createSecretProjectStores } from "#modules/secrets/project-scope.js";
 import { secretsRoutes } from "#modules/secrets/routes.js";
 
 function readControlAddress(stateDir: string): DaemonControlAddress {
@@ -68,7 +69,7 @@ describe("Daemon module HTTP routes integration", () => {
   it("serves module-contributed /api/* routes from at least three modules", async () => {
     const moduleRoutes: RouteRegistration[] = [
       ...taskRoutes(),
-      ...secretsRoutes(),
+      ...secretsRoutes(createSecretProjectStores(projectDir)),
       {
         method: "GET",
         path: "/api/modules",
@@ -157,7 +158,7 @@ describe("Daemon module HTTP routes integration", () => {
       idleIntervalMs: 60_000,
       pollIntervalMs: 60_000,
       workflows: [],
-      routes: secretsRoutes(),
+      routes: secretsRoutes(createSecretProjectStores(projectDir)),
       config: { defaultAgentHarness: "claude-agent-sdk" },
     });
 

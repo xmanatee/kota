@@ -158,6 +158,7 @@ function registerProjectQueueProvider(
         runtime: {
           project: entry.project,
           approvalQueue: entry.approvalQueue,
+          secretStore: {} as never,
           ownerDecisionStore: entry.ownerDecisionStore,
           ownerQuestionQueue: entry.ownerQuestionQueue,
         },

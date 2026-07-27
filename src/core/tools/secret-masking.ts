@@ -1,4 +1,4 @@
-import { getSecretStore } from "#core/config/secrets.js";
+import { maskKnownSecretValues } from "#core/config/secrets.js";
 import type { ToolResultBlock } from "./tool-result.js";
 
 type MaskableToolResult = {
@@ -7,13 +7,11 @@ type MaskableToolResult = {
 };
 
 export function maskToolResultSecrets<T extends MaskableToolResult>(result: T): T {
-  const secretStore = getSecretStore();
-  if (!secretStore) return result;
-
-  const mask = (text: string) => secretStore.mask(text);
-  const content = mask(result.content);
+  const content = maskKnownSecretValues(result.content);
   const blocks = result.blocks?.map((block) =>
-    block.type === "text" ? { ...block, text: mask(block.text) } : block,
+    block.type === "text"
+      ? { ...block, text: maskKnownSecretValues(block.text) }
+      : block,
   );
 
   return {

@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { SYSTEM_PROMPT } from "#core/agents/system-prompt.js";
 import { buildUserProfile } from "#core/config/config.js";
-import { setApprovalQueueInstance } from "#core/daemon/approval-queue.js";
+import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { setIdempotencyStoreInstance } from "#core/daemon/idempotency-singleton.js";
 import { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { setOwnerQuestionQueueInstance } from "#core/daemon/owner-question-queue.js";
@@ -97,6 +97,8 @@ export function initAgentSession(
   state.modelOutputTokenLimits = options.config?.modelOutputTokenLimits;
   state.channelIdentity = options.channelIdentity;
   setAgentLoopTokenBudget(state, options.tokenBudget);
+	state.approvalQueue = options.projectRuntime?.approvalQueue
+		?? getApprovalQueue(join(projectDir, ".kota", "approvals"));
 
   const thinkingBudget = options.thinkingBudget || 10_000;
   state.thinkingConfig = options.thinkingEnabled
@@ -124,7 +126,6 @@ export function initAgentSession(
     setTaskStoreInstance(options.projectRuntime.taskStore);
     setSchedulerInstance(options.projectRuntime.scheduler);
     setModuleLogStoreInstance(options.projectRuntime.moduleLogStore);
-    setApprovalQueueInstance(options.projectRuntime.approvalQueue);
     setIdempotencyStoreInstance(options.projectRuntime.idempotencyStore);
     setOwnerQuestionQueueInstance(options.projectRuntime.ownerQuestionQueue);
     state.idempotencyStore = options.projectRuntime.idempotencyStore;

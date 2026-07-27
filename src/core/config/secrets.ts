@@ -2,7 +2,8 @@
  * Secrets management — provider-based secret storage with output masking.
  *
  * Secrets are resolved through a provider chain (project file → global file → env → keychain).
- * All known secret values are masked in tool output before reaching the LLM context.
+ * Each canonical project directory owns one stable store. Known values from
+ * every registered store are masked before tool output reaches an agent.
  */
 
 import { existsSync, realpathSync } from "node:fs";
@@ -23,6 +24,8 @@ export type SecretScope = "project" | "global";
 const GLOBAL_DIR = join(homedir(), ".kota");
 const PROJECT_DIR = ".kota";
 const SECRETS_FILE = "secrets.json";
+const globalFileProviders = new Map<string, FileProvider>();
+const projectSecretStores = new Map<string, SecretStore>();
 
 export type SecretStoreOptions = {
   globalDir: string;
@@ -47,6 +50,15 @@ function canonicalizeStorageDirectoryParent(path: string): string {
   return join(canonicalizeTrustedRoot(parent), basename(absolutePath));
 }
 
+function globalFileProvider(globalDir: string): FileProvider {
+  const path = join(globalDir, SECRETS_FILE);
+  const existing = globalFileProviders.get(path);
+  if (existing) return existing;
+  const provider = new FileProvider(path, "global-file");
+  globalFileProviders.set(path, provider);
+  return provider;
+}
+
 export class SecretStore {
   private providers: (EnvProvider | FileProvider | KeychainProvider)[];
   private projectFileProvider: FileProvider;
@@ -65,10 +77,7 @@ export class SecretStore {
       join(projectDir, PROJECT_DIR, SECRETS_FILE),
       "project-file",
     );
-    this.globalFileProvider = new FileProvider(
-      join(globalDir, SECRETS_FILE),
-      "global-file",
-    );
+    this.globalFileProvider = globalFileProvider(globalDir);
 
     const projectEnv = new EnvProvider(join(projectDir, ".env"));
     const globalEnv = new EnvProvider(join(globalDir, ".env"));
@@ -204,19 +213,24 @@ export class SecretStore {
   }
 }
 
-// --- Singleton ---
-
-let store: SecretStore | null = null;
-
-export function initSecretStore(cwd?: string): SecretStore {
-  store = new SecretStore(cwd);
+export function getProjectSecretStore(projectDir: string): SecretStore {
+  const key = canonicalizeTrustedRoot(projectDir);
+  const existing = projectSecretStores.get(key);
+  if (existing) return existing;
+  const store = new SecretStore(key);
+  projectSecretStores.set(key, store);
   return store;
 }
 
-export function getSecretStore(): SecretStore | null {
-  return store;
+export function maskKnownSecretValues(text: string): string {
+  let masked = text;
+  for (const store of projectSecretStores.values()) {
+    masked = store.mask(masked);
+  }
+  return masked;
 }
 
-export function resetSecretStore(): void {
-  store = null;
+export function resetSecretStores(): void {
+  projectSecretStores.clear();
+  globalFileProviders.clear();
 }

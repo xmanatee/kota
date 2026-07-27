@@ -11,7 +11,7 @@ const createModelClientMock = vi.fn();
 const executeToolMock = vi.fn();
 const getAllToolsMock = vi.fn<() => readonly KotaTool[]>();
 const getToolEffectMock = vi.fn();
-const getSecretStoreMock = vi.fn();
+const maskKnownSecretValuesMock = vi.fn<(text: string) => string>();
 
 vi.mock("#core/model/model-client.js", () => ({
   createModelClient: (...args: unknown[]) => createModelClientMock(...args),
@@ -24,7 +24,7 @@ vi.mock("#core/tools/index.js", () => ({
 }));
 
 vi.mock("#core/config/secrets.js", () => ({
-  getSecretStore: () => getSecretStoreMock(),
+  maskKnownSecretValues: (text: string) => maskKnownSecretValuesMock(text),
 }));
 
 import { runFileRead } from "#modules/filesystem/file-read.js";
@@ -117,7 +117,7 @@ beforeEach(() => {
   executeToolMock.mockReset();
   getAllToolsMock.mockReset();
   getToolEffectMock.mockReset();
-  getSecretStoreMock.mockReset();
+  maskKnownSecretValuesMock.mockReset();
   streamCallSnapshots.length = 0;
   streamReturnQueue.length = 0;
   messagesStreamMock.mockImplementation(
@@ -150,7 +150,7 @@ beforeEach(() => {
     idempotent: true,
     openWorld: false,
   });
-  getSecretStoreMock.mockReturnValue(null);
+  maskKnownSecretValuesMock.mockImplementation((text) => text);
 });
 
 afterEach(() => {
@@ -270,9 +270,9 @@ describe("openaiToolsAgentHarness — happy path tool loop", () => {
   });
 
   it("masks registered secrets before feeding raw tool results into the next model turn", async () => {
-    getSecretStoreMock.mockReturnValue({
-      mask: (text: string) => text.replaceAll("agent-secret-token", "<secret:API_TOKEN>"),
-    });
+    maskKnownSecretValuesMock.mockImplementation((text) =>
+      text.replaceAll("agent-secret-token", "<secret:API_TOKEN>"),
+    );
 
     queueStream(
       makeStubStream({

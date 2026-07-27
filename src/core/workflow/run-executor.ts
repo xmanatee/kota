@@ -1,6 +1,8 @@
+import { join } from "node:path";
 import type { AgentCanUseTool } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
+import { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
@@ -51,6 +53,7 @@ export type RunExecutorDeps = {
   store: WorkflowRunStore;
   deadLetterQueue?: DeadLetterQueueStore;
   eventJournal?: EventJournal;
+	approvalQueue?: ApprovalQueue;
   idempotencyStore?: IdempotencyStore;
   model?: string;
   config?: KotaConfig;
@@ -90,15 +93,26 @@ export function executeWorkflowRun(
   // tests) get a wrapper bound to their own `projectDir`. Either way the
   // run is attributed to the project producing it, never the registry's
   // default.
+  const pbus = inputDeps.pbus
+    ?? new ProjectScopedEventBus(
+      inputDeps.bus,
+      deriveDirectoryScopeId(inputDeps.projectDir),
+    );
+  const approvalQueue = inputDeps.approvalQueue
+    ?? new ApprovalQueue(
+      join(inputDeps.projectDir, ".kota", "approvals"),
+      pbus,
+      pbus.getScopeId(),
+    );
   const deps: RunExecutorDeps & {
     pbus: ProjectScopedEventBus;
     workspaceDir: string;
+    approvalQueue: ApprovalQueue;
   } = {
     ...inputDeps,
     workspaceDir: inputDeps.workspaceDir ?? inputDeps.projectDir,
-    pbus:
-      inputDeps.pbus ??
-      new ProjectScopedEventBus(inputDeps.bus, deriveDirectoryScopeId(inputDeps.projectDir)),
+    pbus,
+    approvalQueue,
   };
   const run = deps.store.createRun(definition, trigger, deps.runId);
   const startedAt = Date.now();
@@ -180,6 +194,7 @@ export function executeWorkflowRun(
           agentRunLimiter,
           delegateBudget,
           runTokenBudget,
+			approvalQueue: deps.approvalQueue,
           idempotencyStore: deps.idempotencyStore,
           scopeId: deps.pbus.getScopeId(),
           projectId: deps.pbus.getProjectId(),

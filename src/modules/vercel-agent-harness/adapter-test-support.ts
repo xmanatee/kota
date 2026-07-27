@@ -60,10 +60,6 @@ type ExecuteToolContext = {
   signal?: AbortSignal;
 };
 
-type SecretMasker = {
-  mask(text: string): string;
-};
-
 type StepCountMarker = {
   __stepCountIs: number;
 };
@@ -123,8 +119,8 @@ const getAllToolsMock = vi.hoisted(() =>
 const getToolEffectMock = vi.hoisted(() =>
   vi.fn<(name: string, input?: ToolInput) => ToolEffect | undefined>(),
 );
-const getSecretStoreMock = vi.hoisted(() =>
-  vi.fn<() => SecretMasker | null>(),
+const maskKnownSecretValuesMock = vi.hoisted(() =>
+  vi.fn<(text: string) => string>(),
 );
 const confirmActionMock = vi.hoisted(() =>
   vi.fn<(message: string) => Promise<boolean>>(),
@@ -133,6 +129,10 @@ const enqueueApprovalMock = vi.hoisted(() =>
   vi.fn<EnqueueApproval>(),
 );
 
+export const approvalQueueMock = {
+  enqueue: (...args: Parameters<EnqueueApproval>) => enqueueApprovalMock(...args),
+} as ApprovalQueue;
+
 export {
   confirmActionMock,
   createOpenAIMock,
@@ -140,7 +140,7 @@ export {
   enqueueApprovalMock,
   executeToolMock,
   getAllToolsMock,
-  getSecretStoreMock,
+  maskKnownSecretValuesMock,
   getToolEffectMock,
   jsonSchemaMock,
   stepCountIsMock,
@@ -180,7 +180,7 @@ vi.mock("#core/daemon/approval-queue.js", () => ({
 }));
 
 vi.mock("#core/config/secrets.js", () => ({
-  getSecretStore: () => getSecretStoreMock(),
+  maskKnownSecretValues: (text: string) => maskKnownSecretValuesMock(text),
 }));
 
 export const TEST_TOOL: KotaTool = {
@@ -209,14 +209,15 @@ beforeEach(async () => {
   executeToolMock.mockReset();
   getAllToolsMock.mockReset();
   getToolEffectMock.mockReset();
-  getSecretStoreMock.mockReset();
+  maskKnownSecretValuesMock.mockReset();
   confirmActionMock.mockReset();
   enqueueApprovalMock.mockReset();
   getAllToolsMock.mockReturnValue([TEST_TOOL]);
-  getSecretStoreMock.mockReturnValue(null);
+  maskKnownSecretValuesMock.mockImplementation((text) => text);
   confirmActionMock.mockResolvedValue(true);
   enqueueApprovalMock.mockReturnValue({
     id: "approval-vercel",
+    scopeId: "scope-test",
     tool: "echo_tool",
     input: { text: "queued" },
     risk: "dangerous",

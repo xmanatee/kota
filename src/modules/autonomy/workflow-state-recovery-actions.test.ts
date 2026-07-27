@@ -154,7 +154,7 @@ describe("workflow state recovery actions", () => {
     expect(listed.ok).toBe(true);
     expect(listed.ok ? listed.claims[0]?.recommendedAction : null).toMatchObject({
       kind: "needs-review",
-      reason: "pending-merge evidence still names merge blockers that need review",
+      reason: "worktree or claim contains unresolved branch integration evidence",
     });
 
     const resolved = provider.resolve({

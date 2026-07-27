@@ -10,7 +10,7 @@ const jsonSchemaMock = vi.fn((schema: unknown) => ({ __jsonSchema: schema }));
 const dynamicToolMock = vi.fn((definition: unknown) => definition);
 const createOpenAIMock = vi.fn();
 const getAllToolsMock = vi.fn();
-const getSecretStoreMock = vi.fn();
+const maskKnownSecretValuesMock = vi.fn<(text: string) => string>();
 
 vi.mock("ai", () => ({
   streamText: (...args: unknown[]) => streamTextMock(...args),
@@ -30,7 +30,7 @@ vi.mock("#core/tools/index.js", () => ({
 }));
 
 vi.mock("#core/config/secrets.js", () => ({
-  getSecretStore: () => getSecretStoreMock(),
+  maskKnownSecretValues: (text: string) => maskKnownSecretValuesMock(text),
 }));
 
 import { vercelAgentHarness } from "./adapter.js";
@@ -49,9 +49,9 @@ beforeEach(() => {
     modelId,
   }));
   getAllToolsMock.mockReset();
-  getSecretStoreMock.mockReset();
+  maskKnownSecretValuesMock.mockReset();
   getAllToolsMock.mockReturnValue([]);
-  getSecretStoreMock.mockReturnValue(null);
+  maskKnownSecretValuesMock.mockImplementation((text) => text);
 });
 
 describe("vercelAgentHarness token budget", () => {

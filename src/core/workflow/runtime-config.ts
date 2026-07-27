@@ -1,5 +1,6 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
+import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import type { EventBus } from "#core/events/event-bus.js";
@@ -34,6 +35,7 @@ export type WorkflowRuntimeConfig = {
   runStore?: WorkflowRunStore;
   deadLetterQueue?: DeadLetterQueueStore;
   eventJournal?: EventJournal;
+	approvalQueue?: ApprovalQueue;
   idempotencyStore?: IdempotencyStore;
   model?: string;
   config?: KotaConfig;

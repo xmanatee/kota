@@ -13,7 +13,7 @@ const generateContentStreamMock = vi.fn();
 const googleGenAICtorMock = vi.fn();
 const executeToolMock = vi.fn();
 const getAllToolsMock = vi.fn<() => readonly KotaTool[]>();
-const getSecretStoreMock = vi.fn();
+const maskKnownSecretValuesMock = vi.fn<(text: string) => string>();
 
 vi.mock("@google/genai", () => ({
   GoogleGenAI: function MockGoogleGenAI(this: unknown, ...args: unknown[]) {
@@ -32,7 +32,7 @@ vi.mock("#core/tools/index.js", () => ({
 }));
 
 vi.mock("#core/config/secrets.js", () => ({
-  getSecretStore: () => getSecretStoreMock(),
+  maskKnownSecretValues: (text: string) => maskKnownSecretValuesMock(text),
 }));
 
 import {
@@ -76,9 +76,9 @@ beforeEach(() => {
   googleGenAICtorMock.mockReset();
   executeToolMock.mockReset();
   getAllToolsMock.mockReset();
-  getSecretStoreMock.mockReset();
+  maskKnownSecretValuesMock.mockReset();
   getAllToolsMock.mockReturnValue([TEST_TOOL]);
-  getSecretStoreMock.mockReturnValue(null);
+  maskKnownSecretValuesMock.mockImplementation((text) => text);
 });
 
 afterEach(() => {
@@ -277,9 +277,9 @@ describe("geminiAgentHarness — multi-turn tool loop", () => {
   });
 
   it("masks registered secrets before feeding functionResponse content into the next model turn", async () => {
-    getSecretStoreMock.mockReturnValue({
-      mask: (text: string) => text.replaceAll("agent-secret-token", "<secret:API_TOKEN>"),
-    });
+    maskKnownSecretValuesMock.mockImplementation((text) =>
+      text.replaceAll("agent-secret-token", "<secret:API_TOKEN>"),
+    );
     generateContentStreamMock
       .mockResolvedValueOnce(
         makeStreamFromChunks([

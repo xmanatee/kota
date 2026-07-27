@@ -2,6 +2,7 @@ import type { KotaThinkingConfig } from "#core/agent-harness/message-protocol.js
 import type { AgentTokenBudgetLedger } from "#core/agent-harness/token-budget.js";
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
+import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
 import { tryEmit } from "#core/events/event-bus.js";
@@ -128,6 +129,7 @@ export class AgentSession implements AgentLoopState {
   sessionStartTime = 0;
   guardrailsConfig!: GuardrailsConfig;
   reflectionEnabled!: boolean;
+	approvalQueue!: ApprovalQueue;
   idempotencyStore!: IdempotencyStore;
   modelTiers: ModelTiers | undefined;
   modelOutputTokenLimits: ModelOutputTokenLimits | undefined;

@@ -51,7 +51,14 @@ export type ApprovalMutateResult =
       approval: PendingApproval;
       execution?: ApprovalExecutionProjection;
     }
-  | { ok: false; reason: "invalid_id" | "not_found" | "input_unavailable" };
+  | {
+      ok: false;
+      reason:
+        | "invalid_id"
+        | "not_found"
+        | "input_unavailable"
+        | "scope_mismatch";
+    };
 
 /**
  * Approval-queue operations.

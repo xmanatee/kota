@@ -5,36 +5,31 @@
  * - `kota secrets set/get/list/remove` CLI commands
  * - `get_secret` agent tool (injects into env, returns placeholder to LLM)
  *
- * The agent tool uses ModuleContext.getSecret() via closure — demonstrating
- * the self-contained module pattern where tool runners access services
- * through the context rather than importing core singletons.
+ * Every operation resolves one project-owned store from its validated scope.
  */
-
-
 import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
 import { Command } from "commander";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
-import { getSecretStore, initSecretStore } from "#core/config/secrets.js";
+import { getProjectSecretStore } from "#core/config/secrets.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
-import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { credentialInjectionEffect } from "#core/tools/effect.js";
 import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
 import { injectSessionEnvironmentVariable } from "#core/tools/session-environment.js";
 import { columns, line, plain, span, stack } from "#modules/rendering/primitives.js";
 import { print, printToStderr, writeStdout } from "#modules/rendering/transport.js";
-import type {
-  SecretGetResult,
-  SecretListResult,
-  SecretMutateResult,
-  SecretScope,
-  SecretsClient,
+import {
+  secretMutationFailure,
+  type SecretScope,
+  type SecretsClient,
 } from "./client.js";
+import { buildSecretsDaemonHandler } from "./daemon-client.js";
+import {
+  createSecretProjectStores,
+  requireSecretStore,
+  type SecretProjectStores,
+} from "./project-scope.js";
 import { secretsRoutes } from "./routes.js";
-
-function ensureLocalStore(ctx: ModuleContext): ReturnType<typeof initSecretStore> {
-  return getSecretStore() ?? initSecretStore(ctx.cwd);
-}
 
 const getSecretTool: KotaTool = {
   name: "get_secret",
@@ -55,8 +50,10 @@ const getSecretTool: KotaTool = {
   },
 };
 
-/** Build the get_secret tool runner with context-injected secret access. */
-function makeGetSecretRunner(ctx: ModuleContext) {
+function makeGetSecretRunner(
+  ctx: ModuleContext,
+  projectStores: SecretProjectStores,
+) {
   return async (
     input: Record<string, unknown>,
     runnerContext?: ToolRunnerContext,
@@ -66,12 +63,17 @@ function makeGetSecretRunner(ctx: ModuleContext) {
       return { content: "Error: secret name is required", is_error: true };
     }
 
-    // Use ctx.getSecret() instead of importing getSecretStore() directly
-    const value = ctx.getSecret(name);
-    if (!value) {
-      // Fall back to store for listing available secrets in error hint
-      const store = getSecretStore();
-      const available = store ? store.list().map((s) => s.name) : [];
+    const store = requireSecretStore(projectStores, {
+      ...(runnerContext?.scopeId !== undefined
+        ? { scopeId: runnerContext.scopeId }
+        : {}),
+      ...(runnerContext?.projectId !== undefined
+        ? { projectId: runnerContext.projectId }
+        : {}),
+    });
+    const value = store.get(name);
+    if (value === null) {
+      const available = store.list().map((secret) => secret.name);
       const hint = available.length > 0
         ? `\nAvailable secrets: ${available.join(", ")}`
         : "\nNo secrets configured. Use 'kota secrets set <name>' to add one.";
@@ -239,17 +241,19 @@ const secretsModule: KotaModule = {
   description: "Secure credential management with output masking",
   dependencies: ["rendering"],
 
-  // Tools as factory function — runner captures ctx via closure
-  tools: (ctx) => [
-    {
-      tool: getSecretTool,
-      runner: makeGetSecretRunner(ctx),
-      effect: credentialInjectionEffect(),
-      group: "management",
-    },
-  ],
+  tools: (ctx) => {
+    const projectStores = createSecretProjectStores(ctx.cwd);
+    return [
+      {
+        tool: getSecretTool,
+        runner: makeGetSecretRunner(ctx, projectStores),
+        effect: credentialInjectionEffect(),
+        group: "management",
+      },
+    ];
+  },
 
-  routes: () => secretsRoutes(),
+  routes: (ctx) => secretsRoutes(createSecretProjectStores(ctx.cwd)),
 
   commands: (ctx) => {
     const cmd = new Command("secrets").description("Manage secrets and credentials");
@@ -346,30 +350,31 @@ const secretsModule: KotaModule = {
   skills: [{ name: "secrets", promptPath: "src/modules/secrets/secrets.md" }],
 
   localClient: (ctx) => {
+    const projectStores = createSecretProjectStores(ctx.cwd);
     const handler: SecretsClient = {
-      async list() {
-        return { secrets: ensureLocalStore(ctx).list() };
+      async list(project) {
+        return { secrets: requireSecretStore(projectStores, project).list() };
       },
-      async get(name) {
-        const value = ensureLocalStore(ctx).get(name);
+      async get(name, project) {
+        const value = requireSecretStore(projectStores, project).get(name);
         return value === null ? { found: false } : { found: true, value };
       },
-      async set(name, value, scope) {
+      async set(name, value, scope, project) {
         try {
-          ensureLocalStore(ctx).set(name, value, scope);
+          requireSecretStore(projectStores, project).set(name, value, scope);
           return { ok: true };
-        } catch (err) {
-          return { ok: false, reason: "store_error", message: (err as Error).message };
+        } catch (error) {
+          return secretMutationFailure(error);
         }
       },
-      async remove(name, scope) {
+      async remove(name, scope, project) {
         try {
-          if (!ensureLocalStore(ctx).remove(name, scope)) {
+          if (!requireSecretStore(projectStores, project).remove(name, scope)) {
             return { ok: false, reason: "not_found" };
           }
           return { ok: true };
-        } catch (err) {
-          return { ok: false, reason: "store_error", message: (err as Error).message };
+        } catch (error) {
+          return secretMutationFailure(error);
         }
       },
     };
@@ -379,68 +384,8 @@ const secretsModule: KotaModule = {
   daemonClient: (link) => ({ secrets: buildSecretsDaemonHandler(link) }),
 
   onLoad: (ctx) => {
-    initSecretStore(ctx.cwd);
+    getProjectSecretStore(ctx.cwd);
   },
 };
-
-/**
- * Daemon-side `SecretsClient` backed by the typed `DaemonTransport`. Calls
- * the same `/api/secrets` and `/api/secrets/:name` HTTP routes the secrets
- * module registers through `secretsRoutes`. The transport surface owns the
- * bearer token, base URL, and timeout policy — this factory only encodes
- * the wire shape.
- *
- * `list()` collapses any non-`200` (the typed link returns `null` on a
- * missing-route or transport error) into `{ secrets: [] }`, matching the
- * pre-migration central closure's `result?.secrets ?? []`. `get(name)`
- * collapses `null` (404 or other transport silence) into `{ found: false }`,
- * matching the prior `silent fallthrough on transport errors` behavior.
- * `set(name, value, scope)` and `remove(name, scope)` thread `PUT` and
- * `DELETE` verbs respectively; thrown transport errors collapse into
- * `{ ok: false, reason: "store_error", message }` with the underlying
- * error message preserved, while `remove`'s `null` (404) collapses into
- * `{ ok: false, reason: "not_found" }`. Every per-secret path runs through
- * `encodeURIComponent(name)`, and the `DELETE` query string runs the
- * scope through `encodeURIComponent(scope)`, so embedded slashes,
- * percents, or spaces round-trip safely.
- */
-function buildSecretsDaemonHandler(link: DaemonTransport): SecretsClient {
-  return {
-    list: async (): Promise<SecretListResult> => {
-      const result = await link.request<SecretListResult>("GET", "/api/secrets");
-      return { secrets: result?.secrets ?? [] };
-    },
-    get: async (name): Promise<SecretGetResult> => {
-      const result = await link.request<{ found: true; value: string }>(
-        "GET",
-        `/api/secrets/${encodeURIComponent(name)}`,
-      );
-      return result ? { found: true, value: result.value } : { found: false };
-    },
-    set: async (name, value, scope): Promise<SecretMutateResult> => {
-      try {
-        await link.requestStrict<{ ok: true }>(
-          "PUT",
-          `/api/secrets/${encodeURIComponent(name)}`,
-          { value, scope },
-        );
-        return { ok: true };
-      } catch (err) {
-        return { ok: false, reason: "store_error", message: (err as Error).message };
-      }
-    },
-    remove: async (name, scope): Promise<SecretMutateResult> => {
-      try {
-        const result = await link.request<{ ok: true }>(
-          "DELETE",
-          `/api/secrets/${encodeURIComponent(name)}?scope=${encodeURIComponent(scope)}`,
-        );
-        return result ? { ok: true } : { ok: false, reason: "not_found" };
-      } catch (err) {
-        return { ok: false, reason: "store_error", message: (err as Error).message };
-      }
-    },
-  };
-}
 
 export default secretsModule;

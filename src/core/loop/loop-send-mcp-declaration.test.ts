@@ -97,6 +97,7 @@ function testLoopState(mcpManager: AgentLoopState["mcpManager"]): AgentLoopState
     } as never,
     guardrailsConfig: {} as never,
     guardrailsSnapshot: {} as never,
+		approvalQueue: {} as never,
     idempotencyStore: {} as never,
     sessionPath: undefined,
     historyEnabled: false,

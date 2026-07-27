@@ -201,13 +201,23 @@ export function readWorktreeEvidence(
 function hasWorktreeMergeBlocker(worktree: WorkflowStateRecoveryWorktreeEvidence): boolean {
   const text = [
     worktree.state,
-    worktree.dirtyState,
     worktree.mergeStatus,
     ...worktree.cleanupBlockers,
-    ...worktree.dirtyEntries,
   ].join("\n");
-  return /\b(conflict|conflicted|pending[- ]merge|not marked merged|not merged|unpushed|uncommitted)\b/i.test(
-    text,
+  return (
+    worktree.uniqueCommitCount > 0 ||
+    /\b(conflict|conflicted|pending[- ]merge|unpushed)\b/i.test(text)
+  );
+}
+
+function hasWorktreeDirtyBlocker(
+  worktree: WorkflowStateRecoveryWorktreeEvidence,
+): boolean {
+  return (
+    worktree.dirtyState === "dirty" ||
+    worktree.dirtyState === "conflicted" ||
+    worktree.dirtyEntries.length > 0 ||
+    worktree.cleanupBlockers.some((blocker) => /\buncommitted\b/i.test(blocker))
   );
 }
 
@@ -223,6 +233,7 @@ export function recommendedActionFor(
   worktree: WorkflowStateRecoveryWorktreeEvidence,
 ): WorkflowStateRecoveryRecommendedAction {
   const worktreeBlocked = hasWorktreeMergeBlocker(worktree);
+  const worktreeDirty = hasWorktreeDirtyBlocker(worktree);
   const claimBlocked = hasClaimMergeBlocker(claim);
   if (ownerRunStatus === "running" || worktree.runState === "active") {
     return {
@@ -238,10 +249,17 @@ export function recommendedActionFor(
     };
   }
 
+  if (worktreeDirty) {
+    return {
+      kind: "needs-review",
+      reason: "worktree contains preserved uncommitted changes that need recovery review",
+    };
+  }
+
   if (worktreeBlocked || claimBlocked) {
     return {
       kind: "needs-review",
-      reason: "pending-merge evidence still names merge blockers that need review",
+      reason: "worktree or claim contains unresolved branch integration evidence",
     };
   }
 

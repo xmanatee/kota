@@ -8,7 +8,7 @@ import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 const generateContentStreamMock = vi.fn();
 const executeToolMock = vi.fn();
 const getAllToolsMock = vi.fn<() => readonly KotaTool[]>();
-const getSecretStoreMock = vi.fn();
+const maskKnownSecretValuesMock = vi.fn<(text: string) => string>();
 
 vi.mock("@google/genai", () => ({
   GoogleGenAI: function MockGoogleGenAI(this: { models: unknown }) {
@@ -26,7 +26,7 @@ vi.mock("#core/tools/index.js", () => ({
 }));
 
 vi.mock("#core/config/secrets.js", () => ({
-  getSecretStore: () => getSecretStoreMock(),
+  maskKnownSecretValues: (text: string) => maskKnownSecretValuesMock(text),
 }));
 
 import { geminiAgentHarness } from "./adapter.js";
@@ -53,9 +53,9 @@ beforeEach(() => {
   generateContentStreamMock.mockReset();
   executeToolMock.mockReset();
   getAllToolsMock.mockReset();
-  getSecretStoreMock.mockReset();
+  maskKnownSecretValuesMock.mockReset();
   getAllToolsMock.mockReturnValue([TEST_TOOL]);
-  getSecretStoreMock.mockReturnValue(null);
+  maskKnownSecretValuesMock.mockImplementation((text) => text);
 });
 
 describe("geminiAgentHarness token budget", () => {

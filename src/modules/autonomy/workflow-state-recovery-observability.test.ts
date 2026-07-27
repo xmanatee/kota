@@ -86,6 +86,18 @@ describe("workflow state recovery observability", () => {
     });
   });
 
+  it("distinguishes preserved dirty work from branch integration blockers", () => {
+    const claim = createPendingMergeClaim("task-dirty", "run-dirty", "owner run failed");
+    const evidence = worktreeEvidence("active", null);
+    evidence.dirtyState = "dirty";
+    evidence.dirtyEntries = ["M src/example.ts"];
+
+    expect(recommendedActionFor(claim, "failed", evidence)).toMatchObject({
+      kind: "needs-review",
+      reason: "worktree contains preserved uncommitted changes that need recovery review",
+    });
+  });
+
   it("isolates resolution by project directory", () => {
     createPendingMergeClaim("task-shared", "run-shared", "owner run completed after merge");
     writeOwnerRunMetadata(projectDir, "run-shared", "builder", "success");

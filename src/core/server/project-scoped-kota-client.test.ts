@@ -7,6 +7,49 @@ import {
 import { ScopeSelectorConflictError } from "./scope-selector.js";
 
 describe("createProjectScopedKotaClient", () => {
+  it("injects projectId into every secrets operation", async () => {
+    const calls: unknown[] = [];
+    const base = {
+      forProject: () => {
+        throw new Error("unexpected call");
+      },
+      forScope: () => {
+        throw new Error("unexpected call");
+      },
+      secrets: {
+        list: async (project: unknown) => {
+          calls.push(["secrets.list", project]);
+          return { secrets: [] };
+        },
+        get: async (name: string, project: unknown) => {
+          calls.push(["secrets.get", name, project]);
+          return { found: false as const };
+        },
+        set: async (name: string, value: string, scope: string, project: unknown) => {
+          calls.push(["secrets.set", name, value, scope, project]);
+          return { ok: true as const };
+        },
+        remove: async (name: string, scope: string, project: unknown) => {
+          calls.push(["secrets.remove", name, scope, project]);
+          return { ok: true as const };
+        },
+      },
+    } as unknown as KotaClient;
+
+    const scoped = createProjectScopedKotaClient(base, "project-b");
+    await scoped.secrets.list();
+    await scoped.secrets.get("TOKEN");
+    await scoped.secrets.set("TOKEN", "value", "project");
+    await scoped.secrets.remove("TOKEN", "project");
+
+    expect(calls).toEqual([
+      ["secrets.list", { projectId: "project-b" }],
+      ["secrets.get", "TOKEN", { projectId: "project-b" }],
+      ["secrets.set", "TOKEN", "value", "project", { projectId: "project-b" }],
+      ["secrets.remove", "TOKEN", "project", { projectId: "project-b" }],
+    ]);
+  });
+
   it("injects projectId into approvals, ownerDecisions, and ownerQuestions namespaces", async () => {
     const calls: unknown[] = [];
     const base = {

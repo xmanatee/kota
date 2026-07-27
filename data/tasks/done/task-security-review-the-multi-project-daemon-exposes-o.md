@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-multi-project-daemon-exposes-o
 title: Security review: The multi-project daemon exposes one process-global SecretStore through unscoped routes and client methods. Selecting another project cannot affect secrets operations, so a client scoped to project B can read, modify, or remove the default project's credentials.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: The multi-project daemon exposes one process-global SecretStore through unscoped routes and client methods. Selecting another project cannot affect secrets operations, so a client scoped to project B can read, modify, or remove the default project's credentials.
 created_at: 2026-07-27T03:25:52.665Z
-updated_at: 2026-07-27T03:25:52.665Z
+updated_at: 2026-07-27T21:56:14.853Z
 ---
 
 ## Problem
@@ -152,4 +152,13 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- One stable `SecretStore` now belongs to each canonical project runtime.
+  Secrets routes and clients require a validated project selector, unknown
+  projects fail before store access, and `forProject`/`forScope` propagate the
+  selector through list, get, set, and remove.
+- The mutable process-global store selector and transport fallbacks were
+  removed. Tool-result masking covers values registered by every hosted
+  project without granting cross-project read or mutation access.
+- `pnpm exec tsc -p tsconfig.json --noEmit` passed.
+- Focused secrets and recovery regression: 7 files and 66 tests passed,
+  including two-project route isolation and strict daemon transport behavior.

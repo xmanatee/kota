@@ -1,4 +1,4 @@
-import { getApprovalQueue } from "#core/daemon/approval-queue.js";
+import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { McpManager } from "#core/mcp/manager.js";
 import type { RiskLevel } from "./guardrails.js";
 import type { ToolCallInput } from "./guardrails-classify.js";
@@ -6,6 +6,7 @@ import { mcpPromptDeclarationForApproval } from "./tool-runner-mcp.js";
 import type { McpPromptToolDeclarationFingerprints } from "./tool-runner-types.js";
 
 export function enqueueToolApproval(args: {
+	approvalQueue?: ApprovalQueue;
 	toolName: string;
 	input: ToolCallInput;
 	risk: RiskLevel;
@@ -16,12 +17,17 @@ export function enqueueToolApproval(args: {
 	mcpManager?: McpManager | undefined;
 	promptFingerprints?: McpPromptToolDeclarationFingerprints | undefined;
 }): { id: string } {
+	if (!args.approvalQueue) {
+		throw new Error(
+			"Tool approval queue is unavailable for this execution scope",
+		);
+	}
 	const mcpPromptDeclaration = mcpPromptDeclarationForApproval(
 		args.toolName,
 		args.mcpManager,
 		args.promptFingerprints,
 	);
-	return getApprovalQueue().enqueue(
+	return args.approvalQueue.enqueue(
 		args.toolName,
 		args.input,
 		args.risk,

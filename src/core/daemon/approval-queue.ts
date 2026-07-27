@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { cloneEvidenceJsonObject, evidenceRetentionDurationMsFor } from "#core/evidence/policy.js";
 import type { RiskLevel } from "#core/tools/guardrails.js";
 import { emitApprovalExpired, emitApprovalRequested, emitApprovalResolved } from "./approval-queue-events.js";
 import { approvalFilePath, approvalFilePathForItem, projectApprovalForStorage } from "./approval-queue-projection.js";
+import { deriveDirectoryScopeId } from "./scope-registry.js";
 
 export { isApprovalId, projectApprovalForClient } from "./approval-queue-projection.js";
 
@@ -27,6 +28,7 @@ export type ApprovalMcpPromptDeclaration = {
 export type PendingApproval = {
 	id: string;
 	seq?: number;
+	scopeId: string;
 	tool: string;
 	input: Record<string, unknown>;
 	risk: RiskLevel;
@@ -58,7 +60,7 @@ export type ApprovalExecutionApprovalResult =
 	  }
 	| {
 			ok: false;
-			reason: "not_found" | "input_unavailable";
+			reason: "not_found" | "input_unavailable" | "scope_mismatch";
 			approval?: PendingApproval;
 	  };
 
@@ -69,7 +71,7 @@ export type ApprovalExecutionApproveAllResult =
 	  }
 	| {
 			ok: false;
-			reason: "input_unavailable";
+			reason: "input_unavailable" | "scope_mismatch";
 			approvals: PendingApproval[];
 	  };
 
@@ -88,10 +90,39 @@ let _enqueueSeq = 0;
 export class ApprovalQueue {
 	private pbus: ProjectScopedEventBus | null;
 	private executionInputs = new Map<string, PendingApproval["input"]>();
+	private readonly scopeId: string;
 
-	constructor(private dir: string, pbus?: ProjectScopedEventBus | null) {
+	constructor(
+		private dir: string,
+		pbus?: ProjectScopedEventBus | null,
+		scopeId?: string,
+	) {
 		if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 		this.pbus = pbus ?? null;
+		this.scopeId = scopeId
+			?? pbus?.getScopeId()
+			?? deriveDirectoryScopeId(resolve(dir, "..", ".."));
+		if (pbus && pbus.getScopeId() !== this.scopeId) {
+			throw new Error(
+				`ApprovalQueue scope ${this.scopeId} does not match event bus scope ${pbus.getScopeId()}`,
+			);
+		}
+	}
+
+	getScopeId(): string {
+		return this.scopeId;
+	}
+
+	private read(path: string): PendingApproval {
+		const item = JSON.parse(readFileSync(path, "utf-8")) as PendingApproval;
+		if (typeof item.scopeId !== "string" || item.scopeId.length === 0) {
+			throw new Error(`Malformed approval record at ${path}: missing scopeId`);
+		}
+		return projectApprovalForStorage(item);
+	}
+
+	private belongsToQueue(item: PendingApproval): boolean {
+		return item.scopeId === this.scopeId;
 	}
 
 	private write(item: PendingApproval): PendingApproval {
@@ -118,6 +149,7 @@ export class ApprovalQueue {
 		const item: PendingApproval = {
 			id: randomUUID().slice(0, 8),
 			seq: _enqueueSeq++,
+			scopeId: this.scopeId,
 			tool,
 			input,
 			risk,
@@ -141,16 +173,21 @@ export class ApprovalQueue {
 		const path = approvalFilePath(this.dir, id);
 		if (!path) return null;
 		if (!existsSync(path)) return null;
-		return projectApprovalForStorage(JSON.parse(readFileSync(path, "utf-8")) as PendingApproval);
+		return this.read(path);
 	}
 
 	list(status?: ApprovalStatus): PendingApproval[] {
 		if (!existsSync(this.dir)) return [];
-		return readdirSync(this.dir)
+		const items = readdirSync(this.dir)
 			.filter((f) => f.endsWith(".json"))
-			.map((f) =>
-				projectApprovalForStorage(JSON.parse(readFileSync(join(this.dir, f), "utf-8")) as PendingApproval)
-			)
+			.map((f) => this.read(join(this.dir, f)));
+		const mismatched = items.find((item) => !this.belongsToQueue(item));
+		if (mismatched) {
+			throw new Error(
+				`Approval ${mismatched.id} belongs to scope ${mismatched.scopeId}, not ${this.scopeId}`,
+			);
+		}
+		return items
 			.filter((item) => !status || item.status === status)
 			.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || (a.seq ?? 0) - (b.seq ?? 0));
 	}
@@ -159,7 +196,7 @@ export class ApprovalQueue {
 		const path = approvalFilePath(this.dir, id);
 		if (!path) return null;
 		const item = this.get(id);
-		if (!item || item.status !== "pending") return null;
+		if (!item || item.status !== "pending" || !this.belongsToQueue(item)) return null;
 		item.status = "approved";
 		item.resolvedAt = new Date().toISOString();
 		if (note) item.approvalNote = note;
@@ -178,6 +215,9 @@ export class ApprovalQueue {
 	): ApprovalExecutionApprovalResult {
 		const item = this.get(id);
 		if (!item || item.status !== "pending") return { ok: false, reason: "not_found" };
+		if (!this.belongsToQueue(item)) {
+			return { ok: false, reason: "scope_mismatch", approval: item };
+		}
 		const executionInput = this.executionInputs.get(id);
 		if (executionInput === undefined) {
 			return { ok: false, reason: "input_unavailable", approval: item };
@@ -191,7 +231,7 @@ export class ApprovalQueue {
 		const path = approvalFilePath(this.dir, id);
 		if (!path) return null;
 		const item = this.get(id);
-		if (!item || item.status !== "pending") return null;
+		if (!item || item.status !== "pending" || !this.belongsToQueue(item)) return null;
 		item.status = "rejected";
 		item.resolvedAt = new Date().toISOString();
 		item.rejectionReason = reason;
@@ -243,6 +283,10 @@ export class ApprovalQueue {
 		const pending = approvalIds
 			.map((id) => this.get(id))
 			.filter((item): item is PendingApproval => item?.status === "pending");
+		const mismatched = pending.filter((item) => !this.belongsToQueue(item));
+		if (mismatched.length > 0) {
+			return { ok: false, reason: "scope_mismatch", approvals: mismatched };
+		}
 		const unavailable = pending.filter((item) => !this.executionInputs.has(item.id));
 		if (unavailable.length > 0) {
 			return { ok: false, reason: "input_unavailable", approvals: unavailable };

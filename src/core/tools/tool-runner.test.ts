@@ -36,7 +36,7 @@ vi.mock("#core/daemon/approval-queue.js", () => ({
   })),
 }));
 vi.mock("#core/config/secrets.js", () => ({
-  getSecretStore: vi.fn(() => null),
+  maskKnownSecretValues: (text: string) => text,
 }));
 
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
@@ -102,6 +102,7 @@ function runOptions(
     resultLimit: 50000,
     verbose: false,
     autonomyMode: "autonomous" as AutonomyMode,
+    approvalQueue: getApprovalQueue(),
     ...overrides,
   };
 }
@@ -275,11 +276,14 @@ describe("executeToolCalls", () => {
       [toolBlock("file_read", { path: "/a.txt" })],
       runOptions(),
     );
-    expect(mockExecuteTool).toHaveBeenCalledWith("file_read", {
-      path: "/a.txt",
-    }, {
-      toolUseId: "t1",
-    });
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      "file_read",
+      { path: "/a.txt" },
+      expect.objectContaining({
+        approvalQueue: expect.any(Object),
+        toolUseId: "t1",
+      }),
+    );
     expect(results).toHaveLength(1);
     expect(results[0].tool_use_id).toBe("t1");
     expect(results[0].content).toBe("file contents");
@@ -297,7 +301,11 @@ describe("executeToolCalls", () => {
     expect(mockExecuteTool).toHaveBeenCalledWith(
       "shell",
       { command: "pwd" },
-      { sessionId: "session-7", toolUseId: "tool-42" },
+      expect.objectContaining({
+        approvalQueue: expect.any(Object),
+        sessionId: "session-7",
+        toolUseId: "tool-42",
+      }),
     );
   });
 
@@ -605,9 +613,14 @@ describe("executeToolCalls", () => {
       [toolBlock("shell", { command: "ls" })],
       runOptions({ mcpManager: mcpManager as never }),
     );
-    expect(mockExecuteTool).toHaveBeenCalledWith("shell", { command: "ls" }, {
-      toolUseId: "t1",
-    });
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      "shell",
+      { command: "ls" },
+      expect.objectContaining({
+        approvalQueue: expect.any(Object),
+        toolUseId: "t1",
+      }),
+    );
     expect(mcpManager.executeTool).not.toHaveBeenCalled();
   });
 
@@ -738,9 +751,14 @@ describe("guardrails confirm gate", () => {
 
     expect(results[0].is_error).toBeUndefined();
     expect(results[0].content).toBe("reset done");
-    expect(mockExecuteTool).toHaveBeenCalledWith("shell", { command: "git reset --hard HEAD~1" }, {
-      toolUseId: "t1",
-    });
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      "shell",
+      { command: "git reset --hard HEAD~1" },
+      expect.objectContaining({
+        approvalQueue: expect.any(Object),
+        toolUseId: "t1",
+      }),
+    );
   });
 
   it("blocks a tool call when policy is deny", async () => {

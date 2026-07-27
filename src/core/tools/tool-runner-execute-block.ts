@@ -54,6 +54,7 @@ export async function executeToolBlock(
 		resultLimit,
 		verbose,
 		autonomyMode,
+		approvalQueue,
 		mcpManager,
 		mcpInputResolver,
 		mcpPromptToolDeclarationFingerprints,
@@ -142,6 +143,7 @@ export async function executeToolBlock(
 		if (clientDecision.outcome === "blocked") return clientDecision.result;
 		if (clientDecision.outcome === "unavailable") {
 			const queued = enqueueToolApproval({
+				approvalQueue,
 				toolName: block.name,
 				input,
 				risk: assessment.risk,
@@ -175,6 +177,7 @@ export async function executeToolBlock(
 		if (clientDecision.outcome === "blocked") return clientDecision.result;
 		if (clientDecision.outcome === "unavailable") {
 			const queued = enqueueToolApproval({
+				approvalQueue,
 				toolName: block.name,
 				input,
 				risk: assessment.risk,
@@ -214,6 +217,7 @@ export async function executeToolBlock(
 
 	const startMs = performance.now();
 	const runnerContext = {
+		...(approvalQueue !== undefined ? { approvalQueue } : {}),
 		...(sessionId && { sessionId }),
 		toolUseId: block.id,
 		...(cwd !== undefined ? { cwd } : {}),

@@ -4,7 +4,11 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ApprovalQueue } from "#core/daemon/approval-queue.js";
+import {
+  ApprovalQueue,
+  resetApprovalQueue,
+  setApprovalQueueInstance,
+} from "#core/daemon/approval-queue.js";
 import { OwnerDecisionStore } from "#core/daemon/owner-decision-store.js";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
@@ -25,6 +29,7 @@ import {
   type ToolRunnerContext,
 } from "#core/tools/index.js";
 import { resetModuleFactory } from "#core/tools/module-factory/index.js";
+import { executeToolCalls } from "#core/tools/tool-runner.js";
 import { fileEditTool, runFileEdit } from "#modules/filesystem/file-edit.js";
 import { fileReadTool, runFileRead } from "#modules/filesystem/file-read.js";
 import { fileWriteTool, runFileWrite } from "#modules/filesystem/file-write.js";
@@ -39,6 +44,7 @@ import { runViewImage, viewImageTool } from "#modules/system/view-image.js";
 import {
   handleApproveAllApprovals,
   handleApproveApproval,
+  handleListApprovals,
 } from "./routes.js";
 
 let hasSqlite3 = false;
@@ -110,7 +116,11 @@ function makeEntry(projectDir: string, displayName: string): ProjectRuntimeEntry
   const project = buildConfiguredProject({ projectDir, displayName });
   return {
     project,
-    approvalQueue: new ApprovalQueue(join(project.projectDir, ".kota", "approvals")),
+    approvalQueue: new ApprovalQueue(
+      join(project.projectDir, ".kota", "approvals"),
+      null,
+      project.projectId,
+    ),
     ownerDecisionStore: new OwnerDecisionStore(
       join(project.projectDir, ".kota", "owner-decisions"),
       project.projectId,
@@ -148,6 +158,7 @@ function registerProjectQueueProvider(entries: ProjectRuntimeEntry[]): void {
         runtime: {
           project: entry.project,
           approvalQueue: entry.approvalQueue,
+          secretStore: {} as never,
           ownerDecisionStore: entry.ownerDecisionStore,
           ownerQuestionQueue: entry.ownerQuestionQueue,
         },
@@ -207,6 +218,7 @@ describe("approval execution project scope", () => {
     originalCwd = process.cwd();
     rootDir = mkdtempSync(join(tmpdir(), "kota-approval-scope-"));
     resetProviderRegistry();
+    resetApprovalQueue();
     contexts = [];
     toolOutputs = [];
     defaultEntry = makeEntry(join(rootDir, "project-a"), "Project A");
@@ -303,7 +315,149 @@ describe("approval execution project scope", () => {
     resetModuleFactory();
     resetPromptStore();
     resetProviderRegistry();
+    resetApprovalQueue();
     rmSync(rootDir, { recursive: true, force: true });
+  });
+
+  it("keeps concurrent project approvals scoped through enqueue, listing, approval, and execution", async () => {
+    setApprovalQueueInstance(projectB.approvalQueue);
+
+    const queueWrite = (
+      entry: ProjectRuntimeEntry,
+      sessionId: string,
+      content: string,
+    ) => executeToolCalls(
+      [{
+        type: "tool_use",
+        id: `tool-${sessionId}`,
+        name: TOOL_NAMES.fileWrite,
+        input: { path: "concurrent-marker.txt", content },
+      }],
+      {
+        resultLimit: 50_000,
+        verbose: false,
+        autonomyMode: "supervised",
+        approvalQueue: entry.approvalQueue,
+        sessionId,
+        scopeId: entry.project.projectId,
+        projectId: entry.project.projectId,
+      },
+    );
+
+    await Promise.all([
+      queueWrite(defaultEntry, "session-a", "project-a"),
+      queueWrite(projectB, "session-b", "project-b"),
+    ]);
+
+    const aListResponse = mockResponse();
+    const bListResponse = mockResponse();
+    await Promise.all([
+      handleListApprovals(
+        aListResponse.res,
+        null,
+        undefined,
+        "pending",
+        defaultEntry.project.projectId,
+      ),
+      handleListApprovals(
+        bListResponse.res,
+        null,
+        undefined,
+        "pending",
+        projectB.project.projectId,
+      ),
+    ]);
+
+    const aApprovals = (aListResponse.result.body as { approvals: Array<{ id: string; scopeId: string }> }).approvals;
+    const bApprovals = (bListResponse.result.body as { approvals: Array<{ id: string; scopeId: string }> }).approvals;
+    expect(aApprovals).toHaveLength(1);
+    expect(bApprovals).toHaveLength(1);
+    expect(aApprovals[0]?.scopeId).toBe(defaultEntry.project.projectId);
+    expect(bApprovals[0]?.scopeId).toBe(projectB.project.projectId);
+
+    const aApproveResponse = mockResponse();
+    const bApproveResponse = mockResponse();
+    await Promise.all([
+      handleApproveApproval(
+        mockRequest(),
+        aApproveResponse.res,
+        aApprovals[0]!.id,
+        null,
+        undefined,
+        defaultEntry.project.projectId,
+      ),
+      handleApproveApproval(
+        mockRequest(),
+        bApproveResponse.res,
+        bApprovals[0]!.id,
+        null,
+        undefined,
+        projectB.project.projectId,
+      ),
+    ]);
+
+    expect(aApproveResponse.result.status).toBe(200);
+    expect(bApproveResponse.result.status).toBe(200);
+    expect(readFileSync(join(defaultEntry.project.projectDir, "concurrent-marker.txt"), "utf-8"))
+      .toBe("project-a");
+    expect(readFileSync(join(projectB.project.projectDir, "concurrent-marker.txt"), "utf-8"))
+      .toBe("project-b");
+    expect(contexts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        cwd: defaultEntry.project.projectDir,
+        scopeId: defaultEntry.project.projectId,
+        sessionId: "session-a",
+      }),
+      expect.objectContaining({
+        cwd: projectB.project.projectDir,
+        scopeId: projectB.project.projectId,
+        sessionId: "session-b",
+      }),
+    ]));
+  });
+
+  it("rejects execution when a queued approval is attributed to another project", async () => {
+    const item = projectB.approvalQueue.enqueue(
+      TOOL_NAMES.fileWrite,
+      { path: "scope-mismatch.txt", content: "must-not-run" },
+      "moderate",
+      "mismatched scope regression",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      "session-a",
+    );
+    const itemPath = join(
+      projectB.project.projectDir,
+      ".kota",
+      "approvals",
+      `${item.id}.json`,
+    );
+    const stored = JSON.parse(readFileSync(itemPath, "utf-8")) as Record<string, unknown>;
+    stored.scopeId = defaultEntry.project.projectId;
+    writeFileSync(itemPath, JSON.stringify(stored, null, 2));
+    expect(() => projectB.approvalQueue.list("pending")).toThrow(
+      /belongs to scope/,
+    );
+
+    const { res, result } = mockResponse();
+    await handleApproveApproval(
+      mockRequest(),
+      res,
+      item.id,
+      null,
+      undefined,
+      projectB.project.projectId,
+    );
+
+    expect(result.status).toBe(409);
+    expect(result.body).toMatchObject({
+      reason: "approval_scope_mismatch",
+      expectedScopeId: projectB.project.projectId,
+    });
+    expect(existsSync(join(projectB.project.projectDir, "scope-mismatch.txt"))).toBe(false);
+    expect(projectB.approvalQueue.get(item.id)?.status).toBe("pending");
   });
 
   it("executes a selected project's single approval under that project cwd", async () => {

@@ -24,6 +24,9 @@ export function agentHarnessToolExecutionOptions(
 		resultLimit: overrides.resultLimit,
 		verbose: options.verbose === true,
 		autonomyMode: options.autonomyMode ?? "autonomous",
+		...(options.approvalQueue !== undefined
+			? { approvalQueue: options.approvalQueue }
+			: {}),
 		...(options.guardrailsConfig !== undefined
 			? { guardrailsConfig: options.guardrailsConfig }
 			: {}),

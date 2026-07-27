@@ -7,9 +7,9 @@
  */
 
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
-import { getApprovalQueue, projectApprovalForClient } from "#core/daemon/approval-queue.js";
+import { projectApprovalForClient } from "#core/daemon/approval-queue.js";
 import { readOnlyDaemonEffect } from "./effect.js";
-import type { ToolResult } from "./index.js";
+import type { ToolResult, ToolRunnerContext } from "./index.js";
 
 const approvalTool: KotaTool = {
 	name: "approval",
@@ -31,9 +31,15 @@ const approvalTool: KotaTool = {
 	},
 };
 
-async function runApproval(input: Record<string, unknown>): Promise<ToolResult> {
+async function runApproval(
+	input: Record<string, unknown>,
+	context?: ToolRunnerContext,
+): Promise<ToolResult> {
 	const action = input.action as string;
-	const queue = getApprovalQueue();
+	const queue = context?.approvalQueue;
+	if (!queue) {
+		throw new Error("Approval queue is unavailable for this execution scope");
+	}
 
 	switch (action) {
 		case "count": {

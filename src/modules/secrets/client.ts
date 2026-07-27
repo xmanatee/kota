@@ -10,6 +10,8 @@
  * or by importing these types from `#modules/secrets/client.js`.
  */
 
+import type { ScopeSelector } from "#core/server/scope-selector.js";
+
 /** A masked entry in the secret store (name and source only — never the value). */
 export type SecretListEntry = {
   name: string;
@@ -23,6 +25,8 @@ export type SecretListResult = {
 /** Storage scope for a writable secret. Mirrors `SecretScope` in core/config/secrets. */
 export type SecretScope = "project" | "global";
 
+export type SecretProjectSelection = ScopeSelector;
+
 /** Result of `secrets.get(name)`. The contract is explicit about absence. */
 export type SecretGetResult = { found: true; value: string } | { found: false };
 
@@ -30,6 +34,12 @@ export type SecretGetResult = { found: true; value: string } | { found: false };
 export type SecretMutateResult =
   | { ok: true }
   | { ok: false; reason: "not_found" | "store_error"; message?: string };
+
+export function secretMutationFailure(cause: unknown): SecretMutateResult {
+  const error = cause instanceof Error ? cause : new Error(String(cause));
+  if (/^Unknown (project|scope)(?::|$)/.test(error.message)) throw error;
+  return { ok: false, reason: "store_error", message: error.message };
+}
 
 /**
  * Secret-store operations.
@@ -41,8 +51,17 @@ export type SecretMutateResult =
  * of scope.
  */
 export interface SecretsClient {
-  list(): Promise<SecretListResult>;
-  get(name: string): Promise<SecretGetResult>;
-  set(name: string, value: string, scope: SecretScope): Promise<SecretMutateResult>;
-  remove(name: string, scope: SecretScope): Promise<SecretMutateResult>;
+  list(project?: SecretProjectSelection): Promise<SecretListResult>;
+  get(name: string, project?: SecretProjectSelection): Promise<SecretGetResult>;
+  set(
+    name: string,
+    value: string,
+    scope: SecretScope,
+    project?: SecretProjectSelection,
+  ): Promise<SecretMutateResult>;
+  remove(
+    name: string,
+    scope: SecretScope,
+    project?: SecretProjectSelection,
+  ): Promise<SecretMutateResult>;
 }

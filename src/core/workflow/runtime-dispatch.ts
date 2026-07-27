@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
+import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import {
   createWorkflowDispatchDeadLetter,
   type DeadLetterFailureClass,
@@ -57,6 +58,7 @@ export interface WorkflowRuntimeDispatchState {
   store: WorkflowRunStore;
   deadLetterQueue?: DeadLetterQueueStore;
   eventJournal?: EventJournal;
+	approvalQueue: ApprovalQueue;
   idempotencyStore: IdempotencyStore;
   wfQueue: WorkflowQueueManager;
   definitions: WorkflowDefinition[];
@@ -195,6 +197,7 @@ export async function runWorkflow(
         ? { deadLetterQueue: state.deadLetterQueue }
         : {}),
       eventJournal: state.eventJournal,
+		approvalQueue: state.approvalQueue,
       idempotencyStore: state.idempotencyStore,
       model: state.model,
       config: state.config,

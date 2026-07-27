@@ -1,13 +1,13 @@
 ---
 id: task-security-review-each-project-owns-a-distinct-appro
 title: Security review: Each project owns a distinct approval queue, but constructing an AgentSession replaces the process-global queue singleton with that session's project queue. Tool approval enqueueing ignores the supplied scope and uses the current singleton, so concurrent multi-project sessions can place project A's approval in project B's queue, where it may be reviewed and replayed against the wrong project.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Each project owns a distinct approval queue, but constructing an AgentSession replaces the process-global queue singleton with that session's project queue. Tool approval enqueueing ignores the supplied scope and uses the current singleton, so concurrent multi-project sessions can place project A's approval in project B's queue, where it may be reviewed and replayed against the wrong project.
 created_at: 2026-07-27T10:43:55.804Z
-updated_at: 2026-07-27T10:43:55.804Z
+updated_at: 2026-07-27T21:56:05.785Z
 ---
 
 ## Problem
@@ -110,4 +110,10 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- The owning `ApprovalQueue` is passed through classic sessions, workflow
+  runs, hosted harnesses, and the shared tool runner; no session rebinds the
+  process singleton. Persisted approvals carry `scopeId`, and execution rejects
+  a queue item whose scope differs from the selected project.
+- `pnpm exec tsc -p tsconfig.json --noEmit` passed.
+- Focused approval regression: 4 files and 84 tests passed, including the
+  concurrent two-project enqueue/list/approve/execute boundary.

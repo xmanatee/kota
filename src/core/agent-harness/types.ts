@@ -1,3 +1,4 @@
+import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import type { ModelProviderSelection } from "#core/model/model-client.js";
 import type { ModelOutputTokenLimits } from "#core/model/output-token-limits.js";
@@ -148,6 +149,7 @@ export type AgentHarnessRunOptions = {
    */
   guardrailsConfig?: GuardrailsConfig;
   clientApprovalResolver?: ToolApprovalResolver;
+	approvalQueue?: ApprovalQueue;
   idempotencyStore?: IdempotencyStore;
   /**
    * Harness-neutral request to expose the owner-questions escalation tool to

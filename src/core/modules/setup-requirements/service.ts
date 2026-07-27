@@ -1,5 +1,5 @@
 import { loadConfig } from "#core/config/config.js";
-import { getSecretStore, initSecretStore } from "#core/config/secrets.js";
+import { getProjectSecretStore } from "#core/config/secrets.js";
 import { deleteProjectConfigPath, setProjectConfigPath } from "./config-paths.js";
 import { SECRET_REFERENCE_PATTERN, SETUP_ACTION_STATUSES } from "./constants.js";
 import { ModuleSetupActionStore } from "./pending-actions.js";
@@ -104,7 +104,7 @@ export class ModuleSetupService {
     const refs = secretRefsFor(found.requirement);
     if (refs.length === 0) return invalidRequest("Requirement does not accept secret setup");
     try {
-      const store = getSecretStore() ?? initSecretStore(this.#projectDir);
+      const store = getProjectSecretStore(this.#projectDir);
       for (const ref of refs) {
         const value = secretValues[ref.name];
         if (value === undefined || value.length === 0) {
@@ -204,7 +204,7 @@ export class ModuleSetupService {
     try {
       const refs = secretRefsFor(found.requirement);
       if (refs.length > 0) {
-        const store = getSecretStore() ?? initSecretStore(this.#projectDir);
+        const store = getProjectSecretStore(this.#projectDir);
         for (const ref of refs) store.remove(ref.name, ref.scope);
       }
       if (found.requirement.kind === "browser-profile") {

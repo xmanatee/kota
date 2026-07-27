@@ -469,6 +469,24 @@ describe("singleton-binding invariant", () => {
       }
     }
 
+    for (const file of walk(path.join(repoSrc, "core"))) {
+      if (!file.endsWith(".ts")) continue;
+      if (file.endsWith(".test.ts") || file.endsWith(".integration.test.ts")) continue;
+      if (file === FACTORY_FILE || file === path.join(daemonDir, "approval-queue.ts")) {
+        continue;
+      }
+      const lines = readFileSync(file, "utf-8").split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]!;
+        if (/^\s*import\b/.test(line)) continue;
+        if (/\bsetApprovalQueueInstance\s*\(/.test(line)) {
+          violations.push(
+            `${path.relative(repoSrc, file)}:${i + 1}: setApprovalQueueInstance(  → ${line.trim()}`,
+          );
+        }
+      }
+    }
+
     expect(
       violations,
       [

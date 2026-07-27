@@ -1,5 +1,6 @@
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import {
   type EventBus,
@@ -25,7 +26,9 @@ function buildToolContext(
   stepId: string,
   workspaceDir: string,
   runtimeResources: WorkflowRuntimeResources | undefined,
+  approvalQueue: ApprovalQueue | undefined,
 ): {
+  approvalQueue?: ApprovalQueue;
   cwd: string;
   env?: Record<string, string>;
   stepId: string;
@@ -43,6 +46,7 @@ function buildToolContext(
   const scopeId = pbus.getScopeId();
   const projectId = pbus.getProjectId();
   return {
+    ...(approvalQueue !== undefined ? { approvalQueue } : {}),
     cwd: workspaceDir,
     ...(runtimeResources !== undefined
       ? { env: runtimeResources.env }
@@ -102,6 +106,7 @@ export function createStepContext(
     pbus: ProjectScopedEventBus;
     store: WorkflowRunStore;
     deadLetterQueue?: DeadLetterQueueStore;
+    approvalQueue?: ApprovalQueue;
     eventJournal?: EventJournal;
     runTool?: WorkflowRunToolRunner;
     currentStepId?: string;
@@ -119,6 +124,9 @@ export function createStepContext(
     ? dirname(dirname(deps.eventJournal.getPath()))
     : deps.store.rootDir;
   return {
+    ...(deps.approvalQueue !== undefined
+      ? { approvalQueue: deps.approvalQueue }
+      : {}),
     projectDir: deps.projectDir,
     workspaceDir,
     ...(deps.runtimeResources !== undefined
@@ -148,6 +156,7 @@ export function createStepContext(
         stepId,
         workspaceDir,
         deps.runtimeResources,
+        deps.approvalQueue,
       );
       if (deps.runTool) {
         return deps.runTool(name, input, context);

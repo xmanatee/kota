@@ -1,4 +1,3 @@
-import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { WorkflowStepContext } from "../run-types.js";
 import type { WorkflowApprovalStep } from "../step-types.js";
 import type { WorkflowStepOutput } from "./step-executor-agent.js";
@@ -24,8 +23,11 @@ export async function executeApprovalStep(
   context: WorkflowStepContext,
   signal: AbortSignal,
 ): Promise<WorkflowStepOutput> {
-  const queue = getApprovalQueue();
   const label = `workflow "${context.workflow.name}" step "${step.id}"`;
+  const queue = context.approvalQueue;
+  if (!queue) {
+    throw new Error(`${label} has no approval queue for its execution scope`);
+  }
   const reason = step.reason ?? `Workflow step "${step.id}" requires approval to continue`;
 
   const approval = queue.enqueue(

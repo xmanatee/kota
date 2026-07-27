@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
+import { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
@@ -38,6 +39,7 @@ export interface WorkflowRuntimeContext {
   readonly store: WorkflowRunStore;
   readonly deadLetterQueue?: DeadLetterQueueStore;
   readonly eventJournal?: EventJournal;
+	readonly approvalQueue: ApprovalQueue;
   readonly idempotencyStore: IdempotencyStore;
   readonly wfQueue: WorkflowQueueManager;
   readonly scheduleTriggers: ScheduleTriggerManager;
@@ -88,6 +90,11 @@ export function createWorkflowRuntimeContext(
   const projectDir = runtimeConfig.projectDir ?? process.cwd();
   const store = runtimeConfig.runStore ?? new WorkflowRunStore(projectDir);
   const scopeId = deriveDirectoryScopeId(projectDir);
+	const pbus =
+		runtimeConfig.pbus ??
+		new ProjectScopedEventBus(runtimeConfig.bus, scopeId);
+	const approvalQueue = runtimeConfig.approvalQueue
+		?? new ApprovalQueue(join(projectDir, ".kota", "approvals"), pbus, scopeId);
   const idempotencyStore =
     runtimeConfig.idempotencyStore ??
     new IdempotencyStore(join(store.rootDir, "idempotency"), scopeId);
@@ -145,10 +152,6 @@ export function createWorkflowRuntimeContext(
     log,
   );
 
-  const pbus =
-    runtimeConfig.pbus ??
-    new ProjectScopedEventBus(runtimeConfig.bus, scopeId);
-
   const agentConcurrency = runtimeConfig.agentConcurrency ?? 1;
   const eventBatches = new WorkflowEventBatchManager(
     store,
@@ -165,6 +168,7 @@ export function createWorkflowRuntimeContext(
     store,
     deadLetterQueue: runtimeConfig.deadLetterQueue,
     eventJournal: runtimeConfig.eventJournal,
+		approvalQueue,
     idempotencyStore,
     wfQueue,
     scheduleTriggers,

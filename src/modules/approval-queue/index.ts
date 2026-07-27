@@ -41,8 +41,11 @@ export { ApprovalQueue, getApprovalQueue, resetApprovalQueue } from "#core/daemo
 
 function resolveLocalApprovalQueue(selector?: ScopeSelector): ApprovalQueue {
 	const projectScope = getProviderRegistry()?.get(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE);
-	if (!projectScope) return getApprovalQueue();
 	const projectId = selectedScopeSelectorId(selector);
+	if (!projectScope) {
+		if (projectId) throw new Error(`Unknown project: ${projectId}`);
+		return getApprovalQueue();
+	}
 	const resolved = projectScope.resolveProjectRuntime(projectId);
 	if (!resolved.ok) {
 		throw new Error(`Unknown project: ${resolved.error.projectId}`);
@@ -185,6 +188,9 @@ async function mutateApproval(
 		const errBody = await readApprovalRouteError(res);
 		if (errBody?.reason === "approval_input_unavailable") {
 			return { ok: false, reason: "input_unavailable" };
+		}
+		if (errBody?.reason === "approval_scope_mismatch") {
+			return { ok: false, reason: "scope_mismatch" };
 		}
 		throw new Error(errBody?.error ?? "Approval cannot be executed");
 	}

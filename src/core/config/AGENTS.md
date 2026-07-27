@@ -10,7 +10,7 @@ Kernel-owned configuration and secrets management.
   root must go through `resolveProjectDir` rather than reaching for
   `process.cwd()` directly, so the `KOTA_PROJECT_DIR` env var and the
   `--project-dir` CLI flag are honored consistently.
-- `secrets.ts` — secret store with provider-based resolution and output masking.
+- `secrets.ts` — canonical-project secret-store registry, provider-based resolution, and output masking.
 - `secret-providers.ts` — secret provider implementations (env file, JSON file, macOS keychain).
 
 These are core primitives. Do not add module-specific configuration logic here.

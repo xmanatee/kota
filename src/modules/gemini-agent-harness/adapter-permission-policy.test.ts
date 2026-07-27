@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 
 const generateContentStreamMock = vi.fn();
 const executeToolMock = vi.fn();
@@ -7,6 +8,10 @@ const getAllToolsMock = vi.fn<() => readonly KotaTool[]>();
 const getToolEffectMock = vi.fn();
 const confirmActionMock = vi.fn();
 const enqueueApprovalMock = vi.fn();
+const approvalQueueMock = {
+  enqueue: (...args: Parameters<ApprovalQueue["enqueue"]>) =>
+    enqueueApprovalMock(...args),
+} as ApprovalQueue;
 
 vi.mock("@google/genai", () => ({
   GoogleGenAI: function MockGoogleGenAI(this: unknown) {
@@ -34,7 +39,7 @@ vi.mock("#core/daemon/approval-queue.js", () => ({
 }));
 
 vi.mock("#core/config/secrets.js", () => ({
-  getSecretStore: () => null,
+  maskKnownSecretValues: (text: string) => text,
 }));
 
 import { geminiAgentHarness } from "./adapter.js";
@@ -178,6 +183,7 @@ describe("geminiAgentHarness — permission policy", () => {
       model: "gemini-2.5-flash",
       effort: "xhigh",
       autonomyMode: "supervised",
+      approvalQueue: approvalQueueMock,
       sessionContext: {
         sessionId: "gemini-session",
         scopeId: "scope-a",

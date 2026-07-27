@@ -5,7 +5,7 @@
 
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getSecretStore, initSecretStore, resetSecretStore } from "#core/config/secrets.js";
+import { getProjectSecretStore, resetSecretStores } from "#core/config/secrets.js";
 import { initEventBus, resetEventBus } from "#core/events/event-bus.js";
 import {
   defineDaemonWideModuleEvent,
@@ -57,7 +57,7 @@ beforeEach(() => {
   clearCustomTools();
   clearCustomGroups();
   resetGroups();
-  resetSecretStore();
+  resetSecretStores();
   resetEventBus();
   resetModuleEventRegistry();
   resetProviderRegistry();
@@ -68,7 +68,7 @@ afterEach(() => {
   clearCustomTools();
   clearCustomGroups();
   resetGroups();
-  resetSecretStore();
+  resetSecretStores();
   resetEventBus();
   resetModuleEventRegistry();
   resetProviderRegistry();
@@ -135,24 +135,26 @@ describe("ModuleContext.log", () => {
 // ── ctx.getSecret ────────────────────────────────────────────────────────
 
 describe("ModuleContext.getSecret", () => {
-  it("initializes the project secret store lazily", async () => {
+  it("reads from the module project's secret store", async () => {
     const onLoad = vi.fn();
     const loader = new ModuleLoader({});
     loader.setCwd("/tmp/test-secret-lazy");
     await loader.load({ name: "secret-test", onLoad });
 
     const ctx: ModuleContext = onLoad.mock.calls[0][0];
-    expect(getSecretStore()).toBeNull();
     expect(ctx.getSecret("MY_KEY")).toBeNull();
-    expect(getSecretStore()).not.toBeNull();
+    getProjectSecretStore(ctx.cwd).set("MY_KEY", "module-project-value", "project");
+    expect(ctx.getSecret("MY_KEY")).toBe("module-project-value");
   });
 
-  it("returns secret value when store is initialized", async () => {
-    const store = initSecretStore("/tmp/test-secret-ctx");
+  it("does not read a different project's store", async () => {
+    const projectDir = "/tmp/test-secret-ctx";
+    const store = getProjectSecretStore(projectDir);
     store.set("API_KEY", "test-value-123", "project");
 
     const onLoad = vi.fn();
     const loader = new ModuleLoader({});
+    loader.setCwd(projectDir);
     await loader.load({ name: "secret-test2", onLoad });
 
     const ctx: ModuleContext = onLoad.mock.calls[0][0];
@@ -231,10 +233,11 @@ describe("tools as factory function", () => {
   });
 
   it("tool runner can access ctx.getSecret via closure", async () => {
-    const store = initSecretStore("/tmp/test-factory");
+    const store = getProjectSecretStore("/tmp/test-factory");
     store.set("TOKEN", "my-secret-token", "project");
 
     const loader = new ModuleLoader({});
+    loader.setCwd("/tmp/test-factory");
 
     const mod: KotaModule = {
       name: "secret-factory",

@@ -46,6 +46,7 @@ function runOptions(
 		resultLimit: 50000,
 		verbose: false,
 		autonomyMode: "autonomous" as AutonomyMode,
+		approvalQueue: getApprovalQueue(),
 		...overrides,
 	};
 }

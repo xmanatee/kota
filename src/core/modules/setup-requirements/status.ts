@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
-import { getSecretStore, initSecretStore } from "#core/config/secrets.js";
+import { getProjectSecretStore } from "#core/config/secrets.js";
 import { readConfigPath } from "./config-paths.js";
 import type {
   ModuleSetupBrowserProfileRequirement,
@@ -269,7 +269,7 @@ function secretStatuses(
   refs: readonly ModuleSetupSecretRef[],
   projectDir: string,
 ): ModuleSetupSecretStatus[] {
-  const store = getSecretStore() ?? initSecretStore(projectDir);
+  const store = getProjectSecretStore(projectDir);
   const listed = store.list();
   return refs.map((ref) => {
     const found = listed.find((entry) => entry.name === ref.name);

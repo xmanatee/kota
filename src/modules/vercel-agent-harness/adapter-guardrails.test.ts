@@ -7,7 +7,7 @@ import {
   enqueueApprovalMock,
   executeToolMock,
   getAllToolsMock,
-  getSecretStoreMock,
+  maskKnownSecretValuesMock,
   getToolEffectMock,
   streamTextMock,
   TEST_TOOL,
@@ -156,9 +156,9 @@ describe("vercelAgentHarness — guardrails", () => {
   });
 
   it("masks registered secrets before returning raw tool results to the Vercel SDK", async () => {
-    getSecretStoreMock.mockReturnValue({
-      mask: (text: string) => text.replaceAll("agent-secret-token", "<secret:API_TOKEN>"),
-    });
+    maskKnownSecretValuesMock.mockImplementation((text) =>
+      text.replaceAll("agent-secret-token", "<secret:API_TOKEN>"),
+    );
     executeToolMock.mockResolvedValue({ content: "token=agent-secret-token" });
 
     const { toolExecute } = await runAndCaptureToolExecute({

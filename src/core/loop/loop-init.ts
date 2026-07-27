@@ -1,5 +1,6 @@
 import type { KotaThinkingConfig } from "#core/agent-harness/message-protocol.js";
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
+import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { getEventBus } from "#core/events/event-bus.js";
 import { listManifestModules } from "#core/manifest/index.js";
@@ -68,6 +69,7 @@ export interface AgentLoopState {
   stateMachine: SessionStateMachine;
   guardrailsConfig: GuardrailsConfig;
   guardrailsSnapshot: GuardrailsSnapshot;
+	approvalQueue: ApprovalQueue;
   idempotencyStore: IdempotencyStore;
   sessionPath: string | undefined;
   historyEnabled: boolean;

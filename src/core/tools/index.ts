@@ -1,5 +1,6 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { AgentTokenBudgetLedger } from "#core/agent-harness/token-budget.js";
+import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import { clearModuleCapabilityManifestProjections } from "#core/modules/module-manifest.js";
 import { registration as agentStatus } from "./agent-status.js";
 import { registration as approval } from "./approval.js";
@@ -22,6 +23,7 @@ import type { ToolResult, ToolResultBlock } from "./tool-result.js";
 export type { ToolResult, ToolResultBlock };
 
 export type ToolRunnerContext = {
+  approvalQueue?: ApprovalQueue;
   sessionId?: string;
   toolUseId?: string;
   signal?: AbortSignal;

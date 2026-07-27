@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { getSecretStore, resetSecretStore } from "#core/config/secrets.js";
+import { getProjectSecretStore, resetSecretStores } from "#core/config/secrets.js";
 import {
   type ModuleSetupBase,
   type ModuleSetupCapabilityRequirement,
@@ -112,11 +112,11 @@ describe("module setup requirements", () => {
     projectDir = mkdtempSync(join(tmpdir(), "kota-setup-"));
     now = new Date("2026-01-01T00:00:00.000Z");
     capabilities = [];
-    resetSecretStore();
+    resetSecretStores();
   });
 
   afterEach(() => {
-    resetSecretStore();
+    resetSecretStores();
     rmSync(projectDir, { recursive: true, force: true });
   });
 
@@ -339,7 +339,9 @@ describe("module setup requirements", () => {
       reason: "invalid_request",
       message: expect.stringContaining("completed"),
     });
-    expect(getSecretStore()?.get("DEMO_REFRESH_TOKEN")).toBe("original-refresh-token-secret");
+    expect(getProjectSecretStore(projectDir).get("DEMO_REFRESH_TOKEN")).toBe(
+      "original-refresh-token-secret",
+    );
     expect(JSON.stringify(rejected)).not.toContain("replacement-refresh-token-secret");
   });
 

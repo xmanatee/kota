@@ -1,4 +1,5 @@
 import type { TrajectoryDiagnosticsMetadata } from "#core/agent-harness/index.js";
+import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
@@ -166,6 +167,7 @@ export type WorkflowStepResult = {
 };
 
 export type WorkflowStepContext = {
+  approvalQueue?: ApprovalQueue;
   projectDir: string;
   workspaceDir?: string;
   runtimeResources?: WorkflowRuntimeResources;

@@ -17,6 +17,9 @@ describe("agentHarnessToolExecutionOptions", () => {
     const idempotencyStore = {} as NonNullable<
       AgentHarnessRunOptions["idempotencyStore"]
     >;
+    const approvalQueue = {} as NonNullable<
+      AgentHarnessRunOptions["approvalQueue"]
+    >;
     const tokenBudget = {} as NonNullable<
       AgentHarnessRunOptions["tokenBudget"]
     >;
@@ -32,6 +35,7 @@ describe("agentHarnessToolExecutionOptions", () => {
       canUseTool,
       guardrailsConfig,
       clientApprovalResolver,
+      approvalQueue,
       idempotencyStore,
       tokenBudget,
       abortController,
@@ -58,6 +62,7 @@ describe("agentHarnessToolExecutionOptions", () => {
       autonomyMode: "supervised",
       guardrailsConfig,
       clientApprovalResolver,
+      approvalQueue,
       sessionId: "session-a",
       cwd: "/project",
       env: { KOTA_TEST_VALUE: "1" },

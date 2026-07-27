@@ -200,6 +200,7 @@ describe("approval CLI commands", () => {
 		it("strips Unicode bidi controls from untrusted pending queue text", async () => {
 			const item: PendingApproval = {
 				id: "1234abcd",
+				scopeId: "scope-test",
 				tool: `shell${RIGHT_TO_LEFT_OVERRIDE}`,
 				input: {
 					command: `safe${RIGHT_TO_LEFT_OVERRIDE} --approve all`,

@@ -251,6 +251,7 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
         resultLimit,
         verbose: state.verbose,
         autonomyMode: state.autonomyMode,
+		approvalQueue: state.approvalQueue,
         mcpManager: state.mcpManager ?? undefined,
         mcpInputResolver: state.mcpInputResolver,
         transport: state.transport,

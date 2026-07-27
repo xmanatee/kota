@@ -29,6 +29,7 @@ function status(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
 function approval(overrides: Partial<PendingApproval> = {}): PendingApproval {
   return {
     id: "a1b2c3d4",
+    scopeId: "scope-test",
     tool: "shell.exec",
     input: { cmd: "deploy" },
     risk: "dangerous",

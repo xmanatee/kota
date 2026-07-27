@@ -10,7 +10,7 @@ const createModelClientMock = vi.fn();
 const executeToolMock = vi.fn();
 const getAllToolsMock = vi.fn<() => readonly KotaTool[]>();
 const getToolEffectMock = vi.fn();
-const getSecretStoreMock = vi.fn();
+const maskKnownSecretValuesMock = vi.fn<(text: string) => string>();
 
 vi.mock("#core/model/model-client.js", () => ({
   createModelClient: (...args: unknown[]) => createModelClientMock(...args),
@@ -23,7 +23,7 @@ vi.mock("#core/tools/index.js", () => ({
 }));
 
 vi.mock("#core/config/secrets.js", () => ({
-  getSecretStore: () => getSecretStoreMock(),
+  maskKnownSecretValues: (text: string) => maskKnownSecretValuesMock(text),
 }));
 
 import { openaiToolsAgentHarness } from "./adapter.js";
@@ -70,9 +70,9 @@ beforeEach(() => {
   executeToolMock.mockReset();
   getAllToolsMock.mockReset();
   getToolEffectMock.mockReset();
-  getSecretStoreMock.mockReset();
+  maskKnownSecretValuesMock.mockReset();
   getAllToolsMock.mockReturnValue([TEST_TOOL]);
-  getSecretStoreMock.mockReturnValue(null);
+  maskKnownSecretValuesMock.mockImplementation((text) => text);
   createModelClientMock.mockReturnValue({
     model: "openai/gpt-5.6-luna",
     providerName: "openai",

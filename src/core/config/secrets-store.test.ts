@@ -3,9 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  getSecretStore,
-  initSecretStore,
-  resetSecretStore,
+  getProjectSecretStore,
+  resetSecretStores,
   SecretStore,
 } from "./secrets.js";
 
@@ -26,7 +25,7 @@ describe("SecretStore", () => {
     mkdirSync(join(dir, ".kota"), { recursive: true });
     mkdirSync(globalDir, { recursive: true });
     originalEnv = { ...process.env };
-    resetSecretStore();
+    resetSecretStores();
   });
 
   afterEach(() => {
@@ -34,7 +33,7 @@ describe("SecretStore", () => {
       if (originalEnv[key] === undefined) delete process.env[key];
     }
     rmSync(dir, { recursive: true });
-    resetSecretStore();
+    resetSecretStores();
   });
 
   it("resolves secrets through provider chain", () => {
@@ -237,18 +236,18 @@ describe("SecretStore", () => {
   });
 });
 
-describe("singleton", () => {
-  it("initSecretStore / getSecretStore / resetSecretStore", () => {
-    resetSecretStore();
-    expect(getSecretStore()).toBeNull();
-
+describe("project store registry", () => {
+  it("returns one stable store per canonical project directory", () => {
     const dir = makeTmpDir();
-    const store = initSecretStore(dir);
+    const otherDir = makeTmpDir();
+    const store = getProjectSecretStore(dir);
     expect(store).toBeInstanceOf(SecretStore);
-    expect(getSecretStore()).toBe(store);
+    expect(getProjectSecretStore(dir)).toBe(store);
+    expect(getProjectSecretStore(otherDir)).not.toBe(store);
 
-    resetSecretStore();
-    expect(getSecretStore()).toBeNull();
+    resetSecretStores();
+    expect(getProjectSecretStore(dir)).not.toBe(store);
     rmSync(dir, { recursive: true });
+    rmSync(otherDir, { recursive: true });
   });
 });

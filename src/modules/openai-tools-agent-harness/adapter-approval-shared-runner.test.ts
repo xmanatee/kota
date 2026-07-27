@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { KotaToolResultBlock } from "#core/agent-harness/message-protocol.js";
 import {
+	approvalQueueMock,
 	confirmActionMock,
 	enqueueApprovalMock,
 	executeToolMock,
@@ -21,6 +22,7 @@ describe("openaiToolsAgentHarness shared runner approval paths", () => {
 			prompt: "go",
 			model: "openai/gpt-5.6-luna",
 			effort: "xhigh",
+			approvalQueue: approvalQueueMock,
 			guardrailsConfig: {
 				policies: { safe: "allow", moderate: "allow", dangerous: "allow" },
 				toolOverrides: { echo_tool: "confirm" },
@@ -59,6 +61,7 @@ describe("openaiToolsAgentHarness shared runner approval paths", () => {
 			prompt: "go",
 			model: "openai/gpt-5.6-luna",
 			effort: "xhigh",
+			approvalQueue: approvalQueueMock,
 			guardrailsConfig: {
 				policies: { safe: "allow", moderate: "allow", dangerous: "allow" },
 				toolOverrides: { echo_tool: "queue" },
@@ -88,6 +91,7 @@ describe("openaiToolsAgentHarness shared runner approval paths", () => {
 			prompt: "go",
 			model: "openai/gpt-5.6-luna",
 			effort: "xhigh",
+			approvalQueue: approvalQueueMock,
 			guardrailsConfig: {
 				policies: { safe: "allow", moderate: "allow", dangerous: "allow" },
 				toolOverrides: { echo_tool: "queue" },

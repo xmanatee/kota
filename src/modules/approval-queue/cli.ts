@@ -108,8 +108,17 @@ function exitInvalidApprovalId(id: string): never {
 	process.exit(1);
 }
 
-function exitApprovalMutationFailure(id: string, reason: "invalid_id" | "not_found" | "input_unavailable"): never {
+function exitApprovalMutationFailure(
+	id: string,
+	reason: "invalid_id" | "not_found" | "input_unavailable" | "scope_mismatch",
+): never {
 	if (reason === "invalid_id") exitInvalidApprovalId(id);
+	if (reason === "scope_mismatch") {
+		printApprovalError(
+			`Error: approval "${id}" belongs to a different project scope and cannot be resolved here.`,
+		);
+		process.exit(1);
+	}
 	if (reason === "input_unavailable") {
 		printApprovalError(
 			`Error: approval "${id}" cannot be executed because its original input is no longer available after daemon restart. Reject it and retry the tool call.`,

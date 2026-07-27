@@ -4,6 +4,7 @@ import type {
   AgentHarnessRunOptions,
 } from "#core/agent-harness/index.js";
 import {
+  approvalQueueMock,
   captureStreamTextArgs,
   createStreamTextStub,
   type StreamTextArgs,
@@ -33,6 +34,7 @@ export async function runAndCaptureToolExecute(opts: {
     prompt: "go",
     model: VERCEL_TEST_MODEL,
     effort: "xhigh",
+    approvalQueue: approvalQueueMock,
     ...(opts.canUseTool ? { canUseTool: opts.canUseTool } : {}),
     ...(opts.allowedTools ? { allowedTools: opts.allowedTools } : {}),
     ...(opts.disallowedTools ? { disallowedTools: opts.disallowedTools } : {}),

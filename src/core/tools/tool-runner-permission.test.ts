@@ -19,7 +19,7 @@ vi.mock("#core/loop/context.js", () => ({
 	truncateToolResult: vi.fn((text: string) => text),
 }));
 vi.mock("#core/config/secrets.js", () => ({
-	getSecretStore: vi.fn(() => null),
+	maskKnownSecretValues: (text: string) => text,
 }));
 vi.mock("#core/util/confirm.js", () => ({
 	confirmAction: (message: string) => confirmActionMock(message),

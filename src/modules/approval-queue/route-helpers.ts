@@ -80,7 +80,17 @@ export function resolveApprovalQueue(
 ): { queue: ApprovalQueue; executionContext?: ToolRunnerContext } | null {
 	if (queue) return { queue };
 	const projectScope = getProviderRegistry()?.get(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE);
-	if (!projectScope) return { queue: getApprovalQueue() };
+	if (!projectScope) {
+		if (projectId) {
+			jsonResponse(res, 404, {
+				error: "Unknown project",
+				reason: "unknown_project",
+				projectId,
+			});
+			return null;
+		}
+		return { queue: getApprovalQueue() };
+	}
 	const resolved = projectScope.resolveProjectRuntime(projectId);
 	if (!resolved.ok) {
 		jsonResponse(res, 404, resolved.error);
@@ -142,6 +152,19 @@ export function writeApprovalInputUnavailable(
 	});
 }
 
+export function writeApprovalScopeMismatch(
+	res: ServerResponse,
+	expectedScopeId: string,
+	approvals: PendingApproval[],
+): void {
+	jsonResponse(res, 409, {
+		error: "Approval belongs to a different project scope",
+		reason: "approval_scope_mismatch",
+		expectedScopeId,
+		approvals: approvals.map((item) => projectApprovalForClient(item)),
+	});
+}
+
 export async function readOptionalStringField(
 	req: IncomingMessage,
 	res: ServerResponse,
@@ -188,6 +211,14 @@ export async function writeApproveApprovalMutation(
 	executionContext: ToolRunnerContext | undefined,
 ): Promise<void> {
 	const pending = queue.get(id);
+	const selectedScopeId = executionContext?.scopeId ?? queue.getScopeId();
+	if (
+		queue.getScopeId() !== selectedScopeId ||
+		(pending?.status === "pending" && pending.scopeId !== selectedScopeId)
+	) {
+		writeApprovalScopeMismatch(res, selectedScopeId, pending ? [pending] : []);
+		return;
+	}
 	let leases: Map<string, ApprovalExecutionLease> | undefined;
 	if (pending?.status === "pending") {
 		const preflight = await prepareApprovalExecutionBatch([pending], executionContext);
@@ -201,6 +232,15 @@ export async function writeApproveApprovalMutation(
 	if (!result.ok && result.reason === "not_found") {
 		if (leases) await closeApprovalExecutionLeases(leases.values());
 		jsonResponse(res, 404, { error: "Approval not found or not pending" });
+		return;
+	}
+	if (!result.ok && result.reason === "scope_mismatch") {
+		if (leases) await closeApprovalExecutionLeases(leases.values());
+		writeApprovalScopeMismatch(
+			res,
+			selectedScopeId,
+			result.approval ? [result.approval] : [],
+		);
 		return;
 	}
 	if (!result.ok) {
@@ -226,6 +266,14 @@ export async function writeApproveAllApprovalsMutation(
 	executionContext: ToolRunnerContext | undefined,
 ): Promise<void> {
 	const pendingApprovals = queue.list("pending");
+	const selectedScopeId = executionContext?.scopeId ?? queue.getScopeId();
+	const mismatched = pendingApprovals.filter(
+		(item) => item.scopeId !== selectedScopeId,
+	);
+	if (queue.getScopeId() !== selectedScopeId || mismatched.length > 0) {
+		writeApprovalScopeMismatch(res, selectedScopeId, mismatched);
+		return;
+	}
 	const pendingApprovalIds = pendingApprovals.map((item) => item.id);
 	const preflight = await prepareApprovalExecutionBatch(pendingApprovals, executionContext);
 	if (!preflight.ok) {
@@ -235,6 +283,10 @@ export async function writeApproveAllApprovalsMutation(
 	const result = approveAllApprovalsLocal(queue, pendingApprovalIds, note);
 	if (!result.ok) {
 		await closeApprovalExecutionLeases(preflight.leases.values());
+		if (result.reason === "scope_mismatch") {
+			writeApprovalScopeMismatch(res, selectedScopeId, result.approvals);
+			return;
+		}
 		writeApprovalInputUnavailable(res, result.approvals);
 		return;
 	}

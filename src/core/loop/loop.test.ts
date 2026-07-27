@@ -251,6 +251,11 @@ describe("AgentSession", () => {
       expect(result).toBe("File read");
       expect(mockStreamMessage).toHaveBeenCalledTimes(2);
       expect(mockExecuteToolCalls).toHaveBeenCalledTimes(1);
+      expect(mockExecuteToolCalls.mock.calls[0]?.[1]).toMatchObject({
+        approvalQueue: session.approvalQueue,
+        scopeId: session.scopeId,
+        projectId: session.scopeId,
+      });
     });
 
     it("passes the active abort signal to tool execution", async () => {
