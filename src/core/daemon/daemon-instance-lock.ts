@@ -1,10 +1,19 @@
-import { chmodSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import {
+  chmodSync,
+  linkSync,
+  mkdirSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { JsonFileError, readOptionalJsonFile } from "#core/util/json-file.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
 import { detectStrandedDaemonProcess } from "./stranded-daemon.js";
 
 export const CONTROL_FILE = "daemon-control.json";
+export const INSTANCE_LOCK_FILE = "daemon-instance.lock";
 
 export type DaemonControlFilePayload = {
   port: number;
@@ -18,14 +27,91 @@ export type DaemonInstanceIdentity = Pick<
   "pid" | "startedAt" | "token"
 >;
 
+type FileSystemError = Error & { code?: string };
+
+function ownerMatches(
+  current: DaemonInstanceIdentity,
+  owner: DaemonInstanceIdentity,
+): boolean {
+  return (
+    current.pid === owner.pid &&
+    current.startedAt === owner.startedAt &&
+    current.token === owner.token
+  );
+}
+
+function isInstanceIdentity(value: unknown): value is DaemonInstanceIdentity {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Partial<DaemonInstanceIdentity>;
+  return (
+    typeof candidate.pid === "number" &&
+    Number.isSafeInteger(candidate.pid) &&
+    candidate.pid > 0 &&
+    typeof candidate.startedAt === "string" &&
+    candidate.startedAt.length > 0 &&
+    typeof candidate.token === "string" &&
+    candidate.token.length > 0
+  );
+}
+
+function ensurePrivateStateDir(stateDir: string): void {
+  mkdirSync(stateDir, { recursive: true, mode: 0o700 });
+  chmodSync(stateDir, 0o700);
+}
+
+function readInstanceOwner(lockPath: string): DaemonInstanceIdentity | null {
+  const value = readOptionalJsonFile<unknown>(lockPath);
+  if (value === null) return null;
+  if (!isInstanceIdentity(value)) {
+    throw new JsonFileError(lockPath, "parse", "daemon instance lock is invalid");
+  }
+  return value;
+}
+
+function tryReserveInstanceLock(
+  stateDir: string,
+  owner: DaemonInstanceIdentity,
+): boolean {
+  ensurePrivateStateDir(stateDir);
+  const lockPath = join(stateDir, INSTANCE_LOCK_FILE);
+  const temporaryPath = `${lockPath}.${randomUUID()}.tmp`;
+  try {
+    writeFileSync(temporaryPath, `${JSON.stringify(owner, null, 2)}\n`, {
+      encoding: "utf-8",
+      mode: 0o600,
+      flag: "wx",
+    });
+    try {
+      linkSync(temporaryPath, lockPath);
+      chmodSync(lockPath, 0o600);
+      return true;
+    } catch (error) {
+      if ((error as FileSystemError).code === "EEXIST") return false;
+      throw error;
+    }
+  } catch (error) {
+    const message = error instanceof Error && error.message
+      ? error.message
+      : String(error);
+    throw new JsonFileError(
+      lockPath,
+      "write",
+      `failed to reserve daemon instance lock securely: ${message}`,
+    );
+  } finally {
+    rmSync(temporaryPath, { force: true });
+  }
+}
+
 /**
- * Check for an existing daemon instance before starting. If a live daemon
- * owns the project, refuse to start. Only a dead owner PID makes the control
- * file stale enough to remove automatically.
+ * Reserve the project before asynchronous startup and reject any live owner.
+ * A dead owner PID is the only automatic stale-lock or stale-control cleanup
+ * condition.
  */
 export async function acquireInstanceLock(
   projectDir: string,
   stateDir: string,
+  owner: DaemonInstanceIdentity,
   log: (message: string) => void,
 ): Promise<void> {
   const stranded = detectStrandedDaemonProcess(projectDir);
@@ -36,50 +122,103 @@ export async function acquireInstanceLock(
     );
   }
 
+  const lockPath = join(stateDir, INSTANCE_LOCK_FILE);
+  while (!tryReserveInstanceLock(stateDir, owner)) {
+    const current = readInstanceOwner(lockPath);
+    if (current === null) continue;
+    if (isProcessAlive(current.pid)) {
+      throw new Error(
+        `Another daemon instance is starting or running (pid ${current.pid}). ` +
+          "Terminate it before starting a replacement.",
+      );
+    }
+    const latest = readInstanceOwner(lockPath);
+    if (latest === null || !ownerMatches(latest, current)) continue;
+    log(`Removing stale instance lock (pid ${current.pid} is not alive)`);
+    rmSync(lockPath);
+  }
+
   const controlPath = join(stateDir, CONTROL_FILE);
-  const existing = readOptionalJsonFile<{ port?: number; pid?: number; token?: string }>(controlPath);
-  if (!existing || typeof existing.pid !== "number") return;
-
-  const pid = existing.pid;
-  const port = existing.port;
-
-  if (!isProcessAlive(pid)) {
-    log(`Removing stale control file (pid ${pid} is not alive)`);
-    rmSync(controlPath, { force: true });
-    return;
-  }
-
-  if (typeof port === "number") {
-    let response: Response;
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 2_000);
-      response = await fetch(`http://127.0.0.1:${port}/health`, {
-        signal: controller.signal,
-      }).finally(() => clearTimeout(timer));
-    } catch (cause) {
+  const existing = readOptionalJsonFile<unknown>(controlPath);
+  if (existing !== null) {
+    const candidate = existing as Partial<DaemonControlFilePayload>;
+    if (
+      typeof existing !== "object" ||
+      typeof candidate.pid !== "number" ||
+      !Number.isSafeInteger(candidate.pid) ||
+      candidate.pid <= 0
+    ) {
+      throw new JsonFileError(controlPath, "parse", "daemon control file is invalid");
+    }
+    const control = candidate as Partial<DaemonControlFilePayload> & { pid: number };
+    const pid = control.pid;
+    const port = control.port;
+    if (!isProcessAlive(pid)) {
+      log(`Removing stale control file (pid ${pid} is not alive)`);
+      rmSync(controlPath, { force: true });
+    } else if (
+      typeof port !== "number" ||
+      !Number.isSafeInteger(port) ||
+      port <= 0 ||
+      port > 65_535 ||
+      typeof control.startedAt !== "string" ||
+      control.startedAt.length === 0 ||
+      typeof control.token !== "string" ||
+      control.token.length === 0
+    ) {
       throw new Error(
-        `Daemon process ${pid} is alive but its control API on port ${port} is unreachable. ` +
+        `Daemon process ${pid} is alive but its control file is incomplete. ` +
           "Terminate that process before starting a replacement.",
-        { cause },
+      );
+    } else {
+      let response: Response;
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 2_000);
+        response = await fetch(`http://127.0.0.1:${port}/identity`, {
+          headers: { Authorization: `Bearer ${control.token}` },
+          signal: controller.signal,
+        }).finally(() => clearTimeout(timer));
+      } catch (cause) {
+        throw new Error(
+          `Daemon process ${pid} is alive but its control API on port ${port} is unreachable. ` +
+            "Terminate that process before starting a replacement.",
+          { cause },
+        );
+      }
+      if (!response.ok) {
+        throw new Error(
+          `Daemon process ${pid} is alive but its control API on port ${port} returned HTTP ${response.status}. ` +
+            "Terminate that process before starting a replacement.",
+        );
+      }
+      let identity: unknown;
+      try {
+        identity = await response.json();
+      } catch (cause) {
+        throw new Error(
+          `Daemon process ${pid} is alive but its control API returned invalid identity data. ` +
+            "Terminate that process before starting a replacement.",
+          { cause },
+        );
+      }
+      if (
+        typeof identity !== "object" ||
+        identity === null ||
+        (identity as { pid?: unknown }).pid !== pid ||
+        (identity as { startedAt?: unknown }).startedAt !== control.startedAt
+      ) {
+        throw new Error(
+          `Daemon process ${pid} is alive but its control API identity does not match its control file. ` +
+            "Terminate that process before starting a replacement.",
+        );
+      }
+      throw new Error(
+        `Another daemon instance is already running (pid ${pid}, port ${port}). ` +
+          `Stop it with 'kota daemon stop' before starting a new one.`,
       );
     }
-    if (!response.ok) {
-      throw new Error(
-        `Daemon process ${pid} is alive but its control API on port ${port} returned HTTP ${response.status}. ` +
-          "Terminate that process before starting a replacement.",
-      );
-    }
-    throw new Error(
-      `Another daemon instance is already running (pid ${pid}, port ${port}). ` +
-        `Stop it with 'kota daemon stop' before starting a new one.`,
-    );
   }
-
-  throw new Error(
-    `Daemon process ${pid} is alive but its control file has no port. ` +
-      "Terminate that process before starting a replacement.",
-  );
 }
 
 export function writeControlFile(stateDir: string, payload: DaemonControlFilePayload): void {
@@ -87,8 +226,7 @@ export function writeControlFile(stateDir: string, payload: DaemonControlFilePay
   const tmpPath = `${controlPath}.tmp`;
 
   try {
-    mkdirSync(stateDir, { recursive: true, mode: 0o700 });
-    chmodSync(stateDir, 0o700);
+    ensurePrivateStateDir(stateDir);
     rmSync(tmpPath, { force: true });
     writeFileSync(tmpPath, `${JSON.stringify(payload, null, 2)}\n`, {
       encoding: "utf-8",
@@ -109,13 +247,9 @@ export function releaseInstanceLock(
 ): void {
   const controlPath = join(stateDir, CONTROL_FILE);
   const current = readOptionalJsonFile<DaemonControlFilePayload>(controlPath);
-  if (
-    current === null ||
-    current.pid !== owner.pid ||
-    current.startedAt !== owner.startedAt ||
-    current.token !== owner.token
-  ) {
-    return;
-  }
-  rmSync(controlPath);
+  if (current !== null && ownerMatches(current, owner)) rmSync(controlPath);
+
+  const lockPath = join(stateDir, INSTANCE_LOCK_FILE);
+  const lockOwner = readInstanceOwner(lockPath);
+  if (lockOwner !== null && ownerMatches(lockOwner, owner)) rmSync(lockPath);
 }

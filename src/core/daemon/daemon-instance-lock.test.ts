@@ -1,5 +1,14 @@
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,6 +16,7 @@ import { isProcessAlive } from "#core/util/process-alive.js";
 import {
   acquireInstanceLock,
   CONTROL_FILE,
+  INSTANCE_LOCK_FILE,
   releaseInstanceLock,
   writeControlFile,
 } from "./daemon-instance-lock.js";
@@ -25,6 +35,17 @@ const mockedExecFileSync = vi.mocked(execFileSync);
 const mockedIsProcessAlive = vi.mocked(isProcessAlive);
 
 const itPosix = process.platform === "win32" ? it.skip : it;
+
+const owner = {
+  pid: 12345,
+  startedAt: "2026-06-04T10:00:00.000Z",
+  token: "owner-token",
+};
+const contender = {
+  pid: 54321,
+  startedAt: "2026-06-04T10:01:00.000Z",
+  token: "contender-token",
+};
 
 function fileMode(path: string): number {
   return statSync(path).mode & 0o777;
@@ -66,9 +87,9 @@ describe("daemon instance lock", () => {
     mockedIsProcessAlive.mockReturnValue(true);
     mockedExecFileSync.mockReturnValue("node dist/cli.js daemon --project-dir /repo" as never);
 
-    await expect(acquireInstanceLock(tmpDir, stateDir, () => {})).rejects.toThrow(
-      /stranded daemon process is already running/,
-    );
+    await expect(
+      acquireInstanceLock(tmpDir, stateDir, contender, () => {}),
+    ).rejects.toThrow(/stranded daemon process is already running/);
   });
 
   it("preserves a live owner's control file when its API is unreachable", async () => {
@@ -83,10 +104,58 @@ describe("daemon instance lock", () => {
     mockedIsProcessAlive.mockReturnValue(true);
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("unreachable")));
 
-    await expect(acquireInstanceLock(tmpDir, stateDir, () => {})).rejects.toThrow(
-      /process 12345 is alive.*control API.*unreachable/,
-    );
+    await expect(
+      acquireInstanceLock(tmpDir, stateDir, contender, () => {}),
+    ).rejects.toThrow(/process 12345 is alive.*control API.*unreachable/);
     expect(existsSync(controlPath)).toBe(true);
+  });
+
+  it("preserves a live owner's control file when its API reports degradation", async () => {
+    const stateDir = join(tmpDir, ".kota");
+    const controlPath = join(stateDir, CONTROL_FILE);
+    writeControlFile(stateDir, { ...owner, port: 3921 });
+    mockedIsProcessAlive.mockReturnValue(true);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 503 })));
+
+    await expect(
+      acquireInstanceLock(tmpDir, stateDir, contender, () => {}),
+    ).rejects.toThrow(/process 12345 is alive.*returned HTTP 503/);
+    expect(existsSync(controlPath)).toBe(true);
+  });
+
+  it("authenticates a live owner's process identity before rejecting startup", async () => {
+    const stateDir = join(tmpDir, ".kota");
+    writeControlFile(stateDir, { ...owner, port: 3921 });
+    mockedIsProcessAlive.mockReturnValue(true);
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json({ pid: owner.pid, startedAt: owner.startedAt }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      acquireInstanceLock(tmpDir, stateDir, contender, () => {}),
+    ).rejects.toThrow(/Another daemon instance is already running/);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:3921/identity",
+      expect.objectContaining({
+        headers: { Authorization: "Bearer owner-token" },
+      }),
+    );
+  });
+
+  it("allows only one simultaneous startup to reserve the project", async () => {
+    const stateDir = join(tmpDir, ".kota");
+    mockedIsProcessAlive.mockReturnValue(true);
+    const attempts = await Promise.allSettled([
+      acquireInstanceLock(tmpDir, stateDir, owner, () => {}),
+      acquireInstanceLock(tmpDir, stateDir, contender, () => {}),
+    ]);
+
+    expect(attempts.filter((attempt) => attempt.status === "fulfilled")).toHaveLength(1);
+    expect(attempts.filter((attempt) => attempt.status === "rejected")).toHaveLength(1);
+    expect(readFileSync(join(stateDir, INSTANCE_LOCK_FILE), "utf8")).toContain(
+      '"token": "owner-token"',
+    );
   });
 
   itPosix("creates the state directory and control file with restrictive POSIX modes", () => {
@@ -130,14 +199,11 @@ describe("daemon instance lock", () => {
     expect(existsSync(tmpPath)).toBe(false);
   });
 
-  it("releases only the control file owned by the stopping daemon", () => {
+  it("releases only files owned by the stopping daemon", async () => {
     const stateDir = join(tmpDir, ".kota");
     const controlPath = join(stateDir, CONTROL_FILE);
-    const owner = {
-      pid: 12345,
-      startedAt: "2026-06-04T10:00:00.000Z",
-      token: "owner-token",
-    };
+    const lockPath = join(stateDir, INSTANCE_LOCK_FILE);
+    await acquireInstanceLock(tmpDir, stateDir, owner, () => {});
     writeControlFile(stateDir, { ...owner, port: 3921 });
 
     releaseInstanceLock(stateDir, {
@@ -145,8 +211,10 @@ describe("daemon instance lock", () => {
       token: "different-daemon-token",
     });
     expect(existsSync(controlPath)).toBe(true);
+    expect(existsSync(lockPath)).toBe(true);
 
     releaseInstanceLock(stateDir, owner);
     expect(existsSync(controlPath)).toBe(false);
+    expect(existsSync(lockPath)).toBe(false);
   });
 });

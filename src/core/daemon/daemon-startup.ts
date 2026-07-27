@@ -33,7 +33,7 @@ export type DaemonStartupHooks = {
 /**
  * Run the daemon's startup phase in the order operator UIs and tests
  * depend on:
- * signal handlers → single-instance check → workflow validation →
+ * signal handlers → instance reservation → workflow validation →
  * config-warnings → control server → control-file write →
  * sweep + health-check timers → daemon subscriptions →
  * notification gate → workflows.start → channel start loop →
@@ -54,7 +54,16 @@ export async function runDaemonStartup(
   process.on("SIGINT", ctx.shutdownHandler);
   process.on("SIGTERM", ctx.shutdownHandler);
 
-  await acquireInstanceLock(ctx.projectDir, ctx.stateDir, ctx.log);
+  await acquireInstanceLock(
+    ctx.projectDir,
+    ctx.stateDir,
+    {
+      pid: ctx.state.pid,
+      startedAt: ctx.state.startedAt,
+      token: ctx.token,
+    },
+    ctx.log,
+  );
   validateDaemonWorkflowRuntimes(ctx);
 
   ctx.log("Daemon starting...");

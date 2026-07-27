@@ -1,13 +1,13 @@
 ---
 id: task-security-review-daemon-startup-does-not-acquire-an
 title: Security review: Daemon startup does not acquire an exclusive filesystem reservation, and it treats any non-2xx health response as stale. A live but degraded daemon returns 503, causing its control file to be removed; concurrent startups can also both pass the missing-control-file check before either writes ownership. Both paths permit multiple autonomous daemons to operate on the same project.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Daemon startup does not acquire an exclusive filesystem reservation, and it treats any non-2xx health response as stale. A live but degraded daemon returns 503, causing its control file to be removed; concurrent startups can also both pass the missing-control-file check before either writes ownership. Both paths permit multiple autonomous daemons to operate on the same project.
 created_at: 2026-07-27T03:25:52.656Z
-updated_at: 2026-07-27T03:25:52.656Z
+updated_at: 2026-07-27T04:06:13.133Z
 ---
 
 ## Problem
@@ -152,4 +152,15 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `src/core/daemon/daemon-instance-lock.ts` now reserves
+  `.kota/daemon-instance.lock` atomically before asynchronous startup, keeps
+  the reservation for the daemon lifetime, and removes ownership files only
+  when PID, start time, and token all match the stopping daemon.
+- Existing live owners are authenticated through `GET /identity` using the
+  control-file bearer token. Unreachable, malformed, mismatched, and non-2xx
+  responses preserve the live owner's files and reject the contender.
+- `pnpm exec vitest run src/core/daemon/daemon-instance-lock.test.ts
+  src/modules/autonomy/critic-runtime-probe-artifact.test.ts` passed 14 tests,
+  including simultaneous startup, degraded 503, authenticated identity, and
+  owner-matched teardown regressions.
+- `pnpm build` completed successfully on 2026-07-27.
