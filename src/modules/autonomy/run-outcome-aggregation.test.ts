@@ -597,14 +597,14 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
           startedAt: "2026-04-16T00:00:00.000Z",
           completedAt,
           durationMs: timeoutMs,
-          error: `Step "${stepId}" timed out after ${timeoutMs}ms`,
+          error: `Step "${stepId}" timed out after ${timeoutMs}ms of active runtime`,
         },
       ],
     };
     writeFileSync(join(runDir, "metadata.json"), JSON.stringify(metadata));
   }
 
-  it("does not advance latestActionableRunAt for an agent-step wall-clock timeout", () => {
+  it("does not advance latestActionableRunAt for an agent-step active-runtime timeout", () => {
     // 24h-around-2026-05-04 evidence: three improver, one decomposer, and one
     // builder run all hit the 3-hour `timeoutMs` rail with the same SDK-stall
     // shape ($0 cost, only an api_retry between meaningful frames). Treating

@@ -1,0 +1,6 @@
+git add -A could not create .git/index.lock because this execution sandbox exposes .git read-only.
+
+The exact failure was:
+fatal: Unable to create '/Users/xmanatee/Desktop/mono/apps/kota/.git/index.lock': Operation not permitted
+
+The complete candidate set was staged and validated through a temporary index copied from .git/index; the repository index itself was not modified.

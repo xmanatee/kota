@@ -2,6 +2,8 @@ import { performance } from "node:perf_hooks";
 
 const TICK_MS = 1_000;
 const SUSPENSION_GAP_MS = 5_000;
+const WORKFLOW_STEP_ACTIVE_TIMEOUT_MESSAGE =
+  /^Step "[^"]+" timed out after \d+ms(?: of active runtime)?$/;
 
 export type ActiveTimeoutSnapshot = {
   activeElapsedMs: number;
@@ -19,6 +21,23 @@ export type ActiveTimeout = {
   snapshot: () => ActiveTimeoutSnapshot;
   dispose: () => void;
 };
+
+export function createWorkflowStepActiveTimeoutError(
+  stepId: string,
+  timeoutMs: number,
+): Error {
+  return new Error(
+    `Step "${stepId}" timed out after ${timeoutMs}ms of active runtime`,
+  );
+}
+
+export function isWorkflowStepActiveTimeoutErrorMessage(
+  message: string,
+): boolean {
+  // Run metadata is durable, so retain recognition of records written before
+  // active-runtime accounting made the timeout basis explicit.
+  return WORKFLOW_STEP_ACTIVE_TIMEOUT_MESSAGE.test(message);
+}
 
 export function rejectWhenActiveTimeoutExpires(
   timeout: ActiveTimeout,

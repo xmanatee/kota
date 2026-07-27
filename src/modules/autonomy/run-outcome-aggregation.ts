@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { isWorkflowStepActiveTimeoutErrorMessage } from "#core/workflow/active-timeout.js";
 import { readRepairIterations } from "#core/workflow/repair-iteration-output.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
@@ -207,12 +208,6 @@ function enrichOutliersWithSubjects(
   });
 }
 
-// Anchored to the literal text the run executor writes when the step-level
-// hang rail fires (see `executeWorkflowStep` in run-executor-step.ts). Matching
-// only this exact prefix avoids catching unrelated user-supplied error
-// messages that happen to contain the word "timed out".
-const AGENT_STEP_TIMEOUT_ERROR = /^Step "[^"]+" timed out after \d+ms$/;
-
 type AgentStepTimeoutCandidate = {
   run: WorkflowRunMetadata;
   step: WorkflowRunMetadata["steps"][number];
@@ -226,7 +221,7 @@ function findAgentStepTimeout(
     if (step.type !== "agent") continue;
     if (step.status !== "failed") continue;
     if (typeof step.error !== "string") continue;
-    if (AGENT_STEP_TIMEOUT_ERROR.test(step.error)) {
+    if (isWorkflowStepActiveTimeoutErrorMessage(step.error)) {
       return { run, step };
     }
   }

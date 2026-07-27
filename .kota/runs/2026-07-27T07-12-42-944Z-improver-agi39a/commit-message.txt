@@ -1,0 +1,3 @@
+Keep active-step timeouts out of improver actionability
+
+Evidence: 2026-07-27T03-25-55-661Z-progress-reviewer-lk8i7q and current run gather-run-data.

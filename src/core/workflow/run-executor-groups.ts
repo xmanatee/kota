@@ -2,6 +2,7 @@ import {
   type ActiveTimeoutSnapshot,
   activeTimingMetadata,
   createActiveTimeout,
+  createWorkflowStepActiveTimeoutError,
   rejectWhenActiveTimeoutExpires,
 } from "./active-timeout.js";
 import {
@@ -41,7 +42,7 @@ async function executeTimedGroup<T>(
   const timeoutMs = step.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS;
   const activeTimeout = createActiveTimeout(
     timeoutMs,
-    () => new Error(`Step "${step.id}" timed out after ${timeoutMs}ms of active runtime`),
+    () => createWorkflowStepActiveTimeoutError(step.id, timeoutMs),
     (error) => abortController.abort(error),
   );
   try {

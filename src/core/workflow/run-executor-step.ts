@@ -12,6 +12,7 @@ import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
 import {
   activeTimingMetadata,
   createActiveTimeout,
+  createWorkflowStepActiveTimeoutError,
   rejectWhenActiveTimeoutExpires,
 } from "./active-timeout.js";
 import { buildStepCompletedPayload, resolveStepAutonomyMode } from "./event-payloads.js";
@@ -282,7 +283,7 @@ export async function executeWorkflowStep(
       ? null
       : createActiveTimeout(
           timeoutMs,
-          () => new Error(`Step "${step.id}" timed out after ${timeoutMs}ms of active runtime`),
+          () => createWorkflowStepActiveTimeoutError(step.id, timeoutMs),
           (error) => stepAbortController.abort(error),
         );
   const idleTimeoutMs = "idleTimeoutMs" in step ? step.idleTimeoutMs : undefined;

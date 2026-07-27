@@ -1,5 +1,6 @@
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { isWorkflowStepActiveTimeoutErrorMessage } from "#core/workflow/active-timeout.js";
 import type { ControlMonitorCoverageArtifact } from "#core/workflow/control-monitor-coverage.js";
 import {
   readJsonObject,
@@ -27,8 +28,6 @@ type TrustedSkippedGateStep = {
   id: string;
   type: "approval" | "await-event";
 };
-
-const AGENT_STEP_TIMEOUT_ERROR = /^Step "[^"]+" timed out after \d+ms$/;
 
 function hasDotSegment(path: string): boolean {
   return path.split(/[\\/]/).some((segment) => segment === "." || segment === "..");
@@ -161,7 +160,7 @@ function isInfrastructureAgentFailure(step: WorkflowStepResult): boolean {
   if (step.type !== "agent" || step.status !== "failed") return false;
   if (step.errorKind === "idle-timeout") return true;
   if (typeof step.error !== "string") return false;
-  if (AGENT_STEP_TIMEOUT_ERROR.test(step.error)) return true;
+  if (isWorkflowStepActiveTimeoutErrorMessage(step.error)) return true;
   return classifyAgentRuntimeFailure({
     message: step.error,
     subtype: parseAgentFailureSubtype(step.error),

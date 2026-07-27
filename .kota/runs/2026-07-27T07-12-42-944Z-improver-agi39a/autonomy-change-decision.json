@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "autonomy-change-decision",
+  "runId": "2026-07-27T07-12-42-944Z-improver-agi39a",
+  "createdAt": "2026-07-27T09:26:51Z",
+  "taskIds": [
+    "task-reconcile-the-current-progress-reviewer-timeout-de"
+  ],
+  "affectedSurfaces": [
+    "improver actionable-run evidence gate",
+    "autonomy health control-coverage classification",
+    "workflow active-timeout persistence contract"
+  ],
+  "changeClasses": [
+    "reviewer",
+    "improver-gate"
+  ],
+  "hypothesis": "Generating and recognizing active-step timeout messages through one core contract will keep infrastructure stalls out of improver actionability and health-review coverage gaps even when timeout accounting wording changes.",
+  "sourceRefs": [
+    ".kota/runs/2026-07-27T07-12-42-944Z-improver-agi39a/steps/gather-run-data.json",
+    ".kota/runs/2026-07-27T03-25-55-661Z-progress-reviewer-lk8i7q/metadata.json",
+    "data/tasks/ready/task-reconcile-the-current-progress-reviewer-timeout-de.md"
+  ],
+  "baselineRefs": [
+    "src/core/workflow/run-executor-step.ts",
+    "src/modules/autonomy/run-outcome-aggregation.ts",
+    "src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit-control-coverage-gates.ts"
+  ],
+  "candidateRefs": [
+    "src/core/workflow/active-timeout.ts",
+    "src/core/workflow/active-timeout.test.ts",
+    "src/modules/autonomy/run-outcome-aggregation.test.ts",
+    "src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit-control-coverage.test.ts"
+  ],
+  "metricsCompared": [
+    {
+      "name": "latest actionable run after active-runtime timeout",
+      "baseline": "The current run packet advanced latestActionableRunAt to 2026-07-27T07:45:57.818Z from a progress-reviewer timeout that the gate contract classifies as infrastructure.",
+      "candidate": "A live aggregation replay excludes that timeout and reports the genuine eval-harness terminal failure at 2026-07-27T02:53:30.517Z.",
+      "unit": "latestActionableRunAt timestamp",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "agent-step timeouts retained for diagnosis",
+      "baseline": "The current run packet listed two historical progress-reviewer timeouts and omitted the new active-runtime timeout.",
+      "candidate": "The live aggregation replay lists all three progress-reviewer timeouts, including run 2026-07-27T03-25-55-661Z-progress-reviewer-lk8i7q.",
+      "unit": "agentStepTimeouts7d rows",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "focused timeout contract coverage",
+      "baseline": "Autonomy regression fixtures exercised only the pre-active-runtime timeout message, so the production wording drift was invisible.",
+      "candidate": "Four focused files pass 64 tests covering canonical message generation, durable-record recognition, strict nonmatching, improver aggregation, and health-review suppression.",
+      "unit": "focused tests",
+      "direction": "improved",
+      "qualitySignal": true
+    }
+  ],
+  "rolloutMode": "canary",
+  "decision": "promote",
+  "rationale": "The candidate restores the documented infrastructure exclusion against the exact retained failure and centralizes the producer/consumer contract without broad timeout matching. It preserves historical timeout visibility, leaves the genuine eval-harness failure actionable, and does not claim to resolve the underlying progress-reviewer dead letter.",
+  "ownerSafetyExceptions": [],
+  "followUpTaskIds": [
+    "task-reconcile-the-current-progress-reviewer-timeout-de"
+  ]
+}
