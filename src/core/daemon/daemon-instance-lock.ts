@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { JsonFileError, readOptionalJsonFile } from "#core/util/json-file.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
@@ -12,6 +12,11 @@ export type DaemonControlFilePayload = {
   startedAt: string;
   token: string;
 };
+
+export type DaemonInstanceIdentity = Pick<
+  DaemonControlFilePayload,
+  "pid" | "startedAt" | "token"
+>;
 
 /**
  * Check for an existing daemon instance before starting. If a live daemon
@@ -92,7 +97,20 @@ export function writeControlFile(stateDir: string, payload: DaemonControlFilePay
   }
 }
 
-export function releaseInstanceLock(stateDir: string): void {
+export function releaseInstanceLock(
+  stateDir: string,
+  owner: DaemonInstanceIdentity,
+): boolean {
   const controlPath = join(stateDir, CONTROL_FILE);
-  if (existsSync(controlPath)) rmSync(controlPath);
+  const current = readOptionalJsonFile<DaemonControlFilePayload>(controlPath);
+  if (
+    current === null ||
+    current.pid !== owner.pid ||
+    current.startedAt !== owner.startedAt ||
+    current.token !== owner.token
+  ) {
+    return false;
+  }
+  rmSync(controlPath);
+  return true;
 }
