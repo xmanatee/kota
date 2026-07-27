@@ -1,0 +1,1 @@
+Preserve stale recovery evidence and stabilize DLQ coverage

@@ -160,6 +160,7 @@ describe("workflow state recovery observability", () => {
         workflowName: "builder",
         runId: "run-dlq",
       },
+      retention: { kind: "retain" },
     });
     const provider = createWorkflowStateRecoveryProvider();
 

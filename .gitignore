@@ -966,3 +966,13 @@ deploy/telegram-assistant/.env
 .claude/worktrees/
 __pycache__/
 *.tsbuildinfo
+!/.kota/runs/2026-07-26T22-41-09-783Z-builder-8rsy94/
+/.kota/runs/2026-07-26T22-41-09-783Z-builder-8rsy94/*
+!/.kota/runs/2026-07-26T22-41-09-783Z-builder-8rsy94/commit-message.txt
+!/.kota/runs/2026-07-26T22-41-09-783Z-builder-8rsy94/preserved-stale-worktree.patch
+!/.kota/runs/2026-07-26T22-41-09-783Z-builder-8rsy94/recovery-blocker.md
+!/.kota/runs/2026-07-26T22-41-09-783Z-builder-8rsy94/recovery-state-after.json
+!/.kota/runs/2026-07-26T22-41-09-783Z-builder-8rsy94/recovery-state-before.json
+!/.kota/runs/2026-07-26T22-41-09-783Z-builder-8rsy94/success-criteria-verified.txt
+!/.kota/runs/2026-07-26T22-41-09-783Z-builder-8rsy94/success-criteria.txt
+!/.kota/runs/2026-07-26T22-41-09-783Z-builder-8rsy94/validation.txt

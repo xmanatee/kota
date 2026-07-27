@@ -1,0 +1,2 @@
+1. The canonical recovery path records before/after evidence, resolves the stale resource-budget-canary claim, and preserves or explicitly supersedes every unique stale-worktree change so the original canary task is claimable, progressing, or complete.
+2. The cited dead letter reaches a terminal redriven or dismissed disposition with durable rationale and a verifying run reference, and the reconciliation task records acceptance evidence while the normalized task queue validates without duplicating the canary task.

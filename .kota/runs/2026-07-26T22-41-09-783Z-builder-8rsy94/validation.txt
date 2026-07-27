@@ -1,0 +1,45 @@
+Validation completed 2026-07-27 (post-check repair attempt 1).
+
+PASS  node --conditions=source --import tsx src/validate-queue.ts
+PASS  direct Vitest task-file coverage: 1 file, 5 tests
+PASS  git diff --check
+PASS  recovery-state-before.json and recovery-state-after.json parse as JSON
+PASS  git apply --numstat parses preserved-stale-worktree.patch, including the formerly untracked prototype fixture
+PASS  preserved-stale-worktree.patch SHA-256 is 941147cf27a8d365b57c9ac25f75d614298e4cb02767758dd4ef829f31221fd1
+PASS  fresh canonical state inspection confirms the stale claim and worktree remain active and dlq-4485507f-d964-48df-9c7a-ff7642eb1f23 remains open
+
+ENVIRONMENTAL  the failed `pnpm test` rail did not identify a task-scoped test
+defect. A direct full Vitest run completed in 140 seconds with 1,072 files and
+12,152 tests passing; its sole failure was the existing pnpm supply-chain test
+because this network-restricted host cannot verify/download the pinned pnpm
+10.32.1 release. A second broad run reproduced the repair rail's timeout under
+host load. The exact package-manager pin and fail-closed supply-chain policy
+remain unchanged; the focused task validation above is green.
+
+BLOCKED  canonical supersede/cleanup/dismissal: git worktree remove could not delete the sibling stale worktree or linked Git metadata from this builder sandbox, and daemon control is unavailable. The normalized reconciliation task is blocked on trusted-host-recovery-complete.json.
+
+Post-check repair attempt 2:
+
+PASS  the full installed Vitest runner completed instead of reproducing the
+`spawnSync node ETIMEDOUT` rail failure. It exposed a date-sensitive recovery
+observability fixture whose June 27 open dead letter reached its normal 30-day
+expiry on July 27. The fixture now opts into explicit retained evidence so the
+test remains scoped to open-DLQ recovery linkage without weakening production
+retention.
+PASS  focused recovery observability and task-file coverage: 2 files, 8 tests
+PASS  full installed Vitest suite excluding only the known offline pnpm
+supply-chain verification: 1,072 files and 12,150 tests passed; 4 files and 16
+tests skipped; duration 130.53 seconds
+PASS  direct queue validation, git diff --check, recovery JSON parsing, patch
+parsing, and preserved-patch SHA-256 verification
+
+ENVIRONMENTAL  the excluded pnpm supply-chain test still fails closed because
+this network-restricted host cannot fetch signed release metadata for the
+pinned pnpm 10.32.1. The pin, trust policy, and production retention behavior
+remain unchanged.
+
+STAGING BLOCKER  `git add -A` cannot create the linked-worktree `index.lock`
+under the canonical checkout's read-only `.git/worktrees/` metadata. The
+pre-existing recovery evidence remains staged, while this attempt's test fix
+and validation/commit-message updates remain unstaged until the workflow host
+can update the real index.

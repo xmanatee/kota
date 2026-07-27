@@ -1,0 +1,2 @@
+1. Partially verified and blocked: canonical inspection proved that main contains the stale head and the complete dirty delta is preserved in a replayable patch, but the supported supersede-and-cleanup action was denied at the sibling-worktree deletion boundary; the stale claim remains active.
+2. Partially verified and blocked: before/after evidence, a verifying run reference, and a valid nonduplicative blocked task are recorded, but the cited dead letter remains open until the typed trusted-host recovery precondition is satisfied.

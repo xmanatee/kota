@@ -1,0 +1,1222 @@
+# Preserved dirty delta from stale builder worktree
+# Source run: 2026-07-26T09-17-25-482Z-builder-8rzg8e
+# Base/head: 099cfb99b7df3016cccceb0187fb8371cc4ba6aa
+# Tracked and staged changes follow.
+diff --git a/.gitignore b/.gitignore
+index e73ec8571..fa2487afa 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -10,6 +10,15 @@ deploy/telegram-assistant/.env
+ /.kota/*
+ !/.kota/runs/
+ /.kota/runs/*
++!/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/
++/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/*
++!/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/commit-message.txt
++!/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/eval-list-transcript.txt
++!/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/runtime-probe.json
++!/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/staging-limitation.txt
++!/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/success-criteria-verified.txt
++!/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/success-criteria.txt
++!/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/validation.txt
+ !/.kota/runs/2026-07-26T00-45-49-336Z-builder-0r71my/
+ /.kota/runs/2026-07-26T00-45-49-336Z-builder-0r71my/*
+ !/.kota/runs/2026-07-26T00-45-49-336Z-builder-0r71my/autonomy-change-decision.json
+diff --git a/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/commit-message.txt b/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/commit-message.txt
+new file mode 100644
+index 000000000..1812e980e
+--- /dev/null
++++ b/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/commit-message.txt
+@@ -0,0 +1 @@
++Harden resource canaries against hardcoded answers
+diff --git a/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/eval-list-transcript.txt b/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/eval-list-transcript.txt
+new file mode 100644
+index 000000000..6afb583b9
+--- /dev/null
++++ b/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/eval-list-transcript.txt
+@@ -0,0 +1,8 @@
++$ node bin/kota.mjs eval list
++
++control decisions: act=34  ask=1  refuse=2  stop=3  confirm=0  recover=4
++missing control-decision coverage: confirm
++builder-algorithmic-resource-budget-canary  (builder → builder)  decisions=act [autonomy, builder-discipline, algorithmic-complexity, resource-budget, live-llm, objective-metric]
++  Live-builder fixture where a quadratic inversion counter passes visible examples but fails reproducible seeded resource-budget canaries.
++
++[exit 0]
+diff --git a/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/runtime-probe.json b/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/runtime-probe.json
+new file mode 100644
+index 000000000..1f0a6527d
+--- /dev/null
++++ b/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/runtime-probe.json
+@@ -0,0 +1,31 @@
++{
++  "verdict": "fail",
++  "exitCode": -1,
++  "durationMs": 0,
++  "output": "Runtime Probe not executed: Runtime Probe execution requires a Linux PID namespace; darwin does not provide the process-lifetime boundary required to contain detached descendants.",
++  "probe": {
++    "command": "pnpm kota eval run --fixture builder-algorithmic-resource-budget-canary --repeats 1 --keep",
++    "executable": "pnpm",
++    "args": [
++      "kota",
++      "eval",
++      "run",
++      "--fixture",
++      "builder-algorithmic-resource-budget-canary",
++      "--repeats",
++      "1",
++      "--keep"
++    ],
++    "timeoutMs": 14400000
++  },
++  "execution": "not-executed",
++  "isolation": {
++    "status": "unavailable",
++    "reason": "Runtime Probe execution requires a Linux PID namespace; darwin does not provide the process-lifetime boundary required to contain detached descendants."
++  },
++  "provenance": {
++    "status": "trusted",
++    "kind": "git-head",
++    "sourcePath": "data/tasks/ready/task-add-algorithmic-resource-budget-canaries-to-the-ev.md"
++  }
++}
+\ No newline at end of file
+diff --git a/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/staging-limitation.txt b/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/staging-limitation.txt
+new file mode 100644
+index 000000000..b5bf6cef7
+--- /dev/null
++++ b/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/staging-limitation.txt
+@@ -0,0 +1,22 @@
++The canonical worktree Git directory is outside the builder sandbox's writable
++roots:
++
++/Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/task-add-algorithmic-resource-budget-canaries-to-the-ev-2026-07-26t09-17-25-482z-builder-8rzg8e
++
++The task CLI correctly refused its first transition when Git could not create
++the host-owned index.lock. The same CLI then performed the ready -> doing ->
++done -> blocked lifecycle transitions against a run-scoped writable index and
++object database under /private/tmp, using the canonical object database only
++as a read-only alternate. Queue validation passed against that exact snapshot.
++
++The complete repair-attempt-2 snapshot was refreshed at
++`.kota/tmp/2026-07-26T09-17-25-482Z-builder-8rzg8e/git-stage/index`, with a
++writable sibling object database and the canonical objects configured as a
++read-only alternate. `git diff --cached --check` and staged-status inspection
++passed against that index.
++
++The required final ordinary `git add -A` was retried after all repair evidence
++was written. The first retry was denied before changing the canonical index;
++the final retry succeeded. The canonical index now contains the same complete
++repair as the validated run-scoped index. No permission request or out-of-scope
++Git metadata mutation was used.
+diff --git a/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/success-criteria-verified.txt b/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/success-criteria-verified.txt
+new file mode 100644
+index 000000000..723acd788
+--- /dev/null
++++ b/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/success-criteria-verified.txt
+@@ -0,0 +1,8 @@
++1. Verified: fixture.json, notes.md, and the minimal initial project are shipped; the initial inversion counter is quadratic, visible examples pass, and fresh verifier-seeded 4093–4103-item canaries exceed the deterministic comparison budget.
++2. Verified: the fixture's task starts in data/tasks/ready, passes queue validation, asks for a resource-aware implementation, and names resource-budget-result.json as acceptance evidence.
++3. Verified: preRunExpectations use the hermetic visible-only verifier while the large-canary verifier and missing artifact fail; the canonical fixture-discovery test passes all five tests and confirms all shipped initial expectations.
++4. Verified: final predicates require verifier and shortcut checks to succeed, the three seeded canaries and resourceBudgetScore 1 to be present, the nested task to move to done, and changed paths to remain within the fixture contract. Canary results include the SHA-256 generator and seed, minimum and maximum comparison bounds, compared-value counts, full-coverage status, and the objective metric at /budgetProxy/maxOperationRatio.
++5. Verified: golden calibration passes fresh challenges at a maximum comparison ratio around 0.49; the seeded quadratic implementation fails its maximum, while sample-only, moved-hook quadratic, and fixed-prefix/hex-answer candidates pass visible examples and fail every canary. The fixed-prefix regression records 4,092–4,102 comparisons, covers every token, passes source audit, and is still rejected by unpredictable expected results. Verifier and threshold files remain outside the final changed-path allowlist, and the verifier regenerates the artifact before predicates inspect it.
++6. Verified: eval-list-transcript.txt records a successful direct CLI execution that loads builder-algorithmic-resource-budget-canary with valid smoke provenance and objective-metric metadata.
++7. Blocked honestly: the unchanged, provenance-pinned Runtime Probe cannot execute on the current Darwin host because KOTA requires Linux Bubblewrap, prlimit, PID namespaces, and a safe core-dump boundary. The task now declares a typed operator-capture precondition for an authenticated conforming Linux host; no live pass is claimed.
++8. Verified: the task moved through the KOTA task CLI to blocked, queue validation passes, run evidence is precisely unignored, the critic-owned Runtime Probe artifact path is stageable, and the complete post-check repair snapshot is staged in both the validated run-scoped writable index and the canonical index after the required final git add -A retry.
+diff --git a/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/success-criteria.txt b/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/success-criteria.txt
+new file mode 100644
+index 000000000..a3fa96550
+--- /dev/null
++++ b/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/success-criteria.txt
+@@ -0,0 +1,8 @@
++1. The shipped algorithmic resource-budget fixture contains a valid manifest, notes, and a minimal initial project whose visible examples pass while the reproducible seeded large-case verifier initially fails.
++2. The fixture task is valid, starts in ready, requests a scalable inversion counter, and names the generated resource-budget evidence artifact.
++3. Pre-run expectations explicitly prove the direct visible-only verifier passes and the large-canary or missing-artifact predicates fail before builder execution.
++4. Final predicates require a done task, a passing verifier, the structured resource-budget artifact with its reproducible challenge seed and named canaries, complete comparison coverage, and a deterministic comparison budget below the configured threshold.
++5. Calibration and self-test evidence reject sample-only implementations, verifier threshold relaxation, skipped canaries, fixed-prefix hardcoded answers in non-decimal encodings, and fabricated artifacts.
++6. The fixture loads through the eval CLI without schema or provenance errors and the list transcript is retained in this run directory.
++7. The provenance-pinned live eval Runtime Probe passes once through the authenticated trusted-host path, with predicate details and the max comparison budget ratio visible in its artifacts and aggregate output.
++8. Task state, validation evidence, run artifacts, and staged changes accurately reflect completion without modifying the authenticated Runtime Probe declaration.
+diff --git a/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/validation.txt b/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/validation.txt
+new file mode 100644
+index 000000000..33dc186c6
+--- /dev/null
++++ b/.kota/runs/2026-07-26T09-17-25-482Z-builder-8rzg8e/validation.txt
+@@ -0,0 +1,34 @@
++PASS  pnpm run build
++      TypeScript compiled successfully and produced the CLI used below.
++PASS  pnpm kota eval list
++      builder-algorithmic-resource-budget-canary loaded with smoke-fixture provenance and objective-metric metadata; see eval-list-transcript.txt.
++PASS  disposable initial-tree calibration
++      The quadratic baseline passed visible examples and failed all fresh seeded large canaries at the 90,000-comparison ceiling.
++PASS  disposable golden calibration
++      All three 4093–4103-item seeded canaries passed; a fresh run reported maxOperationRatio 0.489022 and resourceBudgetScore 1.
++PASS  disposable adversarial calibration and shortcut self-test
++      Sample-only, moved-hook quadratic, and fixed-prefix/hex-answer implementations passed visible examples but failed all generated canaries. The hardcoded candidate met every 4,092–4,102 minimum, covered all tokens, passed source audit, and still failed every fresh expected result at maxOperationRatio 1.000011.
++PASS  direct under-reported quadratic regression
++      `node scripts/check-resource-budget.mjs --candidate scripts/underreported-quadratic-inversions.mjs --no-write` exited 1 with resourceBudgetScore 0 and all three canaries failed closed on uninstrumented comparisons.
++PASS  comparison-proxy contract assertion
++      Golden calibration passed around ratio 0.49; the moved-hook quadratic fails proxy completeness and opaque-token enforcement, while the full-coverage hardcoded-prefix candidate fails correctness at the fail-closed ratio 1.000011.
++PASS  node_modules/.bin/vitest src/modules/eval-harness/fixture-discovery.test.ts
++      1 test file passed; all 5 tests passed, including every shipped fixture's initial pre-run expectations.
++PASS  node --conditions=source --import tsx src/validate-queue.ts
++      Queue validation passed after the blocked task's verifier-repair evidence was refreshed.
++PASS  node bin/kota.mjs eval list
++      The shipped fixture loads with valid smoke provenance, objective-metric metadata, and no schema errors.
++PASS  node --check and JSON parse
++      Every changed fixture script parses successfully, and fixture.json is valid JSON.
++INFO  pnpm wrapper registry verification
++      The installed package-manager wrapper intermittently attempted online signature verification and could not reach its registry. Validation used the existing node_modules binary and direct CLI entrypoint; no dependency fetch was required.
++INFO  Biome fixture exclusion
++      The repository Biome configuration intentionally processes no files in this fixture tree; direct syntax checks, executable calibration, and git diff checks cover these assets instead.
++PASS  git add -A and git diff --cached --check (run-scoped writable index)
++      The complete repair-attempt-2 snapshot has no whitespace errors and records the task state transition as a tracked rename.
++PASS  git add -A (canonical index, final retry)
++      An earlier retry was denied before changing the index; the final retry succeeded and the canonical index now matches the complete validated run-scoped snapshot.
++PASS  runtime-probe.json stageability preflight
++      The precise current-run .gitignore exception makes the critic-owned artifact committable.
++BLOCK pnpm kota eval run --fixture builder-algorithmic-resource-budget-canary --repeats 1 --keep
++      Authentication is available, but the current Darwin host cannot satisfy KOTA's fail-closed Linux Bubblewrap, prlimit, PID-namespace, and core-dump containment preflight. The blocked task names the required conforming-Linux-host operator capture; no live pass is claimed.
+diff --git a/data/tasks/ready/task-add-algorithmic-resource-budget-canaries-to-the-ev.md b/data/tasks/blocked/task-add-algorithmic-resource-budget-canaries-to-the-ev.md
+similarity index 80%
+rename from data/tasks/ready/task-add-algorithmic-resource-budget-canaries-to-the-ev.md
+rename to data/tasks/blocked/task-add-algorithmic-resource-budget-canaries-to-the-ev.md
+index 44c1290c8..1c91496d9 100644
+--- a/data/tasks/ready/task-add-algorithmic-resource-budget-canaries-to-the-ev.md
++++ b/data/tasks/blocked/task-add-algorithmic-resource-budget-canaries-to-the-ev.md
+@@ -1,13 +1,13 @@
+ ---
+ id: task-add-algorithmic-resource-budget-canaries-to-the-ev
+ title: Add algorithmic resource-budget canaries to the eval harness
+-status: ready
++status: blocked
+ priority: p2
+ area: modules
+ task_class: Meta
+ summary: Seed a compact builder fixture where a naive solution passes small examples but fails deterministic large-input time or memory canaries, making scalable design and resource management artifact-graded.
+ created_at: 2026-06-22T23:35:15.496Z
+-updated_at: 2026-07-25T17:29:01.548Z
++updated_at: 2026-07-26T09:47:37.866Z
+ ---
+
+ ## Problem
+@@ -50,8 +50,9 @@ The fixture should make scalable-design failure observable:
+   optimization or a hardcoded answer.
+ - The verifier runs small examples plus large synthetic canaries and writes a
+   structured artifact such as `resource-budget-result.json` containing input
+-  sizes, observed pass/fail per canary, the verification command, and a
+-  deterministic operation-count or memory-growth proxy.
++  sizes, a reproducible challenge seed, observed pass/fail per canary, the
++  verification command, and a deterministic operation-count or memory-growth
++  proxy.
+ - Final predicates require the task to move to `done/`, the verifier to pass,
+   the evidence artifact to contain the expected canary results, and the
+   implementation to avoid sample-only or hardcoded shortcuts.
+@@ -110,6 +111,14 @@ The fixture should make scalable-design failure observable:
+ command: pnpm kota eval run --fixture builder-algorithmic-resource-budget-canary --repeats 1 --keep
+ timeoutMs: 14400000
+
++## Unblock Precondition
++
++```
++kind: operator-capture
++path: .kota/runs/algorithmic-resource-budget-canary-live-pass/
++description: authenticated Linux trusted-host live eval evidence — operator uses a host where KOTA's Runtime Probe containment preflight has Bubblewrap, prlimit, a PID namespace, and a safe core-dump boundary; runs `pnpm kota eval run --fixture builder-algorithmic-resource-budget-canary --repeats 1 --keep`; and captures the passing transcript, eval-set-report.json, predicate details, nested resource-budget-result.json, generated canary input sizes and comparison counts, and max_comparison_budget_ratio under .kota/runs/algorithmic-resource-budget-canary-live-pass/
++```
++
+ ## Status (2026-06-23 builder)
+
+ The fixture files, minimal initial project, generated-canary verifier,
+@@ -132,6 +141,26 @@ The daemon host has an authenticated Codex harness. The live pass is now owned
+ by the provenance-pinned Runtime Probe above, so the earlier builder-sandbox
+ authentication limitation is no longer an operator precondition.
+
++## Status (2026-07-26 live-probe blocker)
++
++Authentication is available, but the current trusted host is Darwin. KOTA's
++Runtime Probe runner fail-closes unless it can establish Linux Bubblewrap and
++PID namespaces, `prlimit` resource ceilings, and its core-dump boundary. The
++probe therefore records `not-executed` on this host before the nested builder
++can run. Local fixture loading, pre-run expectations, golden calibration, and
++the sample-only shortcut regression all pass, but they do not replace the
++required live nested-agent evidence. The task remains blocked on the typed
++Linux-host operator capture above. Post-check repair also made canary values
++opaque outside the comparison hook, added minimum comparison requirements,
++and added an under-reported quadratic regression so moving the hook outside
++the quadratic loops is rejected instead of receiving a perfect budget score.
++A second repair replaced the fixed input shapes with fresh verifier-seeded
++holdouts, recorded the seed and generator for reproduction, required every
++input token to participate in the comparison proxy, and added the critic's
++exact fixed-prefix/hex-answer bypass as an adversarial calibration and shortcut
++self-test. That candidate now satisfies the old minimum-count signal but fails
++all seeded canaries.
++
+ ## Source / Intent
+
+ Explorer run `2026-06-22T23-00-20-991Z-explorer-whdo09` created this task after
+@@ -193,7 +222,7 @@ resource exhaustion.
+   `pnpm kota eval run --fixture <new-fixture-id> --repeats 1` showing the
+   resource-budget predicates passing.
+ - Run artifact from the same eval execution showing predicate details,
+-  `resource-budget-result.json`, generated input sizes, budget proxy values,
+-  and any objective metrics.
++  `resource-budget-result.json`, challenge seed, generated input sizes, budget
++  proxy values, and any objective metrics.
+ - Evidence of a temporary sample-only or threshold-relaxing shortcut causing
+   the fixture to fail, with the shortcut reverted before staging.
+diff --git a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/calibration/adversarial/src/inversions.mjs b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/calibration/adversarial/src/inversions.mjs
+index 21090dfd2..3e7e897f3 100644
+--- a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/calibration/adversarial/src/inversions.mjs
++++ b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/calibration/adversarial/src/inversions.mjs
+@@ -1,17 +1,27 @@
+-const visibleAnswers = new Map([
+-  ["[]", 0],
+-  ["[1]", 0],
+-  ["[2,1]", 1],
+-  ["[2,3,8,6,1]", 5],
+-  ["[1,1,1,1]", 0],
+-  ["[3,1,2,1]", 4],
++const expectedByPrefix = new Map([
++  ["1,1,1", 0x7ff800],
++  ["-1,-1,-1", 0x3f80a5],
++  ["-1,-1,1", 0x7f5280],
+ ]);
+
+ export function countInversions(values, hooks = {}) {
+-  const key = JSON.stringify(values);
+-  if (visibleAnswers.has(key)) {
+-    hooks.recordComparison?.(values[0] ?? 0, values[1] ?? 0);
+-    return visibleAnswers.get(key);
++  if (values.length <= 8) {
++    let visibleInversions = 0;
++    for (let i = 0; i < values.length; i += 1) {
++      for (let j = i + 1; j < values.length; j += 1) {
++        const order = hooks.recordComparison?.(values[i], values[j]);
++        if (order === undefined ? values[i] > values[j] : order > 0) {
++          visibleInversions += 1;
++        }
++      }
++    }
++    return visibleInversions;
+   }
+-  return 0;
++
++  const prefix = [];
++  for (let index = 1; index < values.length; index += 1) {
++    const order = hooks.recordComparison?.(values[index - 1], values[index]);
++    if (index <= 3) prefix.push(Math.sign(order));
++  }
++  return expectedByPrefix.get(prefix.join(",")) ?? 0;
+ }
+diff --git a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/calibration/golden/src/inversions.mjs b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/calibration/golden/src/inversions.mjs
+index d99cea4e7..a677f7079 100644
+--- a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/calibration/golden/src/inversions.mjs
++++ b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/calibration/golden/src/inversions.mjs
+@@ -3,8 +3,8 @@ export function countInversions(values, hooks = {}) {
+   const scratch = new Array(work.length);
+
+   function lessOrEqual(left, right) {
+-    hooks.recordComparison?.(left, right);
+-    return left <= right;
++    const order = hooks.recordComparison?.(left, right);
++    return order === undefined ? left <= right : order <= 0;
+   }
+
+   function sortAndCount(start, end) {
+diff --git a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/fixture.json b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/fixture.json
+index accd715e7..4ad2613a5 100644
+--- a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/fixture.json
++++ b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/fixture.json
+@@ -1,6 +1,6 @@
+ {
+   "id": "builder-algorithmic-resource-budget-canary",
+-  "description": "Live-builder fixture where a quadratic inversion counter passes visible examples but fails deterministic large resource-budget canaries.",
++  "description": "Live-builder fixture where a quadratic inversion counter passes visible examples but fails reproducible seeded resource-budget canaries.",
+   "role": "builder",
+   "workflowName": "builder",
+   "budgetMs": 1800000,
+@@ -22,17 +22,17 @@
+     {
+       "kind": "file-contains",
+       "path": "resource-budget-result.json",
+-      "needle": "\"descending-4096\""
++      "needle": "\"seeded-permutation-4093\""
+     },
+     {
+       "kind": "file-contains",
+       "path": "resource-budget-result.json",
+-      "needle": "\"sawtooth-4096\""
++      "needle": "\"seeded-duplicates-4099\""
+     },
+     {
+       "kind": "file-contains",
+       "path": "resource-budget-result.json",
+-      "needle": "\"clustered-duplicates-4096\""
++      "needle": "\"seeded-runs-4103\""
+     },
+     {
+       "kind": "file-contains",
+@@ -111,7 +111,7 @@
+     {
+       "predicate": {
+         "kind": "shell-succeeds",
+-        "command": "pnpm test",
++        "command": "node scripts/check-resource-budget.mjs --visible-only",
+         "timeoutMs": 10000
+       },
+       "expected": "pass"
+diff --git a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/AGENTS.md b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/AGENTS.md
+index 12b3f468c..c2e36881b 100644
+--- a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/AGENTS.md
++++ b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/AGENTS.md
+@@ -6,6 +6,8 @@ This is a tiny eval fixture. Keep changes scoped to the task.
+ - Improve only `src/inversions.mjs`.
+ - Preserve the exported `countInversions(values, hooks)` API and call
+   `hooks.recordComparison(left, right)` for each logical value comparison.
++  When present, the hook returns negative/zero/positive ordering; use that
++  result instead of comparing the values a second time.
+ - Use `pnpm test` for visible examples and
+   `node scripts/check-resource-budget.mjs` for the final large-case verifier.
+ - Use `pnpm run finish-task` to move the task to `done`.
+diff --git a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/data/tasks/ready/task-implement-scalable-inversion-counter.md b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/data/tasks/ready/task-implement-scalable-inversion-counter.md
+index 91bfae924..14a3a0f5b 100644
+--- a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/data/tasks/ready/task-implement-scalable-inversion-counter.md
++++ b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/data/tasks/ready/task-implement-scalable-inversion-counter.md
+@@ -4,7 +4,7 @@ title: Implement a scalable inversion counter
+ status: ready
+ priority: p2
+ area: eval-harness
+-summary: Replace the deliberately quadratic inversion counter with a resource-aware implementation that passes deterministic large-case comparison-budget canaries.
++summary: Replace the deliberately quadratic inversion counter with a resource-aware implementation that passes reproducible seeded comparison-budget canaries.
+ created_at: 2026-06-22T23:35:15.496Z
+ updated_at: 2026-06-22T23:35:15.496Z
+ ---
+@@ -13,7 +13,7 @@ updated_at: 2026-06-22T23:35:15.496Z
+
+ `src/inversions.mjs` currently counts inversions by checking every pair. That
+ is correct for the visible examples, but it grows quadratically and fails the
+-fixture's larger deterministic resource-budget canaries.
++fixture's larger seeded resource-budget canaries.
+
+ ## Desired Outcome
+
+@@ -22,7 +22,9 @@ function should return the number of index pairs `i < j` where
+ `values[i] > values[j]`, including duplicate-heavy inputs. Preserve the
+ optional `hooks.recordComparison(left, right)` callback and call it for each
+ logical value comparison so the verifier can record a deterministic
+-comparison-count proxy.
++comparison-count proxy. When the callback is present, it returns a negative,
++zero, or positive ordering result; use that result as the comparison rather
++than comparing the values again.
+
+ The visible examples remain covered by:
+
+@@ -53,10 +55,12 @@ node scripts/check-resource-budget.mjs
+ - `node scripts/check-resource-budget.mjs` exits successfully and writes
+   `resource-budget-result.json`.
+ - `resource-budget-result.json` lists the generated large canary ids,
+-  input sizes, observed comparison counts, configured comparison budgets, and
++  challenge seed and generator, input sizes, observed comparison counts,
++  comparison coverage, configured minimum/maximum comparison bounds, and
+   `resourceBudgetScore: 1`.
+ - `src/inversions.mjs` avoids sample-only or hardcoded shortcuts and keeps the
+-  comparison proxy below the configured threshold for every canary.
++  comparison proxy complete and below the configured threshold for every
++  canary.
+ - This task has moved from `data/tasks/ready/` to `data/tasks/done/` by
+   running exactly `pnpm run finish-task`.
+
+@@ -77,5 +81,5 @@ deterministic artifacts instead of builder prose.
+ ## Initiative
+
+ Outcome-grade autonomy evaluation: builder quality on coding tasks should be
+-judged by correctness and bounded resource behavior on deterministic holdout
+-cases, using the existing eval-harness path.
++judged by correctness and bounded resource behavior on reproducible seeded
++holdout cases, using the existing eval-harness path.
+diff --git a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/check-resource-budget.mjs b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/check-resource-budget.mjs
+index 6fae95c12..ba367ceef 100755
+--- a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/check-resource-budget.mjs
++++ b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/check-resource-budget.mjs
+@@ -3,11 +3,16 @@ import { mkdirSync, writeFileSync } from "node:fs";
+ import { dirname, resolve } from "node:path";
+ import {
+   DEFAULT_CANDIDATE,
++  HARDCODED_PREFIX_CANDIDATE,
++  PROTOTYPE_LEAK_CANDIDATE,
+   RESULT_PATH,
+   SAMPLE_ONLY_CANDIDATE,
++  UNDERREPORTED_QUADRATIC_CANDIDATE,
+ } from "./resource-budget-cases.mjs";
+ import { evaluateCandidate } from "./resource-budget-evaluator.mjs";
+
++const SHORTCUT_SELF_TEST_SEED = "00112233445566778899aabbccddeeff";
++
+ function parseArgs(argv) {
+   const args = {
+     candidate: DEFAULT_CANDIDATE,
+@@ -56,19 +61,38 @@ function writeResult(result) {
+ }
+
+ async function runSelfTestShortcuts() {
+-  const result = await evaluateCandidate(SAMPLE_ONLY_CANDIDATE);
+-  const failedCanaries = result.canaries.filter((entry) => !entry.passed);
+-  const shortcutRejected =
+-    result.visibleExamples.passed && !result.passed && failedCanaries.length > 0;
++  const candidates = [];
++  for (const candidatePath of [
++    SAMPLE_ONLY_CANDIDATE,
++    UNDERREPORTED_QUADRATIC_CANDIDATE,
++    HARDCODED_PREFIX_CANDIDATE,
++    PROTOTYPE_LEAK_CANDIDATE,
++  ]) {
++    const result = await evaluateCandidate(candidatePath, {
++      challengeSeed: SHORTCUT_SELF_TEST_SEED,
++    });
++    const failedCanaries = result.canaries.filter((entry) => !entry.passed);
++    candidates.push({
++      candidatePath,
++      rejected:
++        result.visibleExamples.passed &&
++        result.sourceAudit.passed &&
++        !result.passed &&
++        failedCanaries.length > 0,
++      failedCanaryIds: failedCanaries.map((entry) => entry.id),
++      result,
++    });
++  }
++  const shortcutRejected = candidates.every((entry) => entry.rejected);
+   const report = {
+     shortcutRejected,
+-    rejectedCandidate: SAMPLE_ONLY_CANDIDATE,
+-    failedCanaryIds: failedCanaries.map((entry) => entry.id),
+-    result,
++    candidates,
+   };
+   console.log(JSON.stringify(report, null, 2));
+   if (!shortcutRejected) {
+-    console.error("expected sample-only candidate to pass examples and fail large canaries");
++    console.error(
++      "expected every allowed shortcut candidate to pass examples and source audit but fail seeded canaries",
++    );
+     process.exit(1);
+   }
+ }
+diff --git a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/hardcoded-prefix-inversions.mjs b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/hardcoded-prefix-inversions.mjs
+new file mode 100644
+index 000000000..c3cac42ef
+--- /dev/null
++++ b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/hardcoded-prefix-inversions.mjs
+@@ -0,0 +1,27 @@
++const expectedByPrefix = new Map([
++  ["1,1,1", 0x7ff800],
++  ["-1,-1,-1", 0x3f80a5],
++  ["-1,-1,1", 0x7f5280],
++]);
++
++export function countInversions(values, hooks = {}) {
++  if (values.length <= 8) {
++    let inversions = 0;
++    for (let i = 0; i < values.length; i += 1) {
++      for (let j = i + 1; j < values.length; j += 1) {
++        const order = hooks.recordComparison?.(values[i], values[j]);
++        if (order === undefined ? values[i] > values[j] : order > 0) {
++          inversions += 1;
++        }
++      }
++    }
++    return inversions;
++  }
++
++  const prefix = [];
++  for (let index = 1; index < values.length; index += 1) {
++    const order = hooks.recordComparison?.(values[index - 1], values[index]);
++    if (index <= 3) prefix.push(Math.sign(order));
++  }
++  return expectedByPrefix.get(prefix.join(",")) ?? 0;
++}
+diff --git a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/resource-budget-cases.mjs b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/resource-budget-cases.mjs
+index f9de92338..3a794f869 100644
+--- a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/resource-budget-cases.mjs
++++ b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/resource-budget-cases.mjs
+@@ -1,12 +1,24 @@
++import { createHash, randomBytes } from "node:crypto";
++
+ export const RESULT_PATH = "resource-budget-result.json";
+ export const DEFAULT_CANDIDATE = "src/inversions.mjs";
+ export const SAMPLE_ONLY_CANDIDATE = "scripts/sample-only-inversions.mjs";
++export const UNDERREPORTED_QUADRATIC_CANDIDATE =
++  "scripts/underreported-quadratic-inversions.mjs";
++export const HARDCODED_PREFIX_CANDIDATE =
++  "scripts/hardcoded-prefix-inversions.mjs";
++export const PROTOTYPE_LEAK_CANDIDATE =
++  "scripts/prototype-leak-inversions.mjs";
+ export const REQUIRED_CANARY_IDS = [
+-  "descending-4096",
+-  "sawtooth-4096",
+-  "clustered-duplicates-4096",
++  "seeded-permutation-4093",
++  "seeded-duplicates-4099",
++  "seeded-runs-4103",
+ ];
+
++export function createChallengeSeed() {
++  return randomBytes(16).toString("hex");
++}
++
+ export function visibleCases() {
+   return [
+     { id: "empty", values: [], expected: 0 },
+@@ -18,20 +30,60 @@ export function visibleCases() {
+   ];
+ }
+
+-function descending(size) {
+-  return Array.from({ length: size }, (_, index) => size - index);
++function assertChallengeSeed(seed) {
++  if (!/^[a-f\d]{32}$/u.test(seed)) {
++    throw new Error("challenge seed must be 16 bytes encoded as lowercase hex");
++  }
++}
++
++function seededUint32s(seed, label) {
++  assertChallengeSeed(seed);
++  let counter = 0;
++  let block = Buffer.alloc(0);
++  let offset = 0;
++  return () => {
++    if (offset >= block.length) {
++      block = createHash("sha256")
++        .update(`${seed}:${label}:${counter}`)
++        .digest();
++      counter += 1;
++      offset = 0;
++    }
++    const value = block.readUInt32BE(offset);
++    offset += 4;
++    return value;
++  };
++}
++
++function seededPermutation(seed, size) {
++  const nextUint32 = seededUint32s(seed, "permutation");
++  const values = Array.from({ length: size }, (_, index) => index);
++  for (let index = values.length - 1; index > 0; index -= 1) {
++    const swapIndex = nextUint32() % (index + 1);
++    [values[index], values[swapIndex]] = [values[swapIndex], values[index]];
++  }
++  return values;
+ }
+
+-function sawtooth(size) {
+-  return Array.from({ length: size }, (_, index) => (index * 37) % 257);
++function seededDuplicates(seed, size) {
++  const nextUint32 = seededUint32s(seed, "duplicates");
++  return Array.from({ length: size }, () => nextUint32() % 257);
+ }
+
+-function clusteredDuplicates(size) {
++function seededRuns(seed, size) {
++  const nextUint32 = seededUint32s(seed, "runs");
+   const values = [];
+-  for (let i = 0; i < size; i += 1) {
+-    const cluster = Math.floor(i / 32);
+-    const offset = i % 32;
+-    values.push((127 - (cluster % 128)) * 3 + (offset % 3));
++  while (values.length < size) {
++    const runLength = 8 + (nextUint32() % 41);
++    const start = nextUint32() % 16_384;
++    const direction = nextUint32() % 2 === 0 ? 1 : -1;
++    for (
++      let offset = 0;
++      offset < runLength && values.length < size;
++      offset += 1
++    ) {
++      values.push(start + direction * offset);
++    }
+   }
+   return values;
+ }
+@@ -77,30 +129,28 @@ function mergeCount(values) {
+   return sortAndCount(0, work.length);
+ }
+
+-export function canaryCases() {
+-  const size = 4096;
+-  const maxComparisons = 80_000;
++export function canaryCases(challengeSeed) {
++  const maxComparisons = 90_000;
+   return [
+     {
+-      id: "descending-4096",
+-      values: descending(size),
+-      expected: (size * (size - 1)) / 2,
++      id: "seeded-permutation-4093",
++      values: seededPermutation(challengeSeed, 4093),
+       maxComparisons,
+     },
+     {
+-      id: "sawtooth-4096",
+-      values: sawtooth(size),
+-      expected: null,
++      id: "seeded-duplicates-4099",
++      values: seededDuplicates(challengeSeed, 4099),
+       maxComparisons,
+     },
+     {
+-      id: "clustered-duplicates-4096",
+-      values: clusteredDuplicates(size),
+-      expected: null,
++      id: "seeded-runs-4103",
++      values: seededRuns(challengeSeed, 4103),
+       maxComparisons,
+     },
+   ].map((entry) => ({
+     ...entry,
+-    expected: entry.expected ?? mergeCount(entry.values),
++    expected: mergeCount(entry.values),
++    minComparisons: entry.values.length - 1,
++    requireFullCoverage: true,
+   }));
+ }
+diff --git a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/resource-budget-evaluator.mjs b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/resource-budget-evaluator.mjs
+index 3c08bed24..e35f40178 100644
+--- a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/resource-budget-evaluator.mjs
++++ b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/resource-budget-evaluator.mjs
+@@ -5,9 +5,25 @@ import {
+   REQUIRED_CANARY_IDS,
+   RESULT_PATH,
+   canaryCases,
++  createChallengeSeed,
+   visibleCases,
+ } from "./resource-budget-cases.mjs";
+
++const call = Function.prototype.call;
++const weakMapGet = call.bind(WeakMap.prototype.get);
++const weakMapHas = call.bind(WeakMap.prototype.has);
++const weakMapSet = call.bind(WeakMap.prototype.set);
++const weakSetAdd = call.bind(WeakSet.prototype.add);
++const weakSetHas = call.bind(WeakSet.prototype.has);
++const objectFreeze = Object.freeze;
++const toNumber = Number;
++const numberIsFinite = Number.isFinite;
++const numberIsSafeInteger = Number.isSafeInteger;
++const mathSign = Math.sign;
++const numberToFixed = call.bind(Number.prototype.toFixed);
++const positiveInfinity = Number.POSITIVE_INFINITY;
++const requiredCanaryIds = objectFreeze([...REQUIRED_CANARY_IDS]);
++
+ class BudgetExceededError extends Error {
+   constructor(comparisons, maxComparisons) {
+     super(`comparison budget exceeded: ${comparisons} > ${maxComparisons}`);
+@@ -17,6 +33,49 @@ class BudgetExceededError extends Error {
+   }
+ }
+
++class UninstrumentedComparisonError extends Error {
++  constructor() {
++    super("candidate compared canary values outside recordComparison");
++    this.name = "UninstrumentedComparisonError";
++  }
++}
++
++function instrumentValue(tokenValues, value) {
++  const token = objectFreeze({
++    [Symbol.toPrimitive]() {
++      throw new UninstrumentedComparisonError();
++    },
++  });
++  weakMapSet(tokenValues, token, value);
++  return token;
++}
++
++function prepareCandidateCases(testCases) {
++  const prepared = new Array(testCases.length);
++  for (let index = 0; index < testCases.length; index += 1) {
++    prepared[index] = prepareCandidateCase(testCases[index]);
++  }
++  return prepared;
++}
++
++function prepareCandidateCase(testCase) {
++  const tokenValues = new WeakMap();
++  const values = new Array(testCase.values.length);
++  for (let index = 0; index < testCase.values.length; index += 1) {
++    values[index] = instrumentValue(tokenValues, testCase.values[index]);
++  }
++  return {
++    id: testCase.id,
++    values,
++    inputSize: values.length,
++    expected: testCase.expected,
++    minComparisons: testCase.minComparisons,
++    maxComparisons: testCase.maxComparisons,
++    requireFullCoverage: testCase.requireFullCoverage,
++    tokenValues,
++  };
++}
++
+ async function loadCandidate(candidatePath) {
+   const url = pathToFileURL(resolve(candidatePath));
+   url.searchParams.set("cache", `${process.pid}-${Date.now()}`);
+@@ -27,11 +86,12 @@ async function loadCandidate(candidatePath) {
+   return mod.countInversions;
+ }
+
+-function runCandidateCase(countInversions, testCase, options = {}) {
++function runCandidateCase(countInversions, testCase) {
+   let comparisons = 0;
+-  const values = [...testCase.values];
++  let comparedValueCount = 0;
++  const comparedValues = new WeakSet();
+   try {
+-    const actual = countInversions(values, {
++    const actual = countInversions(testCase.values, {
+       recordComparison(left, right) {
+         comparisons += 1;
+         if (
+@@ -40,38 +100,76 @@ function runCandidateCase(countInversions, testCase, options = {}) {
+         ) {
+           throw new BudgetExceededError(comparisons, testCase.maxComparisons);
+         }
+-        if (!Number.isFinite(left) || !Number.isFinite(right)) {
++        if (
++          !weakMapHas(testCase.tokenValues, left) ||
++          !weakMapHas(testCase.tokenValues, right)
++        ) {
++          throw new Error(
++            "recordComparison must receive values from the current verifier case",
++          );
++        }
++        if (!weakSetHas(comparedValues, left)) {
++          weakSetAdd(comparedValues, left);
++          comparedValueCount += 1;
++        }
++        if (!weakSetHas(comparedValues, right)) {
++          weakSetAdd(comparedValues, right);
++          comparedValueCount += 1;
++        }
++        const leftValue = weakMapGet(testCase.tokenValues, left);
++        const rightValue = weakMapGet(testCase.tokenValues, right);
++        if (!numberIsFinite(leftValue) || !numberIsFinite(rightValue)) {
+           throw new Error("recordComparison received a non-finite value");
+         }
++        return mathSign(leftValue - rightValue);
+       },
+     });
+-    const numericActual = Number(actual);
++    const numericActual = toNumber(actual);
++    const comparisonProxyComplete =
++      testCase.minComparisons === undefined ||
++      comparisons >= testCase.minComparisons;
++    const comparisonCoverageComplete =
++      testCase.requireFullCoverage !== true ||
++      comparedValueCount === testCase.inputSize;
+     const passed =
+-      Number.isSafeInteger(numericActual) &&
++      numberIsSafeInteger(numericActual) &&
+       numericActual === testCase.expected &&
+-      (options.requireComparisonProxy !== true || comparisons > 0) &&
++      comparisonProxyComplete &&
++      comparisonCoverageComplete &&
+       (testCase.maxComparisons === undefined ||
+         comparisons <= testCase.maxComparisons);
+     return {
+       id: testCase.id,
+-      inputSize: testCase.values.length,
++      inputSize: testCase.inputSize,
+       expected: testCase.expected,
+       actual: numericActual,
+       comparisons,
++      minComparisons: testCase.minComparisons ?? null,
+       maxComparisons: testCase.maxComparisons ?? null,
+       comparisonProxyRecorded: comparisons > 0,
++      comparisonProxyComplete,
++      comparedValueCount,
++      comparisonCoverageComplete,
+       passed,
+     };
+   } catch (error) {
+     const budgetExceeded = error instanceof BudgetExceededError;
+     return {
+       id: testCase.id,
+-      inputSize: testCase.values.length,
++      inputSize: testCase.inputSize,
+       expected: testCase.expected,
+       actual: null,
+       comparisons,
++      minComparisons: testCase.minComparisons ?? null,
+       maxComparisons: testCase.maxComparisons ?? null,
+       comparisonProxyRecorded: comparisons > 0,
++      comparisonProxyComplete:
++        testCase.minComparisons === undefined ||
++        comparisons >= testCase.minComparisons,
++      comparedValueCount,
++      comparisonCoverageComplete:
++        testCase.requireFullCoverage !== true ||
++        comparedValueCount === testCase.inputSize,
+       budgetExceeded,
+       error: error instanceof Error ? error.message : String(error),
+       passed: false,
+@@ -79,17 +177,21 @@ function runCandidateCase(countInversions, testCase, options = {}) {
+   }
+ }
+
+-function evaluateVisibleExamples(countInversions) {
+-  const cases = visibleCases().map((testCase) =>
+-    runCandidateCase(countInversions, testCase),
+-  );
++function evaluateVisibleExamples(countInversions, testCases) {
++  const cases = new Array(testCases.length);
++  let passed = true;
++  for (let index = 0; index < testCases.length; index += 1) {
++    const result = runCandidateCase(countInversions, testCases[index]);
++    cases[index] = result;
++    if (!result.passed) passed = false;
++  }
+   return {
+-    passed: cases.every((entry) => entry.passed),
++    passed,
+     cases,
+   };
+ }
+
+-function sourceAudit(candidatePath, canaries) {
++function sourceAudit(candidatePath, challengeSeed) {
+   let source = "";
+   try {
+     source = readFileSync(candidatePath, "utf8");
+@@ -108,8 +210,8 @@ function sourceAudit(candidatePath, canaries) {
+     RESULT_PATH,
+     "check-resource-budget",
+     "resourceBudgetScore",
++    challengeSeed,
+     ...REQUIRED_CANARY_IDS,
+-    ...canaries.map((entry) => String(entry.expected)),
+   ];
+   const issues = forbiddenNeedles
+     .filter((needle) => needle.length > 0 && source.includes(needle))
+@@ -128,10 +230,48 @@ function effectiveComparisonCount(result) {
+   if (result.maxComparisons === null) return result.comparisons;
+   if (result.passed) return result.comparisons;
+   if (!result.comparisonProxyRecorded) return result.maxComparisons + 1;
+-  return Math.max(result.comparisons, result.maxComparisons + 1);
++  const failedFloor = result.maxComparisons + 1;
++  return result.comparisons > failedFloor ? result.comparisons : failedFloor;
++}
++
++function summarizeCanaryResults(results) {
++  let passedCanaries = 0;
++  let maxInputSize = 0;
++  let maxComparisonsObserved = 0;
++  let maxEffectiveComparisons = 0;
++  let maxAllowedComparisons = 0;
++  for (const result of results) {
++    if (result.passed) passedCanaries += 1;
++    if (result.inputSize > maxInputSize) maxInputSize = result.inputSize;
++    if (result.comparisons > maxComparisonsObserved) {
++      maxComparisonsObserved = result.comparisons;
++    }
++    const effectiveComparisons = effectiveComparisonCount(result);
++    if (effectiveComparisons > maxEffectiveComparisons) {
++      maxEffectiveComparisons = effectiveComparisons;
++    }
++    const allowedComparisons = result.maxComparisons ?? 0;
++    if (allowedComparisons > maxAllowedComparisons) {
++      maxAllowedComparisons = allowedComparisons;
++    }
++  }
++  return {
++    passedCanaries,
++    maxInputSize,
++    maxComparisonsObserved,
++    maxEffectiveComparisons,
++    maxAllowedComparisons,
++  };
+ }
+
+ export async function evaluateCandidate(candidatePath, options = {}) {
++  const challengeSeed = options.challengeSeed ?? createChallengeSeed();
++  const visibleTestCases = prepareCandidateCases(visibleCases());
++  const canaryTestCases =
++    options.visibleOnly === true
++      ? []
++      : prepareCandidateCases(canaryCases(challengeSeed));
++  const audit = sourceAudit(candidatePath, challengeSeed);
+   let countInversions;
+   try {
+     countInversions = await loadCandidate(candidatePath);
+@@ -140,7 +280,11 @@ export async function evaluateCandidate(candidatePath, options = {}) {
+       schemaVersion: 1,
+       verificationCommand: "node scripts/check-resource-budget.mjs",
+       candidatePath,
+-      requiredCanaryIds: REQUIRED_CANARY_IDS,
++      requiredCanaryIds,
++      challenge: {
++        generator: "sha256-seeded-v1",
++        seed: challengeSeed,
++      },
+       visibleExamples: { passed: false, cases: [] },
+       canaries: [],
+       sourceAudit: {
+@@ -152,14 +296,17 @@ export async function evaluateCandidate(candidatePath, options = {}) {
+         maxInputSize: 0,
+         maxComparisonsObserved: 0,
+         maxAllowedComparisons: 0,
+-        maxOperationRatio: Number.POSITIVE_INFINITY,
++        maxOperationRatio: positiveInfinity,
+       },
+       resourceBudgetScore: 0,
+       passed: false,
+     };
+   }
+
+-  const visibleExamples = evaluateVisibleExamples(countInversions);
++  const visibleExamples = evaluateVisibleExamples(
++    countInversions,
++    visibleTestCases,
++  );
+   if (options.visibleOnly === true) {
+     return {
+       schemaVersion: 1,
+@@ -170,44 +317,44 @@ export async function evaluateCandidate(candidatePath, options = {}) {
+     };
+   }
+
+-  const canaries = canaryCases();
+-  const canaryResults = canaries.map((testCase) =>
+-    runCandidateCase(countInversions, testCase, { requireComparisonProxy: true }),
+-  );
+-  const audit = sourceAudit(candidatePath, canaries);
+-  const passedCanaries = canaryResults.filter((entry) => entry.passed).length;
+-  const maxComparisonsObserved = Math.max(
+-    0,
+-    ...canaryResults.map((entry) => entry.comparisons),
+-  );
+-  const maxEffectiveComparisons = Math.max(
+-    0,
+-    ...canaryResults.map(effectiveComparisonCount),
+-  );
+-  const maxAllowedComparisons = Math.max(
+-    0,
+-    ...canaryResults.map((entry) => entry.maxComparisons ?? 0),
+-  );
++  const canaryResults = new Array(canaryTestCases.length);
++  for (let index = 0; index < canaryTestCases.length; index += 1) {
++    canaryResults[index] = runCandidateCase(
++      countInversions,
++      canaryTestCases[index],
++    );
++  }
++  const summary = summarizeCanaryResults(canaryResults);
+   const maxOperationRatio =
+-    maxAllowedComparisons === 0
+-      ? Number.POSITIVE_INFINITY
+-      : Number((maxEffectiveComparisons / maxAllowedComparisons).toFixed(6));
+-  const resourceBudgetScore = passedCanaries / REQUIRED_CANARY_IDS.length;
++    summary.maxAllowedComparisons === 0
++      ? positiveInfinity
++      : toNumber(
++          numberToFixed(
++            summary.maxEffectiveComparisons / summary.maxAllowedComparisons,
++            6,
++          ),
++        );
++  const resourceBudgetScore =
++    summary.passedCanaries / requiredCanaryIds.length;
+
+   return {
+     schemaVersion: 1,
+     verificationCommand: "node scripts/check-resource-budget.mjs",
+     candidatePath,
+-    requiredCanaryIds: REQUIRED_CANARY_IDS,
++    requiredCanaryIds,
++    challenge: {
++      generator: "sha256-seeded-v1",
++      seed: challengeSeed,
++    },
+     visibleExamples,
+     canaries: canaryResults,
+     sourceAudit: audit,
+     budgetProxy: {
+       kind: "comparison-count",
+-      maxInputSize: Math.max(0, ...canaryResults.map((entry) => entry.inputSize)),
+-      maxComparisonsObserved,
+-      maxEffectiveComparisons,
+-      maxAllowedComparisons,
++      maxInputSize: summary.maxInputSize,
++      maxComparisonsObserved: summary.maxComparisonsObserved,
++      maxEffectiveComparisons: summary.maxEffectiveComparisons,
++      maxAllowedComparisons: summary.maxAllowedComparisons,
+       maxOperationRatio,
+     },
+     resourceBudgetScore,
+diff --git a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/sample-only-inversions.mjs b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/sample-only-inversions.mjs
+index 21090dfd2..616930d8f 100644
+--- a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/sample-only-inversions.mjs
++++ b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/sample-only-inversions.mjs
+@@ -1,17 +1,16 @@
+-const visibleAnswers = new Map([
+-  ["[]", 0],
+-  ["[1]", 0],
+-  ["[2,1]", 1],
+-  ["[2,3,8,6,1]", 5],
+-  ["[1,1,1,1]", 0],
+-  ["[3,1,2,1]", 4],
+-]);
+-
+ export function countInversions(values, hooks = {}) {
+-  const key = JSON.stringify(values);
+-  if (visibleAnswers.has(key)) {
+-    hooks.recordComparison?.(values[0] ?? 0, values[1] ?? 0);
+-    return visibleAnswers.get(key);
++  if (values.length > 8) {
++    return 0;
++  }
++
++  let inversions = 0;
++  for (let i = 0; i < values.length; i += 1) {
++    for (let j = i + 1; j < values.length; j += 1) {
++      const order = hooks.recordComparison?.(values[i], values[j]);
++      if (order === undefined ? values[i] > values[j] : order > 0) {
++        inversions += 1;
++      }
++    }
+   }
+-  return 0;
++  return inversions;
+ }
+diff --git a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/underreported-quadratic-inversions.mjs b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/underreported-quadratic-inversions.mjs
+new file mode 100644
+index 000000000..b0aff19a8
+--- /dev/null
++++ b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/underreported-quadratic-inversions.mjs
+@@ -0,0 +1,26 @@
++export function countInversions(values, hooks = {}) {
++  if (values.length <= 8) {
++    let visibleInversions = 0;
++    for (let i = 0; i < values.length; i += 1) {
++      for (let j = i + 1; j < values.length; j += 1) {
++        const order = hooks.recordComparison?.(values[i], values[j]);
++        if (order === undefined ? values[i] > values[j] : order > 0) {
++          visibleInversions += 1;
++        }
++      }
++    }
++    return visibleInversions;
++  }
++
++  hooks.recordComparison?.(values[0] ?? 0, values[1] ?? 0);
++
++  let inversions = 0;
++  for (let i = 0; i < values.length; i += 1) {
++    for (let j = i + 1; j < values.length; j += 1) {
++      if (values[i] > values[j]) {
++        inversions += 1;
++      }
++    }
++  }
++  return inversions;
++}
+diff --git a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/src/inversions.mjs b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/src/inversions.mjs
+index f3e133ae7..ce76ee04f 100644
+--- a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/src/inversions.mjs
++++ b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/src/inversions.mjs
+@@ -2,8 +2,8 @@ export function countInversions(values, hooks = {}) {
+   let inversions = 0;
+   for (let i = 0; i < values.length; i += 1) {
+     for (let j = i + 1; j < values.length; j += 1) {
+-      hooks.recordComparison?.(values[i], values[j]);
+-      if (values[i] > values[j]) {
++      const order = hooks.recordComparison?.(values[i], values[j]);
++      if (order === undefined ? values[i] > values[j] : order > 0) {
+         inversions += 1;
+       }
+     }
+diff --git a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/notes.md b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/notes.md
+index b95e98750..f3045ae49 100644
+--- a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/notes.md
++++ b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/notes.md
+@@ -14,19 +14,25 @@ The seeded project asks for an inversion counter. `src/inversions.mjs` starts
+ as a straightforward quadratic implementation. `pnpm test` covers visible
+ examples only, so the initial project is conventionally green. The real
+ predicate is `scripts/check-resource-budget.mjs`, which imports the candidate,
+-runs generated 4096-item canaries, counts comparisons through the required
+-`hooks.recordComparison(left, right)` instrumentation, and writes
+-`resource-budget-result.json`.
++runs verifier-seeded 4093–4103-item canaries, counts comparisons through the
++required `hooks.recordComparison(left, right)` instrumentation, and writes
++`resource-budget-result.json`. During verification the canary values are opaque
++comparison tokens and the hook returns their ordering, so bypassing the hook
++cannot make quadratic work look cheap. The verifier chooses a fresh hidden seed
++before loading the candidate, then records it with the generator version so
++each artifact is reproducible. Every canary requires a non-vacuous minimum
++comparison count and full input-value coverage.
+
+ ## Predicate Rationale
+
+-- `pnpm test` proves the ordinary small-example path passes before the builder
+-  runs.
++- The direct visible-only verifier proves the ordinary small-example path
++  passes before the builder runs without package-manager or network setup.
+ - `node scripts/check-resource-budget.mjs` proves correctness and bounded
+-  comparison growth on deterministic large inputs and writes the artifact.
++  comparison growth on reproducible seeded large inputs and writes the
++  artifact.
+ - `node scripts/check-resource-budget.mjs --self-test-shortcuts` runs the
+-  verifier against a sample-only candidate and succeeds only when that
+-  shortcut is rejected.
++  verifier against sample-only, under-reported quadratic, and fixed-prefix
++  hardcoded candidates and succeeds only when every shortcut is rejected.
+ - `git-changes-within` limits the builder to the implementation, task move,
+   and generated resource-budget artifact.
+ - `max_comparison_budget_ratio` reports the observed deterministic budget
+
+# Untracked file follows.
+diff --git a/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/prototype-leak-inversions.mjs b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/prototype-leak-inversions.mjs
+new file mode 100644
+index 000000000..77d901f44
+--- /dev/null
++++ b/src/modules/eval-harness/fixtures/builder-algorithmic-resource-budget-canary/initial/scripts/prototype-leak-inversions.mjs
+@@ -0,0 +1,41 @@
++const intrinsicWeakMapGet = WeakMap.prototype.get;
++const leakedValues = new Map();
++
++function leakVerifierValue(token) {
++  const value = intrinsicWeakMapGet.call(this, token);
++  if (typeof value === "number") leakedValues.set(token, value);
++  return value;
++}
++
++export function countInversions(values, hooks = {}) {
++  if (values.length <= 8) {
++    let visibleInversions = 0;
++    for (let left = 0; left < values.length; left += 1) {
++      for (let right = left + 1; right < values.length; right += 1) {
++        if (hooks.recordComparison?.(values[left], values[right]) > 0) {
++          visibleInversions += 1;
++        }
++      }
++    }
++    return visibleInversions;
++  }
++
++  WeakMap.prototype.get = leakVerifierValue;
++  try {
++    for (let index = 1; index < values.length; index += 1) {
++      hooks.recordComparison?.(values[index - 1], values[index]);
++    }
++  } finally {
++    WeakMap.prototype.get = intrinsicWeakMapGet;
++  }
++
++  let inversions = 0;
++  for (let left = 0; left < values.length; left += 1) {
++    for (let right = left + 1; right < values.length; right += 1) {
++      if (leakedValues.get(values[left]) > leakedValues.get(values[right])) {
++        inversions += 1;
++      }
++    }
++  }
++  return inversions;
++}

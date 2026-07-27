@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-07-26T22:57:40.888Z",
+  "result": "blocked-unchanged",
+  "verifyingRunId": "2026-07-26T22-41-09-783Z-builder-8rsy94",
+  "taskId": "task-add-algorithmic-resource-budget-canaries-to-the-ev",
+  "claim": {
+    "status": "active",
+    "recoveryStatus": "stale",
+    "owningRunId": "2026-07-26T09-17-25-482Z-builder-8rzg8e",
+    "ownerRunStatus": "failed",
+    "recommendedAction": "needs-review",
+    "unchanged": true
+  },
+  "worktree": {
+    "path": "/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-add-algorithmic-resource-budget-canaries-to-the-ev-2026-07-26t09-17-25-482z-builder-8rzg8e",
+    "state": "active",
+    "dirtyState": "dirty",
+    "uniqueCommitCount": 0,
+    "staleHead": "099cfb99b7df3016cccceb0187fb8371cc4ba6aa",
+    "canonicalMainContainsStaleHead": true,
+    "preservedPatch": ".kota/runs/2026-07-26T22-41-09-783Z-builder-8rsy94/preserved-stale-worktree.patch",
+    "preservedPatchSha256": "941147cf27a8d365b57c9ac25f75d614298e4cb02767758dd4ef829f31221fd1"
+  },
+  "deadLetter": {
+    "id": "dlq-4485507f-d964-48df-9c7a-ff7642eb1f23",
+    "status": "open",
+    "unchanged": true,
+    "intendedDisposition": "dismiss after canonical supersede because the classifier-refusal replay would duplicate obsolete dispatch"
+  },
+  "attemptedRecovery": {
+    "commandSurface": "workflow state-recovery resolve",
+    "action": "supersede",
+    "cleanupWorktree": true,
+    "discardWorktreeChanges": true,
+    "dismissDeadLetters": true,
+    "outcome": "refused before claim mutation",
+    "error": "git worktree remove could not delete the sibling worktree or linked Git metadata: Operation not permitted"
+  },
+  "blocker": {
+    "kind": "builder-sandbox-canonical-state-write",
+    "daemonControl": "unavailable",
+    "requiredEvidence": ".kota/runs/2026-07-26T22-41-09-783Z-builder-8rsy94/trusted-host-recovery-complete.json"
+  }
+}
