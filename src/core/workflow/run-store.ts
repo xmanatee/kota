@@ -188,12 +188,17 @@ export class WorkflowRunStore {
     this.writeState(state);
   }
 
-  setWorkflowNextScheduledAt(name: string, nextScheduledAt: string): void {
+  setWorkflowNextScheduledAt(
+    name: string,
+    nextScheduledAt: string | undefined,
+  ): void {
     const state = this.readState();
-    state.workflows[name] = {
-      ...state.workflows[name],
-      nextScheduledAt,
-    };
+    state.workflows[name] ??= {};
+    if (nextScheduledAt === undefined) {
+      delete state.workflows[name].nextScheduledAt;
+    } else {
+      state.workflows[name].nextScheduledAt = nextScheduledAt;
+    }
     this.writeState(state);
   }
 

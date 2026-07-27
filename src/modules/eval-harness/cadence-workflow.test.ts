@@ -3,25 +3,27 @@ import {
   EVAL_HARNESS_CADENCE_CONTAINER_EXECUTABLE_ENV,
   EVAL_HARNESS_CADENCE_CONTAINER_IMAGE_ENV,
   EVAL_HARNESS_CADENCE_CONTAINER_KOTA_BINARY_PATH_ENV,
+  isCadenceIsolationConfigured,
   resolveCadenceIsolationBackend,
 } from "./cadence-workflow.js";
 
 describe("eval-harness cadence isolation backend selection", () => {
-  it("defaults cadence execution to host subprocess isolation", () => {
-    expect(resolveCadenceIsolationBackend({})).toEqual({
-      kind: "host-subprocess",
-    });
+  it("keeps cadence disabled without a verified container backend", () => {
+    expect(isCadenceIsolationConfigured({})).toBe(false);
+    expect(() => resolveCadenceIsolationBackend({})).toThrow(
+      /must be set together/,
+    );
   });
 
   it("selects a strict container backend only when all cadence env fields are set", () => {
-    expect(
-      resolveCadenceIsolationBackend({
-        [EVAL_HARNESS_CADENCE_CONTAINER_EXECUTABLE_ENV]: "docker",
-        [EVAL_HARNESS_CADENCE_CONTAINER_IMAGE_ENV]: "node:22-bookworm",
-        [EVAL_HARNESS_CADENCE_CONTAINER_KOTA_BINARY_PATH_ENV]:
-          "/opt/kota/bin/kota.mjs",
-      }),
-    ).toEqual({
+    const env = {
+      [EVAL_HARNESS_CADENCE_CONTAINER_EXECUTABLE_ENV]: "docker",
+      [EVAL_HARNESS_CADENCE_CONTAINER_IMAGE_ENV]: "node:22-bookworm",
+      [EVAL_HARNESS_CADENCE_CONTAINER_KOTA_BINARY_PATH_ENV]:
+        "/opt/kota/bin/kota.mjs",
+    };
+    expect(isCadenceIsolationConfigured(env)).toBe(true);
+    expect(resolveCadenceIsolationBackend(env)).toEqual({
       kind: "container",
       executable: "docker",
       image: "node:22-bookworm",
@@ -31,7 +33,7 @@ describe("eval-harness cadence isolation backend selection", () => {
 
   it("fails loudly on incomplete cadence container config", () => {
     expect(() =>
-      resolveCadenceIsolationBackend({
+      isCadenceIsolationConfigured({
         [EVAL_HARNESS_CADENCE_CONTAINER_EXECUTABLE_ENV]: "docker",
       }),
     ).toThrow(/must be set together/);

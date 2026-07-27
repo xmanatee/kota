@@ -123,7 +123,9 @@ Three paths share the same `runFixture` + subprocess executor:
   regressions fail standard tests, including autonomy repair-loop checks.
   Cover workflow-step and judge-prompt branches. Live-LLM fixtures stay out.
 - **Cadence (`eval-harness-cadence`)** — every shipped fixture, weekly,
-  `repeats=k`, owns the persisted baseline and `pass^k` aggregation.
+  `repeats=k`, owns the persisted baseline and `pass^k` aggregation. It is
+  enabled only when the complete cadence container backend is configured;
+  executable verifiers never fall back to the evaluator host.
 - **CLI (`pnpm kota eval run`)** — operator-driven; caller owns comparison,
   no baseline persistence.
 
