@@ -97,10 +97,7 @@ const gatherHealthIssueCardsStep = typedCodeStep<AutonomyHealthIssueEvidence>({
       "latestHealthReviewAt",
       "issueCards",
     ]),
-  run: ({ projectDir }) => {
-    const store = new WorkflowRunStore(projectDir);
-    return collectRecentAutonomyHealthIssueCards(store.runsDir);
-  },
+  run: ({ projectDir }) => collectRecentAutonomyHealthIssueCards(projectDir),
 });
 
 const gatherTaskGovernanceStep = typedCodeStep<ImproverTaskGovernanceEvidence>({

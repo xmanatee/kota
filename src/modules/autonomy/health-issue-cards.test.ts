@@ -5,12 +5,16 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { collectRecentAutonomyHealthIssueCards } from "./health-issue-cards.js";
 
 describe("autonomy health issue cards", () => {
+  let projectDir: string;
   let runsDir: string;
 
   beforeEach(() => {
-    runsDir = join(
+    projectDir = join(
       tmpdir(),
       `kota-health-issue-cards-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    runsDir = join(
+      projectDir,
       ".kota",
       "runs",
     );
@@ -18,7 +22,7 @@ describe("autonomy health issue cards", () => {
   });
 
   afterEach(() => {
-    rmSync(runsDir, { recursive: true, force: true });
+    rmSync(projectDir, { recursive: true, force: true });
   });
 
   it("whitelists compact health issue cards from the latest review artifact", () => {
@@ -109,7 +113,7 @@ describe("autonomy health issue cards", () => {
       "utf-8",
     );
 
-    const evidence = collectRecentAutonomyHealthIssueCards(runsDir);
+    const evidence = collectRecentAutonomyHealthIssueCards(projectDir);
 
     expect(evidence.latestHealthReviewAt).toBe("2026-06-17T12:30:00.000Z");
     expect(evidence.issueCards).toEqual([
@@ -203,7 +207,7 @@ describe("autonomy health issue cards", () => {
       "utf-8",
     );
 
-    const evidence = collectRecentAutonomyHealthIssueCards(runsDir);
+    const evidence = collectRecentAutonomyHealthIssueCards(projectDir);
 
     expect(evidence.issueCards).toEqual([
       expect.objectContaining({
@@ -259,7 +263,7 @@ describe("autonomy health issue cards", () => {
       "utf-8",
     );
 
-    const evidence = collectRecentAutonomyHealthIssueCards(runsDir);
+    const evidence = collectRecentAutonomyHealthIssueCards(projectDir);
 
     expect(evidence.issueCards).toEqual([
       expect.objectContaining({
@@ -335,7 +339,7 @@ describe("autonomy health issue cards", () => {
       "utf-8",
     );
 
-    const evidence = collectRecentAutonomyHealthIssueCards(runsDir);
+    const evidence = collectRecentAutonomyHealthIssueCards(projectDir);
 
     expect(evidence.issueCards).toEqual([
       expect.objectContaining({
@@ -373,9 +377,75 @@ describe("autonomy health issue cards", () => {
       force: true,
     });
 
-    expect(collectRecentAutonomyHealthIssueCards(runsDir)).toEqual({
+    expect(collectRecentAutonomyHealthIssueCards(projectDir)).toEqual({
       generatedAt: expect.any(String),
       latestHealthReviewAt: null,
+      issueCards: [],
+    });
+  });
+
+  it("omits cards whose linked task already resolved the same evidence", () => {
+    const taskId = "task-health-workflow-builder-runtime-warning";
+    const doneDir = join(projectDir, "data", "tasks", "done");
+    mkdirSync(doneDir, { recursive: true });
+    writeFileSync(
+      join(doneDir, `${taskId}.md`),
+      [
+        "---",
+        `id: ${taskId}`,
+        "title: Repair builder runtime warning",
+        "status: done",
+        "priority: p2",
+        "area: autonomy",
+        "summary: Repaired the recorded runtime warning.",
+        "updated_at: 2026-06-17T12:20:00.000Z",
+        "---",
+      ].join("\n"),
+      "utf-8",
+    );
+    writeFileSync(
+      join(runsDir, "review-1", "autonomy-health-review.json"),
+      JSON.stringify(
+        {
+          generatedAt: "2026-06-17T12:30:00.000Z",
+          review: {
+            groups: [
+              {
+                dedupeKey: "workflow:builder:runtime-warning",
+                labels: ["runtime"],
+                severity: "warning",
+                actionability: "local-code",
+                signalCount: 2,
+                summaries: ["Builder repeated the same local runtime failure."],
+                evidenceRefs: [
+                  {
+                    kind: "run",
+                    ref: ".kota/runs/builder-1/metadata.json",
+                  },
+                ],
+              },
+            ],
+          },
+          actions: {
+            applied: [
+              {
+                kind: "skipped-task",
+                taskId,
+                dedupeKey: "workflow:builder:runtime-warning",
+                reason: "existing task already records this evidence",
+              },
+            ],
+          },
+        },
+        null,
+        2,
+      ),
+      "utf-8",
+    );
+
+    expect(collectRecentAutonomyHealthIssueCards(projectDir)).toEqual({
+      generatedAt: expect.any(String),
+      latestHealthReviewAt: "2026-06-17T12:30:00.000Z",
       issueCards: [],
     });
   });

@@ -2,6 +2,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { JsonFileError } from "#core/util/json-file.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowDefinition } from "./types.js";
 
@@ -85,7 +86,7 @@ describe("workflow state shape: start / completion separation", () => {
     expect(afterRecovery.activeRuns ?? []).toEqual([]);
   });
 
-  it("migrates legacy flat fields: active run keeps lastStarted only, completed run keeps both", () => {
+  it("rejects legacy flat workflow fields", () => {
     const statePath = join(projectDir, ".kota", "workflow-state.json");
 
     // Simulate the bug's exact symptom: an active run's lastRunId carries
@@ -118,30 +119,11 @@ describe("workflow state shape: start / completion separation", () => {
     };
     writeFileSync(statePath, JSON.stringify(legacy), "utf-8");
 
-    const migrated = store.readState();
-
-    const activeEntry = migrated.workflows["active-wf"];
-    expect(activeEntry?.lastStarted).toEqual({
-      runId: "run-running",
-      startedAt: "2026-04-22T03:40:00.000Z",
-    });
-    // The stale completion fields belonged to a different run and are dropped.
-    expect(activeEntry?.lastCompletion).toBeUndefined();
-
-    const idleEntry = migrated.workflows["idle-wf"];
-    expect(idleEntry?.lastStarted).toEqual({
-      runId: "run-done",
-      startedAt: "2026-04-22T03:00:00.000Z",
-    });
-    expect(idleEntry?.lastCompletion).toEqual({
-      runId: "run-done",
-      startedAt: "2026-04-22T03:00:00.000Z",
-      completedAt: "2026-04-22T03:05:00.000Z",
-      status: "failed",
-    });
+    expect(() => store.readState()).toThrow(JsonFileError);
+    expect(() => store.readState()).toThrow(/uses legacy fields/);
   });
 
-  it("migrates legacy queued triggers and batch envelopes to explicit null schema refs", () => {
+  it("rejects legacy queued triggers and batch envelopes without schema refs", () => {
     const statePath = join(projectDir, ".kota", "workflow-state.json");
     const timestamp = "2026-06-04T20:00:00.000Z";
     const legacyInputEvent = {
@@ -202,16 +184,7 @@ describe("workflow state shape: start / completion separation", () => {
     };
     writeFileSync(statePath, JSON.stringify(legacy), "utf-8");
 
-    const migrated = store.readState();
-
-    const pendingRun = migrated.pendingRuns[0]!;
-    expect(pendingRun.trigger.schemaRef).toBeNull();
-    const pendingInputEvents = pendingRun.trigger.payload.inputEvents as Array<{
-      schemaRef: unknown;
-    }>;
-    expect(pendingInputEvents[0]!.schemaRef).toBeNull();
-
-    const buffer = migrated.batchBuffers?.["progress-reviewer:0:scope-1:scopeId=scope-1"];
-    expect(buffer?.inputEvents[0]?.schemaRef).toBeNull();
+    expect(() => store.readState()).toThrow(JsonFileError);
+    expect(() => store.readState()).toThrow(/invalid pendingRuns/);
   });
 });

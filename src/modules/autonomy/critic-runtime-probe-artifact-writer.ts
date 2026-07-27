@@ -19,8 +19,22 @@ type ArtifactWriterResponse =
   | { ok: true }
   | { ok: false; reason: string };
 
+type ArtifactWriterJsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | ArtifactWriterJsonValue[]
+  | { [key: string]: ArtifactWriterJsonValue | undefined };
+
+function isJsonObject(
+  value: ArtifactWriterJsonValue,
+): value is { [key: string]: ArtifactWriterJsonValue | undefined } {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function decodeWriterResponse(stdout: string): ArtifactWriterResponse {
-  let response: unknown;
+  let response: ArtifactWriterJsonValue;
   try {
     response = JSON.parse(stdout);
   } catch (cause) {
@@ -28,14 +42,13 @@ function decodeWriterResponse(stdout: string): ArtifactWriterResponse {
       cause,
     });
   }
-  if (typeof response === "object" && response !== null) {
-    const candidate = response as { ok?: unknown; reason?: unknown };
-    if (candidate.ok === true) return { ok: true };
+  if (isJsonObject(response)) {
+    if (response.ok === true) return { ok: true };
     if (
-      candidate.ok === false &&
-      typeof candidate.reason === "string"
+      response.ok === false &&
+      typeof response.reason === "string"
     ) {
-      return { ok: false, reason: candidate.reason };
+      return { ok: false, reason: response.reason };
     }
   }
   throw new Error("Runtime Probe artifact writer returned an invalid response");

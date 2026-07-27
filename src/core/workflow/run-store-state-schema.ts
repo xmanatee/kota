@@ -371,6 +371,14 @@ export function assertWorkflowRuntimeState(
     if (!isPlainObject(entry)) {
       fail(path, `workflow state entry "${workflowName}" is invalid`);
     }
+    if (
+      "lastRunId" in entry ||
+      "lastStartedAt" in entry ||
+      "lastCompletedAt" in entry ||
+      "lastStatus" in entry
+    ) {
+      fail(path, `workflow state entry "${workflowName}" uses legacy fields`);
+    }
     if (entry.lastStarted !== undefined && !isWorkflowRunRef(entry.lastStarted)) {
       fail(path, `workflow state entry "${workflowName}" has invalid lastStarted`);
     }

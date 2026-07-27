@@ -1,6 +1,7 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   projectAutonomyHealthEvidenceRefsForReview,
   projectAutonomyHealthSummariesForReview,
@@ -206,11 +207,22 @@ function compareIsoDesc(a: string, b: string): number {
   return b.localeCompare(a);
 }
 
+function hasUnresolvedLinkedTask(
+  card: AutonomyHealthIssueCard,
+  terminalTaskIds: ReadonlySet<string>,
+): boolean {
+  return (
+    card.taskIds.length === 0 ||
+    card.taskIds.some((taskId) => !terminalTaskIds.has(taskId))
+  );
+}
+
 export function collectRecentAutonomyHealthIssueCards(
-  runsDir: string,
+  projectDir: string,
   options: { limit?: number; nowIso?: string } = {},
 ): AutonomyHealthIssueEvidence {
   const generatedAt = options.nowIso ?? new Date().toISOString();
+  const runsDir = join(projectDir, ".kota", "runs");
   if (!existsSync(runsDir)) {
     return { generatedAt, latestHealthReviewAt: null, issueCards: [] };
   }
@@ -265,7 +277,11 @@ export function collectRecentAutonomyHealthIssueCards(
   }
 
   const limit = options.limit ?? DEFAULT_CARD_LIMIT;
+  const terminalTaskIds = new Set(
+    listFullRepoTasks(projectDir, ["done", "dropped"]).map((task) => task.id),
+  );
   const issueCards = [...cardsByDedupe.values()]
+    .filter((card) => hasUnresolvedLinkedTask(card, terminalTaskIds))
     .sort((a, b) => compareIsoDesc(a.reviewedAt, b.reviewedAt))
     .slice(0, limit);
   return { generatedAt, latestHealthReviewAt, issueCards };

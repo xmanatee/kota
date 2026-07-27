@@ -28,6 +28,16 @@ export type DaemonInstanceIdentity = Pick<
 >;
 
 type FileSystemError = Error & { code?: string };
+type InstanceLockJsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | InstanceLockJsonValue[]
+  | { [key: string]: InstanceLockJsonValue | undefined };
+type InstanceLockJsonObject = {
+  [key: string]: InstanceLockJsonValue | undefined;
+};
 
 function ownerMatches(
   current: DaemonInstanceIdentity,
@@ -40,17 +50,24 @@ function ownerMatches(
   );
 }
 
-function isInstanceIdentity(value: unknown): value is DaemonInstanceIdentity {
-  if (typeof value !== "object" || value === null) return false;
-  const candidate = value as Partial<DaemonInstanceIdentity>;
+function isJsonObject(
+  value: InstanceLockJsonValue | undefined,
+): value is InstanceLockJsonObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isInstanceIdentity(
+  value: InstanceLockJsonValue | undefined,
+): value is DaemonInstanceIdentity & InstanceLockJsonObject {
+  if (!isJsonObject(value)) return false;
   return (
-    typeof candidate.pid === "number" &&
-    Number.isSafeInteger(candidate.pid) &&
-    candidate.pid > 0 &&
-    typeof candidate.startedAt === "string" &&
-    candidate.startedAt.length > 0 &&
-    typeof candidate.token === "string" &&
-    candidate.token.length > 0
+    typeof value.pid === "number" &&
+    Number.isSafeInteger(value.pid) &&
+    value.pid > 0 &&
+    typeof value.startedAt === "string" &&
+    value.startedAt.length > 0 &&
+    typeof value.token === "string" &&
+    value.token.length > 0
   );
 }
 
@@ -60,7 +77,7 @@ function ensurePrivateStateDir(stateDir: string): void {
 }
 
 function readInstanceOwner(lockPath: string): DaemonInstanceIdentity | null {
-  const value = readOptionalJsonFile<unknown>(lockPath);
+  const value = readOptionalJsonFile<InstanceLockJsonValue>(lockPath);
   if (value === null) return null;
   if (!isInstanceIdentity(value)) {
     throw new JsonFileError(lockPath, "parse", "daemon instance lock is invalid");
@@ -139,20 +156,18 @@ export async function acquireInstanceLock(
   }
 
   const controlPath = join(stateDir, CONTROL_FILE);
-  const existing = readOptionalJsonFile<unknown>(controlPath);
+  const existing = readOptionalJsonFile<InstanceLockJsonValue>(controlPath);
   if (existing !== null) {
-    const candidate = existing as Partial<DaemonControlFilePayload>;
     if (
-      typeof existing !== "object" ||
-      typeof candidate.pid !== "number" ||
-      !Number.isSafeInteger(candidate.pid) ||
-      candidate.pid <= 0
+      !isJsonObject(existing) ||
+      typeof existing.pid !== "number" ||
+      !Number.isSafeInteger(existing.pid) ||
+      existing.pid <= 0
     ) {
       throw new JsonFileError(controlPath, "parse", "daemon control file is invalid");
     }
-    const control = candidate as Partial<DaemonControlFilePayload> & { pid: number };
-    const pid = control.pid;
-    const port = control.port;
+    const pid = existing.pid;
+    const port = existing.port;
     if (!isProcessAlive(pid)) {
       log(`Removing stale control file (pid ${pid} is not alive)`);
       rmSync(controlPath, { force: true });
@@ -161,10 +176,10 @@ export async function acquireInstanceLock(
       !Number.isSafeInteger(port) ||
       port <= 0 ||
       port > 65_535 ||
-      typeof control.startedAt !== "string" ||
-      control.startedAt.length === 0 ||
-      typeof control.token !== "string" ||
-      control.token.length === 0
+      typeof existing.startedAt !== "string" ||
+      existing.startedAt.length === 0 ||
+      typeof existing.token !== "string" ||
+      existing.token.length === 0
     ) {
       throw new Error(
         `Daemon process ${pid} is alive but its control file is incomplete. ` +
@@ -176,7 +191,7 @@ export async function acquireInstanceLock(
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 2_000);
         response = await fetch(`http://127.0.0.1:${port}/identity`, {
-          headers: { Authorization: `Bearer ${control.token}` },
+          headers: { Authorization: `Bearer ${existing.token}` },
           signal: controller.signal,
         }).finally(() => clearTimeout(timer));
       } catch (cause) {
@@ -192,7 +207,7 @@ export async function acquireInstanceLock(
             "Terminate that process before starting a replacement.",
         );
       }
-      let identity: unknown;
+      let identity: InstanceLockJsonValue;
       try {
         identity = await response.json();
       } catch (cause) {
@@ -203,10 +218,9 @@ export async function acquireInstanceLock(
         );
       }
       if (
-        typeof identity !== "object" ||
-        identity === null ||
-        (identity as { pid?: unknown }).pid !== pid ||
-        (identity as { startedAt?: unknown }).startedAt !== control.startedAt
+        !isJsonObject(identity) ||
+        identity.pid !== pid ||
+        identity.startedAt !== existing.startedAt
       ) {
         throw new Error(
           `Daemon process ${pid} is alive but its control API identity does not match its control file. ` +
