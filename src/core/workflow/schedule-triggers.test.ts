@@ -107,4 +107,24 @@ describe("ScheduleTriggerManager", () => {
     const timers = (manager as unknown as { timers: Map<string, unknown> }).timers;
     expect(timers.size).toBe(1);
   });
+
+  it("clears stale schedule state when a workflow is disabled", () => {
+    const store = new WorkflowRunStore(projectDir);
+    store.setWorkflowNextScheduledAt(
+      "global-review",
+      new Date(Date.now() + 60_000).toISOString(),
+    );
+    const definition = makeDefinition("global-review", {
+      event: "automation.global.scheduled",
+      cooldownMs: 0,
+      intervalMs: 60_000,
+    });
+    definition.enabled = false;
+
+    manager.setup([definition]);
+
+    expect(
+      store.readState().workflows[definition.name]?.nextScheduledAt,
+    ).toBeUndefined();
+  });
 });

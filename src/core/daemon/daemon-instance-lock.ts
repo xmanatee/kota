@@ -20,8 +20,8 @@ export type DaemonInstanceIdentity = Pick<
 
 /**
  * Check for an existing daemon instance before starting. If a live daemon
- * owns the project, refuse to start. If the control file is stale (dead PID
- * or unreachable port), clean it up and proceed.
+ * owns the project, refuse to start. Only a dead owner PID makes the control
+ * file stale enough to remove automatically.
  */
 export async function acquireInstanceLock(
   projectDir: string,
@@ -50,30 +50,36 @@ export async function acquireInstanceLock(
   }
 
   if (typeof port === "number") {
+    let response: Response;
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 2_000);
-      const res = await fetch(`http://127.0.0.1:${port}/health`, {
+      response = await fetch(`http://127.0.0.1:${port}/health`, {
         signal: controller.signal,
       }).finally(() => clearTimeout(timer));
-      if (res.ok) {
-        throw new Error(
-          `Another daemon instance is already running (pid ${pid}, port ${port}). ` +
-          `Stop it with 'kota daemon stop' before starting a new one.`,
-        );
-      }
-    } catch (err) {
-      if (err instanceof Error && err.message.startsWith("Another daemon instance")) {
-        throw err;
-      }
-      log(`Control file references pid ${pid} (alive) but port ${port} is unreachable — removing stale control file`);
-      rmSync(controlPath, { force: true });
-      return;
+    } catch (cause) {
+      throw new Error(
+        `Daemon process ${pid} is alive but its control API on port ${port} is unreachable. ` +
+          "Terminate that process before starting a replacement.",
+        { cause },
+      );
     }
+    if (!response.ok) {
+      throw new Error(
+        `Daemon process ${pid} is alive but its control API on port ${port} returned HTTP ${response.status}. ` +
+          "Terminate that process before starting a replacement.",
+      );
+    }
+    throw new Error(
+      `Another daemon instance is already running (pid ${pid}, port ${port}). ` +
+        `Stop it with 'kota daemon stop' before starting a new one.`,
+    );
   }
 
-  log(`Control file references pid ${pid} (alive) but has no port — removing stale control file`);
-  rmSync(controlPath, { force: true });
+  throw new Error(
+    `Daemon process ${pid} is alive but its control file has no port. ` +
+      "Terminate that process before starting a replacement.",
+  );
 }
 
 export function writeControlFile(stateDir: string, payload: DaemonControlFilePayload): void {
@@ -100,7 +106,7 @@ export function writeControlFile(stateDir: string, payload: DaemonControlFilePay
 export function releaseInstanceLock(
   stateDir: string,
   owner: DaemonInstanceIdentity,
-): boolean {
+): void {
   const controlPath = join(stateDir, CONTROL_FILE);
   const current = readOptionalJsonFile<DaemonControlFilePayload>(controlPath);
   if (
@@ -109,8 +115,7 @@ export function releaseInstanceLock(
     current.startedAt !== owner.startedAt ||
     current.token !== owner.token
   ) {
-    return false;
+    return;
   }
   rmSync(controlPath);
-  return true;
 }

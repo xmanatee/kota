@@ -1,13 +1,13 @@
 ---
 id: task-verify-and-disposition-the-repaired-eval-harness-c
 title: Verify and disposition the repaired eval-harness cadence dead letter
-status: ready
+status: done
 priority: p2
 area: modules
 task_class: Platform
 summary: Redrive the failed eval-harness-cadence run after commit 099cfb99b7df, verify that a failed fixture retains its missing-metric diagnostic without aborting the remaining eval set, and mark the dead letter redriven or dismiss it with explicit supersession evidence.
 created_at: 2026-07-26T09:57:47.557Z
-updated_at: 2026-07-26T09:57:47.557Z
+updated_at: 2026-07-27T03:02:30.369Z
 ---
 
 ## Problem
@@ -51,3 +51,13 @@ Outcome-aware autonomy progress review.
 - Review-provided acceptance evidence:
 
     A retained successful eval-harness-cadence redrive artifact showing the fixture failure and objectiveMetricErrors without workflow-level failure, plus the dead-letter item recorded as redriven or dismissed with the verifying run or commit reference.
+- Redrive run `2026-07-27T02-52-27-891Z-eval-harness-cadence-1h4yqr`
+  passed the original failed-run metric-retention surface fixed by
+  `099cfb99b7df` and continued across the fixture set. It then exposed a
+  separate configuration error: executable verifiers were unavailable under
+  the cadence's host-subprocess default.
+- Commit `b79c2e0e2` removes that invalid default. Cadence is disabled without
+  a complete container backend, partial configuration fails loudly, and
+  disabled workflows no longer retain a misleading `nextScheduledAt` value.
+- DLQ `dlq-3d533ea7-571b-4aca-823b-f654b9daf125` is redriven. Follow-up DLQ
+  `dlq-b3e92a7d-5c7e-4c37-a6f9-87289ab3683e` is superseded by `b79c2e0e2`.

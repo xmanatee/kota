@@ -46,20 +46,26 @@ export const EVAL_HARNESS_CADENCE_CONTAINER_IMAGE_ENV =
 export const EVAL_HARNESS_CADENCE_CONTAINER_KOTA_BINARY_PATH_ENV =
   "KOTA_EVAL_HARNESS_CADENCE_CONTAINER_KOTA_BINARY_PATH";
 
+export function isCadenceIsolationConfigured(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  const values = [
+    env[EVAL_HARNESS_CADENCE_CONTAINER_EXECUTABLE_ENV],
+    env[EVAL_HARNESS_CADENCE_CONTAINER_IMAGE_ENV],
+    env[EVAL_HARNESS_CADENCE_CONTAINER_KOTA_BINARY_PATH_ENV],
+  ];
+  if (values.every((value) => value === undefined)) return false;
+  resolveCadenceIsolationBackend(env);
+  return true;
+}
+
 export function resolveCadenceIsolationBackend(
   env: NodeJS.ProcessEnv = process.env,
-): SubprocessIsolationBackend {
+): Extract<SubprocessIsolationBackend, { kind: "container" }> {
   const executable = env[EVAL_HARNESS_CADENCE_CONTAINER_EXECUTABLE_ENV];
   const image = env[EVAL_HARNESS_CADENCE_CONTAINER_IMAGE_ENV];
   const kotaBinaryPath =
     env[EVAL_HARNESS_CADENCE_CONTAINER_KOTA_BINARY_PATH_ENV];
-  if (
-    executable === undefined &&
-    image === undefined &&
-    kotaBinaryPath === undefined
-  ) {
-    return { kind: "host-subprocess" };
-  }
   if (
     executable === undefined ||
     image === undefined ||
@@ -248,6 +254,7 @@ const evalHarnessCadence: WorkflowDefinitionInput = {
   name: "eval-harness-cadence",
   description:
     "Run the autonomy eval harness fixture set on a weekly cadence and emit aggregate telemetry.",
+  enabled: isCadenceIsolationConfigured(),
   defaultAutonomyMode: "autonomous",
   triggers: [
     {

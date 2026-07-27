@@ -5,7 +5,6 @@ import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
 import { writeControlMonitorCoverageArtifactBestEffort } from "./control-monitor-coverage.js";
 import { ensureDir, writeJsonFile, writeStrictJsonFile } from "./run-io.js";
 import { createWorkflowRun } from "./run-store-creation.js";
-import { migrateLegacyWorkflowState } from "./run-store-legacy-migration.js";
 import { pruneWorkflowRuns } from "./run-store-retention.js";
 import { STATE_FILE } from "./run-store-snapshot.js";
 import {
@@ -63,7 +62,6 @@ export class WorkflowRunStore {
   readState(): WorkflowRuntimeState {
     const state = readOptionalJsonFile<unknown>(this.statePath);
     if (state !== null) {
-      if (isPlainObject(state)) migrateLegacyWorkflowState(state);
       assertWorkflowRuntimeState(this.statePath, state);
     }
     return {
@@ -188,12 +186,17 @@ export class WorkflowRunStore {
     this.writeState(state);
   }
 
-  setWorkflowNextScheduledAt(name: string, nextScheduledAt: string): void {
+  setWorkflowNextScheduledAt(
+    name: string,
+    nextScheduledAt: string | undefined,
+  ): void {
     const state = this.readState();
-    state.workflows[name] = {
-      ...state.workflows[name],
-      nextScheduledAt,
-    };
+    state.workflows[name] ??= {};
+    if (nextScheduledAt === undefined) {
+      delete state.workflows[name].nextScheduledAt;
+    } else {
+      state.workflows[name].nextScheduledAt = nextScheduledAt;
+    }
     this.writeState(state);
   }
 
