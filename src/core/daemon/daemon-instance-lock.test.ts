@@ -47,6 +47,7 @@ describe("daemon instance lock", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     mockedExecFileSync.mockReset();
     mockedIsProcessAlive.mockReset();
     if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true, force: true });
@@ -68,6 +69,24 @@ describe("daemon instance lock", () => {
     await expect(acquireInstanceLock(tmpDir, stateDir, () => {})).rejects.toThrow(
       /stranded daemon process is already running/,
     );
+  });
+
+  it("preserves a live owner's control file when its API is unreachable", async () => {
+    const stateDir = join(tmpDir, ".kota");
+    const controlPath = join(stateDir, CONTROL_FILE);
+    writeControlFile(stateDir, {
+      port: 3921,
+      pid: 12345,
+      startedAt: "2026-06-04T10:00:00.000Z",
+      token: "owner-token",
+    });
+    mockedIsProcessAlive.mockReturnValue(true);
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("unreachable")));
+
+    await expect(acquireInstanceLock(tmpDir, stateDir, () => {})).rejects.toThrow(
+      /process 12345 is alive.*control API.*unreachable/,
+    );
+    expect(existsSync(controlPath)).toBe(true);
   });
 
   itPosix("creates the state directory and control file with restrictive POSIX modes", () => {
