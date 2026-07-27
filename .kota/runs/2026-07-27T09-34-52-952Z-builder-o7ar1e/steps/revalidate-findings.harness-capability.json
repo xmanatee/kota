@@ -1,0 +1,132 @@
+{
+  "harnessName": "codex",
+  "toolControl": "native",
+  "supportsMultiTurn": true,
+  "supportsOwnerQuestions": false,
+  "askOwnerToolName": null,
+  "emitsAgentMessageStream": true,
+  "supportedHookKinds": [
+    "preRun",
+    "postRun"
+  ],
+  "unsupportedRunOptions": [
+    {
+      "option": "mcpServers",
+      "runOption": "mcpServers",
+      "reason": "Codex CLI owns its own tool runtime and does not host KOTA MCP servers."
+    },
+    {
+      "option": "allowedTools",
+      "runOption": "allowedTools",
+      "reason": "Codex CLI tool policy cannot be constrained through KOTA allowedTools."
+    },
+    {
+      "option": "disallowedTools",
+      "runOption": "disallowedTools",
+      "reason": "Codex CLI tool policy cannot be constrained through KOTA disallowedTools."
+    },
+    {
+      "option": "canUseTool",
+      "runOption": "canUseTool",
+      "reason": "Codex CLI tool calls cannot be routed through KOTA's canUseTool gate."
+    },
+    {
+      "option": "autonomyMode=\"supervised\"",
+      "runOption": "autonomyMode.supervised",
+      "reason": "The non-interactive CLI path cannot route approvals through KOTA's queue."
+    },
+    {
+      "option": "persistSession",
+      "runOption": "persistSession",
+      "reason": "KOTA-managed session persistence is not exposed by this adapter."
+    },
+    {
+      "option": "resumeSessionId",
+      "runOption": "resumeSessionId",
+      "reason": "KOTA-managed session resume is not exposed by this adapter."
+    },
+    {
+      "option": "harnessOverrides",
+      "runOption": "harnessOverrides",
+      "reason": "The codex adapter does not accept per-step harnessOptions."
+    },
+    {
+      "option": "enableFileCheckpointing",
+      "runOption": "enableFileCheckpointing",
+      "reason": "KOTA file checkpointing is not supported by Codex CLI."
+    },
+    {
+      "option": "thinkingEnabled/thinkingBudget",
+      "runOption": "thinking",
+      "reason": "Portable effort maps to Codex CLI model_reasoning_effort instead."
+    }
+  ],
+  "localReadiness": {
+    "adapterKind": "native-cli",
+    "localRuntime": {
+      "kind": "native-cli",
+      "status": "ready",
+      "required": true,
+      "summary": "codex-cli 0.144.1 at /Users/xmanatee/.nvm/versions/node/v22.19.0/bin/codex"
+    },
+    "localAuth": {
+      "kind": "harness-managed-login",
+      "status": "ready",
+      "required": true,
+      "summary": "Codex ChatGPT login active"
+    },
+    "optionalRuntimes": [],
+    "unsupportedOptions": [
+      {
+        "option": "mcpServers",
+        "runOption": "mcpServers",
+        "reason": "Codex CLI owns its own tool runtime and does not host KOTA MCP servers."
+      },
+      {
+        "option": "allowedTools",
+        "runOption": "allowedTools",
+        "reason": "Codex CLI tool policy cannot be constrained through KOTA allowedTools."
+      },
+      {
+        "option": "disallowedTools",
+        "runOption": "disallowedTools",
+        "reason": "Codex CLI tool policy cannot be constrained through KOTA disallowedTools."
+      },
+      {
+        "option": "canUseTool",
+        "runOption": "canUseTool",
+        "reason": "Codex CLI tool calls cannot be routed through KOTA's canUseTool gate."
+      },
+      {
+        "option": "autonomyMode=\"supervised\"",
+        "runOption": "autonomyMode.supervised",
+        "reason": "The non-interactive CLI path cannot route approvals through KOTA's queue."
+      },
+      {
+        "option": "persistSession",
+        "runOption": "persistSession",
+        "reason": "KOTA-managed session persistence is not exposed by this adapter."
+      },
+      {
+        "option": "resumeSessionId",
+        "runOption": "resumeSessionId",
+        "reason": "KOTA-managed session resume is not exposed by this adapter."
+      },
+      {
+        "option": "harnessOverrides",
+        "runOption": "harnessOverrides",
+        "reason": "The codex adapter does not accept per-step harnessOptions."
+      },
+      {
+        "option": "enableFileCheckpointing",
+        "runOption": "enableFileCheckpointing",
+        "reason": "KOTA file checkpointing is not supported by Codex CLI."
+      },
+      {
+        "option": "thinkingEnabled/thinkingBudget",
+        "runOption": "thinking",
+        "reason": "Portable effort maps to Codex CLI model_reasoning_effort instead."
+      }
+    ]
+  }
+}

@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "agent-harness-kota-tool-loop-guardrail-bypass",
+      "candidateId": "tool-execution:src/modules/gemini-agent-harness/tool-loop.ts:120",
+      "claim": "The Gemini and Vercel KOTA-hosted tool loops execute registered tools directly, bypassing the shared effect assessment, configured guardrail policy, confirmation, and approval-queue path. In autonomous mode, where per-tool guardrail policy is supposed to decide, a dangerous tool can execute even when its policy requires confirmation or denial.",
+      "severity": "high",
+      "affectedPath": "src/modules/gemini-agent-harness/tool-loop.ts",
+      "evidence": [
+        {
+          "path": "src/core/tools/autonomy-mode.ts",
+          "line": 14,
+          "excerpt": "- `autonomous` — today's behavior: per-tool guardrail policy decides."
+        },
+        {
+          "path": "src/core/tools/tool-runner-execute-block.ts",
+          "line": 92,
+          "excerpt": "const assessment = guardrailsConfig ? assess(block.name, input, guardrailsConfig) : assess(block.name, input);"
+        },
+        {
+          "path": "src/modules/gemini-agent-harness/tool-loop.ts",
+          "line": 205,
+          "excerpt": "const result = maskToolResultSecrets(await executeTool(name, effectiveInput, {"
+        },
+        {
+          "path": "src/modules/vercel-agent-harness/adapter-tools.ts",
+          "line": 113,
+          "excerpt": "const result = maskToolResultSecrets(await executeTool(kotaTool.name, effectiveInput, {"
+        },
+        {
+          "path": "src/core/agent-harness/guards.ts",
+          "line": 192,
+          "excerpt": "export function createWorkflowAgentGuards(): AgentCanUseTool { return composeCanUseTools(createDaemonHostControlGuard(), createWorkflowShellTeardownGuard(), createAgentCommitGuard(), createPackageBootstrapGuard()); }"
+        }
+      ],
+      "recommendedOutcome": "Route Gemini and Vercel tool calls through the shared permissioned tool-execution primitive, including autonomy mode, guardrailsConfig, client approval, scoped approval queue, idempotency, and telemetry. Add regressions proving dangerous tools honor deny, confirm, and queue policies across every KOTA-hosted adapter.",
+      "verdict": "confirmed",
+      "rationale": "At HEAD 77a6de4b2, the shared executeToolBlock path classified a registered destructive tool as dangerous and denied it under a dangerous=deny policy, while dispatchFunctionCall in the Gemini adapter and Tool.execute in the Vercel adapter each executed the same-shape destructive tool once. Both adapter paths call executeTool directly after catalog/canUseTool checks and do not route guardrailsConfig, autonomy gating, confirmation, approval queueing, idempotency, middleware, or tool-execution metrics through executeToolBlock."
+    },
+    {
+      "id": "multi-project-approval-singleton-rebinding",
+      "candidateId": "auth-approval-boundary:src/core/loop/loop-constructor.ts:5",
+      "claim": "Each project owns a distinct approval queue, but constructing an AgentSession replaces the process-global queue singleton with that session's project queue. Tool approval enqueueing ignores the supplied scope and uses the current singleton, so concurrent multi-project sessions can place project A's approval in project B's queue, where it may be reviewed and replayed against the wrong project.",
+      "severity": "high",
+      "affectedPath": "src/core/loop/loop-constructor.ts",
+      "evidence": [
+        {
+          "path": "src/core/daemon/project-runtime.ts",
+          "line": 126,
+          "excerpt": "const approvalQueue = new ApprovalQueue(join(projectDir, \".kota\", \"approvals\"), pbus);"
+        },
+        {
+          "path": "src/core/loop/loop-constructor.ts",
+          "line": 127,
+          "excerpt": "setApprovalQueueInstance(options.projectRuntime.approvalQueue);"
+        },
+        {
+          "path": "src/core/loop/loop-send.ts",
+          "line": 259,
+          "excerpt": "sessionId: state.sessionId, scopeId: state.scopeId, projectId: state.scopeId,"
+        },
+        {
+          "path": "src/core/tools/tool-runner-approval-queue.ts",
+          "line": 24,
+          "excerpt": "return getApprovalQueue().enqueue("
+        }
+      ],
+      "recommendedOutcome": "Remove singleton rebinding from scoped session execution. Pass the owning ProjectRuntime approval queue through ToolCallExecutionOptions or resolve it strictly from scopeId, persist scope attribution on approvals, and reject replay when the selected project differs. Add a concurrent two-project regression covering enqueue, listing, approval, and execution.",
+      "verdict": "confirmed",
+      "rationale": "At HEAD 77a6de4b2, initAgentSession still replaces the global approval queue with options.projectRuntime.approvalQueue, while enqueueToolApproval resolves getApprovalQueue() and accepts no scope-aware queue. A two-queue probe bound project A and then project B before enqueueing a request attributed to project-a-session; project A retained zero approvals and project B received one approval carrying the project-A session id."
+    },
+    {
+      "id": "daemon-state-root-symlink-escape",
+      "candidateId": "daemon-control-route:src/core/daemon/daemon-instance-lock.ts:15",
+      "claim": "The default daemon state directory is the repository-controlled `.kota` path, but instance-lock and control-file setup follows a symbolic link at that path. A malicious project can redirect daemon ownership files and other state into another daemon-user-writable directory; setup also chmods the symlink target, enabling cross-project state corruption and writes outside the selected project.",
+      "severity": "high",
+      "affectedPath": "src/core/daemon/daemon-instance-lock.ts",
+      "evidence": [
+        {
+          "path": "src/core/daemon/daemon.ts",
+          "line": 77,
+          "excerpt": "const stateDir = config.stateDir ?? join(configuredProjects[0]!.projectDir, \".kota\");"
+        },
+        {
+          "path": "src/core/daemon/daemon-instance-lock.ts",
+          "line": 74,
+          "excerpt": "function ensurePrivateStateDir(stateDir: string): void { mkdirSync(stateDir, { recursive: true, mode: 0o700 }); chmodSync(stateDir, 0o700); }"
+        },
+        {
+          "path": "src/core/daemon/daemon-instance-lock.ts",
+          "line": 92,
+          "excerpt": "ensurePrivateStateDir(stateDir); const lockPath = join(stateDir, INSTANCE_LOCK_FILE);"
+        },
+        {
+          "path": "src/core/daemon/daemon-instance-lock.ts",
+          "line": 238,
+          "excerpt": "export function writeControlFile(stateDir: string, payload: DaemonControlFilePayload): void { const controlPath = join(stateDir, CONTROL_FILE);"
+        }
+      ],
+      "recommendedOutcome": "Reject symbolic links in the default project-owned state-root path before reading, chmodding, or writing it, and anchor lock/control mutations to a verified real directory using no-follow filesystem operations. Preserve explicitly configured external state directories as an operator-controlled case. Add a regression using a committed-style `.kota` symlink and verify no target permissions or files change.",
+      "verdict": "confirmed",
+      "rationale": "At HEAD 77a6de4b2, the default stateDir remains <project>/.kota and ensurePrivateStateDir still calls recursive mkdirSync plus chmodSync without lstat/no-follow validation. A temporary-project probe made .kota a symlink to a mode-0777 directory; writeControlFile accepted it, created daemon-control.json in the target, and changed the target directory mode from 0777 to 0700."
+    }
+  ],
+  "summary": "Builder current-code inspection and isolated boundary probes confirm all three high-severity investigation claims on HEAD 77a6de4b2. The production-path same-shape evaluator replay reached the Codex provider boundary but disconnected after 35,929 ms without structured output, so the prior agent-step timeout is neither reproduced nor disproven and no timeout-path hardening is claimed."
+}

@@ -1,0 +1,5 @@
+The repo-task CLI's Node subprocess could not write the linked worktree's real Git index under /Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/.
+
+The initial source-mode task move failed when git add could not create index.lock. Repo-task state transitions and security finding task creation were therefore still executed through their canonical domain operations, but with an isolated temporary Git index and object database under /private/tmp. This preserved all lifecycle validation and exact-path staging behavior without mutating the protected real index.
+
+All worktree changes passed diff checks in an isolated index. The first post-critic `git add -A` retry could not create the real linked-worktree `index.lock` and failed with `EPERM`, but a final retry after validation succeeded. The real linked-worktree index now contains the repaired worktree for review; the workflow host-side commit/staging rail can reverify those exact paths before commit.

@@ -1,0 +1,40 @@
+Validation status: owned task correctly blocked; production-path evaluator completion and canonical DLQ disposition require network-enabled/operator capture.
+
+PASS source investigation integrity
+Command: shasum -a 256 source security-review-investigation.json and preserved copy
+Result: both are 1e440b24d48d645c8dbcdcfbb17d634dac670d514cbd59f60a6c4d4092e77b77
+
+PASS artifact JSON parsing
+Command: JSON.parse all current-run security-review JSON artifacts
+Result: all parsed successfully
+
+PASS production-path replay wiring
+Command: KOTA_REVALIDATION_CODEX_HOME=<ephemeral-writable-auth-state> node --conditions=source --import tsx .kota/runs/2026-07-27T09-34-52-952Z-builder-o7ar1e/same-shape-revalidation-runner.ts
+Result: the validated security-review definition invoked revalidate-findings through executeWorkflowStep with the Codex harness, gpt-5.6-sol, xhigh effort, maxTurns 4, the production JSON schema, and the 1,800,000 ms active-timeout rail; prompt byte counts and hashes are recorded
+
+PASS production-path runner typecheck
+Command: node node_modules/typescript/bin/tsc --noEmit --pretty false --skipLibCheck --target ES2023 --module NodeNext --moduleResolution NodeNext --allowImportingTsExtensions .kota/runs/2026-07-27T09-34-52-952Z-builder-o7ar1e/same-shape-revalidation-runner.ts
+Result: exit 0
+
+BLOCKED same-shape structured evaluator output
+Result: the authenticated Codex provider stream disconnected after 35,929 ms with no agent messages or structured output. This is not a timeout reproduction or a passing revalidation; security-review-revalidation-evidence.json records outcome not-completed and null timeout conclusions.
+
+PASS canonical Safety task generation
+Command: createOrUpdateSecurityFindingTasks against the merged revalidation artifact
+Result: three P1 Safety tasks created with source finding ids, verdict rationales, and cited evidence
+
+PASS task queue validation
+Command: node --conditions=source --import tsx src/validate-queue.ts
+Result: exit 0
+
+PASS focused security-review workflow tests
+Command: TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node node_modules/vitest/vitest.mjs run --configLoader runner src/modules/autonomy/workflows/security-review/workflow.test.ts src/modules/autonomy/workflows/security-review/commit-hygiene.test.ts src/task-files.test.ts
+Result: 3 files passed, 27 tests passed
+
+BLOCKED canonical dead-letter dismissal
+Command: node --conditions=source --import tsx src/cli.ts workflow dlq dismiss dlq-494c3024-cca4-49e9-8376-0398d172932c --reason <durable supersession rationale>
+Result: the canonical CLI could not reach the live daemon control endpoint and its local fallback failed to write /Users/xmanatee/Desktop/mono/apps/kota/.kota/dead-letter-queue/items.json.tmp with EPERM; the item remains open
+
+PASS real linked-worktree index staging
+Command: git add -A
+Result: an initial retry could not create the linked-worktree index.lock and the final patch was verified through an isolated index; the final retry succeeded and the real staged diff passed git diff --cached --check.

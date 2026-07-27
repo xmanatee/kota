@@ -1,0 +1,112 @@
+{
+  "kind": "harness-driven-workflow-agent-step-revalidation",
+  "sourceRunId": "2026-07-27T09-34-53-266Z-security-review-lgkie5",
+  "sourceInvestigationSha256": "1e440b24d48d645c8dbcdcfbb17d634dac670d514cbd59f60a6c4d4092e77b77",
+  "preservedInvestigationArtifact": ".kota/runs/2026-07-27T09-34-52-952Z-builder-o7ar1e/security-review-investigation.json",
+  "codexStateMode": "ephemeral writable copy of harness-managed login",
+  "evaluatedHead": "77a6de4b297a0b7b8694abc6438630368ff150e7",
+  "workflow": "security-review",
+  "definitionPath": "src/modules/autonomy/workflows/security-review/workflow.ts",
+  "promptPath": "src/modules/autonomy/workflows/security-review/prompt.md",
+  "stepId": "revalidate-findings",
+  "harness": "codex",
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "maxTurns": 4,
+  "outputFormat": "json",
+  "structuredOutputSchema": {
+    "type": "object",
+    "required": [
+      "findings",
+      "summary"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "findings": {
+        "type": "array",
+        "description": "one verdict for every investigation finding",
+        "items": {
+          "type": "object",
+          "required": [
+            "id",
+            "verdict",
+            "rationale"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "verdict": {
+              "type": "string"
+            },
+            "rationale": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "summary": {
+        "type": "string",
+        "description": "top-level revalidation summary is required"
+      }
+    }
+  },
+  "timeoutMs": 1800000,
+  "startedAt": "2026-07-27T11:06:33.450Z",
+  "completedAt": "2026-07-27T11:07:09.380Z",
+  "durationMs": 35930,
+  "activeDurationMs": 35929,
+  "input": {
+    "systemPromptBytes": 26679,
+    "systemPromptSha256": "a456952f0c1f01e9237cd1026e9be4f1032b16d9c2689b87b7ee292e9d8d1463",
+    "userPromptBytes": 29321,
+    "userPromptSha256": "296bb3ba71aeac5efe2cb646381a95c8cc40c9dc21f2e38d4bf8c2dfff8d813f"
+  },
+  "sourceTimedOutStep": {
+    "id": "revalidate-findings",
+    "type": "agent",
+    "status": "failed",
+    "startedAt": "2026-07-27T09:45:50.193Z",
+    "completedAt": "2026-07-27T10:15:50.235Z",
+    "durationMs": 1800042,
+    "activeDurationMs": 1800001,
+    "error": "Step \"revalidate-findings\" timed out after 1800000ms of active runtime"
+  },
+  "agentMessageSummary": {
+    "count": 0,
+    "byType": {}
+  },
+  "recordedRuntimeStep": {
+    "id": "revalidate-findings",
+    "type": "agent",
+    "status": "failed",
+    "startedAt": "2026-07-27T11:06:33.450Z",
+    "completedAt": "2026-07-27T11:07:09.380Z",
+    "durationMs": 35930,
+    "activeDurationMs": 35929,
+    "error": "Agent step \"revalidate-findings\" failed (codex_cli_error): stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)"
+  },
+  "outcome": "not-completed",
+  "withinTimeout": null,
+  "timeoutReproduced": null,
+  "blocker": {
+    "kind": "provider",
+    "reason": "Agent step \"revalidate-findings\" failed (codex_cli_error): stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)"
+  },
+  "createdSafetyTaskIds": [
+    "task-security-review-the-gemini-and-vercel-kota-hosted-",
+    "task-security-review-each-project-owns-a-distinct-appro",
+    "task-security-review-the-default-daemon-state-directory"
+  ],
+  "deadLetterDisposition": {
+    "id": "dlq-494c3024-cca4-49e9-8376-0398d172932c",
+    "requestedAction": "dismiss",
+    "statusBefore": "open",
+    "statusAfter": "open",
+    "result": "blocked",
+    "reason": "The three findings have current-code dispositions and canonical Safety tasks, so replaying the stale trigger against a changed HEAD would duplicate that work.",
+    "error": "The canonical CLI could not reach the live daemon control endpoint and its local fallback could not write the canonical DLQ file from the builder sandbox.",
+    "retryCommand": "pnpm kota workflow dlq dismiss dlq-494c3024-cca4-49e9-8376-0398d172932c --reason \"Superseded by builder run 2026-07-27T09-34-52-952Z-builder-o7ar1e after all three findings received current-code dispositions and canonical Safety tasks.\""
+  }
+}

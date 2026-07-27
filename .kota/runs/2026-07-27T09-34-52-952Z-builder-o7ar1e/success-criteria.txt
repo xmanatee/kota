@@ -1,0 +1,2 @@
+1. Revalidate each of the three high-severity findings from security-review run 2026-07-27T09-34-53-266Z-security-review-lgkie5, create a canonical Safety task for every confirmed finding, durably disposition dead letter dlq-494c3024-cca4-49e9-8376-0398d172932c, and prove the same-shape revalidation completes within 1,800,000 ms or fix a reproduced timeout cause with focused regression coverage.
+2. Preserve the cited evidence ids and record inspectable acceptance evidence in the owned task and current run artifacts, with the task state aligned to the verified outcome.

@@ -1,0 +1,5 @@
+security-review: preserve blocked revalidation evidence
+
+- confirm all three source findings and create P1 Safety tasks
+- replay the production evaluator path and record its provider blocker
+- block on same-shape evaluator completion and canonical DLQ capture
