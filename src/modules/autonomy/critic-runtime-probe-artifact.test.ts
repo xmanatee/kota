@@ -3,6 +3,7 @@ import {
   existsSync,
   lstatSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmSync,
   symlinkSync,
@@ -183,7 +184,7 @@ describe("Runtime Probe artifact writes", () => {
     writeAnchoredRuntimeProbeArtifact({
       expectedArtifactIdentity: null,
       runDirectoryIdentity: { dev: runStats.dev, ino: runStats.ino },
-      runDirectoryPath: runDir,
+      runDirectoryPath: realpathSync.native(runDir),
       serializedArtifact: '{"status":"passed"}',
     });
 

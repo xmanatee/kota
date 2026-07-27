@@ -104,17 +104,13 @@ function inspectArtifact(expectedIdentity) {
 
 function cleanupTemporaryFile(name, expectedIdentity) {
   if (expectedIdentity === undefined) return;
-  try {
-    const stats = lstatOptional(name);
-    if (
-      stats !== undefined &&
-      stats.isFile() &&
-      sameFile(stats, expectedIdentity)
-    ) {
-      unlinkSync(name);
-    }
-  } catch {
-    // Preserve the original refusal without unlinking an unverified entry.
+  const stats = lstatOptional(name);
+  if (
+    stats !== undefined &&
+    stats.isFile() &&
+    sameFile(stats, expectedIdentity)
+  ) {
+    unlinkSync(name);
   }
 }
 

@@ -20,14 +20,23 @@ type ArtifactWriterResponse =
   | { ok: false; reason: string };
 
 function decodeWriterResponse(stdout: string): ArtifactWriterResponse {
+  let response: unknown;
   try {
-    const response = JSON.parse(stdout) as ArtifactWriterResponse;
-    if (response.ok === true) return response;
-    if (response.ok === false && typeof response.reason === "string") {
-      return response;
+    response = JSON.parse(stdout);
+  } catch (cause) {
+    throw new Error("Runtime Probe artifact writer returned an invalid response", {
+      cause,
+    });
+  }
+  if (typeof response === "object" && response !== null) {
+    const candidate = response as { ok?: unknown; reason?: unknown };
+    if (candidate.ok === true) return { ok: true };
+    if (
+      candidate.ok === false &&
+      typeof candidate.reason === "string"
+    ) {
+      return { ok: false, reason: candidate.reason };
     }
-  } catch {
-    // The caller reports one stable error for malformed helper output.
   }
   throw new Error("Runtime Probe artifact writer returned an invalid response");
 }
