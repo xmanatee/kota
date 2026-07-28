@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "autonomy-change-decision",
+  "runId": "2026-07-28T03-37-13-523Z-health-follow-up",
+  "createdAt": "2026-07-28T03:47:52Z",
+  "taskIds": [
+    "task-add-algorithmic-resource-budget-canaries-to-the-ev"
+  ],
+  "affectedSurfaces": [
+    "builder run evidence staging",
+    "builder merge concurrency",
+    "critic runtime probe persistence"
+  ],
+  "changeClasses": [
+    "workflow",
+    "reviewer",
+    "critic-gate"
+  ],
+  "hypothesis": "Explicitly staging the builder-owned run directory removes per-run gitignore mutations and their recurrent merge conflicts without weakening critic evidence persistence.",
+  "sourceRefs": [
+    "run:2026-07-27T22-14-48-155Z-builder-atts6l",
+    "git:c86e69f9c546a526249229c019aca58e876d9b60",
+    "git:d1514778063698d81e56d5fb4af1b997eed2c4a7"
+  ],
+  "baselineRefs": [
+    "src/modules/autonomy/workflows/builder/agent-run-artifacts.ts@d1514778",
+    ".gitignore@d1514778"
+  ],
+  "candidateRefs": [
+    "src/modules/autonomy/workflows/builder/agent-run-artifacts.ts",
+    "src/modules/autonomy/workflows/builder/workflow.ts",
+    "src/modules/autonomy/critic-runtime-probe.ts",
+    ".gitignore"
+  ],
+  "metricsCompared": [
+    {
+      "name": "Per-run ignore entries",
+      "baseline": "1048 generated lines across a 1069-line .gitignore",
+      "candidate": "zero per-run entries in a 21-line stable policy",
+      "unit": "gitignore lines",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "Ignored builder evidence commit coverage",
+      "baseline": "required a branch-specific ignore exception",
+      "candidate": "committed by the builder-owned staging path",
+      "unit": "focused contract test",
+      "direction": "improved",
+      "qualitySignal": true
+    }
+  ],
+  "rolloutMode": "promoted",
+  "decision": "promote",
+  "rationale": "Two independent successful builder runs conflicted only because both appended run-specific ignore exceptions. Focused commit and critic tests pass with runtime evidence still globally ignored and explicitly staged by the builder commit wrapper.",
+  "ownerSafetyExceptions": [],
+  "followUpTaskIds": []
+}

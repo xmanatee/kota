@@ -26,9 +26,9 @@ The builder must declare concrete success criteria before implementation and ver
 
 `$KOTA_RUN_DIR` is the workflow-provided, agent-writable run directory. In worktree
 mode it lives inside the selected task worktree, not the canonical checkout's `.kota/runs/` directory.
-These files must be stageable from the active workspace; if a `.gitignore`
-rule hides them, add the precise run-specific exception instead of leaving
-the evidence disposable.
+Run evidence remains ignored as runtime state while the agent works. The
+builder commit step stages the dedicated run directory explicitly; do not
+change `.gitignore` to expose a run.
 
 Number each criterion at column 0 (`1.`, `2.`, ...), one per Done-When item.
 The repair check counts numbered items only; column-0 bullets (`- `/`* `) and

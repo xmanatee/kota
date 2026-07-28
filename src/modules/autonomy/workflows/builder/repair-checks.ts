@@ -18,7 +18,7 @@ import {
 } from "#modules/autonomy/source-size-escalation.js";
 import { checkSevereSourceFileSizeForRun } from "#modules/autonomy/source-size-review-artifact.js";
 import type { QueueTaskClaimResult } from "#modules/autonomy/task-claims.js";
-import { checkAgentRunArtifactsStageable } from "./agent-run-artifacts.js";
+import { checkAgentRunArtifactsReady } from "./agent-run-artifacts.js";
 import {
   checkMacosSwiftBuild,
   checkMobileTypecheck,
@@ -210,11 +210,11 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
         checkCommitMessageExists(builderAgentRunDir(ctx), workflowWorkspaceDir(ctx)),
     },
     {
-      id: "agent-run-artifacts-stageable",
+      id: "agent-run-artifacts-ready",
       type: "code" as const,
       phase: 1,
       run: (ctx) =>
-        checkAgentRunArtifactsStageable(builderAgentRunDir(ctx), workflowWorkspaceDir(ctx)),
+        checkAgentRunArtifactsReady(builderAgentRunDir(ctx), workflowWorkspaceDir(ctx)),
     },
     {
       id: "commit-stageable",

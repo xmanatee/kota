@@ -1,11 +1,9 @@
-import { spawnSync } from "node:child_process";
 import {
   lstatSync,
   realpathSync,
   type Stats,
 } from "node:fs";
 import { isAbsolute, join, relative, sep } from "node:path";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import {
   type FileIdentity,
   writeAnchoredRuntimeProbeArtifact,
@@ -24,8 +22,6 @@ type ArtifactLocation = {
   artifactPath: string;
   runDirectoryIdentity: FileIdentity;
   runRoot: string;
-  workspacePath: string;
-  workspaceRoot: string;
 };
 
 export function runProbeIfDeclared(
@@ -38,12 +34,6 @@ export function runProbeIfDeclared(
   const probe = extractTaskProbe(taskContent);
   if (!probe) return null;
 
-  if (artifactWorkspaceDir !== undefined) {
-    assertArtifactPathStageable(
-      resolveArtifactLocation(artifactWorkspaceDir, runDir),
-    );
-  }
-
   const provenance = verifyTaskProbeProvenance({ projectDir, taskPath, probe });
   if (provenance.status === "untrusted") {
     const result = rejectedTaskProbeResult(probe, provenance.reason);
@@ -51,7 +41,6 @@ export function runProbeIfDeclared(
       artifactWorkspaceDir ?? projectDir,
       runDir,
       result,
-      artifactWorkspaceDir !== undefined,
     );
     throw new Error(`Runtime Probe not executed: ${provenance.reason}`);
   }
@@ -64,7 +53,6 @@ export function runProbeIfDeclared(
     artifactWorkspaceDir ?? projectDir,
     runDir,
     result,
-    artifactWorkspaceDir !== undefined,
   );
   return result;
 }
@@ -126,35 +114,7 @@ function resolveArtifactLocation(
     artifactPath,
     runDirectoryIdentity: identity(runStats),
     runRoot,
-    workspacePath,
-    workspaceRoot,
   };
-}
-
-function assertArtifactPathStageable(location: ArtifactLocation): void {
-  const ignored = spawnSync(
-    "git",
-    ["check-ignore", "--quiet", "--no-index", "--", location.workspacePath],
-    {
-      cwd: location.workspaceRoot,
-      env: withProtectedGitBareRepositoryEnv(),
-      encoding: "utf8",
-    },
-  );
-  if (ignored.status === 0) {
-    throw new Error(
-      `Runtime Probe artifact is ignored and cannot be committed: ${location.workspacePath}`,
-    );
-  }
-  if (ignored.status !== 1) {
-    const detail = [ignored.stdout, ignored.stderr]
-      .filter((value) => value.length > 0)
-      .join("\n")
-      .trim();
-    throw new Error(
-      `Could not verify Runtime Probe artifact path with git check-ignore: ${location.workspacePath}${detail ? `\n${detail}` : ""}`,
-    );
-  }
 }
 
 function assertPrivateRegularFile(stats: Stats, artifactPath: string): void {
@@ -190,11 +150,8 @@ function writeRuntimeProbeArtifact(
   workspaceDir: string,
   runDir: string,
   result: TaskProbeResult,
-  requireStageable: boolean,
 ): void {
   const location = resolveArtifactLocation(workspaceDir, runDir);
-  if (requireStageable) assertArtifactPathStageable(location);
-
   const expectedStats = inspectExistingArtifact(location.artifactPath);
   writeAnchoredRuntimeProbeArtifact({
     expectedArtifactIdentity:

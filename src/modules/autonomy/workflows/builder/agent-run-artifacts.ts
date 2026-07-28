@@ -1,7 +1,10 @@
-import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { lstatSync, readdirSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import {
+  type CommitResult,
+  commitWorkflowChanges,
+  stageWorkflowPaths,
+} from "#modules/autonomy/commit.js";
 import { isBuilderPathInside } from "./workspace.js";
 
 const REQUIRED_AGENT_RUN_ARTIFACTS = [
@@ -10,64 +13,78 @@ const REQUIRED_AGENT_RUN_ARTIFACTS = [
   "commit-message.txt",
 ] as const;
 
-function assertStageable(workspaceDir: string, filePath: string): void {
+type AgentRunArtifacts = {
+  fileCount: number;
+  relativeRunDir: string;
+};
+
+function listRegularFiles(directory: string): string[] {
+  const paths: string[] = [];
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      paths.push(...listRegularFiles(path));
+    } else if (entry.isFile()) {
+      paths.push(path);
+    } else {
+      throw new Error(`Builder run evidence must be a regular file or directory: ${path}`);
+    }
+  }
+  return paths;
+}
+
+function inspectAgentRunArtifacts(
+  agentRunDir: string,
+  workspaceDir: string,
+): AgentRunArtifacts {
   const workspaceRoot = resolve(workspaceDir);
-  const resolvedFile = resolve(filePath);
-  if (!isBuilderPathInside(workspaceRoot, resolvedFile)) {
-    throw new Error(`Agent run artifact is outside the active workspace: ${filePath}`);
+  const runRoot = resolve(agentRunDir);
+  if (runRoot === workspaceRoot || !isBuilderPathInside(workspaceRoot, runRoot)) {
+    throw new Error(`Builder run directory is outside the active workspace: ${agentRunDir}`);
   }
 
-  const rel = relative(workspaceRoot, resolvedFile);
-  if (isTrackedWithoutUnstagedChanges(workspaceRoot, rel)) return;
-
-  const result = spawnSync("git", ["add", "--dry-run", "-A", "--", rel], {
-    cwd: workspaceRoot,
-    env: withProtectedGitBareRepositoryEnv(),
-    encoding: "utf8",
-  });
-  if (result.status !== 0) {
-    const detail = [result.stdout, result.stderr]
-      .filter((text) => text.length > 0)
-      .join("\n")
-      .trim();
-    throw new Error(
-      `Required agent run artifact is not stageable: ${rel}\n${detail}`,
-    );
+  const runStats = lstatSync(runRoot);
+  if (!runStats.isDirectory() || runStats.isSymbolicLink()) {
+    throw new Error(`Builder run evidence path must be a real directory: ${agentRunDir}`);
   }
+
+  return {
+    fileCount: listRegularFiles(runRoot).length,
+    relativeRunDir: relative(workspaceRoot, runRoot),
+  };
 }
 
-function isTrackedWithoutUnstagedChanges(workspaceRoot: string, rel: string): boolean {
-  const env = withProtectedGitBareRepositoryEnv();
-  const tracked = spawnSync("git", ["ls-files", "--error-unmatch", "--", rel], {
-    cwd: workspaceRoot,
-    env,
-    stdio: "ignore",
-  });
-  if (tracked.status !== 0) return false;
-
-  const clean = spawnSync("git", ["diff", "--quiet", "--", rel], {
-    cwd: workspaceRoot,
-    env,
-    stdio: "ignore",
-  });
-  return clean.status === 0;
-}
-
-export function checkAgentRunArtifactsStageable(
+export function checkAgentRunArtifactsReady(
   agentRunDir: string,
   workspaceDir: string,
 ): string {
-  const missing = REQUIRED_AGENT_RUN_ARTIFACTS
-    .map((name) => join(agentRunDir, name))
-    .filter((filePath) => !existsSync(filePath));
+  const missing: string[] = [];
+  for (const name of REQUIRED_AGENT_RUN_ARTIFACTS) {
+    const filePath = join(agentRunDir, name);
+    const stats = lstatSync(filePath, { throwIfNoEntry: false });
+    if (stats === undefined) {
+      missing.push(filePath);
+    } else if (!stats.isFile()) {
+      throw new Error(`Required agent run artifact must be a regular file: ${filePath}`);
+    }
+  }
   if (missing.length > 0) {
     throw new Error(
       `Required agent run artifact(s) are missing:\n${missing.map((p) => `  ${p}`).join("\n")}`,
     );
   }
 
-  for (const name of REQUIRED_AGENT_RUN_ARTIFACTS) {
-    assertStageable(workspaceDir, join(agentRunDir, name));
-  }
-  return `OK: ${REQUIRED_AGENT_RUN_ARTIFACTS.length} agent run artifact(s) stageable`;
+  const artifacts = inspectAgentRunArtifacts(agentRunDir, workspaceDir);
+  return `OK: ${artifacts.fileCount} builder run evidence file(s) ready`;
+}
+
+export function commitBuilderWorkflowChanges(
+  workspaceDir: string,
+  agentRunDir: string,
+): CommitResult {
+  const artifacts = inspectAgentRunArtifacts(agentRunDir, workspaceDir);
+  stageWorkflowPaths(workspaceDir, [artifacts.relativeRunDir], {
+    includeIgnored: true,
+  });
+  return commitWorkflowChanges(workspaceDir, agentRunDir);
 }

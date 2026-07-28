@@ -2,7 +2,6 @@ import type { AgentDef } from "#core/agents/agent-types.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import {
   type EvaluatorCalibrationArtifact,
   writeCalibrationArtifact,
@@ -25,6 +24,7 @@ import {
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
 import { reconcileAutomationWorktrees } from "#modules/git/worktree-lifecycle.js";
+import { commitBuilderWorkflowChanges } from "./agent-run-artifacts.js";
 import type { BranchStepResult, CleanupResult } from "./branch-per-task.js";
 import { cleanupMergedBranches, createPullRequest, createTaskBranch } from "./branch-per-task.js";
 import { builderMaxConcurrentRunsFromConfig } from "./builder-config.js";
@@ -198,7 +198,8 @@ const builderWorkflow: WorkflowDefinitionInput = {
       type: "code",
       when: (ctx) =>
         stepSucceeded("create-task-branch")(ctx) && claimedTaskConsistencySucceeded(ctx),
-      run: (ctx) => commitWorkflowChanges(workflowWorkspaceDir(ctx), builderAgentRunDir(ctx)),
+      run: (ctx) =>
+        commitBuilderWorkflowChanges(workflowWorkspaceDir(ctx), builderAgentRunDir(ctx)),
     },
     typedCodeStep<BuilderRunSummary>({
       id: "write-run-summary",

@@ -177,6 +177,31 @@ function listPathsNeedingStaging(projectDir: string, paths: readonly string[]): 
   return [...new Set(needsStaging)];
 }
 
+export function stageWorkflowPaths(
+  projectDir: string,
+  paths: readonly string[],
+  options: { includeIgnored?: boolean } = {},
+): void {
+  if (paths.length === 0) return;
+  withGitIndexLockRetry(() => {
+    execFileSync(
+      "git",
+      [
+        "add",
+        ...(options.includeIgnored === true ? ["--force"] : []),
+        "-A",
+        "--",
+        ...paths,
+      ],
+      {
+        cwd: projectDir,
+        env: withProtectedGitBareRepositoryEnv(),
+        stdio: "pipe",
+      },
+    );
+  });
+}
+
 /**
  * Returns the exact set of paths `commitWorkflowChanges` would pass to
  * `git add -A -- <paths>`: the workflow-owned mutations minus any paths
@@ -298,13 +323,7 @@ export function commitWorkflowChanges(
   const pathsNeedingStaging = listPathsNeedingStaging(projectDir, pathsToStage);
 
   if (pathsNeedingStaging.length > 0) {
-    withGitIndexLockRetry(() => {
-      execFileSync("git", ["add", "-A", "--", ...pathsNeedingStaging], {
-        cwd: projectDir,
-        env: withProtectedGitBareRepositoryEnv(),
-        stdio: "pipe",
-      });
-    });
+    stageWorkflowPaths(projectDir, pathsNeedingStaging);
   }
 
   try {
