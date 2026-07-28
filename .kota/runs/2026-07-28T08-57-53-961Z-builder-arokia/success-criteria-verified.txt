@@ -1,0 +1,2 @@
+1. NOT MET: canonical run and Git evidence proves the failed review is superseded and establishes dismissal as the correct disposition, but the managed sandbox could not apply that disposition to the host runtime store.
+2. NOT MET: before and unchanged-after-attempt evidence is recorded, but the item remains open; the task is blocked on an operator-side canonical dismissal and after-state capture.

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "artifacts": [
+    {
+      "path": "dead-letter-before-dismissal.json",
+      "kind": "json"
+    },
+    {
+      "path": "dead-letter-after-failed-attempt.json",
+      "kind": "json"
+    },
+    {
+      "path": "dead-letter-resolution.md",
+      "kind": "markdown"
+    },
+    {
+      "path": "canonical-mutation-attempts.txt",
+      "kind": "text"
+    },
+    {
+      "path": "host-index-replay.txt",
+      "kind": "text"
+    }
+  ]
+}

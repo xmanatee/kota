@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-07-28T09:10:31.226Z",
+  "storePath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/dead-letter-queue/items.json",
+  "item": {
+    "id": "dlq-5b14f336-2999-4620-bb05-2042fd582e93",
+    "type": "workflow-dispatch",
+    "status": "open",
+    "scopeId": "8nrg1m",
+    "projectId": "8nrg1m",
+    "owningModule": "workflow-runtime",
+    "sourceEventIds": [
+      "evtj-000000181444"
+    ],
+    "affectedWorkflowNames": [
+      "security-review"
+    ],
+    "failure": {
+      "reason": "Agent step \"investigate-candidates\" failed (codex_cli_error): This content was flagged for possible cybersecurity risk.",
+      "retryCount": 2,
+      "lastErrorClass": "execution",
+      "firstFailedAt": "2026-07-28T04:31:04.830Z",
+      "lastFailedAt": "2026-07-28T04:31:04.830Z"
+    },
+    "source": {
+      "kind": "workflow-dispatch",
+      "workflowName": "security-review",
+      "triggerEvent": "autonomy.security-review.due",
+      "failedRunId": "2026-07-28T04-24-35-747Z-security-review-sq3k48",
+      "runDir": ".kota/runs/2026-07-28T04-24-35-747Z-security-review-sq3k48"
+    },
+    "comparison": {
+      "kind": "commit-range",
+      "baseSha": "7e4d800b74fb9340d40de3134b7f9fc1694ad9d7",
+      "headSha": "cabc2c59a89ec80ecd1dfdc0af4e6dda70e575f9"
+    },
+    "createdAt": "2026-07-28T04:31:04.830Z",
+    "updatedAt": "2026-07-28T04:31:04.830Z",
+    "redriveAttempts": []
+  },
+  "supersedingRun": {
+    "runId": "2026-07-28T04-53-22-834Z-security-review-sixhkj",
+    "status": "success",
+    "completedAt": "2026-07-28T05:38:12.536Z",
+    "comparison": {
+      "kind": "commit-range",
+      "baseSha": "7e4d800b74fb9340d40de3134b7f9fc1694ad9d7",
+      "headSha": "bb7a7c348cc99d0c8a40f9bfcd4b91382694e966",
+      "containsFailedHead": true
+    },
+    "outcome": "tasks-created",
+    "findingId": "finding-builder-unbounded-run-evidence-commit",
+    "createdTaskIds": [
+      "task-security-review-the-builder-recursively-force-stag"
+    ]
+  }
+}

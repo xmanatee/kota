@@ -1,0 +1,8 @@
+{
+  "verdict": "pass",
+  "critical_issues": [],
+  "warnings": [],
+  "summary": "The honest blocked handoff records a precise operator-capture precondition and preserves evidence of the failed canonical mutation at data/tasks/blocked/task-dispose-the-superseded-security-review-dead-letter.md:61.",
+  "generatedAt": "2026-07-28T09:21:44.060Z",
+  "reviewerPromptHash": "f6e5054b3887"
+}

@@ -1,0 +1,10 @@
+The linked worktree's host Git index is read-only in this sandbox. Task-state mutation and final staging were validated with:
+
+- GIT_INDEX_FILE=.kota/tmp/2026-07-28T08-57-53-961Z-builder-arokia/git-index
+- GIT_OBJECT_DIRECTORY=.kota/tmp/2026-07-28T08-57-53-961Z-builder-arokia/git-objects
+- GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects
+- git read-tree HEAD before the first mutation
+- the canonical task CLI for ready -> doing -> blocked
+- git add -A before handoff
+
+This isolated index proves the exact staged task diff but does not update the real worktree index. The workflow host must replay git add -A against its writable host index before the commit step.

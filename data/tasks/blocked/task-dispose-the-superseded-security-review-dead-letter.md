@@ -1,13 +1,13 @@
 ---
 id: task-dispose-the-superseded-security-review-dead-letter
 title: Dispose the superseded security-review dead letter
-status: ready
+status: blocked
 priority: p2
 area: autonomy
 task_class: Meta
 summary: Reconcile dlq-5b14f336-2999-4620-bb05-2042fd582e93 now that the later security-review completed successfully and created the confirmed finding's canonical Safety task.
 created_at: 2026-07-28T05:40:38.354Z
-updated_at: 2026-07-28T05:40:38.354Z
+updated_at: 2026-07-28T09:14:37.016Z
 ---
 
 ## Problem
@@ -57,3 +57,34 @@ Outcome-aware autonomy progress review.
 - Review-provided acceptance evidence:
 
     The canonical dead-letter record is dismissed with durable rationale identifying the later successful security-review as superseding the failed comparison range, or is successfully redriven; a final canonical-store check records no open item for this failed dispatch.
+
+## Unblock Precondition
+
+```yaml
+kind: operator-capture
+path: .kota/runs/2026-07-28T08-57-53-961Z-builder-arokia/operator-dead-letter-after-dismissal.json
+description: From the canonical host checkout or an environment that reaches the authenticated daemon control API, run the recorded dismissal for dlq-5b14f336-2999-4620-bb05-2042fd582e93 and capture after-state JSON proving its status is dismissed and the filtered open security-review list omits it.
+```
+
+## Status (2026-07-28 builder)
+
+The cited failed review is conclusively superseded, but its canonical runtime
+record is not writable from this managed worktree:
+
+- Failed run `2026-07-28T04-24-35-747Z-security-review-sq3k48` reviewed
+  `7e4d800b74fb9340d40de3134b7f9fc1694ad9d7..cabc2c59a89ec80ecd1dfdc0af4e6dda70e575f9`
+  and stopped when the harness rejected the defensive security investigation.
+- Successful run `2026-07-28T04-53-22-834Z-security-review-sixhkj` reviewed the
+  broader `7e4d800b74fb9340d40de3134b7f9fc1694ad9d7..bb7a7c348cc99d0c8a40f9bfcd4b91382694e966`
+  range; Git proves the failed head is its ancestor. It confirmed
+  `finding-builder-unbounded-run-evidence-commit` and created canonical Safety
+  task `task-security-review-the-builder-recursively-force-stag`, now done.
+- The existing authenticated daemon endpoint was unreachable inside the
+  builder sandbox. The supported local fallback then failed before atomic
+  replacement with `EPERM` on the canonical `items.json.tmp`; a fresh read
+  confirmed the cited item remains open and unchanged.
+
+Run artifacts under
+`.kota/runs/2026-07-28T08-57-53-961Z-builder-arokia/artifacts/` preserve the
+canonical before state, unchanged post-attempt state, exact dismissal rationale,
+recommended command, and failure boundary without claiming completion.

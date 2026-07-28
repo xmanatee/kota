@@ -1,0 +1,2 @@
+1. Establish from canonical run and Git evidence whether the failed security-review dispatch is superseded, and dispose it without duplicating stale review context.
+2. Record a durable canonical-store before/after check proving the cited dead letter is no longer open, then complete the task with links to the acceptance evidence.

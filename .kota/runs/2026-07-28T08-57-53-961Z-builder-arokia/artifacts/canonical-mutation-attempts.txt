@@ -1,0 +1,7 @@
+Canonical DLQ dismissal attempt, 2026-07-28T09:12Z
+
+1. The canonical daemon control address named port 50203 and a live host PID, but the managed builder sandbox could not reach its loopback endpoint. The source CLI therefore selected its local client.
+2. The supported local dismissal command was run from /Users/xmanatee/Desktop/mono/apps/kota with the full supersession rationale. Its atomic store write failed before replacement with EPERM while opening .kota/dead-letter-queue/items.json.tmp.
+3. A fresh read of the canonical store at 2026-07-28T09:13:30.133Z still found the cited item open with its unchanged 2026-07-28T04:31:04.830Z updatedAt. No partial mutation occurred.
+
+The operator-side command and exact rationale are recorded in dead-letter-resolution.md.
