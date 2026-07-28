@@ -23,6 +23,7 @@ import {
   type TaskClaimInspection,
 } from "./task-claims.js";
 import {
+  hasPreservedWorktreeChanges,
   readOwnerRunStatus,
   readWorktreeEvidence,
   recommendedActionFor,
@@ -169,6 +170,12 @@ function recommendedActionForWorktree(
   }
   if (worktree.dirtyState === "conflicted") {
     return { kind: "needs-review", reason: "worktree has conflicted paths" };
+  }
+  if (hasPreservedWorktreeChanges(worktree)) {
+    return {
+      kind: "needs-review",
+      reason: "worktree contains preserved uncommitted changes that need recovery review",
+    };
   }
   if (unique.error !== undefined) {
     return { kind: "needs-review", reason: unique.error };
