@@ -1,17 +1,10 @@
 import { Command } from "commander";
 import type { DaemonLiveStatus, InteractiveSession } from "#core/daemon/daemon-control.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowActiveRun } from "#core/workflow/run-types.js";
 import { columns, kvBlock, line, plain, span, stack } from "#modules/rendering/primitives.js";
 import { print, printToStderr, writeJson } from "#modules/rendering/transport.js";
-
-type SessionAutonomyResponse = {
-  autonomy_mode?: string;
-  source?: string;
-  serveOwned?: boolean;
-};
 
 type SessionEntry =
   | {
@@ -47,15 +40,21 @@ function buildSessionList(
   return entries.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
 }
 
-function buildStatusPath(projectId: string | undefined): string {
-  return projectId ? `/status?projectId=${encodeURIComponent(projectId)}` : "/status";
-}
-
 function printSessionError(message: string): void {
   printToStderr(line(span(message, "error")));
 }
 
-export function buildSessionCommand(_ctx: ModuleContext): Command {
+async function readSessionStatus(
+  ctx: ModuleContext,
+  projectId: string | undefined,
+): Promise<DaemonLiveStatus | null> {
+  const result = await ctx.client.daemonOps.status(
+    projectId ? { projectId } : undefined,
+  );
+  return result.state === "running" ? result.status : null;
+}
+
+export function buildSessionCommand(ctx: ModuleContext): Command {
   const sessionCmd = new Command("session")
     .description("Inspect active sessions tracked by the daemon");
 
@@ -68,20 +67,7 @@ export function buildSessionCommand(_ctx: ModuleContext): Command {
       "Filter to one configured project (default: daemon's active project)",
     )
     .action(async (opts: { json?: boolean; project?: string }) => {
-      const link = getDaemonTransport();
-      if (!link) {
-        if (opts.json) {
-          writeJson({ sessions: [], offline: true });
-        } else {
-          print(line(plain("Daemon is offline. No active sessions.")));
-        }
-        return;
-      }
-
-      const status = await link.request<DaemonLiveStatus>(
-        "GET",
-        buildStatusPath(opts.project),
-      );
+      const status = await readSessionStatus(ctx, opts.project);
       if (!status) {
         if (opts.json) {
           writeJson({ sessions: [], offline: true });
@@ -139,16 +125,7 @@ export function buildSessionCommand(_ctx: ModuleContext): Command {
       "Look up the session in one configured project (default: daemon's active project)",
     )
     .action(async (id: string, opts: { json?: boolean; project?: string }) => {
-      const link = getDaemonTransport();
-      if (!link) {
-        printSessionError("Daemon is offline.");
-        process.exit(1);
-      }
-
-      const status = await link.request<DaemonLiveStatus>(
-        "GET",
-        buildStatusPath(opts.project),
-      );
+      const status = await readSessionStatus(ctx, opts.project);
       if (!status) {
         printSessionError("Daemon is offline.");
         process.exit(1);
@@ -213,38 +190,21 @@ export function buildSessionCommand(_ctx: ModuleContext): Command {
         printSessionError(`Invalid mode "${mode}". Expected one of: passive, supervised, autonomous.`);
         process.exit(1);
       }
-      const link = getDaemonTransport();
-      if (!link) {
-        printSessionError("Daemon is offline.");
-        process.exit(1);
-      }
-      let res: Response;
-      try {
-        res = await link.fetchRaw(`/sessions/${encodeURIComponent(id)}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ autonomy_mode: mode }),
-        });
-      } catch {
+      const result = await ctx.client.sessions.setAutonomyMode(id, mode);
+      if (!result.ok && result.reason === "daemon_required") {
         printSessionError("Failed to reach the daemon.");
         process.exit(1);
       }
-      if (res.status === 404) {
+      if (!result.ok) {
         printSessionError(`Session "${id}" not found.`);
         process.exit(1);
       }
-      if (!res.ok) {
-        printSessionError("Failed to reach the daemon.");
-        process.exit(1);
-      }
-      const body = (await res.json()) as SessionAutonomyResponse;
-      const autonomyMode = (body.autonomy_mode ?? mode) as AutonomyMode;
       if (opts.json) {
         writeJson({
           ok: true,
-          autonomyMode,
-          ...(body.source !== undefined && { source: body.source }),
-          ...(body.serveOwned !== undefined && { serveOwned: body.serveOwned }),
+          autonomyMode: result.autonomyMode,
+          source: result.source,
+          serveOwned: result.serveOwned,
         });
         return;
       }
@@ -252,10 +212,10 @@ export function buildSessionCommand(_ctx: ModuleContext): Command {
         plain("Session "),
         span(id, "accent"),
         plain(" autonomy mode → "),
-        span(autonomyMode, "success"),
+        span(result.autonomyMode, "success"),
       ));
-      if (body.source) print(line(plain("source: "), span(body.source, "muted")));
-      if (body.serveOwned) {
+      print(line(plain("source: "), span(result.source, "muted")));
+      if (result.serveOwned) {
         print(stack(line(span("note: session is owned by a kota serve process; daemon updated registration metadata only", "muted"))));
       }
     });

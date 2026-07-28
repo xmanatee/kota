@@ -29,6 +29,7 @@ import type {
   ProjectId,
 } from "#core/daemon/scope-registry.js";
 import type { SessionGuardrailsReloadSummary } from "#core/events/event-bus-types.js";
+import type { ScopeSelector } from "#core/server/scope-selector.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { UiActionExecutionResult } from "./operator-ui-actions.js";
 import type { UiJsonValue, UiSurfaceBundle } from "./operator-ui-types.js";
@@ -140,7 +141,7 @@ export type DaemonOpsReloadResult =
  * that file logic in the CLI handler.
  */
 export interface DaemonOpsClient {
-  status(): Promise<DaemonOpsStatusResult>;
+  status(filter?: ScopeSelector): Promise<DaemonOpsStatusResult>;
   pid(): Promise<DaemonOpsPidResult>;
   stop(options?: { timeoutSec?: number }): Promise<DaemonOpsStopResult>;
   reload(): Promise<DaemonOpsReloadResult>;
