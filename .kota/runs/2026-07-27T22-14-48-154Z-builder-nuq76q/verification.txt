@@ -1,0 +1,33 @@
+Security boundary verification
+
+PASS: pnpm test src/core/daemon/daemon-instance-lock.test.ts src/daemon.integration.test.ts src/core/daemon/daemon-external-project.test.ts src/core/daemon/daemon-multi-project-isolation.test.ts src/core/daemon/daemon-dashboard-snapshot.test.ts
+Result: 5 test files passed; 33 tests passed.
+
+PASS: focused post-check repair suite
+Result: 8 test files passed; 49 tests passed. This covers strict-types policy, scoped workflow runtime queues, approval tools, dead-letter/event-batch flows, owner decisions, the OpenAI tools harness, and secrets.
+
+PASS: secrets module suite
+Result: 4 test files passed; 33 tests passed.
+
+PASS: full Vitest suite through the cached project-pinned pnpm 10.32.1 binary with the inherited host PATH
+Result: 1,083 test files passed; 4 skipped. 12,207 tests passed; 16 skipped (12,223 total).
+
+PASS: pnpm typecheck
+PASS: pnpm lint
+PASS: pnpm hygiene
+PASS: pnpm test:workflow-critical
+PASS: pnpm test src/strict-types-policy.integration.test.ts src/root-layout.test.ts
+PASS: pnpm validate-tasks in active and final done states (workspace-local Git index/object store)
+
+PASS: source-file-size-severe against the final workspace-local staged index
+Result: advisory-only with three pre-existing oversized surfaces. `daemon-init.ts` is 264 lines after its runtime-context and capability-readiness concerns were split into focused owning files, clearing the four-file severe threshold. See source-file-size-review.json.
+
+PASS: fresh post-repair focused suite through the installed Vitest binary
+Result: 14 test files and 106 tests passed, including daemon state-root, daemon integration, capability readiness, strict-types policy, root layout, scoped runtime queues, approvals, owner decisions, secrets, and agent-harness guardrails.
+
+PASS: fresh post-repair direct validation
+Result: TypeScript no-emit typecheck passed; Biome checked 2,851 source files with no findings; task validation passed against the workspace-local staged index; hygiene reported no blocking errors.
+
+NOTE: The system pnpm shim could not refresh the pinned pnpm signature because registry access was unavailable during this repair. Fresh checks therefore invoked the already-installed project binaries directly without installing or changing dependencies; the earlier complete pnpm results above remain part of this run's evidence.
+
+The focused regression rejects a default project-owned .kota symlink before daemon construction reads or writes state. The redirected directory retains mode 0777 and remains empty. A second regression replaces an already verified .kota inode with a symlink and proves anchored control-file publication rejects it without touching the target. Explicitly configured stateDir symlink handling remains operator-controlled and unchanged. Post-check repairs bind runtime-owned queues to the supplied event-bus scope, pass scoped approval queues explicitly in tests and harness fixtures, keep secret boundaries strictly typed, and isolate module-context secret fixtures in fresh temporary projects.

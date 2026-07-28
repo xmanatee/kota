@@ -89,12 +89,15 @@ export function createWorkflowRuntimeContext(
 ): WorkflowRuntimeContext {
   const projectDir = runtimeConfig.projectDir ?? process.cwd();
   const store = runtimeConfig.runStore ?? new WorkflowRunStore(projectDir);
-  const scopeId = deriveDirectoryScopeId(projectDir);
-	const pbus =
-		runtimeConfig.pbus ??
-		new ProjectScopedEventBus(runtimeConfig.bus, scopeId);
-	const approvalQueue = runtimeConfig.approvalQueue
-		?? new ApprovalQueue(join(projectDir, ".kota", "approvals"), pbus, scopeId);
+  const pbus =
+    runtimeConfig.pbus ??
+    new ProjectScopedEventBus(
+      runtimeConfig.bus,
+      deriveDirectoryScopeId(projectDir),
+    );
+  const scopeId = pbus.getScopeId();
+  const approvalQueue = runtimeConfig.approvalQueue
+    ?? new ApprovalQueue(join(projectDir, ".kota", "approvals"), pbus, scopeId);
   const idempotencyStore =
     runtimeConfig.idempotencyStore ??
     new IdempotencyStore(join(store.rootDir, "idempotency"), scopeId);
@@ -168,7 +171,7 @@ export function createWorkflowRuntimeContext(
     store,
     deadLetterQueue: runtimeConfig.deadLetterQueue,
     eventJournal: runtimeConfig.eventJournal,
-		approvalQueue,
+    approvalQueue,
     idempotencyStore,
     wfQueue,
     scheduleTriggers,

@@ -223,7 +223,9 @@ describe("owner decision workflow helpers", () => {
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
       projectDir,
       bus,
+      pbus,
       store,
+      approvalQueue,
       log,
     });
 
@@ -246,7 +248,9 @@ describe("owner decision workflow helpers", () => {
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
       projectDir,
       bus,
+      pbus,
       store,
+      approvalQueue,
       log,
     });
 
@@ -272,7 +276,9 @@ describe("owner decision workflow helpers", () => {
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
       projectDir,
       bus,
+      pbus,
       store,
+      approvalQueue,
       deadLetterQueue,
       log,
     });
@@ -325,7 +331,9 @@ describe("owner decision workflow helpers", () => {
     const firstRun = executeWorkflowRun(failingDefinition, TRIGGER, {
       projectDir,
       bus,
+      pbus,
       store,
+      approvalQueue,
       deadLetterQueue,
       log,
     });
@@ -351,7 +359,9 @@ describe("owner decision workflow helpers", () => {
       {
         projectDir,
         bus,
+        pbus,
         store,
+        approvalQueue,
         deadLetterQueue,
         log,
       },
@@ -372,7 +382,9 @@ describe("owner decision workflow helpers", () => {
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
       projectDir,
       bus,
+      pbus,
       store,
+      approvalQueue,
       log,
     });
 
@@ -410,7 +422,7 @@ describe("owner decision workflow helpers", () => {
         tags: [],
       },
       TRIGGER,
-      { projectDir, bus, store, log },
+      { projectDir, bus, pbus, store, approvalQueue, log },
     ).promise;
 
     expect(replay.metadata.status).toBe("success");
@@ -428,7 +440,9 @@ describe("owner decision workflow helpers", () => {
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
       projectDir,
       bus,
+      pbus,
       store,
+      approvalQueue,
       log,
     });
 
@@ -457,7 +471,9 @@ describe("owner decision workflow helpers", () => {
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
       projectDir,
       bus,
+      pbus,
       store,
+      approvalQueue,
       log,
     });
 
@@ -483,7 +499,9 @@ describe("owner decision workflow helpers", () => {
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
       projectDir,
       bus,
+      pbus,
       store,
+      approvalQueue,
       log,
     });
 
@@ -513,7 +531,9 @@ describe("owner decision workflow helpers", () => {
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
       projectDir,
       bus,
+      pbus,
       store,
+      approvalQueue,
       log,
     });
 

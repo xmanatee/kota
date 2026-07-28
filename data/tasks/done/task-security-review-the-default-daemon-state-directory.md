@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-default-daemon-state-directory
 title: Security review: The default daemon state directory is the repository-controlled `.kota` path, but instance-lock and control-file setup follows a symbolic link at that path. A malicious project can redirect daemon ownership files and other state into another daemon-user-writable directory; setup also chmods the symlink target, enabling cross-project state corruption and writes outside the selected project.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: The default daemon state directory is the repository-controlled `.kota` path, but instance-lock and control-file setup follows a symbolic link at that path. A malicious project can redirect daemon ownership files and other state into another daemon-user-writable directory; setup also chmods the symlink target, enabling cross-project state corruption and writes outside the selected project.
 created_at: 2026-07-27T10:43:55.811Z
-updated_at: 2026-07-27T10:43:55.811Z
+updated_at: 2026-07-27T23:45:27.069Z
 ---
 
 ## Problem
@@ -111,3 +111,18 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/core/daemon/daemon-instance-lock.test.ts src/daemon.integration.test.ts src/core/daemon/daemon-external-project.test.ts src/core/daemon/daemon-multi-project-isolation.test.ts src/core/daemon/daemon-dashboard-snapshot.test.ts` — 5 files and 33 tests passed. The focused regression constructs a default project whose `.kota` entry is a directory symlink and asserts the target remains mode `0777` and empty after daemon construction is rejected. It also covers post-verification state-root replacement and the explicitly configured external-directory case.
+- `pnpm typecheck` — passed.
+- `pnpm lint` — passed.
+- `pnpm hygiene` — passed.
+- `pnpm test:workflow-critical` — passed.
+- `pnpm test src/strict-types-policy.integration.test.ts src/root-layout.test.ts` — passed.
+- `pnpm validate-tasks` with the workspace-local Git index/object store required by this linked sandbox — passed both while the task was active and after its final move to `done/`.
+- Focused post-check repair suite — 8 files and 49 tests passed, covering strict-types policy, scoped workflow runtime queues, approval tools, dead-letter/event-batch flows, owner decisions, the OpenAI tools harness, and secrets.
+- Secrets module suite — 4 files and 33 tests passed.
+- Full Vitest suite through the cached project-pinned pnpm 10.32.1 binary with the inherited host `PATH` — 1,083 test files passed and 4 skipped; 12,207 tests passed and 16 skipped (12,223 total).
+- Final source-size repair — `source-file-size-severe` passed against the workspace-local staged index with three advisory-only warnings; `src/core/daemon/daemon-init.ts` is 264 lines after its lifecycle context and capability-readiness aggregation were split into focused owning files.
+- Fresh final repair validation — 14 focused files and 106 tests passed; direct TypeScript no-emit typecheck and Biome source check passed; task validation passed against the workspace-local staged index; hygiene reported no blocking errors.

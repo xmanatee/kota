@@ -56,7 +56,7 @@ export async function runDaemonStartup(
 
   await acquireInstanceLock(
     ctx.projectDir,
-    ctx.stateDir,
+    ctx.stateRoot,
     {
       pid: ctx.state.pid,
       startedAt: ctx.state.startedAt,
@@ -72,7 +72,7 @@ export async function runDaemonStartup(
   warnInvalidConcurrencyConfig(ctx.projectDir, ctx.log);
 
   const controlPort = await ctx.controlServer.start();
-  writeControlFile(ctx.stateDir, {
+  writeControlFile(ctx.stateRoot, {
     port: controlPort,
     pid: process.pid,
     startedAt: ctx.state.startedAt,

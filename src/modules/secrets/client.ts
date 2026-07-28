@@ -35,10 +35,11 @@ export type SecretMutateResult =
   | { ok: true }
   | { ok: false; reason: "not_found" | "store_error"; message?: string };
 
-export function secretMutationFailure(cause: unknown): SecretMutateResult {
-  const error = cause instanceof Error ? cause : new Error(String(cause));
-  if (/^Unknown (project|scope)(?::|$)/.test(error.message)) throw error;
-  return { ok: false, reason: "store_error", message: error.message };
+export function secretMutationFailure(message: string): SecretMutateResult {
+  if (/^Unknown (project|scope)(?::|$)/.test(message)) {
+    throw new Error(message);
+  }
+  return { ok: false, reason: "store_error", message };
 }
 
 /**

@@ -1,0 +1,3 @@
+1. The default project-owned `.kota` daemon state root rejects symbolic links before any state read, permission change, or write, while an explicitly configured external state directory remains operator-controlled.
+2. Instance-lock and control-file operations use an inode-verified directory anchor and no-follow file operations, with focused regressions proving redirected targets are unchanged.
+3. Focused tests, type checking, task validation, and the final task record provide fresh verification evidence for the security boundary.

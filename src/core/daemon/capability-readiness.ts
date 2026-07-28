@@ -15,11 +15,15 @@
  * still module-owned and lives in each contributing module's `onLoad`.
  */
 
-import type { ProviderRegistry } from "#core/modules/provider-registry.js";
+import {
+  getProviderRegistry,
+  type ProviderRegistry,
+} from "#core/modules/provider-registry.js";
 import {
   defineProviderToken,
   type ProviderToken,
 } from "#core/modules/provider-token.js";
+import type { WorkflowRuntime } from "#core/workflow/runtime.js";
 
 /**
  * Status of a single capability.
@@ -150,5 +154,46 @@ export async function probeCapabilityReadiness(
     init_failed: 0,
   };
   for (const cap of capabilities) summary[cap.status] += 1;
+  return { capabilities, summary };
+}
+
+/** Add readiness for the daemon-owned workflow trigger capability. */
+export async function probeCapabilityReadinessWithTrigger(
+  workflows: WorkflowRuntime,
+): Promise<CapabilityReadinessResponse> {
+  const registry = getProviderRegistry();
+  const aggregated = registry
+    ? await probeCapabilityReadiness(registry)
+    : { capabilities: [], summary: { ready: 0, unavailable: 0, init_failed: 0 } };
+  const definitions = workflows.getDefinitions();
+  const enabled = definitions.filter((definition) => definition.enabled).length;
+  const triggerReadiness: CapabilityReadiness = enabled > 0
+    ? {
+        id: "workflow.trigger",
+        moduleName: "core",
+        status: "ready",
+        message: `${enabled} of ${definitions.length} workflow definition(s) currently enabled.`,
+        meta: { enabled, total: definitions.length },
+      }
+    : {
+        id: "workflow.trigger",
+        moduleName: "core",
+        status: "unavailable",
+        reason: "no_enabled_workflows",
+        message:
+          definitions.length === 0
+            ? "No workflow definitions are loaded."
+            : `All ${definitions.length} workflow definition(s) are disabled.`,
+        meta: { enabled, total: definitions.length },
+      };
+  const capabilities = [...aggregated.capabilities, triggerReadiness].sort((a, b) =>
+    a.id.localeCompare(b.id),
+  );
+  const summary: CapabilityReadinessSummary = {
+    ready: 0,
+    unavailable: 0,
+    init_failed: 0,
+  };
+  for (const capability of capabilities) summary[capability.status] += 1;
   return { capabilities, summary };
 }

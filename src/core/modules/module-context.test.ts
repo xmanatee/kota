@@ -3,7 +3,9 @@
  * and the tools-as-function pattern.
  */
 
-
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getProjectSecretStore, resetSecretStores } from "#core/config/secrets.js";
 import { initEventBus, resetEventBus } from "#core/events/event-bus.js";
@@ -135,10 +137,20 @@ describe("ModuleContext.log", () => {
 // ── ctx.getSecret ────────────────────────────────────────────────────────
 
 describe("ModuleContext.getSecret", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = mkdtempSync(join(tmpdir(), "kota-module-context-secrets-"));
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
   it("reads from the module project's secret store", async () => {
     const onLoad = vi.fn();
     const loader = new ModuleLoader({});
-    loader.setCwd("/tmp/test-secret-lazy");
+    loader.setCwd(projectDir);
     await loader.load({ name: "secret-test", onLoad });
 
     const ctx: ModuleContext = onLoad.mock.calls[0][0];
@@ -148,7 +160,6 @@ describe("ModuleContext.getSecret", () => {
   });
 
   it("does not read a different project's store", async () => {
-    const projectDir = "/tmp/test-secret-ctx";
     const store = getProjectSecretStore(projectDir);
     store.set("API_KEY", "test-value-123", "project");
 
