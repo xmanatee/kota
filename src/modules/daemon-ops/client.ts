@@ -13,10 +13,10 @@
  * false; reason: "not_found" } | { ok: false; reason: "daemon_required" }`)
  * is the sessions namespace contract. Both handlers can emit
  * `daemon_required`: the local handler emits it unconditionally because no
- * daemon is reachable, and the daemon-side factory emits it on transient
- * transport failures (network error, JSON parse failure inside the `try`
- * block). A successful HTTP response with status 200/404 collapses into the
- * `{ ok: true }` / `{ ok: false, reason: "not_found" }` arms instead.
+ * daemon is reachable, and the daemon-side factory emits it on transport
+ * failures. HTTP and protocol errors remain visible exceptions. A successful
+ * HTTP response with status 200/404 collapses into the `{ ok: true }` /
+ * `{ ok: false, reason: "not_found" }` arms instead.
  */
 
 import type {

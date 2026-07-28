@@ -26,13 +26,9 @@
  *     `false` when the daemon response omits either.
  *  7. `setAutonomyMode` decodes the not_found arm correctly: a `404`
  *     response collapses to `{ ok: false, reason: "not_found" }`.
- *  8. `setAutonomyMode` decodes the daemon_required arm: a network failure
- *     (rejected fetch) inside the `try` block collapses to `{ ok: false,
- *     reason: "daemon_required" }` and a JSON parse failure on the success
- *     body inside the `try` block also collapses to the same arm.
- *  9. `setAutonomyMode` surfaces unrelated `HTTP`-prefixed errors as
- *     throws: a `502 + { error: "internal" }` response throws an error
- *     containing `"internal"`.
+ *  8. `setAutonomyMode` maps a rejected fetch to `daemon_required` while
+ *     malformed protocol responses remain visible errors.
+ *  9. `setAutonomyMode` throws daemon-supplied errors from non-ok responses.
  * 10. `serveOwned: true` is honored: a `200 + { autonomy_mode, source:
  *     "serve", serveOwned: true }` response collapses to `{ ok: true,
  *     autonomyMode, source: "serve", serveOwned: true }`.
@@ -216,13 +212,14 @@ describe("daemon-ops module daemonClient(link) — sessions namespace", () => {
     expect(result).toEqual({ ok: false, reason: "daemon_required" });
   });
 
-  it("setAutonomyMode decodes the daemon_required arm on a JSON parse failure of the success body", async () => {
+  it("setAutonomyMode surfaces a JSON parse failure from the success body", async () => {
     const { transport } = makeRecordingTransport(() =>
       malformedJsonResponse(200, "not-json"),
     );
     const contributed = daemonOpsModule.daemonClient!(transport);
-    const result = await contributed.sessions!.setAutonomyMode("sess-1", "supervised");
-    expect(result).toEqual({ ok: false, reason: "daemon_required" });
+    await expect(
+      contributed.sessions!.setAutonomyMode("sess-1", "supervised"),
+    ).rejects.toThrow();
   });
 
   it("setAutonomyMode surfaces `HTTP <status>` throws when the daemon body lacks an error message", async () => {
@@ -235,16 +232,14 @@ describe("daemon-ops module daemonClient(link) — sessions namespace", () => {
     ).rejects.toThrow(/HTTP 502/);
   });
 
-  it("setAutonomyMode collapses non-ok responses with a daemon-supplied error body into daemon_required", async () => {
+  it("setAutonomyMode surfaces non-ok responses with a daemon-supplied error body", async () => {
     const { transport } = makeRecordingTransport(() =>
       jsonResponse(502, { error: "internal" }),
     );
     const contributed = daemonOpsModule.daemonClient!(transport);
-    const result = await contributed.sessions!.setAutonomyMode(
-      "sess-1",
-      "supervised",
-    );
-    expect(result).toEqual({ ok: false, reason: "daemon_required" });
+    await expect(
+      contributed.sessions!.setAutonomyMode("sess-1", "supervised"),
+    ).rejects.toThrow(/internal/);
   });
 
   it("setAutonomyMode honors serveOwned: true with source \"serve\"", async () => {

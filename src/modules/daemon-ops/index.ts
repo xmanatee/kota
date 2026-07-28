@@ -1508,6 +1508,26 @@ type SessionsSetAutonomyModeWireBody = {
   serveOwned?: boolean;
 };
 
+async function fetchOptionalDaemonResponse(
+  link: DaemonTransport,
+  path: string,
+  init: RequestInit,
+): Promise<Response | null> {
+  try {
+    return await link.fetchRaw(path, init);
+  } catch {
+    return null;
+  }
+}
+
+async function daemonResponseError(response: Response): Promise<Error> {
+  if (response.headers.get("content-type")?.includes("application/json")) {
+    const body = (await response.json()) as { error?: unknown };
+    if (typeof body.error === "string") return new Error(body.error);
+  }
+  return new Error(`HTTP ${response.status}`);
+}
+
 /**
  * Daemon-side `SessionsClient` backed by the typed `DaemonTransport`. Calls
  * the `GET /sessions` and `PATCH /sessions/:id` control routes the daemon
@@ -1524,8 +1544,7 @@ type SessionsSetAutonomyModeWireBody = {
  * `setAutonomyMode(id, mode)` distinguishes three failure classes:
  *  - `404 → { ok: false, reason: "not_found" }`,
  *  - other non-ok HTTP responses → throw the daemon's error message,
- *  - transient transport failures (network error, JSON parse failure inside
- *    the `try` block) → `{ ok: false, reason: "daemon_required" }`.
+ *  - transport failures → `{ ok: false, reason: "daemon_required" }`.
  *
  * The success arm reshapes the daemon's snake_case `autonomy_mode` field to
  * camelCase `autonomyMode`, defaults `source` to `"daemon"` and `serveOwned`
@@ -1538,10 +1557,7 @@ function buildSessionsDaemonHandler(link: DaemonTransport): SessionsClient {
         method: "GET",
         headers: link.authHeaders(),
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error ?? `HTTP ${res.status}`);
-      }
+      if (!res.ok) throw await daemonResponseError(res);
       const parsed = (await res.json()) as { sessions: InteractiveSession[] };
       return { sessions: parsed.sessions };
     },
@@ -1549,28 +1565,25 @@ function buildSessionsDaemonHandler(link: DaemonTransport): SessionsClient {
       id: string,
       mode: AutonomyMode,
     ): Promise<SessionsSetAutonomyModeResult> => {
-      try {
-        const res = await link.fetchRaw(`/sessions/${encodeURIComponent(id)}`, {
+      const res = await fetchOptionalDaemonResponse(
+        link,
+        `/sessions/${encodeURIComponent(id)}`,
+        {
           method: "PATCH",
           headers: { "Content-Type": "application/json", ...link.authHeaders() },
           body: JSON.stringify({ autonomy_mode: mode }),
-        });
-        if (res.status === 404) return { ok: false, reason: "not_found" };
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(body.error ?? `HTTP ${res.status}`);
-        }
-        const body = (await res.json()) as SessionsSetAutonomyModeWireBody;
-        return {
-          ok: true,
-          autonomyMode: body.autonomy_mode,
-          source: body.source ?? "daemon",
-          serveOwned: body.serveOwned === true,
-        };
-      } catch (err) {
-        if (err instanceof Error && /HTTP/.test(err.message)) throw err;
-        return { ok: false, reason: "daemon_required" };
-      }
+        },
+      );
+      if (!res) return { ok: false, reason: "daemon_required" };
+      if (res.status === 404) return { ok: false, reason: "not_found" };
+      if (!res.ok) throw await daemonResponseError(res);
+      const body = (await res.json()) as SessionsSetAutonomyModeWireBody;
+      return {
+        ok: true,
+        autonomyMode: body.autonomy_mode,
+        source: body.source ?? "daemon",
+        serveOwned: body.serveOwned === true,
+      };
     },
   };
 }
@@ -1603,52 +1616,38 @@ type ProjectsListWireBody = ProjectRegistryProjection & {
 function buildProjectsDaemonHandler(link: DaemonTransport): ProjectsClient {
   return {
     list: async () => {
-      try {
-        const res = await link.fetchRaw("/projects", {
-          method: "GET",
-          headers: link.authHeaders(),
-        });
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(body.error ?? `HTTP ${res.status}`);
-        }
-        const parsed = (await res.json()) as ProjectsListWireBody;
-        return {
-          ok: true,
-          projects: parsed.projects as ConfiguredProject[],
-          defaultProjectId: parsed.defaultProjectId,
-          activeProjectId: parsed.activeProjectId,
-        };
-      } catch (err) {
-        if (err instanceof Error && /HTTP/.test(err.message)) throw err;
-        return { ok: false, reason: "daemon_required" };
-      }
+      const res = await fetchOptionalDaemonResponse(link, "/projects", {
+        method: "GET",
+        headers: link.authHeaders(),
+      });
+      if (!res) return { ok: false, reason: "daemon_required" };
+      if (!res.ok) throw await daemonResponseError(res);
+      const parsed = (await res.json()) as ProjectsListWireBody;
+      return {
+        ok: true,
+        projects: parsed.projects as ConfiguredProject[],
+        defaultProjectId: parsed.defaultProjectId,
+        activeProjectId: parsed.activeProjectId,
+      };
     },
     use: async (projectId: string | null): Promise<ProjectsUseResult> => {
-      try {
-        const res = await link.fetchRaw("/projects/active", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", ...link.authHeaders() },
-          body: JSON.stringify({ projectId }),
-        });
-        if (res.status === 404) {
-          const body = (await res.json().catch(() => ({}))) as { projectId?: string };
-          return {
-            ok: false,
-            reason: "not_found",
-            projectId: body.projectId ?? (projectId ?? ""),
-          };
-        }
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(body.error ?? `HTTP ${res.status}`);
-        }
-        const body = (await res.json()) as { activeProjectId: ProjectId | null };
-        return { ok: true, activeProjectId: body.activeProjectId };
-      } catch (err) {
-        if (err instanceof Error && /HTTP/.test(err.message)) throw err;
-        return { ok: false, reason: "daemon_required" };
+      const res = await fetchOptionalDaemonResponse(link, "/projects/active", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...link.authHeaders() },
+        body: JSON.stringify({ projectId }),
+      });
+      if (!res) return { ok: false, reason: "daemon_required" };
+      if (res.status === 404) {
+        const body = (await res.json()) as { projectId?: string };
+        return {
+          ok: false,
+          reason: "not_found",
+          projectId: body.projectId ?? (projectId ?? ""),
+        };
       }
+      if (!res.ok) throw await daemonResponseError(res);
+      const body = (await res.json()) as { activeProjectId: ProjectId | null };
+      return { ok: true, activeProjectId: body.activeProjectId };
     },
   };
 }
