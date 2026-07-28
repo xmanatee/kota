@@ -20,6 +20,10 @@
     {
       "path": "host-index-replay.txt",
       "kind": "text"
+    },
+    {
+      "path": "operator-dead-letter-after-dismissal.json",
+      "kind": "json"
     }
   ]
 }
