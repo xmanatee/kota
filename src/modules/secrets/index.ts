@@ -365,7 +365,7 @@ const secretsModule: KotaModule = {
           return { ok: true };
         } catch (error) {
           return secretMutationFailure(
-            error instanceof Error ? error.message : String(error),
+            error instanceof Error ? error : new Error(String(error)),
           );
         }
       },
@@ -377,7 +377,7 @@ const secretsModule: KotaModule = {
           return { ok: true };
         } catch (error) {
           return secretMutationFailure(
-            error instanceof Error ? error.message : String(error),
+            error instanceof Error ? error : new Error(String(error)),
           );
         }
       },

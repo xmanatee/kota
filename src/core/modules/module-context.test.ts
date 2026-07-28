@@ -3,6 +3,7 @@
  * and the tools-as-function pattern.
  */
 
+
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -137,40 +138,58 @@ describe("ModuleContext.log", () => {
 // ── ctx.getSecret ────────────────────────────────────────────────────────
 
 describe("ModuleContext.getSecret", () => {
-  let projectDir: string;
-
-  beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-module-context-secrets-"));
-  });
-
-  afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
-  });
-
   it("reads from the module project's secret store", async () => {
-    const onLoad = vi.fn();
-    const loader = new ModuleLoader({});
-    loader.setCwd(projectDir);
-    await loader.load({ name: "secret-test", onLoad });
+    const projectDir = mkdtempSync(join(tmpdir(), "module-context-secret-"));
+    try {
+      const onLoad = vi.fn();
+      const loader = new ModuleLoader({});
+      loader.setCwd(projectDir);
+      await loader.load({ name: "secret-test", onLoad });
 
-    const ctx: ModuleContext = onLoad.mock.calls[0][0];
-    expect(ctx.getSecret("MY_KEY")).toBeNull();
-    getProjectSecretStore(ctx.cwd).set("MY_KEY", "module-project-value", "project");
-    expect(ctx.getSecret("MY_KEY")).toBe("module-project-value");
+      const ctx: ModuleContext = onLoad.mock.calls[0][0];
+      const secretName = "KOTA_MODULE_CONTEXT_PROJECT_SECRET";
+      expect(ctx.getSecret(secretName)).toBeNull();
+      getProjectSecretStore(ctx.cwd).set(
+        secretName,
+        "module-project-value",
+        "project",
+      );
+      expect(ctx.getSecret(secretName)).toBe("module-project-value");
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
   });
 
   it("does not read a different project's store", async () => {
-    const store = getProjectSecretStore(projectDir);
-    store.set("API_KEY", "test-value-123", "project");
+    const projectDir = mkdtempSync(join(tmpdir(), "module-context-isolation-"));
+    const otherProjectDir = mkdtempSync(
+      join(tmpdir(), "module-context-isolation-other-"),
+    );
+    try {
+      const secretName = "KOTA_MODULE_CONTEXT_ISOLATED_SECRET";
+      getProjectSecretStore(otherProjectDir).set(
+        secretName,
+        "other-project-value",
+        "project",
+      );
 
-    const onLoad = vi.fn();
-    const loader = new ModuleLoader({});
-    loader.setCwd(projectDir);
-    await loader.load({ name: "secret-test2", onLoad });
+      const onLoad = vi.fn();
+      const loader = new ModuleLoader({});
+      loader.setCwd(projectDir);
+      await loader.load({ name: "secret-test2", onLoad });
 
-    const ctx: ModuleContext = onLoad.mock.calls[0][0];
-    expect(ctx.getSecret("API_KEY")).toBe("test-value-123");
-    expect(ctx.getSecret("NONEXISTENT")).toBeNull();
+      const ctx: ModuleContext = onLoad.mock.calls[0][0];
+      expect(ctx.getSecret(secretName)).toBeNull();
+      getProjectSecretStore(projectDir).set(
+        secretName,
+        "module-project-value",
+        "project",
+      );
+      expect(ctx.getSecret(secretName)).toBe("module-project-value");
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(otherProjectDir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -244,31 +263,36 @@ describe("tools as factory function", () => {
   });
 
   it("tool runner can access ctx.getSecret via closure", async () => {
-    const store = getProjectSecretStore("/tmp/test-factory");
-    store.set("TOKEN", "my-secret-token", "project");
+    const projectDir = mkdtempSync(join(tmpdir(), "module-context-factory-"));
+    try {
+      const store = getProjectSecretStore(projectDir);
+      store.set("KOTA_MODULE_CONTEXT_FACTORY_TOKEN", "my-secret-token", "project");
 
-    const loader = new ModuleLoader({});
-    loader.setCwd("/tmp/test-factory");
+      const loader = new ModuleLoader({});
+      loader.setCwd(projectDir);
 
-    const mod: KotaModule = {
-      name: "secret-factory",
-      tools: (ctx) => [{
-        tool: {
-          name: "secret_tool",
-          description: "Uses secret",
-          input_schema: { type: "object", properties: {} },
-        },
-        runner: async () => {
-          const value = ctx.getSecret("TOKEN");
-          return { content: value ? "found" : "not found" };
-        },
-        effect: legacyEffect({ risk: "safe", kind: "discovery" }),
-      }],
-    };
+      const mod: KotaModule = {
+        name: "secret-factory",
+        tools: (ctx) => [{
+          tool: {
+            name: "secret_tool",
+            description: "Uses secret",
+            input_schema: { type: "object", properties: {} },
+          },
+          runner: async () => {
+            const value = ctx.getSecret("KOTA_MODULE_CONTEXT_FACTORY_TOKEN");
+            return { content: value ? "found" : "not found" };
+          },
+          effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+        }],
+      };
 
-    await loader.load(mod);
-    const result = await executeTool("secret_tool", {});
-    expect(result.content).toBe("found");
+      await loader.load(mod);
+      const result = await executeTool("secret_tool", {});
+      expect(result.content).toBe("found");
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
   });
 
   it("tool runner can access ctx.log via closure", async () => {

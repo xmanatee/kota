@@ -19,7 +19,10 @@ import { type EventBus, initEventBus, resetEventBus } from "#core/events/event-b
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { confirmedOwnerActionStep } from "./owner-confirmed-action-step.js";
 import { type AwaitedOwnerDecisionOutcome, ownerDecisionSteps } from "./owner-decision-step.js";
-import { executeWorkflowRun } from "./run-executor.js";
+import {
+  executeWorkflowRun,
+  type RunExecutorDeps,
+} from "./run-executor.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowStepContext } from "./run-types.js";
 import type { WorkflowApprovalStep } from "./step-types.js";
@@ -218,16 +221,28 @@ describe("owner decision workflow helpers", () => {
     throw new Error("approval was not enqueued");
   }
 
-  it("data-only fixture persists a selected owner decision after workflow resume", async () => {
-    const definition = makeDataOnlyWorkflow();
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
+  function runExecutorDeps(
+    overrides: Partial<RunExecutorDeps> = {},
+  ): RunExecutorDeps {
+    return {
       projectDir,
       bus,
       pbus,
       store,
       approvalQueue,
+      idempotencyStore,
       log,
-    });
+      ...overrides,
+    };
+  }
+
+  it("data-only fixture persists a selected owner decision after workflow resume", async () => {
+    const definition = makeDataOnlyWorkflow();
+    const { promise } = executeWorkflowRun(
+      definition,
+      TRIGGER,
+      runExecutorDeps(),
+    );
 
     await answerPendingQuestion("module");
     const result = await promise;
@@ -245,14 +260,11 @@ describe("owner decision workflow helpers", () => {
   it("confirmed external action fixture executes only after decision and approval", async () => {
     const calls: string[] = [];
     const definition = makeConfirmedActionWorkflow(calls);
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
-      bus,
-      pbus,
-      store,
-      approvalQueue,
-      log,
-    });
+    const { promise } = executeWorkflowRun(
+      definition,
+      TRIGGER,
+      runExecutorDeps(),
+    );
 
     await answerPendingQuestion("yes");
     const approvalId = await approvePendingApproval();
@@ -273,15 +285,11 @@ describe("owner decision workflow helpers", () => {
       includeApproval: true,
       failAdapter: true,
     });
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
-      bus,
-      pbus,
-      store,
-      approvalQueue,
-      deadLetterQueue,
-      log,
-    });
+    const { promise } = executeWorkflowRun(
+      definition,
+      TRIGGER,
+      runExecutorDeps({ deadLetterQueue }),
+    );
 
     await answerPendingQuestion("yes");
     const approvalId = await approvePendingApproval();
@@ -328,15 +336,11 @@ describe("owner decision workflow helpers", () => {
       includeApproval: true,
       failAdapter: true,
     });
-    const firstRun = executeWorkflowRun(failingDefinition, TRIGGER, {
-      projectDir,
-      bus,
-      pbus,
-      store,
-      approvalQueue,
-      deadLetterQueue,
-      log,
-    });
+    const firstRun = executeWorkflowRun(
+      failingDefinition,
+      TRIGGER,
+      runExecutorDeps({ deadLetterQueue }),
+    );
 
     await answerPendingQuestion("yes");
     await approvePendingApproval();
@@ -356,15 +360,7 @@ describe("owner decision workflow helpers", () => {
           redriveOf: item.id,
         },
       },
-      {
-        projectDir,
-        bus,
-        pbus,
-        store,
-        approvalQueue,
-        deadLetterQueue,
-        log,
-      },
+      runExecutorDeps({ deadLetterQueue }),
     ).promise;
 
     expect(redrive.metadata.status).toBe("success");
@@ -379,14 +375,11 @@ describe("owner decision workflow helpers", () => {
   it("replays a confirmed action retry without consuming the decision twice", async () => {
     const calls: string[] = [];
     const definition = makeConfirmedActionWorkflow(calls);
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
-      bus,
-      pbus,
-      store,
-      approvalQueue,
-      log,
-    });
+    const { promise } = executeWorkflowRun(
+      definition,
+      TRIGGER,
+      runExecutorDeps(),
+    );
 
     await answerPendingQuestion("yes");
     const approvalId = await approvePendingApproval();
@@ -422,7 +415,7 @@ describe("owner decision workflow helpers", () => {
         tags: [],
       },
       TRIGGER,
-      { projectDir, bus, pbus, store, approvalQueue, log },
+      runExecutorDeps(),
     ).promise;
 
     expect(replay.metadata.status).toBe("success");
@@ -437,14 +430,11 @@ describe("owner decision workflow helpers", () => {
   it("confirmed external action fixture rejects a non-authorizing owner answer before executing", async () => {
     const calls: string[] = [];
     const definition = makeConfirmedActionWorkflow(calls);
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
-      bus,
-      pbus,
-      store,
-      approvalQueue,
-      log,
-    });
+    const { promise } = executeWorkflowRun(
+      definition,
+      TRIGGER,
+      runExecutorDeps(),
+    );
 
     await answerPendingQuestion("no");
     await approvePendingApproval();
@@ -468,14 +458,11 @@ describe("owner decision workflow helpers", () => {
       authorizingSelection: { kind: "single-choice" as const, optionId: "no" },
     };
     const definition = makeConfirmedActionWorkflow(calls, ACTION, adapterAction);
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
-      bus,
-      pbus,
-      store,
-      approvalQueue,
-      log,
-    });
+    const { promise } = executeWorkflowRun(
+      definition,
+      TRIGGER,
+      runExecutorDeps(),
+    );
 
     await answerPendingQuestion("no");
     await approvePendingApproval();
@@ -496,14 +483,11 @@ describe("owner decision workflow helpers", () => {
       dangerousEffect: false,
     };
     const definition = makeConfirmedActionWorkflow(calls, ACTION, adapterAction, { includeApproval: false });
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
-      bus,
-      pbus,
-      store,
-      approvalQueue,
-      log,
-    });
+    const { promise } = executeWorkflowRun(
+      definition,
+      TRIGGER,
+      runExecutorDeps(),
+    );
 
     await answerPendingQuestion("yes");
     const result = await promise;
@@ -528,14 +512,11 @@ describe("owner decision workflow helpers", () => {
       dryRun: false,
     };
     const definition = makeConfirmedActionWorkflow(calls, decisionAction, adapterAction, { includeApproval: false });
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
-      bus,
-      pbus,
-      store,
-      approvalQueue,
-      log,
-    });
+    const { promise } = executeWorkflowRun(
+      definition,
+      TRIGGER,
+      runExecutorDeps(),
+    );
 
     await answerPendingQuestion("yes");
     const result = await promise;

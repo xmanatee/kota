@@ -35,7 +35,7 @@ async function mutateSecret(
     return await operation();
   } catch (cause) {
     return secretMutationFailure(
-      cause instanceof Error ? cause.message : String(cause),
+      cause instanceof Error ? cause : new Error(String(cause)),
     );
   }
 }

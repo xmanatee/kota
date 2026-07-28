@@ -297,6 +297,10 @@ describe("detectPersistentWorkflowFailurePatternsFromRuns", () => {
       "high-demand response",
       'Agent step "build" failed (codex_cli_error): Reconnecting... 2/5 (We\'re currently experiencing high demand, which may cause temporary errors.)',
     ],
+    [
+      "peer-reset stream disconnect",
+      'Agent step "investigate-candidates" failed (codex_cli_error): Reconnecting... 2/5 (stream disconnected before completion: IO error: Connection reset by peer (os error 54))',
+    ],
   ])("ignores classified Codex %s failures", (_label, error) => {
     const patterns = detectPersistentWorkflowFailurePatternsFromRuns(
       [

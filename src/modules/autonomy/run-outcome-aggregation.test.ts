@@ -707,6 +707,13 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
       'Repair agent for step "build" failed: Reconnecting... 3/5 (stream disconnected before completion: An error occurred while processing your request. You can retry your request, or contact us through our help center at help.openai.com if the error persists. Please include the request ID 6f4976f7-b5bf-4269-9083-c9b468c32233 in your message.)',
     );
     writeAgentRuntimeFailureRun(
+      "codex-peer-reset-disconnect",
+      "security-review",
+      "investigate-candidates",
+      "2026-04-21T03:52:00.000Z",
+      'Agent step "investigate-candidates" failed (codex_cli_error): Reconnecting... 2/5 (stream disconnected before completion: IO error: Connection reset by peer (os error 54))',
+    );
+    writeAgentRuntimeFailureRun(
       "codex-reconnect-request-timeout",
       "builder",
       "build",
