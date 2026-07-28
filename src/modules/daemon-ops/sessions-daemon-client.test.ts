@@ -26,8 +26,8 @@
  *     `false` when the daemon response omits either.
  *  7. `setAutonomyMode` decodes the not_found arm correctly: a `404`
  *     response collapses to `{ ok: false, reason: "not_found" }`.
- *  8. `setAutonomyMode` maps a rejected fetch to `daemon_required` while
- *     malformed protocol responses remain visible errors.
+ *  8. `setAutonomyMode` leaves transport and malformed protocol failures
+ *     visible to the caller.
  *  9. `setAutonomyMode` throws daemon-supplied errors from non-ok responses.
  * 10. `serveOwned: true` is honored: a `200 + { autonomy_mode, source:
  *     "serve", serveOwned: true }` response collapses to `{ ok: true,
@@ -203,13 +203,14 @@ describe("daemon-ops module daemonClient(link) — sessions namespace", () => {
     expect(result).toEqual({ ok: false, reason: "not_found" });
   });
 
-  it("setAutonomyMode decodes the daemon_required arm on a network failure", async () => {
+  it("setAutonomyMode surfaces a network failure", async () => {
     const { transport } = makeRecordingTransport(() => {
       throw new TypeError("fetch failed");
     });
     const contributed = daemonOpsModule.daemonClient!(transport);
-    const result = await contributed.sessions!.setAutonomyMode("sess-1", "supervised");
-    expect(result).toEqual({ ok: false, reason: "daemon_required" });
+    await expect(
+      contributed.sessions!.setAutonomyMode("sess-1", "supervised"),
+    ).rejects.toThrow(/fetch failed/);
   });
 
   it("setAutonomyMode surfaces a JSON parse failure from the success body", async () => {

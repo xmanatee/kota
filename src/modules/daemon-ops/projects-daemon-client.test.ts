@@ -8,14 +8,14 @@
  *  2. `list()` is a `GET /projects` call with auth headers and decodes
  *     a 200 response into `{ ok: true, projects, defaultProjectId,
  *     activeProjectId }`.
- *  3. `list()` collapses transport failures into `daemon_required`.
+ *  3. `list()` surfaces transport failures.
  *  4. `use(id)` is a `PATCH /projects/active` call with body
  *     `{ projectId }` and decodes a 200 into `{ ok: true,
  *     activeProjectId }`.
  *  5. `use(null)` clears the selection through the same wire path.
  *  6. `use(id)` decodes a 404 into the typed `not_found` arm,
  *     preserving the daemon-supplied projectId.
- *  7. `use(id)` collapses transport failures into `daemon_required`.
+ *  7. `use(id)` surfaces transport failures.
  *  8. The contribution satisfies the assembly coverage check; removing
  *     it makes assembly fail loudly with the namespace name.
  */
@@ -99,13 +99,12 @@ describe("daemon-ops module daemonClient(link) — projects namespace", () => {
     expect(calls[0]!.init?.headers).toEqual({ Authorization: "Bearer test-token" });
   });
 
-  it("list() decodes the daemon_required arm on transport failure", async () => {
+  it("list() surfaces transport failure", async () => {
     const { transport } = makeRecordingTransport(() => {
       throw new TypeError("fetch failed");
     });
     const contributed = daemonOpsModule.daemonClient!(transport);
-    const result = await contributed.projects!.list();
-    expect(result).toEqual({ ok: false, reason: "daemon_required" });
+    await expect(contributed.projects!.list()).rejects.toThrow(/fetch failed/);
   });
 
   it("routes use(id) through PATCH /projects/active with the projectId in the body", async () => {
@@ -148,13 +147,12 @@ describe("daemon-ops module daemonClient(link) — projects namespace", () => {
     expect(result).toEqual({ ok: false, reason: "not_found", projectId: "ghost" });
   });
 
-  it("use(id) decodes the daemon_required arm on transport failure", async () => {
+  it("use(id) surfaces transport failure", async () => {
     const { transport } = makeRecordingTransport(() => {
       throw new TypeError("fetch failed");
     });
     const contributed = daemonOpsModule.daemonClient!(transport);
-    const result = await contributed.projects!.use("p1");
-    expect(result).toEqual({ ok: false, reason: "daemon_required" });
+    await expect(contributed.projects!.use("p1")).rejects.toThrow(/fetch failed/);
   });
 
   it("supplying the projects contribution satisfies assembly coverage", () => {
