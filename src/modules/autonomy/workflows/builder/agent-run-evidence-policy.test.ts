@@ -16,6 +16,7 @@ import {
   BUILDER_EVIDENCE_MAX_FILES,
   BUILDER_EVIDENCE_MAX_TOTAL_BYTES,
 } from "./agent-run-evidence-manifest.js";
+import { inspectBuilderEvidence } from "./agent-run-evidence-policy.js";
 
 const tempDirs: string[] = [];
 
@@ -78,6 +79,57 @@ describe("builder evidence policy", () => {
     expect(() => checkAgentRunArtifactsReady(agentRunDir, workspaceDir)).toThrow(
       /must be redacted before registration/,
     );
+  });
+
+  it("projects screened JSON values instead of bytes containing shadowed sensitive keys", () => {
+    const { agentRunDir, workspaceDir } = makeRun("run-shadowed-json");
+    const artifacts = artifactRoot(agentRunDir);
+    writeFileSync(
+      join(artifacts, "result.json"),
+      '{"apiKey":"shadowed-json-value","apiKey":"[redacted]","result":"safe"}\n',
+    );
+    writeFileSync(
+      join(artifacts, "events.jsonl"),
+      [
+        '{"token":"shadowed-jsonl-value","token":"[redacted]","event":"safe"}',
+        '{"event":"also-safe"}',
+        "",
+      ].join("\n"),
+    );
+    writeFileSync(
+      join(agentRunDir, BUILDER_EVIDENCE_MANIFEST_FILE),
+      [
+        "{",
+        '  "apiKey": "shadowed-manifest-value",',
+        '  "apiKey": "[redacted]",',
+        '  "schemaVersion": 1,',
+        '  "artifacts": [',
+        '    { "path": "result.json", "kind": "json" },',
+        '    { "path": "events.jsonl", "kind": "jsonl" }',
+        "  ]",
+        "}",
+        "",
+      ].join("\n"),
+    );
+
+    const evidence = inspectBuilderEvidence(agentRunDir, workspaceDir);
+    const projected = new Map(
+      evidence.files.map((file) => [
+        file.relativeEvidencePath,
+        file.projectedContent.toString("utf8"),
+      ]),
+    );
+
+    expect(projected.get(BUILDER_EVIDENCE_MANIFEST_FILE)).toBe(
+      '{"apiKey":"[redacted]","schemaVersion":1,"artifacts":[{"path":"result.json","kind":"json"},{"path":"events.jsonl","kind":"jsonl"}]}\n',
+    );
+    expect(projected.get("artifacts/result.json")).toBe(
+      '{"apiKey":"[redacted]","result":"safe"}\n',
+    );
+    expect(projected.get("artifacts/events.jsonl")).toBe(
+      '{"token":"[redacted]","event":"safe"}\n{"event":"also-safe"}\n',
+    );
+    expect([...projected.values()].join("\n")).not.toContain("shadowed-");
   });
 
   it("rejects opaque binary containers before compressed credentials can be staged", () => {

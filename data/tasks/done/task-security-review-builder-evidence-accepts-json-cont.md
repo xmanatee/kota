@@ -1,13 +1,13 @@
 ---
 id: task-security-review-builder-evidence-accepts-json-cont
 title: Security review: Builder evidence accepts JSON containing duplicate object keys. JSON.parse discards shadowed values, the redaction comparison examines only the surviving value, and the original bytes are then projected and staged. A shadowed credential can therefore enter durable Git evidence.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Builder evidence accepts JSON containing duplicate object keys. JSON.parse discards shadowed values, the redaction comparison examines only the surviving value, and the original bytes are then projected and staged. A shadowed credential can therefore enter durable Git evidence.
 created_at: 2026-07-28T10:54:24.521Z
-updated_at: 2026-07-28T10:54:24.521Z
+updated_at: 2026-07-28T11:03:40.702Z
 ---
 
 ## Problem
@@ -111,3 +111,7 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/modules/autonomy/workflows/builder/agent-run-evidence-policy.test.ts src/modules/autonomy/workflows/builder/agent-run-artifacts.test.ts src/modules/autonomy/workflows/builder/agent-run-evidence-projection.test.ts` — 3 files and 11 tests passed.
