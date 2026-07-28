@@ -1,10 +1,6 @@
-import type { ChannelAdapter, ChannelStatus } from "#core/channels/channel.js";
-import type { EventBus } from "#core/events/event-bus.js";
-import type { EventJournal } from "#core/events/event-journal.js";
 import { AgentSession } from "#core/loop/loop.js";
 import type { Transport } from "#core/loop/transport.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
-import type { HealthCheckResult } from "#core/modules/module-types.js";
 import {
   getHistoryProvider,
   getProviderRegistry,
@@ -13,8 +9,6 @@ import {
 } from "#core/modules/provider-registry.js";
 import type { HistoryProvider } from "#core/modules/provider-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
-import type { WorkflowRunStore } from "#core/workflow/run-store.js";
-import type { WorkflowRuntime } from "#core/workflow/runtime.js";
 import {
   WORKFLOW_DEFINITIONS_PROVIDER_TYPE,
   type WorkflowDefinitionsSource,
@@ -27,84 +21,22 @@ import {
   WORKFLOW_EVENT_DISPATCHER_PROVIDER_TYPE,
   type WorkflowEventDispatcher,
 } from "#core/workflow/workflow-event-dispatcher-provider.js";
-import {
-  type CapabilityReadinessResponse,
-  probeCapabilityReadiness,
-} from "./capability-readiness.js";
-import type { DaemonConfig } from "./daemon.js";
+import { probeCapabilityReadinessWithTrigger } from "./capability-readiness.js";
 import { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import { DaemonControlServer, type InteractiveSession } from "./daemon-control.js";
-import type { DaemonControlHandle } from "./daemon-control-types.js";
 import { buildDaemonHandle } from "./daemon-handle.js";
-import type { DaemonLogger } from "./daemon-logger.js";
-import type { DaemonState } from "./daemon-state.js";
+import type {
+  BuildDaemonInitParams,
+  DaemonRuntimeContext,
+} from "./daemon-runtime-context.js";
 import {
   WORKFLOW_METRICS_SOURCE_PROVIDER_TYPE,
   type WorkflowMetricsSource,
 } from "./metrics-source-provider.js";
 import type { ProjectRuntimeRegistry } from "./project-runtime.js";
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "./project-scope-provider.js";
-import type { ScopeRegistry } from "./scope-registry.js";
 
-/**
- * Per-instance lifecycle context for one running daemon.
- *
- * `daemon.ts` constructs one of these via {@link buildDaemonInit} and stores
- * it as the daemon's single state container. Lifecycle-phase helpers
- * (`runDaemonStartup`, `runDaemonShutdown`, `startChannel`) take this
- * context and read or mutate its fields directly. The class wraps the
- * context and exposes the daemon's public surface.
- */
-export type DaemonRuntimeContext = {
-  // Initialization-time references; not reassigned after construction.
-  readonly config: DaemonConfig;
-  readonly logger: DaemonLogger;
-  readonly log: (message: string) => void;
-  readonly projectDir: string;
-  readonly stateDir: string;
-  readonly bus: EventBus;
-  readonly eventJournal: EventJournal;
-  readonly uninstallEventJournal: () => void;
-  readonly runStore: WorkflowRunStore;
-  readonly workflows: WorkflowRuntime;
-  readonly controlServer: DaemonControlServer;
-  readonly handle: DaemonControlHandle;
-  readonly token: string;
-  readonly state: DaemonState;
-  readonly sessions: Map<string, InteractiveSession>;
-  readonly projectRegistry: ScopeRegistry;
-  readonly projectRuntimes: ProjectRuntimeRegistry;
-
-  // Mutable lifecycle state owned by startup/shutdown phases.
-  unsubscribe: (() => void) | null;
-  sessionSweepTimer: ReturnType<typeof setInterval> | null;
-  healthCheckTimer: ReturnType<typeof setInterval> | null;
-  shutdownHandler: ((signal?: NodeJS.Signals) => void) | null;
-  activeChannels: ChannelAdapter[];
-  channelStatuses: ChannelStatus[];
-  moduleHealthChecks: Record<string, HealthCheckResult>;
-
-  // Restart and run-state flags driven by start/stop.
-  running: boolean;
-  stopping: boolean;
-  restartRequested: boolean;
-  restartReason: string | null;
-};
-
-export type BuildDaemonInitParams = {
-  config: DaemonConfig;
-  projectDir: string;
-  stateDir: string;
-  bus: EventBus;
-  logger: DaemonLogger;
-  log: (message: string) => void;
-  state: DaemonState;
-  token: string;
-  eventJournal: EventJournal;
-  uninstallEventJournal: () => void;
-  projectRegistry: ScopeRegistry;
-  projectRuntimes: ProjectRuntimeRegistry;
-};
+export type { BuildDaemonInitParams, DaemonRuntimeContext } from "./daemon-runtime-context.js";
 
 /**
  * Build the daemon's lifecycle context: construct the workflow runtime,
@@ -118,6 +50,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     config,
     projectDir,
     stateDir,
+    stateRoot,
     bus,
     logger,
     log,
@@ -278,6 +211,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     log,
     projectDir,
     stateDir,
+    stateRoot,
     bus,
     eventJournal,
     uninstallEventJournal,
@@ -327,47 +261,4 @@ function createChatHistoryProviderResolver(opts: {
       `Project-scoped history provider is not registered for project ${runtime.project.projectId}`,
     );
   };
-}
-
-/**
- * Aggregate the registry-backed capability-readiness probe with the
- * daemon-owned `workflow.trigger` row. Behaviour matches the previous
- * inline aggregation in the daemon constructor — empty-definitions,
- * all-disabled, and partial-enabled paths are all covered by
- * `capability-readiness.test.ts`.
- */
-async function probeCapabilityReadinessWithTrigger(
-  workflows: WorkflowRuntime,
-): Promise<CapabilityReadinessResponse> {
-  const registry = getProviderRegistry();
-  const aggregated = registry
-    ? await probeCapabilityReadiness(registry)
-    : { capabilities: [], summary: { ready: 0, unavailable: 0, init_failed: 0 } };
-  const definitions = workflows.getDefinitions();
-  const enabled = definitions.filter((d) => d.enabled).length;
-  const triggerReadiness = enabled > 0
-    ? {
-        id: "workflow.trigger",
-        moduleName: "core",
-        status: "ready" as const,
-        message: `${enabled} of ${definitions.length} workflow definition(s) currently enabled.`,
-        meta: { enabled, total: definitions.length },
-      }
-    : {
-        id: "workflow.trigger",
-        moduleName: "core",
-        status: "unavailable" as const,
-        reason: "no_enabled_workflows",
-        message:
-          definitions.length === 0
-            ? "No workflow definitions are loaded."
-            : `All ${definitions.length} workflow definition(s) are disabled.`,
-        meta: { enabled, total: definitions.length },
-      };
-  const merged = [...aggregated.capabilities, triggerReadiness].sort((a, b) =>
-    a.id.localeCompare(b.id),
-  );
-  const summary = { ready: 0, unavailable: 0, init_failed: 0 };
-  for (const cap of merged) summary[cap.status] += 1;
-  return { capabilities: merged, summary };
 }

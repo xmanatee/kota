@@ -1,0 +1,30 @@
+{
+  "outcome": "advisory",
+  "warnings": [
+    {
+      "type": "source-file-size",
+      "file": "src/core/modules/module-context.test.ts",
+      "lines": 614,
+      "threshold": 300,
+      "changedLines": 11,
+      "message": "Changed source file src/core/modules/module-context.test.ts is 614 line(s), above the 300-line source-size guideline."
+    },
+    {
+      "type": "source-file-size",
+      "file": "src/core/workflow/owner-decision-step.test.ts",
+      "lines": 550,
+      "threshold": 300,
+      "changedLines": 20,
+      "message": "Changed source file src/core/workflow/owner-decision-step.test.ts is 550 line(s), above the 300-line source-size guideline."
+    },
+    {
+      "type": "source-file-size",
+      "file": "src/modules/secrets/index.ts",
+      "lines": 395,
+      "threshold": 300,
+      "changedLines": 4,
+      "message": "Changed source file src/modules/secrets/index.ts is 395 line(s), above the 300-line source-size guideline."
+    }
+  ],
+  "message": "Advisory source-size warning(s): src/core/modules/module-context.test.ts, src/core/workflow/owner-decision-step.test.ts, src/modules/secrets/index.ts."
+}

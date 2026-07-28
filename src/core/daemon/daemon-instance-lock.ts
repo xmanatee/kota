@@ -1,15 +1,15 @@
-import { randomUUID } from "node:crypto";
-import {
-  chmodSync,
-  linkSync,
-  mkdirSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
 import { join } from "node:path";
-import { JsonFileError, readOptionalJsonFile } from "#core/util/json-file.js";
+import { JsonFileError } from "#core/util/json-file.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
+import {
+  type DaemonOwnershipFileSnapshot,
+  type DaemonOwnershipJsonValue,
+  publishDaemonControlFile,
+  readDaemonOwnershipFile,
+  removeDaemonOwnershipFile,
+  reserveDaemonInstanceLockFile,
+} from "./daemon-ownership-storage.js";
+import type { DaemonStateRoot } from "./daemon-state-root.js";
 import { detectStrandedDaemonProcess } from "./stranded-daemon.js";
 
 export const CONTROL_FILE = "daemon-control.json";
@@ -27,16 +27,8 @@ export type DaemonInstanceIdentity = Pick<
   "pid" | "startedAt" | "token"
 >;
 
-type FileSystemError = Error & { code?: string };
-type InstanceLockJsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | InstanceLockJsonValue[]
-  | { [key: string]: InstanceLockJsonValue | undefined };
 type InstanceLockJsonObject = {
-  [key: string]: InstanceLockJsonValue | undefined;
+  [key: string]: DaemonOwnershipJsonValue | undefined;
 };
 
 function ownerMatches(
@@ -51,13 +43,13 @@ function ownerMatches(
 }
 
 function isJsonObject(
-  value: InstanceLockJsonValue | undefined,
+  value: DaemonOwnershipJsonValue | undefined,
 ): value is InstanceLockJsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isInstanceIdentity(
-  value: InstanceLockJsonValue | undefined,
+  value: DaemonOwnershipJsonValue | undefined,
 ): value is DaemonInstanceIdentity & InstanceLockJsonObject {
   if (!isJsonObject(value)) return false;
   return (
@@ -71,53 +63,28 @@ function isInstanceIdentity(
   );
 }
 
-function ensurePrivateStateDir(stateDir: string): void {
-  mkdirSync(stateDir, { recursive: true, mode: 0o700 });
-  chmodSync(stateDir, 0o700);
-}
-
-function readInstanceOwner(lockPath: string): DaemonInstanceIdentity | null {
-  const value = readOptionalJsonFile<InstanceLockJsonValue>(lockPath);
-  if (value === null) return null;
-  if (!isInstanceIdentity(value)) {
-    throw new JsonFileError(lockPath, "parse", "daemon instance lock is invalid");
+function readInstanceOwner(
+  stateRoot: DaemonStateRoot,
+): (DaemonOwnershipFileSnapshot & { value: DaemonInstanceIdentity }) | null {
+  const path = join(stateRoot.path, INSTANCE_LOCK_FILE);
+  const snapshot = readDaemonOwnershipFile(stateRoot, INSTANCE_LOCK_FILE);
+  if (snapshot === null) return null;
+  if (!isInstanceIdentity(snapshot.value)) {
+    throw new JsonFileError(path, "parse", "daemon instance lock is invalid");
   }
-  return value;
+  return { ...snapshot, value: snapshot.value };
 }
 
 function tryReserveInstanceLock(
-  stateDir: string,
+  stateRoot: DaemonStateRoot,
   owner: DaemonInstanceIdentity,
 ): boolean {
-  ensurePrivateStateDir(stateDir);
-  const lockPath = join(stateDir, INSTANCE_LOCK_FILE);
-  const temporaryPath = `${lockPath}.${randomUUID()}.tmp`;
-  try {
-    writeFileSync(temporaryPath, `${JSON.stringify(owner, null, 2)}\n`, {
-      encoding: "utf-8",
-      mode: 0o600,
-      flag: "wx",
-    });
-    try {
-      linkSync(temporaryPath, lockPath);
-      chmodSync(lockPath, 0o600);
-      return true;
-    } catch (error) {
-      if ((error as FileSystemError).code === "EEXIST") return false;
-      throw error;
-    }
-  } catch (error) {
-    const message = error instanceof Error && error.message
-      ? error.message
-      : String(error);
-    throw new JsonFileError(
-      lockPath,
-      "write",
-      `failed to reserve daemon instance lock securely: ${message}`,
-    );
-  } finally {
-    rmSync(temporaryPath, { force: true });
-  }
+  const contents = `${JSON.stringify(owner, null, 2)}\n`;
+  return reserveDaemonInstanceLockFile(
+    stateRoot,
+    INSTANCE_LOCK_FILE,
+    contents,
+  );
 }
 
 /**
@@ -127,7 +94,7 @@ function tryReserveInstanceLock(
  */
 export async function acquireInstanceLock(
   projectDir: string,
-  stateDir: string,
+  stateRoot: DaemonStateRoot,
   owner: DaemonInstanceIdentity,
   log: (message: string) => void,
 ): Promise<void> {
@@ -139,25 +106,25 @@ export async function acquireInstanceLock(
     );
   }
 
-  const lockPath = join(stateDir, INSTANCE_LOCK_FILE);
-  while (!tryReserveInstanceLock(stateDir, owner)) {
-    const current = readInstanceOwner(lockPath);
+  while (!tryReserveInstanceLock(stateRoot, owner)) {
+    const current = readInstanceOwner(stateRoot);
     if (current === null) continue;
-    if (isProcessAlive(current.pid)) {
+    if (isProcessAlive(current.value.pid)) {
       throw new Error(
-        `Another daemon instance is starting or running (pid ${current.pid}). ` +
+        `Another daemon instance is starting or running (pid ${current.value.pid}). ` +
           "Terminate it before starting a replacement.",
       );
     }
-    const latest = readInstanceOwner(lockPath);
-    if (latest === null || !ownerMatches(latest, current)) continue;
-    log(`Removing stale instance lock (pid ${current.pid} is not alive)`);
-    rmSync(lockPath);
+    const latest = readInstanceOwner(stateRoot);
+    if (latest === null || !ownerMatches(latest.value, current.value)) continue;
+    log(`Removing stale instance lock (pid ${current.value.pid} is not alive)`);
+    removeDaemonOwnershipFile(stateRoot, INSTANCE_LOCK_FILE, latest.identity);
   }
 
-  const controlPath = join(stateDir, CONTROL_FILE);
-  const existing = readOptionalJsonFile<InstanceLockJsonValue>(controlPath);
-  if (existing !== null) {
+  const controlPath = join(stateRoot.path, CONTROL_FILE);
+  const existingSnapshot = readDaemonOwnershipFile(stateRoot, CONTROL_FILE);
+  if (existingSnapshot !== null) {
+    const existing = existingSnapshot.value;
     if (
       !isJsonObject(existing) ||
       typeof existing.pid !== "number" ||
@@ -170,7 +137,7 @@ export async function acquireInstanceLock(
     const port = existing.port;
     if (!isProcessAlive(pid)) {
       log(`Removing stale control file (pid ${pid} is not alive)`);
-      rmSync(controlPath, { force: true });
+      removeDaemonOwnershipFile(stateRoot, CONTROL_FILE, existingSnapshot.identity);
     } else if (
       typeof port !== "number" ||
       !Number.isSafeInteger(port) ||
@@ -207,7 +174,7 @@ export async function acquireInstanceLock(
             "Terminate that process before starting a replacement.",
         );
       }
-      let identity: InstanceLockJsonValue;
+      let identity: DaemonOwnershipJsonValue;
       try {
         identity = await response.json();
       } catch (cause) {
@@ -235,35 +202,29 @@ export async function acquireInstanceLock(
   }
 }
 
-export function writeControlFile(stateDir: string, payload: DaemonControlFilePayload): void {
-  const controlPath = join(stateDir, CONTROL_FILE);
-  const tmpPath = `${controlPath}.tmp`;
-
-  try {
-    ensurePrivateStateDir(stateDir);
-    rmSync(tmpPath, { force: true });
-    writeFileSync(tmpPath, `${JSON.stringify(payload, null, 2)}\n`, {
-      encoding: "utf-8",
-      mode: 0o600,
-    });
-    chmodSync(tmpPath, 0o600);
-    renameSync(tmpPath, controlPath);
-    chmodSync(controlPath, 0o600);
-  } catch (error) {
-    const message = error instanceof Error && error.message ? error.message : String(error);
-    throw new JsonFileError(controlPath, "write", `failed to write daemon control file securely: ${message}`);
-  }
+export function writeControlFile(
+  stateRoot: DaemonStateRoot,
+  payload: DaemonControlFilePayload,
+): void {
+  const contents = `${JSON.stringify(payload, null, 2)}\n`;
+  publishDaemonControlFile(stateRoot, CONTROL_FILE, contents);
 }
 
 export function releaseInstanceLock(
-  stateDir: string,
+  stateRoot: DaemonStateRoot,
   owner: DaemonInstanceIdentity,
 ): void {
-  const lockPath = join(stateDir, INSTANCE_LOCK_FILE);
-  const lockOwner = readInstanceOwner(lockPath);
-  if (lockOwner !== null && ownerMatches(lockOwner, owner)) rmSync(lockPath);
+  const lockOwner = readInstanceOwner(stateRoot);
+  if (lockOwner !== null && ownerMatches(lockOwner.value, owner)) {
+    removeDaemonOwnershipFile(stateRoot, INSTANCE_LOCK_FILE, lockOwner.identity);
+  }
 
-  const controlPath = join(stateDir, CONTROL_FILE);
-  const current = readOptionalJsonFile<DaemonControlFilePayload>(controlPath);
-  if (current !== null && ownerMatches(current, owner)) rmSync(controlPath);
+  const current = readDaemonOwnershipFile(stateRoot, CONTROL_FILE);
+  if (
+    current !== null &&
+    isInstanceIdentity(current.value) &&
+    ownerMatches(current.value, owner)
+  ) {
+    removeDaemonOwnershipFile(stateRoot, CONTROL_FILE, current.identity);
+  }
 }

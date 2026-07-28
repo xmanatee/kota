@@ -18,6 +18,7 @@ import { runDaemonShutdown } from "./daemon-shutdown.js";
 import { runDaemonStartup } from "./daemon-startup.js";
 import type { DaemonState, DaemonStopReason } from "./daemon-state.js";
 import { loadDaemonStateFromDisk, saveDaemonStateToDisk } from "./daemon-state-persistence.js";
+import { prepareDaemonStateRoot } from "./daemon-state-root.js";
 import {
   anyDaemonWorkflowRuntimeBusy,
   setDaemonWorkflowDispatchPaused,
@@ -74,8 +75,11 @@ export class Daemon {
       projectDir: config.projectDir,
       fallbackProjectDir: process.cwd(),
     });
-    const stateDir =
-      config.stateDir ?? join(configuredProjects[0]!.projectDir, ".kota");
+    const stateRoot = prepareDaemonStateRoot(
+      configuredProjects[0]!.projectDir,
+      config.stateDir,
+    );
+    const stateDir = stateRoot.path;
 
     const projectRegistry = new ScopeRegistry({
       stateDir,
@@ -136,6 +140,7 @@ export class Daemon {
       config,
       projectDir,
       stateDir,
+      stateRoot,
       bus,
       logger,
       log,
