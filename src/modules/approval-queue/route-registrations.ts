@@ -7,6 +7,10 @@ import type {
 import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import { jsonResponse } from "#core/server/session-pool.js";
 import {
+	writeApproveAllApprovalsMutation,
+	writeApproveApprovalMutation,
+} from "./route-approval-execution.js";
+import {
 	handleApproveAllApprovals,
 	handleApproveApproval,
 	handleListApprovals,
@@ -22,8 +26,6 @@ import {
 	rejectApprovalLocal,
 	rejectMalformedApprovalId,
 	resolveApprovalQueue,
-	writeApproveAllApprovalsMutation,
-	writeApproveApprovalMutation,
 } from "./route-helpers.js";
 
 export function approvalRoutes(): RouteRegistration[] {

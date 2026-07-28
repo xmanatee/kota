@@ -261,7 +261,7 @@ describe("ApprovalQueue", () => {
 		);
 		const restarted = new ApprovalQueue(dir);
 
-		const result = restarted.approveForExecution(item.id);
+		const result = restarted.getExecutionSnapshot(item.id);
 
 		expect(result).toMatchObject({ ok: false, reason: "input_unavailable" });
 		expect(result.ok ? undefined : result.approval?.status).toBe("pending");

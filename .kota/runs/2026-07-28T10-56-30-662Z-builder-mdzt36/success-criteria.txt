@@ -1,0 +1,3 @@
+1. Approval execution compares and transitions the exact preflighted snapshot, with the lease binding approval id, tool, scope, session, raw-input digest, and MCP fingerprints.
+2. A delayed MCP preflight regression proves that a concurrent stored-tool substitution is rejected before local or MCP dispatch.
+3. Focused approval-queue tests, typechecking, formatting checks, and task-queue validation pass, with the commands recorded in task and run evidence.

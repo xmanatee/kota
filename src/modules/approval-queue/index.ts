@@ -94,8 +94,14 @@ const approvalQueueModule: KotaModule = {
 			},
 			async approve(id, note, project) {
 				if (!isApprovalId(id)) return { ok: false, reason: "invalid_id" };
-				const result = resolveLocalApprovalQueue(project).approveForExecution(id, note);
+				const queue = resolveLocalApprovalQueue(project);
+				const selection = queue.getExecutionSnapshot(id);
+				if (!selection.ok) return { ok: false, reason: selection.reason };
+				const result = queue.approveForExecution(selection.snapshot.descriptor, note);
 				if (result.ok) return { ok: true, approval: result.approval };
+				if (result.reason === "descriptor_mismatch") {
+					throw new Error(`Approval ${id} changed after it was selected for execution`);
+				}
 				return { ok: false, reason: result.reason };
 			},
 			async reject(id, reason, project) {

@@ -1,13 +1,13 @@
 ---
 id: task-security-review-approval-execution-is-not-bound-to
 title: Security review: Approval execution is not bound to the descriptor that was selected and preflighted. The route preflights one disk-backed approval snapshot, the queue re-reads the mutable record while approving it, and execution dispatches using the later tool name with the original in-memory input. A concurrent project writer can substitute another local or MCP tool after preflight and bypass the operator and MCP declaration boundary.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Approval execution is not bound to the descriptor that was selected and preflighted. The route preflights one disk-backed approval snapshot, the queue re-reads the mutable record while approving it, and execution dispatches using the later tool name with the original in-memory input. A concurrent project writer can substitute another local or MCP tool after preflight and bypass the operator and MCP declaration boundary.
 created_at: 2026-07-28T10:54:24.529Z
-updated_at: 2026-07-28T10:54:24.529Z
+updated_at: 2026-07-28T21:36:06.085Z
 ---
 
 ## Problem
@@ -125,3 +125,25 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Result
+
+Approval selection now creates a descriptor-bound execution lease covering the
+approval id, tool, scope, session, raw-input digest, full pending-record digest,
+and MCP declaration/transport fingerprints. The queue compares that exact
+snapshot during the synchronous pending-to-approved transition without a
+second read, and the executor validates the same lease immediately before
+dispatch.
+
+The delayed MCP preflight regression mutates the stored tool to `shell` while
+preflight is blocked. The route returns
+`409 approval_execution_descriptor_mismatch`, leaves the record pending, and
+does not dispatch either the substituted local tool or the MCP tool.
+
+## Evidence
+
+- `NODE_OPTIONS=--conditions=source TMPDIR=/private/tmp node node_modules/vitest/vitest.mjs run --configLoader runner --silent=true src/modules/approval-queue src/core/daemon/approval-queue.test.ts src/core/daemon/approval-queue-execution-descriptor.test.ts src/core/daemon/approval-queue-events.test.ts src/core/daemon/approval-queue-expiration.test.ts src/core/daemon/approval-queue-mcp.test.ts src/core/daemon/approval-queue-singleton.test.ts src/core/daemon/no-daemon-control-approvals.test.ts src/modules/secrets/index.test.ts` — 17 files, 188 tests passed.
+- `node_modules/.bin/tsc --noEmit` and `node_modules/.bin/biome check src/` passed.
+- `src/modules/approval-queue/routes-approval-descriptor-race.test.ts` is the
+  delayed-preflight substitution regression; `approval-execution.test.ts`
+  independently proves the pre-dispatch lease guard.

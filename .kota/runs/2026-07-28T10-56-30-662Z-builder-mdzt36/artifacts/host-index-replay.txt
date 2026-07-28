@@ -1,0 +1,24 @@
+Sandbox staging used a workspace-local Git index because the linked worktree's host index is read-only:
+
+GIT_INDEX_FILE=.kota/tmp/2026-07-28T10-56-30-662Z-builder-mdzt36/git-index-final
+GIT_OBJECT_DIRECTORY=.kota/tmp/2026-07-28T10-56-30-662Z-builder-mdzt36/git-objects
+GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects
+
+The isolated index was rebuilt from HEAD, staged with `git add -A`, and validated with `git diff --cached --check`. It contains the task rename plus these 14 source/test paths:
+
+- src/core/daemon/approval-execution-descriptor.ts
+- src/core/daemon/approval-queue-events.test.ts
+- src/core/daemon/approval-queue-execution-descriptor.test.ts
+- src/core/daemon/approval-queue.test.ts
+- src/core/daemon/approval-queue.ts
+- src/modules/approval-queue/approval-execution.test.ts
+- src/modules/approval-queue/approval-execution.ts
+- src/modules/approval-queue/index.ts
+- src/modules/approval-queue/route-approval-execution.ts
+- src/modules/approval-queue/route-handlers.ts
+- src/modules/approval-queue/route-helpers.ts
+- src/modules/approval-queue/route-registrations.ts
+- src/modules/approval-queue/routes-approval-descriptor-race.test.ts
+- src/modules/secrets/index.test.ts
+
+The workflow commit step must replay the normal exact-path staging against its writable host index before committing; isolated staging does not update the real worktree index. Builder evidence projection additionally force-stages the screened files under `.kota/runs/2026-07-28T10-56-30-662Z-builder-mdzt36/evidence/`.

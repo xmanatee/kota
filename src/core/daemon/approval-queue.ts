@@ -4,6 +4,11 @@ import { join, resolve } from "node:path";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { cloneEvidenceJsonObject, evidenceRetentionDurationMsFor } from "#core/evidence/policy.js";
 import type { RiskLevel } from "#core/tools/guardrails.js";
+import {
+	type ApprovalExecutionDescriptor,
+	createApprovalExecutionDescriptor,
+	pendingApprovalMatchesExecutionDescriptor,
+} from "./approval-execution-descriptor.js";
 import { emitApprovalExpired, emitApprovalRequested, emitApprovalResolved } from "./approval-queue-events.js";
 import { approvalFilePath, approvalFilePathForItem, projectApprovalForStorage } from "./approval-queue-projection.js";
 import { deriveDirectoryScopeId } from "./scope-registry.js";
@@ -60,7 +65,11 @@ export type ApprovalExecutionApprovalResult =
 	  }
 	| {
 			ok: false;
-			reason: "not_found" | "input_unavailable" | "scope_mismatch";
+			reason:
+				| "not_found"
+				| "input_unavailable"
+				| "scope_mismatch"
+				| "descriptor_mismatch";
 			approval?: PendingApproval;
 	  };
 
@@ -71,9 +80,26 @@ export type ApprovalExecutionApproveAllResult =
 	  }
 	| {
 			ok: false;
-			reason: "input_unavailable" | "scope_mismatch";
+			reason: "input_unavailable" | "scope_mismatch" | "descriptor_mismatch";
 			approvals: PendingApproval[];
 	  };
+
+export type ApprovalExecutionSnapshot = {
+	approval: PendingApproval;
+	descriptor: ApprovalExecutionDescriptor;
+};
+
+export type ApprovalExecutionSnapshotResult =
+	| { ok: true; snapshot: ApprovalExecutionSnapshot }
+	| {
+			ok: false;
+			reason: "not_found" | "input_unavailable" | "scope_mismatch";
+			approval?: PendingApproval;
+	  };
+
+type SelectedApprovalExecution = ApprovalExecutionSnapshot & {
+	executionInput: PendingApproval["input"];
+};
 
 const DEFAULT_APPROVAL_PENDING_TTL_MS = evidenceRetentionDurationMsFor({
 	artifactType: "approval",
@@ -192,27 +218,42 @@ export class ApprovalQueue {
 			.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || (a.seq ?? 0) - (b.seq ?? 0));
 	}
 
-	approve(id: string, note?: string, resolutionSource?: string): PendingApproval | null {
-		const path = approvalFilePath(this.dir, id);
-		if (!path) return null;
-		const item = this.get(id);
-		if (!item || item.status !== "pending" || !this.belongsToQueue(item)) return null;
+	private approveSelected(
+		item: PendingApproval,
+		note?: string,
+		resolutionSource?: string,
+		executionInput?: PendingApproval["input"],
+	): PendingApproval {
 		item.status = "approved";
 		item.resolvedAt = new Date().toISOString();
 		if (note) item.approvalNote = note;
 		if (resolutionSource) item.resolutionSource = resolutionSource;
 		const stored = this.write(item);
-		const executionInput = this.executionInputs.get(id);
-		this.executionInputs.delete(id);
+		this.executionInputs.delete(item.id);
 		emitApprovalResolved(this.pbus, stored, true, "", this.count("pending"));
 		return executionInput === undefined ? stored : { ...stored, input: executionInput };
 	}
 
-	approveForExecution(
-		id: string,
-		note?: string,
-		resolutionSource?: string,
-	): ApprovalExecutionApprovalResult {
+	approve(id: string, note?: string, resolutionSource?: string): PendingApproval | null {
+		const path = approvalFilePath(this.dir, id);
+		if (!path) return null;
+		const item = this.get(id);
+		if (!item || item.status !== "pending" || !this.belongsToQueue(item)) return null;
+		return this.approveSelected(
+			item,
+			note,
+			resolutionSource,
+			this.executionInputs.get(id),
+		);
+	}
+
+	private selectForExecution(id: string):
+		| { ok: true; selected: SelectedApprovalExecution }
+		| {
+				ok: false;
+				reason: "not_found" | "input_unavailable" | "scope_mismatch";
+				approval?: PendingApproval;
+		  } {
 		const item = this.get(id);
 		if (!item || item.status !== "pending") return { ok: false, reason: "not_found" };
 		if (!this.belongsToQueue(item)) {
@@ -222,8 +263,45 @@ export class ApprovalQueue {
 		if (executionInput === undefined) {
 			return { ok: false, reason: "input_unavailable", approval: item };
 		}
-		const approved = this.approve(id, note, resolutionSource);
-		if (!approved) return { ok: false, reason: "not_found" };
+		return {
+			ok: true,
+			selected: {
+				approval: item,
+				executionInput,
+				descriptor: createApprovalExecutionDescriptor(item, executionInput),
+			},
+		};
+	}
+
+	getExecutionSnapshot(id: string): ApprovalExecutionSnapshotResult {
+		const result = this.selectForExecution(id);
+		if (!result.ok) return result;
+		return {
+			ok: true,
+			snapshot: {
+				approval: result.selected.approval,
+				descriptor: result.selected.descriptor,
+			},
+		};
+	}
+
+	approveForExecution(
+		descriptor: ApprovalExecutionDescriptor,
+		note?: string,
+		resolutionSource?: string,
+	): ApprovalExecutionApprovalResult {
+		const result = this.selectForExecution(descriptor.approvalId);
+		if (!result.ok) return result;
+		const { approval, executionInput } = result.selected;
+		if (!pendingApprovalMatchesExecutionDescriptor(approval, executionInput, descriptor)) {
+			return { ok: false, reason: "descriptor_mismatch", approval };
+		}
+		const approved = this.approveSelected(
+			approval,
+			note,
+			resolutionSource,
+			executionInput,
+		);
 		return { ok: true, approval: approved };
 	}
 
@@ -270,35 +348,57 @@ export class ApprovalQueue {
 	}
 
 	approveAllForExecution(note?: string): ApprovalExecutionApproveAllResult {
+		const snapshots: ApprovalExecutionSnapshot[] = [];
+		for (const item of this.list("pending")) {
+			const result = this.getExecutionSnapshot(item.id);
+			if (!result.ok) {
+				return {
+					ok: false,
+					reason: result.reason === "not_found" ? "descriptor_mismatch" : result.reason,
+					approvals: result.approval ? [result.approval] : [],
+				};
+			}
+			snapshots.push(result.snapshot);
+		}
 		return this.approvePendingForExecution(
-			this.list("pending").map((item) => item.id),
+			snapshots.map((snapshot) => snapshot.descriptor),
 			note,
 		);
 	}
 
 	approvePendingForExecution(
-		approvalIds: readonly string[],
+		descriptors: readonly ApprovalExecutionDescriptor[],
 		note?: string,
 	): ApprovalExecutionApproveAllResult {
-		const pending = approvalIds
-			.map((id) => this.get(id))
-			.filter((item): item is PendingApproval => item?.status === "pending");
-		const mismatched = pending.filter((item) => !this.belongsToQueue(item));
-		if (mismatched.length > 0) {
-			return { ok: false, reason: "scope_mismatch", approvals: mismatched };
-		}
-		const unavailable = pending.filter((item) => !this.executionInputs.has(item.id));
-		if (unavailable.length > 0) {
-			return { ok: false, reason: "input_unavailable", approvals: unavailable };
-		}
-		const approvals: PendingApproval[] = [];
-		for (const item of pending) {
-			const result = this.approveForExecution(item.id, note);
+		const selected: SelectedApprovalExecution[] = [];
+		for (const descriptor of descriptors) {
+			const result = this.selectForExecution(descriptor.approvalId);
 			if (!result.ok) {
-				throw new Error(`Approval ${item.id} became unavailable during approve-all execution`);
+				return {
+					ok: false,
+					reason: result.reason === "not_found" ? "descriptor_mismatch" : result.reason,
+					approvals: result.approval ? [result.approval] : [],
+				};
 			}
-			approvals.push(result.approval);
+			if (!pendingApprovalMatchesExecutionDescriptor(
+				result.selected.approval,
+				result.selected.executionInput,
+				descriptor,
+			)) {
+				return {
+					ok: false,
+					reason: "descriptor_mismatch",
+					approvals: [result.selected.approval],
+				};
+			}
+			selected.push(result.selected);
 		}
+		const approvals = selected.map((item) => this.approveSelected(
+			item.approval,
+			note,
+			undefined,
+			item.executionInput,
+		));
 		return {
 			ok: true,
 			approvals,

@@ -108,7 +108,15 @@ describe("approval events", () => {
 		const queuedLater = queue.enqueue("shell", { command: "late" }, "moderate", "r", "session-late");
 		received.length = 0;
 
-		const result = queue.approvePendingForExecution([first.id, second.id], "operator reviewed snapshot");
+		const firstSnapshot = queue.getExecutionSnapshot(first.id);
+		const secondSnapshot = queue.getExecutionSnapshot(second.id);
+		if (!firstSnapshot.ok || !secondSnapshot.ok) {
+			throw new Error("expected execution snapshots");
+		}
+		const result = queue.approvePendingForExecution(
+			[firstSnapshot.snapshot.descriptor, secondSnapshot.snapshot.descriptor],
+			"operator reviewed snapshot",
+		);
 
 		expect(result.ok).toBe(true);
 		if (!result.ok) throw new Error("expected approve-all snapshot to succeed");

@@ -1,0 +1,11 @@
+Approval descriptor security validation
+
+- Focused approval/security suite: 17 files, 188 tests passed.
+- TypeScript: `node_modules/.bin/tsc --noEmit` passed.
+- Biome: `node_modules/.bin/biome check src/` checked 2,867 files with no fixes.
+- Policy tests: strict-types and module-dependency checks passed (2 files, 3 tests).
+- Queue: `node --conditions=source --import tsx src/validate-queue.ts` passed against the isolated staged index.
+- Source size: severe enforcement passed; the two touched implementation owners remain advisory only.
+- Git: isolated `git diff --cached --check` passed for the exact 15-path commit set.
+
+The repository's pnpm shim could not verify pnpm 10.32.1 while network access was unavailable, so the repository-local Node, Vitest, TypeScript, Biome, and tsx entrypoints above were invoked directly. A broad suite attempt was not used as a gate because parallel Git tests contended on a shared sandbox-only index; its environment-dependent replay-smoke and queue checks were rerun independently and passed. The focused boundary suite and all listed deterministic gates are clean.

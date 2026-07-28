@@ -1,7 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
 	type ApprovalClientProjection,
-	type ApprovalExecutionApproveAllResult,
 	type ApprovalQueue,
 	type ApprovalStatus,
 	getApprovalQueue,
@@ -19,13 +18,6 @@ import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { readSelectedScopeSelectorIdQueryOrErrorResponse } from "#core/server/scope-selector-request.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
-import {
-	type ApprovalExecutionLease,
-	approveAllResponse,
-	approvedApprovalResponse,
-	closeApprovalExecutionLeases,
-	prepareApprovalExecutionBatch,
-} from "./approval-execution.js";
 
 type OptionalStringFieldRead =
 	| { ok: true; value?: string }
@@ -201,112 +193,6 @@ export async function proxyApprovalMutation(
 			message: redactSensitiveText(err instanceof Error ? err.message : String(err)),
 		});
 	}
-}
-
-export async function writeApproveApprovalMutation(
-	res: ServerResponse,
-	queue: ApprovalQueue,
-	id: string,
-	note: string | undefined,
-	executionContext: ToolRunnerContext | undefined,
-): Promise<void> {
-	const pending = queue.get(id);
-	const selectedScopeId = executionContext?.scopeId ?? queue.getScopeId();
-	if (
-		queue.getScopeId() !== selectedScopeId ||
-		(pending?.status === "pending" && pending.scopeId !== selectedScopeId)
-	) {
-		writeApprovalScopeMismatch(res, selectedScopeId, pending ? [pending] : []);
-		return;
-	}
-	let leases: Map<string, ApprovalExecutionLease> | undefined;
-	if (pending?.status === "pending") {
-		const preflight = await prepareApprovalExecutionBatch([pending], executionContext);
-		if (!preflight.ok) {
-			jsonResponse(res, preflight.status, preflight.body);
-			return;
-		}
-		leases = preflight.leases;
-	}
-	const result = queue.approveForExecution(id, note);
-	if (!result.ok && result.reason === "not_found") {
-		if (leases) await closeApprovalExecutionLeases(leases.values());
-		jsonResponse(res, 404, { error: "Approval not found or not pending" });
-		return;
-	}
-	if (!result.ok && result.reason === "scope_mismatch") {
-		if (leases) await closeApprovalExecutionLeases(leases.values());
-		writeApprovalScopeMismatch(
-			res,
-			selectedScopeId,
-			result.approval ? [result.approval] : [],
-		);
-		return;
-	}
-	if (!result.ok) {
-		if (leases) await closeApprovalExecutionLeases(leases.values());
-		writeApprovalInputUnavailable(res, result.approval ? [result.approval] : []);
-		return;
-	}
-	try {
-		jsonResponse(res, 200, await approvedApprovalResponse(
-			result.approval,
-			executionContext,
-			leases?.get(result.approval.id),
-		));
-	} finally {
-		if (leases) await closeApprovalExecutionLeases(leases.values());
-	}
-}
-
-export async function writeApproveAllApprovalsMutation(
-	res: ServerResponse,
-	queue: ApprovalQueue,
-	note: string | undefined,
-	executionContext: ToolRunnerContext | undefined,
-): Promise<void> {
-	const pendingApprovals = queue.list("pending");
-	const selectedScopeId = executionContext?.scopeId ?? queue.getScopeId();
-	const mismatched = pendingApprovals.filter(
-		(item) => item.scopeId !== selectedScopeId,
-	);
-	if (queue.getScopeId() !== selectedScopeId || mismatched.length > 0) {
-		writeApprovalScopeMismatch(res, selectedScopeId, mismatched);
-		return;
-	}
-	const pendingApprovalIds = pendingApprovals.map((item) => item.id);
-	const preflight = await prepareApprovalExecutionBatch(pendingApprovals, executionContext);
-	if (!preflight.ok) {
-		jsonResponse(res, preflight.status, preflight.body);
-		return;
-	}
-	const result = approveAllApprovalsLocal(queue, pendingApprovalIds, note);
-	if (!result.ok) {
-		await closeApprovalExecutionLeases(preflight.leases.values());
-		if (result.reason === "scope_mismatch") {
-			writeApprovalScopeMismatch(res, selectedScopeId, result.approvals);
-			return;
-		}
-		writeApprovalInputUnavailable(res, result.approvals);
-		return;
-	}
-	try {
-		jsonResponse(res, 200, await approveAllResponse(
-			result.approvals,
-			executionContext,
-			preflight.leases,
-		));
-	} finally {
-		await closeApprovalExecutionLeases(preflight.leases.values());
-	}
-}
-
-function approveAllApprovalsLocal(
-	queue: ApprovalQueue,
-	approvalIds: readonly string[],
-	note?: string,
-): ApprovalExecutionApproveAllResult {
-	return queue.approvePendingForExecution(approvalIds, note);
 }
 
 function projectExecutionContext(

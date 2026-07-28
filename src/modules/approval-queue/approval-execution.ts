@@ -1,5 +1,10 @@
 import {
+	type ApprovalExecutionDescriptor,
+	approvedApprovalMatchesExecutionDescriptor,
+} from "#core/daemon/approval-execution-descriptor.js";
+import {
 	type ApprovalClientProjection,
+	type ApprovalExecutionSnapshot,
 	type PendingApproval,
 	projectApprovalForClient,
 } from "#core/daemon/approval-queue.js";
@@ -11,10 +16,16 @@ import { isMcpManagedToolName } from "#core/tools/tool-name-policy.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type { ApprovalExecutionProjection } from "./client.js";
 
-export type ApprovalExecutionLease = {
-	approvalId: string;
+export type ApprovalExecutionLease = ApprovalExecutionDescriptor & {
 	mcpManager?: McpManager;
 };
+
+export class ApprovalExecutionDescriptorMismatchError extends Error {
+	constructor(readonly approval: PendingApproval) {
+		super(`Approval ${approval.id} no longer matches its execution lease`);
+		this.name = "ApprovalExecutionDescriptorMismatchError";
+	}
+}
 
 type McpApprovalFailureReason =
 	| "mcp_approval_missing_declaration"
@@ -90,11 +101,12 @@ export async function closeApprovalExecutionLeases(
 }
 
 async function prepareMcpApprovalExecution(
-	item: PendingApproval,
+	snapshot: ApprovalExecutionSnapshot,
 	context?: ToolRunnerContext,
 ): Promise<ApprovalExecutionPreflight> {
+	const item = snapshot.approval;
 	if (!isMcpManagedToolName(item.tool)) {
-		return { ok: true, lease: { approvalId: item.id } };
+		return { ok: true, lease: { ...snapshot.descriptor } };
 	}
 
 	const parsed = parseToolName(item.tool);
@@ -239,22 +251,22 @@ async function prepareMcpApprovalExecution(
 
 	return {
 		ok: true,
-		lease: { approvalId: item.id, mcpManager },
+		lease: { ...snapshot.descriptor, mcpManager },
 	};
 }
 
 export async function prepareApprovalExecutionBatch(
-	items: PendingApproval[],
+	snapshots: ApprovalExecutionSnapshot[],
 	context?: ToolRunnerContext,
 ): Promise<ApprovalExecutionPreflightBatch> {
 	const leases = new Map<string, ApprovalExecutionLease>();
-	for (const item of items) {
-		const preflight = await prepareMcpApprovalExecution(item, context);
+	for (const snapshot of snapshots) {
+		const preflight = await prepareMcpApprovalExecution(snapshot, context);
 		if (!preflight.ok) {
 			await closeApprovalExecutionLeases(leases.values());
 			return preflight;
 		}
-		leases.set(item.id, preflight.lease);
+		leases.set(snapshot.approval.id, preflight.lease);
 	}
 	return { ok: true, leases };
 }
@@ -278,20 +290,33 @@ function projectToolExecution(result: ToolResult): ApprovalExecutionProjection {
 	};
 }
 
+function requireApprovedToolExecutionLease(
+	item: PendingApproval,
+	lease: ApprovalExecutionLease | undefined,
+): ApprovalExecutionLease {
+	if (
+		lease === undefined
+		|| !approvedApprovalMatchesExecutionDescriptor(item, lease)
+		|| (isMcpManagedToolName(item.tool) && lease.mcpManager === undefined)
+	) {
+		throw new ApprovalExecutionDescriptorMismatchError(item);
+	}
+	return lease;
+}
+
 async function executeApprovedTool(
 	item: PendingApproval,
 	context?: ToolRunnerContext,
 	lease?: ApprovalExecutionLease,
 ): Promise<ApprovalExecutionProjection> {
+	const boundLease = requireApprovedToolExecutionLease(item, lease);
 	const executionContext = approvalExecutionContext(context, item);
 	if (isMcpManagedToolName(item.tool)) {
-		const result = lease?.mcpManager
-			? await lease.mcpManager.executeTool(item.tool, item.input)
-			: {
-				content:
-					`MCP tool error: approved MCP tool "${item.tool}" has no live MCP execution manager.`,
-				is_error: true,
-			};
+		const mcpManager = boundLease.mcpManager;
+		if (mcpManager === undefined) {
+			throw new ApprovalExecutionDescriptorMismatchError(item);
+		}
+		const result = await mcpManager.executeTool(item.tool, item.input);
 		return projectToolExecution(result);
 	}
 	const result = executionContext
@@ -302,8 +327,8 @@ async function executeApprovedTool(
 
 export async function approvedApprovalResponse(
 	item: PendingApproval,
-	context?: ToolRunnerContext,
-	lease?: ApprovalExecutionLease,
+	context: ToolRunnerContext | undefined,
+	lease: ApprovalExecutionLease,
 ): Promise<{
 	approval: ApprovalClientProjection;
 	execution: ApprovalExecutionProjection;
@@ -317,18 +342,21 @@ export async function approvedApprovalResponse(
 
 export async function approveAllResponse(
 	items: PendingApproval[],
-	context?: ToolRunnerContext,
-	leases?: Map<string, ApprovalExecutionLease>,
+	context: ToolRunnerContext | undefined,
+	leases: Map<string, ApprovalExecutionLease>,
 ): Promise<{
 	approvals: ApprovalClientProjection[];
 	count: number;
 	executions: Array<{ approvalId: string; execution: ApprovalExecutionProjection }>;
 }> {
+	for (const item of items) {
+		requireApprovedToolExecutionLease(item, leases.get(item.id));
+	}
 	const executions: Array<{ approvalId: string; execution: ApprovalExecutionProjection }> = [];
 	for (const item of items) {
 		executions.push({
 			approvalId: item.id,
-			execution: await executeApprovedTool(item, context, leases?.get(item.id)),
+			execution: await executeApprovedTool(item, context, leases.get(item.id)),
 		});
 	}
 	return {

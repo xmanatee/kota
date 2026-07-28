@@ -195,14 +195,16 @@ describe("secrets module get_secret tool gating", () => {
     await runGetSecret("supervised", approvalQueue, sessionContext);
     const queued = approvalQueue.list("pending")[0];
     if (queued === undefined) throw new Error("get_secret approval was not queued");
-    const approved = approvalQueue.approveForExecution(queued.id);
+    const selection = approvalQueue.getExecutionSnapshot(queued.id);
+    if (!selection.ok) throw new Error("get_secret approval input was unavailable");
+    const approved = approvalQueue.approveForExecution(selection.snapshot.descriptor);
     if (!approved.ok) throw new Error("get_secret approval input was unavailable");
 
     const response = await approvedApprovalResponse(approved.approval, {
       scopeId: sessionContext.scopeId,
       projectId: sessionContext.scopeId,
       cwd: projectDir,
-    });
+    }, selection.snapshot.descriptor);
 
     expect(response.execution.status).toBe("succeeded");
     expect(process.env[SECRET_NAME]).toBeUndefined();

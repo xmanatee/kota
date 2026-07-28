@@ -8,6 +8,10 @@ import {
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { jsonResponse } from "#core/server/session-pool.js";
 import {
+	writeApproveAllApprovalsMutation,
+	writeApproveApprovalMutation,
+} from "./route-approval-execution.js";
+import {
 	approvalQuery,
 	listApprovalsLocal,
 	projectQuery,
@@ -17,8 +21,6 @@ import {
 	rejectApprovalLocal,
 	rejectMalformedApprovalId,
 	resolveApprovalQueue,
-	writeApproveAllApprovalsMutation,
-	writeApproveApprovalMutation,
 } from "./route-helpers.js";
 
 export async function handleListApprovals(

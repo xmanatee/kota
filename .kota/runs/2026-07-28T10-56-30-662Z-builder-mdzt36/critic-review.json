@@ -1,0 +1,8 @@
+{
+  "verdict": "pass",
+  "critical_issues": [],
+  "warnings": [],
+  "summary": "The descriptor comparison and transition at src/core/daemon/approval-queue.ts:288, pre-dispatch lease guard at src/modules/approval-queue/approval-execution.ts:293, and delayed MCP substitution regression at src/modules/approval-queue/routes-approval-descriptor-race.test.ts:147 satisfy the task’s security boundary and evidence requirements.",
+  "generatedAt": "2026-07-28T21:49:15.072Z",
+  "reviewerPromptHash": "f6e5054b3887"
+}

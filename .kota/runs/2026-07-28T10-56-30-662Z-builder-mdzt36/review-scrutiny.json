@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 2,
+  "surface": "critic",
+  "runId": "2026-07-28T10-56-30-662Z-builder-mdzt36",
+  "workflow": "builder",
+  "generatedAt": "2026-07-28T21:49:15.072Z",
+  "artifact": "critic-review.json",
+  "reviewerPromptHash": "f6e5054b3887",
+  "taskId": "task-security-review-approval-execution-is-not-bound-to",
+  "decision": "pass",
+  "signals": {
+    "issueCount": 0,
+    "warningCount": 0,
+    "reviewBodyLength": 342,
+    "citedFileLineCount": 3
+  },
+  "absentMetrics": [
+    "evidenceIdCount",
+    "findingCount",
+    "followUpTaskCount"
+  ],
+  "thinAcceptance": false
+}
