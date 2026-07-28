@@ -1,0 +1,3 @@
+The linked worktree host index is read-only in this sandbox.
+Changes were exact-staged and reviewed through the workspace-local index at .kota/tmp/2026-07-28T09-33-23-719Z-builder-epcf9h/git-index.
+The trusted host must replay: git add -A

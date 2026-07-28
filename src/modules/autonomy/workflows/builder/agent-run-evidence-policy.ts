@@ -2,7 +2,6 @@ import { isUtf8 } from "node:buffer";
 import {
   existsSync,
   lstatSync,
-  readFileSync,
   realpathSync,
 } from "node:fs";
 import { extname, join, relative, resolve, sep } from "node:path";
@@ -12,6 +11,7 @@ import {
   redactSensitiveText,
 } from "#core/evidence/policy.js";
 import { validateOutboundGitHubCommentBody } from "#modules/autonomy/github-comment-safety.js";
+import { readStableBuilderEvidenceFile } from "./agent-run-evidence-filesystem-helper.js";
 import {
   BUILDER_EVIDENCE_MANIFEST_FILE,
   BUILDER_EVIDENCE_MAX_FILE_BYTES,
@@ -19,7 +19,7 @@ import {
   BUILDER_EVIDENCE_MAX_TOTAL_BYTES,
   type BuilderEvidenceArtifactKind,
   type BuilderEvidenceRegistration,
-  readBuilderEvidenceManifest,
+  parseBuilderEvidenceManifest,
 } from "./agent-run-evidence-manifest.js";
 import { projectBuilderEvidencePng } from "./agent-run-evidence-png.js";
 import { isBuilderPathInside } from "./workspace.js";
@@ -139,27 +139,18 @@ function projectTypedContent(file: BuilderEvidenceFile, content: Buffer): Buffer
 
 function inspectFile(
   file: BuilderEvidenceFile,
-  containmentRoot: string,
+  workspaceRoot: string,
+  capturedContent?: Buffer,
 ): { projectedContent: Buffer; projectedSize: number } {
   assertExpectedExtension(file);
-  const stats = lstatSync(file.absolutePath, { throwIfNoEntry: false });
-  if (stats === undefined || !stats.isFile() || stats.isSymbolicLink() || stats.nlink !== 1) {
-    fail(`registered artifact must be a private regular file: ${file.path}`);
-  }
-  if (
-    !isBuilderPathInside(
-      realpathSync.native(containmentRoot),
-      realpathSync.native(file.absolutePath),
-    )
-  ) {
-    fail(`registered artifact escaped its evidence directory: ${file.path}`);
-  }
-  if (stats.size > BUILDER_EVIDENCE_MAX_FILE_BYTES) {
-    fail(`registered artifact exceeds the per-file limit: ${file.path}`);
-  }
+  const content = capturedContent ?? readStableBuilderEvidenceFile(
+    workspaceRoot,
+    file.absolutePath,
+    BUILDER_EVIDENCE_MAX_FILE_BYTES,
+  );
   const projectedContent = projectTypedContent(
     file,
-    readFileSync(file.absolutePath),
+    content,
   );
   if (projectedContent.length > BUILDER_EVIDENCE_MAX_FILE_BYTES) {
     fail(`projected artifact exceeds the per-file limit: ${file.path}`);
@@ -200,9 +191,13 @@ export function inspectBuilderEvidence(
   assertRealDirectoryChain(workspaceRoot, runRoot);
 
   const artifactRoot = join(runRoot, "artifacts");
-  const registrations = readBuilderEvidenceManifest(
-    join(runRoot, BUILDER_EVIDENCE_MANIFEST_FILE),
+  const manifestPath = join(runRoot, BUILDER_EVIDENCE_MANIFEST_FILE);
+  const manifestContent = readStableBuilderEvidenceFile(
+    workspaceRoot,
+    manifestPath,
+    BUILDER_EVIDENCE_MAX_FILE_BYTES,
   );
+  const registrations = parseBuilderEvidenceManifest(manifestContent);
   if (registrations.length > 0) {
     assertRealDirectoryChain(workspaceRoot, artifactRoot);
   }
@@ -233,7 +228,8 @@ export function inspectBuilderEvidence(
   for (const file of files) {
     const inspection = inspectFile(
       file,
-      file.relativeEvidencePath.startsWith(`artifacts${sep}`) ? artifactRoot : runRoot,
+      workspaceRoot,
+      file.absolutePath === manifestPath ? manifestContent : undefined,
     );
     totalBytes += inspection.projectedSize;
     if (totalBytes > BUILDER_EVIDENCE_MAX_TOTAL_BYTES) {

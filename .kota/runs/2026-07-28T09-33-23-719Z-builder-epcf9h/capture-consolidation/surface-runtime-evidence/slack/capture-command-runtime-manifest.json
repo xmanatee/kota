@@ -1,0 +1,13 @@
+{
+  "generatedBy": "src/modules/slack-channel/commands-capture-runtime.test.ts",
+  "artifacts": [
+    {
+      "path": "capture-command-runtime.json",
+      "bytes": 3172
+    },
+    {
+      "path": "capture-command-runtime.md",
+      "bytes": 1237
+    }
+  ]
+}

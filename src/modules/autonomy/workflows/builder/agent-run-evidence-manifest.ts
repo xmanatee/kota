@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import type {
   KotaJsonObject,
@@ -58,19 +58,15 @@ function validateRegisteredPath(path: string): void {
   }
 }
 
-export function readBuilderEvidenceManifest(
-  path: string,
+export function parseBuilderEvidenceManifest(
+  content: Buffer,
 ): BuilderEvidenceRegistration[] {
-  const stats = lstatSync(path, { throwIfNoEntry: false });
-  if (stats === undefined || !stats.isFile() || stats.isSymbolicLink()) {
-    fail(`${BUILDER_EVIDENCE_MANIFEST_FILE} must be a regular file`);
-  }
-  if (stats.size > BUILDER_EVIDENCE_MAX_FILE_BYTES) {
+  if (content.length > BUILDER_EVIDENCE_MAX_FILE_BYTES) {
     fail(`${BUILDER_EVIDENCE_MANIFEST_FILE} exceeds the per-file limit`);
   }
   let parsed: KotaJsonValue;
   try {
-    parsed = JSON.parse(readFileSync(path, "utf8")) as KotaJsonValue;
+    parsed = JSON.parse(content.toString("utf8")) as KotaJsonValue;
   } catch (error) {
     fail(`${BUILDER_EVIDENCE_MANIFEST_FILE} is malformed: ${String(error)}`);
   }

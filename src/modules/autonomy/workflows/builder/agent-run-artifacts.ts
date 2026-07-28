@@ -1,11 +1,5 @@
-import {
-  chmodSync,
-  lstatSync,
-  mkdirSync,
-  readdirSync,
-  writeFileSync,
-} from "node:fs";
-import { basename, dirname, join, relative, resolve, sep } from "node:path";
+import { lstatSync } from "node:fs";
+import { basename, join, relative, resolve, sep } from "node:path";
 import {
   type CommitResult,
   checkCommitStageable,
@@ -14,33 +8,13 @@ import {
 } from "#modules/autonomy/commit.js";
 import { stageWorkflowPaths } from "#modules/autonomy/commit-git.js";
 import {
+  listStableBuilderEvidenceDirectory,
+  writeStableBuilderEvidenceProjection,
+} from "./agent-run-evidence-filesystem-helper.js";
+import {
   type BuilderEvidenceInspection,
   inspectBuilderEvidence,
 } from "./agent-run-evidence-policy.js";
-import { isBuilderPathInside } from "./workspace.js";
-
-function ensureRealDirectory(path: string): void {
-  const existing = lstatSync(path, { throwIfNoEntry: false });
-  if (existing === undefined) {
-    mkdirSync(path);
-    return;
-  }
-  if (!existing.isDirectory() || existing.isSymbolicLink()) {
-    throw new Error(`Builder evidence projection path must be a real directory: ${path}`);
-  }
-}
-
-function ensureDirectoryChain(workspaceRoot: string, target: string): void {
-  if (!isBuilderPathInside(workspaceRoot, target)) {
-    throw new Error(`Builder evidence projection escaped the workspace: ${target}`);
-  }
-  const relativeTarget = relative(workspaceRoot, target);
-  let current = workspaceRoot;
-  for (const part of relativeTarget.split(sep)) {
-    current = join(current, part);
-    ensureRealDirectory(current);
-  }
-}
 
 function toGitPath(path: string): string {
   return path.split(sep).join("/");
@@ -60,17 +34,11 @@ function listExistingProjectionFiles(
 
   const paths: string[] = [];
   function visit(directory: string): void {
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    for (const entry of listStableBuilderEvidenceDirectory(workspaceRoot, directory)) {
       const absolutePath = join(directory, entry.name);
-      if (entry.isDirectory()) {
+      if (entry.kind === "directory") {
         visit(absolutePath);
         continue;
-      }
-      const stats = lstatSync(absolutePath);
-      if (!entry.isFile() || entry.isSymbolicLink() || stats.nlink !== 1) {
-        throw new Error(
-          `Builder evidence projection contains a non-private file: ${absolutePath}`,
-        );
       }
       paths.push(toGitPath(relative(workspaceRoot, absolutePath)));
     }
@@ -127,7 +95,6 @@ function projectBuilderEvidence(
     basename(agentRunDir),
     "evidence",
   );
-  ensureDirectoryChain(workspaceRoot, dirname(projectionRoot));
   const projectedPathSet = new Set(projectedPaths);
   const unexpectedPaths = listExistingProjectionFiles(
     workspaceRoot,
@@ -138,22 +105,13 @@ function projectBuilderEvidence(
       `Builder evidence projection contains unregistered file(s): ${unexpectedPaths.join(", ")}`,
     );
   }
-  ensureDirectoryChain(workspaceRoot, projectionRoot);
-
   for (const file of evidence.files) {
     const destination = join(projectionRoot, file.relativeEvidencePath);
-    ensureDirectoryChain(workspaceRoot, dirname(destination));
-    const existing = lstatSync(destination, { throwIfNoEntry: false });
-    if (
-      existing !== undefined &&
-      (!existing.isFile() || existing.isSymbolicLink() || existing.nlink !== 1)
-    ) {
-      throw new Error(
-        `Builder evidence projection target must be a private regular file: ${destination}`,
-      );
-    }
-    writeFileSync(destination, file.projectedContent, { mode: 0o600 });
-    chmodSync(destination, 0o600);
+    writeStableBuilderEvidenceProjection(
+      workspaceRoot,
+      destination,
+      file.projectedContent,
+    );
   }
   stageWorkflowPaths(workspaceRoot, projectedPaths, {
     includeIgnored: true,

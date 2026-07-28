@@ -1,0 +1,8 @@
+{
+  "verdict": "pass",
+  "critical_issues": [],
+  "warnings": [],
+  "summary": "The no-follow descriptor read at src/modules/autonomy/workflows/builder/agent-run-evidence-reader-helper-source.ts:34, atomic pinned-directory write at src/modules/autonomy/workflows/builder/agent-run-evidence-writer-helper-source.ts:87, and four race regressions at src/modules/autonomy/workflows/builder/agent-run-evidence-filesystem-helper.test.ts:35 satisfy all Done When criteria.",
+  "generatedAt": "2026-07-28T10:12:30.880Z",
+  "reviewerPromptHash": "f6e5054b3887"
+}

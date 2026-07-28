@@ -1,0 +1,3 @@
+1. Verified registered evidence is opened with O_NOFOLLOW, bounded and validated with fstat, read from the same descriptor, and revalidated with its anchored directory chain after the read.
+2. Verified durable projections use an identity-pinned directory, an O_EXCL|O_NOFOLLOW temporary descriptor, descriptor-only chmod/write/fsync, atomic rename, and installed-inode revalidation; four focused leaf/parent race regressions pass.
+3. Verified the completed task records the passing focused test, typecheck, and lint commands in its Verification section.

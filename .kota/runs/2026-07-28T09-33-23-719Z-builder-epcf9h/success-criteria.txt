@@ -1,0 +1,3 @@
+1. Builder evidence projection uses identity-stable, no-follow source reads and fail-closed validation so concurrent leaf or ancestor replacement cannot import data outside the workspace.
+2. Projection writes use an identity-pinned destination directory, exclusive no-follow temporary files, atomic installation, and post-install identity validation, with focused leaf and parent race regressions.
+3. The completed task records the focused verification command and its successful result.

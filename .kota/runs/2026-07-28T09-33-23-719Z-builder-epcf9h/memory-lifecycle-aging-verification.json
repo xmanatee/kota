@@ -1,0 +1,318 @@
+{
+  "implementationKind": "focused-eval-harness-backed-module-test",
+  "runnerNote": "The shipped fixture runner invokes workflows; this deterministic lifecycle canary stays in the eval-harness module and exercises KOTA stores, recall contributors, working-memory compaction, predicates, and objective metrics directly.",
+  "provenance": {
+    "kind": "smoke-fixture",
+    "sources": [
+      "https://arxiv.org/abs/2605.26302",
+      "https://agingbench.github.io/",
+      "https://github.com/VITA-Group/AgingBench"
+    ],
+    "justification": "AgingBench (https://arxiv.org/abs/2605.26302) motivates checking agent reliability as a lifespan property of the full harness, not a one-shot recall score. The AgingBench site (https://agingbench.github.io/) separates compression, interference, revision, and maintenance aging with write/retrieval/utilization diagnostics. The public benchmark repo (https://github.com/VITA-Group/AgingBench) is cited for framing only; this fixture stays KOTA-owned and does not import external datasets or schemas."
+  },
+  "fixtureNotes": [
+    "AgingBench (https://arxiv.org/abs/2605.26302) motivates checking agent reliability as a lifespan property of the full harness, not a one-shot recall score.",
+    "The AgingBench site (https://agingbench.github.io/) separates compression, interference, revision, and maintenance aging with write/retrieval/utilization diagnostics.",
+    "The public benchmark repo (https://github.com/VITA-Group/AgingBench) is cited for framing only; this fixture stays KOTA-owned and does not import external datasets or schemas."
+  ],
+  "checkpoints": [
+    {
+      "checkpointId": "checkpoint-1-initial-write",
+      "prompt": "Session 1 check: update the operator escalation runbook with the recorded routing policy.",
+      "recallQuery": "operator escalation lifecycle routing runbook audit owner",
+      "writes": [
+        {
+          "checkpointId": "checkpoint-1-initial-write",
+          "source": "memory",
+          "id": "1f1dd555",
+          "marker": "AGING_ALPHA_ROUTER_INITIAL"
+        },
+        {
+          "checkpointId": "checkpoint-1-initial-write",
+          "source": "history",
+          "id": "ms4he4pg-637be1",
+          "marker": "AGING_ALPHA_ROUTER_INITIAL"
+        }
+      ],
+      "recall": {
+        "rankedHits": [
+          {
+            "rank": 1,
+            "source": "memory",
+            "id": "1f1dd555",
+            "score": 1,
+            "text": "Initial lifecycle routing decision for the operator escalation runbook: use AGING_ALPHA_ROUTER_INITIAL; audit shard amber-04; owner fallback single-review. This is the correct checkpoint-1 decision before the later revision."
+          }
+        ],
+        "selectedEvidenceIds": [
+          "1f1dd555"
+        ],
+        "ignoredStaleEvidenceIds": []
+      },
+      "persistedRecordsAfterMaintenance": "not-yet-run",
+      "finalBehavior": {
+        "finalDiff": "diff --git a/src/operator-escalation-routing.ts b/src/operator-escalation-routing.ts\nindex 914b149..83c0ed3 100644\n--- a/src/operator-escalation-routing.ts\n+++ b/src/operator-escalation-routing.ts\n@@ -1,6 +1,6 @@\n export const operatorEscalationRouting = {\n-  route: \"unset\",\n-  auditShard: \"unset\",\n-  ownerFallback: \"unset\",\n-  revision: \"unset\",\n+  route: \"alpha-router\",\n+  auditShard: \"amber-04\",\n+  ownerFallback: \"single-review\",\n+  revision: \"AGING_ALPHA_ROUTER_INITIAL\",\n } as const;\n",
+        "usedPolicy": "AGING_ALPHA_ROUTER_INITIAL",
+        "usedLowFrequencyDetail": null
+      },
+      "predicateResult": {
+        "passed": true,
+        "detail": "selectedExpectedEvidence=true; persistedExpectedEvidence=true; stalePresentWhenExpected=true; appliedExpectedPolicy=true; appliedCurrentDetail=true; didNotUseStaleForCurrent=true",
+        "failures": []
+      }
+    },
+    {
+      "checkpointId": "checkpoint-2-revision-with-distractors",
+      "prompt": "Session 2 check: update the current release-blocking escalation runbook after similar notes accumulated.",
+      "recallQuery": "current operator escalation lifecycle routing runbook audit shard owner release",
+      "writes": [
+        {
+          "checkpointId": "checkpoint-2-revision-with-distractors",
+          "source": "memory",
+          "id": "1f1dd555",
+          "marker": "AGING_ALPHA_ROUTER_INITIAL"
+        },
+        {
+          "checkpointId": "checkpoint-2-revision-with-distractors",
+          "source": "memory",
+          "id": "d27d46b2",
+          "marker": "AGING_BETA_ROUTER_CURRENT"
+        },
+        {
+          "checkpointId": "checkpoint-2-revision-with-distractors",
+          "source": "knowledge",
+          "id": "865eb490",
+          "marker": "AGING_BETA_ROUTER_CURRENT"
+        },
+        {
+          "checkpointId": "checkpoint-2-revision-with-distractors",
+          "source": "knowledge",
+          "id": "8dd26847",
+          "marker": "AGING_ALPHA_ROUTER_INITIAL"
+        },
+        {
+          "checkpointId": "checkpoint-2-revision-with-distractors",
+          "source": "history",
+          "id": "ms4he4qp-fe658c",
+          "marker": "AGING_BETA_ROUTER_CURRENT"
+        },
+        {
+          "checkpointId": "checkpoint-2-revision-with-distractors",
+          "source": "history",
+          "id": "ms4he4qp-ccefb6",
+          "marker": "distractor"
+        },
+        {
+          "checkpointId": "checkpoint-2-revision-with-distractors",
+          "source": "tasks",
+          "id": "task-aging-runbook-initial-router-polish",
+          "marker": "AGING_ALPHA_ROUTER_INITIAL"
+        }
+      ],
+      "recall": {
+        "rankedHits": [
+          {
+            "rank": 1,
+            "source": "knowledge",
+            "id": "865eb490",
+            "score": 1,
+            "text": "Current escalation lifecycle routing AGING_BETA_ROUTER_CURRENT Current policy is AGING_BETA_ROUTER_CURRENT; preserve the low-frequency audit shard quartz-17-lantern and two-person-review owner fallback after lifecycle maintenance."
+          },
+          {
+            "rank": 2,
+            "source": "memory",
+            "id": "d27d46b2",
+            "score": 1,
+            "text": "Current lifecycle routing decision for the operator escalation runbook: use AGING_BETA_ROUTER_CURRENT; low-frequency audit shard quartz-17-lantern; owner fallback two-person-review. This revision is the active policy for current release-bl…"
+          },
+          {
+            "rank": 3,
+            "source": "tasks",
+            "id": "task-aging-runbook-initial-router-polish",
+            "score": 1,
+            "text": "Old lifecycle routing runbook polish AGING_ALPHA_ROUTER_INITIAL"
+          },
+          {
+            "rank": 4,
+            "source": "knowledge",
+            "id": "8dd26847",
+            "score": 0,
+            "text": "Superseded escalation lifecycle routing AGING_ALPHA_ROUTER_INITIAL The old policy AGING_ALPHA_ROUTER_INITIAL used amber-04 and single-review. It remains as a stale distractor for revision-aging checks."
+          },
+          {
+            "rank": 5,
+            "source": "memory",
+            "id": "1f1dd555",
+            "score": 0,
+            "text": "Superseded lifecycle routing decision for the operator escalation runbook: the old AGING_ALPHA_ROUTER_INITIAL amber-04 single-review path is retained only as stale evidence. Use the later beta-router decision for current release-blocking w…"
+          }
+        ],
+        "selectedEvidenceIds": [
+          "865eb490",
+          "d27d46b2"
+        ],
+        "ignoredStaleEvidenceIds": [
+          "task-aging-runbook-initial-router-polish",
+          "8dd26847",
+          "1f1dd555"
+        ]
+      },
+      "persistedRecordsAfterMaintenance": "not-yet-run",
+      "finalBehavior": {
+        "finalDiff": "diff --git a/src/operator-escalation-routing.ts b/src/operator-escalation-routing.ts\nindex 914b149..ed200bf 100644\n--- a/src/operator-escalation-routing.ts\n+++ b/src/operator-escalation-routing.ts\n@@ -1,6 +1,6 @@\n export const operatorEscalationRouting = {\n-  route: \"unset\",\n-  auditShard: \"unset\",\n-  ownerFallback: \"unset\",\n-  revision: \"unset\",\n+  route: \"beta-router\",\n+  auditShard: \"quartz-17-lantern\",\n+  ownerFallback: \"two-person-review\",\n+  revision: \"AGING_BETA_ROUTER_CURRENT\",\n } as const;\n",
+        "usedPolicy": "AGING_BETA_ROUTER_CURRENT",
+        "usedLowFrequencyDetail": "quartz-17-lantern"
+      },
+      "predicateResult": {
+        "passed": true,
+        "detail": "selectedExpectedEvidence=true; persistedExpectedEvidence=true; stalePresentWhenExpected=true; appliedExpectedPolicy=true; appliedCurrentDetail=true; didNotUseStaleForCurrent=true",
+        "failures": []
+      }
+    },
+    {
+      "checkpointId": "checkpoint-3-post-maintenance",
+      "prompt": "Session 3 check after maintenance: apply the escalation routing decision without a precomputed summary.",
+      "recallQuery": "current operator escalation lifecycle routing runbook audit shard owner release",
+      "writes": [
+        {
+          "checkpointId": "checkpoint-3-post-maintenance",
+          "source": "working-memory",
+          "id": "target-decision",
+          "marker": "AGING_BETA_ROUTER_CURRENT"
+        }
+      ],
+      "recall": {
+        "rankedHits": [
+          {
+            "rank": 1,
+            "source": "knowledge",
+            "id": "865eb490",
+            "score": 1,
+            "text": "Current escalation lifecycle routing AGING_BETA_ROUTER_CURRENT Current policy is AGING_BETA_ROUTER_CURRENT; preserve the low-frequency audit shard quartz-17-lantern and two-person-review owner fallback after lifecycle maintenance."
+          },
+          {
+            "rank": 2,
+            "source": "memory",
+            "id": "d27d46b2",
+            "score": 1,
+            "text": "Current lifecycle routing decision for the operator escalation runbook: use AGING_BETA_ROUTER_CURRENT; low-frequency audit shard quartz-17-lantern; owner fallback two-person-review. This revision is the active policy for current release-bl…"
+          },
+          {
+            "rank": 3,
+            "source": "tasks",
+            "id": "task-aging-runbook-initial-router-polish",
+            "score": 1,
+            "text": "Old lifecycle routing runbook polish AGING_ALPHA_ROUTER_INITIAL"
+          },
+          {
+            "rank": 4,
+            "source": "knowledge",
+            "id": "8dd26847",
+            "score": 0,
+            "text": "Superseded escalation lifecycle routing AGING_ALPHA_ROUTER_INITIAL The old policy AGING_ALPHA_ROUTER_INITIAL used amber-04 and single-review. It remains as a stale distractor for revision-aging checks."
+          },
+          {
+            "rank": 5,
+            "source": "memory",
+            "id": "1f1dd555",
+            "score": 0,
+            "text": "Superseded lifecycle routing decision for the operator escalation runbook: the old AGING_ALPHA_ROUTER_INITIAL amber-04 single-review path is retained only as stale evidence. Use the later beta-router decision for current release-blocking w…"
+          }
+        ],
+        "selectedEvidenceIds": [
+          "865eb490",
+          "d27d46b2"
+        ],
+        "ignoredStaleEvidenceIds": [
+          "task-aging-runbook-initial-router-polish",
+          "8dd26847",
+          "1f1dd555"
+        ]
+      },
+      "persistedRecordsAfterMaintenance": {
+        "memory": [
+          {
+            "id": "1f1dd555",
+            "containsCurrentPolicy": false,
+            "containsDetail": false
+          },
+          {
+            "id": "d27d46b2",
+            "containsCurrentPolicy": true,
+            "containsDetail": true
+          }
+        ],
+        "knowledge": [
+          {
+            "id": "8dd26847",
+            "containsCurrentPolicy": false,
+            "containsDetail": false
+          },
+          {
+            "id": "865eb490",
+            "containsCurrentPolicy": true,
+            "containsDetail": true
+          }
+        ],
+        "workingMemory": {
+          "maintenanceKind": "working-memory-compaction",
+          "compactedNotePresent": true,
+          "persistentTargetSurvived": true,
+          "compactedNoiseEntries": 16
+        }
+      },
+      "finalBehavior": {
+        "finalDiff": "diff --git a/src/operator-escalation-routing.ts b/src/operator-escalation-routing.ts\nindex 914b149..ed200bf 100644\n--- a/src/operator-escalation-routing.ts\n+++ b/src/operator-escalation-routing.ts\n@@ -1,6 +1,6 @@\n export const operatorEscalationRouting = {\n-  route: \"unset\",\n-  auditShard: \"unset\",\n-  ownerFallback: \"unset\",\n-  revision: \"unset\",\n+  route: \"beta-router\",\n+  auditShard: \"quartz-17-lantern\",\n+  ownerFallback: \"two-person-review\",\n+  revision: \"AGING_BETA_ROUTER_CURRENT\",\n } as const;\n",
+        "usedPolicy": "AGING_BETA_ROUTER_CURRENT",
+        "usedLowFrequencyDetail": "quartz-17-lantern"
+      },
+      "predicateResult": {
+        "passed": true,
+        "detail": "selectedExpectedEvidence=true; persistedExpectedEvidence=true; stalePresentWhenExpected=true; appliedExpectedPolicy=true; appliedCurrentDetail=true; didNotUseStaleForCurrent=true",
+        "failures": []
+      }
+    }
+  ],
+  "negativeChecks": {
+    "staleRevisionUse": {
+      "finalDiff": "diff --git a/src/operator-escalation-routing.ts b/src/operator-escalation-routing.ts\nindex 914b149..83c0ed3 100644\n--- a/src/operator-escalation-routing.ts\n+++ b/src/operator-escalation-routing.ts\n@@ -1,6 +1,6 @@\n export const operatorEscalationRouting = {\n-  route: \"unset\",\n-  auditShard: \"unset\",\n-  ownerFallback: \"unset\",\n-  revision: \"unset\",\n+  route: \"alpha-router\",\n+  auditShard: \"amber-04\",\n+  ownerFallback: \"single-review\",\n+  revision: \"AGING_ALPHA_ROUTER_INITIAL\",\n } as const;\n",
+      "predicateResult": {
+        "passed": false,
+        "detail": "selectedExpectedEvidence=false; persistedExpectedEvidence=true; stalePresentWhenExpected=true; appliedExpectedPolicy=false; appliedCurrentDetail=false; didNotUseStaleForCurrent=false",
+        "failures": [
+          "selectedExpectedEvidence",
+          "appliedExpectedPolicy",
+          "appliedCurrentDetail",
+          "didNotUseStaleForCurrent"
+        ]
+      }
+    },
+    "targetEvidenceLossAfterMaintenance": {
+      "passed": false,
+      "detail": "selectedExpectedEvidence=true; persistedExpectedEvidence=false; stalePresentWhenExpected=true; appliedExpectedPolicy=true; appliedCurrentDetail=false; didNotUseStaleForCurrent=true",
+      "failures": [
+        "persistedExpectedEvidence",
+        "appliedCurrentDetail"
+      ]
+    },
+    "promptOnlySuccess": {
+      "finalDiff": "diff --git a/src/operator-escalation-routing.ts b/src/operator-escalation-routing.ts\nindex 914b149..0db04d3 100644\n--- a/src/operator-escalation-routing.ts\n+++ b/src/operator-escalation-routing.ts\n@@ -1,6 +1,6 @@\n export const operatorEscalationRouting = {\n-  route: \"unset\",\n+  route: \"prompt-only\",\n   auditShard: \"unset\",\n   ownerFallback: \"unset\",\n-  revision: \"unset\",\n+  revision: \"prompt-only\",\n } as const;\n",
+      "predicateResult": {
+        "passed": false,
+        "detail": "selectedExpectedEvidence=false; persistedExpectedEvidence=true; stalePresentWhenExpected=false; appliedExpectedPolicy=false; appliedCurrentDetail=false; didNotUseStaleForCurrent=true",
+        "failures": [
+          "selectedExpectedEvidence",
+          "stalePresentWhenExpected",
+          "appliedExpectedPolicy",
+          "appliedCurrentDetail"
+        ]
+      }
+    }
+  },
+  "objectiveMetrics": {
+    "checkpointPassRate": 1,
+    "staleHitCount": 6,
+    "postShockRecovery": 1,
+    "postShockCurrentEvidenceCount": 2
+  }
+}

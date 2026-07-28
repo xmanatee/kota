@@ -1,0 +1,13 @@
+{
+  "generatedBy": "src/modules/telegram/status-poll-capture-runtime.test.ts",
+  "artifacts": [
+    {
+      "path": "capture-command-runtime.json",
+      "bytes": 3140
+    },
+    {
+      "path": "capture-command-runtime.md",
+      "bytes": 1234
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "generatedBy": "src/modules/telegram/status-poll-recall-runtime.test.ts",
+  "surface": "src/modules/telegram/status-poll.ts",
+  "path": "handleTelegramStatusCommand -> scope.recall.recall -> renderRecallHitsPlain -> callTelegramApi(sendMessage)",
+  "contractProbeCases": [
+    "mixed-source-success",
+    "answer-hit-failure-arm",
+    "semantic-unavailable"
+  ],
+  "cases": [
+    {
+      "command": "/recall harness boundary",
+      "handled": true,
+      "reply": {
+        "chat_id": 987654321,
+        "text": "knowledge  0.910  kn-42                                                    Pluggable harness protocol\nmemory     0.780  mem-7                                                    User prefers terse end-of-turn summaries.\nhistory    0.660  conv-12                                                  Daemon review 2026-04-28\ntasks      0.550  task-share-or-conformance-test-daemon-wire-contracts-ac  [doing/p1] Share or conformance-test daemon wire contracts across clients\nanswer     0.490  ans-1                                                    [ok(1)] How does the harness boundary work?"
+      },
+      "recallCalls": [
+        [
+          "harness boundary"
+        ]
+      ],
+      "contractResult": {
+        "ok": true,
+        "sources": [
+          "knowledge",
+          "memory",
+          "history",
+          "tasks",
+          "answer"
+        ],
+        "answerResultArms": [
+          "ok"
+        ]
+      }
+    },
+    {
+      "command": "/recall deploy status",
+      "handled": true,
+      "reply": {
+        "chat_id": 987654321,
+        "text": "answer  0.310  ans-2  [no_hits] What is the latest deploy status?"
+      },
+      "recallCalls": [
+        [
+          "deploy status"
+        ]
+      ],
+      "contractResult": {
+        "ok": true,
+        "sources": [
+          "answer"
+        ],
+        "answerResultArms": [
+          "no_hits"
+        ]
+      }
+    },
+    {
+      "command": "/recall anything",
+      "handled": true,
+      "reply": {
+        "chat_id": 987654321,
+        "text": "Cross-store recall is not configured: no contributors are registered."
+      },
+      "recallCalls": [
+        [
+          "anything"
+        ]
+      ],
+      "contractResult": {
+        "ok": false,
+        "reason": "semantic_unavailable"
+      }
+    },
+    {
+      "command": "/recall nothing",
+      "handled": true,
+      "reply": {
+        "chat_id": 987654321,
+        "text": "No matching items."
+      },
+      "recallCalls": [
+        [
+          "nothing"
+        ]
+      ],
+      "contractResult": {
+        "ok": true,
+        "sources": [],
+        "answerResultArms": []
+      }
+    }
+  ]
+}

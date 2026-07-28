@@ -1,0 +1,19 @@
+{
+  "fixture": "community-inbound-updates.json",
+  "normalizedChannels": [
+    "telegram.message",
+    "telegram.media_caption",
+    "telegram.edited_message",
+    "telegram.message_reaction",
+    "telegram.chat_member",
+    "telegram.message"
+  ],
+  "dispatcher": {
+    "routeId": "telegram-sports-community-batch",
+    "decision": "dispatched",
+    "event": "inbound.signal.routed",
+    "queuedWorkflow": "telegram-community-intake",
+    "targetStatus": "queued",
+    "sourceId": "telegram:chat:-7001"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "actualToolCalls": [
+    {
+      "tool": "grocery.reservePickup",
+      "action": "actual",
+      "authorized": true,
+      "evidenceIds": [
+        "9d90ec0e",
+        "ms4he5ub-97f640",
+        "13b79b0e",
+        "ms4he5u9-6ab0ac"
+      ],
+      "arguments": {
+        "item": "oat milk",
+        "pickupWindow": "before 18:00"
+      }
+    }
+  ],
+  "proposedToolCalls": [
+    {
+      "tool": "rideshare.bookAirportPickup",
+      "action": "proposed",
+      "authorized": false,
+      "evidenceIds": [
+        "9d90ec0e",
+        "ms4he5ub-97f640",
+        "13b79b0e",
+        "ms4he5u9-6ab0ac"
+      ],
+      "arguments": {
+        "destination": "home",
+        "reason": "parent visit airport pickup"
+      }
+    }
+  ]
+}

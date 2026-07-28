@@ -1,13 +1,13 @@
 ---
 id: task-security-review-builder-evidence-projection-valida
 title: Security review: Builder evidence projection validates sources and destinations by pathname, then accesses those paths again. A concurrent process can replace a checked file or ancestor with a symlink, causing host-side projection to read outside the workspace into durable Git evidence or overwrite and chmod an outside file.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Builder evidence projection validates sources and destinations by pathname, then accesses those paths again. A concurrent process can replace a checked file or ancestor with a symlink, causing host-side projection to read outside the workspace into durable Git evidence or overwrite and chmod an outside file.
 created_at: 2026-07-28T09:29:04.254Z
-updated_at: 2026-07-28T09:29:04.254Z
+updated_at: 2026-07-28T10:01:46.798Z
 ---
 
 ## Problem
@@ -100,3 +100,8 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true src/modules/autonomy/workflows/builder/agent-run-evidence-filesystem-helper.test.ts src/modules/autonomy/workflows/builder/agent-run-evidence-policy.test.ts src/modules/autonomy/workflows/builder/agent-run-artifacts.test.ts src/modules/autonomy/workflows/builder/agent-run-evidence-projection.test.ts` — passed 4 files / 14 tests.
+- `node_modules/.bin/tsc --noEmit` and `node_modules/.bin/biome check src/` — passed.

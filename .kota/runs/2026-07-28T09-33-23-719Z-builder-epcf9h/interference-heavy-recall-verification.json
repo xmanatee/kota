@@ -1,0 +1,127 @@
+{
+  "provenance": {
+    "kind": "smoke-fixture",
+    "sources": [
+      "https://arxiv.org/abs/2605.18565",
+      "https://github.com/Alienfader/continuity-benchmarks"
+    ],
+    "justification": "LongMINT (https://arxiv.org/abs/2605.18565) motivates this compact fixture shape: revised information, interference-heavy memories, and multi-target aggregation over more than one relevant fact. Continuity Benchmarks (https://github.com/Alienfader/continuity-benchmarks) motivates execution-intent recall, but this fixture stays KOTA-owned and uses the repo's own project-scoped stores instead of vendoring external data. Provenance kind is smoke-fixture because this is a deterministic plumbing guard for KOTA's recall path rather than a replay of one historical failure."
+  },
+  "fixtureNotes": [
+    "LongMINT (https://arxiv.org/abs/2605.18565) motivates this compact fixture shape: revised information, interference-heavy memories, and multi-target aggregation over more than one relevant fact.",
+    "Continuity Benchmarks (https://github.com/Alienfader/continuity-benchmarks) motivates execution-intent recall, but this fixture stays KOTA-owned and uses the repo's own project-scoped stores instead of vendoring external data.",
+    "Provenance kind is smoke-fixture because this is a deterministic plumbing guard for KOTA's recall path rather than a replay of one historical failure."
+  ],
+  "laterPrompt": "Update the incident handoff view for the current release-blocking review.",
+  "recallQuery": "incident handoff current release renderer audit",
+  "seededRecords": {
+    "current": [
+      {
+        "source": "memory",
+        "id": "05337822",
+        "marker": "INTERFERENCE_CURRENT_TIMELINE_RENDERER"
+      },
+      {
+        "source": "knowledge",
+        "id": "5e61a14f",
+        "marker": "INTERFERENCE_CURRENT_AUDIT_LEDGER"
+      }
+    ],
+    "stale": [
+      {
+        "source": "memory",
+        "id": "8f49f50e",
+        "marker": "INTERFERENCE_STALE_CARD_CACHE_RULE"
+      },
+      {
+        "source": "knowledge",
+        "id": "6a1e5f00",
+        "marker": "INTERFERENCE_STALE_CARD_CACHE_RULE"
+      },
+      {
+        "source": "tasks",
+        "id": "task-incident-handoff-card-cache-polish",
+        "marker": "INTERFERENCE_STALE_CARD_CACHE_RULE"
+      }
+    ],
+    "distractors": [
+      {
+        "source": "history",
+        "id": "ms4he42j-84ca30"
+      }
+    ]
+  },
+  "rankedHits": [
+    {
+      "source": "knowledge",
+      "id": "5e61a14f",
+      "score": 1,
+      "text": "Current incident handoff audit evidence INTERFERENCE_CURRENT_AUDIT_LEDGER The current release-blocker review requires a durable audit ledger and a multi-source blocker summary. This current decision is separate from the renderer decision and both must be applied together."
+    },
+    {
+      "source": "memory",
+      "id": "8f49f50e",
+      "score": 1,
+      "text": "Superseded incident handoff renderer decision from 2026-04-10: use INTERFERENCE_STALE_CARD_CACHE_RULE; keep layout cards-first and evidence storage cache-only. This note is semantically close to current release-blocker review work but is n…"
+    },
+    {
+      "source": "tasks",
+      "id": "task-incident-handoff-card-cache-polish",
+      "score": 1,
+      "text": "Incident handoff stale card cache polish INTERFERENCE_STALE_CARD_CACHE_RULE"
+    },
+    {
+      "source": "history",
+      "id": "ms4he42j-84ca30",
+      "score": 1,
+      "text": "incident handoff current release renderer audit brainstorming for demo cards"
+    },
+    {
+      "source": "memory",
+      "id": "05337822",
+      "score": 0.5,
+      "text": "Current incident handoff renderer decision for release-blocker reviews: use INTERFERENCE_CURRENT_TIMELINE_RENDERER; set layout to timeline-lanes and owner density to concise. This revision supersedes cards-first incident handoff renderer n…"
+    },
+    {
+      "source": "knowledge",
+      "id": "6a1e5f00",
+      "score": 0,
+      "text": "Superseded incident handoff cache audit INTERFERENCE_STALE_CARD_CACHE_RULE Old audit guidance used cache-only evidence for the incident handoff view. It is retained as a distractor so recall must ignore superseded guidance."
+    },
+    {
+      "source": "memory",
+      "id": "fcd644a4",
+      "score": 0,
+      "text": "Incident handoff marketing screenshots can use spacious cards; this does not apply to runtime release-blocker reviews."
+    }
+  ],
+  "selectedCurrentEvidenceIds": [
+    "5e61a14f",
+    "05337822"
+  ],
+  "ignoredStaleEvidenceIds": [
+    "8f49f50e",
+    "task-incident-handoff-card-cache-polish",
+    "6a1e5f00"
+  ],
+  "toolOutput": "knowledge  1.000  5e61a14f                                 Current incident handoff audit evidence INTERFERENCE_CURRENT_AUDIT_LEDGER\nmemory     1.000  8f49f50e                                 Superseded incident handoff renderer decision from 2026-04-10: use INTERFERENCE_STALE_CARD_CACHE_RULE; keep layout cards-first and evidence storage cache-only. This note is semantically close to current release-blocker review work but is n…\ntasks      1.000  task-incident-handoff-card-cache-polish  [backlog/p3] Incident handoff stale card cache polish INTERFERENCE_STALE_CARD_CACHE_RULE\nhistory    1.000  ms4he42j-84ca30                          incident handoff current release renderer audit brainstorming for demo cards\nmemory     0.500  05337822                                 Current incident handoff renderer decision for release-blocker reviews: use INTERFERENCE_CURRENT_TIMELINE_RENDERER; set layout to timeline-lanes and owner density to concise. This revision supersedes cards-first incident handoff renderer n…\nknowledge  0.000  6a1e5f00                                 Superseded incident handoff cache audit INTERFERENCE_STALE_CARD_CACHE_RULE\nmemory     0.000  fcd644a4                                 Incident handoff marketing screenshots can use spacious cards; this does not apply to runtime release-blocker reviews.",
+  "promptOnlyProbe": {
+    "finalDiff": "diff --git a/src/incident-handoff.ts b/src/incident-handoff.ts\nindex d5eb675..ea06bf0 100644\n--- a/src/incident-handoff.ts\n+++ b/src/incident-handoff.ts\n@@ -2,5 +2,5 @@ export const incidentHandoffView = {\n   layout: \"cards-first\",\n   evidenceStore: \"local-cache\",\n   blockerSummary: \"single-source\",\n-  revision: \"unset\",\n+  revision: \"prompt-only\",\n } as const;\n",
+    "predicateResult": {
+      "passed": false,
+      "detail": "selectedCurrentRenderer=false; selectedCurrentAudit=false; staleWasPresentAndIgnored=false; appliedCurrentPatch=false"
+    }
+  },
+  "staleOnlyProbe": {
+    "finalDiff": "diff --git a/src/incident-handoff.ts b/src/incident-handoff.ts\nindex d5eb675..1fb1ed9 100644\n--- a/src/incident-handoff.ts\n+++ b/src/incident-handoff.ts\n@@ -1,6 +1,6 @@\n export const incidentHandoffView = {\n-  layout: \"cards-first\",\n+  layout: \"cards-first-stale\",\n   evidenceStore: \"local-cache\",\n   blockerSummary: \"single-source\",\n-  revision: \"unset\",\n+  revision: \"INTERFERENCE_STALE_CARD_CACHE_RULE\",\n } as const;\n",
+    "predicateResult": {
+      "passed": false,
+      "detail": "selectedCurrentRenderer=false; selectedCurrentAudit=false; staleWasPresentAndIgnored=true; appliedCurrentPatch=false"
+    }
+  },
+  "finalDiff": "diff --git a/src/incident-handoff.ts b/src/incident-handoff.ts\nindex d5eb675..3b9e726 100644\n--- a/src/incident-handoff.ts\n+++ b/src/incident-handoff.ts\n@@ -1,6 +1,6 @@\n export const incidentHandoffView = {\n-  layout: \"cards-first\",\n-  evidenceStore: \"local-cache\",\n-  blockerSummary: \"single-source\",\n-  revision: \"unset\",\n+  layout: \"timeline-lanes\",\n+  evidenceStore: \"durable-audit-ledger\",\n+  blockerSummary: \"multi-source-release-blockers\",\n+  revision: \"INTERFERENCE_CURRENT_TIMELINE_RENDERER+INTERFERENCE_CURRENT_AUDIT_LEDGER\",\n } as const;\n",
+  "predicateResult": {
+    "passed": true,
+    "detail": "selectedCurrentRenderer=true; selectedCurrentAudit=true; staleWasPresentAndIgnored=true; appliedCurrentPatch=true"
+  }
+}

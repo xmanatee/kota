@@ -1,0 +1,14 @@
+{
+  "generatedBy": "src/modules/telegram/status-poll-digest-runtime.test.ts",
+  "surface": "src/modules/telegram/status-poll.ts",
+  "command": "/digest",
+  "path": "handleTelegramStatusCommand -> renderOnDemandDigest -> callTelegramApi(sendMessage)",
+  "active": {
+    "chat_id": 987654321,
+    "text": "Daily digest (2026-07-27 09:56Z → 2026-07-28 09:56Z)\n----------------------------------------\n\nBuilder commits (1, 1m total) --------------------------------------------------\n- task-foo: Add foo\n\nQueue state --------------------------------------------------------------------\n- ready: 1 (no prior snapshot)\n- backlog: 0 (no prior snapshot)\n- doing: 0 (no prior snapshot)\n- blocked: 0 (no prior snapshot)"
+  },
+  "quiet": {
+    "chat_id": 987654321,
+    "text": "Daily digest (2026-07-27 09:56Z → 2026-07-28 09:56Z)\n----------------------------------------\n\nNo autonomy activity in this window.\n\nQueue state --------------------------------------------------------------------\n- ready: 0 (no prior snapshot)\n- backlog: 0 (no prior snapshot)\n- doing: 0 (no prior snapshot)\n- blocked: 0 (no prior snapshot)"
+  }
+}
