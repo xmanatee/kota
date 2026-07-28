@@ -1,0 +1,10 @@
+The linked worktree's host Git metadata is read-only in this sandbox.
+
+Validation and staging therefore use the workspace-local index and object
+directory under .kota/tmp/2026-07-28T02-42-33-272Z-builder-54rwcz, with the
+host object store configured as an alternate.
+
+The workflow host must replay this staging operation against the real worktree
+index before its commit step:
+
+git add -A

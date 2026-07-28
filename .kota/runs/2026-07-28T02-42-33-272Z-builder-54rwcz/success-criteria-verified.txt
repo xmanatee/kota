@@ -1,0 +1,5 @@
+1. Verified: the failed review's exact comparison range and 35-candidate packet received a completed investigation and evaluator disposition, preserved in security-review-completion.json.
+2. Verified: investigation and revalidation found zero confirmed findings, so no canonical Safety tasks were created.
+3. Blocked: the cited canonical DLQ item remains open; its durable rationale, trusted-host dismissal command, and required closed-state evidence path are preserved, and the normalized task is blocked on that one after-state.
+4. Verified: the original network stream reset did not reproduce in the same-shape replay, so the task constraint correctly prevented execution-path hardening.
+5. Verified to the reachable boundary: all cited evidence ids remain in the task, the review and validation artifacts are durable, focused tests passed 123/123, queue validation passed, and task state honestly records the unresolved external precondition.

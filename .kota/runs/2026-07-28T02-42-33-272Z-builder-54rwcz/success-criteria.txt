@@ -1,0 +1,5 @@
+1. Complete the failed security review for its recorded comparison range and preserve artifacts showing the investigation plus evaluator disposition.
+2. Create canonical Safety tasks with cited evidence for every confirmed finding, or record evidence that the completed review confirmed none.
+3. Redrive the cited dead letter successfully or dismiss it with a durable rationale, and capture final evidence that it is closed.
+4. Harden the security-review execution path only if a same-shape run reproduces the original failure.
+5. Record acceptance evidence, keep the cited evidence ids, validate the task queue, and move the owned task to done only when the gap is actually resolved.

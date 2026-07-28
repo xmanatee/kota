@@ -1,0 +1,21 @@
+{
+  "id": "dlq-6b64d5b9-121e-4ad6-83a3-8cd0631524b9",
+  "type": "workflow-dispatch",
+  "status": "open",
+  "scopeId": "8nrg1m",
+  "affectedWorkflowNames": [
+    "security-review"
+  ],
+  "failedRunId": "2026-07-27T22-14-48-435Z-security-review-81hrj7",
+  "failure": {
+    "retryCount": 2,
+    "lastErrorClass": "execution",
+    "reason": "Agent step investigate-candidates failed after the Codex stream connection reset."
+  },
+  "redrive": {
+    "kind": "workflow",
+    "workflowName": "security-review",
+    "sourceRunId": "2026-07-27T22-14-48-435Z-security-review-81hrj7"
+  },
+  "redriveAttempts": []
+}

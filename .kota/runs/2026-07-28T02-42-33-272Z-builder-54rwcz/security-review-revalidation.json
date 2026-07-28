@@ -1,0 +1,4 @@
+{
+  "findings": [],
+  "summary": "No finding survived revalidation in the persisted 35-candidate packet for db505370379d5f4003c64fdb69b4dcf62d014139..a08a5d6372f3a7a148f8e0b7915636f9f58dc089. The remediation passes one scope-owned ApprovalQueue through classic sessions, workflow code and agent steps, KOTA-hosted tool loops, and the shared permissioned runner; persisted approvals carry scopeId and cross-scope execution fails closed. The bounded regression set passed 123/123 tests."
+}

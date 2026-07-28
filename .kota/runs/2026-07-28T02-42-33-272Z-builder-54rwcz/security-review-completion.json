@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "status": "success",
+  "executionPath": "builder-direct-bounded-review-after-same-shape-harness-replay-was-sandbox-blocked",
+  "sourceRunId": "2026-07-27T22-14-48-435Z-security-review-81hrj7",
+  "comparison": {
+    "kind": "commit-range",
+    "baseSha": "db505370379d5f4003c64fdb69b4dcf62d014139",
+    "headSha": "a08a5d6372f3a7a148f8e0b7915636f9f58dc089"
+  },
+  "candidateArtifact": {
+    "path": ".kota/runs/2026-07-27T22-14-48-435Z-security-review-81hrj7/security-review-candidates.json",
+    "sha256": "fa4c2a856a2b02154b83863888ab9c76247d6db9f9f94f349b3f76e2a59baf2b",
+    "candidateCount": 35,
+    "truncated": true,
+    "sameShapeReplayCandidateIdsMatched": true
+  },
+  "investigation": {
+    "status": "completed",
+    "artifact": ".kota/runs/2026-07-28T02-42-33-272Z-builder-54rwcz/security-review-investigation.json",
+    "findingCount": 0
+  },
+  "evaluatorDisposition": {
+    "status": "completed",
+    "artifact": ".kota/runs/2026-07-28T02-42-33-272Z-builder-54rwcz/security-review-revalidation.json",
+    "confirmedFindingCount": 0,
+    "canonicalSafetyTaskIds": []
+  },
+  "verification": {
+    "command": "TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run src/core/agent-harness/tool-execution-options.test.ts src/core/daemon/project-runtime.test.ts src/core/tools/tool-runner.test.ts src/core/tools/tool-runner-permission.test.ts src/core/workflow/steps/approval-step.test.ts src/modules/approval-queue/execution-scope.test.ts src/modules/approval-queue/daemon-control.test.ts src/modules/openai-tools-agent-harness/adapter-approval-shared-runner.test.ts src/modules/gemini-agent-harness/adapter-permission-policy.test.ts src/modules/vercel-agent-harness/adapter-guardrails.test.ts src/core/server/project-scoped-kota-client.test.ts --configLoader runner --reporter=dot",
+    "testFilesPassed": 11,
+    "testsPassed": 123
+  }
+}

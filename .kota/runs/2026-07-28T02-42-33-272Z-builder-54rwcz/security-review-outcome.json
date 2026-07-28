@@ -1,0 +1,9 @@
+{
+  "outcome": "no-op",
+  "reason": "no-investigation-findings",
+  "candidateCount": 35,
+  "createdTaskIds": [],
+  "updatedTaskIds": [],
+  "skippedFindingIds": [],
+  "summary": "The post-remediation review found no new vulnerability in the persisted bounded candidate packet. No Safety task was required."
+}

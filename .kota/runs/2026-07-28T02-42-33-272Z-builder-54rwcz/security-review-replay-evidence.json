@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "sourceEvidenceIds": [
+    "scope:8nrg1m:run:2026-07-27T22-14-48-435Z-security-review-81hrj7",
+    "scope:8nrg1m:dead-letter:dlq-6b64d5b9-121e-4ad6-83a3-8cd0631524b9",
+    "scope:8nrg1m:git:commit:a08a5d6372f3"
+  ],
+  "originalFailure": {
+    "stepId": "investigate-candidates",
+    "kind": "codex_cli_error",
+    "activeDurationMs": 396077,
+    "hostSuspendedMs": 3778255,
+    "reason": "stream disconnected before completion: IO error: Connection reset by peer (os error 54)",
+    "errorSha256": "23b302fdd2b395f05691ac0633930952ee13d4e18f6c1440293e2645f16f3cdd"
+  },
+  "sameShapeReplay": {
+    "runId": "2026-07-28T02-51-46-440Z-security-review-replay-pw0wr4",
+    "sourceTriggerSha256": "867d2a60eb993ceede55245db59ac114d7f13328fef1d2f4dd48a34349397c6a",
+    "scanStatus": "success",
+    "candidateCount": 35,
+    "candidateIdsMatchedOriginal": true,
+    "agentStatus": "failed",
+    "activeDurationMs": 339,
+    "failureKind": "builder-sandbox",
+    "reason": "Nested Codex could not initialize because /Users/xmanatee/.codex/state_5.sqlite is read-only in the builder sandbox."
+  },
+  "hardeningDisposition": {
+    "originalFailureReproduced": false,
+    "sourceChanged": false,
+    "reason": "The replay failed before provider execution for a different sandbox-local state-database restriction. It does not reproduce the original network stream reset, so the task's harden-only-on-reproduction constraint forbids an execution-path change."
+  },
+  "deadLetterDisposition": {
+    "id": "dlq-6b64d5b9-121e-4ad6-83a3-8cd0631524b9",
+    "attemptedAction": "redrive",
+    "requiredTerminalAction": "dismiss",
+    "statusBefore": "open",
+    "statusAfter": "open",
+    "result": "blocked",
+    "durableRationale": "The post-remediation packet has now been investigated and revalidated with no confirmed finding, but the canonical item must remain open until the daemon records the disposition.",
+    "blocker": "The builder sandbox denies both writes to /Users/xmanatee/Desktop/mono/apps/kota/.kota and loopback access to the live daemon control port.",
+    "hostCommand": "node --conditions=source --import tsx src/cli.ts workflow dlq dismiss dlq-6b64d5b9-121e-4ad6-83a3-8cd0631524b9 --reason \"Superseded by completed post-remediation review artifact .kota/runs/2026-07-28T02-42-33-272Z-builder-54rwcz/security-review-completion.json; the exact 35-candidate replay produced no confirmed finding, and the original transient stream reset did not reproduce.\"",
+    "requiredEvidencePath": ".kota/runs/2026-07-28T02-42-33-272Z-builder-54rwcz/dead-letter-after-disposition.json"
+  }
+}

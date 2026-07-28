@@ -1,0 +1,17 @@
+Security review validation
+
+- The original 35-candidate post-remediation packet was reviewed across the
+  recorded range db505370379d5f4003c64fdb69b4dcf62d014139..a08a5d6372f3a7a148f8e0b7915636f9f58dc089.
+- A same-shape replay reproduced the exact 35 candidate ids. Its nested agent
+  stopped on a builder-sandbox global-state restriction, not the original
+  network stream reset.
+- Direct bounded investigation and evaluator revalidation found zero confirmed
+  vulnerabilities; no canonical Safety task was warranted.
+- Focused guardrail validation passed: 11 test files and 123 tests.
+- Every JSON run artifact parsed successfully with jq.
+- Queue validation passed after staging the blocked task transition in the
+  workspace-local Git index.
+- The canonical DLQ item remains open because this sandbox cannot write the
+  canonical .kota store or reach the daemon control port. Its trusted-host
+  disposition command and required closed-state evidence path are recorded in
+  security-review-replay-evidence.json.
