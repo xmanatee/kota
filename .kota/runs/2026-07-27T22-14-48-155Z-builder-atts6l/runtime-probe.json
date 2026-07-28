@@ -1,0 +1,31 @@
+{
+  "verdict": "fail",
+  "exitCode": -1,
+  "durationMs": 0,
+  "output": "Runtime Probe not executed: Runtime Probe execution requires a Linux PID namespace; darwin does not provide the process-lifetime boundary required to contain detached descendants.",
+  "probe": {
+    "command": "pnpm kota eval run --fixture builder-algorithmic-resource-budget-canary --repeats 1 --keep",
+    "executable": "pnpm",
+    "args": [
+      "kota",
+      "eval",
+      "run",
+      "--fixture",
+      "builder-algorithmic-resource-budget-canary",
+      "--repeats",
+      "1",
+      "--keep"
+    ],
+    "timeoutMs": 14400000
+  },
+  "execution": "not-executed",
+  "isolation": {
+    "status": "unavailable",
+    "reason": "Runtime Probe execution requires a Linux PID namespace; darwin does not provide the process-lifetime boundary required to contain detached descendants."
+  },
+  "provenance": {
+    "status": "trusted",
+    "kind": "git-head",
+    "sourcePath": "data/tasks/ready/task-add-algorithmic-resource-budget-canaries-to-the-ev.md"
+  }
+}

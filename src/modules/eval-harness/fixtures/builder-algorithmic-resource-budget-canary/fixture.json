@@ -22,22 +22,32 @@
     {
       "kind": "file-contains",
       "path": "resource-budget-result.json",
-      "needle": "\"descending-4096\""
+      "needle": "\"seeded-distinct-4096\""
     },
     {
       "kind": "file-contains",
       "path": "resource-budget-result.json",
-      "needle": "\"sawtooth-4096\""
+      "needle": "\"seeded-sawtooth-4096\""
     },
     {
       "kind": "file-contains",
       "path": "resource-budget-result.json",
-      "needle": "\"clustered-duplicates-4096\""
+      "needle": "\"seeded-clustered-duplicates-4096\""
     },
     {
       "kind": "file-contains",
       "path": "resource-budget-result.json",
       "needle": "\"resourceBudgetScore\": 1"
+    },
+    {
+      "kind": "file-contains",
+      "path": "resource-budget-result.json",
+      "needle": "\"kind\": \"opaque-comparison-oracle-count\""
+    },
+    {
+      "kind": "file-contains",
+      "path": "resource-budget-result.json",
+      "needle": "\"kind\": \"candidate-source-sha256\""
     },
     {
       "kind": "file-absent",

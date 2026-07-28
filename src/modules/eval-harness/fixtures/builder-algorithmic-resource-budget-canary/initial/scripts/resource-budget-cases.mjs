@@ -1,10 +1,15 @@
 export const RESULT_PATH = "resource-budget-result.json";
 export const DEFAULT_CANDIDATE = "src/inversions.mjs";
 export const SAMPLE_ONLY_CANDIDATE = "scripts/sample-only-inversions.mjs";
+export const PROXY_BYPASS_CANDIDATE = "scripts/proxy-bypass-inversions.mjs";
+export const HARDCODED_ANSWER_CANDIDATE =
+  "scripts/hardcoded-answer-inversions.mjs";
+export const CASE_METADATA_SHORTCUT_CANDIDATE =
+  "scripts/case-metadata-shortcut-inversions.mjs";
 export const REQUIRED_CANARY_IDS = [
-  "descending-4096",
-  "sawtooth-4096",
-  "clustered-duplicates-4096",
+  "seeded-distinct-4096",
+  "seeded-sawtooth-4096",
+  "seeded-clustered-duplicates-4096",
 ];
 
 export function visibleCases() {
@@ -18,8 +23,8 @@ export function visibleCases() {
   ];
 }
 
-function descending(size) {
-  return Array.from({ length: size }, (_, index) => size - index);
+function distinct(size) {
+  return Array.from({ length: size }, (_, index) => index);
 }
 
 function sawtooth(size) {
@@ -34,6 +39,31 @@ function clusteredDuplicates(size) {
     values.push((127 - (cluster % 128)) * 3 + (offset % 3));
   }
   return values;
+}
+
+function createRandom(challengeDigest, streamIndex) {
+  const offset = streamIndex * 8;
+  let state =
+    (Number.parseInt(challengeDigest.slice(offset, offset + 8), 16) ^
+      Math.imul(streamIndex + 1, 0x9e3779b9)) >>>
+    0;
+  return function random() {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let value = state;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4_294_967_296;
+  };
+}
+
+function shuffled(values, challengeDigest, streamIndex) {
+  const result = [...values];
+  const random = createRandom(challengeDigest, streamIndex);
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+  }
+  return result;
 }
 
 function mergeCount(values) {
@@ -77,25 +107,28 @@ function mergeCount(values) {
   return sortAndCount(0, work.length);
 }
 
-export function canaryCases() {
+export function canaryCases(challengeDigest) {
+  if (!/^[a-f0-9]{64}$/u.test(challengeDigest)) {
+    throw new Error("canaryCases requires a SHA-256 challenge digest");
+  }
   const size = 4096;
   const maxComparisons = 80_000;
   return [
     {
-      id: "descending-4096",
-      values: descending(size),
-      expected: (size * (size - 1)) / 2,
-      maxComparisons,
-    },
-    {
-      id: "sawtooth-4096",
-      values: sawtooth(size),
+      id: "seeded-distinct-4096",
+      values: shuffled(distinct(size), challengeDigest, 0),
       expected: null,
       maxComparisons,
     },
     {
-      id: "clustered-duplicates-4096",
-      values: clusteredDuplicates(size),
+      id: "seeded-sawtooth-4096",
+      values: shuffled(sawtooth(size), challengeDigest, 1),
+      expected: null,
+      maxComparisons,
+    },
+    {
+      id: "seeded-clustered-duplicates-4096",
+      values: shuffled(clusteredDuplicates(size), challengeDigest, 2),
       expected: null,
       maxComparisons,
     },

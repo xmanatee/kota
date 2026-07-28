@@ -1,8 +1,11 @@
 #!/usr/bin/env node
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import {
+  CASE_METADATA_SHORTCUT_CANDIDATE,
   DEFAULT_CANDIDATE,
+  HARDCODED_ANSWER_CANDIDATE,
+  PROXY_BYPASS_CANDIDATE,
   RESULT_PATH,
   SAMPLE_ONLY_CANDIDATE,
 } from "./resource-budget-cases.mjs";
@@ -56,19 +59,55 @@ function writeResult(result) {
 }
 
 async function runSelfTestShortcuts() {
-  const result = await evaluateCandidate(SAMPLE_ONLY_CANDIDATE);
-  const failedCanaries = result.canaries.filter((entry) => !entry.passed);
-  const shortcutRejected =
-    result.visibleExamples.passed && !result.passed && failedCanaries.length > 0;
+  const candidates = [];
+  const shortcutCases = [
+    {
+      candidate: SAMPLE_ONLY_CANDIDATE,
+      expectedRejection: "canary-failure",
+    },
+    {
+      candidate: PROXY_BYPASS_CANDIDATE,
+      expectedRejection: "canary-failure",
+    },
+    {
+      candidate: HARDCODED_ANSWER_CANDIDATE,
+      expectedRejection: "canary-failure",
+    },
+    {
+      candidate: CASE_METADATA_SHORTCUT_CANDIDATE,
+      expectedRejection: "source-audit-module-import",
+    },
+  ];
+  for (const { candidate, expectedRejection } of shortcutCases) {
+    if (!existsSync(candidate)) {
+      throw new Error(`shortcut self-test candidate is missing: ${candidate}`);
+    }
+    const result = await evaluateCandidate(candidate);
+    const failedCanaries = result.canaries.filter((entry) => !entry.passed);
+    const rejectedForExpectedReason =
+      expectedRejection === "source-audit-module-import"
+        ? result.sourceAudit.issues.some((issue) =>
+            issue.includes("forbidden module imports"),
+          )
+        : result.visibleExamples.passed && failedCanaries.length > 0;
+    candidates.push({
+      candidate,
+      expectedRejection,
+      rejected: !result.passed && rejectedForExpectedReason,
+      failedCanaryIds: failedCanaries.map((entry) => entry.id),
+      result,
+    });
+  }
+  const shortcutRejected = candidates.every((entry) => entry.rejected);
   const report = {
     shortcutRejected,
-    rejectedCandidate: SAMPLE_ONLY_CANDIDATE,
-    failedCanaryIds: failedCanaries.map((entry) => entry.id),
-    result,
+    candidates,
   };
   console.log(JSON.stringify(report, null, 2));
   if (!shortcutRejected) {
-    console.error("expected sample-only candidate to pass examples and fail large canaries");
+    console.error(
+      "expected sample-only, comparison-proxy-bypass, hardcoded-answer, and case-metadata shortcuts to be rejected",
+    );
     process.exit(1);
   }
 }
