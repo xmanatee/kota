@@ -82,7 +82,7 @@ function assertExpectedExtension(file: BuilderEvidenceFile): void {
   }
 }
 
-function assertJsonIsProjected(value: KotaJsonValue, path: string): void {
+function screenedJsonValue(value: KotaJsonValue, path: string): KotaJsonValue {
   const projected = projectEvidenceJsonValue(
     value,
     "internal-storage",
@@ -90,6 +90,15 @@ function assertJsonIsProjected(value: KotaJsonValue, path: string): void {
   if (JSON.stringify(projected) !== JSON.stringify(value)) {
     fail(`registered artifact must be redacted before registration: ${path}`);
   }
+  return projected;
+}
+
+function serializeScreenedJson(values: readonly KotaJsonValue[]): Buffer {
+  if (values.length === 0) return Buffer.alloc(0);
+  return Buffer.from(
+    `${values.map((value) => JSON.stringify(value)).join("\n")}\n`,
+    "utf8",
+  );
 }
 
 function assertNoHighConfidenceCredential(text: string, path: string): void {
@@ -116,16 +125,16 @@ function projectTypedContent(file: BuilderEvidenceFile, content: Buffer): Buffer
     if (file.kind === "json" || file.kind === "jsonl") {
       assertNoHighConfidenceCredential(text, file.path);
       const lines = file.kind === "json" ? [text] : text.split("\n").filter((line) => line.trim());
-      for (const [index, line] of lines.entries()) {
+      const projectedValues = lines.map((line, index) => {
         let value: KotaJsonValue;
         try {
           value = JSON.parse(line) as KotaJsonValue;
         } catch (error) {
           fail(`registered ${file.kind} artifact is malformed at item ${index + 1}: ${file.path} (${String(error)})`);
         }
-        assertJsonIsProjected(value, file.path);
-      }
-      return content;
+        return screenedJsonValue(value, file.path);
+      });
+      return serializeScreenedJson(projectedValues);
     }
     assertTextIsScreened(text, file.path);
     return content;
