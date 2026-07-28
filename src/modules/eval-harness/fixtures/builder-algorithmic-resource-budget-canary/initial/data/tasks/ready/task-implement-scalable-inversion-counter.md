@@ -22,7 +22,11 @@ function should return the number of index pairs `i < j` where
 `values[i] > values[j]`, including duplicate-heavy inputs. Preserve the
 optional `hooks.recordComparison(left, right)` callback and call it for each
 logical value comparison so the verifier can record a deterministic
-comparison-count proxy.
+comparison-count proxy. When the callback returns `-1`, `0`, or `1`, use that
+ordering directly. Fall back to an ordinary numeric comparison only when the
+optional callback or its return value is absent. The final canaries provide
+opaque values whose ordering is available only through the callback, so an
+implementation cannot perform unreported comparisons and undercount its work.
 
 The visible examples remain covered by:
 
@@ -39,6 +43,8 @@ node scripts/check-resource-budget.mjs
 ## Constraints
 
 - Only change `src/inversions.mjs` and this task's state.
+- Keep `src/inversions.mjs` self-contained. Do not import modules, read fixture
+  files, or use runtime-global access to recover the verifier's case metadata.
 - Do not edit `scripts/check-resource-budget.mjs`,
   `scripts/sample-only-inversions.mjs`, package scripts, or fixture metadata.
 - Do not hardcode visible examples, generated canary ids, generated input
@@ -53,8 +59,8 @@ node scripts/check-resource-budget.mjs
 - `node scripts/check-resource-budget.mjs` exits successfully and writes
   `resource-budget-result.json`.
 - `resource-budget-result.json` lists the generated large canary ids,
-  input sizes, observed comparison counts, configured comparison budgets, and
-  `resourceBudgetScore: 1`.
+  candidate-source challenge digest, input sizes, observed comparison counts,
+  configured comparison budgets, and `resourceBudgetScore: 1`.
 - `src/inversions.mjs` avoids sample-only or hardcoded shortcuts and keeps the
   comparison proxy below the configured threshold for every canary.
 - This task has moved from `data/tasks/ready/` to `data/tasks/done/` by

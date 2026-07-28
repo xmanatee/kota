@@ -1,0 +1,8 @@
+1. The shipped resource-budget fixture contains fixture.json, notes.md, and a minimal initial project with a deliberately quadratic inversion counter.
+2. The fixture's initial task starts in data/tasks/ready, passes task validation, and describes the algorithmic outcome plus artifact-backed acceptance evidence.
+3. Pre-run expectations prove the initial project passes visible examples but fails the generated large-case budget and has no prewritten result artifact.
+4. Final predicates require the nested task to reach done, the verifier and shortcut self-test to pass, resource-budget-result.json to expose all required canary evidence, and the objective comparison ratio to stay within budget.
+5. The scorer rejects obvious sample-only, hardcoded-answer, verifier-tampering, threshold-relaxing, skipped-canary, and fabricated-artifact shortcuts.
+6. The eval CLI loads builder-algorithmic-resource-budget-canary without schema or provenance errors.
+7. The unchanged provenance-pinned Runtime Probe completes one live nested-builder eval with every resource-budget predicate passing and the objective metric visible in run output.
+8. A deterministic regression proves a sample-only shortcut fails while the golden scalable implementation passes, with no temporary candidate mutation left in the repository.

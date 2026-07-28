@@ -1,0 +1,36 @@
+PASS  node node_modules/typescript/bin/tsc -p tsconfig.json
+      The repository emitted successfully.
+PASS  node bin/kota.mjs eval list
+      builder-algorithmic-resource-budget-canary loaded without schema or provenance errors.
+PASS  fixture-local queue validation
+      A temporary real-Git copy of the initial project validated with its seeded task tracked in data/tasks/ready.
+PASS  visible-example baseline
+      The deliberately quadratic initial implementation passes all six visible cases.
+PASS  initial large-canary expectation
+      The same implementation fails the deterministic 4,096-item comparison budget.
+PASS  shortcut regression
+      The sample-only, one-reported-comparison quadratic, and call-order hardcoded-answer candidates pass visible examples but fail all three source-keyed canaries; the present case-metadata candidate is rejected specifically for its module import.
+PASS  comparison-proxy enforcement
+      Opaque canary values reject direct, unreported comparison after the bypass candidate records only one comparison.
+PASS  candidate metadata isolation
+      Candidate source is audited before evaluation and loaded as a data module; its SHA-256 digest deterministically seeds canary permutations, so embedding observed answers changes the next challenge.
+PASS  golden calibration
+      The merge-sort candidate uses the comparison oracle and passes every source-keyed canary with resourceBudgetScore 1 and maxOperationRatio 0.550362.
+PASS  node --conditions=source --import tsx src/validate-queue.ts
+      The canonical-index staged snapshot validates with the claimed task tracked in data/tasks/blocked and its typed operator-capture precondition.
+PASS  vitest --configLoader runner fixture-calibration-required.test.ts
+      All four fixture calibration-contract tests passed after the metadata-isolation repair.
+PASS  vitest --configLoader runner task-queue-validation.test.ts -t "current repo task queue"
+      Both current-repository queue tests passed; 63 unrelated cases were skipped.
+WARN  default Vitest config loader
+      Vite could not write its temporary bundled config under the host-owned node_modules tree; the in-process runner config loader completed both focused suites successfully.
+PASS  repair-attempt-4 isolated git diff --cached --check
+      The run-local exact snapshot stages both shortcut candidates and every source/evidence repair with no whitespace errors or unstaged companion changes.
+WARN  canonical git add -A
+      Repair attempt 4 retried first; the host-owned linked-worktree index refused index.lock before changing. Host-index replay remains pending because isolated staging cannot update it.
+WARN  pnpm launcher
+      The pinned pnpm launcher could not verify its registry signature without network access; validation used the already-installed Node, tsx, and Vitest entrypoints directly.
+PASS  verifyTaskProbeProvenance
+      The unchanged 14,400,000 ms live-eval probe is trusted from the Git-HEAD ready-task source.
+BLOCK task-declared trusted-host Runtime Probe
+      The current Darwin host cannot establish KOTA's required Linux PID namespace and detached-descendant teardown boundary. A Linux trusted-host operator capture must report exit 0 before the task returns to the actionable queue.

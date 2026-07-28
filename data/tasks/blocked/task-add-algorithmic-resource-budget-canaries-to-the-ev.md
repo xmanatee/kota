@@ -1,13 +1,13 @@
 ---
 id: task-add-algorithmic-resource-budget-canaries-to-the-ev
 title: Add algorithmic resource-budget canaries to the eval harness
-status: ready
+status: blocked
 priority: p2
 area: modules
 task_class: Meta
 summary: Seed a compact builder fixture where a naive solution passes small examples but fails deterministic large-input time or memory canaries, making scalable design and resource management artifact-graded.
 created_at: 2026-06-22T23:35:15.496Z
-updated_at: 2026-07-25T17:29:01.548Z
+updated_at: 2026-07-28T01:26:03.000Z
 ---
 
 ## Problem
@@ -109,6 +109,32 @@ The fixture should make scalable-design failure observable:
 
 command: pnpm kota eval run --fixture builder-algorithmic-resource-budget-canary --repeats 1 --keep
 timeoutMs: 14400000
+
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/algorithmic-resource-budget-live-pass/
+description: Linux trusted-host Runtime Probe evidence — operator runs pnpm kota eval run --fixture builder-algorithmic-resource-budget-canary --repeats 1 --keep on a Linux host where Bubblewrap and prlimit are installed, /proc/sys/kernel/core_pattern is readable and non-piped, and the Codex login is active; capture a passing transcript, eval-set-report.json, predicate details, resource-budget-result.json, generated input sizes, comparison-budget values, and max_comparison_budget_ratio under .kota/runs/algorithmic-resource-budget-live-pass/
+```
+
+## Status (2026-07-28 builder)
+
+The committed fixture remains deterministically calibrated: visible examples
+pass; the quadratic, sample-only, comparison-proxy bypass, and call-order
+hardcoded-answer candidates fail the source-keyed 4,096-item canaries; a
+present case-metadata import shortcut fails the specific module-import source
+audit; and the golden merge-sort candidate passes all three canaries with
+resourceBudgetScore 1 and maxOperationRatio 0.550362. The candidate source
+digest is recorded and deterministically seeds the canary permutations, so
+editing a candidate to embed observed answers changes the inputs and expected
+answers on the next run.
+
+The current workflow host is Darwin. KOTA intentionally records Runtime
+Probes as not-executed on non-Linux hosts because they cannot provide the PID
+namespace and teardown boundary required to contain detached descendants.
+Therefore this run cannot produce the required trusted live nested-agent pass,
+and fixture-load or calibration evidence is not used to claim completion.
 
 ## Status (2026-06-23 builder)
 

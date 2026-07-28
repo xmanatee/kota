@@ -1,0 +1,13 @@
+$ node bin/kota.mjs eval list
+exit: 0
+
+control decisions: act=34  ask=1  refuse=2  stop=3  confirm=0  recover=4
+missing control-decision coverage: confirm
+
+builder-algorithmic-resource-budget-canary  (builder → builder)  decisions=act [autonomy, builder-discipline, algorithmic-complexity, resource-budget, live-llm, objective-metric]
+  Live-builder fixture where a quadratic inversion counter passes visible examples but fails deterministic large resource-budget canaries.
+
+The command invokes the emitted CLI binary behind the repository's `pnpm kota`
+script. The pnpm 11 launcher could not bootstrap the repository-pinned pnpm
+10.32.1 release without registry access, so validation used the same built CLI
+entrypoint directly after a successful TypeScript build.

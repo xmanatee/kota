@@ -3,8 +3,8 @@ export function countInversions(values, hooks = {}) {
   const scratch = new Array(work.length);
 
   function lessOrEqual(left, right) {
-    hooks.recordComparison?.(left, right);
-    return left <= right;
+    const recorded = hooks.recordComparison?.(left, right);
+    return recorded === undefined ? left <= right : recorded <= 0;
   }
 
   function sortAndCount(start, end) {

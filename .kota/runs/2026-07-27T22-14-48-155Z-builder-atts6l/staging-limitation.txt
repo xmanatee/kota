@@ -1,0 +1,34 @@
+The initial build attempt could not create the linked worktree's host-owned
+index.lock. The repo-tasks mutation correctly rolled back instead of leaving
+task state partially staged.
+
+The exact pnpm task CLI entrypoint was attempted first, but the installed pnpm
+11 launcher could not bootstrap the repository-pinned pnpm 10.32.1 release
+without registry access. Final lifecycle and task-body mutations used the same
+repo-tasks domain operations, moveTaskById and writeRepoTaskFile, directly
+under source conditions; no task file was renamed or rewritten outside that
+domain boundary.
+
+That attempt validated its task lifecycle and final snapshot with a run-scoped
+GIT_INDEX_FILE plus a writable GIT_OBJECT_DIRECTORY under
+.kota/tmp/2026-07-27T22-14-48-155Z-builder-atts6l, using the canonical object
+store as GIT_ALTERNATE_OBJECT_DIRECTORIES. This isolated index is evidence for
+the exact pre-repair commit set; it did not update the real worktree index.
+
+During the first post-check repair, the canonical worktree index temporarily
+became writable and accepted the ready-to-blocked task move, run artifacts,
+and comparison-proxy repair. During repair attempt 2 it was read-only again:
+the final `git add -A` failed before changing the index because Git could not
+create the host-owned `index.lock`.
+
+The exact final snapshot is staged and checked in the prescribed run-local
+index/object store. A host-index replay of repair attempt 2 remains pending;
+isolated staging does not update the real worktree index.
+
+Repair attempt 3 retried the required canonical `git add -A`; Git again could
+not create the host-owned linked-worktree `index.lock`. The complete final
+working tree is staged and whitespace-checked in the repair-attempt-3
+run-local index/object store instead. That exact snapshot includes the
+previously untracked metadata-import regression and the new hardcoded-answer
+regression. Canonical host-index replay remains pending because isolated
+staging cannot update the real worktree index.

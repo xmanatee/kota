@@ -1,0 +1,43 @@
+$ node scripts/check-resource-budget.mjs --visible-only
+exit: 0
+visibleExamples.passed: true
+
+$ node scripts/check-resource-budget.mjs --no-write
+exit: 1 (expected)
+initial quadratic candidate: rejected by the comparison budget
+
+$ node scripts/check-resource-budget.mjs --self-test-shortcuts
+exit: 0
+shortcutRejected: true
+sample-only failedCanaryIds: seeded-distinct-4096, seeded-sawtooth-4096, seeded-clustered-duplicates-4096
+one-reported-comparison quadratic failedCanaryIds: seeded-distinct-4096, seeded-sawtooth-4096, seeded-clustered-duplicates-4096
+call-order hardcoded-answer failedCanaryIds: seeded-distinct-4096, seeded-sawtooth-4096, seeded-clustered-duplicates-4096
+call-order hardcoded-answer expected/actual: 4,185,835/8,386,560; 4,140,716/4,161,701; 4,225,683/8,344,192
+case-metadata import expectedRejection: source-audit-module-import
+case-metadata import sourceAudit.passed: false
+case-metadata import issue: candidate source uses forbidden module imports; the implementation must be self-contained
+all four self-test candidate files: present
+
+$ node scripts/check-resource-budget.mjs --candidate scripts/proxy-bypass-inversions.mjs --no-write
+exit: 1 (expected)
+comparisonProxyEnforced: true
+comparisons: 1
+error: canary value at input index 0 was inspected outside hooks.recordComparison
+
+$ node scripts/check-resource-budget.mjs --candidate ../calibration/adversarial/src/inversions.mjs --no-write
+exit: 1 (expected)
+adversarial sample-only candidate: rejected
+
+$ node scripts/check-resource-budget.mjs --candidate ../calibration/golden/src/inversions.mjs --no-write
+exit: 0
+challenge.kind: candidate-source-sha256
+challenge.digest: 38655d9ce0a4aefb55bd30db02e48703e66f12882bf98debf17a99c3fb3867cf
+seeded-distinct-4096: 44,010 / 80,000 comparisons, passed
+seeded-sawtooth-4096: 44,029 / 80,000 comparisons, passed
+seeded-clustered-duplicates-4096: 43,998 / 80,000 comparisons, passed
+resourceBudgetScore: 1
+budgetProxy.kind: opaque-comparison-oracle-count
+maxOperationRatio: 0.550362
+
+All commands ran against the fixture without temporarily mutating its default
+candidate, thresholds, metadata, or generated inputs.

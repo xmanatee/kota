@@ -1,0 +1,38 @@
+Host-index replay completed during post-check repair.
+
+The initial builder validated an alternate-index snapshot when the linked
+worktree metadata was not writable. In the repair context,
+`git rev-parse --git-path index` resolved to the canonical linked-worktree
+index, and `git add -A` staged the claimed task's exact ready-to-blocked rename,
+the .gitignore exceptions, every unignored run artifact, and the verifier
+repair there.
+
+That canonical snapshot predates repair attempt 2. The final metadata-import
+repair could not create the host-owned `index.lock`, so the host index still
+needs the final replay.
+
+Repair attempt 2 rebuilt the run-local index from `HEAD`, staged the complete
+working tree with the required local object store and host alternates, and ran
+`git diff --cached --check` against that isolated exact snapshot. The isolated
+snapshot has no unstaged companion changes, but it does not update the real
+worktree index.
+
+Repair attempt 3 again ran the required `git add -A` first. The host-owned
+linked-worktree index refused `index.lock` before changing the canonical
+snapshot. The final repair therefore rebuilt
+`.kota/tmp/2026-07-27T22-14-48-155Z-builder-atts6l/repair-attempt-3-index/index`
+from `HEAD`, used its sibling writable object store plus the host object store
+as an alternate, staged the complete working tree, and checked that exact
+snapshot. It includes both shortcut regression candidates, the source-keyed
+canary repair, and refreshed run evidence. The host index still needs replay.
+
+Repair attempt 4 retried canonical `git add -A` after the critic identified
+the two missing shortcut candidates. The host-owned index again refused
+`index.lock` before changing. The run-local exact snapshot was rebuilt from
+`HEAD` at
+`.kota/tmp/2026-07-27T22-14-48-155Z-builder-atts6l/repair-attempt-4-index/index`,
+then staged with a writable sibling object store and the host object store as
+an alternate. Its cached diff includes both
+`hardcoded-answer-inversions.mjs` and
+`case-metadata-shortcut-inversions.mjs`; `git diff --cached --check` and the
+shortcut self-test both pass. Canonical host-index replay remains pending.
