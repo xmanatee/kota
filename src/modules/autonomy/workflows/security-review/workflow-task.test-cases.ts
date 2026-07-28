@@ -238,6 +238,13 @@ export function describeSecurityReviewTaskTests(): void {
       expect(() => assertTaskQueueValid(fixture.projectDir, { minReady: 0 })).not.toThrow();
     });
 
+    it("states the authorized defensive scope in the agent prompt", () => {
+      const prompt = readFileSync(new URL("./prompt.md", import.meta.url), "utf-8");
+
+      expect(prompt).toContain("authorized, defensive secure-code review");
+      expect(prompt).toContain("Do not attempt exploitation or provide offensive instructions");
+    });
+
     it("keeps the revalidation prompt aligned with the required summary field", () => {
       const prompt = readFileSync(new URL("./prompt.md", import.meta.url), "utf-8");
 

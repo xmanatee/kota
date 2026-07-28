@@ -39,6 +39,17 @@ vi.mock("#modules/autonomy/commit.js", () => ({
   commitWorkflowChanges: vi.fn(),
 }));
 
+vi.mock("./agent-run-artifacts.js", async () => {
+  const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
+
+  return {
+    checkAgentRunArtifactsReady: vi.fn(() => "OK: builder run evidence ready"),
+    commitBuilderWorkflowChanges: vi.fn((workspaceDir: string, agentRunDir: string) =>
+      commitWorkflowChanges(workspaceDir, agentRunDir),
+    ),
+  };
+});
+
 vi.mock("#modules/autonomy/task-claims.js", () => ({
   DEFAULT_TASK_CLAIM_LEASE_MS: 25_200_000,
   taskClaimPath: vi.fn((projectDir: string, taskId: string) =>
