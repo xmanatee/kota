@@ -1,13 +1,13 @@
 ---
 id: task-complete-the-failed-post-remediation-security-revi
 title: Complete the failed post-remediation security review
-status: blocked
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Replay or rerun security-review run 2026-07-27T22-14-48-435Z-security-review-81hrj7 for its recorded comparison range, preserve the completed investigation, create canonical Safety tasks for every confirmed finding, and redrive or dismiss dlq-6b64d5b9-121e-4ad6-83a3-8cd0631524b9 with durable rationale. Harden the execution path only if a same-shape run reproduces the failure.
 created_at: 2026-07-28T01:04:58.553Z
-updated_at: 2026-07-28T02:57:45.389Z
+updated_at: 2026-07-28T03:53:53.995Z
 ---
 
 ## Problem
@@ -73,10 +73,20 @@ Outcome-aware autonomy progress review.
   trusted-host command, and required after-state path are preserved in the run
   artifacts.
 
-## Unblock Precondition
+## Historical Unblock Precondition
 
 ```
 kind: operator-capture
 path: .kota/runs/2026-07-28T02-42-33-272Z-builder-54rwcz/dead-letter-after-disposition.json
 description: trusted-host DLQ disposition evidence — operator runs the `hostCommand` recorded in `security-review-replay-evidence.json`, then exports the cited item here with a terminal dismissed or successfully redriven status
 ```
+
+## Closure (2026-07-28)
+
+- The completed review artifact records all 35 candidates investigated with
+  zero confirmed findings, so no Safety follow-up task is required.
+- Dead letter `dlq-6b64d5b9-121e-4ad6-83a3-8cd0631524b9` was dismissed with
+  the recorded supersession rationale after the original stream reset did not
+  reproduce.
+- `.kota/runs/2026-07-28T02-42-33-272Z-builder-54rwcz/dead-letter-after-disposition.json`
+  records the canonical terminal state and dismissal timestamp.
