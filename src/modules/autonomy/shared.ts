@@ -1,4 +1,4 @@
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { delimiter, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
@@ -34,6 +34,7 @@ const child = spawn(command, {
 });
 let timedOut = false;
 let exiting = false;
+let exitSignal = null;
 child.stdout.pipe(process.stdout);
 child.stderr.pipe(process.stderr);
 function killTree(signal) {
@@ -52,8 +53,9 @@ function killTree(signal) {
 function exitFromSignal(signal) {
   if (exiting) return;
   exiting = true;
+  exitSignal = signal;
   killTree(signal);
-  process.exit(signal === "SIGTERM" ? 143 : 130);
+  setTimeout(() => killTree("SIGKILL"), graceMs).unref();
 }
 const timer = setTimeout(() => {
   timedOut = true;
@@ -73,6 +75,7 @@ child.on("close", (code, signal) => {
     console.error("Command timed out after " + timeoutMs + "ms: " + command);
     process.exit(124);
   }
+  if (exitSignal) process.exit(exitSignal === "SIGTERM" ? 143 : 130);
   if (signal) process.exit(signal === "SIGTERM" ? 143 : 130);
   process.exit(code ?? 1);
 });
@@ -138,29 +141,114 @@ function buildRunCheckEnv(cwd: string): NodeJS.ProcessEnv {
   return env;
 }
 
-export function runCheck(command: string, cwd: string, timeoutMs = 120_000): string {
-  const result = spawnSync(process.execPath, [
-    "-e",
-    RUN_CHECK_WRAPPER_SCRIPT,
-    command,
-    String(timeoutMs),
-    String(RUN_CHECK_TIMEOUT_GRACE_MS),
-  ], {
-    cwd,
-    env: buildRunCheckEnv(cwd),
-    timeout: timeoutMs + RUN_CHECK_TIMEOUT_GRACE_MS + 1_000,
-    encoding: "utf-8",
-    maxBuffer: RUN_CHECK_MAX_BUFFER,
-    stdio: ["ignore", "pipe", "pipe"],
+export type RunCheckOptions = Readonly<{
+  timeoutMs?: number;
+  signal?: AbortSignal;
+}>;
+
+function runCheckAbortError(signal: AbortSignal | undefined): Error {
+  if (signal?.reason instanceof Error) return signal.reason;
+  return new Error(
+    signal?.reason === undefined ? "Workflow check aborted" : String(signal.reason),
+  );
+}
+
+export function runCheck(
+  command: string,
+  cwd: string,
+  options: RunCheckOptions = {},
+): Promise<string> {
+  const timeoutMs = options.timeoutMs ?? 120_000;
+  return new Promise((resolveRun, rejectRun) => {
+    if (options.signal?.aborted) {
+      rejectRun(runCheckAbortError(options.signal));
+      return;
+    }
+    const child = spawn(process.execPath, [
+      "-e",
+      RUN_CHECK_WRAPPER_SCRIPT,
+      command,
+      String(timeoutMs),
+      String(RUN_CHECK_TIMEOUT_GRACE_MS),
+    ], {
+      cwd,
+      env: buildRunCheckEnv(cwd),
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+    let outputBytes = 0;
+    let outputLimitExceeded = false;
+    let processError: Error | undefined;
+    let abortError: Error | undefined;
+    let safetyTimeoutExceeded = false;
+    let forceKillTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const terminateWrapper = () => {
+      child.kill("SIGTERM");
+      forceKillTimer ??= setTimeout(
+        () => child.kill("SIGKILL"),
+        RUN_CHECK_TIMEOUT_GRACE_MS + 1_000,
+      );
+    };
+    const collect = (target: Buffer[], chunk: Buffer) => {
+      outputBytes += chunk.byteLength;
+      if (outputBytes <= RUN_CHECK_MAX_BUFFER) {
+        target.push(chunk);
+        return;
+      }
+      if (!outputLimitExceeded) {
+        outputLimitExceeded = true;
+        terminateWrapper();
+      }
+    };
+
+    child.stdout.on("data", (chunk: Buffer) => collect(stdout, chunk));
+    child.stderr.on("data", (chunk: Buffer) => collect(stderr, chunk));
+    child.on("error", (error) => {
+      processError = error;
+    });
+
+    const onAbort = () => {
+      if (abortError) return;
+      abortError = runCheckAbortError(options.signal);
+      terminateWrapper();
+    };
+    options.signal?.addEventListener("abort", onAbort, { once: true });
+    if (options.signal?.aborted) onAbort();
+
+    const safetyTimer = setTimeout(() => {
+      safetyTimeoutExceeded = true;
+      terminateWrapper();
+    }, timeoutMs + RUN_CHECK_TIMEOUT_GRACE_MS + 1_000);
+    child.on("close", (code) => {
+      clearTimeout(safetyTimer);
+      if (forceKillTimer) clearTimeout(forceKillTimer);
+      options.signal?.removeEventListener("abort", onAbort);
+      const rawOutput = [Buffer.concat(stdout), Buffer.concat(stderr)]
+        .filter((buffer) => buffer.length > 0)
+        .map((buffer) => buffer.toString("utf8"))
+        .join("\n");
+      if (abortError) {
+        rejectRun(abortError);
+      } else if (processError) {
+        rejectRun(processError);
+      } else if (outputLimitExceeded) {
+        rejectRun(new Error(`Command output exceeded ${RUN_CHECK_MAX_BUFFER} bytes: ${command}`));
+      } else if (safetyTimeoutExceeded) {
+        rejectRun(new Error(
+          tailTruncate(rawOutput, RUN_CHECK_OUTPUT_TAIL_LIMIT) ||
+            `Command timed out after ${timeoutMs}ms: ${command}`,
+        ));
+      } else if (code !== 0) {
+        rejectRun(new Error(
+          tailTruncate(rawOutput, RUN_CHECK_OUTPUT_TAIL_LIMIT) || `Command failed: ${command}`,
+        ));
+      } else {
+        resolveRun(rawOutput);
+      }
+    });
   });
-  const rawOutput = [result.stdout, result.stderr].filter(Boolean).join("\n");
-  if (result.error !== undefined) {
-    throw result.error;
-  }
-  if (result.status !== 0) {
-    throw new Error(tailTruncate(rawOutput, RUN_CHECK_OUTPUT_TAIL_LIMIT) || `Command failed: ${command}`);
-  }
-  return rawOutput;
 }
 
 export const READY_TASK_TARGET = 4;

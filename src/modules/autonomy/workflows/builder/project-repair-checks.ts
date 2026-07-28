@@ -5,7 +5,7 @@ import {
   ROOT_CROSS_CUTTING_FIXTURES,
   ROOT_ENTRYPOINT_SOURCES,
 } from "#core/root-layout.js";
-import { runCheck } from "#modules/autonomy/shared.js";
+import { runCheck, type RunCheckOptions } from "#modules/autonomy/shared.js";
 
 const PACKAGE_PROJECT_MARKERS = [
   "package.json",
@@ -29,6 +29,7 @@ const MOBILE_TYPECHECK_VALIDATION_ONLY_PATHS = new Set([
 ]);
 
 type ImportViolation = { file: string; specifier: string };
+type RepairCheckOptions = Pick<RunCheckOptions, "signal">;
 
 export function checkModuleBoundary(projectDir: string): string {
   const srcDir = join(projectDir, "src");
@@ -99,7 +100,10 @@ function findDisallowedRootImports(
   return violations;
 }
 
-export function checkMobileTypecheck(projectDir: string): string {
+export async function checkMobileTypecheck(
+  projectDir: string,
+  options: RepairCheckOptions = {},
+): Promise<string> {
   const mobileDir = join(projectDir, "clients/mobile");
   if (!existsSync(join(mobileDir, "package.json"))) {
     return "OK: no mobile client present";
@@ -120,7 +124,10 @@ export function checkMobileTypecheck(projectDir: string): string {
     }
     return "OK: mobile client dependencies not installed; no staged mobile changes";
   }
-  return runCheck("pnpm run typecheck", mobileDir, 60_000);
+  return runCheck("pnpm run typecheck", mobileDir, {
+    timeoutMs: 60_000,
+    signal: options.signal,
+  });
 }
 
 function missingMobileTypecheckDependencyMarkers(mobileDir: string): string[] {
@@ -145,21 +152,31 @@ function listStagedPathChanges(projectDir: string, pathspec: string): string[] {
   return result.stdout.split("\n").map((line) => line.trim()).filter(Boolean);
 }
 
-export function checkMacosSwiftBuild(projectDir: string): string {
+export async function checkMacosSwiftBuild(
+  projectDir: string,
+  options: RepairCheckOptions = {},
+): Promise<string> {
   const appleDir = join(projectDir, "clients/apple");
   if (!existsSync(join(appleDir, "Package.swift"))) {
     return "OK: no Apple client present";
   }
-  return runCheck("swift build", appleDir, 180_000);
+  return runCheck("swift build", appleDir, {
+    timeoutMs: 180_000,
+    signal: options.signal,
+  });
 }
 
 function hasPackageProject(projectDir: string): boolean {
   return PACKAGE_PROJECT_MARKERS.some((marker) => existsSync(join(projectDir, marker)));
 }
 
-export function checkPackageScript(projectDir: string, command: string, timeoutMs?: number): string {
+export async function checkPackageScript(
+  projectDir: string,
+  command: string,
+  options: RunCheckOptions = {},
+): Promise<string> {
   if (!hasPackageProject(projectDir)) {
     return "OK: no package project present";
   }
-  return runCheck(command, projectDir, timeoutMs);
+  return runCheck(command, projectDir, options);
 }

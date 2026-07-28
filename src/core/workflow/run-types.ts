@@ -167,6 +167,8 @@ export type WorkflowStepResult = {
 };
 
 export type WorkflowStepContext = {
+  /** The current step's cancellation and timeout signal during runtime execution. */
+  signal?: AbortSignal;
   approvalQueue?: ApprovalQueue;
   projectDir: string;
   workspaceDir?: string;

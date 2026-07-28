@@ -271,9 +271,9 @@ export const validateBeforeCommit = typedCodeStep<{ ok: true }>({
     if (obj.ok !== true) throw new Error(`expected ok: true, got ${String(obj.ok)}`);
     return obj;
   },
-  run: (ctx) => {
+  run: async (ctx) => {
     assertTaskQueueValid(ctx.projectDir, { minReady: 0 });
-    runCheck("pnpm run validate-tasks", ctx.projectDir);
+    await runCheck("pnpm run validate-tasks", ctx.projectDir, { signal: ctx.signal });
     checkNoScratchArtifacts(ctx.projectDir);
     checkCommitStageable(ctx.projectDir);
     checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir);

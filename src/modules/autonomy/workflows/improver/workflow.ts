@@ -181,37 +181,56 @@ const improverWorkflow: WorkflowDefinitionInput = {
           {
             id: "build-output",
             type: "code" as const,
-            run: (ctx) => runCheck("pnpm build", ctx.projectDir),
+            run: (ctx) => runCheck("pnpm build", ctx.projectDir, { signal: ctx.signal }),
           },
           {
             id: "workflow-validate",
             type: "code" as const,
             phase: 1,
-            run: (ctx) => runCheck("pnpm dev workflow validate", ctx.projectDir),
+            run: (ctx) => runCheck(
+              "pnpm dev workflow validate",
+              ctx.projectDir,
+              { signal: ctx.signal },
+            ),
           },
           {
             id: "task-queue-valid",
             type: "code" as const,
             phase: 1,
-            run: (ctx) => runCheck("pnpm run validate-tasks", ctx.projectDir),
+            run: (ctx) => runCheck(
+              "pnpm run validate-tasks",
+              ctx.projectDir,
+              { signal: ctx.signal },
+            ),
           },
           {
             id: "typecheck",
             type: "code" as const,
             phase: 1,
-            run: (ctx) => runCheck("pnpm run typecheck", ctx.projectDir),
+            run: (ctx) => runCheck(
+              "pnpm run typecheck",
+              ctx.projectDir,
+              { signal: ctx.signal },
+            ),
           },
           {
             id: "lint",
             type: "code" as const,
             phase: 1,
-            run: (ctx) => runCheck("pnpm run lint:fix && git add -u && pnpm run lint", ctx.projectDir),
+            run: (ctx) => runCheck(
+              "pnpm run lint:fix && git add -u && pnpm run lint",
+              ctx.projectDir,
+              { signal: ctx.signal },
+            ),
           },
           {
             id: "test",
             type: "code" as const,
             phase: 1,
-            run: (ctx) => runCheck("pnpm test", ctx.projectDir, 300_000),
+            run: (ctx) => runCheck("pnpm test", ctx.projectDir, {
+              timeoutMs: 300_000,
+              signal: ctx.signal,
+            }),
           },
           {
             id: "no-scratch-artifacts",

@@ -15,7 +15,7 @@ describe("runCheck", () => {
     }
   });
 
-  it("resolves repo-local executables when inherited PATH is minimal", () => {
+  it("resolves repo-local executables when inherited PATH is minimal", async () => {
     const projectDir = mkdtempSync(join(tmpdir(), "kota-run-check-"));
     try {
       const binDir = join(projectDir, "node_modules", ".bin");
@@ -25,20 +25,42 @@ describe("runCheck", () => {
       chmodSync(executable, 0o755);
       process.env.PATH = "/usr/bin:/bin";
 
-      expect(runCheck("local-check", projectDir)).toBe("local-ok");
+      await expect(runCheck("local-check", projectDir)).resolves.toBe("local-ok");
     } finally {
       rmSync(projectDir, { recursive: true, force: true });
     }
   });
 
-  it("resolves the active Node runtime when inherited PATH omits it", () => {
+  it("resolves the active Node runtime when inherited PATH omits it", async () => {
     const projectDir = mkdtempSync(join(tmpdir(), "kota-run-check-"));
     try {
       process.env.PATH = "/usr/bin:/bin";
 
-      expect(runCheck("node -e \"process.stdout.write('node-ok')\"", projectDir)).toBe(
-        "node-ok",
-      );
+      await expect(
+        runCheck("node -e \"process.stdout.write('node-ok')\"", projectDir),
+      ).resolves.toBe("node-ok");
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps the event loop responsive while a check runs", async () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "kota-run-check-"));
+    try {
+      let completed = false;
+      const check = runCheck(
+        `${JSON.stringify(process.execPath)} -e ${JSON.stringify(
+          "setTimeout(() => process.stdout.write('done'), 250)",
+        )}`,
+        projectDir,
+        { timeoutMs: 2_000 },
+      ).finally(() => {
+        completed = true;
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(completed).toBe(false);
+      await expect(check).resolves.toBe("done");
     } finally {
       rmSync(projectDir, { recursive: true, force: true });
     }
