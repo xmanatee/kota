@@ -151,9 +151,15 @@ export function scanRuns(ctx: RuntimeHealthAuditContext): void {
       observations: InterruptedRunObservation[];
     }
   >();
+  const workflowsWithNewerSuccess = new Set<string>();
   for (const run of runs) {
+    if (run.status === "success") {
+      workflowsWithNewerSuccess.add(run.workflow);
+      continue;
+    }
     if (run.status !== "interrupted") continue;
     ctx.inspected.interruptedRuns += 1;
+    if (workflowsWithNewerSuccess.has(run.workflow)) continue;
     const errorSummary = readInterruptedRunErrorSummary(ctx, run);
     const cause = classifyInterruptedRunCause(errorSummary);
     const key = `${run.workflow}\0${cause}`;

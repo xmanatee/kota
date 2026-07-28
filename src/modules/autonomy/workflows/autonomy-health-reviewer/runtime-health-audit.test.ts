@@ -127,9 +127,10 @@ describe("runtime health audit", () => {
     );
   }
 
-  function writeInterruptedRun(args: {
+  function writeRun(args: {
     id: string;
     workflow: string;
+    status: "interrupted" | "success";
     startedAt: string;
     error?: string;
   }): void {
@@ -141,7 +142,7 @@ describe("runtime health audit", () => {
         {
           id: args.id,
           workflow: args.workflow,
-          status: "interrupted",
+          status: args.status,
           startedAt: args.startedAt,
           completedAt: args.startedAt,
           durationMs: 1000,
@@ -369,7 +370,7 @@ describe("runtime health audit", () => {
       ["run-a", "2026-06-19T10:00:00.000Z"],
       ["run-b", "2026-06-19T11:00:00.000Z"],
     ] as const) {
-      writeInterruptedRun({ id, workflow: "builder", startedAt });
+      writeRun({ id, workflow: "builder", status: "interrupted", startedAt });
     }
 
     const audit = collectRuntimeHealthAudit({
@@ -401,21 +402,24 @@ describe("runtime health audit", () => {
   });
 
   it("routes known runtime abort interruptions outside local repair tasks", () => {
-    writeInterruptedRun({
+    writeRun({
       id: "improver-abort-a",
       workflow: "improver",
+      status: "interrupted",
       startedAt: "2026-06-17T16:38:32.184Z",
       error: 'Agent step "improve" failed (aborted): Codex CLI run aborted.',
     });
-    writeInterruptedRun({
+    writeRun({
       id: "improver-abort-b",
       workflow: "improver",
+      status: "interrupted",
       startedAt: "2026-06-17T16:52:59.769Z",
       error: 'Agent step "improve" failed (aborted): Codex CLI run aborted.',
     });
-    writeInterruptedRun({
+    writeRun({
       id: "improver-restart",
       workflow: "improver",
+      status: "interrupted",
       startedAt: "2026-06-15T23:44:08.673Z",
       error: "Interrupted: daemon restarted while run was in progress.",
     });
@@ -460,6 +464,68 @@ describe("runtime health audit", () => {
     expect(actions.createdTaskIds).toEqual([]);
     expect(actions.ownerQuestionIds).toHaveLength(1);
     expect(readyTaskFiles()).toEqual([]);
+  });
+
+  it("suppresses interrupted runs recovered by a newer success", () => {
+    writeRun({
+      id: "builder-interrupted-a",
+      workflow: "builder",
+      status: "interrupted",
+      startedAt: "2026-06-19T09:00:00.000Z",
+      error: 'Agent step "build" failed (aborted): Codex CLI run aborted.',
+    });
+    writeRun({
+      id: "builder-interrupted-b",
+      workflow: "builder",
+      status: "interrupted",
+      startedAt: "2026-06-19T10:00:00.000Z",
+      error: 'Agent step "build" failed (aborted): Codex CLI run aborted.',
+    });
+    writeRun({
+      id: "builder-recovered",
+      workflow: "builder",
+      status: "success",
+      startedAt: "2026-06-19T11:00:00.000Z",
+    });
+    writeRun({
+      id: "improver-success",
+      workflow: "improver",
+      status: "success",
+      startedAt: "2026-06-19T08:00:00.000Z",
+    });
+    for (const [id, startedAt] of [
+      ["improver-interrupted-a", "2026-06-19T09:00:00.000Z"],
+      ["improver-interrupted-b", "2026-06-19T10:00:00.000Z"],
+    ] as const) {
+      writeRun({
+        id,
+        workflow: "improver",
+        status: "interrupted",
+        startedAt,
+      });
+    }
+
+    const audit = collectRuntimeHealthAudit({
+      projectDir,
+      options: { nowIso: NOW, interruptedRunMinCount: 2 },
+    });
+
+    expect(audit.inspected.interruptedRuns).toBe(4);
+    expect(audit.patterns).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          dedupeKey: "workflow:builder:interrupted-run:harness-abort",
+        }),
+      ]),
+    );
+    expect(audit.patterns).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          dedupeKey: "workflow:improver:interrupted-run",
+          observationCount: 2,
+        }),
+      ]),
+    );
   });
 
   it("reads status-derived operator runtime warnings from daemon control evidence", () => {
