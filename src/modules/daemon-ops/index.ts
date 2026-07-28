@@ -22,6 +22,7 @@ import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import { daemonManagedHttp } from "#core/server/daemon-client.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { KotaClient } from "#core/server/kota-client.js";
+import { scopeSelectorQuery } from "#core/server/scope-selector.js";
 import { jsonResponse } from "#core/server/session-pool.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { LogFormat } from "#core/util/log-format.js";
@@ -1422,7 +1423,8 @@ const daemonModule: KotaModule = {
  * Daemon-side `DaemonOpsClient` backed by the typed `DaemonTransport`. Calls
  * the `GET /status` and `POST /reload` control routes the daemon owns.
  *
- *  - `status()` calls `link.request<DaemonLiveStatus>("GET", "/status")`. On
+ *  - `status()` calls `link.request<DaemonLiveStatus>("GET", "/status")`,
+ *    adding the optional project scope query when supplied. On
  *    `null` (transport failure or non-ok response) it throws `"Daemon
  *    unreachable while reading daemon status"`. On success it probes
  *    `daemonManagedHttp` (the daemon-up `managed` policy stub) and returns
@@ -1443,8 +1445,9 @@ const daemonModule: KotaModule = {
  */
 function buildDaemonOpsDaemonHandler(link: DaemonTransport): DaemonOpsClient {
   return {
-    status: async () => {
-      const status = await link.request<DaemonLiveStatus>("GET", "/status");
+    status: async (filter) => {
+      const path = `/status${scopeSelectorQuery(filter)}`;
+      const status = await link.request<DaemonLiveStatus>("GET", path);
       if (!status) {
         throw new Error("Daemon unreachable while reading daemon status");
       }

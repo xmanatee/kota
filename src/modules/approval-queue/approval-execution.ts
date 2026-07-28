@@ -95,9 +95,43 @@ function mcpFailureBody(
 export async function closeApprovalExecutionLeases(
 	leases: Iterable<ApprovalExecutionLease>,
 ): Promise<void> {
+	const managers = new Set<McpManager>();
 	for (const lease of leases) {
-		await lease.mcpManager?.close().catch(() => {});
+		if (lease.mcpManager !== undefined) managers.add(lease.mcpManager);
 	}
+	await Promise.all([...managers].map((manager) => manager.close()));
+}
+
+async function closeAfterFailure(
+	close: () => Promise<void>,
+	primaryError: unknown,
+	message: string,
+): Promise<void> {
+	try {
+		await close();
+	} catch (cleanupError) {
+		throw new AggregateError([primaryError, cleanupError], message);
+	}
+}
+
+export async function withApprovalExecutionLeases<T>(
+	leases: Iterable<ApprovalExecutionLease>,
+	execute: () => Promise<T>,
+): Promise<T> {
+	const retainedLeases = [...leases];
+	let result: T;
+	try {
+		result = await execute();
+	} catch (error) {
+		await closeAfterFailure(
+			() => closeApprovalExecutionLeases(retainedLeases),
+			error,
+			"Approval execution and lease cleanup both failed",
+		);
+		throw error;
+	}
+	await closeApprovalExecutionLeases(retainedLeases);
+	return result;
 }
 
 async function prepareMcpApprovalExecution(
@@ -164,7 +198,11 @@ async function prepareMcpApprovalExecution(
 	try {
 		await mcpManager.initialize(config);
 	} catch (err) {
-		await mcpManager.close().catch(() => {});
+		await closeAfterFailure(
+			() => mcpManager.close(),
+			err,
+			"MCP approval preflight failed and its manager could not close",
+		);
 		return {
 			ok: false,
 			status: 409,
@@ -183,7 +221,7 @@ async function prepareMcpApprovalExecution(
 
 	const currentFingerprint = mcpManager.getToolDeclarationFingerprint(item.tool);
 	if (currentFingerprint !== declaration.promptDeclarationFingerprint) {
-		await mcpManager.close().catch(() => {});
+		await mcpManager.close();
 		return {
 			ok: false,
 			status: 409,
@@ -206,7 +244,7 @@ async function prepareMcpApprovalExecution(
 		!currentTransportIdentity ||
 		currentTransportIdentity.fingerprint !== declaration.serverTransportIdentityFingerprint
 	) {
-		await mcpManager.close().catch(() => {});
+		await mcpManager.close();
 		return {
 			ok: false,
 			status: 409,
@@ -228,7 +266,7 @@ async function prepareMcpApprovalExecution(
 		};
 	}
 	if (currentTransportIdentity.match.kind === "ambiguous") {
-		await mcpManager.close().catch(() => {});
+		await mcpManager.close();
 		return {
 			ok: false,
 			status: 409,
