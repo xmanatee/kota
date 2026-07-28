@@ -1,0 +1,14 @@
+Validation evidence for builder run 2026-07-28T03-10-35-681Z-builder-7cx6ss
+
+PASS  jq empty same-shape-progress-review.json
+PASS  jq empty dead-letter-reconciliation.json
+PASS  decodeProgressReviewAgentOutput accepted the current five-event review output (verdict=blocked, localClaims=4)
+PASS  current run 2026-07-28T03-08-52-669Z-progress-reviewer-tnvcvr: workflow=success, inputEventCount=5, review-evidence=success, activeDurationMs=60195
+PASS  corroborating run 2026-07-28T02-40-21-944Z-progress-reviewer-l4vmn6: workflow=success, inputEventCount=5, review-evidence=success, activeDurationMs=87503
+PASS  canonical DLQ query at 2026-07-28T03:23:33Z: openProgressReviewerCount=0, openMatchingReviewEvidenceTimeoutCount=0
+PASS  node --conditions=source --import tsx src/validate-queue.ts --summary: task-queue-valid, errors=0, warnings=0, ready=1
+PASS  node node_modules/vitest/vitest.mjs run --configLoader runner --silent=true src/task-files.test.ts: 1 file passed, 5 tests passed
+PASS  isolated-index git diff --cached --check
+PASS  isolated-index final staged set: .gitignore, seven run artifacts, and one ready-to-done task rename
+
+Environment note: the package-manager shim attempted to resolve pnpm@10.32.1 from the restricted registry and failed before repository code executed. The installed TypeScript and Vitest entrypoints ran the equivalent project checks directly; the package-manager error is not counted as a test failure.

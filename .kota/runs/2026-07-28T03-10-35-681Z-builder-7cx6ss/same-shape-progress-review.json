@@ -1,0 +1,89 @@
+{
+  "generatedAt": "2026-07-28T03:18:03Z",
+  "verificationKind": "current-natural-same-shape-runtime-run",
+  "timeoutBudgetMs": 1800000,
+  "originalFailure": {
+    "runId": "2026-07-27T03-25-55-661Z-progress-reviewer-lk8i7q",
+    "workflow": "progress-reviewer",
+    "triggerEvent": "workflow.batch.flushed",
+    "sourceEventName": "workflow.completed",
+    "declaredCount": 5,
+    "inputEventCount": 5,
+    "inputEventNames": [
+      "workflow.completed",
+      "workflow.completed",
+      "workflow.completed",
+      "workflow.completed",
+      "workflow.completed"
+    ],
+    "reviewStepStatus": "failed",
+    "reviewStepDurationMs": 1800034,
+    "reviewStepActiveDurationMs": 1800002,
+    "error": "Step \"review-evidence\" timed out after 1800000ms of active runtime",
+    "triggerSha256": "3a3443eabe428efe5c65977e9ed5a0af60110dd3744a0bf6627630eb0f97aace",
+    "reviewStepSha256": "e3ba0cf7ab1cb7fd0ab78349aa2709455f527a3c6790301c8abfcd0964755948"
+  },
+  "currentVerification": {
+    "runId": "2026-07-28T03-08-52-669Z-progress-reviewer-tnvcvr",
+    "workflow": "progress-reviewer",
+    "workflowStatus": "success",
+    "startedAt": "2026-07-28T03:09:20.152Z",
+    "completedAt": "2026-07-28T03:10:23.101Z",
+    "triggerEvent": "workflow.batch.flushed",
+    "sourceEventName": "workflow.completed",
+    "flushReason": "count",
+    "declaredCount": 5,
+    "inputEventCount": 5,
+    "inputEventNames": [
+      "workflow.completed",
+      "workflow.completed",
+      "workflow.completed",
+      "workflow.completed",
+      "workflow.completed"
+    ],
+    "droppedInputCount": 0,
+    "reviewStepStatus": "success",
+    "reviewStepDurationMs": 60224,
+    "reviewStepActiveDurationMs": 60195,
+    "activeBudgetMarginMs": 1739805,
+    "harness": "codex",
+    "model": "gpt-5.6-sol",
+    "schemaValidation": {
+      "runtimeOutputSchemaAccepted": true,
+      "independentDecoderAccepted": true,
+      "verdict": "blocked",
+      "localClaimCount": 4,
+      "crossScopeClaimCount": 0,
+      "followUpTaskCount": 0,
+      "ownerQuestionCount": 0
+    },
+    "triggerSha256": "742367d738ded05af58bf07c8695e84bf557d8d92611801e70ee18ac545801c3",
+    "reviewStepSha256": "a8a0bf4ec162fb885f8b3c071b02b89b8563cc533b78a85660dee273849e42f5"
+  },
+  "corroboratingVerification": {
+    "runId": "2026-07-28T02-40-21-944Z-progress-reviewer-l4vmn6",
+    "workflowStatus": "success",
+    "sourceEventName": "workflow.completed",
+    "declaredCount": 5,
+    "inputEventCount": 5,
+    "reviewStepStatus": "success",
+    "reviewStepActiveDurationMs": 87503,
+    "schemaValidOutput": true
+  },
+  "excludedAsProof": [
+    {
+      "runId": "2026-07-27T12-00-00-003Z-progress-reviewer-lv3ktz",
+      "reason": "This scheduled review confirms suspension-aware active timing but is not a five-event workflow.completed batch."
+    },
+    {
+      "runId": "2026-07-27T17-22-26-656Z-progress-reviewer-5zj22a",
+      "reason": "This later provider/DNS-class failure is environmental and does not prove the timeout fixed."
+    }
+  ],
+  "conclusion": {
+    "timeoutReproduced": false,
+    "classification": "transient-agent-execution-timeout",
+    "workflowHardeningRequired": false,
+    "rationale": "Two current runs with the exact five-event workflow.completed batch shape completed schema-valid review-evidence in 60195 ms and 87503 ms active runtime. The active-runtime rail behaved correctly in the failures, and no same-shape verification reproduced a workflow defect."
+  }
+}

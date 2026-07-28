@@ -1,0 +1,2 @@
+1. The cited progress gap is resolved or explicitly disproven by current evidence: the cited and same-class timeout dead letters have durable terminal dispositions, a same-shape five-event workflow.completed batch has schema-valid review evidence within 1,800,000 ms active runtime, and no matching item remains open.
+2. Acceptance evidence is recorded in this task and its run artifacts, including the preserved evidence ids, timeout diagnosis, historical open state, final DLQ state, disposition rationale, same-shape verification, and exact validation commands.

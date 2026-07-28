@@ -1,0 +1,23 @@
+This linked worktree's host Git index is read-only to the builder sandbox.
+
+The canonical repo-tasks mutation API first attempted the ready-to-doing move, failed to create the host index.lock, and rolled the filesystem move back. Validation then used a workspace-local index initialized from HEAD:
+
+GIT_INDEX_FILE=.kota/tmp/2026-07-28T03-10-35-681Z-builder-7cx6ss/git-index
+GIT_OBJECT_DIRECTORY=.kota/tmp/2026-07-28T03-10-35-681Z-builder-7cx6ss/git-objects
+GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects
+
+Both task transitions were replayed through moveTaskById with those variables, preserving the domain-owned exact-path staging contract. Final git add and diff validation use the same isolated index.
+
+Isolated staging does not update the real worktree index. The workflow host commit step must replay the final exact staged set into the host index before committing:
+
+M  .gitignore
+A  .kota/runs/2026-07-28T03-10-35-681Z-builder-7cx6ss/commit-message.txt
+A  .kota/runs/2026-07-28T03-10-35-681Z-builder-7cx6ss/dead-letter-reconciliation.json
+A  .kota/runs/2026-07-28T03-10-35-681Z-builder-7cx6ss/host-index-replay.txt
+A  .kota/runs/2026-07-28T03-10-35-681Z-builder-7cx6ss/same-shape-progress-review.json
+A  .kota/runs/2026-07-28T03-10-35-681Z-builder-7cx6ss/success-criteria-verified.txt
+A  .kota/runs/2026-07-28T03-10-35-681Z-builder-7cx6ss/success-criteria.txt
+A  .kota/runs/2026-07-28T03-10-35-681Z-builder-7cx6ss/validation.txt
+R  data/tasks/ready/task-reconcile-the-current-progress-reviewer-timeout-de.md -> data/tasks/done/task-reconcile-the-current-progress-reviewer-timeout-de.md
+
+The final staged set contains only the task move, run-specific .gitignore exceptions, and this run's evidence artifacts.

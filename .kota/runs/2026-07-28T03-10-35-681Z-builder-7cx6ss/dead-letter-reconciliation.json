@@ -1,0 +1,66 @@
+{
+  "generatedAt": "2026-07-28T03:18:03Z",
+  "canonicalQueuePath": "/Users/xmanatee/Desktop/mono/apps/kota/.kota/dead-letter-queue/items.json",
+  "canonicalQueueSha256": "4a5b9b1243fd862c6768b4b341caca1af7b8f3dca6ff2f139f7a17ef08c3a506",
+  "historicalBeforeState": [
+    {
+      "id": "dlq-817c4292-86d0-416b-818f-22493c55a8c7",
+      "status": "open",
+      "createdAt": "2026-07-27T07:45:57.818Z",
+      "failedRunId": "2026-07-27T03-25-55-661Z-progress-reviewer-lk8i7q",
+      "triggerEvent": "workflow.batch.flushed",
+      "sourceEventIds": [
+        "evtj-000000178307",
+        "evtj-000000178316",
+        "evtj-000000178327",
+        "evtj-000000178437",
+        "evtj-000000178471"
+      ],
+      "failureReason": "Step \"review-evidence\" timed out after 1800000ms of active runtime",
+      "evidence": "The canonical item records its creation as open before its later dismissedAt transition; the task preserves the cited dead-letter, run, and error artifact ids."
+    },
+    {
+      "id": "dlq-b59f9da1-d0da-4dbe-bb82-091613e66639",
+      "status": "open",
+      "createdAt": "2026-07-27T16:27:26.455Z",
+      "failedRunId": "2026-07-27T12-00-00-003Z-progress-reviewer-lv3ktz",
+      "triggerEvent": "autonomy.progress-review.scheduled",
+      "sourceEventIds": [],
+      "failureReason": "Step \"review-evidence\" timed out after 1800000ms of active runtime",
+      "evidence": "Run 2026-07-28T00-00-00-017Z-progress-reviewer-yy2pfl observed this exact dead letter as open in its schema-valid review output immediately before the canonical dismissal."
+    }
+  ],
+  "canonicalAfterState": [
+    {
+      "id": "dlq-817c4292-86d0-416b-818f-22493c55a8c7",
+      "status": "dismissed",
+      "dismissedAt": "2026-07-27T07:58:23.791Z",
+      "dismissalReason": "Superseded by successful run 2026-07-27T03-51-15-670Z-progress-reviewer-7qipnc",
+      "redriveAttemptCount": 0
+    },
+    {
+      "id": "dlq-b59f9da1-d0da-4dbe-bb82-091613e66639",
+      "status": "dismissed",
+      "dismissedAt": "2026-07-28T01:05:02.391Z",
+      "dismissalReason": "Superseded by successful run 2026-07-28T00-00-00-017Z-progress-reviewer-yy2pfl",
+      "redriveAttemptCount": 0
+    }
+  ],
+  "dispositionAssessment": {
+    "action": "accept-existing-dismissals",
+    "redriveRequired": false,
+    "rationale": "Both terminal records have durable superseding-run rationales. Redriving either stale evidence window would duplicate already-completed progress reviews; the newer exact-shape runs independently demonstrate that five-event batch review is healthy. A terminal item was not mutated a second time."
+  },
+  "finalCheck": {
+    "checkedAt": "2026-07-28T03:23:33Z",
+    "openProgressReviewerCount": 0,
+    "openMatchingReviewEvidenceTimeoutCount": 0,
+    "allQueueOpenCount": 1,
+    "unrelatedOpenItems": [
+      {
+        "id": "dlq-6b64d5b9-121e-4ad6-83a3-8cd0631524b9",
+        "workflow": "security-review"
+      }
+    ]
+  }
+}
