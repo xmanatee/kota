@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { WorkflowRuntimeResources } from "#core/workflow/run-types.js";
+import { initializeBuilderEvidenceManifest } from "./agent-run-evidence-manifest.js";
 import {
   type BuilderRuntimeDependencyPreflight,
   preflightDependencySetup,
@@ -79,10 +80,7 @@ function writeProfileArtifact(
 }
 
 function builderAgentRunDir(input: AssignBuilderRuntimeResourcesInput): string {
-  if (resolve(input.workspaceDir) === resolve(input.projectDir)) {
-    return input.runDirPath;
-  }
-  return join(input.workspaceDir, ".kota", "runs", input.runId);
+  return join(input.workspaceDir, ".kota", "builder-evidence", input.runId);
 }
 
 export async function assignBuilderRuntimeResources(
@@ -95,6 +93,7 @@ export async function assignBuilderRuntimeResources(
   mkdirSync(tempRoot, { recursive: true });
   mkdirSync(agentRunDir, { recursive: true });
   mkdirSync(artifactRoot, { recursive: true });
+  initializeBuilderEvidenceManifest(agentRunDir);
   mkdirSync(packageCacheRoot, { recursive: true });
 
   const profileId = `${input.taskId}:${input.runId}`;

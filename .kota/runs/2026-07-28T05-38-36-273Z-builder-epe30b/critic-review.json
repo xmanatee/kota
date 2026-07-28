@@ -1,0 +1,8 @@
+{
+  "verdict": "pass",
+  "critical_issues": [],
+  "warnings": [],
+  "summary": "The typed, screened projection and exact commit boundary at src/modules/autonomy/workflows/builder/agent-run-artifacts.ts:102 are backed by worktree and serial regressions at src/modules/autonomy/workflows/builder/agent-run-artifacts.test.ts:85 and :122.",
+  "generatedAt": "2026-07-28T08:57:35.369Z",
+  "reviewerPromptHash": "f6e5054b3887"
+}

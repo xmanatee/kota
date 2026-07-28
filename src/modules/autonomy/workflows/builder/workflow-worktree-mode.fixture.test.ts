@@ -210,6 +210,16 @@ describe("builder workflow worktree-mode fixture", () => {
             "Builder worktree fixture\n",
             "utf8",
           );
+          writeFileSync(
+            join(ctx.runtimeResources.agentRunDir, "success-criteria.txt"),
+            "1. The fixture change is committed in the task worktree.\n",
+            "utf8",
+          );
+          writeFileSync(
+            join(ctx.runtimeResources.agentRunDir, "success-criteria-verified.txt"),
+            "1. The committed fixture path exists only in the task worktree.\n",
+            "utf8",
+          );
           return { turns: [], totalCostUsd: 0.01 };
         },
       },
@@ -228,7 +238,7 @@ describe("builder workflow worktree-mode fixture", () => {
     expect(buildRuntimeProfileId).toBe("task-worktree-fixture:harness-run-id");
     expect(buildRuntimePortBase).toMatch(/^\d+$/);
     expect(buildRuntimeAgentRunDir).toBe(
-      join(buildWorkspaceDir!, ".kota", "runs", "harness-run-id"),
+      join(buildWorkspaceDir!, ".kota", "builder-evidence", "harness-run-id"),
     );
 
     const workspaceDir = buildWorkspaceDir!;

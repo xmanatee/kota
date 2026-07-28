@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-builder-recursively-force-stag
 title: Security review: The builder recursively force-stages every file in its agent-writable run directory without an artifact allowlist, content redaction, secret screening, or size bounds. Ignored transcripts, credential dumps, environment files, or other runtime-only data can therefore enter durable Git history. In serial mode this path aliases the canonical workflow run directory, also sweeping active prompt, event, and step artifacts into the commit.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: The builder recursively force-stages every file in its agent-writable run directory without an artifact allowlist, content redaction, secret screening, or size bounds. Ignored transcripts, credential dumps, environment files, or other runtime-only data can therefore enter durable Git history. In serial mode this path aliases the canonical workflow run directory, also sweeping active prompt, event, and step artifacts into the commit.
 created_at: 2026-07-28T05:38:12.035Z
-updated_at: 2026-07-28T05:38:12.035Z
+updated_at: 2026-07-28T06:07:27.219Z
 ---
 
 ## Problem
@@ -130,10 +130,27 @@ excerpt:
 > KOTA_RUN_TEMP_DIR: tempRoot,
 > KOTA_RUN_ARTIFACT_DIR: artifactRoot,
 
+## Resolution
+
+The builder now uses a dedicated `.kota/builder-evidence/<run-id>` source and
+a typed manifest for additional artifacts. Registered files are screened,
+bounded by file-count/per-file/total-size limits, projected into the run's
+`evidence/` directory, and force-staged by exact path before task-queue
+validation. The terminal commit repeats the screened projection, and the
+Product critic gate reads only that durable projection rather than unregistered
+source artifacts. PNG evidence is decoded and re-encoded without ancillary
+metadata; opaque binary containers are not registrable. A path-limited commit
+policy excludes the raw evidence source and canonical run namespace even when
+`.kota` is not ignored, then admits only the exact screened projection paths.
+Serial mode no longer aliases the agent-writable source or its artifact
+directory to the workflow run store.
+
 ## Initiative
 
 Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run --configLoader runner src/modules/autonomy/workflows/builder src/modules/autonomy/commit.test.ts src/modules/autonomy/commit-paths.test.ts src/core/workflow/run-executor-runtime-resources.test.ts src/modules/autonomy/critic-product-evidence.test.ts src/modules/autonomy/critic-prompt.test.ts` passed 29 files / 138 tests, including pre-validation projection, raw-source critic rejection, linked projection-ancestor rejection, no-ignore namespace-wide commit-boundary, sibling-run, worktree, serial-mode, opaque-container exclusion, and compressed-PNG-metadata projection regressions.
+- `./node_modules/.bin/tsc --noEmit` passed.
+- `./node_modules/.bin/biome check src/modules/autonomy/workflows/builder`, task/strict-policy tests, `node --conditions=source --import tsx src/validate-queue.ts`, and the staged severe source-size check passed. The split commit and evidence test surfaces are each below 300 lines.

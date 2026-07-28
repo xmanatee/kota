@@ -56,14 +56,14 @@ implementation tests alone do not satisfy either gate.
 
 Per surface, accepted artifact kinds:
 
-- macOS / iOS / native: PNG/screencast under `.kota/runs/<run-id>/`, or a rendered Swift snapshot fixture committed alongside the test.
-- Mobile (React Native / web): rendered DOM or screenshot fixture, or a video capture under `.kota/runs/<run-id>/`.
-- Web dashboard: screenshot under `.kota/runs/<run-id>/`, or a Playwright trace/HTML report.
-- CLI: full transcript captured to `.kota/runs/<run-id>/transcript.txt`
+- macOS / iOS / native: projected PNG under `.kota/runs/<run-id>/evidence/artifacts/`, or a rendered Swift snapshot fixture committed alongside the test.
+- Mobile (React Native / web): rendered DOM fixture or projected PNG under `.kota/runs/<run-id>/evidence/artifacts/`.
+- Web dashboard: projected PNG or screened HTML report under `.kota/runs/<run-id>/evidence/artifacts/`.
+- CLI: full transcript captured to `.kota/runs/<run-id>/evidence/artifacts/transcript.txt`
   showing the command, arguments, and output (with secrets redacted).
 - Telegram / Slack: rendered message fixture (JSON or markdown) checked in
-  with the test, or a screenshot of the actual conversation under
-  `.kota/runs/<run-id>/`.
+  with the test, or a projected PNG of the actual conversation under
+  `.kota/runs/<run-id>/evidence/artifacts/`.
 - Daemon route: a runtime probe (`## Runtime Probe` task section, see
   `src/modules/autonomy/workflows/builder/AGENTS.md`) or a transcript of the
   curl invocation in the run directory.

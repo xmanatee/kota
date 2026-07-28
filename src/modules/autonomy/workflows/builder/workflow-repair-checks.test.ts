@@ -136,12 +136,20 @@ describe("builder workflow prompt and repair checks", () => {
     });
   });
 
+  it("projects screened evidence before task-queue validation", () => {
+    const checks = new Map(builderRepairChecks().map((check) => [check.id, check]));
+
+    expect(checks.get("agent-run-artifacts-ready")?.phase).toBe(1);
+    expect(checks.get("task-queue-valid")?.phase).toBe(2);
+    expect(checks.get("critic-review")?.phase).toBe(3);
+  });
+
   it("reads autonomy change decisions from the builder agent run directory", () => {
     const dir = join(
       tmpdir(),
       `kota-builder-agent-decision-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     );
-    const agentRunDir = join(dir, ".kota", "runs", "agent-run");
+    const agentRunDir = join(dir, ".kota", "builder-evidence", "agent-run");
     const canonicalRunDir = join(dir, ".kota", "runs", "canonical-run");
     const workflowDir = join(dir, "src", "modules", "autonomy", "workflows", "builder");
     mkdirSync(workflowDir, { recursive: true });

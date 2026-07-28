@@ -1,4 +1,4 @@
-import { isAbsolute, relative, resolve } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 
 export function workflowWorkspaceDir(
@@ -27,6 +27,17 @@ export function builderAgentRunDir(
   if (!isBuilderPathInside(workspaceDir, agentRunDir)) {
     throw new Error(
       `Builder agentRunDir must be inside the active workspace: ${configured}`,
+    );
+  }
+  const relativeRunDir = relative(workspaceDir, agentRunDir);
+  const parts = relativeRunDir.split(sep);
+  if (
+    parts.length !== 3 ||
+    parts[0] !== ".kota" ||
+    parts[1] !== "builder-evidence"
+  ) {
+    throw new Error(
+      `Builder agentRunDir must use .kota/builder-evidence/<run-id>: ${configured}`,
     );
   }
   return agentRunDir;

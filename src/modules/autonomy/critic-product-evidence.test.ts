@@ -1,5 +1,5 @@
 import "./critic-test-fixture.integration.js";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createCriticCheck } from "./critic.js";
@@ -58,5 +58,65 @@ describe("critic product evidence gate", () => {
     const artifact = JSON.parse(readFileSync(join(runDir, "critic-review.json"), "utf8"));
     expect(artifact.verdict).toBe("fail");
     expect(artifact.summary).toContain("operator journey evidence is absent");
+  });
+
+  it("ignores unregistered builder-source artifacts until screened projection", async () => {
+    const dir = makeTmpDir();
+    writeDoingTask(
+      dir,
+      "task-product-screened-evidence.md",
+      [
+        "---",
+        "id: task-product-screened-evidence",
+        "title: Ship product surface",
+        "status: doing",
+        "priority: p1",
+        "area: client",
+        "summary: Improve the operator path.",
+        "task_class: Product",
+        "---",
+        "",
+        "## Done When",
+        "",
+        "- Transcript shows the operator path.",
+      ].join("\n"),
+    );
+    const canonicalRunDir = makeRunDir(dir);
+    const agentRunDir = join(dir, ".kota", "builder-evidence", "test-run");
+    const durableEvidenceDir = join(canonicalRunDir, "evidence");
+    mkdirSync(join(agentRunDir, "artifacts"), { recursive: true });
+    writeFileSync(
+      join(agentRunDir, "artifacts", "transcript.txt"),
+      "kota report\nProduct: 1\n",
+    );
+    setApiResponse({
+      verdict: "pass",
+      critical_issues: [],
+      warnings: [],
+      summary: "Screened transcript proves the journey.",
+    });
+
+    const check = createCriticCheck();
+    const context = makeContext(
+      dir,
+      canonicalRunDir,
+      dir,
+      agentRunDir,
+    );
+    await expect(
+      (check as CodeCheck).run(context, TEST_PARENT_STEP),
+    ).rejects.toThrow(/operator journey evidence/);
+    expect(mockRunAgentHarness).not.toHaveBeenCalled();
+
+    mkdirSync(join(durableEvidenceDir, "artifacts"), { recursive: true });
+    writeFileSync(
+      join(durableEvidenceDir, "artifacts", "transcript.txt"),
+      "kota report\nProduct: 1\n",
+    );
+
+    await expect(
+      (check as CodeCheck).run(context, TEST_PARENT_STEP),
+    ).resolves.toMatch(/pass/);
+    expect(mockRunAgentHarness).toHaveBeenCalledOnce();
   });
 });

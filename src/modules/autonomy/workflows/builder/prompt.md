@@ -29,7 +29,8 @@ Your job is to implement one normalized task well.
 - When the task declares a screenshot, screencast, transcript, rendered
   fixture, or runtime-probe artifact (in `## Desired Outcome`, `## Done When`,
   or `## Acceptance Evidence`), produce that artifact under
-  `<run-directory>/`. Prose descriptions of what the operator would see do
+  `$KOTA_RUN_ARTIFACT_DIR` and register its path and kind in
+  `$KOTA_RUN_DIR/evidence-manifest.json`. Prose descriptions of what the operator would see do
   not satisfy a declared rendered-evidence requirement. If headless capture
   is impossible, move the task to `blocked/` with an explicit
   `operator-capture` precondition rather than completing it without the

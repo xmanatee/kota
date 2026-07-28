@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 2,
+  "surface": "critic",
+  "runId": "2026-07-28T05-38-36-273Z-builder-epe30b",
+  "workflow": "builder",
+  "generatedAt": "2026-07-28T08:57:35.369Z",
+  "artifact": "critic-review.json",
+  "reviewerPromptHash": "f6e5054b3887",
+  "taskId": "task-security-review-the-builder-recursively-force-stag",
+  "decision": "pass",
+  "signals": {
+    "issueCount": 0,
+    "warningCount": 0,
+    "reviewBodyLength": 254,
+    "citedFileLineCount": 2
+  },
+  "absentMetrics": [
+    "evidenceIdCount",
+    "findingCount",
+    "followUpTaskCount"
+  ],
+  "thinAcceptance": false
+}

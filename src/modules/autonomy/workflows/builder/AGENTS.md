@@ -1,7 +1,5 @@
 # Builder Workflow
 
-This directory contains the builder workflow definition and its prompt.
-
 - This workflow should own one cohesive normalized task at a time. Resume
   already-active `doing/` work first; otherwise pull one task from the short
   `ready/` queue. Builder must not promote `backlog/` tasks itself — the
@@ -24,11 +22,15 @@ The builder must declare concrete success criteria before implementation and ver
 - `$KOTA_RUN_DIR/success-criteria.txt`
 - `$KOTA_RUN_DIR/success-criteria-verified.txt`
 
-`$KOTA_RUN_DIR` is the workflow-provided, agent-writable run directory. In worktree
-mode it lives inside the selected task worktree, not the canonical checkout's `.kota/runs/` directory.
-Run evidence remains ignored as runtime state while the agent works. The
-builder commit step stages the dedicated run directory explicitly; do not
-change `.gitignore` to expose a run.
+`$KOTA_RUN_DIR` is the agent-writable `.kota/builder-evidence/` source, never the
+canonical workflow run store; the protocol files above are code-registered.
+Put additional evidence under `$KOTA_RUN_ARTIFACT_DIR`; register its path and kind
+in `$KOTA_RUN_DIR/evidence-manifest.json`. Before task validation, the repair loop
+screens, bounds, projects to `.kota/runs/<run-id>/evidence/`, and exact-stages it.
+The terminal commit repeats projection and excludes both runtime namespaces even
+without `.kota` ignore rules. Unregistered files stay runtime-only and cannot
+satisfy Product evidence. Text must pass secret screening; PNG is re-encoded
+without metadata, and other opaque containers are not registrable.
 
 Number each criterion at column 0 (`1.`, `2.`, ...), one per Done-When item.
 The repair check counts numbered items only; column-0 bullets (`- `/`* `) and
@@ -74,9 +76,8 @@ an optional runtime probe the critic runs before judging.
   namespaces and teardown plus a non-piped `core_pattern` and hard-zero core
   limit; pipe-handler and non-Linux hosts record `not-executed`. A tmpfs overlay
   holds writes; outside-name inodes freeze and pathname IPC/device inodes reject.
-- The probe result lands as `runtime-probe.json` in the active workspace's
-  run directory, is committed with the builder change, and is threaded into
-  the critic's prompt with instructions to treat failure as a critical issue
+- The probe's `runtime-probe.json` is projected from the builder evidence source
+  into typed run evidence, committed, and threaded into the critic's prompt as critical
   unless the probe itself is miscalibrated.
 - The critic still exercises calibrated judgment. It can accept a failed
   probe when the failure is environmental (network outage, missing binary)
@@ -85,9 +86,8 @@ an optional runtime probe the critic runs before judging.
 
 ## Source Size Exceptions
 
-The builder treats severe source-size warning batches as blocking before
-commit. A source-size cleanup task can declare a typed exception in its task
-body only when the staged diff reduces every named warning file:
+The builder treats severe source-size warning batches as blocking before commit.
+A cleanup task can declare a typed exception only when every named warning shrinks:
 
 ```md
 ## Source Size Exception

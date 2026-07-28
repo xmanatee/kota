@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "autonomy-change-decision",
+  "runId": "2026-07-28T05-38-36-273Z-builder-epe30b",
+  "createdAt": "2026-07-28T07:06:00.000Z",
+  "taskIds": [
+    "task-security-review-the-builder-recursively-force-stag"
+  ],
+  "affectedSurfaces": [
+    "builder evidence staging",
+    "builder serial and worktree runtime resources",
+    "builder acceptance evidence protocol"
+  ],
+  "changeClasses": [
+    "workflow",
+    "prompt",
+    "reviewer",
+    "critic-gate"
+  ],
+  "hypothesis": "Separating builder evidence from the workflow store and staging only screened typed registrations prevents runtime-only data from entering durable history without weakening builder verification.",
+  "sourceRefs": [
+    "task:task-security-review-the-builder-recursively-force-stag",
+    "finding:finding-builder-unbounded-run-evidence-commit"
+  ],
+  "baselineRefs": [
+    "git:e84f5913889a28f37d1cc5ceaaf5173a35d61f64",
+    "git:4ae0371ea86cc8eb2217a7f06156c6fa1db27fe7"
+  ],
+  "candidateRefs": [
+    "src/modules/autonomy/commit.ts",
+    "src/modules/autonomy/workflows/builder/agent-run-artifacts.ts",
+    "src/modules/autonomy/workflows/builder/agent-run-evidence-policy.ts",
+    "src/modules/autonomy/workflows/builder/agent-run-evidence-png.ts",
+    "src/modules/autonomy/workflows/builder/agent-run-evidence-projection.test.ts",
+    "src/modules/autonomy/product-evidence.ts",
+    "src/modules/autonomy/critic.ts"
+  ],
+  "metricsCompared": [
+    {
+      "name": "durable evidence staging boundary",
+      "baseline": "recursive force-add of the agent-writable run directory",
+      "candidate": "exact-path projection plus a commit policy that excludes both runtime namespaces regardless of ignore rules",
+      "unit": "staging policy",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "builder workflow regression suite",
+      "baseline": "no regression coverage for unexpected credential files or serial runtime artifacts",
+      "candidate": "138 of 138 builder, commit, workflow-resource, and critic-evidence tests passed with pre-validation projection, raw-source rejection, linked projection-ancestor rejection, no-ignore namespace-wide boundary, sibling-run, worktree, serial, opaque-container, and compressed-PNG-metadata security cases",
+      "unit": "tests",
+      "direction": "improved",
+      "qualitySignal": true
+    }
+  ],
+  "rolloutMode": "blocking",
+  "decision": "promote",
+  "rationale": "The candidate removes the confirmed high-severity force-staging path, excludes raw and canonical runtime namespaces even without ignore rules, separates raw artifacts from durable evidence, decodes and re-encodes PNGs without metadata, rejects unsupported opaque binaries, and passes the full builder and commit test surfaces plus typechecking.",
+  "ownerSafetyExceptions": [],
+  "followUpTaskIds": []
+}

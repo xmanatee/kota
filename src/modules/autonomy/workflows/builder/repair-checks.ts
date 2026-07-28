@@ -3,7 +3,6 @@ import {
   AUTONOMY_CHANGE_DECISION_CHECK_ID,
   checkAutonomyChangeDecisionForRun,
 } from "#modules/autonomy/autonomy-change-decision.js";
-import { checkCommitStageable } from "#modules/autonomy/commit.js";
 import { createCriticCheck } from "#modules/autonomy/critic.js";
 import { checkDocBloat } from "#modules/autonomy/doc-bloat-check.js";
 import { checkRepoHygiene } from "#modules/autonomy/hygiene-check.js";
@@ -18,7 +17,10 @@ import {
 } from "#modules/autonomy/source-size-escalation.js";
 import { checkSevereSourceFileSizeForRun } from "#modules/autonomy/source-size-review-artifact.js";
 import type { QueueTaskClaimResult } from "#modules/autonomy/task-claims.js";
-import { checkAgentRunArtifactsReady } from "./agent-run-artifacts.js";
+import {
+  checkBuilderWorkflowChangesStageable,
+  projectAgentRunArtifactsForValidation,
+} from "./agent-run-artifacts.js";
 import {
   checkMacosSwiftBuild,
   checkMobileTypecheck,
@@ -69,6 +71,16 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       run: (ctx) => checkSuccessCriteriaVerified(builderAgentRunDir(ctx)),
     },
     {
+      id: "agent-run-artifacts-ready",
+      type: "code" as const,
+      phase: 1,
+      run: (ctx) =>
+        projectAgentRunArtifactsForValidation(
+          builderAgentRunDir(ctx),
+          workflowWorkspaceDir(ctx),
+        ),
+    },
+    {
       id: "actionable-task-resolved",
       type: "code" as const,
       phase: 1,
@@ -108,7 +120,7 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
     {
       id: "task-queue-valid",
       type: "code" as const,
-      phase: 1,
+      phase: 2,
       run: (ctx) => checkPackageScript(workflowWorkspaceDir(ctx), "pnpm run validate-tasks"),
     },
     {
@@ -210,17 +222,14 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
         checkCommitMessageExists(builderAgentRunDir(ctx), workflowWorkspaceDir(ctx)),
     },
     {
-      id: "agent-run-artifacts-ready",
-      type: "code" as const,
-      phase: 1,
-      run: (ctx) =>
-        checkAgentRunArtifactsReady(builderAgentRunDir(ctx), workflowWorkspaceDir(ctx)),
-    },
-    {
       id: "commit-stageable",
       type: "code" as const,
-      run: (ctx) => checkCommitStageable(workflowWorkspaceDir(ctx)),
+      run: (ctx) =>
+        checkBuilderWorkflowChangesStageable(
+          workflowWorkspaceDir(ctx),
+          builderAgentRunDir(ctx),
+        ),
     },
-    { ...createCriticCheck(), phase: 2 },
+    { ...createCriticCheck(), phase: 3 },
   ];
 }

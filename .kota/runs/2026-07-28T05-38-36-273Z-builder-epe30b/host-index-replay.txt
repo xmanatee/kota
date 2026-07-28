@@ -1,0 +1,10 @@
+Host index replay required after leaving the read-only sandbox:
+
+git add -A
+
+Repair 11 validated the exact 26-path commit set with workspace-local Git index
+`.kota/tmp/2026-07-28T05-38-36-273Z-builder-epe30b/git-index`, local object
+directory `git-objects`, and host objects as alternates.
+The staged severe source-size check returned:
+OK: changed source files are under source-size warning thresholds
+Validated staged tree: 6777a0337560f5c2b662e135380434560b48e566

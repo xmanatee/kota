@@ -1,5 +1,5 @@
 import { existsSync, readdirSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 
 export type ProductOperatorEvidenceCheck = {
@@ -87,10 +87,31 @@ function changedFileEvidenceRefs(changedFiles: string): string[] {
     .sort();
 }
 
+export function resolveDurableOperatorEvidenceDir(
+  projectDir: string,
+  runDirPath: string,
+): string {
+  const projectRoot = resolve(projectDir);
+  const runRoot = resolve(runDirPath);
+  const relativeRunDir = relative(projectRoot, runRoot);
+  if (relativeRunDir.startsWith("..") || isAbsolute(relativeRunDir)) {
+    return runDirPath;
+  }
+  const parts = relativeRunDir.split(sep);
+  if (
+    parts.length !== 3 ||
+    parts[0] !== ".kota" ||
+    parts[1] !== "builder-evidence"
+  ) {
+    return runDirPath;
+  }
+  return join(projectRoot, ".kota", "runs", parts[2], "evidence");
+}
+
 export function checkProductOperatorEvidence(args: {
   taskContent: string;
   taskState: string;
-  runDirPath: string;
+  evidenceDirPath: string;
   changedFiles: string;
   hasRuntimeProbeResult: boolean;
 }): ProductOperatorEvidenceCheck {
@@ -111,7 +132,7 @@ export function checkProductOperatorEvidence(args: {
   }
 
   const refs = [
-    ...listRunArtifactEvidenceRefs(args.runDirPath).map((ref) => `run:${ref}`),
+    ...listRunArtifactEvidenceRefs(args.evidenceDirPath).map((ref) => `run:${ref}`),
     ...changedFileEvidenceRefs(args.changedFiles).map((ref) => `changed:${ref}`),
     ...(args.hasRuntimeProbeResult ? ["run:runtime-probe.json"] : []),
   ];

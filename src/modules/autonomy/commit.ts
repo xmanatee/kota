@@ -7,6 +7,13 @@ import {
   listWorkflowMutatedPaths,
 } from "#core/workflow/steps/agent-write-scope.js";
 import {
+  isGitIndexLockErrorMessage,
+  listPathsNeedingStaging,
+  listStagedDeletions,
+  stageWorkflowPaths,
+  withGitIndexLockRetry,
+} from "./commit-git.js";
+import {
   checkNoRegisteredScratchWorktrees,
   findScratchArtifactPaths,
 } from "./shared.js";
@@ -20,10 +27,14 @@ export type WorkflowCommitPathPolicy =
   | {
     kind: "paths-mutated-since-baseline";
     baselineMutatedPaths: readonly string[];
+  }
+  | {
+    kind: "all-mutated-paths-with-boundaries";
+    excludedPathRoots: readonly string[];
+    allowedPaths: readonly string[];
   };
 
 const ALL_MUTATED_PATHS: WorkflowCommitPathPolicy = { kind: "all-mutated-paths" };
-const GIT_INDEX_LOCK_RETRY_DELAYS_MS = [100, 250, 500, 1_000, 2_000, 3_000];
 
 function runGit(projectDir: string, command: string): string {
   return execSync(command, {
@@ -32,29 +43,6 @@ function runGit(projectDir: string, command: string): string {
     encoding: "utf-8",
     stdio: "pipe",
   }).trim();
-}
-
-function isGitIndexLockErrorMessage(message: string): boolean {
-  return message.includes("index.lock");
-}
-
-function sleepSync(ms: number): void {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-}
-
-function withGitIndexLockRetry<T>(run: () => T): T {
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      return run();
-    } catch (error) {
-      const message = describeError(error);
-      const delayMs = GIT_INDEX_LOCK_RETRY_DELAYS_MS[attempt];
-      if (!isGitIndexLockErrorMessage(message) || delayMs === undefined) {
-        throw error;
-      }
-      sleepSync(delayMs);
-    }
-  }
 }
 
 function runGitCommitOnlyPaths(
@@ -105,101 +93,18 @@ function listCommitMutatedPaths(
 ): string[] {
   const mutatedPaths = listWorkflowMutatedPaths(projectDir);
   if (policy.kind === "all-mutated-paths") return mutatedPaths;
-  return diffMutatedPaths(policy.baselineMutatedPaths, mutatedPaths);
-}
-
-/**
- * Returns paths already staged as deletions (present in HEAD, absent from
- * the index — the state `git rm <path>` leaves behind). Such paths appear in
- * `git diff --name-only --no-renames HEAD` but `git add -A -- <path>`
- * rejects them with "pathspec did not match any files" because neither
- * working tree nor index has an entry to match. They are already correctly
- * staged, so the commit step does not need to re-add them.
- */
-function listStagedDeletions(projectDir: string): Set<string> {
-  const stdout = execFileSync(
-    "git",
-    ["diff", "--cached", "--name-only", "--no-renames", "--diff-filter=D"],
-    {
-      cwd: projectDir,
-      env: withProtectedGitBareRepositoryEnv(),
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
-  const set = new Set<string>();
-  for (const line of stdout.split("\n")) {
-    const trimmed = line.trim();
-    if (trimmed.length > 0) set.add(trimmed);
+  if (policy.kind === "paths-mutated-since-baseline") {
+    return diffMutatedPaths(policy.baselineMutatedPaths, mutatedPaths);
   }
-  return set;
-}
 
-function listPathsNeedingStaging(projectDir: string, paths: readonly string[]): string[] {
-  if (paths.length === 0) return [];
-  const stdout = execFileSync(
-    "git",
-    [
-      "status",
-      "--porcelain=v1",
-      "-z",
-      "--untracked-files=all",
-      "--ignored=matching",
-      "--",
-      ...paths,
-    ],
-    {
-      cwd: projectDir,
-      env: withProtectedGitBareRepositoryEnv(),
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    },
+  const allowedPaths = new Set(policy.allowedPaths);
+  return mutatedPaths.filter(
+    (path) =>
+      allowedPaths.has(path) ||
+      !policy.excludedPathRoots.some(
+        (root) => path === root || path.startsWith(`${root}/`),
+      ),
   );
-  const entries = stdout.split("\0").filter((entry) => entry.length > 0);
-  const needsStaging: string[] = [];
-  for (let index = 0; index < entries.length; index += 1) {
-    const entry = entries[index] ?? "";
-    if (entry.length < 4) continue;
-    const indexStatus = entry[0];
-    const worktreeStatus = entry[1];
-    const path = entry.slice(3);
-    if (indexStatus === "R" || indexStatus === "C") {
-      index += 1;
-    }
-    if (
-      (indexStatus === "?" && worktreeStatus === "?") ||
-      (indexStatus === "!" && worktreeStatus === "!") ||
-      worktreeStatus !== " "
-    ) {
-      needsStaging.push(path);
-    }
-  }
-  return [...new Set(needsStaging)];
-}
-
-export function stageWorkflowPaths(
-  projectDir: string,
-  paths: readonly string[],
-  options: { includeIgnored?: boolean } = {},
-): void {
-  if (paths.length === 0) return;
-  withGitIndexLockRetry(() => {
-    execFileSync(
-      "git",
-      [
-        "add",
-        ...(options.includeIgnored === true ? ["--force"] : []),
-        "-A",
-        "--",
-        ...paths,
-      ],
-      {
-        cwd: projectDir,
-        env: withProtectedGitBareRepositoryEnv(),
-        stdio: "pipe",
-      },
-    );
-  });
 }
 
 /**

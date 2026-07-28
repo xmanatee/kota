@@ -20,7 +20,7 @@ import {
 installRuntimeResourceTestHooks();
 
 describe("builder runtime resource assignment", () => {
-  it("uses the canonical run directory when the workspace is the project checkout", async () => {
+  it("keeps serial-mode builder evidence separate from the canonical workflow run store", async () => {
     const projectDir = tempProject("root-workspace");
     const runDirPath = join(projectDir, ".kota", "runs", "run-root");
 
@@ -33,9 +33,14 @@ describe("builder runtime resource assignment", () => {
     });
 
     const metadata = profile;
-    expect(metadata.agentRunDir).toBe(runDirPath);
-    expect(metadata.artifactRoot).toBe(join(runDirPath, "artifacts"));
-    expect(metadata.env.KOTA_RUN_DIR).toBe(runDirPath);
+    expect(metadata.agentRunDir).toBe(
+      join(projectDir, ".kota", "builder-evidence", "run-root"),
+    );
+    expect(metadata.agentRunDir).not.toBe(runDirPath);
+    expect(metadata.artifactRoot).toBe(
+      join(metadata.agentRunDir, "artifacts"),
+    );
+    expect(metadata.env.KOTA_RUN_DIR).toBe(metadata.agentRunDir);
     expect(metadata.env.KOTA_RUN_ARTIFACT_DIR).toBe(metadata.artifactRoot);
   });
 
@@ -74,10 +79,14 @@ describe("builder runtime resource assignment", () => {
     expect(rangesOverlap(alpha.ports, beta.ports)).toBe(false);
     expect(alpha.tempRoot).toBe(join(alphaWorkspace, ".kota", "tmp", "run-a"));
     expect(beta.tempRoot).toBe(join(betaWorkspace, ".kota", "tmp", "run-b"));
-    expect(alpha.agentRunDir).toBe(join(alphaWorkspace, ".kota", "runs", "run-a"));
-    expect(beta.agentRunDir).toBe(join(betaWorkspace, ".kota", "runs", "run-b"));
-    expect(alpha.artifactRoot).toBe(join(alpha.agentRunDir, "artifacts"));
-    expect(beta.artifactRoot).toBe(join(beta.agentRunDir, "artifacts"));
+    expect(alpha.agentRunDir).toBe(join(alphaWorkspace, ".kota", "builder-evidence", "run-a"));
+    expect(beta.agentRunDir).toBe(join(betaWorkspace, ".kota", "builder-evidence", "run-b"));
+    expect(alpha.artifactRoot).toBe(
+      join(alpha.agentRunDir, "artifacts"),
+    );
+    expect(beta.artifactRoot).toBe(
+      join(beta.agentRunDir, "artifacts"),
+    );
     expect(alpha.env.KOTA_RUN_DIR).toBe(alpha.agentRunDir);
     expect(beta.env.KOTA_RUN_ARTIFACT_DIR).toBe(beta.artifactRoot);
     expect(alpha.env.KOTA_PORT_BASE).toBe(String(alpha.ports.start));

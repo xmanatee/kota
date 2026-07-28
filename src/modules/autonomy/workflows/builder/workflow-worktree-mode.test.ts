@@ -76,14 +76,14 @@ describe("builder workflow worktree mode", () => {
       runtimeResources: {
         profileId: "task-claimed:harness-run-id",
         workspaceDir: expectedWorkspaceDir,
-        agentRunDir: `${expectedWorkspaceDir}/.kota/runs/harness-run-id`,
+        agentRunDir: `${expectedWorkspaceDir}/.kota/builder-evidence/harness-run-id`,
         tempRoot: `${expectedWorkspaceDir}/.kota/tmp/harness-run-id`,
-        artifactRoot: `${expectedWorkspaceDir}/.kota/runs/harness-run-id/artifacts`,
+        artifactRoot: `${expectedWorkspaceDir}/.kota/builder-evidence/harness-run-id/artifacts`,
         ports: { size: 20 },
         env: {
           KOTA_RUNTIME_PROFILE_ID: "task-claimed:harness-run-id",
           KOTA_WORKSPACE_DIR: expectedWorkspaceDir,
-          KOTA_RUN_DIR: `${expectedWorkspaceDir}/.kota/runs/harness-run-id`,
+          KOTA_RUN_DIR: `${expectedWorkspaceDir}/.kota/builder-evidence/harness-run-id`,
         },
       },
     });

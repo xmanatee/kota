@@ -1,0 +1,3 @@
+1. The builder commits only explicitly registered evidence artifacts from a dedicated evidence directory and never recursively force-stages its canonical workflow run store.
+2. Evidence projection fails closed on credential material and file-count or size limit violations without weakening existing authorization, tool-risk, or credential boundaries.
+3. Focused worktree and serial-mode regressions prove unexpected ignored secret files and runtime step artifacts remain untracked, and the task records fresh verification evidence.

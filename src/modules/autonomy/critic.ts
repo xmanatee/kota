@@ -13,7 +13,10 @@ import {
 } from "./critic-diff.js";
 import { runProbeIfDeclared } from "./critic-runtime-probe.js";
 import { handleVerdict, parseVerdict } from "./critic-verdict.js";
-import { checkProductOperatorEvidence } from "./product-evidence.js";
+import {
+  checkProductOperatorEvidence,
+  resolveDurableOperatorEvidenceDir,
+} from "./product-evidence.js";
 import { fileLineCitationsFromUnifiedDiff } from "./review-scrutiny-citations.js";
 import { AUTONOMY_AGENT_DEFAULTS } from "./shared.js";
 import { formatProbeBlock } from "./task-probe.js";
@@ -160,6 +163,9 @@ export function createCriticCheck(options?: {
       const changedFiles = getChangedFiles(reviewDir);
       const workspaceRunDir = ctx.runtimeResources?.agentRunDir;
       const runDir = options?.runDirPath ?? workspaceRunDir ?? ctx.workflow.runDirPath;
+      const durableEvidenceDir = options?.runDirPath !== undefined
+        ? runDir
+        : resolveDurableOperatorEvidenceDir(reviewDir, runDir);
       const taskId = taskIdFromReviewTargetPath(target.path);
       const fallbackFileLineCitations = fileLineCitationsFromUnifiedDiff(diffContent);
       const verdictContext = {
@@ -182,7 +188,7 @@ export function createCriticCheck(options?: {
       const productEvidence = checkProductOperatorEvidence({
         taskContent,
         taskState: target.state,
-        runDirPath: runDir,
+        evidenceDirPath: durableEvidenceDir,
         changedFiles,
         hasRuntimeProbeResult: probeResult !== null,
       });

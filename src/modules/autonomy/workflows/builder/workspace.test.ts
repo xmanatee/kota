@@ -9,7 +9,7 @@ describe("builder workspace helpers", () => {
 
   it("requires an explicit absolute agentRunDir inside the active workspace", () => {
     const workspaceDir = "/repo/.worktrees/task-run";
-    const agentRunDir = join(workspaceDir, ".kota", "runs", "run-1");
+    const agentRunDir = join(workspaceDir, ".kota", "builder-evidence", "run-1");
 
     expect(
       builderAgentRunDir({
@@ -34,6 +34,18 @@ describe("builder workspace helpers", () => {
         },
       }),
     ).toThrow(/inside the active workspace/);
+
+    expect(() =>
+      builderAgentRunDir({
+        projectDir: "/repo",
+        workspaceDir,
+        runtimeResources: {
+          profileId: "profile-1",
+          agentRunDir: join(workspaceDir, ".kota", "runs", "run-1"),
+          env: {},
+        },
+      }),
+    ).toThrow(/must use \.kota\/builder-evidence/);
   });
 
   it("fails instead of guessing when runtime resources are missing", () => {

@@ -1,90 +1,206 @@
-import { lstatSync, readdirSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import {
+  chmodSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  writeFileSync,
+} from "node:fs";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import {
   type CommitResult,
+  checkCommitStageable,
   commitWorkflowChanges,
-  stageWorkflowPaths,
+  type WorkflowCommitPathPolicy,
 } from "#modules/autonomy/commit.js";
+import { stageWorkflowPaths } from "#modules/autonomy/commit-git.js";
+import {
+  type BuilderEvidenceInspection,
+  inspectBuilderEvidence,
+} from "./agent-run-evidence-policy.js";
 import { isBuilderPathInside } from "./workspace.js";
 
-const REQUIRED_AGENT_RUN_ARTIFACTS = [
-  "success-criteria.txt",
-  "success-criteria-verified.txt",
-  "commit-message.txt",
-] as const;
+function ensureRealDirectory(path: string): void {
+  const existing = lstatSync(path, { throwIfNoEntry: false });
+  if (existing === undefined) {
+    mkdirSync(path);
+    return;
+  }
+  if (!existing.isDirectory() || existing.isSymbolicLink()) {
+    throw new Error(`Builder evidence projection path must be a real directory: ${path}`);
+  }
+}
 
-type AgentRunArtifacts = {
-  fileCount: number;
-  relativeRunDir: string;
-};
+function ensureDirectoryChain(workspaceRoot: string, target: string): void {
+  if (!isBuilderPathInside(workspaceRoot, target)) {
+    throw new Error(`Builder evidence projection escaped the workspace: ${target}`);
+  }
+  const relativeTarget = relative(workspaceRoot, target);
+  let current = workspaceRoot;
+  for (const part of relativeTarget.split(sep)) {
+    current = join(current, part);
+    ensureRealDirectory(current);
+  }
+}
 
-function listRegularFiles(directory: string): string[] {
+function toGitPath(path: string): string {
+  return path.split(sep).join("/");
+}
+
+function listExistingProjectionFiles(
+  workspaceRoot: string,
+  projectionRoot: string,
+): string[] {
+  const rootStats = lstatSync(projectionRoot, { throwIfNoEntry: false });
+  if (rootStats === undefined) return [];
+  if (!rootStats.isDirectory() || rootStats.isSymbolicLink()) {
+    throw new Error(
+      `Builder evidence projection path must be a real directory: ${projectionRoot}`,
+    );
+  }
+
   const paths: string[] = [];
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    const path = join(directory, entry.name);
-    if (entry.isDirectory()) {
-      paths.push(...listRegularFiles(path));
-    } else if (entry.isFile()) {
-      paths.push(path);
-    } else {
-      throw new Error(`Builder run evidence must be a regular file or directory: ${path}`);
+  function visit(directory: string): void {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const absolutePath = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        visit(absolutePath);
+        continue;
+      }
+      const stats = lstatSync(absolutePath);
+      if (!entry.isFile() || entry.isSymbolicLink() || stats.nlink !== 1) {
+        throw new Error(
+          `Builder evidence projection contains a non-private file: ${absolutePath}`,
+        );
+      }
+      paths.push(toGitPath(relative(workspaceRoot, absolutePath)));
     }
   }
+  visit(projectionRoot);
   return paths;
 }
 
-function inspectAgentRunArtifacts(
-  agentRunDir: string,
+function builderEvidenceProjectionPaths(
   workspaceDir: string,
-): AgentRunArtifacts {
+  agentRunDir: string,
+  evidence: BuilderEvidenceInspection,
+): string[] {
   const workspaceRoot = resolve(workspaceDir);
-  const runRoot = resolve(agentRunDir);
-  if (runRoot === workspaceRoot || !isBuilderPathInside(workspaceRoot, runRoot)) {
-    throw new Error(`Builder run directory is outside the active workspace: ${agentRunDir}`);
-  }
+  const projectionRoot = join(
+    workspaceRoot,
+    ".kota",
+    "runs",
+    basename(agentRunDir),
+    "evidence",
+  );
+  return evidence.files.map((file) =>
+    toGitPath(
+      relative(workspaceRoot, join(projectionRoot, file.relativeEvidencePath)),
+    )
+  );
+}
 
-  const runStats = lstatSync(runRoot);
-  if (!runStats.isDirectory() || runStats.isSymbolicLink()) {
-    throw new Error(`Builder run evidence path must be a real directory: ${agentRunDir}`);
-  }
-
+function builderCommitPathPolicy(
+  projectedPaths: readonly string[],
+): WorkflowCommitPathPolicy {
   return {
-    fileCount: listRegularFiles(runRoot).length,
-    relativeRunDir: relative(workspaceRoot, runRoot),
+    kind: "all-mutated-paths-with-boundaries",
+    excludedPathRoots: [".kota/builder-evidence", ".kota/runs"],
+    allowedPaths: projectedPaths,
   };
+}
+
+function projectBuilderEvidence(
+  workspaceDir: string,
+  agentRunDir: string,
+): string[] {
+  const workspaceRoot = resolve(workspaceDir);
+  const evidence = inspectBuilderEvidence(agentRunDir, workspaceRoot);
+  const projectedPaths = builderEvidenceProjectionPaths(
+    workspaceRoot,
+    agentRunDir,
+    evidence,
+  );
+  const projectionRoot = join(
+    workspaceRoot,
+    ".kota",
+    "runs",
+    basename(agentRunDir),
+    "evidence",
+  );
+  ensureDirectoryChain(workspaceRoot, dirname(projectionRoot));
+  const projectedPathSet = new Set(projectedPaths);
+  const unexpectedPaths = listExistingProjectionFiles(
+    workspaceRoot,
+    projectionRoot,
+  ).filter((path) => !projectedPathSet.has(path));
+  if (unexpectedPaths.length > 0) {
+    throw new Error(
+      `Builder evidence projection contains unregistered file(s): ${unexpectedPaths.join(", ")}`,
+    );
+  }
+  ensureDirectoryChain(workspaceRoot, projectionRoot);
+
+  for (const file of evidence.files) {
+    const destination = join(projectionRoot, file.relativeEvidencePath);
+    ensureDirectoryChain(workspaceRoot, dirname(destination));
+    const existing = lstatSync(destination, { throwIfNoEntry: false });
+    if (
+      existing !== undefined &&
+      (!existing.isFile() || existing.isSymbolicLink() || existing.nlink !== 1)
+    ) {
+      throw new Error(
+        `Builder evidence projection target must be a private regular file: ${destination}`,
+      );
+    }
+    writeFileSync(destination, file.projectedContent, { mode: 0o600 });
+    chmodSync(destination, 0o600);
+  }
+  stageWorkflowPaths(workspaceRoot, projectedPaths, {
+    includeIgnored: true,
+  });
+  return projectedPaths;
 }
 
 export function checkAgentRunArtifactsReady(
   agentRunDir: string,
   workspaceDir: string,
 ): string {
-  const missing: string[] = [];
-  for (const name of REQUIRED_AGENT_RUN_ARTIFACTS) {
-    const filePath = join(agentRunDir, name);
-    const stats = lstatSync(filePath, { throwIfNoEntry: false });
-    if (stats === undefined) {
-      missing.push(filePath);
-    } else if (!stats.isFile()) {
-      throw new Error(`Required agent run artifact must be a regular file: ${filePath}`);
-    }
-  }
-  if (missing.length > 0) {
-    throw new Error(
-      `Required agent run artifact(s) are missing:\n${missing.map((p) => `  ${p}`).join("\n")}`,
-    );
-  }
+  const evidence = inspectBuilderEvidence(agentRunDir, workspaceDir);
+  return `OK: ${evidence.fileCount} registered builder evidence file(s), ${evidence.totalBytes} byte(s) ready`;
+}
 
-  const artifacts = inspectAgentRunArtifacts(agentRunDir, workspaceDir);
-  return `OK: ${artifacts.fileCount} builder run evidence file(s) ready`;
+export function projectAgentRunArtifactsForValidation(
+  agentRunDir: string,
+  workspaceDir: string,
+): string {
+  const projectedPaths = projectBuilderEvidence(workspaceDir, agentRunDir);
+  return `OK: ${projectedPaths.length} screened builder evidence file(s) projected and staged`;
+}
+
+export function checkBuilderWorkflowChangesStageable(
+  workspaceDir: string,
+  agentRunDir: string,
+): string {
+  const evidence = inspectBuilderEvidence(agentRunDir, workspaceDir);
+  const projectedPaths = builderEvidenceProjectionPaths(
+    workspaceDir,
+    agentRunDir,
+    evidence,
+  );
+  return checkCommitStageable(
+    workspaceDir,
+    builderCommitPathPolicy(projectedPaths),
+  );
 }
 
 export function commitBuilderWorkflowChanges(
   workspaceDir: string,
   agentRunDir: string,
 ): CommitResult {
-  const artifacts = inspectAgentRunArtifacts(agentRunDir, workspaceDir);
-  stageWorkflowPaths(workspaceDir, [artifacts.relativeRunDir], {
-    includeIgnored: true,
-  });
-  return commitWorkflowChanges(workspaceDir, agentRunDir);
+  const projectedPaths = projectBuilderEvidence(workspaceDir, agentRunDir);
+  return commitWorkflowChanges(
+    workspaceDir,
+    agentRunDir,
+    builderCommitPathPolicy(projectedPaths),
+  );
 }
