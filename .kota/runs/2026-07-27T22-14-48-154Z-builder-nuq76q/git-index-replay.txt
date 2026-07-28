@@ -1,0 +1,7 @@
+The linked worktree's host Git index is read-only in this sandbox. Validation and staging use:
+
+GIT_INDEX_FILE=$PWD/.kota/tmp/2026-07-27T22-14-48-154Z-builder-nuq76q/git-index
+GIT_OBJECT_DIRECTORY=$PWD/.kota/tmp/2026-07-27T22-14-48-154Z-builder-nuq76q/git-objects
+GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects
+
+The exact final repair set is staged in this workspace-local index. The read-only host index still contains the pre-repair staged snapshot, so the workflow or a writable host must replay `git add -A` before committing. All final staged-diff checks used the three variables above.

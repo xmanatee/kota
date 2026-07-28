@@ -4,15 +4,19 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isProcessAlive } from "#core/util/process-alive.js";
+import { Daemon } from "./daemon.js";
 import {
   acquireInstanceLock,
   CONTROL_FILE,
@@ -20,6 +24,7 @@ import {
   releaseInstanceLock,
   writeControlFile,
 } from "./daemon-instance-lock.js";
+import { prepareDaemonStateRoot } from "./daemon-state-root.js";
 
 vi.mock("node:child_process", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:child_process")>();
@@ -75,8 +80,8 @@ describe("daemon instance lock", () => {
   });
 
   it("refuses to acquire the instance lock when daemon-state points at a live daemon without a control file", async () => {
-    const stateDir = join(tmpDir, ".kota");
-    mkdirSync(stateDir, { recursive: true });
+    const stateRoot = prepareDaemonStateRoot(tmpDir, undefined);
+    const stateDir = stateRoot.path;
     writeFileSync(
       join(stateDir, "daemon-state.json"),
       JSON.stringify({
@@ -88,14 +93,15 @@ describe("daemon instance lock", () => {
     mockedExecFileSync.mockReturnValue("node dist/cli.js daemon --project-dir /repo" as never);
 
     await expect(
-      acquireInstanceLock(tmpDir, stateDir, contender, () => {}),
+      acquireInstanceLock(tmpDir, stateRoot, contender, () => {}),
     ).rejects.toThrow(/stranded daemon process is already running/);
   });
 
   it("preserves a live owner's control file when its API is unreachable", async () => {
-    const stateDir = join(tmpDir, ".kota");
+    const stateRoot = prepareDaemonStateRoot(tmpDir, undefined);
+    const stateDir = stateRoot.path;
     const controlPath = join(stateDir, CONTROL_FILE);
-    writeControlFile(stateDir, {
+    writeControlFile(stateRoot, {
       port: 3921,
       pid: 12345,
       startedAt: "2026-06-04T10:00:00.000Z",
@@ -105,27 +111,28 @@ describe("daemon instance lock", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("unreachable")));
 
     await expect(
-      acquireInstanceLock(tmpDir, stateDir, contender, () => {}),
+      acquireInstanceLock(tmpDir, stateRoot, contender, () => {}),
     ).rejects.toThrow(/process 12345 is alive.*control API.*unreachable/);
     expect(existsSync(controlPath)).toBe(true);
   });
 
   it("preserves a live owner's control file when its API reports degradation", async () => {
-    const stateDir = join(tmpDir, ".kota");
+    const stateRoot = prepareDaemonStateRoot(tmpDir, undefined);
+    const stateDir = stateRoot.path;
     const controlPath = join(stateDir, CONTROL_FILE);
-    writeControlFile(stateDir, { ...owner, port: 3921 });
+    writeControlFile(stateRoot, { ...owner, port: 3921 });
     mockedIsProcessAlive.mockReturnValue(true);
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 503 })));
 
     await expect(
-      acquireInstanceLock(tmpDir, stateDir, contender, () => {}),
+      acquireInstanceLock(tmpDir, stateRoot, contender, () => {}),
     ).rejects.toThrow(/process 12345 is alive.*returned HTTP 503/);
     expect(existsSync(controlPath)).toBe(true);
   });
 
   it("authenticates a live owner's process identity before rejecting startup", async () => {
-    const stateDir = join(tmpDir, ".kota");
-    writeControlFile(stateDir, { ...owner, port: 3921 });
+    const stateRoot = prepareDaemonStateRoot(tmpDir, undefined);
+    writeControlFile(stateRoot, { ...owner, port: 3921 });
     mockedIsProcessAlive.mockReturnValue(true);
     const fetchMock = vi.fn().mockResolvedValue(
       Response.json({ pid: owner.pid, startedAt: owner.startedAt }),
@@ -133,7 +140,7 @@ describe("daemon instance lock", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
-      acquireInstanceLock(tmpDir, stateDir, contender, () => {}),
+      acquireInstanceLock(tmpDir, stateRoot, contender, () => {}),
     ).rejects.toThrow(/Another daemon instance is already running/);
     expect(fetchMock).toHaveBeenCalledWith(
       "http://127.0.0.1:3921/identity",
@@ -144,11 +151,12 @@ describe("daemon instance lock", () => {
   });
 
   it("allows only one simultaneous startup to reserve the project", async () => {
-    const stateDir = join(tmpDir, ".kota");
+    const stateRoot = prepareDaemonStateRoot(tmpDir, undefined);
+    const stateDir = stateRoot.path;
     mockedIsProcessAlive.mockReturnValue(true);
     const attempts = await Promise.allSettled([
-      acquireInstanceLock(tmpDir, stateDir, owner, () => {}),
-      acquireInstanceLock(tmpDir, stateDir, contender, () => {}),
+      acquireInstanceLock(tmpDir, stateRoot, owner, () => {}),
+      acquireInstanceLock(tmpDir, stateRoot, contender, () => {}),
     ]);
 
     expect(attempts.filter((attempt) => attempt.status === "fulfilled")).toHaveLength(1);
@@ -159,11 +167,12 @@ describe("daemon instance lock", () => {
   });
 
   itPosix("creates the state directory and control file with restrictive POSIX modes", () => {
-    const stateDir = join(tmpDir, ".kota");
+    const stateRoot = prepareDaemonStateRoot(tmpDir, undefined);
+    const stateDir = stateRoot.path;
     const controlPath = join(stateDir, CONTROL_FILE);
 
     withPermissiveUmask(() => {
-      writeControlFile(stateDir, {
+      writeControlFile(stateRoot, {
         port: 3921,
         pid: 12345,
         startedAt: "2026-06-04T10:00:00.000Z",
@@ -176,6 +185,54 @@ describe("daemon instance lock", () => {
     expect(existsSync(`${controlPath}.tmp`)).toBe(false);
   });
 
+  itPosix("rejects a symlinked default project state root without touching its target", () => {
+    const projectDir = join(tmpDir, "project");
+    const targetDir = join(tmpDir, "redirected-state");
+    mkdirSync(projectDir);
+    mkdirSync(targetDir, { mode: 0o777 });
+    chmodSync(targetDir, 0o777);
+    symlinkSync(targetDir, join(projectDir, ".kota"), "dir");
+
+    expect(() => new Daemon({ projectDir })).toThrow(
+      /default daemon state directory must not be a symbolic link/,
+    );
+    expect(fileMode(targetDir)).toBe(0o777);
+    expect(readdirSync(targetDir)).toEqual([]);
+  });
+
+  itPosix("rejects replacement of an anchored default state root", () => {
+    const projectDir = join(tmpDir, "project");
+    const targetDir = join(tmpDir, "redirected-state");
+    mkdirSync(projectDir);
+    mkdirSync(targetDir, { mode: 0o777 });
+    chmodSync(targetDir, 0o777);
+    const stateRoot = prepareDaemonStateRoot(projectDir, undefined);
+    renameSync(stateRoot.path, join(projectDir, "original-state"));
+    symlinkSync(targetDir, stateRoot.path, "dir");
+
+    expect(() => writeControlFile(stateRoot, { ...owner, port: 3921 })).toThrow(
+      /default daemon state directory must not be a symbolic link/,
+    );
+    expect(fileMode(targetDir)).toBe(0o777);
+    expect(readdirSync(targetDir)).toEqual([]);
+  });
+
+  itPosix("preserves explicitly configured external state-directory handling", () => {
+    const projectDir = join(tmpDir, "project");
+    const targetDir = join(tmpDir, "operator-state");
+    const configuredStateDir = join(tmpDir, "configured-state");
+    mkdirSync(projectDir);
+    mkdirSync(targetDir, { mode: 0o777 });
+    chmodSync(targetDir, 0o777);
+    symlinkSync(targetDir, configuredStateDir, "dir");
+    const stateRoot = prepareDaemonStateRoot(projectDir, configuredStateDir);
+
+    writeControlFile(stateRoot, { ...owner, port: 3921 });
+
+    expect(fileMode(targetDir)).toBe(0o700);
+    expect(existsSync(join(targetDir, CONTROL_FILE))).toBe(true);
+  });
+
   itPosix("tightens an existing permissive state directory and stale temp file", () => {
     const stateDir = join(tmpDir, ".kota");
     const controlPath = join(stateDir, CONTROL_FILE);
@@ -186,7 +243,8 @@ describe("daemon instance lock", () => {
       writeFileSync(tmpPath, "stale", { encoding: "utf-8", mode: 0o666 });
       chmodSync(stateDir, 0o777);
 
-      writeControlFile(stateDir, {
+      const stateRoot = prepareDaemonStateRoot(tmpDir, stateDir);
+      writeControlFile(stateRoot, {
         port: 3921,
         pid: 12345,
         startedAt: "2026-06-04T10:00:00.000Z",
@@ -200,20 +258,21 @@ describe("daemon instance lock", () => {
   });
 
   it("releases only files owned by the stopping daemon", async () => {
-    const stateDir = join(tmpDir, ".kota");
+    const stateRoot = prepareDaemonStateRoot(tmpDir, undefined);
+    const stateDir = stateRoot.path;
     const controlPath = join(stateDir, CONTROL_FILE);
     const lockPath = join(stateDir, INSTANCE_LOCK_FILE);
-    await acquireInstanceLock(tmpDir, stateDir, owner, () => {});
-    writeControlFile(stateDir, { ...owner, port: 3921 });
+    await acquireInstanceLock(tmpDir, stateRoot, owner, () => {});
+    writeControlFile(stateRoot, { ...owner, port: 3921 });
 
-    releaseInstanceLock(stateDir, {
+    releaseInstanceLock(stateRoot, {
       ...owner,
       token: "different-daemon-token",
     });
     expect(existsSync(controlPath)).toBe(true);
     expect(existsSync(lockPath)).toBe(true);
 
-    releaseInstanceLock(stateDir, owner);
+    releaseInstanceLock(stateRoot, owner);
     expect(existsSync(controlPath)).toBe(false);
     expect(existsSync(lockPath)).toBe(false);
   });

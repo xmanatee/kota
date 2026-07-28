@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "autonomy-change-decision",
+  "runId": "2026-07-27T22-14-48-154Z-builder-nuq76q",
+  "createdAt": "2026-07-28T00:07:00Z",
+  "taskIds": [
+    "task-security-review-the-default-daemon-state-directory"
+  ],
+  "affectedSurfaces": [
+    "Vercel agent-harness test support"
+  ],
+  "changeClasses": [
+    "harness",
+    "model-routing"
+  ],
+  "hypothesis": "Organizing imports in test-only harness support preserves runtime harness and model-routing behavior while satisfying the repository lint gate.",
+  "sourceRefs": [
+    "repair-check:autonomy-change-decision",
+    "task:task-security-review-the-default-daemon-state-directory"
+  ],
+  "baselineRefs": [
+    "git:a08a5d637:src/modules/vercel-agent-harness/adapter-test-support.ts"
+  ],
+  "candidateRefs": [
+    "src/modules/vercel-agent-harness/adapter-test-support.ts",
+    "src/modules/vercel-agent-harness/adapter-guardrails.test.ts"
+  ],
+  "metricsCompared": [
+    {
+      "name": "Harness behavior",
+      "baseline": "Existing test-support exports with unsorted import/export members",
+      "candidate": "The same test-support exports in lint-compliant order",
+      "unit": "semantic diff",
+      "direction": "unchanged",
+      "qualitySignal": true
+    }
+  ],
+  "rolloutMode": "fixture-only",
+  "decision": "promote",
+  "rationale": "The classified production-suffixed file is test scaffolding and its only staged change is member ordering. No harness option, model selection, provider routing, tool behavior, or runtime code changed; focused harness tests remain the behavioral gate.",
+  "ownerSafetyExceptions": [],
+  "followUpTaskIds": []
+}
