@@ -210,8 +210,11 @@ function hasWorktreeMergeBlocker(worktree: WorkflowStateRecoveryWorktreeEvidence
   );
 }
 
-function hasWorktreeDirtyBlocker(
-  worktree: WorkflowStateRecoveryWorktreeEvidence,
+export function hasPreservedWorktreeChanges(
+  worktree: Pick<
+    WorkflowStateRecoveryWorktreeEvidence,
+    "dirtyState" | "dirtyEntries" | "cleanupBlockers"
+  >,
 ): boolean {
   return (
     worktree.dirtyState === "dirty" ||
@@ -233,7 +236,7 @@ export function recommendedActionFor(
   worktree: WorkflowStateRecoveryWorktreeEvidence,
 ): WorkflowStateRecoveryRecommendedAction {
   const worktreeBlocked = hasWorktreeMergeBlocker(worktree);
-  const worktreeDirty = hasWorktreeDirtyBlocker(worktree);
+  const worktreeDirty = hasPreservedWorktreeChanges(worktree);
   const claimBlocked = hasClaimMergeBlocker(claim);
   if (ownerRunStatus === "running" || worktree.runState === "active") {
     return {
