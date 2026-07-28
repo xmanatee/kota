@@ -260,7 +260,12 @@ describe("runComputerUse", () => {
 		expect(r.content).toBe("Typed: world");
 		expect(mockExec).toHaveBeenCalledWith(
 			TRUSTED_OSASCRIPT,
-			["-e", expect.stringContaining('keystroke "world"')],
+			[
+				"-e",
+				expect.stringContaining("keystroke (item 1 of argv)"),
+				"--",
+				"world",
+			],
 			expect.any(Object),
 		);
 	});
@@ -274,7 +279,12 @@ describe("runComputerUse", () => {
 		expect(r.content).toBe('Typed: say "hi"');
 		expect(mockExec).toHaveBeenCalledWith(
 			TRUSTED_OSASCRIPT,
-			["-e", expect.stringContaining("character id 34")],
+			[
+				"-e",
+				expect.stringContaining("keystroke (item 1 of argv)"),
+				"--",
+				'say "hi"',
+			],
 			expect.any(Object),
 		);
 	});
@@ -307,7 +317,7 @@ describe("runComputerUse", () => {
 		expect(r.content).toBe("Pressed: cmd+c");
 		expect(mockExec).toHaveBeenCalledWith(
 			TRUSTED_OSASCRIPT,
-			["-e", expect.stringContaining("command down")],
+			["-e", expect.stringContaining("command down"), "--", "c"],
 			expect.any(Object),
 		);
 	});
@@ -352,7 +362,12 @@ describe("runComputerUse", () => {
 		expect(r.content).toBe("Pressed: a");
 		expect(mockExec).toHaveBeenCalledWith(
 			TRUSTED_OSASCRIPT,
-			["-e", expect.stringContaining('keystroke "a"')],
+			[
+				"-e",
+				expect.stringContaining("keystroke (item 1 of argv)"),
+				"--",
+				"a",
+			],
 			expect.any(Object),
 		);
 	});

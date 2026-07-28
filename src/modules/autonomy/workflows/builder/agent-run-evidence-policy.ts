@@ -5,11 +5,11 @@ import {
   realpathSync,
 } from "node:fs";
 import { extname, join, relative, resolve, sep } from "node:path";
-import type { KotaJsonValue } from "#core/agent-harness/message-protocol.js";
 import {
   projectEvidenceJsonValue,
   redactSensitiveText,
 } from "#core/evidence/policy.js";
+import type { EvidenceJsonValue } from "#core/evidence/policy-model.js";
 import { validateOutboundGitHubCommentBody } from "#modules/autonomy/github-comment-safety.js";
 import { readStableBuilderEvidenceFile } from "./agent-run-evidence-filesystem-helper.js";
 import {
@@ -82,7 +82,7 @@ function assertExpectedExtension(file: BuilderEvidenceFile): void {
   }
 }
 
-function screenedJsonValue(value: KotaJsonValue, path: string): KotaJsonValue {
+function screenedJsonValue(value: EvidenceJsonValue, path: string): EvidenceJsonValue {
   const projected = projectEvidenceJsonValue(
     value,
     "internal-storage",
@@ -93,7 +93,7 @@ function screenedJsonValue(value: KotaJsonValue, path: string): KotaJsonValue {
   return projected;
 }
 
-function serializeScreenedJson(values: readonly KotaJsonValue[]): Buffer {
+function serializeScreenedJson(values: readonly EvidenceJsonValue[]): Buffer {
   if (values.length === 0) return Buffer.alloc(0);
   return Buffer.from(
     `${values.map((value) => JSON.stringify(value)).join("\n")}\n`,
@@ -126,9 +126,9 @@ function projectTypedContent(file: BuilderEvidenceFile, content: Buffer): Buffer
       assertNoHighConfidenceCredential(text, file.path);
       const lines = file.kind === "json" ? [text] : text.split("\n").filter((line) => line.trim());
       const projectedValues = lines.map((line, index) => {
-        let value: KotaJsonValue;
+        let value: EvidenceJsonValue;
         try {
-          value = JSON.parse(line) as KotaJsonValue;
+          value = JSON.parse(line) as EvidenceJsonValue;
         } catch (error) {
           fail(`registered ${file.kind} artifact is malformed at item ${index + 1}: ${file.path} (${String(error)})`);
         }

@@ -47,17 +47,29 @@ function osascriptPath(): string {
 	return _osascriptPath;
 }
 
-function runOsascript(script: string): string {
-	return execFileSync(osascriptPath(), ["-e", script], {
+function runOsascript(script: string, scriptArgs: readonly string[] = []): string {
+	const args = scriptArgs.length > 0
+		? ["-e", script, "--", ...scriptArgs]
+		: ["-e", script];
+	return execFileSync(osascriptPath(), args, {
 		...guiHelperExecOptions(),
 		encoding: "utf-8",
 	}).trim();
 }
 
-function asString(text: string): string {
-	if (!text.includes('"')) return `"${text}"`;
-	const parts = text.split('"');
-	return parts.map((p) => `"${p}"`).join(" & (character id 34) & ");
+const KEYSTROKE_SCRIPT = [
+	"on run argv",
+	'\ttell application "System Events" to keystroke (item 1 of argv)',
+	"end run",
+].join("\n");
+
+function keystrokeScript(using: string): string {
+	if (!using) return KEYSTROKE_SCRIPT;
+	return [
+		"on run argv",
+		`\ttell application "System Events" to keystroke (item 1 of argv)${using}`,
+		"end run",
+	].join("\n");
 }
 
 // ─── macOS implementations ────────────────────────────────────────────────────
@@ -127,9 +139,7 @@ export function macType(text: string): string {
 	if (helper) {
 		execFileSync(helper, [`t:${text}`], guiHelperExecOptions());
 	} else {
-		runOsascript(
-			`tell application "System Events" to keystroke ${asString(text)}`,
-		);
+		runOsascript(KEYSTROKE_SCRIPT, [text]);
 	}
 	return `Typed: ${truncText(text)}`;
 }
@@ -149,9 +159,7 @@ export function macKey(combo: string): string {
 			`tell application "System Events" to key code ${code}${using}`,
 		);
 	} else if (key.length === 1) {
-		runOsascript(
-			`tell application "System Events" to keystroke ${asString(key)}${using}`,
-		);
+		runOsascript(keystrokeScript(using), [key]);
 	} else {
 		throw new Error(
 			`Unknown key: ${key}. Use enter, tab, escape, f1-f12, or single characters.`,

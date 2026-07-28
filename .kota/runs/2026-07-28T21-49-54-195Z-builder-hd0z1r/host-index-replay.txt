@@ -1,0 +1,5 @@
+This sandbox staged and validated through the workspace-local Git index at
+.kota/tmp/2026-07-28T21-49-54-195Z-builder-hd0z1r/git-index because the linked
+worktree's host index is read-only. The terminal commit step must replay:
+
+git add -A -- data/tasks/ready/task-security-review-the-macos-computer-use-fallback-in.md data/tasks/done/task-security-review-the-macos-computer-use-fallback-in.md src/modules/autonomy/workflows/builder/agent-run-evidence-policy.ts src/modules/execution/computer-use-actions-mac.ts src/modules/execution/computer-use-actions-mac.test.ts src/modules/execution/computer-use.test.ts

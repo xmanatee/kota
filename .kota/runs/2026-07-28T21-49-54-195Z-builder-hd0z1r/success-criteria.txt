@@ -1,0 +1,3 @@
+1. The macOS osascript fallback uses a fixed keystroke handler and passes arbitrary type and single-character key text only through argv.
+2. Focused regressions cover backslashes adjacent to quotes, AppleScript comments, embedded newlines, and other AppleScript metacharacters.
+3. The execution-module test suite and focused formatting checks pass, and the task records the final verification command.

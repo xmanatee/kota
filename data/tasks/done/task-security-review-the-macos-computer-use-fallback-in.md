@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-macos-computer-use-fallback-in
 title: Security review: The macOS computer-use fallback interpolates tool-controlled text into AppleScript source. Its quoting helper handles double quotes but does not escape backslashes, allowing crafted text to terminate or reshape the string expression and execute additional AppleScript commands rather than merely typing text.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: The macOS computer-use fallback interpolates tool-controlled text into AppleScript source. Its quoting helper handles double quotes but does not escape backslashes, allowing crafted text to terminate or reshape the string expression and execute additional AppleScript commands rather than merely typing text.
 created_at: 2026-07-28T10:54:24.537Z
-updated_at: 2026-07-28T10:54:24.537Z
+updated_at: 2026-07-28T22:05:09.024Z
 ---
 
 ## Problem
@@ -111,3 +111,16 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- The macOS fallback now invokes a fixed `on run argv` keystroke handler and
+  passes typed text after `--`; tool-controlled text is no longer part of the
+  AppleScript source.
+- `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node node_modules/vitest/vitest.mjs run src/modules/execution --configLoader runner --silent=true`
+  passed with 20 test files and 347 tests, including crafted backslash/quote,
+  comment, newline, and AppleScript-metacharacter payloads.
+- `node node_modules/@biomejs/biome/bin/biome check src/modules/execution/computer-use-actions-mac.ts src/modules/execution/computer-use-actions-mac.test.ts src/modules/execution/computer-use.test.ts`
+  passed.
+- `/usr/bin/osacompile -e 'on run argv' -e 'tell application "System Events" to keystroke (item 1 of argv)' -e 'end run'`
+  compiled the fixed handler successfully without executing it.

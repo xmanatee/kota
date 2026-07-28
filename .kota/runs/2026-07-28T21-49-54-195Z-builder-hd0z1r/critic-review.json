@@ -1,0 +1,8 @@
+{
+  "verdict": "pass",
+  "critical_issues": [],
+  "warnings": [],
+  "summary": "The fixed argv-based handler at src/modules/execution/computer-use-actions-mac.ts:50 removes text interpolation, with adversarial coverage at src/modules/execution/computer-use-actions-mac.test.ts:115 and recorded verification at data/tasks/done/task-security-review-the-macos-computer-use-fallback-in.md:115.",
+  "generatedAt": "2026-07-28T22:21:17.180Z",
+  "reviewerPromptHash": "f6e5054b3887"
+}

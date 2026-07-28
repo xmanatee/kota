@@ -29,6 +29,11 @@ const mockAccess = vi.mocked(accessSync);
 const mockRealpath = vi.mocked(realpathSync);
 const TRUSTED_CLICLICK = "/opt/homebrew/bin/cliclick";
 const TRUSTED_OSASCRIPT = "/usr/bin/osascript";
+const EXPECTED_KEYSTROKE_SCRIPT = [
+	"on run argv",
+	'\ttell application "System Events" to keystroke (item 1 of argv)',
+	"end run",
+].join("\n");
 
 function lastExecOptions(): ExecFileSyncOptions {
 	const call = mockExec.mock.calls.at(-1);
@@ -105,6 +110,23 @@ describe("computer-use-actions-mac", () => {
 		mockExec.mockReturnValue("" as never);
 		resetMacState();
 		expect(macType("hello")).toBe("Typed: hello");
+	});
+
+	it.each([
+		["backslashes adjacent to quotes", '\\" & error "injected"'],
+		["AppleScript comments", 'plain text -- comment\n(* block comment *)'],
+		["embedded newlines", 'first line\nerror "injected"\nlast line'],
+		["other AppleScript metacharacters", '& {1, 2} ( ) ¬'],
+	])("passes %s only as an osascript argv value", (_case, text) => {
+		setExecutablePaths([TRUSTED_OSASCRIPT]);
+		resetMacState();
+
+		expect(macType(text)).toBe(`Typed: ${text}`);
+		expect(mockExec).toHaveBeenCalledWith(
+			TRUSTED_OSASCRIPT,
+			["-e", EXPECTED_KEYSTROKE_SCRIPT, "--", text],
+			expect.any(Object),
+		);
 	});
 
 	it("macKey presses enter via osascript", () => {

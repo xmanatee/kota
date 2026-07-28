@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 2,
+  "surface": "critic",
+  "runId": "2026-07-28T21-49-54-195Z-builder-hd0z1r",
+  "workflow": "builder",
+  "generatedAt": "2026-07-28T22:21:17.180Z",
+  "artifact": "critic-review.json",
+  "reviewerPromptHash": "f6e5054b3887",
+  "taskId": "task-security-review-the-macos-computer-use-fallback-in",
+  "decision": "pass",
+  "signals": {
+    "issueCount": 0,
+    "warningCount": 0,
+    "reviewBodyLength": 309,
+    "citedFileLineCount": 3
+  },
+  "absentMetrics": [
+    "evidenceIdCount",
+    "findingCount",
+    "followUpTaskCount"
+  ],
+  "thinAcceptance": false
+}
