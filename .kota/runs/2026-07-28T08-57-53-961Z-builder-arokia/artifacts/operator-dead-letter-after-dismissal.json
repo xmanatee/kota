@@ -1,0 +1,17 @@
+{
+  "capturedAt": "2026-07-28T09:45:08Z",
+  "item": {
+    "id": "dlq-5b14f336-2999-4620-bb05-2042fd582e93",
+    "status": "dismissed",
+    "dismissedAt": "2026-07-28T09:44:57.066Z",
+    "dismissalReason": "Superseded by successful security-review run 2026-07-28T04-53-22-834Z-security-review-sixhkj; its broader comparison includes the failed head and created the confirmed Safety task, completed by builder run 2026-07-28T05-38-36-273Z-builder-epe30b.",
+    "failedRunId": "2026-07-28T04-24-35-747Z-security-review-sq3k48",
+    "workflowName": "security-review"
+  },
+  "openSecurityReviewIds": [],
+  "counts": {
+    "open": 0,
+    "dismissed": 41,
+    "redriven": 2
+  }
+}
