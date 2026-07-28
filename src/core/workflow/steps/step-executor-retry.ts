@@ -317,6 +317,14 @@ export function classifyAgentRuntimeFailure(
     return { kind: "provider", retryable: true };
   }
   if (
+    hasCodexCliFailureProvenance(input) &&
+    /stream disconnected before completion:\s*IO error:\s*Connection reset by peer \(os error \d+\)/i.test(
+      input.message,
+    )
+  ) {
+    return { kind: "provider", retryable: true };
+  }
+  if (
     /stream disconnected before completion:\s*failed to lookup address information:\s*nodename nor servname provided, or not known/i.test(
       input.message,
     )

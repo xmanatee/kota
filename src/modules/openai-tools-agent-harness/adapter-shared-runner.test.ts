@@ -4,6 +4,7 @@ import type {
 	KotaToolUseBlock,
 } from "#core/agent-harness/message-protocol.js";
 import {
+	approvalQueueMock,
 	confirmActionMock,
 	deferred,
 	executeToolMock,
@@ -91,6 +92,7 @@ describe("openaiToolsAgentHarness shared runner", () => {
 			model: "openai/gpt-5.6-luna",
 			effort: "xhigh",
 			autonomyMode: "supervised",
+			approvalQueue: approvalQueueMock,
 			workflowContext: {
 				workflowName: "wf",
 				runId: "run-1",

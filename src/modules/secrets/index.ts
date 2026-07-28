@@ -19,9 +19,9 @@ import { injectSessionEnvironmentVariable } from "#core/tools/session-environmen
 import { columns, line, plain, span, stack } from "#modules/rendering/primitives.js";
 import { print, printToStderr, writeStdout } from "#modules/rendering/transport.js";
 import {
-  secretMutationFailure,
   type SecretScope,
   type SecretsClient,
+  secretMutationFailure,
 } from "./client.js";
 import { buildSecretsDaemonHandler } from "./daemon-client.js";
 import {
@@ -364,7 +364,9 @@ const secretsModule: KotaModule = {
           requireSecretStore(projectStores, project).set(name, value, scope);
           return { ok: true };
         } catch (error) {
-          return secretMutationFailure(error);
+          return secretMutationFailure(
+            error instanceof Error ? error : new Error(String(error)),
+          );
         }
       },
       async remove(name, scope, project) {
@@ -374,7 +376,9 @@ const secretsModule: KotaModule = {
           }
           return { ok: true };
         } catch (error) {
-          return secretMutationFailure(error);
+          return secretMutationFailure(
+            error instanceof Error ? error : new Error(String(error)),
+          );
         }
       },
     };

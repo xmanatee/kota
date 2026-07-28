@@ -1,26 +1,17 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApprovalQueue, resetApprovalQueue } from "#core/daemon/approval-queue.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import { registration } from "./approval.js";
 
-vi.mock("#core/events/event-bus.js", () => ({
-	tryEmit: vi.fn(),
-	getEventBus: () => null,
-}));
-
-// Mock getApprovalQueue to return our test queue
 let testQueue: ApprovalQueue;
-vi.mock("#core/daemon/approval-queue.js", async (importOriginal) => {
-	const mod = await importOriginal<typeof import("#core/daemon/approval-queue.js")>();
-	return {
-		...mod,
-		getApprovalQueue: () => testQueue,
-	};
-});
 
 const { runner } = registration;
+
+function runApprovalTool(input: Record<string, unknown>) {
+	return runner(input, { approvalQueue: testQueue });
+}
 
 describe("approval tool", () => {
 	let dir: string;
@@ -32,7 +23,6 @@ describe("approval tool", () => {
 
 	afterEach(() => {
 		rmSync(dir, { recursive: true, force: true });
-		resetApprovalQueue();
 	});
 
 	it("has correct registration metadata", () => {
@@ -51,27 +41,27 @@ describe("approval tool", () => {
 
 	describe("count action", () => {
 		it("returns 0 for empty queue", async () => {
-			const result = await runner({ action: "count" });
+			const result = await runApprovalTool({ action: "count" });
 			expect(result.content).toBe("0 pending approval(s)");
 		});
 
 		it("returns count of pending items", async () => {
 			testQueue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
 			testQueue.enqueue("git", { command: "push" }, "dangerous", "reason");
-			const result = await runner({ action: "count" });
+			const result = await runApprovalTool({ action: "count" });
 			expect(result.content).toBe("2 pending approval(s)");
 		});
 	});
 
 	describe("list action", () => {
 		it("returns message when no pending items", async () => {
-			const result = await runner({ action: "list" });
+			const result = await runApprovalTool({ action: "list" });
 			expect(result.content).toBe("No pending approvals.");
 		});
 
 		it("lists pending items with details", async () => {
 			testQueue.enqueue("shell", { command: "rm -rf /tmp" }, "dangerous", "destructive command");
-			const result = await runner({ action: "list" });
+			const result = await runApprovalTool({ action: "list" });
 			expect(result.content).toContain("1 pending");
 			expect(result.content).toContain("shell");
 			expect(result.content).toContain("dangerous");
@@ -82,7 +72,7 @@ describe("approval tool", () => {
 	describe("mutation actions", () => {
 		it("does not approve or execute queued items from the agent-visible tool", async () => {
 			const item = testQueue.enqueue("todo", { action: "list" }, "dangerous", "test reason");
-			const result = await runner({ action: "approve", id: item.id });
+			const result = await runApprovalTool({ action: "approve", id: item.id });
 
 			expect(result.is_error).toBe(true);
 			expect(result.content).toContain("Unknown action");
@@ -91,7 +81,7 @@ describe("approval tool", () => {
 
 		it("does not reject queued items from the agent-visible tool", async () => {
 			const item = testQueue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
-			const result = await runner({ action: "reject", id: item.id, reason: "too risky" });
+			const result = await runApprovalTool({ action: "reject", id: item.id, reason: "too risky" });
 
 			expect(result.is_error).toBe(true);
 			expect(result.content).toContain("Unknown action");
@@ -101,7 +91,7 @@ describe("approval tool", () => {
 
 	describe("unknown action", () => {
 		it("returns error for invalid action", async () => {
-			const result = await runner({ action: "invalid" });
+			const result = await runApprovalTool({ action: "invalid" });
 			expect(result.is_error).toBe(true);
 			expect(result.content).toContain("Unknown action");
 		});

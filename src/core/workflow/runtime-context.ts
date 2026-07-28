@@ -89,7 +89,8 @@ export function createWorkflowRuntimeContext(
 ): WorkflowRuntimeContext {
   const projectDir = runtimeConfig.projectDir ?? process.cwd();
   const store = runtimeConfig.runStore ?? new WorkflowRunStore(projectDir);
-  const scopeId = deriveDirectoryScopeId(projectDir);
+	const scopeId = runtimeConfig.pbus?.getScopeId()
+		?? deriveDirectoryScopeId(projectDir);
 	const pbus =
 		runtimeConfig.pbus ??
 		new ProjectScopedEventBus(runtimeConfig.bus, scopeId);

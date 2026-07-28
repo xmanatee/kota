@@ -5,13 +5,13 @@ import {
   scopeSelectorQuery,
 } from "#core/server/scope-selector.js";
 import {
-  secretMutationFailure,
   type SecretGetResult,
   type SecretListResult,
   type SecretMutateResult,
   type SecretProjectSelection,
   type SecretScope,
   type SecretsClient,
+  secretMutationFailure,
 } from "./client.js";
 
 function secretPath(name: string, project?: SecretProjectSelection): string {
@@ -34,7 +34,9 @@ async function mutateSecret(
   try {
     return await operation();
   } catch (cause) {
-    return secretMutationFailure(cause);
+    return secretMutationFailure(
+      cause instanceof Error ? cause : new Error(String(cause)),
+    );
   }
 }
 

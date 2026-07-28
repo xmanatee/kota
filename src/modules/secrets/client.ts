@@ -35,8 +35,7 @@ export type SecretMutateResult =
   | { ok: true }
   | { ok: false; reason: "not_found" | "store_error"; message?: string };
 
-export function secretMutationFailure(cause: unknown): SecretMutateResult {
-  const error = cause instanceof Error ? cause : new Error(String(cause));
+export function secretMutationFailure(error: Error): SecretMutateResult {
   if (/^Unknown (project|scope)(?::|$)/.test(error.message)) throw error;
   return { ok: false, reason: "store_error", message: error.message };
 }

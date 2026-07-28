@@ -32,6 +32,16 @@ describe("classifyAgentRuntimeFailure", () => {
     ).toEqual({ kind: "provider", retryable: true });
   });
 
+  it("classifies Codex CLI peer-reset stream disconnects as provider failures", () => {
+    expect(
+      classifyAgentRuntimeFailure({
+        subtype: "codex_cli_error",
+        message:
+          "Reconnecting... 2/5 (stream disconnected before completion: IO error: Connection reset by peer (os error 54))",
+      }),
+    ).toEqual({ kind: "provider", retryable: true });
+  });
+
   it("classifies Codex CLI DNS lookup stream disconnects as provider failures", () => {
     expect(
       classifyAgentRuntimeFailure({
@@ -180,6 +190,12 @@ describe("classifyAgentRuntimeFailure", () => {
       classifyAgentRuntimeFailure({
         message:
           "Reconnecting... 2/5 (We're currently experiencing high demand, which may cause temporary errors.)",
+      }),
+    ).toBeNull();
+    expect(
+      classifyAgentRuntimeFailure({
+        message:
+          "stream disconnected before completion: IO error: Connection reset by peer (os error 54)",
       }),
     ).toBeNull();
   });
