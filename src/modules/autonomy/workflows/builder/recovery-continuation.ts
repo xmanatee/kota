@@ -1,17 +1,15 @@
-import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import {
+  type ClaimTaskAttempt,
   continueTaskClaim,
   DEFAULT_TASK_CLAIM_LEASE_MS,
   listTaskClaimInspections,
   type QueueTaskClaimResult,
   type TaskClaim,
 } from "#modules/autonomy/task-claims.js";
-import {
-  findRecoveryClaim,
-  listRecoveryClaims,
-} from "#modules/autonomy/workflow-state-recovery-claims.js";
+import { listRecoveryClaims } from "#modules/autonomy/workflow-state-recovery-claims.js";
 import type { WorkflowStateRecoveryClaim } from "#modules/workflow-ops/state-recovery-provider.js";
 
 export const BUILDER_RECOVERY_EVENT = "autonomy.builder.recovery.requested";
@@ -21,7 +19,6 @@ export type BuilderRecoveryRequest = {
   sourceRunId: string;
   worktreeRunId: string;
   workspaceDir: string;
-  idempotencyKey: string;
   reason: string;
 };
 
@@ -29,31 +26,6 @@ export type BuilderRecoveryDispatchResult = {
   candidateCount: number;
   requested: BuilderRecoveryRequest[];
 };
-
-function requiredPayloadString(
-  payload: WorkflowStepContext["trigger"]["payload"],
-  key: keyof BuilderRecoveryRequest,
-): string {
-  const value = payload[key];
-  if (typeof value !== "string" || value.trim().length === 0) {
-    throw new Error(`Builder recovery trigger payload.${key} must be a non-empty string`);
-  }
-  return value;
-}
-
-export function builderRecoveryRequestFromTrigger(
-  trigger: WorkflowStepContext["trigger"],
-): BuilderRecoveryRequest | null {
-  if (trigger.event !== BUILDER_RECOVERY_EVENT) return null;
-  return {
-    taskId: requiredPayloadString(trigger.payload, "taskId"),
-    sourceRunId: requiredPayloadString(trigger.payload, "sourceRunId"),
-    worktreeRunId: requiredPayloadString(trigger.payload, "worktreeRunId"),
-    workspaceDir: requiredPayloadString(trigger.payload, "workspaceDir"),
-    idempotencyKey: requiredPayloadString(trigger.payload, "idempotencyKey"),
-    reason: requiredPayloadString(trigger.payload, "reason"),
-  };
-}
 
 function preservedBuilderWorkspaceDir(
   candidate: WorkflowStateRecoveryClaim,
@@ -79,7 +51,7 @@ function needsRuntimeRecoveryRequest(
 ): boolean {
   if (preservedBuilderWorkspaceDir(candidate) === null) return false;
   if (candidate.claim.runId === candidate.claim.worktreeRunId) return true;
-  return !existsSync(
+  const finalizer = readOptionalJsonFile<{ recoveryRequested?: unknown }>(
     join(
       projectDir,
       ".kota",
@@ -88,6 +60,20 @@ function needsRuntimeRecoveryRequest(
       "terminal-worktree-finalizer.json",
     ),
   );
+  return finalizer === null || finalizer.recoveryRequested === true;
+}
+
+export function listPendingBuilderRecoveries(
+  projectDir: string,
+): WorkflowStateRecoveryClaim[] {
+  return listRecoveryClaims(projectDir)
+    .filter((candidate) => needsRuntimeRecoveryRequest(projectDir, candidate))
+    .sort((a, b) => {
+      const byUpdated = a.claim.updatedAt.localeCompare(b.claim.updatedAt);
+      return byUpdated !== 0
+        ? byUpdated
+        : a.claim.taskId.localeCompare(b.claim.taskId);
+    });
 }
 
 export function builderRecoveryRequestForCandidate(
@@ -105,7 +91,6 @@ export function builderRecoveryRequestForCandidate(
     sourceRunId: candidate.claim.runId,
     worktreeRunId: candidate.claim.worktreeRunId,
     workspaceDir,
-    idempotencyKey: `builder-recovery:${candidate.claim.runId}`,
     reason,
   };
 }
@@ -120,13 +105,11 @@ export function emitBuilderRecoveryRequest(
 export function requestPendingBuilderRecoveries(
   ctx: Pick<WorkflowStepContext, "projectDir" | "emit">,
 ): BuilderRecoveryDispatchResult {
-  const candidates = listRecoveryClaims(ctx.projectDir).filter(
-    (candidate) => needsRuntimeRecoveryRequest(ctx.projectDir, candidate),
-  );
-  const requested = candidates.map((candidate) =>
+  const candidates = listPendingBuilderRecoveries(ctx.projectDir);
+  const requested = candidates.slice(0, 1).map((candidate) =>
     builderRecoveryRequestForCandidate(
       candidate,
-      `runtime recovery found preserved builder work from ${candidate.claim.runId}`,
+      `recovery projection found preserved builder work from ${candidate.claim.runId}`,
     ),
   );
   for (const request of requested) {
@@ -138,6 +121,8 @@ export function requestPendingBuilderRecoveries(
 function continuedClaimResult(
   projectDir: string,
   claim: TaskClaim,
+  candidateCount: number,
+  skipped: ClaimTaskAttempt[] = [],
 ): QueueTaskClaimResult {
   return {
     claimed: true,
@@ -147,47 +132,66 @@ function continuedClaimResult(
     safeToRetry: false,
     recoveryPath: "continued-preserved-claim",
     reason: null,
-    candidateCount: 1,
-    skipped: [],
+    candidateCount,
+    skipped,
     activeClaims: listTaskClaimInspections(projectDir),
   };
 }
 
-export function claimBuilderRecovery(
-  ctx: Pick<WorkflowStepContext, "projectDir" | "trigger" | "workflow">,
-): QueueTaskClaimResult {
-  const request = builderRecoveryRequestFromTrigger(ctx.trigger);
-  if (request === null) {
-    throw new Error("claimBuilderRecovery requires a builder recovery trigger");
-  }
-  const candidate = findRecoveryClaim(ctx.projectDir, request.taskId);
-  if (!candidate || preservedBuilderWorkspaceDir(candidate) === null) {
-    throw new Error(`Preserved builder recovery candidate is unavailable for ${request.taskId}`);
-  }
-  if (
-    candidate.claim.runId !== request.sourceRunId ||
-    candidate.claim.worktreeRunId !== request.worktreeRunId ||
-    candidate.worktree.workspaceDir !== request.workspaceDir
-  ) {
-    throw new Error(
-      `Builder recovery evidence changed for ${request.taskId}; refusing stale continuation request`,
-    );
-  }
-
-  const attempt = continueTaskClaim({
+function continueRecoveryCandidate(
+  ctx: Pick<WorkflowStepContext, "projectDir" | "workflow">,
+  candidate: WorkflowStateRecoveryClaim,
+  reason: string,
+): ClaimTaskAttempt {
+  return continueTaskClaim({
     projectDir: ctx.projectDir,
-    taskId: request.taskId,
-    sourceRunId: request.sourceRunId,
+    taskId: candidate.claim.taskId,
+    sourceRunId: candidate.claim.runId,
     runId: ctx.workflow.runId,
     workflowId: "builder",
     owner: "workflow:builder",
-    evidence: `continuing preserved builder worktree ${request.worktreeRunId}: ${request.reason}`,
+    evidence: `continuing preserved builder worktree ${candidate.claim.worktreeRunId}: ${reason}`,
     leaseMs: DEFAULT_TASK_CLAIM_LEASE_MS,
   });
-  if (!attempt.claimed || !attempt.claim) {
-    throw new Error(
-      attempt.reason ?? `Failed to continue preserved task claim ${request.taskId}`,
+}
+
+export function claimPendingBuilderRecovery(
+  ctx: Pick<WorkflowStepContext, "projectDir" | "workflow">,
+): QueueTaskClaimResult | null {
+  const candidates = listPendingBuilderRecoveries(ctx.projectDir);
+  const skipped: ClaimTaskAttempt[] = [];
+  for (const candidate of candidates) {
+    const attempt = continueRecoveryCandidate(
+      ctx,
+      candidate,
+      `builder selected oldest pending recovery from ${candidate.claim.runId}`,
     );
+    if (attempt.claimed && attempt.claim) {
+      return continuedClaimResult(
+        ctx.projectDir,
+        attempt.claim,
+        candidates.length,
+        skipped,
+      );
+    }
+    skipped.push(attempt);
   }
-  return continuedClaimResult(ctx.projectDir, attempt.claim);
+  return null;
+}
+
+export function unavailableBuilderRecoveryResult(
+  projectDir: string,
+): QueueTaskClaimResult {
+  return {
+    claimed: false,
+    taskId: null,
+    claim: null,
+    recoveryStatus: null,
+    safeToRetry: true,
+    recoveryPath: "no-actionable-task",
+    reason: "no pending preserved builder recovery",
+    candidateCount: 0,
+    skipped: [],
+    activeClaims: listTaskClaimInspections(projectDir),
+  };
 }

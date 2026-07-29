@@ -3,6 +3,10 @@ import {
   getClaimAwareRepoTaskQueueSnapshot,
   isThinClaimAwareDispatchableQueue,
 } from "#modules/autonomy/queue-availability.js";
+import {
+  BUILDER_RECOVERY_EVENT,
+  requestPendingBuilderRecoveries,
+} from "../builder/recovery-continuation.js";
 import { inspectResearchRetryAvailability } from "../research-retry/precondition.js";
 import { scopeImprovementEvidenceReady } from "../scope-improver/events.js";
 import {
@@ -40,6 +44,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           projectDir,
           now: new Date(),
         });
+        const builderRecovery = requestPendingBuilderRecoveries({ projectDir, emit });
         const queueBlocked =
           !queue.hasDispatchableWork &&
           (queue.dependencyBlockedTasks.length > 0 ||
@@ -129,6 +134,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           securityReviewDue.due && SECURITY_REVIEW_DUE_EVENT,
           scopeImprovementEvidence.shouldEmit &&
             scopeImprovementEvidenceReady.name,
+          builderRecovery.requested.length > 0 && BUILDER_RECOVERY_EVENT,
           queueThin && "autonomy.queue.thin",
         ].filter((event): event is string => Boolean(event));
         const quiescent = emitted.length === 0;
@@ -143,6 +149,8 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           promotableBacklogCount: queue.promotableBacklogCount,
           researchRetryCandidateCount: researchRetryAvailability.candidateCount,
           researchRetryAttemptableCount: researchRetryAvailability.attemptableCount,
+          builderRecoveryCandidateCount: builderRecovery.candidateCount,
+          builderRecoveryRequested: builderRecovery.requested,
           securityReviewDue,
           scopeImprovementEvidence: {
             shouldEmit: scopeImprovementEvidence.shouldEmit,

@@ -206,7 +206,6 @@ describe("finalizeBuilderTerminalWorktree", () => {
         taskId: "task-one",
         sourceRunId: "builder-run",
         worktreeRunId: "builder-run",
-        idempotencyKey: "builder-recovery:builder-run",
       }),
     );
   });
@@ -253,7 +252,6 @@ describe("finalizeBuilderTerminalWorktree", () => {
       expect.objectContaining({
         sourceRunId: "recovery-run",
         worktreeRunId: "builder-run",
-        idempotencyKey: "builder-recovery:recovery-run",
       }),
     );
   });

@@ -30,9 +30,6 @@ export type WorkflowQueueManagerConfig = {
   deadLetterQueue?: DeadLetterQueueStore;
   getScopeId: () => string;
   getActiveBackoff: () => WorkflowAgentBackoffState | null;
-  shouldSuppressBackoff: (
-    definition: WorkflowDefinition,
-  ) => WorkflowAgentBackoffState | null;
   workflowUsesAgent: (definition: WorkflowDefinition) => boolean;
   isActiveRun: (workflowName: string) => boolean;
   activeRunCount?: (workflowName: string) => number;
@@ -63,21 +60,15 @@ export class WorkflowQueueManager {
 
   restorePending(): void {
     const state = this.config.store.readState();
-    const activeAgentBackoff = this.config.getActiveBackoff();
     const validNames = new Set(
       this.config
         .getDefinitions()
         .filter((definition) => definition.enabled)
         .map((definition) => definition.name),
     );
-    this.queue = state.pendingRuns.filter((item) => {
-      if (!validNames.has(item.workflowName)) return false;
-      const definition = this.config
-        .getDefinitions()
-        .find((candidate) => candidate.name === item.workflowName);
-      if (!activeAgentBackoff) return true;
-      return !definition || !this.config.workflowUsesAgent(definition);
-    });
+    this.queue = state.pendingRuns.filter((item) =>
+      validNames.has(item.workflowName),
+    );
     this.persist();
     if (this.queue.length > 0) {
       this.config.log(`Recovered ${this.queue.length} queued workflow run(s)`);
@@ -89,16 +80,6 @@ export class WorkflowQueueManager {
     triggerConfig: WorkflowDefinition["triggers"][number],
     trigger: WorkflowRunTrigger,
   ): void {
-    const activeAgentBackoff = this.config.shouldSuppressBackoff(definition);
-    if (activeAgentBackoff) {
-      if (trigger.event !== "runtime.idle") {
-        this.config.log(
-          `Skipped workflow "${definition.name}" from event "${trigger.event}" during agent backoff (${activeAgentBackoff.kind} until ${new Date(activeAgentBackoff.until).toLocaleTimeString()})`,
-        );
-      }
-      return;
-    }
-
     if (
       rejectInvalidTriggerPayload({
         definition,

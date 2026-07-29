@@ -22,7 +22,6 @@ import {
   updateAutomationWorktreeRuntimeResources,
 } from "#modules/git/worktree-lifecycle.js";
 import { builderWorktreeModeEnabledFromConfig } from "./builder-config.js";
-import { builderRecoveryRequestFromTrigger } from "./recovery-continuation.js";
 import {
   assignBuilderRuntimeResources,
   type BuilderRuntimeResourceProfile,
@@ -154,10 +153,9 @@ export function createPrepareBuilderWorktreeStep(
       if (!taskId) throw new Error("Cannot prepare a builder worktree without a claimed task id");
 
       const claimId = `${taskId}:${ctx.workflow.runId}`;
-      const recoveryRequest = builderRecoveryRequestFromTrigger(ctx.trigger);
-      if (recoveryRequest !== null) {
+      if (claim.recoveryPath === "continued-preserved-claim") {
         const worktreeRunId = claim.claim?.worktreeRunId;
-        if (!worktreeRunId || worktreeRunId !== recoveryRequest.worktreeRunId) {
+        if (!worktreeRunId) {
           throw new Error(`Recovery claim for ${taskId} does not identify its preserved worktree`);
         }
         const inspection = continueAutomationWorktree(

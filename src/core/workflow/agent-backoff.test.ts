@@ -2,47 +2,43 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { AgentBackoffManager } from "./agent-backoff.js";
 import { WorkflowRunStore } from "./run-store.js";
-import type { WorkflowQueuedRun } from "./run-types.js";
 import type { WorkflowDefinition } from "./types.js";
+import { WorkflowQueueManager } from "./workflow-queue.js";
 
 describe("AgentBackoffManager", () => {
   let projectDir: string;
   let store: WorkflowRunStore;
-  let queue: WorkflowQueuedRun[];
   let logs: string[];
 
   function makeManager(): AgentBackoffManager {
-    const definitions: WorkflowDefinition[] = [
-      {
-        name: "agent-workflow",
-        enabled: true,
-        moduleRoot: projectDir,
-        recoveryCapable: false,
-        tags: [],
-        definitionPath: "agent-workflow.test.ts",
-        triggers: [],
-        steps: [],
-      },
-    ];
-    return new AgentBackoffManager(
+    return new AgentBackoffManager(store, (message) => logs.push(message));
+  }
+
+  function makeQueue(
+    manager: AgentBackoffManager,
+    definition: WorkflowDefinition,
+  ): WorkflowQueueManager {
+    return new WorkflowQueueManager({
       store,
-      () => queue,
-      (next) => {
-        queue = next;
-      },
-      () => {},
-      () => definitions,
-      (definition) => definition.name === "agent-workflow",
-      (message) => logs.push(message),
-    );
+      idempotencyStore: new IdempotencyStore(
+        join(projectDir, ".kota", "idempotency"),
+        "test-scope",
+      ),
+      getScopeId: () => "test-scope",
+      getActiveBackoff: () => manager.getActive(),
+      workflowUsesAgent: () => true,
+      isActiveRun: () => false,
+      getDefinitions: () => [definition],
+      log: (message) => logs.push(message),
+    });
   }
 
   beforeEach(() => {
     projectDir = mkdtempSync(join(tmpdir(), "kota-agent-backoff-"));
     store = new WorkflowRunStore(projectDir);
-    queue = [];
     logs = [];
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-12T12:00:00.000Z"));
@@ -79,5 +75,37 @@ describe("AgentBackoffManager", () => {
     manager.clear();
 
     expect(store.readState().agentBackoff).toBeUndefined();
+  });
+
+  it("gates agent dispatch without deleting queued recovery work", () => {
+    const definition: WorkflowDefinition = {
+      name: "builder",
+      enabled: true,
+      moduleRoot: projectDir,
+      recoveryCapable: true,
+      tags: [],
+      definitionPath: "builder.test.ts",
+      triggers: [{ event: "autonomy.builder.recovery.requested", cooldownMs: 0 }],
+      steps: [],
+    };
+    const manager = makeManager();
+    const queue = makeQueue(manager, definition);
+    queue.enqueue(definition, definition.triggers[0]!, {
+      event: "autonomy.builder.recovery.requested",
+      schemaRef: null,
+      payload: { idempotencyKey: "preserved-builder-run" },
+    });
+
+    manager.apply({ kind: "provider", reason: "provider disconnected" });
+
+    expect(queue.length).toBe(1);
+    expect(queue.pick()).toBeNull();
+
+    const restored = makeQueue(manager, definition);
+    restored.restorePending();
+    expect(restored.length).toBe(1);
+
+    manager.clear();
+    expect(restored.pick()?.workflowName).toBe("builder");
   });
 });
