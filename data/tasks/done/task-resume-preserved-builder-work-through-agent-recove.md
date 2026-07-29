@@ -1,13 +1,13 @@
 ---
 id: task-resume-preserved-builder-work-through-agent-recove
 title: Resume preserved builder work through agent recovery review
-status: backlog
+status: done
 priority: p1
 area: architecture
 task_class: Meta
 summary: Route terminal builder worktrees with preserved changes to an agent-owned continuation that can finish, validate, merge, and disposition the original claim without operator salvage.
 created_at: 2026-07-28T12:22:49.676Z
-updated_at: 2026-07-28T12:22:49.676Z
+updated_at: 2026-07-29T06:45:16.183Z
 ---
 
 ## Problem

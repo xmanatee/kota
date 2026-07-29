@@ -124,7 +124,7 @@ function assertAutomationWorktreeMetadata(
 	if (value.lastCleanupBlockers !== undefined && !isStringArray(value.lastCleanupBlockers)) {
 		throw new Error(`Invalid worktree metadata at ${path}: lastCleanupBlockers must be a string array`);
 	}
-	for (const key of ["stateReason", "removedAt", "mergedAt", "mergedCommit"] as const) {
+	for (const key of ["recoveryRunId", "stateReason", "removedAt", "mergedAt", "mergedCommit"] as const) {
 		if (value[key] !== undefined && typeof value[key] !== "string") {
 			throw new Error(`Invalid worktree metadata at ${path}: ${key} must be a string`);
 		}

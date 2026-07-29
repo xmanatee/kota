@@ -92,6 +92,7 @@ Dispatcher emits queue-shape events distinguishing actionable from
 backlog-only state:
 
 - `autonomy.queue.available` — actionable (`ready` + `doing`) exists; builder gates on this.
+- `autonomy.builder.recovery.requested` — a terminal builder preserved dirty work; builder continues the existing claim and worktree before pulling unrelated work.
 - `autonomy.queue.needs-promotion` — actionable=0 and at least one non-anchor,
   dependency-clear backlog task can legally enter `ready/`; `backlog-promoter`
   consumes this and writes a deterministic promotion rationale before builder

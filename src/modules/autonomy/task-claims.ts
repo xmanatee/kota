@@ -25,6 +25,7 @@ export {
 } from "./task-claim-files.js";
 export {
   claimTask,
+  continueTaskClaim,
   expireTaskClaim,
   markTaskClaimPendingMerge,
   releaseTaskClaim,
@@ -38,6 +39,7 @@ export {
   type ClaimNextQueueTaskInput,
   type ClaimTaskAttempt,
   type ClaimTaskInput,
+  type ContinueTaskClaimInput,
   DEFAULT_TASK_CLAIM_LEASE_MS,
   type QueueTaskClaimResult,
   type TaskClaim,

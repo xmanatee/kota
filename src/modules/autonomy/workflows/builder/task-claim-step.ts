@@ -20,6 +20,10 @@ import {
 import type { BranchStepResult } from "./branch-per-task.js";
 import { claimedTaskConsistencySucceeded } from "./claimed-task-consistency-step.js";
 import { mergeGatePending, mergeGateSucceeded } from "./merge-gate-step.js";
+import {
+  BUILDER_RECOVERY_EVENT,
+  claimBuilderRecovery,
+} from "./recovery-continuation.js";
 import { workflowWorkspaceDir } from "./workspace.js";
 
 type QueueInspection = {
@@ -56,6 +60,7 @@ export function createClaimTaskStep(
     type: "code",
     when: (ctx) => {
       if (ctx.trigger.event === "runtime.recovered") return false;
+      if (ctx.trigger.event === BUILDER_RECOVERY_EVENT) return true;
       const { dirty, actionableCount } = inspectReadyQueue.outputRequired(ctx);
       return !dirty && actionableCount > 0;
     },
@@ -69,6 +74,11 @@ export function createClaimTaskStep(
         "activeClaims",
       ]),
     run: (ctx) => {
+      if (ctx.trigger.event === BUILDER_RECOVERY_EVENT) {
+        const result = claimBuilderRecovery(ctx);
+        writeTaskClaimArtifact(ctx.workflow.runDirPath, result);
+        return result;
+      }
       const workspaceDir = workflowWorkspaceDir(ctx);
       const queue = inspectReadyQueue.outputRequired(ctx);
       const result = claimNextQueueTask({

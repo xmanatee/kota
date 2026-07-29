@@ -1,11 +1,12 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createAutomationWorktree } from "#modules/git/worktree-lifecycle.js";
 import {
   claimNextQueueTask,
   claimTask,
+  continueTaskClaim,
   expireTaskClaim,
   listTaskClaimInspections,
   markTaskClaimPendingMerge,
@@ -225,6 +226,95 @@ describe("task claim recovery lifecycle", () => {
       recoveryPath: "skipped-stale-worktree",
       reason: expect.stringContaining("workflow state-recovery list"),
     });
+  });
+
+  it("continues a preserved claim without changing its worktree lineage", () => {
+    writeTask(projectDir, "ready", "task-alpha", "2026-06-27T00:00:00.000Z");
+    initializeGitProject();
+    expect(
+      claimTask(
+        claimInput(
+          projectDir,
+          "task-alpha",
+          "run-failed",
+          new Date("2026-06-27T01:00:00.000Z"),
+        ),
+      ),
+    ).toMatchObject({ claimed: true });
+    const worktree = createAutomationWorktree({
+      projectDir,
+      taskId: "task-alpha",
+      runId: "run-failed",
+      workflowId: "builder",
+      owner: "workflow:builder",
+    });
+    updateTaskClaimWorkspace({
+      projectDir,
+      taskId: "task-alpha",
+      runId: "run-failed",
+      workflowId: "builder",
+      workspaceDir: worktree.metadata.workspaceDir,
+      branch: worktree.branch,
+      baseCommit: worktree.baseCommit,
+      evidence: "prepared failed builder worktree",
+    });
+    writeFileSync(
+      join(worktree.metadata.workspaceDir, "README.md"),
+      "# Preserved builder work\n",
+      "utf8",
+    );
+    writeOwnerRunMetadata(projectDir, "run-failed", "builder", "failed");
+
+    const continued = continueTaskClaim({
+      projectDir,
+      taskId: "task-alpha",
+      sourceRunId: "run-failed",
+      runId: "run-recovery",
+      workflowId: "builder",
+      owner: "workflow:builder",
+      evidence: "agent recovery accepted preserved work",
+      now: new Date("2026-06-27T02:00:00.000Z"),
+    });
+
+    expect(continued).toMatchObject({
+      claimed: true,
+      recoveryPath: "continued-preserved-claim",
+      claim: {
+        runId: "run-recovery",
+        worktreeRunId: "run-failed",
+        workspaceDir: worktree.metadata.workspaceDir,
+      },
+    });
+    const historyDir = join(projectDir, ".kota/task-claims/history/task-alpha");
+    const historyFiles = readdirSync(historyDir);
+    expect(historyFiles).toHaveLength(1);
+    const historyFile = historyFiles[0];
+    if (historyFile === undefined) throw new Error("continued claim history is missing");
+    const historyPath = join(historyDir, historyFile);
+    expect(JSON.parse(readFileSync(historyPath, "utf8"))).toMatchObject({
+      runId: "run-failed",
+      status: "active",
+    });
+    writeOwnerRunMetadata(projectDir, "run-recovery", "builder", "failed");
+    expect(listTaskClaimInspections(projectDir)).toMatchObject([
+      {
+        claim: {
+          runId: "run-recovery",
+          worktreeRunId: "run-failed",
+        },
+        recoveryStatus: "stale",
+        safeToRetry: false,
+      },
+    ]);
+    expect(
+      releaseTaskClaim({
+        projectDir,
+        taskId: "task-alpha",
+        runId: "run-recovery",
+        workflowId: "builder",
+        evidence: "recovery merged",
+      }),
+    ).toMatchObject({ changed: true, recoveryStatus: "released" });
   });
 
   it("archives a superseded claim and lets a later run replace it", () => {

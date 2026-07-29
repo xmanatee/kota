@@ -34,6 +34,7 @@ function claimSnapshot(claim: TaskClaim): WorkflowStateRecoveryClaimSnapshot {
     taskId: claim.taskId,
     taskState: claim.taskState,
     runId: claim.runId,
+    worktreeRunId: claim.worktreeRunId ?? claim.runId,
     workflowId: claim.workflowId,
     owner: claim.owner,
     workspaceDir: claim.workspaceDir,
@@ -140,14 +141,18 @@ function relatedDeadLetters(
       scopeId,
       limit: 200,
     })
-    .filter((item) => deadLetterMentionsRun(item, claim.runId));
+    .filter((item) =>
+      deadLetterMentionsRun(item, claim.runId) ||
+      (claim.worktreeRunId !== undefined &&
+        deadLetterMentionsRun(item, claim.worktreeRunId)),
+    );
   return projectDeadLetterLinks(items);
 }
 
 function relatedDeadLettersForRun(
   projectDir: string,
   workflowId: string,
-  runId: string,
+  runIds: readonly string[],
 ): WorkflowStateRecoveryDeadLetterLink[] {
   const scopeId = deriveDirectoryScopeId(projectDir);
   const items = deadLetterStoreForProject(projectDir)
@@ -157,7 +162,7 @@ function relatedDeadLettersForRun(
       scopeId,
       limit: 500,
     })
-    .filter((item) => deadLetterMentionsRun(item, runId));
+    .filter((item) => runIds.some((runId) => deadLetterMentionsRun(item, runId)));
   return projectDeadLetterLinks(items);
 }
 
@@ -248,6 +253,9 @@ export function listRecoveryWorktrees(projectDir: string): WorkflowStateRecovery
       return {
         taskId: worktree.taskId,
         runId: worktree.runId,
+        ...(worktree.recoveryRunId !== undefined
+          ? { recoveryRunId: worktree.recoveryRunId }
+          : {}),
         workflowId: worktree.workflowId,
         owner: worktree.owner,
         metadataPath: worktree.metadataPath,
@@ -269,7 +277,12 @@ export function listRecoveryWorktrees(projectDir: string): WorkflowStateRecovery
         relatedDeadLetters: relatedDeadLettersForRun(
           projectDir,
           worktree.workflowId,
-          worktree.runId,
+          [
+            worktree.runId,
+            ...(worktree.recoveryRunId !== undefined
+              ? [worktree.recoveryRunId]
+              : []),
+          ],
         ),
         recommendedAction: recommendedActionForWorktree(
           worktree,

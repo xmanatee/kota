@@ -34,7 +34,10 @@ import type { ScheduleTriggerManager } from "./schedule-triggers.js";
 import type { WorkflowStep } from "./step-types.js";
 import type { AgentRunLimiter } from "./steps/agent-run-limiter.js";
 import { DEFAULT_AGENT_STEP_RETRY } from "./steps/step-executor-retry.js";
-import type { WorkflowRunTrigger } from "./trigger-types.js";
+import type {
+  WorkflowAgentBackoffKind,
+  WorkflowRunTrigger,
+} from "./trigger-types.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./types.js";
 import type { WorkflowQueueManager } from "./workflow-queue.js";
 
@@ -243,7 +246,14 @@ export async function runWorkflow(
     }
     handleDirtyCompletion(state, definition, result.metadata, preRunFingerprint);
     releaseReservation();
-    await runTerminalFinalizer(state, definition, trigger, result.metadata, workspaceDir);
+    await runTerminalFinalizer(
+      state,
+      definition,
+      trigger,
+      result.metadata,
+      workspaceDir,
+      result.agentBackoff?.kind,
+    );
     if (result.agentBackoff) {
       state.backoff.apply(result.agentBackoff);
       return;
@@ -267,6 +277,7 @@ async function runTerminalFinalizer(
   trigger: WorkflowRunTrigger,
   metadata: WorkflowRunMetadata,
   workspaceDir: string,
+  agentFailureKind?: WorkflowAgentBackoffKind,
 ): Promise<void> {
   if (definition.terminalFinalizer === undefined) return;
   try {
@@ -275,6 +286,10 @@ async function runTerminalFinalizer(
       workspaceDir,
       metadata,
       trigger,
+      ...(agentFailureKind !== undefined ? { agentFailureKind } : {}),
+      emit: (event, payload) => {
+        state.pbus.emitDynamic(event, payload);
+      },
       log: state.log,
     });
   } catch (error) {

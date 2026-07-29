@@ -25,6 +25,7 @@ export type TaskClaimRecoveryStatus =
 
 export type TaskClaimRecoveryPath =
   | "new-claim"
+  | "continued-preserved-claim"
   | "resumed-active-claim"
   | "resumed-stale-claim"
   | "replaced-stale-claim"
@@ -41,6 +42,8 @@ export type TaskClaim = {
   taskId: string;
   taskState: RepoTaskState;
   runId: string;
+  /** Original builder run that owns the preserved worktree, when this claim is continued. */
+  worktreeRunId?: string;
   workflowId: string;
   owner: string;
   workspaceDir: string;
@@ -126,6 +129,18 @@ export type TaskClaimWorkspaceInput = TaskClaimMutationInput & {
   workspaceDir: string;
   branch: string;
   baseCommit: string;
+};
+
+export type ContinueTaskClaimInput = {
+  projectDir: string;
+  taskId: string;
+  sourceRunId: string;
+  runId: string;
+  workflowId: string;
+  owner: string;
+  evidence: string;
+  leaseMs?: number;
+  now?: Date;
 };
 
 export function safeTaskClaimSegment(value: string): string {

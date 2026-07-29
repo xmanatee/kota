@@ -75,14 +75,14 @@ describe("workflow state recovery observability", () => {
     };
   }
 
-  it("waits instead of releasing merged or removed worktrees while the owner appears active", () => {
+  it("reports active instead of releasing while the owner appears active", () => {
     const claim = createPendingMergeClaim("task-active", "run-active", "owner still active");
 
     expect(recommendedActionFor(claim, "running", worktreeEvidence("merged", null))).toMatchObject({
-      kind: "wait",
+      kind: "active",
     });
     expect(recommendedActionFor(claim, null, worktreeEvidence("removed", "active"))).toMatchObject({
-      kind: "wait",
+      kind: "active",
     });
   });
 

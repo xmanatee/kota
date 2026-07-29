@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { loadConfig } from "#core/config/config.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import {
   expectStructuredOutput,
   type TypedCodeStepInput,
@@ -14,11 +15,14 @@ import {
   updateTaskClaimWorkspace,
 } from "#modules/autonomy/task-claims.js";
 import {
+  type AutomationWorktreeInspection,
+  continueAutomationWorktree,
   createAutomationWorktree,
   lockAutomationWorktree,
   updateAutomationWorktreeRuntimeResources,
 } from "#modules/git/worktree-lifecycle.js";
 import { builderWorktreeModeEnabledFromConfig } from "./builder-config.js";
+import { builderRecoveryRequestFromTrigger } from "./recovery-continuation.js";
 import {
   assignBuilderRuntimeResources,
   type BuilderRuntimeResourceProfile,
@@ -34,6 +38,7 @@ export type BuilderWorkspaceResult = {
   headCommit: string | null;
   taskId: string | null;
   claimId: string | null;
+  worktreeRunId?: string;
   claimPath: string | null;
   metadataPath: string | null;
   copiedSetupFiles: string[];
@@ -68,6 +73,63 @@ function writeWorkspaceArtifact(
   return result;
 }
 
+async function prepareWorktreeResources(
+  ctx: WorkflowStepContext,
+  inspection: AutomationWorktreeInspection,
+  taskId: string,
+  claimId: string,
+  worktreeRunId: string,
+): Promise<BuilderWorkspaceResult> {
+  const runtimeResources = await assignBuilderRuntimeResources({
+    projectDir: ctx.projectDir,
+    taskId,
+    runId: ctx.workflow.runId,
+    workspaceDir: inspection.metadata.workspaceDir,
+    runDirPath: ctx.workflow.runDirPath,
+  });
+  updateAutomationWorktreeRuntimeResources(
+    { projectDir: ctx.projectDir, taskId, runId: worktreeRunId },
+    {
+      profileId: runtimeResources.profileId,
+      agentRunDir: runtimeResources.agentRunDir,
+      tempRoot: runtimeResources.tempRoot,
+      artifactRoot: runtimeResources.artifactRoot,
+      ports: runtimeResources.ports,
+    },
+  );
+  const claimUpdate = updateTaskClaimWorkspace({
+    projectDir: ctx.projectDir,
+    taskId,
+    runId: ctx.workflow.runId,
+    workflowId: ctx.workflow.name,
+    workspaceDir: inspection.metadata.workspaceDir,
+    branch: inspection.branch,
+    baseCommit: inspection.baseCommit,
+    evidence: `prepared builder worktree ${inspection.metadata.workspaceDir}`,
+  });
+  if (!claimUpdate.changed || !claimUpdate.claim) {
+    throw new Error(
+      claimUpdate.reason ?? `Failed to update task claim workspace for ${taskId}`,
+    );
+  }
+
+  return writeWorkspaceArtifact(ctx.workflow.runDirPath, {
+    enabled: true,
+    projectDir: ctx.projectDir,
+    workspaceDir: inspection.metadata.workspaceDir,
+    runtimeResources,
+    branch: inspection.branch,
+    baseCommit: inspection.baseCommit,
+    headCommit: inspection.headCommit,
+    taskId,
+    claimId,
+    claimPath: taskClaimPath(ctx.projectDir, taskId),
+    metadataPath: inspection.metadataPath,
+    copiedSetupFiles: inspection.metadata.copiedSetupFiles,
+    ...(worktreeRunId !== ctx.workflow.runId ? { worktreeRunId } : {}),
+  });
+}
+
 export function createPrepareBuilderWorktreeStep(
   claimTaskStep: TypedCodeStepInput<QueueTaskClaimResult>,
 ): TypedCodeStepInput<BuilderWorkspaceResult> {
@@ -92,6 +154,25 @@ export function createPrepareBuilderWorktreeStep(
       if (!taskId) throw new Error("Cannot prepare a builder worktree without a claimed task id");
 
       const claimId = `${taskId}:${ctx.workflow.runId}`;
+      const recoveryRequest = builderRecoveryRequestFromTrigger(ctx.trigger);
+      if (recoveryRequest !== null) {
+        const worktreeRunId = claim.claim?.worktreeRunId;
+        if (!worktreeRunId || worktreeRunId !== recoveryRequest.worktreeRunId) {
+          throw new Error(`Recovery claim for ${taskId} does not identify its preserved worktree`);
+        }
+        const inspection = continueAutomationWorktree(
+          { projectDir: ctx.projectDir, taskId, runId: worktreeRunId },
+          ctx.workflow.runId,
+        );
+        return prepareWorktreeResources(
+          ctx,
+          inspection,
+          taskId,
+          claimId,
+          worktreeRunId,
+        );
+      }
+
       if (!builderWorktreeModeEnabled(ctx.projectDir)) {
         const workspaceDir = ctx.workspaceDir ?? ctx.projectDir;
         const runtimeResources = await assignBuilderRuntimeResources({
@@ -129,53 +210,13 @@ export function createPrepareBuilderWorktreeStep(
         { projectDir: ctx.projectDir, taskId, runId: ctx.workflow.runId },
         "builder agent running",
       );
-      const runtimeResources = await assignBuilderRuntimeResources({
-        projectDir: ctx.projectDir,
-        taskId,
-        runId: ctx.workflow.runId,
-        workspaceDir: inspection.metadata.workspaceDir,
-        runDirPath: ctx.workflow.runDirPath,
-      });
-      updateAutomationWorktreeRuntimeResources(
-        { projectDir: ctx.projectDir, taskId, runId: ctx.workflow.runId },
-        {
-          profileId: runtimeResources.profileId,
-          agentRunDir: runtimeResources.agentRunDir,
-          tempRoot: runtimeResources.tempRoot,
-          artifactRoot: runtimeResources.artifactRoot,
-          ports: runtimeResources.ports,
-        },
-      );
-      const claimUpdate = updateTaskClaimWorkspace({
-        projectDir: ctx.projectDir,
-        taskId,
-        runId: ctx.workflow.runId,
-        workflowId: ctx.workflow.name,
-        workspaceDir: inspection.metadata.workspaceDir,
-        branch: inspection.branch,
-        baseCommit: inspection.baseCommit,
-        evidence: `prepared builder worktree ${inspection.metadata.workspaceDir}`,
-      });
-      if (!claimUpdate.changed || !claimUpdate.claim) {
-        throw new Error(
-          claimUpdate.reason ?? `Failed to update task claim workspace for ${taskId}`,
-        );
-      }
-
-      return writeWorkspaceArtifact(ctx.workflow.runDirPath, {
-        enabled: true,
-        projectDir: ctx.projectDir,
-        workspaceDir: inspection.metadata.workspaceDir,
-        runtimeResources,
-        branch: inspection.branch,
-        baseCommit: inspection.baseCommit,
-        headCommit: locked.headCommit,
+      return prepareWorktreeResources(
+        ctx,
+        locked,
         taskId,
         claimId,
-        claimPath: taskClaimPath(ctx.projectDir, taskId),
-        metadataPath: inspection.metadataPath,
-        copiedSetupFiles: inspection.metadata.copiedSetupFiles,
-      });
+        ctx.workflow.runId,
+      );
     },
   });
 }

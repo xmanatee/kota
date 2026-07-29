@@ -29,6 +29,11 @@ import type { BranchStepResult, CleanupResult } from "./branch-per-task.js";
 import { cleanupMergedBranches, createPullRequest, createTaskBranch } from "./branch-per-task.js";
 import { builderMaxConcurrentRunsFromConfig } from "./builder-config.js";
 import {
+  BUILDER_RECOVERY_EVENT,
+  type BuilderRecoveryDispatchResult,
+  requestPendingBuilderRecoveries,
+} from "./recovery-continuation.js";
+import {
   CLAIMED_TASK_CONSISTENCY_STEP_ID,
   type ClaimedTaskConsistencyResult,
   claimedTaskConsistencySucceeded,
@@ -102,6 +107,18 @@ const reconcileWorktreesForRecoveryStep = typedCodeStep<ReconcileWorktreesResult
   run: (ctx) => reconcileAutomationWorktrees(ctx.projectDir),
 });
 
+const requestRecoveryContinuationsStep = typedCodeStep<BuilderRecoveryDispatchResult>({
+  id: "request-recovery-continuations",
+  type: "code",
+  when: onRecoveryTrigger,
+  validate: (raw) =>
+    expectStructuredOutput<BuilderRecoveryDispatchResult>(raw, [
+      "candidateCount",
+      "requested",
+    ]),
+  run: requestPendingBuilderRecoveries,
+});
+
 const claimTaskStep = createClaimTaskStep(inspectReadyQueue);
 const prepareWorktreeStep = createPrepareBuilderWorktreeStep(claimTaskStep);
 const claimedTaskConsistencyStep = createClaimedTaskConsistencyStep(claimTaskStep);
@@ -130,6 +147,9 @@ const builderWorkflow: WorkflowDefinitionInput = {
     {
       event: "autonomy.queue.available",
     },
+    {
+      event: BUILDER_RECOVERY_EVENT,
+    },
     // Recovery re-entry after a daemon crash: reset step stashes any dirt and
     // restores the base branch if the crash left the repo on a kota/task/*
     // branch. The agent build step is gated so it will not re-enter inside an
@@ -151,6 +171,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
         }),
     },
     reconcileWorktreesForRecoveryStep,
+    requestRecoveryContinuationsStep,
     inspectReadyQueue,
     claimTaskStep,
     prepareWorktreeStep,
@@ -173,6 +194,9 @@ const builderWorkflow: WorkflowDefinitionInput = {
         const { dirty, actionableCount } = inspectReadyQueue.outputRequired(ctx);
         const claim = claimTaskStep.output(ctx);
         const workspace = prepareWorktreeStep.output(ctx);
+        if (ctx.trigger.event === BUILDER_RECOVERY_EVENT) {
+          return claim?.claimed === true && workspace !== undefined;
+        }
         return !dirty && actionableCount > 0 && claim?.claimed === true && workspace !== undefined;
       },
       repairLoop: {

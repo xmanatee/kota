@@ -67,6 +67,32 @@ function cleanPushState() {
 }
 
 vi.mock("#modules/git/worktree-lifecycle.js", () => ({
+  continueAutomationWorktree: vi.fn(
+    (selector: WorktreeSelector, recoveryRunId: string) => ({
+      metadata: {
+        ...makeMetadata(selector, "active"),
+        recoveryRunId,
+      },
+      metadataPath: `${selector.projectDir}/.kota/worktrees/${selector.taskId}-${selector.runId}.json`,
+      exists: true,
+      branch: branchName(selector),
+      baseCommit: "abc1234",
+      headCommit: "abc1234",
+      dirty: {
+        dirty: true,
+        trackedDirty: true,
+        untracked: false,
+        conflicted: false,
+        entries: ["M src/recovered.ts"],
+      },
+      lock: { locked: true, reason: `builder recovery ${recoveryRunId}` },
+      push: cleanPushState(),
+      cleanup: {
+        eligible: false,
+        blockers: ["worktree has uncommitted tracked changes"],
+      },
+    }),
+  ),
   cleanupAutomationWorktree: vi.fn((selector: WorktreeSelector) => ({
     removed: true,
     inspection: {

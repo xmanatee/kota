@@ -1,12 +1,18 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
+import { writeJsonFileAtomic } from "#core/util/json-file.js";
 import type { WorkflowTerminalFinalizerInput } from "#core/workflow/types.js";
+import { findRecoveryClaim } from "#modules/autonomy/workflow-state-recovery-claims.js";
 import {
   inspectAutomationWorktree,
   listAutomationWorktreeUniqueCommits,
   reconcileAutomationWorktrees,
 } from "#modules/git/worktree-lifecycle.js";
-import type { BuilderWorkspaceResult } from "./prepare-worktree-step.js";
+import {
+  BUILDER_RECOVERY_EVENT,
+  builderRecoveryRequestForCandidate,
+  emitBuilderRecoveryRequest,
+} from "./recovery-continuation.js";
+import { releaseBuilderPortRange } from "./runtime-resource-ports.js";
 
 type BuilderTerminalWorktreeFinalizerArtifact = {
   attempted: boolean;
@@ -16,37 +22,70 @@ type BuilderTerminalWorktreeFinalizerArtifact = {
   removed: boolean;
   blockers: string[];
   uniqueCommits: string[];
+  portLeaseReleased: boolean;
+  portLeaseError: string | null;
+  recoveryRequested: boolean;
   artifactPath: string;
 };
 
-function workspaceOutput(input: WorkflowTerminalFinalizerInput): BuilderWorkspaceResult | null {
+type BuilderTerminalWorkspace = {
+  taskId: string;
+  worktreeRunId: string;
+};
+
+function workspaceOutput(
+  input: WorkflowTerminalFinalizerInput,
+): BuilderTerminalWorkspace | null {
   const step = input.metadata.steps.find((candidate) => candidate.id === "prepare-worktree");
   const output = step?.output;
-  if (!output || typeof output !== "object") return null;
-  const candidate = output as Partial<BuilderWorkspaceResult>;
-  if (candidate.enabled !== true || typeof candidate.taskId !== "string") return null;
-  return candidate as BuilderWorkspaceResult;
+  if (output && typeof output === "object") {
+    const candidate = output as {
+      enabled?: boolean;
+      taskId?: string;
+      worktreeRunId?: string;
+    };
+    if (candidate.enabled === true && typeof candidate.taskId === "string") {
+      return {
+        taskId: candidate.taskId,
+        worktreeRunId: candidate.worktreeRunId ?? input.metadata.id,
+      };
+    }
+    if (candidate.enabled === false) return null;
+  }
+  const claimOutput = input.metadata.steps.find(
+    (candidate) => candidate.id === "claim-task",
+  )?.output;
+  if (!claimOutput || typeof claimOutput !== "object") return null;
+  const claim = claimOutput as {
+    claimed?: boolean;
+    taskId?: string;
+    claim?: { worktreeRunId?: string } | null;
+  };
+  if (claim.claimed !== true || typeof claim.taskId !== "string") return null;
+  return {
+    taskId: claim.taskId,
+    worktreeRunId: claim.claim?.worktreeRunId ?? input.metadata.id,
+  };
 }
 
 function writeArtifact(
   artifact: BuilderTerminalWorktreeFinalizerArtifact,
 ): void {
-  mkdirSync(dirname(artifact.artifactPath), { recursive: true });
-  writeFileSync(artifact.artifactPath, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
+  writeJsonFileAtomic(artifact.artifactPath, artifact);
 }
 
 export async function finalizeBuilderTerminalWorktree(
   input: WorkflowTerminalFinalizerInput,
 ): Promise<void> {
   const workspace = workspaceOutput(input);
-  if (!workspace?.taskId) return;
+  if (!workspace) return;
   const runDirPath = join(input.projectDir, input.metadata.runDir);
   const artifactPath = join(runDirPath, "terminal-worktree-finalizer.json");
 
   const selector = {
     projectDir: input.projectDir,
     taskId: workspace.taskId,
-    runId: input.metadata.id,
+    runId: workspace.worktreeRunId,
   };
   try {
     const before = inspectAutomationWorktree(selector);
@@ -56,9 +95,9 @@ export async function finalizeBuilderTerminalWorktree(
     );
     const reconciliation = reconcileAutomationWorktrees(input.projectDir);
     const item = reconciliation.items.find(
-      (candidate) => candidate.taskId === workspace.taskId && candidate.runId === input.metadata.id,
+      (candidate) => candidate.taskId === workspace.taskId && candidate.runId === selector.runId,
     );
-    const removed = item?.removed ?? false;
+    const removed = before.metadata.state === "removed" || item?.removed === true;
     const baseBlockers = item?.blockers ?? before.cleanup.blockers;
     const blockers =
       !removed && unique.error !== undefined
@@ -67,6 +106,31 @@ export async function finalizeBuilderTerminalWorktree(
     const reason = removed
       ? "terminal builder worktree had no unresolved cleanup blockers"
       : "terminal builder worktree preserved for recovery review";
+    const candidate = findRecoveryClaim(input.projectDir, workspace.taskId);
+    const retryContinuation =
+      input.trigger.event !== BUILDER_RECOVERY_EVENT ||
+      input.agentFailureKind !== undefined;
+    const recoveryRequested =
+      !removed &&
+      retryContinuation &&
+      candidate?.claim.runId === input.metadata.id &&
+      candidate.recommendedAction.kind === "needs-review";
+    let portLeaseReleased = false;
+    let portLeaseError: string | null = null;
+    const profileId = before.metadata.runtimeResources?.profileId;
+    if (profileId !== undefined) {
+      try {
+        const portLease = await releaseBuilderPortRange({
+          projectDir: input.projectDir,
+          runId: input.metadata.id,
+          profileId,
+        });
+        portLeaseReleased = portLease.released;
+      } catch (error) {
+        portLeaseError = error instanceof Error ? error.message : String(error);
+        input.log(`Builder terminal finalizer could not release its port lease: ${portLeaseError}`);
+      }
+    }
     writeArtifact({
       attempted: true,
       reason,
@@ -75,8 +139,20 @@ export async function finalizeBuilderTerminalWorktree(
       removed,
       blockers,
       uniqueCommits: unique.commits,
+      portLeaseReleased,
+      portLeaseError,
+      recoveryRequested,
       artifactPath,
     });
+    if (recoveryRequested && candidate) {
+      emitBuilderRecoveryRequest(
+        input.emit,
+        builderRecoveryRequestForCandidate(
+          candidate,
+          `terminal builder run ${input.metadata.id} preserved workspace changes`,
+        ),
+      );
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     input.log(`Builder terminal worktree finalizer preserved error artifact: ${message}`);
@@ -88,6 +164,9 @@ export async function finalizeBuilderTerminalWorktree(
       removed: false,
       blockers: [message],
       uniqueCommits: [],
+      portLeaseReleased: false,
+      portLeaseError: null,
+      recoveryRequested: false,
       artifactPath,
     });
   }

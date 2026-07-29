@@ -11,7 +11,10 @@ import {
   type WorkflowRunTrigger,
 } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
-import { workflowDispatchIdempotency } from "./workflow-idempotency.js";
+import {
+  hasExplicitWorkflowDispatchKey,
+  workflowDispatchIdempotency,
+} from "./workflow-idempotency.js";
 import {
   buildBurstQueuedRuns,
   burstDispatchSlots,
@@ -112,8 +115,15 @@ export class WorkflowQueueManager {
       projectDir: this.config.projectDir ?? process.cwd(),
       config: this.config.getConfig?.(),
     });
+    const idempotency = workflowDispatchIdempotency(
+      this.config.idempotencyStore,
+      definition.name,
+      trigger,
+    );
     const distinctQueuedRun =
-      trigger.event === WORKFLOW_BATCH_FLUSH_EVENT || dispatchBurst > 1;
+      trigger.event === WORKFLOW_BATCH_FLUSH_EVENT ||
+      dispatchBurst > 1 ||
+      hasExplicitWorkflowDispatchKey(trigger);
     const existingIndex = distinctQueuedRun
       ? -1
       : this.queue.findIndex(
@@ -138,11 +148,6 @@ export class WorkflowQueueManager {
       ),
     };
 
-    const idempotency = workflowDispatchIdempotency(
-      this.config.idempotencyStore,
-      definition.name,
-      queuedRun.trigger,
-    );
     if (idempotency) {
       const idempotencyResult = this.config.idempotencyStore.record({
         scopeId: idempotency.scopeId,

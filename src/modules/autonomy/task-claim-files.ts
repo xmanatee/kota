@@ -27,6 +27,7 @@ import {
   CLAIM_SCHEMA_VERSION,
   CLAIMS_ROOT,
   type ClaimTaskInput,
+  type ContinueTaskClaimInput,
   DEFAULT_TASK_CLAIM_LEASE_MS,
   safeTaskClaimSegment,
   type TaskClaim,
@@ -107,6 +108,7 @@ function readClaimFile(path: string): TaskClaim {
     typeof parsed.taskId !== "string" ||
     !isRepoTaskState(parsed.taskState) ||
     typeof parsed.runId !== "string" ||
+    (parsed.worktreeRunId !== undefined && typeof parsed.worktreeRunId !== "string") ||
     typeof parsed.workflowId !== "string" ||
     typeof parsed.owner !== "string" ||
     typeof parsed.workspaceDir !== "string" ||
@@ -126,6 +128,9 @@ function readClaimFile(path: string): TaskClaim {
     taskId: parsed.taskId,
     taskState: parsed.taskState,
     runId: parsed.runId,
+    ...(parsed.worktreeRunId !== undefined
+      ? { worktreeRunId: parsed.worktreeRunId }
+      : {}),
     workflowId: parsed.workflowId,
     owner: parsed.owner,
     workspaceDir: parsed.workspaceDir,
@@ -168,6 +173,7 @@ function sameClaim(left: TaskClaim, right: TaskClaim): boolean {
     left.taskId === right.taskId &&
     left.taskState === right.taskState &&
     left.runId === right.runId &&
+    left.worktreeRunId === right.worktreeRunId &&
     left.workflowId === right.workflowId &&
     left.owner === right.owner &&
     left.workspaceDir === right.workspaceDir &&
@@ -265,7 +271,7 @@ export function inspectTaskClaimWithOwnerRun(
     (worktrees ?? listAutomationWorktreeStatuses(projectDir)).some(
       (worktree) =>
         worktree.taskId === claim.taskId &&
-        worktree.runId === claim.runId &&
+        worktree.runId === (claim.worktreeRunId ?? claim.runId) &&
         worktree.exists &&
         (worktree.dirtyState === "dirty" || worktree.dirtyState === "conflicted"),
     )
@@ -324,6 +330,45 @@ export function archiveClaimIfUnchanged(
     if (!sameClaim(current, expected)) return false;
     archiveClaim(projectDir, path, current, now);
     return true;
+  } finally {
+    unlinkSync(lockPath);
+  }
+}
+
+export function continueClaimIfUnchanged(
+  projectDir: string,
+  expected: TaskClaim,
+  input: ContinueTaskClaimInput,
+): TaskClaim | null {
+  const now = input.now ?? new Date();
+  const path = taskClaimPath(projectDir, expected.taskId);
+  const lockPath = acquireClaimMutationLock(projectDir, expected, now);
+  if (!lockPath) return null;
+  try {
+    if (!existsSync(path)) return null;
+    const current = readClaimFile(path);
+    if (!sameClaim(current, expected)) return null;
+
+    const historyPath = claimHistoryPath(projectDir, current, now);
+    ensureParent(historyPath);
+    linkSync(path, historyPath);
+    const leaseMs = input.leaseMs ?? current.leaseMs;
+    const acquiredAt = now.toISOString();
+    const continued: TaskClaim = {
+      ...current,
+      runId: input.runId,
+      worktreeRunId: current.worktreeRunId ?? current.runId,
+      workflowId: input.workflowId,
+      owner: input.owner,
+      leaseMs,
+      leaseAcquiredAt: acquiredAt,
+      leaseExpiresAt: new Date(now.getTime() + leaseMs).toISOString(),
+      updatedAt: acquiredAt,
+      status: "active",
+      evidence: input.evidence,
+    };
+    writeClaim(path, continued, "w");
+    return continued;
   } finally {
     unlinkSync(lockPath);
   }

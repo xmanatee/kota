@@ -87,6 +87,38 @@ vi.mock("#modules/autonomy/task-claims.js", () => ({
     skipped: [],
     activeClaims: [],
   })),
+  continueTaskClaim: vi.fn((input: {
+    taskId: string;
+    runId: string;
+    workflowId: string;
+    owner: string;
+  }) => ({
+    claimed: true,
+    taskId: input.taskId,
+    claim: {
+      schemaVersion: 1,
+      taskId: input.taskId,
+      taskState: "ready",
+      runId: input.runId,
+      worktreeRunId: "run-failed",
+      workflowId: input.workflowId,
+      owner: input.owner,
+      workspaceDir: "/tmp/preserved-builder",
+      branch: "kota/task/task-claimed/run-failed",
+      baseCommit: "abc1234",
+      leaseMs: 25_200_000,
+      leaseAcquiredAt: "2026-06-27T00:00:00.000Z",
+      leaseExpiresAt: "2026-06-27T07:00:00.000Z",
+      createdAt: "2026-06-27T00:00:00.000Z",
+      updatedAt: "2026-06-27T00:00:01.000Z",
+      status: "active",
+      evidence: "continued preserved builder work",
+    },
+    recoveryStatus: "agent-running",
+    safeToRetry: false,
+    recoveryPath: "continued-preserved-claim",
+    reason: null,
+  })),
   listTaskClaimInspections: vi.fn(() => []),
   markTaskClaimPendingMerge: vi.fn(() => ({
     taskId: "task-claimed",
@@ -138,6 +170,11 @@ vi.mock("#modules/autonomy/task-claims.js", () => ({
     safeToRetry: false,
     reason: null,
   })),
+}));
+
+vi.mock("#modules/autonomy/workflow-state-recovery-claims.js", () => ({
+  findRecoveryClaim: vi.fn(() => null),
+  listRecoveryClaims: vi.fn(() => []),
 }));
 
 vi.mock("#modules/git/worktree-merge-gate.js", () => ({

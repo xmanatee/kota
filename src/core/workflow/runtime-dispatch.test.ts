@@ -250,6 +250,50 @@ describe("runtime idle dispatch", () => {
     ]);
   });
 
+  it("keeps explicitly keyed deliveries as separate queued runs", async () => {
+    const runtime = new WorkflowRuntime({
+      bus: new EventBus(),
+      projectDir,
+      idleIntervalMs: 60_000,
+      workflows: [
+        {
+          name: "webhook-listener",
+          definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
+          moduleRoot: process.cwd(),
+          triggers: [{ webhook: true }],
+          steps: [
+            {
+              id: "noop",
+              type: "code",
+              run: () => ({ ok: true }),
+            },
+          ],
+        },
+      ],
+    });
+
+    runtime.start();
+    runtime.setDispatchPaused(true);
+    runtime.enqueueWebhookRun("webhook-listener", {
+      body: { taskId: "task-one" },
+      headers: {},
+      timestamp: "2026-06-05T12:00:00.000Z",
+      idempotencyKey: "task-one",
+    });
+    runtime.enqueueWebhookRun("webhook-listener", {
+      body: { taskId: "task-two" },
+      headers: {},
+      timestamp: "2026-06-05T12:00:01.000Z",
+      idempotencyKey: "task-two",
+    });
+    await runtime.stop();
+
+    expect(runtime.getState().pendingRuns).toHaveLength(2);
+    expect(
+      runtime.getState().pendingRuns.map((run) => run.trigger.payload.idempotencyKey),
+    ).toEqual(["task-one", "task-two"]);
+  });
+
   it("dedupes replayed durable event-triggered workflow dispatches", async () => {
     const bus = new EventBus();
     bus.addEmitMiddleware((envelope, next) => {

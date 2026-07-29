@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import {
+  continueAutomationWorktree,
   createAutomationWorktree,
   listAutomationWorktreeStatuses,
   lockAutomationWorktree,
@@ -221,5 +222,36 @@ describe("automation worktree operator statuses", () => {
       nextAction: "unlock stale worktree after verifying workspace changes: builder agent running",
     });
     expect(status.cleanupBlockers).toContain("stale worktree is locked: builder agent running");
+  });
+
+  it("attributes a preserved worktree to its active recovery run", () => {
+    const repo = initRepo("recovery-owner");
+    const preserved = createFixtureWorktree(repo, "run-failed");
+    writeFileSync(
+      join(preserved.metadata.workspaceDir, "README.md"),
+      "# Preserved recovery work\n",
+      "utf8",
+    );
+    writeRunMetadata(repo, "run-failed", "failed");
+    writeRunMetadata(repo, "run-recovery", "running");
+    writeWorkflowState(repo, ["run-recovery"]);
+
+    continueAutomationWorktree(
+      {
+        projectDir: repo,
+        taskId: preserved.metadata.taskId,
+        runId: preserved.metadata.runId,
+      },
+      "run-recovery",
+    );
+
+    expect(listAutomationWorktreeStatuses(repo)[0]).toMatchObject({
+      runId: "run-failed",
+      recoveryRunId: "run-recovery",
+      state: "active",
+      runState: "active",
+      dirtyState: "dirty",
+      cleanupStatus: "blocked",
+    });
   });
 });

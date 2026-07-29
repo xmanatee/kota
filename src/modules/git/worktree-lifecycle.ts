@@ -215,6 +215,37 @@ export function updateAutomationWorktreeRuntimeResources(
 	return inspectAutomationWorktree(selector);
 }
 
+export function continueAutomationWorktree(
+	selector: AutomationWorktreeSelector,
+	recoveryRunId: string,
+): AutomationWorktreeInspection {
+	const before = inspectAutomationWorktree(selector);
+	if (!before.exists) {
+		throw new Error(`Cannot continue missing automation worktree ${selector.taskId}/${selector.runId}`);
+	}
+	if (before.runState === "active") {
+		throw new Error(`Cannot continue active automation worktree ${selector.taskId}/${selector.runId}`);
+	}
+	if (!before.dirty.dirty) {
+		throw new Error(`Cannot continue clean automation worktree ${selector.taskId}/${selector.runId}`);
+	}
+	git(selector.projectDir, [
+		"worktree",
+		"lock",
+		"--reason",
+		`builder recovery ${recoveryRunId}`,
+		before.metadata.workspaceDir,
+	]);
+	writeMetadata(selector.projectDir, {
+		...before.metadata,
+		recoveryRunId,
+		updatedAt: new Date().toISOString(),
+		stateReason: `continued by builder recovery ${recoveryRunId}`,
+		lastCleanupBlockers: [],
+	});
+	return inspectAutomationWorktree(selector);
+}
+
 export function inspectAutomationWorktree(selector: AutomationWorktreeSelector): AutomationWorktreeInspection {
 	const metadata = readMetadata(selector);
 	const metadataWorkspace = comparablePath(metadata.workspaceDir);
@@ -225,7 +256,10 @@ export function inspectAutomationWorktree(selector: AutomationWorktreeSelector):
 	const push = exists ? readPushState(metadata.workspaceDir, metadata.baseCommit, headCommit) : emptyPushState();
 	const branch = entry?.branch ?? metadata.branch;
 	const lock = entry?.lock ?? { locked: false, reason: null };
-	const runState = readAutomationWorktreeRunState(selector.projectDir, metadata.runId);
+	const runState = readAutomationWorktreeRunState(
+		selector.projectDir,
+		metadata.recoveryRunId ?? metadata.runId,
+	);
 	const cleanup = cleanupEligibility(metadata, exists, dirty, lock, headCommit, push, runState);
 	return {
 		metadata,
@@ -621,6 +655,9 @@ function operatorStatusForInspection(inspection: AutomationWorktreeInspection): 
 	return {
 		taskId: metadata.taskId,
 		runId: metadata.runId,
+		...(metadata.recoveryRunId !== undefined
+			? { recoveryRunId: metadata.recoveryRunId }
+			: {}),
 		workflowId: metadata.workflowId,
 		owner: metadata.owner,
 		workspaceDir: metadata.workspaceDir,

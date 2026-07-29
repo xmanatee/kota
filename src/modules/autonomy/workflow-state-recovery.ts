@@ -207,7 +207,7 @@ function disposeRecoveryWorktree(
   return disposeAutomationWorktree({
     projectDir: input.projectDir,
     taskId: before.claim.taskId,
-    runId: before.claim.runId,
+    runId: before.claim.worktreeRunId,
     reason: input.rationale,
     disposition: input.action === "release" ? "released" : "superseded",
     ...(input.supersededByCommit !== undefined

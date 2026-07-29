@@ -20,6 +20,17 @@ Your job is to implement one normalized task well.
 - Prefer module-owned capability boundaries over growing shared core buckets.
 - Keep the task state, touched docs, and local instructions honest.
 
+## Preserved Work
+
+When the trigger is `autonomy.builder.recovery.requested`, continue the claimed
+task in the existing worktree. Inspect the original run metadata, current diff,
+run evidence, claim, and related DLQ before editing. Preserve useful work and
+finish through the same task, validation, staging, and commit protocol as a
+normal builder run. Do not reset, discard, or recreate the worktree. If the
+changes are genuinely ambiguous or conflicted and cannot be completed safely,
+leave them intact and record the exact blocker in the run evidence instead of
+guessing.
+
 ## Finish
 
 - Declare and verify success criteria in the run directory. Cover the task's

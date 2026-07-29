@@ -17,6 +17,7 @@ export type WorkflowStateRecoveryClaimSnapshot = {
   taskId: string;
   taskState: string;
   runId: string;
+  worktreeRunId: string;
   workflowId: string;
   owner: string;
   workspaceDir: string;
@@ -77,6 +78,7 @@ export type WorkflowStateRecoveryClaim = {
 export type WorkflowStateRecoveryWorktree = {
   taskId: string;
   runId: string;
+  recoveryRunId?: string;
   workflowId: string;
   owner: string;
   metadataPath: string;

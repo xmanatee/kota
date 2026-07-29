@@ -73,10 +73,6 @@ export function createTaskBranch(ctx: WorkflowStepContext): BranchStepResult {
   const projectDir = workflowWorkspaceDir(ctx);
   const config = loadConfig(ctx.projectDir);
 
-  if (!builderWorktreeModeEnabledFromConfig(config)) {
-    return { branchPerTask: false, branch: null, baseBranch: null, taskId: null };
-  }
-
   if (projectDir !== ctx.projectDir) {
     return {
       branchPerTask: true,
@@ -84,6 +80,10 @@ export function createTaskBranch(ctx: WorkflowStepContext): BranchStepResult {
       baseBranch: getCurrentBranch(ctx.projectDir),
       taskId: getClaimedTaskId(ctx) ?? findTaskIdFromStagedFiles(projectDir),
     };
+  }
+
+  if (!builderWorktreeModeEnabledFromConfig(config)) {
+    return { branchPerTask: false, branch: null, baseBranch: null, taskId: null };
   }
 
   const baseBranch = getCurrentBranch(projectDir);
