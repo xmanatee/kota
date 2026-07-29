@@ -4,6 +4,14 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { nodeOptionsWithoutSourceCondition } from "../dist/core/util/node-options.js";
 
+function handleOutputError(error) {
+  if (error?.code === "EPIPE") process.exit(0);
+  throw error;
+}
+
+process.stdout.on("error", handleOutputError);
+process.stderr.on("error", handleOutputError);
+
 const nodeOptionsResult = nodeOptionsWithoutSourceCondition(
   process.env.NODE_OPTIONS,
 );
