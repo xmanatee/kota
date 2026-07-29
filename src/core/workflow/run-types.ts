@@ -1,4 +1,10 @@
-import type { TrajectoryDiagnosticsMetadata } from "#core/agent-harness/index.js";
+import type {
+  AgentHarness,
+  AgentHarnessResult,
+  AgentHarnessRunOptions,
+  AgentHarnessWriter,
+  TrajectoryDiagnosticsMetadata,
+} from "#core/agent-harness/index.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import type { EventJournal } from "#core/events/event-journal.js";
@@ -184,6 +190,7 @@ export type WorkflowStepContext = {
   /** Present when this step is executing inside a foreach loop. Maps the foreach `as` name to the current item. */
   foreach?: Record<string, unknown>;
   runTool: WorkflowRunToolRunner;
+  runAgentHarness: WorkflowAgentHarnessRunner;
   emit: (event: string, payload: Record<string, unknown>) => void;
   requestRestart: (reason: string) => void;
   readPrompt: (promptPath: string) => string;
@@ -217,6 +224,16 @@ export type WorkflowRunToolRunner = (
   input: Record<string, unknown>,
   context?: WorkflowRunToolCallContext,
 ) => Promise<ToolResult>;
+
+export type WorkflowAgentHarnessRunner = (
+  harness: AgentHarness,
+  options: Omit<AgentHarnessRunOptions, "abortController">,
+  execution?: {
+    signal?: AbortSignal;
+    workspaceKey?: string;
+    writer?: AgentHarnessWriter;
+  },
+) => Promise<AgentHarnessResult>;
 
 export type WorkflowValueResolver<T> =
   | T

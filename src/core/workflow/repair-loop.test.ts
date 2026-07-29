@@ -26,9 +26,11 @@ import type {
 import type { WorkflowAgentStep } from "./step-types.js";
 import { AgentWriteScopeViolationError } from "./steps/agent-write-scope.js";
 import type { AgentStepResult } from "./steps/step-executor-agent.js";
+import { createWorkflowAgentHarnessRunner } from "./steps/workflow-agent-harness-runner.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 
 const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", schemaRef: null, payload: {} };
+const runAgentHarness = createWorkflowAgentHarnessRunner(undefined);
 
 const EMPTY_TRAJECTORY_DIAGNOSTICS: TrajectoryDiagnosticsMetadata = {
   artifactPath: ".kota/runs/test/steps/agent.trajectory-diagnostics.json",
@@ -76,6 +78,7 @@ function makeContext(projectDir: string): WorkflowStepContext {
     stepOutputs: {},
     stepResults: {},
     stepOutputList: [],
+    runAgentHarness,
     runTool: async () => ({ content: "ok" }),
     emit: vi.fn(),
     requestRestart: vi.fn(),
@@ -290,10 +293,11 @@ describe("runAgentRepairLoop", () => {
       },
     });
 
+    const nestedRunner = vi.fn(runAgentHarness);
     const result = await runAgentRepairLoop(
       step,
       makeInitialResult(),
-      makeContext(projectDir),
+      { ...makeContext(projectDir), runAgentHarness: nestedRunner },
       makeMetadata(),
       new AbortController(),
       vi.fn(),
@@ -312,6 +316,7 @@ describe("runAgentRepairLoop", () => {
       content: "repair complete",
       repairIterations: [{ attempt: 1 }],
     });
+    expect(nestedRunner).toHaveBeenCalledOnce();
     expect(decisions).toHaveLength(2);
     expect(decisions[0]).toMatchObject({
       behavior: "deny",

@@ -28,6 +28,7 @@ import type { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowRunExecutionResult, WorkflowRunStatus, WorkflowRunToolRunner, WorkflowRuntimeResources, WorkflowRunWarning } from "./run-types.js";
 import { type AgentRunLimiter, createAgentRunLimiter } from "./steps/agent-run-limiter.js";
 import { createStepContext } from "./steps/step-context.js";
+import { createWorkflowAgentHarnessRunner } from "./steps/workflow-agent-harness-runner.js";
 import {
   type AgentStepConfig,
   AgentStepRuntimeError,
@@ -118,6 +119,11 @@ export function executeWorkflowRun(
   const startedAt = Date.now();
   const agentRunLimiter =
     deps.agentRunLimiter ?? createAgentRunLimiter(deps.agentConcurrency);
+  const nestedAgentHarnessRunner = createWorkflowAgentHarnessRunner(agentRunLimiter);
+  const contextDeps = {
+    ...deps,
+    runAgentHarness: nestedAgentHarnessRunner,
+  };
   const delegateBudget = createDelegateBudget();
   const runTokenBudget = resolveWorkflowRunTokenBudget(deps.config);
 
@@ -177,7 +183,7 @@ export function executeWorkflowRun(
           stepOutputsById,
           stepResultsById,
           stepOutputs,
-          { ...deps, currentStepId: step.id },
+          { ...contextDeps, currentStepId: step.id },
         );
         const stepStartedAt = Date.now();
 
@@ -232,7 +238,7 @@ export function executeWorkflowRun(
             bus: deps.bus,
             pbus: deps.pbus,
             log: deps.log,
-            contextDeps: deps,
+            contextDeps,
             previousOutput,
             ...(retryState.priorRunSteps
               ? { priorRunSteps: retryState.priorRunSteps }

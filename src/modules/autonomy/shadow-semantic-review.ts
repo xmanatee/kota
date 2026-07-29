@@ -3,7 +3,6 @@ import {
   createWorkflowAgentGuards,
   resolveAgentHarness,
   routeKotaToolControlOptions,
-  runAgentHarness,
 } from "#core/agent-harness/index.js";
 import type {
   WorkflowPredicate,
@@ -78,9 +77,10 @@ async function defaultInvoker(
   prompt: string,
   cwd: string,
   declaration: ShadowSemanticReviewerDeclaration,
+  ctx: WorkflowStepContext,
 ): Promise<AgentHarnessResult> {
   const harness = resolveAgentHarness(AUTONOMY_AGENT_HARNESS);
-  return runAgentHarness(
+  return ctx.runAgentHarness(
     harness,
     {
       prompt,
@@ -95,7 +95,11 @@ async function defaultInvoker(
       }),
       autonomyMode: "autonomous",
     },
-    { write: () => true },
+    {
+      signal: ctx.signal,
+      workspaceKey: cwd,
+      writer: { write: () => true },
+    },
   );
 }
 
@@ -132,11 +136,10 @@ export async function runShadowSemanticReview(args: {
   const startedAt = Date.now();
   try {
     const prompt = buildShadowSemanticReviewPrompt(declaration, resolution);
-    const response = await (args.invoker ?? defaultInvoker)(
-      prompt,
-      ctx.workspaceDir ?? ctx.projectDir,
-      declaration,
-    );
+    const cwd = ctx.workspaceDir ?? ctx.projectDir;
+    const response = args.invoker
+      ? await args.invoker(prompt, cwd, declaration)
+      : await defaultInvoker(prompt, cwd, declaration, ctx);
     const review = parseShadowSemanticReviewerResponse(response.text);
     const { path, artifact } = writeShadowSemanticReviewArtifact(ctx, declaration, {
       status: "reviewed",

@@ -96,6 +96,8 @@ export function createMergeGateStep(): TypedCodeStepInput<MergeGateResult> {
 					runId: ctx.workflow.runId,
 					harnessName: buildResult?.harness,
 					model: buildResult?.model,
+					runAgentHarness: ctx.runAgentHarness,
+					signal: ctx.signal,
 				}),
 				maxResolutionAttempts: MERGE_CONFLICT_RESOLUTION_ATTEMPTS,
 			});

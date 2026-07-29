@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
+import { unexpectedWorkflowAgentHarnessRun } from "#core/workflow/testing/agent-harness-runner.js";
 import {
   OBSERVABILITY_OBLIGATION_REVIEW_ARTIFACT,
   OBSERVABILITY_OBLIGATION_WARNING_TYPE,
@@ -37,6 +38,7 @@ function makeContext(projectDir: string, runDirPath: string): WorkflowStepContex
       runDirPath,
     },
 		trigger: { event: "workflow.completed", schemaRef: null, payload: {} },
+		runAgentHarness: unexpectedWorkflowAgentHarnessRun,
 		runTool: async () => ({ content: "" }),
     emit: () => {},
 		requestRestart: () => {},
@@ -44,7 +46,7 @@ function makeContext(projectDir: string, runDirPath: string): WorkflowStepContex
 		readRuntimeState: () => ({ completedRuns: 0, pendingRuns: [], workflows: {} }),
 		reportProgress: () => {},
 		triggerWorkflow: async () => ({ runId: "queued-run", status: "queued" }),
-	} as WorkflowStepContext;
+	};
 }
 
 describe("writeBuilderRunSummary observability evidence", () => {

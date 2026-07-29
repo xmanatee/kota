@@ -10,6 +10,9 @@ context construction.
   approval, branch, foreach, parallel, retry classification, trigger).
 - `step-context.ts` constructs the `WorkflowStepContext` passed to step
   runners.
+- Workflow-owned judges, reviewers, and conflict resolvers invoked from code
+  steps use `ctx.runAgentHarness`; direct harness execution bypasses runtime
+  capacity and cancellation ownership.
 
 New step types add a new strategy file here and a dispatch case in
 `step-executor.ts`.

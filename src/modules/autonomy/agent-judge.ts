@@ -2,8 +2,8 @@ import {
   createWorkflowAgentGuards,
   resolveAgentHarness,
   routeKotaToolControlOptions,
-  runAgentHarness,
 } from "#core/agent-harness/index.js";
+import type { WorkflowAgentHarnessRunner } from "#core/workflow/run-types.js";
 import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
 import { parseVerdict } from "./critic-verdict.js";
 import { AUTONOMY_DISALLOWED_TOOLS, sleep } from "./shared.js";
@@ -39,6 +39,8 @@ export async function invokeAgentJudge(
   userMessage: string,
   cwd: string,
   config: AgentJudgeConfig,
+  runAgentHarness: WorkflowAgentHarnessRunner,
+  signal?: AbortSignal,
 ): Promise<{ text: string; isError: boolean; subtype?: string }> {
   const maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
   const retryBaseDelayMs = config.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS;
@@ -71,7 +73,9 @@ export async function invokeAgentJudge(
           autonomyMode: "autonomous",
         },
         {
-          write: () => true,
+          signal,
+          workspaceKey: cwd,
+          writer: { write: () => true },
         },
       );
     } catch (thrown) {

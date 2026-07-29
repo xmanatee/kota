@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { WorkflowStepContext } from "../run-types.js";
 import type { WorkflowTriggerStep } from "../step-types.js";
+import { unexpectedWorkflowAgentHarnessRun } from "../testing/agent-harness-runner.js";
 import { executeTriggerStep } from "./step-executor-trigger.js";
 
 function makeContext(
@@ -32,6 +33,8 @@ function makeContext(
     reportProgress: () => {},
     triggerWorkflow: vi.fn().mockResolvedValue({ runId: "child-run-1", status: "queued" }),
     ...overrides,
+    runAgentHarness:
+      overrides.runAgentHarness ?? unexpectedWorkflowAgentHarnessRun,
     workspaceDir: overrides.workspaceDir ?? overrides.projectDir ?? "/project",
   };
 }

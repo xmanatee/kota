@@ -14,6 +14,7 @@ import type {
 import type { WorkflowNotifyConfig } from "#core/workflow/step-input-base.js";
 import type { WorkflowAgentStep, WorkflowEmitStep, WorkflowToolStep } from "#core/workflow/step-types.js";
 import type { AgentStepConfig } from "#core/workflow/steps/step-executor.js";
+import { createWorkflowAgentHarnessRunner } from "#core/workflow/steps/workflow-agent-harness-runner.js";
 import {
   buildAgentPrompt,
   buildRepairPrompt,
@@ -871,6 +872,9 @@ describe("executeStep repair loop", () => {
       stepOutputs: {},
       stepResults: {},
       stepOutputList: [],
+      runAgentHarness: createWorkflowAgentHarnessRunner(
+        agentConfig.agentRunLimiter,
+      ),
       runTool,
       emit: () => {},
       requestRestart: () => {},

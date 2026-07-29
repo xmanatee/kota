@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { unexpectedWorkflowAgentHarnessRun } from "#core/workflow/testing/agent-harness-runner.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import dailyDigestWorkflow, {
   DAILY_DIGEST_DIGEST_JSON,
@@ -118,6 +119,7 @@ describe("daily-digest build-digest step", () => {
       stepOutputs: {},
       stepResults: {},
       stepOutputList: [],
+      runAgentHarness: unexpectedWorkflowAgentHarnessRun,
       runTool: () => {
         throw new Error("not used");
       },
@@ -168,6 +170,7 @@ describe("daily-digest build-digest step", () => {
       stepOutputs: {},
       stepResults: {},
       stepOutputList: [],
+      runAgentHarness: unexpectedWorkflowAgentHarnessRun,
       runTool: () => {
         throw new Error("not used");
       },

@@ -19,6 +19,7 @@ import {
   BRANCH_ARM_NOT_TAKEN,
   makeStepResult,
 } from "./results.js";
+import { unexpectedWorkflowAgentHarnessRun } from "./agent-harness-runner.js";
 
 type HarnessRuntimeTrigger = {
   event: string;
@@ -103,6 +104,7 @@ export class HarnessExecutionState {
       stepResults: { ...this.stepResultsById },
       stepOutputList: overrides.stepOutputList ?? [...this.stepOutputList],
       ...(overrides.foreach !== undefined ? { foreach: overrides.foreach } : {}),
+      runAgentHarness: unexpectedWorkflowAgentHarnessRun,
       runTool:
         this.options.contextOverrides?.runTool ??
         (() => {

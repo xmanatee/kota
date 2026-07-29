@@ -21,9 +21,11 @@ import type {
 import type { WorkflowAgentStep } from "./step-types.js";
 import { AgentWriteScopeViolationError } from "./steps/agent-write-scope.js";
 import type { AgentStepResult } from "./steps/step-executor-agent.js";
+import { createWorkflowAgentHarnessRunner } from "./steps/workflow-agent-harness-runner.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 
 const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", schemaRef: null, payload: {} };
+const runAgentHarness = createWorkflowAgentHarnessRunner(undefined);
 
 const EMPTY_TRAJECTORY_DIAGNOSTICS: TrajectoryDiagnosticsMetadata = {
   artifactPath: ".kota/runs/test/steps/agent.trajectory-diagnostics.json",
@@ -72,6 +74,7 @@ function makeContext(projectDir: string, workspaceDir: string): WorkflowStepCont
     stepOutputs: {},
     stepResults: {},
     stepOutputList: [],
+    runAgentHarness,
     runTool: async () => ({ content: "ok" }),
     emit: vi.fn(),
     requestRestart: vi.fn(),

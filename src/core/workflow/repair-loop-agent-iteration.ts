@@ -5,7 +5,6 @@ import {
   createWorkflowAgentGuards,
   resolveAgentHarness,
   routeKotaToolControlOptions,
-  runAgentHarness,
 } from "#core/agent-harness/index.js";
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
@@ -73,6 +72,10 @@ export async function executeRepairAgentIteration(
         baseUrl: agentConfig.config.modelProvider.baseUrl,
         apiKey: agentConfig.config.modelProvider.apiKey,
       };
+  const workspaceDir = agentConfig.workspaceDir ?? agentConfig.projectDir;
+  const scopedAgent = step.agentName && agentConfig.resolveAgentDef
+    ? agentConfig.resolveAgentDef(step.agentName)
+    : undefined;
 
   const runRepairHarness = async () => {
     const attemptAbortController = new AbortController();
@@ -96,7 +99,7 @@ export async function executeRepairAgentIteration(
       : undefined;
 
     try {
-      const harnessRun = runAgentHarness(
+      const harnessRun = context.runAgentHarness(
         harness,
         {
           prompt: repairPrompt,
@@ -122,11 +125,14 @@ export async function executeRepairAgentIteration(
             : undefined,
           autonomyMode: step.autonomyMode,
           harnessOverrides,
-          abortController: attemptAbortController,
           ...(tokenBudget !== undefined ? { tokenBudget } : {}),
           ...(messageCapture !== undefined ? { onMessage: messageCapture } : {}),
         },
-        { write: () => true },
+        {
+          signal: attemptAbortController.signal,
+          ...(scopedAgent ? { workspaceKey: workspaceDir } : {}),
+          writer: { write: () => true },
+        },
       );
       const idleTimeoutMs = step.idleTimeoutMs;
       idleMonitor = idleTimeoutMs === undefined
@@ -159,22 +165,7 @@ export async function executeRepairAgentIteration(
     }
   };
 
-  const workspaceDir = agentConfig.workspaceDir ?? agentConfig.projectDir;
-  const scopedAgent = step.agentName && agentConfig.resolveAgentDef
-    ? agentConfig.resolveAgentDef(step.agentName)
-    : undefined;
-  const result = agentConfig.agentRunLimiter
-    ? scopedAgent
-      ? await agentConfig.agentRunLimiter.runExclusive(
-        workspaceDir,
-        runRepairHarness,
-        abortController.signal,
-      )
-      : await agentConfig.agentRunLimiter.run(
-        runRepairHarness,
-        abortController.signal,
-      )
-    : await runRepairHarness();
+  const result = await runRepairHarness();
 
   if (result.isError) {
     const detail = result.text.trim() || "Repair agent returned an error";
