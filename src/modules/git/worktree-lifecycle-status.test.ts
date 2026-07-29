@@ -107,6 +107,13 @@ afterEach(() => {
 });
 
 describe("automation worktree operator statuses", () => {
+  it("returns no statuses for a non-Git project without worktree metadata", () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "kota-worktree-status-empty-"));
+    repos.push(projectDir);
+
+    expect(listAutomationWorktreeStatuses(projectDir)).toEqual([]);
+  });
+
   it("lists lifecycle, merge, dirty, and cleanup state for operator surfaces", () => {
     const repo = initRepo("operator-status");
     const active = createFixtureWorktree(repo, "run-active");

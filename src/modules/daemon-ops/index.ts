@@ -1510,7 +1510,12 @@ type SessionsSetAutonomyModeWireBody = {
 
 async function daemonResponseError(response: Response): Promise<Error> {
   if (response.headers.get("content-type")?.includes("application/json")) {
-    const body = (await response.json()) as { error?: unknown };
+    let body: { error?: string };
+    try {
+      body = await response.json();
+    } catch {
+      return new Error(`HTTP ${response.status}`);
+    }
     if (typeof body.error === "string") return new Error(body.error);
   }
   return new Error(`HTTP ${response.status}`);

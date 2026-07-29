@@ -111,7 +111,7 @@ export type WorkflowTerminalFinalizerInput = {
   metadata: WorkflowRunMetadata;
   trigger: WorkflowRunTrigger;
   agentFailureKind?: WorkflowAgentBackoffKind;
-  emit: (event: string, payload: Record<string, unknown>) => void;
+  emit: (event: string, payload: WorkflowRunTrigger["payload"]) => void;
   log: (message: string) => void;
 };
 

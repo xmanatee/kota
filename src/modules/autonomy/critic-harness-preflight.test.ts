@@ -9,6 +9,7 @@ import {
 } from "#core/agent-harness/index.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
+import { createWorkflowAgentHarnessRunner } from "#core/workflow/steps/workflow-agent-harness-runner.js";
 import { createCriticCheck } from "./critic.js";
 
 function makeParentStep(harness: string): WorkflowAgentStep {
@@ -40,6 +41,7 @@ function makeContext(projectDir: string, runDir: string): WorkflowStepContext {
     stepResults: {},
     stepOutputList: [],
     runTool: vi.fn(),
+    runAgentHarness: createWorkflowAgentHarnessRunner(undefined),
     emit: vi.fn(),
     requestRestart: vi.fn(),
     readPrompt: vi.fn(),

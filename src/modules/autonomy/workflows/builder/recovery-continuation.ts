@@ -31,7 +31,7 @@ export type BuilderRecoveryDispatchResult = {
 };
 
 function requiredPayloadString(
-  payload: Record<string, unknown>,
+  payload: WorkflowStepContext["trigger"]["payload"],
   key: keyof BuilderRecoveryRequest,
 ): string {
   const value = payload[key];

@@ -286,8 +286,10 @@ function inspectAutomationWorktreeFromEntries(
 }
 
 export function listAutomationWorktreeStatuses(projectDir: string): AutomationWorktreeOperatorStatus[] {
+	const metadataEntries = listAutomationWorktreeMetadata(projectDir);
+	if (metadataEntries.length === 0) return [];
 	const entries = parseWorktreeList(projectDir);
-	return listAutomationWorktreeMetadata(projectDir)
+	return metadataEntries
 		.map((metadata) =>
 			operatorStatusForInspection(
 				inspectAutomationWorktreeFromEntries(projectDir, metadata, entries),
@@ -322,8 +324,10 @@ export function cleanupAutomationWorktree(selector: AutomationWorktreeSelector):
 
 export function reconcileAutomationWorktrees(projectDir: string): AutomationWorktreeReconcileResult {
 	const items: AutomationWorktreeReconcileItem[] = [];
+	const metadataEntries = listAutomationWorktreeMetadata(projectDir);
+	if (metadataEntries.length === 0) return summarizeReconcileItems(items);
 	const entries = parseWorktreeList(projectDir);
-	for (const metadata of listAutomationWorktreeMetadata(projectDir)) {
+	for (const metadata of metadataEntries) {
 		if (metadata.state === "removed") continue;
 		const selector = { projectDir, taskId: metadata.taskId, runId: metadata.runId };
 		const before = inspectAutomationWorktreeFromEntries(projectDir, metadata, entries);

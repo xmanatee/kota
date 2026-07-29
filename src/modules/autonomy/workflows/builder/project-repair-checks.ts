@@ -5,7 +5,7 @@ import {
   ROOT_CROSS_CUTTING_FIXTURES,
   ROOT_ENTRYPOINT_SOURCES,
 } from "#core/root-layout.js";
-import { runCheck, type RunCheckOptions } from "#modules/autonomy/shared.js";
+import { type RunCheckOptions, runCheck } from "#modules/autonomy/shared.js";
 
 const PACKAGE_PROJECT_MARKERS = [
   "package.json",

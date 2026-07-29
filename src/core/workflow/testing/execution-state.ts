@@ -8,6 +8,7 @@ import type {
 import type { WorkflowStepInput } from "#core/workflow/step-input-types.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { unexpectedWorkflowAgentHarnessRun } from "./agent-harness-runner.js";
 import type {
   HarnessObjectValue,
   HarnessOptions,
@@ -19,7 +20,6 @@ import {
   BRANCH_ARM_NOT_TAKEN,
   makeStepResult,
 } from "./results.js";
-import { unexpectedWorkflowAgentHarnessRun } from "./agent-harness-runner.js";
 
 type HarnessRuntimeTrigger = {
   event: string;

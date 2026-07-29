@@ -74,6 +74,7 @@ function makeContext(projectDir: string, runDirPath?: string) {
     stepOutputs: {},
     stepResults: {},
     runTool: vi.fn(),
+    runAgentHarness: mockRunAgentHarness,
     emit: vi.fn(),
     requestRestart: vi.fn(),
     readPrompt: vi.fn(),

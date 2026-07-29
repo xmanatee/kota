@@ -28,13 +28,13 @@ import type { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowRunExecutionResult, WorkflowRunStatus, WorkflowRunToolRunner, WorkflowRuntimeResources, WorkflowRunWarning } from "./run-types.js";
 import { type AgentRunLimiter, createAgentRunLimiter } from "./steps/agent-run-limiter.js";
 import { createStepContext } from "./steps/step-context.js";
-import { createWorkflowAgentHarnessRunner } from "./steps/workflow-agent-harness-runner.js";
 import {
   type AgentStepConfig,
   AgentStepRuntimeError,
   evaluateStepRunDecision,
 } from "./steps/step-executor.js";
 import { resolveWorkflowRunTokenBudget } from "./steps/step-executor-agent-token-budget.js";
+import { createWorkflowAgentHarnessRunner } from "./steps/workflow-agent-harness-runner.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
@@ -120,10 +120,6 @@ export function executeWorkflowRun(
   const agentRunLimiter =
     deps.agentRunLimiter ?? createAgentRunLimiter(deps.agentConcurrency);
   const nestedAgentHarnessRunner = createWorkflowAgentHarnessRunner(agentRunLimiter);
-  const contextDeps = {
-    ...deps,
-    runAgentHarness: nestedAgentHarnessRunner,
-  };
   const delegateBudget = createDelegateBudget();
   const runTokenBudget = resolveWorkflowRunTokenBudget(deps.config);
 
@@ -176,6 +172,10 @@ export function executeWorkflowRun(
       for (let stepIdx = 0; stepIdx < definition.steps.length; stepIdx++) {
         if (stepIdx < retryFromIndex) continue;
         const step = definition.steps[stepIdx];
+        const contextDeps = {
+          ...deps,
+          runAgentHarness: nestedAgentHarnessRunner,
+        };
         const context = createStepContext(
           run.metadata,
           trigger,

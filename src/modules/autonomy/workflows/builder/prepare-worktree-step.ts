@@ -198,7 +198,7 @@ export function createPrepareBuilderWorktreeStep(
         });
       }
 
-      const inspection = createAutomationWorktree({
+      createAutomationWorktree({
         projectDir: ctx.projectDir,
         taskId,
         runId: ctx.workflow.runId,

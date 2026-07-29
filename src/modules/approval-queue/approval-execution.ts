@@ -104,7 +104,7 @@ export async function closeApprovalExecutionLeases(
 
 async function closeAfterFailure(
 	close: () => Promise<void>,
-	primaryError: unknown,
+	primaryError: Error,
 	message: string,
 ): Promise<void> {
 	try {
@@ -123,9 +123,10 @@ export async function withApprovalExecutionLeases<T>(
 	try {
 		result = await execute();
 	} catch (error) {
+		const primaryError = error instanceof Error ? error : new Error(String(error));
 		await closeAfterFailure(
 			() => closeApprovalExecutionLeases(retainedLeases),
-			error,
+			primaryError,
 			"Approval execution and lease cleanup both failed",
 		);
 		throw error;
@@ -198,9 +199,10 @@ async function prepareMcpApprovalExecution(
 	try {
 		await mcpManager.initialize(config);
 	} catch (err) {
+		const primaryError = err instanceof Error ? err : new Error(String(err));
 		await closeAfterFailure(
 			() => mcpManager.close(),
-			err,
+			primaryError,
 			"MCP approval preflight failed and its manager could not close",
 		);
 		return {

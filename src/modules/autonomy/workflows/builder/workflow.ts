@@ -29,11 +29,6 @@ import type { BranchStepResult, CleanupResult } from "./branch-per-task.js";
 import { cleanupMergedBranches, createPullRequest, createTaskBranch } from "./branch-per-task.js";
 import { builderMaxConcurrentRunsFromConfig } from "./builder-config.js";
 import {
-  BUILDER_RECOVERY_EVENT,
-  type BuilderRecoveryDispatchResult,
-  requestPendingBuilderRecoveries,
-} from "./recovery-continuation.js";
-import {
   CLAIMED_TASK_CONSISTENCY_STEP_ID,
   type ClaimedTaskConsistencyResult,
   claimedTaskConsistencySucceeded,
@@ -48,6 +43,11 @@ import {
   type BuilderWorkspaceResult,
   createPrepareBuilderWorktreeStep,
 } from "./prepare-worktree-step.js";
+import {
+  BUILDER_RECOVERY_EVENT,
+  type BuilderRecoveryDispatchResult,
+  requestPendingBuilderRecoveries,
+} from "./recovery-continuation.js";
 import { builderRepairChecks } from "./repair-checks.js";
 import type { BuilderRunSummary } from "./run-summary.js";
 import { writeBuilderRunSummary } from "./run-summary.js";

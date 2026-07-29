@@ -714,6 +714,13 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
       'Agent step "investigate-candidates" failed (codex_cli_error): Reconnecting... 2/5 (stream disconnected before completion: IO error: Connection reset by peer (os error 54))',
     );
     writeAgentRuntimeFailureRun(
+      "codex-response-body-decode-disconnect",
+      "builder",
+      "build",
+      "2026-04-21T03:53:00.000Z",
+      'Repair agent for step "build" failed: Reconnecting... 1/5 (stream disconnected before completion: Transport error: network error: error decoding response body)',
+    );
+    writeAgentRuntimeFailureRun(
       "codex-reconnect-request-timeout",
       "builder",
       "build",
