@@ -1,0 +1,11 @@
+The linked worktree's host Git index is read-only in this sandbox.
+
+Task transitions and exact-set staging were replayed through:
+
+- .kota/tmp/2026-07-29T10-20-22-532Z-builder-dszgxd/validation.index
+- .kota/tmp/2026-07-29T10-20-22-532Z-builder-dszgxd/git-objects
+- /Users/xmanatee/Desktop/mono/apps/kota/.git/objects as the alternate object store
+
+The local index was initialized from HEAD. The root ignore policy was narrowed to admit only this run's screened projection, the exact builder commit-stageable check reported all 18 mutated paths stageable, and git add -A staged the complete set without force. Queue validation, staged observability and source-size diagnostics, and git diff --cached --check used the isolated exact set.
+
+Repair attempt 6 replayed `git add -A` into the real worktree index. All 18 source, test, task, and projected-evidence paths are now staged, including the five new files that the isolated index could not add to the host index; no untracked or unstaged task changes remain.

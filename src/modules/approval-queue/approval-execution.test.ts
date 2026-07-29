@@ -7,6 +7,8 @@ import { executeTool } from "#core/tools/index.js";
 import {
 	ApprovalExecutionDescriptorMismatchError,
 	approvedApprovalResponse,
+	closeApprovalExecutionLeases,
+	prepareApprovalExecutionBatch,
 } from "./approval-execution.js";
 
 vi.mock("#core/tools/index.js", () => ({
@@ -47,5 +49,21 @@ describe("approval execution lease", () => {
 			selection.snapshot.descriptor,
 		)).rejects.toBeInstanceOf(ApprovalExecutionDescriptorMismatchError);
 		expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
+	});
+
+	it("preserves observable descriptor metadata across local-tool preflight", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "kota-approval-local-preflight-"));
+		dirs.push(dir);
+		const queue = new ApprovalQueue(dir);
+		const item = queue.enqueue("shell", { command: "deploy" }, "dangerous", "reviewed");
+		const selection = queue.getExecutionSnapshot(item.id);
+		if (!selection.ok) throw new Error("expected execution snapshot");
+
+		const preflight = await prepareApprovalExecutionBatch([selection.snapshot]);
+
+		expect(preflight.ok).toBe(true);
+		if (!preflight.ok) throw new Error("expected successful preflight");
+		expect(preflight.leases.get(item.id)).toMatchObject(selection.snapshot.descriptor);
+		await closeApprovalExecutionLeases(preflight.leases.values());
 	});
 });

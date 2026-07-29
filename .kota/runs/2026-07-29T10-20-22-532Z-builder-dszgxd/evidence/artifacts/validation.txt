@@ -1,0 +1,16 @@
+Approval descriptor diagnostics validation
+
+- Focused approval and observability suite: 11 files, 92 tests passed.
+- Post-check repair: the previously failing CLI help integration passed in isolation, and the exact broad gate passed with 1,096 files and 12,255 tests.
+- Post-check repair 6: the final approval-descriptor, observability, source-size, strict-types, core-boundary, and module-dependency set passed all 27 tests across 8 files; TypeScript and Biome passed, and the real worktree index now contains all 18 mutated paths.
+- Fresh full-suite diagnosis: repository-local Vitest completed in 238.41 seconds. It passed 1,092 files and 12,250 tests, skipped 4 files and 16 tests, and reported only the known environment-bound pnpm supply-chain policy failure described below.
+- Commit-stageable repair: the root ignore policy now admits only this run's screened projection; the exact builder check reports 18 mutated paths stageable, and the workspace-local git add -A includes every source, test, task, and evidence path.
+- Strict-types, no-module-imports-in-core, and module-dependency suite: 3 files, 5 tests passed.
+- TypeScript: repository-local tsc --noEmit passed.
+- Biome: all nine changed TypeScript files passed.
+- Task queue: the repository-local tsx validator passed against both the isolated exact-set index and the final real worktree index.
+- Observability: the current staged review reports outcome ok with six satisfied candidates and missingFiles empty.
+- Source size: the staged review reports outcome ok with no warnings; every extracted implementation owner is below 300 lines.
+- Git: isolated git diff --cached --check passed.
+
+The package-manager version-switch shim could not verify pnpm 10.32.1 while registry access was unavailable. That same offline verification failure is the sole failure in the fresh full-suite run; the repository's signed-release fail-closed policy was not weakened. The repository-local TypeScript, Vitest, Biome, tsx, and Node entrypoints were used instead.

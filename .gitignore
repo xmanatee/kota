@@ -10,6 +10,19 @@ deploy/telegram-assistant/.env
 /.kota/*
 !/.kota/runs/
 /.kota/runs/*
+!/.kota/runs/2026-07-29T10-20-22-532Z-builder-dszgxd/
+/.kota/runs/2026-07-29T10-20-22-532Z-builder-dszgxd/*
+!/.kota/runs/2026-07-29T10-20-22-532Z-builder-dszgxd/evidence/
+/.kota/runs/2026-07-29T10-20-22-532Z-builder-dszgxd/evidence/*
+!/.kota/runs/2026-07-29T10-20-22-532Z-builder-dszgxd/evidence/artifacts/
+/.kota/runs/2026-07-29T10-20-22-532Z-builder-dszgxd/evidence/artifacts/*
+!/.kota/runs/2026-07-29T10-20-22-532Z-builder-dszgxd/evidence/artifacts/approval-descriptor-diagnostics.json
+!/.kota/runs/2026-07-29T10-20-22-532Z-builder-dszgxd/evidence/artifacts/host-index-replay.txt
+!/.kota/runs/2026-07-29T10-20-22-532Z-builder-dszgxd/evidence/artifacts/validation.txt
+!/.kota/runs/2026-07-29T10-20-22-532Z-builder-dszgxd/evidence/commit-message.txt
+!/.kota/runs/2026-07-29T10-20-22-532Z-builder-dszgxd/evidence/evidence-manifest.json
+!/.kota/runs/2026-07-29T10-20-22-532Z-builder-dszgxd/evidence/success-criteria-verified.txt
+!/.kota/runs/2026-07-29T10-20-22-532Z-builder-dszgxd/evidence/success-criteria.txt
 # Eval-harness fixtures seed prior run state into isolated temporary projects.
 !src/modules/eval-harness/fixtures/**/initial/.kota/
 !src/modules/eval-harness/fixtures/**/initial/dist/
