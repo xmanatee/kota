@@ -2,6 +2,16 @@ import { workflowUsesAgent } from "./run-executor-utils.js";
 import type { WorkflowRuntimeDispatchState } from "./runtime-dispatch.js";
 import type { WorkflowDefinition } from "./types.js";
 
+type WorkflowDispatchConcurrencyState = Pick<
+  WorkflowRuntimeDispatchState,
+  | "projectDir"
+  | "config"
+  | "definitions"
+  | "activeRuns"
+  | "agentConcurrency"
+  | "codeConcurrency"
+>;
+
 /**
  * Returns the concurrency group for a workflow definition.
  * Named groups serialize within themselves (cap 1), except the reserved
@@ -21,7 +31,7 @@ function requiresExclusiveAgentSlot(definition: WorkflowDefinition): boolean {
   return definition.concurrencyGroup === "agent" && !workflowUsesAgent(definition);
 }
 
-function activeCountForGroup(state: WorkflowRuntimeDispatchState, group: string): number {
+function activeCountForGroup(state: WorkflowDispatchConcurrencyState, group: string): number {
   let count = 0;
   for (const run of state.activeRuns.values()) {
     const def = state.definitions.find((d) => d.name === run.workflowName);
@@ -30,7 +40,7 @@ function activeCountForGroup(state: WorkflowRuntimeDispatchState, group: string)
   return count;
 }
 
-function activeCountForWorkflow(state: WorkflowRuntimeDispatchState, workflowName: string): number {
+function activeCountForWorkflow(state: WorkflowDispatchConcurrencyState, workflowName: string): number {
   let count = 0;
   for (const run of state.activeRuns.values()) {
     if (run.workflowName === workflowName) count++;
@@ -38,7 +48,7 @@ function activeCountForWorkflow(state: WorkflowRuntimeDispatchState, workflowNam
   return count;
 }
 
-function activeAgentWorkflowCount(state: WorkflowRuntimeDispatchState): number {
+function activeAgentWorkflowCount(state: WorkflowDispatchConcurrencyState): number {
   let count = 0;
   for (const run of state.activeRuns.values()) {
     const def = state.definitions.find((d) => d.name === run.workflowName);
@@ -47,7 +57,7 @@ function activeAgentWorkflowCount(state: WorkflowRuntimeDispatchState): number {
   return count;
 }
 
-function hasActiveExclusiveAgentSlot(state: WorkflowRuntimeDispatchState): boolean {
+function hasActiveExclusiveAgentSlot(state: WorkflowDispatchConcurrencyState): boolean {
   for (const run of state.activeRuns.values()) {
     const def = state.definitions.find((d) => d.name === run.workflowName);
     if (def && requiresExclusiveAgentSlot(def)) return true;
@@ -56,7 +66,7 @@ function hasActiveExclusiveAgentSlot(state: WorkflowRuntimeDispatchState): boole
 }
 
 function maxConcurrentRunsForWorkflow(
-  state: WorkflowRuntimeDispatchState,
+  state: WorkflowDispatchConcurrencyState,
   definition: WorkflowDefinition,
 ): number {
   const resolver = definition.maxConcurrentRuns;
@@ -74,12 +84,18 @@ function maxConcurrentRunsForWorkflow(
 }
 
 export function canDispatchDefinition(
-  state: WorkflowRuntimeDispatchState,
+  state: WorkflowDispatchConcurrencyState,
   definition: WorkflowDefinition,
 ): boolean {
   if (
     activeCountForWorkflow(state, definition.name) >=
       maxConcurrentRunsForWorkflow(state, definition)
+  ) {
+    return false;
+  }
+  if (
+    workflowUsesAgent(definition) &&
+    activeAgentWorkflowCount(state) >= state.agentConcurrency
   ) {
     return false;
   }
