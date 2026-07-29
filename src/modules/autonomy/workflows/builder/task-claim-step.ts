@@ -22,7 +22,8 @@ import { claimedTaskConsistencySucceeded } from "./claimed-task-consistency-step
 import { mergeGatePending, mergeGateSucceeded } from "./merge-gate-step.js";
 import {
   BUILDER_RECOVERY_EVENT,
-  claimBuilderRecovery,
+  claimPendingBuilderRecovery,
+  unavailableBuilderRecoveryResult,
 } from "./recovery-continuation.js";
 import { workflowWorkspaceDir } from "./workspace.js";
 
@@ -74,8 +75,13 @@ export function createClaimTaskStep(
         "activeClaims",
       ]),
     run: (ctx) => {
+      const recovery = claimPendingBuilderRecovery(ctx);
+      if (recovery !== null) {
+        writeTaskClaimArtifact(ctx.workflow.runDirPath, recovery);
+        return recovery;
+      }
       if (ctx.trigger.event === BUILDER_RECOVERY_EVENT) {
-        const result = claimBuilderRecovery(ctx);
+        const result = unavailableBuilderRecoveryResult(ctx.projectDir);
         writeTaskClaimArtifact(ctx.workflow.runDirPath, result);
         return result;
       }

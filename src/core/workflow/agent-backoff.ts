@@ -1,7 +1,5 @@
 import type { WorkflowRunStore } from "./run-store.js";
-import type { WorkflowQueuedRun } from "./run-types.js";
 import type { WorkflowAgentBackoffSignal, WorkflowAgentBackoffState } from "./trigger-types.js";
-import type { WorkflowDefinition } from "./types.js";
 
 const MAX_AGENT_BACKOFF_MS = 6 * 60 * 60 * 1000;
 const AGENT_BACKOFF_FACTORS: Record<
@@ -16,11 +14,6 @@ const AGENT_BACKOFF_FACTORS: Record<
 export class AgentBackoffManager {
   constructor(
     private readonly store: WorkflowRunStore,
-    private readonly getQueue: () => WorkflowQueuedRun[],
-    private readonly setQueue: (queue: WorkflowQueuedRun[]) => void,
-    private readonly persistQueue: () => void,
-    private readonly getDefinitions: () => WorkflowDefinition[],
-    private readonly workflowUsesAgent: (def: WorkflowDefinition) => boolean,
     private readonly log: (msg: string) => void,
   ) {}
 
@@ -36,22 +29,6 @@ export class AgentBackoffManager {
     if (untilMs > Date.now()) return backoff;
 
     return null;
-  }
-
-  dropQueuedAgentWorkflows(): number {
-    const queue = this.getQueue();
-    const nextQueue = queue.filter((item) => {
-      const definition = this.getDefinitions().find(
-        (candidate) => candidate.name === item.workflowName,
-      );
-      return !definition || !this.workflowUsesAgent(definition);
-    });
-    const removed = queue.length - nextQueue.length;
-    if (removed > 0) {
-      this.setQueue(nextQueue);
-      this.persistQueue();
-    }
-    return removed;
   }
 
   apply(signal: WorkflowAgentBackoffSignal): void {
@@ -71,13 +48,9 @@ export class AgentBackoffManager {
       reason: signal.reason,
     };
     this.store.setAgentBackoff(backoff);
-    const dropped = this.dropQueuedAgentWorkflows();
     this.log(
       `Agent dispatch backed off until ${new Date(backoff.until).toLocaleString()} (${backoff.kind}, attempt ${backoff.failureCount})`,
     );
-    if (dropped > 0) {
-      this.log(`Dropped ${dropped} queued agent workflow run(s) during backoff`);
-    }
   }
 
   clear(): void {
@@ -87,10 +60,5 @@ export class AgentBackoffManager {
     this.log(
       `Cleared agent dispatch backoff after successful agent run (${backoff.kind})`,
     );
-  }
-
-  shouldSuppress(definition: WorkflowDefinition): WorkflowAgentBackoffState | null {
-    if (!this.workflowUsesAgent(definition)) return null;
-    return this.getActive();
   }
 }

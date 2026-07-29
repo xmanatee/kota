@@ -4,6 +4,7 @@ import "./workflow-test-support.js";
 import builderWorkflow from "./workflow.js";
 import {
   makeEmptySnapshot,
+  makeSnapshot,
   makeWorkflowProject,
   resetBuilderWorkflowMocks,
 } from "./workflow-test-support.js";
@@ -13,56 +14,65 @@ describe("builder preserved-work continuation", () => {
     await resetBuilderWorkflowMocks();
   });
 
-  it("finishes a failed builder worktree through the standard merge pipeline", async () => {
-    const projectDir = makeWorkflowProject(makeEmptySnapshot());
+  it.each([
+    "autonomy.builder.recovery.requested",
+    "autonomy.queue.available",
+  ])("finishes preserved work through %s", async (event) => {
+    const projectDir = makeWorkflowProject(
+      event === "autonomy.queue.available"
+        ? makeSnapshot(1, 0)
+        : makeEmptySnapshot(),
+    );
     const taskId = "task-claimed";
     const worktreeRunId = "run-failed";
     const workspaceDir = `${projectDir}/.worktrees/${taskId}-${worktreeRunId}`;
     const recovery = await import(
       "#modules/autonomy/workflow-state-recovery-claims.js"
     );
-    vi.mocked(recovery.findRecoveryClaim).mockReturnValue({
-      claim: {
-        taskId,
-        taskState: "ready",
-        runId: worktreeRunId,
-        worktreeRunId,
-        workflowId: "builder",
-        owner: "workflow:builder",
-        workspaceDir,
-        branch: `kota/task/${taskId}/${worktreeRunId}`,
-        baseCommit: "abc1234",
-        status: "active",
-        evidence: null,
-        updatedAt: "2026-06-27T00:00:00.000Z",
+    vi.mocked(recovery.listRecoveryClaims).mockReturnValue([
+      {
+        claim: {
+          taskId,
+          taskState: "ready",
+          runId: worktreeRunId,
+          worktreeRunId,
+          workflowId: "builder",
+          owner: "workflow:builder",
+          workspaceDir,
+          branch: `kota/task/${taskId}/${worktreeRunId}`,
+          baseCommit: "abc1234",
+          status: "active",
+          evidence: null,
+          updatedAt: "2026-06-27T00:00:00.000Z",
+        },
+        claimPath: `${projectDir}/.kota/task-claims/active/${taskId}.json`,
+        recoveryStatus: "stale",
+        safeToRetry: false,
+        ownerRunStatus: "failed",
+        worktree: {
+          found: true,
+          metadataPath: `${projectDir}/.kota/worktrees/${taskId}-${worktreeRunId}.json`,
+          workspaceDir,
+          branch: `kota/task/${taskId}/${worktreeRunId}`,
+          state: "active",
+          runState: "finished",
+          dirtyState: "dirty",
+          dirtyEntries: ["M src/recovered.ts"],
+          cleanupBlockers: ["worktree has uncommitted tracked changes"],
+          mergeStatus: "not merged",
+          headCommit: "abc1234",
+          uniqueCommits: [],
+          uniqueCommitCount: 0,
+          branchAhead: 0,
+          branchBehind: 0,
+        },
+        relatedDeadLetters: [],
+        recommendedAction: {
+          kind: "needs-review",
+          reason: "worktree contains preserved uncommitted changes",
+        },
       },
-      claimPath: `${projectDir}/.kota/task-claims/active/${taskId}.json`,
-      recoveryStatus: "stale",
-      safeToRetry: false,
-      ownerRunStatus: "failed",
-      worktree: {
-        found: true,
-        metadataPath: `${projectDir}/.kota/worktrees/${taskId}-${worktreeRunId}.json`,
-        workspaceDir,
-        branch: `kota/task/${taskId}/${worktreeRunId}`,
-        state: "active",
-        runState: "finished",
-        dirtyState: "dirty",
-        dirtyEntries: ["M src/recovered.ts"],
-        cleanupBlockers: ["worktree has uncommitted tracked changes"],
-        mergeStatus: "not merged",
-        headCommit: "abc1234",
-        uniqueCommits: [],
-        uniqueCommitCount: 0,
-        branchAhead: 0,
-        branchBehind: 0,
-      },
-      relatedDeadLetters: [],
-      recommendedAction: {
-        kind: "needs-review",
-        reason: "worktree contains preserved uncommitted changes",
-      },
-    });
+    ]);
     const commit = await import("#modules/autonomy/commit.js");
     vi.mocked(commit.commitWorkflowChanges).mockResolvedValue({
       committed: true,
@@ -71,13 +81,12 @@ describe("builder preserved-work continuation", () => {
     const result = await new WorkflowTestHarness(builderWorkflow, {
       projectDir,
       trigger: {
-        event: "autonomy.builder.recovery.requested",
+        event,
         payload: {
           taskId,
           sourceRunId: worktreeRunId,
           worktreeRunId,
           workspaceDir,
-          idempotencyKey: `builder-recovery:${worktreeRunId}`,
           reason: "terminal builder preserved workspace changes",
           branchPerTask: true,
         },

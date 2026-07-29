@@ -62,7 +62,6 @@ describe("workflow run id path safety", () => {
       ),
       getScopeId: () => "scope-test",
       getActiveBackoff: () => null,
-      shouldSuppressBackoff: () => null,
       workflowUsesAgent: () => false,
       isActiveRun: () => false,
       getDefinitions: () => definitions,
