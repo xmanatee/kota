@@ -53,6 +53,7 @@ import type {
 	CleanupEligibility,
 	CreateAutomationWorktreeInput,
 	WorktreeDirtyState,
+	WorktreeListEntry,
 	WorktreeLockState,
 	WorktreePushState,
 } from "./worktree-lifecycle-types.js";
@@ -247,23 +248,31 @@ export function continueAutomationWorktree(
 }
 
 export function inspectAutomationWorktree(selector: AutomationWorktreeSelector): AutomationWorktreeInspection {
-	const metadata = readMetadata(selector);
+	return inspectAutomationWorktreeFromEntries(
+		selector.projectDir,
+		readMetadata(selector),
+		parseWorktreeList(selector.projectDir),
+	);
+}
+
+function inspectAutomationWorktreeFromEntries(
+	projectDir: string,
+	metadata: AutomationWorktreeMetadata,
+	entries: readonly WorktreeListEntry[],
+): AutomationWorktreeInspection {
 	const metadataWorkspace = comparablePath(metadata.workspaceDir);
-	const entry = parseWorktreeList(selector.projectDir).find((item) => comparablePath(item.path) === metadataWorkspace);
+	const entry = entries.find((item) => comparablePath(item.path) === metadataWorkspace);
 	const exists = entry !== undefined && existsSync(metadata.workspaceDir);
 	const dirty = exists ? readDirtyState(metadata.workspaceDir) : emptyDirtyState();
 	const headCommit = exists ? git(metadata.workspaceDir, ["rev-parse", "HEAD"]) : "";
 	const push = exists ? readPushState(metadata.workspaceDir, metadata.baseCommit, headCommit) : emptyPushState();
 	const branch = entry?.branch ?? metadata.branch;
 	const lock = entry?.lock ?? { locked: false, reason: null };
-	const runState = readAutomationWorktreeRunState(
-		selector.projectDir,
-		metadata.recoveryRunId ?? metadata.runId,
-	);
+	const runState = readAutomationWorktreeRunState(projectDir, metadata.recoveryRunId ?? metadata.runId);
 	const cleanup = cleanupEligibility(metadata, exists, dirty, lock, headCommit, push, runState);
 	return {
 		metadata,
-		metadataPath: metadataPath(selector.projectDir, metadata.taskId, metadata.runId),
+		metadataPath: metadataPath(projectDir, metadata.taskId, metadata.runId),
 		exists,
 		branch,
 		baseCommit: metadata.baseCommit,
@@ -277,14 +286,11 @@ export function inspectAutomationWorktree(selector: AutomationWorktreeSelector):
 }
 
 export function listAutomationWorktreeStatuses(projectDir: string): AutomationWorktreeOperatorStatus[] {
+	const entries = parseWorktreeList(projectDir);
 	return listAutomationWorktreeMetadata(projectDir)
 		.map((metadata) =>
 			operatorStatusForInspection(
-				inspectAutomationWorktree({
-					projectDir,
-					taskId: metadata.taskId,
-					runId: metadata.runId,
-				}),
+				inspectAutomationWorktreeFromEntries(projectDir, metadata, entries),
 			),
 		);
 }
@@ -316,10 +322,11 @@ export function cleanupAutomationWorktree(selector: AutomationWorktreeSelector):
 
 export function reconcileAutomationWorktrees(projectDir: string): AutomationWorktreeReconcileResult {
 	const items: AutomationWorktreeReconcileItem[] = [];
+	const entries = parseWorktreeList(projectDir);
 	for (const metadata of listAutomationWorktreeMetadata(projectDir)) {
 		if (metadata.state === "removed") continue;
 		const selector = { projectDir, taskId: metadata.taskId, runId: metadata.runId };
-		const before = inspectAutomationWorktree(selector);
+		const before = inspectAutomationWorktreeFromEntries(projectDir, metadata, entries);
 		const lockedBefore = before.lock.locked;
 		if (before.runState === "active") {
 			items.push(reconcileItem(before, {
