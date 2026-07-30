@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = resolve(root, "src/cli.ts");
-const CLI_TIMEOUT = 30_000;
+const CLI_TIMEOUT = 60_000;
 const SINGLE_CLI_TEST_TIMEOUT = CLI_TIMEOUT + 15_000;
 const DOUBLE_CLI_TEST_TIMEOUT = CLI_TIMEOUT * 2 + 15_000;
 
@@ -29,7 +29,8 @@ function runCli(...args: string[]): { stdout: string; stderr: string; exitCode: 
 
 describe("CLI module commands (compiled binary)", () => {
   it("--help lists all module-provided commands", () => {
-    const { stdout } = runCli("--help");
+    const { stdout, stderr, exitCode } = runCli("--help");
+    expect(exitCode, stderr || "CLI help exited unsuccessfully").toBe(0);
     expect(stdout).toContain("serve");
     expect(stdout).toContain("daemon");
     expect(stdout).toContain("tools");

@@ -219,6 +219,15 @@ export type McpExecuteToolOptions = {
   signal?: AbortSignal;
 };
 
+export type McpDeclarationBoundToolExecutionResult =
+  | { ok: true; result: ToolResult }
+  | {
+    ok: false;
+    reason: "tool_missing" | "declaration_mismatch";
+  };
+
+type McpToolInput = Record<string, unknown>;
+
 const DEFAULT_REMOTE_TASK_POLL_INTERVAL_MS = 1_000;
 const MAX_TOOL_DECLARATION_DRIFT_DIAGNOSTICS = 100;
 
@@ -744,10 +753,33 @@ export class McpManager {
     return undefined;
   }
 
+  /**
+   * Execute only when the current tool entry matches the expected declaration.
+   * Entry selection and fingerprint validation stay synchronous so a registry
+   * refresh cannot interleave before dispatch is bound to the captured entry.
+   */
+  executeToolWithDeclarationFingerprint(
+    name: string,
+    input: McpToolInput,
+    expectedDeclarationFingerprint: string,
+    options: McpExecuteToolOptions = {},
+  ): Promise<McpDeclarationBoundToolExecutionResult> {
+    const entry = this.toolMap.get(name);
+    if (!entry) {
+      return Promise.resolve({ ok: false, reason: "tool_missing" });
+    }
+    if (entry.declaration.fingerprint !== expectedDeclarationFingerprint) {
+      return Promise.resolve({ ok: false, reason: "declaration_mismatch" });
+    }
+    return this.executeToolEntry(name, entry, input, options).then(
+      (result): McpDeclarationBoundToolExecutionResult => ({ ok: true, result }),
+    );
+  }
+
   /** Execute an MCP tool by its namespaced name. */
   async executeTool(
     name: string,
-    input: Record<string, unknown>,
+    input: McpToolInput,
     options: McpExecuteToolOptions = {},
   ): Promise<ToolResult> {
     const entry = this.toolMap.get(name);
@@ -759,6 +791,15 @@ export class McpManager {
       return { content: `Unknown MCP tool: ${name}`, is_error: true };
     }
 
+    return this.executeToolEntry(name, entry, input, options);
+  }
+
+  private async executeToolEntry(
+    name: string,
+    entry: McpToolEntry,
+    input: McpToolInput,
+    options: McpExecuteToolOptions,
+  ): Promise<ToolResult> {
     if (!entry.client.isConnected()) {
       return { content: `MCP server disconnected for tool: ${name}`, is_error: true };
     }

@@ -1,0 +1,13 @@
+The linked worktree's host Git index is read-only in this sandbox. The exact
+commit set was staged and validated through the workspace-local index at
+.kota/tmp/2026-07-30T01-08-00-308Z-builder-2qsqnb/git-index, with objects
+written to the sibling git-objects directory and the host object store used as
+an alternate.
+
+The workflow host must replay the screened evidence staging and normal
+worktree staging against its writable index before committing:
+
+git add -- .kota/runs/2026-07-30T01-08-00-308Z-builder-2qsqnb/evidence/commit-message.txt .kota/runs/2026-07-30T01-08-00-308Z-builder-2qsqnb/evidence/evidence-manifest.json .kota/runs/2026-07-30T01-08-00-308Z-builder-2qsqnb/evidence/artifacts/host-index-replay.txt .kota/runs/2026-07-30T01-08-00-308Z-builder-2qsqnb/evidence/success-criteria-verified.txt .kota/runs/2026-07-30T01-08-00-308Z-builder-2qsqnb/evidence/success-criteria.txt
+git add -A
+
+Isolated staging does not update the real worktree index.

@@ -1,13 +1,13 @@
 ---
 id: task-security-review-mcp-declaration-fingerprints-are-c
 title: Security review: MCP declaration fingerprints are checked during preflight, but execution does not atomically bind dispatch to the checked manager entry. The leased manager can process a tool-list refresh after preflight; executeTool then resolves the tool again from the mutable current map and can dispatch an entry whose declaration differs from the one approved.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: MCP declaration fingerprints are checked during preflight, but execution does not atomically bind dispatch to the checked manager entry. The leased manager can process a tool-list refresh after preflight; executeTool then resolves the tool again from the mutable current map and can dispatch an entry whose declaration differs from the one approved.
 created_at: 2026-07-28T22:09:25.966Z
-updated_at: 2026-07-28T22:09:25.966Z
+updated_at: 2026-07-29T10:34:51.666Z
 ---
 
 ## Problem
@@ -142,6 +142,15 @@ excerpt:
 >     .catch(() => {})
 >     .then(() => this.refreshServerTools(serverName))
 
+## Resolution
+
+`McpManager.executeToolWithDeclarationFingerprint` now selects the current
+manager entry and compares its declaration fingerprint synchronously, then
+passes that captured entry directly to dispatch. Approval execution supplies
+the fingerprint from its validated execution lease and rejects a missing or
+changed entry as an execution-descriptor mismatch instead of resolving the
+tool name again.
+
 ## Initiative
 
 Agentic security review for autonomous coding infrastructure.
@@ -149,3 +158,8 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Verified 2026-07-30 with
+  `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run --configLoader runner --silent=true src/core/mcp/manager.test.ts src/core/mcp/manager-provenance.test.ts src/core/mcp/manager-declaration-task-fingerprint.test.ts src/core/mcp/manager-description-quality.test.ts src/core/mcp/manager-declaration-fingerprint.test.ts src/modules/approval-queue`
+  (206 tests),
+  `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run --configLoader runner --silent=true src/strict-types-policy.integration.test.ts`,
+  and `./node_modules/.bin/tsc --noEmit`.
