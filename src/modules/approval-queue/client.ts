@@ -12,13 +12,14 @@
  */
 
 import type {
+  ApprovalClientProjection,
   ApprovalStatus,
   PendingApproval,
 } from "#core/daemon/approval-queue.js";
 import type { ScopeSelector } from "#core/server/scope-selector.js";
 
 export type ApprovalsListResult = {
-  approvals: PendingApproval[];
+  approvals: ApprovalClientProjection[];
 };
 
 /**
@@ -34,6 +35,11 @@ export type ApprovalListFilter = ScopeSelector & {
 };
 
 export type ApprovalProjectScope = ScopeSelector;
+
+export type ApprovalReviewReceipt = {
+  id: string;
+  digest: string;
+};
 
 export type ApprovalExecutionProjection = {
   status: "succeeded" | "failed";
@@ -57,7 +63,8 @@ export type ApprovalMutateResult =
         | "invalid_id"
         | "not_found"
         | "input_unavailable"
-        | "scope_mismatch";
+        | "scope_mismatch"
+        | "review_mismatch";
     };
 
 /**
@@ -67,13 +74,15 @@ export type ApprovalMutateResult =
  * mutate a single pending entry; the daemon implementor talks to the
  * running daemon's queue, and the local implementor talks to the
  * in-process queue. Daemon-backed approvals execute in the daemon before
- * returning a redacted projection; local approvals return the queue-state
- * change so the local CLI can execute the approved tool in-process.
+ * returning a redacted projection. Local approvals use the same execution
+ * preflight and lease binding before dispatching in-process, so long-lived
+ * channels cannot resolve a request without executing the reviewed call.
  */
 export interface ApprovalsClient {
   list(filter?: ApprovalListFilter): Promise<ApprovalsListResult>;
   approve(
     id: string,
+    reviewDigest: string,
     note?: string,
     project?: ApprovalProjectScope,
   ): Promise<ApprovalMutateResult>;

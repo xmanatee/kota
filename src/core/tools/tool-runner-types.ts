@@ -17,8 +17,12 @@ import type { AutonomyMode } from "./autonomy-mode.js";
 import type { GuardrailsConfig } from "./guardrails.js";
 import type { ToolResultBlock } from "./index.js";
 import type { ToolApprovalResolver } from "./tool-approval.js";
+import type { ValidatedToolCallInput } from "./tool-input-validation.js";
 
 export type ToolUseBlock = KotaToolUseBlock;
+export type ValidatedToolUseBlock = Omit<KotaToolUseBlock, "input"> & {
+	input: ValidatedToolCallInput;
+};
 
 export type ToolResultEntry = {
 	tool_use_id: string;
@@ -57,4 +61,4 @@ export type ToolCallExecutionOptions = {
 	disallowedTools?: readonly string[];
 };
 
-export type ExecuteToolBlock = (block: ToolUseBlock) => Promise<ToolResultEntry>;
+export type ExecuteToolBlock = (block: ValidatedToolUseBlock) => Promise<ToolResultEntry>;

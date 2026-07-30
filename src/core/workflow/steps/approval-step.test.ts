@@ -13,13 +13,23 @@ const { mockEmit } = vi.hoisted(() => ({ mockEmit: vi.fn() }));
 let testQueue: ApprovalQueue;
 let tmpDir: string;
 
+function approvePending(id: string, note?: string): void {
+  const selection = testQueue.getExecutionSnapshot(id);
+  if (!selection.ok) throw new Error("expected execution snapshot");
+  const result = testQueue.approveForExecution(selection.snapshot.descriptor, note);
+  if (!result.ok) throw new Error("expected execution approval");
+}
+
 beforeEach(() => {
+  vi.useFakeTimers();
   tmpDir = mkdtempSync(join(tmpdir(), "approval-step-test-"));
   testQueue = new ApprovalQueue(tmpDir);
   mockEmit.mockClear();
 });
 
 afterEach(() => {
+  vi.clearAllTimers();
+  vi.useRealTimers();
   rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -52,11 +62,10 @@ describe("executeApprovalStep – note propagation", () => {
     const step = makeApprovalStep();
     const stepPromise = executeApprovalStep(step as never, makeContext() as never, ac.signal);
 
-    // Let the executor enqueue and enter the poll loop, then approve with a note
-    await new Promise((r) => setTimeout(r, 10));
     const pending = testQueue.list("pending");
     expect(pending).toHaveLength(1);
-    testQueue.approve(pending[0].id, "please add a unit test");
+    approvePending(pending[0].id, "please add a unit test");
+    await vi.runOnlyPendingTimersAsync();
 
     const output = await stepPromise;
     expect(output).toMatchObject({ approved: true, approvalNote: "please add a unit test" });
@@ -67,9 +76,9 @@ describe("executeApprovalStep – note propagation", () => {
     const step = makeApprovalStep();
     const stepPromise = executeApprovalStep(step as never, makeContext() as never, ac.signal);
 
-    await new Promise((r) => setTimeout(r, 10));
     const pending = testQueue.list("pending");
-    testQueue.approve(pending[0].id);
+    approvePending(pending[0].id);
+    await vi.runOnlyPendingTimersAsync();
 
     const output = await stepPromise;
     expect(output).toMatchObject({ approved: true });
@@ -83,8 +92,6 @@ describe("executeApprovalStep – abort cleanup", () => {
     const step = makeApprovalStep();
     const stepPromise = executeApprovalStep(step as never, makeContext() as never, ac.signal);
 
-    // Let the executor enqueue and enter the poll loop, then abort
-    await new Promise((r) => setTimeout(r, 10));
     ac.abort(new Error("run aborted"));
 
     await expect(stepPromise).rejects.toThrow(/aborted/);
@@ -195,14 +202,16 @@ describe("executeApprovalStep – workflow.approval.expired event", () => {
     const step = makeApprovalStep({ timeoutMs: 1, defaultResolution: "deny", reason: "Gate check" });
     const ctx = makeContext();
     const stepPromise = executeApprovalStep(step as never, ctx as never, ac.signal);
+    const rejectedStep = expect(stepPromise).rejects.toThrow(/expired/);
 
-    // Simulate timeout: expire the pending item
-    await new Promise((r) => setTimeout(r, 10));
+    // Simulate timeout: expire the pending item before advancing its poll interval.
+    vi.advanceTimersByTime(10);
     const pending = testQueue.list("pending");
     expect(pending).toHaveLength(1);
     testQueue.expireStale(1); // ttl=1ms means everything is stale
+    await vi.runOnlyPendingTimersAsync();
 
-    await expect(stepPromise).rejects.toThrow(/expired/);
+    await rejectedStep;
 
     const expiredCalls = mockEmit.mock.calls.filter(([event]) => event === "workflow.approval.expired");
     expect(expiredCalls).toHaveLength(1);
@@ -221,8 +230,9 @@ describe("executeApprovalStep – workflow.approval.expired event", () => {
     const ctx = makeContext();
     const stepPromise = executeApprovalStep(step as never, ctx as never, ac.signal);
 
-    await new Promise((r) => setTimeout(r, 10));
+    vi.advanceTimersByTime(10);
     testQueue.expireStale(1);
+    await vi.runOnlyPendingTimersAsync();
 
     const output = await stepPromise;
     expect((output as { approved: boolean }).approved).toBe(true);
@@ -243,9 +253,9 @@ describe("executeApprovalStep – workflow.approval.expired event", () => {
     const ctx = makeContext();
     const stepPromise = executeApprovalStep(step as never, ctx as never, ac.signal);
 
-    await new Promise((r) => setTimeout(r, 10));
     const pending = testQueue.list("pending");
-    testQueue.approve(pending[0].id);
+    approvePending(pending[0].id);
+    await vi.runOnlyPendingTimersAsync();
 
     await stepPromise;
 
@@ -258,12 +268,13 @@ describe("executeApprovalStep – workflow.approval.expired event", () => {
     const step = makeApprovalStep();
     const ctx = makeContext();
     const stepPromise = executeApprovalStep(step as never, ctx as never, ac.signal);
+    const rejectedStep = expect(stepPromise).rejects.toThrow(/rejected/);
 
-    await new Promise((r) => setTimeout(r, 10));
     const pending = testQueue.list("pending");
     testQueue.reject(pending[0].id, "not now");
+    await vi.runOnlyPendingTimersAsync();
 
-    await expect(stepPromise).rejects.toThrow(/rejected/);
+    await rejectedStep;
 
     const expiredCalls = mockEmit.mock.calls.filter(([event]) => event === "workflow.approval.expired");
     expect(expiredCalls).toHaveLength(0);

@@ -1,10 +1,9 @@
 import type { ServerResponse } from "node:http";
-import {
-	type ApprovalExecutionApproveAllResult,
-	type ApprovalExecutionSnapshot,
-	type ApprovalQueue,
-	type PendingApproval,
-	projectApprovalForClient,
+import type {
+	ApprovalExecutionApproveAllResult,
+	ApprovalExecutionSnapshot,
+	ApprovalQueue,
+	PendingApproval,
 } from "#core/daemon/approval-queue.js";
 import { jsonResponse } from "#core/server/session-pool.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
@@ -16,6 +15,7 @@ import {
 	prepareApprovalExecutionBatch,
 	withApprovalExecutionLeases,
 } from "./approval-execution.js";
+import type { ApprovalReviewReceipt } from "./client.js";
 import {
 	writeApprovalInputUnavailable,
 	writeApprovalScopeMismatch,
@@ -23,12 +23,25 @@ import {
 
 function writeApprovalExecutionDescriptorMismatch(
 	res: ServerResponse,
+	queue: ApprovalQueue,
 	approvals: PendingApproval[],
 ): void {
 	jsonResponse(res, 409, {
 		error: "Approval changed after execution preflight",
 		reason: "approval_execution_descriptor_mismatch",
-		approvals: approvals.map((item) => projectApprovalForClient(item)),
+		approvals: approvals.map((item) => queue.projectForClient(item)),
+	});
+}
+
+function writeApprovalReviewMismatch(
+	res: ServerResponse,
+	queue: ApprovalQueue,
+	approvals: PendingApproval[],
+): void {
+	jsonResponse(res, 409, {
+		error: "Approval changed since it was reviewed",
+		reason: "approval_review_digest_mismatch",
+		approvals: approvals.map((item) => queue.projectForClient(item)),
 	});
 }
 
@@ -46,6 +59,7 @@ type ApprovalMutationOutcome =
 
 function writeApprovalMutationOutcome(
 	res: ServerResponse,
+	queue: ApprovalQueue,
 	selectedScopeId: string,
 	outcome: ApprovalMutationOutcome,
 ): void {
@@ -58,7 +72,7 @@ function writeApprovalMutationOutcome(
 		return;
 	}
 	if (outcome.kind === "descriptor_mismatch") {
-		writeApprovalExecutionDescriptorMismatch(res, outcome.approvals);
+		writeApprovalExecutionDescriptorMismatch(res, queue, outcome.approvals);
 		return;
 	}
 	writeApprovalInputUnavailable(res, outcome.approvals);
@@ -68,6 +82,7 @@ export async function writeApproveApprovalMutation(
 	res: ServerResponse,
 	queue: ApprovalQueue,
 	id: string,
+	expectedReviewDigest: string,
 	note: string | undefined,
 	executionContext: ToolRunnerContext | undefined,
 ): Promise<void> {
@@ -91,6 +106,10 @@ export async function writeApproveApprovalMutation(
 	}
 	if (!selection.ok) {
 		writeApprovalInputUnavailable(res, selection.approval ? [selection.approval] : []);
+		return;
+	}
+	if (selection.snapshot.descriptor.reviewDigest !== expectedReviewDigest) {
+		writeApprovalReviewMismatch(res, queue, [selection.snapshot.approval]);
 		return;
 	}
 	const preflight = await prepareApprovalExecutionBatch([selection.snapshot], executionContext);
@@ -150,12 +169,13 @@ export async function writeApproveApprovalMutation(
 			}
 		},
 	);
-	writeApprovalMutationOutcome(res, selectedScopeId, outcome);
+	writeApprovalMutationOutcome(res, queue, selectedScopeId, outcome);
 }
 
 export async function writeApproveAllApprovalsMutation(
 	res: ServerResponse,
 	queue: ApprovalQueue,
+	reviewReceipts: readonly ApprovalReviewReceipt[],
 	note: string | undefined,
 	executionContext: ToolRunnerContext | undefined,
 ): Promise<void> {
@@ -184,10 +204,21 @@ export async function writeApproveAllApprovalsMutation(
 			return;
 		}
 		if (!selection.ok) {
-			writeApprovalExecutionDescriptorMismatch(res, [item]);
+			writeApprovalExecutionDescriptorMismatch(res, queue, [item]);
 			return;
 		}
 		snapshots.push(selection.snapshot);
+	}
+	const receiptDigests = new Map(reviewReceipts.map((receipt) => [receipt.id, receipt.digest]));
+	if (
+		receiptDigests.size !== reviewReceipts.length
+		|| snapshots.length !== reviewReceipts.length
+		|| snapshots.some((snapshot) =>
+			receiptDigests.get(snapshot.approval.id) !== snapshot.descriptor.reviewDigest
+		)
+	) {
+		writeApprovalReviewMismatch(res, queue, pendingApprovals);
+		return;
 	}
 	const preflight = await prepareApprovalExecutionBatch(snapshots, executionContext);
 	if (!preflight.ok) {
@@ -220,7 +251,7 @@ export async function writeApproveAllApprovalsMutation(
 			}
 		},
 	);
-	writeApprovalMutationOutcome(res, selectedScopeId, outcome);
+	writeApprovalMutationOutcome(res, queue, selectedScopeId, outcome);
 }
 
 function approveAllApprovalsLocal(

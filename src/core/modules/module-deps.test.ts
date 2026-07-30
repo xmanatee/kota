@@ -24,7 +24,11 @@ function collectTsFiles(dir: string): string[] {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
       results.push(...collectTsFiles(full));
-    } else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".test.ts")) {
+    } else if (
+      entry.name.endsWith(".ts")
+      && !entry.name.endsWith(".test.ts")
+      && !entry.name.endsWith(".integration.ts")
+    ) {
       results.push(full);
     }
   }

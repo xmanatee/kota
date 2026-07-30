@@ -15,7 +15,21 @@ import { createRetryMiddleware, resetRetryStats } from "#modules/tool-retry/tool
 // so the registrations list must come through real.
 vi.mock(import("#core/tools/index.js"), async (importOriginal) => {
   const actual = await importOriginal();
-  return { ...actual, executeTool: vi.fn() };
+  return {
+    ...actual,
+    executeTool: vi.fn(),
+    getAllTools: () => [
+      "shell",
+      "file_read",
+      "web_fetch",
+      "web_search",
+      "http_request",
+    ].map((name) => ({
+      name,
+      description: "test tool",
+      input_schema: { type: "object" as const, properties: {} },
+    })),
+  };
 });
 vi.mock("#core/loop/context.js", () => ({
   truncateToolResult: vi.fn((text: string) => text),
@@ -68,6 +82,33 @@ describe("tool-runner × tool-retry middleware integration", () => {
     expect(results[0].content).toContain("done with timeout=240000");
     expect(results[0].content).toContain("auto-retry");
     expect(results[0].is_error).toBeUndefined();
+  });
+
+  it("blocks retry input drift after client approval", async () => {
+    mockExecuteTool.mockResolvedValueOnce({
+      content: "command timed out after 120s",
+      is_error: true,
+    });
+    const clientApprovalResolver = vi.fn().mockResolvedValue({ outcome: "allow" });
+
+    const results = await executeToolCalls(
+      [toolBlock("shell", { command: "npm test", timeout_ms: 120_000 })],
+      {
+        resultLimit: 50_000,
+        verbose: false,
+        autonomyMode: "supervised",
+        clientApprovalResolver,
+      },
+    );
+
+    expect(clientApprovalResolver).toHaveBeenCalledWith(expect.objectContaining({
+      input: { command: "npm test", timeout_ms: 120_000 },
+    }));
+    expect(mockExecuteTool).toHaveBeenCalledTimes(1);
+    expect(results[0]).toMatchObject({
+      is_error: true,
+      content: expect.stringContaining("tool input changed after client approval"),
+    });
   });
 
   it("does not retry shell when doubled timeout exceeds max (300s)", async () => {

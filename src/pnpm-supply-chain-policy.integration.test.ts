@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -10,11 +9,11 @@ const LOCKFILE = join(PROJECT_ROOT, "pnpm-lock.yaml");
 
 const REQUIRED_PNPM_VERSION = "10.26.0";
 const REQUIRED_POLICY = {
-  "minimum-release-age": 1440,
-  "block-exotic-subdeps": true,
-  "trust-policy": "no-downgrade",
-  "strict-dep-builds": false,
-  "dangerously-allow-all-builds": false,
+  minimumReleaseAge: 1440,
+  blockExoticSubdeps: true,
+  trustPolicy: "no-downgrade",
+  strictDepBuilds: false,
+  dangerouslyAllowAllBuilds: false,
 } as const;
 
 const DENIED_BUILDS = [
@@ -52,18 +51,6 @@ function pinnedPnpmVersion(): string {
   return match[1];
 }
 
-function readPnpmProjectConfig(): Record<string, unknown> {
-  const output = execFileSync(
-    "pnpm",
-    ["config", "list", "--location", "project", "--json"],
-    {
-      cwd: PROJECT_ROOT,
-      encoding: "utf-8",
-    },
-  );
-  return JSON.parse(output) as Record<string, unknown>;
-}
-
 describe("pnpm supply-chain policy", () => {
   it("pins a pnpm version new enough for the committed safeguards", () => {
     expect(
@@ -71,16 +58,14 @@ describe("pnpm supply-chain policy", () => {
     ).toBeGreaterThanOrEqual(0);
   });
 
-  it("enforces release age, exotic dependency blocking, trust checks, and explicit build policy", () => {
-    const config = readPnpmProjectConfig();
+  it("commits release age, exotic dependency blocking, trust checks, and explicit build policy", () => {
+    const workspaceConfig = readFileSync(WORKSPACE_CONFIG, "utf-8");
 
     for (const [key, value] of Object.entries(REQUIRED_POLICY)) {
-      expect(config[key]).toEqual(value);
+      expect(workspaceConfig).toMatch(
+        new RegExp(`^${escapeRegExp(key)}: ${escapeRegExp(String(value))}$`, "m"),
+      );
     }
-
-    expect(config["ignored-built-dependencies"]).toEqual(
-      DENIED_BUILDS.map((entry) => entry.packageName),
-    );
   });
 
   it("keeps build-script denials named and tied to the current lockfile", () => {

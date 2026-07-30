@@ -37,101 +37,14 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type {
-  ApprovalStatus,
-  PendingApproval,
-} from "#core/daemon/approval-queue.js";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
-import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import type { ApprovalStatus } from "#core/daemon/approval-queue.js";
 import type { ApprovalsListResult } from "./client.js";
+import {
+  ENCODING_SENSITIVE_ID,
+  makeApproval,
+  makeRecordingTransport,
+} from "./daemon-client-test-support.integration.js";
 import approvalQueueModule from "./index.js";
-
-type RecordedCall =
-  | {
-      method: string;
-      path: string;
-      body: unknown;
-      shape: "request" | "requestStrict";
-    }
-  | {
-      path: string;
-      init: RequestInit | undefined;
-      shape: "fetchRaw";
-    };
-
-const ENCODING_SENSITIVE_ID = "weird/id %name with space";
-
-function makeRecordingTransport(
-  responder: (
-    method: string,
-    path: string,
-    body: unknown,
-    shape: "request" | "requestStrict" | "fetchRaw",
-  ) => unknown,
-): { transport: DaemonTransport; calls: RecordedCall[] } {
-  const calls: RecordedCall[] = [];
-  const transport: DaemonTransport = {
-    baseUrl: "http://127.0.0.1:0",
-    authHeaders: () => ({}),
-    request: async <T>(
-      method: string,
-      path: string,
-      body?: unknown,
-    ): Promise<T | null> => {
-      calls.push({ method, path, body, shape: "request" });
-      return responder(method, path, body, "request") as T | null;
-    },
-    requestStrict: async <T>(
-      method: string,
-      path: string,
-      body?: unknown,
-    ): Promise<T> => {
-      calls.push({ method, path, body, shape: "requestStrict" });
-      return responder(method, path, body, "requestStrict") as T;
-    },
-    fetchRaw: async (path: string, init?: RequestInit) => {
-      calls.push({ path, init, shape: "fetchRaw" });
-      const value = responder(
-        init?.method ?? "GET",
-        path,
-        init?.body,
-        "fetchRaw",
-      );
-      if (value instanceof Response) return value;
-      if (value === null) {
-        return new Response(JSON.stringify({ error: "not found" }), {
-          status: 404,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-      return new Response(JSON.stringify(value), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-    },
-    events: async function* () {
-      // empty generator
-    },
-  };
-  return { transport, calls };
-}
-
-function makeApproval(
-  id: string,
-  status: ApprovalStatus = "pending",
-): PendingApproval {
-  return {
-    id,
-    scopeId: "scope-test",
-    tool: "shell",
-    input: { command: `echo ${id}` },
-    risk: "moderate",
-    reason: "test approval",
-    createdAt: "2026-05-04T12:34:56.000Z",
-    status,
-  };
-}
 
 describe("approval-queue module daemonClient(link)", () => {
   it("contributes an approvals namespace handler", () => {
@@ -221,6 +134,7 @@ describe("approval-queue module daemonClient(link)", () => {
     const contributed = approvalQueueModule.daemonClient!(transport);
     const result = await contributed.approvals!.approve(
       ENCODING_SENSITIVE_ID,
+      "a".repeat(64),
       "looks good",
     );
     expect(result).toEqual({ ok: true, approval });
@@ -230,7 +144,10 @@ describe("approval-queue module daemonClient(link)", () => {
         init: {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ note: "looks good" }),
+          body: JSON.stringify({
+            reviewDigest: "a".repeat(64),
+            note: "looks good",
+          }),
         },
         shape: "fetchRaw",
       },
@@ -241,7 +158,7 @@ describe("approval-queue module daemonClient(link)", () => {
     const approval = makeApproval("a-bare", "approved");
     const { transport, calls } = makeRecordingTransport(() => ({ approval }));
     const contributed = approvalQueueModule.daemonClient!(transport);
-    const result = await contributed.approvals!.approve("a-bare");
+    const result = await contributed.approvals!.approve("a-bare", "a".repeat(64));
     expect(result).toEqual({ ok: true, approval });
     expect(calls).toEqual([
       {
@@ -249,7 +166,10 @@ describe("approval-queue module daemonClient(link)", () => {
         init: {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ note: undefined }),
+          body: JSON.stringify({
+            reviewDigest: "a".repeat(64),
+            note: undefined,
+          }),
         },
         shape: "fetchRaw",
       },
@@ -264,205 +184,7 @@ describe("approval-queue module daemonClient(link)", () => {
     };
     const { transport } = makeRecordingTransport(() => ({ approval, execution }));
     const contributed = approvalQueueModule.daemonClient!(transport);
-    const result = await contributed.approvals!.approve("a-exec");
+    const result = await contributed.approvals!.approve("a-exec", "a".repeat(64));
     expect(result).toEqual({ ok: true, approval, execution });
-  });
-
-  it("routes reject(id, reason?) through POST /approvals/:id/reject with encodeURIComponent and { reason } body", async () => {
-    const approval = makeApproval(ENCODING_SENSITIVE_ID, "rejected");
-    const { transport, calls } = makeRecordingTransport(() => ({ approval }));
-    const contributed = approvalQueueModule.daemonClient!(transport);
-    const result = await contributed.approvals!.reject(
-      ENCODING_SENSITIVE_ID,
-      "policy violation",
-    );
-    expect(result).toEqual({ ok: true, approval });
-    expect(calls).toEqual([
-      {
-        path: `/approvals/${encodeURIComponent(ENCODING_SENSITIVE_ID)}/reject`,
-        init: {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reason: "policy violation" }),
-        },
-        shape: "fetchRaw",
-      },
-    ]);
-  });
-
-  it("routes reject(id) without a reason as { reason: undefined } body", async () => {
-    const approval = makeApproval("a-bare", "rejected");
-    const { transport, calls } = makeRecordingTransport(() => ({ approval }));
-    const contributed = approvalQueueModule.daemonClient!(transport);
-    const result = await contributed.approvals!.reject("a-bare");
-    expect(result).toEqual({ ok: true, approval });
-    expect(calls).toEqual([
-      {
-        path: "/approvals/a-bare/reject",
-        init: {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reason: undefined }),
-        },
-        shape: "fetchRaw",
-      },
-    ]);
-  });
-
-  it("threads projectId through list and mutations when provided", async () => {
-    const approval = makeApproval("a-project", "approved");
-    const { transport, calls } = makeRecordingTransport((_method, _path, _body, shape) =>
-      shape === "requestStrict" ? { approvals: [] } : { approval },
-    );
-    const contributed = approvalQueueModule.daemonClient!(transport);
-    await contributed.approvals!.list({ status: "pending", projectId: "project-b" });
-    await contributed.approvals!.approve("a-project", "ok", { projectId: "project-b" });
-    await contributed.approvals!.reject("a-project", "no", { projectId: "project-b" });
-    expect(calls).toEqual([
-      {
-        method: "GET",
-        path: "/approvals?status=pending&projectId=project-b",
-        body: undefined,
-        shape: "requestStrict",
-      },
-      {
-        path: "/approvals/a-project/approve?projectId=project-b",
-        init: {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ note: "ok" }),
-        },
-        shape: "fetchRaw",
-      },
-      {
-        path: "/approvals/a-project/reject?projectId=project-b",
-        init: {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reason: "no" }),
-        },
-        shape: "fetchRaw",
-      },
-    ]);
-  });
-
-  it("collapses a null (404) response from approve into { ok: false, reason: 'not_found' }", async () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const contributed = approvalQueueModule.daemonClient!(transport);
-    const result = await contributed.approvals!.approve("missing-id");
-    expect(result).toEqual({ ok: false, reason: "not_found" });
-  });
-
-  it("collapses a typed 400 invalid-id response from approve into { ok: false, reason: 'invalid_id' }", async () => {
-    const { transport } = makeRecordingTransport(() =>
-      new Response(
-        JSON.stringify({
-          error: "Invalid approval id",
-          reason: "invalid_approval_id",
-          id: "../abcd1234",
-        }),
-        { status: 400, headers: { "Content-Type": "application/json" } },
-      ),
-    );
-    const contributed = approvalQueueModule.daemonClient!(transport);
-    const result = await contributed.approvals!.approve("../abcd1234");
-    expect(result).toEqual({ ok: false, reason: "invalid_id" });
-  });
-
-  it("collapses a typed 409 unavailable-input response from approve into { ok: false, reason: 'input_unavailable' }", async () => {
-    const { transport } = makeRecordingTransport(() =>
-      new Response(
-        JSON.stringify({
-          error: "Approval input is unavailable after daemon restart",
-          reason: "approval_input_unavailable",
-          approvals: [makeApproval("deadbeef")],
-        }),
-        { status: 409, headers: { "Content-Type": "application/json" } },
-      ),
-    );
-    const contributed = approvalQueueModule.daemonClient!(transport);
-    const result = await contributed.approvals!.approve("deadbeef");
-    expect(result).toEqual({ ok: false, reason: "input_unavailable" });
-  });
-
-	it("collapses a typed 409 scope mismatch response into { ok: false, reason: 'scope_mismatch' }", async () => {
-		const { transport } = makeRecordingTransport(() =>
-			new Response(
-				JSON.stringify({
-					error: "Approval belongs to a different project scope",
-					reason: "approval_scope_mismatch",
-				}),
-				{ status: 409, headers: { "Content-Type": "application/json" } },
-			),
-		);
-    const contributed = approvalQueueModule.daemonClient!(transport);
-
-    const result = await contributed.approvals!.approve("deadbeef");
-
-    expect(result).toEqual({ ok: false, reason: "scope_mismatch" });
-  });
-
-  it("throws the typed unknown-project error from approve instead of returning not_found", async () => {
-    const { transport } = makeRecordingTransport(() =>
-      new Response(
-        JSON.stringify({
-          error: "Unknown project",
-          reason: "unknown_project",
-          projectId: "missing-project",
-        }),
-        { status: 404, headers: { "Content-Type": "application/json" } },
-      ),
-    );
-    const contributed = approvalQueueModule.daemonClient!(transport);
-    await expect(
-      contributed.approvals!.approve("a-1", undefined, {
-        projectId: "missing-project",
-      }),
-    ).rejects.toThrow(/Unknown project: missing-project/);
-  });
-
-  it("collapses a null (404) response from reject into { ok: false, reason: 'not_found' }", async () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const contributed = approvalQueueModule.daemonClient!(transport);
-    const result = await contributed.approvals!.reject("missing-id");
-    expect(result).toEqual({ ok: false, reason: "not_found" });
-  });
-
-  it("collapses a typed 400 invalid-id response from reject into { ok: false, reason: 'invalid_id' }", async () => {
-    const { transport } = makeRecordingTransport(() =>
-      new Response(
-        JSON.stringify({
-          error: "Invalid approval id",
-          reason: "invalid_approval_id",
-          id: "../abcd1234",
-        }),
-        { status: 400, headers: { "Content-Type": "application/json" } },
-      ),
-    );
-    const contributed = approvalQueueModule.daemonClient!(transport);
-    const result = await contributed.approvals!.reject("../abcd1234");
-    expect(result).toEqual({ ok: false, reason: "invalid_id" });
-  });
-
-  it("the assembly path fails loudly when the approval-queue module's daemonClient(link) is removed", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.approvals;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /approvals/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
-  });
-
-  it("supplying the approval-queue module's contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const contributed = approvalQueueModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.approvals;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
   });
 });

@@ -11,6 +11,7 @@ import type {
 	ApprovalToolIoRedaction,
 	PendingApproval,
 } from "./approval-queue.js";
+import { createApprovalReviewDescriptor } from "./approval-review-descriptor.js";
 
 const APPROVAL_ID_PATTERN = /^[0-9a-f]{8}$/;
 
@@ -21,10 +22,24 @@ export function isApprovalId(id: string): boolean {
 export function projectApprovalForClient(
 	item: PendingApproval,
 	target: EvidenceProjectionTarget = "daemon-api",
+	reviewInput?: PendingApproval["input"],
+	reviewContext?: string,
 ): ApprovalClientProjection {
+	const effectiveReviewInput = reviewInput
+		?? (isToolIoRedactionRecord(item.input) ? undefined : item.input);
+	const effectiveReviewContext = reviewContext ?? item.context;
+	const reviewUnavailable = effectiveReviewInput === undefined
+		|| (item.contextRedaction !== undefined && effectiveReviewContext === undefined);
 	const projected: ApprovalClientProjection = {
 		...projectApprovalTextFields(item),
 		input: projectApprovalInputForTarget(item.input, target),
+		review: reviewUnavailable
+			? { status: "unavailable", reason: "input_unavailable" }
+			: createApprovalReviewDescriptor(
+				item,
+				effectiveReviewInput,
+				effectiveReviewContext,
+			),
 	};
 	if (item.context !== undefined) {
 		const context = projectEvidenceText(item.context, target, "tool-io");

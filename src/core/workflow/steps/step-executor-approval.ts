@@ -1,3 +1,4 @@
+import { WORKFLOW_STEP_APPROVAL_SOURCE } from "#core/daemon/approval-queue.js";
 import type { WorkflowStepContext } from "../run-types.js";
 import type { WorkflowApprovalStep } from "../step-types.js";
 import type { WorkflowStepOutput } from "./step-executor-agent.js";
@@ -40,7 +41,7 @@ export async function executeApprovalStep(
     },
     "moderate",
     reason,
-    "workflow-step",
+    WORKFLOW_STEP_APPROVAL_SOURCE,
     step.timeoutMs,
     step.defaultResolution,
   );

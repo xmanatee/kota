@@ -5,15 +5,17 @@ import {
 import {
 	type ApprovalClientProjection,
 	type ApprovalExecutionSnapshot,
+	isWorkflowStepApproval,
 	type PendingApproval,
 	projectApprovalForClient,
 } from "#core/daemon/approval-queue.js";
-import { projectEvidenceText, redactSensitiveText } from "#core/evidence/policy.js";
-import { McpManager } from "#core/mcp/manager.js";
-import { parseToolName } from "#core/mcp/tool-namespace.js";
+import { projectEvidenceText } from "#core/evidence/policy.js";
+import type { McpManager } from "#core/mcp/manager.js";
 import { executeTool, type ToolRunnerContext } from "#core/tools/index.js";
 import { isMcpManagedToolName } from "#core/tools/tool-name-policy.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
+import { closeAfterApprovalExecutionFailure } from "./approval-execution-cleanup.js";
+import { prepareMcpApprovalExecution } from "./approval-mcp-preflight.js";
 import type { ApprovalExecutionProjection } from "./client.js";
 
 export type ApprovalExecutionLease = ApprovalExecutionDescriptor & {
@@ -27,46 +29,9 @@ export class ApprovalExecutionDescriptorMismatchError extends Error {
 	}
 }
 
-type McpApprovalFailureReason =
-	| "mcp_approval_missing_declaration"
-	| "mcp_approval_source_mismatch"
-	| "mcp_approval_manager_unavailable"
-	| "mcp_declaration_changed_since_prompt"
-	| "mcp_server_transport_changed_since_prompt"
-	| "mcp_server_transport_identity_ambiguous";
-
-type McpApprovalFailureBody = {
-	error: string;
-	reason: McpApprovalFailureReason;
-	approvals: ApprovalClientProjection[];
-	mcp?: {
-		tool: string;
-		server?: string;
-		remoteTool?: string;
-		promptDeclarationFingerprintPrefix?: string;
-		currentDeclarationFingerprintPrefix?: string | null;
-		promptServerTransportIdentityFingerprintPrefix?: string;
-		currentServerTransportIdentityFingerprintPrefix?: string | null;
-		message?: string;
-	};
-};
-
-type ApprovalExecutionPreflight =
-	| { ok: true; lease: ApprovalExecutionLease }
-	| { ok: false; status: 409; body: McpApprovalFailureBody };
-
 export type ApprovalExecutionPreflightBatch =
 	| { ok: true; leases: Map<string, ApprovalExecutionLease> }
-	| { ok: false; status: 409; body: McpApprovalFailureBody };
-
-const MCP_DECLARATION_CHANGED_REASON = "mcp_declaration_changed_since_prompt";
-const MCP_SERVER_TRANSPORT_CHANGED_REASON = "mcp_server_transport_changed_since_prompt";
-const MCP_SERVER_TRANSPORT_IDENTITY_AMBIGUOUS_REASON =
-	"mcp_server_transport_identity_ambiguous";
-
-function fingerprintPrefix(fingerprint: string): string {
-	return fingerprint.slice(0, 12);
-}
+	| { ok: false; status: 409; body: import("./approval-mcp-preflight.js").McpApprovalFailureBody };
 
 function approvalExecutionContext(
 	base: ToolRunnerContext | undefined,
@@ -76,19 +41,6 @@ function approvalExecutionContext(
 	return {
 		...base,
 		...(item.sessionId ? { sessionId: item.sessionId } : {}),
-	};
-}
-
-function mcpFailureBody(
-	reason: McpApprovalFailureReason,
-	item: PendingApproval,
-	detail?: McpApprovalFailureBody["mcp"],
-): McpApprovalFailureBody {
-	return {
-		error: "MCP approval cannot be executed",
-		reason,
-		approvals: [projectApprovalForClient(item)],
-		...(detail !== undefined ? { mcp: detail } : {}),
 	};
 }
 
@@ -102,18 +54,6 @@ export async function closeApprovalExecutionLeases(
 	await Promise.all([...managers].map((manager) => manager.close()));
 }
 
-async function closeAfterFailure(
-	close: () => Promise<void>,
-	primaryError: unknown,
-	message: string,
-): Promise<void> {
-	try {
-		await close();
-	} catch (cleanupError) {
-		throw new AggregateError([primaryError, cleanupError], message);
-	}
-}
-
 export async function withApprovalExecutionLeases<T>(
 	leases: Iterable<ApprovalExecutionLease>,
 	execute: () => Promise<T>,
@@ -123,174 +63,16 @@ export async function withApprovalExecutionLeases<T>(
 	try {
 		result = await execute();
 	} catch (error) {
-		await closeAfterFailure(
+		const primaryError = error instanceof Error ? error : new Error(String(error));
+		await closeAfterApprovalExecutionFailure(
 			() => closeApprovalExecutionLeases(retainedLeases),
-			error,
+			primaryError,
 			"Approval execution and lease cleanup both failed",
 		);
 		throw error;
 	}
 	await closeApprovalExecutionLeases(retainedLeases);
 	return result;
-}
-
-async function prepareMcpApprovalExecution(
-	snapshot: ApprovalExecutionSnapshot,
-	context?: ToolRunnerContext,
-): Promise<ApprovalExecutionPreflight> {
-	const item = snapshot.approval;
-	if (!isMcpManagedToolName(item.tool)) {
-		return { ok: true, lease: { ...snapshot.descriptor } };
-	}
-
-	const parsed = parseToolName(item.tool);
-	const declaration = item.mcpPromptDeclaration;
-	if (
-		!parsed ||
-		!declaration ||
-		typeof declaration.serverTransportIdentityFingerprint !== "string"
-	) {
-		return {
-			ok: false,
-			status: 409,
-			body: mcpFailureBody("mcp_approval_missing_declaration", item, {
-				tool: item.tool,
-				message: "Queued MCP approval is missing prompt declaration metadata.",
-			}),
-		};
-	}
-	if (parsed.server !== declaration.server || parsed.tool !== declaration.tool) {
-		return {
-			ok: false,
-			status: 409,
-			body: mcpFailureBody("mcp_approval_source_mismatch", item, {
-				tool: item.tool,
-				server: declaration.server,
-				remoteTool: declaration.tool,
-				promptDeclarationFingerprintPrefix:
-					fingerprintPrefix(declaration.promptDeclarationFingerprint),
-				promptServerTransportIdentityFingerprintPrefix:
-					fingerprintPrefix(declaration.serverTransportIdentityFingerprint),
-			}),
-		};
-	}
-
-	const cwd = context?.cwd ?? process.cwd();
-	const config = McpManager.loadConfig(cwd);
-	if (!config) {
-		return {
-			ok: false,
-			status: 409,
-			body: mcpFailureBody("mcp_approval_manager_unavailable", item, {
-				tool: item.tool,
-				server: declaration.server,
-				remoteTool: declaration.tool,
-				promptDeclarationFingerprintPrefix:
-					fingerprintPrefix(declaration.promptDeclarationFingerprint),
-				promptServerTransportIdentityFingerprintPrefix:
-					fingerprintPrefix(declaration.serverTransportIdentityFingerprint),
-				message: "No current MCP configuration is available for this approval scope.",
-			}),
-		};
-	}
-
-	const mcpManager = new McpManager({ projectDir: cwd });
-	try {
-		await mcpManager.initialize(config);
-	} catch (err) {
-		await closeAfterFailure(
-			() => mcpManager.close(),
-			err,
-			"MCP approval preflight failed and its manager could not close",
-		);
-		return {
-			ok: false,
-			status: 409,
-			body: mcpFailureBody("mcp_approval_manager_unavailable", item, {
-				tool: item.tool,
-				server: declaration.server,
-				remoteTool: declaration.tool,
-				promptDeclarationFingerprintPrefix:
-					fingerprintPrefix(declaration.promptDeclarationFingerprint),
-				promptServerTransportIdentityFingerprintPrefix:
-					fingerprintPrefix(declaration.serverTransportIdentityFingerprint),
-				message: redactSensitiveText(err instanceof Error ? err.message : String(err)),
-			}),
-		};
-	}
-
-	const currentFingerprint = mcpManager.getToolDeclarationFingerprint(item.tool);
-	if (currentFingerprint !== declaration.promptDeclarationFingerprint) {
-		await mcpManager.close();
-		return {
-			ok: false,
-			status: 409,
-			body: mcpFailureBody(MCP_DECLARATION_CHANGED_REASON, item, {
-				tool: item.tool,
-				server: declaration.server,
-				remoteTool: declaration.tool,
-				promptDeclarationFingerprintPrefix:
-					fingerprintPrefix(declaration.promptDeclarationFingerprint),
-				currentDeclarationFingerprintPrefix:
-					currentFingerprint === undefined ? null : fingerprintPrefix(currentFingerprint),
-				promptServerTransportIdentityFingerprintPrefix:
-					fingerprintPrefix(declaration.serverTransportIdentityFingerprint),
-			}),
-		};
-	}
-
-	const currentTransportIdentity = mcpManager.getToolServerTransportIdentity(item.tool);
-	if (
-		!currentTransportIdentity ||
-		currentTransportIdentity.fingerprint !== declaration.serverTransportIdentityFingerprint
-	) {
-		await mcpManager.close();
-		return {
-			ok: false,
-			status: 409,
-			body: mcpFailureBody(MCP_SERVER_TRANSPORT_CHANGED_REASON, item, {
-				tool: item.tool,
-				server: declaration.server,
-				remoteTool: declaration.tool,
-				promptDeclarationFingerprintPrefix:
-					fingerprintPrefix(declaration.promptDeclarationFingerprint),
-				currentDeclarationFingerprintPrefix:
-					currentFingerprint === undefined ? null : fingerprintPrefix(currentFingerprint),
-				promptServerTransportIdentityFingerprintPrefix:
-					fingerprintPrefix(declaration.serverTransportIdentityFingerprint),
-				currentServerTransportIdentityFingerprintPrefix:
-					currentTransportIdentity === undefined
-						? null
-						: fingerprintPrefix(currentTransportIdentity.fingerprint),
-			}),
-		};
-	}
-	if (currentTransportIdentity.match.kind === "ambiguous") {
-		await mcpManager.close();
-		return {
-			ok: false,
-			status: 409,
-			body: mcpFailureBody(MCP_SERVER_TRANSPORT_IDENTITY_AMBIGUOUS_REASON, item, {
-				tool: item.tool,
-				server: declaration.server,
-				remoteTool: declaration.tool,
-				promptDeclarationFingerprintPrefix:
-					fingerprintPrefix(declaration.promptDeclarationFingerprint),
-				currentDeclarationFingerprintPrefix:
-					currentFingerprint === undefined ? null : fingerprintPrefix(currentFingerprint),
-				promptServerTransportIdentityFingerprintPrefix:
-					fingerprintPrefix(declaration.serverTransportIdentityFingerprint),
-				currentServerTransportIdentityFingerprintPrefix:
-					fingerprintPrefix(currentTransportIdentity.fingerprint),
-				message: currentTransportIdentity.match.reason,
-			}),
-		};
-	}
-
-	return {
-		ok: true,
-		lease: { ...snapshot.descriptor, mcpManager },
-	};
 }
 
 export async function prepareApprovalExecutionBatch(
@@ -342,6 +124,16 @@ function requireApprovedToolExecutionLease(
 	return lease;
 }
 
+function requireApprovedApprovalLease(
+	item: PendingApproval,
+	lease: ApprovalExecutionLease | undefined,
+): ApprovalExecutionLease {
+	if (lease === undefined || !approvedApprovalMatchesExecutionDescriptor(item, lease)) {
+		throw new ApprovalExecutionDescriptorMismatchError(item);
+	}
+	return lease;
+}
+
 async function executeApprovedTool(
 	item: PendingApproval,
 	context?: ToolRunnerContext,
@@ -369,8 +161,12 @@ export async function approvedApprovalResponse(
 	lease: ApprovalExecutionLease,
 ): Promise<{
 	approval: ApprovalClientProjection;
-	execution: ApprovalExecutionProjection;
+	execution?: ApprovalExecutionProjection;
 }> {
+	if (isWorkflowStepApproval(item)) {
+		requireApprovedApprovalLease(item, lease);
+		return { approval: projectApprovalForClient(item) };
+	}
 	const execution = await executeApprovedTool(item, context, lease);
 	return {
 		approval: projectApprovalForClient(item),
@@ -388,10 +184,15 @@ export async function approveAllResponse(
 	executions: Array<{ approvalId: string; execution: ApprovalExecutionProjection }>;
 }> {
 	for (const item of items) {
-		requireApprovedToolExecutionLease(item, leases.get(item.id));
+		if (isWorkflowStepApproval(item)) {
+			requireApprovedApprovalLease(item, leases.get(item.id));
+		} else {
+			requireApprovedToolExecutionLease(item, leases.get(item.id));
+		}
 	}
 	const executions: Array<{ approvalId: string; execution: ApprovalExecutionProjection }> = [];
 	for (const item of items) {
+		if (isWorkflowStepApproval(item)) continue;
 		executions.push({
 			approvalId: item.id,
 			execution: await executeApprovedTool(item, context, leases.get(item.id)),

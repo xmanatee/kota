@@ -8,6 +8,7 @@
 import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
+import type { ApprovalClientProjection } from "#core/daemon/approval-queue.js";
 import {
   CAPABILITY_READINESS_PROVIDER_TYPE,
   type CapabilityReadiness,
@@ -31,11 +32,18 @@ import {
   resolveModelProviderName,
 } from "#modules/model-clients/factory.js";
 import {
+  buildApprovalCallbackData,
+  pendingApprovalMessageKey,
+} from "./approval-callback.js";
+import {
   isModelClientHarness,
   resolveTelegramInteractiveBackend,
 } from "./backend.js";
 import { TelegramBot, TelegramGetUpdatesConflictError } from "./bot.js";
-import { createTelegramCallbackHandler } from "./callback-poll.js";
+import {
+  createTelegramCallbackHandler,
+  type PendingApprovalMessage,
+} from "./callback-poll.js";
 import type { TelegramMessage } from "./client.js";
 import { callTelegramApi } from "./client.js";
 import type { TelegramInboundSignalConfig } from "./inbound-signal.js";
@@ -202,37 +210,58 @@ async function sendOwnerQuestionMessage(
 async function sendApprovalMessage(
   token: string,
   chatId: string,
-  approvalId: string,
-  tool: string,
-  risk: string,
-  reason: string,
+  approval: ApprovalClientProjection,
   projectLabelPrefix: string,
   log: ModuleContext["log"],
-): Promise<number | null> {
+): Promise<{ messageId: number; reviewDigest: string } | null> {
+  if (approval.review.status !== "available") {
+    await callTelegramApi<TelegramMessage>(token, "sendMessage", {
+      chat_id: chatId,
+      text: [
+        `${projectLabelPrefix}Approval required: ${approval.tool}`,
+        `Risk: ${approval.risk}`,
+        `Reason: ${approval.reason}`,
+        "Input unavailable after daemon restart. Reject and retry the tool call.",
+      ].join("\n"),
+    }).catch((err) => {
+      log.warn(`Failed to send Telegram approval message: ${(err as Error).message}`);
+    });
+    return null;
+  }
   const text = [
-    `${projectLabelPrefix}Approval required: *${tool}*`,
-    `Risk: ${risk}`,
-    `Reason: ${reason}`,
-    `ID: \`${approvalId}\``,
+    `${projectLabelPrefix}Approval required: ${approval.tool}`,
+    `Risk: ${approval.risk}`,
+    `Reason: ${approval.reason}`,
+    `Reviewed input: ${JSON.stringify(approval.review.input)}`,
+    ...(approval.review.context !== undefined
+      ? [`Conversation context: ${approval.review.context}`]
+      : []),
+    `Review digest: ${approval.review.digest}`,
+    `ID: ${approval.id}`,
     ``,
-    `kota approval approve ${approvalId}`,
-    `kota approval reject ${approvalId}`,
+    `kota approval approve ${approval.id}`,
+    `kota approval reject ${approval.id}`,
   ].join("\n");
   try {
     const msg = await callTelegramApi<TelegramMessage>(token, "sendMessage", {
       chat_id: chatId,
       text,
-      parse_mode: "Markdown",
       reply_markup: {
         inline_keyboard: [
           [
-            { text: "✅ Approve", callback_data: `approve:${approvalId}` },
-            { text: "❌ Reject", callback_data: `reject:${approvalId}` },
+            {
+              text: "✅ Approve",
+              callback_data: buildApprovalCallbackData("approve", approval.review.digest),
+            },
+            {
+              text: "❌ Reject",
+              callback_data: buildApprovalCallbackData("reject", approval.review.digest),
+            },
           ],
         ],
       },
     });
-    return msg.message_id;
+    return { messageId: msg.message_id, reviewDigest: approval.review.digest };
   } catch (err) {
     log.warn(`Failed to send Telegram approval message: ${(err as Error).message}`);
     return null;
@@ -729,7 +758,7 @@ function makeTelegramInteractiveChannel(
 }
 
 let notificationUnsubs: (() => void)[] = [];
-const pendingApprovalMessages = new Map<string, PendingMessage>();
+const pendingApprovalMessages = new Map<string, PendingApprovalMessage>();
 const pendingOwnerQuestionMessages = new Map<string, PendingMessage>();
 
 const telegramModule: KotaModule = {
@@ -937,27 +966,37 @@ const telegramModule: KotaModule = {
         const creds = getCredentials(ctx);
         if (!creds) return;
         const id = payload.id as string;
-        const tool = payload.tool as string;
-        const risk = payload.risk as string;
-        const reason = payload.reason as string;
         const projectId = payload.projectId as string;
-        void (async () => sendApprovalMessage(
-          creds.token,
-          creds.chatId,
-          id,
-          tool,
-          risk,
-          reason,
-          await renderProjectLabelPrefix(
-            projectId,
-            resolveTelegramProjectRouting(ctx, chatProjectBindings)?.selection,
+        void (async () => {
+          const client = tryResolveTelegramClient(ctx);
+          if (!client) return null;
+          const listed = await client.forProject(projectId).approvals.list({ status: "pending" });
+          const approval = listed.approvals.find((item) => item.id === id);
+          if (!approval) return null;
+          return sendApprovalMessage(
+            creds.token,
+            creds.chatId,
+            approval,
+            await renderProjectLabelPrefix(
+              projectId,
+              resolveTelegramProjectRouting(ctx, chatProjectBindings)?.selection,
+              ctx.log,
+            ),
             ctx.log,
-          ),
-          ctx.log,
-        ))().then(
-          (messageId) => {
-            if (messageId != null) {
-              pendingApprovalMessages.set(id, { chatId: creds.chatId, messageId, projectId });
+          );
+        })().then(
+          (delivery) => {
+            if (delivery != null) {
+              pendingApprovalMessages.set(
+                pendingApprovalMessageKey(creds.chatId, delivery.messageId),
+                {
+                  approvalId: id,
+                  chatId: creds.chatId,
+                  messageId: delivery.messageId,
+                  projectId,
+                  reviewDigest: delivery.reviewDigest,
+                },
+              );
             }
           },
         );

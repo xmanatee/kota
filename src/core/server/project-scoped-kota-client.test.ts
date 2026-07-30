@@ -85,8 +85,13 @@ describe("createProjectScopedKotaClient", () => {
           calls.push(["approvals.list", filter]);
           return { approvals: [] };
         },
-        approve: async (id: string, note: string | undefined, project: unknown) => {
-          calls.push(["approvals.approve", id, note, project]);
+        approve: async (
+          id: string,
+          reviewDigest: string,
+          note: string | undefined,
+          project: unknown,
+        ) => {
+          calls.push(["approvals.approve", id, reviewDigest, note, project]);
           return { ok: false as const, reason: "not_found" as const };
         },
         reject: async (id: string, reason: string | undefined, project: unknown) => {
@@ -132,7 +137,7 @@ describe("createProjectScopedKotaClient", () => {
     await scoped.workflow.status();
     await scoped.workflow.trial("builder", { payload: { x: 1 } });
     await scoped.approvals.list({ status: "all" });
-    await scoped.approvals.approve("approval-1", "ok");
+    await scoped.approvals.approve("approval-1", "a".repeat(64), "ok");
     await scoped.approvals.reject("approval-2", "no");
     await scoped.ownerDecisions.list({ status: "pending" });
     await scoped.ownerDecisions.show("decision-1");
@@ -146,7 +151,7 @@ describe("createProjectScopedKotaClient", () => {
       ["workflow.status", { projectId: "project-b" }],
       ["workflow.trial", { payload: { x: 1 }, projectId: "project-b" }],
       ["approvals.list", { status: "all", projectId: "project-b" }],
-      ["approvals.approve", "approval-1", "ok", { projectId: "project-b" }],
+      ["approvals.approve", "approval-1", "a".repeat(64), "ok", { projectId: "project-b" }],
       ["approvals.reject", "approval-2", "no", { projectId: "project-b" }],
       ["ownerDecisions.list", { status: "pending", projectId: "project-b" }],
       ["ownerDecisions.show", "decision-1", { projectId: "project-b" }],
@@ -237,8 +242,13 @@ describe("createScopeScopedKotaClient", () => {
         throw new Error("unexpected call");
       },
       approvals: {
-        approve: async (id: string, note: string | undefined, project: unknown) => {
-          calls.push(["approvals.approve", id, note, project]);
+        approve: async (
+          id: string,
+          reviewDigest: string,
+          note: string | undefined,
+          project: unknown,
+        ) => {
+          calls.push(["approvals.approve", id, reviewDigest, note, project]);
           return { ok: false as const, reason: "not_found" as const };
         },
       },
@@ -246,7 +256,12 @@ describe("createScopeScopedKotaClient", () => {
 
     const scoped = createScopeScopedKotaClient(base, "scope-a");
     await expect(
-      scoped.approvals.approve("approval-1", "ok", { projectId: "scope-b" }),
+      scoped.approvals.approve(
+        "approval-1",
+        "a".repeat(64),
+        "ok",
+        { projectId: "scope-b" },
+      ),
     ).rejects.toBeInstanceOf(ScopeSelectorConflictError);
     expect(calls).toEqual([]);
   });

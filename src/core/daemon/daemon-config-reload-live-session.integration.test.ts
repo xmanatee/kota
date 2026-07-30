@@ -2,6 +2,7 @@ import { rmSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetEventBus } from "#core/events/event-bus.js";
 import type { GuardrailsConfig } from "#core/tools/guardrails.js";
+import { clearCustomTools, registerTool } from "#core/tools/index.js";
 import {
   chat,
   createDaemonSession,
@@ -77,6 +78,19 @@ describe("daemon config reload live-session guardrails", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetEventBus();
+    clearCustomTools();
+    registerTool(
+      {
+        name: "shell",
+        description: "Execute a command",
+        input_schema: {
+          type: "object",
+          properties: { command: { type: "string" } },
+          required: ["command"],
+        },
+      },
+      async () => ({ content: "test command accepted" }),
+    );
     mockModuleMetadata();
     vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     vi.spyOn(console, "error").mockImplementation(() => {});
@@ -88,6 +102,7 @@ describe("daemon config reload live-session guardrails", () => {
       rmSync(subject.projectDir, { recursive: true, force: true });
       subject = null;
     }
+    clearCustomTools();
     resetEventBus();
     vi.restoreAllMocks();
   });

@@ -49,10 +49,21 @@ export function ApprovalDetailScreen({
   );
 
   async function handleApprove() {
-    if (!client || acting || !approval) return;
+    if (
+      !client ||
+      acting ||
+      !approval ||
+      approval.review.status !== 'available'
+    ) {
+      return;
+    }
     setActing(true);
     try {
-      await client.approve(approvalId, note || undefined);
+      await client.approve(
+        approvalId,
+        approval.review.digest,
+        note || undefined,
+      );
       refresh();
       onDone();
     } catch (e) {
@@ -111,12 +122,38 @@ export function ApprovalDetailScreen({
           </View>
         )}
 
-        <Text style={styles.fieldLabel}>Input</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator style={styles.codeBox}>
-          <Text style={styles.codeText}>
-            {JSON.stringify(approval.input, null, 2)}
-          </Text>
-        </ScrollView>
+        {approval.review.status === 'available' ? (
+          <>
+            <Text style={styles.fieldLabel}>Reviewed input</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator
+              style={styles.codeBox}
+            >
+              <Text style={styles.codeText}>
+                {JSON.stringify(approval.review.input, null, 2)}
+              </Text>
+            </ScrollView>
+            {approval.review.context !== undefined && (
+              <View style={styles.block}>
+                <Text style={styles.fieldLabel}>Conversation context</Text>
+                <Text style={styles.contextText}>
+                  {approval.review.context}
+                </Text>
+              </View>
+            )}
+            <Text style={styles.digestText}>
+              Review digest: {approval.review.digest}
+            </Text>
+          </>
+        ) : (
+          <View style={styles.unavailableBox}>
+            <Text style={styles.errorText}>
+              Input unavailable after daemon restart. Reject and retry the tool
+              call.
+            </Text>
+          </View>
+        )}
 
         <Text style={styles.fieldLabel}>Note (optional)</Text>
         <TextInput
@@ -137,9 +174,13 @@ export function ApprovalDetailScreen({
             <Text style={styles.rejectBtnText}>Reject</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.approveBtn, acting && styles.btnDisabled]}
+            style={[
+              styles.approveBtn,
+              (acting || approval.review.status !== 'available') &&
+                styles.btnDisabled,
+            ]}
             onPress={() => void handleApprove()}
-            disabled={acting}
+            disabled={acting || approval.review.status !== 'available'}
           >
             <Text style={styles.approveBtnText}>Approve</Text>
           </TouchableOpacity>
@@ -171,6 +212,7 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: 13, fontWeight: '600', color: '#6c6c70', marginBottom: 4 },
   fieldValue: { fontSize: 15, color: '#1c1c1e', fontWeight: '500' },
   bodyText: { fontSize: 14, color: '#3c3c43' },
+  contextText: { fontFamily: 'monospace', fontSize: 12, color: '#3c3c43' },
   codeBox: {
     backgroundColor: '#1c1c1e',
     borderRadius: 10,
@@ -178,6 +220,18 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   codeText: { fontFamily: 'monospace', fontSize: 12, color: '#d4d4d8' },
+  digestText: {
+    fontFamily: 'monospace',
+    fontSize: 11,
+    color: '#6c6c70',
+    marginBottom: 16,
+  },
+  unavailableBox: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
+  },
   noteInput: {
     backgroundColor: '#fff',
     borderRadius: 10,

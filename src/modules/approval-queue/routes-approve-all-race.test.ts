@@ -55,6 +55,18 @@ function mockRequest(body: Record<string, unknown> = {}): IncomingMessage {
 	return req as unknown as IncomingMessage;
 }
 
+function approvalBatchRequest(queue: ApprovalQueue): IncomingMessage {
+	return mockRequest({
+		reviews: queue.list("pending").map((item) => {
+			const review = queue.projectForClient(item).review;
+			if (review.status !== "available") {
+				throw new Error(`Approval ${item.id} is not reviewable`);
+			}
+			return { id: item.id, digest: review.digest };
+		}),
+	});
+}
+
 function gatedInitializeMcpServerScript(
 	toolDescription: string,
 	toolResult: string,
@@ -206,7 +218,7 @@ describe("approval approve-all preflight race", () => {
 			const { res, result } = mockResponse();
 
 			const response = withCwd(projectDir, () =>
-				handleApproveAllApprovals(mockRequest(), res, null, queue)
+				handleApproveAllApprovals(approvalBatchRequest(queue), res, null, queue)
 			);
 			await waitForFile(markerPath);
 			const queuedDuringPreflight = queue.enqueue(

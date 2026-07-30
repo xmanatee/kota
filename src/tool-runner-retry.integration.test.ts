@@ -9,7 +9,21 @@ import { createRetryMiddleware, resetRetryStats } from "#modules/tool-retry/tool
 // so the registrations list must come through real.
 vi.mock(import("#core/tools/index.js"), async (importOriginal) => {
   const actual = await importOriginal();
-  return { ...actual, executeTool: vi.fn() };
+  return {
+    ...actual,
+    executeTool: vi.fn(),
+    getAllTools: () => [
+      "shell",
+      "file_read",
+      "web_fetch",
+      "http_request",
+      "code_exec",
+    ].map((name) => ({
+      name,
+      description: "test tool",
+      input_schema: { type: "object" as const, properties: {} },
+    })),
+  };
 });
 
 const mockExec = vi.mocked(executeTool);

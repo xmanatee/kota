@@ -3,6 +3,7 @@ import type {
 	ApprovalMcpPromptDeclaration,
 	PendingApproval,
 } from "./approval-queue.js";
+import { createApprovalReviewDescriptor } from "./approval-review-descriptor.js";
 
 export type ApprovalExecutionDescriptor = {
 	approvalId: string;
@@ -10,6 +11,7 @@ export type ApprovalExecutionDescriptor = {
 	scopeId: string;
 	sessionId?: string;
 	inputDigest: string;
+	reviewDigest: string;
 	approvalSnapshotDigest: string;
 	mcpPromptDeclaration?: ApprovalMcpPromptDeclaration;
 };
@@ -35,6 +37,7 @@ function mcpDeclarationsMatch(
 export function createApprovalExecutionDescriptor(
 	approval: PendingApproval,
 	input: PendingApproval["input"],
+	context?: string,
 ): ApprovalExecutionDescriptor {
 	return {
 		approvalId: approval.id,
@@ -42,6 +45,7 @@ export function createApprovalExecutionDescriptor(
 		scopeId: approval.scopeId,
 		...(approval.sessionId !== undefined ? { sessionId: approval.sessionId } : {}),
 		inputDigest: digestJson(input),
+		reviewDigest: createApprovalReviewDescriptor(approval, input, context).digest,
 		approvalSnapshotDigest: digestJson(approval),
 		...(approval.mcpPromptDeclaration !== undefined
 			? { mcpPromptDeclaration: { ...approval.mcpPromptDeclaration } }
@@ -52,6 +56,7 @@ export function createApprovalExecutionDescriptor(
 function approvalFieldsMatchDescriptor(
 	approval: PendingApproval,
 	input: PendingApproval["input"],
+	context: string | undefined,
 	descriptor: ApprovalExecutionDescriptor,
 ): boolean {
 	return (
@@ -60,6 +65,8 @@ function approvalFieldsMatchDescriptor(
 		&& approval.scopeId === descriptor.scopeId
 		&& approval.sessionId === descriptor.sessionId
 		&& digestJson(input) === descriptor.inputDigest
+		&& createApprovalReviewDescriptor(approval, input, context).digest
+			=== descriptor.reviewDigest
 		&& mcpDeclarationsMatch(
 			approval.mcpPromptDeclaration,
 			descriptor.mcpPromptDeclaration,
@@ -70,11 +77,12 @@ function approvalFieldsMatchDescriptor(
 export function pendingApprovalMatchesExecutionDescriptor(
 	approval: PendingApproval,
 	input: PendingApproval["input"],
+	context: string | undefined,
 	descriptor: ApprovalExecutionDescriptor,
 ): boolean {
 	return (
 		approval.status === "pending"
-		&& approvalFieldsMatchDescriptor(approval, input, descriptor)
+		&& approvalFieldsMatchDescriptor(approval, input, context, descriptor)
 		&& digestJson(approval) === descriptor.approvalSnapshotDigest
 	);
 }
@@ -85,6 +93,6 @@ export function approvedApprovalMatchesExecutionDescriptor(
 ): boolean {
 	return (
 		approval.status === "approved"
-		&& approvalFieldsMatchDescriptor(approval, approval.input, descriptor)
+		&& approvalFieldsMatchDescriptor(approval, approval.input, approval.context, descriptor)
 	);
 }

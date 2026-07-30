@@ -60,6 +60,8 @@ notification forwarding.
 - Contributes notification subscriptions for workflow events.
   Optional event filters must not suppress urgent owner/approval
   escalation notifications.
+- Bind each approval button to its chat/message, approval id, and review digest;
+  never let reused short ids reactivate stale buttons.
 - Interactive sessions use configured autonomy explicitly. Missing
   session-autonomy config is a startup error, not a hidden fallback.
 - Interactive harness sessions own one project-scoped tool-runtime identity

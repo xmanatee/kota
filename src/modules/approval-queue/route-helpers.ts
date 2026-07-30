@@ -18,10 +18,21 @@ import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { readSelectedScopeSelectorIdQueryOrErrorResponse } from "#core/server/scope-selector-request.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
+import type { ApprovalReviewReceipt } from "./client.js";
 
 type OptionalStringFieldRead =
 	| { ok: true; value?: string }
 	| { ok: false };
+
+type ApprovalDecisionBodyRead =
+	| { ok: true; note?: string; reviewDigest: string }
+	| { ok: false };
+
+type ApprovalBatchDecisionBodyRead =
+	| { ok: true; note?: string; reviews: ApprovalReviewReceipt[] }
+	| { ok: false };
+
+const REVIEW_DIGEST_PATTERN = /^[a-f0-9]{64}$/;
 
 const VALID_STATUSES: readonly (ApprovalStatus | "all")[] = [
 	"all",
@@ -99,12 +110,12 @@ export function listApprovalsLocal(
 	status?: ApprovalStatus | "all",
 ): { approvals: ApprovalClientProjection[] } {
 	if (status === undefined) {
-		return { approvals: queue.list("pending").map((item) => projectApprovalForClient(item)) };
+		return { approvals: queue.list("pending").map((item) => queue.projectForClient(item)) };
 	}
 	if (status === "all") {
-		return { approvals: queue.list().map((item) => projectApprovalForClient(item)) };
+		return { approvals: queue.list().map((item) => queue.projectForClient(item)) };
 	}
-	return { approvals: queue.list(status).map((item) => projectApprovalForClient(item)) };
+	return { approvals: queue.list(status).map((item) => queue.projectForClient(item)) };
 }
 
 export function rejectApprovalLocal(
@@ -172,11 +183,85 @@ export async function readOptionalStringField(
 	}
 }
 
+export async function readApprovalDecisionBody(
+	req: IncomingMessage,
+	res: ServerResponse,
+): Promise<ApprovalDecisionBodyRead> {
+	try {
+		const body = await readBody(req);
+		if (
+			typeof body.reviewDigest !== "string"
+			|| !REVIEW_DIGEST_PATTERN.test(body.reviewDigest)
+			|| (body.note !== undefined && typeof body.note !== "string")
+		) {
+			jsonResponse(res, 400, {
+				error: "A valid reviewed operation digest is required",
+				reason: "invalid_approval_review_receipt",
+			});
+			return { ok: false };
+		}
+		return {
+			ok: true,
+			reviewDigest: body.reviewDigest,
+			...(typeof body.note === "string" ? { note: body.note } : {}),
+		};
+	} catch {
+		jsonResponse(res, 400, { error: "Invalid request body" });
+		return { ok: false };
+	}
+}
+
+export async function readApprovalBatchDecisionBody(
+	req: IncomingMessage,
+	res: ServerResponse,
+): Promise<ApprovalBatchDecisionBodyRead> {
+	try {
+		const body = await readBody(req);
+		if (!Array.isArray(body.reviews) || (body.note !== undefined && typeof body.note !== "string")) {
+			jsonResponse(res, 400, {
+				error: "Reviewed operation digests are required",
+				reason: "invalid_approval_review_receipt",
+			});
+			return { ok: false };
+		}
+		const reviews: ApprovalReviewReceipt[] = [];
+		for (const entry of body.reviews) {
+			if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+				jsonResponse(res, 400, {
+					error: "Reviewed operation digests are required",
+					reason: "invalid_approval_review_receipt",
+				});
+				return { ok: false };
+			}
+			const record = entry as Record<string, string>;
+			if (!isApprovalId(record.id) || !REVIEW_DIGEST_PATTERN.test(record.digest)) {
+				jsonResponse(res, 400, {
+					error: "Reviewed operation digests are required",
+					reason: "invalid_approval_review_receipt",
+				});
+				return { ok: false };
+			}
+			reviews.push({ id: record.id, digest: record.digest });
+		}
+		return {
+			ok: true,
+			reviews,
+			...(typeof body.note === "string" ? { note: body.note } : {}),
+		};
+	} catch {
+		jsonResponse(res, 400, { error: "Invalid request body" });
+		return { ok: false };
+	}
+}
+
 export async function proxyApprovalMutation(
 	res: ServerResponse,
 	link: DaemonTransport,
 	path: string,
-	body: { note?: string } | { reason?: string },
+	body:
+		| { note?: string; reviewDigest: string }
+		| { note?: string; reviews: ApprovalReviewReceipt[] }
+		| { reason?: string },
 ): Promise<void> {
 	try {
 		const upstream = await link.fetchRaw(path, {

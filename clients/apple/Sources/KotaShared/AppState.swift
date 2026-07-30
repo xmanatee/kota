@@ -968,8 +968,8 @@ public final class AppState: ObservableObject {
         notificationStateInitialized = true
     }
 
-    func approve(id: String) async {
-        try? await client.approve(id: id)
+    func approve(id: String, reviewDigest: String) async {
+        try? await client.approve(id: id, reviewDigest: reviewDigest)
         await refresh()
     }
 

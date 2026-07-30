@@ -26,7 +26,7 @@ conveniences. New capabilities should prefer module-owned tools.
 
 - `tool-groups`, `tool-middleware`, `tool-runner`, `tool-telemetry`, `tool-result`, `tool-adapters`, `tool-adapter-types`, `tool-adapters-zod` — tool execution pipeline.
 - `session-environment` — live session- and scope-keyed credential overlays for execution tools; registrations own teardown and stale approvals cannot recreate an ended session's overlay.
-- `guardrails`, `guardrails-classify`, `audit-store` — risk assessment and audit storage.
+- `guardrails`, `guardrails-classify`, `audit-store` — risk assessment, audit storage, and selective approval-review redaction that preserves later commands, paths, and operation clauses while masking credentials across shell text and structured process arguments.
 - `module-factory/` — module lifecycle: `addLoadedModule`/`resetModuleFactory` called from loop-init.
 
 ## ask_owner contract

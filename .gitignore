@@ -10,6 +10,18 @@ deploy/telegram-assistant/.env
 /.kota/*
 !/.kota/runs/
 /.kota/runs/*
+!/.kota/runs/2026-07-29T15-20-51-974Z-builder-mqlo2r/
+/.kota/runs/2026-07-29T15-20-51-974Z-builder-mqlo2r/*
+!/.kota/runs/2026-07-29T15-20-51-974Z-builder-mqlo2r/evidence/
+/.kota/runs/2026-07-29T15-20-51-974Z-builder-mqlo2r/evidence/*
+!/.kota/runs/2026-07-29T15-20-51-974Z-builder-mqlo2r/evidence/artifacts/
+/.kota/runs/2026-07-29T15-20-51-974Z-builder-mqlo2r/evidence/artifacts/*
+!/.kota/runs/2026-07-29T15-20-51-974Z-builder-mqlo2r/evidence/artifacts/transcript.txt
+!/.kota/runs/2026-07-29T15-20-51-974Z-builder-mqlo2r/evidence/autonomy-change-decision.json
+!/.kota/runs/2026-07-29T15-20-51-974Z-builder-mqlo2r/evidence/commit-message.txt
+!/.kota/runs/2026-07-29T15-20-51-974Z-builder-mqlo2r/evidence/evidence-manifest.json
+!/.kota/runs/2026-07-29T15-20-51-974Z-builder-mqlo2r/evidence/success-criteria-verified.txt
+!/.kota/runs/2026-07-29T15-20-51-974Z-builder-mqlo2r/evidence/success-criteria.txt
 # Eval-harness fixtures seed prior run state into isolated temporary projects.
 !src/modules/eval-harness/fixtures/**/initial/.kota/
 !src/modules/eval-harness/fixtures/**/initial/dist/

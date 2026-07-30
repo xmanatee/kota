@@ -34,8 +34,8 @@ function mockResponse() {
 	return { res, result };
 }
 
-function mockRequest(): IncomingMessage {
-	const body = Buffer.from("{}");
+function mockRequest(reviewDigest: string): IncomingMessage {
+	const body = Buffer.from(JSON.stringify({ reviewDigest }));
 	let dataHandler: ((chunk: Buffer) => void) | null = null;
 	let endHandler: (() => void) | null = null;
 	return {
@@ -175,8 +175,16 @@ describe("approval descriptor preflight race", () => {
 				},
 			);
 			const { res, result } = mockResponse();
+			const review = queue.projectForClient(item).review;
+			if (review.status !== "available") throw new Error("expected review descriptor");
 			await withCwd(projectDir, async () => {
-				const response = handleApproveApproval(mockRequest(), res, item.id, null, queue);
+				const response = handleApproveApproval(
+					mockRequest(review.digest),
+					res,
+					item.id,
+					null,
+					queue,
+				);
 				await waitForFile(markerPath);
 				const approvalPath = join(queueDir, `${item.id}.json`);
 				const substituted = JSON.parse(readFileSync(approvalPath, "utf8")) as { tool: string };

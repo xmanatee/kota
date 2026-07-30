@@ -230,9 +230,9 @@ function toKotaTool(serverName: string, tool: McpToolSchema): KotaTool {
       ? `[${serverName}] ${tool.description}`
       : `[${serverName}] ${tool.name}`,
     input_schema: {
+			...tool.inputSchema,
       type: "object",
       properties: tool.inputSchema.properties ?? {},
-      ...(tool.inputSchema.required && { required: tool.inputSchema.required }),
     },
     ...(tool.outputSchema ? { output_schema: tool.outputSchema } : {}),
   };

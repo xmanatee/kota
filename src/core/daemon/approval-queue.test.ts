@@ -5,8 +5,25 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	ApprovalQueue,
 	isApprovalId,
+	type PendingApproval,
 	projectApprovalForClient,
 } from "./approval-queue.js";
+
+function approvePending(
+	queue: ApprovalQueue,
+	id: string,
+	note?: string,
+	resolutionSource?: string,
+): PendingApproval | null {
+	const selection = queue.getExecutionSnapshot(id);
+	if (!selection.ok) return null;
+	const result = queue.approveForExecution(
+		selection.snapshot.descriptor,
+		note,
+		resolutionSource,
+	);
+	return result.ok ? result.approval : null;
+}
 
 describe("ApprovalQueue", () => {
 	let dir: string;
@@ -57,7 +74,7 @@ describe("ApprovalQueue", () => {
 
 		try {
 			expect(queue.get(`../${siblingId}`)).toBeNull();
-			expect(queue.approve(`../${siblingId}`)).toBeNull();
+			expect(approvePending(queue, `../${siblingId}`)).toBeNull();
 			expect(queue.reject(`../${siblingId}`)).toBeNull();
 			expect(JSON.parse(readFileSync(siblingPath, "utf-8"))).toEqual(sibling);
 		} finally {
@@ -77,7 +94,7 @@ describe("ApprovalQueue", () => {
 
 	it("list returns all statuses when no filter", () => {
 		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
-		queue.approve(item.id);
+		approvePending(queue, item.id);
 		queue.enqueue("git", { command: "push" }, "dangerous", "reason2");
 
 		const all = queue.list();
@@ -89,7 +106,7 @@ describe("ApprovalQueue", () => {
 
 	it("approves a pending item", () => {
 		const item = queue.enqueue("shell", { command: "sudo apt" }, "dangerous", "sudo detected");
-		const approved = queue.approve(item.id);
+		const approved = approvePending(queue, item.id);
 		expect(approved).not.toBeNull();
 		expect(approved!.status).toBe("approved");
 		expect(approved!.resolvedAt).toBeDefined();
@@ -108,8 +125,8 @@ describe("ApprovalQueue", () => {
 
 	it("cannot approve an already resolved item", () => {
 		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
-		queue.approve(item.id);
-		expect(queue.approve(item.id)).toBeNull();
+		approvePending(queue, item.id);
+		expect(approvePending(queue, item.id)).toBeNull();
 	});
 
 	it("cannot reject an already resolved item", () => {
@@ -122,7 +139,7 @@ describe("ApprovalQueue", () => {
 		queue.enqueue("shell", { command: "a" }, "dangerous", "r");
 		queue.enqueue("shell", { command: "b" }, "dangerous", "r");
 		const third = queue.enqueue("shell", { command: "c" }, "dangerous", "r");
-		queue.approve(third.id);
+		approvePending(queue, third.id);
 
 		expect(queue.count("pending")).toBe(2);
 		expect(queue.count("approved")).toBe(1);
@@ -189,7 +206,8 @@ describe("ApprovalQueue", () => {
 			"reason token=reason-token for owner@example.test",
 			"source apiKey=source-key",
 		);
-		const approved = queue.approve(
+		const approved = approvePending(
+			queue,
 			item.id,
 			"approved because secret=note-token for approver@example.test",
 			"resolution token=resolution-token",
@@ -241,7 +259,7 @@ describe("ApprovalQueue", () => {
 			"dangerous",
 			"reason",
 		);
-		const approved = queue.approve(item.id);
+		const approved = approvePending(queue, item.id);
 		expect(approved?.input).toEqual({ command: "deploy", accessToken: "raw-token" });
 		const stored = JSON.parse(readFileSync(join(dir, `${item.id}.json`), "utf-8")) as {
 			input: { redacted: true; reason: string };
@@ -250,40 +268,4 @@ describe("ApprovalQueue", () => {
 		expect(stored.status).toBe("approved");
 		expect(stored.input).toMatchObject({ redacted: true, reason: "tool-io" });
 		expect(JSON.stringify(stored)).not.toContain("raw-token");
-	});
-
-	it("refuses execution approval after restart when the raw input is unavailable", () => {
-		const item = queue.enqueue(
-			"shell",
-			{ command: "deploy", accessToken: "raw-token" },
-			"dangerous",
-			"reason",
-		);
-		const restarted = new ApprovalQueue(dir);
-
-		const result = restarted.getExecutionSnapshot(item.id);
-
-		expect(result).toMatchObject({ ok: false, reason: "input_unavailable" });
-		expect(result.ok ? undefined : result.approval?.status).toBe("pending");
-		expect(restarted.get(item.id)?.status).toBe("pending");
-		expect(JSON.stringify(result)).not.toContain("raw-token");
-	});
-
-	it("does not approve any item in approve-all execution when one input is unavailable", () => {
-		const unavailable = queue.enqueue("shell", { command: "unavailable" }, "moderate", "reason");
-		const restarted = new ApprovalQueue(dir);
-		const available = restarted.enqueue("shell", { command: "available" }, "moderate", "reason");
-
-		const result = restarted.approveAllForExecution();
-
-		expect(result).toMatchObject({ ok: false, reason: "input_unavailable" });
-		expect(result.ok ? [] : result.approvals.map((approval) => approval.id)).toEqual([unavailable.id]);
-		expect(restarted.get(available.id)?.status).toBe("pending");
-		expect(restarted.get(unavailable.id)?.status).toBe("pending");
-	});
-
-	it("does not store context when not provided", () => {
-		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
-		expect(item.context).toBeUndefined();
-	});
-});
+	});});

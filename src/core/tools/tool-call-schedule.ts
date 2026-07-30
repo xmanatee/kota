@@ -1,13 +1,14 @@
 import type { McpManager } from "#core/mcp/manager.js";
-import {
-	classifyToolCallInputEffectOverride,
-	type ToolCallInput,
-} from "./guardrails-classify.js";
+import { classifyToolCallInputEffectOverride } from "./guardrails-classify.js";
 import { getToolEffect } from "./index.js";
-import type { ExecuteToolBlock, ToolResultEntry, ToolUseBlock } from "./tool-runner-types.js";
+import type {
+	ExecuteToolBlock,
+	ToolResultEntry,
+	ValidatedToolUseBlock,
+} from "./tool-runner-types.js";
 
 function isReadOnlyToolCall(
-	block: ToolUseBlock,
+	block: ValidatedToolUseBlock,
 	mcpManager: McpManager | undefined,
 ): boolean {
 	if (mcpManager?.isMcpTool(block.name)) {
@@ -15,19 +16,19 @@ function isReadOnlyToolCall(
 	}
 	const inputEffectOverride = classifyToolCallInputEffectOverride(
 		block.name,
-		block.input as ToolCallInput,
+		block.input,
 	);
 	if (inputEffectOverride) return inputEffectOverride.kind === "read";
 	return getToolEffect(block.name)?.kind === "read";
 }
 
 export async function executeToolCallSchedule(
-	toolBlocks: ToolUseBlock[],
+	toolBlocks: ValidatedToolUseBlock[],
 	executeBlock: ExecuteToolBlock,
 	mcpManager: McpManager | undefined,
 ): Promise<ToolResultEntry[]> {
 	const results = new Array<ToolResultEntry>(toolBlocks.length);
-	let readOnlyBatch: Array<{ block: ToolUseBlock; index: number }> = [];
+	let readOnlyBatch: Array<{ block: ValidatedToolUseBlock; index: number }> = [];
 
 	const flushReadOnlyBatch = async (): Promise<void> => {
 		if (readOnlyBatch.length === 0) return;

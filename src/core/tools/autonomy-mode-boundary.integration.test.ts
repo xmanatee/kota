@@ -64,7 +64,11 @@ vi.mock("#core/model/streaming.js", () => ({ streamMessage: mockStreamMessage })
 // about the session+tool-runner boundary. Only the leaf tool executor, the
 // guardrails assessor, and the approval queue are stubbed.
 vi.mock("#core/tools/index.js", () => ({
-  getAllTools: () => [],
+	getAllTools: () => ["file_read", "shell"].map((name) => ({
+		name,
+		description: "test",
+		input_schema: { type: "object", properties: {} },
+	})),
   executeTool: mockExecuteTool,
   getToolEffect: mockGetToolEffect,
   getTodoState: vi.fn(() => ""),

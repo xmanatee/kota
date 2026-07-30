@@ -5,8 +5,9 @@ extension DaemonClient {
         try await get("/approvals")
     }
 
-    func approve(id: String) async throws {
-        try await post("/approvals/\(id)/approve", body: nil as Data?)
+    func approve(id: String, reviewDigest: String) async throws {
+        let body = try JSONEncoder().encode(["reviewDigest": reviewDigest])
+        try await post("/approvals/\(id)/approve", body: body)
     }
 
     func reject(id: String) async throws {

@@ -4,7 +4,7 @@
  * Polls for callback_query updates with allowed_updates: ["callback_query"]
  * and routes each callback to the right queue by callback_data prefix:
  *
- *   approve:<id> | reject:<id>       -> ApprovalQueue
+ *   approve:<review-receipt> | reject:<review-receipt> -> ApprovalQueue
  *   answer:<id>:<idx> | dismiss:<id> -> OwnerQuestionQueue
  *
  * A single loop serves both prefixes — Telegram cancels the older long-poll
@@ -14,7 +14,11 @@
 import { getOwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { KotaClient } from "#core/server/kota-client.js";
-import { getApprovalQueue } from "#modules/approval-queue/index.js";
+import {
+  handleApprovalCallback,
+  type PendingApprovalMessage,
+  parseApprovalCallbackData,
+} from "./approval-callback.js";
 import type { TelegramCallbackQuery } from "./client.js";
 import { callTelegramApi } from "./client.js";
 import {
@@ -23,6 +27,7 @@ import {
 } from "./owner-question-reply.js";
 import { acquireTelegramPollingOwner } from "./polling-ownership.js";
 
+export type { PendingApprovalMessage } from "./approval-callback.js";
 export type { PendingMessage };
 export type TelegramCallbackHandler = (callback: TelegramCallbackQuery) => Promise<boolean>;
 
@@ -31,7 +36,7 @@ const ERROR_BACKOFF_MS = 5_000;
 
 export function startCallbackPoll(
   token: string,
-  pendingApprovals: Map<string, PendingMessage>,
+  pendingApprovals: Map<string, PendingApprovalMessage>,
   pendingOwnerQuestions: Map<string, PendingMessage>,
   log: ModuleContext["log"],
   client?: KotaClient,
@@ -92,20 +97,20 @@ export function startCallbackPoll(
 
 export function createTelegramCallbackHandler(
   token: string,
-  pendingApprovals: Map<string, PendingMessage>,
+  pendingApprovals: Map<string, PendingApprovalMessage>,
   pendingOwnerQuestions: Map<string, PendingMessage>,
   client?: KotaClient,
 ): TelegramCallbackHandler {
   return async (cq) => {
     if (!cq.data) return false;
 
-    const approvalMatch = /^(approve|reject):(.+)$/.exec(cq.data);
-    if (approvalMatch) {
+    const approvalCallback = parseApprovalCallbackData(cq.data);
+    if (approvalCallback) {
       await handleApprovalCallback(
         token,
         cq,
-        approvalMatch[1] as "approve" | "reject",
-        approvalMatch[2],
+        approvalCallback.action,
+        approvalCallback.reviewReceipt,
         pendingApprovals,
         client,
       );
@@ -139,68 +144,6 @@ export function createTelegramCallbackHandler(
 
     return false;
   };
-}
-
-async function handleApprovalCallback(
-  token: string,
-  cq: TelegramCallbackQuery,
-  action: "approve" | "reject",
-  approvalId: string,
-  pending: Map<string, PendingMessage>,
-  client: KotaClient | undefined,
-): Promise<void> {
-  const info = pending.get(approvalId);
-  const mutate = client
-    ? info
-      ? action === "approve"
-        ? await client.forProject(info.projectId).approvals.approve(approvalId)
-        : await client.forProject(info.projectId).approvals.reject(approvalId)
-      : { ok: false as const, reason: "not_found" as const }
-    : (() => {
-        const queue = getApprovalQueue();
-        const resolved =
-          action === "approve"
-            ? queue.approve(approvalId, undefined, "telegram-inline")
-            : queue.reject(approvalId, undefined, "telegram-inline");
-        return resolved
-          ? { ok: true as const, approval: resolved }
-          : { ok: false as const, reason: "not_found" as const };
-      })();
-
-  if (!mutate.ok) {
-    await callTelegramApi(token, "answerCallbackQuery", {
-      callback_query_id: cq.id,
-      text: "Approval already resolved or not found.",
-      show_alert: true,
-    }).catch(() => {});
-    return;
-  }
-
-  const label = action === "approve" ? "✅ Approved" : "❌ Rejected";
-  await callTelegramApi(token, "answerCallbackQuery", {
-    callback_query_id: cq.id,
-    text: action === "approve" ? "Approved!" : "Rejected!",
-  }).catch(() => {});
-
-  if (info) {
-    const resolved = mutate.approval;
-    const editedText = [
-      `${label}: *${resolved.tool}*`,
-      `Risk: ${resolved.risk}`,
-      `Reason: ${resolved.reason}`,
-      `ID: \`${approvalId}\``,
-      ``,
-      `kota approval approve ${approvalId}`,
-      `kota approval reject ${approvalId}`,
-    ].join("\n");
-    await callTelegramApi(token, "editMessageText", {
-      chat_id: info.chatId,
-      message_id: info.messageId,
-      text: editedText,
-      parse_mode: "Markdown",
-    }).catch(() => {});
-    pending.delete(approvalId);
-  }
 }
 
 async function handleOwnerAnswerCallback(
