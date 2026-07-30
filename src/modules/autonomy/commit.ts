@@ -8,6 +8,7 @@ import {
 } from "#core/workflow/steps/agent-write-scope.js";
 import {
   isGitIndexLockErrorMessage,
+  listStagedPaths,
   listPathsNeedingStaging,
   listStagedDeletions,
   stageWorkflowPaths,
@@ -105,6 +106,14 @@ function listCommitMutatedPaths(
         (root) => path === root || path.startsWith(`${root}/`),
       ),
   );
+}
+
+export function listStagedPathsExcludedFromCommit(
+  projectDir: string,
+  policy: WorkflowCommitPathPolicy,
+): string[] {
+  const includedPaths = new Set(listCommitMutatedPaths(projectDir, policy));
+  return listStagedPaths(projectDir).filter((path) => !includedPaths.has(path));
 }
 
 /**
