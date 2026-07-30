@@ -39,7 +39,7 @@ export interface WorkflowRuntimeContext {
   readonly store: WorkflowRunStore;
   readonly deadLetterQueue?: DeadLetterQueueStore;
   readonly eventJournal?: EventJournal;
-	readonly approvalQueue: ApprovalQueue;
+  readonly approvalQueue: ApprovalQueue;
   readonly idempotencyStore: IdempotencyStore;
   readonly wfQueue: WorkflowQueueManager;
   readonly scheduleTriggers: ScheduleTriggerManager;
@@ -89,13 +89,13 @@ export function createWorkflowRuntimeContext(
 ): WorkflowRuntimeContext {
   const projectDir = runtimeConfig.projectDir ?? process.cwd();
   const store = runtimeConfig.runStore ?? new WorkflowRunStore(projectDir);
-	const scopeId = runtimeConfig.pbus?.getScopeId()
-		?? deriveDirectoryScopeId(projectDir);
-	const pbus =
-		runtimeConfig.pbus ??
-		new ProjectScopedEventBus(runtimeConfig.bus, scopeId);
-	const approvalQueue = runtimeConfig.approvalQueue
-		?? new ApprovalQueue(join(projectDir, ".kota", "approvals"), pbus, scopeId);
+  const scopeId = runtimeConfig.pbus?.getScopeId()
+    ?? deriveDirectoryScopeId(projectDir);
+  const pbus =
+    runtimeConfig.pbus ??
+    new ProjectScopedEventBus(runtimeConfig.bus, scopeId);
+  const approvalQueue = runtimeConfig.approvalQueue
+    ?? new ApprovalQueue(join(projectDir, ".kota", "approvals"), pbus, scopeId);
   const idempotencyStore =
     runtimeConfig.idempotencyStore ??
     new IdempotencyStore(join(store.rootDir, "idempotency"), scopeId);
@@ -104,22 +104,11 @@ export function createWorkflowRuntimeContext(
     onLog?.(message);
   };
 
-  // Closures captured by the trigger managers and backoff manager need to see
-  // the assembled context, so build the object first and refer to its fields
-  // through the closure rather than recomputing them.
+  // Trigger and queue managers need the assembled context, so their closures
+  // read it after construction instead of recomputing runtime state.
   let ctx!: WorkflowRuntimeContext;
 
-  const backoff = new AgentBackoffManager(
-    store,
-    () => ctx.wfQueue.getRuns(),
-    (q) => {
-      ctx.wfQueue.setRuns(q);
-    },
-    () => ctx.wfQueue.persist(),
-    () => ctx.definitions,
-    (def) => workflowUsesAgent(def),
-    log,
-  );
+  const backoff = new AgentBackoffManager(store, log);
   const wfQueue = new WorkflowQueueManager({
     store,
     projectDir,
@@ -128,7 +117,6 @@ export function createWorkflowRuntimeContext(
     deadLetterQueue: runtimeConfig.deadLetterQueue,
     getScopeId: () => ctx.pbus.getScopeId(),
     getActiveBackoff: () => backoff.getActive(),
-    shouldSuppressBackoff: (def) => backoff.shouldSuppress(def),
     workflowUsesAgent,
     isActiveRun: (name) =>
       [...ctx.activeRuns.values()].some((run) => run.workflowName === name),
@@ -169,7 +157,7 @@ export function createWorkflowRuntimeContext(
     store,
     deadLetterQueue: runtimeConfig.deadLetterQueue,
     eventJournal: runtimeConfig.eventJournal,
-		approvalQueue,
+    approvalQueue,
     idempotencyStore,
     wfQueue,
     scheduleTriggers,

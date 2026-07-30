@@ -2,6 +2,7 @@ import { deadLetterStoreForProject } from "#core/daemon/dead-letter-queue.js";
 import {
   type DisposedAutomationWorktreeResult,
   disposeAutomationWorktree,
+  validateCanonicalSupersedingCommit,
 } from "#modules/git/worktree-lifecycle.js";
 import { moveTaskById } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type {
@@ -23,6 +24,7 @@ import {
   listRecoveryDeadLetters,
   listRecoveryWorktrees,
 } from "./workflow-state-recovery-claims.js";
+import { hasPreservedWorktreeChanges } from "./workflow-state-recovery-worktree.js";
 
 function resolveMissingClaim(
   input: WorkflowStateRecoveryResolveInput,
@@ -174,6 +176,15 @@ function resolveRecoveryClaim(
   if (input.runId !== undefined && before.claim.runId !== input.runId) {
     return resolveMissingClaim(input);
   }
+  if (input.action === "supersede" && input.supersededByCommit !== undefined) {
+    const blocker = validateCanonicalSupersedingCommit(
+      input.projectDir,
+      input.supersededByCommit,
+    );
+    if (blocker !== null) {
+      return refuseResolve(input, before, blocker, "unsafe");
+    }
+  }
   if (!isAcceptedRecoveryAction(input, before)) {
     return refuseResolve(
       input,
@@ -193,9 +204,8 @@ function isAcceptedRecoveryAction(
   return (
     input.action === "supersede" &&
     input.supersededByCommit !== undefined &&
-    input.cleanupWorktree === true &&
     before.recommendedAction.kind === "needs-review" &&
-    (before.worktree.dirtyState === "clean" ||
+    (!hasPreservedWorktreeChanges(before.worktree) ||
       input.discardWorktreeChanges === true)
   );
 }
@@ -207,7 +217,7 @@ function disposeRecoveryWorktree(
   return disposeAutomationWorktree({
     projectDir: input.projectDir,
     taskId: before.claim.taskId,
-    runId: before.claim.runId,
+    runId: before.claim.worktreeRunId,
     reason: input.rationale,
     disposition: input.action === "release" ? "released" : "superseded",
     ...(input.supersededByCommit !== undefined

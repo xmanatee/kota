@@ -17,6 +17,27 @@ import {
 } from "./task-claims-test-support.js";
 import { createWorkflowStateRecoveryProvider } from "./workflow-state-recovery.js";
 
+function initializeGitFixture(projectDir: string): (args: string[]) => string {
+  const env = {
+    ...withProtectedGitBareRepositoryEnv(),
+    GIT_AUTHOR_NAME: "Test",
+    GIT_AUTHOR_EMAIL: "test@example.com",
+    GIT_COMMITTER_NAME: "Test",
+    GIT_COMMITTER_EMAIL: "test@example.com",
+  };
+  const git = (args: string[]): string =>
+    execFileSync("git", args, {
+      cwd: projectDir,
+      env,
+      encoding: "utf8",
+    }).trim();
+  writeFileSync(join(projectDir, ".gitignore"), ".kota/\n.worktrees/\n", "utf8");
+  git(["init", "--quiet", "--initial-branch=main"]);
+  git(["add", ".gitignore", "data/tasks/ready"]);
+  git(["commit", "--quiet", "-m", "fixture"]);
+  return git;
+}
+
 describe("workflow state recovery actions", () => {
   let projectDir: string;
 
@@ -225,27 +246,42 @@ describe("workflow state recovery actions", () => {
     expect(existsSync(taskClaimPath(projectDir, "task-conflict"))).toBe(true);
   });
 
+  it("accepts canonical supersession evidence without requiring worktree cleanup", () => {
+    createPendingMergeClaim(
+      "task-canonical-supersession",
+      "run-canonical-supersession",
+      "builder branch is pending merge",
+    );
+    writeOwnerRunMetadata(projectDir, "run-canonical-supersession", "builder", "success");
+    const git = initializeGitFixture(projectDir);
+
+    const resolved = createWorkflowStateRecoveryProvider().resolve({
+      projectDir,
+      taskId: "task-canonical-supersession",
+      runId: "run-canonical-supersession",
+      action: "supersede",
+      rationale: "the reviewed branch was integrated by the canonical merge",
+      artifactRunId: "run-canonical-supersession-resolution",
+      supersededByCommit: git(["rev-parse", "HEAD"]),
+    });
+
+    expect(resolved).toMatchObject({
+      ok: true,
+      action: "supersede",
+      artifact: {
+        result: "superseded",
+      },
+    });
+    if (!resolved.ok) throw new Error("expected supersession to succeed");
+    expect(resolved.artifact).not.toHaveProperty("worktreeCleanup");
+    expect(existsSync(taskClaimPath(projectDir, "task-canonical-supersession"))).toBe(false);
+  });
+
   it("supersedes a dirty terminal worktree only with an explicit replacement and discard", () => {
     const taskId = "task-dirty-recovery";
     const runId = "run-dirty-recovery";
     writeTask(projectDir, "ready", taskId, "2026-06-27T00:00:00.000Z");
-    writeFileSync(join(projectDir, ".gitignore"), ".kota/\n.worktrees/\n", "utf8");
-    const gitEnv = {
-      ...withProtectedGitBareRepositoryEnv(),
-      GIT_AUTHOR_NAME: "Test",
-      GIT_AUTHOR_EMAIL: "test@example.com",
-      GIT_COMMITTER_NAME: "Test",
-      GIT_COMMITTER_EMAIL: "test@example.com",
-    };
-    const git = (args: string[]): string =>
-      execFileSync("git", args, {
-        cwd: projectDir,
-        env: gitEnv,
-        encoding: "utf8",
-      }).trim();
-    git(["init", "--quiet", "--initial-branch=main"]);
-    git(["add", ".gitignore", "data/tasks/ready"]);
-    git(["commit", "--quiet", "-m", "fixture"]);
+    const git = initializeGitFixture(projectDir);
 
     const worktree = createAutomationWorktree({
       projectDir,

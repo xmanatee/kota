@@ -53,6 +53,7 @@ import type {
 	CleanupEligibility,
 	CreateAutomationWorktreeInput,
 	WorktreeDirtyState,
+	WorktreeListEntry,
 	WorktreeLockState,
 	WorktreePushState,
 } from "./worktree-lifecycle-types.js";
@@ -215,21 +216,63 @@ export function updateAutomationWorktreeRuntimeResources(
 	return inspectAutomationWorktree(selector);
 }
 
+export function continueAutomationWorktree(
+	selector: AutomationWorktreeSelector,
+	recoveryRunId: string,
+): AutomationWorktreeInspection {
+	const before = inspectAutomationWorktree(selector);
+	if (!before.exists) {
+		throw new Error(`Cannot continue missing automation worktree ${selector.taskId}/${selector.runId}`);
+	}
+	if (before.runState === "active") {
+		throw new Error(`Cannot continue active automation worktree ${selector.taskId}/${selector.runId}`);
+	}
+	if (!before.dirty.dirty) {
+		throw new Error(`Cannot continue clean automation worktree ${selector.taskId}/${selector.runId}`);
+	}
+	git(selector.projectDir, [
+		"worktree",
+		"lock",
+		"--reason",
+		`builder recovery ${recoveryRunId}`,
+		before.metadata.workspaceDir,
+	]);
+	writeMetadata(selector.projectDir, {
+		...before.metadata,
+		recoveryRunId,
+		updatedAt: new Date().toISOString(),
+		stateReason: `continued by builder recovery ${recoveryRunId}`,
+		lastCleanupBlockers: [],
+	});
+	return inspectAutomationWorktree(selector);
+}
+
 export function inspectAutomationWorktree(selector: AutomationWorktreeSelector): AutomationWorktreeInspection {
-	const metadata = readMetadata(selector);
+	return inspectAutomationWorktreeFromEntries(
+		selector.projectDir,
+		readMetadata(selector),
+		parseWorktreeList(selector.projectDir),
+	);
+}
+
+function inspectAutomationWorktreeFromEntries(
+	projectDir: string,
+	metadata: AutomationWorktreeMetadata,
+	entries: readonly WorktreeListEntry[],
+): AutomationWorktreeInspection {
 	const metadataWorkspace = comparablePath(metadata.workspaceDir);
-	const entry = parseWorktreeList(selector.projectDir).find((item) => comparablePath(item.path) === metadataWorkspace);
+	const entry = entries.find((item) => comparablePath(item.path) === metadataWorkspace);
 	const exists = entry !== undefined && existsSync(metadata.workspaceDir);
 	const dirty = exists ? readDirtyState(metadata.workspaceDir) : emptyDirtyState();
 	const headCommit = exists ? git(metadata.workspaceDir, ["rev-parse", "HEAD"]) : "";
 	const push = exists ? readPushState(metadata.workspaceDir, metadata.baseCommit, headCommit) : emptyPushState();
 	const branch = entry?.branch ?? metadata.branch;
 	const lock = entry?.lock ?? { locked: false, reason: null };
-	const runState = readAutomationWorktreeRunState(selector.projectDir, metadata.runId);
+	const runState = readAutomationWorktreeRunState(projectDir, metadata.recoveryRunId ?? metadata.runId);
 	const cleanup = cleanupEligibility(metadata, exists, dirty, lock, headCommit, push, runState);
 	return {
 		metadata,
-		metadataPath: metadataPath(selector.projectDir, metadata.taskId, metadata.runId),
+		metadataPath: metadataPath(projectDir, metadata.taskId, metadata.runId),
 		exists,
 		branch,
 		baseCommit: metadata.baseCommit,
@@ -243,14 +286,13 @@ export function inspectAutomationWorktree(selector: AutomationWorktreeSelector):
 }
 
 export function listAutomationWorktreeStatuses(projectDir: string): AutomationWorktreeOperatorStatus[] {
-	return listAutomationWorktreeMetadata(projectDir)
+	const metadataEntries = listAutomationWorktreeMetadata(projectDir);
+	if (metadataEntries.length === 0) return [];
+	const entries = parseWorktreeList(projectDir);
+	return metadataEntries
 		.map((metadata) =>
 			operatorStatusForInspection(
-				inspectAutomationWorktree({
-					projectDir,
-					taskId: metadata.taskId,
-					runId: metadata.runId,
-				}),
+				inspectAutomationWorktreeFromEntries(projectDir, metadata, entries),
 			),
 		);
 }
@@ -282,10 +324,13 @@ export function cleanupAutomationWorktree(selector: AutomationWorktreeSelector):
 
 export function reconcileAutomationWorktrees(projectDir: string): AutomationWorktreeReconcileResult {
 	const items: AutomationWorktreeReconcileItem[] = [];
-	for (const metadata of listAutomationWorktreeMetadata(projectDir)) {
+	const metadataEntries = listAutomationWorktreeMetadata(projectDir);
+	if (metadataEntries.length === 0) return summarizeReconcileItems(items);
+	const entries = parseWorktreeList(projectDir);
+	for (const metadata of metadataEntries) {
 		if (metadata.state === "removed") continue;
 		const selector = { projectDir, taskId: metadata.taskId, runId: metadata.runId };
-		const before = inspectAutomationWorktree(selector);
+		const before = inspectAutomationWorktreeFromEntries(projectDir, metadata, entries);
 		const lockedBefore = before.lock.locked;
 		if (before.runState === "active") {
 			items.push(reconcileItem(before, {
@@ -430,6 +475,43 @@ export function listAutomationWorktreeUniqueCommits(
 	};
 }
 
+export function validateCanonicalSupersedingCommit(
+	projectDir: string,
+	commit: string,
+): string | null {
+	try {
+		git(projectDir, ["cat-file", "-e", `${commit}^{commit}`]);
+	} catch {
+		return `superseding commit does not exist: ${commit}`;
+	}
+	try {
+		git(projectDir, ["merge-base", "--is-ancestor", commit, "HEAD"]);
+	} catch {
+		return `superseding commit is not reachable from canonical HEAD: ${commit}`;
+	}
+	return null;
+}
+
+function dispositionFailure(
+	input: DisposeAutomationWorktreeInput,
+	before: AutomationWorktreeInspection,
+	uniqueCommits: string[],
+	message: string,
+): DisposedAutomationWorktreeResult {
+	writeMetadata(input.projectDir, {
+		...before.metadata,
+		updatedAt: new Date().toISOString(),
+		lastCleanupBlockers: [message],
+	});
+	return {
+		removed: false,
+		inspection: inspectAutomationWorktree(input),
+		message,
+		blockers: [message],
+		uniqueCommits,
+	};
+}
+
 export function disposeAutomationWorktree(
 	input: DisposeAutomationWorktreeInput,
 ): DisposedAutomationWorktreeResult {
@@ -439,7 +521,6 @@ export function disposeAutomationWorktree(
 		before.branch || before.headCommit,
 	);
 	const blockers: string[] = [];
-	if (!before.exists) blockers.push("worktree path is missing");
 	if (before.runState === "active") blockers.push("worktree run is active");
 	if (before.dirty.conflicted && input.discardWorktreeChanges !== true) {
 		blockers.push("worktree has conflicted paths and discardWorktreeChanges was not accepted");
@@ -452,15 +533,11 @@ export function disposeAutomationWorktree(
 		blockers.push("branch has unique commits and no superseding commit was provided");
 	}
 	if (input.supersededByCommit !== undefined) {
-		try {
-			git(input.projectDir, ["cat-file", "-e", `${input.supersededByCommit}^{commit}`]);
-		} catch (caught) {
-			blockers.push(
-				`superseding commit does not exist: ${input.supersededByCommit}: ${
-					caught instanceof Error ? caught.message : String(caught)
-				}`,
-			);
-		}
+		const blocker = validateCanonicalSupersedingCommit(
+			input.projectDir,
+			input.supersededByCommit,
+		);
+		if (blocker !== null) blockers.push(blocker);
 	}
 	if (blockers.length > 0) {
 		writeMetadata(input.projectDir, {
@@ -484,18 +561,7 @@ export function disposeAutomationWorktree(
 			const message = `failed to unlock worktree before disposition: ${
 				caught instanceof Error ? caught.message : String(caught)
 			}`;
-			writeMetadata(input.projectDir, {
-				...before.metadata,
-				updatedAt: new Date().toISOString(),
-				lastCleanupBlockers: [message],
-			});
-			return {
-				removed: false,
-				inspection: inspectAutomationWorktree(input),
-				message,
-				blockers: [message],
-				uniqueCommits: unique.commits,
-			};
+			return dispositionFailure(input, before, unique.commits, message);
 		}
 	}
 
@@ -503,13 +569,34 @@ export function disposeAutomationWorktree(
 		before.dirty.dirty ||
 		before.metadata.state === "pending-merge" ||
 		unique.commits.length > 0;
-	git(input.projectDir, [
-		"worktree",
-		"remove",
-		...(forceRemove ? ["--force"] : []),
-		before.metadata.workspaceDir,
-	]);
-	deleteLocalBranch(input.projectDir, before.metadata.branch, unique.commits.length > 0);
+	let pruneMissingRegistration = !before.exists;
+	if (before.exists) {
+		try {
+			git(input.projectDir, [
+				"worktree",
+				"remove",
+				...(forceRemove ? ["--force"] : []),
+				before.metadata.workspaceDir,
+			]);
+		} catch (caught) {
+			if (inspectAutomationWorktree(input).exists) {
+				const message = `failed to remove worktree during disposition: ${
+					caught instanceof Error ? caught.message : String(caught)
+				}`;
+				return dispositionFailure(input, before, unique.commits, message);
+			}
+			pruneMissingRegistration = true;
+		}
+	}
+	try {
+		if (pruneMissingRegistration) git(input.projectDir, ["worktree", "prune"]);
+		deleteLocalBranch(input.projectDir, before.metadata.branch, unique.commits.length > 0);
+	} catch (caught) {
+		const message = `failed to finalize worktree disposition: ${
+			caught instanceof Error ? caught.message : String(caught)
+		}`;
+		return dispositionFailure(input, before, unique.commits, message);
+	}
 	const now = new Date().toISOString();
 	writeMetadata(input.projectDir, {
 		...before.metadata,
@@ -621,6 +708,9 @@ function operatorStatusForInspection(inspection: AutomationWorktreeInspection): 
 	return {
 		taskId: metadata.taskId,
 		runId: metadata.runId,
+		...(metadata.recoveryRunId !== undefined
+			? { recoveryRunId: metadata.recoveryRunId }
+			: {}),
 		workflowId: metadata.workflowId,
 		owner: metadata.owner,
 		workspaceDir: metadata.workspaceDir,

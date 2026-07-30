@@ -14,6 +14,12 @@ function payloadString(
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
 }
 
+export function hasExplicitWorkflowDispatchKey(
+  trigger: WorkflowRunTrigger,
+): boolean {
+  return payloadString(trigger.payload, "idempotencyKey") !== undefined;
+}
+
 function explicitScope(
   payload: WorkflowRunTrigger["payload"],
   fallback: string,

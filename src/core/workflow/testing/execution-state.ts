@@ -8,6 +8,7 @@ import type {
 import type { WorkflowStepInput } from "#core/workflow/step-input-types.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { unexpectedWorkflowAgentHarnessRun } from "./agent-harness-runner.js";
 import type {
   HarnessObjectValue,
   HarnessOptions,
@@ -103,6 +104,7 @@ export class HarnessExecutionState {
       stepResults: { ...this.stepResultsById },
       stepOutputList: overrides.stepOutputList ?? [...this.stepOutputList],
       ...(overrides.foreach !== undefined ? { foreach: overrides.foreach } : {}),
+      runAgentHarness: unexpectedWorkflowAgentHarnessRun,
       runTool:
         this.options.contextOverrides?.runTool ??
         (() => {

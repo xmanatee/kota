@@ -141,7 +141,13 @@ export function createImproverSemanticCheck(options?: {
 
       let response: Awaited<ReturnType<typeof invokeAgentJudge>>;
       try {
-        response = await invokeAgentJudge(userMessage, ctx.projectDir, gateConfig);
+        response = await invokeAgentJudge(
+          userMessage,
+          ctx.projectDir,
+          gateConfig,
+          ctx.runAgentHarness,
+          ctx.signal,
+        );
       } catch (err) {
         const judgeError = err instanceof Error ? err : new Error(String(err));
         // Same semantics as the critic: a runaway judge is an evaluator

@@ -1,0 +1,2 @@
+1. Preserve the cited run, task, and commit ids while resolving the approval-descriptor observability gap with inspectable evidence that maps approval-execution.ts, route-handlers.ts, route-helpers.ts, and route-registrations.ts and makes the staged observability-obligation recheck report no missing files.
+2. Resolve both approval-queue source-size advisories without weakening descriptor-binding security coverage, and record acceptance evidence from focused approval-queue tests plus task validation.

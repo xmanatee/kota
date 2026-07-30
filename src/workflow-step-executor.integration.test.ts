@@ -27,6 +27,7 @@ import {
   AgentStepRuntimeError,
   classifyAgentRuntimeFailure,
 } from "#core/workflow/steps/step-executor-retry.js";
+import { createWorkflowAgentHarnessRunner } from "#core/workflow/steps/workflow-agent-harness-runner.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
@@ -871,6 +872,9 @@ describe("executeStep repair loop", () => {
       stepOutputs: {},
       stepResults: {},
       stepOutputList: [],
+      runAgentHarness: createWorkflowAgentHarnessRunner(
+        agentConfig.agentRunLimiter,
+      ),
       runTool,
       emit: () => {},
       requestRestart: () => {},

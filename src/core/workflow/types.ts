@@ -5,6 +5,7 @@ import type { WorkflowNotifyConfig } from "./step-input-base.js";
 import type { WorkflowStepInput } from "./step-input-types.js";
 import type { WorkflowStep } from "./step-types.js";
 import type {
+  WorkflowAgentBackoffKind,
   WorkflowRunTrigger,
   WorkflowTrigger,
   WorkflowTriggerInput,
@@ -109,6 +110,8 @@ export type WorkflowTerminalFinalizerInput = {
   workspaceDir: string;
   metadata: WorkflowRunMetadata;
   trigger: WorkflowRunTrigger;
+  agentFailureKind?: WorkflowAgentBackoffKind;
+  emit: (event: string, payload: WorkflowRunTrigger["payload"]) => void;
   log: (message: string) => void;
 };
 

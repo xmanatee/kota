@@ -291,6 +291,31 @@ describe("automation worktree lifecycle", () => {
 		expect(existsSync(created.metadata.workspaceDir)).toBe(false);
 	});
 
+	it("finishes disposition after the physical worktree has already disappeared", () => {
+		const repo = initRepo("dispose-missing");
+		const created = createFixtureWorktree(repo, "run-missing");
+		writeWorkflowState(repo, []);
+		writeRunMetadata(repo, created.metadata.runId, "failed");
+		rmSync(created.metadata.workspaceDir, { recursive: true, force: true });
+
+		const disposed = disposeAutomationWorktree({
+			projectDir: repo,
+			taskId: created.metadata.taskId,
+			runId: created.metadata.runId,
+			disposition: "superseded",
+			reason: "canonical replacement exists",
+			supersededByCommit: git(repo, ["rev-parse", "HEAD"]),
+		});
+
+		expect(disposed.removed).toBe(true);
+		expect(disposed.inspection.metadata.state).toBe("removed");
+		expect(git(repo, ["worktree", "list", "--porcelain"])).not.toContain(
+			created.metadata.workspaceDir,
+		);
+		expect(() => git(repo, ["show-ref", "--verify", `refs/heads/${created.metadata.branch}`]))
+			.toThrow();
+	});
+
 	it("refuses cleanup when merged metadata has unpushed branch commits", () => {
 		const repo = initRepoWithRemote("unpushed");
 		const created = createFixtureWorktree(repo);

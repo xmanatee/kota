@@ -7,9 +7,9 @@ import {
 	createWorkflowAgentGuards,
 	resolveAgentHarness,
 	routeKotaToolControlOptions,
-	runAgentHarness,
 	shouldRouteKotaToolControl,
 } from "#core/agent-harness/index.js";
+import type { WorkflowAgentHarnessRunner } from "#core/workflow/run-types.js";
 import {
 	AUTONOMY_AGENT_DEFAULTS,
 	AUTONOMY_AGENT_HARNESS,
@@ -51,6 +51,8 @@ export type MergeConflictResolverOptions = {
 	runId: string;
 	harnessName?: string;
 	model?: string;
+	runAgentHarness: WorkflowAgentHarnessRunner;
+	signal?: AbortSignal;
 };
 
 function tail(value: string): string {
@@ -213,7 +215,7 @@ export function createMergeConflictResolver(options: MergeConflictResolverOption
 			});
 			return { resolved: false, summary };
 		}
-		const response = await runAgentHarness(
+		const response = await options.runAgentHarness(
 			harness,
 			{
 				prompt: resolverPrompt(request),
@@ -232,7 +234,11 @@ export function createMergeConflictResolver(options: MergeConflictResolverOption
 				}),
 				autonomyMode: "autonomous",
 			},
-			{ write: () => true },
+			{
+				signal: options.signal,
+				workspaceKey: request.workspaceDir,
+				writer: { write: () => true },
+			},
 		);
 		const summary = response.text.trim() || response.subtype || "merge resolver produced no summary";
 		const result = {

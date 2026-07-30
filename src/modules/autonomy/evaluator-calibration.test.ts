@@ -6,6 +6,7 @@ import type {
   WorkflowStepContext,
   WorkflowStepResult,
 } from "#core/workflow/run-types.js";
+import { unexpectedWorkflowAgentHarnessRun } from "#core/workflow/testing/agent-harness-runner.js";
 import {
   aggregateCalibration,
   DEFAULT_CALIBRATION_MIN_SAMPLE,
@@ -82,6 +83,7 @@ function makeStepContext(
     stepOutputs: overrides.stepOutputs ?? {},
     stepResults: overrides.stepResults ?? {},
     stepOutputList: [],
+    runAgentHarness: unexpectedWorkflowAgentHarnessRun,
     runTool: async () => {
       throw new Error("runTool not used");
     },

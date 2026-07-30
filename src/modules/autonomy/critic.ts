@@ -244,7 +244,13 @@ export function createCriticCheck(options?: {
 
       let response: Awaited<ReturnType<typeof invokeAgentJudge>>;
       try {
-        response = await invokeAgentJudge(userMessage, reviewDir, resolvedConfig);
+        response = await invokeAgentJudge(
+          userMessage,
+          reviewDir,
+          resolvedConfig,
+          ctx.runAgentHarness,
+          ctx.signal,
+        );
       } catch (err) {
         const judgeError = err instanceof Error ? err : new Error(String(err));
         // Runaway judge (max turns / max tokens) is an evaluator-side

@@ -12,6 +12,7 @@ import {
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { WorkflowRunStore } from "../run-store.js";
 import type { WorkflowRunMetadata } from "../run-types.js";
+import { unexpectedWorkflowAgentHarnessRun } from "../testing/agent-harness-runner.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import { createStepContext, EMITTED_EVENTS_LOG_FILENAME } from "./step-context.js";
 
@@ -69,6 +70,7 @@ describe("createStepContext", () => {
           pbus,
           store,
           runTool,
+          runAgentHarness: unexpectedWorkflowAgentHarnessRun,
           currentStepId: "build",
         },
       );
@@ -127,7 +129,13 @@ describe("createStepContext", () => {
         {},
         {},
         [],
-        { projectDir, bus, pbus, store },
+        {
+          projectDir,
+          bus,
+          pbus,
+          store,
+          runAgentHarness: unexpectedWorkflowAgentHarnessRun,
+        },
       );
 
       context.emit(event.name, { repo: "owner/repo" });

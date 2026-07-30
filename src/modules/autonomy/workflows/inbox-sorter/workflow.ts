@@ -164,7 +164,11 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
           {
             id: "task-queue-valid",
             type: "code" as const,
-            run: (ctx) => runCheck("pnpm run validate-tasks -- --min-ready 0", ctx.projectDir),
+            run: (ctx) => runCheck(
+              "pnpm run validate-tasks -- --min-ready 0",
+              ctx.projectDir,
+              { signal: ctx.signal },
+            ),
           },
           {
             id: "no-scratch-artifacts",

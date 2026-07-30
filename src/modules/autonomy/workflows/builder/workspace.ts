@@ -7,6 +7,15 @@ export function workflowWorkspaceDir(
   return ctx.workspaceDir ?? ctx.projectDir;
 }
 
+export function builderWorktreeRunId(
+  ctx: Pick<WorkflowStepContext, "stepOutputs" | "workflow">,
+): string {
+  const workspace = ctx.stepOutputs["prepare-worktree"] as
+    | { worktreeRunId?: string }
+    | undefined;
+  return workspace?.worktreeRunId ?? ctx.workflow.runId;
+}
+
 export function isBuilderPathInside(parent: string, candidate: string): boolean {
   const rel = relative(parent, candidate);
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));

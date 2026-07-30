@@ -305,6 +305,7 @@ export async function executeWorkflowStep(
       : undefined;
   const progressContext: WorkflowStepContext = {
     ...context,
+    signal: stepAbortController.signal,
     reportProgress: idleMonitor?.reportProgress ?? context.reportProgress ?? (() => {}),
   };
   const capturedAgentMessages: KotaAgentMessage[] = [];

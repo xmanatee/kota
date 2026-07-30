@@ -149,6 +149,7 @@ export function makeContext(
     stepOutputs: {},
     stepResults: {},
     runTool: vi.fn(),
+    runAgentHarness: mockRunAgentHarness,
     emit: vi.fn(),
     requestRestart: vi.fn(),
     readPrompt: vi.fn(),

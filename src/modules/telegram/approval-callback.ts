@@ -1,4 +1,5 @@
 import type { KotaClient } from "#core/server/kota-client.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import type { ApprovalMutateResult } from "#modules/approval-queue/client.js";
 import { getApprovalQueue } from "#modules/approval-queue/index.js";
 import { callTelegramApi, type TelegramCallbackQuery } from "./client.js";
@@ -53,16 +54,17 @@ export async function handleApprovalCallback(
 	reviewReceipt: string,
 	pending: Map<string, PendingApprovalMessage>,
 	client: KotaClient | undefined,
+	log?: ModuleContext["log"],
 ): Promise<void> {
 	const message = callback.message;
 	if (!message) {
-		await answerUnavailableApprovalCallback(token, callback.id);
+		await answerUnavailableApprovalCallback(token, callback.id, log);
 		return;
 	}
 	const pendingKey = pendingApprovalMessageKey(message.chat.id, message.message_id);
 	const info = pending.get(pendingKey);
 	if (!info || approvalReviewReceipt(info.reviewDigest) !== reviewReceipt) {
-		await answerUnavailableApprovalCallback(token, callback.id);
+		await answerUnavailableApprovalCallback(token, callback.id, log);
 		return;
 	}
 	const approvalId = info.approvalId;
@@ -73,9 +75,11 @@ export async function handleApprovalCallback(
 		: resolveLocalApproval(action, approvalId, info);
 
 	if (!mutate.ok) {
-		await answerUnavailableApprovalCallback(token, callback.id);
+		pending.delete(pendingKey);
+		await answerUnavailableApprovalCallback(token, callback.id, log);
 		return;
 	}
+	pending.delete(pendingKey);
 
 	const execution = "execution" in mutate ? mutate.execution : undefined;
 	const executionFailed = action === "approve"
@@ -89,7 +93,7 @@ export async function handleApprovalCallback(
 			: executionSucceeded
 				? "✅ Approved and executed"
 				: "✅ Approved";
-	await callTelegramApi(token, "answerCallbackQuery", {
+	await sendCallbackUpdate(token, "answerCallbackQuery", {
 		callback_query_id: callback.id,
 		text: action === "reject"
 			? "Rejected!"
@@ -98,35 +102,48 @@ export async function handleApprovalCallback(
 				: executionSucceeded
 					? "Approved and executed!"
 					: "Approved!",
-	}).catch(() => {});
+	}, log);
 
 	const resolved = mutate.approval;
-	await callTelegramApi(token, "editMessageText", {
+	await sendCallbackUpdate(token, "editMessageText", {
 		chat_id: info.chatId,
 		message_id: info.messageId,
 		text: [
-			`${label}: *${resolved.tool}*`,
+			`${label}: ${resolved.tool}`,
 			`Risk: ${resolved.risk}`,
 			`Reason: ${resolved.reason}`,
-			`ID: \`${approvalId}\``,
+			`ID: ${approvalId}`,
 			"",
 			`kota approval approve ${approvalId}`,
 			`kota approval reject ${approvalId}`,
 		].join("\n"),
-		parse_mode: "Markdown",
-	}).catch(() => {});
-	pending.delete(pendingKey);
+	}, log);
 }
 
 async function answerUnavailableApprovalCallback(
 	token: string,
 	callbackId: string,
+	log?: ModuleContext["log"],
 ): Promise<void> {
-	await callTelegramApi(token, "answerCallbackQuery", {
+	await sendCallbackUpdate(token, "answerCallbackQuery", {
 		callback_query_id: callbackId,
 		text: "Approval already resolved or not found.",
 		show_alert: true,
-	}).catch(() => {});
+	}, log);
+}
+
+async function sendCallbackUpdate(
+	token: string,
+	method: "answerCallbackQuery" | "editMessageText",
+	payload: Record<string, unknown>,
+	log?: ModuleContext["log"],
+): Promise<void> {
+	try {
+		await callTelegramApi(token, method, payload);
+	} catch (error) {
+		if (log === undefined) throw error;
+		log.warn(`Telegram ${method} failed: ${(error as Error).message}`);
+	}
 }
 
 function resolveLocalApproval(

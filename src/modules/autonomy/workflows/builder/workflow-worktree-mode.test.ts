@@ -252,6 +252,11 @@ describe("builder workflow worktree mode", () => {
     expect(result.steps["release-task-claim"].status).toBe("skipped");
     expect(result.steps["mark-claim-pending-merge"].status).toBe("success");
     expect(result.steps["cleanup-automation-worktree"].status).toBe("skipped");
+    expect(result.steps["emit-build-committed"].status).toBe("skipped");
+    expect(result.steps["request-restart"].status).toBe("skipped");
+    expect(
+      result.emitted.find((event) => event.event === "workflow.build.committed"),
+    ).toBeUndefined();
 
     const { markTaskClaimPendingMerge, releaseTaskClaim } = await import(
       "#modules/autonomy/task-claims.js"

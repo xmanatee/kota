@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { McpToolSchema } from "./client.js";
 import { McpManager } from "./manager.js";
+import type { McpToolEntry } from "./remote-task-entry-resolution.js";
 
 function captureTerminalStderr(): { output: () => string; restore: () => void } {
   const chunks: string[] = [];
@@ -146,6 +147,16 @@ describe("MCP tool declaration fingerprints", () => {
       expect(stderr.output()).toContain(before!.slice(0, 12));
       expect(stderr.output()).toContain(after!.slice(0, 12));
       expect(stderr.output()).not.toContain(secretDescription);
+
+      const boundExecution = await manager.executeToolWithDeclarationFingerprint(
+        "mcp__remote__lookup",
+        {},
+        before!,
+      );
+      expect(boundExecution).toEqual({
+        ok: false,
+        reason: "declaration_mismatch",
+      });
     } finally {
       stderr.restore();
       await manager.close();
@@ -189,6 +200,73 @@ describe("MCP tool declaration fingerprints", () => {
         expect(manager.getToolDeclarationFingerprint("mcp__remote__lookup")).toBe(before);
       });
       expect(manager.getToolDeclarationDriftDiagnostics()).toEqual([]);
+      const boundExecution = await manager.executeToolWithDeclarationFingerprint(
+        "mcp__remote__lookup",
+        {},
+        before!,
+      );
+      expect(boundExecution).toMatchObject({
+        ok: true,
+        result: { content: "lookup route" },
+      });
+    } finally {
+      await manager.close();
+    }
+  }, 10_000);
+
+  it("dispatches through the entry captured during fingerprint validation", async () => {
+    const manager = new McpManager();
+    try {
+      await manager.initialize({
+        mcpServers: {
+          remote: {
+            command: "node",
+            args: [
+              "-e",
+              refreshServerScript([baseTool], `{ tools: ${JSON.stringify([baseTool])} }`),
+            ],
+          },
+        },
+      });
+
+      const name = "mcp__remote__lookup";
+      const expectedFingerprint = manager.getToolDeclarationFingerprint(name);
+      expect(expectedFingerprint).toMatch(/^[a-f0-9]{64}$/);
+      const state = manager as unknown as { toolMap: Map<string, McpToolEntry> };
+      const checkedMap = state.toolMap;
+      const checkedEntry = checkedMap.get(name);
+      if (!checkedEntry) throw new Error("expected checked MCP entry");
+      const replacementEntry: McpToolEntry = {
+        ...checkedEntry,
+        originalName: "replacement",
+        declaration: {
+          ...checkedEntry.declaration,
+          fingerprint: "f".repeat(64),
+        },
+      };
+      vi.spyOn(checkedEntry.client, "callTool").mockImplementation(async (toolName) => ({
+        resultType: "complete",
+        protocolVersion: "2024-11-05",
+        content: [],
+        blocks: [],
+        text: `${toolName} route`,
+        structuredContent: { answer: `${toolName} route` },
+      }));
+      vi.spyOn(checkedMap, "get").mockImplementationOnce(() => {
+        state.toolMap = new Map([[name, replacementEntry]]);
+        return checkedEntry;
+      });
+
+      const execution = await manager.executeToolWithDeclarationFingerprint(
+        name,
+        {},
+        expectedFingerprint!,
+      );
+
+      expect(execution).toMatchObject({
+        ok: true,
+        result: { content: "lookup route" },
+      });
     } finally {
       await manager.close();
     }
@@ -215,6 +293,8 @@ describe("MCP tool declaration fingerprints", () => {
       expect(manager.getTools().map((tool) => tool.name)).toEqual([
         "mcp__remote__old_tool",
       ]);
+      const before = manager.getToolDeclarationFingerprint("mcp__remote__old_tool");
+      expect(before).toMatch(/^[a-f0-9]{64}$/);
       await manager.executeTool("mcp__remote__old_tool", {});
 
       await waitFor(() => {
@@ -223,6 +303,15 @@ describe("MCP tool declaration fingerprints", () => {
         ]);
       });
       expect(manager.getToolDeclarationDriftDiagnostics()).toEqual([]);
+      const boundExecution = await manager.executeToolWithDeclarationFingerprint(
+        "mcp__remote__old_tool",
+        {},
+        before!,
+      );
+      expect(boundExecution).toEqual({
+        ok: false,
+        reason: "tool_missing",
+      });
       expect((await manager.executeTool("mcp__remote__old_tool", {})).is_error).toBe(true);
       expect((await manager.executeTool("mcp__remote__new_tool", {})).content).toBe(
         "new_tool route",

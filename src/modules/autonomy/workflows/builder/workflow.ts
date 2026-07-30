@@ -1,5 +1,6 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
+import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
@@ -37,12 +38,18 @@ import {
 import {
   createCleanupAutomationWorktreeStep,
   createMergeGateStep,
+  mergeGateSucceeded,
 } from "./merge-gate-step.js";
 import { createBuilderParallelMetricsStep } from "./parallel-metrics-step.js";
 import {
   type BuilderWorkspaceResult,
   createPrepareBuilderWorktreeStep,
 } from "./prepare-worktree-step.js";
+import {
+  BUILDER_RECOVERY_EVENT,
+  type BuilderRecoveryDispatchResult,
+  requestPendingBuilderRecoveries,
+} from "./recovery-continuation.js";
 import { builderRepairChecks } from "./repair-checks.js";
 import type { BuilderRunSummary } from "./run-summary.js";
 import { writeBuilderRunSummary } from "./run-summary.js";
@@ -102,6 +109,18 @@ const reconcileWorktreesForRecoveryStep = typedCodeStep<ReconcileWorktreesResult
   run: (ctx) => reconcileAutomationWorktrees(ctx.projectDir),
 });
 
+const requestRecoveryContinuationsStep = typedCodeStep<BuilderRecoveryDispatchResult>({
+  id: "request-recovery-continuations",
+  type: "code",
+  when: onRecoveryTrigger,
+  validate: (raw) =>
+    expectStructuredOutput<BuilderRecoveryDispatchResult>(raw, [
+      "candidateCount",
+      "requested",
+    ]),
+  run: requestPendingBuilderRecoveries,
+});
+
 const claimTaskStep = createClaimTaskStep(inspectReadyQueue);
 const prepareWorktreeStep = createPrepareBuilderWorktreeStep(claimTaskStep);
 const claimedTaskConsistencyStep = createClaimedTaskConsistencyStep(claimTaskStep);
@@ -109,6 +128,12 @@ const mergeGateStep = createMergeGateStep();
 const cleanupAutomationWorktreeStep = createCleanupAutomationWorktreeStep();
 const cleanupBuilderRuntimeResourcesStep = createCleanupBuilderRuntimeResourcesStep();
 const builderParallelMetricsStep = createBuilderParallelMetricsStep();
+
+function builderCommitPublished(ctx: WorkflowStepContext): boolean {
+  if (!stepCommitted("commit")(ctx)) return false;
+  const workspace = ctx.stepOutputs["prepare-worktree"] as BuilderWorkspaceResult | undefined;
+  return workspace?.enabled !== true || mergeGateSucceeded(ctx);
+}
 
 const builderWorkflow: WorkflowDefinitionInput = {
   name: "builder",
@@ -129,6 +154,9 @@ const builderWorkflow: WorkflowDefinitionInput = {
   triggers: [
     {
       event: "autonomy.queue.available",
+    },
+    {
+      event: BUILDER_RECOVERY_EVENT,
     },
     // Recovery re-entry after a daemon crash: reset step stashes any dirt and
     // restores the base branch if the crash left the repo on a kota/task/*
@@ -151,6 +179,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
         }),
     },
     reconcileWorktreesForRecoveryStep,
+    requestRecoveryContinuationsStep,
     inspectReadyQueue,
     claimTaskStep,
     prepareWorktreeStep,
@@ -173,6 +202,9 @@ const builderWorkflow: WorkflowDefinitionInput = {
         const { dirty, actionableCount } = inspectReadyQueue.outputRequired(ctx);
         const claim = claimTaskStep.output(ctx);
         const workspace = prepareWorktreeStep.output(ctx);
+        if (ctx.trigger.event === BUILDER_RECOVERY_EVENT) {
+          return claim?.claimed === true && workspace !== undefined;
+        }
         return !dirty && actionableCount > 0 && claim?.claimed === true && workspace !== undefined;
       },
       repairLoop: {
@@ -265,7 +297,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       type: "emit",
       when: (ctx) =>
         claimedTaskConsistencySucceeded(ctx) &&
-        stepCommitted("commit")(ctx) &&
+        builderCommitPublished(ctx) &&
         stepSucceeded("write-run-summary")(ctx),
       event: "workflow.build.committed",
       payload: (ctx) => {
@@ -285,8 +317,8 @@ const builderWorkflow: WorkflowDefinitionInput = {
     {
       id: "request-restart",
       type: "restart",
-      when: (ctx) => claimedTaskConsistencySucceeded(ctx) && stepCommitted("commit")(ctx),
-      reason: "builder workflow finished validation and commit",
+      when: (ctx) => claimedTaskConsistencySucceeded(ctx) && builderCommitPublished(ctx),
+      reason: "builder workflow published a validated commit",
       requires: ["commit", CLAIMED_TASK_CONSISTENCY_STEP_ID],
     },
   ],

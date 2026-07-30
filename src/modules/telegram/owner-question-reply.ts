@@ -25,6 +25,7 @@ export async function editResolvedOwnerQuestionMessage(
   action: "answer" | "dismiss",
   resolved: { source: string; reason: string; question: string; answer?: string },
   pending: Map<string, PendingMessage>,
+  log?: ModuleContext["log"],
 ): Promise<void> {
   const info = pending.get(questionId);
   if (!info) return;
@@ -44,7 +45,10 @@ export async function editResolvedOwnerQuestionMessage(
     message_id: info.messageId,
     text: editedText,
     parse_mode: "Markdown",
-  }).catch(() => {});
+  }).catch((error) => {
+    if (log === undefined) throw error;
+    log.warn(`Telegram editMessageText failed: ${(error as Error).message}`);
+  });
   pending.delete(questionId);
 }
 
@@ -107,6 +111,7 @@ export async function tryHandleOwnerQuestionReply(args: {
     "answer",
     mutate.question,
     args.pending,
+    args.log,
   );
   return true;
 }

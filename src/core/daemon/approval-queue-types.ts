@@ -1,6 +1,6 @@
 import type { RiskLevel } from "#core/tools/guardrails.js";
+import type { ToolCallInput } from "#core/tools/guardrails-classify.js";
 import type { ApprovalExecutionDescriptor } from "./approval-execution-descriptor.js";
-import type { ApprovalInput } from "./approval-queue.js";
 import type {
 	ApprovalReviewDescriptor,
 	ApprovalReviewUnavailable,
@@ -28,7 +28,7 @@ export type PendingApproval = {
 	seq?: number;
 	scopeId: string;
 	tool: string;
-	input: ApprovalInput;
+	input: ToolCallInput;
 	risk: RiskLevel;
 	reason: string;
 	source?: string;
@@ -86,8 +86,3 @@ export type ApprovalExecutionSnapshotResult =
 			reason: "not_found" | "input_unavailable" | "scope_mismatch";
 			approval?: PendingApproval;
 	  };
-
-export type SelectedApprovalExecution = ApprovalExecutionSnapshot & {
-	executionInput: PendingApproval["input"];
-	reviewContext?: string;
-};

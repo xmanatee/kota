@@ -232,7 +232,11 @@ describe("github-mention-intake workflow", () => {
     expect(taskContent).toContain("Untrusted GitHub request text");
     expect(taskContent).toContain("> @kota please fix this bug and add a regression test");
 
-    expect(mocks.runCheck).toHaveBeenCalledWith("pnpm run validate-tasks", projectDir);
+    expect(mocks.runCheck).toHaveBeenCalledWith(
+      "pnpm run validate-tasks",
+      projectDir,
+      { signal: undefined },
+    );
     expect(mocks.checkNoScratchArtifacts).toHaveBeenCalledWith(projectDir);
     expect(mocks.checkCommitStageable).toHaveBeenCalledWith(projectDir);
     expect(mocks.checkCommitMessageExists).toHaveBeenCalledWith(

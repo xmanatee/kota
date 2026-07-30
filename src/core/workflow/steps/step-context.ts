@@ -12,6 +12,7 @@ import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { executeTool } from "#core/tools/index.js";
 import type { WorkflowRunStore } from "../run-store.js";
 import type {
+  WorkflowAgentHarnessRunner,
   WorkflowRunMetadata,
   WorkflowRunToolRunner,
   WorkflowRuntimeResources,
@@ -109,6 +110,7 @@ export function createStepContext(
     approvalQueue?: ApprovalQueue;
     eventJournal?: EventJournal;
     runTool?: WorkflowRunToolRunner;
+    runAgentHarness: WorkflowAgentHarnessRunner;
     currentStepId?: string;
     triggerWorkflow?: (
       workflowName: string,
@@ -167,6 +169,7 @@ export function createStepContext(
       }
       return result;
     },
+    runAgentHarness: deps.runAgentHarness,
     emit: (event, payload) => {
       const emittedPayload = deps.pbus.emitDynamic(event, payload);
       recordEmittedEvent(

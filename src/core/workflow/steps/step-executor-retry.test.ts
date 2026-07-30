@@ -42,6 +42,15 @@ describe("classifyAgentRuntimeFailure", () => {
     ).toEqual({ kind: "provider", retryable: true });
   });
 
+  it("classifies Codex CLI response-body decode disconnects as provider failures", () => {
+    expect(
+      classifyAgentRuntimeFailure({
+        message:
+          'Repair agent for step "build" failed: Reconnecting... 1/5 (stream disconnected before completion: Transport error: network error: error decoding response body)',
+      }),
+    ).toEqual({ kind: "provider", retryable: true });
+  });
+
   it("classifies Codex CLI DNS lookup stream disconnects as provider failures", () => {
     expect(
       classifyAgentRuntimeFailure({
@@ -196,6 +205,12 @@ describe("classifyAgentRuntimeFailure", () => {
       classifyAgentRuntimeFailure({
         message:
           "stream disconnected before completion: IO error: Connection reset by peer (os error 54)",
+      }),
+    ).toBeNull();
+    expect(
+      classifyAgentRuntimeFailure({
+        message:
+          "stream disconnected before completion: Transport error: network error: error decoding response body",
       }),
     ).toBeNull();
   });

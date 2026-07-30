@@ -676,6 +676,7 @@ function makeTelegramInteractiveChannel(
           pendingApprovalMessages,
           pendingOwnerQuestionMessages,
           tryResolveTelegramClient(ctx),
+          ctx.log,
         ),
         onStatusCommand: async (chatId, text) => {
           if (String(chatId) !== credentials.chatId) return false;

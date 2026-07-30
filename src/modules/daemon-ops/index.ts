@@ -2,6 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
 import { resolveProjectDir } from "#core/config/project-dir.js";
+import { parseDaemonClientErrorBody } from "#core/daemon/client-error.js";
 import type { ClientIdentity } from "#core/daemon/client-identity.js";
 import { Daemon, RESTART_EXIT_CODE } from "#core/daemon/daemon.js";
 import type { DaemonLiveStatus, InteractiveSession, WorkflowRunDetail } from "#core/daemon/daemon-control.js";
@@ -1508,6 +1509,12 @@ type SessionsSetAutonomyModeWireBody = {
   serveOwned?: boolean;
 };
 
+async function daemonResponseError(response: Response): Promise<Error> {
+  const body = parseDaemonClientErrorBody(await response.text());
+  if (body?.error !== undefined) return new Error(body.error);
+  return new Error(`HTTP ${response.status}`);
+}
+
 /**
  * Daemon-side `SessionsClient` backed by the typed `DaemonTransport`. Calls
  * the `GET /sessions` and `PATCH /sessions/:id` control routes the daemon
@@ -1524,8 +1531,7 @@ type SessionsSetAutonomyModeWireBody = {
  * `setAutonomyMode(id, mode)` distinguishes three failure classes:
  *  - `404 → { ok: false, reason: "not_found" }`,
  *  - other non-ok HTTP responses → throw the daemon's error message,
- *  - transient transport failures (network error, JSON parse failure inside
- *    the `try` block) → `{ ok: false, reason: "daemon_required" }`.
+ *  - transport and protocol failures → throw unchanged.
  *
  * The success arm reshapes the daemon's snake_case `autonomy_mode` field to
  * camelCase `autonomyMode`, defaults `source` to `"daemon"` and `serveOwned`
@@ -1538,10 +1544,7 @@ function buildSessionsDaemonHandler(link: DaemonTransport): SessionsClient {
         method: "GET",
         headers: link.authHeaders(),
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error ?? `HTTP ${res.status}`);
-      }
+      if (!res.ok) throw await daemonResponseError(res);
       const parsed = (await res.json()) as { sessions: InteractiveSession[] };
       return { sessions: parsed.sessions };
     },
@@ -1549,28 +1552,20 @@ function buildSessionsDaemonHandler(link: DaemonTransport): SessionsClient {
       id: string,
       mode: AutonomyMode,
     ): Promise<SessionsSetAutonomyModeResult> => {
-      try {
-        const res = await link.fetchRaw(`/sessions/${encodeURIComponent(id)}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", ...link.authHeaders() },
-          body: JSON.stringify({ autonomy_mode: mode }),
-        });
-        if (res.status === 404) return { ok: false, reason: "not_found" };
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(body.error ?? `HTTP ${res.status}`);
-        }
-        const body = (await res.json()) as SessionsSetAutonomyModeWireBody;
-        return {
-          ok: true,
-          autonomyMode: body.autonomy_mode,
-          source: body.source ?? "daemon",
-          serveOwned: body.serveOwned === true,
-        };
-      } catch (err) {
-        if (err instanceof Error && /HTTP/.test(err.message)) throw err;
-        return { ok: false, reason: "daemon_required" };
-      }
+      const res = await link.fetchRaw(`/sessions/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...link.authHeaders() },
+        body: JSON.stringify({ autonomy_mode: mode }),
+      });
+      if (res.status === 404) return { ok: false, reason: "not_found" };
+      if (!res.ok) throw await daemonResponseError(res);
+      const body = (await res.json()) as SessionsSetAutonomyModeWireBody;
+      return {
+        ok: true,
+        autonomyMode: body.autonomy_mode,
+        source: body.source ?? "daemon",
+        serveOwned: body.serveOwned === true,
+      };
     },
   };
 }
@@ -1588,67 +1583,48 @@ type ProjectsListWireBody = ProjectRegistryProjection & {
  * Calls `GET /projects` to read the registry plus active selection in
  * one round trip, and `PATCH /projects/active` to switch.
  *
- * `list()` throws when the daemon is reachable but returns a non-ok
- * response (e.g. transport-level error after the selector chose this
- * branch) and surfaces `daemon_required` on transient transport
- * failures so the CLI can degrade with the same shape the local handler
- * uses.
+ * Once selected, this handler surfaces transport, HTTP, and protocol
+ * failures as exceptions. The local handler alone emits `daemon_required`.
  *
  * `use(projectId)` distinguishes:
  *  - `200 → { ok: true, activeProjectId }`,
  *  - `404 → { ok: false, reason: "not_found", projectId }`,
  *  - other non-ok responses → throw the daemon's error message,
- *  - transport failure → `{ ok: false, reason: "daemon_required" }`.
+ *  - transport and protocol failures → throw unchanged.
  */
 function buildProjectsDaemonHandler(link: DaemonTransport): ProjectsClient {
   return {
     list: async () => {
-      try {
-        const res = await link.fetchRaw("/projects", {
-          method: "GET",
-          headers: link.authHeaders(),
-        });
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(body.error ?? `HTTP ${res.status}`);
-        }
-        const parsed = (await res.json()) as ProjectsListWireBody;
-        return {
-          ok: true,
-          projects: parsed.projects as ConfiguredProject[],
-          defaultProjectId: parsed.defaultProjectId,
-          activeProjectId: parsed.activeProjectId,
-        };
-      } catch (err) {
-        if (err instanceof Error && /HTTP/.test(err.message)) throw err;
-        return { ok: false, reason: "daemon_required" };
-      }
+      const res = await link.fetchRaw("/projects", {
+        method: "GET",
+        headers: link.authHeaders(),
+      });
+      if (!res.ok) throw await daemonResponseError(res);
+      const parsed = (await res.json()) as ProjectsListWireBody;
+      return {
+        ok: true,
+        projects: parsed.projects as ConfiguredProject[],
+        defaultProjectId: parsed.defaultProjectId,
+        activeProjectId: parsed.activeProjectId,
+      };
     },
     use: async (projectId: string | null): Promise<ProjectsUseResult> => {
-      try {
-        const res = await link.fetchRaw("/projects/active", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", ...link.authHeaders() },
-          body: JSON.stringify({ projectId }),
-        });
-        if (res.status === 404) {
-          const body = (await res.json().catch(() => ({}))) as { projectId?: string };
-          return {
-            ok: false,
-            reason: "not_found",
-            projectId: body.projectId ?? (projectId ?? ""),
-          };
-        }
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(body.error ?? `HTTP ${res.status}`);
-        }
-        const body = (await res.json()) as { activeProjectId: ProjectId | null };
-        return { ok: true, activeProjectId: body.activeProjectId };
-      } catch (err) {
-        if (err instanceof Error && /HTTP/.test(err.message)) throw err;
-        return { ok: false, reason: "daemon_required" };
+      const res = await link.fetchRaw("/projects/active", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...link.authHeaders() },
+        body: JSON.stringify({ projectId }),
+      });
+      if (res.status === 404) {
+        const body = (await res.json()) as { projectId?: string };
+        return {
+          ok: false,
+          reason: "not_found",
+          projectId: body.projectId ?? (projectId ?? ""),
+        };
       }
+      if (!res.ok) throw await daemonResponseError(res);
+      const body = (await res.json()) as { activeProjectId: ProjectId | null };
+      return { ok: true, activeProjectId: body.activeProjectId };
     },
   };
 }

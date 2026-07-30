@@ -1,0 +1,3 @@
+1. Verified approval rewrites remain on the opened O_NOFOLLOW descriptor; immediate pathname substitution is rejected after mutation and the symlink target remains unchanged.
+2. Verified the deterministic race regression and the complete focused approval/core/module suite pass: 20 files and 217 tests.
+3. Verified the full project suite (1,093 files and 12,248 tests), TypeScript, Biome, and task validation pass; the done task retains the exact focused verification commands.

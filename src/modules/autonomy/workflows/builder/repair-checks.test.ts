@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
+import { unexpectedWorkflowAgentHarnessRun } from "#core/workflow/testing/agent-harness-runner.js";
 import {
   OBSERVABILITY_OBLIGATION_REVIEW_ARTIFACT,
   OBSERVABILITY_OBLIGATION_WARNING_TYPE,
@@ -97,6 +98,7 @@ function claimContext(projectDir: string, taskId: string): WorkflowStepContext {
     },
     stepResults: {},
     stepOutputList: [],
+    runAgentHarness: unexpectedWorkflowAgentHarnessRun,
     runTool: async () => {
       throw new Error("runTool is not available in this test context");
     },

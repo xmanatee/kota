@@ -104,6 +104,15 @@ export type BusEvents = {
     dependencyBlockedTasks: QueueDependencyBlockedTask[];
     claimBlockedTasks?: QueueClaimBlockedTask[];
   };
+  "autonomy.builder.recovery.requested": {
+    projectId: ProjectId;
+    taskId: string;
+    sourceRunId: string;
+    worktreeRunId: string;
+    workspaceDir: string;
+    idempotencyKey: string;
+    reason: string;
+  };
   "autonomy.inbox.available": {
     projectId: ProjectId;
     inboxCount: number;

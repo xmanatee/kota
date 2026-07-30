@@ -99,13 +99,21 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
     {
       id: "build-output",
       type: "code" as const,
-      run: (ctx) => checkPackageScript(workflowWorkspaceDir(ctx), "pnpm build"),
+      run: (ctx) => checkPackageScript(
+        workflowWorkspaceDir(ctx),
+        "pnpm build",
+        { signal: ctx.signal },
+      ),
     },
     {
       id: "workflow-validate",
       type: "code" as const,
       phase: 1,
-      run: (ctx) => checkPackageScript(workflowWorkspaceDir(ctx), "pnpm dev workflow validate"),
+      run: (ctx) => checkPackageScript(
+        workflowWorkspaceDir(ctx),
+        "pnpm dev workflow validate",
+        { signal: ctx.signal },
+      ),
     },
     {
       id: "claimed-task-state-staged",
@@ -121,13 +129,21 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       id: "task-queue-valid",
       type: "code" as const,
       phase: 2,
-      run: (ctx) => checkPackageScript(workflowWorkspaceDir(ctx), "pnpm run validate-tasks"),
+      run: (ctx) => checkPackageScript(
+        workflowWorkspaceDir(ctx),
+        "pnpm run validate-tasks",
+        { signal: ctx.signal },
+      ),
     },
     {
       id: "typecheck",
       type: "code" as const,
       phase: 1,
-      run: (ctx) => checkPackageScript(workflowWorkspaceDir(ctx), "pnpm run typecheck"),
+      run: (ctx) => checkPackageScript(
+        workflowWorkspaceDir(ctx),
+        "pnpm run typecheck",
+        { signal: ctx.signal },
+      ),
     },
     {
       id: "lint",
@@ -137,25 +153,36 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
         checkPackageScript(
           workflowWorkspaceDir(ctx),
           "pnpm run lint:fix && git add -u && pnpm run lint",
+          { signal: ctx.signal },
         ),
     },
     {
       id: "test",
       type: "code" as const,
       phase: 1,
-      run: (ctx) => checkPackageScript(workflowWorkspaceDir(ctx), "pnpm test", 300_000),
+      run: (ctx) => checkPackageScript(
+        workflowWorkspaceDir(ctx),
+        "pnpm test",
+        { timeoutMs: 300_000, signal: ctx.signal },
+      ),
     },
     {
       id: "mobile-typecheck",
       type: "code" as const,
       phase: 1,
-      run: (ctx) => checkMobileTypecheck(workflowWorkspaceDir(ctx)),
+      run: (ctx) => checkMobileTypecheck(
+        workflowWorkspaceDir(ctx),
+        { signal: ctx.signal },
+      ),
     },
     {
       id: "macos-swift-build",
       type: "code" as const,
       phase: 1,
-      run: (ctx) => checkMacosSwiftBuild(workflowWorkspaceDir(ctx)),
+      run: (ctx) => checkMacosSwiftBuild(
+        workflowWorkspaceDir(ctx),
+        { signal: ctx.signal },
+      ),
     },
     {
       id: "module-boundary",

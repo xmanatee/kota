@@ -57,6 +57,9 @@ function worktreeStatusEntries(worktree: AutomationWorktreeOperatorStatus): KVEn
       value: worktree.runState,
       role: worktree.runState === "active" ? "info" : worktree.state === "stale" ? "warn" : "muted",
     },
+    ...(worktree.recoveryRunId !== undefined
+      ? [{ label: "Recovery run", value: worktree.recoveryRunId, role: "info" as const }]
+      : []),
     {
       label: "Dirty",
       value: worktree.dirtyState,

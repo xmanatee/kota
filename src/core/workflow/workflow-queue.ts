@@ -11,7 +11,10 @@ import {
   type WorkflowRunTrigger,
 } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
-import { workflowDispatchIdempotency } from "./workflow-idempotency.js";
+import {
+  hasExplicitWorkflowDispatchKey,
+  workflowDispatchIdempotency,
+} from "./workflow-idempotency.js";
 import {
   buildBurstQueuedRuns,
   burstDispatchSlots,
@@ -27,9 +30,6 @@ export type WorkflowQueueManagerConfig = {
   deadLetterQueue?: DeadLetterQueueStore;
   getScopeId: () => string;
   getActiveBackoff: () => WorkflowAgentBackoffState | null;
-  shouldSuppressBackoff: (
-    definition: WorkflowDefinition,
-  ) => WorkflowAgentBackoffState | null;
   workflowUsesAgent: (definition: WorkflowDefinition) => boolean;
   isActiveRun: (workflowName: string) => boolean;
   activeRunCount?: (workflowName: string) => number;
@@ -60,21 +60,15 @@ export class WorkflowQueueManager {
 
   restorePending(): void {
     const state = this.config.store.readState();
-    const activeAgentBackoff = this.config.getActiveBackoff();
     const validNames = new Set(
       this.config
         .getDefinitions()
         .filter((definition) => definition.enabled)
         .map((definition) => definition.name),
     );
-    this.queue = state.pendingRuns.filter((item) => {
-      if (!validNames.has(item.workflowName)) return false;
-      const definition = this.config
-        .getDefinitions()
-        .find((candidate) => candidate.name === item.workflowName);
-      if (!activeAgentBackoff) return true;
-      return !definition || !this.config.workflowUsesAgent(definition);
-    });
+    this.queue = state.pendingRuns.filter((item) =>
+      validNames.has(item.workflowName),
+    );
     this.persist();
     if (this.queue.length > 0) {
       this.config.log(`Recovered ${this.queue.length} queued workflow run(s)`);
@@ -86,16 +80,6 @@ export class WorkflowQueueManager {
     triggerConfig: WorkflowDefinition["triggers"][number],
     trigger: WorkflowRunTrigger,
   ): void {
-    const activeAgentBackoff = this.config.shouldSuppressBackoff(definition);
-    if (activeAgentBackoff) {
-      if (trigger.event !== "runtime.idle") {
-        this.config.log(
-          `Skipped workflow "${definition.name}" from event "${trigger.event}" during agent backoff (${activeAgentBackoff.kind} until ${new Date(activeAgentBackoff.until).toLocaleTimeString()})`,
-        );
-      }
-      return;
-    }
-
     if (
       rejectInvalidTriggerPayload({
         definition,
@@ -112,8 +96,15 @@ export class WorkflowQueueManager {
       projectDir: this.config.projectDir ?? process.cwd(),
       config: this.config.getConfig?.(),
     });
+    const idempotency = workflowDispatchIdempotency(
+      this.config.idempotencyStore,
+      definition.name,
+      trigger,
+    );
     const distinctQueuedRun =
-      trigger.event === WORKFLOW_BATCH_FLUSH_EVENT || dispatchBurst > 1;
+      trigger.event === WORKFLOW_BATCH_FLUSH_EVENT ||
+      dispatchBurst > 1 ||
+      hasExplicitWorkflowDispatchKey(trigger);
     const existingIndex = distinctQueuedRun
       ? -1
       : this.queue.findIndex(
@@ -138,11 +129,6 @@ export class WorkflowQueueManager {
       ),
     };
 
-    const idempotency = workflowDispatchIdempotency(
-      this.config.idempotencyStore,
-      definition.name,
-      queuedRun.trigger,
-    );
     if (idempotency) {
       const idempotencyResult = this.config.idempotencyStore.record({
         scopeId: idempotency.scopeId,

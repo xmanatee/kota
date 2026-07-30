@@ -11,6 +11,7 @@ import type {
   WorkflowStepContext,
   WorkflowStepResult,
 } from "#core/workflow/run-types.js";
+import { unexpectedWorkflowAgentHarnessRun } from "#core/workflow/testing/agent-harness-runner.js";
 
 export type CommitTestWorkspace = {
   tmpBase: string;
@@ -98,6 +99,7 @@ export function makeWorkflowStepContext(
     projectDir: "/tmp",
     workflow: { name: "builder", definitionPath: "", runId: "", runDir: "", runDirPath: "" },
     trigger: { event: "", schemaRef: null, payload: {} },
+    runAgentHarness: unexpectedWorkflowAgentHarnessRun,
     runTool: async () => ({ content: "" }),
     emit: () => {},
     requestRestart: () => {},

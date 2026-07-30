@@ -163,4 +163,33 @@ describe("ApprovalQueue execution descriptors", () => {
 		});
 		expect(queue.get(item.id)?.status).toBe("pending");
 	});
+
+	it("keeps a descriptor batch pending when any selected record changes", () => {
+		const first = queue.enqueue("shell", { command: "prepare" }, "dangerous", "first");
+		const second = queue.enqueue("shell", { command: "deploy" }, "dangerous", "second");
+		const firstSelection = queue.getExecutionSnapshot(first.id);
+		const secondSelection = queue.getExecutionSnapshot(second.id);
+		if (!firstSelection.ok || !secondSelection.ok) {
+			throw new Error("expected execution snapshots");
+		}
+		const storedSecond = queue.get(second.id);
+		if (!storedSecond) throw new Error("expected second stored approval");
+		storedSecond.reason = "substituted second reason";
+		writeFileSync(join(dir, `${second.id}.json`), JSON.stringify(storedSecond, null, 2));
+
+		const result = queue.approvePendingForExecution([
+			firstSelection.snapshot.descriptor,
+			secondSelection.snapshot.descriptor,
+		]);
+
+		expect(result).toMatchObject({
+			ok: false,
+			reason: "descriptor_mismatch",
+			approvals: [{ id: second.id, status: "pending" }],
+		});
+		expect([queue.get(first.id)?.status, queue.get(second.id)?.status]).toEqual([
+			"pending",
+			"pending",
+		]);
+	});
 });

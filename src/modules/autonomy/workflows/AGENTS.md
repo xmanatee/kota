@@ -88,10 +88,10 @@ Prefer explicit bus events over workflow-name inventories or secondary routing m
 
 ### Queue-shape events
 
-Dispatcher emits queue-shape events distinguishing actionable from
-backlog-only state:
+Dispatcher emits queue-shape events distinguishing actionable from backlog-only state:
 
 - `autonomy.queue.available` — actionable (`ready` + `doing`) exists; builder gates on this.
+- `autonomy.builder.recovery.requested` — resume preserved builder work before unrelated work.
 - `autonomy.queue.needs-promotion` — actionable=0 and at least one non-anchor,
   dependency-clear backlog task can legally enter `ready/`; `backlog-promoter`
   consumes this and writes a deterministic promotion rationale before builder

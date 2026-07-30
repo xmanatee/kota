@@ -18,6 +18,7 @@ import {
 	MERGE_CONFLICT_RESOLUTION_ATTEMPTS,
 } from "./merge-conflict-resolver.js";
 import type { BuilderWorkspaceResult } from "./prepare-worktree-step.js";
+import { builderWorktreeRunId } from "./workspace.js";
 
 export type AutomationWorktreeCleanupResult = {
 	removed: boolean;
@@ -88,7 +89,7 @@ export function createMergeGateStep(): TypedCodeStepInput<MergeGateResult> {
 			return await mergeAutomationWorktree({
 				projectDir: ctx.projectDir,
 				taskId: workspace.taskId,
-				runId: ctx.workflow.runId,
+				runId: builderWorktreeRunId(ctx),
 				validationCommand: MERGE_GATE_VALIDATION_COMMAND,
 				resolver: createMergeConflictResolver({
 					runDirPath: ctx.workflow.runDirPath,
@@ -96,6 +97,8 @@ export function createMergeGateStep(): TypedCodeStepInput<MergeGateResult> {
 					runId: ctx.workflow.runId,
 					harnessName: buildResult?.harness,
 					model: buildResult?.model,
+					runAgentHarness: ctx.runAgentHarness,
+					signal: ctx.signal,
 				}),
 				maxResolutionAttempts: MERGE_CONFLICT_RESOLUTION_ATTEMPTS,
 			});
@@ -124,7 +127,7 @@ export function createCleanupAutomationWorktreeStep(): TypedCodeStepInput<Automa
 			const result = cleanupAutomationWorktree({
 				projectDir: ctx.projectDir,
 				taskId: workspace.taskId,
-				runId: ctx.workflow.runId,
+				runId: builderWorktreeRunId(ctx),
 			});
 			const artifact = {
 				removed: result.removed,

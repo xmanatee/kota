@@ -10,6 +10,7 @@ import {
 	registerAgentHarness,
 } from "#core/agent-harness/index.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import { createWorkflowAgentHarnessRunner } from "#core/workflow/steps/workflow-agent-harness-runner.js";
 import {
 	createAutomationWorktree,
 	inspectAutomationWorktree,
@@ -24,6 +25,7 @@ import {
 } from "./merge-conflict-resolver.js";
 
 const tempDirs: string[] = [];
+const runAgentHarness = createWorkflowAgentHarnessRunner(undefined);
 
 function makeWorkspace(): string {
 	const dir = mkdtempSync(join(tmpdir(), "kota-merge-resolver-"));
@@ -128,6 +130,7 @@ describe("createMergeConflictResolver", () => {
 			workflowName: "builder",
 			runId: "test-run",
 			harnessName: "test-harness",
+			runAgentHarness,
 		});
 
 		await expect(resolver(makeRequest(workspaceDir))).resolves.toEqual({
@@ -179,6 +182,7 @@ describe("createMergeConflictResolver", () => {
 			workflowName: "builder",
 			runId: "test-run",
 			harnessName: "codex",
+			runAgentHarness,
 		});
 
 		await expect(resolver(makeRequest(workspaceDir))).resolves.toMatchObject({
@@ -202,6 +206,7 @@ describe("createMergeConflictResolver", () => {
 			workflowName: "builder",
 			runId: worktree.metadata.runId,
 			harnessName: "codex",
+			runAgentHarness,
 		});
 
 		const result = await mergeAutomationWorktree({
@@ -240,6 +245,7 @@ describe("createMergeConflictResolver", () => {
 			workflowName: "builder",
 			runId: "test-run",
 			harnessName: "test-harness",
+			runAgentHarness,
 		});
 		const request = makeRequest(workspaceDir);
 		request.conflicts[0].path = "../secret.txt";

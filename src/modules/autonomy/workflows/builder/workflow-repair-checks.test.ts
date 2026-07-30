@@ -44,7 +44,7 @@ describe("builder workflow prompt and repair checks", () => {
     expect(builderAgentsContent).toMatch(/success-criteria-verified\.txt/);
   });
 
-  it("skips package-script repair checks when the project has no package manifest", () => {
+  it("skips package-script repair checks when the project has no package manifest", async () => {
     const dir = join(tmpdir(), `kota-no-package-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(dir, { recursive: true });
     try {
@@ -62,20 +62,22 @@ describe("builder workflow prompt and repair checks", () => {
         const check = checks.get(id);
         expect(check?.type).toBe("code");
         if (check?.type !== "code") throw new Error(`Expected ${id} to be a code check`);
-        expect(check.run(ctx, {} as never)).toBe("OK: no package project present");
+        await expect(check.run(ctx, {} as never)).resolves.toBe(
+          "OK: no package project present",
+        );
       }
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it("skips mobile typecheck when dependencies are absent and mobile files are unchanged", () => {
+  it("skips mobile typecheck when dependencies are absent and mobile files are unchanged", async () => {
     const dir = join(tmpdir(), `kota-mobile-skip-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(join(dir, "clients/mobile"), { recursive: true });
     try {
       execFileSync("git", ["init"], { cwd: dir, stdio: "ignore" });
       writeFileSync(join(dir, "clients/mobile/package.json"), "{}\n");
-      expect(checkMobileTypecheck(dir)).toBe(
+      await expect(checkMobileTypecheck(dir)).resolves.toBe(
         "OK: mobile client dependencies not installed; no staged mobile changes",
       );
     } finally {
@@ -83,13 +85,13 @@ describe("builder workflow prompt and repair checks", () => {
     }
   });
 
-  it("skips mobile typecheck when dependency markers are incomplete and mobile files are unchanged", () => {
+  it("skips mobile typecheck when dependency markers are incomplete and mobile files are unchanged", async () => {
     const dir = join(tmpdir(), `kota-mobile-partial-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(join(dir, "clients/mobile/node_modules"), { recursive: true });
     try {
       execFileSync("git", ["init"], { cwd: dir, stdio: "ignore" });
       writeFileSync(join(dir, "clients/mobile/package.json"), "{}\n");
-      expect(checkMobileTypecheck(dir)).toBe(
+      await expect(checkMobileTypecheck(dir)).resolves.toBe(
         "OK: mobile client dependencies not installed; no staged mobile changes",
       );
     } finally {
@@ -97,18 +99,20 @@ describe("builder workflow prompt and repair checks", () => {
     }
   });
 
-  it("fails mobile typecheck when staged mobile changes cannot be inspected", () => {
+  it("fails mobile typecheck when staged mobile changes cannot be inspected", async () => {
     const dir = join(tmpdir(), `kota-mobile-no-git-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(join(dir, "clients/mobile"), { recursive: true });
     try {
       writeFileSync(join(dir, "clients/mobile/package.json"), "{}\n");
-      expect(() => checkMobileTypecheck(dir)).toThrow(/Cannot inspect staged clients\/mobile changes/);
+      await expect(checkMobileTypecheck(dir)).rejects.toThrow(
+        /Cannot inspect staged clients\/mobile changes/,
+      );
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it("requires mobile dependencies when staged mobile files changed", () => {
+  it("requires mobile dependencies when staged mobile files changed", async () => {
     const dir = join(tmpdir(), `kota-mobile-changed-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(join(dir, "clients/mobile/src"), { recursive: true });
     try {
@@ -117,7 +121,7 @@ describe("builder workflow prompt and repair checks", () => {
       writeFileSync(join(dir, "clients/mobile/src/App.tsx"), "export const app = true;\n");
       execFileSync("git", ["add", "clients/mobile"], { cwd: dir, stdio: "ignore" });
 
-      expect(() => checkMobileTypecheck(dir)).toThrow(
+      await expect(checkMobileTypecheck(dir)).rejects.toThrow(
         /Mobile client dependencies are not installed/,
       );
     } finally {

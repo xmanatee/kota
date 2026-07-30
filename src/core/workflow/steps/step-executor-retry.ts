@@ -202,6 +202,9 @@ function isCodexProviderReconnectFailure(
     ) ||
     /Reconnecting\.\.\. \d+\/\d+ \(We're currently experiencing high demand, which may cause temporary errors\.\)$/i.test(
       input.message,
+    ) ||
+    /Reconnecting\.\.\. \d+\/\d+ \(stream disconnected before completion:\s*Transport error:\s*network error:\s*error decoding response body\)$/i.test(
+      input.message,
     )
   );
 }

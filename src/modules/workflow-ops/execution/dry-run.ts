@@ -82,6 +82,10 @@ function makeDryRunContext(
     stepOutputs: {},
     stepResults: {},
     stepOutputList: [],
+    runAgentHarness: () =>
+      Promise.reject(
+        new Error("dry-run: nested agent harnesses cannot be executed"),
+      ),
     runTool: () => Promise.reject(new Error("dry-run: tools cannot be executed")),
     emit: () => {},
     requestRestart: () => {},

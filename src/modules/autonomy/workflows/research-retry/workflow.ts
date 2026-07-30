@@ -186,7 +186,11 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
           {
             id: "task-queue-valid",
             type: "code" as const,
-            run: (ctx) => runCheck("pnpm run validate-tasks", ctx.projectDir),
+            run: (ctx) => runCheck(
+              "pnpm run validate-tasks",
+              ctx.projectDir,
+              { signal: ctx.signal },
+            ),
           },
           {
             id: "no-scratch-artifacts",

@@ -186,6 +186,35 @@ describe("builder agent run artifacts", () => {
     );
   });
 
+  it("rejects staged runtime artifacts that a path-limited commit would leave behind", () => {
+    const repo = initRepo({ ignoreKota: false });
+    const agentRunDir = join(repo, ".kota", "builder-evidence", "run-current");
+    writeRequiredArtifacts(agentRunDir);
+    writeFileSync(join(repo, "change.txt"), "implementation\n", "utf8");
+
+    const staleRunDir = join(repo, ".kota", "runs", "run-stale");
+    mkdirSync(staleRunDir, { recursive: true });
+    writeFileSync(join(staleRunDir, "verification.txt"), "stale evidence\n", "utf8");
+    execFileSync("git", ["add", ".kota/runs/run-stale/verification.txt"], {
+      cwd: repo,
+    });
+
+    expect(() =>
+      checkBuilderWorkflowChangesStageable(repo, agentRunDir),
+    ).toThrow(
+      /Builder commit would leave staged paths outside its evidence boundary:[\s\S]*run-stale\/verification\.txt/,
+    );
+    expect(() => commitBuilderWorkflowChanges(repo, agentRunDir)).toThrow(
+      /Reconcile these paths before finishing/,
+    );
+    expect(
+      execFileSync("git", ["rev-list", "--count", "HEAD"], {
+        cwd: repo,
+        encoding: "utf8",
+      }).trim(),
+    ).toBe("1");
+  });
+
   it("rejects linked durable projection ancestors before traversal", () => {
     const repo = initRepo();
     const agentRunDir = join(repo, ".kota", "builder-evidence", "run-linked");

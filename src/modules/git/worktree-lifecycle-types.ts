@@ -17,6 +17,7 @@ export type AutomationWorktreeRunState = "active" | "finished" | "missing" | "or
 export type AutomationWorktreeOperatorStatus = {
 	taskId: string;
 	runId: string;
+	recoveryRunId?: string;
 	workflowId: string;
 	owner: string;
 	workspaceDir: string;
@@ -53,6 +54,7 @@ export type AutomationWorktreeMetadata = {
 	schemaVersion: 1;
 	taskId: string;
 	runId: string;
+	recoveryRunId?: string;
 	workflowId: string;
 	owner: string;
 	workspaceDir: string;

@@ -4,6 +4,7 @@ import {
   type CommitResult,
   checkCommitStageable,
   commitWorkflowChanges,
+  listStagedPathsExcludedFromCommit,
   type WorkflowCommitPathPolicy,
 } from "#modules/autonomy/commit.js";
 import { stageWorkflowPaths } from "#modules/autonomy/commit-git.js";
@@ -77,6 +78,20 @@ function builderCommitPathPolicy(
   };
 }
 
+function assertBuilderCommitHasNoExcludedStagedPaths(
+  workspaceDir: string,
+  policy: WorkflowCommitPathPolicy,
+): void {
+  const excludedPaths = listStagedPathsExcludedFromCommit(workspaceDir, policy);
+  if (excludedPaths.length === 0) return;
+  throw new Error(
+    "Builder commit would leave staged paths outside its evidence boundary:\n" +
+      excludedPaths.map((path) => `  ${path}`).join("\n") +
+      "\nReconcile these paths before finishing. Register durable evidence in the current " +
+      "builder evidence manifest; remove obsolete runtime artifacts from the worktree.",
+  );
+}
+
 function projectBuilderEvidence(
   workspaceDir: string,
   agentRunDir: string,
@@ -145,10 +160,9 @@ export function checkBuilderWorkflowChangesStageable(
     agentRunDir,
     evidence,
   );
-  return checkCommitStageable(
-    workspaceDir,
-    builderCommitPathPolicy(projectedPaths),
-  );
+  const policy = builderCommitPathPolicy(projectedPaths);
+  assertBuilderCommitHasNoExcludedStagedPaths(workspaceDir, policy);
+  return checkCommitStageable(workspaceDir, policy);
 }
 
 export function commitBuilderWorkflowChanges(
@@ -156,9 +170,7 @@ export function commitBuilderWorkflowChanges(
   agentRunDir: string,
 ): CommitResult {
   const projectedPaths = projectBuilderEvidence(workspaceDir, agentRunDir);
-  return commitWorkflowChanges(
-    workspaceDir,
-    agentRunDir,
-    builderCommitPathPolicy(projectedPaths),
-  );
+  const policy = builderCommitPathPolicy(projectedPaths);
+  assertBuilderCommitHasNoExcludedStagedPaths(workspaceDir, policy);
+  return commitWorkflowChanges(workspaceDir, agentRunDir, policy);
 }

@@ -65,7 +65,7 @@ function metadataPath(projectDir: string, claim: TaskClaim): string {
     projectDir,
     ".kota",
     "worktrees",
-    `${safeTaskClaimSegment(claim.taskId)}-${safeTaskClaimSegment(claim.runId)}.json`,
+    `${safeTaskClaimSegment(claim.taskId)}-${safeTaskClaimSegment(claim.worktreeRunId ?? claim.runId)}.json`,
   );
 }
 
@@ -180,7 +180,7 @@ export function readWorktreeEvidence(
         inspectAutomationWorktree({
           projectDir,
           taskId: claim.taskId,
-          runId: claim.runId,
+          runId: claim.worktreeRunId ?? claim.runId,
         }),
         projectDir,
       );
@@ -240,7 +240,7 @@ export function recommendedActionFor(
   const claimBlocked = hasClaimMergeBlocker(claim);
   if (ownerRunStatus === "running" || worktree.runState === "active") {
     return {
-      kind: "wait",
+      kind: "active",
       reason: "owning workflow run still appears active",
     };
   }

@@ -1,26 +1,26 @@
 import {
-	type ApprovalExecutionDescriptor,
 	approvedApprovalMatchesExecutionDescriptor,
 } from "#core/daemon/approval-execution-descriptor.js";
 import {
 	type ApprovalClientProjection,
-	type ApprovalExecutionSnapshot,
 	isWorkflowStepApproval,
 	type PendingApproval,
 	projectApprovalForClient,
 } from "#core/daemon/approval-queue.js";
 import { projectEvidenceText } from "#core/evidence/policy.js";
-import type { McpManager } from "#core/mcp/manager.js";
 import { executeTool, type ToolRunnerContext } from "#core/tools/index.js";
 import { isMcpManagedToolName } from "#core/tools/tool-name-policy.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
-import { closeAfterApprovalExecutionFailure } from "./approval-execution-cleanup.js";
-import { prepareMcpApprovalExecution } from "./approval-mcp-preflight.js";
+import type { ApprovalExecutionLease } from "./approval-execution-leases.js";
 import type { ApprovalExecutionProjection } from "./client.js";
 
-export type ApprovalExecutionLease = ApprovalExecutionDescriptor & {
-	mcpManager?: McpManager;
-};
+export type { ApprovalExecutionLease } from "./approval-execution-leases.js";
+export {
+	closeApprovalExecutionLeases,
+	withApprovalExecutionLeases,
+} from "./approval-execution-leases.js";
+export type { ApprovalExecutionPreflightBatch } from "./approval-execution-preflight.js";
+export { prepareApprovalExecutionBatch } from "./approval-execution-preflight.js";
 
 export class ApprovalExecutionDescriptorMismatchError extends Error {
 	constructor(readonly approval: PendingApproval) {
@@ -28,10 +28,6 @@ export class ApprovalExecutionDescriptorMismatchError extends Error {
 		this.name = "ApprovalExecutionDescriptorMismatchError";
 	}
 }
-
-export type ApprovalExecutionPreflightBatch =
-	| { ok: true; leases: Map<string, ApprovalExecutionLease> }
-	| { ok: false; status: 409; body: import("./approval-mcp-preflight.js").McpApprovalFailureBody };
 
 function approvalExecutionContext(
 	base: ToolRunnerContext | undefined,
@@ -42,53 +38,6 @@ function approvalExecutionContext(
 		...base,
 		...(item.sessionId ? { sessionId: item.sessionId } : {}),
 	};
-}
-
-export async function closeApprovalExecutionLeases(
-	leases: Iterable<ApprovalExecutionLease>,
-): Promise<void> {
-	const managers = new Set<McpManager>();
-	for (const lease of leases) {
-		if (lease.mcpManager !== undefined) managers.add(lease.mcpManager);
-	}
-	await Promise.all([...managers].map((manager) => manager.close()));
-}
-
-export async function withApprovalExecutionLeases<T>(
-	leases: Iterable<ApprovalExecutionLease>,
-	execute: () => Promise<T>,
-): Promise<T> {
-	const retainedLeases = [...leases];
-	let result: T;
-	try {
-		result = await execute();
-	} catch (error) {
-		const primaryError = error instanceof Error ? error : new Error(String(error));
-		await closeAfterApprovalExecutionFailure(
-			() => closeApprovalExecutionLeases(retainedLeases),
-			primaryError,
-			"Approval execution and lease cleanup both failed",
-		);
-		throw error;
-	}
-	await closeApprovalExecutionLeases(retainedLeases);
-	return result;
-}
-
-export async function prepareApprovalExecutionBatch(
-	snapshots: ApprovalExecutionSnapshot[],
-	context?: ToolRunnerContext,
-): Promise<ApprovalExecutionPreflightBatch> {
-	const leases = new Map<string, ApprovalExecutionLease>();
-	for (const snapshot of snapshots) {
-		const preflight = await prepareMcpApprovalExecution(snapshot, context);
-		if (!preflight.ok) {
-			await closeApprovalExecutionLeases(leases.values());
-			return preflight;
-		}
-		leases.set(snapshot.approval.id, preflight.lease);
-	}
-	return { ok: true, leases };
 }
 
 function projectToolExecution(result: ToolResult): ApprovalExecutionProjection {
@@ -110,20 +59,6 @@ function projectToolExecution(result: ToolResult): ApprovalExecutionProjection {
 	};
 }
 
-function requireApprovedToolExecutionLease(
-	item: PendingApproval,
-	lease: ApprovalExecutionLease | undefined,
-): ApprovalExecutionLease {
-	if (
-		lease === undefined
-		|| !approvedApprovalMatchesExecutionDescriptor(item, lease)
-		|| (isMcpManagedToolName(item.tool) && lease.mcpManager === undefined)
-	) {
-		throw new ApprovalExecutionDescriptorMismatchError(item);
-	}
-	return lease;
-}
-
 function requireApprovedApprovalLease(
 	item: PendingApproval,
 	lease: ApprovalExecutionLease | undefined,
@@ -132,6 +67,23 @@ function requireApprovedApprovalLease(
 		throw new ApprovalExecutionDescriptorMismatchError(item);
 	}
 	return lease;
+}
+
+function requireApprovedToolExecutionLease(
+	item: PendingApproval,
+	lease: ApprovalExecutionLease | undefined,
+): ApprovalExecutionLease {
+	const boundLease = requireApprovedApprovalLease(item, lease);
+	if (
+		isMcpManagedToolName(item.tool)
+		&& (
+			boundLease.mcpManager === undefined
+			|| boundLease.mcpPromptDeclaration === undefined
+		)
+	) {
+		throw new ApprovalExecutionDescriptorMismatchError(item);
+	}
+	return boundLease;
 }
 
 async function executeApprovedTool(
@@ -143,11 +95,19 @@ async function executeApprovedTool(
 	const executionContext = approvalExecutionContext(context, item);
 	if (isMcpManagedToolName(item.tool)) {
 		const mcpManager = boundLease.mcpManager;
-		if (mcpManager === undefined) {
+		const declaration = boundLease.mcpPromptDeclaration;
+		if (mcpManager === undefined || declaration === undefined) {
 			throw new ApprovalExecutionDescriptorMismatchError(item);
 		}
-		const result = await mcpManager.executeTool(item.tool, item.input);
-		return projectToolExecution(result);
+		const execution = await mcpManager.executeToolWithDeclarationFingerprint(
+			item.tool,
+			item.input,
+			declaration.promptDeclarationFingerprint,
+		);
+		if (!execution.ok) {
+			throw new ApprovalExecutionDescriptorMismatchError(item);
+		}
+		return projectToolExecution(execution.result);
 	}
 	const result = executionContext
 		? await executeTool(item.tool, item.input, executionContext)

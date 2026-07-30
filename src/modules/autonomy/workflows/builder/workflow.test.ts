@@ -17,6 +17,7 @@ describe("builder workflow queue gating", () => {
   it("only wakes from actionable queue availability and recovery", () => {
     expect(builderWorkflow.triggers.map((trigger) => trigger.event)).toEqual([
       "autonomy.queue.available",
+      "autonomy.builder.recovery.requested",
       "runtime.recovered",
     ]);
   });

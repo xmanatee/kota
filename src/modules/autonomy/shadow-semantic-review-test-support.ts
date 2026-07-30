@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
+import { unexpectedWorkflowAgentHarnessRun } from "#core/workflow/testing/agent-harness-runner.js";
 import type { ExecutableShadowSemanticReviewerDeclaration } from "./shadow-semantic-review.js";
 
 export function makeShadowReviewContext(
@@ -25,6 +26,7 @@ export function makeShadowReviewContext(
     stepOutputs: {},
     stepResults: {},
     stepOutputList: [],
+    runAgentHarness: unexpectedWorkflowAgentHarnessRun,
     runTool: async () => ({ content: "" }),
     emit: () => {},
     requestRestart: () => {},

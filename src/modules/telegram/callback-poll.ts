@@ -53,6 +53,7 @@ export function startCallbackPoll(
     pendingApprovals,
     pendingOwnerQuestions,
     client,
+    log,
   );
 
   async function poll(): Promise<void> {
@@ -100,6 +101,7 @@ export function createTelegramCallbackHandler(
   pendingApprovals: Map<string, PendingApprovalMessage>,
   pendingOwnerQuestions: Map<string, PendingMessage>,
   client?: KotaClient,
+  log?: ModuleContext["log"],
 ): TelegramCallbackHandler {
   return async (cq) => {
     if (!cq.data) return false;
@@ -113,6 +115,7 @@ export function createTelegramCallbackHandler(
         approvalCallback.reviewReceipt,
         pendingApprovals,
         client,
+        log,
       );
       return true;
     }
@@ -126,6 +129,7 @@ export function createTelegramCallbackHandler(
         Number.parseInt(answerMatch[2], 10),
         pendingOwnerQuestions,
         client,
+        log,
       );
       return true;
     }
@@ -138,6 +142,7 @@ export function createTelegramCallbackHandler(
         dismissMatch[1],
         pendingOwnerQuestions,
         client,
+        log,
       );
       return true;
     }
@@ -153,6 +158,7 @@ async function handleOwnerAnswerCallback(
   answerIdx: number,
   pending: Map<string, PendingMessage>,
   client: KotaClient | undefined,
+  log?: ModuleContext["log"],
 ): Promise<void> {
   const info = pending.get(questionId);
   const item = client
@@ -165,7 +171,7 @@ async function handleOwnerAnswerCallback(
       callback_query_id: cq.id,
       text: "Question already resolved or not found.",
       show_alert: true,
-    }).catch(() => {});
+    }).catch((error) => reportCallbackFailure("answerCallbackQuery", error, log));
     return;
   }
   const answers = item.proposedAnswers ?? [];
@@ -174,7 +180,7 @@ async function handleOwnerAnswerCallback(
       callback_query_id: cq.id,
       text: "Invalid answer selection.",
       show_alert: true,
-    }).catch(() => {});
+    }).catch((error) => reportCallbackFailure("answerCallbackQuery", error, log));
     return;
   }
   const answerText = answers[answerIdx];
@@ -193,14 +199,14 @@ async function handleOwnerAnswerCallback(
       callback_query_id: cq.id,
       text: "Question already resolved or not found.",
       show_alert: true,
-    }).catch(() => {});
+    }).catch((error) => reportCallbackFailure("answerCallbackQuery", error, log));
     return;
   }
 
   await callTelegramApi(token, "answerCallbackQuery", {
     callback_query_id: cq.id,
     text: `Answered: ${answerText}`,
-  }).catch(() => {});
+  }).catch((error) => reportCallbackFailure("answerCallbackQuery", error, log));
 
   await editResolvedOwnerQuestionMessage(
     token,
@@ -208,6 +214,7 @@ async function handleOwnerAnswerCallback(
     "answer",
     mutate.question,
     pending,
+    log,
   );
 }
 
@@ -217,6 +224,7 @@ async function handleOwnerDismissCallback(
   questionId: string,
   pending: Map<string, PendingMessage>,
   client: KotaClient | undefined,
+  log?: ModuleContext["log"],
 ): Promise<void> {
   const info = pending.get(questionId);
   const mutate = client
@@ -234,14 +242,14 @@ async function handleOwnerDismissCallback(
       callback_query_id: cq.id,
       text: "Question already resolved or not found.",
       show_alert: true,
-    }).catch(() => {});
+    }).catch((error) => reportCallbackFailure("answerCallbackQuery", error, log));
     return;
   }
 
   await callTelegramApi(token, "answerCallbackQuery", {
     callback_query_id: cq.id,
     text: "Dismissed.",
-  }).catch(() => {});
+  }).catch((error) => reportCallbackFailure("answerCallbackQuery", error, log));
 
   await editResolvedOwnerQuestionMessage(
     token,
@@ -249,7 +257,17 @@ async function handleOwnerDismissCallback(
     "dismiss",
     mutate.question,
     pending,
+    log,
   );
+}
+
+function reportCallbackFailure(
+  method: string,
+  error: unknown,
+  log?: ModuleContext["log"],
+): void {
+  if (log === undefined) throw error;
+  log.warn(`Telegram ${method} failed: ${(error as Error).message}`);
 }
 
 function sleep(ms: number): Promise<void> {

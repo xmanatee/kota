@@ -50,6 +50,23 @@ export function listStagedDeletions(projectDir: string): Set<string> {
   return paths;
 }
 
+export function listStagedPaths(projectDir: string): string[] {
+  const stdout = execFileSync(
+    "git",
+    ["diff", "--cached", "--name-only", "--no-renames"],
+    {
+      cwd: projectDir,
+      env: withProtectedGitBareRepositoryEnv(),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  return stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 export function listPathsNeedingStaging(
   projectDir: string,
   paths: readonly string[],
