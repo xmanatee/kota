@@ -1,0 +1,7 @@
+The linked worktree's host Git metadata is not reliably writable in this sandbox. Final staging and staged-diff validation use:
+
+GIT_INDEX_FILE=$PWD/.kota/tmp/2026-07-28T22-23-31-718Z-builder-p8vb2c/git-index
+GIT_OBJECT_DIRECTORY=$PWD/.kota/tmp/2026-07-28T22-23-31-718Z-builder-p8vb2c/git-objects
+GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects
+
+Repair attempt 5's host `git add -A` could not acquire the read-only linked-worktree index lock. The final full worktree was replayed with `git add -A` into the workspace-local index above, and `git diff --cached --check` passed against that exact commit set. The workflow or a writable host must replay `git add -A` before committing because isolated staging does not update the real worktree index; all final staged-diff checks use the three variables above.

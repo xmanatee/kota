@@ -1,13 +1,6 @@
 import { join } from "node:path";
-import type { AgentCanUseTool } from "#core/agent-harness/index.js";
-import type { AgentDef } from "#core/agents/agent-types.js";
-import type { KotaConfig } from "#core/config/config.js";
 import { ApprovalQueue } from "#core/daemon/approval-queue.js";
-import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
-import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
-import type { EventBus } from "#core/events/event-bus.js";
-import type { EventJournal } from "#core/events/event-journal.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { createDelegateBudget } from "#core/tools/delegate-budget.js";
 import {
@@ -20,13 +13,13 @@ import {
   buildWorkflowStartedPayload,
 } from "./event-payloads.js";
 import { validatePayloadSchema } from "./payload-validator.js";
+import type { RunExecutorDeps } from "./run-executor-deps.js";
 import { executeGroupStep } from "./run-executor-groups.js";
 import { replayRunRuntimeState, updateRunRuntimeStateFromStep } from "./run-executor-runtime-state.js";
 import { buildSkippedResult, executeWorkflowStep } from "./run-executor-step.js";
 import { buildResumeInitialState, buildRetryInitialState } from "./run-executor-utils.js";
-import type { WorkflowRunStore } from "./run-store.js";
-import type { WorkflowRunExecutionResult, WorkflowRunStatus, WorkflowRunToolRunner, WorkflowRuntimeResources, WorkflowRunWarning } from "./run-types.js";
-import { type AgentRunLimiter, createAgentRunLimiter } from "./steps/agent-run-limiter.js";
+import type { WorkflowRunExecutionResult, WorkflowRunStatus, WorkflowRunWarning } from "./run-types.js";
+import { createAgentRunLimiter } from "./steps/agent-run-limiter.js";
 import { createStepContext } from "./steps/step-context.js";
 import {
   type AgentStepConfig,
@@ -38,50 +31,7 @@ import { createWorkflowAgentHarnessRunner } from "./steps/workflow-agent-harness
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
-export type RunExecutorDeps = {
-  projectDir: string;
-  workspaceDir?: string;
-  runtimeResources?: WorkflowRuntimeResources;
-  bus: EventBus;
-  /**
-   * Per-project view over {@link bus}. The executor emits every workflow-
-   * lifecycle event through this wrapper so subscribers can attribute the
-   * emitting project without inferring scope from paths. When omitted, the
-   * executor builds the wrapper from `deriveDirectoryScopeId(projectDir)` so a
-   * standalone run is still attributed to its own project.
-   */
-  pbus?: ProjectScopedEventBus;
-  store: WorkflowRunStore;
-  deadLetterQueue?: DeadLetterQueueStore;
-  eventJournal?: EventJournal;
-	approvalQueue?: ApprovalQueue;
-  idempotencyStore?: IdempotencyStore;
-  model?: string;
-  config?: KotaConfig;
-  runId?: string;
-  log: (message: string) => void;
-  /**
-   * Optional callback invoked by trigger steps to queue or run another workflow.
-   * When omitted, trigger steps throw at runtime.
-   */
-  triggerWorkflow?: (
-    workflowName: string,
-    payload: Record<string, unknown>,
-    waitFor: "queued" | "completed",
-    signal?: AbortSignal,
-  ) => Promise<{ runId: string; status: "queued" | "completed" | "failed"; childOutput?: unknown }>;
-  resolveAgentDef?: (name: string) => AgentDef | undefined;
-  resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
-  runTool?: WorkflowRunToolRunner;
-  createAgentCanUseTool?: (stepId: string) => AgentCanUseTool;
-  /**
-   * Shared gate for active agent harness runs. Runtime callers pass the
-   * daemon-wide limiter; focused executor tests may pass agentConcurrency to
-   * create a local limiter for the run.
-   */
-  agentRunLimiter?: AgentRunLimiter;
-  agentConcurrency?: number;
-};
+export type { RunExecutorDeps } from "./run-executor-deps.js";
 
 export function executeWorkflowRun(
   definition: WorkflowDefinition,
@@ -120,6 +70,10 @@ export function executeWorkflowRun(
   const agentRunLimiter =
     deps.agentRunLimiter ?? createAgentRunLimiter(deps.agentConcurrency);
   const nestedAgentHarnessRunner = createWorkflowAgentHarnessRunner(agentRunLimiter);
+  const contextDeps = {
+    ...deps,
+    runAgentHarness: nestedAgentHarnessRunner,
+  };
   const delegateBudget = createDelegateBudget();
   const runTokenBudget = resolveWorkflowRunTokenBudget(deps.config);
 
@@ -153,7 +107,7 @@ export function executeWorkflowRun(
         ? buildResumeInitialState(resumedFromRunId, resumeFromStep, definition.steps, (result) => run.recordStep(result), deps.store.runsDir)
         : buildRetryInitialState(retryOfId, definition.steps, (result) => run.recordStep(result), deps.store.runsDir);
       replayRunRuntimeState(
-        deps,
+        contextDeps,
         definition,
         retryState.retryFromIndex,
         retryState.stepResultsById,
@@ -172,10 +126,6 @@ export function executeWorkflowRun(
       for (let stepIdx = 0; stepIdx < definition.steps.length; stepIdx++) {
         if (stepIdx < retryFromIndex) continue;
         const step = definition.steps[stepIdx];
-        const contextDeps = {
-          ...deps,
-          runAgentHarness: nestedAgentHarnessRunner,
-        };
         const context = createStepContext(
           run.metadata,
           trigger,
@@ -191,8 +141,8 @@ export function executeWorkflowRun(
           model: deps.model,
           config: deps.config,
           projectDir: deps.projectDir,
-          workspaceDir: deps.workspaceDir,
-          runtimeResources: deps.runtimeResources,
+          workspaceDir: contextDeps.workspaceDir,
+          runtimeResources: contextDeps.runtimeResources,
           log: deps.log,
           resolveAgentDef: deps.resolveAgentDef,
           resolveSkillsPrompt: deps.resolveSkillsPrompt,
@@ -255,7 +205,7 @@ export function executeWorkflowRun(
         const { completed, agentBackoff: stepBackoff, thrownError } = await executeWorkflowStep(
           definition, step, run, trigger, context, abortController, agentConfig, acc, stepDeps, stepStartedAt,
         );
-        updateRunRuntimeStateFromStep(deps, step, completed);
+        updateRunRuntimeStateFromStep(contextDeps, step, completed);
         if (stepBackoff && !agentBackoff) agentBackoff = stepBackoff;
         if (completed.status === "success") previousOutput = completed.output;
         else if (completed.continueOnFailure) { hadWarnings = true; }

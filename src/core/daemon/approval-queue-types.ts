@@ -49,11 +49,7 @@ export type ApprovalExecutionApprovalResult =
 	| { ok: true; approval: PendingApproval }
 	| {
 			ok: false;
-			reason:
-				| "not_found"
-				| "input_unavailable"
-				| "scope_mismatch"
-				| "descriptor_mismatch";
+			reason: "not_found" | "input_unavailable" | "scope_mismatch" | "descriptor_mismatch";
 			approval?: PendingApproval;
 	  };
 
