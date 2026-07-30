@@ -475,6 +475,43 @@ export function listAutomationWorktreeUniqueCommits(
 	};
 }
 
+export function validateCanonicalSupersedingCommit(
+	projectDir: string,
+	commit: string,
+): string | null {
+	try {
+		git(projectDir, ["cat-file", "-e", `${commit}^{commit}`]);
+	} catch {
+		return `superseding commit does not exist: ${commit}`;
+	}
+	try {
+		git(projectDir, ["merge-base", "--is-ancestor", commit, "HEAD"]);
+	} catch {
+		return `superseding commit is not reachable from canonical HEAD: ${commit}`;
+	}
+	return null;
+}
+
+function dispositionFailure(
+	input: DisposeAutomationWorktreeInput,
+	before: AutomationWorktreeInspection,
+	uniqueCommits: string[],
+	message: string,
+): DisposedAutomationWorktreeResult {
+	writeMetadata(input.projectDir, {
+		...before.metadata,
+		updatedAt: new Date().toISOString(),
+		lastCleanupBlockers: [message],
+	});
+	return {
+		removed: false,
+		inspection: inspectAutomationWorktree(input),
+		message,
+		blockers: [message],
+		uniqueCommits,
+	};
+}
+
 export function disposeAutomationWorktree(
 	input: DisposeAutomationWorktreeInput,
 ): DisposedAutomationWorktreeResult {
@@ -484,7 +521,6 @@ export function disposeAutomationWorktree(
 		before.branch || before.headCommit,
 	);
 	const blockers: string[] = [];
-	if (!before.exists) blockers.push("worktree path is missing");
 	if (before.runState === "active") blockers.push("worktree run is active");
 	if (before.dirty.conflicted && input.discardWorktreeChanges !== true) {
 		blockers.push("worktree has conflicted paths and discardWorktreeChanges was not accepted");
@@ -497,15 +533,11 @@ export function disposeAutomationWorktree(
 		blockers.push("branch has unique commits and no superseding commit was provided");
 	}
 	if (input.supersededByCommit !== undefined) {
-		try {
-			git(input.projectDir, ["cat-file", "-e", `${input.supersededByCommit}^{commit}`]);
-		} catch (caught) {
-			blockers.push(
-				`superseding commit does not exist: ${input.supersededByCommit}: ${
-					caught instanceof Error ? caught.message : String(caught)
-				}`,
-			);
-		}
+		const blocker = validateCanonicalSupersedingCommit(
+			input.projectDir,
+			input.supersededByCommit,
+		);
+		if (blocker !== null) blockers.push(blocker);
 	}
 	if (blockers.length > 0) {
 		writeMetadata(input.projectDir, {
@@ -529,18 +561,7 @@ export function disposeAutomationWorktree(
 			const message = `failed to unlock worktree before disposition: ${
 				caught instanceof Error ? caught.message : String(caught)
 			}`;
-			writeMetadata(input.projectDir, {
-				...before.metadata,
-				updatedAt: new Date().toISOString(),
-				lastCleanupBlockers: [message],
-			});
-			return {
-				removed: false,
-				inspection: inspectAutomationWorktree(input),
-				message,
-				blockers: [message],
-				uniqueCommits: unique.commits,
-			};
+			return dispositionFailure(input, before, unique.commits, message);
 		}
 	}
 
@@ -548,13 +569,34 @@ export function disposeAutomationWorktree(
 		before.dirty.dirty ||
 		before.metadata.state === "pending-merge" ||
 		unique.commits.length > 0;
-	git(input.projectDir, [
-		"worktree",
-		"remove",
-		...(forceRemove ? ["--force"] : []),
-		before.metadata.workspaceDir,
-	]);
-	deleteLocalBranch(input.projectDir, before.metadata.branch, unique.commits.length > 0);
+	let pruneMissingRegistration = !before.exists;
+	if (before.exists) {
+		try {
+			git(input.projectDir, [
+				"worktree",
+				"remove",
+				...(forceRemove ? ["--force"] : []),
+				before.metadata.workspaceDir,
+			]);
+		} catch (caught) {
+			if (inspectAutomationWorktree(input).exists) {
+				const message = `failed to remove worktree during disposition: ${
+					caught instanceof Error ? caught.message : String(caught)
+				}`;
+				return dispositionFailure(input, before, unique.commits, message);
+			}
+			pruneMissingRegistration = true;
+		}
+	}
+	try {
+		if (pruneMissingRegistration) git(input.projectDir, ["worktree", "prune"]);
+		deleteLocalBranch(input.projectDir, before.metadata.branch, unique.commits.length > 0);
+	} catch (caught) {
+		const message = `failed to finalize worktree disposition: ${
+			caught instanceof Error ? caught.message : String(caught)
+		}`;
+		return dispositionFailure(input, before, unique.commits, message);
+	}
 	const now = new Date().toISOString();
 	writeMetadata(input.projectDir, {
 		...before.metadata,
