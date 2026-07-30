@@ -1,13 +1,13 @@
 ---
 id: task-security-review-approval-transitions-read-and-then
 title: Security review: Approval transitions read and then rewrite a project-writable approval pathname without rejecting symbolic links or opening the destination with no-follow semantics. A concurrent project writer can replace the verified record with a symlink between the read and write, causing the less-constrained daemon process to truncate and overwrite a host file when approving, rejecting, or expiring the record.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Approval transitions read and then rewrite a project-writable approval pathname without rejecting symbolic links or opening the destination with no-follow semantics. A concurrent project writer can replace the verified record with a symlink between the read and write, causing the less-constrained daemon process to truncate and overwrite a host file when approving, rejecting, or expiring the record.
 created_at: 2026-07-28T22:09:25.953Z
-updated_at: 2026-07-28T22:09:25.953Z
+updated_at: 2026-07-29T05:40:22.762Z
 ---
 
 ## Problem
@@ -110,3 +110,9 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node node_modules/vitest/vitest.mjs run src/core/daemon/approval-queue.test.ts src/core/daemon/approval-queue-mcp.test.ts src/core/daemon/approval-queue-singleton.test.ts src/core/daemon/approval-queue-expiration.test.ts src/core/daemon/approval-queue-execution-descriptor.test.ts src/core/daemon/approval-queue-events.test.ts src/core/daemon/approval-queue-filesystem-security.test.ts src/modules/approval-queue src/approval-expiry.integration.test.ts src/core/daemon/daemon-multi-project-isolation.test.ts src/core/tools/approval.test.ts src/core/workflow/owner-decision-step.test.ts --configLoader runner --silent=true --maxWorkers=1` — 20 files and 217 tests passed, including deterministic substitution immediately before descriptor mutation.
+- `node node_modules/typescript/bin/tsc --noEmit` — passed.
+- `node node_modules/@biomejs/biome/bin/biome check src/core/daemon/approval-queue.ts src/core/daemon/approval-queue-types.ts src/core/daemon/approval-record-repository.ts src/core/daemon/approval-execution-selection.ts src/core/daemon/approval-queue-item.ts src/core/daemon/approval-queue-expiration-policy.ts src/core/daemon/approval-record-storage.ts src/core/daemon/approval-record-storage-anchor-helper-source.ts src/core/daemon/approval-record-storage-helper-source.ts src/core/daemon/approval-queue-filesystem-security.test.ts` — passed.

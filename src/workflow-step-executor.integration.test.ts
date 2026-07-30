@@ -14,7 +14,6 @@ import type {
 import type { WorkflowNotifyConfig } from "#core/workflow/step-input-base.js";
 import type { WorkflowAgentStep, WorkflowEmitStep, WorkflowToolStep } from "#core/workflow/step-types.js";
 import type { AgentStepConfig } from "#core/workflow/steps/step-executor.js";
-import { createWorkflowAgentHarnessRunner } from "#core/workflow/steps/workflow-agent-harness-runner.js";
 import {
   buildAgentPrompt,
   buildRepairPrompt,
@@ -28,6 +27,7 @@ import {
   AgentStepRuntimeError,
   classifyAgentRuntimeFailure,
 } from "#core/workflow/steps/step-executor-retry.js";
+import { createWorkflowAgentHarnessRunner } from "#core/workflow/steps/workflow-agent-harness-runner.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";

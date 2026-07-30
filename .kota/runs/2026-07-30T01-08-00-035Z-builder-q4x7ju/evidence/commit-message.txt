@@ -1,0 +1,1 @@
+Bind approval transitions to verified descriptors

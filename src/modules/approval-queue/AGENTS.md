@@ -13,6 +13,10 @@ Owns the `kota approval` CLI surface and the underlying `ApprovalQueue` class us
 - `supervised` session autonomy is the main producer: the tool-runner queues
   every non-safe tool for this mode regardless of the tool's guardrail policy.
   Operators resolve queued approvals through this module's CLI and routes.
+- Treat project-local approval storage as an adversarial boundary. The queue
+  accepts only daemon-owned real directories and single-link regular records;
+  reads are no-follow and status rewrites stay bound to the verified no-follow
+  descriptor through mutation and final identity validation.
 - Approval events and autonomy mode are orthogonal operator surfaces. Do not
   extend approval endpoints to change a session's mode — mode changes go
   through the daemon control session endpoint (`PATCH /sessions/:id`) owned by

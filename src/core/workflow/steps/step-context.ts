@@ -12,8 +12,8 @@ import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { executeTool } from "#core/tools/index.js";
 import type { WorkflowRunStore } from "../run-store.js";
 import type {
-  WorkflowRunMetadata,
   WorkflowAgentHarnessRunner,
+  WorkflowRunMetadata,
   WorkflowRunToolRunner,
   WorkflowRuntimeResources,
   WorkflowStepContext,

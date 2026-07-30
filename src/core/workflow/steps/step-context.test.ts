@@ -12,8 +12,8 @@ import {
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { WorkflowRunStore } from "../run-store.js";
 import type { WorkflowRunMetadata } from "../run-types.js";
-import type { WorkflowRunTrigger } from "../trigger-types.js";
 import { unexpectedWorkflowAgentHarnessRun } from "../testing/agent-harness-runner.js";
+import type { WorkflowRunTrigger } from "../trigger-types.js";
 import { createStepContext, EMITTED_EVENTS_LOG_FILENAME } from "./step-context.js";
 
 function tempProject(): string {

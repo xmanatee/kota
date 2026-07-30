@@ -1,0 +1,3 @@
+1. Approval status transitions remain bound to a verified no-follow record descriptor and fail when the destination is replaced, without modifying a symlink target.
+2. Focused regression coverage deterministically substitutes the approval pathname immediately before descriptor mutation and covers the wider approval filesystem boundary.
+3. Fresh focused tests, type checking, formatting checks, and task validation pass, and the completed task records the final verification commands.

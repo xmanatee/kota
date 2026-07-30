@@ -17,6 +17,7 @@ import type { KotaModelResponse } from "#core/agent-harness/message-protocol.js"
 import { registerModelClientFactory } from "#core/model/model-client.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
+import { createWorkflowAgentHarnessRunner } from "#core/workflow/steps/workflow-agent-harness-runner.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 
 // Silence git shell-outs inside the critic: the temp project directories used
@@ -225,6 +226,7 @@ describe("autonomy agent steps and judges on openai-tools", () => {
         stepOutputs: {},
         stepResults: {},
         runTool: vi.fn(),
+        runAgentHarness: createWorkflowAgentHarnessRunner(undefined),
         emit: vi.fn(),
         requestRestart: vi.fn(),
         readPrompt: vi.fn(),

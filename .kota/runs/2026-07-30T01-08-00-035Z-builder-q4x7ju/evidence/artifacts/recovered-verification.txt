@@ -1,0 +1,62 @@
+PASS: 20 focused approval/core/module test files, 216 tests.
+Command: TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node node_modules/vitest/vitest.mjs run src/core/daemon/approval-queue.test.ts src/core/daemon/approval-queue-mcp.test.ts src/core/daemon/approval-queue-singleton.test.ts src/core/daemon/approval-queue-expiration.test.ts src/core/daemon/approval-queue-execution-descriptor.test.ts src/core/daemon/approval-queue-events.test.ts src/core/daemon/approval-queue-filesystem-security.test.ts src/modules/approval-queue src/approval-expiry.integration.test.ts src/core/daemon/daemon-multi-project-isolation.test.ts src/core/tools/approval.test.ts src/core/workflow/owner-decision-step.test.ts --configLoader runner --silent=true
+
+PASS: full project suite excluding the separately verified pnpm policy test: 1,091 files passed, 4 skipped; 12,244 tests passed, 16 skipped.
+Command: TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run --configLoader runner --silent=true --exclude src/pnpm-supply-chain-policy.integration.test.ts
+
+PASS: pnpm supply-chain policy through the cached project-pinned pnpm 10.32.1 executable: 3 tests.
+Command: PATH=/private/tmp/kota-pnpm-10-bin-builder-p8vb2c:$PATH TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run --configLoader runner --silent=true src/pnpm-supply-chain-policy.integration.test.ts
+
+PASS: TypeScript typecheck.
+Command: ./node_modules/.bin/tsc --noEmit
+
+PASS: Biome checks for all 2,880 source files.
+Command: ./node_modules/.bin/biome check src/
+
+PASS: task queue validation through the cached project-pinned pnpm 10.32.1 executable.
+Command: PATH=/private/tmp/kota-pnpm-10-bin-builder-p8vb2c:$PATH pnpm run validate-tasks
+
+PASS: repair-focused judge, daemon client, workflow context, strict-types, docs-surface, and approval lease regression tests: 72 tests across 15 files.
+Commands: the two focused Vitest invocations recorded in this repair attempt; 60 tests and 12 tests respectively.
+
+PASS: post-check source-size review is advisory with 3 warnings, below the blocking batch threshold of 4.
+Command: node --conditions=source --import tsx -e 'import { checkSevereSourceFileSizeForRun } from "./src/modules/autonomy/source-size-review-artifact.ts"; console.log(checkSevereSourceFileSizeForRun(process.cwd(), ".kota/runs/2026-07-28T22-23-31-718Z-builder-p8vb2c"))'
+
+PASS: post-check approval filesystem security regression: 1 file and 9 tests passed.
+Command: TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node node_modules/vitest/vitest.mjs run src/core/daemon/approval-queue-filesystem-security.test.ts --configLoader runner --silent=true
+
+PASS: post-check TypeScript typecheck.
+Command: node node_modules/typescript/bin/tsc --noEmit
+
+PASS: repair attempt 3 focused regressions: 5 files and 25 tests passed, including approval lease cleanup, strict-types policy, daemon session error fallback, and both improver semantic-gate test slices.
+Command: TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node node_modules/vitest/vitest.mjs run src/strict-types-policy.integration.test.ts src/modules/daemon-ops/sessions-daemon-client.test.ts src/modules/approval-queue/approval-execution.test.ts src/modules/autonomy/improver-semantic-gate.test.ts src/modules/autonomy/improver-semantic-gate-runtime-errors.test.ts --configLoader runner --silent=true
+
+PASS: repair attempt 3 full project suite: 1,096 files passed, 1 skipped; 12,251 tests passed, 12 skipped.
+Command: pnpm test
+
+PASS: repair attempt 3 exact-index source-size review is advisory with 3 warnings, below the blocking batch threshold of 4.
+Command: GIT_INDEX_FILE=$PWD/.kota/tmp/2026-07-28T22-23-31-718Z-builder-p8vb2c/git-index GIT_OBJECT_DIRECTORY=$PWD/.kota/tmp/2026-07-28T22-23-31-718Z-builder-p8vb2c/git-objects GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects node --conditions=source --import tsx --eval 'import("./src/modules/autonomy/source-size-escalation.ts").then(({checkSevereSourceFileSize}) => console.log(checkSevereSourceFileSize(process.cwd())))'
+
+PASS: repair attempt 3 TypeScript typecheck and Biome checks for every repaired or split source file.
+Commands: node node_modules/typescript/bin/tsc --noEmit; ./node_modules/.bin/biome check src/core/workflow/run-executor.ts src/core/workflow/run-executor-deps.ts src/modules/approval-queue/approval-execution.ts src/modules/daemon-ops/index.ts src/modules/autonomy/improver-semantic-gate.test.ts src/modules/autonomy/improver-semantic-gate-runtime-errors.test.ts
+
+PASS: repair attempt 4 exact-index source-size review is advisory with 3 warnings, below the blocking batch threshold of 4. Approval execution was split into focused 141-line execution, 45-line lease, and 268-line preflight files; the non-semantic workflow integration import ordering remains Biome-compliant.
+Command: GIT_INDEX_FILE=$PWD/.kota/tmp/2026-07-28T22-23-31-718Z-builder-p8vb2c/git-index GIT_OBJECT_DIRECTORY=$PWD/.kota/tmp/2026-07-28T22-23-31-718Z-builder-p8vb2c/git-objects GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects node --conditions=source --import tsx --eval 'import("./src/modules/autonomy/source-size-escalation.ts").then(({checkSevereSourceFileSize}) => console.log(checkSevereSourceFileSize(process.cwd())))'
+
+PASS: repair attempt 4 approval module and filesystem security regressions: 10 files and 138 tests passed; strict-types policy: 1 test passed.
+Commands: TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node node_modules/vitest/vitest.mjs run src/modules/approval-queue src/core/daemon/approval-queue-filesystem-security.test.ts --configLoader runner --silent=true; TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node node_modules/vitest/vitest.mjs run src/strict-types-policy.integration.test.ts --configLoader runner --silent=true
+
+PASS: repair attempt 4 TypeScript typecheck and Biome checks for the approval execution split plus workflow integration import ordering.
+Commands: node node_modules/typescript/bin/tsc --noEmit; node node_modules/@biomejs/biome/bin/biome check src/modules/approval-queue/approval-execution.ts src/modules/approval-queue/approval-execution-leases.ts src/modules/approval-queue/approval-execution-preflight.ts src/workflow-step-executor.integration.test.ts
+
+PASS: repair attempt 5 approval filesystem race regression: 1 file and 10 tests passed. The deterministic race substitutes the destination pathname immediately before descriptor truncation, the helper fails on identity change, and the symlink target remains unchanged.
+Command: TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node node_modules/vitest/vitest.mjs run src/core/daemon/approval-queue-filesystem-security.test.ts --configLoader runner --silent=true
+
+PASS: repair attempt 5 complete focused approval/core/module suite in a single worker: 20 files and 217 tests passed. The default parallel run produced six resource-contention timeouts; every timed-out file passed independently before the complete serial run.
+Command: TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node node_modules/vitest/vitest.mjs run src/core/daemon/approval-queue.test.ts src/core/daemon/approval-queue-mcp.test.ts src/core/daemon/approval-queue-singleton.test.ts src/core/daemon/approval-queue-expiration.test.ts src/core/daemon/approval-queue-execution-descriptor.test.ts src/core/daemon/approval-queue-events.test.ts src/core/daemon/approval-queue-filesystem-security.test.ts src/modules/approval-queue src/approval-expiry.integration.test.ts src/core/daemon/daemon-multi-project-isolation.test.ts src/core/tools/approval.test.ts src/core/workflow/owner-decision-step.test.ts --configLoader runner --silent=true --maxWorkers=1
+
+PASS: repair attempt 5 TypeScript typecheck and Biome checks for the descriptor transition, deterministic race regression, and aligned approval-module guidance.
+Commands: node node_modules/typescript/bin/tsc --noEmit; node node_modules/@biomejs/biome/bin/biome check src/core/daemon/approval-queue.ts src/core/daemon/approval-queue-types.ts src/core/daemon/approval-record-repository.ts src/core/daemon/approval-execution-selection.ts src/core/daemon/approval-queue-item.ts src/core/daemon/approval-queue-expiration-policy.ts src/core/daemon/approval-record-storage.ts src/core/daemon/approval-record-storage-anchor-helper-source.ts src/core/daemon/approval-record-storage-helper-source.ts src/core/daemon/approval-queue-filesystem-security.test.ts src/modules/approval-queue/AGENTS.md
+
+PASS: repair attempt 5 task validation and exact-index source-size review. Queue validation passed; the same three advisory source-size warnings remain below the blocking threshold.
+Commands: PATH=/private/tmp/kota-pnpm-10-bin-builder-p8vb2c:$PATH pnpm run validate-tasks; GIT_INDEX_FILE=$PWD/.kota/tmp/2026-07-28T22-23-31-718Z-builder-p8vb2c/git-index GIT_OBJECT_DIRECTORY=$PWD/.kota/tmp/2026-07-28T22-23-31-718Z-builder-p8vb2c/git-objects GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects node --conditions=source --import tsx --eval 'import("./src/modules/autonomy/source-size-escalation.ts").then(({checkSevereSourceFileSize}) => console.log(checkSevereSourceFileSize(process.cwd())))'

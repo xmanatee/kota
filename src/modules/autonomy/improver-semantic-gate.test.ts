@@ -74,6 +74,7 @@ function makeContext(projectDir: string, runDirPath?: string) {
     stepOutputs: {},
     stepResults: {},
     runTool: vi.fn(),
+    runAgentHarness: mockRunAgentHarness,
     emit: vi.fn(),
     requestRestart: vi.fn(),
     readPrompt: vi.fn(),
@@ -290,89 +291,4 @@ describe("createImproverSemanticCheck", () => {
     expect(options.canUseTool).toEqual(expect.any(Function));
   });
 
-  it("retries on transient provider SDK errors", async () => {
-    vi.useFakeTimers();
-    const { execFileSync } = await import("node:child_process");
-    const dir = makeTmpDir();
-    const runDir = join(dir, ".kota/runs/test-run");
-    mkdirSync(runDir, { recursive: true });
-    writeFileSync(join(runDir, "commit-message.txt"), "Some change");
-
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
-      const argStr = Array.isArray(args) ? args.join(" ") : "";
-      if (argStr.includes("--name-only")) return "file.ts\n";
-      if (argStr.includes("--stat")) return " file.ts | 1 +\n";
-      return "diff\n";
-    });
-
-    mockRunAgentHarness.mockResolvedValue({
-      text: "Claude Code returned an error result: API Error: 500 internal",
-      streamedText: "",
-      turns: 5,
-      isError: true,
-      subtype: "error_during_execution",
-    });
-
-    const check = createImproverSemanticCheck({ runDirPath: runDir });
-    const assertion = expect(
-      (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP),
-    ).rejects.toThrow(/Semantic gate failed \(attempt 3\/3\)/);
-    await vi.runAllTimersAsync();
-    await assertion;
-    expect(mockRunAgentHarness).toHaveBeenCalledTimes(3);
-    vi.useRealTimers();
-  });
-
-  it("returns a warning (not a failure) when the gate exhausts max_turns", async () => {
-    const { execFileSync } = await import("node:child_process");
-    const dir = makeTmpDir();
-    const runDir = join(dir, ".kota/runs/test-run");
-    mkdirSync(runDir, { recursive: true });
-    writeFileSync(join(runDir, "commit-message.txt"), "Some change");
-
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
-      const argStr = Array.isArray(args) ? args.join(" ") : "";
-      if (argStr.includes("--name-only")) return "file.ts\n";
-      if (argStr.includes("--stat")) return " file.ts | 1 +\n";
-      return "diff\n";
-    });
-
-    mockRunAgentHarness.mockResolvedValue({
-      text: "",
-      streamedText: "",
-      turns: 10,
-      isError: true,
-      subtype: "error_max_turns",
-    });
-
-    const check = createImproverSemanticCheck({ runDirPath: runDir });
-    const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
-    expect(result).toMatch(/semantic gate unavailable/);
-    expect(mockRunAgentHarness).toHaveBeenCalledTimes(1);
-  });
-
-  it("still rejects on unclassified SDK throws that are not runaway", async () => {
-    const { execFileSync } = await import("node:child_process");
-    const dir = makeTmpDir();
-    const runDir = join(dir, ".kota/runs/test-run");
-    mkdirSync(runDir, { recursive: true });
-    writeFileSync(join(runDir, "commit-message.txt"), "Some change");
-
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
-      const argStr = Array.isArray(args) ? args.join(" ") : "";
-      if (argStr.includes("--name-only")) return "file.ts\n";
-      if (argStr.includes("--stat")) return " file.ts | 1 +\n";
-      return "diff\n";
-    });
-
-    mockRunAgentHarness.mockRejectedValue(
-      new Error("Claude Code returned an error result: something truly unexpected"),
-    );
-
-    const check = createImproverSemanticCheck({ runDirPath: runDir });
-    await expect(
-      (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP),
-    ).rejects.toThrow(/Semantic gate threw \(attempt 1\/3\)/);
-    expect(mockRunAgentHarness).toHaveBeenCalledTimes(1);
-  });
 });

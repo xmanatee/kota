@@ -10,6 +10,13 @@ deploy/telegram-assistant/.env
 /.kota/*
 !/.kota/runs/
 /.kota/runs/*
+!/.kota/runs/2026-07-28T22-23-31-718Z-builder-p8vb2c/
+/.kota/runs/2026-07-28T22-23-31-718Z-builder-p8vb2c/*
+!/.kota/runs/2026-07-28T22-23-31-718Z-builder-p8vb2c/commit-message.txt
+!/.kota/runs/2026-07-28T22-23-31-718Z-builder-p8vb2c/git-index-replay.txt
+!/.kota/runs/2026-07-28T22-23-31-718Z-builder-p8vb2c/success-criteria-verified.txt
+!/.kota/runs/2026-07-28T22-23-31-718Z-builder-p8vb2c/success-criteria.txt
+!/.kota/runs/2026-07-28T22-23-31-718Z-builder-p8vb2c/verification.txt
 # Eval-harness fixtures seed prior run state into isolated temporary projects.
 !src/modules/eval-harness/fixtures/**/initial/.kota/
 !src/modules/eval-harness/fixtures/**/initial/dist/

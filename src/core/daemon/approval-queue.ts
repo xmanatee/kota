@@ -1,133 +1,66 @@
-import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
-import { cloneEvidenceJsonObject, evidenceRetentionDurationMsFor } from "#core/evidence/policy.js";
+import { cloneEvidenceJsonObject } from "#core/evidence/policy.js";
 import type { RiskLevel } from "#core/tools/guardrails.js";
+import type { ToolCallInput } from "#core/tools/guardrails-classify.js";
 import {
 	type ApprovalExecutionDescriptor,
-	createApprovalExecutionDescriptor,
 	pendingApprovalMatchesExecutionDescriptor,
 } from "./approval-execution-descriptor.js";
+import {
+	selectApprovalForExecution,
+	selectApprovalsForExecution,
+} from "./approval-execution-selection.js";
 import { emitApprovalExpired, emitApprovalRequested, emitApprovalResolved } from "./approval-queue-events.js";
-import { approvalFilePath, approvalFilePathForItem, projectApprovalForStorage } from "./approval-queue-projection.js";
+import {
+	DEFAULT_APPROVAL_PENDING_TTL_MS,
+	expireApproval,
+} from "./approval-queue-expiration-policy.js";
+import { createPendingApproval } from "./approval-queue-item.js";
+import type {
+	ApprovalExecutionApprovalResult,
+	ApprovalExecutionApproveAllResult,
+	ApprovalExecutionSnapshot,
+	ApprovalExecutionSnapshotResult,
+	ApprovalMcpPromptDeclaration,
+	ApprovalStatus,
+	PendingApproval,
+} from "./approval-queue-types.js";
+import { ApprovalRecordRepository } from "./approval-record-repository.js";
+import { type ApprovalFileIdentity, ApprovalRecordStorage } from "./approval-record-storage.js";
 import { deriveDirectoryScopeId } from "./scope-registry.js";
 
+export { defaultApprovalPendingTtlMs } from "./approval-queue-expiration-policy.js";
 export { isApprovalId, projectApprovalForClient } from "./approval-queue-projection.js";
-
-export type ApprovalStatus = "pending" | "approved" | "rejected" | "expired";
-
-export type ApprovalToolIoRedaction = {
-	redacted: true;
-	reason: "tool-io";
-	bytes?: number;
-};
-
-export type ApprovalMcpPromptDeclaration = {
-	server: string;
-	tool: string;
-	promptDeclarationFingerprint: string;
-	serverTransportIdentityFingerprint: string;
-};
-
-export type PendingApproval = {
-	id: string;
-	seq?: number;
-	scopeId: string;
-	tool: string;
-	input: Record<string, unknown>;
-	risk: RiskLevel;
-	reason: string;
-	source?: string;
-	sessionId?: string;
-	/** Last N agent conversation turns captured at enqueue time, for operator context. */
-	context?: string;
-	contextRedaction?: ApprovalToolIoRedaction;
-	createdAt: string;
-	status: ApprovalStatus;
-	resolvedAt?: string;
-	rejectionReason?: string;
-	approvalNote?: string;
-	mcpPromptDeclaration?: ApprovalMcpPromptDeclaration;
-	timeoutMs?: number;
-	defaultResolution?: "deny" | "approve";
-	resolutionSource?: string;
-};
-
-export type ApprovalClientProjection = PendingApproval & {
-	contextRedaction?: ApprovalToolIoRedaction;
-};
-
-export type ApprovalExecutionApprovalResult =
-	| {
-			ok: true;
-			approval: PendingApproval;
-	  }
-	| {
-			ok: false;
-			reason:
-				| "not_found"
-				| "input_unavailable"
-				| "scope_mismatch"
-				| "descriptor_mismatch";
-			approval?: PendingApproval;
-	  };
-
-export type ApprovalExecutionApproveAllResult =
-	| {
-			ok: true;
-			approvals: PendingApproval[];
-	  }
-	| {
-			ok: false;
-			reason: "input_unavailable" | "scope_mismatch" | "descriptor_mismatch";
-			approvals: PendingApproval[];
-	  };
-
-export type ApprovalExecutionSnapshot = {
-	approval: PendingApproval;
-	descriptor: ApprovalExecutionDescriptor;
-};
-
-export type ApprovalExecutionSnapshotResult =
-	| { ok: true; snapshot: ApprovalExecutionSnapshot }
-	| {
-			ok: false;
-			reason: "not_found" | "input_unavailable" | "scope_mismatch";
-			approval?: PendingApproval;
-	  };
-
-type SelectedApprovalExecution = ApprovalExecutionSnapshot & {
-	executionInput: PendingApproval["input"];
-};
-
-const DEFAULT_APPROVAL_PENDING_TTL_MS = evidenceRetentionDurationMsFor({
-	artifactType: "approval",
-	state: "pending",
-	scope: "directory",
-});
-
-export function defaultApprovalPendingTtlMs(): number {
-	return DEFAULT_APPROVAL_PENDING_TTL_MS;
-}
-
-let _enqueueSeq = 0;
+export type {
+	ApprovalClientProjection,
+	ApprovalExecutionApprovalResult,
+	ApprovalExecutionApproveAllResult,
+	ApprovalExecutionSnapshot,
+	ApprovalExecutionSnapshotResult,
+	ApprovalMcpPromptDeclaration,
+	ApprovalStatus,
+	ApprovalToolIoRedaction,
+	PendingApproval,
+} from "./approval-queue-types.js";
 
 export class ApprovalQueue {
 	private pbus: ProjectScopedEventBus | null;
 	private executionInputs = new Map<string, PendingApproval["input"]>();
 	private readonly scopeId: string;
+	private readonly records: ApprovalRecordRepository;
 
 	constructor(
-		private dir: string,
+		dir: string,
 		pbus?: ProjectScopedEventBus | null,
 		scopeId?: string,
 	) {
-		if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+		const storage = new ApprovalRecordStorage(dir);
 		this.pbus = pbus ?? null;
 		this.scopeId = scopeId
 			?? pbus?.getScopeId()
-			?? deriveDirectoryScopeId(resolve(dir, "..", ".."));
+			?? deriveDirectoryScopeId(resolve(storage.directoryPath, "..", ".."));
+		this.records = new ApprovalRecordRepository(storage, this.scopeId);
 		if (pbus && pbus.getScopeId() !== this.scopeId) {
 			throw new Error(
 				`ApprovalQueue scope ${this.scopeId} does not match event bus scope ${pbus.getScopeId()}`,
@@ -139,30 +72,9 @@ export class ApprovalQueue {
 		return this.scopeId;
 	}
 
-	private read(path: string): PendingApproval {
-		const item = JSON.parse(readFileSync(path, "utf-8")) as PendingApproval;
-		if (typeof item.scopeId !== "string" || item.scopeId.length === 0) {
-			throw new Error(`Malformed approval record at ${path}: missing scopeId`);
-		}
-		return projectApprovalForStorage(item);
-	}
-
-	private belongsToQueue(item: PendingApproval): boolean {
-		return item.scopeId === this.scopeId;
-	}
-
-	private write(item: PendingApproval): PendingApproval {
-		const projected = projectApprovalForStorage(item);
-		writeFileSync(
-			approvalFilePathForItem(this.dir, projected),
-			JSON.stringify(projected, null, 2),
-		);
-		return projected;
-	}
-
 	enqueue(
 		tool: string,
-		input: Record<string, unknown>,
+		input: ToolCallInput,
 		risk: RiskLevel,
 		reason: string,
 		source?: string,
@@ -172,54 +84,43 @@ export class ApprovalQueue {
 		sessionId?: string,
 		mcpPromptDeclaration?: ApprovalMcpPromptDeclaration,
 	): PendingApproval {
-		const item: PendingApproval = {
-			id: randomUUID().slice(0, 8),
-			seq: _enqueueSeq++,
+		const executionInput = cloneEvidenceJsonObject(input);
+		const item = createPendingApproval({
 			scopeId: this.scopeId,
 			tool,
-			input,
+			input: executionInput,
 			risk,
 			reason,
 			source,
-			...(sessionId !== undefined && { sessionId }),
-			...(context !== undefined && { context }),
-			...(mcpPromptDeclaration !== undefined && { mcpPromptDeclaration }),
-			createdAt: new Date().toISOString(),
-			status: "pending",
-			...(timeoutMs !== undefined && { timeoutMs }),
-			...(defaultResolution !== undefined && { defaultResolution }),
-		};
-		this.executionInputs.set(item.id, cloneEvidenceJsonObject(input));
-		const stored = this.write(item);
+			timeoutMs,
+			defaultResolution,
+			context,
+			sessionId,
+			mcpPromptDeclaration,
+		});
+		this.executionInputs.set(item.id, executionInput);
+		let stored: PendingApproval;
+		try {
+			stored = this.records.write(item, null);
+		} catch (error) {
+			this.executionInputs.delete(item.id);
+			throw error;
+		}
 		emitApprovalRequested(this.pbus, stored, sessionId, this.count("pending"));
 		return stored;
 	}
 
 	get(id: string): PendingApproval | null {
-		const path = approvalFilePath(this.dir, id);
-		if (!path) return null;
-		if (!existsSync(path)) return null;
-		return this.read(path);
+		return this.records.read(id)?.item ?? null;
 	}
 
 	list(status?: ApprovalStatus): PendingApproval[] {
-		if (!existsSync(this.dir)) return [];
-		const items = readdirSync(this.dir)
-			.filter((f) => f.endsWith(".json"))
-			.map((f) => this.read(join(this.dir, f)));
-		const mismatched = items.find((item) => !this.belongsToQueue(item));
-		if (mismatched) {
-			throw new Error(
-				`Approval ${mismatched.id} belongs to scope ${mismatched.scopeId}, not ${this.scopeId}`,
-			);
-		}
-		return items
-			.filter((item) => !status || item.status === status)
-			.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || (a.seq ?? 0) - (b.seq ?? 0));
+		return this.records.list(status).map(({ item }) => item);
 	}
 
 	private approveSelected(
 		item: PendingApproval,
+		recordIdentity: ApprovalFileIdentity,
 		note?: string,
 		resolutionSource?: string,
 		executionInput?: PendingApproval["input"],
@@ -228,53 +129,31 @@ export class ApprovalQueue {
 		item.resolvedAt = new Date().toISOString();
 		if (note) item.approvalNote = note;
 		if (resolutionSource) item.resolutionSource = resolutionSource;
-		const stored = this.write(item);
+		const stored = this.records.write(item, recordIdentity);
 		this.executionInputs.delete(item.id);
 		emitApprovalResolved(this.pbus, stored, true, "", this.count("pending"));
 		return executionInput === undefined ? stored : { ...stored, input: executionInput };
 	}
 
 	approve(id: string, note?: string, resolutionSource?: string): PendingApproval | null {
-		const path = approvalFilePath(this.dir, id);
-		if (!path) return null;
-		const item = this.get(id);
-		if (!item || item.status !== "pending" || !this.belongsToQueue(item)) return null;
+		const stored = this.records.read(id);
+		if (!stored || stored.item.status !== "pending" || stored.item.scopeId !== this.scopeId) return null;
 		return this.approveSelected(
-			item,
+			stored.item,
+			stored.identity,
 			note,
 			resolutionSource,
 			this.executionInputs.get(id),
 		);
 	}
 
-	private selectForExecution(id: string):
-		| { ok: true; selected: SelectedApprovalExecution }
-		| {
-				ok: false;
-				reason: "not_found" | "input_unavailable" | "scope_mismatch";
-				approval?: PendingApproval;
-		  } {
-		const item = this.get(id);
-		if (!item || item.status !== "pending") return { ok: false, reason: "not_found" };
-		if (!this.belongsToQueue(item)) {
-			return { ok: false, reason: "scope_mismatch", approval: item };
-		}
-		const executionInput = this.executionInputs.get(id);
-		if (executionInput === undefined) {
-			return { ok: false, reason: "input_unavailable", approval: item };
-		}
-		return {
-			ok: true,
-			selected: {
-				approval: item,
-				executionInput,
-				descriptor: createApprovalExecutionDescriptor(item, executionInput),
-			},
-		};
-	}
-
 	getExecutionSnapshot(id: string): ApprovalExecutionSnapshotResult {
-		const result = this.selectForExecution(id);
+		const result = selectApprovalForExecution(
+			this.records,
+			this.executionInputs,
+			this.scopeId,
+			id,
+		);
 		if (!result.ok) return result;
 		return {
 			ok: true,
@@ -290,14 +169,20 @@ export class ApprovalQueue {
 		note?: string,
 		resolutionSource?: string,
 	): ApprovalExecutionApprovalResult {
-		const result = this.selectForExecution(descriptor.approvalId);
+		const result = selectApprovalForExecution(
+			this.records,
+			this.executionInputs,
+			this.scopeId,
+			descriptor.approvalId,
+		);
 		if (!result.ok) return result;
-		const { approval, executionInput } = result.selected;
+		const { approval, executionInput, recordIdentity } = result.selected;
 		if (!pendingApprovalMatchesExecutionDescriptor(approval, executionInput, descriptor)) {
 			return { ok: false, reason: "descriptor_mismatch", approval };
 		}
 		const approved = this.approveSelected(
 			approval,
+			recordIdentity,
 			note,
 			resolutionSource,
 			executionInput,
@@ -306,15 +191,14 @@ export class ApprovalQueue {
 	}
 
 	reject(id: string, reason?: string, resolutionSource?: string): PendingApproval | null {
-		const path = approvalFilePath(this.dir, id);
-		if (!path) return null;
-		const item = this.get(id);
-		if (!item || item.status !== "pending" || !this.belongsToQueue(item)) return null;
+		const current = this.records.read(id);
+		if (!current || current.item.status !== "pending" || current.item.scopeId !== this.scopeId) return null;
+		const item = current.item;
 		item.status = "rejected";
 		item.resolvedAt = new Date().toISOString();
 		item.rejectionReason = reason;
 		if (resolutionSource) item.resolutionSource = resolutionSource;
-		const stored = this.write(item);
+		const stored = this.records.write(item, current.identity);
 		this.executionInputs.delete(id);
 		emitApprovalResolved(this.pbus, stored, false, stored.rejectionReason ?? "", this.count("pending"));
 		return stored;
@@ -323,19 +207,12 @@ export class ApprovalQueue {
 	expireStale(defaultTtlMs?: number): PendingApproval[] {
 		const now = Date.now();
 		const expired: PendingApproval[] = [];
-		for (const item of this.list("pending")) {
+		for (const current of this.records.list("pending")) {
+			const item = current.item;
 			const ttl = item.timeoutMs ?? defaultTtlMs ?? DEFAULT_APPROVAL_PENDING_TTL_MS;
 			if (now < new Date(item.createdAt).getTime() + ttl) continue;
-			const resolution = item.defaultResolution ?? "deny";
-			item.resolvedAt = new Date().toISOString();
-			item.resolutionSource = "timeout";
-			if (resolution === "approve") {
-				item.status = "approved";
-			} else {
-				item.status = "expired";
-				item.rejectionReason = "expired";
-			}
-			const stored = this.write(item);
+			const resolution = expireApproval(item);
+			const stored = this.records.write(item, current.identity);
 			this.executionInputs.delete(item.id);
 			emitApprovalExpired(this.pbus, stored, resolution, this.count("pending"));
 			expired.push(stored);
@@ -370,31 +247,16 @@ export class ApprovalQueue {
 		descriptors: readonly ApprovalExecutionDescriptor[],
 		note?: string,
 	): ApprovalExecutionApproveAllResult {
-		const selected: SelectedApprovalExecution[] = [];
-		for (const descriptor of descriptors) {
-			const result = this.selectForExecution(descriptor.approvalId);
-			if (!result.ok) {
-				return {
-					ok: false,
-					reason: result.reason === "not_found" ? "descriptor_mismatch" : result.reason,
-					approvals: result.approval ? [result.approval] : [],
-				};
-			}
-			if (!pendingApprovalMatchesExecutionDescriptor(
-				result.selected.approval,
-				result.selected.executionInput,
-				descriptor,
-			)) {
-				return {
-					ok: false,
-					reason: "descriptor_mismatch",
-					approvals: [result.selected.approval],
-				};
-			}
-			selected.push(result.selected);
-		}
-		const approvals = selected.map((item) => this.approveSelected(
+		const result = selectApprovalsForExecution(
+			this.records,
+			this.executionInputs,
+			this.scopeId,
+			descriptors,
+		);
+		if (!result.ok) return result;
+		const approvals = result.selected.map((item) => this.approveSelected(
 			item.approval,
+			item.recordIdentity,
 			note,
 			undefined,
 			item.executionInput,
@@ -414,10 +276,7 @@ export class ApprovalQueue {
 	}
 
 	clear(): void {
-		if (!existsSync(this.dir)) return;
-		for (const f of readdirSync(this.dir).filter((f) => f.endsWith(".json"))) {
-			unlinkSync(join(this.dir, f));
-		}
+		this.records.clear();
 		this.executionInputs.clear();
 	}
 }

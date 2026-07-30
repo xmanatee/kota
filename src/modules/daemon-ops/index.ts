@@ -2,6 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
 import { resolveProjectDir } from "#core/config/project-dir.js";
+import { parseDaemonClientErrorBody } from "#core/daemon/client-error.js";
 import type { ClientIdentity } from "#core/daemon/client-identity.js";
 import { Daemon, RESTART_EXIT_CODE } from "#core/daemon/daemon.js";
 import type { DaemonLiveStatus, InteractiveSession, WorkflowRunDetail } from "#core/daemon/daemon-control.js";
@@ -1509,10 +1510,8 @@ type SessionsSetAutonomyModeWireBody = {
 };
 
 async function daemonResponseError(response: Response): Promise<Error> {
-  if (response.headers.get("content-type")?.includes("application/json")) {
-    const body = (await response.json()) as { error?: unknown };
-    if (typeof body.error === "string") return new Error(body.error);
-  }
+  const body = parseDaemonClientErrorBody(await response.text());
+  if (body?.error !== undefined) return new Error(body.error);
   return new Error(`HTTP ${response.status}`);
 }
 
