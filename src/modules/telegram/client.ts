@@ -144,7 +144,7 @@ type TelegramApiBodyValue =
   | TelegramApiBodyValue[]
   | { [key: string]: TelegramApiBodyValue | undefined };
 
-type TelegramApiBody = { [key: string]: TelegramApiBodyValue | undefined };
+export type TelegramApiBody = { [key: string]: TelegramApiBodyValue | undefined };
 
 export class TelegramApiError extends Error {
   constructor(
