@@ -40,7 +40,18 @@ vi.mock("./core/model/streaming.js", () => ({ streamMessage: mockStreamMessage }
 // (executed vs queued) changes accordingly.
 
 vi.mock("./core/tools/index.js", () => ({
-  getAllTools: () => [],
+  getAllTools: () => [
+    {
+      name: "shell",
+      description: "Execute a command",
+      input_schema: { type: "object", properties: { command: { type: "string" } } },
+    },
+    {
+      name: "file_read",
+      description: "Read a file",
+      input_schema: { type: "object", properties: { path: { type: "string" } } },
+    },
+  ],
   executeTool: mockExecuteTool,
   getToolEffect: mockGetToolEffect,
   getTodoState: vi.fn(() => ""),

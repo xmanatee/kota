@@ -54,6 +54,7 @@ export type DaemonChatClientApprovalRequestPayload = {
   input: ToolApprovalRequest["input"];
   timeout_ms: number;
   context?: string;
+  review_digest: string;
 };
 
 export type DaemonChatPendingClientApproval = {

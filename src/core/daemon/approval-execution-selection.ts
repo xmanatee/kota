@@ -9,6 +9,7 @@ import type { ApprovalFileIdentity } from "./approval-record-storage.js";
 
 export type SelectedApprovalExecution = ApprovalExecutionSnapshot & {
 	executionInput: PendingApproval["input"];
+	reviewContext?: string;
 	recordIdentity: ApprovalFileIdentity;
 };
 
@@ -31,6 +32,7 @@ export type ApprovalExecutionBulkSelectionResult =
 export function selectApprovalForExecution(
 	records: ApprovalRecordRepository,
 	executionInputs: ReadonlyMap<string, PendingApproval["input"]>,
+	reviewContexts: ReadonlyMap<string, string>,
 	scopeId: string,
 	id: string,
 ): ApprovalExecutionSelectionResult {
@@ -43,12 +45,17 @@ export function selectApprovalForExecution(
 	if (executionInput === undefined) {
 		return { ok: false, reason: "input_unavailable", approval: stored.item };
 	}
+	const reviewContext = reviewContexts.get(id);
+	if (stored.item.contextRedaction !== undefined && reviewContext === undefined) {
+		return { ok: false, reason: "input_unavailable", approval: stored.item };
+	}
 	return {
 		ok: true,
 		selected: {
 			approval: stored.item,
 			executionInput,
-			descriptor: createApprovalExecutionDescriptor(stored.item, executionInput),
+			...(reviewContext !== undefined ? { reviewContext } : {}),
+			descriptor: createApprovalExecutionDescriptor(stored.item, executionInput, reviewContext),
 			recordIdentity: stored.identity,
 		},
 	};
@@ -57,12 +64,19 @@ export function selectApprovalForExecution(
 export function selectApprovalsForExecution(
 	records: ApprovalRecordRepository,
 	executionInputs: ReadonlyMap<string, PendingApproval["input"]>,
+	reviewContexts: ReadonlyMap<string, string>,
 	scopeId: string,
 	descriptors: readonly ApprovalExecutionDescriptor[],
 ): ApprovalExecutionBulkSelectionResult {
 	const selected: SelectedApprovalExecution[] = [];
 	for (const descriptor of descriptors) {
-		const result = selectApprovalForExecution(records, executionInputs, scopeId, descriptor.approvalId);
+		const result = selectApprovalForExecution(
+			records,
+			executionInputs,
+			reviewContexts,
+			scopeId,
+			descriptor.approvalId,
+		);
 		if (!result.ok) {
 			return {
 				ok: false,
@@ -73,6 +87,7 @@ export function selectApprovalsForExecution(
 		if (!pendingApprovalMatchesExecutionDescriptor(
 			result.selected.approval,
 			result.selected.executionInput,
+			result.selected.reviewContext,
 			descriptor,
 		)) {
 			return {

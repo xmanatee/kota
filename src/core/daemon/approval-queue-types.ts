@@ -1,8 +1,14 @@
 import type { RiskLevel } from "#core/tools/guardrails.js";
 import type { ToolCallInput } from "#core/tools/guardrails-classify.js";
 import type { ApprovalExecutionDescriptor } from "./approval-execution-descriptor.js";
+import type {
+	ApprovalReviewDescriptor,
+	ApprovalReviewUnavailable,
+} from "./approval-review-descriptor.js";
 
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "expired";
+
+export const WORKFLOW_STEP_APPROVAL_SOURCE = "workflow-step";
 
 export type ApprovalToolIoRedaction = {
 	redacted: true;
@@ -41,8 +47,15 @@ export type PendingApproval = {
 	resolutionSource?: string;
 };
 
+export function isWorkflowStepApproval(
+	approval: Pick<PendingApproval, "source">,
+): boolean {
+	return approval.source === WORKFLOW_STEP_APPROVAL_SOURCE;
+}
+
 export type ApprovalClientProjection = PendingApproval & {
 	contextRedaction?: ApprovalToolIoRedaction;
+	review: ApprovalReviewDescriptor | ApprovalReviewUnavailable;
 };
 
 export type ApprovalExecutionApprovalResult =

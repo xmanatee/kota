@@ -1,0 +1,14 @@
+$ kota approval approve 974190ba
+Reviewing exact operation:
+
+  [974190ba] shell  (0m ago)
+    Input:  {"command":"git push origin main","cwd":"/srv/repo","args":["--force-with-lease"],"accessToken":"[redacted]"}
+    Context: user: push the reviewed branch for [redacted]; token=[redacted]
+    Digest: 12deef0b1e3b3f6478c65a84bfede26eec7a56fa1338d47b4e520b620585309c
+    Risk:   dangerous
+    Reason: test reason
+
+Approve and execute this exact operation? [y/N] y
+Approved and executed shell:
+file1.ts
+file2.ts

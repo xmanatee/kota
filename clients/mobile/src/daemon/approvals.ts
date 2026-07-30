@@ -7,6 +7,14 @@ export interface Approval {
   id: string;
   tool: string;
   input: Record<string, unknown>;
+  review:
+	    | {
+	        status: 'available';
+	        input: Record<string, unknown>;
+	        context?: string;
+	        digest: string;
+	      }
+    | { status: 'unavailable'; reason: 'input_unavailable' };
   risk: string;
   reason?: string;
   createdAt: string;
@@ -23,6 +31,7 @@ export function getApprovals(
 export function approveApproval(
   http: DaemonHttp,
   id: string,
+  reviewDigest: string,
   note?: string,
 ): Promise<{ approval: Approval }> {
   return daemonRequest<{ approval: Approval }>(
@@ -30,7 +39,7 @@ export function approveApproval(
     `/approvals/${encodeURIComponent(id)}/approve`,
     {
       method: 'POST',
-      body: note !== undefined ? JSON.stringify({ note }) : undefined,
+      body: JSON.stringify({ reviewDigest, note }),
     },
   );
 }

@@ -1,6 +1,12 @@
 import { TestProjectProvider } from "@/lib/project-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Sidebar } from "./Sidebar";
 
@@ -86,7 +92,7 @@ afterEach(() => {
 
 describe("Sidebar operator intent navigation", () => {
   it("shows only the five operator intents as primary navigation", async () => {
-    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       const path = url.split("?")[0];
       switch (path) {
@@ -118,12 +124,18 @@ describe("Sidebar operator intent navigation", () => {
             approvals: [
               {
                 id: "approval-rendered-evidence",
-                runId: "run-builder",
-                workflow: "builder",
-                stepId: "build",
+                scopeId: "test",
                 tool: "git add",
-                input: {},
-                requestedAt: "2026-06-18T18:47:15.290Z",
+                input: { redacted: true, reason: "tool-io" },
+                review: {
+                  status: "available",
+                  input: { args: ["-A"], path: "src/core/daemon" },
+                  context: "user: stage the reviewed daemon changes",
+                  digest: "a".repeat(64),
+                },
+                risk: "moderate",
+                reason: "stage reviewed daemon changes",
+                createdAt: "2026-06-18T18:47:15.290Z",
                 status: "pending",
               },
             ],
@@ -168,7 +180,8 @@ describe("Sidebar operator intent navigation", () => {
         default:
           return makeResponse({});
       }
-    }) as unknown as typeof fetch;
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     renderSidebar();
 
@@ -194,6 +207,23 @@ describe("Sidebar operator intent navigation", () => {
       await screen.findByText("Capture operator evidence"),
     ).toBeInTheDocument();
     expect(await screen.findByText("git add")).toBeInTheDocument();
+    expect(await screen.findByText(/src\/core\/daemon/)).toBeInTheDocument();
+    expect(
+      await screen.findByText("user: stage the reviewed daemon changes"),
+    ).toBeInTheDocument();
+    expect(await screen.findByText(/Review digest:/)).toHaveTextContent(
+      "a".repeat(64),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/approvals/approval-rendered-evidence/approve?projectId=test",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ reviewDigest: "a".repeat(64) }),
+        }),
+      );
+    });
     expect(
       await screen.findByText("Confirm owner-facing copy before release"),
     ).toBeInTheDocument();

@@ -49,6 +49,7 @@ describe("ApprovalQueue execution descriptors", () => {
 			scopeId: queue.getScopeId(),
 			sessionId: "session-123",
 			inputDigest: expect.stringMatching(/^[a-f0-9]{64}$/),
+			reviewDigest: expect.stringMatching(/^[a-f0-9]{64}$/),
 			approvalSnapshotDigest: expect.stringMatching(/^[a-f0-9]{64}$/),
 			mcpPromptDeclaration: {
 				promptDeclarationFingerprint: "a".repeat(64),
@@ -85,6 +86,58 @@ describe("ApprovalQueue execution descriptors", () => {
 			approval,
 			selection.snapshot.descriptor,
 		))).toEqual([false, false, false, false, false, false]);
+	});
+
+	it("rejects a lease whose displayed review descriptor digest changed", () => {
+		const item = queue.enqueue(
+			"shell",
+			{ command: "deploy", path: "/srv/app" },
+			"dangerous",
+			"operator reviewed this operation",
+		);
+		const selection = queue.getExecutionSnapshot(item.id);
+		if (!selection.ok) throw new Error("expected execution snapshot");
+
+		const result = queue.approveForExecution({
+			...selection.snapshot.descriptor,
+			reviewDigest: "0".repeat(64),
+		});
+
+		expect(result).toMatchObject({
+			ok: false,
+			reason: "descriptor_mismatch",
+			approval: { id: item.id, status: "pending" },
+		});
+		expect(queue.get(item.id)?.status).toBe("pending");
+	});
+
+	it("binds execution to the displayed conversation context", () => {
+		const item = queue.enqueue(
+			"shell",
+			{ command: "deploy" },
+			"dangerous",
+			"operator reviewed this operation",
+			undefined,
+			undefined,
+			undefined,
+			"user: deploy production",
+		);
+		const selection = queue.getExecutionSnapshot(item.id);
+		if (!selection.ok) throw new Error("expected execution snapshot");
+
+		const result = queue.approveForExecution(selection.snapshot.descriptor);
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) throw new Error("expected execution approval");
+		expect(result.approval.context).toBe("user: deploy production");
+		expect(approvedApprovalMatchesExecutionDescriptor(
+			result.approval,
+			selection.snapshot.descriptor,
+		)).toBe(true);
+		expect(approvedApprovalMatchesExecutionDescriptor(
+			{ ...result.approval, context: "user: deploy staging" },
+			selection.snapshot.descriptor,
+		)).toBe(false);
 	});
 
 	it("rejects a pending record changed after its execution snapshot was selected", () => {

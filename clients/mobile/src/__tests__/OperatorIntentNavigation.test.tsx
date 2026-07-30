@@ -1,9 +1,10 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { fireEvent, render } from '@testing-library/react-native';
 import { initialState } from '../context/state';
 import { PRIMARY_OPERATOR_TABS } from '../navigation/operatorIntents';
+import { ApprovalListScreen } from '../screens/ApprovalListScreen';
 import { InboxHomeScreen } from '../screens/IntentHomeScreens';
 
 const mockUseDaemon = jest.fn();
@@ -39,6 +40,11 @@ describe('mobile operator intent navigation', () => {
             id: 'approval-rendered-evidence',
             tool: 'git add',
             input: {},
+            review: {
+              status: 'available',
+              input: {},
+              digest: 'a'.repeat(64),
+            },
             risk: 'elevated',
             createdAt: '2026-06-18T18:47:15.290Z',
             status: 'pending',
@@ -111,5 +117,52 @@ describe('mobile operator intent navigation', () => {
         'utf8',
       );
     }
+  });
+
+  test('requires opening the complete approval review before taking action', () => {
+    const approve = jest.fn();
+    const reject = jest.fn();
+    const onApprovalPress = jest.fn();
+    mockUseDaemon.mockReturnValue({
+      state: {
+        ...initialState,
+        approvals: [
+          {
+            id: 'approval-review-required',
+            tool: 'shell',
+            review: {
+              status: 'available',
+              input: {
+                command: 'deploy --path /srv/production --force',
+                paths: ['/srv/production', '/srv/production/config'],
+              },
+              context: 'Deploy the production release after validation.',
+              digest: 'b'.repeat(64),
+            },
+            risk: 'elevated',
+            createdAt: '2026-06-18T18:47:15.290Z',
+            status: 'pending',
+          },
+        ],
+      },
+      client: { approve, reject },
+      refresh: jest.fn(),
+    });
+
+    const view = render(
+      <ApprovalListScreen onApprovalPress={onApprovalPress} />,
+    );
+
+    expect(
+      view.getByText('Open to review the complete input and conversation context'),
+    ).toBeTruthy();
+    expect(view.queryByText('Approve')).toBeNull();
+    expect(view.queryByText('Reject')).toBeNull();
+
+    fireEvent.press(view.getByLabelText('Review approval for shell'));
+
+    expect(onApprovalPress).toHaveBeenCalledWith('approval-review-required');
+    expect(approve).not.toHaveBeenCalled();
+    expect(reject).not.toHaveBeenCalled();
   });
 });

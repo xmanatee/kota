@@ -4,6 +4,7 @@ import { executeToolCalls, type ToolCallExecutionOptions } from "./tool-runner.j
 
 vi.mock("./index.js", () => ({
 	executeTool: vi.fn(),
+	getAllTools: vi.fn(() => []),
 	getToolEffect: vi.fn(),
 }));
 vi.mock("#core/loop/context.js", () => ({
@@ -77,6 +78,15 @@ describe("tool runner MCP approval metadata", () => {
 				sessionId: "s-mcp",
 				mcpManager: {
 					isMcpTool: vi.fn(() => true),
+					getTools: vi.fn(() => [{
+						name: "mcp__remote__deploy",
+						description: "test",
+						input_schema: {
+							type: "object",
+							properties: { target: { type: "string" } },
+							required: ["target"],
+						},
+					}]),
 					isToolReadOnly: vi.fn(() => false),
 					getToolDeclarationFingerprint: vi.fn(() => promptFingerprint),
 					getToolServerTransportIdentityFingerprint: vi.fn(() => serverTransportIdentityFingerprint),

@@ -3,6 +3,7 @@ import {
 } from "#core/daemon/approval-execution-descriptor.js";
 import {
 	type ApprovalClientProjection,
+	isWorkflowStepApproval,
 	type PendingApproval,
 	projectApprovalForClient,
 } from "#core/daemon/approval-queue.js";
@@ -58,24 +59,31 @@ function projectToolExecution(result: ToolResult): ApprovalExecutionProjection {
 	};
 }
 
+function requireApprovedApprovalLease(
+	item: PendingApproval,
+	lease: ApprovalExecutionLease | undefined,
+): ApprovalExecutionLease {
+	if (lease === undefined || !approvedApprovalMatchesExecutionDescriptor(item, lease)) {
+		throw new ApprovalExecutionDescriptorMismatchError(item);
+	}
+	return lease;
+}
+
 function requireApprovedToolExecutionLease(
 	item: PendingApproval,
 	lease: ApprovalExecutionLease | undefined,
 ): ApprovalExecutionLease {
+	const boundLease = requireApprovedApprovalLease(item, lease);
 	if (
-		lease === undefined
-		|| !approvedApprovalMatchesExecutionDescriptor(item, lease)
-		|| (
-			isMcpManagedToolName(item.tool)
-			&& (
-				lease.mcpManager === undefined
-				|| lease.mcpPromptDeclaration === undefined
-			)
+		isMcpManagedToolName(item.tool)
+		&& (
+			boundLease.mcpManager === undefined
+			|| boundLease.mcpPromptDeclaration === undefined
 		)
 	) {
 		throw new ApprovalExecutionDescriptorMismatchError(item);
 	}
-	return lease;
+	return boundLease;
 }
 
 async function executeApprovedTool(
@@ -113,8 +121,12 @@ export async function approvedApprovalResponse(
 	lease: ApprovalExecutionLease,
 ): Promise<{
 	approval: ApprovalClientProjection;
-	execution: ApprovalExecutionProjection;
+	execution?: ApprovalExecutionProjection;
 }> {
+	if (isWorkflowStepApproval(item)) {
+		requireApprovedApprovalLease(item, lease);
+		return { approval: projectApprovalForClient(item) };
+	}
 	const execution = await executeApprovedTool(item, context, lease);
 	return {
 		approval: projectApprovalForClient(item),
@@ -132,10 +144,15 @@ export async function approveAllResponse(
 	executions: Array<{ approvalId: string; execution: ApprovalExecutionProjection }>;
 }> {
 	for (const item of items) {
-		requireApprovedToolExecutionLease(item, leases.get(item.id));
+		if (isWorkflowStepApproval(item)) {
+			requireApprovedApprovalLease(item, leases.get(item.id));
+		} else {
+			requireApprovedToolExecutionLease(item, leases.get(item.id));
+		}
 	}
 	const executions: Array<{ approvalId: string; execution: ApprovalExecutionProjection }> = [];
 	for (const item of items) {
+		if (isWorkflowStepApproval(item)) continue;
 		executions.push({
 			approvalId: item.id,
 			execution: await executeApprovedTool(item, context, leases.get(item.id)),

@@ -101,8 +101,12 @@ export class DaemonClient {
     return approvals.getApprovals(this.http);
   }
 
-  approve(id: string, note?: string): Promise<{ approval: Approval }> {
-    return approvals.approveApproval(this.http, id, note);
+  approve(
+    id: string,
+    reviewDigest: string,
+    note?: string,
+  ): Promise<{ approval: Approval }> {
+    return approvals.approveApproval(this.http, id, reviewDigest, note);
   }
 
   reject(id: string, reason?: string): Promise<{ approval: Approval }> {

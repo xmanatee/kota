@@ -1,15 +1,21 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { KotaToolResultBlock } from "#core/agent-harness/message-protocol.js";
 import {
 	approvalQueueMock,
 	confirmActionMock,
 	enqueueApprovalMock,
 	executeToolMock,
+	getAllToolsMock,
 	openaiToolsAgentHarness,
 	queueEnd,
 	queueToolUse,
 	streamCallSnapshots,
+	tool,
 } from "./adapter-shared-runner-test-support.js";
+
+beforeEach(() => {
+	getAllToolsMock.mockReturnValue([tool("echo_tool")]);
+});
 
 describe("openaiToolsAgentHarness shared runner approval paths", () => {
 	it("runs guardrail confirm before executing a confirmed tool", async () => {

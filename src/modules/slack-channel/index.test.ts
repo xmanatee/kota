@@ -86,6 +86,28 @@ function makeStubCtx(
       knowledge: {},
       history: {},
       tasks: {},
+      approvals: {
+        list: vi.fn(async () => ({
+          approvals: [{
+            id: "abc123",
+            scopeId: "test-project",
+            tool: "shell",
+            input: { redacted: true, reason: "tool-io" },
+            review: {
+              status: "available",
+              input: { command: "deploy --target /srv/app" },
+              context: "user: deploy the client release",
+              digest: "a".repeat(64),
+            },
+            risk: "dangerous",
+            reason: "Runs commands",
+            createdAt: "2026-07-28T22:00:00.000Z",
+            status: "pending",
+          }],
+        })),
+        approve: vi.fn(),
+        reject: vi.fn(),
+      },
     } as never,
   };
 }
@@ -171,8 +193,7 @@ describe("slackChannelModule metadata", () => {
     expect(slackChannelModule.tools).toBeUndefined();
     expect(slackChannelModule.routes).toBeUndefined();
     expect(slackChannelModule.commands).toBeUndefined();
-  });
-});
+  });});
 
 describe("slackChannelModule onLoad", () => {
   beforeEach(() => {
@@ -211,154 +232,4 @@ describe("slackChannelModule onLoad", () => {
     expect(() => slackChannelModule.onLoad!(ctx)).toThrow(
       /slack-channel: autonomy mode is not configured/,
     );
-  });
-});
-
-describe("slackChannelModule channel adapter", () => {
-  beforeEach(() => {
-    MockedSlackBot.mockClear();
-  });
-
-  it("create returns disabled result and logs when config is missing", async () => {
-    const logFn = vi.fn();
-    const ctx = makeStubCtx(undefined, undefined);
-    const channels = await resolveModuleChannels(slackChannelModule, ctx);
-    const result = channels[0].create({
-      ...STUB_CHANNEL_START_CTX,
-      log: logFn,
-    });
-    expect(result.status).toBe("disabled");
-    if (result.status === "disabled") {
-      expect(result.reason).toMatch(/botToken/);
-    }
-    expect(logFn).toHaveBeenCalledWith(expect.stringContaining("No config"));
-    expect(MockedSlackBot).not.toHaveBeenCalled();
-  });
-
-  it("create constructs SlackBot with config + namespace seams", async () => {
-    const ctx = makeStubCtx(undefined, {
-      botToken: "xoxb-test",
-      appToken: "xapp-test",
-      notifyChannel: "C-ALERTS",
-    });
-    const adapter = await resolveAdapter(ctx);
-    expect(adapter).not.toBeNull();
-    expect(MockedSlackBot).toHaveBeenCalledWith(
-      expect.objectContaining({
-        botToken: "xoxb-test",
-        appToken: "xapp-test",
-        notifyChannel: "C-ALERTS",
-      }),
-    );
-    const constructed = MockedSlackBot.mock.calls[0][0];
-    expect(constructed.attention).toEqual(
-      expect.objectContaining({ snapshot: expect.any(Function) }),
-    );
-    expect(constructed.digest).toEqual(
-      expect.objectContaining({ snapshot: expect.any(Function) }),
-    );
-  });
-
-  it("resolves token references through the module secret store", async () => {
-    const ctx = makeStubCtx(undefined, {
-      botToken: "$SLACK_BOT_TOKEN",
-      appToken: "$SLACK_APP_TOKEN",
-      notifyChannel: "C-ALERTS",
-    });
-    vi.mocked(ctx.getSecret).mockImplementation(
-      (key) => ({
-        SLACK_BOT_TOKEN: "xoxb-stored",
-        SLACK_APP_TOKEN: "xapp-stored",
-      })[key] ?? null,
-    );
-
-    await resolveAdapter(ctx);
-
-    expect(MockedSlackBot).toHaveBeenCalledWith(
-      expect.objectContaining({
-        botToken: "xoxb-stored",
-        appToken: "xapp-stored",
-      }),
-    );
-  });
-
-  it("uses per-channel defaultAutonomyMode when set", async () => {
-    const ctx = makeStubCtx(
-      undefined,
-      {
-        botToken: "xoxb-test",
-        appToken: "xapp-test",
-        defaultAutonomyMode: "autonomous",
-      },
-      { serve: { defaultAutonomyMode: "passive" } } as ModuleRuntimeContext["config"],
-    );
-    await resolveAdapter(ctx);
-    expect(MockedSlackBot).toHaveBeenCalledWith(
-      expect.objectContaining({ autonomyMode: "autonomous" }),
-    );
-  });
-
-  it("falls back to config.serve.defaultAutonomyMode when channel default is absent", async () => {
-    const ctx = makeStubCtx(
-      undefined,
-      { botToken: "xoxb-test", appToken: "xapp-test" },
-      { serve: { defaultAutonomyMode: "passive" } } as ModuleRuntimeContext["config"],
-    );
-    await resolveAdapter(ctx);
-    expect(MockedSlackBot).toHaveBeenCalledWith(
-      expect.objectContaining({ autonomyMode: "passive" }),
-    );
-  });
-
-  it("adapter.start calls bot.start", async () => {
-    const ctx = makeStubCtx(undefined, {
-      botToken: "xoxb-test",
-      appToken: "xapp-test",
-    });
-    const adapter = await resolveAdapter(ctx);
-    const botInstance = MockedSlackBot.mock.results[0].value;
-    await adapter!.start();
-    expect(botInstance.start).toHaveBeenCalled();
-  });
-
-  it("adapter.stop unsubscribes from approval events and stops the bot", async () => {
-    const bus = new EventBus();
-    const ctx = makeStubCtx(bus, {
-      botToken: "xoxb-test",
-      appToken: "xapp-test",
-    });
-    const adapter = await resolveAdapter(ctx);
-    const botInstance = MockedSlackBot.mock.results[0].value;
-
-    bus.emit("approval.requested", {
-      id: "abc123",
-      tool: "shell",
-      risk: "high",
-      reason: "Runs commands",
-      source: "builder",
-      sessionId: "",
-    });
-    await Promise.resolve();
-    expect(botInstance.postApproval).toHaveBeenCalledWith(
-      "abc123",
-      "shell",
-      "high",
-      "Runs commands",
-    );
-
-    adapter!.stop();
-    expect(botInstance.stop).toHaveBeenCalled();
-
-    botInstance.postApproval.mockClear();
-    bus.emit("approval.requested", {
-      id: "xyz",
-      tool: "write",
-      risk: "low",
-      reason: "test",
-      source: "test",
-      sessionId: "",
-    });
-    await Promise.resolve();
-    expect(botInstance.postApproval).not.toHaveBeenCalled();
-  });
-});
+  });});

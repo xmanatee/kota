@@ -118,7 +118,7 @@ export function historyDetailQuery(id: string) {
 export function approvalsQuery(projectId: string) {
   return queryOptions({
     queryKey: queryKeys.approvals(projectId),
-    queryFn: api.listApprovals,
+    queryFn: () => api.listApprovals(projectId),
     refetchInterval: 300000,
     enabled: projectId !== "",
   });

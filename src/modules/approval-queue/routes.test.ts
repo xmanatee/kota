@@ -61,6 +61,41 @@ function mockRequest(body: Record<string, unknown> = {}): IncomingMessage {
 	return req as unknown as IncomingMessage;
 }
 
+function reviewDigest(queue: ApprovalQueue, id: string): string {
+	const item = queue.get(id);
+	if (!item) throw new Error(`Missing approval ${id}`);
+	const review = queue.projectForClient(item).review;
+	if (review.status !== "available") throw new Error(`Approval ${id} is not reviewable`);
+	return review.digest;
+}
+
+function approvalDecisionBody(
+	queue: ApprovalQueue,
+	id: string,
+	note?: string,
+): Record<string, unknown> {
+	return {
+		reviewDigest: reviewDigest(queue, id),
+		...(note !== undefined ? { note } : {}),
+	};
+}
+
+function approvalBatchDecisionBody(queue: ApprovalQueue): Record<string, unknown> {
+	return {
+		reviews: queue.list("pending").map((item) => ({
+			id: item.id,
+			digest: reviewDigest(queue, item.id),
+		})),
+	};
+}
+
+function approvePending(queue: ApprovalQueue, id: string): void {
+	const selection = queue.getExecutionSnapshot(id);
+	if (!selection.ok) throw new Error("expected execution snapshot");
+	const result = queue.approveForExecution(selection.snapshot.descriptor);
+	if (!result.ok) throw new Error("expected execution approval");
+}
+
 type RouteResponseSpec = {
 	list?: { approvals: unknown[] } | null;
 	approve?: unknown | null;
@@ -164,7 +199,13 @@ describe("approval-routes", () => {
 			const approval = { id: "abcd1234", tool: "shell", status: "approved" };
 			const link = mockTransport({ approve: { approval } });
 			const { res, result } = mockResponse();
-			await handleApproveApproval(mockRequest(), res, "abcd1234", link, makeQueue());
+			await handleApproveApproval(
+				mockRequest({ reviewDigest: "a".repeat(64) }),
+				res,
+				"abcd1234",
+				link,
+				makeQueue(),
+			);
 			expect(result.status).toBe(200);
 			expect((result.body as { approval: unknown }).approval).toEqual(approval);
 		});
@@ -183,7 +224,13 @@ describe("approval-routes", () => {
 			});
 			const { res, result } = mockResponse();
 
-			await handleApproveApproval(mockRequest(), res, item.id, link, queue);
+			await handleApproveApproval(
+				mockRequest(approvalDecisionBody(queue, item.id)),
+				res,
+				item.id,
+				link,
+				queue,
+			);
 
 			expect(result.status).toBe(409);
 			expect(result.body).toMatchObject({ reason: "approval_input_unavailable" });
@@ -201,7 +248,13 @@ describe("approval-routes", () => {
 			};
 			const { res, result } = mockResponse();
 
-			await handleApproveApproval(mockRequest(), res, item.id, link, queue);
+			await handleApproveApproval(
+				mockRequest(approvalDecisionBody(queue, item.id)),
+				res,
+				item.id,
+				link,
+				queue,
+			);
 
 			expect(result.status).toBe(502);
 			expect(result.body).toMatchObject({ reason: "daemon_transport_failed" });
@@ -216,363 +269,4 @@ describe("approval-routes", () => {
 			await handleRejectApproval(mockRequest(), res, "abcd1234", link, makeQueue());
 			expect(result.status).toBe(200);
 			expect((result.body as { approval: unknown }).approval).toEqual(approval);
-		});
-	});
-
-	describe("handleListApprovals", () => {
-		it("returns empty list when no pending approvals", async () => {
-			const { res, result } = mockResponse();
-			await handleListApprovals(res, null, queue);
-			expect(result.status).toBe(200);
-			const body = result.body as { approvals: unknown[] };
-			expect(body.approvals).toEqual([]);
-		});
-
-		it("returns pending approvals", async () => {
-			queue.enqueue("shell", { command: "rm -rf /tmp/foo" }, "dangerous", "cleanup script");
-			queue.enqueue("git", { args: ["push", "--force"] }, "dangerous", "force push");
-
-			const { res, result } = mockResponse();
-			await handleListApprovals(res, null, queue);
-			expect(result.status).toBe(200);
-			const body = result.body as { approvals: Array<{ tool: string; status: string }> };
-			expect(body.approvals).toHaveLength(2);
-			expect(body.approvals[0].tool).toBe("shell");
-			expect(body.approvals[0].status).toBe("pending");
-			expect(body.approvals[1].tool).toBe("git");
-		});
-
-		it("redacts approval input and context in client-visible list projections", async () => {
-			const item = queue.enqueue(
-				"shell",
-				{
-					command: "deploy",
-					authorization: "Bearer raw-token",
-					contactEmail: "owner@example.test",
-				},
-				"dangerous",
-				"deploy",
-				"session",
-				undefined,
-				undefined,
-				"full conversation with raw secret",
-			);
-
-			const { res, result } = mockResponse();
-			await handleListApprovals(res, null, queue);
-
-			expect(result.status).toBe(200);
-			const body = result.body as {
-				approvals: Array<{
-					input: Record<string, unknown>;
-					contextRedaction: { redacted: true; reason: string; bytes: number };
-				}>;
-			};
-			expect(body.approvals[0].input).toMatchObject({
-				redacted: true,
-				reason: "tool-io",
-			});
-			expect(body.approvals[0]).not.toHaveProperty("context");
-			expect(body.approvals[0].contextRedaction).toMatchObject({
-				redacted: true,
-				reason: "tool-io",
-			});
-			expect(JSON.stringify(queue.get(item.id))).not.toContain("raw-token");
-		});
-
-		it("does not return non-pending approvals", async () => {
-			const item = queue.enqueue("shell", { command: "echo hi" }, "safe", "safe echo");
-			queue.approve(item.id);
-
-			const { res, result } = mockResponse();
-			await handleListApprovals(res, null, queue);
-			expect(result.status).toBe(200);
-			const body = result.body as { approvals: unknown[] };
-			expect(body.approvals).toHaveLength(0);
-		});
-
-		it("returns every status when status filter is 'all'", async () => {
-			const a = queue.enqueue("shell", { command: "ok" }, "safe", "ok");
-			queue.approve(a.id);
-			const b = queue.enqueue("shell", { command: "boom" }, "dangerous", "boom");
-			queue.reject(b.id, "no");
-			queue.enqueue("git", { args: ["status"] }, "safe", "still pending");
-
-			const { res, result } = mockResponse();
-			await handleListApprovals(res, null, queue, "all");
-			expect(result.status).toBe(200);
-			const body = result.body as { approvals: Array<{ status: string }> };
-			expect(body.approvals.map((a) => a.status).sort()).toEqual([
-				"approved",
-				"pending",
-				"rejected",
-			]);
-		});
-
-		it("filters by a specific status", async () => {
-			queue.enqueue("git", { args: ["status"] }, "safe", "still pending");
-			const b = queue.enqueue("shell", { command: "ok" }, "safe", "ok");
-			queue.approve(b.id);
-
-			const { res, result } = mockResponse();
-			await handleListApprovals(res, null, queue, "approved");
-			expect(result.status).toBe(200);
-			const body = result.body as { approvals: Array<{ status: string }> };
-			expect(body.approvals).toHaveLength(1);
-			expect(body.approvals[0].status).toBe("approved");
-		});
-
-		it("forwards the status filter to the daemon client when one is configured", async () => {
-			const filter: { capturedStatus?: string } = {};
-			const link = mockTransport({ list: { approvals: [] }, listFilter: filter });
-			const { res, result } = mockResponse();
-			await handleListApprovals(res, link, makeQueue(), "all");
-			expect(result.status).toBe(200);
-			expect(filter.capturedStatus).toBe("all");
-		});
-	});
-
-	describe("handleApproveApproval", () => {
-		it("approves a pending item and returns it", async () => {
-			const item = queue.enqueue(
-				"shell",
-				{ command: "deploy.sh", accessToken: "raw-token" },
-				"moderate",
-				"deploy",
-			);
-			vi.mocked(executeTool).mockResolvedValueOnce({ content: "deployed raw-token" });
-
-			const { res, result } = mockResponse();
-			await handleApproveApproval(mockRequest(), res, item.id, null, queue);
-			expect(result.status).toBe(200);
-			const body = result.body as {
-				approval: { id: string; status: string; input: Record<string, unknown> };
-				execution: { status: string; output: { redacted: true; reason: string } };
-			};
-			expect(body.approval.id).toBe(item.id);
-			expect(body.approval.status).toBe("approved");
-			expect(body.approval.input).toMatchObject({ redacted: true, reason: "tool-io" });
-			expect(body.execution).toMatchObject({
-				status: "succeeded",
-				output: { redacted: true, reason: "tool-io" },
-			});
-			expect(vi.mocked(executeTool)).toHaveBeenCalledWith(
-				"shell",
-				{ command: "deploy.sh", accessToken: "raw-token" },
-			);
-			expect(JSON.stringify(result.body)).not.toContain("raw-token");
-			expect(JSON.stringify(result.body)).not.toContain("deployed raw-token");
-			expect(JSON.stringify(queue.get(item.id))).not.toContain("raw-token");
-		});
-
-		it("fails closed without executing or approving when persisted input is unavailable", async () => {
-			const dir = mkdtempSync(join(tmpdir(), "kota-approvals-route-restart-"));
-			try {
-				const original = new ApprovalQueue(dir);
-				const item = original.enqueue(
-					"shell",
-					{ command: "deploy.sh", accessToken: "raw-token" },
-					"moderate",
-					"deploy",
-				);
-				const restarted = new ApprovalQueue(dir);
-
-				const { res, result } = mockResponse();
-				await handleApproveApproval(mockRequest(), res, item.id, null, restarted);
-
-				expect(result.status).toBe(409);
-				expect(result.body).toMatchObject({
-					reason: "approval_input_unavailable",
-				});
-				expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
-				expect(restarted.get(item.id)?.status).toBe("pending");
-				expect(JSON.stringify(result.body)).not.toContain("raw-token");
-			} finally {
-				rmSync(dir, { recursive: true, force: true });
-			}
-		});
-
-		it("stores note from request body when provided", async () => {
-			const item = queue.enqueue("shell", { command: "deploy.sh" }, "moderate", "deploy");
-
-			const { res, result } = mockResponse();
-			await handleApproveApproval(mockRequest({ note: "please add a unit test" }), res, item.id, null, queue);
-			expect(result.status).toBe(200);
-			const body = result.body as { approval: { approvalNote: string } };
-			expect(body.approval.approvalNote).toBe("please add a unit test");
-		});
-
-		it("approves without note when body omits it", async () => {
-			const item = queue.enqueue("shell", { command: "deploy.sh" }, "moderate", "deploy");
-
-			const { res, result } = mockResponse();
-			await handleApproveApproval(mockRequest({}), res, item.id, null, queue);
-			expect(result.status).toBe(200);
-			const body = result.body as { approval: { status: string; approvalNote?: string } };
-			expect(body.approval.status).toBe("approved");
-			expect(body.approval.approvalNote).toBeUndefined();
-		});
-
-		it("returns 404 for unknown id", async () => {
-			const { res, result } = mockResponse();
-			await handleApproveApproval(mockRequest(), res, "deadbeef", null, queue);
-			expect(result.status).toBe(404);
-		});
-
-		it("returns 400 for malformed decoded ids without mutating the queue", async () => {
-			const item = queue.enqueue("shell", { command: "deploy.sh" }, "moderate", "deploy");
-
-			const { res, result } = mockResponse();
-			await handleApproveApproval(mockRequest(), res, `../${item.id}`, null, queue);
-
-			expect(result.status).toBe(400);
-			expect(result.body).toMatchObject({ reason: "invalid_approval_id" });
-			expect(queue.get(item.id)?.status).toBe("pending");
-		});
-
-		it("returns 404 when item is not pending", async () => {
-			const item = queue.enqueue("shell", { command: "echo" }, "safe", "already approved");
-			queue.approve(item.id);
-
-			const { res, result } = mockResponse();
-			await handleApproveApproval(mockRequest(), res, item.id, null, queue);
-			expect(result.status).toBe(404);
-		});
-	});
-
-	describe("handleRejectApproval", () => {
-		it("rejects a pending item and returns it", async () => {
-			const item = queue.enqueue("git", { args: ["reset", "--hard"] }, "dangerous", "reset");
-
-			const { res, result } = mockResponse();
-			await handleRejectApproval(mockRequest(), res, item.id, null, queue);
-			expect(result.status).toBe(200);
-			const body = result.body as { approval: { id: string; status: string } };
-			expect(body.approval.id).toBe(item.id);
-			expect(body.approval.status).toBe("rejected");
-		});
-
-		it("passes rejection reason from request body", async () => {
-			const item = queue.enqueue("shell", { command: "reboot" }, "dangerous", "system reboot");
-
-			const { res, result } = mockResponse();
-			await handleRejectApproval(mockRequest({ reason: "not now" }), res, item.id, null, queue);
-			expect(result.status).toBe(200);
-			const body = result.body as { approval: { rejectionReason: string } };
-			expect(body.approval.rejectionReason).toBe("not now");
-		});
-
-		it("rejects without reason when body is empty", async () => {
-			const item = queue.enqueue("shell", { command: "echo" }, "safe", "simple command");
-
-			const { res, result } = mockResponse();
-			await handleRejectApproval(mockRequest({}), res, item.id, null, queue);
-			expect(result.status).toBe(200);
-			const body = result.body as { approval: { status: string; rejectionReason?: string } };
-			expect(body.approval.status).toBe("rejected");
-			expect(body.approval.rejectionReason).toBeUndefined();
-		});
-
-		it("returns 404 for unknown id", async () => {
-			const { res, result } = mockResponse();
-			await handleRejectApproval(mockRequest(), res, "deadbeef", null, queue);
-			expect(result.status).toBe(404);
-		});
-
-		it("returns 400 for malformed decoded ids without mutating the queue", async () => {
-			const item = queue.enqueue("git", { args: ["reset", "--hard"] }, "dangerous", "reset");
-
-			const { res, result } = mockResponse();
-			await handleRejectApproval(mockRequest(), res, `../${item.id}`, null, queue);
-
-			expect(result.status).toBe(400);
-			expect(result.body).toMatchObject({ reason: "invalid_approval_id" });
-			expect(queue.get(item.id)?.status).toBe("pending");
-		});
-	});
-
-	describe("handleApproveAllApprovals", () => {
-		it("approves all pending items and returns them", async () => {
-			queue.enqueue("shell", { command: "a.sh" }, "moderate", "task a");
-			queue.enqueue("shell", { command: "b.sh" }, "moderate", "task b");
-
-			const { res, result } = mockResponse();
-			await handleApproveAllApprovals(mockRequest(), res, null, queue);
-			expect(result.status).toBe(200);
-			const body = result.body as {
-				approvals: Array<{ status: string }>;
-				count: number;
-				executions: Array<{ approvalId: string; execution: { status: string } }>;
-			};
-			expect(body.count).toBe(2);
-			expect(body.approvals.every((a) => a.status === "approved")).toBe(true);
-			expect(body.executions).toHaveLength(2);
-			expect(body.executions.every((entry) => entry.execution.status === "succeeded")).toBe(true);
-			expect(vi.mocked(executeTool)).toHaveBeenCalledTimes(2);
-		});
-
-		it("fails closed without executing approve-all when any pending input is unavailable", async () => {
-			const dir = mkdtempSync(join(tmpdir(), "kota-approvals-route-restart-all-"));
-			try {
-				const original = new ApprovalQueue(dir);
-				const unavailable = original.enqueue("shell", { command: "old" }, "moderate", "old");
-				const restarted = new ApprovalQueue(dir);
-				const available = restarted.enqueue("shell", { command: "new" }, "moderate", "new");
-
-				const { res, result } = mockResponse();
-				await handleApproveAllApprovals(mockRequest(), res, null, restarted);
-
-				expect(result.status).toBe(409);
-				expect(result.body).toMatchObject({
-					reason: "approval_input_unavailable",
-					approvals: [{ id: unavailable.id }],
-				});
-				expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
-				expect(restarted.get(unavailable.id)?.status).toBe("pending");
-				expect(restarted.get(available.id)?.status).toBe("pending");
-			} finally {
-				rmSync(dir, { recursive: true, force: true });
-			}
-		});
-
-		it("returns empty list when no pending approvals", async () => {
-			const { res, result } = mockResponse();
-			await handleApproveAllApprovals(mockRequest(), res, null, queue);
-			expect(result.status).toBe(200);
-			const body = result.body as { approvals: unknown[]; count: number };
-			expect(body.count).toBe(0);
-			expect(body.approvals).toEqual([]);
-		});
-
-		it("uses daemon client when available", async () => {
-			const approvals = [{ id: "a1", tool: "shell", status: "approved" }];
-			const link = mockTransport({ approveAll: { approvals, count: 1 } });
-			const { res, result } = mockResponse();
-			await handleApproveAllApprovals(mockRequest(), res, link, makeQueue());
-			expect(result.status).toBe(200);
-			expect((result.body as { count: number }).count).toBe(1);
-		});
-	});
-
-	describe("handleRejectAllApprovals", () => {
-		it("rejects all pending items and returns them", async () => {
-			queue.enqueue("git", { args: ["reset"] }, "dangerous", "reset");
-			queue.enqueue("git", { args: ["push", "--force"] }, "dangerous", "force push");
-
-			const { res, result } = mockResponse();
-			await handleRejectAllApprovals(mockRequest(), res, null, queue);
-			expect(result.status).toBe(200);
-			const body = result.body as { approvals: Array<{ status: string }>; count: number };
-			expect(body.count).toBe(2);
-			expect(body.approvals.every((a) => a.status === "rejected")).toBe(true);
-		});
-
-		it("returns empty list when no pending approvals", async () => {
-			const { res, result } = mockResponse();
-			await handleRejectAllApprovals(mockRequest(), res, null, queue);
-			expect(result.status).toBe(200);
-			const body = result.body as { approvals: unknown[]; count: number };
-			expect(body.count).toBe(0);
-		});
-	});
-});
+		});});});

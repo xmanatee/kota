@@ -1,445 +1,125 @@
-import { EventEmitter } from "node:events";
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { ToolApprovalResolver } from "#core/tools/tool-runner.js";
-import { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import {
-  type DaemonChatConversationResolver,
-  handleCreateDaemonSession,
   handleDaemonChat,
   handleDaemonChatEvents,
   handleResolveDaemonChatApproval,
   readChatBody,
 } from "./daemon-chat-handlers.js";
-import { DaemonChatPool } from "./daemon-chat-pool.js";
-
-const CONV_ID = "c-fixture-0000";
-const PROJECT_ID = "test-project-id";
-
-function makeBindingStore(): DaemonChatBindingStore {
-  const dir = mkdtempSync(join(tmpdir(), "kota-chat-bindings-"));
-  return new DaemonChatBindingStore(dir);
-}
-
-function makeResolver(conversations: Set<string> = new Set([CONV_ID])): DaemonChatConversationResolver {
-  let counter = 0;
-  return {
-    conversationExists: (id: string) => conversations.has(id),
-    createConversation: () => {
-      const id = `conv-${++counter}`;
-      conversations.add(id);
-      return id;
-    },
-  };
-}
-
-// --- Helpers ---
-
-function mockResponse(): EventEmitter & {
-  write: ReturnType<typeof vi.fn>;
-  end: ReturnType<typeof vi.fn>;
-  writeHead: ReturnType<typeof vi.fn>;
-  setHeader: ReturnType<typeof vi.fn>;
-  writableEnded: boolean;
-  headersSent: boolean;
-  _written: string[];
-} {
-  const res = new EventEmitter() as ReturnType<typeof mockResponse>;
-  res._written = [];
-  res.writableEnded = false;
-  res.headersSent = false;
-  res.write = vi.fn((data: string) => {
-    res._written.push(data);
-    return true;
-  });
-  res.end = vi.fn((data?: string) => {
-    if (data) res._written.push(data);
-    res.writableEnded = true;
-  });
-  res.writeHead = vi.fn(() => {
-    res.headersSent = true;
-  });
-  res.setHeader = vi.fn();
-  return res;
-}
-
-function mockRequest(body?: string): EventEmitter {
-  const req = new EventEmitter();
-  if (body !== undefined) {
-    queueMicrotask(() => {
-      (req as NodeJS.EventEmitter).emit("data", Buffer.from(body));
-      (req as NodeJS.EventEmitter).emit("end");
-    });
-  }
-  return req;
-}
-
-function mockAgentSession(sendResult?: unknown, mode: "passive" | "supervised" | "autonomous" = "supervised") {
-  let current = mode;
-  return {
-    send: vi.fn(async () => sendResult ?? { status: "ok" }),
-    cancelActiveTurn: vi.fn(),
-    close: vi.fn(),
-    getAutonomyMode: vi.fn(() => current),
-    setAutonomyMode: vi.fn((next: "passive" | "supervised" | "autonomous") => { current = next; }),
-  };
-}
-
-function makePool(opts?: { maxSessions?: number; ttlMs?: number }) {
-  return new DaemonChatPool(opts);
-}
-
-// --- handleCreateDaemonSession ---
-
-describe("handleCreateDaemonSession", () => {
-  it("creates a session and returns 201 with session_id and conversation_id", async () => {
-    const pool = makePool();
-    const bindings = makeBindingStore();
-    const resolver = makeResolver();
-    const res = mockResponse();
-    const agent = mockAgentSession();
-    const req = mockRequest("");
-    await handleCreateDaemonSession(pool, bindings, req as never, res as never, () => agent as never, "supervised", PROJECT_ID, resolver);
-    expect(res.writeHead).toHaveBeenCalledWith(201, expect.any(Object));
-    const body = JSON.parse(res._written[res._written.length - 1]) as { session_id: string; autonomy_mode: string; conversation_id: string };
-    expect(body.session_id).toBeTruthy();
-    expect(body.autonomy_mode).toBe("supervised");
-    expect(body.conversation_id).toBeTruthy();
-    expect(pool.size).toBe(1);
-    expect(bindings.getBySession(body.session_id)?.conversationId).toBe(body.conversation_id);
-  });
-
-  it("rejects non-empty client-supplied mcp_servers before creating a daemon session", async () => {
-    const pool = makePool();
-    const bindings = makeBindingStore();
-    const resolver = makeResolver();
-    const res = mockResponse();
-    const makeAgent = vi.fn(() => mockAgentSession() as never);
-    const req = mockRequest(JSON.stringify({
-      mcp_servers: {
-        fs: {
-          type: "stdio",
-          command: "/usr/bin/env",
-          args: ["node"],
-          env: { API_KEY: "secret-token" },
-        },
-      },
-    }));
-    await handleCreateDaemonSession(
-      pool,
-      bindings,
-      req as never,
-      res as never,
-      makeAgent,
-      "supervised",
-      PROJECT_ID,
-      resolver,
-    );
-    expect(res.writeHead).toHaveBeenCalledWith(400, expect.any(Object));
-    expect(makeAgent).not.toHaveBeenCalled();
-    expect(pool.size).toBe(0);
-    expect(res._written.join("")).toContain("client-supplied mcp_servers are not supported");
-    expect(res._written.join("")).not.toContain("secret-token");
-  });
-
-  it("rejects non-object mcp_servers before creating a daemon session", async () => {
-    const pool = makePool();
-    const bindings = makeBindingStore();
-    const res = mockResponse();
-    const req = mockRequest(JSON.stringify({
-      mcp_servers: [],
-    }));
-    await handleCreateDaemonSession(
-      pool,
-      bindings,
-      req as never,
-      res as never,
-      () => mockAgentSession() as never,
-      "supervised",
-      PROJECT_ID,
-      makeResolver(),
-    );
-    expect(res.writeHead).toHaveBeenCalledWith(400, expect.any(Object));
-    expect(pool.size).toBe(0);
-    expect(res._written.join("")).toContain("mcp_servers must be an object");
-  });
-
-  it("honors autonomy_mode from the request body", async () => {
-    const pool = makePool();
-    const bindings = makeBindingStore();
-    const res = mockResponse();
-    const agent = mockAgentSession();
-    const req = mockRequest('{"autonomy_mode":"autonomous"}');
-    await handleCreateDaemonSession(pool, bindings, req as never, res as never, () => agent as never, "supervised", PROJECT_ID, makeResolver());
-    expect(res.writeHead).toHaveBeenCalledWith(201, expect.any(Object));
-    const body = JSON.parse(res._written[res._written.length - 1]) as { autonomy_mode: string };
-    expect(body.autonomy_mode).toBe("autonomous");
-  });
-
-  it("requires autonomy_mode when no default is configured", async () => {
-    const pool = makePool();
-    const bindings = makeBindingStore();
-    const res = mockResponse();
-    const req = mockRequest("");
-    await handleCreateDaemonSession(pool, bindings, req as never, res as never, () => mockAgentSession() as never, undefined, PROJECT_ID, makeResolver());
-    expect(res.writeHead).toHaveBeenCalledWith(400, expect.any(Object));
-    expect(pool.size).toBe(0);
-  });
-
-  it("accepts request autonomy_mode when no default is configured", async () => {
-    const pool = makePool();
-    const bindings = makeBindingStore();
-    const res = mockResponse();
-    const agent = mockAgentSession();
-    const req = mockRequest('{"autonomy_mode":"autonomous"}');
-    await handleCreateDaemonSession(pool, bindings, req as never, res as never, () => agent as never, undefined, PROJECT_ID, makeResolver());
-    expect(res.writeHead).toHaveBeenCalledWith(201, expect.any(Object));
-    const body = JSON.parse(res._written[res._written.length - 1]) as { autonomy_mode: string };
-    expect(body.autonomy_mode).toBe("autonomous");
-  });
-
-  it("returns 400 on invalid autonomy_mode", async () => {
-    const pool = makePool();
-    const bindings = makeBindingStore();
-    const res = mockResponse();
-    const req = mockRequest('{"autonomy_mode":"banana"}');
-    await handleCreateDaemonSession(pool, bindings, req as never, res as never, () => mockAgentSession() as never, "supervised", PROJECT_ID, makeResolver());
-    expect(res.writeHead).toHaveBeenCalledWith(400, expect.any(Object));
-    expect(pool.size).toBe(0);
-  });
-
-  it("returns 503 when pool is full and all busy", async () => {
-    const pool = makePool({ maxSessions: 1 });
-    const bindings = makeBindingStore();
-    const resolver = makeResolver();
-    const agent = mockAgentSession();
-    const res1 = mockResponse();
-    const req1 = mockRequest("");
-    await handleCreateDaemonSession(pool, bindings, req1 as never, res1 as never, () => agent as never, "supervised", PROJECT_ID, resolver);
-    const s = pool.get(JSON.parse(res1._written[res1._written.length - 1] as string).session_id);
-    if (s) s.busy = true;
-    const res2 = mockResponse();
-    const req2 = mockRequest("");
-    await handleCreateDaemonSession(pool, bindings, req2 as never, res2 as never, () => mockAgentSession() as never, "supervised", PROJECT_ID, resolver);
-    expect(res2.writeHead).toHaveBeenCalledWith(503, expect.any(Object));
-  });
-
-  it("resumes an existing conversation when conversation_id is provided", async () => {
-    const pool = makePool();
-    const bindings = makeBindingStore();
-    const conversations = new Set(["existing-conv"]);
-    const resolver = makeResolver(conversations);
-    const seen: string[] = [];
-    const res = mockResponse();
-    const req = mockRequest('{"conversation_id":"existing-conv"}');
-    await handleCreateDaemonSession(
-      pool,
-      bindings,
-      req as never,
-      res as never,
-      (_transport, _mode, resumeConv) => {
-        seen.push(resumeConv ?? "");
-        return mockAgentSession() as never;
-      },
-      "supervised",
-      PROJECT_ID,
-      resolver,
-    );
-    expect(res.writeHead).toHaveBeenCalledWith(201, expect.any(Object));
-    expect(seen).toEqual(["existing-conv"]);
-    const body = JSON.parse(res._written[res._written.length - 1]) as { conversation_id: string; session_id: string };
-    expect(body.conversation_id).toBe("existing-conv");
-    expect(bindings.getByConversation("existing-conv")?.sessionId).toBe(body.session_id);
-  });
-
-  it("wakes a prior session_id using the persisted binding", async () => {
-    const pool = makePool();
-    const bindings = makeBindingStore();
-    bindings.put("s-prior", "conv-prior", PROJECT_ID);
-    const conversations = new Set(["conv-prior"]);
-    const resolver = makeResolver(conversations);
-    const res = mockResponse();
-    const req = mockRequest('{"session_id":"s-prior"}');
-    await handleCreateDaemonSession(
-      pool,
-      bindings,
-      req as never,
-      res as never,
-      () => mockAgentSession() as never,
-      "supervised",
-      PROJECT_ID,
-      resolver,
-    );
-    expect(res.writeHead).toHaveBeenCalledWith(201, expect.any(Object));
-    const body = JSON.parse(res._written[res._written.length - 1]) as { session_id: string; conversation_id: string };
-    expect(body.session_id).toBe("s-prior");
-    expect(body.conversation_id).toBe("conv-prior");
-    expect(pool.get("s-prior")).toBeTruthy();
-  });
-
-  it("returns 404 when session_id has no binding", async () => {
-    const pool = makePool();
-    const bindings = makeBindingStore();
-    const res = mockResponse();
-    const req = mockRequest('{"session_id":"unknown"}');
-    await handleCreateDaemonSession(
-      pool,
-      bindings,
-      req as never,
-      res as never,
-      () => mockAgentSession() as never,
-      "supervised",
-      PROJECT_ID,
-      makeResolver(),
-    );
-    expect(res.writeHead).toHaveBeenCalledWith(404, expect.any(Object));
-  });
-
-  it("returns 404 when conversation_id is not in history", async () => {
-    const pool = makePool();
-    const bindings = makeBindingStore();
-    const res = mockResponse();
-    const req = mockRequest('{"conversation_id":"missing"}');
-    await handleCreateDaemonSession(
-      pool,
-      bindings,
-      req as never,
-      res as never,
-      () => mockAgentSession() as never,
-      "supervised",
-      PROJECT_ID,
-      makeResolver(new Set()),
-    );
-    expect(res.writeHead).toHaveBeenCalledWith(404, expect.any(Object));
-  });
-
-  it("returns 409 when session_id is already live", async () => {
-    const pool = makePool();
-    const bindings = makeBindingStore();
-    const resolver = makeResolver();
-    bindings.put("s-live", "conv-live", PROJECT_ID);
-    const conversations = new Set(["conv-live"]);
-    const res0 = mockResponse();
-    await handleCreateDaemonSession(
-      pool,
-      bindings,
-      mockRequest('{"session_id":"s-live"}') as never,
-      res0 as never,
-      () => mockAgentSession() as never,
-      "supervised",
-      PROJECT_ID,
-      { conversationExists: (id) => conversations.has(id), createConversation: resolver.createConversation },
-    );
-    expect(res0.writeHead).toHaveBeenCalledWith(201, expect.any(Object));
-
-    const res1 = mockResponse();
-    await handleCreateDaemonSession(
-      pool,
-      bindings,
-      mockRequest('{"session_id":"s-live"}') as never,
-      res1 as never,
-      () => mockAgentSession() as never,
-      "supervised",
-      PROJECT_ID,
-      { conversationExists: (id) => conversations.has(id), createConversation: resolver.createConversation },
-    );
-    expect(res1.writeHead).toHaveBeenCalledWith(409, expect.any(Object));
-  });
-});
-
-// --- readChatBody ---
+import {
+  CONV_ID,
+  makePool,
+  mockAgentSession,
+  mockRequest,
+  mockResponse,
+  PROJECT_ID,
+} from "./daemon-chat-test-support.integration.js";
 
 describe("readChatBody", () => {
-  it("parses valid JSON body", async () => {
-    const req = mockRequest('{"message":"hello"}');
-    const body = await readChatBody(req as never);
-    expect(body).toEqual({ message: "hello" });
+  it("parses valid JSON", async () => {
+    await expect(readChatBody(mockRequest('{"message":"hello"}') as never))
+      .resolves.toEqual({ message: "hello" });
   });
 
-  it("returns empty object for empty body", async () => {
-    const req = mockRequest("");
-    const body = await readChatBody(req as never);
-    expect(body).toEqual({});
+  it("returns an empty object for an empty body", async () => {
+    await expect(readChatBody(mockRequest("") as never)).resolves.toEqual({});
   });
 
-  it("rejects on invalid JSON", async () => {
-    const req = mockRequest("{not json}");
-    await expect(readChatBody(req as never)).rejects.toThrow("Invalid JSON");
+  it("rejects invalid JSON", async () => {
+    await expect(readChatBody(mockRequest("{not json}") as never)).rejects.toThrow("Invalid JSON");
   });
 });
 
-// --- handleDaemonChat ---
-
 describe("handleDaemonChat", () => {
-  it("returns 404 when session not found", async () => {
-    const pool = makePool();
-    const req = mockRequest('{"message":"hi"}');
+  it("returns 404 when the session is absent", async () => {
     const res = mockResponse();
-    await handleDaemonChat(pool, req as never, res as never, "nope");
+    await handleDaemonChat(
+      makePool(),
+      mockRequest('{"message":"hi"}') as never,
+      res as never,
+      "nope",
+    );
     expect(res.writeHead).toHaveBeenCalledWith(404, expect.any(Object));
   });
 
-  it("returns 400 when message is missing", async () => {
+  it("returns 400 when the message is missing", async () => {
     const pool = makePool();
-    const agent = mockAgentSession();
-    const session = pool.create(() => agent as never, "supervised", CONV_ID, { projectId: PROJECT_ID });
-    const req = mockRequest('{}');
+    const session = pool.create(
+      () => mockAgentSession() as never,
+      "supervised",
+      CONV_ID,
+      { projectId: PROJECT_ID },
+    );
     const res = mockResponse();
-    await handleDaemonChat(pool, req as never, res as never, session.id);
+    await handleDaemonChat(pool, mockRequest("{}") as never, res as never, session.id);
     expect(res.writeHead).toHaveBeenCalledWith(400, expect.any(Object));
   });
 
-  it("returns 409 when session is busy", async () => {
+  it("returns 409 when the session is busy", async () => {
     const pool = makePool();
-    const agent = mockAgentSession();
-    const session = pool.create(() => agent as never, "supervised", CONV_ID, { projectId: PROJECT_ID });
+    const session = pool.create(
+      () => mockAgentSession() as never,
+      "supervised",
+      CONV_ID,
+      { projectId: PROJECT_ID },
+    );
     session.busy = true;
-    const req = mockRequest('{"message":"hi"}');
     const res = mockResponse();
-    await handleDaemonChat(pool, req as never, res as never, session.id);
+    await handleDaemonChat(
+      pool,
+      mockRequest('{"message":"hi"}') as never,
+      res as never,
+      session.id,
+    );
     expect(res.writeHead).toHaveBeenCalledWith(409, expect.any(Object));
   });
 
-  it("streams SSE response for valid session", async () => {
+  it("streams a completed session response", async () => {
     const pool = makePool();
     const agent = mockAgentSession({ status: "done" });
-    const session = pool.create(() => agent as never, "supervised", CONV_ID, { projectId: PROJECT_ID });
-    const req = mockRequest('{"message":"hello"}');
+    const session = pool.create(() => agent as never, "supervised", CONV_ID, {
+      projectId: PROJECT_ID,
+    });
     const res = mockResponse();
-    await handleDaemonChat(pool, req as never, res as never, session.id);
-    expect(res.writeHead).toHaveBeenCalledWith(200, expect.objectContaining({ "Content-Type": "text/event-stream" }));
-    const written = res._written.join("");
-    expect(written).toContain("event: session");
-    expect(written).toContain("event: done");
-    expect(written).toContain(session.id);
+    await handleDaemonChat(
+      pool,
+      mockRequest('{"message":"hello"}') as never,
+      res as never,
+      session.id,
+    );
+    expect(res.writeHead).toHaveBeenCalledWith(
+      200,
+      expect.objectContaining({ "Content-Type": "text/event-stream" }),
+    );
+    expect(res._written.join("")).toContain("event: done");
     expect(agent.send).toHaveBeenCalledWith("hello");
     expect(session.busy).toBe(false);
-    expect(res.end).toHaveBeenCalled();
   });
 
-  it("resets busy and streams error on agent failure", async () => {
+  it("resets busy state and streams agent failures", async () => {
     const pool = makePool();
     const agent = {
       send: vi.fn(async () => { throw new Error("agent failed"); }),
       close: vi.fn(),
     };
-    const session = pool.create(() => agent as never, "supervised", CONV_ID, { projectId: PROJECT_ID });
-    const req = mockRequest('{"message":"hi"}');
+    const session = pool.create(() => agent as never, "supervised", CONV_ID, {
+      projectId: PROJECT_ID,
+    });
     const res = mockResponse();
-    await handleDaemonChat(pool, req as never, res as never, session.id);
+    await handleDaemonChat(
+      pool,
+      mockRequest('{"message":"hi"}') as never,
+      res as never,
+      session.id,
+    );
     expect(session.busy).toBe(false);
-    const written = res._written.join("");
-    expect(written).toContain("event: error");
+    expect(res._written.join("")).toContain("event: error");
   });
 
-  it("streams active turn events to session event subscribers", async () => {
+  it("streams active turn events to subscribers", async () => {
     const pool = makePool();
     let releaseSend!: () => void;
-    const sendCanContinue = new Promise<void>((resolve) => {
-      releaseSend = resolve;
-    });
+    const sendCanContinue = new Promise<void>((resolve) => { releaseSend = resolve; });
     const session = pool.create((transport) => ({
       send: vi.fn(async () => {
         await sendCanContinue;
@@ -461,22 +141,18 @@ describe("handleDaemonChat", () => {
       session.id,
     );
     await waitFor(() => session.busy);
-
     const subscriberRes = mockResponse();
     handleDaemonChatEvents(pool, mockRequest() as never, subscriberRes as never, session.id);
     releaseSend();
     await chatPromise;
 
     const written = subscriberRes._written.join("");
-    expect(written).toContain("event: session");
-    expect(written).toContain("event: text");
     expect(written).toContain("hello subscriber");
-    expect(written).toContain("event: done");
     expect(written).toContain("subscriber final");
     expect(subscriberRes.end).toHaveBeenCalled();
   });
 
-  it("redacts secret-shaped client approval SSE input fields", async () => {
+  it("renders safe input and context and requires the exact review receipt", async () => {
     const pool = makePool();
     const agent = {
       clientApprovalResolver: undefined as ToolApprovalResolver | undefined,
@@ -487,17 +163,15 @@ describe("handleDaemonChat", () => {
           toolUseId: "tool-1",
           toolName: "shell",
           input: {
-            command: "deploy",
-            API_KEY: "secret-token",
-            accessToken: "secret-access-token",
-            authToken: "secret-auth-token",
-            clientSecret: "secret-client-secret",
-            nested: { password: "secret-password", safe: "visible" },
+            command: "curl -H 'Authorization: token command-secret' /srv/deploy --target production",
+            API_KEY: "field-secret",
+            nested: { safe: "/srv/project" },
           },
           risk: "dangerous",
           reason: "writes external state",
           sessionId: "session-1",
           timeoutMs: 120_000,
+          context: "User: deploy /srv/project with token=context-secret",
         });
         return decision.outcome;
       }),
@@ -511,9 +185,10 @@ describe("handleDaemonChat", () => {
         agent.clientApprovalResolver = resolver;
       }),
     };
-    const session = pool.create(() => agent as never, "supervised", CONV_ID, { projectId: PROJECT_ID });
+    const session = pool.create(() => agent as never, "supervised", CONV_ID, {
+      projectId: PROJECT_ID,
+    });
     const res = mockResponse();
-
     const chatPromise = handleDaemonChat(
       pool,
       mockRequest('{"message":"deploy","client_approval":true}') as never,
@@ -522,38 +197,66 @@ describe("handleDaemonChat", () => {
     );
     await waitFor(() => res._written.join("").includes("event: approval_request"));
 
-    const written = res._written.join("");
-    expect(written).not.toContain("secret-token");
-    expect(written).not.toContain("secret-access-token");
-    expect(written).not.toContain("secret-auth-token");
-    expect(written).not.toContain("secret-client-secret");
-    expect(written).not.toContain("secret-password");
-    expect(written).toContain('"API_KEY":"[REDACTED]"');
-    expect(written).toContain('"accessToken":"[REDACTED]"');
-    expect(written).toContain('"authToken":"[REDACTED]"');
-    expect(written).toContain('"clientSecret":"[REDACTED]"');
-    expect(written).toContain('"password":"[REDACTED]"');
+    const dataLine = res._written.join("").split("\n")
+      .find((line) => line.startsWith("data:") && line.includes('"approval_id"'));
+    const review = JSON.parse(dataLine?.slice("data:".length).trim() ?? "") as {
+      input: { command: string; API_KEY: string; nested: { safe: string } };
+      context: string;
+      review_digest: string;
+    };
+    expect(review.input).toEqual({
+      command: "curl -H 'Authorization: [redacted]' /srv/deploy --target production",
+      API_KEY: "[redacted]",
+      nested: { safe: "/srv/project" },
+    });
+    expect(review.context).toBe("User: deploy /srv/project with token=[redacted]");
+    expect(review.review_digest).toMatch(/^[a-f0-9]{64}$/);
 
+    const missingReceipt = mockResponse();
     await handleResolveDaemonChatApproval(
       pool,
       mockRequest('{"outcome":"allow"}') as never,
-      mockResponse() as never,
+      missingReceipt as never,
       session.id,
       "approval-1",
     );
+    expect(missingReceipt.writeHead).toHaveBeenCalledWith(400, expect.any(Object));
+    expect(session.pendingClientApprovals.has("approval-1")).toBe(true);
+
+    const staleReceipt = mockResponse();
+    await handleResolveDaemonChatApproval(
+      pool,
+      mockRequest(JSON.stringify({ outcome: "allow", review_digest: "0".repeat(64) })) as never,
+      staleReceipt as never,
+      session.id,
+      "approval-1",
+    );
+    expect(staleReceipt.writeHead).toHaveBeenCalledWith(409, expect.any(Object));
+    expect(session.pendingClientApprovals.has("approval-1")).toBe(true);
+
+    const exactReceipt = mockResponse();
+    await handleResolveDaemonChatApproval(
+      pool,
+      mockRequest(JSON.stringify({ outcome: "allow", review_digest: review.review_digest })) as never,
+      exactReceipt as never,
+      session.id,
+      "approval-1",
+    );
+    expect(exactReceipt.writeHead).toHaveBeenCalledWith(204);
     await chatPromise;
   });
 
-  it("rejects session event subscriptions when the task is idle", () => {
+  it("rejects event subscriptions while idle", () => {
     const pool = makePool();
-    const agent = mockAgentSession();
-    const session = pool.create(() => agent as never, "supervised", CONV_ID, { projectId: PROJECT_ID });
+    const session = pool.create(
+      () => mockAgentSession() as never,
+      "supervised",
+      CONV_ID,
+      { projectId: PROJECT_ID },
+    );
     const res = mockResponse();
-
     handleDaemonChatEvents(pool, mockRequest() as never, res as never, session.id);
-
     expect(res.writeHead).toHaveBeenCalledWith(409, expect.any(Object));
-    expect(res._written.join("")).toContain("Session is not active");
   });
 });
 

@@ -6,6 +6,13 @@ import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { ApprovalQueue } from "./approval-queue.js";
 
+function approvePending(queue: ApprovalQueue, id: string): void {
+	const selection = queue.getExecutionSnapshot(id);
+	if (!selection.ok) throw new Error("expected execution snapshot");
+	const result = queue.approveForExecution(selection.snapshot.descriptor);
+	if (!result.ok) throw new Error("expected execution approval");
+}
+
 describe("approval events", () => {
 	let dir: string;
 	let queue: ApprovalQueue;
@@ -65,7 +72,7 @@ describe("approval events", () => {
 		const item2 = queue.enqueue("git", { command: "b" }, "dangerous", "r");
 		received.length = 0;
 
-		queue.approve(item2.id);
+		approvePending(queue, item2.id);
 		const calls = received.filter(({ event }) => event === "approval.changed").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
 		expect(calls[0][1]).toEqual({
@@ -90,7 +97,7 @@ describe("approval events", () => {
 		);
 		received.length = 0;
 
-		queue.approve(item.id);
+		approvePending(queue, item.id);
 		const calls = received.filter(({ event }) => event === "approval.resolved").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
 		expect(calls[0][1]).toMatchObject({

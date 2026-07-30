@@ -20,8 +20,10 @@ This directory owns the bidirectional Slack bot channel for KOTA.
   matches the Telegram reply byte-for-byte for the same envelope.
 - Slash-command parsing tolerates leading whitespace, a leading bot-mention
   prefix, and matches the command head case-insensitively.
-- Approval requests are posted as interactive Block Kit messages with Approve/Reject buttons.
-- Button clicks resolve the approval via `getApprovalQueue()` and update the Slack message.
+- Approval requests are posted as plain-text Block Kit messages with the reviewed
+  input, operator-safe conversation context, review digest, and Approve/Reject buttons.
+- Approve button values carry the displayed digest; clicks resolve through the
+  project-scoped approvals client and fail closed when the review changed.
 - Separate from `../slack/` (one-way incoming webhook notifications).
 
 ## Config

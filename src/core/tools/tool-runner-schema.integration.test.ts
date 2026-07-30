@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearCustomTools, registerTool } from "./index.js";
 import { executeToolCalls } from "./tool-runner.js";
 import { getToolTelemetry, resetToolTelemetry } from "./tool-telemetry.js";
@@ -105,5 +105,144 @@ describe("executeToolCalls output_schema enforcement", () => {
 			success: false,
 			resultContentKind: "text",
 		});
+	});
+
+	it("validates final tool input against the registered schema before approval queueing", async () => {
+		const runner = vi.fn(async () => ({ content: "should not execute while queued" }));
+		registerTool(
+			{
+				name: "validated_deploy",
+				description: "Deploy a validated target",
+				input_schema: {
+					type: "object",
+					properties: {
+						command: { type: "string" },
+						cwd: { type: "string" },
+					},
+					required: ["command", "cwd"],
+					additionalProperties: false,
+				},
+			},
+			runner,
+		);
+		const enqueue = vi.fn(() => ({ id: "approval-validated" }));
+		const approvalQueue = { enqueue } as never;
+
+		const invalid = await executeToolCalls(
+			[{
+				type: "tool_use",
+				id: "invalid-input",
+				name: "validated_deploy",
+				input: { command: "deploy", hiddenPath: "/srv/unreviewed" },
+			}],
+			{
+				resultLimit: 50000,
+				verbose: false,
+				autonomyMode: "supervised",
+				approvalQueue,
+			},
+		);
+
+		expect(invalid[0]).toMatchObject({
+			is_error: true,
+			content: expect.stringContaining('missing required field "cwd"'),
+		});
+		expect(enqueue).not.toHaveBeenCalled();
+		expect(runner).not.toHaveBeenCalled();
+
+		const invalidRewrite = await executeToolCalls(
+			[{
+				type: "tool_use",
+				id: "invalid-rewrite",
+				name: "validated_deploy",
+				input: { command: "deploy", cwd: "/srv/reviewed" },
+			}],
+			{
+				resultLimit: 50000,
+				verbose: false,
+				autonomyMode: "supervised",
+				approvalQueue,
+				canUseTool: async () => ({
+					behavior: "allow",
+					updatedInput: {
+						command: "deploy",
+						cwd: "/srv/reviewed",
+						hiddenPath: "/srv/unreviewed",
+					},
+				}),
+			},
+		);
+
+		expect(invalidRewrite[0]).toMatchObject({
+			is_error: true,
+			content: expect.stringContaining('unexpected field "hiddenPath"'),
+		});
+		expect(enqueue).not.toHaveBeenCalled();
+		expect(runner).not.toHaveBeenCalled();
+
+		const validatedInput = { command: "deploy", cwd: "/srv/reviewed" };
+		const valid = await executeToolCalls(
+			[{
+				type: "tool_use",
+				id: "valid-input",
+				name: "validated_deploy",
+				input: validatedInput,
+			}],
+			{
+				resultLimit: 50000,
+				verbose: false,
+				autonomyMode: "supervised",
+				approvalQueue,
+			},
+		);
+
+		expect(valid[0].content).toContain("Queued for approval [approval-validated]");
+		expect(enqueue).toHaveBeenCalledWith(
+			"validated_deploy",
+			validatedInput,
+			"moderate",
+			expect.stringContaining('autonomy mode "supervised"'),
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+		);
+		expect(runner).not.toHaveBeenCalled();
+	});
+
+	it("rejects non-JSON object instances before permission hooks or execution", async () => {
+		const runner = vi.fn(async () => ({ content: "must not execute" }));
+		registerTool(
+			{
+				name: "json_only_input",
+				description: "Accept JSON-compatible objects only",
+				input_schema: { type: "object", properties: {} },
+			},
+			runner,
+		);
+		const canUseTool = vi.fn(async () => ({ behavior: "allow" as const }));
+
+		const result = await executeToolCalls(
+			[{
+				type: "tool_use",
+				id: "non-json-input",
+				name: "json_only_input",
+				input: new Date("2026-07-29T00:00:00.000Z") as never,
+			}],
+			{
+				resultLimit: 50000,
+				verbose: false,
+				autonomyMode: "autonomous",
+				canUseTool,
+			},
+		);
+
+		expect(result[0]).toMatchObject({
+			is_error: true,
+			content: expect.stringContaining("expected a JSON object"),
+		});
+		expect(canUseTool).not.toHaveBeenCalled();
+		expect(runner).not.toHaveBeenCalled();
 	});
 });

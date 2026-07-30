@@ -1,14 +1,14 @@
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { McpManager } from "#core/mcp/manager.js";
 import type { RiskLevel } from "./guardrails.js";
-import type { ToolCallInput } from "./guardrails-classify.js";
+import type { ValidatedToolCallInput } from "./tool-input-validation.js";
 import { mcpPromptDeclarationForApproval } from "./tool-runner-mcp.js";
 import type { McpPromptToolDeclarationFingerprints } from "./tool-runner-types.js";
 
 export function enqueueToolApproval(args: {
 	approvalQueue?: ApprovalQueue;
 	toolName: string;
-	input: ToolCallInput;
+	input: ValidatedToolCallInput;
 	risk: RiskLevel;
 	reason: string;
 	sessionId?: string | undefined;

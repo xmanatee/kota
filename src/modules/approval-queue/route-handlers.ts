@@ -16,6 +16,8 @@ import {
 	listApprovalsLocal,
 	projectQuery,
 	proxyApprovalMutation,
+	readApprovalBatchDecisionBody,
+	readApprovalDecisionBody,
 	readOptionalStringField,
 	rejectAllApprovalsLocal,
 	rejectApprovalLocal,
@@ -54,15 +56,18 @@ export async function handleApproveApproval(
 	projectId?: string,
 ): Promise<void> {
 	if (rejectMalformedApprovalId(res, id)) return;
-	const note = await readOptionalStringField(req, res, "note");
-	if (!note.ok) return;
+	const decision = await readApprovalDecisionBody(req, res);
+	if (!decision.ok) return;
 
 	if (link) {
 		await proxyApprovalMutation(
 			res,
 			link,
 			`/approvals/${encodeURIComponent(id)}/approve${projectQuery(projectId)}`,
-			note.value === undefined ? {} : { note: note.value },
+			{
+				reviewDigest: decision.reviewDigest,
+				...(decision.note !== undefined ? { note: decision.note } : {}),
+			},
 		);
 		return;
 	}
@@ -72,7 +77,8 @@ export async function handleApproveApproval(
 		res,
 		resolvedQueue.queue,
 		id,
-		note.value,
+		decision.reviewDigest,
+		decision.note,
 		resolvedQueue.executionContext,
 	);
 }
@@ -115,15 +121,18 @@ export async function handleApproveAllApprovals(
 	queue?: ApprovalQueue,
 	projectId?: string,
 ): Promise<void> {
-	const note = await readOptionalStringField(req, res, "note");
-	if (!note.ok) return;
+	const decision = await readApprovalBatchDecisionBody(req, res);
+	if (!decision.ok) return;
 
 	if (link) {
 		await proxyApprovalMutation(
 			res,
 			link,
 			`/approvals/approve-all${projectQuery(projectId)}`,
-			note.value === undefined ? {} : { note: note.value },
+			{
+				reviews: decision.reviews,
+				...(decision.note !== undefined ? { note: decision.note } : {}),
+			},
 		);
 		return;
 	}
@@ -132,7 +141,8 @@ export async function handleApproveAllApprovals(
 	await writeApproveAllApprovalsMutation(
 		res,
 		resolvedQueue.queue,
-		note.value,
+		decision.reviews,
+		decision.note,
 		resolvedQueue.executionContext,
 	);
 }

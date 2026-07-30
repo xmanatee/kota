@@ -1,0 +1,67 @@
+const APPROVAL_OPERATION_CLAUSE_WORDS = new Set([
+	"add",
+	"allow",
+	"apply",
+	"approve",
+	"archive",
+	"cancel",
+	"change",
+	"chmod",
+	"chown",
+	"connect",
+	"copy",
+	"cp",
+	"create",
+	"delete",
+	"deploy",
+	"destroy",
+	"disable",
+	"drop",
+	"enable",
+	"erase",
+	"execute",
+	"format",
+	"grant",
+	"install",
+	"invoke",
+	"kill",
+	"launch",
+	"merge",
+	"mount",
+	"move",
+	"mv",
+	"publish",
+	"purge",
+	"reject",
+	"release",
+	"remove",
+	"rename",
+	"replace",
+	"reset",
+	"restart",
+	"revoke",
+	"rm",
+	"rotate",
+	"run",
+	"send",
+	"start",
+	"stop",
+	"terminate",
+	"uninstall",
+	"unmount",
+	"update",
+	"upload",
+	"write",
+]);
+
+export function isApprovalCredentialClauseBoundary(
+	text: string,
+	index: number,
+): boolean {
+	if (!/\s/.test(text[index] ?? "")) return false;
+	const suffix = text.slice(index);
+	if (/^[ \t]+(?:and[ \t]+)?then\b/i.test(suffix)) return true;
+	const conjunction = /^[ \t]+and[ \t]+([A-Za-z][A-Za-z0-9_-]*)\b/.exec(suffix);
+	return conjunction !== null
+		&& APPROVAL_OPERATION_CLAUSE_WORDS.has(conjunction[1].toLowerCase());
+}

@@ -3,7 +3,6 @@ import type { McpExecuteToolOptions } from "#core/mcp/manager.js";
 import { confirmAction } from "#core/util/confirm.js";
 import { resolveAutonomyGate } from "./autonomy-mode.js";
 import { assess } from "./guardrails.js";
-import type { ToolCallInput } from "./guardrails-classify.js";
 import type { ToolResult } from "./index.js";
 import { executeTool } from "./index.js";
 import {
@@ -11,6 +10,11 @@ import {
 	extractApprovalContext,
 	ToolApprovalCancelledError,
 } from "./tool-approval.js";
+import {
+	createToolApprovalExecutionBinding,
+	snapshotToolCallForExecution,
+	type ToolApprovalExecutionBinding,
+} from "./tool-approval-execution.js";
 import { getToolMiddleware } from "./tool-middleware.js";
 import { enqueueToolApproval } from "./tool-runner-approval-queue.js";
 import { executeToolWithIdempotency } from "./tool-runner-idempotency.js";
@@ -19,7 +23,7 @@ import { recordToolExecutionMetric } from "./tool-runner-metrics.js";
 import type {
 	ToolCallExecutionOptions,
 	ToolResultEntry,
-	ToolUseBlock,
+	ValidatedToolUseBlock,
 } from "./tool-runner-types.js";
 
 function abortReason(signal: AbortSignal): Error {
@@ -31,7 +35,7 @@ export function throwIfAborted(signal: AbortSignal | undefined): void {
 	if (signal?.aborted) throw abortReason(signal);
 }
 
-function resultEntry(block: ToolUseBlock, result: ToolResult): ToolResultEntry {
+function resultEntry(block: ValidatedToolUseBlock, result: ToolResult): ToolResultEntry {
 	return {
 		tool_use_id: block.id,
 		content: result.content,
@@ -42,12 +46,12 @@ function resultEntry(block: ToolUseBlock, result: ToolResult): ToolResultEntry {
 	};
 }
 
-function errorEntry(block: ToolUseBlock, content: string): ToolResultEntry {
+function errorEntry(block: ValidatedToolUseBlock, content: string): ToolResultEntry {
 	return { tool_use_id: block.id, content, is_error: true };
 }
 
 export async function executeToolBlock(
-	block: ToolUseBlock,
+	block: ValidatedToolUseBlock,
 	options: ToolCallExecutionOptions,
 ): Promise<ToolResultEntry> {
 	const {
@@ -79,7 +83,7 @@ export async function executeToolBlock(
 			message: `[kota] Tool: ${block.name}(${JSON.stringify(block.input).slice(0, 100)}...)`,
 		});
 	}
-	const input = block.input as ToolCallInput;
+	const input = block.input;
 	const staleResult = staleMcpDeclarationResult(
 		block.name,
 		mcpManager,
@@ -93,6 +97,7 @@ export async function executeToolBlock(
 	const assessment = guardrailsConfig
 		? assess(block.name, input, guardrailsConfig)
 		: assess(block.name, input);
+	let approvalExecutionBinding: ToolApprovalExecutionBinding | undefined;
 	const emitGuardrailAssessment = (
 		policy: "deny" | "queue" | "allow" | "confirm",
 		reason: string,
@@ -111,11 +116,12 @@ export async function executeToolBlock(
 		approvalContext: string | undefined,
 	): Promise<ClientApprovalResult> => {
 		if (!clientApprovalResolver) return { outcome: "unavailable" };
+		const binding = createToolApprovalExecutionBinding(block.name, input);
 		const decision = await clientApprovalResolver({
 			id: block.id,
 			toolUseId: block.id,
 			toolName: block.name,
-			input,
+			input: binding.reviewedInput,
 			risk: assessment.risk,
 			reason,
 			...(sessionId !== undefined ? { sessionId } : {}),
@@ -125,7 +131,10 @@ export async function executeToolBlock(
 			...(approvalContext !== undefined ? { context: approvalContext } : {}),
 			...(signal !== undefined ? { signal } : {}),
 		});
-		if (decision.outcome === "allow") return { outcome: "allowed" };
+		if (decision.outcome === "allow") {
+			approvalExecutionBinding = binding;
+			return { outcome: "allowed" };
+		}
 		if (decision.outcome === "cancelled") throw new ToolApprovalCancelledError(decision.message);
 		return { outcome: "blocked", result: errorEntry(block, `Blocked by client approval: ${decision.message}`) };
 	};
@@ -245,19 +254,28 @@ export async function executeToolBlock(
 		},
 	};
 	const baseFn = async () => {
+		const executionCall = snapshotToolCallForExecution(call);
+		if (approvalExecutionBinding && !approvalExecutionBinding.matches(executionCall)) {
+			return {
+				content: "Blocked because tool input changed after client approval; request approval for the new operation.",
+				is_error: true,
+			};
+		}
 		const dispatchStaleResult = staleMcpDeclarationResult(
-			call.name,
+			executionCall.name,
 			mcpManager,
 			mcpPromptToolDeclarationFingerprints,
 		);
 		if (dispatchStaleResult) return dispatchStaleResult;
-		if (!mcpManager?.isMcpTool(call.name)) return executeTool(call.name, call.input, runnerContext);
+		if (!mcpManager?.isMcpTool(executionCall.name)) {
+			return executeTool(executionCall.name, executionCall.input, runnerContext);
+		}
 		const mcpOptions: McpExecuteToolOptions = {};
 		if (mcpInputResolver) mcpOptions.inputResolver = mcpInputResolver;
 		if (signal) mcpOptions.signal = signal;
 		return Object.keys(mcpOptions).length > 0
-			? mcpManager.executeTool(call.name, call.input, mcpOptions)
-			: mcpManager.executeTool(call.name, call.input);
+			? mcpManager.executeTool(executionCall.name, executionCall.input, mcpOptions)
+			: mcpManager.executeTool(executionCall.name, executionCall.input);
 	};
 	const result = await executeToolWithIdempotency(
 		block,

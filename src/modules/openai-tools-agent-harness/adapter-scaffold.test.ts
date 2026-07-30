@@ -56,20 +56,20 @@ describe("openaiToolsScaffoldAgentHarness scaffold mode", () => {
     const projectDir = mkdtempSync(join(tmpdir(), "openai-tools-scaffold-fixture-"));
     try {
       writeFileSync(
-        join(projectDir, "math.js"),
+        join(projectDir, "math.cjs"),
         "function add(a, b) {\n  return a - b;\n}\nmodule.exports = { add };\n",
       );
       writeFileSync(
-        join(projectDir, "test.js"),
-        "const { add } = require('./math.js');\nif (add(2, 3) !== 5) process.exit(1);\n",
+        join(projectDir, "test.cjs"),
+        "const { add } = require('./math.cjs');\nif (add(2, 3) !== 5) process.exit(1);\n",
       );
       queueToolUse("scaffold_read", "scaffold_search_read", {
-        read_paths: ["math.js", "test.js"],
+        read_paths: ["math.cjs", "test.cjs"],
       });
       const editAction = JSON.stringify({
         action: "scaffold_edit",
         input: {
-          path: "math.js",
+          path: "math.cjs",
           old_string: "return a - b;",
           new_string: "return a + b;",
         },
@@ -82,7 +82,7 @@ describe("openaiToolsScaffoldAgentHarness scaffold mode", () => {
         }),
       );
       queueToolUse("scaffold_verify", "scaffold_verify", {
-        command: "node test.js",
+        command: "node test.cjs",
       });
       queueEnd("verified");
       executeToolMock.mockImplementation(async (name, input, context) => {
@@ -90,12 +90,12 @@ describe("openaiToolsScaffoldAgentHarness scaffold mode", () => {
         if (name === "file_read") return runFileRead(input, toolContext);
         if (name === "file_edit") return runFileEdit(input, toolContext);
         if (name === "shell") return runShell(input, toolContext);
-        if (name === "git") return { content: "diff -- math.js" };
+        if (name === "git") return { content: "diff -- math.cjs" };
         throw new Error(`unexpected scaffold underlying tool call: ${name}`);
       });
 
       const result = await openaiToolsScaffoldAgentHarness.run({
-        prompt: "Fix add and verify with node test.js.",
+        prompt: "Fix add and verify with node test.cjs.",
         model: "ollama/qwen2.5-coder",
         modelOutputTokenLimits: { "ollama/qwen2.5-coder": 2048 },
         effort: "low",
@@ -103,7 +103,7 @@ describe("openaiToolsScaffoldAgentHarness scaffold mode", () => {
       });
 
       expect(result).toMatchObject({ text: "verified", turns: 4, isError: false });
-      expect(readFileSync(join(projectDir, "math.js"), "utf-8")).toContain(
+      expect(readFileSync(join(projectDir, "math.cjs"), "utf-8")).toContain(
         "return a + b;",
       );
       expect(executeToolMock.mock.calls.map(([name]) => name)).toEqual([

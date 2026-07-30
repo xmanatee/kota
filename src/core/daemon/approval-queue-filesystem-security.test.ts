@@ -19,6 +19,13 @@ import { ApprovalQueue } from "./approval-queue.js";
 import { ApprovalRecordStorage } from "./approval-record-storage.js";
 import { APPROVAL_RECORD_STORAGE_HELPER_SOURCE } from "./approval-record-storage-helper-source.js";
 
+function approvePending(queue: ApprovalQueue, id: string): void {
+	const selection = queue.getExecutionSnapshot(id);
+	if (!selection.ok) throw new Error(`Unable to select approval ${id}: ${selection.reason}`);
+	const result = queue.approveForExecution(selection.snapshot.descriptor);
+	if (!result.ok) throw new Error(`Unable to approve ${id}: ${result.reason}`);
+}
+
 describe("ApprovalQueue filesystem boundary", () => {
 	let root: string;
 	let dir: string;
@@ -76,7 +83,7 @@ describe("ApprovalQueue filesystem boundary", () => {
 		writeFileSync(join(replacementDirectory, `${item.id}.json`), record);
 		symlinkSync(replacementDirectory, dir, "dir");
 
-		expect(() => queue.approve(item.id)).toThrow(/approval directory/);
+		expect(() => approvePending(queue, item.id)).toThrow(/approval directory/);
 		expect(readFileSync(join(replacementDirectory, `${item.id}.json`), "utf8")).toBe(record);
 	});
 
@@ -92,7 +99,7 @@ describe("ApprovalQueue filesystem boundary", () => {
 			symlinkSync(targetPath, recordPath);
 
 			const act = () => {
-				if (transition === "approve") queue.approve(item.id);
+				if (transition === "approve") approvePending(queue, item.id);
 				else if (transition === "reject") queue.reject(item.id);
 				else queue.expireStale(-1);
 			};

@@ -212,6 +212,11 @@ describe("executeToolCalls MCP declaration contract", () => {
     const executeTool = vi.fn().mockResolvedValue({ content: "remote called" });
     const manager = {
       isMcpTool: vi.fn(() => true),
+		getTools: vi.fn(() => [{
+			name: toolName,
+			description: "Lookup",
+			input_schema: { type: "object", properties: {} },
+		}]),
       getToolDeclarationFingerprint: vi.fn(() => currentFingerprint),
       executeTool,
     };

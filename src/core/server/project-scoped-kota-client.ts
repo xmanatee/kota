@@ -230,10 +230,10 @@ function createScopedKotaClient(
         scoped(selectedId, () =>
           base.approvals.list(withScope(filter, selector)),
         ),
-      approve: (id, note, project) =>
-        scoped(selectedId, () =>
-          base.approvals.approve(id, note, withScope(project, selector)),
-        ),
+	  approve: (id, reviewDigest, note, project) =>
+		scoped(selectedId, () =>
+		  base.approvals.approve(id, reviewDigest, note, withScope(project, selector)),
+		),
       reject: (id, reason, project) =>
         scoped(selectedId, () =>
           base.approvals.reject(id, reason, withScope(project, selector)),

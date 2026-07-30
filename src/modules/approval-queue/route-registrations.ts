@@ -19,6 +19,8 @@ import {
 } from "./route-handlers.js";
 import {
 	listApprovalsLocal,
+	readApprovalBatchDecisionBody,
+	readApprovalDecisionBody,
 	readOptionalStringField,
 	readProjectId,
 	readStatusFilter,
@@ -162,8 +164,8 @@ async function handleApproveApprovalControl(
 	params: Record<string, string>,
 ): Promise<void> {
 	if (rejectMalformedApprovalId(res, params.id)) return;
-	const note = await readOptionalStringField(req, res, "note");
-	if (!note.ok) return;
+	const decision = await readApprovalDecisionBody(req, res);
+	if (!decision.ok) return;
 	const projectId = readProjectId(req, res);
 	if (projectId === null) return;
 	const queue = resolveApprovalQueue(res, undefined, projectId);
@@ -172,7 +174,8 @@ async function handleApproveApprovalControl(
 		res,
 		queue.queue,
 		params.id,
-		note.value,
+		decision.reviewDigest,
+		decision.note,
 		queue.executionContext,
 	);
 }
@@ -201,8 +204,8 @@ async function handleApproveAllApprovalsControl(
 	req: IncomingMessage,
 	res: ServerResponse,
 ): Promise<void> {
-	const note = await readOptionalStringField(req, res, "note");
-	if (!note.ok) return;
+	const decision = await readApprovalBatchDecisionBody(req, res);
+	if (!decision.ok) return;
 	const projectId = readProjectId(req, res);
 	if (projectId === null) return;
 	const queue = resolveApprovalQueue(res, undefined, projectId);
@@ -210,7 +213,8 @@ async function handleApproveAllApprovalsControl(
 	await writeApproveAllApprovalsMutation(
 		res,
 		queue.queue,
-		note.value,
+		decision.reviews,
+		decision.note,
 		queue.executionContext,
 	);
 }

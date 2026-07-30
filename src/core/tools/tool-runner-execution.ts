@@ -1,18 +1,21 @@
-import type { KotaJsonObject } from "#core/agent-harness/message-protocol.js";
 import { truncateToolResult } from "#core/loop/context.js";
 import { maskToolResultSecrets } from "./secret-masking.js";
 import { executeToolCallSchedule } from "./tool-call-schedule.js";
+import {
+	type ValidatedToolCallInput,
+	validateToolCallInput,
+} from "./tool-input-validation.js";
 import { executeToolBlock } from "./tool-runner-execute-block.js";
+import { staleMcpDeclarationResult } from "./tool-runner-mcp.js";
 import type {
 	ToolCallExecutionOptions,
 	ToolResultEntry,
 	ToolUseBlock,
+	ValidatedToolUseBlock,
 } from "./tool-runner-types.js";
 
-type ToolInput = KotaJsonObject;
-
 type PreparedToolCall =
-	| { kind: "execute"; originalIndex: number; block: ToolUseBlock }
+	| { kind: "execute"; originalIndex: number; block: ValidatedToolUseBlock }
 	| { kind: "result"; originalIndex: number; result: ToolResultEntry };
 
 export class ToolPermissionInterruptedError extends Error {
@@ -38,15 +41,28 @@ function errorEntry(block: ToolUseBlock, content: string): ToolResultEntry {
 	return { tool_use_id: block.id, content, is_error: true };
 }
 
-function isPlainToolInput(value: ToolUseBlock["input"] | undefined): value is ToolInput {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
+function staleResultEntry(
+	block: ToolUseBlock,
+	result: NonNullable<ReturnType<typeof staleMcpDeclarationResult>>,
+): ToolResultEntry {
+	return {
+		tool_use_id: block.id,
+		content: result.content,
+		...(result.blocks ? { blocks: result.blocks } : {}),
+		...(result.structuredContent ? { structuredContent: result.structuredContent } : {}),
+		...(result._meta ? { _meta: result._meta } : {}),
+		...(result.is_error !== undefined ? { is_error: result.is_error } : {}),
+	};
 }
 
 async function runCanUseTool(
 	block: ToolUseBlock,
-	input: ToolInput,
+	input: ValidatedToolCallInput,
 	options: ToolCallExecutionOptions,
-): Promise<{ kind: "allow"; input: ToolInput } | { kind: "deny"; result: ToolResultEntry; interrupt: boolean }> {
+): Promise<
+	| { kind: "allow"; input: ToolUseBlock["input"] }
+	| { kind: "deny"; result: ToolResultEntry; interrupt: boolean }
+> {
 	if (!options.canUseTool) return { kind: "allow", input };
 	const abortController = new AbortController();
 	const forwardAbort = (): void => {
@@ -72,7 +88,7 @@ async function runCanUseTool(
 				interrupt: decision.interrupt === true,
 			};
 		}
-		if (decision.behavior === "allow" && isPlainToolInput(decision.updatedInput)) {
+		if (decision.behavior === "allow" && decision.updatedInput !== undefined) {
 			return { kind: "allow", input: decision.updatedInput };
 		}
 		return { kind: "allow", input };
@@ -83,7 +99,7 @@ async function runCanUseTool(
 
 async function preparePermissionedToolCall(
 	block: ToolUseBlock,
-	input: ToolInput,
+	input: ValidatedToolCallInput,
 	originalIndex: number,
 	options: ToolCallExecutionOptions,
 ): Promise<PreparedToolCall> {
@@ -94,10 +110,18 @@ async function preparePermissionedToolCall(
 		}
 		return { kind: "result", originalIndex, result: canUseTool.result };
 	}
+	const validated = validateToolCallInput(block.name, canUseTool.input, options.mcpManager);
+	if (!validated.ok) {
+		return {
+			kind: "result",
+			originalIndex,
+			result: errorEntry(block, validated.error),
+		};
+	}
 	return {
 		kind: "execute",
 		originalIndex,
-		block: canUseTool.input === block.input ? block : { ...block, input: canUseTool.input },
+		block: { ...block, input: validated.input },
 	};
 }
 
@@ -131,14 +155,39 @@ function prepareToolCall(
 			),
 		};
 	}
-	if (!isPlainToolInput(block.input) || !options.canUseTool) {
+	if (
+		options.mcpPromptToolDeclarationFingerprints?.has(block.name)
+		&& options.mcpManager?.isMcpTool(block.name) !== true
+	) {
+		const staleResult = staleMcpDeclarationResult(
+			block.name,
+			options.mcpManager,
+			options.mcpPromptToolDeclarationFingerprints,
+		);
+		if (staleResult) {
+			return {
+				kind: "result",
+				originalIndex,
+				result: staleResultEntry(block, staleResult),
+			};
+		}
+	}
+	const validated = validateToolCallInput(block.name, block.input, options.mcpManager);
+	if (!validated.ok) {
+		return {
+			kind: "result",
+			originalIndex,
+			result: errorEntry(block, validated.error),
+		};
+	}
+	if (!options.canUseTool) {
 		return {
 			kind: "execute",
 			originalIndex,
-			block,
+			block: { ...block, input: validated.input },
 		};
 	}
-	return preparePermissionedToolCall(block, block.input, originalIndex, options);
+	return preparePermissionedToolCall(block, validated.input, originalIndex, options);
 }
 
 function truncateAndMaskResult(
@@ -172,7 +221,7 @@ export async function executeToolCalls(
 	options: ToolCallExecutionOptions,
 ): Promise<ToolResultEntry[]> {
 	const resultSlots = new Array<ToolResultEntry>(toolBlocks.length);
-	const executableBlocks: ToolUseBlock[] = [];
+	const executableBlocks: ValidatedToolUseBlock[] = [];
 	const executableIndexes: number[] = [];
 	for (const [index, block] of toolBlocks.entries()) {
 		const pendingPrepared = prepareToolCall(block, index, options);

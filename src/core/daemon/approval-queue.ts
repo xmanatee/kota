@@ -17,10 +17,11 @@ import {
 	expireApproval,
 } from "./approval-queue-expiration-policy.js";
 import { createPendingApproval } from "./approval-queue-item.js";
+import { projectApprovalForClient } from "./approval-queue-projection.js";
 import type {
+	ApprovalClientProjection,
 	ApprovalExecutionApprovalResult,
 	ApprovalExecutionApproveAllResult,
-	ApprovalExecutionSnapshot,
 	ApprovalExecutionSnapshotResult,
 	ApprovalMcpPromptDeclaration,
 	ApprovalStatus,
@@ -32,6 +33,7 @@ import { deriveDirectoryScopeId } from "./scope-registry.js";
 
 export { defaultApprovalPendingTtlMs } from "./approval-queue-expiration-policy.js";
 export { isApprovalId, projectApprovalForClient } from "./approval-queue-projection.js";
+export { isWorkflowStepApproval, WORKFLOW_STEP_APPROVAL_SOURCE } from "./approval-queue-types.js";
 export type {
 	ApprovalClientProjection,
 	ApprovalExecutionApprovalResult,
@@ -47,6 +49,7 @@ export type {
 export class ApprovalQueue {
 	private pbus: ProjectScopedEventBus | null;
 	private executionInputs = new Map<string, PendingApproval["input"]>();
+	private reviewContexts = new Map<string, string>();
 	private readonly scopeId: string;
 	private readonly records: ApprovalRecordRepository;
 
@@ -99,11 +102,13 @@ export class ApprovalQueue {
 			mcpPromptDeclaration,
 		});
 		this.executionInputs.set(item.id, executionInput);
+		if (context !== undefined) this.reviewContexts.set(item.id, context);
 		let stored: PendingApproval;
 		try {
 			stored = this.records.write(item, null);
 		} catch (error) {
 			this.executionInputs.delete(item.id);
+			this.reviewContexts.delete(item.id);
 			throw error;
 		}
 		emitApprovalRequested(this.pbus, stored, sessionId, this.count("pending"));
@@ -118,12 +123,32 @@ export class ApprovalQueue {
 		return this.records.list(status).map(({ item }) => item);
 	}
 
+	projectForClient(item: PendingApproval): ApprovalClientProjection {
+		return projectApprovalForClient(
+			item,
+			"daemon-api",
+			this.executionInputs.get(item.id),
+			this.reviewContexts.get(item.id),
+		);
+	}
+
+	private selectForExecution(id: string) {
+		return selectApprovalForExecution(
+			this.records,
+			this.executionInputs,
+			this.reviewContexts,
+			this.scopeId,
+			id,
+		);
+	}
+
 	private approveSelected(
 		item: PendingApproval,
 		recordIdentity: ApprovalFileIdentity,
 		note?: string,
 		resolutionSource?: string,
 		executionInput?: PendingApproval["input"],
+		reviewContext?: string,
 	): PendingApproval {
 		item.status = "approved";
 		item.resolvedAt = new Date().toISOString();
@@ -131,29 +156,19 @@ export class ApprovalQueue {
 		if (resolutionSource) item.resolutionSource = resolutionSource;
 		const stored = this.records.write(item, recordIdentity);
 		this.executionInputs.delete(item.id);
+		this.reviewContexts.delete(item.id);
 		emitApprovalResolved(this.pbus, stored, true, "", this.count("pending"));
-		return executionInput === undefined ? stored : { ...stored, input: executionInput };
-	}
-
-	approve(id: string, note?: string, resolutionSource?: string): PendingApproval | null {
-		const stored = this.records.read(id);
-		if (!stored || stored.item.status !== "pending" || stored.item.scopeId !== this.scopeId) return null;
-		return this.approveSelected(
-			stored.item,
-			stored.identity,
-			note,
-			resolutionSource,
-			this.executionInputs.get(id),
-		);
+		return executionInput === undefined
+			? stored
+			: {
+				...stored,
+				input: executionInput,
+				...(reviewContext !== undefined ? { context: reviewContext } : {}),
+			};
 	}
 
 	getExecutionSnapshot(id: string): ApprovalExecutionSnapshotResult {
-		const result = selectApprovalForExecution(
-			this.records,
-			this.executionInputs,
-			this.scopeId,
-			id,
-		);
+		const result = this.selectForExecution(id);
 		if (!result.ok) return result;
 		return {
 			ok: true,
@@ -169,15 +184,20 @@ export class ApprovalQueue {
 		note?: string,
 		resolutionSource?: string,
 	): ApprovalExecutionApprovalResult {
-		const result = selectApprovalForExecution(
-			this.records,
-			this.executionInputs,
-			this.scopeId,
-			descriptor.approvalId,
-		);
+		const result = this.selectForExecution(descriptor.approvalId);
 		if (!result.ok) return result;
-		const { approval, executionInput, recordIdentity } = result.selected;
-		if (!pendingApprovalMatchesExecutionDescriptor(approval, executionInput, descriptor)) {
+		const {
+			approval,
+			executionInput,
+			recordIdentity,
+			reviewContext,
+		} = result.selected;
+		if (!pendingApprovalMatchesExecutionDescriptor(
+			approval,
+			executionInput,
+			reviewContext,
+			descriptor,
+		)) {
 			return { ok: false, reason: "descriptor_mismatch", approval };
 		}
 		const approved = this.approveSelected(
@@ -186,6 +206,7 @@ export class ApprovalQueue {
 			note,
 			resolutionSource,
 			executionInput,
+			reviewContext,
 		);
 		return { ok: true, approval: approved };
 	}
@@ -200,6 +221,7 @@ export class ApprovalQueue {
 		if (resolutionSource) item.resolutionSource = resolutionSource;
 		const stored = this.records.write(item, current.identity);
 		this.executionInputs.delete(id);
+		this.reviewContexts.delete(id);
 		emitApprovalResolved(this.pbus, stored, false, stored.rejectionReason ?? "", this.count("pending"));
 		return stored;
 	}
@@ -214,33 +236,11 @@ export class ApprovalQueue {
 			const resolution = expireApproval(item);
 			const stored = this.records.write(item, current.identity);
 			this.executionInputs.delete(item.id);
+			this.reviewContexts.delete(item.id);
 			emitApprovalExpired(this.pbus, stored, resolution, this.count("pending"));
 			expired.push(stored);
 		}
 		return expired;
-	}
-
-	approveAll(note?: string): PendingApproval[] {
-		return this.list("pending").map((item) => this.approve(item.id, note)).filter(Boolean) as PendingApproval[];
-	}
-
-	approveAllForExecution(note?: string): ApprovalExecutionApproveAllResult {
-		const snapshots: ApprovalExecutionSnapshot[] = [];
-		for (const item of this.list("pending")) {
-			const result = this.getExecutionSnapshot(item.id);
-			if (!result.ok) {
-				return {
-					ok: false,
-					reason: result.reason === "not_found" ? "descriptor_mismatch" : result.reason,
-					approvals: result.approval ? [result.approval] : [],
-				};
-			}
-			snapshots.push(result.snapshot);
-		}
-		return this.approvePendingForExecution(
-			snapshots.map((snapshot) => snapshot.descriptor),
-			note,
-		);
 	}
 
 	approvePendingForExecution(
@@ -250,6 +250,7 @@ export class ApprovalQueue {
 		const result = selectApprovalsForExecution(
 			this.records,
 			this.executionInputs,
+			this.reviewContexts,
 			this.scopeId,
 			descriptors,
 		);
@@ -260,15 +261,15 @@ export class ApprovalQueue {
 			note,
 			undefined,
 			item.executionInput,
+			item.reviewContext,
 		));
-		return {
-			ok: true,
-			approvals,
-		};
+		return { ok: true, approvals };
 	}
 
 	rejectAll(reason?: string): PendingApproval[] {
-		return this.list("pending").map((item) => this.reject(item.id, reason)).filter(Boolean) as PendingApproval[];
+		return this.list("pending")
+			.map((item) => this.reject(item.id, reason))
+			.filter((item): item is PendingApproval => item !== null);
 	}
 
 	count(status?: ApprovalStatus): number {
@@ -278,21 +279,21 @@ export class ApprovalQueue {
 	clear(): void {
 		this.records.clear();
 		this.executionInputs.clear();
+		this.reviewContexts.clear();
 	}
 }
 
-let _queue: ApprovalQueue | null = null;
+let queueInstance: ApprovalQueue | null = null;
 
 export function getApprovalQueue(dir?: string): ApprovalQueue {
-	if (!_queue) _queue = new ApprovalQueue(dir ?? join(process.cwd(), ".kota", "approvals"));
-	return _queue;
+	return queueInstance ??= new ApprovalQueue(dir ?? join(process.cwd(), ".kota", "approvals"));
 }
 
 // Project runtime bundle setup installs the default scope's queue instance here.
 export function setApprovalQueueInstance(queue: ApprovalQueue): void {
-	_queue = queue;
+	queueInstance = queue;
 }
 
 export function resetApprovalQueue(): void {
-	_queue = null;
+	queueInstance = null;
 }

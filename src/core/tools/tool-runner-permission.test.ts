@@ -8,6 +8,11 @@ const confirmActionMock = vi.hoisted(() =>
 
 vi.mock("./index.js", () => ({
 	executeTool: vi.fn(),
+	getAllTools: vi.fn(() => ["file_read", "shell"].map((name) => ({
+		name,
+		description: "test",
+		input_schema: { type: "object", properties: {} },
+	}))),
 	getToolEffect: vi.fn(() => ({
 		kind: "read",
 		scope: "local-fs",

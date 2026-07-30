@@ -137,6 +137,37 @@ describe("api client", () => {
     });
   });
 
+  it("binds every approval request to the selected project", async () => {
+    Object.defineProperty(window, "location", {
+      value: { search: "", pathname: "/", hash: "" },
+      writable: true,
+    });
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ approvals: [] }),
+    });
+
+    const { api } = await import("./client");
+    const digest = "a".repeat(64);
+    await api.listApprovals("project one");
+    await api.approveApproval("project one", "approval/one", digest);
+    await api.rejectApproval("project one", "approval/two", "unsafe");
+    await api.approveAll("project one", [{ id: "approval-three", digest }]);
+    await api.rejectAll("project one", "cancel batch");
+
+    expect(
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.map(
+        ([path]) => path,
+      ),
+    ).toEqual([
+      "/api/approvals?projectId=project%20one",
+      "/api/approvals/approval%2Fone/approve?projectId=project%20one",
+      "/api/approvals/approval%2Ftwo/reject?projectId=project%20one",
+      "/api/approvals/approve-all?projectId=project%20one",
+      "/api/approvals/reject-all?projectId=project%20one",
+    ]);
+  });
+
   describe("thin-client contract", () => {
     /**
      * Decode the shared `clients/conformance/contract-fixture.json` through

@@ -1,4 +1,4 @@
-import type { PendingApproval } from "#core/daemon/approval-queue.js";
+import type { ApprovalClientProjection } from "#core/daemon/approval-queue.js";
 import type { InteractiveSession, WorkflowDefinitionSummary } from "#core/daemon/daemon-control.js";
 import type { KotaClient } from "#core/server/kota-client.js";
 import type { ModuleListEntry } from "#modules/module-manager/client.js";
@@ -102,7 +102,7 @@ export function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
       exportDeadLetterDiagnostics: stub(null),
     },
     approvals: {
-      list: stub({ approvals: [] as PendingApproval[] }),
+      list: stub({ approvals: [] as ApprovalClientProjection[] }),
       approve: stub({ ok: false, reason: "not_found" }),
       reject: stub({ ok: false, reason: "not_found" }),
     },

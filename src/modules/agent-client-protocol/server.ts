@@ -1,15 +1,12 @@
 import {
-  type AcpDaemonClient,
   type AcpDaemonPermissionDecision,
   type AcpDaemonPermissionRequest,
-  type AcpDaemonSession,
   AcpPromptCancelledError,
-  resolveAcpProject,
 } from "./daemon-adapter.js";
+import { PeerRequestBroker } from "./peer-request-broker.js";
 import {
-  ACP_PROTOCOL_VERSION,
-  AcpProtocolError,
-  agentMessageUpdate,
+	ACP_PROTOCOL_VERSION,
+	agentMessageUpdate,
   daemonUnavailable,
   decodeInitializeParams,
   decodeJsonRpcIncoming,
@@ -25,7 +22,6 @@ import {
   type JsonRpcIncoming,
   type JsonValue,
   makeJsonRpcError,
-  makeJsonRpcRequest,
   makeJsonRpcResponse,
   methodNotFound,
   notInitialized,
@@ -35,40 +31,26 @@ import {
   sessionBusy,
   sessionNotFound,
 } from "./protocol.js";
+import {
+  type AcpServerOptions,
+	acpSessionInfo,
+	normalizeAcpError,
+	resolveProjectForCwd,
+} from "./server-support.js";
 
-export type WritableProtocolStream = {
-  write(chunk: string): boolean | void;
-};
+export type { AcpServerOptions, WritableProtocolStream } from "./server-support.js";
 
-export type AcpServerOptions = {
-  output: WritableProtocolStream;
-  error: WritableProtocolStream;
-  daemonFactory: () => AcpDaemonClient | null;
-};
-
-type ActivePrompt = {
-  id: JsonRpcId;
-  controller: AbortController;
-  cancelled: boolean;
-};
-
-type PendingPeerRequest = {
-  resolve(value: JsonValue | undefined): void;
-  reject(error: Error): void;
-  timeout: ReturnType<typeof setTimeout>;
-  abort(): void;
-};
-
-const PEER_PERMISSION_TIMEOUT_MS = 120_000;
+type ActivePrompt = { id: JsonRpcId; controller: AbortController; cancelled: boolean };
 
 export class AgentClientProtocolServer {
   private initialized = false;
   private readonly sessions = new Set<string>();
   private readonly activePrompts = new Map<string, ActivePrompt>();
-  private readonly pendingPeerRequests = new Map<JsonRpcId, PendingPeerRequest>();
-  private nextPeerRequestId = 1;
+  private readonly peerRequests: PeerRequestBroker;
 
-  constructor(private readonly options: AcpServerOptions) {}
+  constructor(private readonly options: AcpServerOptions) {
+    this.peerRequests = new PeerRequestBroker(options.output, options.error);
+  }
 
   async handleLine(line: string): Promise<void> {
     const parsed = parseJsonLine(line);
@@ -94,21 +76,18 @@ export class AgentClientProtocolServer {
     if (daemon) {
       await Promise.allSettled([...this.activePrompts.keys()].map((id) => daemon.cancelSession(id)));
     }
-    for (const pending of this.pendingPeerRequests.values()) {
-      pending.abort();
-    }
-    this.pendingPeerRequests.clear();
+    this.peerRequests.close();
     this.activePrompts.clear();
     this.sessions.clear();
   }
 
   private async handleIncoming(message: JsonRpcIncoming): Promise<void> {
     if (message.kind === "response") {
-      this.handlePeerResponse(message);
+      this.peerRequests.handleResponse(message);
       return;
     }
     if (message.kind === "malformed_response") {
-      this.handleMalformedPeerResponse(message);
+      this.peerRequests.handleMalformed(message);
       return;
     }
     if (message.kind === "notification") {
@@ -177,14 +156,7 @@ export class AgentClientProtocolServer {
     if (!daemon) throw daemonUnavailable();
 
     const projects = await daemon.listProjects();
-    const project = resolveAcpProject(projects, params.cwd);
-    if (!project) {
-      throw new AcpProtocolError(
-        -32602,
-        "cwd must match a daemon-configured project root",
-        { code: "invalid_params", field: "cwd" },
-      );
-    }
+    const project = resolveProjectForCwd(projects, params.cwd);
     const session = await daemon.createSession(project);
     this.sessions.add(session.sessionId);
     return { sessionId: session.sessionId };
@@ -198,7 +170,7 @@ export class AgentClientProtocolServer {
     const projects = await daemon.listProjects();
     const selectedProjects = params.cwd === undefined
       ? projects.projects
-      : [this.resolveProjectForCwd(projects, params.cwd)];
+      : [resolveProjectForCwd(projects, params.cwd)];
     const sessions = (
       await Promise.all(selectedProjects.map((project) => daemon.listSessions(project)))
     ).flat();
@@ -217,7 +189,7 @@ export class AgentClientProtocolServer {
     if (!daemon) throw daemonUnavailable();
 
     const projects = await daemon.listProjects();
-    const project = this.resolveProjectForCwd(projects, params.cwd);
+    const project = resolveProjectForCwd(projects, params.cwd);
     const known = (await daemon.listSessions(project))
       .find((session) => session.sessionId === params.sessionId);
     if (!known) throw sessionNotFound(params.sessionId);
@@ -293,7 +265,7 @@ export class AgentClientProtocolServer {
     request: AcpDaemonPermissionRequest,
     signal: AbortSignal,
   ): Promise<AcpDaemonPermissionDecision> {
-    const result = await this.sendPeerRequest(
+    const result = await this.peerRequests.request(
       "session/request_permission",
       permissionRequestParams({
         sessionId,
@@ -304,6 +276,8 @@ export class AgentClientProtocolServer {
         risk: request.risk,
         reason: request.reason,
         timeoutMs: request.timeoutMs,
+        ...(request.context !== undefined ? { context: request.context } : {}),
+        ...(request.reviewDigest !== undefined ? { reviewDigest: request.reviewDigest } : {}),
       }),
       signal,
       request.timeoutMs,
@@ -311,127 +285,4 @@ export class AgentClientProtocolServer {
     return decodePermissionResponse(result);
   }
 
-  private sendPeerRequest(
-    method: string,
-    params: JsonObject,
-    signal: AbortSignal,
-    timeoutMs = PEER_PERMISSION_TIMEOUT_MS,
-  ): Promise<JsonValue | undefined> {
-    const id = this.nextPeerRequestId++;
-    return new Promise((resolve, reject) => {
-      let settled = false;
-      const cleanup = (): void => {
-        clearTimeout(timeout);
-        signal.removeEventListener("abort", abort);
-        this.pendingPeerRequests.delete(id);
-      };
-      const finish = (value: JsonValue | undefined): void => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        resolve(value);
-      };
-      const fail = (error: Error): void => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        reject(error);
-      };
-      const abort = (): void => {
-        fail(new AcpPromptCancelledError());
-      };
-      const timeout = setTimeout(() => {
-        fail(new AcpProtocolError(
-          -32603,
-          `ACP peer request timed out: ${method}`,
-          { code: "peer_request_timeout", method },
-        ));
-      }, Math.min(timeoutMs, PEER_PERMISSION_TIMEOUT_MS));
-      timeout.unref();
-      signal.addEventListener("abort", abort, { once: true });
-      if (signal.aborted) {
-        abort();
-        return;
-      }
-      this.pendingPeerRequests.set(id, {
-        resolve: finish,
-        reject: fail,
-        timeout,
-        abort,
-      });
-      this.write(makeJsonRpcRequest(id, method, params));
-    });
-  }
-
-  private handlePeerResponse(message: Extract<JsonRpcIncoming, { kind: "response" }>): void {
-    const pending = this.pendingPeerRequests.get(message.id);
-    if (!pending) {
-      this.options.error.write(`ACP peer response ignored: no pending request for id ${String(message.id)}\n`);
-      return;
-    }
-    if (message.error) {
-      pending.reject(peerResponseError(message.error));
-      return;
-    }
-    pending.resolve(message.result);
-  }
-
-  private handleMalformedPeerResponse(message: Extract<JsonRpcIncoming, { kind: "malformed_response" }>): void {
-    const pending = this.pendingPeerRequests.get(message.id);
-    if (!pending) {
-      this.options.error.write(
-        `ACP malformed peer response ignored: no pending request for id ${String(message.id)}: ${message.error.message}\n`,
-      );
-      return;
-    }
-    pending.reject(message.error);
-  }
-
-  private resolveProjectForCwd(
-    projects: Awaited<ReturnType<AcpDaemonClient["listProjects"]>>,
-    cwd: string,
-  ) {
-    const project = resolveAcpProject(projects, cwd);
-    if (!project) {
-      throw new AcpProtocolError(
-        -32602,
-        "cwd must match a daemon-configured project root",
-        { code: "invalid_params", field: "cwd" },
-      );
-    }
-    return project;
-  }
-}
-
-function acpSessionInfo(session: AcpDaemonSession): JsonObject {
-  return {
-    sessionId: session.sessionId,
-    cwd: session.cwd,
-    title: session.title,
-    updatedAt: session.updatedAt,
-    _meta: session.metadata,
-  };
-}
-
-function normalizeAcpError(err: Error | AcpProtocolError | string): AcpProtocolError {
-  if (err instanceof AcpProtocolError) return err;
-  const message = errorMessage(err);
-  return new AcpProtocolError(-32603, message, { code: "internal_error" });
-}
-
-function peerResponseError(error: JsonObject): AcpProtocolError {
-  const code = typeof error.code === "number" ? error.code : -32603;
-  const message = typeof error.message === "string" && error.message.length > 0
-    ? error.message
-    : "ACP peer request failed";
-  const data = isJsonData(error.data) ? error.data : { code: "peer_request_failed" };
-  return new AcpProtocolError(code, message, data);
-}
-
-function isJsonData(value: JsonValue | undefined): value is JsonObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function errorMessage(err: Error | string): string {
-  return err instanceof Error ? err.message : String(err);
 }

@@ -7,23 +7,13 @@
  */
 
 import { Command } from "commander";
-import { loadConfig } from "#core/config/config.js";
-import type { ApprovalQueue, PendingApproval } from "#core/daemon/approval-queue.js";
-import {
-	defaultApprovalPendingTtlMs,
-	getApprovalQueue,
-	isApprovalId,
-} from "#core/daemon/approval-queue.js";
-import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
+import type { PendingApproval } from "#core/daemon/approval-queue.js";
 import type { KotaModule } from "#core/modules/module-types.js";
-import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import {
 	appendScopeSelector,
 	encodeQueryParams,
-	type ScopeSelector,
 	scopeSelectorQuery,
-	selectedScopeSelectorId,
 } from "#core/server/scope-selector.js";
 import { registerApprovalCommands } from "./cli.js";
 import type {
@@ -34,24 +24,11 @@ import type {
 	ApprovalsClient,
 	ApprovalsListResult,
 } from "./client.js";
+import { buildLocalApprovalsClient } from "./local-client.js";
 import { approvalControlRoutes, approvalRoutes } from "./routes.js";
 
 export type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queue.js";
 export { ApprovalQueue, getApprovalQueue, resetApprovalQueue } from "#core/daemon/approval-queue.js";
-
-function resolveLocalApprovalQueue(selector?: ScopeSelector): ApprovalQueue {
-	const projectScope = getProviderRegistry()?.get(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE);
-	const projectId = selectedScopeSelectorId(selector);
-	if (!projectScope) {
-		if (projectId) throw new Error(`Unknown project: ${projectId}`);
-		return getApprovalQueue();
-	}
-	const resolved = projectScope.resolveProjectRuntime(projectId);
-	if (!resolved.ok) {
-		throw new Error(`Unknown project: ${resolved.error.projectId}`);
-	}
-	return resolved.runtime.approvalQueue;
-}
 
 function approvalListPath(filter?: ApprovalListFilter): string {
 	const params = new URLSearchParams();
@@ -80,38 +57,7 @@ const approvalQueueModule: KotaModule = {
 	routes: () => approvalRoutes(),
 	controlRoutes: () => approvalControlRoutes(),
 
-	localClient: () => {
-		const handler: ApprovalsClient = {
-			async list(filter) {
-				const config = loadConfig();
-				const ttlMs = config.approvalTtlMs ?? defaultApprovalPendingTtlMs();
-				const queue = resolveLocalApprovalQueue(filter);
-				queue.expireStale(ttlMs);
-				const status = filter?.status;
-				if (status === undefined) return { approvals: queue.list("pending") };
-				if (status === "all") return { approvals: queue.list() };
-				return { approvals: queue.list(status) };
-			},
-			async approve(id, note, project) {
-				if (!isApprovalId(id)) return { ok: false, reason: "invalid_id" };
-				const queue = resolveLocalApprovalQueue(project);
-				const selection = queue.getExecutionSnapshot(id);
-				if (!selection.ok) return { ok: false, reason: selection.reason };
-				const result = queue.approveForExecution(selection.snapshot.descriptor, note);
-				if (result.ok) return { ok: true, approval: result.approval };
-				if (result.reason === "descriptor_mismatch") {
-					throw new Error(`Approval ${id} changed after it was selected for execution`);
-				}
-				return { ok: false, reason: result.reason };
-			},
-			async reject(id, reason, project) {
-				if (!isApprovalId(id)) return { ok: false, reason: "invalid_id" };
-				const item = resolveLocalApprovalQueue(project).reject(id, reason);
-				return item ? { ok: true, approval: item } : { ok: false, reason: "not_found" };
-			},
-		};
-		return { approvals: handler };
-	},
+	localClient: () => ({ approvals: buildLocalApprovalsClient() }),
 
 	daemonClient: (link) => ({ approvals: buildApprovalsDaemonHandler(link) }),
 };
@@ -143,11 +89,11 @@ function buildApprovalsDaemonHandler(link: DaemonTransport): ApprovalsClient {
 				approvalListPath(filter),
 			);
 		},
-		approve: async (id, note, project): Promise<ApprovalMutateResult> => {
+		approve: async (id, reviewDigest, note, project): Promise<ApprovalMutateResult> => {
 			return mutateApproval(
 				link,
 				`/approvals/${encodeURIComponent(id)}/approve${approvalProjectQuery(project)}`,
-				{ note },
+				{ reviewDigest, note },
 			);
 		},
 		reject: async (id, reason, project): Promise<ApprovalMutateResult> => {
@@ -169,7 +115,7 @@ type ApprovalRouteErrorBody = {
 async function mutateApproval(
 	link: DaemonTransport,
 	path: string,
-	body: { note?: string } | { reason?: string },
+	body: { reviewDigest: string; note?: string } | { reason?: string },
 ): Promise<ApprovalMutateResult> {
 	const res = await link.fetchRaw(path, {
 		method: "POST",
@@ -192,6 +138,9 @@ async function mutateApproval(
 	}
 	if (res.status === 409) {
 		const errBody = await readApprovalRouteError(res);
+		if (errBody?.reason === "approval_review_digest_mismatch") {
+			return { ok: false, reason: "review_mismatch" };
+		}
 		if (errBody?.reason === "approval_input_unavailable") {
 			return { ok: false, reason: "input_unavailable" };
 		}
