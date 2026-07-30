@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApprovalQueue } from "#core/daemon/approval-queue.js";
+import { McpManager } from "#core/mcp/manager.js";
 import { executeTool } from "#core/tools/index.js";
 import {
 	ApprovalExecutionDescriptorMismatchError,
@@ -65,5 +66,53 @@ describe("approval execution lease", () => {
 		if (!preflight.ok) throw new Error("expected successful preflight");
 		expect(preflight.leases.get(item.id)).toMatchObject(selection.snapshot.descriptor);
 		await closeApprovalExecutionLeases(preflight.leases.values());
+	});
+
+	it("rejects MCP declaration drift through the leased manager without name-based redispatch", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "kota-approval-execution-mcp-lease-"));
+		dirs.push(dir);
+		const queue = new ApprovalQueue(dir);
+		const promptDeclarationFingerprint = "a".repeat(64);
+		const item = queue.enqueue(
+			"mcp__remote__lookup",
+			{ query: "deploy" },
+			"moderate",
+			"operator reviewed MCP lookup",
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			"session-123",
+			{
+				server: "remote",
+				tool: "lookup",
+				promptDeclarationFingerprint,
+				serverTransportIdentityFingerprint: "b".repeat(64),
+			},
+		);
+		const selection = queue.getExecutionSnapshot(item.id);
+		if (!selection.ok) throw new Error("expected execution snapshot");
+		const approved = queue.approveForExecution(selection.snapshot.descriptor);
+		if (!approved.ok) throw new Error("expected approved execution snapshot");
+
+		const mcpManager = Object.create(McpManager.prototype) as McpManager;
+		const executeBound = vi.spyOn(
+			mcpManager,
+			"executeToolWithDeclarationFingerprint",
+		).mockResolvedValue({ ok: false, reason: "declaration_mismatch" });
+		const executeByName = vi.spyOn(mcpManager, "executeTool");
+
+		await expect(approvedApprovalResponse(
+			approved.approval,
+			undefined,
+			{ ...selection.snapshot.descriptor, mcpManager },
+		)).rejects.toBeInstanceOf(ApprovalExecutionDescriptorMismatchError);
+		expect(executeBound).toHaveBeenCalledWith(
+			item.tool,
+			{ query: "deploy" },
+			promptDeclarationFingerprint,
+		);
+		expect(executeByName).not.toHaveBeenCalled();
+		expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
 	});
 });

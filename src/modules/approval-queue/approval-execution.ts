@@ -65,7 +65,13 @@ function requireApprovedToolExecutionLease(
 	if (
 		lease === undefined
 		|| !approvedApprovalMatchesExecutionDescriptor(item, lease)
-		|| (isMcpManagedToolName(item.tool) && lease.mcpManager === undefined)
+		|| (
+			isMcpManagedToolName(item.tool)
+			&& (
+				lease.mcpManager === undefined
+				|| lease.mcpPromptDeclaration === undefined
+			)
+		)
 	) {
 		throw new ApprovalExecutionDescriptorMismatchError(item);
 	}
@@ -81,11 +87,19 @@ async function executeApprovedTool(
 	const executionContext = approvalExecutionContext(context, item);
 	if (isMcpManagedToolName(item.tool)) {
 		const mcpManager = boundLease.mcpManager;
-		if (mcpManager === undefined) {
+		const declaration = boundLease.mcpPromptDeclaration;
+		if (mcpManager === undefined || declaration === undefined) {
 			throw new ApprovalExecutionDescriptorMismatchError(item);
 		}
-		const result = await mcpManager.executeTool(item.tool, item.input);
-		return projectToolExecution(result);
+		const execution = await mcpManager.executeToolWithDeclarationFingerprint(
+			item.tool,
+			item.input,
+			declaration.promptDeclarationFingerprint,
+		);
+		if (!execution.ok) {
+			throw new ApprovalExecutionDescriptorMismatchError(item);
+		}
+		return projectToolExecution(execution.result);
 	}
 	const result = executionContext
 		? await executeTool(item.tool, item.input, executionContext)
