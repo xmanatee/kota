@@ -212,6 +212,7 @@ export class ApprovalQueue {
 			this.reviewContexts,
 			this.scopeId,
 			id,
+			this.resolutionAuthenticator,
 		);
 	}
 
@@ -313,15 +314,17 @@ export class ApprovalQueue {
 		const expired: PendingApproval[] = [];
 		const blocked: ApprovalExpirationSweepResult["blocked"] = [];
 		for (const current of this.records.list("pending")) {
-			const item = current.item;
-			const ttl = item.timeoutMs ?? defaultTtlMs ?? DEFAULT_APPROVAL_PENDING_TTL_MS;
-			if (now < new Date(item.createdAt).getTime() + ttl) continue;
+			const ttl = current.item.timeoutMs
+				?? defaultTtlMs
+				?? DEFAULT_APPROVAL_PENDING_TTL_MS;
+			if (now < new Date(current.item.createdAt).getTime() + ttl) continue;
+			let item: PendingApproval;
 			try {
-				this.resolutionAuthenticator.assertPendingAuthentic(item);
+				item = this.resolutionAuthenticator.authenticatePending(current.item);
 			} catch (error) {
 				if (!(error instanceof ApprovalResolutionIntegrityError)) throw error;
 				blocked.push({
-					approvalId: item.id,
+					approvalId: current.item.id,
 					reason: "pending_integrity_unavailable",
 				});
 				continue;
@@ -350,6 +353,7 @@ export class ApprovalQueue {
 			this.reviewContexts,
 			this.scopeId,
 			descriptors,
+			this.resolutionAuthenticator,
 		);
 		if (!result.ok) return result;
 		const approvals = result.selected.map((item) => this.approveSelected(

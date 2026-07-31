@@ -1,0 +1,24 @@
+Linked-worktree staging replay
+
+The host worktree index rejected git add because its lock lives in read-only host Git metadata.
+The host index was copied into the workspace-local git-index, then the exact working tree was
+staged with that index, a workspace-local object directory, and the host object store as an
+alternate.
+
+Validation against the isolated staged set:
+- git diff --cached --check passed.
+- The severe source-size check passed with two advisory warnings:
+  src/core/daemon/approval-queue.test.ts and src/core/daemon/approval-queue.ts.
+- The warning count is below the blocking batch threshold of four.
+- Direct queue validation passed. The pnpm launcher could not verify its registry signature in
+  the sandbox, so the package script's exact Node command was run without the launcher.
+
+Additional final validation:
+- The focused approval suite passed 52 files and 256 tests.
+- TypeScript and Biome passed.
+- Repair attempt 3 removed the staged-only descriptor test from the exact index, added the
+  focused MCP descriptor suite, and the builder commit-stageability rail reported all 18
+  mutated paths already staged with no path outside the evidence boundary.
+
+The isolated stage does not update the real worktree index. The workflow host must replay the
+same working-tree set into its index before committing.

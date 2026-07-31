@@ -10,6 +10,10 @@ import {
 } from "./approval-queue-types.js";
 import type { ApprovalRecordRepository } from "./approval-record-repository.js";
 import type { ApprovalFileIdentity } from "./approval-record-storage.js";
+import {
+	type ApprovalResolutionAuthenticator,
+	ApprovalResolutionIntegrityError,
+} from "./approval-resolution-integrity.js";
 
 export type SelectedApprovalExecution = ApprovalExecutionSnapshot & {
 	reviewContext?: string;
@@ -20,7 +24,11 @@ export type ApprovalExecutionSelectionResult =
 	| { ok: true; selected: SelectedApprovalExecution }
 	| {
 			ok: false;
-			reason: "not_found" | "input_unavailable" | "scope_mismatch";
+			reason:
+				| "not_found"
+				| "input_unavailable"
+				| "scope_mismatch"
+				| "descriptor_mismatch";
 			approval?: PendingApproval;
 	  };
 
@@ -38,28 +46,42 @@ export function selectApprovalForExecution(
 	reviewContexts: ReadonlyMap<string, string>,
 	scopeId: string,
 	id: string,
+	authenticator: ApprovalResolutionAuthenticator,
 ): ApprovalExecutionSelectionResult {
 	const stored = records.read(id);
 	if (!stored || stored.item.status !== "pending") return { ok: false, reason: "not_found" };
 	if (stored.item.scopeId !== scopeId) {
 		return { ok: false, reason: "scope_mismatch", approval: stored.item };
 	}
+	let approval: PendingApproval;
+	try {
+		approval = authenticator.authenticatePending(stored.item);
+	} catch (error) {
+		if (!(error instanceof ApprovalResolutionIntegrityError)) throw error;
+		return {
+			ok: false,
+			reason: error.reason === "pending_snapshot_mismatch"
+				? "descriptor_mismatch"
+				: "input_unavailable",
+			approval: stored.item,
+		};
+	}
 	const executionInput = executionInputs.get(id)
-		?? (isWorkflowGateApproval(stored.item) ? stored.item.input : undefined);
+		?? (isWorkflowGateApproval(approval) ? approval.input : undefined);
 	if (executionInput === undefined) {
 		return { ok: false, reason: "input_unavailable", approval: stored.item };
 	}
 	const reviewContext = reviewContexts.get(id);
-	if (stored.item.contextRedaction !== undefined && reviewContext === undefined) {
+	if (approval.contextRedaction !== undefined && reviewContext === undefined) {
 		return { ok: false, reason: "input_unavailable", approval: stored.item };
 	}
 	return {
 		ok: true,
 		selected: {
-			approval: stored.item,
+			approval,
 			executionInput,
 			...(reviewContext !== undefined ? { reviewContext } : {}),
-			descriptor: createApprovalExecutionDescriptor(stored.item, executionInput, reviewContext),
+			descriptor: createApprovalExecutionDescriptor(approval, executionInput, reviewContext),
 			recordIdentity: stored.identity,
 		},
 	};
@@ -71,6 +93,7 @@ export function selectApprovalsForExecution(
 	reviewContexts: ReadonlyMap<string, string>,
 	scopeId: string,
 	descriptors: readonly ApprovalExecutionDescriptor[],
+	authenticator: ApprovalResolutionAuthenticator,
 ): ApprovalExecutionBulkSelectionResult {
 	const selected: SelectedApprovalExecution[] = [];
 	for (const descriptor of descriptors) {
@@ -80,6 +103,7 @@ export function selectApprovalsForExecution(
 			reviewContexts,
 			scopeId,
 			descriptor.approvalId,
+			authenticator,
 		);
 		if (!result.ok) {
 			return {

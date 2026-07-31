@@ -72,7 +72,11 @@ describe("ApprovalQueue", () => {
 
 		const restarted = new ApprovalQueue(dir);
 		const selection = restarted.getExecutionSnapshot(item.id);
-		expect(selection.ok).toBe(true);
+		expect(selection).toMatchObject({
+			ok: false,
+			reason: "input_unavailable",
+			approval: { id: item.id, status: "pending" },
+		});
 	});
 
 	it("redacts workflow-gate reasons without duplicating them into stored input", () => {

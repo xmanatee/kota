@@ -6,21 +6,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	ApprovalQueue,
 	resetApprovalQueue,
-	setApprovalQueueInstance,
 } from "#core/daemon/approval-queue.js";
 import { McpManager } from "#core/mcp/manager.js";
 import { executeTool } from "#core/tools/index.js";
 import { MCP_MANAGED_OPERATION_TOOL_PREFIXES } from "#core/tools/tool-name-policy.js";
-import { approvalControlRoutes, handleApproveApproval } from "./routes.js";
+import { handleApproveApproval } from "./routes.js";
 
 vi.mock("#core/tools/index.js", () => ({
 	executeTool: vi.fn(),
 }));
-
-function makeQueue(): ApprovalQueue {
-	const dir = join(tmpdir(), `kota-approvals-mcp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
-	return new ApprovalQueue(dir);
-}
 
 function mockResponse() {
 	const result = { status: 0, body: null as unknown };
@@ -153,14 +147,17 @@ async function withCwd<T>(cwd: string, fn: () => Promise<T>): Promise<T> {
 }
 
 describe("approval route MCP execution", () => {
+	let queueDir: string;
 	let queue: ApprovalQueue;
 
 	beforeEach(() => {
-		queue = makeQueue();
+		queueDir = mkdtempSync(join(tmpdir(), "kota-approvals-mcp-"));
+		queue = new ApprovalQueue(queueDir);
 		vi.mocked(executeTool).mockResolvedValue({ content: "local shadow" });
 	});
 
 	afterEach(() => {
+		rmSync(queueDir, { recursive: true, force: true });
 		resetApprovalQueue();
 		vi.restoreAllMocks();
 		vi.clearAllMocks();
@@ -242,4 +239,5 @@ describe("approval route MCP execution", () => {
 		} finally {
 			rmSync(projectDir, { recursive: true, force: true });
 		}
-	});});
+	});
+});

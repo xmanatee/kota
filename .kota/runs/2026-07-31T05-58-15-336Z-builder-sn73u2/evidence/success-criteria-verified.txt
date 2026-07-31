@@ -1,0 +1,5 @@
+1. Verified: selection authenticates persisted pending content against the daemon-held HMAC before descriptor construction, returns clones of the private queue-time snapshot, rejects digest mismatches as descriptor mismatches, and rejects missing restart state as unavailable.
+2. Verified: review digests include the complete MCP prompt declaration, and the route regression changes the live server implementation plus both declaration and transport fingerprints yet receives HTTP 409 while the approval remains pending.
+3. Verified: the 52-file approval test sweep passed all 256 tests after splitting the MCP-specific regressions into focused suites; `tsc --noEmit` and the focused Biome check completed successfully. The task's Verification section records the commands and the unrelated full-suite environment failures.
+
+Host-index replay: the sandbox-protected linked worktree was staged through `.kota/tmp/2026-07-31T05-58-15-336Z-builder-sn73u2/git-index` with a local object directory and the host object store as an alternate. The workflow host must replay `git add -A` before committing because isolated staging does not update the real worktree index.

@@ -39,7 +39,13 @@ export function isApprovalResolutionIntegrity(
 }
 
 export class ApprovalResolutionIntegrityError extends Error {
-	constructor(approvalId: string) {
+	constructor(
+		approvalId: string,
+		readonly reason:
+			| "pending_integrity_unavailable"
+			| "pending_snapshot_mismatch"
+			| "terminal_resolution_invalid" = "terminal_resolution_invalid",
+	) {
 		super(
 			`Approval ${approvalId} integrity cannot authenticate its pending snapshot or terminal resolution for this daemon lifetime`,
 		);
@@ -51,27 +57,46 @@ function payload(item: PendingApproval): string {
 	return JSON.stringify(projectApprovalForStorage(item));
 }
 
+type AuthenticatedPendingSnapshot = {
+	digest: string;
+	item: PendingApproval;
+};
+
 export class ApprovalResolutionAuthenticator {
 	private readonly key = randomBytes(32);
 	private readonly keyId = randomBytes(16).toString("hex");
-	private readonly pendingDigests = new Map<string, string>();
+	private readonly pendingSnapshots = new Map<string, AuthenticatedPendingSnapshot>();
 
 	registerPending(item: PendingApproval): void {
 		if (isTerminalApprovalStatus(item.status)) {
 			throw new Error(`Cannot register terminal approval ${item.id} as pending`);
 		}
-		this.pendingDigests.set(item.id, this.digest(item));
+		const snapshot = structuredClone(projectApprovalForStorage(item));
+		this.pendingSnapshots.set(item.id, {
+			digest: this.digest(snapshot),
+			item: snapshot,
+		});
+	}
+
+	authenticatePending(item: PendingApproval): PendingApproval {
+		const expected = this.pendingSnapshots.get(item.id);
+		if (isTerminalApprovalStatus(item.status) || expected === undefined) {
+			throw new ApprovalResolutionIntegrityError(
+				item.id,
+				"pending_integrity_unavailable",
+			);
+		}
+		if (!this.digestsMatch(expected.digest, this.digest(item))) {
+			throw new ApprovalResolutionIntegrityError(
+				item.id,
+				"pending_snapshot_mismatch",
+			);
+		}
+		return structuredClone(expected.item);
 	}
 
 	assertPendingAuthentic(item: PendingApproval): void {
-		const expected = this.pendingDigests.get(item.id);
-		if (
-			isTerminalApprovalStatus(item.status)
-			|| expected === undefined
-			|| !this.digestsMatch(expected, this.digest(item))
-		) {
-			throw new ApprovalResolutionIntegrityError(item.id);
-		}
+		this.authenticatePending(item);
 	}
 
 	create(item: PendingApproval): ApprovalResolutionIntegrity {
@@ -106,12 +131,12 @@ export class ApprovalResolutionAuthenticator {
 		expectedIdentity: ApprovalFileIdentity,
 	): PendingApproval {
 		const stored = records.write(item, expectedIdentity, this.create(item));
-		this.pendingDigests.delete(item.id);
+		this.pendingSnapshots.delete(item.id);
 		return stored;
 	}
 
 	clear(): void {
-		this.pendingDigests.clear();
+		this.pendingSnapshots.clear();
 	}
 
 	assertValid(

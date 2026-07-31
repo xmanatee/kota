@@ -1,0 +1,3 @@
+1. Approval execution selection authenticates the daemon's queue-time pending digest and derives descriptors and approved records from an immutable in-memory snapshot; tampered or restart-only pending records cannot execute.
+2. Operator review receipts bind MCP declaration and transport identity metadata, and a regression that rewrites both MCP configuration and the stored pending declaration is rejected before preflight without execution.
+3. Focused approval tests, TypeScript typechecking, and lint checks pass, and the task records the final verification commands.

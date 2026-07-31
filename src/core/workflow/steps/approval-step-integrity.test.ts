@@ -27,13 +27,6 @@ afterEach(() => {
 	rmSync(tmpDir, { recursive: true, force: true });
 });
 
-function approvePending(id: string): void {
-	const selection = queue.getExecutionSnapshot(id);
-	if (!selection.ok) throw new Error("expected execution snapshot");
-	const result = queue.approveForExecution(selection.snapshot.descriptor);
-	if (!result.ok) throw new Error("expected execution approval");
-}
-
 function makeContext() {
 	return {
 		projectDir: "/project",
@@ -95,14 +88,14 @@ describe("executeApprovalStep project-local record integrity", () => {
 		},
 	);
 
-	it("does not resume when the endpoint authenticates a record for a different run", async () => {
+	it("does not let the endpoint authenticate a pending record for a different run", async () => {
 		const stepPromise = executeApprovalStep(
 			makeApprovalStep() as never,
 			makeContext() as never,
 			new AbortController().signal,
 		);
 		const rejectedStep = expect(stepPromise).rejects.toThrow(
-			/no longer matches the live workflow gate/,
+			/authenticated approval resolution|integrity/i,
 		);
 		const pending = queue.list("pending");
 		const recordPath = join(tmpDir, `${pending[0].id}.json`);
@@ -114,7 +107,15 @@ describe("executeApprovalStep project-local record integrity", () => {
 				runId: "substituted-run",
 			},
 		}, null, 2));
-		approvePending(pending[0].id);
+		expect(queue.getExecutionSnapshot(pending[0].id)).toMatchObject({
+			ok: false,
+			reason: "descriptor_mismatch",
+			approval: {
+				id: pending[0].id,
+				status: "pending",
+				input: { runId: "substituted-run" },
+			},
+		});
 
 		await vi.runOnlyPendingTimersAsync();
 

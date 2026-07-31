@@ -75,7 +75,14 @@ export function testApprovalsClient(): ApprovalsClient {
 		},
 		async approve(id, reviewDigest, note) {
 			const selection = testQueue.getExecutionSnapshot(id);
-			if (!selection.ok) return { ok: false, reason: selection.reason };
+			if (!selection.ok) {
+				return {
+					ok: false,
+					reason: selection.reason === "descriptor_mismatch"
+						? "review_mismatch"
+						: selection.reason,
+				};
+			}
 			if (selection.snapshot.descriptor.reviewDigest !== reviewDigest) {
 				return { ok: false, reason: "review_mismatch" };
 			}

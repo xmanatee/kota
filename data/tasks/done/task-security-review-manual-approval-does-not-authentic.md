@@ -1,13 +1,13 @@
 ---
 id: task-security-review-manual-approval-does-not-authentic
 title: Security review: Manual approval does not authenticate the daemon's original pending snapshot before signing and executing it. A same-user project writer can rewrite mcpPromptDeclaration to match a changed MCP implementation while preserving the reviewed tool name and input. Because the operator review digest omits MCP declaration metadata, the existing receipt remains valid; preflight then validates the attacker-updated declaration against the new server and executes that implementation before the terminal HMAC provides any protection.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Manual approval does not authenticate the daemon's original pending snapshot before signing and executing it. A same-user project writer can rewrite mcpPromptDeclaration to match a changed MCP implementation while preserving the reviewed tool name and input. Because the operator review digest omits MCP declaration metadata, the existing receipt remains valid; preflight then validates the attacker-updated declaration against the new server and executes that implementation before the terminal HMAC provides any protection.
 created_at: 2026-07-31T05:53:24.674Z
-updated_at: 2026-07-31T05:53:24.674Z
+updated_at: 2026-07-31T06:18:10.155Z
 ---
 
 ## Problem
@@ -143,3 +143,12 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run src/core/daemon/approval-*.test.ts src/core/workflow/steps/approval-step-integrity.test.ts src/modules/approval-queue/*.test.ts --configLoader runner --silent=true` — 52 files passed, 256 tests passed after the source-size repair split the MCP-specific regressions into focused suites.
+- `./node_modules/.bin/tsc --noEmit`
+- `./node_modules/.bin/biome check` passed for all changed approval source and test files.
+- `node --conditions=source --import tsx src/validate-queue.ts` passed against the exact workspace-local staged index.
+- The exact-index severe source-size check passed with two advisory warnings, below the blocking threshold of four. The linked worktree's host index was read-only, so `.kota/runs/2026-07-31T05-58-15-336Z-builder-sn73u2/evidence/artifacts/host-index-replay.txt` records the prescribed workspace-local index replay and staging validation.
+- A full-repository Vitest sweep was also attempted. It reached unrelated environment-dependent failures (including missing prebuilt `dist/` output and sandbox symlink-policy fixtures) and was stopped after long retrying fixtures; the focused approval suite above completed cleanly.

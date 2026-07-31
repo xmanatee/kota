@@ -1,4 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,11 +22,6 @@ import { approvalControlRoutes, handleApproveApproval } from "./routes.js";
 vi.mock("#core/tools/index.js", () => ({
 	executeTool: vi.fn(),
 }));
-
-function makeQueue(): ApprovalQueue {
-	const dir = join(tmpdir(), `kota-approvals-mcp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
-	return new ApprovalQueue(dir);
-}
 
 function mockResponse() {
 	const result = { status: 0, body: null as unknown };
@@ -153,14 +154,17 @@ async function withCwd<T>(cwd: string, fn: () => Promise<T>): Promise<T> {
 }
 
 describe("approval route MCP execution", () => {
+	let queueDir: string;
 	let queue: ApprovalQueue;
 
 	beforeEach(() => {
-		queue = makeQueue();
+		queueDir = mkdtempSync(join(tmpdir(), "kota-approvals-mcp-"));
+		queue = new ApprovalQueue(queueDir);
 		vi.mocked(executeTool).mockResolvedValue({ content: "local shadow" });
 	});
 
 	afterEach(() => {
+		rmSync(queueDir, { recursive: true, force: true });
 		resetApprovalQueue();
 		vi.restoreAllMocks();
 		vi.clearAllMocks();
@@ -197,4 +201,69 @@ describe("approval route MCP execution", () => {
 		expect(result.body).toMatchObject({ reason: "mcp_approval_missing_declaration" });
 		expect(queue.get(item.id)?.status).toBe("pending");
 		expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
-	});});
+	});
+
+	it("rejects a rewritten MCP config and pending declaration before preflight", async () => {
+		const projectDir = mkdtempSync(join(tmpdir(), "kota-approval-mcp-rewritten-"));
+		try {
+			writeMcpConfig(projectDir, "Reviewed lookup declaration", "reviewed implementation");
+			const reviewedSnapshot = await currentMcpPromptSnapshot(projectDir);
+			const item = queue.enqueue(
+				"mcp__remote__lookup",
+				{ query: "deploy" },
+				"moderate",
+				"remote lookup",
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				{
+					server: "remote",
+					tool: "lookup",
+					promptDeclarationFingerprint: reviewedSnapshot.declarationFingerprint,
+					serverTransportIdentityFingerprint:
+						reviewedSnapshot.serverTransportIdentityFingerprint,
+				},
+			);
+			const review = queue.projectForClient(item).review;
+			if (review.status !== "available") throw new Error("expected review descriptor");
+
+			writeMcpConfig(projectDir, "Attacker lookup declaration", "attacker implementation");
+			const attackerSnapshot = await currentMcpPromptSnapshot(projectDir);
+			const approvalPath = join(queueDir, `${item.id}.json`);
+			const stored = JSON.parse(readFileSync(approvalPath, "utf8")) as {
+				mcpPromptDeclaration: {
+					promptDeclarationFingerprint: string;
+					serverTransportIdentityFingerprint: string;
+				};
+			};
+			stored.mcpPromptDeclaration.promptDeclarationFingerprint =
+				attackerSnapshot.declarationFingerprint;
+			stored.mcpPromptDeclaration.serverTransportIdentityFingerprint =
+				attackerSnapshot.serverTransportIdentityFingerprint;
+			writeFileSync(approvalPath, JSON.stringify(stored, null, 2));
+			const { res, result } = mockResponse();
+
+			await withCwd(projectDir, () =>
+				handleApproveApproval(
+					mockRequest({ reviewDigest: review.digest }),
+					res,
+					item.id,
+					null,
+					queue,
+				)
+			);
+
+			expect(result.status).toBe(409);
+			expect(result.body).toMatchObject({
+				reason: "approval_execution_descriptor_mismatch",
+				approvals: [{ id: item.id, status: "pending" }],
+			});
+			expect(queue.get(item.id)?.status).toBe("pending");
+			expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
+		} finally {
+			rmSync(projectDir, { recursive: true, force: true });
+		}
+	});
+});

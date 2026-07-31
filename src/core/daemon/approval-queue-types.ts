@@ -114,6 +114,10 @@ export type ApprovalExecutionSnapshotResult =
 	| { ok: true; snapshot: ApprovalExecutionSnapshot }
 	| {
 			ok: false;
-			reason: "not_found" | "input_unavailable" | "scope_mismatch";
+			reason:
+				| "not_found"
+				| "input_unavailable"
+				| "scope_mismatch"
+				| "descriptor_mismatch";
 			approval?: PendingApproval;
 	  };

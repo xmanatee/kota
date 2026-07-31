@@ -15,6 +15,7 @@ import type { RiskLevel } from "#core/tools/guardrails.js";
 import type {
 	ApprovalKind,
 	ApprovalLocalToolDeclaration,
+	ApprovalMcpPromptDeclaration,
 } from "./approval-queue-types.js";
 
 export type ApprovalReviewBinding = {
@@ -26,6 +27,7 @@ export type ApprovalReviewBinding = {
 	reason: string;
 	source?: string;
 	sessionId?: string;
+	mcpPromptDeclaration?: ApprovalMcpPromptDeclaration;
 	localToolDeclaration?: ApprovalLocalToolDeclaration;
 };
 
@@ -33,6 +35,7 @@ export type ApprovalReviewDescriptor = {
 	status: "available";
 	input: EvidenceJsonObject;
 	context?: string;
+	mcpPromptDeclaration?: ApprovalMcpPromptDeclaration;
 	localToolDeclaration?: ApprovalLocalToolDeclaration;
 	digest: string;
 };
@@ -163,6 +166,9 @@ export function createApprovalReviewDescriptor(
 			reason: approval.reason,
 			...(approval.source !== undefined ? { source: approval.source } : {}),
 			...(approval.sessionId !== undefined ? { sessionId: approval.sessionId } : {}),
+			...(approval.mcpPromptDeclaration !== undefined
+				? { mcpPromptDeclaration: { ...approval.mcpPromptDeclaration } }
+				: {}),
 			...(approval.localToolDeclaration !== undefined
 				? { localToolDeclaration: { ...approval.localToolDeclaration } }
 				: {}),
@@ -174,6 +180,9 @@ export function createApprovalReviewDescriptor(
 		status: "available",
 		input: projected,
 		...(projectedContext !== undefined ? { context: projectedContext } : {}),
+		...(approval.mcpPromptDeclaration !== undefined
+			? { mcpPromptDeclaration: { ...approval.mcpPromptDeclaration } }
+			: {}),
 		...(approval.localToolDeclaration !== undefined
 			? { localToolDeclaration: { ...approval.localToolDeclaration } }
 			: {}),

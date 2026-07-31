@@ -104,6 +104,14 @@ export async function writeApproveApprovalMutation(
 		);
 		return;
 	}
+	if (!selection.ok && selection.reason === "descriptor_mismatch") {
+		writeApprovalExecutionDescriptorMismatch(
+			res,
+			queue,
+			selection.approval ? [selection.approval] : [],
+		);
+		return;
+	}
 	if (!selection.ok) {
 		writeApprovalInputUnavailable(res, selection.approval ? [selection.approval] : []);
 		return;

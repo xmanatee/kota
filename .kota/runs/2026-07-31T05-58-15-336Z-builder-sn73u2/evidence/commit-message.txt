@@ -1,0 +1,1 @@
+Authenticate queued approval snapshots before execution
