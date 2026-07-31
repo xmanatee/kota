@@ -1,0 +1,3 @@
+1. MCP approval preflight compares the reviewed server's normalized config transport identity before any connection or subprocess is created, and initializes only that reviewed server after the check passes.
+2. Focused regressions prove a changed reviewed stdio transport and a newly added unreviewed stdio transport cannot start during rejected preflight.
+3. The task reaches done with the final verification command recorded.

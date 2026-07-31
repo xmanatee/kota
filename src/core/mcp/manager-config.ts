@@ -11,6 +11,10 @@ import {
   optionalStringRecord,
   presentFields,
 } from "./manager-config-utils.js";
+import {
+  type RemoteMcpServerIdentity,
+  remoteMcpServerIdentity,
+} from "./remote-task-server-identity.js";
 import { assertValidMcpServerNamespace } from "./tool-namespace.js";
 
 export type McpServerStdioConfig = McpStdioClientTransportConfig;
@@ -83,4 +87,11 @@ export function normalizeMcpServerConfig(
     ...(headers ? { headers } : {}),
     ...(authorization ? { authorization } : {}),
   };
+}
+
+export function mcpServerTransportIdentityFromConfig(
+  serverName: string,
+  config: McpServerConfig,
+): RemoteMcpServerIdentity {
+  return remoteMcpServerIdentity(normalizeMcpServerConfig(serverName, config));
 }

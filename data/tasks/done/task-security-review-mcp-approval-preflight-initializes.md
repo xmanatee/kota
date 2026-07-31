@@ -1,13 +1,13 @@
 ---
 id: task-security-review-mcp-approval-preflight-initializes
 title: Security review: MCP approval preflight initializes every server from the current project configuration before checking that the approved server's transport identity matches the reviewed identity. A configuration changed after review can therefore launch an unreviewed stdio command during an approval attempt, even though the approval is subsequently rejected.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: MCP approval preflight initializes every server from the current project configuration before checking that the approved server's transport identity matches the reviewed identity. A configuration changed after review can therefore launch an unreviewed stdio command during an approval attempt, even though the approval is subsequently rejected.
 created_at: 2026-07-31T14:55:03.460Z
-updated_at: 2026-07-31T14:55:03.460Z
+updated_at: 2026-07-31T15:07:06.924Z
 ---
 
 ## Problem
@@ -139,3 +139,14 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `src/modules/approval-queue/approval-execution-preflight-security.test.ts`
+  proves rejected preflight does not start either a changed reviewed stdio
+  transport or a newly added unreviewed stdio transport by asserting their
+  process-start marker files remain absent.
+- Verification: `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source
+  ./node_modules/.bin/vitest run --configLoader runner --silent=true
+  <all src/modules/approval-queue tests>` passed (37 files, 149 tests), and the
+  equivalent `src/core/mcp` run passed (10 files, 239 tests).
+- Verification: `./node_modules/.bin/tsc --noEmit`, the strict-types policy
+  integration test, and focused Biome checks all passed. Full `src/` Biome
+  exited 0 with pre-existing unused-code warnings outside the touched files.

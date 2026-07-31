@@ -7,6 +7,7 @@ import {
 } from "#core/daemon/approval-queue.js";
 import { redactSensitiveText } from "#core/evidence/policy.js";
 import { McpManager } from "#core/mcp/manager.js";
+import { mcpServerTransportIdentityFromConfig } from "#core/mcp/manager-config.js";
 import { parseToolName } from "#core/mcp/tool-namespace.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
 import { isMcpManagedToolName } from "#core/tools/tool-name-policy.js";
@@ -144,10 +145,87 @@ async function prepareMcpApprovalExecution(
 			}),
 		};
 	}
+	const serverConfig = config.mcpServers?.[declaration.server];
+	if (serverConfig === undefined) {
+		return {
+			ok: false,
+			status: 409,
+			body: mcpFailureBody(MCP_SERVER_TRANSPORT_CHANGED_REASON, item, {
+				tool: item.tool,
+				server: declaration.server,
+				remoteTool: declaration.tool,
+				promptDeclarationFingerprintPrefix:
+					fingerprintPrefix(declaration.promptDeclarationFingerprint),
+				promptServerTransportIdentityFingerprintPrefix:
+					fingerprintPrefix(declaration.serverTransportIdentityFingerprint),
+				currentServerTransportIdentityFingerprintPrefix: null,
+			}),
+		};
+	}
+
+	let currentTransportIdentity: ReturnType<typeof mcpServerTransportIdentityFromConfig>;
+	try {
+		currentTransportIdentity = mcpServerTransportIdentityFromConfig(
+			declaration.server,
+			serverConfig,
+		);
+	} catch (err) {
+		return {
+			ok: false,
+			status: 409,
+			body: mcpFailureBody("mcp_approval_manager_unavailable", item, {
+				tool: item.tool,
+				server: declaration.server,
+				remoteTool: declaration.tool,
+				promptDeclarationFingerprintPrefix:
+					fingerprintPrefix(declaration.promptDeclarationFingerprint),
+				promptServerTransportIdentityFingerprintPrefix:
+					fingerprintPrefix(declaration.serverTransportIdentityFingerprint),
+				message: redactSensitiveText(err instanceof Error ? err.message : String(err)),
+			}),
+		};
+	}
+	if (currentTransportIdentity.fingerprint !== declaration.serverTransportIdentityFingerprint) {
+		return {
+			ok: false,
+			status: 409,
+			body: mcpFailureBody(MCP_SERVER_TRANSPORT_CHANGED_REASON, item, {
+				tool: item.tool,
+				server: declaration.server,
+				remoteTool: declaration.tool,
+				promptDeclarationFingerprintPrefix:
+					fingerprintPrefix(declaration.promptDeclarationFingerprint),
+				promptServerTransportIdentityFingerprintPrefix:
+					fingerprintPrefix(declaration.serverTransportIdentityFingerprint),
+				currentServerTransportIdentityFingerprintPrefix:
+					fingerprintPrefix(currentTransportIdentity.fingerprint),
+			}),
+		};
+	}
+	if (currentTransportIdentity.match.kind === "ambiguous") {
+		return {
+			ok: false,
+			status: 409,
+			body: mcpFailureBody(MCP_SERVER_TRANSPORT_IDENTITY_AMBIGUOUS_REASON, item, {
+				tool: item.tool,
+				server: declaration.server,
+				remoteTool: declaration.tool,
+				promptDeclarationFingerprintPrefix:
+					fingerprintPrefix(declaration.promptDeclarationFingerprint),
+				promptServerTransportIdentityFingerprintPrefix:
+					fingerprintPrefix(declaration.serverTransportIdentityFingerprint),
+				currentServerTransportIdentityFingerprintPrefix:
+					fingerprintPrefix(currentTransportIdentity.fingerprint),
+				message: currentTransportIdentity.match.reason,
+			}),
+		};
+	}
 
 	const mcpManager = new McpManager({ projectDir: cwd });
 	try {
-		await mcpManager.initialize(config);
+		await mcpManager.initialize({
+			mcpServers: { [declaration.server]: serverConfig },
+		});
 	} catch (err) {
 		const primaryError = err instanceof Error ? err : new Error(String(err));
 		await closeApprovalExecutionAfterFailure(
@@ -187,54 +265,6 @@ async function prepareMcpApprovalExecution(
 					currentFingerprint === undefined ? null : fingerprintPrefix(currentFingerprint),
 				promptServerTransportIdentityFingerprintPrefix:
 					fingerprintPrefix(declaration.serverTransportIdentityFingerprint),
-			}),
-		};
-	}
-
-	const currentTransportIdentity = mcpManager.getToolServerTransportIdentity(item.tool);
-	if (
-		!currentTransportIdentity ||
-		currentTransportIdentity.fingerprint !== declaration.serverTransportIdentityFingerprint
-	) {
-		await mcpManager.close();
-		return {
-			ok: false,
-			status: 409,
-			body: mcpFailureBody(MCP_SERVER_TRANSPORT_CHANGED_REASON, item, {
-				tool: item.tool,
-				server: declaration.server,
-				remoteTool: declaration.tool,
-				promptDeclarationFingerprintPrefix:
-					fingerprintPrefix(declaration.promptDeclarationFingerprint),
-				currentDeclarationFingerprintPrefix:
-					currentFingerprint === undefined ? null : fingerprintPrefix(currentFingerprint),
-				promptServerTransportIdentityFingerprintPrefix:
-					fingerprintPrefix(declaration.serverTransportIdentityFingerprint),
-				currentServerTransportIdentityFingerprintPrefix:
-					currentTransportIdentity === undefined
-						? null
-						: fingerprintPrefix(currentTransportIdentity.fingerprint),
-			}),
-		};
-	}
-	if (currentTransportIdentity.match.kind === "ambiguous") {
-		await mcpManager.close();
-		return {
-			ok: false,
-			status: 409,
-			body: mcpFailureBody(MCP_SERVER_TRANSPORT_IDENTITY_AMBIGUOUS_REASON, item, {
-				tool: item.tool,
-				server: declaration.server,
-				remoteTool: declaration.tool,
-				promptDeclarationFingerprintPrefix:
-					fingerprintPrefix(declaration.promptDeclarationFingerprint),
-				currentDeclarationFingerprintPrefix:
-					currentFingerprint === undefined ? null : fingerprintPrefix(currentFingerprint),
-				promptServerTransportIdentityFingerprintPrefix:
-					fingerprintPrefix(declaration.serverTransportIdentityFingerprint),
-				currentServerTransportIdentityFingerprintPrefix:
-					fingerprintPrefix(currentTransportIdentity.fingerprint),
-				message: currentTransportIdentity.match.reason,
 			}),
 		};
 	}

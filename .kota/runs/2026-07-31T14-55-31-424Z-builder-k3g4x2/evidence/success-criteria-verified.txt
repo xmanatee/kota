@@ -1,0 +1,3 @@
+1. Verified: preflight derives the reviewed server identity from normalized config before constructing the MCP manager, rejects unsafe identity states, and passes only the reviewed server config to initialization.
+2. Verified: process-marker regressions pass for a changed reviewed stdio transport and a newly added unreviewed stdio transport during rejected preflight.
+3. Verified: the task is in done and records the passing approval-queue, core MCP, typecheck, strict-types, and lint commands.

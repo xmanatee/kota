@@ -225,13 +225,14 @@ describe("approval route MCP execution", () => {
 
 			expect(result.status).toBe(409);
 			expect(result.body).toMatchObject({
-				reason: "mcp_declaration_changed_since_prompt",
+				reason: "mcp_server_transport_changed_since_prompt",
 				mcp: {
 					tool: "mcp__remote__lookup",
 					promptDeclarationFingerprintPrefix: promptFingerprint.slice(0, 12),
-					currentDeclarationFingerprintPrefix: currentSnapshot.declarationFingerprint.slice(0, 12),
 					promptServerTransportIdentityFingerprintPrefix:
 						serverTransportIdentityFingerprint.slice(0, 12),
+					currentServerTransportIdentityFingerprintPrefix:
+						currentSnapshot.serverTransportIdentityFingerprint.slice(0, 12),
 				},
 			});
 			expect(queue.get(item.id)?.status).toBe("pending");
