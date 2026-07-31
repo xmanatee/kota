@@ -1,6 +1,6 @@
 {
-  "systemPromptBytes": 26679,
-  "systemPromptSha256": "a456952f0c1f01e9237cd1026e9be4f1032b16d9c2689b87b7ee292e9d8d1463",
-  "userPromptBytes": 29321,
-  "userPromptSha256": "296bb3ba71aeac5efe2cb646381a95c8cc40c9dc21f2e38d4bf8c2dfff8d813f"
+  "systemPromptBytes": 26758,
+  "systemPromptSha256": "fa17d3deb153a9afa8fa0d82e85d18196e6b1bc285e3493722ec088728de844b",
+  "userPromptBytes": 29000,
+  "userPromptSha256": "a7bdd28370c1af83bc5f6ecac08711c436e675ca77e035e17384e9aa7af666bc"
 }

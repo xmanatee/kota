@@ -1,0 +1,36 @@
+{
+  "kind": "operator-security-revalidation-completion",
+  "capturedAt": "2026-07-31T14:44:21.878Z",
+  "sourceRunId": "2026-07-27T09-34-53-266Z-security-review-lgkie5",
+  "operatorRunId": "2026-07-27T09-34-52-952Z-builder-o7ar1e",
+  "evaluatedHead": "73f93a471e595795b1701e46b0667bd64ecb988e",
+  "evidence": {
+    "path": ".kota/runs/2026-07-27T09-34-52-952Z-builder-o7ar1e/security-review-revalidation-evidence.json",
+    "sha256": "a364b6d3c7f9e0a8e55dcf4ba725262e3ec898d112332685dc2c0cc355ce7ba3",
+    "outcome": "completed",
+    "withinTimeout": true,
+    "timeoutReproduced": false,
+    "activeDurationMs": 303711,
+    "mergedFindingCount": 3,
+    "verdicts": [
+      {
+        "id": "agent-harness-kota-tool-loop-guardrail-bypass",
+        "verdict": "rejected"
+      },
+      {
+        "id": "multi-project-approval-singleton-rebinding",
+        "verdict": "rejected"
+      },
+      {
+        "id": "daemon-state-root-symlink-escape",
+        "verdict": "rejected"
+      }
+    ]
+  },
+  "deadLetter": {
+    "id": "dlq-494c3024-cca4-49e9-8376-0398d172932c",
+    "status": "dismissed",
+    "dismissedAt": "2026-07-27T12:17:34.529Z",
+    "reason": "Superseded after all three findings received current-code dispositions and canonical Safety tasks."
+  }
+}

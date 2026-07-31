@@ -4,7 +4,7 @@
   "sourceInvestigationSha256": "1e440b24d48d645c8dbcdcfbb17d634dac670d514cbd59f60a6c4d4092e77b77",
   "preservedInvestigationArtifact": ".kota/runs/2026-07-27T09-34-52-952Z-builder-o7ar1e/security-review-investigation.json",
   "codexStateMode": "ephemeral writable copy of harness-managed login",
-  "evaluatedHead": "77a6de4b297a0b7b8694abc6438630368ff150e7",
+  "evaluatedHead": "73f93a471e595795b1701e46b0667bd64ecb988e",
   "workflow": "security-review",
   "definitionPath": "src/modules/autonomy/workflows/security-review/workflow.ts",
   "promptPath": "src/modules/autonomy/workflows/security-review/prompt.md",
@@ -53,15 +53,15 @@
     }
   },
   "timeoutMs": 1800000,
-  "startedAt": "2026-07-27T11:06:33.450Z",
-  "completedAt": "2026-07-27T11:07:09.380Z",
-  "durationMs": 35930,
-  "activeDurationMs": 35929,
+  "startedAt": "2026-07-31T14:39:18.172Z",
+  "completedAt": "2026-07-31T14:44:21.878Z",
+  "durationMs": 303706,
+  "activeDurationMs": 303711,
   "input": {
-    "systemPromptBytes": 26679,
-    "systemPromptSha256": "a456952f0c1f01e9237cd1026e9be4f1032b16d9c2689b87b7ee292e9d8d1463",
-    "userPromptBytes": 29321,
-    "userPromptSha256": "296bb3ba71aeac5efe2cb646381a95c8cc40c9dc21f2e38d4bf8c2dfff8d813f"
+    "systemPromptBytes": 26758,
+    "systemPromptSha256": "fa17d3deb153a9afa8fa0d82e85d18196e6b1bc285e3493722ec088728de844b",
+    "userPromptBytes": 29000,
+    "userPromptSha256": "a7bdd28370c1af83bc5f6ecac08711c436e675ca77e035e17384e9aa7af666bc"
   },
   "sourceTimedOutStep": {
     "id": "revalidate-findings",
@@ -74,25 +74,53 @@
     "error": "Step \"revalidate-findings\" timed out after 1800000ms of active runtime"
   },
   "agentMessageSummary": {
-    "count": 0,
-    "byType": {}
+    "count": 64,
+    "byType": {
+      "status": 56,
+      "text": 7,
+      "result": 1
+    }
   },
   "recordedRuntimeStep": {
     "id": "revalidate-findings",
     "type": "agent",
-    "status": "failed",
-    "startedAt": "2026-07-27T11:06:33.450Z",
-    "completedAt": "2026-07-27T11:07:09.380Z",
-    "durationMs": 35930,
-    "activeDurationMs": 35929,
-    "error": "Agent step \"revalidate-findings\" failed (codex_cli_error): stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)"
-  },
-  "outcome": "not-completed",
-  "withinTimeout": null,
-  "timeoutReproduced": null,
-  "blocker": {
-    "kind": "provider",
-    "reason": "Agent step \"revalidate-findings\" failed (codex_cli_error): stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)"
+    "status": "success",
+    "startedAt": "2026-07-31T14:39:18.172Z",
+    "completedAt": "2026-07-31T14:44:21.878Z",
+    "durationMs": 303706,
+    "activeDurationMs": 303711,
+    "output": {
+      "findings": [
+        {
+          "id": "agent-harness-kota-tool-loop-guardrail-bypass",
+          "verdict": "rejected",
+          "rationale": "At current HEAD 73f93a471e595795b1701e46b0667bd64ecb988e, Gemini and Vercel both invoke executeToolCalls (src/modules/gemini-agent-harness/tool-loop.ts:138 and src/modules/vercel-agent-harness/adapter-tools.ts:70). agentHarnessToolExecutionOptions forwards autonomy mode, guardrails, approval queue, client approval, idempotency, and canUseTool, while executeToolBlock performs policy assessment before execution. This was remediated after the trigger head by daaa70e30. The focused adapter policy suites passed."
+        },
+        {
+          "id": "multi-project-approval-singleton-rebinding",
+          "verdict": "rejected",
+          "rationale": "AgentSession now retains its owning runtime queue in src/core/loop/loop-constructor.ts:100, and src/core/loop/loop-send.ts:250 passes that queue and scope directly into execution. enqueueToolApproval fails closed when no explicit queue is supplied and enqueues only into that queue (src/core/tools/tool-runner-approval-queue.ts:20-30). Only the default ProjectRuntime installs the compatibility singleton. The concurrent two-project enqueue, listing, approval, execution, and scope-mismatch regressions passed."
+        },
+        {
+          "id": "daemon-state-root-symlink-escape",
+          "verdict": "rejected",
+          "rationale": "The default project-owned state root is now prepared as an inode-anchored DaemonStateRoot. Its isolated helper rejects symbolic links, opens directories and ownership files with O_NOFOLLOW, verifies file identities, and publishes files through private descriptors. src/core/daemon/daemon-instance-lock.test.ts:188 verifies that a symlinked .kota root is rejected without changing or writing to its target, and the focused suite passed. Explicit operator-configured state directories remain a separate trusted case."
+        }
+      ],
+      "summary": "All three findings are rejected against current HEAD 73f93a471e595795b1701e46b0667bd64ecb988e, which is newer than trigger head d43bbc26dc65b8b375bac616486b2eccc8a963c4 and contains dedicated remediation commits. Four focused test files passed: 27 tests."
+    },
+    "harness": "codex",
+    "model": "gpt-5.6-sol",
+    "trajectoryDiagnostics": {
+      "artifactPath": ".kota/runs/2026-07-27T09-34-52-952Z-builder-o7ar1e/steps/revalidate-findings.trajectory-diagnostics.json",
+      "warningCount": 0,
+      "unsupportedTrajectoryCount": 0,
+      "missingStreamingFramesCount": 0,
+      "missingFinalVerificationAfterEditCount": 0,
+      "repeatedIdenticalFailingCommandCount": 0,
+      "editAfterSuccessfulVerificationCount": 0,
+      "longPreambleWithoutTaskTouchCount": 0
+    }
   },
   "createdSafetyTaskIds": [
     "task-security-review-the-gemini-and-vercel-kota-hosted-",
@@ -108,5 +136,48 @@
     "reason": "The three findings have current-code dispositions and canonical Safety tasks, so replaying the stale trigger against a changed HEAD would duplicate that work.",
     "error": "The canonical CLI could not reach the live daemon control endpoint and its local fallback could not write the canonical DLQ file from the builder sandbox.",
     "retryCommand": "pnpm kota workflow dlq dismiss dlq-494c3024-cca4-49e9-8376-0398d172932c --reason \"Superseded by builder run 2026-07-27T09-34-52-952Z-builder-o7ar1e after all three findings received current-code dispositions and canonical Safety tasks.\""
-  }
+  },
+  "outcome": "completed",
+  "withinTimeout": true,
+  "timeoutReproduced": false,
+  "structuredOutput": {
+    "findings": [
+      {
+        "id": "agent-harness-kota-tool-loop-guardrail-bypass",
+        "verdict": "rejected",
+        "rationale": "At current HEAD 73f93a471e595795b1701e46b0667bd64ecb988e, Gemini and Vercel both invoke executeToolCalls (src/modules/gemini-agent-harness/tool-loop.ts:138 and src/modules/vercel-agent-harness/adapter-tools.ts:70). agentHarnessToolExecutionOptions forwards autonomy mode, guardrails, approval queue, client approval, idempotency, and canUseTool, while executeToolBlock performs policy assessment before execution. This was remediated after the trigger head by daaa70e30. The focused adapter policy suites passed."
+      },
+      {
+        "id": "multi-project-approval-singleton-rebinding",
+        "verdict": "rejected",
+        "rationale": "AgentSession now retains its owning runtime queue in src/core/loop/loop-constructor.ts:100, and src/core/loop/loop-send.ts:250 passes that queue and scope directly into execution. enqueueToolApproval fails closed when no explicit queue is supplied and enqueues only into that queue (src/core/tools/tool-runner-approval-queue.ts:20-30). Only the default ProjectRuntime installs the compatibility singleton. The concurrent two-project enqueue, listing, approval, execution, and scope-mismatch regressions passed."
+      },
+      {
+        "id": "daemon-state-root-symlink-escape",
+        "verdict": "rejected",
+        "rationale": "The default project-owned state root is now prepared as an inode-anchored DaemonStateRoot. Its isolated helper rejects symbolic links, opens directories and ownership files with O_NOFOLLOW, verifies file identities, and publishes files through private descriptors. src/core/daemon/daemon-instance-lock.test.ts:188 verifies that a symlinked .kota root is rejected without changing or writing to its target, and the focused suite passed. Explicit operator-configured state directories remain a separate trusted case."
+      }
+    ],
+    "summary": "All three findings are rejected against current HEAD 73f93a471e595795b1701e46b0667bd64ecb988e, which is newer than trigger head d43bbc26dc65b8b375bac616486b2eccc8a963c4 and contains dedicated remediation commits. Four focused test files passed: 27 tests."
+  },
+  "mergedFindingCount": 3,
+  "mergedFindingIds": [
+    "agent-harness-kota-tool-loop-guardrail-bypass",
+    "multi-project-approval-singleton-rebinding",
+    "daemon-state-root-symlink-escape"
+  ],
+  "mergedVerdicts": [
+    {
+      "id": "agent-harness-kota-tool-loop-guardrail-bypass",
+      "verdict": "rejected"
+    },
+    {
+      "id": "multi-project-approval-singleton-rebinding",
+      "verdict": "rejected"
+    },
+    {
+      "id": "daemon-state-root-symlink-escape",
+      "verdict": "rejected"
+    }
+  ]
 }
