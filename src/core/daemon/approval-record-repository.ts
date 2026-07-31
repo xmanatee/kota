@@ -10,10 +10,20 @@ import type {
 	ApprovalRecordSnapshot,
 	ApprovalRecordStorage,
 } from "./approval-record-storage.js";
+import {
+	type ApprovalResolutionIntegrity,
+	isApprovalResolutionIntegrity,
+	isTerminalApprovalStatus,
+} from "./approval-resolution-integrity.js";
 
 export type StoredApproval = {
 	item: PendingApproval;
 	identity: ApprovalFileIdentity;
+	resolutionIntegrity?: ApprovalResolutionIntegrity;
+};
+
+type ApprovalRecord = PendingApproval & {
+	resolutionIntegrity?: ApprovalResolutionIntegrity;
 };
 
 export class ApprovalRecordRepository {
@@ -25,12 +35,14 @@ export class ApprovalRecordRepository {
 	read(id: string): StoredApproval | null {
 		if (!approvalFilePath(this.storage.directoryPath, id)) return null;
 		const snapshot = this.storage.read(`${id}.json`);
-		return snapshot === null ? null : { item: this.parse(snapshot), identity: snapshot.identity };
+		return snapshot === null
+			? null
+			: { ...this.parse(snapshot), identity: snapshot.identity };
 	}
 
 	list(status?: ApprovalStatus): StoredApproval[] {
 		const stored = this.storage.list().map((snapshot) => ({
-			item: this.parse(snapshot),
+			...this.parse(snapshot),
 			identity: snapshot.identity,
 		}));
 		const mismatched = stored.find(({ item }) => item.scopeId !== this.scopeId);
@@ -45,12 +57,25 @@ export class ApprovalRecordRepository {
 				left.createdAt.localeCompare(right.createdAt) || (left.seq ?? 0) - (right.seq ?? 0));
 	}
 
-	write(item: PendingApproval, expectedIdentity: ApprovalFileIdentity | null): PendingApproval {
+	write(
+		item: PendingApproval,
+		expectedIdentity: ApprovalFileIdentity | null,
+		resolutionIntegrity?: ApprovalResolutionIntegrity,
+	): PendingApproval {
 		const projected = projectApprovalForStorage(item);
 		if (!approvalFilePath(this.storage.directoryPath, projected.id)) {
 			throw new Error(`Malformed approval id: ${projected.id}`);
 		}
-		this.storage.write(`${projected.id}.json`, JSON.stringify(projected, null, 2), expectedIdentity);
+		if (isTerminalApprovalStatus(projected.status) !== (resolutionIntegrity !== undefined)) {
+			throw new Error(
+				`Approval ${projected.id} terminal state and resolution integrity must be persisted together`,
+			);
+		}
+		const record: ApprovalRecord = {
+			...projected,
+			...(resolutionIntegrity !== undefined ? { resolutionIntegrity } : {}),
+		};
+		this.storage.write(`${projected.id}.json`, JSON.stringify(record, null, 2), expectedIdentity);
 		return projected;
 	}
 
@@ -58,9 +83,13 @@ export class ApprovalRecordRepository {
 		this.storage.clear();
 	}
 
-	private parse(snapshot: ApprovalRecordSnapshot): PendingApproval {
+	private parse(
+		snapshot: ApprovalRecordSnapshot,
+	): Omit<StoredApproval, "identity"> {
 		const path = join(this.storage.directoryPath, snapshot.filename);
-		const item = JSON.parse(snapshot.contents) as PendingApproval;
+		const record = JSON.parse(snapshot.contents) as ApprovalRecord;
+		const { resolutionIntegrity, ...untrustedItem } = record;
+		const item = untrustedItem as PendingApproval;
 		if (`${item.id}.json` !== snapshot.filename) {
 			throw new Error(`Malformed approval record at ${path}: id does not match filename`);
 		}
@@ -69,6 +98,23 @@ export class ApprovalRecordRepository {
 		}
 		if (item.kind !== "tool_call" && item.kind !== "workflow_gate") {
 			throw new Error(`Malformed approval record at ${path}: invalid approval kind`);
+		}
+		if (
+			item.status !== "pending"
+			&& item.status !== "approved"
+			&& item.status !== "rejected"
+			&& item.status !== "expired"
+		) {
+			throw new Error(`Malformed approval record at ${path}: invalid approval status`);
+		}
+		if (
+			isTerminalApprovalStatus(item.status)
+				? !isApprovalResolutionIntegrity(resolutionIntegrity)
+				: resolutionIntegrity !== undefined
+		) {
+			throw new Error(
+				`Malformed approval record at ${path}: missing authenticated approval resolution`,
+			);
 		}
 		if (
 			item.kind === "tool_call"
@@ -102,6 +148,9 @@ export class ApprovalRecordRepository {
 				throw new Error(`Malformed approval record at ${path}: invalid workflow gate`);
 			}
 		}
-		return projectApprovalForStorage(item);
+		return {
+			item: projectApprovalForStorage(item),
+			...(resolutionIntegrity !== undefined ? { resolutionIntegrity } : {}),
+		};
 	}
 }

@@ -1,7 +1,7 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { ApprovalQueue } from "./approval-queue.js";
@@ -19,6 +19,8 @@ describe("approval events", () => {
 	let received: Array<{ event: string; payload: Record<string, unknown> }>;
 
 	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date("2026-07-31T00:00:00.000Z"));
 		dir = mkdtempSync(join(tmpdir(), "approval-event-test-"));
 		const bus = new EventBus();
 		received = [];
@@ -31,6 +33,7 @@ describe("approval events", () => {
 
 	afterEach(() => {
 		rmSync(dir, { recursive: true, force: true });
+		vi.useRealTimers();
 	});
 
 	it("emits approval.changed on enqueue with pending count and id", () => {
@@ -158,9 +161,7 @@ describe("approval events", () => {
 
 	it("emits approval.changed on expireStale", () => {
 		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
-		const stored = queue.get(item.id)!;
-		stored.createdAt = new Date(Date.now() - 5000).toISOString();
-		writeFileSync(join(dir, `${item.id}.json`), JSON.stringify(stored, null, 2));
+		vi.advanceTimersByTime(5000);
 		received.length = 0;
 
 		queue.expireStale(1000);
@@ -176,9 +177,7 @@ describe("approval events", () => {
 
 	it("emits approval.expired on expireStale", () => {
 		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
-		const stored = queue.get(item.id)!;
-		stored.createdAt = new Date(Date.now() - 5000).toISOString();
-		writeFileSync(join(dir, `${item.id}.json`), JSON.stringify(stored, null, 2));
+		vi.advanceTimersByTime(5000);
 		received.length = 0;
 
 		queue.expireStale(1000);
@@ -194,9 +193,7 @@ describe("approval events", () => {
 
 	it("emits approval.expired for item with per-item timeoutMs", () => {
 		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 500);
-		const stored = queue.get(item.id)!;
-		stored.createdAt = new Date(Date.now() - 2000).toISOString();
-		writeFileSync(join(dir, `${item.id}.json`), JSON.stringify(stored, null, 2));
+		vi.advanceTimersByTime(2000);
 		received.length = 0;
 
 		queue.expireStale();
@@ -212,9 +209,7 @@ describe("approval events", () => {
 
 	it("emits workflow.approval.timeout on expireStale (auto-deny)", () => {
 		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 500);
-		const stored = queue.get(item.id)!;
-		stored.createdAt = new Date(Date.now() - 2000).toISOString();
-		writeFileSync(join(dir, `${item.id}.json`), JSON.stringify(stored, null, 2));
+		vi.advanceTimersByTime(2000);
 		received.length = 0;
 
 		queue.expireStale();
@@ -233,9 +228,7 @@ describe("approval events", () => {
 
 	it("emits workflow.approval.timeout on expireStale (auto-approve)", () => {
 		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 500, "approve");
-		const stored = queue.get(item.id)!;
-		stored.createdAt = new Date(Date.now() - 2000).toISOString();
-		writeFileSync(join(dir, `${item.id}.json`), JSON.stringify(stored, null, 2));
+		vi.advanceTimersByTime(2000);
 		received.length = 0;
 
 		queue.expireStale();
@@ -253,10 +246,8 @@ describe("approval events", () => {
 	});
 
 	it("emits approval.resolved with approved=true for auto-approve timeout", () => {
-		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 500, "approve");
-		const stored = queue.get(item.id)!;
-		stored.createdAt = new Date(Date.now() - 2000).toISOString();
-		writeFileSync(join(dir, `${item.id}.json`), JSON.stringify(stored, null, 2));
+		queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 500, "approve");
+		vi.advanceTimersByTime(2000);
 		received.length = 0;
 
 		queue.expireStale();

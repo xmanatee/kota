@@ -4,10 +4,10 @@
  * Verifies that approval.expired is emitted through the real event bus when
  * expireStale runs, with both global defaultTtlMs and per-item timeoutMs.
  */
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApprovalQueue } from "./core/daemon/approval-queue.js";
 import { getEventBus, initEventBus, resetEventBus } from "./core/events/event-bus.js";
 import { ProjectScopedEventBus } from "./core/events/project-scope.js";
@@ -19,6 +19,8 @@ describe("approval expiry × event bus integration", () => {
 	let queue: ApprovalQueue;
 
 	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date("2026-07-31T00:00:00.000Z"));
 		dir = mkdtempSync(join(tmpdir(), "approval-expiry-integration-"));
 		resetEventBus();
 		const bus = initEventBus();
@@ -29,12 +31,11 @@ describe("approval expiry × event bus integration", () => {
 	afterEach(() => {
 		rmSync(dir, { recursive: true, force: true });
 		resetEventBus();
+		vi.useRealTimers();
 	});
 
-	function backdate(id: string, ageMs: number): void {
-		const stored = queue.get(id)!;
-		stored.createdAt = new Date(Date.now() - ageMs).toISOString();
-		writeFileSync(join(dir, `${id}.json`), JSON.stringify(stored, null, 2));
+	function agePendingApproval(ageMs: number): void {
+		vi.advanceTimersByTime(ageMs);
 	}
 
 	it("emits approval.expired on the bus when global TTL expires an item", () => {
@@ -43,7 +44,7 @@ describe("approval expiry × event bus integration", () => {
 		bus.on("approval.expired", (payload) => received.push(payload));
 
 		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
-		backdate(item.id, 2000);
+		agePendingApproval(2000);
 
 		queue.expireStale(1000);
 
@@ -62,7 +63,7 @@ describe("approval expiry × event bus integration", () => {
 		bus.on("approval.expired", (payload) => received.push(payload));
 
 		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 500);
-		backdate(item.id, 2000);
+		agePendingApproval(2000);
 
 		// No defaultTtlMs — relies entirely on per-item timeout
 		queue.expireStale();
@@ -95,7 +96,7 @@ describe("approval expiry × event bus integration", () => {
 		bus.on("workflow.approval.timeout", (payload) => received.push(payload));
 
 		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
-		backdate(item.id, 2000);
+		agePendingApproval(2000);
 
 		queue.expireStale(1000);
 
@@ -115,7 +116,7 @@ describe("approval expiry × event bus integration", () => {
 		bus.on("workflow.approval.timeout", (payload) => received.push(payload));
 
 		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 500, "approve");
-		backdate(item.id, 2000);
+		agePendingApproval(2000);
 
 		queue.expireStale();
 
@@ -134,7 +135,7 @@ describe("approval expiry × event bus integration", () => {
 		bus.on("workflow.approval.timeout", () => {});
 
 		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 500, "approve");
-		backdate(item.id, 2000);
+		agePendingApproval(2000);
 
 		queue.expireStale();
 

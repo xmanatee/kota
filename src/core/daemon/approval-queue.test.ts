@@ -210,17 +210,6 @@ describe("ApprovalQueue", () => {
 		expect(pending[0].tool).toBe("git");
 	});
 
-	it("approves a pending item", () => {
-		const item = queue.enqueue("shell", { command: "sudo apt" }, "dangerous", "sudo detected");
-		const approved = approvePending(queue, item.id);
-		expect(approved).not.toBeNull();
-		expect(approved!.status).toBe("approved");
-		expect(approved!.resolvedAt).toBeDefined();
-
-		const retrieved = queue.get(item.id);
-		expect(retrieved!.status).toBe("approved");
-	});
-
 	it("rejects a pending item with reason", () => {
 		const item = queue.enqueue("shell", { command: "rm -rf /" }, "dangerous", "destructive");
 		const rejected = queue.reject(item.id, "too dangerous");

@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -103,7 +103,9 @@ describe("approval CLI history", () => {
 	it("filters by duration", async () => {
 		const old = testQueue.enqueue("git", { command: "push" }, "dangerous", "reason");
 		testQueue.reject(old.id);
-		const oldItem = testQueue.get(old.id)!;
+		const oldItem = JSON.parse(
+			readFileSync(join(testDir, `${old.id}.json`), "utf8"),
+		);
 		oldItem.resolvedAt = new Date(Date.now() - 2 * 3_600_000).toISOString();
 		writeFileSync(join(testDir, `${old.id}.json`), JSON.stringify(oldItem, null, 2));
 		const recent = testQueue.enqueue("shell", { command: "ls" }, "moderate", "reason");

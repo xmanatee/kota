@@ -35,6 +35,10 @@ import {
 } from "./approval-queue-types.js";
 import { ApprovalRecordRepository } from "./approval-record-repository.js";
 import { type ApprovalFileIdentity, ApprovalRecordStorage } from "./approval-record-storage.js";
+import {
+	ApprovalResolutionAuthenticator,
+	ApprovalResolutionIntegrityError,
+} from "./approval-resolution-integrity.js";
 import { deriveDirectoryScopeId } from "./scope-registry.js";
 
 export { defaultApprovalPendingTtlMs } from "./approval-queue-expiration-policy.js";
@@ -62,12 +66,21 @@ export type WorkflowGateApprovalRequest = WorkflowGateApprovalInput & {
 	defaultResolution?: "deny" | "approve";
 };
 
+export type ApprovalExpirationSweepResult = {
+	expired: PendingApproval[];
+	blocked: Array<{
+		approvalId: string;
+		reason: "pending_integrity_unavailable";
+	}>;
+};
+
 export class ApprovalQueue {
 	private pbus: ProjectScopedEventBus | null;
 	private executionInputs = new Map<string, PendingApproval["input"]>();
 	private reviewContexts = new Map<string, string>();
 	private readonly scopeId: string;
 	private readonly records: ApprovalRecordRepository;
+	private readonly resolutionAuthenticator = new ApprovalResolutionAuthenticator();
 
 	constructor(
 		dir: string,
@@ -158,6 +171,7 @@ export class ApprovalQueue {
 		let stored: PendingApproval;
 		try {
 			stored = this.records.write(item, null);
+			this.resolutionAuthenticator.registerPending(stored);
 		} catch (error) {
 			this.executionInputs.delete(item.id);
 			this.reviewContexts.delete(item.id);
@@ -169,6 +183,10 @@ export class ApprovalQueue {
 
 	get(id: string): PendingApproval | null {
 		return this.records.read(id)?.item ?? null;
+	}
+
+	getWithAuthenticatedResolution(id: string): PendingApproval | null {
+		return this.resolutionAuthenticator.read(this.records, id);
 	}
 
 	list(status?: ApprovalStatus): PendingApproval[] {
@@ -206,7 +224,11 @@ export class ApprovalQueue {
 		item.resolvedAt = new Date().toISOString();
 		if (note) item.approvalNote = note;
 		if (resolutionSource) item.resolutionSource = resolutionSource;
-		const stored = this.records.write(item, recordIdentity);
+		const stored = this.resolutionAuthenticator.write(
+			this.records,
+			item,
+			recordIdentity,
+		);
 		this.executionInputs.delete(item.id);
 		this.reviewContexts.delete(item.id);
 		emitApprovalResolved(this.pbus, stored, true, "", this.count("pending"));
@@ -271,28 +293,47 @@ export class ApprovalQueue {
 		item.resolvedAt = new Date().toISOString();
 		item.rejectionReason = reason;
 		if (resolutionSource) item.resolutionSource = resolutionSource;
-		const stored = this.records.write(item, current.identity);
+		const stored = this.resolutionAuthenticator.write(
+			this.records,
+			item,
+			current.identity,
+		);
 		this.executionInputs.delete(id);
 		this.reviewContexts.delete(id);
 		emitApprovalResolved(this.pbus, stored, false, stored.rejectionReason ?? "", this.count("pending"));
 		return stored;
 	}
 
-	expireStale(defaultTtlMs?: number): PendingApproval[] {
+	expireStale(defaultTtlMs?: number): ApprovalExpirationSweepResult {
 		const now = Date.now();
 		const expired: PendingApproval[] = [];
+		const blocked: ApprovalExpirationSweepResult["blocked"] = [];
 		for (const current of this.records.list("pending")) {
 			const item = current.item;
 			const ttl = item.timeoutMs ?? defaultTtlMs ?? DEFAULT_APPROVAL_PENDING_TTL_MS;
 			if (now < new Date(item.createdAt).getTime() + ttl) continue;
+			try {
+				this.resolutionAuthenticator.assertPendingAuthentic(item);
+			} catch (error) {
+				if (!(error instanceof ApprovalResolutionIntegrityError)) throw error;
+				blocked.push({
+					approvalId: item.id,
+					reason: "pending_integrity_unavailable",
+				});
+				continue;
+			}
 			const resolution = expireApproval(item);
-			const stored = this.records.write(item, current.identity);
+			const stored = this.resolutionAuthenticator.write(
+				this.records,
+				item,
+				current.identity,
+			);
 			this.executionInputs.delete(item.id);
 			this.reviewContexts.delete(item.id);
 			emitApprovalExpired(this.pbus, stored, resolution, this.count("pending"));
 			expired.push(stored);
 		}
-		return expired;
+		return { expired, blocked };
 	}
 
 	approvePendingForExecution(
@@ -332,6 +373,7 @@ export class ApprovalQueue {
 		this.records.clear();
 		this.executionInputs.clear();
 		this.reviewContexts.clear();
+		this.resolutionAuthenticator.clear();
 	}
 }
 

@@ -1,3 +1,4 @@
+import { isWorkflowGateApproval } from "#core/daemon/approval-queue.js";
 import type { WorkflowStepContext } from "../run-types.js";
 import type { WorkflowApprovalStep } from "../step-types.js";
 import type { WorkflowStepOutput } from "./step-executor-agent.js";
@@ -48,9 +49,19 @@ export async function executeApprovalStep(
         throw new Error(`${label} was aborted`);
       }
 
-      const current = queue.get(approval.id);
+      const current = queue.getWithAuthenticatedResolution(approval.id);
       if (!current) {
         throw new Error(`${label}: approval record ${approval.id} disappeared from queue`);
+      }
+      if (
+        !isWorkflowGateApproval(current)
+        || current.input.workflowName !== approval.input.workflowName
+        || current.input.runId !== approval.input.runId
+        || current.input.stepId !== approval.input.stepId
+      ) {
+        throw new Error(
+          `${label}: approval record ${approval.id} no longer matches the live workflow gate`,
+        );
       }
 
       if (current.status === "approved") {

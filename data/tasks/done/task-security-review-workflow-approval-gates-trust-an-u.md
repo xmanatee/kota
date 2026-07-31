@@ -1,13 +1,13 @@
 ---
 id: task-security-review-workflow-approval-gates-trust-an-u
 title: Security review: Workflow approval gates trust an unauthenticated status read from the project-local approval file. A same-user project writer can change a pending record to approved, after which the waiting workflow treats it as a human approval and continues to later side effects without passing through the review-digest or execution-descriptor checks.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Workflow approval gates trust an unauthenticated status read from the project-local approval file. A same-user project writer can change a pending record to approved, after which the waiting workflow treats it as a human approval and continues to later side effects without passing through the review-digest or execution-descriptor checks.
 created_at: 2026-07-31T03:07:45.464Z
-updated_at: 2026-07-31T03:07:45.464Z
+updated_at: 2026-07-31T04:43:00.000Z
 ---
 
 ## Problem
@@ -138,4 +138,7 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `pnpm test src/core/daemon/approval*.test.ts src/core/workflow/steps/approval-step*.test.ts src/core/workflow/owner-decision-step*.test.ts src/modules/approval-queue` — 61 files and 273 tests passed, including same-user edit/replacement, forged pending timeout policy, prior-daemon pending-policy failure, authenticated terminal mutation, original gate identity, and confirmed-side-effect regressions.
+- `pnpm test src/core/daemon/approval-queue-expiration.test.ts src/core/daemon/daemon-subscriptions.test.ts src/core/workflow/steps/approval-step-integrity.test.ts` — 3 files and 23 tests passed, including the production timer path: a prior-daemon auto-approve remains blocked without terminating the daemon or preventing valid live-daemon expiry.
+- `node_modules/.bin/tsc --noEmit` passed.
+- `pnpm test src/approval-expiry.integration.test.ts src/operator-authorization-boundary.integration.test.ts src/strict-types-policy.integration.test.ts src/root-layout.test.ts src/core/agent-harness/no-module-imports-in-core.test.ts` — 5 files and 12 integration/policy tests passed.

@@ -20,7 +20,16 @@ Owns the `kota approval` CLI surface and the underlying `ApprovalQueue` class us
 - Treat project-local approval storage as an adversarial boundary. The queue
   accepts only daemon-owned real directories and single-link regular records;
   reads are no-follow and status rewrites stay bound to the verified no-follow
-  descriptor through mutation and final identity validation.
+  descriptor through mutation and final identity validation. Terminal records
+  carry an HMAC from a live queue's daemon-held key. File-backed `get`/`list`
+  remain inspection surfaces; code that authorizes workflow continuation or a
+  later side effect must use `getWithAuthenticatedResolution`, which fails
+  closed on tampering and when a prior daemon lifetime's key is unavailable.
+  The live queue also binds each original pending snapshot in daemon-held HMAC
+  state; automatic expiry must verify that binding before it can sign a timeout
+  resolution. Unverifiable stale records stay pending and are reported as
+  blocked; the daemon sweep logs that fail-closed state without terminating
+  after pending-file edits or restart.
 - Approval events and autonomy mode are orthogonal operator surfaces. Do not
   extend approval endpoints to change a session's mode — mode changes go
   through the daemon control session endpoint (`PATCH /sessions/:id`) owned by

@@ -224,29 +224,6 @@ describe("executeApprovalStep – workflow.approval.expired event", () => {
     });
   });
 
-  it("emits workflow.approval.expired with resolution=approve when timeout auto-approves", async () => {
-    const ac = new AbortController();
-    const step = makeApprovalStep({ timeoutMs: 1, defaultResolution: "approve" });
-    const ctx = makeContext();
-    const stepPromise = executeApprovalStep(step as never, ctx as never, ac.signal);
-
-    vi.advanceTimersByTime(10);
-    testQueue.expireStale(1);
-    await vi.runOnlyPendingTimersAsync();
-
-    const output = await stepPromise;
-    expect((output as { approved: boolean }).approved).toBe(true);
-
-    const expiredCalls = mockEmit.mock.calls.filter(([event]) => event === "workflow.approval.expired");
-    expect(expiredCalls).toHaveLength(1);
-    expect(expiredCalls[0][1]).toMatchObject({
-      workflowName: "test-wf",
-      runId: "run-1",
-      stepId: "gate",
-      resolution: "approve",
-    });
-  });
-
   it("does not emit workflow.approval.expired on manual approval", async () => {
     const ac = new AbortController();
     const step = makeApprovalStep();

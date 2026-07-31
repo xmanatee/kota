@@ -1,7 +1,7 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApprovalQueue } from "./approval-queue.js";
 
 describe("ApprovalQueue expireStale", () => {
@@ -9,26 +9,28 @@ describe("ApprovalQueue expireStale", () => {
 	let queue: ApprovalQueue;
 
 	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date("2026-07-31T00:00:00.000Z"));
 		dir = mkdtempSync(join(tmpdir(), "approval-expire-test-"));
 		queue = new ApprovalQueue(dir);
 	});
 
 	afterEach(() => {
 		rmSync(dir, { recursive: true, force: true });
+		vi.useRealTimers();
 	});
 
-	function backdate(id: string, ageMs: number): void {
-		const stored = queue.get(id)!;
-		stored.createdAt = new Date(Date.now() - ageMs).toISOString();
-		writeFileSync(join(dir, `${id}.json`), JSON.stringify(stored, null, 2));
+	function agePendingApproval(ageMs: number): void {
+		vi.advanceTimersByTime(ageMs);
 	}
 
 	it("expires pending items older than ttl", () => {
-		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
-		backdate(item.id, 2000);
+		queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
+		agePendingApproval(2000);
 
-		const expired = queue.expireStale(1000);
+		const { expired, blocked } = queue.expireStale(1000);
 		expect(expired).toHaveLength(1);
+		expect(blocked).toHaveLength(0);
 		expect(expired[0].status).toBe("expired");
 		expect(expired[0].rejectionReason).toBe("expired");
 		expect(expired[0].resolvedAt).toBeDefined();
@@ -36,31 +38,33 @@ describe("ApprovalQueue expireStale", () => {
 
 	it("does not expire items within ttl", () => {
 		queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
-		const expired = queue.expireStale(60_000);
+		const { expired, blocked } = queue.expireStale(60_000);
 		expect(expired).toHaveLength(0);
+		expect(blocked).toHaveLength(0);
 	});
 
 	it("does not expire already-resolved items", () => {
 		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
 		queue.reject(item.id);
-		backdate(item.id, 2000);
+		agePendingApproval(2000);
 
-		const expired = queue.expireStale(1000);
+		const { expired, blocked } = queue.expireStale(1000);
 		expect(expired).toHaveLength(0);
+		expect(blocked).toHaveLength(0);
 		expect(queue.get(item.id)!.status).toBe("rejected");
 	});
 
 	it("expired items persist in queue with expired status", () => {
 		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
-		backdate(item.id, 2000);
+		agePendingApproval(2000);
 
 		queue.expireStale(1000);
 		expect(queue.get(item.id)!.status).toBe("expired");
 	});
 
 	it("expired items are excluded from pending list", () => {
-		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
-		backdate(item.id, 2000);
+		queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
+		agePendingApproval(2000);
 
 		queue.expireStale(1000);
 		expect(queue.list("pending")).toHaveLength(0);
@@ -68,27 +72,27 @@ describe("ApprovalQueue expireStale", () => {
 	});
 
 	it("expires item using per-item timeoutMs when no defaultTtlMs provided", () => {
-		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 1000);
-		backdate(item.id, 2000);
+		queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 1000);
+		agePendingApproval(2000);
 
-		const expired = queue.expireStale();
+		const { expired } = queue.expireStale();
 		expect(expired).toHaveLength(1);
 		expect(expired[0].status).toBe("expired");
 	});
 
 	it("per-item timeoutMs takes precedence over defaultTtlMs", () => {
 		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 500);
-		backdate(item.id, 2000);
+		agePendingApproval(2000);
 
-		const expired = queue.expireStale(600_000);
+		const { expired } = queue.expireStale(600_000);
 		expect(expired).toHaveLength(1);
 		expect(queue.get(item.id)!.timeoutMs).toBe(500);
 	});
 
 	it("uses evidence-policy pending retention when defaultTtlMs is undefined", () => {
-		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
-		backdate(item.id, 25 * 60 * 60 * 1000);
-		const expired = queue.expireStale();
+		queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
+		agePendingApproval(25 * 60 * 60 * 1000);
+		const { expired } = queue.expireStale();
 		expect(expired).toHaveLength(1);
 		expect(expired[0].status).toBe("expired");
 	});
@@ -105,21 +109,66 @@ describe("ApprovalQueue expireStale", () => {
 	});
 
 	it("auto-deny (default): expired status and rejectionReason set", () => {
-		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 1000);
-		backdate(item.id, 2000);
-		const result = queue.expireStale();
-		expect(result[0].status).toBe("expired");
-		expect(result[0].rejectionReason).toBe("expired");
-		expect(result[0].resolutionSource).toBe("timeout");
+		queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 1000);
+		agePendingApproval(2000);
+		const { expired } = queue.expireStale();
+		expect(expired[0].status).toBe("expired");
+		expect(expired[0].rejectionReason).toBe("expired");
+		expect(expired[0].resolutionSource).toBe("timeout");
 	});
 
 	it("auto-approve: approved status when defaultResolution is approve", () => {
-		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 1000, "approve");
-		backdate(item.id, 2000);
-		const result = queue.expireStale();
-		expect(result[0].status).toBe("approved");
-		expect(result[0].rejectionReason).toBeUndefined();
-		expect(result[0].resolutionSource).toBe("timeout");
+		queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 1000, "approve");
+		agePendingApproval(2000);
+		const { expired } = queue.expireStale();
+		expect(expired[0].status).toBe("approved");
+		expect(expired[0].rejectionReason).toBeUndefined();
+		expect(expired[0].resolutionSource).toBe("timeout");
+	});
+
+	it("refuses to sign an auto-approval from forged pending timeout fields", () => {
+		const item = queue.enqueueWorkflowGate({
+			workflowName: "deploy",
+			runId: "run-1",
+			stepId: "confirm",
+			reason: "approve deployment",
+		});
+		const recordPath = join(dir, `${item.id}.json`);
+		const stored = JSON.parse(readFileSync(recordPath, "utf8"));
+		writeFileSync(recordPath, JSON.stringify({
+			...stored,
+			createdAt: new Date(Date.now() - 60_000).toISOString(),
+			timeoutMs: 1,
+			defaultResolution: "approve",
+		}, null, 2));
+
+		expect(queue.expireStale()).toMatchObject({
+			expired: [],
+			blocked: [{
+				approvalId: item.id,
+				reason: "pending_integrity_unavailable",
+			}],
+		});
+		expect(JSON.parse(readFileSync(recordPath, "utf8"))).toMatchObject({
+			status: "pending",
+			defaultResolution: "approve",
+		});
+		expect(JSON.parse(readFileSync(recordPath, "utf8")))
+			.not.toHaveProperty("resolutionIntegrity");
+	});
+
+	it("fails closed instead of auto-approving pending policy from a prior daemon", () => {
+		queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 1, "approve");
+		agePendingApproval(10);
+		const restarted = new ApprovalQueue(dir);
+
+		expect(restarted.expireStale()).toMatchObject({
+			expired: [],
+			blocked: [{
+				reason: "pending_integrity_unavailable",
+			}],
+		});
+		expect(restarted.list("approved")).toHaveLength(0);
 	});
 
 	it("stores defaultResolution on enqueued item", () => {

@@ -1,0 +1,3 @@
+1. Workflow gates continue only from an endpoint-mediated terminal resolution authenticated by a daemon-held integrity key, bound to the original workflow/run/step identity, and unverifiable resolutions fail closed after restart.
+2. Focused regressions prove that editing or replacing a pending project-local gate record cannot resume the workflow or authorize its later confirmed side effect.
+3. The completed task records fresh focused and broader verification commands that pass for the fixed boundary.

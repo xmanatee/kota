@@ -61,9 +61,38 @@ export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
     }),
   );
   const stopCrashAlert = subscribeModuleCrashAlert(bus, moduleCrashAlertOpts);
+  const reportedBlockedApprovalIds = new Set<string>();
 
   const approvalSweepTimer = setInterval(() => {
-    getApprovalQueue().expireStale(approvalTtlMs);
+    try {
+      const { blocked } = getApprovalQueue().expireStale(approvalTtlMs);
+      const blockedApprovalIds = new Set(
+        blocked.map(({ approvalId }) => approvalId),
+      );
+      for (const approvalId of reportedBlockedApprovalIds) {
+        if (!blockedApprovalIds.has(approvalId)) {
+          reportedBlockedApprovalIds.delete(approvalId);
+        }
+      }
+      const newlyBlocked = blocked.filter(
+        ({ approvalId }) => !reportedBlockedApprovalIds.has(approvalId),
+      );
+      if (newlyBlocked.length > 0) {
+        onLog(
+          `Approval expiration sweep failed closed for ${newlyBlocked.length} unauthenticated ` +
+          `pending approval(s): ${newlyBlocked.map(({ approvalId }) => approvalId).join(", ")}`,
+        );
+        for (const { approvalId } of newlyBlocked) {
+          reportedBlockedApprovalIds.add(approvalId);
+        }
+      }
+    } catch (error) {
+      onLog(
+        `Approval expiration sweep failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }, pollIntervalMs);
   approvalSweepTimer.unref();
 

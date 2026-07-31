@@ -170,7 +170,7 @@ function assertDangerousApproval(
 ): void {
   if (!metadata.dangerousEffect) return;
   if (!approvalId) throw new Error("dangerous confirmed action requires an approval id");
-  const approval = queue.get(approvalId);
+  const approval = queue.getWithAuthenticatedResolution(approvalId);
   if (!approval || approval.status !== "approved") {
     throw new Error(`dangerous confirmed action approval ${approvalId} is not approved`);
   }

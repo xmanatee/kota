@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,7 +7,6 @@ import {
   resetApprovalQueue,
   setApprovalQueueInstance,
 } from "#core/daemon/approval-queue.js";
-import { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import {
   resetIdempotencyStore,
   setIdempotencyStoreInstance,
@@ -18,7 +17,7 @@ import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { type EventBus, initEventBus, resetEventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { confirmedOwnerActionStep } from "./owner-confirmed-action-step.js";
-import { type AwaitedOwnerDecisionOutcome, ownerDecisionSteps } from "./owner-decision-step.js";
+import { ownerDecisionSteps } from "./owner-decision-step.js";
 import {
   executeWorkflowRun,
   type RunExecutorDeps,
@@ -51,7 +50,6 @@ describe("owner decision workflow helpers", () => {
   let decisionDir: string;
   let questionDir: string;
   let approvalDir: string;
-  let deadLetterDir: string;
   let idempotencyDir: string;
   let bus: EventBus;
   let pbus: ProjectScopedEventBus;
@@ -59,7 +57,6 @@ describe("owner decision workflow helpers", () => {
   let decisionStore: OwnerDecisionStore;
   let questionQueue: OwnerQuestionQueue;
   let approvalQueue: ApprovalQueue;
-  let deadLetterQueue: DeadLetterQueueStore;
   let idempotencyStore: IdempotencyStore;
   const log = vi.fn();
 
@@ -68,7 +65,6 @@ describe("owner decision workflow helpers", () => {
     decisionDir = mkdtempSync(join(tmpdir(), "owner-decision-store-"));
     questionDir = mkdtempSync(join(tmpdir(), "owner-decision-question-"));
     approvalDir = mkdtempSync(join(tmpdir(), "owner-decision-approval-"));
-    deadLetterDir = mkdtempSync(join(tmpdir(), "owner-decision-dlq-"));
     idempotencyDir = mkdtempSync(join(tmpdir(), "owner-decision-idempotency-"));
     resetEventBus();
     bus = initEventBus();
@@ -77,7 +73,6 @@ describe("owner decision workflow helpers", () => {
     decisionStore = new OwnerDecisionStore(decisionDir, "scope-a", pbus);
     questionQueue = new OwnerQuestionQueue(questionDir, pbus);
     approvalQueue = new ApprovalQueue(approvalDir, pbus);
-    deadLetterQueue = new DeadLetterQueueStore(deadLetterDir);
     idempotencyStore = new IdempotencyStore(idempotencyDir, "scope-a");
     setApprovalQueueInstance(approvalQueue);
     setIdempotencyStoreInstance(idempotencyStore);
@@ -92,39 +87,8 @@ describe("owner decision workflow helpers", () => {
     rmSync(decisionDir, { recursive: true, force: true });
     rmSync(questionDir, { recursive: true, force: true });
     rmSync(approvalDir, { recursive: true, force: true });
-    rmSync(deadLetterDir, { recursive: true, force: true });
     rmSync(idempotencyDir, { recursive: true, force: true });
   });
-
-  function makeDataOnlyWorkflow(): WorkflowDefinition {
-    const decision = ownerDecisionSteps({
-      idPrefix: "choose",
-      decisionStore: () => decisionStore,
-      ownerQuestionQueue: () => questionQueue,
-      input: {
-        context: "A workflow needs an auditable data-only architecture choice.",
-        reason: "The selected architecture persists beyond this run.",
-        request: {
-          kind: "single-choice",
-          prompt: "Which architecture option should be recorded?",
-          options: [
-            { id: "module", label: "Module owned" },
-            { id: "core", label: "Core owned" },
-          ],
-        },
-      },
-    });
-    return {
-      name: "owner-decision-data-fixture",
-      enabled: true,
-      recoveryCapable: false,
-      definitionPath: "src/core/workflow/owner-decision-step.test.ts",
-      moduleRoot: "/test-module-root",
-      triggers: [],
-      steps: [decision.ask, decision.wait, decision.consume],
-      tags: [],
-    };
-  }
 
   function makeConfirmedActionWorkflow(
     calls: string[],
@@ -263,4 +227,30 @@ describe("owner decision workflow helpers", () => {
     expect(action.output).toMatchObject({ actionId: "book-court", approvalId });
     const consumed = decisionStore.list("consumed")[0];
     expect(consumed.consumption?.approvalId).toBe(approvalId);
-  });});
+  });
+
+  it("does not execute a confirmed side effect after its approved gate record is changed", async () => {
+    const calls: string[] = [];
+    const definition = makeConfirmedActionWorkflow(calls);
+    const { promise } = executeWorkflowRun(
+      definition,
+      TRIGGER,
+      runExecutorDeps(),
+    );
+
+    await answerPendingQuestion("yes");
+    const approvalId = await approvePendingApproval();
+    const recordPath = join(approvalDir, `${approvalId}.json`);
+    const stored = JSON.parse(readFileSync(recordPath, "utf8"));
+    writeFileSync(recordPath, JSON.stringify({
+      ...stored,
+      approvalNote: "forged after endpoint approval",
+    }, null, 2));
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("failed");
+    expect(calls).toEqual([]);
+    expect(result.metadata.steps.find((step) => step.id === "approval")?.error)
+      .toMatch(/authenticated approval resolution|integrity/i);
+  });
+});
