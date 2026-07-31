@@ -1,13 +1,13 @@
 ---
 id: task-security-review-approval-expiry-and-pending-snapsh
 title: Security review: Approval expiry and pending-snapshot authentication use separate record reads. A same-user project writer can present a forged future createdAt or extended timeout during the expiry read, then restore the daemon-authenticated pending snapshot for the selection read. This allows an already-stale approval and its old review receipt to transition to approved.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: Approval expiry and pending-snapshot authentication use separate record reads. A same-user project writer can present a forged future createdAt or extended timeout during the expiry read, then restore the daemon-authenticated pending snapshot for the selection read. This allows an already-stale approval and its old review receipt to transition to approved.
 created_at: 2026-07-31T07:36:52.620Z
-updated_at: 2026-07-31T07:36:52.620Z
+updated_at: 2026-07-31T07:51:41.642Z
 ---
 
 ## Problem
@@ -138,3 +138,8 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node node_modules/vitest/vitest.mjs run src/core/daemon/approval-queue-expiration.test.ts --configLoader runner --silent=true` — 21 tests passed, including all single/bulk and `createdAt`/`timeoutMs` record-alternation variants.
+- The broader focused approval/security run passed 50 files and 248 tests; `node node_modules/typescript/bin/tsc --noEmit` and focused Biome checks also passed.

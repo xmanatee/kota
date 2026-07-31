@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApprovalQueue } from "./approval-queue.js";
+import { ApprovalRecordRepository } from "./approval-record-repository.js";
 
 describe("ApprovalQueue expireStale", () => {
 	let dir: string;
@@ -17,6 +18,7 @@ describe("ApprovalQueue expireStale", () => {
 
 	afterEach(() => {
 		rmSync(dir, { recursive: true, force: true });
+		vi.restoreAllMocks();
 		vi.useRealTimers();
 	});
 
@@ -117,6 +119,64 @@ describe("ApprovalQueue expireStale", () => {
 			resolutionSource: "timeout",
 		});
 	});
+
+	it.each([
+		["single", "createdAt"],
+		["single", "timeoutMs"],
+		["bulk", "createdAt"],
+		["bulk", "timeoutMs"],
+	] as const)(
+		"authenticates one stored snapshot before %s approval expiry when %s alternates",
+		(mode, forgedDeadlineField) => {
+			queue = new ApprovalQueue(dir, null, { defaultTtlMs: 1000 });
+			const item = queue.enqueue(
+				"shell",
+				{ command: "deploy" },
+				"dangerous",
+				"production deployment",
+			);
+			const selection = queue.getExecutionSnapshot(item.id);
+			if (!selection.ok) throw new Error("expected execution snapshot");
+			agePendingApproval(2000);
+
+			const recordPath = join(dir, `${item.id}.json`);
+			const authenticatedRecord = JSON.parse(readFileSync(recordPath, "utf8"));
+			const forgedRecord = {
+				...authenticatedRecord,
+				...(forgedDeadlineField === "createdAt"
+					? { createdAt: new Date(Date.now() + 60_000).toISOString() }
+					: { timeoutMs: 60_000 }),
+			};
+			const originalRead = ApprovalRecordRepository.prototype.read;
+			let readCount = 0;
+			const readSpy = vi.spyOn(ApprovalRecordRepository.prototype, "read")
+				.mockImplementation(function alternateApprovalRecord(
+					this: ApprovalRecordRepository,
+					id,
+				) {
+					readCount += 1;
+					writeFileSync(
+						recordPath,
+						JSON.stringify(readCount % 2 === 1 ? forgedRecord : authenticatedRecord, null, 2),
+					);
+					return originalRead.call(this, id);
+				});
+
+			const result = mode === "single"
+				? queue.approveForExecution(selection.snapshot.descriptor)
+				: queue.approvePendingForExecution([selection.snapshot.descriptor]);
+			readSpy.mockRestore();
+
+			expect(readCount).toBe(1);
+			expect(result).toMatchObject({
+				ok: false,
+				reason: "descriptor_mismatch",
+			});
+			const persisted = JSON.parse(readFileSync(recordPath, "utf8"));
+			expect(persisted).toMatchObject({ status: "pending" });
+			expect(persisted).not.toHaveProperty("resolutionIntegrity");
+		},
+	);
 
 	it("stores timeoutMs on enqueued item", () => {
 		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 5000);

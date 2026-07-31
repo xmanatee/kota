@@ -1,0 +1,3 @@
+1. Verified: single and bulk approval paths now read once, authenticate that stored pending snapshot before checking its deadline, and carry the same authenticated approval plus file identity into expiration or execution selection.
+2. Verified: the focused regression alternates forged and authenticated record contents for both `createdAt` and `timeoutMs`; all four variants observe exactly one read, return `descriptor_mismatch`, and persist no signed terminal resolution. The focused approval/security suite passed 50 files and 248 tests.
+3. Verified: the done task records the fresh 21-test regression command and the broader validation results. TypeScript, focused Biome, direct queue validation, and the exact isolated-index staged-diff check also passed.

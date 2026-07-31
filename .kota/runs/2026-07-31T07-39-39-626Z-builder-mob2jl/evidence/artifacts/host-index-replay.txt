@@ -1,0 +1,25 @@
+Host-index replay record
+
+The linked worktree's host Git index is read-only in this sandbox. Task moves,
+queue validation, final staging, and staged-diff validation therefore used:
+
+GIT_INDEX_FILE=.kota/tmp/2026-07-31T07-39-39-626Z-builder-mob2jl/git-index
+GIT_OBJECT_DIRECTORY=.kota/tmp/2026-07-31T07-39-39-626Z-builder-mob2jl/git-objects
+GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects
+
+The isolated index was initialized from HEAD with `git read-tree HEAD`. Both
+task transitions ran through the source-mode KOTA task CLI under that
+environment. Final `git add -A`, `git diff --cached --check`, and direct
+source-mode queue validation passed against the same index and object store.
+
+This isolated staging does not update the real worktree index. The workflow
+commit step must replay:
+
+git add -A -- data/tasks/ready/task-security-review-approval-expiry-and-pending-snapsh.md data/tasks/done/task-security-review-approval-expiry-and-pending-snapsh.md src/core/daemon/approval-execution-selection.ts src/core/daemon/approval-queue-expiration.test.ts src/core/daemon/approval-queue.ts
+
+Validated staged path set:
+
+R data/tasks/ready/task-security-review-approval-expiry-and-pending-snapsh.md -> data/tasks/done/task-security-review-approval-expiry-and-pending-snapsh.md
+M src/core/daemon/approval-execution-selection.ts
+M src/core/daemon/approval-queue-expiration.test.ts
+M src/core/daemon/approval-queue.ts

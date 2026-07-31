@@ -9,6 +9,8 @@ import {
 	pendingApprovalMatchesExecutionDescriptor,
 } from "./approval-execution-descriptor.js";
 import {
+	type AuthenticatedApprovalExecutionTarget,
+	authenticateApprovalForExecution,
 	selectApprovalForExecution,
 	selectApprovalsForExecution,
 } from "./approval-execution-selection.js";
@@ -214,14 +216,24 @@ export class ApprovalQueue {
 	}
 
 	private selectForExecution(id: string) {
-		this.expireExecutionTargetIfStale(id);
+		const authenticated = authenticateApprovalForExecution(
+			this.records.read(id),
+			this.scopeId,
+			this.resolutionAuthenticator,
+		);
+		if (!authenticated.ok) return authenticated;
+		if (this.isStale(
+			authenticated.target.approval,
+			Date.now(),
+			this.defaultTtlMs,
+		)) {
+			this.expireAuthenticated(authenticated.target);
+			return { ok: false, reason: "not_found" } as const;
+		}
 		return selectApprovalForExecution(
-			this.records,
+			authenticated.target,
 			this.executionInputs,
 			this.reviewContexts,
-			this.scopeId,
-			id,
-			this.resolutionAuthenticator,
 		);
 	}
 
@@ -327,13 +339,15 @@ export class ApprovalQueue {
 		return now >= new Date(item.createdAt).getTime() + ttl;
 	}
 
-	private expireStored(current: StoredApproval): PendingApproval {
-		const item = this.resolutionAuthenticator.authenticatePending(current.item);
+	private expireAuthenticated(
+		target: AuthenticatedApprovalExecutionTarget,
+	): PendingApproval {
+		const item = target.approval;
 		const resolution = expireApproval(item);
 		const stored = this.resolutionAuthenticator.write(
 			this.records,
 			item,
-			current.identity,
+			target.recordIdentity,
 		);
 		this.executionInputs.delete(item.id);
 		this.reviewContexts.delete(item.id);
@@ -341,20 +355,12 @@ export class ApprovalQueue {
 		return stored;
 	}
 
-	private expireExecutionTargetIfStale(id: string): void {
-		const current = this.records.read(id);
-		if (
-			current === null
-			|| current.item.status !== "pending"
-			|| !this.isStale(current.item, Date.now(), this.defaultTtlMs)
-		) {
-			return;
-		}
-		try {
-			this.expireStored(current);
-		} catch (error) {
-			if (!(error instanceof ApprovalResolutionIntegrityError)) throw error;
-		}
+	private expireStored(current: StoredApproval): PendingApproval {
+		const approval = this.resolutionAuthenticator.authenticatePending(current.item);
+		return this.expireAuthenticated({
+			approval,
+			recordIdentity: current.identity,
+		});
 	}
 
 	expireStale(defaultTtlMs?: number): ApprovalExpirationSweepResult {
@@ -381,17 +387,9 @@ export class ApprovalQueue {
 		descriptors: readonly ApprovalExecutionDescriptor[],
 		note?: string,
 	): ApprovalExecutionApproveAllResult {
-		for (const descriptor of descriptors) {
-			this.expireExecutionTargetIfStale(descriptor.approvalId);
-		}
-		const result = selectApprovalsForExecution(
-			this.records,
-			this.executionInputs,
-			this.reviewContexts,
-			this.scopeId,
-			descriptors,
-			this.resolutionAuthenticator,
-		);
+		const selections = descriptors.map(({ approvalId }) =>
+			this.selectForExecution(approvalId));
+		const result = selectApprovalsForExecution(descriptors, selections);
 		if (!result.ok) return result;
 		const approvals = result.selected.map((item) => this.approveSelected(
 			item.approval,

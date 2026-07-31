@@ -1,0 +1,3 @@
+1. Approval execution authenticates one stored pending snapshot and derives either expiry or execution selection from that same snapshot for both single and bulk approval paths, closing the confirmed stale-approval race.
+2. Focused regression coverage alternates approval record contents at the storage boundary and proves an already-stale approval cannot be signed or executed.
+3. The completed task records the fresh verification command that proves the fixed boundary.
