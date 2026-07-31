@@ -5,10 +5,10 @@ status: backlog
 priority: p2
 area: architecture
 task_class: Platform
-depends_on: [task-make-ui-contributions-the-only-surface-assembly-pa, task-generate-client-bindings-from-the-daemon-ui-contra, task-render-shared-ui-surfaces-in-the-web-client, task-render-shared-ui-surfaces-in-apple-clients, task-render-shared-ui-surfaces-in-android-mobile, task-generate-all-thin-client-daemon-contract-bindings, task-add-one-policy-aware-outbound-http-transport, task-migrate-integrations-to-the-outbound-http-transpor, task-make-remote-task-provider-mutations-durable]
+depends_on: [task-make-ui-contributions-the-only-surface-assembly-pa, task-generate-client-bindings-from-the-daemon-ui-contra, task-render-shared-ui-surfaces-in-the-web-client, task-render-shared-ui-surfaces-in-apple-clients, task-render-shared-ui-surfaces-in-android-mobile, task-generate-all-thin-client-daemon-contract-bindings, task-add-one-policy-aware-outbound-http-transport, task-migrate-integrations-to-the-outbound-http-transpor, task-make-remote-task-provider-mutations-durable, task-prove-self-service-external-scope-onboarding-end-t]
 summary: Add deterministic architecture checks that prevent UI, contract, HTTP, browser, and registration bypasses from returning.
 created_at: 2026-07-31T16:01:02.631Z
-updated_at: 2026-07-31T16:01:02.631Z
+updated_at: 2026-07-31T16:16:36.000Z
 ---
 
 ## Problem
@@ -24,8 +24,8 @@ accepted as complete.
 Add a small set of deterministic architecture fitness checks derived from the
 completed canonical boundaries. They should fail on a second semantic UI
 catalog, authored client wire mirror, disallowed raw fetch, Playwright outside
-the browser module, direct tool/module registration bypass, or alternate
-slash-command catalog.
+the browser module, direct tool/module registration bypass, alternate
+slash-command catalog, or a second scope registry/onboarding/init path.
 
 ## Constraints
 
@@ -43,7 +43,7 @@ slash-command catalog.
 
 - One focused architecture-check entry point verifies UI contribution/client
   ownership, generated contract provenance, HTTP/browser ownership, and
-  module/tool/command registration paths.
+  module/tool/command/scope-onboarding registration paths.
 - Deliberate violations in each boundary fail with actionable diagnostics.
 - Existing duplicate/copy allowlists and stale prose conventions are removed
   or rewritten to point at the executable boundary.
@@ -56,7 +56,8 @@ The owner suggested a regular audit but asked this turn to create tasks rather
 than add another agent/workflow. The audit also found that browser automation,
 module/tool registration, and slash-command derivation are already canonical;
 this task protects those good boundaries while mechanically locking the UI,
-contract, HTTP, and task-provider repairs after they land.
+contract, HTTP, task-provider, and self-service scope-onboarding repairs after
+they land.
 
 ## Initiative
 
@@ -67,6 +68,6 @@ One canonical capability mechanism per KOTA boundary.
 - A fitness-check report covering every boundary and its authoritative owner.
 - Deliberate-break artifacts showing duplicate UI inventory, authored decoder,
   raw fetch, external Playwright import, direct tool registration, and parallel
-  command catalog each fail for the expected reason.
+  command or scope-onboarding path each fail for the expected reason.
 - A clean repository search report with no legacy allowlist, compatibility
   path, or duplicate catalog left behind.
