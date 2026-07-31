@@ -11,4 +11,6 @@ This module contributes the `kota module` CLI surface: `list`, `inspect`, `new`,
 
 - Uses `ctx.getModuleSummaries()` for live module data; no independent loader.
 - Contributes an HTTP route for listing modules.
+- Contributes the live modules/agents inspection surface through
+  `KotaModule.uiSurfaces`; the projection reads the existing client namespaces.
 - Avoid importing the repo module discovery entrypoint from here; this command should inspect loaded state, not rebuild it.

@@ -1,33 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type { KotaClient } from "#core/server/kota-client.js";
+import { executeUiAction, renderUiSurface } from "#modules/daemon-ops/operator-ui.js";
 import { renderToString } from "#modules/rendering/transport.js";
 import type { WorkflowStatusSnapshot } from "#modules/workflow-ops/client.js";
-import {
-  buildRuntimeUiSurface,
-  executeUiAction,
-  renderUiSurface,
-} from "./operator-ui.js";
-import type { StatusSnapshot } from "./status-cli.js";
-
-function status(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
-  return {
-    daemonRunning: false,
-    activeRuns: 0,
-    queuedRuns: 0,
-    workflowPaused: false,
-    sessions: 0,
-    pendingApprovals: 0,
-    projectDir: "/repo",
-    projectName: "repo",
-    controlFile: { kind: "missing" },
-    historicalWorkflow: {
-      activeRuns: 0,
-      queuedRuns: 2,
-      workflowPaused: false,
-    },
-    ...overrides,
-  };
-}
+import { buildRuntimeUiSurface } from "./ui-surface.js";
 
 function runtimeStatus(): WorkflowStatusSnapshot {
   return {
@@ -71,11 +47,7 @@ describe("operator UI runtime actions", () => {
   it("renders dirty-recovery dispatch state in the Runtime surface", () => {
     const recovery = dirtyRecovery();
     const surface = buildRuntimeUiSurface({
-      status: status({
-        daemonRunning: true,
-        daemonPid: 4242,
-        scopedProject: { projectId: "scope-main", projectDir: "/repo", displayName: "repo" },
-      }),
+      scopeId: "scope-main",
       workflowStatus: {
         ok: true,
         value: {
@@ -108,11 +80,7 @@ describe("operator UI runtime actions", () => {
 
   it("builds executable queued and recent run supervision controls", async () => {
     const surface = buildRuntimeUiSurface({
-      status: status({
-        daemonRunning: true,
-        daemonPid: 4242,
-        scopedProject: { projectId: "scope-main", projectDir: "/repo", displayName: "repo" },
-      }),
+      scopeId: "scope-main",
       workflowStatus: { ok: true, value: runtimeStatus() },
       runs: {
         ok: true,

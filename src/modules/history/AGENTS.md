@@ -18,6 +18,8 @@ This directory owns conversation history — the persistent record of past sessi
   helper and return an explicit metadata, bounded-window, or full-state
   view; malformed detail query parameters fail at the route/client boundary.
 - Operator pull-surfaces consume the search seam through one shared HTTP route (`GET /api/history/search`) and one shared line shape (`renderHistorySearchPlain`): Telegram `/history`, terminal `kota history search`, the macOS menu bar `HistoryView`, and the mobile `HistoryScreen`.
+- The module contributes its own live history-store shared-UI surface rather
+  than entering a daemon-owned store catalog.
 
 ## Boundaries
 

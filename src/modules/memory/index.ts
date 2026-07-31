@@ -24,12 +24,14 @@ import {
 } from "./project-scope.js";
 import { memoryRoutes } from "./routes.js";
 import { getProjectMemoryStore } from "./store.js";
+import { memoryUiSurfaceSource } from "./ui-surface.js";
 
 const memoryModule: KotaModule = {
   name: "memory",
   version: "1.0.0",
   description: "Persistent memory across sessions (save/search/list/update/delete)",
   dependencies: ["rendering"],
+  uiSurfaces: [memoryUiSurfaceSource],
   tools: [
     {
       tool: memoryTool,

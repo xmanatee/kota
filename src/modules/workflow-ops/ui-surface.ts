@@ -1,11 +1,6 @@
 import type { PendingApproval } from "#core/daemon/approval-queue.js";
 import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
-import type {
-  WorkflowDefinitionsResult,
-  WorkflowRunsListResult,
-  WorkflowStatusSnapshot,
-} from "#modules/workflow-ops/client.js";
-import type { SessionsListResult } from "./client.js";
+import type { UiStatusEntry, UiSurface } from "#core/daemon/ui-surface.js";
 import {
   action,
   NAME_STATE_DETAIL_COLUMNS,
@@ -13,16 +8,21 @@ import {
   readValue,
   resultSpec,
   type SurfaceRead,
-  scopeIdForStatus,
   uniqueActions,
-} from "./operator-ui-builder-common.js";
+} from "#core/daemon/ui-surface-builders.js";
+import type { SessionsListResult } from "#modules/daemon-ops/client.js";
 import {
   launchDefaultParameters,
   launchWorkflowParameters,
   sessionLaunchParameters,
-} from "./operator-ui-launch-controls.js";
-import { formatOperatorRecoverySummary } from "./operator-ui-recovery-summary.js";
-import { runtimeRunActions } from "./operator-ui-runtime-actions.js";
+} from "#modules/daemon-ops/operator-ui-launch-controls.js";
+import { formatOperatorRecoverySummary } from "#modules/daemon-ops/operator-ui-recovery-summary.js";
+import type {
+  WorkflowDefinitionsResult,
+  WorkflowRunsListResult,
+  WorkflowStatusSnapshot,
+} from "#modules/workflow-ops/client.js";
+import { runtimeRunActions } from "./ui-runtime-actions.js";
 import {
   activeRunRows,
   approvalRows,
@@ -31,9 +31,7 @@ import {
   recentRunRows,
   runtimeLogEntries,
   workflowRows,
-} from "./operator-ui-runtime-helpers.js";
-import type { UiStatusEntry, UiSurface } from "./operator-ui-types.js";
-import type { StatusSnapshot } from "./status-cli.js";
+} from "./ui-runtime-helpers.js";
 
 function dispatchSummary(
   workflowStatus: SurfaceRead<WorkflowStatusSnapshot>,
@@ -64,7 +62,7 @@ function dispatchSummary(
 }
 
 export function buildRuntimeUiSurface(args: {
-  status: StatusSnapshot;
+  scopeId: string;
   workflowStatus: SurfaceRead<WorkflowStatusSnapshot>;
   runs: SurfaceRead<WorkflowRunsListResult>;
   definitions: SurfaceRead<WorkflowDefinitionsResult>;
@@ -72,7 +70,7 @@ export function buildRuntimeUiSurface(args: {
   ownerQuestions: SurfaceRead<{ questions: PendingOwnerQuestion[] }>;
   sessions: SurfaceRead<SessionsListResult>;
 }): UiSurface {
-  const scopeId = scopeIdForStatus(args.status);
+  const { scopeId } = args;
   const launch = action({
     surfaceId: "runs",
     actionId: "workflow.launch",

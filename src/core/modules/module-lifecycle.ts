@@ -73,16 +73,6 @@ export function discardModuleLoadState(
     }
   }
 
-  const uiDefs = state.moduleUiSurfaceDefs.get(moduleName);
-  if (uiDefs) {
-    const surfaceIds = new Set(uiDefs.map((surface) => surface.surfaceId));
-    for (let i = state.contributedUiSurfaces.length - 1; i >= 0; i--) {
-      if (surfaceIds.has(state.contributedUiSurfaces[i].surfaceId)) {
-        state.contributedUiSurfaces.splice(i, 1);
-      }
-    }
-  }
-
   const skillDefs = state.moduleSkillDefs.get(moduleName);
   if (skillDefs) {
     for (const skill of skillDefs) {
@@ -107,7 +97,7 @@ export function discardModuleLoadState(
   state.moduleToolDefs.delete(moduleName);
   state.moduleWorkflowDefs.delete(moduleName);
   state.moduleChannelDefs.delete(moduleName);
-  state.moduleUiSurfaceDefs.delete(moduleName);
+  state.moduleUiSurfaceSources.delete(moduleName);
   state.moduleSkillDefs.delete(moduleName);
   state.moduleAgentDefs.delete(moduleName);
   state.moduleSetupRequirementDefs.delete(moduleName);
@@ -178,7 +168,7 @@ export async function unloadAllModules(state: LoaderState, env: LifecycleEnv): P
   state.moduleToolDefs.clear();
   state.moduleWorkflowDefs.clear();
   state.moduleChannelDefs.clear();
-  state.moduleUiSurfaceDefs.clear();
+  state.moduleUiSurfaceSources.clear();
   state.moduleSkillDefs.clear();
   state.moduleAgentDefs.clear();
   state.moduleSetupRequirementDefs.clear();
@@ -206,7 +196,6 @@ export async function unloadAllModules(state: LoaderState, env: LifecycleEnv): P
   state.registeredConfigKeys.clear();
   state.contributedWorkflows.splice(0);
   state.contributedChannels.splice(0);
-  state.contributedUiSurfaces.splice(0);
   state.skillContentsByName.clear();
   state.skillDefsByName.clear();
   state.importedSkillNames.clear();

@@ -1,7 +1,7 @@
 import {
   action,
   resultSpec,
-} from "./operator-ui-builder-common.js";
+} from "#core/daemon/ui-surface-builders.js";
 import {
   formatOperatorRecoverySummary,
   recoveryIsUnavailable,

@@ -7,7 +7,6 @@ import type { AgentDef } from "#core/agents/agent-types.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { getProjectSecretStore } from "#core/config/secrets.js";
-import type { UiSurface } from "#core/daemon/ui-surface.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { BusEnvelope, BusEvents } from "#core/events/event-bus-types.js";
 import {
@@ -30,6 +29,7 @@ import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js"
 import { getModuleLogStore } from "./module-log.js";
 import { ModuleStorage } from "./module-storage.js";
 import type { ControlRouteRegistration, CreateSessionOptions, HealthCheckResult, ModuleEventProxy, ModuleRuntimeContext, ModuleSession, ModuleSummary, RouteRegistration } from "./module-types.js";
+import type { RegisteredUiSurfaceSource } from "./module-ui-surfaces.js";
 import { getProviderRegistry, initProviderRegistry } from "./provider-registry.js";
 import type { ProviderToken } from "./provider-token.js";
 import { printTerminalDiagnostic } from "./terminal-renderer.js";
@@ -44,7 +44,7 @@ export interface ModuleContextParams {
   getContributedControlRoutes: () => ControlRouteRegistration[];
   getContributedWorkflows: () => RegisteredWorkflowDefinitionInput[];
   getContributedChannels: () => ChannelDef[];
-  getContributedUiSurfaces: () => UiSurface[];
+  getContributedUiSurfaces: () => RegisteredUiSurfaceSource[];
   getModuleSummaries: () => ModuleSummary[];
   resolveAgentDef: (name: string) => AgentDef | undefined;
   resolveSkillsPrompt: (skillNames: string[] | "all", agentName?: string) => string;

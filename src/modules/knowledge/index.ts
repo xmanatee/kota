@@ -25,6 +25,7 @@ import {
 } from "./project-scope.js";
 import { knowledgeRoutes } from "./routes.js";
 import { KnowledgeStore } from "./store.js";
+import { knowledgeUiSurfaceSource } from "./ui-surface.js";
 
 const knowledgeModule: KotaModule = {
 	name: "knowledge",
@@ -32,6 +33,7 @@ const knowledgeModule: KotaModule = {
 	description:
 		"Structured knowledge base — markdown files with YAML front matter",
 	dependencies: ["rendering"],
+	uiSurfaces: [knowledgeUiSurfaceSource],
 	tools: [
 		{
 			tool: knowledgeTool,

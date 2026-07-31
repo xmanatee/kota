@@ -1,0 +1,136 @@
+Post-check repair attempt 2 — 2026-07-31
+
+Source-size repair
+- Restored getContributedUiSurfaces as the live source-registration accessor, avoiding broad fixture churn while keeping assembly exclusive to the core assembler.
+- Split module protocol types, loader phases and snapshots, module-manager CLI handling, daemon-ops definition tests, and setup UI tests into cohesive files.
+- Removed obsolete central UI builders and kept the daemon wrapper free of hardcoded cross-module surface construction.
+- Exact staged-diff evaluation is advisory with three oversized warnings, below the blocking threshold of four; the reported batch had 28 warnings.
+
+Fresh validation
+- TypeScript: ./node_modules/.bin/tsc --noEmit passed.
+- Biome: changed TypeScript files passed.
+- Focused behavior suite: 13 test files passed; 160 tests passed.
+- Full suite: 1176 test files passed, 4 skipped; 12,353 tests passed, 16 skipped. Its sole failure was the strict-types policy ratchet after types moved into focused files.
+- After replacing the moved raw boundary records with the shared ModuleBoundaryRecord alias, the strict-types policy plus affected suite passed: 8 files, 118 tests.
+- Queue validation and repository hygiene passed. The normalized staged diff passed `git diff --cached --check`, and the exact source-size evaluator returned advisory with three warnings.
+
+Tooling note
+- The pinned pnpm wrapper could not fetch its package-manager metadata in the network-restricted sandbox. Validation used the already-installed TypeScript, Biome, Vitest, tsx, and Node entrypoints.
+
+Audit scope
+- No rendered HTML, CSS, native view, asset, layout, typography, motion, theme, or renderer behavior changed.
+- The infrastructure-scoped UI technical audit remains applicable; no visual finding was introduced.
+
+Post-check repair attempt 3 — 2026-07-31
+
+Stage-boundary reconciliation
+- The 42 reported paths were stale index entries from the pre-source-size-repair snapshot. Their working-tree versions match HEAD, so replaying `git add -A` removes them from the final commit instead of widening the task.
+- The registered builder evidence projection remains the only `.kota/runs` content in the commit; no unregistered runtime artifact was added.
+- The exact `checkBuilderWorkflowChangesStageable` evaluator passed against the isolated index: 79 final mutated paths are staged and no excluded path remains.
+
+Fresh validation
+- TypeScript: `./node_modules/.bin/tsc --noEmit` passed.
+- Biome: all 58 TypeScript files in the final diff passed; the repository-wide scan exited successfully with warning-only diagnostics in unrelated files.
+- Focused behavior and strict-types suite: 11 test files passed; 116 tests passed.
+- Queue validation passed. Repository hygiene passed with three advisory-only findings in previously captured evidence text.
+- The exact staged source-size evaluator remains advisory with three warnings and no blocking batch.
+
+Post-check repair attempt 4 — 2026-07-31
+
+Stage-boundary reconciliation
+- Reconfirmed that the 42 reported paths are stale host-index entries whose working-tree content matches HEAD; they are absent from the intended final diff.
+- Preserved the narrower live-source accessor instead of restoring the discarded broad context-fixture migration.
+- Removed unregistered, unrelated runtime artifacts from this builder evidence directory; the durable projection remains limited to the manifest-declared task evidence.
+
+Fresh validation
+- TypeScript: `./node_modules/.bin/tsc --noEmit` passed.
+- Biome: all 58 TypeScript files in the effective final diff passed.
+- Focused projection, loader, route, client, action, module-boundary, dependency, and strict-types coverage: 13 test files passed; 121 tests passed.
+- Queue validation passed. Repository hygiene passed with three advisory-only findings in previously captured command output.
+- Effective-diff whitespace validation and both structural absence checks passed.
+- Direct `git add -A` reconciled the real worktree index; the exact builder stage-boundary evaluator reports 79 mutated paths already staged with no excluded path.
+- The exact staged source-size evaluator is advisory for three files: two shrink, and `src/modules/workflow-ops/index.ts` grows by two lines. No blocking batch or substantial-growth reason exists.
+
+Post-check repair attempt 5 — 2026-07-31
+
+Scoped action execution
+- Bound execution to the `scopeId` carried by the action resolved from the validated live bundle, including calls whose input selector is omitted and resolved from the active scope.
+- Local namespace and setup actions now receive the scoped `KotaClient`; local daemon start rejects a projected scope outside the current local runtime instead of starting the wrong project.
+- Daemon namespace routes, retry/replay/resume follow-ups, and raw daemon-route actions now append the projected scope while preserving existing query parameters.
+- Added focused fixtures proving non-default scope execution through local namespace/setup and daemon namespace/follow-up/route paths.
+
+Fresh validation
+- TypeScript: `./node_modules/.bin/tsc --noEmit` passed.
+- Biome: the three repair TypeScript files passed.
+- Focused projection, action, loader, project-scope, module-definition, ownership, and strict-types coverage: 9 test files passed; 28 tests passed.
+- Queue validation and effective-diff whitespace validation passed. Repository hygiene passed with three advisory-only deprecation strings in previously captured evidence.
+- The exact isolated staged source-size evaluator remains advisory for three files; `src/modules/daemon-ops/index.ts` shrinks by 71 net lines and no blocking reason applies.
+- The exact builder stage-boundary evaluator reports all 80 mutated paths already staged in the isolated index.
+- The pinned pnpm wrapper again could not verify package-manager metadata in the network-restricted sandbox; validation used the installed repository binaries.
+- The technical UI audit remains 20/20 for this infrastructure-only diff: no HTML, CSS, native view, asset, layout, typography, motion, theme, or renderer implementation changed.
+
+Post-check repair attempt 6 — 2026-07-31
+
+Implicit scope projection
+- Scoped the contributor-facing KotaClient after the assembler resolves either the active or default implicit scope, keeping live reads aligned with projected surface and action scope ids.
+- Resolved unqualified daemon `/ui/surfaces` requests through the daemon project-scope provider before invoking the shared assembler, because the daemon process intentionally holds a local client whose `projects.list()` result is `daemon_required`.
+- Added active/default assembler fixtures that distinguish base from scoped reads, plus an unqualified daemon-route fixture proving the provider-selected active scope reaches contributor reads.
+
+Fresh validation
+- TypeScript: `./node_modules/.bin/tsc --noEmit` passed.
+- Biome: all five repair-path TypeScript files passed.
+- Focused projection, loader, daemon route/client, action-scope, project-scope, ownership, and strict-types coverage: 9 test files passed; 110 tests passed.
+- Queue validation passed through the installed `tsx` entrypoint. Repository hygiene passed with three advisory-only deprecation strings in previously captured evidence.
+- Staged and unstaged whitespace validation passed. The technical UI anti-pattern scan found no visual implementation patterns because this repair changes typed scope plumbing and fixtures only.
+- The exact isolated builder stage-boundary evaluator reports all 80 mutated paths staged. The severe source-size evaluator remains advisory for the same three files and has no blocking batch.
+
+Tooling note
+- The pinned pnpm wrapper could not verify package-manager metadata in the network-restricted sandbox for queue/hygiene commands. The equivalent installed Node + `tsx` entrypoints passed.
+
+Post-check repair attempt 7 — 2026-07-31
+
+Exclusive surface assembly
+- Removed the unused `buildStatusInboxBundle` helper and its full daemon-ops public re-export chain, eliminating the second direct `buildUiSurfaceBundle` path found by the critic.
+- Added a repository integration guard that permits raw bundle assembly references only in the primitive definition and canonical core contributor assembler across all production TypeScript.
+- Replaced the incomplete builder-name search with direct raw-assembler and legacy-export absence checks in the structural evidence.
+
+Fresh validation
+- TypeScript: `./node_modules/.bin/tsc --noEmit` passed.
+- Biome: all five repair-path TypeScript files passed.
+- Focused projection, loader, daemon route/client, action-scope, project-scope, ownership, and strict-types coverage: 9 test files passed; 111 tests passed.
+- Direct source searches confirm `buildStatusInboxBundle` is absent and the only production `buildUiSurfaceBundle` call outside its primitive definition is the canonical core module assembler.
+- Queue validation and staged/unstaged whitespace validation passed. Repository hygiene passed with the same three advisory-only deprecation strings already captured in run evidence.
+- No renderer, HTML, CSS, native view, asset, layout, typography, motion, or theme implementation changed, so the existing infrastructure-scoped UI technical audit remains applicable.
+- Direct host-index staging was blocked by linked-worktree metadata permissions. The complete 81-path commit set was staged through the required workspace-local index/object store; isolated staged-diff and exact builder stage-boundary checks passed, with host-index replay recorded for the terminal workflow.
+
+Post-check repair attempt 8 — 2026-07-31
+
+Scoped setup projection
+- Extended the setup client namespace with the shared optional scope selector and made the scoped KotaClient inject it for every setup read and mutation.
+- Resolved local setup services from the daemon project-scope provider, keyed services by the selected project directory, and rejected unresolved explicit scopes instead of reading the module context's original directory.
+- Delegated setup UI actions through the module-owned daemon control route into the canonical local UI executor, while the legacy direct setup transport now rejects explicit scopes instead of labeling unscoped core routes as scoped.
+- Replaced the custom scoped setup stub that masked the defect with the real scoped-client wrapper, and added local project-directory, daemon handoff, control-route, fail-closed transport, and all-operation regression coverage.
+
+Fresh validation
+- TypeScript: `./node_modules/.bin/tsc --noEmit` passed.
+- Biome: all 11 repair-path TypeScript files passed.
+- Focused projection, setup, loader, daemon route/handle, ownership, and strict-types coverage: 13 test files passed; 153 tests passed.
+- Queue validation passed. Repository hygiene passed with advisory-only wording already present in committed run evidence.
+- The exact staged source-size evaluator returned the expected three advisory warnings with no blocking batch. No renderer, HTML, CSS, native view, asset, layout, typography, motion, or theme implementation changed, so the existing infrastructure-scoped UI technical audit remains applicable.
+
+Tooling note
+- The pinned pnpm wrapper could not verify package-manager metadata in the network-restricted sandbox. Validation used the installed repository binaries and Node's `--import tsx` entrypoint.
+
+Post-check repair attempt 9 — 2026-07-31
+
+Core/module boundary repair
+- Removed the setup module import from the core scoped-client helper and derived the namespace type from the sanctioned `KotaClient` aggregate.
+- Preserved scope injection for every setup operation without widening the sole core-to-module import exception.
+
+Fresh validation
+- Core module-import guard and both scoped-client suites passed: 3 test files; 8 tests.
+- TypeScript: `./node_modules/.bin/tsc --noEmit` passed.
+- Full suite: 1180 test files passed, 4 skipped; 12,365 tests passed, 16 skipped.
+
+Tooling note
+- The pinned pnpm wrapper could not verify package-manager metadata in the network-restricted sandbox. Validation used the installed TypeScript and Vitest binaries.

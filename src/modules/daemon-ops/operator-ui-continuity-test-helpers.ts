@@ -1,25 +1,4 @@
 import type { ContinuityProjectionInput } from "./operator-ui.js";
-import type { StatusSnapshot } from "./status-cli.js";
-
-function status(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
-  return {
-    daemonRunning: false,
-    activeRuns: 0,
-    queuedRuns: 0,
-    workflowPaused: false,
-    sessions: 0,
-    pendingApprovals: 0,
-    projectDir: "/repo",
-    projectName: "repo",
-    controlFile: { kind: "missing" },
-    historicalWorkflow: {
-      activeRuns: 0,
-      queuedRuns: 2,
-      workflowPaused: false,
-    },
-    ...overrides,
-  };
-}
 
 export function ok<T>(value: T): { ok: true; value: T } {
   return { ok: true, value };
@@ -29,14 +8,7 @@ export function continuityInput(
   overrides: Partial<ContinuityProjectionInput> = {},
 ): ContinuityProjectionInput {
   return {
-    status: status({
-      daemonRunning: true,
-      scopedProject: {
-        projectId: "p-kota-fixture-default",
-        displayName: "kota",
-        projectDir: "/repo",
-      },
-    }),
+    scopeId: "p-kota-fixture-default",
     tasks: ok({
       tasks: [
         {

@@ -1,4 +1,3 @@
-import type { ProjectsListResult, SessionsListResult } from "./client.js";
 import {
   action,
   emptyRows,
@@ -7,16 +6,15 @@ import {
   readValue,
   resultSpec,
   type SurfaceRead,
-  scopeIdForStatus,
   shortId,
   unavailableRows,
-} from "./operator-ui-builder-common.js";
+} from "#core/daemon/ui-surface-builders.js";
+import type { ProjectsListResult, SessionsListResult } from "./client.js";
 import type {
   UiActionParameterSpec,
   UiSurface,
   UiTableRow,
 } from "./operator-ui-types.js";
-import type { StatusSnapshot } from "./status-cli.js";
 
 function projectUseParameters(): UiActionParameterSpec {
   return {
@@ -46,11 +44,11 @@ function projectUseParameters(): UiActionParameterSpec {
 }
 
 export function buildScopeUiSurface(args: {
-  status: StatusSnapshot;
+  scopeId: string;
   projects: SurfaceRead<ProjectsListResult>;
   sessions: SurfaceRead<SessionsListResult>;
 }): UiSurface {
-  const scopeId = scopeIdForStatus(args.status);
+  const { scopeId } = args;
   const projectRows: UiTableRow[] = args.projects.ok
     ? args.projects.value.ok
       ? (() => {

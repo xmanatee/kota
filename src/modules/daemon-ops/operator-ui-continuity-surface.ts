@@ -3,7 +3,7 @@ import {
   NAME_STATE_DETAIL_COLUMNS,
   resultSpec,
   uniqueActions,
-} from "./operator-ui-builder-common.js";
+} from "#core/daemon/ui-surface-builders.js";
 import type {
   ContinuityEntry,
   ContinuityProjection,

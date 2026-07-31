@@ -1,17 +1,4 @@
 import type {
-  ModuleSetupFormField,
-  ModuleSetupRequirementStatus,
-  ModuleSetupStatusResponse,
-} from "#modules/setup/client.js";
-import {
-  action,
-  emptyRows,
-  resultSpec,
-  type SurfaceRead,
-  unavailableRows,
-  uniqueActions,
-} from "./operator-ui-builder-common.js";
-import type {
   UiAction,
   UiActionOperation,
   UiActionParameterSpec,
@@ -21,7 +8,20 @@ import type {
   UiFormField,
   UiNode,
   UiTableRow,
-} from "./operator-ui-types.js";
+} from "#core/daemon/ui-surface.js";
+import {
+  action,
+  emptyRows,
+  resultSpec,
+  type SurfaceRead,
+  unavailableRows,
+  uniqueActions,
+} from "#core/daemon/ui-surface-builders.js";
+import type {
+  ModuleSetupFormField,
+  ModuleSetupRequirementStatus,
+  ModuleSetupStatusResponse,
+} from "#modules/setup/client.js";
 
 function setupFieldInput(field: ModuleSetupFormField): UiFieldInput {
   if (field.type === "boolean") return "boolean";

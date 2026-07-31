@@ -1,18 +1,18 @@
 # Daemon Ops Module
 
-This directory owns the `daemon-ops` repo module — the operator-facing CLI and
-supervisor surface around the daemon runtime. It also owns the daemon-facing
-CLI commands.
+This directory owns the `daemon-ops` repo module — the operator-facing CLI and supervisor
+surface around the daemon runtime. It also owns the daemon-facing CLI commands.
 
 - Keep this module focused on operator control: daemon status, lifecycle,
   service installation, live event inspection, session inspection, and a
   concise operational snapshot.
-- Service integration should stay user-level and directory-scoped. Do not
-  require elevated privileges or create global machine state.
-- Exact command names, flags, output fields, service-unit contents, and restart
-  constants belong in the command implementation and tests, not docs catalogs.
-- The daemon runtime itself lives in core; this module wires it into the CLI and
-  supervisor surface.
+- Service integration should stay user-level and directory-scoped. Do not require elevated
+  privileges or create global machine state.
+- Exact command names, flags, output fields, service-unit contents, and restart constants
+  belong in the command implementation and tests, not docs catalogs.
+- The daemon runtime itself lives in core; this module wires it into the CLI and supervisor surface.
+- The `/ui/surfaces` route and `ui` client delegate to one live assembler. This module contributes
+  status, scope, inbox, continuity, and operator-control; capability modules own their sources.
 - Session autonomy mode is part of that operator surface. This module owns the
   `kota session` CLI plus the `sessions` `KotaClient` namespace
   (`client.sessions.list()` / `client.sessions.setAutonomyMode()`) end-to-end.

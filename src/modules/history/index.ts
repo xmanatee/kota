@@ -42,6 +42,7 @@ import {
 	type HistoryProjectStores,
 } from "./project-scope.js";
 import { historyControlRoutes, historyRoutes } from "./routes.js";
+import { historyUiSurfaceSource } from "./ui-surface.js";
 
 const historyModule: KotaModule = {
 	name: "history",
@@ -49,6 +50,7 @@ const historyModule: KotaModule = {
 	description:
 		"Conversation recall — search and read past conversations",
 	dependencies: ["rendering", "repl"],
+	uiSurfaces: [historyUiSurfaceSource],
 	tools: [
 		{
 			tool: conversationRecallTool,
@@ -162,53 +164,7 @@ function getLoadedHistoryProvider() {
 	}
 }
 
-/**
- * Daemon-side `HistoryClient` backed by the typed `DaemonTransport`. Calls
- * the same `/history`, `/history/discovered-project-records`,
- * `/history/:id`, `/history/reindex`, and `/api/history/search` HTTP routes
- * the history module registers through `historyControlRoutes` and
- * `historyRoutes`. The transport surface owns the bearer token, base URL,
- * and timeout policy — this factory only encodes the wire shape.
- *
- * The two-stem route layout (`/history*` for list/show/delete/reindex,
- * `/api/history/search` for search) matches today's daemon contract.
- *
- * `list(filter)` builds the optional `search` / `limit` / `cwd` / `source` /
- * `projectId` URLSearchParams shape (omitting the query string entirely when
- * no key is set) and issues `GET /history${query}` through
- * `requestStrict<T>`. The daemon route emits
- * `{ conversations: ConversationRecord[] }`; the factory passes that decode
- * shape through unchanged.
- *
- * `listDiscoveredProjectRecords(filter)` serializes the optional limit and
- * issues `GET /history/discovered-project-records${query}` through
- * `requestStrict<T>` so daemon-backed CLI clients never scan `.kota/history`
- * directly.
- *
- * `show(id, options)` validates and serializes one detail-read request, issues
- * `GET /history/:id` through `fetchRaw`, collapsing a 404 missing conversation
- * into `{ found: false }`, throwing the typed unknown-project route error,
- * and returning `{ found: true, detail }` for a non-null `HistoryDetail`.
- * The id runs through `encodeURIComponent`.
- *
- * `delete(id)` issues `DELETE /history/:id` through `fetchRaw`, collapsing a
- * 404 missing conversation into `{ ok: false, reason: "not_found" }`,
- * throwing the typed unknown-project route error, and collapsing a non-null
- * `{ deleted: id }` envelope into `{ ok: true }`. The id runs through
- * `encodeURIComponent`. The control route was reshaped from a `204` success
- * to `200 + { deleted: id }` to match the knowledge / approvals / secrets
- * delete precedent.
- *
- * `search(query, filter)` builds the same `URLSearchParams` shape today's
- * `searchHistoryHttp` built (`q`, optional `cwd`, `source`, `semantic=true`,
- * `limit`, `projectId`) and issues `GET /api/history/search?...` through
- * `requestStrict<T>`. The daemon route emits the discriminated union
- * directly.
- *
- * `reindex()` issues `POST /history/reindex` through `requestStrict<T>`,
- * optionally scoped by `projectId`, and returns the provider's
- * `ReindexResult` verbatim.
- */
+/** Daemon-side history client over the module's typed routes. */
 function buildHistoryDaemonHandler(link: DaemonTransport): HistoryClient {
 	return {
 		list: async (filter): Promise<HistoryListResult> => {

@@ -1,0 +1,4 @@
+1. The module runtime exposes one typed, scope-aware live UI contribution contract and one bundle assembler shared by the daemon `/ui/surfaces` route and `KotaClient.ui`.
+2. Status, scopes, inbox, continuity, runs, modules/agents, setup, stores, and operator controls are live contributions declared by their capability-owning modules.
+3. The daemon-ops bundle has no manually maintained cross-module surface-builder list, and the repository contains no second UI contribution registry.
+4. Focused fixtures prove load, reload, scope selection, duplicate identifiers, typed contributor failure, and action lookup/execution through the unified projection, with the requested ownership, CLI JSON, and structural-search evidence captured.

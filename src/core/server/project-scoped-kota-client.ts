@@ -1,4 +1,8 @@
 import { type KotaClient, KotaClientProjectError } from "./kota-client.js";
+import {
+  createProjectScopedSetupClient,
+  runScopedKotaClientOperation,
+} from "./project-scoped-setup-client.js";
 import { createScopedWorkflowClient } from "./project-scoped-workflow-client.js";
 import {
   mergeScopeSelector,
@@ -14,32 +18,12 @@ function withScope<T extends ScopeSelector>(
   return mergeScopeSelector(value, selector);
 }
 
-function isUnknownScopeMessage(message: string): boolean {
-  return /^Unknown (project|scope)(?::|$)/.test(message);
-}
-
-async function scoped<T>(
-  selectedId: string,
-  operation: () => Promise<T>,
-): Promise<T> {
-  try {
-    return await operation();
-  } catch (err) {
-    if (err instanceof KotaClientProjectError) throw err;
-    if (err instanceof Error && isUnknownScopeMessage(err.message)) {
-      throw new KotaClientProjectError(selectedId, err);
-    }
-    throw err;
-  }
-}
-
 export function createProjectScopedKotaClient(
   base: KotaClient,
   projectId: string,
 ): KotaClient {
   return createScopedKotaClient(base, { projectId }, projectId);
 }
-
 export function createScopeScopedKotaClient(
   base: KotaClient,
   scopeId: string,
@@ -57,6 +41,7 @@ function createScopedKotaClient(
   if (!selectedId) {
     throw new KotaClientProjectError(errorId);
   }
+  const scoped = runScopedKotaClientOperation;
 
   return {
     ...base,
@@ -71,6 +56,15 @@ function createScopedKotaClient(
       scoped,
       withScope,
     }),
+    ui: {
+      listSurfaces: () =>
+        scoped(selectedId, () => base.ui.listSurfaces(selector)),
+      executeAction: (input) =>
+        scoped(selectedId, () =>
+          base.ui.executeAction(withScope(input, selector)),
+        ),
+      watchEvents: (input) => base.ui.watchEvents(input),
+    },
     memory: {
       list: (filter) =>
         scoped(selectedId, () =>
@@ -257,6 +251,11 @@ function createScopedKotaClient(
           base.secrets.remove(name, scope, withScope(project, selector)),
         ),
     },
+    setup: createProjectScopedSetupClient({
+      base: base.setup,
+      selector,
+      selectedId,
+    }),
     ownerDecisions: {
       list: (filter) =>
         scoped(selectedId, () =>

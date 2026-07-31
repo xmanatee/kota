@@ -2,7 +2,7 @@ import type { Command } from "commander";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
-import type { UiSurface } from "#core/daemon/ui-surface.js";
+import type { UiSurfaceBundle } from "#core/daemon/ui-surface.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { DaemonClientHandlers, LocalClientHandlers } from "#core/server/kota-client.js";
@@ -22,6 +22,7 @@ import {
 } from "./module-loader-load-phases.js";
 import { createLoaderState, type LoaderState } from "./module-loader-state.js";
 import { collectModuleSummaries, formatSkillsPrompt } from "./module-loader-summaries.js";
+import { collectRegisteredUiSurfaceSources } from "./module-loader-ui-sources.js";
 import type { ModuleStorage } from "./module-storage.js";
 import type {
   ControlRouteRegistration,
@@ -33,17 +34,16 @@ import type {
   ModuleSummary,
   RouteRegistration,
 } from "./module-types.js";
+import {
+  assembleUiSurfaceBundle as assembleRegisteredUiSurfaceBundle,
+  type RegisteredUiSurfaceSource,
+  type UiSurfaceProjectionRequest,
+} from "./module-ui-surfaces.js";
 import type { ModuleSetupRequirementContribution } from "./setup-requirements.js";
 
 export type { ModuleSource, ModuleSummary } from "./module-types.js";
 
-/**
- * Lifecycle mode the loader operates in. `"commands"` populates static
- * contributions for cheap CLI startup but skips `onLoad`, tools, foreign
- * modules, and provider activation; runtime-only accessors throw rather than
- * hand back a partial snapshot. `"runtime"` drives every module's lifecycle
- * to completion. See `src/core/modules/AGENTS.md` for the full contract.
- */
+/** Loader lifecycle posture; see the local AGENTS.md for the full contract. */
 export type ModuleLoaderMode = "commands" | "runtime";
 
 export type ModuleLoaderOptions = {
@@ -204,7 +204,18 @@ export class ModuleLoader {
 
   getContributedWorkflows(): RegisteredWorkflowDefinitionInput[] { return this.state.contributedWorkflows; }
   getContributedChannels(): ChannelDef[] { return this.state.contributedChannels; }
-  getContributedUiSurfaces(): UiSurface[] { return this.state.contributedUiSurfaces; }
+
+  getContributedUiSurfaces(): RegisteredUiSurfaceSource[] {
+    return collectRegisteredUiSurfaceSources(this.state);
+  }
+
+  assembleUiSurfaceBundle(request: UiSurfaceProjectionRequest): Promise<UiSurfaceBundle> {
+    return assembleRegisteredUiSurfaceBundle(
+      this.cwd,
+      this.getContributedUiSurfaces(),
+      request,
+    );
+  }
 
   getSkillsPrompt(): string { return this.getSkillsPromptFor("all"); }
 

@@ -1,0 +1,656 @@
+^D^DTypeScript: passed
+[?25l
+ RUN  v4.1.0 /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-make-ui-contributions-the-only-surface-assembly-pa-2026-07-31t16-05-50-900z-builder-qf30r1
+[?2026h*
+[?2026l[?2026h[K***************************************
+[?2026l[?2026h[K[foreign:__no_such_binary_kota_test__] Process error: spawn __no_such_binary_kota_test__ ENOENT
+[foreign:python3][info] Python demo module starting
+[foreign:python3][info] Received init (cwd=/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-make-ui-contributions-the-only-surface-assembly-pa-2026-07-31t16-05-50-900z-builder-qf30r1)
+[foreign:node] Subprocess exited unexpectedly.
+[foreign:node][warn] Failed to send shutdown: Transport closed
+[foreign:node] Restart 1/2 in 50ms (subprocess exited unexpectedly).
+[foreign:python3][info] Shutting down
+[foreign:nonexistent-binary-xyz] Process error: spawn nonexistent-binary-xyz ENOENT
+[kota] Foreign module "nonexistent-binary-xyz" failed to start: Transport closed
+*·*****····********************************************
+[?2026l[?2026h[K
+*·*****····********************************************
+[?2026l[?2026h[K[kota] Foreign module "node" failed to start: Foreign module "bad-mcp-shadow" declared invalid tool: Tool name "mcp__remote__lookup" uses the reserved MCP-managed prefix "mcp__"
+*·*****····********************************************
+[?2026l[?2026h[K
+·····**·······**······················******···*···***************************************************
+[?2026l[?2026h[K[kota] Foreign module "node" failed to start: Foreign module "bad-mcp-operation-shadow" declared invalid tool: Tool name "mcp_resources__remote__list" uses the reserved MCP-managed prefix "mcp_resources__"
+·····**·······**······················******···*···***************************************************
+[?2026l[?2026h[K
+·····**·······**······················******···*···***************************************************
+[?2026l[?2026h[K[foreign:node] Restarted successfully.
+[kota] Foreign module "node" failed to start: Foreign module "bad-mcp-operation-shadow" declared invalid tool: Tool name "mcp_resource_templates__remote__list" uses the reserved MCP-managed prefix "mcp_resource_templates__"
+[kota] Foreign module "node" failed to start: Foreign module "bad-mcp-operation-shadow" declared invalid tool: Tool name "mcp_prompts__remote__list" uses the reserved MCP-managed prefix "mcp_prompts__"
+·····**·······**······················******···*···***************************************************
+[?2026l[?2026h[K[kota] Foreign module "node" failed to start: Foreign module "bad-mcp-operation-shadow" declared invalid tool: Tool name "mcp_skills__remote__list" uses the reserved MCP-managed prefix "mcp_skills__"
+·····**·······························******···*·······················································*
+[?2026l[?2026h[K
+·····**·······························******···*·······················································*
+[?2026l[?2026h[K[foreign:node] Malformed message: not-valid-json
+·····**·······························******···*·······················································*
+[?2026l[?2026h[K
+·····**·······························******···*·······················································*
+[?2026l[?2026h[K
+······································******···*···············································································-
+[?2026l[?2026h[K
+······································******···*···············································································-***************···*****************************************************************************************************************************************
+[?2026l[?2026h[K
+······································******···*···············································································-·**************···········******········*******************************************************************************************************************······················
+[?2026l[?2026h[K[kota] Module "ctx-test" loaded (0 tools)
+[kota] Module "bad" failed to load: bad: unrecognized export format. Expected KotaModule, OpenAI function tool, simple tool { name, description, run }, Vercel AI SDK tool { execute, parameters }, or an array of tools.
+······································******···*···············································································-·**************···········******········*******************************************************************************************************************······················
+[?2026l[?2026h[K[foreign:http:http://127.0.0.1:1] HTTP request failed: fetch failed
+······································******···*···············································································-···************·············****·················***********************········································································································································*
+[?2026l[?2026h[K
+······································******···*···············································································-···************·············****·················***********************········································································································································*
+[?2026l[?2026h[K[kota] Module "throws-mod" route registration failed: bad routes
+······································******···*···············································································-···************·············****·················***********************········································································································································*
+[?2026l[?2026h[K
+······································******···*···············································································-···************·············****·················***********************········································································································································*
+[?2026l[?2026h[K
+······································******···*···············································································-····***********···············**·················***********************··············································································································································································
+[?2026l[?2026h[K
+······································******···*···············································································-·····**********····································*********************·····················································································································································································*********·····*
+[?2026l[?2026h[K
+······································******···················································································-········*******······································*******************·····················································································································································································*********········
+[?2026l[?2026h[K······································******···················································································-········*******········································*****************·····················································································································································································*********········
+[?2026l[?2026h[K
+······································******···················································································-··························································**************·····················································································································································································*********········
+[?2026l[?2026h[K······································******···················································································-·································································*******·····················································································································································································*********········
+[?2026l[?2026h[K······································******···················································································-····································································****·····················································································································································································*********········*
+[?2026l[?2026h[K
+······································******···················································································-·····························································································································································································································································*********········***
+[?2026l[?2026h[K
+······································******···················································································-·····························································································································································································································································*********········**······················*
+[?2026l[?2026h[K
+······································******···················································································-·····························································································································································································································································*********········**························
+[?2026l[?2026h[K[foreign:node] Subprocess exited unexpectedly.
+[foreign:node][warn] Failed to send shutdown: Transport closed
+[foreign:node] Restart 1/2 in 50ms (subprocess exited unexpectedly).
+·······································*****···················································································-·····························································································································································································································································*********········**························
+[?2026l[?2026h[K[foreign:node] Restart attempt 1 failed: Transport closed
+[foreign:node] Restart 2/2 in 100ms (subprocess exited unexpectedly).
+[foreign:node] Restart attempt 2 failed: Transport closed
+[foreign:node] All 2 restart(s) exhausted. Module failed.
+{"ts":"2026-07-31T16:39:39.784Z","level":"info","msg":"Registered as provider for \"rendering\"","module":"rendering"}
+{"ts":"2026-07-31T16:39:39.784Z","level":"info","msg":"Registered as provider for \"rendering\"","module":"rendering"}
+{"ts":"2026-07-31T16:39:39.787Z","level":"info","msg":"Registered as provider for \"knowledge\"","module":"knowledge"}
+{"ts":"2026-07-31T16:39:39.787Z","level":"info","msg":"Registered as provider for \"knowledge\"","module":"knowledge"}
+{"ts":"2026-07-31T16:39:39.787Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"knowledge"}
+{"ts":"2026-07-31T16:39:39.787Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"knowledge"}
+{"ts":"2026-07-31T16:39:39.787Z","level":"info","msg":"Registered as provider for \"memory\"","module":"memory"}
+{"ts":"2026-07-31T16:39:39.787Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"memory"}
+{"ts":"2026-07-31T16:39:39.787Z","level":"info","msg":"Registered as provider for \"memory\"","module":"memory"}
+{"ts":"2026-07-31T16:39:39.787Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"memory"}
+{"ts":"2026-07-31T16:39:39.788Z","level":"info","msg":"Registered as provider for \"history\"","module":"history"}
+{"ts":"2026-07-31T16:39:39.788Z","level":"info","msg":"Registered as provider for \"history-project\"","module":"history"}
+{"ts":"2026-07-31T16:39:39.788Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"history"}
+{"ts":"2026-07-31T16:39:39.788Z","level":"info","msg":"Registered as provider for \"history\"","module":"history"}
+{"ts":"2026-07-31T16:39:39.788Z","level":"info","msg":"Registered as provider for \"history-project\"","module":"history"}
+{"ts":"2026-07-31T16:39:39.788Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"history"}
+{"ts":"2026-07-31T16:39:39.788Z","level":"info","msg":"Registered as provider for \"repo-tasks\"","module":"repo-tasks"}
+{"ts":"2026-07-31T16:39:39.788Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"repo-tasks"}
+{"ts":"2026-07-31T16:39:39.789Z","level":"info","msg":"Registered as provider for \"repo-tasks\"","module":"repo-tasks"}
+{"ts":"2026-07-31T16:39:39.789Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"repo-tasks"}
+{"ts":"2026-07-31T16:39:39.789Z","level":"info","msg":"Registered as provider for \"recall\"","module":"recall"}
+{"ts":"2026-07-31T16:39:39.789Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"recall"}
+{"ts":"2026-07-31T16:39:39.789Z","level":"info","msg":"recall: registered 4 contributor(s)","module":"recall"}
+{"ts":"2026-07-31T16:39:39.789Z","level":"info","msg":"Registered as provider for \"recall\"","module":"recall"}
+{"ts":"2026-07-31T16:39:39.789Z","level":"info","msg":"Registered as provider for \"model-pricing\"","module":"model-clients"}
+{"ts":"2026-07-31T16:39:39.789Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"recall"}
+{"ts":"2026-07-31T16:39:39.790Z","level":"info","msg":"recall: registered 4 contributor(s)","module":"recall"}
+{"ts":"2026-07-31T16:39:39.790Z","level":"info","msg":"Registered as provider for \"answer\"","module":"answer"}
+{"ts":"2026-07-31T16:39:39.790Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"answer"}
+{"ts":"2026-07-31T16:39:39.790Z","level":"info","msg":"answer: cited-answer seam ready","module":"answer"}
+{"ts":"2026-07-31T16:39:39.790Z","level":"info","msg":"Registered agent harness \"antigravity-cli\" (Antigravity CLI text).","module":"antigravity-cli-agent-harness"}
+{"ts":"2026-07-31T16:39:39.790Z","level":"info","msg":"Registered as provider for \"model-pricing\"","module":"model-clients"}
+{"ts":"2026-07-31T16:39:39.791Z","level":"info","msg":"Registered as provider for \"answer\"","module":"answer"}
+{"ts":"2026-07-31T16:39:39.791Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"answer"}
+{"ts":"2026-07-31T16:39:39.791Z","level":"info","msg":"answer: cited-answer seam ready","module":"answer"}
+{"ts":"2026-07-31T16:39:39.791Z","level":"info","msg":"Registered agent harness \"antigravity-cli\" (Antigravity CLI text).","module":"antigravity-cli-agent-harness"}
+{"ts":"2026-07-31T16:39:39.800Z","level":"warn","msg":"github-webhook: no secret configured — webhook route not registered","module":"github-webhook"}
+{"ts":"2026-07-31T16:39:39.800Z","level":"warn","msg":"GitHub module: modules.github.token is required but missing — module inactive","module":"github"}
+{"ts":"2026-07-31T16:39:39.800Z","level":"warn","msg":"github-webhook: no secret configured — webhook route not registered","module":"github-webhook"}
+{"ts":"2026-07-31T16:39:39.801Z","level":"warn","msg":"GitHub module: modules.github.token is required but missing — module inactive","module":"github"}
+·······································*****···················································································-·····························································································································································································································································*********········**························
+[?2026l[?2026h[K{"ts":"2026-07-31T16:39:40.191Z","level":"info","msg":"Registered as provider for \"workflow-state-recovery\"","module":"autonomy"}
+{"ts":"2026-07-31T16:39:40.192Z","level":"info","msg":"Registered as provider for \"workflow-state-recovery\"","module":"autonomy"}
+{"ts":"2026-07-31T16:39:40.193Z","level":"info","msg":"Registered as provider for \"capture\"","module":"capture"}
+{"ts":"2026-07-31T16:39:40.193Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"capture"}
+{"ts":"2026-07-31T16:39:40.193Z","level":"info","msg":"capture: registered 4 contributor(s)","module":"capture"}
+{"ts":"2026-07-31T16:39:40.193Z","level":"info","msg":"Registered as provider for \"capture\"","module":"capture"}
+{"ts":"2026-07-31T16:39:40.193Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"capture"}
+{"ts":"2026-07-31T16:39:40.193Z","level":"info","msg":"capture: registered 4 contributor(s)","module":"capture"}
+{"ts":"2026-07-31T16:39:40.194Z","level":"info","msg":"Registered agent harness \"claude-agent-sdk\" (Claude Agent SDK).","module":"claude-agent-harness"}
+{"ts":"2026-07-31T16:39:40.194Z","level":"info","msg":"Registered agent harness \"claude-agent-sdk\" (Claude Agent SDK).","module":"claude-agent-harness"}
+{"ts":"2026-07-31T16:39:40.194Z","level":"info","msg":"Registered agent harness \"codex\" (Codex CLI exec).","module":"codex-agent-harness"}
+{"ts":"2026-07-31T16:39:40.194Z","level":"info","msg":"Registered agent harness \"codex\" (Codex CLI exec).","module":"codex-agent-harness"}
+{"ts":"2026-07-31T16:39:40.195Z","level":"warn","msg":"email module: smtp.host, from, and to are required — module inactive","module":"email"}
+{"ts":"2026-07-31T16:39:40.195Z","level":"warn","msg":"email module: smtp.host, from, and to are required — module inactive","module":"email"}
+{"ts":"2026-07-31T16:39:40.196Z","level":"info","msg":"Registered agent harness \"gemini\" (Google Gen AI SDK tool loop).","module":"gemini-agent-harness"}
+{"ts":"2026-07-31T16:39:40.196Z","level":"info","msg":"Registered agent harness \"gemini\" (Google Gen AI SDK tool loop).","module":"gemini-agent-harness"}
+{"ts":"2026-07-31T16:39:40.196Z","level":"info","msg":"Registered agent harness \"gemini-cli\" (Gemini CLI headless).","module":"gemini-cli-agent-harness"}
+{"ts":"2026-07-31T16:39:40.196Z","level":"warn","msg":"Google Workspace module: modules.google-workspace.clientId, [redacted], and refreshToken are required — module inactive","module":"google-workspace"}
+{"ts":"2026-07-31T16:39:40.196Z","level":"info","msg":"Registered agent harness \"gemini-cli\" (Gemini CLI headless).","module":"gemini-cli-agent-harness"}
+{"ts":"2026-07-31T16:39:40.196Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"google-workspace"}
+{"ts":"2026-07-31T16:39:40.196Z","level":"warn","msg":"Google Workspace module: modules.google-workspace.clientId, [redacted], and refreshToken are required — module inactive","module":"google-workspace"}
+{"ts":"2026-07-31T16:39:40.196Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"google-workspace"}
+{"ts":"2026-07-31T16:39:40.197Z","level":"info","msg":"injection-defense: screening 7 configured tool(s) plus external-content provenance on modes: autonomous","module":"injection-defense"}
+{"ts":"2026-07-31T16:39:40.198Z","level":"info","msg":"Registered agent harness \"openai-tools\" (OpenAI-compatible tool loop).","module":"openai-tools-agent-harness"}
+{"ts":"2026-07-31T16:39:40.198Z","level":"info","msg":"Registered agent harness \"openai-tools-scaffold\" (scaffolded weak/local model loop).","module":"openai-tools-agent-harness"}
+{"ts":"2026-07-31T16:39:40.198Z","level":"info","msg":"injection-defense: screening 7 configured tool(s) plus external-content provenance on modes: autonomous","module":"injection-defense"}
+{"ts":"2026-07-31T16:39:40.199Z","level":"info","msg":"Registered as provider for \"resource-discovery\"","module":"resource-discovery"}
+{"ts":"2026-07-31T16:39:40.199Z","level":"info","msg":"Registered agent harness \"openai-tools\" (OpenAI-compatible tool loop).","module":"openai-tools-agent-harness"}
+{"ts":"2026-07-31T16:39:40.199Z","level":"info","msg":"Registered agent harness \"openai-tools-scaffold\" (scaffolded weak/local model loop).","module":"openai-tools-agent-harness"}
+{"ts":"2026-07-31T16:39:40.199Z","level":"info","msg":"Registered as provider for \"retract\"","module":"retract"}
+{"ts":"2026-07-31T16:39:40.199Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"retract"}
+{"ts":"2026-07-31T16:39:40.199Z","level":"info","msg":"retract: registered 4 contributor(s)","module":"retract"}
+{"ts":"2026-07-31T16:39:40.199Z","level":"info","msg":"Registered as provider for \"notification-hub\"","module":"scheduler"}
+{"ts":"2026-07-31T16:39:40.200Z","level":"info","msg":"Registered as provider for \"resource-discovery\"","module":"resource-discovery"}
+{"ts":"2026-07-31T16:39:40.200Z","level":"warn","msg":"slack-channel module: botToken and appToken are required — module inactive","module":"slack-channel"}
+{"ts":"2026-07-31T16:39:40.200Z","level":"info","msg":"Registered as provider for \"memory\"","module":"sqlite-memory"}
+{"ts":"2026-07-31T16:39:40.200Z","level":"info","msg":"SQLite memory provider registered","module":"sqlite-memory"}
+{"ts":"2026-07-31T16:39:40.201Z","level":"info","msg":"Registered as provider for \"retract\"","module":"retract"}
+{"ts":"2026-07-31T16:39:40.201Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"telegram"}
+{"ts":"2026-07-31T16:39:40.201Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"retract"}
+{"ts":"2026-07-31T16:39:40.201Z","level":"info","msg":"retract: registered 4 contributor(s)","module":"retract"}
+{"ts":"2026-07-31T16:39:40.201Z","level":"info","msg":"Registered agent harness \"thin\" (single-turn ModelClient loop).","module":"thin-agent-harness"}
+{"ts":"2026-07-31T16:39:40.203Z","level":"info","msg":"Tool result cache enabled","module":"tool-cache"}
+{"ts":"2026-07-31T16:39:40.203Z","level":"info","msg":"Tool retry middleware enabled","module":"tool-retry"}
+{"ts":"2026-07-31T16:39:40.204Z","level":"warn","msg":"transcription-whisper: [redacted] is required — provider inactive","module":"transcription-whisper"}
+{"ts":"2026-07-31T16:39:40.204Z","level":"info","msg":"Registered as provider for \"notification-hub\"","module":"scheduler"}
+{"ts":"2026-07-31T16:39:40.204Z","level":"info","msg":"Registered agent harness \"vercel\" (Vercel AI SDK tool loop).","module":"vercel-agent-harness"}
+{"ts":"2026-07-31T16:39:40.204Z","level":"warn","msg":"voice-openai-tts: [redacted] is required — provider inactive","module":"voice-openai-tts"}
+{"ts":"2026-07-31T16:39:40.204Z","level":"info","msg":"voice-whisper-local: binaryPath and modelPath required — provider inactive (local STT opt-in)","module":"voice-whisper-local"}
+{"ts":"2026-07-31T16:39:40.204Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"web"}
+{"ts":"2026-07-31T16:39:40.205Z","level":"warn","msg":"slack-channel module: botToken and appToken are required — module inactive","module":"slack-channel"}
+{"ts":"2026-07-31T16:39:40.205Z","level":"info","msg":"Registered as provider for \"memory\"","module":"sqlite-memory"}
+{"ts":"2026-07-31T16:39:40.205Z","level":"info","msg":"SQLite memory provider registered","module":"sqlite-memory"}
+{"ts":"2026-07-31T16:39:40.206Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"telegram"}
+{"ts":"2026-07-31T16:39:40.206Z","level":"info","msg":"Registered agent harness \"thin\" (single-turn ModelClient loop).","module":"thin-agent-harness"}
+{"ts":"2026-07-31T16:39:40.206Z","level":"info","msg":"Tool result cache enabled","module":"tool-cache"}
+{"ts":"2026-07-31T16:39:40.206Z","level":"info","msg":"Tool retry middleware enabled","module":"tool-retry"}
+{"ts":"2026-07-31T16:39:40.206Z","level":"warn","msg":"transcription-whisper: [redacted] is required — provider inactive","module":"transcription-whisper"}
+{"ts":"2026-07-31T16:39:40.207Z","level":"info","msg":"Registered agent harness \"vercel\" (Vercel AI SDK tool loop).","module":"vercel-agent-harness"}
+{"ts":"2026-07-31T16:39:40.207Z","level":"warn","msg":"voice-openai-tts: [redacted] is required — provider inactive","module":"voice-openai-tts"}
+{"ts":"2026-07-31T16:39:40.207Z","level":"info","msg":"voice-whisper-local: binaryPath and modelPath required — provider inactive (local STT opt-in)","module":"voice-whisper-local"}
+{"ts":"2026-07-31T16:39:40.207Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"web"}
+[kota-daemon] Daemon starting...
+[kota-daemon] Control API on http://127.0.0.1:10000
+[kota-daemon] Daemon ready (pid 32638): 0 workflows, 0 scheduled items, poll 60s
+[kota-daemon] Daemon shutting down...
+[kota-daemon] Daemon stopped.
+{"ts":"2026-07-31T16:39:40.307Z","level":"info","msg":"Registered as provider for \"rendering\"","module":"rendering"}
+{"ts":"2026-07-31T16:39:40.307Z","level":"info","msg":"Registered as provider for \"knowledge\"","module":"knowledge"}
+{"ts":"2026-07-31T16:39:40.307Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"knowledge"}
+{"ts":"2026-07-31T16:39:40.307Z","level":"info","msg":"Registered as provider for \"memory\"","module":"memory"}
+{"ts":"2026-07-31T16:39:40.307Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"memory"}
+{"ts":"2026-07-31T16:39:40.308Z","level":"info","msg":"Registered as provider for \"history\"","module":"history"}
+{"ts":"2026-07-31T16:39:40.308Z","level":"info","msg":"Registered as provider for \"history-project\"","module":"history"}
+{"ts":"2026-07-31T16:39:40.308Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"history"}
+{"ts":"2026-07-31T16:39:40.308Z","level":"info","msg":"Registered as provider for \"repo-tasks\"","module":"repo-tasks"}
+{"ts":"2026-07-31T16:39:40.308Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"repo-tasks"}
+{"ts":"2026-07-31T16:39:40.308Z","level":"info","msg":"Registered as provider for \"recall\"","module":"recall"}
+{"ts":"2026-07-31T16:39:40.308Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"recall"}
+{"ts":"2026-07-31T16:39:40.308Z","level":"info","msg":"recall: registered 4 contributor(s)","module":"recall"}
+{"ts":"2026-07-31T16:39:40.308Z","level":"info","msg":"Registered as provider for \"model-pricing\"","module":"model-clients"}
+{"ts":"2026-07-31T16:39:40.309Z","level":"info","msg":"Registered as provider for \"answer\"","module":"answer"}
+{"ts":"2026-07-31T16:39:40.309Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"answer"}
+{"ts":"2026-07-31T16:39:40.309Z","level":"info","msg":"answer: cited-answer seam ready","module":"answer"}
+{"ts":"2026-07-31T16:39:40.309Z","level":"info","msg":"Registered agent harness \"antigravity-cli\" (Antigravity CLI text).","module":"antigravity-cli-agent-harness"}
+{"ts":"2026-07-31T16:39:40.310Z","level":"warn","msg":"github-webhook: no secret configured — webhook route not registered","module":"github-webhook"}
+{"ts":"2026-07-31T16:39:40.310Z","level":"warn","msg":"GitHub module: modules.github.token is required but missing — module inactive","module":"github"}
+·······································*****···················································································-······························································································································································································································································********········**························
+[?2026l[?2026h[K{"ts":"2026-07-31T16:39:40.320Z","level":"info","msg":"Registered as provider for \"workflow-state-recovery\"","module":"autonomy"}
+{"ts":"2026-07-31T16:39:40.321Z","level":"info","msg":"Registered as provider for \"capture\"","module":"capture"}
+{"ts":"2026-07-31T16:39:40.321Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"capture"}
+{"ts":"2026-07-31T16:39:40.321Z","level":"info","msg":"capture: registered 4 contributor(s)","module":"capture"}
+{"ts":"2026-07-31T16:39:40.321Z","level":"info","msg":"Registered agent harness \"claude-agent-sdk\" (Claude Agent SDK).","module":"claude-agent-harness"}
+{"ts":"2026-07-31T16:39:40.322Z","level":"info","msg":"Registered agent harness \"codex\" (Codex CLI exec).","module":"codex-agent-harness"}
+{"ts":"2026-07-31T16:39:40.322Z","level":"warn","msg":"email module: smtp.host, from, and to are required — module inactive","module":"email"}
+{"ts":"2026-07-31T16:39:40.322Z","level":"info","msg":"Registered agent harness \"gemini\" (Google Gen AI SDK tool loop).","module":"gemini-agent-harness"}
+{"ts":"2026-07-31T16:39:40.322Z","level":"info","msg":"Registered agent harness \"gemini-cli\" (Gemini CLI headless).","module":"gemini-cli-agent-harness"}
+{"ts":"2026-07-31T16:39:40.323Z","level":"warn","msg":"Google Workspace module: modules.google-workspace.clientId, [redacted], and refreshToken are required — module inactive","module":"google-workspace"}
+{"ts":"2026-07-31T16:39:40.323Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"google-workspace"}
+{"ts":"2026-07-31T16:39:40.323Z","level":"info","msg":"injection-defense: screening 7 configured tool(s) plus external-content provenance on modes: autonomous","module":"injection-defense"}
+{"ts":"2026-07-31T16:39:40.324Z","level":"info","msg":"Registered agent harness \"openai-tools\" (OpenAI-compatible tool loop).","module":"openai-tools-agent-harness"}
+{"ts":"2026-07-31T16:39:40.324Z","level":"info","msg":"Registered agent harness \"openai-tools-scaffold\" (scaffolded weak/local model loop).","module":"openai-tools-agent-harness"}
+{"ts":"2026-07-31T16:39:40.325Z","level":"info","msg":"Registered as provider for \"resource-discovery\"","module":"resource-discovery"}
+{"ts":"2026-07-31T16:39:40.325Z","level":"info","msg":"Registered as provider for \"retract\"","module":"retract"}
+{"ts":"2026-07-31T16:39:40.325Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"retract"}
+{"ts":"2026-07-31T16:39:40.325Z","level":"info","msg":"retract: registered 4 contributor(s)","module":"retract"}
+{"ts":"2026-07-31T16:39:40.325Z","level":"info","msg":"Registered as provider for \"notification-hub\"","module":"scheduler"}
+{"ts":"2026-07-31T16:39:40.326Z","level":"warn","msg":"slack-channel module: botToken and appToken are required — module inactive","module":"slack-channel"}
+{"ts":"2026-07-31T16:39:40.326Z","level":"info","msg":"Registered as provider for \"memory\"","module":"sqlite-memory"}
+{"ts":"2026-07-31T16:39:40.326Z","level":"info","msg":"SQLite memory provider registered","module":"sqlite-memory"}
+{"ts":"2026-07-31T16:39:40.326Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"telegram"}
+{"ts":"2026-07-31T16:39:40.327Z","level":"info","msg":"Registered agent harness \"thin\" (single-turn ModelClient loop).","module":"thin-agent-harness"}
+{"ts":"2026-07-31T16:39:40.327Z","level":"info","msg":"Tool result cache enabled","module":"tool-cache"}
+{"ts":"2026-07-31T16:39:40.327Z","level":"info","msg":"Tool retry middleware enabled","module":"tool-retry"}
+{"ts":"2026-07-31T16:39:40.327Z","level":"warn","msg":"transcription-whisper: [redacted] is required — provider inactive","module":"transcription-whisper"}
+{"ts":"2026-07-31T16:39:40.328Z","level":"info","msg":"Registered agent harness \"vercel\" (Vercel AI SDK tool loop).","module":"vercel-agent-harness"}
+{"ts":"2026-07-31T16:39:40.328Z","level":"warn","msg":"voice-openai-tts: [redacted] is required — provider inactive","module":"voice-openai-tts"}
+{"ts":"2026-07-31T16:39:40.328Z","level":"info","msg":"voice-whisper-local: binaryPath and modelPath required — provider inactive (local STT opt-in)","module":"voice-whisper-local"}
+{"ts":"2026-07-31T16:39:40.328Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"web"}
+{"ts":"2026-07-31T16:39:40.408Z","level":"info","msg":"Registered as provider for \"rendering\"","module":"rendering"}
+{"ts":"2026-07-31T16:39:40.409Z","level":"info","msg":"Registered as provider for \"knowledge\"","module":"knowledge"}
+{"ts":"2026-07-31T16:39:40.409Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"knowledge"}
+{"ts":"2026-07-31T16:39:40.409Z","level":"info","msg":"Registered as provider for \"memory\"","module":"memory"}
+{"ts":"2026-07-31T16:39:40.409Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"memory"}
+{"ts":"2026-07-31T16:39:40.409Z","level":"info","msg":"Registered as provider for \"history\"","module":"history"}
+{"ts":"2026-07-31T16:39:40.409Z","level":"info","msg":"Registered as provider for \"history-project\"","module":"history"}
+{"ts":"2026-07-31T16:39:40.409Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"history"}
+{"ts":"2026-07-31T16:39:40.410Z","level":"info","msg":"Registered as provider for \"repo-tasks\"","module":"repo-tasks"}
+{"ts":"2026-07-31T16:39:40.410Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"repo-tasks"}
+{"ts":"2026-07-31T16:39:40.410Z","level":"info","msg":"Registered as provider for \"recall\"","module":"recall"}
+{"ts":"2026-07-31T16:39:40.410Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"recall"}
+{"ts":"2026-07-31T16:39:40.410Z","level":"info","msg":"recall: registered 4 contributor(s)","module":"recall"}
+{"ts":"2026-07-31T16:39:40.410Z","level":"info","msg":"Registered as provider for \"model-pricing\"","module":"model-clients"}
+{"ts":"2026-07-31T16:39:40.410Z","level":"info","msg":"Registered as provider for \"answer\"","module":"answer"}
+{"ts":"2026-07-31T16:39:40.410Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"answer"}
+{"ts":"2026-07-31T16:39:40.410Z","level":"info","msg":"answer: cited-answer seam ready","module":"answer"}
+{"ts":"2026-07-31T16:39:40.410Z","level":"info","msg":"Registered agent harness \"antigravity-cli\" (Antigravity CLI text).","module":"antigravity-cli-agent-harness"}
+{"ts":"2026-07-31T16:39:40.411Z","level":"warn","msg":"github-webhook: no secret configured — webhook route not registered","module":"github-webhook"}
+{"ts":"2026-07-31T16:39:40.411Z","level":"warn","msg":"GitHub module: modules.github.token is required but missing — module inactive","module":"github"}
+{"ts":"2026-07-31T16:39:40.421Z","level":"info","msg":"Registered as provider for \"workflow-state-recovery\"","module":"autonomy"}
+{"ts":"2026-07-31T16:39:40.421Z","level":"info","msg":"Registered as provider for \"capture\"","module":"capture"}
+{"ts":"2026-07-31T16:39:40.421Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"capture"}
+{"ts":"2026-07-31T16:39:40.421Z","level":"info","msg":"capture: registered 4 contributor(s)","module":"capture"}
+{"ts":"2026-07-31T16:39:40.422Z","level":"info","msg":"Registered agent harness \"claude-agent-sdk\" (Claude Agent SDK).","module":"claude-agent-harness"}
+{"ts":"2026-07-31T16:39:40.422Z","level":"info","msg":"Registered agent harness \"codex\" (Codex CLI exec).","module":"codex-agent-harness"}
+{"ts":"2026-07-31T16:39:40.422Z","level":"warn","msg":"email module: smtp.host, from, and to are required — module inactive","module":"email"}
+{"ts":"2026-07-31T16:39:40.422Z","level":"info","msg":"Registered agent harness \"gemini\" (Google Gen AI SDK tool loop).","module":"gemini-agent-harness"}
+{"ts":"2026-07-31T16:39:40.422Z","level":"info","msg":"Registered agent harness \"gemini-cli\" (Gemini CLI headless).","module":"gemini-cli-agent-harness"}
+{"ts":"2026-07-31T16:39:40.422Z","level":"warn","msg":"Google Workspace module: modules.google-workspace.clientId, [redacted], and refreshToken are required — module inactive","module":"google-workspace"}
+{"ts":"2026-07-31T16:39:40.423Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"google-workspace"}
+{"ts":"2026-07-31T16:39:40.423Z","level":"info","msg":"injection-defense: screening 7 configured tool(s) plus external-content provenance on modes: autonomous","module":"injection-defense"}
+{"ts":"2026-07-31T16:39:40.423Z","level":"info","msg":"Registered agent harness \"openai-tools\" (OpenAI-compatible tool loop).","module":"openai-tools-agent-harness"}
+{"ts":"2026-07-31T16:39:40.423Z","level":"info","msg":"Registered agent harness \"openai-tools-scaffold\" (scaffolded weak/local model loop).","module":"openai-tools-agent-harness"}
+{"ts":"2026-07-31T16:39:40.424Z","level":"info","msg":"Registered as provider for \"resource-discovery\"","module":"resource-discovery"}
+{"ts":"2026-07-31T16:39:40.424Z","level":"info","msg":"Registered as provider for \"retract\"","module":"retract"}
+{"ts":"2026-07-31T16:39:40.424Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"retract"}
+{"ts":"2026-07-31T16:39:40.424Z","level":"info","msg":"retract: registered 4 contributor(s)","module":"retract"}
+{"ts":"2026-07-31T16:39:40.424Z","level":"info","msg":"Registered as provider for \"notification-hub\"","module":"scheduler"}
+{"ts":"2026-07-31T16:39:40.424Z","level":"warn","msg":"slack-channel module: botToken and appToken are required — module inactive","module":"slack-channel"}
+{"ts":"2026-07-31T16:39:40.425Z","level":"info","msg":"Registered as provider for \"memory\"","module":"sqlite-memory"}
+{"ts":"2026-07-31T16:39:40.425Z","level":"info","msg":"SQLite memory provider registered","module":"sqlite-memory"}
+{"ts":"2026-07-31T16:39:40.425Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"telegram"}
+{"ts":"2026-07-31T16:39:40.425Z","level":"info","msg":"Registered agent harness \"thin\" (single-turn ModelClient loop).","module":"thin-agent-harness"}
+{"ts":"2026-07-31T16:39:40.425Z","level":"info","msg":"Tool result cache enabled","module":"tool-cache"}
+{"ts":"2026-07-31T16:39:40.425Z","level":"info","msg":"Tool retry middleware enabled","module":"tool-retry"}
+{"ts":"2026-07-31T16:39:40.426Z","level":"warn","msg":"transcription-whisper: [redacted] is required — provider inactive","module":"transcription-whisper"}
+{"ts":"2026-07-31T16:39:40.426Z","level":"info","msg":"Registered agent harness \"vercel\" (Vercel AI SDK tool loop).","module":"vercel-agent-harness"}
+{"ts":"2026-07-31T16:39:40.426Z","level":"warn","msg":"voice-openai-tts: [redacted] is required — provider inactive","module":"voice-openai-tts"}
+{"ts":"2026-07-31T16:39:40.426Z","level":"info","msg":"voice-whisper-local: binaryPath and modelPath required — provider inactive (local STT opt-in)","module":"voice-whisper-local"}
+{"ts":"2026-07-31T16:39:40.426Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"web"}
+·······································*****···················································································-·······························································································································································································································································*******········**························
+[?2026l[?2026h[K{"ts":"2026-07-31T16:39:40.518Z","level":"info","msg":"Registered as provider for \"rendering\"","module":"rendering"}
+{"ts":"2026-07-31T16:39:40.518Z","level":"info","msg":"Registered as provider for \"knowledge\"","module":"knowledge"}
+{"ts":"2026-07-31T16:39:40.518Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"knowledge"}
+{"ts":"2026-07-31T16:39:40.518Z","level":"info","msg":"Registered as provider for \"memory\"","module":"memory"}
+{"ts":"2026-07-31T16:39:40.518Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"memory"}
+{"ts":"2026-07-31T16:39:40.519Z","level":"info","msg":"Registered as provider for \"history\"","module":"history"}
+{"ts":"2026-07-31T16:39:40.519Z","level":"info","msg":"Registered as provider for \"history-project\"","module":"history"}
+{"ts":"2026-07-31T16:39:40.519Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"history"}
+{"ts":"2026-07-31T16:39:40.519Z","level":"info","msg":"Registered as provider for \"repo-tasks\"","module":"repo-tasks"}
+{"ts":"2026-07-31T16:39:40.519Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"repo-tasks"}
+{"ts":"2026-07-31T16:39:40.519Z","level":"info","msg":"Registered as provider for \"recall\"","module":"recall"}
+{"ts":"2026-07-31T16:39:40.519Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"recall"}
+{"ts":"2026-07-31T16:39:40.519Z","level":"info","msg":"recall: registered 4 contributor(s)","module":"recall"}
+{"ts":"2026-07-31T16:39:40.520Z","level":"info","msg":"Registered as provider for \"model-pricing\"","module":"model-clients"}
+{"ts":"2026-07-31T16:39:40.520Z","level":"info","msg":"Registered as provider for \"answer\"","module":"answer"}
+{"ts":"2026-07-31T16:39:40.520Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"answer"}
+{"ts":"2026-07-31T16:39:40.520Z","level":"info","msg":"answer: cited-answer seam ready","module":"answer"}
+{"ts":"2026-07-31T16:39:40.520Z","level":"info","msg":"Registered agent harness \"antigravity-cli\" (Antigravity CLI text).","module":"antigravity-cli-agent-harness"}
+{"ts":"2026-07-31T16:39:40.521Z","level":"warn","msg":"github-webhook: no secret configured — webhook route not registered","module":"github-webhook"}
+{"ts":"2026-07-31T16:39:40.521Z","level":"warn","msg":"GitHub module: modules.github.token is required but missing — module inactive","module":"github"}
+{"ts":"2026-07-31T16:39:40.531Z","level":"info","msg":"Registered as provider for \"workflow-state-recovery\"","module":"autonomy"}
+{"ts":"2026-07-31T16:39:40.531Z","level":"info","msg":"Registered as provider for \"capture\"","module":"capture"}
+{"ts":"2026-07-31T16:39:40.531Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"capture"}
+{"ts":"2026-07-31T16:39:40.531Z","level":"info","msg":"capture: registered 4 contributor(s)","module":"capture"}
+{"ts":"2026-07-31T16:39:40.532Z","level":"info","msg":"Registered agent harness \"claude-agent-sdk\" (Claude Agent SDK).","module":"claude-agent-harness"}
+{"ts":"2026-07-31T16:39:40.532Z","level":"info","msg":"Registered agent harness \"codex\" (Codex CLI exec).","module":"codex-agent-harness"}
+{"ts":"2026-07-31T16:39:40.532Z","level":"warn","msg":"email module: smtp.host, from, and to are required — module inactive","module":"email"}
+{"ts":"2026-07-31T16:39:40.532Z","level":"info","msg":"Registered agent harness \"gemini\" (Google Gen AI SDK tool loop).","module":"gemini-agent-harness"}
+{"ts":"2026-07-31T16:39:40.532Z","level":"info","msg":"Registered agent harness \"gemini-cli\" (Gemini CLI headless).","module":"gemini-cli-agent-harness"}
+{"ts":"2026-07-31T16:39:40.533Z","level":"warn","msg":"Google Workspace module: modules.google-workspace.clientId, [redacted], and refreshToken are required — module inactive","module":"google-workspace"}
+{"ts":"2026-07-31T16:39:40.533Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"google-workspace"}
+{"ts":"2026-07-31T16:39:40.533Z","level":"info","msg":"injection-defense: screening 7 configured tool(s) plus external-content provenance on modes: autonomous","module":"injection-defense"}
+{"ts":"2026-07-31T16:39:40.533Z","level":"info","msg":"Registered agent harness \"openai-tools\" (OpenAI-compatible tool loop).","module":"openai-tools-agent-harness"}
+{"ts":"2026-07-31T16:39:40.533Z","level":"info","msg":"Registered agent harness \"openai-tools-scaffold\" (scaffolded weak/local model loop).","module":"openai-tools-agent-harness"}
+{"ts":"2026-07-31T16:39:40.534Z","level":"info","msg":"Registered as provider for \"resource-discovery\"","module":"resource-discovery"}
+{"ts":"2026-07-31T16:39:40.534Z","level":"info","msg":"Registered as provider for \"retract\"","module":"retract"}
+{"ts":"2026-07-31T16:39:40.534Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"retract"}
+{"ts":"2026-07-31T16:39:40.534Z","level":"info","msg":"retract: registered 4 contributor(s)","module":"retract"}
+{"ts":"2026-07-31T16:39:40.534Z","level":"info","msg":"Registered as provider for \"notification-hub\"","module":"scheduler"}
+{"ts":"2026-07-31T16:39:40.534Z","level":"warn","msg":"slack-channel module: botToken and appToken are required — module inactive","module":"slack-channel"}
+{"ts":"2026-07-31T16:39:40.535Z","level":"info","msg":"Registered as provider for \"memory\"","module":"sqlite-memory"}
+{"ts":"2026-07-31T16:39:40.535Z","level":"info","msg":"SQLite memory provider registered","module":"sqlite-memory"}
+{"ts":"2026-07-31T16:39:40.535Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"telegram"}
+{"ts":"2026-07-31T16:39:40.535Z","level":"info","msg":"Registered agent harness \"thin\" (single-turn ModelClient loop).","module":"thin-agent-harness"}
+{"ts":"2026-07-31T16:39:40.535Z","level":"info","msg":"Tool result cache enabled","module":"tool-cache"}
+{"ts":"2026-07-31T16:39:40.535Z","level":"info","msg":"Tool retry middleware enabled","module":"tool-retry"}
+{"ts":"2026-07-31T16:39:40.536Z","level":"warn","msg":"transcription-whisper: [redacted] is required — provider inactive","module":"transcription-whisper"}
+{"ts":"2026-07-31T16:39:40.536Z","level":"info","msg":"Registered agent harness \"vercel\" (Vercel AI SDK tool loop).","module":"vercel-agent-harness"}
+{"ts":"2026-07-31T16:39:40.536Z","level":"warn","msg":"voice-openai-tts: [redacted] is required — provider inactive","module":"voice-openai-tts"}
+{"ts":"2026-07-31T16:39:40.536Z","level":"info","msg":"voice-whisper-local: binaryPath and modelPath required — provider inactive (local STT opt-in)","module":"voice-whisper-local"}
+{"ts":"2026-07-31T16:39:40.536Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"web"}
+·······································*****···················································································-································································································································································································································································******········**························
+[?2026l[?2026h[K{"ts":"2026-07-31T16:39:40.621Z","level":"info","msg":"Registered as provider for \"rendering\"","module":"rendering"}
+{"ts":"2026-07-31T16:39:40.621Z","level":"info","msg":"Registered as provider for \"knowledge\"","module":"knowledge"}
+{"ts":"2026-07-31T16:39:40.621Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"knowledge"}
+{"ts":"2026-07-31T16:39:40.622Z","level":"info","msg":"Registered as provider for \"memory\"","module":"memory"}
+{"ts":"2026-07-31T16:39:40.622Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"memory"}
+{"ts":"2026-07-31T16:39:40.622Z","level":"info","msg":"Registered as provider for \"history\"","module":"history"}
+{"ts":"2026-07-31T16:39:40.622Z","level":"info","msg":"Registered as provider for \"history-project\"","module":"history"}
+{"ts":"2026-07-31T16:39:40.622Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"history"}
+{"ts":"2026-07-31T16:39:40.622Z","level":"info","msg":"Registered as provider for \"repo-tasks\"","module":"repo-tasks"}
+{"ts":"2026-07-31T16:39:40.622Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"repo-tasks"}
+{"ts":"2026-07-31T16:39:40.623Z","level":"info","msg":"Registered as provider for \"recall\"","module":"recall"}
+{"ts":"2026-07-31T16:39:40.623Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"recall"}
+{"ts":"2026-07-31T16:39:40.623Z","level":"info","msg":"recall: registered 4 contributor(s)","module":"recall"}
+{"ts":"2026-07-31T16:39:40.623Z","level":"info","msg":"Registered as provider for \"model-pricing\"","module":"model-clients"}
+{"ts":"2026-07-31T16:39:40.623Z","level":"info","msg":"Registered as provider for \"answer\"","module":"answer"}
+{"ts":"2026-07-31T16:39:40.623Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"answer"}
+{"ts":"2026-07-31T16:39:40.623Z","level":"info","msg":"answer: cited-answer seam ready","module":"answer"}
+{"ts":"2026-07-31T16:39:40.623Z","level":"info","msg":"Registered agent harness \"antigravity-cli\" (Antigravity CLI text).","module":"antigravity-cli-agent-harness"}
+{"ts":"2026-07-31T16:39:40.624Z","level":"warn","msg":"github-webhook: no secret configured — webhook route not registered","module":"github-webhook"}
+{"ts":"2026-07-31T16:39:40.624Z","level":"warn","msg":"GitHub module: modules.github.token is required but missing — module inactive","module":"github"}
+{"ts":"2026-07-31T16:39:40.632Z","level":"info","msg":"Registered as provider for \"workflow-state-recovery\"","module":"autonomy"}
+{"ts":"2026-07-31T16:39:40.633Z","level":"info","msg":"Registered as provider for \"capture\"","module":"capture"}
+{"ts":"2026-07-31T16:39:40.633Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"capture"}
+{"ts":"2026-07-31T16:39:40.633Z","level":"info","msg":"capture: registered 4 contributor(s)","module":"capture"}
+{"ts":"2026-07-31T16:39:40.633Z","level":"info","msg":"Registered agent harness \"claude-agent-sdk\" (Claude Agent SDK).","module":"claude-agent-harness"}
+{"ts":"2026-07-31T16:39:40.633Z","level":"info","msg":"Registered agent harness \"codex\" (Codex CLI exec).","module":"codex-agent-harness"}
+{"ts":"2026-07-31T16:39:40.634Z","level":"warn","msg":"email module: smtp.host, from, and to are required — module inactive","module":"email"}
+{"ts":"2026-07-31T16:39:40.634Z","level":"info","msg":"Registered agent harness \"gemini\" (Google Gen AI SDK tool loop).","module":"gemini-agent-harness"}
+{"ts":"2026-07-31T16:39:40.634Z","level":"info","msg":"Registered agent harness \"gemini-cli\" (Gemini CLI headless).","module":"gemini-cli-agent-harness"}
+{"ts":"2026-07-31T16:39:40.634Z","level":"warn","msg":"Google Workspace module: modules.google-workspace.clientId, [redacted], and refreshToken are required — module inactive","module":"google-workspace"}
+{"ts":"2026-07-31T16:39:40.634Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"google-workspace"}
+{"ts":"2026-07-31T16:39:40.635Z","level":"info","msg":"injection-defense: screening 7 configured tool(s) plus external-content provenance on modes: autonomous","module":"injection-defense"}
+{"ts":"2026-07-31T16:39:40.635Z","level":"info","msg":"Registered agent harness \"openai-tools\" (OpenAI-compatible tool loop).","module":"openai-tools-agent-harness"}
+{"ts":"2026-07-31T16:39:40.635Z","level":"info","msg":"Registered agent harness \"openai-tools-scaffold\" (scaffolded weak/local model loop).","module":"openai-tools-agent-harness"}
+{"ts":"2026-07-31T16:39:40.636Z","level":"info","msg":"Registered as provider for \"resource-discovery\"","module":"resource-discovery"}
+{"ts":"2026-07-31T16:39:40.636Z","level":"info","msg":"Registered as provider for \"retract\"","module":"retract"}
+{"ts":"2026-07-31T16:39:40.636Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"retract"}
+{"ts":"2026-07-31T16:39:40.636Z","level":"info","msg":"retract: registered 4 contributor(s)","module":"retract"}
+{"ts":"2026-07-31T16:39:40.636Z","level":"info","msg":"Registered as provider for \"notification-hub\"","module":"scheduler"}
+{"ts":"2026-07-31T16:39:40.636Z","level":"warn","msg":"slack-channel module: botToken and appToken are required — module inactive","module":"slack-channel"}
+{"ts":"2026-07-31T16:39:40.636Z","level":"info","msg":"Registered as provider for \"memory\"","module":"sqlite-memory"}
+{"ts":"2026-07-31T16:39:40.636Z","level":"info","msg":"SQLite memory provider registered","module":"sqlite-memory"}
+{"ts":"2026-07-31T16:39:40.637Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"telegram"}
+{"ts":"2026-07-31T16:39:40.637Z","level":"info","msg":"Registered agent harness \"thin\" (single-turn ModelClient loop).","module":"thin-agent-harness"}
+{"ts":"2026-07-31T16:39:40.637Z","level":"info","msg":"Tool result cache enabled","module":"tool-cache"}
+{"ts":"2026-07-31T16:39:40.637Z","level":"info","msg":"Tool retry middleware enabled","module":"tool-retry"}
+{"ts":"2026-07-31T16:39:40.637Z","level":"warn","msg":"transcription-whisper: [redacted] is required — provider inactive","module":"transcription-whisper"}
+{"ts":"2026-07-31T16:39:40.637Z","level":"info","msg":"Registered agent harness \"vercel\" (Vercel AI SDK tool loop).","module":"vercel-agent-harness"}
+{"ts":"2026-07-31T16:39:40.638Z","level":"warn","msg":"voice-openai-tts: [redacted] is required — provider inactive","module":"voice-openai-tts"}
+{"ts":"2026-07-31T16:39:40.638Z","level":"info","msg":"voice-whisper-local: binaryPath and modelPath required — provider inactive (local STT opt-in)","module":"voice-whisper-local"}
+{"ts":"2026-07-31T16:39:40.638Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"web"}
+·······································*****···················································································-·································································································································································································································································*****········**························
+[?2026l[?2026h[K{"ts":"2026-07-31T16:39:40.719Z","level":"info","msg":"Registered as provider for \"rendering\"","module":"rendering"}
+{"ts":"2026-07-31T16:39:40.720Z","level":"info","msg":"Registered as provider for \"knowledge\"","module":"knowledge"}
+{"ts":"2026-07-31T16:39:40.720Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"knowledge"}
+{"ts":"2026-07-31T16:39:40.720Z","level":"info","msg":"Registered as provider for \"memory\"","module":"memory"}
+{"ts":"2026-07-31T16:39:40.720Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"memory"}
+{"ts":"2026-07-31T16:39:40.720Z","level":"info","msg":"Registered as provider for \"history\"","module":"history"}
+{"ts":"2026-07-31T16:39:40.720Z","level":"info","msg":"Registered as provider for \"history-project\"","module":"history"}
+{"ts":"2026-07-31T16:39:40.720Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"history"}
+{"ts":"2026-07-31T16:39:40.720Z","level":"info","msg":"Registered as provider for \"repo-tasks\"","module":"repo-tasks"}
+{"ts":"2026-07-31T16:39:40.720Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"repo-tasks"}
+{"ts":"2026-07-31T16:39:40.721Z","level":"info","msg":"Registered as provider for \"recall\"","module":"recall"}
+{"ts":"2026-07-31T16:39:40.721Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"recall"}
+{"ts":"2026-07-31T16:39:40.721Z","level":"info","msg":"recall: registered 4 contributor(s)","module":"recall"}
+{"ts":"2026-07-31T16:39:40.721Z","level":"info","msg":"Registered as provider for \"model-pricing\"","module":"model-clients"}
+{"ts":"2026-07-31T16:39:40.721Z","level":"info","msg":"Registered as provider for \"answer\"","module":"answer"}
+{"ts":"2026-07-31T16:39:40.721Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"answer"}
+{"ts":"2026-07-31T16:39:40.721Z","level":"info","msg":"answer: cited-answer seam ready","module":"answer"}
+{"ts":"2026-07-31T16:39:40.721Z","level":"info","msg":"Registered agent harness \"antigravity-cli\" (Antigravity CLI text).","module":"antigravity-cli-agent-harness"}
+{"ts":"2026-07-31T16:39:40.722Z","level":"warn","msg":"github-webhook: no secret configured — webhook route not registered","module":"github-webhook"}
+{"ts":"2026-07-31T16:39:40.722Z","level":"warn","msg":"GitHub module: modules.github.token is required but missing — module inactive","module":"github"}
+{"ts":"2026-07-31T16:39:40.731Z","level":"info","msg":"Registered as provider for \"workflow-state-recovery\"","module":"autonomy"}
+{"ts":"2026-07-31T16:39:40.732Z","level":"info","msg":"Registered as provider for \"capture\"","module":"capture"}
+{"ts":"2026-07-31T16:39:40.732Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"capture"}
+{"ts":"2026-07-31T16:39:40.732Z","level":"info","msg":"capture: registered 4 contributor(s)","module":"capture"}
+{"ts":"2026-07-31T16:39:40.732Z","level":"info","msg":"Registered agent harness \"claude-agent-sdk\" (Claude Agent SDK).","module":"claude-agent-harness"}
+{"ts":"2026-07-31T16:39:40.733Z","level":"info","msg":"Registered agent harness \"codex\" (Codex CLI exec).","module":"codex-agent-harness"}
+{"ts":"2026-07-31T16:39:40.733Z","level":"warn","msg":"email module: smtp.host, from, and to are required — module inactive","module":"email"}
+{"ts":"2026-07-31T16:39:40.733Z","level":"info","msg":"Registered agent harness \"gemini\" (Google Gen AI SDK tool loop).","module":"gemini-agent-harness"}
+{"ts":"2026-07-31T16:39:40.733Z","level":"info","msg":"Registered agent harness \"gemini-cli\" (Gemini CLI headless).","module":"gemini-cli-agent-harness"}
+{"ts":"2026-07-31T16:39:40.733Z","level":"warn","msg":"Google Workspace module: modules.google-workspace.clientId, [redacted], and refreshToken are required — module inactive","module":"google-workspace"}
+{"ts":"2026-07-31T16:39:40.733Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"google-workspace"}
+{"ts":"2026-07-31T16:39:40.734Z","level":"info","msg":"injection-defense: screening 7 configured tool(s) plus external-content provenance on modes: autonomous","module":"injection-defense"}
+{"ts":"2026-07-31T16:39:40.735Z","level":"info","msg":"Registered agent harness \"openai-tools\" (OpenAI-compatible tool loop).","module":"openai-tools-agent-harness"}
+{"ts":"2026-07-31T16:39:40.735Z","level":"info","msg":"Registered agent harness \"openai-tools-scaffold\" (scaffolded weak/local model loop).","module":"openai-tools-agent-harness"}
+{"ts":"2026-07-31T16:39:40.735Z","level":"info","msg":"Registered as provider for \"resource-discovery\"","module":"resource-discovery"}
+{"ts":"2026-07-31T16:39:40.735Z","level":"info","msg":"Registered as provider for \"retract\"","module":"retract"}
+{"ts":"2026-07-31T16:39:40.735Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"retract"}
+{"ts":"2026-07-31T16:39:40.735Z","level":"info","msg":"retract: registered 4 contributor(s)","module":"retract"}
+{"ts":"2026-07-31T16:39:40.735Z","level":"info","msg":"Registered as provider for \"notification-hub\"","module":"scheduler"}
+{"ts":"2026-07-31T16:39:40.736Z","level":"warn","msg":"slack-channel module: botToken and appToken are required — module inactive","module":"slack-channel"}
+{"ts":"2026-07-31T16:39:40.736Z","level":"info","msg":"Registered as provider for \"memory\"","module":"sqlite-memory"}
+{"ts":"2026-07-31T16:39:40.736Z","level":"info","msg":"SQLite memory provider registered","module":"sqlite-memory"}
+{"ts":"2026-07-31T16:39:40.736Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"telegram"}
+{"ts":"2026-07-31T16:39:40.736Z","level":"info","msg":"Registered agent harness \"thin\" (single-turn ModelClient loop).","module":"thin-agent-harness"}
+{"ts":"2026-07-31T16:39:40.737Z","level":"info","msg":"Tool result cache enabled","module":"tool-cache"}
+{"ts":"2026-07-31T16:39:40.737Z","level":"info","msg":"Tool retry middleware enabled","module":"tool-retry"}
+{"ts":"2026-07-31T16:39:40.737Z","level":"warn","msg":"transcription-whisper: [redacted] is required — provider inactive","module":"transcription-whisper"}
+{"ts":"2026-07-31T16:39:40.737Z","level":"info","msg":"Registered agent harness \"vercel\" (Vercel AI SDK tool loop).","module":"vercel-agent-harness"}
+{"ts":"2026-07-31T16:39:40.737Z","level":"warn","msg":"voice-openai-tts: [redacted] is required — provider inactive","module":"voice-openai-tts"}
+{"ts":"2026-07-31T16:39:40.737Z","level":"info","msg":"voice-whisper-local: binaryPath and modelPath required — provider inactive (local STT opt-in)","module":"voice-whisper-local"}
+{"ts":"2026-07-31T16:39:40.738Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"web"}
+·······································*****···················································································-··································································································································································································································································****········**························
+[?2026l[?2026h[K{"ts":"2026-07-31T16:39:40.821Z","level":"info","msg":"Registered as provider for \"rendering\"","module":"rendering"}
+{"ts":"2026-07-31T16:39:40.822Z","level":"info","msg":"Registered as provider for \"knowledge\"","module":"knowledge"}
+{"ts":"2026-07-31T16:39:40.822Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"knowledge"}
+{"ts":"2026-07-31T16:39:40.822Z","level":"info","msg":"Registered as provider for \"memory\"","module":"memory"}
+{"ts":"2026-07-31T16:39:40.822Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"memory"}
+{"ts":"2026-07-31T16:39:40.822Z","level":"info","msg":"Registered as provider for \"history\"","module":"history"}
+{"ts":"2026-07-31T16:39:40.822Z","level":"info","msg":"Registered as provider for \"history-project\"","module":"history"}
+{"ts":"2026-07-31T16:39:40.822Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"history"}
+{"ts":"2026-07-31T16:39:40.822Z","level":"info","msg":"Registered as provider for \"repo-tasks\"","module":"repo-tasks"}
+{"ts":"2026-07-31T16:39:40.823Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"repo-tasks"}
+{"ts":"2026-07-31T16:39:40.823Z","level":"info","msg":"Registered as provider for \"recall\"","module":"recall"}
+{"ts":"2026-07-31T16:39:40.823Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"recall"}
+{"ts":"2026-07-31T16:39:40.823Z","level":"info","msg":"recall: registered 4 contributor(s)","module":"recall"}
+{"ts":"2026-07-31T16:39:40.823Z","level":"info","msg":"Registered as provider for \"model-pricing\"","module":"model-clients"}
+{"ts":"2026-07-31T16:39:40.823Z","level":"info","msg":"Registered as provider for \"answer\"","module":"answer"}
+{"ts":"2026-07-31T16:39:40.823Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"answer"}
+{"ts":"2026-07-31T16:39:40.823Z","level":"info","msg":"answer: cited-answer seam ready","module":"answer"}
+{"ts":"2026-07-31T16:39:40.823Z","level":"info","msg":"Registered agent harness \"antigravity-cli\" (Antigravity CLI text).","module":"antigravity-cli-agent-harness"}
+{"ts":"2026-07-31T16:39:40.824Z","level":"warn","msg":"github-webhook: no secret configured — webhook route not registered","module":"github-webhook"}
+{"ts":"2026-07-31T16:39:40.824Z","level":"warn","msg":"GitHub module: modules.github.token is required but missing — module inactive","module":"github"}
+{"ts":"2026-07-31T16:39:40.840Z","level":"info","msg":"Registered as provider for \"workflow-state-recovery\"","module":"autonomy"}
+{"ts":"2026-07-31T16:39:40.841Z","level":"info","msg":"Registered as provider for \"capture\"","module":"capture"}
+{"ts":"2026-07-31T16:39:40.841Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"capture"}
+{"ts":"2026-07-31T16:39:40.841Z","level":"info","msg":"capture: registered 4 contributor(s)","module":"capture"}
+{"ts":"2026-07-31T16:39:40.841Z","level":"info","msg":"Registered agent harness \"claude-agent-sdk\" (Claude Agent SDK).","module":"claude-agent-harness"}
+{"ts":"2026-07-31T16:39:40.841Z","level":"info","msg":"Registered agent harness \"codex\" (Codex CLI exec).","module":"codex-agent-harness"}
+{"ts":"2026-07-31T16:39:40.842Z","level":"warn","msg":"email module: smtp.host, from, and to are required — module inactive","module":"email"}
+{"ts":"2026-07-31T16:39:40.842Z","level":"info","msg":"Registered agent harness \"gemini\" (Google Gen AI SDK tool loop).","module":"gemini-agent-harness"}
+{"ts":"2026-07-31T16:39:40.842Z","level":"info","msg":"Registered agent harness \"gemini-cli\" (Gemini CLI headless).","module":"gemini-cli-agent-harness"}
+{"ts":"2026-07-31T16:39:40.842Z","level":"warn","msg":"Google Workspace module: modules.google-workspace.clientId, [redacted], and refreshToken are required — module inactive","module":"google-workspace"}
+{"ts":"2026-07-31T16:39:40.842Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"google-workspace"}
+{"ts":"2026-07-31T16:39:40.843Z","level":"info","msg":"injection-defense: screening 7 configured tool(s) plus external-content provenance on modes: autonomous","module":"injection-defense"}
+{"ts":"2026-07-31T16:39:40.843Z","level":"info","msg":"Registered agent harness \"openai-tools\" (OpenAI-compatible tool loop).","module":"openai-tools-agent-harness"}
+{"ts":"2026-07-31T16:39:40.843Z","level":"info","msg":"Registered agent harness \"openai-tools-scaffold\" (scaffolded weak/local model loop).","module":"openai-tools-agent-harness"}
+{"ts":"2026-07-31T16:39:40.844Z","level":"info","msg":"Registered as provider for \"resource-discovery\"","module":"resource-discovery"}
+{"ts":"2026-07-31T16:39:40.844Z","level":"info","msg":"Registered as provider for \"retract\"","module":"retract"}
+{"ts":"2026-07-31T16:39:40.844Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"retract"}
+{"ts":"2026-07-31T16:39:40.844Z","level":"info","msg":"retract: registered 4 contributor(s)","module":"retract"}
+{"ts":"2026-07-31T16:39:40.844Z","level":"info","msg":"Registered as provider for \"notification-hub\"","module":"scheduler"}
+{"ts":"2026-07-31T16:39:40.844Z","level":"warn","msg":"slack-channel module: botToken and appToken are required — module inactive","module":"slack-channel"}
+{"ts":"2026-07-31T16:39:40.844Z","level":"info","msg":"Registered as provider for \"memory\"","module":"sqlite-memory"}
+{"ts":"2026-07-31T16:39:40.844Z","level":"info","msg":"SQLite memory provider registered","module":"sqlite-memory"}
+{"ts":"2026-07-31T16:39:40.845Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"telegram"}
+{"ts":"2026-07-31T16:39:40.845Z","level":"info","msg":"Registered agent harness \"thin\" (single-turn ModelClient loop).","module":"thin-agent-harness"}
+{"ts":"2026-07-31T16:39:40.845Z","level":"info","msg":"Tool result cache enabled","module":"tool-cache"}
+{"ts":"2026-07-31T16:39:40.845Z","level":"info","msg":"Tool retry middleware enabled","module":"tool-retry"}
+{"ts":"2026-07-31T16:39:40.845Z","level":"warn","msg":"transcription-whisper: [redacted] is required — provider inactive","module":"transcription-whisper"}
+{"ts":"2026-07-31T16:39:40.846Z","level":"info","msg":"Registered agent harness \"vercel\" (Vercel AI SDK tool loop).","module":"vercel-agent-harness"}
+{"ts":"2026-07-31T16:39:40.846Z","level":"warn","msg":"voice-openai-tts: [redacted] is required — provider inactive","module":"voice-openai-tts"}
+{"ts":"2026-07-31T16:39:40.846Z","level":"info","msg":"voice-whisper-local: binaryPath and modelPath required — provider inactive (local STT opt-in)","module":"voice-whisper-local"}
+{"ts":"2026-07-31T16:39:40.847Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"web"}
+{"ts":"2026-07-31T16:39:40.933Z","level":"info","msg":"Registered as provider for \"rendering\"","module":"rendering"}
+{"ts":"2026-07-31T16:39:40.933Z","level":"info","msg":"Registered as provider for \"knowledge\"","module":"knowledge"}
+{"ts":"2026-07-31T16:39:40.934Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"knowledge"}
+{"ts":"2026-07-31T16:39:40.934Z","level":"info","msg":"Registered as provider for \"memory\"","module":"memory"}
+{"ts":"2026-07-31T16:39:40.934Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"memory"}
+{"ts":"2026-07-31T16:39:40.934Z","level":"info","msg":"Registered as provider for \"history\"","module":"history"}
+{"ts":"2026-07-31T16:39:40.934Z","level":"info","msg":"Registered as provider for \"history-project\"","module":"history"}
+{"ts":"2026-07-31T16:39:40.934Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"history"}
+{"ts":"2026-07-31T16:39:40.934Z","level":"info","msg":"Registered as provider for \"repo-tasks\"","module":"repo-tasks"}
+{"ts":"2026-07-31T16:39:40.934Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"repo-tasks"}
+{"ts":"2026-07-31T16:39:40.935Z","level":"info","msg":"Registered as provider for \"recall\"","module":"recall"}
+{"ts":"2026-07-31T16:39:40.935Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"recall"}
+{"ts":"2026-07-31T16:39:40.935Z","level":"info","msg":"recall: registered 4 contributor(s)","module":"recall"}
+{"ts":"2026-07-31T16:39:40.935Z","level":"info","msg":"Registered as provider for \"model-pricing\"","module":"model-clients"}
+{"ts":"2026-07-31T16:39:40.935Z","level":"info","msg":"Registered as provider for \"answer\"","module":"answer"}
+{"ts":"2026-07-31T16:39:40.935Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"answer"}
+{"ts":"2026-07-31T16:39:40.935Z","level":"info","msg":"answer: cited-answer seam ready","module":"answer"}
+{"ts":"2026-07-31T16:39:40.935Z","level":"info","msg":"Registered agent harness \"antigravity-cli\" (Antigravity CLI text).","module":"antigravity-cli-agent-harness"}
+{"ts":"2026-07-31T16:39:40.936Z","level":"warn","msg":"github-webhook: no secret configured — webhook route not registered","module":"github-webhook"}
+{"ts":"2026-07-31T16:39:40.936Z","level":"warn","msg":"GitHub module: modules.github.token is required but missing — module inactive","module":"github"}
+{"ts":"2026-07-31T16:39:40.946Z","level":"info","msg":"Registered as provider for \"workflow-state-recovery\"","module":"autonomy"}
+{"ts":"2026-07-31T16:39:40.947Z","level":"info","msg":"Registered as provider for \"capture\"","module":"capture"}
+{"ts":"2026-07-31T16:39:40.947Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"capture"}
+{"ts":"2026-07-31T16:39:40.947Z","level":"info","msg":"capture: registered 4 contributor(s)","module":"capture"}
+{"ts":"2026-07-31T16:39:40.947Z","level":"info","msg":"Registered agent harness \"claude-agent-sdk\" (Claude Agent SDK).","module":"claude-agent-harness"}
+{"ts":"2026-07-31T16:39:40.947Z","level":"info","msg":"Registered agent harness \"codex\" (Codex CLI exec).","module":"codex-agent-harness"}
+{"ts":"2026-07-31T16:39:40.948Z","level":"warn","msg":"email module: smtp.host, from, and to are required — module inactive","module":"email"}
+{"ts":"2026-07-31T16:39:40.948Z","level":"info","msg":"Registered agent harness \"gemini\" (Google Gen AI SDK tool loop).","module":"gemini-agent-harness"}
+{"ts":"2026-07-31T16:39:40.948Z","level":"info","msg":"Registered agent harness \"gemini-cli\" (Gemini CLI headless).","module":"gemini-cli-agent-harness"}
+{"ts":"2026-07-31T16:39:40.948Z","level":"warn","msg":"Google Workspace module: modules.google-workspace.clientId, [redacted], and refreshToken are required — module inactive","module":"google-workspace"}
+{"ts":"2026-07-31T16:39:40.948Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"google-workspace"}
+{"ts":"2026-07-31T16:39:40.949Z","level":"info","msg":"injection-defense: screening 7 configured tool(s) plus external-content provenance on modes: autonomous","module":"injection-defense"}
+{"ts":"2026-07-31T16:39:40.949Z","level":"info","msg":"Registered agent harness \"openai-tools\" (OpenAI-compatible tool loop).","module":"openai-tools-agent-harness"}
+{"ts":"2026-07-31T16:39:40.949Z","level":"info","msg":"Registered agent harness \"openai-tools-scaffold\" (scaffolded weak/local model loop).","module":"openai-tools-agent-harness"}
+{"ts":"2026-07-31T16:39:40.950Z","level":"info","msg":"Registered as provider for \"resource-discovery\"","module":"resource-discovery"}
+{"ts":"2026-07-31T16:39:40.950Z","level":"info","msg":"Registered as provider for \"retract\"","module":"retract"}
+{"ts":"2026-07-31T16:39:40.950Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"retract"}
+{"ts":"2026-07-31T16:39:40.950Z","level":"info","msg":"retract: registered 4 contributor(s)","module":"retract"}
+{"ts":"2026-07-31T16:39:40.950Z","level":"info","msg":"Registered as provider for \"notification-hub\"","module":"scheduler"}
+{"ts":"2026-07-31T16:39:40.950Z","level":"warn","msg":"slack-channel module: botToken and appToken are required — module inactive","module":"slack-channel"}
+{"ts":"2026-07-31T16:39:40.950Z","level":"info","msg":"Registered as provider for \"memory\"","module":"sqlite-memory"}
+{"ts":"2026-07-31T16:39:40.950Z","level":"info","msg":"SQLite memory provider registered","module":"sqlite-memory"}
+{"ts":"2026-07-31T16:39:40.951Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"telegram"}
+{"ts":"2026-07-31T16:39:40.951Z","level":"info","msg":"Registered agent harness \"thin\" (single-turn ModelClient loop).","module":"thin-agent-harness"}
+{"ts":"2026-07-31T16:39:40.951Z","level":"info","msg":"Tool result cache enabled","module":"tool-cache"}
+{"ts":"2026-07-31T16:39:40.951Z","level":"info","msg":"Tool retry middleware enabled","module":"tool-retry"}
+{"ts":"2026-07-31T16:39:40.951Z","level":"warn","msg":"transcription-whisper: [redacted] is required — provider inactive","module":"transcription-whisper"}
+{"ts":"2026-07-31T16:39:40.951Z","level":"info","msg":"Registered agent harness \"vercel\" (Vercel AI SDK tool loop).","module":"vercel-agent-harness"}
+{"ts":"2026-07-31T16:39:40.952Z","level":"warn","msg":"voice-openai-tts: [redacted] is required — provider inactive","module":"voice-openai-tts"}
+{"ts":"2026-07-31T16:39:40.952Z","level":"info","msg":"voice-whisper-local: binaryPath and modelPath required — provider inactive (local STT opt-in)","module":"voice-whisper-local"}
+{"ts":"2026-07-31T16:39:40.952Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"web"}
+$ echo 'build successful'
+·······································*****···················································································-····································································································································································································································································**········**························
+[?2026l[?2026h[K[foreign:node] Subprocess exited unexpectedly.
+[foreign:node][warn] Failed to send shutdown: Transport closed
+build successful
+[foreign:node] Restart 1/2 in 50ms (subprocess exited unexpectedly).
+[foreign:node] Restarted successfully.
+{"ts":"2026-07-31T16:39:41.046Z","level":"info","msg":"Registered as provider for \"rendering\"","module":"rendering"}
+{"ts":"2026-07-31T16:39:41.046Z","level":"info","msg":"Registered as provider for \"knowledge\"","module":"knowledge"}
+{"ts":"2026-07-31T16:39:41.046Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"knowledge"}
+{"ts":"2026-07-31T16:39:41.046Z","level":"info","msg":"Registered as provider for \"memory\"","module":"memory"}
+{"ts":"2026-07-31T16:39:41.047Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"memory"}
+{"ts":"2026-07-31T16:39:41.047Z","level":"info","msg":"Registered as provider for \"history\"","module":"history"}
+{"ts":"2026-07-31T16:39:41.047Z","level":"info","msg":"Registered as provider for \"history-project\"","module":"history"}
+{"ts":"2026-07-31T16:39:41.047Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"history"}
+{"ts":"2026-07-31T16:39:41.047Z","level":"info","msg":"Registered as provider for \"repo-tasks\"","module":"repo-tasks"}
+{"ts":"2026-07-31T16:39:41.047Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"repo-tasks"}
+{"ts":"2026-07-31T16:39:41.048Z","level":"info","msg":"Registered as provider for \"recall\"","module":"recall"}
+{"ts":"2026-07-31T16:39:41.048Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"recall"}
+{"ts":"2026-07-31T16:39:41.048Z","level":"info","msg":"recall: registered 4 contributor(s)","module":"recall"}
+{"ts":"2026-07-31T16:39:41.048Z","level":"info","msg":"Registered as provider for \"model-pricing\"","module":"model-clients"}
+{"ts":"2026-07-31T16:39:41.048Z","level":"info","msg":"Registered as provider for \"answer\"","module":"answer"}
+{"ts":"2026-07-31T16:39:41.048Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"answer"}
+{"ts":"2026-07-31T16:39:41.048Z","level":"info","msg":"answer: cited-answer seam ready","module":"answer"}
+{"ts":"2026-07-31T16:39:41.048Z","level":"info","msg":"Registered agent harness \"antigravity-cli\" (Antigravity CLI text).","module":"antigravity-cli-agent-harness"}
+{"ts":"2026-07-31T16:39:41.049Z","level":"warn","msg":"github-webhook: no secret configured — webhook route not registered","module":"github-webhook"}
+{"ts":"2026-07-31T16:39:41.049Z","level":"warn","msg":"GitHub module: modules.github.token is required but missing — module inactive","module":"github"}
+·········································***···················································································-·····································································································································································································································································*········**························
+[?2026l[?2026h[K{"ts":"2026-07-31T16:39:41.061Z","level":"info","msg":"Registered as provider for \"workflow-state-recovery\"","module":"autonomy"}
+{"ts":"2026-07-31T16:39:41.061Z","level":"info","msg":"Registered as provider for \"capture\"","module":"capture"}
+{"ts":"2026-07-31T16:39:41.061Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"capture"}
+{"ts":"2026-07-31T16:39:41.061Z","level":"info","msg":"capture: registered 4 contributor(s)","module":"capture"}
+{"ts":"2026-07-31T16:39:41.062Z","level":"info","msg":"Registered agent harness \"claude-agent-sdk\" (Claude Agent SDK).","module":"claude-agent-harness"}
+{"ts":"2026-07-31T16:39:41.062Z","level":"info","msg":"Registered agent harness \"codex\" (Codex CLI exec).","module":"codex-agent-harness"}
+{"ts":"2026-07-31T16:39:41.062Z","level":"warn","msg":"email module: smtp.host, from, and to are required — module inactive","module":"email"}
+{"ts":"2026-07-31T16:39:41.063Z","level":"info","msg":"Registered agent harness \"gemini\" (Google Gen AI SDK tool loop).","module":"gemini-agent-harness"}
+{"ts":"2026-07-31T16:39:41.063Z","level":"info","msg":"Registered agent harness \"gemini-cli\" (Gemini CLI headless).","module":"gemini-cli-agent-harness"}
+{"ts":"2026-07-31T16:39:41.063Z","level":"warn","msg":"Google Workspace module: modules.google-workspace.clientId, [redacted], and refreshToken are required — module inactive","module":"google-workspace"}
+{"ts":"2026-07-31T16:39:41.063Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"google-workspace"}
+{"ts":"2026-07-31T16:39:41.063Z","level":"info","msg":"injection-defense: screening 7 configured tool(s) plus external-content provenance on modes: autonomous","module":"injection-defense"}
+{"ts":"2026-07-31T16:39:41.064Z","level":"info","msg":"Registered agent harness \"openai-tools\" (OpenAI-compatible tool loop).","module":"openai-tools-agent-harness"}
+{"ts":"2026-07-31T16:39:41.064Z","level":"info","msg":"Registered agent harness \"openai-tools-scaffold\" (scaffolded weak/local model loop).","module":"openai-tools-agent-harness"}
+{"ts":"2026-07-31T16:39:41.064Z","level":"info","msg":"Registered as provider for \"resource-discovery\"","module":"resource-discovery"}
+{"ts":"2026-07-31T16:39:41.064Z","level":"info","msg":"Registered as provider for \"retract\"","module":"retract"}
+{"ts":"2026-07-31T16:39:41.064Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"retract"}
+{"ts":"2026-07-31T16:39:41.064Z","level":"info","msg":"retract: registered 4 contributor(s)","module":"retract"}
+{"ts":"2026-07-31T16:39:41.064Z","level":"info","msg":"Registered as provider for \"notification-hub\"","module":"scheduler"}
+{"ts":"2026-07-31T16:39:41.065Z","level":"warn","msg":"slack-channel module: botToken and appToken are required — module inactive","module":"slack-channel"}
+{"ts":"2026-07-31T16:39:41.065Z","level":"info","msg":"Registered as provider for \"memory\"","module":"sqlite-memory"}
+{"ts":"2026-07-31T16:39:41.065Z","level":"info","msg":"SQLite memory provider registered","module":"sqlite-memory"}
+{"ts":"2026-07-31T16:39:41.065Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"telegram"}
+{"ts":"2026-07-31T16:39:41.065Z","level":"info","msg":"Registered agent harness \"thin\" (single-turn ModelClient loop).","module":"thin-agent-harness"}
+{"ts":"2026-07-31T16:39:41.065Z","level":"info","msg":"Tool result cache enabled","module":"tool-cache"}
+{"ts":"2026-07-31T16:39:41.066Z","level":"info","msg":"Tool retry middleware enabled","module":"tool-retry"}
+{"ts":"2026-07-31T16:39:41.066Z","level":"warn","msg":"transcription-whisper: [redacted] is required — provider inactive","module":"transcription-whisper"}
+{"ts":"2026-07-31T16:39:41.066Z","level":"info","msg":"Registered agent harness \"vercel\" (Vercel AI SDK tool loop).","module":"vercel-agent-harness"}
+{"ts":"2026-07-31T16:39:41.066Z","level":"warn","msg":"voice-openai-tts: [redacted] is required — provider inactive","module":"voice-openai-tts"}
+{"ts":"2026-07-31T16:39:41.066Z","level":"info","msg":"voice-whisper-local: binaryPath and modelPath required — provider inactive (local STT opt-in)","module":"voice-whisper-local"}
+{"ts":"2026-07-31T16:39:41.067Z","level":"info","msg":"Registered as provider for \"capability-readiness\"","module":"web"}
+·········································***···················································································-···············································································································································································································································································*························
+[?2026l[?2026h[K
+·········································***···················································································-···············································································································································································································································································*························
+[?2026l[?2026h[K
+·········································***···················································································-········································································································································································································································································································
+[?2026l[?2026h[K·········································***···················································································-········································································································································································································································································································
+[?2026l[?2026h[K·········································***···················································································-········································································································································································································································································································
+[?2026l[?2026h[K[foreign:node] Subprocess exited unexpectedly.
+[foreign:node][warn] Failed to send shutdown: Transport closed
+[foreign:node] Restart 1/2 in 50ms (subprocess exited unexpectedly).
+[foreign:node] Restart attempt 1 failed: Transport closed
+[foreign:node] Restart 2/2 in 100ms (subprocess exited unexpectedly).
+[foreign:node] Restart attempt 2 failed: Transport closed
+[foreign:node] All 2 restart(s) exhausted. Module failed.
+··········································**···················································································-········································································································································································································································································································
+[?2026l[?2026h[K···········································*···················································································-········································································································································································································································································································
+[?2026l[?2026h[K[foreign:node] Ping timed out.
+[foreign:node] Subprocess exited unexpectedly.
+[foreign:node] Restart 1/1 in 50ms (ping timeout).
+[foreign:node] Restart attempt 1 failed: Transport closed
+[foreign:node] All 1 restart(s) exhausted. Module failed.
+···········································*···················································································-········································································································································································································································································································
+[?2026l[?2026h[K···········································*···················································································-········································································································································································································································································································
+[?2026l[?2026h[K·······························································································································-········································································································································································································································································································
+[?2026l[K
+·······························································································································-········································································································································································································································································································
+ Test Files  35 passed | 1 skipped (36)
+      Tests  423 passed | 1 skipped (424)
+   Start at  17:39:35
+   Duration  11.54s (transform 12.97s, setup 1.05s, import 12.96s, tests 24.03s, environment 2ms)
+[?25hLegacy UI assembly paths: absent
+src/modules/knowledge/index.ts
+36:	uiSurfaces: [knowledgeUiSurfaceSource],
+src/modules/history/index.ts
+53:	uiSurfaces: [historyUiSurfaceSource],
+src/modules/setup/index.ts
+103:  uiSurfaces: [setupUiSurfaceSource],
+src/modules/memory/index.ts
+34:  uiSurfaces: [memoryUiSurfaceSource],
+src/modules/module-manager/index.ts
+312:  uiSurfaces: [modulesAgentsUiSurfaceSource],
+src/modules/daemon-ops/index.ts
+895:  uiSurfaces: daemonOpsUiSurfaceSources,
+src/modules/workflow-ops/index.ts
+150:  uiSurfaces: [workflowUiSurfaceSource],
+Module-owned UI source registrations: present
+(node:54771) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)

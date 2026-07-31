@@ -69,24 +69,22 @@ boundary is enforced at compile time by `module-context-capabilities.test.ts`.
   of creating a second catalog.
 - CLI-only provider loading should activate the configured provider modules and
   their declared dependencies without loading unrelated module side effects.
-- Provider registration and lookup go through typed `ProviderToken<T>` values.
-  Cross-cutting tokens (memory/knowledge/history/history-project/task/
-  repo-tasks/rendering/model-pricing) are exported from `provider-registry.ts`; module-domain
-  tokens (recall/capture/retract/answer/transcription/speech-synthesis,
-  workflow dispatcher, metrics source, etc.) live with their owning type.
-  The repo guard at `provider-registration-guard.test.ts` rejects new raw
-  string registrations on the registry surface.
+- Provider registration and lookup use typed `ProviderToken<T>` values.
+  Cross-cutting tokens live in `provider-registry.ts`; domain tokens live with
+  their owning type. `provider-registration-guard.test.ts` rejects raw string
+  registrations.
 - `mod.routes`, `mod.commands`, and `mod.controlRoutes` are pure-data
   contributions: the loader invokes each factory once at module load and
   caches the result. `getRoutes()`, `getCommands()`, `getContributedControlRoutes()`,
   and `getModuleSummaries()` read those cached snapshots and never re-invoke
   the factories. Module authors must not emit logs, register subscribers, or
   perform other side effects from those factories — runtime warnings about
-  missing config belong in `onLoad` (one-shot at runtime-mode boot) or in a
-  module `healthCheck` (surfaced through `kota doctor`).
-- `RouteRegistration` (public `kota serve` surface) and
-  `ControlRouteRegistration` (daemon-control surface) share one descriptor
-  protocol (`ModuleRouteBase` in `module-types.ts`). Both surfaces use the
+  missing config belong in `onLoad` or a module `healthCheck` surfaced through `kota doctor`.
+- `mod.uiSurfaces` contributes side-effect-free live source definitions; the loader caches them,
+  while `assembleUiSurfaceBundle` projects, validates, and orders one scoped graph.
+  Capability reads belong in the projector, never in the contribution factory or `onLoad`.
+- `RouteRegistration` (public `kota serve` surface) and `ControlRouteRegistration`
+  (daemon-control surface) share `ModuleRouteBase` from `module-types.ts`. Both surfaces use the
   same `:name` and trailing `*name` path grammar, the same handler signature
   `(req, res, params)`, the same `bypassAuth` posture, and the same optional
   auth-failure handler for protocol-shaped denials. Path matching is owned by
@@ -104,7 +102,7 @@ between cheap CLI subcommand registration and a fully-driven module runtime.
 
 - `"commands"`: register CLI command shape and local-side `KotaClient`
   handlers, and populate every statically-resolved module contribution
-  (workflows, channels, agents, skills, route registrations). Skips
+  (workflows, channels, UI source definitions, agents, skills, route registrations). Skips
   `onLoad`, tool registration, foreign modules, and provider activation, so
   CLI startup stays cheap. Callers may safely consume the static
   contributions plus `getCommands()`, `getModuleSummaries()`,

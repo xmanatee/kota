@@ -86,6 +86,7 @@ import {
   type WorkflowStateRecoveryProvider,
 } from "./state-recovery-provider.js";
 import { workflowStateRecoveryControlRoutes } from "./state-recovery-routes.js";
+import { workflowUiSurfaceSource } from "./ui-source.js";
 import { eventJournalForProject } from "./utils.js";
 
 export function buildWorkflowCommand(ctx: ModuleContext): Command {
@@ -145,7 +146,8 @@ const workflowModule: KotaModule = {
   name: "workflow-ops",
   version: "1.0.0",
   description: "Automation workflow CLI surface — kota workflow/automation list/show/run/trial/control/validate/definitions/deps/logs/gc/export/diff/cost/stats",
-  dependencies: ["git", "rendering"],
+  dependencies: ["daemon-ops", "git", "rendering"],
+  uiSurfaces: [workflowUiSurfaceSource],
   commands: (ctx) => [buildWorkflowCommand(ctx)],
   routes: (ctx) => workflowRoutes(ctx),
   controlRoutes: (ctx) => [

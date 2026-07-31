@@ -12,6 +12,12 @@ export type { AgentDef, SkillDef } from "./core/agents/agent-types.js";
 export type { ChannelAdapter, ChannelDef, ChannelOperatorIdentity, ChannelStartContext, ChannelUserIdentity } from "./core/channels/channel.js";
 export type { CapabilityScope } from "./core/daemon/daemon-control-types.js";
 export type {
+  UiAction,
+  UiNode,
+  UiSurface,
+  UiSurfaceBundle,
+} from "./core/daemon/ui-surface.js";
+export type {
   ControlRouteRegistration,
   CreateSessionOptions,
   KotaModule,
@@ -22,6 +28,11 @@ export type {
   RouteRegistration,
   ToolDef,
 } from "./core/modules/module-types.js";
+export type {
+  UiSurfaceProjectionContext,
+  UiSurfaceRead,
+  UiSurfaceSource,
+} from "./core/modules/module-ui-surfaces.js";
 export type { ToolResult } from "./core/tools/tool-result.js";
 export type {
   AutomationDefinitionInput,

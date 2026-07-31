@@ -1,5 +1,4 @@
-import type { AgentsListResult } from "#modules/agent-ops/client.js";
-import type { ModulesListResult } from "#modules/module-manager/client.js";
+import type { UiSurface, UiTableRow } from "#core/daemon/ui-surface.js";
 import {
   action,
   emptyRows,
@@ -8,11 +7,10 @@ import {
   readValue,
   resultSpec,
   type SurfaceRead,
-  scopeIdForStatus,
   unavailableRows,
-} from "./operator-ui-builder-common.js";
-import type { UiSurface, UiTableRow } from "./operator-ui-types.js";
-import type { StatusSnapshot } from "./status-cli.js";
+} from "#core/daemon/ui-surface-builders.js";
+import type { AgentsListResult } from "#modules/agent-ops/client.js";
+import type { ModulesListResult } from "#modules/module-manager/client.js";
 
 function moduleRows(modules: SurfaceRead<ModulesListResult>): UiTableRow[] {
   if (!modules.ok) return unavailableRows(modules.message);
@@ -60,11 +58,11 @@ function channelRows(modules: SurfaceRead<ModulesListResult>): UiTableRow[] {
 }
 
 export function buildModulesAgentsUiSurface(args: {
-  status: StatusSnapshot;
+  scopeId: string;
   modules: SurfaceRead<ModulesListResult>;
   agents: SurfaceRead<AgentsListResult>;
 }): UiSurface {
-  const scopeId = scopeIdForStatus(args.status);
+  const { scopeId } = args;
   const actions = [
     action({
       surfaceId: "modules-agents",

@@ -1,5 +1,6 @@
 import type { PendingApproval } from "#core/daemon/approval-queue.js";
 import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
+import { type SurfaceRead, shortId } from "#core/daemon/ui-surface-builders.js";
 import { redactSensitiveText } from "#core/evidence/policy.js";
 import type { KnowledgeListResult } from "#modules/knowledge/client.js";
 import type { MemoryListResult } from "#modules/memory/client.js";
@@ -7,7 +8,6 @@ import type { OwnerDecisionListResult } from "#modules/owner-decisions/client.js
 import type { RepoTaskListResult } from "#modules/repo-tasks/client.js";
 import type { ModuleSetupStatusResponse } from "#modules/setup/client.js";
 import type { WorkflowDefinitionsResult, WorkflowRunsListResult, WorkflowStatusSnapshot } from "#modules/workflow-ops/client.js";
-import { type SurfaceRead, shortId } from "./operator-ui-builder-common.js";
 import type { ContinuityEntry } from "./operator-ui-continuity-model.js";
 
 function safeText(value: string, max = 120): string {

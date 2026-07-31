@@ -1,11 +1,9 @@
-import { buildUiSurfaceBundle } from "#core/daemon/ui-surface.js";
-import type { OperatorInboxItem, OperatorInboxSnapshot } from "./operator-inbox.js";
 import {
   action,
   resultSpec,
-  scopeIdForStatus,
   uniqueActions,
-} from "./operator-ui-builder-common.js";
+} from "#core/daemon/ui-surface-builders.js";
+import type { OperatorInboxItem, OperatorInboxSnapshot } from "./operator-inbox.js";
 import { statusEntries, statusWarnings } from "./operator-ui-status-summary.js";
 import type {
   UiActionOperation,
@@ -13,16 +11,15 @@ import type {
   UiRole,
   UiStatusEntry,
   UiSurface,
-  UiSurfaceBundle,
 } from "./operator-ui-types.js";
 import { statusWorktreeItems } from "./operator-ui-worktree-status.js";
 import type { StatusSnapshot } from "./status-cli.js";
 
 export function buildStatusUiSurface(
   snapshot: StatusSnapshot,
-  options: { explain?: boolean } = {},
+  options: { explain?: boolean; scopeId?: string } = {},
 ): UiSurface {
-  const scopeId = scopeIdForStatus(snapshot);
+  const scopeId = options.scopeId ?? snapshot.scopedProject?.projectId ?? `dir:${snapshot.projectDir}`;
   const actions = [
     action({
       surfaceId: "status",
@@ -118,8 +115,10 @@ function inboxSummaryEntries(snapshot: OperatorInboxSnapshot): UiStatusEntry[] {
   ];
 }
 
-export function buildInboxUiSurface(snapshot: OperatorInboxSnapshot): UiSurface {
-  const scopeId = `dir:${snapshot.projectDir}`;
+export function buildInboxUiSurface(
+  snapshot: OperatorInboxSnapshot,
+  scopeId = `dir:${snapshot.projectDir}`,
+): UiSurface {
   const refresh = action({
     surfaceId: "inbox",
     actionId: "inbox.refresh",
@@ -159,14 +158,4 @@ export function buildInboxUiSurface(snapshot: OperatorInboxSnapshot): UiSurface 
         ],
     actions: uniqueActions([refresh, ...items.map((item) => item.action)]),
   };
-}
-
-export function buildStatusInboxBundle(args: {
-  status: StatusSnapshot;
-  inbox: OperatorInboxSnapshot;
-}): UiSurfaceBundle {
-  return buildUiSurfaceBundle([
-    buildStatusUiSurface(args.status, { explain: true }),
-    buildInboxUiSurface(args.inbox),
-  ]);
 }

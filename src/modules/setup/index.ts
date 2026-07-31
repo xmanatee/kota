@@ -1,3 +1,4 @@
+import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
 import { moduleSetupRequirementsFromSummaries } from "#core/modules/module-setup-status.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import {
@@ -6,31 +7,59 @@ import {
   type ModuleSetupStatusResponse,
 } from "#core/modules/setup-requirements.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import {
+  type ScopeSelector,
+  selectedScopeSelectorId,
+} from "#core/server/scope-selector.js";
 import { buildSetupCommand } from "./cli.js";
 import type {
   ModuleSetupMutationResult,
   ModuleSetupStartResult,
   SetupClient,
 } from "./client.js";
+import { setupUiSurfaceSource } from "./ui-source.js";
 
 type JsonObject = { [key: string]: ModuleSetupJsonValue };
 
 function buildLocalSetupClient(ctx: ModuleContext): SetupClient {
-  const service = new ModuleSetupService({
-    projectDir: ctx.cwd,
-    getRequirements: () => moduleSetupRequirementsFromSummaries(ctx.getModuleSummaries()),
-    probeCapabilities: async () => [],
-  });
+  const services = new Map<string, ModuleSetupService>();
+  const serviceFor = (scope?: ScopeSelector): ModuleSetupService => {
+    const selectedId = selectedScopeSelectorId(scope);
+    let projectDir = ctx.cwd;
+    if (selectedId !== undefined) {
+      const projectScope = ctx.getProvider(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE);
+      if (!projectScope) {
+        throw new Error(`Unknown scope: ${selectedId}`);
+      }
+      const resolved = projectScope.resolveProjectRuntime(selectedId);
+      if (!resolved.ok) throw new Error(`Unknown scope: ${selectedId}`);
+      projectDir = resolved.runtime.project.projectDir;
+    }
+
+    let service = services.get(projectDir);
+    if (!service) {
+      service = new ModuleSetupService({
+        projectDir,
+        getRequirements: () => moduleSetupRequirementsFromSummaries(ctx.getModuleSummaries()),
+        probeCapabilities: async () => [],
+      });
+      services.set(projectDir, service);
+    }
+    return service;
+  };
   return {
-    list: () => service.list(),
-    submitForm: (moduleName, requirementId, values) =>
-      service.submitForm(moduleName, requirementId, values),
-    storeSecret: (moduleName, requirementId, secretValues) =>
-      service.storeSecret(moduleName, requirementId, secretValues),
-    start: (moduleName, requirementId) => service.start(moduleName, requirementId),
-    complete: (actionId, input) => service.complete(actionId, input),
-    refresh: (moduleName, requirementId) => service.refresh(moduleName, requirementId),
-    revoke: (moduleName, requirementId) => service.revoke(moduleName, requirementId),
+    list: (scope) => serviceFor(scope).list(),
+    submitForm: (moduleName, requirementId, values, scope) =>
+      serviceFor(scope).submitForm(moduleName, requirementId, values),
+    storeSecret: (moduleName, requirementId, secretValues, scope) =>
+      serviceFor(scope).storeSecret(moduleName, requirementId, secretValues),
+    start: (moduleName, requirementId, scope) =>
+      serviceFor(scope).start(moduleName, requirementId),
+    complete: (actionId, input, scope) => serviceFor(scope).complete(actionId, input),
+    refresh: (moduleName, requirementId, scope) =>
+      serviceFor(scope).refresh(moduleName, requirementId),
+    revoke: (moduleName, requirementId, scope) =>
+      serviceFor(scope).revoke(moduleName, requirementId),
   };
 }
 
@@ -49,47 +78,79 @@ async function requestSetup<T>(
 }
 
 function buildDaemonSetupClient(link: DaemonTransport): SetupClient {
+  const unscoped = <T>(scope: ScopeSelector | undefined, operation: () => Promise<T>) => {
+    const selectedId = selectedScopeSelectorId(scope);
+    if (selectedId !== undefined) {
+      return Promise.reject(
+        new Error(
+          `Scoped setup operation for ${selectedId} must execute through KotaClient.ui.`,
+        ),
+      );
+    }
+    return operation();
+  };
   return {
-    list: () =>
-      link.requestStrict<ModuleSetupStatusResponse>("GET", "/setup/requirements"),
-    submitForm: (moduleName, requirementId, values) =>
-      requestSetup<ModuleSetupMutationResult>(
-        link,
-        "POST",
-        `/setup/requirements/${encodeURIComponent(moduleName)}/${encodeURIComponent(requirementId)}/form`,
-        { values },
+    list: (scope) =>
+      unscoped(
+        scope,
+        () => link.requestStrict<ModuleSetupStatusResponse>("GET", "/setup/requirements"),
       ),
-    storeSecret: (moduleName, requirementId, secretValues) =>
-      requestSetup<ModuleSetupMutationResult>(
-        link,
-        "POST",
-        `/setup/requirements/${encodeURIComponent(moduleName)}/${encodeURIComponent(requirementId)}/secret`,
-        { secretValues },
+    submitForm: (moduleName, requirementId, values, scope) =>
+      unscoped(
+        scope,
+        () => requestSetup<ModuleSetupMutationResult>(
+          link,
+          "POST",
+          `/setup/requirements/${encodeURIComponent(moduleName)}/${encodeURIComponent(requirementId)}/form`,
+          { values },
+        ),
       ),
-    start: (moduleName, requirementId) =>
-      requestSetup<ModuleSetupStartResult>(
-        link,
-        "POST",
-        `/setup/requirements/${encodeURIComponent(moduleName)}/${encodeURIComponent(requirementId)}/start`,
+    storeSecret: (moduleName, requirementId, secretValues, scope) =>
+      unscoped(
+        scope,
+        () => requestSetup<ModuleSetupMutationResult>(
+          link,
+          "POST",
+          `/setup/requirements/${encodeURIComponent(moduleName)}/${encodeURIComponent(requirementId)}/secret`,
+          { secretValues },
+        ),
       ),
-    complete: (actionId, input) =>
-      requestSetup<ModuleSetupMutationResult>(
-        link,
-        "POST",
-        `/setup/actions/${encodeURIComponent(actionId)}/complete`,
-        input as JsonObject,
+    start: (moduleName, requirementId, scope) =>
+      unscoped(
+        scope,
+        () => requestSetup<ModuleSetupStartResult>(
+          link,
+          "POST",
+          `/setup/requirements/${encodeURIComponent(moduleName)}/${encodeURIComponent(requirementId)}/start`,
+        ),
       ),
-    refresh: (moduleName, requirementId) =>
-      requestSetup<ModuleSetupMutationResult>(
-        link,
-        "POST",
-        `/setup/requirements/${encodeURIComponent(moduleName)}/${encodeURIComponent(requirementId)}/refresh`,
+    complete: (actionId, input, scope) =>
+      unscoped(
+        scope,
+        () => requestSetup<ModuleSetupMutationResult>(
+          link,
+          "POST",
+          `/setup/actions/${encodeURIComponent(actionId)}/complete`,
+          input as JsonObject,
+        ),
       ),
-    revoke: (moduleName, requirementId) =>
-      requestSetup<ModuleSetupMutationResult>(
-        link,
-        "DELETE",
-        `/setup/requirements/${encodeURIComponent(moduleName)}/${encodeURIComponent(requirementId)}`,
+    refresh: (moduleName, requirementId, scope) =>
+      unscoped(
+        scope,
+        () => requestSetup<ModuleSetupMutationResult>(
+          link,
+          "POST",
+          `/setup/requirements/${encodeURIComponent(moduleName)}/${encodeURIComponent(requirementId)}/refresh`,
+        ),
+      ),
+    revoke: (moduleName, requirementId, scope) =>
+      unscoped(
+        scope,
+        () => requestSetup<ModuleSetupMutationResult>(
+          link,
+          "DELETE",
+          `/setup/requirements/${encodeURIComponent(moduleName)}/${encodeURIComponent(requirementId)}`,
+        ),
       ),
   };
 }
@@ -99,6 +160,7 @@ const setupModule: KotaModule = {
   version: "1.0.0",
   description: "Module setup/auth requirement client namespace and CLI",
   dependencies: ["rendering"],
+  uiSurfaces: [setupUiSurfaceSource],
   commands: (ctx) => [buildSetupCommand(ctx)],
   localClient: (ctx) => ({ setup: buildLocalSetupClient(ctx) }),
   daemonClient: (link) => ({ setup: buildDaemonSetupClient(link) }),

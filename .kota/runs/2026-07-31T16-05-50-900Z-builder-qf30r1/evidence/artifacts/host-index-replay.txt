@@ -1,0 +1,61 @@
+Host-index replay record
+
+The linked worktree's host Git metadata is read-only in the builder sandbox.
+The exact commit set was staged and validated with this workspace-local index:
+
+.kota/tmp/2026-07-31T16-05-50-900Z-builder-qf30r1/index
+
+Its object directory is:
+
+.kota/tmp/2026-07-31T16-05-50-900Z-builder-qf30r1/objects
+
+The host object store is used only as an alternate. The terminal workflow commit step must replay
+git add -A against the real worktree index before committing. Isolated git diff --cached --check
+passed, and the isolated index contains the ready-to-done task move plus all implementation files.
+
+Post-check repair replay (2026-07-31): `git add -A` was repeated after reducing
+`src/core/modules/AGENTS.md` below its enforced size limit and adding the fresh
+repair-validation evidence. The final isolated staged diff includes every tracked
+and untracked task change; the terminal workflow must still replay it to the host index.
+
+Post-check repair attempt 2 (2026-07-31): the implementation was reshaped to reduce
+the severe source-size batch from 28 warnings to three advisory warnings. Final staging,
+diff validation, and queue validation use the same isolated index/object configuration
+above. The terminal workflow must replay `git add -A` against the host index before commit.
+
+Post-check repair attempt 3 (2026-07-31): direct host-index staging remains blocked by the
+linked worktree metadata permissions. `git add -A` was replayed through the isolated index
+after the source-size repair; this removed all 42 stale fixture entries reported by the prior
+commit-stageable check. `git diff --cached --check` and the exact builder stage-boundary
+evaluator pass with 79 final mutated paths staged. The terminal workflow must still replay
+the isolated commit set to the host index before commit.
+
+Post-check repair attempt 4 (2026-07-31): the working tree still contained the narrower
+source-size repair, while the host index contained the discarded broad context-fixture
+migration. Direct `git add -A` succeeded in this repair attempt and reconciled the real
+worktree index. After projecting the refreshed evidence, the real index contains the complete
+79-path builder commit set; no terminal host-index replay remains outstanding.
+
+Post-check repair attempt 5 (2026-07-31): direct host-index staging is blocked again by linked
+worktree metadata permissions after the scoped-action fix. The complete current commit set was
+restaged and validated through the isolated index/object configuration above. The terminal
+workflow must replay `git add -A` against the host index before committing so the scoped action
+dispatcher, focused fixture, and refreshed evidence replace the attempt-4 index entries.
+
+Post-check repair attempt 6 (2026-07-31): direct host-index staging remains blocked by the linked
+worktree metadata permissions after the implicit contributor-read scope repair. The complete
+current commit set was restaged through the same isolated index/object configuration, including
+active/default assembler coverage, the unqualified daemon-route fixture, and refreshed evidence.
+The terminal workflow must replay `git add -A` against the host index before committing.
+
+Post-check repair attempt 7 (2026-07-31): direct host-index staging remains blocked by the linked
+worktree metadata permissions after deleting the legacy status/inbox bundle assembler. The complete
+81-path commit set was restaged through the same isolated index/object configuration, including the
+new raw-assembler regression guard and corrected structural evidence. Isolated staged-diff and
+builder stage-boundary checks pass. The terminal workflow must replay `git add -A` against the host
+index before committing.
+
+Post-check repair attempt 8 (2026-07-31): direct `git add -A` succeeded after the scoped setup
+projection repair and reconciled the real worktree index. The host index now includes the scoped
+setup client, local project resolution, daemon UI action handoff, focused fixtures, and refreshed run evidence;
+no terminal host-index replay remains outstanding for this attempt.

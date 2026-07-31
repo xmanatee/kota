@@ -6,12 +6,13 @@ import { parseDaemonClientErrorBody } from "#core/daemon/client-error.js";
 import type { ClientIdentity } from "#core/daemon/client-identity.js";
 import { Daemon, RESTART_EXIT_CODE } from "#core/daemon/daemon.js";
 import type { DaemonLiveStatus, InteractiveSession, WorkflowRunDetail } from "#core/daemon/daemon-control.js";
-import type {
-  ConfiguredProject,
-  ProjectId,
-  ProjectRegistryProjection,
+import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
+import {
+  type ConfiguredProject,
+  deriveDirectoryScopeId,
+  type ProjectId,
+  type ProjectRegistryProjection,
 } from "#core/daemon/scope-registry.js";
-import { buildUiSurfaceBundle } from "#core/daemon/ui-surface.js";
 import type { SessionGuardrailsReloadSummary } from "#core/events/event-bus-types.js";
 import {
   checkPresetAuth,
@@ -19,11 +20,19 @@ import {
   resolvePreset,
 } from "#core/model/preset.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import { assembleUiSurfaceBundle } from "#core/modules/module-ui-surfaces.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import { daemonManagedHttp } from "#core/server/daemon-client.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { KotaClient } from "#core/server/kota-client.js";
-import { scopeSelectorQuery } from "#core/server/scope-selector.js";
+import {
+  appendScopeSelector,
+  encodeQueryParams,
+  normalizeScopeSelector,
+  resolveScopeSelectorFromUrl,
+  scopeSelectorQuery,
+  selectedScopeSelectorId,
+} from "#core/server/scope-selector.js";
 import { jsonResponse } from "#core/server/session-pool.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { LogFormat } from "#core/util/log-format.js";
@@ -64,30 +73,16 @@ import {
 import { DaemonDashboard } from "./dashboard.js";
 import { buildEventsCommand } from "./events-cli.js";
 import { abbreviateRunId, formatDuration, formatTimeAgo, formatUptime } from "./format-utils.js";
-import { buildOperatorInboxSnapshot, type OperatorInboxSnapshot } from "./operator-inbox.js";
 import { buildInboxCommand } from "./operator-inbox-cli.js";
 import type {
+  UiAction,
   UiActionExecutionResult,
   UiClientNamespaceExecutor,
   UiJsonValue,
   UiRouteExecutor,
   UiSurfaceBundle,
 } from "./operator-ui.js";
-import {
-  buildContinuityProjection,
-  buildContinuityUiSurface,
-  buildInboxUiSurface,
-  buildModulesAgentsUiSurface,
-  buildOperatorControlUiSurface,
-  buildRuntimeUiSurface,
-  buildScopeUiSurface,
-  buildSetupUiSurface,
-  buildStatusUiSurface,
-  buildStoresUiSurface,
-  executeUiAction,
-  findUiAction,
-  type SurfaceRead,
-} from "./operator-ui.js";
+import { executeUiAction, findUiAction } from "./operator-ui.js";
 import { buildUiCommand } from "./operator-ui-cli.js";
 import type { UiActionOperation } from "./operator-ui-types.js";
 import { buildProjectCommand } from "./projects-cli.js";
@@ -105,7 +100,9 @@ import {
 } from "./service-install.js";
 import { buildSessionCommand } from "./session-cli.js";
 import { sessionsLocalClient } from "./sessions-local.js";
-import { buildStatusCommand, gatherStatus } from "./status-cli.js";
+import { buildStatusCommand } from "./status-cli.js";
+import { parseUiActionRequest } from "./ui-action-request.js";
+import { daemonOpsUiSurfaceSources } from "./ui-sources.js";
 
 export type {
   ContinuityProjection,
@@ -129,14 +126,9 @@ export {
   buildContinuityProjection,
   buildContinuityUiSurface,
   buildInboxUiSurface,
-  buildModulesAgentsUiSurface,
   buildOperatorControlUiSurface,
-  buildRuntimeUiSurface,
   buildScopeUiSurface,
-  buildSetupUiSurface,
-  buildStatusInboxBundle,
   buildStatusUiSurface,
-  buildStoresUiSurface,
   CONTINUITY_COMPOSED_STORES,
   executeUiAction,
   renderUiSurface,
@@ -448,127 +440,38 @@ export function formatDaemonStatus(status: DaemonLiveStatus, managed: boolean): 
   return renderToString(buildDaemonStatusNode(status, managed));
 }
 
-const EMPTY_INBOX_COUNTS: OperatorInboxSnapshot["counts"] = {
-  runtime: 0,
-  approval: 0,
-  "owner-question": 0,
-  "blocked-task": 0,
-  setup: 0,
-  "failed-run": 0,
-};
-
-function emptyInboxSnapshot(projectDir: string): OperatorInboxSnapshot {
-  return {
-    projectDir,
-    generatedAt: new Date().toISOString(),
-    items: [],
-    counts: { ...EMPTY_INBOX_COUNTS },
-  };
-}
-
-async function buildSharedUiSurfaceBundle(ctx: ModuleContext): Promise<UiSurfaceBundle> {
-  const status = await gatherStatus(ctx.cwd);
-  const readSurface = async <T>(
-    label: string,
-    loader: () => Promise<T>,
-  ): Promise<SurfaceRead<T>> => {
-    try {
-      return { ok: true, value: await loader() };
-    } catch (error) {
-      return {
-        ok: false,
-        message: `${label}: ${error instanceof Error ? error.message : String(error)}`,
-      };
-    }
-  };
-  let inbox = emptyInboxSnapshot(ctx.cwd);
-  try {
-    inbox = await buildOperatorInboxSnapshot({
-      client: ctx.client,
-      projectDir: ctx.cwd,
-      status,
-    });
-  } catch (error) {
-    if (!(error instanceof Error && error.message.startsWith("No active KotaClient resolved."))) {
-      throw error;
-    }
-    // Daemon control-route handlers do not run inside CLI startup and may not
-    // have an active KotaClient. The shared Inbox surface still belongs in the
-    // daemon UI graph, even when its live item projection is unavailable.
-  }
-  const [
-    projects,
-    sessions,
-    workflowStatus,
-    runs,
-    definitions,
-    approvals,
-    ownerQuestions,
-    ownerDecisions,
-    modules,
-    agents,
-    setup,
-    tasks,
-    memory,
-    knowledge,
-    history,
-  ] = await Promise.all([
-    readSurface("projects", () => ctx.client.projects.list()),
-    readSurface("sessions", () => ctx.client.sessions.list()),
-    readSurface("workflow status", () => ctx.client.workflow.status()),
-    readSurface("workflow runs", () => ctx.client.workflow.listRuns({ limit: 20 })),
-    readSurface("workflow definitions", () => ctx.client.workflow.listDefinitions()),
-    readSurface("approvals", () => ctx.client.approvals.list({ status: "pending" })),
-    readSurface("owner questions", () => ctx.client.ownerQuestions.list({ status: "pending" })),
-    readSurface("owner decisions", () => ctx.client.ownerDecisions.list({ status: "pending" })),
-    readSurface("modules", () => ctx.client.modules.list()),
-    readSurface("agents", () => ctx.client.agents.list()),
-    readSurface("setup", () => ctx.client.setup.list()),
-    readSurface("tasks", () => ctx.client.tasks.list(["doing", "ready", "blocked"])),
-    readSurface("memory", () => ctx.client.memory.list({ limit: 10 })),
-    readSurface("knowledge", () => ctx.client.knowledge.list()),
-    readSurface("history", () => ctx.client.history.list({ limit: 10 })),
-  ]);
-  const continuity = buildContinuityProjection({
-    status,
-    tasks,
-    workflowStatus,
-    runs,
-    definitions,
-    approvals,
-    ownerQuestions,
-    ownerDecisions,
-    setup,
-    memory,
-    knowledge,
-  });
-  return buildUiSurfaceBundle([
-    buildStatusUiSurface(status, { explain: true }),
-    buildScopeUiSurface({ status, projects, sessions }),
-    buildInboxUiSurface(inbox),
-    buildContinuityUiSurface(continuity),
-    buildRuntimeUiSurface({
-      status,
-      workflowStatus,
-      runs,
-      definitions,
-      approvals,
-      ownerQuestions,
-      sessions,
-    }),
-    buildModulesAgentsUiSurface({ status, modules, agents }),
-    buildSetupUiSurface({ status, setup }),
-    buildStoresUiSurface({ status, memory, knowledge, history }),
-    ...ctx.getContributedUiSurfaces(),
-  ]);
-}
-
 function missingUiAction(input: UiActionExecuteInput): UiActionExecutionResult {
   return {
     ok: false,
     reason: "not_found",
     message: `No UI action ${input.surfaceId}/${input.actionId} exists in the shared surface bundle.`,
   };
+}
+
+function buildSharedUiSurfaceBundle(
+  ctx: ModuleContext,
+  selector?: Parameters<UiClient["listSurfaces"]>[0],
+): Promise<UiSurfaceBundle> {
+  const effectiveSelector = resolveUiSurfaceSelector(ctx, selector);
+  return assembleUiSurfaceBundle(
+    ctx.cwd,
+    ctx.getContributedUiSurfaces(),
+    { client: ctx.client, selector: effectiveSelector },
+  );
+}
+
+function resolveUiSurfaceSelector(
+  ctx: ModuleContext,
+  selector?: Parameters<UiClient["listSurfaces"]>[0],
+): Parameters<UiClient["listSurfaces"]>[0] {
+  const normalized = normalizeScopeSelector(selector);
+  if (selectedScopeSelectorId(normalized) !== undefined) return normalized;
+
+  const scopeProvider = ctx.getProvider(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE);
+  if (!scopeProvider) return normalized;
+  const scopeId = scopeProvider.getActiveProjectId()
+    ?? scopeProvider.getProjectRegistryProjection().defaultProjectId;
+  return { scopeId };
 }
 
 function requestDetachedDaemonStart(projectDir: string): UiActionExecutionResult {
@@ -608,9 +511,23 @@ function requestDetachedDaemonStart(projectDir: string): UiActionExecutionResult
   }
 }
 
-function localUiNamespaceExecutor(ctx: ModuleContext): UiClientNamespaceExecutor {
+function localUiNamespaceExecutor(
+  ctx: ModuleContext,
+  scopeId: string,
+): UiClientNamespaceExecutor {
   return async (operation) => {
     if (operation.namespace === "daemonOps" && operation.method === "start") {
+      const localScopeIds = new Set([
+        `dir:${ctx.cwd}`,
+        deriveDirectoryScopeId(ctx.cwd),
+      ]);
+      if (!localScopeIds.has(scopeId)) {
+        return {
+          ok: false,
+          reason: "scope-unavailable",
+          message: `Scope ${scopeId} is unavailable from the local project runtime.`,
+        };
+      }
       return requestDetachedDaemonStart(ctx.cwd);
     }
     return null;
@@ -689,7 +606,7 @@ function setupMutationResult(
 }
 
 async function executeLocalSetupRoute(
-  ctx: ModuleContext,
+  client: KotaClient,
   operation: Extract<UiActionOperation, { kind: "daemon-route" }>,
   parameters: UiJsonValue | undefined,
 ): Promise<UiActionExecutionResult | null> {
@@ -699,7 +616,7 @@ async function executeLocalSetupRoute(
     const values = setupFormValuesFromUi(parameters);
     if (!values.ok) return { ok: false, reason: "invalid-input", message: values.message };
     return setupMutationResult(
-      await ctx.client.setup.submitForm(route.moduleName, route.requirementId, values.value),
+      await client.setup.submitForm(route.moduleName, route.requirementId, values.value),
       "Setup form submitted.",
     );
   }
@@ -707,24 +624,24 @@ async function executeLocalSetupRoute(
     const values = setupSecretValuesFromUi(parameters);
     if (!values.ok) return { ok: false, reason: "invalid-input", message: values.message };
     return setupMutationResult(
-      await ctx.client.setup.storeSecret(route.moduleName, route.requirementId, values.value),
+      await client.setup.storeSecret(route.moduleName, route.requirementId, values.value),
       "Setup secrets stored.",
     );
   }
   if (operation.method === "POST" && route.action === "start") {
-    const result = await ctx.client.setup.start(route.moduleName, route.requirementId);
+    const result = await client.setup.start(route.moduleName, route.requirementId);
     if (result.ok) return { ok: true, message: "Setup action started." };
     return { ok: false, reason: result.reason, message: result.message };
   }
   if (operation.method === "POST" && route.action === "refresh") {
     return setupMutationResult(
-      await ctx.client.setup.refresh(route.moduleName, route.requirementId),
+      await client.setup.refresh(route.moduleName, route.requirementId),
       "Setup status refreshed.",
     );
   }
   if (operation.method === "DELETE" && route.action === undefined) {
     return setupMutationResult(
-      await ctx.client.setup.revoke(route.moduleName, route.requirementId),
+      await client.setup.revoke(route.moduleName, route.requirementId),
       "Setup revoked.",
     );
   }
@@ -744,6 +661,17 @@ function setupRouteBody(
     return { secretValues: uiObjectParameter(parameters) ?? {} };
   }
   return undefined;
+}
+
+function scopedUiActionClient(client: KotaClient, scopeId: string): KotaClient {
+  return client.forScope?.(scopeId) ?? client.forProject(scopeId);
+}
+
+function scopedUiActionPath(path: string, scopeId: string): string {
+  const url = new URL(path, "http://localhost");
+  appendScopeSelector(url.searchParams, { scopeId });
+  const query = encodeQueryParams(url.searchParams);
+  return `${url.pathname}${query ? `?${query}` : ""}`;
 }
 
 function routeForUiNamespaceOperation(
@@ -849,6 +777,7 @@ function uiActionResultFromTrigger(
 
 async function executeDaemonRunFollowUp(
   link: DaemonTransport,
+  scopeId: string,
   parameters: UiJsonValue | undefined,
   action: "retry" | "replay" | "resume",
 ): Promise<UiActionExecutionResult> {
@@ -858,7 +787,7 @@ async function executeDaemonRunFollowUp(
   if (action === "resume" && !fromStep) return { ok: false, reason: "invalid-input", message: "fromStep is required." };
   const run = await link.request<WorkflowRunDetail>(
     "GET",
-    `/workflow/runs/${encodeURIComponent(runId)}`,
+    scopedUiActionPath(`/workflow/runs/${encodeURIComponent(runId)}`, scopeId),
     undefined,
     { timeoutMs: 10_000 },
   );
@@ -876,26 +805,29 @@ async function executeDaemonRunFollowUp(
       : { resumedFromRunId: runId, resumeFromStep: fromStep, resumeTriggeredAt: new Date().toISOString() };
   const result = await link.request<UiJsonValue>(
     "POST",
-    "/workflow/trigger",
+    scopedUiActionPath("/workflow/trigger", scopeId),
     { name: run.workflow, payload },
     { timeoutMs: 10_000 },
   );
   return uiActionResultFromTrigger(runId, action, result);
 }
 
-function daemonUiNamespaceExecutor(link: DaemonTransport): UiClientNamespaceExecutor {
+function daemonUiNamespaceExecutor(
+  link: DaemonTransport,
+  scopeId: string,
+): UiClientNamespaceExecutor {
   return async (operation, parameters) => {
     if (operation.namespace === "daemonOps" && operation.method === "start") {
       return { ok: true, message: "Daemon already running." };
     }
     if (operation.namespace === "workflow" && operation.method === "retryRun") {
-      return executeDaemonRunFollowUp(link, parameters, "retry");
+      return executeDaemonRunFollowUp(link, scopeId, parameters, "retry");
     }
     if (operation.namespace === "workflow" && operation.method === "replayRun") {
-      return executeDaemonRunFollowUp(link, parameters, "replay");
+      return executeDaemonRunFollowUp(link, scopeId, parameters, "replay");
     }
     if (operation.namespace === "workflow" && operation.method === "resumeRun") {
-      return executeDaemonRunFollowUp(link, parameters, "resume");
+      return executeDaemonRunFollowUp(link, scopeId, parameters, "resume");
     }
     const route = routeForUiNamespaceOperation(operation, parameters);
     if (route) {
@@ -904,7 +836,7 @@ function daemonUiNamespaceExecutor(link: DaemonTransport): UiClientNamespaceExec
       }
       const result = await link.request<UiJsonValue>(
         route.method,
-        route.path,
+        scopedUiActionPath(route.path, scopeId),
         route.body,
         { timeoutMs: 10_000 },
       );
@@ -925,48 +857,52 @@ async function executeActionFromBundle(args: {
   bundle: UiSurfaceBundle;
   input: UiActionExecuteInput;
   client?: KotaClient;
-  clientNamespaceExecutor?: UiClientNamespaceExecutor;
-  routeExecutor: UiRouteExecutor;
+  clientNamespaceExecutor?: (action: UiAction) => UiClientNamespaceExecutor;
+  routeExecutor: (action: UiAction, client: KotaClient | undefined) => UiRouteExecutor;
 }): Promise<UiActionExecutionResult> {
   const action = findUiAction(args.bundle, args.input.surfaceId, args.input.actionId);
   if (!action) return missingUiAction(args.input);
+  const client = args.client
+    ? scopedUiActionClient(args.client, action.scopeId)
+    : undefined;
   return executeUiAction({
     action,
-    client: args.client,
-    clientNamespaceExecutor: args.clientNamespaceExecutor,
+    client,
+    clientNamespaceExecutor: args.clientNamespaceExecutor?.(action),
     parameters: args.input.parameters,
-    routeExecutor: args.routeExecutor,
+    routeExecutor: args.routeExecutor(action, client),
   });
 }
 
 function buildLocalUiClient(ctx: ModuleContext): UiClient {
-  const listSurfaces = async (): Promise<UiSurfaceBundle> => {
-    const status = await gatherStatus(ctx.cwd);
-    if (!status.daemonRunning) {
-      return { protocolVersion: "ui.surface.v1", surfaces: [] };
-    }
-    return buildSharedUiSurfaceBundle(ctx);
-  };
+  const listSurfaces = (selector?: Parameters<UiClient["listSurfaces"]>[0]) =>
+    buildSharedUiSurfaceBundle(ctx, selector);
   return {
     listSurfaces,
     executeAction: async (input) => {
-      const bundle = await listSurfaces();
+      const bundle = await listSurfaces(input);
       return executeActionFromBundle({
         bundle,
         input,
         client: ctx.client,
-        clientNamespaceExecutor: localUiNamespaceExecutor(ctx),
-        routeExecutor: async (operation, parameters) => {
-          if (operation.method === "GET" && operation.path === "/ui/surfaces") {
-            await listSurfaces();
-            return { ok: true, message: "Shared UI surfaces refreshed." };
+        clientNamespaceExecutor: (action) =>
+          localUiNamespaceExecutor(ctx, action.scopeId),
+        routeExecutor: (action, client) => {
+          if (!client) {
+            throw new Error("Local UI action execution requires a scoped KotaClient.");
           }
-          const setupResult = await executeLocalSetupRoute(ctx, operation, parameters);
-          if (setupResult) return setupResult;
-          return {
-            ok: false,
-            reason: "daemon_required",
-            message: `${operation.method} ${operation.path} requires a running daemon.`,
+          return async (operation, parameters) => {
+            if (operation.method === "GET" && operation.path === "/ui/surfaces") {
+              await listSurfaces({ scopeId: action.scopeId });
+              return { ok: true, message: "Shared UI surfaces refreshed." };
+            }
+            const setupResult = await executeLocalSetupRoute(client, operation, parameters);
+            if (setupResult) return setupResult;
+            return {
+              ok: false,
+              reason: "daemon_required",
+              message: `${operation.method} ${operation.path} requires a running daemon.`,
+            };
           };
         },
       });
@@ -979,33 +915,44 @@ function buildLocalUiClient(ctx: ModuleContext): UiClient {
 }
 
 function buildUiDaemonHandler(link: DaemonTransport): UiClient {
-  const listSurfaces = () => link.requestStrict<UiSurfaceBundle>("GET", "/ui/surfaces");
+  const listSurfaces = (selector?: Parameters<UiClient["listSurfaces"]>[0]) =>
+    link.requestStrict<UiSurfaceBundle>(
+      "GET",
+      `/ui/surfaces${scopeSelectorQuery(selector)}`,
+    );
   return {
     listSurfaces,
     executeAction: async (input) => {
-      const bundle = await listSurfaces();
-      const action = findUiAction(bundle, input.surfaceId, input.actionId);
-      if (!action) return missingUiAction(input);
-      return executeUiAction({
-        action,
-        clientNamespaceExecutor: daemonUiNamespaceExecutor(link),
-        parameters: input.parameters,
-        routeExecutor: async (operation, parameters) => {
-          const result = await link.request<UiJsonValue>(
-            operation.method,
-            operation.path,
-            setupRouteBody(operation, parameters),
-            { timeoutMs: 10_000 },
-          );
-          if (result === null) {
-            return {
-              ok: false,
-              reason: action.result.errors[0]?.reason ?? "unavailable",
-              message: action.result.errors[0]?.message ?? "The daemon action is currently unavailable.",
-            };
-          }
-          return { ok: true, message: action.result.success.message };
-        },
+      if (input.surfaceId === "setup" || input.actionId.startsWith("setup.")) {
+        return link.requestStrict<UiActionExecutionResult>(
+          "POST",
+          "/ui/actions/execute",
+          input,
+        );
+      }
+      const bundle = await listSurfaces(input);
+      return executeActionFromBundle({
+        bundle,
+        input,
+        clientNamespaceExecutor: (action) =>
+          daemonUiNamespaceExecutor(link, action.scopeId),
+        routeExecutor: (action) =>
+          async (operation, parameters) => {
+            const result = await link.request<UiJsonValue>(
+              operation.method,
+              scopedUiActionPath(operation.path, action.scopeId),
+              setupRouteBody(operation, parameters),
+              { timeoutMs: 10_000 },
+            );
+            if (result === null) {
+              return {
+                ok: false,
+                reason: action.result.errors[0]?.reason ?? "unavailable",
+                message: action.result.errors[0]?.message ?? "The daemon action is currently unavailable.",
+              };
+            }
+            return { ok: true, message: action.result.success.message };
+          },
       });
     },
     watchEvents: async function* (input) {
@@ -1024,15 +971,35 @@ const daemonModule: KotaModule = {
   description: "Operator CLI and supervisor surface for the KOTA daemon runtime",
   dependencies: ["git", "repo-tasks", "rendering"],
 
-  uiSurfaces: () => [buildOperatorControlUiSurface()],
+  uiSurfaces: daemonOpsUiSurfaceSources,
 
   controlRoutes: (ctx) => [
     {
       method: "GET",
       path: "/ui/surfaces",
       capabilityScope: "read",
-      handler: async (_req, res) => {
-        jsonResponse(res, 200, await buildSharedUiSurfaceBundle(ctx));
+      handler: async (req, res) => {
+        const resolved = resolveScopeSelectorFromUrl(
+          new URL(req.url ?? "/ui/surfaces", "http://localhost"),
+        );
+        if (!resolved.ok) {
+          jsonResponse(res, resolved.status, resolved.body);
+          return;
+        }
+        jsonResponse(res, 200, await buildSharedUiSurfaceBundle(ctx, resolved.selector));
+      },
+    },
+    {
+      method: "POST",
+      path: "/ui/actions/execute",
+      capabilityScope: "control",
+      handler: async (req, res) => {
+        const parsed = await parseUiActionRequest(req);
+        if (!parsed.ok) {
+          jsonResponse(res, 400, { error: parsed.message });
+          return;
+        }
+        jsonResponse(res, 200, await buildLocalUiClient(ctx).executeAction(parsed.input));
       },
     },
   ],

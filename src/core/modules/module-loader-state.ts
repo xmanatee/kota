@@ -1,7 +1,6 @@
 import type { Command } from "commander";
 import type { AgentDef, SkillDef } from "#core/agents/agent-types.js";
 import type { ChannelDef } from "#core/channels/channel.js";
-import type { UiSurface } from "#core/daemon/ui-surface.js";
 import type { LocalClientHandlers } from "#core/server/kota-client.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import type { ModuleLoadFailure } from "./module-lifecycle.js";
@@ -20,6 +19,7 @@ import type {
   ModuleSource,
   RouteRegistration,
 } from "./module-types.js";
+import type { UiSurfaceSource } from "./module-ui-surfaces.js";
 import type { ModuleSetupRequirementContribution } from "./setup-requirements.js";
 
 /**
@@ -36,7 +36,7 @@ export interface LoaderState {
   moduleToolDefs: Map<string, readonly ModuleManifestToolSnapshot[]>;
   moduleWorkflowDefs: Map<string, readonly RegisteredWorkflowDefinitionInput[]>;
   moduleChannelDefs: Map<string, readonly ChannelDef[]>;
-  moduleUiSurfaceDefs: Map<string, readonly UiSurface[]>;
+  moduleUiSurfaceSources: Map<string, readonly UiSurfaceSource[]>;
   moduleSkillDefs: Map<string, readonly SkillDef[]>;
   moduleAgentDefs: Map<string, readonly AgentDef[]>;
   moduleSetupRequirementDefs: Map<string, readonly ModuleSetupRequirementContribution[]>;
@@ -56,7 +56,6 @@ export interface LoaderState {
   explicitOnlySkillNames: Set<string>;
   contributedWorkflows: RegisteredWorkflowDefinitionInput[];
   contributedChannels: ChannelDef[];
-  contributedUiSurfaces: UiSurface[];
   loadFailures: Map<string, ModuleLoadFailure>;
   localClientHandlers: Partial<LocalClientHandlers>;
   daemonClientFactories: DaemonClientFactoryEntry[];
@@ -71,7 +70,7 @@ export function createLoaderState(): LoaderState {
     moduleToolDefs: new Map(),
     moduleWorkflowDefs: new Map(),
     moduleChannelDefs: new Map(),
-    moduleUiSurfaceDefs: new Map(),
+    moduleUiSurfaceSources: new Map(),
     moduleSkillDefs: new Map(),
     moduleAgentDefs: new Map(),
     moduleSetupRequirementDefs: new Map(),
@@ -91,7 +90,6 @@ export function createLoaderState(): LoaderState {
     explicitOnlySkillNames: new Set(),
     contributedWorkflows: [],
     contributedChannels: [],
-    contributedUiSurfaces: [],
     loadFailures: new Map(),
     localClientHandlers: {},
     daemonClientFactories: [],

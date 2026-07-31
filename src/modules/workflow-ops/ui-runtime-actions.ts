@@ -1,15 +1,15 @@
+import type { UiAction } from "#core/daemon/ui-surface.js";
 import {
   action,
   resultSpec,
-} from "./operator-ui-builder-common.js";
+} from "#core/daemon/ui-surface-builders.js";
 import {
   runAbortParameters,
   runCancelParameters,
   runReplayParameters,
   runResumeParameters,
   runRetryParameters,
-} from "./operator-ui-runtime-helpers.js";
-import type { UiAction } from "./operator-ui-types.js";
+} from "./ui-runtime-helpers.js";
 
 export type RuntimeRunActions = {
   abortOneRun: UiAction;

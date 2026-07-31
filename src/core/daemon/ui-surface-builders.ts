@@ -11,8 +11,7 @@ import type {
   UiRole,
   UiTableColumn,
   UiTableRow,
-} from "./operator-ui-types.js";
-import type { StatusSnapshot } from "./status-cli.js";
+} from "./ui-surface.js";
 
 type ActionArgs = {
   surfaceId: string;
@@ -62,10 +61,6 @@ export function action(args: ActionArgs): UiAction {
       { kind: "capability-scope", scope: effect === "read" ? "read" : "control" },
     ],
   };
-}
-
-export function scopeIdForStatus(snapshot: StatusSnapshot): string {
-  return snapshot.scopedProject?.projectId ?? `dir:${snapshot.projectDir}`;
 }
 
 export function uniqueActions(actions: readonly (UiAction | undefined)[]): UiAction[] {

@@ -1,27 +1,25 @@
 import type {
-  ModuleSetupStatusResponse,
-} from "#modules/setup/client.js";
+  UiRole,
+  UiSurface,
+} from "#core/daemon/ui-surface.js";
 import {
   NAME_STATE_DETAIL_COLUMNS,
   type SurfaceRead,
-  scopeIdForStatus,
-} from "./operator-ui-builder-common.js";
+} from "#core/daemon/ui-surface-builders.js";
+import type {
+  ModuleSetupStatusResponse,
+} from "#modules/setup/client.js";
 import {
   setupActionForms,
   setupActions,
   setupRows,
-} from "./operator-ui-setup-helpers.js";
-import type {
-  UiRole,
-  UiSurface,
-} from "./operator-ui-types.js";
-import type { StatusSnapshot } from "./status-cli.js";
+} from "./ui-surface-helpers.js";
 
 export function buildSetupUiSurface(args: {
-  status: StatusSnapshot;
+  scopeId: string;
   setup: SurfaceRead<ModuleSetupStatusResponse>;
 }): UiSurface {
-  const scopeId = scopeIdForStatus(args.status);
+  const { scopeId } = args;
   const actions = setupActions(scopeId, args.setup);
   const forms = setupActionForms(actions);
   return {

@@ -1,6 +1,3 @@
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
-import { Command } from "commander";
 import { probeCapabilityReadiness } from "#core/daemon/capability-readiness.js";
 import {
   listModuleSetupStatusesFromSummaries,
@@ -11,31 +8,19 @@ import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import type { ModuleSetupCapabilityStatus } from "#core/modules/setup-requirements.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { jsonResponse } from "#core/server/session-pool.js";
-import {
-  blank,
-  type ColumnsNode,
-  columns,
-  kvBlock,
-  type LineNode,
-  line,
-  plain,
-  type RenderNode,
-  span,
-  stack,
-} from "#modules/rendering/primitives.js";
-import { print, printToStderr, writeJson } from "#modules/rendering/transport.js";
 import { inspectModuleFromSummaries } from "./admin-operations.js";
+import { buildModuleCommand } from "./cli-command.js";
 import type {
-  ModuleInspectEntry,
   ModuleInspectResult,
-  ModuleListEntry,
   ModuleReloadResult,
   ModulesAdminClient,
   ModulesClient,
   ModulesListResult,
 } from "./client.js";
 import { buildModuleListEntries, handleListModules } from "./routes.js";
-import { generateModuleScaffold, generatePythonScaffold } from "./scaffolds.js";
+import { modulesAgentsUiSurfaceSource } from "./ui-source.js";
+
+export { buildModuleListNode } from "./cli-command.js";
 
 async function probeSetupCapabilities(): Promise<readonly ModuleSetupCapabilityStatus[]> {
   const registry = getProviderRegistry();
@@ -56,258 +41,12 @@ async function moduleSummariesWithCurrentSetupAvailability(
   return moduleSummariesWithSetupAvailability(summaries, statuses.requirements);
 }
 
-function healthRole(status: string): "success" | "warn" | "error" | "muted" {
-  switch (status) {
-    case "healthy":
-      return "success";
-    case "degraded":
-      return "warn";
-    case "failed":
-      return "error";
-    default:
-      return "muted";
-  }
-}
-
-export function buildModuleListNode(modules: ModuleListEntry[]): ColumnsNode {
-  return columns(
-    [
-      { header: "Name", role: "accent" },
-      { header: "Ver", role: "muted", minWidth: 3 },
-      { header: "Tools", align: "right", minWidth: 5 },
-      { header: "Wf", align: "right", minWidth: 2 },
-      { header: "Cmd", align: "right", minWidth: 3 },
-      { header: "Ch", align: "right", minWidth: 2 },
-      { header: "Sk", align: "right", minWidth: 2 },
-      { header: "Ag", align: "right", minWidth: 2 },
-      { header: "Description", role: "muted", maxWidth: 60 },
-    ],
-    modules.map((s) => ({
-      cells: [
-        { spans: [{ text: s.name, role: "accent" }] },
-        { spans: [{ text: s.version ?? "", role: "muted" }] },
-        { spans: [{ text: String(s.toolCount) }] },
-        { spans: [{ text: String(s.workflowCount) }] },
-        { spans: [{ text: String(s.commandCount) }] },
-        { spans: [{ text: String(s.channelCount) }] },
-        { spans: [{ text: String(s.skillCount) }] },
-        { spans: [{ text: String(s.agentCount) }] },
-        { spans: [{ text: s.description ?? "", role: "muted" }] },
-      ],
-    })),
-  );
-}
-
-function buildSection(label: string, items: string[]): RenderNode | null {
-  if (items.length === 0) return null;
-  const header = line(
-    plain(""),
-    span(`${label} (${items.length}):`, "info", true),
-  );
-  const rows: LineNode[] = items.map((item) => line(
-    plain("  "),
-    span("•", "muted"),
-    plain(` ${item}`),
-  ));
-  return stack(blank(), header, ...rows);
-}
-
-function buildManifestCapabilityRows(
-  moduleSummary: ModuleInspectEntry,
-): string[] {
-  return moduleSummary.manifest?.capabilities.map((capability) =>
-    `${capability.id} (${capability.scope})`
-  ) ?? [];
-}
-
-function buildManifestEffectRows(
-  moduleSummary: ModuleInspectEntry,
-): string[] {
-  return moduleSummary.manifest?.effects.map((effect) =>
-    `${effect.id}: ${effect.effect.kind}/${effect.effect.scope} (${effect.risk})`
-  ) ?? [];
-}
-
-function buildModuleCommand(ctx: ModuleContext): Command {
-  const moduleCommand = new Command("module")
-    .description("Inspect loaded modules and their contributions");
-
-  moduleCommand
-    .command("list")
-    .description("List all loaded modules with contribution counts")
-    .option("--json", "Output as JSON")
-    .action(async (opts: { json?: boolean }) => {
-      const result = await ctx.client.modules.list();
-      if (opts.json) {
-        writeJson(result.modules, { pretty: true });
-        return;
-      }
-      if (result.modules.length === 0) {
-        print(line(plain("No modules loaded.")));
-        return;
-      }
-      print(stack(
-        buildModuleListNode(result.modules),
-        blank(),
-        line(
-          span(String(result.modules.length), "accent"),
-          plain(" module(s) loaded."),
-        ),
-      ));
-    });
-
-  moduleCommand
-    .command("inspect <name>")
-    .description("Show full detail for one module")
-    .option("--json", "Output as JSON")
-    .action(async (name: string, opts: { json?: boolean }) => {
-      const result = await ctx.client.modulesAdmin.inspect(name);
-      if (!result.found) {
-        const list = await ctx.client.modules.list();
-        const names = list.modules.map((s) => s.name).join(", ");
-        printToStderr(line(span(`Module "${name}" not found. Loaded: ${names || "(none)"}`, "error")));
-        process.exit(1);
-      }
-      const moduleSummary: ModuleInspectEntry = result.module;
-      if (opts.json) {
-        writeJson(moduleSummary, { pretty: true });
-        return;
-      }
-      const entries: Array<{ label: string; value: string; role?: "accent" | "info" | "muted" | "success" | "warn" | "error" }> = [
-        { label: "Module", value: moduleSummary.name, role: "accent" },
-      ];
-      if (moduleSummary.version) entries.push({ label: "Version", value: moduleSummary.version, role: "muted" });
-      if (moduleSummary.description) entries.push({ label: "Description", value: moduleSummary.description });
-      if (moduleSummary.dependencies.length > 0) {
-        entries.push({ label: "Depends on", value: moduleSummary.dependencies.join(", "), role: "muted" });
-      }
-      if (moduleSummary.health) {
-        const h = moduleSummary.health;
-        const restartPart = h.restartCount === 0
-          ? `(${h.restartCount} restarts)`
-          : `(${h.restartCount} restarts, last: ${h.lastRestartAt ?? "unknown"})`;
-        entries.push({ label: "Health", value: `${h.status}  ${restartPart}`, role: healthRole(h.status) });
-      }
-      if (moduleSummary.commandError) {
-        entries.push({ label: "Command summary error", value: moduleSummary.commandError, role: "error" });
-      }
-      if (moduleSummary.routeError) {
-        entries.push({ label: "Route summary error", value: moduleSummary.routeError, role: "error" });
-      }
-      const sections: RenderNode[] = [];
-      for (const [label, items] of [
-        ["Tools", moduleSummary.toolNames],
-        ["Workflows", moduleSummary.workflowNames],
-        ["Commands", moduleSummary.commandNames],
-        ["Routes", moduleSummary.routeSummaries],
-        ["Channels", moduleSummary.channelNames],
-        ["Skills", moduleSummary.skillNames],
-        ["Agents", moduleSummary.agentNames],
-        ["Capabilities", buildManifestCapabilityRows(moduleSummary)],
-        ["Effects", buildManifestEffectRows(moduleSummary)],
-      ] as const) {
-        const section = buildSection(label, items);
-        if (section) sections.push(section);
-      }
-      print(stack(kvBlock(entries), ...sections));
-    });
-
-  moduleCommand
-    .command("new <name>")
-    .description("Scaffold a new module starter in a new directory")
-    .option("--dir <path>", "Target directory (default: ./<name>)")
-    .option("--language <lang>", "Scaffold language: typescript (default) or python")
-    .action((name: string, opts: { dir?: string; language?: string }) => {
-      const safeName = name.toLowerCase().replace(/[^a-z0-9-]/g, "-");
-      const targetDir = resolve(opts.dir ?? safeName);
-      const language = opts.language ?? "typescript";
-
-      if (language !== "typescript" && language !== "python") {
-        printToStderr(line(span(`Error: unsupported language: ${language}. Supported: typescript, python`, "error")));
-        process.exit(1);
-      }
-
-      if (existsSync(targetDir)) {
-        printToStderr(line(span(`Error: directory already exists: ${targetDir}`, "error")));
-        process.exit(1);
-      }
-
-      if (language === "python") {
-        generatePythonScaffold(name, safeName, targetDir);
-        print(stack(
-          line(
-            span("Python module scaffold created at: ", "success"),
-            span(targetDir, "accent"),
-          ),
-          blank(),
-          line(span("Next steps:", "info", true)),
-          line(plain(`  cd ${targetDir}`)),
-          line(span("  python main.py       ", "muted"), plain("# smoke-test: pipe a handcrafted init message")),
-          blank(),
-          line(span("See README.md for how to register this module in .kota/config.json", "muted")),
-        ));
-      } else {
-        generateModuleScaffold(name, safeName, targetDir);
-        print(stack(
-          line(
-            span("Module scaffold created at: ", "success"),
-            span(targetDir, "accent"),
-          ),
-          blank(),
-          line(span("Next steps:", "info", true)),
-          line(plain(`  cd ${targetDir}`)),
-          line(span("  pnpm install         ", "muted"), plain("# install devDependencies")),
-          line(span("  pnpm run typecheck   ", "muted"), plain("# verify types")),
-          line(span("  pnpm build           ", "muted"), plain("# compile to dist/")),
-          blank(),
-          line(span(
-            `To use without building, copy dist/index.js to .kota/modules/${safeName}/index.js`,
-            "muted",
-          )),
-        ));
-      }
-    });
-
-  moduleCommand
-    .command("reload <name>")
-    .description("Reload a module from disk via daemon config reload")
-    .action(async (name: string) => {
-      const result = await ctx.client.modulesAdmin.reload(name);
-      if (!result.ok) {
-        if (result.reason === "daemon_required") {
-          printToStderr(line(span("Daemon is not running. Module reload requires a running daemon.", "error")));
-        } else {
-          const list = await ctx.client.modules.list();
-          const names = list.modules.map((s) => s.name).join(", ");
-          printToStderr(line(span(`Module "${name}" not found. Loaded: ${names || "(none)"}`, "error")));
-        }
-        process.exit(1);
-      }
-
-      if (result.reloaded) {
-        print(line(
-          plain("Module "),
-          span(`"${name}"`, "accent"),
-          span(" reloaded from disk.", "success"),
-        ));
-      } else {
-        print(line(
-          plain("Module "),
-          span(`"${name}"`, "accent"),
-          span(" unchanged ", "muted"),
-          plain(`(no config diff detected). ${result.workflowsActive} workflow(s) active.`),
-        ));
-      }
-    });
-
-  return moduleCommand;
-}
-
 const moduleManagerModule: KotaModule = {
   name: "module-manager",
   version: "1.0.0",
   description: "Inspect and scaffold KOTA modules",
   dependencies: ["rendering"],
+  uiSurfaces: [modulesAgentsUiSurfaceSource],
 
   commands: (ctx: ModuleContext) => [buildModuleCommand(ctx)],
 

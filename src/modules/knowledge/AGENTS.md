@@ -19,6 +19,8 @@ This directory owns the `knowledge` management tool — a structured, file-based
 - Registers `knowledge` in the `management` tool group.
 - Contributes the `knowledge` skill (prompt guidance for storing and querying structured entries).
 - Operator pull-surfaces consume the search seam through one shared HTTP route (`GET /api/knowledge/search`) and one shared line shape (`renderKnowledgeSearchPlain`): Telegram `/knowledge`, terminal `kota knowledge search`, mobile `KnowledgeScreen`, the macOS menu bar `KnowledgeView`, and the embedded web sidebar `KnowledgePanel`.
+- The module contributes its own live knowledge-store shared-UI surface rather
+  than entering a daemon-owned store catalog.
 
 ## Boundaries
 

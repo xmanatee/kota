@@ -1,13 +1,13 @@
 ---
 id: task-make-ui-contributions-the-only-surface-assembly-pa
 title: Make UI contributions the only surface assembly path
-status: ready
+status: done
 priority: p1
 area: architecture
 task_class: Platform
 summary: Replace the split static contribution plus manual daemon bundle with one live, validated, module-owned UI surface assembly mechanism.
 created_at: 2026-07-31T16:00:53.450Z
-updated_at: 2026-07-31T16:00:53.450Z
+updated_at: 2026-07-31T16:41:55.636Z
 ---
 
 ## Problem

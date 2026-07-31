@@ -33,7 +33,7 @@ import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { UiActionExecutionResult } from "./operator-ui-actions.js";
 import type { UiJsonValue, UiSurfaceBundle } from "./operator-ui-types.js";
 
-export type UiActionExecuteInput = {
+export type UiActionExecuteInput = ScopeSelector & {
   surfaceId: string;
   actionId: string;
   parameters?: UiJsonValue;
@@ -52,7 +52,7 @@ export type UiEventWatchInput = {
  * the typed operation declared by the contributing surface.
  */
 export interface UiClient {
-  listSurfaces(): Promise<UiSurfaceBundle>;
+  listSurfaces(selector?: ScopeSelector): Promise<UiSurfaceBundle>;
   executeAction(input: UiActionExecuteInput): Promise<UiActionExecutionResult>;
   watchEvents(input?: UiEventWatchInput): AsyncIterable<DaemonSseStreamEvent>;
 }

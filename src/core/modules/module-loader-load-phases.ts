@@ -1,45 +1,28 @@
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { assertNoUnsupportedSkillToolPolicyFrontmatter } from "#core/agents/skill-tool-policy.js";
 import { registerConfigSlice } from "#core/config/config-slice.js";
-import { buildUiSurfaceBundle } from "#core/daemon/ui-surface.js";
 import {
   getModuleEventRegistry,
   initModuleEventRegistry,
 } from "#core/events/module-event.js";
 import { registerTool } from "#core/tools/index.js";
 import { registerCustomGroup } from "#core/tools/tool-groups.js";
-import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   collectDaemonClientFactory,
   collectLocalClientHandlers,
 } from "./module-loader-clients.js";
+import { attachModuleMetadata } from "./module-loader-metadata-phases.js";
 import type { LoaderState } from "./module-loader-state.js";
-import {
-  buildModuleCapabilityManifestProjection,
-  buildModuleManifestEventFlows,
-  buildModuleManifestSetupStatusLinks,
-  type ModuleManifestEffectDeclaration,
-  registerModuleCapabilityManifestProjection,
-} from "./module-manifest.js";
+import { moduleToolSnapshots } from "./module-loader-tool-snapshots.js";
 import {
   type KotaModule,
   type ModuleRuntimeContext,
-  resolveModuleAgents,
   resolveModuleChannels,
-  resolveModuleEffects,
-  resolveModuleSetupRequirements,
-  resolveModuleSkills,
   resolveModuleTools,
-  resolveModuleUiSurfaces,
+  resolveModuleUiSurfaceSources,
   resolveModuleWorkflows,
   type ToolDef,
 } from "./module-types.js";
-import { validateModuleSetupRequirements } from "./setup-requirements.js";
+import { validateUiSurfaceSourceRegistrations } from "./module-ui-surfaces.js";
 import { printTerminalDiagnostic } from "./terminal-renderer.js";
-
-const KOTA_INSTALL_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 /**
  * Cwd + lifecycle-mode the load phases need but that does not belong on the
@@ -110,14 +93,6 @@ export function prepareModuleTools(
   return tools;
 }
 
-function toolSnapshots(tools: readonly ToolDef[]) {
-  return tools.map((def) => ({
-    name: def.tool.name,
-    description: def.tool.description,
-    effect: def.effect,
-  }));
-}
-
 export function commitModuleTools(
   state: LoaderState,
   mod: KotaModule,
@@ -133,7 +108,7 @@ export function commitModuleTools(
   state.moduleToolCounts.set(mod.name, tools.length);
   state.moduleToolDefs.set(
     mod.name,
-    toolSnapshots(tools),
+    moduleToolSnapshots(tools),
   );
 }
 
@@ -185,13 +160,14 @@ export async function attachModuleUiSurfaces(
   mod: KotaModule,
   ctx: ModuleRuntimeContext,
 ): Promise<void> {
-  const surfaces = await resolveModuleUiSurfaces(mod, ctx);
-  if (surfaces.length === 0) return;
-  buildUiSurfaceBundle([...state.contributedUiSurfaces, ...surfaces]);
-  state.moduleUiSurfaceDefs.set(mod.name, surfaces);
-  for (const surface of surfaces) {
-    state.contributedUiSurfaces.push(surface);
-  }
+  const sources = await resolveModuleUiSurfaceSources(mod, ctx);
+  if (sources.length === 0) return;
+  validateUiSurfaceSourceRegistrations([
+    ...[...state.moduleUiSurfaceSources.entries()].flatMap(([moduleName, registered]) =>
+      registered.map((source) => ({ moduleName, source }))),
+    ...sources.map((source) => ({ moduleName: mod.name, source })),
+  ]);
+  state.moduleUiSurfaceSources.set(mod.name, sources);
 }
 
 export function attachModuleCommands(
@@ -257,153 +233,6 @@ export async function runModuleOnLoad(
   await mod.onLoad(ctx);
 }
 
-export async function attachModuleSkills(
-  state: LoaderState,
-  policy: LoadPhasePolicy,
-  mod: KotaModule,
-  ctx: ModuleRuntimeContext,
-): Promise<void> {
-  const skills = await resolveModuleSkills(mod, ctx);
-  if (skills.length === 0) return;
-  state.moduleSkillDefs.set(mod.name, skills);
-  for (const skill of skills) {
-    let raw: string;
-    try {
-      raw = readFileSync(resolveModuleSkillPromptPath(policy, skill.promptPath), "utf8");
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      printTerminalDiagnostic(
-        `[kota] Module "${mod.name}" skill "${skill.name}" failed to load: ${msg}`,
-        "error",
-      );
-      continue;
-    }
-    assertNoUnsupportedSkillToolPolicyFrontmatter(raw, skill.promptPath);
-    const content = raw.trim();
-    if (content) {
-      state.skillContentsByName.set(
-        skill.name,
-        `### ${skill.name}\n${content}`,
-      );
-      state.skillDefsByName.set(skill.name, skill);
-    }
-  }
-}
-
-function resolveModuleSkillPromptPath(policy: LoadPhasePolicy, promptPath: string): string {
-  const projectPath = resolve(policy.cwd, promptPath);
-  if (existsSync(projectPath)) return projectPath;
-  if (!promptPath.startsWith("src/")) return projectPath;
-
-  const installPath = resolve(KOTA_INSTALL_ROOT, promptPath);
-  if (existsSync(installPath)) return installPath;
-  return projectPath;
-}
-
-export async function attachModuleAgents(
-  state: LoaderState,
-  mod: KotaModule,
-  ctx: ModuleRuntimeContext,
-): Promise<void> {
-  const agents = await resolveModuleAgents(mod, ctx);
-  if (agents.length === 0) return;
-  state.moduleAgentDefs.set(mod.name, agents);
-}
-
-export async function attachModuleSetupRequirements(
-  state: LoaderState,
-  mod: KotaModule,
-  ctx: ModuleRuntimeContext,
-): Promise<void> {
-  const requirements = await resolveModuleSetupRequirements(mod, ctx);
-  if (requirements.length === 0) return;
-  validateModuleSetupRequirements(mod.name, requirements);
-  state.moduleSetupRequirementDefs.set(
-    mod.name,
-    requirements.map((requirement) => ({
-      moduleName: mod.name,
-      requirement,
-    })),
-  );
-}
-
-function workflowTriggerLabels(
-  workflows: readonly RegisteredWorkflowDefinitionInput[],
-): string[] {
-  const labels: string[] = [];
-  for (const workflow of workflows) {
-    for (const trigger of workflow.triggers) {
-      if (trigger.event) labels.push(`event:${trigger.event}`);
-      if (trigger.schedule) labels.push(`cron:${trigger.schedule}`);
-      if (trigger.intervalMs !== undefined) labels.push(`interval:${trigger.intervalMs}`);
-      if (trigger.webhook) labels.push("webhook");
-      if (trigger.watch) {
-        const patterns = Array.isArray(trigger.watch)
-          ? trigger.watch
-          : [trigger.watch];
-        labels.push(`watch:${patterns.join(",")}`);
-      }
-    }
-  }
-  return labels;
-}
-
-export function attachModuleManifest(
-  state: LoaderState,
-  mod: KotaModule,
-  ctx: ModuleRuntimeContext,
-  tools: readonly ToolDef[],
-  effects: readonly ModuleManifestEffectDeclaration[],
-): void {
-  const setupRequirements = (
-    state.moduleSetupRequirementDefs.get(mod.name) ?? []
-  ).map(({ requirement }) => ({
-    id: requirement.id,
-    kind: requirement.kind,
-    setupMode: requirement.setup.mode,
-    sensitivity: requirement.sensitivity,
-    required: requirement.required,
-    healthCapabilityIds: requirement.health?.capabilityIds ?? [],
-    statusLinks: buildModuleManifestSetupStatusLinks({
-      moduleName: mod.name,
-      requirementId: requirement.id,
-      kind: requirement.kind,
-      setupMode: requirement.setup.mode,
-    }),
-  }));
-  const workflows = state.moduleWorkflowDefs.get(mod.name) ?? [];
-  const manifestInput =
-    typeof mod.manifest === "function" ? mod.manifest(ctx) : mod.manifest;
-  const projection = buildModuleCapabilityManifestProjection(
-    mod.name,
-    manifestInput,
-    {
-      dependencies: mod.dependencies ?? [],
-      tools: toolSnapshots(tools),
-      effects,
-      workflows: workflows.map((workflow) => workflow.name),
-      workflowTriggers: workflowTriggerLabels(workflows),
-      channels: (state.moduleChannelDefs.get(mod.name) ?? []).map((channel) => channel.name),
-      skills: (state.moduleSkillDefs.get(mod.name) ?? []).map((skill) => skill.name),
-      agents: (state.moduleAgentDefs.get(mod.name) ?? []).map((agent) => agent.name),
-      commands: (state.moduleCommands.get(mod.name) ?? []).map((command) => command.name()),
-      routes: (state.moduleRoutes.get(mod.name) ?? []).map((route) => `${route.method} ${route.path}`),
-      controlRoutes: (state.moduleControlRoutes.get(mod.name) ?? []).map((route) => `${route.method} ${route.path}`),
-      events: (mod.events ?? []).map((event) => event.name),
-      eventFlows: buildModuleManifestEventFlows({
-        declaredEventNames: (mod.events ?? []).map((event) => event.name),
-        workflows,
-      }),
-      localClientNamespaces: state.moduleLocalClientNamespaces.get(mod.name) ?? [],
-      hasDaemonClientFactory: mod.daemonClient !== undefined,
-      setupRequirements,
-      hasHealthCheck: mod.healthCheck !== undefined,
-    },
-  );
-  state.moduleManifests.set(mod.name, projection);
-  registerModuleCapabilityManifestProjection(projection);
-}
-
 /**
  * Drive every load phase a single module passes through, in order. The early
  * phases (duplicate check, dependency check, config slices, module events)
@@ -429,11 +258,7 @@ export async function runModuleLoadPhases(
   attachModuleCommands(state, mod, ctx);
   attachModuleRoutes(state, mod, ctx);
   attachModuleControlRoutes(state, mod, ctx);
-  await attachModuleSkills(state, policy, mod, ctx);
-  await attachModuleAgents(state, mod, ctx);
-  await attachModuleSetupRequirements(state, mod, ctx);
-  const effects = await resolveModuleEffects(mod, ctx);
-  attachModuleManifest(state, mod, ctx, tools, effects);
+  await attachModuleMetadata(state, policy, mod, ctx, tools);
   commitModuleTools(state, mod, tools);
   await runModuleOnLoad(policy, mod, ctx);
 

@@ -1,0 +1,52 @@
+Structural search evidence
+
+Static-cache query:
+rg -n 'contributedUiSurfaces|moduleUiSurfaceDefs' src
+
+Result: no matches.
+
+Raw assembler ownership query:
+rg -l 'buildUiSurfaceBundle' src -g '*.ts' -g '*.tsx' -g '!*.test.ts' -g '!*.test.tsx'
+
+Result:
+- src/core/daemon/ui-surface.ts (raw primitive definition)
+- src/core/modules/module-ui-surfaces.ts (canonical contributor assembler)
+
+Legacy bundle export query:
+rg -n 'buildStatusInboxBundle' src
+
+Result: no matches.
+
+Shared assembly path:
+- src/modules/daemon-ops/index.ts:449 defines buildSharedUiSurfaceBundle.
+- src/modules/daemon-ops/index.ts:455 calls the core assembleUiSurfaceBundle exactly once.
+- src/modules/daemon-ops/index.ts:457 supplies ctx.getContributedUiSurfaces(), the live source registrations.
+- src/core/modules/module-loader.ts:208 returns registered module UI sources.
+- src/core/modules/module-loader.ts:212 exposes the same assembler for focused loader tests.
+- src/core/modules/module-ui-surfaces.ts:129 owns the canonical assembler and line 144 is
+  the only production call to the raw buildUiSurfaceBundle primitive outside its definition.
+
+Source registration query:
+rg -n 'uiSurfaces\s*:' src/modules/{daemon-ops,workflow-ops,module-manager,setup,memory,knowledge,history}/index.ts
+
+Result:
+daemon-ops: daemonOpsUiSurfaceSources
+workflow-ops: workflowUiSurfaceSource
+module-manager: modulesAgentsUiSurfaceSource
+setup: setupUiSurfaceSource
+memory: memoryUiSurfaceSource
+knowledge: knowledgeUiSurfaceSource
+history: historyUiSurfaceSource
+
+Consumer projection:
+- ModuleLoader and the runtime context expose live source registrations from loaded module definitions.
+- GET /ui/surfaces delegates to buildSharedUiSurfaceBundle.
+- The local KotaClient.ui namespace delegates to that same wrapper.
+- Action lookup and execution use a fresh bundle from the same assembler and scope selector.
+
+Regression guard:
+- src/ui-surface-ownership.integration.test.ts recursively scans every production TypeScript
+  file under src and permits buildUiSurfaceBundle only in the raw primitive definition and the
+  canonical core contributor assembler.
+- The focused suite passes this guard, so another surface assembly path cannot be introduced
+  without failing CI.

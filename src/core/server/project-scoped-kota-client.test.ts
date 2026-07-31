@@ -7,6 +7,37 @@ import {
 import { ScopeSelectorConflictError } from "./scope-selector.js";
 
 describe("createProjectScopedKotaClient", () => {
+  it("injects projectId into UI projection and action lookup", async () => {
+    const calls: unknown[] = [];
+    const base = {
+      workflow: {},
+      ui: {
+        listSurfaces: async (selector: unknown) => {
+          calls.push(["ui.listSurfaces", selector]);
+          return { protocolVersion: "ui.surface.v1" as const, surfaces: [] };
+        },
+        executeAction: async (input: unknown) => {
+          calls.push(["ui.executeAction", input]);
+          return { ok: false as const, reason: "not_found" as const, message: "missing" };
+        },
+        watchEvents: async function* () {},
+      },
+    } as unknown as KotaClient;
+
+    const scoped = createProjectScopedKotaClient(base, "project-b");
+    await scoped.ui.listSurfaces();
+    await scoped.ui.executeAction({ surfaceId: "runs", actionId: "workflow.status" });
+
+    expect(calls).toEqual([
+      ["ui.listSurfaces", { projectId: "project-b" }],
+      ["ui.executeAction", {
+        surfaceId: "runs",
+        actionId: "workflow.status",
+        projectId: "project-b",
+      }],
+    ]);
+  });
+
   it("injects projectId into every secrets operation", async () => {
     const calls: unknown[] = [];
     const base = {

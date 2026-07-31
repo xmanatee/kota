@@ -8,7 +8,6 @@ import {
   resetHarnessHooks,
 } from "#core/agent-harness/hooks.js";
 import { clearRegisteredConfigSlices, type ModuleConfigSlice } from "#core/config/config-slice.js";
-import type { UiSurface } from "#core/daemon/ui-surface.js";
 import { EventBus } from "#core/events/event-bus.js";
 import {
   collectDynamicState,
@@ -737,63 +736,6 @@ describe("ModuleLoader", () => {
     const channels = loader.getContributedChannels();
     expect(channels).toHaveLength(1);
     expect(channels[0].name).toBe("test-channel");
-  });
-
-  it("collects UI surfaces from modules and validates global extension ids", async () => {
-    const loader = new ModuleLoader({});
-    const surface = {
-      protocolVersion: "ui.surface.v1" as const,
-      surfaceId: "demo",
-      extensionId: "demo.surface",
-      title: "Demo",
-      intent: "Work" as const,
-      scopeId: "scope-a",
-      attachmentPoint: { kind: "root" as const },
-      order: 10,
-      nodes: [],
-      actions: [],
-    };
-
-    await loader.load({
-      name: "ui-provider",
-      uiSurfaces: [surface],
-    });
-
-    expect(loader.getContributedUiSurfaces()).toEqual([surface]);
-    await expect(
-      loader.load({
-        name: "bad-ui-provider",
-        uiSurfaces: [
-          {
-            ...surface,
-            surfaceId: "other-demo",
-          },
-        ],
-      }),
-    ).rejects.toThrow(/duplicate extensionId "demo.surface"/);
-  });
-
-  it("rejects module-contributed UI surfaces with invalid runtime discriminants", async () => {
-    const loader = new ModuleLoader({});
-    const surface = {
-      protocolVersion: "ui.surface.v1" as const,
-      surfaceId: "demo",
-      extensionId: "demo.surface",
-      title: "Demo",
-      intent: "Work" as const,
-      scopeId: "scope-a",
-      attachmentPoint: { kind: "root" as const },
-      order: 10,
-      nodes: [{ kind: "timeline" } as unknown as UiSurface["nodes"][number]],
-      actions: [],
-    };
-
-    await expect(
-      loader.load({
-        name: "bad-ui-provider",
-        uiSurfaces: [surface],
-      }),
-    ).rejects.toThrow(/node timeline\.kind "timeline" must be one of/);
   });
 
   it("exposes contributed workflows via ctx.getContributedWorkflows()", async () => {

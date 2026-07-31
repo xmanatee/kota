@@ -2,22 +2,22 @@ import type { PendingApproval } from "#core/daemon/approval-queue.js";
 import type { WorkflowDefinitionSummary } from "#core/daemon/daemon-control.js";
 import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
 import type {
-  WorkflowDefinitionsResult,
-  WorkflowRunsListResult,
-  WorkflowStatusSnapshot,
-} from "#modules/workflow-ops/client.js";
+  UiAction,
+  UiActionParameterSpec,
+  UiLogEntry,
+  UiTableRow,
+} from "#core/daemon/ui-surface.js";
 import {
   emptyRows,
   type SurfaceRead,
   shortId,
   unavailableRows,
-} from "./operator-ui-builder-common.js";
+} from "#core/daemon/ui-surface-builders.js";
 import type {
-  UiAction,
-  UiActionParameterSpec,
-  UiLogEntry,
-  UiTableRow,
-} from "./operator-ui-types.js";
+  WorkflowDefinitionsResult,
+  WorkflowRunsListResult,
+  WorkflowStatusSnapshot,
+} from "#modules/workflow-ops/client.js";
 
 function triggerSummary(definition: WorkflowDefinitionSummary): string {
   if (definition.triggers.length === 0) return "manual";
