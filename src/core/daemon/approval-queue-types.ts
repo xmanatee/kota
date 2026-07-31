@@ -30,6 +30,11 @@ export type ApprovalMcpPromptDeclaration = {
 	serverTransportIdentityFingerprint: string;
 };
 
+export type ApprovalLocalToolDeclaration = {
+	registrationGeneration: number;
+	declarationEffectFingerprint: string;
+};
+
 export type WorkflowGateApprovalInput = {
 	workflowName: string;
 	runId: string;
@@ -56,6 +61,7 @@ export type PendingApproval = {
 	rejectionReason?: string;
 	approvalNote?: string;
 	mcpPromptDeclaration?: ApprovalMcpPromptDeclaration;
+	localToolDeclaration?: ApprovalLocalToolDeclaration;
 	timeoutMs?: number;
 	defaultResolution?: "deny" | "approve";
 	resolutionSource?: string;
@@ -101,6 +107,7 @@ export type ApprovalExecutionApproveAllResult =
 export type ApprovalExecutionSnapshot = {
 	approval: PendingApproval;
 	descriptor: ApprovalExecutionDescriptor;
+	executionInput: PendingApproval["input"];
 };
 
 export type ApprovalExecutionSnapshotResult =

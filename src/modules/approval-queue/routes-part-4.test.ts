@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApprovalQueue } from "#core/daemon/approval-queue.js";
-import { executeTool } from "#core/tools/index.js";
+import type { ToolRunner } from "#core/tools/index.js";
+import {
+	clearApprovalExecutionTestTools,
+	registerApprovalExecutionTestTools,
+} from "./approval-execution-test-tools.integration.js";
 import {
 	handleApproveAllApprovals,
 	handleApproveApproval,
@@ -13,9 +17,7 @@ import {
 	handleRejectApproval,
 } from "./routes.js";
 
-vi.mock("#core/tools/index.js", () => ({
-	executeTool: vi.fn(),
-}));
+const executeTool = vi.fn<ToolRunner>();
 
 function makeQueue(): ApprovalQueue {
 	const dir = join(tmpdir(), `kota-approvals-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
@@ -166,11 +168,13 @@ describe("approval-routes", () => {
 	let queue: ApprovalQueue;
 
 	beforeEach(() => {
+		registerApprovalExecutionTestTools(executeTool);
 		queue = makeQueue();
-		vi.mocked(executeTool).mockResolvedValue({ content: "ok" });
+		executeTool.mockResolvedValue({ content: "ok" });
 	});
 
 	afterEach(() => {
+		clearApprovalExecutionTestTools();
 		vi.restoreAllMocks();
 		vi.clearAllMocks();
 	});
@@ -217,7 +221,7 @@ describe("approval-routes", () => {
 				"moderate",
 				"deploy",
 			);
-			vi.mocked(executeTool).mockResolvedValueOnce({ content: "deployed raw-token" });
+			executeTool.mockResolvedValueOnce({ content: "deployed raw-token" });
 
 			const { res, result } = mockResponse();
 			await handleApproveApproval(
@@ -246,8 +250,8 @@ describe("approval-routes", () => {
 				},
 			});
 			expect(vi.mocked(executeTool)).toHaveBeenCalledWith(
-				"shell",
 				{ command: "deploy.sh", accessToken: "raw-token" },
+				undefined,
 			);
 			expect(JSON.stringify(result.body)).not.toContain("raw-token");
 			expect(JSON.stringify(result.body)).not.toContain("deployed raw-token");

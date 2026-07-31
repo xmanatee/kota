@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { RiskLevel } from "#core/tools/guardrails.js";
 import type { ToolCallInput } from "#core/tools/guardrails-classify.js";
 import type {
+	ApprovalLocalToolDeclaration,
 	ApprovalMcpPromptDeclaration,
 	PendingApproval,
 	WorkflowGateApprovalInput,
@@ -20,6 +21,7 @@ type PendingApprovalInputBase = {
 	context?: string;
 	sessionId?: string;
 	mcpPromptDeclaration?: ApprovalMcpPromptDeclaration;
+	localToolDeclaration?: ApprovalLocalToolDeclaration;
 };
 
 export type PendingToolApprovalInput = PendingApprovalInputBase & {
@@ -52,6 +54,9 @@ export function createPendingApproval(input: PendingApprovalInput): PendingAppro
 		...(input.context !== undefined && { context: input.context }),
 		...(input.mcpPromptDeclaration !== undefined && {
 			mcpPromptDeclaration: input.mcpPromptDeclaration,
+		}),
+		...(input.localToolDeclaration !== undefined && {
+			localToolDeclaration: input.localToolDeclaration,
 		}),
 		createdAt: new Date().toISOString(),
 		status: "pending",

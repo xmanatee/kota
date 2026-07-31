@@ -1,6 +1,7 @@
 import {
 	type ApprovalClientProjection,
 	type ApprovalExecutionSnapshot,
+	isWorkflowGateApproval,
 	type PendingApproval,
 	projectApprovalForClient,
 } from "#core/daemon/approval-queue.js";
@@ -14,6 +15,10 @@ import {
 	closeApprovalExecutionAfterFailure,
 	closeApprovalExecutionLeases,
 } from "./approval-execution-leases.js";
+import {
+	type LocalApprovalFailureBody,
+	prepareLocalApprovalExecution,
+} from "./approval-local-execution-preflight.js";
 
 type McpApprovalFailureReason =
 	| "mcp_approval_missing_declaration"
@@ -41,11 +46,19 @@ type McpApprovalFailureBody = {
 
 type ApprovalExecutionPreflight =
 	| { ok: true; lease: ApprovalExecutionLease }
-	| { ok: false; status: 409; body: McpApprovalFailureBody };
+	| {
+		ok: false;
+		status: 409;
+		body: McpApprovalFailureBody | LocalApprovalFailureBody;
+	  };
 
 export type ApprovalExecutionPreflightBatch =
 	| { ok: true; leases: Map<string, ApprovalExecutionLease> }
-	| { ok: false; status: 409; body: McpApprovalFailureBody };
+	| {
+		ok: false;
+		status: 409;
+		body: McpApprovalFailureBody | LocalApprovalFailureBody;
+	  };
 
 const MCP_DECLARATION_CHANGED_REASON = "mcp_declaration_changed_since_prompt";
 const MCP_SERVER_TRANSPORT_CHANGED_REASON = "mcp_server_transport_changed_since_prompt";
@@ -74,8 +87,11 @@ async function prepareMcpApprovalExecution(
 	context?: ToolRunnerContext,
 ): Promise<ApprovalExecutionPreflight> {
 	const item = snapshot.approval;
-	if (!isMcpManagedToolName(item.tool)) {
+	if (isWorkflowGateApproval(item)) {
 		return { ok: true, lease: { ...snapshot.descriptor } };
+	}
+	if (!isMcpManagedToolName(item.tool)) {
+		return prepareLocalApprovalExecution(snapshot);
 	}
 
 	const parsed = parseToolName(item.tool);

@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { approvalFilePath, projectApprovalForStorage } from "./approval-queue-projection.js";
 import {
+	type ApprovalLocalToolDeclaration,
 	type ApprovalStatus,
 	type PendingApproval,
 	usesWorkflowGateIdentity,
@@ -25,6 +26,18 @@ export type StoredApproval = {
 type ApprovalRecord = PendingApproval & {
 	resolutionIntegrity?: ApprovalResolutionIntegrity;
 };
+
+function isLocalToolDeclaration(
+	value: ApprovalLocalToolDeclaration | undefined,
+): value is ApprovalLocalToolDeclaration {
+	return value !== undefined
+		&& value !== null
+		&& typeof value === "object"
+		&& Number.isSafeInteger(value.registrationGeneration)
+		&& value.registrationGeneration > 0
+		&& typeof value.declarationEffectFingerprint === "string"
+		&& /^[0-9a-f]{64}$/.test(value.declarationEffectFingerprint);
+}
 
 export class ApprovalRecordRepository {
 	constructor(
@@ -124,6 +137,14 @@ export class ApprovalRecordRepository {
 				`Malformed approval record at ${path}: invalid tool-call approval identity`,
 			);
 		}
+		if (
+			item.localToolDeclaration !== undefined
+			&& !isLocalToolDeclaration(item.localToolDeclaration)
+		) {
+			throw new Error(
+				`Malformed approval record at ${path}: invalid local tool declaration`,
+			);
+		}
 		if (item.kind === "workflow_gate") {
 			const input = item.input;
 			const inputKeys = typeof input === "object"
@@ -134,6 +155,7 @@ export class ApprovalRecordRepository {
 			if (
 				item.source !== "workflow-step"
 				|| item.mcpPromptDeclaration !== undefined
+				|| item.localToolDeclaration !== undefined
 				|| inputKeys.length !== 3
 				|| !inputKeys.every((key) =>
 					key === "workflowName" || key === "runId" || key === "stepId")

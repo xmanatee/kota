@@ -1,7 +1,7 @@
 # Tools
 
-This directory contains tool runtime infrastructure and the core-hosted tool
-implementations that are true runtime primitives.
+This directory contains tool runtime infrastructure and core-hosted runtime
+primitives.
 
 ## Boundary
 
@@ -27,6 +27,8 @@ conveniences. New capabilities should prefer module-owned tools.
 - `tool-groups`, `tool-middleware`, `tool-runner`, `tool-telemetry`, `tool-result`, `tool-adapters`, `tool-adapter-types`, `tool-adapters-zod` — tool execution pipeline.
 - `session-environment` — live session- and scope-keyed credential overlays for execution tools; registrations own teardown and stale approvals cannot recreate an ended session's overlay.
 - `guardrails`, `guardrails-classify`, `audit-store` — risk assessment, audit storage, and selective approval-review redaction that preserves later commands, paths, and operation clauses while masking credentials across shell text and structured process arguments.
+- Local executable approvals snapshot generation plus declaration/effect;
+  preflight leases that exact definition and runner, never a name lookup.
 - `module-factory/` — module lifecycle: `addLoadedModule`/`resetModuleFactory` called from loop-init.
 
 ## ask_owner contract
@@ -109,10 +111,8 @@ ingested payloads. Mode changes flow only through the operator control path
 
 ## Logical clusters
 
-- Delegate: `delegate.ts`, `delegate-harness.ts`, `delegate-config.ts`,
-  `delegate-format.ts`, `delegate-turn.ts` — sub-agent spawning.
-- Custom tools: `custom-tool.ts`, `custom-tool-handlers.ts`,
-  `custom-tool-persistence.ts` — user-defined tool extensibility.
+- Delegate: `delegate.ts`, `delegate-harness.ts`, `delegate-config.ts`, `delegate-format.ts`, `delegate-turn.ts` — sub-agent spawning.
+- Custom tools: `custom-tool.ts`, `custom-tool-handlers.ts`, `custom-tool-persistence.ts` — user-defined tool extensibility.
 - Guardrails: `guardrails.ts`, `guardrails-classify.ts`, `audit-store.ts` —
   risk classification and audit trail.
 

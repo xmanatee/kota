@@ -2,15 +2,19 @@ import { mkdtempSync, rmSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import { EventBus } from "#core/events/event-bus.js";
-import { executeTool } from "#core/tools/index.js";
+import type { ToolRunner } from "#core/tools/index.js";
 import { WorkflowRuntime } from "#core/workflow/runtime.js";
 import { executeApprovalStep } from "#core/workflow/steps/step-executor-approval.js";
+import {
+	clearApprovalExecutionTestTools,
+	registerApprovalExecutionTestTools,
+} from "./approval-execution-test-tools.integration.js";
 import { handleApproveAllApprovals, handleApproveApproval } from "./routes.js";
 
-vi.mock("#core/tools/index.js", () => ({ executeTool: vi.fn() }));
+const executeTool = vi.fn<ToolRunner>();
 
 const queueDirs: string[] = [];
 
@@ -102,10 +106,15 @@ function reviewDigest(queue: ApprovalQueue, id: string): string {
 }
 
 describe("approval review receipt binding", () => {
+	beforeEach(() => {
+		registerApprovalExecutionTestTools(executeTool);
+	});
+
 	afterEach(() => {
 		for (const dir of queueDirs.splice(0)) {
 			rmSync(dir, { recursive: true, force: true });
 		}
+		clearApprovalExecutionTestTools();
 		vi.clearAllMocks();
 	});
 
@@ -261,7 +270,7 @@ describe("approval review receipt binding", () => {
 				id: item.id,
 				digest: reviewDigest(queue, item.id),
 			}));
-			vi.mocked(executeTool).mockResolvedValue({ content: "deployed" });
+			executeTool.mockResolvedValue({ content: "deployed" });
 			const { res, result } = mockResponse();
 
 			await handleApproveAllApprovals(
@@ -291,7 +300,10 @@ describe("approval review receipt binding", () => {
 			});
 			await expect(stepPromise).resolves.toMatchObject({ approved: true });
 			expect(vi.mocked(executeTool)).toHaveBeenCalledOnce();
-			expect(vi.mocked(executeTool)).toHaveBeenCalledWith("shell", { command: "deploy" });
+			expect(vi.mocked(executeTool)).toHaveBeenCalledWith(
+				{ command: "deploy" },
+				undefined,
+			);
 		} finally {
 			vi.useRealTimers();
 		}

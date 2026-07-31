@@ -1,13 +1,13 @@
 ---
 id: task-security-review-local-tool-approvals-bind-the-revi
 title: Security review: Local tool approvals bind the reviewed tool name and input but not the registered declaration, effect metadata, runner, or registry generation. Runtime custom tools can be replaced under the same name after an approval is queued; non-MCP preflight accepts the name-only descriptor and execution then resolves the current runner, allowing different code to execute under the stale approval.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: Local tool approvals bind the reviewed tool name and input but not the registered declaration, effect metadata, runner, or registry generation. Runtime custom tools can be replaced under the same name after an approval is queued; non-MCP preflight accepts the name-only descriptor and execution then resolves the current runner, allowing different code to execute under the stale approval.
 created_at: 2026-07-31T03:07:45.474Z
-updated_at: 2026-07-31T03:07:45.474Z
+updated_at: 2026-07-31T05:18:46.645Z
 ---
 
 ## Problem
@@ -152,3 +152,19 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Result
+
+Local approvals now carry the registered tool generation and combined
+declaration/effect fingerprint in both review and execution descriptors.
+Preflight rejects missing or changed registrations, revalidates the original
+input against the leased definition, and captures the exact runner used by
+execution. Regression coverage proves a same-name replacement cannot consume a
+stale approval and a post-preflight replacement cannot redirect the leased
+call.
+
+Final verification:
+`TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --exclude src/modules/repo-tasks/task-queue-validation.test.ts --configLoader runner --silent=true`
+(1,170 files and 12,280 tests passed; the excluded index-coupled queue gate
+passed through `node --import tsx src/validate-queue.ts` against the isolated
+staged index).

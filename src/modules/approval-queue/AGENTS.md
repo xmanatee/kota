@@ -35,3 +35,7 @@ Owns the `kota approval` CLI surface and the underlying `ApprovalQueue` class us
   through the daemon control session endpoint (`PATCH /sessions/:id`) owned by
   daemon-ops. A single approval represents a single tool call; a mode change
   affects how future tool calls are gated.
+- Local tool-call approvals bind the queue-time registry generation and
+  declaration/effect fingerprint. Preflight rejects drift and leases the exact
+  definition and runner execution must use, even if the mutable registry
+  changes after preflight.

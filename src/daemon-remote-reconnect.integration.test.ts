@@ -16,6 +16,10 @@ import {
 } from "#core/daemon/owner-question-queue.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import {
+  clearApprovalExecutionTestTools,
+  registerApprovalExecutionTestTools,
+} from "#modules/approval-queue/approval-execution-test-tools.integration.js";
 import { approvalControlRoutes } from "#modules/approval-queue/routes.js";
 import { ownerQuestionControlRoutes } from "#modules/owner-questions/routes.js";
 import { workflowRoutes } from "#modules/workflow-ops/routes/routes.js";
@@ -46,6 +50,10 @@ describe("daemon remote-client reconnect contract", () => {
     process.chdir(projectDir);
     resetApprovalQueue();
     resetOwnerQuestionQueue();
+    registerApprovalExecutionTestTools(async () => ({
+      content: "remote reconnect approval executed",
+      is_error: false,
+    }));
   });
 
   afterEach(async () => {
@@ -55,6 +63,7 @@ describe("daemon remote-client reconnect contract", () => {
     }
     resetApprovalQueue();
     resetOwnerQuestionQueue();
+    clearApprovalExecutionTestTools();
     process.chdir(originalCwd);
     rmSync(projectDir, { recursive: true, force: true });
   });

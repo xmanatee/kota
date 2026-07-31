@@ -12,7 +12,6 @@ import type { ApprovalRecordRepository } from "./approval-record-repository.js";
 import type { ApprovalFileIdentity } from "./approval-record-storage.js";
 
 export type SelectedApprovalExecution = ApprovalExecutionSnapshot & {
-	executionInput: PendingApproval["input"];
 	reviewContext?: string;
 	recordIdentity: ApprovalFileIdentity;
 };

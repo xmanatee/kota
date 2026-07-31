@@ -3,6 +3,7 @@ import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { cloneEvidenceJsonObject } from "#core/evidence/policy.js";
 import type { RiskLevel } from "#core/tools/guardrails.js";
 import type { ToolCallInput } from "#core/tools/guardrails-classify.js";
+import { captureLocalToolApprovalDeclaration } from "#core/tools/local-tool-approval-binding.js";
 import {
 	type ApprovalExecutionDescriptor,
 	pendingApprovalMatchesExecutionDescriptor,
@@ -50,6 +51,7 @@ export type {
 	ApprovalExecutionSnapshot,
 	ApprovalExecutionSnapshotResult,
 	ApprovalKind,
+	ApprovalLocalToolDeclaration,
 	ApprovalMcpPromptDeclaration,
 	ApprovalStatus,
 	ApprovalToolIoRedaction,
@@ -134,6 +136,7 @@ export class ApprovalQueue {
 			context,
 			sessionId,
 			mcpPromptDeclaration,
+			localToolDeclaration: captureLocalToolApprovalDeclaration(tool, input),
 		});
 	}
 
@@ -249,6 +252,7 @@ export class ApprovalQueue {
 			snapshot: {
 				approval: result.selected.approval,
 				descriptor: result.selected.descriptor,
+				executionInput: result.selected.executionInput,
 			},
 		};
 	}

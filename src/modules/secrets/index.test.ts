@@ -19,7 +19,10 @@ import {
   unregisterSessionEnvironment,
 } from "#core/tools/session-environment.js";
 import { executeToolCalls } from "#core/tools/tool-runner.js";
-import { approvedApprovalResponse } from "#modules/approval-queue/approval-execution.js";
+import {
+  approvedApprovalResponse,
+  prepareApprovalExecutionBatch,
+} from "#modules/approval-queue/approval-execution.js";
 import secretsModule from "./index.js";
 
 const SECRET_NAME = "KOTA_GET_SECRET_TOOL_TEST_TOKEN";
@@ -197,14 +200,26 @@ describe("secrets module get_secret tool gating", () => {
     if (queued === undefined) throw new Error("get_secret approval was not queued");
     const selection = approvalQueue.getExecutionSnapshot(queued.id);
     if (!selection.ok) throw new Error("get_secret approval input was unavailable");
-    const approved = approvalQueue.approveForExecution(selection.snapshot.descriptor);
-    if (!approved.ok) throw new Error("get_secret approval input was unavailable");
-
-    const response = await approvedApprovalResponse(approved.approval, {
+    const executionContext = {
       scopeId: sessionContext.scopeId,
       projectId: sessionContext.scopeId,
       cwd: projectDir,
-    }, selection.snapshot.descriptor);
+    };
+    const preflight = await prepareApprovalExecutionBatch(
+      [selection.snapshot],
+      executionContext,
+    );
+    if (!preflight.ok) throw new Error("get_secret approval preflight failed");
+    const approved = approvalQueue.approveForExecution(selection.snapshot.descriptor);
+    if (!approved.ok) throw new Error("get_secret approval input was unavailable");
+    const lease = preflight.leases.get(approved.approval.id);
+    if (!lease) throw new Error("get_secret approval lease was unavailable");
+
+    const response = await approvedApprovalResponse(
+      approved.approval,
+      executionContext,
+      lease,
+    );
 
     if (response.resolution.kind !== "tool_execution") {
       throw new Error("get_secret approval was not executed");

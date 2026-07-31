@@ -42,12 +42,14 @@ import {
   initProviderRegistry,
   resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
-import { executeTool } from "#core/tools/index.js";
+import type { ToolRunner } from "#core/tools/index.js";
+import {
+  clearApprovalExecutionTestTools,
+  registerApprovalExecutionTestTools,
+} from "./approval-execution-test-tools.integration.js";
 import { approvalControlRoutes } from "./routes.js";
 
-vi.mock("#core/tools/index.js", () => ({
-  executeTool: vi.fn(),
-}));
+const executeTool = vi.fn<ToolRunner>();
 
 const TEST_TOKEN = "approvals-test-token";
 
@@ -213,6 +215,7 @@ describe("approval-queue module daemon-control routes", () => {
   let queue: ApprovalQueue;
 
   beforeEach(async () => {
+    registerApprovalExecutionTestTools(executeTool);
     queueDir = mkdtempSync(join(tmpdir(), "kota-approvals-control-"));
     resetProviderRegistry();
     resetApprovalQueue();
@@ -228,6 +231,7 @@ describe("approval-queue module daemon-control routes", () => {
     await server.stop();
     resetApprovalQueue();
     resetProviderRegistry();
+    clearApprovalExecutionTestTools();
     vi.clearAllMocks();
     rmSync(queueDir, { recursive: true, force: true });
   });

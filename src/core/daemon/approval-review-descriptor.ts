@@ -12,7 +12,10 @@ import {
 	redactApprovalCredentialText,
 } from "#core/tools/approval-redaction.js";
 import type { RiskLevel } from "#core/tools/guardrails.js";
-import type { ApprovalKind } from "./approval-queue-types.js";
+import type {
+	ApprovalKind,
+	ApprovalLocalToolDeclaration,
+} from "./approval-queue-types.js";
 
 export type ApprovalReviewBinding = {
 	id: string;
@@ -23,12 +26,14 @@ export type ApprovalReviewBinding = {
 	reason: string;
 	source?: string;
 	sessionId?: string;
+	localToolDeclaration?: ApprovalLocalToolDeclaration;
 };
 
 export type ApprovalReviewDescriptor = {
 	status: "available";
 	input: EvidenceJsonObject;
 	context?: string;
+	localToolDeclaration?: ApprovalLocalToolDeclaration;
 	digest: string;
 };
 
@@ -158,6 +163,9 @@ export function createApprovalReviewDescriptor(
 			reason: approval.reason,
 			...(approval.source !== undefined ? { source: approval.source } : {}),
 			...(approval.sessionId !== undefined ? { sessionId: approval.sessionId } : {}),
+			...(approval.localToolDeclaration !== undefined
+				? { localToolDeclaration: { ...approval.localToolDeclaration } }
+				: {}),
 		},
 		input: projected,
 		...(projectedContext !== undefined ? { context: projectedContext } : {}),
@@ -166,6 +174,9 @@ export function createApprovalReviewDescriptor(
 		status: "available",
 		input: projected,
 		...(projectedContext !== undefined ? { context: projectedContext } : {}),
+		...(approval.localToolDeclaration !== undefined
+			? { localToolDeclaration: { ...approval.localToolDeclaration } }
+			: {}),
 		digest: createHash("sha256").update(JSON.stringify(digestPayload)).digest("hex"),
 	};
 }

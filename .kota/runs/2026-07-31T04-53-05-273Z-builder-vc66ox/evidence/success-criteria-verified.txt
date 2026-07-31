@@ -1,0 +1,3 @@
+1. Verified: Pending approvals and both descriptor types carry the local declaration; replacement, declaration, and effect drift fail closed in focused tests.
+2. Verified: Preflight revalidates input, captures a cloned definition plus runner, and the post-preflight replacement regression executes only the reviewed runner.
+3. Verified: 12,280 repository tests passed, the excluded index-coupled queue validator passed against the isolated staged index, TypeScript and Biome passed, and the task records the final command.

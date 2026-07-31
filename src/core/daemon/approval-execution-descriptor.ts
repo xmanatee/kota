@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type {
 	ApprovalKind,
+	ApprovalLocalToolDeclaration,
 	ApprovalMcpPromptDeclaration,
 	PendingApproval,
 } from "./approval-queue.js";
@@ -16,6 +17,7 @@ export type ApprovalExecutionDescriptor = {
 	reviewDigest: string;
 	approvalSnapshotDigest: string;
 	mcpPromptDeclaration?: ApprovalMcpPromptDeclaration;
+	localToolDeclaration?: ApprovalLocalToolDeclaration;
 };
 
 function digestJson(value: PendingApproval | PendingApproval["input"]): string {
@@ -36,6 +38,16 @@ function mcpDeclarationsMatch(
 	);
 }
 
+function localToolDeclarationsMatch(
+	left: ApprovalLocalToolDeclaration | undefined,
+	right: ApprovalLocalToolDeclaration | undefined,
+): boolean {
+	if (left === undefined || right === undefined) return left === right;
+	return left.registrationGeneration === right.registrationGeneration
+		&& left.declarationEffectFingerprint
+			=== right.declarationEffectFingerprint;
+}
+
 export function createApprovalExecutionDescriptor(
 	approval: PendingApproval,
 	input: PendingApproval["input"],
@@ -52,6 +64,9 @@ export function createApprovalExecutionDescriptor(
 		approvalSnapshotDigest: digestJson(approval),
 		...(approval.mcpPromptDeclaration !== undefined
 			? { mcpPromptDeclaration: { ...approval.mcpPromptDeclaration } }
+			: {}),
+		...(approval.localToolDeclaration !== undefined
+			? { localToolDeclaration: { ...approval.localToolDeclaration } }
 			: {}),
 	};
 }
@@ -74,6 +89,10 @@ function approvalFieldsMatchDescriptor(
 		&& mcpDeclarationsMatch(
 			approval.mcpPromptDeclaration,
 			descriptor.mcpPromptDeclaration,
+		)
+		&& localToolDeclarationsMatch(
+			approval.localToolDeclaration,
+			descriptor.localToolDeclaration,
 		)
 	);
 }

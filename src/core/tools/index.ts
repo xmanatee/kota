@@ -12,6 +12,10 @@ import { registration as customTool, initCustomToolRegistry } from "./custom-too
 import { registration as delegate } from "./delegate.js";
 import type { ToolEffect } from "./effect.js";
 import { registration as handoffAgent } from "./handoff-agent.js";
+import {
+	deregisterLocalToolApprovalBinding,
+	registerLocalToolApprovalBinding,
+} from "./local-tool-approval-binding.js";
 import { registration as moduleFactory } from "./module-factory/index.js";
 import { assertToolStructuredOutput } from "./output-schema.js";
 import { getTodoState, registration as todo } from "./todo.js";
@@ -122,6 +126,7 @@ function ensureInit(): void {
   for (const reg of getCoreRegistrations()) {
     runners[reg.tool.name] = reg.runner;
     tools.push(reg.tool);
+    registerLocalToolApprovalBinding(reg.tool, reg.runner, reg);
     if (reg.group) registerCustomGroup(reg.group, [reg.tool.name]);
   }
 }
@@ -175,6 +180,7 @@ export function registerTool(
   if (meta) {
     toolEffectRegistry.setModuleToolEffect(tool.name, meta);
   }
+  registerLocalToolApprovalBinding(tool, runner, meta);
   if (moduleName) {
     let owned = moduleToolOwners.get(moduleName);
     if (!owned) {
@@ -192,6 +198,7 @@ export function deregisterTool(name: string): boolean {
   if (idx < 0) return false;
   tools.splice(idx, 1);
   delete runners[name];
+  deregisterLocalToolApprovalBinding(name);
   customToolNames.delete(name);
   toolEffectRegistry.deleteModuleToolEffect(name);
   // Remove from module ownership tracking
@@ -212,6 +219,7 @@ export function deregisterModuleTools(moduleName: string): void {
     const idx = tools.findIndex((t) => t.name === name);
     if (idx >= 0) tools.splice(idx, 1);
     delete runners[name];
+    deregisterLocalToolApprovalBinding(name);
     customToolNames.delete(name);
     toolEffectRegistry.deleteModuleToolEffect(name);
   }
@@ -277,6 +285,7 @@ export function clearCustomTools(): void {
     const idx = tools.findIndex((t) => t.name === name);
     if (idx >= 0) tools.splice(idx, 1);
     delete runners[name];
+    deregisterLocalToolApprovalBinding(name);
   }
   customToolNames.clear();
   moduleToolOwners.clear();

@@ -8,7 +8,8 @@ import {
 	projectApprovalForClient,
 } from "#core/daemon/approval-queue.js";
 import { projectEvidenceText } from "#core/evidence/policy.js";
-import { executeTool, type ToolRunnerContext } from "#core/tools/index.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
+import { executeLocalToolLease } from "#core/tools/local-tool-approval-binding.js";
 import { isMcpManagedToolName } from "#core/tools/tool-name-policy.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type { ApprovalExecutionLease } from "./approval-execution-leases.js";
@@ -86,6 +87,20 @@ function requireApprovedToolExecutionLease(
 	) {
 		throw new ApprovalExecutionDescriptorMismatchError(item);
 	}
+	if (
+		!isMcpManagedToolName(item.tool)
+		&& (
+			boundLease.localTool === undefined
+			|| boundLease.localToolDeclaration === undefined
+			|| boundLease.localTool.tool.name !== item.tool
+			|| boundLease.localTool.declaration.registrationGeneration
+				!== boundLease.localToolDeclaration.registrationGeneration
+			|| boundLease.localTool.declaration.declarationEffectFingerprint
+				!== boundLease.localToolDeclaration.declarationEffectFingerprint
+		)
+	) {
+		throw new ApprovalExecutionDescriptorMismatchError(item);
+	}
 	return boundLease;
 }
 
@@ -112,9 +127,13 @@ async function executeApprovedTool(
 		}
 		return projectToolExecution(execution.result);
 	}
+	const localTool = boundLease.localTool;
+	if (localTool === undefined) {
+		throw new ApprovalExecutionDescriptorMismatchError(item);
+	}
 	const result = executionContext
-		? await executeTool(item.tool, item.input, executionContext)
-		: await executeTool(item.tool, item.input);
+		? await executeLocalToolLease(localTool, item.input, executionContext)
+		: await executeLocalToolLease(localTool, item.input);
 	return projectToolExecution(result);
 }
 

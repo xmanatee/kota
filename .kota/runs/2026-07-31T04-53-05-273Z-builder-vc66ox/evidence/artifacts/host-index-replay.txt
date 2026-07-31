@@ -1,0 +1,49 @@
+Host-index replay record
+
+The linked worktree's host Git index is read-only in this sandbox. Task moves,
+queue validation, and final staging therefore used:
+
+GIT_INDEX_FILE=.kota/tmp/2026-07-31T04-53-05-273Z-builder-vc66ox/git-index
+GIT_OBJECT_DIRECTORY=.kota/tmp/2026-07-31T04-53-05-273Z-builder-vc66ox/git-objects
+GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects
+
+The isolated index was initialized from HEAD with `git read-tree HEAD`.
+Both task transitions ran through the source-mode KOTA task CLI under that
+environment. Final `git add -A`, cached diff checks, and queue validation use
+the same index/object environment.
+
+This isolated staging does not update the real worktree index. The workflow
+commit step must replay the recorded staged path set against the host index.
+
+Validated staged path set:
+
+R data/tasks/ready/task-security-review-local-tool-approvals-bind-the-revi.md -> data/tasks/done/task-security-review-local-tool-approvals-bind-the-revi.md
+M src/core/daemon/approval-execution-descriptor.ts
+M src/core/daemon/approval-execution-selection.ts
+M src/core/daemon/approval-queue-item.ts
+M src/core/daemon/approval-queue-types.ts
+M src/core/daemon/approval-queue.ts
+M src/core/daemon/approval-record-repository.ts
+M src/core/daemon/approval-review-descriptor.ts
+M src/core/tools/AGENTS.md
+M src/core/tools/index.ts
+A src/core/tools/local-tool-approval-binding.test.ts
+A src/core/tools/local-tool-approval-binding.ts
+M src/core/tools/tool-input-validation.ts
+M src/daemon-remote-reconnect.integration.test.ts
+M src/modules/approval-queue/AGENTS.md
+M src/modules/approval-queue/approval-execution-leases.ts
+M src/modules/approval-queue/approval-execution-preflight.ts
+A src/modules/approval-queue/approval-execution-test-tools.integration.ts
+M src/modules/approval-queue/approval-execution.test.ts
+M src/modules/approval-queue/approval-execution.ts
+A src/modules/approval-queue/approval-local-execution-preflight.ts
+M src/modules/approval-queue/daemon-control-part-3.test.ts
+M src/modules/approval-queue/daemon-control-part-4.test.ts
+M src/modules/approval-queue/daemon-control-part-5.test.ts
+M src/modules/approval-queue/daemon-control-part-7.test.ts
+M src/modules/approval-queue/routes-part-4.test.ts
+M src/modules/approval-queue/routes-part-5.test.ts
+M src/modules/approval-queue/routes-part-7.test.ts
+M src/modules/approval-queue/routes-review-receipt-binding.test.ts
+M [path redacted by evidence policy]

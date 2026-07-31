@@ -1,0 +1,3 @@
+1. Local approvals bind queue-time registry generation and declaration/effect metadata into review and execution descriptors, and preflight rejects drift.
+2. Local approval execution uses the exact validated definition and runner captured by preflight, including when the registry changes afterward.
+3. Focused regression suites and type checks pass, the final verification command is recorded, and the task reaches done.

@@ -69,13 +69,21 @@ export function validateToolCallInput(
 	value: KotaToolUseBlock["input"],
 	mcpManager?: McpManager,
 ): ToolInputValidationResult {
+	const schema = resolveInputSchema(toolName, mcpManager);
+	return validateToolCallInputAgainstSchema(toolName, value, schema);
+}
+
+export function validateToolCallInputAgainstSchema(
+	toolName: string,
+	value: KotaToolUseBlock["input"],
+	schema: KotaToolInputSchema | undefined,
+): ToolInputValidationResult {
 	if (!isJsonObject(value)) {
 		return {
 			ok: false,
 			error: `Invalid tool input for "${toolName}": expected a JSON object`,
 		};
 	}
-	const schema = resolveInputSchema(toolName, mcpManager);
 	if (!schema) {
 		return {
 			ok: false,

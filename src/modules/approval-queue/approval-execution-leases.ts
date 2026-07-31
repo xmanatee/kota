@@ -1,8 +1,10 @@
 import type { ApprovalExecutionDescriptor } from "#core/daemon/approval-execution-descriptor.js";
 import type { McpManager } from "#core/mcp/manager.js";
+import type { LocalToolExecutionLease } from "#core/tools/local-tool-approval-binding.js";
 
 export type ApprovalExecutionLease = ApprovalExecutionDescriptor & {
 	mcpManager?: McpManager;
+	localTool?: LocalToolExecutionLease;
 };
 
 export async function closeApprovalExecutionLeases(
