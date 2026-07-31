@@ -46,7 +46,7 @@ describe("approval-queue local client execution", () => {
 		const queue = new ApprovalQueue(
 			join(testDir, ".kota", "approvals"),
 			null,
-			project.projectId,
+			{ scopeId: project.projectId },
 		);
 		const client = approvalQueueModule.localClient!({} as never).approvals!;
 		initProviderRegistry().register(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE, "daemon", {

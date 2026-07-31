@@ -1,0 +1,35 @@
+Host-index replay record
+
+During the build sandbox, the linked worktree's host Git index was read-only.
+Task moves, queue validation, staging, and staged-diff validation therefore used:
+
+GIT_INDEX_FILE=.kota/tmp/2026-07-31T05-58-15-336Z-builder-f2qr8i/git-index
+GIT_OBJECT_DIRECTORY=.kota/tmp/2026-07-31T05-58-15-336Z-builder-f2qr8i/git-objects
+GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects
+
+The isolated index was initialized from HEAD with `git read-tree HEAD`. After
+an invalid parallel full-suite attempt inherited the shared index into fixture
+repositories, the index was reinitialized from HEAD before the final task
+transition and staging. Both task transitions ran through the source-mode KOTA
+task CLI; the claim transition's exact paths were replayed before the canonical
+doing-to-done transition.
+
+The repair environment subsequently accepted a normal `git add -A`, replaying
+the complete worktree into the real worktree index. The workflow commit step
+can therefore use the host index directly.
+
+Validated staged path set:
+
+R data/tasks/ready/task-security-review-the-daemon-expiration-timer-sweeps.md -> data/tasks/done/task-security-review-the-daemon-expiration-timer-sweeps.md
+M src/approval-expiry.integration.test.ts
+M src/core/daemon/approval-queue-expiration.test.ts
+M src/core/daemon/approval-queue.ts
+M src/core/daemon/daemon-startup.ts
+M src/core/daemon/daemon-subscriptions.test.ts
+M src/core/daemon/daemon-subscriptions.ts
+M src/core/daemon/project-runtime.ts
+M src/core/workflow/run-executor.ts
+M src/core/workflow/runtime-context.ts
+M src/modules/approval-queue/execution-scope-tools.integration.ts
+M src/modules/approval-queue/local-client-execution.test.ts
+M [redacted]

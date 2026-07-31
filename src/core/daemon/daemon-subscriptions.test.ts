@@ -73,6 +73,7 @@ describe("subscribeDaemon", () => {
         { pbus: pbusA, projectDir: projectDirA },
         { pbus: pbusB, projectDir: projectDirB },
       ],
+      approvalQueues: [],
       pollIntervalMs: 60_000,
       onDueItems: () => {},
       onWorkflowCompleted: () => {},
@@ -130,6 +131,7 @@ describe("subscribeDaemon", () => {
     const unsubscribe = subscribeDaemon({
       bus: new EventBus(),
       failureAlertScopes: [],
+      approvalQueues: [restartedQueue],
       pollIntervalMs: 10,
       onDueItems: () => {},
       onWorkflowCompleted: () => {},

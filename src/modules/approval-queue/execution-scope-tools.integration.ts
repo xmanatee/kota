@@ -58,7 +58,7 @@ export function makeApprovalScopeEntry(
     approvalQueue: new ApprovalQueue(
       join(project.projectDir, ".kota", "approvals"),
       null,
-      project.projectId,
+      { scopeId: project.projectId },
     ),
     ownerDecisionStore: new OwnerDecisionStore(
       join(project.projectDir, ".kota", "owner-decisions"),

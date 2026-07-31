@@ -125,7 +125,11 @@ export function createProjectRuntime(
   const taskStore = new TaskStore(projectDir, undefined, pbus);
   const scheduler = new Scheduler(projectDir, undefined, pbus);
   const moduleLogStore = new ModuleLogStore(projectDir);
-  const approvalQueue = new ApprovalQueue(join(projectDir, ".kota", "approvals"), pbus);
+  const approvalQueue = new ApprovalQueue(
+    join(projectDir, ".kota", "approvals"),
+    pbus,
+    { defaultTtlMs: opts.config?.approvalTtlMs },
+  );
   const secretStore = getProjectSecretStore(projectDir);
   const deadLetterQueue = new DeadLetterQueueStore(
     join(projectDir, ".kota", "dead-letter-queue"),

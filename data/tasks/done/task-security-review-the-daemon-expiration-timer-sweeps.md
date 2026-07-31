@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-daemon-expiration-timer-sweeps
 title: Security review: The daemon expiration timer sweeps only the singleton approval queue installed for the default project. Every non-default project owns a separate queue, so its pending tool approvals remain executable after their configured or default TTL. Approval mutation routes do not enforce expiry before preflight, allowing an old review receipt to execute a stale operation in a non-default scope.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: The daemon expiration timer sweeps only the singleton approval queue installed for the default project. Every non-default project owns a separate queue, so its pending tool approvals remain executable after their configured or default TTL. Approval mutation routes do not enforce expiry before preflight, allowing an old review receipt to execute a stale operation in a non-default scope.
 created_at: 2026-07-31T05:53:24.681Z
-updated_at: 2026-07-31T05:53:24.681Z
+updated_at: 2026-07-31T07:10:08.907Z
 ---
 
 ## Problem
@@ -124,3 +124,9 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true src/approval-expiry.integration.test.ts src/core/daemon/approval-queue*.test.ts src/core/daemon/daemon-subscriptions.test.ts src/core/daemon/project-runtime*.test.ts src/modules/approval-queue/*.test.ts src/modules/secrets/index.test.ts src/core/workflow/runtime.test.ts src/core/workflow/run-executor*.test.ts` — 58 files and 326 tests passed.
+- `node_modules/.bin/tsc --noEmit` and focused `node_modules/.bin/biome check` passed.
+- `node --conditions=source --import tsx src/validate-queue.ts` passed with the workflow's isolated Git index.

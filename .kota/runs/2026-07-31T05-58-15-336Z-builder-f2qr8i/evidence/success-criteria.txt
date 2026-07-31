@@ -1,0 +1,3 @@
+1. Every project runtime approval queue is swept on the daemon expiration interval, and one scope's sweep failure does not prevent the others.
+2. Approval execution rejects an expired record at the mutation boundary even between timer ticks or without a scope timer.
+3. Focused regression coverage proves a dangerous approval in a non-default project expires and cannot execute with its old review receipt, and the task records the passing verification command.

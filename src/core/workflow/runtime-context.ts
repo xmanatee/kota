@@ -95,7 +95,14 @@ export function createWorkflowRuntimeContext(
     runtimeConfig.pbus ??
     new ProjectScopedEventBus(runtimeConfig.bus, scopeId);
   const approvalQueue = runtimeConfig.approvalQueue
-    ?? new ApprovalQueue(join(projectDir, ".kota", "approvals"), pbus, scopeId);
+    ?? new ApprovalQueue(
+      join(projectDir, ".kota", "approvals"),
+      pbus,
+      {
+        scopeId,
+        defaultTtlMs: runtimeConfig.config?.approvalTtlMs,
+      },
+    );
   const idempotencyStore =
     runtimeConfig.idempotencyStore ??
     new IdempotencyStore(join(store.rootDir, "idempotency"), scopeId);

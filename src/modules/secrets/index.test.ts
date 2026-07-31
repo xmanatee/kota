@@ -118,7 +118,7 @@ describe("secrets module get_secret tool gating", () => {
     approvalQueue = new ApprovalQueue(
       join(projectDir, ".kota", "approvals"),
       null,
-      scopeId,
+      { scopeId },
     );
   });
 

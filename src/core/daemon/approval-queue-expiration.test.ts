@@ -97,6 +97,27 @@ describe("ApprovalQueue expireStale", () => {
 		expect(expired[0].status).toBe("expired");
 	});
 
+	it("expires a configured stale item before returning an execution snapshot", () => {
+		queue = new ApprovalQueue(dir, null, { defaultTtlMs: 1000 });
+		const item = queue.enqueue(
+			"shell",
+			{ command: "deploy" },
+			"dangerous",
+			"production deployment",
+		);
+		agePendingApproval(2000);
+
+		expect(queue.getExecutionSnapshot(item.id)).toEqual({
+			ok: false,
+			reason: "not_found",
+		});
+		expect(queue.get(item.id)).toMatchObject({
+			status: "expired",
+			rejectionReason: "expired",
+			resolutionSource: "timeout",
+		});
+	});
+
 	it("stores timeoutMs on enqueued item", () => {
 		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason", undefined, 5000);
 		expect(item.timeoutMs).toBe(5000);

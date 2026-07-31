@@ -53,7 +53,10 @@ export function executeWorkflowRun(
     ?? new ApprovalQueue(
       join(inputDeps.projectDir, ".kota", "approvals"),
       pbus,
-      pbus.getScopeId(),
+      {
+        scopeId: pbus.getScopeId(),
+        defaultTtlMs: inputDeps.config?.approvalTtlMs,
+      },
     );
   const deps: RunExecutorDeps & {
     pbus: ProjectScopedEventBus;

@@ -1,0 +1,3 @@
+1. Verified daemon startup supplies every project runtime queue to the expiration subscription, whose per-scope try/catch continues after a scope failure; the two-project integration regression passed.
+2. Verified the queue stores its configured default TTL and rechecks expiry in both single and bulk execution selection, including the final mutation selection after asynchronous preflight; the no-timer regression passed.
+3. Verified the non-default dangerous approval becomes expired, its old review receipt receives HTTP 404, and its tool runner is never called; 58 focused files (326 tests), TypeScript, Biome, source-size, and queue validation passed.

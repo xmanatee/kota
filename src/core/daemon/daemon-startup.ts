@@ -115,6 +115,9 @@ export async function runDaemonStartup(
       pbus: runtime.pbus,
       projectDir: runtime.project.projectDir,
     })),
+    approvalQueues: ctx.projectRuntimes
+      .list()
+      .map((runtime) => runtime.approvalQueue),
     pollIntervalMs: pollMs,
     approvalTtlMs: ctx.config.config?.approvalTtlMs,
     alertCooldownMs: ctx.config.config?.notifications?.alertCooldownMs,
