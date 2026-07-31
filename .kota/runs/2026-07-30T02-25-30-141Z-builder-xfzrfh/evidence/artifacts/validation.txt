@@ -1,0 +1,21 @@
+Validation completed 2026-07-31:
+
+- Production build: `pnpm build` passed.
+- Touched-file formatting and static checks: `pnpm exec biome check <touched TypeScript files>` passed.
+- Focused and adjacent workflow coverage: 30 files and 141 tests passed, including the configured active-runtime timeout, dead-letter lineage, terminal finalizer, successful builder continuation, runtime dispatch, and runtime lifecycle fixtures.
+- Task queue validation: the source `src/validate-queue.ts` entrypoint passed after moving task-recover-builder-continuations-that-exhaust-active- to done.
+- Workflow definition validation: the source CLI validated all 29 workflow definitions.
+- Post-check strict-types policy repair: `pnpm test src/strict-types-policy.integration.test.ts` passed (1 file, 1 test).
+- Post-check focused recovery/finalizer/Telegram coverage passed (4 files, 19 tests).
+- Post-check TypeScript validation: the installed compiler entrypoint `node node_modules/typescript/bin/tsc --noEmit` passed.
+- Repair attempt 2 restart/replay coverage: 8 files and 31 tests passed, including runtime lifecycle/dispatch/idempotency, dead-letter lineage, terminal finalization, successful builder continuation, and the new keyed-queue restart fixture.
+- Repair attempt 2 static validation: the installed TypeScript compiler passed, and Biome passed for every newly touched recovery file.
+- Repair attempt 3 focused replay validation: `pnpm exec vitest run src/modules/eval-harness/replay-smoke.test.ts --configLoader runner --reporter=verbose` passed all 6 shipped replay fixtures, including the previously reported improver replay.
+- Repair attempt 3 full validation: `pnpm test` passed 1,171 test files and 12,326 tests (1 file and 12 tests skipped). The improver replay also passed under the suite's configured parallel load.
+
+The builder repair-check fixture that expects a non-repository temporary directory
+was run with TMPDIR=/private/tmp because this sandbox redirects its default
+temporary directory beneath the current Git worktree.
+The later package-manager wrapper invocation attempted an unavailable registry
+verification, so these final validators used their equivalent repository
+source entrypoints without a network-dependent package-manager version switch.

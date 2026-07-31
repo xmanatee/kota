@@ -1,5 +1,5 @@
-import type { KotaClient } from "#core/server/kota-client.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import type { KotaClient } from "#core/server/kota-client.js";
 import type { ApprovalMutateResult } from "#modules/approval-queue/client.js";
 import { getApprovalQueue } from "#modules/approval-queue/index.js";
 import {

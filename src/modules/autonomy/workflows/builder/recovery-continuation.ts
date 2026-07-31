@@ -19,6 +19,7 @@ export type BuilderRecoveryRequest = {
   sourceRunId: string;
   worktreeRunId: string;
   workspaceDir: string;
+  idempotencyKey: string;
   reason: string;
 };
 
@@ -51,7 +52,7 @@ function needsRuntimeRecoveryRequest(
 ): boolean {
   if (preservedBuilderWorkspaceDir(candidate) === null) return false;
   if (candidate.claim.runId === candidate.claim.worktreeRunId) return true;
-  const finalizer = readOptionalJsonFile<{ recoveryRequested?: unknown }>(
+  const finalizer = readOptionalJsonFile<{ recoveryRequested?: boolean }>(
     join(
       projectDir,
       ".kota",
@@ -78,7 +79,6 @@ export function listPendingBuilderRecoveries(
 
 export function builderRecoveryRequestForCandidate(
   candidate: WorkflowStateRecoveryClaim,
-  reason: string,
 ): BuilderRecoveryRequest {
   const workspaceDir = preservedBuilderWorkspaceDir(candidate);
   if (workspaceDir === null) {
@@ -91,7 +91,8 @@ export function builderRecoveryRequestForCandidate(
     sourceRunId: candidate.claim.runId,
     worktreeRunId: candidate.claim.worktreeRunId,
     workspaceDir,
-    reason,
+    idempotencyKey: `builder-recovery:${candidate.claim.runId}`,
+    reason: `preserved builder work from ${candidate.claim.runId} requires recovery`,
   };
 }
 
@@ -106,12 +107,9 @@ export function requestPendingBuilderRecoveries(
   ctx: Pick<WorkflowStepContext, "projectDir" | "emit">,
 ): BuilderRecoveryDispatchResult {
   const candidates = listPendingBuilderRecoveries(ctx.projectDir);
-  const requested = candidates.slice(0, 1).map((candidate) =>
-    builderRecoveryRequestForCandidate(
-      candidate,
-      `recovery projection found preserved builder work from ${candidate.claim.runId}`,
-    ),
-  );
+  const requested = candidates
+    .slice(0, 1)
+    .map((candidate) => builderRecoveryRequestForCandidate(candidate));
   for (const request of requested) {
     emitBuilderRecoveryRequest(ctx.emit, request);
   }

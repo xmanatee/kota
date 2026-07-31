@@ -8,9 +8,9 @@ import {
 } from "#core/workflow/steps/agent-write-scope.js";
 import {
   isGitIndexLockErrorMessage,
-  listStagedPaths,
   listPathsNeedingStaging,
   listStagedDeletions,
+  listStagedPaths,
   stageWorkflowPaths,
   withGitIndexLockRetry,
 } from "./commit-git.js";

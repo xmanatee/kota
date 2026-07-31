@@ -263,11 +263,11 @@ async function handleOwnerDismissCallback(
 
 function reportCallbackFailure(
   method: string,
-  error: unknown,
+  error: Error,
   log?: ModuleContext["log"],
 ): void {
   if (log === undefined) throw error;
-  log.warn(`Telegram ${method} failed: ${(error as Error).message}`);
+  log.warn(`Telegram ${method} failed: ${error.message}`);
 }
 
 function sleep(ms: number): Promise<void> {

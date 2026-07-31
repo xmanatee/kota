@@ -1,4 +1,5 @@
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -38,6 +39,25 @@ async function waitUntil(
 function makeProjectDir(): string {
   const projectDir = mkdtempSync(join(tmpdir(), "kota-workflow-dlq-"));
   mkdirSync(join(projectDir, ".kota"), { recursive: true });
+  writeFileSync(join(projectDir, ".gitignore"), ".kota/\n", "utf8");
+  execFileSync("git", ["init", "--quiet", "--initial-branch=main"], {
+    cwd: projectDir,
+  });
+  execFileSync("git", ["add", ".gitignore"], { cwd: projectDir });
+  execFileSync(
+    "git",
+    [
+      "-c",
+      "user.email=test@example.com",
+      "-c",
+      "user.name=Test",
+      "commit",
+      "--quiet",
+      "-m",
+      "fixture",
+    ],
+    { cwd: projectDir },
+  );
   return projectDir;
 }
 
@@ -571,6 +591,90 @@ describe("workflow dead-letter queue integration", () => {
     expect(item.redactedProjection.triggerPayload).toMatchObject({
       chatId: "chat-1",
       text: "send this",
+    });
+  });
+
+  it("keeps an active-runtime timeout open until its linked continuation succeeds", async () => {
+    const completedTasks: string[] = [];
+    const runtime = startRuntime({
+      projectDir,
+      bus,
+      pbus,
+      deadLetterQueue: store,
+      workflows: [
+        {
+          name: "builder-recovery-timeout-fixture",
+          definitionPath: "src/core/workflow/dead-letter-queue.test.ts",
+          moduleRoot: process.cwd(),
+          triggers: [{ event: "builder.recovery.fixture", cooldownMs: 0 }],
+          steps: [
+            {
+              id: "build",
+              type: "code",
+              timeoutMs: 20,
+              run: async (ctx) => {
+                if (ctx.trigger.payload.outcome === "timeout") {
+                  await new Promise<void>(() => {});
+                }
+                completedTasks.push(String(ctx.trigger.payload.taskId));
+                return { completed: true };
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    pbus.emitDynamic("builder.recovery.fixture", {
+      taskId: "task-safety-one",
+      sourceRunId: "run-original",
+      outcome: "timeout",
+    });
+    await waitUntil(
+      () =>
+        store.list({ type: "workflow-dispatch", status: "open" }).length === 1 &&
+        !runtime.isBusy(),
+      "timed out waiting for the active-runtime timeout",
+    );
+    const item = store.list({
+      type: "workflow-dispatch",
+      status: "open",
+    })[0]!;
+    if (
+      item.source.kind !== "workflow-dispatch" ||
+      item.source.failedRunId === undefined
+    ) {
+      throw new Error("expected a failed workflow run id");
+    }
+
+    pbus.emitDynamic("builder.recovery.fixture", {
+      taskId: "task-safety-two",
+      sourceRunId: "run-unrelated",
+      outcome: "success",
+    });
+    await waitUntil(
+      () => completedTasks.includes("task-safety-two") && !runtime.isBusy(),
+      "timed out waiting for the unrelated builder success",
+    );
+    expect(store.get(item.id)?.status).toBe("open");
+
+    pbus.emitDynamic("builder.recovery.fixture", {
+      taskId: "task-safety-one",
+      sourceRunId: item.source.failedRunId,
+      outcome: "success",
+    });
+    await waitUntil(
+      () =>
+        completedTasks.includes("task-safety-one") &&
+        store.get(item.id)?.status === "dismissed" &&
+        !runtime.isBusy(),
+      "timed out waiting for the linked recovery success",
+    );
+    await runtime.stop();
+
+    expect(store.get(item.id)).toMatchObject({
+      status: "dismissed",
+      dismissalReason: expect.stringMatching(/^Superseded by successful run /),
     });
   });
 });

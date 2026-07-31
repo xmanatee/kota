@@ -87,7 +87,10 @@ describe("builder preserved-work continuation", () => {
           sourceRunId: worktreeRunId,
           worktreeRunId,
           workspaceDir,
-          reason: "terminal builder preserved workspace changes",
+          reason: `preserved builder work from ${worktreeRunId} requires recovery`,
+          ...(event === "autonomy.builder.recovery.requested"
+            ? { idempotencyKey: `builder-recovery:${worktreeRunId}` }
+            : {}),
           branchPerTask: true,
         },
       },

@@ -1,5 +1,7 @@
 import { join } from "node:path";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
+import { isWorkflowStepActiveTimeoutErrorMessage } from "#core/workflow/active-timeout.js";
+import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowTerminalFinalizerInput } from "#core/workflow/types.js";
 import { findRecoveryClaim } from "#modules/autonomy/workflow-state-recovery-claims.js";
 import {
@@ -74,6 +76,16 @@ function writeArtifact(
   writeJsonFileAtomic(artifact.artifactPath, artifact);
 }
 
+function buildExhaustedActiveRuntime(metadata: WorkflowRunMetadata): boolean {
+  const build = metadata.steps.find(
+    (step) => step.id === "build" && step.status === "failed",
+  );
+  return (
+    build?.error !== undefined &&
+    isWorkflowStepActiveTimeoutErrorMessage(build.error)
+  );
+}
+
 export async function finalizeBuilderTerminalWorktree(
   input: WorkflowTerminalFinalizerInput,
 ): Promise<void> {
@@ -109,7 +121,8 @@ export async function finalizeBuilderTerminalWorktree(
     const candidate = findRecoveryClaim(input.projectDir, workspace.taskId);
     const retryContinuation =
       input.trigger.event !== BUILDER_RECOVERY_EVENT ||
-      input.agentFailureKind !== undefined;
+      input.agentFailureKind !== undefined ||
+      buildExhaustedActiveRuntime(input.metadata);
     const recoveryRequested =
       !removed &&
       retryContinuation &&
@@ -147,10 +160,7 @@ export async function finalizeBuilderTerminalWorktree(
     if (recoveryRequested && candidate) {
       emitBuilderRecoveryRequest(
         input.emit,
-        builderRecoveryRequestForCandidate(
-          candidate,
-          `terminal builder run ${input.metadata.id} preserved workspace changes`,
-        ),
+        builderRecoveryRequestForCandidate(candidate),
       );
     }
   } catch (error) {

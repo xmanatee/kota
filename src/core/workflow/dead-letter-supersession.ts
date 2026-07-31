@@ -46,6 +46,39 @@ function failedStepId(
   )?.id ?? null;
 }
 
+function payloadString(
+  run: WorkflowRunMetadata,
+  key: string,
+): string | undefined {
+  const value = run.trigger.payload[key];
+  return typeof value === "string" && value.trim().length > 0
+    ? value
+    : undefined;
+}
+
+function runContinuesDeadLetter(
+  item: DeadLetterItem,
+  run: WorkflowRunMetadata,
+): boolean {
+  if (payloadString(run, "redriveOf") === item.id) return true;
+  if (
+    item.source.kind !== "workflow-dispatch" ||
+    item.source.failedRunId === undefined
+  ) {
+    return false;
+  }
+  const failedRunId = item.source.failedRunId;
+  return (
+    run.retryOf === failedRunId ||
+    run.resumedFromRunId === failedRunId ||
+    run.triggeredByRunId === failedRunId ||
+    run.causedBy?.runId === failedRunId ||
+    payloadString(run, "retryOf") === failedRunId ||
+    payloadString(run, "resumedFromRunId") === failedRunId ||
+    payloadString(run, "sourceRunId") === failedRunId
+  );
+}
+
 function supersedingRun(
   item: DeadLetterItem,
   runStore: WorkflowRunStore,
@@ -62,6 +95,7 @@ function supersedingRun(
     if (!Number.isFinite(completedAtMs) || completedAtMs <= failedAtMs) {
       return false;
     }
+    if (!runContinuesDeadLetter(item, run)) return false;
     return stepId === null || run.steps.some(
       (step) => step.id === stepId && step.status === "success",
     );

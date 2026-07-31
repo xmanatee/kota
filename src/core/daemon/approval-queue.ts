@@ -33,7 +33,6 @@ import { deriveDirectoryScopeId } from "./scope-registry.js";
 
 export { defaultApprovalPendingTtlMs } from "./approval-queue-expiration-policy.js";
 export { isApprovalId, projectApprovalForClient } from "./approval-queue-projection.js";
-export { isWorkflowStepApproval, WORKFLOW_STEP_APPROVAL_SOURCE } from "./approval-queue-types.js";
 export type {
 	ApprovalClientProjection,
 	ApprovalExecutionApprovalResult,
@@ -45,6 +44,7 @@ export type {
 	ApprovalToolIoRedaction,
 	PendingApproval,
 } from "./approval-queue-types.js";
+export { isWorkflowStepApproval, WORKFLOW_STEP_APPROVAL_SOURCE } from "./approval-queue-types.js";
 
 export class ApprovalQueue {
 	private pbus: ProjectScopedEventBus | null;

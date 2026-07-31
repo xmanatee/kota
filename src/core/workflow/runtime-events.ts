@@ -5,6 +5,7 @@ import { formatRunId } from "./run-io.js";
 import { maybeStartNext, type WorkflowRuntimeDispatchState } from "./runtime-dispatch.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
+import { hasExplicitWorkflowDispatchKey } from "./workflow-idempotency.js";
 
 export type WorkflowRuntimeEventsState = WorkflowRuntimeDispatchState & {
   eventBatches: WorkflowEventBatchManager;
@@ -24,9 +25,11 @@ export function handleRuntimeEvent(
 
 /**
  * Match an event against the current definitions and prepend matching runs to
- * the queue, evicting any existing entries for the same workflows. Used by the
- * recovery phase so a `runtime.recovered` dispatch jumps the queue ahead of
- * any normal scheduled work.
+ * the queue, evicting replaceable entries for the same workflows. Explicitly
+ * keyed deliveries survive because their accepted idempotency record prevents
+ * a recovery scan from recreating them. Used by the recovery phase so a
+ * `runtime.recovered` dispatch jumps ahead of normal scheduled work without
+ * stranding durable queued work.
  *
  * Returns the number of runs that were queued.
  */
@@ -56,7 +59,11 @@ export function queueMatchingEventFirst(
   const queuedNames = new Set(queued.map((run) => run.workflowName));
   const remaining = state.wfQueue
     .getRuns()
-    .filter((run) => !queuedNames.has(run.workflowName));
+    .filter(
+      (run) =>
+        !queuedNames.has(run.workflowName) ||
+        hasExplicitWorkflowDispatchKey(run.trigger),
+    );
   state.wfQueue.setRuns([
     ...queued.map(({ workflowName, trigger }) => {
       const runId = formatRunId(workflowName);

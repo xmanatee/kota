@@ -1,0 +1,3 @@
+1. A preserved builder continuation that exhausts its active-runtime timeout leaves reviewable work intact and schedules one idempotent continuation request.
+2. Only a successful run linked to the failed builder lineage clears the timeout dead letter, while the successful continuation path releases the claim and cleans the worktree.
+3. Acceptance evidence records the cited lineage with no unresolved claim, no open related dead letter, and the underlying Safety task completed.

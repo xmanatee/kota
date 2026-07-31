@@ -255,4 +255,50 @@ describe("finalizeBuilderTerminalWorktree", () => {
       }),
     );
   });
+
+  it("requests one idempotent continuation after the build exhausts active runtime", async () => {
+    mockPreservedWorktree({
+      claimRunId: "recovery-run",
+      dirtyState: "dirty",
+      blocker: "worktree has uncommitted tracked changes",
+    });
+    const input = continuedFinalizerInput();
+    input.metadata.steps.push({
+      id: "build",
+      type: "agent",
+      status: "failed",
+      startedAt: "2026-07-29T15:21:32.689Z",
+      completedAt: "2026-07-30T00:46:46.634Z",
+      durationMs: 33_913_945,
+      activeDurationMs: 21_600_003,
+      error: 'Step "build" timed out after 21600000ms of active runtime',
+    });
+
+    await finalizeBuilderTerminalWorktree(input);
+
+    expect(input.emit).toHaveBeenCalledTimes(1);
+    expect(input.emit).toHaveBeenCalledWith(
+      "autonomy.builder.recovery.requested",
+      {
+        taskId: "task-one",
+        sourceRunId: "recovery-run",
+        worktreeRunId: "builder-run",
+        workspaceDir: "/tmp/preserved-builder",
+        idempotencyKey: "builder-recovery:recovery-run",
+        reason: "preserved builder work from recovery-run requires recovery",
+      },
+    );
+    expect(
+      JSON.parse(
+        readFileSync(
+          join(input.projectDir, input.metadata.runDir, "terminal-worktree-finalizer.json"),
+          "utf8",
+        ),
+      ),
+    ).toMatchObject({
+      removed: false,
+      blockers: ["worktree has uncommitted tracked changes"],
+      recoveryRequested: true,
+    });
+  });
 });
