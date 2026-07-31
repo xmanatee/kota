@@ -3,7 +3,7 @@ import {
 } from "#core/daemon/approval-execution-descriptor.js";
 import {
 	type ApprovalClientProjection,
-	isWorkflowStepApproval,
+	isWorkflowGateApproval,
 	type PendingApproval,
 	projectApprovalForClient,
 } from "#core/daemon/approval-queue.js";
@@ -12,7 +12,10 @@ import { executeTool, type ToolRunnerContext } from "#core/tools/index.js";
 import { isMcpManagedToolName } from "#core/tools/tool-name-policy.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type { ApprovalExecutionLease } from "./approval-execution-leases.js";
-import type { ApprovalExecutionProjection } from "./client.js";
+import type {
+	ApprovalExecutionProjection,
+	ApprovalResolutionProjection,
+} from "./client.js";
 
 export type { ApprovalExecutionLease } from "./approval-execution-leases.js";
 export {
@@ -121,16 +124,19 @@ export async function approvedApprovalResponse(
 	lease: ApprovalExecutionLease,
 ): Promise<{
 	approval: ApprovalClientProjection;
-	execution?: ApprovalExecutionProjection;
+	resolution: ApprovalResolutionProjection;
 }> {
-	if (isWorkflowStepApproval(item)) {
+	if (isWorkflowGateApproval(item)) {
 		requireApprovedApprovalLease(item, lease);
-		return { approval: projectApprovalForClient(item) };
+		return {
+			approval: projectApprovalForClient(item),
+			resolution: { kind: "workflow_gate_approved" },
+		};
 	}
 	const execution = await executeApprovedTool(item, context, lease);
 	return {
 		approval: projectApprovalForClient(item),
-		execution,
+		resolution: { kind: "tool_execution", execution },
 	};
 }
 
@@ -141,26 +147,39 @@ export async function approveAllResponse(
 ): Promise<{
 	approvals: ApprovalClientProjection[];
 	count: number;
-	executions: Array<{ approvalId: string; execution: ApprovalExecutionProjection }>;
+	resolutions: Array<{
+		approvalId: string;
+		resolution: ApprovalResolutionProjection;
+	}>;
 }> {
 	for (const item of items) {
-		if (isWorkflowStepApproval(item)) {
+		if (isWorkflowGateApproval(item)) {
 			requireApprovedApprovalLease(item, leases.get(item.id));
 		} else {
 			requireApprovedToolExecutionLease(item, leases.get(item.id));
 		}
 	}
-	const executions: Array<{ approvalId: string; execution: ApprovalExecutionProjection }> = [];
+	const resolutions: Array<{
+		approvalId: string;
+		resolution: ApprovalResolutionProjection;
+	}> = [];
 	for (const item of items) {
-		if (isWorkflowStepApproval(item)) continue;
-		executions.push({
-			approvalId: item.id,
-			execution: await executeApprovedTool(item, context, leases.get(item.id)),
-		});
+		resolutions.push(isWorkflowGateApproval(item)
+			? {
+				approvalId: item.id,
+				resolution: { kind: "workflow_gate_approved" },
+			}
+			: {
+				approvalId: item.id,
+				resolution: {
+					kind: "tool_execution",
+					execution: await executeApprovedTool(item, context, leases.get(item.id)),
+				},
+			});
 	}
 	return {
 		approvals: items.map((item) => projectApprovalForClient(item)),
 		count: items.length,
-		executions,
+		resolutions,
 	};
 }

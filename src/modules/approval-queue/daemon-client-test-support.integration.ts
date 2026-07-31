@@ -68,6 +68,7 @@ export function makeApproval(
   return {
     id,
     scopeId: "scope-test",
+    kind: "tool_call",
     tool: "shell",
     input: { redacted: true, reason: "tool-io" },
     review: {

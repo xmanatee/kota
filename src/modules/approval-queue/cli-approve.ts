@@ -1,31 +1,27 @@
 import type { Command } from "commander";
 import {
-	isWorkflowStepApproval,
+	isWorkflowGateApproval,
 	type PendingApproval,
 } from "#core/daemon/approval-queue.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { executeTool } from "#core/tools/index.js";
 import { blank, line, plain, span, stack } from "#modules/rendering/primitives.js";
-import { stripTerminalTextControls } from "#modules/rendering/safe-terminal-text.js";
 import { print } from "#modules/rendering/transport.js";
 import {
-	approvalInputHasRedaction,
 	executionRedactionSuffix,
 	exitApprovalMutationFailure,
 	exitDaemonExecutionFailure,
-	exitRedactedApprovalWithoutExecution,
 	printApprovalError,
 	promptConfirm,
 	renderPendingItem,
 	requireApprovalId,
 	safeApprovalLineText,
 } from "./cli-support.js";
-import type { ApprovalExecutionProjection } from "./client.js";
+import type { ApprovalResolutionProjection } from "./client.js";
 
 export function registerApprovalApproveCommands(command: Command, ctx: ModuleContext): void {
 	command
 		.command("approve <id>")
-		.description("Approve and execute a queued tool call")
+		.description("Approve a queued tool call or workflow gate")
 		.option("-n, --note <text>", "Note to attach with the approval")
 		.action(async (id: string, opts: { note?: string }) => {
 			requireApprovalId(id);
@@ -40,7 +36,7 @@ export function registerApprovalApproveCommands(command: Command, ctx: ModuleCon
 				blank(),
 				renderPendingItem(selected),
 			));
-			const workflowApproval = isWorkflowStepApproval(selected);
+			const workflowApproval = isWorkflowGateApproval(selected);
 			const confirmation = workflowApproval
 				? "Approve this exact workflow gate? [y/N] "
 				: "Approve and execute this exact operation? [y/N] ";
@@ -51,7 +47,7 @@ export function registerApprovalApproveCommands(command: Command, ctx: ModuleCon
 			const mutate = await ctx.client.approvals.approve(id, selected.review.digest, opts.note);
 			if (!mutate.ok) exitApprovalMutationFailure(id, mutate.reason);
 			const item = mutate.approval;
-			if (isWorkflowStepApproval(item)) {
+			if (mutate.resolution.kind === "workflow_gate_approved") {
 				const note = item.approvalNote ? ` — note: ${safeApprovalLineText(item.approvalNote)}` : "";
 				print(line(
 					span("Approved workflow gate ", "success"),
@@ -61,37 +57,22 @@ export function registerApprovalApproveCommands(command: Command, ctx: ModuleCon
 				));
 				return;
 			}
-			if (mutate.execution) {
-				if (mutate.execution.status === "failed") {
-					exitDaemonExecutionFailure(id, item.tool, mutate.execution);
-				}
-				const note = item.approvalNote ? ` — note: ${safeApprovalLineText(item.approvalNote)}` : "";
-				print(line(
-					span("Approved and executed ", "success"),
-					plain(`${safeApprovalLineText(item.tool)} `),
-					span(`[${id}]`, "accent"),
-					plain(`${note}${executionRedactionSuffix(mutate.execution)}`),
-				));
-				return;
-			}
-			if (approvalInputHasRedaction(item.input)) {
-				exitRedactedApprovalWithoutExecution(id, item.tool);
-			}
-			const result = await executeTool(item.tool, item.input);
-			if (result.is_error) {
-				printApprovalError(`Tool execution failed:\n${stripTerminalTextControls(result.content)}`);
-				process.exit(1);
+			const execution = mutate.resolution.execution;
+			if (execution.status === "failed") {
+				exitDaemonExecutionFailure(id, item.tool, execution);
 			}
 			const note = item.approvalNote ? ` — note: ${safeApprovalLineText(item.approvalNote)}` : "";
-			print(stack(
-				line(span("Approved and executed ", "success"), plain(`${safeApprovalLineText(item.tool)}:`)),
-				line(plain(`${stripTerminalTextControls(result.content)}${note}`)),
+			print(line(
+				span("Approved and executed ", "success"),
+				plain(`${safeApprovalLineText(item.tool)} `),
+				span(`[${id}]`, "accent"),
+				plain(`${note}${executionRedactionSuffix(execution)}`),
 			));
 		});
 
 	command
 		.command("approve-all")
-		.description("Approve and execute all pending tool calls")
+		.description("Approve all pending tool calls and workflow gates")
 		.option("-y, --yes", "Skip confirmation prompt")
 		.option("-n, --note <text>", "Note to attach to every approved item")
 		.option("--risk <level>", "Only approve items of this risk level")
@@ -136,7 +117,7 @@ export function registerApprovalApproveCommands(command: Command, ctx: ModuleCon
 					));
 					continue;
 				}
-				const outcome = await executeApprovedItem(mutate.approval, mutate.execution);
+				const outcome = executeApprovedItem(mutate.approval, mutate.resolution);
 				if (outcome) succeeded += 1;
 				else failed += 1;
 			}
@@ -154,12 +135,12 @@ export function registerApprovalApproveCommands(command: Command, ctx: ModuleCon
 		});
 }
 
-async function executeApprovedItem(
+function executeApprovedItem(
 	item: PendingApproval,
-	execution: ApprovalExecutionProjection | undefined,
-): Promise<boolean> {
+	resolution: ApprovalResolutionProjection,
+): boolean {
 	const note = item.approvalNote ? ` — note: ${safeApprovalLineText(item.approvalNote)}` : "";
-	if (isWorkflowStepApproval(item)) {
+	if (resolution.kind === "workflow_gate_approved") {
 		print(line(
 			span("  Approved workflow gate ", "success"),
 			plain(`${safeApprovalLineText(item.tool)} `),
@@ -168,31 +149,10 @@ async function executeApprovedItem(
 		));
 		return true;
 	}
-	if (execution) {
-		if (execution.status === "failed") {
-			printApprovalError(
-				`  Failed [${item.id}] ${safeApprovalLineText(item.tool)}${executionRedactionSuffix(execution)}`,
-			);
-			return false;
-		}
-		print(line(
-			span("  Approved and executed ", "success"),
-			plain(`${safeApprovalLineText(item.tool)} `),
-			span(`[${item.id}]`, "accent"),
-			plain(`${note}${executionRedactionSuffix(execution)}`),
-		));
-		return true;
-	}
-	if (approvalInputHasRedaction(item.input)) {
+	const execution = resolution.execution;
+	if (execution.status === "failed") {
 		printApprovalError(
-			`  Failed [${item.id}] ${safeApprovalLineText(item.tool)}: approved input was redacted and no daemon execution result was provided.`,
-		);
-		return false;
-	}
-	const result = await executeTool(item.tool, item.input);
-	if (result.is_error) {
-		printApprovalError(
-			`  Failed [${item.id}] ${safeApprovalLineText(item.tool)}: ${stripTerminalTextControls(result.content)}`,
+			`  Failed [${item.id}] ${safeApprovalLineText(item.tool)}${executionRedactionSuffix(execution)}`,
 		);
 		return false;
 	}
@@ -200,7 +160,7 @@ async function executeApprovedItem(
 		span("  Approved and executed ", "success"),
 		plain(`${safeApprovalLineText(item.tool)} `),
 		span(`[${item.id}]`, "accent"),
-		plain(note),
+		plain(`${note}${executionRedactionSuffix(execution)}`),
 	));
 	return true;
 }

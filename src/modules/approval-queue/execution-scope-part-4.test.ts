@@ -167,9 +167,13 @@ describe("approval execution project scope", () => {
 
     expect(result.status).toBe(200);
     const body = result.body as {
-      executions: Array<{ execution: { status: string } }>;
+      resolutions: Array<{ resolution: { kind: string; execution: { status: string } } }>;
     };
-    expect(body.executions.every((entry) => entry.execution.status === "succeeded")).toBe(true);
+    expect(body.resolutions.every(
+      (entry) =>
+        entry.resolution.kind === "tool_execution"
+        && entry.resolution.execution.status === "succeeded",
+    )).toBe(true);
     expect(existsSync(
       join(projectB.project.projectDir, ".kota", "modules", "approval-scope-mod", "manifest.json"),
     )).toBe(true);

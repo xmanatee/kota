@@ -184,9 +184,13 @@ describe("approval execution project scope", () => {
 
     expect(result.status).toBe(200);
     const body = result.body as {
-      executions: Array<{ execution: { status: string } }>;
+      resolutions: Array<{ resolution: { kind: string; execution: { status: string } } }>;
     };
-    expect(body.executions.every((entry) => entry.execution.status === "succeeded")).toBe(true);
+    expect(body.resolutions.every(
+      (entry) =>
+        entry.resolution.kind === "tool_execution"
+        && entry.resolution.execution.status === "succeeded",
+    )).toBe(true);
     const outputByTool = new Map(toolOutputs.map((entry) => [entry.tool, entry.content]));
 
     expect(outputByTool.get(TOOL_NAMES.readDocument)).toContain("PROJECT_B_DOCUMENT_MARKER");
@@ -235,9 +239,13 @@ describe("approval execution project scope", () => {
 
     expect(result.status).toBe(200);
     const body = result.body as {
-      executions: Array<{ execution: { status: string } }>;
+      resolutions: Array<{ resolution: { kind: string; execution: { status: string } } }>;
     };
-    expect(body.executions.every((entry) => entry.execution.status === "failed")).toBe(true);
+    expect(body.resolutions.every(
+      (entry) =>
+        entry.resolution.kind === "tool_execution"
+        && entry.resolution.execution.status === "failed",
+    )).toBe(true);
     expect(toolOutputs).toHaveLength(2);
     expect(toolOutputs[0]?.content).toContain("Error: file not found:");
     expect(toolOutputs[0]?.content).not.toContain("Did you mean");

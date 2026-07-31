@@ -3,6 +3,7 @@ import { createApprovalReviewDescriptor } from "./approval-review-descriptor.js"
 
 const approval = {
 	id: "approval-a",
+	kind: "tool_call" as const,
 	tool: "shell",
 	scopeId: "scope-a",
 	risk: "dangerous" as const,
@@ -276,6 +277,7 @@ describe("approval review descriptors", () => {
 
 		for (const changed of [
 			{ ...approval, id: "approval-b" },
+			{ ...approval, kind: "workflow_gate" as const },
 			{ ...approval, tool: "filesystem_write" },
 			{ ...approval, scopeId: "scope-b" },
 			{ ...approval, risk: "moderate" as const },

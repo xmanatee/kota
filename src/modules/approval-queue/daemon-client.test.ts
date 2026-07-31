@@ -25,9 +25,9 @@
  *  6. Every `ApprovalsListResult` payload decodes through `requestStrict<T>`
  *     unchanged — empty approvals plus a multi-entry payload mixing
  *     pending / approved / rejected statuses.
- *  7. Every `ApprovalMutateResult` arm decodes correctly: a `200`
- *     `{ approval }` response collapses into `{ ok: true, approval }` and
- *     a `null` (404) response collapses into
+ *  7. Every approval mutation arm decodes correctly: a `200` approve
+ *     response carries an explicit resolution, a `200` reject response
+ *     carries the updated approval, and a `null` (404) response collapses into
  *     `{ ok: false, reason: "not_found" }`, while a typed 400 invalid-id
  *     response collapses into `{ ok: false, reason: "invalid_id" }`.
  *  8. Removing the approval-queue module's daemonClient contribution
@@ -130,14 +130,21 @@ describe("approval-queue module daemonClient(link)", () => {
 
   it("routes approve(id, note?) through POST /approvals/:id/approve with encodeURIComponent and { note } body", async () => {
     const approval = makeApproval(ENCODING_SENSITIVE_ID, "approved");
-    const { transport, calls } = makeRecordingTransport(() => ({ approval }));
+    const resolution = {
+      kind: "tool_execution" as const,
+      execution: {
+        status: "succeeded" as const,
+        output: { redacted: true as const, reason: "tool-io" as const },
+      },
+    };
+    const { transport, calls } = makeRecordingTransport(() => ({ approval, resolution }));
     const contributed = approvalQueueModule.daemonClient!(transport);
     const result = await contributed.approvals!.approve(
       ENCODING_SENSITIVE_ID,
       "a".repeat(64),
       "looks good",
     );
-    expect(result).toEqual({ ok: true, approval });
+    expect(result).toEqual({ ok: true, approval, resolution });
     expect(calls).toEqual([
       {
         path: `/approvals/${encodeURIComponent(ENCODING_SENSITIVE_ID)}/approve`,
@@ -156,10 +163,17 @@ describe("approval-queue module daemonClient(link)", () => {
 
   it("routes approve(id) without a note as { note: undefined } body", async () => {
     const approval = makeApproval("a-bare", "approved");
-    const { transport, calls } = makeRecordingTransport(() => ({ approval }));
+    const resolution = {
+      kind: "tool_execution" as const,
+      execution: {
+        status: "succeeded" as const,
+        output: { redacted: true as const, reason: "tool-io" as const },
+      },
+    };
+    const { transport, calls } = makeRecordingTransport(() => ({ approval, resolution }));
     const contributed = approvalQueueModule.daemonClient!(transport);
     const result = await contributed.approvals!.approve("a-bare", "a".repeat(64));
-    expect(result).toEqual({ ok: true, approval });
+    expect(result).toEqual({ ok: true, approval, resolution });
     expect(calls).toEqual([
       {
         path: "/approvals/a-bare/approve",
@@ -182,9 +196,32 @@ describe("approval-queue module daemonClient(link)", () => {
       status: "succeeded" as const,
       output: { redacted: true as const, reason: "tool-io" as const, bytes: 12 },
     };
-    const { transport } = makeRecordingTransport(() => ({ approval, execution }));
+    const resolution = { kind: "tool_execution" as const, execution };
+    const { transport } = makeRecordingTransport(() => ({ approval, resolution }));
     const contributed = approvalQueueModule.daemonClient!(transport);
     const result = await contributed.approvals!.approve("a-exec", "a".repeat(64));
-    expect(result).toEqual({ ok: true, approval, execution });
+    expect(result).toEqual({ ok: true, approval, resolution });
+  });
+
+  it("preserves an explicit workflow-gate approval resolution", async () => {
+    const approval = {
+      ...makeApproval("a-gate", "approved"),
+      kind: "workflow_gate" as const,
+    };
+    const resolution = { kind: "workflow_gate_approved" as const };
+    const { transport } = makeRecordingTransport(() => ({ approval, resolution }));
+    const contributed = approvalQueueModule.daemonClient!(transport);
+
+    await expect(contributed.approvals!.approve("a-gate", "a".repeat(64)))
+      .resolves.toEqual({ ok: true, approval, resolution });
+  });
+
+  it("rejects an ambiguous successful approval response", async () => {
+    const approval = makeApproval("a-ambiguous", "approved");
+    const { transport } = makeRecordingTransport(() => ({ approval }));
+    const contributed = approvalQueueModule.daemonClient!(transport);
+
+    await expect(contributed.approvals!.approve("a-ambiguous", "a".repeat(64)))
+      .rejects.toThrow(/invalid approval resolution/);
   });
 });

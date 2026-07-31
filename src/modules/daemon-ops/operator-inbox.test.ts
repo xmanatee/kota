@@ -30,6 +30,7 @@ function approval(overrides: Partial<PendingApproval> = {}): PendingApproval {
   return {
     id: "a1b2c3d4",
     scopeId: "scope-test",
+    kind: "tool_call",
     tool: "shell.exec",
     input: { cmd: "deploy" },
     risk: "dangerous",

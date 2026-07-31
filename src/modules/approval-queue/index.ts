@@ -17,10 +17,11 @@ import {
 } from "#core/server/scope-selector.js";
 import { registerApprovalCommands } from "./cli.js";
 import type {
-	ApprovalExecutionProjection,
+	ApprovalApproveResult,
 	ApprovalListFilter,
-	ApprovalMutateResult,
 	ApprovalProjectScope,
+	ApprovalRejectResult,
+	ApprovalResolutionProjection,
 	ApprovalsClient,
 	ApprovalsListResult,
 } from "./client.js";
@@ -45,7 +46,7 @@ function approvalProjectQuery(project?: ApprovalProjectScope): string {
 const approvalQueueModule: KotaModule = {
 	name: "approval-queue",
 	version: "1.0.0",
-	description: "Approval queue state and operator CLI for tool-call approvals",
+	description: "Approval queue state and operator CLI for tool calls and workflow gates",
 	dependencies: ["rendering"],
 
 	commands: (ctx) => {
@@ -75,11 +76,11 @@ const approvalQueueModule: KotaModule = {
  * `pending` when no query is present, matching the local handler. The two
  * mutations preserve `encodeURIComponent(id)` on the URL boundary; malformed
  * decoded IDs are rejected by the route. A `null` (404) result collapses into
- * `{ ok: false, reason: "not_found" }` to keep `ApprovalMutateResult`
+ * `{ ok: false, reason: "not_found" }` to keep the typed mutation result
  * intact across the daemon-up branch. A 400 invalid-id response stays
- * distinct as `{ ok: false, reason: "invalid_id" }`. A daemon approval can
- * include redacted execution status when the daemon executed the tool before
- * returning.
+ * distinct as `{ ok: false, reason: "invalid_id" }`. Successful approvals
+ * carry a required resolution distinguishing redacted tool execution from a
+ * non-executable workflow-gate approval.
  */
 function buildApprovalsDaemonHandler(link: DaemonTransport): ApprovalsClient {
 	return {
@@ -89,18 +90,20 @@ function buildApprovalsDaemonHandler(link: DaemonTransport): ApprovalsClient {
 				approvalListPath(filter),
 			);
 		},
-		approve: async (id, reviewDigest, note, project): Promise<ApprovalMutateResult> => {
+		approve: async (id, reviewDigest, note, project): Promise<ApprovalApproveResult> => {
 			return mutateApproval(
 				link,
 				`/approvals/${encodeURIComponent(id)}/approve${approvalProjectQuery(project)}`,
 				{ reviewDigest, note },
+				"approve",
 			);
 		},
-		reject: async (id, reason, project): Promise<ApprovalMutateResult> => {
+		reject: async (id, reason, project): Promise<ApprovalRejectResult> => {
 			return mutateApproval(
 				link,
 				`/approvals/${encodeURIComponent(id)}/reject${approvalProjectQuery(project)}`,
 				{ reason },
+				"reject",
 			);
 		},
 	};
@@ -116,7 +119,20 @@ async function mutateApproval(
 	link: DaemonTransport,
 	path: string,
 	body: { reviewDigest: string; note?: string } | { reason?: string },
-): Promise<ApprovalMutateResult> {
+	mutation: "approve",
+): Promise<ApprovalApproveResult>;
+async function mutateApproval(
+	link: DaemonTransport,
+	path: string,
+	body: { reviewDigest: string; note?: string } | { reason?: string },
+	mutation: "reject",
+): Promise<ApprovalRejectResult>;
+async function mutateApproval(
+	link: DaemonTransport,
+	path: string,
+	body: { reviewDigest: string; note?: string } | { reason?: string },
+	mutation: "approve" | "reject",
+): Promise<ApprovalApproveResult | ApprovalRejectResult> {
 	const res = await link.fetchRaw(path, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
@@ -154,14 +170,44 @@ async function mutateApproval(
 		throw new Error(errBody?.error ?? `HTTP ${res.status}`);
 	}
 	const data = (await res.json()) as {
-		approval: PendingApproval;
-		execution?: ApprovalExecutionProjection;
+		approval?: PendingApproval;
+		resolution?: ApprovalResolutionProjection;
 	};
-	return {
-		ok: true,
-		approval: data.approval,
-		...(data.execution !== undefined ? { execution: data.execution } : {}),
-	};
+	if (
+		data.approval === undefined
+		|| (
+			data.approval.kind !== "tool_call"
+			&& data.approval.kind !== "workflow_gate"
+		)
+	) {
+		throw new Error("Daemon returned an invalid approval kind");
+	}
+	if (mutation === "reject") {
+		return { ok: true, approval: data.approval };
+	}
+	if (
+		data.resolution === undefined
+		|| !approvalResolutionMatchesKind(data.approval, data.resolution)
+	) {
+		throw new Error("Daemon returned an invalid approval resolution");
+	}
+	return { ok: true, approval: data.approval, resolution: data.resolution };
+}
+
+function approvalResolutionMatchesKind(
+	approval: PendingApproval,
+	resolution: ApprovalResolutionProjection,
+): boolean {
+	if (approval.kind === "workflow_gate") {
+		return resolution.kind === "workflow_gate_approved";
+	}
+	return resolution.kind === "tool_execution"
+		&& (
+			resolution.execution.status === "succeeded"
+			|| resolution.execution.status === "failed"
+		)
+		&& resolution.execution.output.redacted === true
+		&& resolution.execution.output.reason === "tool-io";
 }
 
 async function readApprovalRouteError(

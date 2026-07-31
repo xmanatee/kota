@@ -138,6 +138,7 @@ function pendingApprovalFromCall(
 	const item: PendingApproval = {
 		id,
 		scopeId: "scope-test",
+		kind: "tool_call",
 		tool,
 		input,
 		risk,

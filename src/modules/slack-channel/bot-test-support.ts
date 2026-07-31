@@ -75,6 +75,7 @@ export function approvalProjection(id = "abc123") {
   return {
     id,
     scopeId: "scope-test",
+    kind: "tool_call" as const,
     tool: "shell",
     input: { redacted: true as const, reason: "tool-io" as const },
     review: {
@@ -148,6 +149,13 @@ export function makeStubClients(): {
       approve: vi.fn(async (id) => ({
         ok: true as const,
         approval: { ...approvalProjection(id), status: "approved" as const },
+        resolution: {
+          kind: "tool_execution" as const,
+          execution: {
+            status: "succeeded" as const,
+            output: { redacted: true as const, reason: "tool-io" as const },
+          },
+        },
       })),
       reject: vi.fn(async (id) => ({
         ok: true as const,

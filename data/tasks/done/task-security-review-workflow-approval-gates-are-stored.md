@@ -1,13 +1,13 @@
 ---
 id: task-security-review-workflow-approval-gates-are-stored
 title: Security review: Workflow approval gates are stored using synthetic workflow-approval/* tool names, but the generic approval endpoint marks them approved and attempts to execute that synthetic name as a tool. Execution is reported as failed while the persisted approval remains approved, so the waiting workflow continues to later side effects despite the operator client reporting failure.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: Workflow approval gates are stored using synthetic workflow-approval/* tool names, but the generic approval endpoint marks them approved and attempts to execute that synthetic name as a tool. Execution is reported as failed while the persisted approval remains approved, so the waiting workflow continues to later side effects despite the operator client reporting failure.
 created_at: 2026-07-30T01:00:20.487Z
-updated_at: 2026-07-30T01:00:20.487Z
+updated_at: 2026-07-31T02:07:50.706Z
 ---
 
 ## Problem
@@ -139,3 +139,10 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true src/modules/approval-queue src/core/daemon/approval-queue.test.ts` — 37 files and 166 tests passed, including redacted gate storage, adversarial gate reclassification, mixed bulk resolution, and a real `WorkflowRuntime` continuation that applies its downstream side effect exactly once.
+- Focused core, workflow, Slack, Telegram, secrets, module-dependency, and strict-type suites — 17 files and 86 tests passed.
+- `NODE_OPTIONS=--conditions=source node_modules/.bin/tsc --noEmit` — passed.
+- `NODE_OPTIONS=--conditions=source node --import tsx src/validate-queue.ts` — passed with the workspace-local Git index required by this linked worktree.

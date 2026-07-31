@@ -206,8 +206,10 @@ describe("secrets module get_secret tool gating", () => {
       cwd: projectDir,
     }, selection.snapshot.descriptor);
 
-    if (response.execution === undefined) throw new Error("get_secret approval was not executed");
-    expect(response.execution.status).toBe("succeeded");
+    if (response.resolution.kind !== "tool_execution") {
+      throw new Error("get_secret approval was not executed");
+    }
+    expect(response.resolution.execution.status).toBe("succeeded");
     expect(process.env[SECRET_NAME]).toBeUndefined();
     expect(sessionEnvironmentForExecution(sessionContext)).toEqual({
       [SECRET_NAME]: SECRET_VALUE,

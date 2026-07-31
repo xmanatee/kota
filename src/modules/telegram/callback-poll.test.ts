@@ -25,14 +25,12 @@ const hang = (): Promise<never> => new Promise(() => {});
 const stubLog = { info: () => {}, warn: vi.fn(), error: () => {}, debug: () => {} };
 const TOKEN = "test-token";
 
-const mockGetExecutionSnapshot = vi.fn();
-const mockApproveForExecution = vi.fn();
+const mockApprove = vi.fn();
 const mockReject = vi.fn();
 
-vi.mock("#modules/approval-queue/index.js", () => ({
-  getApprovalQueue: () => ({
-    getExecutionSnapshot: mockGetExecutionSnapshot,
-    approveForExecution: mockApproveForExecution,
+vi.mock("#modules/approval-queue/local-client.js", () => ({
+  buildLocalApprovalsClient: () => ({
+    approve: mockApprove,
     reject: mockReject,
   }),
 }));
@@ -71,8 +69,7 @@ describe("startCallbackPoll", () => {
   beforeEach(() => {
     resetTelegramPollingOwnersForTests();
     mockedCallTelegramApi.mockReset();
-    mockGetExecutionSnapshot.mockReset();
-    mockApproveForExecution.mockReset();
+    mockApprove.mockReset();
     mockReject.mockReset();
     mockOwnerGet.mockReset();
     mockOwnerAnswer.mockReset();
@@ -127,12 +124,17 @@ describe("startCallbackPoll", () => {
         createdAt: new Date().toISOString(),
         status: "approved" as const,
       };
-      const descriptor = { approvalId: "id1", reviewDigest: "a".repeat(64) };
-      mockGetExecutionSnapshot.mockReturnValue({
+      mockApprove.mockResolvedValue({
         ok: true,
-        snapshot: { descriptor },
+        approval: resolvedItem,
+        resolution: {
+          kind: "tool_execution",
+          execution: {
+            status: "succeeded",
+            output: { redacted: true, reason: "tool-io" },
+          },
+        },
       });
-      mockApproveForExecution.mockReturnValue({ ok: true, approval: resolvedItem });
 
       mockedCallTelegramApi
         .mockReturnValueOnce(
@@ -164,14 +166,15 @@ describe("startCallbackPoll", () => {
       await new Promise((r) => setTimeout(r, 20));
       stop();
 
-      expect(mockApproveForExecution).toHaveBeenCalledWith(
-        descriptor,
+      expect(mockApprove).toHaveBeenCalledWith(
+        "id1",
+        "a".repeat(64),
         undefined,
-        "telegram-inline",
+        { projectId: "test-project" },
       );
       expect(mockedCallTelegramApi).toHaveBeenCalledWith(TOKEN, "answerCallbackQuery", {
         callback_query_id: "cq1",
-        text: "Approved!",
+        text: "Approved and executed!",
       });
       expect(mockedCallTelegramApi).toHaveBeenCalledWith(
         TOKEN,
@@ -191,7 +194,7 @@ describe("startCallbackPoll", () => {
         createdAt: new Date().toISOString(),
         status: "rejected" as const,
       };
-      mockReject.mockReturnValue(resolvedItem);
+      mockReject.mockResolvedValue({ ok: true, approval: resolvedItem });
 
       mockedCallTelegramApi
         .mockReturnValueOnce(
@@ -223,7 +226,11 @@ describe("startCallbackPoll", () => {
       await new Promise((r) => setTimeout(r, 20));
       stop();
 
-      expect(mockReject).toHaveBeenCalledWith("id2", undefined, "telegram-inline");
+      expect(mockReject).toHaveBeenCalledWith(
+        "id2",
+        undefined,
+        { projectId: "test-project" },
+      );
       expect(mockedCallTelegramApi).toHaveBeenCalledWith(TOKEN, "answerCallbackQuery", {
         callback_query_id: "cq2",
         text: "Rejected!",
@@ -241,7 +248,7 @@ describe("startCallbackPoll", () => {
     });
 
     it("answers with alert when approval is already resolved", async () => {
-      mockGetExecutionSnapshot.mockReturnValue({ ok: false, reason: "not_found" });
+      mockApprove.mockResolvedValue({ ok: false, reason: "not_found" });
 
       mockedCallTelegramApi
         .mockReturnValueOnce(

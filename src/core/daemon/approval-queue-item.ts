@@ -1,14 +1,17 @@
 import { randomUUID } from "node:crypto";
 import type { RiskLevel } from "#core/tools/guardrails.js";
 import type { ToolCallInput } from "#core/tools/guardrails-classify.js";
-import type { ApprovalMcpPromptDeclaration, PendingApproval } from "./approval-queue-types.js";
+import type {
+	ApprovalMcpPromptDeclaration,
+	PendingApproval,
+	WorkflowGateApprovalInput,
+} from "./approval-queue-types.js";
 
 let enqueueSequence = 0;
 
-export type PendingApprovalInput = {
+type PendingApprovalInputBase = {
 	scopeId: string;
 	tool: string;
-	input: ToolCallInput;
 	risk: RiskLevel;
 	reason: string;
 	source?: string;
@@ -19,11 +22,27 @@ export type PendingApprovalInput = {
 	mcpPromptDeclaration?: ApprovalMcpPromptDeclaration;
 };
 
+export type PendingToolApprovalInput = PendingApprovalInputBase & {
+	kind: "tool_call";
+	input: ToolCallInput;
+};
+
+export type PendingWorkflowGateApprovalInput = PendingApprovalInputBase & {
+	kind: "workflow_gate";
+	input: WorkflowGateApprovalInput;
+	source: "workflow-step";
+};
+
+export type PendingApprovalInput =
+	| PendingToolApprovalInput
+	| PendingWorkflowGateApprovalInput;
+
 export function createPendingApproval(input: PendingApprovalInput): PendingApproval {
 	return {
 		id: randomUUID().slice(0, 8),
 		seq: enqueueSequence++,
 		scopeId: input.scopeId,
+		kind: input.kind,
 		tool: input.tool,
 		input: input.input,
 		risk: input.risk,

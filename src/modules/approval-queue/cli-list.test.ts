@@ -73,6 +73,7 @@ describe("approval CLI list and direct rejection", () => {
 		const item: PendingApproval = {
 			id: "1234abcd",
 			scopeId: "scope-test",
+			kind: "tool_call",
 			tool: `shell${RIGHT_TO_LEFT_OVERRIDE}`,
 			input: {
 				command: `safe${RIGHT_TO_LEFT_OVERRIDE} --approve all`,

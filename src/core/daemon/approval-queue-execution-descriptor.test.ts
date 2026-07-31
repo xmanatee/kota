@@ -45,6 +45,7 @@ describe("ApprovalQueue execution descriptors", () => {
 		if (!result.ok) throw new Error("expected execution approval");
 		expect(selection.snapshot.descriptor).toMatchObject({
 			approvalId: item.id,
+			kind: "tool_call",
 			tool: "mcp__remote__lookup",
 			scopeId: queue.getScopeId(),
 			sessionId: "session-123",

@@ -30,11 +30,11 @@ export async function handleSlackApprovalAction(
 				: { ok: false as const, reason: "review_mismatch" as const };
 			resultText = !result.ok
 				? `Approval \`${id}\` changed, is unavailable, or was already resolved.`
-				: result.execution?.status === "failed"
+				: result.resolution.kind === "workflow_gate_approved"
+					? `Approved workflow gate: \`${result.approval.tool}\``
+					: result.resolution.execution.status === "failed"
 					? `Approved, but execution failed: \`${result.approval.tool}\``
-					: result.execution?.status === "succeeded"
-						? `Approved and executed: \`${result.approval.tool}\``
-						: `Approved: \`${result.approval.tool}\``;
+					: `Approved and executed: \`${result.approval.tool}\``;
 		} else if (verb === "reject") {
 			const result = await options.approvals.reject(id);
 			resultText = result.ok

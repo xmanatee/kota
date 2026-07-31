@@ -9,6 +9,13 @@ import type {
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "expired";
 
 export const WORKFLOW_STEP_APPROVAL_SOURCE = "workflow-step";
+export const WORKFLOW_GATE_TOOL_PREFIX = "workflow-approval/";
+export type ApprovalKind = "tool_call" | "workflow_gate";
+
+export function usesWorkflowGateIdentity(tool: string, source?: string): boolean {
+	return source === WORKFLOW_STEP_APPROVAL_SOURCE
+		|| tool.startsWith(WORKFLOW_GATE_TOOL_PREFIX);
+}
 
 export type ApprovalToolIoRedaction = {
 	redacted: true;
@@ -23,10 +30,17 @@ export type ApprovalMcpPromptDeclaration = {
 	serverTransportIdentityFingerprint: string;
 };
 
+export type WorkflowGateApprovalInput = {
+	workflowName: string;
+	runId: string;
+	stepId: string;
+};
+
 export type PendingApproval = {
 	id: string;
 	seq?: number;
 	scopeId: string;
+	kind: ApprovalKind;
 	tool: string;
 	input: ToolCallInput;
 	risk: RiskLevel;
@@ -47,10 +61,20 @@ export type PendingApproval = {
 	resolutionSource?: string;
 };
 
-export function isWorkflowStepApproval(
-	approval: Pick<PendingApproval, "source">,
-): boolean {
-	return approval.source === WORKFLOW_STEP_APPROVAL_SOURCE;
+export type PendingToolApproval = PendingApproval & {
+	kind: "tool_call";
+};
+
+export type PendingWorkflowGateApproval = PendingApproval & {
+	kind: "workflow_gate";
+	input: WorkflowGateApprovalInput;
+	source: typeof WORKFLOW_STEP_APPROVAL_SOURCE;
+};
+
+export function isWorkflowGateApproval(
+	approval: PendingApproval,
+): approval is PendingWorkflowGateApproval {
+	return approval.kind === "workflow_gate";
 }
 
 export type ApprovalClientProjection = PendingApproval & {

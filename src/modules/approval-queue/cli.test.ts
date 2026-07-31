@@ -10,6 +10,7 @@ vi.mock("./cli-support.js", async (importOriginal) => {
 });
 
 import {
+	approvePendingForTest,
 	captureOutput,
 	captureStderr,
 	executeTool,
@@ -110,13 +111,16 @@ describe("approval CLI approve", () => {
 		const baseClient = testApprovalsClient();
 		const client: ApprovalsClient = {
 			...baseClient,
-			async approve(id, reviewDigest, note) {
-				const result = await baseClient.approve(id, reviewDigest, note);
-				return result.ok ? {
+			async approve(id, _reviewDigest, note) {
+				const approved = approvePendingForTest(id, note);
+				return approved ? {
 					ok: true,
-					approval: withRedactedAccessToken(result.approval),
-					execution: { status: "succeeded", output: { redacted: true, reason: "tool-io", bytes: 2 } },
-				} : result;
+					approval: withRedactedAccessToken(approved),
+					resolution: {
+						kind: "tool_execution",
+						execution: { status: "succeeded", output: { redacted: true, reason: "tool-io", bytes: 2 } },
+					},
+				} : { ok: false, reason: "not_found" };
 			},
 		};
 		const output = await captureOutput(() => run(makeProgram(client), "approval", "approve", item.id));
@@ -126,13 +130,12 @@ describe("approval CLI approve", () => {
 	});
 
 	it("resolves workflow gates without trying to execute their queue label as a tool", async () => {
-		const item = testQueue.enqueue(
-			"workflow-approval/test-wf/gate",
-			{ workflowName: "test-wf", runId: "run-1", stepId: "gate" },
-			"moderate",
-			"continue the workflow",
-			"workflow-step",
-		);
+		const item = testQueue.enqueueWorkflowGate({
+			workflowName: "test-wf",
+			runId: "run-1",
+			stepId: "gate",
+			reason: "continue the workflow",
+		});
 
 		const output = await captureOutput(() => run(makeProgram(), "approval", "approve", item.id));
 

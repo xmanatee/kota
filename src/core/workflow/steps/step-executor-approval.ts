@@ -1,4 +1,3 @@
-import { WORKFLOW_STEP_APPROVAL_SOURCE } from "#core/daemon/approval-queue.js";
 import type { WorkflowStepContext } from "../run-types.js";
 import type { WorkflowApprovalStep } from "../step-types.js";
 import type { WorkflowStepOutput } from "./step-executor-agent.js";
@@ -31,20 +30,16 @@ export async function executeApprovalStep(
   }
   const reason = step.reason ?? `Workflow step "${step.id}" requires approval to continue`;
 
-  const approval = queue.enqueue(
-    `workflow-approval/${context.workflow.name}/${step.id}`,
-    {
-      workflowName: context.workflow.name,
-      runId: context.workflow.runId,
-      stepId: step.id,
-      reason,
-    },
-    "moderate",
+  const approval = queue.enqueueWorkflowGate({
+    workflowName: context.workflow.name,
+    runId: context.workflow.runId,
+    stepId: step.id,
     reason,
-    WORKFLOW_STEP_APPROVAL_SOURCE,
-    step.timeoutMs,
-    step.defaultResolution,
-  );
+    ...(step.timeoutMs !== undefined && { timeoutMs: step.timeoutMs }),
+    ...(step.defaultResolution !== undefined && {
+      defaultResolution: step.defaultResolution,
+    }),
+  });
 
   let resolved = false;
   try {

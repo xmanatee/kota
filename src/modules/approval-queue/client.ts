@@ -50,22 +50,39 @@ export type ApprovalExecutionProjection = {
   };
 };
 
-/** Result of an approval mutation (`approve`, `reject`). */
-export type ApprovalMutateResult =
+export type ApprovalResolutionProjection =
+  | {
+      kind: "workflow_gate_approved";
+    }
+  | {
+      kind: "tool_execution";
+      execution: ApprovalExecutionProjection;
+    };
+
+type ApprovalMutationFailure = {
+  ok: false;
+  reason:
+    | "invalid_id"
+    | "not_found"
+    | "input_unavailable"
+    | "scope_mismatch"
+    | "review_mismatch";
+};
+
+export type ApprovalApproveResult =
   | {
       ok: true;
       approval: PendingApproval;
-      execution?: ApprovalExecutionProjection;
+      resolution: ApprovalResolutionProjection;
     }
+  | ApprovalMutationFailure;
+
+export type ApprovalRejectResult =
   | {
-      ok: false;
-      reason:
-        | "invalid_id"
-        | "not_found"
-        | "input_unavailable"
-        | "scope_mismatch"
-        | "review_mismatch";
-    };
+      ok: true;
+      approval: PendingApproval;
+    }
+  | ApprovalMutationFailure;
 
 /**
  * Approval-queue operations.
@@ -73,10 +90,10 @@ export type ApprovalMutateResult =
  * `list` reads the queue (filterable by status). `approve` / `reject`
  * mutate a single pending entry; the daemon implementor talks to the
  * running daemon's queue, and the local implementor talks to the
- * in-process queue. Daemon-backed approvals execute in the daemon before
- * returning a redacted projection. Local approvals use the same execution
- * preflight and lease binding before dispatching in-process, so long-lived
- * channels cannot resolve a request without executing the reviewed call.
+ * in-process queue. Executable approvals run in the daemon before returning
+ * a redacted execution projection; workflow gates return an explicit
+ * non-executable resolution. Local approvals use the same preflight and
+ * lease binding, so long-lived channels cannot confuse those outcomes.
  */
 export interface ApprovalsClient {
   list(filter?: ApprovalListFilter): Promise<ApprovalsListResult>;
@@ -85,10 +102,10 @@ export interface ApprovalsClient {
     reviewDigest: string,
     note?: string,
     project?: ApprovalProjectScope,
-  ): Promise<ApprovalMutateResult>;
+  ): Promise<ApprovalApproveResult>;
   reject(
     id: string,
     reason?: string,
     project?: ApprovalProjectScope,
-  ): Promise<ApprovalMutateResult>;
+  ): Promise<ApprovalRejectResult>;
 }

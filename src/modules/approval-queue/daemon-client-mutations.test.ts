@@ -42,8 +42,21 @@ describe("approval-queue daemon client mutations", () => {
 
   it("threads projectId through list and mutations", async () => {
     const approval = makeApproval("a-project", "approved");
-    const { transport, calls } = makeRecordingTransport((_method, _path, _body, shape) =>
-      shape === "requestStrict" ? { approvals: [] } : { approval },
+    const { transport, calls } = makeRecordingTransport((_method, path, _body, shape) =>
+      shape === "requestStrict"
+        ? { approvals: [] }
+        : path.includes("/approve")
+          ? {
+              approval,
+              resolution: {
+                kind: "tool_execution",
+                execution: {
+                  status: "succeeded",
+                  output: { redacted: true, reason: "tool-io" },
+                },
+              },
+            }
+          : { approval },
     );
     const client = approvalQueueModule.daemonClient!(transport).approvals!;
 

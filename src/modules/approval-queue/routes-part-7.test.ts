@@ -206,12 +206,19 @@ describe("approval-routes", () => {
 			const body = result.body as {
 				approvals: Array<{ status: string }>;
 				count: number;
-				executions: Array<{ approvalId: string; execution: { status: string } }>;
+				resolutions: Array<{
+					approvalId: string;
+					resolution: { kind: string; execution: { status: string } };
+				}>;
 			};
 			expect(body.count).toBe(2);
 			expect(body.approvals.every((a) => a.status === "approved")).toBe(true);
-			expect(body.executions).toHaveLength(2);
-			expect(body.executions.every((entry) => entry.execution.status === "succeeded")).toBe(true);
+			expect(body.resolutions).toHaveLength(2);
+			expect(body.resolutions.every(
+				(entry) =>
+					entry.resolution.kind === "tool_execution"
+					&& entry.resolution.execution.status === "succeeded",
+			)).toBe(true);
 			expect(vi.mocked(executeTool)).toHaveBeenCalledTimes(2);
 		});
 

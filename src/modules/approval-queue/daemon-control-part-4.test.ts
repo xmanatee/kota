@@ -257,7 +257,10 @@ describe("approval-queue module daemon-control routes", () => {
       expect(res.status).toBe(200);
       const body = (await res.json()) as {
         approval: { input: Record<string, unknown>; status: string };
-        execution: { status: string; output: { redacted: true; reason: string } };
+        resolution: {
+          kind: string;
+          execution: { status: string; output: { redacted: true; reason: string } };
+        };
       };
       expect(vi.mocked(executeTool)).toHaveBeenCalledWith(
         "shell",
@@ -265,9 +268,12 @@ describe("approval-queue module daemon-control routes", () => {
       );
       expect(body.approval.status).toBe("approved");
       expect(body.approval.input).toMatchObject({ redacted: true, reason: "tool-io" });
-      expect(body.execution).toMatchObject({
-        status: "succeeded",
-        output: { redacted: true, reason: "tool-io" },
+      expect(body.resolution).toMatchObject({
+        kind: "tool_execution",
+        execution: {
+          status: "succeeded",
+          output: { redacted: true, reason: "tool-io" },
+        },
       });
       expect(JSON.stringify(body)).not.toContain("raw-token");
       expect(JSON.stringify(body)).not.toContain("deployed raw-token");

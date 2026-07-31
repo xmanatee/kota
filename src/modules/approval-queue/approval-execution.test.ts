@@ -68,6 +68,32 @@ describe("approval execution lease", () => {
 		await closeApprovalExecutionLeases(preflight.leases.values());
 	});
 
+	it("returns an explicit workflow-gate approval without tool dispatch", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "kota-approval-workflow-gate-"));
+		dirs.push(dir);
+		const queue = new ApprovalQueue(dir);
+		const item = queue.enqueueWorkflowGate({
+			workflowName: "deploy",
+			runId: "run-1",
+			stepId: "confirm",
+			reason: "approve deployment",
+		});
+		const selection = queue.getExecutionSnapshot(item.id);
+		if (!selection.ok) throw new Error("expected execution snapshot");
+		const approved = queue.approveForExecution(selection.snapshot.descriptor);
+		if (!approved.ok) throw new Error("expected approved workflow gate");
+
+		await expect(approvedApprovalResponse(
+			approved.approval,
+			undefined,
+			selection.snapshot.descriptor,
+		)).resolves.toMatchObject({
+			approval: { id: item.id, kind: "workflow_gate" },
+			resolution: { kind: "workflow_gate_approved" },
+		});
+		expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
+	});
+
 	it("rejects MCP declaration drift through the leased manager without name-based redispatch", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "kota-approval-execution-mcp-lease-"));
 		dirs.push(dir);

@@ -132,6 +132,7 @@ export function createDaemonChatClientApprovalResolver(
 
       const approvalBinding: ApprovalReviewBinding = {
         id: approvalId,
+        kind: "tool_call",
         tool: request.toolName,
         scopeId: session.projectId,
         risk: request.risk,

@@ -235,13 +235,22 @@ describe("approval approve-all preflight race", () => {
 			const body = result.body as {
 				approvals: Array<{ id: string; status: string }>;
 				count: number;
-				executions: Array<{ approvalId: string; execution: { status: string } }>;
+				resolutions: Array<{
+					approvalId: string;
+					resolution: { kind: string; execution: { status: string } };
+				}>;
 			};
 			expect(body.count).toBe(1);
 			expect(body.approvals.map((approval) => approval.id)).toEqual([preflighted.id]);
 			expect(body.approvals[0].status).toBe("approved");
-			expect(body.executions).toEqual([
-				{ approvalId: preflighted.id, execution: { status: "succeeded", output: expect.any(Object) } },
+			expect(body.resolutions).toEqual([
+				{
+					approvalId: preflighted.id,
+					resolution: {
+						kind: "tool_execution",
+						execution: { status: "succeeded", output: expect.any(Object) },
+					},
+				},
 			]);
 			expect(queue.get(preflighted.id)?.status).toBe("approved");
 			expect(queue.get(queuedDuringPreflight.id)?.status).toBe("pending");

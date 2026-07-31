@@ -7,6 +7,7 @@ import {
 	type ApprovalClientProjection,
 	ApprovalQueue,
 	defaultApprovalPendingTtlMs,
+	isWorkflowGateApproval,
 	type PendingApproval,
 	projectApprovalForClient,
 	resetApprovalQueue,
@@ -80,7 +81,32 @@ export function testApprovalsClient(): ApprovalsClient {
 			}
 			const result = testQueue.approveForExecution(selection.snapshot.descriptor, note);
 			const item = result.ok ? result.approval : null;
-			return item ? { ok: true, approval: item } : { ok: false, reason: "not_found" };
+			if (!item) return { ok: false, reason: "not_found" };
+			if (isWorkflowGateApproval(item)) {
+				return {
+					ok: true,
+					approval: item,
+					resolution: { kind: "workflow_gate_approved" },
+				};
+			}
+			const execution = await executeTool(item.tool, item.input);
+			return {
+				ok: true,
+				approval: item,
+				resolution: {
+					kind: "tool_execution",
+					execution: {
+						status: "is_error" in execution && execution.is_error
+							? "failed"
+							: "succeeded",
+						output: {
+							redacted: true,
+							reason: "tool-io",
+							bytes: Buffer.byteLength(execution.content, "utf8"),
+						},
+					},
+				},
+			};
 		},
 		async reject(id, reason) {
 			const item = testQueue.reject(id, reason);

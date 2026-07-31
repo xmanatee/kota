@@ -19,9 +19,10 @@ import {
 	withApprovalExecutionLeases,
 } from "./approval-execution.js";
 import type {
+	ApprovalApproveResult,
 	ApprovalListFilter,
-	ApprovalMutateResult,
 	ApprovalProjectScope,
+	ApprovalRejectResult,
 	ApprovalsClient,
 } from "./client.js";
 
@@ -68,7 +69,7 @@ function listLocalApprovals(filter?: ApprovalListFilter) {
 
 function failedApprovalMutation(
 	reason: "not_found" | "input_unavailable" | "scope_mismatch" | "descriptor_mismatch",
-): ApprovalMutateResult {
+): ApprovalApproveResult | ApprovalRejectResult {
 	return {
 		ok: false,
 		reason: reason === "descriptor_mismatch" ? "review_mismatch" : reason,
@@ -80,11 +81,11 @@ async function approveLocalApproval(
 	reviewDigest: string,
 	note?: string,
 	project?: ApprovalProjectScope,
-): Promise<ApprovalMutateResult> {
+): Promise<ApprovalApproveResult> {
 	if (!isApprovalId(id)) return { ok: false, reason: "invalid_id" };
 	const { queue, executionContext } = resolveLocalApprovalTarget(project);
 	const selection = queue.getExecutionSnapshot(id);
-	if (!selection.ok) return failedApprovalMutation(selection.reason);
+	if (!selection.ok) return failedApprovalMutation(selection.reason) as ApprovalApproveResult;
 	if (selection.snapshot.descriptor.reviewDigest !== reviewDigest) {
 		return { ok: false, reason: "review_mismatch" };
 	}
@@ -98,7 +99,9 @@ async function approveLocalApproval(
 		const lease = preflight.leases.get(id);
 		if (lease === undefined) return { ok: false, reason: "review_mismatch" };
 		const result = queue.approveForExecution(lease, note);
-		if (!result.ok) return failedApprovalMutation(result.reason);
+		if (!result.ok) {
+			return failedApprovalMutation(result.reason) as ApprovalApproveResult;
+		}
 		try {
 			return {
 				ok: true,

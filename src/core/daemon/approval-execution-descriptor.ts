@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type {
+	ApprovalKind,
 	ApprovalMcpPromptDeclaration,
 	PendingApproval,
 } from "./approval-queue.js";
@@ -7,6 +8,7 @@ import { createApprovalReviewDescriptor } from "./approval-review-descriptor.js"
 
 export type ApprovalExecutionDescriptor = {
 	approvalId: string;
+	kind: ApprovalKind;
 	tool: string;
 	scopeId: string;
 	sessionId?: string;
@@ -41,6 +43,7 @@ export function createApprovalExecutionDescriptor(
 ): ApprovalExecutionDescriptor {
 	return {
 		approvalId: approval.id,
+		kind: approval.kind,
 		tool: approval.tool,
 		scopeId: approval.scopeId,
 		...(approval.sessionId !== undefined ? { sessionId: approval.sessionId } : {}),
@@ -61,6 +64,7 @@ function approvalFieldsMatchDescriptor(
 ): boolean {
 	return (
 		approval.id === descriptor.approvalId
+		&& approval.kind === descriptor.kind
 		&& approval.tool === descriptor.tool
 		&& approval.scopeId === descriptor.scopeId
 		&& approval.sessionId === descriptor.sessionId

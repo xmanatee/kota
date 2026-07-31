@@ -87,7 +87,10 @@ describe("approval-queue local client execution", () => {
 		expect(result).toMatchObject({
 			ok: true,
 			approval: { id: pending.id, status: "approved" },
-			execution: { status: "succeeded", output: { redacted: true, reason: "tool-io" } },
+			resolution: {
+				kind: "tool_execution",
+				execution: { status: "succeeded", output: { redacted: true, reason: "tool-io" } },
+			},
 		});
 		expect(run).toHaveBeenCalledWith(
 			{ operation: "deploy", accessToken: "raw-secret" },

@@ -16,16 +16,22 @@ import {
 	DEFAULT_APPROVAL_PENDING_TTL_MS,
 	expireApproval,
 } from "./approval-queue-expiration-policy.js";
-import { createPendingApproval } from "./approval-queue-item.js";
+import {
+	createPendingApproval,
+	type PendingApprovalInput,
+} from "./approval-queue-item.js";
 import { projectApprovalForClient } from "./approval-queue-projection.js";
-import type {
-	ApprovalClientProjection,
-	ApprovalExecutionApprovalResult,
-	ApprovalExecutionApproveAllResult,
-	ApprovalExecutionSnapshotResult,
-	ApprovalMcpPromptDeclaration,
-	ApprovalStatus,
-	PendingApproval,
+import {
+	type ApprovalClientProjection,
+	type ApprovalExecutionApprovalResult,
+	type ApprovalExecutionApproveAllResult,
+	type ApprovalExecutionSnapshotResult,
+	type ApprovalMcpPromptDeclaration,
+	type ApprovalStatus,
+	type PendingApproval,
+	type PendingWorkflowGateApproval,
+	usesWorkflowGateIdentity,
+	type WorkflowGateApprovalInput,
 } from "./approval-queue-types.js";
 import { ApprovalRecordRepository } from "./approval-record-repository.js";
 import { type ApprovalFileIdentity, ApprovalRecordStorage } from "./approval-record-storage.js";
@@ -39,12 +45,22 @@ export type {
 	ApprovalExecutionApproveAllResult,
 	ApprovalExecutionSnapshot,
 	ApprovalExecutionSnapshotResult,
+	ApprovalKind,
 	ApprovalMcpPromptDeclaration,
 	ApprovalStatus,
 	ApprovalToolIoRedaction,
 	PendingApproval,
+	PendingToolApproval,
+	PendingWorkflowGateApproval,
+	WorkflowGateApprovalInput,
 } from "./approval-queue-types.js";
-export { isWorkflowStepApproval, WORKFLOW_STEP_APPROVAL_SOURCE } from "./approval-queue-types.js";
+export { isWorkflowGateApproval, WORKFLOW_STEP_APPROVAL_SOURCE } from "./approval-queue-types.js";
+
+export type WorkflowGateApprovalRequest = WorkflowGateApprovalInput & {
+	reason: string;
+	timeoutMs?: number;
+	defaultResolution?: "deny" | "approve";
+};
 
 export class ApprovalQueue {
 	private pbus: ProjectScopedEventBus | null;
@@ -87,11 +103,16 @@ export class ApprovalQueue {
 		sessionId?: string,
 		mcpPromptDeclaration?: ApprovalMcpPromptDeclaration,
 	): PendingApproval {
-		const executionInput = cloneEvidenceJsonObject(input);
-		const item = createPendingApproval({
+		if (usesWorkflowGateIdentity(tool, source)) {
+			throw new Error(
+				"Workflow gate approval identities must be enqueued with enqueueWorkflowGate",
+			);
+		}
+		return this.enqueueItem({
+			kind: "tool_call",
 			scopeId: this.scopeId,
 			tool,
-			input: executionInput,
+			input,
 			risk,
 			reason,
 			source,
@@ -101,8 +122,39 @@ export class ApprovalQueue {
 			sessionId,
 			mcpPromptDeclaration,
 		});
+	}
+
+	enqueueWorkflowGate(
+		request: WorkflowGateApprovalRequest,
+	): PendingWorkflowGateApproval {
+		const input: WorkflowGateApprovalInput = {
+			workflowName: request.workflowName,
+			runId: request.runId,
+			stepId: request.stepId,
+		};
+		return this.enqueueItem({
+			kind: "workflow_gate",
+			scopeId: this.scopeId,
+			tool: `workflow-approval/${request.workflowName}/${request.stepId}`,
+			input,
+			risk: "moderate",
+			reason: request.reason,
+			source: "workflow-step",
+			timeoutMs: request.timeoutMs,
+			defaultResolution: request.defaultResolution,
+		}) as PendingWorkflowGateApproval;
+	}
+
+	private enqueueItem(input: PendingApprovalInput): PendingApproval {
+		const item = input.kind === "workflow_gate"
+			? createPendingApproval({ ...input, input: { ...input.input } })
+			: createPendingApproval({
+				...input,
+				input: cloneEvidenceJsonObject(input.input),
+			});
+		const executionInput = item.input;
 		this.executionInputs.set(item.id, executionInput);
-		if (context !== undefined) this.reviewContexts.set(item.id, context);
+		if (input.context !== undefined) this.reviewContexts.set(item.id, input.context);
 		let stored: PendingApproval;
 		try {
 			stored = this.records.write(item, null);
@@ -111,7 +163,7 @@ export class ApprovalQueue {
 			this.reviewContexts.delete(item.id);
 			throw error;
 		}
-		emitApprovalRequested(this.pbus, stored, sessionId, this.count("pending"));
+		emitApprovalRequested(this.pbus, stored, input.sessionId, this.count("pending"));
 		return stored;
 	}
 

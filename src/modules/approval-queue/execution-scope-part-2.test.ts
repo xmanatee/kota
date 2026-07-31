@@ -255,9 +255,13 @@ describe("approval execution project scope", () => {
 
     expect(result.status).toBe(200);
     const body = result.body as {
-      executions: Array<{ execution: { status: string } }>;
+      resolutions: Array<{ resolution: { kind: string; execution: { status: string } } }>;
     };
-    expect(body.executions.every((entry) => entry.execution.status === "succeeded")).toBe(true);
+    expect(body.resolutions.every(
+      (entry) =>
+        entry.resolution.kind === "tool_execution"
+        && entry.resolution.execution.status === "succeeded",
+    )).toBe(true);
     const outputs = toolOutputs.map((entry) => entry.content);
 
     expect(outputs[0]).toContain("PROJECT_B_READ_MARKER");

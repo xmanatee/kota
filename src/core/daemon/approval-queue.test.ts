@@ -41,12 +41,118 @@ describe("ApprovalQueue", () => {
 	it("enqueues and retrieves an item", () => {
 		const item = queue.enqueue("shell", { command: "rm -rf /tmp" }, "dangerous", "destructive command");
 		expect(item.id).toHaveLength(8);
+		expect(item.kind).toBe("tool_call");
 		expect(item.tool).toBe("shell");
 		expect(item.status).toBe("pending");
 		expect(item.risk).toBe("dangerous");
 
 		const retrieved = queue.get(item.id);
 		expect(retrieved).toEqual(item);
+	});
+
+	it("stores workflow gates as a distinct non-executable approval kind", () => {
+		const item = queue.enqueueWorkflowGate({
+			workflowName: "deploy",
+			runId: "run-1",
+			stepId: "confirm",
+			reason: "approve deployment",
+		});
+
+		expect(item).toMatchObject({
+			kind: "workflow_gate",
+			tool: "workflow-approval/deploy/confirm",
+			input: {
+				workflowName: "deploy",
+				runId: "run-1",
+				stepId: "confirm",
+			},
+		});
+		expect(item.input).not.toHaveProperty("reason");
+		expect(queue.get(item.id)).toEqual(item);
+
+		const restarted = new ApprovalQueue(dir);
+		const selection = restarted.getExecutionSnapshot(item.id);
+		expect(selection.ok).toBe(true);
+	});
+
+	it("redacts workflow-gate reasons without duplicating them into stored input", () => {
+		const secretToken = "gate-secret-value";
+		const ownerEmail = "owner@example.test";
+		const item = queue.enqueueWorkflowGate({
+			workflowName: "deploy",
+			runId: "run-1",
+			stepId: "confirm",
+			reason: `deploy with token=${secretToken} for ${ownerEmail}`,
+		});
+		const storedText = readFileSync(join(dir, `${item.id}.json`), "utf8");
+		const stored = JSON.parse(storedText) as PendingApproval;
+
+		expect(stored.reason).toBe("deploy with token=[redacted] for [redacted]");
+		expect(stored.input).toEqual({
+			workflowName: "deploy",
+			runId: "run-1",
+			stepId: "confirm",
+		});
+		expect(storedText).not.toContain(secretToken);
+		expect(storedText).not.toContain(ownerEmail);
+
+		writeFileSync(
+			join(dir, `${item.id}.json`),
+			JSON.stringify({
+				...stored,
+				input: {
+					...stored.input,
+					reason: `token=${secretToken} for ${ownerEmail}`,
+				},
+			}),
+		);
+		expect(() => queue.get(item.id)).toThrow(/invalid workflow gate/);
+	});
+
+	it("rejects stored approval records without a validated kind", () => {
+		writeFileSync(join(dir, "deadbeef.json"), JSON.stringify({
+			id: "deadbeef",
+			scopeId: queue.getScopeId(),
+			tool: "shell",
+			input: { redacted: true, reason: "tool-io" },
+			risk: "moderate",
+			reason: "invalid record",
+			createdAt: new Date().toISOString(),
+			status: "pending",
+		}));
+
+		expect(() => queue.get("deadbeef")).toThrow(/invalid approval kind/);
+	});
+
+	it("rejects a stored workflow gate reclassified as an executable tool call", () => {
+		const item = queue.enqueueWorkflowGate({
+			workflowName: "deploy",
+			runId: "run-1",
+			stepId: "confirm",
+			reason: "approve deployment",
+		});
+		const path = join(dir, `${item.id}.json`);
+		const stored = JSON.parse(readFileSync(path, "utf8")) as PendingApproval;
+
+		writeFileSync(path, JSON.stringify({ ...stored, kind: "tool_call" }));
+
+		expect(() => queue.get(item.id)).toThrow(/invalid tool-call approval identity/);
+	});
+
+	it("reserves workflow-gate source and tool identities for workflow gates", () => {
+		expect(() => queue.enqueue(
+			"shell",
+			{ command: "deploy" },
+			"moderate",
+			"invalid source",
+			"workflow-step",
+		)).toThrow(/must be enqueued with enqueueWorkflowGate/);
+		expect(() => queue.enqueue(
+			"workflow-approval/deploy/confirm",
+			{ command: "deploy" },
+			"moderate",
+			"invalid tool identity",
+		)).toThrow(/must be enqueued with enqueueWorkflowGate/);
 	});
 
 	it("returns null for valid but nonexistent ids", () => {

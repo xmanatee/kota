@@ -12,9 +12,11 @@ import {
 	redactApprovalCredentialText,
 } from "#core/tools/approval-redaction.js";
 import type { RiskLevel } from "#core/tools/guardrails.js";
+import type { ApprovalKind } from "./approval-queue-types.js";
 
 export type ApprovalReviewBinding = {
 	id: string;
+	kind: ApprovalKind;
 	tool: string;
 	scopeId: string;
 	risk: RiskLevel;
@@ -149,6 +151,7 @@ export function createApprovalReviewDescriptor(
 	const digestPayload = {
 		approval: {
 			id: approval.id,
+			kind: approval.kind,
 			tool: approval.tool,
 			scopeId: approval.scopeId,
 			risk: approval.risk,

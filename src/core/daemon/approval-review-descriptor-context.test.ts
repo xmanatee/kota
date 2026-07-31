@@ -3,6 +3,7 @@ import { createApprovalReviewDescriptor } from "./approval-review-descriptor.js"
 
 const approval = {
 	id: "approval-context",
+	kind: "tool_call" as const,
 	tool: "shell",
 	scopeId: "scope-a",
 	risk: "dangerous" as const,

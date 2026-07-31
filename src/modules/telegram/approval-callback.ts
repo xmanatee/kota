@@ -1,7 +1,10 @@
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { KotaClient } from "#core/server/kota-client.js";
-import type { ApprovalMutateResult } from "#modules/approval-queue/client.js";
-import { getApprovalQueue } from "#modules/approval-queue/index.js";
+import type {
+	ApprovalApproveResult,
+	ApprovalRejectResult,
+} from "#modules/approval-queue/client.js";
+import { buildLocalApprovalsClient } from "#modules/approval-queue/local-client.js";
 import {
 	callTelegramApi,
 	type TelegramApiBody,
@@ -76,7 +79,7 @@ export async function handleApprovalCallback(
 		? action === "approve"
 			? await client.forProject(info.projectId).approvals.approve(approvalId, info.reviewDigest)
 			: await client.forProject(info.projectId).approvals.reject(approvalId)
-		: resolveLocalApproval(action, approvalId, info);
+		: await resolveLocalApproval(action, approvalId, info);
 
 	if (!mutate.ok) {
 		pending.delete(pendingKey);
@@ -85,7 +88,13 @@ export async function handleApprovalCallback(
 	}
 	pending.delete(pendingKey);
 
-	const execution = "execution" in mutate ? mutate.execution : undefined;
+	const resolution = action === "approve"
+		? (mutate as Extract<ApprovalApproveResult, { ok: true }>).resolution
+		: undefined;
+	const execution = resolution?.kind === "tool_execution"
+		? resolution.execution
+		: undefined;
+	const workflowGateApproved = resolution?.kind === "workflow_gate_approved";
 	const executionFailed = action === "approve"
 		&& execution?.status === "failed";
 	const executionSucceeded = action === "approve"
@@ -94,6 +103,8 @@ export async function handleApprovalCallback(
 		? "❌ Rejected"
 		: executionFailed
 			? "⚠️ Approved; execution failed"
+			: workflowGateApproved
+				? "✅ Workflow gate approved"
 			: executionSucceeded
 				? "✅ Approved and executed"
 				: "✅ Approved";
@@ -103,6 +114,8 @@ export async function handleApprovalCallback(
 			? "Rejected!"
 			: executionFailed
 				? "Approved, but execution failed."
+				: workflowGateApproved
+					? "Workflow gate approved!"
 				: executionSucceeded
 					? "Approved and executed!"
 					: "Approved!",
@@ -150,34 +163,23 @@ async function sendCallbackUpdate(
 	}
 }
 
-function resolveLocalApproval(
+async function resolveLocalApproval(
 	action: ApprovalCallbackAction,
 	approvalId: string,
 	info: PendingApprovalMessage,
-): ApprovalMutateResult {
-	const queue = getApprovalQueue();
+): Promise<ApprovalApproveResult | ApprovalRejectResult> {
+	const approvals = buildLocalApprovalsClient();
 	if (action === "reject") {
-		const approval = queue.reject(approvalId, undefined, "telegram-inline");
-		return approval
-			? { ok: true as const, approval }
-			: { ok: false as const, reason: "not_found" as const };
+		return approvals.reject(
+			approvalId,
+			undefined,
+			{ projectId: info.projectId },
+		);
 	}
-	const selection = queue.getExecutionSnapshot(approvalId);
-	if (!selection.ok || selection.snapshot.descriptor.reviewDigest !== info.reviewDigest) {
-		return { ok: false as const, reason: "not_found" as const };
-	}
-	const result = queue.approveForExecution(
-		selection.snapshot.descriptor,
+	return approvals.approve(
+		approvalId,
+		info.reviewDigest,
 		undefined,
-		"telegram-inline",
+		{ projectId: info.projectId },
 	);
-	if (!result.ok) {
-		return {
-			ok: false,
-			reason: result.reason === "descriptor_mismatch"
-				? "review_mismatch"
-				: result.reason,
-		};
-	}
-	return result;
 }

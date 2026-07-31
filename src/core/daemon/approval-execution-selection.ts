@@ -3,7 +3,11 @@ import {
 	createApprovalExecutionDescriptor,
 	pendingApprovalMatchesExecutionDescriptor,
 } from "./approval-execution-descriptor.js";
-import type { ApprovalExecutionSnapshot, PendingApproval } from "./approval-queue-types.js";
+import {
+	type ApprovalExecutionSnapshot,
+	isWorkflowGateApproval,
+	type PendingApproval,
+} from "./approval-queue-types.js";
 import type { ApprovalRecordRepository } from "./approval-record-repository.js";
 import type { ApprovalFileIdentity } from "./approval-record-storage.js";
 
@@ -41,7 +45,8 @@ export function selectApprovalForExecution(
 	if (stored.item.scopeId !== scopeId) {
 		return { ok: false, reason: "scope_mismatch", approval: stored.item };
 	}
-	const executionInput = executionInputs.get(id);
+	const executionInput = executionInputs.get(id)
+		?? (isWorkflowGateApproval(stored.item) ? stored.item.input : undefined);
 	if (executionInput === undefined) {
 		return { ok: false, reason: "input_unavailable", approval: stored.item };
 	}

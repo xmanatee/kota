@@ -1,6 +1,10 @@
 import { join } from "node:path";
 import { approvalFilePath, projectApprovalForStorage } from "./approval-queue-projection.js";
-import type { ApprovalStatus, PendingApproval } from "./approval-queue-types.js";
+import {
+	type ApprovalStatus,
+	type PendingApproval,
+	usesWorkflowGateIdentity,
+} from "./approval-queue-types.js";
 import type {
 	ApprovalFileIdentity,
 	ApprovalRecordSnapshot,
@@ -62,6 +66,41 @@ export class ApprovalRecordRepository {
 		}
 		if (typeof item.scopeId !== "string" || item.scopeId.length === 0) {
 			throw new Error(`Malformed approval record at ${path}: missing scopeId`);
+		}
+		if (item.kind !== "tool_call" && item.kind !== "workflow_gate") {
+			throw new Error(`Malformed approval record at ${path}: invalid approval kind`);
+		}
+		if (
+			item.kind === "tool_call"
+			&& usesWorkflowGateIdentity(item.tool, item.source)
+		) {
+			throw new Error(
+				`Malformed approval record at ${path}: invalid tool-call approval identity`,
+			);
+		}
+		if (item.kind === "workflow_gate") {
+			const input = item.input;
+			const inputKeys = typeof input === "object"
+				&& input !== null
+				&& !Array.isArray(input)
+				? Object.keys(input)
+				: [];
+			if (
+				item.source !== "workflow-step"
+				|| item.mcpPromptDeclaration !== undefined
+				|| inputKeys.length !== 3
+				|| !inputKeys.every((key) =>
+					key === "workflowName" || key === "runId" || key === "stepId")
+				|| typeof input.workflowName !== "string"
+				|| input.workflowName.length === 0
+				|| typeof input.runId !== "string"
+				|| input.runId.length === 0
+				|| typeof input.stepId !== "string"
+				|| input.stepId.length === 0
+				|| item.tool !== `workflow-approval/${input.workflowName}/${input.stepId}`
+			) {
+				throw new Error(`Malformed approval record at ${path}: invalid workflow gate`);
+			}
 		}
 		return projectApprovalForStorage(item);
 	}

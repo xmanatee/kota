@@ -266,7 +266,10 @@ describe("approval route MCP execution", () => {
 			expect(result.status).toBe(200);
 			expect(result.body).toMatchObject({
 				approval: { id: item.id, status: "approved" },
-				execution: { status: "succeeded" },
+				resolution: {
+					kind: "tool_execution",
+					execution: { status: "succeeded" },
+				},
 			});
 			expect(queue.get(item.id)?.status).toBe("approved");
 			expect(vi.mocked(executeTool)).not.toHaveBeenCalled();

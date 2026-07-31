@@ -57,9 +57,12 @@ describe("SlackBot", () => {
       const mockApprove = vi.fn(async (id) => ({
         ok: true as const,
         approval: { ...approvalProjection(id), status: "approved" as const },
-        execution: {
-          status: "succeeded" as const,
-          output: { redacted: true as const, reason: "tool-io" as const },
+        resolution: {
+          kind: "tool_execution" as const,
+          execution: {
+            status: "succeeded" as const,
+            output: { redacted: true as const, reason: "tool-io" as const },
+          },
         },
       }));
       const bot = makeBot({
@@ -110,9 +113,12 @@ describe("SlackBot", () => {
       const mockApprove = vi.fn(async (id) => ({
         ok: true as const,
         approval: { ...approvalProjection(id), status: "approved" as const },
-        execution: {
-          status: "failed" as const,
-          output: { redacted: true as const, reason: "tool-io" as const },
+        resolution: {
+          kind: "tool_execution" as const,
+          execution: {
+            status: "failed" as const,
+            output: { redacted: true as const, reason: "tool-io" as const },
+          },
         },
       }));
       const bot = makeBot({

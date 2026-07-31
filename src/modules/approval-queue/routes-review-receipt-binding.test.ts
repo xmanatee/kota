@@ -1,9 +1,12 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApprovalQueue } from "#core/daemon/approval-queue.js";
+import { EventBus } from "#core/events/event-bus.js";
 import { executeTool } from "#core/tools/index.js";
+import { WorkflowRuntime } from "#core/workflow/runtime.js";
 import { executeApprovalStep } from "#core/workflow/steps/step-executor-approval.js";
 import { handleApproveAllApprovals, handleApproveApproval } from "./routes.js";
 
@@ -15,6 +18,36 @@ function makeQueue(): ApprovalQueue {
 	const dir = mkdtempSync(`${tmpdir()}/kota-approval-receipt-binding-`);
 	queueDirs.push(dir);
 	return new ApprovalQueue(dir);
+}
+
+function makeRuntimeQueue(): {
+	projectDir: string;
+	queue: ApprovalQueue;
+} {
+	const projectDir = mkdtempSync(`${tmpdir()}/kota-approval-workflow-route-`);
+	queueDirs.push(projectDir);
+	return {
+		projectDir,
+		queue: new ApprovalQueue(join(projectDir, ".kota", "approvals")),
+	};
+}
+
+function wait(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitUntil(
+	predicate: () => boolean,
+	message: string,
+	timeoutMs = 7_000,
+): Promise<void> {
+	const deadline = Date.now() + timeoutMs;
+	while (Date.now() < deadline) {
+		if (predicate()) return;
+		await wait(10);
+	}
+	if (predicate()) return;
+	throw new Error(message);
 }
 
 function mockRequestBody(body: Record<string, unknown>): IncomingMessage {
@@ -121,17 +154,41 @@ describe("approval review receipt binding", () => {
 	});
 
 	it("resolves a workflow approval through the operator route without dispatching a pseudo-tool", async () => {
-		vi.useFakeTimers();
-		try {
-			const queue = makeQueue();
-			const stepPromise = executeApprovalStep(
-				{ id: "gate", type: "approval" },
+		const { projectDir, queue } = makeRuntimeQueue();
+		let downstreamEffects = 0;
+		const runtime = new WorkflowRuntime({
+			bus: new EventBus(),
+			projectDir,
+			approvalQueue: queue,
+			idleIntervalMs: 60_000,
+			workflows: [
 				{
-					workflow: { name: "test-wf", runId: "run-1" },
-					approvalQueue: queue,
-					emit: vi.fn(),
-				} as never,
-				new AbortController().signal,
+					name: "route-gated-workflow",
+					definitionPath: "src/modules/approval-queue/routes-review-receipt-binding.test.ts",
+					moduleRoot: process.cwd(),
+					triggers: [{ event: "manual", cooldownMs: 0 }],
+					steps: [
+						{ id: "gate", type: "approval" },
+						{
+							id: "downstream-effect",
+							type: "code",
+							run: () => {
+								downstreamEffects += 1;
+								return { applied: true };
+							},
+						},
+					],
+				},
+			],
+		});
+		runtime.start();
+		try {
+			const dispatch = runtime.enqueuePendingRun("route-gated-workflow");
+			expect(dispatch.ok).toBe(true);
+			if (dispatch.runId === undefined) throw new Error("Expected workflow run id");
+			await waitUntil(
+				() => queue.list("pending").length === 1,
+				"Timed out waiting for workflow approval gate",
 			);
 			const [pending] = queue.list("pending");
 			const { res, result } = mockResponse();
@@ -143,17 +200,37 @@ describe("approval review receipt binding", () => {
 				null,
 				queue,
 			);
-			await vi.advanceTimersByTimeAsync(2_000);
+			await waitUntil(
+				() => (
+					downstreamEffects === 1
+					&& !runtime.isBusy()
+					&& runtime.getState().workflows["route-gated-workflow"]
+						?.lastCompletion?.runId === dispatch.runId
+				),
+				"Timed out waiting for the gated workflow to complete",
+			);
 
 			expect(result.status).toBe(200);
 			expect(result.body).toMatchObject({
-				approval: { id: pending.id, status: "approved", source: "workflow-step" },
+				approval: {
+					id: pending.id,
+					kind: "workflow_gate",
+					status: "approved",
+				},
+				resolution: { kind: "workflow_gate_approved" },
 			});
 			expect(result.body).not.toHaveProperty("execution");
-			await expect(stepPromise).resolves.toMatchObject({ approved: true });
+			expect(
+				runtime.getState().workflows["route-gated-workflow"]?.lastCompletion,
+			).toMatchObject({
+				runId: dispatch.runId,
+				status: "success",
+			});
+			await wait(100);
+			expect(downstreamEffects).toBe(1);
 			expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
 		} finally {
-			vi.useRealTimers();
+			await runtime.stop();
 		}
 	});
 
@@ -170,6 +247,10 @@ describe("approval review receipt binding", () => {
 				} as never,
 				new AbortController().signal,
 			);
+			const gateApproval = queue.list("pending").find(
+				(item) => item.kind === "workflow_gate",
+			);
+			if (gateApproval === undefined) throw new Error("Expected workflow gate approval");
 			const toolApproval = queue.enqueue(
 				"shell",
 				{ command: "deploy" },
@@ -194,8 +275,18 @@ describe("approval review receipt binding", () => {
 			expect(result.status).toBe(200);
 			expect(result.body).toMatchObject({
 				count: 2,
-				executions: [
-					{ approvalId: toolApproval.id, execution: { status: "succeeded" } },
+				resolutions: [
+					{
+						approvalId: gateApproval.id,
+						resolution: { kind: "workflow_gate_approved" },
+					},
+					{
+						approvalId: toolApproval.id,
+						resolution: {
+							kind: "tool_execution",
+							execution: { status: "succeeded" },
+						},
+					},
 				],
 			});
 			await expect(stepPromise).resolves.toMatchObject({ approved: true });

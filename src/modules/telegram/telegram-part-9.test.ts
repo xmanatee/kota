@@ -189,6 +189,7 @@ describe("telegramModule notifications via onLoad", () => {
       approvals: [{
         id: "abc123",
         scopeId: TEST_PROJECT.projectId,
+        kind: "tool_call" as const,
         tool: "bash",
         input: { redacted: true, reason: "tool-io" as const },
         review: {

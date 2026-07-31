@@ -11,22 +11,21 @@ import { callTelegramApi } from "./client.js";
 
 vi.mock("./client.js", () => ({ callTelegramApi: vi.fn() }));
 
-const getExecutionSnapshot = vi.fn();
-const approveForExecution = vi.fn();
+const approveLocal = vi.fn();
+const rejectLocal = vi.fn();
 
-vi.mock("#modules/approval-queue/index.js", () => ({
-  getApprovalQueue: () => ({
-    getExecutionSnapshot,
-    approveForExecution,
-    reject: vi.fn(),
+vi.mock("#modules/approval-queue/local-client.js", () => ({
+  buildLocalApprovalsClient: () => ({
+    approve: approveLocal,
+    reject: rejectLocal,
   }),
 }));
 
 describe("Telegram approval callback receipts", () => {
   beforeEach(() => {
     vi.mocked(callTelegramApi).mockReset().mockResolvedValue(undefined as never);
-    getExecutionSnapshot.mockReset();
-    approveForExecution.mockReset();
+    approveLocal.mockReset();
+    rejectLocal.mockReset();
   });
 
   it("refuses a stale message after an approval ID is reused", async () => {
@@ -37,12 +36,7 @@ describe("Telegram approval callback receipts", () => {
     const parsed = parseApprovalCallbackData(callbackData);
     if (!parsed) throw new Error("Expected a valid approval callback receipt");
 
-    getExecutionSnapshot.mockReturnValue({
-      ok: true,
-      snapshot: {
-        descriptor: { approvalId: "reused-id", reviewDigest: currentDigest },
-      },
-    });
+    approveLocal.mockResolvedValue({ ok: false, reason: "review_mismatch" });
     const pending: Map<string, PendingApprovalMessage> = new Map([
       [pendingApprovalMessageKey(99, 10), {
         approvalId: "reused-id",
@@ -78,7 +72,12 @@ describe("Telegram approval callback receipts", () => {
       undefined,
     );
 
-    expect(approveForExecution).not.toHaveBeenCalled();
+    expect(approveLocal).toHaveBeenCalledWith(
+      "reused-id",
+      oldDigest,
+      undefined,
+      { projectId: "test-project" },
+    );
     expect(callTelegramApi).toHaveBeenCalledWith("token", "answerCallbackQuery", {
       callback_query_id: "cq-stale",
       text: "Approval already resolved or not found.",
@@ -97,6 +96,13 @@ describe("Telegram approval callback receipts", () => {
         tool: "bash",
         risk: "dangerous",
         reason: "Runs shell commands",
+      },
+      resolution: {
+        kind: "tool_execution",
+        execution: {
+          status: "succeeded",
+          output: { redacted: true, reason: "tool-io" },
+        },
       },
     });
     const forProject = vi.fn(() => ({
@@ -149,9 +155,12 @@ describe("Telegram approval callback receipts", () => {
         risk: "dangerous",
         reason: "Runs shell commands",
       },
-      execution: {
-        status: "failed",
-        output: { redacted: true, reason: "tool-io" },
+      resolution: {
+        kind: "tool_execution",
+        execution: {
+          status: "failed",
+          output: { redacted: true, reason: "tool-io" },
+        },
       },
     });
     const client: KotaClient = {

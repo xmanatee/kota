@@ -230,14 +230,20 @@ describe("approval-routes", () => {
 			expect(result.status).toBe(200);
 			const body = result.body as {
 				approval: { id: string; status: string; input: Record<string, unknown> };
-				execution: { status: string; output: { redacted: true; reason: string } };
+				resolution: {
+					kind: string;
+					execution: { status: string; output: { redacted: true; reason: string } };
+				};
 			};
 			expect(body.approval.id).toBe(item.id);
 			expect(body.approval.status).toBe("approved");
 			expect(body.approval.input).toMatchObject({ redacted: true, reason: "tool-io" });
-			expect(body.execution).toMatchObject({
-				status: "succeeded",
-				output: { redacted: true, reason: "tool-io" },
+			expect(body.resolution).toMatchObject({
+				kind: "tool_execution",
+				execution: {
+					status: "succeeded",
+					output: { redacted: true, reason: "tool-io" },
+				},
 			});
 			expect(vi.mocked(executeTool)).toHaveBeenCalledWith(
 				"shell",

@@ -11,6 +11,7 @@ import type {
 	ApprovalToolIoRedaction,
 	PendingApproval,
 } from "./approval-queue.js";
+import { isWorkflowGateApproval } from "./approval-queue-types.js";
 import { createApprovalReviewDescriptor } from "./approval-review-descriptor.js";
 
 const APPROVAL_ID_PATTERN = /^[0-9a-f]{8}$/;
@@ -70,7 +71,9 @@ export function approvalFilePathForItem(dir: string, item: PendingApproval): str
 export function projectApprovalForStorage(item: PendingApproval): PendingApproval {
 	const projected: PendingApproval = {
 		...projectApprovalTextFields(item),
-		input: projectApprovalInputForStorage(item.input),
+		input: isWorkflowGateApproval(item)
+			? cloneEvidenceJsonObject(item.input)
+			: projectApprovalInputForStorage(item.input),
 	};
 	if (item.context !== undefined) {
 		delete projected.context;

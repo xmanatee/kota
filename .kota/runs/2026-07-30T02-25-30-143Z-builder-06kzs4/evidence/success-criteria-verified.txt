@@ -1,0 +1,3 @@
+1. Verified `tool_call` and `workflow_gate` are validated at storage, created through separate queue APIs, and bound into review and execution descriptors.
+2. Verified daemon and local approval clients require `workflow_gate_approved` or `tool_execution`; CLI, Slack, and Telegram render the workflow-gate result as success without a tool fallback.
+3. Verified a real `WorkflowRuntime` reaches one counted downstream side effect after daemon-route approval, makes zero `executeTool` calls, and persists no unredacted duplicate gate reason; the 37-file approval suite (166 tests), 17-file cross-boundary suite (86 tests), type checking, formatting, and queue validation passed.

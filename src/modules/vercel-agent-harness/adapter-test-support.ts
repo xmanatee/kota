@@ -218,6 +218,7 @@ beforeEach(async () => {
   enqueueApprovalMock.mockReturnValue({
     id: "approval-vercel",
     scopeId: "scope-test",
+    kind: "tool_call",
     tool: "echo_tool",
     input: { text: "queued" },
     risk: "dangerous",

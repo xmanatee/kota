@@ -1,0 +1,7 @@
+The linked worktree's host Git metadata is read-only in this sandbox. Final staging and staged-diff validation use:
+
+GIT_INDEX_FILE=$PWD/.kota/tmp/2026-07-30T02-25-30-143Z-builder-06kzs4/git-index
+GIT_OBJECT_DIRECTORY=$PWD/.kota/tmp/2026-07-30T02-25-30-143Z-builder-06kzs4/git-objects
+GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects
+
+The final full worktree is replayed with git add -A into that workspace-local index. The workflow or a writable host must replay git add -A before committing because isolated staging does not update the real worktree index. It must also force-add the screened files under .kota/runs/2026-07-30T02-25-30-143Z-builder-06kzs4/evidence/ because the runtime namespace is ignored.
