@@ -1,13 +1,13 @@
 ---
 id: task-security-review-mcp-peer-controlled-error-text-rea
 title: Security review: MCP peer-controlled error text reaches operator stderr without terminal-control sanitization, allowing a malicious MCP server to spoof output or invoke terminal features through OSC, CSI, C1, or bidirectional controls.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: MCP peer-controlled error text reaches operator stderr without terminal-control sanitization, allowing a malicious MCP server to spoof output or invoke terminal features through OSC, CSI, C1, or bidirectional controls.
 created_at: 2026-08-01T09:30:09.279Z
-updated_at: 2026-08-01T09:30:09.279Z
+updated_at: 2026-08-01T21:40:10.570Z
 ---
 
 ## Problem
@@ -124,4 +124,6 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `pnpm test src/core/modules/terminal-renderer.test.ts src/core/mcp/manager.test.ts` passes 69 tests, exercising the centralized provider/fallback diagnostic boundary and an HTTP MCP JSON-RPC error fixture with OSC, CSI/C1, and bidirectional controls in both the peer error and configured remote name.
+- `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run --configLoader runner --silent=true src/core/modules/terminal-renderer.test.ts src/core/modules/module-loader.test.ts` passes 81 tests for the renderer and its module-lifecycle integration.
+- `./node_modules/.bin/biome check src/core/modules/terminal-renderer.ts src/core/modules/terminal-renderer.test.ts src/core/modules/module-lifecycle.ts src/core/mcp/manager.test.ts && ./node_modules/.bin/tsc --noEmit` verifies the touched sources and types.

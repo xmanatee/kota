@@ -1,0 +1,3 @@
+1. Verified: `createTerminalDiagnostic` strips OSC, CSI/C1, C0/C1, and bidirectional format controls before either a rendering provider or the no-provider stderr fallback receives message/detail text; the shutdown-time captured-provider path uses the same constructor.
+2. Verified: `manager.test.ts` drives malicious JSON-RPC error text and a control-bearing remote name through `McpManager.initialize`, while `terminal-renderer.test.ts` covers both diagnostic output paths. The focused commands pass 69 MCP/renderer tests and 81 renderer/module-loader tests.
+3. Verified: the task is in `done/` with the passing test, Biome, TypeScript, and queue-validation commands recorded under Acceptance Evidence.

@@ -269,6 +269,49 @@ describe("McpManager", () => {
     expect(manager.getToolCount()).toBe(0);
   }, 15_000);
 
+  it("sanitizes peer error text and remote names in connection diagnostics", async () => {
+    const serverName = "remote\x1b]0;spoofed\x07name\x1b[31m\x9b32m\u202e";
+    const peerMessage = "peer\x9d0;spoofed\x9cerror\x1b[2J\x9b31m\u2066";
+    const unsafeControls = [
+      "\x1b]",
+      "\x07",
+      "\x1b[",
+      "\x9b",
+      "\x9d",
+      "\x9c",
+      "\u202e",
+      "\u2066",
+    ];
+    const { fetchSpy } = mockMcpHttpFetch((request) =>
+      jsonRpcErrorResponse(request.body.id, -32_000, peerMessage),
+    );
+    const manager = new McpManager();
+    const stderr = captureTerminalStderr();
+
+    try {
+      await manager.initialize({
+        mcpServers: {
+          [serverName]: {
+            type: "http",
+            url: "https://mcp.example.test/mcp",
+          },
+        },
+      });
+
+      expect(manager.getServerCount()).toBe(0);
+      const output = stderr.output();
+      expect(output).toContain('MCP server "remotename" failed to connect');
+      expect(output).toContain("MCP error -32000: peererror");
+      for (const control of unsafeControls) {
+        expect(output).not.toContain(control);
+      }
+    } finally {
+      await manager.close();
+      stderr.restore();
+      fetchSpy.mockRestore();
+    }
+  });
+
   it("initialize with empty mcpServers is a no-op", async () => {
     const manager = new McpManager();
     await manager.initialize({ mcpServers: {} });

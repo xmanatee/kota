@@ -1,0 +1,3 @@
+1. Terminal diagnostics sanitize control characters in both rendering-provider diagnostics and the no-provider stderr fallback, preventing MCP peer error text or server names from emitting OSC, CSI/C1, or bidirectional controls.
+2. Focused regression coverage exercises malicious MCP JSON-RPC error text and remote server names through the centralized terminal-diagnostic boundary, including OSC, CSI/C1, and bidirectional controls.
+3. The task reaches done with the final verification command recorded in its Acceptance Evidence.

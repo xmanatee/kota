@@ -20,7 +20,10 @@ import {
 } from "./module-manifest.js";
 import type { KotaModule } from "./module-types.js";
 import { getProviderRegistry, getRenderingProvider } from "./provider-registry.js";
-import { printTerminalDiagnostic } from "./terminal-renderer.js";
+import {
+  createTerminalDiagnostic,
+  printTerminalDiagnostic,
+} from "./terminal-renderer.js";
 
 export interface ModuleLoadFailure {
   message: string;
@@ -218,7 +221,7 @@ export async function unloadAllModules(state: LoaderState, env: LifecycleEnv): P
         const msg = err instanceof Error ? err.message : String(err);
         const message = `[kota] Module "${mod.name}" unload error: ${msg}`;
         if (renderingProvider) {
-          renderingProvider.printDiagnostic({ level: "error", message });
+          renderingProvider.printDiagnostic(createTerminalDiagnostic(message, "error"));
         } else {
           printTerminalDiagnostic(message, "error");
         }

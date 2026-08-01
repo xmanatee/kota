@@ -78,4 +78,22 @@ describe("terminal renderer core seam", () => {
     ]);
     expect(stderrChunks).toEqual([]);
   });
+
+  it("sanitizes terminal controls before provider and fallback diagnostics", () => {
+    const message = "peer\x1b]0;spoofed\x07error\x1b[2J\x9b31m\u202e";
+    const detail = "remote\x9d0;spoofed\x9cname\x1b[31m\x9b32m\u2066";
+
+    printTerminalDiagnostic(message, "error", detail);
+
+    expect(stderrChunks).toEqual(["peererror\n", "remotename\n"]);
+
+    stderrChunks.length = 0;
+    const providerChunks: string[] = [];
+    installProvider(providerChunks);
+
+    printTerminalDiagnostic(message, "error", detail);
+
+    expect(providerChunks).toEqual(["error:peererror:remotename"]);
+    expect(stderrChunks).toEqual([]);
+  });
 });
