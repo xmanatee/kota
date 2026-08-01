@@ -1,13 +1,13 @@
 ---
 id: task-recover-the-live-scope-builder-work-after-repeated
 title: Recover the live-scope builder work after repeated continuation timeouts
-status: blocked
+status: done
 priority: p1
 area: autonomy
 task_class: Meta
 summary: Inspect and preserve the existing live-scope lifecycle worktree, diagnose why both the original builder and its recovery continuation consumed the full active-runtime budget after producing implementation and evidence, then complete or explicitly supersede the work through the supported state-recovery path without duplicating the underlying task.
 created_at: 2026-08-01T07:56:45.249Z
-updated_at: 2026-08-01T08:35:20.947Z
+updated_at: 2026-08-01T09:53:16.768Z
 ---
 
 ## Problem
@@ -96,3 +96,13 @@ kind: operator-capture
 path: .kota/runs/2026-08-01T08-14-32-218Z-builder-a76oy9/workflow-state-recovery.json
 description: trusted canonical-host state-recovery evidence — run the exact hostReplay command recorded in this builder run's recovery-after.json from /Users/xmanatee/Desktop/mono/apps/kota, then capture the successful workflow-state-recovery.json proving the stale claim was superseded, both cited timeout DLQs were dismissed, only the exact preserved worktree was removed, and the underlying live-scope task is safely claimable
 ```
+
+## Host Disposition
+
+The trusted-host replay completed at `2026-08-01T09:50:31.111Z`. The recovery
+artifact at
+`.kota/runs/2026-08-01T08-14-32-218Z-builder-a76oy9/workflow-state-recovery.json`
+records the stale claim as superseded and the exact preserved worktree as
+removed. The recovery projection now contains no stale claim or worktree and
+no open dead letters, while the underlying live-scope task is ready and
+unclaimed.
