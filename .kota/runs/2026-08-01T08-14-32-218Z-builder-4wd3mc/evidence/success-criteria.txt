@@ -1,0 +1,3 @@
+1. Dynamic shared-UI text is stripped of OSC, CSI/C1, other terminal controls, and Unicode bidirectional controls at the terminal-rendering boundary.
+2. Focused regression coverage exercises malicious approval and owner-question rows and proves safe visible text remains without control bytes.
+3. Fresh focused tests and static checks pass, with the verification command recorded in the task and run evidence.

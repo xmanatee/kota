@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-shared-terminal-ui-renders-age
 title: Security review: The shared terminal UI renders agent- or user-controlled approval and owner-question text without removing ANSI, OSC, C1, or Unicode bidirectional control characters. Crafted content can spoof operator-visible output or invoke terminal features.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: The shared terminal UI renders agent- or user-controlled approval and owner-question text without removing ANSI, OSC, C1, or Unicode bidirectional control characters. Crafted content can spoof operator-visible output or invoke terminal features.
 created_at: 2026-08-01T08:07:21.559Z
-updated_at: 2026-08-01T08:07:21.559Z
+updated_at: 2026-08-01T09:04:47.950Z
 ---
 
 ## Problem
@@ -125,3 +125,8 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm exec vitest run src/modules/workflow-ops/ui-surface.test.ts src/modules/daemon-ops/operator-ui.test.ts src/modules/daemon-ops/operator-ui-continuity.test.ts src/modules/daemon-ops/operator-ui-status-recovery.test.ts --configLoader runner`
+- Builder evidence: `artifacts/terminal-control-regression.txt`

@@ -1,9 +1,53 @@
 import { describe, expect, it, vi } from "vitest";
+import type { PendingApproval } from "#core/daemon/approval-queue.js";
+import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
 import type { KotaClient } from "#core/server/kota-client.js";
 import { executeUiAction, renderUiSurface } from "#modules/daemon-ops/operator-ui.js";
+import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";
 import type { WorkflowStatusSnapshot } from "#modules/workflow-ops/client.js";
 import { buildRuntimeUiSurface } from "./ui-surface.js";
+
+const RAW_TERMINAL_CONTROL_PATTERN =
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: the assertion rejects untrusted terminal controls
+  /[\x00-\x09\x0b-\x1f\x7f-\x9f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/;
+
+function approval(overrides: Partial<PendingApproval> = {}): PendingApproval {
+  return {
+    id: "approval-1",
+    scopeId: "scope-main",
+    kind: "tool_call",
+    tool: "shell.exec",
+    input: { cmd: "deploy" },
+    risk: "dangerous",
+    reason: "external write",
+    createdAt: "2026-07-07T00:04:00.000Z",
+    status: "pending",
+    ...overrides,
+  };
+}
+
+function ownerQuestion(overrides: Partial<PendingOwnerQuestion> = {}): PendingOwnerQuestion {
+  return {
+    id: "question-1",
+    seq: 1,
+    context: "Need owner input.",
+    question: "Should KOTA continue?",
+    reason: "The workflow cannot infer this choice.",
+    source: "builder",
+    answerBehavior: "workflow-resume",
+    origin: {
+      kind: "workflow",
+      workflowName: "builder",
+      runId: "run-1",
+      stepId: "ask-owner",
+      taskId: "task-1",
+    },
+    createdAt: "2026-07-07T00:05:00.000Z",
+    status: "pending",
+    ...overrides,
+  };
+}
 
 function runtimeStatus(): WorkflowStatusSnapshot {
   return {
@@ -44,6 +88,43 @@ function dirtyRecovery(): Exclude<
 }
 
 describe("operator UI runtime actions", () => {
+  it("strips terminal controls from approval and owner-question rows", () => {
+    const surface = buildRuntimeUiSurface({
+      scopeId: "scope-main",
+      workflowStatus: { ok: true, value: runtimeStatus() },
+      runs: { ok: true, value: { runs: [] } },
+      definitions: { ok: true, value: { source: "daemon", definitions: [] } },
+      approvals: {
+        ok: true,
+        value: {
+          approvals: [approval({
+            tool: "\x1b]2;forged approval title\x07shell\x1b[31m.exec\x1b[0m",
+            reason: "needs\x9b31m review\x9b0m\x01\u202eforged\u2066",
+          })],
+        },
+      },
+      ownerQuestions: {
+        ok: true,
+        value: {
+          questions: [ownerQuestion({
+            question: "\x9d2;forged question title\x9cShould\x1b[32m KOTA\x1b[0m continue?\x7f\u202dnow\u2069",
+          })],
+        },
+      },
+      sessions: { ok: true, value: { sessions: [] } },
+    });
+
+    const rendered = renderToString(renderUiSurface(surface), {
+      theme: NO_COLOR_THEME,
+      width: 120,
+    });
+    expect(rendered).toContain("shell.exec  needs reviewforged");
+    expect(rendered).toContain("Should KOTA continue?now");
+    expect(rendered).not.toMatch(RAW_TERMINAL_CONTROL_PATTERN);
+    expect(rendered).not.toContain("forged approval title");
+    expect(rendered).not.toContain("forged question title");
+  });
+
   it("renders dirty-recovery dispatch state in the Runtime surface", () => {
     const recovery = dirtyRecovery();
     const surface = buildRuntimeUiSurface({

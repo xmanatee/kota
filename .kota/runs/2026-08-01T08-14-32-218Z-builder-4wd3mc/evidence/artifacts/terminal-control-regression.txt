@@ -1,0 +1,20 @@
+Terminal control injection regression evidence
+
+$ pnpm exec vitest run src/modules/workflow-ops/ui-surface.test.ts src/modules/daemon-ops/operator-ui.test.ts src/modules/daemon-ops/operator-ui-continuity.test.ts src/modules/daemon-ops/operator-ui-status-recovery.test.ts --configLoader runner
+Result: PASS — 4 test files, 14 tests.
+
+The focused regression sends 7-bit OSC and CSI, C1 OSC and CSI, an ordinary control byte, and Unicode bidirectional controls through malicious approval and owner-question rows. The rendered no-color terminal output retains the safe visible text and contains none of the injected control bytes or forged OSC title content.
+
+$ pnpm exec vitest run src/modules/daemon-ops src/modules/workflow-ops --configLoader runner
+Result: PASS — 55 test files, 606 tests.
+
+$ ./node_modules/.bin/tsc --noEmit --pretty false
+Result: PASS.
+
+$ ./node_modules/.bin/biome check src/modules/daemon-ops/operator-ui-render.ts src/modules/workflow-ops/ui-surface.test.ts
+Result: PASS — checked 2 files, no fixes applied.
+
+$ node --conditions=source --import tsx src/validate-queue.ts
+Result: PASS.
+
+Note: `pnpm typecheck` could not start because the network-restricted sandbox prevented pnpm's registry-signature verification fetch. The equivalent repository-local TypeScript compiler command above completed successfully.
