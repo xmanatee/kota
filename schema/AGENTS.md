@@ -4,6 +4,8 @@ This directory contains published JSON Schema files for KOTA data structures.
 
 - Schemas are generated from source-owned types and module-owned schema
   fragments. Do not hand-edit generated files.
+- `ui-surface.schema.json` and its client bindings are regenerated together
+  with `pnpm build:ui-bindings`.
 
 ## Adding a schema
 

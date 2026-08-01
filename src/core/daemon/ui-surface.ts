@@ -32,6 +32,15 @@ export type UiPermission =
 export type UiJsonPrimitive = string | number | boolean | null;
 export type UiJsonValue = UiJsonPrimitive | UiJsonValue[] | { readonly [key: string]: UiJsonValue };
 
+export type UiObjectJsonSchema = {
+  type: "object";
+  title?: string;
+  description?: string;
+  properties: { readonly [key: string]: UiJsonSchema };
+  required?: readonly string[];
+  additionalProperties?: boolean;
+};
+
 export type UiJsonSchema =
   | {
       type: "string";
@@ -61,14 +70,7 @@ export type UiJsonSchema =
       description?: string;
       items: UiJsonSchema;
     }
-  | {
-      type: "object";
-      title?: string;
-      description?: string;
-      properties: { readonly [key: string]: UiJsonSchema };
-      required?: readonly string[];
-      additionalProperties?: boolean;
-    };
+  | UiObjectJsonSchema;
 
 export type UiActionOperation =
   | { kind: "daemon-route"; method: UiActionMethod; path: string }
@@ -90,7 +92,7 @@ export type UiActionReadiness =
   | { state: "needs-setup"; moduleName: string; requirementId: string; message: string };
 
 export type UiActionParameterSpec = {
-  schema: UiJsonSchema & { type: "object" };
+  schema: UiObjectJsonSchema;
   fields: readonly UiFormField[];
 };
 

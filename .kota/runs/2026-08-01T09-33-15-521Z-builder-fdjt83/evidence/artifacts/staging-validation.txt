@@ -1,0 +1,5 @@
+This sandboxed linked worktree cannot update the host Git index. Final staging therefore uses the repository-documented isolated index at `.kota/tmp/2026-08-01T09-33-15-521Z-builder-fdjt83/git-index`, a local object directory beside it, and `/Users/xmanatee/Desktop/mono/apps/kota/.git/objects` as the alternate object store.
+
+Isolated `git add -A` staged the exact 42-file change set. `git diff --cached --check` passed, the source queue validator exited 0, and the focused current-repository queue suite passed 2 tests (63 unrelated cases skipped).
+
+The workflow commit step must replay `git add -A` against the host worktree index before committing because isolated staging does not update that index.

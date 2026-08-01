@@ -42,6 +42,8 @@
     "lint": "biome check src/",
     "lint:fix": "biome check --write src/",
     "build:schema": "node --conditions=source --import tsx src/core/config/build-schema.ts",
+    "build:ui-bindings": "node scripts/generate-ui-surface-bindings.mjs",
+    "check:ui-bindings": "node scripts/generate-ui-surface-bindings.mjs --check",
     "hygiene": "node --conditions=source --import tsx src/check-hygiene.ts",
     "validate-tasks": "node --conditions=source --import tsx src/validate-queue.ts",
     "kota": "node bin/kota.mjs"

@@ -1,0 +1,25 @@
+Generated TypeScript canonical binding:
+conformance cases passed: 79
+
+Generated TypeScript mobile binding and embedded fixture:
+mobile generated binding conformance cases passed: 79
+
+Generated binding web render:
+web generated binding rendered 4 surfaces (20701 bytes)
+
+Focused core/generation/cross-client validation:
+Test Files  5 passed (5)
+Tests       20 passed (20)
+
+Apple generated Swift binding:
+Command: CLANG_MODULE_CACHE_PATH=/private/tmp/kota-swift-module-cache SWIFTPM_MODULECACHE_OVERRIDE=/private/tmp/kota-swift-module-cache swift test --disable-sandbox
+Test Suite 'All tests' passed.
+Executed 323 tests, with 0 failures (0 unexpected).
+
+The positive fixture decodes all 17 UiNode discriminators, all action effects and operations, all three readiness arms, and both permission arms. Negative fixtures reject every UI discriminated union, with TypeScript assertions retaining the full failing field path.
+
+Repository-wide validation after building the CLI:
+Test Files  1181 passed | 4 skipped (1185)
+Tests       12306 passed | 16 skipped (12322)
+
+The tracked-task queue test was excluded from that invocation because the linked worktree's host index is read-only. It is run separately against the exact isolated staged index and recorded in staging-validation.txt.

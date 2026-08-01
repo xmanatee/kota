@@ -1,0 +1,144 @@
+type SchemaScalar = string | number | boolean | null;
+
+type GeneratedSchema = {
+  readonly $ref?: string;
+  readonly definitions?: Readonly<Record<string, GeneratedSchema>>;
+  readonly anyOf?: readonly GeneratedSchema[];
+  readonly type?: string;
+  readonly enum?: readonly SchemaScalar[];
+  readonly const?: SchemaScalar;
+  readonly properties?: Readonly<Record<string, GeneratedSchema>>;
+  readonly required?: readonly string[];
+  readonly items?: GeneratedSchema;
+  readonly additionalProperties?: boolean | GeneratedSchema;
+};
+
+const UI_SURFACE_BUNDLE_SCHEMA: GeneratedSchema = JSON.parse(__SCHEMA_JSON__);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function displayValue(value: unknown): string {
+  const encoded = JSON.stringify(value);
+  return encoded === undefined ? String(value) : encoded;
+}
+
+function resolveSchema(schema: GeneratedSchema): GeneratedSchema {
+  if (schema.$ref === undefined) return schema;
+  const prefix = "#/definitions/";
+  if (!schema.$ref.startsWith(prefix)) fail(`unsupported schema reference ${schema.$ref}`);
+  const resolved = UI_SURFACE_BUNDLE_SCHEMA.definitions?.[schema.$ref.slice(prefix.length)];
+  if (resolved === undefined) fail(`unresolved schema reference ${schema.$ref}`);
+  return resolveSchema(resolved);
+}
+
+function allowedValues(schema: GeneratedSchema): readonly SchemaScalar[] | undefined {
+  if (schema.const !== undefined) return [schema.const];
+  return schema.enum;
+}
+
+function findDiscriminator(schemas: readonly GeneratedSchema[]): string | undefined {
+  const candidates = schemas.map(resolveSchema);
+  const firstProperties = candidates[0]?.properties;
+  if (firstProperties === undefined) return undefined;
+  return Object.keys(firstProperties).find((key) =>
+    candidates.every((candidate) => {
+      const property = candidate.properties?.[key];
+      return property !== undefined && allowedValues(resolveSchema(property)) !== undefined;
+    })
+  );
+}
+
+function validateUnion(value: unknown, schemas: readonly GeneratedSchema[], path: string): void {
+  const discriminator = findDiscriminator(schemas);
+  if (discriminator !== undefined && isRecord(value)) {
+    const actual = value[discriminator];
+    const matching = schemas.filter((candidate) => {
+      const property = resolveSchema(candidate).properties?.[discriminator];
+      return property !== undefined && allowedValues(resolveSchema(property))?.some((item) => Object.is(item, actual));
+    });
+    if (matching.length === 0) fail(`unknown ${path}.${discriminator}: ${displayValue(actual)}`);
+    validateSchema(value, matching[0]!, path);
+    return;
+  }
+
+  let firstError: ContractDecodeError | undefined;
+  for (const candidate of schemas) {
+    try {
+      validateSchema(value, candidate, path);
+      return;
+    } catch (error) {
+      if (!(error instanceof ContractDecodeError)) throw error;
+      firstError ??= error;
+    }
+  }
+  throw firstError ?? new ContractDecodeError(`value at ${path} does not match the generated contract`);
+}
+
+function validateObject(value: unknown, schema: GeneratedSchema, path: string): void {
+  if (!isRecord(value)) fail(`expected object at ${path}`);
+  for (const key of schema.required ?? []) {
+    if (value[key] === undefined) fail(`expected required field at ${path}.${key}`);
+  }
+  const properties = schema.properties ?? {};
+  for (const [key, child] of Object.entries(properties)) {
+    if (value[key] !== undefined) validateSchema(value[key], child, `${path}.${key}`);
+  }
+  for (const key of Object.keys(value)) {
+    if (properties[key] !== undefined) continue;
+    if (schema.additionalProperties === false) fail(`unexpected field at ${path}.${key}`);
+    if (isRecord(schema.additionalProperties)) {
+      validateSchema(value[key], schema.additionalProperties, `${path}.${key}`);
+    }
+  }
+}
+
+function validateSchema(value: unknown, rawSchema: GeneratedSchema, path: string): void {
+  const schema = resolveSchema(rawSchema);
+  if (schema.anyOf !== undefined) {
+    validateUnion(value, schema.anyOf, path);
+    return;
+  }
+  if (schema.const !== undefined && !Object.is(value, schema.const)) {
+    fail(`expected ${displayValue(schema.const)} at ${path}`);
+  }
+  if (schema.enum !== undefined && !schema.enum.some((item) => Object.is(item, value))) {
+    fail(`unknown ${path}: ${displayValue(value)}`);
+  }
+  switch (schema.type) {
+    case undefined:
+      return;
+    case "null":
+      if (value !== null) fail(`expected null at ${path}`);
+      return;
+    case "string":
+      if (typeof value !== "string") fail(`expected string at ${path}`);
+      return;
+    case "number":
+      if (typeof value !== "number" || !Number.isFinite(value)) fail(`expected number at ${path}`);
+      return;
+    case "integer":
+      if (typeof value !== "number" || !Number.isInteger(value)) fail(`expected integer at ${path}`);
+      return;
+    case "boolean":
+      if (typeof value !== "boolean") fail(`expected boolean at ${path}`);
+      return;
+    case "array":
+      if (!Array.isArray(value)) fail(`expected array at ${path}`);
+      if (schema.items !== undefined) {
+        value.forEach((item, index) => validateSchema(item, schema.items!, `${path}[${index}]`));
+      }
+      return;
+    case "object":
+      validateObject(value, schema, path);
+      return;
+    default:
+      fail(`unsupported schema type ${schema.type} at ${path}`);
+  }
+}
+
+export function parseUiSurfaceBundle(raw: unknown): UiSurfaceBundle {
+  validateSchema(raw, UI_SURFACE_BUNDLE_SCHEMA, "uiSurfaces");
+  return raw as UiSurfaceBundle;
+}

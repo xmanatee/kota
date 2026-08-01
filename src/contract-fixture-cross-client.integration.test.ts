@@ -3,7 +3,8 @@
  *
  * The canonical JSON tree lives at
  * `clients/conformance/contract-fixture.json` and the canonical TypeScript
- * decoders live under `clients/conformance/` and
+ * handwritten decoders live under `clients/conformance/`, the generated UI
+ * binding lives at `clients/conformance/ui-surface.generated.ts`, and
  * `clients/conformance/decoders.test-cases.ts`. Each client target embeds a
  * byte-identical copy of the artifacts it consumes so its test runner can
  * resolve them locally without reaching outside its workspace:
@@ -14,6 +15,7 @@
  * - Mobile Jest suite —
  *   `clients/mobile/src/__tests__/__fixtures__/contract-fixture.json` and
  *   `clients/mobile/src/daemon/conformance/{decoder*.ts,
+ *   ui-surface.generated.ts,
  *   decoders.test-cases.ts}`. The TypeScript copies are kept in lockstep
  *   with the canonical files because Jest's expo babel transform cannot
  *   resolve helpers when transforming files outside the mobile workspace.
@@ -92,7 +94,11 @@ function readBytes(path: string): string {
 
 function listDecoderSources(dir: string): string[] {
   return readdirSync(dir)
-    .filter((name) => name === "decoders.ts" || /^decoder-.+\.ts$/.test(name))
+    .filter((name) =>
+      name === "decoders.ts" ||
+      name === "ui-surface.generated.ts" ||
+      /^decoder-.+\.ts$/.test(name)
+    )
     .sort();
 }
 

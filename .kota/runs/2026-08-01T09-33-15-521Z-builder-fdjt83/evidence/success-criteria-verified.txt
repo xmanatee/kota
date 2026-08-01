@@ -1,0 +1,4 @@
+1. Verified `src/core/daemon/ui-surface.ts` generates the canonical JSON Schema, two TypeScript outputs, and one Swift output recorded in the checked-in manifest.
+2. Verified web, mobile, conformance, and Apple compile/test against the generated bindings; all six authored `decoder-ui-*` mirrors and the authored Swift UI protocol block are removed.
+3. Verified two consecutive generation runs produced identical SHA-256 hashes, check mode accepts current files, and the stale-artifact integration test fails closed after modifying an output.
+4. Verified 79 TypeScript/mobile cases, generated-binding web rendering, and 323 Swift tests cover all 17 node arms, action effects and operations, readiness and permission arms, plus deliberate unknown discriminators with field-path errors.

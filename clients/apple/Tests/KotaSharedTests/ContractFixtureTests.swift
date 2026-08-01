@@ -58,6 +58,37 @@ final class ContractFixtureTests: XCTestCase {
         return try JSONSerialization.data(withJSONObject: current, options: [.sortedKeys])
     }
 
+    private static func flattenedUiNodes(_ nodes: [UiNode]) -> [UiNode] {
+        nodes.flatMap { node in
+            if case .tabs(activeTabId: _, tabs: let tabs, title: _) = node {
+                return [node] + tabs.flatMap { flattenedUiNodes($0.nodes) }
+            }
+            return [node]
+        }
+    }
+
+    private static func uiNodeKind(_ node: UiNode) -> String {
+        switch node {
+        case .navigation: return "navigation"
+        case .statusSummary: return "status-summary"
+        case .metrics: return "metrics"
+        case .text: return "text"
+        case .link: return "link"
+        case .tabs: return "tabs"
+        case .list: return "list"
+        case .table: return "table"
+        case .detail: return "detail"
+        case .progress: return "progress"
+        case .log: return "log"
+        case .logStream: return "log-stream"
+        case .form: return "form"
+        case .actionList: return "action-list"
+        case .command: return "command"
+        case .empty: return "empty"
+        case .error: return "error"
+        }
+    }
+
     // MARK: - Identity
 
     func testDecodesDashboardAvailableIdentity() throws {
@@ -277,69 +308,90 @@ final class ContractFixtureTests: XCTestCase {
     func testDecodesUiStatusInboxSurfaces() throws {
         let data = try Self.nestedData(["uiSurfaces", "statusInbox"])
         let bundle = try JSONDecoder().decode(UiSurfaceBundle.self, from: data)
-        XCTAssertEqual(bundle.protocolVersion, .surfaceV1)
+        XCTAssertEqual(bundle.protocolVersion, .uiSurfaceV1)
         XCTAssertEqual(bundle.surfaces.map(\.intent), [.status, .inbox, .work, .setup])
         let inbox = bundle.surfaces.first { $0.surfaceId == "inbox" }
         let approvalAction = try XCTUnwrap(inbox?.actions.first { $0.actionId == "approval.open" })
-        XCTAssertEqual(approvalAction.operation.kind, .daemonRoute)
-        XCTAssertEqual(approvalAction.operation.path, "/approvals?status=pending")
+        guard case .daemonRoute(method: .get, path: let approvalPath) = approvalAction.operation else {
+            return XCTFail("expected approval.open daemon route")
+        }
+        XCTAssertEqual(approvalPath, "/approvals?status=pending")
         XCTAssertEqual(approvalAction.effect, .read)
-        XCTAssertEqual(approvalAction.confirmation.mode, .none)
+        XCTAssertEqual(approvalAction.confirmation, .none)
 
         let demo = try XCTUnwrap(bundle.surfaces.first { $0.surfaceId == "operator-control" })
         XCTAssertEqual(demo.extensionId, "demo.operator-control")
-        XCTAssertEqual(demo.attachmentPoint.kind, .intent)
+        guard case .intent(intent: .work) = demo.attachmentPoint else {
+            return XCTFail("expected operator-control intent attachment")
+        }
         XCTAssertTrue(demo.nodes.contains {
-            if case .link(label: _, target: .daemonRoute(path: let path), role: _) = $0 {
+            if case .link(label: _, role: _, target: .daemonRoute(path: let path)) = $0 {
                 return path == "/ui/surfaces"
             }
             return false
         })
         XCTAssertTrue(demo.nodes.contains {
-            if case .tabs(title: _, activeTabId: let activeTabId, tabs: let tabs) = $0 {
+            if case .tabs(activeTabId: let activeTabId, tabs: let tabs, title: _) = $0 {
                 return activeTabId == "requests" && tabs.map(\.id) == ["requests", "runs", "setup"]
             }
             return false
         })
         XCTAssertTrue(demo.nodes.contains {
-            if case .logStream(title: _, streamId: let streamId, source: .sse(path: let path, eventTypes: let eventTypes), entries: _) = $0 {
+            if case .logStream(entries: _, source: let source, streamId: let streamId, title: _) = $0 {
                 return streamId == "daemon-events" &&
-                    path == "/events" &&
-                    eventTypes.contains("workflow.run.completed")
+                    source.kind == .sse &&
+                    source.path == "/events" &&
+                    source.eventTypes.contains("workflow.run.completed")
             }
             return false
         })
         let launch = try XCTUnwrap(demo.actions.first { $0.actionId == "workflow.launch" })
-        XCTAssertEqual(launch.operation.path, "/workflow/trigger")
-        XCTAssertEqual(launch.confirmation.mode, .required)
-        XCTAssertEqual(launch.readiness.state, .ready)
+        guard case .daemonRoute(method: .post, path: let launchPath) = launch.operation else {
+            return XCTFail("expected workflow.launch daemon route")
+        }
+        XCTAssertEqual(launchPath, "/workflow/trigger")
+        guard case .required = launch.confirmation else {
+            return XCTFail("expected workflow.launch confirmation")
+        }
+        guard case .ready = launch.readiness else {
+            return XCTFail("expected workflow.launch readiness")
+        }
         XCTAssertEqual(launch.parameters?.schema.required, ["name"])
-        XCTAssertNotNil(launch.parameters?.schema.properties?["name"])
-        XCTAssertNotNil(launch.parameters?.schema.properties?["tags"])
-        XCTAssertNotNil(launch.parameters?.schema.properties?["payload"])
-        XCTAssertNil(launch.parameters?.schema.properties?["workflow"])
+        XCTAssertNotNil(launch.parameters?.schema.properties["name"])
+        XCTAssertNotNil(launch.parameters?.schema.properties["tags"])
+        XCTAssertNotNil(launch.parameters?.schema.properties["payload"])
+        XCTAssertNil(launch.parameters?.schema.properties["workflow"])
         XCTAssertTrue(launch.result.errors.contains { $0.reason == "workflow-disabled" })
         let session = try XCTUnwrap(demo.actions.first { $0.actionId == "session.launch" })
-        XCTAssertEqual(session.operation.path, "/sessions")
+        guard case .daemonRoute(method: .post, path: let sessionPath) = session.operation else {
+            return XCTFail("expected session.launch daemon route")
+        }
+        XCTAssertEqual(sessionPath, "/sessions")
         XCTAssertEqual(session.parameters?.schema.required, ["autonomy_mode"])
-        XCTAssertNotNil(session.parameters?.schema.properties?["autonomy_mode"])
-        XCTAssertNotNil(session.parameters?.schema.properties?["session_id"])
-        XCTAssertNotNil(session.parameters?.schema.properties?["conversation_id"])
-        XCTAssertNil(session.parameters?.schema.properties?["autonomyMode"])
+        XCTAssertNotNil(session.parameters?.schema.properties["autonomy_mode"])
+        XCTAssertNotNil(session.parameters?.schema.properties["session_id"])
+        XCTAssertNotNil(session.parameters?.schema.properties["conversation_id"])
+        XCTAssertNil(session.parameters?.schema.properties["autonomyMode"])
         let defaults = try XCTUnwrap(demo.actions.first { $0.actionId == "launch.defaults.configure" })
-        XCTAssertEqual(defaults.operation.kind, .clientNamespace)
-        XCTAssertEqual(defaults.operation.namespace, "config")
-        XCTAssertEqual(defaults.operation.method, "set")
+        guard case .clientNamespace(method: let method, namespace: let namespace) = defaults.operation else {
+            return XCTFail("expected launch defaults client operation")
+        }
+        XCTAssertEqual(namespace, "config")
+        XCTAssertEqual(method, "set")
         XCTAssertEqual(defaults.parameters?.schema.required, ["preset", "model", "effort"])
-        XCTAssertNotNil(defaults.parameters?.schema.properties?["preset"])
-        XCTAssertNotNil(defaults.parameters?.schema.properties?["model"])
-        XCTAssertNotNil(defaults.parameters?.schema.properties?["effort"])
-        XCTAssertEqual(defaults.readiness.state, .disabled)
-        XCTAssertEqual(defaults.readiness.reason, "controller-unavailable")
+        XCTAssertNotNil(defaults.parameters?.schema.properties["preset"])
+        XCTAssertNotNil(defaults.parameters?.schema.properties["model"])
+        XCTAssertNotNil(defaults.parameters?.schema.properties["effort"])
+        guard case .disabled(message: _, reason: let reason) = defaults.readiness else {
+            return XCTFail("expected disabled launch defaults")
+        }
+        XCTAssertEqual(reason, "controller-unavailable")
         let setup = try XCTUnwrap(demo.actions.first { $0.actionId == "setup.oauth.start" })
-        XCTAssertEqual(setup.readiness.state, .needsSetup)
-        XCTAssertEqual(setup.readiness.moduleName, "google-workspace")
-        XCTAssertEqual(setup.readiness.requirementId, "oauth-credentials")
+        guard case .needsSetup(message: _, moduleName: let moduleName, requirementId: let requirementId) = setup.readiness else {
+            return XCTFail("expected setup readiness")
+        }
+        XCTAssertEqual(moduleName, "google-workspace")
+        XCTAssertEqual(requirementId, "oauth-credentials")
         let setupSurface = try XCTUnwrap(bundle.surfaces.first { $0.surfaceId == "setup" })
         XCTAssertEqual(setupSurface.intent, .setup)
         XCTAssertTrue(setupSurface.nodes.contains {
@@ -349,20 +401,37 @@ final class ContractFixtureTests: XCTestCase {
         let secret = try XCTUnwrap(setupSurface.actions.first {
             $0.actionId == "setup.telegram.bot-credentials.store-secret"
         })
-        XCTAssertEqual(secret.operation.kind, .daemonRoute)
-        XCTAssertEqual(secret.operation.path, "/setup/requirements/telegram/bot-credentials/secret")
+        guard case .daemonRoute(method: .post, path: let secretPath) = secret.operation else {
+            return XCTFail("expected setup secret daemon route")
+        }
+        XCTAssertEqual(secretPath, "/setup/requirements/telegram/bot-credentials/secret")
         XCTAssertEqual(secret.parameters?.fields.first?.input, .secret)
-        XCTAssertEqual(secret.conditions?.first?.kind, .setup)
-        XCTAssertEqual(secret.conditions?.first?.state, .missing)
+        guard case .setup(moduleName: _, requirementId: _, state: .missing) = secret.conditions?.first else {
+            return XCTFail("expected missing setup condition")
+        }
         let configAction = try XCTUnwrap(setupSurface.actions.first {
             $0.actionId == "setup.google-workspace.oauth-config.submit-form"
         })
-        XCTAssertNotNil(configAction.parameters?.schema.properties?["client-id-ref"])
+        XCTAssertNotNil(configAction.parameters?.schema.properties["client-id-ref"])
         XCTAssertTrue(setupSurface.actions.contains {
-            $0.conditions?.contains { $0.kind == .setup && $0.state == .expired } == true
+            $0.conditions?.contains {
+                if case .setup(moduleName: _, requirementId: _, state: .expired) = $0 { return true }
+                return false
+            } == true
         })
+        let decodedNodeKinds = Set(bundle.surfaces
+            .flatMap { Self.flattenedUiNodes($0.nodes) }
+            .map(Self.uiNodeKind))
+        XCTAssertEqual(decodedNodeKinds, Set([
+            "navigation", "status-summary", "metrics", "text", "link",
+            "tabs", "list", "table", "detail", "progress", "log",
+            "log-stream", "form", "action-list", "command", "empty", "error",
+        ]))
         XCTAssertTrue(setupSurface.actions.contains {
-            $0.conditions?.contains { $0.kind == .setup && $0.state == .revoked } == true
+            $0.conditions?.contains {
+                if case .setup(moduleName: _, requirementId: _, state: .revoked) = $0 { return true }
+                return false
+            } == true
         })
     }
 
@@ -403,6 +472,26 @@ final class ContractFixtureTests: XCTestCase {
 
     func testUiSurfacesRejectUnknownSetupConditionState() throws {
         let data = try Self.nestedData(["uiSurfaces", "negative_unknownSetupConditionState"])
+        XCTAssertThrowsError(try JSONDecoder().decode(UiSurfaceBundle.self, from: data))
+    }
+
+    func testUiSurfacesRejectUnknownConfirmationMode() throws {
+        let data = try Self.nestedData(["uiSurfaces", "negative_unknownConfirmationMode"])
+        XCTAssertThrowsError(try JSONDecoder().decode(UiSurfaceBundle.self, from: data))
+    }
+
+    func testUiSurfacesRejectUnknownConditionKind() throws {
+        let data = try Self.nestedData(["uiSurfaces", "negative_unknownConditionKind"])
+        XCTAssertThrowsError(try JSONDecoder().decode(UiSurfaceBundle.self, from: data))
+    }
+
+    func testUiSurfacesRejectUnknownPermissionKind() throws {
+        let data = try Self.nestedData(["uiSurfaces", "negative_unknownPermissionKind"])
+        XCTAssertThrowsError(try JSONDecoder().decode(UiSurfaceBundle.self, from: data))
+    }
+
+    func testUiSurfacesRejectUnknownJsonSchemaType() throws {
+        let data = try Self.nestedData(["uiSurfaces", "negative_unknownJsonSchemaType"])
         XCTAssertThrowsError(try JSONDecoder().decode(UiSurfaceBundle.self, from: data))
     }
 

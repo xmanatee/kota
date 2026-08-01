@@ -1,0 +1,17 @@
+Command (run twice consecutively):
+node scripts/generate-ui-surface-bindings.mjs
+shasum -a 256 schema/ui-surface.schema.json clients/conformance/ui-surface.generated.ts clients/mobile/src/daemon/conformance/ui-surface.generated.ts clients/apple/Sources/KotaShared/Generated/UiSurface.generated.swift
+
+Run 1:
+d86e136c1f939ac055313002ebc56237255c62cdf9f39bc40ec7ef0919c06212  schema/ui-surface.schema.json
+e5662b9b1c6807796d12f12f8b915367018cf7e7128b230392291952ccf5152a  clients/conformance/ui-surface.generated.ts
+e5662b9b1c6807796d12f12f8b915367018cf7e7128b230392291952ccf5152a  clients/mobile/src/daemon/conformance/ui-surface.generated.ts
+17940c4bf70573d501ccc764121364ae2ca7ef3e20da68d0f63cc95229cd0271  clients/apple/Sources/KotaShared/Generated/UiSurface.generated.swift
+
+Run 2:
+d86e136c1f939ac055313002ebc56237255c62cdf9f39bc40ec7ef0919c06212  schema/ui-surface.schema.json
+e5662b9b1c6807796d12f12f8b915367018cf7e7128b230392291952ccf5152a  clients/conformance/ui-surface.generated.ts
+e5662b9b1c6807796d12f12f8b915367018cf7e7128b230392291952ccf5152a  clients/mobile/src/daemon/conformance/ui-surface.generated.ts
+17940c4bf70573d501ccc764121364ae2ca7ef3e20da68d0f63cc95229cd0271  clients/apple/Sources/KotaShared/Generated/UiSurface.generated.swift
+
+Result: every emitted hash is stable across consecutive generation runs; `node scripts/generate-ui-surface-bindings.mjs --check` exits 0.

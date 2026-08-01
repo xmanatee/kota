@@ -1,0 +1,4 @@
+1. The canonical `UiSurfaceBundle` TypeScript contract generates the published `ui.surface.v1` JSON Schema and all TypeScript and Swift client bindings.
+2. Web, mobile, conformance, and Apple consume generated bindings, with the handwritten UI decoder/type mirrors removed.
+3. One deterministic generation command reproduces every output, records stable hashes in a manifest, and fails in check mode when an artifact is stale.
+4. Shared positive and negative conformance fixtures cover every UI node, action effect and operation, readiness arm, permission arm, and discriminated-union rejection path across TypeScript, mobile, web, and Swift.

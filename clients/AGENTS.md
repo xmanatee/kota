@@ -95,9 +95,9 @@ The contract conformance gate has three pieces:
 2. `src/core/daemon/client-contract.test.ts` and
    `src/core/daemon/client-identity.test.ts` — TypeScript decoders
    exercise the fixture and the live `/identity` route.
-3. `clients/apple/Tests/KotaSharedTests/ContractFixtureTests.swift` —
-   Swift decoders parse the same JSON tree (kept in lockstep by
-   `src/contract-fixture-cross-client.integration.test.ts`).
+3. `clients/apple/Tests/KotaSharedTests/ContractFixtureTests.swift` — Swift
+   decoders parse the same JSON tree; `ui.surface.v1` uses generated bindings,
+   while remaining decoders stay fixture-locked by the cross-client test.
 
 Add a contract surface only after extending all three pieces in the
 same change.

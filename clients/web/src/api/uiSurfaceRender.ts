@@ -4,7 +4,7 @@ import type {
   UiNode,
   UiSurface,
   UiSurfaceBundle,
-} from "../../../conformance/decoders";
+} from "../../../conformance/ui-surface.generated";
 
 function escapeHtml(value: string): string {
   return value

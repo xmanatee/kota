@@ -3063,6 +3063,158 @@
                   ]
                 }
               ]
+            },
+            {
+              "kind": "navigation",
+              "label": "Shared surfaces",
+              "items": [
+                {
+                  "surfaceId": "status",
+                  "label": "Status"
+                }
+              ]
+            },
+            {
+              "kind": "command",
+              "action": {
+                "surfaceId": "operator-control",
+                "actionId": "ui.refresh",
+                "scopeId": "p-kota-fixture-default",
+                "label": "Refresh shared UI",
+                "effect": "read",
+                "operation": {
+                  "kind": "daemon-route",
+                  "method": "GET",
+                  "path": "/ui/surfaces"
+                },
+                "confirmation": {
+                  "mode": "none"
+                },
+                "readiness": {
+                  "state": "ready"
+                },
+                "result": {
+                  "success": {
+                    "message": "Shared UI surfaces refreshed."
+                  },
+                  "errors": [
+                    {
+                      "reason": "unavailable",
+                      "message": "The daemon action is currently unavailable."
+                    },
+                    {
+                      "reason": "invalid-input",
+                      "message": "The action parameters did not match the declared schema."
+                    }
+                  ]
+                },
+                "permissions": [
+                  {
+                    "kind": "effect",
+                    "effect": "read"
+                  },
+                  {
+                    "kind": "capability-scope",
+                    "scope": "read"
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "empty",
+              "title": "No pending work",
+              "detail": "Nothing needs attention.",
+              "action": {
+                "surfaceId": "operator-control",
+                "actionId": "ui.refresh",
+                "scopeId": "p-kota-fixture-default",
+                "label": "Refresh shared UI",
+                "effect": "read",
+                "operation": {
+                  "kind": "daemon-route",
+                  "method": "GET",
+                  "path": "/ui/surfaces"
+                },
+                "confirmation": {
+                  "mode": "none"
+                },
+                "readiness": {
+                  "state": "ready"
+                },
+                "result": {
+                  "success": {
+                    "message": "Shared UI surfaces refreshed."
+                  },
+                  "errors": [
+                    {
+                      "reason": "unavailable",
+                      "message": "The daemon action is currently unavailable."
+                    },
+                    {
+                      "reason": "invalid-input",
+                      "message": "The action parameters did not match the declared schema."
+                    }
+                  ]
+                },
+                "permissions": [
+                  {
+                    "kind": "effect",
+                    "effect": "read"
+                  },
+                  {
+                    "kind": "capability-scope",
+                    "scope": "read"
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "error",
+              "title": "Action unavailable",
+              "detail": "The action could not be loaded.",
+              "action": {
+                "surfaceId": "operator-control",
+                "actionId": "ui.refresh",
+                "scopeId": "p-kota-fixture-default",
+                "label": "Refresh shared UI",
+                "effect": "read",
+                "operation": {
+                  "kind": "daemon-route",
+                  "method": "GET",
+                  "path": "/ui/surfaces"
+                },
+                "confirmation": {
+                  "mode": "none"
+                },
+                "readiness": {
+                  "state": "ready"
+                },
+                "result": {
+                  "success": {
+                    "message": "Shared UI surfaces refreshed."
+                  },
+                  "errors": [
+                    {
+                      "reason": "unavailable",
+                      "message": "The daemon action is currently unavailable."
+                    },
+                    {
+                      "reason": "invalid-input",
+                      "message": "The action parameters did not match the declared schema."
+                    }
+                  ]
+                },
+                "permissions": [
+                  {
+                    "kind": "effect",
+                    "effect": "read"
+                  },
+                  {
+                    "kind": "capability-scope",
+                    "scope": "read"
+                  }
+                ]
+              }
             }
           ],
           "actions": [
@@ -8153,6 +8305,504 @@
                 {
                   "kind": "capability-scope",
                   "scope": "control"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "negative_unknownConfirmationMode": {
+      "protocolVersion": "ui.surface.v1",
+      "surfaces": [
+        {
+          "protocolVersion": "ui.surface.v1",
+          "surfaceId": "negative-surface",
+          "extensionId": "negative.surface",
+          "title": "Negative",
+          "intent": "Work",
+          "scopeId": "p-kota-fixture-default",
+          "attachmentPoint": {
+            "kind": "intent",
+            "intent": "Work"
+          },
+          "order": 30,
+          "permissions": [
+            {
+              "kind": "capability-scope",
+              "scope": "read"
+            }
+          ],
+          "conditions": [
+            {
+              "kind": "capability",
+              "capabilityId": "workflow.trigger",
+              "status": "ready"
+            }
+          ],
+          "nodes": [
+            {
+              "kind": "command",
+              "action": {
+                "surfaceId": "negative-surface",
+                "actionId": "negative.action",
+                "scopeId": "p-kota-fixture-default",
+                "label": "Refresh shared UI",
+                "effect": "read",
+                "operation": {
+                  "kind": "daemon-route",
+                  "method": "GET",
+                  "path": "/ui/surfaces"
+                },
+                "confirmation": {
+                  "mode": "deferred"
+                },
+                "readiness": {
+                  "state": "ready"
+                },
+                "result": {
+                  "success": {
+                    "message": "Shared UI surfaces refreshed."
+                  },
+                  "errors": []
+                },
+                "conditions": [
+                  {
+                    "kind": "capability",
+                    "capabilityId": "workflow.trigger",
+                    "status": "ready"
+                  }
+                ],
+                "permissions": [
+                  {
+                    "kind": "effect",
+                    "effect": "read"
+                  },
+                  {
+                    "kind": "capability-scope",
+                    "scope": "read"
+                  }
+                ]
+              }
+            }
+          ],
+          "actions": [
+            {
+              "surfaceId": "negative-surface",
+              "actionId": "negative.action",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Refresh shared UI",
+              "effect": "read",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "GET",
+                "path": "/ui/surfaces"
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Shared UI surfaces refreshed."
+                },
+                "errors": []
+              },
+              "conditions": [
+                {
+                  "kind": "capability",
+                  "capabilityId": "workflow.trigger",
+                  "status": "ready"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "read"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "read"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "negative_unknownConditionKind": {
+      "protocolVersion": "ui.surface.v1",
+      "surfaces": [
+        {
+          "protocolVersion": "ui.surface.v1",
+          "surfaceId": "negative-surface",
+          "extensionId": "negative.surface",
+          "title": "Negative",
+          "intent": "Work",
+          "scopeId": "p-kota-fixture-default",
+          "attachmentPoint": {
+            "kind": "intent",
+            "intent": "Work"
+          },
+          "order": 30,
+          "permissions": [
+            {
+              "kind": "capability-scope",
+              "scope": "read"
+            }
+          ],
+          "conditions": [
+            {
+              "kind": "feature-flag",
+              "flagId": "future"
+            }
+          ],
+          "nodes": [
+            {
+              "kind": "command",
+              "action": {
+                "surfaceId": "negative-surface",
+                "actionId": "negative.action",
+                "scopeId": "p-kota-fixture-default",
+                "label": "Refresh shared UI",
+                "effect": "read",
+                "operation": {
+                  "kind": "daemon-route",
+                  "method": "GET",
+                  "path": "/ui/surfaces"
+                },
+                "confirmation": {
+                  "mode": "none"
+                },
+                "readiness": {
+                  "state": "ready"
+                },
+                "result": {
+                  "success": {
+                    "message": "Shared UI surfaces refreshed."
+                  },
+                  "errors": []
+                },
+                "conditions": [
+                  {
+                    "kind": "capability",
+                    "capabilityId": "workflow.trigger",
+                    "status": "ready"
+                  }
+                ],
+                "permissions": [
+                  {
+                    "kind": "effect",
+                    "effect": "read"
+                  },
+                  {
+                    "kind": "capability-scope",
+                    "scope": "read"
+                  }
+                ]
+              }
+            }
+          ],
+          "actions": [
+            {
+              "surfaceId": "negative-surface",
+              "actionId": "negative.action",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Refresh shared UI",
+              "effect": "read",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "GET",
+                "path": "/ui/surfaces"
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Shared UI surfaces refreshed."
+                },
+                "errors": []
+              },
+              "conditions": [
+                {
+                  "kind": "capability",
+                  "capabilityId": "workflow.trigger",
+                  "status": "ready"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "read"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "read"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "negative_unknownPermissionKind": {
+      "protocolVersion": "ui.surface.v1",
+      "surfaces": [
+        {
+          "protocolVersion": "ui.surface.v1",
+          "surfaceId": "negative-surface",
+          "extensionId": "negative.surface",
+          "title": "Negative",
+          "intent": "Work",
+          "scopeId": "p-kota-fixture-default",
+          "attachmentPoint": {
+            "kind": "intent",
+            "intent": "Work"
+          },
+          "order": 30,
+          "permissions": [
+            {
+              "kind": "entitlement",
+              "name": "future"
+            }
+          ],
+          "conditions": [
+            {
+              "kind": "capability",
+              "capabilityId": "workflow.trigger",
+              "status": "ready"
+            }
+          ],
+          "nodes": [
+            {
+              "kind": "command",
+              "action": {
+                "surfaceId": "negative-surface",
+                "actionId": "negative.action",
+                "scopeId": "p-kota-fixture-default",
+                "label": "Refresh shared UI",
+                "effect": "read",
+                "operation": {
+                  "kind": "daemon-route",
+                  "method": "GET",
+                  "path": "/ui/surfaces"
+                },
+                "confirmation": {
+                  "mode": "none"
+                },
+                "readiness": {
+                  "state": "ready"
+                },
+                "result": {
+                  "success": {
+                    "message": "Shared UI surfaces refreshed."
+                  },
+                  "errors": []
+                },
+                "conditions": [
+                  {
+                    "kind": "capability",
+                    "capabilityId": "workflow.trigger",
+                    "status": "ready"
+                  }
+                ],
+                "permissions": [
+                  {
+                    "kind": "effect",
+                    "effect": "read"
+                  },
+                  {
+                    "kind": "capability-scope",
+                    "scope": "read"
+                  }
+                ]
+              }
+            }
+          ],
+          "actions": [
+            {
+              "surfaceId": "negative-surface",
+              "actionId": "negative.action",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Refresh shared UI",
+              "effect": "read",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "GET",
+                "path": "/ui/surfaces"
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Shared UI surfaces refreshed."
+                },
+                "errors": []
+              },
+              "conditions": [
+                {
+                  "kind": "capability",
+                  "capabilityId": "workflow.trigger",
+                  "status": "ready"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "read"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "read"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "negative_unknownJsonSchemaType": {
+      "protocolVersion": "ui.surface.v1",
+      "surfaces": [
+        {
+          "protocolVersion": "ui.surface.v1",
+          "surfaceId": "negative-surface",
+          "extensionId": "negative.surface",
+          "title": "Negative",
+          "intent": "Work",
+          "scopeId": "p-kota-fixture-default",
+          "attachmentPoint": {
+            "kind": "intent",
+            "intent": "Work"
+          },
+          "order": 30,
+          "permissions": [
+            {
+              "kind": "capability-scope",
+              "scope": "read"
+            }
+          ],
+          "conditions": [
+            {
+              "kind": "capability",
+              "capabilityId": "workflow.trigger",
+              "status": "ready"
+            }
+          ],
+          "nodes": [
+            {
+              "kind": "command",
+              "action": {
+                "surfaceId": "negative-surface",
+                "actionId": "negative.action",
+                "scopeId": "p-kota-fixture-default",
+                "label": "Refresh shared UI",
+                "effect": "read",
+                "operation": {
+                  "kind": "daemon-route",
+                  "method": "GET",
+                  "path": "/ui/surfaces"
+                },
+                "confirmation": {
+                  "mode": "none"
+                },
+                "readiness": {
+                  "state": "ready"
+                },
+                "result": {
+                  "success": {
+                    "message": "Shared UI surfaces refreshed."
+                  },
+                  "errors": []
+                },
+                "conditions": [
+                  {
+                    "kind": "capability",
+                    "capabilityId": "workflow.trigger",
+                    "status": "ready"
+                  }
+                ],
+                "permissions": [
+                  {
+                    "kind": "effect",
+                    "effect": "read"
+                  },
+                  {
+                    "kind": "capability-scope",
+                    "scope": "read"
+                  }
+                ],
+                "parameters": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "query": {
+                        "type": "record",
+                        "properties": {}
+                      }
+                    }
+                  },
+                  "fields": [
+                    {
+                      "id": "query",
+                      "label": "Query",
+                      "input": "text",
+                      "required": false
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "actions": [
+            {
+              "surfaceId": "negative-surface",
+              "actionId": "negative.action",
+              "scopeId": "p-kota-fixture-default",
+              "label": "Refresh shared UI",
+              "effect": "read",
+              "operation": {
+                "kind": "daemon-route",
+                "method": "GET",
+                "path": "/ui/surfaces"
+              },
+              "confirmation": {
+                "mode": "none"
+              },
+              "readiness": {
+                "state": "ready"
+              },
+              "result": {
+                "success": {
+                  "message": "Shared UI surfaces refreshed."
+                },
+                "errors": []
+              },
+              "conditions": [
+                {
+                  "kind": "capability",
+                  "capabilityId": "workflow.trigger",
+                  "status": "ready"
+                }
+              ],
+              "permissions": [
+                {
+                  "kind": "effect",
+                  "effect": "read"
+                },
+                {
+                  "kind": "capability-scope",
+                  "scope": "read"
                 }
               ]
             }

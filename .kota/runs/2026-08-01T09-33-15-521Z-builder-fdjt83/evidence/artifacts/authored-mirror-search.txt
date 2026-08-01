@@ -1,0 +1,14 @@
+Command:
+find clients -type f -name 'decoder-ui-*' -print
+
+Result: no files.
+
+Command:
+rg -n '^((struct|enum|indirect enum) Ui(Surface|ProtocolVersion|Node|Action|AttachmentPoint|Condition|Permission|JsonSchema))' clients/apple/Sources/KotaShared --glob '*.swift'
+
+Result: every match is under clients/apple/Sources/KotaShared/Generated/UiSurface.generated.swift; ContractTypes.swift contains no authored UiSurface protocol mirror.
+
+Generated binding consumers:
+- clients/conformance/decoders.ts exports ui-surface.generated.
+- clients/mobile/src/daemon/conformance/decoders.ts exports ui-surface.generated.
+- clients/web/src/api/uiSurfaceRender.ts imports ui-surface.generated directly.

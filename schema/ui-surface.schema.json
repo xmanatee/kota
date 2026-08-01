@@ -1,0 +1,1524 @@
+{
+  "$ref": "#/definitions/UiSurfaceBundle",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "UiAction": {
+      "additionalProperties": false,
+      "properties": {
+        "actionId": {
+          "type": "string"
+        },
+        "conditions": {
+          "items": {
+            "$ref": "#/definitions/UiCondition"
+          },
+          "type": "array"
+        },
+        "confirmation": {
+          "$ref": "#/definitions/UiConfirmation"
+        },
+        "effect": {
+          "$ref": "#/definitions/UiActionEffect"
+        },
+        "label": {
+          "type": "string"
+        },
+        "operation": {
+          "$ref": "#/definitions/UiActionOperation"
+        },
+        "parameters": {
+          "$ref": "#/definitions/UiActionParameterSpec"
+        },
+        "permissions": {
+          "items": {
+            "$ref": "#/definitions/UiPermission"
+          },
+          "type": "array"
+        },
+        "readiness": {
+          "$ref": "#/definitions/UiActionReadiness"
+        },
+        "result": {
+          "$ref": "#/definitions/UiActionResultSpec"
+        },
+        "scopeId": {
+          "type": "string"
+        },
+        "surfaceId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "surfaceId",
+        "actionId",
+        "scopeId",
+        "label",
+        "effect",
+        "operation",
+        "confirmation",
+        "readiness",
+        "result"
+      ],
+      "type": "object"
+    },
+    "UiActionEffect": {
+      "enum": [
+        "read",
+        "write",
+        "external"
+      ],
+      "type": "string"
+    },
+    "UiActionMethod": {
+      "enum": [
+        "GET",
+        "POST",
+        "PATCH",
+        "DELETE"
+      ],
+      "type": "string"
+    },
+    "UiActionOperation": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "daemon-route",
+              "type": "string"
+            },
+            "method": {
+              "$ref": "#/definitions/UiActionMethod"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "method",
+            "path"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "client-namespace",
+              "type": "string"
+            },
+            "method": {
+              "type": "string"
+            },
+            "namespace": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "namespace",
+            "method"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "UiActionParameterSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "items": {
+            "$ref": "#/definitions/UiFormField"
+          },
+          "type": "array"
+        },
+        "schema": {
+          "$ref": "#/definitions/UiObjectJsonSchema"
+        }
+      },
+      "required": [
+        "schema",
+        "fields"
+      ],
+      "type": "object"
+    },
+    "UiActionReadiness": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "message": {
+              "type": "string"
+            },
+            "state": {
+              "const": "ready",
+              "type": "string"
+            }
+          },
+          "required": [
+            "state"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "message": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "state": {
+              "const": "disabled",
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "reason",
+            "message"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "message": {
+              "type": "string"
+            },
+            "moduleName": {
+              "type": "string"
+            },
+            "requirementId": {
+              "type": "string"
+            },
+            "state": {
+              "const": "needs-setup",
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "moduleName",
+            "requirementId",
+            "message"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "UiActionResultSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "errors": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "schema": {
+                "$ref": "#/definitions/UiJsonSchema"
+              }
+            },
+            "required": [
+              "reason",
+              "message"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "success": {
+          "additionalProperties": false,
+          "properties": {
+            "message": {
+              "type": "string"
+            },
+            "schema": {
+              "$ref": "#/definitions/UiJsonSchema"
+            }
+          },
+          "required": [
+            "message"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "success",
+        "errors"
+      ],
+      "type": "object"
+    },
+    "UiAttachmentPoint": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "root",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "intent": {
+              "$ref": "#/definitions/UiIntent"
+            },
+            "kind": {
+              "const": "intent",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "intent"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "surface",
+              "type": "string"
+            },
+            "surfaceId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "surfaceId"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "UiCapabilityScope": {
+      "enum": [
+        "read",
+        "control"
+      ],
+      "type": "string"
+    },
+    "UiCondition": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "capabilityId": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "capability",
+              "type": "string"
+            },
+            "status": {
+              "$ref": "#/definitions/UiConditionStatus"
+            }
+          },
+          "required": [
+            "kind",
+            "capabilityId",
+            "status"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "setup",
+              "type": "string"
+            },
+            "moduleName": {
+              "type": "string"
+            },
+            "requirementId": {
+              "type": "string"
+            },
+            "state": {
+              "$ref": "#/definitions/UiSetupState"
+            }
+          },
+          "required": [
+            "kind",
+            "moduleName",
+            "requirementId",
+            "state"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "scope",
+              "type": "string"
+            },
+            "scopeId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "scopeId"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "UiConditionStatus": {
+      "enum": [
+        "ready",
+        "unavailable",
+        "init_failed"
+      ],
+      "type": "string"
+    },
+    "UiConfirmation": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "const": "none",
+              "type": "string"
+            }
+          },
+          "required": [
+            "mode"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "confirmLabel": {
+              "type": "string"
+            },
+            "detail": {
+              "type": "string"
+            },
+            "mode": {
+              "const": "required",
+              "type": "string"
+            },
+            "risk": {
+              "$ref": "#/definitions/UiConfirmationRisk"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mode",
+            "title",
+            "detail",
+            "confirmLabel",
+            "risk"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "UiConfirmationRisk": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "type": "string"
+    },
+    "UiFieldInput": {
+      "enum": [
+        "text",
+        "secret",
+        "number",
+        "boolean",
+        "select",
+        "path",
+        "url"
+      ],
+      "type": "string"
+    },
+    "UiFieldOption": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "value"
+      ],
+      "type": "object"
+    },
+    "UiFormField": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "input": {
+          "$ref": "#/definitions/UiFieldInput"
+        },
+        "label": {
+          "type": "string"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/definitions/UiFieldOption"
+          },
+          "type": "array"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "schema": {
+          "$ref": "#/definitions/UiJsonSchema"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "input",
+        "required"
+      ],
+      "type": "object"
+    },
+    "UiIntent": {
+      "enum": [
+        "Status",
+        "Inbox",
+        "Work",
+        "Knowledge",
+        "Setup"
+      ],
+      "type": "string"
+    },
+    "UiJsonSchema": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "default": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "enum": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "format": {
+              "enum": [
+                "secret-reference",
+                "path",
+                "url"
+              ],
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "type": {
+              "const": "string",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "default": {
+              "type": "number"
+            },
+            "description": {
+              "type": "string"
+            },
+            "maximum": {
+              "type": "number"
+            },
+            "minimum": {
+              "type": "number"
+            },
+            "title": {
+              "type": "string"
+            },
+            "type": {
+              "enum": [
+                "number",
+                "integer"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "default": {
+              "type": "boolean"
+            },
+            "description": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "type": {
+              "const": "boolean",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "type": "string"
+            },
+            "items": {
+              "$ref": "#/definitions/UiJsonSchema"
+            },
+            "title": {
+              "type": "string"
+            },
+            "type": {
+              "const": "array",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "items"
+          ],
+          "type": "object"
+        },
+        {
+          "$ref": "#/definitions/UiObjectJsonSchema"
+        }
+      ]
+    },
+    "UiLinkTarget": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "surface",
+              "type": "string"
+            },
+            "surfaceId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "surfaceId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "daemon-route",
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "path"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "external-url",
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "url"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "UiListItem": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "#/definitions/UiAction"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/definitions/UiRole"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "detail",
+        "role"
+      ],
+      "type": "object"
+    },
+    "UiLogEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "$ref": "#/definitions/UiLogLevel"
+        },
+        "message": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "timestamp",
+        "level",
+        "message"
+      ],
+      "type": "object"
+    },
+    "UiLogLevel": {
+      "enum": [
+        "debug",
+        "info",
+        "warn",
+        "error"
+      ],
+      "type": "string"
+    },
+    "UiLogStreamSource": {
+      "additionalProperties": false,
+      "properties": {
+        "eventTypes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "kind": {
+          "const": "sse",
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "path",
+        "eventTypes"
+      ],
+      "type": "object"
+    },
+    "UiMetric": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/definitions/UiRole"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "value",
+        "role"
+      ],
+      "type": "object"
+    },
+    "UiNode": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "items": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "surfaceId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "surfaceId",
+                  "label"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "navigation",
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "label",
+            "items"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "entries": {
+              "items": {
+                "$ref": "#/definitions/UiStatusEntry"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "status-summary",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "entries"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "metrics",
+              "type": "string"
+            },
+            "metrics": {
+              "items": {
+                "$ref": "#/definitions/UiMetric"
+              },
+              "type": "array"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "title",
+            "metrics"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "body": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "text",
+              "type": "string"
+            },
+            "role": {
+              "$ref": "#/definitions/UiRole"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "title",
+            "body"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "link",
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "role": {
+              "$ref": "#/definitions/UiRole"
+            },
+            "target": {
+              "$ref": "#/definitions/UiLinkTarget"
+            }
+          },
+          "required": [
+            "kind",
+            "label",
+            "target"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "activeTabId": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "tabs",
+              "type": "string"
+            },
+            "tabs": {
+              "items": {
+                "$ref": "#/definitions/UiTab"
+              },
+              "type": "array"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "title",
+            "activeTabId",
+            "tabs"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "items": {
+              "items": {
+                "$ref": "#/definitions/UiListItem"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "list",
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "title",
+            "items"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "columns": {
+              "items": {
+                "$ref": "#/definitions/UiTableColumn"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "table",
+              "type": "string"
+            },
+            "rows": {
+              "items": {
+                "$ref": "#/definitions/UiTableRow"
+              },
+              "type": "array"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "title",
+            "columns",
+            "rows"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "body": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "detail",
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "title",
+            "body"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "progress",
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "max": {
+              "type": "number"
+            },
+            "role": {
+              "$ref": "#/definitions/UiRole"
+            },
+            "value": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "label",
+            "value",
+            "max",
+            "role"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "entries": {
+              "items": {
+                "$ref": "#/definitions/UiLogEntry"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "log",
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "title",
+            "entries"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "entries": {
+              "items": {
+                "$ref": "#/definitions/UiLogEntry"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "log-stream",
+              "type": "string"
+            },
+            "source": {
+              "$ref": "#/definitions/UiLogStreamSource"
+            },
+            "streamId": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "title",
+            "streamId",
+            "source",
+            "entries"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fields": {
+              "items": {
+                "$ref": "#/definitions/UiFormField"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "form",
+              "type": "string"
+            },
+            "submit": {
+              "$ref": "#/definitions/UiAction"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "title",
+            "fields",
+            "submit"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "actions": {
+              "items": {
+                "$ref": "#/definitions/UiAction"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "action-list",
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "title",
+            "actions"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "$ref": "#/definitions/UiAction"
+            },
+            "kind": {
+              "const": "command",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "action"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "$ref": "#/definitions/UiAction"
+            },
+            "detail": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "empty",
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "title",
+            "detail",
+            "action"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "$ref": "#/definitions/UiAction"
+            },
+            "detail": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "error",
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "title",
+            "detail",
+            "action"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "UiObjectJsonSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "additionalProperties": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string"
+        },
+        "properties": {
+          "additionalProperties": {
+            "$ref": "#/definitions/UiJsonSchema"
+          },
+          "type": "object"
+        },
+        "required": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "const": "object",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "properties"
+      ],
+      "type": "object"
+    },
+    "UiPermission": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "capability-scope",
+              "type": "string"
+            },
+            "scope": {
+              "$ref": "#/definitions/UiCapabilityScope"
+            }
+          },
+          "required": [
+            "kind",
+            "scope"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "effect": {
+              "$ref": "#/definitions/UiActionEffect"
+            },
+            "kind": {
+              "const": "effect",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "effect"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "UiProtocolVersion": {
+      "const": "ui.surface.v1",
+      "type": "string"
+    },
+    "UiRole": {
+      "enum": [
+        "neutral",
+        "info",
+        "success",
+        "warn",
+        "error",
+        "muted"
+      ],
+      "type": "string"
+    },
+    "UiSetupState": {
+      "enum": [
+        "ready",
+        "missing",
+        "pending",
+        "expired",
+        "revoked",
+        "unknown",
+        "unavailable"
+      ],
+      "type": "string"
+    },
+    "UiStatusEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/definitions/UiRole"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "value",
+        "role"
+      ],
+      "type": "object"
+    },
+    "UiSurface": {
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "items": {
+            "$ref": "#/definitions/UiAction"
+          },
+          "type": "array"
+        },
+        "attachmentPoint": {
+          "$ref": "#/definitions/UiAttachmentPoint"
+        },
+        "conditions": {
+          "items": {
+            "$ref": "#/definitions/UiCondition"
+          },
+          "type": "array"
+        },
+        "extensionId": {
+          "type": "string"
+        },
+        "intent": {
+          "$ref": "#/definitions/UiIntent"
+        },
+        "nodes": {
+          "items": {
+            "$ref": "#/definitions/UiNode"
+          },
+          "type": "array"
+        },
+        "order": {
+          "type": "number"
+        },
+        "permissions": {
+          "items": {
+            "$ref": "#/definitions/UiPermission"
+          },
+          "type": "array"
+        },
+        "protocolVersion": {
+          "$ref": "#/definitions/UiProtocolVersion"
+        },
+        "scopeId": {
+          "type": "string"
+        },
+        "surfaceId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "surfaceId",
+        "extensionId",
+        "title",
+        "intent",
+        "scopeId",
+        "attachmentPoint",
+        "order",
+        "nodes",
+        "actions"
+      ],
+      "type": "object"
+    },
+    "UiSurfaceBundle": {
+      "additionalProperties": false,
+      "properties": {
+        "protocolVersion": {
+          "$ref": "#/definitions/UiProtocolVersion"
+        },
+        "surfaces": {
+          "items": {
+            "$ref": "#/definitions/UiSurface"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "surfaces"
+      ],
+      "type": "object"
+    },
+    "UiTab": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "nodes": {
+          "items": {
+            "$ref": "#/definitions/UiNode"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "nodes"
+      ],
+      "type": "object"
+    },
+    "UiTableColumn": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/definitions/UiRole"
+        }
+      },
+      "required": [
+        "id",
+        "label"
+      ],
+      "type": "object"
+    },
+    "UiTableRow": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "#/definitions/UiAction"
+        },
+        "cells": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "columnId": {
+                "type": "string"
+              },
+              "role": {
+                "$ref": "#/definitions/UiRole"
+              },
+              "value": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "columnId",
+              "value"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "cells"
+      ],
+      "type": "object"
+    }
+  }
+}

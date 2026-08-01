@@ -1,13 +1,13 @@
 ---
 id: task-generate-client-bindings-from-the-daemon-ui-contra
 title: Generate client bindings from the daemon UI contract
-status: ready
+status: done
 priority: p1
 area: architecture
 task_class: Platform
 summary: Generate strict TypeScript and Swift ui.surface.v1 bindings from one canonical daemon contract instead of hand-maintained decoders.
 created_at: 2026-07-31T16:00:54.498Z
-updated_at: 2026-08-01T09:14:23.797Z
+updated_at: 2026-08-01T10:08:19.001Z
 ---
 
 ## Problem

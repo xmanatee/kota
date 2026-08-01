@@ -39,6 +39,8 @@ export type ConformanceCase = {
   parse: (raw: unknown) => unknown;
   /** When true, the case verifies the decoder rejects unknown discriminators. */
   expectThrow?: true;
+  /** Optional field path that generated/handwritten TypeScript errors must retain. */
+  expectedErrorPath?: string;
   /** Optional positive-arm assertion run after decoding. */
   assertPositive?: (decoded: unknown) => void;
 };
@@ -218,6 +220,7 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
             streamId?: string;
             source?: { kind: string; path: string; eventTypes: string[] };
           }>;
+          permissions?: Array<{ kind: string }>;
           actions: Array<{
             actionId: string;
             operation: { kind: string; method?: string; path?: string; namespace?: string };
@@ -244,6 +247,7 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
               };
             };
             conditions?: Array<{ kind: string; state: string }>;
+            permissions?: Array<{ kind: string }>;
             result: { errors: Array<{ reason: string }> };
           }>;
         }>;
@@ -271,7 +275,7 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
       if (!demo) {
         throw new Error("expected operator-control demo surface");
       }
-      const expectedKinds = ["metrics", "text", "link", "tabs", "table", "table", "progress", "log", "log-stream", "form", "form", "form", "table", "table", "action-list"];
+      const expectedKinds = ["metrics", "text", "link", "tabs", "table", "table", "progress", "log", "log-stream", "form", "form", "form", "table", "table", "action-list", "navigation", "command", "empty", "error"];
       if (demo.nodes.map((node) => node.kind).join(",") !== expectedKinds.join(",")) {
         throw new Error("expected operator-control to exercise shared semantic node kinds");
       }
@@ -380,6 +384,23 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
       )) {
         throw new Error("expected setup actions to cover revoked requirement state");
       }
+      const actions = bundle.surfaces.flatMap((surface) => surface.actions);
+      if ([...new Set(actions.map((action) => action.effect))].sort().join(",") !== "external,read,write") {
+        throw new Error("expected generated bindings to cover every action effect");
+      }
+      if ([...new Set(actions.map((action) => action.operation.kind))].sort().join(",") !== "client-namespace,daemon-route") {
+        throw new Error("expected generated bindings to cover every action operation");
+      }
+      if ([...new Set(actions.map((action) => action.readiness.state))].sort().join(",") !== "disabled,needs-setup,ready") {
+        throw new Error("expected generated bindings to cover every readiness arm");
+      }
+      const permissionKinds = bundle.surfaces.flatMap((surface) => [
+        ...(surface.permissions ?? []),
+        ...surface.actions.flatMap((action) => action.permissions ?? []),
+      ]).map((permission) => permission.kind);
+      if ([...new Set(permissionKinds)].sort().join(",") !== "capability-scope,effect") {
+        throw new Error("expected generated bindings to cover every permission arm");
+      }
     },
   },
   {
@@ -387,6 +408,7 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
     path: "uiSurfaces.negative_unknownNodeKind",
     parse: parseUiSurfaceBundle,
     expectThrow: true,
+    expectedErrorPath: "uiSurfaces.surfaces[0].nodes[0].kind",
   },
   {
     name: "uiSurfaces: unknown action effect rejected",
@@ -429,6 +451,31 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
     path: "uiSurfaces.negative_unknownSetupConditionState",
     parse: parseUiSurfaceBundle,
     expectThrow: true,
+  },
+  {
+    name: "uiSurfaces: unknown confirmation mode rejected",
+    path: "uiSurfaces.negative_unknownConfirmationMode",
+    parse: parseUiSurfaceBundle,
+    expectThrow: true,
+  },
+  {
+    name: "uiSurfaces: unknown condition kind rejected",
+    path: "uiSurfaces.negative_unknownConditionKind",
+    parse: parseUiSurfaceBundle,
+    expectThrow: true,
+  },
+  {
+    name: "uiSurfaces: unknown permission kind rejected",
+    path: "uiSurfaces.negative_unknownPermissionKind",
+    parse: parseUiSurfaceBundle,
+    expectThrow: true,
+  },
+  {
+    name: "uiSurfaces: unknown JSON Schema type rejected",
+    path: "uiSurfaces.negative_unknownJsonSchemaType",
+    parse: parseUiSurfaceBundle,
+    expectThrow: true,
+    expectedErrorPath: "uiSurfaces.surfaces[0].nodes[0].action.parameters.schema.properties.query.type",
   },
   // recall
   {

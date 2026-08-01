@@ -68,10 +68,10 @@ Recall, Answer, Capture, Retract, Voice, Chat, Core.
   routes for that namespace and reuse the internal helpers.
 - Per-namespace `*Models.swift` files own the Codable types, render
   helpers, and per-arm enums for that namespace.
-- `ContractTypes.swift` keeps the cross-client thin-client contract
-  decoders (identity, capabilities, workflow definitions); add a new
-  contract surface there alongside the TypeScript and conformance
-  fixture changes.
+- `ContractTypes.swift` keeps authored cross-client decoders such as identity,
+  capabilities, and workflow definitions. `ui.surface.v1` lives under
+  `Generated/` and is regenerated from the daemon TypeScript contract with
+  `pnpm build:ui-bindings`; never mirror that protocol by hand.
 
 ## Build & Test
 

@@ -27,7 +27,7 @@ describe('mobile client — thin-client contract conformance fixtures', () => {
     if (testCase.expectThrow) {
       test(`rejects ${testCase.name}`, () => {
         const subtree = readFixturePath(fixture, testCase.path);
-        expect(() => testCase.parse(subtree)).toThrow();
+        expect(() => testCase.parse(subtree)).toThrow(testCase.expectedErrorPath);
       });
     } else {
       test(`decodes ${testCase.name}`, () => {

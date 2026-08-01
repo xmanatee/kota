@@ -3,10 +3,11 @@
 Pinned canonical artifacts for the cross-client conformance gate.
 
 The mechanism is a single shared fixture corpus plus a shared decoder catalog
-and case table. Every thin-client decoder suite consumes the same fixture
-through equivalent typed decoders. Negative fixtures exercise the "unknown
-reason / source / target" rejection paths so strict decoding stays intentional
-rather than accidentally lax.
+and case table. Handwritten route decoders remain here, while the UI surface
+schema and bindings are generated from the daemon-owned `UiSurfaceBundle`
+contract. Every thin-client decoder suite consumes the same fixture through
+equivalent typed decoders. Negative fixtures exercise unknown discriminators
+so strict decoding stays intentional rather than accidentally lax.
 
 ## Boundary
 
@@ -14,14 +15,12 @@ rather than accidentally lax.
   top-level key once a corresponding daemon route or field exists.
 - Negative cases are the contract's lower bound; they make strict
   decoding load-bearing and must reject on unknown discriminators.
-- Web and core import the canonical TypeScript catalog directly. The
-  mobile workspace cannot resolve helpers outside its tree (expo babel
-  transform), so byte-identical copies live under
-  `clients/mobile/src/daemon/conformance/` and a cross-client integration
-  test enforces byte-identity. The mobile copies sit in the production
-  tree (not under `__tests__/`) so the same strict-decode parsers back
-  both the conformance fixture suite and the mobile production runtime
-  paths (`clients/mobile/src/daemon/digest.ts`, `attention.ts`, …).
+- Web and core import the canonical TypeScript catalog directly. The mobile
+  workspace cannot resolve helpers outside its tree (expo babel transform),
+  so the generator emits its TypeScript UI binding inside the mobile tree and
+  the cross-client integration test enforces byte identity. Other decoder
+  copies remain in the production tree so the same strict parsers back both
+  conformance and mobile runtime paths.
 - The macOS suite consumes a `Bundle.module` resource copy declared in
   the Swift package manifest; the same cross-client guard asserts the
   copy parses to the same JSON tree as the canonical file.
@@ -36,12 +35,11 @@ rather than accidentally lax.
 1. Add a positive arm and at least one negative arm
    (`negative_unknownReason` / `negative_unknownSource` /
    `negative_unknownTarget`) to the canonical fixture.
-2. Add a typed TypeScript decoder that mirrors the daemon's wire shape
-   and throws on unknown discriminators, then register it in the shared
-   case table.
-3. Mirror a Swift Codable decoder under the macOS sources and add a
-   positive + negative `XCTestCase` method.
-4. Refresh the embedded mobile and macOS copies of the canonical
-   artifacts in the same change.
-5. Run the cross-client guard, the four conformance suites, and the
-   macOS test target. Every suite must stay green.
+2. For `ui.surface.v1`, change only the daemon-owned TypeScript contract and
+   run `pnpm build:ui-bindings`; for other surfaces, update the owned typed
+   decoders and shared case table.
+3. Add positive and negative Swift `XCTestCase` coverage for the generated
+   Codable binding.
+4. Refresh the embedded mobile and macOS fixture copies in the same change.
+5. Run the generated-binding check, cross-client guard, four conformance
+   suites, and Apple test target.

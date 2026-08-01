@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fixture from "../../../conformance/contract-fixture.json";
-import { parseUiSurfaceBundle } from "../../../conformance/decoders";
+import { parseUiSurfaceBundle } from "../../../conformance/ui-surface.generated";
 import { renderUiSurfaceBundleHtml } from "./uiSurfaceRender";
 
 describe("web shared UI renderer", () => {
