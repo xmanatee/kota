@@ -1,14 +1,14 @@
 ---
 id: task-render-shared-ui-surfaces-in-the-web-client
 title: Render shared UI surfaces in the web client
-status: backlog
+status: ready
 priority: p1
 area: client
 task_class: Product
 depends_on: [task-make-ui-contributions-the-only-surface-assembly-pa, task-generate-client-bindings-from-the-daemon-ui-contra]
 summary: Make the live React operator UI render daemon-owned ui.surface.v1 navigation, facts, forms, and actions instead of a hardcoded panel inventory.
 created_at: 2026-07-31T16:00:55.526Z
-updated_at: 2026-07-31T16:00:55.526Z
+updated_at: 2026-08-01T22:42:07.444Z
 ---
 
 ## Problem

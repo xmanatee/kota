@@ -1,14 +1,14 @@
 ---
 id: task-make-scope-trust-and-policy-operator-mutable
 title: Make scope trust and policy operator mutable
-status: backlog
+status: ready
 priority: p1
 area: security
 task_class: Safety
 depends_on: [task-make-directory-scope-registration-a-live-daemon-li]
 summary: Expose one machine-local authority path for changing project trust and persisted scope policy, with no repo-controlled trust or programmatic-only policy fork.
 created_at: 2026-07-31T16:12:49.283Z
-updated_at: 2026-07-31T16:12:49.283Z
+updated_at: 2026-08-01T22:42:07.416Z
 ---
 
 ## Problem
