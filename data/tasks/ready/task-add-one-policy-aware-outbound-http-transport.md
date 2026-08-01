@@ -1,13 +1,13 @@
 ---
 id: task-add-one-policy-aware-outbound-http-transport
 title: Add one policy-aware outbound HTTP transport
-status: backlog
+status: ready
 priority: p1
 area: architecture
 task_class: Platform
 summary: Define one typed outbound HTTP transport with explicit trust profiles and shared timeout, redirect, body-limit, redaction, and error semantics.
 created_at: 2026-07-31T16:00:59.628Z
-updated_at: 2026-07-31T16:00:59.628Z
+updated_at: 2026-08-01T09:14:23.825Z
 ---
 
 ## Problem
