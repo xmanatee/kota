@@ -13,19 +13,18 @@ export function validateDaemonWorkflowRuntimes(ctx: DaemonRuntimeContext): void 
   }
 }
 
-export function startDaemonWorkflowRuntimes(ctx: DaemonRuntimeContext): void {
-  for (const workflows of listDaemonWorkflowRuntimes(ctx)) {
-    workflows.start();
-  }
+export function startDaemonWorkflowRuntimes(ctx: DaemonRuntimeContext): Promise<void> {
+  return ctx.scopeRuntimeHost.startInitial(ctx.projectRuntimes);
 }
 
 export async function stopDaemonWorkflowRuntimes(
   ctx: DaemonRuntimeContext,
   ...stopArgs: [number] | [number, number]
 ): Promise<void> {
-  const runtimes = [...listDaemonWorkflowRuntimes(ctx)].reverse();
-  for (const workflows of runtimes) {
-    await workflows.stop(...stopArgs);
+  if (stopArgs.length === 1) {
+    await ctx.scopeRuntimeHost.stopAll(ctx.projectRuntimes, stopArgs[0]);
+  } else {
+    await ctx.scopeRuntimeHost.stopAll(ctx.projectRuntimes, stopArgs[0], stopArgs[1]);
   }
 }
 

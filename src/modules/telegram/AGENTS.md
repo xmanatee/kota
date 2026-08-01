@@ -67,6 +67,8 @@ notification forwarding.
 - Interactive harness sessions own one project-scoped tool-runtime identity
   for the conversation and erase its credential overlay on clear, project
   switch, or bot shutdown.
+- Interactive sessions report scope ids for drain inspection and resolve the
+  live daemon default instead of retaining the startup runtime.
 - Inbound voice/audio messages route through the `transcription` module
   before reaching the session loop. The bot never calls a transcription
   vendor API directly; absence of a registered provider surfaces as an
@@ -106,10 +108,9 @@ Required environment:
 - `TELEGRAM_ALERT_CHAT_ID` — chat id that receives notification events
   and is allowed to issue `/status`.
 
-Model backend selection is KOTA config, not Telegram-specific. For Docker
-deploys, `deploy/telegram-assistant/entrypoint.sh` can derive it from
-`KOTA_MODEL` plus the selected provider's key, or an explicit provider/preset.
-Anthropic keys are optional and only needed for Anthropic-backed selections.
+Model selection is KOTA config. Docker deploys derive it in
+`deploy/telegram-assistant/entrypoint.sh` from `KOTA_MODEL` and provider
+credentials, or use an explicit preset.
 
 Autonomy mode is mandatory — the interactive channel refuses to start without
 one. Set it through `modules.telegram.defaultAutonomyMode` (or the shared

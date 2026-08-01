@@ -1,4 +1,5 @@
 import type { ServerResponse } from "node:http";
+import { beginApprovalExecutionActivity } from "#core/daemon/approval-execution-activity.js";
 import type {
 	ApprovalExecutionApproveAllResult,
 	ApprovalExecutionSnapshot,
@@ -120,64 +121,72 @@ export async function writeApproveApprovalMutation(
 		writeApprovalReviewMismatch(res, queue, [selection.snapshot.approval]);
 		return;
 	}
-	const preflight = await prepareApprovalExecutionBatch([selection.snapshot], executionContext);
-	if (!preflight.ok) {
-		jsonResponse(res, preflight.status, preflight.body);
-		return;
+	const releaseExecution = beginApprovalExecutionActivity(queue, [id]);
+	try {
+		const preflight = await prepareApprovalExecutionBatch(
+			[selection.snapshot],
+			executionContext,
+		);
+		if (!preflight.ok) {
+			jsonResponse(res, preflight.status, preflight.body);
+			return;
+		}
+		const outcome = await withApprovalExecutionLeases(
+			preflight.leases.values(),
+			async (): Promise<ApprovalMutationOutcome> => {
+				const lease = preflight.leases.get(id);
+				if (lease === undefined) {
+					return {
+						kind: "descriptor_mismatch",
+						approvals: [selection.snapshot.approval],
+					};
+				}
+				const result = queue.approveForExecution(lease, note);
+				if (!result.ok && result.reason === "scope_mismatch") {
+					return {
+						kind: "scope_mismatch",
+						approvals: result.approval ? [result.approval] : [],
+					};
+				}
+				if (!result.ok && result.reason === "descriptor_mismatch") {
+					return {
+						kind: "descriptor_mismatch",
+						approvals: result.approval
+							? [result.approval]
+							: [selection.snapshot.approval],
+					};
+				}
+				if (!result.ok && result.reason === "input_unavailable") {
+					return {
+						kind: "input_unavailable",
+						approvals: result.approval ? [result.approval] : [],
+					};
+				}
+				if (!result.ok) {
+					return {
+						kind: "descriptor_mismatch",
+						approvals: [selection.snapshot.approval],
+					};
+				}
+				try {
+					return {
+						kind: "success",
+						body: await approvedApprovalResponse(
+							result.approval,
+							executionContext,
+							lease,
+						),
+					};
+				} catch (error) {
+					if (!(error instanceof ApprovalExecutionDescriptorMismatchError)) throw error;
+					return { kind: "descriptor_mismatch", approvals: [error.approval] };
+				}
+			},
+		);
+		writeApprovalMutationOutcome(res, queue, selectedScopeId, outcome);
+	} finally {
+		releaseExecution();
 	}
-	const outcome = await withApprovalExecutionLeases(
-		preflight.leases.values(),
-		async (): Promise<ApprovalMutationOutcome> => {
-			const lease = preflight.leases.get(id);
-			if (lease === undefined) {
-				return {
-					kind: "descriptor_mismatch",
-					approvals: [selection.snapshot.approval],
-				};
-			}
-			const result = queue.approveForExecution(lease, note);
-			if (!result.ok && result.reason === "scope_mismatch") {
-				return {
-					kind: "scope_mismatch",
-					approvals: result.approval ? [result.approval] : [],
-				};
-			}
-			if (!result.ok && result.reason === "descriptor_mismatch") {
-				return {
-					kind: "descriptor_mismatch",
-					approvals: result.approval
-						? [result.approval]
-						: [selection.snapshot.approval],
-				};
-			}
-			if (!result.ok && result.reason === "input_unavailable") {
-				return {
-					kind: "input_unavailable",
-					approvals: result.approval ? [result.approval] : [],
-				};
-			}
-			if (!result.ok) {
-				return {
-					kind: "descriptor_mismatch",
-					approvals: [selection.snapshot.approval],
-				};
-			}
-			try {
-				return {
-					kind: "success",
-					body: await approvedApprovalResponse(
-						result.approval,
-						executionContext,
-						lease,
-					),
-				};
-			} catch (error) {
-				if (!(error instanceof ApprovalExecutionDescriptorMismatchError)) throw error;
-				return { kind: "descriptor_mismatch", approvals: [error.approval] };
-			}
-		},
-	);
-	writeApprovalMutationOutcome(res, queue, selectedScopeId, outcome);
 }
 
 export async function writeApproveAllApprovalsMutation(
@@ -228,38 +237,46 @@ export async function writeApproveAllApprovalsMutation(
 		writeApprovalReviewMismatch(res, queue, pendingApprovals);
 		return;
 	}
-	const preflight = await prepareApprovalExecutionBatch(snapshots, executionContext);
-	if (!preflight.ok) {
-		jsonResponse(res, preflight.status, preflight.body);
-		return;
-	}
-	const outcome = await withApprovalExecutionLeases(
-		preflight.leases.values(),
-		async (): Promise<ApprovalMutationOutcome> => {
-			const result = approveAllApprovalsLocal(
-				queue,
-				[...preflight.leases.values()],
-				note,
-			);
-			if (!result.ok) {
-				return { kind: result.reason, approvals: result.approvals };
-			}
-			try {
-				return {
-					kind: "success",
-					body: await approveAllResponse(
-						result.approvals,
-						executionContext,
-						preflight.leases,
-					),
-				};
-			} catch (error) {
-				if (!(error instanceof ApprovalExecutionDescriptorMismatchError)) throw error;
-				return { kind: "descriptor_mismatch", approvals: [error.approval] };
-			}
-		},
+	const releaseExecution = beginApprovalExecutionActivity(
+		queue,
+		snapshots.map((snapshot) => snapshot.approval.id),
 	);
-	writeApprovalMutationOutcome(res, queue, selectedScopeId, outcome);
+	try {
+		const preflight = await prepareApprovalExecutionBatch(snapshots, executionContext);
+		if (!preflight.ok) {
+			jsonResponse(res, preflight.status, preflight.body);
+			return;
+		}
+		const outcome = await withApprovalExecutionLeases(
+			preflight.leases.values(),
+			async (): Promise<ApprovalMutationOutcome> => {
+				const result = approveAllApprovalsLocal(
+					queue,
+					[...preflight.leases.values()],
+					note,
+				);
+				if (!result.ok) {
+					return { kind: result.reason, approvals: result.approvals };
+				}
+				try {
+					return {
+						kind: "success",
+						body: await approveAllResponse(
+							result.approvals,
+							executionContext,
+							preflight.leases,
+						),
+					};
+				} catch (error) {
+					if (!(error instanceof ApprovalExecutionDescriptorMismatchError)) throw error;
+					return { kind: "descriptor_mismatch", approvals: [error.approval] };
+				}
+			},
+		);
+		writeApprovalMutationOutcome(res, queue, selectedScopeId, outcome);
+	} finally {
+		releaseExecution();
+	}
 }
 
 function approveAllApprovalsLocal(

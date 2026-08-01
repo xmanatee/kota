@@ -9,6 +9,8 @@ vi.mock("./bot.js", () => {
     this.start = vi.fn().mockResolvedValue(undefined);
     this.stop = vi.fn();
     this.postApproval = vi.fn().mockResolvedValue(undefined);
+    this.listScopeSessionIds = vi.fn().mockReturnValue([]);
+    this.closeScopeSessions = vi.fn();
   });
   return { SlackBot };
 });
@@ -20,10 +22,10 @@ import slackChannelModule from "./index.js";
 const MockedSlackBot = vi.mocked(SlackBot);
 
 const STUB_CHANNEL_START_CTX = {
-  projectDir: "/tmp",
-  defaultProjectRuntime: {
-    project: { projectId: "test-project", projectDir: "/tmp", displayName: "test" },
-  } as never,
+  getDefaultProjectRuntime: () =>
+    ({
+      project: { projectId: "test-project", projectDir: "/tmp", displayName: "test" },
+    }) as never,
   getProjectRuntime: () =>
     ({
       project: { projectId: "test-project", projectDir: "/tmp", displayName: "test" },

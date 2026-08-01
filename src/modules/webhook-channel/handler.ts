@@ -1,25 +1,29 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
-import { AgentSession } from "#core/loop/loop.js";
-import { NullTransport } from "#core/loop/transport.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { webhookChannelSession } from "./events.js";
+import {
+  readRawBody,
+  resolveSecret,
+  resolveSourceId,
+  type SourceRoute,
+  verifyHmacSignature,
+  type WebhookChannelConfig,
+} from "./request.js";
+import {
+  createAgentSession,
+  directSessions,
+  generateWebhookSessionId,
+  sourceSessions,
+  type WebhookSessionFactory,
+} from "./sessions.js";
 
-// ─── Types ──────────────────────────────────────────────────────────────────
-
-export type SourceRoute = {
-  agent: string;
-};
-
-export type WebhookChannelConfig = {
-  secret?: string;
-  defaultAgent?: string;
-  defaultAutonomyMode?: AutonomyMode;
-  sources?: Record<string, SourceRoute>;
-};
+export type { SourceRoute, WebhookChannelConfig } from "./request.js";
+export { resolveSourceId, verifyHmacSignature } from "./request.js";
+export type { WebhookSessionFactory } from "./sessions.js";
+export { clearSessions, listWebhookSessionIds } from "./sessions.js";
 
 export type WebhookPayload = {
   agent?: string;
@@ -28,50 +32,6 @@ export type WebhookPayload = {
   sessionId?: string;
   source?: string;
 };
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-function resolveSecret(raw: string): string {
-  if (raw.startsWith("$")) {
-    return process.env[raw.slice(1)] ?? "";
-  }
-  return raw;
-}
-
-function readRawBody(req: IncomingMessage): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let size = 0;
-    const MAX = 1024 * 1024;
-    req.on("data", (chunk: Buffer) => {
-      size += chunk.length;
-      if (size > MAX) {
-        req.destroy();
-        reject(new Error("Request body too large"));
-        return;
-      }
-      chunks.push(chunk);
-    });
-    req.on("end", () => resolve(Buffer.concat(chunks)));
-    req.on("error", reject);
-  });
-}
-
-export function verifyHmacSignature(
-  secret: string,
-  body: Buffer,
-  signature: string,
-): boolean {
-  const prefix = "sha256=";
-  if (!signature.startsWith(prefix)) return false;
-  const expected = `${prefix}${createHmac("sha256", secret).update(body).digest("hex")}`;
-  if (signature.length !== expected.length) return false;
-  try {
-    return timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
-  } catch {
-    return false;
-  }
-}
 
 function jsonResponse(
   res: ServerResponse,
@@ -97,88 +57,6 @@ function parsePayload(raw: unknown): WebhookPayload | null {
     source: typeof obj.source === "string" ? obj.source : undefined,
   };
 }
-
-// ─── Source resolution ──────────────────────────────────────────────────────
-
-const BASE_PATH = "/api/channels/webhook";
-
-export function resolveSourceId(
-  req: IncomingMessage,
-  payload: WebhookPayload,
-): string | null {
-  const url = req.url ?? "/";
-  const path = url.split("?")[0];
-  if (path.startsWith(`${BASE_PATH}/`)) {
-    const suffix = decodeURIComponent(path.slice(BASE_PATH.length + 1));
-    if (suffix) return suffix;
-  }
-
-  const header = req.headers["x-webhook-source"];
-  if (typeof header === "string" && header) return header;
-
-  if (payload.source) return payload.source;
-
-  return null;
-}
-
-// ─── Session management ─────────────────────────────────────────────────────
-
-type WebhookSession = {
-  id: string;
-  createdAt: string;
-  send: (prompt: string) => Promise<string>;
-  close: () => void;
-};
-
-export type WebhookSessionFactory = (options: {
-  label: string;
-  autonomyMode: AutonomyMode;
-  ctx: ModuleContext;
-}) => Pick<WebhookSession, "send" | "close">;
-
-const sessions = new Map<string, WebhookSession>();
-const sourceSessions = new Map<string, WebhookSession>();
-let nextSessionId = 1;
-
-function generateSessionId(): string {
-  return `wh-${Date.now().toString(36)}-${(nextSessionId++).toString(36)}`;
-}
-
-function createAgentSession({
-  label,
-  autonomyMode,
-  ctx,
-}: {
-  label: string;
-  autonomyMode: AutonomyMode;
-  ctx: ModuleContext;
-}): Pick<WebhookSession, "send" | "close"> {
-  const agent = new AgentSession({
-    autonomyMode,
-    model: ctx.config.model,
-    verbose: ctx.verbose,
-    config: ctx.config,
-    transport: new NullTransport(),
-    label,
-    noHistory: false,
-    historySource: "action",
-    reflectionEnabled: false,
-  });
-  return {
-    send: (prompt) => agent.send(prompt),
-    close: () => agent.close(),
-  };
-}
-
-export function clearSessions(): void {
-  for (const s of sessions.values()) s.close();
-  sessions.clear();
-  for (const s of sourceSessions.values()) s.close();
-  sourceSessions.clear();
-  nextSessionId = 1;
-}
-
-// ─── Handler factory ────────────────────────────────────────────────────────
 
 export function makeWebhookChannelHandler(
   ctx: ModuleContext,
@@ -262,8 +140,6 @@ export function makeWebhookChannelHandler(
   };
 }
 
-// ─── Source-routed requests ─────────────────────────────────────────────────
-
 async function handleSourceRequest(
   ctx: ModuleContext,
   res: ServerResponse,
@@ -277,7 +153,7 @@ async function handleSourceRequest(
   const resumed = !!session;
 
   if (!session) {
-    const id = generateSessionId();
+    const id = generateWebhookSessionId();
     const moduleSession = createSession({
       label: `webhook:${sourceId}:${sourceConfig.agent}`,
       autonomyMode,
@@ -328,8 +204,6 @@ async function handleSourceRequest(
   }
 }
 
-// ─── Direct requests (no source routing) ────────────────────────────────────
-
 async function handleDirectRequest(
   ctx: ModuleContext,
   config: WebhookChannelConfig,
@@ -339,7 +213,7 @@ async function handleDirectRequest(
   createSession: WebhookSessionFactory,
 ): Promise<void> {
   const existingId = payload.sessionId;
-  let session = existingId ? sessions.get(existingId) : undefined;
+  let session = existingId ? directSessions.get(existingId) : undefined;
 
   if (existingId && !session) {
     jsonResponse(res, 404, { error: `Session "${existingId}" not found` });
@@ -347,7 +221,7 @@ async function handleDirectRequest(
   }
 
   if (!session) {
-    const id = generateSessionId();
+    const id = generateWebhookSessionId();
     const agentName = payload.agent ?? config.defaultAgent;
     const moduleSession = createSession({
       label: `webhook:${id}${agentName ? `:${agentName}` : ""}`,
@@ -360,7 +234,7 @@ async function handleDirectRequest(
       send: moduleSession.send,
       close: moduleSession.close,
     };
-    sessions.set(id, session);
+    directSessions.set(id, session);
   }
 
   const promptParts: string[] = [];

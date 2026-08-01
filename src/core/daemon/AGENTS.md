@@ -68,17 +68,17 @@ shape. Clients join `dashboard.path` onto the daemon base URL when
 
 ## Scope Registry Foundation
 
-Scope is the daemon's canonical context identity. `ScopeRegistry`
-(`scope-registry.ts`) owns global/root plus directory child scopes; existing
-project ids are compatibility ids. `DaemonConfig.projects` accepts directory
-scopes, and `projectDir` is the single-directory shorthand.
+Scope ids are canonical; project ids are compatibility ids. Config seeds the
+persisted `ScopeRegistry`; `ScopeLifecycleService` mutates it.
+Persist before activating `ScopeRuntimeHost`; paused startup still mutates
+state. Compensate both registries when activation fails.
+Channels use `getChannelRuntime`; sessions, approval leases, pending workflow buffers, and suspended awaits block drain.
+New work and selection require hosting; removal re-inspects blockers.
+Resolve the default at runtime so changes do not retain its startup value.
 
-Keep the boundary explicit: `/scopes` exposes the canonical scope projection,
-while `/projects`, `?projectId=`, `ProjectScopedEventBus`, and
-`ProjectRuntime` remain directory-scope compatibility surfaces. Project-scoped
-control routes also accept `?scopeId=`; when both selectors are present they
-must match. Scoped event emitters carry canonical `scopeId` plus compatibility
-`projectId`, and workflow trigger filters may use either spelling.
+`/scopes` is canonical. `/projects`, `?projectId=`, `ProjectScopedEventBus`,
+and `ProjectRuntime` remain compatibility surfaces. Routes accept `?scopeId=`;
+both selectors must match, and scoped events carry both ids.
 
 ## Recoverability
 

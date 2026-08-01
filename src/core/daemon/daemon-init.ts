@@ -2,12 +2,9 @@ import { AgentSession } from "#core/loop/loop.js";
 import type { Transport } from "#core/loop/transport.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import {
-  getHistoryProvider,
   getProviderRegistry,
   HISTORY_PROJECT_PROVIDER_TOKEN,
-  type HistoryProjectProvider,
 } from "#core/modules/provider-registry.js";
-import type { HistoryProvider } from "#core/modules/provider-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import {
   WORKFLOW_DEFINITIONS_PROVIDER_TYPE,
@@ -23,6 +20,7 @@ import {
 } from "#core/workflow/workflow-event-dispatcher-provider.js";
 import { probeCapabilityReadinessWithTrigger } from "./capability-readiness.js";
 import { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
+import { createChatHistoryProviderResolver } from "./daemon-chat-history-provider.js";
 import { DaemonControlServer, type InteractiveSession } from "./daemon-control.js";
 import { buildDaemonHandle } from "./daemon-handle.js";
 import type {
@@ -33,8 +31,11 @@ import {
   WORKFLOW_METRICS_SOURCE_PROVIDER_TYPE,
   type WorkflowMetricsSource,
 } from "./metrics-source-provider.js";
-import type { ProjectRuntimeRegistry } from "./project-runtime.js";
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "./project-scope-provider.js";
+import { inspectChannelScopeDrainBlockers } from "./scope-channel-drain-inspection.js";
+import { inspectExternalScopeDrainBlockers } from "./scope-drain-inspection.js";
+import { ScopeLifecycleService } from "./scope-lifecycle.js";
+import { ScopeRuntimeHost } from "./scope-runtime-host.js";
 
 export type { BuildDaemonInitParams, DaemonRuntimeContext } from "./daemon-runtime-context.js";
 
@@ -69,11 +70,48 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
   let ctx!: DaemonRuntimeContext;
 
   const defaultBundle = projectRuntimes.getDefault();
-  const workflows = defaultBundle.workflowRuntime;
-  const runStore = defaultBundle.runStore;
-
+  const workflows = defaultBundle.workflowRuntime, runStore = defaultBundle.runStore;
+  const scopeRuntimeHost = new ScopeRuntimeHost({
+    bus,
+    pollIntervalMs: config.pollIntervalMs ?? 30_000,
+    onDueItems: (_runtime, items) => {
+      if (!ctx.running || ctx.stopping) return;
+      for (const item of items) log(`Reminder: ${item.description}`);
+    },
+    onLog: log,
+    alertCooldownMs: config.config?.notifications?.alertCooldownMs,
+    getWorkflowNotify: (runtime, name) =>
+      runtime.workflowRuntime.getDefinitions().find((definition) => definition.name === name)?.notify,
+  });
+  const scopeLifecycle = new ScopeLifecycleService({
+    registry: projectRegistry,
+    runtimes: projectRuntimes,
+    runtimeHost: scopeRuntimeHost,
+    bus,
+    listSessionIds: (scopeId) => {
+      const ids = new Set(
+        [...sessions.values()]
+          .filter((session) => session.projectId === scopeId)
+          .map((session) => session.id),
+      );
+      for (const id of ctx.controlServer.listChatSessionIds(scopeId)) ids.add(id);
+      return [...ids];
+    },
+    inspectExternalBlockers: (scope) => [
+      ...inspectExternalScopeDrainBlockers(
+        getProviderRegistry(),
+        {
+          projectId: scope.scopeId,
+          projectDir: scope.directoryRoot,
+          displayName: scope.displayName,
+        },
+      ),
+      ...inspectChannelScopeDrainBlockers(ctx.activeChannels, scope.scopeId),
+    ],
+  });
   const daemonModel = config.model ?? config.config?.model;
   const daemonVerbose = config.verbose;
+  const getDefaultWorkflows = () => projectRuntimes.getDefault().workflowRuntime;
   const chatBindings = new DaemonChatBindingStore(stateDir);
   const historyProjectProvider = getProviderRegistry()?.get(HISTORY_PROJECT_PROVIDER_TOKEN);
   const resolveChatHistoryProvider = createChatHistoryProviderResolver({
@@ -109,13 +147,14 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     projectDir,
     projectRegistry,
     projectRuntimes,
+    getScopeHostingState: (scopeId) => scopeLifecycle.getHostingState(scopeId),
     config,
     refreshLiveSessionGuardrails: (guardrailsConfig) =>
       ctx.controlServer.refreshChatSessionGuardrails(guardrailsConfig),
     log,
     getModuleSummaries: () => config.getModuleSummaries?.() ?? [],
     getModuleHealthChecks: () => ctx.moduleHealthChecks,
-    probeCapabilityReadiness: () => probeCapabilityReadinessWithTrigger(workflows),
+    probeCapabilityReadiness: () => probeCapabilityReadinessWithTrigger(getDefaultWorkflows()),
     getChannelStatuses: () => ctx.channelStatuses,
   });
 
@@ -127,7 +166,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
   const dispatcher: WorkflowDispatcher = {
     enqueuePendingRun: (name) => handle.enqueuePendingRun(name),
     enqueueWebhookRun: (name, payload) => {
-      const result = workflows.enqueueWebhookRun(name, payload);
+      const result = getDefaultWorkflows().enqueueWebhookRun(name, payload);
       if (result.error?.startsWith("Unknown workflow") || result.error?.includes("no webhook trigger")) {
         return { ok: false, notFound: true };
       }
@@ -135,7 +174,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     },
   };
   const eventDispatcher: WorkflowEventDispatcher = {
-    enqueueBatchedEvent: (input) => workflows.enqueueBatchedEvent(input),
+    enqueueBatchedEvent: (input) => getDefaultWorkflows().enqueueBatchedEvent(input),
   };
   const metricsSource: WorkflowMetricsSource = {
     getWorkflowMetricCounts: () => handle.getWorkflowMetricCounts(),
@@ -144,7 +183,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
   };
   const definitionsSource: WorkflowDefinitionsSource = {
     getWebhookRateLimit: (name) => {
-      const def = workflows.getDefinitions().find((d) => d.name === name);
+      const def = getDefaultWorkflows().getDefinitions().find((d) => d.name === name);
       return def?.webhookRateLimit;
     },
   };
@@ -224,6 +263,8 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     sessions,
     projectRegistry,
     projectRuntimes,
+    scopeLifecycle,
+    scopeRuntimeHost,
     unsubscribe: null,
     sessionSweepTimer: null,
     healthCheckTimer: null,
@@ -238,27 +279,4 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
   };
 
   return ctx;
-}
-
-function createChatHistoryProviderResolver(opts: {
-  projectRuntimes: ProjectRuntimeRegistry;
-  historyProjectProvider: HistoryProjectProvider | null | undefined;
-}): (projectId: string) => HistoryProvider {
-  const defaultProjectId = opts.projectRuntimes.getDefaultProjectId();
-  return (projectId) => {
-    const runtime = opts.projectRuntimes.get(projectId);
-    if (opts.historyProjectProvider) {
-      return opts.historyProjectProvider.forProject({
-        projectId: runtime.project.projectId,
-        projectDir: runtime.project.projectDir,
-        isDefault: runtime.project.projectId === defaultProjectId,
-      });
-    }
-    if (runtime.project.projectId === defaultProjectId) {
-      return getHistoryProvider();
-    }
-    throw new Error(
-      `Project-scoped history provider is not registered for project ${runtime.project.projectId}`,
-    );
-  };
 }

@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import type { AgentDef } from "#core/agents/agent-types.js";
+import { SCOPE_DRAIN_INSPECTION_PROVIDER_TYPE } from "#core/daemon/scope-drain-inspection.js";
 import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import {
   importModuleExports,
@@ -11,6 +12,7 @@ import { WORKFLOW_STATE_RECOVERY_PROVIDER_TYPE } from "#modules/workflow-ops/sta
 import { autonomyHealthSignal } from "./health-signal.js";
 import { buildLoopQualityAuditCommand } from "./loop-quality-audit-cli.js";
 import { buildReportCommand } from "./report/report-cli.js";
+import { autonomyScopeDrainInspection } from "./scope-drain-inspection.js";
 import { createWorkflowStateRecoveryProvider } from "./workflow-state-recovery.js";
 import { autonomyWorkflowConcurrencyGroupFor } from "./workflow-workspace-policy.js";
 import { buildAttentionCommand } from "./workflows/attention-digest/attention-cli.js";
@@ -146,6 +148,10 @@ const autonomyModule: KotaModule = {
   workflows: async () => await discoverAutonomyWorkflowDefinitions(),
   agents: async () => await discoverAutonomyAgents(),
   onLoad: (ctx) => {
+    ctx.registerProvider(
+      SCOPE_DRAIN_INSPECTION_PROVIDER_TYPE,
+      autonomyScopeDrainInspection,
+    );
     ctx.registerProvider(
       WORKFLOW_STATE_RECOVERY_PROVIDER_TYPE,
       createWorkflowStateRecoveryProvider(),

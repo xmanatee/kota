@@ -489,6 +489,16 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
         }
         const result = h.setActiveProjectId(next.projectId);
         if (!result.ok) {
+          if (result.reason === "not_hosted") {
+            jsonResponse(res, 409, {
+              error: `Project scope ${result.projectId} is ${result.state}`,
+              reason: "scope_not_hosted",
+              projectId: result.projectId,
+              scopeId: result.projectId,
+              state: result.state,
+            });
+            return;
+          }
           jsonResponse(res, 404, {
             error: "Unknown project",
             reason: "unknown_project",
@@ -964,6 +974,17 @@ export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): Contro
           defaultAutonomyMode,
           projectId,
           conversationResolver,
+          () => {
+            const state = h.getScopeHostingState(projectId);
+            return state === "hosted"
+              ? { ok: true }
+              : {
+                  ok: false,
+                  reason: "scope_not_hosted",
+                  scopeId: projectId,
+                  state,
+                };
+          },
         );
       },
     },

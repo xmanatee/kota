@@ -38,6 +38,7 @@ import type {
 } from "./daemon-control-types.js";
 import type { DaemonState } from "./daemon-state.js";
 import type { ProjectRuntime, ProjectRuntimeRegistry } from "./project-runtime.js";
+import type { ScopeHostingState } from "./scope-lifecycle-types.js";
 import {
   defaultScopePolicyDecisionExamples,
   resolveScopePolicy,
@@ -60,6 +61,7 @@ export type DaemonHandleContext = {
   projectDir: string;
   projectRegistry: ScopeRegistry;
   projectRuntimes: ProjectRuntimeRegistry;
+  getScopeHostingState: (scopeId: ProjectId) => ScopeHostingState;
   config: DaemonConfig;
   refreshLiveSessionGuardrails: (config: GuardrailsConfig) => {
     refreshed: number;
@@ -115,6 +117,13 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
     return projectRuntimes.get(projectId);
   };
 
+  const getUnavailableScopeState = (
+    projectId: ProjectId,
+  ): Exclude<ScopeHostingState, "hosted"> | null => {
+    const state = ctx.getScopeHostingState(projectId);
+    return state === "hosted" ? null : state;
+  };
+
   return {
     getHealthStatus: () => {
       const checks = ctx.getModuleHealthChecks();
@@ -145,6 +154,7 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       projectRegistry.toProjection(),
     getScopeRegistryProjection: (): ScopeRegistryProjection =>
       projectRegistry.toScopeProjection(),
+    getScopeHostingState: (scopeId: ProjectId) => ctx.getScopeHostingState(scopeId),
     hasScope: (scopeId: string) =>
       projectRegistry.toScopeProjection().scopes.some((scope) => scope.scopeId === scopeId),
     getScopePolicy: (scopeId: string): ScopePolicyRouteResponse => {
@@ -158,8 +168,21 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
         decisionExamples: defaultScopePolicyDecisionExamples(policy),
       };
     },
-    hasProject: (projectId: string) => projectRegistry.get(projectId) !== undefined,
-    getActiveProjectId: (): ProjectId | null => activeProjectId,
+    hasProject: (projectId: string) =>
+      projectRegistry.get(projectId) !== undefined
+      && getUnavailableScopeState(projectId) === null,
+    getActiveProjectId: (): ProjectId | null => {
+      if (
+        activeProjectId !== null
+        && (
+          projectRegistry.get(activeProjectId) === undefined
+          || getUnavailableScopeState(activeProjectId) !== null
+        )
+      ) {
+        activeProjectId = null;
+      }
+      return activeProjectId;
+    },
     setActiveProjectId: (next: ProjectId | null): SetActiveProjectResult => {
       if (next === null) {
         activeProjectId = null;
@@ -167,6 +190,10 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       }
       if (projectRegistry.get(next) === undefined) {
         return { ok: false, reason: "not_found", projectId: next };
+      }
+      const state = getUnavailableScopeState(next);
+      if (state !== null) {
+        return { ok: false, reason: "not_hosted", projectId: next, state };
       }
       activeProjectId = next;
       return { ok: true, activeProjectId: next };
@@ -225,7 +252,7 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       const capabilities = await ctx.probeCapabilityReadiness();
       const state = ctx.getState();
       return buildClientIdentity({
-        projectDir,
+        projectDir: projectRegistry.getDefault().projectDir,
         pid: state.pid,
         startedAt: state.startedAt,
         capabilities,
@@ -347,7 +374,24 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       tags?: string[],
       extraPayload?: Record<string, unknown>,
       projectId?: ProjectId,
-    ) => lookupRuntime(projectId).workflowRuntime.enqueuePendingRun(name, tags, extraPayload),
+    ) => {
+      const resolvedProjectId = projectId ?? projectRegistry.getDefaultProjectId();
+      const state = getUnavailableScopeState(resolvedProjectId);
+      if (state !== null) {
+        return {
+          ok: false,
+          error: `Scope ${resolvedProjectId} is ${state} and cannot accept workflow runs`,
+          reason: "scope_not_hosted",
+          scopeId: resolvedProjectId,
+          state,
+        };
+      }
+      return lookupRuntime(resolvedProjectId).workflowRuntime.enqueuePendingRun(
+        name,
+        tags,
+        extraPayload,
+      );
+    },
     cancelQueuedRun: (runId: string, projectId?: ProjectId) =>
       lookupRuntime(projectId).workflowRuntime.cancelQueuedRun(runId),
     subscribeToEvents: (handler) => {
@@ -365,6 +409,9 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
         ),
         bus.on("daemon.config.reload", (p) =>
           handler({ type: "daemon.config.reload", payload: p }),
+        ),
+        bus.on("scope.lifecycle.changed", (p) =>
+          handler({ type: "scope.lifecycle.changed", payload: p }),
         ),
         bus.on("approval.changed", (p) =>
           handler({ type: "approval.changed", payload: p }),
@@ -581,6 +628,15 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       projectId?: ProjectId,
     ) => {
       const resolvedProjectId = projectId ?? projectRegistry.getDefaultProjectId();
+      const state = getUnavailableScopeState(resolvedProjectId);
+      if (state !== null) {
+        return {
+          ok: false,
+          reason: "scope_not_hosted",
+          scopeId: resolvedProjectId,
+          state,
+        };
+      }
       sessions.set(id, {
         id,
         scopeId: resolvedProjectId,
@@ -595,6 +651,7 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
         createdAt,
         autonomyMode,
       });
+      return { ok: true, scopeId: resolvedProjectId };
     },
     unregisterSession: (id: string) => {
       const session = sessions.get(id);

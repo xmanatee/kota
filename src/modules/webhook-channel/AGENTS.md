@@ -7,6 +7,8 @@ POST a JSON payload to create or resume agent sessions.
 - Registers its HTTP route via module route contribution.
 - Supports optional HMAC-SHA256 signature verification.
 - Supports source-based routing to different agents with per-source session continuity.
+- Reports live webhook session ids to daemon scope-drain inspection and clears
+  them when the daemon default scope changes.
 - Separate from the outbound `webhook` notification module.
 - Inbound sessions use configured autonomy explicitly. Missing
   session-autonomy config is a route-boundary error, not a hidden fallback.

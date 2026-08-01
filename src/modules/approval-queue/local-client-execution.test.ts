@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import { listActiveApprovalExecutionIds } from "#core/daemon/approval-execution-activity.js";
 import {
 	ApprovalQueue,
 	resetApprovalQueue,
@@ -66,7 +67,10 @@ describe("approval-queue local client execution", () => {
 				},
 			}),
 		});
-		const run = vi.fn(async () => ({ content: "executed" }));
+		let finishExecution!: () => void;
+		const run = vi.fn(() => new Promise<{ content: string }>((resolve) => {
+			finishExecution = () => resolve({ content: "executed" });
+		}));
 		registerTool(testTool, run);
 		const pending = queue.enqueue(
 			TOOL_NAME,
@@ -77,12 +81,18 @@ describe("approval-queue local client execution", () => {
 		const review = queue.projectForClient(pending).review;
 		if (review.status !== "available") throw new Error("expected review descriptor");
 
-		const result = await client.approve(
+		const approval = client.approve(
 			pending.id,
 			review.digest,
 			undefined,
 			{ projectId: project.projectId },
 		);
+		await vi.waitFor(() => {
+			expect(queue.get(pending.id)?.status).toBe("approved");
+			expect(listActiveApprovalExecutionIds(queue)).toEqual([pending.id]);
+		});
+		finishExecution();
+		const result = await approval;
 
 		expect(result).toMatchObject({
 			ok: true,
@@ -100,5 +110,6 @@ describe("approval-queue local client execution", () => {
 				scopeId: project.projectId,
 			}),
 		);
+		expect(listActiveApprovalExecutionIds(queue)).toEqual([]);
 	});
 });

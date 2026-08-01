@@ -14,16 +14,15 @@ import type { ConfiguredProjectInput } from "./scope-registry.js";
 
 export type DaemonConfig = {
   /**
-   * Single-project shorthand. When `projects` is set, that array is
-   * authoritative and `projectDir` is ignored. When neither is set,
-   * defaults to `process.cwd()`.
+   * Single-project bootstrap shorthand. When `projects` is set, that array
+   * supplies the initial seed and `projectDir` is ignored. When neither is
+   * set, the seed defaults to `process.cwd()`.
    */
   projectDir?: string;
   /**
-   * Multi-project configuration. The first entry becomes the registry's
-   * default project. Operators that supervise more than one project from a
-   * single daemon set this; KOTA-on-itself can leave it unset and let the
-   * `projectDir` shorthand drive a single-project registry.
+   * Initial multi-project seed. The first entry becomes the default only when
+   * no persisted registry exists. After bootstrap, `project-registry.json` is
+   * authoritative and live lifecycle mutations survive later config changes.
    *
    * Each configured project gets a runtime bundle through
    * `ProjectRuntimeRegistry`; daemon-wide control surfaces keep a default

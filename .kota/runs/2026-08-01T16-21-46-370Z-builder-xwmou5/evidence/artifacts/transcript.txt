@@ -1,0 +1,12 @@
+$ kota approval approve 4bed0393
+Reviewing exact operation:
+
+  [4bed0393] shell  (0m ago)
+    Input:  {"command":"git push origin main","cwd":"/srv/repo","args":["--force-with-lease"],"accessToken":"[redacted]"}
+    Context: user: push the reviewed branch for [redacted]; token=[redacted]
+    Digest: 8ddbc822a04bb5d8a0c87f9eaf04892581cbb620668e7098d201cbb316a2f1e9
+    Risk:   dangerous
+    Reason: test reason
+
+Approve and execute this exact operation? [y/N] y
+Approved and executed shell [4bed0393] — output redacted by daemon policy (17 bytes).

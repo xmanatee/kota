@@ -78,7 +78,7 @@ describe("SlackBot", () => {
       const events = { emit: vi.fn() };
       const bot = makeBot({
         inboundSignals: {
-          projectId: "project-slack",
+          getProjectId: () => "project-slack",
           config: { prefixes: ["!task"], trustedUserIds: ["U1"] },
           events,
         },

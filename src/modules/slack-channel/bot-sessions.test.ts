@@ -18,6 +18,14 @@ describe("SlackBot", () => {
         payload: { event: { type: "message", text: "msg1", user: "U1", channel: "D1" } },
       });
       await vi.waitFor(() => expect(AgentSession).toHaveBeenCalledTimes(1));
+      expect(bot.listScopeSessionIds("test-project"))
+        .toEqual(["slack:U1:test-project"]);
+      expect(AgentSession).toHaveBeenLastCalledWith(expect.objectContaining({
+        projectDir: "/tmp/test-project",
+        projectRuntime: expect.objectContaining({
+          project: expect.objectContaining({ projectId: "test-project" }),
+        }),
+      }));
 
       // Wait for first message to finish processing
       await new Promise((r) => setTimeout(r, 50));

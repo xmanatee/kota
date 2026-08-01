@@ -65,7 +65,7 @@ export type TelegramBotOptions = {
   verbose?: boolean;
   config?: KotaConfig;
   autonomyMode: AutonomyMode;
-  /** Default daemon-owned runtime bundle used for single-project Telegram sessions. */
+  /** Current daemon default runtime for single-project Telegram sessions. */
   defaultProjectRuntime: ProjectRuntime;
   /** Resolve the daemon-owned runtime bundle for a selected project id. */
   getProjectRuntime: (projectId: string) => ProjectRuntime;
@@ -211,6 +211,25 @@ export class TelegramBot {
 
   get sessionCount(): number {
     return this.sessions.size;
+  }
+
+  setDefaultProjectRuntime(runtime: ProjectRuntime): void {
+    this.options.defaultProjectRuntime = runtime;
+  }
+
+  listScopeSessionIds(scopeId: string): string[] {
+    return [...this.sessions.entries()]
+      .filter(([, session]) => session.identity.meta?.projectId === scopeId)
+      .map(([sessionKey]) => `telegram:${sessionKey}`);
+  }
+
+  closeScopeSessions(scopeId: string): void {
+    for (const [key, session] of this.sessions) {
+      if (session.identity.meta?.projectId !== scopeId) continue;
+      session.agent.close();
+      this.sessions.delete(key);
+      this.busyChats.delete(key);
+    }
   }
 
   /** Send a message to active chat sessions, optionally scoped to one project. */
@@ -395,14 +414,25 @@ export class TelegramBot {
     if (interactiveAllowed) {
       this.sendText(chatId, `\u{1F3A4} Transcribed: ${transcript}`);
     }
-    if (this.emitVoiceTranscriptInboundSignal(resolved.target, message, transcript)) {
+    let admittedTarget: TelegramProjectTarget;
+    try {
+      admittedTarget = this.admitProjectTarget(resolved.target);
+    } catch (err) {
+      if (interactiveAllowed) {
+        this.sendText(chatId, (err as Error).message);
+      } else {
+        this.sendUnauthorizedChatMessage(chatId);
+      }
+      return;
+    }
+    if (this.emitVoiceTranscriptInboundSignal(admittedTarget, message, transcript)) {
       return;
     }
     if (!interactiveAllowed) {
       this.sendUnauthorizedChatMessage(chatId);
       return;
     }
-    await this.handleMessage(chatId, transcript, message.chat.first_name, resolved.target);
+    await this.handleMessage(chatId, transcript, message.chat.first_name, admittedTarget);
   }
 
   private async handleMessage(
@@ -662,14 +692,19 @@ export class TelegramBot {
     let session = this.sessions.get(target.sessionKey);
     if (session) return session;
 
+    // Selection can outlive a drain transition (notably while voice input is
+    // downloaded/transcribed). Re-admit synchronously with session insertion
+    // so drain cannot succeed between the check and the new session becoming visible.
+    const admittedTarget = this.admitProjectTarget(target);
+
     const identity: ChannelUserIdentity = {
-      channelUserId: String(target.chatId),
+      channelUserId: String(admittedTarget.chatId),
       displayName: firstName,
       channel: "telegram",
-      meta: { projectId: target.projectId },
+      meta: { projectId: admittedTarget.projectId },
     };
     const proxy = new ProxyTransport();
-    const agent = this.createSessionAgent(target, identity, proxy);
+    const agent = this.createSessionAgent(admittedTarget, identity, proxy);
     session = {
       agent,
       proxy,
@@ -678,6 +713,15 @@ export class TelegramBot {
     };
     this.sessions.set(target.sessionKey, session);
     return session;
+  }
+
+  private admitProjectTarget(target: TelegramProjectTarget): TelegramProjectTarget {
+    const projectRuntime = this.options.getProjectRuntime(target.projectId);
+    return {
+      ...target,
+      projectDir: projectRuntime.project.projectDir,
+      projectRuntime,
+    };
   }
 
   private createSessionAgent(

@@ -1,13 +1,13 @@
 ---
 id: task-make-directory-scope-registration-a-live-daemon-li
 title: Make directory scope registration a live daemon lifecycle
-status: ready
+status: done
 priority: p1
 area: architecture
 task_class: Platform
 summary: Make the persisted ScopeRegistry and ProjectRuntimeRegistry support transactional add, update, drain, and remove operations without daemon restart.
 created_at: 2026-07-31T16:12:47.270Z
-updated_at: 2026-07-31T16:12:47.270Z
+updated_at: 2026-08-01T11:17:28.093Z
 ---
 
 ## Problem

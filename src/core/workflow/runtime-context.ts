@@ -138,7 +138,7 @@ export function createWorkflowRuntimeContext(
     (def, trigger, run) => wfQueue.enqueue(def, trigger, run),
     () => maybeStartNext(ctx),
     () => runtimeConfig.config?.scheduler?.dispatchWindow,
-    () => runtimeConfig.isDefaultScopeRuntime ?? true,
+    runtimeConfig.isDefaultScopeRuntime ?? (() => true),
   );
   const watchTriggers = new WatchTriggerManager(
     projectDir,

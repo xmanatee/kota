@@ -244,6 +244,15 @@ export function handleTriggerWorkflow(
         jsonResponse(res, 409, { error: `Workflow "${name}" is already queued` });
         return;
       }
+      if (result.reason === "scope_not_hosted") {
+        jsonResponse(res, 409, {
+          error: result.error,
+          reason: result.reason,
+          scopeId: result.scopeId,
+          state: result.state,
+        });
+        return;
+      }
       if (!result.ok) {
         jsonResponse(res, 400, { error: result.error ?? "Failed to enqueue workflow" });
         return;

@@ -1,3 +1,4 @@
+import type { AwaitSuspension } from "./awaits-store.js";
 import type {
   WorkflowBatchDispatchInput,
   WorkflowBatchDispatchResult,
@@ -33,11 +34,13 @@ import {
   getDispatchWindowStatus,
   isBusy,
   isDispatchPaused,
+  listAwaitEventSuspensions,
   setDispatchPaused,
   startRuntime,
   stopRuntime,
   WORKFLOW_STOP_ABORT_WAIT_MS,
   type WorkflowDispatchPauseMode,
+  type WorkflowRuntimeInitialDispatch,
 } from "./runtime-lifecycle.js";
 import {
   abortActiveRun,
@@ -54,6 +57,7 @@ import {
 } from "./runtime-signals.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./types.js";
 import { WorkflowDefinitionError } from "./validation.js";
+import type { PendingWatchTriggerBuffer } from "./watch-triggers.js";
 import type { WebhookRunPayload } from "./workflow-dispatcher-provider.js";
 
 export type { WorkflowRuntimeConfig };
@@ -72,8 +76,8 @@ export class WorkflowRuntime {
     this.ctx = createWorkflowRuntimeContext(runtimeConfig);
   }
 
-  start(): void {
-    startRuntime(this.ctx);
+  start(initialDispatch: WorkflowRuntimeInitialDispatch = "active"): void {
+    startRuntime(this.ctx, initialDispatch);
   }
 
   stop(
@@ -97,6 +101,14 @@ export class WorkflowRuntime {
 
   getDispatchWindowStatus(): { blocked: boolean; opensAt?: string } {
     return getDispatchWindowStatus(this.ctx);
+  }
+
+  listAwaitEventSuspensions(): AwaitSuspension[] {
+    return listAwaitEventSuspensions(this.ctx);
+  }
+
+  listPendingWatchTriggerBuffers(): PendingWatchTriggerBuffer[] {
+    return this.ctx.watchTriggers.listPendingBuffers();
   }
 
   getRecoveryStatus(): WorkflowRecoveryStatus {

@@ -1,144 +1,16 @@
-import { createHmac } from "node:crypto";
-import { EventEmitter } from "node:events";
-import type { IncomingMessage, ServerResponse } from "node:http";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { EventBus } from "#core/events/event-bus.js";
-import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
-import { resolveModuleChannels } from "#core/modules/module-types.js";
-import { makeStubEventProxy } from "#core/modules/testing/index.js";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
-  clearSessions,
-  makeWebhookChannelHandler,
-  type WebhookSessionFactory,
-} from "./handler.js";
+  type ModuleRuntimeContext,
+  resolveModuleChannels,
+} from "#core/modules/module-types.js";
+import { clearSessions } from "./handler.js";
+import {
+  type CreatedWebhookSession,
+  invokeHandler,
+  makeSessionFactory,
+  makeStubCtx,
+} from "./handler-test-support.integration.js";
 import webhookChannelModule from "./index.js";
-
-// ─── Test helpers ────────────────────────────────────────────────────────────
-
-type CreatedWebhookSession = {
-  label: string;
-  autonomyMode: string;
-  send: ReturnType<typeof vi.fn>;
-  close: ReturnType<typeof vi.fn>;
-};
-
-function makeSessionFactory(created: CreatedWebhookSession[] = []): WebhookSessionFactory {
-  return vi.fn(({ label, autonomyMode }) => {
-    const send = vi.fn(async () => "agent response text");
-    const close = vi.fn();
-    created.push({ label, autonomyMode, send, close });
-    return { send, close };
-  });
-}
-
-function makeStubCtx(
-  bus?: EventBus,
-  moduleConfig?: Record<string, unknown>,
-): ModuleRuntimeContext {
-  const b = bus ?? new EventBus();
-  return {
-    cwd: "/tmp/test",
-    verbose: false,
-    config: { serve: { defaultAutonomyMode: "supervised" } } as ModuleRuntimeContext["config"],
-    storage: new ModuleStorage("/tmp/test", "webhook-channel"),
-    registerGroup: () => {},
-    getRoutes: () => [],
-    getContributedWorkflows: () => [],
-    getContributedChannels: () => [],
-      getContributedUiSurfaces: () => [],
-    getContributedControlRoutes: () => [],
-    getModuleSummaries: () => [],
-    getModuleConfig: () => moduleConfig as never,
-    log: Object.assign(() => {}, {
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: () => {},
-    }),
-    getSecret: () => null,
-    listTools: () => [],
-    events: makeStubEventProxy(b),
-    createSession: vi.fn(() => ({
-      send: vi.fn(async () => "agent response text"),
-      close: vi.fn(),
-    })),
-    registerProvider: () => {},
-    getProvider: () => null,
-    callTool: async () => ({ content: "" }),
-    registerMiddleware: () => {},
-    registerDynamicStateProvider: () => {},
-    registerCleanupHook: () => {},
-    registerPreSendHook: () => {},
-    registerHarnessHook: () => {},
-    resolveAgentDef: () => undefined,
-    resolveSkillsPrompt: () => "",
-    probeHealthChecks: async () => ({}),
-    getRegisteredConfigKeys: () => new Set<string>(),
-    client: {} as never,
-  };
-}
-
-type FakeResponse = {
-  statusCode: number | null;
-  headers: Record<string, string>;
-  body: string | null;
-  writeHead: (code: number, headers?: Record<string, string>) => void;
-  end: (body?: string) => void;
-};
-
-function makeFakeResponse(): FakeResponse {
-  const res: FakeResponse = {
-    statusCode: null,
-    headers: {},
-    body: null,
-    writeHead(code, headers) {
-      res.statusCode = code;
-      if (headers) Object.assign(res.headers, headers);
-    },
-    end(body) {
-      res.body = body ?? "";
-    },
-  };
-  return res;
-}
-
-function makeFakeRequest(
-  body: string,
-  headers: Record<string, string> = {},
-  method = "POST",
-  url = "/api/channels/webhook",
-): IncomingMessage {
-  const emitter = new EventEmitter();
-  const req = Object.assign(emitter, { headers, method, url }) as unknown as IncomingMessage;
-  setImmediate(() => {
-    emitter.emit("data", Buffer.from(body));
-    emitter.emit("end");
-  });
-  return req;
-}
-
-function sign(secret: string, body: string): string {
-  return `sha256=${createHmac("sha256", secret).update(Buffer.from(body)).digest("hex")}`;
-}
-
-async function invokeHandler(
-  ctx: ModuleRuntimeContext,
-  body: string,
-  headers: Record<string, string> = {},
-  url?: string,
-  sessionFactory: WebhookSessionFactory = makeSessionFactory(),
-): Promise<FakeResponse> {
-  const handler = makeWebhookChannelHandler(
-    ctx,
-    ctx.getModuleConfig() ?? {},
-    sessionFactory,
-  );
-  const req = makeFakeRequest(body, headers, "POST", url);
-  const res = makeFakeResponse();
-  await handler(req, res as unknown as ServerResponse);
-  return res;
-}
 
 beforeEach(() => {
   clearSessions();
@@ -196,10 +68,10 @@ describe("webhookChannelModule channel adapter", () => {
     const ctx = makeStubCtx();
     const channels = await resolveModuleChannels(webhookChannelModule, ctx);
     const result = channels[0].create({
-      projectDir: "/tmp",
-      defaultProjectRuntime: {
-        project: { projectId: "test-project", projectDir: "/tmp", displayName: "test" },
-      } as never,
+      getDefaultProjectRuntime: () =>
+        ({
+          project: { projectId: "test-project", projectDir: "/tmp", displayName: "test" },
+        }) as never,
       getProjectRuntime: () =>
         ({
           project: { projectId: "test-project", projectDir: "/tmp", displayName: "test" },
@@ -286,133 +158,5 @@ describe("handler — open mode", () => {
     const res = await invokeHandler(ctx, "");
 
     expect(res.statusCode).toBe(400);
-  });
-});
-
-// ─── Handler — HMAC verification ────────────────────────────────────────────
-
-describe("handler — HMAC verification", () => {
-  const SECRET = "webhook-test-secret";
-
-  it("accepts valid HMAC signature (HTTP 201)", async () => {
-    const ctx = makeStubCtx(undefined, { secret: SECRET });
-    const body = JSON.stringify({ message: "Signed payload" });
-    const res = await invokeHandler(ctx, body, {
-      "x-webhook-signature": sign(SECRET, body),
-    });
-
-    expect(res.statusCode).toBe(201);
-    const parsed = JSON.parse(res.body!);
-    expect(parsed.sessionId).toBeTruthy();
-    expect(parsed.response).toBe("agent response text");
-  });
-
-  it("rejects missing signature when secret is configured (HTTP 401)", async () => {
-    const ctx = makeStubCtx(undefined, { secret: SECRET });
-    const body = JSON.stringify({ message: "No signature" });
-    const res = await invokeHandler(ctx, body);
-
-    expect(res.statusCode).toBe(401);
-    expect(JSON.parse(res.body!).error).toContain("Missing");
-  });
-
-  it("rejects invalid signature (HTTP 401)", async () => {
-    const ctx = makeStubCtx(undefined, { secret: SECRET });
-    const body = JSON.stringify({ message: "Bad sig" });
-    const res = await invokeHandler(ctx, body, {
-      "x-webhook-signature": "sha256=invalidhash",
-    });
-
-    expect(res.statusCode).toBe(401);
-    expect(JSON.parse(res.body!).error).toContain("Invalid signature");
-  });
-
-  it("rejects signature computed with wrong secret", async () => {
-    const ctx = makeStubCtx(undefined, { secret: SECRET });
-    const body = JSON.stringify({ message: "Wrong secret" });
-    const res = await invokeHandler(ctx, body, {
-      "x-webhook-signature": sign("wrong-secret", body),
-    });
-
-    expect(res.statusCode).toBe(401);
-  });
-
-  it("supports $ENV_VAR secret references", async () => {
-    const envKey = "KOTA_TEST_WH_SECRET_12345";
-    process.env[envKey] = "env-resolved-secret";
-    try {
-      const ctx = makeStubCtx(undefined, { secret: `$${envKey}` });
-      const body = JSON.stringify({ message: "Env secret" });
-      const res = await invokeHandler(ctx, body, {
-        "x-webhook-signature": sign("env-resolved-secret", body),
-      });
-      expect(res.statusCode).toBe(201);
-    } finally {
-      delete process.env[envKey];
-    }
-  });
-});
-
-// ─── Handler — session resume ───────────────────────────────────────────────
-
-describe("handler — session resume", () => {
-  it("resumes an existing session by sessionId (HTTP 200)", async () => {
-    const ctx = makeStubCtx();
-
-    const createBody = JSON.stringify({ message: "First message" });
-    const createRes = await invokeHandler(ctx, createBody);
-    expect(createRes.statusCode).toBe(201);
-    const sessionId = JSON.parse(createRes.body!).sessionId;
-
-    const resumeBody = JSON.stringify({
-      message: "Follow-up",
-      sessionId,
-    });
-    const resumeRes = await invokeHandler(ctx, resumeBody);
-    expect(resumeRes.statusCode).toBe(200);
-    expect(JSON.parse(resumeRes.body!).sessionId).toBe(sessionId);
-  });
-
-  it("returns 404 for unknown sessionId", async () => {
-    const ctx = makeStubCtx();
-    const body = JSON.stringify({
-      message: "Resume unknown",
-      sessionId: "wh-nonexistent",
-    });
-    const res = await invokeHandler(ctx, body);
-    expect(res.statusCode).toBe(404);
-    expect(JSON.parse(res.body!).error).toContain("not found");
-  });
-});
-
-// ─── Handler — metadata and events ──────────────────────────────────────────
-
-describe("handler — metadata and events", () => {
-  it("includes metadata in prompt context for new sessions", async () => {
-    const ctx = makeStubCtx();
-    const body = JSON.stringify({
-      message: "Deploy complete",
-      metadata: { service: "api", env: "production" },
-    });
-    const created: CreatedWebhookSession[] = [];
-    await invokeHandler(ctx, body, {}, undefined, makeSessionFactory(created));
-
-    expect(created[0].send).toHaveBeenCalledWith(
-      expect.stringContaining("production"),
-    );
-  });
-
-  it("emits webhook-channel.session event on new session", async () => {
-    const bus = new EventBus();
-    const received: Record<string, unknown>[] = [];
-    bus.on("webhook-channel.session", (p) => received.push(p as Record<string, unknown>));
-
-    const ctx = makeStubCtx(bus);
-    const body = JSON.stringify({ message: "Emit test" });
-    await invokeHandler(ctx, body);
-
-    expect(received).toHaveLength(1);
-    expect(received[0].sessionId).toBeTruthy();
-    expect(received[0].resumed).toBe(false);
   });
 });

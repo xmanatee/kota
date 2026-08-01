@@ -241,6 +241,7 @@ export async function startDaemonWithLiveSessionReload(
     projectDir,
     projectRegistry,
     projectRuntimes,
+    getScopeHostingState: () => "hosted",
     config: daemonConfig,
     refreshLiveSessionGuardrails: (guardrailsConfig) =>
       server.refreshChatSessionGuardrails(guardrailsConfig),

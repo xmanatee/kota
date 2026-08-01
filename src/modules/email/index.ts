@@ -1,27 +1,4 @@
-/**
- * Email module — routes KOTA notification events to an operator email address via SMTP.
- *
- * Contributes:
- * - `email-alerts` channel (ChannelDef): validates SMTP on start; outbound-only in v1.
- * - Event subscriptions in onLoad: subscribes to workflow/module/approval bus events
- *   and sends formatted emails via nodemailer.
- *
- * Config (kota.config under the "email" key):
- *   {
- *     smtp: {
- *       host: string,
- *       port?: number,       // default 587
- *       secure?: boolean,    // default false (STARTTLS)
- *       auth?: { user: string, pass: string }
- *     },
- *     from: string,          // sender address
- *     to: string | string[], // recipient address(es)
- *     events?: string[]      // opt-in extra events; default: all notification events
- *   }
- *
- * Disabled gracefully when required routing config or referenced credentials are absent.
- * Credentials are read from config; never logged.
- */
+/** SMTP-backed operator notification channel; credentials are never logged. */
 
 import type { ChannelDef } from "#core/channels/channel.js";
 import { resolveSecretReference } from "#core/config/secret-reference.js";
@@ -111,6 +88,7 @@ const emailAlertsChannel: ChannelDef = {
     return {
       status: "started",
       adapter: {
+        listScopeSessionIds: () => [],
         async start() {
           try {
             await mailer?.verify();

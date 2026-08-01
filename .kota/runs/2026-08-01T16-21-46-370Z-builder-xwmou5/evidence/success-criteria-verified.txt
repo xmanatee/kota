@@ -1,0 +1,5 @@
+1. Verified typed registration, display-name update, default selection, drain, and removal through focused lifecycle tests and the live daemon fixture.
+2. Verified live workflow execution, restart restoration with the same scope id, and one hosted runtime in scope-lifecycle.integration.test.ts.
+3. Verified exactly-once runtime hosting, scoped schedule delivery, forced resource detachment, channel admission, approval execution leases, and teardown across the focused and broad regression suites.
+4. Verified persistence-before-activation, failed-start compensation, typed directory and drain failures (including pending event batches, file-watch debounce buffers, and restored finite and indefinite await-event suspensions), closed draining admission, late-work reinspection, and non-destructive removal.
+5. Verified persisted registry authority, daemon/control compatibility projections, and the absence of a second production directory-to-runtime registry through tests and structural search.

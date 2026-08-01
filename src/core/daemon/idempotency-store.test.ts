@@ -181,7 +181,7 @@ describe("IdempotencyStore", () => {
     const bus = new EventBus();
     const seen: string[] = [];
     installEventIdempotency(bus, {
-      defaultScopeId: "scope-a",
+      getDefaultScopeId: () => "scope-a",
       resolveStore: () => store,
     });
     bus.on("inbound.signal.received", (payload) => {

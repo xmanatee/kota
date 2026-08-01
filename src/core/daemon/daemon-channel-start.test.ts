@@ -14,6 +14,7 @@ describe("startChannel", () => {
           adapter: {
             async start() {},
             stop() {},
+            listScopeSessionIds: () => [],
           },
         };
       },
@@ -25,8 +26,7 @@ describe("startChannel", () => {
     await startChannel(
       channel,
       {
-        projectDir: "/tmp/project",
-        defaultProjectRuntime: {} as never,
+        getDefaultProjectRuntime: () => ({} as never),
         getProjectRuntime: () => ({} as never),
         log: () => {},
         getWorkflowStatus: () => ({

@@ -1,0 +1,16 @@
+Structural search: live directory-scope ownership
+
+Command:
+rg -n "export class ScopeRegistry|export function createProjectRuntime|export class ProjectRuntimeRegistry|new WorkflowRuntime\\(|Map<ProjectId, ProjectRuntime>" src/core/daemon
+
+Results:
+src/core/daemon/scope-registry-state.ts:22:export class ScopeRegistry {
+src/core/daemon/project-runtime.ts:139:export function createProjectRuntime(
+src/core/daemon/project-runtime.ts:173:  const workflowRuntime = new WorkflowRuntime({
+src/core/daemon/project-runtime-registry.ts:34:export class ProjectRuntimeRegistry {
+src/core/daemon/project-runtime-registry.ts:35:  private readonly byId: Map<ProjectId, ProjectRuntime>;
+src/core/daemon/project-runtime-registry.ts:43:    byId: Map<ProjectId, ProjectRuntime>,
+src/core/daemon/project-runtime-registry.ts:54:    const byId = new Map<ProjectId, ProjectRuntime>();
+
+Conclusion:
+Production daemon code has one persisted ScopeRegistry, one ProjectRuntimeRegistry-owned runtime map, and one createProjectRuntime factory. No second directory-to-runtime catalog or parallel runtime factory was introduced.

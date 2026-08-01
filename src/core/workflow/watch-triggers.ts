@@ -16,11 +16,18 @@ type EnqueueFn = (
   runTrigger: WorkflowRunTrigger,
 ) => void;
 
+export type PendingWatchTriggerBuffer = {
+  workflowName: string;
+  triggerIndex: number;
+  files: readonly string[];
+};
+
 type WatchEntry = {
   watcherId: string | null;
   timer: ReturnType<typeof setTimeout> | null;
   pendingFiles: Set<string>;
   definition: WorkflowDefinition;
+  triggerIndex: number;
   trigger: WorkflowTrigger;
 };
 
@@ -51,8 +58,8 @@ export class WatchTriggerManager {
     if (watchDefs.length === 0) return;
 
     this.unsubscribe = subscribe((payload) => this.handleFileChanged(payload));
-    for (const { key, definition, trigger } of watchDefs) {
-      void this.startWatch(key, definition, trigger);
+    for (const { key, definition, triggerIndex, trigger } of watchDefs) {
+      void this.startWatch(key, definition, triggerIndex, trigger);
     }
   }
 
@@ -77,7 +84,7 @@ export class WatchTriggerManager {
         if (!trigger.watch || trigger.watch.length === 0) continue;
         const key = `${definition.name}:${i}`;
         if (!this.entries.has(key)) {
-          void this.startWatch(key, definition, trigger);
+          void this.startWatch(key, definition, i, trigger);
         }
       }
     }
@@ -100,16 +107,46 @@ export class WatchTriggerManager {
     this.watcher.closeAll();
   }
 
+  /** Accepted file changes that have not completed their debounce window. */
+  listPendingBuffers(): PendingWatchTriggerBuffer[] {
+    return [...this.entries.values()]
+      .filter((entry) => entry.pendingFiles.size > 0)
+      .map((entry) => ({
+        workflowName: entry.definition.name,
+        triggerIndex: entry.triggerIndex,
+        files: [...entry.pendingFiles].sort(),
+      }))
+      .sort((left, right) =>
+        left.workflowName.localeCompare(right.workflowName)
+        || left.triggerIndex - right.triggerIndex
+      );
+  }
+
   private collectWatchDefs(
     definitions: WorkflowDefinition[],
-  ): { key: string; definition: WorkflowDefinition; trigger: WorkflowTrigger }[] {
-    const result: { key: string; definition: WorkflowDefinition; trigger: WorkflowTrigger }[] = [];
+  ): Array<{
+    key: string;
+    definition: WorkflowDefinition;
+    triggerIndex: number;
+    trigger: WorkflowTrigger;
+  }> {
+    const result: Array<{
+      key: string;
+      definition: WorkflowDefinition;
+      triggerIndex: number;
+      trigger: WorkflowTrigger;
+    }> = [];
     for (const definition of definitions) {
       if (!definition.enabled) continue;
       for (let i = 0; i < definition.triggers.length; i++) {
         const trigger = definition.triggers[i];
         if (!trigger.watch || trigger.watch.length === 0) continue;
-        result.push({ key: `${definition.name}:${i}`, definition, trigger });
+        result.push({
+          key: `${definition.name}:${i}`,
+          definition,
+          triggerIndex: i,
+          trigger,
+        });
       }
     }
     return result;
@@ -118,6 +155,7 @@ export class WatchTriggerManager {
   private async startWatch(
     key: string,
     definition: WorkflowDefinition,
+    triggerIndex: number,
     trigger: WorkflowTrigger,
   ): Promise<void> {
     const entry: WatchEntry = {
@@ -125,6 +163,7 @@ export class WatchTriggerManager {
       timer: null,
       pendingFiles: new Set(),
       definition,
+      triggerIndex,
       trigger,
     };
     // Register the entry immediately so reconcile knows it's handled.

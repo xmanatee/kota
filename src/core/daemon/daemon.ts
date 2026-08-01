@@ -3,11 +3,8 @@ import { join } from "node:path";
 import type { ChannelStatus } from "#core/channels/channel.js";
 import { initEventBus } from "#core/events/event-bus.js";
 import { EventJournal, installEventJournal } from "#core/events/event-journal.js";
-import type {
-  WorkflowCompletion,
-  WorkflowRuntimeState,
-} from "#core/workflow/run-types.js";
 import type { DaemonConfig } from "./daemon-config.js";
+import { buildDaemonDashboardSnapshot } from "./daemon-dashboard-snapshot.js";
 import {
   recordEventEmitFailureDeadLetter,
   scopeLineageForId,
@@ -25,9 +22,18 @@ import {
 } from "./daemon-workflows.js";
 import { installEventIdempotency } from "./idempotency-events.js";
 import { ProjectRuntimeRegistry } from "./project-runtime.js";
+import type {
+  DirectoryScopeRegistrationInput,
+  ScopeDrainResult,
+  ScopeMutationResult,
+  ScopeRegistrationResult,
+  ScopeRemovalResult,
+} from "./scope-lifecycle.js";
 import {
   resolveConfiguredProjects,
+  type ScopeId,
   ScopeRegistry,
+  type ScopeRegistryProjection,
 } from "./scope-registry.js";
 
 export type { DaemonConfig } from "./daemon-config.js";
@@ -36,25 +42,6 @@ export type { DaemonState } from "./daemon-state.js";
 
 export const RESTART_EXIT_CODE = 75;
 const DEFAULT_SHUTDOWN_GRACE_PERIOD_MS = 60_000;
-
-function latestWorkflowCompletion(
-  workflows: WorkflowRuntimeState["workflows"],
-): (WorkflowCompletion & { workflow: string }) | undefined {
-  let latest: (WorkflowCompletion & { workflow: string }) | undefined;
-  for (const [workflow, state] of Object.entries(workflows)) {
-    const completion = state.lastCompletion;
-    if (
-      completion !== undefined &&
-      (latest === undefined ||
-        completion.completedAt > latest.completedAt ||
-        (completion.completedAt === latest.completedAt &&
-          completion.runId > latest.runId))
-    ) {
-      latest = { workflow, ...completion };
-    }
-  }
-  return latest;
-}
 
 /**
  * The daemon orchestrator. Owns one `DaemonRuntimeContext` and dispatches
@@ -116,7 +103,7 @@ export class Daemon {
       quietHours: config.config?.notifications?.quietHours,
     });
     const uninstallEventIdempotency = installEventIdempotency(bus, {
-      defaultScopeId: defaultProject.projectId,
+      getDefaultScopeId: () => projectRegistry.getDefaultScopeId(),
       resolveStore: (scopeId) => projectRuntimes.get(scopeId).idempotencyStore,
       log,
     });
@@ -125,7 +112,7 @@ export class Daemon {
       recordEventEmitFailureDeadLetter({
         failure,
         runtimes: projectRuntimes,
-        defaultProjectId: defaultProject.projectId,
+        defaultProjectId: projectRegistry.getDefaultProjectId(),
         log,
       });
     });
@@ -205,6 +192,39 @@ export class Daemon {
     return { ...this.ctx.state };
   }
 
+  registerDirectoryScope(
+    input: DirectoryScopeRegistrationInput,
+  ): Promise<ScopeRegistrationResult> {
+    return this.ctx.scopeLifecycle.registerDirectoryScope(input);
+  }
+
+  updateScopeDisplayName(
+    scopeId: ScopeId,
+    displayName: string,
+  ): Promise<ScopeMutationResult> {
+    return this.ctx.scopeLifecycle.updateDisplayName(scopeId, displayName);
+  }
+
+  setDefaultScope(scopeId: ScopeId): Promise<ScopeMutationResult> {
+    return this.ctx.scopeLifecycle.setDefaultScope(scopeId);
+  }
+
+  drainScope(scopeId: ScopeId): Promise<ScopeDrainResult> {
+    return this.ctx.scopeLifecycle.drainScope(scopeId);
+  }
+
+  removeScope(scopeId: ScopeId): Promise<ScopeRemovalResult> {
+    return this.ctx.scopeLifecycle.removeScope(scopeId);
+  }
+
+  getScopeRegistryProjection(): ScopeRegistryProjection {
+    return this.ctx.projectRegistry.toScopeProjection();
+  }
+
+  getHostedScopeCount(): number {
+    return this.ctx.scopeRuntimeHost.hostedCount();
+  }
+
   isRunning(): boolean {
     return this.ctx.running && !this.ctx.stopping;
   }
@@ -219,38 +239,7 @@ export class Daemon {
   }
 
   getDashboardSnapshot() {
-    const wfState = this.ctx.workflows.getState();
-    const dispatchWindow = this.ctx.workflows.getDispatchWindowStatus();
-    const recovery = this.ctx.workflows.getRecoveryStatus();
-    const dispatchPause = this.ctx.workflows.getDispatchPauseStatus(recovery);
-    const lastCompletion = latestWorkflowCompletion(wfState.workflows);
-    return {
-      pid: this.ctx.state.pid,
-      startedAt: this.ctx.state.startedAt,
-      running: this.ctx.running,
-      stopping: this.ctx.stopping,
-      completedRuns: wfState.completedRuns,
-      totalCostUsd: wfState.totalCostUsd,
-      totalInputTokens: wfState.totalInputTokens,
-      totalOutputTokens: wfState.totalOutputTokens,
-      ...(lastCompletion !== undefined
-        ? {
-            lastCompletedWorkflow: lastCompletion.workflow,
-            lastCompletedAt: lastCompletion.completedAt,
-            lastCompletedStatus: lastCompletion.status,
-          }
-        : {}),
-      activeRuns: wfState.activeRuns ?? [],
-      pendingRuns: wfState.pendingRuns,
-      dispatchPaused: dispatchPause.paused,
-      dispatchPause,
-      dispatchWindowBlocked: dispatchWindow.blocked,
-      dispatchWindowOpensAt: dispatchWindow.opensAt,
-      agentBackoff: wfState.agentBackoff,
-      ...(recovery.status !== "none" && { recovery }),
-      definitionCount: this.ctx.workflows.getDefinitionCount(),
-      sessionCount: this.ctx.sessions.size,
-    };
+    return buildDaemonDashboardSnapshot(this.ctx);
   }
 
   private requestRestart(reason: string): void {

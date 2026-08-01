@@ -1,21 +1,15 @@
-import { mkdtempSync, rmSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { listActiveApprovalExecutionIds } from "#core/daemon/approval-execution-activity.js";
 import { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { ToolRunner } from "#core/tools/index.js";
 import {
 	clearApprovalExecutionTestTools,
 	registerApprovalExecutionTestTools,
 } from "./approval-execution-test-tools.integration.js";
-import {
-	handleApproveAllApprovals,
-	handleApproveApproval,
-	handleListApprovals,
-	handleRejectAllApprovals,
-	handleRejectApproval,
-} from "./routes.js";
+import { handleApproveApproval } from "./routes.js";
 
 const executeTool = vi.fn<ToolRunner>();
 
@@ -82,86 +76,11 @@ function approvalDecisionBody(
 	};
 }
 
-function approvalBatchDecisionBody(queue: ApprovalQueue): Record<string, unknown> {
-	return {
-		reviews: queue.list("pending").map((item) => ({
-			id: item.id,
-			digest: reviewDigest(queue, item.id),
-		})),
-	};
-}
-
 function approvePending(queue: ApprovalQueue, id: string): void {
 	const selection = queue.getExecutionSnapshot(id);
 	if (!selection.ok) throw new Error("expected execution snapshot");
 	const result = queue.approveForExecution(selection.snapshot.descriptor);
 	if (!result.ok) throw new Error("expected execution approval");
-}
-
-type RouteResponseSpec = {
-	list?: { approvals: unknown[] } | null;
-	approve?: unknown | null;
-	reject?: unknown | null;
-	approveAll?: unknown | null;
-	rejectAll?: unknown | null;
-	listFilter?: { capturedStatus?: string };
-};
-
-function mockTransport(spec: RouteResponseSpec = {}): import("#core/server/daemon-transport.js").DaemonTransport {
-	return {
-		baseUrl: "http://127.0.0.1:0",
-		authHeaders: () => ({}),
-		request: async <T,>(method: string, path: string, _body?: unknown) => {
-			if (method === "GET" && path.startsWith("/approvals")) {
-				const url = new URL(path, "http://127.0.0.1");
-				if (spec.listFilter) spec.listFilter.capturedStatus = url.searchParams.get("status") ?? undefined;
-				return ("list" in spec ? spec.list : null) as T | null;
-			}
-			if (method === "POST" && /\/approvals\/[^/]+\/approve$/.test(path)) {
-				return ("approve" in spec ? spec.approve : null) as T | null;
-			}
-			if (method === "POST" && /\/approvals\/[^/]+\/reject$/.test(path)) {
-				return ("reject" in spec ? spec.reject : null) as T | null;
-			}
-			if (method === "POST" && path === "/approvals/approve-all") {
-				return ("approveAll" in spec ? spec.approveAll : null) as T | null;
-			}
-			if (method === "POST" && path === "/approvals/reject-all") {
-				return ("rejectAll" in spec ? spec.rejectAll : null) as T | null;
-			}
-			return null;
-		},
-		requestStrict: async () => {
-			throw new Error("requestStrict not configured for tests");
-		},
-		fetchRaw: async (path: string, init?: RequestInit) => {
-			const method = init?.method ?? "GET";
-			let value: unknown | null = null;
-			if (method === "POST" && /^\/approvals\/[^/]+\/approve(?:\?|$)/.test(path)) {
-				value = "approve" in spec ? spec.approve : null;
-			} else if (method === "POST" && /^\/approvals\/[^/]+\/reject(?:\?|$)/.test(path)) {
-				value = "reject" in spec ? spec.reject : null;
-			} else if (method === "POST" && /^\/approvals\/approve-all(?:\?|$)/.test(path)) {
-				value = "approveAll" in spec ? spec.approveAll : null;
-			} else if (method === "POST" && /^\/approvals\/reject-all(?:\?|$)/.test(path)) {
-				value = "rejectAll" in spec ? spec.rejectAll : null;
-			}
-			if (value === null) {
-				return new Response(JSON.stringify({ error: "not found" }), {
-					status: 404,
-					headers: { "Content-Type": "application/json" },
-				});
-			}
-			if (value instanceof Response) return value;
-			return new Response(JSON.stringify(value), {
-				status: 200,
-				headers: { "Content-Type": "application/json" },
-			});
-		},
-		events: async function* () {
-			// no events
-		},
-	};
 }
 
 describe("approval-routes", () => {
@@ -250,4 +169,35 @@ describe("approval-routes", () => {
 				queue,
 			);
 			expect(result.status).toBe(404);
-		});});});
+		});
+
+		it("keeps approved execution visible until tool and lease cleanup complete", async () => {
+			const item = queue.enqueue("shell", { command: "deploy.sh" }, "moderate", "deploy");
+			let finishExecution!: (result: { content: string }) => void;
+			executeTool.mockImplementationOnce(() =>
+				new Promise((resolve) => {
+					finishExecution = resolve;
+				}),
+			);
+			const { res, result } = mockResponse();
+
+			const response = handleApproveApproval(
+				mockRequest(approvalDecisionBody(queue, item.id)),
+				res,
+				item.id,
+				null,
+				queue,
+			);
+			await vi.waitFor(() => {
+				expect(queue.get(item.id)?.status).toBe("approved");
+				expect(listActiveApprovalExecutionIds(queue)).toEqual([item.id]);
+			});
+
+			finishExecution({ content: "ok" });
+			await response;
+
+			expect(result.status).toBe(200);
+			expect(listActiveApprovalExecutionIds(queue)).toEqual([]);
+		});
+	});
+});

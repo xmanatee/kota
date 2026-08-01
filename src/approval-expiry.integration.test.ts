@@ -194,14 +194,12 @@ describe("approval expiry × event bus integration", () => {
 		});
 		const unsubscribe = subscribeDaemon({
 			bus,
-			failureAlertScopes: [],
-			approvalQueues: [
+			approvalQueues: () => [
 				runtimeA.approvalQueue,
 				runtimeB.approvalQueue,
 			],
 			pollIntervalMs: 10,
 			approvalTtlMs: 5,
-			onDueItems: () => {},
 			onWorkflowCompleted: () => {},
 			onRestartRequested: () => {},
 			onLog: (message) => logs.push(message),

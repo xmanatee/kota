@@ -47,7 +47,16 @@ export function handleRegisterSession(
         jsonResponse(res, 400, { error: "autonomyMode is required (passive, supervised, autonomous)" });
         return;
       }
-      handle.registerSession(id, createdAt, autonomyMode, scope.projectId);
+      const result = handle.registerSession(id, createdAt, autonomyMode, scope.projectId);
+      if (!result.ok) {
+        jsonResponse(res, 409, {
+          error: `Scope ${result.scopeId} is ${result.state} and cannot accept sessions`,
+          reason: result.reason,
+          scopeId: result.scopeId,
+          state: result.state,
+        });
+        return;
+      }
       jsonResponse(res, 200, { ok: true });
     })
     .catch(() => jsonResponse(res, 500, { error: "Internal error" }));

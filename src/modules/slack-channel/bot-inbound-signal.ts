@@ -13,7 +13,7 @@ export function consumeSlackInboundSignal(
 		event,
 		envelope,
 		{
-			projectId: inboundSignals.projectId,
+			projectId: inboundSignals.getProjectId(),
 			receivedAt: new Date().toISOString(),
 			config: inboundSignals.config,
 		},

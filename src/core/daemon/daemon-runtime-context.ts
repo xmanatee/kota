@@ -14,7 +14,9 @@ import type { DaemonLogger } from "./daemon-logger.js";
 import type { DaemonState } from "./daemon-state.js";
 import type { DaemonStateRoot } from "./daemon-state-root.js";
 import type { ProjectRuntimeRegistry } from "./project-runtime.js";
+import type { ScopeLifecycleService } from "./scope-lifecycle.js";
 import type { ScopeRegistry } from "./scope-registry.js";
+import type { ScopeRuntimeHost } from "./scope-runtime-host.js";
 
 /** Mutable and immutable lifecycle state for one daemon instance. */
 export type DaemonRuntimeContext = {
@@ -36,6 +38,8 @@ export type DaemonRuntimeContext = {
   readonly sessions: Map<string, InteractiveSession>;
   readonly projectRegistry: ScopeRegistry;
   readonly projectRuntimes: ProjectRuntimeRegistry;
+  readonly scopeLifecycle: ScopeLifecycleService;
+  readonly scopeRuntimeHost: ScopeRuntimeHost;
   unsubscribe: (() => void) | null;
   sessionSweepTimer: ReturnType<typeof setInterval> | null;
   healthCheckTimer: ReturnType<typeof setInterval> | null;

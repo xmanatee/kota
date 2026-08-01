@@ -1,6 +1,10 @@
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { installAwaitResumers } from "./awaits-resume.js";
+import {
+  type AwaitSuspension,
+  scanSuspensions,
+} from "./awaits-store.js";
 import { dismissSupersededWorkflowDeadLetters } from "./dead-letter-supersession.js";
 import { isWithinDispatchWindow, msUntilDispatchWindowOpens } from "./dispatch-window.js";
 import type { WorkflowEventBatchManager } from "./event-batches.js";
@@ -18,6 +22,7 @@ import type { WatchTriggerManager } from "./watch-triggers.js";
 
 export const WORKFLOW_STOP_ABORT_WAIT_MS = 15_000;
 export type WorkflowDispatchPauseMode = "runtime" | "persistent";
+export type WorkflowRuntimeInitialDispatch = "active" | "paused";
 
 export interface WorkflowRuntimeLifecycleState extends WorkflowRuntimeDispatchState {
   watchTriggers: WatchTriggerManager;
@@ -28,10 +33,13 @@ export interface WorkflowRuntimeLifecycleState extends WorkflowRuntimeDispatchSt
   stopBus: (() => void) | null;
 }
 
-export function startRuntime(state: WorkflowRuntimeLifecycleState): void {
+export function startRuntime(
+  state: WorkflowRuntimeLifecycleState,
+  initialDispatch: WorkflowRuntimeInitialDispatch,
+): void {
   if (state.stopBus || state.idleTimer) return;
   state.stopping = false;
-  state.dispatchPaused = false;
+  state.dispatchPaused = initialDispatch === "paused";
   state.lastIdleEventSignature = undefined;
   state.lastIdleEventEmittedAtMs = undefined;
 
@@ -119,6 +127,13 @@ export function startRuntime(state: WorkflowRuntimeLifecycleState): void {
   state.idleTimer.unref();
 
   emitIdleEvent(state);
+}
+
+/** Persisted await-event work remains drain-relevant while its resumer is idle. */
+export function listAwaitEventSuspensions(
+  state: Pick<WorkflowRuntimeLifecycleState, "store">,
+): AwaitSuspension[] {
+  return scanSuspensions(state.store.runsDir).map(({ suspension }) => suspension);
 }
 
 export async function stopRuntime(

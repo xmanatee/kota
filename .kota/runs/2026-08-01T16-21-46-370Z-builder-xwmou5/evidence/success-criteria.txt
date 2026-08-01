@@ -1,0 +1,5 @@
+1. A typed lifecycle service adds directory scopes, updates display names, changes the default, drains scopes, and removes scopes through the existing ScopeRegistry and ProjectRuntimeRegistry.
+2. A newly registered scope starts exactly one live runtime, executes a scoped workflow before restart, and is restored with the same stable scope id and one runtime after restart.
+3. Scope runtime startup and teardown register and unregister workflow subscriptions, schedules, notification gates, stores, and resource leases exactly once.
+4. Missing or inaccessible directories, duplicate or unknown scopes, active work, non-drainable work, and attempts to remove the default scope return explicit outcomes without partial registry, runtime, or persisted state.
+5. Production daemon bootstrap seeds a missing persisted registry but thereafter restores the persisted live registry instead of treating DaemonConfig.projects as a parallel long-lived authority.

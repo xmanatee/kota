@@ -13,7 +13,7 @@ import {
   startDaemonWorkflowRuntimes,
   validateDaemonWorkflowRuntimes,
 } from "./daemon-workflows.js";
-import { getScheduler, type ScheduledItem } from "./scheduler.js";
+import { getScheduler } from "./scheduler.js";
 import { sweepExpiredSessions } from "./session-sweep.js";
 
 const DEFAULT_POLL_INTERVAL = 30_000;
@@ -107,23 +107,14 @@ export async function runDaemonStartup(
   }
 
   const pollMs = ctx.config.pollIntervalMs ?? DEFAULT_POLL_INTERVAL;
-  const runsDir = join(ctx.stateDir, "runs");
-
   ctx.unsubscribe = subscribeDaemon({
     bus: ctx.bus,
-    failureAlertScopes: ctx.projectRuntimes.list().map((runtime) => ({
-      pbus: runtime.pbus,
-      projectDir: runtime.project.projectDir,
-    })),
-    approvalQueues: ctx.projectRuntimes
+    approvalQueues: () => ctx.projectRuntimes
       .list()
       .map((runtime) => runtime.approvalQueue),
     pollIntervalMs: pollMs,
     approvalTtlMs: ctx.config.config?.approvalTtlMs,
-    alertCooldownMs: ctx.config.config?.notifications?.alertCooldownMs,
     moduleCrashAlertOpts: ctx.config.config?.moduleMonitoring,
-    getWorkflowNotify: (name) => ctx.workflows.getDefinitions().find((d) => d.name === name)?.notify,
-    onDueItems: (items) => handleDueItems(ctx, items),
     onWorkflowCompleted: () => hooks.maybeRestart(),
     onRestartRequested: (reason) => hooks.requestRestart(reason),
     onLog: ctx.log,
@@ -134,19 +125,25 @@ export async function runDaemonStartup(
     ctx.log(`Notification gate active: quiet hours ${quietHours.start}–${quietHours.end}`);
   }
 
-  startDaemonWorkflowRuntimes(ctx);
+  await startDaemonWorkflowRuntimes(ctx);
 
   const operator = process.env.KOTA_OPERATOR;
   const channelCtx = {
-    projectDir: ctx.projectDir,
-    defaultProjectRuntime: ctx.projectRuntimes.getDefault(),
-    getProjectRuntime: (projectId: string) => ctx.projectRuntimes.get(projectId),
+    getDefaultProjectRuntime: () =>
+      ctx.scopeLifecycle.getChannelRuntime(ctx.projectRuntimes.getDefaultProjectId()),
+    getProjectRuntime: (projectId: string) =>
+      ctx.scopeLifecycle.getChannelRuntime(projectId),
     log: ctx.log,
-    getWorkflowStatus: () => ({
-      runtimeState: ctx.workflows.getState(),
-      dispatchPaused: ctx.workflows.isDispatchPaused(),
-      runsDir,
-    }),
+    getWorkflowStatus: () => {
+      const runtime = ctx.scopeLifecycle.getChannelRuntime(
+        ctx.projectRuntimes.getDefaultProjectId(),
+      );
+      return {
+        runtimeState: runtime.workflowRuntime.getState(),
+        dispatchPaused: runtime.workflowRuntime.isDispatchPaused(),
+        runsDir: join(runtime.project.projectDir, ".kota", "runs"),
+      };
+    },
     operator,
     identity: operator ? { operator } : undefined,
   };
@@ -171,11 +168,4 @@ export async function runDaemonStartup(
       }
     }, 1_000);
   });
-}
-
-function handleDueItems(ctx: DaemonRuntimeContext, items: ScheduledItem[]): void {
-  if (!ctx.running || ctx.stopping) return;
-  for (const item of items) {
-    ctx.log(`Reminder: ${item.description}`);
-  }
 }

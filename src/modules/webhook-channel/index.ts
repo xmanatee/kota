@@ -8,6 +8,7 @@ import { AUTONOMY_MODES } from "#core/tools/autonomy-mode.js";
 import { webhookChannelSession } from "./events.js";
 import {
   clearSessions,
+  listWebhookSessionIds,
   makeWebhookChannelHandler,
   type WebhookChannelConfig,
 } from "./handler.js";
@@ -30,14 +31,26 @@ function makeChannelDef(ctx: ModuleContext): ChannelDef {
     name: "webhook-channel",
     description:
       "Generic inbound HTTP webhook channel — creates agent sessions from JSON payloads",
-    create() {
+    create(channelCtx) {
+      const unsubscribeScopeLifecycle = ctx.events.subscribe(
+        "scope.lifecycle.changed",
+        (payload) => {
+          if (payload.transition === "default-changed") clearSessions();
+        },
+      );
       return {
         status: "started",
         adapter: {
+          listScopeSessionIds(scopeId) {
+            return scopeId === channelCtx.getDefaultProjectRuntime().project.projectId
+              ? listWebhookSessionIds()
+              : [];
+          },
           async start() {
             ctx.log.info("webhook-channel: channel started");
           },
           stop() {
+            unsubscribeScopeLifecycle();
             clearSessions();
             ctx.log.info("webhook-channel: channel stopped");
           },

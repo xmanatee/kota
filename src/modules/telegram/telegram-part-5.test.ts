@@ -86,8 +86,7 @@ function makeChannelStartContext(
     scheduler: { count: () => 0 },
   } as never;
   return {
-    projectDir: "/tmp",
-    defaultProjectRuntime: runtime,
+    getDefaultProjectRuntime: () => runtime,
     getProjectRuntime: () => runtime,
     log: () => {},
     reportFailure: overrides.reportFailure ?? (() => {}),

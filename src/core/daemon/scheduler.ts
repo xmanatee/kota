@@ -11,6 +11,7 @@
 
 import { join } from "node:path";
 import type { EventBus } from "#core/events/event-bus.js";
+import type { BusEnvelope } from "#core/events/event-bus-types.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import {
   getPendingSummary,
@@ -210,7 +211,7 @@ export class Scheduler {
     onFire: (items: import("./schedule-parser.js").ScheduledItem[]) => void,
   ): () => void {
     this.disconnectBus();
-    this.busUnsub = bus.on("*", (envelope) => {
+    const handleEnvelope = (envelope: BusEnvelope): void => {
       if (envelope.type === "schedule.fire") return;
 
       this.ensureLoaded();
@@ -227,7 +228,10 @@ export class Scheduler {
 
       for (const item of matches) this.markFired(item.id);
       onFire(matches);
-    });
+    };
+    this.busUnsub = this.pbus
+      ? this.pbus.onAny(handleEnvelope)
+      : bus.on("*", handleEnvelope);
     return () => this.disconnectBus();
   }
 
@@ -273,10 +277,9 @@ export function initScheduler(
  * project's instance without re-binding `projectDir` outside the bundle.
  */
 export function setSchedulerInstance(scheduler: Scheduler): void {
-  if (instance && instance !== scheduler) {
-    instance.disconnectBus();
-    instance.stopTimer();
-  }
+  // The daemon's scope runtime host owns each scheduler's live subscriptions.
+  // Rebinding the compatibility singleton must not tear down the prior scope,
+  // which remains hosted after a default-scope change.
   instance = scheduler;
 }
 

@@ -45,11 +45,7 @@ import {
   setOwnerQuestionQueueInstance,
 } from "./owner-question-queue.js";
 import { Scheduler, setSchedulerInstance } from "./scheduler.js";
-import type {
-  ConfiguredProject,
-  ProjectId,
-  ScopeRegistry,
-} from "./scope-registry.js";
+import type { ConfiguredProject } from "./scope-registry.js";
 import { setTaskStoreInstance, TaskStore } from "./task-store.js";
 
 /**
@@ -70,7 +66,7 @@ import { setTaskStoreInstance, TaskStore } from "./task-store.js";
  * actual domain state, not a fall-through to a global.
  */
 export type ProjectRuntime = {
-  readonly project: ConfiguredProject;
+  project: ConfiguredProject;
   readonly pbus: ProjectScopedEventBus;
   readonly runStore: WorkflowRunStore;
   readonly taskStore: TaskStore;
@@ -85,6 +81,7 @@ export type ProjectRuntime = {
   readonly workflowRuntime: WorkflowRuntime;
   /** Absolute path to this project's `push-tokens.json`. */
   readonly pushTokenStorePath: string;
+  setDefaultScopeRuntime(isDefault: boolean): void;
   notificationGate: NotificationGate | null;
 };
 
@@ -111,6 +108,30 @@ export type ProjectRuntimeFactoryOptions = {
   quietHours?: QuietHoursConfig;
 };
 
+function installProjectRuntimeSingletons(runtime: ProjectRuntime): void {
+  setTaskStoreInstance(runtime.taskStore);
+  setSchedulerInstance(runtime.scheduler);
+  setModuleLogStoreInstance(runtime.moduleLogStore);
+  setApprovalQueueInstance(runtime.approvalQueue);
+  setIdempotencyStoreInstance(runtime.idempotencyStore);
+  setOwnerDecisionStoreInstance(runtime.ownerDecisionStore);
+  setOwnerQuestionQueueInstance(runtime.ownerQuestionQueue);
+}
+
+/** Move default-only singleton and notification ownership between live scopes. */
+export function rebindDefaultProjectRuntime(
+  previous: ProjectRuntime,
+  next: ProjectRuntime,
+  quietHours?: QuietHoursConfig,
+): void {
+  previous.setDefaultScopeRuntime(false);
+  previous.notificationGate?.dispose();
+  previous.notificationGate = null;
+  next.setDefaultScopeRuntime(true);
+  installProjectRuntimeSingletons(next);
+  if (quietHours) next.notificationGate = new NotificationGate(next.pbus, quietHours);
+}
+
 /**
  * Construct one project's runtime bundle. This is the canonical (and only)
  * place in the daemon source tree where per-project stores are built.
@@ -120,6 +141,7 @@ export function createProjectRuntime(
 ): ProjectRuntime {
   const projectDir = opts.project.projectDir;
   const pbus = new ProjectScopedEventBus(opts.bus, opts.project.projectId);
+  let isDefaultScopeRuntime = opts.installSingletons;
 
   const runStore = new WorkflowRunStore(projectDir);
   const taskStore = new TaskStore(projectDir, undefined, pbus);
@@ -166,25 +188,15 @@ export function createProjectRuntime(
     resolveSkillsPrompt: opts.resolveSkillsPrompt,
     agentConcurrency: opts.config?.scheduler?.agentConcurrency,
     codeConcurrency: opts.config?.scheduler?.codeConcurrency,
-    isDefaultScopeRuntime: opts.installSingletons,
+    isDefaultScopeRuntime: () => isDefaultScopeRuntime,
   });
-
-  if (opts.installSingletons) {
-    setTaskStoreInstance(taskStore);
-    setSchedulerInstance(scheduler);
-    setModuleLogStoreInstance(moduleLogStore);
-    setApprovalQueueInstance(approvalQueue);
-    setIdempotencyStoreInstance(idempotencyStore);
-    setOwnerDecisionStoreInstance(ownerDecisionStore);
-    setOwnerQuestionQueueInstance(ownerQuestionQueue);
-  }
 
   const notificationGate =
     opts.installSingletons && opts.quietHours
       ? new NotificationGate(pbus, opts.quietHours)
       : null;
 
-  return {
+  const runtime: ProjectRuntime = {
     project: opts.project,
     pbus,
     runStore,
@@ -199,82 +211,13 @@ export function createProjectRuntime(
     ownerQuestionQueue,
     workflowRuntime,
     pushTokenStorePath: join(projectDir, ".kota", "push-tokens.json"),
+    setDefaultScopeRuntime: (isDefault) => {
+      isDefaultScopeRuntime = isDefault;
+    },
     notificationGate,
   };
+  if (opts.installSingletons) installProjectRuntimeSingletons(runtime);
+  return runtime;
 }
 
-/**
- * Typed lookup over every project's runtime bundle. Keyed by stable
- * {@link ProjectId} so consumers never need to resolve a project root path
- * back to a runtime themselves.
- */
-export class ProjectRuntimeRegistry {
-  private readonly byId: Map<ProjectId, ProjectRuntime>;
-  private readonly defaultProjectId: ProjectId;
-
-  private constructor(
-    byId: Map<ProjectId, ProjectRuntime>,
-    defaultProjectId: ProjectId,
-  ) {
-    this.byId = byId;
-    this.defaultProjectId = defaultProjectId;
-  }
-
-  static create(opts: {
-    registry: ScopeRegistry;
-    bus: EventBus;
-    eventJournal?: EventJournal;
-    config?: KotaConfig;
-    workflows?: readonly RegisteredWorkflowDefinitionInput[];
-    model?: string;
-    idleIntervalMs?: number;
-    resolveAgentDef?: (name: string) => AgentDef | undefined;
-    resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
-    onLog: (message: string) => void;
-    quietHours?: QuietHoursConfig;
-  }): ProjectRuntimeRegistry {
-    const projects = opts.registry.list();
-    const defaultId = opts.registry.getDefaultProjectId();
-    const byId = new Map<ProjectId, ProjectRuntime>();
-    for (const project of projects) {
-      const runtime = createProjectRuntime({
-        project,
-        bus: opts.bus,
-        eventJournal: opts.eventJournal,
-        config: opts.config,
-        workflows: opts.workflows,
-        model: opts.model,
-        idleIntervalMs: opts.idleIntervalMs,
-        resolveAgentDef: opts.resolveAgentDef,
-        resolveSkillsPrompt: opts.resolveSkillsPrompt,
-        onLog: opts.onLog,
-        installSingletons: project.projectId === defaultId,
-        quietHours: project.projectId === defaultId ? opts.quietHours : undefined,
-      });
-      byId.set(project.projectId, runtime);
-    }
-    return new ProjectRuntimeRegistry(byId, defaultId);
-  }
-
-  get(projectId: ProjectId): ProjectRuntime {
-    const runtime = this.byId.get(projectId);
-    if (!runtime) {
-      throw new Error(
-        `ProjectRuntimeRegistry: no runtime registered for projectId ${projectId}`,
-      );
-    }
-    return runtime;
-  }
-
-  getDefault(): ProjectRuntime {
-    return this.get(this.defaultProjectId);
-  }
-
-  getDefaultProjectId(): ProjectId {
-    return this.defaultProjectId;
-  }
-
-  list(): readonly ProjectRuntime[] {
-    return [...this.byId.values()];
-  }
-}
+export { ProjectRuntimeRegistry } from "./project-runtime-registry.js";

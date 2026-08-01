@@ -76,6 +76,8 @@ export type ChannelSession = {
 export type ChannelAdapter = {
   start(): Promise<void>;
   stop(): void | Promise<void>;
+  /** Stable ids for live sessions owned by this channel in one scope. */
+  listScopeSessionIds(scopeId: string): readonly string[];
 };
 
 /**
@@ -105,11 +107,12 @@ export type ChannelOperatorIdentity = {
  * Context provided to a channel factory when the daemon starts it.
  */
 export type ChannelStartContext = {
-  /** Project root directory. */
-  projectDir: string;
-  /** Default daemon-owned project runtime bundle. */
-  defaultProjectRuntime: ProjectRuntime;
-  /** Resolve a daemon-owned project runtime bundle by stable project id. */
+  /** Resolve the current default runtime; default changes are visible immediately. */
+  getDefaultProjectRuntime: () => ProjectRuntime;
+  /**
+   * Admit channel work to a currently hosted runtime by stable project id.
+   * Throws when drain has closed admission, even while the scope remains persisted.
+   */
   getProjectRuntime: (projectId: string) => ProjectRuntime;
   /** Logger for channel messages. */
   log: (message: string) => void;

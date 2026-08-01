@@ -5,6 +5,7 @@ import {
 import type {
   ConflictingScopeSelectorsError,
   DaemonControlHandle,
+  ScopeNotHostedError,
   UnknownProjectError,
   UnknownScopeError,
 } from "./daemon-control-types.js";
@@ -84,10 +85,11 @@ export type ProjectScopeParam =
   | { ok: true; projectId: ProjectId | undefined }
   | {
       ok: false;
-      status: 400 | 404;
+      status: 400 | 404 | 409;
       error:
         | UnknownProjectError
         | UnknownScopeError
+        | ScopeNotHostedError
         | ConflictingScopeSelectorsError;
     };
 
@@ -140,9 +142,10 @@ export function parseActiveProjectPatchBody(raw: string): ActiveProjectPatchBody
  * - When both parameters are present, they must match exactly; mismatches are
  *   rejected as a malformed request instead of choosing one silently.
  * - When a parameter is present, validates against
- *   {@link DaemonControlHandle.hasProject}. Unknown ids return the
- *   typed wire-shape rejection that route handlers translate to a 404. The
- *   error vocabulary follows the caller's selector spelling.
+ *   {@link DaemonControlHandle.hasProject}. Registered but unhosted scopes
+ *   return a typed 409; unknown ids return the typed wire-shape rejection that
+ *   route handlers translate to a 404. Unknown error vocabulary follows the
+ *   caller's selector spelling.
  */
 export function resolveProjectIdParam(
   handle: DaemonControlHandle,
@@ -162,6 +165,22 @@ export function resolveProjectIdParam(
     return { ok: true, projectId: active ?? undefined };
   }
   if (!handle.hasProject(selected)) {
+    if (
+      handle.getProjectRegistryProjection().projects.some(
+        (project) => project.projectId === selected,
+      )
+    ) {
+      return {
+        ok: false,
+        status: 409,
+        error: {
+          error: "Scope is not hosted",
+          reason: "scope_not_hosted",
+          scopeId: selected,
+          projectId: selected,
+        },
+      };
+    }
     if (resolvedSelector.selector.scopeId) {
       return {
         ok: false,

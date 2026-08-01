@@ -25,13 +25,13 @@ export function makeSlackChannelDef(moduleCtx: ModuleContext): ChannelDef {
 				moduleCtx.config,
 				"slack-channel",
 			);
-			const projectDir = ctx.projectDir;
 			const bot = new SlackBot({
 				botToken: config.botToken,
 				appToken: config.appToken,
 				notifyChannel: config.notifyChannel,
 				config: moduleCtx.config,
 				autonomyMode,
+				getDefaultProjectRuntime: ctx.getDefaultProjectRuntime,
 				recall: moduleCtx.client.recall,
 				answer: moduleCtx.client.answer,
 				capture: moduleCtx.client.capture,
@@ -43,18 +43,23 @@ export function makeSlackChannelDef(moduleCtx: ModuleContext): ChannelDef {
 				approvals: moduleCtx.client.approvals,
 				inboundSignals: config.inboundSignals
 					? {
-							projectId: ctx.defaultProjectRuntime.project.projectId,
+							getProjectId: () =>
+								ctx.getDefaultProjectRuntime().project.projectId,
 							config: config.inboundSignals,
 							events: moduleCtx.events,
 						}
 					: undefined,
 				attention: {
 					snapshot: () => renderOnDemandAttention({
-						projectDir,
+						projectDir: ctx.getDefaultProjectRuntime().project.projectDir,
 						runsDir: ctx.getWorkflowStatus().runsDir,
 					}),
 				},
-				digest: { snapshot: () => renderOnDemandDigest({ projectDir }) },
+				digest: {
+					snapshot: () => renderOnDemandDigest({
+						projectDir: ctx.getDefaultProjectRuntime().project.projectDir,
+					}),
+				},
 			});
 
 			const unsubscribeApproval = moduleCtx.events.subscribe(
@@ -71,14 +76,36 @@ export function makeSlackChannelDef(moduleCtx: ModuleContext): ChannelDef {
 					});
 				},
 			);
+			const unsubscribeScopeLifecycle = moduleCtx.events.subscribe(
+				"scope.lifecycle.changed",
+				(payload) => {
+					if (
+						payload.transition === "default-changed" &&
+						payload.previousDefaultScopeId !== undefined
+					) bot.closeScopeSessions(payload.previousDefaultScopeId);
+				},
+			);
+			let startPromise: Promise<void> | null = null;
 
 			return {
 				status: "started",
 				adapter: {
-					async start() { await bot.start(); },
-					stop() {
+					listScopeSessionIds: (scopeId) => bot.listScopeSessionIds(scopeId),
+					async start() {
+						startPromise = bot.start().catch((error) => {
+							const message = error instanceof Error ? error.message : String(error);
+							moduleCtx.log.error(`slack-channel poll loop exited: ${message}`);
+							ctx.reportFailure(message);
+						});
+					},
+					async stop() {
 						unsubscribeApproval();
+						unsubscribeScopeLifecycle();
 						bot.stop();
+						if (startPromise) {
+							await startPromise;
+							startPromise = null;
+						}
 					},
 				},
 			};

@@ -5,12 +5,22 @@ import type { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import type { DaemonChatMakeAgent, DaemonChatPool } from "./daemon-chat-pool.js";
 import { readChatBody } from "./daemon-chat-request.js";
 import { jsonResponse } from "./daemon-control-utils.js";
+import type { ScopeHostingState } from "./scope-lifecycle-types.js";
 import type { ProjectId } from "./scope-registry.js";
 
 export type DaemonChatConversationResolver = {
   conversationExists(conversationId: string, projectId: ProjectId): boolean;
   createConversation(mode: AutonomyMode, projectId: ProjectId): string;
 };
+
+export type DaemonChatSessionAdmission = () =>
+  | { ok: true }
+  | {
+      ok: false;
+      reason: "scope_not_hosted";
+      scopeId: ProjectId;
+      state: Exclude<ScopeHostingState, "hosted">;
+    };
 
 export async function handleCreateDaemonSession(
   pool: DaemonChatPool,
@@ -21,6 +31,7 @@ export async function handleCreateDaemonSession(
   defaultAutonomyMode: AutonomyMode | undefined,
   projectId: ProjectId,
   resolver: DaemonChatConversationResolver,
+  admitSession: DaemonChatSessionAdmission,
 ): Promise<void> {
   let body: KotaJsonObject;
   try {
@@ -55,6 +66,7 @@ export async function handleCreateDaemonSession(
 
   let wakeSessionId: string | undefined;
   let conversationId: string | undefined;
+  let createConversation = false;
 
   if (requestedSessionId) {
     const live = pool.get(requestedSessionId);
@@ -117,12 +129,32 @@ export async function handleCreateDaemonSession(
     }
     conversationId = requestedConversationId;
   } else {
+    createConversation = true;
+  }
+
+  const admission = admitSession();
+  if (!admission.ok) {
+    jsonResponse(res, 409, {
+      error: `Scope ${admission.scopeId} is ${admission.state} and cannot accept sessions`,
+      reason: admission.reason,
+      scopeId: admission.scopeId,
+      state: admission.state,
+    });
+    return;
+  }
+
+  if (createConversation) {
     try {
       conversationId = resolver.createConversation(mode, projectId);
     } catch (err) {
       jsonResponse(res, 503, { error: (err as Error).message });
       return;
     }
+  }
+
+  if (conversationId === undefined) {
+    jsonResponse(res, 500, { error: "Session conversation was not resolved" });
+    return;
   }
 
   try {

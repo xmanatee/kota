@@ -9,7 +9,7 @@ import {
 } from "./idempotency-store.js";
 
 export type EventIdempotencyInstallOptions = {
-  defaultScopeId: string;
+  getDefaultScopeId: () => string;
   resolveStore: (scopeId: string) => IdempotencyStore;
   log?: (message: string) => void;
 };
@@ -79,7 +79,7 @@ export function installEventIdempotency(
   options: EventIdempotencyInstallOptions,
 ): () => void {
   return bus.addEmitMiddleware((envelope, next) => {
-    const input = eventIngestionIdentity(envelope, options.defaultScopeId);
+    const input = eventIngestionIdentity(envelope, options.getDefaultScopeId());
     if (!input) {
       next();
       return;

@@ -128,6 +128,28 @@ describe("WatchTriggerManager", () => {
     expect(files).toContain("src/b.ts");
   });
 
+  it("reports accepted changes until their debounce buffer is queued", async () => {
+    const def = makeDefinition("watcher", "src/**/*.ts", 150);
+    mgr.setup([def], subscribe as Parameters<typeof mgr.setup>[1]);
+
+    const watcherId = await waitForWatcherId();
+    emitFileChanged(watcherId, [
+      { path: "src/b.ts", type: "create" },
+      { path: "src/a.ts", type: "change" },
+    ]);
+
+    expect(mgr.listPendingBuffers()).toEqual([{
+      workflowName: "watcher",
+      triggerIndex: 0,
+      files: ["src/a.ts", "src/b.ts"],
+    }]);
+
+    await new Promise((r) => setTimeout(r, 250));
+
+    expect(enqueuedRuns).toHaveLength(1);
+    expect(mgr.listPendingBuffers()).toEqual([]);
+  });
+
   it("does not fire when isStopping is true", async () => {
     const def = makeDefinition("watcher", "src/**/*.ts", 50);
     mgr.setup([def], subscribe as Parameters<typeof mgr.setup>[1]);

@@ -6,10 +6,10 @@ import type {
 } from "./channel.js";
 
 const STUB_START_CTX: ChannelStartContext = {
-  projectDir: "/tmp/test",
-  defaultProjectRuntime: {
-    project: { projectId: "test-project", projectDir: "/tmp/test", displayName: "test" },
-  } as never,
+  getDefaultProjectRuntime: () =>
+    ({
+      project: { projectId: "test-project", projectDir: "/tmp/test", displayName: "test" },
+    }) as never,
   getProjectRuntime: () =>
     ({
       project: { projectId: "test-project", projectDir: "/tmp/test", displayName: "test" },
@@ -33,6 +33,7 @@ describe("ChannelStartResult discriminated union", () => {
           adapter: {
             async start() {},
             stop() {},
+            listScopeSessionIds: () => [],
           },
         };
       },
@@ -42,6 +43,7 @@ describe("ChannelStartResult discriminated union", () => {
     if (result.status === "started") {
       expect(typeof result.adapter.start).toBe("function");
       expect(typeof result.adapter.stop).toBe("function");
+      expect(result.adapter.listScopeSessionIds("test-project")).toEqual([]);
     }
   });
 

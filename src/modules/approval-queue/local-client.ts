@@ -1,4 +1,5 @@
 import { loadConfig } from "#core/config/config.js";
+import { beginApprovalExecutionActivity } from "#core/daemon/approval-execution-activity.js";
 import {
 	type ApprovalQueue,
 	defaultApprovalPendingTtlMs,
@@ -89,33 +90,38 @@ async function approveLocalApproval(
 	if (selection.snapshot.descriptor.reviewDigest !== reviewDigest) {
 		return { ok: false, reason: "review_mismatch" };
 	}
-	const preflight = await prepareApprovalExecutionBatch(
-		[selection.snapshot],
-		executionContext,
-	);
-	if (!preflight.ok) throw new Error(preflight.body.error);
+	const releaseExecution = beginApprovalExecutionActivity(queue, [id]);
+	try {
+		const preflight = await prepareApprovalExecutionBatch(
+			[selection.snapshot],
+			executionContext,
+		);
+		if (!preflight.ok) throw new Error(preflight.body.error);
 
-	return withApprovalExecutionLeases(preflight.leases.values(), async () => {
-		const lease = preflight.leases.get(id);
-		if (lease === undefined) return { ok: false, reason: "review_mismatch" };
-		const result = queue.approveForExecution(lease, note);
-		if (!result.ok) {
-			return failedApprovalMutation(result.reason) as ApprovalApproveResult;
-		}
-		try {
-			return {
-				ok: true,
-				...await approvedApprovalResponse(
-					result.approval,
-					executionContext,
-					lease,
-				),
-			};
-		} catch (error) {
-			if (!(error instanceof ApprovalExecutionDescriptorMismatchError)) throw error;
-			return { ok: false, reason: "review_mismatch" };
-		}
-	});
+		return await withApprovalExecutionLeases(preflight.leases.values(), async () => {
+			const lease = preflight.leases.get(id);
+			if (lease === undefined) return { ok: false, reason: "review_mismatch" };
+			const result = queue.approveForExecution(lease, note);
+			if (!result.ok) {
+				return failedApprovalMutation(result.reason) as ApprovalApproveResult;
+			}
+			try {
+				return {
+					ok: true,
+					...await approvedApprovalResponse(
+						result.approval,
+						executionContext,
+						lease,
+					),
+				};
+			} catch (error) {
+				if (!(error instanceof ApprovalExecutionDescriptorMismatchError)) throw error;
+				return { ok: false, reason: "review_mismatch" };
+			}
+		});
+	} finally {
+		releaseExecution();
+	}
 }
 
 export function buildLocalApprovalsClient(): ApprovalsClient {

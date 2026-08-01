@@ -9,6 +9,8 @@ vi.mock("./bot.js", () => {
     this.start = vi.fn().mockResolvedValue(undefined);
     this.stop = vi.fn();
     this.postApproval = vi.fn().mockResolvedValue(undefined);
+    this.listScopeSessionIds = vi.fn().mockReturnValue([]);
+    this.closeScopeSessions = vi.fn();
   });
   return { SlackBot };
 });
@@ -20,10 +22,10 @@ import slackChannelModule from "./index.js";
 const MockedSlackBot = vi.mocked(SlackBot);
 
 const STUB_CHANNEL_START_CTX = {
-  projectDir: "/tmp",
-  defaultProjectRuntime: {
-    project: { projectId: "test-project", projectDir: "/tmp", displayName: "test" },
-  } as never,
+  getDefaultProjectRuntime: () =>
+    ({
+      project: { projectId: "test-project", projectDir: "/tmp", displayName: "test" },
+    }) as never,
   getProjectRuntime: () =>
     ({
       project: { projectId: "test-project", projectDir: "/tmp", displayName: "test" },
@@ -230,6 +232,29 @@ describe("slackChannelModule channel adapter", () => {
     expect(botInstance.start).toHaveBeenCalled();
   });
 
+  it("reports channel sessions and closes the previous default scope immediately", async () => {
+    const bus = new EventBus();
+    const ctx = makeStubCtx(bus, {
+      botToken: "xoxb-test",
+      appToken: "xapp-test",
+    });
+    const adapter = await resolveAdapter(ctx);
+    const botInstance = MockedSlackBot.mock.results[0].value;
+    botInstance.listScopeSessionIds.mockReturnValue(["slack:U1:scope-a"]);
+
+    expect(adapter!.listScopeSessionIds("scope-a")).toEqual(["slack:U1:scope-a"]);
+
+    bus.emit("scope.lifecycle.changed", {
+      transition: "default-changed",
+      affectedScopeId: "scope-b",
+      previousDefaultScopeId: "scope-a",
+      directoryRoot: "/tmp/scope-b",
+      displayName: "Scope B",
+    });
+
+    expect(botInstance.closeScopeSessions).toHaveBeenCalledWith("scope-a");
+    await adapter!.stop();
+  });
   it("adapter.stop unsubscribes from approval events and stops the bot", async () => {
     const bus = new EventBus();
     const ctx = makeStubCtx(bus, {

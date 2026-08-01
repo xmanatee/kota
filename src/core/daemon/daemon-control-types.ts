@@ -1,10 +1,7 @@
 import type { ChannelStatus } from "#core/channels/channel.js";
 import type {
-  BusEvents,
   EventSchemaReference,
-  SessionGuardrailsReloadSummary,
 } from "#core/events/event-bus-types.js";
-import type { EventJsonObject } from "#core/events/event-journal.js";
 import type {
   ModuleEventCompatibilityPolicy,
   ModuleEventPayloadExample,
@@ -13,13 +10,6 @@ import type {
   ModuleEventSensitivity,
   ModuleEventWorkflowTriggerPolicy,
 } from "#core/events/module-event.js";
-import type {
-  ModuleSetupCompleteInput,
-  ModuleSetupFormValues,
-  ModuleSetupMutationResult,
-  ModuleSetupStartResult,
-  ModuleSetupStatusResponse,
-} from "#core/modules/setup-requirements.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { GuardrailsSnapshot } from "#core/tools/guardrails.js";
 import type {
@@ -34,8 +24,6 @@ import type {
   WorkflowStepSkipReason,
 } from "#core/workflow/run-types.js";
 import type { WorkflowAgentBackoffState } from "#core/workflow/trigger-types.js";
-import type { CapabilityReadinessResponse } from "./capability-readiness.js";
-import type { ClientIdentity } from "./client-identity.js";
 import type { DaemonState } from "./daemon-state.js";
 import type {
   DeadLetterItem,
@@ -44,12 +32,20 @@ import type {
   DeadLetterQueueCounts,
   DeadLetterRedriveTarget,
 } from "./dead-letter-queue.js";
-import type { ScopePolicyRouteResponse } from "./scope-policy.js";
-import type {
-  ProjectId,
-  ProjectRegistryProjection,
-  ScopeRegistryProjection,
-} from "./scope-registry.js";
+import type { ScopeHostingState } from "./scope-lifecycle-types.js";
+import type { ProjectId } from "./scope-registry.js";
+
+export type {
+  DaemonSseEvent,
+  DaemonSseEventType,
+  DaemonSseStreamEvent,
+  DaemonTimelineEvent,
+  QueueChangedPayload,
+} from "./daemon-control-events.js";
+export type { DaemonControlHandle } from "./daemon-control-handle.js";
+
+/** Untyped trigger additions are accepted only at the daemon control boundary. */
+export type DaemonControlExtraPayload = Record<string, unknown>;
 
 /**
  * Typed wire-shape for the daemon's "unknown projectId" rejection on a
@@ -76,6 +72,13 @@ export type ConflictingScopeSelectorsError = {
   projectId: string;
 };
 
+export type ScopeNotHostedError = {
+  error: "Scope is not hosted";
+  reason: "scope_not_hosted";
+  scopeId: string;
+  projectId: string;
+};
+
 /**
  * Result of {@link DaemonControlHandle.setActiveProjectId}. The success
  * arm carries the new active selection (echoing the requested value back
@@ -84,7 +87,22 @@ export type ConflictingScopeSelectorsError = {
  */
 export type SetActiveProjectResult =
   | { ok: true; activeProjectId: ProjectId | null }
-  | { ok: false; reason: "not_found"; projectId: string };
+  | { ok: false; reason: "not_found"; projectId: string }
+  | {
+      ok: false;
+      reason: "not_hosted";
+      projectId: string;
+      state: Exclude<ScopeHostingState, "hosted">;
+    };
+
+export type RegisterSessionResult =
+  | { ok: true; scopeId: ProjectId }
+  | {
+      ok: false;
+      reason: "scope_not_hosted";
+      scopeId: ProjectId;
+      state: Exclude<ScopeHostingState, "hosted">;
+    };
 
 export type {
   ChannelStatus,
@@ -173,53 +191,6 @@ export type DaemonLiveStatus = DaemonState & {
   workflow: WorkflowLiveStatus;
   sessions: InteractiveSession[];
   channels: ChannelStatus[];
-};
-
-/**
- * Payload for the SSE-only `queue.changed` event. Synthesized at the daemon
- * handle from the upstream `workflow.started` / `workflow.completed` bus
- * events; subscribers use it to invalidate operator-facing queue views
- * without re-reading the workflow runtime state.
- */
-export type QueueChangedPayload =
-  | { source: "workflow.started"; workflow: string }
-  | {
-      source: "workflow.completed";
-      workflow: string;
-      status: BusEvents["workflow.completed"]["status"];
-    };
-
-/**
- * Daemon SSE broadcast events. Each variant carries the typed bus payload
- * its name implies; consumers narrow on `type` and access `payload` fields
- * directly without re-validation.
- */
-export type DaemonSseEvent =
-  | { type: "workflow.started"; payload: BusEvents["workflow.started"] }
-  | { type: "workflow.completed"; payload: BusEvents["workflow.completed"] }
-  | { type: "workflow.step.completed"; payload: BusEvents["workflow.step.completed"] }
-  | { type: "daemon.config.reload"; payload: BusEvents["daemon.config.reload"] }
-  | { type: "queue.changed"; payload: QueueChangedPayload }
-  | { type: "approval.changed"; payload: BusEvents["approval.changed"] }
-  | { type: "task.changed"; payload: BusEvents["task.changed"] }
-  | { type: "session.registered"; payload: BusEvents["session.registered"] }
-  | { type: "session.unregistered"; payload: BusEvents["session.unregistered"] }
-  | { type: "owner.question.asked"; payload: BusEvents["owner.question.asked"] }
-  | { type: "owner.question.changed"; payload: BusEvents["owner.question.changed"] }
-  | { type: "owner.question.resolved"; payload: BusEvents["owner.question.resolved"] }
-  | { type: "owner.question.dismissed"; payload: BusEvents["owner.question.dismissed"] }
-  | { type: "owner.question.expired"; payload: BusEvents["owner.question.expired"] };
-
-export type DaemonSseEventType = DaemonSseEvent["type"];
-
-export type DaemonSseStreamEvent = DaemonSseEvent & {
-  /** Opaque, daemon-local event id. Clients use it as the reconnect cursor. */
-  id: string;
-};
-
-export type DaemonTimelineEvent = DaemonSseStreamEvent & {
-  /** ISO timestamp for human-facing timeline ordering and timestamp catch-up. */
-  timestamp: string;
 };
 
 export type WorkflowRunSummary = {
@@ -325,142 +296,4 @@ export type HealthStatus = {
   scheduler: ComponentStatus;
   modules: ComponentStatus;
   moduleHealthChecks?: Record<string, ModuleHealthCheckResult>;
-};
-
-export type DaemonControlHandle = {
-  getDaemonLiveState(): DaemonState & { running: boolean };
-  getHealthStatus(): HealthStatus;
-  /**
-   * Live status for a single project's workflow runtime. `projectId` is
-   * optional; when omitted the daemon resolves the registry's default
-   * project. The caller is responsible for validating the id beforehand
-   * via {@link DaemonControlHandle.hasProject} — handle methods that
-   * receive an unknown id throw, since route handlers translate the typed
-   * "unknown_project" rejection to a 404 *before* dispatching.
-   */
-  getWorkflowLiveStatus(projectId?: ProjectId): WorkflowLiveStatus;
-  /** Snapshot of every contributed channel's startup posture. */
-  listChannelStatuses(): ChannelStatus[];
-  /** Setup/auth requirements and current readiness status for loaded modules. */
-  listModuleSetupStatuses(): Promise<ModuleSetupStatusResponse>;
-  submitModuleSetupForm(
-    moduleName: string,
-    requirementId: string,
-    values: ModuleSetupFormValues,
-  ): Promise<ModuleSetupMutationResult>;
-  storeModuleSetupSecret(
-    moduleName: string,
-    requirementId: string,
-    secretValues: Record<string, string>,
-  ): Promise<ModuleSetupMutationResult>;
-  startModuleSetup(
-    moduleName: string,
-    requirementId: string,
-  ): Promise<ModuleSetupStartResult>;
-  completeModuleSetup(
-    actionId: string,
-    input: ModuleSetupCompleteInput,
-  ): Promise<ModuleSetupMutationResult>;
-  refreshModuleSetup(
-    moduleName: string,
-    requirementId: string,
-  ): Promise<ModuleSetupMutationResult>;
-  revokeModuleSetup(
-    moduleName: string,
-    requirementId: string,
-  ): Promise<ModuleSetupMutationResult>;
-  /** Typed projection of the daemon's configured project registry. */
-  getProjectRegistryProjection(): ProjectRegistryProjection;
-  /** Canonical typed projection of the daemon scope registry. */
-  getScopeRegistryProjection(): ScopeRegistryProjection;
-  /** True when `scopeId` matches the global root or a configured directory scope. */
-  hasScope(scopeId: string): boolean;
-  /** Resolved scope policy plus examples clients can render as explanations. */
-  getScopePolicy(scopeId: string): ScopePolicyRouteResponse;
-  /**
-   * True when `projectId` matches a configured project. Route handlers
-   * call this before invoking a project-scoped handle method so they can
-   * 404 with the unknown id surfaced explicitly to the caller.
-   */
-  hasProject(projectId: string): boolean;
-  /**
-   * Operator-selected active project id, or `null` when no explicit
-   * selection is in force (the daemon falls back to the registry default).
-   * The selection is in-memory daemon state — restarting the daemon clears
-   * it. Routes that resolve `?projectId=` consult this when the query
-   * parameter is absent so a `kota project use` selection scopes every
-   * subsequent CLI call without each command re-passing `--project`.
-   */
-  getActiveProjectId(): ProjectId | null;
-  /**
-   * Update the operator-selected active project id. `null` clears the
-   * selection (routes fall back to the registry default). Unknown ids
-   * surface `{ ok: false, reason: "not_found" }`; route handlers translate
-   * that to a 404 wire response.
-   */
-  setActiveProjectId(projectId: ProjectId | null): SetActiveProjectResult;
-  pauseWorkflowDispatch(projectId?: ProjectId): { already: boolean };
-  resumeWorkflowDispatch(projectId?: ProjectId): {
-    already: boolean;
-    blocked?: "dirty-recovery";
-    message?: string;
-  };
-  abortActiveRuns(projectId?: ProjectId): { aborted: number };
-  abortActiveRun(runId: string, projectId?: ProjectId): { ok: boolean; notFound?: boolean; queued?: boolean };
-  reloadWorkflowDefinitions(projectId?: ProjectId): { count: number };
-  reloadConfig(): Promise<{
-    workflows: number;
-    changedModules: string[];
-    sessionGuardrails: SessionGuardrailsReloadSummary;
-  }>;
-  getWorkflowDefinitions(projectId?: ProjectId): WorkflowDefinitionSummary[];
-  enableWorkflow(name: string, projectId?: ProjectId): { ok: boolean; notFound?: boolean };
-  disableWorkflow(name: string, projectId?: ProjectId): { ok: boolean; notFound?: boolean };
-  enqueuePendingRun(name: string, tags?: string[], extraPayload?: Record<string, unknown>, projectId?: ProjectId): { ok: boolean; queued?: string; runId?: string; alreadyQueued?: boolean; error?: string };
-  cancelQueuedRun(runId: string, projectId?: ProjectId): { ok: boolean; notFound?: boolean; active?: boolean };
-  subscribeToEvents(handler: (event: DaemonSseEvent) => void): () => void;
-  // Workflow runs
-  listWorkflowRuns(opts?: { workflow?: string; limit?: number; tag?: string; causedByRunId?: string; projectId?: ProjectId }): WorkflowRunSummary[];
-  getWorkflowRun(id: string, projectId?: ProjectId): WorkflowRunDetail | null;
-  // Metrics
-  getWorkflowMetricCounts(projectId?: ProjectId): WorkflowMetricCounts;
-  // Dead-letter queue
-  listDeadLetters(opts?: DeadLetterQueueListOptions): DeadLetterQueueListResult;
-  getDeadLetter(id: string, projectId?: ProjectId): DeadLetterItem | null;
-  dismissDeadLetter(id: string, reason: string, projectId?: ProjectId): DeadLetterQueueMutationResult;
-  redriveDeadLetter(
-    id: string,
-    reason: string,
-    target: DeadLetterRedriveTarget,
-    projectId?: ProjectId,
-  ): DeadLetterQueueMutationResult;
-  exportDeadLetterDiagnostics(id: string, projectId?: ProjectId): EventJsonObject | null;
-  // Capability readiness
-  probeCapabilityReadiness(): Promise<CapabilityReadinessResponse>;
-  // Thin-client identity (project + dashboard availability)
-  getClientIdentity(): Promise<ClientIdentity>;
-  // Interactive sessions
-  registerSession(
-    id: string,
-    createdAt: string,
-    autonomyMode: AutonomyMode,
-    projectId?: ProjectId,
-  ): void;
-  unregisterSession(id: string): void;
-  listSessions(projectId?: ProjectId): InteractiveSession[];
-  /**
-   * Change a registered session's autonomy mode. Returns `{ ok: true }` when
-   * the daemon owns an `AgentSession` it can mutate, or when it is able to
-   * propagate the update to a serve-registered session.
-   *
-   * For serve-registered sessions the daemon only holds advisory metadata; it
-   * updates that metadata immediately and returns `serveOwned: true` so the
-   * caller knows the authoritative change must reach the owning serve process
-   * (which re-registers the session on its own PATCH path).
-   */
-  setSessionAutonomyMode(id: string, mode: AutonomyMode): {
-    ok: boolean;
-    notFound?: boolean;
-    serveOwned?: boolean;
-  };
 };

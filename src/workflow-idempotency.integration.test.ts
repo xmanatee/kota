@@ -81,7 +81,7 @@ describe("workflow idempotency integration", () => {
       "scope-a",
     );
     installEventIdempotency(bus, {
-      defaultScopeId: "scope-a",
+      getDefaultScopeId: () => "scope-a",
       resolveStore: () => idempotencyStore,
     });
 

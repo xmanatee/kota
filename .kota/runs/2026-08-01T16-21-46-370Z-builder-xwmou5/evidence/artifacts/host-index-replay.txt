@@ -1,0 +1,106 @@
+Linked-worktree staging record
+
+An earlier repair validated the commit set with a workspace-local index. That
+isolated staging did not update the real linked-worktree index, so repair
+attempt 2 removed the obsolete evidence projection and replayed the required
+ordinary `git add -A` against the host index. The replay succeeded.
+
+The reconciled host index contains 142 staged paths, including exactly eight
+screened evidence files projected under the current builder run id. It has no
+unstaged or untracked source paths, excludes every path from the obsolete
+projection, and passes `git diff --cached --check` plus the builder
+commit-stageable helper.
+
+Repair attempt 3 host-index replay
+
+The required ordinary `git add -A` replay was attempted again after repairing
+the pending workflow-batch drain gap. It failed because the sandbox cannot
+create the linked worktree's host `index.lock` outside the writable workspace
+(`Operation not permitted`). The exact host index was copied to the current
+run's workspace-local temporary area before isolated staging. The finalizer
+must replay ordinary `git add -A` against the host index before review or
+commit; isolated staging cannot update the real worktree index.
+
+With a workspace-local object directory and the host object store configured
+as an alternate, isolated `git add -A` then staged the exact 142-path commit
+set. The isolated index has no unstaged or untracked non-ignored paths and
+passes `git diff --cached --check`.
+
+Repair attempt 4 host-index replay
+
+The required ordinary `git add -A` replay was attempted after repairing the
+persisted await-event drain gap. It again failed because the sandbox cannot
+create the linked worktree's host `index.lock` outside the writable workspace
+(`Operation not permitted`). The finalizer must replay ordinary `git add -A`
+against the host index before review or commit.
+
+The host index was copied into the current run's workspace-local temporary
+area and staged with a workspace-local object directory plus the host object
+store as an alternate. That isolated index contains the exact 142-path commit
+set, has no unstaged or untracked non-ignored paths, and passes
+`git diff --cached --check`.
+
+Repair attempt 5 host-index replay
+
+The required ordinary `git add -A` replay succeeded after repairing the
+file-watch debounce drain gap. The real linked-worktree index contains the
+exact 144-path commit set, including the current run's eight screened evidence
+files, with no unstaged or untracked non-ignored paths. Both worktree and staged
+diff whitespace checks pass.
+
+Repair attempt 6 host-index replay
+
+The required ordinary `git add -A` replay was attempted after repairing the
+instruction and source-size checks. It failed because the sandbox cannot create
+the linked worktree's host `index.lock` outside the writable workspace
+(`Operation not permitted`). The finalizer must replay ordinary `git add -A`
+against the host index before review or commit.
+
+The current run's workspace-local index and object directory stage the exact
+145-path commit set, including the focused scope-lifecycle test support and all
+eight screened evidence files. The isolated index has no unstaged or untracked
+non-ignored paths and passes `git diff --cached --check`; isolated staging does
+not update the real linked-worktree index.
+
+Repair attempt 7 host-index replay
+
+The required ordinary `git add -A` replay was attempted after redacting the
+registered approval transcript. It failed because the sandbox cannot create
+the linked worktree's host `index.lock` outside the writable workspace
+(`Operation not permitted`). The finalizer must replay ordinary `git add -A`
+against the host index before review or commit.
+
+The current run's workspace-local index and object directory stage the exact
+145-path commit set, including the corrected screened transcript and all eight
+registered evidence files. The isolated index has no unstaged or untracked
+non-ignored paths and passes the builder commit-stageable helper plus
+`git diff --cached --check`; isolated staging does not update the real
+linked-worktree index.
+
+Repair attempt 8 host-index replay
+
+The required ordinary `git add -A` replay was attempted after confirming the
+source-size repair. It failed because the sandbox cannot create the linked
+worktree's host `index.lock` outside the writable workspace (`Operation not
+permitted`). The finalizer must replay ordinary `git add -A` against the host
+index before review or commit.
+
+The current run's workspace-local index and object directory stage the exact
+145-path commit set, including the 50-line lifecycle test support extraction
+and all eight registered evidence files. The isolated index has no unstaged or
+untracked non-ignored paths and passes `git diff --cached --check`; isolated
+staging does not update the real linked-worktree index.
+
+Repair attempt 9 host-index replay
+
+The required ordinary `git add -A` replay was attempted after the critic found
+that the host index omitted the lifecycle test-support file. It failed because
+the sandbox cannot create the linked worktree's host `index.lock` outside the
+writable workspace (`Operation not permitted`). The finalizer must replay
+ordinary `git add -A` against the host index before review or commit.
+
+The current run's workspace-local index and object directory stage the exact
+145-path commit set, including `scope-lifecycle-test-support.integration.ts`
+and the refreshed registered evidence. The isolated index has no unstaged or
+untracked non-ignored paths and passes `git diff --cached --check`; isolated
+staging does not update the real linked-worktree index.

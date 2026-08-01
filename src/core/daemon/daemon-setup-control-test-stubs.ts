@@ -14,6 +14,7 @@ import {
 type SetupControlHandleMethods = Pick<
   DaemonControlHandle,
   | "getScopeRegistryProjection"
+  | "getScopeHostingState"
   | "hasScope"
   | "getScopePolicy"
   | "listDeadLetters"
@@ -82,6 +83,7 @@ function missingSetupStartResult(): ModuleSetupStartResult {
 export function daemonSetupControlHandleStubs(): SetupControlHandleMethods {
   return {
     getScopeRegistryProjection: () => TEST_SCOPE_PROJECTION,
+    getScopeHostingState: () => "hosted",
     hasScope: (scopeId: string) =>
       TEST_SCOPE_PROJECTION.scopes.some((scope) => scope.scopeId === scopeId),
     getScopePolicy: (scopeId: string) => {

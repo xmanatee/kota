@@ -39,3 +39,6 @@ Owns the `kota approval` CLI surface and the underlying `ApprovalQueue` class us
   declaration/effect fingerprint. Preflight rejects drift and leases the exact
   definition and runner execution must use, even if the mutable registry
   changes after preflight.
+- Every local and route execution registers queue-owned activity before async
+  preflight and releases it only after tool execution and resource-lease cleanup,
+  so scope drain can block on approved work that is no longer pending.

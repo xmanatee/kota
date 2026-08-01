@@ -10,6 +10,8 @@ import {
   PROJECT_ID,
 } from "./daemon-chat-test-support.integration.js";
 
+const admitHostedScope = () => ({ ok: true as const });
+
 describe("handleCreateDaemonSession", () => {
   it("creates a session and returns its session and conversation identities", async () => {
     const pool = makePool();
@@ -25,6 +27,7 @@ describe("handleCreateDaemonSession", () => {
       "supervised",
       PROJECT_ID,
       resolver,
+      admitHostedScope,
     );
     expect(res.writeHead).toHaveBeenCalledWith(201, expect.any(Object));
     const body = JSON.parse(res._written.at(-1) ?? "") as {
@@ -58,6 +61,7 @@ describe("handleCreateDaemonSession", () => {
       "supervised",
       PROJECT_ID,
       makeResolver(),
+      admitHostedScope,
     );
     expect(res.writeHead).toHaveBeenCalledWith(400, expect.any(Object));
     expect(makeAgent).not.toHaveBeenCalled();
@@ -77,6 +81,7 @@ describe("handleCreateDaemonSession", () => {
       "supervised",
       PROJECT_ID,
       makeResolver(),
+      admitHostedScope,
     );
     expect(res.writeHead).toHaveBeenCalledWith(400, expect.any(Object));
     expect(res._written.join("")).toContain("mcp_servers must be an object");
@@ -93,6 +98,7 @@ describe("handleCreateDaemonSession", () => {
       "supervised",
       PROJECT_ID,
       makeResolver(),
+      admitHostedScope,
     );
     expect(JSON.parse(res._written.at(-1) ?? "").autonomy_mode).toBe("autonomous");
   });
@@ -109,6 +115,7 @@ describe("handleCreateDaemonSession", () => {
       undefined,
       PROJECT_ID,
       makeResolver(),
+      admitHostedScope,
     );
     expect(res.writeHead).toHaveBeenCalledWith(400, expect.any(Object));
     expect(pool.size).toBe(0);
@@ -125,6 +132,7 @@ describe("handleCreateDaemonSession", () => {
       undefined,
       PROJECT_ID,
       makeResolver(),
+      admitHostedScope,
     );
     expect(res.writeHead).toHaveBeenCalledWith(201, expect.any(Object));
   });
@@ -141,6 +149,7 @@ describe("handleCreateDaemonSession", () => {
       "supervised",
       PROJECT_ID,
       makeResolver(),
+      admitHostedScope,
     );
     expect(res.writeHead).toHaveBeenCalledWith(400, expect.any(Object));
     expect(pool.size).toBe(0);
@@ -160,6 +169,7 @@ describe("handleCreateDaemonSession", () => {
       "supervised",
       PROJECT_ID,
       resolver,
+      admitHostedScope,
     );
     const live = pool.get(JSON.parse(first._written.at(-1) ?? "").session_id);
     if (live) live.busy = true;
@@ -173,6 +183,7 @@ describe("handleCreateDaemonSession", () => {
       "supervised",
       PROJECT_ID,
       resolver,
+      admitHostedScope,
     );
     expect(second.writeHead).toHaveBeenCalledWith(503, expect.any(Object));
   });
@@ -193,6 +204,7 @@ describe("handleCreateDaemonSession", () => {
       "supervised",
       PROJECT_ID,
       makeResolver(new Set(["existing-conv"])),
+      admitHostedScope,
     );
     const body = JSON.parse(res._written.at(-1) ?? "") as {
       conversation_id: string;
@@ -215,6 +227,7 @@ describe("handleCreateDaemonSession", () => {
       "supervised",
       PROJECT_ID,
       makeResolver(new Set(["conv-prior"])),
+      admitHostedScope,
     );
     const body = JSON.parse(res._written.at(-1) ?? "");
     expect(body).toMatchObject({ session_id: "s-prior", conversation_id: "conv-prior" });
@@ -231,6 +244,7 @@ describe("handleCreateDaemonSession", () => {
       "supervised",
       PROJECT_ID,
       makeResolver(),
+      admitHostedScope,
     );
     expect(res.writeHead).toHaveBeenCalledWith(404, expect.any(Object));
   });
@@ -246,6 +260,7 @@ describe("handleCreateDaemonSession", () => {
       "supervised",
       PROJECT_ID,
       makeResolver(new Set()),
+      admitHostedScope,
     );
     expect(res.writeHead).toHaveBeenCalledWith(404, expect.any(Object));
   });
@@ -265,6 +280,7 @@ describe("handleCreateDaemonSession", () => {
       "supervised",
       PROJECT_ID,
       resolver,
+      admitHostedScope,
     );
     const second = mockResponse();
     await handleCreateDaemonSession(
@@ -276,7 +292,9 @@ describe("handleCreateDaemonSession", () => {
       "supervised",
       PROJECT_ID,
       resolver,
+      admitHostedScope,
     );
     expect(second.writeHead).toHaveBeenCalledWith(409, expect.any(Object));
   });
+
 });

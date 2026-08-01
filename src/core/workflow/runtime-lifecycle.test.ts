@@ -8,6 +8,10 @@ import { writeDirtyRecoveryPauseSignal } from "./recovery-status.js";
 import { WorkflowRunStore } from "./run-store.js";
 import { PAUSE_SIGNAL_FILE, WorkflowRuntime } from "./runtime.js";
 
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 describe("WorkflowRuntime dispatch pause persistence", () => {
   let projectDir: string;
 
@@ -82,6 +86,48 @@ describe("WorkflowRuntime dispatch pause persistence", () => {
 
     expect(existsSync(pausePath())).toBe(true);
     expect(runtime.isDispatchPaused()).toBe(true);
+  });
+
+  it("restores pending work without dispatch until an atomic startup is released", async () => {
+    let executions = 0;
+    const config = {
+      bus: new EventBus(),
+      projectDir,
+      idleIntervalMs: 60_000,
+      workflows: [{
+        name: "atomic-startup",
+        definitionPath: "src/core/workflow/runtime-lifecycle.test.ts",
+        moduleRoot: process.cwd(),
+        triggers: [{ event: "manual" }],
+        steps: [{
+          id: "record",
+          type: "code" as const,
+          run: () => {
+            executions += 1;
+            return "recorded";
+          },
+        }],
+      }],
+    };
+    const first = new WorkflowRuntime(config);
+    first.start("paused");
+    expect(first.enqueuePendingRun("atomic-startup").ok).toBe(true);
+    await first.stop(0);
+
+    const restored = new WorkflowRuntime(config);
+    restored.start("paused");
+    await wait(20);
+
+    expect(restored.isDispatchPaused()).toBe(true);
+    expect(restored.getState().pendingRuns).toHaveLength(1);
+    expect(executions).toBe(0);
+
+    restored.setDispatchPaused(false);
+    for (let attempt = 0; attempt < 100 && executions === 0; attempt += 1) {
+      await wait(10);
+    }
+    expect(executions).toBe(1);
+    await restored.stop(0);
   });
 
   it("clears stale dirty-recovery state during startup when the tracked checkout is clean", async () => {

@@ -47,6 +47,7 @@ export const ROOT_CROSS_CUTTING_TESTS: ReadonlySet<string> = new Set([
  */
 export const ROOT_CROSS_CUTTING_FIXTURES: ReadonlySet<string> = new Set([
   "conversational-cross-store-fixture.integration.ts",
+  "daemon-test-support.integration.ts",
   "daemon-remote-reconnect-client-fixture.integration.ts",
   "daemon-remote-reconnect-handle-fixture.integration.ts",
   "operator-authorization-boundary-fixture.integration.ts",

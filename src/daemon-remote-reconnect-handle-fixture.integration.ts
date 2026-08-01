@@ -159,7 +159,10 @@ export function makeRemoteReconnectHandle(
       projectId === null || projectId === REMOTE_RECONNECT_PROJECT_ID
         ? { ok: true, activeProjectId: projectId }
         : { ok: false, reason: "not_found", projectId },
-    registerSession: () => undefined,
+    registerSession: (_id, _createdAt, _autonomyMode, projectId) => ({
+      ok: true,
+      scopeId: projectId ?? REMOTE_RECONNECT_PROJECT_ID,
+    }),
     unregisterSession: () => undefined,
     listSessions: () => sessions,
     setSessionAutonomyMode: () => ({ ok: true }),
