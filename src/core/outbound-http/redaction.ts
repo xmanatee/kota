@@ -26,6 +26,7 @@ export function redactOutboundHttpUrl(rawUrl: string): string {
   for (const key of [...url.searchParams.keys()]) {
     if (SENSITIVE_QUERY.test(key)) url.searchParams.set(key, "[redacted]");
   }
+  url.hash = "";
   return url.toString();
 }
 

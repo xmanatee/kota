@@ -55,6 +55,37 @@ describe("OutboundHttpTransport errors and telemetry", () => {
     expect(JSON.stringify(events)).not.toContain("Bearer secret");
   });
 
+  it("removes URL fragments from telemetry, typed failures, and error messages", async () => {
+    const events: OutboundHttpTelemetryEvent[] = [];
+    const fragmentSecret = "fragment-secret";
+    const transport = new OutboundHttpTransport({
+      dispatcher: async () => new Response("unreachable"),
+      resolveAddresses: async () => [{ address: "127.0.0.1", family: 4 }],
+      telemetry: (event) => events.push(event),
+    });
+
+    let error: OutboundHttpError | undefined;
+    try {
+      await transport.request({
+        profile: OUTBOUND_HTTP_PROFILES.publicUntrusted,
+        operation: "fragment-redaction-fixture",
+        url: `https://api.example/failure#access_token=${fragmentSecret}`,
+      });
+    } catch (caught) {
+      if (caught instanceof OutboundHttpError) error = caught;
+    }
+
+    expect(events).toMatchObject([
+      { type: "request-started", url: "https://api.example/failure" },
+      { type: "request-failed", url: "https://api.example/failure" },
+    ]);
+    expect(error?.failure).toMatchObject({
+      code: "target-denied",
+      url: "https://api.example/failure",
+    });
+    expect(`${JSON.stringify(events)}\n${error?.message}\n${JSON.stringify(error?.failure)}`).not.toContain(fragmentSecret);
+  });
+
   it("produces redacted typed provider errors with centralized retry eligibility", async () => {
     const transport = new OutboundHttpTransport({
       dispatcher: async () =>

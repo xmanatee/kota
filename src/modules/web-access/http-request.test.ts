@@ -103,6 +103,23 @@ describe("runHttpRequest", () => {
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
+  it("does not expose URL fragment credentials in target-denied errors", async () => {
+    globalThis.fetch = vi.fn();
+    const fragmentSecret = "fragment-secret";
+
+    const result = await runHttpRequest({
+      url: `http://127.0.0.1:8765/status#access_token=${fragmentSecret}`,
+    });
+
+    expect(result).toEqual({
+      content:
+        "target-denied: public-untrusted access to loopback/private-network targets is blocked: 127.0.0.1 (http://127.0.0.1:8765/status)",
+      is_error: true,
+    });
+    expect(result.content).not.toContain(fragmentSecret);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
   it("rejects private-network targets before fetching", async () => {
     globalThis.fetch = vi.fn();
     const result = await runHttpRequest({ url: "http://10.0.0.5/status" });

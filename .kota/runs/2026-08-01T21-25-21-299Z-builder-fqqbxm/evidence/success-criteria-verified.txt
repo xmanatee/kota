@@ -1,0 +1,3 @@
+1. Verified: redactOutboundHttpUrl clears URL.hash, and the request transport continues to use its independently prepared URL for dispatch.
+2. Verified: regressions cover request-started and request-failed telemetry, OutboundHttpFailure, OutboundHttpError.message, and the http_request target-denied tool result; none retain the fragment credential.
+3. Verified: the completed task records focused transport/web tests, the outbound HTTP suite, and a passing TypeScript check.

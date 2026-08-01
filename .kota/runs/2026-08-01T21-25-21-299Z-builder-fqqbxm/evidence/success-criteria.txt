@@ -1,0 +1,3 @@
+1. Outbound HTTP URL redaction removes fragments before telemetry and error projection while preserving the request path used by the dispatcher.
+2. Focused regression coverage proves sensitive fragment values cannot appear in request-started or request-failed telemetry, typed failures, error messages, or agent-visible web tool results.
+3. The task records a fresh verification command that passes for the fixed security boundary.

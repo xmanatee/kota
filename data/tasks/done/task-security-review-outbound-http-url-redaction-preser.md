@@ -1,13 +1,13 @@
 ---
 id: task-security-review-outbound-http-url-redaction-preser
 title: Security review: Outbound HTTP URL redaction preserves fragments verbatim. Credentials placed in fragments, such as OAuth access_token values, consequently reach transport telemetry, typed failures, and agent-visible web tool errors.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: Outbound HTTP URL redaction preserves fragments verbatim. Credentials placed in fragments, such as OAuth access_token values, consequently reach transport telemetry, typed failures, and agent-visible web tool errors.
 created_at: 2026-08-01T21:56:35.421Z
-updated_at: 2026-08-01T21:56:35.421Z
+updated_at: 2026-08-01T22:07:54.680Z
 ---
 
 ## Problem
@@ -97,3 +97,9 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/core/outbound-http/transport-errors.test.ts src/modules/web-access/http-request.test.ts` — passed (2 files, 88 tests).
+- `pnpm test src/core/outbound-http` — passed (4 files, 21 tests).
+- `./node_modules/.bin/tsc --noEmit` — passed.

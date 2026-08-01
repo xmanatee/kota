@@ -1,0 +1,1 @@
+fix(security): strip URL fragments from HTTP projections
