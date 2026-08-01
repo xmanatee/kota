@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-sanitizer-applied-to-untrusted
 title: Security review: The sanitizer applied to untrusted approval and owner-question rows has quadratic worst-case behavior for repeated unterminated OSC introducers, so a sufficiently large crafted value can stall operator UI rendering.
-status: ready
+status: done
 priority: p3
 area: security
 task_class: Safety
 summary: The sanitizer applied to untrusted approval and owner-question rows has quadratic worst-case behavior for repeated unterminated OSC introducers, so a sufficiently large crafted value can stall operator UI rendering.
 created_at: 2026-08-01T09:30:09.287Z
-updated_at: 2026-08-01T09:30:09.287Z
+updated_at: 2026-08-01T22:32:18.262Z
 ---
 
 ## Problem
@@ -111,3 +111,8 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run --configLoader runner --silent=true src/modules/rendering/safe-terminal-text.test.ts src/modules/workflow-ops/ui-surface.test.ts` — 2 files and 7 tests passed, including repeated unterminated ESC-OSC and C1-OSC input through the approval and owner-question rendering boundary.
+- `./node_modules/.bin/biome check src/modules/rendering/safe-terminal-text.ts src/modules/rendering/safe-terminal-text.test.ts src/modules/workflow-ops/ui-surface.test.ts` and `./node_modules/.bin/tsc --noEmit` — passed.

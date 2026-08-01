@@ -1,0 +1,3 @@
+1. The terminal-text sanitizer uses a bounded single-pass scan and a reasonable input limit so repeated unterminated ESC-OSC and C1-OSC prefixes cannot cause quadratic operator-rendering work.
+2. Focused adversarial regression coverage exercises repeated unterminated ESC-OSC and C1-OSC input at the rendering boundary while preserving expected terminal-control stripping behavior.
+3. The task records the successful focused verification command or artifact and its state is aligned with the completed implementation.

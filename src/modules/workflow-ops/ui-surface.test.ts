@@ -3,6 +3,7 @@ import type { PendingApproval } from "#core/daemon/approval-queue.js";
 import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
 import type { KotaClient } from "#core/server/kota-client.js";
 import { executeUiAction, renderUiSurface } from "#modules/daemon-ops/operator-ui.js";
+import { MAX_TERMINAL_TEXT_RENDER_CODE_UNITS } from "#modules/rendering/safe-terminal-text.js";
 import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";
 import type { WorkflowStatusSnapshot } from "#modules/workflow-ops/client.js";
@@ -123,6 +124,42 @@ describe("operator UI runtime actions", () => {
     expect(rendered).not.toMatch(RAW_TERMINAL_CONTROL_PATTERN);
     expect(rendered).not.toContain("forged approval title");
     expect(rendered).not.toContain("forged question title");
+  });
+
+  it("bounds repeated unterminated OSC prefixes in approval and owner-question rows", () => {
+    const surface = buildRuntimeUiSurface({
+      scopeId: "scope-main",
+      workflowStatus: { ok: true, value: runtimeStatus() },
+      runs: { ok: true, value: { runs: [] } },
+      definitions: { ok: true, value: { source: "daemon", definitions: [] } },
+      approvals: {
+        ok: true,
+        value: {
+          approvals: [approval({
+            tool: `visible approval${"\x1b]".repeat(MAX_TERMINAL_TEXT_RENDER_CODE_UNITS + 1)}`,
+            reason: "must not render",
+          })],
+        },
+      },
+      ownerQuestions: {
+        ok: true,
+        value: {
+          questions: [ownerQuestion({
+            question: `visible question${"\x9d".repeat(MAX_TERMINAL_TEXT_RENDER_CODE_UNITS + 1)}`,
+          })],
+        },
+      },
+      sessions: { ok: true, value: { sessions: [] } },
+    });
+
+    const rendered = renderToString(renderUiSurface(surface), {
+      theme: NO_COLOR_THEME,
+      width: 120,
+    });
+    expect(rendered).toContain("visible approval…");
+    expect(rendered).toContain("visible question…");
+    expect(rendered).not.toContain("must not render");
+    expect(rendered).not.toMatch(RAW_TERMINAL_CONTROL_PATTERN);
   });
 
   it("renders dirty-recovery dispatch state in the Runtime surface", () => {

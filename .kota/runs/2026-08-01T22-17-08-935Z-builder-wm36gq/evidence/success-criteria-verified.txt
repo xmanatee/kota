@@ -1,0 +1,3 @@
+1. Verified `stripTerminalTextControls` now performs one forward scan over at most 16,383 input code units and emits a truncation marker within the 16,384-code-unit render limit; unterminated ESC-OSC and C1-OSC bodies are consumed without rescanning.
+2. Verified focused sanitizer and operator UI regressions pass for complete controls plus repeated unterminated ESC-OSC and C1-OSC values in approval and owner-question rows.
+3. Verified the task records the exact passing Vitest, Biome, and TypeScript commands and is ready for the canonical move to `done`.

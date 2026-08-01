@@ -1,0 +1,23 @@
+Host-index replay record
+
+The sandbox could not create the linked worktree's host `index.lock`, so the
+canonical task transitions, queue validation, and final staging used:
+
+GIT_INDEX_FILE=.kota/tmp/2026-08-01T22-17-08-935Z-builder-wm36gq/git/index
+GIT_OBJECT_DIRECTORY=.kota/tmp/2026-08-01T22-17-08-935Z-builder-wm36gq/git/objects
+GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects
+
+The isolated index was initialized from HEAD with `git read-tree HEAD`. Both
+task transitions ran through the source-mode KOTA task CLI. Final `git add -A`
+staged the exact four-path commit set, `git diff --cached --check` passed, and
+the source-mode queue validator exited 0.
+
+Validated staged path set:
+
+R data/tasks/ready/task-security-review-the-sanitizer-applied-to-untrusted.md -> data/tasks/done/task-security-review-the-sanitizer-applied-to-untrusted.md
+A src/modules/rendering/safe-terminal-text.test.ts
+M src/modules/rendering/safe-terminal-text.ts
+M src/modules/workflow-ops/ui-surface.test.ts
+
+The workflow commit step must replay `git add -A` against the host worktree
+index before committing because isolated staging does not update that index.
