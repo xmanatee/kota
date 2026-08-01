@@ -1,0 +1,4 @@
+1. Define one typed outbound HTTP transport boundary with closed profiles for public-untrusted, configured-provider, OAuth-protected-resource, daemon-loopback, and explicit-callback traffic.
+2. Express web-access DNS, private-target, and redirect protections through the shared transport without weakening the public-web policy.
+3. Implement timeout and abort handling, response limits, redirect credential policy, redaction, retry eligibility, telemetry, and typed errors once, with deterministic focused coverage for every required failure case.
+4. Add a structural architecture rule that restricts raw global fetch to named low-level adapters and client-platform roots, and produce the policy matrix, focused fixture output, and repository audit artifacts required by the task.

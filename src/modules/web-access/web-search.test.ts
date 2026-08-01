@@ -20,11 +20,11 @@ vi.mock("node:https", () => ({
 
 type QueuedSearchResponse =
   | {
-    status: number;
-    statusText: string;
-    headers?: Record<string, string>;
-    body?: string;
-  }
+      status: number;
+      statusText: string;
+      headers?: Record<string, string>;
+      body?: string;
+    }
   | { error: Error | DOMException };
 
 type CapturedSearchRequest = {
@@ -62,8 +62,7 @@ describe("isRateLimited", () => {
   });
 
   it("detects automated requests block", () => {
-    const html =
-      "<html><body><p>We detected automated requests from your network.</p></body></html>";
+    const html = "<html><body><p>We detected automated requests from your network.</p></body></html>";
     expect(isRateLimited(html)).toBe(true);
   });
 
@@ -101,8 +100,16 @@ describe("parseSearchResults", () => {
 
   it("parses results with DDG redirect URLs", () => {
     const html = makeResultHtml([
-      { url: "https://example.com/page1", title: "Page One", snippet: "First result" },
-      { url: "https://example.com/page2", title: "Page Two", snippet: "Second result" },
+      {
+        url: "https://example.com/page1",
+        title: "Page One",
+        snippet: "First result",
+      },
+      {
+        url: "https://example.com/page2",
+        title: "Page Two",
+        snippet: "Second result",
+      },
     ]);
     const results = parseSearchResults(html, 5);
     expect(results).toHaveLength(2);
@@ -249,9 +256,7 @@ describe("parseSearchResults — hardened edge cases", () => {
   });
 
   it("handles empty blocks without crashing", () => {
-    const html =
-      '<div class="result"></div>' +
-      '<div class="result"></div>';
+    const html = '<div class="result"></div>' + '<div class="result"></div>';
     const results = parseSearchResults(html, 5);
     expect(results).toHaveLength(0);
   });
@@ -262,8 +267,16 @@ describe("parseBraveResults", () => {
     const data = {
       web: {
         results: [
-          { title: "TypeScript Handbook", url: "https://typescriptlang.org/docs", description: "Official TS docs" },
-          { title: "TS Generics Guide", url: "https://example.com/generics", description: "Learn generics" },
+          {
+            title: "TypeScript Handbook",
+            url: "https://typescriptlang.org/docs",
+            description: "Official TS docs",
+          },
+          {
+            title: "TS Generics Guide",
+            url: "https://example.com/generics",
+            description: "Learn generics",
+          },
         ],
       },
     };
@@ -404,42 +417,40 @@ describe("runWebSearch — public target fetch boundary", () => {
     mockLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }] as never);
   });
 
-  it("strips the Brave subscription token on cross-origin redirects", async () => {
+  it("does not follow a Brave token to an unconfigured cross-origin redirect", async () => {
     process.env.BRAVE_SEARCH_API_KEY = "secret-brave-token";
-    const requests = mockHttpsResponses([
-      {
+    const originalFetch = globalThis.fetch;
+    const braveFetch = vi.fn().mockResolvedValue(
+      new Response(null, {
         status: 302,
         statusText: "Found",
         headers: { location: "https://search-cdn.example.test/final" },
-      },
+      }),
+    );
+    globalThis.fetch = braveFetch;
+    const duckRequests = mockHttpsResponses([
       {
         status: 200,
         statusText: "OK",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          web: {
-            results: [
-              {
-                title: "Result",
-                url: "https://example.com/result",
-                description: "Search result",
-              },
-            ],
-          },
-        }),
+        headers: { "content-type": "text/html" },
+        body:
+          '<div class="result"><a class="result__a" href="https://example.com/result">Result</a>' +
+          '<a class="result__snippet">Search result</a></div>',
       },
     ]);
 
-    const result = await runWebSearch({ query: "token redirect" });
+    try {
+      const result = await runWebSearch({ query: "token redirect" });
 
-    expect(result.is_error).toBeUndefined();
-    expect(result.content).toContain("Result");
-    expect(requests).toHaveLength(2);
-    expect(requests[0]?.headers["X-Subscription-Token"]).toBe("secret-brave-token");
-    expect(requests[1]?.url).toBe("https://search-cdn.example.test/final");
-    expect(requests[1]?.headers["X-Subscription-Token"]).toBeUndefined();
-    expect(requests[1]?.headers["Accept-Encoding"]).toBeUndefined();
-    expect(requests[1]?.headers.Accept).toBe("application/json");
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("not selected by the configured-provider profile");
+      expect(braveFetch).toHaveBeenCalledOnce();
+      const initialHeaders = new Headers(braveFetch.mock.calls[0]?.[1]?.headers);
+      expect(initialHeaders.get("x-subscription-token")).toBe("secret-brave-token");
+      expect(duckRequests).toHaveLength(0);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it("rejects DuckDuckGo redirects to loopback targets before following them", async () => {
@@ -467,12 +478,13 @@ describe("runWebSearch — abort detection", () => {
     mockLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }] as never);
   });
 
-  it("detects AbortError by error name, not message content", () => {
+  it("reports an immediate adapter AbortError as a network failure", () => {
     const abortErr = new DOMException("The operation was aborted", "AbortError");
     mockHttpsResponses([{ error: abortErr }]);
 
     return runWebSearch({ query: "test" }).then((result) => {
-      expect(result.content).toBe("Search timed out (15s)");
+      expect(result.content).toContain("Search error: network:");
+      expect(result.content).toContain("The operation was aborted");
       expect(result.is_error).toBe(true);
     });
   });
@@ -482,7 +494,8 @@ describe("runWebSearch — abort detection", () => {
     mockHttpsResponses([{ error: genericErr }]);
 
     return runWebSearch({ query: "test" }).then((result) => {
-      expect(result.content).toBe("Search error: Connection aborted by remote host");
+      expect(result.content).toContain("Search error: network:");
+      expect(result.content).toContain("Connection aborted by remote host");
       expect(result.is_error).toBe(true);
     });
   });
@@ -505,10 +518,7 @@ function mockHttpsResponses(responses: QueuedSearchResponse[]): CapturedSearchRe
   return requests;
 }
 
-function mockRequestFactory(
-  responses: QueuedSearchResponse[],
-  requests: CapturedSearchRequest[],
-) {
+function mockRequestFactory(responses: QueuedSearchResponse[], requests: CapturedSearchRequest[]) {
   const queued = [...responses];
   return (url: URL, options: RequestOptions, callback: (response: IncomingMessage) => void) => {
     const response = queued.shift();
@@ -538,7 +548,9 @@ function mockRequestFactory(
   };
 }
 
-function readableSearchResponse(response: Exclude<QueuedSearchResponse, { error: Error | DOMException }>): IncomingMessage {
+function readableSearchResponse(
+  response: Exclude<QueuedSearchResponse, { error: Error | DOMException }>,
+): IncomingMessage {
   const stream = Readable.from(response.body ? [Buffer.from(response.body)] : []);
   Object.assign(stream, {
     statusCode: response.status,

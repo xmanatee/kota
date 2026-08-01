@@ -1,0 +1,95 @@
+{
+  "clients/mobile/src/daemon/core.ts": [
+    "Identifier:ReturnStatement:07f3c6848ce269dd"
+  ],
+  "clients/mobile/src/daemon/sessions.ts": [
+    "Identifier:FirstStatement:0c2d9c3aa197b43f"
+  ],
+  "clients/mobile/src/daemon/voice.ts": [
+    "Identifier:FirstStatement:524a5a91b8d6b7fa",
+    "Identifier:FirstStatement:f1f8d5a4af17f3f1"
+  ],
+  "src/core/daemon/daemon-instance-lock.ts": [
+    "Identifier:ExpressionStatement:a4c3f9c7bdcf03b7"
+  ],
+  "src/core/mcp/client-http-runtime.ts": [
+    "Identifier:ExpressionStatement:8c9856038dca5aef",
+    "Identifier:FirstStatement:cd1120f7ee8b888a"
+  ],
+  "src/core/mcp/client-oauth-token-runtime.ts": [
+    "Identifier:ExpressionStatement:9dc7628b0ea48b3d"
+  ],
+  "src/core/mcp/client-protected-resource-runtime.ts": [
+    "Identifier:ExpressionStatement:3615d8978d0f0eb4"
+  ],
+  "src/core/modules/foreign-module-http.ts": [
+    "Identifier:ExpressionStatement:edf2e758606a893b"
+  ],
+  "src/core/modules/registry-installers.ts": [
+    "Identifier:ExpressionStatement:265d5d2076e7ce07"
+  ],
+  "src/core/server/daemon-transport.ts": [
+    "Identifier:ExpressionStatement:5d62feeb2f63ad2f",
+    "Identifier:ReturnStatement:74ced0c8eddc6d4c",
+    "Identifier:ReturnStatement:d614c424789c2d0c"
+  ],
+  "src/modules/a2a-channel/push-notification-callback-delivery.ts": [
+    "Identifier:ExpressionStatement:cb2c32bf5f8abfd5"
+  ],
+  "src/modules/a2a-channel/push-notifications.ts": [
+    "Identifier:Constructor:0645406811c3ee48"
+  ],
+  "src/modules/github/github-auth.ts": [
+    "Identifier:FirstStatement:d5d6e77fe5a36eed"
+  ],
+  "src/modules/google-workspace/auth.ts": [
+    "Identifier:FirstStatement:04eabc957386ede9",
+    "Identifier:FirstStatement:57bcd1d5c438f208"
+  ],
+  "src/modules/google-workspace/drive.ts": [
+    "Identifier:FirstStatement:6e79281064216b5d"
+  ],
+  "src/modules/jira/index.ts": [
+    "Identifier:FirstStatement:d09e68b57e6c1e76"
+  ],
+  "src/modules/linear/index.ts": [
+    "Identifier:FirstStatement:b956c8f416c2796c"
+  ],
+  "src/modules/mcp-registry/index.ts": [
+    "PropertyAccessExpression:FirstStatement:46fdb532e2e7a80c"
+  ],
+  "src/modules/model-clients/openai/client.ts": [
+    "Identifier:FirstStatement:b1616df98d3ea635",
+    "Identifier:ReturnStatement:1d8ec1f8f9c0ab7a"
+  ],
+  "src/modules/notification/index.ts": [
+    "Identifier:FirstStatement:db1a1247b1019713"
+  ],
+  "src/modules/push-notification/send.ts": [
+    "Identifier:FirstStatement:7fb0d361a7803771"
+  ],
+  "src/modules/semantic-index/embedding-provider.ts": [
+    "Identifier:FirstStatement:7c8b3f031ddb612c"
+  ],
+  "src/modules/skill-ops/skill-ops-operations.ts": [
+    "Identifier:FirstStatement:aa6ee2f1358e7d82",
+    "Identifier:FirstStatement:aa6ee2f1358e7d82",
+    "Identifier:FirstStatement:aa6ee2f1358e7d82"
+  ],
+  "src/modules/slack-channel/client.ts": [
+    "Identifier:ExpressionStatement:f4c7a2b5a71a8ba4"
+  ],
+  "src/modules/telegram/client.ts": [
+    "Identifier:ExpressionStatement:8ad2dc349e6c7f5a",
+    "Identifier:ExpressionStatement:a0acb67812444fc4"
+  ],
+  "src/modules/tracing/security-logs.ts": [
+    "Identifier:Constructor:7bd9850ad0a3a82a"
+  ],
+  "src/modules/transcription-whisper/provider.ts": [
+    "Identifier:ExpressionStatement:6641cd2948b7c15f"
+  ],
+  "src/modules/voice-openai-tts/provider.ts": [
+    "Identifier:ExpressionStatement:6641cd2948b7c15f"
+  ]
+}

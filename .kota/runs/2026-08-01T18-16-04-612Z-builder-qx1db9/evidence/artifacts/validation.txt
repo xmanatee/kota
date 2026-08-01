@@ -1,0 +1,23 @@
+Validation summary
+
+- TypeScript no-emit typecheck: passed.
+- Production build: passed.
+- Focused transport and migrated-consumer fixtures: 9 files and 194 tests
+  passed, including the
+  repaired pending-DNS deadline/abort, multi-part sensitive-value redaction,
+  safe error-cause, redirect-safe original-method retry classification, and
+  same-count raw-fetch replacement cases.
+- Strict-types, root-layout, core/module boundary, and module-dependency gates: 7 passed.
+- Source lint: passed with the repository's existing warning baseline and no errors.
+- Repair-attempt-7 TypeScript no-emit typecheck and focused Biome check: passed.
+- Repair-attempt-8 split transport tests: focused Biome check passed; all 194
+  affected HTTP, server, and web-access tests passed.
+- Repair-attempt-10 evidence correction: the complete nine-file focused command
+  passed all 194 tests; direct local TypeScript and Biome checks passed.
+- Broad suite before build: 12,374 passed, 24 skipped; seven shipped-CLI fixtures were blocked only by missing dist output, and the task-queue check saw the read-only host index.
+- After build, all affected shipped-CLI and replay fixtures passed: 14 passed, 10 skipped.
+- Structural raw-fetch policy after deterministic call-site baseline regeneration: 3 passed.
+- Task queue validation against the workflow-local staged index: passed.
+- Severe source-size gate: passed after splitting transport coverage into 220-
+  and 143-line files; its advisory names the three existing large web-access
+  test files touched to route their fixtures through the transport.

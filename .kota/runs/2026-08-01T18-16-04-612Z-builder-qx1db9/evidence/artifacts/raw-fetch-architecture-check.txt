@@ -1,0 +1,26 @@
+Raw-fetch architecture check
+
+Command:
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run --configLoader runner src/outbound-http-fetch-policy.integration.test.ts
+
+Result:
+Test Files  1 passed (1)
+Tests       3 passed (3)
+
+The TypeScript-AST scanner resolves symbols so it catches runtime references
+to the host fetch function in calls, aliases, defaults, comparisons, bound or
+indexed global properties, and destructuring. It ignores type-only references,
+injected/local functions, and protocol methods such as client.fetch().
+Named low-level adapters are:
+- src/core/outbound-http/dispatcher.ts
+- clients/mobile/src/daemon/http.ts
+- clients/web/src/api/client-runtime.ts
+
+The ratchet baseline currently records the exact normalized AST signatures of
+37 legacy runtime references in 28 files. Any raw reference whose call-site
+signature is not in that frozen multiset fails, including a same-count
+replacement inside a baseline file. Removing a legacy signature remains
+allowed. The dependent task
+task-migrate-integrations-to-the-outbound-http-transpor owns removal of that
+explicit legacy set; this foundation removes the old web-access mechanism and
+the core daemon-control-address raw call now.

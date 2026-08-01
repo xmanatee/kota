@@ -1,0 +1,9 @@
+Host-index replay record
+
+This linked worktree's host Git index is read-only. Task movement and final
+staging were validated with the workflow-local index and object directory,
+using the host object store only as an alternate. Isolated staging does not
+update the real worktree index.
+
+The workflow host must replay this exact staging operation before commit:
+git add -A

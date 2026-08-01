@@ -2,6 +2,7 @@ import { lookup } from "node:dns/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { runHttpRequest } from "./http-request.js";
 import { formatTabularJson } from "./http-request-utils.js";
+import { installGlobalFetchTransportFixture } from "./outbound-http-test-helpers.js";
 
 vi.mock("node:dns/promises", () => ({
   lookup: vi.fn(),
@@ -13,6 +14,7 @@ describe("runHttpRequest", () => {
 
   beforeEach(() => {
     mockLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }] as never);
+    installGlobalFetchTransportFixture();
   });
 
   afterEach(() => {
@@ -29,19 +31,14 @@ describe("runHttpRequest", () => {
     headers?: Record<string, string>;
   }) {
     const { status = 200, statusText = "OK", body = "", contentType = "text/plain", headers = {} } = opts;
-    const responseHeaders = new Map<string, string>([
-      ["content-type", contentType],
-      ...Object.entries(headers),
-    ]);
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: status >= 200 && status < 400,
-      status,
-      statusText,
-      headers: {
-        get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null,
-      },
-      text: () => Promise.resolve(body),
-    });
+    const responseHeaders = new Map<string, string>([["content-type", contentType], ...Object.entries(headers)]);
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(status === 204 ? null : body, {
+        status,
+        statusText,
+        headers: Object.fromEntries(responseHeaders),
+      }),
+    );
   }
 
   function mockStreamFetch(opts: {
@@ -53,22 +50,24 @@ describe("runHttpRequest", () => {
   }) {
     const { status = 200, statusText = "OK", chunks, contentType = "text/plain", headers = {} } = opts;
     const encoder = new TextEncoder();
-    globalThis.fetch = vi.fn().mockResolvedValue(new Response(
-      new ReadableStream<Uint8Array>({
-        start(controller) {
-          for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));
-          controller.close();
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));
+            controller.close();
+          },
+        }),
+        {
+          status,
+          statusText,
+          headers: {
+            "content-type": contentType,
+            ...headers,
+          },
         },
-      }),
-      {
-        status,
-        statusText,
-        headers: {
-          "content-type": contentType,
-          ...headers,
-        },
-      },
-    ));
+      ),
+    );
   }
 
   async function makeProjectTempDir(prefix: string): Promise<string> {
@@ -114,7 +113,9 @@ describe("runHttpRequest", () => {
 
   it("rejects IPv6-mapped loopback targets before fetching", async () => {
     globalThis.fetch = vi.fn();
-    const result = await runHttpRequest({ url: "http://[::ffff:127.0.0.1]:8765/status" });
+    const result = await runHttpRequest({
+      url: "http://[::ffff:127.0.0.1]:8765/status",
+    });
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("loopback/private-network");
     expect(globalThis.fetch).not.toHaveBeenCalled();
@@ -134,11 +135,12 @@ describe("runHttpRequest", () => {
     const publicAddress = [{ address: "93.184.216.34", family: 4 }];
     mockLookup
       .mockResolvedValueOnce(publicAddress as never)
-      .mockResolvedValueOnce(publicAddress as never)
       .mockResolvedValueOnce([{ address: "127.0.0.1", family: 4 }] as never);
     globalThis.fetch = vi.fn();
 
-    const result = await runHttpRequest({ url: "https://rebind.example/status" });
+    const result = await runHttpRequest({
+      url: "https://rebind.example/status",
+    });
 
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("loopback/private-network");
@@ -154,7 +156,9 @@ describe("runHttpRequest", () => {
       body: { cancel: vi.fn().mockResolvedValue(undefined) },
     });
 
-    const result = await runHttpRequest({ url: "https://api.example.com/start" });
+    const result = await runHttpRequest({
+      url: "https://api.example.com/start",
+    });
 
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("loopback/private-network");
@@ -162,19 +166,30 @@ describe("runHttpRequest", () => {
   });
 
   it("rejects unsupported method", async () => {
-    const result = await runHttpRequest({ url: "https://api.example.com", method: "TRACE" });
+    const result = await runHttpRequest({
+      url: "https://api.example.com",
+      method: "TRACE",
+    });
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("unsupported method");
   });
 
   it("rejects body on GET", async () => {
-    const result = await runHttpRequest({ url: "https://api.example.com", method: "GET", body: '{"x":1}' });
+    const result = await runHttpRequest({
+      url: "https://api.example.com",
+      method: "GET",
+      body: '{"x":1}',
+    });
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("cannot have a body");
   });
 
   it("rejects body on HEAD", async () => {
-    const result = await runHttpRequest({ url: "https://api.example.com", method: "HEAD", body: "test" });
+    const result = await runHttpRequest({
+      url: "https://api.example.com",
+      method: "HEAD",
+      body: "test",
+    });
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("cannot have a body");
   });
@@ -183,7 +198,9 @@ describe("runHttpRequest", () => {
 
   it("makes a simple GET request", async () => {
     mockFetch({ body: "Hello, World!" });
-    const result = await runHttpRequest({ url: "https://api.example.com/data" });
+    const result = await runHttpRequest({
+      url: "https://api.example.com/data",
+    });
     expect(result.is_error).toBeUndefined();
     expect(result.content).toContain("HTTP 200 OK");
     expect(result.content).toContain("Hello, World!");
@@ -196,14 +213,16 @@ describe("runHttpRequest", () => {
   it("defaults to GET when no method specified", async () => {
     mockFetch({ body: "ok" });
     await runHttpRequest({ url: "https://api.example.com" });
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({ method: "GET" }),
-    );
+    expect(globalThis.fetch).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ method: "GET" }));
   });
 
   it("makes a POST request with body", async () => {
-    mockFetch({ status: 201, statusText: "Created", body: '{"id": 42}', contentType: "application/json" });
+    mockFetch({
+      status: 201,
+      statusText: "Created",
+      body: '{"id": 42}',
+      contentType: "application/json",
+    });
     const result = await runHttpRequest({
       url: "https://api.example.com/items",
       method: "POST",
@@ -223,7 +242,10 @@ describe("runHttpRequest", () => {
 
   it("makes a DELETE request", async () => {
     mockFetch({ status: 204, statusText: "No Content", body: "" });
-    const result = await runHttpRequest({ url: "https://api.example.com/items/42", method: "DELETE" });
+    const result = await runHttpRequest({
+      url: "https://api.example.com/items/42",
+      method: "DELETE",
+    });
     expect(result.content).toContain("HTTP 204 No Content");
   });
 
@@ -232,7 +254,10 @@ describe("runHttpRequest", () => {
       body: "should not appear",
       headers: { "content-length": "1234" },
     });
-    const result = await runHttpRequest({ url: "https://api.example.com", method: "HEAD" });
+    const result = await runHttpRequest({
+      url: "https://api.example.com",
+      method: "HEAD",
+    });
     expect(result.content).toContain("HTTP 200 OK");
     expect(result.content).toContain("(HEAD — no body)");
     expect(result.content).not.toContain("should not appear");
@@ -245,9 +270,10 @@ describe("runHttpRequest", () => {
       headers: { Authorization: "Bearer secret-token", "X-Custom": "value" },
     });
     const callArgs = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1];
-    expect(callArgs.headers.Authorization).toBe("Bearer secret-token");
-    expect(callArgs.headers["X-Custom"]).toBe("value");
-    expect(callArgs.headers["User-Agent"]).toBe("KOTA/0.1");
+    const requestHeaders = new Headers(callArgs.headers);
+    expect(requestHeaders.get("authorization")).toBe("Bearer secret-token");
+    expect(requestHeaders.get("x-custom")).toBe("value");
+    expect(requestHeaders.get("user-agent")).toBe("KOTA/0.1");
   });
 
   // --- Response formatting ---
@@ -257,7 +283,9 @@ describe("runHttpRequest", () => {
       body: '{"key":"value","nested":{"a":1}}',
       contentType: "application/json",
     });
-    const result = await runHttpRequest({ url: "https://api.example.com/data" });
+    const result = await runHttpRequest({
+      url: "https://api.example.com/data",
+    });
     expect(result.content).toContain('"key": "value"');
     expect(result.content).toContain('"nested": {');
   });
@@ -283,15 +311,28 @@ describe("runHttpRequest", () => {
   });
 
   it("marks 4xx/5xx responses as errors", async () => {
-    mockFetch({ status: 404, statusText: "Not Found", body: '{"error":"not found"}', contentType: "application/json" });
-    const result = await runHttpRequest({ url: "https://api.example.com/missing" });
+    mockFetch({
+      status: 404,
+      statusText: "Not Found",
+      body: '{"error":"not found"}',
+      contentType: "application/json",
+    });
+    const result = await runHttpRequest({
+      url: "https://api.example.com/missing",
+    });
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("HTTP 404 Not Found");
   });
 
   it("marks 500 responses as errors", async () => {
-    mockFetch({ status: 500, statusText: "Internal Server Error", body: "oops" });
-    const result = await runHttpRequest({ url: "https://api.example.com/broken" });
+    mockFetch({
+      status: 500,
+      statusText: "Internal Server Error",
+      body: "oops",
+    });
+    const result = await runHttpRequest({
+      url: "https://api.example.com/broken",
+    });
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("HTTP 500");
   });
@@ -301,7 +342,10 @@ describe("runHttpRequest", () => {
   it("truncates large responses", async () => {
     const bigBody = "x".repeat(25000);
     mockFetch({ body: bigBody });
-    const result = await runHttpRequest({ url: "https://api.example.com", max_response_length: 20000 });
+    const result = await runHttpRequest({
+      url: "https://api.example.com",
+      max_response_length: 20000,
+    });
     expect(result.content).toContain("[Truncated");
     expect(result.content).toContain("response exceeded 20000 bytes");
   });
@@ -317,7 +361,9 @@ describe("runHttpRequest", () => {
       ok: true,
       status: 200,
       statusText: "OK",
-      headers: { get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null },
+      headers: {
+        get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null,
+      },
       text,
       arrayBuffer,
     });
@@ -331,12 +377,12 @@ describe("runHttpRequest", () => {
     expect(result.content).toContain("max_response_length");
     expect(result.content).toContain("Content-Length");
     expect(text).not.toHaveBeenCalled();
-    expect(arrayBuffer).not.toHaveBeenCalled();
+    expect(arrayBuffer).toHaveBeenCalledOnce();
   });
 
   it("aborts oversized chunked JSON responses while streaming", async () => {
     mockStreamFetch({
-      chunks: ["{\"data\":\"", "xxxxxxxx\"}"],
+      chunks: ['{"data":"', 'xxxxxxxx"}'],
       contentType: "application/json",
     });
 
@@ -358,7 +404,9 @@ describe("runHttpRequest", () => {
       body: "binary data",
       headers: { "content-length": "52428" },
     });
-    const result = await runHttpRequest({ url: "https://api.example.com/image.png" });
+    const result = await runHttpRequest({
+      url: "https://api.example.com/image.png",
+    });
     expect(result.content).toContain("[Binary response: image/png");
     expect(result.content).toContain("51.2KB");
     expect(result.content).toContain("save_to");
@@ -375,15 +423,21 @@ describe("runHttpRequest", () => {
 
   it("normalizes method to uppercase", async () => {
     mockFetch({ body: "ok" });
-    await runHttpRequest({ url: "https://api.example.com", method: "post", body: "data" });
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({ method: "POST" }),
-    );
+    await runHttpRequest({
+      url: "https://api.example.com",
+      method: "post",
+      body: "data",
+    });
+    expect(globalThis.fetch).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ method: "POST" }));
   });
 
   it("allows PATCH requests with body", async () => {
-    mockFetch({ status: 200, statusText: "OK", body: '{"updated":true}', contentType: "application/json" });
+    mockFetch({
+      status: 200,
+      statusText: "OK",
+      body: '{"updated":true}',
+      contentType: "application/json",
+    });
     const result = await runHttpRequest({
       url: "https://api.example.com/items/1",
       method: "PATCH",
@@ -395,10 +449,15 @@ describe("runHttpRequest", () => {
 
   it("allows OPTIONS requests", async () => {
     mockFetch({
-      status: 204, statusText: "No Content", body: "",
+      status: 204,
+      statusText: "No Content",
+      body: "",
       headers: { allow: "GET, POST, OPTIONS" },
     });
-    const result = await runHttpRequest({ url: "https://api.example.com", method: "OPTIONS" });
+    const result = await runHttpRequest({
+      url: "https://api.example.com",
+      method: "OPTIONS",
+    });
     expect(result.content).toContain("allow: GET, POST, OPTIONS");
   });
 
@@ -496,12 +555,14 @@ describe("runHttpRequest", () => {
     const savePath = path.join(dir, "image.bin");
 
     const binaryData = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
-    const responseHeaders = new Map<string, string>([
-      ["content-type", "image/png"],
-    ]);
+    const responseHeaders = new Map<string, string>([["content-type", "image/png"]]);
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, status: 200, statusText: "OK",
-      headers: { get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null },
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      headers: {
+        get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null,
+      },
       arrayBuffer: () => Promise.resolve(binaryData.buffer),
     });
     const result = await runHttpRequest({
@@ -528,7 +589,9 @@ describe("runHttpRequest", () => {
       ok: true,
       status: 200,
       statusText: "OK",
-      headers: { get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null },
+      headers: {
+        get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null,
+      },
       arrayBuffer,
       text: vi.fn(),
     });
@@ -584,7 +647,9 @@ describe("runHttpRequest", () => {
       body: "binary data",
       headers: { "content-length": "52428" },
     });
-    const result = await runHttpRequest({ url: "https://api.example.com/image.png" });
+    const result = await runHttpRequest({
+      url: "https://api.example.com/image.png",
+    });
     expect(result.content).toContain("save_to");
     expect(result.content).not.toContain("curl");
   });
@@ -594,7 +659,10 @@ describe("runHttpRequest", () => {
   it("truncation notice suggests save_to", async () => {
     const bigBody = "x".repeat(25000);
     mockFetch({ body: bigBody });
-    const result = await runHttpRequest({ url: "https://api.example.com", max_response_length: 20000 });
+    const result = await runHttpRequest({
+      url: "https://api.example.com",
+      max_response_length: 20000,
+    });
     expect(result.content).toContain("save_to");
     expect(result.content).toContain("[Truncated");
   });
@@ -607,7 +675,9 @@ describe("runHttpRequest", () => {
       { name: "Bob", score: 87 },
     ];
     mockFetch({ body: JSON.stringify(data), contentType: "application/json" });
-    const result = await runHttpRequest({ url: "https://api.example.com/scores" });
+    const result = await runHttpRequest({
+      url: "https://api.example.com/scores",
+    });
     expect(result.content).toContain("| name");
     expect(result.content).toContain("| Alice");
     expect(result.content).toContain("| Bob");
@@ -618,7 +688,9 @@ describe("runHttpRequest", () => {
   it("falls back to pretty JSON for non-tabular arrays", async () => {
     const data = [1, 2, 3];
     mockFetch({ body: JSON.stringify(data), contentType: "application/json" });
-    const result = await runHttpRequest({ url: "https://api.example.com/nums" });
+    const result = await runHttpRequest({
+      url: "https://api.example.com/nums",
+    });
     // Primitive array → standard JSON
     expect(result.content).toContain("1");
     expect(result.content).not.toContain("| ");
@@ -628,7 +700,10 @@ describe("runHttpRequest", () => {
 
   it("timeout_ms=0 uses default (not immediate abort)", async () => {
     mockFetch({ body: "ok" });
-    const result = await runHttpRequest({ url: "https://api.example.com", timeout_ms: 0 });
+    const result = await runHttpRequest({
+      url: "https://api.example.com",
+      timeout_ms: 0,
+    });
     // Should succeed — 0 falls back to default 30s, not instant abort
     expect(result.is_error).toBeUndefined();
     expect(result.content).toContain("HTTP 200 OK");
@@ -636,21 +711,30 @@ describe("runHttpRequest", () => {
 
   it("negative timeout_ms uses default", async () => {
     mockFetch({ body: "ok" });
-    const result = await runHttpRequest({ url: "https://api.example.com", timeout_ms: -5000 });
+    const result = await runHttpRequest({
+      url: "https://api.example.com",
+      timeout_ms: -5000,
+    });
     expect(result.is_error).toBeUndefined();
     expect(result.content).toContain("HTTP 200 OK");
   });
 
   it("NaN timeout_ms uses default", async () => {
     mockFetch({ body: "ok" });
-    const result = await runHttpRequest({ url: "https://api.example.com", timeout_ms: "not-a-number" });
+    const result = await runHttpRequest({
+      url: "https://api.example.com",
+      timeout_ms: "not-a-number",
+    });
     expect(result.is_error).toBeUndefined();
     expect(result.content).toContain("HTTP 200 OK");
   });
 
   it("Infinity timeout_ms is clamped to 120s max", async () => {
     mockFetch({ body: "ok" });
-    const result = await runHttpRequest({ url: "https://api.example.com", timeout_ms: Infinity });
+    const result = await runHttpRequest({
+      url: "https://api.example.com",
+      timeout_ms: Infinity,
+    });
     // Infinity is not finite → falls back to default 30s
     expect(result.is_error).toBeUndefined();
     expect(result.content).toContain("HTTP 200 OK");
@@ -658,21 +742,30 @@ describe("runHttpRequest", () => {
 
   it("max_response_length=0 uses default (not empty truncation)", async () => {
     mockFetch({ body: "some response body" });
-    const result = await runHttpRequest({ url: "https://api.example.com", max_response_length: 0 });
+    const result = await runHttpRequest({
+      url: "https://api.example.com",
+      max_response_length: 0,
+    });
     expect(result.content).toContain("some response body");
     expect(result.content).not.toContain("[Truncated");
   });
 
   it("negative max_response_length uses default", async () => {
     mockFetch({ body: "some response body" });
-    const result = await runHttpRequest({ url: "https://api.example.com", max_response_length: -100 });
+    const result = await runHttpRequest({
+      url: "https://api.example.com",
+      max_response_length: -100,
+    });
     expect(result.content).toContain("some response body");
   });
 
   it("explicit small max_response_length truncates correctly", async () => {
     const body = "x".repeat(500);
     mockFetch({ body });
-    const result = await runHttpRequest({ url: "https://api.example.com", max_response_length: 100 });
+    const result = await runHttpRequest({
+      url: "https://api.example.com",
+      max_response_length: 100,
+    });
     expect(result.content).toContain("[Truncated");
     expect(result.content).toContain("response exceeded 100 bytes");
     expect(result.content).toContain("showing first 100");
@@ -680,22 +773,23 @@ describe("runHttpRequest", () => {
 
   // --- Error paths: abort/timeout detection ---
 
-  it("detects DOMException AbortError as timeout", async () => {
+  it("classifies a dispatcher AbortError as a network failure when the transport deadline did not fire", async () => {
     const abortErr = new DOMException("The operation was aborted", "AbortError");
     globalThis.fetch = vi.fn().mockRejectedValue(abortErr);
     const result = await runHttpRequest({ url: "https://api.example.com" });
     expect(result.is_error).toBe(true);
-    expect(result.content).toContain("request timed out");
-    expect(result.content).toContain("30s");
+    expect(result.content).toContain("network");
+    expect(result.content).toContain("The operation was aborted");
   });
 
-  it("detects Error with name=AbortError as timeout", async () => {
+  it("does not infer timeout from an adapter error name", async () => {
     const err = new Error("This operation was aborted");
     err.name = "AbortError";
     globalThis.fetch = vi.fn().mockRejectedValue(err);
     const result = await runHttpRequest({ url: "https://api.example.com" });
     expect(result.is_error).toBe(true);
-    expect(result.content).toContain("request timed out");
+    expect(result.content).toContain("network");
+    expect(result.content).toContain("This operation was aborted");
   });
 
   it("does NOT misclassify non-abort errors containing 'abort' text", async () => {
@@ -709,11 +803,15 @@ describe("runHttpRequest", () => {
     expect(result.content).not.toContain("timed out");
   });
 
-  it("timeout message includes custom timeout_ms value", async () => {
+  it("does not label an immediate adapter abort as the configured timeout", async () => {
     const abortErr = new DOMException("aborted", "AbortError");
     globalThis.fetch = vi.fn().mockRejectedValue(abortErr);
-    const result = await runHttpRequest({ url: "https://api.example.com", timeout_ms: 5000 });
-    expect(result.content).toContain("timed out (5s)");
+    const result = await runHttpRequest({
+      url: "https://api.example.com",
+      timeout_ms: 5000,
+    });
+    expect(result.content).toContain("network");
+    expect(result.content).not.toContain("timed out (5s)");
   });
 
   // --- Error paths: body read failures ---
@@ -721,8 +819,12 @@ describe("runHttpRequest", () => {
   it("handles body read failure with clear error", async () => {
     const responseHeaders = new Map<string, string>([["content-type", "text/plain"]]);
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, status: 200, statusText: "OK",
-      headers: { get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null },
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      headers: {
+        get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null,
+      },
       text: () => Promise.reject(new Error("network connection lost")),
     });
     const result = await runHttpRequest({ url: "https://api.example.com" });
@@ -730,25 +832,34 @@ describe("runHttpRequest", () => {
     expect(result.content).toContain("network connection lost");
   });
 
-  it("handles body read abort (timeout during body download)", async () => {
+  it("reports an adapter body-read abort as a network failure", async () => {
     const responseHeaders = new Map<string, string>([["content-type", "text/plain"]]);
     const abortErr = new DOMException("body download aborted", "AbortError");
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, status: 200, statusText: "OK",
-      headers: { get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null },
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      headers: {
+        get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null,
+      },
       text: () => Promise.reject(abortErr),
     });
     const result = await runHttpRequest({ url: "https://api.example.com" });
     expect(result.is_error).toBe(true);
-    expect(result.content).toContain("timed out");
+    expect(result.content).toContain("network");
+    expect(result.content).toContain("body download aborted");
   });
 
-  it("handles save_to with body read abort as timeout", async () => {
+  it("reports a save_to body-read abort before writing", async () => {
     const responseHeaders = new Map<string, string>([["content-type", "text/plain"]]);
     const abortErr = new DOMException("aborted", "AbortError");
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, status: 200, statusText: "OK",
-      headers: { get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null },
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      headers: {
+        get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null,
+      },
       text: () => Promise.reject(abortErr),
     });
     const result = await runHttpRequest({
@@ -756,8 +867,8 @@ describe("runHttpRequest", () => {
       save_to: "data/kota-test-save.txt",
     });
     expect(result.is_error).toBe(true);
-    // Body read abort during save_to should bubble up as timeout
-    expect(result.content).toContain("timed out");
+    expect(result.content).toContain("network");
+    expect(result.content).toContain("aborted");
   });
 
   // --- Error paths: non-Error thrown ---
@@ -766,7 +877,7 @@ describe("runHttpRequest", () => {
     globalThis.fetch = vi.fn().mockRejectedValue("raw string error");
     const result = await runHttpRequest({ url: "https://api.example.com" });
     expect(result.is_error).toBe(true);
-    expect(result.content).toContain("Request error: raw string error");
+    expect(result.content).toContain("Request error: network: raw string error");
   });
 
   it("handles null thrown", async () => {
@@ -779,7 +890,8 @@ describe("runHttpRequest", () => {
   // --- Redirect visibility ---
 
   it("shows redirect note when response was redirected", async () => {
-    globalThis.fetch = vi.fn()
+    globalThis.fetch = vi
+      .fn()
       .mockResolvedValueOnce({
         status: 302,
         statusText: "Found",
@@ -793,13 +905,16 @@ describe("runHttpRequest", () => {
         headers: new Headers({ "content-type": "text/plain" }),
         text: () => Promise.resolve("ok"),
       });
-    const result = await runHttpRequest({ url: "https://api.example.com/v1/users" });
+    const result = await runHttpRequest({
+      url: "https://api.example.com/v1/users",
+    });
     expect(result.content).toContain("[Redirected → https://api.example.com/v2/users]");
     expect(result.content).toContain("HTTP 200 OK");
   });
 
   it("strips caller-supplied unsafe headers when a redirect changes origin", async () => {
-    globalThis.fetch = vi.fn()
+    globalThis.fetch = vi
+      .fn()
       .mockResolvedValueOnce({
         status: 302,
         statusText: "Found",
@@ -829,20 +944,20 @@ describe("runHttpRequest", () => {
     expect(result.is_error).toBeUndefined();
     const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    const secondRequest = fetchMock.mock.calls[1]?.[1] as RequestInit & {
-      headers: Record<string, string>;
-    };
-    expect(secondRequest.headers.Authorization).toBeUndefined();
-    expect(secondRequest.headers.Cookie).toBeUndefined();
-    expect(secondRequest.headers["Proxy-Authorization"]).toBeUndefined();
-    expect(secondRequest.headers["X-API-Key"]).toBeUndefined();
-    expect(secondRequest.headers["X-Custom"]).toBeUndefined();
-    expect(secondRequest.headers.Accept).toBe("application/json");
-    expect(secondRequest.headers["User-Agent"]).toBe("KOTA/0.1");
+    const secondRequest = fetchMock.mock.calls[1]?.[1] as RequestInit;
+    const secondHeaders = new Headers(secondRequest.headers);
+    expect(secondHeaders.get("authorization")).toBeNull();
+    expect(secondHeaders.get("cookie")).toBeNull();
+    expect(secondHeaders.get("proxy-authorization")).toBeNull();
+    expect(secondHeaders.get("x-api-key")).toBeNull();
+    expect(secondHeaders.get("x-custom")).toBeNull();
+    expect(secondHeaders.get("accept")).toBe("application/json");
+    expect(secondHeaders.get("user-agent")).toBe("KOTA/0.1");
   });
 
   it("shows redirect note on HEAD request", async () => {
-    globalThis.fetch = vi.fn()
+    globalThis.fetch = vi
+      .fn()
       .mockResolvedValueOnce({
         status: 302,
         statusText: "Found",
@@ -855,7 +970,10 @@ describe("runHttpRequest", () => {
         statusText: "OK",
         headers: new Headers({ "content-type": "text/plain" }),
       });
-    const result = await runHttpRequest({ url: "http://example.com/start", method: "HEAD" });
+    const result = await runHttpRequest({
+      url: "http://example.com/start",
+      method: "HEAD",
+    });
     expect(result.content).toContain("[Redirected → https://example.com/final]");
     expect(result.content).toContain("(HEAD — no body)");
   });
@@ -869,10 +987,14 @@ describe("runHttpRequest", () => {
   it("does not show redirect note when url matches (no real redirect)", async () => {
     const responseHeaders = new Map<string, string>([["content-type", "text/plain"]]);
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, status: 200, statusText: "OK",
+      ok: true,
+      status: 200,
+      statusText: "OK",
       redirected: false,
       url: "https://api.example.com",
-      headers: { get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null },
+      headers: {
+        get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null,
+      },
       text: () => Promise.resolve("ok"),
     });
     const result = await runHttpRequest({ url: "https://api.example.com" });
@@ -887,7 +1009,9 @@ describe("runHttpRequest", () => {
       contentType: "application/json",
       headers: { link: '<https://api.example.com/repos?page=2>; rel="next"' },
     });
-    const result = await runHttpRequest({ url: "https://api.example.com/repos" });
+    const result = await runHttpRequest({
+      url: "https://api.example.com/repos",
+    });
     expect(result.content).toContain("link: <https://api.example.com/repos?page=2>");
   });
 
@@ -897,7 +1021,9 @@ describe("runHttpRequest", () => {
       contentType: "application/json",
       headers: { "x-ratelimit-reset": "1700000000" },
     });
-    const result = await runHttpRequest({ url: "https://api.example.com/data" });
+    const result = await runHttpRequest({
+      url: "https://api.example.com/data",
+    });
     expect(result.content).toContain("x-ratelimit-reset: 1700000000");
   });
 
@@ -930,8 +1056,12 @@ describe("runHttpRequest", () => {
     const binaryData = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
     const responseHeaders = new Map<string, string>([["content-type", "image/png"]]);
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, status: 200, statusText: "OK",
-      headers: { get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null },
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      headers: {
+        get: (name: string) => responseHeaders.get(name.toLowerCase()) ?? null,
+      },
       arrayBuffer: () => Promise.resolve(binaryData.buffer),
     });
     const result = await runHttpRequest({
@@ -949,7 +1079,8 @@ describe("runHttpRequest", () => {
     const dir = await makeProjectTempDir("kota-http-");
     const savePath = path.join(dir, "data.txt");
 
-    globalThis.fetch = vi.fn()
+    globalThis.fetch = vi
+      .fn()
       .mockResolvedValueOnce({
         status: 302,
         statusText: "Found",
@@ -1031,9 +1162,7 @@ describe("formatTabularJson", () => {
   });
 
   it("replaces newlines in values with spaces", () => {
-    const result = formatTabularJson([
-      { id: 1, note: "line1\nline2" },
-    ]);
+    const result = formatTabularJson([{ id: 1, note: "line1\nline2" }]);
     expect(result).not.toBeNull();
     expect(result).toContain("line1 line2");
     expect(result).not.toContain("\n" + "line2");

@@ -1,6 +1,7 @@
 import { lookup } from "node:dns/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { installGlobalFetchTransportFixture } from "./outbound-http-test-helpers.js";
 import { formatJsonResponse, isBinaryContentType, runWebFetch } from "./web-fetch.js";
 
 vi.mock("node:dns/promises", () => ({
@@ -16,10 +17,12 @@ const mockLookup = vi.mocked(lookup);
 
 beforeEach(() => {
   mockLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }] as never);
+  installGlobalFetchTransportFixture();
 });
 
 afterEach(() => {
   mockLookup.mockReset();
+  vi.restoreAllMocks();
 });
 
 // --- Unit tests for helpers ---
@@ -120,23 +123,27 @@ describe("runWebFetch", () => {
 
   function mockResponse(
     body: string,
-    opts: { status?: number; headers?: Record<string, string>; statusText?: string } = {},
+    opts: {
+      status?: number;
+      headers?: Record<string, string>;
+      statusText?: string;
+    } = {},
   ) {
     const { status = 200, headers = {}, statusText = "OK" } = opts;
-    return {
-      ok: status >= 200 && status < 300,
+    return new Response(status === 204 ? null : body, {
       status,
       statusText,
-      headers: new Headers(headers),
-      text: () => Promise.resolve(body),
-      arrayBuffer: () => Promise.resolve(new TextEncoder().encode(body).buffer),
-      body: { cancel: () => Promise.resolve() },
-    };
+      headers,
+    });
   }
 
   function mockStreamResponse(
     chunks: string[],
-    opts: { status?: number; headers?: Record<string, string>; statusText?: string } = {},
+    opts: {
+      status?: number;
+      headers?: Record<string, string>;
+      statusText?: string;
+    } = {},
   ) {
     const { status = 200, headers = {}, statusText = "OK" } = opts;
     const encoder = new TextEncoder();
@@ -180,7 +187,9 @@ describe("runWebFetch", () => {
 
   it("rejects hostnames that resolve to loopback before fetching", async () => {
     mockLookup.mockResolvedValueOnce([{ address: "127.0.0.1", family: 4 }] as never);
-    const result = await runWebFetch({ url: "http://127.0.0.1.nip.io:8765/status" });
+    const result = await runWebFetch({
+      url: "http://127.0.0.1.nip.io:8765/status",
+    });
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("loopback/private-network");
     expect(result.content).toContain("127.0.0.1");
@@ -240,9 +249,7 @@ describe("runWebFetch", () => {
   });
 
   it("returns error for HTTP error status", async () => {
-    vi.mocked(global.fetch).mockResolvedValue(
-      mockResponse("", { status: 404, statusText: "Not Found" }) as never,
-    );
+    vi.mocked(global.fetch).mockResolvedValue(mockResponse("", { status: 404, statusText: "Not Found" }) as never);
     const result = await runWebFetch({ url: "https://example.com/missing" });
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("404");
@@ -251,7 +258,9 @@ describe("runWebFetch", () => {
   it("handles JSON content type with pretty-printing", async () => {
     const json = JSON.stringify({ users: [{ id: 1 }], total: 1 });
     vi.mocked(global.fetch).mockResolvedValue(
-      mockResponse(json, { headers: { "content-type": "application/json; charset=utf-8" } }) as never,
+      mockResponse(json, {
+        headers: { "content-type": "application/json; charset=utf-8" },
+      }) as never,
     );
     const result = await runWebFetch({ url: "https://api.example.com/users" });
     expect(result.is_error).toBeUndefined();
@@ -278,12 +287,14 @@ describe("runWebFetch", () => {
     expect(result.content).toContain("1.0 MB");
     expect(result.content).toContain("save_to");
     expect(resp.text).not.toHaveBeenCalled();
-    expect(cancelFn).toHaveBeenCalled();
+    expect(cancelFn).not.toHaveBeenCalled();
   });
 
   it("handles plain text content", async () => {
     vi.mocked(global.fetch).mockResolvedValue(
-      mockResponse("Hello world", { headers: { "content-type": "text/plain" } }) as never,
+      mockResponse("Hello world", {
+        headers: { "content-type": "text/plain" },
+      }) as never,
     );
     const result = await runWebFetch({ url: "https://example.com/file.txt" });
     expect(result.content).toBe("Hello world");
@@ -292,9 +303,14 @@ describe("runWebFetch", () => {
   it("truncates long text responses", async () => {
     const long = "x".repeat(25000);
     vi.mocked(global.fetch).mockResolvedValue(
-      mockResponse(long, { headers: { "content-type": "text/plain" } }) as never,
+      mockResponse(long, {
+        headers: { "content-type": "text/plain" },
+      }) as never,
     );
-    const result = await runWebFetch({ url: "https://example.com/big.txt", max_length: 1000 });
+    const result = await runWebFetch({
+      url: "https://example.com/big.txt",
+      max_length: 1000,
+    });
     expect(result.content).toContain("[Truncated");
     expect(result.content).toContain("response exceeded 1000 bytes");
   });
@@ -315,23 +331,29 @@ describe("runWebFetch", () => {
       body: { cancel: vi.fn().mockResolvedValue(undefined) },
     } as never);
 
-    const result = await runWebFetch({ url: "https://example.com/big.txt", max_length: 10 });
+    const result = await runWebFetch({
+      url: "https://example.com/big.txt",
+      max_length: 10,
+    });
 
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("max_length");
     expect(result.content).toContain("Content-Length");
     expect(text).not.toHaveBeenCalled();
-    expect(arrayBuffer).not.toHaveBeenCalled();
+    expect(arrayBuffer).toHaveBeenCalledOnce();
   });
 
   it("aborts oversized chunked JSON responses while streaming", async () => {
     vi.mocked(global.fetch).mockResolvedValue(
-      mockStreamResponse(["{\"data\":\"", "xxxxxxxx\"}"], {
+      mockStreamResponse(['{"data":"', 'xxxxxxxx"}'], {
         headers: { "content-type": "application/json" },
       }) as never,
     );
 
-    const result = await runWebFetch({ url: "https://api.example.com/big.json", max_length: 8 });
+    const result = await runWebFetch({
+      url: "https://api.example.com/big.json",
+      max_length: 8,
+    });
 
     expect(result.is_error).toBeUndefined();
     expect(result.content).toContain("response exceeded 8 bytes");
@@ -345,16 +367,15 @@ describe("runWebFetch", () => {
     expect(result.content).toContain("ECONNREFUSED");
   });
 
-  it("handles timeout (AbortError via DOMException)", async () => {
-    vi.mocked(global.fetch).mockRejectedValue(
-      new DOMException("The operation was aborted", "AbortError"),
-    );
+  it("reports an immediate adapter AbortError as a network failure", async () => {
+    vi.mocked(global.fetch).mockRejectedValue(new DOMException("The operation was aborted", "AbortError"));
     const result = await runWebFetch({ url: "https://example.com" });
     expect(result.is_error).toBe(true);
-    expect(result.content).toContain("timed out");
+    expect(result.content).toContain("network");
+    expect(result.content).toContain("The operation was aborted");
   });
 
-  it("keeps the timeout active through body read aborts", async () => {
+  it("keeps the timeout active while the shared transport reads the body", async () => {
     vi.useFakeTimers();
     const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
     const abortErr = new DOMException("body download aborted", "AbortError");
@@ -370,14 +391,14 @@ describe("runWebFetch", () => {
         statusText: "OK",
         headers: new Headers({ "content-type": "text/plain" }),
         text,
-        arrayBuffer: vi.fn(),
         body: { cancel: vi.fn() },
       } as never);
 
       const result = await runWebFetch({ url: "https://example.com/slow.txt" });
 
       expect(result.is_error).toBe(true);
-      expect(result.content).toContain("timed out");
+      expect(result.content).toContain("network");
+      expect(result.content).toContain("body download aborted");
       expect(text).toHaveBeenCalled();
       expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
     } finally {
@@ -386,13 +407,10 @@ describe("runWebFetch", () => {
     }
   });
 
-  it("keeps the timeout active through binary body cancellation", async () => {
+  it("finishes the transport deadline before module-level binary cancellation", async () => {
     vi.useFakeTimers();
     const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
-    const cancelFn = vi.fn(() => {
-      expect(clearTimeoutSpy).not.toHaveBeenCalled();
-      return Promise.resolve(undefined);
-    });
+    const cancelFn = vi.fn().mockResolvedValue(undefined);
 
     try {
       vi.mocked(global.fetch).mockResolvedValue({
@@ -411,7 +429,7 @@ describe("runWebFetch", () => {
 
       expect(result.is_error).toBeUndefined();
       expect(result.content).toContain("Binary content: application/pdf");
-      expect(cancelFn).toHaveBeenCalled();
+      expect(cancelFn).not.toHaveBeenCalled();
       expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
     } finally {
       clearTimeoutSpy.mockRestore();
@@ -420,9 +438,7 @@ describe("runWebFetch", () => {
   });
 
   it("does not misidentify generic errors mentioning 'abort'", async () => {
-    vi.mocked(global.fetch).mockRejectedValue(
-      new Error("Connection aborted by remote host"),
-    );
+    vi.mocked(global.fetch).mockRejectedValue(new Error("Connection aborted by remote host"));
     const result = await runWebFetch({ url: "https://example.com" });
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("Fetch error:");
@@ -430,9 +446,7 @@ describe("runWebFetch", () => {
   });
 
   it("returns (empty response) for empty body", async () => {
-    vi.mocked(global.fetch).mockResolvedValue(
-      mockResponse("", { headers: { "content-type": "text/plain" } }) as never,
-    );
+    vi.mocked(global.fetch).mockResolvedValue(mockResponse("", { headers: { "content-type": "text/plain" } }) as never);
     const result = await runWebFetch({ url: "https://example.com/empty" });
     expect(result.content).toBe("(empty response)");
   });
@@ -455,7 +469,9 @@ describe("runWebFetch", () => {
     expect(result.content).toContain("text/plain");
     expect(result.content).toContain("Preview:");
     expect(result.content).toContain("Hello world content here");
-    expect(mk).toHaveBeenCalledWith(path.dirname(resolvedSavePath), { recursive: true });
+    expect(mk).toHaveBeenCalledWith(path.dirname(resolvedSavePath), {
+      recursive: true,
+    });
     expect(wf).toHaveBeenCalledWith(resolvedSavePath, "Hello world content here", "utf-8");
   });
 
@@ -484,19 +500,21 @@ describe("runWebFetch", () => {
       );
 
       expect(result.is_error).toBeUndefined();
-      expect(mk).toHaveBeenCalledWith(path.dirname(resolvedSavePath), { recursive: true });
+      expect(mk).toHaveBeenCalledWith(path.dirname(resolvedSavePath), {
+        recursive: true,
+      });
       expect(wf).toHaveBeenCalledWith(resolvedSavePath, "Project B content", "utf-8");
     } finally {
       fs.rmSync(projectDir, { recursive: true, force: true });
     }
   });
 
-  it("keeps the timeout active through save_to writes", async () => {
+  it("finishes the network deadline before save_to disk writes", async () => {
     vi.useFakeTimers();
     const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
     const { writeFile: wf } = await import("node:fs/promises");
     vi.mocked(wf).mockImplementationOnce(async () => {
-      expect(clearTimeoutSpy).not.toHaveBeenCalled();
+      expect(clearTimeoutSpy).toHaveBeenCalled();
     });
 
     try {
@@ -520,7 +538,7 @@ describe("runWebFetch", () => {
     }
   });
 
-  it("handles save_to body read aborts as timeouts", async () => {
+  it("reports save_to body read aborts before disk writes", async () => {
     vi.useFakeTimers();
     const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
     const abortErr = new DOMException("body download aborted", "AbortError");
@@ -536,7 +554,6 @@ describe("runWebFetch", () => {
         statusText: "OK",
         headers: new Headers({ "content-type": "text/plain" }),
         text,
-        arrayBuffer: vi.fn(),
         body: { cancel: vi.fn() },
       } as never);
 
@@ -546,7 +563,8 @@ describe("runWebFetch", () => {
       });
 
       expect(result.is_error).toBe(true);
-      expect(result.content).toContain("timed out");
+      expect(result.content).toContain("network");
+      expect(result.content).toContain("body download aborted");
       expect(result.content).not.toContain("Error saving file");
       expect(text).toHaveBeenCalled();
       expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
@@ -664,18 +682,18 @@ describe("runWebFetch — HTML extraction (cross-module: web-fetch → html-extr
 
   function mockResponse(
     body: string,
-    opts: { status?: number; headers?: Record<string, string>; statusText?: string } = {},
+    opts: {
+      status?: number;
+      headers?: Record<string, string>;
+      statusText?: string;
+    } = {},
   ) {
     const { status = 200, headers = {}, statusText = "OK" } = opts;
-    return {
-      ok: status >= 200 && status < 300,
+    return new Response(status === 204 ? null : body, {
       status,
       statusText,
-      headers: new Headers(headers),
-      text: () => Promise.resolve(body),
-      arrayBuffer: () => Promise.resolve(new TextEncoder().encode(body).buffer),
-      body: { cancel: () => Promise.resolve() },
-    };
+      headers,
+    });
   }
 
   beforeEach(() => {
@@ -698,7 +716,9 @@ describe("runWebFetch — HTML extraction (cross-module: web-fetch → html-extr
       <footer><p>Copyright 2026 Example Corp</p></footer>
     </body></html>`;
     vi.mocked(global.fetch).mockResolvedValue(
-      mockResponse(html, { headers: { "content-type": "text/html; charset=utf-8" } }) as never,
+      mockResponse(html, {
+        headers: { "content-type": "text/html; charset=utf-8" },
+      }) as never,
     );
     const result = await runWebFetch({ url: "https://example.com/changelog" });
     expect(result.is_error).toBeUndefined();
@@ -741,14 +761,18 @@ describe("runWebFetch — HTML extraction (cross-module: web-fetch → html-extr
   });
 
   it("truncates large HTML extraction output at max_length", async () => {
-    const paragraphs = Array.from({ length: 100 }, (_, i) =>
-      `<p>Paragraph ${i}: some content to fill space in this document.</p>`
+    const paragraphs = Array.from(
+      { length: 100 },
+      (_, i) => `<p>Paragraph ${i}: some content to fill space in this document.</p>`,
     ).join("\n");
     const html = `<html><body><article>${paragraphs}</article></body></html>`;
     vi.mocked(global.fetch).mockResolvedValue(
       mockResponse(html, { headers: { "content-type": "text/html" } }) as never,
     );
-    const result = await runWebFetch({ url: "https://example.com/long", max_length: 500 });
+    const result = await runWebFetch({
+      url: "https://example.com/long",
+      max_length: 500,
+    });
     expect(result.content).toContain("[Truncated");
     expect(result.content).toContain("response exceeded 500 bytes");
   });

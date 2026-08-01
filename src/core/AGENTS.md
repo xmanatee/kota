@@ -27,6 +27,8 @@ into.
   the main turn loop.
 - `model/` — `ModelClient` interface, registry, adaptive routing, and streaming.
   Provider implementations live in `src/modules/model-clients/`.
+- `outbound-http/` — the shared policy-aware request transport used by core
+  protocols and module adapters. Agent-facing web tools remain module-owned.
 - `modules/` — module protocol, discovery, loading, lifecycle, storage, and
   foreign-module support.
 - `tools/` — core tool runtime and the remaining truly core-hosted tools.

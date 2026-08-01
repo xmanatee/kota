@@ -1,0 +1,4 @@
+1. Verified: `src/core/outbound-http/` owns typed request, response, retry, telemetry, and error contracts plus the five closed profiles; the policy matrix artifact records each profile and consumer ownership.
+2. Verified: `web-access` now uses public-untrusted/configured-provider transport profiles, its former private-network mechanism is removed, and focused tests prove private-target/DNS-rebinding rejection and safe redirects.
+3. Verified: the shared transport centrally implements and tests timeout, caller abort, eager body caps, redirects, redaction, retry eligibility (including original-write classification after method-rewriting redirects), telemetry, and typed failures across the profile matrix.
+4. Verified: the AST architecture gate names the three low-level adapters, regenerates deterministic normalized legacy call-site signatures, and rejects new raw global fetch paths including same-count replacements.

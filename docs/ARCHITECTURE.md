@@ -79,13 +79,16 @@ The core should stay small. It should mainly own:
 - guardrails and store/provider contracts
 
 General-purpose capabilities should not accumulate in the core by default.
-Browser use, shell/process access, filesystem actions, HTTP/web access,
+Browser use, shell/process access, filesystem actions, agent-facing web access,
 memory backends, MCP integration, operator surfaces, and provider-specific
 data such as per-model token pricing should prefer module-owned capability
 packs unless a shared runtime primitive truly has to stay in core. The
 `CostTracker` primitive itself is core; the rate tables it queries through
 the `model-pricing` provider seam belong to whichever module owns the
-model client.
+model client. Outbound HTTP request execution is one shared core primitive
+because core protocols and modules both depend on its target, redirect,
+credential, limit, redaction, retry, and telemetry policy; protocol adapters
+and agent-facing web/browser behavior remain module-owned.
 
 Scope registry identity, quiet-hours gating, crash-loop alerting, provider
 registry state, approval queue state, and owner decision state are shared
@@ -133,6 +136,8 @@ daemon/runtime primitives and belong in `src/core/`.
 - `channel` protocol: session routing, inbound/outbound transport, and operator
   identity.
 - `module` protocol: contribution bundle for the concepts above.
+- `outbound HTTP` protocol: named trust profile, bounded request/response, typed
+  failure and retry disposition, plus redacted telemetry.
 - `foreign module` protocol: an out-of-process module transport. Its exact
   message names, transport fields, scaffold details, and recovery behavior
   belong in the core module code, schema, examples, and focused tests rather
@@ -158,6 +163,7 @@ Local source links point to representative contracts, not exhaustive catalogs.
 | Channel | `ChannelDef` in `src/core/channels/channel.ts`. | Channels translate external I/O into sessions or typed inbound events. They are daemon-owned module contributions, not clients. |
 | Client | Thin apps under `clients/` consuming `KotaClient`, HTTP+JSON, SSE, and the shared UI surface graph. | Clients render daemon contracts and never parse `.kota/` files or start a second runtime. The shared UI contribution protocol is the renderer contract for operator-facing controls that should appear consistently across clients. |
 | Setup, auth, and secrets | Module setup requirements in `src/core/modules/setup-requirements.ts` plus the secrets module. | Setup prompts collect prerequisites and secret references. Raw credentials stay in secret stores or provider auth flows, not decision records, prompts, screenshots, or client fixtures. |
+| Outbound HTTP | `OutboundHttpTransport` and the closed profiles in `src/core/outbound-http/`. | Core protocols and module adapters select explicit trust profiles; only the low-level dispatcher reaches host HTTP primitives. Vendor payloads, OAuth semantics, and agent-facing web/browser behavior stay in their owning modules. |
 | Owner question, approval, owner decision | `OwnerQuestionQueue`, `ApprovalQueue`, `OwnerDecisionStore`, `ownerDecisionSteps`, `confirmedOwnerActionStep`, and the owner-decisions module client/CLI/API. | Owner questions ask for judgment; approvals gate dangerous effects; owner decisions persist reusable choices and authorize at most the intended later action. |
 | Store and evidence | Module-owned history, memory, knowledge, working memory, task, and run-artifact stores. | Git history and `.kota/runs/` are the review record. Do not create parallel changelogs, lesson stores, or ad hoc audit files. |
 | Workflow recovery and worktrees | Workflow state recovery projects task claims, worktree metadata, Git worktree state, DLQ records, task files, and run metadata into one disposition. Automation worktree lifecycle reconciliation lives in `reconcileAutomationWorktrees(projectDir)` in the Git module; status rendering stays read-only and operator cleanup commands call that same reconciler. Workflow-owned terminal finalizers may clean up unambiguous failed or interrupted worktrees; ambiguous evidence is preserved for review. | Each source keeps a narrow job: claims own ownership/lease, worktree metadata owns workspace lifecycle, DLQ owns failed dispatch records, task markdown owns product task state, run metadata owns execution evidence, and the recovery projection owns cross-store decisions. |

@@ -1,13 +1,13 @@
 ---
 id: task-add-one-policy-aware-outbound-http-transport
 title: Add one policy-aware outbound HTTP transport
-status: ready
+status: done
 priority: p1
 area: architecture
 task_class: Platform
 summary: Define one typed outbound HTTP transport with explicit trust profiles and shared timeout, redirect, body-limit, redaction, and error semantics.
 created_at: 2026-07-31T16:00:59.628Z
-updated_at: 2026-08-01T09:14:23.825Z
+updated_at: 2026-08-01T19:09:48.492Z
 ---
 
 ## Problem
@@ -82,3 +82,19 @@ One canonical capability mechanism per KOTA boundary.
   typed provider errors.
 - A repository search/architecture-check artifact proving raw `fetch` is
   limited to the named low-level transport adapters and client-platform roots.
+
+## Completion Evidence
+
+- Added the typed profile/transport boundary under `src/core/outbound-http/`,
+  migrated `web-access` and the core daemon health probe, and removed the
+  former module-local private-network transport.
+- Added the TypeScript-AST raw-fetch ratchet in
+  `src/outbound-http-fetch-policy.integration.test.ts`; the 28-file legacy
+  baseline records exact normalized call-site signatures, is assigned to the
+  dependent integration-migration task, and cannot grow or be replaced by a
+  different same-count call site.
+- Typecheck, production build, focused transport/web fixtures, structural
+  policy gates, and the affected shipped-CLI/replay fixtures pass.
+- The policy matrix, focused fixture transcript, raw-fetch architecture check,
+  and validation summary are projected from
+  `.kota/runs/2026-08-01T18-16-04-612Z-builder-qx1db9/evidence/artifacts/`.

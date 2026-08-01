@@ -1,0 +1,28 @@
+Focused transport fixture run
+
+Command:
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run --configLoader runner src/core/outbound-http/profiles.test.ts src/core/outbound-http/transport.test.ts src/core/outbound-http/transport-errors.test.ts src/core/outbound-http/dispatcher.test.ts src/core/server/daemon-control-address.test.ts src/modules/web-access/web-fetch.test.ts src/modules/web-access/http-request.test.ts src/modules/web-access/web-search.test.ts src/outbound-http-fetch-policy.integration.test.ts
+
+Result:
+Test Files  9 passed (9)
+Tests       194 passed (194)
+
+Inspectable assertions:
+- all five named profiles accept only their selected target class;
+- mixed public/private DNS answers and connection-time DNS rebinding are rejected;
+- cross-origin redirect caller headers are stripped, while unsafe body replay is rejected;
+- the request deadline and caller abort cover pending public-target DNS
+  validation and produce distinct typed failures;
+- oversized bodies are cancelled and reported as response-too-large;
+- request telemetry and provider error bodies redact representative sensitive
+  field-name variants plus complete multi-part Authorization values;
+- transport failures do not retain the dispatcher's unredacted error as a
+  publicly reachable cause;
+- transient responses expose centralized retry eligibility and retry delay;
+- POST-to-GET redirects retain the original write method for retry eligibility,
+  so a transient redirected response cannot authorize replay of the write;
+- provider HTTP failures preserve typed status, retry, and redacted-body fields;
+- web-access runners preserve public-target, response formatting, truncation, and save behavior;
+- the core daemon health probe selects daemon-loopback policy.
+- the AST raw-fetch gate rejects same-count call-site replacement in a
+  grandfathered file.
