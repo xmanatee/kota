@@ -1,0 +1,2 @@
+1. The two timed-out live-scope builder runs, their preserved 198-path worktree, stale claim, and both cited dead letters receive explicit terminal dispositions through the supported state-recovery path, leaving the underlying lifecycle task done or safely claimable.
+2. A preserved-work continuation that exhausts active runtime cannot enqueue another continuation; it records a bounded state-recovery action, focused regression coverage proves the bound, and before/after run evidence preserves the cited progress-review ids and rationale.

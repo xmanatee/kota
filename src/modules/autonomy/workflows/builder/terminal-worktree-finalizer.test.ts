@@ -256,7 +256,7 @@ describe("finalizeBuilderTerminalWorktree", () => {
     );
   });
 
-  it("requests one idempotent continuation after the build exhausts active runtime", async () => {
+  it("hands an exhausted continuation to bounded state recovery without dispatching again", async () => {
     mockPreservedWorktree({
       claimRunId: "recovery-run",
       dirtyState: "dirty",
@@ -276,18 +276,7 @@ describe("finalizeBuilderTerminalWorktree", () => {
 
     await finalizeBuilderTerminalWorktree(input);
 
-    expect(input.emit).toHaveBeenCalledTimes(1);
-    expect(input.emit).toHaveBeenCalledWith(
-      "autonomy.builder.recovery.requested",
-      {
-        taskId: "task-one",
-        sourceRunId: "recovery-run",
-        worktreeRunId: "builder-run",
-        workspaceDir: "/tmp/preserved-builder",
-        idempotencyKey: "builder-recovery:recovery-run",
-        reason: "preserved builder work from recovery-run requires recovery",
-      },
-    );
+    expect(input.emit).not.toHaveBeenCalled();
     expect(
       JSON.parse(
         readFileSync(
@@ -298,7 +287,14 @@ describe("finalizeBuilderTerminalWorktree", () => {
     ).toMatchObject({
       removed: false,
       blockers: ["worktree has uncommitted tracked changes"],
-      recoveryRequested: true,
+      recoveryRequested: false,
+      recoveryAction: {
+        kind: "state-recovery-required",
+        reason: "preserved builder continuation exhausted active runtime",
+        inspectCommand: "pnpm kota workflow state-recovery list",
+        resolveCommand:
+          'pnpm kota workflow state-recovery resolve task-one --action <release|supersede> --reason "<reason>"',
+      },
     });
   });
 });

@@ -27,8 +27,25 @@ type BuilderTerminalWorktreeFinalizerArtifact = {
   portLeaseReleased: boolean;
   portLeaseError: string | null;
   recoveryRequested: boolean;
+  recoveryAction: BuilderTerminalRecoveryAction;
   artifactPath: string;
 };
+
+type BuilderTerminalRecoveryAction =
+  | {
+      kind: "none";
+      reason: string;
+    }
+  | {
+      kind: "continuation-requested";
+      reason: string;
+    }
+  | {
+      kind: "state-recovery-required";
+      reason: string;
+      inspectCommand: string;
+      resolveCommand: string;
+    };
 
 type BuilderTerminalWorkspace = {
   taskId: string;
@@ -86,6 +103,49 @@ function buildExhaustedActiveRuntime(metadata: WorkflowRunMetadata): boolean {
   );
 }
 
+function stateRecoveryAction(
+  taskId: string,
+  reason: string,
+): BuilderTerminalRecoveryAction {
+  return {
+    kind: "state-recovery-required",
+    reason,
+    inspectCommand: "pnpm kota workflow state-recovery list",
+    resolveCommand:
+      `pnpm kota workflow state-recovery resolve ${taskId} ` +
+      '--action <release|supersede> --reason "<reason>"',
+  };
+}
+
+function recoveryActionFor(
+  input: WorkflowTerminalFinalizerInput,
+  taskId: string,
+  removed: boolean,
+  recoveryRequested: boolean,
+): BuilderTerminalRecoveryAction {
+  if (removed) {
+    return { kind: "none", reason: "terminal builder worktree was removed" };
+  }
+  if (recoveryRequested) {
+    return {
+      kind: "continuation-requested",
+      reason: "one automatic preserved-work continuation was requested",
+    };
+  }
+  if (input.trigger.event !== BUILDER_RECOVERY_EVENT) {
+    return {
+      kind: "none",
+      reason: "terminal builder worktree awaits the normal recovery scan",
+    };
+  }
+  return stateRecoveryAction(
+    taskId,
+    buildExhaustedActiveRuntime(input.metadata)
+      ? "preserved builder continuation exhausted active runtime"
+      : "preserved builder continuation needs recovery review",
+  );
+}
+
 export async function finalizeBuilderTerminalWorktree(
   input: WorkflowTerminalFinalizerInput,
 ): Promise<void> {
@@ -121,8 +181,7 @@ export async function finalizeBuilderTerminalWorktree(
     const candidate = findRecoveryClaim(input.projectDir, workspace.taskId);
     const retryContinuation =
       input.trigger.event !== BUILDER_RECOVERY_EVENT ||
-      input.agentFailureKind !== undefined ||
-      buildExhaustedActiveRuntime(input.metadata);
+      input.agentFailureKind !== undefined;
     const recoveryRequested =
       !removed &&
       retryContinuation &&
@@ -155,6 +214,12 @@ export async function finalizeBuilderTerminalWorktree(
       portLeaseReleased,
       portLeaseError,
       recoveryRequested,
+      recoveryAction: recoveryActionFor(
+        input,
+        workspace.taskId,
+        removed,
+        recoveryRequested,
+      ),
       artifactPath,
     });
     if (recoveryRequested && candidate) {
@@ -177,6 +242,10 @@ export async function finalizeBuilderTerminalWorktree(
       portLeaseReleased: false,
       portLeaseError: null,
       recoveryRequested: false,
+      recoveryAction: stateRecoveryAction(
+        workspace.taskId,
+        "builder terminal finalizer failed before it could reconcile preserved work",
+      ),
       artifactPath,
     });
   }

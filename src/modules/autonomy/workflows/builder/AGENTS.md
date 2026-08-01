@@ -1,11 +1,8 @@
 # Builder Workflow
 
-- This workflow should own one cohesive normalized task at a time. Resume
-  already-active `doing/` work first; otherwise pull one task from the short
-  `ready/` queue. Builder must not promote `backlog/` tasks itself — the
-  `backlog-promoter` workflow shapes the ready queue with a recorded
-  rationale before builder runs. Task-state semantics live under
-  `data/tasks/`.
+- Own one cohesive normalized task at a time. Resume active `doing/` work before
+  pulling one task from the short `ready/` queue. Never promote `backlog/` tasks
+  here; `backlog-promoter` records the rationale. Task semantics live under `data/tasks/`.
 - Own implementation quality, architecture, completeness, honest task-state updates, and hard validation fixes before the run ends.
 - Tasks define the contract and constraints; the implementing agent owns the detailed plan.
 - Changes here shape the default autonomous development behavior.
@@ -13,6 +10,8 @@
   that workspace is a prepared task worktree; `modules.builder.branchPerTask:
   false` is an explicit serial opt-out. Agents and sub-agents must use the
   provided cwd instead of assuming the canonical checkout.
+- Give preserved work one automatic continuation. If it exhausts active runtime,
+  preserve the worktree and hand off through the finalizer's typed state-recovery action.
 - Prefer validation rails over hardcoded pre-agent task moves or scope policing.
 
 ## Success Criteria

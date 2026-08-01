@@ -1,0 +1,10 @@
+The linked-worktree host Git index is read-only in this sandbox.
+
+The exact task transition and repository changes are staged and validated with:
+
+- local index: .kota/tmp/2026-08-01T08-14-32-218Z-builder-a76oy9/git-index
+- local object directory: .kota/tmp/2026-08-01T08-14-32-218Z-builder-a76oy9/git-objects
+- host alternate object directory: /Users/xmanatee/Desktop/mono/apps/kota/.git/objects
+
+The workflow host must replay `git add -A` against the real linked-worktree
+index before its commit step. Isolated staging does not update that index.
