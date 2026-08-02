@@ -337,6 +337,47 @@ describe("codexAgentHarness", () => {
     });
   });
 
+  it("terminates a Codex CLI process after its terminal error event", async () => {
+    const process = mockCodexProcess({ autoClose: false });
+    const onMessage = vi.fn();
+    const terminated = new Promise<void>((resolve) => {
+      process.child.kill.mockImplementationOnce(() => {
+        resolve();
+        return true;
+      });
+    });
+
+    const run = codexAgentHarness.run({
+      prompt: "x",
+      model: "gpt-5.6-sol",
+      effort: "xhigh",
+      onMessage,
+    });
+
+    process.child.stdout.write(
+      `${JSON.stringify({ type: "error", message: "provider failed" })}\n`,
+    );
+    await terminated;
+
+    expect(process.child.kill).toHaveBeenCalledWith("SIGTERM");
+
+    process.child.stdout.end();
+    process.child.stderr.end();
+    process.child.emit("close", null, "SIGTERM");
+
+    await expect(run).resolves.toMatchObject({
+      text: "provider failed",
+      isError: true,
+      subtype: "codex_cli_error",
+    });
+    expect(onMessage).toHaveBeenCalledWith({
+      type: "result",
+      isError: true,
+      subtype: "codex_cli_error",
+      text: "provider failed",
+    });
+  });
+
   it("force-kills aborted Codex CLI runs that do not exit after SIGTERM", async () => {
     vi.useFakeTimers();
     const process = mockCodexProcess({ autoClose: false });

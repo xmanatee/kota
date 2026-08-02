@@ -140,7 +140,7 @@ export async function collectTextFromCodexCli(args: {
   const sendSignal = (signal: NodeJS.Signals): void => {
     if (child.exitCode === null) child.kill(signal);
   };
-  const abort = (): void => {
+  const terminateChild = (): void => {
     sendSignal("SIGTERM");
     if (forceKillTimer !== undefined) return;
     forceKillTimer = setTimeout(() => {
@@ -149,12 +149,15 @@ export async function collectTextFromCodexCli(args: {
     forceKillTimer.unref?.();
   };
   let removeAbortListener: (() => void) | undefined;
-  if (args.abortController) {
-    if (args.abortController.signal.aborted) abort();
+  const abortController = args.abortController;
+  if (abortController) {
+    if (abortController.signal.aborted) terminateChild();
     else {
-      args.abortController.signal.addEventListener("abort", abort, { once: true });
+      abortController.signal.addEventListener("abort", terminateChild, {
+        once: true,
+      });
       removeAbortListener = () =>
-        args.abortController?.signal.removeEventListener("abort", abort);
+        abortController.signal.removeEventListener("abort", terminateChild);
     }
   }
 
@@ -230,6 +233,8 @@ export async function collectTextFromCodexCli(args: {
             sessionId,
           ),
         );
+        terminateChild();
+        return;
       } else if (event.type !== undefined) {
         await emitCodexMessage(
           args.onMessage,
@@ -262,7 +267,7 @@ export async function collectTextFromCodexCli(args: {
   });
   await Promise.all([stdoutDone, stderrDone]);
 
-  if (args.abortController?.signal.aborted) {
+  if (abortController?.signal.aborted) {
     return {
       text: "Codex CLI run aborted.",
       streamedText: streamedChunks.join(""),
