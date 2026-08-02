@@ -1,5 +1,6 @@
 import type { KotaConfig } from "#core/config/config.js";
 import type { SecretScope } from "#core/config/secrets.js";
+import type { ScopeSetupVisibility } from "#core/daemon/scope-policy.js";
 
 export type ModuleSetupScope = "project" | "global";
 export type ModuleSetupSensitivity = "none" | "secret" | "oauth" | "browser-profile";
@@ -180,7 +181,7 @@ export type ModuleSetupStatusResponse = {
 
 export type ModuleSetupFailureResult = {
   ok: false;
-  reason: "not_found" | "invalid_request" | "store_error";
+  reason: "not_found" | "invalid_request" | "store_error" | "policy_denied";
   message: string;
 };
 
@@ -203,9 +204,12 @@ export type ModuleSetupCompleteInput = {
 
 export type ModuleSetupServiceOptions = {
   projectDir: string;
+  /** Machine-owned config document that supplies this project's trust decision. */
+  authorityConfigPath?: string;
   getRequirements: () => readonly ModuleSetupRequirementContribution[];
   probeCapabilities: () => Promise<readonly ModuleSetupCapabilityStatus[]>;
   now?: () => Date;
+  getVisibility?: () => ScopeSetupVisibility;
 };
 
 export type ModuleSetupActionFile = {

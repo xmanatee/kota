@@ -45,7 +45,8 @@ import {
   setOwnerQuestionQueueInstance,
 } from "./owner-question-queue.js";
 import { Scheduler, setSchedulerInstance } from "./scheduler.js";
-import type { ConfiguredProject } from "./scope-registry.js";
+import type { ResolvedScopePolicy } from "./scope-policy.js";
+import type { ConfiguredProject, ProjectId } from "./scope-registry.js";
 import { setTaskStoreInstance, TaskStore } from "./task-store.js";
 
 /**
@@ -67,6 +68,8 @@ import { setTaskStoreInstance, TaskStore } from "./task-store.js";
  */
 export type ProjectRuntime = {
   project: ConfiguredProject;
+  /** Machine-owned config document used for this runtime's trust decision. */
+  readonly authorityConfigPath?: string;
   readonly pbus: ProjectScopedEventBus;
   readonly runStore: WorkflowRunStore;
   readonly taskStore: TaskStore;
@@ -79,6 +82,7 @@ export type ProjectRuntime = {
   readonly ownerDecisionStore: OwnerDecisionStore;
   readonly ownerQuestionQueue: OwnerQuestionQueue;
   readonly workflowRuntime: WorkflowRuntime;
+  readonly resolveScopePolicy?: () => ResolvedScopePolicy;
   /** Absolute path to this project's `push-tokens.json`. */
   readonly pushTokenStorePath: string;
   setDefaultScopeRuntime(isDefault: boolean): void;
@@ -87,6 +91,7 @@ export type ProjectRuntime = {
 
 export type ProjectRuntimeFactoryOptions = {
   project: ConfiguredProject;
+  authorityConfigPath?: string;
   bus: EventBus;
   eventJournal?: EventJournal;
   config?: KotaConfig;
@@ -106,6 +111,7 @@ export type ProjectRuntimeFactoryOptions = {
   installSingletons: boolean;
   /** Quiet-hours config; only honored on the default bundle. */
   quietHours?: QuietHoursConfig;
+  resolveScopePolicy?: (scopeId: ProjectId) => ResolvedScopePolicy;
 };
 
 function installProjectRuntimeSingletons(runtime: ProjectRuntime): void {
@@ -174,6 +180,7 @@ export function createProjectRuntime(
     bus: opts.bus,
     pbus,
     projectDir,
+    authorityConfigPath: opts.authorityConfigPath,
     runStore,
     config: opts.config,
     deadLetterQueue,
@@ -189,6 +196,9 @@ export function createProjectRuntime(
     agentConcurrency: opts.config?.scheduler?.agentConcurrency,
     codeConcurrency: opts.config?.scheduler?.codeConcurrency,
     isDefaultScopeRuntime: () => isDefaultScopeRuntime,
+    resolveScopePolicy: opts.resolveScopePolicy
+      ? () => opts.resolveScopePolicy!(opts.project.projectId)
+      : undefined,
   });
 
   const notificationGate =
@@ -198,6 +208,9 @@ export function createProjectRuntime(
 
   const runtime: ProjectRuntime = {
     project: opts.project,
+    ...(opts.authorityConfigPath !== undefined
+      ? { authorityConfigPath: opts.authorityConfigPath }
+      : {}),
     pbus,
     runStore,
     taskStore,
@@ -210,6 +223,9 @@ export function createProjectRuntime(
     ownerDecisionStore,
     ownerQuestionQueue,
     workflowRuntime,
+    resolveScopePolicy: opts.resolveScopePolicy
+      ? () => opts.resolveScopePolicy!(opts.project.projectId)
+      : undefined,
     pushTokenStorePath: join(projectDir, ".kota", "push-tokens.json"),
     setDefaultScopeRuntime: (isDefault) => {
       isDefaultScopeRuntime = isDefault;

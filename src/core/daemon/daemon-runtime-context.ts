@@ -14,6 +14,8 @@ import type { DaemonLogger } from "./daemon-logger.js";
 import type { DaemonState } from "./daemon-state.js";
 import type { DaemonStateRoot } from "./daemon-state-root.js";
 import type { ProjectRuntimeRegistry } from "./project-runtime.js";
+import type { ScopeAuthorityOperatorTokenVerifier } from "./scope-authority-operator-token.js";
+import type { ScopeAuthorityService } from "./scope-authority-service.js";
 import type { ScopeLifecycleService } from "./scope-lifecycle.js";
 import type { ScopeRegistry } from "./scope-registry.js";
 import type { ScopeRuntimeHost } from "./scope-runtime-host.js";
@@ -37,6 +39,7 @@ export type DaemonRuntimeContext = {
   readonly state: DaemonState;
   readonly sessions: Map<string, InteractiveSession>;
   readonly projectRegistry: ScopeRegistry;
+  readonly scopeAuthority: ScopeAuthorityService;
   readonly projectRuntimes: ProjectRuntimeRegistry;
   readonly scopeLifecycle: ScopeLifecycleService;
   readonly scopeRuntimeHost: ScopeRuntimeHost;
@@ -66,5 +69,7 @@ export type BuildDaemonInitParams = {
   eventJournal: EventJournal;
   uninstallEventJournal: () => void;
   projectRegistry: ScopeRegistry;
+  scopeAuthority: ScopeAuthorityService;
+  scopeAuthorityOperatorVerifier: ScopeAuthorityOperatorTokenVerifier;
   projectRuntimes: ProjectRuntimeRegistry;
 };

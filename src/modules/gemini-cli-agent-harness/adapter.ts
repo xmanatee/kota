@@ -44,6 +44,11 @@ const GEMINI_CLI_UNSUPPORTED_OPTIONS = [
     reason: "Gemini CLI tool calls cannot be routed through KOTA's canUseTool gate.",
   },
   {
+    runOption: "scopePolicy",
+    option: "scopePolicy",
+    reason: "Gemini CLI tool calls cannot be routed through KOTA's scope-policy evaluator.",
+  },
+  {
     runOption: "askOwner",
     option: "askOwner",
     reason: "Gemini CLI cannot host KOTA's owner-question tool in this adapter.",
@@ -122,6 +127,12 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
     throw new Error(
       'The "gemini-cli" agent harness cannot route Gemini CLI tool calls through KOTA canUseTool. ' +
         "Drop canUseTool or run a KOTA-hosted tool-loop harness.",
+    );
+  }
+  if (options.scopePolicy !== undefined) {
+    throw new Error(
+      'The "gemini-cli" agent harness cannot route Gemini CLI tool calls through KOTA scope policy. ' +
+        "Drop scopePolicy or run the KOTA-hosted gemini harness.",
     );
   }
   if (options.askOwner !== undefined) {

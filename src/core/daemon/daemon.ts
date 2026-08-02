@@ -1,27 +1,24 @@
-import { randomBytes } from "node:crypto";
-import { join } from "node:path";
 import type { ChannelStatus } from "#core/channels/channel.js";
-import { initEventBus } from "#core/events/event-bus.js";
-import { EventJournal, installEventJournal } from "#core/events/event-journal.js";
 import type { DaemonConfig } from "./daemon-config.js";
+import { createDaemonRuntimeContext } from "./daemon-context-factory.js";
 import { buildDaemonDashboardSnapshot } from "./daemon-dashboard-snapshot.js";
-import {
-  recordEventEmitFailureDeadLetter,
-  scopeLineageForId,
-} from "./daemon-event-failures.js";
-import { buildDaemonInit, type DaemonRuntimeContext } from "./daemon-init.js";
-import { DaemonLogger } from "./daemon-logger.js";
+import type { DaemonRuntimeContext } from "./daemon-init.js";
 import { runDaemonShutdown } from "./daemon-shutdown.js";
 import { runDaemonStartup } from "./daemon-startup.js";
 import type { DaemonState, DaemonStopReason } from "./daemon-state.js";
-import { loadDaemonStateFromDisk, saveDaemonStateToDisk } from "./daemon-state-persistence.js";
-import { prepareDaemonStateRoot } from "./daemon-state-root.js";
+import { saveDaemonStateToDisk } from "./daemon-state-persistence.js";
 import {
   anyDaemonWorkflowRuntimeBusy,
   setDaemonWorkflowDispatchPaused,
 } from "./daemon-workflows.js";
-import { installEventIdempotency } from "./idempotency-events.js";
-import { ProjectRuntimeRegistry } from "./project-runtime.js";
+import type { ScopeAuthorityOperatorAction } from "./scope-authority-operator-token.js";
+import type {
+  ScopeAuthorityFailure,
+  ScopeAuthorityMutation,
+  ScopeAuthorityMutationResult,
+  ScopeAuthorityValidationResult,
+  ScopeAuthorityView,
+} from "./scope-authority-types.js";
 import type {
   DirectoryScopeRegistrationInput,
   ScopeDrainResult,
@@ -29,12 +26,7 @@ import type {
   ScopeRegistrationResult,
   ScopeRemovalResult,
 } from "./scope-lifecycle.js";
-import {
-  resolveConfiguredProjects,
-  type ScopeId,
-  ScopeRegistry,
-  type ScopeRegistryProjection,
-} from "./scope-registry.js";
+import type { ScopeId, ScopeRegistryProjection } from "./scope-registry.js";
 
 export type { DaemonConfig } from "./daemon-config.js";
 export type { DaemonControlAddress } from "./daemon-control.js";
@@ -55,88 +47,8 @@ export class Daemon {
   private restartHandoff: Promise<Error | null> | null = null;
 
   constructor(config: DaemonConfig) {
-    const logger = new DaemonLogger(config.logFormat);
-    const log = (message: string) => logger.line(message);
-    const configuredProjects = resolveConfiguredProjects({
-      projects: config.projects,
-      projectDir: config.projectDir,
-      fallbackProjectDir: process.cwd(),
-    });
-    const stateRoot = prepareDaemonStateRoot(
-      configuredProjects[0]!.projectDir,
-      config.stateDir,
-    );
-    const stateDir = stateRoot.path;
-
-    const projectRegistry = new ScopeRegistry({
-      stateDir,
-      projects: configuredProjects,
-    });
-    const defaultProject = projectRegistry.getDefault();
-    const projectDir = defaultProject.projectDir;
-
-    const loaded = loadDaemonStateFromDisk(stateDir);
-    const state: DaemonState = loaded ?? {
-      startedAt: new Date().toISOString(),
-      pid: process.pid,
-    };
-    state.pid = process.pid;
-    state.startedAt = new Date().toISOString();
-    const token = randomBytes(32).toString("hex");
-
-    const bus = initEventBus();
-    const eventJournal = new EventJournal(join(stateDir, "events"), {
-      scopeLineage: (scopeId) => scopeLineageForId(scopeId, projectRegistry),
-    });
-
-    const projectRuntimes = ProjectRuntimeRegistry.create({
-      registry: projectRegistry,
-      bus,
-      eventJournal,
-      config: config.config,
-      workflows: config.workflows,
-      model: config.model ?? config.config?.model,
-      idleIntervalMs: config.idleIntervalMs,
-      resolveAgentDef: config.resolveAgentDef,
-      resolveSkillsPrompt: config.resolveSkillsPrompt,
-      onLog: log,
-      quietHours: config.config?.notifications?.quietHours,
-    });
-    const uninstallEventIdempotency = installEventIdempotency(bus, {
-      getDefaultScopeId: () => projectRegistry.getDefaultScopeId(),
-      resolveStore: (scopeId) => projectRuntimes.get(scopeId).idempotencyStore,
-      log,
-    });
-    const uninstallEventDeadLetters = bus.addEmitFailureHandler((failure) => {
-      if (failure.stage === "fanout") return;
-      recordEventEmitFailureDeadLetter({
-        failure,
-        runtimes: projectRuntimes,
-        defaultProjectId: projectRegistry.getDefaultProjectId(),
-        log,
-      });
-    });
-    const uninstallEventJournalMiddleware = installEventJournal(bus, eventJournal);
-    const uninstallEventJournal = () => {
-      uninstallEventJournalMiddleware();
-      uninstallEventDeadLetters();
-      uninstallEventIdempotency();
-    };
-
-    this.ctx = buildDaemonInit({
-      config,
-      projectDir,
-      stateDir,
-      stateRoot,
-      bus,
-      logger,
-      log,
-      state,
-      token,
-      eventJournal,
-      uninstallEventJournal,
-      projectRegistry,
-      projectRuntimes,
+    this.ctx = createDaemonRuntimeContext(config, {
+      onScopeTrustRevoked: (scopeId) => this.beginScopeTrustRevocation(scopeId),
     });
   }
 
@@ -177,11 +89,14 @@ export class Daemon {
   async stop(
     gracePeriodMs = DEFAULT_SHUTDOWN_GRACE_PERIOD_MS,
     reason: DaemonStopReason = "programmatic",
+    abortWaitMs?: number,
   ): Promise<void> {
     if (this.ctx.stopping) return;
     this.ctx.stopping = true;
     await runDaemonShutdown(this.ctx, {
-      workflowsStopArgs: [gracePeriodMs],
+      workflowsStopArgs: abortWaitMs === undefined
+        ? [gracePeriodMs]
+        : [gracePeriodMs, abortWaitMs],
       saveState: true,
       logShutdown: true,
       stopReason: reason,
@@ -221,6 +136,25 @@ export class Daemon {
     return this.ctx.projectRegistry.toScopeProjection();
   }
 
+  inspectScopeAuthority(scopeId: ScopeId): ScopeAuthorityView | ScopeAuthorityFailure {
+    return this.ctx.scopeAuthority.inspect(scopeId);
+  }
+
+  validateScopeAuthority(
+    scopeId: ScopeId,
+    mutation: ScopeAuthorityMutation,
+  ): ScopeAuthorityValidationResult {
+    return this.ctx.scopeAuthority.validate(scopeId, mutation);
+  }
+
+  applyScopeAuthority(
+    scopeId: ScopeId,
+    mutation: ScopeAuthorityMutation,
+    operatorAction?: ScopeAuthorityOperatorAction,
+  ): Promise<ScopeAuthorityMutationResult> {
+    return this.ctx.scopeAuthority.apply(scopeId, mutation, operatorAction);
+  }
+
   getHostedScopeCount(): number {
     return this.ctx.scopeRuntimeHost.hostedCount();
   }
@@ -251,6 +185,27 @@ export class Daemon {
     this.maybeRestart();
   }
 
+  private beginScopeTrustRevocation(scopeId: string): void {
+    if (!this.ctx.running || this.ctx.stopping || this.restartHandoff !== null) return;
+    const reason = `Scope ${scopeId} was untrusted; reloading machine authority`;
+    this.ctx.restartRequested = true;
+    this.ctx.restartReason = reason;
+    setDaemonWorkflowDispatchPaused(this.ctx, true);
+    for (const runtime of this.ctx.projectRuntimes.list()) {
+      runtime.workflowRuntime.abortActiveRuns();
+    }
+    this.ctx.controlServer.quarantine(reason);
+    this.ctx.log(`${reason} — daemon quarantined and restart requested`);
+    this.restartShutdownScheduled = true;
+    this.restartHandoff = this.finishRestart(1, 1_000)
+      .then(() => null)
+      .catch((error) => {
+        const restartError = error instanceof Error ? error : new Error(String(error));
+        this.ctx.log(`Authority-revocation restart failed: ${restartError.message}`);
+        return restartError;
+      });
+  }
+
   private maybeRestart(): void {
     if (!this.ctx.restartRequested || this.ctx.stopping) return;
     if (anyDaemonWorkflowRuntimeBusy(this.ctx)) return;
@@ -276,8 +231,11 @@ export class Daemon {
     });
   }
 
-  private async finishRestart(): Promise<void> {
-    await this.stop(DEFAULT_SHUTDOWN_GRACE_PERIOD_MS, "restart");
+  private async finishRestart(
+    gracePeriodMs = DEFAULT_SHUTDOWN_GRACE_PERIOD_MS,
+    abortWaitMs?: number,
+  ): Promise<void> {
+    await this.stop(gracePeriodMs, "restart", abortWaitMs);
     const restartExit = this.ctx.config.restartExit ?? ((code: number) => {
       process.exit(code);
     });

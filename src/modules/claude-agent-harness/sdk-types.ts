@@ -57,6 +57,7 @@ export type SDKQueryOptions = {
   thinking?: SDKThinkingConfig;
   spawnClaudeCodeProcess?: (options: SpawnOptions) => SpawnedProcess;
   canUseTool?: CanUseTool;
+  sandbox?: NonNullable<ClaudeAgentSdkOptions["sandbox"]>;
 };
 
 export type SDKQueryParams = {

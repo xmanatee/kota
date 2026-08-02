@@ -45,6 +45,7 @@ function shippedModule(
 
 describe("workflow contribution precedence", () => {
   let projectDir: string;
+  let globalConfigPath: string;
 
   beforeEach(() => {
     projectDir = join(
@@ -52,6 +53,8 @@ describe("workflow contribution precedence", () => {
       `kota-precedence-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
     mkdirSync(projectDir, { recursive: true });
+    globalConfigPath = join(projectDir, "machine-config.json");
+    writeFileSync(globalConfigPath, JSON.stringify({ trustedProjects: [projectDir] }));
   });
 
   afterEach(async () => {
@@ -95,9 +98,11 @@ export default {
 `,
       );
 
-      const loader = new ModuleLoader({});
+      const loader = new ModuleLoader({}, false, { globalConfigPath });
       loader.setCwd(projectDir);
-      const installed = await discoverModules(projectDir);
+      const installed = await discoverModules(projectDir, false, {
+        globalConfigPath,
+      });
       await loader.loadAll([], installed);
 
       const contributed = loader.getContributedWorkflows();
@@ -175,9 +180,11 @@ export default {
         ],
       };
 
-      const loader = new ModuleLoader({});
+      const loader = new ModuleLoader({}, false, { globalConfigPath });
       loader.setCwd(projectDir);
-      const installed = await discoverModules(projectDir);
+      const installed = await discoverModules(projectDir, false, {
+        globalConfigPath,
+      });
       await loader.loadAll(
         [shippedModule("colliding-shipped", shippedWorkflow)],
         installed,

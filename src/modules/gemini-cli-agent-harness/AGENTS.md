@@ -42,10 +42,12 @@ The adapter runs one non-interactive CLI process per KOTA harness call:
 1. Compose the KOTA system prompt, workflow rails, and task prompt into one
    `--prompt` payload.
 2. Spawn `gemini --prompt <payload> --output-format stream-json --model <model>`.
-3. Parse newline-delimited JSON events. Assistant message chunks stream to the
+3. Require Gemini CLI's native sandbox for every run, including autonomous
+   execution, so its tool loop cannot write outside the workspace boundary.
+4. Parse newline-delimited JSON events. Assistant message chunks stream to the
    optional `AgentHarnessWriter`; the final `result` event supplies response
    text and usage stats.
-4. Return the neutral `AgentHarnessResult`.
+5. Return the neutral `AgentHarnessResult`.
 
 `autonomyMode: "passive"` maps to Gemini CLI plan approval mode. Other modes
 use Gemini CLI's default approval behavior, which may fail loudly in headless
@@ -55,10 +57,10 @@ runs when the CLI needs an approval KOTA cannot provide.
 
 Gemini CLI owns its own tool runtime, MCP configuration, checkpointing, and
 approval loop. This adapter does not expose KOTA's tool registry, `canUseTool`,
-MCP servers, owner-question tool, or supervised approvals to the CLI. It
-declares `toolControl: "native"`. It still injects KOTA workflow rails into the
-prompt, but those rails are prompt-level instructions rather than KOTA-enforced
-tool guardrails.
+scope-policy evaluator, MCP servers, owner-question tool, or supervised
+approvals to the CLI. It declares `toolControl: "native"`. It still injects
+KOTA workflow rails into the prompt, but those rails are prompt-level
+instructions rather than KOTA-enforced tool guardrails.
 
 Do not treat this adapter as an autonomous builder-equivalent until a guarded
 tool-control path exists. It is safe as a native CLI runtime boundary and for

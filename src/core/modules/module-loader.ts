@@ -21,13 +21,17 @@ import {
   runModuleLoadPhases,
 } from "./module-loader-load-phases.js";
 import { createLoaderState, type LoaderState } from "./module-loader-state.js";
-import { collectModuleSummaries, formatSkillsPrompt } from "./module-loader-summaries.js";
+import {
+  collectModuleSummaries,
+  findModuleAgent,
+  formatSkillsPrompt,
+  probeModuleHealthChecks,
+} from "./module-loader-summaries.js";
 import { collectRegisteredUiSurfaceSources } from "./module-loader-ui-sources.js";
 import type { ModuleStorage } from "./module-storage.js";
 import type {
   ControlRouteRegistration,
   CreateSessionOptions,
-  HealthCheckResult,
   KotaModule,
   ModuleRuntimeContext,
   ModuleSession,
@@ -49,6 +53,10 @@ export type ModuleLoaderMode = "commands" | "runtime";
 export type ModuleLoaderOptions = {
   /** Lifecycle mode this loader operates in. Defaults to `"runtime"`. */
   mode?: ModuleLoaderMode;
+  /** Alternate persisted machine-authority file for embedders. */
+  globalConfigPath?: string;
+  /** Trusted source directory for installed-module re-imports. */
+  installedModuleSourceDir?: string;
 };
 
 type RuntimeOnlyGetter = "getRoutes" | "getContributedControlRoutes" | "probeHealthChecks";
@@ -58,6 +66,8 @@ export class ModuleLoader {
   private readonly verbose: boolean;
   private readonly config: KotaConfig;
   private readonly mode: ModuleLoaderMode;
+  private readonly globalConfigPath?: string;
+  private readonly installedModuleSourceDir?: string;
   private cwd: string;
   private bus: EventBus | null = null;
   private sessionFactory: ((opts: CreateSessionOptions) => ModuleSession) | null = null;
@@ -68,6 +78,8 @@ export class ModuleLoader {
     this.verbose = verbose;
     this.cwd = process.cwd();
     this.mode = options?.mode ?? "runtime";
+    this.globalConfigPath = options?.globalConfigPath;
+    this.installedModuleSourceDir = options?.installedModuleSourceDir;
   }
 
   getMode(): ModuleLoaderMode { return this.mode; }
@@ -99,7 +111,7 @@ export class ModuleLoader {
   private createContext(moduleName?: string): ModuleRuntimeContext {
     return createLoaderModuleContext(
       {
-        cwd: this.cwd,
+        cwd: this.installedModuleSourceDir ?? this.cwd,
         verbose: this.verbose,
         config: this.config,
         moduleStorages: this.state.moduleStorages,
@@ -155,7 +167,11 @@ export class ModuleLoader {
     return await reloadModule(
       moduleName,
       this.state,
-      { cwd: this.cwd, verbose: this.verbose },
+      {
+        cwd: this.cwd,
+        verbose: this.verbose,
+        globalConfigPath: this.globalConfigPath,
+      },
       (mod) => this.load(mod),
       (name) => this.unload(name),
     );
@@ -197,9 +213,7 @@ export class ModuleLoader {
   }
 
   getContributedSetupRequirements(): ModuleSetupRequirementContribution[] {
-    return this.collectFromModules((name) =>
-      this.state.moduleSetupRequirementDefs.get(name)
-    );
+    return this.collectFromModules((name) => this.state.moduleSetupRequirementDefs.get(name));
   }
 
   getContributedWorkflows(): RegisteredWorkflowDefinitionInput[] { return this.state.contributedWorkflows; }
@@ -256,11 +270,7 @@ export class ModuleLoader {
   }
 
   getAgentDef(name: string): AgentDef | undefined {
-    for (const agents of this.state.moduleAgentDefs.values()) {
-      const found = agents.find((a) => a.name === name);
-      if (found) return found;
-    }
-    return undefined;
+    return findModuleAgent(this.state, name);
   }
 
   getRegisteredConfigKeys(): ReadonlySet<string> {
@@ -283,18 +293,8 @@ export class ModuleLoader {
 
   getModuleSummaries(): ModuleSummary[] { return collectModuleSummaries(this.state); }
 
-  async probeHealthChecks(): Promise<Record<string, HealthCheckResult>> {
+  async probeHealthChecks() {
     this.assertRuntime("probeHealthChecks");
-    const results: Record<string, HealthCheckResult> = {};
-    for (const mod of this.state.modules) {
-      if (!mod.healthCheck) continue;
-      try {
-        results[mod.name] = await mod.healthCheck();
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        results[mod.name] = { status: "unhealthy", message: `healthCheck threw: ${msg}` };
-      }
-    }
-    return results;
+    return probeModuleHealthChecks(this.state);
   }
 }

@@ -1,5 +1,7 @@
 import type { AgentTokenBudgetConfig } from "#core/agent-harness/token-budget.js";
 import type { QuietHoursConfig } from "#core/daemon/notification-gate.js";
+import type { ScopeAuthorityMetadata } from "#core/daemon/scope-authority-types.js";
+import type { ScopePolicyFragment } from "#core/daemon/scope-policy.js";
 import type { ModelTiers } from "#core/model/model-router.js";
 import type { ModelOutputTokenLimits } from "#core/model/output-token-limits.js";
 import type { ForeignModuleConfig } from "#core/modules/foreign-module.js";
@@ -19,12 +21,18 @@ export type CoreKotaConfig = {
   skipConfirmations?: boolean;
 
   /**
-   * Operator-owned project trust list. Only global config and explicit
-   * overrides can grant trust to target project `.kota/config.json`; an
-   * untrusted project cannot make itself trusted by setting this locally.
+   * Operator-owned project trust list. Only persisted global config can grant
+   * trust to target project `.kota/config.json`; project config and caller
+   * overrides cannot provide machine authority.
    * Entries must be absolute paths, with `~/` accepted for the operator home.
    */
   trustedProjects?: string[];
+
+  /** Machine-owned scope policies, mutated through the daemon authority service. */
+  scopePolicies?: ScopePolicyFragment[];
+
+  /** Revision and operator audit trail for trust/policy transactions. */
+  scopeAuthority?: ScopeAuthorityMetadata;
 
   /** Tool groups to auto-enable at session start (e.g. ["web", "code"]). */
   autoEnable?: string[];

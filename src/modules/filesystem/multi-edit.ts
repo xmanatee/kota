@@ -7,6 +7,10 @@ import type { ToolResult } from "#core/tools/tool-result.js";
 import { printEditDiff } from "./diff.js";
 import { lintFile } from "./lint.js";
 import { resolveToolPath } from "./path-resolver.js";
+import {
+  isMachineAuthorityMutationPath,
+  machineAuthorityMutationError,
+} from "./protected-paths.js";
 
 export const multiEditTool: KotaTool = {
   name: "multi_edit",
@@ -55,6 +59,11 @@ export async function runMultiEdit(
     ...edit,
     path: edit.path ? resolveToolPath(edit.path, context) : edit.path,
   }));
+  if (resolvedEdits.some((edit) =>
+    edit.path && isMachineAuthorityMutationPath(edit.path, context)
+  )) {
+    return { content: machineAuthorityMutationError(), is_error: true };
+  }
 
   // Phase 1: Validate all inputs upfront
   for (let i = 0; i < resolvedEdits.length; i++) {

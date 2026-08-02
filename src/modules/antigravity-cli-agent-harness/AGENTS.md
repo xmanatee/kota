@@ -42,11 +42,14 @@ structured-output mode equivalent to `codex exec --json` or
 does not expose token deltas, native tool-call events, session ids, or
 `KotaAgentMessage` frames. This keeps the preset useful for text-only native
 AGY runs without pretending KOTA can supervise AGY's internal tool loop.
+Every invocation requires AGY's native sandbox; autonomous mode changes the
+approval posture, never the filesystem isolation boundary.
 
 ## Capability Boundary
 
 Antigravity CLI owns plugins, skills, hooks, subagents, MCP configuration,
 browser use, sandboxing, and approvals. This adapter does not expose KOTA's
 tool registry, `canUseTool`, owner-question routing, supervised approvals, or
-MCP server injection to AGY. It declares `toolControl: "native"` and rejects
+scope-policy evaluation or MCP server injection to AGY. It declares
+`toolControl: "native"` and rejects
 unsupported KOTA-only options before launching `agy`.

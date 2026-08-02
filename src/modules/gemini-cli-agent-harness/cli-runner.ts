@@ -35,6 +35,7 @@ export async function collectTextFromGeminiCli(args: {
     args.model,
     "--approval-mode",
     args.approvalMode,
+    "--sandbox",
   ];
 
   const child = spawn("gemini", cliArgs, {

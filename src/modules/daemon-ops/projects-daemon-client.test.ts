@@ -23,48 +23,11 @@
 import { describe, expect, it } from "vitest";
 import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
 import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
-import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import daemonOpsModule from "./index.js";
-
-type RecordedCall = {
-  path: string;
-  init: RequestInit | undefined;
-};
-
-type FetchResponder = (
-  path: string,
-  init: RequestInit | undefined,
-) => Response | Promise<Response>;
-
-function makeRecordingTransport(responder: FetchResponder): {
-  transport: DaemonTransport;
-  calls: RecordedCall[];
-} {
-  const calls: RecordedCall[] = [];
-  const transport: DaemonTransport = {
-    baseUrl: "http://127.0.0.1:0",
-    authHeaders: () => ({ Authorization: "Bearer test-token" }),
-    request: async () => null,
-    requestStrict: async () => {
-      throw new Error("not used");
-    },
-    fetchRaw: async (path, init) => {
-      calls.push({ path, init });
-      return responder(path, init);
-    },
-    events: async function* () {
-      // empty generator
-    },
-  };
-  return { transport, calls };
-}
-
-function jsonResponse(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
-}
+import {
+  jsonResponse,
+  makeRecordingTransport,
+} from "./projects-daemon-client-test-support.js";
 
 describe("daemon-ops module daemonClient(link) — projects namespace", () => {
   it("contributes a projects namespace handler", () => {

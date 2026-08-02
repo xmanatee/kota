@@ -115,7 +115,7 @@ const schema = {
   $id: "https://kota.dev/schema/kota-config.schema.json",
   title: "KotaConfig",
   description:
-    "KOTA configuration file (.kota/config.json). Project-level config overrides global (~/.kota/config.json); CLI flags override both.",
+    "KOTA configuration file. Project config overrides global config except trustedProjects, scopePolicies, and scopeAuthority, which are machine-owned global authority; CLI flags override ordinary config.",
   ...inlined,
 };
 

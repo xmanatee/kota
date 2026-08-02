@@ -8,6 +8,7 @@ import { line, span } from "#modules/rendering/primitives.js";
 import { printToStderr, writeStderr } from "#modules/rendering/transport.js";
 import { enrichWithSourceContext } from "./error-context.js";
 import { buildExecutionEnv } from "./execution-env.js";
+import { buildMachineAuthoritySandboxLaunch } from "./machine-authority-sandbox.js";
 import { smartErrorTruncate } from "./shell-diagnostics.js";
 
 export const shellTool: KotaTool = {
@@ -87,11 +88,19 @@ export async function runShell(
   if (!command) {
     return { content: "Error: command is required", is_error: true };
   }
-
   const inputCwd = typeof input.cwd === "string" ? input.cwd : undefined;
   const { cwd, explicit: explicitCwd } = resolveShellCwd(inputCwd, context);
   if (explicitCwd && !existsSync(cwd)) {
     return { content: `Error: working directory not found: ${cwd}`, is_error: true };
+  }
+  const launch = context?.authorityConfigPath === undefined
+    ? { ok: true as const, command: "sh", args: ["-c", command] }
+    : buildMachineAuthoritySandboxLaunch("sh", ["-c", command], {
+        cwd,
+        authorityConfigPath: context.authorityConfigPath,
+      });
+  if (!launch.ok) {
+    return { content: `Error: ${launch.error}`, is_error: true };
   }
 
   return new Promise((resolve) => {
@@ -103,7 +112,7 @@ export async function runShell(
       printToStderr(line(span(`$ ${command}`, "muted")));
     }
 
-    const proc = spawn("sh", ["-c", command], {
+    const proc = spawn(launch.command, launch.args, {
       cwd,
       env: buildExecutionEnv(context),
       stdio: ["pipe", "pipe", "pipe"],

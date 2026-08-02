@@ -27,6 +27,17 @@ directly; nothing in core imports `@anthropic-ai/claude-agent-sdk`.
   SDK call. The harness-neutral commit + daemon guards live in
   `src/core/agent-harness/guards.ts`; callers compose those and hand the
   result to `runAgentHarness` through the neutral `canUseTool` field.
+- Scope policy is enforced at the harness boundary through the SDK's
+  `canUseTool` callback. `scope-policy-guard.ts` binds Claude built-in tool
+  names to KOTA effects and owning modules, denies unknown tools, applies
+  write/module/external-effect decisions, and queues confirmation outcomes.
+  Keep that binding aligned when Claude adds a built-in tool; an unbound tool
+  must remain fail-closed. Bash uses the same compound local/network
+  invocation classifier as KOTA execution tools.
+- Claude command execution also runs in the SDK's fail-closed OS sandbox. The
+  workspace stays writable while the machine-authority directory is denied;
+  `canUseTool` text classification is defense in depth, not the authority
+  boundary.
 - Owner-questions surface is adapter-owned: when `askOwner` is present, the
   adapter merges `createOwnerQuestionMcpServers(source)` into the SDK's
   `mcpServers` map. Callers never inject that MCP server themselves.

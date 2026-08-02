@@ -26,6 +26,8 @@ function buildLocalSetupClient(ctx: ModuleContext): SetupClient {
   const serviceFor = (scope?: ScopeSelector): ModuleSetupService => {
     const selectedId = selectedScopeSelectorId(scope);
     let projectDir = ctx.cwd;
+    let authorityConfigPath: string | undefined;
+    let getVisibility: (() => "hidden" | "metadata" | "full") | undefined;
     if (selectedId !== undefined) {
       const projectScope = ctx.getProvider(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE);
       if (!projectScope) {
@@ -34,16 +36,21 @@ function buildLocalSetupClient(ctx: ModuleContext): SetupClient {
       const resolved = projectScope.resolveProjectRuntime(selectedId);
       if (!resolved.ok) throw new Error(`Unknown scope: ${selectedId}`);
       projectDir = resolved.runtime.project.projectDir;
+      authorityConfigPath = resolved.runtime.authorityConfigPath;
+      getVisibility = () => resolved.runtime.resolveScopePolicy?.().setup.visibility ?? "full";
     }
 
-    let service = services.get(projectDir);
+    const serviceKey = `${selectedId ?? "local"}\0${projectDir}`;
+    let service = services.get(serviceKey);
     if (!service) {
       service = new ModuleSetupService({
         projectDir,
+        ...(authorityConfigPath !== undefined ? { authorityConfigPath } : {}),
         getRequirements: () => moduleSetupRequirementsFromSummaries(ctx.getModuleSummaries()),
         probeCapabilities: async () => [],
+        getVisibility,
       });
-      services.set(projectDir, service);
+      services.set(serviceKey, service);
     }
     return service;
   };

@@ -24,8 +24,10 @@ describe("workflow token budget config", () => {
     if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  function trustedProject(overrides: Partial<KotaConfig> = {}): Partial<KotaConfig> {
-    return { ...overrides, trustedProjects: [tmpDir] };
+  function loadTrustedConfig(overrides: Partial<KotaConfig> = {}): KotaConfig {
+    const globalConfigPath = join(tmpDir, "machine-config.json");
+    writeFileSync(globalConfigPath, JSON.stringify({ trustedProjects: [tmpDir] }));
+    return loadConfig(tmpDir, overrides, { globalConfigPath });
   }
 
   it("loads a workflow agent token budget from trusted config and drops invalid values", () => {
@@ -40,14 +42,11 @@ describe("workflow token budget config", () => {
       }),
     );
 
-    const config = loadConfig(
-      tmpDir,
-      trustedProject({
-        workflow: {
-          agentTokenBudget: { maxTotalTokens: 0 },
-        },
-      }),
-    );
+    const config = loadTrustedConfig({
+      workflow: {
+        agentTokenBudget: { maxTotalTokens: 0 },
+      },
+    });
 
     expect(config.workflow?.agentTokenBudget).toEqual({ maxTotalTokens: 50_000 });
   });

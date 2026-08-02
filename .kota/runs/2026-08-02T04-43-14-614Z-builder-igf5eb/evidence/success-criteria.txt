@@ -1,0 +1,5 @@
+1. A daemon-hosted typed service and operator CLI inspect, validate, and atomically mutate trust and scope policy for a registered directory scope.
+2. Config loading, daemon policy routes, workflow and interactive tool enforcement, setup visibility, and module loading consume the same machine-owned authority decisions.
+3. Restart preserves trust, policy, revision, audit, and provenance, including typed parent-policy widening conflicts.
+4. Concurrency and injected persistence failures cannot publish half-applied trust or policy state.
+5. Malicious project content and agent execution cannot mutate machine authority, forge operator confirmation, read its capability, or bypass policy enforcement; acceptance fixtures and structural evidence prove the boundary.

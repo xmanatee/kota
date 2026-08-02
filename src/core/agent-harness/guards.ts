@@ -35,6 +35,12 @@ const COMMIT_DENIAL_MESSAGE =
 const DAEMON_DENIAL_MESSAGE =
   "Workflow agents must not control, stop, restart, or signal the daemon process that hosts them.";
 
+const SCOPE_AUTHORITY_DENIAL_MESSAGE =
+  "Workflow agents cannot mutate machine-owned scope trust or policy. Only an interactive operator client may apply authority changes.";
+
+const SCOPE_AUTHORITY_TOKEN_DENIAL_MESSAGE =
+  "Workflow agents cannot read or manipulate the machine-owned scope authority operator token.";
+
 const LOCAL_WORK_TEARDOWN_DENIAL_MESSAGE =
   "Workflow agents cannot discard local work from inside an autonomous run. Inspect, edit, or stage files instead of running destructive Git teardown commands.";
 
@@ -90,6 +96,52 @@ function hasKotaCommand(command: string, area: "daemon" | "workflow", action?: s
     `(?:^|[\\s;&|()])node\\s+\\S*(?:bin/kota\\.mjs|dist/cli\\.js)\\s+${area}${escapedAction}(?=$|[\\s;&|()])`,
   );
   return direct.test(command) || pnpm.test(command) || node.test(command);
+}
+
+function hasScopeAuthorityMutationCommand(command: string): boolean {
+  const commandPatterns = [
+    /(?:^|[\s;&|()])(?:\.\/)?kota\s+project\s+authority\s+set(?=$|[\s;&|()])/,
+    /(?:^|[\s;&|()])pnpm\s+(?:exec\s+)?kota\s+project\s+authority\s+set(?=$|[\s;&|()])/,
+    /(?:^|[\s;&|()])node\s+\S*(?:bin\/kota\.mjs|dist\/cli\.js)\s+project\s+authority\s+set(?=$|[\s;&|()])/,
+  ];
+  if (commandPatterns.some((pattern) => pattern.test(command))) return true;
+
+  const authorityRoute = /\/scopes\/[^\s'"?]+\/authority(?:[\s?'";]|$)/;
+  if (!authorityRoute.test(command)) return false;
+  return /(?:^|[\s;&|()])(?:curl|http|httpie|wget)\b/.test(command) ||
+    /\b(?:fetch|request)\s*\(/.test(command);
+}
+
+function inputText(input: AgentToolInput): string {
+  return JSON.stringify(input).toLowerCase();
+}
+
+export function createScopeAuthorityMutationGuard(): AgentCanUseTool {
+  return async (_toolName, input): Promise<AgentPermissionResult> => {
+    const serializedInput = inputText(input);
+    if (serializedInput.includes("scope-authority-token.json")) {
+      return {
+        behavior: "deny",
+        message: SCOPE_AUTHORITY_TOKEN_DENIAL_MESSAGE,
+        decisionAttribution: "operator-deny",
+      };
+    }
+    const command = typeof input.command === "string"
+      ? normalizeCommand(input.command)
+      : serializedInput;
+    const directAuthorityMutation =
+      serializedInput.includes("project authority set") ||
+      serializedInput.includes("/authority") &&
+        /(?:put|patch|post)/.test(serializedInput);
+    if (!hasScopeAuthorityMutationCommand(command) && !directAuthorityMutation) {
+      return { behavior: "allow", updatedInput: input };
+    }
+    return {
+      behavior: "deny",
+      message: SCOPE_AUTHORITY_DENIAL_MESSAGE,
+      decisionAttribution: "operator-deny",
+    };
+  };
 }
 
 export function isDaemonHostControlCommand(command: string, daemonPid = process.pid): boolean {
@@ -191,6 +243,7 @@ export function createPackageBootstrapGuard(): AgentCanUseTool {
  */
 export function createWorkflowAgentGuards(): AgentCanUseTool {
   return composeCanUseTools(
+    createScopeAuthorityMutationGuard(),
     createDaemonHostControlGuard(),
     createWorkflowShellTeardownGuard(),
     createAgentCommitGuard(),

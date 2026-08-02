@@ -58,6 +58,12 @@ const ANTIGRAVITY_CLI_UNSUPPORTED_OPTIONS = [
       "Antigravity CLI tool calls cannot be routed through KOTA's canUseTool gate.",
   },
   {
+    runOption: "scopePolicy",
+    option: "scopePolicy",
+    reason:
+      "Antigravity CLI tool calls cannot be routed through KOTA's scope-policy evaluator.",
+  },
+  {
     runOption: "askOwner",
     option: "askOwner",
     reason:
@@ -161,6 +167,12 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
     throw new Error(
       'The "antigravity-cli" agent harness cannot route AGY tool calls through KOTA canUseTool. ' +
         "Use a KOTA-hosted tool-loop harness when KOTA must enforce tool policy.",
+    );
+  }
+  if (options.scopePolicy !== undefined) {
+    throw new Error(
+      'The "antigravity-cli" agent harness cannot route AGY tool calls through KOTA scope policy. ' +
+        "Use a KOTA-hosted tool-loop harness when KOTA must enforce scope policy.",
     );
   }
   if (options.askOwner !== undefined) {

@@ -1,13 +1,14 @@
 import { isAbsolute, relative, resolve } from "node:path";
+import { resolvePathThroughExistingAncestor } from "#core/util/real-path.js";
 
 export function resolveScopePolicyPath(path: string, directoryRoot: string | undefined): string | null {
   if (isAbsolute(path)) {
-    return resolve(path);
+    return resolvePathThroughExistingAncestor(resolve(path));
   }
   if (directoryRoot === undefined) {
     return null;
   }
-  return resolve(directoryRoot, path);
+  return resolvePathThroughExistingAncestor(resolve(directoryRoot, path));
 }
 
 export function resolveScopePolicyPaths(
@@ -20,8 +21,9 @@ export function resolveScopePolicyPaths(
 }
 
 export function isScopePolicyPathWithin(root: string, target: string): boolean {
-  const normalizedRoot = resolve(root);
-  const normalizedTarget = resolve(target);
+  const normalizedRoot = resolvePathThroughExistingAncestor(resolve(root));
+  const normalizedTarget = resolvePathThroughExistingAncestor(resolve(target));
+  if (normalizedRoot === null || normalizedTarget === null) return false;
   const child = relative(normalizedRoot, normalizedTarget);
   return child === "" || (!child.startsWith("..") && !isAbsolute(child));
 }

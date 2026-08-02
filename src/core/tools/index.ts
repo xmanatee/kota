@@ -25,7 +25,6 @@ import { assertNotMcpManagedToolName } from "./tool-name-policy.js";
 import type { ToolResult, ToolResultBlock } from "./tool-result.js";
 
 export type { ToolResult, ToolResultBlock };
-
 export type ToolRunnerContext = {
   approvalQueue?: ApprovalQueue;
   sessionId?: string;
@@ -33,6 +32,8 @@ export type ToolRunnerContext = {
   signal?: AbortSignal;
   cwd?: string;
   env?: Record<string, string>;
+  /** Machine-owned config document that arbitrary execution must not mutate. */
+  authorityConfigPath?: string;
   scopeId?: string;
   projectId?: string;
   tokenBudget?: AgentTokenBudgetLedger;

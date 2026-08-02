@@ -8,6 +8,10 @@ import type { ToolResult } from "#core/tools/tool-result.js";
 import { printWriteSummary } from "./diff.js";
 import { lintFile } from "./lint.js";
 import { resolveToolPath } from "./path-resolver.js";
+import {
+  isMachineAuthorityMutationPath,
+  machineAuthorityMutationError,
+} from "./protected-paths.js";
 
 export const fileWriteTool: KotaTool = {
   name: "file_write",
@@ -46,6 +50,9 @@ export async function runFileWrite(
   }
 
   const path = resolveToolPath(rawPath, context);
+  if (isMachineAuthorityMutationPath(path, context)) {
+    return { content: machineAuthorityMutationError(), is_error: true };
+  }
   const existed = existsSync(path);
   if (existed) {
     try {

@@ -1,0 +1,20 @@
+Recovery validation completed on 2026-08-02.
+
+- Production TypeScript compilation (`tsc -p tsconfig.json`): passed.
+- Daemon-control, scope-authority integration, built-daemon, and root-layout slice: 5 files collected; 3 passed and 2 sandbox-gated live-loopback files skipped; 111 tests passed and 3 skipped.
+- Authority, operator-action, machine-sandbox, filesystem, config, runtime-loader, workflow, tool-runner, and harness policy slice: 13 files and 38 tests passed.
+- Focused Biome check for the two final host-index omissions (`src/built-cli-daemon-authority.integration.test.ts` and `src/core/daemon/daemon-control-route-invoker.ts`): passed with no diagnostics.
+- `git diff --cached --check`: passed against the exact workspace-local staged set; the sandboxed linked-worktree host index still requires replay.
+- Builder evidence projection and boundary regression suite: 2 files and 7 tests passed.
+
+This recovery did not replace or reset preserved work. It confirmed the prior
+security repairs and staged the two files the earlier sandbox-local index had
+contained but the host index omitted. The earlier repair-17 run remains the
+live shipped-CLI supervisor restart proof; loopback was unavailable to the two
+fresh built-daemon fixtures in this recovery sandbox.
+
+Post-check repair attempt 5 reconciled the real linked-worktree index with
+`git add -A`, removing all eight obsolete prior-run projection paths and
+staging all nine screened files from the current builder evidence source. The
+builder evidence-boundary `commit-stageable` check passed against that real
+staged state, so no host-index replay remains outstanding.

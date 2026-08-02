@@ -9,7 +9,6 @@ import type {
 } from "#core/modules/module-types.js";
 import type { LogFormat } from "#core/util/log-format.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
-import type { ScopePolicyFragment } from "./scope-policy.js";
 import type { ConfiguredProjectInput } from "./scope-registry.js";
 
 export type DaemonConfig = {
@@ -29,8 +28,8 @@ export type DaemonConfig = {
    * project for compatibility with older single-project clients.
    */
   projects?: readonly ConfiguredProjectInput[];
-  /** Scope policy fragments resolved against the daemon's scope hierarchy. */
-  scopePolicies?: readonly ScopePolicyFragment[];
+  /** Override the operator-owned authority file path for tests or embedders. */
+  authorityConfigPath?: string;
   model?: string;
   verbose?: boolean;
   config?: KotaConfig;

@@ -37,4 +37,28 @@ describe("protected project paths", () => {
     expect(isProtectedProjectPath(join(projectDir, "env-link"), projectDir)).toBe(true);
     expect(isProtectedProjectPath(join(projectDir, "runtime-link", "secrets.json"), projectDir)).toBe(true);
   });
+
+  it("denies the machine-owned scope authority token outside the project", () => {
+    const projectDir = makeProjectTempDir();
+    expect(
+      isProtectedProjectPath(
+        "/Users/operator/.kota/scope-authority-token.json",
+        projectDir,
+      ),
+    ).toBe(true);
+  });
+
+  it("denies an innocuously named symlink to the external operator token", () => {
+    const projectDir = makeProjectTempDir();
+    const operatorDir = makeProjectTempDir();
+    const tokenPath = join(operatorDir, "scope-authority-token.json");
+    writeFileSync(tokenPath, JSON.stringify({ schema: 1, token: "a".repeat(64) }));
+    try {
+      symlinkSync(tokenPath, join(projectDir, "notes.json"));
+    } catch {
+      return;
+    }
+
+    expect(isProtectedProjectPath("notes.json", projectDir)).toBe(true);
+  });
 });

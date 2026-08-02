@@ -1,7 +1,9 @@
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { getGlobalConfigPath } from "#core/config/config.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
+import type { ResolvedScopePolicy } from "#core/daemon/scope-policy.js";
 import {
   type EventBus,
   type EventSchemaReference,
@@ -9,7 +11,10 @@ import {
 } from "#core/events/event-bus.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { assess } from "#core/tools/guardrails.js";
 import { executeTool } from "#core/tools/index.js";
+import { validateToolCallInput } from "#core/tools/tool-input-validation.js";
+import { enforceToolScopePolicy } from "#core/tools/tool-runner-scope-policy.js";
 import type { WorkflowRunStore } from "../run-store.js";
 import type {
   WorkflowAgentHarnessRunner,
@@ -28,8 +33,10 @@ function buildToolContext(
   workspaceDir: string,
   runtimeResources: WorkflowRuntimeResources | undefined,
   approvalQueue: ApprovalQueue | undefined,
+  authorityConfigPath: string,
 ): {
   approvalQueue?: ApprovalQueue;
+  authorityConfigPath: string;
   cwd: string;
   env?: Record<string, string>;
   stepId: string;
@@ -48,6 +55,7 @@ function buildToolContext(
   const projectId = pbus.getProjectId();
   return {
     ...(approvalQueue !== undefined ? { approvalQueue } : {}),
+    authorityConfigPath,
     cwd: workspaceDir,
     ...(runtimeResources !== undefined
       ? { env: runtimeResources.env }
@@ -64,6 +72,42 @@ function buildToolContext(
       projectId,
     },
   };
+}
+
+async function enforceWorkflowToolScopePolicy(args: {
+  name: string;
+  input: Parameters<WorkflowRunToolRunner>[1];
+  context: ReturnType<typeof buildToolContext>;
+  policy: ResolvedScopePolicy;
+  approvalQueue: ApprovalQueue;
+}): Promise<void> {
+  const validation = validateToolCallInput(args.name, args.input);
+  if (!validation.ok) throw new Error(validation.error);
+  const block = {
+    type: "tool_use" as const,
+    id: `${args.context.workflow.spanId}:${args.name}`,
+    name: args.name,
+    input: validation.input,
+  };
+  const assessment = assess(args.name, validation.input);
+  const denied = await enforceToolScopePolicy({
+    block,
+    options: {
+      resultLimit: Number.MAX_SAFE_INTEGER,
+      verbose: false,
+      autonomyMode: "autonomous",
+      approvalQueue: args.approvalQueue,
+      scopePolicy: args.policy,
+      cwd: args.context.cwd,
+      scopeId: args.context.scopeId,
+      projectId: args.context.projectId,
+      workflowContext: args.context.workflow,
+    },
+    risk: assessment.risk,
+    askClientApproval: async () => ({ outcome: "unavailable" }),
+    emitAssessment: () => {},
+  });
+  if (denied) throw new Error(denied.content);
 }
 
 /**
@@ -102,6 +146,7 @@ export function createStepContext(
   deps: {
     projectDir: string;
     workspaceDir?: string;
+    authorityConfigPath?: string;
     runtimeResources?: WorkflowRuntimeResources;
     bus: EventBus;
     pbus: ProjectScopedEventBus;
@@ -110,6 +155,7 @@ export function createStepContext(
     approvalQueue?: ApprovalQueue;
     eventJournal?: EventJournal;
     runTool?: WorkflowRunToolRunner;
+    resolveScopePolicy?: () => ResolvedScopePolicy;
     runAgentHarness: WorkflowAgentHarnessRunner;
     currentStepId?: string;
     triggerWorkflow?: (
@@ -159,7 +205,21 @@ export function createStepContext(
         workspaceDir,
         deps.runtimeResources,
         deps.approvalQueue,
+        deps.authorityConfigPath ?? getGlobalConfigPath(),
       );
+      const scopePolicy = deps.resolveScopePolicy?.();
+      if (scopePolicy !== undefined) {
+        if (deps.approvalQueue === undefined) {
+          throw new Error("Scope policy enforcement requires a workflow approval queue");
+        }
+        await enforceWorkflowToolScopePolicy({
+          name,
+          input,
+          context,
+          policy: scopePolicy,
+          approvalQueue: deps.approvalQueue,
+        });
+      }
       if (deps.runTool) {
         return deps.runTool(name, input, context);
       }

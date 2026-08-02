@@ -23,7 +23,9 @@ describe("tracing config slice", () => {
   });
 
   function loadTrustedConfig() {
-    return loadConfig(tmpDir, { trustedProjects: [tmpDir] });
+    const globalConfigPath = join(tmpDir, "machine-config.json");
+    writeFileSync(globalConfigPath, JSON.stringify({ trustedProjects: [tmpDir] }));
+    return loadConfig(tmpDir, undefined, { globalConfigPath });
   }
 
   it("requires endpoint to enable tracing", () => {

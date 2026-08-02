@@ -228,7 +228,7 @@ describe("createSubprocessExecutor host execution", () => {
     expect(envCapture.replayRoot).toBe("/fixtures/replay");
   });
 
-  it("remaps HOME and KOTA_PROJECT_DIR inside the child process", async () => {
+  it("isolates machine authority from KOTA_PROJECT_DIR inside the child process", async () => {
     const fakeKota = join(dirs.binariesDir, "kota-home-capture.mjs");
     writeFakeKotaScript(
       fakeKota,
@@ -258,7 +258,9 @@ describe("createSubprocessExecutor host execution", () => {
     const envCapture = JSON.parse(
       readFileSync(join(dirs.workingDir, "env.json"), "utf8"),
     ) as Record<string, string>;
-    expect(envCapture.home).toBe(dirs.workingDir);
+    expect(envCapture.home).toBe(
+      join(dirs.workingDir, "node_modules", ".kota-eval-runtime", "home"),
+    );
     expect(envCapture.projectDir).toBe(dirs.workingDir);
   });
 

@@ -31,6 +31,7 @@ export {
   composeCanUseTools,
   createAgentCommitGuard,
   createDaemonHostControlGuard,
+  createScopeAuthorityMutationGuard,
   createWorkflowAgentGuards,
   isDaemonHostControlCommand,
   isGitCommitCommand,

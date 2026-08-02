@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -108,7 +108,14 @@ describe("createSubprocessExecutor host preflight and env filtering", () => {
       const envCapture = JSON.parse(
         readFileSync(join(dirs.workingDir, "host-env.json"), "utf8"),
       ) as Record<string, string>;
-      expect(envCapture.home).toBe(dirs.workingDir);
+      const expectedHome = join(
+        dirs.workingDir,
+        "node_modules",
+        ".kota-eval-runtime",
+        "home",
+      );
+      expect(envCapture.home).toBe(expectedHome);
+      expect(existsSync(join(expectedHome, ".kota", "config.json"))).toBe(false);
       expect(envCapture.projectDir).toBe(dirs.workingDir);
       expect(envCapture.distDir).toBe(join(dirname(dirname(fakeKota)), "dist"));
       expect(envCapture.cacheDir).toBe(

@@ -1,7 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type {
   ControlRouteRegistration,
-  ModuleRouteHandler,
   RouteRegistration,
 } from "#core/modules/module-types.js";
 import { findRouteMatch } from "#core/modules/route-matcher.js";
@@ -15,6 +14,7 @@ import {
 } from "./daemon-chat-pool.js";
 import { DaemonControlRequestAuthorizer } from "./daemon-control-auth.js";
 import type { DaemonControlServerOptions } from "./daemon-control-options.js";
+import { DaemonControlRouteInvoker } from "./daemon-control-route-invoker.js";
 import { buildBuiltinControlRoutes } from "./daemon-control-routes.js";
 import type { DaemonControlHandle } from "./daemon-control-types.js";
 import { jsonResponse } from "./daemon-control-utils.js";
@@ -46,6 +46,8 @@ export class DaemonControlServer {
   private readonly controlRoutes: readonly ControlRouteRegistration[];
   private readonly moduleRoutes: readonly RouteRegistration[];
   private readonly requestAuth: DaemonControlRequestAuthorizer;
+  private readonly routeInvoker = new DaemonControlRouteInvoker();
+  private quarantineReason: string | null = null;
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
@@ -167,6 +169,12 @@ export class DaemonControlServer {
     return this.port;
   }
 
+  /** Fail closed while an authority revocation tears down the current process. */
+  quarantine(reason: string): void {
+    this.quarantineReason = reason;
+    this.chatPool?.closeAll();
+  }
+
   refreshChatSessionGuardrails(config: GuardrailsConfig): DaemonChatGuardrailsRefreshSummary {
     return this.chatPool?.refreshGuardrails(config) ?? { refreshed: 0, unchanged: 0 };
   }
@@ -190,47 +198,6 @@ export class DaemonControlServer {
     }
   }
 
-  private handleRouteError(res: ServerResponse, err: Error | string): void {
-    const message = err instanceof Error ? err.message : String(err);
-    if (!res.headersSent) jsonResponse(res, 500, { error: message });
-  }
-
-  private invokeHandler(
-    handler: ModuleRouteHandler,
-    req: IncomingMessage,
-    res: ServerResponse,
-    params: Record<string, string>,
-  ): void {
-    const onRejected = (err: Error | string) => {
-      this.handleRouteError(res, err);
-    };
-    try {
-      Promise.resolve(handler(req, res, params)).catch(onRejected);
-    } catch (err) {
-      this.handleRouteError(res, err instanceof Error ? err : String(err));
-    }
-  }
-
-  private invokeRouteHandler(
-    route: ControlRouteRegistration | RouteRegistration,
-    req: IncomingMessage,
-    res: ServerResponse,
-    params: Record<string, string>,
-  ): void {
-    this.invokeHandler(route.handler, req, res, params);
-  }
-
-  private invokeAuthFailureHandler(
-    route: ControlRouteRegistration | RouteRegistration,
-    req: IncomingMessage,
-    res: ServerResponse,
-    params: Record<string, string>,
-  ): boolean {
-    if (!route.authFailureHandler) return false;
-    this.invokeHandler(route.authFailureHandler, req, res, params);
-    return true;
-  }
-
   private normalizeScopeSelectorQuery(
     req: IncomingMessage,
     res: ServerResponse,
@@ -247,6 +214,14 @@ export class DaemonControlServer {
   }
 
   private handleRequest(req: IncomingMessage, res: ServerResponse): void {
+    if (this.quarantineReason !== null) {
+      jsonResponse(res, 503, {
+        error: "Daemon authority is reloading",
+        reason: "authority_revoked",
+        message: this.quarantineReason,
+      });
+      return;
+    }
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const path = url.pathname;
     const method = req.method ?? "GET";
@@ -256,7 +231,12 @@ export class DaemonControlServer {
       if (!controlMatch.route.bypassAuth) {
         const auth = this.requestAuth.authorizeRoute(req, method, controlMatch.route);
         if (auth.kind === "unauthorized") {
-          if (this.invokeAuthFailureHandler(controlMatch.route, req, res, controlMatch.params)) {
+          if (this.routeInvoker.invokeAuthFailureHandler(
+            controlMatch.route,
+            req,
+            res,
+            controlMatch.params,
+          )) {
             return;
           }
           jsonResponse(res, 401, { error: "Unauthorized" });
@@ -268,7 +248,7 @@ export class DaemonControlServer {
         }
       }
       if (!this.normalizeScopeSelectorQuery(req, res)) return;
-      this.invokeRouteHandler(controlMatch.route, req, res, controlMatch.params);
+      this.routeInvoker.invokeRouteHandler(controlMatch.route, req, res, controlMatch.params);
       return;
     }
 
@@ -278,7 +258,12 @@ export class DaemonControlServer {
       const auth = this.requestAuth.authorizeRoute(req, method, moduleMatch.route);
       if (!moduleMatch.route.bypassAuth) {
         if (auth.kind === "unauthorized") {
-          if (this.invokeAuthFailureHandler(moduleMatch.route, req, res, moduleMatch.params)) {
+          if (this.routeInvoker.invokeAuthFailureHandler(
+            moduleMatch.route,
+            req,
+            res,
+            moduleMatch.params,
+          )) {
             return;
           }
           jsonResponse(res, 401, { error: "Unauthorized" });
@@ -291,7 +276,7 @@ export class DaemonControlServer {
       }
       if (dashboardEntry && auth.kind !== "unauthorized") this.requestAuth.setDashboardAuthCookie(res);
       if (!this.normalizeScopeSelectorQuery(req, res)) return;
-      this.invokeRouteHandler(moduleMatch.route, req, res, moduleMatch.params);
+      this.routeInvoker.invokeRouteHandler(moduleMatch.route, req, res, moduleMatch.params);
       return;
     }
 

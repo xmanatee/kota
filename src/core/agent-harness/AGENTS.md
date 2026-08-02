@@ -19,8 +19,9 @@ the protocol and registry.
   every adapter consumes.
 - Streaming text goes through the optional `writer` so operators see live
   output regardless of which harness runs.
-- Neutral options carry tool risk, commit/daemon guards, and injection defense
-  (`canUseTool`, `mcpServers`, `allowedTools`, `disallowedTools`). KOTA-routable
+- Neutral options carry tool risk, scope policy, commit/daemon guards, and
+  injection defense (`scopePolicy`, `canUseTool`, `mcpServers`, `allowedTools`,
+  `disallowedTools`). KOTA-routable
   loops must honor them; other adapters list unsupported options in
   `unsupportedRunOptions`, making `runAgentHarness` reject them before hooks or
   launch. The cross-harness rails, abort, and MCP-server integration tests
@@ -28,11 +29,9 @@ the protocol and registry.
 - `sessionContext` is tool-runtime identity, not workflow trace/span metadata.
   `runAgentHarness` creates one per invocation; persistent interactive callers
   register one outer lifetime and reuse its context through teardown.
-- `guards.ts` hosts the harness-neutral `canUseTool` primitives
-  (`createAgentCommitGuard`, `createDaemonHostControlGuard`,
-  `composeCanUseTools`, `createWorkflowAgentGuards`). Callers reach for
-  `createWorkflowAgentGuards()` so the same behavior applies across every
-  registered tool-loop adapter.
+- `guards.ts` owns commit, daemon-control, and authority-mutation guards;
+  `createWorkflowAgentGuards()` composes them. Named routes and credentials are
+  blocked there; OS sandboxes protect authority from opaque shell/code.
 
 ## Owner-questions capability
 
@@ -71,8 +70,9 @@ injected by call sites.
 - `unsupportedRunOptions` — unsupported neutral option declarations checked
   before hooks or adapter launch. Native CLI adapters that cannot route
   KOTA's tool gate must declare `canUseTool`, `allowedTools`, and
-  `disallowedTools` here and surface the same entries through readiness;
-  direct callers that pass those options still fail loudly.
+  `disallowedTools` here; harnesses whose tools bypass the shared policy
+  evaluator must also declare `scopePolicy`. Surface the same entries through
+  readiness; direct callers that pass those options still fail loudly.
 - `capability-snapshot.ts` centralizes capability/readiness artifacts from
   resolved declarations, not harness-name catalogs. Adapter docs may explain
   rationale, but capability facts stay in code.

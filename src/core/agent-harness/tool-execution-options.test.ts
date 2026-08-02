@@ -29,6 +29,7 @@ describe("agentHarnessToolExecutionOptions", () => {
       verbose: true,
       autonomyMode: "supervised",
       cwd: "/project",
+      authorityConfigPath: "/operator/machine/config.json",
       env: { KOTA_TEST_VALUE: "1" },
       allowedTools: ["allowed"],
       disallowedTools: ["denied"],
@@ -65,6 +66,7 @@ describe("agentHarnessToolExecutionOptions", () => {
       approvalQueue,
       sessionId: "session-a",
       cwd: "/project",
+      authorityConfigPath: "/operator/machine/config.json",
       env: { KOTA_TEST_VALUE: "1" },
       scopeId: "scope-a",
       projectId: "scope-a",
@@ -77,4 +79,14 @@ describe("agentHarnessToolExecutionOptions", () => {
       disallowedTools: ["denied"],
     });
   });
+
+  it("defaults direct in-process harness calls to the canonical machine authority path", () => {
+    const projected = agentHarnessToolExecutionOptions(
+      { prompt: "go", effort: "xhigh" },
+      { resultLimit: 100 },
+    );
+
+    expect(projected.authorityConfigPath).toMatch(/[/\\]\.kota[/\\]config\.json$/);
+  });
+
 });

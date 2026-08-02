@@ -1,8 +1,6 @@
-import type {
-  KotaTextBlock,
-  KotaToolUseBlock,
-} from "#core/agent-harness/message-protocol.js";
+import type { KotaTextBlock, KotaToolUseBlock } from "#core/agent-harness/message-protocol.js";
 import { formatResolvedToolGuidance } from "#core/agents/tool-guidance.js";
+import { capScopeAutonomyMode } from "#core/daemon/scope-policy.js";
 import { formatTaskHint, routeTask } from "#core/daemon/task-router.js";
 import { tryEmit } from "#core/events/event-bus.js";
 import { streamMessage } from "#core/model/streaming.js";
@@ -13,8 +11,7 @@ import { getToolTelemetry } from "#core/tools/tool-telemetry.js";
 import { CONTEXT_WINDOW } from "./context.js";
 import { collectDynamicState } from "./dynamic-state.js";
 import { getChangeTracker } from "./file-changes.js";
-import type { AgentLoopState } from "./loop-init.js";
-import { saveToHistoryImpl } from "./loop-init.js";
+import { type AgentLoopState, saveToHistoryImpl } from "./loop-init.js";
 import {
   debitSessionTokenBudget,
   getAgentLoopTokenBudget,
@@ -28,13 +25,10 @@ import { processToolResults } from "./verify-tracker.js";
 
 const MAX_ITERATIONS = 200;
 
-function abortReason(signal: AbortSignal): Error {
-  const { reason } = signal;
-  return reason instanceof Error ? reason : new Error("Session cancelled");
-}
-
 function throwIfAborted(signal: AbortSignal): void {
-  if (signal.aborted) throw abortReason(signal);
+  if (!signal.aborted) return;
+  const { reason } = signal;
+  throw reason instanceof Error ? reason : new Error("Session cancelled");
 }
 
 function snapshotMcpToolDeclarationFingerprints(
@@ -247,19 +241,25 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
       }
 
       const resultLimit = state.context.getToolResultLimit();
+      const scopePolicy = state.resolveScopePolicy?.();
+      const autonomyMode = scopePolicy
+        ? capScopeAutonomyMode(state.autonomyMode, scopePolicy)
+        : state.autonomyMode;
       const validResults = await executeToolCalls(toolBlocks, {
         resultLimit,
         verbose: state.verbose,
-        autonomyMode: state.autonomyMode,
+						autonomyMode,
 		approvalQueue: state.approvalQueue,
         mcpManager: state.mcpManager ?? undefined,
         mcpInputResolver: state.mcpInputResolver,
         transport: state.transport,
         guardrailsConfig: state.guardrailsConfig,
+        scopePolicy,
         clientApprovalResolver: state.clientApprovalResolver,
         sessionId: state.sessionId,
         scopeId: state.scopeId,
         projectId: state.scopeId,
+        authorityConfigPath: state.authorityConfigPath,
         messages: state.context.getMessages(),
         idempotencyStore: state.idempotencyStore,
         ...(mcpPromptToolDeclarationFingerprints

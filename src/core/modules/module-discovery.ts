@@ -17,6 +17,10 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import {
+  type LoadConfigOptions,
+  loadProjectConfigTrustDecision,
+} from "#core/config/config.js";
 import type { ModuleManifest } from "#core/manifest/index.js";
 import { manifestToModule, validateManifest } from "#core/manifest/index.js";
 import { adaptExport } from "#core/tools/tool-adapters.js";
@@ -30,11 +34,25 @@ const MODULES_DIR = ".kota/modules";
  * Discover all user modules from `.kota/modules/`.
  * Returns KotaModule[] ready for ModuleLoader.loadAll().
  */
-export async function discoverModules(cwd?: string, verbose = false): Promise<KotaModule[]> {
+export async function discoverModules(
+  cwd?: string,
+  verbose = false,
+  configOptions: LoadConfigOptions = {},
+): Promise<KotaModule[]> {
   const base = cwd || process.cwd();
   const modulesDir = resolve(base, MODULES_DIR);
 
   if (!existsSync(modulesDir)) return [];
+  const trust = loadProjectConfigTrustDecision(base, configOptions);
+  if (!trust.trusted) {
+    if (verbose) {
+      printTerminalDiagnostic(
+        `[kota] Ignored project modules in ${modulesDir}: scope is not trusted by machine authority`,
+        "warn",
+      );
+    }
+    return [];
+  }
 
   const entries = readdirSync(modulesDir, { withFileTypes: true })
     .filter((e) => e.isDirectory())
@@ -155,10 +173,15 @@ async function reimportModuleFile(absPath: string, displayName: string): Promise
  * Re-import a single installed module from `.kota/modules/<name>/` with ESM
  * cache busting so changed source is picked up.
  */
-export async function reimportInstalledModule(name: string, cwd?: string): Promise<KotaModule | null> {
+export async function reimportInstalledModule(
+  name: string,
+  cwd?: string,
+  configOptions: LoadConfigOptions = {},
+): Promise<KotaModule | null> {
   const base = cwd || process.cwd();
   const moduleDir = resolve(base, MODULES_DIR, name);
   if (!existsSync(moduleDir)) return null;
+  if (!loadProjectConfigTrustDecision(base, configOptions).trusted) return null;
 
   const manifestPath = join(moduleDir, "manifest.json");
   if (existsSync(manifestPath)) {

@@ -78,6 +78,7 @@ describe("antigravityCliAgentHarness", () => {
         "allowedTools",
         "disallowedTools",
         "canUseTool",
+        "scopePolicy",
         "askOwner",
         "mcpServers",
       ]),
@@ -137,6 +138,7 @@ describe("antigravityCliAgentHarness", () => {
         "gemini-3.5-flash",
         "--print-timeout",
         "5m",
+        "--sandbox",
       ]),
       expect.objectContaining({ cwd: "/repo" }),
     );
@@ -152,7 +154,7 @@ describe("antigravityCliAgentHarness", () => {
     });
   });
 
-  it("uses AGY sandbox mode for passive runs", async () => {
+  it("keeps AGY sandbox mode for passive runs", async () => {
     mockAgyProcess({ stdout: "ok" });
 
     await antigravityCliAgentHarness.run({

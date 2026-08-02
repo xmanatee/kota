@@ -15,7 +15,7 @@ import {
   type ToolEffect,
 } from "./effect.js";
 import { getToolMcpAnnotations } from "./guardrails-classify.js";
-import { clearCustomTools, registerTool } from "./index.js";
+import { clearCustomTools, getToolEffect, registerTool } from "./index.js";
 
 describe("riskFromEffect", () => {
   it("maps read + !openWorld to safe", () => {
@@ -157,6 +157,26 @@ describe("getToolMcpAnnotations (effect-derived)", () => {
     expect(ann?.destructiveHint).toBe(true);
     expect(ann?.openWorldHint).toBe(true);
     expect(ann?.readOnlyHint).toBe(false);
+  });
+});
+
+describe("getToolEffect", () => {
+  afterEach(() => clearCustomTools());
+
+  it("keeps a registered static effect when invocation input is supplied", () => {
+    const effect = localWriteEffect();
+    registerTool(
+      {
+        name: "static_input_effect",
+        description: "static input effect fixture",
+        input_schema: { type: "object", properties: {} },
+      },
+      async () => ({ content: "ok" }),
+      "static-input-effect-test",
+      { effect },
+    );
+
+    expect(getToolEffect("static_input_effect", {})).toEqual(effect);
   });
 });
 

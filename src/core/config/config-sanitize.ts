@@ -6,6 +6,8 @@
  */
 
 import { parseQuietHours } from "../daemon/notification-gate.js";
+import { decodeScopeAuthorityMetadata } from "../daemon/scope-authority-codec.js";
+import { decodeScopePolicyFragments } from "../daemon/scope-policy-codec.js";
 import type { ModelTiers } from "../model/model-router.js";
 import type { ForeignModuleConfig } from "../modules/foreign-module.js";
 import { type AutonomyMode, isAutonomyMode } from "../tools/autonomy-mode.js";
@@ -33,6 +35,16 @@ export function sanitizeCore(raw: unknown): Partial<CoreKotaConfig> {
       typeof p === "string" && p.length > 0
     );
     if (trustedProjects.length > 0) out.trustedProjects = trustedProjects;
+  }
+  if (raw.scopePolicies !== undefined) {
+    const decoded = decodeScopePolicyFragments(raw.scopePolicies);
+    if (!decoded.ok) throw new Error(decoded.error);
+    out.scopePolicies = [...decoded.value];
+  }
+  if (raw.scopeAuthority !== undefined) {
+    const decoded = decodeScopeAuthorityMetadata(raw.scopeAuthority);
+    if (!decoded.ok) throw new Error(decoded.error);
+    out.scopeAuthority = decoded.value;
   }
   if (typeof raw.reflection === "boolean") out.reflection = raw.reflection;
   if (typeof raw.defaultAgentHarness === "string" && raw.defaultAgentHarness) {

@@ -6,6 +6,10 @@ import { trackFileChange } from "#core/loop/file-changes.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { lintFile } from "./lint.js";
+import {
+  isMachineAuthorityMutationPath,
+  machineAuthorityMutationError,
+} from "./protected-paths.js";
 
 const MAX_FILES = 50;
 const MAX_GLOB = 1000;
@@ -130,6 +134,10 @@ export async function runFindReplace(
     dot: true,
     ignore: ["**/node_modules/**", "**/.git/**"],
   });
+
+  if (matchedFiles.some((path) => isMachineAuthorityMutationPath(path, context))) {
+    return { content: machineAuthorityMutationError(), is_error: true };
+  }
 
   if (matchedFiles.length === 0) {
     return { content: `No files match glob: ${filesGlob}`, is_error: true };

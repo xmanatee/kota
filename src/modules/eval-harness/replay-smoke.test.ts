@@ -44,8 +44,8 @@
  *     webhook-payload assessment path (action / kota-task branch / fork
  *     gating), passive agent access to registered read-only GitHub tools,
  *     the `outputFormat: "json"` + `outputSchema` extraction on `review`,
- *     the deterministic `github_comment` output step via a fixture-local
- *     module, and the typed `workflow.pr.review.posted` emission shape —
+ *     the deterministic `github_comment` output step via the eval module's
+ *     local replay tools, and the typed `workflow.pr.review.posted` emission shape —
  *     none of which the other shipped replays exercise.
  * The builder fixture stays in cadence-only coverage because its surfaces
  * (workflow-step prompt routing, repair-loop survival, commit step's

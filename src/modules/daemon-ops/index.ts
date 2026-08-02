@@ -2,16 +2,12 @@ import { spawn, spawnSync } from "node:child_process";
 import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
 import { resolveProjectDir } from "#core/config/project-dir.js";
-import { parseDaemonClientErrorBody } from "#core/daemon/client-error.js";
 import type { ClientIdentity } from "#core/daemon/client-identity.js";
 import { Daemon, RESTART_EXIT_CODE } from "#core/daemon/daemon.js";
 import type { DaemonLiveStatus, InteractiveSession, WorkflowRunDetail } from "#core/daemon/daemon-control.js";
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
 import {
-  type ConfiguredProject,
   deriveDirectoryScopeId,
-  type ProjectId,
-  type ProjectRegistryProjection,
 } from "#core/daemon/scope-registry.js";
 import type { SessionGuardrailsReloadSummary } from "#core/events/event-bus-types.js";
 import {
@@ -54,8 +50,6 @@ import { print, printToStderr, renderToString, writeJson, writeStdout, writeStdo
 import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type {
   DaemonOpsClient,
-  ProjectsClient,
-  ProjectsUseResult,
   SessionsClient,
   SessionsSetAutonomyModeResult,
   UiActionExecuteInput,
@@ -70,6 +64,7 @@ import {
   recordDaemonStopAttempt,
   stopDaemonPid,
 } from "./daemon-ops-operations.js";
+import { daemonResponseError } from "./daemon-response-error.js";
 import { DaemonDashboard } from "./dashboard.js";
 import { buildEventsCommand } from "./events-cli.js";
 import { abbreviateRunId, formatDuration, formatTimeAgo, formatUptime } from "./format-utils.js";
@@ -86,6 +81,7 @@ import { executeUiAction, findUiAction } from "./operator-ui.js";
 import { buildUiCommand } from "./operator-ui-cli.js";
 import type { UiActionOperation } from "./operator-ui-types.js";
 import { buildProjectCommand } from "./projects-cli.js";
+import { buildProjectsDaemonHandler } from "./projects-daemon.js";
 import { projectsLocalClient } from "./projects-local.js";
 import { buildQrCommand } from "./qr-cli.js";
 import {
@@ -1476,12 +1472,6 @@ type SessionsSetAutonomyModeWireBody = {
   serveOwned?: boolean;
 };
 
-async function daemonResponseError(response: Response): Promise<Error> {
-  const body = parseDaemonClientErrorBody(await response.text());
-  if (body?.error !== undefined) return new Error(body.error);
-  return new Error(`HTTP ${response.status}`);
-}
-
 /**
  * Daemon-side `SessionsClient` backed by the typed `DaemonTransport`. Calls
  * the `GET /sessions` and `PATCH /sessions/:id` control routes the daemon
@@ -1533,65 +1523,6 @@ function buildSessionsDaemonHandler(link: DaemonTransport): SessionsClient {
         source: body.source ?? "daemon",
         serveOwned: body.serveOwned === true,
       };
-    },
-  };
-}
-
-/**
- * Wire shape returned by `GET /projects`: the registry projection plus
- * the operator-selected active project id (or `null`).
- */
-type ProjectsListWireBody = ProjectRegistryProjection & {
-  activeProjectId: ProjectId | null;
-};
-
-/**
- * Daemon-side `ProjectsClient` backed by the typed `DaemonTransport`.
- * Calls `GET /projects` to read the registry plus active selection in
- * one round trip, and `PATCH /projects/active` to switch.
- *
- * Once selected, this handler surfaces transport, HTTP, and protocol
- * failures as exceptions. The local handler alone emits `daemon_required`.
- *
- * `use(projectId)` distinguishes:
- *  - `200 → { ok: true, activeProjectId }`,
- *  - `404 → { ok: false, reason: "not_found", projectId }`,
- *  - other non-ok responses → throw the daemon's error message,
- *  - transport and protocol failures → throw unchanged.
- */
-function buildProjectsDaemonHandler(link: DaemonTransport): ProjectsClient {
-  return {
-    list: async () => {
-      const res = await link.fetchRaw("/projects", {
-        method: "GET",
-        headers: link.authHeaders(),
-      });
-      if (!res.ok) throw await daemonResponseError(res);
-      const parsed = (await res.json()) as ProjectsListWireBody;
-      return {
-        ok: true,
-        projects: parsed.projects as ConfiguredProject[],
-        defaultProjectId: parsed.defaultProjectId,
-        activeProjectId: parsed.activeProjectId,
-      };
-    },
-    use: async (projectId: string | null): Promise<ProjectsUseResult> => {
-      const res = await link.fetchRaw("/projects/active", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", ...link.authHeaders() },
-        body: JSON.stringify({ projectId }),
-      });
-      if (res.status === 404) {
-        const body = (await res.json()) as { projectId?: string };
-        return {
-          ok: false,
-          reason: "not_found",
-          projectId: body.projectId ?? (projectId ?? ""),
-        };
-      }
-      if (!res.ok) throw await daemonResponseError(res);
-      const body = (await res.json()) as { activeProjectId: ProjectId | null };
-      return { ok: true, activeProjectId: body.activeProjectId };
     },
   };
 }

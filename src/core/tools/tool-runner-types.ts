@@ -8,6 +8,7 @@ import type { AgentTokenBudgetLedger } from "#core/agent-harness/token-budget.js
 import type { AgentHarnessWorkflowContext } from "#core/agent-harness/types.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
+import type { ResolvedScopePolicy } from "#core/daemon/scope-policy.js";
 import type { Transport } from "#core/loop/transport.js";
 import type {
 	McpInputResolver,
@@ -45,10 +46,12 @@ export type ToolCallExecutionOptions = {
 	mcpPromptToolDeclarationFingerprints?: McpPromptToolDeclarationFingerprints;
 	transport?: Transport;
 	guardrailsConfig?: GuardrailsConfig;
+	scopePolicy?: ResolvedScopePolicy;
 	clientApprovalResolver?: ToolApprovalResolver;
 	sessionId?: string;
 	cwd?: string;
 	env?: Record<string, string>;
+	authorityConfigPath?: string;
 	workflowContext?: AgentHarnessWorkflowContext;
 	scopeId?: string;
 	projectId?: string;

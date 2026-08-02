@@ -3,8 +3,7 @@ import type { McpExecuteToolOptions } from "#core/mcp/manager.js";
 import { confirmAction } from "#core/util/confirm.js";
 import { resolveAutonomyGate } from "./autonomy-mode.js";
 import { assess } from "./guardrails.js";
-import type { ToolResult } from "./index.js";
-import { executeTool } from "./index.js";
+import { executeTool, type ToolResult } from "./index.js";
 import {
 	type ClientApprovalResult,
 	extractApprovalContext,
@@ -16,24 +15,17 @@ import {
 	type ToolApprovalExecutionBinding,
 } from "./tool-approval-execution.js";
 import { getToolMiddleware } from "./tool-middleware.js";
+import { throwIfToolRunnerAborted } from "./tool-runner-abort.js";
 import { enqueueToolApproval } from "./tool-runner-approval-queue.js";
 import { executeToolWithIdempotency } from "./tool-runner-idempotency.js";
 import { staleMcpDeclarationResult } from "./tool-runner-mcp.js";
 import { recordToolExecutionMetric } from "./tool-runner-metrics.js";
+import { enforceToolScopePolicy } from "./tool-runner-scope-policy.js";
 import type {
 	ToolCallExecutionOptions,
 	ToolResultEntry,
 	ValidatedToolUseBlock,
 } from "./tool-runner-types.js";
-
-function abortReason(signal: AbortSignal): Error {
-	const { reason } = signal;
-	return reason instanceof Error ? reason : new Error("Tool execution aborted");
-}
-
-export function throwIfAborted(signal: AbortSignal | undefined): void {
-	if (signal?.aborted) throw abortReason(signal);
-}
 
 function resultEntry(block: ValidatedToolUseBlock, result: ToolResult): ToolResultEntry {
 	return {
@@ -45,11 +37,9 @@ function resultEntry(block: ValidatedToolUseBlock, result: ToolResult): ToolResu
 		...(result.is_error !== undefined ? { is_error: result.is_error } : {}),
 	};
 }
-
 function errorEntry(block: ValidatedToolUseBlock, content: string): ToolResultEntry {
 	return { tool_use_id: block.id, content, is_error: true };
 }
-
 export async function executeToolBlock(
 	block: ValidatedToolUseBlock,
 	options: ToolCallExecutionOptions,
@@ -68,6 +58,7 @@ export async function executeToolBlock(
 		sessionId,
 		cwd,
 		env,
+		authorityConfigPath,
 		workflowContext,
 		scopeId,
 		projectId,
@@ -76,7 +67,7 @@ export async function executeToolBlock(
 		tokenBudget,
 		signal,
 	} = options;
-	throwIfAborted(signal);
+	throwIfToolRunnerAborted(signal);
 	if (verbose && transport) {
 		transport.emit({
 			type: "status",
@@ -138,6 +129,17 @@ export async function executeToolBlock(
 		if (decision.outcome === "cancelled") throw new ToolApprovalCancelledError(decision.message);
 		return { outcome: "blocked", result: errorEntry(block, `Blocked by client approval: ${decision.message}`) };
 	};
+
+	if (options.scopePolicy) {
+		const scopePolicyResult = await enforceToolScopePolicy({
+			block,
+			options,
+			risk: assessment.risk,
+			askClientApproval,
+			emitAssessment: emitGuardrailAssessment,
+		});
+		if (scopePolicyResult) return scopePolicyResult;
+	}
 
 	const autonomyDecision = resolveAutonomyGate(autonomyMode, assessment);
 	if (autonomyDecision.action === "deny") {
@@ -231,6 +233,7 @@ export async function executeToolBlock(
 		toolUseId: block.id,
 		...(cwd !== undefined ? { cwd } : {}),
 		...(env !== undefined ? { env } : {}),
+		...(authorityConfigPath !== undefined ? { authorityConfigPath } : {}),
 		...(scopeId !== undefined ? { scopeId } : {}),
 		...(projectId !== undefined ? { projectId } : {}),
 		...(workflowContext !== undefined
@@ -283,7 +286,7 @@ export async function executeToolBlock(
 		idempotencyStore,
 		() => getToolMiddleware().execute(call, baseFn),
 	);
-	throwIfAborted(signal);
+	throwIfToolRunnerAborted(signal);
 	recordToolExecutionMetric({
 		block,
 		input,

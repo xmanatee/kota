@@ -23,16 +23,27 @@ export type RuntimeLoaderOptions = {
   config: KotaConfig;
   cwd: string;
   verbose?: boolean;
+  /** Alternate persisted machine-authority file for embedders. */
+  globalConfigPath?: string;
+  /** Trusted source directory for modules executed in an isolated copy. */
+  installedModuleSourceDir?: string;
 };
 
 export async function loadRuntimeModules(
   options: RuntimeLoaderOptions,
 ): Promise<ModuleLoader> {
   const verbose = options.verbose ?? false;
-  const loader = new ModuleLoader(options.config, verbose, { mode: "runtime" });
+  const loader = new ModuleLoader(options.config, verbose, {
+    mode: "runtime",
+    globalConfigPath: options.globalConfigPath,
+    installedModuleSourceDir: options.installedModuleSourceDir,
+  });
   loader.setCwd(options.cwd);
   const projectModules = await discoverProjectModules();
-  const installedModules = await discoverModules(options.cwd, verbose);
+  const installedModuleSourceDir = options.installedModuleSourceDir ?? options.cwd;
+  const installedModules = await discoverModules(installedModuleSourceDir, verbose, {
+    globalConfigPath: options.globalConfigPath,
+  });
   await loader.loadAll(projectModules, installedModules);
   return loader;
 }

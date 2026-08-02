@@ -9,6 +9,7 @@ import {
   type KotaAgentMessage,
   routeKotaToolControlOptions,
 } from "#core/agent-harness/index.js";
+import { capScopeAutonomyMode } from "#core/daemon/scope-policy.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { ModelProviderSelection } from "#core/model/model-client.js";
 import type { WorkflowRunMetadata } from "../run-types.js";
@@ -63,7 +64,9 @@ export function buildAgentHarnessRunOptions(input: {
   const scopeId = agentConfig.scopeId ?? deriveDirectoryScopeId(agentConfig.projectDir);
   const projectId = agentConfig.projectId ?? scopeId;
   const toolScope = resolveAgentToolScope(
-    step.autonomyMode,
+    agentConfig.scopePolicy
+      ? capScopeAutonomyMode(step.autonomyMode, agentConfig.scopePolicy)
+      : step.autonomyMode,
     step.allowedTools,
     step.disallowedTools,
     resolvedHarness.askOwnerToolName,
@@ -82,6 +85,9 @@ export function buildAgentHarnessRunOptions(input: {
       prompt,
       model: resolvedModel,
       cwd: workspaceDir,
+      ...(agentConfig.authorityConfigPath !== undefined
+        ? { authorityConfigPath: agentConfig.authorityConfigPath }
+        : {}),
       ...(agentConfig.runtimeResources !== undefined
         ? { env: agentConfig.runtimeResources.env }
         : {}),
@@ -107,7 +113,12 @@ export function buildAgentHarnessRunOptions(input: {
         ? { idempotencyStore: agentConfig.idempotencyStore }
         : {}),
       askOwner,
-      autonomyMode: step.autonomyMode,
+      autonomyMode: agentConfig.scopePolicy
+        ? capScopeAutonomyMode(step.autonomyMode, agentConfig.scopePolicy)
+        : step.autonomyMode,
+      ...(agentConfig.scopePolicy !== undefined
+        ? { scopePolicy: agentConfig.scopePolicy }
+        : {}),
       harnessOverrides,
       abortController,
       workflowContext: {

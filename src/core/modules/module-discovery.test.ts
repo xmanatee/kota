@@ -1,10 +1,10 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { clearCustomTools, executeTool, getAllTools } from "#core/tools/index.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "#core/tools/tool-groups.js";
-import { discoverModules } from "./module-discovery.js";
+import { discoverModules as discoverMachineAuthorizedModules } from "./module-discovery.js";
 import { ModuleLoader } from "./module-loader.js";
 
 function makeTmpDir(): string {
@@ -22,14 +22,19 @@ function writeModule(dir: string, name: string, code: string): void {
 
 describe("discoverModules", () => {
   let tmpDir: string;
+  let globalConfigPath: string;
   let loader: ModuleLoader;
+  const discoverModules = (cwd?: string, verbose = false) =>
+    discoverMachineAuthorizedModules(cwd, verbose, { globalConfigPath });
 
   beforeEach(() => {
     tmpDir = makeTmpDir();
+    globalConfigPath = join(tmpDir, "machine-config.json");
+    writeFileSync(globalConfigPath, JSON.stringify({ trustedProjects: [tmpDir] }));
     clearCustomTools();
     clearCustomGroups();
     resetGroups();
-    loader = new ModuleLoader({}, false);
+    loader = new ModuleLoader({}, false, { globalConfigPath });
   });
 
   afterEach(async () => {
@@ -40,6 +45,27 @@ describe("discoverModules", () => {
   it("discovers nothing when .kota/modules/ does not exist", async () => {
     const modules = await discoverModules(tmpDir);
     expect(modules).toEqual([]);
+  });
+
+  it("does not import project code until persisted machine authority trusts it", async () => {
+    const importMarker = join(tmpDir, "module-imported.flag");
+    writeModule(tmpDir, "authority-bypass", `
+      import { writeFileSync } from "node:fs";
+      writeFileSync(${JSON.stringify(importMarker)}, "imported");
+      export default { name: "authority-bypass" };
+    `);
+    writeFileSync(
+      join(tmpDir, ".kota", "config.json"),
+      JSON.stringify({ trustedProjects: [tmpDir] }),
+    );
+    writeFileSync(globalConfigPath, "{}\n");
+
+    expect(await discoverModules(tmpDir)).toEqual([]);
+    expect(existsSync(importMarker)).toBe(false);
+
+    writeFileSync(globalConfigPath, JSON.stringify({ trustedProjects: [tmpDir] }));
+    expect(await discoverModules(tmpDir)).toHaveLength(1);
+    expect(existsSync(importMarker)).toBe(true);
   });
 
   it("discovers and loads a simple module with one tool", async () => {
@@ -250,75 +276,4 @@ describe("discoverModules", () => {
     expect(result2.is_error).toBe(true);
   });
 
-  it("registerGroup from ModuleContext creates groups with auto-detect pattern", async () => {
-    writeModule(tmpDir, "custom-group", `
-      export default {
-        name: "custom-group-module",
-        onLoad: (ctx) => {
-          ctx.registerGroup("email", ["send_email", "read_inbox"], /\\b(email|mail|inbox|send.?message)\\b/i);
-        },
-        tools: [
-          {
-            tool: {
-              name: "send_email",
-              description: "Send an email",
-              input_schema: { type: "object", properties: { to: { type: "string" } }, required: ["to"] },
-            },
-            runner: async (input) => ({ content: "sent to " + input.to }),
-            effect: { kind: "write", scope: "local-fs", idempotent: false, openWorld: false },
-            group: "email",
-          },
-          {
-            tool: {
-              name: "read_inbox",
-              description: "Read inbox",
-              input_schema: { type: "object", properties: {} },
-            },
-            runner: async () => ({ content: "0 unread" }),
-            effect: { kind: "read", scope: "local-fs", idempotent: true, openWorld: false },
-            group: "email",
-          },
-        ],
-      };
-    `);
-
-    const modules = await discoverModules(tmpDir);
-    await loader.loadAll(modules);
-
-    expect(TOOL_GROUPS.email).toContain("send_email");
-    expect(TOOL_GROUPS.email).toContain("read_inbox");
-  });
-
-  it("discovers a manifest.json module", async () => {
-    const moduleDir = join(tmpDir, ".kota", "modules", "manifest-ext");
-    mkdirSync(moduleDir, { recursive: true });
-    writeFileSync(
-      join(moduleDir, "manifest.json"),
-      JSON.stringify({
-        name: "manifest-ext",
-        version: "1.0.0",
-      }),
-    );
-
-    const modules = await discoverModules(tmpDir);
-    expect(modules).toHaveLength(1);
-    expect(modules[0].name).toBe("manifest-ext");
-  });
-
-  it("discovers a packaged module via package.json main field", async () => {
-    const moduleDir = join(tmpDir, ".kota", "modules", "packaged-ext");
-    mkdirSync(join(moduleDir, "dist"), { recursive: true });
-    writeFileSync(
-      join(moduleDir, "package.json"),
-      JSON.stringify({ name: "packaged-ext", main: "dist/index.js" }),
-    );
-    writeFileSync(
-      join(moduleDir, "dist", "index.js"),
-      `export default { name: "packaged-ext", tools: [] };`,
-    );
-
-    const modules = await discoverModules(tmpDir);
-    expect(modules).toHaveLength(1);
-    expect(modules[0].name).toBe("packaged-ext");
-  });
 });

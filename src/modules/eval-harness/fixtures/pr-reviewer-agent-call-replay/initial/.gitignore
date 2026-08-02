@@ -1,8 +1,7 @@
 .kota/*
+# Keep the removed authority paths unignored so exact-path staging can record
+# their deletion. Trustless replay fixtures must not recreate either path.
 !.kota/config.json
 !.kota/modules/
 !.kota/modules/**
 node_modules/
-# Eval-harness fixtures may seed scoped KOTA config and installed module fakes
-# under initial/.kota/ when the workflow under test needs deterministic local
-# capability instead of host credentials or network access.

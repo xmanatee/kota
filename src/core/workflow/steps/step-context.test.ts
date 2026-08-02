@@ -56,6 +56,7 @@ describe("createStepContext", () => {
       const pbus = new ProjectScopedEventBus(bus, "scope-a");
       const store = new WorkflowRunStore(projectDir);
       const runTool = vi.fn(async () => ({ content: "ok" }));
+      const authorityConfigPath = join(projectDir, "operator", "config.json");
 
       const context = createStepContext(
         makeMetadata(),
@@ -70,6 +71,7 @@ describe("createStepContext", () => {
           pbus,
           store,
           runTool,
+          authorityConfigPath,
           runAgentHarness: unexpectedWorkflowAgentHarnessRun,
           currentStepId: "build",
         },
@@ -81,6 +83,7 @@ describe("createStepContext", () => {
         "composition.workspace",
         { action: "list" },
         {
+          authorityConfigPath,
           cwd: projectDir,
           stepId: "build",
           scopeId: "scope-a",

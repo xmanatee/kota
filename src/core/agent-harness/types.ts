@@ -1,5 +1,6 @@
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
+import type { ResolvedScopePolicy } from "#core/daemon/scope-policy.js";
 import type { ModelProviderSelection } from "#core/model/model-client.js";
 import type { ModelOutputTokenLimits } from "#core/model/output-token-limits.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
@@ -50,7 +51,6 @@ export type AgentSystemPrompt = string;
 export type AgentEffort = "low" | "medium" | "high" | "xhigh" | "max";
 
 export type AgentHarnessWriter = { write(text: string): boolean };
-
 export type AgentHarnessWorkflowContext = {
   workflowName: string;
   runId: string;
@@ -101,6 +101,8 @@ export type AgentHarnessRunOptions = {
    * unsupported.
    */
   env?: Record<string, string>;
+  /** Machine-owned config path excluded from every agent execution sandbox. */
+  authorityConfigPath?: string;
   verbose?: boolean;
   systemPrompt?: AgentSystemPrompt;
   maxTurns?: number;
@@ -148,6 +150,8 @@ export type AgentHarnessRunOptions = {
    * shared KOTA tool runner.
    */
   guardrailsConfig?: GuardrailsConfig;
+  /** Live machine-owned policy resolved for the directory scope running this agent. */
+  scopePolicy?: ResolvedScopePolicy;
   clientApprovalResolver?: ToolApprovalResolver;
 	approvalQueue?: ApprovalQueue;
   idempotencyStore?: IdempotencyStore;
@@ -292,8 +296,5 @@ export type AgentHarness = {
    * `WorkflowDefinitionError`. Returning normally signals acceptance.
    */
   readonly validateModelId?: (modelId: string) => void;
-  run(
-    options: AgentHarnessRunOptions,
-    writer?: AgentHarnessWriter,
-  ): Promise<AgentHarnessResult>;
+  run(options: AgentHarnessRunOptions, writer?: AgentHarnessWriter): Promise<AgentHarnessResult>;
 };

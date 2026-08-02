@@ -37,7 +37,7 @@ export async function collectTextFromAntigravityCli(args: {
     args.model,
     "--print-timeout",
     "5m",
-    ...(args.passive ? ["--sandbox"] : []),
+    "--sandbox",
   ];
 
   const child = spawn(ANTIGRAVITY_CLI_BINARY_NAME, cliArgs, {

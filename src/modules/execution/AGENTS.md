@@ -16,6 +16,15 @@ processes, code REPL, computer use, and screenshot tools.
   scoped session environment that launched them. Session teardown must stop
   those resources before their inherited credential environment can outlive
   its authorization boundary.
+- Agent-routed shell, process, and REPL execution must carry the machine
+  authority path into a fail-closed OS sandbox. Text parsing cannot establish
+  where opaque code writes; keep direct runner calls available for host-owned
+  tests and operations, but every harness/loop execution context supplies the
+  protected path.
+- Scope policy treats recognized outbound commands and code as compound local
+  plus network effects. Keep the execution tool resolvers and Claude Bash on
+  the shared opaque-execution classifier; never replace the local write check
+  with a network-only classification.
 - GUI coordinate actions use one explicit convention: `screenshot` records
   native capture size, displayed image size, and display-to-native scale
   factors; `computer_use` coordinate actions must choose `coordinate_space:

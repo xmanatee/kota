@@ -68,17 +68,16 @@ shape. Clients join `dashboard.path` onto the daemon base URL when
 
 ## Scope Registry Foundation
 
-Scope ids are canonical; project ids are compatibility ids. Config seeds the
-persisted `ScopeRegistry`; `ScopeLifecycleService` mutates it.
-Persist before activating `ScopeRuntimeHost`; paused startup still mutates
-state. Compensate both registries when activation fails.
-Channels use `getChannelRuntime`; sessions, approval leases, pending workflow buffers, and suspended awaits block drain.
-New work and selection require hosting; removal re-inspects blockers.
-Resolve the default at runtime so changes do not retain its startup value.
-
-`/scopes` is canonical. `/projects`, `?projectId=`, `ProjectScopedEventBus`,
-and `ProjectRuntime` remain compatibility surfaces. Routes accept `?scopeId=`;
-both selectors must match, and scoped events carry both ids.
+Scope ids are canonical; project ids are aliases. Config seeds the registry;
+`ScopeLifecycleService` mutates it. Persist before activation and compensate both
+registries on failure, paused or live. Channels use `getChannelRuntime`; live
+resources prevent drain. New work needs hosting; removal rechecks blockers;
+resolve defaults live. Machine trust/policy changes atomically at one revision.
+Locks publish immutable monotonic tickets; never reuse names or transitions
+observers could miss. Untrust quarantines control work, aborts workflows, and
+restarts before loading repo authority. `/scopes` is canonical; `/projects`,
+`?projectId=`, `ProjectScopedEventBus`, and `ProjectRuntime` remain compatibility
+surfaces. Scope/project selectors must match.
 
 ## Recoverability
 

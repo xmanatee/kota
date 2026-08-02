@@ -1,3 +1,4 @@
+export { capScopeAutonomyMode } from "./scope-policy-autonomy.js";
 export {
   decideScopePolicy,
   defaultScopePolicyDecisionExamples,
@@ -32,3 +33,4 @@ export type {
   ScopeWriteBoundary,
 } from "./scope-policy-types.js";
 export { ScopePolicyValidationError } from "./scope-policy-types.js";
+export { scopePolicyWideningAreas } from "./scope-policy-widening.js";

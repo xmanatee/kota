@@ -2,6 +2,7 @@ import type { KotaThinkingConfig } from "#core/agent-harness/message-protocol.js
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
+import type { ResolvedScopePolicy } from "#core/daemon/scope-policy.js";
 import { getEventBus } from "#core/events/event-bus.js";
 import { listManifestModules } from "#core/manifest/index.js";
 import type { McpAuthorizationResolver } from "#core/mcp/client.js";
@@ -37,6 +38,7 @@ export interface AgentLoopState {
   sessionId: string;
   sessionLabel: string | undefined;
   projectDir: string;
+  authorityConfigPath?: string;
   scopeId: string;
   context: Context;
   client: ModelClient;
@@ -83,6 +85,7 @@ export interface AgentLoopState {
   modelOutputTokenLimits: ModelOutputTokenLimits | undefined;
   channelIdentity: ChannelUserIdentity | undefined;
   autonomyMode: AutonomyMode;
+  resolveScopePolicy?: () => ResolvedScopePolicy;
   moduleLoader: ModuleLoader;
   closed: boolean;
   activeAbortControllers: Set<AbortController>;

@@ -17,5 +17,14 @@ export function projectsLocalClient(): ProjectsClient {
     async use() {
       return { ok: false, reason: "daemon_required" };
     },
+    async inspectAuthority() {
+      return { ok: false, reason: "daemon_required" };
+    },
+    async validateAuthority() {
+      return { ok: false, reason: "daemon_required" };
+    },
+    async applyAuthority() {
+      return { ok: false, reason: "daemon_required" };
+    },
   };
 }

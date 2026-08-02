@@ -1,5 +1,6 @@
 import {
   chmodSync,
+  mkdirSync,
   mkdtempSync,
   rmSync,
   writeFileSync,
@@ -51,13 +52,21 @@ function distCliExecutionEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return envWithoutSourceConditionNodeOption(env);
 }
 
-function fixtureRuntimeEnv(workingDir: string): Record<string, string> {
+function prepareFixtureRuntimeEnv(workingDir: string): Record<string, string> {
   const runtimeRoot = join(
     workingDir,
     "node_modules",
     ".kota-eval-runtime",
   );
+  const machineHome = join(runtimeRoot, "home");
+  // Reset the isolated home on every invocation so fixture output cannot
+  // persist machine state across workflow rounds. Eval execution must not
+  // synthesize trust: fixture-local modules remain subject to the same
+  // operator-owned authority decision as every other project module.
+  rmSync(machineHome, { recursive: true, force: true });
+  mkdirSync(machineHome, { recursive: true, mode: 0o700 });
   return {
+    HOME: machineHome,
     COREPACK_HOME: join(runtimeRoot, "corepack"),
     PNPM_HOME: join(runtimeRoot, "pnpm-home"),
     XDG_CACHE_HOME: join(runtimeRoot, "cache"),
@@ -103,11 +112,10 @@ export function hostExecutionEnv(
     withProtectedGitBareRepositoryEnv({
       ...hostParentExecutionEnv(options),
       ...(options.extraEnv ?? {}),
-      HOME: request.workingDir,
       KOTA_PROJECT_DIR: request.workingDir,
       KOTA_DIST_DIR: kotaDistDir,
       PATH: pathWithShims,
-      ...fixtureRuntimeEnv(request.workingDir),
+      ...prepareFixtureRuntimeEnv(request.workingDir),
       ...envWithReplay(request),
     }),
   );
@@ -127,11 +135,10 @@ export function containerExecutionEnv(
   const env = distCliExecutionEnv(
     withProtectedGitBareRepositoryEnv({
       ...(options.extraEnv ?? {}),
-      HOME: request.workingDir,
       KOTA_PROJECT_DIR: request.workingDir,
       KOTA_DIST_DIR: kotaDistDir,
       PATH: pathWithShims,
-      ...fixtureRuntimeEnv(request.workingDir),
+      ...prepareFixtureRuntimeEnv(request.workingDir),
       ...containerNetworkEnv(networkPolicy),
       ...envWithReplay(request),
     }),

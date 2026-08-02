@@ -122,6 +122,7 @@ function isRunOptionRequested(
   if (option === "env") {
     return options.env !== undefined && Object.keys(options.env).length > 0;
   }
+  if (option === "scopePolicy") return options.scopePolicy !== undefined;
   if (option === "harnessOverrides") return options.harnessOverrides !== undefined;
   if (option === "enableFileCheckpointing") return options.enableFileCheckpointing === true;
   if (option === "thinking") {

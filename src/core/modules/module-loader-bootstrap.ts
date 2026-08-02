@@ -1,4 +1,4 @@
-import type { KotaConfig } from "#core/config/config.js";
+import type { KotaConfig, LoadConfigOptions } from "#core/config/config.js";
 import { loadForeignModules } from "./foreign-module-loader.js";
 import { topoSort } from "./module-deps.js";
 import { reimportInstalledModule } from "./module-discovery.js";
@@ -113,10 +113,13 @@ export async function reimportModule(
   name: string,
   source: ModuleSource,
   cwd: string,
+  configOptions: LoadConfigOptions = {},
 ): Promise<KotaModule | null> {
   try {
     if (source === "project") return await reimportProjectModule(name);
-    if (source === "installed") return await reimportInstalledModule(name, cwd);
+    if (source === "installed") {
+      return await reimportInstalledModule(name, cwd, configOptions);
+    }
     return null;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -134,7 +137,7 @@ export async function reimportModule(
 export async function reloadModule(
   moduleName: string,
   state: LoaderState,
-  env: { cwd: string; verbose: boolean },
+  env: { cwd: string; verbose: boolean; globalConfigPath?: string },
   load: (mod: KotaModule) => Promise<void>,
   unload: (name: string) => Promise<boolean>,
 ): Promise<boolean> {
@@ -142,7 +145,11 @@ export async function reloadModule(
   const registryMod = state.moduleRegistry.get(moduleName);
   if (!registryMod) return false;
 
-  const freshMod = source ? await reimportModule(moduleName, source, env.cwd) : null;
+  const freshMod = source
+    ? await reimportModule(moduleName, source, env.cwd, {
+      globalConfigPath: env.globalConfigPath,
+    })
+    : null;
   const modToLoad = freshMod ?? registryMod;
 
   if (state.modules.some((m) => m.name === moduleName)) {

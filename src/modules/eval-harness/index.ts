@@ -41,7 +41,10 @@ import {
   createReplayAgentHarness,
   resolveReplayRootFromEnv,
 } from "./replay-harness.js";
+import { createReplayToolFixtureDefs } from "./replay-tool-fixtures.js";
 import { evalHarnessRoutes } from "./routes.js";
+
+const replayRoot = resolveReplayRootFromEnv();
 
 // Register the replay adapter at import time when the env-gated seam is
 // armed. This has to happen outside `onLoad` because the CLI surface loads
@@ -54,7 +57,6 @@ import { evalHarnessRoutes } from "./routes.js";
 // `Map.set` override lands cleanly. Production paths leave the env unset
 // and skip registration.
 (() => {
-  const replayRoot = resolveReplayRootFromEnv();
   if (replayRoot === null) return;
   registerAgentHarness(createReplayAgentHarness(replayRoot));
   // Parent eval-harness CLI forwards child stderr to the operator, so this
@@ -80,6 +82,7 @@ const evalHarnessModule: KotaModule = {
   dependencies: ["autonomy", "rendering", "claude-agent-harness", "repo-tasks"],
   events: [evalHarnessSetCompleted],
   commands: (ctx) => [buildEvalCommand(ctx)],
+  tools: () => createReplayToolFixtureDefs(replayRoot),
   routes: (ctx) => evalHarnessRoutes(ctx),
   controlRoutes: (ctx) => evalHarnessControlRoutes(ctx),
   workflows: [evalHarnessCadence, evalHarnessRegressionNotify],

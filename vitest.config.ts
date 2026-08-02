@@ -31,6 +31,6 @@ export default defineConfig({
     // Tests and hooks that run real git/subprocess ops need more than the 5s/10s defaults.
     testTimeout: 60000,
     hookTimeout: 60000,
-    setupFiles: ["./test/loopback-fetch.ts"],
+    setupFiles: ["./test/scope-authority-token.ts", "./test/loopback-fetch.ts"],
   },
 });

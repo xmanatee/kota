@@ -1,9 +1,17 @@
+import type { ScopeId } from "#core/events/project-scope.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { ToolEffectKind, ToolEffectScope } from "#core/tools/effect.js";
-import type { ScopeId } from "./scope-registry.js";
 
 export class ScopePolicyValidationError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly conflict?: {
+      kind: "parent-widening";
+      scopeId: ScopeId;
+      parentScopeId: ScopeId;
+      area: ScopePolicyArea;
+    },
+  ) {
     super(message);
     this.name = "ScopePolicyValidationError";
   }
@@ -137,7 +145,12 @@ export type ScopePolicyToolEffectQuery =
       toolName: string;
       effectKind: "write" | "destructive";
       effectScope: "local-fs";
-      targetPath: string;
+      /**
+       * The complete filesystem target for path-bound tools. Opaque execution
+       * tools leave this absent because a cwd does not bound paths referenced
+       * by arbitrary code or shell commands.
+       */
+      targetPath?: string;
     };
 
 export type ScopePolicyDecisionQuery =

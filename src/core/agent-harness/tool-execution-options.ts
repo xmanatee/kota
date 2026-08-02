@@ -1,3 +1,4 @@
+import { getGlobalConfigPath } from "#core/config/config.js";
 import type { ToolCallExecutionOptions } from "#core/tools/tool-runner.js";
 import { agentHarnessToolRunnerContext } from "./session-context.js";
 import type { AgentHarnessRunOptions } from "./types.js";
@@ -30,6 +31,9 @@ export function agentHarnessToolExecutionOptions(
 		...(options.guardrailsConfig !== undefined
 			? { guardrailsConfig: options.guardrailsConfig }
 			: {}),
+		...(options.scopePolicy !== undefined
+			? { scopePolicy: options.scopePolicy }
+			: {}),
 		...(options.clientApprovalResolver !== undefined
 			? { clientApprovalResolver: options.clientApprovalResolver }
 			: {}),
@@ -38,6 +42,7 @@ export function agentHarnessToolExecutionOptions(
 			: {}),
 		...(cwd !== undefined ? { cwd } : {}),
 		...(options.env !== undefined ? { env: options.env } : {}),
+		authorityConfigPath: options.authorityConfigPath ?? getGlobalConfigPath(),
 		...(toolRunnerContext.workflow !== undefined
 			? { workflowContext: toolRunnerContext.workflow }
 			: {}),

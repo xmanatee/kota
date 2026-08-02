@@ -23,7 +23,9 @@ describe("scheduler config slice", () => {
   });
 
   function loadTrustedConfig(overrides = {}) {
-    return loadConfig(tmpDir, { ...overrides, trustedProjects: [tmpDir] });
+    const globalConfigPath = join(tmpDir, "machine-config.json");
+    writeFileSync(globalConfigPath, JSON.stringify({ trustedProjects: [tmpDir] }));
+    return loadConfig(tmpDir, overrides, { globalConfigPath });
   }
 
   it("loads agentConcurrency and codeConcurrency", () => {

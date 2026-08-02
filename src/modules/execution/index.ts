@@ -14,7 +14,12 @@
  */
 
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
-import { localWriteEffect, readOnlyLocalEffect } from "#core/tools/effect.js";
+import {
+  localWriteEffect,
+  networkDestructiveEffect,
+  readOnlyLocalEffect,
+} from "#core/tools/effect.js";
+import { resolveOpaqueExecutionPrimaryEffect } from "#core/tools/opaque-execution-effects.js";
 import { cleanupSessions, codeExecTool, runCodeExec } from "./code-exec.js";
 import {
   deregisterExecutionCodeRunners,
@@ -30,17 +35,26 @@ const tools: ToolDef[] = [
     tool: shellTool,
     runner: runShell,
     effect: localWriteEffect(),
+    resolveEffect: (input) =>
+      resolveOpaqueExecutionPrimaryEffect("shell", input)
+      ?? localWriteEffect(),
   },
   {
     tool: processTool,
     runner: runProcess,
     effect: localWriteEffect(),
+    resolveEffect: (input) =>
+      resolveOpaqueExecutionPrimaryEffect("process", input)
+      ?? localWriteEffect(),
     group: "management",
   },
   {
     tool: codeExecTool,
     runner: runCodeExec,
     effect: localWriteEffect(),
+    resolveEffect: (input) =>
+      resolveOpaqueExecutionPrimaryEffect("code_exec", input)
+      ?? localWriteEffect(),
     group: "code",
   },
   {
@@ -74,9 +88,9 @@ const executionModule: KotaModule = {
       {
         id: "execution.local-process",
         description:
-          "Run shell commands, background processes, and code execution sessions against the local project.",
+          "Run shell commands, background processes, and code execution sessions against the local project and declared network targets.",
         scope: "project",
-        scopePolicyHooks: ["writes", "retention"],
+        scopePolicyHooks: ["external-effects", "writes", "retention"],
       },
       {
         id: "execution.gui",
@@ -107,6 +121,16 @@ const executionModule: KotaModule = {
         "Execution tools can mutate local process, filesystem, REPL, and GUI state and are blocked unless trial mode can isolate the target.",
       ],
     },
+    additionalEffects: [
+      {
+        id: "execution.opaque-network",
+        description:
+          "Agent-authored shell, process, and REPL input can read or mutate external network state.",
+        source: "tool",
+        effect: networkDestructiveEffect(),
+        capabilityIds: ["execution.local-process"],
+      },
+    ],
   },
   tools,
   onLoad: (ctx) => {

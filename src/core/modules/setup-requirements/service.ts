@@ -1,15 +1,16 @@
 import { loadConfig } from "#core/config/config.js";
 import { getProjectSecretStore } from "#core/config/secrets.js";
 import { deleteProjectConfigPath, setProjectConfigPath } from "./config-paths.js";
-import { SECRET_REFERENCE_PATTERN, SETUP_ACTION_STATUSES } from "./constants.js";
+import { SECRET_REFERENCE_PATTERN } from "./constants.js";
 import { ModuleSetupActionStore } from "./pending-actions.js";
 import { invalidRequest, notFound, storeError } from "./results.js";
+import { validateCompletableSetupAction } from "./service-action-validation.js";
+import { projectSetupStatusForVisibility, setupPolicyDenied } from "./service-policy.js";
 import { revokedActionFile } from "./service-revoke.js";
 import { moduleSetupStatusFor } from "./status.js";
 import {
   defaultModuleSetupPendingTtlMs,
   projectModuleSetupPendingActionForClient,
-  projectModuleSetupStatusForClient,
   secretRefsFor,
   summarizeStatuses,
 } from "./status-utils.js";
@@ -18,35 +19,40 @@ import type {
   ModuleSetupFailureResult,
   ModuleSetupFormValues,
   ModuleSetupMutationResult,
-  ModuleSetupPendingAction,
   ModuleSetupRequirementContribution,
   ModuleSetupRequirementStatus,
   ModuleSetupServiceOptions,
   ModuleSetupStartResult,
   ModuleSetupStatusResponse,
 } from "./types.js";
-import { isLiteral } from "./validation.js";
 
 export class ModuleSetupService {
   readonly #projectDir: string;
+  readonly #authorityConfigPath: string | undefined;
   readonly #getRequirements: () => readonly ModuleSetupRequirementContribution[];
   readonly #probeCapabilities: ModuleSetupServiceOptions["probeCapabilities"];
   readonly #now: () => Date;
   readonly #actions: ModuleSetupActionStore;
+  readonly #getVisibility: NonNullable<ModuleSetupServiceOptions["getVisibility"]>;
 
   constructor(options: ModuleSetupServiceOptions) {
     this.#projectDir = options.projectDir;
+    this.#authorityConfigPath = options.authorityConfigPath;
     this.#getRequirements = options.getRequirements;
     this.#probeCapabilities = options.probeCapabilities;
     this.#now = options.now ?? (() => new Date());
+    this.#getVisibility = options.getVisibility ?? (() => "full");
     this.#actions = new ModuleSetupActionStore(options.projectDir);
   }
 
   async list(): Promise<ModuleSetupStatusResponse> {
+    if (this.#getVisibility() === "hidden") {
+      return { requirements: [], summary: summarizeStatuses([]) };
+    }
     const capabilities = await this.#probeCapabilities();
     const config = this.#loadProjectConfig();
     const statuses = this.#getRequirements().map((entry) =>
-      projectModuleSetupStatusForClient(
+      this.#projectStatus(
         this.#statusFor(entry, config, capabilities),
       ),
     );
@@ -57,6 +63,7 @@ export class ModuleSetupService {
     moduleName: string,
     requirementId: string,
   ): Promise<ModuleSetupMutationResult> {
+    if (this.#getVisibility() === "hidden") return this.#policyDenied();
     const found = this.#find(moduleName, requirementId);
     if (!found) return notFound(moduleName, requirementId);
     return { ok: true, status: await this.#freshStatus(found) };
@@ -67,6 +74,7 @@ export class ModuleSetupService {
     requirementId: string,
     values: ModuleSetupFormValues,
   ): Promise<ModuleSetupMutationResult> {
+    if (this.#getVisibility() !== "full") return this.#policyDenied();
     const found = this.#find(moduleName, requirementId);
     if (!found) return notFound(moduleName, requirementId);
     if (found.requirement.setup.mode !== "form") {
@@ -99,6 +107,7 @@ export class ModuleSetupService {
     requirementId: string,
     secretValues: Record<string, string>,
   ): Promise<ModuleSetupMutationResult> {
+    if (this.#getVisibility() !== "full") return this.#policyDenied();
     const found = this.#find(moduleName, requirementId);
     if (!found) return notFound(moduleName, requirementId);
     const refs = secretRefsFor(found.requirement);
@@ -122,6 +131,7 @@ export class ModuleSetupService {
     moduleName: string,
     requirementId: string,
   ): Promise<ModuleSetupStartResult> {
+    if (this.#getVisibility() !== "full") return this.#policyDenied();
     const found = this.#find(moduleName, requirementId);
     if (!found) return notFound(moduleName, requirementId);
     if (found.requirement.setup.mode !== "url") {
@@ -167,6 +177,7 @@ export class ModuleSetupService {
     actionId: string,
     input: ModuleSetupCompleteInput,
   ): Promise<ModuleSetupMutationResult> {
+    if (this.#getVisibility() !== "full") return this.#policyDenied();
     const file = this.#actions.read();
     const action = file.actions.find((candidate) => candidate.actionId === actionId);
     if (!action) {
@@ -174,7 +185,7 @@ export class ModuleSetupService {
     }
     const found = this.#find(action.moduleName, action.requirementId);
     if (!found) return notFound(action.moduleName, action.requirementId);
-    const actionFailure = this.#validateCompletableAction(action, found);
+    const actionFailure = validateCompletableSetupAction(action, found, this.#now().getTime());
     if (actionFailure) return actionFailure;
     if (input.configValues) {
       const formResult = await this.submitForm(action.moduleName, action.requirementId, input.configValues);
@@ -199,6 +210,7 @@ export class ModuleSetupService {
     moduleName: string,
     requirementId: string,
   ): Promise<ModuleSetupMutationResult> {
+    if (this.#getVisibility() !== "full") return this.#policyDenied();
     const found = this.#find(moduleName, requirementId);
     if (!found) return notFound(moduleName, requirementId);
     try {
@@ -215,31 +227,6 @@ export class ModuleSetupService {
     } catch (err) {
       return storeError(err instanceof Error ? err.message : String(err));
     }
-  }
-
-  #validateCompletableAction(
-    action: ModuleSetupPendingAction,
-    found: ModuleSetupRequirementContribution,
-  ): ModuleSetupFailureResult | null {
-    if (!isLiteral(action.status, SETUP_ACTION_STATUSES)) {
-      return invalidRequest(
-        `Setup action "${action.actionId}" has invalid status "${String(action.status)}"`,
-      );
-    }
-    if (action.status !== "pending") {
-      return invalidRequest(`Setup action "${action.actionId}" is already ${action.status}`);
-    }
-    if (found.requirement.setup.mode !== "url") {
-      return invalidRequest(`Setup action "${action.actionId}" does not target URL setup`);
-    }
-    const expiresAt = Date.parse(action.expiresAt);
-    if (!Number.isFinite(expiresAt)) {
-      return invalidRequest(`Setup action "${action.actionId}" has invalid expiration`);
-    }
-    if (expiresAt <= this.#now().getTime()) {
-      return invalidRequest(`Setup action "${action.actionId}" expired`);
-    }
-    return null;
   }
 
   #revokeActions(
@@ -271,13 +258,27 @@ export class ModuleSetupService {
 
   async #freshStatus(found: ModuleSetupRequirementContribution): Promise<ModuleSetupRequirementStatus> {
     const capabilities = await this.#probeCapabilities();
-    return projectModuleSetupStatusForClient(
+    return this.#projectStatus(
       this.#statusFor(found, this.#loadProjectConfig(), capabilities),
     );
   }
 
   #loadProjectConfig(): ReturnType<typeof loadConfig> {
-    return loadConfig(this.#projectDir, { trustedProjects: [this.#projectDir] });
+    return loadConfig(
+      this.#projectDir,
+      undefined,
+      this.#authorityConfigPath === undefined
+        ? undefined
+        : { globalConfigPath: this.#authorityConfigPath },
+    );
+  }
+
+  #projectStatus(status: ModuleSetupRequirementStatus): ModuleSetupRequirementStatus {
+    return projectSetupStatusForVisibility(status, this.#getVisibility());
+  }
+
+  #policyDenied(): ModuleSetupFailureResult {
+    return setupPolicyDenied(this.#getVisibility());
   }
 
   #statusFor(

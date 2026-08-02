@@ -24,6 +24,14 @@ import type {
   InteractiveSession,
 } from "#core/daemon/daemon-control.js";
 import type {
+  ScopeAuthorityFailure,
+  ScopeAuthorityMutation,
+  ScopeAuthorityMutationResult,
+  ScopeAuthorityOperatorActionValue,
+  ScopeAuthorityValidationResult,
+  ScopeAuthorityView,
+} from "#core/daemon/scope-authority-types.js";
+import type {
   ConfiguredProject,
   ProjectId,
 } from "#core/daemon/scope-registry.js";
@@ -174,6 +182,19 @@ export type ProjectsUseResult =
   | { ok: false; reason: "not_found"; projectId: string }
   | { ok: false; reason: "daemon_required" };
 
+export type ProjectAuthorityInspectResult =
+  | { ok: true; authority: ScopeAuthorityView }
+  | ScopeAuthorityFailure
+  | { ok: false; reason: "daemon_required" };
+
+export type ProjectAuthorityValidationResult =
+  | ScopeAuthorityValidationResult
+  | { ok: false; reason: "daemon_required" };
+
+export type ProjectAuthorityMutationResult =
+  | ScopeAuthorityMutationResult
+  | { ok: false; reason: "daemon_required" };
+
 /**
  * Project-selection operations exposed to operator CLIs and clients.
  *
@@ -188,4 +209,14 @@ export type ProjectsUseResult =
 export interface ProjectsClient {
   list(): Promise<ProjectsListResult>;
   use(projectId: string | null): Promise<ProjectsUseResult>;
+  inspectAuthority?(scopeId: string): Promise<ProjectAuthorityInspectResult>;
+  validateAuthority?(
+    scopeId: string,
+    mutation: ScopeAuthorityMutation,
+  ): Promise<ProjectAuthorityValidationResult>;
+  applyAuthority?(
+    scopeId: string,
+    mutation: ScopeAuthorityMutation,
+    operatorAction: ScopeAuthorityOperatorActionValue,
+  ): Promise<ProjectAuthorityMutationResult>;
 }

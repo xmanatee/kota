@@ -6,4 +6,7 @@ This directory contains the filesystem capability pack — a repo module that ow
 - Tools, helpers, and tests are co-located here, following the pattern established by `web-access/`.
 - Read-only tools (`file_read`, `glob`, `grep`, `files_overview`) are classified as safe in guardrails.
 - Write tools (`file_write`, `file_edit`, `multi_edit`, `find_replace`, `file_watch`) are classified as moderate.
+- Mutation tools reject the machine-authority directory supplied by the runtime;
+  trust and policy changes must use the authenticated scope-authority service so
+  they retain operator verification and audit provenance.
 - Read/list/search surfaces must not expose protected project runtime credentials such as `.kota/daemon-control.json`, `.kota/secrets.json`, or env files; use the local protected-path helper for new filesystem read surfaces.

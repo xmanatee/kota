@@ -46,9 +46,9 @@ non-interactive CLI path cannot route approvals through KOTA's approval queue.
 ## Capability Boundary
 
 Codex CLI owns its own tool runtime. This adapter does not expose KOTA's tool
-registry, MCP servers, `allowedTools`, `disallowedTools`, or `canUseTool` to
-the model. It declares `toolControl: "native"` and rejects unsupported neutral
-options before Codex CLI starts.
+registry, MCP servers, `allowedTools`, `disallowedTools`, `canUseTool`, or
+scope-policy evaluator to the model. It declares `toolControl: "native"` and
+rejects unsupported neutral options before Codex CLI starts.
 `askOwnerToolName` is therefore `null`, so workflow prompts do not advertise a
 fake `ask_owner` tool. Workflows that need owner escalation should use the
 deterministic `askOwnerSteps` recipe outside the agent step.

@@ -60,6 +60,11 @@ const CODEX_UNSUPPORTED_OPTIONS = [
     reason: "Codex CLI tool calls cannot be routed through KOTA's canUseTool gate.",
   },
   {
+    runOption: "scopePolicy",
+    option: "scopePolicy",
+    reason: "Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.",
+  },
+  {
     runOption: "autonomyMode.supervised",
     option: 'autonomyMode="supervised"',
     reason: "The non-interactive CLI path cannot route approvals through KOTA's queue.",
@@ -145,6 +150,12 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
     throw new Error(
       'The "codex" agent harness cannot route Codex CLI tool calls through KOTA canUseTool. ' +
         "Drop canUseTool or run a KOTA-hosted tool-loop harness.",
+    );
+  }
+  if (options.scopePolicy !== undefined) {
+    throw new Error(
+      'The "codex" agent harness cannot route Codex CLI tool calls through KOTA scope policy. ' +
+        "Drop scopePolicy or run a KOTA-hosted tool-loop harness.",
     );
   }
   if (options.autonomyMode === "supervised") {

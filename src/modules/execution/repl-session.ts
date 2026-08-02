@@ -8,6 +8,7 @@ import {
 } from "#core/tools/session-environment.js";
 import { DONE_MARKER, ENV_MARKER, NODE_WRAPPER, PYTHON_WRAPPER, SENTINEL } from "./code-wrappers.js";
 import { buildExecutionEnv } from "./execution-env.js";
+import { buildMachineAuthoritySandboxLaunch } from "./machine-authority-sandbox.js";
 
 export type Language = "python" | "node";
 const SETTLE_STDERR_GRACE_MS = 10;
@@ -58,15 +59,23 @@ export class REPLSession {
     this.language = language;
   }
 
-  private start(cwd: string, context?: ToolRunnerContext): void {
-    if (this.alive) return;
+  private start(cwd: string, context?: ToolRunnerContext): string | undefined {
+    if (this.alive) return undefined;
 
     const [cmd, args] =
       this.language === "python"
         ? [findPythonBinary(cwd), ["-u", "-c", PYTHON_WRAPPER]]
         : ["node", ["-e", NODE_WRAPPER]];
 
-    this.proc = spawn(cmd, args, {
+    const launch = context?.authorityConfigPath === undefined
+      ? { ok: true as const, command: cmd, args }
+      : buildMachineAuthoritySandboxLaunch(cmd, args, {
+          cwd,
+          authorityConfigPath: context.authorityConfigPath,
+        });
+    if (!launch.ok) return launch.error;
+
+    this.proc = spawn(launch.command, launch.args, {
       cwd,
       env: buildExecutionEnv(context),
       stdio: ["pipe", "pipe", "pipe"],
@@ -91,6 +100,7 @@ export class REPLSession {
     };
     ref.on("exit", markDead);
     ref.on("error", markDead);
+    return undefined;
   }
 
   async execute(
@@ -107,7 +117,12 @@ export class REPLSession {
       this.kill();
     }
     const crashRestarted = !this.alive && this.proc !== null;
-    if (!this.alive || !this.proc) this.start(cwd, context);
+    if (!this.alive || !this.proc) {
+      const startError = this.start(cwd, context);
+      if (startError !== undefined) {
+        return { output: `Error: ${startError}`, isError: true };
+      }
+    }
     const proc = this.proc!;
     if (!proc.stdin || !proc.stdout || !proc.stderr) {
       return { output: "Process stdio not available", isError: true };

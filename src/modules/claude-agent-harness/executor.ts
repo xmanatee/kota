@@ -1,3 +1,4 @@
+import { dirname } from "node:path";
 import type { McpServerConfig } from "@anthropic-ai/claude-agent-sdk";
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import type {
@@ -5,6 +6,8 @@ import type {
   AgentEffort,
   KotaAgentMessage,
 } from "#core/agent-harness/types.js";
+import { getGlobalConfigPath } from "#core/config/config.js";
+import { scopeAuthorityOperatorTokenPath } from "#core/daemon/scope-authority-operator-token.js";
 import { normalizeCanUseTool } from "./executor-permissions.js";
 import {
   detectLocalClaudeCodeExecutable,
@@ -65,6 +68,7 @@ export type ExecutorOptions = {
   settingSources?: readonly ClaudeAgentSdkSettingSource[];
   pathToClaudeCodeExecutable?: string;
   env?: Record<string, string>;
+  authorityConfigPath?: string;
   abortController?: AbortController;
   enableFileCheckpointing?: boolean;
   onMessage?: (message: KotaAgentMessage) => void | Promise<void>;
@@ -94,6 +98,11 @@ export function buildQueryOptions(options: ExecutorOptions): SDKQueryOptions {
   const thinking = options.thinkingEnabled
     ? { type: "enabled" as const, budgetTokens: Math.max(1024, options.thinkingBudget ?? 10_000) }
     : undefined;
+  const authorityConfigPath = options.authorityConfigPath ?? getGlobalConfigPath();
+  const authorityTokenPaths = [...new Set([
+    scopeAuthorityOperatorTokenPath(authorityConfigPath),
+    scopeAuthorityOperatorTokenPath(),
+  ])];
   return {
     model: options.model,
     maxTurns: options.maxTurns,
@@ -120,6 +129,17 @@ export function buildQueryOptions(options: ExecutorOptions): SDKQueryOptions {
     thinking,
     spawnClaudeCodeProcess: spawnClaudeCodeProcessWithAbortKill,
     canUseTool: normalizeCanUseTool(options.canUseTool),
+    sandbox: {
+      enabled: true,
+      failIfUnavailable: true,
+      allowUnsandboxedCommands: false,
+      autoAllowBashIfSandboxed: true,
+      filesystem: {
+        allowWrite: [options.cwd ?? process.cwd()],
+        denyWrite: [dirname(authorityConfigPath), ...authorityTokenPaths],
+        denyRead: authorityTokenPaths,
+      },
+    },
   };
 }
 

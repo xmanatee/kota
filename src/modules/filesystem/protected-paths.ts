@@ -1,5 +1,10 @@
-import { existsSync, lstatSync, readlinkSync, realpathSync } from "node:fs";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { isScopeAuthorityOperatorTokenPath } from "#core/daemon/scope-authority-operator-token.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
+import {
+  resolvePathFrom,
+  resolvePathThroughExistingAncestor,
+} from "#core/util/real-path.js";
 
 const PROTECTED_PROJECT_RUNTIME_FILES = [
   ".kota/daemon-control.json",
@@ -9,6 +14,7 @@ const PROTECTED_PROJECT_RUNTIME_FILES = [
 export const PROTECTED_PROJECT_GLOB_IGNORES = [
   "**/.kota/daemon-control.json",
   "**/.kota/secrets.json",
+  "**/scope-authority-token.json",
   "**/.env",
   "**/.env.*",
 ] as const;
@@ -16,6 +22,7 @@ export const PROTECTED_PROJECT_GLOB_IGNORES = [
 export const PROTECTED_PROJECT_GREP_EXCLUDES = [
   "daemon-control.json",
   "secrets.json",
+  "scope-authority-token.json",
   ".env",
   ".env.*",
 ] as const;
@@ -40,63 +47,6 @@ export function isProtectedRelativeProjectPath(relativePath: string): boolean {
   return isProtectedRuntimeFile(normalizedRelativePath) || isProtectedEnvFile(normalizedRelativePath);
 }
 
-function resolvePathFrom(baseDirectory: string, targetPath: string): string {
-  return isAbsolute(targetPath)
-    ? resolve(targetPath)
-    : resolve(baseDirectory, targetPath);
-}
-
-function resolveBoundaryPath(path: string): string {
-  try {
-    return realpathSync.native(path);
-  } catch {
-    return path;
-  }
-}
-
-const MAX_SYMLINK_RESOLUTION_DEPTH = 40;
-
-function readSymlinkTarget(path: string): string | null {
-  try {
-    const stats = lstatSync(path);
-    if (!stats.isSymbolicLink()) return null;
-    return resolvePathFrom(dirname(path), readlinkSync(path));
-  } catch {
-    return null;
-  }
-}
-
-function resolveThroughExistingAncestor(
-  path: string,
-  symlinkDepth = 0,
-): string | null {
-  if (symlinkDepth > MAX_SYMLINK_RESOLUTION_DEPTH) return null;
-
-  let current = path;
-  const missingSegments: string[] = [];
-
-  while (true) {
-    const symlinkTarget = readSymlinkTarget(current);
-    if (symlinkTarget) {
-      return resolveThroughExistingAncestor(
-        join(symlinkTarget, ...missingSegments),
-        symlinkDepth + 1,
-      );
-    }
-
-    if (existsSync(current)) {
-      return join(resolveBoundaryPath(current), ...missingSegments);
-    }
-
-    const parent = dirname(current);
-    if (parent === current) {
-      return join(resolveBoundaryPath(current), ...missingSegments);
-    }
-    missingSegments.unshift(basename(current));
-    current = parent;
-  }
-}
-
 function isProtectedResolvedPathUnderBase(
   resolvedPath: string,
   baseDirectory: string,
@@ -115,11 +65,14 @@ function isProtectedPathUnderBase(
 ): boolean {
   const projectRoot = resolve(baseDirectory);
   const requestedPath = resolvePathFrom(projectRoot, filePath);
-  const resolvedPath = resolveThroughExistingAncestor(requestedPath);
+  const resolvedPath = resolvePathThroughExistingAncestor(requestedPath);
   const candidatePaths = resolvedPath
     ? [requestedPath, resolvedPath]
     : [requestedPath];
-  const candidateRoots = [projectRoot, resolveBoundaryPath(projectRoot)];
+  const resolvedProjectRoot = resolvePathThroughExistingAncestor(projectRoot);
+  const candidateRoots = resolvedProjectRoot === null
+    ? [projectRoot]
+    : [projectRoot, resolvedProjectRoot];
 
   return candidatePaths.some((path) =>
     candidateRoots.some((root) => isProtectedResolvedPathUnderBase(path, root)),
@@ -130,6 +83,7 @@ export function isProtectedProjectPath(
   filePath: string,
   baseDirectory = process.cwd(),
 ): boolean {
+  if (isScopeAuthorityOperatorTokenPath(filePath, baseDirectory)) return true;
   if (isProtectedPathUnderBase(filePath, baseDirectory)) return true;
   const daemonProjectRoot = process.cwd();
   return resolve(baseDirectory) !== resolve(daemonProjectRoot)
@@ -138,4 +92,40 @@ export function isProtectedProjectPath(
 
 export function protectedProjectPathError(filePath: string): string {
   return `Error: access denied for protected project runtime credential file: ${filePath}`;
+}
+
+function isPathWithin(root: string, target: string): boolean {
+  const child = relative(root, target);
+  return child === "" || (!child.startsWith("..") && !isAbsolute(child));
+}
+
+/**
+ * Agent filesystem tools must never become a second writer for machine-owned
+ * authority. Protect the whole containing directory to match the execution
+ * sandbox, which also covers the operator credential beside the config file.
+ */
+export function isMachineAuthorityMutationPath(
+  filePath: string,
+  context?: Pick<ToolRunnerContext, "authorityConfigPath" | "cwd">,
+): boolean {
+  if (context?.authorityConfigPath === undefined) return false;
+
+  const requestedPath = resolvePathFrom(context.cwd ?? process.cwd(), filePath);
+  const authorityDirectory = dirname(resolve(context.authorityConfigPath));
+  const resolvedRequestedPath = resolvePathThroughExistingAncestor(requestedPath);
+  const resolvedAuthorityDirectory = resolvePathThroughExistingAncestor(authorityDirectory);
+  const candidatePaths = resolvedRequestedPath === null
+    ? [requestedPath]
+    : [requestedPath, resolvedRequestedPath];
+  const candidateRoots = resolvedAuthorityDirectory === null
+    ? [authorityDirectory]
+    : [authorityDirectory, resolvedAuthorityDirectory];
+
+  return candidatePaths.some((path) =>
+    candidateRoots.some((root) => isPathWithin(root, path)),
+  );
+}
+
+export function machineAuthorityMutationError(): string {
+  return "Error: operator-owned machine authority cannot be changed by agent filesystem tools; use the authenticated scope authority service";
 }

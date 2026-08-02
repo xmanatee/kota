@@ -93,6 +93,7 @@ export type AgentHarnessUnsupportedRunOption =
   | "persistSession"
   | "resumeSessionId"
   | "env"
+  | "scopePolicy"
   | "harnessOverrides"
   | "enableFileCheckpointing"
   | "thinking"

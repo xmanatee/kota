@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -95,12 +95,16 @@ describe("setup client scope", () => {
   it("reads and mutates setup state in the selected directory scope", async () => {
     const baseDir = mkdtempSync(join(tmpdir(), "kota-setup-base-"));
     const scopedDir = mkdtempSync(join(tmpdir(), "kota-setup-scoped-"));
+    const operatorDir = mkdtempSync(join(tmpdir(), "kota-setup-authority-"));
+    const authorityConfigPath = join(operatorDir, "config.json");
+    writeFileSync(authorityConfigPath, JSON.stringify({ trustedProjects: [scopedDir] }));
     try {
       const provider = {
         resolveProjectRuntime: (scopeId: string) => scopeId === "scope-b"
           ? {
               ok: true as const,
               runtime: {
+                authorityConfigPath,
                 project: {
                   projectId: "scope-b",
                   projectDir: scopedDir,
@@ -135,6 +139,7 @@ describe("setup client scope", () => {
     } finally {
       rmSync(baseDir, { recursive: true, force: true });
       rmSync(scopedDir, { recursive: true, force: true });
+      rmSync(operatorDir, { recursive: true, force: true });
     }
   });
 

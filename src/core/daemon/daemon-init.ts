@@ -60,6 +60,8 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     eventJournal,
     uninstallEventJournal,
     projectRegistry,
+    scopeAuthority,
+    scopeAuthorityOperatorVerifier,
     projectRuntimes,
   } = params;
   const sessions = new Map<string, InteractiveSession>();
@@ -146,6 +148,8 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     runStore,
     projectDir,
     projectRegistry,
+    scopeAuthority,
+    scopeAuthorityOperatorVerifier,
     projectRuntimes,
     getScopeHostingState: (scopeId) => scopeLifecycle.getHostingState(scopeId),
     config,
@@ -262,6 +266,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     state,
     sessions,
     projectRegistry,
+    scopeAuthority,
     projectRuntimes,
     scopeLifecycle,
     scopeRuntimeHost,

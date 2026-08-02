@@ -17,6 +17,8 @@ export const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set<keyof KotaConfig>(
   "verbose",
   "skipConfirmations",
   "trustedProjects",
+  "scopePolicies",
+  "scopeAuthority",
   "autoEnable",
   "user",
   "aliases",

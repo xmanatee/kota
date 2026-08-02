@@ -6,6 +6,7 @@ import {
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-directory.js";
 import { mergeConfigs } from "./config-merge.js";
 import { isPlainObject, sanitize } from "./config-sanitize.js";
 import { getRegisteredConfigSlice } from "./config-slice.js";
@@ -18,6 +19,19 @@ export { updateProjectConfig } from "./project-config-writer.js";
 const CONFIG_FILENAME = "config.json";
 const GLOBAL_DIR = join(homedir(), ".kota");
 const PROJECT_DIR = ".kota";
+const MACHINE_AUTHORITY_KEYS = [
+  "trustedProjects",
+  "scopePolicies",
+  "scopeAuthority",
+] as const;
+
+export type LoadConfigOptions = {
+  globalConfigPath?: string;
+};
+
+export function getGlobalConfigPath(): string {
+  return join(GLOBAL_DIR, CONFIG_FILENAME);
+}
 
 export type ProjectConfigTrustReason =
   | "kota-self-project"
@@ -59,6 +73,8 @@ const AUTHORITY_KEY_CLASSES: ReadonlyMap<string, string> = new Map([
   ["foreignModules", "foreign module launch"],
   ["modules", "module config"],
   ["serve", "server/auth posture"],
+  ["scopePolicies", "scope policy authority"],
+  ["scopeAuthority", "scope authority audit"],
 ]);
 
 /** Read and parse a JSON config file. Returns null if missing or invalid. */
@@ -72,7 +88,7 @@ function readConfigFile(path: string): Record<string, unknown> | null {
   }
 }
 
-function normalizePathForTrust(path: string): string {
+export function normalizeProjectTrustPath(path: string): string {
   try {
     return realpathSync(path);
   } catch {
@@ -85,17 +101,17 @@ function normalizeTrustedProjectEntry(entry: string): string | null {
     ? join(homedir(), entry.slice(2))
     : entry;
   if (!isAbsolute(expanded)) return null;
-  return normalizePathForTrust(expanded);
+  return normalizeProjectTrustPath(expanded);
 }
 
 function kotaSourceRoot(): string {
-  return normalizePathForTrust(
+  return normalizeProjectTrustPath(
     resolve(dirname(fileURLToPath(import.meta.url)), "../../.."),
   );
 }
 
 function isKotaSelfProject(projectDir: string): boolean {
-  return normalizePathForTrust(projectDir) === kotaSourceRoot();
+  return normalizeProjectTrustPath(projectDir) === kotaSourceRoot();
 }
 
 function trustedProjectsIncludes(
@@ -103,7 +119,7 @@ function trustedProjectsIncludes(
   config: Partial<KotaConfig>,
 ): boolean {
   const trustedProjects = config.trustedProjects ?? [];
-  const normalizedProjectDir = normalizePathForTrust(projectDir);
+  const normalizedProjectDir = normalizeProjectTrustPath(projectDir);
   return trustedProjects.some((entry) =>
     normalizeTrustedProjectEntry(entry) === normalizedProjectDir
   );
@@ -148,11 +164,15 @@ function summarizeIgnoredProjectConfig(
   const keyClasses = [...byClass.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([keyClass, classKeys]) => `${keyClass} (${classKeys.join(", ")})`);
-  const trustedPath = normalizePathForTrust(projectDir);
+  const trustedPath = normalizeProjectTrustPath(projectDir);
+  const scopeId = deriveDirectoryScopeId(trustedPath);
   const message =
     `ignored untrusted project config at ${path}; rejected key classes: ` +
-    `${keyClasses.join("; ")}. Add "${trustedPath}" to "trustedProjects" ` +
-    `in ${join(GLOBAL_DIR, CONFIG_FILENAME)} to trust this project.`;
+    `${keyClasses.join("; ")}. Use ` +
+    `"kota project authority set ${scopeId} --trust trusted --reason <reason>" ` +
+    `from an interactive operator terminal with the live daemon to trust this project. ` +
+    `Recovery source: ` +
+    `${join(GLOBAL_DIR, CONFIG_FILENAME)} ("trustedProjects" includes "${trustedPath}").`;
 
   return { path, keys, keyClasses, message };
 }
@@ -186,27 +206,46 @@ export function resolveProjectConfigTrust(
   };
 }
 
+/** Resolve project trust from persisted machine config, never caller overrides. */
+export function loadProjectConfigTrustDecision(
+  cwd?: string,
+  options: LoadConfigOptions = {},
+): ProjectConfigTrustDecision {
+  const projectDir = cwd || process.cwd();
+  const globalConfig = readConfigFile(options.globalConfigPath ?? getGlobalConfigPath());
+  const authorityConfig = globalConfig ? sanitize(globalConfig) : {};
+  return resolveProjectConfigTrust(projectDir, authorityConfig);
+}
+
+function stripMachineAuthority(
+  config: Partial<KotaConfig>,
+): Partial<KotaConfig> {
+  const stripped = { ...config };
+  for (const key of MACHINE_AUTHORITY_KEYS) delete stripped[key];
+  return stripped;
+}
+
 /**
  * Load configuration with layered precedence: global < trusted project < overrides.
- * Overrides come from CLI flags or programmatic usage.
+ * Machine authority is accepted only from the persisted global layer.
  */
 export function loadConfigWithDiagnostics(
   cwd?: string,
   overrides?: Partial<KotaConfig>,
+  options: LoadConfigOptions = {},
 ): LoadConfigResult {
   const projectDir = cwd || process.cwd();
 
-  const globalConfig = readConfigFile(join(GLOBAL_DIR, CONFIG_FILENAME));
+  const globalConfig = readConfigFile(options.globalConfigPath ?? getGlobalConfigPath());
   const projectConfigPath = join(projectDir, PROJECT_DIR, CONFIG_FILENAME);
   const projectConfig = readConfigFile(projectConfigPath);
   const sanitizedGlobal = globalConfig ? sanitize(globalConfig) : {};
-  const sanitizedOverrides = overrides ? sanitize(overrides) : undefined;
-  const trustAuthorityConfig = sanitizedOverrides
-    ? mergeConfigs(sanitizedGlobal, sanitizedOverrides)
-    : sanitizedGlobal;
+  const sanitizedOverrides = overrides
+    ? sanitize(stripMachineAuthority(overrides))
+    : undefined;
   const projectConfigTrust = resolveProjectConfigTrust(
     projectDir,
-    trustAuthorityConfig,
+    sanitizedGlobal,
   );
 
   let config: Partial<KotaConfig> = {};
@@ -215,7 +254,11 @@ export function loadConfigWithDiagnostics(
   const warnings: string[] = [];
   if (projectConfig) {
     if (projectConfigTrust.trusted) {
-      config = mergeConfigs(config, sanitize(projectConfig));
+      const projectContent = { ...projectConfig };
+      delete projectContent.trustedProjects;
+      delete projectContent.scopePolicies;
+      delete projectContent.scopeAuthority;
+      config = mergeConfigs(config, sanitize(projectContent));
     } else {
       const ignored = summarizeIgnoredProjectConfig(
         projectDir,
@@ -239,11 +282,12 @@ export function loadConfigWithDiagnostics(
 
 /**
  * Load configuration with layered precedence: global < trusted project < overrides.
- * Overrides come from CLI flags or programmatic usage.
+ * Machine authority is accepted only from the persisted global layer.
  */
 export function loadConfig(
   cwd?: string,
   overrides?: Partial<KotaConfig>,
+  options?: LoadConfigOptions,
 ): KotaConfig {
-  return loadConfigWithDiagnostics(cwd, overrides).config;
+  return loadConfigWithDiagnostics(cwd, overrides, options).config;
 }

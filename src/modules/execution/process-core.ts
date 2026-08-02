@@ -5,13 +5,13 @@ import type { ToolResult } from "#core/tools/tool-result.js";
 import { line, span } from "#modules/rendering/primitives.js";
 import { printToStderr } from "#modules/rendering/transport.js";
 import { buildExecutionEnv } from "./execution-env.js";
+import { buildShellMachineAuthoritySandboxLaunch } from "./machine-authority-sandbox.js";
 import * as processLifecycle from "./process-lifecycle.js";
 
 const MAX_BUFFER_LINES = 500;
 const MAX_PROCESSES = 5;
 const INITIAL_OUTPUT_WAIT_MS = 500;
 const MAX_OUTPUT_CHARS = 20_000;
-
 type ManagedProcess = {
   id: string;
   command: string;
@@ -112,10 +112,7 @@ function purgeStale(): void {
   }
 }
 
-export async function startProcess(
-  command: string,
-  context?: ToolRunnerContext,
-): Promise<ToolResult> {
+export async function startProcess(command: string, context?: ToolRunnerContext): Promise<ToolResult> {
   if (!command || !command.trim()) {
     return { content: "Error: command is required for 'start' action", is_error: true };
   }
@@ -133,7 +130,11 @@ export async function startProcess(
 
   const id = generateId();
   const cwd = context?.cwd ?? process.cwd();
-  const proc = spawn("sh", ["-c", command], {
+  const launch = buildShellMachineAuthoritySandboxLaunch(command, cwd, context?.authorityConfigPath);
+  if (!launch.ok) {
+    return { content: `Error: ${launch.error}`, is_error: true };
+  }
+  const proc = spawn(launch.command, launch.args, {
     cwd,
     env: buildExecutionEnv(context),
     stdio: ["pipe", "pipe", "pipe"],

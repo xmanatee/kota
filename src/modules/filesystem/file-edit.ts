@@ -11,6 +11,10 @@ import {
 } from "./file-edit-helpers.js";
 import { lintFile } from "./lint.js";
 import { fileNotFoundError, resolveToolPath } from "./path-resolver.js";
+import {
+  isMachineAuthorityMutationPath,
+  machineAuthorityMutationError,
+} from "./protected-paths.js";
 
 export const fileEditTool: KotaTool = {
   name: "file_edit",
@@ -59,6 +63,9 @@ export async function runFileEdit(
   if (oldStr === newStr) return { content: "Error: old_string and new_string are identical", is_error: true };
 
   const path = resolveToolPath(rawPath, context);
+  if (isMachineAuthorityMutationPath(path, context)) {
+    return { content: machineAuthorityMutationError(), is_error: true };
+  }
   if (!existsSync(path)) {
     return { content: fileNotFoundError(path, context?.cwd), is_error: true };
   }

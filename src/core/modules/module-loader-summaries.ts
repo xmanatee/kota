@@ -1,7 +1,31 @@
-import type { SkillDef } from "#core/agents/agent-types.js";
+import type { AgentDef, SkillDef } from "#core/agents/agent-types.js";
 import { getModuleToolNames } from "#core/tools/index.js";
 import type { LoaderState } from "./module-loader-state.js";
-import type { ModuleSummary } from "./module-types.js";
+import type { HealthCheckResult, ModuleSummary } from "./module-types.js";
+
+export function findModuleAgent(state: LoaderState, name: string): AgentDef | undefined {
+  for (const agents of state.moduleAgentDefs.values()) {
+    const found = agents.find((agent) => agent.name === name);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+export async function probeModuleHealthChecks(
+  state: LoaderState,
+): Promise<Record<string, HealthCheckResult>> {
+  const results: Record<string, HealthCheckResult> = {};
+  for (const mod of state.modules) {
+    if (!mod.healthCheck) continue;
+    try {
+      results[mod.name] = await mod.healthCheck();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      results[mod.name] = { status: "unhealthy", message: `healthCheck threw: ${message}` };
+    }
+  }
+  return results;
+}
 
 export function collectModuleSummaries(state: LoaderState): ModuleSummary[] {
   const loaded = state.modules.map((mod) => {

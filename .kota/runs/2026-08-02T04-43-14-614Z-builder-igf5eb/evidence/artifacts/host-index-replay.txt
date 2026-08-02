@@ -1,0 +1,50 @@
+Post-check repair attempt 4 for run
+`2026-08-02T04-43-14-614Z-builder-igf5eb` retried `git add -A` against the
+real linked-worktree index. The builder sandbox denied creation of the host
+`index.lock`, so the exact commit set was first replayed with the repository's
+prescribed workspace-local index and object directory, using the host object
+store as an alternate.
+
+The isolated index was copied from the real linked-worktree index, reconciled
+with `git add -A`, and then received the screened projection from the current
+builder evidence manifest.
+It contains 217 changed paths: 208 source, documentation, schema, fixture, and
+task-state paths plus 9 current-run evidence paths. It includes the two prior
+host-index omissions:
+
+- src/built-cli-daemon-authority.integration.test.ts
+- src/core/daemon/daemon-control-route-invoker.ts
+
+It contains zero paths from the obsolete projection under
+`.kota/runs/2026-08-01T22-42-44-434Z-builder-fj1xgl/evidence/`.
+`git diff --cached --check` and the builder evidence-boundary
+`commit-stageable` check both passed against the exact isolated staged delta.
+
+Post-check repair attempt 5 then gained access to the real linked-worktree
+index. A direct `git add -A` succeeded, removed all eight obsolete prior-run
+projection entries, and staged the current run's nine registered evidence
+paths together with the preserved implementation. No host-index replay remains
+outstanding, and no commit was created by the builder step.
+
+The final source-size repair again encountered the read-only linked-worktree
+index. The canonical workspace-local index at
+`.kota/tmp/2026-08-02T04-43-14-614Z-builder-igf5eb/index` was refreshed from
+the real index and reconciled with `git add -A` using the sibling
+`index-objects` directory plus the host object store as an alternate. The
+isolated index contains 224 changed paths and reports no unstaged or untracked
+paths. `git diff --cached --check` passed. The real worktree index still needs
+the host-side replay of this canonical isolated index; no commit was created.
+
+Post-check repair attempt 9 regained access to the real linked-worktree index.
+A direct `git add -A` staged the compound execution-policy repair and refreshed
+the registered run evidence in that real index. It now contains 227 changed
+paths, reports no unstaged or untracked paths, and passes
+`git diff --cached --check`. The earlier isolated-index replay is no longer
+outstanding; no commit was created by the builder step.
+
+The immediately following evidence refresh again lost host `index.lock`
+access. The canonical workspace-local index was refreshed from that real
+227-path index and reconciled with the final host-index note using its local
+object directory plus the host object store as an alternate. The isolated
+index is therefore the exact final staged set; its host-side replay is
+outstanding, and no commit was created.

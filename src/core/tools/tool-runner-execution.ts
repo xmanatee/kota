@@ -5,6 +5,7 @@ import {
 	type ValidatedToolCallInput,
 	validateToolCallInput,
 } from "./tool-input-validation.js";
+import { throwIfToolRunnerAborted } from "./tool-runner-abort.js";
 import { executeToolBlock } from "./tool-runner-execute-block.js";
 import { staleMcpDeclarationResult } from "./tool-runner-mcp.js";
 import type {
@@ -26,15 +27,6 @@ export class ToolPermissionInterruptedError extends Error {
 		this.name = "ToolPermissionInterruptedError";
 		this.result = result;
 	}
-}
-
-function abortReason(signal: AbortSignal): Error {
-	const { reason } = signal;
-	return reason instanceof Error ? reason : new Error("Tool execution aborted");
-}
-
-function throwIfAborted(signal: AbortSignal | undefined): void {
-	if (signal?.aborted) throw abortReason(signal);
 }
 
 function errorEntry(block: ToolUseBlock, content: string): ToolResultEntry {
@@ -130,7 +122,7 @@ function prepareToolCall(
 	originalIndex: number,
 	options: ToolCallExecutionOptions,
 ): PreparedToolCall | Promise<PreparedToolCall> {
-	throwIfAborted(options.signal);
+	throwIfToolRunnerAborted(options.signal);
 	if (options.disallowedTools?.includes(block.name)) {
 		return {
 			kind: "result",

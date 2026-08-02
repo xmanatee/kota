@@ -11,3 +11,6 @@ requirements.
   and opaque action ids.
 - Setup owns its live shared-UI source and resolves the selected directory scope
   before projecting the same typed setup status and actions clients already consume.
+- Apply the selected runtime's live scope-policy setup visibility: hidden emits
+  no requirements, metadata removes action/config/secret detail, and mutations
+  require full visibility.

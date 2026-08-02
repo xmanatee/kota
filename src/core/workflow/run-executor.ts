@@ -145,6 +145,7 @@ export function executeWorkflowRun(
           config: deps.config,
           projectDir: deps.projectDir,
           workspaceDir: contextDeps.workspaceDir,
+          authorityConfigPath: deps.authorityConfigPath,
           runtimeResources: contextDeps.runtimeResources,
           log: deps.log,
           resolveAgentDef: deps.resolveAgentDef,
@@ -157,6 +158,7 @@ export function executeWorkflowRun(
           idempotencyStore: deps.idempotencyStore,
           scopeId: deps.pbus.getScopeId(),
           projectId: deps.pbus.getProjectId(),
+          scopePolicy: deps.resolveScopePolicy?.(),
         };
 
         const runDecision = await evaluateStepRunDecision(step, context);

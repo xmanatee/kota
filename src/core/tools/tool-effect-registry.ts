@@ -54,7 +54,8 @@ export function resolveRegisteredToolEffect(
   const core = coreToolEffects.get(name);
   const module = moduleToolEffects.get(name);
   if (input !== undefined) {
-    return core?.resolveEffect?.(input) ?? module?.resolveEffect?.(input);
+    if (core?.resolveEffect) return core.resolveEffect(input);
+    if (module?.resolveEffect) return module.resolveEffect(input);
   }
   return core?.effect ?? module?.effect;
 }

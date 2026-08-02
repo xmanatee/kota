@@ -1233,12 +1233,15 @@ describe("ModuleLoader", () => {
 
 describe("source reimport", () => {
   let tmpDir: string;
+  let globalConfigPath: string;
 
   beforeEach(() => {
     clearCustomTools();
     clearCustomGroups();
     resetGroups();
     tmpDir = mkdtempSync(join(tmpdir(), "kota-reimport-"));
+    globalConfigPath = join(tmpDir, "machine-config.json");
+    writeFileSync(globalConfigPath, JSON.stringify({ trustedProjects: [tmpDir] }));
   });
 
   afterEach(() => {
@@ -1291,11 +1294,13 @@ describe("source reimport", () => {
       };`,
     );
 
-    const loader = new ModuleLoader({});
+    const loader = new ModuleLoader({}, false, { globalConfigPath });
     loader.setCwd(tmpDir);
 
     const { reimportInstalledModule } = await import("./module-discovery.js");
-    const mod = await reimportInstalledModule("disk-mod", tmpDir);
+    const mod = await reimportInstalledModule("disk-mod", tmpDir, {
+      globalConfigPath,
+    });
     expect(mod).not.toBeNull();
 
     await loader.loadAll([], [mod!]);

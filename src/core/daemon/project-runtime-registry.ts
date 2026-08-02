@@ -10,6 +10,7 @@ import {
   type ProjectRuntimeFactoryOptions,
   rebindDefaultProjectRuntime,
 } from "./project-runtime.js";
+import type { ResolvedScopePolicy } from "./scope-policy.js";
 import type {
   ConfiguredProject,
   ProjectId,
@@ -18,6 +19,7 @@ import type {
 
 export type ProjectRuntimeRegistryOptions = {
   registry: ScopeRegistry;
+  authorityConfigPath?: string;
   bus: EventBus;
   eventJournal?: EventJournal;
   config?: KotaConfig;
@@ -28,6 +30,7 @@ export type ProjectRuntimeRegistryOptions = {
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
   onLog: (message: string) => void;
   quietHours?: QuietHoursConfig;
+  resolveScopePolicy?: (scopeId: ProjectId) => ResolvedScopePolicy;
 };
 
 /** Typed lookup and mutable ownership map for every live scope runtime. */
@@ -55,6 +58,7 @@ export class ProjectRuntimeRegistry {
     for (const project of opts.registry.list()) {
       const runtime = createProjectRuntime({
         project,
+        authorityConfigPath: opts.authorityConfigPath,
         bus: opts.bus,
         eventJournal: opts.eventJournal,
         config: opts.config,
@@ -66,10 +70,12 @@ export class ProjectRuntimeRegistry {
         onLog: opts.onLog,
         installSingletons: project.projectId === defaultId,
         quietHours: project.projectId === defaultId ? opts.quietHours : undefined,
+        resolveScopePolicy: opts.resolveScopePolicy,
       });
       byId.set(project.projectId, runtime);
     }
     return new ProjectRuntimeRegistry(byId, defaultId, {
+      authorityConfigPath: opts.authorityConfigPath,
       bus: opts.bus,
       eventJournal: opts.eventJournal,
       config: opts.config,
@@ -80,6 +86,7 @@ export class ProjectRuntimeRegistry {
       resolveSkillsPrompt: opts.resolveSkillsPrompt,
       onLog: opts.onLog,
       quietHours: opts.quietHours,
+      resolveScopePolicy: opts.resolveScopePolicy,
     });
   }
 

@@ -3,6 +3,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+const { FAKE_HOME } = vi.hoisted(() => {
+  const { join } = require("node:path") as typeof import("node:path");
+  const { tmpdir } = require("node:os") as typeof import("node:os");
+  return { FAKE_HOME: join(tmpdir(), `kota-workflow-trial-home-${Date.now()}`) };
+});
+
+vi.mock("node:os", async (importOriginal) => {
+  const original = await importOriginal<typeof import("node:os")>();
+  return { ...original, homedir: () => FAKE_HOME };
+});
+
 import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
 import type { KotaConfig } from "#core/config/config.js";
@@ -44,6 +56,20 @@ const AGENT_HARNESS = "workflow_trial_agent_harness_test";
 const PROCESS_ENV_AGENT_HARNESS = "workflow_trial_process_env_agent_harness_test";
 const PROCESS_ENV_KEY = "KOTA_WORKFLOW_TRIAL_PROCESS_ENV_TEST";
 
+function trustProject(projectDir: string): void {
+  const configDir = join(FAKE_HOME, ".kota");
+  const configPath = join(configDir, "config.json");
+  mkdirSync(configDir, { recursive: true });
+  const trustedProjects = existsSync(configPath)
+    ? (JSON.parse(readFileSync(configPath, "utf-8")) as { trustedProjects: string[] })
+      .trustedProjects
+    : [];
+  writeFileSync(
+    configPath,
+    JSON.stringify({ trustedProjects: [...trustedProjects, projectDir] }),
+  );
+}
+
 function makeProjectDir(): string {
   const dir = join(
     tmpdir(),
@@ -53,6 +79,7 @@ function makeProjectDir(): string {
   mkdirSync(join(dir, ".kota"), { recursive: true });
   writeFileSync(join(dir, "AGENTS.md"), "# Test Project\n", "utf-8");
   writeFileSync(join(dir, "data", "tasks", "AGENTS.md"), "# Tasks\n", "utf-8");
+  trustProject(dir);
   return dir;
 }
 
@@ -125,6 +152,7 @@ describe("workflow trial execution", () => {
     deregisterTool("shell");
     clearModuleCapabilityManifestProjections();
     delete process.env[PROCESS_ENV_KEY];
+    rmSync(FAKE_HOME, { recursive: true, force: true });
     for (const dir of cleanup.splice(0)) {
       rmSync(dir, { recursive: true, force: true });
     }

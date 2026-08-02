@@ -148,14 +148,6 @@ function localWriteBoundary(
     return { outcome: "allow", reason: null };
   }
 
-  const requested = resolveScopePolicyPath(query.targetPath, policy.directoryRoot);
-  if (requested === null) {
-    return {
-      outcome: "deny",
-      reason: "local filesystem write target path is relative but the scope has no directory root",
-    };
-  }
-
   if (policy.writes.mode === "none") {
     return {
       outcome: "deny",
@@ -165,6 +157,22 @@ function localWriteBoundary(
 
   if (policy.writes.mode === "unrestricted") {
     return { outcome: "allow", reason: "write boundary permits unrestricted local filesystem writes" };
+  }
+
+  if (query.targetPath === undefined) {
+    return {
+      outcome: "deny",
+      reason:
+        "write-capable execution tool does not expose a complete filesystem target for this bounded write policy",
+    };
+  }
+
+  const requested = resolveScopePolicyPath(query.targetPath, policy.directoryRoot);
+  if (requested === null) {
+    return {
+      outcome: "deny",
+      reason: "local filesystem write target path is relative but the scope has no directory root",
+    };
   }
 
   if (policy.writes.mode === "scope-directory") {
@@ -196,7 +204,9 @@ function localWriteBoundary(
 function toolEffectTarget(query: ScopePolicyToolEffectQuery): string {
   const target = `${query.toolName} ${query.effectKind} on ${query.effectScope}`;
   if (query.effectScope === "local-fs" && query.effectKind !== "read") {
-    return `${target} at ${query.targetPath}`;
+    return query.targetPath === undefined
+      ? `${target} at an opaque execution target`
+      : `${target} at ${query.targetPath}`;
   }
   return target;
 }

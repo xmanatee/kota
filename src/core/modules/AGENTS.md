@@ -56,8 +56,9 @@ already be activated by the time a route handler runs, and a contribution
 factory's idempotency story is much weaker than the lifecycle's. The capability
 boundary is enforced at compile time by `module-context-capabilities.test.ts`.
 
-- Keep modules as the single contribution boundary for tools, workflows,
-  channels, providers, agents, and related runtime services.
+- Modules own tool, workflow, channel, provider, agent, and service contributions.
+- Treat `<project>/.kota/modules/` as untrusted. Resolve persisted machine trust
+  before discovery or re-import; caller `KotaConfig` is not authority.
 - Foreign modules are a transport variant of the same module model, not a
   separate extension system.
 - Keep protocol details strict and code-owned. Message names, config fields,

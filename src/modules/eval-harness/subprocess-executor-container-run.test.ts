@@ -163,7 +163,9 @@ describe("createSubprocessExecutor container execution", () => {
     const envCapture = JSON.parse(
       readFileSync(join(dirs.workingDir, "env.json"), "utf8"),
     ) as Record<string, string>;
-    expect(envCapture.home).toBe(dirs.workingDir);
+    expect(envCapture.home).toBe(
+      join(dirs.workingDir, "node_modules", ".kota-eval-runtime", "home"),
+    );
       expect(envCapture.projectDir).toBe(dirs.workingDir);
       expect(envCapture.distDir).toBe("/opt/kota/dist");
       expect(envCapture.cacheDir).toBe(

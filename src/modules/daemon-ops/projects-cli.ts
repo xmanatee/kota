@@ -12,8 +12,10 @@
  */
 
 import { Command } from "commander";
+import type { ScopePolicyFragment } from "#core/daemon/scope-policy.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { columns, line, plain, type RenderNode, span } from "#modules/rendering/primitives.js";
+import { confirmAction } from "#core/util/confirm.js";
+import { columns, line, plain, type RenderNode, span, stack } from "#modules/rendering/primitives.js";
 import { print, printToStderr, writeJson } from "#modules/rendering/transport.js";
 import type { ProjectsListResult } from "./client.js";
 
@@ -124,5 +126,165 @@ export function buildProjectCommand(ctx: ModuleContext): Command {
       }
     });
 
+  const authority = cmd
+    .command("authority")
+    .description("Inspect or mutate machine-owned trust and scope policy");
+
+  authority
+    .command("show <scopeId>")
+    .description("Show trust, policy, provenance, and authority audit records")
+    .option("--json", "Output as JSON")
+    .action(async (scopeId: string, opts: { json?: boolean }) => {
+      if (!ctx.client.projects.inspectAuthority) {
+        printToStderr(line(span("Scope authority requires a live, current daemon.", "error")));
+        process.exitCode = 1;
+        return;
+      }
+      const result = await ctx.client.projects.inspectAuthority(scopeId);
+      if (!result.ok) {
+        if (opts.json) writeJson(result);
+        else printToStderr(line(span(authorityError(result), "error")));
+        process.exitCode = 1;
+        return;
+      }
+      if (opts.json) {
+        writeJson(result.authority);
+        return;
+      }
+      print(stack(
+        line(plain("Scope: "), span(result.authority.scopeId, "accent")),
+        line(plain("Trust: "), span(
+          `${result.authority.trust.trusted ? "trusted" : "untrusted"} (${result.authority.trust.source})`,
+          result.authority.trust.trusted ? "success" : "warn",
+        )),
+        line(plain("Revision: "), span(String(result.authority.revision), "muted")),
+        line(plain("Policy source: "), span(
+          result.authority.policyFragment?.reason ?? "inherited defaults",
+          "muted",
+        )),
+        line(plain("Audit records: "), span(String(result.authority.audit.length), "muted")),
+      ));
+    });
+
+  authority
+    .command("set <scopeId>")
+    .description("Validate and atomically apply trust and/or policy")
+    .option("--trust <state>", "Set trust to trusted or untrusted")
+    .option("--policy <json>", "Set a complete or partial scope policy fragment")
+    .option("--clear-policy", "Clear the scope's policy fragment")
+    .requiredOption("--reason <text>", "Operator audit reason")
+    .option("--validate-only", "Validate and preview without writing")
+    .option("--json", "Output as JSON")
+    .action(async (
+      scopeId: string,
+      opts: {
+        trust?: string;
+        policy?: string;
+        clearPolicy?: boolean;
+        reason: string;
+        validateOnly?: boolean;
+        json?: boolean;
+      },
+    ) => {
+      if (
+        !ctx.client.projects.inspectAuthority ||
+        !ctx.client.projects.validateAuthority ||
+        !ctx.client.projects.applyAuthority
+      ) {
+        printToStderr(line(span("Scope authority requires a live, current daemon.", "error")));
+        process.exitCode = 1;
+        return;
+      }
+      if (opts.policy && opts.clearPolicy) {
+        printToStderr(line(span("Cannot pass both --policy and --clear-policy.", "error")));
+        process.exitCode = 1;
+        return;
+      }
+      const trust = parseTrust(opts.trust);
+      if (opts.trust !== undefined && trust === undefined) {
+        printToStderr(line(span("--trust must be trusted or untrusted.", "error")));
+        process.exitCode = 1;
+        return;
+      }
+      let policy: ScopePolicyFragment | null | undefined;
+      try {
+        policy = opts.clearPolicy
+          ? null
+          : opts.policy ? JSON.parse(opts.policy) as ScopePolicyFragment : undefined;
+      } catch {
+        printToStderr(line(span("--policy must be valid JSON.", "error")));
+        process.exitCode = 1;
+        return;
+      }
+      if (trust === undefined && policy === undefined) {
+        printToStderr(line(span("Pass --trust, --policy, or --clear-policy.", "error")));
+        process.exitCode = 1;
+        return;
+      }
+      const inspected = await ctx.client.projects.inspectAuthority(scopeId);
+      if (!inspected.ok) {
+        if (opts.json) writeJson(inspected);
+        else printToStderr(line(span(authorityError(inspected), "error")));
+        process.exitCode = 1;
+        return;
+      }
+      const mutation = {
+        expectedRevision: inspected.authority.revision,
+        reason: opts.reason,
+        ...(trust !== undefined ? { trust } : {}),
+        ...(policy !== undefined ? { policy } : {}),
+      };
+      const preview = await ctx.client.projects.validateAuthority(scopeId, mutation);
+      if (opts.validateOnly || !preview.ok) {
+        if (opts.json) writeJson(preview);
+        else if (preview.ok) print(line(span("Authority change is valid.", "success")));
+        else printToStderr(line(span(authorityError(preview), "error")));
+        if (!preview.ok) process.exitCode = 1;
+        return;
+      }
+      if (process.env.KOTA_SESSION_ID !== undefined || !process.stdin.isTTY) {
+        printToStderr(line(span(
+          "Applying scope authority requires an interactive operator terminal.",
+          "error",
+        )));
+        process.exitCode = 1;
+        return;
+      }
+      let confirmedDangerousChange = false;
+      if (preview.confirmationRequired) {
+        confirmedDangerousChange = await confirmAction(
+          `Apply trust or dangerous policy widening to scope ${scopeId}?`,
+        );
+        if (!confirmedDangerousChange) {
+          printToStderr(line(span("Scope authority change was not confirmed.", "warn")));
+          process.exitCode = 1;
+          return;
+        }
+      }
+      const result = await ctx.client.projects.applyAuthority(
+        scopeId,
+        mutation,
+        confirmedDangerousChange ? "confirm-dangerous" : "apply",
+      );
+      if (opts.json) writeJson(result);
+      else if (result.ok) print(line(span(
+        "Authority change applied.",
+        "success",
+      )));
+      else printToStderr(line(span(authorityError(result), "error")));
+      if (!result.ok) process.exitCode = 1;
+    });
+
   return cmd;
+}
+
+function parseTrust(value: string | undefined): boolean | undefined {
+  if (value === "trusted") return true;
+  if (value === "untrusted") return false;
+  return undefined;
+}
+
+function authorityError(result: { reason: string; message?: string }): string {
+  if (result.reason === "daemon_required") return "Daemon is not running.";
+  return result.message ?? `Scope authority failed: ${result.reason}`;
 }

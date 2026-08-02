@@ -72,7 +72,7 @@ describe("geminiCliAgentHarness", () => {
     expect(geminiCliAgentHarness.emitsAgentMessageStream).toBe(false);
     expect(geminiCliAgentHarness.toolControl).toBe("native");
     expect(geminiCliAgentHarness.unsupportedRunOptions?.map((option) => option.option)).toEqual(
-      expect.arrayContaining(["allowedTools", "disallowedTools", "canUseTool"]),
+      expect.arrayContaining(["allowedTools", "disallowedTools", "canUseTool", "scopePolicy"]),
     );
   });
 
@@ -126,6 +126,7 @@ describe("geminiCliAgentHarness", () => {
         "gemini-2.5-pro",
         "--approval-mode",
         "default",
+        "--sandbox",
       ]),
       expect.objectContaining({ cwd: "/repo" }),
     );
@@ -144,7 +145,7 @@ describe("geminiCliAgentHarness", () => {
     });
   });
 
-  it("maps passive runs to Gemini CLI plan approval mode", async () => {
+  it("maps passive runs to plan mode while retaining the native sandbox", async () => {
     mockGeminiProcess({
       stdoutLines: [
         JSON.stringify({
@@ -163,7 +164,7 @@ describe("geminiCliAgentHarness", () => {
     });
 
     expect(spawnMock.mock.calls[0][1]).toEqual(
-      expect.arrayContaining(["--approval-mode", "plan"]),
+      expect.arrayContaining(["--approval-mode", "plan", "--sandbox"]),
     );
   });
 

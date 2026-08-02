@@ -1,8 +1,10 @@
+import { randomBytes } from "node:crypto";
 import {
 	existsSync,
 	mkdirSync,
 	readFileSync,
 	renameSync,
+	rmSync,
 	writeFileSync,
 } from "node:fs";
 import { dirname } from "node:path";
@@ -53,15 +55,20 @@ export function writeJsonFileAtomic(
 	value: unknown,
 	serialize: (value: unknown) => string = (current) =>
 		`${JSON.stringify(current, null, 2)}\n`,
+	options: { mode?: number } = {},
 ): void {
 	const dir = dirname(path);
-	const tmpPath = `${path}.tmp`;
+	const tmpPath = `${path}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`;
 
 	try {
 		mkdirSync(dir, { recursive: true });
-		writeFileSync(tmpPath, serialize(value), "utf-8");
+		writeFileSync(tmpPath, serialize(value), {
+			encoding: "utf-8",
+			...(options.mode !== undefined ? { mode: options.mode } : {}),
+		});
 		renameSync(tmpPath, path);
 	} catch (error) {
+		rmSync(tmpPath, { force: true });
 		throw new JsonFileError(
 			path,
 			"write",

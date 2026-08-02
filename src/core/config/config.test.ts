@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { buildUserProfile, expandAlias, type KotaConfig, loadConfig } from "./config.js";
+import { type KotaConfig, loadConfig } from "./config.js";
 
 function makeTmpDir(): string {
   const dir = join(tmpdir(), `kota-config-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
@@ -21,8 +21,10 @@ describe("loadConfig", () => {
     if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  function trustedProject(overrides: Partial<KotaConfig> = {}): Partial<KotaConfig> {
-    return { ...overrides, trustedProjects: [tmpDir] };
+  function loadTrustedConfig(overrides: Partial<KotaConfig> = {}): KotaConfig {
+    const globalConfigPath = join(tmpDir, "machine-config.json");
+    writeFileSync(globalConfigPath, JSON.stringify({ trustedProjects: [tmpDir] }));
+    return loadConfig(tmpDir, overrides, { globalConfigPath });
   }
 
   it("returns empty config when no files exist", () => {
@@ -38,7 +40,7 @@ describe("loadConfig", () => {
       JSON.stringify({ model: "claude-opus-4-7", maxTokens: 4096 }),
     );
 
-    const config = loadConfig(tmpDir, trustedProject());
+    const config = loadTrustedConfig();
     expect(config.model).toBe("claude-opus-4-7");
     expect(config.maxTokens).toBe(4096);
   });
@@ -56,9 +58,9 @@ describe("loadConfig", () => {
       }),
     );
 
-    const config = loadConfig(tmpDir, trustedProject({
+    const config = loadTrustedConfig({
       modelOutputTokenLimits: { "global-model": 6789 },
-    }));
+    });
     expect(config.modelOutputTokenLimits).toEqual({
       "global-model": 6789,
       "operator-model": 12345,
@@ -106,7 +108,7 @@ describe("loadConfig", () => {
       }),
     );
 
-    const config = loadConfig(tmpDir, trustedProject());
+    const config = loadTrustedConfig();
     expect(config.model).toBeUndefined();
     expect(config.maxTokens).toBeUndefined();
     expect(config.thinkingBudget).toBeUndefined();
@@ -122,7 +124,7 @@ describe("loadConfig", () => {
       JSON.stringify({ model: "claude-haiku-4-5-20251001", maxTokens: 2048 }),
     );
 
-    const config = loadConfig(tmpDir, trustedProject({ model: "claude-opus-4-7" }));
+    const config = loadTrustedConfig({ model: "claude-opus-4-7" });
     expect(config.model).toBe("claude-opus-4-7");
     expect(config.maxTokens).toBe(2048); // not overridden
   });
@@ -135,7 +137,7 @@ describe("loadConfig", () => {
       JSON.stringify({ user: { name: "Alex" } }),
     );
 
-    const config = loadConfig(tmpDir, trustedProject({ user: { context: "ML engineer" } }));
+    const config = loadTrustedConfig({ user: { context: "ML engineer" } });
     expect(config.user?.name).toBe("Alex");
     expect(config.user?.context).toBe("ML engineer");
   });
@@ -148,7 +150,7 @@ describe("loadConfig", () => {
       JSON.stringify({ aliases: { "/research": "Research: ", "/draft": "Draft: " } }),
     );
 
-    const config = loadConfig(tmpDir, trustedProject({ aliases: { "/research": "Deep research: " } }));
+    const config = loadTrustedConfig({ aliases: { "/research": "Deep research: " } });
     expect(config.aliases?.["/research"]).toBe("Deep research: "); // override
     expect(config.aliases?.["/draft"]).toBe("Draft: ");            // preserved
   });
@@ -161,7 +163,7 @@ describe("loadConfig", () => {
       JSON.stringify({ agentModels: { builder: "claude-opus-4-7", explorer: "claude-haiku-4-5-20251001" } }),
     );
 
-    const config = loadConfig(tmpDir, trustedProject());
+    const config = loadTrustedConfig();
     expect(config.agentModels?.builder).toBe("claude-opus-4-7");
     expect(config.agentModels?.explorer).toBe("claude-haiku-4-5-20251001");
   });
@@ -174,7 +176,7 @@ describe("loadConfig", () => {
       JSON.stringify({ agentModels: { valid: "claude-opus-4-7", bad: 42, empty: "" } }),
     );
 
-    const config = loadConfig(tmpDir, trustedProject());
+    const config = loadTrustedConfig();
     expect(config.agentModels?.valid).toBe("claude-opus-4-7");
     expect(config.agentModels?.bad).toBeUndefined();
     expect(config.agentModels?.empty).toBeUndefined();
@@ -188,7 +190,7 @@ describe("loadConfig", () => {
       JSON.stringify({ agentModels: { builder: "claude-opus-4-7", explorer: "claude-sonnet-4-6" } }),
     );
 
-    const config = loadConfig(tmpDir, trustedProject({ agentModels: { explorer: "claude-haiku-4-5-20251001" } }));
+    const config = loadTrustedConfig({ agentModels: { explorer: "claude-haiku-4-5-20251001" } });
     expect(config.agentModels?.builder).toBe("claude-opus-4-7");      // from file
     expect(config.agentModels?.explorer).toBe("claude-haiku-4-5-20251001"); // overridden
   });
@@ -219,7 +221,7 @@ describe("loadConfig", () => {
       JSON.stringify({ autoEnable: ["web", "code", 42, "", null] }),
     );
 
-    const config = loadConfig(tmpDir, trustedProject());
+    const config = loadTrustedConfig();
     expect(config.autoEnable).toEqual(["web", "code"]); // filters invalid entries
   });
 
@@ -234,7 +236,7 @@ describe("loadConfig", () => {
       }),
     );
 
-    const config = loadConfig(tmpDir, trustedProject());
+    const config = loadTrustedConfig();
     expect(config.serve?.defaultAutonomyMode).toBe("supervised");
     expect(config.cli?.defaultAutonomyMode).toBe("passive");
   });
@@ -247,7 +249,7 @@ describe("loadConfig", () => {
       JSON.stringify({ serve: { defaultAutonomyMode: "banana" } }),
     );
 
-    expect(() => loadConfig(tmpDir, trustedProject())).toThrow(
+    expect(() => loadTrustedConfig()).toThrow(
       /config\.serve\.defaultAutonomyMode must be one of passive, supervised, autonomous/,
     );
   });
@@ -260,69 +262,8 @@ describe("loadConfig", () => {
       JSON.stringify({ cli: { defaultAutonomyMode: "banana" } }),
     );
 
-    expect(() => loadConfig(tmpDir, trustedProject())).toThrow(
+    expect(() => loadTrustedConfig()).toThrow(
       /config\.cli\.defaultAutonomyMode must be one of passive, supervised, autonomous/,
     );
-  });
-});
-
-describe("buildUserProfile", () => {
-  it("returns empty string when no user config", () => {
-    expect(buildUserProfile({} as KotaConfig)).toBe("");
-  });
-
-  it("builds profile with name only", () => {
-    const result = buildUserProfile({ user: { name: "Alex" } } as KotaConfig);
-    expect(result).toContain("**User**: Alex");
-    expect(result).toContain("## User Profile");
-  });
-
-  it("builds profile with name and context", () => {
-    const result = buildUserProfile({
-      user: { name: "Alex", context: "Senior ML engineer, prefers Python" },
-    } as KotaConfig);
-    expect(result).toContain("**User**: Alex");
-    expect(result).toContain("Senior ML engineer, prefers Python");
-  });
-
-  it("builds profile with context only", () => {
-    const result = buildUserProfile({
-      user: { context: "Works on data pipelines" },
-    } as KotaConfig);
-    expect(result).not.toContain("**User**");
-    expect(result).toContain("Works on data pipelines");
-  });
-});
-
-describe("expandAlias", () => {
-  const aliases: Record<string, string> = {
-    "/research": "Enable web tools and thoroughly research: ",
-    "/draft": "Draft a well-structured document about: ",
-    "/review": "Review this code for bugs and best practices: ",
-  };
-
-  it("expands a matching alias", () => {
-    const result = expandAlias("/research quantum computing", aliases);
-    expect(result).toBe("Enable web tools and thoroughly research: quantum computing");
-  });
-
-  it("returns original prompt when no alias matches", () => {
-    const result = expandAlias("just a normal prompt", aliases);
-    expect(result).toBe("just a normal prompt");
-  });
-
-  it("handles alias with no trailing text", () => {
-    const result = expandAlias("/research", aliases);
-    expect(result).toBe("Enable web tools and thoroughly research:");
-  });
-
-  it("does not expand partial matches", () => {
-    const result = expandAlias("/researching things", aliases);
-    expect(result).toBe("/researching things");
-  });
-
-  it("returns original when aliases is undefined", () => {
-    const result = expandAlias("/research stuff", undefined);
-    expect(result).toBe("/research stuff");
   });
 });

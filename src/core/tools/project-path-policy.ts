@@ -1,65 +1,14 @@
-import { existsSync, lstatSync, readlinkSync, realpathSync } from "node:fs";
-import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
+import {
+  resolvePathFrom,
+  resolvePathThroughExistingAncestor,
+} from "#core/util/real-path.js";
 
-export function resolvePathFrom(baseDirectory: string, targetPath: string): string {
-  return isAbsolute(targetPath)
-    ? resolve(targetPath)
-    : resolve(baseDirectory, targetPath);
-}
-
-function resolveBoundaryPath(path: string): string {
-  try {
-    return realpathSync.native(path);
-  } catch {
-    return path;
-  }
-}
-
-const MAX_SYMLINK_RESOLUTION_DEPTH = 40;
-
-function readSymlinkTarget(path: string): string | null {
-  try {
-    const stats = lstatSync(path);
-    if (!stats.isSymbolicLink()) return null;
-    return resolvePathFrom(dirname(path), readlinkSync(path));
-  } catch {
-    return null;
-  }
-}
-
-function resolveThroughExistingAncestor(
-  path: string,
-  symlinkDepth = 0,
-): string | null {
-  if (symlinkDepth > MAX_SYMLINK_RESOLUTION_DEPTH) return null;
-
-  let current = path;
-  const missingSegments: string[] = [];
-
-  while (true) {
-    const symlinkTarget = readSymlinkTarget(current);
-    if (symlinkTarget) {
-      return resolveThroughExistingAncestor(
-        join(symlinkTarget, ...missingSegments),
-        symlinkDepth + 1,
-      );
-    }
-
-    if (existsSync(current)) {
-      return join(resolveBoundaryPath(current), ...missingSegments);
-    }
-
-    const parent = dirname(current);
-    if (parent === current) {
-      return join(resolveBoundaryPath(current), ...missingSegments);
-    }
-    missingSegments.unshift(basename(current));
-    current = parent;
-  }
-}
+export { resolvePathFrom } from "#core/util/real-path.js";
 
 function isPathInsideProject(resolvedPath: string, projectDirectory: string): boolean {
-  const projectRoot = resolveBoundaryPath(resolve(projectDirectory));
+  const projectRoot = resolvePathThroughExistingAncestor(resolve(projectDirectory));
+  if (projectRoot === null) return false;
   const relativePath = relative(projectRoot, resolvedPath);
   return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
 }
@@ -73,7 +22,9 @@ export function resolveProjectPath(
   baseDirectory = process.cwd(),
   projectDirectory = process.cwd(),
 ): ProjectPathResolution {
-  const resolvedPath = resolveThroughExistingAncestor(resolvePathFrom(baseDirectory, filePath));
+  const resolvedPath = resolvePathThroughExistingAncestor(
+    resolvePathFrom(baseDirectory, filePath),
+  );
   if (!resolvedPath) return { ok: false };
   if (!isPathInsideProject(resolvedPath, projectDirectory)) return { ok: false };
   return { ok: true, path: resolvedPath };

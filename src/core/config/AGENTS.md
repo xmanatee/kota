@@ -17,3 +17,9 @@ These are core primitives. Do not add module-specific configuration logic here.
 Config fields, defaults, and enum values are code-owned contracts. Keep the
 TypeScript schema, JSON Schema generation, warnings, and focused tests as the
 source of truth instead of maintaining a parallel prose catalog.
+
+Machine authority keys (`trustedProjects`, `scopePolicies`, `scopeAuthority`)
+are global-config only. Always strip them from project config and caller
+overrides, including for an otherwise trusted project; daemon mutations go
+through `ScopeAuthorityStore` so trust, policy, revision, and audit remain one
+atomic transaction.

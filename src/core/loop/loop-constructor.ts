@@ -1,12 +1,13 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { SYSTEM_PROMPT } from "#core/agents/system-prompt.js";
-import { buildUserProfile } from "#core/config/config.js";
+import { buildUserProfile, getGlobalConfigPath } from "#core/config/config.js";
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { setIdempotencyStoreInstance } from "#core/daemon/idempotency-singleton.js";
 import { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { setOwnerQuestionQueueInstance } from "#core/daemon/owner-question-queue.js";
 import { initScheduler, setSchedulerInstance } from "#core/daemon/scheduler.js";
+import { capScopeAutonomyMode } from "#core/daemon/scope-policy.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { initTaskStore, setTaskStoreInstance } from "#core/daemon/task-store.js";
 import { tryEmit } from "#core/events/event-bus.js";
@@ -51,6 +52,7 @@ export function initAgentSession(
 ): void {
   const projectDir = options.projectRuntime?.project.projectDir ?? options.projectDir ?? process.cwd();
   state.projectDir = projectDir;
+  state.authorityConfigPath = options.projectRuntime?.authorityConfigPath ?? getGlobalConfigPath();
   state.scopeId = options.projectRuntime?.project.projectId
     ?? deriveDirectoryScopeId(projectDir);
   state.sessionId = `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -60,7 +62,11 @@ export function initAgentSession(
       "AgentSession requires an explicit autonomyMode (passive | supervised | autonomous)",
     );
   }
-  state.autonomyMode = options.autonomyMode;
+  state.resolveScopePolicy = options.projectRuntime?.resolveScopePolicy;
+  const initialScopePolicy = state.resolveScopePolicy?.();
+  state.autonomyMode = initialScopePolicy
+    ? capScopeAutonomyMode(options.autonomyMode, initialScopePolicy)
+    : options.autonomyMode;
   state.mcpInputResolver = options.mcpInputResolver;
   state.mcpAuthorizationResolver = options.mcpAuthorizationResolver;
   state.mcpServers = options.mcpServers;

@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://kota.dev/schema/kota-config.schema.json",
   "title": "KotaConfig",
-  "description": "KOTA configuration file (.kota/config.json). Project-level config overrides global (~/.kota/config.json); CLI flags override both.",
+  "description": "KOTA configuration file. Project config overrides global config except trustedProjects, scopePolicies, and scopeAuthority, which are machine-owned global authority; CLI flags override ordinary config.",
   "additionalProperties": false,
   "properties": {
     "agentModels": {
@@ -1240,6 +1240,431 @@
       "type": "object",
       "description": "Scheduler dispatch window and concurrency settings"
     },
+    "scopeAuthority": {
+      "additionalProperties": false,
+      "properties": {
+        "audit": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "actor": {
+                "const": "operator",
+                "type": "string"
+              },
+              "changedAt": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "policy": {
+                "additionalProperties": false,
+                "properties": {
+                  "dangerousWideningAreas": {
+                    "items": {
+                      "enum": [
+                        "autonomy",
+                        "writes",
+                        "channels",
+                        "setup",
+                        "ownerConfirmation",
+                        "retention",
+                        "modules",
+                        "externalEffects"
+                      ],
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "operation": {
+                    "enum": [
+                      "set",
+                      "clear",
+                      "unchanged"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operation",
+                  "dangerousWideningAreas"
+                ],
+                "type": "object"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "number"
+              },
+              "scopeId": {
+                "description": "Stable opaque scope identity. Re-exported as-is by the daemon scope registry, where deterministic directory-scope derivation and the file-backed registry live.",
+                "type": "string"
+              },
+              "trust": {
+                "additionalProperties": false,
+                "properties": {
+                  "after": {
+                    "type": "boolean"
+                  },
+                  "before": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "before",
+                  "after"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "id",
+              "revision",
+              "scopeId",
+              "changedAt",
+              "actor",
+              "reason",
+              "trust",
+              "policy"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "revision": {
+          "type": "number"
+        },
+        "schema": {
+          "const": 1,
+          "type": "number"
+        }
+      },
+      "required": [
+        "schema",
+        "revision",
+        "audit"
+      ],
+      "type": "object"
+    },
+    "scopePolicies": {
+      "description": "Machine-owned scope policies, mutated through the daemon authority service.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "allowChildWidening": {
+            "items": {
+              "enum": [
+                "autonomy",
+                "writes",
+                "channels",
+                "setup",
+                "ownerConfirmation",
+                "retention",
+                "modules",
+                "externalEffects"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "autonomy": {
+            "additionalProperties": false,
+            "properties": {
+              "defaultMode": {
+                "enum": [
+                  "passive",
+                  "supervised",
+                  "autonomous"
+                ],
+                "type": "string"
+              },
+              "maxMode": {
+                "enum": [
+                  "passive",
+                  "supervised",
+                  "autonomous"
+                ],
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "channels": {
+            "additionalProperties": false,
+            "properties": {
+              "allowedChannels": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "blockedSources": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "ignoredSources": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "mode": {
+                "enum": [
+                  "blocked",
+                  "allow-list",
+                  "allow-all"
+                ],
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "externalEffects": {
+            "additionalProperties": false,
+            "properties": {
+              "networkDestructive": {
+                "enum": [
+                  "allow",
+                  "confirm",
+                  "deny"
+                ],
+                "type": "string"
+              },
+              "networkRead": {
+                "enum": [
+                  "allow",
+                  "confirm",
+                  "deny"
+                ],
+                "type": "string"
+              },
+              "networkWrite": {
+                "enum": [
+                  "allow",
+                  "confirm",
+                  "deny"
+                ],
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "modules": {
+            "additionalProperties": false,
+            "properties": {
+              "defaultAvailability": {
+                "enum": [
+                  "enabled",
+                  "setup-required",
+                  "disabled"
+                ],
+                "type": "string"
+              },
+              "overrides": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "availability": {
+                      "enum": [
+                        "enabled",
+                        "setup-required",
+                        "disabled"
+                      ],
+                      "type": "string"
+                    },
+                    "moduleName": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "moduleName",
+                    "availability"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            },
+            "type": "object"
+          },
+          "ownerConfirmation": {
+            "additionalProperties": false,
+            "properties": {
+              "destructive": {
+                "enum": [
+                  "allow",
+                  "confirm",
+                  "deny"
+                ],
+                "type": "string"
+              },
+              "externalWrite": {
+                "enum": [
+                  "allow",
+                  "confirm",
+                  "deny"
+                ],
+                "type": "string"
+              },
+              "localWrite": {
+                "enum": [
+                  "allow",
+                  "confirm",
+                  "deny"
+                ],
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "retention": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "mode": {
+                    "const": "retain",
+                    "type": "string"
+                  },
+                  "redaction": {
+                    "enum": [
+                      "full",
+                      "sensitive-fields",
+                      "none"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "mode",
+                  "redaction"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "maxAgeDays": {
+                    "type": "number"
+                  },
+                  "mode": {
+                    "const": "expire-after-days",
+                    "type": "string"
+                  },
+                  "redaction": {
+                    "enum": [
+                      "full",
+                      "sensitive-fields",
+                      "none"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "mode",
+                  "maxAgeDays",
+                  "redaction"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "scopeId": {
+            "description": "Stable opaque scope identity. Re-exported as-is by the daemon scope registry, where deterministic directory-scope derivation and the file-backed registry live.",
+            "type": "string"
+          },
+          "setup": {
+            "additionalProperties": false,
+            "properties": {
+              "visibility": {
+                "enum": [
+                  "hidden",
+                  "metadata",
+                  "full"
+                ],
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "writes": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "mode": {
+                    "const": "none",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "mode"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "mode": {
+                    "const": "scope-directory",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "mode"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "mode": {
+                    "const": "paths",
+                    "type": "string"
+                  },
+                  "paths": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "mode",
+                  "paths"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "mode": {
+                    "const": "unrestricted",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "mode"
+                ],
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "required": [
+          "scopeId",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
     "serve": {
       "additionalProperties": false,
       "description": "HTTP server settings for `kota serve`.",
@@ -1307,7 +1732,7 @@
       "description": "OpenTelemetry trace, metrics, and security log export config"
     },
     "trustedProjects": {
-      "description": "Operator-owned project trust list. Only global config and explicit overrides can grant trust to target project `.kota/config.json`; an untrusted project cannot make itself trusted by setting this locally. Entries must be absolute paths, with `~/` accepted for the operator home.",
+      "description": "Operator-owned project trust list. Only persisted global config can grant trust to target project `.kota/config.json`; project config and caller overrides cannot provide machine authority. Entries must be absolute paths, with `~/` accepted for the operator home.",
       "items": {
         "type": "string"
       },

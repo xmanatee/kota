@@ -30,6 +30,17 @@ import type {
 } from "./daemon-control-types.js";
 import type { DaemonState } from "./daemon-state.js";
 import type { DeadLetterRedriveTarget } from "./dead-letter-queue.js";
+import type {
+  ScopeAuthorityOperatorAction,
+  ScopeAuthorityOperatorRequest,
+} from "./scope-authority-operator-token.js";
+import type {
+  ScopeAuthorityFailure,
+  ScopeAuthorityMutation,
+  ScopeAuthorityMutationResult,
+  ScopeAuthorityValidationResult,
+  ScopeAuthorityView,
+} from "./scope-authority-types.js";
 import type { ScopeHostingState } from "./scope-lifecycle-types.js";
 import type { ScopePolicyRouteResponse } from "./scope-policy.js";
 import type {
@@ -76,6 +87,21 @@ export type DaemonControlHandle = {
   getScopeHostingState(scopeId: ProjectId): ScopeHostingState;
   hasScope(scopeId: string): boolean;
   getScopePolicy(scopeId: string): ScopePolicyRouteResponse;
+  inspectScopeAuthority?(scopeId: string): ScopeAuthorityView | ScopeAuthorityFailure;
+  validateScopeAuthority?(
+    scopeId: string,
+    mutation: ScopeAuthorityMutation,
+  ): ScopeAuthorityValidationResult;
+  applyScopeAuthority?(
+    scopeId: string,
+    mutation: ScopeAuthorityMutation,
+    operatorAction?: ScopeAuthorityOperatorAction,
+  ): Promise<ScopeAuthorityMutationResult>;
+  answerScopeAuthorityOperatorChallenge?(challenge: string): string | undefined;
+  authorizeScopeAuthorityAction?(
+    request: ScopeAuthorityOperatorRequest,
+    suppliedProof: string | undefined,
+  ): ScopeAuthorityOperatorAction | undefined;
   hasProject(projectId: string): boolean;
   getActiveProjectId(): ProjectId | null;
   setActiveProjectId(projectId: ProjectId | null): SetActiveProjectResult;
