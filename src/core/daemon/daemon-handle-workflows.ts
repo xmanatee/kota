@@ -1,6 +1,6 @@
+import type { WorkflowEnqueueOptions } from "#core/workflow/operator-trigger.js";
 import { buildClientIdentity, type ClientIdentity } from "./client-identity.js";
 import type {
-  DaemonControlExtraPayload,
   DaemonControlHandle,
   WorkflowDefinitionSummary,
 } from "./daemon-control-types.js";
@@ -144,8 +144,7 @@ export function buildDaemonWorkflowHandle(
       lookupRuntime(projectId).workflowRuntime.disableWorkflow(name),
     enqueuePendingRun: (
       name: string,
-      tags?: string[],
-      extraPayload?: DaemonControlExtraPayload,
+      options?: WorkflowEnqueueOptions,
       projectId?: ProjectId,
     ) => {
       const resolvedProjectId = projectId ?? projectRegistry.getDefaultProjectId();
@@ -161,8 +160,7 @@ export function buildDaemonWorkflowHandle(
       }
       return lookupRuntime(resolvedProjectId).workflowRuntime.enqueuePendingRun(
         name,
-        tags,
-        extraPayload,
+        options,
       );
     },
     cancelQueuedRun: (runId: string, projectId?: ProjectId) =>

@@ -9,11 +9,11 @@ import type {
   ModuleSetupStatusResponse,
 } from "#core/modules/setup-requirements.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import type { WorkflowEnqueueOptions } from "#core/workflow/operator-trigger.js";
 import type { CapabilityReadinessResponse } from "./capability-readiness.js";
 import type { ClientIdentity } from "./client-identity.js";
 import type { DaemonSseEvent } from "./daemon-control-events.js";
 import type {
-  DaemonControlExtraPayload,
   DeadLetterItem,
   DeadLetterQueueListOptions,
   DeadLetterQueueListResult,
@@ -127,8 +127,7 @@ export type DaemonControlHandle = {
   disableWorkflow(name: string, projectId?: ProjectId): { ok: boolean; notFound?: boolean };
   enqueuePendingRun(
     name: string,
-    tags?: string[],
-    extraPayload?: DaemonControlExtraPayload,
+    options?: WorkflowEnqueueOptions,
     projectId?: ProjectId,
   ): {
     ok: boolean;

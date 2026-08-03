@@ -17,7 +17,7 @@ import type { WorkflowDefinition } from "../types.js";
 import { validateWorkflowDefinitions } from "../validation.js";
 
 function makeRetryTrigger(retryOf: string): WorkflowRunTrigger {
-  return { event: "retry", schemaRef: null, payload: { retryOf, triggeredAt: new Date().toISOString() } };
+  return { event: "runtime.idle", schemaRef: null, payload: { retryOf, triggeredAt: new Date().toISOString() } };
 }
 
 function makeDefinition(

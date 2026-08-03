@@ -1,3 +1,4 @@
+import { isEventSchemaReference } from "#core/events/event-bus-envelope-types.js";
 import { isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import { JsonFileError } from "#core/util/json-file.js";
 import type {
@@ -199,17 +200,6 @@ function isWorkflowBatchGroupValue(value: Parameters<typeof isPlainObject>[0]): 
     typeof value.field === "string" &&
     value.field.trim().length > 0 &&
     typeof value.value === "string"
-  );
-}
-
-function isEventSchemaReference(value: Parameters<typeof isPlainObject>[0]): boolean {
-  return (
-    isPlainObject(value) &&
-    typeof value.name === "string" &&
-    value.name.trim().length > 0 &&
-    typeof value.version === "number" &&
-    Number.isInteger(value.version) &&
-    value.version >= 1
   );
 }
 

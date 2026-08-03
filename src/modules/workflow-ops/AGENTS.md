@@ -25,10 +25,11 @@ Shared utilities (`utils.ts`, `definitions-source.ts`) stay at the module root.
 
 ## KotaClient Surface
 
-The `workflow` namespace contract lives in `client.ts` (`WorkflowClient`,
-result/option types, and the `buildTriggerHttpPayload` reshape helper).
+The `workflow` namespace contract lives in `client.ts` (`WorkflowClient` and
+result/option types). Core owns canonical queued-run and wire-trigger assembly.
 `localClient(ctx)` and `daemonClient(link)` factories in `index.ts` realize
 the contract; `buildWorkflowDaemonHandler(link)` is the daemon-side factory
 that routes the thirteen namespace methods through the typed
-`DaemonTransport`. Wire paths and reshape semantics are pinned in
-`daemon-client.test.ts`.
+`DaemonTransport`. Trigger event, schema, payload, run id, and eligibility must
+have identical semantics on both paths. Wire paths and reshape semantics are
+pinned in `daemon-client.test.ts`.

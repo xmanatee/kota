@@ -1231,7 +1231,57 @@ describe("DaemonControlServer", () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body).toMatchObject({ ok: true, queued: "builder", runId: "2026-01-01T00-00-00-000Z-builder-abc123" });
-      expect(handle.enqueuePendingRun).toHaveBeenCalledWith("builder", undefined, undefined, undefined);
+      expect(handle.enqueuePendingRun).toHaveBeenCalledWith("builder", {}, undefined);
+    });
+
+    it("preserves explicit trigger semantics at the control boundary", async () => {
+      const res = await fetchWithToken(port, "/workflow/trigger", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "builder",
+          event: "autonomy.builder.recovery.requested",
+          schemaRef: { name: "builder-recovery", version: 1 },
+          runId: "run-recovery-1",
+          notBeforeMs: 123,
+          tags: ["recovery"],
+          payload: { taskId: "task-ui" },
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      expect(handle.enqueuePendingRun).toHaveBeenCalledWith("builder", {
+        event: "autonomy.builder.recovery.requested",
+        schemaRef: { name: "builder-recovery", version: 1 },
+        runId: "run-recovery-1",
+        notBeforeMs: 123,
+        tags: ["recovery"],
+        payload: { taskId: "task-ui" },
+      }, undefined);
+    });
+
+    it("rejects malformed enqueue options", async () => {
+      const invalidBodies = [
+        { name: "builder", tags: "invalid" },
+        { name: "builder", payload: [] },
+        { name: "builder", event: "" },
+        { name: "builder", schemaRef: { name: "missing-version" } },
+        { name: "builder", schemaRef: { name: "", version: 1 } },
+        { name: "builder", schemaRef: { name: "builder", version: 0 } },
+        { name: "builder", runId: "../invalid" },
+        { name: "builder", notBeforeMs: "later" },
+        { name: "builder", notBeforeMs: -1 },
+      ];
+
+      for (const body of invalidBodies) {
+        const res = await fetchWithToken(port, "/workflow/trigger", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        expect(res.status).toBe(400);
+      }
+      expect(handle.enqueuePendingRun).not.toHaveBeenCalled();
     });
 
     it("returns 400 for invalid JSON body", async () => {

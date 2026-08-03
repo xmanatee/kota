@@ -191,7 +191,7 @@ describe("retry execution", () => {
     });
 
     const retryTrigger: WorkflowRunTrigger = {
-      event: "retry",
+      event: "runtime.idle",
       schemaRef: null, payload: { retryOf: originalId, triggeredAt: new Date().toISOString() },
     };
 
@@ -253,7 +253,7 @@ describe("retry execution", () => {
     shouldFail = false;
 
     const retried = await runDefinition(definition, {
-      event: "retry",
+      event: "runtime.idle",
       schemaRef: null,
       payload: { retryOf: original.metadata.id },
     });
@@ -296,7 +296,7 @@ describe("retry execution", () => {
     // Retry: step-a now succeeds
     firstStepShouldFail = false;
     const retryTrigger: WorkflowRunTrigger = {
-      event: "retry",
+      event: "runtime.idle",
       schemaRef: null, payload: { retryOf: originalId, triggeredAt: new Date().toISOString() },
     };
 
@@ -366,7 +366,7 @@ describe("retry execution", () => {
     });
 
     const retryTrigger: WorkflowRunTrigger = {
-      event: "retry",
+      event: "runtime.idle",
       schemaRef: null, payload: { retryOf: originalId },
     };
     await runDefinition(retryDefinition, retryTrigger);
@@ -399,7 +399,7 @@ describe("retry execution", () => {
     });
 
     const retryTrigger: WorkflowRunTrigger = {
-      event: "retry",
+      event: "runtime.idle",
       schemaRef: null, payload: { retryOf: originalId },
     };
     const retried = await runDefinition(retryDefinition, retryTrigger);

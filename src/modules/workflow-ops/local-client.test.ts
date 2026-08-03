@@ -269,7 +269,8 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
   it("triggerByName appends a pending run with the supplied event/runId", async () => {
     const handler = buildHandler(projectDir);
     const result = await handler.triggerByName("builder", {
-      event: "workflow.replay",
+      event: "runtime.idle",
+      schemaRef: { name: "runtime-idle", version: 1 },
       runId: "2026-04-25T21-00-00-000Z-builder-bbb222",
       payload: { replayOf: "2026-04-25T20-00-00-000Z-builder-aaa111" },
       tags: ["smoke"],
@@ -289,7 +290,8 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
     expect(pending.workflowName).toBe("builder");
     expect(pending.notBeforeMs).toBe(100);
     const trigger = pending.trigger as WorkflowRunTrigger;
-    expect(trigger.event).toBe("workflow.replay");
+    expect(trigger.event).toBe("runtime.idle");
+    expect(trigger.schemaRef).toEqual({ name: "runtime-idle", version: 1 });
     expect(trigger.payload).toMatchObject({
       replayOf: "2026-04-25T20-00-00-000Z-builder-aaa111",
       tags: ["smoke"],

@@ -17,6 +17,9 @@ and persisted run state.
   operator-authored hooks.
 - Keep trigger semantics narrow and explicit. Prefer semantic events over
   workflow-name inventories or implicit routing metadata.
+- `buildOperatorQueuedRun` owns operator-trigger construction for every client
+  path. Retry and replay preserve the source event and schema; lineage belongs
+  in payload metadata and must not replace the semantic event.
 - Runtime rails such as validation, retries, timeout handling, dispatch windows,
   output truncation, and notification suppression belong in typed code and tests.
   Do not duplicate their exact fields, enum values, or event names in docs.

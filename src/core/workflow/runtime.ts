@@ -11,6 +11,7 @@ import type {
   WorkflowDispatchPauseStatus,
   WorkflowRecoveryStatus,
 } from "./recovery-status-types.js";
+import type { WorkflowEnqueueOptions } from "./operator-trigger.js";
 import type {
   WorkflowRuntimeState,
 } from "./run-types.js";
@@ -149,8 +150,7 @@ export class WorkflowRuntime {
 
   enqueuePendingRun(
     name: string,
-    tags?: string[],
-    extraPayload?: Record<string, unknown>,
+    options: WorkflowEnqueueOptions = {},
   ): {
     ok: boolean;
     queued?: string;
@@ -158,7 +158,7 @@ export class WorkflowRuntime {
     alreadyQueued?: boolean;
     error?: string;
   } {
-    return enqueuePendingRun(this.ctx, name, tags, extraPayload);
+    return enqueuePendingRun(this.ctx, name, options);
   }
 
   enqueueWebhookRun(

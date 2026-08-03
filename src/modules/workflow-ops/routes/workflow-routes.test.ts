@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { KotaAgentMessage } from "#core/agent-harness/index.js";
-import type { WorkflowLiveStatus } from "#core/daemon/daemon-control.js";
+import type { WorkflowLiveStatus, WorkflowRunDetail } from "#core/daemon/daemon-control.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import {
@@ -69,6 +69,23 @@ function writeRunMetadata(
     ...overrides,
   };
   writeFileSync(join(runDir, "metadata.json"), JSON.stringify(metadata));
+}
+
+function runDetail(
+  id: string,
+  status: WorkflowRunDetail["status"],
+  overrides: Partial<WorkflowRunDetail> = {},
+): WorkflowRunDetail {
+  return {
+    id,
+    workflow: "builder",
+    status,
+    triggerEvent: "runtime.idle",
+    triggerSchemaRef: null,
+    startedAt: "2026-01-01T00:00:00.000Z",
+    steps: [],
+    ...overrides,
+  };
 }
 
 function mockResponse() {
@@ -142,11 +159,14 @@ type MockTransportSpec = Partial<{
   pause: { ok: boolean; paused: boolean; already?: boolean } | null;
   resume: { ok: boolean; paused: boolean; already?: boolean } | null;
   abort: { ok: boolean; aborted: number } | null;
-  /**
-   * Trigger response. Use a thrower (`{ throws: true }`) to simulate a
-   * network error and force the offline-fallback path.
-   */
-  trigger: { ok: true; queued: string; runId?: string } | { ok: false; alreadyQueued: true } | { throws: true } | null;
+  /** Trigger response. Use `{ throws: true }` to simulate a network error. */
+  trigger:
+    | { ok: true; queued: string; runId?: string }
+    | { ok: false; alreadyQueued: true }
+    | { status: number; body: unknown }
+    | { throws: true }
+    | null;
+  runs: Record<string, WorkflowRunDetail>;
   cancel: { status: number; body?: unknown };
   abortRun: { status: number; body?: unknown };
   enable: { status: number; body?: unknown };
@@ -210,10 +230,18 @@ function mockTransport(spec: MockTransportSpec = {}): DaemonTransport & {
         }
       }
       calls.push({ method, path, body });
-      if (path === "/workflow/trigger" && method === "POST") {
+      if (path.startsWith("/workflow/runs/") && method === "GET") {
+        const id = decodeURIComponent(path.slice("/workflow/runs/".length).split("?", 1)[0]!);
+        const run = spec.runs?.[id];
+        return run === undefined
+          ? makeFakeResponse(404, { error: `Run "${id}" not found` })
+          : makeFakeResponse(200, run);
+      }
+      if (path.startsWith("/workflow/trigger") && method === "POST") {
         const t = spec.trigger;
         if (t == null) return makeFakeResponse(503, { error: "Daemon not reachable" });
         if ("throws" in t) throw new Error("network");
+        if ("status" in t) return makeFakeResponse(t.status, t.body);
         if ("alreadyQueued" in t && t.alreadyQueued) return makeFakeResponse(409, { error: "queued" });
         return makeFakeResponse(200, t);
       }
@@ -508,9 +536,10 @@ describe("workflow-routes", () => {
   });
 
   describe("handleWorkflowRetry", () => {
-    function makeRequest(body: unknown): IncomingMessage {
+    function makeRequest(body: unknown, url = "/api/workflow/retry"): IncomingMessage {
       const json = JSON.stringify(body);
       const req = {
+        url,
         on: (event: string, cb: (chunk?: unknown) => void) => {
           if (event === "data") cb(Buffer.from(json));
           if (event === "end") cb();
@@ -521,86 +550,101 @@ describe("workflow-routes", () => {
 
     it("returns 503 when daemon not running (null client)", async () => {
       const { res, result } = mockResponse();
-      await handleWorkflowRetry(makeRequest({ runId: "run-abc" }), res, store, null);
+      await handleWorkflowRetry(makeRequest({ runId: "run-abc" }), res, null);
       expect(result.status).toBe(503);
     });
 
     it("returns 400 for missing runId", async () => {
       const client = mockTransport({});
       const { res, result } = mockResponse();
-      await handleWorkflowRetry(makeRequest({}), res, store, client);
+      await handleWorkflowRetry(makeRequest({}), res, client);
       expect(result.status).toBe(400);
     });
 
     it("returns 400 for invalid runId characters", async () => {
       const client = mockTransport({});
       const { res, result } = mockResponse();
-      await handleWorkflowRetry(makeRequest({ runId: "../etc/passwd" }), res, store, client);
+      await handleWorkflowRetry(makeRequest({ runId: "../etc/passwd" }), res, client);
       expect(result.status).toBe(400);
     });
 
     it("returns 404 when run does not exist", async () => {
       const client = mockTransport({});
       const { res, result } = mockResponse();
-      await handleWorkflowRetry(makeRequest({ runId: "nonexistent" }), res, store, client);
+      await handleWorkflowRetry(makeRequest({ runId: "nonexistent" }), res, client);
       expect(result.status).toBe(404);
     });
 
     it("returns 409 for successful run", async () => {
-      writeRunMetadata(runsDir, "run-success-01", "builder", "success");
-      const client = mockTransport({});
+      const client = mockTransport({ runs: { "run-success-01": runDetail("run-success-01", "success") } });
       const { res, result } = mockResponse();
-      await handleWorkflowRetry(makeRequest({ runId: "run-success-01" }), res, store, client);
+      await handleWorkflowRetry(makeRequest({ runId: "run-success-01" }), res, client);
       expect(result.status).toBe(409);
     });
 
     it("returns 409 for running run", async () => {
-      writeRunMetadata(runsDir, "run-running-01", "builder", "running");
-      const client = mockTransport({});
+      const client = mockTransport({ runs: { "run-running-01": runDetail("run-running-01", "running") } });
       const { res, result } = mockResponse();
-      await handleWorkflowRetry(makeRequest({ runId: "run-running-01" }), res, store, client);
+      await handleWorkflowRetry(makeRequest({ runId: "run-running-01" }), res, client);
       expect(result.status).toBe(409);
     });
 
-    it("enqueues retry for failed run and returns ok", async () => {
-      writeRunMetadata(runsDir, "run-failed-01", "builder", "failed");
-      const client = mockTransport({});
+    it("retries with the original trigger semantics through the daemon", async () => {
+      const client = mockTransport({
+        runs: {
+          "run-failed-01": runDetail("run-failed-01", "failed", {
+            triggerEvent: "autonomy.builder.recovery.requested",
+            triggerSchemaRef: { name: "builder-recovery", version: 1 },
+            triggerPayload: {
+              taskId: "task-ui",
+              _runId: "run-failed-01",
+              triggeredAt: "old",
+              replayOf: "older-run",
+            },
+          }),
+        },
+        trigger: { ok: true, queued: "builder", runId: "run-retry" },
+      });
       const { res, result } = mockResponse();
-      await handleWorkflowRetry(makeRequest({ runId: "run-failed-01" }), res, store, client);
+      await handleWorkflowRetry(
+        makeRequest({ runId: "run-failed-01" }, "/api/workflow/retry?projectId=project-a"),
+        res,
+        client,
+      );
       expect(result.status).toBe(200);
-      expect((result.body as Record<string, unknown>).ok).toBe(true);
-      expect((result.body as Record<string, unknown>).queued).toBe("builder");
-      const state = store.readState();
-      expect(state.pendingRuns).toHaveLength(1);
-      expect(state.pendingRuns[0].workflowName).toBe("builder");
-      expect(state.pendingRuns[0].trigger.event).toBe("retry");
+      expect(client.calls).toContainEqual(expect.objectContaining({
+        method: "POST",
+        path: "/workflow/trigger?projectId=project-a",
+        body: expect.objectContaining({
+          name: "builder",
+          event: "autonomy.builder.recovery.requested",
+          schemaRef: { name: "builder-recovery", version: 1 },
+          payload: { taskId: "task-ui", retryOf: "run-failed-01" },
+        }),
+      }));
     });
 
-    it("enqueues retry for interrupted run and returns ok", async () => {
-      writeRunMetadata(runsDir, "run-interrupted-01", "builder", "interrupted");
-      const client = mockTransport({});
+    it("retries interrupted runs", async () => {
+      const client = mockTransport({
+        runs: { "run-interrupted-01": runDetail("run-interrupted-01", "interrupted") },
+        trigger: { ok: true, queued: "builder" },
+      });
       const { res, result } = mockResponse();
-      await handleWorkflowRetry(makeRequest({ runId: "run-interrupted-01" }), res, store, client);
+      await handleWorkflowRetry(makeRequest({ runId: "run-interrupted-01" }), res, client);
       expect(result.status).toBe(200);
-      const state = store.readState();
-      expect(state.pendingRuns[0].trigger.event).toBe("retry");
-      expect((state.pendingRuns[0].trigger.payload as Record<string, unknown>).retryOf).toBe("run-interrupted-01");
+      expect(client.calls[1]?.body).toMatchObject({
+        event: "runtime.idle",
+        payload: { retryOf: "run-interrupted-01" },
+      });
     });
 
-    it("returns 409 when workflow already queued", async () => {
-      writeRunMetadata(runsDir, "run-failed-02", "builder", "failed");
-      const state = store.readState();
-      state.pendingRuns = [{
-        workflowName: "builder",
-        trigger: { event: "manual", schemaRef: null, payload: {} },
-        enqueuedAtMs: Date.now(),
-        notBeforeMs: Date.now(),
-      }];
-      store.setPendingRuns(state.pendingRuns);
-
-      const client = mockTransport({});
+    it("returns the daemon conflict when workflow is already queued", async () => {
+      const client = mockTransport({
+        runs: { "run-failed-02": runDetail("run-failed-02", "failed") },
+        trigger: { ok: false, alreadyQueued: true },
+      });
       const { res, result } = mockResponse();
-      await handleWorkflowRetry(makeRequest({ runId: "run-failed-02" }), res, store, client);
+      await handleWorkflowRetry(makeRequest({ runId: "run-failed-02" }), res, client);
       expect(result.status).toBe(409);
     });
   });
@@ -617,67 +661,78 @@ describe("workflow-routes", () => {
       return req;
     }
 
-    it("returns 400 for missing runId", async () => {
+    it("returns 503 when daemon is not running", async () => {
       const { res, result } = mockResponse();
-      await handleWorkflowReplay(makeRequest({}), res, store);
+      await handleWorkflowReplay(makeRequest({ runId: "run-success" }), res, null);
+      expect(result.status).toBe(503);
+    });
+
+    it("returns 400 for missing runId", async () => {
+      const client = mockTransport({});
+      const { res, result } = mockResponse();
+      await handleWorkflowReplay(makeRequest({}), res, client);
       expect(result.status).toBe(400);
     });
 
     it("returns 400 for invalid runId characters", async () => {
+      const client = mockTransport({});
       const { res, result } = mockResponse();
-      await handleWorkflowReplay(makeRequest({ runId: "../etc/passwd" }), res, store);
+      await handleWorkflowReplay(makeRequest({ runId: "../etc/passwd" }), res, client);
       expect(result.status).toBe(400);
     });
 
     it("returns 404 when run does not exist", async () => {
+      const client = mockTransport({});
       const { res, result } = mockResponse();
-      await handleWorkflowReplay(makeRequest({ runId: "nonexistent" }), res, store);
+      await handleWorkflowReplay(makeRequest({ runId: "nonexistent" }), res, client);
       expect(result.status).toBe(404);
     });
 
     it("returns 409 for running run", async () => {
-      writeRunMetadata(runsDir, "run-running-replay", "builder", "running");
+      const client = mockTransport({
+        runs: { "run-running-replay": runDetail("run-running-replay", "running") },
+      });
       const { res, result } = mockResponse();
-      await handleWorkflowReplay(makeRequest({ runId: "run-running-replay" }), res, store);
+      await handleWorkflowReplay(makeRequest({ runId: "run-running-replay" }), res, client);
       expect(result.status).toBe(409);
     });
 
-    it("enqueues replay for successful run and returns ok with runId", async () => {
-      writeRunMetadata(runsDir, "run-success-replay", "builder", "success");
+    it("replays the original trigger through the daemon", async () => {
+      const client = mockTransport({
+        runs: {
+          "run-success-replay": runDetail("run-success-replay", "success", {
+            triggerEvent: "autonomy.builder.recovery.requested",
+            triggerPayload: { taskId: "task-ui", _runId: "old", retryOf: "older" },
+          }),
+        },
+        trigger: { ok: true, queued: "builder", runId: "run-replay" },
+      });
       const { res, result } = mockResponse();
-      await handleWorkflowReplay(makeRequest({ runId: "run-success-replay" }), res, store);
+      await handleWorkflowReplay(makeRequest({ runId: "run-success-replay" }), res, client);
       expect(result.status).toBe(200);
-      expect((result.body as Record<string, unknown>).ok).toBe(true);
-      expect((result.body as Record<string, unknown>).queued).toBe("builder");
-      expect(typeof (result.body as Record<string, unknown>).runId).toBe("string");
-      const state = store.readState();
-      expect(state.pendingRuns).toHaveLength(1);
-      expect(state.pendingRuns[0].workflowName).toBe("builder");
-      expect(state.pendingRuns[0].trigger.event).toBe("workflow.replay");
-      expect((state.pendingRuns[0].trigger.payload as Record<string, unknown>).replayOf).toBe("run-success-replay");
+      expect(client.calls[1]?.body).toMatchObject({
+        event: "autonomy.builder.recovery.requested",
+        payload: { taskId: "task-ui", replayOf: "run-success-replay" },
+      });
     });
 
-    it("enqueues replay for failed run", async () => {
-      writeRunMetadata(runsDir, "run-failed-replay", "builder", "failed");
+    it("replays failed runs", async () => {
+      const client = mockTransport({
+        runs: { "run-failed-replay": runDetail("run-failed-replay", "failed") },
+        trigger: { ok: true, queued: "builder" },
+      });
       const { res, result } = mockResponse();
-      await handleWorkflowReplay(makeRequest({ runId: "run-failed-replay" }), res, store);
+      await handleWorkflowReplay(makeRequest({ runId: "run-failed-replay" }), res, client);
       expect(result.status).toBe(200);
-      const state = store.readState();
-      expect(state.pendingRuns[0].trigger.event).toBe("workflow.replay");
     });
 
-    it("returns 409 when workflow already queued", async () => {
-      writeRunMetadata(runsDir, "run-success-replay2", "builder", "success");
-      const state = store.readState();
-      state.pendingRuns = [{
-        workflowName: "builder",
-        trigger: { event: "manual", schemaRef: null, payload: {} },
-        enqueuedAtMs: Date.now(),
-        notBeforeMs: Date.now(),
-      }];
-      store.setPendingRuns(state.pendingRuns);
+    it("returns the daemon conflict when workflow is already queued", async () => {
+      const client = mockTransport({
+        runs: { "run-success-replay2": runDetail("run-success-replay2", "success") },
+        trigger: { ok: false, alreadyQueued: true },
+      });
       const { res, result } = mockResponse();
-      await handleWorkflowReplay(makeRequest({ runId: "run-success-replay2" }), res, store);
+      await handleWorkflowReplay(makeRequest({ runId: "run-success-replay2" }), res, client);
       expect(result.status).toBe(409);
     });
   });
@@ -694,80 +749,49 @@ describe("workflow-routes", () => {
       return req;
     }
 
-    it("enqueues a workflow run and returns ok", async () => {
+    it("returns 503 without a daemon", async () => {
       const { res, result } = mockResponse();
-      await handleWorkflowTrigger(makeRequest({ name: "builder" }), res, store);
-      expect(result.status).toBe(200);
-      expect((result.body as Record<string, unknown>).ok).toBe(true);
-      const state = store.readState();
-      expect(state.pendingRuns).toHaveLength(1);
-      expect(state.pendingRuns[0].workflowName).toBe("builder");
-      expect(state.pendingRuns[0].trigger.event).toBe("manual");
+      await handleWorkflowTrigger(makeRequest({ name: "builder" }), res, null);
+      expect(result.status).toBe(503);
     });
 
-    it("returns 400 for missing name", async () => {
+    it("preserves daemon validation responses", async () => {
+      const client = mockTransport({
+        trigger: { status: 400, body: { error: "tags must be an array of strings" } },
+      });
       const { res, result } = mockResponse();
-      await handleWorkflowTrigger(makeRequest({}), res, store);
+      await handleWorkflowTrigger(makeRequest({ name: "builder", tags: "invalid" }), res, client);
       expect(result.status).toBe(400);
-    });
-
-    it("returns 400 for invalid name characters", async () => {
-      const { res, result } = mockResponse();
-      await handleWorkflowTrigger(makeRequest({ name: "../etc/passwd" }), res, store);
-      expect(result.status).toBe(400);
+      expect(result.body).toEqual({ error: "tags must be an array of strings" });
     });
 
     it("returns 409 when workflow already queued", async () => {
-      const state = store.readState();
-      state.pendingRuns = [{
-        workflowName: "builder",
-        trigger: { event: "manual", schemaRef: null, payload: {} },
-        enqueuedAtMs: Date.now(),
-        notBeforeMs: Date.now(),
-      }];
-      store.setPendingRuns(state.pendingRuns);
-
+      const client = mockTransport({ trigger: { ok: false, alreadyQueued: true } });
       const { res, result } = mockResponse();
-      await handleWorkflowTrigger(makeRequest({ name: "builder" }), res, store);
+      await handleWorkflowTrigger(makeRequest({ name: "builder" }), res, client);
       expect(result.status).toBe(409);
     });
 
     it("routes through daemon client when available and returns ok", async () => {
       const client = mockTransport({ trigger: { ok: true, queued: "builder" } });
       const { res, result } = mockResponse();
-      await handleWorkflowTrigger(makeRequest({ name: "builder" }), res, store, client);
+      await handleWorkflowTrigger(makeRequest({ name: "builder" }), res, client);
       expect(result.status).toBe(200);
       expect((result.body as Record<string, unknown>).ok).toBe(true);
       expect((result.body as Record<string, unknown>).queued).toBe("builder");
-      expect(store.readState().pendingRuns).toHaveLength(0);
     });
 
-    it("returns 409 when daemon reports already queued", async () => {
-      const client = mockTransport({ trigger: { ok: false, alreadyQueued: true } });
-      const { res, result } = mockResponse();
-      await handleWorkflowTrigger(makeRequest({ name: "builder" }), res, store, client);
-      expect(result.status).toBe(409);
-    });
-
-    it("falls back to direct write when daemon network error", async () => {
+    it("returns 503 on daemon network error", async () => {
       const client = mockTransport({ trigger: { throws: true } });
       const { res, result } = mockResponse();
-      await handleWorkflowTrigger(makeRequest({ name: "builder" }), res, store, client);
-      expect(result.status).toBe(200);
-      expect(store.readState().pendingRuns).toHaveLength(1);
-    });
-
-    it("falls back to direct write when no daemon client (null)", async () => {
-      const { res, result } = mockResponse();
-      await handleWorkflowTrigger(makeRequest({ name: "builder" }), res, store, null);
-      expect(result.status).toBe(200);
-      expect(store.readState().pendingRuns).toHaveLength(1);
+      await handleWorkflowTrigger(makeRequest({ name: "builder" }), res, client);
+      expect(result.status).toBe(503);
     });
 
     it("passes tags to daemon client", async () => {
       const client = mockTransport({ trigger: { ok: true, queued: "builder" } });
       const { res, result } = mockResponse();
-      await handleWorkflowTrigger(makeRequest({ name: "builder", tags: ["ci", "pr-42"] }), res, store, client);
+      await handleWorkflowTrigger(makeRequest({ name: "builder", tags: ["ci", "pr-42"] }), res, client);
       expect(result.status).toBe(200);
       const triggerCall = client.calls.find((c) => c.path === "/workflow/trigger");
       expect(triggerCall).toBeDefined();
@@ -775,47 +799,10 @@ describe("workflow-routes", () => {
       expect(payload.tags).toEqual(["ci", "pr-42"]);
     });
 
-    it("includes tags in trigger payload for offline path", async () => {
-      const { res, result } = mockResponse();
-      await handleWorkflowTrigger(makeRequest({ name: "builder", tags: ["nightly"] }), res, store, null);
-      expect(result.status).toBe(200);
-      const queued = store.readState().pendingRuns[0];
-      expect((queued.trigger.payload as Record<string, unknown>).tags).toEqual(["nightly"]);
-    });
-
-    it("ignores invalid tags field", async () => {
-      const { res, result } = mockResponse();
-      await handleWorkflowTrigger(makeRequest({ name: "builder", tags: "not-an-array" }), res, store, null);
-      expect(result.status).toBe(200);
-      const queued = store.readState().pendingRuns[0];
-      expect((queued.trigger.payload as Record<string, unknown>).tags).toBeUndefined();
-    });
-
-    it("merges extra payload fields into trigger payload for offline path", async () => {
-      const { res, result } = mockResponse();
-      await handleWorkflowTrigger(makeRequest({ name: "builder", payload: { taskId: "task-foo-bar", region: "us-east-1" } }), res, store, null);
-      expect(result.status).toBe(200);
-      const queued = store.readState().pendingRuns[0];
-      const payload = queued.trigger.payload as Record<string, unknown>;
-      expect(payload.taskId).toBe("task-foo-bar");
-      expect(payload.region).toBe("us-east-1");
-      expect(typeof payload.triggeredAt).toBe("string");
-    });
-
-    it("automatic fields override any same-named fields in extra payload", async () => {
-      const { res, result } = mockResponse();
-      await handleWorkflowTrigger(makeRequest({ name: "builder", payload: { triggeredAt: "overridden", taskId: "t1" } }), res, store, null);
-      expect(result.status).toBe(200);
-      const queued = store.readState().pendingRuns[0];
-      const payload = queued.trigger.payload as Record<string, unknown>;
-      expect(payload.triggeredAt).not.toBe("overridden");
-      expect(payload.taskId).toBe("t1");
-    });
-
     it("passes extra payload to daemon client", async () => {
       const client = mockTransport({ trigger: { ok: true, queued: "builder" } });
       const { res, result } = mockResponse();
-      await handleWorkflowTrigger(makeRequest({ name: "builder", payload: { taskId: "abc" } }), res, store, client);
+      await handleWorkflowTrigger(makeRequest({ name: "builder", payload: { taskId: "abc" } }), res, client);
       expect(result.status).toBe(200);
       const triggerCall = client.calls.find((c) => c.path === "/workflow/trigger");
       expect(triggerCall).toBeDefined();
@@ -823,15 +810,6 @@ describe("workflow-routes", () => {
       expect(payload.payload).toEqual({ taskId: "abc" });
     });
 
-    it("ignores invalid payload field (non-object)", async () => {
-      const { res, result } = mockResponse();
-      await handleWorkflowTrigger(makeRequest({ name: "builder", payload: ["not", "an", "object"] }), res, store, null);
-      expect(result.status).toBe(200);
-      const queued = store.readState().pendingRuns[0];
-      const payload = queued.trigger.payload as Record<string, unknown>;
-      expect(payload.taskId).toBeUndefined();
-      expect(typeof payload.triggeredAt).toBe("string");
-    });
   });
 
   describe("handleWorkflowRuns", () => {

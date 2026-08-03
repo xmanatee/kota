@@ -1,13 +1,17 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { WorkflowDefinitionSummary, WorkflowLiveStatus } from "#core/daemon/daemon-control.js";
+import type {
+  WorkflowDefinitionSummary,
+  WorkflowLiveStatus,
+  WorkflowRunDetail,
+} from "#core/daemon/daemon-control.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
-import { formatRunId } from "#core/workflow/run-io.js";
-import { WorkflowRunStore } from "#core/workflow/run-store.js";
-import type { WorkflowQueuedRun } from "#core/workflow/run-types.js";
+import { buildOperatorTriggerRequestBody } from "#core/workflow/operator-trigger.js";
+import { buildRetriggerOptions } from "#core/workflow/retrigger.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 import { line, span } from "#modules/rendering/primitives.js";
 import { printToStderr } from "#modules/rendering/transport.js";
+import type { WorkflowTriggerOptions } from "../client.js";
 import { buildDryRunPlan, type DryRunResult } from "../execution/dry-run.js";
 
 const EMPTY_WORKFLOW_STATUS: WorkflowLiveStatus = {
@@ -108,7 +112,6 @@ export async function handleWorkflowAbort(
 export async function handleWorkflowRetry(
   req: IncomingMessage,
   res: ServerResponse,
-  store = new WorkflowRunStore(),
   link: DaemonTransport | null = null,
 ): Promise<void> {
   if (!link) {
@@ -130,9 +133,8 @@ export async function handleWorkflowRetry(
     return;
   }
 
-  const run = store.getRun(runId);
-  if (!run) {
-    jsonResponse(res, 404, { error: `Run "${runId}" not found` });
+  const run = await loadRunThroughDaemon(req, res, link, runId);
+  if (run === null) {
     return;
   }
 
@@ -141,24 +143,17 @@ export async function handleWorkflowRetry(
     return;
   }
 
-  const state = store.readState();
-  const alreadyQueued = state.pendingRuns.some((r) => r.workflowName === run.workflow);
-  if (alreadyQueued) {
-    jsonResponse(res, 409, { error: `Workflow "${run.workflow}" is already queued` });
-    return;
-  }
-
-  const now = Date.now();
-  const trigger = {
-    event: "retry",
-    schemaRef: null,
-    payload: { retryOf: runId, triggeredAt: new Date().toISOString() },
-  };
-  store.setPendingRuns([
-    ...state.pendingRuns,
-    { workflowName: run.workflow, trigger, enqueuedAtMs: now, notBeforeMs: now },
-  ]);
-  jsonResponse(res, 200, { ok: true, queued: run.workflow });
+  await enqueueThroughDaemon(
+    req,
+    res,
+    link,
+    run.workflow,
+    buildRetriggerOptions("retry", runId, run.workflow, {
+      event: run.triggerEvent,
+      schemaRef: run.triggerSchemaRef,
+      payload: run.triggerPayload ?? {},
+    }),
+  );
 }
 
 export async function handleWorkflowAbortRun(
@@ -238,8 +233,12 @@ export async function handleWorkflowCancel(
 export async function handleWorkflowReplay(
   req: IncomingMessage,
   res: ServerResponse,
-  store = new WorkflowRunStore(),
+  link: DaemonTransport | null = null,
 ): Promise<void> {
+  if (!link) {
+    jsonResponse(res, 503, { error: "Daemon not running" });
+    return;
+  }
   let body: Record<string, unknown>;
   try {
     body = await readBody(req);
@@ -254,9 +253,8 @@ export async function handleWorkflowReplay(
     return;
   }
 
-  const original = store.getRun(runId);
-  if (!original) {
-    jsonResponse(res, 404, { error: `Run "${runId}" not found` });
+  const original = await loadRunThroughDaemon(req, res, link, runId);
+  if (original === null) {
     return;
   }
 
@@ -265,40 +263,103 @@ export async function handleWorkflowReplay(
     return;
   }
 
-  const state = store.readState();
-  const alreadyQueued = state.pendingRuns.some((r) => r.workflowName === original.workflow);
-  if (alreadyQueued) {
-    jsonResponse(res, 409, { error: `Workflow "${original.workflow}" is already queued` });
+  await enqueueThroughDaemon(
+    req,
+    res,
+    link,
+    original.workflow,
+    buildRetriggerOptions("replay", runId, original.workflow, {
+      event: original.triggerEvent,
+      schemaRef: original.triggerSchemaRef,
+      payload: original.triggerPayload ?? {},
+    }),
+  );
+}
+
+async function loadRunThroughDaemon(
+  req: IncomingMessage,
+  res: ServerResponse,
+  link: DaemonTransport,
+  runId: string,
+): Promise<WorkflowRunDetail | null> {
+  let response: Response;
+  try {
+    response = await link.fetchRaw(
+      scopedDaemonPath(req, `/workflow/runs/${encodeURIComponent(runId)}`),
+    );
+  } catch (error) {
+    reportWorkflowTransportFailure("read run", error);
+    jsonResponse(res, 503, { error: "Daemon not reachable" });
+    return null;
+  }
+  if (response.status === 404) {
+    jsonResponse(res, 404, { error: `Run "${runId}" not found` });
+    return null;
+  }
+  if (!response.ok) {
+    jsonResponse(res, response.status, await response.json());
+    return null;
+  }
+  return response.json() as Promise<WorkflowRunDetail>;
+}
+
+async function enqueueThroughDaemon(
+  req: IncomingMessage,
+  res: ServerResponse,
+  link: DaemonTransport,
+  workflowName: string,
+  options: WorkflowTriggerOptions,
+): Promise<void> {
+  await sendTriggerThroughDaemon(
+    req,
+    res,
+    link,
+    buildOperatorTriggerRequestBody(workflowName, options),
+  );
+}
+
+async function sendTriggerThroughDaemon(
+  req: IncomingMessage,
+  res: ServerResponse,
+  link: DaemonTransport,
+  body: Record<string, unknown>,
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await link.fetchRaw(scopedDaemonPath(req, "/workflow/trigger"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    reportWorkflowTransportFailure("enqueue workflow", error);
+    jsonResponse(res, 503, { error: "Daemon not reachable" });
     return;
   }
+  const result = await response.json() as Record<string, unknown>;
+  jsonResponse(res, response.status, result);
+}
 
-  const originalPayload =
-    typeof original.trigger?.payload === "object" && original.trigger.payload !== null
-      ? (original.trigger.payload as Record<string, unknown>)
-      : {};
-  const { _runId: _discarded, ...cleanPayload } = originalPayload as Record<string, unknown> & { _runId?: unknown };
+function scopedDaemonPath(req: IncomingMessage, path: string): string {
+  const requestUrl = new URL(req.url ?? "/", "http://localhost");
+  const scopeQuery = new URLSearchParams();
+  for (const key of ["scopeId", "projectId"] as const) {
+    const value = requestUrl.searchParams.get(key);
+    if (value !== null) scopeQuery.set(key, value);
+  }
+  const query = scopeQuery.toString();
+  return `${path}${query ? `?${query}` : ""}`;
+}
 
-  const now = Date.now();
-  const newRunId = formatRunId(original.workflow);
-  const trigger = {
-    event: "workflow.replay",
-    schemaRef: null,
-    payload: {
-      ...cleanPayload,
-      replayOf: runId,
-      replayTriggeredAt: new Date().toISOString(),
-      _runId: newRunId,
-    },
-  };
-  const queued: WorkflowQueuedRun = {
-    runId: newRunId,
-    workflowName: original.workflow,
-    trigger,
-    enqueuedAtMs: now,
-    notBeforeMs: now,
-  };
-  store.setPendingRuns([...state.pendingRuns, queued]);
-  jsonResponse(res, 200, { ok: true, queued: original.workflow, runId: newRunId });
+function reportWorkflowTransportFailure(operation: string, error: unknown): void {
+  printToStderr(
+    line(
+      span(
+        `workflow ${operation} transport failed: ${error instanceof Error ? error.message : String(error)}`,
+        "warn",
+      ),
+    ),
+  );
 }
 
 export async function handleWorkflowEnable(
@@ -364,9 +425,12 @@ export async function handleWorkflowDisable(
 export async function handleWorkflowTrigger(
   req: IncomingMessage,
   res: ServerResponse,
-  store = new WorkflowRunStore(),
   link: DaemonTransport | null = null,
 ): Promise<void> {
+  if (!link) {
+    jsonResponse(res, 503, { error: "Daemon not running" });
+    return;
+  }
   let body: Record<string, unknown>;
   try {
     body = await readBody(req);
@@ -375,82 +439,7 @@ export async function handleWorkflowTrigger(
     return;
   }
 
-  const name = body.name as string | undefined;
-  if (!name || typeof name !== "string" || !/^[a-zA-Z0-9_-]+$/.test(name)) {
-    jsonResponse(res, 400, { error: "name must be a non-empty alphanumeric string" });
-    return;
-  }
-
-  const tags =
-    Array.isArray(body.tags) && (body.tags as unknown[]).every((t) => typeof t === "string")
-      ? (body.tags as string[])
-      : undefined;
-
-  const extraPayload =
-    body.payload !== undefined && body.payload !== null && typeof body.payload === "object" && !Array.isArray(body.payload)
-      ? (body.payload as Record<string, unknown>)
-      : undefined;
-
-  if (link) {
-    let resp: Response | null = null;
-    try {
-      resp = await link.fetchRaw("/workflow/trigger", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          ...(tags && tags.length > 0 && { tags }),
-          ...(extraPayload && { payload: extraPayload }),
-        }),
-      });
-    } catch (err) {
-      printToStderr(
-        line(
-          span(
-            `workflow trigger daemon transport failed: ${err instanceof Error ? err.message : String(err)}`,
-            "warn",
-          ),
-        ),
-      );
-    }
-    if (resp) {
-      if (resp.status === 409) {
-        jsonResponse(res, 409, { error: `Workflow "${name}" is already queued` });
-        return;
-      }
-      if (resp.ok) {
-        const body = (await resp.json()) as { queued?: string; runId?: string };
-        jsonResponse(res, 200, { ok: true, queued: body.queued ?? name });
-        return;
-      }
-    }
-  }
-
-  const state = store.readState();
-  const alreadyQueued = state.pendingRuns.some((r) => r.workflowName === name);
-  if (alreadyQueued) {
-    jsonResponse(res, 409, { error: `Workflow "${name}" is already queued` });
-    return;
-  }
-
-  const now = Date.now();
-  const trigger = {
-    event: "manual",
-    schemaRef: null,
-    payload: {
-      ...(extraPayload ?? {}),
-      triggeredAt: new Date().toISOString(),
-      ...(tags && tags.length > 0 && { tags }),
-    },
-  };
-  const queued: WorkflowQueuedRun = {
-    workflowName: name,
-    trigger,
-    enqueuedAtMs: now,
-    notBeforeMs: now,
-  };
-  store.setPendingRuns([...state.pendingRuns, queued]);
-  jsonResponse(res, 200, { ok: true, queued: name });
+  await sendTriggerThroughDaemon(req, res, link, body);
 }
 
 export type DryRunDeps = {

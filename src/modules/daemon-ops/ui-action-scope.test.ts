@@ -83,6 +83,8 @@ function recordingTransport(bundle: UiSurfaceBundle): {
           id: "run-1",
           workflow: "builder",
           status: "failed",
+          triggerEvent: "autonomy.builder.recovery.requested",
+          triggerSchemaRef: null,
           triggerPayload: { source: "fixture" },
         } as T;
       }
@@ -199,7 +201,13 @@ describe("daemon UI action scope", () => {
         kind: "request",
         method: "POST",
         path: "/workflow/trigger?scopeId=scope-b",
-        body: { name: "builder", payload: { retryOf: "run-1" } },
+        body: {
+          name: "builder",
+          event: "autonomy.builder.recovery.requested",
+          schemaRef: null,
+          runId: expect.stringMatching(/-builder-/),
+          payload: { source: "fixture", retryOf: "run-1" },
+        },
       },
       {
         kind: "strict",
