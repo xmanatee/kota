@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { WorkflowStepErrorKind } from "#core/workflow/run-types.js";
 
 export type StepSeed = {
   id: string;
@@ -7,7 +8,7 @@ export type StepSeed = {
   status: "success" | "failed" | "skipped";
   event?: string;
   error?: string;
-  errorKind?: "idle-timeout";
+  errorKind?: WorkflowStepErrorKind;
 };
 
 export function readyTaskPath(projectDir: string, taskId: string): string {
@@ -113,7 +114,7 @@ export function writeRunWithAgentRuntimeCoverageGaps(
     id: string;
     startedAt: string;
     error: string;
-    errorKind?: "idle-timeout";
+    errorKind?: WorkflowStepErrorKind;
   },
 ): void {
   const { id, startedAt } = args;

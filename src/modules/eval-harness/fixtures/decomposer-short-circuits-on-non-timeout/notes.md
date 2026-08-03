@@ -5,23 +5,21 @@
 No source run id. This is a smoke fixture. The seeded shape mirrors the
 real-failure run id `2026-04-18T15-45-49-339Z-decomposer-zloyo6`
 referenced from `fixtures/uncovered/notes.md`, but with the failed
-builder reshaped into a non-timeout-shaped failure so the decomposer's
+builder carrying no rescopable `errorKind`, so the decomposer's
 assess-failure step short-circuits to `shouldDecompose: false` instead
-of invoking the agent step. The agent-call path (timeout-shaped failure,
-`shouldDecompose: true`) is intentionally out of scope here — see
-`uncovered/notes.md`.
+of invoking the agent step. The structured timeout and repair-exhaustion
+paths are covered by `decomposer-agent-call-replay` and focused workflow tests.
 
 ## What the seeded state pins
 
 - `.kota/runs/2026-04-24T12-00-00-000Z-builder-fxt001/metadata.json` is
-  a synthetic failed-builder run whose `build` step fails with a short
-  duration (60 000 ms, far below the 11 100 000 ms timeout threshold)
-  and a non-timeout error string. No `error.txt` is seeded, so
-  `isTimeoutShaped` finds no signal in any of its three branches.
+  a synthetic failed-builder run whose `build` step has no structured
+  timeout or repair-exhaustion `errorKind`, so the classification returns
+  no rescoping signal.
+- The sibling `task-claim.json` identifies the exact builder-owned task.
 - `data/tasks/doing/task-fixture-decomposer-decision-seed.md` is a
-  builder-claimed task. The decomposer's normal-trigger path looks for
-  a candidate in `doing/`; if the gate ever lets the agent step run,
-  this task is the candidate it will operate on, which lets the
+  builder-claimed task. If the gate ever lets the agent step run, the
+  durable claim identifies this task as the candidate, which lets the
   fixture's predicates catch the regression by observing the file move
   out of `doing/`.
 

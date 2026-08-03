@@ -358,6 +358,7 @@ describe("step timeout", () => {
     const result = await promise;
 
     expect(result.metadata.status).toBe("failed");
+    expect(result.metadata.steps[0]?.errorKind).toBe("step-timeout");
     const errorLog = (log.mock.calls as string[][]).flat().find((msg) => msg.includes("Failed"));
     expect(errorLog).toContain("hanging-step");
     expect(errorLog).toContain("timed out");
@@ -787,6 +788,45 @@ describe("step timeout", () => {
     expect(attempts).toBe(2);
   }, 10_000);
 
+  it("records structured repair-loop exhaustion", async () => {
+    const harness = "workflow-repair-exhausted";
+    registerWorkflowTestHarness(harness, async () => AGENT_OK_RESULT);
+
+    const definition = makeDefinition({
+      moduleRoot: projectDir,
+      steps: [
+        makeAgentStep(projectDir, harness, {
+          repairLoop: {
+            maxRepairAttempts: 1,
+            checks: [
+              {
+                id: "post-check",
+                type: "code",
+                run: () => {
+                  throw new Error("still failing");
+                },
+              },
+            ],
+          },
+        }),
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      projectDir,
+      bus,
+      store,
+      log,
+    });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("failed");
+    expect(result.metadata.steps[0]).toMatchObject({
+      status: "failed",
+      errorKind: "repair-attempts-exhausted",
+    });
+  }, 10_000);
+
   it("applies idleTimeoutMs to code children in parallel groups", async () => {
     const definition = makeDefinition({
       steps: [
@@ -952,7 +992,7 @@ describe("step timeout", () => {
 
     expect(result.metadata.status).toBe("failed");
     expect(result.metadata.steps[0]?.error).toContain("timed out after 20ms");
-    expect(result.metadata.steps[0]?.errorKind).toBeUndefined();
+    expect(result.metadata.steps[0]?.errorKind).toBe("step-timeout");
   }, 10_000);
 });
 

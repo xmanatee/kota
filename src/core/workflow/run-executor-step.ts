@@ -16,6 +16,7 @@ import {
   rejectWhenActiveTimeoutExpires,
 } from "./active-timeout.js";
 import { buildStepCompletedPayload, resolveStepAutonomyMode } from "./event-payloads.js";
+import { RepairLoopError } from "./repair-loop.js";
 import type { ToolCallSummaryEntry, WorkflowRunMetadata, WorkflowRunWarning, WorkflowStepContext, WorkflowStepResult, WorkflowStepSkipReason } from "./run-types.js";
 import {
   AgentStepIdleTimeoutError,
@@ -479,6 +480,10 @@ export async function executeWorkflowStep(
       error: err.message,
       ...(idleTimeoutError !== undefined
         ? { errorKind: "idle-timeout" as const, idleTimeoutMs: idleTimeoutError.idleTimeoutMs }
+        : isStepTimeout
+          ? { errorKind: "step-timeout" as const }
+          : err instanceof RepairLoopError
+            ? { errorKind: err.kind }
         : {}),
       ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
       ...(trajectoryDiagnostics !== undefined ? { trajectoryDiagnostics } : {}),

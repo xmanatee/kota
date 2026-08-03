@@ -21,6 +21,26 @@ export type WorkflowRunStatus =
 
 export type WorkflowStepStatus = "success" | "failed" | "skipped";
 
+export type WorkflowStepTimeoutErrorKind = "idle-timeout" | "step-timeout";
+export type WorkflowRepairErrorKind =
+  | "repair-no-progress"
+  | "repair-attempts-exhausted";
+export type WorkflowStepErrorKind =
+  | WorkflowStepTimeoutErrorKind
+  | WorkflowRepairErrorKind;
+
+export function isWorkflowStepTimeoutErrorKind(
+  kind: WorkflowStepErrorKind | undefined,
+): kind is WorkflowStepTimeoutErrorKind {
+  return kind === "idle-timeout" || kind === "step-timeout";
+}
+
+export function isWorkflowRepairErrorKind(
+  kind: WorkflowStepErrorKind | undefined,
+): kind is WorkflowRepairErrorKind {
+  return kind === "repair-no-progress" || kind === "repair-attempts-exhausted";
+}
+
 export type WorkflowStepSkipReasonKind =
   | "when-predicate"
   | "branch-arm-not-taken"
@@ -146,7 +166,7 @@ export type WorkflowStepResult = {
   outputTokens?: number;
   output?: unknown;
   error?: string;
-  errorKind?: "idle-timeout";
+  errorKind?: WorkflowStepErrorKind;
   idleTimeoutMs?: number;
   continueOnFailure?: boolean;
   toolCalls?: ToolCallSummaryEntry[];

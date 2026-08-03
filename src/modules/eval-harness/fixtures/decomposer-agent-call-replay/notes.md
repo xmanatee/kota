@@ -7,11 +7,11 @@ eval-harness replay adapter. The fixture regression-gates the
 
 ## Shape
 
-- `initial/` seeds a timeout-shaped failed-builder run and the
-  matching claimed `doing/` task. The fixture subprocess runs
-  `kota workflow exec decomposer` with the builder-failure trigger
-  payload, so `assess-failure` resolves `shouldDecompose: true` and
-  the `decompose` agent step fires.
+- `initial/` seeds a failed-builder run with `errorKind: step-timeout`, its
+  durable `task-claim.json`, and the matching claimed `doing/` task. The
+  fixture subprocess runs `kota workflow exec decomposer` with the
+  builder-failure trigger payload, so `assess-failure` resolves
+  `shouldDecompose: true` and the `decompose` agent step fires.
 - `recordings/decompose.json` carries the recorded agent response
   envelope (lifted from source run
   `2026-04-18T15-45-49-339Z-decomposer-zloyo6`) and a hand-authored set

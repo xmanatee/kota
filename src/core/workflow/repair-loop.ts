@@ -11,7 +11,11 @@ import {
   type RepairCheckResult,
   runChecksPhased,
 } from "./repair-loop-checks.js";
-import type { WorkflowRunMetadata, WorkflowStepContext } from "./run-types.js";
+import type {
+  WorkflowRepairErrorKind,
+  WorkflowRunMetadata,
+  WorkflowStepContext,
+} from "./run-types.js";
 import type { WorkflowAgentStep } from "./step-types.js";
 import {
   AgentWriteScopeViolationError,
@@ -42,6 +46,18 @@ type ScopedRepairAgent = {
 
 const REPAIR_NO_PROGRESS_LIMIT = 3;
 const MIN_MARKDOWN_FENCE_LENGTH = 3;
+
+export class RepairLoopError extends Error {
+  constructor(
+    readonly kind: WorkflowRepairErrorKind,
+    readonly stepId: string,
+    readonly failureIds: string[],
+    message: string,
+  ) {
+    super(message);
+    this.name = "RepairLoopError";
+  }
+}
 
 type RepairProgressSnapshot = {
   key: string;
@@ -313,7 +329,10 @@ export async function runAgentRepairLoop(
         noProgressAttempts = 0;
       }
       if (noProgressAttempts >= REPAIR_NO_PROGRESS_LIMIT) {
-        throw new Error(
+        throw new RepairLoopError(
+          "repair-no-progress",
+          step.id,
+          progress.failureIds,
           `Repair loop for step "${step.id}" made no progress after ${REPAIR_NO_PROGRESS_LIMIT} consecutive attempts. ` +
             `Still failing: ${progress.failureIds.join(", ")}`,
         );
@@ -321,7 +340,10 @@ export async function runAgentRepairLoop(
     }
 
     if (failures.length > 0 && attempt === maxRepairAttempts) {
-      throw new Error(
+      throw new RepairLoopError(
+        "repair-attempts-exhausted",
+        step.id,
+        failures.map((failure) => failure.id),
         `Repair loop for step "${step.id}" exhausted repair attempts (${maxRepairAttempts}). ` +
           `Still failing: ${failures.map((f) => f.id).join(", ")}`,
       );

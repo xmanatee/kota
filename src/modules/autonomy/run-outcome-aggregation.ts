@@ -1,8 +1,10 @@
 import { join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
-import { isWorkflowStepActiveTimeoutErrorMessage } from "#core/workflow/active-timeout.js";
 import { readRepairIterations } from "#core/workflow/repair-iteration-output.js";
-import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import {
+  isWorkflowStepTimeoutErrorKind,
+  type WorkflowRunMetadata,
+} from "#core/workflow/run-types.js";
 import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
 import { loadRunsInWindow } from "#modules/workflow-ops/runs/workflow-history.js";
 import type { WorkflowRunSummary } from "./run-summary.js";
@@ -220,8 +222,7 @@ function findAgentStepTimeout(
   for (const step of run.steps) {
     if (step.type !== "agent") continue;
     if (step.status !== "failed") continue;
-    if (typeof step.error !== "string") continue;
-    if (isWorkflowStepActiveTimeoutErrorMessage(step.error)) {
+    if (isWorkflowStepTimeoutErrorKind(step.errorKind)) {
       return { run, step };
     }
   }

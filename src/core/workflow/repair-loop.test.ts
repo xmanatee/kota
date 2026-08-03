@@ -18,7 +18,11 @@ import type {
   AgentPermissionResult,
 } from "#core/agent-harness/types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
-import { buildRepairPrompt, runAgentRepairLoop } from "./repair-loop.js";
+import {
+  buildRepairPrompt,
+  RepairLoopError,
+  runAgentRepairLoop,
+} from "./repair-loop.js";
 import type {
   WorkflowRunMetadata,
   WorkflowStepContext,
@@ -428,9 +432,15 @@ describe("runAgentRepairLoop", () => {
         vi.fn(),
         { projectDir },
       ),
-    ).rejects.toThrow(
-      'Repair loop for step "agent" made no progress after 3 consecutive attempts',
-    );
+    ).rejects.toMatchObject({
+      name: RepairLoopError.name,
+      kind: "repair-no-progress",
+      stepId: "agent",
+      failureIds: ["always-fails"],
+      message: expect.stringContaining(
+        'Repair loop for step "agent" made no progress after 3 consecutive attempts',
+      ),
+    });
     expect(repairRuns).toHaveLength(3);
   });
 

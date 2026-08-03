@@ -1,6 +1,6 @@
 {
   "id": "decomposer-agent-call-replay",
-  "description": "End-to-end replay of decomposer's decompose agent step. Seeds a timeout-shaped builder failure plus a claimed doing/ task, forwards the workflow.completed trigger payload, and routes the agent step through the eval-harness replay adapter so the agent-call branch regression-gates without paying for a real LLM run. Derived from source run 2026-04-18T15-45-49-339Z-decomposer-zloyo6 (the representative real-failure shape called out in fixtures/uncovered/notes.md).",
+  "description": "End-to-end replay of decomposer's decompose agent step. Seeds a builder failure with structured step-timeout metadata and its durable task claim, forwards the workflow.completed trigger payload, and routes the agent step through the eval-harness replay adapter so the agent-call branch regression-gates without paying for a real LLM run. Derived from source run 2026-04-18T15-45-49-339Z-decomposer-zloyo6 (the representative real-failure shape called out in fixtures/uncovered/notes.md).",
   "role": "decomposer",
   "workflowName": "decomposer",
   "budgetMs": 120000,

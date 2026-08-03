@@ -192,6 +192,7 @@ describe("runtime health audit control coverage gaps", () => {
       startedAt: "2026-06-19T11:00:00.000Z",
       error:
         'Step "review-evidence" timed out after 1800000ms of active runtime',
+      errorKind: "step-timeout",
     });
 
     const audit = collectRuntimeHealthAudit({

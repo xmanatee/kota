@@ -598,6 +598,7 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
           completedAt,
           durationMs: timeoutMs,
           error: `Step "${stepId}" timed out after ${timeoutMs}ms of active runtime`,
+          errorKind: "step-timeout",
         },
       ],
     };

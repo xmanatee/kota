@@ -1,14 +1,14 @@
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
-import { isWorkflowStepActiveTimeoutErrorMessage } from "#core/workflow/active-timeout.js";
 import type { ControlMonitorCoverageArtifact } from "#core/workflow/control-monitor-coverage.js";
 import {
   readJsonObject,
   snapshotStepsFrom,
 } from "#core/workflow/control-monitor-coverage-readers.js";
-import type {
-  WorkflowRunMetadata,
-  WorkflowStepResult,
+import {
+  isWorkflowStepTimeoutErrorKind,
+  type WorkflowRunMetadata,
+  type WorkflowStepResult,
 } from "#core/workflow/run-types.js";
 import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
 import type { RuntimeHealthAuditContext } from "./runtime-health-audit-model.js";
@@ -158,9 +158,8 @@ function parseAgentFailureSubtype(error: string): string | undefined {
 
 function isInfrastructureAgentFailure(step: WorkflowStepResult): boolean {
   if (step.type !== "agent" || step.status !== "failed") return false;
-  if (step.errorKind === "idle-timeout") return true;
+  if (isWorkflowStepTimeoutErrorKind(step.errorKind)) return true;
   if (typeof step.error !== "string") return false;
-  if (isWorkflowStepActiveTimeoutErrorMessage(step.error)) return true;
   return classifyAgentRuntimeFailure({
     message: step.error,
     subtype: parseAgentFailureSubtype(step.error),
