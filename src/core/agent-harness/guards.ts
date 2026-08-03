@@ -10,7 +10,12 @@
  * option.
  */
 
+import { homedir } from "node:os";
 import { isAbsolute, resolve } from "node:path";
+import {
+  isScopeAuthorityOperatorTokenPath,
+  scopeAuthorityOperatorTokenPaths,
+} from "#core/daemon/scope-authority-operator-token.js";
 import {
   classifyWorkflowShellTeardownCommand,
   hasPackageBootstrapAllowMarker,
@@ -116,10 +121,89 @@ function inputText(input: AgentToolInput): string {
   return JSON.stringify(input).toLowerCase();
 }
 
-export function createScopeAuthorityMutationGuard(): AgentCanUseTool {
+function expandHomeReferences(text: string): string {
+  const home = homedir();
+  return text
+    .replace(/(^|[^A-Za-z0-9_])~(?=\/)/g, `$1${home}`)
+    .replace(/\$(?:HOME|\{HOME\})(?=\/)/g, home);
+}
+
+function inputWords(text: string): string[] {
+  const words: string[] = [];
+  let word = "";
+  let quote: "'" | '"' | null = null;
+
+  const pushWord = () => {
+    if (word) words.push(word);
+    word = "";
+  };
+
+  const expanded = expandHomeReferences(text);
+  for (let index = 0; index < expanded.length; index += 1) {
+    const char = expanded[index];
+    if (quote !== null) {
+      if (char === quote) {
+        quote = null;
+      } else if (char === "\\" && quote === '"' && index + 1 < expanded.length) {
+        word += expanded[index + 1];
+        index += 1;
+      } else {
+        word += char;
+      }
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      continue;
+    }
+    if (char === "\\" && index + 1 < expanded.length) {
+      word += expanded[index + 1];
+      index += 1;
+      continue;
+    }
+    if (/\s|[`()[\]{},;|&<>=]/.test(char)) {
+      pushWord();
+      continue;
+    }
+    word += char;
+  }
+  pushWord();
+  return words;
+}
+
+function isPathLikeWord(word: string): boolean {
+  return isAbsolute(word) || word.includes("/");
+}
+
+function inputReferencesOperatorToken(
+  input: AgentToolInput,
+  serializedInput: string,
+  authorityConfigPath: string | undefined,
+): boolean {
+  const referencesLiteralPath = scopeAuthorityOperatorTokenPaths(authorityConfigPath).some((path) => {
+    const serializedPath = JSON.stringify(path).slice(1, -1).toLowerCase();
+    return serializedInput.includes(serializedPath);
+  });
+  if (referencesLiteralPath) return true;
+
+  const baseDirectory = commandWorkingDirectory(input);
+  return Object.values(input).some((value) =>
+    typeof value === "string" && inputWords(value).some((candidate) =>
+      isPathLikeWord(candidate) &&
+      isScopeAuthorityOperatorTokenPath(candidate, {
+        baseDirectory,
+        authorityConfigPath,
+      })
+    )
+  );
+}
+
+export function createScopeAuthorityMutationGuard(
+  authorityConfigPath?: string,
+): AgentCanUseTool {
   return async (_toolName, input): Promise<AgentPermissionResult> => {
     const serializedInput = inputText(input);
-    if (serializedInput.includes("scope-authority-token.json")) {
+    if (inputReferencesOperatorToken(input, serializedInput, authorityConfigPath)) {
       return {
         behavior: "deny",
         message: SCOPE_AUTHORITY_TOKEN_DENIAL_MESSAGE,
@@ -241,9 +325,11 @@ export function createPackageBootstrapGuard(): AgentCanUseTool {
  * blocks `git commit` (the workflow commit step owns that) and denies calls
  * that would stop or restart the daemon hosting the agent.
  */
-export function createWorkflowAgentGuards(): AgentCanUseTool {
+export function createWorkflowAgentGuards(
+  authorityConfigPath?: string,
+): AgentCanUseTool {
   return composeCanUseTools(
-    createScopeAuthorityMutationGuard(),
+    createScopeAuthorityMutationGuard(authorityConfigPath),
     createDaemonHostControlGuard(),
     createWorkflowShellTeardownGuard(),
     createAgentCommitGuard(),

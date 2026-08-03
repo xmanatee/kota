@@ -33,17 +33,19 @@ describe("protected project paths", () => {
       return;
     }
 
-    expect(isProtectedProjectPath("secret-link.json", projectDir)).toBe(true);
-    expect(isProtectedProjectPath(join(projectDir, "env-link"), projectDir)).toBe(true);
-    expect(isProtectedProjectPath(join(projectDir, "runtime-link", "secrets.json"), projectDir)).toBe(true);
+    const context = { cwd: projectDir };
+    expect(isProtectedProjectPath("secret-link.json", context)).toBe(true);
+    expect(isProtectedProjectPath(join(projectDir, "env-link"), context)).toBe(true);
+    expect(isProtectedProjectPath(join(projectDir, "runtime-link", "secrets.json"), context)).toBe(true);
   });
 
   it("denies the machine-owned scope authority token outside the project", () => {
     const projectDir = makeProjectTempDir();
+    const operatorDir = makeProjectTempDir();
     expect(
       isProtectedProjectPath(
-        "/Users/operator/.kota/scope-authority-token.json",
-        projectDir,
+        join(operatorDir, "scope-authority-token.json"),
+        { cwd: projectDir, authorityConfigPath: join(operatorDir, "config.json") },
       ),
     ).toBe(true);
   });
@@ -59,6 +61,9 @@ describe("protected project paths", () => {
       return;
     }
 
-    expect(isProtectedProjectPath("notes.json", projectDir)).toBe(true);
+    expect(isProtectedProjectPath("notes.json", {
+      cwd: projectDir,
+      authorityConfigPath: join(operatorDir, "config.json"),
+    })).toBe(true);
   });
 });

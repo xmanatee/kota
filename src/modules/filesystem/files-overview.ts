@@ -112,7 +112,10 @@ const SKIP_DIRS = new Set([
 ]);
 
 async function scan(
-  dir: string, maxDepth: number, protectionBasePath: string, depth = 0,
+  dir: string,
+  maxDepth: number,
+  context: ToolRunnerContext | undefined,
+  depth = 0,
 ): Promise<{ files: Entry[]; dirs: string[] }> {
   const files: Entry[] = [];
   const dirs: string[] = [];
@@ -128,11 +131,11 @@ async function scan(
     if (e.isDirectory()) {
       dirs.push(e.name);
       if (depth < maxDepth) {
-        const sub = await scan(full, maxDepth, protectionBasePath, depth + 1);
+        const sub = await scan(full, maxDepth, context, depth + 1);
         files.push(...sub.files.map((f) => ({ ...f, path: join(e.name, f.path) })));
       }
     } else if (e.isFile()) {
-      if (isProtectedProjectPath(full, protectionBasePath)) continue;
+      if (isProtectedProjectPath(full, context)) continue;
       try {
         const s = await stat(full);
         const ext = extname(e.name);
@@ -154,7 +157,6 @@ export async function runFilesOverview(
 ): Promise<ToolResult> {
   const rawBasePath = (input.path as string) || ".";
   const basePath = resolveToolPath(rawBasePath, context);
-  const protectionBasePath = context?.cwd ?? process.cwd();
   const maxDepth = (input.max_depth as number) ?? 2;
 
   try {
@@ -166,7 +168,7 @@ export async function runFilesOverview(
     return { content: `Error: Directory not found: ${basePath}`, is_error: true };
   }
 
-  const { files, dirs } = await scan(basePath, maxDepth, protectionBasePath);
+  const { files, dirs } = await scan(basePath, maxDepth, context);
   if (files.length === 0 && dirs.length === 0) {
     return { content: `Directory ${basePath} is empty.` };
   }

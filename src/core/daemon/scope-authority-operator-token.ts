@@ -1,6 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { chmodSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { getGlobalConfigPath } from "#core/config/config.js";
 import {
   readOptionalJsonFile,
@@ -139,17 +139,6 @@ function equalSecret(left: string, right: string): boolean {
   return leftBytes.length === rightBytes.length && timingSafeEqual(leftBytes, rightBytes);
 }
 
-export function isScopeAuthorityOperatorTokenPath(
-  path: string,
-  baseDirectory = process.cwd(),
-): boolean {
-  const requested = resolvePathFrom(baseDirectory, path);
-  const resolved = resolvePathThroughExistingAncestor(requested);
-  return [requested, resolved].some(
-    (candidate) => candidate !== null && basename(candidate).toLowerCase() === TOKEN_FILE_NAME,
-  );
-}
-
 export function scopeAuthorityOperatorTokenPath(
   authorityConfigPath?: string,
 ): string {
@@ -160,6 +149,42 @@ export function scopeAuthorityOperatorTokenPath(
   return configuredPath
     ? resolve(configuredPath)
     : join(dirname(getGlobalConfigPath()), TOKEN_FILE_NAME);
+}
+
+/** Every credential location protected by agent-facing tool and harness boundaries. */
+export function scopeAuthorityOperatorTokenPaths(
+  authorityConfigPath?: string,
+): string[] {
+  const configuredPaths = [...new Set([
+    scopeAuthorityOperatorTokenPath(authorityConfigPath),
+    scopeAuthorityOperatorTokenPath(),
+  ])];
+  return [...new Set(
+    configuredPaths.flatMap((path) => pathIdentities(path, process.cwd())),
+  )];
+}
+
+export type ScopeAuthorityOperatorTokenPathContext = {
+  baseDirectory: string;
+  authorityConfigPath: string | undefined;
+};
+
+function pathIdentities(path: string, baseDirectory: string): string[] {
+  const requested = resolvePathFrom(baseDirectory, path);
+  const resolved = resolvePathThroughExistingAncestor(requested);
+  return resolved === null || resolved === requested
+    ? [requested]
+    : [requested, resolved];
+}
+
+export function isScopeAuthorityOperatorTokenPath(
+  path: string,
+  context: ScopeAuthorityOperatorTokenPathContext,
+): boolean {
+  const requestedPaths = new Set(pathIdentities(path, context.baseDirectory));
+  return scopeAuthorityOperatorTokenPaths(context.authorityConfigPath).some(
+    (tokenPath) => requestedPaths.has(tokenPath),
+  );
 }
 
 function readScopeAuthorityOperatorToken(

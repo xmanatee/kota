@@ -1,13 +1,13 @@
 ---
 id: task-security-review-when-kotascopeauthorityoperatortok
 title: Security review: When KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH selects a filename other than scope-authority-token.json, filesystem protection does not recognize the operator credential. An agent with file_read access and knowledge of the configured path can read the HMAC credential used to authorize scope trust and policy changes.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: When KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH selects a filename other than scope-authority-token.json, filesystem protection does not recognize the operator credential. An agent with file_read access and knowledge of the configured path can read the HMAC credential used to authorize scope trust and policy changes.
 created_at: 2026-08-03T00:34:23.693Z
-updated_at: 2026-08-03T00:34:23.693Z
+updated_at: 2026-08-03T01:00:55.616Z
 ---
 
 ## Problem
@@ -110,4 +110,5 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Regression coverage proves direct `file_read`, symlink-alias reads, recursive grep, workflow guards, and the native sandbox protect environment-selected arbitrary token filenames.
+- Verified with `TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source ./node_modules/.bin/vitest run --configLoader runner --silent=true src/modules/filesystem src/core/daemon/scope-authority-operator-token.test.ts src/core/agent-harness/guards.test.ts src/core/agent-harness/guards-scope-authority.test.ts src/modules/claude-agent-harness/executor-options.test.ts src/modules/execution/machine-authority-sandbox.test.ts` (22 files, 426 tests), plus `./node_modules/.bin/tsc --noEmit`, focused Biome checks, and queue validation.

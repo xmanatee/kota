@@ -55,6 +55,28 @@ describe("agent-sdk executor options and lifecycle", () => {
     });
   });
 
+  it("denies native reads of an environment-selected arbitrary token filename", () => {
+    const priorTokenPath = process.env.KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH;
+    const tokenPath = "/operator/credentials/machine-proof.dat";
+    process.env.KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH = tokenPath;
+    try {
+      const options = buildQueryOptions({
+        cwd: "/tmp/project",
+        authorityConfigPath: "/operator/machine/config.json",
+        effort: "xhigh",
+      });
+
+      expect(options.sandbox?.filesystem?.denyRead).toContain(tokenPath);
+      expect(options.sandbox?.filesystem?.denyWrite).toContain(tokenPath);
+    } finally {
+      if (priorTokenPath === undefined) {
+        delete process.env.KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH;
+      } else {
+        process.env.KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH = priorTokenPath;
+      }
+    }
+  });
+
   it("runs guarded calls through SDK permission callbacks instead of bypass mode", () => {
     const canUseTool = vi.fn(async () => ({ behavior: "allow" as const }));
 

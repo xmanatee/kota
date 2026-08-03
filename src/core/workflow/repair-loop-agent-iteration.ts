@@ -62,9 +62,10 @@ export async function executeRepairAgentIteration(
     harness.askOwnerToolName,
   );
   const trialCanUseTool = agentConfig.createCanUseTool?.(step.id);
+  const workflowGuards = createWorkflowAgentGuards(agentConfig.authorityConfigPath);
   const canUseTool = trialCanUseTool
-    ? composeCanUseTools(trialCanUseTool, createWorkflowAgentGuards())
-    : createWorkflowAgentGuards();
+    ? composeCanUseTools(trialCanUseTool, workflowGuards)
+    : workflowGuards;
   const modelProvider = agentConfig.config?.modelProvider === undefined
     ? undefined
     : {

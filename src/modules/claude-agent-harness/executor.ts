@@ -7,7 +7,7 @@ import type {
   KotaAgentMessage,
 } from "#core/agent-harness/types.js";
 import { getGlobalConfigPath } from "#core/config/config.js";
-import { scopeAuthorityOperatorTokenPath } from "#core/daemon/scope-authority-operator-token.js";
+import { scopeAuthorityOperatorTokenPaths } from "#core/daemon/scope-authority-operator-token.js";
 import { normalizeCanUseTool } from "./executor-permissions.js";
 import {
   detectLocalClaudeCodeExecutable,
@@ -99,10 +99,7 @@ export function buildQueryOptions(options: ExecutorOptions): SDKQueryOptions {
     ? { type: "enabled" as const, budgetTokens: Math.max(1024, options.thinkingBudget ?? 10_000) }
     : undefined;
   const authorityConfigPath = options.authorityConfigPath ?? getGlobalConfigPath();
-  const authorityTokenPaths = [...new Set([
-    scopeAuthorityOperatorTokenPath(authorityConfigPath),
-    scopeAuthorityOperatorTokenPath(),
-  ])];
+  const authorityTokenPaths = scopeAuthorityOperatorTokenPaths(authorityConfigPath);
   return {
     model: options.model,
     maxTurns: options.maxTurns,

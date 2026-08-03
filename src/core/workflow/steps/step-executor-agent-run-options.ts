@@ -72,9 +72,10 @@ export function buildAgentHarnessRunOptions(input: {
     resolvedHarness.askOwnerToolName,
   );
   const trialCanUseTool = agentConfig.createCanUseTool?.(step.id);
+  const workflowGuards = createWorkflowAgentGuards(agentConfig.authorityConfigPath);
   const canUseTool = trialCanUseTool
-    ? composeCanUseTools(trialCanUseTool, createWorkflowAgentGuards())
-    : createWorkflowAgentGuards();
+    ? composeCanUseTools(trialCanUseTool, workflowGuards)
+    : workflowGuards;
   const askOwner = resolvedHarness.askOwnerToolName !== null
     ? { source: `workflow:${metadata.workflow}/${metadata.id}/${step.id}` }
     : undefined;

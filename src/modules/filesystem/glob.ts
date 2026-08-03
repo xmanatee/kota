@@ -5,7 +5,10 @@ import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { resolveToolPath } from "./path-resolver.js";
-import { isProtectedProjectPath, PROTECTED_PROJECT_GLOB_IGNORES } from "./protected-paths.js";
+import {
+  isProtectedProjectPath,
+  protectedProjectGlobIgnores,
+} from "./protected-paths.js";
 
 export const globTool: KotaTool = {
   name: "glob",
@@ -39,7 +42,6 @@ export async function runGlob(
   const pattern = input.pattern as string;
   const rawBasePath = (input.path as string) || ".";
   const basePath = resolveToolPath(rawBasePath, context);
-  const protectionBasePath = context?.cwd ?? process.cwd();
   const maxResults = Math.max(1, (input.max_results as number) || 100);
 
   if (!pattern) {
@@ -49,8 +51,13 @@ export async function runGlob(
   const files = (await globFn(pattern, {
     cwd: basePath,
     nodir: true,
-    ignore: ["**/node_modules/**", "**/.git/**", "**/dist/**", ...PROTECTED_PROJECT_GLOB_IGNORES],
-  })).filter((file) => !isProtectedProjectPath(join(basePath, file), protectionBasePath));
+    ignore: [
+      "**/node_modules/**",
+      "**/.git/**",
+      "**/dist/**",
+      ...protectedProjectGlobIgnores(context),
+    ],
+  })).filter((file) => !isProtectedProjectPath(join(basePath, file), context));
 
   if (files.length === 0) {
     return { content: "No files matched." };

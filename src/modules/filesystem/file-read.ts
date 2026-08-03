@@ -53,7 +53,7 @@ export async function runFileRead(
   }
 
   const filePath = resolveToolPath(rawFilePath, context);
-  if (isProtectedProjectPath(filePath, context?.cwd)) {
+  if (isProtectedProjectPath(filePath, context)) {
     return { content: protectedProjectPathError(rawFilePath), is_error: true };
   }
 

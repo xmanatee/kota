@@ -126,6 +126,35 @@ describe("grep: input validation", () => {
       rmSync(projectDir, { recursive: true, force: true });
     }
   });
+
+  it("excludes an environment-selected arbitrary operator token from recursive searches", async () => {
+    const root = mkdtempSync(join(tmpdir(), "kota-grep-authority-token-"));
+    const operatorDir = join(root, "operator");
+    const projectDir = join(root, "project");
+    const tokenPath = join(operatorDir, "machine[proof]*.dat");
+    const priorTokenPath = process.env.KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH;
+    try {
+      mkdirSync(operatorDir, { recursive: true });
+      mkdirSync(projectDir, { recursive: true });
+      writeFileSync(tokenPath, JSON.stringify({ schema: 1, token: "a".repeat(64) }));
+      process.env.KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH = tokenPath;
+
+      const result = await runGrep(
+        { pattern: "a".repeat(64), path: operatorDir },
+        { cwd: projectDir, authorityConfigPath: join(operatorDir, "config.json") },
+      );
+
+      expect(result.is_error).toBeUndefined();
+      expect(result.content).toBe("No matches found.");
+    } finally {
+      if (priorTokenPath === undefined) {
+        delete process.env.KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH;
+      } else {
+        process.env.KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH = priorTokenPath;
+      }
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("grep: basic search", () => {

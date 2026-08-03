@@ -1,0 +1,3 @@
+1. Verified configured arbitrary token filenames and both lexical and real-path identities are protected by direct `file_read`, symlink-alias, glob/list filtering, and recursive grep regressions.
+2. Verified KOTA-hosted tools, workflow guards, the Claude native sandbox, and the execution sandbox consume the same resolved operator-token path set; 426 focused tests pass, including shell home expansion and symlink-alias guard regressions.
+3. Verified the task is in `done`, records the exact focused verification command, and passes type checking plus focused Biome checks.

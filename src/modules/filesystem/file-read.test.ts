@@ -1,4 +1,12 @@
-import { chmodSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { truncateToolResult } from "#core/loop/context.js";
@@ -62,6 +70,49 @@ describe("file_read: text files", () => {
     const result = await runFileRead({ path: ".KOTA/daemon-control.json" });
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("protected project runtime credential");
+  });
+
+  it("denies an environment-selected operator token with an arbitrary filename and alias", async () => {
+    const root = mkdtempSync(join(tmpdir(), "kota-file-read-authority-token-"));
+    const operatorDir = join(root, "operator");
+    const projectDir = join(root, "project");
+    const tokenPath = join(operatorDir, "machine-proof.dat");
+    const aliasPath = join(projectDir, "notes.json");
+    const priorTokenPath = process.env.KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH;
+    try {
+      mkdirSync(operatorDir, { recursive: true });
+      mkdirSync(projectDir, { recursive: true });
+      writeFileSync(tokenPath, JSON.stringify({ schema: 1, token: "a".repeat(64) }));
+      process.env.KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH = tokenPath;
+      const context = {
+        cwd: projectDir,
+        authorityConfigPath: join(operatorDir, "config.json"),
+      };
+
+      const directResult = await runFileRead({ path: tokenPath }, context);
+      expect(directResult.is_error).toBe(true);
+      expect(directResult.content).toContain("protected project runtime credential");
+      expect(directResult.content).not.toContain("a".repeat(64));
+
+      try {
+        symlinkSync(tokenPath, aliasPath);
+      } catch (error: unknown) {
+        // Symlink creation can be unavailable on constrained Windows hosts.
+        if (process.platform === "win32") return;
+        throw error;
+      }
+      const aliasResult = await runFileRead({ path: aliasPath }, context);
+      expect(aliasResult.is_error).toBe(true);
+      expect(aliasResult.content).toContain("protected project runtime credential");
+      expect(aliasResult.content).not.toContain("a".repeat(64));
+    } finally {
+      if (priorTokenPath === undefined) {
+        delete process.env.KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH;
+      } else {
+        process.env.KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH = priorTokenPath;
+      }
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
 

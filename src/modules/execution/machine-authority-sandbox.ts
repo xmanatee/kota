@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { getGlobalConfigPath } from "#core/config/config.js";
-import { scopeAuthorityOperatorTokenPath } from "#core/daemon/scope-authority-operator-token.js";
+import { scopeAuthorityOperatorTokenPaths } from "#core/daemon/scope-authority-operator-token.js";
 
 export type MachineAuthoritySandboxLaunch =
   | { ok: true; command: string; args: string[] }
@@ -24,10 +24,7 @@ function authorityPaths(authorityConfigPath?: string): {
   const configPath = resolve(authorityConfigPath ?? getGlobalConfigPath());
   return {
     configDirectory: dirname(configPath),
-    tokenPaths: [...new Set([
-      scopeAuthorityOperatorTokenPath(configPath),
-      scopeAuthorityOperatorTokenPath(),
-    ])],
+    tokenPaths: scopeAuthorityOperatorTokenPaths(configPath),
   };
 }
 

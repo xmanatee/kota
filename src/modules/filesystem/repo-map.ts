@@ -4,7 +4,10 @@ import { glob as globFn } from "glob";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
 import { resolveToolPath } from "./path-resolver.js";
-import { isProtectedProjectPath, PROTECTED_PROJECT_GLOB_IGNORES } from "./protected-paths.js";
+import {
+  isProtectedProjectPath,
+  protectedProjectGlobIgnores,
+} from "./protected-paths.js";
 
 export const repoMapTool: KotaTool = {
   name: "repo_map",
@@ -76,17 +79,22 @@ export async function runRepoMap(
 ): Promise<ToolResult> {
   const rawDirectory = (input.directory as string) || ".";
   const directory = resolveToolPath(rawDirectory, context);
-  const protectionBasePath = context?.cwd ?? process.cwd();
   const pattern = (input.pattern as string) || "**/*.{ts,tsx,js,jsx,py}";
 
   const files = await globFn(pattern, {
     cwd: directory,
     nodir: true,
-    ignore: ["**/node_modules/**", "**/.git/**", "**/dist/**", "**/*.d.ts", ...PROTECTED_PROJECT_GLOB_IGNORES],
+    ignore: [
+      "**/node_modules/**",
+      "**/.git/**",
+      "**/dist/**",
+      "**/*.d.ts",
+      ...protectedProjectGlobIgnores(context),
+    ],
   });
   const visibleFiles = files.filter((file) => !isProtectedProjectPath(
     join(directory, file),
-    protectionBasePath,
+    context,
   ));
 
   if (visibleFiles.length === 0) {

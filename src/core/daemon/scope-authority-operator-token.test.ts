@@ -1,8 +1,10 @@
 import {
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,6 +12,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   createScopeAuthorityOperatorTokenVerifier,
+  isScopeAuthorityOperatorTokenPath,
   isVerifiedScopeAuthorityOperatorAction,
   SCOPE_AUTHORITY_OPERATOR_PROOF_HEADER,
   ScopeAuthorityOperatorAction,
@@ -49,6 +52,36 @@ afterEach(() => {
 });
 
 describe("scope authority operator token", () => {
+  it("recognizes the configured arbitrary token filename and its real-path aliases", () => {
+    const root = mkdtempSync(join(tmpdir(), "kota-authority-token-path-"));
+    roots.push(root);
+    const operatorDir = join(root, "operator");
+    const projectDir = join(root, "project");
+    const tokenPath = join(operatorDir, "machine-proof.dat");
+    mkdirSync(operatorDir, { recursive: true });
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(tokenPath, JSON.stringify({ schema: 1, token: "a".repeat(64) }));
+
+    withInteractiveTokenPath(tokenPath, () => {
+      const context = {
+        baseDirectory: projectDir,
+        authorityConfigPath: join(operatorDir, "config.json"),
+      };
+      expect(isScopeAuthorityOperatorTokenPath(tokenPath, context)).toBe(true);
+      expect(
+        isScopeAuthorityOperatorTokenPath("scope-authority-token.json", context),
+      ).toBe(false);
+      try {
+        symlinkSync(tokenPath, join(projectDir, "notes.json"));
+      } catch (error: unknown) {
+        // Symlink creation can be unavailable on constrained Windows hosts.
+        if (process.platform === "win32") return;
+        throw error;
+      }
+      expect(isScopeAuthorityOperatorTokenPath("notes.json", context)).toBe(true);
+    });
+  });
+
   it("rejects an object with a forged operator-action prototype", () => {
     const forged = Object.assign(
       Object.create(ScopeAuthorityOperatorAction.prototype) as ScopeAuthorityOperatorAction,

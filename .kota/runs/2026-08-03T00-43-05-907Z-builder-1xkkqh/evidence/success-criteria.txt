@@ -1,0 +1,3 @@
+1. Filesystem protection compares requested and resolved paths with the configured scope-authority operator-token path, including arbitrary configured filenames and path aliases.
+2. Native harness and KOTA-hosted tool protections remain aligned, with focused regressions proving custom token paths cannot be read or manipulated.
+3. The task reaches done with the final focused verification command recorded in its acceptance evidence.
