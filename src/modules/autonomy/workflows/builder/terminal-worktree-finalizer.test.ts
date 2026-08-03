@@ -255,46 +255,4 @@ describe("finalizeBuilderTerminalWorktree", () => {
       }),
     );
   });
-
-  it("hands an exhausted continuation to bounded state recovery without dispatching again", async () => {
-    mockPreservedWorktree({
-      claimRunId: "recovery-run",
-      dirtyState: "dirty",
-      blocker: "worktree has uncommitted tracked changes",
-    });
-    const input = continuedFinalizerInput();
-    input.metadata.steps.push({
-      id: "build",
-      type: "agent",
-      status: "failed",
-      startedAt: "2026-07-29T15:21:32.689Z",
-      completedAt: "2026-07-30T00:46:46.634Z",
-      durationMs: 33_913_945,
-      activeDurationMs: 21_600_003,
-      error: 'Step "build" timed out after 21600000ms of active runtime',
-    });
-
-    await finalizeBuilderTerminalWorktree(input);
-
-    expect(input.emit).not.toHaveBeenCalled();
-    expect(
-      JSON.parse(
-        readFileSync(
-          join(input.projectDir, input.metadata.runDir, "terminal-worktree-finalizer.json"),
-          "utf8",
-        ),
-      ),
-    ).toMatchObject({
-      removed: false,
-      blockers: ["worktree has uncommitted tracked changes"],
-      recoveryRequested: false,
-      recoveryAction: {
-        kind: "state-recovery-required",
-        reason: "preserved builder continuation exhausted active runtime",
-        inspectCommand: "pnpm kota workflow state-recovery list",
-        resolveCommand:
-          'pnpm kota workflow state-recovery resolve task-one --action <release|supersede> --reason "<reason>"',
-      },
-    });
-  });
 });

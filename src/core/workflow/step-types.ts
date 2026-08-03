@@ -10,7 +10,11 @@ import type {
   WorkflowStepContext,
   WorkflowValueResolver,
 } from "./run-types.js";
-import type { WorkflowAgentStepOutputValidator, WorkflowBaseStep } from "./step-input-base.js";
+import type {
+  WorkflowAgentStepOutputValidator,
+  WorkflowBaseStep,
+  WorkflowProgressStep,
+} from "./step-input-base.js";
 import type { CodeStepOutputValidator } from "./step-input-code.js";
 import type { WorkflowRetryConfig } from "./trigger-types.js";
 
@@ -21,7 +25,7 @@ export type WorkflowToolStep = WorkflowBaseStep & {
   retry?: WorkflowRetryConfig;
 };
 
-export type WorkflowAgentStep = WorkflowBaseStep & {
+export type WorkflowAgentStep = WorkflowProgressStep & {
   type: "agent";
   /** Name of the agent definition used, if the step was configured via agentName. */
   agentName?: string;
@@ -92,7 +96,7 @@ export type WorkflowRestartStep = WorkflowBaseStep & {
   requires: string[];
 };
 
-export type WorkflowCodeStep = WorkflowBaseStep & {
+export type WorkflowCodeStep = WorkflowProgressStep & {
   type: "code";
   run: (context: WorkflowStepContext) => Promise<unknown> | unknown;
   updatesWorkspaceDir?: boolean;

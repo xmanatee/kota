@@ -4,7 +4,7 @@ import {
   expectName,
   expectOptionalBoolean,
   expectOptionalFunction,
-  validateBaseStepTimeouts,
+  validateProgressStepTimeouts,
   WorkflowDefinitionError,
 } from "#core/workflow/validation-primitives.js";
 
@@ -65,7 +65,7 @@ export function validateCodeStep(
     ...(updatesRuntimeResources !== undefined
       ? { updatesRuntimeResources }
       : {}),
-    ...validateBaseStepTimeouts(step, stepLabel, definitionPath),
+    ...validateProgressStepTimeouts(step, stepLabel, definitionPath),
     when: expectOptionalFunction(
       step.when,
       `${stepLabel}.when`,

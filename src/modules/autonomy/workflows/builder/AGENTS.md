@@ -10,8 +10,9 @@
   that workspace is a prepared task worktree; `modules.builder.branchPerTask:
   false` is an explicit serial opt-out. Agents and sub-agents must use the
   provided cwd instead of assuming the canonical checkout.
-- Give preserved work one automatic continuation. If it exhausts active runtime,
-  preserve the worktree and hand off through the finalizer's typed state-recovery action.
+- Give preserved work one automatic continuation. Productive builder work is
+  governed by trusted progress; a continuation that fails or stops reporting
+  progress preserves the worktree for typed state-recovery review.
 - Prefer validation rails over hardcoded pre-agent task moves or scope policing.
 
 ## Success Criteria

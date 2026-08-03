@@ -1,5 +1,5 @@
 import type { WorkflowStepContext } from "./run-types.js";
-import type { WorkflowBaseStep } from "./step-input-base.js";
+import type { WorkflowBaseStep, WorkflowProgressStep } from "./step-input-base.js";
 
 /**
  * Decoder that validates a raw step output and returns the typed value.
@@ -59,7 +59,7 @@ export function expectArrayOutput<T>(
   return raw as T[];
 }
 
-export type WorkflowCodeStepInput = WorkflowBaseStep & {
+export type WorkflowCodeStepInput = WorkflowProgressStep & {
   type: "code";
   run: (context: WorkflowStepContext) => Promise<unknown> | unknown;
   /**

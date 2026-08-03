@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { AUTONOMY_BUILDER_AGENT_IDLE_TIMEOUT_MS } from "#modules/autonomy/shared.js";
 import "./workflow-test-support.js";
 import builderWorkflow from "./workflow.js";
 import {
@@ -20,6 +21,16 @@ describe("builder workflow queue gating", () => {
       "autonomy.builder.recovery.requested",
       "runtime.recovered",
     ]);
+  });
+
+  it("governs productive build runtime by trusted idle progress", () => {
+    const build = builderWorkflow.steps.find((step) => step.id === "build");
+
+    expect(build).toMatchObject({
+      type: "agent",
+      timeoutMs: null,
+      idleTimeoutMs: AUTONOMY_BUILDER_AGENT_IDLE_TIMEOUT_MS,
+    });
   });
 
   it("uses worktree-backed dispatch by default with an explicit opt-out", () => {

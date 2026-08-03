@@ -39,6 +39,14 @@ export type WorkflowBaseStep = {
   exposeOutputToAgent?: boolean;
 };
 
+export type WorkflowProgressStep = Omit<WorkflowBaseStep, "timeoutMs"> & {
+  /**
+   * Maximum active runtime in milliseconds. Set null with idleTimeoutMs when
+   * trusted progress should govern a productive long-running step.
+   */
+  timeoutMs?: number | null;
+};
+
 export type WorkflowToolStepInput = WorkflowBaseStep & {
   type: "tool";
   tool: string;
@@ -46,7 +54,7 @@ export type WorkflowToolStepInput = WorkflowBaseStep & {
   retry?: WorkflowRetryConfig;
 };
 
-export type WorkflowAgentStepInput = WorkflowBaseStep & {
+export type WorkflowAgentStepInput = WorkflowProgressStep & {
   type: "agent";
   /**
    * Optional registered agent name. When the workflow validator receives an

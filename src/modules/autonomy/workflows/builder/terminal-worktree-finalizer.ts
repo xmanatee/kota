@@ -1,7 +1,5 @@
 import { join } from "node:path";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
-import { isWorkflowStepActiveTimeoutErrorMessage } from "#core/workflow/active-timeout.js";
-import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowTerminalFinalizerInput } from "#core/workflow/types.js";
 import { findRecoveryClaim } from "#modules/autonomy/workflow-state-recovery-claims.js";
 import {
@@ -93,16 +91,6 @@ function writeArtifact(
   writeJsonFileAtomic(artifact.artifactPath, artifact);
 }
 
-function buildExhaustedActiveRuntime(metadata: WorkflowRunMetadata): boolean {
-  const build = metadata.steps.find(
-    (step) => step.id === "build" && step.status === "failed",
-  );
-  return (
-    build?.error !== undefined &&
-    isWorkflowStepActiveTimeoutErrorMessage(build.error)
-  );
-}
-
 function stateRecoveryAction(
   taskId: string,
   reason: string,
@@ -140,9 +128,7 @@ function recoveryActionFor(
   }
   return stateRecoveryAction(
     taskId,
-    buildExhaustedActiveRuntime(input.metadata)
-      ? "preserved builder continuation exhausted active runtime"
-      : "preserved builder continuation needs recovery review",
+    "preserved builder continuation needs recovery review",
   );
 }
 

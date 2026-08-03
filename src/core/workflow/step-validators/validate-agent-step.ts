@@ -13,7 +13,7 @@ import {
   expectOptionalString,
   expectOptionalStringArray,
   expectRelativePath,
-  validateBaseStepTimeouts,
+  validateProgressStepTimeouts,
   WorkflowDefinitionError,
   type WorkflowValidationOptions,
 } from "#core/workflow/validation-primitives.js";
@@ -163,7 +163,7 @@ export function validateAgentStep(
     model,
     ...(tier !== undefined ? { tier } : {}),
     effort: effort as WorkflowAgentStep["effort"],
-    ...validateBaseStepTimeouts(step, stepLabel, definitionPath),
+    ...validateProgressStepTimeouts(step, stepLabel, definitionPath),
     maxTurns: expectOptionalInteger(
       step.maxTurns,
       `${stepLabel}.maxTurns`,

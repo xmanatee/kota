@@ -2,7 +2,7 @@ import { isAbsolute } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { ModelTiers } from "../model/model-router.js";
 import type { Preset } from "../model/preset.js";
-import type { WorkflowBaseStep } from "./step-input-base.js";
+import type { WorkflowBaseStep, WorkflowProgressStep } from "./step-input-base.js";
 import type { WorkflowFilterValue } from "./trigger-types.js";
 
 export class WorkflowDefinitionError extends Error {
@@ -131,6 +131,19 @@ export function expectOptionalInteger(
   return value as number;
 }
 
+function validateIdleTimeoutMs(
+  step: Pick<WorkflowBaseStep, "idleTimeoutMs">,
+  stepLabel: string,
+  definitionPath: string,
+): number | undefined {
+  return expectOptionalInteger(
+    step.idleTimeoutMs,
+    `${stepLabel}.idleTimeoutMs`,
+    definitionPath,
+    1,
+  );
+}
+
 export function validateBaseStepTimeouts(
   step: Pick<WorkflowBaseStep, "timeoutMs" | "idleTimeoutMs">,
   stepLabel: string,
@@ -142,12 +155,33 @@ export function validateBaseStepTimeouts(
     definitionPath,
     1,
   );
-  const idleTimeoutMs = expectOptionalInteger(
-    step.idleTimeoutMs,
-    `${stepLabel}.idleTimeoutMs`,
-    definitionPath,
-    1,
-  );
+  const idleTimeoutMs = validateIdleTimeoutMs(step, stepLabel, definitionPath);
+  return {
+    ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+    ...(idleTimeoutMs !== undefined ? { idleTimeoutMs } : {}),
+  };
+}
+
+export function validateProgressStepTimeouts(
+  step: Pick<WorkflowProgressStep, "timeoutMs" | "idleTimeoutMs">,
+  stepLabel: string,
+  definitionPath: string,
+): Pick<WorkflowProgressStep, "timeoutMs" | "idleTimeoutMs"> {
+  const idleTimeoutMs = validateIdleTimeoutMs(step, stepLabel, definitionPath);
+  if (step.timeoutMs === null && idleTimeoutMs === undefined) {
+    throw new WorkflowDefinitionError(
+      `${stepLabel}.timeoutMs may be null only when idleTimeoutMs is set`,
+      definitionPath,
+    );
+  }
+  const timeoutMs = step.timeoutMs === null
+    ? null
+    : expectOptionalInteger(
+        step.timeoutMs,
+        `${stepLabel}.timeoutMs`,
+        definitionPath,
+        1,
+      );
   return {
     ...(timeoutMs !== undefined ? { timeoutMs } : {}),
     ...(idleTimeoutMs !== undefined ? { idleTimeoutMs } : {}),

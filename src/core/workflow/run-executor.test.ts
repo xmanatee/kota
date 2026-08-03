@@ -514,6 +514,35 @@ describe("step timeout", () => {
     expect(result.metadata.steps[0]?.harness).toBe(harness);
   }, 10_000);
 
+  it("governs an unbounded agent step only by trusted idle progress", async () => {
+    const harness = "workflow-idle-governed";
+    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+      const signal = options.abortController?.signal;
+      await delayWithAbort(30, signal);
+      await options.onMessage?.({ type: "text", text: "one" });
+      await delayWithAbort(30, signal);
+      await options.onMessage?.({ type: "text", text: "two" });
+      await delayWithAbort(30, signal);
+      return AGENT_OK_RESULT;
+    });
+
+    const definition = makeDefinition({
+      moduleRoot: projectDir,
+      steps: [
+        makeAgentStep(projectDir, harness, {
+          timeoutMs: null,
+          idleTimeoutMs: 50,
+        }),
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("success");
+    expect(result.metadata.steps[0]?.activeDurationMs).toBeUndefined();
+  }, 10_000);
+
   it("validates agent output before recording step output or streamed agent frames", async () => {
     const harness = "workflow-agent-output-validator";
     const token = `${"ghp"}_${"A".repeat(36)}`;
@@ -694,7 +723,7 @@ describe("step timeout", () => {
       steps: [
         makeAgentStep(projectDir, harness, {
           idleTimeoutMs: AGENT_IDLE_TIMEOUT_MS,
-          timeoutMs: AGENT_STEP_TIMEOUT_MS,
+          timeoutMs: null,
           retry: { maxAttempts: 1, initialDelayMs: 1, backoffFactor: 1 },
         }),
       ],
