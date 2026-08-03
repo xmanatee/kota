@@ -35,6 +35,28 @@ describe("machine authority execution sandbox", () => {
     expect(launch.args.slice(-2)).toEqual(["node", "script.js"]);
   });
 
+  it("gives native CLIs bounded workspace writes without exposing Git metadata", () => {
+    const launch = buildMachineAuthoritySandboxLaunch("codex", ["exec"], {
+      cwd: "/project",
+      authorityConfigPath: "/Users/operator/.kota/config.json",
+      writableRoots: ["/project", "/private/tmp/kota-native-cli"],
+      writeProtectedPaths: ["/project/.git"],
+      platform: "darwin",
+      pathExists: (path) => path === "/usr/bin/sandbox-exec",
+    });
+
+    expect(launch).toMatchObject({ ok: true });
+    if (!launch.ok) return;
+    const profile = launch.args[1]!;
+    expect(profile).toContain("(deny file-write*)");
+    expect(profile).toContain('(allow file-write* (literal "/project")');
+    expect(profile).toContain('(literal "/private/tmp/kota-native-cli")');
+    expect(profile).toContain(
+      '(deny file-write* (literal "/Users/operator/.kota")',
+    );
+    expect(profile).toContain('(literal "/project/.git")');
+  });
+
   it("builds a Linux namespace with the authority directory read-only", () => {
     const configPath = "/operator/.kota/config.json";
     const launch = buildMachineAuthoritySandboxLaunch("python3", ["worker.py"], {
@@ -63,6 +85,48 @@ describe("machine authority execution sandbox", () => {
         "worker.py",
       ],
     });
+  });
+
+  it("mounts only declared native CLI roots writable on Linux", () => {
+    const existingPaths = new Set([
+      "/usr/bin/bwrap",
+      "/operator/.kota",
+      "/project",
+      "/project/.git",
+      "/private/tmp/kota-native-cli",
+    ]);
+    const launch = buildMachineAuthoritySandboxLaunch("codex", ["exec"], {
+      cwd: "/project",
+      authorityConfigPath: "/operator/.kota/config.json",
+      writableRoots: ["/project", "/private/tmp/kota-native-cli"],
+      writeProtectedPaths: ["/project/.git"],
+      platform: "linux",
+      pathExists: (path) => existingPaths.has(path),
+    });
+
+    expect(launch).toMatchObject({ ok: true });
+    if (!launch.ok) return;
+    expect(launch.args.slice(0, 19)).toEqual([
+      "--die-with-parent",
+      "--new-session",
+      "--ro-bind",
+      "/",
+      "/",
+      "--bind",
+      "/project",
+      "/project",
+      "--bind",
+      "/private/tmp/kota-native-cli",
+      "/private/tmp/kota-native-cli",
+      "--ro-bind",
+      "/project/.git",
+      "/project/.git",
+      "--ro-bind",
+      "/operator/.kota",
+      "/operator/.kota",
+      "--chdir",
+      "/project",
+    ]);
   });
 
   it("hides an existing operator token inside the Linux namespace", () => {
