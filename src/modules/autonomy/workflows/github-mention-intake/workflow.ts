@@ -4,7 +4,14 @@ import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/front
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
+import {
+  checkCommitStageable,
+  commitWorkflowChanges,
+} from "#modules/autonomy/commit.js";
+import {
+  decodeWorkflowCommitOutcome,
+  type WorkflowCommitOutcome,
+} from "#modules/autonomy/commit-result.js";
 import { assertOutboundGitHubCommentBodyIsSafe } from "#modules/autonomy/github-comment-safety.js";
 import { isGitHubImplementationRequest } from "#modules/autonomy/github-mention-classification.js";
 import {
@@ -663,16 +670,13 @@ const validateBeforeCommit = typedCodeStep<{ ok: true }>({
   },
 });
 
-const commitTask = typedCodeStep<{ committed: boolean }>({
+const commitTask = typedCodeStep<WorkflowCommitOutcome>({
   id: "commit-task",
   type: "code",
   when: stepSucceeded("validate-before-commit"),
-  validate: (raw) =>
-    expectStructuredOutput<{ committed: boolean }>(raw, ["committed"]),
-  run: ({ projectDir, workflow }) => {
-    const result = commitWorkflowChanges(projectDir, workflow.runDirPath);
-    return { committed: Boolean(result.committed) };
-  },
+  validate: decodeWorkflowCommitOutcome,
+  run: ({ projectDir, workflow }) =>
+    commitWorkflowChanges(projectDir, workflow.runDirPath),
 });
 
 const prepareComment = typedCodeStep<PreparedIntakeComment>({

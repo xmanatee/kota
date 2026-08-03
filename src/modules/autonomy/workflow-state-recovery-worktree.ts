@@ -235,6 +235,12 @@ export function recommendedActionFor(
   ownerRunStatus: OwnerRunStatus | null,
   worktree: WorkflowStateRecoveryWorktreeEvidence,
 ): WorkflowStateRecoveryRecommendedAction {
+  if (claim.status === "pending-decomposition") {
+    return {
+      kind: "wait",
+      reason: "exhausted builder task is reserved for the decomposer workflow",
+    };
+  }
   const worktreeBlocked = hasWorktreeMergeBlocker(worktree);
   const worktreeDirty = hasPreservedWorktreeChanges(worktree);
   const claimBlocked = hasClaimMergeBlocker(claim);

@@ -10,16 +10,17 @@ import {
   taskClaimPath,
   writeClaim,
 } from "./task-claim-files.js";
-import type {
-  ClaimTaskAttempt,
-  ClaimTaskInput,
-  ContinueTaskClaimInput,
-  TaskClaim,
-  TaskClaimInspection,
-  TaskClaimMutationInput,
-  TaskClaimRecoveryPath,
-  TaskClaimTerminalResult,
-  TaskClaimWorkspaceInput,
+import {
+  skippedTaskClaimRecoveryPath,
+  type ClaimTaskAttempt,
+  type ClaimTaskInput,
+  type ContinueTaskClaimInput,
+  type TaskClaim,
+  type TaskClaimInspection,
+  type TaskClaimMutationInput,
+  type TaskClaimRecoveryPath,
+  type TaskClaimTerminalResult,
+  type TaskClaimWorkspaceInput,
 } from "./task-claim-types.js";
 
 function sameWorkflowRun(existing: TaskClaim, input: ClaimTaskInput): boolean {
@@ -67,12 +68,7 @@ export function claimTask(input: ClaimTaskInput): ClaimTaskAttempt {
       };
     }
     if (!inspection.safeToRetry) {
-      const recoveryPath =
-        inspection.recoveryStatus === "pending-merge"
-          ? "skipped-pending-merge"
-          : inspection.recoveryStatus === "stale"
-            ? "skipped-stale-worktree"
-            : "skipped-active-claim";
+      const recoveryPath = skippedTaskClaimRecoveryPath(inspection.recoveryStatus);
       return skippedAttempt(
         input.taskId,
         existing,
@@ -266,6 +262,17 @@ export function markTaskClaimPendingMerge(input: TaskClaimMutationInput): TaskCl
   return mutateActiveClaim(input, (claim, now) => ({
     ...claim,
     status: "pending-merge",
+    updatedAt: now.toISOString(),
+    evidence: input.evidence,
+  }));
+}
+
+export function markTaskClaimPendingDecomposition(
+  input: TaskClaimMutationInput,
+): TaskClaimTerminalResult {
+  return mutateActiveClaim(input, (claim, now) => ({
+    ...claim,
+    status: "pending-decomposition",
     updatedAt: now.toISOString(),
     evidence: input.evidence,
   }));

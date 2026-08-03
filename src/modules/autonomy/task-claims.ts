@@ -27,6 +27,7 @@ export {
   claimTask,
   continueTaskClaim,
   expireTaskClaim,
+  markTaskClaimPendingDecomposition,
   markTaskClaimPendingMerge,
   releaseTaskClaim,
   resumeTaskClaim,
@@ -36,6 +37,7 @@ export {
 export {
   CLAIM_CANDIDATE_STATES,
   CLAIM_SCHEMA_VERSION,
+  skippedTaskClaimRecoveryPath,
   type ClaimNextQueueTaskInput,
   type ClaimTaskAttempt,
   type ClaimTaskInput,

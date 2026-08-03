@@ -10,6 +10,7 @@ export const CLAIM_CANDIDATE_STATES: readonly RepoTaskState[] = ["doing", "ready
 
 export type TaskClaimStatus =
   | "active"
+  | "pending-decomposition"
   | "pending-merge"
   | "released"
   | "expired"
@@ -17,6 +18,7 @@ export type TaskClaimStatus =
 
 export type TaskClaimRecoveryStatus =
   | "agent-running"
+  | "pending-decomposition"
   | "pending-merge"
   | "stale"
   | "expired"
@@ -32,10 +34,26 @@ export type TaskClaimRecoveryPath =
   | "replaced-expired-claim"
   | "replaced-superseded-claim"
   | "skipped-active-claim"
+  | "skipped-pending-decomposition"
   | "skipped-stale-worktree"
   | "skipped-pending-merge"
   | "write-conflict"
   | "no-actionable-task";
+
+export function skippedTaskClaimRecoveryPath(
+  recoveryStatus: TaskClaimRecoveryStatus,
+): TaskClaimRecoveryPath {
+  switch (recoveryStatus) {
+    case "pending-decomposition":
+      return "skipped-pending-decomposition";
+    case "pending-merge":
+      return "skipped-pending-merge";
+    case "stale":
+      return "skipped-stale-worktree";
+    default:
+      return "skipped-active-claim";
+  }
+}
 
 export type TaskClaim = {
   schemaVersion: typeof CLAIM_SCHEMA_VERSION;

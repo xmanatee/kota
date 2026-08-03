@@ -9,7 +9,14 @@ import {
   expectStructuredOutput,
   typedCodeStep,
 } from "#core/workflow/step-input-code.js";
-import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
+import {
+  checkCommitStageable,
+  commitWorkflowChanges,
+} from "#modules/autonomy/commit.js";
+import {
+  decodeWorkflowCommitOutcome,
+  type WorkflowCommitOutcome,
+} from "#modules/autonomy/commit-result.js";
 import { onNormalTrigger } from "#modules/autonomy/recovery.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
@@ -281,16 +288,13 @@ export const validateBeforeCommit = typedCodeStep<{ ok: true }>({
   },
 });
 
-export const commitChanges = typedCodeStep<{ committed: boolean }>({
+export const commitChanges = typedCodeStep<WorkflowCommitOutcome>({
   id: "commit",
   type: "code",
   when: (ctx) => validateBeforeCommit.output(ctx)?.ok === true,
-  validate: (raw) =>
-    expectStructuredOutput<{ committed: boolean }>(raw, ["committed"]),
-  run: ({ projectDir, workflow }) => {
-    const result = commitWorkflowChanges(projectDir, workflow.runDirPath);
-    return { committed: Boolean(result.committed) };
-  },
+  validate: decodeWorkflowCommitOutcome,
+  run: ({ projectDir, workflow }) =>
+    commitWorkflowChanges(projectDir, workflow.runDirPath),
 });
 
 export function needsAttention(review: ProgressReviewAgentOutput): boolean {

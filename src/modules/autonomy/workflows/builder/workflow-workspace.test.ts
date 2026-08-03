@@ -59,6 +59,14 @@ vi.mock("#modules/autonomy/task-claims.js", () => ({
     `${projectDir}/.kota/task-claims/active/${taskId}.json`
   ),
   listTaskClaimInspections: vi.fn(() => []),
+  markTaskClaimPendingDecomposition: vi.fn(() => ({
+    taskId: "task-claimed",
+    changed: true,
+    claim: null,
+    recoveryStatus: "pending-decomposition",
+    safeToRetry: false,
+    reason: null,
+  })),
   claimNextQueueTask: vi.fn(() => ({
     claimed: true,
     taskId: "task-claimed",
@@ -211,7 +219,7 @@ describe("builder workflow workspaceDir", () => {
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(2, 1));
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true, committedPaths: ["src/change.ts"], daemonRestartRequired: true } as never);
 
     try {
       const harness = new WorkflowTestHarness(builderWorkflow, {

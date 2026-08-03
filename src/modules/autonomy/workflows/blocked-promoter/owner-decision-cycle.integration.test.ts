@@ -67,7 +67,11 @@ vi.mock("#modules/autonomy/commit.js", async () => {
   );
   return {
     ...actual,
-    commitWorkflowChanges: vi.fn(() => ({ committed: true })),
+    commitWorkflowChanges: vi.fn(() => ({
+      committed: true,
+      committedPaths: ["data/tasks/ready/task-pick-variant.md"],
+      daemonRestartRequired: false,
+    })),
     checkCommitStageable: vi.fn(() => "ok"),
   };
 });
@@ -404,10 +408,8 @@ describe("owner-decision blocked-task unblock cycle", () => {
           "the task must have moved out of blocked/",
         ).toBe(false);
       } finally {
-        // The resume run's `request-restart` step normally triggers daemon
-        // self-shutdown; we still call stop with a short grace as a safety
-        // net for cases where the test ends before the workflow's restart
-        // step has fired.
+        // Task-state commits are live data, so the resumed daemon remains
+        // running until the test stops it explicitly.
         await secondDaemon.stop(100);
         await secondStart;
       }

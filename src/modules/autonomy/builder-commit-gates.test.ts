@@ -52,7 +52,13 @@ describe("builder workflow commit and restart gates", () => {
   it("skips restart when commit produced no commit", async () => {
     const ctx = makeWorkflowStepContext(
       { commit: "success" },
-      { commit: { committed: false } },
+      {
+        commit: {
+          committed: false,
+          committedPaths: [],
+          daemonRestartRequired: false,
+        },
+      },
     );
     expect(await restartStep!.when!(ctx)).toBe(false);
   });
@@ -65,6 +71,8 @@ describe("builder workflow commit and restart gates", () => {
           committed: true,
           message: "Workflow: update repo",
           sha: "0000000000000000000000000000000000000000",
+          committedPaths: ["src/change.ts"],
+          daemonRestartRequired: true,
         },
         "check-claimed-task-consistency": {
           matched: true,
@@ -75,5 +83,28 @@ describe("builder workflow commit and restart gates", () => {
       },
     );
     expect(await restartStep!.when!(ctx)).toBe(true);
+  });
+
+  it("skips restart for a task-state-only builder commit", async () => {
+    const ctx = makeWorkflowStepContext(
+      { commit: "success", "check-claimed-task-consistency": "success" },
+      {
+        commit: {
+          committed: true,
+          message: "Builder: close task",
+          sha: "0000000000000000000000000000000000000000",
+          committedPaths: ["data/tasks/done/task-claimed.md"],
+          daemonRestartRequired: false,
+        },
+        "check-claimed-task-consistency": {
+          matched: true,
+          taskId: "task-claimed",
+          claimedTaskId: "task-claimed",
+          completedTaskId: "task-claimed",
+        },
+      },
+    );
+
+    expect(await restartStep!.when!(ctx)).toBe(false);
   });
 });

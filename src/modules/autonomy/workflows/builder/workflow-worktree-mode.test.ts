@@ -27,7 +27,7 @@ describe("builder workflow worktree mode", () => {
     });
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true, committedPaths: ["src/change.ts"], daemonRestartRequired: true } as never);
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
       projectDir,
@@ -194,7 +194,7 @@ describe("builder workflow worktree mode", () => {
     });
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true, committedPaths: ["src/change.ts"], daemonRestartRequired: true } as never);
 
     const { mergeAutomationWorktree } = await import(
       "#modules/git/worktree-merge-gate.js"

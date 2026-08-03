@@ -18,7 +18,14 @@ import { join } from "node:path";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
+import {
+  checkCommitStageable,
+  commitWorkflowChanges,
+} from "#modules/autonomy/commit.js";
+import {
+  decodeWorkflowCommitOutcome,
+  type WorkflowCommitOutcome,
+} from "#modules/autonomy/commit-result.js";
 import {
   type FanOutConsolidationArtifact,
   seedFanOutConsolidationTasks,
@@ -32,6 +39,7 @@ import {
   checkCommitMessageExists,
   checkNoScratchArtifacts,
   runCheck,
+  stepCommitRequiresDaemonRestart,
   stepCommitted,
 } from "#modules/autonomy/shared.js";
 
@@ -148,16 +156,13 @@ const validateBeforeCommit = typedCodeStep<{ ok: true }>({
   },
 });
 
-const commitChanges = typedCodeStep<{ committed: boolean }>({
+const commitChanges = typedCodeStep<WorkflowCommitOutcome>({
   id: "commit",
   type: "code",
   when: (ctx) => validateBeforeCommit.output(ctx)?.ok === true,
-  validate: (raw) =>
-    expectStructuredOutput<{ committed: boolean }>(raw, ["committed"]),
-  run: ({ projectDir, workflow }) => {
-    const result = commitWorkflowChanges(projectDir, workflow.runDirPath);
-    return { committed: Boolean(result.committed) };
-  },
+  validate: decodeWorkflowCommitOutcome,
+  run: ({ projectDir, workflow }) =>
+    commitWorkflowChanges(projectDir, workflow.runDirPath),
 });
 
 const fanOutConsolidatorWorkflow: WorkflowDefinitionInput = {
@@ -190,7 +195,7 @@ const fanOutConsolidatorWorkflow: WorkflowDefinitionInput = {
     {
       id: "request-restart",
       type: "restart",
-      when: stepCommitted("commit"),
+      when: stepCommitRequiresDaemonRestart("commit"),
       reason: "fan-out-consolidator committed seeded consolidation tasks",
       requires: ["commit"],
     },

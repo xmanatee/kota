@@ -20,6 +20,7 @@ import {
   AUTONOMY_AGENT_HARNESS,
   AUTONOMY_BUILDER_AGENT_IDLE_TIMEOUT_MS,
   AUTONOMY_DISALLOWED_TOOLS,
+  stepCommitRequiresDaemonRestart,
   stepCommitted,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
@@ -316,7 +317,10 @@ const builderWorkflow: WorkflowDefinitionInput = {
     {
       id: "request-restart",
       type: "restart",
-      when: (ctx) => claimedTaskConsistencySucceeded(ctx) && builderCommitPublished(ctx),
+      when: (ctx) =>
+        claimedTaskConsistencySucceeded(ctx) &&
+        builderCommitPublished(ctx) &&
+        stepCommitRequiresDaemonRestart("commit")(ctx),
       reason: "builder workflow published a validated commit",
       requires: ["commit", CLAIMED_TASK_CONSISTENCY_STEP_ID],
     },

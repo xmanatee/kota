@@ -29,6 +29,8 @@ describe("commitWorkflowChanges", () => {
   it("returns committed=false when there are no working tree changes", () => {
     expect(commitWorkflowChanges(workspace.projectDir, workspace.runDirPath)).toEqual({
       committed: false,
+      committedPaths: [],
+      daemonRestartRequired: false,
     });
   });
 
@@ -41,6 +43,8 @@ describe("commitWorkflowChanges", () => {
     if (!result.committed) throw new Error("unreachable");
     expect(result.message).toBe("Builder: my custom message");
     expect(result.sha).toMatch(/^[0-9a-f]{40}$/);
+    expect(result.committedPaths).toEqual(["change.txt"]);
+    expect(result.daemonRestartRequired).toBe(true);
 
     const log = execSync("git log --format=%s -1", {
       cwd: workspace.projectDir,
@@ -53,6 +57,21 @@ describe("commitWorkflowChanges", () => {
       encoding: "utf-8",
     }).trim();
     expect(result.sha).toBe(headSha);
+  });
+
+  it("does not require a daemon restart for task-state-only commits", () => {
+    const taskPath = join(workspace.projectDir, "data", "tasks", "ready", "task-one.md");
+    mkdirSync(join(workspace.projectDir, "data", "tasks", "ready"), { recursive: true });
+    writeFileSync(taskPath, "---\nid: task-one\n---\n");
+    writeFileSync(join(workspace.runDirPath, "commit-message.txt"), "Add task");
+
+    const result = commitWorkflowChanges(workspace.projectDir, workspace.runDirPath);
+
+    expect(result).toMatchObject({
+      committed: true,
+      committedPaths: ["data/tasks/ready/task-one.md"],
+      daemonRestartRequired: false,
+    });
   });
 
   it("retries staging when a transient Git index lock clears", () => {

@@ -70,6 +70,25 @@ describe("checkDecompositionApplied", () => {
     );
   });
 
+  it("reads canonical task ids that end in a hyphen", () => {
+    const subtaskId = "task-existing-trailing-id-";
+    writeTask(
+      projectDir,
+      "dropped",
+      ORIGINAL_ID,
+      `## Decomposed\n\n- ${subtaskId}`,
+    );
+    writeTask(projectDir, "ready", subtaskId, "## Problem\n\nScoped work.");
+    vi.mocked(listWorkflowMutatedPaths).mockReturnValue([
+      `data/tasks/dropped/${ORIGINAL_ID}.md`,
+      `data/tasks/ready/${subtaskId}.md`,
+    ]);
+
+    expect(checkDecompositionApplied(projectDir, ORIGINAL_ID)).toBe(
+      `OK: dropped ${ORIGINAL_ID} and prepared 1 ready subtask(s)`,
+    );
+  });
+
   it("rejects an original left in the active queue", () => {
     writeTask(projectDir, "ready", ORIGINAL_ID, "## Problem\n\nStill active.");
 

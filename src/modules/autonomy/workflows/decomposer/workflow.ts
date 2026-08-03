@@ -2,14 +2,13 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
-import {
-  isWorkflowRepairErrorKind,
-  isWorkflowStepTimeoutErrorKind,
-  labeledPredicate,
-  type WorkflowRunMetadata,
-} from "#core/workflow/run-types.js";
+import { labeledPredicate, type WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import {
+  type BuilderDecompositionFailureKind,
+  classifyBuilderFailureForDecomposition,
+} from "#modules/autonomy/builder-failure-classification.js";
 import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import {
   onRecoveryTrigger,
@@ -22,9 +21,11 @@ import {
   checkCommitMessageExists,
   checkNoScratchArtifacts,
   runCheck,
+  stepCommitRequiresDaemonRestart,
   stepCommitted,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
+import { supersedeTaskClaim } from "#modules/autonomy/task-claims.js";
 import {
   type AppliedDecomposition,
   applyDecompositionPlan,
@@ -44,13 +45,11 @@ export const agent: AgentDef = {
   writeScope: [],
 };
 
-type DecomposerFailureKind = "timeout" | "repair-exhausted";
-
 export type DecomposerAssessment = {
   reason: string;
   failedRunId: string;
   failedRunDir: string;
-  failureKind: DecomposerFailureKind | null;
+  failureKind: BuilderDecompositionFailureKind | null;
 } & (
   | { shouldDecompose: false }
   | {
@@ -113,20 +112,6 @@ function resolveSourceRun(
   return { runId, runDir, skip: false };
 }
 
-function classifyBuilderFailure(metadata: WorkflowRunMetadata): DecomposerFailureKind | null {
-  const buildStep = metadata.steps.find((s) => s.id === "build");
-  if (!buildStep || buildStep.status !== "failed") return null;
-
-  if (isWorkflowStepTimeoutErrorKind(buildStep.errorKind)) {
-    return "timeout";
-  }
-  if (isWorkflowRepairErrorKind(buildStep.errorKind)) {
-    return "repair-exhausted";
-  }
-
-  return null;
-}
-
 type BuilderTaskClaimArtifact = {
   claimed?: boolean;
   taskId?: string | null;
@@ -171,7 +156,7 @@ function buildAssessment(
     };
   }
 
-  const failureKind = classifyBuilderFailure(metadata);
+  const failureKind = classifyBuilderFailureForDecomposition(metadata);
   if (failureKind === null) {
     return {
       shouldDecompose: false,
@@ -313,6 +298,39 @@ const validateDecomposition = typedCodeStep<{
   }),
 });
 
+const finalizeSourceClaim = typedCodeStep<{
+  changed: boolean;
+  recoveryStatus: string;
+}>({
+  id: "finalize-source-claim",
+  type: "code",
+  when: stepCommitted("commit"),
+  validate: (raw) =>
+    expectStructuredOutput(raw, ["changed", "recoveryStatus"]),
+  run: (ctx) => {
+    const assessment = assessFailure.outputRequired(ctx);
+    if (!assessment.shouldDecompose) {
+      throw new Error("Cannot finalize a source claim without a decomposition target");
+    }
+    const result = supersedeTaskClaim({
+      projectDir: ctx.projectDir,
+      taskId: assessment.taskId,
+      runId: assessment.failedRunId,
+      workflowId: "builder",
+      evidence: `decomposer ${ctx.workflow.runId} replaced the exhausted task with bounded subtasks`,
+    });
+    if (!result.changed && result.claim !== null) {
+      throw new Error(
+        `Cannot finalize claim for ${assessment.taskId}: ${result.reason ?? "claim ownership changed"}`,
+      );
+    }
+    return {
+      changed: result.changed,
+      recoveryStatus: result.recoveryStatus,
+    };
+  },
+});
+
 const decomposerWorkflow: WorkflowDefinitionInput = {
   name: "decomposer",
   description: "Rescope builder tasks after timeout or exhausted repair.",
@@ -384,12 +402,15 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
       run: ({ projectDir, workflow }) =>
         commitWorkflowChanges(projectDir, workflow.runDirPath),
     },
+    finalizeSourceClaim,
     {
       id: "request-restart",
       type: "restart",
-      when: stepCommitted("commit"),
+      when: (ctx) =>
+        stepSucceeded("finalize-source-claim")(ctx) &&
+        stepCommitRequiresDaemonRestart("commit")(ctx),
       reason: "decomposer committed new subtasks to ready queue",
-      requires: ["commit"],
+      requires: ["finalize-source-claim"],
     },
   ],
 };

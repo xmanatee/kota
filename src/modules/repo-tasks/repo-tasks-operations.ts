@@ -55,7 +55,8 @@ export function slugifyTaskTitle(title: string): string {
     .trim()
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
-    .slice(0, 50);
+    .slice(0, 50)
+    .replace(/-+$/, "");
 }
 
 /** Read a normalized task by id, scanning every state directory. */

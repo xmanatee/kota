@@ -124,6 +124,14 @@ vi.mock("#modules/autonomy/task-claims.js", () => ({
     reason: null,
   })),
   listTaskClaimInspections: vi.fn(() => []),
+  markTaskClaimPendingDecomposition: vi.fn(() => ({
+    taskId: "task-claimed",
+    changed: true,
+    claim: null,
+    recoveryStatus: "pending-decomposition",
+    safeToRetry: false,
+    reason: null,
+  })),
   markTaskClaimPendingMerge: vi.fn(() => ({
     taskId: "task-claimed",
     changed: true,

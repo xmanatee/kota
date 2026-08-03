@@ -17,6 +17,7 @@ import {
   findWorkflowScratchArtifactPaths,
   listWorkflowMutatedPaths,
 } from "#core/workflow/steps/agent-write-scope.js";
+import { decodeWorkflowCommitOutcome } from "#modules/autonomy/commit-result.js";
 import { loadRunsInWindow } from "#modules/workflow-ops/runs/workflow-history.js";
 
 const RUN_CHECK_MAX_BUFFER = 10 * 1024 * 1024;
@@ -256,6 +257,7 @@ export const BACKLOG_TASK_TARGET = 8;
 export const AUTONOMY_DISALLOWED_TOOLS = ["Agent", "Task", "EnterWorktree", "ExitWorktree"];
 export const AUTONOMY_AGENT_HANG_TIMEOUT_MS = 3 * 60 * 60 * 1000;
 export const AUTONOMY_BUILDER_AGENT_IDLE_TIMEOUT_MS = 60 * 60 * 1000;
+export const AUTONOMY_FULL_TEST_TIMEOUT_MS = 15 * 60 * 1000;
 const ACTIVE_AUTONOMY_PRESET = resolvePreset({ env: process.env[PRESET_ENV_VAR] })
   .preset;
 // Shipped autonomy workflows must boot in a fresh clone with no operator-local
@@ -424,5 +426,12 @@ export function stepCommitted(stepId: string): WorkflowPredicate {
         "committed" in output &&
         output.committed === true,
     );
+  };
+}
+
+export function stepCommitRequiresDaemonRestart(stepId: string): WorkflowPredicate {
+  return ({ stepResults, stepOutputs }) => {
+    if (stepResults[stepId]?.status !== "success") return false;
+    return decodeWorkflowCommitOutcome(stepOutputs[stepId]).daemonRestartRequired;
   };
 }

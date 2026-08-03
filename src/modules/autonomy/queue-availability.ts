@@ -10,21 +10,12 @@ import {
 } from "#modules/workflow-ops/state-recovery-command.js";
 import {
   listTaskClaimInspections,
+  skippedTaskClaimRecoveryPath,
   type TaskClaimInspection,
   type TaskClaimRecoveryPath,
   type TaskClaimRecoveryStatus,
   type TaskClaimStatus,
 } from "./task-claims.js";
-
-function recoveryPathForClaim(
-  recoveryStatus: TaskClaimRecoveryStatus,
-): TaskClaimRecoveryPath {
-  return recoveryStatus === "pending-merge"
-    ? "skipped-pending-merge"
-    : recoveryStatus === "stale"
-      ? "skipped-stale-worktree"
-    : "skipped-active-claim";
-}
 
 export type RepoTaskClaimBlock = {
   id: string;
@@ -72,7 +63,7 @@ function listClaimBlockedTasks(
       state: task.state,
       claimStatus: inspection.claim.status,
       recoveryStatus: inspection.recoveryStatus,
-      recoveryPath: recoveryPathForClaim(inspection.recoveryStatus),
+      recoveryPath: skippedTaskClaimRecoveryPath(inspection.recoveryStatus),
       owner: inspection.claim.owner,
       runId: inspection.claim.runId,
       workflowId: inspection.claim.workflowId,

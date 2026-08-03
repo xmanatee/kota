@@ -18,10 +18,9 @@ import {
   checkNoRegisteredScratchWorktrees,
   findScratchArtifactPaths,
 } from "./shared.js";
+import type { CommitResult } from "./commit-result.js";
 
-export type CommitResult =
-  | { committed: false }
-  | { committed: true; message: string; sha: string };
+export type { CommitResult } from "./commit-result.js";
 
 export type WorkflowCommitPathPolicy =
   | { kind: "all-mutated-paths" }
@@ -36,6 +35,11 @@ export type WorkflowCommitPathPolicy =
   };
 
 const ALL_MUTATED_PATHS: WorkflowCommitPathPolicy = { kind: "all-mutated-paths" };
+const LIVE_TASK_STATE_ROOT = "data/tasks/";
+
+function daemonRestartRequiredFor(paths: readonly string[]): boolean {
+  return paths.some((path) => !path.startsWith(LIVE_TASK_STATE_ROOT));
+}
 
 function runGit(projectDir: string, command: string): string {
   return execSync(command, {
@@ -220,7 +224,11 @@ export function commitWorkflowChanges(
   const mutatedPaths = listCommitMutatedPaths(projectDir, policy);
 
   if (mutatedPaths.length === 0) {
-    return { committed: false };
+    return {
+      committed: false,
+      committedPaths: [],
+      daemonRestartRequired: false,
+    };
   }
   checkNoScratchArtifactsInPaths(mutatedPaths);
 
@@ -253,5 +261,11 @@ export function commitWorkflowChanges(
   const message = runGit(projectDir, "git log --format=%s -1");
   const sha = runGit(projectDir, "git rev-parse HEAD");
 
-  return { committed: true, message, sha };
+  return {
+    committed: true,
+    message,
+    sha,
+    committedPaths: mutatedPaths,
+    daemonRestartRequired: daemonRestartRequiredFor(mutatedPaths),
+  };
 }

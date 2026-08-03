@@ -187,7 +187,7 @@ describe("inbox-sorter workflow", () => {
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(2));
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true, committedPaths: ["src/change.ts"], daemonRestartRequired: true } as never);
 
     const harness = new WorkflowTestHarness(inboxSorterWorkflow, {
       trigger: { event: "autonomy.inbox.available", payload: {} },

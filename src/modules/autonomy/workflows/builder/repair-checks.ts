@@ -10,7 +10,11 @@ import {
   checkObservabilityObligationsForRun,
   OBSERVABILITY_OBLIGATION_WARNING_TYPE,
 } from "#modules/autonomy/observability-obligation.js";
-import { checkCommitMessageExists, checkNoScratchArtifacts } from "#modules/autonomy/shared.js";
+import {
+  AUTONOMY_FULL_TEST_TIMEOUT_MS,
+  checkCommitMessageExists,
+  checkNoScratchArtifacts,
+} from "#modules/autonomy/shared.js";
 import { checkSourceFileSize, SOURCE_FILE_SIZE_WARNING_TYPE } from "#modules/autonomy/source-size-check.js";
 import {
   SOURCE_FILE_SIZE_SEVERE_TYPE,
@@ -163,7 +167,7 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       run: (ctx) => checkPackageScript(
         workflowWorkspaceDir(ctx),
         "pnpm test",
-        { timeoutMs: 300_000, signal: ctx.signal },
+        { timeoutMs: AUTONOMY_FULL_TEST_TIMEOUT_MS, signal: ctx.signal },
       ),
     },
     {

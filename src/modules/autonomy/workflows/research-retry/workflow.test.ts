@@ -326,7 +326,7 @@ describe("research-retry workflow", () => {
       },
     ]);
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true, committedPaths: ["src/change.ts"], daemonRestartRequired: true } as never);
 
     const harness = new WorkflowTestHarness(researchRetryWorkflow, {
       trigger: { event: "autonomy.blocked-research.attemptable", payload: {} },

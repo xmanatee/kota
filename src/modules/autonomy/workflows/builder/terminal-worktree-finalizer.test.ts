@@ -19,7 +19,8 @@ const { releaseBuilderPortRange } = vi.hoisted(() => ({
 const { findRecoveryClaim } = vi.hoisted(() => ({
   findRecoveryClaim: vi.fn(),
 }));
-const { releaseTaskClaim } = vi.hoisted(() => ({
+const { markTaskClaimPendingDecomposition, releaseTaskClaim } = vi.hoisted(() => ({
+  markTaskClaimPendingDecomposition: vi.fn(),
   releaseTaskClaim: vi.fn(),
 }));
 
@@ -32,7 +33,10 @@ vi.mock("./runtime-resource-ports.js", () => ({ releaseBuilderPortRange }));
 vi.mock("#modules/autonomy/workflow-state-recovery-claims.js", () => ({
   findRecoveryClaim,
 }));
-vi.mock("#modules/autonomy/task-claims.js", () => ({ releaseTaskClaim }));
+vi.mock("#modules/autonomy/task-claims.js", () => ({
+  markTaskClaimPendingDecomposition,
+  releaseTaskClaim,
+}));
 
 import { finalizeBuilderTerminalWorktree } from "./terminal-worktree-finalizer.js";
 
@@ -247,6 +251,71 @@ describe("finalizeBuilderTerminalWorktree", () => {
       removed: true,
       claimDisposition: "released",
       recoveryAction: { kind: "none" },
+    });
+  });
+
+  it("reserves an exhausted clean task for decomposition", async () => {
+    inspectAutomationWorktree.mockReturnValue({
+      branch: "kota/task-one",
+      headCommit: "abc123",
+      metadata: {
+        state: "active",
+        runtimeResources: { profileId: "task-one:builder-run" },
+      },
+      cleanup: { blockers: [] },
+    });
+    listAutomationWorktreeUniqueCommits.mockReturnValue({ commits: [] });
+    reconcileAutomationWorktrees.mockReturnValue({
+      items: [
+        {
+          taskId: "task-one",
+          runId: "builder-run",
+          removed: true,
+          blockers: [],
+        },
+      ],
+    });
+    markTaskClaimPendingDecomposition.mockReturnValue({
+      taskId: "task-one",
+      changed: true,
+      claim: null,
+      recoveryStatus: "pending-decomposition",
+      safeToRetry: false,
+      reason: null,
+    });
+    const input = finalizerInput("failed");
+    input.metadata.steps.push({
+      id: "build",
+      type: "agent",
+      status: "failed",
+      errorKind: "repair-no-progress",
+      startedAt: "2026-08-03T13:00:00.000Z",
+      completedAt: "2026-08-03T13:01:00.000Z",
+      durationMs: 60_000,
+    });
+
+    await finalizeBuilderTerminalWorktree(input);
+
+    expect(markTaskClaimPendingDecomposition).toHaveBeenCalledWith({
+      projectDir: input.projectDir,
+      taskId: "task-one",
+      runId: "builder-run",
+      workflowId: "builder",
+      evidence:
+        "terminal builder run builder-run repair-exhausted; awaiting decomposer disposition",
+    });
+    expect(releaseTaskClaim).not.toHaveBeenCalled();
+    expect(
+      JSON.parse(
+        readFileSync(
+          join(input.projectDir, input.metadata.runDir, "terminal-worktree-finalizer.json"),
+          "utf8",
+        ),
+      ),
+    ).toMatchObject({
+      removed: true,
+      claimDisposition: "pending-decomposition",
+      recoveryAction: { kind: "decomposition-pending" },
     });
   });
 

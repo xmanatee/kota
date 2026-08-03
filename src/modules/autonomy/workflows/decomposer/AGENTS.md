@@ -13,6 +13,9 @@ This directory contains the decomposer workflow definition and its prompt.
 - `apply-decomposition` is the only mutation path: it creates the planned ready
   tasks through the repo-task writer, records dependencies, annotates the
   original, and moves it to `dropped/` through the task state machine.
+- After the task-state commit, decomposer supersedes the failed builder's
+  `pending-decomposition` claim. This is the canonical success path that
+  reopens dispatch after a clean timeout or exhausted repair.
 - `checkDecompositionApplied` verifies the dropped original and every ready
   subtask named by its `## Decomposed` section belong to the current mutation
   set before the workflow commits.

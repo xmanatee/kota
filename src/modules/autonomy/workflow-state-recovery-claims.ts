@@ -234,6 +234,7 @@ export function projectClaim(
 export function listRecoveryClaims(projectDir: string): WorkflowStateRecoveryClaim[] {
   return listTaskClaimInspections(projectDir)
     .filter((inspection) =>
+      inspection.recoveryStatus === "pending-decomposition" ||
       inspection.recoveryStatus === "pending-merge" ||
       inspection.recoveryStatus === "stale" ||
       inspection.recoveryStatus === "expired"

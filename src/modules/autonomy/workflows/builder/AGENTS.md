@@ -13,6 +13,9 @@
   recovery event is queued, its exact task/worktree target governs consumption;
   do not reapply the producer's automatic-attempt gate in the builder.
 - Prefer validation rails over hardcoded pre-agent task moves or scope policing.
+- A clean timeout or exhausted repair reserves the task claim for decomposer
+  disposition. Builder must not reclaim that task while decomposition is
+  pending; ordinary failures still release clean claims normally.
 
 ## Success Criteria
 Declare concrete success criteria before implementation and verify them before completion:

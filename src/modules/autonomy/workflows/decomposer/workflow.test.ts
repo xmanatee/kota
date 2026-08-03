@@ -29,6 +29,17 @@ vi.mock("#modules/autonomy/commit.js", () => ({
   commitWorkflowChanges: vi.fn(),
 }));
 
+vi.mock("#modules/autonomy/task-claims.js", () => ({
+  supersedeTaskClaim: vi.fn(() => ({
+    taskId: "task-big-refactor",
+    changed: true,
+    claim: null,
+    recoveryStatus: "superseded",
+    safeToRetry: true,
+    reason: null,
+  })),
+}));
+
 vi.mock("#modules/autonomy/shared.js", async () => {
   const actual = await vi.importActual<typeof import("#modules/autonomy/shared.js")>(
     "#modules/autonomy/shared.js",
@@ -250,7 +261,11 @@ describe("decomposer workflow", () => {
     );
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({
+      committed: true,
+      committedPaths: ["data/tasks/ready/task-scoped-subtask.md"],
+      daemonRestartRequired: false,
+    } as never);
 
     const harness = new WorkflowTestHarness(decomposerWorkflow, {
       trigger: { event: "workflow.completed", schemaRef: null, payload: TRIGGER_PAYLOAD },
@@ -281,7 +296,11 @@ describe("decomposer workflow", () => {
     );
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({
+      committed: true,
+      committedPaths: ["data/tasks/ready/task-scoped-subtask.md"],
+      daemonRestartRequired: false,
+    } as never);
 
     const harness = new WorkflowTestHarness(decomposerWorkflow, {
       trigger: { event: "workflow.completed", schemaRef: null, payload: TRIGGER_PAYLOAD },
@@ -309,7 +328,11 @@ describe("decomposer workflow", () => {
     );
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({
+      committed: true,
+      committedPaths: ["data/tasks/ready/task-scoped-subtask.md"],
+      daemonRestartRequired: false,
+    } as never);
 
     const harness = new WorkflowTestHarness(decomposerWorkflow, {
       trigger: { event: "workflow.completed", schemaRef: null, payload: TRIGGER_PAYLOAD },
@@ -393,10 +416,11 @@ describe("decomposer workflow", () => {
 
     expect(result.steps.decompose.status).toBe("skipped");
     expect(result.steps.commit.status).toBe("skipped");
+    expect(result.steps["finalize-source-claim"].status).toBe("skipped");
     expect(result.steps["request-restart"].status).toBe("skipped");
   });
 
-  it("runs request-restart when decompose succeeds and commit commits", async () => {
+  it("finalizes the source claim without restarting for a task-only commit", async () => {
     await configureBuilderFailure(
       makeFailedBuilderMetadata({
         buildDurationMs: HANG_TIMEOUT_BUILD_MS,
@@ -405,7 +429,11 @@ describe("decomposer workflow", () => {
     );
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({
+      committed: true,
+      committedPaths: ["data/tasks/ready/task-scoped-subtask.md"],
+      daemonRestartRequired: false,
+    } as never);
 
     const harness = new WorkflowTestHarness(decomposerWorkflow, {
       trigger: { event: "workflow.completed", schemaRef: null, payload: TRIGGER_PAYLOAD },
@@ -416,7 +444,16 @@ describe("decomposer workflow", () => {
 
     expect(result.steps.decompose.status).toBe("success");
     expect(result.steps.commit.status).toBe("success");
-    expect(result.steps["request-restart"].status).toBe("success");
+    expect(result.steps["finalize-source-claim"].status).toBe("success");
+    expect(result.steps["request-restart"].status).toBe("skipped");
+    const { supersedeTaskClaim } = await import("#modules/autonomy/task-claims.js");
+    expect(supersedeTaskClaim).toHaveBeenCalledWith({
+      projectDir: expect.any(String),
+      taskId: "task-big-refactor",
+      runId: "run-failed-builder",
+      workflowId: "builder",
+      evidence: expect.stringContaining("replaced the exhausted task"),
+    });
   });
 
   it("rejects a semantically misaligned plan before task mutation", async () => {
@@ -464,7 +501,11 @@ describe("decomposer workflow", () => {
     );
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({
+      committed: true,
+      committedPaths: ["data/tasks/ready/task-scoped-subtask.md"],
+      daemonRestartRequired: false,
+    } as never);
 
     const harness = new WorkflowTestHarness(decomposerWorkflow, {
       trigger: {

@@ -7,6 +7,7 @@ import {
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HARNESS,
+  stepCommitRequiresDaemonRestart,
   stepCommitted,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
@@ -140,7 +141,7 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
     {
       id: "request-restart",
       type: "restart",
-      when: stepCommitted("commit"),
+      when: stepCommitRequiresDaemonRestart("commit"),
       reason: "progress-reviewer committed progress review follow-up tasks",
       requires: ["commit"],
     },

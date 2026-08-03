@@ -5,9 +5,9 @@ import {
   listFullRepoTasks,
   REPO_TASKS_DIR,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { extractRepoTaskIds } from "#modules/repo-tasks/task-id.js";
 
 const DECOMPOSED_SECTION = "Decomposed";
-const TASK_ID_REFERENCE = /\btask-[a-z0-9-]+\b/g;
 
 export function checkDecompositionApplied(projectDir: string, taskId: string): string {
   const tasks = listFullRepoTasks(projectDir);
@@ -25,7 +25,7 @@ export function checkDecompositionApplied(projectDir: string, taskId: string): s
 
   const subtaskIds = [
     ...new Set(
-      (section.match(TASK_ID_REFERENCE) ?? []).filter(
+      extractRepoTaskIds(section).filter(
         (candidate) => candidate !== taskId,
       ),
     ),

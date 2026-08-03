@@ -76,6 +76,12 @@ describe("slugifyTaskTitle", () => {
     expect(slugifyTaskTitle(long).length).toBe(50);
   });
 
+  it("does not leave a trailing separator after truncation", () => {
+    expect(
+      slugifyTaskTitle("Regress improver failure escalation and attention reporting"),
+    ).toBe("regress-improver-failure-escalation-and-attention");
+  });
+
   it("returns empty string for whitespace-only input", () => {
     expect(slugifyTaskTitle("   ")).toBe("");
   });

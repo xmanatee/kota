@@ -56,7 +56,11 @@ vi.mock("#modules/autonomy/commit.js", async () => {
     );
   return {
     ...actual,
-    commitWorkflowChanges: vi.fn(() => ({ committed: true })),
+    commitWorkflowChanges: vi.fn(() => ({
+      committed: true,
+      committedPaths: ["src/scope-change.ts"],
+      daemonRestartRequired: true,
+    })),
     checkCommitStageable: vi.fn(() => "ok"),
   };
 });

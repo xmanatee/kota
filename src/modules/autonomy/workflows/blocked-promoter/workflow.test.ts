@@ -25,7 +25,11 @@ vi.mock("#modules/autonomy/commit.js", async () => {
     );
   return {
     ...actual,
-    commitWorkflowChanges: vi.fn(() => ({ committed: true })),
+    commitWorkflowChanges: vi.fn(() => ({
+      committed: true,
+      committedPaths: ["data/tasks/ready/task-unblocked.md"],
+      daemonRestartRequired: false,
+    })),
     checkCommitStageable: vi.fn(() => "ok"),
   };
 });

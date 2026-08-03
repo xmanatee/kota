@@ -25,6 +25,8 @@ const mocks = vi.hoisted(() => ({
     committed: true,
     message: "github-mention-intake: create task",
     sha: "abc123",
+    committedPaths: ["data/tasks/ready/task-github-mention.md"],
+    daemonRestartRequired: false,
   })),
   runCheck: vi.fn(),
 }));

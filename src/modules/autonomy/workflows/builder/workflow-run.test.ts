@@ -17,7 +17,7 @@ describe("builder workflow run path", () => {
     const snapshot = makeSnapshot(2, 1);
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true, committedPaths: ["src/change.ts"], daemonRestartRequired: true } as never);
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
       projectDir: makeWorkflowProject(snapshot),
@@ -68,7 +68,7 @@ describe("builder workflow run path", () => {
     const snapshot = makeSnapshot(1, 0);
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true, committedPaths: ["src/change.ts"], daemonRestartRequired: true } as never);
 
     const { writeBuilderRunSummary } = await import("./run-summary.js");
     vi.mocked(writeBuilderRunSummary).mockReturnValue({
@@ -113,7 +113,7 @@ describe("builder workflow run path", () => {
     const snapshot = makeSnapshot(1, 0);
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true, committedPaths: ["src/change.ts"], daemonRestartRequired: true } as never);
 
     const { writeBuilderRunSummary } = await import("./run-summary.js");
     const { findTerminalTasksInChangedFiles } = await import("./run-summary.js");

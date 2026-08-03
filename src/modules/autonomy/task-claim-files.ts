@@ -54,6 +54,7 @@ function ensureParent(path: string): void {
 
 function isTaskClaimStatus(value: string | undefined): value is TaskClaimStatus {
   return value === "active" ||
+    value === "pending-decomposition" ||
     value === "pending-merge" ||
     value === "released" ||
     value === "expired" ||
@@ -233,6 +234,14 @@ export function inspectTaskClaim(
   path: string,
   now: Date = new Date(),
 ): TaskClaimInspection {
+  if (claim.status === "pending-decomposition") {
+    return {
+      claim,
+      path,
+      recoveryStatus: "pending-decomposition",
+      safeToRetry: false,
+    };
+  }
   if (claim.status === "pending-merge") {
     return { claim, path, recoveryStatus: "pending-merge", safeToRetry: false };
   }

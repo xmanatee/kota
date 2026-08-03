@@ -1,7 +1,11 @@
 import { join } from "node:path";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
 import type { WorkflowTerminalFinalizerInput } from "#core/workflow/types.js";
-import { releaseTaskClaim } from "#modules/autonomy/task-claims.js";
+import { classifyBuilderFailureForDecomposition } from "#modules/autonomy/builder-failure-classification.js";
+import {
+  markTaskClaimPendingDecomposition,
+  releaseTaskClaim,
+} from "#modules/autonomy/task-claims.js";
 import { findRecoveryClaim } from "#modules/autonomy/workflow-state-recovery-claims.js";
 import {
   inspectAutomationWorktree,
@@ -33,6 +37,7 @@ type BuilderTerminalWorktreeFinalizerArtifact = {
 
 type BuilderTerminalClaimDisposition =
   | "preserved"
+  | "pending-decomposition"
   | "released"
   | "already-absent"
   | "conflict";
@@ -44,6 +49,10 @@ type BuilderTerminalRecoveryAction =
     }
   | {
       kind: "continuation-requested";
+      reason: string;
+    }
+  | {
+      kind: "decomposition-pending";
       reason: string;
     }
   | {
@@ -126,6 +135,12 @@ function recoveryActionFor(
       "terminal builder worktree was removed but its task claim changed ownership",
     );
   }
+  if (claimDisposition === "pending-decomposition") {
+    return {
+      kind: "decomposition-pending",
+      reason: "exhausted builder task is reserved until decomposer dispositions it",
+    };
+  }
   if (removed) {
     return { kind: "none", reason: "terminal builder worktree was removed" };
   }
@@ -176,7 +191,7 @@ export async function finalizeBuilderTerminalWorktree(
       !removed && unique.error !== undefined
         ? [...baseBlockers, unique.error]
         : baseBlockers;
-    const reason = removed
+    let reason = removed
       ? "terminal builder worktree had no unresolved cleanup blockers"
       : "terminal builder worktree preserved for recovery review";
     const candidate = findRecoveryClaim(input.projectDir, workspace.taskId);
@@ -190,18 +205,28 @@ export async function finalizeBuilderTerminalWorktree(
       candidate.recommendedAction.kind === "needs-review";
     let claimDisposition: BuilderTerminalClaimDisposition = "preserved";
     if (removed) {
-      const claimRelease = releaseTaskClaim({
+      const decompositionFailure = classifyBuilderFailureForDecomposition(input.metadata);
+      const claimResult = (decompositionFailure
+        ? markTaskClaimPendingDecomposition
+        : releaseTaskClaim)({
         projectDir: input.projectDir,
         taskId: workspace.taskId,
         runId: input.metadata.id,
         workflowId: input.metadata.workflow,
-        evidence: `terminal builder run ${input.metadata.id} left no preserved worktree`,
+        evidence: decompositionFailure
+          ? `terminal builder run ${input.metadata.id} ${decompositionFailure}; awaiting decomposer disposition`
+          : `terminal builder run ${input.metadata.id} left no preserved worktree`,
       });
-      claimDisposition = claimRelease.changed
-        ? "released"
-        : claimRelease.safeToRetry
+      claimDisposition = claimResult.changed
+        ? decompositionFailure
+          ? "pending-decomposition"
+          : "released"
+        : claimResult.safeToRetry
           ? "already-absent"
           : "conflict";
+      if (claimDisposition === "pending-decomposition") {
+        reason = "terminal builder worktree was removed and its task is awaiting decomposition";
+      }
     }
     let portLeaseReleased = false;
     let portLeaseError: string | null = null;

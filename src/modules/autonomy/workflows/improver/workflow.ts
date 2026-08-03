@@ -21,9 +21,11 @@ import {
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
   AUTONOMY_AGENT_HARNESS,
   AUTONOMY_DISALLOWED_TOOLS,
+  AUTONOMY_FULL_TEST_TIMEOUT_MS,
   checkCommitMessageExists,
   checkNoScratchArtifacts,
   runCheck,
+  stepCommitRequiresDaemonRestart,
   stepCommitted,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
@@ -228,7 +230,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
             type: "code" as const,
             phase: 1,
             run: (ctx) => runCheck("pnpm test", ctx.projectDir, {
-              timeoutMs: 300_000,
+              timeoutMs: AUTONOMY_FULL_TEST_TIMEOUT_MS,
               signal: ctx.signal,
             }),
           },
@@ -298,7 +300,9 @@ const improverWorkflow: WorkflowDefinitionInput = {
     {
       id: "request-restart",
       type: "restart",
-      when: stepSucceeded("write-run-summary"),
+      when: (ctx) =>
+        stepSucceeded("write-run-summary")(ctx) &&
+        stepCommitRequiresDaemonRestart("commit")(ctx),
       reason: "improver workflow finished validation and commit",
       requires: ["write-run-summary"],
     },

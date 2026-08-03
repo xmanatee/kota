@@ -46,6 +46,11 @@ Every workflow that calls `commitWorkflowChanges` must also wire
 ignore conflicts (e.g. a nested `.gitignore` re-ignoring a path the repo-
 root rules un-ignored) before an agent run dies at staging.
 
+`commitWorkflowChanges` is also the source of truth for restart necessity.
+Commits confined to `data/tasks/` are live queue-state changes and must not
+restart the daemon; restart predicates consume the commit outcome instead of
+reclassifying paths in individual workflows.
+
 ### Autonomy Mode Declaration
 
 Every agent step must declare its autonomy posture explicitly — the validator

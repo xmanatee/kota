@@ -201,7 +201,7 @@ describe("improver workflow", () => {
   it("runs request-restart when improve succeeds and commit commits", async () => {
     writeFailedRun();
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true, committedPaths: ["src/change.ts"], daemonRestartRequired: true } as never);
 
     const harness = new WorkflowTestHarness(improverWorkflow, {
       projectDir,
@@ -227,7 +227,7 @@ describe("improver workflow", () => {
   it("skips request-restart and write-run-summary when nothing was committed", async () => {
     writeFailedRun();
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: false } as never);
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: false, committedPaths: [], daemonRestartRequired: false } as never);
 
     const harness = new WorkflowTestHarness(improverWorkflow, {
       projectDir,

@@ -8,7 +8,11 @@ import { describeSecurityReviewTaskTests } from "./workflow-task.test-cases.js";
 
 vi.mock("#modules/autonomy/commit.js", () => ({
   checkCommitStageable: vi.fn(() => "OK: mock stageable"),
-  commitWorkflowChanges: vi.fn(() => ({ committed: true })),
+  commitWorkflowChanges: vi.fn(() => ({
+    committed: true,
+    committedPaths: ["data/tasks/ready/task-security.md"],
+    daemonRestartRequired: false,
+  })),
 }));
 
 describe("security-review workflow", () => {

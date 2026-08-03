@@ -3,7 +3,14 @@ import { join } from "node:path";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
+import {
+  checkCommitStageable,
+  commitWorkflowChanges,
+} from "#modules/autonomy/commit.js";
+import {
+  decodeWorkflowCommitOutcome,
+  type WorkflowCommitOutcome,
+} from "#modules/autonomy/commit-result.js";
 import {
   onNormalTrigger,
   onRecoveryTrigger,
@@ -13,6 +20,7 @@ import {
   checkCommitMessageExists,
   checkNoScratchArtifacts,
   runCheck,
+  stepCommitRequiresDaemonRestart,
   stepCommitted,
 } from "#modules/autonomy/shared.js";
 import {
@@ -139,16 +147,13 @@ const validateBeforeCommit = typedCodeStep<{ ok: true }>({
   },
 });
 
-const commitChanges = typedCodeStep<{ committed: boolean }>({
+const commitChanges = typedCodeStep<WorkflowCommitOutcome>({
   id: "commit",
   type: "code",
   when: (ctx) => validateBeforeCommit.output(ctx)?.ok === true,
-  validate: (raw) =>
-    expectStructuredOutput<{ committed: boolean }>(raw, ["committed"]),
-  run: ({ projectDir, workflow }) => {
-    const result = commitWorkflowChanges(projectDir, workflow.runDirPath);
-    return { committed: Boolean(result.committed) };
-  },
+  validate: decodeWorkflowCommitOutcome,
+  run: ({ projectDir, workflow }) =>
+    commitWorkflowChanges(projectDir, workflow.runDirPath),
 });
 
 const backlogPromoterWorkflow: WorkflowDefinitionInput = {
@@ -201,7 +206,7 @@ const backlogPromoterWorkflow: WorkflowDefinitionInput = {
     {
       id: "request-restart",
       type: "restart",
-      when: stepCommitted("commit"),
+      when: stepCommitRequiresDaemonRestart("commit"),
       reason: "backlog-promoter committed task promotions",
       requires: ["commit"],
     },

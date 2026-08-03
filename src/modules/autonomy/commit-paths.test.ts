@@ -60,6 +60,8 @@ describe("commitWorkflowChanges path handling", () => {
 
     expect(commitWorkflowChanges(workspace.projectDir, workspace.runDirPath)).toEqual({
       committed: false,
+      committedPaths: [],
+      daemonRestartRequired: false,
     });
   });
 
