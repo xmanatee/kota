@@ -22,11 +22,11 @@ import {
   updateAutomationWorktreeRuntimeResources,
 } from "#modules/git/worktree-lifecycle.js";
 import { builderWorktreeModeEnabledFromConfig } from "./builder-config.js";
+import { findPreservedBuilderEvidenceRunId } from "./preserved-evidence.js";
 import {
   assignBuilderRuntimeResources,
   type BuilderRuntimeResourceProfile,
 } from "./runtime-resources.js";
-import { findPreservedBuilderEvidenceRunId } from "./preserved-evidence.js";
 
 export type BuilderWorkspaceResult = {
   enabled: boolean;

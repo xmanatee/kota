@@ -105,6 +105,13 @@ surfacing harness identity (CLI run readouts, tracing) should prefer the
 runtime values on the step result over re-deriving them from the static
 config.
 
+## Structured Agent Output
+
+`outputSchema` is the single contract for JSON agent output. The core prompt
+builder renders that schema for the agent, and the executor validates the same
+object after extraction. Do not duplicate schema fields in workflow prompts or
+silently default missing fields after validation.
+
 ## Agent-Step Retry and Error Classification
 
 Every agent step inherits `DEFAULT_AGENT_STEP_RETRY` from

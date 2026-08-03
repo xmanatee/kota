@@ -191,7 +191,14 @@ export function buildAgentPrompt(
     "Finish this step fully, then stop.",
   );
   if (step.outputFormat === "json") {
-    lines.push("", "End your final response with a fenced JSON block containing your structured output.");
+    lines.push("");
+    if (step.outputSchema !== undefined) {
+      lines.push(
+        "Your final JSON must conform exactly to this schema:",
+        ...fencedJsonBlock(JSON.stringify(step.outputSchema, null, 2)),
+      );
+    }
+    lines.push("End your final response with a fenced JSON block containing your structured output.");
   }
   return {
     systemPromptAppend: promptBody,

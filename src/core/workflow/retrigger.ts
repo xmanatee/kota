@@ -1,5 +1,5 @@
-import { formatRunId } from "./run-io.js";
 import type { WorkflowEnqueueOptions } from "./operator-trigger.js";
+import { formatRunId } from "./run-io.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 
 export function buildRetriggerOptions(

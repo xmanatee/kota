@@ -1,9 +1,9 @@
 import { readdirSync } from "node:fs";
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { buildRetriggerOptions } from "#core/workflow/retrigger.js";
 import { getEligibleAtMs } from "#core/workflow/run-executor-utils.js";
 import { formatRunId } from "#core/workflow/run-io.js";
-import { buildRetriggerOptions } from "#core/workflow/retrigger.js";
 import {
   defaultWorkflowRunRetentionDays,
   WorkflowRunStore,

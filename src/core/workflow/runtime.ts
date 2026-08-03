@@ -3,6 +3,7 @@ import type {
   WorkflowBatchDispatchInput,
   WorkflowBatchDispatchResult,
 } from "./event-batches.js";
+import type { WorkflowEnqueueOptions } from "./operator-trigger.js";
 import {
   reconcileWorkflowRecovery,
   resolveWorkflowDispatchPause,
@@ -11,7 +12,6 @@ import type {
   WorkflowDispatchPauseStatus,
   WorkflowRecoveryStatus,
 } from "./recovery-status-types.js";
-import type { WorkflowEnqueueOptions } from "./operator-trigger.js";
 import type {
   WorkflowRuntimeState,
 } from "./run-types.js";
