@@ -201,6 +201,16 @@ function isAcceptedRecoveryAction(
   before: WorkflowStateRecoveryClaim,
 ): boolean {
   if (before.recommendedAction.kind === input.action) return true;
+  if (
+    input.action === "release" &&
+    input.completeTask === true &&
+    before.recoveryStatus === "pending-decomposition" &&
+    before.ownerRunStatus !== "running" &&
+    (before.worktree.state === "merged" || before.worktree.state === "removed") &&
+    !hasPreservedWorktreeChanges(before.worktree)
+  ) {
+    return true;
+  }
   return (
     input.action === "supersede" &&
     input.supersededByCommit !== undefined &&

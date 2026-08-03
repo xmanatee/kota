@@ -1,11 +1,12 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { createAutomationWorktree } from "#modules/git/worktree-lifecycle.js";
 import {
   claimTask,
+  markTaskClaimPendingDecomposition,
   markTaskClaimPendingMerge,
   taskClaimPath,
 } from "./task-claims.js";
@@ -138,6 +139,78 @@ describe("workflow state recovery actions", () => {
         after: null,
       },
     });
+  });
+
+  it("lets an operator complete a decomposer-reserved task after terminal cleanup", () => {
+    const taskId = "task-completed-outside-decomposer";
+    const runId = "run-completed-outside-decomposer";
+    writeTask(projectDir, "ready", taskId, "2026-06-27T00:00:00.000Z");
+    writeFileSync(
+      join(projectDir, "data", "tasks", "ready", `${taskId}.md`),
+      "\n## Acceptance Evidence\n\n- `pnpm vitest run recovery` passed.\n",
+      { flag: "a" },
+    );
+    initializeGitFixture(projectDir);
+    const claimed = claimTask(
+      claimInput(projectDir, taskId, runId, new Date("2026-06-27T00:01:00.000Z")),
+    );
+    expect(claimed.claimed).toBe(true);
+    expect(markTaskClaimPendingDecomposition({
+      projectDir,
+      taskId,
+      runId,
+      workflowId: "builder",
+      evidence: "builder exhausted repair and requested decomposition",
+      now: new Date("2026-06-27T00:02:00.000Z"),
+    }).changed).toBe(true);
+    writeOwnerRunMetadata(projectDir, runId, "builder", "failed");
+    const metadataDir = join(projectDir, ".kota", "worktrees");
+    mkdirSync(metadataDir, { recursive: true });
+    writeFileSync(
+      join(metadataDir, `${taskId}-${runId}.json`),
+      `${JSON.stringify({
+        schemaVersion: 1,
+        taskId,
+        runId,
+        workflowId: "builder",
+        owner: `workflow:builder:${runId}`,
+        workspaceDir: join(projectDir, ".worktrees", `${taskId}-${runId}`),
+        branch: `kota/task/${taskId}/${runId}`,
+        baseCommit: "HEAD",
+        createdAt: "2026-06-27T00:01:00.000Z",
+        updatedAt: "2026-06-27T00:03:00.000Z",
+        state: "removed",
+        copiedSetupFiles: [],
+        removedAt: "2026-06-27T00:03:00.000Z",
+      }, null, 2)}\n`,
+      "utf8",
+    );
+
+    const resolved = createWorkflowStateRecoveryProvider().resolve({
+      projectDir,
+      taskId,
+      runId,
+      action: "release",
+      rationale: "the canonical repair completed the source task",
+      artifactRunId: "run-operator-completion",
+      completeTask: true,
+    });
+
+    expect(resolved).toMatchObject({
+      ok: true,
+      action: "release",
+      artifact: {
+        result: "released",
+        taskMove: {
+          moved: true,
+          fromState: "ready",
+          toState: "done",
+        },
+      },
+    });
+    expect(existsSync(taskClaimPath(projectDir, taskId))).toBe(false);
+    expect(existsSync(join(projectDir, "data", "tasks", "done", `${taskId}.md`)))
+      .toBe(true);
   });
 
   it("rejects traversal artifactRunId values without writing outside .kota/runs", () => {
