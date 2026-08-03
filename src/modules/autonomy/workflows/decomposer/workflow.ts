@@ -1,8 +1,7 @@
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
-import { askOwnerSteps } from "#core/workflow/ask-owner-step.js";
 import {
   isWorkflowRepairErrorKind,
   isWorkflowStepTimeoutErrorKind,
@@ -20,36 +19,27 @@ import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
   AUTONOMY_AGENT_HARNESS,
-  AUTONOMY_DISALLOWED_TOOLS,
   checkCommitMessageExists,
   checkNoScratchArtifacts,
   runCheck,
   stepCommitted,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
-import { checkDecompositionApplied } from "./decomposition-check.js";
+import {
+  type AppliedDecomposition,
+  applyDecompositionPlan,
+} from "./decomposition-actions.js";
+import {
+  decodeDecompositionPlan,
+  decompositionPlanOutputSchema,
+} from "./decomposition-plan.js";
 
 export const agent: AgentDef = {
   name: "decomposer",
   role: "Rescope builder tasks that exhausted execution without progress.",
   promptPath: "src/modules/autonomy/workflows/decomposer/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
-  writeScope: ["data/tasks/"],
-};
-
-/**
- * Operator-only ambiguities the agent loop cannot resolve from repo state
- * alone. When set on the assessment, the workflow opens an `askOwnerSteps`
- * recipe instead of silently skipping the run.
- */
-export type DecomposerEscalation = {
-  kind: "task-not-found";
-  /**
-   * Task id recorded by the failed builder. The task is no longer in any
-   * active state, so the operator is the only one who knows whether it should
-   * be decomposed anyway or whether the trigger should be dropped.
-   */
-  candidateTaskId: string;
+  writeScope: [],
 };
 
 type DecomposerFailureKind = "timeout" | "repair-exhausted";
@@ -59,47 +49,10 @@ export type DecomposerAssessment = {
   failedRunId: string;
   failedRunDir: string;
   failureKind: DecomposerFailureKind | null;
-  escalation: DecomposerEscalation | null;
 } & (
   | { shouldDecompose: false }
   | { shouldDecompose: true; taskId: string; taskPath: string }
 );
-
-/**
- * Outcome of the operator-loop step that resolves a `DecomposerEscalation`.
- * Mirrors the four `AwaitedOwnerOutcome` kinds explicitly: `answered`
- * collapses to either `approved` (when the operator authorized continuing)
- * or `skipped` (any other answer); `dismissed`, `expired`, and `timeout` all
- * fall back to `skipped` with a human-readable reason. `no-escalation` is
- * the trivial path when the assessment did not need operator input.
- */
-export type EscalationResolution =
-  | { kind: "no-escalation" }
-  | {
-      kind: "approved";
-      taskId: string;
-      operatorAnswer: string;
-      /** Pre-rendered injection-defense banner; null when the answer was clean. */
-      banner: string | null;
-    }
-  | { kind: "skipped"; reason: string };
-
-const DECOMPOSE_PREFIX = "decompose ";
-
-function parseOperatorApproval(
-  answer: string,
-  candidateTaskId: string,
-): { approved: boolean; resolvedTaskId: string } {
-  const normalized = answer.trim().toLowerCase();
-  if (!normalized.startsWith(DECOMPOSE_PREFIX)) {
-    return { approved: false, resolvedTaskId: candidateTaskId };
-  }
-  const namedId = normalized.slice(DECOMPOSE_PREFIX.length).trim();
-  return {
-    approved: namedId === candidateTaskId.toLowerCase(),
-    resolvedTaskId: namedId,
-  };
-}
 
 const TASK_STATES_FOR_IDENTIFIED_TASK = ["doing", "blocked", "ready"] as const;
 
@@ -195,7 +148,6 @@ function buildAssessment(
       failedRunId: "",
       failedRunDir: "",
       failureKind: null,
-      escalation: null,
     };
   }
 
@@ -209,7 +161,6 @@ function buildAssessment(
       failedRunId: source.runId,
       failedRunDir: source.runDir,
       failureKind: null,
-      escalation: null,
     };
   }
 
@@ -221,7 +172,6 @@ function buildAssessment(
       failedRunId: source.runId,
       failedRunDir: source.runDir,
       failureKind: null,
-      escalation: null,
     };
   }
 
@@ -229,18 +179,14 @@ function buildAssessment(
   const task = candidateId ? findTaskById(projectDir, candidateId) : null;
 
   if (!task) {
-    const escalation: DecomposerEscalation | null = candidateId
-      ? { kind: "task-not-found", candidateTaskId: candidateId }
-      : null;
     return {
       shouldDecompose: false,
       reason: candidateId
-        ? `Builder task ${candidateId} is no longer in an active task state`
+        ? `Builder task ${candidateId} is no longer active; its current task state supersedes this failure`
         : "Builder run has no claimed task artifact to rescope",
       failedRunId: source.runId,
       failedRunDir: source.runDir,
       failureKind,
-      escalation,
     };
   }
 
@@ -252,7 +198,6 @@ function buildAssessment(
     taskId: task.id,
     taskPath: task.path,
     failureKind,
-    escalation: null,
   };
 }
 
@@ -266,132 +211,83 @@ const assessFailure = typedCodeStep<DecomposerAssessment>({
       "failedRunId",
       "failedRunDir",
       "failureKind",
-      "escalation",
       "shouldDecompose",
     ]),
   run: ({ projectDir, trigger }) =>
     buildAssessment(projectDir, trigger.event, trigger.payload),
 });
 
-const escalationGate = labeledPredicate(
-  "no-escalation-needed",
-  (ctx) => assessFailure.outputRequired(ctx).escalation !== null,
-);
-
-const escalationSteps = askOwnerSteps({
-  idPrefix: "escalate-task-not-found",
-  // 15 minutes — short enough that an unreachable operator does not block the
-  // queue, long enough that a human checking notifications has a fair window.
-  awaitTimeoutMs: 15 * 60 * 1000,
-  input: (ctx) => {
-    const a = assessFailure.outputRequired(ctx);
-    if (!a.escalation) {
-      throw new Error(
-        "decomposer escalation: ask step ran without an escalation on the assessment — gate predicate is broken",
-      );
-    }
-    const candidate = a.escalation.candidateTaskId;
-    return {
-      context:
-        `Decomposer assessing builder run ${a.failedRunId}. The failure was ` +
-        `${a.failureKind}, but the candidate task "${candidate}" recorded by ` +
-        "the failed builder is no longer in any active state " +
-        "(doing/, blocked/, ready/). It may have been moved to done/ or dropped/ " +
-        "after the failure but before recovery dispatch.",
-      question:
-        `Should we decompose "${candidate}" anyway, or drop this trigger?`,
-      reason:
-        "Only the operator knows whether the task was intentionally moved out of " +
-        "the active queue. Decomposing a task the operator already resolved would " +
-        "create stale subtasks; dropping a task with a real execution failure " +
-        "reason loses the failure signal.",
-      proposedAnswers: [`decompose ${candidate}`, "drop trigger"],
-      source: "decomposer",
-      taskId: candidate,
-    };
-  },
-});
-
-const escalateAsk = { ...escalationSteps.ask, when: escalationGate };
-const escalateWait = { ...escalationSteps.wait, when: escalationGate };
-const escalateConsume = { ...escalationSteps.consume, when: escalationGate };
-
-const applyEscalationOutcome = typedCodeStep<EscalationResolution>({
-  id: "apply-escalation-outcome",
-  type: "code",
-  exposeOutputToAgent: true,
-  validate: (raw): EscalationResolution => {
-    const obj = expectStructuredOutput<{ kind: EscalationResolution["kind"] }>(raw, ["kind"]);
-    const validKinds = ["no-escalation", "approved", "skipped"] as const;
-    if (!validKinds.includes(obj.kind)) {
-      throw new Error(`unknown EscalationResolution kind "${String(obj.kind)}"`);
-    }
-    return raw as EscalationResolution;
-  },
-  run: (ctx): EscalationResolution => {
-    const assessment = assessFailure.outputRequired(ctx);
-    if (!assessment.escalation) {
-      return { kind: "no-escalation" };
-    }
-    const outcome = escalationSteps.consume.outputRequired(ctx);
-    const candidate = assessment.escalation.candidateTaskId;
-    switch (outcome.kind) {
-      case "answered": {
-        const { approved, resolvedTaskId } = parseOperatorApproval(
-          outcome.answer,
-          candidate,
-        );
-        if (!approved) {
-          return {
-            kind: "skipped",
-            reason: `operator answered "${outcome.answer}" — not the recognized "decompose ${candidate}" approval`,
-          };
-        }
-        return {
-          kind: "approved",
-          taskId: resolvedTaskId,
-          operatorAnswer: outcome.answer,
-          banner: outcome.banner,
-        };
-      }
-      case "dismissed":
-        return {
-          kind: "skipped",
-          reason: `operator dismissed the question${outcome.reason ? `: ${outcome.reason}` : ""}`,
-        };
-      case "expired":
-        return {
-          kind: "skipped",
-          reason: `question expired with default resolution "${outcome.defaultResolution}"`,
-        };
-      case "timeout":
-        return {
-          kind: "skipped",
-          reason: `await deadline (${outcome.awaitTimeoutMs}ms) elapsed without an operator answer`,
-        };
-      default: {
-        const _exhaustive: never = outcome;
-        return _exhaustive;
-      }
-    }
-  },
-});
-
 const shouldRunDecompose = labeledPredicate(
   "no-decompose-target",
-  (ctx) => {
-    if (assessFailure.outputRequired(ctx).shouldDecompose) return true;
-    return applyEscalationOutcome.outputRequired(ctx).kind === "approved";
-  },
+  (ctx) => assessFailure.outputRequired(ctx).shouldDecompose,
 );
 
 function decompositionTargetTaskId(ctx: Parameters<typeof assessFailure.outputRequired>[0]): string {
   const assessment = assessFailure.outputRequired(ctx);
   if (assessment.shouldDecompose) return assessment.taskId;
-  const escalation = applyEscalationOutcome.outputRequired(ctx);
-  if (escalation.kind === "approved") return escalation.taskId;
-  throw new Error("decompose step ran without an approved task target");
+  throw new Error("decompose step ran without an active task target");
 }
+
+const writeCommitMessage = typedCodeStep<{ written: true }>({
+  id: "write-commit-message",
+  type: "code",
+  when: stepSucceeded("decompose"),
+  validate: (raw) => expectStructuredOutput<{ written: true }>(raw, ["written"]),
+  run: (ctx) => {
+    writeFileSync(
+      join(ctx.workflow.runDirPath, "commit-message.txt"),
+      `Decompose ${decompositionTargetTaskId(ctx)} after exhausted builder repair\n`,
+      "utf-8",
+    );
+    return { written: true };
+  },
+});
+
+const applyDecomposition = typedCodeStep<AppliedDecomposition>({
+  id: "apply-decomposition",
+  type: "code",
+  when: stepSucceeded("write-commit-message"),
+  validate: (raw) =>
+    expectStructuredOutput<AppliedDecomposition>(raw, ["taskId", "subtaskIds"]),
+  run: (ctx) => {
+    const assessment = assessFailure.outputRequired(ctx);
+    return applyDecompositionPlan({
+      projectDir: ctx.projectDir,
+      taskId: decompositionTargetTaskId(ctx),
+      failedRunId: assessment.failedRunId,
+      plan: decodeDecompositionPlan(ctx.stepOutputs.decompose),
+    });
+  },
+});
+
+const validateDecomposition = typedCodeStep<{
+  taskQueue: string;
+  scratchArtifacts: string;
+  commitMessage: string;
+  commitStage: string;
+}>({
+  id: "validate-decomposition",
+  type: "code",
+  when: stepSucceeded("apply-decomposition"),
+  validate: (raw) =>
+    expectStructuredOutput(raw, [
+      "taskQueue",
+      "scratchArtifacts",
+      "commitMessage",
+      "commitStage",
+    ]),
+  run: async (ctx) => ({
+    taskQueue: await runCheck("pnpm run validate-tasks", ctx.projectDir, {
+      signal: ctx.signal,
+    }),
+    scratchArtifacts: checkNoScratchArtifacts(ctx.projectDir),
+    commitMessage: checkCommitMessageExists(
+      ctx.workflow.runDirPath,
+      ctx.projectDir,
+    ),
+    commitStage: checkCommitStageable(ctx.projectDir),
+  }),
+});
 
 const decomposerWorkflow: WorkflowDefinitionInput = {
   name: "decomposer",
@@ -420,10 +316,6 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
         resetWorktreeForRecovery({ projectDir, workflowName: "decomposer" }),
     },
     assessFailure,
-    escalateAsk,
-    escalateWait,
-    escalateConsume,
-    applyEscalationOutcome,
     {
       id: "decompose",
       type: "agent",
@@ -432,50 +324,21 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
       harness: AUTONOMY_AGENT_HARNESS,
       tier: AUTONOMY_AGENT_DEFAULTS.tier,
       effort: agent.effort,
-      disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
+      allowedTools: ["Read", "LS", "Grep", "Glob"],
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
+      maxTurns: 8,
+      outputFormat: "json",
+      outputSchema: decompositionPlanOutputSchema,
+      validate: decodeDecompositionPlan,
       when: shouldRunDecompose,
-      repairLoop: {
-        checks: [
-          {
-            id: "decomposition-applied",
-            type: "code" as const,
-            run: (ctx) =>
-              checkDecompositionApplied(
-                ctx.projectDir,
-                decompositionTargetTaskId(ctx),
-              ),
-          },
-          {
-            id: "task-queue-valid",
-            type: "code" as const,
-            run: (ctx) =>
-              runCheck("pnpm run validate-tasks", ctx.projectDir, {
-                signal: ctx.signal,
-              }),
-          },
-          {
-            id: "no-scratch-artifacts",
-            type: "code" as const,
-            run: (ctx) => checkNoScratchArtifacts(ctx.projectDir),
-          },
-          {
-            id: "commit-message-exists",
-            type: "code" as const,
-            run: (ctx) => checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir),
-          },
-          {
-            id: "commit-stageable",
-            type: "code" as const,
-            run: (ctx) => checkCommitStageable(ctx.projectDir),
-          },
-        ],
-      },
     },
+    writeCommitMessage,
+    applyDecomposition,
+    validateDecomposition,
     {
       id: "commit",
       type: "code",
-      when: stepSucceeded("decompose"),
+      when: stepSucceeded("validate-decomposition"),
       run: ({ projectDir, workflow }) =>
         commitWorkflowChanges(projectDir, workflow.runDirPath),
     },

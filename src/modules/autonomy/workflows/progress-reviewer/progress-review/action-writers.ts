@@ -4,6 +4,10 @@ import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import {
+  normalizeGeneratedTaskScalar,
+  renderGeneratedTaskProse,
+} from "#modules/autonomy/generated-task-text.js";
+import {
   type ClassifiedWorkflowGeneratedTask,
   classifyWorkflowGeneratedTask,
 } from "#modules/autonomy/workflow-generated-task-class.js";
@@ -145,51 +149,8 @@ function findExistingInboxEntry(
   return null;
 }
 
-function isControlCharacter(code: number): boolean {
-  return code <= 0x1f || code === 0x7f;
-}
-
-function replaceCharacters(
-  value: string,
-  shouldReplace: (code: number) => boolean,
-  replacement: string,
-): string {
-  let normalized = "";
-  for (const char of value) {
-    normalized += shouldReplace(char.charCodeAt(0)) ? replacement : char;
-  }
-  return normalized;
-}
-
 function normalizeFrontMatterScalar(field: string, value: string): string {
-  const normalized = replaceCharacters(value, isControlCharacter, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!normalized) {
-    throw new Error(`progress-review follow-up task ${field} is empty after normalization`);
-  }
-  return normalized;
-}
-
-const BODY_LINE_TERMINATOR_PATTERN = /\r\n?|[\n\u2028\u2029]/g;
-
-function normalizeBodyProse(value: string): string {
-  const normalizedLineEndings = value.replace(BODY_LINE_TERMINATOR_PATTERN, "\n").trim();
-  return replaceCharacters(
-    normalizedLineEndings,
-    (code) => isControlCharacter(code) && code !== 0x0a,
-    " ",
-  )
-    .trim();
-}
-
-function renderIndentedProse(value: string): string {
-  const normalized = normalizeBodyProse(value);
-  if (!normalized) return "    (empty)";
-  return normalized
-    .split("\n")
-    .map((line) => `    ${line.trimEnd()}`)
-    .join("\n");
+  return normalizeGeneratedTaskScalar("progress-review follow-up task", field, value);
 }
 
 function normalizeListScalar(field: string, value: string): string {
@@ -220,7 +181,7 @@ function buildTaskBody(args: {
     "",
     "## Problem",
     "",
-    renderIndentedProse(args.task.summary),
+    renderGeneratedTaskProse(args.task.summary),
     "",
     "## Desired Outcome",
     "",
@@ -243,7 +204,7 @@ function buildTaskBody(args: {
     `review verdict: ${args.review.verdict}`,
     "review summary:",
     "",
-    renderIndentedProse(args.review.summary),
+    renderGeneratedTaskProse(args.review.summary),
     "",
     "Evidence ids:",
     "",
@@ -265,7 +226,7 @@ function buildTaskBody(args: {
     "",
     "- Review-provided acceptance evidence:",
     "",
-    renderIndentedProse(args.task.acceptanceEvidence),
+    renderGeneratedTaskProse(args.task.acceptanceEvidence),
     "",
   ].join("\n");
 }
