@@ -133,10 +133,11 @@ function gitDiffAgainstHead(workspaceDir: string): string {
   }
 }
 
-function repairFailureSignature(failures: RepairCheckResult[]): string {
+function repairFailureIdentity(failures: RepairCheckResult[]): string {
   return failures
-    .map((failure) => `${failure.id}\n${failure.output.trim()}`)
-    .join("\n---\n");
+    .map((failure) => failure.id)
+    .sort()
+    .join("\0");
 }
 
 function repairProgressSnapshot(
@@ -146,7 +147,7 @@ function repairProgressSnapshot(
   const status = getRepoWorktreeStatus(workspaceDir);
   const diff = status.available ? gitDiffAgainstHead(workspaceDir) : "";
   const hash = createHash("sha256");
-  hash.update(repairFailureSignature(failures));
+  hash.update(repairFailureIdentity(failures));
   hash.update("\0");
   hash.update(status.headSha);
   hash.update("\0");
