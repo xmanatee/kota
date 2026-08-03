@@ -286,14 +286,16 @@ export function deadLetterDuplicateFingerprint(item: DeadLetterItem): string {
   });
 }
 
-function deadLetterRecordFingerprint(item: DeadLetterItem): string {
+function deadLetterRecordFingerprint(item: DeadLetterItem): string | null {
+  const redrive = deadLetterRedriveFingerprint(item);
+  if (redrive === null) return null;
   return JSON.stringify({
     incident: deadLetterDuplicateFingerprint(item),
-    redrive: deadLetterRedriveFingerprint(item),
+    redrive,
   });
 }
 
-function deadLetterRedriveFingerprint(item: DeadLetterItem): object {
+function deadLetterRedriveFingerprint(item: DeadLetterItem): object | null {
   switch (item.redrive.kind) {
     case "workflow": {
       const { source } = item.redrive;
@@ -328,7 +330,7 @@ function deadLetterRedriveFingerprint(item: DeadLetterItem): object {
     case "event":
       return { kind: item.redrive.source.kind, eventId: item.redrive.source.eventId };
     case "none":
-      return { kind: item.redrive.kind, itemId: item.id };
+      return null;
   }
 }
 
@@ -413,11 +415,14 @@ export class DeadLetterQueueStore {
       ),
     };
     const snapshot = this.readSnapshot();
-    const duplicateIndex = snapshot.items.findIndex(
-      (existing) =>
-        existing.status === "open" &&
-        deadLetterRecordFingerprint(existing) === deadLetterRecordFingerprint(item),
-    );
+    const recordFingerprint = deadLetterRecordFingerprint(item);
+    const duplicateIndex = recordFingerprint === null
+      ? -1
+      : snapshot.items.findIndex(
+          (existing) =>
+            existing.status === "open" &&
+            deadLetterRecordFingerprint(existing) === recordFingerprint,
+        );
     if (duplicateIndex !== -1) {
       const existing = snapshot.items[duplicateIndex]!;
       const next: DeadLetterItem = {
