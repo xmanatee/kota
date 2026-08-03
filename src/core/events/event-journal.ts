@@ -1,4 +1,13 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import {
+  appendFileSync,
+  closeSync,
+  existsSync,
+  fstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readSync,
+} from "node:fs";
 import { join } from "node:path";
 import type { EvidencePrunedReference } from "#core/evidence/policy.js";
 import type { BusEnvelope, EventBus } from "./event-bus.js";
@@ -27,6 +36,7 @@ export { eventEnvelopeToBusEnvelope } from "./event-journal-projection.js";
 export type * from "./event-journal-types.js";
 
 const DEFAULT_JOURNAL_FILE = "journal.jsonl";
+const REVERSE_READ_CHUNK_BYTES = 64 * 1024;
 
 export class EventJournal {
   private readonly filePath: string;
@@ -70,6 +80,13 @@ export class EventJournal {
   }
 
   query(query: EventJournalQuery = {}): EventEnvelope[] {
+    if (query.after === undefined && query.limit !== undefined && query.limit > 0) {
+      const nowMs = this.now().getTime();
+      return this.readFromEnd(
+        query.limit,
+        (event) => envelopeAvailableForQuery(event, query, nowMs),
+      );
+    }
     let events = this.readEventsAfter(query.after);
     const nowMs = this.now().getTime();
     events = events.filter((event) => envelopeAvailableForQuery(event, query, nowMs));
@@ -123,6 +140,56 @@ export class EventJournal {
     return cursorIndex >= 0 ? events.slice(cursorIndex + 1) : [];
   }
 
+  private readFromEnd(
+    limit: number,
+    include: (event: EventEnvelope) => boolean,
+  ): EventEnvelope[] {
+    if (!existsSync(this.filePath)) return [];
+    const descriptor = openSync(this.filePath, "r");
+    try {
+      let position = fstatSync(descriptor).size;
+      let leadingLine = Buffer.alloc(0);
+      const matches: EventEnvelope[] = [];
+
+      while (position > 0 && matches.length < limit) {
+        const length = Math.min(REVERSE_READ_CHUNK_BYTES, position);
+        position -= length;
+        const chunk = Buffer.allocUnsafe(length);
+        const bytesRead = readSync(descriptor, chunk, 0, length, position);
+        if (bytesRead !== length) {
+          throw new Error(`${this.filePath}: changed while reading recent events`);
+        }
+        const data = Buffer.concat([chunk, leadingLine]);
+        let lineEnd = data.length;
+        for (let index = data.length - 1; index >= 0; index -= 1) {
+          if (data[index] !== 0x0a) continue;
+          const line = data.subarray(index + 1, lineEnd).toString("utf8").trim();
+          lineEnd = index;
+          if (line.length === 0) continue;
+          const event = parseEventJournalLine(
+            line,
+            this.filePath,
+            `byte ${position + index + 1}`,
+          );
+          if (include(event)) matches.push(event);
+          if (matches.length === limit) break;
+        }
+        leadingLine = data.subarray(0, lineEnd);
+      }
+
+      if (position === 0 && matches.length < limit && leadingLine.length > 0) {
+        const line = leadingLine.toString("utf8").trim();
+        if (line.length > 0) {
+          const event = parseEventJournalLine(line, this.filePath, "byte 0");
+          if (include(event)) matches.push(event);
+        }
+      }
+      return matches.reverse();
+    } finally {
+      closeSync(descriptor);
+    }
+  }
+
   private readAll(): EventEnvelope[] {
     if (!existsSync(this.filePath)) return [];
     const content = readFileSync(this.filePath, "utf-8");
@@ -131,19 +198,25 @@ export class EventJournal {
     for (let index = 0; index < lines.length; index += 1) {
       const line = lines[index]!.trim();
       if (line.length === 0) continue;
-      let parsed: EventEnvelope;
-      try {
-        parsed = JSON.parse(line) as EventEnvelope;
-      } catch (error) {
-        throw new Error(
-          `${this.filePath}:${index + 1}: malformed event journal entry: ${String(error)}`,
-        );
-      }
-      assertEventEnvelope(parsed, this.filePath, index + 1);
-      events.push(parsed);
+      events.push(parseEventJournalLine(line, this.filePath, index + 1));
     }
     return events;
   }
+}
+
+function parseEventJournalLine(
+  line: string,
+  path: string,
+  location: number | string,
+): EventEnvelope {
+  let parsed: EventEnvelope;
+  try {
+    parsed = JSON.parse(line) as EventEnvelope;
+  } catch (error) {
+    throw new Error(`${path}:${location}: malformed event journal entry: ${String(error)}`);
+  }
+  assertEventEnvelope(parsed, path, location);
+  return parsed;
 }
 
 export function installEventJournal(

@@ -321,6 +321,26 @@ describe("EventJournal", () => {
     });
   }, 20_000);
 
+  it("answers bounded recent queries without scanning unrelated history", () => {
+    const journal = new EventJournal(trackTempDir());
+    writeFileSync(journal.getPath(), "malformed historical entry\n", "utf8");
+    journal.appendFromBusEnvelope({
+      type: "recent.first",
+      schemaRef: null,
+      payload: { value: 1 },
+    });
+    journal.appendFromBusEnvelope({
+      type: "recent.second",
+      schemaRef: null,
+      payload: { value: 2 },
+    });
+
+    expect(journal.query({ limit: 1 })).toMatchObject([
+      { event: { name: "recent.second" } },
+    ]);
+    expect(() => journal.query()).toThrow(/malformed event journal entry/);
+  });
+
   it("excludes expired retained entries from queries", () => {
     const dir = trackTempDir();
     let now = new Date("2026-06-05T10:00:00.000Z");

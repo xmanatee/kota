@@ -3,7 +3,7 @@ import type { EventEnvelope } from "./event-journal-types.js";
 export function assertEventEnvelope(
   envelope: EventEnvelope,
   path: string,
-  lineNumber: number,
+  location: number | string,
 ): void {
   if (
     typeof envelope.id !== "string" ||
@@ -21,6 +21,6 @@ export function assertEventEnvelope(
     envelope.payload === null ||
     (envelope.payload.kind !== "inline" && envelope.payload.kind !== "pointer")
   ) {
-    throw new Error(`${path}:${lineNumber}: malformed event journal envelope`);
+    throw new Error(`${path}:${location}: malformed event journal envelope`);
   }
 }
