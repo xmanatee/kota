@@ -6,7 +6,7 @@ priority: p1
 area: autonomy
 summary: Fix the local cause behind builder's persistent consecutive failure signal (step build error 94bd218e1875).
 created_at: 2026-08-03T10:25:31.073Z
-updated_at: 2026-08-03T14:42:40.617Z
+updated_at: 2026-08-03T15:32:16.757Z
 task_class: Meta
 ---
 
@@ -19,7 +19,7 @@ signal is considered local and code-actionable.
 
 Pattern fingerprint: `workflow-failure:consecutive-failures:builder:step-error:919bc68a7c8d`
 Root-cause fingerprint: `workflow-failure-root:builder:6dca5b5d40ff`
-Evidence fingerprint: `ed390dc4b42a777c1fa5ad61a9849bd4580f253628185e73ccf6d704e5250cfe`
+Evidence fingerprint: `d166f4c5ef387b0a8ed1436cbc29c0d2238e9355104966f81520c586075b361a`
 
 ## Failure Evidence
 
@@ -27,10 +27,11 @@ Evidence fingerprint: `ed390dc4b42a777c1fa5ad61a9849bd4580f253628185e73ccf6d704e
 - Workflow: builder
 - Failure class: step-error:build:94bd218e1875
 - Signal: step build error 94bd218e1875
-- Run ids: 2026-08-03T09-28-03-535Z-builder-b67ca0, 2026-08-03T09-59-48-823Z-builder-3nnf9l, 2026-08-03T09-59-48-824Z-builder-k5abu2, 2026-08-03T10-26-13-761Z-builder-1fusa7, 2026-08-03T10-26-13-762Z-builder-inpqu3, 2026-08-03T11-14-38-737Z-builder-49mwvu, 2026-08-03T11-27-25-515Z-builder-gqpenr, 2026-08-03T11-27-25-516Z-builder-s4o6v0, 2026-08-03T12-08-31-093Z-builder-369i7m, 2026-08-03T13-20-05-894Z-builder-ceqy9p, 2026-08-03T14-32-25-880Z-builder-jc9agr
-- Window: 2026-08-03T09:47:24.356Z to 2026-08-03T14:41:58.710Z
-- Actionable reason: builder has 11 consecutive failed completed runs with the same owned failure class (step build error 94bd218e1875).
+- Run ids: 2026-08-03T09-28-03-535Z-builder-b67ca0, 2026-08-03T09-59-48-823Z-builder-3nnf9l, 2026-08-03T09-59-48-824Z-builder-k5abu2, 2026-08-03T10-26-13-761Z-builder-1fusa7, 2026-08-03T10-26-13-762Z-builder-inpqu3, 2026-08-03T11-14-38-737Z-builder-49mwvu, 2026-08-03T11-27-25-515Z-builder-gqpenr, 2026-08-03T11-27-25-516Z-builder-s4o6v0, 2026-08-03T12-08-31-093Z-builder-369i7m, 2026-08-03T13-20-05-894Z-builder-ceqy9p, 2026-08-03T14-32-25-880Z-builder-jc9agr, 2026-08-03T14-32-25-880Z-builder-1yp7jy
+- Window: 2026-08-03T09:47:24.356Z to 2026-08-03T14:53:41.958Z
+- Actionable reason: builder has 12 consecutive failed completed runs with the same owned failure class (step build error 94bd218e1875).
 
+- run 2026-08-03T14-32-25-880Z-builder-1yp7jy failed at step build: Repair loop for step "build" made no progress after <n> consecutive attempts. Still failing: success-criteria-declared, commit-stageable
 - run 2026-08-03T14-32-25-880Z-builder-jc9agr failed at step build: Repair loop for step "build" made no progress after <n> consecutive attempts. Still failing: success-criteria-declared, commit-stageable
 - run 2026-08-03T13-20-05-894Z-builder-ceqy9p failed at step build: Repair loop for step "build" made no progress after <n> consecutive attempts. Still failing: success-criteria-declared, commit-stageable
 - run 2026-08-03T12-08-31-093Z-builder-369i7m failed at step build: Repair loop for step "build" made no progress after <n> consecutive attempts. Still failing: success-criteria-declared, commit-stageable
@@ -97,4 +98,4 @@ into deterministic, reviewable repair work.
   the task id without cost fields.
 
 <!-- workflow-failure-pattern-fingerprint: workflow-failure:consecutive-failures:builder:step-error:919bc68a7c8d -->
-<!-- workflow-failure-evidence-fingerprint: ed390dc4b42a777c1fa5ad61a9849bd4580f253628185e73ccf6d704e5250cfe -->
+<!-- workflow-failure-evidence-fingerprint: d166f4c5ef387b0a8ed1436cbc29c0d2238e9355104966f81520c586075b361a -->
