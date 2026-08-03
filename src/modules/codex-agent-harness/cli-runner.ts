@@ -29,8 +29,6 @@ type CodexCliEvent = {
   item?: {
     type?: string;
     text?: string;
-    aggregated_output?: string;
-    exit_code?: number;
   };
   message?: string;
 };
@@ -190,32 +188,6 @@ async function runCodexCliProcess(
           args.onMessage,
           withSession({ type: "text", text }, sessionId),
         );
-      } else if (
-        event.type === "item.completed" &&
-        event.item?.type === "command_execution" &&
-        event.item.exit_code !== undefined &&
-        event.item.exit_code !== 0 &&
-        typeof event.item.aggregated_output === "string" &&
-        isNativeCliSandboxBootstrapError(event.item.aggregated_output)
-      ) {
-        cliFailure = {
-          detail: event.item.aggregated_output.trim(),
-          subtype: "native_cli_sandbox_error",
-        };
-        await emitCodexMessage(
-          args.onMessage,
-          withSession(
-            {
-              type: "result",
-              isError: true,
-              subtype: cliFailure.subtype,
-              text: cliFailure.detail,
-            },
-            sessionId,
-          ),
-        );
-        terminateChild();
-        return;
       } else if (event.type === "turn.completed") {
         turns += 1;
         inputTokens = event.usage?.input_tokens;

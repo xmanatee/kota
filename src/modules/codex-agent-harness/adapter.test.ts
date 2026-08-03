@@ -376,14 +376,8 @@ describe("codexAgentHarness", () => {
     });
   });
 
-  it("fails immediately when a command reports nested sandbox bootstrap failure", async () => {
+  it("lets Codex recover from a sandbox failure in an invoked command", async () => {
     const process = mockCodexProcess({ autoClose: false });
-    const terminated = new Promise<void>((resolve) => {
-      process.child.kill.mockImplementationOnce(() => {
-        resolve();
-        return true;
-      });
-    });
 
     const run = codexAgentHarness.run({
       prompt: "x",
@@ -399,17 +393,24 @@ describe("codexAgentHarness", () => {
         exit_code: 71,
       },
     })}\n`);
-    await terminated;
+    process.child.stdout.write(`${JSON.stringify({
+      type: "item.completed",
+      item: { type: "agent_message", text: "recovered" },
+    })}\n`);
+    process.child.stdout.write(`${JSON.stringify({
+      type: "turn.completed",
+      usage: { input_tokens: 12, output_tokens: 3 },
+    })}\n`);
 
     process.child.stdout.end();
     process.child.stderr.end();
-    process.child.emit("close", null, "SIGTERM");
+    process.child.emit("close", 0, null);
 
-    expect(process.child.kill).toHaveBeenCalledWith("SIGTERM");
+    expect(process.child.kill).not.toHaveBeenCalled();
     await expect(run).resolves.toMatchObject({
-      text: "sandbox-exec: sandbox_apply: Operation not permitted",
-      isError: true,
-      subtype: "native_cli_sandbox_error",
+      text: "recovered",
+      isError: false,
+      turns: 1,
     });
   });
 
