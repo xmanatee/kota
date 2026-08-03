@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { EventEnvelope } from "#core/events/event-journal.js";
+import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowBatchFlushPayload } from "#core/workflow/trigger-types.js";
 import {
   createBatchDeadLetter,
@@ -10,9 +11,29 @@ import {
   createEventEnvelopeDeadLetter,
   createWorkflowDispatchDeadLetter,
   DeadLetterQueueStore,
+  deadLetterDuplicateFingerprint,
 } from "./dead-letter-queue.js";
 
 const NOW = "2026-06-06T12:00:00.000Z";
+
+function failedRun(id: string): WorkflowRunMetadata {
+  return {
+    id,
+    workflow: "builder",
+    definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+    trigger: {
+      event: "autonomy.queue.available",
+      schemaRef: null,
+      payload: {},
+    },
+    startedAt: NOW,
+    completedAt: NOW,
+    status: "failed",
+    durationMs: 1,
+    runDir: `.kota/runs/${id}`,
+    steps: [],
+  };
+}
 
 describe("DeadLetterQueueStore", () => {
   let dir: string;
@@ -88,6 +109,64 @@ describe("DeadLetterQueueStore", () => {
     expect(store.list({ scopeId: "scope-a" })).toHaveLength(1);
     expect(store.list({ workflowName: "email-ingest" })).toHaveLength(1);
     expect(store.list({ type: "workflow-dispatch", status: "open" })).toHaveLength(2);
+  });
+
+  it("keeps separate redrive records for separate failed runs in one incident", () => {
+    const trigger = {
+      event: "autonomy.queue.available",
+      schemaRef: null,
+      payload: {},
+    };
+    const first = createWorkflowDispatchDeadLetter({
+      store,
+      scopeId: "scope-a",
+      workflowName: "builder",
+      trigger,
+      reason: "repair loop exhausted",
+      errorClass: "execution",
+      failedRun: failedRun("run-builder-a"),
+    });
+    const second = createWorkflowDispatchDeadLetter({
+      store,
+      scopeId: "scope-a",
+      workflowName: "builder",
+      trigger,
+      reason: "repair loop exhausted",
+      errorClass: "execution",
+      failedRun: failedRun("run-builder-b"),
+    });
+
+    expect(second.id).not.toBe(first.id);
+    expect(store.list({ workflowName: "builder", status: "open" })).toHaveLength(2);
+    expect(deadLetterDuplicateFingerprint(second)).toBe(
+      deadLetterDuplicateFingerprint(first),
+    );
+    expect(second.source).toMatchObject({ failedRunId: "run-builder-b" });
+    expect(second.redrive).toMatchObject({
+      source: { kind: "run-trigger", runId: "run-builder-b" },
+    });
+  });
+
+  it("coalesces repeated records for the same failed run", () => {
+    const input = {
+      store,
+      scopeId: "scope-a",
+      workflowName: "builder",
+      trigger: {
+        event: "autonomy.queue.available",
+        schemaRef: null,
+        payload: {},
+      },
+      reason: "repair loop exhausted",
+      errorClass: "execution" as const,
+      failedRun: failedRun("run-builder-a"),
+    };
+    const first = createWorkflowDispatchDeadLetter(input);
+    const repeated = createWorkflowDispatchDeadLetter(input);
+
+    expect(repeated.id).toBe(first.id);
+    expect(repeated.failure.retryCount).toBe(2);
+    expect(store.list({ workflowName: "builder", status: "open" })).toHaveLength(1);
   });
 
   it("uses evidence policy retention for open and closed DLQ items", () => {

@@ -286,6 +286,52 @@ export function deadLetterDuplicateFingerprint(item: DeadLetterItem): string {
   });
 }
 
+function deadLetterRecordFingerprint(item: DeadLetterItem): string {
+  return JSON.stringify({
+    incident: deadLetterDuplicateFingerprint(item),
+    redrive: deadLetterRedriveFingerprint(item),
+  });
+}
+
+function deadLetterRedriveFingerprint(item: DeadLetterItem): object {
+  switch (item.redrive.kind) {
+    case "workflow": {
+      const { source } = item.redrive;
+      if (source.kind === "run-trigger") {
+        return {
+          kind: source.kind,
+          workflowName: item.redrive.workflowName,
+          runId: source.runId,
+        };
+      }
+      if (source.kind === "event-journal") {
+        return {
+          kind: source.kind,
+          workflowName: item.redrive.workflowName,
+          eventId: source.eventId,
+        };
+      }
+      if (source.kind === "resume-step") {
+        return {
+          kind: source.kind,
+          workflowName: item.redrive.workflowName,
+          runId: source.runId,
+          stepId: source.stepId,
+        };
+      }
+      return {
+        kind: source.kind,
+        workflowName: item.redrive.workflowName,
+        eventIds: source.payload.inputEvents.map((event) => event.eventId).sort(),
+      };
+    }
+    case "event":
+      return { kind: item.redrive.source.kind, eventId: item.redrive.source.eventId };
+    case "none":
+      return { kind: item.redrive.kind, itemId: item.id };
+  }
+}
+
 export class DeadLetterQueueStore {
   private readonly filePath: string;
 
@@ -370,7 +416,7 @@ export class DeadLetterQueueStore {
     const duplicateIndex = snapshot.items.findIndex(
       (existing) =>
         existing.status === "open" &&
-        deadLetterDuplicateFingerprint(existing) === deadLetterDuplicateFingerprint(item),
+        deadLetterRecordFingerprint(existing) === deadLetterRecordFingerprint(item),
     );
     if (duplicateIndex !== -1) {
       const existing = snapshot.items[duplicateIndex]!;
