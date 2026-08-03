@@ -56,6 +56,7 @@ export type AssignBuilderRuntimeResourcesInput = {
   runId: string;
   workspaceDir: string;
   runDirPath: string;
+  evidenceRunId?: string;
 };
 
 export type BuilderRuntimeResourceCleanupResult = {
@@ -80,7 +81,12 @@ function writeProfileArtifact(
 }
 
 function builderAgentRunDir(input: AssignBuilderRuntimeResourcesInput): string {
-  return join(input.workspaceDir, ".kota", "builder-evidence", input.runId);
+  return join(
+    input.workspaceDir,
+    ".kota",
+    "builder-evidence",
+    input.evidenceRunId ?? input.runId,
+  );
 }
 
 export async function assignBuilderRuntimeResources(

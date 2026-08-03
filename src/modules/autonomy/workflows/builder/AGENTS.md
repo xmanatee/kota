@@ -24,6 +24,9 @@ The builder must declare concrete success criteria before implementation and ver
 
 `$KOTA_RUN_DIR` is the agent-writable `.kota/builder-evidence/` source, never the
 canonical workflow run store; the protocol files above are code-registered.
+Preserved-work continuations retain the original evidence directory and durable
+projection lineage while execution-scoped temp, port, and run metadata use the
+new continuation run.
 Put additional evidence under `$KOTA_RUN_ARTIFACT_DIR`; register its path and kind
 in `$KOTA_RUN_DIR/evidence-manifest.json`. Before task validation, the repair loop
 screens, bounds, projects to `.kota/runs/<run-id>/evidence/`, and exact-stages it.

@@ -19,6 +19,9 @@ const { releaseBuilderPortRange } = vi.hoisted(() => ({
 const { findRecoveryClaim } = vi.hoisted(() => ({
   findRecoveryClaim: vi.fn(),
 }));
+const { releaseTaskClaim } = vi.hoisted(() => ({
+  releaseTaskClaim: vi.fn(),
+}));
 
 vi.mock("#modules/git/worktree-lifecycle.js", () => ({
   inspectAutomationWorktree,
@@ -29,6 +32,7 @@ vi.mock("./runtime-resource-ports.js", () => ({ releaseBuilderPortRange }));
 vi.mock("#modules/autonomy/workflow-state-recovery-claims.js", () => ({
   findRecoveryClaim,
 }));
+vi.mock("#modules/autonomy/task-claims.js", () => ({ releaseTaskClaim }));
 
 import { finalizeBuilderTerminalWorktree } from "./terminal-worktree-finalizer.js";
 
@@ -187,6 +191,62 @@ describe("finalizeBuilderTerminalWorktree", () => {
       removed: false,
       uniqueCommits: ["abc123"],
       portLeaseReleased: true,
+      claimDisposition: "preserved",
+    });
+    expect(releaseTaskClaim).not.toHaveBeenCalled();
+  });
+
+  it("releases the claim after a clean terminal worktree is removed", async () => {
+    inspectAutomationWorktree.mockReturnValue({
+      branch: "kota/task-one",
+      headCommit: "abc123",
+      metadata: {
+        state: "active",
+        runtimeResources: { profileId: "task-one:builder-run" },
+      },
+      cleanup: { blockers: [] },
+    });
+    listAutomationWorktreeUniqueCommits.mockReturnValue({ commits: [] });
+    reconcileAutomationWorktrees.mockReturnValue({
+      items: [
+        {
+          taskId: "task-one",
+          runId: "builder-run",
+          removed: true,
+          blockers: [],
+        },
+      ],
+    });
+    releaseTaskClaim.mockReturnValue({
+      taskId: "task-one",
+      changed: true,
+      claim: null,
+      recoveryStatus: "released",
+      safeToRetry: true,
+      reason: null,
+    });
+    const input = finalizerInput("failed");
+
+    await finalizeBuilderTerminalWorktree(input);
+
+    expect(releaseTaskClaim).toHaveBeenCalledWith({
+      projectDir: input.projectDir,
+      taskId: "task-one",
+      runId: "builder-run",
+      workflowId: "builder",
+      evidence: "terminal builder run builder-run left no preserved worktree",
+    });
+    expect(
+      JSON.parse(
+        readFileSync(
+          join(input.projectDir, input.metadata.runDir, "terminal-worktree-finalizer.json"),
+          "utf8",
+        ),
+      ),
+    ).toMatchObject({
+      removed: true,
+      claimDisposition: "released",
+      recoveryAction: { kind: "none" },
     });
   });
 
@@ -208,6 +268,7 @@ describe("finalizeBuilderTerminalWorktree", () => {
         worktreeRunId: "builder-run",
       }),
     );
+    expect(releaseTaskClaim).not.toHaveBeenCalled();
   });
 
   it("preserves an ambiguous continuation without dispatching another", async () => {

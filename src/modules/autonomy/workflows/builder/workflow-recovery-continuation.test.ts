@@ -29,6 +29,10 @@ describe("builder preserved-work continuation", () => {
     const recovery = await import(
       "#modules/autonomy/workflow-state-recovery-claims.js"
     );
+    const preservedEvidence = await import("./preserved-evidence.js");
+    vi.mocked(
+      preservedEvidence.findPreservedBuilderEvidenceRunId,
+    ).mockReturnValue(worktreeRunId);
     vi.mocked(recovery.listRecoveryClaims).mockReturnValue([
       {
         claim: {
@@ -97,7 +101,7 @@ describe("builder preserved-work continuation", () => {
       stepMocks: { build: { turns: [], totalCostUsd: 0.01 } },
     }).run();
 
-    expect(result.status).toBe("success");
+    expect(result.status, result.error).toBe("success");
     expect(result.steps["claim-task"].output).toMatchObject({
       claimed: true,
       recoveryPath: "continued-preserved-claim",
@@ -106,6 +110,9 @@ describe("builder preserved-work continuation", () => {
       enabled: true,
       workspaceDir,
       worktreeRunId,
+      runtimeResources: {
+        agentRunDir: `${workspaceDir}/.kota/builder-evidence/${worktreeRunId}`,
+      },
     });
     expect(result.steps["merge-gate"].output).toMatchObject({
       status: "merged",
