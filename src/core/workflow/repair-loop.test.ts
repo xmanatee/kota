@@ -210,6 +210,9 @@ describe("runAgentRepairLoop", () => {
     expect(prompt.indexOf("Fix these issues now.")).toBeGreaterThan(
       prompt.indexOf("</untrusted-content>"),
     );
+    expect(prompt).toContain(
+      "Write a short commit message to `/tmp/run-dir/commit-message.txt`",
+    );
   });
 
   it("escapes repair-check output that tries to close the untrusted block", () => {

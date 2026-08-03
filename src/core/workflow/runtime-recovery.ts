@@ -156,7 +156,6 @@ function pauseDispatch(
   recoveryStatus: Exclude<ReturnType<typeof reconcileWorkflowRecovery>, { status: "none" }>,
 ): void {
   state.dispatchPaused = true;
-  state.wfQueue.setRuns([]);
   state.wfQueue.persist();
   writeDirtyRecoveryPauseSignal(state.projectDir, recoveryStatus);
   state.log(reason);

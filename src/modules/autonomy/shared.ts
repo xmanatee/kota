@@ -377,17 +377,11 @@ export function checkCommitMessageExists(runDirPath: string, projectDir?: string
   }
   const msgPath = join(runDirPath, "commit-message.txt");
   if (!existsSync(msgPath)) {
-    throw new Error(
-      `Missing commit-message.txt in the run directory (${runDirPath}). ` +
-        "Write a short commit message to <run-directory>/commit-message.txt before finishing.",
-    );
+    throw new Error(`Missing required workflow commit message: ${msgPath}`);
   }
   const content = readFileSync(msgPath, "utf8").trim();
   if (content.length === 0) {
-    throw new Error(
-      `commit-message.txt in the run directory is empty. ` +
-        "Write a meaningful commit message summarizing the change.",
-    );
+    throw new Error(`Workflow commit message is empty: ${msgPath}`);
   }
   return `OK: commit-message.txt present (${content.split("\n").length} line(s))`;
 }

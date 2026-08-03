@@ -24,6 +24,8 @@ and persisted run state.
   step that updates the workspace or runtime resources restarts the workflow;
   those execution-context outputs belong to the source run. Explicit step
   resume remains a separate operator-selected checkpoint operation.
+- Dirty recovery pauses dispatch and prepends recovery work without discarding
+  durable queued runs; a restart must preserve keyed redrives and pending work.
 - Hard step timeouts cap wall-clock runtime. Idle-progress timeouts cap gaps
   between trusted progress signals: code heartbeats or typed agent messages.
 - Agent steps should receive a thin runtime envelope. Expose prior step output
