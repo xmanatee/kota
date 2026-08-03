@@ -1,13 +1,13 @@
 ---
 id: task-repair-improver-commit-message-artifact-lifecycle
 title: Repair improver commit-message artifact lifecycle
-status: ready
+status: dropped
 priority: p1
 area: autonomy
 task_class: Meta
 summary: Find and fix why improver repeatedly reaches its commit repair gate without producing the required run-directory commit-message artifact.
 created_at: 2026-08-03T14:21:53.396Z
-updated_at: 2026-08-03T14:21:53.396Z
+updated_at: 2026-08-03T17:10:23.344Z
 ---
 
 ## Problem
@@ -52,3 +52,9 @@ This recovery task unblocks the Product or Safety intent preserved by `task-repa
 - Focused improver and repair-loop test output covering changed and non-committing outcomes.
 - Before-and-after run artifacts showing the cited failure mode and a fresh successful terminal path.
 - The autonomy change decision artifact when required by the final implementation scope.
+
+## Decomposed
+
+- task-repair-improver-commit-artifact-handoff-for-commit
+- task-model-and-verify-explicit-improver-non-committing
+- task-prove-the-repaired-improver-lifecycle-in-a-runtime
