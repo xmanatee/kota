@@ -3,11 +3,13 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const ROOT = resolve(import.meta.dirname, "..");
+const PACKAGE = JSON.parse(
+  readFileSync(resolve(ROOT, "package.json"), "utf-8"),
+);
 
-describe("bin/ entry point", () => {
+describe("CLI entry points", () => {
   it("package.json bin target exists and imports a resolvable module", () => {
-    const pkg = JSON.parse(readFileSync(resolve(ROOT, "package.json"), "utf-8"));
-    const binPath = pkg.bin?.kota;
+    const binPath = PACKAGE.bin?.kota;
     expect(binPath).toBeDefined();
 
     const resolved = resolve(ROOT, binPath);
@@ -22,6 +24,11 @@ describe("bin/ entry point", () => {
     const srcVariant = importResolved.replace("/dist/", "/src/").replace(/\.js$/, ".ts");
     const exists = existsSync(importResolved) || existsSync(srcVariant);
     expect(exists, `import target not found: ${importTarget} (checked ${importResolved} and ${srcVariant})`).toBe(true);
+  });
+
+  it("uses the source entry point for workspace commands", () => {
+    expect(PACKAGE.scripts?.kota).toBe(PACKAGE.scripts?.dev);
+    expect(PACKAGE.scripts?.kota).toContain("src/cli.ts");
   });
 });
 

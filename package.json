@@ -46,7 +46,7 @@
     "check:ui-bindings": "node scripts/generate-ui-surface-bindings.mjs --check",
     "hygiene": "node --conditions=source --import tsx src/check-hygiene.ts",
     "validate-tasks": "node --conditions=source --import tsx src/validate-queue.ts",
-    "kota": "node bin/kota.mjs"
+    "kota": "node --conditions=source --import tsx src/cli.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.58",
