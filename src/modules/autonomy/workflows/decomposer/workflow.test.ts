@@ -168,6 +168,17 @@ describe("decomposer workflow", () => {
     vi.mocked(fs.writeFileSync).mockImplementation(() => undefined);
   });
 
+  it("exposes the typed plan to the semantic reviewer", () => {
+    const step = decomposerWorkflow.steps.find(
+      (candidate) => candidate.id === "decompose",
+    );
+
+    expect(step).toMatchObject({
+      type: "agent",
+      exposeOutputToAgent: true,
+    });
+  });
+
   it("skips decompose when builder failure does not require rescoping", async () => {
     await configureBuilderFailure(
       makeFailedBuilderMetadata({ buildDurationMs: 5 * 60 * 1000 }),

@@ -354,6 +354,7 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
       outputFormat: "json",
       outputSchema: decompositionPlanOutputSchema,
       validate: decodeDecompositionPlan,
+      exposeOutputToAgent: true,
       when: shouldRunDecompose,
     },
     {
