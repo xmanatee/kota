@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { RepairLoopError } from "./repair-loop.js";
 import {
   applyOutputSizeLimit,
   DEFAULT_MAX_STEP_OUTPUT_BYTES,
@@ -196,5 +197,52 @@ describe("executeWorkflowStep — costUsd capture", () => {
     );
 
     expect(result.completed.costUsd).toBeUndefined();
+  });
+
+  it("records terminal repair evidence and cost on the failed step", async () => {
+    const output = {
+      content: "repair did not resolve the check",
+      turns: 3,
+      totalCostUsd: 0.21,
+      repairIterations: [
+        {
+          attempt: 1,
+          failures: [
+            { id: "lint", output: "lint failed", passed: false, severity: "error" as const },
+          ],
+        },
+      ],
+      repairWarnings: [],
+    };
+    executeStepMock.mockRejectedValueOnce(
+      new RepairLoopError(
+        "repair-no-progress",
+        "build",
+        ["lint"],
+        output,
+        "repair made no progress",
+      ),
+    );
+
+    const step = { id: "build", type: "agent" as const, promptPath: "prompt.md" };
+    const result = await executeWorkflowStep(
+      definition as any,
+      step as any,
+      run,
+      trigger,
+      context as any,
+      new AbortController(),
+      agentConfig,
+      makeAcc(),
+      { bus, pbus, log },
+      Date.now(),
+    );
+
+    expect(result.completed).toMatchObject({
+      status: "failed",
+      errorKind: "repair-no-progress",
+      costUsd: 0.21,
+      output: { repairIterations: output.repairIterations },
+    });
   });
 });

@@ -469,6 +469,19 @@ export async function executeWorkflowStep(
       messages: capturedAgentMessages,
       log: deps.log,
     });
+    const repairFailure = err instanceof RepairLoopError ? err : undefined;
+    const repairFailureOutput = repairFailure
+      ? applyOutputSizeLimit(
+          repairFailure.output,
+          agentConfig.config?.workflow?.maxStepOutputBytes,
+        )
+      : undefined;
+    if (repairFailureOutput?.warning) {
+      acc.warnings.push(repairFailureOutput.warning);
+      deps.log(
+        `Failed step "${step.id}" output truncated in workflow "${definition.name}": ${repairFailureOutput.warning.message}`,
+      );
+    }
     const failed: WorkflowStepResult = {
       id: step.id,
       type: step.type,
@@ -477,13 +490,19 @@ export async function executeWorkflowStep(
       completedAt: new Date().toISOString(),
       durationMs: Date.now() - stepStartedAt,
       ...activeTimingMetadata(timing),
+      ...(repairFailure !== undefined
+        ? {
+            costUsd: repairFailure.output.totalCostUsd,
+            output: repairFailureOutput?.output,
+          }
+        : {}),
       error: err.message,
       ...(idleTimeoutError !== undefined
         ? { errorKind: "idle-timeout" as const, idleTimeoutMs: idleTimeoutError.idleTimeoutMs }
         : isStepTimeout
           ? { errorKind: "step-timeout" as const }
-          : err instanceof RepairLoopError
-            ? { errorKind: err.kind }
+          : repairFailure !== undefined
+            ? { errorKind: repairFailure.kind }
         : {}),
       ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
       ...(trajectoryDiagnostics !== undefined ? { trajectoryDiagnostics } : {}),

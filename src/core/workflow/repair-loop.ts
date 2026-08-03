@@ -39,6 +39,14 @@ export type RepairIteration = {
   agentCostUsd?: number;
 };
 
+export type RepairLoopFailureOutput = {
+  content: string;
+  turns: number;
+  totalCostUsd: number;
+  repairIterations: RepairIteration[];
+  repairWarnings: RepairCheckResult[];
+};
+
 type ScopedRepairAgent = {
   agentName: string;
   writeScope: readonly string[];
@@ -52,6 +60,7 @@ export class RepairLoopError extends Error {
     readonly kind: WorkflowRepairErrorKind,
     readonly stepId: string,
     readonly failureIds: string[],
+    readonly output: RepairLoopFailureOutput,
     message: string,
   ) {
     super(message);
@@ -218,6 +227,13 @@ export async function runAgentRepairLoop(
     projectDir: context.projectDir,
     runtimeResources: context.runtimeResources,
   });
+  const failureOutput = (): RepairLoopFailureOutput => ({
+    content: lastContent,
+    turns: totalTurns,
+    totalCostUsd,
+    repairIterations: iterations,
+    repairWarnings: warnings,
+  });
 
   const wrap = (output: Record<string, unknown>): AgentStepResult => {
     const postStepMutatedPaths = scopedAgent
@@ -333,6 +349,7 @@ export async function runAgentRepairLoop(
           "repair-no-progress",
           step.id,
           progress.failureIds,
+          failureOutput(),
           `Repair loop for step "${step.id}" made no progress after ${REPAIR_NO_PROGRESS_LIMIT} consecutive attempts. ` +
             `Still failing: ${progress.failureIds.join(", ")}`,
         );
@@ -344,6 +361,7 @@ export async function runAgentRepairLoop(
         "repair-attempts-exhausted",
         step.id,
         failures.map((failure) => failure.id),
+        failureOutput(),
         `Repair loop for step "${step.id}" exhausted repair attempts (${maxRepairAttempts}). ` +
           `Still failing: ${failures.map((f) => f.id).join(", ")}`,
       );

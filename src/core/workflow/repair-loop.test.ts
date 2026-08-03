@@ -437,6 +437,14 @@ describe("runAgentRepairLoop", () => {
       kind: "repair-no-progress",
       stepId: "agent",
       failureIds: ["always-fails"],
+      output: {
+        turns: 4,
+        repairIterations: [
+          { attempt: 1, failures: [{ id: "always-fails" }] },
+          { attempt: 2, failures: [{ id: "always-fails" }] },
+          { attempt: 3, failures: [{ id: "always-fails" }] },
+        ],
+      },
       message: expect.stringContaining(
         'Repair loop for step "agent" made no progress after 3 consecutive attempts',
       ),
