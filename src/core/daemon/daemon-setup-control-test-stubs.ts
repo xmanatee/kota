@@ -92,6 +92,7 @@ export function daemonSetupControlHandleStubs(): SetupControlHandleMethods {
         scopeId,
       });
       return {
+        revision: 0,
         policy,
         decisionExamples: defaultScopePolicyDecisionExamples(policy),
       };

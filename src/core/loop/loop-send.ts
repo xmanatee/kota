@@ -241,7 +241,7 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
       }
 
       const resultLimit = state.context.getToolResultLimit();
-      const scopePolicy = state.resolveScopePolicy?.();
+      const scopePolicy = state.scopePolicyAuthority?.getSnapshot(state.scopeId).policy;
       const autonomyMode = scopePolicy
         ? capScopeAutonomyMode(state.autonomyMode, scopePolicy)
         : state.autonomyMode;

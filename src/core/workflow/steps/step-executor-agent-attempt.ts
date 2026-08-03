@@ -26,6 +26,7 @@ import {
   workflowOutputFromHarnessResult,
 } from "./step-executor-agent-output.js";
 import { buildAgentHarnessRunOptions } from "./step-executor-agent-run-options.js";
+import { subscribeAgentScopePolicyRestrictions } from "./step-executor-agent-scope-policy.js";
 import { makeToolTelemetryTracker } from "./step-executor-agent-telemetry.js";
 import {
   AgentStepRuntimeError,
@@ -66,7 +67,11 @@ export async function runAgentAttempt(input: {
   const attemptMessages: KotaAgentMessage[] = [];
   const attemptAbortController = new AbortController();
   const forwardAbort = () => attemptAbortController.abort(abortController.signal.reason);
-  abortController.signal.addEventListener("abort", forwardAbort, { once: true });
+  if (abortController.signal.aborted) {
+    forwardAbort();
+  } else {
+    abortController.signal.addEventListener("abort", forwardAbort, { once: true });
+  }
   let idleMonitor: AgentStepIdleMonitor | undefined;
   const captureMessage = createAgentAttemptMessageCapture({
     messages: attemptMessages,
@@ -78,23 +83,35 @@ export async function runAgentAttempt(input: {
     ? makeToolTelemetryTracker(stepTelemetry, captureMessage)
     : undefined;
 
-  const prompt = input.jsonOutputFeedback
-    ? `${input.prompt}\n\n[${input.jsonOutputFeedback}]`
-    : input.prompt;
-  const harnessRunOptions = buildAgentHarnessRunOptions({
-    step,
-    metadata,
-    agentConfig,
-    resolvedHarness,
-    resolvedModel,
-    prompt,
-    systemPrompt,
-    abortController: attemptAbortController,
-    ...(trackedMessage !== undefined ? { onMessage: trackedMessage } : {}),
-    ...(tokenBudget !== undefined ? { tokenBudget } : {}),
-  });
-
+  let unsubscribeScopePolicy = () => {};
   try {
+    unsubscribeScopePolicy = subscribeAgentScopePolicyRestrictions({
+      stepId: step.id,
+      scopeId: agentConfig.scopeId,
+      authority: agentConfig.scopePolicyAuthority,
+      initialSnapshot: agentConfig.scopePolicySnapshot,
+      abortController: attemptAbortController,
+    });
+    if (attemptAbortController.signal.aborted) {
+      throw attemptAbortController.signal.reason instanceof Error
+        ? attemptAbortController.signal.reason
+        : new Error(`Agent step "${step.id}" aborted`);
+    }
+    const prompt = input.jsonOutputFeedback
+      ? `${input.prompt}\n\n[${input.jsonOutputFeedback}]`
+      : input.prompt;
+    const harnessRunOptions = buildAgentHarnessRunOptions({
+      step,
+      metadata,
+      agentConfig,
+      resolvedHarness,
+      resolvedModel,
+      prompt,
+      systemPrompt,
+      abortController: attemptAbortController,
+      ...(trackedMessage !== undefined ? { onMessage: trackedMessage } : {}),
+      ...(tokenBudget !== undefined ? { tokenBudget } : {}),
+    });
     const runHarness = () =>
       runAgentHarness(resolvedHarness, harnessRunOptions.options, { write: () => true });
     const harnessRun = agentConfig.delegateBudget
@@ -177,6 +194,7 @@ export async function runAgentAttempt(input: {
     );
   } finally {
     idleMonitor?.dispose();
+    unsubscribeScopePolicy();
     abortController.signal.removeEventListener("abort", forwardAbort);
   }
 }

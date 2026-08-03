@@ -73,6 +73,96 @@ describe("ScopeAuthorityService", () => {
     expect(fixture.persistence.commitCount).toBe(1);
   });
 
+  it("returns policy and revision from one authority snapshot", async () => {
+    const fixture = createFixture();
+    const scopeId = fixture.registry.getDefaultScopeId();
+    const initial = fixture.service.getSnapshot(scopeId);
+
+    const applied = await fixture.service.apply(scopeId, {
+      expectedRevision: initial.revision,
+      reason: "Restrict writes for the next authority snapshot.",
+      policy: {
+        scopeId,
+        reason: "The fixture becomes read-only.",
+        writes: { mode: "none" },
+      },
+    }, operatorAction());
+
+    expect(applied.ok).toBe(true);
+    expect(initial).toMatchObject({ revision: 0, policy: { writes: { mode: "unrestricted" } } });
+    expect(fixture.service.getSnapshot(scopeId)).toMatchObject({
+      revision: 1,
+      policy: { writes: { mode: "none" } },
+    });
+  });
+
+  it("publishes committed restrictive revisions but not equal or purely permissive mutations", async () => {
+    const fixture = createFixture();
+    const scopeId = fixture.registry.getDefaultScopeId();
+    const changes: Array<{
+      previousRevision: number;
+      currentRevision: number;
+      areas: readonly string[];
+    }> = [];
+    const unsubscribe = fixture.service.subscribeRestrictiveChanges(scopeId, (change) => {
+      changes.push({
+        previousRevision: change.previous.revision,
+        currentRevision: change.current.revision,
+        areas: change.restrictiveAreas,
+      });
+    });
+
+    const restricted = await fixture.service.apply(scopeId, {
+      expectedRevision: 0,
+      reason: "Disable writes and outbound network access.",
+      policy: {
+        scopeId,
+        reason: "Exercise live restrictive notification.",
+        writes: { mode: "none" },
+        externalEffects: { networkRead: "deny" },
+      },
+    }, operatorAction());
+    expect(restricted.ok).toBe(true);
+    expect(changes).toEqual([{
+      previousRevision: 0,
+      currentRevision: 1,
+      areas: ["writes", "externalEffects"],
+    }]);
+
+    const equal = await fixture.service.apply(scopeId, {
+      expectedRevision: 1,
+      reason: "Submit an equal policy.",
+      policy: {
+        scopeId,
+        reason: "Exercise live restrictive notification.",
+        writes: { mode: "none" },
+        externalEffects: { networkRead: "deny" },
+      },
+    }, operatorAction());
+    expect(equal).toMatchObject({ ok: true, status: "unchanged" });
+
+    const permissive = await fixture.service.apply(scopeId, {
+      expectedRevision: 1,
+      reason: "Restore the migration policy.",
+      policy: null,
+    }, operatorAction(true));
+    expect(permissive).toMatchObject({ ok: true, status: "applied" });
+    expect(fixture.service.getSnapshot(scopeId).revision).toBe(2);
+    expect(changes).toHaveLength(1);
+
+    unsubscribe();
+    await fixture.service.apply(scopeId, {
+      expectedRevision: 2,
+      reason: "Restrict again after listener cleanup.",
+      policy: {
+        scopeId,
+        reason: "No listener remains.",
+        writes: { mode: "none" },
+      },
+    }, operatorAction());
+    expect(changes).toHaveLength(1);
+  });
+
   it("does not publish either half when persistence fails", async () => {
     const fixture = createFixture();
     const scopeId = fixture.registry.getDefaultScopeId();
@@ -195,13 +285,13 @@ describe("ScopeAuthorityService", () => {
   });
 });
 
-function operatorAction(): ScopeAuthorityOperatorAction {
+function operatorAction(confirmedDangerousChange = true): ScopeAuthorityOperatorAction {
   const root = mkdtempSync(join(tmpdir(), "kota-scope-authority-token-"));
   tempRoots.push(root);
   const configPath = join(root, "config.json");
   const verifier = createScopeAuthorityOperatorTokenVerifier(configPath);
   const request = {
-    value: "confirm-dangerous" as const,
+    value: confirmedDangerousChange ? "confirm-dangerous" as const : "apply" as const,
     scopeId: "fixture-scope",
     body: "{}",
     challenge: "e".repeat(64),

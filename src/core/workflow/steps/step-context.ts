@@ -3,7 +3,10 @@ import { dirname, join, resolve } from "node:path";
 import { getGlobalConfigPath } from "#core/config/config.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
-import type { ResolvedScopePolicy } from "#core/daemon/scope-policy.js";
+import type {
+  ResolvedScopePolicy,
+  ScopePolicyAuthority,
+} from "#core/daemon/scope-policy.js";
 import {
   type EventBus,
   type EventSchemaReference,
@@ -155,7 +158,7 @@ export function createStepContext(
     approvalQueue?: ApprovalQueue;
     eventJournal?: EventJournal;
     runTool?: WorkflowRunToolRunner;
-    resolveScopePolicy?: () => ResolvedScopePolicy;
+    scopePolicyAuthority?: ScopePolicyAuthority;
     runAgentHarness: WorkflowAgentHarnessRunner;
     currentStepId?: string;
     triggerWorkflow?: (
@@ -207,7 +210,7 @@ export function createStepContext(
         deps.approvalQueue,
         deps.authorityConfigPath ?? getGlobalConfigPath(),
       );
-      const scopePolicy = deps.resolveScopePolicy?.();
+      const scopePolicy = deps.scopePolicyAuthority?.getSnapshot(deps.pbus.getScopeId()).policy;
       if (scopePolicy !== undefined) {
         if (deps.approvalQueue === undefined) {
           throw new Error("Scope policy enforcement requires a workflow approval queue");

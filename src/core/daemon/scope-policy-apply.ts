@@ -1,12 +1,3 @@
-import {
-  actionPolicyWiden,
-  autonomyWiden,
-  channelsWiden,
-  modulesWiden,
-  retentionWiden,
-  setupRank,
-  writeBoundaryWiden,
-} from "./scope-policy-apply-widening.js";
 import type {
   ResolvedScopePolicy,
   ScopeChannelRoutingPolicy,
@@ -20,6 +11,16 @@ import type {
   ScopeSetupVisibility,
 } from "./scope-policy-types.js";
 import { ScopePolicyValidationError } from "./scope-policy-types.js";
+import {
+  autonomyWiden,
+  channelsWiden,
+  externalEffectsWiden,
+  modulesWiden,
+  ownerConfirmationWiden,
+  retentionWiden,
+  setupRank,
+  writeBoundaryWiden,
+} from "./scope-policy-widening.js";
 
 type ResolvedMutable = {
   directoryRoot?: string;
@@ -93,7 +94,7 @@ export function applyScopePolicyFragment(
       fragment,
       resolved.ownerConfirmation.source,
       allowedWidening,
-      actionPolicyWiden(resolved.ownerConfirmation, next),
+      ownerConfirmationWiden(resolved.ownerConfirmation, next),
     );
     resolved.ownerConfirmation = sourced(next, fragment);
     explain(resolved, fragment, "ownerConfirmation");
@@ -128,7 +129,7 @@ export function applyScopePolicyFragment(
       fragment,
       resolved.externalEffects.source,
       allowedWidening,
-      actionPolicyWiden(resolved.externalEffects, next),
+      externalEffectsWiden(resolved.externalEffects, next),
     );
     resolved.externalEffects = sourced(next, fragment);
     explain(resolved, fragment, "externalEffects");

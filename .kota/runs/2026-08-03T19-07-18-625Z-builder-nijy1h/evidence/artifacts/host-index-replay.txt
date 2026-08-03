@@ -1,0 +1,21 @@
+Host-index replay record
+
+Repair attempt 3 ran in a linked worktree whose host Git metadata is read-only.
+The required ordinary `git add -A` was attempted after the repair and failed
+before staging because the host worktree index lock could not be created.
+
+The exact commit set is therefore staged and validated with:
+
+GIT_INDEX_FILE=.kota/tmp/2026-08-03T19-07-18-625Z-builder-nijy1h/git/index
+GIT_OBJECT_DIRECTORY=.kota/tmp/2026-08-03T19-07-18-625Z-builder-nijy1h/git/objects
+GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects
+
+The workspace-local index is seeded from the linked worktree's host index so
+the prior staged task transition and evidence are preserved, then refreshed
+with `git add -A`. Isolated staging does not update the real worktree index.
+The workflow finalizer must replay ordinary `git add -A` against the host index
+before review or commit.
+
+The isolated index contains the exact 56-path commit set with no unstaged or
+non-ignored untracked paths. `git diff --cached --check` and queue validation
+both pass under the recorded index/object environment.

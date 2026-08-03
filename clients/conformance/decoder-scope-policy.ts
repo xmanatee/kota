@@ -21,6 +21,8 @@ export function parseScopePolicyRouteResponse(
   raw: unknown,
 ): ScopePolicyRouteResponse {
   const obj = asObject(raw, "scopePolicy");
+  const revision = asInt(obj.revision, "scopePolicy.revision");
+  if (revision < 0) fail("scopePolicy.revision must be a non-negative integer");
   const policy = parseScopePolicy(asObject(obj.policy, "scopePolicy.policy"));
   const decisionExamples = asArray(
     obj.decisionExamples,
@@ -28,7 +30,7 @@ export function parseScopePolicyRouteResponse(
   ).map((entry, index) =>
     parseScopePolicyDecision(entry, `scopePolicy.decisionExamples[${index}]`),
   );
-  return { policy, decisionExamples };
+  return { revision, policy, decisionExamples };
 }
 
 function parseScopePolicySource(raw: unknown, field: string): ScopePolicySource {

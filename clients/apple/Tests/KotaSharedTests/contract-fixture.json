@@ -92,6 +92,7 @@
   },
   "scopePolicy": {
     "resolved": {
+      "revision": 7,
       "policy": {
         "scopeId": "p-kota-fixture-feature",
         "lineage": [
@@ -256,6 +257,7 @@
       ]
     },
     "negative_unknownOutcome": {
+      "revision": 7,
       "policy": {
         "scopeId": "p-kota-fixture-feature",
         "lineage": [

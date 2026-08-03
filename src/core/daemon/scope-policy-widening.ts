@@ -2,9 +2,16 @@ import { isScopePolicyPathWithin, resolveScopePolicyPaths } from "./scope-policy
 import type {
   ResolvedScopePolicy,
   ScopeActionPolicy,
+  ScopeChannelRoutingPolicy,
+  ScopeExternalEffectPolicy,
   ScopeModuleAvailability,
+  ScopeModulePolicy,
+  ScopeOwnerConfirmationPolicy,
   ScopePolicyArea,
   ScopeRedactionProfile,
+  ScopeRetentionPolicy,
+  ScopeSetupVisibility,
+  ScopeWriteBoundary,
 } from "./scope-policy-types.js";
 
 export function scopePolicyWideningAreas(
@@ -12,22 +19,36 @@ export function scopePolicyWideningAreas(
   next: ResolvedScopePolicy,
 ): ScopePolicyArea[] {
   const widened: ScopePolicyArea[] = [];
-  if (
-    autonomyRank(next.autonomy.defaultMode) > autonomyRank(current.autonomy.defaultMode) ||
-    autonomyRank(next.autonomy.maxMode) > autonomyRank(current.autonomy.maxMode)
-  ) widened.push("autonomy");
-  if (writesWiden(current, next)) widened.push("writes");
-  if (channelsWiden(current, next)) widened.push("channels");
+  if (autonomyWiden(current.autonomy, next.autonomy)) widened.push("autonomy");
+  if (writeBoundaryWiden(current.writes, next.writes, next.directoryRoot)) {
+    widened.push("writes");
+  }
+  if (channelsWiden(current.channels, next.channels)) widened.push("channels");
   if (setupRank(next.setup.visibility) > setupRank(current.setup.visibility)) widened.push("setup");
-  if (actionMapWiden(current.ownerConfirmation, next.ownerConfirmation)) {
+  if (ownerConfirmationWiden(current.ownerConfirmation, next.ownerConfirmation)) {
     widened.push("ownerConfirmation");
   }
-  if (retentionWiden(current, next)) widened.push("retention");
-  if (modulesWiden(current, next)) widened.push("modules");
-  if (actionMapWiden(current.externalEffects, next.externalEffects)) {
+  if (retentionWiden(current.retention, next.retention)) widened.push("retention");
+  if (modulesWiden(current.modules, next.modules)) widened.push("modules");
+  if (externalEffectsWiden(current.externalEffects, next.externalEffects)) {
     widened.push("externalEffects");
   }
   return widened;
+}
+
+export function scopePolicyRestrictiveAreas(
+  current: ResolvedScopePolicy,
+  next: ResolvedScopePolicy,
+): ScopePolicyArea[] {
+  return scopePolicyWideningAreas(next, current);
+}
+
+export function autonomyWiden(
+  current: ResolvedScopePolicy["autonomy"],
+  next: ResolvedScopePolicy["autonomy"],
+): boolean {
+  return autonomyRank(next.defaultMode) > autonomyRank(current.defaultMode) ||
+    autonomyRank(next.maxMode) > autonomyRank(current.maxMode);
 }
 
 function autonomyRank(mode: ResolvedScopePolicy["autonomy"]["defaultMode"]): number {
@@ -36,60 +57,102 @@ function autonomyRank(mode: ResolvedScopePolicy["autonomy"]["defaultMode"]): num
   return 2;
 }
 
-function writesWiden(current: ResolvedScopePolicy, next: ResolvedScopePolicy): boolean {
-  if (current.writes.mode === "unrestricted" || next.writes.mode === "none") return false;
-  if (next.writes.mode === "unrestricted") return true;
-  const root = next.directoryRoot;
-  const currentPaths = allowedWritePaths(current);
-  const nextPaths = allowedWritePaths(next);
-  if (nextPaths.length === 0 && root === undefined) return false;
+export function writeBoundaryWiden(
+  current: ScopeWriteBoundary,
+  next: ScopeWriteBoundary,
+  directoryRoot: string | undefined,
+): boolean {
+  if (current.mode === "unrestricted" || next.mode === "none") return false;
+  if (next.mode === "unrestricted") return true;
+  if (current.mode === "none") return writeBoundaryAllowsAnyPath(next, directoryRoot);
+
+  if (next.mode === "scope-directory") {
+    if (directoryRoot === undefined) return false;
+    if (current.mode === "scope-directory") return false;
+    return !writePathsCoverRoot(current.paths, directoryRoot, directoryRoot);
+  }
+
+  const nextPaths = resolveScopePolicyPaths(next.paths, directoryRoot);
+  if (nextPaths.length === 0) return false;
+  if (current.mode === "scope-directory") {
+    return directoryRoot === undefined ||
+      nextPaths.some((path) => !isScopePolicyPathWithin(directoryRoot, path));
+  }
+
+  const currentPaths = resolveScopePolicyPaths(current.paths, directoryRoot);
   return nextPaths.some((path) =>
     !currentPaths.some((currentPath) => isScopePolicyPathWithin(currentPath, path))
   );
 }
 
-function allowedWritePaths(policy: ResolvedScopePolicy): string[] {
-  if (policy.writes.mode === "none") return [];
-  if (policy.writes.mode === "unrestricted") return ["/"];
-  if (policy.writes.mode === "scope-directory") {
-    return policy.directoryRoot === undefined ? [] : [policy.directoryRoot];
-  }
-  return resolveScopePolicyPaths(policy.writes.paths, policy.directoryRoot);
+function writeBoundaryAllowsAnyPath(
+  policy: ScopeWriteBoundary,
+  directoryRoot: string | undefined,
+): boolean {
+  if (policy.mode === "none") return false;
+  if (policy.mode === "unrestricted") return true;
+  if (policy.mode === "scope-directory") return directoryRoot !== undefined;
+  return resolveScopePolicyPaths(policy.paths, directoryRoot).length > 0;
 }
 
-function channelsWiden(current: ResolvedScopePolicy, next: ResolvedScopePolicy): boolean {
-  if (channelRank(next.channels.mode) > channelRank(current.channels.mode)) return true;
-  if (
-    current.channels.mode === "allow-list" &&
-    next.channels.allowedChannels.some((entry) => !current.channels.allowedChannels.includes(entry))
-  ) return true;
-  return current.channels.blockedSources.some((entry) => !next.channels.blockedSources.includes(entry)) ||
-    current.channels.ignoredSources.some((entry) => !next.channels.ignoredSources.includes(entry));
+function writePathsCoverRoot(
+  paths: readonly string[],
+  root: string,
+  directoryRoot: string | undefined,
+): boolean {
+  return resolveScopePolicyPaths(paths, directoryRoot).some((path) =>
+    isScopePolicyPathWithin(path, root)
+  );
 }
 
-function channelRank(mode: ResolvedScopePolicy["channels"]["mode"]): number {
+export function channelsWiden(
+  current: ScopeChannelRoutingPolicy,
+  next: ScopeChannelRoutingPolicy,
+): boolean {
+  const modeWidened = channelRank(next.mode) > channelRank(current.mode);
+  const channelsWidened = current.mode === "allow-list" &&
+    next.allowedChannels.some((channel) => !current.allowedChannels.includes(channel));
+  const blockedRemoved = current.blockedSources.some((source) =>
+    !next.blockedSources.includes(source)
+  );
+  const ignoredRemoved = current.ignoredSources.some((source) =>
+    !next.ignoredSources.includes(source)
+  );
+  return modeWidened || channelsWidened || blockedRemoved || ignoredRemoved;
+}
+
+function channelRank(mode: ScopeChannelRoutingPolicy["mode"]): number {
   if (mode === "blocked") return 0;
   if (mode === "allow-list") return 1;
   return 2;
 }
 
-function setupRank(value: ResolvedScopePolicy["setup"]["visibility"]): number {
+export function setupRank(value: ScopeSetupVisibility): number {
   if (value === "hidden") return 0;
   if (value === "metadata") return 1;
   return 2;
 }
 
-function actionMapWiden<T extends object>(current: T, next: T): boolean {
-  for (const key of Object.keys(next) as Array<keyof T>) {
-    const currentValue = current[key];
-    const nextValue = next[key];
-    if (
-      typeof currentValue === "string" &&
-      typeof nextValue === "string" &&
-      actionRank(nextValue as ScopeActionPolicy) > actionRank(currentValue as ScopeActionPolicy)
-    ) return true;
-  }
-  return false;
+export function ownerConfirmationWiden(
+  current: ScopeOwnerConfirmationPolicy,
+  next: ScopeOwnerConfirmationPolicy,
+): boolean {
+  return actionWiden(current.localWrite, next.localWrite) ||
+    actionWiden(current.externalWrite, next.externalWrite) ||
+    actionWiden(current.destructive, next.destructive);
+}
+
+export function externalEffectsWiden(
+  current: ScopeExternalEffectPolicy,
+  next: ScopeExternalEffectPolicy,
+): boolean {
+  return actionWiden(current.networkRead, next.networkRead) ||
+    actionWiden(current.networkWrite, next.networkWrite) ||
+    actionWiden(current.networkDestructive, next.networkDestructive);
+}
+
+function actionWiden(current: ScopeActionPolicy, next: ScopeActionPolicy): boolean {
+  return actionRank(next) > actionRank(current);
 }
 
 function actionRank(value: ScopeActionPolicy): number {
@@ -98,10 +161,13 @@ function actionRank(value: ScopeActionPolicy): number {
   return 2;
 }
 
-function retentionWiden(current: ResolvedScopePolicy, next: ResolvedScopePolicy): boolean {
-  const ageWidened = current.retention.mode === "expire-after-days" &&
-    (next.retention.mode === "retain" || next.retention.maxAgeDays > current.retention.maxAgeDays);
-  return ageWidened || redactionRank(next.retention.redaction) > redactionRank(current.retention.redaction);
+export function retentionWiden(
+  current: ScopeRetentionPolicy,
+  next: ScopeRetentionPolicy,
+): boolean {
+  const ageWidened = current.mode === "expire-after-days" &&
+    (next.mode === "retain" || next.maxAgeDays > current.maxAgeDays);
+  return ageWidened || redactionRank(next.redaction) > redactionRank(current.redaction);
 }
 
 function redactionRank(value: ScopeRedactionProfile): number {
@@ -110,23 +176,27 @@ function redactionRank(value: ScopeRedactionProfile): number {
   return 2;
 }
 
-function modulesWiden(current: ResolvedScopePolicy, next: ResolvedScopePolicy): boolean {
+export function modulesWiden(current: ScopeModulePolicy, next: ScopeModulePolicy): boolean {
   if (
-    availabilityRank(next.modules.defaultAvailability) >
-    availabilityRank(current.modules.defaultAvailability)
+    availabilityRank(next.defaultAvailability) >
+    availabilityRank(current.defaultAvailability)
   ) return true;
-  return next.modules.overrides.some((entry) =>
-    availabilityRank(entry.availability) >
-    availabilityRank(moduleAvailability(current, entry.moduleName))
+  const moduleNames = new Set([
+    ...current.overrides.map((entry) => entry.moduleName),
+    ...next.overrides.map((entry) => entry.moduleName),
+  ]);
+  return [...moduleNames].some((moduleName) =>
+    availabilityRank(moduleAvailability(next, moduleName)) >
+    availabilityRank(moduleAvailability(current, moduleName))
   );
 }
 
 function moduleAvailability(
-  policy: ResolvedScopePolicy,
+  policy: ScopeModulePolicy,
   moduleName: string,
 ): ScopeModuleAvailability {
-  return policy.modules.overrides.find((entry) => entry.moduleName === moduleName)?.availability ??
-    policy.modules.defaultAvailability;
+  return policy.overrides.find((entry) => entry.moduleName === moduleName)?.availability ??
+    policy.defaultAvailability;
 }
 
 function availabilityRank(value: ScopeModuleAvailability): number {

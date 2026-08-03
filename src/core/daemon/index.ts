@@ -26,9 +26,13 @@ export {
 } from "./scheduler.js";
 export type {
 	ResolvedScopePolicy,
+	RestrictiveScopePolicyChange,
+	RestrictiveScopePolicyChangeListener,
+	ScopePolicyAuthority,
 	ScopePolicyDecision,
 	ScopePolicyFragment,
 	ScopePolicyRouteResponse,
+	ScopePolicySnapshot,
 } from "./scope-policy.js";
 export {
 	decideScopePolicy,

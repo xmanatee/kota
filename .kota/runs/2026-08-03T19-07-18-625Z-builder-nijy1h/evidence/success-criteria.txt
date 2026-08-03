@@ -1,0 +1,4 @@
+1. Scope-policy reads return the resolved policy and its authority revision in one snapshot.
+2. Committed policy mutations advance the revision and notify active consumers only when effective capabilities become more restrictive.
+3. Focused coverage distinguishes restrictive, equal, and permissive changes across every scope-policy area and exercises the live authority integration.
+4. The task records a fresh focused verification command and passing result.

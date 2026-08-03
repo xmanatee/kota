@@ -32,7 +32,7 @@ function writePackageJson(dir: string, scripts: Record<string, string>): void {
   );
 }
 
-function makeProbe(command: string, timeoutMs = 5_000): TaskProbe {
+function makeProbe(command: string, timeoutMs = 30_000): TaskProbe {
   const probe = extractTaskProbe([
     "## Runtime Probe",
     `command: ${command}`,

@@ -4,7 +4,7 @@ import type { KotaConfig } from "#core/config/config.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
-import type { ResolvedScopePolicy } from "#core/daemon/scope-policy.js";
+import type { ScopePolicyAuthority } from "#core/daemon/scope-policy.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
@@ -46,7 +46,7 @@ export type RunExecutorDeps = {
   ) => Promise<TriggerWorkflowFromStepResult>;
   resolveAgentDef?: (name: string) => AgentDef | undefined;
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
-  resolveScopePolicy?: () => ResolvedScopePolicy;
+  scopePolicyAuthority?: ScopePolicyAuthority;
   runTool?: WorkflowRunToolRunner;
   createAgentCanUseTool?: (stepId: string) => AgentCanUseTool;
   /** Shared gate for active agent harness runs. */

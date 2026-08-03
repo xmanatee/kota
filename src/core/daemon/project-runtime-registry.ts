@@ -10,7 +10,7 @@ import {
   type ProjectRuntimeFactoryOptions,
   rebindDefaultProjectRuntime,
 } from "./project-runtime.js";
-import type { ResolvedScopePolicy } from "./scope-policy.js";
+import type { ScopePolicyAuthority } from "./scope-policy.js";
 import type {
   ConfiguredProject,
   ProjectId,
@@ -30,7 +30,7 @@ export type ProjectRuntimeRegistryOptions = {
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
   onLog: (message: string) => void;
   quietHours?: QuietHoursConfig;
-  resolveScopePolicy?: (scopeId: ProjectId) => ResolvedScopePolicy;
+  scopePolicyAuthority?: ScopePolicyAuthority;
 };
 
 /** Typed lookup and mutable ownership map for every live scope runtime. */
@@ -70,7 +70,7 @@ export class ProjectRuntimeRegistry {
         onLog: opts.onLog,
         installSingletons: project.projectId === defaultId,
         quietHours: project.projectId === defaultId ? opts.quietHours : undefined,
-        resolveScopePolicy: opts.resolveScopePolicy,
+        scopePolicyAuthority: opts.scopePolicyAuthority,
       });
       byId.set(project.projectId, runtime);
     }
@@ -86,7 +86,7 @@ export class ProjectRuntimeRegistry {
       resolveSkillsPrompt: opts.resolveSkillsPrompt,
       onLog: opts.onLog,
       quietHours: opts.quietHours,
-      resolveScopePolicy: opts.resolveScopePolicy,
+      scopePolicyAuthority: opts.scopePolicyAuthority,
     });
   }
 

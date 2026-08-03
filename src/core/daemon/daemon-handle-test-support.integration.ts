@@ -13,7 +13,11 @@ import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowRuntime } from "#core/workflow/runtime.js";
 import { buildDaemonHandle } from "./daemon-handle.js";
 import type { ProjectRuntime, ProjectRuntimeRegistry } from "./project-runtime.js";
-import type { ScopeRegistry } from "./scope-registry.js";
+import {
+  resolveScopePolicy,
+  type ScopePolicyAuthority,
+} from "./scope-policy.js";
+import { GLOBAL_SCOPE_ID, type ScopeRegistry } from "./scope-registry.js";
 
 export type ReloadSubject = {
   handle: ReturnType<typeof buildDaemonHandle>;
@@ -25,6 +29,29 @@ export type ReloadSubject = {
     getDefinitionCount: ReturnType<typeof vi.fn>;
   };
 };
+
+function makeTestScopePolicyAuthority(projectDir: string): ScopePolicyAuthority {
+  const policy = resolveScopePolicy({
+    projection: {
+      rootScopeId: GLOBAL_SCOPE_ID,
+      defaultScopeId: "test-project",
+      scopes: [
+        { scopeId: GLOBAL_SCOPE_ID, displayName: "Global" },
+        {
+          scopeId: "test-project",
+          displayName: "Test project",
+          parentScopeId: GLOBAL_SCOPE_ID,
+          directoryRoot: projectDir,
+        },
+      ],
+    },
+    scopeId: "test-project",
+  });
+  return {
+    getSnapshot: () => ({ revision: 0, policy }),
+    subscribeRestrictiveChanges: () => () => {},
+  };
+}
 
 export function makeReloadSubject(
   initialConfig: KotaConfig = {},
@@ -41,8 +68,18 @@ export function makeReloadSubject(
     reloadWorkflowDefinitions: vi.fn(() => ({ count: 5 })),
     getDefinitionCount: vi.fn(() => 3),
   };
+  const projectDir = mkdtempSync(join(tmpdir(), "kota-daemon-handle-test-"));
   const pbus = new ProjectScopedEventBus(bus, "test-project");
-  const runtime = { workflowRuntime, pbus } as unknown as ProjectRuntime;
+  const runtime = {
+    project: {
+      projectId: "test-project",
+      projectDir,
+      displayName: "Test project",
+    },
+    workflowRuntime,
+    pbus,
+    scopePolicyAuthority: makeTestScopePolicyAuthority(projectDir),
+  } as unknown as ProjectRuntime;
   const projectRuntimes = {
     list: vi.fn(() => [runtime]),
     getDefault: vi.fn(() => runtime),
@@ -53,7 +90,6 @@ export function makeReloadSubject(
     getDefaultProjectId: vi.fn(() => "test-project"),
     toProjection: vi.fn(() => ({ defaultProjectId: "test-project", projects: [] })),
   } as unknown as ScopeRegistry;
-  const projectDir = mkdtempSync(join(tmpdir(), "kota-daemon-handle-test-"));
   const refreshLiveSessionGuardrails = vi.fn(() => ({
     refreshed: 0,
     unchanged: 0,

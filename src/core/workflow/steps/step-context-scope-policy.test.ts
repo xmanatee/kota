@@ -3,7 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApprovalQueue } from "#core/daemon/approval-queue.js";
-import { resolveScopePolicy } from "#core/daemon/scope-policy.js";
+import {
+  type ResolvedScopePolicy,
+  resolveScopePolicy,
+  type ScopePolicyAuthority,
+} from "#core/daemon/scope-policy.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { localWriteEffect, networkWriteEffect } from "#core/tools/effect.js";
@@ -112,7 +116,7 @@ describe("workflow step context scope policy", () => {
             { scopeId: "scope-a" },
           ),
           runTool,
-          resolveScopePolicy: () => policy,
+          scopePolicyAuthority: authorityFor(policy),
           runAgentHarness: unexpectedWorkflowAgentHarnessRun,
           currentStepId: "build",
         },
@@ -189,7 +193,7 @@ describe("workflow step context scope policy", () => {
           store: new WorkflowRunStore(projectDir),
           approvalQueue,
           runTool,
-          resolveScopePolicy: () => policy,
+          scopePolicyAuthority: authorityFor(policy),
           runAgentHarness: unexpectedWorkflowAgentHarnessRun,
           currentStepId: "notify",
         },
@@ -211,3 +215,10 @@ describe("workflow step context scope policy", () => {
     }
   });
 });
+
+function authorityFor(policy: ResolvedScopePolicy): ScopePolicyAuthority {
+  return {
+    getSnapshot: () => ({ revision: 0, policy }),
+    subscribeRestrictiveChanges: () => () => {},
+  };
+}

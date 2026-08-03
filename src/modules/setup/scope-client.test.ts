@@ -3,6 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
+import {
+  resolveScopePolicy,
+  type ScopePolicyAuthority,
+} from "#core/daemon/scope-policy.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import setupModule from "./index.js";
@@ -105,6 +109,7 @@ describe("setup client scope", () => {
               ok: true as const,
               runtime: {
                 authorityConfigPath,
+                scopePolicyAuthority: authorityFor(scopedDir),
                 project: {
                   projectId: "scope-b",
                   projectDir: scopedDir,
@@ -169,3 +174,26 @@ describe("setup client scope", () => {
     expect(requestStrict).toHaveBeenCalledWith("GET", "/setup/requirements");
   });
 });
+
+function authorityFor(projectDir: string): ScopePolicyAuthority {
+  const policy = resolveScopePolicy({
+    projection: {
+      rootScopeId: "global",
+      defaultScopeId: "scope-b",
+      scopes: [
+        { scopeId: "global", displayName: "Global" },
+        {
+          scopeId: "scope-b",
+          displayName: "Scoped",
+          parentScopeId: "global",
+          directoryRoot: projectDir,
+        },
+      ],
+    },
+    scopeId: "scope-b",
+  });
+  return {
+    getSnapshot: () => ({ revision: 0, policy }),
+    subscribeRestrictiveChanges: () => () => {},
+  };
+}

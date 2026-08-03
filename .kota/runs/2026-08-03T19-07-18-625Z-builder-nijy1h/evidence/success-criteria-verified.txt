@@ -1,0 +1,4 @@
+1. Verified `ScopeAuthorityService.getSnapshot` derives revision and resolved policy from one persisted authority read, and the daemon policy route exposes both values.
+2. Verified authority commits increment monotonically and publish previous/current snapshots plus restrictive areas; active primary and repair agent attempts subscribe, close the snapshot race, abort on a newer restrictive policy, and unsubscribe after execution.
+3. Verified the exhaustive area fixture covers autonomy, writes, channels, setup, owner confirmation, retention, modules, and external effects; the live workflow fixture publishes a restrictive revision while its harness is in flight.
+4. Verified the task contains the final command and its 12-file, 173-test passing result from 2026-08-03; the full TypeScript typecheck also passes.

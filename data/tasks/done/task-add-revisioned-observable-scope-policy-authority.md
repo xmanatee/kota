@@ -1,13 +1,13 @@
 ---
 id: task-add-revisioned-observable-scope-policy-authority
 title: Add revisioned, observable scope-policy authority
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Replace unversioned scope-policy snapshots with a live authority contract that publishes atomic policy snapshots and restrictive revisions.
 created_at: 2026-08-03T13:16:46.780Z
-updated_at: 2026-08-03T18:37:53.301Z
+updated_at: 2026-08-03T21:20:09.316Z
 ---
 
 ## Problem
@@ -46,3 +46,9 @@ Decomposed from `task-security-review-workflow-agent-steps-snapshot-scop` after 
 
 - Focused unit tests exercising atomic snapshots, monotonic revisions, and restrictive-change notifications.
 - A recorded passing verification command covering the new authority contract.
+
+## Verification
+
+`TMPDIR="$PWD/.kota/tmp" NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true --reporter=dot src/core/daemon/scope-authority-operator-token.test.ts src/core/daemon/scope-authority-service.test.ts src/core/daemon/scope-authority-store.test.ts src/core/daemon/scope-authority.integration.test.ts src/core/daemon/scope-policy-widening.test.ts src/core/daemon/scope-policy.test.ts src/core/daemon/client-contract.test.ts src/core/daemon/daemon-control.test.ts src/core/workflow/run-executor-scope-policy.test.ts src/core/workflow/steps/step-context-scope-policy.test.ts src/modules/setup/scope-client.test.ts src/contract-fixture-cross-client.integration.test.ts clients/web/src/api/contractFixture.test.ts`
+
+Passed on 2026-08-03: 12 test files and 173 tests passed.

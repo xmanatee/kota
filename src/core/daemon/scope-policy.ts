@@ -1,3 +1,9 @@
+export type {
+  RestrictiveScopePolicyChange,
+  RestrictiveScopePolicyChangeListener,
+  ScopePolicyAuthority,
+  ScopePolicySnapshot,
+} from "./scope-policy-authority.js";
 export { capScopeAutonomyMode } from "./scope-policy-autonomy.js";
 export {
   decideScopePolicy,
@@ -33,4 +39,7 @@ export type {
   ScopeWriteBoundary,
 } from "./scope-policy-types.js";
 export { ScopePolicyValidationError } from "./scope-policy-types.js";
-export { scopePolicyWideningAreas } from "./scope-policy-widening.js";
+export {
+  scopePolicyRestrictiveAreas,
+  scopePolicyWideningAreas,
+} from "./scope-policy-widening.js";

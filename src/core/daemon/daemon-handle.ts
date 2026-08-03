@@ -30,7 +30,6 @@ import type { ScopeAuthorityMutation } from "./scope-authority-types.js";
 import type { ScopeHostingState } from "./scope-lifecycle-types.js";
 import {
   defaultScopePolicyDecisionExamples,
-  resolveScopePolicy,
   type ScopePolicyRouteResponse,
 } from "./scope-policy.js";
 import type {
@@ -74,8 +73,14 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       : {}),
     getRequirements: () => moduleSetupRequirementsFromSummaries(ctx.getModuleSummaries()),
     probeCapabilities: async () => (await ctx.probeCapabilityReadiness()).capabilities,
-    getVisibility: () =>
-      projectRuntimes.getDefault().resolveScopePolicy?.().setup.visibility ?? "full",
+    getVisibility: () => {
+      const runtime = projectRuntimes.getDefault();
+      if (!runtime.scopePolicyAuthority) {
+        throw new Error("Scope policy authority is unavailable for the default runtime");
+      }
+      return runtime.scopePolicyAuthority.getSnapshot(runtime.project.projectId).policy.setup
+        .visibility;
+    },
   });
   let activeProjectId: ProjectId | null = null;
   const lookupRuntime = (projectId?: ProjectId): ProjectRuntime =>
@@ -117,12 +122,12 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
     hasScope: (scopeId: string) =>
       projectRegistry.toScopeProjection().scopes.some((scope) => scope.scopeId === scopeId),
     getScopePolicy: (scopeId: string): ScopePolicyRouteResponse => {
-      const policy = ctx.scopeAuthority?.resolvePolicy(scopeId) ?? resolveScopePolicy({
-        projection: projectRegistry.toScopeProjection(),
-        scopeId,
-        fragments: config.config?.scopePolicies,
-      });
-      return { policy, decisionExamples: defaultScopePolicyDecisionExamples(policy) };
+      if (!ctx.scopeAuthority) throw new Error("Scope policy authority is unavailable");
+      const snapshot = ctx.scopeAuthority.getSnapshot(scopeId);
+      return {
+        ...snapshot,
+        decisionExamples: defaultScopePolicyDecisionExamples(snapshot.policy),
+      };
     },
     ...(ctx.scopeAuthority ? {
       inspectScopeAuthority: (scopeId: string) => ctx.scopeAuthority!.inspect(scopeId),

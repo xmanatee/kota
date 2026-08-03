@@ -11,7 +11,11 @@ import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
-import type { ResolvedScopePolicy } from "#core/daemon/scope-policy.js";
+import type {
+  ResolvedScopePolicy,
+  ScopePolicyAuthority,
+  ScopePolicySnapshot,
+} from "#core/daemon/scope-policy.js";
 import type { DelegateBudget } from "#core/tools/delegate-budget.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { ToolTelemetry } from "#core/tools/tool-telemetry.js";
@@ -89,6 +93,8 @@ export type AgentStepConfig = {
   idempotencyStore?: IdempotencyStore;
   scopeId?: string;
   projectId?: string;
+  scopePolicyAuthority?: ScopePolicyAuthority;
+  scopePolicySnapshot?: ScopePolicySnapshot;
   scopePolicy?: ResolvedScopePolicy;
 };
 export { resolvePromptContextStartDir } from "./step-executor-agent-prompt.js";

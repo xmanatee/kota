@@ -77,7 +77,7 @@ export function createDaemonRuntimeContext(
     resolveSkillsPrompt: config.resolveSkillsPrompt,
     onLog: log,
     quietHours: config.config?.notifications?.quietHours,
-    resolveScopePolicy: (scopeId) => scopeAuthority.resolvePolicy(scopeId),
+    scopePolicyAuthority: scopeAuthority,
   });
   const uninstallEventIdempotency = installEventIdempotency(bus, {
     getDefaultScopeId: () => projectRegistry.getDefaultScopeId(),

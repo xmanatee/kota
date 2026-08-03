@@ -62,8 +62,8 @@ export function initAgentSession(
       "AgentSession requires an explicit autonomyMode (passive | supervised | autonomous)",
     );
   }
-  state.resolveScopePolicy = options.projectRuntime?.resolveScopePolicy;
-  const initialScopePolicy = state.resolveScopePolicy?.();
+  state.scopePolicyAuthority = options.projectRuntime?.scopePolicyAuthority;
+  const initialScopePolicy = state.scopePolicyAuthority?.getSnapshot(state.scopeId).policy;
   state.autonomyMode = initialScopePolicy
     ? capScopeAutonomyMode(options.autonomyMode, initialScopePolicy)
     : options.autonomyMode;

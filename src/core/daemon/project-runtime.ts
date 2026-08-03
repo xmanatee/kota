@@ -45,8 +45,8 @@ import {
   setOwnerQuestionQueueInstance,
 } from "./owner-question-queue.js";
 import { Scheduler, setSchedulerInstance } from "./scheduler.js";
-import type { ResolvedScopePolicy } from "./scope-policy.js";
-import type { ConfiguredProject, ProjectId } from "./scope-registry.js";
+import type { ScopePolicyAuthority } from "./scope-policy.js";
+import type { ConfiguredProject } from "./scope-registry.js";
 import { setTaskStoreInstance, TaskStore } from "./task-store.js";
 
 /**
@@ -82,7 +82,7 @@ export type ProjectRuntime = {
   readonly ownerDecisionStore: OwnerDecisionStore;
   readonly ownerQuestionQueue: OwnerQuestionQueue;
   readonly workflowRuntime: WorkflowRuntime;
-  readonly resolveScopePolicy?: () => ResolvedScopePolicy;
+  readonly scopePolicyAuthority?: ScopePolicyAuthority;
   /** Absolute path to this project's `push-tokens.json`. */
   readonly pushTokenStorePath: string;
   setDefaultScopeRuntime(isDefault: boolean): void;
@@ -111,7 +111,7 @@ export type ProjectRuntimeFactoryOptions = {
   installSingletons: boolean;
   /** Quiet-hours config; only honored on the default bundle. */
   quietHours?: QuietHoursConfig;
-  resolveScopePolicy?: (scopeId: ProjectId) => ResolvedScopePolicy;
+  scopePolicyAuthority?: ScopePolicyAuthority;
 };
 
 function installProjectRuntimeSingletons(runtime: ProjectRuntime): void {
@@ -196,9 +196,7 @@ export function createProjectRuntime(
     agentConcurrency: opts.config?.scheduler?.agentConcurrency,
     codeConcurrency: opts.config?.scheduler?.codeConcurrency,
     isDefaultScopeRuntime: () => isDefaultScopeRuntime,
-    resolveScopePolicy: opts.resolveScopePolicy
-      ? () => opts.resolveScopePolicy!(opts.project.projectId)
-      : undefined,
+    scopePolicyAuthority: opts.scopePolicyAuthority,
   });
 
   const notificationGate =
@@ -223,9 +221,7 @@ export function createProjectRuntime(
     ownerDecisionStore,
     ownerQuestionQueue,
     workflowRuntime,
-    resolveScopePolicy: opts.resolveScopePolicy
-      ? () => opts.resolveScopePolicy!(opts.project.projectId)
-      : undefined,
+    scopePolicyAuthority: opts.scopePolicyAuthority,
     pushTokenStorePath: join(projectDir, ".kota", "push-tokens.json"),
     setDefaultScopeRuntime: (isDefault) => {
       isDefaultScopeRuntime = isDefault;

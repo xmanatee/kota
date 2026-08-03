@@ -662,6 +662,7 @@ struct ScopePolicyDecisionProjection: Codable, Equatable {
 }
 
 struct ScopePolicyRouteResponse: Codable, Equatable {
+    let revision: Int
     let policy: ScopePolicyProjection
     let decisionExamples: [ScopePolicyDecisionProjection]
 }

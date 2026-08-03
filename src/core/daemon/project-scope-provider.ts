@@ -14,7 +14,7 @@ export type DaemonProjectRuntimeScope = Pick<
   | "secretStore"
   | "ownerDecisionStore"
   | "ownerQuestionQueue"
-  | "resolveScopePolicy"
+  | "scopePolicyAuthority"
 >;
 
 export type DaemonProjectRuntimeResolution =

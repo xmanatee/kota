@@ -23,12 +23,23 @@ import {
   scopeAuthorityViewFor,
   unknownScope,
 } from "./scope-authority-validation.js";
+import type {
+  RestrictiveScopePolicyChange,
+  RestrictiveScopePolicyChangeListener,
+  ScopePolicyAuthority,
+  ScopePolicySnapshot,
+} from "./scope-policy-authority.js";
+import { scopePolicyRestrictiveAreas } from "./scope-policy-widening.js";
 import type { ScopeId, ScopeRegistry } from "./scope-registry.js";
 
 export type ScopeTrustRevokedHandler = (scopeId: ScopeId) => void;
 
-export class ScopeAuthorityService {
+export class ScopeAuthorityService implements ScopePolicyAuthority {
   private mutationTail: Promise<void> = Promise.resolve();
+  private readonly restrictiveChangeListeners = new Map<
+    ScopeId,
+    Set<RestrictiveScopePolicyChangeListener>
+  >();
 
   constructor(
     private readonly persistence: ScopeAuthorityPersistence,
@@ -46,6 +57,26 @@ export class ScopeAuthorityService {
     } catch (error) {
       return persistenceFailure(scopeId, error);
     }
+  }
+
+  getSnapshot(scopeId: ScopeId): ScopePolicySnapshot {
+    const inspected = this.inspect(scopeId);
+    if (!("resolvedPolicy" in inspected)) throw new Error(inspected.message);
+    return { revision: inspected.revision, policy: inspected.resolvedPolicy };
+  }
+
+  subscribeRestrictiveChanges(
+    scopeId: ScopeId,
+    listener: RestrictiveScopePolicyChangeListener,
+  ): () => void {
+    if (!this.registry.get(scopeId)) throw new Error(`Unknown directory scope ${scopeId}`);
+    const listeners = this.restrictiveChangeListeners.get(scopeId) ?? new Set();
+    listeners.add(listener);
+    this.restrictiveChangeListeners.set(scopeId, listeners);
+    return () => {
+      listeners.delete(listener);
+      if (listeners.size === 0) this.restrictiveChangeListeners.delete(scopeId);
+    };
   }
 
   validate(
@@ -123,6 +154,7 @@ export class ScopeAuthorityService {
       if (auditRecord.trust.before && !auditRecord.trust.after) {
         this.onTrustRevoked(scopeId);
       }
+      this.publishRestrictiveChanges(prepared.current, committed);
       return {
         ok: true,
         status: "applied",
@@ -130,12 +162,6 @@ export class ScopeAuthorityService {
         auditRecord,
       };
     });
-  }
-
-  resolvePolicy(scopeId: ScopeId) {
-    const inspected = this.inspect(scopeId);
-    if ("resolvedPolicy" in inspected) return inspected.resolvedPolicy;
-    throw new Error(inspected.message);
   }
 
   private prepare(
@@ -154,5 +180,35 @@ export class ScopeAuthorityService {
     const result = this.mutationTail.then(operation, operation);
     this.mutationTail = result.then(() => undefined, () => undefined);
     return result;
+  }
+
+  private publishRestrictiveChanges(
+    previousState: ScopeAuthorityStoredState,
+    currentState: ScopeAuthorityStoredState,
+  ): void {
+    for (const project of this.registry.list()) {
+      const listeners = this.restrictiveChangeListeners.get(project.projectId);
+      if (listeners === undefined || listeners.size === 0) continue;
+      const previousView = scopeAuthorityViewFor(this.registry, project, previousState);
+      const currentView = scopeAuthorityViewFor(this.registry, project, currentState);
+      const restrictiveAreas = scopePolicyRestrictiveAreas(
+        previousView.resolvedPolicy,
+        currentView.resolvedPolicy,
+      );
+      if (restrictiveAreas.length === 0) continue;
+      const change: RestrictiveScopePolicyChange = {
+        scopeId: project.projectId,
+        previous: {
+          revision: previousView.revision,
+          policy: previousView.resolvedPolicy,
+        },
+        current: {
+          revision: currentView.revision,
+          policy: currentView.resolvedPolicy,
+        },
+        restrictiveAreas,
+      };
+      for (const listener of [...listeners]) listener(change);
+    }
   }
 }

@@ -7,6 +7,7 @@ import {
   routeKotaToolControlOptions,
 } from "#core/agent-harness/index.js";
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
+import { capScopeAutonomyMode } from "#core/daemon/scope-policy.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
 import type { WorkflowStepContext } from "./run-types.js";
 import {
@@ -20,6 +21,7 @@ import {
   resolveAgentModel,
   resolvePromptContextStartDir,
 } from "./steps/step-executor-agent.js";
+import { subscribeAgentScopePolicyRestrictions } from "./steps/step-executor-agent-scope-policy.js";
 import { resolveAgentToolScope } from "./steps/step-executor-agent-tool-scope.js";
 import {
   AgentStepRuntimeError,
@@ -55,8 +57,11 @@ export async function executeRepairAgentIteration(
   );
   const harness = resolveAgentHarness(step.harness);
   const harnessOverrides = step.harnessOptions?.[harness.name];
+  const autonomyMode = agentConfig.scopePolicy
+    ? capScopeAutonomyMode(step.autonomyMode, agentConfig.scopePolicy)
+    : step.autonomyMode;
   const toolScope = resolveAgentToolScope(
-    step.autonomyMode,
+    autonomyMode,
     step.allowedTools,
     step.disallowedTools,
     harness.askOwnerToolName,
@@ -87,6 +92,7 @@ export async function executeRepairAgentIteration(
       abortController.signal.addEventListener("abort", forwardAbort, { once: true });
     }
     let idleMonitor: ReturnType<typeof createStepIdleTimeoutMonitor> | undefined;
+    let unsubscribeScopePolicy = () => {};
     const messageCapture = harness.emitsAgentMessageStream
       ? (message: KotaAgentMessage) => {
           if (idleMonitor !== undefined && isAgentProgressMessage(message)) {
@@ -100,6 +106,18 @@ export async function executeRepairAgentIteration(
       : undefined;
 
     try {
+      unsubscribeScopePolicy = subscribeAgentScopePolicyRestrictions({
+        stepId: step.id,
+        scopeId: agentConfig.scopeId,
+        authority: agentConfig.scopePolicyAuthority,
+        initialSnapshot: agentConfig.scopePolicySnapshot,
+        abortController: attemptAbortController,
+      });
+      if (attemptAbortController.signal.aborted) {
+        throw attemptAbortController.signal.reason instanceof Error
+          ? attemptAbortController.signal.reason
+          : new Error(`Repair agent for step "${step.id}" aborted`);
+      }
       const harnessRun = context.runAgentHarness(
         harness,
         {
@@ -120,11 +138,12 @@ export async function executeRepairAgentIteration(
             allowedTools: toolScope.allowedTools,
             disallowedTools: toolScope.disallowedTools,
             canUseTool,
+            scopePolicy: agentConfig.scopePolicy,
           }),
           askOwner: harness.askOwnerToolName !== null
             ? { source: `workflow:${context.workflow.name}/${context.workflow.runId}/${step.id}` }
             : undefined,
-          autonomyMode: step.autonomyMode,
+          autonomyMode,
           harnessOverrides,
           ...(tokenBudget !== undefined ? { tokenBudget } : {}),
           ...(messageCapture !== undefined ? { onMessage: messageCapture } : {}),
@@ -162,6 +181,7 @@ export async function executeRepairAgentIteration(
       throw error;
     } finally {
       idleMonitor?.dispose();
+      unsubscribeScopePolicy();
       abortController.signal.removeEventListener("abort", forwardAbort);
     }
   };

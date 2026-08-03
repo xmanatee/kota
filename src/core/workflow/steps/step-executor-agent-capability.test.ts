@@ -9,7 +9,11 @@ import {
   registerAgentHarness,
   resetHarnessHooks,
 } from "#core/agent-harness/index.js";
-import { resolveScopePolicy } from "#core/daemon/scope-policy.js";
+import {
+  type ResolvedScopePolicy,
+  resolveScopePolicy,
+  type ScopePolicyAuthority,
+} from "#core/daemon/scope-policy.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { executeWorkflowRun } from "../run-executor.js";
@@ -181,7 +185,7 @@ describe("workflow agent-step harness capability artifacts", () => {
         store,
         log: () => {},
         authorityConfigPath,
-        resolveScopePolicy: () => scopePolicy,
+        scopePolicyAuthority: authorityFor(scopePolicy),
       },
     );
 
@@ -229,7 +233,7 @@ describe("workflow agent-step harness capability artifacts", () => {
         bus,
         store,
         log: () => {},
-        resolveScopePolicy: () => scopePolicy,
+        scopePolicyAuthority: authorityFor(scopePolicy),
       },
     );
 
@@ -270,3 +274,10 @@ describe("workflow agent-step harness capability artifacts", () => {
     expect(receivedPrompt).toContain("out-of-scope writes fail this step");
   });
 });
+
+function authorityFor(policy: ResolvedScopePolicy): ScopePolicyAuthority {
+  return {
+    getSnapshot: () => ({ revision: 0, policy }),
+    subscribeRestrictiveChanges: () => () => {},
+  };
+}

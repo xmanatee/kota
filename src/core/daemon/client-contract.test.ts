@@ -167,6 +167,7 @@ describe("thin-client contract — shared fixture", () => {
 
     it("exposes resolved nested scope policy with inherited, overridden, and blocked values", () => {
       const response = fixture.scopePolicy.resolved;
+      expect(response.revision).toBe(7);
       expect(response.policy.scopeId).toBe("p-kota-fixture-feature");
       expect(response.policy.lineage).toEqual([
         "global",

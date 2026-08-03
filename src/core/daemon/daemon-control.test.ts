@@ -156,6 +156,7 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     })),
     hasScope: vi.fn((id: string) => id === "global" || id === "test-project-id" || id === "test-feature"),
     getScopePolicy: vi.fn((scopeId: string) => ({
+      revision: 4,
       policy: {
         scopeId,
         lineage: scopeId === "global"
@@ -608,6 +609,7 @@ describe("DaemonControlServer", () => {
       const res = await fetchWithToken(port, "/scopes/test-feature/policy");
       expect(res.status).toBe(200);
       const body = await res.json();
+      expect(body.revision).toBe(4);
       expect(body.policy.scopeId).toBe("test-feature");
       expect(body.policy.lineage).toEqual(["global", "test-project-id", "test-feature"]);
       expect(body.policy.directoryRoot).toBe("/tmp/test-project/feature");

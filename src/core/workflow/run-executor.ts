@@ -140,6 +140,8 @@ export function executeWorkflowRun(
         );
         const stepStartedAt = Date.now();
 
+        const scopeId = deps.pbus.getScopeId();
+        const scopePolicySnapshot = deps.scopePolicyAuthority?.getSnapshot(scopeId);
         const agentConfig: AgentStepConfig = {
           model: deps.model,
           config: deps.config,
@@ -154,11 +156,13 @@ export function executeWorkflowRun(
           agentRunLimiter,
           delegateBudget,
           runTokenBudget,
-			approvalQueue: deps.approvalQueue,
+          approvalQueue: deps.approvalQueue,
           idempotencyStore: deps.idempotencyStore,
-          scopeId: deps.pbus.getScopeId(),
+          scopeId,
           projectId: deps.pbus.getProjectId(),
-          scopePolicy: deps.resolveScopePolicy?.(),
+          scopePolicyAuthority: deps.scopePolicyAuthority,
+          scopePolicySnapshot,
+          scopePolicy: scopePolicySnapshot?.policy,
         };
 
         const runDecision = await evaluateStepRunDecision(step, context);

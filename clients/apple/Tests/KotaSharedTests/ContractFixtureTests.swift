@@ -193,6 +193,7 @@ final class ContractFixtureTests: XCTestCase {
     func testDecodesScopePolicyRouteResponse() throws {
         let data = try Self.nestedData(["scopePolicy", "resolved"])
         let response = try JSONDecoder().decode(ScopePolicyRouteResponse.self, from: data)
+        XCTAssertEqual(response.revision, 7)
         XCTAssertEqual(response.policy.scopeId, "p-kota-fixture-feature")
         XCTAssertEqual(response.policy.lineage, ["global", "p-kota-fixture-default", "p-kota-fixture-feature"])
         XCTAssertEqual(response.policy.directoryRoot, "/Users/operator/projects/kota/feature")

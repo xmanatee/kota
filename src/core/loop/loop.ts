@@ -5,7 +5,7 @@ import type { KotaConfig } from "#core/config/config.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
-import type { ResolvedScopePolicy } from "#core/daemon/scope-policy.js";
+import type { ScopePolicyAuthority } from "#core/daemon/scope-policy.js";
 import { capScopeAutonomyMode } from "#core/daemon/scope-policy.js";
 import { tryEmit } from "#core/events/event-bus.js";
 import type { McpAuthorizationResolver } from "#core/mcp/client.js";
@@ -139,7 +139,7 @@ export class AgentSession implements AgentLoopState {
   stateMachine!: SessionStateMachine;
   channelIdentity: ChannelUserIdentity | undefined;
   autonomyMode!: AutonomyMode;
-  resolveScopePolicy: (() => ResolvedScopePolicy) | undefined;
+  scopePolicyAuthority: ScopePolicyAuthority | undefined;
   guardrailsSnapshot!: GuardrailsSnapshot;
 
   constructor(options: LoopOptions) {
@@ -215,7 +215,7 @@ export class AgentSession implements AgentLoopState {
    * subscribers can count distinct transitions.
    */
   setAutonomyMode(mode: AutonomyMode): void {
-    const policy = this.resolveScopePolicy?.();
+    const policy = this.scopePolicyAuthority?.getSnapshot(this.scopeId).policy;
     if (policy) mode = capScopeAutonomyMode(mode, policy);
     const from = this.autonomyMode;
     if (from === mode) return;

@@ -208,7 +208,7 @@ export async function runWorkflow(
         ),
       resolveAgentDef: state.resolveAgentDef,
       resolveSkillsPrompt: state.resolveSkillsPrompt,
-      resolveScopePolicy: state.runtimeConfig.resolveScopePolicy,
+      scopePolicyAuthority: state.runtimeConfig.scopePolicyAuthority,
       agentRunLimiter: state.agentRunLimiter,
       runId: reservedRunId,
     },

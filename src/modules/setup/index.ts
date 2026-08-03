@@ -37,7 +37,13 @@ function buildLocalSetupClient(ctx: ModuleContext): SetupClient {
       if (!resolved.ok) throw new Error(`Unknown scope: ${selectedId}`);
       projectDir = resolved.runtime.project.projectDir;
       authorityConfigPath = resolved.runtime.authorityConfigPath;
-      getVisibility = () => resolved.runtime.resolveScopePolicy?.().setup.visibility ?? "full";
+      getVisibility = () => {
+        if (!resolved.runtime.scopePolicyAuthority) {
+          throw new Error(`Scope policy authority is unavailable for scope ${selectedId}`);
+        }
+        return resolved.runtime.scopePolicyAuthority.getSnapshot(resolved.runtime.project.projectId)
+          .policy.setup.visibility;
+      };
     }
 
     const serviceKey = `${selectedId ?? "local"}\0${projectDir}`;

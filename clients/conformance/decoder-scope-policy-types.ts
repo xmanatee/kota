@@ -39,6 +39,7 @@ export type ScopePolicyDecision = {
 };
 
 export type ScopePolicyRouteResponse = {
+  revision: number;
   policy: {
     scopeId: string;
     lineage: string[];

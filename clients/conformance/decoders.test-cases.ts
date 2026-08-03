@@ -109,6 +109,7 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
     parse: parseScopePolicyRouteResponse,
     assertPositive: (decoded) => {
       const response = decoded as {
+        revision: number;
         policy: {
           scopeId: string;
           lineage: string[];
@@ -118,6 +119,9 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
         };
         decisionExamples: Array<{ outcome: string; rendered: string }>;
       };
+      if (response.revision !== 7) {
+        throw new Error("expected revisioned scope policy snapshot");
+      }
       if (response.policy.scopeId !== "p-kota-fixture-feature") {
         throw new Error("expected fixture policy for p-kota-fixture-feature");
       }

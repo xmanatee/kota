@@ -171,6 +171,7 @@ export type ScopePolicyDecision = {
 };
 
 export type ScopePolicyRouteResponse = {
+  revision: number;
   policy: ResolvedScopePolicy;
   decisionExamples: readonly ScopePolicyDecision[];
 };
