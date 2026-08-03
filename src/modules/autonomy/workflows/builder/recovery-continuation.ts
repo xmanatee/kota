@@ -116,6 +116,31 @@ export function requestPendingBuilderRecoveries(
   return { candidateCount: candidates.length, requested };
 }
 
+function requestedBuilderRecovery(
+  ctx: Pick<WorkflowStepContext, "projectDir" | "trigger">,
+): WorkflowStateRecoveryClaim[] | null {
+  if (ctx.trigger.event !== BUILDER_RECOVERY_EVENT) return null;
+  const { taskId, worktreeRunId, workspaceDir } = ctx.trigger.payload;
+  if (
+    typeof taskId !== "string" ||
+    typeof worktreeRunId !== "string" ||
+    typeof workspaceDir !== "string"
+  ) {
+    return [];
+  }
+  return listRecoveryClaims(ctx.projectDir).filter((candidate) =>
+    candidate.claim.taskId === taskId &&
+    candidate.claim.worktreeRunId === worktreeRunId &&
+    preservedBuilderWorkspaceDir(candidate) === workspaceDir
+  );
+}
+
+function recoveryCandidates(
+  ctx: Pick<WorkflowStepContext, "projectDir" | "trigger">,
+): WorkflowStateRecoveryClaim[] {
+  return requestedBuilderRecovery(ctx) ?? listPendingBuilderRecoveries(ctx.projectDir);
+}
+
 function continuedClaimResult(
   projectDir: string,
   claim: TaskClaim,
@@ -154,15 +179,18 @@ function continueRecoveryCandidate(
 }
 
 export function claimPendingBuilderRecovery(
-  ctx: Pick<WorkflowStepContext, "projectDir" | "workflow">,
+  ctx: Pick<WorkflowStepContext, "projectDir" | "trigger" | "workflow">,
 ): QueueTaskClaimResult | null {
-  const candidates = listPendingBuilderRecoveries(ctx.projectDir);
+  const candidates = recoveryCandidates(ctx);
+  const requested = ctx.trigger.event === BUILDER_RECOVERY_EVENT;
   const skipped: ClaimTaskAttempt[] = [];
   for (const candidate of candidates) {
     const attempt = continueRecoveryCandidate(
       ctx,
       candidate,
-      `builder selected oldest pending recovery from ${candidate.claim.runId}`,
+      requested
+        ? `builder accepted requested recovery for ${candidate.claim.worktreeRunId}`
+        : `builder selected oldest pending recovery from ${candidate.claim.runId}`,
     );
     if (attempt.claimed && attempt.claim) {
       return continuedClaimResult(

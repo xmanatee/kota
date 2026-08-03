@@ -1,6 +1,9 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import "./workflow-test-support.js";
+import { listPendingBuilderRecoveries } from "./recovery-continuation.js";
 import builderWorkflow from "./workflow.js";
 import {
   makeEmptySnapshot,
@@ -15,9 +18,22 @@ describe("builder preserved-work continuation", () => {
   });
 
   it.each([
-    "autonomy.builder.recovery.requested",
-    "autonomy.queue.available",
-  ])("finishes preserved work through %s", async (event) => {
+    {
+      label: "an automatic recovery request",
+      event: "autonomy.builder.recovery.requested",
+      boundedContinuation: false,
+    },
+    {
+      label: "ordinary queue dispatch",
+      event: "autonomy.queue.available",
+      boundedContinuation: false,
+    },
+    {
+      label: "an explicit retry after the automatic continuation bound",
+      event: "autonomy.builder.recovery.requested",
+      boundedContinuation: true,
+    },
+  ])("finishes preserved work through $label", async ({ event, boundedContinuation }) => {
     const projectDir = makeWorkflowProject(
       event === "autonomy.queue.available"
         ? makeSnapshot(1, 0)
@@ -25,6 +41,7 @@ describe("builder preserved-work continuation", () => {
     );
     const taskId = "task-claimed";
     const worktreeRunId = "run-failed";
+    const claimRunId = boundedContinuation ? "run-failed-continuation" : worktreeRunId;
     const workspaceDir = `${projectDir}/.worktrees/${taskId}-${worktreeRunId}`;
     const recovery = await import(
       "#modules/autonomy/workflow-state-recovery-claims.js"
@@ -38,7 +55,7 @@ describe("builder preserved-work continuation", () => {
         claim: {
           taskId,
           taskState: "ready",
-          runId: worktreeRunId,
+          runId: claimRunId,
           worktreeRunId,
           workflowId: "builder",
           owner: "workflow:builder",
@@ -77,6 +94,15 @@ describe("builder preserved-work continuation", () => {
         },
       },
     ]);
+    if (boundedContinuation) {
+      const finalizerDir = join(projectDir, ".kota", "runs", claimRunId);
+      mkdirSync(finalizerDir, { recursive: true });
+      writeFileSync(
+        join(finalizerDir, "terminal-worktree-finalizer.json"),
+        JSON.stringify({ recoveryRequested: false }),
+      );
+      expect(listPendingBuilderRecoveries(projectDir)).toEqual([]);
+    }
     const commit = await import("#modules/autonomy/commit.js");
     vi.mocked(commit.commitWorkflowChanges).mockResolvedValue({
       committed: true,
@@ -95,6 +121,7 @@ describe("builder preserved-work continuation", () => {
           ...(event === "autonomy.builder.recovery.requested"
             ? { idempotencyKey: `builder-recovery:${worktreeRunId}` }
             : {}),
+          ...(boundedContinuation ? { retryOf: claimRunId } : {}),
           branchPerTask: true,
         },
       },

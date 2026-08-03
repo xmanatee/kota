@@ -13,6 +13,9 @@
 - Give preserved work one automatic continuation. Productive builder work is
   governed by trusted progress; a continuation that fails or stops reporting
   progress preserves the worktree for typed state-recovery review.
+- Recovery scanning decides whether to emit an automatic continuation. Once a
+  recovery event is queued, its exact task/worktree target governs consumption;
+  do not reapply the producer's automatic-attempt gate in the builder.
 - Prefer validation rails over hardcoded pre-agent task moves or scope policing.
 
 ## Success Criteria
