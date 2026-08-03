@@ -1,4 +1,6 @@
-import { existsSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { deadLetterStoreForProject } from "#core/daemon/dead-letter-queue.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
@@ -16,7 +18,10 @@ import {
   writeTask,
 } from "./task-claims-test-support.js";
 import { createWorkflowStateRecoveryProvider } from "./workflow-state-recovery.js";
-import { recommendedActionFor } from "./workflow-state-recovery-worktree.js";
+import {
+  readWorktreeEvidence,
+  recommendedActionFor,
+} from "./workflow-state-recovery-worktree.js";
 
 describe("workflow state recovery observability", () => {
   let projectDir: string;
@@ -96,6 +101,53 @@ describe("workflow state recovery observability", () => {
       kind: "needs-review",
       reason: "worktree contains preserved uncommitted changes that need recovery review",
     });
+  });
+
+  it("does not inspect deleted branches for removed worktree metadata", () => {
+    execFileSync("git", ["init", "--quiet", "--initial-branch=main"], { cwd: projectDir });
+    execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: projectDir });
+    execFileSync("git", ["config", "user.name", "Test"], { cwd: projectDir });
+    execFileSync("git", ["commit", "--quiet", "--allow-empty", "-m", "initial"], {
+      cwd: projectDir,
+    });
+    const claim = createPendingMergeClaim(
+      "task-removed",
+      "run-removed",
+      "worktree already cleaned",
+    );
+    const worktreeDir = join(projectDir, ".kota", "worktrees");
+    mkdirSync(worktreeDir, { recursive: true });
+    writeFileSync(
+      join(worktreeDir, "task-removed-run-removed.json"),
+      `${JSON.stringify({
+        schemaVersion: 1,
+        taskId: claim.taskId,
+        runId: claim.runId,
+        workflowId: claim.workflowId,
+        owner: claim.owner,
+        workspaceDir: join(projectDir, ".worktrees", "task-removed-run-removed"),
+        branch: "kota/task/task-removed/run-removed",
+        baseCommit: "HEAD",
+        createdAt: "2026-06-27T00:01:00.000Z",
+        updatedAt: "2026-06-27T00:03:00.000Z",
+        state: "removed",
+        copiedSetupFiles: [],
+        removedAt: "2026-06-27T00:03:00.000Z",
+      }, null, 2)}\n`,
+      "utf8",
+    );
+
+    const evidence = readWorktreeEvidence(projectDir, claim);
+
+    expect(evidence).toMatchObject({
+      found: false,
+      state: "removed",
+      uniqueCommits: [],
+      uniqueCommitCount: 0,
+      branchAhead: null,
+      branchBehind: null,
+    });
+    expect(evidence.uniqueCommitError).toBeUndefined();
   });
 
   it("isolates resolution by project directory", () => {

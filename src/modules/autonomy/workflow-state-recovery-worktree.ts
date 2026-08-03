@@ -92,10 +92,12 @@ function worktreeEvidenceFromInspection(
   inspection: AutomationWorktreeInspection,
   projectDir: string,
 ): WorkflowStateRecoveryWorktreeEvidence {
-  const unique = listAutomationWorktreeUniqueCommits(
-    projectDir,
-    inspection.branch || inspection.headCommit,
-  );
+  const unique = inspection.metadata.state === "removed"
+    ? { commits: [], branchAhead: null, branchBehind: null }
+    : listAutomationWorktreeUniqueCommits(
+        projectDir,
+        inspection.branch || inspection.headCommit,
+      );
   return {
     found: inspection.exists,
     metadataPath: inspection.metadataPath,
