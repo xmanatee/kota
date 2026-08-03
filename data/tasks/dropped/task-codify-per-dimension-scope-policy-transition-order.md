@@ -1,13 +1,13 @@
 ---
 id: task-codify-per-dimension-scope-policy-transition-order
 title: Codify per-dimension scope-policy transition ordering
-status: ready
+status: dropped
 priority: p1
 area: security
 task_class: Safety
 summary: Add pure typed comparison primitives that define equal, permissive, and restrictive transitions for every existing security-relevant scope-policy dimension.
 created_at: 2026-08-03T16:18:03.778Z
-updated_at: 2026-08-03T16:18:03.778Z
+updated_at: 2026-08-03T17:48:37.388Z
 ---
 
 ## Problem
@@ -48,3 +48,11 @@ Decomposed from `task-define-exhaustive-scope-policy-restriction-semanti` after 
 - Focused unit-test output showing equal, permissive, and restrictive cases for every named policy dimension.
 - A recorded passing repository verification command for the per-dimension comparison primitives.
 - Code inspection showing the primitives consume canonical policy types without adding a parallel representation.
+
+## Decomposed
+
+- task-define-transition-results-and-write-limit-ordering
+- task-codify-module-limit-transition-ordering
+- task-codify-network-limit-transition-ordering
+- task-codify-tool-limit-transition-ordering
+- task-codify-autonomy-limit-transition-ordering
