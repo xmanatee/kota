@@ -1,13 +1,13 @@
 ---
 id: task-add-revisioned-observable-scope-policy-authority
 title: Add revisioned, observable scope-policy authority
-status: ready
+status: dropped
 priority: p1
 area: security
 task_class: Safety
 summary: Replace unversioned scope-policy snapshots with a live authority contract that publishes atomic policy snapshots and restrictive revisions.
 created_at: 2026-08-03T13:16:46.780Z
-updated_at: 2026-08-03T13:16:46.780Z
+updated_at: 2026-08-03T15:31:42.550Z
 ---
 
 ## Problem
@@ -46,3 +46,9 @@ Decomposed from `task-security-review-workflow-agent-steps-snapshot-scop` after 
 
 - Focused unit tests exercising atomic snapshots, monotonic revisions, and restrictive-change notifications.
 - A recorded passing verification command covering the new authority contract.
+
+## Decomposed
+
+- task-define-exhaustive-scope-policy-restriction-semanti
+- task-implement-the-revisioned-observable-scope-policy-a
+- task-honor-restrictive-scope-policy-revisions-during-ac
