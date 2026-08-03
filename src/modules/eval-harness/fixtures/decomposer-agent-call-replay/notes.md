@@ -19,11 +19,13 @@ eval-harness replay adapter. The fixture regression-gates the
   through the canonical task APIs.
 - The plan produces the two task ids asserted by the fixture and
   includes every section required by current open-task validation.
+- `recordings/review-decomposition.json` approves the plan after comparing it
+  with the canonical parent markdown exposed by `assess-failure`.
 
 ## Why this shape
 
-The replay exercises trigger routing, assessment, typed agent-output
-validation, deterministic task mutation, task queue validation, commit,
-and restart against the production workflow. Only the agent harness is
-replaced, so a regression from failure attribution through committed
-subtask state fails without paying for a live model call.
+The replay exercises trigger routing, assessment, typed planner and semantic
+review output, deterministic task mutation, task queue validation, commit, and
+restart against the production workflow. Only the agent harness is replaced,
+so a regression from failure attribution through committed subtask state fails
+without paying for a live model call.

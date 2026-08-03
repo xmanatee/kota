@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "workflowName": "decomposer",
+  "stepId": "review-decomposition",
+  "sourceRunId": "2026-04-18T15-45-49-339Z-decomposer-zloyo6",
+  "response": {
+    "text": "```json\n{\"decision\":\"approve\",\"rationale\":\"Both proposed subtasks preserve the fixture parent task's external-project runtime and workflow-precedence outcomes without introducing unrelated work.\",\"issues\":[]}\n```",
+    "subtype": "success",
+    "turns": 1,
+    "totalCostUsd": 0,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "sessionId": "fixture-decomposer-plan-review-session"
+  },
+  "fileOperations": []
+}

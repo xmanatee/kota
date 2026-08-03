@@ -44,6 +44,33 @@ export function decodeDecompositionPlan(raw: unknown): DecompositionPlan {
   return decompositionPlanSchema.parse(raw);
 }
 
+const decompositionReviewSchema = z.object({
+  decision: z.enum(["approve", "reject"]),
+  rationale: nonBlankString,
+  issues: z.array(nonBlankString),
+}).strict().superRefine((review, ctx) => {
+  if (review.decision === "approve" && review.issues.length > 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["issues"],
+      message: "approved reviews must not report issues",
+    });
+  }
+  if (review.decision === "reject" && review.issues.length === 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["issues"],
+      message: "rejected reviews must report at least one issue",
+    });
+  }
+});
+
+export type DecompositionReview = z.infer<typeof decompositionReviewSchema>;
+
+export function decodeDecompositionReview(raw: unknown): DecompositionReview {
+  return decompositionReviewSchema.parse(raw);
+}
+
 const stringArraySchema = {
   type: "array",
   minItems: 1,
@@ -98,6 +125,20 @@ export const decompositionPlanOutputSchema = {
       type: "array",
       minItems: 1,
       items: subtaskOutputSchema,
+    },
+  },
+} satisfies JsonSchemaObject;
+
+export const decompositionReviewOutputSchema = {
+  type: "object",
+  required: ["decision", "rationale", "issues"],
+  additionalProperties: false,
+  properties: {
+    decision: { type: "string", enum: ["approve", "reject"] },
+    rationale: { type: "string", minLength: 1 },
+    issues: {
+      type: "array",
+      items: { type: "string", minLength: 1 },
     },
   },
 } satisfies JsonSchemaObject;

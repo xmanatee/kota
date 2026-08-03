@@ -1,4 +1,4 @@
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
@@ -31,7 +31,9 @@ import {
 } from "./decomposition-actions.js";
 import {
   decodeDecompositionPlan,
+  decodeDecompositionReview,
   decompositionPlanOutputSchema,
+  decompositionReviewOutputSchema,
 } from "./decomposition-plan.js";
 
 export const agent: AgentDef = {
@@ -51,7 +53,12 @@ export type DecomposerAssessment = {
   failureKind: DecomposerFailureKind | null;
 } & (
   | { shouldDecompose: false }
-  | { shouldDecompose: true; taskId: string; taskPath: string }
+  | {
+      shouldDecompose: true;
+      taskId: string;
+      taskPath: string;
+      taskMarkdown: string;
+    }
 );
 
 const TASK_STATES_FOR_IDENTIFIED_TASK = ["doing", "blocked", "ready"] as const;
@@ -197,6 +204,7 @@ function buildAssessment(
     failedRunDir: source.runDir,
     taskId: task.id,
     taskPath: task.path,
+    taskMarkdown: readFileSync(join(projectDir, task.path), "utf-8"),
     failureKind,
   };
 }
@@ -228,10 +236,26 @@ function decompositionTargetTaskId(ctx: Parameters<typeof assessFailure.outputRe
   throw new Error("decompose step ran without an active task target");
 }
 
+const requireDecompositionApproval = typedCodeStep<{ approved: true }>({
+  id: "require-decomposition-approval",
+  type: "code",
+  when: stepSucceeded("review-decomposition"),
+  validate: (raw) => expectStructuredOutput<{ approved: true }>(raw, ["approved"]),
+  run: (ctx) => {
+    const review = decodeDecompositionReview(ctx.stepOutputs["review-decomposition"]);
+    if (review.decision === "reject") {
+      throw new Error(
+        `Decomposition semantic review rejected the plan: ${review.issues.join("; ")}`,
+      );
+    }
+    return { approved: true };
+  },
+});
+
 const writeCommitMessage = typedCodeStep<{ written: true }>({
   id: "write-commit-message",
   type: "code",
-  when: stepSucceeded("decompose"),
+  when: stepSucceeded("require-decomposition-approval"),
   validate: (raw) => expectStructuredOutput<{ written: true }>(raw, ["written"]),
   run: (ctx) => {
     writeFileSync(
@@ -332,6 +356,23 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
       validate: decodeDecompositionPlan,
       when: shouldRunDecompose,
     },
+    {
+      id: "review-decomposition",
+      type: "agent",
+      agentName: agent.name,
+      promptPath: "src/modules/autonomy/workflows/decomposer/review-prompt.md",
+      harness: AUTONOMY_AGENT_HARNESS,
+      tier: AUTONOMY_AGENT_DEFAULTS.tier,
+      effort: agent.effort,
+      allowedTools: [],
+      timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
+      maxTurns: 4,
+      outputFormat: "json",
+      outputSchema: decompositionReviewOutputSchema,
+      validate: decodeDecompositionReview,
+      when: stepSucceeded("decompose"),
+    },
+    requireDecompositionApproval,
     writeCommitMessage,
     applyDecomposition,
     validateDecomposition,

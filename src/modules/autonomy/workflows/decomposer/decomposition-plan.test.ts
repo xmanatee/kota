@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { decodeDecompositionPlan } from "./decomposition-plan.js";
+import {
+  decodeDecompositionPlan,
+  decodeDecompositionReview,
+} from "./decomposition-plan.js";
 
 function subtask(dependsOn: number[]) {
   return {
@@ -36,5 +39,15 @@ describe("decodeDecompositionPlan", () => {
         subtasks: [subtask([0])],
       }),
     ).toThrow(/earlier subtask index/);
+  });
+
+  it("decodes an explicit semantic review decision", () => {
+    expect(
+      decodeDecompositionReview({
+        decision: "reject",
+        rationale: "The plan changes the parent task's security boundary.",
+        issues: ["The plan addresses write attribution instead of live authority revocation."],
+      }),
+    ).toMatchObject({ decision: "reject" });
   });
 });

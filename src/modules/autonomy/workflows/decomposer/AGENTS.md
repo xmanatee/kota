@@ -5,8 +5,10 @@ This directory contains the decomposer workflow definition and its prompt.
 - Triggers on builder failure events and classifies structured timeout or
   exhausted repair outcomes.
 - Reads the exact task id from the failed run's `task-claim.json`. When that
-  task remains active, the agent returns a typed decomposition plan without
-  mutating the checkout.
+  task remains active, its canonical markdown is included in the assessment
+  and the agent returns a typed decomposition plan without mutating the checkout.
+- `review-decomposition` independently compares the plan with that exact task
+  markdown. A rejection fails before any task mutation.
 - `apply-decomposition` is the only mutation path: it creates the planned ready
   tasks through the repo-task writer, records dependencies, annotates the
   original, and moves it to `dropped/` through the task state machine.

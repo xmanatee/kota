@@ -133,11 +133,18 @@ const DECOMPOSITION_PLAN: DecompositionPlan = {
   ],
 };
 
+const DECOMPOSITION_REVIEW = {
+  decision: "approve",
+  rationale: "Every subtask preserves the parent task's bounded outcome.",
+  issues: [],
+} as const;
+
 function decomposeStepMocks(
   extra: NonNullable<HarnessOptions["stepMocks"]> = {},
 ): NonNullable<HarnessOptions["stepMocks"]> {
   return {
     decompose: DECOMPOSITION_PLAN,
+    "review-decomposition": DECOMPOSITION_REVIEW,
     ...extra,
   };
 }
@@ -152,7 +159,12 @@ describe("decomposer workflow", () => {
       if (p.includes("data/tasks/")) return true;
       return actual.existsSync(path as Parameters<typeof actual.existsSync>[0]);
     });
-    vi.mocked(fs.readFileSync).mockImplementation(actual.readFileSync);
+    vi.mocked(fs.readFileSync).mockImplementation((path, options) => {
+      if (String(path).includes("data/tasks/")) {
+        return "---\nid: task-fixture\n---\n\n## Problem\n\nCanonical task intent.\n";
+      }
+      return actual.readFileSync(path, options as never);
+    });
     vi.mocked(fs.writeFileSync).mockImplementation(() => undefined);
   });
 
@@ -394,6 +406,35 @@ describe("decomposer workflow", () => {
     expect(result.steps.decompose.status).toBe("success");
     expect(result.steps.commit.status).toBe("success");
     expect(result.steps["request-restart"].status).toBe("success");
+  });
+
+  it("rejects a semantically misaligned plan before task mutation", async () => {
+    await configureBuilderFailure(
+      makeFailedBuilderMetadata({
+        buildDurationMs: HANG_TIMEOUT_BUILD_MS,
+        buildErrorKind: "step-timeout",
+      }),
+    );
+    const { applyDecompositionPlan } = await import("./decomposition-actions.js");
+
+    const harness = new WorkflowTestHarness(decomposerWorkflow, {
+      trigger: { event: "workflow.completed", schemaRef: null, payload: TRIGGER_PAYLOAD },
+      stepMocks: decomposeStepMocks({
+        "review-decomposition": {
+          decision: "reject",
+          rationale: "The plan changes the security boundary.",
+          issues: ["The proposed tasks solve a different vulnerability."],
+        },
+      }),
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("failed");
+    expect(result.steps["require-decomposition-approval"].error).toContain(
+      "solve a different vulnerability",
+    );
+    expect(applyDecompositionPlan).not.toHaveBeenCalled();
   });
 
   it("decomposes on runtime.recovered when the source was a timed-out builder", async () => {

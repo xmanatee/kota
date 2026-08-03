@@ -9,8 +9,10 @@ split or sharpen it only where real conceptual seams exist.
 
 ## Scope
 
-- Read the original task file at `assess-failure.taskPath`. Terminal or missing
-  tasks supersede the older builder failure and do not reach this agent step.
+- Treat `assess-failure.taskMarkdown` as the authoritative original task.
+  `taskPath` identifies its canonical location for supporting repository
+  inspection. Terminal or missing tasks supersede the older builder failure
+  and do not reach this agent step.
 - Understand why the task could not produce a complete stageable change.
 - Split it into independently valuable subtasks with clear outcomes.
 
@@ -32,4 +34,5 @@ split or sharpen it only where real conceptual seams exist.
 Return one JSON object with `rationale` and a non-empty `subtasks` array matching
 the supplied schema. The workflow deterministically creates those ready tasks,
 records their dependencies, annotates the original with `## Decomposed`, and
-moves it to `dropped/` through the canonical repo-task APIs.
+moves it to `dropped/` through the canonical repo-task APIs only after an
+independent semantic review approves alignment with the original task.
