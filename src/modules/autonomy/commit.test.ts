@@ -112,7 +112,7 @@ describe("commitWorkflowChanges", () => {
     writeFileSync(join(workspace.projectDir, "change.txt"), "hello\n");
 
     expect(() => checkCommitMessageExists(workspace.runDirPath, workspace.projectDir)).toThrow(
-      "Missing commit-message.txt in the run directory",
+      `Missing required workflow commit message: ${join(workspace.runDirPath, "commit-message.txt")}`,
     );
   });
 

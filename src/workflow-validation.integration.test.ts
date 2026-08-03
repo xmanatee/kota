@@ -772,6 +772,52 @@ describe("workflow validation", () => {
     });
   });
 
+  it("requires trusted idle progress when active timeout is disabled", () => {
+    const definitions = validateWorkflowDefinitions(
+      [
+        registerWorkflowDefinition("test/heartbeat.ts", {
+          name: "heartbeat",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "work",
+              type: "code",
+              timeoutMs: null,
+              idleTimeoutMs: 60_000,
+              run: () => ({ ok: true }),
+            },
+          ],
+        }),
+      ],
+      projectDir,
+    );
+
+    expect(definitions[0]?.steps[0]).toMatchObject({
+      timeoutMs: null,
+      idleTimeoutMs: 60_000,
+    });
+
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/heartbeat.ts", {
+            name: "heartbeat",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [
+              {
+                id: "work",
+                type: "code",
+                timeoutMs: null,
+                run: () => ({ ok: true }),
+              },
+            ],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(/timeoutMs may be null only when idleTimeoutMs is set/);
+  });
+
   it("rejects missing prompt files", () => {
     expect(() =>
       validateWorkflowDefinitions(

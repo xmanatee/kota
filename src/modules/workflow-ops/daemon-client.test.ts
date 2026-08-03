@@ -14,8 +14,8 @@
  *     each of the twelve methods that throw on transport failure.
  *  5. `listRuns` and `getRun` soft-fall through on `null` (returning `{ runs:
  *     [] }` and `{ found: false }` respectively).
- *  6. `triggerByName` forwards only the user-extension `payload` after
- *     `buildTriggerHttpPayload` and includes `tags` only when non-empty.
+ *  6. `triggerByName` preserves the complete enqueue contract and omits only
+ *     unset fields.
  *  7. Supplying the contribution to the assembly path satisfies coverage.
  *  8. Removing the workflow-ops contribution makes assembly fail loudly with
  *     a clear "workflow" missing-handler error.
@@ -538,7 +538,7 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
     );
   });
 
-  it("triggerByName routes through POST /workflow/trigger and forwards only the user-extension payload", async () => {
+  it("triggerByName preserves enqueue options through POST /workflow/trigger", async () => {
     const { transport, calls } = makeRecordingTransport({
       respondFetch: () => jsonResponse(200, { queued: "wf-1", runId: "r-1" }),
     });
@@ -546,10 +546,9 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
     const result = await wf.triggerByName("wf-1", {
       tags: ["smoke"],
       payload: { extra: "info" },
-      // event/runId/force/notBeforeMs are ignored on the wire path
       event: "manual-override",
+      schemaRef: { name: "manual-override", version: 1 },
       runId: "client-pinned",
-      force: true,
       notBeforeMs: 0,
     });
     expect(result).toEqual({
@@ -566,6 +565,10 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
       name: "wf-1",
       tags: ["smoke"],
       payload: { extra: "info" },
+      event: "manual-override",
+      schemaRef: { name: "manual-override", version: 1 },
+      runId: "client-pinned",
+      notBeforeMs: 0,
     });
   });
 

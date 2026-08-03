@@ -189,6 +189,54 @@ describe("workflow agent-step harness capability artifacts", () => {
     expect(run).toHaveBeenCalledOnce();
   });
 
+  it("caps native harness autonomy without forwarding KOTA tool policy", async () => {
+    const scopeId = deriveDirectoryScopeId(projectDir);
+    const scopePolicy = resolveScopePolicy({
+      projection: {
+        rootScopeId: "global",
+        defaultScopeId: scopeId,
+        scopes: [
+          { scopeId: "global", displayName: "Global" },
+          { scopeId, displayName: "Fixture", parentScopeId: "global", directoryRoot: projectDir },
+        ],
+      },
+      scopeId,
+      fragments: [{
+        scopeId,
+        reason: "Native fixture is read-only.",
+        autonomy: { defaultMode: "passive", maxMode: "passive" },
+        writes: { mode: "none" },
+      }],
+    });
+    const run = vi.fn(async (options: AgentHarnessRunOptions) => {
+      expect(options.autonomyMode).toBe("passive");
+      expect(options.scopePolicy).toBeUndefined();
+      expect(options.allowedTools).toBeUndefined();
+      expect(options.disallowedTools).toBeUndefined();
+      expect(options.canUseTool).toBeUndefined();
+      return AGENT_OK_RESULT;
+    });
+    const harnessName = "scope-policy-native";
+    registerAgentHarness(
+      makeHarness(harnessName, run, { toolControl: "native" }),
+    );
+
+    const { promise } = executeWorkflowRun(
+      makeDefinition(projectDir, makeAgentStep(projectDir, harnessName)),
+      TRIGGER,
+      {
+        projectDir,
+        bus,
+        store,
+        log: () => {},
+        resolveScopePolicy: () => scopePolicy,
+      },
+    );
+
+    await expect(promise).resolves.toMatchObject({ metadata: { status: "success" } });
+    expect(run).toHaveBeenCalledOnce();
+  });
+
   it("passes restricted agent write scope into the runtime prompt", async () => {
     execFileSync("git", ["init", "--quiet"], { cwd: projectDir });
     let receivedPrompt = "";

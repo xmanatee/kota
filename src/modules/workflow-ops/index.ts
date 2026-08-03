@@ -27,6 +27,10 @@ import {
   msUntilDispatchWindowOpens,
 } from "#core/workflow/dispatch-window.js";
 import {
+  buildOperatorQueuedRun,
+  buildOperatorTriggerRequestBody,
+} from "#core/workflow/operator-trigger.js";
+import {
   clearWorkflowPauseSignal,
   reconcileWorkflowRecovery,
   resolveWorkflowDispatchPause,
@@ -42,7 +46,7 @@ import {
 } from "#core/workflow/runtime.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
-import { buildTriggerHttpPayload, type WorkflowClient } from "./client.js";
+import type { WorkflowClient } from "./client.js";
 import { registerDefinitionLogCommand } from "./definitions/definition-log.js";
 import { registerDefinitionsCommand } from "./definitions/definitions.js";
 import { registerDepsCommand } from "./definitions/deps.js";
@@ -481,24 +485,9 @@ const workflowModule: KotaModule = {
         if (state.pendingRuns.some((r) => r.workflowName === name)) {
           return { ok: false, reason: "already_queued" };
         }
-        const now = Date.now();
-        const runId = options?.runId ?? formatRunId(name);
-        const tags = options?.tags;
-        const trigger: WorkflowRunTrigger = {
-          event: options?.event ?? "manual",
-          schemaRef: null,
-          payload: {
-            ...(options?.payload ?? {}),
-            triggeredAt: new Date().toISOString(),
-            ...(tags && tags.length > 0 && { tags }),
-          },
-        };
-        const notBeforeMs = options?.notBeforeMs ?? now;
-        store.setPendingRuns([
-          ...state.pendingRuns,
-          { runId, workflowName: name, trigger, enqueuedAtMs: now, notBeforeMs },
-        ]);
-        return { ok: true, path: "queue", queued: name, runId };
+        const queuedRun = buildOperatorQueuedRun(name, options);
+        store.setPendingRuns([...state.pendingRuns, queuedRun]);
+        return { ok: true, path: "queue", queued: name, runId: queuedRun.runId };
       },
       async trial(name, options) {
         return runLocalWorkflowTrial(ctx, name, options);
@@ -570,8 +559,8 @@ const workflowModule: KotaModule = {
  *  - `listDefinitions()` → `GET /workflow/definitions`. Throws on transport
  *    failure; success returns `{ source: "daemon", definitions }`.
  *  - `triggerByName(name, options)` → `POST /workflow/trigger` with body
- *    `{ name, ...(tags && tags.length > 0 && { tags }), ...(payload && { payload }) }`.
- *    Only the user-extension `payload` survives `buildTriggerHttpPayload`.
+ *    from `buildOperatorTriggerRequestBody`, preserving event, schema, payload, run id,
+ *    tags, and dispatch eligibility across daemon-up and daemon-down paths.
  *    Throws on transport failure; 409 → `{ ok: false, reason: "already_queued" }`;
  *    success returns `{ ok: true, path: "daemon", queued: result.queued ?? name,
  *    ...(result.runId !== undefined && { runId: result.runId }) }`.
@@ -868,13 +857,7 @@ export function buildWorkflowDaemonHandler(
       return { source: "daemon", definitions: result.definitions };
     },
     triggerByName: async (name, options) => {
-      const tags = options?.tags;
-      const payload = buildTriggerHttpPayload(options);
-      const body = {
-        name,
-        ...(tags && tags.length > 0 && { tags }),
-        ...(payload && { payload }),
-      };
+      const body = buildOperatorTriggerRequestBody(name, options);
       const resp = await fetchJson("POST", "/workflow/trigger", body);
       if (!resp) {
         throw new Error(`Daemon unreachable while triggering workflow "${name}"`);

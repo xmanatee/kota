@@ -72,9 +72,10 @@ export function buildAgentHarnessRunOptions(input: {
     resolvedHarness.askOwnerToolName,
   );
   const trialCanUseTool = agentConfig.createCanUseTool?.(step.id);
+  const workflowGuards = createWorkflowAgentGuards(agentConfig.authorityConfigPath);
   const canUseTool = trialCanUseTool
-    ? composeCanUseTools(trialCanUseTool, createWorkflowAgentGuards())
-    : createWorkflowAgentGuards();
+    ? composeCanUseTools(trialCanUseTool, workflowGuards)
+    : workflowGuards;
   const askOwner = resolvedHarness.askOwnerToolName !== null
     ? { source: `workflow:${metadata.workflow}/${metadata.id}/${step.id}` }
     : undefined;
@@ -102,6 +103,7 @@ export function buildAgentHarnessRunOptions(input: {
         allowedTools: toolScope.allowedTools,
         disallowedTools: toolScope.disallowedTools,
         canUseTool,
+        scopePolicy: agentConfig.scopePolicy,
       }),
       ...(agentConfig.config?.guardrails !== undefined
         ? { guardrailsConfig: agentConfig.config.guardrails }
@@ -116,9 +118,6 @@ export function buildAgentHarnessRunOptions(input: {
       autonomyMode: agentConfig.scopePolicy
         ? capScopeAutonomyMode(step.autonomyMode, agentConfig.scopePolicy)
         : step.autonomyMode,
-      ...(agentConfig.scopePolicy !== undefined
-        ? { scopePolicy: agentConfig.scopePolicy }
-        : {}),
       harnessOverrides,
       abortController,
       workflowContext: {

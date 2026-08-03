@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -210,6 +210,8 @@ describe("knowledge-routes", () => {
     it("isolates project entries and rejects unknown project ids", async () => {
       const root = mkdtempSync(join(tmpdir(), "kota-knowledge-projects-"));
       try {
+        mkdirSync(join(root, "a"));
+        mkdirSync(join(root, "b"));
         const projectA = buildConfiguredProject({ projectDir: join(root, "a") });
         const projectB = buildConfiguredProject({ projectDir: join(root, "b") });
         const stores = new KnowledgeProjectStores({

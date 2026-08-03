@@ -110,11 +110,10 @@ operator-auditable record of why the next ready batch is the right one.
 
 ## Repair-Loop Checks
 
-Workflow repair-loop checks should use `type: "code"` with `spawnSync`; shell
-is module-owned and may not be available. Keep deterministic hygiene checks to
-objective patterns. Architecture, redundancy, and intent-heavy cleanup stay
-with critic/improver judgment. Do not force route/event/enum/config catalogs
-into `docs/`; enforce those contracts with source types and focused tests.
+Repair-loop checks validate without editing or staging; agents own repairs.
+Use `type: "code"`; shell is module-owned and may be absent. Keep hygiene
+checks objective. Architecture and intent-heavy cleanup stay with agent
+judgment. Keep route/event/config catalogs in source types and focused tests.
 
 ## Dirty Failure Recovery
 

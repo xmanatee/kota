@@ -5,8 +5,8 @@ import type { ToolResult } from "#core/tools/tool-result.js";
 import { resolveToolPath } from "./path-resolver.js";
 import {
   isProtectedProjectPath,
-  PROTECTED_PROJECT_GLOB_IGNORES,
-  PROTECTED_PROJECT_GREP_EXCLUDES,
+  protectedProjectGlobIgnores,
+  protectedProjectGrepExcludes,
   protectedProjectPathError,
 } from "./protected-paths.js";
 
@@ -121,7 +121,7 @@ export async function runGrep(
   const contextLines =
     rawContextLines === undefined ? DEFAULT_CONTEXT_LINES : rawContextLines;
 
-  if (isProtectedProjectPath(path, context?.cwd)) {
+  if (isProtectedProjectPath(path, context)) {
     return { content: protectedProjectPathError(rawPath), is_error: true };
   }
 
@@ -151,7 +151,7 @@ export async function runGrep(
       if (contextLines > 0) args.push("-C", String(contextLines));
     }
     if (fileGlob) args.push("--glob", fileGlob);
-    for (const ignore of PROTECTED_PROJECT_GLOB_IGNORES) {
+    for (const ignore of protectedProjectGlobIgnores(context)) {
       args.push("--iglob", `!${ignore}`);
     }
     args.push("--", pattern, path);
@@ -167,7 +167,7 @@ export async function runGrep(
     }
     if (fileGlob) args.push(`--include=${fileGlob}`);
     else if (!filesOnly && !countOnly) args.push("--include=*");
-    for (const exclude of PROTECTED_PROJECT_GREP_EXCLUDES) {
+    for (const exclude of protectedProjectGrepExcludes(context)) {
       args.push(`--exclude=${exclude}`);
     }
     args.push("--", pattern, path);

@@ -1,6 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { buildMachineAuthoritySandboxLaunch } from "#core/agent-harness/machine-authority-sandbox.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
 import {
   registerSessionEnvironmentResource,
@@ -8,7 +9,6 @@ import {
 } from "#core/tools/session-environment.js";
 import { DONE_MARKER, ENV_MARKER, NODE_WRAPPER, PYTHON_WRAPPER, SENTINEL } from "./code-wrappers.js";
 import { buildExecutionEnv } from "./execution-env.js";
-import { buildMachineAuthoritySandboxLaunch } from "./machine-authority-sandbox.js";
 
 export type Language = "python" | "node";
 const SETTLE_STDERR_GRACE_MS = 10;

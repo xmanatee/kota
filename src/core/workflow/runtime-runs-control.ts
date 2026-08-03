@@ -2,6 +2,7 @@ import {
   buildDeadLetterEventEnvelope,
   buildDeadLetterWorkflowTrigger,
 } from "./dead-letter-redrive.js";
+import { buildOperatorQueuedRun, type WorkflowEnqueueOptions } from "./operator-trigger.js";
 import { formatRunId } from "./run-io.js";
 import { maybeStartNext, type WorkflowRuntimeDispatchState } from "./runtime-dispatch.js";
 import {
@@ -53,8 +54,7 @@ export function abortActiveRun(
 export function enqueuePendingRun(
   state: WorkflowRuntimeRunsControlState,
   name: string,
-  tags?: string[],
-  extraPayload?: Record<string, unknown>,
+  options: WorkflowEnqueueOptions = {},
 ): {
   ok: boolean;
   queued?: string;
@@ -69,26 +69,10 @@ export function enqueuePendingRun(
   if (runtimeState.pendingRuns.some((r) => r.workflowName === name)) {
     return { ok: false, alreadyQueued: true };
   }
-  const now = Date.now();
-  const runId = formatRunId(name);
-  const trigger = {
-    event: "manual",
-    schemaRef: null, payload: {
-      ...(extraPayload ?? {}),
-      triggeredAt: new Date().toISOString(),
-      _runId: runId,
-      ...(tags && tags.length > 0 && { tags }),
-    },
-  };
-  state.wfQueue.appendRun({
-    runId,
-    workflowName: name,
-    trigger,
-    enqueuedAtMs: now,
-    notBeforeMs: now,
-  });
+  const queuedRun = buildOperatorQueuedRun(name, options);
+  state.wfQueue.appendRun(queuedRun);
   maybeStartNext(state);
-  return { ok: true, queued: name, runId };
+  return { ok: true, queued: name, runId: queuedRun.runId };
 }
 
 export function enqueueWebhookRun(

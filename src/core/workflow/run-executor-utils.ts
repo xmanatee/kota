@@ -13,6 +13,8 @@ export { getEligibleAtMs, matchesFilter } from "./run-executor-filters.js";
 /**
  * Returns the index of the first definition step that should be re-executed on retry.
  * Steps before this index are replayed from the original run's recorded results.
+ * A run that established a different workspace or runtime resource profile restarts
+ * from the beginning because those outputs are owned by the source run.
  *
  * A foreach step with `retryFailedItems: true` and `continueOnFailure: true` is treated
  * as a retry point even when it has `continueOnFailure`, so the partial-resume logic
@@ -20,7 +22,12 @@ export { getEligibleAtMs, matchesFilter } from "./run-executor-filters.js";
  */
 export function findRetryFromIndex(
   originalSteps: WorkflowStepResult[],
-  definitionSteps: ReadonlyArray<{ id: string; retryFailedItems?: boolean }>,
+  definitionSteps: ReadonlyArray<{
+    id: string;
+    retryFailedItems?: boolean;
+    updatesWorkspaceDir?: boolean;
+    updatesRuntimeResources?: boolean;
+  }>,
 ): number {
   for (let i = 0; i < definitionSteps.length; i++) {
     const defStep = definitionSteps[i];
@@ -28,6 +35,12 @@ export function findRetryFromIndex(
     if (!result) return i;
     if (result.status === "failed" && !result.continueOnFailure) return i;
     if (result.status === "failed" && result.continueOnFailure && defStep.retryFailedItems) return i;
+    if (
+      result.status === "success" &&
+      (defStep.updatesWorkspaceDir === true || defStep.updatesRuntimeResources === true)
+    ) {
+      return 0;
+    }
   }
   return definitionSteps.length;
 }
@@ -45,7 +58,13 @@ export type RetryInitialState = {
 
 export function buildRetryInitialState(
   retryOfId: string | undefined,
-  definitionSteps: ReadonlyArray<{ id: string; type: string; retryFailedItems?: boolean }>,
+  definitionSteps: ReadonlyArray<{
+    id: string;
+    type: string;
+    retryFailedItems?: boolean;
+    updatesWorkspaceDir?: boolean;
+    updatesRuntimeResources?: boolean;
+  }>,
   recordStep: (result: WorkflowStepResult) => void,
   runsDir: string,
 ): RetryInitialState {
@@ -71,7 +90,13 @@ export function buildRetryInitialState(
     const defStep = definitionSteps[i];
     const result = originalMeta.steps.find((s) => s.id === defStep.id);
     if (!result) { state.retryFromIndex = i; break; }
-    const replayed: WorkflowStepResult = { ...result, startedAt: replayedAt, completedAt: replayedAt, durationMs: 0 };
+    const replayed: WorkflowStepResult = {
+      ...result,
+      startedAt: replayedAt,
+      completedAt: replayedAt,
+      durationMs: 0,
+      reused: true,
+    };
     recordStep(replayed);
     state.stepResultsById[defStep.id] = replayed;
     if (result.status === "success") {

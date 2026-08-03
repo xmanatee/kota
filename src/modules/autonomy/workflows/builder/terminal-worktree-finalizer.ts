@@ -1,8 +1,7 @@
 import { join } from "node:path";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
-import { isWorkflowStepActiveTimeoutErrorMessage } from "#core/workflow/active-timeout.js";
-import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowTerminalFinalizerInput } from "#core/workflow/types.js";
+import { releaseTaskClaim } from "#modules/autonomy/task-claims.js";
 import { findRecoveryClaim } from "#modules/autonomy/workflow-state-recovery-claims.js";
 import {
   inspectAutomationWorktree,
@@ -27,9 +26,16 @@ type BuilderTerminalWorktreeFinalizerArtifact = {
   portLeaseReleased: boolean;
   portLeaseError: string | null;
   recoveryRequested: boolean;
+  claimDisposition: BuilderTerminalClaimDisposition;
   recoveryAction: BuilderTerminalRecoveryAction;
   artifactPath: string;
 };
+
+type BuilderTerminalClaimDisposition =
+  | "preserved"
+  | "released"
+  | "already-absent"
+  | "conflict";
 
 type BuilderTerminalRecoveryAction =
   | {
@@ -93,16 +99,6 @@ function writeArtifact(
   writeJsonFileAtomic(artifact.artifactPath, artifact);
 }
 
-function buildExhaustedActiveRuntime(metadata: WorkflowRunMetadata): boolean {
-  const build = metadata.steps.find(
-    (step) => step.id === "build" && step.status === "failed",
-  );
-  return (
-    build?.error !== undefined &&
-    isWorkflowStepActiveTimeoutErrorMessage(build.error)
-  );
-}
-
 function stateRecoveryAction(
   taskId: string,
   reason: string,
@@ -122,7 +118,14 @@ function recoveryActionFor(
   taskId: string,
   removed: boolean,
   recoveryRequested: boolean,
+  claimDisposition: BuilderTerminalClaimDisposition,
 ): BuilderTerminalRecoveryAction {
+  if (claimDisposition === "conflict") {
+    return stateRecoveryAction(
+      taskId,
+      "terminal builder worktree was removed but its task claim changed ownership",
+    );
+  }
   if (removed) {
     return { kind: "none", reason: "terminal builder worktree was removed" };
   }
@@ -140,9 +143,7 @@ function recoveryActionFor(
   }
   return stateRecoveryAction(
     taskId,
-    buildExhaustedActiveRuntime(input.metadata)
-      ? "preserved builder continuation exhausted active runtime"
-      : "preserved builder continuation needs recovery review",
+    "preserved builder continuation needs recovery review",
   );
 }
 
@@ -187,6 +188,21 @@ export async function finalizeBuilderTerminalWorktree(
       retryContinuation &&
       candidate?.claim.runId === input.metadata.id &&
       candidate.recommendedAction.kind === "needs-review";
+    let claimDisposition: BuilderTerminalClaimDisposition = "preserved";
+    if (removed) {
+      const claimRelease = releaseTaskClaim({
+        projectDir: input.projectDir,
+        taskId: workspace.taskId,
+        runId: input.metadata.id,
+        workflowId: input.metadata.workflow,
+        evidence: `terminal builder run ${input.metadata.id} left no preserved worktree`,
+      });
+      claimDisposition = claimRelease.changed
+        ? "released"
+        : claimRelease.safeToRetry
+          ? "already-absent"
+          : "conflict";
+    }
     let portLeaseReleased = false;
     let portLeaseError: string | null = null;
     const profileId = before.metadata.runtimeResources?.profileId;
@@ -214,11 +230,13 @@ export async function finalizeBuilderTerminalWorktree(
       portLeaseReleased,
       portLeaseError,
       recoveryRequested,
+      claimDisposition,
       recoveryAction: recoveryActionFor(
         input,
         workspace.taskId,
         removed,
         recoveryRequested,
+        claimDisposition,
       ),
       artifactPath,
     });
@@ -242,6 +260,7 @@ export async function finalizeBuilderTerminalWorktree(
       portLeaseReleased: false,
       portLeaseError: null,
       recoveryRequested: false,
+      claimDisposition: "preserved",
       recoveryAction: stateRecoveryAction(
         workspace.taskId,
         "builder terminal finalizer failed before it could reconcile preserved work",

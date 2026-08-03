@@ -4,6 +4,7 @@ import type {
   AgentHarnessResult,
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
+import { buildMachineAuthoritySandboxLaunch } from "#core/agent-harness/machine-authority-sandbox.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import {
   type CollectedGeminiOutput,
@@ -22,6 +23,7 @@ export async function collectTextFromGeminiCli(args: {
   cwd: string;
   model: string;
   approvalMode: GeminiCliApprovalMode;
+  authorityConfigPath: string | undefined;
   env: Record<string, string> | undefined;
   abortController: AbortController | undefined;
   writer: AgentHarnessWriter | undefined;
@@ -38,7 +40,13 @@ export async function collectTextFromGeminiCli(args: {
     "--sandbox",
   ];
 
-  const child = spawn("gemini", cliArgs, {
+  const launch = buildMachineAuthoritySandboxLaunch("gemini", cliArgs, {
+    cwd: args.cwd,
+    authorityConfigPath: args.authorityConfigPath,
+  });
+  if (!launch.ok) throw new Error(launch.error);
+
+  const child = spawn(launch.command, launch.args, {
     cwd: args.cwd,
     env: withProtectedGitBareRepositoryEnv({
       ...process.env,

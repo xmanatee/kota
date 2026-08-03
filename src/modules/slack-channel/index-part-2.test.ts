@@ -46,7 +46,7 @@ function makeStubCtx(
 ): ModuleRuntimeContext {
   const b = bus ?? new EventBus();
   return {
-    cwd: "/tmp/test",
+    cwd: "/tmp",
     verbose: false,
     config: kotaConfig ?? ({ serve: { defaultAutonomyMode: "supervised" } } as ModuleRuntimeContext["config"]),
     storage: new ModuleStorage("/tmp/test", "slack-channel"),

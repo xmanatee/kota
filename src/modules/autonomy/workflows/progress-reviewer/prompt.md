@@ -17,8 +17,9 @@ Use verdict exactly `on-track`, `needs-steering`, `blocked`, or
 Put findings that compare multiple directory scopes, describe daemon-wide
 patterns, or cite evidence from more than one `scope:<id>:` prefix under
 `findings.crossScope`. Put findings about one directory scope under
-`findings.localScope`; for non-global reviews, leave `findings.crossScope`
-empty. Put follow-up task proposals in the same finding group as the evidence
+`findings.localScope`; for non-global reviews, set `findings.crossScope` to
+`{"claims":[],"followUpTasks":[]}`. Both finding groups are objects, never
+arrays. Put follow-up task proposals in the same finding group as the evidence
 they address.
 For every `evidenceIds` entry, copy an exact `id` from the packet's flat
 `evidence` array. If you inspect a referenced file, cite the packet id that led

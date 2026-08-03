@@ -1,35 +1,36 @@
 # Builder Workflow
-
-- Own one cohesive normalized task at a time. Resume active `doing/` work before
-  pulling one task from the short `ready/` queue. Never promote `backlog/` tasks
-  here; `backlog-promoter` records the rationale. Task semantics live under `data/tasks/`.
+- Own one normalized task at a time. Resume `doing/` before pulling from `ready/`.
+  `backlog-promoter` alone promotes backlog and records why.
 - Own implementation quality, architecture, completeness, honest task-state updates, and hard validation fixes before the run ends.
 - Tasks define the contract and constraints; the implementing agent owns the detailed plan.
 - Changes here shape the default autonomous development behavior.
-- Mutating builder work runs in the workflow-selected workspace. By default
-  that workspace is a prepared task worktree; `modules.builder.branchPerTask:
-  false` is an explicit serial opt-out. Agents and sub-agents must use the
-  provided cwd instead of assuming the canonical checkout.
-- Give preserved work one automatic continuation. If it exhausts active runtime,
-  preserve the worktree and hand off through the finalizer's typed state-recovery action.
+- Mutating work uses the workflow-selected cwd: normally a task worktree;
+  `branchPerTask: false` is an explicit serial opt-out.
+- Give preserved work one automatic continuation. Productive builder work is
+  governed by trusted progress; a continuation that fails or stops reporting
+  progress preserves the worktree for typed state-recovery review.
+- Recovery scanning decides whether to emit an automatic continuation. Once a
+  recovery event is queued, its exact task/worktree target governs consumption;
+  do not reapply the producer's automatic-attempt gate in the builder.
 - Prefer validation rails over hardcoded pre-agent task moves or scope policing.
 
 ## Success Criteria
-
-The builder must declare concrete success criteria before implementation and verify them before completion:
+Declare concrete success criteria before implementation and verify them before completion:
 
 - `$KOTA_RUN_DIR/success-criteria.txt`
 - `$KOTA_RUN_DIR/success-criteria-verified.txt`
 
 `$KOTA_RUN_DIR` is the agent-writable `.kota/builder-evidence/` source, never the
 canonical workflow run store; the protocol files above are code-registered.
+Preserved-work continuations retain the original evidence directory and durable
+projection lineage while execution-scoped temp, port, and run metadata use the
+new continuation run.
 Put additional evidence under `$KOTA_RUN_ARTIFACT_DIR`; register its path and kind
 in `$KOTA_RUN_DIR/evidence-manifest.json`. Before task validation, the repair loop
 screens, bounds, projects to `.kota/runs/<run-id>/evidence/`, and exact-stages it.
-The terminal commit repeats projection and excludes both runtime namespaces even
-without `.kota` ignore rules. Unregistered files stay runtime-only and cannot
-satisfy Product evidence. Text must pass secret screening; PNG is re-encoded
-without metadata, and other opaque containers are not registrable.
+The terminal commit repeats projection and excludes both runtime namespaces.
+Unregistered files cannot satisfy Product evidence. Text passes secret screening;
+PNG is re-encoded without metadata; other opaque containers are not registrable.
 
 Number each criterion at column 0 (`1.`, `2.`, ...), one per Done-When item.
 The repair check counts numbered items only; column-0 bullets (`- `/`* `) and

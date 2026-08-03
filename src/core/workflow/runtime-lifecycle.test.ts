@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
+import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { writeDirtyRecoveryPauseSignal } from "./recovery-status.js";
 import { WorkflowRunStore } from "./run-store.js";
 import { PAUSE_SIGNAL_FILE, WorkflowRuntime } from "./runtime.js";
@@ -169,5 +170,53 @@ describe("WorkflowRuntime dispatch pause persistence", () => {
     expect(existsSync(pausePath())).toBe(false);
     expect(runtime.getRecoveryStatus()).toEqual({ status: "none" });
     expect(runtime.getDispatchPauseStatus()).toEqual({ paused: false, kind: "none" });
+  });
+
+  it("keeps restored pending work when dirty recovery is exhausted", async () => {
+    initializeCleanGitRepo();
+    writeFileSync(join(projectDir, "tracked.txt"), "dirty\n", "utf8");
+    const dirty = getRepoWorktreeStatus(projectDir);
+    const store = new WorkflowRunStore(projectDir);
+    store.setPendingRuns([{
+      runId: "queued-before-recovery",
+      workflowName: "pending-work",
+      trigger: { event: "manual", schemaRef: null, payload: {} },
+      enqueuedAtMs: 1,
+      notBeforeMs: 1,
+    }]);
+    store.setRecovery({
+      sourceRunId: "run-dirty",
+      sourceWorkflow: "improver",
+      dirtyCheckout: "canonical",
+      worktreeFingerprint: dirty.fingerprint,
+      worktreeSummary: dirty.summary,
+      attempts: 1,
+      retryAttemptedBy: [],
+      updatedAt: "2026-08-03T00:00:00.000Z",
+    });
+    const runtime = new WorkflowRuntime({
+      bus: new EventBus(),
+      projectDir,
+      idleIntervalMs: 60_000,
+      workflows: [{
+        name: "pending-work",
+        definitionPath: "src/core/workflow/runtime-lifecycle.test.ts",
+        moduleRoot: process.cwd(),
+        triggers: [{ event: "manual" }],
+        steps: [{ id: "noop", type: "code", run: () => undefined }],
+      }],
+    });
+
+    runtime.start();
+    await wait(20);
+
+    expect(runtime.isDispatchPaused()).toBe(true);
+    expect(runtime.getState().pendingRuns.map((run) => run.runId)).toEqual([
+      "queued-before-recovery",
+    ]);
+    await runtime.stop(0);
+    expect(store.readState().pendingRuns.map((run) => run.runId)).toEqual([
+      "queued-before-recovery",
+    ]);
   });
 });

@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
-import type { WorkflowRunMetadata, WorkflowRuntimeState } from "./run-types.js";
+import type {
+  WorkflowQueuedRun,
+  WorkflowRunMetadata,
+  WorkflowRuntimeState,
+} from "./run-types.js";
 import type { WorkflowRuntimeDispatchState } from "./runtime-dispatch.js";
 import { handleDirtyCompletion } from "./runtime-dispatch-dirty-recovery.js";
 import type { WorkflowDefinition } from "./types.js";
@@ -64,6 +68,14 @@ function makeMetadata(id = "run-builder"): WorkflowRunMetadata {
   } as WorkflowRunMetadata;
 }
 
+const pendingRun: WorkflowQueuedRun = {
+  runId: "queued-progress-review",
+  workflowName: "progress-reviewer",
+  trigger: { event: "manual", schemaRef: null, payload: {} },
+  enqueuedAtMs: 1,
+  notBeforeMs: 1,
+};
+
 function makeState(
   projectDir: string,
   recovery: WorkflowRuntimeState["recovery"] = undefined,
@@ -72,7 +84,7 @@ function makeState(
 ) {
   const logs: string[] = [];
   let storedRecovery = recovery;
-  const queueWrites: unknown[][] = [];
+  let queuedRuns = [pendingRun];
   let queuePersistCount = 0;
   const emit = vi.fn();
   const state = {
@@ -92,8 +104,8 @@ function makeState(
       },
     },
     wfQueue: {
-      setRuns: (runs: unknown[]) => {
-        queueWrites.push(runs);
+      setRuns: (runs: WorkflowQueuedRun[]) => {
+        queuedRuns = runs;
       },
       persist: () => {
         queuePersistCount += 1;
@@ -107,7 +119,7 @@ function makeState(
     logs,
     emit,
     getRecovery: () => storedRecovery,
-    getQueueWrites: () => queueWrites,
+    getQueuedRuns: () => queuedRuns,
     getQueuePersistCount: () => queuePersistCount,
   };
 }
@@ -129,14 +141,14 @@ describe("handleDirtyCompletion", () => {
       state,
       getRecovery,
       getQueuePersistCount,
-      getQueueWrites,
+      getQueuedRuns,
       logs,
     } = makeState(projectDir);
 
     handleDirtyCompletion(state, makeDefinition(), makeMetadata(), preRunFingerprint);
 
     expect(state.dispatchPaused).toBe(true);
-    expect(getQueueWrites()).toEqual([[]]);
+    expect(getQueuedRuns()).toEqual([pendingRun]);
     expect(getQueuePersistCount()).toBe(1);
     expect(getRecovery()).toMatchObject({
       sourceRunId: "run-builder",
@@ -214,7 +226,7 @@ describe("handleDirtyCompletion", () => {
       state,
       getRecovery,
       getQueuePersistCount,
-      getQueueWrites,
+      getQueuedRuns,
       logs,
     } = makeState(
       projectDir,
@@ -235,7 +247,7 @@ describe("handleDirtyCompletion", () => {
     handleDirtyCompletion(state, makeDefinition(), makeMetadata("retry-run"), preRunFingerprint);
 
     expect(state.dispatchPaused).toBe(true);
-    expect(getQueueWrites()).toEqual([[]]);
+    expect(getQueuedRuns()).toEqual([pendingRun]);
     expect(getQueuePersistCount()).toBe(1);
     expect(getRecovery()?.sourceRunId).toBe("source-run");
     expect(getRecovery()?.retryAttemptedBy).toEqual([

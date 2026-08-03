@@ -33,6 +33,8 @@ import { jsonResponse } from "#core/server/session-pool.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { LogFormat } from "#core/util/log-format.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import { buildOperatorTriggerRequestBody } from "#core/workflow/operator-trigger.js";
+import { buildRetriggerOptions } from "#core/workflow/retrigger.js";
 import {
   type ColumnRow,
   columns,
@@ -792,17 +794,24 @@ async function executeDaemonRunFollowUp(
   if (action === "retry" && (run.status === "success" || run.status === "completed-with-warnings")) {
     return { ok: false, reason: "invalid-input", message: `Run ${runId} completed successfully; use replay instead.` };
   }
-  const replayPayload = uiObjectParameter(run.triggerPayload as UiJsonValue | undefined) ?? {};
-  const { _runId: _discarded, ...cleanPayload } = replayPayload;
-  const payload = action === "retry"
-    ? { retryOf: runId }
-    : action === "replay"
-      ? { ...cleanPayload, replayOf: runId, replayTriggeredAt: new Date().toISOString() }
-      : { resumedFromRunId: runId, resumeFromStep: fromStep, resumeTriggeredAt: new Date().toISOString() };
+  const options = action === "resume"
+    ? {
+        event: "resume",
+        payload: {
+          resumedFromRunId: runId,
+          resumeFromStep: fromStep,
+          resumeTriggeredAt: new Date().toISOString(),
+        },
+      }
+    : buildRetriggerOptions(action, runId, run.workflow, {
+        event: run.triggerEvent,
+        schemaRef: run.triggerSchemaRef,
+        payload: run.triggerPayload ?? {},
+      });
   const result = await link.request<UiJsonValue>(
     "POST",
     scopedUiActionPath("/workflow/trigger", scopeId),
-    { name: run.workflow, payload },
+    buildOperatorTriggerRequestBody(run.workflow, options),
     { timeoutMs: 10_000 },
   );
   return uiActionResultFromTrigger(runId, action, result);

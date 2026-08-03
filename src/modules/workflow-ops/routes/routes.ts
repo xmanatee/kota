@@ -1,7 +1,6 @@
 import type { ModuleContext, RouteRegistration } from "#core/modules/module-types.js";
 import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import { jsonResponse } from "#core/server/session-pool.js";
-import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
 import { assembleCompiledAutomationGraph } from "../graph/index.js";
 import { handleWorkflowSimulation } from "../simulation/routes.js";
@@ -121,13 +120,13 @@ export function workflowRoutes(ctx?: ModuleContext): RouteRegistration[] {
       method: "POST",
       path: "/api/workflow/retry",
       handler: (req, res) =>
-        handleWorkflowRetry(req, res, new WorkflowRunStore(), getDaemonTransport()),
+        handleWorkflowRetry(req, res, getDaemonTransport()),
     },
     {
       method: "POST",
       path: "/api/workflow/replay",
       handler: (req, res) =>
-        handleWorkflowReplay(req, res, new WorkflowRunStore()),
+        handleWorkflowReplay(req, res, getDaemonTransport()),
     },
     {
       method: "POST",
@@ -144,7 +143,7 @@ export function workflowRoutes(ctx?: ModuleContext): RouteRegistration[] {
       method: "POST",
       path: "/api/workflow/trigger",
       handler: (req, res) =>
-        handleWorkflowTrigger(req, res, new WorkflowRunStore(), getDaemonTransport()),
+        handleWorkflowTrigger(req, res, getDaemonTransport()),
     },
     {
       method: "GET",

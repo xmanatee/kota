@@ -13,7 +13,7 @@ const FAKE_WEBHOOK = "https://hooks.slack.com/services/T000/B000/xxxx";
 function makeStubCtx(bus?: EventBus, slackConfig?: unknown): ModuleRuntimeContext {
   const b = bus ?? new EventBus();
   return {
-    cwd: "/tmp/test",
+    cwd: "/tmp",
     verbose: false,
     config: {} as ModuleRuntimeContext["config"],
     storage: new ModuleStorage("/tmp/test", "slack"),

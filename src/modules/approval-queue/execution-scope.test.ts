@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -19,19 +19,14 @@ import { resetModuleFactory } from "#core/tools/module-factory/index.js";
 import { executeToolCalls } from "#core/tools/tool-runner.js";
 import { resetPromptStore } from "#modules/prompt-templates/prompt.js";
 import {
-  approvalScopeHasSqlite3 as hasSqlite3,
   makeApprovalScopeEntry as makeEntry,
   type ApprovalScopeProjectRuntimeEntry as ProjectRuntimeEntry,
-  approvalScopePngBuffer as pngBuffer,
   REGISTERED_APPROVAL_SCOPE_TOOL_NAMES as REGISTERED_TOOL_NAMES,
   registerApprovalScopeTools,
   registerApprovalScopeProjectProvider as registerProjectQueueProvider,
   APPROVAL_SCOPE_TOOL_NAMES as TOOL_NAMES,
-  writeApprovalScopeProjectFile as writeProjectFile,
-  writeApprovalScopeSqlite as writeProjectSqlite,
 } from "./execution-scope-tools.integration.js";
 import {
-  handleApproveAllApprovals,
   handleApproveApproval,
   handleListApprovals,
 } from "./routes.js";
@@ -78,15 +73,6 @@ function approvalDecisionBody(queue: ApprovalQueue, id: string): Record<string, 
   return { reviewDigest: review.digest };
 }
 
-function approvalBatchDecisionBody(queue: ApprovalQueue): Record<string, unknown> {
-  return {
-    reviews: queue.list("pending").map((item) => ({
-      id: item.id,
-      digest: (approvalDecisionBody(queue, item.id).reviewDigest as string),
-    })),
-  };
-}
-
 describe("approval execution project scope", () => {
   let rootDir: string;
   let originalCwd: string;
@@ -104,8 +90,6 @@ describe("approval execution project scope", () => {
     toolOutputs = [];
     defaultEntry = makeEntry(join(rootDir, "project-a"), "Project A");
     projectB = makeEntry(join(rootDir, "project-b"), "Project B");
-    mkdirSync(defaultEntry.project.projectDir, { recursive: true });
-    mkdirSync(projectB.project.projectDir, { recursive: true });
     process.chdir(defaultEntry.project.projectDir);
     registerProjectQueueProvider([defaultEntry, projectB]);
     registerApprovalScopeTools(contexts, toolOutputs);

@@ -21,6 +21,19 @@ export type EventSchemaReference = {
   version: number;
 };
 
+export function isEventSchemaReference<T>(value: T): value is T & EventSchemaReference {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  return (
+    "name" in value &&
+    typeof value.name === "string" &&
+    value.name.trim().length > 0 &&
+    "version" in value &&
+    typeof value.version === "number" &&
+    Number.isInteger(value.version) &&
+    value.version >= 1
+  );
+}
+
 /** An event as seen by wildcard listeners: type + payload plus schema identity. */
 export type BusEnvelope<K extends string = string> = {
   type: K;

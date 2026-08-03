@@ -7,7 +7,6 @@ import type { WorkflowRuntimeDispatchState } from "./runtime-dispatch.js";
 import type { WorkflowDefinition } from "./types.js";
 
 function pauseDispatchForDirtyWorktree(state: WorkflowRuntimeDispatchState): void {
-  state.wfQueue.setRuns([]);
   state.wfQueue.persist();
   state.dispatchPaused = true;
 }

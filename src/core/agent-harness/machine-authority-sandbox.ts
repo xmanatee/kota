@@ -1,7 +1,8 @@
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { getGlobalConfigPath } from "#core/config/config.js";
-import { scopeAuthorityOperatorTokenPath } from "#core/daemon/scope-authority-operator-token.js";
+import { scopeAuthorityOperatorTokenPaths } from "#core/daemon/scope-authority-operator-token.js";
+import { resolvePathIdentities } from "#core/util/real-path.js";
 
 export type MachineAuthoritySandboxLaunch =
   | { ok: true; command: string; args: string[] }
@@ -18,35 +19,33 @@ const LINUX_BUBBLEWRAP_PATHS = ["/usr/bin/bwrap", "/bin/bwrap"] as const;
 const MACOS_SANDBOX_EXEC_PATH = "/usr/bin/sandbox-exec";
 
 function authorityPaths(authorityConfigPath?: string): {
-  configDirectory: string;
+  configDirectories: string[];
   tokenPaths: string[];
 } {
   const configPath = resolve(authorityConfigPath ?? getGlobalConfigPath());
   return {
-    configDirectory: dirname(configPath),
-    tokenPaths: [...new Set([
-      scopeAuthorityOperatorTokenPath(configPath),
-      scopeAuthorityOperatorTokenPath(),
-    ])],
+    configDirectories: resolvePathIdentities(dirname(configPath), process.cwd()),
+    tokenPaths: scopeAuthorityOperatorTokenPaths(configPath),
   };
 }
 
-function macosProfile(configDirectory: string, tokenPaths: readonly string[]): string {
-  const protectedDirectory = JSON.stringify(configDirectory);
+function macosProfile(
+  configDirectories: readonly string[],
+  tokenPaths: readonly string[],
+): string {
+  const protectedDirectories = configDirectories.flatMap((directory) => [
+    `(literal ${JSON.stringify(directory)})`,
+    `(subpath ${JSON.stringify(directory)})`,
+  ]);
   const protectedTokens = tokenPaths.map((path) => `(literal ${JSON.stringify(path)})`);
   return [
     "(version 1)",
     "(allow default)",
-    `(deny file-write* (literal ${protectedDirectory}) (subpath ${protectedDirectory}) ${protectedTokens.join(" ")})`,
+    `(deny file-write* ${[...protectedDirectories, ...protectedTokens].join(" ")})`,
     `(deny file-read* ${protectedTokens.join(" ")})`,
   ].join("\n");
 }
 
-/**
- * Wrap arbitrary agent-authored execution in an OS-enforced boundary. The
- * sandbox is deliberately fail-closed: text inspection cannot prove that an
- * opaque shell, Node, or Python program will not rewrite machine authority.
- */
 export function buildMachineAuthoritySandboxLaunch(
   executable: string,
   args: readonly string[],
@@ -54,7 +53,7 @@ export function buildMachineAuthoritySandboxLaunch(
 ): MachineAuthoritySandboxLaunch {
   const platform = options.platform ?? process.platform;
   const pathExists = options.pathExists ?? existsSync;
-  const { configDirectory, tokenPaths } = authorityPaths(options.authorityConfigPath);
+  const { configDirectories, tokenPaths } = authorityPaths(options.authorityConfigPath);
 
   if (platform === "darwin") {
     if (!pathExists(MACOS_SANDBOX_EXEC_PATH)) {
@@ -66,11 +65,12 @@ export function buildMachineAuthoritySandboxLaunch(
     return {
       ok: true,
       command: MACOS_SANDBOX_EXEC_PATH,
-      args: ["-p", macosProfile(configDirectory, tokenPaths), executable, ...args],
+      args: ["-p", macosProfile(configDirectories, tokenPaths), executable, ...args],
     };
   }
 
   if (platform === "linux") {
+    const configDirectory = configDirectories.at(-1)!;
     const bubblewrap = LINUX_BUBBLEWRAP_PATHS.find(pathExists);
     if (bubblewrap === undefined || !pathExists(configDirectory)) {
       return {

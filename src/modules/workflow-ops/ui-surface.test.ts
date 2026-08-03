@@ -271,7 +271,9 @@ describe("operator UI runtime actions", () => {
     });
     expect(result).toEqual({ ok: true, message: "Queued retry of builder from run-failed-1." });
     expect(triggerByName).toHaveBeenCalledWith("builder", {
-      event: "retry",
+      event: "manual",
+      schemaRef: null,
+      runId: expect.stringMatching(/-builder-/),
       payload: { retryOf: "run-failed-1" },
     });
   });

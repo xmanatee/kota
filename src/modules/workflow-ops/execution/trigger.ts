@@ -1,15 +1,14 @@
 import { readdirSync } from "node:fs";
-import { join } from "node:path";
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { buildRetriggerOptions } from "#core/workflow/retrigger.js";
 import { getEligibleAtMs } from "#core/workflow/run-executor-utils.js";
 import { formatRunId } from "#core/workflow/run-io.js";
 import {
   defaultWorkflowRunRetentionDays,
   WorkflowRunStore,
 } from "#core/workflow/run-store.js";
-import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import { printWorkflowError, printWorkflowText } from "../cli-output.js";
 import type { WorkflowGetRunResult } from "../client.js";
 import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
@@ -90,7 +89,6 @@ export function registerTriggerCommands(
       const result = await ctx.client.workflow.triggerByName(name, {
         ...(tags !== undefined && { tags }),
         ...(extraPayload !== undefined && { payload: extraPayload }),
-        ...(opts.force === true && { force: true }),
         notBeforeMs: opts.force ? now : eligibleAtMs,
       });
       if (!result.ok) {
@@ -113,7 +111,7 @@ export function registerTriggerCommands(
       const store = new WorkflowRunStore();
       const resolvedId = resolveRunIdOrExit(store, runId);
 
-      const original = await loadRunOrExit(ctx, store, resolvedId);
+      const original = await loadRunOrExit(ctx, resolvedId);
 
       if (original.status === "running") {
         printWorkflowError(`Run "${resolvedId}" is still running. Cannot retry an active run.`);
@@ -132,10 +130,13 @@ export function registerTriggerCommands(
         process.exit(1);
       }
 
-      const result = await ctx.client.workflow.triggerByName(original.workflow, {
-        event: "retry",
-        payload: { retryOf: resolvedId },
-      });
+      const options = buildRetriggerOptions(
+        "retry",
+        resolvedId,
+        original.workflow,
+        original.trigger,
+      );
+      const result = await ctx.client.workflow.triggerByName(original.workflow, options);
       if (!result.ok) {
         printWorkflowError(`Workflow "${original.workflow}" is already queued.`);
         process.exit(1);
@@ -150,7 +151,7 @@ export function registerTriggerCommands(
       const store = new WorkflowRunStore();
       const resolvedId = resolveRunIdOrExit(store, runId);
 
-      const original = await loadRunOrExit(ctx, store, resolvedId);
+      const original = await loadRunOrExit(ctx, resolvedId);
 
       if (original.status === "running") {
         printWorkflowError(`Run "${resolvedId}" is still running. Cannot replay an active run.`);
@@ -168,27 +169,19 @@ export function registerTriggerCommands(
         process.exit(1);
       }
 
-      const originalPayload = typeof original.triggerPayload === "object" && original.triggerPayload !== null
-        ? (original.triggerPayload as Record<string, unknown>)
-        : {};
-      const { _runId: _discarded, ...cleanPayload } = originalPayload as Record<string, unknown> & { _runId?: unknown };
-
-      const newRunId = formatRunId(original.workflow);
-      const result = await ctx.client.workflow.triggerByName(original.workflow, {
-        event: "workflow.replay",
-        runId: newRunId,
-        payload: {
-          ...cleanPayload,
-          replayOf: resolvedId,
-          replayTriggeredAt: new Date().toISOString(),
-        },
-      });
+      const options = buildRetriggerOptions(
+        "replay",
+        resolvedId,
+        original.workflow,
+        original.trigger,
+      );
+      const result = await ctx.client.workflow.triggerByName(original.workflow, options);
       if (!result.ok) {
         printWorkflowError(`Workflow "${original.workflow}" is already queued.`);
         process.exit(1);
       }
       printWorkflowText(`Replaying "${original.workflow}" (original: ${resolvedId}).`);
-      const reportedId = result.runId ?? newRunId;
+      const reportedId = result.runId ?? options.runId;
       if (reportedId !== original.workflow) printWorkflowText(`New run ID: ${reportedId}`);
     });
 
@@ -284,42 +277,26 @@ export function registerTriggerCommands(
     });
 }
 
-/**
- * Load a run's metadata via the contract first (so the daemon-up path picks
- * up live state for an in-flight run) and fall back to the on-disk artifact.
- * Used by `retry`/`replay` since both need `triggerPayload` for cleanup.
- */
 async function loadRunOrExit(
   ctx: ModuleContext,
-  store: WorkflowRunStore,
   resolvedId: string,
 ): Promise<{
   workflow: string;
   status: string;
-  triggerPayload: Record<string, unknown>;
+  trigger: WorkflowRunTrigger;
 }> {
   const result: WorkflowGetRunResult = await ctx.client.workflow.getRun(resolvedId);
-  if (result.found) {
-    return {
-      workflow: result.run.workflow,
-      status: result.run.status,
-      triggerPayload: result.run.triggerPayload ?? {},
-    };
-  }
-  // Fall back to direct disk read — the contract returns `not found` when the
-  // daemon doesn't track the run; the artifact may still exist.
-  const metadataPath = join(store.runsDir, resolvedId, "metadata.json");
-  const metadata = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
-  if (!metadata) {
+  if (!result.found) {
     printWorkflowError(`Run "${resolvedId}" not found.`);
     process.exit(1);
   }
   return {
-    workflow: metadata.workflow,
-    status: metadata.status,
-    triggerPayload:
-      typeof metadata.trigger?.payload === "object" && metadata.trigger.payload !== null
-        ? (metadata.trigger.payload as Record<string, unknown>)
-        : {},
+    workflow: result.run.workflow,
+    status: result.run.status,
+    trigger: {
+      event: result.run.triggerEvent,
+      schemaRef: result.run.triggerSchemaRef,
+      payload: result.run.triggerPayload ?? {},
+    },
   };
 }

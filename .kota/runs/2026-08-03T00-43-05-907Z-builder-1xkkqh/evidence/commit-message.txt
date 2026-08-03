@@ -1,0 +1,1 @@
+Protect operator token path aliases across harnesses

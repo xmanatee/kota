@@ -1,5 +1,9 @@
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
-import { isScopeAuthorityOperatorTokenPath } from "#core/daemon/scope-authority-operator-token.js";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { escape as escapeGlob } from "glob";
+import {
+  isScopeAuthorityOperatorTokenPath,
+  scopeAuthorityOperatorTokenPaths,
+} from "#core/daemon/scope-authority-operator-token.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
 import {
   resolvePathFrom,
@@ -11,21 +15,47 @@ const PROTECTED_PROJECT_RUNTIME_FILES = [
   ".kota/secrets.json",
 ] as const;
 
-export const PROTECTED_PROJECT_GLOB_IGNORES = [
+const PROTECTED_PROJECT_GLOB_IGNORES = [
   "**/.kota/daemon-control.json",
   "**/.kota/secrets.json",
-  "**/scope-authority-token.json",
   "**/.env",
   "**/.env.*",
 ] as const;
 
-export const PROTECTED_PROJECT_GREP_EXCLUDES = [
+const PROTECTED_PROJECT_GREP_EXCLUDES = [
   "daemon-control.json",
   "secrets.json",
-  "scope-authority-token.json",
   ".env",
   ".env.*",
 ] as const;
+
+function protectedOperatorTokenFileNames(
+  context?: Pick<ToolRunnerContext, "authorityConfigPath">,
+): string[] {
+  return [...new Set(
+    scopeAuthorityOperatorTokenPaths(context?.authorityConfigPath).map((path) => basename(path)),
+  )];
+}
+
+export function protectedProjectGlobIgnores(
+  context?: Pick<ToolRunnerContext, "authorityConfigPath">,
+): string[] {
+  return [
+    ...PROTECTED_PROJECT_GLOB_IGNORES,
+    ...protectedOperatorTokenFileNames(context).map(
+      (fileName) => `**/${escapeGlob(fileName)}`,
+    ),
+  ];
+}
+
+export function protectedProjectGrepExcludes(
+  context?: Pick<ToolRunnerContext, "authorityConfigPath">,
+): string[] {
+  return [
+    ...PROTECTED_PROJECT_GREP_EXCLUDES,
+    ...protectedOperatorTokenFileNames(context).map((fileName) => escapeGlob(fileName)),
+  ];
+}
 
 function normalizeRelativeProjectPath(relativePath: string): string {
   return relativePath.split(sep).join("/").toLowerCase();
@@ -81,9 +111,13 @@ function isProtectedPathUnderBase(
 
 export function isProtectedProjectPath(
   filePath: string,
-  baseDirectory = process.cwd(),
+  context?: Pick<ToolRunnerContext, "authorityConfigPath" | "cwd">,
 ): boolean {
-  if (isScopeAuthorityOperatorTokenPath(filePath, baseDirectory)) return true;
+  const baseDirectory = context?.cwd ?? process.cwd();
+  if (isScopeAuthorityOperatorTokenPath(filePath, {
+    baseDirectory,
+    authorityConfigPath: context?.authorityConfigPath,
+  })) return true;
   if (isProtectedPathUnderBase(filePath, baseDirectory)) return true;
   const daemonProjectRoot = process.cwd();
   return resolve(baseDirectory) !== resolve(daemonProjectRoot)

@@ -47,7 +47,7 @@ describe("workflow agent harness runner", () => {
     const options = {
       prompt: "review",
       model: "fixture-model",
-      cwd: "/project",
+      cwd: process.cwd(),
       effort: "low" as const,
     };
 

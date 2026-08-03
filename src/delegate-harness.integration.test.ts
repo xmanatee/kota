@@ -96,8 +96,9 @@ describe("delegate-harness", () => {
       isError: false,
     });
 
+    const cwd = process.cwd();
     await runDelegateHarness("find all API endpoints", "explore", {
-      cwd: "/tmp/project",
+      cwd,
       model: "claude-haiku-4-5-20251001",
       instructionContext: "## Project Instructions\nUse AGENTS.md",
       harness: "claude-agent-sdk",
@@ -105,7 +106,7 @@ describe("delegate-harness", () => {
 
     const [, options] = mockExecuteWithAgentSDK.mock.calls[0];
     expect(options).toMatchObject({
-      cwd: "/tmp/project",
+      cwd,
       model: "claude-haiku-4-5-20251001",
       permissionMode: "bypassPermissions",
       effort: "xhigh",
@@ -132,7 +133,7 @@ describe("delegate-harness", () => {
     });
 
     await runDelegateHarness("fix the type error", "execute", {
-      cwd: "/tmp/project",
+      cwd: process.cwd(),
       harness: "claude-agent-sdk",
     });
 

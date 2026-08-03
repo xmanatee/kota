@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { join } from "node:path";
 import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
@@ -109,10 +110,13 @@ export function buildRepairPrompt(
   if (runDirPath) {
     lines.push("Run directory:", runDirPath, "");
   }
+  const commitMessagePath = runDirPath
+    ? join(runDirPath, "commit-message.txt")
+    : "<run-directory>/commit-message.txt";
   lines.push(
     "Fix these issues now. Stage all changes with `git add -A` before stopping —",
     "review checks evaluate the staged diff, so unstaged fixes are invisible.",
-    "Write a short commit message to `<run-directory>/commit-message.txt` summarizing what changed.",
+    `Write a short commit message to \`${commitMessagePath}\` summarizing what changed.`,
     "Finish this repair fully, then stop.",
   );
   return lines.join("\n");
@@ -133,10 +137,11 @@ function gitDiffAgainstHead(workspaceDir: string): string {
   }
 }
 
-function repairFailureSignature(failures: RepairCheckResult[]): string {
+function repairFailureIdentity(failures: RepairCheckResult[]): string {
   return failures
-    .map((failure) => `${failure.id}\n${failure.output.trim()}`)
-    .join("\n---\n");
+    .map((failure) => failure.id)
+    .sort()
+    .join("\0");
 }
 
 function repairProgressSnapshot(
@@ -146,7 +151,7 @@ function repairProgressSnapshot(
   const status = getRepoWorktreeStatus(workspaceDir);
   const diff = status.available ? gitDiffAgainstHead(workspaceDir) : "";
   const hash = createHash("sha256");
-  hash.update(repairFailureSignature(failures));
+  hash.update(repairFailureIdentity(failures));
   hash.update("\0");
   hash.update(status.headSha);
   hash.update("\0");

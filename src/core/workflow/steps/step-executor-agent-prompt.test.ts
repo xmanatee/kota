@@ -13,6 +13,7 @@ function buildPrompt(
   foreach?: { [key: string]: string | number | boolean | object },
   agentWriteScope?: readonly string[],
   runtimeResources?: WorkflowRuntimeResources,
+  structuredOutput?: Partial<Pick<WorkflowAgentStep, "outputFormat" | "outputSchema">>,
 ): string {
   const moduleRoot = mkdtempSync(join(tmpdir(), "kota-agent-prompt-"));
   writeFileSync(join(moduleRoot, "prompt.md"), "prompt appendix", "utf-8");
@@ -26,6 +27,7 @@ function buildPrompt(
     model: "test-model",
     effort: "medium",
     autonomyMode: "autonomous",
+    ...structuredOutput,
   };
   const definition: WorkflowDefinition = {
     name: "test-workflow",
@@ -198,5 +200,29 @@ describe("buildAgentPrompt trigger payload trust boundary", () => {
 
     expect(prompt).toContain("Run directory: /worktree/.kota/runs/run-1");
     expect(prompt).not.toContain("Run directory: /repo/.kota/runs/run-1");
+  });
+
+  it("exposes the canonical output schema to structured-output agents", () => {
+    const prompt = buildPrompt(
+      { event: "manual", schemaRef: null, payload: {} },
+      undefined,
+      undefined,
+      undefined,
+      {
+        outputFormat: "json",
+        outputSchema: {
+          type: "object",
+          required: ["confidence"],
+          properties: {
+            confidence: { type: "string", enum: ["low", "medium", "high"] },
+          },
+        },
+      },
+    );
+
+    expect(prompt).toContain("Your final JSON must conform exactly to this schema:");
+    expect(prompt).toContain('"required": [\n    "confidence"\n  ]');
+    expect(prompt).toContain('"enum": [\n        "low",\n        "medium",\n        "high"\n      ]');
+    expect(prompt).toContain("End your final response with a fenced JSON block");
   });
 });

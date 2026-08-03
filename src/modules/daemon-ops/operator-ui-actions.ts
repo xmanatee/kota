@@ -1,4 +1,5 @@
 import type { KotaClient } from "#core/server/kota-client.js";
+import { buildRetriggerOptions } from "#core/workflow/retrigger.js";
 import { executeCapabilityUiAction } from "./operator-ui-capability-actions.js";
 import type {
   UiAction,
@@ -74,18 +75,21 @@ async function triggerRunFollowUp(args: {
   if (args.kind === "resume" && run.status === "success") {
     return { ok: false, reason: "invalid-input", message: `Run ${args.runId} completed successfully; use replay instead.` };
   }
-  const replayPayload = { ...(run.triggerPayload ?? {}) };
-  delete replayPayload._runId;
-  const payload =
-    args.kind === "retry"
-      ? { retryOf: args.runId }
-      : args.kind === "replay"
-        ? { ...replayPayload, replayOf: args.runId, replayTriggeredAt: new Date().toISOString() }
-        : { resumedFromRunId: args.runId, resumeFromStep: args.fromStep, resumeTriggeredAt: new Date().toISOString() };
-  const result = await args.client.workflow.triggerByName(run.workflow, {
-    event: args.kind === "retry" ? "retry" : args.kind === "replay" ? "workflow.replay" : "resume",
-    payload,
-  });
+  const options = args.kind === "resume"
+    ? {
+        event: "resume",
+        payload: {
+          resumedFromRunId: args.runId,
+          resumeFromStep: args.fromStep,
+          resumeTriggeredAt: new Date().toISOString(),
+        },
+      }
+    : buildRetriggerOptions(args.kind, args.runId, run.workflow, {
+        event: run.triggerEvent,
+        schemaRef: run.triggerSchemaRef,
+        payload: run.triggerPayload ?? {},
+      });
+  const result = await args.client.workflow.triggerByName(run.workflow, options);
   if (!result.ok) {
     return { ok: false, reason: result.reason, message: `Workflow ${run.workflow} is already queued.` };
   }

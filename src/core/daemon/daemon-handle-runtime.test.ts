@@ -202,7 +202,7 @@ describe("buildDaemonHandle sessions", () => {
       scopeId: "project-b",
       state: "draining",
     });
-    expect(handle.enqueuePendingRun("builder", undefined, undefined, "project-b"))
+    expect(handle.enqueuePendingRun("builder", undefined, "project-b"))
       .toEqual({
         ok: false,
         error: "Scope project-b is draining and cannot accept workflow runs",

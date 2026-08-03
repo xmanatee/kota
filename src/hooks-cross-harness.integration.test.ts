@@ -107,7 +107,7 @@ describe("harness hook parity across adapters", () => {
     await runAgentHarness(claudeAgentHarness, {
       prompt: "task body",
       model: "claude-sonnet-4-6",
-      cwd: "/tmp/project",
+      cwd: process.cwd(),
       effort: "xhigh",
     });
 
@@ -141,7 +141,7 @@ describe("harness hook parity across adapters", () => {
     await runAgentHarness(claudeAgentHarness, {
       prompt: "parity-prompt",
       model: "claude-sonnet-4-6",
-      cwd: "/tmp/project",
+      cwd: process.cwd(),
       effort: "xhigh",
     });
 

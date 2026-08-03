@@ -210,6 +210,9 @@ describe("runAgentRepairLoop", () => {
     expect(prompt.indexOf("Fix these issues now.")).toBeGreaterThan(
       prompt.indexOf("</untrusted-content>"),
     );
+    expect(prompt).toContain(
+      "Write a short commit message to `/tmp/run-dir/commit-message.txt`",
+    );
   });
 
   it("escapes repair-check output that tries to close the untrusted block", () => {
@@ -429,6 +432,53 @@ describe("runAgentRepairLoop", () => {
       'Repair loop for step "agent" made no progress after 3 consecutive attempts',
     );
     expect(repairRuns).toHaveLength(3);
+  });
+
+  it("ignores volatile output from the same failing check when detecting no progress", async () => {
+    const harnessName = uniqueName("repair-volatile-output");
+    const repairRuns: string[] = [];
+    registerRepairHarness(harnessName, async (options) => {
+      repairRuns.push(options.prompt);
+      return {
+        text: "no changes",
+        streamedText: "no changes",
+        turns: 1,
+        isError: false,
+      };
+    });
+
+    initGitRepo(projectDir);
+    let checkRun = 0;
+    const step = makeStep(projectDir, harnessName, {
+      repairLoop: {
+        checks: [
+          {
+            id: "semantic-review",
+            type: "code",
+            run: () => {
+              checkRun += 1;
+              throw new Error(`same finding, wording ${checkRun}`);
+            },
+          },
+        ],
+      },
+    });
+
+    await expect(
+      runAgentRepairLoop(
+        step,
+        makeInitialResult(),
+        makeContext(projectDir),
+        makeMetadata(),
+        new AbortController(),
+        vi.fn(),
+        { projectDir },
+      ),
+    ).rejects.toThrow(
+      'Repair loop for step "agent" made no progress after 3 consecutive attempts',
+    );
+    expect(repairRuns).toHaveLength(3);
+    expect(checkRun).toBe(4);
   });
 
   it("rejects out-of-scope files written by a repair iteration", async () => {

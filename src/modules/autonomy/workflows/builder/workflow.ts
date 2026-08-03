@@ -18,7 +18,6 @@ import {
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HARNESS,
-  AUTONOMY_BUILDER_AGENT_HANG_TIMEOUT_MS,
   AUTONOMY_BUILDER_AGENT_IDLE_TIMEOUT_MS,
   AUTONOMY_DISALLOWED_TOOLS,
   stepCommitted,
@@ -192,7 +191,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       tier: AUTONOMY_AGENT_DEFAULTS.tier,
       effort: agent.effort,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
-      timeoutMs: AUTONOMY_BUILDER_AGENT_HANG_TIMEOUT_MS,
+      timeoutMs: null,
       idleTimeoutMs: AUTONOMY_BUILDER_AGENT_IDLE_TIMEOUT_MS,
       when: (ctx) => {
         if (ctx.trigger.event === "runtime.recovered") return false;

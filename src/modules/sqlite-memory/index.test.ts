@@ -14,7 +14,7 @@ const describeIfSqlite = hasSqlite ? describe : describe.skip;
 
 function makeStubCtx(storageDir: string): ModuleRuntimeContext {
 	return {
-		cwd: "/tmp/test",
+		cwd: "/tmp",
 		verbose: false,
 		config: {} as ModuleRuntimeContext["config"],
 		storage: new ModuleStorage(storageDir, "sqlite-memory"),

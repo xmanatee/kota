@@ -44,6 +44,25 @@ describe("builder runtime resource assignment", () => {
     expect(metadata.env.KOTA_RUN_ARTIFACT_DIR).toBe(metadata.artifactRoot);
   });
 
+  it("keeps a preserved worktree on its existing evidence lineage", async () => {
+    const projectDir = tempProject("continued-evidence");
+    const workspaceDir = join(projectDir, "worktrees", "continued");
+    const profile = await assignBuilderRuntimeResources({
+      projectDir,
+      taskId: "task-continued",
+      runId: "run-recovery",
+      evidenceRunId: "run-original",
+      workspaceDir,
+      runDirPath: join(projectDir, ".kota", "runs", "run-recovery"),
+    });
+
+    expect(profile.runId).toBe("run-recovery");
+    expect(profile.agentRunDir).toBe(
+      join(workspaceDir, ".kota", "builder-evidence", "run-original"),
+    );
+    expect(profile.env.KOTA_RUN_DIR).toBe(profile.agentRunDir);
+  });
+
   it("assigns deterministic non-overlapping profiles for concurrent task runs", async () => {
     const projectDir = tempProject("profiles");
     const alphaWorkspace = join(projectDir, "worktrees", "alpha");

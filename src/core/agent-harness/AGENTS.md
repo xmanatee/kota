@@ -31,21 +31,19 @@ the protocol and registry.
   register one outer lifetime and reuse its context through teardown.
 - `guards.ts` owns commit, daemon-control, and authority-mutation guards;
   `createWorkflowAgentGuards()` composes them. Named routes and credentials are
-  blocked there; OS sandboxes protect authority from opaque shell/code.
+  blocked there; `machine-authority-sandbox.ts` is the single OS-enforced
+  process boundary for opaque shell/code and native CLI harnesses.
 
 ## Owner-questions capability
 
-Owner-questions surface is a protocol-owned capability, not a provider field
-injected by call sites.
+Owner questions are a protocol capability, not a provider field.
 
-- `AgentHarnessRunOptions.askOwner?: { source: string }` is the neutral
-  request. The adapter is responsible for making the `ask_owner` tool
-  reachable to the agent using its native mechanism.
-- Each adapter declares `askOwnerToolName: string | null`. `null` means the
-  adapter cannot host the surface; `runAgentHarness` throws before calling
-  `run()` if a caller sets `askOwner` against such an adapter.
-- Per-run source attribution flows through an `AsyncLocalStorage` context
-  set by `runWithAskOwnerSource` in `src/core/tools/ask-owner.ts`.
+- `AgentHarnessRunOptions.askOwner` is the neutral request; adapters expose the
+  `ask_owner` tool through their native mechanism.
+- `askOwnerToolName` declares support. `runAgentHarness` rejects `askOwner`
+  before `run()` when the adapter declares `null`.
+- `runWithAskOwnerSource` provides per-run attribution through
+  `AsyncLocalStorage`.
 
 ## Capability flags
 
@@ -60,19 +58,18 @@ injected by call sites.
 - `supportsMultiTurn: boolean` — whether the REPL can launch this adapter.
   Single-shot runners set `false` so the REPL refuses to launch them rather
   than silently downgrading.
-- `readiness?: () => AgentHarnessReadiness` — optional local preflight
-  metadata owned by the adapter. It should report the adapter kind, required
-  local runtime probe, harness-managed local auth probe when the preset has no
-  `authEnv`, optional peer runtime probes, and unsupported neutral option
-  boundaries without making provider network calls.
+- `readiness` — adapter-owned local preflight: adapter kind, runtime and local
+  auth probes, optional peer probes, and unsupported options. It makes no
+  provider network calls.
 - `resolveIsolatedHostAuthEnv` — optional non-secret login-locator projection
   when trusted host runners replace `HOME`; tokens remain outside this contract.
-- `unsupportedRunOptions` — unsupported neutral option declarations checked
-  before hooks or adapter launch. Native CLI adapters that cannot route
-  KOTA's tool gate must declare `canUseTool`, `allowedTools`, and
-  `disallowedTools` here; harnesses whose tools bypass the shared policy
-  evaluator must also declare `scopePolicy`. Surface the same entries through
-  readiness; direct callers that pass those options still fail loudly.
+- `unsupportedRunOptions` is enforced before hooks or launch and mirrored in
+  readiness. Native CLIs without KOTA's tool gate declare `canUseTool`,
+  `allowedTools`, and `disallowedTools`; harnesses bypassing shared policy also
+  declare `scopePolicy`.
+- Workflows route KOTA-only options through `routeKotaToolControlOptions`.
+  Native harnesses receive capped autonomy and their sandbox; direct KOTA
+  policy callbacks remain an adapter error.
 - `capability-snapshot.ts` centralizes capability/readiness artifacts from
   resolved declarations, not harness-name catalogs. Adapter docs may explain
   rationale, but capability facts stay in code.

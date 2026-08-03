@@ -22,6 +22,7 @@ import type {
 } from "#core/daemon/daemon-control.js";
 import type { EventJsonObject } from "#core/events/event-journal.js";
 import type { ScopeSelector } from "#core/server/scope-selector.js";
+import type { WorkflowEnqueueOptions } from "#core/workflow/operator-trigger.js";
 import type { WorkflowTrialOptions, WorkflowTrialResult } from "./client-trial-types.js";
 import type {
   AutomationExplainOptions,
@@ -183,23 +184,10 @@ export type WorkflowGetRunResult =
  *
  * The CLI does its own pre-validation (definition exists, enabled, cooldown,
  * already-queued) using `getValidatedWorkflowDefinitions(ctx)` and
- * `workflow.status()`; the contract carries only the enqueue itself. `event`
- * and `runId` mirror the per-trigger fields the daemon already exposes — the
- * CLI's `replay`/`resume-run` paths use them to thread their own trigger label
- * and pinned run id through.
+ * `workflow.status()`; this contract carries the complete enqueue request used
+ * identically by daemon-backed and local clients.
  */
-export type WorkflowTriggerOptions = {
-  tags?: string[];
-  payload?: Record<string, unknown>;
-  /** Override cooldown gating when computing notBeforeMs. */
-  force?: boolean;
-  /** Trigger event label written into the queued run's trigger record. */
-  event?: string;
-  /** Pinned run id (used by replay/resume to propagate a deterministic id). */
-  runId?: string;
-  /** Earliest dispatch time for the daemon-down enqueue path (ms epoch). */
-  notBeforeMs?: number;
-};
+export type WorkflowTriggerOptions = WorkflowEnqueueOptions;
 
 /**
  * Result of `workflow.triggerByName`. `path` distinguishes the daemon-applied
@@ -294,19 +282,4 @@ export interface WorkflowClient {
   abortRun(
     id: string,
   ): Promise<WorkflowAbortRunResult | WorkflowDaemonRequiredResult>;
-}
-
-/**
- * Daemon `/workflow/trigger` only accepts a `payload` object that the
- * runtime spreads into the run's trigger payload. The daemon imposes its own
- * `event` ("manual") and `_runId` (generated server-side), so the CLI-side
- * `event`, `runId`, `force`, and `notBeforeMs` options on
- * `WorkflowTriggerOptions` are honored only on the daemon-down enqueue path.
- * The HTTP request carries the user-extension payload alone.
- */
-export function buildTriggerHttpPayload(
-  options: WorkflowTriggerOptions | undefined,
-): Record<string, unknown> | undefined {
-  if (!options?.payload) return undefined;
-  return Object.keys(options.payload).length > 0 ? options.payload : undefined;
 }

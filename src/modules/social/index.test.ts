@@ -13,7 +13,7 @@ function makeCtx(
   bus: EventBus = new EventBus(),
 ): ModuleRuntimeContext {
   return {
-    cwd: "/tmp/test",
+    cwd: "/tmp",
     verbose: false,
     config: {} as ModuleRuntimeContext["config"],
     storage: {} as ModuleRuntimeContext["storage"],
@@ -176,14 +176,14 @@ describe("social module inbound routes", () => {
     expect(JSON.parse(res.body!)).toMatchObject({
       ok: true,
       event: inboundSignalReceived.name,
-      projectId: deriveDirectoryScopeId("/tmp/test"),
+      projectId: deriveDirectoryScopeId("/tmp"),
       provider: "x",
       channel: "x.mention",
       actorTrust: "trusted",
     });
     expect(emitted).toHaveLength(1);
     expect(emitted[0]).toMatchObject({
-      projectId: deriveDirectoryScopeId("/tmp/test"),
+      projectId: deriveDirectoryScopeId("/tmp"),
       provider: "x",
       channel: "x.mention",
       accountId: "x:owner-account",

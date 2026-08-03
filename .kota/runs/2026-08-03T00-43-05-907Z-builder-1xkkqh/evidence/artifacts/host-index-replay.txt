@@ -1,0 +1,11 @@
+The linked worktree's host Git metadata is read-only inside this builder sandbox,
+so the exact commit set is staged in the workspace-local index at
+`.kota/tmp/2026-08-03T00-43-05-907Z-builder-1xkkqh/git-index`, with new objects
+under the sibling `git-objects` directory and
+`/Users/xmanatee/Desktop/mono/apps/kota/.git/objects` as the alternate object
+store.
+
+The host-side workflow commit step must replay `git add -A` against the real
+linked-worktree index before committing. Isolated-index status, cached diff
+checks, and task validation are run after final staging; no commit is created by
+the builder step.

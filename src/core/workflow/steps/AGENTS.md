@@ -1,7 +1,6 @@
 # Step Executors
 
-This directory contains the step execution strategy implementations and step
-context construction.
+This directory owns step execution strategies and context construction.
 
 - `step-executor.ts` is the entry point: it dispatches to the correct step type
   handler and exports shared helpers (`shouldRunStep`, `resolveValue`,
@@ -20,27 +19,19 @@ The agent step internals split by phase, not by step kind. The orchestrator
 (`step-executor-agent.ts`) owns run-attempt orchestration and the whole-step
 writeScope contract; everything else is a phase file:
 
-- `step-executor-agent-prompt.ts` — prompt build (trigger header,
-  exposed-step-output block, ask-owner sentence, JSON-output trailer).
-- `step-executor-agent-capability.ts` — pre-launch
-  `<runDir>/steps/<stepId>.harness-capability.json` artifact.
+- `step-executor-agent-prompt.ts` — trigger, exposed output, ask-owner, and JSON prompt blocks.
+- `step-executor-agent-capability.ts` — pre-launch harness capability artifact.
 - `step-executor-agent-attempt.ts` — harness dispatch, idle-timeout handling,
   JSON-output feedback, and runtime failure classification.
-- `step-executor-agent-telemetry.ts` — tool-telemetry tracker and the
-  `<runDir>/steps/<stepId>.tool-telemetry.json` artifact.
-- `step-executor-agent-trajectory-diagnostics.ts` — advisory
-  `<runDir>/steps/<stepId>.trajectory-diagnostics.json` process-quality
+- `step-executor-agent-telemetry.ts` — tool telemetry and its run artifact.
+- `step-executor-agent-trajectory-diagnostics.ts` — advisory process-quality
   artifact derived from KOTA-native message frames.
 - `step-executor-agent-tool-scope.ts` — autonomy-mode → allowed/disallowed
   tool decisions (autonomous, supervised, passive).
-- `step-executor-agent-json.ts` — fenced-block extraction,
-  `JsonOutputParseError`, `JsonSchemaValidationError`, and
-  `outputSchema` validation.
+- `step-executor-agent-json.ts` — fenced extraction, JSON/schema errors, and validation.
 
-New agent-step internals land as phase files dispatched from the orchestrator,
-which keeps `runAgentHarness`, classifier-driven retry orchestration, and
-pre/post `writeScope` enforcement. Helpers that exist solely to support one
-phase live in that phase file, not in the orchestrator.
+New internals land in phase files. The orchestrator keeps harness dispatch,
+classified retries, and write-scope enforcement; phase-only helpers stay local.
 
 ## Per-Run Emitted-Events Log
 
@@ -104,6 +95,13 @@ config keeps `model`/`effort` for pre-run introspection; consumers
 surfacing harness identity (CLI run readouts, tracing) should prefer the
 runtime values on the step result over re-deriving them from the static
 config.
+
+## Structured Agent Output
+
+`outputSchema` is the single contract for JSON agent output. The core prompt
+builder renders that schema for the agent, and the executor validates the same
+object after extraction. Do not duplicate schema fields in workflow prompts or
+silently default missing fields after validation.
 
 ## Agent-Step Retry and Error Classification
 

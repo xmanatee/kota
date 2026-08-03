@@ -44,9 +44,6 @@ export type {
 } from "./daemon-control-events.js";
 export type { DaemonControlHandle } from "./daemon-control-handle.js";
 
-/** Untyped trigger additions are accepted only at the daemon control boundary. */
-export type DaemonControlExtraPayload = Record<string, unknown>;
-
 /**
  * Typed wire-shape for the daemon's "unknown projectId" rejection on a
  * project-scoped route. Built by `daemon-control-utils` when the route

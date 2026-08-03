@@ -53,6 +53,10 @@ vi.mock("./agent-run-artifacts.js", async () => {
   };
 });
 
+vi.mock("./preserved-evidence.js", () => ({
+  findPreservedBuilderEvidenceRunId: vi.fn(() => null),
+}));
+
 vi.mock("#modules/autonomy/task-claims.js", () => ({
   DEFAULT_TASK_CLAIM_LEASE_MS: 25_200_000,
   taskClaimPath: vi.fn((projectDir: string, taskId: string) =>

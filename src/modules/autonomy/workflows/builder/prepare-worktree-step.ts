@@ -22,6 +22,7 @@ import {
   updateAutomationWorktreeRuntimeResources,
 } from "#modules/git/worktree-lifecycle.js";
 import { builderWorktreeModeEnabledFromConfig } from "./builder-config.js";
+import { findPreservedBuilderEvidenceRunId } from "./preserved-evidence.js";
 import {
   assignBuilderRuntimeResources,
   type BuilderRuntimeResourceProfile,
@@ -78,6 +79,7 @@ async function prepareWorktreeResources(
   taskId: string,
   claimId: string,
   worktreeRunId: string,
+  evidenceRunId?: string,
 ): Promise<BuilderWorkspaceResult> {
   const runtimeResources = await assignBuilderRuntimeResources({
     projectDir: ctx.projectDir,
@@ -85,6 +87,7 @@ async function prepareWorktreeResources(
     runId: ctx.workflow.runId,
     workspaceDir: inspection.metadata.workspaceDir,
     runDirPath: ctx.workflow.runDirPath,
+    ...(evidenceRunId !== undefined ? { evidenceRunId } : {}),
   });
   updateAutomationWorktreeRuntimeResources(
     { projectDir: ctx.projectDir, taskId, runId: worktreeRunId },
@@ -162,12 +165,16 @@ export function createPrepareBuilderWorktreeStep(
           { projectDir: ctx.projectDir, taskId, runId: worktreeRunId },
           ctx.workflow.runId,
         );
+        const evidenceRunId = findPreservedBuilderEvidenceRunId(
+          inspection.metadata.workspaceDir,
+        );
         return prepareWorktreeResources(
           ctx,
           inspection,
           taskId,
           claimId,
           worktreeRunId,
+          evidenceRunId ?? undefined,
         );
       }
 

@@ -141,11 +141,13 @@ export function routeKotaToolControlOptions(
     allowedTools?: string[];
     disallowedTools?: string[];
     canUseTool?: AgentHarnessRunOptions["canUseTool"];
+    scopePolicy?: AgentHarnessRunOptions["scopePolicy"];
   },
 ): {
   allowedTools?: string[];
   disallowedTools?: string[];
   canUseTool?: AgentHarnessRunOptions["canUseTool"];
+  scopePolicy?: AgentHarnessRunOptions["scopePolicy"];
 } {
   if (!shouldRouteKotaToolControl(harness)) return {};
   return options;

@@ -16,7 +16,7 @@ type McpServerStart = ModuleRuntimeContext["client"]["mcpServer"]["start"];
 function makeStubCtx(start: McpServerStart = vi.fn(async () => ({ ok: true as const }))): ModuleRuntimeContext {
 	const bus = new EventBus();
 	return {
-		cwd: "/tmp/test",
+		cwd: "/tmp",
 		verbose: false,
 		config: {} as ModuleRuntimeContext["config"],
 		storage: new ModuleStorage("/tmp/test", "mcp-server"),

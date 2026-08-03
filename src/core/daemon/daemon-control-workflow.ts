@@ -1,4 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { isEventSchemaReference } from "#core/events/event-bus-envelope-types.js";
+import type { EventSchemaReference } from "#core/events/event-bus-types.js";
+import type { WorkflowEnqueueOptions } from "#core/workflow/operator-trigger.js";
 import { validateWorkflowRunId } from "#core/workflow/run-io.js";
 import type { DaemonControlHandle } from "./daemon-control-types.js";
 import { jsonResponse, readBody, resolveProjectIdParam } from "./daemon-control-utils.js";
@@ -231,15 +234,12 @@ export function handleTriggerWorkflow(
         jsonResponse(res, 400, { error: "name must be a non-empty alphanumeric string" });
         return;
       }
-      const tags =
-        Array.isArray(body.tags) && (body.tags as unknown[]).every((t) => typeof t === "string")
-          ? (body.tags as string[])
-          : undefined;
-      const extraPayload =
-        body.payload !== undefined && body.payload !== null && typeof body.payload === "object" && !Array.isArray(body.payload)
-          ? (body.payload as Record<string, unknown>)
-          : undefined;
-      const result = handle.enqueuePendingRun(name, tags, extraPayload, scope.projectId);
+      const options = parseWorkflowEnqueueOptions(body, name);
+      if (!options.ok) {
+        jsonResponse(res, 400, { error: options.error });
+        return;
+      }
+      const result = handle.enqueuePendingRun(name, options.value, scope.projectId);
       if (result.alreadyQueued) {
         jsonResponse(res, 409, { error: `Workflow "${name}" is already queued` });
         return;
@@ -260,4 +260,48 @@ export function handleTriggerWorkflow(
       jsonResponse(res, 200, { ok: true, queued: result.queued, runId: result.runId });
     })
     .catch(() => jsonResponse(res, 500, { error: "Internal error" }));
+}
+
+function parseWorkflowEnqueueOptions(
+  body: Record<string, unknown>,
+  workflowName: string,
+): { ok: true; value: WorkflowEnqueueOptions } | { ok: false; error: string } {
+  if (body.tags !== undefined && (!Array.isArray(body.tags) || !body.tags.every((tag) => typeof tag === "string"))) {
+    return { ok: false, error: "tags must be an array of strings" };
+  }
+  if (body.payload !== undefined && (body.payload === null || typeof body.payload !== "object" || Array.isArray(body.payload))) {
+    return { ok: false, error: "payload must be an object" };
+  }
+  if (body.event !== undefined && (typeof body.event !== "string" || body.event.trim().length === 0)) {
+    return { ok: false, error: "event must be a non-empty string" };
+  }
+  if (body.schemaRef !== undefined && body.schemaRef !== null && !isEventSchemaReference(body.schemaRef)) {
+    return { ok: false, error: "schemaRef must be null or a name/version object" };
+  }
+  if (body.runId !== undefined) {
+    if (typeof body.runId !== "string") return { ok: false, error: "runId must be a string" };
+    try {
+      validateWorkflowRunId(body.runId, `Workflow "${workflowName}" enqueue`);
+    } catch (error) {
+      return { ok: false, error: (error as Error).message };
+    }
+  }
+  if (
+    body.notBeforeMs !== undefined &&
+    (typeof body.notBeforeMs !== "number" || !Number.isFinite(body.notBeforeMs) || body.notBeforeMs < 0)
+  ) {
+    return { ok: false, error: "notBeforeMs must be a non-negative finite number" };
+  }
+
+  return {
+    ok: true,
+    value: {
+      ...(body.tags !== undefined ? { tags: body.tags as string[] } : {}),
+      ...(body.payload !== undefined ? { payload: body.payload as Record<string, unknown> } : {}),
+      ...(body.event !== undefined ? { event: body.event as string } : {}),
+      ...(body.schemaRef !== undefined ? { schemaRef: body.schemaRef as EventSchemaReference | null } : {}),
+      ...(body.runId !== undefined ? { runId: body.runId as string } : {}),
+      ...(body.notBeforeMs !== undefined ? { notBeforeMs: body.notBeforeMs as number } : {}),
+    },
+  };
 }

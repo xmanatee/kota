@@ -271,13 +271,15 @@ export async function executeWorkflowStep(
   const forwardRunAbort = () => stepAbortController.abort(runAbortController.signal.reason);
   runAbortController.signal.addEventListener("abort", forwardRunAbort, { once: true });
 
-  // Await-event steps bypass the default step hang rail because operator-loop
-  // waits can legitimately exceed it. The step honors its own `awaitTimeoutMs`
-  // protocol-level deadline and the run-level abort signal.
-  const skipDefaultTimeout = step.type === "await-event" && step.timeoutMs === undefined;
-  const timeoutMs = skipDefaultTimeout
+  // Await-event steps use their protocol deadline. A validated null timeout
+  // delegates liveness to the step's trusted idle-progress monitor.
+  const configuredTimeoutMs = "timeoutMs" in step ? step.timeoutMs : undefined;
+  const skipActiveTimeout =
+    configuredTimeoutMs === null ||
+    (step.type === "await-event" && configuredTimeoutMs === undefined);
+  const timeoutMs = skipActiveTimeout
     ? undefined
-    : ("timeoutMs" in step ? (step.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS) : DEFAULT_STEP_TIMEOUT_MS);
+    : (configuredTimeoutMs ?? DEFAULT_STEP_TIMEOUT_MS);
   const activeTimeout =
     timeoutMs === undefined
       ? null

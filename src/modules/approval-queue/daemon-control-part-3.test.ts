@@ -15,15 +15,13 @@
  * already-resolved items.
  */
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ApprovalQueue,
-  getApprovalQueue,
   resetApprovalQueue,
-  setApprovalQueueInstance,
 } from "#core/daemon/approval-queue.js";
 import {
   type DaemonControlHandle,
@@ -52,13 +50,6 @@ import { approvalControlRoutes } from "./routes.js";
 const executeTool = vi.fn<ToolRunner>();
 
 const TEST_TOKEN = "approvals-test-token";
-
-function approvePending(queue: ApprovalQueue, id: string): void {
-  const selection = queue.getExecutionSnapshot(id);
-  if (!selection.ok) throw new Error("expected execution snapshot");
-  const result = queue.approveForExecution(selection.snapshot.descriptor);
-  if (!result.ok) throw new Error("expected execution approval");
-}
 
 function makeHandle(): DaemonControlHandle {
   return {
@@ -150,19 +141,6 @@ function approvalPost(queue: ApprovalQueue, id: string, note?: string): RequestI
   };
 }
 
-function approveAllPost(queue: ApprovalQueue): RequestInit {
-  return {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      reviews: queue.list("pending").map((item) => ({
-        id: item.id,
-        digest: reviewDigest(queue, item.id),
-      })),
-    }),
-  };
-}
-
 function registerProjectQueueProvider(
   entries: Array<{
     project: ConfiguredProject;
@@ -212,14 +190,12 @@ describe("approval-queue module daemon-control routes", () => {
   let server: DaemonControlServer;
   let port: number;
   let queueDir: string;
-  let queue: ApprovalQueue;
 
   beforeEach(async () => {
     registerApprovalExecutionTestTools(executeTool);
     queueDir = mkdtempSync(join(tmpdir(), "kota-approvals-control-"));
     resetProviderRegistry();
     resetApprovalQueue();
-    queue = getApprovalQueue(queueDir);
     vi.mocked(executeTool).mockResolvedValue({ content: "ok" });
     server = new DaemonControlServer(makeHandle(), TEST_TOKEN, {
       controlRoutes: approvalControlRoutes(),
@@ -239,6 +215,8 @@ describe("approval-queue module daemon-control routes", () => {
   describe("GET /approvals", () => {
 
     it("uses the projectId query to list and mutate the selected project's queue", async () => {
+      mkdirSync(join(queueDir, "project-a"));
+      mkdirSync(join(queueDir, "project-b"));
       const projectA = buildConfiguredProject({
         projectDir: join(queueDir, "project-a"),
         displayName: "Project A",

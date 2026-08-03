@@ -19,7 +19,7 @@ function makeStubCtx(
   logWarn = vi.fn(),
 ): ModuleRuntimeContext {
   return {
-    cwd: "/tmp/test",
+    cwd: "/tmp",
     verbose: false,
     config: {} as ModuleRuntimeContext["config"],
     storage: new ModuleStorage("/tmp/test", "github-webhook"),
@@ -598,7 +598,7 @@ describe("githubWebhookModule handler — event emission", () => {
     expect(legacyMentions).toHaveLength(0);
     expect(inboundSignals).toHaveLength(1);
     expect(inboundSignals[0]).toMatchObject({
-      projectId: deriveDirectoryScopeId("/tmp/test"),
+      projectId: deriveDirectoryScopeId("/tmp"),
       provider: "github",
       channel: "github.issue_comment",
       accountId: "github:owner/repo",
