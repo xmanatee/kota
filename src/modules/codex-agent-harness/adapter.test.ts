@@ -11,6 +11,7 @@ import {
 
 const spawnMock = vi.hoisted(() => vi.fn());
 const spawnSyncMock = vi.hoisted(() => vi.fn());
+const sandboxLaunchMock = vi.hoisted(() => vi.fn());
 
 vi.mock("node:child_process", async () => {
   const actual = await vi.importActual<typeof import("node:child_process")>(
@@ -18,6 +19,10 @@ vi.mock("node:child_process", async () => {
   );
   return { ...actual, spawn: spawnMock, spawnSync: spawnSyncMock };
 });
+
+vi.mock("#core/agent-harness/machine-authority-sandbox.js", () => ({
+  buildMachineAuthoritySandboxLaunch: sandboxLaunchMock,
+}));
 
 type MockChild = EventEmitter & {
   stdin: PassThrough;
@@ -93,6 +98,13 @@ function mockCodexReadinessProbe(options: {
 beforeEach(() => {
   spawnMock.mockReset();
   spawnSyncMock.mockReset();
+  sandboxLaunchMock.mockReset().mockImplementation(
+    (executable: string, args: readonly string[]) => ({
+      ok: true,
+      command: "authority-sandbox",
+      args: [executable, ...args],
+    }),
+  );
 });
 
 afterEach(() => {
@@ -160,6 +172,7 @@ describe("codexAgentHarness", () => {
         effort: "xhigh",
         systemPrompt: "be brief",
         cwd: "/repo",
+        authorityConfigPath: "/operator/.kota/config.json",
         env: {
           OPENAI_API_KEY: "must-not-reach-codex",
           KOTA_TEST_ENV: "preserved",
@@ -170,8 +183,9 @@ describe("codexAgentHarness", () => {
     );
 
     expect(spawnMock).toHaveBeenCalledWith(
-      "codex",
+      "authority-sandbox",
       expect.arrayContaining([
+        "codex",
         "exec",
         "--json",
         "--ephemeral",
@@ -189,6 +203,14 @@ describe("codexAgentHarness", () => {
         "workspace-write",
       ]),
       expect.objectContaining({ cwd: "/repo" }),
+    );
+    expect(sandboxLaunchMock).toHaveBeenCalledWith(
+      "codex",
+      expect.any(Array),
+      {
+        cwd: "/repo",
+        authorityConfigPath: "/operator/.kota/config.json",
+      },
     );
     expect(spawnMock.mock.calls[0][1]).not.toContain(
       'preferred_auth_method="chatgpt"',

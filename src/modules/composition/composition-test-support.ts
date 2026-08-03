@@ -31,7 +31,7 @@ vi.spyOn(console, "error").mockImplementation(() => {});
 // The sandbox boundary has its own focused launch tests. Keep these composition
 // tests exercising the real shell while avoiding a sandbox nested inside the
 // host test runner's sandbox, which macOS rejects before the command can start.
-vi.mock("#modules/execution/machine-authority-sandbox.js", () => ({
+vi.mock("#core/agent-harness/machine-authority-sandbox.js", () => ({
 	buildMachineAuthoritySandboxLaunch: (
 		executable: string,
 		args: readonly string[],

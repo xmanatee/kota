@@ -33,7 +33,8 @@ The adapter runs one non-interactive CLI process per KOTA harness call:
 1. Compose the KOTA system prompt, workflow rails, and task prompt into one
    stdin prompt for `codex exec -`.
 2. Spawn an ephemeral, strict-config `codex exec --json` process with user
-   plugins and hooks disabled, plus the selected sandbox and model.
+   plugins and hooks disabled, plus the selected sandbox and model. The whole
+   CLI process also runs inside KOTA's machine-authority OS sandbox.
 3. Parse JSONL events from stdout. `item.completed` agent-message events are
    streamed to the optional `AgentHarnessWriter` and collected as final text.
 4. Read the final `turn.completed` usage event for token counts and return the

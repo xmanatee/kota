@@ -7,8 +7,7 @@ import {
   writeJsonFileAtomic,
 } from "#core/util/json-file.js";
 import {
-  resolvePathFrom,
-  resolvePathThroughExistingAncestor,
+  resolvePathIdentities,
 } from "#core/util/real-path.js";
 import {
   SCOPE_AUTHORITY_OPERATOR_ACTION_HEADER,
@@ -160,7 +159,7 @@ export function scopeAuthorityOperatorTokenPaths(
     scopeAuthorityOperatorTokenPath(),
   ])];
   return [...new Set(
-    configuredPaths.flatMap((path) => pathIdentities(path, process.cwd())),
+    configuredPaths.flatMap((path) => resolvePathIdentities(path, process.cwd())),
   )];
 }
 
@@ -169,19 +168,11 @@ export type ScopeAuthorityOperatorTokenPathContext = {
   authorityConfigPath: string | undefined;
 };
 
-function pathIdentities(path: string, baseDirectory: string): string[] {
-  const requested = resolvePathFrom(baseDirectory, path);
-  const resolved = resolvePathThroughExistingAncestor(requested);
-  return resolved === null || resolved === requested
-    ? [requested]
-    : [requested, resolved];
-}
-
 export function isScopeAuthorityOperatorTokenPath(
   path: string,
   context: ScopeAuthorityOperatorTokenPathContext,
 ): boolean {
-  const requestedPaths = new Set(pathIdentities(path, context.baseDirectory));
+  const requestedPaths = new Set(resolvePathIdentities(path, context.baseDirectory));
   return scopeAuthorityOperatorTokenPaths(context.authorityConfigPath).some(
     (tokenPath) => requestedPaths.has(tokenPath),
   );

@@ -273,6 +273,7 @@ export const antigravityCliAgentHarness: AgentHarness = {
       cwd: options.cwd ?? process.cwd(),
       model: options.model,
       passive: options.autonomyMode === "passive",
+      authorityConfigPath: options.authorityConfigPath,
       env: options.env,
       abortController: options.abortController,
       writer,

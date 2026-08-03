@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
+import { buildMachineAuthoritySandboxLaunch } from "#core/agent-harness/machine-authority-sandbox.js";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
@@ -8,7 +9,6 @@ import { line, span } from "#modules/rendering/primitives.js";
 import { printToStderr, writeStderr } from "#modules/rendering/transport.js";
 import { enrichWithSourceContext } from "./error-context.js";
 import { buildExecutionEnv } from "./execution-env.js";
-import { buildMachineAuthoritySandboxLaunch } from "./machine-authority-sandbox.js";
 import { smartErrorTruncate } from "./shell-diagnostics.js";
 
 export const shellTool: KotaTool = {

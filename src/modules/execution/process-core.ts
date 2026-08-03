@@ -1,11 +1,11 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import { buildShellMachineAuthoritySandboxLaunch } from "#core/agent-harness/machine-authority-sandbox.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
 import { registerSessionEnvironmentResource } from "#core/tools/session-environment.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { line, span } from "#modules/rendering/primitives.js";
 import { printToStderr } from "#modules/rendering/transport.js";
 import { buildExecutionEnv } from "./execution-env.js";
-import { buildShellMachineAuthoritySandboxLaunch } from "./machine-authority-sandbox.js";
 import * as processLifecycle from "./process-lifecycle.js";
 
 const MAX_BUFFER_LINES = 500;

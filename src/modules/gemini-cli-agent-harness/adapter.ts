@@ -236,6 +236,7 @@ export const geminiCliAgentHarness: AgentHarness = {
       cwd: options.cwd ?? process.cwd(),
       model: options.model,
       approvalMode: geminiApprovalMode(options),
+      authorityConfigPath: options.authorityConfigPath,
       env: options.env,
       abortController: options.abortController,
       writer,

@@ -246,6 +246,7 @@ export const codexAgentHarness: AgentHarness = {
       model: options.model,
       effort: options.effort,
       sandbox: codexSandboxMode(options),
+      authorityConfigPath: options.authorityConfigPath,
       env: options.env,
       abortController: options.abortController,
       writer,

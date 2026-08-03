@@ -31,7 +31,8 @@ the protocol and registry.
   register one outer lifetime and reuse its context through teardown.
 - `guards.ts` owns commit, daemon-control, and authority-mutation guards;
   `createWorkflowAgentGuards()` composes them. Named routes and credentials are
-  blocked there; OS sandboxes protect authority from opaque shell/code.
+  blocked there; `machine-authority-sandbox.ts` is the single OS-enforced
+  process boundary for opaque shell/code and native CLI harnesses.
 
 ## Owner-questions capability
 
@@ -73,6 +74,10 @@ injected by call sites.
   `disallowedTools` here; harnesses whose tools bypass the shared policy
   evaluator must also declare `scopePolicy`. Surface the same entries through
   readiness; direct callers that pass those options still fail loudly.
+- Workflow callers route KOTA-only tool options, including `scopePolicy`,
+  through `routeKotaToolControlOptions`. Native harnesses receive the
+  policy-capped autonomy mode and their own sandbox, while direct attempts to
+  pass KOTA tool-policy callbacks remain an adapter error.
 - `capability-snapshot.ts` centralizes capability/readiness artifacts from
   resolved declarations, not harness-name catalogs. Adapter docs may explain
   rationale, but capability facts stay in code.

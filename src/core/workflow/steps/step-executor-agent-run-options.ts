@@ -103,6 +103,7 @@ export function buildAgentHarnessRunOptions(input: {
         allowedTools: toolScope.allowedTools,
         disallowedTools: toolScope.disallowedTools,
         canUseTool,
+        scopePolicy: agentConfig.scopePolicy,
       }),
       ...(agentConfig.config?.guardrails !== undefined
         ? { guardrailsConfig: agentConfig.config.guardrails }
@@ -117,9 +118,6 @@ export function buildAgentHarnessRunOptions(input: {
       autonomyMode: agentConfig.scopePolicy
         ? capScopeAutonomyMode(step.autonomyMode, agentConfig.scopePolicy)
         : step.autonomyMode,
-      ...(agentConfig.scopePolicy !== undefined
-        ? { scopePolicy: agentConfig.scopePolicy }
-        : {}),
       harnessOverrides,
       abortController,
       workflowContext: {

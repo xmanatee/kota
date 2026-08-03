@@ -17,10 +17,11 @@ processes, code REPL, computer use, and screenshot tools.
   those resources before their inherited credential environment can outlive
   its authorization boundary.
 - Agent-routed shell, process, and REPL execution must carry the machine
-  authority path into a fail-closed OS sandbox. Text parsing cannot establish
-  where opaque code writes; keep direct runner calls available for host-owned
-  tests and operations, but every harness/loop execution context supplies the
-  protected path.
+  authority path into the shared fail-closed OS sandbox in
+  `src/core/agent-harness/machine-authority-sandbox.ts`. Text parsing cannot
+  establish where opaque code writes; keep direct runner calls available for
+  host-owned tests and operations, but every harness/loop execution context
+  supplies the protected path.
 - Scope policy treats recognized outbound commands and code as compound local
   plus network effects. Keep the execution tool resolvers and Claude Bash on
   the shared opaque-execution classifier; never replace the local write check

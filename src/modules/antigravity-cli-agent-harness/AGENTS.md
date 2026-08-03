@@ -42,8 +42,9 @@ structured-output mode equivalent to `codex exec --json` or
 does not expose token deltas, native tool-call events, session ids, or
 `KotaAgentMessage` frames. This keeps the preset useful for text-only native
 AGY runs without pretending KOTA can supervise AGY's internal tool loop.
-Every invocation requires AGY's native sandbox; autonomous mode changes the
-approval posture, never the filesystem isolation boundary.
+Every invocation requires AGY's native sandbox and KOTA's machine-authority OS
+sandbox; autonomous mode changes the approval posture, never the filesystem
+isolation boundary.
 
 ## Capability Boundary
 

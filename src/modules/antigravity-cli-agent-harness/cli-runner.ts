@@ -3,6 +3,7 @@ import type {
   AgentHarnessResult,
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
+import { buildMachineAuthoritySandboxLaunch } from "#core/agent-harness/machine-authority-sandbox.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
 export const ANTIGRAVITY_CLI_BINARY_NAME = "agy";
@@ -26,6 +27,7 @@ export async function collectTextFromAntigravityCli(args: {
   cwd: string;
   model: string;
   passive: boolean;
+  authorityConfigPath: string | undefined;
   env: Record<string, string> | undefined;
   abortController?: AbortController;
   writer?: AgentHarnessWriter;
@@ -40,7 +42,17 @@ export async function collectTextFromAntigravityCli(args: {
     "--sandbox",
   ];
 
-  const child = spawn(ANTIGRAVITY_CLI_BINARY_NAME, cliArgs, {
+  const launch = buildMachineAuthoritySandboxLaunch(
+    ANTIGRAVITY_CLI_BINARY_NAME,
+    cliArgs,
+    {
+      cwd: args.cwd,
+      authorityConfigPath: args.authorityConfigPath,
+    },
+  );
+  if (!launch.ok) throw new Error(launch.error);
+
+  const child = spawn(launch.command, launch.args, {
     cwd: args.cwd,
     env: withProtectedGitBareRepositoryEnv({
       ...process.env,

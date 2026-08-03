@@ -9,6 +9,17 @@ export function resolvePathFrom(baseDirectory: string, targetPath: string): stri
     : resolve(baseDirectory, targetPath);
 }
 
+export function resolvePathIdentities(
+  path: string,
+  baseDirectory: string,
+): string[] {
+  const requested = resolvePathFrom(baseDirectory, path);
+  const canonical = resolvePathThroughExistingAncestor(requested);
+  return canonical === null || canonical === requested
+    ? [requested]
+    : [requested, canonical];
+}
+
 function readSymlinkTarget(path: string): string | null {
   try {
     const stats = lstatSync(path);

@@ -7,6 +7,7 @@ import {
 } from "./adapter.js";
 
 const spawnMock = vi.hoisted(() => vi.fn());
+const sandboxLaunchMock = vi.hoisted(() => vi.fn());
 
 vi.mock("node:child_process", async () => {
   const actual = await vi.importActual<typeof import("node:child_process")>(
@@ -14,6 +15,10 @@ vi.mock("node:child_process", async () => {
   );
   return { ...actual, spawn: spawnMock };
 });
+
+vi.mock("#core/agent-harness/machine-authority-sandbox.js", () => ({
+  buildMachineAuthoritySandboxLaunch: sandboxLaunchMock,
+}));
 
 type MockChild = EventEmitter & {
   stdout: PassThrough;
@@ -57,6 +62,13 @@ function mockManualGeminiProcess(): MockChild {
 
 beforeEach(() => {
   spawnMock.mockReset();
+  sandboxLaunchMock.mockReset().mockImplementation(
+    (executable: string, args: readonly string[]) => ({
+      ok: true,
+      command: "authority-sandbox",
+      args: [executable, ...args],
+    }),
+  );
 });
 
 afterEach(() => {
@@ -111,13 +123,15 @@ describe("geminiCliAgentHarness", () => {
         effort: "xhigh",
         systemPrompt: "be brief",
         cwd: "/repo",
+        authorityConfigPath: "/operator/.kota/config.json",
       },
       writer,
     );
 
     expect(spawnMock).toHaveBeenCalledWith(
-      "gemini",
+      "authority-sandbox",
       expect.arrayContaining([
+        "gemini",
         "--prompt",
         expect.stringContaining("## Task\n\nplease echo"),
         "--output-format",
@@ -130,7 +144,15 @@ describe("geminiCliAgentHarness", () => {
       ]),
       expect.objectContaining({ cwd: "/repo" }),
     );
-    const promptArg = spawnMock.mock.calls[0][1][1] as string;
+    expect(sandboxLaunchMock).toHaveBeenCalledWith(
+      "gemini",
+      expect.any(Array),
+      {
+        cwd: "/repo",
+        authorityConfigPath: "/operator/.kota/config.json",
+      },
+    );
+    const promptArg = spawnMock.mock.calls[0][1][2] as string;
     expect(promptArg).toContain("## System instructions\n\nbe brief");
     expect(promptArg).toContain("Do not run `git commit`");
     expect(writer.write).toHaveBeenCalledWith("all done");
