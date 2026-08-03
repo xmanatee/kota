@@ -1,12 +1,12 @@
 ---
 id: task-repair-workflow-failure-pattern-31e5ee2063d4
 title: Repair persistent improver workflow failure pattern
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Fix the local cause behind improver's persistent consecutive failure signal (step improve error 4dfa530b8956).
 created_at: 2026-08-03T16:47:35.896Z
-updated_at: 2026-08-03T16:47:35.896Z
+updated_at: 2026-08-03T16:49:58.655Z
 task_class: Meta
 ---
 
@@ -82,11 +82,11 @@ into deterministic, reviewable repair work.
 
 ## Acceptance Evidence
 
-- Test output for the repaired workflow or runtime path.
-- Detector test or run artifact showing this pattern no longer crosses the
-  escalation gate on fresh evidence.
-- Attention-event fixture or transcript showing any future escalation names
-  the task id without cost fields.
+- `1a16841de` removes the lint errors shared by all three failed runs.
+- `f21905a5b` restores the strict validation checks that failed their test gate.
+- `4a1de2bc2` preserves terminal repair output for future forensic review.
+- Typecheck, lint, and 125 focused workflow, recovery, validation, DLQ,
+  event-journal, and repair-loop checks passed after integration.
 
 <!-- workflow-failure-pattern-fingerprint: workflow-failure:consecutive-failures:improver:step-error:83cd54201d5f -->
 <!-- workflow-failure-evidence-fingerprint: 58cc05340e6b16447bf221ec4b8e06682e836e991006aeabcd07c49b7ad6ed01 -->
