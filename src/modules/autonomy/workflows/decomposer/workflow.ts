@@ -27,6 +27,7 @@ import {
   stepCommitted,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
+import { checkDecompositionApplied } from "./decomposition-check.js";
 
 export const agent: AgentDef = {
   name: "decomposer",
@@ -384,6 +385,14 @@ const shouldRunDecompose = labeledPredicate(
   },
 );
 
+function decompositionTargetTaskId(ctx: Parameters<typeof assessFailure.outputRequired>[0]): string {
+  const assessment = assessFailure.outputRequired(ctx);
+  if (assessment.shouldDecompose) return assessment.taskId;
+  const escalation = applyEscalationOutcome.outputRequired(ctx);
+  if (escalation.kind === "approved") return escalation.taskId;
+  throw new Error("decompose step ran without an approved task target");
+}
+
 const decomposerWorkflow: WorkflowDefinitionInput = {
   name: "decomposer",
   description: "Rescope builder tasks after timeout or exhausted repair.",
@@ -428,6 +437,15 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
       when: shouldRunDecompose,
       repairLoop: {
         checks: [
+          {
+            id: "decomposition-applied",
+            type: "code" as const,
+            run: (ctx) =>
+              checkDecompositionApplied(
+                ctx.projectDir,
+                decompositionTargetTaskId(ctx),
+              ),
+          },
           {
             id: "task-queue-valid",
             type: "code" as const,

@@ -755,26 +755,4 @@ describe("decomposer workflow", () => {
     });
   });
 
-  it("skips request-restart when nothing was committed", async () => {
-    await configureBuilderFailure(
-      makeFailedBuilderMetadata({
-        buildDurationMs: HANG_TIMEOUT_BUILD_MS,
-        buildErrorKind: "step-timeout",
-      }),
-    );
-
-    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: false } as never);
-
-    const harness = new WorkflowTestHarness(decomposerWorkflow, {
-      trigger: { event: "workflow.completed", schemaRef: null, payload: TRIGGER_PAYLOAD },
-      stepMocks: { decompose: { decomposed: true } },
-    });
-
-    const result = await harness.run();
-
-    expect(result.steps.decompose.status).toBe("success");
-    expect(result.steps.commit.status).toBe("success");
-    expect(result.steps["request-restart"].status).toBe("skipped");
-  });
 });

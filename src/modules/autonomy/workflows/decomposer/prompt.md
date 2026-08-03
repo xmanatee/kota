@@ -36,4 +36,7 @@ split or sharpen it only where real conceptual seams exist.
 
 ## Finish
 
-Follow the workflow finish protocol.
+Follow the workflow finish protocol. A no-op is a failed decomposition: the
+workflow verifies that the original is dropped, its `## Decomposed` section
+names the resulting ready subtasks, and those task files were changed by this
+run.

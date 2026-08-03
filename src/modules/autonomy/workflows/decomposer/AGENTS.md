@@ -7,6 +7,9 @@ This directory contains the decomposer workflow definition and its prompt.
 - Reads the exact task id from the failed run's `task-claim.json`. When that
   task remains active, an agent resizes it into coherent subtasks and moves the
   original to `dropped/`.
+- The `decomposition-applied` repair check rejects no-op agent completions and
+  requires the dropped original and every ready subtask named by its
+  `## Decomposed` section to belong to the current mutation set.
 - Keep decomposition logic inside this module, not in core or in the builder itself.
 
 ## First Consumer Of `askOwnerSteps`
