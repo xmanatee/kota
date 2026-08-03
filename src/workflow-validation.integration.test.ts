@@ -739,6 +739,35 @@ describe("workflow validation", () => {
     ).toThrow(WorkflowDefinitionError);
   });
 
+  it("validates trigger queue mode", () => {
+    const definitions = validateWorkflowDefinitions(
+      [
+        registerWorkflowDefinition("test/lossless-listener.ts", {
+          name: "lossless-listener",
+          triggers: [{ event: "work.completed", queueMode: "all" }],
+          steps: [{ id: "run", type: "emit", event: "listener.done" }],
+        }),
+      ],
+      projectDir,
+    );
+    expect(definitions[0]?.triggers[0]?.queueMode).toBe("all");
+
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/invalid-listener.ts", {
+            name: "invalid-listener",
+            triggers: [
+              { event: "work.completed", queueMode: "oldest" as never },
+            ],
+            steps: [{ id: "run", type: "emit", event: "listener.done" }],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(/queueMode must be "latest" or "all"/);
+  });
+
   it("preserves timeoutMs on agent steps", () => {
     writeFileSync(
       join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),

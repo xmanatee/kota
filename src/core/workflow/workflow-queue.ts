@@ -96,6 +96,8 @@ export class WorkflowQueueManager {
       projectDir: this.config.projectDir ?? process.cwd(),
       config: this.config.getConfig?.(),
     });
+    const queueEveryDelivery = triggerConfig.queueMode === "all";
+    const explicitlyKeyed = hasExplicitWorkflowDispatchKey(trigger);
     const idempotency = workflowDispatchIdempotency(
       this.config.idempotencyStore,
       definition.name,
@@ -104,11 +106,14 @@ export class WorkflowQueueManager {
     const distinctQueuedRun =
       trigger.event === WORKFLOW_BATCH_FLUSH_EVENT ||
       dispatchBurst > 1 ||
-      hasExplicitWorkflowDispatchKey(trigger);
+      queueEveryDelivery ||
+      explicitlyKeyed;
     const existingIndex = distinctQueuedRun
       ? -1
       : this.queue.findIndex(
-          (queued) => queued.workflowName === definition.name,
+          (queued) =>
+            queued.workflowName === definition.name &&
+            queued.trigger.event === trigger.event,
         );
     const state = this.config.store.readState();
     const existing = existingIndex >= 0 ? this.queue[existingIndex] : undefined;

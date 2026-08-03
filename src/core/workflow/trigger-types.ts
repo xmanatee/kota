@@ -116,6 +116,7 @@ export type WorkflowBatchFlushPayload = {
 };
 
 export type WorkflowTriggerRunOn = "every-scope" | "default-scope";
+export type WorkflowTriggerQueueMode = "latest" | "all";
 export type WorkflowScheduledPayloadValue = string | number | boolean | null;
 export type WorkflowScheduledPayload = {
   readonly [key: string]: WorkflowScheduledPayloadValue;
@@ -127,6 +128,12 @@ export type WorkflowTriggerInput = {
   filter?: Record<string, WorkflowFilterValue>;
   batch?: WorkflowBatchTriggerInput;
   cooldownMs?: number;
+  /**
+   * `latest` keeps one stable pending slot per workflow/event and replaces its
+   * payload with the newest matching delivery. `all` queues every delivery
+   * whose payload represents independent work. Defaults to `latest`.
+   */
+  queueMode?: WorkflowTriggerQueueMode;
   /** Standard 5-field cron expression (MIN HOUR DOM MONTH DOW). */
   schedule?: string;
   /**
@@ -175,6 +182,7 @@ export type WorkflowTrigger = {
   filter?: Record<string, WorkflowFilterValue>;
   batch?: WorkflowBatchTrigger;
   cooldownMs: number;
+  queueMode?: WorkflowTriggerQueueMode;
   /** Standard 5-field cron expression, if this is a schedule trigger. */
   schedule?: string;
   /** IANA timezone for cron evaluation. Omitted means UTC wall-clock time. */

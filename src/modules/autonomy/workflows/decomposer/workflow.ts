@@ -352,6 +352,7 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
   triggers: [
     {
       event: "workflow.completed",
+      queueMode: "all",
       filter: {
         workflow: ["builder"],
         status: ["failed"],
@@ -359,6 +360,7 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
     },
     {
       event: "runtime.recovered",
+      queueMode: "all",
     },
   ],
   steps: [

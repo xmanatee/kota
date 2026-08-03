@@ -28,6 +28,7 @@ const RUN_ON_VALUES: readonly WorkflowTriggerRunOn[] = [
   "every-scope",
   "default-scope",
 ];
+const QUEUE_MODE_VALUES = new Set<string>(["latest", "all"]);
 const RESERVED_SCHEDULE_PAYLOAD_KEYS = new Set(["scheduledAt"]);
 
 /** Validates that a glob pattern is syntactically usable. */
@@ -98,6 +99,18 @@ export function validateTrigger(
       definitionPath,
     );
   }
+  const queueMode = trigger.queueMode;
+  if (queueMode !== undefined) {
+    if (
+      typeof queueMode !== "string" ||
+      !QUEUE_MODE_VALUES.has(queueMode)
+    ) {
+      throw new WorkflowDefinitionError(
+        `triggers[${index}].queueMode must be "latest" or "all"`,
+        definitionPath,
+      );
+    }
+  }
 
   if (trigger.watch != null) {
     if (
@@ -135,7 +148,13 @@ export function validateTrigger(
         definitionPath,
       );
     }
-    return { event: "files.changed", cooldownMs: 0, watch: patterns, debounceMs };
+    return {
+      event: "files.changed",
+      cooldownMs: 0,
+      watch: patterns,
+      debounceMs,
+      ...(queueMode !== undefined ? { queueMode } : {}),
+    };
   }
 
   if (trigger.webhook === true) {
@@ -154,7 +173,12 @@ export function validateTrigger(
         definitionPath,
       );
     }
-    return { event: "webhook", cooldownMs: 0, webhook: true };
+    return {
+      event: "webhook",
+      cooldownMs: 0,
+      webhook: true,
+      ...(queueMode !== undefined ? { queueMode } : {}),
+    };
   }
 
   const isSchedule = trigger.schedule != null || trigger.intervalMs != null;
@@ -283,6 +307,7 @@ export function validateTrigger(
       timezone,
       ...(runOn !== undefined ? { runOn } : {}),
       ...(payload !== undefined ? { payload } : {}),
+      ...(queueMode !== undefined ? { queueMode } : {}),
     };
   }
 
@@ -305,6 +330,7 @@ export function validateTrigger(
       intervalMs,
       ...(runOn !== undefined ? { runOn } : {}),
       ...(payload !== undefined ? { payload } : {}),
+      ...(queueMode !== undefined ? { queueMode } : {}),
     };
   }
 
@@ -371,6 +397,7 @@ export function validateTrigger(
     filter,
     batch,
     cooldownMs,
+    ...(queueMode !== undefined ? { queueMode } : {}),
   };
 }
 

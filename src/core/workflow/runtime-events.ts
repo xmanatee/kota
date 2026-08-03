@@ -26,8 +26,7 @@ export function handleRuntimeEvent(
 /**
  * Match an event against the current definitions and prepend matching runs to
  * the queue, evicting replaceable entries for the same workflows. Explicitly
- * keyed deliveries survive because their accepted idempotency record prevents
- * a recovery scan from recreating them. Used by the recovery phase so a
+ * keyed and lossless deliveries survive. Used by the recovery phase so a
  * `runtime.recovered` dispatch jumps ahead of normal scheduled work without
  * stranding durable queued work.
  *
@@ -62,7 +61,11 @@ export function queueMatchingEventFirst(
     .filter(
       (run) =>
         !queuedNames.has(run.workflowName) ||
-        hasExplicitWorkflowDispatchKey(run.trigger),
+        hasExplicitWorkflowDispatchKey(run.trigger) ||
+        state.definitions
+          .find((definition) => definition.name === run.workflowName)
+          ?.triggers.find((trigger) => trigger.event === run.trigger.event)
+          ?.queueMode === "all",
     );
   state.wfQueue.setRuns([
     ...queued.map(({ workflowName, trigger }) => {

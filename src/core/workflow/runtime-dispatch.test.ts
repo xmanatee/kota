@@ -294,6 +294,85 @@ describe("runtime idle dispatch", () => {
     ).toEqual(["task-one", "task-two"]);
   });
 
+  it("keeps every payload for lossless event triggers while dispatch is busy", async () => {
+    const bus = new EventBus();
+    let eventSequence = 0;
+    bus.addEmitMiddleware((envelope, next) => {
+      if (envelope.type === "work.completed") {
+        eventSequence += 1;
+        envelope.eventId = `evtj-${eventSequence}`;
+      }
+      next();
+    });
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 60_000,
+      workflows: [
+        {
+          name: "lossless-listener",
+          definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
+          moduleRoot: process.cwd(),
+          triggers: [{ event: "work.completed", queueMode: "all" }],
+          steps: [{ id: "noop", type: "code", run: () => ({ ok: true }) }],
+        },
+      ],
+    });
+
+    runtime.start();
+    runtime.setDispatchPaused(true);
+    bus.emit("work.completed", { runId: "run-a" });
+    bus.emit("work.completed", { runId: "run-b" });
+    await runtime.stop();
+
+    const pending = runtime.getState().pendingRuns;
+    expect(pending.map((run) => run.trigger.payload.runId)).toEqual([
+      "run-a",
+      "run-b",
+    ]);
+    expect(new Set(pending.map((run) => run.runId)).size).toBe(2);
+  });
+
+  it("keeps one stable slot with the newest payload for latest event triggers", async () => {
+    const bus = new EventBus();
+    let eventSequence = 0;
+    bus.addEmitMiddleware((envelope, next) => {
+      if (envelope.type === "work.changed") {
+        eventSequence += 1;
+        envelope.eventId = `evtj-${eventSequence}`;
+      }
+      next();
+    });
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 60_000,
+      workflows: [
+        {
+          name: "latest-listener",
+          definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
+          moduleRoot: process.cwd(),
+          triggers: [{ event: "work.changed" }],
+          steps: [{ id: "noop", type: "code", run: () => ({ ok: true }) }],
+        },
+      ],
+    });
+
+    runtime.start();
+    runtime.setDispatchPaused(true);
+    bus.emit("work.changed", { version: 1 });
+    const firstRunId = runtime.getState().pendingRuns[0]?.runId;
+    bus.emit("work.changed", { version: 2 });
+    await runtime.stop();
+
+    expect(runtime.getState().pendingRuns).toMatchObject([
+      {
+        runId: firstRunId,
+        trigger: { payload: { version: 2 } },
+      },
+    ]);
+  });
+
   it("dedupes replayed durable event-triggered workflow dispatches", async () => {
     const bus = new EventBus();
     bus.addEmitMiddleware((envelope, next) => {
