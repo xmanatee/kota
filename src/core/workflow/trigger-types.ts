@@ -8,7 +8,9 @@ export type WorkflowRetryConfig = {
   backoffFactor: number;
 };
 
-export type WorkflowAgentBackoffKind = "rate_limit" | "auth" | "provider";
+export type WorkflowAgentBackoffKind = NonNullable<
+  BusEvents["workflow.completed"]["failureKind"]
+>;
 
 export type WorkflowAgentBackoffState = {
   kind: WorkflowAgentBackoffKind;

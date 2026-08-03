@@ -78,7 +78,8 @@ function isWorkflowCompletedQueuedPayload(value: Record<string, unknown>): boole
       value.failureKind === undefined ||
       value.failureKind === "rate_limit" ||
       value.failureKind === "auth" ||
-      value.failureKind === "provider"
+      value.failureKind === "provider" ||
+      value.failureKind === "runtime"
     ) &&
     (value.autonomyMode === undefined || isAutonomyMode(value.autonomyMode))
   );
@@ -125,7 +126,12 @@ function assertWorkflowStepResult(path: string, value: unknown): void {
 function isWorkflowAgentBackoffState(value: unknown): value is WorkflowAgentBackoffState {
   return (
     isPlainObject(value) &&
-    (value.kind === "rate_limit" || value.kind === "auth" || value.kind === "provider") &&
+    (
+      value.kind === "rate_limit" ||
+      value.kind === "auth" ||
+      value.kind === "provider" ||
+      value.kind === "runtime"
+    ) &&
     typeof value.failureCount === "number" &&
     Number.isInteger(value.failureCount) &&
     value.failureCount > 0 &&

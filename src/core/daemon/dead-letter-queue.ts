@@ -39,6 +39,7 @@ export type DeadLetterFailureClass =
   | "auth"
   | "provider"
   | "rate_limit"
+  | "runtime"
   | "unknown";
 
 export type DeadLetterRedriveTarget = "original" | "simulation";

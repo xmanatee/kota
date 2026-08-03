@@ -33,15 +33,19 @@ The adapter runs one non-interactive CLI process per KOTA harness call:
 1. Compose the KOTA system prompt, workflow rails, and task prompt into one
    stdin prompt for `codex exec -`.
 2. Spawn an ephemeral, strict-config `codex exec --json` process with user
-   plugins and hooks disabled, plus the selected sandbox and model. The whole
-   CLI process also runs inside KOTA's machine-authority OS sandbox.
+   plugins and hooks disabled, the selected model, and Codex's internal
+   sandbox bypassed. KOTA owns the one OS sandbox around the process: passive
+   runs can write only to an invocation temp root; autonomous runs can also
+   write to the workspace; Git metadata and machine authority stay read-only.
+   Codex gets a fresh runtime home under that temp root containing only the
+   host login file, so its SQLite state cannot dirty the operator's home.
 3. Parse JSONL events from stdout. `item.completed` agent-message events are
    streamed to the optional `AgentHarnessWriter` and collected as final text.
 4. Read the final `turn.completed` usage event for token counts and return the
    neutral `AgentHarnessResult`.
 
-`autonomyMode: "passive"` maps to Codex CLI `read-only`; every other supported
-mode maps to `workspace-write`. `supervised` is rejected because this
+`autonomyMode: "passive"` maps to KOTA's read-only native-CLI boundary; every
+other supported mode maps to workspace-write. `supervised` is rejected because this
 non-interactive CLI path cannot route approvals through KOTA's approval queue.
 
 ## Capability Boundary
@@ -59,7 +63,7 @@ run `git commit` and must not stop or control the daemon that launched them.
 Post-step workflow checks remain responsible for validating repo state.
 It also passes `--ignore-user-config` and explicitly disables plugins and hooks
 so operator-global extensions cannot affect daemon-launched workflow steps;
-Codex auth still comes from `CODEX_HOME`.
+Codex auth is copied from `CODEX_HOME` into the per-invocation runtime home.
 Trusted host isolation may replace `HOME`; the adapter projects only the
 resolved `CODEX_HOME` locator so local login remains available without
 restoring the operator home environment.

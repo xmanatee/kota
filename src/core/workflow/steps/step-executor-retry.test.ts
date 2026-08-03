@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { classifyAgentRuntimeFailure } from "./step-executor-retry.js";
 
 describe("classifyAgentRuntimeFailure", () => {
+  it("classifies native CLI sandbox bootstrap failures as local runtime failures", () => {
+    expect(
+      classifyAgentRuntimeFailure({
+        subtype: "native_cli_sandbox_error",
+        message: "sandbox-exec: sandbox_apply: Operation not permitted",
+      }),
+    ).toEqual({ kind: "runtime", retryable: false });
+  });
+
   it("classifies Codex CLI websocket stream disconnects as provider failures", () => {
     expect(
       classifyAgentRuntimeFailure({

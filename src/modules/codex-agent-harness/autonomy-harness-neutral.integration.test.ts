@@ -149,8 +149,7 @@ describe("autonomy agent step on codex", () => {
     expect(spawnMock).toHaveBeenCalledTimes(1);
     expect(spawnMock.mock.calls[0][1]).toEqual(
       expect.arrayContaining([
-        "--sandbox",
-        "workspace-write",
+        "--dangerously-bypass-approvals-and-sandbox",
         "-c",
         'approval_policy="never"',
       ]),

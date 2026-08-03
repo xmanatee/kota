@@ -7,8 +7,6 @@
  * through it rather than requiring `OPENAI_API_KEY`.
  */
 
-import { homedir } from "node:os";
-import { join } from "node:path";
 import type {
   AgentHarness,
   AgentHarnessReadiness,
@@ -22,15 +20,9 @@ import {
   probeNativeCliRuntime,
 } from "#core/agent-harness/index.js";
 import { collectTextFromCodexCli } from "./cli-runner.js";
+import { resolveCodexHome } from "./runtime-home.js";
 
 export const CODEX_AGENT_HARNESS_NAME = "codex";
-
-function resolveCodexHome(env: NodeJS.ProcessEnv): string {
-  const explicitCodexHome = env.CODEX_HOME?.trim();
-  if (explicitCodexHome) return explicitCodexHome;
-  const home = env.HOME?.trim();
-  return join(home || homedir(), ".codex");
-}
 
 export function resolveCodexIsolatedHostAuthEnv(
   env: NodeJS.ProcessEnv,
@@ -245,7 +237,7 @@ export const codexAgentHarness: AgentHarness = {
       cwd: options.cwd ?? process.cwd(),
       model: options.model,
       effort: options.effort,
-      sandbox: codexSandboxMode(options),
+      sandboxMode: codexSandboxMode(options),
       authorityConfigPath: options.authorityConfigPath,
       env: options.env,
       abortController: options.abortController,

@@ -7,8 +7,13 @@ import type {
   AgentHarnessWriter,
   KotaAgentMessage,
 } from "#core/agent-harness/index.js";
-import { buildMachineAuthoritySandboxLaunch } from "#core/agent-harness/machine-authority-sandbox.js";
+import {
+  isNativeCliSandboxBootstrapError,
+  type NativeCliSandboxProcess,
+  withNativeCliSandbox,
+} from "#core/agent-harness/machine-authority-sandbox.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import { prepareCodexRuntimeEnvironment } from "./runtime-home.js";
 
 const CODEX_ABORT_FORCE_KILL_MS = 5_000;
 
@@ -24,6 +29,8 @@ type CodexCliEvent = {
   item?: {
     type?: string;
     text?: string;
+    aggregated_output?: string;
+    exit_code?: number;
   };
   message?: string;
 };
@@ -81,53 +88,26 @@ function withSession(
   return sessionId === undefined ? message : { ...message, sessionId };
 }
 
-export async function collectTextFromCodexCli(args: {
+type CollectTextFromCodexCliArgs = {
   prompt: string;
   cwd: string;
   model: string;
   effort: AgentEffort;
-  sandbox: "read-only" | "workspace-write";
+  sandboxMode: "read-only" | "workspace-write";
   authorityConfigPath: string | undefined;
   env: Record<string, string> | undefined;
   abortController: AbortController | undefined;
   writer: AgentHarnessWriter | undefined;
   onMessage: AgentHarnessRunOptions["onMessage"] | undefined;
-}): Promise<AgentHarnessResult> {
-  const cliArgs = [
-    "exec",
-    "--json",
-    "--ephemeral",
-    "--ignore-user-config",
-    "--strict-config",
-    "--disable",
-    "plugins",
-    "--disable",
-    "hooks",
-    "--model",
-    args.model,
-    "--cd",
-    args.cwd,
-    "--sandbox",
-    args.sandbox,
-    "--skip-git-repo-check",
-    "--color",
-    "never",
-    "-c",
-    `model_reasoning_effort="${mapEffortToCodexReasoning(args.effort)}"`,
-    "-c",
-    'approval_policy="never"',
-    "-",
-  ];
+};
 
-  const launch = buildMachineAuthoritySandboxLaunch("codex", cliArgs, {
+async function runCodexCliProcess(
+  args: CollectTextFromCodexCliArgs,
+  sandboxedProcess: NativeCliSandboxProcess,
+): Promise<AgentHarnessResult> {
+  const child = spawn(sandboxedProcess.command, sandboxedProcess.args, {
     cwd: args.cwd,
-    authorityConfigPath: args.authorityConfigPath,
-  });
-  if (!launch.ok) throw new Error(launch.error);
-
-  const child = spawn(launch.command, launch.args, {
-    cwd: args.cwd,
-    env: buildCodexEnvironment(args.env),
+    env: sandboxedProcess.env,
     stdio: ["pipe", "pipe", "pipe"],
   });
 
@@ -137,7 +117,7 @@ export async function collectTextFromCodexCli(args: {
   let turns = 0;
   let inputTokens: number | undefined;
   let outputTokens: number | undefined;
-  let cliError: string | undefined;
+  let cliFailure: { detail: string; subtype: string } | undefined;
 
   let forceKillTimer: ReturnType<typeof setTimeout> | undefined;
   const clearForceKill = (): void => {
@@ -210,6 +190,32 @@ export async function collectTextFromCodexCli(args: {
           args.onMessage,
           withSession({ type: "text", text }, sessionId),
         );
+      } else if (
+        event.type === "item.completed" &&
+        event.item?.type === "command_execution" &&
+        event.item.exit_code !== undefined &&
+        event.item.exit_code !== 0 &&
+        typeof event.item.aggregated_output === "string" &&
+        isNativeCliSandboxBootstrapError(event.item.aggregated_output)
+      ) {
+        cliFailure = {
+          detail: event.item.aggregated_output.trim(),
+          subtype: "native_cli_sandbox_error",
+        };
+        await emitCodexMessage(
+          args.onMessage,
+          withSession(
+            {
+              type: "result",
+              isError: true,
+              subtype: cliFailure.subtype,
+              text: cliFailure.detail,
+            },
+            sessionId,
+          ),
+        );
+        terminateChild();
+        return;
       } else if (event.type === "turn.completed") {
         turns += 1;
         inputTokens = event.usage?.input_tokens;
@@ -228,15 +234,18 @@ export async function collectTextFromCodexCli(args: {
           ),
         );
       } else if (event.type === "error") {
-        cliError = event.message ?? "Codex CLI reported an error";
+        cliFailure = {
+          detail: event.message ?? "Codex CLI reported an error",
+          subtype: "codex_cli_error",
+        };
         await emitCodexMessage(
           args.onMessage,
           withSession(
             {
               type: "result",
               isError: true,
-              subtype: "codex_cli_error",
-              text: cliError,
+              subtype: cliFailure.subtype,
+              text: cliFailure.detail,
             },
             sessionId,
           ),
@@ -288,9 +297,9 @@ export async function collectTextFromCodexCli(args: {
     };
   }
 
-  if (exit.code !== 0 || cliError !== undefined) {
+  if (exit.code !== 0 || cliFailure !== undefined) {
     const detail =
-      cliError ??
+      cliFailure?.detail ??
       (formatStderr(stderr) ||
         `Codex CLI exited with code ${exit.code ?? `signal ${exit.signal}`}`);
     return {
@@ -301,7 +310,11 @@ export async function collectTextFromCodexCli(args: {
       ...(inputTokens !== undefined ? { inputTokens } : {}),
       ...(outputTokens !== undefined ? { outputTokens } : {}),
       isError: true,
-      subtype: "codex_cli_error",
+      subtype: cliFailure?.subtype ?? (
+        isNativeCliSandboxBootstrapError(detail)
+          ? "native_cli_sandbox_error"
+          : "codex_cli_error"
+      ),
     };
   }
 
@@ -314,4 +327,45 @@ export async function collectTextFromCodexCli(args: {
     ...(outputTokens !== undefined ? { outputTokens } : {}),
     isError: false,
   };
+}
+
+export async function collectTextFromCodexCli(
+  args: CollectTextFromCodexCliArgs,
+): Promise<AgentHarnessResult> {
+  const cliArgs = [
+    "exec",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "--json",
+    "--ephemeral",
+    "--ignore-user-config",
+    "--strict-config",
+    "--disable",
+    "plugins",
+    "--disable",
+    "hooks",
+    "--model",
+    args.model,
+    "--cd",
+    args.cwd,
+    "--skip-git-repo-check",
+    "--color",
+    "never",
+    "-c",
+    `model_reasoning_effort="${mapEffortToCodexReasoning(args.effort)}"`,
+    "-c",
+    'approval_policy="never"',
+    "-",
+  ];
+  return withNativeCliSandbox(
+    "codex",
+    cliArgs,
+    {
+      cwd: args.cwd,
+      authorityConfigPath: args.authorityConfigPath,
+      mode: args.sandboxMode,
+      env: buildCodexEnvironment(args.env),
+      prepareEnvironment: prepareCodexRuntimeEnvironment,
+    },
+    (sandboxedProcess) => runCodexCliProcess(args, sandboxedProcess),
+  );
 }

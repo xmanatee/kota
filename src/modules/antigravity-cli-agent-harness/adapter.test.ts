@@ -17,7 +17,9 @@ vi.mock("node:child_process", async () => {
 });
 
 vi.mock("#core/agent-harness/machine-authority-sandbox.js", () => ({
-  buildMachineAuthoritySandboxLaunch: sandboxLaunchMock,
+  isNativeCliSandboxBootstrapError: (text: string) =>
+    text.includes("sandbox-exec: sandbox_apply: Operation not permitted"),
+  withNativeCliSandbox: sandboxLaunchMock,
 }));
 
 type MockChild = EventEmitter & {
@@ -61,10 +63,19 @@ function mockManualAgyProcess(): MockChild {
 beforeEach(() => {
   spawnMock.mockReset();
   sandboxLaunchMock.mockReset().mockImplementation(
-    (executable: string, args: readonly string[]) => ({
-      ok: true,
+    async (
+      executable: string,
+      args: readonly string[],
+      options: { env: NodeJS.ProcessEnv },
+      run: (process: {
+        command: string;
+        args: string[];
+        env: NodeJS.ProcessEnv;
+      }) => Promise<unknown>,
+    ) => run({
       command: "authority-sandbox",
       args: [executable, ...args],
+      env: options.env,
     }),
   );
 });
@@ -152,7 +163,6 @@ describe("antigravityCliAgentHarness", () => {
         "gemini-3.5-flash",
         "--print-timeout",
         "5m",
-        "--sandbox",
       ]),
       expect.objectContaining({ cwd: "/repo" }),
     );
@@ -162,7 +172,10 @@ describe("antigravityCliAgentHarness", () => {
       {
         cwd: "/repo",
         authorityConfigPath: "/operator/.kota/config.json",
+        mode: "workspace-write",
+        env: expect.any(Object),
       },
+      expect.any(Function),
     );
     const promptArg = spawnMock.mock.calls[0][1][2] as string;
     expect(promptArg).toContain("## System instructions\n\nbe brief");
@@ -176,7 +189,7 @@ describe("antigravityCliAgentHarness", () => {
     });
   });
 
-  it("keeps AGY sandbox mode for passive runs", async () => {
+  it("maps passive runs to KOTA's read-only sandbox", async () => {
     mockAgyProcess({ stdout: "ok" });
 
     await antigravityCliAgentHarness.run({
@@ -186,8 +199,11 @@ describe("antigravityCliAgentHarness", () => {
       autonomyMode: "passive",
     });
 
-    expect(spawnMock.mock.calls[0][1]).toEqual(
-      expect.arrayContaining(["--sandbox"]),
+    expect(sandboxLaunchMock).toHaveBeenCalledWith(
+      "agy",
+      expect.not.arrayContaining(["--sandbox"]),
+      expect.objectContaining({ mode: "read-only" }),
+      expect.any(Function),
     );
   });
 

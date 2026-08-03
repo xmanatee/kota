@@ -53,6 +53,7 @@ function deadLetterCategory(
     case "schema":
     case "validation":
     case "execution":
+    case "runtime":
     case "unknown":
       return {
         failureClass,

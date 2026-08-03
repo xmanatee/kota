@@ -3,7 +3,11 @@ import type {
   AgentHarnessResult,
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
-import { buildMachineAuthoritySandboxLaunch } from "#core/agent-harness/machine-authority-sandbox.js";
+import {
+  isNativeCliSandboxBootstrapError,
+  type NativeCliSandboxProcess,
+  withNativeCliSandbox,
+} from "#core/agent-harness/machine-authority-sandbox.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
 export const ANTIGRAVITY_CLI_BINARY_NAME = "agy";
@@ -22,7 +26,7 @@ function formatStderr(chunks: readonly string[]): string {
   return chunks.join("").trim();
 }
 
-export async function collectTextFromAntigravityCli(args: {
+type CollectTextFromAntigravityCliArgs = {
   prompt: string;
   cwd: string;
   model: string;
@@ -31,34 +35,15 @@ export async function collectTextFromAntigravityCli(args: {
   env: Record<string, string> | undefined;
   abortController?: AbortController;
   writer?: AgentHarnessWriter;
-}): Promise<AgentHarnessResult> {
-  const cliArgs = [
-    "--print",
-    args.prompt,
-    "--model",
-    args.model,
-    "--print-timeout",
-    "5m",
-    "--sandbox",
-  ];
+};
 
-  const launch = buildMachineAuthoritySandboxLaunch(
-    ANTIGRAVITY_CLI_BINARY_NAME,
-    cliArgs,
-    {
-      cwd: args.cwd,
-      authorityConfigPath: args.authorityConfigPath,
-    },
-  );
-  if (!launch.ok) throw new Error(launch.error);
-
-  const child = spawn(launch.command, launch.args, {
+async function runAntigravityCliProcess(
+  args: CollectTextFromAntigravityCliArgs,
+  sandboxedProcess: NativeCliSandboxProcess,
+): Promise<AgentHarnessResult> {
+  const child = spawn(sandboxedProcess.command, sandboxedProcess.args, {
     cwd: args.cwd,
-    env: withProtectedGitBareRepositoryEnv({
-      ...process.env,
-      ...(args.env ?? {}),
-      NO_COLOR: "1",
-    }),
+    env: sandboxedProcess.env,
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -121,7 +106,9 @@ export async function collectTextFromAntigravityCli(args: {
       streamedText: text,
       turns: text ? 1 : 0,
       isError: true,
-      subtype: "antigravity_cli_error",
+      subtype: isNativeCliSandboxBootstrapError(detail)
+        ? "native_cli_sandbox_error"
+        : "antigravity_cli_error",
     };
   }
 
@@ -142,4 +129,33 @@ export async function collectTextFromAntigravityCli(args: {
     turns: 1,
     isError: false,
   };
+}
+
+export async function collectTextFromAntigravityCli(
+  args: CollectTextFromAntigravityCliArgs,
+): Promise<AgentHarnessResult> {
+  const cliArgs = [
+    "--print",
+    args.prompt,
+    "--model",
+    args.model,
+    "--print-timeout",
+    "5m",
+  ];
+  return withNativeCliSandbox(
+    ANTIGRAVITY_CLI_BINARY_NAME,
+    cliArgs,
+    {
+      cwd: args.cwd,
+      authorityConfigPath: args.authorityConfigPath,
+      mode: args.passive ? "read-only" : "workspace-write",
+      env: withProtectedGitBareRepositoryEnv({
+        ...process.env,
+        ...(args.env ?? {}),
+        NO_COLOR: "1",
+      }),
+    },
+    (sandboxedProcess) =>
+      runAntigravityCliProcess(args, sandboxedProcess),
+  );
 }

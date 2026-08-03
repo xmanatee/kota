@@ -9,6 +9,7 @@ const AGENT_BACKOFF_FACTORS: Record<
   rate_limit: { initialDelayMs: 30 * 60 * 1000, backoffFactor: 2 },
   auth: { initialDelayMs: 30 * 60 * 1000, backoffFactor: 2 },
   provider: { initialDelayMs: 5 * 60 * 1000, backoffFactor: 2 },
+  runtime: { initialDelayMs: 30 * 60 * 1000, backoffFactor: 2 },
 };
 
 export class AgentBackoffManager {

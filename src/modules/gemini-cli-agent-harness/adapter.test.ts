@@ -17,7 +17,9 @@ vi.mock("node:child_process", async () => {
 });
 
 vi.mock("#core/agent-harness/machine-authority-sandbox.js", () => ({
-  buildMachineAuthoritySandboxLaunch: sandboxLaunchMock,
+  isNativeCliSandboxBootstrapError: (text: string) =>
+    text.includes("sandbox-exec: sandbox_apply: Operation not permitted"),
+  withNativeCliSandbox: sandboxLaunchMock,
 }));
 
 type MockChild = EventEmitter & {
@@ -63,10 +65,19 @@ function mockManualGeminiProcess(): MockChild {
 beforeEach(() => {
   spawnMock.mockReset();
   sandboxLaunchMock.mockReset().mockImplementation(
-    (executable: string, args: readonly string[]) => ({
-      ok: true,
+    async (
+      executable: string,
+      args: readonly string[],
+      options: { env: NodeJS.ProcessEnv },
+      run: (process: {
+        command: string;
+        args: string[];
+        env: NodeJS.ProcessEnv;
+      }) => Promise<unknown>,
+    ) => run({
       command: "authority-sandbox",
       args: [executable, ...args],
+      env: options.env,
     }),
   );
 });
@@ -140,7 +151,6 @@ describe("geminiCliAgentHarness", () => {
         "gemini-2.5-pro",
         "--approval-mode",
         "default",
-        "--sandbox",
       ]),
       expect.objectContaining({ cwd: "/repo" }),
     );
@@ -150,7 +160,10 @@ describe("geminiCliAgentHarness", () => {
       {
         cwd: "/repo",
         authorityConfigPath: "/operator/.kota/config.json",
+        mode: "workspace-write",
+        env: expect.any(Object),
       },
+      expect.any(Function),
     );
     const promptArg = spawnMock.mock.calls[0][1][2] as string;
     expect(promptArg).toContain("## System instructions\n\nbe brief");
@@ -167,7 +180,7 @@ describe("geminiCliAgentHarness", () => {
     });
   });
 
-  it("maps passive runs to plan mode while retaining the native sandbox", async () => {
+  it("maps passive runs to plan mode and KOTA's read-only sandbox", async () => {
     mockGeminiProcess({
       stdoutLines: [
         JSON.stringify({
@@ -185,8 +198,11 @@ describe("geminiCliAgentHarness", () => {
       autonomyMode: "passive",
     });
 
-    expect(spawnMock.mock.calls[0][1]).toEqual(
-      expect.arrayContaining(["--approval-mode", "plan", "--sandbox"]),
+    expect(sandboxLaunchMock).toHaveBeenCalledWith(
+      "gemini",
+      expect.arrayContaining(["--approval-mode", "plan"]),
+      expect.objectContaining({ mode: "read-only" }),
+      expect.any(Function),
     );
   });
 

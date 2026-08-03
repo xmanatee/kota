@@ -143,11 +143,11 @@ export type RuntimeBusEvents = {
     tags: readonly string[];
     /**
      * Present when the run failed with a classified agent-dispatch failure
-     * (rate_limit, auth, provider). Populated from the same classifier that
+     * (rate_limit, auth, provider, runtime). Populated from the same classifier that
      * drives agent-dispatch backoff so subscribers — tracing, metrics — can
      * observe the failure class without parsing error strings.
      */
-    failureKind?: "rate_limit" | "auth" | "provider";
+    failureKind?: "rate_limit" | "auth" | "provider" | "runtime";
     /** Workflow-level autonomy posture. See {@link workflow.started}. */
     autonomyMode?: AutonomyMode;
   };

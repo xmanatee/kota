@@ -213,7 +213,7 @@ function isCodexProviderReconnectFailure(
  * Classify an agent runtime failure against structured error signals.
  *
  * Returns a classification when the failure is recognisably a provider,
- * rate-limit, or auth problem. Returns null for anything else — and the
+ * rate-limit, auth, or local harness-runtime problem. Returns null for anything else — and the
  * caller treats that as an unclassified hard failure: the step fails, the
  * run aborts, and no agent-dispatch backoff is applied. Silent coercion of
  * unknown errors into retryable provider failures is intentionally not
@@ -226,6 +226,10 @@ export function classifyAgentRuntimeFailure(
 
   if (input.subtype === "harness_readiness") {
     return { kind: "auth", retryable: false };
+  }
+
+  if (input.subtype === "native_cli_sandbox_error") {
+    return { kind: "runtime", retryable: false };
   }
 
   if (input.subtype?.startsWith("error_")) {

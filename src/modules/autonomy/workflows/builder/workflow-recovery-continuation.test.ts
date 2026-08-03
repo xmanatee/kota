@@ -106,7 +106,11 @@ describe("builder preserved-work continuation", () => {
     const commit = await import("#modules/autonomy/commit.js");
     vi.mocked(commit.commitWorkflowChanges).mockResolvedValue({
       committed: true,
-    } as never);
+      committedPaths: ["src/recovered.ts"],
+      daemonRestartRequired: false,
+      message: "Recover preserved builder work",
+      sha: "abc1234",
+    });
 
     const result = await new WorkflowTestHarness(builderWorkflow, {
       projectDir,

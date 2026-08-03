@@ -18,7 +18,9 @@ vi.mock("node:child_process", async () => {
 });
 
 vi.mock("#core/agent-harness/machine-authority-sandbox.js", () => ({
-  buildMachineAuthoritySandboxLaunch: sandboxLaunchMock,
+  isNativeCliSandboxBootstrapError: (text: string) =>
+    text.includes("sandbox-exec: sandbox_apply: Operation not permitted"),
+  withNativeCliSandbox: sandboxLaunchMock,
 }));
 
 const SHIPPED_SCENARIOS_ROOT = join(
@@ -67,10 +69,19 @@ describe("codex agent harness x fix-arithmetic-bug scenario", () => {
   beforeEach(() => {
     spawnMock.mockReset();
     sandboxLaunchMock.mockReset().mockImplementation(
-      (executable: string, args: readonly string[]) => ({
-        ok: true,
+      async (
+        executable: string,
+        args: readonly string[],
+        options: { env: NodeJS.ProcessEnv },
+        run: (process: {
+          command: string;
+          args: string[];
+          env: NodeJS.ProcessEnv;
+        }) => Promise<unknown>,
+      ) => run({
         command: "authority-sandbox",
         args: [executable, ...args],
+        env: options.env,
       }),
     );
     const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "fix-arithmetic-bug");
@@ -108,7 +119,8 @@ describe("codex agent harness x fix-arithmetic-bug scenario", () => {
     expect(sandboxLaunchMock).toHaveBeenCalledWith(
       "codex",
       expect.any(Array),
-      expect.objectContaining({ cwd: workingDir }),
+      expect.objectContaining({ cwd: workingDir, mode: "workspace-write" }),
+      expect.any(Function),
     );
     expect(process.stdinText()).toContain(loaded.spec.prompt);
     expect(result).toMatchObject({

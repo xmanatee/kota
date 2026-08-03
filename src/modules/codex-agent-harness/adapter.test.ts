@@ -21,7 +21,9 @@ vi.mock("node:child_process", async () => {
 });
 
 vi.mock("#core/agent-harness/machine-authority-sandbox.js", () => ({
-  buildMachineAuthoritySandboxLaunch: sandboxLaunchMock,
+  isNativeCliSandboxBootstrapError: (text: string) =>
+    text.includes("sandbox-exec: sandbox_apply: Operation not permitted"),
+  withNativeCliSandbox: sandboxLaunchMock,
 }));
 
 type MockChild = EventEmitter & {
@@ -99,10 +101,19 @@ beforeEach(() => {
   spawnMock.mockReset();
   spawnSyncMock.mockReset();
   sandboxLaunchMock.mockReset().mockImplementation(
-    (executable: string, args: readonly string[]) => ({
-      ok: true,
+    async (
+      executable: string,
+      args: readonly string[],
+      options: { env: NodeJS.ProcessEnv },
+      run: (process: {
+        command: string;
+        args: string[];
+        env: NodeJS.ProcessEnv;
+      }) => Promise<unknown>,
+    ) => run({
       command: "authority-sandbox",
       args: [executable, ...args],
+      env: options.env,
     }),
   );
 });
@@ -187,6 +198,7 @@ describe("codexAgentHarness", () => {
       expect.arrayContaining([
         "codex",
         "exec",
+        "--dangerously-bypass-approvals-and-sandbox",
         "--json",
         "--ephemeral",
         "--ignore-user-config",
@@ -199,8 +211,6 @@ describe("codexAgentHarness", () => {
         "gpt-5.6-sol",
         "--cd",
         "/repo",
-        "--sandbox",
-        "workspace-write",
       ]),
       expect.objectContaining({ cwd: "/repo" }),
     );
@@ -210,7 +220,11 @@ describe("codexAgentHarness", () => {
       {
         cwd: "/repo",
         authorityConfigPath: "/operator/.kota/config.json",
+        mode: "workspace-write",
+        env: expect.any(Object),
+        prepareEnvironment: expect.any(Function),
       },
+      expect.any(Function),
     );
     expect(spawnMock.mock.calls[0][1]).not.toContain(
       'preferred_auth_method="chatgpt"',
@@ -300,7 +314,7 @@ describe("codexAgentHarness", () => {
     expect(readiness?.localAuth?.detail).not.toContain("operator@example.com");
   });
 
-  it("maps passive runs to Codex CLI read-only sandbox", async () => {
+  it("maps passive runs to KOTA's read-only native CLI sandbox", async () => {
     mockCodexProcess({
       stdoutLines: [
         JSON.stringify({
@@ -317,8 +331,11 @@ describe("codexAgentHarness", () => {
       autonomyMode: "passive",
     });
 
-    expect(spawnMock.mock.calls[0][1]).toEqual(
-      expect.arrayContaining(["--sandbox", "read-only"]),
+    expect(sandboxLaunchMock).toHaveBeenCalledWith(
+      "codex",
+      expect.not.arrayContaining(["--sandbox"]),
+      expect.objectContaining({ mode: "read-only" }),
+      expect.any(Function),
     );
   });
 
@@ -356,6 +373,43 @@ describe("codexAgentHarness", () => {
       text: "not logged in",
       isError: true,
       subtype: "codex_cli_error",
+    });
+  });
+
+  it("fails immediately when a command reports nested sandbox bootstrap failure", async () => {
+    const process = mockCodexProcess({ autoClose: false });
+    const terminated = new Promise<void>((resolve) => {
+      process.child.kill.mockImplementationOnce(() => {
+        resolve();
+        return true;
+      });
+    });
+
+    const run = codexAgentHarness.run({
+      prompt: "x",
+      model: "gpt-5.6-sol",
+      effort: "xhigh",
+    });
+    process.child.stdout.write(`${JSON.stringify({
+      type: "item.completed",
+      item: {
+        type: "command_execution",
+        aggregated_output:
+          "sandbox-exec: sandbox_apply: Operation not permitted\n",
+        exit_code: 71,
+      },
+    })}\n`);
+    await terminated;
+
+    process.child.stdout.end();
+    process.child.stderr.end();
+    process.child.emit("close", null, "SIGTERM");
+
+    expect(process.child.kill).toHaveBeenCalledWith("SIGTERM");
+    await expect(run).resolves.toMatchObject({
+      text: "sandbox-exec: sandbox_apply: Operation not permitted",
+      isError: true,
+      subtype: "native_cli_sandbox_error",
     });
   });
 

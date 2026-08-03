@@ -4,7 +4,11 @@ import type {
   AgentHarnessResult,
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
-import { buildMachineAuthoritySandboxLaunch } from "#core/agent-harness/machine-authority-sandbox.js";
+import {
+  isNativeCliSandboxBootstrapError,
+  type NativeCliSandboxProcess,
+  withNativeCliSandbox,
+} from "#core/agent-harness/machine-authority-sandbox.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import {
   type CollectedGeminiOutput,
@@ -18,7 +22,7 @@ function formatStderr(stderr: string[]): string {
   return stderr.join("").trim();
 }
 
-export async function collectTextFromGeminiCli(args: {
+type CollectTextFromGeminiCliArgs = {
   prompt: string;
   cwd: string;
   model: string;
@@ -27,32 +31,15 @@ export async function collectTextFromGeminiCli(args: {
   env: Record<string, string> | undefined;
   abortController: AbortController | undefined;
   writer: AgentHarnessWriter | undefined;
-}): Promise<AgentHarnessResult> {
-  const cliArgs = [
-    "--prompt",
-    args.prompt,
-    "--output-format",
-    "stream-json",
-    "--model",
-    args.model,
-    "--approval-mode",
-    args.approvalMode,
-    "--sandbox",
-  ];
+};
 
-  const launch = buildMachineAuthoritySandboxLaunch("gemini", cliArgs, {
+async function runGeminiCliProcess(
+  args: CollectTextFromGeminiCliArgs,
+  sandboxedProcess: NativeCliSandboxProcess,
+): Promise<AgentHarnessResult> {
+  const child = spawn(sandboxedProcess.command, sandboxedProcess.args, {
     cwd: args.cwd,
-    authorityConfigPath: args.authorityConfigPath,
-  });
-  if (!launch.ok) throw new Error(launch.error);
-
-  const child = spawn(launch.command, launch.args, {
-    cwd: args.cwd,
-    env: withProtectedGitBareRepositoryEnv({
-      ...process.env,
-      ...(args.env ?? {}),
-      NO_COLOR: "1",
-    }),
+    env: sandboxedProcess.env,
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -146,7 +133,9 @@ export async function collectTextFromGeminiCli(args: {
         ? { outputTokens: output.tokenCounts.outputTokens }
         : {}),
       isError: true,
-      subtype: "gemini_cli_error",
+      subtype: isNativeCliSandboxBootstrapError(detail)
+        ? "native_cli_sandbox_error"
+        : "gemini_cli_error",
     };
   }
 
@@ -174,4 +163,34 @@ export async function collectTextFromGeminiCli(args: {
       : {}),
     isError: false,
   };
+}
+
+export async function collectTextFromGeminiCli(
+  args: CollectTextFromGeminiCliArgs,
+): Promise<AgentHarnessResult> {
+  const cliArgs = [
+    "--prompt",
+    args.prompt,
+    "--output-format",
+    "stream-json",
+    "--model",
+    args.model,
+    "--approval-mode",
+    args.approvalMode,
+  ];
+  return withNativeCliSandbox(
+    "gemini",
+    cliArgs,
+    {
+      cwd: args.cwd,
+      authorityConfigPath: args.authorityConfigPath,
+      mode: args.approvalMode === "plan" ? "read-only" : "workspace-write",
+      env: withProtectedGitBareRepositoryEnv({
+        ...process.env,
+        ...(args.env ?? {}),
+        NO_COLOR: "1",
+      }),
+    },
+    (sandboxedProcess) => runGeminiCliProcess(args, sandboxedProcess),
+  );
 }

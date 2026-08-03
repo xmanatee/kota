@@ -4,6 +4,7 @@ import type { Attributes, Counter, Histogram, Meter } from "@opentelemetry/api";
 import type { BusEvents } from "#core/events/event-bus-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { readRepairIterations } from "#core/workflow/repair-iteration-output.js";
+import type { WorkflowAgentBackoffKind } from "#core/workflow/trigger-types.js";
 
 type WorkflowCompletedPayload = {
   workflow: string;
@@ -14,7 +15,7 @@ type WorkflowCompletedPayload = {
   definitionPath: string;
   runDir: string;
   tags: readonly string[];
-  failureKind?: "rate_limit" | "auth" | "provider";
+  failureKind?: WorkflowAgentBackoffKind;
   autonomyMode?: AutonomyMode;
 };
 
@@ -94,7 +95,8 @@ export class WorkflowMetricsEmitter {
       description: "Repair-loop failed-check observations, labelled by check id",
     });
     this.failureClass = meter.createCounter("kota.workflow.failure_class", {
-      description: "Classified failure counts for workflow runs (rate_limit, auth, provider)",
+      description:
+        "Classified failure counts for workflow runs (rate_limit, auth, provider, runtime)",
     });
     this.sessionAutonomyTransitions = meter.createCounter(
       "kota.workflow.session_autonomy_transitions",

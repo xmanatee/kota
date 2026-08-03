@@ -78,6 +78,20 @@ describe("assertWorkflowRuntimeState", () => {
     expect(() => assertWorkflowRuntimeState(path, state)).not.toThrow();
   });
 
+  it("accepts native harness runtime backoff state", () => {
+    const state = {
+      ...validState,
+      agentBackoff: {
+        kind: "runtime",
+        failureCount: 1,
+        until: "2026-01-01T02:00:00.000Z",
+        updatedAt: "2026-01-01T01:30:00.000Z",
+        reason: "Native CLI sandbox could not start",
+      },
+    };
+    expect(() => assertWorkflowRuntimeState(path, state)).not.toThrow();
+  });
+
   it("accepts recovery state", () => {
     const state = {
       ...validState,

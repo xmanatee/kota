@@ -68,8 +68,9 @@ Owner questions are a protocol capability, not a provider field.
   `allowedTools`, and `disallowedTools`; harnesses bypassing shared policy also
   declare `scopePolicy`.
 - Workflows route KOTA-only options through `routeKotaToolControlOptions`.
-  Native harnesses receive capped autonomy and their sandbox; direct KOTA
-  policy callbacks remain an adapter error.
+  Native harnesses receive capped autonomy and run inside KOTA's single
+  filesystem and machine-authority sandbox; direct KOTA policy callbacks
+  remain an adapter error.
 - `capability-snapshot.ts` centralizes capability/readiness artifacts from
   resolved declarations, not harness-name catalogs. Adapter docs may explain
   rationale, but capability facts stay in code.
