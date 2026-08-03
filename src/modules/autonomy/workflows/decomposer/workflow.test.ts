@@ -30,6 +30,7 @@ vi.mock("#modules/autonomy/commit.js", () => ({
 }));
 
 vi.mock("#modules/autonomy/task-claims.js", () => ({
+  readActiveTaskClaim: vi.fn(() => null),
   supersedeTaskClaim: vi.fn(() => ({
     taskId: "task-big-refactor",
     changed: true,
@@ -163,6 +164,8 @@ function decomposeStepMocks(
 describe("decomposer workflow", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
+    const { readActiveTaskClaim } = await import("#modules/autonomy/task-claims.js");
+    vi.mocked(readActiveTaskClaim).mockReturnValue(null);
     const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
     const fs = await import("node:fs");
     vi.mocked(fs.existsSync).mockImplementation((path: unknown) => {
@@ -451,6 +454,48 @@ describe("decomposer workflow", () => {
       projectDir: expect.any(String),
       taskId: "task-big-refactor",
       runId: "run-failed-builder",
+      workflowId: "builder",
+      evidence: expect.stringContaining("replaced the exhausted task"),
+    });
+  });
+
+  it("finalizes the current pending decomposition claim after a builder retry", async () => {
+    await configureBuilderFailure(
+      makeFailedBuilderMetadata({
+        buildDurationMs: HANG_TIMEOUT_BUILD_MS,
+        buildErrorKind: "step-timeout",
+      }),
+    );
+
+    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({
+      committed: true,
+      committedPaths: ["data/tasks/ready/task-scoped-subtask.md"],
+      daemonRestartRequired: false,
+    } as never);
+
+    const { readActiveTaskClaim, supersedeTaskClaim } = await import(
+      "#modules/autonomy/task-claims.js"
+    );
+    vi.mocked(readActiveTaskClaim).mockReturnValue({
+      taskId: "task-big-refactor",
+      runId: "run-newer-builder",
+      workflowId: "builder",
+      status: "pending-decomposition",
+    } as never);
+
+    const harness = new WorkflowTestHarness(decomposerWorkflow, {
+      trigger: { event: "workflow.completed", schemaRef: null, payload: TRIGGER_PAYLOAD },
+      stepMocks: decomposeStepMocks(),
+    });
+
+    const result = await harness.run();
+
+    expect(result.steps["finalize-source-claim"].status).toBe("success");
+    expect(supersedeTaskClaim).toHaveBeenCalledWith({
+      projectDir: expect.any(String),
+      taskId: "task-big-refactor",
+      runId: "run-newer-builder",
       workflowId: "builder",
       evidence: expect.stringContaining("replaced the exhausted task"),
     });

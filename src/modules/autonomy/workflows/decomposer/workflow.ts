@@ -25,7 +25,10 @@ import {
   stepCommitted,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
-import { supersedeTaskClaim } from "#modules/autonomy/task-claims.js";
+import {
+  readActiveTaskClaim,
+  supersedeTaskClaim,
+} from "#modules/autonomy/task-claims.js";
 import {
   type AppliedDecomposition,
   applyDecompositionPlan,
@@ -312,11 +315,20 @@ const finalizeSourceClaim = typedCodeStep<{
     if (!assessment.shouldDecompose) {
       throw new Error("Cannot finalize a source claim without a decomposition target");
     }
+    const claim = readActiveTaskClaim(ctx.projectDir, assessment.taskId);
+    if (
+      claim !== null &&
+      (claim.status !== "pending-decomposition" || claim.workflowId !== "builder")
+    ) {
+      throw new Error(
+        `Cannot finalize claim for ${assessment.taskId}: claim is ${claim.workflowId}/${claim.status}`,
+      );
+    }
     const result = supersedeTaskClaim({
       projectDir: ctx.projectDir,
       taskId: assessment.taskId,
-      runId: assessment.failedRunId,
-      workflowId: "builder",
+      runId: claim?.runId ?? assessment.failedRunId,
+      workflowId: claim?.workflowId ?? "builder",
       evidence: `decomposer ${ctx.workflow.runId} replaced the exhausted task with bounded subtasks`,
     });
     if (!result.changed && result.claim !== null) {
