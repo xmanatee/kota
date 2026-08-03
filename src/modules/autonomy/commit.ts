@@ -14,11 +14,11 @@ import {
   stageWorkflowPaths,
   withGitIndexLockRetry,
 } from "./commit-git.js";
+import type { CommitResult } from "./commit-result.js";
 import {
   checkNoRegisteredScratchWorktrees,
   findScratchArtifactPaths,
 } from "./shared.js";
-import type { CommitResult } from "./commit-result.js";
 
 export type { CommitResult } from "./commit-result.js";
 
