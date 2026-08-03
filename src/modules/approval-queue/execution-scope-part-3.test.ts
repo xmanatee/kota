@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   type ApprovalQueue,
   resetApprovalQueue,
-  setApprovalQueueInstance,
 } from "#core/daemon/approval-queue.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
 import { resetCustomTools } from "#core/tools/custom-tool.js";
@@ -16,7 +15,6 @@ import {
   type ToolRunnerContext,
 } from "#core/tools/index.js";
 import { resetModuleFactory } from "#core/tools/module-factory/index.js";
-import { executeToolCalls } from "#core/tools/tool-runner.js";
 import { resetPromptStore } from "#modules/prompt-templates/prompt.js";
 import {
   approvalScopeHasSqlite3 as hasSqlite3,
@@ -32,8 +30,6 @@ import {
 } from "./execution-scope-tools.integration.js";
 import {
   handleApproveAllApprovals,
-  handleApproveApproval,
-  handleListApprovals,
 } from "./routes.js";
 
 function mockResponse() {
@@ -104,8 +100,6 @@ describe("approval execution project scope", () => {
     toolOutputs = [];
     defaultEntry = makeEntry(join(rootDir, "project-a"), "Project A");
     projectB = makeEntry(join(rootDir, "project-b"), "Project B");
-    mkdirSync(defaultEntry.project.projectDir, { recursive: true });
-    mkdirSync(projectB.project.projectDir, { recursive: true });
     process.chdir(defaultEntry.project.projectDir);
     registerProjectQueueProvider([defaultEntry, projectB]);
     registerApprovalScopeTools(contexts, toolOutputs);

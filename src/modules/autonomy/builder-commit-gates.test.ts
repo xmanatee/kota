@@ -7,10 +7,10 @@ describe("builder workflow commit and restart gates", () => {
   const commitStep = builderWorkflow.steps.find((s) => s.id === "commit");
   const restartStep = builderWorkflow.steps.find((s) => s.id === "request-restart");
 
-  it("gives the builder agent a long hard cap plus a separate progress idle cap", () => {
+  it("governs builder runtime by progress rather than an absolute deadline", () => {
     expect(buildStep).toMatchObject({
       type: "agent",
-      timeoutMs: 6 * 60 * 60 * 1000,
+      timeoutMs: null,
       idleTimeoutMs: 60 * 60 * 1000,
     });
   });

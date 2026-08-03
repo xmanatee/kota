@@ -28,14 +28,17 @@ export function resolveDirectoryScopeRoot(projectDir: string): string {
 }
 
 export function deriveDirectoryScopeId(projectDir: string): ProjectId {
-  return projectHash(resolveDirectoryScopeRoot(projectDir));
+  const resolved = resolveLiveDirectoryScope({ projectDir });
+  if (!resolved.ok) throw new Error(resolved.message);
+  return resolved.project.projectId;
 }
 
 export function buildConfiguredProject(
   input: ConfiguredProjectInput,
 ): ConfiguredProject {
-  const projectDir = resolveDirectoryScopeRoot(input.projectDir);
-  return configuredProjectFromCanonicalDirectory(projectDir, input.displayName);
+  const resolved = resolveLiveDirectoryScope(input);
+  if (!resolved.ok) throw new Error(resolved.message);
+  return resolved.project;
 }
 
 export function resolveLiveDirectoryScope(
@@ -104,7 +107,7 @@ function configuredProjectFromCanonicalDirectory(
 ): ConfiguredProject {
   const displayName = (displayNameInput ?? "").trim() || basename(projectDir);
   return {
-    projectId: deriveDirectoryScopeId(projectDir),
+    projectId: projectHash(projectDir),
     projectDir,
     displayName,
   };

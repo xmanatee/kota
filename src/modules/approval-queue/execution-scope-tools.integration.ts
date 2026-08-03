@@ -52,6 +52,7 @@ export function makeApprovalScopeEntry(
   projectDir: string,
   displayName: string,
 ): ApprovalScopeProjectRuntimeEntry {
+  mkdirSync(projectDir, { recursive: true });
   const project = buildConfiguredProject({ projectDir, displayName });
   return {
     project,

@@ -1,4 +1,10 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -54,8 +60,8 @@ describe("ScopeRegistry", () => {
     });
     const list = registry.list();
     expect(list).toHaveLength(1);
-    expect(list[0]?.projectDir).toBe(resolve(projectDir));
-    expect(registry.getDefault().projectDir).toBe(resolve(projectDir));
+    expect(list[0]?.projectDir).toBe(realpathSync.native(projectDir));
+    expect(registry.getDefault().projectDir).toBe(realpathSync.native(projectDir));
     expect(registry.getDefaultProjectId()).toBe(deriveDirectoryScopeId(projectDir));
   });
 
@@ -98,7 +104,7 @@ describe("ScopeRegistry", () => {
         { projectDir: second },
       ],
     });
-    expect(registry.getDefault().projectDir).toBe(resolve(first));
+    expect(registry.getDefault().projectDir).toBe(realpathSync.native(first));
   });
 
   it("persists a typed registry file under the state dir", () => {
@@ -139,8 +145,8 @@ describe("ScopeRegistry", () => {
       projects: [{ projectDir: ignoredSeed }],
     });
     expect(restored.list().map((project) => project.projectDir)).toEqual([
-      resolve(scopeA),
-      resolve(scopeB),
+      realpathSync.native(scopeA),
+      realpathSync.native(scopeB),
     ]);
     expect(restored.getDefault()).toMatchObject({
       projectId: added.projectId,
@@ -187,13 +193,13 @@ describe("ScopeRegistry", () => {
         scopeId: deriveDirectoryScopeId(scopeA),
         displayName: "Scope A",
         parentScopeId: "global",
-        directoryRoot: resolve(scopeA),
+        directoryRoot: realpathSync.native(scopeA),
       },
       {
         scopeId: deriveDirectoryScopeId(scopeB),
         displayName: "Scope B",
         parentScopeId: "global",
-        directoryRoot: resolve(scopeB),
+        directoryRoot: realpathSync.native(scopeB),
       },
     ]);
   });
@@ -223,7 +229,7 @@ describe("loadRegistryFileFromDisk", () => {
         defaultProjectId: "no-such-id",
         projects: [
           {
-            projectId: deriveDirectoryScopeId("/tmp/x"),
+            projectId: "scope-x",
             projectDir: resolve("/tmp/x"),
             displayName: "x",
           },

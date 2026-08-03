@@ -15,7 +15,7 @@
  * or already-resolved items.
  */
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -264,6 +264,8 @@ describe("owner-questions module daemon-control routes", () => {
     });
 
     it("uses the projectId query to list and mutate the selected project's queue", async () => {
+      mkdirSync(join(queueDir, "project-a"));
+      mkdirSync(join(queueDir, "project-b"));
       const projectA = buildConfiguredProject({
         projectDir: join(queueDir, "project-a"),
         displayName: "Project A",

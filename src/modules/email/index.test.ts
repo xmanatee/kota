@@ -13,7 +13,7 @@ vi.mock("./mailer.js", () => ({
 
 function makeCtx(config: Record<string, unknown>): ModuleContext {
   return {
-    cwd: "/tmp/test",
+    cwd: "/tmp",
     verbose: false,
     config: {} as ModuleContext["config"],
     storage: {} as ModuleContext["storage"],

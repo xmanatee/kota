@@ -152,7 +152,7 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       run: (ctx) =>
         checkPackageScript(
           workflowWorkspaceDir(ctx),
-          "pnpm run lint:fix && git add -u && pnpm run lint",
+          "pnpm run lint",
           { signal: ctx.signal },
         ),
     },

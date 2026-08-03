@@ -21,24 +21,6 @@ import slackChannelModule from "./index.js";
 
 const MockedSlackBot = vi.mocked(SlackBot);
 
-const STUB_CHANNEL_START_CTX = {
-  getDefaultProjectRuntime: () =>
-    ({
-      project: { projectId: "test-project", projectDir: "/tmp", displayName: "test" },
-    }) as never,
-  getProjectRuntime: () =>
-    ({
-      project: { projectId: "test-project", projectDir: "/tmp", displayName: "test" },
-    }) as never,
-  log: () => {},
-  reportFailure: () => {},
-  getWorkflowStatus: () => ({
-    runtimeState: { completedRuns: 0, pendingRuns: [], workflows: {} },
-    dispatchPaused: false,
-    runsDir: "/tmp/.kota/runs",
-  }),
-};
-
 function makeStubCtx(
   bus?: EventBus,
   moduleConfig?: Record<string, unknown>,
@@ -46,7 +28,7 @@ function makeStubCtx(
 ): ModuleRuntimeContext {
   const b = bus ?? new EventBus();
   return {
-    cwd: "/tmp/test",
+    cwd: "/tmp",
     verbose: false,
     config: kotaConfig ?? ({ serve: { defaultAutonomyMode: "supervised" } } as ModuleRuntimeContext["config"]),
     storage: new ModuleStorage("/tmp/test", "slack-channel"),
@@ -112,17 +94,6 @@ function makeStubCtx(
       },
     } as never,
   };
-}
-
-async function resolveStartResult(ctx: ModuleRuntimeContext) {
-  const channels = await resolveModuleChannels(slackChannelModule, ctx);
-  const def = channels[0];
-  return def.create(STUB_CHANNEL_START_CTX);
-}
-
-async function resolveAdapter(ctx: ModuleRuntimeContext) {
-  const result = await resolveStartResult(ctx);
-  return result.status === "started" ? result.adapter : null;
 }
 
 describe("slackChannelModule metadata", () => {

@@ -235,6 +235,8 @@ describe("history module daemon-control routes", () => {
 
     it("resolves projectId through the project store boundary", async () => {
       const root = mkdtempSync(join(tmpdir(), "kota-history-control-projects-"));
+      mkdirSync(join(root, "a"));
+      mkdirSync(join(root, "b"));
       const projectA = buildConfiguredProject({ projectDir: join(root, "a") });
       const projectB = buildConfiguredProject({ projectDir: join(root, "b") });
       const stores = new HistoryProjectStores({

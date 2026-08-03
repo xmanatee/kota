@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -111,6 +111,31 @@ describe("improver workflow", () => {
     for (const trigger of improverWorkflow.triggers) {
       expect(trigger.cooldownMs, `${trigger.event} should not delay evidence checks`).toBeUndefined();
     }
+  });
+
+  it("keeps lint validation read-only", async () => {
+    writeFileSync(
+      join(projectDir, "package.json"),
+      JSON.stringify({
+        scripts: {
+          lint: "node -e \"process.exit(0)\"",
+          "lint:fix":
+            "node -e \"require('node:fs').writeFileSync('lint-fix-ran', '')\"",
+        },
+      }),
+    );
+    const improve = improverWorkflow.steps.find((step) => step.id === "improve");
+    if (improve?.type !== "agent" || !improve.repairLoop) {
+      throw new Error("improver agent step has no repair loop");
+    }
+    const lint = improve.repairLoop.checks.find((check) => check.id === "lint");
+    if (!lint || lint.type !== "code") {
+      throw new Error("improver repair loop has no code lint check");
+    }
+
+    await lint.run({ projectDir } as never, {} as never);
+
+    expect(existsSync(join(projectDir, "lint-fix-ran"))).toBe(false);
   });
 
   it("exposes task-class and operator-evidence governance to the agent", async () => {

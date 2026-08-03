@@ -79,9 +79,16 @@ export function isSourceSizeCheckPath(file: string): boolean {
   const normalized = normalizePath(file);
   if (normalized.startsWith(".") && !normalized.startsWith("./")) return false;
   const parts = normalized.split("/");
-  if (parts.some((part) => SOURCE_FILE_SIZE_EXCLUDED_PATH_PARTS.some((excluded) => excluded === part))) {
+  if (
+    parts.some((part) =>
+      SOURCE_FILE_SIZE_EXCLUDED_PATH_PARTS.some(
+        (excluded) => excluded === part.toLowerCase(),
+      )
+    )
+  ) {
     return false;
   }
+  if ((parts.at(-1) ?? "").toLowerCase().includes(".generated.")) return false;
   return SOURCE_FILE_EXTENSIONS.has(extensionOf(normalized));
 }
 

@@ -11,7 +11,7 @@ import { eventTriggerRoutes } from "./event-trigger-routes.js";
 
 function makeStubCtx(bus: EventBus): ModuleRuntimeContext {
   return {
-    cwd: "/tmp/test",
+    cwd: "/tmp",
     verbose: false,
     config: {} as ModuleRuntimeContext["config"],
     storage: new ModuleStorage("/tmp/test", "webhook"),
@@ -129,13 +129,13 @@ describe("eventTriggerRoutes inbound signal path", () => {
     expect(JSON.parse(response.body!)).toMatchObject({
       ok: true,
       event: inboundSignalReceived.name,
-      projectId: deriveDirectoryScopeId("/tmp/test"),
+      projectId: deriveDirectoryScopeId("/tmp"),
       actorTrust: "trusted",
       listeners: 1,
     });
     expect(emitted).toHaveLength(1);
     expect(emitted[0]).toMatchObject({
-      projectId: deriveDirectoryScopeId("/tmp/test"),
+      projectId: deriveDirectoryScopeId("/tmp"),
       provider: "webhook",
       channel: "http",
       actor: { trust: "trusted" },

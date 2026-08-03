@@ -1,20 +1,27 @@
-import type { EventSchemaReference } from "#core/events/event-bus-types.js";
+import type {
+  EventPayloadRecord,
+  EventSchemaReference,
+} from "#core/events/event-bus-types.js";
 import { formatRunId, validateWorkflowRunId } from "./run-io.js";
 import type { WorkflowQueuedRun } from "./run-types.js";
 
 export type WorkflowEnqueueOptions = {
   tags?: string[];
-  payload?: Record<string, unknown>;
+  payload?: EventPayloadRecord;
   event?: string;
   schemaRef?: EventSchemaReference | null;
   runId?: string;
   notBeforeMs?: number;
 };
 
+export type OperatorTriggerRequestBody = WorkflowEnqueueOptions & {
+  name: string;
+};
+
 export function buildOperatorTriggerRequestBody(
   workflowName: string,
   options: WorkflowEnqueueOptions | undefined,
-): Record<string, unknown> {
+): OperatorTriggerRequestBody {
   return {
     name: workflowName,
     ...(options?.tags?.length ? { tags: options.tags } : {}),

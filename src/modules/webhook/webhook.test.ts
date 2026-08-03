@@ -11,7 +11,7 @@ vi.stubGlobal("fetch", mockFetch);
 function makeStubCtx(bus?: EventBus, webhookConfig?: unknown): ModuleRuntimeContext {
   const b = bus ?? new EventBus();
   return {
-    cwd: "/tmp/test",
+    cwd: "/tmp",
     verbose: false,
     config: {} as ModuleRuntimeContext["config"],
     storage: new ModuleStorage("/tmp/test", "webhook"),

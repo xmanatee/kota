@@ -1,27 +1,21 @@
 # Workflow Runtime
-
-This directory owns workflow definitions, validation, execution, repair loops,
-and persisted run state.
+This directory owns workflow definitions, validation, execution, repair loops, and persisted run state.
 
 - Put top-level autonomous execution semantics here, not in prompts or scheduler side channels.
-- Workflows are the only automation surface: hooks, cron-like jobs, standing
-  orders, inbound webhooks, and autonomous loops compile to typed workflows.
-- `automation` is the authoring concept; `workflow` is the durable runtime
-  form. Hooks react to event, schedule, watch, webhook, or batch triggers.
-  `trigger` queues a run, `schedule` produces triggers, and `step` is the
-  ordered executor.
-- `defineAutomation` / `defineHook` are authoring aliases. They must return
-  ordinary workflow definitions before validation, scheduling, approval
-  handling, run storage, or daemon APIs observe them.
-- Agent harness lifecycle hooks are internal harness hooks, not
-  operator-authored hooks.
+- Workflows are the only automation surface: hooks, jobs, standing orders,
+  webhooks, and autonomous loops compile to typed workflows.
+- `automation` is the authoring concept; `workflow` is the durable runtime form.
+  Triggers queue runs, schedules produce triggers, and steps execute in order.
+- `defineAutomation` / `defineHook` must return ordinary workflow definitions
+  before validation, scheduling, approvals, storage, or APIs observe them.
+- Agent harness lifecycle hooks are internal, not operator-authored hooks.
 - Keep trigger semantics narrow and explicit. Prefer semantic events over
   workflow-name inventories or implicit routing metadata.
 - `buildOperatorQueuedRun` owns operator-trigger construction for every client
   path. Retry and replay preserve the source event and schema; lineage belongs
   in payload metadata and must not replace the semantic event.
-- Runtime rails such as validation, retries, timeout handling, dispatch windows,
-  output truncation, and notification suppression belong in typed code and tests.
+- Validation, retries, timeouts, dispatch windows, truncation, and notification
+  suppression belong in typed code and tests.
   Do not duplicate their exact fields, enum values, or event names in docs.
 - Cross-run retries may replay ordinary completed steps, but a completed code
   step that updates the workspace or runtime resources restarts the workflow;
@@ -31,12 +25,10 @@ and persisted run state.
   durable queued runs; a restart must preserve keyed redrives and pending work.
 - Hard step timeouts cap wall-clock runtime. Idle-progress timeouts cap gaps
   between trusted progress signals: code heartbeats or typed agent messages.
-- Agent steps should receive a thin runtime envelope. Expose prior step output
-  only when the agent cannot cheaply recover the information through normal repo
-  context and tools.
+- Agent steps receive a thin runtime envelope. Expose prior output only when it
+  cannot be recovered cheaply from normal repo context and tools.
 
 ## Per-Concern Validation Split
-
 `validation.ts` only orchestrates. Put new rules in the sibling that owns the
 concern: step dispatch, definition shape, step ids, restart constraints,
 trigger references, trigger event shape, or assembly-level checks such as
@@ -44,7 +36,6 @@ notifications, self-loop prevention, and recovery consistency. Do not regrow
 `validation.ts` past the orchestrator boundary.
 
 ## Per-Concern Run-Store Split
-
 Run-store helpers are split by concern: filesystem/JSON IO, runtime-state
 schema, isolated legacy migration, and snapshot/repair-summary shaping. New
 run-store behavior belongs in the matching sibling; do not reintroduce a
@@ -90,8 +81,8 @@ deadline is `awaitTimeoutMs`, which produces the typed timeout output;
 `timeoutMs` (when explicitly set) still applies as an active-runtime hang rail;
 host suspension does not consume it.
 
-External producers can bridge daemon-down gaps by writing the delivery sibling
-directly, using the same event or timeout delivery shapes.
+External producers bridge daemon-down gaps by writing the delivery sibling with
+the same event or timeout shape.
 
 ## Ask-Owner Step Pattern
 

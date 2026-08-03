@@ -16,7 +16,7 @@ function migratedClient(): ModuleRuntimeContext["client"] {
 }
 
 const stubCtx: ModuleRuntimeContext = {
-  cwd: "/tmp/test",
+  cwd: "/tmp",
   verbose: false,
   config: {} as ModuleRuntimeContext["config"],
   storage: new ModuleStorage("/tmp/test", "daemon"),

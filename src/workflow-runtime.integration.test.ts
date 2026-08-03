@@ -470,7 +470,7 @@ describe("WorkflowRuntime", () => {
     expect(seenWorkflows).toEqual(["improver"]);
   });
 
-  it("backs off agent workflows after a quota failure and drops stale follow-up runs", async () => {
+  it("backs off agent workflows and parks follow-up work", async () => {
     writeFileSync(
       join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
@@ -556,7 +556,19 @@ describe("WorkflowRuntime", () => {
     };
     expect(state.agentBackoff?.kind).toBe("rate_limit");
     expect(state.agentBackoff?.failureCount).toBe(1);
-    expect(state.pendingRuns).toEqual([]);
+    expect(state.pendingRuns).toMatchObject([
+      {
+        workflowName: "improver",
+        trigger: {
+          event: "workflow.completed",
+          payload: {
+            workflow: "explorer",
+            status: "failed",
+            failureKind: "rate_limit",
+          },
+        },
+      },
+    ]);
   });
 
   it("supports code steps that call KOTA tools before agent steps", async () => {

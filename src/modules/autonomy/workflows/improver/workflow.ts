@@ -218,7 +218,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
             type: "code" as const,
             phase: 1,
             run: (ctx) => runCheck(
-              "pnpm run lint:fix && git add -u && pnpm run lint",
+              "pnpm run lint",
               ctx.projectDir,
               { signal: ctx.signal },
             ),

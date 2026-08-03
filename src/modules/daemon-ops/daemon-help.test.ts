@@ -4,7 +4,7 @@ import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import daemonModule from "./index.js";
 
 const stubCtx: ModuleRuntimeContext = {
-	cwd: "/tmp/test",
+	cwd: "/tmp",
 	verbose: false,
 	config: {} as ModuleRuntimeContext["config"],
 	storage: new ModuleStorage("/tmp/test", "daemon"),

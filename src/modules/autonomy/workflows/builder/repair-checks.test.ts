@@ -1,5 +1,11 @@
 import { execSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -126,6 +132,25 @@ describe("builder repository-backed repair checks", () => {
 
   afterEach(() => {
     rmSync(repoDir, { recursive: true, force: true });
+  });
+
+  it("keeps lint validation read-only", async () => {
+    writeFileSync(
+      join(repoDir, "package.json"),
+      JSON.stringify({
+        scripts: {
+          lint: "node -e \"process.exit(0)\"",
+          "lint:fix":
+            "node -e \"require('node:fs').writeFileSync('lint-fix-ran', '')\"",
+        },
+      }),
+    );
+    const lint = builderRepairChecks().find((check) => check.id === "lint");
+    if (!lint || lint.type !== "code") throw new Error("missing builder lint check");
+
+    await lint.run({ projectDir: repoDir } as WorkflowStepContext, {} as never);
+
+    expect(existsSync(join(repoDir, "lint-fix-ran"))).toBe(false);
   });
 
   it("wires severe source-size batches as blocking while preserving advisory warning artifacts", async () => {

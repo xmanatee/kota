@@ -21,15 +21,16 @@ export type EventSchemaReference = {
   version: number;
 };
 
-export function isEventSchemaReference(value: unknown): value is EventSchemaReference {
+export function isEventSchemaReference<T>(value: T): value is T & EventSchemaReference {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
-  const candidate = value as Record<string, unknown>;
   return (
-    typeof candidate.name === "string" &&
-    candidate.name.trim().length > 0 &&
-    typeof candidate.version === "number" &&
-    Number.isInteger(candidate.version) &&
-    candidate.version >= 1
+    "name" in value &&
+    typeof value.name === "string" &&
+    value.name.trim().length > 0 &&
+    "version" in value &&
+    typeof value.version === "number" &&
+    Number.isInteger(value.version) &&
+    value.version >= 1
   );
 }
 

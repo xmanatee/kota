@@ -8,6 +8,7 @@ import { loadScenario } from "#modules/harness-parity/scenario.js";
 import { codexAgentHarness } from "./adapter.js";
 
 const spawnMock = vi.hoisted(() => vi.fn());
+const sandboxLaunchMock = vi.hoisted(() => vi.fn());
 
 vi.mock("node:child_process", async () => {
   const actual = await vi.importActual<typeof import("node:child_process")>(
@@ -15,6 +16,10 @@ vi.mock("node:child_process", async () => {
   );
   return { ...actual, spawn: spawnMock };
 });
+
+vi.mock("#core/agent-harness/machine-authority-sandbox.js", () => ({
+  buildMachineAuthoritySandboxLaunch: sandboxLaunchMock,
+}));
 
 const SHIPPED_SCENARIOS_ROOT = join(
   import.meta.dirname,
@@ -61,6 +66,13 @@ describe("codex agent harness x fix-arithmetic-bug scenario", () => {
 
   beforeEach(() => {
     spawnMock.mockReset();
+    sandboxLaunchMock.mockReset().mockImplementation(
+      (executable: string, args: readonly string[]) => ({
+        ok: true,
+        command: "authority-sandbox",
+        args: [executable, ...args],
+      }),
+    );
     const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "fix-arithmetic-bug");
     workingDir = mkdtempSync(join(tmpdir(), "kota-codex-scenario-"));
     cpSync(loaded.initialStateDir, workingDir, { recursive: true });
@@ -83,8 +95,19 @@ describe("codex agent harness x fix-arithmetic-bug scenario", () => {
     });
 
     expect(spawnMock).toHaveBeenCalledWith(
+      "authority-sandbox",
+      expect.arrayContaining([
+        "codex",
+        "--cd",
+        workingDir,
+        "--model",
+        "gpt-5.6-sol",
+      ]),
+      expect.objectContaining({ cwd: workingDir }),
+    );
+    expect(sandboxLaunchMock).toHaveBeenCalledWith(
       "codex",
-      expect.arrayContaining(["--cd", workingDir, "--model", "gpt-5.6-sol"]),
+      expect.any(Array),
       expect.objectContaining({ cwd: workingDir }),
     );
     expect(process.stdinText()).toContain(loaded.spec.prompt);

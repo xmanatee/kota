@@ -1,10 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type AgentHarness,
   resolveAgentHarness,
 } from "#core/agent-harness/index.js";
 import type { CapabilityReadinessSource } from "#core/daemon/capability-readiness.js";
-import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
 import type { ConfiguredProject } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
@@ -12,7 +11,6 @@ import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { resolveModuleChannels } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import type { KotaClient } from "#core/server/kota-client.js";
-import { callTelegramApi, TelegramApiError } from "./client.js";
 import telegramModule, {
   TELEGRAM_INTERACTIVE_BACKEND_CAPABILITY_ID,
 } from "./index.js";
@@ -65,12 +63,7 @@ vi.mock("#core/daemon/owner-question-queue.js", () => ({
   getOwnerQuestionQueue: () => ({ get: mockOwnerQueueGet }),
 }));
 
-const mockedCallTelegramApi = vi.mocked(callTelegramApi);
 const mockedResolveAgentHarness = vi.mocked(resolveAgentHarness);
-
-async function flushAsyncNotifications(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 0));
-}
 
 const TEST_PROJECT: ConfiguredProject = {
   projectId: "test-project",
@@ -129,7 +122,7 @@ function makeStubCtx(
 ): ModuleRuntimeContext {
   const b = bus ?? new EventBus();
   return {
-    cwd: "/tmp/test",
+    cwd: "/tmp",
     verbose: false,
     config,
     storage: new ModuleStorage("/tmp/test", "telegram"),
