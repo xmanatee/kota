@@ -20,6 +20,10 @@ and persisted run state.
 - Runtime rails such as validation, retries, timeout handling, dispatch windows,
   output truncation, and notification suppression belong in typed code and tests.
   Do not duplicate their exact fields, enum values, or event names in docs.
+- Cross-run retries may replay ordinary completed steps, but a completed code
+  step that updates the workspace or runtime resources restarts the workflow;
+  those execution-context outputs belong to the source run. Explicit step
+  resume remains a separate operator-selected checkpoint operation.
 - Hard step timeouts cap wall-clock runtime. Idle-progress timeouts cap gaps
   between trusted progress signals: code heartbeats or typed agent messages.
 - Agent steps should receive a thin runtime envelope. Expose prior step output

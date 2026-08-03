@@ -63,6 +63,50 @@ describe("findRetryFromIndex", () => {
     ];
     expect(findRetryFromIndex(original, [{ id: "step-a" }, { id: "step-b" }])).toBe(2);
   });
+
+  it("restarts when a successful step established run-scoped execution context", () => {
+    const original: WorkflowStepResult[] = [
+      {
+        id: "claim",
+        type: "code",
+        status: "success",
+        startedAt: "",
+        completedAt: "",
+        durationMs: 0,
+      },
+      {
+        id: "prepare",
+        type: "code",
+        status: "success",
+        startedAt: "",
+        completedAt: "",
+        durationMs: 0,
+      },
+      {
+        id: "build",
+        type: "agent",
+        status: "failed",
+        startedAt: "",
+        completedAt: "",
+        durationMs: 0,
+      },
+    ];
+
+    expect(
+      findRetryFromIndex(original, [
+        { id: "claim" },
+        { id: "prepare", updatesWorkspaceDir: true },
+        { id: "build" },
+      ]),
+    ).toBe(0);
+    expect(
+      findRetryFromIndex(original, [
+        { id: "claim" },
+        { id: "prepare", updatesRuntimeResources: true },
+        { id: "build" },
+      ]),
+    ).toBe(0);
+  });
 });
 
 describe("retry execution", () => {
@@ -162,10 +206,61 @@ describe("retry execution", () => {
     expect(retried.metadata.steps).toHaveLength(3);
     expect(retried.metadata.steps[0].id).toBe("step-a");
     expect(retried.metadata.steps[0].status).toBe("success");
+    expect(retried.metadata.steps[0].reused).toBe(true);
     expect(retried.metadata.steps[1].id).toBe("step-b");
     expect(retried.metadata.steps[1].status).toBe("success");
     expect(retried.metadata.steps[2].id).toBe("step-c");
     expect(retried.metadata.steps[2].status).toBe("success");
+  });
+
+  it("reexecutes setup and its producers when setup changed the workspace", async () => {
+    const executed: string[] = [];
+    let shouldFail = true;
+    const definition = makeDefinition({
+      steps: [
+        {
+          id: "claim",
+          type: "code",
+          run: () => {
+            executed.push("claim");
+            return { taskId: "task-one" };
+          },
+        },
+        {
+          id: "prepare",
+          type: "code",
+          updatesWorkspaceDir: true,
+          run: (ctx) => {
+            executed.push("prepare");
+            return { workspaceDir: ctx.projectDir };
+          },
+        },
+        {
+          id: "build",
+          type: "code",
+          run: () => {
+            executed.push("build");
+            if (shouldFail) throw new Error("transient");
+            return { done: true };
+          },
+        },
+      ],
+    });
+
+    const original = await runDefinition(definition);
+    expect(original.metadata.status).toBe("failed");
+    executed.length = 0;
+    shouldFail = false;
+
+    const retried = await runDefinition(definition, {
+      event: "retry",
+      schemaRef: null,
+      payload: { retryOf: original.metadata.id },
+    });
+
+    expect(retried.metadata.status).toBe("success");
+    expect(executed).toEqual(["claim", "prepare", "build"]);
+    expect(retried.metadata.steps.every((step) => step.reused !== true)).toBe(true);
   });
 
   it("retries from the first step when the first step failed", async () => {
