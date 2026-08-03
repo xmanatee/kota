@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { JsonSchemaObject } from "#core/util/json-schema-validator.js";
+import type { CodeStepOutputValidator } from "#core/workflow/step-input-code.js";
 
 const taskClassValues = ["Product", "Safety", "Platform", "Meta"] as const;
 const priorityValues = ["p0", "p1", "p2", "p3"] as const;
@@ -40,9 +41,8 @@ const decompositionPlanSchema = z.object({
 
 export type DecompositionPlan = z.infer<typeof decompositionPlanSchema>;
 
-export function decodeDecompositionPlan(raw: unknown): DecompositionPlan {
-  return decompositionPlanSchema.parse(raw);
-}
+export const decodeDecompositionPlan: CodeStepOutputValidator<DecompositionPlan> =
+  (raw) => decompositionPlanSchema.parse(raw);
 
 const decompositionReviewSchema = z.object({
   decision: z.enum(["approve", "reject"]),
@@ -67,9 +67,8 @@ const decompositionReviewSchema = z.object({
 
 export type DecompositionReview = z.infer<typeof decompositionReviewSchema>;
 
-export function decodeDecompositionReview(raw: unknown): DecompositionReview {
-  return decompositionReviewSchema.parse(raw);
-}
+export const decodeDecompositionReview: CodeStepOutputValidator<DecompositionReview> =
+  (raw) => decompositionReviewSchema.parse(raw);
 
 const stringArraySchema = {
   type: "array",

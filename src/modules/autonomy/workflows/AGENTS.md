@@ -13,11 +13,9 @@ This directory contains the autonomy workflows and their co-located prompts.
 
 When a workflow agent finishes its work:
 
-- Stage changes with `git add -A`.
-- Write a short commit message to `<run-directory>/commit-message.txt`.
-- Do not run `git commit` yourself. The workflow's commit step reads the
-  message file and commits after validation gates pass; direct commits bypass
-  the repair loop and fail the run.
+- Stage changes with `git add -A` and write a short message to
+  `<run-directory>/commit-message.txt`. Do not run `git commit`; the workflow
+  commits after validation, while direct commits bypass repair and fail the run.
 
 Prompts should not repeat these instructions. Workflow-specific finish guidance
 (e.g. validation before staging, conditional staging) stays in the prompt.
@@ -31,14 +29,10 @@ validation layer enforces this at definition load time as a hard error.
 
 ## Runtime Rails
 
-Timeouts, trigger validation, dirty-worktree recovery, direct-commit
-prevention, and repair-loop checks are runtime rails, not prompt policy.
-Keep workflow code explicit and typed; keep prompts focused on the agent's
-role. Direct-commit prevention lives at the SDK `canUseTool` boundary
-(`createAgentCommitGuard`). Use bare `deny`, not `interrupt: true`: interrupt
-aborts the session and discards progress, while deny blocks the command as a
-tool_result the agent can adapt to. Same rule applies to
-`createDaemonHostControlGuard`.
+Timeouts, trigger validation, dirty recovery, commit prevention, and repair
+checks are runtime rails, not prompt policy. Keep code typed and prompts role-
+focused. Commit prevention lives at the SDK `canUseTool` boundary. Its guards
+use bare `deny`; `interrupt: true` aborts the session and discards progress.
 
 Every workflow that calls `commitWorkflowChanges` must also wire
 `checkCommitStageable` into its repair loop. The terminal commit step's
@@ -122,11 +116,9 @@ judgment. Keep route/event/config catalogs in source types and focused tests.
 
 ## Dirty Failure Recovery
 
-If a workflow fails and leaves the repo dirty, the runtime now treats that as a
-recovery condition, not as normal queue progression. The daemon restarts once,
-queues any workflows that listen to `runtime.recovered`, and then pauses
-dispatch if the same dirty state still cannot be repaired. Do not reintroduce
-dirty-worktree bounce loops.
+If a workflow fails dirty, the runtime treats it as recovery rather than queue
+progress: restart once, queue `runtime.recovered` consumers, then pause if the
+same dirt remains. Do not reintroduce dirty-worktree bounce loops.
 
 Canonical task writers use the repo-tasks domain mutation API, which stages
 each exact task/inbox path as part of the operation. Canonical tracked mutators

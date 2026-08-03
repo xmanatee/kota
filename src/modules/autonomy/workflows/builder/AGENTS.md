@@ -16,7 +16,6 @@
 - A clean timeout or exhausted repair reserves the task claim for decomposer
   disposition. Builder must not reclaim that task while decomposition is
   pending; ordinary failures still release clean claims normally.
-
 ## Success Criteria
 Declare concrete success criteria before implementation and verify them before completion:
 
@@ -44,8 +43,7 @@ two files.
 Keep completion reviewable. If external resources or runtime behavior matter,
 leave enough ordinary context in the task state, docs, code, or run notes for a
 later reviewer to verify the result. If a required resource cannot be reached,
-record the blocker instead of inferring completion.
-
+  record the blocker instead of inferring completion.
 ## Runtime Probes
 
 The critic inspects the diff, task state, and run artifacts. When success
@@ -86,7 +84,6 @@ an optional runtime probe the critic runs before judging.
   probe when the failure is environmental (network outage, missing binary)
   and unrelated to the staged change, but must justify that in the verdict
   `summary`.
-
 ## Source Size Exceptions
 
 The builder treats severe source-size warning batches as blocking before commit.
