@@ -1,13 +1,13 @@
 ---
 id: task-define-exhaustive-scope-policy-restriction-semanti
 title: Define exhaustive scope-policy restriction semantics
-status: ready
+status: dropped
 priority: p1
 area: security
 task_class: Safety
 summary: Add a pure, protocol-oriented comparison that classifies equal, permissive, and restrictive scope-policy transitions across every security-relevant dimension.
 created_at: 2026-08-03T15:31:42.493Z
-updated_at: 2026-08-03T15:31:42.493Z
+updated_at: 2026-08-03T16:18:03.806Z
 ---
 
 ## Problem
@@ -47,3 +47,8 @@ Decomposed from `task-add-revisioned-observable-scope-policy-authority` after bu
 
 - Focused unit tests covering every policy dimension and representative mixed transitions.
 - A recorded passing verification command for the transition classifier.
+
+## Decomposed
+
+- task-codify-per-dimension-scope-policy-transition-order
+- task-assemble-the-exhaustive-scope-policy-transition-cl
