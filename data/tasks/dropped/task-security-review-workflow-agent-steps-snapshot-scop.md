@@ -1,13 +1,13 @@
 ---
 id: task-security-review-workflow-agent-steps-snapshot-scop
 title: Security review: Workflow agent steps snapshot scope policy once before launching the harness. Restrictive policy changes made while a step is running therefore do not affect its later tool calls, allowing the active agent to retain revoked write, module, network, or autonomy permissions until the step ends.
-status: ready
+status: dropped
 priority: p1
 area: security
 task_class: Safety
 summary: Workflow agent steps snapshot scope policy once before launching the harness. Restrictive policy changes made while a step is running therefore do not affect its later tool calls, allowing the active agent to retain revoked write, module, network, or autonomy permissions until the step ends.
 created_at: 2026-08-03T00:34:23.701Z
-updated_at: 2026-08-03T00:34:23.701Z
+updated_at: 2026-08-03T13:16:46.825Z
 ---
 
 ## Problem
@@ -111,3 +111,9 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Decomposed
+
+- task-add-revisioned-observable-scope-policy-authority
+- task-reauthorize-every-kota-hosted-workflow-tool-call-a
+- task-invalidate-active-native-and-opaque-harness-runs-o
