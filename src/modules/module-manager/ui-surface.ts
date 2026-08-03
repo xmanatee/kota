@@ -90,6 +90,7 @@ export function buildModulesAgentsUiSurface(args: {
     scopeId,
     attachmentPoint: { kind: "intent", intent: "Work" },
     order: 40,
+    refreshEvents: ["daemon.config.reload", "scope.lifecycle.changed"],
     permissions: [{ kind: "capability-scope", scope: "read" }],
     nodes: [
       {

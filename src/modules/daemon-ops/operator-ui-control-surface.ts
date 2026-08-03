@@ -30,6 +30,13 @@ export function buildOperatorControlUiSurface(scopeId = "p-kota-fixture-default"
     scopeId,
     attachmentPoint: { kind: "intent", intent: "Work" },
     order: 30,
+    refreshEvents: [
+      "workflow.started",
+      "workflow.completed",
+      "approval.created",
+      "approval.changed",
+      "daemon.config.reload",
+    ],
     permissions: [{ kind: "capability-scope", scope: "read" }],
     conditions: [{ kind: "capability", capabilityId: "workflow.trigger", status: "ready" }],
     nodes: [

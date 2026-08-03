@@ -56,6 +56,13 @@ export function buildStatusUiSurface(
     scopeId,
     attachmentPoint: { kind: "root" },
     order: 10,
+    refreshEvents: [
+      "daemon.config.reload",
+      "scope.lifecycle.changed",
+      "workflow.completed",
+      "session.registered",
+      "session.unregistered",
+    ],
     permissions: [{ kind: "capability-scope", scope: "read" }],
     nodes,
     actions,
@@ -149,6 +156,17 @@ export function buildInboxUiSurface(
     scopeId,
     attachmentPoint: { kind: "root" },
     order: 20,
+    refreshEvents: [
+      "approval.changed",
+      "owner.question.asked",
+      "owner.question.changed",
+      "owner.question.resolved",
+      "owner.question.dismissed",
+      "owner.question.expired",
+      "task.changed",
+      "workflow.completed",
+      "daemon.config.reload",
+    ],
     permissions: [{ kind: "capability-scope", scope: "read" }],
     nodes: items.length === 0
       ? [{ kind: "empty", title: "Operator inbox is clear", detail: snapshot.projectDir, action: refresh }]

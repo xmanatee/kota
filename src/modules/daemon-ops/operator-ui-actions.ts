@@ -1,4 +1,5 @@
 import type { KotaClient } from "#core/server/kota-client.js";
+import { executeCapabilityUiAction } from "./operator-ui-capability-actions.js";
 import type {
   UiAction,
   UiActionOperation,
@@ -252,6 +253,12 @@ export async function executeUiAction(args: {
     const result = await client.doctor.fix();
     return { ok: true, message: `${result.repairs.length} doctor repair(s) processed.` };
   }
+  const capabilityResult = await executeCapabilityUiAction({
+    client,
+    operation: action.operation,
+    parameters,
+  });
+  if (capabilityResult) return capabilityResult;
   return {
     ok: false,
     reason: "unsupported-operation",

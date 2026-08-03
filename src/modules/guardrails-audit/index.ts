@@ -29,6 +29,7 @@ import type {
 	AuditListResult,
 } from "./client.js";
 import { makeListAuditHandler } from "./routes.js";
+import { auditUiSurfaceSource } from "./ui-surface.js";
 
 const tools: ToolDef[] = [
 	{
@@ -70,6 +71,7 @@ const guardrailsAuditModule: KotaModule = {
 	version: "1.0.0",
 	description: "Guardrail audit trail — logs all tool assessments to .kota/audit.jsonl",
 	dependencies: ["rendering"],
+	uiSurfaces: [auditUiSurfaceSource],
 
 	tools,
 

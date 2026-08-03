@@ -1,4 +1,8 @@
-import type { UiSurface, UiTableRow } from "#core/daemon/ui-surface.js";
+import type {
+  UiActionParameterSpec,
+  UiSurface,
+  UiTableRow,
+} from "#core/daemon/ui-surface.js";
 import {
   action,
   emptyRows,
@@ -26,6 +30,35 @@ function knowledgeRows(knowledge: SurfaceRead<KnowledgeListResult>): UiTableRow[
   }));
 }
 
+function knowledgeSearchParameters(): UiActionParameterSpec {
+  return {
+    fields: [
+      { id: "query", label: "Search query", input: "text", required: true },
+      {
+        id: "semantic",
+        label: "Use semantic ranking",
+        input: "boolean",
+        required: false,
+      },
+      { id: "limit", label: "Maximum results", input: "number", required: false },
+    ],
+    schema: {
+      type: "object",
+      required: ["query"],
+      properties: {
+        query: { type: "string" },
+        semantic: {
+          type: "boolean",
+          default: true,
+          description: "Requires an embedding-backed knowledge provider; turn off for keyword search.",
+        },
+        limit: { type: "integer", default: 10, minimum: 1, maximum: 50 },
+      },
+      additionalProperties: false,
+    },
+  };
+}
+
 function buildKnowledgeUiSurface(
   scopeId: string,
   knowledge: SurfaceRead<KnowledgeListResult>,
@@ -38,6 +71,15 @@ function buildKnowledgeUiSurface(
     operation: { kind: "client-namespace", namespace: "knowledge", method: "list" },
     result: resultSpec("Knowledge loaded."),
   });
+  const search = action({
+    surfaceId: "knowledge-store",
+    actionId: "knowledge.search",
+    scopeId,
+    label: "Search knowledge",
+    operation: { kind: "client-namespace", namespace: "knowledge", method: "search" },
+    parameters: knowledgeSearchParameters(),
+    result: resultSpec("Knowledge search completed."),
+  });
   return {
     protocolVersion: "ui.surface.v1",
     surfaceId: "knowledge-store",
@@ -47,6 +89,7 @@ function buildKnowledgeUiSurface(
     scopeId,
     attachmentPoint: { kind: "intent", intent: "Knowledge" },
     order: 61,
+    refreshEvents: ["knowledge.create", "knowledge.update", "knowledge.delete"],
     permissions: [{ kind: "capability-scope", scope: "read" }],
     nodes: [
       {
@@ -58,9 +101,26 @@ function buildKnowledgeUiSurface(
         }],
       },
       { kind: "table", title: "Knowledge", columns: NAME_STATE_DETAIL_COLUMNS, rows: knowledgeRows(knowledge) },
-      { kind: "action-list", title: "Knowledge actions", actions: [refresh] },
+      {
+        kind: "form",
+        title: "Search stored knowledge",
+        fields: knowledgeSearchParameters().fields,
+        submit: search,
+      },
+      {
+        kind: "log-stream",
+        title: "Live knowledge changes",
+        streamId: "knowledge-events",
+        source: {
+          kind: "sse",
+          path: "/events",
+          eventTypes: ["knowledge.create", "knowledge.update", "knowledge.delete"],
+        },
+        entries: [],
+      },
+      { kind: "action-list", title: "Knowledge actions", actions: [refresh, search] },
     ],
-    actions: [refresh],
+    actions: [refresh, search],
   };
 }
 

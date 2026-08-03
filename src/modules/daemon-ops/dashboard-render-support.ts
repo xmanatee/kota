@@ -152,7 +152,7 @@ export function renderControlHelp(): RenderNode[] {
 		),
 		line(plain("  pause `kota workflow pause`  resume `kota workflow resume`")),
 		line(plain("  follow `kota workflow follow`  client `kota navigate` or bare `kota`")),
-		line(plain("  ui `kota ui render operator-control`  reload `kota daemon reload`")),
+		line(plain("  ui `kota ui render runs`  reload `kota daemon reload`")),
 		line(plain("  stop `kota daemon stop`")),
 		blank(),
 	];

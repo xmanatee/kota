@@ -19,6 +19,7 @@ import { buildAttentionCommand } from "./workflows/attention-digest/attention-cl
 import { attentionRoutes } from "./workflows/attention-digest/attention-route.js";
 import { buildDigestCommand } from "./workflows/daily-digest/digest-cli.js";
 import { digestRoutes } from "./workflows/daily-digest/digest-route.js";
+import { dailyDigestUiSurfaceSource } from "./workflows/daily-digest/ui-surface.js";
 import { progressReviewRequested } from "./workflows/progress-reviewer/events.js";
 import {
   scopeImprovementEvidenceReady,
@@ -147,6 +148,7 @@ const autonomyModule: KotaModule = {
   ],
   workflows: async () => await discoverAutonomyWorkflowDefinitions(),
   agents: async () => await discoverAutonomyAgents(),
+  uiSurfaces: [dailyDigestUiSurfaceSource],
   onLoad: (ctx) => {
     ctx.registerProvider(
       SCOPE_DRAIN_INSPECTION_PROVIDER_TYPE,

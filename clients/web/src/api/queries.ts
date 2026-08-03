@@ -39,6 +39,7 @@ export const queryKeys = {
   slashCommands: ["slashCommands"] as const,
   digest: (projectId: string) => ["digest", projectId] as const,
   attention: (projectId: string) => ["attention", projectId] as const,
+  uiSurfaces: (projectId: string) => ["uiSurfaces", projectId] as const,
 };
 
 export const identityQuery = queryOptions({
@@ -213,6 +214,14 @@ export function attentionQuery(projectId: string) {
     queryKey: queryKeys.attention(projectId),
     queryFn: api.getAttention,
     refetchInterval: 300000,
+    enabled: projectId !== "",
+  });
+}
+
+export function uiSurfacesQuery(projectId: string) {
+  return queryOptions({
+    queryKey: queryKeys.uiSurfaces(projectId),
+    queryFn: () => api.getUiSurfaces(projectId),
     enabled: projectId !== "",
   });
 }

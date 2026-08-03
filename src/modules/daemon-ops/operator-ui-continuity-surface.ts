@@ -127,6 +127,16 @@ export function buildContinuityUiSurface(projection: ContinuityProjection): UiSu
     scopeId: projection.scopeId,
     attachmentPoint: { kind: "intent", intent: "Work" },
     order: 25,
+    refreshEvents: [
+      "workflow.started",
+      "workflow.completed",
+      "task.changed",
+      "owner.question.changed",
+      "owner.question.resolved",
+      "knowledge.create",
+      "knowledge.update",
+      "knowledge.delete",
+    ],
     permissions: [{ kind: "capability-scope", scope: "read" }],
     nodes: projection.state === "empty"
       ? [

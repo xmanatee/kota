@@ -27,6 +27,7 @@ import type {
 } from "./client.js";
 import { buildLocalApprovalsClient } from "./local-client.js";
 import { approvalControlRoutes, approvalRoutes } from "./routes.js";
+import { approvalUiSurfaceSource } from "./ui-surface.js";
 
 export type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queue.js";
 export { ApprovalQueue, getApprovalQueue, resetApprovalQueue } from "#core/daemon/approval-queue.js";
@@ -48,6 +49,7 @@ const approvalQueueModule: KotaModule = {
 	version: "1.0.0",
 	description: "Approval queue state and operator CLI for tool calls and workflow gates",
 	dependencies: ["rendering"],
+	uiSurfaces: [approvalUiSurfaceSource],
 
 	commands: (ctx) => {
 		const root = new Command("__root__");

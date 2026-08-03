@@ -47,6 +47,7 @@ function buildMemoryUiSurface(
     scopeId,
     attachmentPoint: { kind: "intent", intent: "Knowledge" },
     order: 60,
+    refreshEvents: ["workflow.completed"],
     permissions: [{ kind: "capability-scope", scope: "read" }],
     nodes: [
       {

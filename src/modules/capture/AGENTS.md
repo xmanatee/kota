@@ -117,9 +117,10 @@ its `register()` API; nothing in core hard-codes the contributor set.
   the project's configured model client; per-call cost stays in the
   cost tracker the recall and answer seams already share.
 - Live operator consumers are the daemon `POST /capture` route, the
-  web-facing `POST /api/capture` route, `kota capture <text>`, web
-  `CapturePanel`, mobile `CaptureScreen`, macOS `CaptureExpandedContent`
-  via `DaemonClient.capture`, Telegram `/capture` plus the four
+  web-facing `POST /api/capture` route, `kota capture <text>`, the web
+  shared-UI capture surface through `KotaClient.capture`, mobile
+  `CaptureScreen`, macOS `CaptureExpandedContent` via
+  `DaemonClient.capture`, Telegram `/capture` plus the four
   `/capture-to-{memory,knowledge,tasks,inbox}` commands, and
   Slack-channel `/capture` plus the same four explicit-target commands.
   These surfaces share `createCaptureRouteHandler`,

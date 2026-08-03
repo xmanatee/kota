@@ -43,6 +43,7 @@ import {
   RECALL_DYNAMIC_STATE_NAME,
 } from "./system-prompt.js";
 import { createRecallToolDef } from "./tool.js";
+import { recallUiSurfaceSource } from "./ui-surface.js";
 
 let activeProvider: RecallProvider | null = null;
 
@@ -82,6 +83,7 @@ const recallModule: KotaModule = {
   description:
     "Cross-store recall seam — one query returns ranked, source-tagged hits across registered contributors, including knowledge, memory, history, repo tasks, and answer history.",
   dependencies: ["knowledge", "memory", "history", "repo-tasks", "rendering"],
+  uiSurfaces: [recallUiSurfaceSource],
 
   onLoad(ctx: ModuleRuntimeContext) {
     const resolveProjectContext = createRecallProjectContextResolver(ctx.cwd);

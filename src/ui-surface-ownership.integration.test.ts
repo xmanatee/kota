@@ -15,23 +15,43 @@ import {
 } from "#core/modules/module-ui-surfaces.js";
 import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { KotaClient } from "#core/server/kota-client.js";
+import answerModule from "#modules/answer/index.js";
+import approvalQueueModule from "#modules/approval-queue/index.js";
+import autonomyModule from "#modules/autonomy/index.js";
+import captureModule from "#modules/capture/index.js";
+import configModule from "#modules/config/index.js";
 import daemonOpsModule from "#modules/daemon-ops/index.js";
 import { findUiAction } from "#modules/daemon-ops/operator-ui.js";
+import guardrailsAuditModule from "#modules/guardrails-audit/index.js";
 import historyModule from "#modules/history/index.js";
 import knowledgeModule from "#modules/knowledge/index.js";
 import memoryModule from "#modules/memory/index.js";
 import moduleManagerModule from "#modules/module-manager/index.js";
+import ownerQuestionsModule from "#modules/owner-questions/index.js";
+import recallModule from "#modules/recall/index.js";
+import repoTasksModule from "#modules/repo-tasks/index.js";
+import retractModule from "#modules/retract/index.js";
 import setupModule from "#modules/setup/index.js";
 import workflowOpsModule from "#modules/workflow-ops/index.js";
 
 const OWNERS = [
-  [daemonOpsModule, ["status", "scopes", "inbox", "continuity", "operator-control"]],
+  [daemonOpsModule, ["status", "scopes", "inbox", "continuity"]],
+  [approvalQueueModule, ["approvals"]],
+  [ownerQuestionsModule, ["owner-questions"]],
   [workflowOpsModule, ["runs"]],
+  [repoTasksModule, ["tasks"]],
   [moduleManagerModule, ["modules-agents"]],
   [setupModule, ["setup"]],
   [memoryModule, ["stores"]],
   [knowledgeModule, ["knowledge-store"]],
   [historyModule, ["history-store"]],
+  [recallModule, ["recall"]],
+  [answerModule, ["answers"]],
+  [captureModule, ["capture"]],
+  [retractModule, ["retract"]],
+  [configModule, ["configuration"]],
+  [guardrailsAuditModule, ["guardrail-audit"]],
+  [autonomyModule, ["daily-digest"]],
 ] as const satisfies readonly (readonly [KotaModule, readonly string[]])[];
 
 function staticUiSources(mod: KotaModule): readonly UiSurfaceSource[] {
@@ -104,14 +124,23 @@ describe("module-owned UI surface assembly", () => {
         "status",
         "scopes",
         "inbox",
+        "approvals",
         "continuity",
-        "operator-control",
+        "owner-questions",
         "runs",
+        "tasks",
         "modules-agents",
         "setup",
+        "configuration",
+        "guardrail-audit",
         "stores",
         "knowledge-store",
         "history-store",
+        "recall",
+        "answers",
+        "capture",
+        "retract",
+        "daily-digest",
       ]);
       expect(bundle.surfaces.every((surface) => surface.scopeId === "scope-test")).toBe(true);
       expect(findUiAction(bundle, "runs", "workflow.status")).toMatchObject({
@@ -119,6 +148,18 @@ describe("module-owned UI surface assembly", () => {
         actionId: "workflow.status",
         scopeId: "scope-test",
       });
+      expect(findUiAction(bundle, "runs", "run.compare")).toBeTruthy();
+      expect(findUiAction(bundle, "approvals", "approvals.list")).toBeTruthy();
+      expect(findUiAction(bundle, "owner-questions", "owner-questions.list")).toBeTruthy();
+      expect(findUiAction(bundle, "tasks", "task.body.update")).toBeTruthy();
+      expect(findUiAction(bundle, "knowledge-store", "knowledge.search")).toBeTruthy();
+      expect(findUiAction(bundle, "history-store", "history.show")).toBeTruthy();
+      expect(findUiAction(bundle, "recall", "recall.query")).toBeTruthy();
+      expect(findUiAction(bundle, "answers", "answer.query")).toBeTruthy();
+      expect(findUiAction(bundle, "capture", "capture.create")).toBeTruthy();
+      expect(findUiAction(bundle, "retract", "retract.remove")).toBeTruthy();
+      expect(findUiAction(bundle, "configuration", "config.get")).toBeTruthy();
+      expect(findUiAction(bundle, "guardrail-audit", "audit.list")).toBeTruthy();
     } finally {
       rmSync(projectDir, { recursive: true, force: true });
     }

@@ -108,15 +108,15 @@ describe("project context parsing and single-project rendering", () => {
         <Sidebar
           collapsed={false}
           onToggle={noop}
-          activeSessionId={null}
-          onSessionSelect={noop}
-          onHistorySelect={noop}
-          onRunSelect={noop}
-          onCompareRuns={(_a: string, _b: string) => undefined}
           onNewChat={noop}
           connectionStatus="connected"
           darkMode={false}
           onToggleTheme={noop}
+          uiBundle={{ protocolVersion: "ui.surface.v1", surfaces: [] }}
+          uiLoading={false}
+          uiError={null}
+          selectedSurfaceId={null}
+          onSurfaceSelect={noop}
         />
       </Wrapper>,
     );

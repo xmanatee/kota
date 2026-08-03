@@ -52,18 +52,45 @@ function expectInvalid(surfaceOverride: Partial<UiSurface>, message: RegExp): vo
 
 describe("ui surface validation", () => {
   it("accepts a valid surface bundle", () => {
-    expect(buildUiSurfaceBundle([surface()]).surfaces.map((entry) => entry.surfaceId)).toEqual(["demo"]);
+    expect(buildUiSurfaceBundle([
+      surface({ refreshEvents: ["workflow.completed", "task.changed"] }),
+    ]).surfaces.map((entry) => entry.surfaceId)).toEqual(["demo"]);
+  });
+
+  it("rejects malformed and duplicate surface refresh events", () => {
+    expectInvalid({ refreshEvents: ["bad event"] }, /refreshEvents .* must match/);
+    expectInvalid(
+      { refreshEvents: ["task.changed", "task.changed"] },
+      /duplicate surface demo refresh event/,
+    );
   });
 
   it("accepts typed links, tabs, logs, and live log streams", () => {
+    const edit = action({
+      actionId: "demo.edit",
+      parameters: {
+        schema: {
+          type: "object",
+          required: ["body"],
+          properties: { body: { type: "string" } },
+        },
+        fields: [{ id: "body", label: "Body", input: "multiline", required: true }],
+      },
+    });
     const bundle = buildUiSurfaceBundle([
       surface({
+        actions: [action(), edit],
         nodes: [
           {
             kind: "link",
             label: "Open shared UI",
             target: { kind: "daemon-route", path: "/ui/surfaces" },
             role: "info",
+          },
+          {
+            kind: "link",
+            label: "Resume session",
+            target: { kind: "session", sessionId: "session-123" },
           },
           {
             kind: "tabs",
@@ -86,11 +113,19 @@ describe("ui surface validation", () => {
             source: { kind: "sse", path: "/events", eventTypes: ["workflow.run.completed"] },
             entries: [{ timestamp: "2026-06-18T19:37:00.000Z", level: "warn", message: "Approval pending." }],
           },
+          { kind: "form", title: "Edit", fields: edit.parameters!.fields, submit: edit },
         ],
       }),
     ]);
 
-    expect(bundle.surfaces[0]?.nodes.map((node) => node.kind)).toEqual(["link", "tabs", "log", "log-stream"]);
+    expect(bundle.surfaces[0]?.nodes.map((node) => node.kind)).toEqual([
+      "link",
+      "link",
+      "tabs",
+      "log",
+      "log-stream",
+      "form",
+    ]);
   });
 
   it("rejects unknown surface, node, and action discriminants", () => {
@@ -150,7 +185,6 @@ describe("ui surface validation", () => {
       ],
     }, /readiness\.state "waiting" must be one of/);
   });
-
   it("validates condition ids and duplicate condition arms", () => {
     expectInvalid({
       conditions: [{ kind: "capability", capabilityId: "Bad Id", status: "ready" }],
@@ -163,7 +197,6 @@ describe("ui surface validation", () => {
       ],
     }, /duplicate surface demo condition/);
   });
-
   it("rejects malformed required confirmation metadata", () => {
     expectInvalid({
       actions: [
@@ -179,7 +212,6 @@ describe("ui surface validation", () => {
       ],
     }, /confirmation\.detail must not be empty/);
   });
-
   it("rejects mismatched action parameter fields and schema", () => {
     expectInvalid({
       actions: [
@@ -210,6 +242,21 @@ describe("ui surface validation", () => {
         }),
       ],
     }, /requires "workflow" but no matching field/);
+  });
+  it("rejects an embedded action that the executor cannot resolve from surface.actions", () => {
+    expectInvalid(
+      {
+        nodes: [
+          {
+            kind: "form",
+            title: "Run action",
+            fields: [],
+            submit: action({ actionId: "demo.unlisted" }),
+          },
+        ],
+      },
+      /node action "demo\.unlisted" is missing from surface\.actions/,
+    );
   });
 
   it("rejects invalid result and error outcome arms", () => {

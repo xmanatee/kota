@@ -30,6 +30,7 @@ import {
   queuedRunRows,
   recentRunRows,
   runtimeLogEntries,
+  runtimeUsageMetrics,
   workflowRows,
 } from "./ui-runtime-helpers.js";
 
@@ -89,6 +90,31 @@ export function buildRuntimeUiSurface(args: {
     result: resultSpec("Workflow queued."),
   });
   const runActions = runtimeRunActions(scopeId);
+  const sessionLaunch = action({
+    surfaceId: "runs",
+    actionId: "session.launch",
+    scopeId,
+    label: "Start session",
+    effect: "write",
+    operation: { kind: "daemon-route", method: "POST", path: "/sessions" },
+    parameters: sessionLaunchParameters(),
+    result: resultSpec("Session started."),
+  });
+  const launchDefaults = action({
+    surfaceId: "runs",
+    actionId: "launch.defaults.configure",
+    scopeId,
+    label: "Configure launch defaults",
+    effect: "write",
+    operation: { kind: "client-namespace", namespace: "config", method: "set" },
+    parameters: launchDefaultParameters(),
+    readiness: {
+      state: "disabled",
+      reason: "controller-unavailable",
+      message: "The shared UI exposes preset/model/effort defaults; a multi-key config controller is not installed yet.",
+    },
+    result: resultSpec("Launch defaults updated."),
+  });
   const actions = [
     action({
       surfaceId: "runs",
@@ -140,6 +166,8 @@ export function buildRuntimeUiSurface(args: {
       result: resultSpec("Active workflow runs aborted."),
     }),
     ...runActions.all,
+    sessionLaunch,
+    launchDefaults,
     launch,
   ];
 
@@ -157,6 +185,20 @@ export function buildRuntimeUiSurface(args: {
     scopeId,
     attachmentPoint: { kind: "intent", intent: "Work" },
     order: 30,
+    refreshEvents: [
+      "workflow.started",
+      "workflow.step.completed",
+      "workflow.completed",
+      "queue.changed",
+      "approval.changed",
+      "owner.question.asked",
+      "owner.question.changed",
+      "owner.question.resolved",
+      "owner.question.dismissed",
+      "owner.question.expired",
+      "session.registered",
+      "session.unregistered",
+    ],
     permissions: [{ kind: "capability-scope", scope: "read" }],
     nodes: [
       {
@@ -173,12 +215,29 @@ export function buildRuntimeUiSurface(args: {
       },
       { kind: "progress", label: "Agent run slots", value: Math.min(activeCount, agentLimit), max: Math.max(1, agentLimit), role: activeCount > 0 ? "warn" : "info" },
       { kind: "progress", label: "Code run slots", value: Math.min(activeCount, codeLimit), max: Math.max(1, codeLimit), role: activeCount > 0 ? "warn" : "info" },
+      {
+        kind: "metrics",
+        title: "Runtime usage",
+        metrics: runtimeUsageMetrics(args.workflowStatus),
+      },
       { kind: "table", title: "Active run supervision", columns: NAME_STATE_DETAIL_COLUMNS, rows: activeRunRows(args.workflowStatus, runActions.abortOneRun) },
       { kind: "table", title: "Queued workflow runs", columns: NAME_STATE_DETAIL_COLUMNS, rows: queuedRunRows(args.workflowStatus, runActions.cancelQueuedRun) },
       { kind: "table", title: "Recent run results", columns: NAME_STATE_DETAIL_COLUMNS, rows: recentRunRows(args.runs, { retry: runActions.retryRun, replay: runActions.replayRun, resume: runActions.resumeRun }) },
       { kind: "table", title: "Workflow definitions and schedules", columns: NAME_STATE_DETAIL_COLUMNS, rows: workflowRows(args.definitions) },
       { kind: "table", title: "Approvals", columns: NAME_STATE_DETAIL_COLUMNS, rows: approvalRows(args.approvals) },
       { kind: "table", title: "Owner questions", columns: NAME_STATE_DETAIL_COLUMNS, rows: ownerQuestionRows(args.ownerQuestions) },
+      {
+        kind: "form",
+        title: "Inspect one run",
+        fields: runActions.inspectRun.parameters!.fields,
+        submit: runActions.inspectRun,
+      },
+      {
+        kind: "form",
+        title: "Compare two runs",
+        fields: runActions.compareRuns.parameters!.fields,
+        submit: runActions.compareRuns,
+      },
       {
         kind: "log-stream",
         title: "Live run event stream",
@@ -210,36 +269,13 @@ export function buildRuntimeUiSurface(args: {
         kind: "form",
         title: "Run/session parameters",
         fields: sessionLaunchParameters().fields,
-        submit: action({
-          surfaceId: "runs",
-          actionId: "session.launch",
-          scopeId,
-          label: "Start session",
-          effect: "write",
-          operation: { kind: "daemon-route", method: "POST", path: "/sessions" },
-          parameters: sessionLaunchParameters(),
-          result: resultSpec("Session started."),
-        }),
+        submit: sessionLaunch,
       },
       {
         kind: "form",
         title: "Model, effort, and launch defaults",
         fields: launchDefaultParameters().fields,
-        submit: action({
-          surfaceId: "runs",
-          actionId: "launch.defaults.configure",
-          scopeId,
-          label: "Configure launch defaults",
-          effect: "write",
-          operation: { kind: "client-namespace", namespace: "config", method: "set" },
-          parameters: launchDefaultParameters(),
-          readiness: {
-            state: "disabled",
-            reason: "controller-unavailable",
-            message: "The shared UI exposes preset/model/effort defaults; a multi-key config controller is not installed yet.",
-          },
-          result: resultSpec("Launch defaults updated."),
-        }),
+        submit: launchDefaults,
       },
       { kind: "action-list", title: "Run controls", actions },
     ],

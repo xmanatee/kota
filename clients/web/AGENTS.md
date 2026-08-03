@@ -21,8 +21,9 @@ from `/scopes`.
 - The active project lives in `ProjectContext` (`src/lib/project-context.tsx`)
   and is encoded into the URL hash as `#p/<projectId>/<sub-route>`. The
   `p/<projectId>` prefix is owned by the context; everything after the second
-  `/` is in-project state (run id, compare ids, history id) that views own.
-  Hash-based routing is the convention here — no client-side router library.
+  `/` is in-project state; the live dashboard uses `surface/<surfaceId>` for
+  daemon-graph navigation. Hash-based routing is the convention here — no
+  client-side router library.
 - Every directory-scope TanStack Query key starts with the projectId
   (`["sessions", projectId]`, `["workflowRuns", projectId, params]`, …) so
   the cache cannot leak rows across scopes by construction. Keys are
@@ -37,11 +38,12 @@ from `/scopes`.
 - The header `ProjectSelector` (`src/components/sidebar/ProjectSelector.tsx`)
   hides itself when the projection has exactly one project, so the
   KOTA-on-itself experience is unchanged.
-- SSE invalidation in `useDaemonEvents` reads the active projectId and
-  invalidates that project's keys. The selector's reactive `projectId`
-  drives both the query keys and the SSE subscription set, so switching
-  projects re-fetches every project-scoped panel and never bleeds rows from
-  the previous selection.
+- SSE invalidation in `useDaemonEvents` reads the active projectId. The shared
+  graph's `refreshEvents` and log-stream event types own surface invalidation
+  and live log subscriptions; legacy non-graph queries keep their narrow
+  typed handlers. The selector's reactive `projectId` drives both query keys
+  and subscriptions, so switching projects re-fetches every project-scoped
+  surface and never bleeds rows or stream entries from the prior selection.
 - Tests render directory-scoped components inside `<TestProjectProvider>`
   (also in `src/lib/project-context.tsx`) instead of stubbing a fake
   identity payload through `fetch`.

@@ -20,7 +20,6 @@ import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-read
 import { createModelClient } from "#core/model/model-client.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import type { KotaModule, ModuleContext, ModuleRuntimeContext } from "#core/modules/module-types.js";
-import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import {
   apiKeyNameForProvider,
   resolveApiKey,
@@ -45,16 +44,11 @@ import {
 } from "./answer-types.js";
 import { createAnswerReadinessSource } from "./capability-readiness.js";
 import { registerAnswerCommand } from "./cli.js";
-import {
-  type AnswerClient,
-  type AnswerFilter,
-  type AnswerHistoryListFilter,
-  type AnswerHistoryListResult,
-  type AnswerHistoryShowResult,
-  type AnswerResult,
-  decodeAnswerHistoryListResult,
-  decodeAnswerHistoryShowResult,
+import type {
+  AnswerClient,
+  AnswerHistoryListFilter,
 } from "./client.js";
+import { buildAnswerDaemonHandler } from "./daemon-client.js";
 import { createAnswerProjectContextResolver } from "./project-context.js";
 import { createAnswerRecallContributor } from "./recall-contributor.js";
 import { answerApiRoutes, answerControlRoutes } from "./routes.js";
@@ -67,6 +61,7 @@ import {
   buildAnswerDynamicStateProvider,
 } from "./system-prompt.js";
 import { createAnswerToolDef } from "./tool.js";
+import { answerUiSurfaceSource } from "./ui-surface.js";
 
 const ANSWER_MAX_OUTPUT_TOKENS = 1024;
 
@@ -90,49 +85,6 @@ function resolveActiveHistory(): AnswerHistoryStore {
     );
   }
   return activeHistory;
-}
-
-/**
- * Daemon-side `AnswerClient` backed by the typed `DaemonTransport`. Calls the
- * same `/answer`, `/answers`, and `/answers/:id` HTTP routes the daemon
- * registers through `answerControlRoutes(...)`. The transport surface owns
- * the bearer token, base URL, and timeout policy — this factory only encodes
- * the wire shape and runs the strict decoders for the persisted-history reads.
- *
- * The JSON body for `POST /answer`, the URLSearchParams encoding for
- * `GET /answers`, and the path-encoded id segment for `GET /answers/:id`
- * match the existing route handlers byte-for-byte. Daemon-up callers
- * exercise the same parsing paths as direct HTTP clients.
- */
-function buildAnswerDaemonHandler(link: DaemonTransport): AnswerClient {
-  return {
-    answer: async (query: string, filter?: AnswerFilter): Promise<AnswerResult> =>
-      link.requestStrict<AnswerResult>("POST", "/answer", {
-        query,
-        ...(filter && { filter }),
-      }),
-    log: async (
-      filter?: AnswerHistoryListFilter,
-    ): Promise<AnswerHistoryListResult> => {
-      const params = new URLSearchParams();
-      if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
-      if (filter?.beforeId !== undefined) params.set("beforeId", filter.beforeId);
-      if (filter?.projectId !== undefined) params.set("projectId", filter.projectId);
-      const query = params.toString() ? `?${params.toString()}` : "";
-      const decoded = await link.requestStrict<unknown>("GET", `/answers${query}`);
-      return decodeAnswerHistoryListResult(decoded);
-    },
-    show: async (id: string, project): Promise<AnswerHistoryShowResult> => {
-      const params = new URLSearchParams();
-      if (project?.projectId !== undefined) params.set("projectId", project.projectId);
-      const query = params.toString() ? `?${params.toString()}` : "";
-      const decoded = await link.requestStrict<unknown>(
-        "GET",
-        `/answers/${encodeURIComponent(id)}${query}`,
-      );
-      return decodeAnswerHistoryShowResult(decoded);
-    },
-  };
 }
 
 function createDefaultSynthesizer(ctx: ModuleContext): Synthesizer {
@@ -165,6 +117,7 @@ const answerModule: KotaModule = {
   description:
     "Cited-answer seam — one query returns one short composed answer plus typed citations resolving back to the underlying RecallHits, with persisted history for re-read and eval-corpus seeding.",
   dependencies: ["recall", "model-clients", "rendering"],
+  uiSurfaces: [answerUiSurfaceSource],
 
   onLoad(ctx: ModuleRuntimeContext) {
     const resolveProjectContext = createAnswerProjectContextResolver(ctx.cwd, () =>

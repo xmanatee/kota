@@ -7,7 +7,6 @@ import {
   buildContinuityProjection,
   buildContinuityUiSurface,
   buildInboxUiSurface,
-  buildOperatorControlUiSurface,
   buildScopeUiSurface,
   buildStatusUiSurface,
 } from "./operator-ui.js";
@@ -100,15 +99,9 @@ const continuitySource: UiSurfaceSource = {
   },
 };
 
-const operatorControlSource: UiSurfaceSource = {
-  sourceId: "operator-control",
-  project: (context) => [buildOperatorControlUiSurface(context.scopeId)],
-};
-
 export const daemonOpsUiSurfaceSources = [
   statusSource,
   scopesSource,
   inboxSource,
   continuitySource,
-  operatorControlSource,
 ] as const satisfies readonly UiSurfaceSource[];

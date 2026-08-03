@@ -147,7 +147,7 @@ const DAEMON_HOST_HELP = [
   "  This command hosts and monitors the daemon. It is not the interactive operator console.",
   "  Open the console with `kota navigate` or bare `kota`.",
   "  Inspect and control workflow dispatch with `kota workflow status`, `pause`, `resume`, and `follow`.",
-  "  Render the shared operator controls with `kota ui render operator-control`.",
+  "  Render live workflow controls with `kota ui render runs`.",
 ].join("\n");
 const DAEMON_COMMAND_DESCRIPTION = [
   "Run the KOTA daemon host and foreground dashboard.",

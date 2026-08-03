@@ -95,6 +95,11 @@ describe("daemonModule definition", () => {
     expect(install.options.map((option) => option.long)).toContain("--dry-run");
     expect(daemonModule.tools).toBeUndefined();
     expect(daemonModule.routes).toBeUndefined();
+    expect(
+      typeof daemonModule.uiSurfaces === "function"
+        ? []
+        : daemonModule.uiSurfaces?.map((source) => source.sourceId),
+    ).toEqual(["status", "scopes", "inbox", "continuity"]);
   });
 
   it("serves the unified scoped module projection from /ui/surfaces", async () => {

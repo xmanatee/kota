@@ -5,6 +5,7 @@ import type {
   UiAction,
   UiActionParameterSpec,
   UiLogEntry,
+  UiMetric,
   UiTableRow,
 } from "#core/daemon/ui-surface.js";
 import {
@@ -166,6 +167,35 @@ export function runtimeLogEntries(args: {
   ];
 }
 
+export function runtimeUsageMetrics(
+  status: SurfaceRead<WorkflowStatusSnapshot>,
+): UiMetric[] {
+  return [
+    {
+      label: "Total cost",
+      value: status.ok && status.value.totalCostUsd !== undefined
+        ? status.value.totalCostUsd.toFixed(4)
+        : "—",
+      unit: "USD",
+      role: "muted",
+    },
+    {
+      label: "Input tokens",
+      value: status.ok && status.value.totalInputTokens !== undefined
+        ? `${status.value.totalInputTokens}`
+        : "—",
+      role: "muted",
+    },
+    {
+      label: "Output tokens",
+      value: status.ok && status.value.totalOutputTokens !== undefined
+        ? `${status.value.totalOutputTokens}`
+        : "—",
+      role: "muted",
+    },
+  ];
+}
+
 export function runAbortParameters(): UiActionParameterSpec {
   return runIdParameters("Run id");
 }
@@ -198,6 +228,28 @@ export function runResumeParameters(): UiActionParameterSpec {
       additionalProperties: false,
     },
   };
+}
+
+export function runCompareParameters(): UiActionParameterSpec {
+  return {
+    fields: [
+      { id: "runIdA", label: "First run id", input: "text", required: true },
+      { id: "runIdB", label: "Second run id", input: "text", required: true },
+    ],
+    schema: {
+      type: "object",
+      required: ["runIdA", "runIdB"],
+      properties: {
+        runIdA: { type: "string" },
+        runIdB: { type: "string" },
+      },
+      additionalProperties: false,
+    },
+  };
+}
+
+export function runInspectParameters(): UiActionParameterSpec {
+  return runIdParameters("Run id");
 }
 
 function runIdParameters(label: string): UiActionParameterSpec {

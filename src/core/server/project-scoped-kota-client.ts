@@ -42,7 +42,7 @@ function createScopedKotaClient(
     throw new KotaClientProjectError(errorId);
   }
   const scoped = runScopedKotaClientOperation;
-
+  const updateTaskBody = base.tasks?.updateBody?.bind(base.tasks);
   return {
     ...base,
     forProject: (nextProjectId) =>
@@ -160,6 +160,14 @@ function createScopedKotaClient(
         scoped(selectedId, () =>
           base.tasks.move(id, toState, withScope(project, selector)),
         ),
+      ...(updateTaskBody
+        ? {
+            updateBody: (id, body, project) =>
+              scoped(selectedId, () =>
+                updateTaskBody(id, body, withScope(project, selector)),
+              ),
+          }
+        : {}),
       create: (options) =>
         scoped(selectedId, () =>
           base.tasks.create(withScope(options, selector)),

@@ -1,8 +1,13 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { uiSurfacesQuery } from "@/api/queries";
 import { Sidebar } from "@/components/sidebar/Sidebar";
-import { ProjectProvider } from "@/lib/project-context";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ProjectProvider, useProjectId } from "@/lib/project-context";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -40,39 +45,6 @@ const PROJECTS = {
       projectId: "beta",
       projectDir: "/projects/beta",
       displayName: "Beta",
-    },
-  ],
-};
-
-const SESSIONS_BY_PROJECT: Record<
-  string,
-  Array<{
-    id: string;
-    scopeId: string;
-    projectId: string;
-    createdAt: string;
-    lastActive: number;
-    autonomyMode: "passive" | "supervised" | "autonomous";
-  }>
-> = {
-  alpha: [
-    {
-      id: "alpha-session-id-aaaaaaaa",
-      scopeId: "alpha",
-      projectId: "alpha",
-      createdAt: "2026-05-08T01:00:00.000Z",
-      lastActive: 0,
-      autonomyMode: "supervised",
-    },
-  ],
-  beta: [
-    {
-      id: "beta-session-id-bbbbbbbb",
-      scopeId: "beta",
-      projectId: "beta",
-      createdAt: "2026-05-08T01:30:00.000Z",
-      lastActive: 0,
-      autonomyMode: "autonomous",
     },
   ],
 };
@@ -130,12 +102,28 @@ function makeFetchMock(): {
           }),
       } as Response;
     }
-    if (path === "/api/sessions") {
+    if (path === "/ui/surfaces") {
       const id = projectId === "beta" ? "beta" : "alpha";
       return {
         ok: true,
         json: () =>
-          Promise.resolve({ sessions: SESSIONS_BY_PROJECT[id] ?? [] }),
+          Promise.resolve({
+            protocolVersion: "ui.surface.v1",
+            surfaces: [
+              {
+                protocolVersion: "ui.surface.v1",
+                surfaceId: "status",
+                extensionId: "test.status",
+                title: `${id}-session`,
+                intent: "Status",
+                scopeId: id,
+                attachmentPoint: { kind: "root" },
+                order: 10,
+                nodes: [],
+                actions: [],
+              },
+            ],
+          }),
       } as Response;
     }
     if (path === "/api/workflow/status") {
@@ -194,6 +182,26 @@ function makeWrapper(): ({
 
 function noop(): void {}
 
+function ScopedSidebar() {
+  const projectId = useProjectId();
+  const surfaces = useQuery(uiSurfacesQuery(projectId));
+  return (
+    <Sidebar
+      collapsed={false}
+      onToggle={noop}
+      onNewChat={noop}
+      connectionStatus="connected"
+      darkMode={false}
+      onToggleTheme={noop}
+      uiBundle={surfaces.data}
+      uiLoading={surfaces.isPending}
+      uiError={surfaces.error}
+      selectedSurfaceId={null}
+      onSurfaceSelect={noop}
+    />
+  );
+}
+
 describe("project selector + project-scoped routing", () => {
   const originalFetch = globalThis.fetch;
 
@@ -222,19 +230,7 @@ describe("project selector + project-scoped routing", () => {
     const Wrapper = makeWrapper();
     const { container } = render(
       <Wrapper>
-        <Sidebar
-          collapsed={false}
-          onToggle={noop}
-          activeSessionId={null}
-          onSessionSelect={noop}
-          onHistorySelect={noop}
-          onRunSelect={noop}
-          onCompareRuns={(_a: string, _b: string) => undefined}
-          onNewChat={noop}
-          connectionStatus="connected"
-          darkMode={false}
-          onToggleTheme={noop}
-        />
+        <ScopedSidebar />
       </Wrapper>,
     );
 
@@ -247,9 +243,7 @@ describe("project selector + project-scoped routing", () => {
     ) as HTMLOptionElement[];
     expect(options.map((o) => o.value)).toEqual(["alpha", "beta"]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Work" }));
-
-    // Alpha's session row appears.
+    // Alpha's shared surface appears.
     await waitFor(() =>
       expect(screen.getByText(/alpha-sessio/)).toBeInTheDocument(),
     );
@@ -258,7 +252,7 @@ describe("project selector + project-scoped routing", () => {
     const alphaScopedPaths = calls
       .filter((c) => c.projectId === "alpha")
       .map((c) => c.path);
-    expect(alphaScopedPaths).toContain("/api/sessions");
+    expect(alphaScopedPaths).toContain("/ui/surfaces");
     expect(
       calls.some((c) => c.projectId !== null && c.projectId !== "alpha"),
     ).toBe(false);
@@ -282,7 +276,7 @@ describe("project selector + project-scoped routing", () => {
     const betaCalls = calls
       .filter((c) => c.projectId === "beta")
       .map((c) => c.path);
-    expect(betaCalls).toContain("/api/sessions");
+    expect(betaCalls).toContain("/ui/surfaces");
 
     emitEvidence(
       "web-project-selector-beta.html",

@@ -322,6 +322,7 @@ enum UiConfirmationRisk: String, Codable, Equatable {
 
 enum UiFieldInput: String, Codable, Equatable {
     case text
+    case multiline
     case secret
     case number
     case boolean
@@ -481,11 +482,13 @@ indirect enum UiJsonSchema: Codable, Equatable {
 
 indirect enum UiLinkTarget: Codable, Equatable {
     case surface(surfaceId: String)
+    case session(sessionId: String)
     case daemonRoute(path: String)
     case externalUrl(url: String)
 
     private enum Discriminator: String, Codable {
         case surface
+        case session
         case daemonRoute = "daemon-route"
         case externalUrl = "external-url"
     }
@@ -493,6 +496,7 @@ indirect enum UiLinkTarget: Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case kind
         case path
+        case sessionId
         case surfaceId
         case url
     }
@@ -503,6 +507,10 @@ indirect enum UiLinkTarget: Codable, Equatable {
         case .surface:
             self = .surface(
                 surfaceId: try container.decode(String.self, forKey: .surfaceId)
+            )
+        case .session:
+            self = .session(
+                sessionId: try container.decode(String.self, forKey: .sessionId)
             )
         case .daemonRoute:
             self = .daemonRoute(
@@ -521,6 +529,9 @@ indirect enum UiLinkTarget: Codable, Equatable {
         case .surface(let surfaceId):
             try container.encode(Discriminator.surface, forKey: .kind)
             try container.encode(surfaceId, forKey: .surfaceId)
+        case .session(let sessionId):
+            try container.encode(Discriminator.session, forKey: .kind)
+            try container.encode(sessionId, forKey: .sessionId)
         case .daemonRoute(let path):
             try container.encode(Discriminator.daemonRoute, forKey: .kind)
             try container.encode(path, forKey: .path)
@@ -904,6 +915,7 @@ struct UiSurface: Codable, Equatable {
     let order: Double
     let permissions: [UiPermission]?
     let protocolVersion: UiProtocolVersion
+    let refreshEvents: [String]?
     let scopeId: String
     let surfaceId: String
     let title: String

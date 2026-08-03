@@ -5,20 +5,15 @@ import type { WorkflowRunDetail, WorkflowRunSummary } from "@/api/types";
  * RunCompare test — covers the operator workflow of selecting two runs of
  * the same workflow and seeing the diff render correctly:
  *
- *  - Marking two same-workflow runs and clicking Compare hands the right
- *    pair of ids to the host (which then routes to RunCompare).
- *  - Marking two different-workflow runs blocks the Compare action with
- *    a same-workflow notice.
  *  - The compare view itself renders status, duration, and cost deltas
  *    plus the outcome change row using fixture-backed run details.
  *  - Single-run view (RunDetail) still works after the changes.
  */
 import { RunCompare } from "@/components/run-detail/RunCompare";
 import { RunDetail } from "@/components/run-detail/RunDetail";
-import { WorkflowPanel } from "@/components/sidebar/WorkflowPanel";
 import { TestProjectProvider } from "@/lib/project-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -161,30 +156,6 @@ function installFetch(handler: FetchHandler): ReturnType<typeof vi.fn> {
   return mock;
 }
 
-function panelHandler(): FetchHandler {
-  return async (input) => {
-    const url = urlOf(input);
-    const path = url.split("?")[0];
-    if (path === "/api/workflow/status") {
-      return {
-        activeRuns: [],
-        pendingRuns: [],
-        queueLength: 0,
-        completedRuns: 0,
-        paused: false,
-        agentConcurrency: 1,
-        codeConcurrency: 4,
-        workflows: { builder: { enabled: true }, explorer: { enabled: true } },
-      };
-    }
-    if (path === "/api/workflow/definitions") return { definitions: [] };
-    if (path === "/api/workflow/runs") {
-      return { runs: [RUN_A_SUMMARY, RUN_B_SUMMARY, RUN_C_SUMMARY] };
-    }
-    throw new Error(`Unexpected fetch ${url}`);
-  };
-}
-
 function compareHandler(): FetchHandler {
   return async (input) => {
     const url = urlOf(input);
@@ -198,83 +169,6 @@ function compareHandler(): FetchHandler {
     throw new Error(`Unexpected fetch ${url}`);
   };
 }
-
-describe("WorkflowPanel — compare selection", () => {
-  const originalFetch = globalThis.fetch;
-
-  beforeEach(() => {
-    Object.defineProperty(window, "location", {
-      value: { search: "", pathname: "/", hash: "" },
-      writable: true,
-    });
-    localStorage.setItem("kota-auth-token", "test-token");
-  });
-
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-    localStorage.clear();
-    vi.resetModules();
-  });
-
-  it("enables Compare for two same-workflow runs and hands the pair to the host", async () => {
-    installFetch(panelHandler());
-    const { Wrapper } = makeWrapper();
-    const compareCalls: Array<[string, string]> = [];
-    render(
-      <Wrapper>
-        <WorkflowPanel
-          onRunSelect={() => undefined}
-          onCompareRuns={(a, b) => compareCalls.push([a, b])}
-        />
-      </Wrapper>,
-    );
-
-    await waitFor(() =>
-      expect(
-        screen.getAllByLabelText(/builder run .* for comparison/),
-      ).toHaveLength(2),
-    );
-
-    const builderCheckboxes = screen.getAllByLabelText(
-      /builder run .* for comparison/,
-    );
-    fireEvent.click(builderCheckboxes[0]!);
-    fireEvent.click(builderCheckboxes[1]!);
-
-    const compareBtn = screen.getByRole("button", { name: /^Compare$/ });
-    expect(compareBtn).toBeEnabled();
-    fireEvent.click(compareBtn);
-
-    expect(compareCalls).toEqual([[RUN_A_SUMMARY.id, RUN_B_SUMMARY.id]]);
-  });
-
-  it("blocks Compare for two different-workflow runs and shows a same-workflow notice", async () => {
-    installFetch(panelHandler());
-    const { Wrapper } = makeWrapper();
-    render(
-      <Wrapper>
-        <WorkflowPanel
-          onRunSelect={() => undefined}
-          onCompareRuns={() => undefined}
-        />
-      </Wrapper>,
-    );
-
-    await waitFor(() =>
-      expect(
-        screen.getAllByLabelText(/builder run .* for comparison/),
-      ).toHaveLength(2),
-    );
-
-    fireEvent.click(
-      screen.getAllByLabelText(/builder run .* for comparison/)[0]!,
-    );
-    fireEvent.click(screen.getByLabelText(/explorer run .* for comparison/));
-
-    expect(screen.getByText(/same workflow only/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Compare$/ })).toBeDisabled();
-  });
-});
 
 describe("RunCompare — render", () => {
   const originalFetch = globalThis.fetch;

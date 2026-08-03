@@ -31,6 +31,7 @@ export function buildSetupUiSurface(args: {
     scopeId,
     attachmentPoint: { kind: "intent", intent: "Setup" },
     order: 50,
+    refreshEvents: ["daemon.config.reload", "scope.lifecycle.changed"],
     permissions: [{ kind: "capability-scope", scope: "read" }],
     nodes: [
       {

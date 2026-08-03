@@ -52,6 +52,7 @@ function actionLine(action: UiAction): RenderNode {
 
 function linkTargetLabel(node: Extract<UiNode, { kind: "link" }>): string {
   if (node.target.kind === "surface") return `surface:${node.target.surfaceId}`;
+  if (node.target.kind === "session") return `session:${node.target.sessionId}`;
   if (node.target.kind === "daemon-route") return node.target.path;
   return node.target.url;
 }

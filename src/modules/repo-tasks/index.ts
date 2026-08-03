@@ -15,24 +15,15 @@ import {
 	REPO_TASKS_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
 import type { RepoTasksProvider } from "#core/modules/provider-types.js";
-import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { createRepoTasksReadinessSource } from "./capability-readiness.js";
 import { listTasksForStates, registerTaskCommands } from "./cli.js";
 import type {
-	RepoTaskCaptureResult,
-	RepoTaskCreateOptions,
-	RepoTaskCreateResult,
-	RepoTaskGcOptions,
-	RepoTaskGcResult,
 	RepoTaskListEntry,
-	RepoTaskMoveResult,
-	RepoTaskReindexResult,
-	RepoTaskSearchFilter,
 	RepoTaskSearchResult,
-	RepoTaskShowResult,
 	RepoTaskState,
 	RepoTasksClient,
 } from "./client.js";
+import { buildRepoTasksDaemonHandler } from "./daemon-client.js";
 import {
 	createRepoTasksProjectStores,
 	type RepoTasksProjectStores,
@@ -43,9 +34,11 @@ import {
 	createNormalizedTask,
 	gcTerminalTasks,
 	showTask,
+	updateTaskBody,
 } from "./repo-tasks-operations.js";
 import { RepoTasksDefaultStore } from "./repo-tasks-store.js";
 import { taskControlRoutes, taskRoutes } from "./routes.js";
+import { repoTasksUiSurfaceSource } from "./ui-surface.js";
 
 const REPO_TASK_OPEN_STATES: RepoTaskState[] = [
 	"backlog",
@@ -67,13 +60,6 @@ function resolveRepoTasksProject(
 	return resolved;
 }
 
-function projectQuery(projectId: string | undefined): string {
-	if (!projectId) return "";
-	const params = new URLSearchParams();
-	params.set("projectId", projectId);
-	return `?${params.toString()}`;
-}
-
 function createLocalDefaultProviderResolver(
 	defaultProjectDir: string,
 ): () => RepoTasksProvider {
@@ -87,39 +73,12 @@ function createLocalDefaultProviderResolver(
 	};
 }
 
-type RepoTaskRouteErrorBody = {
-	error?: string;
-	reason?: string;
-	projectId?: string;
-};
-
-async function readRepoTaskRouteError(
-	res: Response,
-): Promise<RepoTaskRouteErrorBody | null> {
-	try {
-		const parsed = (await res.json()) as RepoTaskRouteErrorBody;
-		return typeof parsed === "object" && parsed !== null ? parsed : null;
-	} catch {
-		return null;
-	}
-}
-
-async function throwRepoTaskRouteError(
-	res: Response,
-	fallback: string,
-): Promise<never> {
-	const body = await readRepoTaskRouteError(res);
-	if (body?.reason === "unknown_project" && body.projectId) {
-		throw new Error(`Unknown project: ${body.projectId}`);
-	}
-	throw new Error(body?.error ?? fallback);
-}
-
 const repoTasksModule: KotaModule = {
 	name: "repo-tasks",
 	version: "1.0.0",
 	description: "Operator CLI for the KOTA repo task queue",
 	dependencies: ["rendering"],
+	uiSurfaces: [repoTasksUiSurfaceSource],
 
 	onLoad: (ctx: ModuleRuntimeContext) => {
 		ctx.registerProvider(REPO_TASKS_PROVIDER_TOKEN, new RepoTasksDefaultStore(ctx.cwd));
@@ -187,6 +146,10 @@ const repoTasksModule: KotaModule = {
 					throw err;
 				}
 			},
+			async updateBody(id, body, project) {
+				const resolved = resolveRepoTasksProject(projectStores, project?.projectId);
+				return updateTaskBody(resolved.projectDir, id, body);
+			},
 			async create(options) {
 				const { projectId, ...taskOptions } = options;
 				const resolved = resolveRepoTasksProject(projectStores, projectId);
@@ -235,249 +198,5 @@ const repoTasksModule: KotaModule = {
 	},
 	daemonClient: (link) => ({ tasks: buildRepoTasksDaemonHandler(link) }),
 };
-
-/**
- * Daemon-side `RepoTasksClient` backed by the typed `DaemonTransport`. Calls
- * the `/api/tasks*` and `/tasks/*` HTTP routes the daemon owns.
- *
- *  - `list(states)` GETs `/api/tasks` through `link.fetchRaw`. On transport
- *    failure or non-ok response it returns `{ tasks: [] }` (the soft-fail
- *    contract preserved from the prior inline closure). On success it parses
- *    the `{ counts, tasks: Record<state, [...] >}` body, flattens entries
- *    matching the caller's requested states (defaulting to the four open
- *    states when omitted), and skips terminal `done`/`dropped` states.
- *  - `show(id)` GETs `/api/tasks/<id>`. 404 returns `{ found: false }`;
- *    other non-ok throws the daemon's `error` field; success returns
- *    `{ found: true, state, content }`.
- *  - `move(id, toState)` PATCHes `/api/tasks/<id>/move` with body
- *    `{ state: toState }`. 400 invalid ids collapse to `invalid_id`; 404 to
- *    `not_found`; 409 to `already_in_state` (with the response body's
- *    `state` or `toState`); other non-ok throws; success returns the move
- *    shape.
- *  - `create(options)` POSTs `/api/tasks/normalized` with the full
- *    `RepoTaskCreateOptions` body. 409 → `already_exists`; 400 →
- *    `invalid_slug`; other non-ok throws; success returns `{ ok: true,
- *    id, path }`.
- *  - `capture(title)` POSTs `/api/tasks/capture` with body `{ title }`.
- *    Same conflict and success arms as `create`.
- *  - `gc(options)` POSTs `/api/tasks/gc` with `options ?? {}`. Non-ok
- *    throws; success returns the parsed `RepoTaskGcResult` body verbatim.
- *  - `search(query, filter)` GETs `/tasks/search?q=…` with `semantic`,
- *    `limit`, and `state` query params. Non-ok throws; success returns
- *    the parsed `RepoTaskSearchResult` body verbatim.
- *  - `reindex()` POSTs `/tasks/reindex`. Non-ok throws; success returns
- *    the parsed `RepoTaskReindexResult` body verbatim.
- */
-function buildRepoTasksDaemonHandler(link: DaemonTransport): RepoTasksClient {
-	return {
-		list: async (states, project) => {
-			const wanted = states && states.length > 0 ? states : REPO_TASK_OPEN_STATES;
-			const query = projectQuery(project?.projectId);
-			type ListBody = {
-				counts: Record<string, number>;
-				tasks: Record<
-					string,
-					{
-						id: string;
-						title: string;
-						priority: string;
-						area: string;
-						summary: string;
-						body: string;
-						waitingOnTasks?: string[];
-					}[]
-				>;
-			};
-			let body: ListBody | null = null;
-			try {
-				const res = await link.fetchRaw(`/api/tasks${query}`, { method: "GET" });
-				if (res.ok) {
-					body = (await res.json()) as ListBody;
-				} else {
-					const errBody = await readRepoTaskRouteError(res);
-					if (errBody?.reason === "unknown_project" && errBody.projectId) {
-						throw new Error(`Unknown project: ${errBody.projectId}`);
-					}
-				}
-			} catch (err) {
-				if (err instanceof Error && /^Unknown project(?::|$)/.test(err.message)) {
-					throw err;
-				}
-				body = null;
-			}
-			const tasks: RepoTaskListEntry[] = [];
-			if (body) {
-				for (const state of wanted) {
-					if (state === "done" || state === "dropped") continue;
-					const stateTasks = body.tasks[state] ?? [];
-					for (const task of stateTasks) {
-						tasks.push({
-							id: task.id,
-							priority: task.priority,
-							title: task.title,
-							state,
-							waitingOnTasks: task.waitingOnTasks ?? [],
-						});
-					}
-				}
-			}
-			return { tasks };
-		},
-		show: async (id, project): Promise<RepoTaskShowResult> => {
-			const query = projectQuery(project?.projectId);
-			const res = await link.fetchRaw(
-				`/api/tasks/${encodeURIComponent(id)}${query}`,
-				{ method: "GET" },
-			);
-			if (res.status === 404) {
-				const errBody = await readRepoTaskRouteError(res);
-				if (errBody?.reason === "unknown_project" && errBody.projectId) {
-					throw new Error(`Unknown project: ${errBody.projectId}`);
-				}
-				return { found: false };
-			}
-			if (!res.ok) {
-				await throwRepoTaskRouteError(res, `HTTP ${res.status}`);
-			}
-			const okBody = (await res.json()) as { state: RepoTaskState; content: string };
-			return { found: true, state: okBody.state, content: okBody.content };
-		},
-		move: async (id, toState, project): Promise<RepoTaskMoveResult> => {
-			const query = projectQuery(project?.projectId);
-			const res = await link.fetchRaw(
-				`/api/tasks/${encodeURIComponent(id)}/move${query}`,
-				{
-					method: "PATCH",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ state: toState }),
-				},
-			);
-			if (res.status === 404) {
-				const errBody = await readRepoTaskRouteError(res);
-				if (errBody?.reason === "unknown_project" && errBody.projectId) {
-					throw new Error(`Unknown project: ${errBody.projectId}`);
-				}
-				return { ok: false, reason: "not_found" };
-			}
-			if (res.status === 400) {
-				const errBody = await readRepoTaskRouteError(res);
-				if (errBody?.reason === "invalid_id") {
-					return { ok: false, reason: "invalid_id" };
-				}
-				throw new Error(errBody?.error ?? "HTTP 400");
-			}
-			if (res.status === 409) {
-				const conflictBody = (await res.json().catch(() => ({}))) as {
-					state?: RepoTaskState;
-				};
-				return {
-					ok: false,
-					reason: "already_in_state",
-					state: conflictBody.state ?? toState,
-				};
-			}
-			if (!res.ok) {
-				await throwRepoTaskRouteError(res, `HTTP ${res.status}`);
-			}
-			const okBody = (await res.json()) as {
-				id: string;
-				fromState: RepoTaskState;
-				toState: RepoTaskState;
-				path: string;
-				previousPath: string;
-			};
-			return {
-				ok: true,
-				id: okBody.id,
-				fromState: okBody.fromState,
-				toState: okBody.toState,
-				path: okBody.path,
-				previousPath: okBody.previousPath,
-			};
-		},
-		create: async (options: RepoTaskCreateOptions): Promise<RepoTaskCreateResult> => {
-			const { projectId, ...body } = options;
-			const query = projectQuery(projectId);
-			const res = await link.fetchRaw(`/api/tasks/normalized${query}`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(body),
-			});
-			if (res.status === 409) {
-				const errBody = (await res.json().catch(() => ({}))) as { error?: string };
-				return { ok: false, reason: "already_exists", message: errBody.error };
-			}
-			if (res.status === 400) {
-				const errBody = (await res.json().catch(() => ({}))) as { error?: string };
-				return { ok: false, reason: "invalid_slug", message: errBody.error };
-			}
-			if (!res.ok) {
-				await throwRepoTaskRouteError(res, `HTTP ${res.status}`);
-			}
-			const okBody = (await res.json()) as { id: string; path: string };
-			return { ok: true, id: okBody.id, path: okBody.path };
-		},
-		capture: async (title: string, project): Promise<RepoTaskCaptureResult> => {
-			const query = projectQuery(project?.projectId);
-			const res = await link.fetchRaw(`/api/tasks/capture${query}`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ title }),
-			});
-			if (res.status === 409) {
-				const errBody = (await res.json().catch(() => ({}))) as { error?: string };
-				return { ok: false, reason: "already_exists", message: errBody.error };
-			}
-			if (res.status === 400) {
-				const errBody = (await res.json().catch(() => ({}))) as { error?: string };
-				return { ok: false, reason: "invalid_slug", message: errBody.error };
-			}
-			if (!res.ok) {
-				await throwRepoTaskRouteError(res, `HTTP ${res.status}`);
-			}
-			const okBody = (await res.json()) as { id: string; path: string };
-			return { ok: true, id: okBody.id, path: okBody.path };
-		},
-		gc: async (options?: RepoTaskGcOptions): Promise<RepoTaskGcResult> => {
-			const { projectId, ...body } = options ?? {};
-			const query = projectQuery(projectId);
-			const res = await link.fetchRaw(`/api/tasks/gc${query}`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(body),
-			});
-			if (!res.ok) {
-				await throwRepoTaskRouteError(res, `HTTP ${res.status}`);
-			}
-			return (await res.json()) as RepoTaskGcResult;
-		},
-		search: async (
-			query: string,
-			filter?: RepoTaskSearchFilter,
-		): Promise<RepoTaskSearchResult> => {
-			const params = new URLSearchParams();
-			params.set("q", query);
-			if (filter?.semantic === false) params.set("semantic", "false");
-			if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
-			if (filter?.states) {
-				for (const state of filter.states) params.append("state", state);
-			}
-			if (filter?.projectId) params.set("projectId", filter.projectId);
-			const res = await link.fetchRaw(`/tasks/search?${params.toString()}`);
-			if (!res.ok) {
-				await throwRepoTaskRouteError(res, `HTTP ${res.status}`);
-			}
-			return (await res.json()) as RepoTaskSearchResult;
-		},
-		reindex: async (project): Promise<RepoTaskReindexResult> => {
-			const query = projectQuery(project?.projectId);
-			const res = await link.fetchRaw(`/tasks/reindex${query}`, { method: "POST" });
-			if (!res.ok) {
-				await throwRepoTaskRouteError(res, `HTTP ${res.status}`);
-			}
-			return (await res.json()) as RepoTaskReindexResult;
-		},
-	};
-}
 
 export default repoTasksModule;

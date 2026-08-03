@@ -1,0 +1,397 @@
+$ kota ui render --scope web-evidence --all
+Input: .kota/builder-evidence/2026-08-02T18-10-55-229Z-builder-di3zdv/artifacts/captured-ui-surface-bundle.json
+Protocol: ui.surface.v1
+Surfaces: 20
+Actions: 55
+
+=== status · core.status · Status ===
+Status
+----------------------------------------
+Status
+
+Daemon:               not running (offline mode)
+Dispatch:             offline
+Runs:                 offline (live run state unavailable)
+Approvals:            0 pending
+Historical run store: 0 active, 0 queued from offline files
+Runtime source:       local files only; daemon API and event stream unavailable
+Warnings -------------------------------------------------------------------------------------------
+- Daemon is offline  Dispatch, event stream, live sessions, and live run state are unavailable.
+  daemonOps.start
+
+=== scopes · core.scopes · Status ===
+Scopes
+----------------------------------------
+Status
+
+Registry: daemon required
+Active:   unavailable
+Sessions: 1 live
+Directory scopes -----------------------------------------------------------------------------------
+Name         State            Detail
+Unavailable  daemon required  The active KotaClient could not…
+Live sessions --------------------------------------------------------------------------------------
+Name                      State       Detail
+session-browser-evidence  supervised  web-evidence  daemon  last=2026…
+Resume session session-browser-evidence  session:session-browser-evidence
+Scope actions --------------------------------------------------------------------------------------
+Reload scope registry  read  none  ready  projects.list
+Switch active scope  write  required  ready  projects.use
+List live sessions  read  none  ready  sessions.list
+Change autonomy mode  write  required  ready  sessions.setAutonomyMode
+
+=== inbox · core.inbox · Inbox ===
+Inbox
+----------------------------------------
+Inbox
+
+Runtime:         1
+Approvals:       1
+Owner questions: 1
+Blocked:         0
+Setup:           0
+Failed runs:     0
+Attention items ------------------------------------------------------------------------------------
+- Daemon is offline  Dispatch, event stream, live sessions, and live run state are unavailable.
+  GET /status
+- Approval required: shell.exec  dangerous risk — Run the repository test suite before release.
+  GET /approvals?status=pending
+- Should the rollout use the guarded release channel?  The choice changes the rollout policy.
+  GET /owner-questions?status=pending
+
+=== approvals · approval-queue.review · Inbox ===
+Approvals
+----------------------------------------
+Inbox
+
+Pending approvals: 1
+Pending tool and workflow approvals ----------------------------------------------------------------
+Name                       State       Detail
+approval-browser-evidence  pending     shell.exec · Run the repository…
+Approval actions -----------------------------------------------------------------------------------
+Reload approvals  read  none  ready  approvals.list
+Resolve approval  external  required  ready  approvals.resolve
+
+=== continuity · core.continuity · Work ===
+Continuity
+----------------------------------------
+Work
+
+State:            blocked
+Work:             1
+Unblocks:         2
+Failed runs:      0
+Artifacts:        0
+Memory/knowledge: 0
+Follow-ups:       0
+Next action ----------------------------------------------------------------------------------------
+Resolve the first unblock item, then refresh continuity.
+Work continuity ------------------------------------------------------------------------------------
+Name                              State       Detail
+Render shared UI surfaces in th…  doing       p1  Open task: GET /api/tasks/t…
+Open unblock points --------------------------------------------------------------------------------
+- Approval: shell.exec  pending; Run the repository test suite before release.
+  GET /approvals?status=pending
+- Owner question  pending; Should the rollout use the guarded release channel?
+  GET /owner-questions?status=pending
+Run artifacts to review ----------------------------------------------------------------------------
+No items.
+Memory and knowledge hints -------------------------------------------------------------------------
+No items.
+Recurring follow-ups -------------------------------------------------------------------------------
+No items.
+Continuity actions ---------------------------------------------------------------------------------
+Refresh continuity  read  none  ready  GET /ui/surfaces
+Open task  read  none  ready  GET /api/tasks/task-render-shared-ui-surfaces-in-the-web-client
+Open approvals  read  none  ready  GET /approvals?status=pending
+Open owner questions  read  none  ready  GET /owner-questions?status=pending
+
+=== owner-questions · owner-questions.review · Inbox ===
+Owner Questions
+----------------------------------------
+Inbox
+
+Pending questions: 1
+Questions waiting on the owner ---------------------------------------------------------------------
+Name                       State       Detail
+question-browser-evidence  pending     Should the rollout use the guar…
+Question actions -----------------------------------------------------------------------------------
+Reload owner questions  read  none  ready  ownerQuestions.list
+Resolve question  write  required  ready  ownerQuestions.resolve
+
+=== runs · core.runs · Work ===
+Runs and Automations
+----------------------------------------
+Work
+
+Dispatch:        running
+Active:          0
+Queued:          0
+Definitions:     0
+Approvals:       1
+Owner questions: 1
+Sessions:        1
+Agent run slots -----------------------------------------------------------------------------  0/1
+Code run slots ------------------------------------------------------------------------------  0/4
+Runtime usage --------------------------------------------------------------------------------------
+Total cost:    — USD
+Input tokens:  —
+Output tokens: —
+Active run supervision -----------------------------------------------------------------------------
+Name         State       Detail
+Active runs  empty       No matching records are exposed…
+Queued workflow runs -------------------------------------------------------------------------------
+Name         State       Detail
+Queued runs  empty       No matching records are exposed…
+Recent run results ---------------------------------------------------------------------------------
+Name         State       Detail
+Recent runs  empty       No matching records are exposed…
+Workflow definitions and schedules -----------------------------------------------------------------
+Name                  State       Detail
+Workflow definitions  empty       No matching records are exposed…
+Approvals ------------------------------------------------------------------------------------------
+Name                       State       Detail
+approval-browser-evidence  pending     shell.exec  Run the repository …
+Owner questions ------------------------------------------------------------------------------------
+Name                       State       Detail
+question-browser-evidence  pending     Should the rollout use the guar…
+Inspect one run ------------------------------------------------------------------------------------
+- Run id  text required
+Inspect run details  read  none  ready  workflow.getRun
+Compare two runs -----------------------------------------------------------------------------------
+- First run id  text required
+- Second run id  text required
+Compare two runs  read  none  ready  workflow.compareRuns
+Live run event stream ------------------------------------------------------------------------------
+sse /events
+- 2026-08-02T21:16:24.783Z  info  daemon.events: Waiting for live workflow, approval, owner-question, and session events.
+Launch workflow run --------------------------------------------------------------------------------
+- Workflow  select required
+- Run tags JSON  text
+- Payload JSON  text
+Launch workflow run  write  required  ready  POST /workflow/trigger
+Run/session parameters -----------------------------------------------------------------------------
+- Autonomy mode  select required
+- Resume session id  text
+- Resume conversation id  text
+Start session  write  none  ready  POST /sessions
+Model, effort, and launch defaults -----------------------------------------------------------------
+- Launch preset  select required
+- Default model  select required
+- Default effort  select required
+- Use shipped defaults  boolean
+Configure launch defaults  write  none  disabled  config.set
+Run controls ---------------------------------------------------------------------------------------
+Refresh workflow status  read  none  ready  workflow.status
+Pause dispatch  write  required  ready  workflow.pause
+Resume dispatch  write  none  ready  workflow.resume
+Abort active runs  write  required  ready  workflow.abort
+Abort one run  write  required  ready  workflow.abortRun
+Cancel queued run  write  required  ready  workflow.cancelRun
+Retry failed run  write  required  ready  workflow.retryRun
+Replay run  write  required  ready  workflow.replayRun
+Resume run from step  write  required  ready  workflow.resumeRun
+Inspect run details  read  none  ready  workflow.getRun
+Compare two runs  read  none  ready  workflow.compareRuns
+Start session  write  none  ready  POST /sessions
+Configure launch defaults  write  none  disabled  config.set
+Launch workflow run  write  required  ready  POST /workflow/trigger
+
+=== tasks · repo-tasks.queue · Work ===
+Tasks
+----------------------------------------
+Work
+
+Open tasks: 1
+Open task queue ------------------------------------------------------------------------------------
+Name                              State       Detail
+Render shared UI surfaces in th…  p1 · doing  task-render-shared-ui-surfaces-…
+Inspect task markdown ------------------------------------------------------------------------------
+- Task id  text required
+Inspect task  read  none  ready  tasks.show
+Edit task markdown ---------------------------------------------------------------------------------
+- Task id  text required
+- Markdown body  multiline required
+Update task body  write  required  ready  tasks.updateBody
+Create normalized task -----------------------------------------------------------------------------
+- Title  text required
+- Summary  multiline
+- Priority  select required
+- Area  text required
+- Initial state  select required
+Create task  write  none  ready  tasks.create
+Task actions ---------------------------------------------------------------------------------------
+Reload tasks  read  none  ready  tasks.list
+Inspect task  read  none  ready  tasks.show
+Move task  write  required  ready  tasks.move
+Update task body  write  required  ready  tasks.updateBody
+Create task  write  none  ready  tasks.create
+
+=== modules-agents · core.modules-agents · Work ===
+Modules and Agents
+----------------------------------------
+Work
+
+Modules: 0
+Agents:  0
+Loaded modules -------------------------------------------------------------------------------------
+Name        State       Detail
+Modules     empty       No matching records are exposed…
+Agents ---------------------------------------------------------------------------------------------
+Name        State       Detail
+Agents      empty       No matching records are exposed…
+Channels, digest, and notifications ----------------------------------------------------------------
+Name                              State       Detail
+Channels, digest, and notificat…  empty       No matching records are exposed…
+Module and agent actions ---------------------------------------------------------------------------
+Reload modules  read  none  ready  modules.list
+Reload agents  read  none  ready  agents.list
+
+=== setup · core.setup · Setup ===
+Setup
+----------------------------------------
+Setup
+
+ready:       0
+missing:     0
+pending:     0
+expired:     0
+revoked:     0
+unknown:     0
+unavailable: 0
+Setup and auth requirements ------------------------------------------------------------------------
+Name                State       Detail
+Setup requirements  empty       No matching records are exposed…
+Setup actions --------------------------------------------------------------------------------------
+Reload setup requirements  read  none  ready  setup.list
+
+=== configuration · config.operator · Setup ===
+Configuration
+----------------------------------------
+Setup
+
+Configuration sources and warnings -----------------------------------------------------------------
+No items.
+Read one value -------------------------------------------------------------------------------------
+- Configuration key  text required
+Read configuration value  read  none  ready  config.get
+Update one value -----------------------------------------------------------------------------------
+- Configuration key  text required
+- JSON or text value  text required
+Set configuration value  write  required  ready  config.set
+Configuration actions ------------------------------------------------------------------------------
+Validate configuration  read  none  ready  config.validate
+
+=== guardrail-audit · guardrails.audit · Setup ===
+Guardrail Audit
+----------------------------------------
+Setup
+
+Recent guardrail decisions -------------------------------------------------------------------------
+Name             State       Detail
+Guardrail audit  empty       No matching records are exposed…
+Audit actions --------------------------------------------------------------------------------------
+Reload guardrail audit  read  none  ready  audit.list
+
+=== stores · memory.stores · Knowledge ===
+Stores
+----------------------------------------
+Knowledge
+
+Memory: 0
+Memory ---------------------------------------------------------------------------------------------
+Name        State       Detail
+Memory      empty       No matching records are exposed…
+Memory actions -------------------------------------------------------------------------------------
+Reload memory  read  none  ready  memory.list
+
+=== knowledge-store · knowledge.store · Knowledge ===
+Knowledge
+----------------------------------------
+Knowledge
+
+Knowledge: 0
+Knowledge ------------------------------------------------------------------------------------------
+Name        State       Detail
+Knowledge   empty       No matching records are exposed…
+Search stored knowledge ----------------------------------------------------------------------------
+- Search query  text required
+- Use semantic ranking  boolean
+- Maximum results  number
+Search knowledge  read  none  ready  knowledge.search
+Live knowledge changes -----------------------------------------------------------------------------
+sse /events
+
+Knowledge actions ----------------------------------------------------------------------------------
+Reload knowledge  read  none  ready  knowledge.list
+Search knowledge  read  none  ready  knowledge.search
+
+=== history-store · history.store · Knowledge ===
+History
+----------------------------------------
+Knowledge
+
+History: 0
+History --------------------------------------------------------------------------------------------
+Name        State       Detail
+History     empty       No matching records are exposed…
+History actions ------------------------------------------------------------------------------------
+Reload history  read  none  ready  history.list
+
+=== recall · recall.search · Knowledge ===
+Recall
+----------------------------------------
+Knowledge
+
+Cross-store search ---------------------------------------------------------------------------------
+Search knowledge, memory, conversation history, tasks, and prior cited answers through one ranked
+query.
+Recall ---------------------------------------------------------------------------------------------
+- What do you want to recall?  text required
+- Maximum results  number
+Recall across stores  read  none  ready  recall.recall
+
+=== answers · answer.cited · Knowledge ===
+Cited Answers
+----------------------------------------
+Knowledge
+
+Ask with citations ---------------------------------------------------------------------------------
+- Question  text required
+Compose cited answer  read  none  ready  answer.answer
+Answer history -------------------------------------------------------------------------------------
+Name            State       Detail
+Answer history  empty       No matching records are exposed…
+Open a persisted answer ----------------------------------------------------------------------------
+- Answer id  text required
+Open answer  read  none  ready  answer.show
+Answer actions -------------------------------------------------------------------------------------
+Reload answer history  read  none  ready  answer.log
+
+=== capture · capture.write · Knowledge ===
+Capture
+----------------------------------------
+Knowledge
+
+Capture a durable note -----------------------------------------------------------------------------
+- Note  text required
+- Destination  select required
+Capture note  write  required  ready  capture.capture
+
+=== retract · retract.remove · Knowledge ===
+Retract
+----------------------------------------
+Knowledge
+
+Correct durable context ----------------------------------------------------------------------------
+- Store  select required
+- Record id, slug, or inbox path  text required
+Retract record  write  required  ready  retract.retract
+
+=== daily-digest · autonomy.daily-digest · Knowledge ===
+Daily Digest
+----------------------------------------
+Knowledge
+
+Rolling 24-hour digest -----------------------------------------------------------------------------
+Daily digest (2026-08-01 21:16Z → 2026-08-02 21:16Z) ---------------------------------------- Aging operator-capture preconditions (5) --------------------------------------- - task-capture-an-end-to-end-coding-task-parity-artifact- (87d, awaits .kota/runs/harness-parity-*) - task-add-cross-preset-runtime-parity-gate (48d, awaits .kota/runs/preset-parity-all-keys-set/) - task-publish-kota-telegram-production-deploy-artifact (47d, awaits .kota/runs/telegram-deploy-staging) - task-review-owner-captured-automated-research-and-mimo- (43d, awaits .kota/runs/2026-06-20T20-54-52-875Z-builder-2jwlhx/source-access/mimo-code-long-horizon.md) - task-extend-harness-parity-and-eval-harness-with-model- (36d, awaits .kota/runs/2026-06-27T00-33-10-684Z-builder-wtiy1i/configured-key-model-matrix/model-matrix-report.json) Queue state -------------------------------------------------------------------- - ready: 0 (no prior snapshot) - backlog: 15 (no prior snapshot) - doing: 0 (no prior snapshot) - blocked: 7 (no prior snapshot)

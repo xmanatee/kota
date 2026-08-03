@@ -121,7 +121,7 @@ export function buildUiCommand(ctx: ModuleContext): Command {
   cmd.addCommand(action);
   cmd.addHelpText(
     "after",
-    `\nExamples:\n  kota ui render operator-control\n  kota ui action execute operator-control ui.refresh\n`,
+    `\nExamples:\n  kota ui render runs\n  kota ui action execute runs workflow.status\n`,
   );
   cmd.addCommand(
     new Command("list")

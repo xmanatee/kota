@@ -43,12 +43,61 @@ function projectUseParameters(): UiActionParameterSpec {
   };
 }
 
+function sessionAutonomyParameters(): UiActionParameterSpec {
+  return {
+    fields: [
+      { id: "sessionId", label: "Session id", input: "text", required: true },
+      {
+        id: "autonomyMode",
+        label: "Autonomy mode",
+        input: "select",
+        required: true,
+        options: [
+          { label: "Passive", value: "passive" },
+          { label: "Supervised", value: "supervised" },
+          { label: "Autonomous", value: "autonomous" },
+        ],
+      },
+    ],
+    schema: {
+      type: "object",
+      required: ["sessionId", "autonomyMode"],
+      properties: {
+        sessionId: { type: "string" },
+        autonomyMode: {
+          type: "string",
+          enum: ["passive", "supervised", "autonomous"],
+          default: "supervised",
+        },
+      },
+      additionalProperties: false,
+    },
+  };
+}
+
 export function buildScopeUiSurface(args: {
   scopeId: string;
   projects: SurfaceRead<ProjectsListResult>;
   sessions: SurfaceRead<SessionsListResult>;
 }): UiSurface {
   const { scopeId } = args;
+  const setSessionAutonomy = action({
+    surfaceId: "scopes",
+    actionId: "session.autonomy.set",
+    scopeId,
+    label: "Change autonomy mode",
+    effect: "write",
+    operation: { kind: "client-namespace", namespace: "sessions", method: "setAutonomyMode" },
+    parameters: sessionAutonomyParameters(),
+    confirmation: {
+      mode: "required",
+      title: "Change session autonomy",
+      detail: "This changes how future tool calls in the selected live session are supervised.",
+      confirmLabel: "Change autonomy",
+      risk: "medium",
+    },
+    result: resultSpec("Session autonomy updated."),
+  });
   const projectRows: UiTableRow[] = args.projects.ok
     ? args.projects.value.ok
       ? (() => {
@@ -73,13 +122,14 @@ export function buildScopeUiSurface(args: {
   const sessionRows: UiTableRow[] = args.sessions.ok
     ? args.sessions.value.sessions.length === 0
       ? emptyRows("Live sessions")
-      : args.sessions.value.sessions.map((session) => ({
+        : args.sessions.value.sessions.map((session) => ({
           id: session.id,
           cells: [
             { columnId: "name", value: shortId(session.id), role: "info" },
             { columnId: "state", value: session.autonomyMode, role: "success" },
             { columnId: "detail", value: `${session.projectId}  ${session.source ?? "daemon"}  last=${new Date(session.lastActive).toISOString()}`, role: "muted" },
           ],
+          action: setSessionAutonomy,
         }))
     : unavailableRows(args.sessions.message);
 
@@ -117,7 +167,17 @@ export function buildScopeUiSurface(args: {
       operation: { kind: "client-namespace", namespace: "sessions", method: "list" },
       result: resultSpec("Live sessions loaded."),
     }),
+    setSessionAutonomy,
   ];
+
+  const sessionLinks: UiSurface["nodes"] = args.sessions.ok
+    ? args.sessions.value.sessions.map((session) => ({
+        kind: "link" as const,
+        label: `Resume session ${shortId(session.id)}`,
+        target: { kind: "session" as const, sessionId: session.id },
+        role: "info" as const,
+      }))
+    : [];
 
   return {
     protocolVersion: "ui.surface.v1",
@@ -128,6 +188,11 @@ export function buildScopeUiSurface(args: {
     scopeId,
     attachmentPoint: { kind: "intent", intent: "Status" },
     order: 15,
+    refreshEvents: [
+      "scope.lifecycle.changed",
+      "session.registered",
+      "session.unregistered",
+    ],
     permissions: [{ kind: "capability-scope", scope: "read" }],
     nodes: [
       {
@@ -152,6 +217,7 @@ export function buildScopeUiSurface(args: {
       },
       { kind: "table", title: "Directory scopes", columns: NAME_STATE_DETAIL_COLUMNS, rows: projectRows },
       { kind: "table", title: "Live sessions", columns: NAME_STATE_DETAIL_COLUMNS, rows: sessionRows },
+      ...sessionLinks,
       { kind: "action-list", title: "Scope actions", actions },
     ],
     actions,

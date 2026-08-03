@@ -23,6 +23,7 @@ import type {
   RepoTaskGcResult,
   RepoTaskShowResult,
   RepoTaskState,
+  RepoTaskUpdateBodyResult,
 } from "./client.js";
 import { stageRepoPaths } from "./repo-file-mutations.js";
 import {
@@ -75,6 +76,39 @@ export function showTask(projectDir: string, id: string): RepoTaskShowResult {
     }
   }
   return { found: false };
+}
+
+/** Replace a non-terminal task's markdown body through the canonical staged writer. */
+export function updateTaskBody(
+  projectDir: string,
+  id: string,
+  body: string,
+): RepoTaskUpdateBodyResult {
+  if (!isRepoTaskId(id)) return { ok: false, reason: "invalid_id" };
+  const tasksDir = getRepoTasksDir(projectDir);
+  for (const state of REPO_TASK_STATES) {
+    const stateDir = join(tasksDir, state);
+    if (!existsSync(stateDir)) continue;
+    for (const file of readdirSync(stateDir)) {
+      if (!file.endsWith(".md") || file === "AGENTS.md") continue;
+      const filePath = join(stateDir, file);
+      const content = readFileSync(filePath, "utf-8");
+      if (parseFlatFrontMatter(content).attrs.id !== id) continue;
+      if (state === "done" || state === "dropped") {
+        return { ok: false, reason: "terminal" };
+      }
+      const frontMatter = content.match(/^(---\r?\n[\s\S]*?\r?\n---)\r?\n[\s\S]*$/)?.[1];
+      if (!frontMatter) return { ok: false, reason: "malformed" };
+      const updatedAt = new Date().toISOString();
+      const updatedFrontMatter = /^(updated_at:\s*)\S+/m.test(frontMatter)
+        ? frontMatter.replace(/^(updated_at:\s*)\S+/m, `$1${updatedAt}`)
+        : frontMatter.replace(/\r?\n---$/, `\nupdated_at: ${updatedAt}\n---`);
+      const nextContent = `${updatedFrontMatter}\n\n${body.trim()}\n`;
+      writeRepoTaskFile(projectDir, filePath, nextContent);
+      return { ok: true, id, state, content: nextContent };
+    }
+  }
+  return { ok: false, reason: "not_found" };
 }
 
 function buildNormalizedTaskBody(): string {

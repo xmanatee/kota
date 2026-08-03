@@ -6,6 +6,8 @@ import {
 import {
   runAbortParameters,
   runCancelParameters,
+  runCompareParameters,
+  runInspectParameters,
   runReplayParameters,
   runResumeParameters,
   runRetryParameters,
@@ -17,6 +19,8 @@ export type RuntimeRunActions = {
   retryRun: UiAction;
   replayRun: UiAction;
   resumeRun: UiAction;
+  inspectRun: UiAction;
+  compareRuns: UiAction;
   all: UiAction[];
 };
 
@@ -106,6 +110,24 @@ export function runtimeRunActions(scopeId: string): RuntimeRunActions {
     },
     result: resultSpec("Workflow resume queued."),
   });
+  const inspectRun = action({
+    surfaceId: "runs",
+    actionId: "run.inspect",
+    scopeId,
+    label: "Inspect run details",
+    operation: { kind: "client-namespace", namespace: "workflow", method: "getRun" },
+    parameters: runInspectParameters(),
+    result: resultSpec("Run details loaded."),
+  });
+  const compareRuns = action({
+    surfaceId: "runs",
+    actionId: "run.compare",
+    scopeId,
+    label: "Compare two runs",
+    operation: { kind: "client-namespace", namespace: "workflow", method: "compareRuns" },
+    parameters: runCompareParameters(),
+    result: resultSpec("Run comparison loaded."),
+  });
 
   return {
     abortOneRun,
@@ -113,6 +135,16 @@ export function runtimeRunActions(scopeId: string): RuntimeRunActions {
     retryRun,
     replayRun,
     resumeRun,
-    all: [abortOneRun, cancelQueuedRun, retryRun, replayRun, resumeRun],
+    inspectRun,
+    compareRuns,
+    all: [
+      abortOneRun,
+      cancelQueuedRun,
+      retryRun,
+      replayRun,
+      resumeRun,
+      inspectRun,
+      compareRuns,
+    ],
   };
 }

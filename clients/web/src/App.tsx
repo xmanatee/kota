@@ -1,7 +1,6 @@
+import { uiSurfacesQuery } from "@/api/queries";
 import { ChatArea } from "@/components/chat/ChatArea";
-import { HistoryView } from "@/components/chat/HistoryView";
-import { RunCompare } from "@/components/run-detail/RunCompare";
-import { RunDetail } from "@/components/run-detail/RunDetail";
+import { SharedUiSurface } from "@/components/shared-ui/SharedUiSurface";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { useDaemonEvents } from "@/hooks/use-daemon-events";
 import {
@@ -10,7 +9,12 @@ import {
   useProjectContext,
 } from "@/lib/project-context";
 import { cn } from "@/lib/utils";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from "@tanstack/react-query";
+import { Menu } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 const queryClient = new QueryClient({
@@ -27,11 +31,14 @@ function AppContent() {
     window.innerWidth <= 768,
   );
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [viewingHistoryId, setViewingHistoryId] = useState<string | null>(null);
-  const [viewingRunId, setViewingRunId] = useState<string | null>(null);
-  const [comparingRunIds, setComparingRunIds] = useState<
-    [string, string] | null
-  >(null);
+  const [selectedSurfaceId, setSelectedSurfaceId] = useState<string | null>(
+    () => {
+      const { subRoute } = parseProjectHash(window.location.hash);
+      return subRoute.startsWith("surface/")
+        ? decodeURIComponent(subRoute.slice("surface/".length))
+        : null;
+    },
+  );
   const [darkMode, setDarkMode] = useState(() => {
     const stored = localStorage.getItem("kota-theme");
     return stored
@@ -39,8 +46,9 @@ function AppContent() {
       : window.matchMedia("(prefers-color-scheme: dark)").matches;
   });
 
-  const connectionStatus = useDaemonEvents();
   const { projectId, buildHash } = useProjectContext();
+  const uiSurfaces = useQuery(uiSurfacesQuery(projectId));
+  const daemonEvents = useDaemonEvents(uiSurfaces.data);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
@@ -50,23 +58,13 @@ function AppContent() {
   useEffect(() => {
     const applyHash = () => {
       const { subRoute } = parseProjectHash(window.location.hash);
-      if (subRoute.startsWith("compare/")) {
-        const ids = subRoute.slice("compare/".length).split("/");
-        if (ids.length === 2 && ids[0] && ids[1]) {
-          setComparingRunIds([ids[0], ids[1]]);
-          setViewingRunId(null);
-          setViewingHistoryId(null);
-          return;
-        }
-      }
-      if (subRoute.startsWith("run/")) {
-        setViewingRunId(subRoute.slice("run/".length));
-        setComparingRunIds(null);
-        setViewingHistoryId(null);
+      if (subRoute.startsWith("surface/")) {
+        setSelectedSurfaceId(
+          decodeURIComponent(subRoute.slice("surface/".length)),
+        );
         return;
       }
-      setViewingRunId(null);
-      setComparingRunIds(null);
+      setSelectedSurfaceId(null);
     };
     applyHash();
     window.addEventListener("hashchange", applyHash);
@@ -79,93 +77,97 @@ function AppContent() {
   useEffect(() => {
     if (projectId === "") return;
     setSessionId(null);
-    setViewingHistoryId(null);
-    setViewingRunId(null);
-    setComparingRunIds(null);
+    setSelectedSurfaceId(null);
   }, [projectId]);
 
+  useEffect(() => {
+    if (!selectedSurfaceId || !uiSurfaces.data) return;
+    if (
+      !uiSurfaces.data.surfaces.some(
+        (surface) => surface.surfaceId === selectedSurfaceId,
+      )
+    ) {
+      setSelectedSurfaceId(null);
+      window.location.hash = buildHash("");
+    }
+  }, [buildHash, selectedSurfaceId, uiSurfaces.data]);
+
   const showChat = useCallback(() => {
-    setViewingHistoryId(null);
-    setViewingRunId(null);
-    setComparingRunIds(null);
+    setSelectedSurfaceId(null);
     window.location.hash = buildHash("");
   }, [buildHash]);
 
-  const handleRunSelect = useCallback(
-    (id: string) => {
-      setViewingRunId(id);
-      setViewingHistoryId(null);
-      setComparingRunIds(null);
-      window.location.hash = buildHash(`run/${id}`);
+  const handleSurfaceSelect = useCallback(
+    (surfaceId: string) => {
+      setSelectedSurfaceId(surfaceId);
+      window.location.hash = buildHash(
+        `surface/${encodeURIComponent(surfaceId)}`,
+      );
+      if (window.innerWidth <= 768) setSidebarCollapsed(true);
     },
     [buildHash],
   );
-
-  const handleCompareRuns = useCallback(
-    (idA: string, idB: string) => {
-      setComparingRunIds([idA, idB]);
-      setViewingRunId(null);
-      setViewingHistoryId(null);
-      window.location.hash = buildHash(`compare/${idA}/${idB}`);
-    },
-    [buildHash],
-  );
-
-  const handleHistorySelect = useCallback((id: string) => {
-    setViewingHistoryId(id);
-    setViewingRunId(null);
-  }, []);
 
   const handleNewChat = useCallback(() => {
     setSessionId(null);
     showChat();
   }, [showChat]);
 
-  let mainContent: React.ReactNode;
-  if (comparingRunIds) {
-    mainContent = (
-      <RunCompare
-        runIdA={comparingRunIds[0]}
-        runIdB={comparingRunIds[1]}
-        onClose={showChat}
-      />
-    );
-  } else if (viewingRunId) {
-    mainContent = <RunDetail runId={viewingRunId} onClose={showChat} />;
-  } else if (viewingHistoryId) {
-    mainContent = <HistoryView id={viewingHistoryId} onBack={showChat} />;
-  } else {
-    mainContent = (
-      <ChatArea sessionId={sessionId} onSessionCreated={setSessionId} />
-    );
-  }
+  const handleSessionSelect = useCallback(
+    (nextSessionId: string) => {
+      setSessionId(nextSessionId);
+      showChat();
+      if (window.innerWidth <= 768) setSidebarCollapsed(true);
+    },
+    [showChat],
+  );
+
+  const selectedSurface = uiSurfaces.data?.surfaces.find(
+    (surface) => surface.surfaceId === selectedSurfaceId,
+  );
+  const mainContent = selectedSurface ? (
+    <SharedUiSurface
+      surface={selectedSurface}
+      onNavigate={handleSurfaceSelect}
+      onSessionSelect={handleSessionSelect}
+      liveLogEntries={daemonEvents.liveLogEntries}
+    />
+  ) : (
+    <ChatArea sessionId={sessionId} onSessionCreated={setSessionId} />
+  );
 
   return (
     <div className="flex h-screen">
       <button
         type="button"
         className={cn(
-          "fixed left-3 top-3 z-50 rounded border border-border bg-card p-1.5 text-sm md:hidden",
+          "fixed left-3 top-3 z-50 flex size-11 items-center justify-center rounded-md border border-border bg-card text-sm shadow-sm md:hidden",
           !sidebarCollapsed && "hidden",
         )}
         onClick={() => setSidebarCollapsed(false)}
+        aria-label="Open navigation"
       >
-        ☰
+        <Menu aria-hidden="true" />
       </button>
       <Sidebar
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed((c) => !c)}
-        activeSessionId={sessionId}
-        onSessionSelect={setSessionId}
-        onHistorySelect={handleHistorySelect}
-        onRunSelect={handleRunSelect}
-        onCompareRuns={handleCompareRuns}
         onNewChat={handleNewChat}
-        connectionStatus={connectionStatus}
+        connectionStatus={daemonEvents.status}
         darkMode={darkMode}
         onToggleTheme={() => setDarkMode((d) => !d)}
+        uiBundle={uiSurfaces.data}
+        uiLoading={uiSurfaces.isPending}
+        uiError={uiSurfaces.error}
+        selectedSurfaceId={selectedSurfaceId}
+        onSurfaceSelect={handleSurfaceSelect}
       />
-      <main className={cn("flex-1", sidebarCollapsed ? "" : "md:ml-0")}>
+      <main
+        className={cn(
+          "min-w-0 flex-1 overflow-y-auto",
+          sidebarCollapsed ? "" : "md:ml-0",
+        )}
+      >
         {mainContent}
       </main>
     </div>

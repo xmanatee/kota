@@ -26,6 +26,7 @@ import {
   validateConfig,
 } from "./config-operations.js";
 import { handleGetConfig } from "./routes.js";
+import { configUiSurfaceSource } from "./ui-surface.js";
 
 function writeConfigValueJson(value: Extract<ConfigGetResult, { found: true }>["value"]): void {
   const serialized = JSON.stringify(value, null, 2);
@@ -118,6 +119,7 @@ const configModule: KotaModule = {
   version: "1.0.0",
   description: "Config CLI surface — kota config get/set/validate/schema",
   dependencies: ["rendering"],
+  uiSurfaces: [configUiSurfaceSource],
   commands: (ctx) => [buildConfigCommand(ctx)],
   routes: (ctx) => [
     { method: "GET", path: "/api/config", handler: (_req, res) => handleGetConfig(res, ctx.config) },

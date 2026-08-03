@@ -12,7 +12,7 @@ surface around the daemon runtime. It also owns the daemon-facing CLI commands.
   belong in the command implementation and tests, not docs catalogs.
 - The daemon runtime itself lives in core; this module wires it into the CLI and supervisor surface.
 - The `/ui/surfaces` route and `ui` client delegate to one live assembler. This module contributes
-  status, scope, inbox, continuity, and operator-control; capability modules own their sources.
+  status, scope, inbox, and continuity; capability modules own their sources. Never register demo/fixture surfaces in production.
 - Session autonomy mode is part of that operator surface. This module owns the
   `kota session` CLI plus the `sessions` `KotaClient` namespace
   (`client.sessions.list()` / `client.sessions.setAutonomyMode()`) end-to-end.

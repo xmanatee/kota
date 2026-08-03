@@ -51,7 +51,7 @@ describe("daemon command help", () => {
 		expect(help).toMatch(/not the interactive operator\s+console/);
 		expect(help).toContain("kota navigate");
 		expect(help).toContain("kota workflow status");
-		expect(help).toContain("kota ui render operator-control");
+		expect(help).toContain("kota ui render runs");
 	});
 
 	it("points daemon start operators to the console and workflow controls", () => {

@@ -54,6 +54,7 @@ import {
   CAPTURE_DYNAMIC_STATE_NAME,
 } from "./system-prompt.js";
 import { createCaptureToolDef } from "./tool.js";
+import { captureUiSurfaceSource } from "./ui-surface.js";
 
 const CLASSIFIER_MAX_OUTPUT_TOKENS = 32;
 
@@ -142,6 +143,7 @@ const captureModule: KotaModule = {
   description:
     "Cross-store capture seam — one natural-language note routed to memory, knowledge, tasks, or inbox through typed contributors.",
   dependencies: ["memory", "knowledge", "repo-tasks", "rendering"],
+  uiSurfaces: [captureUiSurfaceSource],
 
   onLoad(ctx: ModuleRuntimeContext) {
     const resolveProjectContext = createCaptureProjectContextResolver(ctx.cwd);

@@ -29,6 +29,7 @@ import type {
   OwnerQuestionsListResult,
 } from "./client.js";
 import { ownerQuestionControlRoutes, ownerQuestionRoutes } from "./routes.js";
+import { ownerQuestionsUiSurfaceSource } from "./ui-surface.js";
 
 export type {
   OwnerQuestionEnqueueInput,
@@ -159,6 +160,7 @@ const ownerQuestionsModule: KotaModule = {
   version: "1.0.0",
   description: "Owner-question queue operator CLI and HTTP routes for agent escalations",
   dependencies: ["rendering"],
+  uiSurfaces: [ownerQuestionsUiSurfaceSource],
 
   commands: (ctx) => {
     const root = new Command("__root__");

@@ -446,6 +446,7 @@
     "UiFieldInput": {
       "enum": [
         "text",
+        "multiline",
         "secret",
         "number",
         "boolean",
@@ -649,6 +650,23 @@
           "required": [
             "kind",
             "surfaceId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "session",
+              "type": "string"
+            },
+            "sessionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "sessionId"
           ],
           "type": "object"
         },
@@ -1396,6 +1414,12 @@
         },
         "protocolVersion": {
           "$ref": "#/definitions/UiProtocolVersion"
+        },
+        "refreshEvents": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "scopeId": {
           "type": "string"

@@ -83,7 +83,10 @@ describe("detectSourceFileSizeWarnings", () => {
     const files = [
       "dist/large.ts",
       "src/generated/large.ts",
+      "clients/apple/Sources/Generated/Large.swift",
       "src/__generated__/large.ts",
+      "clients/conformance/ui-surface.generated.ts",
+      "clients/apple/UiSurface.generated.swift",
       "vendor/large.ts",
       "third_party/large.ts",
       "node_modules/package/large.ts",

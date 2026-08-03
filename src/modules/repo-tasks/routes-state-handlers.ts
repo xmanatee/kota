@@ -1,5 +1,4 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { join } from "node:path";
 import { jsonResponse } from "#core/server/session-pool.js";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 import {
@@ -8,8 +7,8 @@ import {
   getRepoTasksDir,
   moveTaskById,
   type RepoTaskState,
-  writeRepoTaskFile,
 } from "./repo-tasks-domain.js";
+import { updateTaskBody } from "./repo-tasks-operations.js";
 import { readRouteJsonBody } from "./route-body.js";
 import {
   COUNTED_STATES,
@@ -18,11 +17,9 @@ import {
   findTaskInOpenStates,
   listTaskFiles,
   readStateTasks,
-  tryReadUtf8,
 } from "./route-task-files.js";
 
 const ALLOWED_TARGET_STATES: readonly RepoTaskState[] = ["backlog", "ready", "blocked", "dropped"];
-const TERMINAL_STATES: readonly RepoTaskState[] = ["done", "dropped"];
 
 export async function handleTaskStateChange(
   req: IncomingMessage,
@@ -74,38 +71,21 @@ export async function handleTaskBodyUpdate(
     return;
   }
 
-  const tasksDir = getRepoTasksDir(projectDir);
-  for (const state of TERMINAL_STATES) {
-    for (const file of listTaskFiles(tasksDir, state)) {
-      const content = tryReadUtf8(join(tasksDir, state, file));
-      if (content === null) continue;
-      const { attrs } = parseFlatFrontMatter(content);
-      if (attrs.id === id) {
+  try {
+    const result = updateTaskBody(projectDir, id, bodyText);
+    if (!result.ok) {
+      if (result.reason === "terminal") {
         jsonResponse(res, 409, { error: "Task is in a terminal state and cannot be edited" });
         return;
       }
+      if (result.reason === "malformed") {
+        jsonResponse(res, 500, { error: "Could not parse task file" });
+        return;
+      }
+      jsonResponse(res, 404, { error: "Task not found" });
+      return;
     }
-  }
-
-  const found = findTaskInOpenStates(tasksDir, id);
-  if (!found) {
-    jsonResponse(res, 404, { error: "Task not found" });
-    return;
-  }
-
-  const fmMatch = found.content.match(/^(---\r?\n[\s\S]*?\r?\n---)\r?\n[\s\S]*$/);
-  if (!fmMatch) {
-    jsonResponse(res, 500, { error: "Could not parse task file" });
-    return;
-  }
-
-  const now = new Date().toISOString();
-  const updatedFm = fmMatch[1].replace(/^(updated_at:\s*)\S+/m, `$1${now}`);
-  const newContent = `${updatedFm}\n\n${bodyText.trim()}\n`;
-  const filePath = join(tasksDir, found.state, found.filename);
-  try {
-    writeRepoTaskFile(projectDir, filePath, newContent);
-    const { attrs, body: parsedBody } = parseFlatFrontMatter(newContent);
+    const { attrs, body: parsedBody } = parseFlatFrontMatter(result.content);
     jsonResponse(res, 200, {
       id: attrs.id,
       title: attrs.title,

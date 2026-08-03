@@ -43,6 +43,7 @@ import {
   RETRACT_DYNAMIC_STATE_NAME,
 } from "./system-prompt.js";
 import { createRetractToolDef } from "./tool.js";
+import { retractUiSurfaceSource } from "./ui-surface.js";
 
 let activeProvider: RetractProvider | null = null;
 
@@ -80,6 +81,7 @@ const retractModule: KotaModule = {
   description:
     "Cross-store retract seam — typed removal of one prior capture from memory, knowledge, tasks, or inbox through the same contributor pattern capture uses.",
   dependencies: ["memory", "knowledge", "repo-tasks", "rendering"],
+  uiSurfaces: [retractUiSurfaceSource],
   manifest: {
     schemaVersion: 1,
     capabilities: [

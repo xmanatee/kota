@@ -1,0 +1,4 @@
+1. The production React dashboard loads the selected scope's decoded ui.surface.v1 bundle and invalidates that query after relevant daemon SSE events.
+2. The shared React renderer exhaustively presents every generated node, action operation, readiness, confirmation, effect, and field-input arm, including links, logs, unavailable states, typed forms, and action results.
+3. Sidebar navigation and operator capability presentation come only from graph-declared surfaces and actions; the hardcoded panel inventory and fixture-only HTML renderer are removed.
+4. Desktop and narrow-mobile screenshots, a CLI transcript from the identical captured bundle, an interaction trace covering read/confirmed-write/form/SSE refresh, and a surface/action parity report prove the operator journey.

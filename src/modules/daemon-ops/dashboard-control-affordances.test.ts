@@ -35,7 +35,7 @@ describe("dashboard foreground control affordances", () => {
 		expect(output).toContain("kota workflow resume");
 		expect(output).toContain("kota workflow follow");
 		expect(output).toContain("kota navigate");
-		expect(output).toContain("kota ui render operator-control");
+		expect(output).toContain("kota ui render runs");
 		expect(output).toContain("kota daemon reload");
 		expect(output).toContain("kota daemon stop");
 	});

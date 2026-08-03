@@ -6,7 +6,7 @@
  * `RepoTasksClient` interface that the `KotaClient` aggregate composes. The
  * local-side handler in `index.ts` (backed by `repo-tasks-domain.ts` and
  * `repo-tasks-operations.ts`) and the daemon-side handler
- * (`buildRepoTasksDaemonHandler` factory in `index.ts`) realize this
+ * (`buildRepoTasksDaemonHandler` factory in `daemon-client.ts`) realize this
  * contract.
  */
 
@@ -71,6 +71,10 @@ export type RepoTaskMoveResult =
   | { ok: false; reason: "invalid_id" }
   | { ok: false; reason: "not_found" }
   | { ok: false; reason: "already_in_state"; state: RepoTaskState };
+
+export type RepoTaskUpdateBodyResult =
+  | { ok: true; id: string; state: RepoTaskState; content: string }
+  | { ok: false; reason: "invalid_id" | "not_found" | "terminal" | "malformed" };
 
 /** Allowed task priorities. */
 export type RepoTaskPriority = "p0" | "p1" | "p2" | "p3";
@@ -165,6 +169,12 @@ export interface RepoTasksClient {
     toState: RepoTaskState,
     project?: RepoTaskProjectSelection,
   ): Promise<RepoTaskMoveResult>;
+  /** Replace the markdown body of one non-terminal task while preserving its front matter. */
+  updateBody?(
+    id: string,
+    body: string,
+    project?: RepoTaskProjectSelection,
+  ): Promise<RepoTaskUpdateBodyResult>;
   create(options: RepoTaskCreateOptions): Promise<RepoTaskCreateResult>;
   capture(
     title: string,
