@@ -1,12 +1,12 @@
 ---
 id: task-repair-workflow-failure-pattern-d4f42f3e7dbc
 title: Repair persistent improver workflow failure pattern
-status: dropped
+status: ready
 priority: p1
 area: autonomy
 summary: Fix the local cause behind improver's persistent consecutive failure signal (step improve error 999e574cf5a4).
 created_at: 2026-08-03T08:00:57.197Z
-updated_at: 2026-08-03T14:21:53.427Z
+updated_at: 2026-08-03T18:37:56.548Z
 task_class: Meta
 ---
 
@@ -90,8 +90,3 @@ into deterministic, reviewable repair work.
 
 <!-- workflow-failure-pattern-fingerprint: workflow-failure:consecutive-failures:improver:step-error:9dc32dfa2618 -->
 <!-- workflow-failure-evidence-fingerprint: 0069721e78d78d9b951887b6748dc51758a107a37308b5bc1d24b5a0e905bfb1 -->
-
-## Decomposed
-
-- task-repair-improver-commit-message-artifact-lifecycle
-- task-regress-improver-failure-escalation-and-attention
