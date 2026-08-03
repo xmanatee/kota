@@ -1,13 +1,13 @@
 ---
 id: task-reconcile-unresolved-builder-repair-loop-dead-lett
 title: Reconcile unresolved builder repair-loop dead letters
-status: ready
+status: done
 priority: p1
 area: autonomy
 task_class: Meta
 summary: Investigate the two open builder dispatch failures involving source-file-size-severe and success-criteria-declared/commit-stageable checks. Determine whether each originating build remains actionable, then redrive it successfully or dismiss it with a durable, evidence-backed rationale.
 created_at: 2026-08-03T08:40:56.535Z
-updated_at: 2026-08-03T08:40:56.535Z
+updated_at: 2026-08-03T13:19:16.735Z
 ---
 
 ## Problem
@@ -55,3 +55,17 @@ Outcome-aware autonomy progress review.
 - Review-provided acceptance evidence:
 
     Both cited builder dead letters have a recorded final disposition; any still-valid originating task is successfully redriven or restored to an actionable queue state; and focused regression evidence demonstrates that the relevant repair checks either progress toward resolution or terminate with an actionable diagnosis.
+
+## Resolution Evidence
+
+- `dlq-4cb22bbd-5ea3-4b9c-9686-816b007d4bb4` was redriven; its web-client
+  source task completed in commit `47c9da54f` with the rendered evidence named
+  by that task.
+- `dlq-56113570-bc5a-4844-a2b0-6d9c045cac72` was dismissed. Its successor
+  aggregate `dlq-63e95b56-e9cc-4cc4-91f6-3726655c5afb` was dismissed after
+  reviewed decomposer run
+  `2026-08-03T13-14-23-877Z-decomposer-fpogq2` retired the repeatedly failing
+  source into three actionable Safety tasks in commit `0f5304185`.
+- `decomposer-agent-call-replay` passed three of three production workflow
+  replays with both `pass@k` and `pass^k` at 100% in eval artifact
+  `.kota/eval-runs/2026-08-03T13-13-56-455Z/eval-set-report.json`.
