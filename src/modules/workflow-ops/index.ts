@@ -430,6 +430,7 @@ const workflowModule: KotaModule = {
           };
         }
         const pausePath = join(store.rootDir, PAUSE_SIGNAL_FILE);
+        store.setAgentBackoff(null);
         if (!existsSync(pausePath)) return { paused: false, already: true };
         clearWorkflowPauseSignal(ctx.cwd);
         return { paused: false, already: false };

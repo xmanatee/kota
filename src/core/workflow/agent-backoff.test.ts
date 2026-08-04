@@ -81,6 +81,18 @@ describe("AgentBackoffManager", () => {
     expect(store.readState().agentBackoff).toBeUndefined();
   });
 
+  it("records an explicit operator retry reason when clearing backoff", () => {
+    const manager = makeManager();
+    manager.apply({ kind: "auth", reason: "login was unavailable" });
+
+    manager.clear("after operator resume");
+
+    expect(store.readState().agentBackoff).toBeUndefined();
+    expect(logs).toContain(
+      "Cleared agent dispatch backoff after operator resume (auth)",
+    );
+  });
+
   it("clears backoff owned by a different agent runtime", () => {
     store.setAgentBackoff({
       runtimeId: "codex:codex",

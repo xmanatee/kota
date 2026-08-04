@@ -81,6 +81,7 @@ export function buildDaemonWorkflowHandle(
         };
       }
       const already = !workflows.isDispatchPaused();
+      workflows.clearAgentBackoff("after operator resume");
       if (!already) workflows.setDispatchPaused(false, "persistent");
       return { already };
     },

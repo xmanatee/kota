@@ -100,6 +100,10 @@ export class WorkflowRuntime {
     setDispatchPaused(this.ctx, paused, mode);
   }
 
+  clearAgentBackoff(reason: string): void {
+    this.ctx.backoff.clear(reason);
+  }
+
   getDispatchWindowStatus(): { blocked: boolean; opensAt?: string } {
     return getDispatchWindowStatus(this.ctx);
   }

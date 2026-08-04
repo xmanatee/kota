@@ -73,12 +73,12 @@ export class AgentBackoffManager {
     );
   }
 
-  clear(): void {
+  clear(reason = "after successful agent run"): void {
     const backoff = this.getStored();
     if (!backoff) return;
     this.store.setAgentBackoff(null);
     this.log(
-      `Cleared agent dispatch backoff after successful agent run (${backoff.kind})`,
+      `Cleared agent dispatch backoff ${reason} (${backoff.kind})`,
     );
   }
 }
