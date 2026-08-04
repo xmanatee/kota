@@ -147,6 +147,18 @@ export async function executeLeafStep(
     stepError,
     undefined,
   );
+  if (status === "success" && step.type === "agent") {
+    const resolvedHarness = step.harness ?? context.agentRuntime.harness;
+    const resolvedModel = step.model ?? (
+      step.tier === undefined
+        ? context.agentRuntime.preset.defaultModel
+        : context.agentRuntime.tiers[step.tier]
+    );
+    harness.harness = resolvedHarness;
+    harness.model = resolvedModel;
+    internal.harness = resolvedHarness;
+    internal.model = resolvedModel;
+  }
   state.recordResult(harness, internal, output);
   if (
     status === "success" &&

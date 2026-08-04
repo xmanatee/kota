@@ -19,6 +19,8 @@ export type HarnessStepResult = {
   id: string;
   type: string;
   status: "success" | "failed" | "skipped";
+  harness?: string;
+  model?: string;
   output?: HarnessOutputValue;
   error?: string;
   skipReason?: WorkflowStepSkipReason;

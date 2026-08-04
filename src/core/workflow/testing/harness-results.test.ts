@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { resolveAgentRuntime } from "#core/model/preset.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { WorkflowTestHarness } from "./index.js";
 import { makeStepResult } from "./results.js";
@@ -110,5 +111,45 @@ describe("WorkflowTestHarness — result evidence", () => {
     });
     expect(result.internal.startedAt).toBeTruthy();
     expect(result.internal.completedAt).toBeTruthy();
+  });
+
+  it("records resolved runtime metadata for mocked agent steps", async () => {
+    const runtime = resolveAgentRuntime(undefined);
+    const workflow: WorkflowDefinitionInput = {
+      name: "test",
+      triggers: [],
+      defaultAutonomyMode: "autonomous",
+      steps: [
+        {
+          id: "agent",
+          type: "agent",
+          promptPath: "test.md",
+          tier: "fast",
+          effort: "high",
+        },
+        {
+          id: "inspect",
+          type: "code",
+          run: (ctx) => ({
+            harness: ctx.stepResults.agent?.harness,
+            model: ctx.stepResults.agent?.model,
+          }),
+        },
+      ],
+    };
+
+    const result = await new WorkflowTestHarness(workflow, {
+      stepMocks: { agent: { content: "done" } },
+    }).run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps.agent).toMatchObject({
+      harness: runtime.harness,
+      model: runtime.tiers.fast,
+    });
+    expect(result.steps.inspect.output).toEqual({
+      harness: runtime.harness,
+      model: runtime.tiers.fast,
+    });
   });
 });
