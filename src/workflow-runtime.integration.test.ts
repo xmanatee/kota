@@ -470,7 +470,7 @@ describe("WorkflowRuntime", () => {
     expect(seenWorkflows).toEqual(["improver"]);
   });
 
-  it("backs off agent workflows and parks follow-up work", async () => {
+  it("persists backoff before terminal finalizers wake follow-up agents", async () => {
     writeFileSync(
       join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
@@ -505,6 +505,9 @@ describe("WorkflowRuntime", () => {
         registerWorkflowDefinition("test/explorer.ts", {
           name: "explorer",
           triggers: [{ event: "runtime.idle" }],
+          terminalFinalizer: ({ emit }) => {
+            emit("test.finalizer.tick", {});
+          },
           steps: [
             {
               id: "explore",

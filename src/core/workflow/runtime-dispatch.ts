@@ -52,7 +52,7 @@ export interface WorkflowRuntimeDispatchState {
   store: WorkflowRunStore;
   deadLetterQueue?: DeadLetterQueueStore;
   eventJournal?: EventJournal;
-	approvalQueue: ApprovalQueue;
+  approvalQueue: ApprovalQueue;
   idempotencyStore: IdempotencyStore;
   wfQueue: WorkflowQueueManager;
   definitions: WorkflowDefinition[];
@@ -192,7 +192,7 @@ export async function runWorkflow(
         ? { deadLetterQueue: state.deadLetterQueue }
         : {}),
       eventJournal: state.eventJournal,
-		approvalQueue: state.approvalQueue,
+      approvalQueue: state.approvalQueue,
       idempotencyStore: state.idempotencyStore,
       model: state.model,
       config: state.config,
@@ -218,6 +218,9 @@ export async function runWorkflow(
 
   try {
     const result = await promise;
+    if (result.agentBackoff) {
+      state.backoff.apply(result.agentBackoff);
+    }
     recordFailedWorkflowDispatchDeadLetter(
       state,
       definition,
@@ -247,11 +250,10 @@ export async function runWorkflow(
       workspaceDir,
       result.agentBackoff?.kind,
     );
-    if (result.agentBackoff) {
-      state.backoff.apply(result.agentBackoff);
-      return;
-    }
-    if (runHasSuccessfulAgentExecution(result.metadata.steps)) {
+    if (
+      !result.agentBackoff &&
+      runHasSuccessfulAgentExecution(result.metadata.steps)
+    ) {
       state.backoff.clear();
     }
   } finally {
