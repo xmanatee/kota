@@ -20,7 +20,7 @@ vi.mock("node:child_process", async () => {
   return { ...actual, spawn: spawnMock, spawnSync: spawnSyncMock };
 });
 
-vi.mock("#core/agent-harness/machine-authority-sandbox.js", () => ({
+vi.mock("#core/agent-harness/native-cli-sandbox.js", () => ({
   isNativeCliSandboxBootstrapError: (text: string) =>
     text.includes("sandbox-exec: sandbox_apply: Operation not permitted"),
   withNativeCliSandbox: sandboxLaunchMock,
@@ -222,6 +222,11 @@ describe("codexAgentHarness", () => {
         authorityConfigPath: "/operator/.kota/config.json",
         mode: "workspace-write",
         env: expect.any(Object),
+        allowedEgressHosts: [
+          "api.openai.com",
+          "auth.openai.com",
+          "chatgpt.com",
+        ],
         prepareEnvironment: expect.any(Function),
       },
       expect.any(Function),
@@ -271,6 +276,41 @@ describe("codexAgentHarness", () => {
       outputTokens: 7,
       isError: false,
     });
+  });
+
+  it("does not inherit unrelated daemon credentials", async () => {
+    mockCodexProcess({
+      stdoutLines: [JSON.stringify({ type: "turn.completed", usage: {} })],
+    });
+    const secrets = {
+      OPENAI_API_KEY: "openai-secret",
+      ANTHROPIC_API_KEY: "anthropic-secret",
+      GH_TOKEN: "github-secret",
+      SLACK_BOT_TOKEN: "notification-secret",
+      AWS_SECRET_ACCESS_KEY: "cloud-secret",
+      GOOGLE_APPLICATION_CREDENTIALS: "/operator/gcp.json",
+    };
+    const saved: Record<string, string | undefined> = {};
+    for (const [key, value] of Object.entries(secrets)) {
+      saved[key] = process.env[key];
+      process.env[key] = value;
+    }
+    try {
+      await codexAgentHarness.run({
+        prompt: "inspect",
+        model: "gpt-5.6-sol",
+        effort: "xhigh",
+      });
+      const childEnv = sandboxLaunchMock.mock.calls[0][2].env as NodeJS.ProcessEnv;
+      for (const key of Object.keys(secrets)) {
+        expect(childEnv[key]).toBeUndefined();
+      }
+    } finally {
+      for (const [key, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
   });
 
   it("reports Codex auth expiry warnings in adapter readiness status metadata", () => {

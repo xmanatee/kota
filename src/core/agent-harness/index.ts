@@ -71,6 +71,11 @@ export type {
   KotaToolResultBlockContent,
   KotaToolUseBlock,
 } from "./message-protocol.js";
+export type { NativeCliEnvironmentOptions } from "./native-cli-environment.js";
+export {
+  buildIsolatedNativeCliEnvironment,
+  buildNativeCliEnvironment,
+} from "./native-cli-environment.js";
 export type {
   ProcessDisciplineAbstentionEvidence,
   ProcessDisciplineAggregate,

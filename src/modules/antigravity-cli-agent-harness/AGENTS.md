@@ -29,6 +29,9 @@ Antigravity-specific files stay local to this module:
 
 Workspace customizations are Antigravity-owned (`.agents/skills` and
 `.agents/mcp_config.json`). Do not translate them into KOTA tool settings.
+Daemon-launched runs use an isolated home, so global settings, plugins, and
+MCP files above are operator setup surfaces rather than inherited agent input;
+OS-keyring login remains available without exposing credential files.
 
 ## Loop Shape
 
@@ -44,7 +47,11 @@ does not expose token deltas, native tool-call events, session ids, or
 AGY runs without pretending KOTA can supervise AGY's internal tool loop.
 Every invocation runs inside KOTA's single native-CLI OS sandbox. Passive mode
 can write only to an invocation temp root; autonomous mode can also write to
-the workspace; Git metadata and machine authority stay read-only.
+the workspace. Reads stay within system/tool runtime, workspace dependencies,
+workspace, and invocation roots; Git metadata and machine authority stay
+read-only. Network access is restricted to declared Google model and
+authentication endpoints through KOTA's host-owned proxy. The child inherits
+no provider, GitHub, notification, or cloud credentials from the daemon.
 Cancellation terminates the CLI process group so spawned tools cannot outlive
 the CLI, and the run-local quarantine barrier stays pending until the group
 leader has closed.

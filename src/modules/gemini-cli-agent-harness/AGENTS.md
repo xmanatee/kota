@@ -31,9 +31,11 @@ separate model catalog.
 
 Authentication is harness-managed. The readiness probe checks for the local
 Gemini CLI executable plus cached Gemini CLI Google OAuth / Code Assist
-credentials under the CLI's normal user config directory. It does not require
-`GEMINI_API_KEY` or `GOOGLE_API_KEY`; those env vars belong to the SDK-backed
-`gemini` preset.
+credentials under the CLI's normal user config directory. Each run copies only
+those credentials and the selected auth mode into its isolated home.
+Gemini-specific API keys remain supported when explicitly configured, while
+unrelated daemon credentials and global tools, MCP, prompt, and `.env` files
+are not projected.
 
 ## Loop Shape
 
@@ -44,7 +46,10 @@ The adapter runs one non-interactive CLI process per KOTA harness call:
 2. Spawn `gemini --prompt <payload> --output-format stream-json --model <model>`.
 3. Run the CLI inside KOTA's single native-CLI OS sandbox. Plan mode can write
    only to an invocation temp root; default mode can also write to the
-   workspace; Git metadata and machine authority stay read-only.
+   workspace. Reads stay within system/tool runtime, workspace dependencies,
+   workspace, and invocation roots; Git metadata and machine authority stay
+   read-only. Network access is restricted to declared Google model and
+   authentication endpoints through KOTA's host-owned proxy.
 4. Parse newline-delimited JSON events. Assistant message chunks stream to the
    optional `AgentHarnessWriter`; the final `result` event supplies response
    text and usage stats.

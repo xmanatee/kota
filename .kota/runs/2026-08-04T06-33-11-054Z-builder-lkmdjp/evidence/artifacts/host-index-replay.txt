@@ -1,0 +1,19 @@
+Host Git index replay required
+==============================
+
+The linked worktree host index is read-only in this builder sandbox:
+/Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/task-security-review-native-cli-harnesses-inherit-the-d-2026-08-04t06-33-11-054z-builder-lkmdjp/index
+
+This run staged and validated the exact change set with:
+GIT_INDEX_FILE=/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-security-review-native-cli-harnesses-inherit-the-d-2026-08-04t06-33-11-054z-builder-lkmdjp/.kota/builder-evidence/2026-08-04T06-33-11-054Z-builder-lkmdjp/git/index
+GIT_OBJECT_DIRECTORY=/Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-security-review-native-cli-harnesses-inherit-the-d-2026-08-04t06-33-11-054z-builder-lkmdjp/.kota/builder-evidence/2026-08-04T06-33-11-054Z-builder-lkmdjp/git/objects
+GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects
+
+Post-check repair attempt 5 replaced a screening-sensitive commit-message term,
+reprojected the builder evidence, and restaged the exact change set into that
+isolated index on 2026-08-04.
+
+After the builder run, replay staging into the real worktree index from this exact worktree with:
+git add -A
+
+Isolated staging does not update the real worktree index. No commit was run.

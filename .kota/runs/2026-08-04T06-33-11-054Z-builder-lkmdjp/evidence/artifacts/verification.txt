@@ -1,0 +1,17 @@
+Task: task-security-review-native-cli-harnesses-inherit-the-d
+Run: 2026-08-04T06-33-11-054Z-builder-lkmdjp
+Verified: 2026-08-04T10:37:59+01:00
+
+PASS — focused security and protocol regression command:
+pnpm test src/core/agent-harness/native-cli-environment.test.ts src/core/agent-harness/native-cli-sandbox-roots.test.ts src/core/agent-harness/native-cli-egress-proxy.test.ts src/core/agent-harness/native-cli-sandbox.test.ts src/modules/execution/machine-authority-sandbox.test.ts src/modules/codex-agent-harness/adapter.test.ts src/modules/codex-agent-harness/runtime-home.test.ts src/modules/codex-agent-harness/scenario-loop.integration.test.ts src/modules/gemini-cli-agent-harness/adapter.test.ts src/modules/gemini-cli-agent-harness/runtime-home.test.ts src/modules/antigravity-cli-agent-harness/adapter.test.ts src/modules/eval-harness/eval-operations-host-auth.test.ts src/core/agent-harness/no-module-imports-in-core.test.ts src/core/modules/module-deps.test.ts src/root-layout.test.ts src/strict-types-policy.integration.test.ts
+Result: 16 test files passed; 64 tests passed.
+
+PASS — pnpm typecheck
+PASS — focused pnpm exec biome check (21 touched TypeScript files)
+PASS — pnpm validate-tasks using the run's workspace-local Git index/object store
+
+macOS runtime note:
+The live sandbox assertions ran inside the builder's existing native sandbox. macOS may reject nested sandbox-exec with `sandbox_apply: Operation not permitted` or an empty `SIGABRT` before the fixed child starts; the regressions accept only those fail-closed bootstrap outcomes. A started child must prove the project read, isolated HOME, denied outside read, mediated proxy access with a `403` for an unlisted host, and denial of a direct connection to a separate loopback listener. Structural coverage verifies a global file/network denial plus explicit project/runtime/tool roots and the exact loopback proxy exception. Linux assertions verify the namespace no longer mounts `/`, omits the operator authority directory, and includes `--unshare-net`; its CLI wrapper exposes only a loopback-to-Unix-socket bridge to the same host-owned proxy.
+
+Security result:
+Codex, Gemini CLI, and Antigravity now build children from a central allowlist instead of process.env. HOME, USERPROFILE, XDG, and temp locations are invocation-scoped. Only declared harness authentication is projected; unrelated OpenAI/Anthropic/GitHub/Slack/AWS/Google credential state is absent. Host reads are limited to declared system/tool, workspace dependency, workspace, and invocation roots. Broad network access is removed: the OS sandbox permits only a host-owned CONNECT proxy, which accepts TLS port 443 for each harness's explicit provider/authentication hostname set and rejects raw, non-TLS-port, unlisted-host, private-address, and direct-bypass traffic.

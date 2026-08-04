@@ -3,18 +3,28 @@ import type {
   AgentHarnessResult,
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
-import {
-  isNativeCliSandboxBootstrapError,
-  type NativeCliSandboxProcess,
-  withNativeCliSandbox,
-} from "#core/agent-harness/machine-authority-sandbox.js";
+import { buildNativeCliEnvironment } from "#core/agent-harness/native-cli-environment.js";
 import {
   NATIVE_CLI_PROCESS_GROUP_SPAWN_OPTIONS,
   signalNativeCliProcessGroup,
 } from "#core/agent-harness/native-cli-process-group.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import {
+  isNativeCliSandboxBootstrapError,
+  type NativeCliSandboxProcess,
+  withNativeCliSandbox,
+} from "#core/agent-harness/native-cli-sandbox.js";
 
 export const ANTIGRAVITY_CLI_BINARY_NAME = "agy";
+
+const ANTIGRAVITY_PROVIDER_EGRESS_HOSTS = [
+  "accounts.google.com",
+  "aiplatform.googleapis.com",
+  "businessaicode.googleapis.com",
+  "cloudcode-pa.googleapis.com",
+  "daily-cloudcode-pa.googleapis.com",
+  "generativelanguage.googleapis.com",
+  "oauth2.googleapis.com",
+] as const;
 
 export function abortedAntigravityCliResult(): AgentHarnessResult {
   return {
@@ -154,11 +164,13 @@ export async function collectTextFromAntigravityCli(
       cwd: args.cwd,
       authorityConfigPath: args.authorityConfigPath,
       mode: args.passive ? "read-only" : "workspace-write",
-      env: withProtectedGitBareRepositoryEnv({
-        ...process.env,
-        ...(args.env ?? {}),
-        NO_COLOR: "1",
+      env: buildNativeCliEnvironment({
+        overrides: {
+          ...(args.env ?? {}),
+          NO_COLOR: "1",
+        },
       }),
+      allowedEgressHosts: ANTIGRAVITY_PROVIDER_EGRESS_HOSTS,
     },
     (sandboxedProcess) =>
       runAntigravityCliProcess(args, sandboxedProcess),

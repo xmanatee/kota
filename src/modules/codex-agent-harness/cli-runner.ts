@@ -7,19 +7,24 @@ import type {
   AgentHarnessWriter,
   KotaAgentMessage,
 } from "#core/agent-harness/index.js";
-import {
-  isNativeCliSandboxBootstrapError,
-  type NativeCliSandboxProcess,
-  withNativeCliSandbox,
-} from "#core/agent-harness/machine-authority-sandbox.js";
+import { buildNativeCliEnvironment } from "#core/agent-harness/native-cli-environment.js";
 import {
   NATIVE_CLI_PROCESS_GROUP_SPAWN_OPTIONS,
   signalNativeCliProcessGroup,
 } from "#core/agent-harness/native-cli-process-group.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import {
+  isNativeCliSandboxBootstrapError,
+  type NativeCliSandboxProcess,
+  withNativeCliSandbox,
+} from "#core/agent-harness/native-cli-sandbox.js";
 import { prepareCodexRuntimeEnvironment } from "./runtime-home.js";
 
 const CODEX_ABORT_FORCE_KILL_MS = 5_000;
+const CODEX_PROVIDER_EGRESS_HOSTS = [
+  "api.openai.com",
+  "auth.openai.com",
+  "chatgpt.com",
+] as const;
 
 type CodexCliUsage = {
   input_tokens?: number;
@@ -49,12 +54,11 @@ function mapEffortToCodexReasoning(
 function buildCodexEnvironment(
   overrides: Record<string, string> | undefined,
 ): NodeJS.ProcessEnv {
-  const env = withProtectedGitBareRepositoryEnv({
-    ...process.env,
-    ...(overrides ?? {}),
+  return buildNativeCliEnvironment({
+    overrides,
+    projectedEnvKeys: ["CODEX_HOME"],
+    blockedEnvKeys: ["OPENAI_API_KEY"],
   });
-  delete env.OPENAI_API_KEY;
-  return env;
 }
 
 function parseCodexEvent(line: string): CodexCliEvent | null {
@@ -344,6 +348,7 @@ export async function collectTextFromCodexCli(
       authorityConfigPath: args.authorityConfigPath,
       mode: args.sandboxMode,
       env: buildCodexEnvironment(args.env),
+      allowedEgressHosts: CODEX_PROVIDER_EGRESS_HOSTS,
       prepareEnvironment: prepareCodexRuntimeEnvironment,
     },
     (sandboxedProcess) => runCodexCliProcess(args, sandboxedProcess),

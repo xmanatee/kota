@@ -16,7 +16,7 @@ vi.mock("node:child_process", async () => {
   return { ...actual, spawn: spawnMock };
 });
 
-vi.mock("#core/agent-harness/machine-authority-sandbox.js", () => ({
+vi.mock("#core/agent-harness/native-cli-sandbox.js", () => ({
   isNativeCliSandboxBootstrapError: (text: string) =>
     text.includes("sandbox-exec: sandbox_apply: Operation not permitted"),
   withNativeCliSandbox: sandboxLaunchMock,
@@ -174,6 +174,15 @@ describe("antigravityCliAgentHarness", () => {
         authorityConfigPath: "/operator/.kota/config.json",
         mode: "workspace-write",
         env: expect.any(Object),
+        allowedEgressHosts: [
+          "accounts.google.com",
+          "aiplatform.googleapis.com",
+          "businessaicode.googleapis.com",
+          "cloudcode-pa.googleapis.com",
+          "daily-cloudcode-pa.googleapis.com",
+          "generativelanguage.googleapis.com",
+          "oauth2.googleapis.com",
+        ],
       },
       expect.any(Function),
     );
@@ -187,6 +196,39 @@ describe("antigravityCliAgentHarness", () => {
       turns: 1,
       isError: false,
     });
+  });
+
+  it("does not inherit daemon provider, GitHub, notification, or cloud credentials", async () => {
+    mockAgyProcess({ stdout: "ok" });
+    const secrets = {
+      OPENAI_API_KEY: "openai-secret",
+      GEMINI_API_KEY: "gemini-secret",
+      GH_TOKEN: "github-secret",
+      SLACK_BOT_TOKEN: "notification-secret",
+      AWS_SECRET_ACCESS_KEY: "cloud-secret",
+      GOOGLE_APPLICATION_CREDENTIALS: "/operator/gcp.json",
+    };
+    const saved: Record<string, string | undefined> = {};
+    for (const [key, value] of Object.entries(secrets)) {
+      saved[key] = process.env[key];
+      process.env[key] = value;
+    }
+    try {
+      await antigravityCliAgentHarness.run({
+        prompt: "inspect",
+        model: "gemini-3.5-flash",
+        effort: "xhigh",
+      });
+      const childEnv = sandboxLaunchMock.mock.calls[0][2].env as NodeJS.ProcessEnv;
+      for (const key of Object.keys(secrets)) {
+        expect(childEnv[key]).toBeUndefined();
+      }
+    } finally {
+      for (const [key, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
   });
 
   it("maps passive runs to KOTA's read-only sandbox", async () => {

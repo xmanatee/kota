@@ -1,6 +1,11 @@
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { existsSync } from "node:fs";
+import {
+  dirname,
+  isAbsolute,
+  relative,
+  resolve,
+  sep,
+} from "node:path";
 import { getGlobalConfigPath } from "#core/config/config.js";
 import { scopeAuthorityOperatorTokenPaths } from "#core/daemon/scope-authority-operator-token.js";
 import { resolvePathIdentities } from "#core/util/real-path.js";
@@ -12,18 +17,14 @@ export type MachineAuthoritySandboxLaunch =
 export type MachineAuthoritySandboxOptions = {
   cwd: string;
   authorityConfigPath?: string;
+  readableRoots?: readonly string[];
   writableRoots?: readonly string[];
   writeProtectedPaths?: readonly string[];
+  networkAccess?:
+    | { kind: "offline" }
+    | { kind: "loopback-proxy"; port: number };
   platform?: NodeJS.Platform;
   pathExists?: (path: string) => boolean;
-};
-
-export type NativeCliSandboxMode = "read-only" | "workspace-write";
-
-export type NativeCliSandboxProcess = {
-  command: string;
-  args: string[];
-  env: NodeJS.ProcessEnv;
 };
 
 const LINUX_BUBBLEWRAP_PATHS = ["/usr/bin/bwrap", "/bin/bwrap"] as const;
@@ -59,8 +60,10 @@ function sandboxPathSelectors(paths: readonly string[]): string[] {
 function macosProfile(
   configDirectories: readonly string[],
   tokenPaths: readonly string[],
+  readableRoots: readonly string[] | undefined,
   writableRoots: readonly string[] | undefined,
   writeProtectedPaths: readonly string[],
+  networkAccess: MachineAuthoritySandboxOptions["networkAccess"],
 ): string {
   const protectedDirectories = sandboxPathSelectors([
     ...configDirectories,
@@ -70,6 +73,23 @@ function macosProfile(
   return [
     "(version 1)",
     "(allow default)",
+    ...(networkAccess === undefined
+      ? []
+      : [
+          "(deny network*)",
+          ...(networkAccess.kind === "loopback-proxy"
+            ? [
+                `(allow network-outbound (remote tcp ${JSON.stringify(`localhost:${networkAccess.port}`)}))`,
+              ]
+            : []),
+        ]),
+    ...(readableRoots === undefined
+      ? []
+      : [
+          "(deny file-read*)",
+          "(allow file-read-metadata)",
+          `(allow file-read* ${sandboxPathSelectors(readableRoots).join(" ")})`,
+        ]),
     ...(writableRoots === undefined
       ? []
       : [
@@ -86,6 +106,17 @@ function macosProfile(
   ].join("\n");
 }
 
+function pathIsWithinRoots(path: string, roots: readonly string[]): boolean {
+  return roots.some((root) => {
+    const candidate = relative(root, path);
+    return candidate === "" || (
+      candidate !== ".." &&
+      !candidate.startsWith(`..${sep}`) &&
+      !isAbsolute(candidate)
+    );
+  });
+}
+
 export function buildMachineAuthoritySandboxLaunch(
   executable: string,
   args: readonly string[],
@@ -94,6 +125,9 @@ export function buildMachineAuthoritySandboxLaunch(
   const platform = options.platform ?? process.platform;
   const pathExists = options.pathExists ?? existsSync;
   const { configDirectories, tokenPaths } = authorityPaths(options.authorityConfigPath);
+  const readableRoots = options.readableRoots === undefined
+    ? undefined
+    : resolveUniquePathIdentities(options.readableRoots, options.cwd);
   const writableRoots = options.writableRoots === undefined
     ? undefined
     : resolveUniquePathIdentities(options.writableRoots, options.cwd);
@@ -117,8 +151,10 @@ export function buildMachineAuthoritySandboxLaunch(
         macosProfile(
           configDirectories,
           tokenPaths,
+          readableRoots,
           writableRoots,
           writeProtectedPaths,
+          options.networkAccess,
         ),
         executable,
         ...args,
@@ -129,7 +165,10 @@ export function buildMachineAuthoritySandboxLaunch(
   if (platform === "linux") {
     const bubblewrap = LINUX_BUBBLEWRAP_PATHS.find(pathExists);
     const existingConfigDirectories = configDirectories.filter(pathExists);
-    if (bubblewrap === undefined || existingConfigDirectories.length === 0) {
+    if (
+      bubblewrap === undefined ||
+      (readableRoots === undefined && existingConfigDirectories.length === 0)
+    ) {
       return {
         ok: false,
         error:
@@ -143,13 +182,30 @@ export function buildMachineAuthoritySandboxLaunch(
         error: `machine authority sandbox writable root does not exist: ${missingWritableRoot}`,
       };
     }
+    const missingReadableRoot = readableRoots?.find((path) => !pathExists(path));
+    if (missingReadableRoot !== undefined) {
+      return {
+        ok: false,
+        error: `machine authority sandbox readable root does not exist: ${missingReadableRoot}`,
+      };
+    }
+    const readableMounts = readableRoots?.flatMap((path) => [
+      "--ro-bind",
+      path,
+      path,
+    ]) ?? [];
     const writableMounts = writableRoots?.flatMap((path) => ["--bind", path, path]) ?? [];
+    const visibleRoots = readableRoots ?? ["/"];
     const protectedMounts = [
       ...writeProtectedPaths,
       ...existingConfigDirectories,
-    ].filter(pathExists).flatMap((path) => ["--ro-bind", path, path]);
+    ].filter(
+      (path) => pathExists(path) && pathIsWithinRoots(path, visibleRoots),
+    ).flatMap((path) => ["--ro-bind", path, path]);
     const hiddenTokenMounts = tokenPaths.flatMap((tokenPath) =>
-      pathExists(tokenPath) ? ["--ro-bind", "/dev/null", tokenPath] : []
+      pathExists(tokenPath) && pathIsWithinRoots(tokenPath, visibleRoots)
+        ? ["--ro-bind", "/dev/null", tokenPath]
+        : []
     );
     return {
       ok: true,
@@ -157,9 +213,19 @@ export function buildMachineAuthoritySandboxLaunch(
       args: [
         "--die-with-parent",
         "--new-session",
-        writableRoots === undefined ? "--bind" : "--ro-bind",
-        "/",
-        "/",
+        ...(readableRoots === undefined
+          ? [writableRoots === undefined ? "--bind" : "--ro-bind", "/", "/"]
+          : [
+              "--unshare-pid",
+              "--unshare-ipc",
+              "--unshare-uts",
+              ...(options.networkAccess === undefined ? [] : ["--unshare-net"]),
+              "--proc",
+              "/proc",
+              "--dev",
+              "/dev",
+              ...readableMounts,
+            ]),
         ...writableMounts,
         ...protectedMounts,
         ...hiddenTokenMounts,
@@ -176,57 +242,6 @@ export function buildMachineAuthoritySandboxLaunch(
     ok: false,
     error: `machine authority sandbox unavailable on ${platform}`,
   };
-}
-
-export async function withNativeCliSandbox<T>(
-  executable: string,
-  args: readonly string[],
-  options: {
-    cwd: string;
-    authorityConfigPath?: string;
-    mode: NativeCliSandboxMode;
-    env: NodeJS.ProcessEnv;
-    prepareEnvironment?: (
-      temporaryDirectory: string,
-      env: NodeJS.ProcessEnv,
-    ) => NodeJS.ProcessEnv;
-  },
-  run: (process: NativeCliSandboxProcess) => Promise<T>,
-): Promise<T> {
-  const temporaryDirectory = mkdtempSync(join(tmpdir(), "kota-native-cli-"));
-  try {
-    const launch = buildMachineAuthoritySandboxLaunch(executable, args, {
-      cwd: options.cwd,
-      authorityConfigPath: options.authorityConfigPath,
-      writableRoots: options.mode === "workspace-write"
-        ? [options.cwd, temporaryDirectory]
-        : [temporaryDirectory],
-      writeProtectedPaths: [join(options.cwd, ".git")],
-    });
-    if (!launch.ok) throw new Error(launch.error);
-    const baseEnvironment = {
-      ...options.env,
-      TMPDIR: temporaryDirectory,
-      TMP: temporaryDirectory,
-      TEMP: temporaryDirectory,
-    };
-    return await run({
-      command: launch.command,
-      args: launch.args,
-      env: options.prepareEnvironment?.(
-        temporaryDirectory,
-        baseEnvironment,
-      ) ?? baseEnvironment,
-    });
-  } finally {
-    rmSync(temporaryDirectory, { recursive: true, force: true });
-  }
-}
-
-const SANDBOX_BOOTSTRAP_ERROR = "sandbox-exec: sandbox_apply: Operation not permitted";
-
-export function isNativeCliSandboxBootstrapError(text: string): boolean {
-  return text.includes(SANDBOX_BOOTSTRAP_ERROR);
 }
 
 export function buildShellMachineAuthoritySandboxLaunch(

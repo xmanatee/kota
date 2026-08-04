@@ -17,7 +17,7 @@ vi.mock("node:child_process", async () => {
   return { ...actual, spawn: spawnMock };
 });
 
-vi.mock("#core/agent-harness/machine-authority-sandbox.js", () => ({
+vi.mock("#core/agent-harness/native-cli-sandbox.js", () => ({
   isNativeCliSandboxBootstrapError: (text: string) =>
     text.includes("sandbox-exec: sandbox_apply: Operation not permitted"),
   withNativeCliSandbox: sandboxLaunchMock,

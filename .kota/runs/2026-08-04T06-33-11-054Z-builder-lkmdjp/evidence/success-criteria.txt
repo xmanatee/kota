@@ -1,0 +1,3 @@
+1. Replace native CLI inheritance of the daemon environment, host home, filesystem, and broad network with a central minimal environment, invocation-scoped home, bounded readable roots, and provider-only mediated egress while preserving each harness's required login.
+2. Add focused regressions proving Codex, Gemini CLI, and Antigravity do not receive unrelated provider, GitHub, notification, or cloud authentication material, cannot address host files outside declared roots, and cannot bypass the provider egress allowlist.
+3. Record fresh type, format, task-queue, boundary, and focused security verification for the completed task.

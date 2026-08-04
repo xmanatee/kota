@@ -1,13 +1,13 @@
 ---
 id: task-security-review-native-cli-harnesses-inherit-the-d
 title: Security review: Native CLI harnesses inherit the daemon's complete process environment, while Codex removes only OPENAI_API_KEY. The shared sandbox also retains the host HOME and permits default file reads and network access. Native agent tools can therefore inspect unrelated environment secrets and host credential files and transmit them outside the intended project or session boundary.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Native CLI harnesses inherit the daemon's complete process environment, while Codex removes only OPENAI_API_KEY. The shared sandbox also retains the host HOME and permits default file reads and network access. Native agent tools can therefore inspect unrelated environment secrets and host credential files and transmit them outside the intended project or session boundary.
 created_at: 2026-08-03T20:38:28.340Z
-updated_at: 2026-08-03T20:38:28.340Z
+updated_at: 2026-08-04T10:37:59.000Z
 ---
 
 ## Problem
@@ -125,3 +125,11 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Final Verification
+
+- `pnpm test` over the native environment/root, provider-egress proxy, live/structural machine sandbox, Codex, Gemini CLI, Antigravity, eval host-auth, core/module boundary, root-layout, and strict-type suites: 16 files and 64 tests passed.
+- `pnpm typecheck` and focused `pnpm exec biome check ...` passed.
+- `pnpm validate-tasks` passed against the run's workspace-local Git index; the host index is read-only and requires replay after the run.
+- macOS live coverage proves an isolated child can reach only the host-owned provider proxy, receives `403` for an unlisted hostname, and cannot connect directly to a separate loopback service; Linux launch coverage requires `--unshare-net` and a Unix-socket proxy bridge.
+- Run artifact: `artifacts/verification.txt` in builder run `2026-08-04T06-33-11-054Z-builder-lkmdjp`.

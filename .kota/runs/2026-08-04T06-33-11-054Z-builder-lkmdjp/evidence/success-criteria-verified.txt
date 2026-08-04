@@ -1,0 +1,3 @@
+1. Verified: native CLI runners use `buildNativeCliEnvironment`; `withNativeCliSandbox` forces isolated HOME/XDG/temp paths, macOS/Linux readable-root policies, and a provider-host allowlisting CONNECT proxy behind an OS-enforced no-direct-network boundary; Codex and Gemini CLI copy only their required login state.
+2. Verified: focused cross-harness credential, environment, runtime-home, readable-root, proxy-denial, macOS live mediation/direct-loopback denial, and Linux namespace network-isolation assertions pass.
+3. Verified: 16 focused/protocol test files (64 tests), TypeScript typecheck, focused Biome checks, and workspace-local-index queue validation pass; `artifacts/verification.txt` records the commands and results.

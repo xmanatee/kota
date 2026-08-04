@@ -4,23 +4,49 @@ import type {
   AgentHarnessResult,
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
-import {
-  isNativeCliSandboxBootstrapError,
-  type NativeCliSandboxProcess,
-  withNativeCliSandbox,
-} from "#core/agent-harness/machine-authority-sandbox.js";
+import { buildNativeCliEnvironment } from "#core/agent-harness/native-cli-environment.js";
 import {
   NATIVE_CLI_PROCESS_GROUP_SPAWN_OPTIONS,
   signalNativeCliProcessGroup,
 } from "#core/agent-harness/native-cli-process-group.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import {
+  isNativeCliSandboxBootstrapError,
+  type NativeCliSandboxProcess,
+  withNativeCliSandbox,
+} from "#core/agent-harness/native-cli-sandbox.js";
 import {
   type CollectedGeminiOutput,
   collectGeminiOutput,
   emptyCollectedGeminiOutput,
 } from "./cli-output.js";
+import {
+  GEMINI_CLI_AUTH_DIR_ENV,
+  prepareGeminiCliRuntimeEnvironment,
+} from "./runtime-home.js";
 
 export type GeminiCliApprovalMode = "default" | "plan";
+
+const GEMINI_CLI_AUTH_ENV_KEYS = [
+  GEMINI_CLI_AUTH_DIR_ENV,
+  "GEMINI_API_KEY",
+  "GOOGLE_API_KEY",
+] as const;
+
+const GEMINI_CLI_PROJECT_ENV_KEYS = [
+  "GOOGLE_CLOUD_PROJECT",
+  "GOOGLE_CLOUD_PROJECT_ID",
+  "GOOGLE_CLOUD_LOCATION",
+  "GOOGLE_GENAI_USE_VERTEXAI",
+] as const;
+
+const GEMINI_CLI_PROVIDER_EGRESS_HOSTS = [
+  "accounts.google.com",
+  "aiplatform.googleapis.com",
+  "cloudcode-pa.googleapis.com",
+  "daily-cloudcode-pa.googleapis.com",
+  "generativelanguage.googleapis.com",
+  "oauth2.googleapis.com",
+] as const;
 
 function formatStderr(stderr: string[]): string {
   return stderr.join("").trim();
@@ -190,11 +216,19 @@ export async function collectTextFromGeminiCli(
       cwd: args.cwd,
       authorityConfigPath: args.authorityConfigPath,
       mode: args.approvalMode === "plan" ? "read-only" : "workspace-write",
-      env: withProtectedGitBareRepositoryEnv({
-        ...process.env,
-        ...(args.env ?? {}),
-        NO_COLOR: "1",
+      env: buildNativeCliEnvironment({
+        projectedEnvKeys: [
+          ...GEMINI_CLI_AUTH_ENV_KEYS,
+          ...GEMINI_CLI_PROJECT_ENV_KEYS,
+        ],
+        authenticationEnvKeys: GEMINI_CLI_AUTH_ENV_KEYS,
+        overrides: {
+          ...(args.env ?? {}),
+          NO_COLOR: "1",
+        },
       }),
+      allowedEgressHosts: GEMINI_CLI_PROVIDER_EGRESS_HOSTS,
+      prepareEnvironment: prepareGeminiCliRuntimeEnvironment,
     },
     (sandboxedProcess) => runGeminiCliProcess(args, sandboxedProcess),
   );

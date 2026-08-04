@@ -4,7 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   GEMINI_CLI_AGENT_HARNESS_NAME,
   geminiCliAgentHarness,
+  resolveGeminiCliIsolatedHostAuthEnv,
 } from "./adapter.js";
+import { GEMINI_CLI_AUTH_DIR_ENV } from "./runtime-home.js";
 
 const spawnMock = vi.hoisted(() => vi.fn());
 const sandboxLaunchMock = vi.hoisted(() => vi.fn());
@@ -16,7 +18,7 @@ vi.mock("node:child_process", async () => {
   return { ...actual, spawn: spawnMock };
 });
 
-vi.mock("#core/agent-harness/machine-authority-sandbox.js", () => ({
+vi.mock("#core/agent-harness/native-cli-sandbox.js", () => ({
   isNativeCliSandboxBootstrapError: (text: string) =>
     text.includes("sandbox-exec: sandbox_apply: Operation not permitted"),
   withNativeCliSandbox: sandboxLaunchMock,
@@ -99,6 +101,13 @@ describe("geminiCliAgentHarness", () => {
     );
   });
 
+  it("projects only the Gemini login locator when a trusted host replaces HOME", () => {
+    expect(resolveGeminiCliIsolatedHostAuthEnv({ HOME: "/operator" }))
+      .toEqual({
+        [GEMINI_CLI_AUTH_DIR_ENV]: "/operator/.gemini",
+      });
+  });
+
   it("runs gemini headless stream-json and parses successful output", async () => {
     mockGeminiProcess({
       stdoutLines: [
@@ -162,6 +171,15 @@ describe("geminiCliAgentHarness", () => {
         authorityConfigPath: "/operator/.kota/config.json",
         mode: "workspace-write",
         env: expect.any(Object),
+        allowedEgressHosts: [
+          "accounts.google.com",
+          "aiplatform.googleapis.com",
+          "cloudcode-pa.googleapis.com",
+          "daily-cloudcode-pa.googleapis.com",
+          "generativelanguage.googleapis.com",
+          "oauth2.googleapis.com",
+        ],
+        prepareEnvironment: expect.any(Function),
       },
       expect.any(Function),
     );
@@ -178,6 +196,50 @@ describe("geminiCliAgentHarness", () => {
       outputTokens: 7,
       isError: false,
     });
+  });
+
+  it("does not inherit unrelated daemon credentials", async () => {
+    mockGeminiProcess({
+      stdoutLines: [JSON.stringify({
+        type: "result",
+        response: "ok",
+        stats: { models: {} },
+      })],
+    });
+    const secrets = {
+      OPENAI_API_KEY: "openai-secret",
+      ANTHROPIC_API_KEY: "anthropic-secret",
+      GH_TOKEN: "github-secret",
+      SLACK_BOT_TOKEN: "notification-secret",
+      AWS_SECRET_ACCESS_KEY: "cloud-secret",
+      GOOGLE_APPLICATION_CREDENTIALS: "/operator/gcp.json",
+    };
+    const geminiApiKey = process.env.GEMINI_API_KEY;
+    const saved: Record<string, string | undefined> = {};
+    for (const [key, value] of Object.entries(secrets)) {
+      saved[key] = process.env[key];
+      process.env[key] = value;
+    }
+    process.env.GEMINI_API_KEY = "gemini-specific-secret";
+    try {
+      await geminiCliAgentHarness.run({
+        prompt: "inspect",
+        model: "gemini-2.5-pro",
+        effort: "xhigh",
+      });
+      const childEnv = sandboxLaunchMock.mock.calls[0][2].env as NodeJS.ProcessEnv;
+      for (const key of Object.keys(secrets)) {
+        expect(childEnv[key]).toBeUndefined();
+      }
+      expect(childEnv.GEMINI_API_KEY).toBe("gemini-specific-secret");
+    } finally {
+      for (const [key, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+      if (geminiApiKey === undefined) delete process.env.GEMINI_API_KEY;
+      else process.env.GEMINI_API_KEY = geminiApiKey;
+    }
   });
 
   it("maps passive runs to plan mode and KOTA's read-only sandbox", async () => {

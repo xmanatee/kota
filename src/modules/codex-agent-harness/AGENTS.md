@@ -13,8 +13,9 @@ route a run through this adapter.
 
 Models are passed to `codex exec --model` verbatim. The shipped Codex preset
 maps fast, balanced, and capable work to GPT-5.6 Luna, Terra, and Sol. The
-adapter removes `OPENAI_API_KEY` from the child process so an exported API key
-does not take priority over the local Codex login.
+adapter projects only shared native executable/locale state and the Codex
+login locator. `OPENAI_API_KEY` and unrelated daemon credentials do not enter
+the child, so exported keys cannot take priority over local Codex login.
 
 KOTA supports Codex CLI `0.144.1` or newer for this GPT-5.6 integration.
 
@@ -36,9 +37,13 @@ The adapter runs one non-interactive CLI process per KOTA harness call:
    plugins and hooks disabled, the selected model, and Codex's internal
    sandbox bypassed. KOTA owns the one OS sandbox around the process: passive
    runs can write only to an invocation temp root; autonomous runs can also
-   write to the workspace; Git metadata and machine authority stay read-only.
-   Codex gets a fresh runtime home under that temp root containing only the
-   host login file, so its SQLite state cannot dirty the operator's home.
+   write to the workspace; reads stay within system/tool runtime, workspace
+   dependencies, workspace, and invocation roots; Git metadata and machine
+   authority stay read-only. Network access is restricted to declared
+   OpenAI/ChatGPT endpoints through KOTA's host-owned proxy. Codex gets a
+   fresh home and runtime home under
+   that temp root containing only the host login file, so its tools cannot
+   inspect the operator home and its SQLite state cannot dirty it.
 3. Parse JSONL events from stdout. `item.completed` agent-message events are
    streamed to the optional `AgentHarnessWriter` and collected as final text.
 4. Read the final `turn.completed` usage event for token counts and return the

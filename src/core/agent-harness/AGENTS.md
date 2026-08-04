@@ -34,8 +34,10 @@ the protocol and registry.
   declare confirmed-stop support, register a run-local stop barrier before
   acting, and hold the run until the process can no longer mutate.
 - `guards.ts` owns hidden agent/worktree nesting, commit, daemon-control, and
-  authority guards. `createWorkflowAgentGuards()` composes them; the machine-
-  authority sandbox is the OS boundary for opaque code and native CLIs.
+  authority guards. Its OS sandbox gives opaque code and native CLIs minimal
+  environments, isolated home/temp, declared auth, enforced readable roots,
+  and provider-only egress through a host-owned CONNECT proxy. Native tools
+  never receive a direct host, loopback, metadata-service, or internet route.
 
 ## Owner-questions capability
 

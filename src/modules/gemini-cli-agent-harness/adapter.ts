@@ -19,8 +19,20 @@ import type {
 import { probeNativeCliRuntime } from "#core/agent-harness/index.js";
 import { geminiCliAuthReadiness } from "./auth-readiness.js";
 import { collectTextFromGeminiCli, type GeminiCliApprovalMode } from "./cli-runner.js";
+import {
+  GEMINI_CLI_AUTH_DIR_ENV,
+  resolveGeminiCliAuthDirectory,
+} from "./runtime-home.js";
 
 export const GEMINI_CLI_AGENT_HARNESS_NAME = "gemini-cli";
+
+export function resolveGeminiCliIsolatedHostAuthEnv(
+  env: NodeJS.ProcessEnv,
+): Readonly<Record<string, string>> {
+  return {
+    [GEMINI_CLI_AUTH_DIR_ENV]: resolveGeminiCliAuthDirectory(env),
+  };
+}
 
 const GEMINI_CLI_UNSUPPORTED_OPTIONS = [
   {
@@ -222,6 +234,7 @@ export const geminiCliAgentHarness: AgentHarness = {
   nativeAbortQuarantine: "confirmed-stop",
   unsupportedRunOptions: GEMINI_CLI_UNSUPPORTED_OPTIONS,
   readiness: geminiCliReadiness,
+  resolveIsolatedHostAuthEnv: resolveGeminiCliIsolatedHostAuthEnv,
   async run(
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,
