@@ -22,6 +22,7 @@ import { GLOBAL_SCOPE_ID, type ScopeRegistry } from "./scope-registry.js";
 export type ReloadSubject = {
   handle: ReturnType<typeof buildDaemonHandle>;
   events: BusEvents["daemon.config.reload"][];
+  restartRequests: BusEvents["runtime.restart_requested"][];
   refreshLiveSessionGuardrails: ReturnType<typeof vi.fn>;
   workflowRuntime: {
     setWorkflowInputs: ReturnType<typeof vi.fn>;
@@ -59,8 +60,12 @@ export function makeReloadSubject(
 ): ReloadSubject {
   const bus = new EventBus();
   const events: BusEvents["daemon.config.reload"][] = [];
+  const restartRequests: BusEvents["runtime.restart_requested"][] = [];
   bus.on("daemon.config.reload", (payload) => {
     events.push(payload);
+  });
+  bus.on("runtime.restart_requested", (payload) => {
+    restartRequests.push(payload);
   });
 
   const workflowRuntime = {
@@ -121,7 +126,13 @@ export function makeReloadSubject(
     getChannelStatuses: () => [],
   });
 
-  return { handle, events, refreshLiveSessionGuardrails, workflowRuntime };
+  return {
+    handle,
+    events,
+    restartRequests,
+    refreshLiveSessionGuardrails,
+    workflowRuntime,
+  };
 }
 
 export function mockModuleMetadata(): void {

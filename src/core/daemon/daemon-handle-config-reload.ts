@@ -35,6 +35,14 @@ function buildSessionGuardrailsReloadSummary(
   };
 }
 
+function agentRuntimeSelectionChanged(
+  oldConfig: KotaConfig,
+  newConfig: KotaConfig,
+): boolean {
+  return oldConfig.defaultPreset !== newConfig.defaultPreset
+    || oldConfig.defaultAgentHarness !== newConfig.defaultAgentHarness;
+}
+
 export function buildDaemonConfigReloadHandle(
   ctx: DaemonHandleContext,
 ): Pick<DaemonControlHandle, "reloadConfig"> {
@@ -75,6 +83,7 @@ export function buildDaemonConfigReloadHandle(
           newConfig,
           allModules,
         );
+        const restartAgentRuntime = agentRuntimeSelectionChanged(oldConfig, newConfig);
         config.config = newConfig;
         const sessionGuardrails = buildSessionGuardrailsReloadSummary(
           refreshLiveSessionGuardrails(resolveInteractiveGuardrailsConfig(newConfig)),
@@ -93,6 +102,14 @@ export function buildDaemonConfigReloadHandle(
           sessionGuardrails,
         }));
         log(`Config reloaded: ${aggregateCount} workflow definition(s) active`);
+        if (restartAgentRuntime) {
+          const reason = "Agent runtime selection changed during config reload";
+          log(`${reason}; supervised restart required`);
+          bus.emit("runtime.restart_requested", {
+            projectId: projectRuntimes.getDefault().project.projectId,
+            reason,
+          });
+        }
         if (isFullReload) {
           log(`  Full reload: all ${changedModules.length} module(s) restarted (global config changed)`);
         } else if (changedModules.length > 0) {

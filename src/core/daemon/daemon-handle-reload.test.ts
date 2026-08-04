@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadConfig } from "#core/config/config.js";
-import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import {
   makeReloadSubject,
   mockModuleMetadata,
@@ -176,6 +175,21 @@ describe("buildDaemonHandle reloadConfig events", () => {
       workflowCount: 5,
       sessionGuardrails: { refreshed: 0, unchanged: 0, nonRefreshable: [] },
     });
+  });
+
+  it("requests a supervised restart when agent runtime selection changes", async () => {
+    mockModuleMetadata();
+    vi.mocked(loadConfig).mockReturnValue({ defaultPreset: "gemini-cli" });
+    const subject = makeReloadSubject({ defaultPreset: "codex" });
+
+    await subject.handle.reloadConfig();
+
+    expect(subject.restartRequests).toEqual([
+      {
+        projectId: "test-project",
+        reason: "Agent runtime selection changed during config reload",
+      },
+    ]);
   });
 
   it("reports serve-owned sessions as non-refreshable on reload", async () => {
