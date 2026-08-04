@@ -1,67 +1,40 @@
-# Antigravity CLI Agent Harness Module
+# Antigravity CLI Agent Harness
 
-Adapter module that registers the `antigravity-cli` harness. The harness is the
-KOTA preset path for Google's Antigravity CLI (`agy`), the native terminal
-runtime replacing consumer Gemini CLI access after June 18, 2026.
+This module owns KOTA's native adapter for Google's Antigravity CLI. Keep AGY
+flags, event translation, login projection, readiness, and provider endpoints
+inside this adapter rather than branching on the harness name elsewhere.
 
-Select it with the `antigravity-cli` preset, default harness config, or a
-per-step `harness` override.
+## Runtime Boundary
 
-## Provider Routing
+AGY owns its model tool loop, skills, plugins, MCP configuration, browser use,
+and native permission model. KOTA owns process cancellation, workspace mode,
+machine-authority isolation, and provider egress. The adapter rejects KOTA tool
+controls that cannot be enforced inside AGY.
 
-Antigravity CLI owns provider routing inside its native runtime. The shipped
-preset maps KOTA tiers to the current local Antigravity model family and the
-adapter passes the selected id to `agy --model` for the one-shot run.
+Each run creates an invocation-local AGY project bound to the requested working
+directory and consumes `stream-json`. Translate native events into
+`KotaAgentMessage` frames here; preserve unknown frames as `raw` messages. KOTA
+effort maps to AGY's `low`, `medium`, or `high` values, with stronger KOTA
+levels capped at AGY's highest supported value.
 
-Authentication is harness-managed. The CLI authenticates through the operating
-system secure keyring and falls back to browser sign-in. KOTA probes the local
-`agy` executable and reports that no documented non-interactive auth-status
-command is available; it must not inspect or infer secrets from the OS keyring.
+The CLI's own print timeout is only a final process cap. KOTA cancellation and
+workflow idle supervision remain the normal lifecycle controls.
 
-## Local Paths
+## Isolation
 
-Antigravity-specific files stay local to this module:
+Daemon runs use an invocation-local home and inherit no provider, GitHub,
+notification, or cloud credentials. On macOS, the isolated home exposes only
+the host Keychain directory through a read-only symlink so AGY can reuse its
+native login without inheriting global settings, plugins, history, or caches.
+Never copy or inspect the token itself.
 
-- Global settings: `~/.gemini/antigravity-cli/settings.json`
-- Keybindings: `~/.gemini/antigravity-cli/keybindings.json`
-- Plugins: `~/.gemini/antigravity-cli/plugins/`
-- MCP config: `~/.gemini/antigravity-cli/mcp_config.json`
+The OS sandbox permits AGY's internal loopback listener, but outbound traffic
+still goes only through KOTA's host-owned allowlisted proxy. Passive runs can
+write only to invocation state; autonomous runs can also write to the
+workspace. Git metadata and machine authority remain protected.
 
-Workspace customizations are Antigravity-owned (`.agents/skills` and
-`.agents/mcp_config.json`). Do not translate them into KOTA tool settings.
-Daemon-launched runs use an isolated home, so global settings, plugins, and
-MCP files above are operator setup surfaces rather than inherited agent input;
-OS-keyring login remains available without exposing credential files.
+## Model Routing
 
-## Loop Shape
-
-Current public AGY CLI docs describe an interactive terminal UI, slash
-commands, settings, plugins, permissions, migration commands, and
-`agy --print` for non-interactive text output. They do not document a stable
-structured-output mode equivalent to `codex exec --json` or
-`gemini --output-format stream-json`.
-
-`run()` executes one `agy --print` subprocess and returns the final text. It
-does not expose token deltas, native tool-call events, session ids, or
-`KotaAgentMessage` frames. This keeps the preset useful for text-only native
-AGY runs without pretending KOTA can supervise AGY's internal tool loop.
-Every invocation runs inside KOTA's single native-CLI OS sandbox. Passive mode
-can write only to an invocation temp root; autonomous mode can also write to
-the workspace. Reads stay within system/tool runtime, workspace dependencies,
-workspace, and invocation roots; Git metadata and machine authority stay
-read-only. Network access is restricted to declared Google model and
-authentication endpoints through KOTA's host-owned proxy. The child inherits
-no provider, GitHub, notification, or cloud credentials from the daemon.
-Cancellation terminates the CLI process group so spawned tools cannot outlive
-the CLI, and the run-local quarantine barrier stays pending until the group
-leader has closed.
-
-## Capability Boundary
-
-Antigravity CLI owns plugins, skills, hooks, subagents, MCP configuration,
-browser use, and approvals. KOTA owns filesystem isolation so there is no
-nested sandbox. This adapter does not expose KOTA's
-tool registry, `canUseTool`, owner-question routing, supervised approvals, or
-scope-policy evaluation or MCP server injection to AGY. It declares
-`toolControl: "native"` and rejects
-unsupported KOTA-only options before launching `agy`.
+The shipped preset selects current AGY model ids and always passes an explicit
+model and effort. Treat `agy models` as the local availability authority; do
+not infer support from older Gemini CLI model catalogs.

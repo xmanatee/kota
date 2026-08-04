@@ -46,11 +46,11 @@ describe("antigravity-cli agent harness integration", () => {
     );
   });
 
-  it("resolves through the registry as a text-only native AGY harness", () => {
+  it("resolves through the registry as a structured native AGY harness", () => {
     const harness = resolveAgentHarness(ANTIGRAVITY_CLI_AGENT_HARNESS_NAME);
 
     expect(harness.description).toContain("agy --print");
     expect(harness.toolControl).toBe("native");
-    expect(harness.emitsAgentMessageStream).toBe(false);
+    expect(harness.emitsAgentMessageStream).toBe(true);
   });
 });

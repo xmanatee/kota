@@ -51,6 +51,30 @@ function mockAgyProcess(options: {
   return child;
 }
 
+function successfulAgyOutput(text: string): string {
+  return [
+    { event: "init", conversation_id: "conversation-1" },
+    {
+      event: "step_update",
+      step_update: {
+        conversation_id: "conversation-1",
+        step_type: "agent_response",
+        text_delta: text,
+      },
+    },
+    {
+      event: "result",
+      result: {
+        conversation_id: "conversation-1",
+        status: "SUCCESS",
+        response: text,
+        num_turns: 1,
+        usage: { input_tokens: 12, output_tokens: 3 },
+      },
+    },
+  ].map((event) => JSON.stringify(event)).join("\n") + "\n";
+}
+
 function mockManualAgyProcess(): MockChild {
   const child = new EventEmitter() as MockChild;
   child.stdout = new PassThrough();
@@ -92,7 +116,7 @@ describe("antigravityCliAgentHarness", () => {
     expect(antigravityCliAgentHarness.name).toBe("antigravity-cli");
     expect(antigravityCliAgentHarness.supportsMultiTurn).toBe(false);
     expect(antigravityCliAgentHarness.askOwnerToolName).toBeNull();
-    expect(antigravityCliAgentHarness.emitsAgentMessageStream).toBe(false);
+    expect(antigravityCliAgentHarness.emitsAgentMessageStream).toBe(true);
     expect(antigravityCliAgentHarness.toolControl).toBe("native");
     expect(
       antigravityCliAgentHarness.unsupportedRunOptions?.map((option) => option.option),
@@ -137,18 +161,20 @@ describe("antigravityCliAgentHarness", () => {
     );
   });
 
-  it("runs agy print mode and returns text output", async () => {
-    mockAgyProcess({ stdout: "all done\n" });
+  it("runs AGY headlessly and translates its structured event stream", async () => {
+    mockAgyProcess({ stdout: successfulAgyOutput("all done") });
 
     const writer = { write: vi.fn().mockReturnValue(true) };
+    const onMessage = vi.fn();
     const result = await antigravityCliAgentHarness.run(
       {
         prompt: "please echo",
-        model: "gemini-3.5-flash",
+        model: "gemini-3.6-flash",
         effort: "xhigh",
         systemPrompt: "be brief",
         cwd: "/repo",
         authorityConfigPath: "/operator/.kota/config.json",
+        onMessage,
       },
       writer,
     );
@@ -157,23 +183,32 @@ describe("antigravityCliAgentHarness", () => {
       "authority-sandbox",
       expect.arrayContaining([
         "agy",
+        "--new-project",
         "--print",
         expect.stringContaining("## Task\n\nplease echo"),
         "--model",
-        "gemini-3.5-flash",
+        "gemini-3.6-flash",
+        "--effort",
+        "high",
+        "--mode",
+        "accept-edits",
+        "--dangerously-skip-permissions",
+        "--output-format",
+        "stream-json",
         "--print-timeout",
-        "5m",
+        "24h",
       ]),
       expect.objectContaining({ cwd: "/repo", detached: true }),
     );
     expect(sandboxLaunchMock).toHaveBeenCalledWith(
       "agy",
       expect.any(Array),
-      {
+      expect.objectContaining({
         cwd: "/repo",
         authorityConfigPath: "/operator/.kota/config.json",
         mode: "workspace-write",
         env: expect.any(Object),
+        readOnlyHostRoots: [expect.stringContaining("Library/Keychains")],
         allowedEgressHosts: [
           "accounts.google.com",
           "aiplatform.googleapis.com",
@@ -181,25 +216,37 @@ describe("antigravityCliAgentHarness", () => {
           "cloudcode-pa.googleapis.com",
           "daily-cloudcode-pa.googleapis.com",
           "generativelanguage.googleapis.com",
+          "lh3.googleusercontent.com",
           "oauth2.googleapis.com",
+          "www.googleapis.com",
         ],
-      },
+        prepareEnvironment: expect.any(Function),
+      }),
       expect.any(Function),
     );
-    const promptArg = spawnMock.mock.calls[0][1][2] as string;
+    const commandArgs = spawnMock.mock.calls[0][1] as string[];
+    const promptArg = commandArgs[commandArgs.indexOf("--print") + 1]!;
     expect(promptArg).toContain("## System instructions\n\nbe brief");
     expect(promptArg).toContain("Do not run `git commit`");
     expect(writer.write).toHaveBeenCalledWith("all done");
+    expect(onMessage.mock.calls.map(([message]) => message.type)).toEqual([
+      "status",
+      "text",
+      "result",
+    ]);
     expect(result).toMatchObject({
       text: "all done",
       streamedText: "all done",
+      sessionId: "conversation-1",
       turns: 1,
+      inputTokens: 12,
+      outputTokens: 3,
       isError: false,
     });
   });
 
   it("does not inherit daemon provider, GitHub, notification, or cloud credentials", async () => {
-    mockAgyProcess({ stdout: "ok" });
+    mockAgyProcess({ stdout: successfulAgyOutput("ok") });
     const secrets = {
       OPENAI_API_KEY: "openai-secret",
       GEMINI_API_KEY: "gemini-secret",
@@ -216,7 +263,7 @@ describe("antigravityCliAgentHarness", () => {
     try {
       await antigravityCliAgentHarness.run({
         prompt: "inspect",
-        model: "gemini-3.5-flash",
+        model: "gemini-3.6-flash",
         effort: "xhigh",
       });
       const childEnv = sandboxLaunchMock.mock.calls[0][2].env as NodeJS.ProcessEnv;
@@ -232,11 +279,11 @@ describe("antigravityCliAgentHarness", () => {
   });
 
   it("maps passive runs to KOTA's read-only sandbox", async () => {
-    mockAgyProcess({ stdout: "ok" });
+    mockAgyProcess({ stdout: successfulAgyOutput("ok") });
 
     await antigravityCliAgentHarness.run({
       prompt: "inspect",
-      model: "gemini-3.5-flash",
+      model: "gemini-3.6-flash",
       effort: "medium",
       autonomyMode: "passive",
     });
@@ -254,7 +301,7 @@ describe("antigravityCliAgentHarness", () => {
 
     const result = await antigravityCliAgentHarness.run({
       prompt: "x",
-      model: "gemini-3.5-flash",
+      model: "gemini-3.6-flash",
       effort: "xhigh",
     });
 
@@ -270,7 +317,7 @@ describe("antigravityCliAgentHarness", () => {
     const abortController = new AbortController();
     const run = antigravityCliAgentHarness.run({
       prompt: "x",
-      model: "gemini-3.5-flash",
+      model: "gemini-3.6-flash",
       effort: "xhigh",
       abortController,
     });
@@ -293,12 +340,12 @@ describe("antigravityCliAgentHarness", () => {
 
     const result = await antigravityCliAgentHarness.run({
       prompt: "x",
-      model: "gemini-3.5-flash",
+      model: "gemini-3.6-flash",
       effort: "xhigh",
     });
 
     expect(result).toMatchObject({
-      text: "Antigravity CLI completed without output.",
+      text: "Antigravity CLI completed without structured output.",
       isError: true,
       subtype: "antigravity_cli_empty_output",
     });
@@ -317,7 +364,7 @@ describe("antigravityCliAgentHarness", () => {
     await expect(
       antigravityCliAgentHarness.run({
         prompt: "x",
-        model: "gemini-3.5-flash",
+        model: "gemini-3.6-flash",
         effort: "xhigh",
         canUseTool: async () => ({ behavior: "allow" }),
       }),
@@ -326,7 +373,7 @@ describe("antigravityCliAgentHarness", () => {
     await expect(
       antigravityCliAgentHarness.run({
         prompt: "x",
-        model: "gemini-3.5-flash",
+        model: "gemini-3.6-flash",
         effort: "xhigh",
         mcpServers: { foo: { type: "stdio", command: "bar" } },
       }),
@@ -335,7 +382,7 @@ describe("antigravityCliAgentHarness", () => {
     await expect(
       antigravityCliAgentHarness.run({
         prompt: "x",
-        model: "gemini-3.5-flash",
+        model: "gemini-3.6-flash",
         effort: "xhigh",
         askOwner: { source: "test" },
       }),

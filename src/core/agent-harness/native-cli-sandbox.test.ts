@@ -49,15 +49,6 @@ async function runNativeProcess(
   });
 }
 
-function nestedSandboxAborted(result: NativeProcessResult): boolean {
-  return (
-    result.status === null &&
-    result.signal === "SIGABRT" &&
-    result.stdout === "" &&
-    result.stderr === ""
-  );
-}
-
 describe("native CLI live sandbox", () => {
   it.runIf(process.platform === "darwin")(
     "denies host-file reads outside declared roots",
@@ -92,13 +83,11 @@ describe("native CLI live sandbox", () => {
       );
 
       expect(result.status).not.toBe(0);
-      if (
-        isNativeCliSandboxBootstrapError(result.stderr) ||
-        nestedSandboxAborted(result)
-      ) {
+      if (isNativeCliSandboxBootstrapError(result.stderr)) {
         expect(result.stdout).toBe("");
         return;
       }
+      expect(result.signal).not.toBe("SIGABRT");
       const firstLine = result.stdout.trim().split("\n")[0];
       expect(
         firstLine,
@@ -157,13 +146,11 @@ describe("native CLI live sandbox", () => {
           (sandboxedProcess) => runNativeProcess(projectDir, sandboxedProcess),
         );
 
-        if (
-          isNativeCliSandboxBootstrapError(result.stderr) ||
-          nestedSandboxAborted(result)
-        ) {
+        if (isNativeCliSandboxBootstrapError(result.stderr)) {
           expect(result.stdout).toBe("");
           return;
         }
+        expect(result.signal).not.toBe("SIGABRT");
         expect(
           result.status,
           `native egress status=${result.status} signal=${result.signal ?? "none"} stderr: ${result.stderr}`,

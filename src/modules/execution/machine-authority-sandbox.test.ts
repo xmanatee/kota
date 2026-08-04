@@ -59,9 +59,13 @@ describe("machine authority execution sandbox", () => {
     expect(profile).toContain("(deny file-read*)");
     expect(profile).toContain("(deny network*)");
     expect(profile).toContain(
+      '(allow network-inbound (local tcp "localhost:*"))',
+    );
+    expect(profile).toContain(
       '(allow network-outbound (remote tcp "localhost:48121"))',
     );
-    expect(profile).toContain('(allow file-read* (literal "/project")');
+    expect(profile).toContain('(allow file-read* (literal "/")');
+    expect(profile).toContain('(literal "/project")');
     expect(profile).toContain('(literal "/opt/codex")');
     expect(profile).toContain("(deny file-write*)");
     expect(profile).toContain('(allow file-write* (literal "/dev/null")');

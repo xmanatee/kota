@@ -317,11 +317,11 @@ describe("preset harness readiness", () => {
     expect(readiness).toMatchObject({
       presetId: "antigravity-cli",
       harnessId: "antigravity-cli",
-      defaultModel: "gemini-3.5-flash",
+      defaultModel: "gemini-3.1-pro",
       tiers: {
-        fast: "gemini-3.5-flash",
-        balanced: "gemini-3.5-flash",
-        capable: "gemini-3.5-flash",
+        fast: "gemini-3.6-flash",
+        balanced: "gemini-3.6-flash",
+        capable: "gemini-3.1-pro",
       },
       auth: {
         mode: "harness-managed-login",

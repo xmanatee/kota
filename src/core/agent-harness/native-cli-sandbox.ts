@@ -25,6 +25,7 @@ type NativeCliSandboxOptions = {
   authorityConfigPath?: string;
   mode: NativeCliSandboxMode;
   env: NodeJS.ProcessEnv;
+  readOnlyHostRoots?: readonly string[];
   allowedEgressHosts?: readonly string[];
   prepareEnvironment?: (
     temporaryDirectory: string,
@@ -146,6 +147,7 @@ export async function withNativeCliSandbox<T>(
             temporaryDirectory,
             options.env,
           )),
+      ...(options.readOnlyHostRoots ?? []),
     ];
     const launch = buildMachineAuthoritySandboxLaunch(launchExecutable, launchArgs, {
       cwd: options.cwd,

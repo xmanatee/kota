@@ -1,10 +1,4 @@
-/**
- * `antigravity-cli` agent harness — a text-only adapter around AGY CLI.
- *
- * Google's current Antigravity CLI exposes `agy --print` for non-interactive
- * text output. It does not expose a stable structured event stream equivalent
- * to Gemini CLI's `stream-json`, so this adapter is intentionally text-only.
- */
+/** `antigravity-cli` agent harness around AGY's headless event stream. */
 
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
@@ -24,8 +18,21 @@ import {
   abortedAntigravityCliResult,
   collectTextFromAntigravityCli,
 } from "./cli-runner.js";
+import {
+  ANTIGRAVITY_CLI_KEYCHAIN_DIR_ENV,
+  resolveAntigravityCliKeychainDirectory,
+} from "./runtime-home.js";
 
 export const ANTIGRAVITY_CLI_AGENT_HARNESS_NAME = "antigravity-cli";
+
+export function resolveAntigravityCliIsolatedHostAuthEnv(
+  env: NodeJS.ProcessEnv,
+): Readonly<Record<string, string>> {
+  const keychainDirectory = resolveAntigravityCliKeychainDirectory(env);
+  return keychainDirectory === undefined
+    ? {}
+    : { [ANTIGRAVITY_CLI_KEYCHAIN_DIR_ENV]: keychainDirectory };
+}
 
 const ANTIGRAVITY_CONFIG_DIR = join(
   homedir(),
@@ -102,12 +109,6 @@ const ANTIGRAVITY_CLI_UNSUPPORTED_OPTIONS = [
     reason:
       "Antigravity CLI owns provider-specific reasoning controls outside this neutral surface.",
   },
-  {
-    runOption: "onMessage",
-    option: "onMessage",
-    reason:
-      "Antigravity CLI does not expose KotaAgentMessage frames through this adapter.",
-  },
 ] as const satisfies readonly AgentHarnessUnsupportedOption[];
 
 function antigravityCliAuthReadiness(): AgentHarnessAuthProbe {
@@ -134,6 +135,7 @@ function antigravityCliReadiness(): AgentHarnessReadiness {
     localRuntime: probeNativeCliRuntime({
       binaryName: ANTIGRAVITY_CLI_BINARY_NAME,
       versionArgs: ["--version"],
+      minimumVersion: "1.1.10",
       required: true,
       missingSummary:
         "Antigravity CLI executable `agy` not found on PATH; install Antigravity CLI first",
@@ -217,12 +219,6 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
         "Select Antigravity model and reasoning behavior inside AGY.",
     );
   }
-  if (options.onMessage !== undefined) {
-    throw new Error(
-      'The "antigravity-cli" agent harness does not emit KotaAgentMessage frames. ' +
-        "Drop onMessage.",
-    );
-  }
 }
 
 function buildAntigravityPrompt(options: AgentHarnessRunOptions): string {
@@ -247,15 +243,16 @@ function buildAntigravityPrompt(options: AgentHarnessRunOptions): string {
 export const antigravityCliAgentHarness: AgentHarness = {
   name: ANTIGRAVITY_CLI_AGENT_HARNESS_NAME,
   description:
-    "Runs Antigravity CLI (`agy --print`) as Google's current native CLI path with text-only output.",
+    "Runs Antigravity CLI (`agy --print --output-format stream-json`) as Google's current native CLI path.",
   supportsMultiTurn: false,
   supportedHookKinds: ["preRun", "postRun"] as const,
   askOwnerToolName: null,
-  emitsAgentMessageStream: false,
+  emitsAgentMessageStream: true,
   toolControl: "native",
   nativeAbortQuarantine: "confirmed-stop",
   unsupportedRunOptions: ANTIGRAVITY_CLI_UNSUPPORTED_OPTIONS,
   readiness: antigravityCliReadiness,
+  resolveIsolatedHostAuthEnv: resolveAntigravityCliIsolatedHostAuthEnv,
   async run(
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,
@@ -273,11 +270,13 @@ export const antigravityCliAgentHarness: AgentHarness = {
       prompt: buildAntigravityPrompt(options),
       cwd: options.cwd ?? process.cwd(),
       model: options.model,
+      effort: options.effort,
       passive: options.autonomyMode === "passive",
       authorityConfigPath: options.authorityConfigPath,
       env: options.env,
       abortController: options.abortController,
       writer,
+      onMessage: options.onMessage,
     });
     options.abortQuarantine?.register(async () => {
       await execution.then(

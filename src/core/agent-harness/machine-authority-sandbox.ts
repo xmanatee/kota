@@ -77,6 +77,7 @@ function macosProfile(
       ? []
       : [
           "(deny network*)",
+          '(allow network-inbound (local tcp "localhost:*"))',
           ...(networkAccess.kind === "loopback-proxy"
             ? [
                 `(allow network-outbound (remote tcp ${JSON.stringify(`localhost:${networkAccess.port}`)}))`,
@@ -88,7 +89,7 @@ function macosProfile(
       : [
           "(deny file-read*)",
           "(allow file-read-metadata)",
-          `(allow file-read* ${sandboxPathSelectors(readableRoots).join(" ")})`,
+          `(allow file-read* (literal "/") ${sandboxPathSelectors(readableRoots).join(" ")})`,
         ]),
     ...(writableRoots === undefined
       ? []
