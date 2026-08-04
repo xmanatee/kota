@@ -126,6 +126,8 @@ function assertWorkflowStepResult(path: string, value: unknown): void {
 function isWorkflowAgentBackoffState(value: unknown): value is WorkflowAgentBackoffState {
   return (
     isPlainObject(value) &&
+    typeof value.runtimeId === "string" &&
+    value.runtimeId.trim().length > 0 &&
     (
       value.kind === "rate_limit" ||
       value.kind === "auth" ||

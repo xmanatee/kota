@@ -14,7 +14,11 @@ describe("AgentBackoffManager", () => {
   let logs: string[];
 
   function makeManager(): AgentBackoffManager {
-    return new AgentBackoffManager(store, (message) => logs.push(message));
+    return new AgentBackoffManager(
+      store,
+      (message) => logs.push(message),
+      "codex:codex",
+    );
   }
 
   function makeQueue(
@@ -75,6 +79,28 @@ describe("AgentBackoffManager", () => {
     manager.clear();
 
     expect(store.readState().agentBackoff).toBeUndefined();
+  });
+
+  it("clears backoff owned by a different agent runtime", () => {
+    store.setAgentBackoff({
+      runtimeId: "codex:codex",
+      kind: "rate_limit",
+      failureCount: 1,
+      until: "2026-05-16T09:00:00.000Z",
+      updatedAt: "2026-05-12T11:00:00.000Z",
+      reason: "Codex usage limit",
+    });
+    const manager = new AgentBackoffManager(
+      store,
+      (message) => logs.push(message),
+      "gemini-cli:gemini-cli",
+    );
+
+    expect(manager.getActive()).toBeNull();
+    expect(store.readState().agentBackoff).toBeUndefined();
+    expect(logs).toContain(
+      "Cleared agent dispatch backoff from runtime codex:codex; active runtime is gemini-cli:gemini-cli",
+    );
   });
 
   it("honors a provider retry timestamp beyond the local backoff cap", () => {

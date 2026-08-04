@@ -68,6 +68,7 @@ describe("assertWorkflowRuntimeState", () => {
     const state = {
       ...validState,
       agentBackoff: {
+        runtimeId: "codex:codex",
         kind: "rate_limit",
         failureCount: 2,
         until: "2026-01-01T02:00:00.000Z",
@@ -82,6 +83,7 @@ describe("assertWorkflowRuntimeState", () => {
     const state = {
       ...validState,
       agentBackoff: {
+        runtimeId: "gemini-cli:gemini-cli",
         kind: "runtime",
         failureCount: 1,
         until: "2026-01-01T02:00:00.000Z",
@@ -291,6 +293,7 @@ describe("assertWorkflowRuntimeState", () => {
       assertWorkflowRuntimeState(path, {
         ...validState,
         agentBackoff: {
+          runtimeId: "codex:codex",
           kind: "rate_limit",
           failureCount: 0,
           until: "2026-01-01T02:00:00.000Z",

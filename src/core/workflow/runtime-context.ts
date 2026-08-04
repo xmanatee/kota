@@ -7,7 +7,10 @@ import { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
-import { AgentBackoffManager } from "./agent-backoff.js";
+import {
+  AgentBackoffManager,
+  workflowAgentRuntimeId,
+} from "./agent-backoff.js";
 import { WorkflowEventBatchManager } from "./event-batches.js";
 import { workflowUsesAgent } from "./run-executor-utils.js";
 import { WorkflowRunStore } from "./run-store.js";
@@ -115,7 +118,11 @@ export function createWorkflowRuntimeContext(
   // read it after construction instead of recomputing runtime state.
   let ctx!: WorkflowRuntimeContext;
 
-  const backoff = new AgentBackoffManager(store, log);
+  const backoff = new AgentBackoffManager(
+    store,
+    log,
+    workflowAgentRuntimeId(runtimeConfig.config),
+  );
   const wfQueue = new WorkflowQueueManager({
     store,
     projectDir,

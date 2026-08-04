@@ -13,6 +13,7 @@ export type WorkflowAgentBackoffKind = NonNullable<
 >;
 
 export type WorkflowAgentBackoffState = {
+  runtimeId: string;
   kind: WorkflowAgentBackoffKind;
   failureCount: number;
   until: string;

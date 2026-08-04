@@ -1,3 +1,5 @@
+import type { KotaConfig } from "#core/config/config.js";
+import { getPreset, SHIPPED_DEFAULT_PRESET_ID } from "#core/model/preset.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowAgentBackoffSignal, WorkflowAgentBackoffState } from "./trigger-types.js";
 
@@ -16,6 +18,7 @@ export class AgentBackoffManager {
   constructor(
     private readonly store: WorkflowRunStore,
     private readonly log: (msg: string) => void,
+    private readonly runtimeId: string,
   ) {}
 
   private getStored(): WorkflowAgentBackoffState | null {
@@ -25,6 +28,14 @@ export class AgentBackoffManager {
   getActive(): WorkflowAgentBackoffState | null {
     const backoff = this.getStored();
     if (!backoff) return null;
+
+    if (backoff.runtimeId !== this.runtimeId) {
+      this.store.setAgentBackoff(null);
+      this.log(
+        `Cleared agent dispatch backoff from runtime ${backoff.runtimeId}; active runtime is ${this.runtimeId}`,
+      );
+      return null;
+    }
 
     const untilMs = new Date(backoff.until).getTime();
     if (untilMs > Date.now()) return backoff;
@@ -49,6 +60,7 @@ export class AgentBackoffManager {
       ? Math.max(policyUntilMs, retryAtMs)
       : policyUntilMs;
     const backoff: WorkflowAgentBackoffState = {
+      runtimeId: this.runtimeId,
       kind: signal.kind,
       failureCount: nextFailureCount,
       until: new Date(untilMs).toISOString(),
@@ -69,4 +81,9 @@ export class AgentBackoffManager {
       `Cleared agent dispatch backoff after successful agent run (${backoff.kind})`,
     );
   }
+}
+
+export function workflowAgentRuntimeId(config: KotaConfig | undefined): string {
+  const preset = getPreset(config?.defaultPreset ?? SHIPPED_DEFAULT_PRESET_ID);
+  return `${preset.id}:${config?.defaultAgentHarness ?? preset.harness}`;
 }
