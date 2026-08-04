@@ -13,7 +13,6 @@ import {
 } from "#core/agents/handoff.js";
 import { capScopeAutonomyMode } from "#core/daemon/scope-policy.js";
 import {
-  diffMutatedPaths,
   findWriteScopeViolations,
 } from "#core/workflow/steps/agent-write-scope.js";
 import { assembleDelegateResult } from "./delegate-format.js";
@@ -117,7 +116,7 @@ export async function runHandoffAgent(
   );
   if (isErrorResult(toolScope)) return toolScope;
   const writeScope = resolveWriteScope(agent, requestedWriteScope);
-  if (!Array.isArray(writeScope)) return writeScope;
+  if (isErrorResult(writeScope)) return writeScope;
 
   const budgetStart = runtime.delegateBudget.tryStart();
   if (!budgetStart.ok) {
@@ -133,7 +132,9 @@ export async function runHandoffAgent(
       const scope = readScope(input, currentScope(cwd, context));
       if (isErrorResult(scope)) return scope;
       const preSnapshot = writeScopeSnapshot(cwd, writeScope);
-      if (!Array.isArray(preSnapshot)) return preSnapshot;
+      if (preSnapshot !== undefined && isErrorResult(preSnapshot)) {
+        return preSnapshot;
+      }
       const trace = readParent(input, context);
       const request: AgentHandoffRequest = {
         agentName,
@@ -201,21 +202,27 @@ export async function runHandoffAgent(
         },
         createHarnessWriter(runtime.transport),
       );
-      if (result.isError) {
-        return errorResult(
-          `child agent "${agent.name}" failed (${result.subtype ?? "error"}): ${result.text.trim()}`,
-        );
-      }
-
       const postSnapshot = writeScopeSnapshot(cwd, writeScope);
-      if (!Array.isArray(postSnapshot)) return postSnapshot;
+      if (postSnapshot !== undefined && isErrorResult(postSnapshot)) {
+        return postSnapshot;
+      }
       const violations = findWriteScopeViolations(
-        diffMutatedPaths(preSnapshot, postSnapshot),
+        preSnapshot && postSnapshot
+          ? preSnapshot.changedPathsSince(postSnapshot)
+          : [],
         writeScope,
       );
       if (violations.length > 0) {
+        if (writeScope === "deny-all") {
+          preSnapshot?.restoreDenyAllMutations(cwd, violations);
+        }
         return errorResult(
           `child agent "${agent.name}" wrote outside writeScope: ${violations.join(", ")}`,
+        );
+      }
+      if (result.isError) {
+        return errorResult(
+          `child agent "${agent.name}" failed (${result.subtype ?? "error"}): ${result.text.trim()}`,
         );
       }
 

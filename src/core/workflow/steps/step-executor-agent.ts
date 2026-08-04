@@ -33,11 +33,11 @@ import {
   AgentWriteScopeViolationError,
   diffMutatedPaths,
   findWriteScopeViolations,
-  listWorkflowMutatedPaths,
   removeWorkflowScratchArtifacts,
   tryListWorkflowMutatedPaths,
   writeWriteScopeViolationArtifact,
 } from "./agent-write-scope.js";
+import { captureWorkflowMutationSnapshot } from "./agent-write-scope-snapshot.js";
 import { runAgentAttempt } from "./step-executor-agent-attempt.js";
 import { writeHarnessCapabilityArtifact } from "./step-executor-agent-capability.js";
 import {
@@ -220,12 +220,21 @@ export async function executeAgentStep(
 
   const executeWithWorkspaceAttribution = async (): Promise<AgentStepResult> => {
     // Snapshot after the workspace lane so wait time is not attribution time.
-    const preStepMutatedPaths = scopedAgent
-      ? listWorkflowMutatedPaths(workspaceDir)
-      : (tryListWorkflowMutatedPaths(workspaceDir) ?? []);
-    let output: WorkflowStepOutput;
+    const preStepSnapshot = scopedAgent
+      ? captureWorkflowMutationSnapshot(workspaceDir)
+      : undefined;
+    const preStepMutatedPaths = preStepSnapshot?.mutatedPaths ??
+      (tryListWorkflowMutatedPaths(workspaceDir) ?? []);
+    let attempt:
+      | { ok: true; output: WorkflowStepOutput }
+      | { ok: false; error: Error };
     try {
-      output = await runWithRetry();
+      attempt = { ok: true, output: await runWithRetry() };
+    } catch (error) {
+      attempt = {
+        ok: false,
+        error: error instanceof Error ? error : new Error(String(error)),
+      };
     } finally {
       writeAgentTokenBudgetArtifact(
         step.id,
@@ -236,7 +245,7 @@ export async function executeAgentStep(
       removeWorkflowScratchArtifacts(workspaceDir);
     }
 
-    if (bufferAgentMessages) {
+    if (attempt.ok && bufferAgentMessages) {
       for (const message of successfulAttemptMessages) appendMessage(message);
     }
 
@@ -244,19 +253,14 @@ export async function executeAgentStep(
       writeToolTelemetryArtifact(step.id, metadata, agentConfig.projectDir, stepTelemetry);
     }
 
-    const postStepMutatedPaths = scopedAgent
-      ? listWorkflowMutatedPaths(workspaceDir)
-      : (tryListWorkflowMutatedPaths(workspaceDir) ?? []);
-    const stepMutatedPaths = diffMutatedPaths(preStepMutatedPaths, postStepMutatedPaths);
-    const trajectoryDiagnostics = writeAgentTrajectoryDiagnosticsArtifact({
-      stepId: step.id,
-      runDir: metadata.runDir,
-      projectDir: agentConfig.projectDir,
-      harness: resolvedHarness,
-      messages: successfulAttemptMessages,
-      changedFiles: stepMutatedPaths,
-    });
-
+    const stepMutatedPaths = preStepSnapshot
+      ? preStepSnapshot.changedPathsSince(
+          captureWorkflowMutationSnapshot(workspaceDir),
+        )
+      : diffMutatedPaths(
+          preStepMutatedPaths,
+          tryListWorkflowMutatedPaths(workspaceDir) ?? [],
+        );
     // Whole-step writeScope contract: pre/post diff inside the workspace lane.
     if (scopedAgent) {
       const violations = findWriteScopeViolations(
@@ -275,12 +279,26 @@ export async function executeAgentStep(
           metadata,
           projectDir: agentConfig.projectDir,
         });
+        if (scopedAgent.writeScope === "deny-all") {
+          preStepSnapshot?.restoreDenyAllMutations(workspaceDir, violations);
+        }
         throw new AgentWriteScopeViolationError(violationCtx);
       }
     }
 
+    if (!attempt.ok) throw attempt.error;
+
+    const trajectoryDiagnostics = writeAgentTrajectoryDiagnosticsArtifact({
+      stepId: step.id,
+      runDir: metadata.runDir,
+      projectDir: agentConfig.projectDir,
+      harness: resolvedHarness,
+      messages: successfulAttemptMessages,
+      changedFiles: stepMutatedPaths,
+    });
+
     return {
-      output,
+      output: attempt.output,
       harness: resolvedHarness.name,
       model: resolvedModel,
       trajectoryDiagnostics,

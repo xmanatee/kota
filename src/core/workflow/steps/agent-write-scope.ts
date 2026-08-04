@@ -1,6 +1,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import type { AgentWriteScope } from "#core/agents/agent-types.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { WorkflowRunMetadata } from "../run-types.js";
 
@@ -19,17 +20,20 @@ const WORKFLOW_SCRATCH_ARTIFACT_EXACT_PATH_SET = new Set<string>(
 export class AgentWriteScopeViolationError extends Error {
   readonly stepId: string;
   readonly agentName: string;
-  readonly scope: readonly string[];
+  readonly scope: AgentWriteScope;
   readonly violations: readonly string[];
 
   constructor(args: {
     stepId: string;
     agentName: string;
-    scope: readonly string[];
+    scope: AgentWriteScope;
     violations: readonly string[];
   }) {
-    const scopeDisplay =
-      args.scope.length === 0 ? "<unrestricted>" : args.scope.join(", ");
+    const scopeDisplay = args.scope === "deny-all"
+      ? "<deny-all>"
+      : args.scope.length === 0
+        ? "<unrestricted>"
+        : args.scope.join(", ");
     super(
       `Agent step "${args.stepId}" (${args.agentName}) wrote tracked files outside its declared writeScope [${scopeDisplay}]: ${args.violations.join(", ")}`,
     );
@@ -210,8 +214,9 @@ export function pathInScope(path: string, scope: readonly string[]): boolean {
  */
 export function findWriteScopeViolations(
   mutated: readonly string[],
-  scope: readonly string[],
+  scope: AgentWriteScope,
 ): string[] {
+  if (scope === "deny-all") return [...mutated].sort();
   if (scope.length === 0) return [];
   return mutated.filter((path) => !pathInScope(path, scope)).sort();
 }
@@ -224,7 +229,7 @@ export function findWriteScopeViolations(
 export function writeWriteScopeViolationArtifact(args: {
   stepId: string;
   agentName: string;
-  scope: readonly string[];
+  scope: AgentWriteScope;
   violations: readonly string[];
   metadata: WorkflowRunMetadata;
   projectDir: string;

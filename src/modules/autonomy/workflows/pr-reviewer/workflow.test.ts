@@ -109,16 +109,15 @@ function buildReviewPrompt(trigger: WorkflowRunTrigger): string {
 }
 
 describe("pr-reviewer workflow — assess-pr step", () => {
-  it("keeps the review agent on read-only tools", () => {
+  it("keeps the review agent passive without unsupported named native-tool policy", () => {
     const reviewStep = prReviewerWorkflow.steps.find((step) => step.id === "review");
 
-    expect(reviewStep).toMatchObject({
-      type: "agent",
-      allowedTools: ["Read", "LS", "Grep", "Glob", "github_get_pr", "github_list_prs"],
+    expect(prReviewerWorkflow).toMatchObject({
+      defaultAutonomyMode: "passive",
     });
-    expect(reviewStep).not.toMatchObject({
-      allowedTools: expect.arrayContaining(["github_comment", "Bash"]),
-    });
+    expect(reviewStep).toMatchObject({ type: "agent" });
+    expect(reviewStep).not.toHaveProperty("allowedTools");
+    expect(reviewStep).not.toHaveProperty("disallowedTools");
   });
 
   it("skips when action is not opened or synchronize", async () => {

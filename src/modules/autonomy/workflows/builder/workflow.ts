@@ -19,7 +19,6 @@ import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HARNESS,
   AUTONOMY_BUILDER_AGENT_IDLE_TIMEOUT_MS,
-  AUTONOMY_DISALLOWED_TOOLS,
   stepCommitRequiresDaemonRestart,
   stepCommitted,
   stepSucceeded,
@@ -191,7 +190,6 @@ const builderWorkflow: WorkflowDefinitionInput = {
       harness: AUTONOMY_AGENT_HARNESS,
       tier: AUTONOMY_AGENT_DEFAULTS.tier,
       effort: agent.effort,
-      disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       timeoutMs: null,
       idleTimeoutMs: AUTONOMY_BUILDER_AGENT_IDLE_TIMEOUT_MS,
       when: (ctx) => {

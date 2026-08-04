@@ -12,7 +12,6 @@ import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
   AUTONOMY_AGENT_HARNESS,
-  AUTONOMY_DISALLOWED_TOOLS,
   checkCommitMessageExists,
   checkNoScratchArtifacts,
   runCheck,
@@ -174,7 +173,6 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
       harness: AUTONOMY_AGENT_HARNESS,
       tier: AUTONOMY_AGENT_DEFAULTS.tier,
       effort: agent.effort,
-      disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       when: (ctx) => {
         if (ctx.trigger.event === "runtime.recovered") return false;

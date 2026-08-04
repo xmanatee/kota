@@ -9,7 +9,11 @@ import {
   type BuilderDecompositionFailureKind,
   classifyBuilderFailureForDecomposition,
 } from "#modules/autonomy/builder-failure-classification.js";
-import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
+import {
+  checkCommitStageable,
+  commitWorkflowChanges,
+  type WorkflowCommitPathPolicy,
+} from "#modules/autonomy/commit.js";
 import {
   onRecoveryTrigger,
   resetWorktreeForRecovery,
@@ -18,7 +22,6 @@ import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
   AUTONOMY_AGENT_HARNESS,
-  AUTONOMY_DISALLOWED_TOOLS,
   checkCommitMessageExists,
   checkNoScratchArtifacts,
   runCheck,
@@ -46,7 +49,7 @@ export const agent: AgentDef = {
   role: "Rescope builder tasks that exhausted execution without progress.",
   promptPath: "src/modules/autonomy/workflows/decomposer/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
-  writeScope: [],
+  writeScope: "deny-all",
 };
 
 export type DecomposerAssessment = {
@@ -273,6 +276,24 @@ const applyDecomposition = typedCodeStep<AppliedDecomposition>({
   },
 });
 
+function decompositionCommitPathPolicy(
+  ctx: Parameters<typeof assessFailure.outputRequired>[0],
+): WorkflowCommitPathPolicy {
+  const assessment = assessFailure.outputRequired(ctx);
+  if (!assessment.shouldDecompose) {
+    throw new Error("Cannot build a decomposition commit policy without an active task");
+  }
+  const applied = applyDecomposition.outputRequired(ctx);
+  return {
+    kind: "exact-paths",
+    paths: [
+      assessment.taskPath,
+      `data/tasks/dropped/${assessment.taskId}.md`,
+      ...applied.subtaskIds.map((id) => `data/tasks/ready/${id}.md`),
+    ],
+  };
+}
+
 const validateDecomposition = typedCodeStep<{
   taskQueue: string;
   scratchArtifacts: string;
@@ -298,7 +319,10 @@ const validateDecomposition = typedCodeStep<{
       ctx.workflow.runDirPath,
       ctx.projectDir,
     ),
-    commitStage: checkCommitStageable(ctx.projectDir),
+    commitStage: checkCommitStageable(
+      ctx.projectDir,
+      decompositionCommitPathPolicy(ctx),
+    ),
   }),
 });
 
@@ -349,7 +373,7 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
   description: "Rescope builder tasks after timeout or exhausted repair.",
   tags: ["monitored"],
   recoveryCapable: true,
-  defaultAutonomyMode: "autonomous",
+  defaultAutonomyMode: "passive",
   triggers: [
     {
       event: "workflow.completed",
@@ -381,8 +405,6 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
       harness: AUTONOMY_AGENT_HARNESS,
       tier: AUTONOMY_AGENT_DEFAULTS.tier,
       effort: agent.effort,
-      allowedTools: ["Read", "LS", "Grep", "Glob"],
-      disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       outputFormat: "json",
       outputSchema: decompositionPlanOutputSchema,
@@ -398,8 +420,6 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
       harness: AUTONOMY_AGENT_HARNESS,
       tier: AUTONOMY_AGENT_DEFAULTS.tier,
       effort: agent.effort,
-      allowedTools: [],
-      disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       outputFormat: "json",
       outputSchema: decompositionReviewOutputSchema,
@@ -414,8 +434,12 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
       id: "commit",
       type: "code",
       when: stepSucceeded("validate-decomposition"),
-      run: ({ projectDir, workflow }) =>
-        commitWorkflowChanges(projectDir, workflow.runDirPath),
+      run: (ctx) =>
+        commitWorkflowChanges(
+          ctx.projectDir,
+          ctx.workflow.runDirPath,
+          decompositionCommitPathPolicy(ctx),
+        ),
     },
     finalizeSourceClaim,
     {

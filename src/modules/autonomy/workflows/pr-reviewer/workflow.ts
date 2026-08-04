@@ -327,7 +327,6 @@ const prReviewerWorkflow: WorkflowDefinitionInput = {
       harness: AUTONOMY_AGENT_HARNESS,
       tier: AUTONOMY_AGENT_DEFAULTS.tier,
       effort: agent.effort,
-      allowedTools: ["Read", "LS", "Grep", "Glob", "github_get_pr", "github_list_prs"],
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       when: (ctx) => !assessPr.outputRequired(ctx).skip,
       outputFormat: "json",

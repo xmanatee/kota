@@ -32,6 +32,10 @@ export type WorkflowCommitPathPolicy =
     kind: "all-mutated-paths-with-boundaries";
     excludedPathRoots: readonly string[];
     allowedPaths: readonly string[];
+  }
+  | {
+    kind: "exact-paths";
+    paths: readonly string[];
   };
 
 const ALL_MUTATED_PATHS: WorkflowCommitPathPolicy = { kind: "all-mutated-paths" };
@@ -100,6 +104,10 @@ function listCommitMutatedPaths(
   if (policy.kind === "all-mutated-paths") return mutatedPaths;
   if (policy.kind === "paths-mutated-since-baseline") {
     return diffMutatedPaths(policy.baselineMutatedPaths, mutatedPaths);
+  }
+  if (policy.kind === "exact-paths") {
+    const allowedPaths = new Set(policy.paths);
+    return mutatedPaths.filter((path) => allowedPaths.has(path));
   }
 
   const allowedPaths = new Set(policy.allowedPaths);

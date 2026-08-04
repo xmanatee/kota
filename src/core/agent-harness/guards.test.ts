@@ -131,6 +131,18 @@ describe("composeCanUseTools", () => {
 describe("createWorkflowAgentGuards", () => {
   const options = { signal: new AbortController().signal, toolUseId: "id-1" };
 
+  it("denies hidden agent delegation and scratch worktree tools", async () => {
+    const guard = createWorkflowAgentGuards();
+    for (const toolName of ["Agent", "Task", "EnterWorktree", "ExitWorktree"]) {
+      const result = await guard(toolName, {}, options);
+      expect(result).toMatchObject({
+        behavior: "deny",
+        decisionAttribution: "operator-deny",
+      });
+      expect(result).not.toHaveProperty("interrupt");
+    }
+  });
+
   it("denies `git commit` invocations", async () => {
     const guard = createWorkflowAgentGuards();
     const result = await guard("Bash", { command: "git commit -m msg" }, options);

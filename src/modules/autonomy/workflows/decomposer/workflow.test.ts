@@ -8,7 +8,7 @@ import {
   WorkflowTestHarness,
 } from "#core/workflow/testing/index.js";
 import type { DecompositionPlan } from "./decomposition-plan.js";
-import decomposerWorkflow from "./workflow.js";
+import decomposerWorkflow, { agent } from "./workflow.js";
 
 vi.mock("#core/util/json-file.js", () => ({
   readOptionalJsonFile: vi.fn(),
@@ -193,6 +193,22 @@ describe("decomposer workflow", () => {
     });
   });
 
+  it("runs both reasoning steps as passive deny-all agents without unenforceable named tool policy", () => {
+    expect(agent.writeScope).toBe("deny-all");
+    const steps = decomposerWorkflow.steps.filter(
+      (candidate) => candidate.type === "agent",
+    );
+
+    expect(steps).toHaveLength(2);
+    for (const step of steps) {
+      expect(step.autonomyMode ?? decomposerWorkflow.defaultAutonomyMode).toBe(
+        "passive",
+      );
+      expect(step.allowedTools).toBeUndefined();
+      expect(step.disallowedTools).toBeUndefined();
+    }
+  });
+
   it("skips decompose when builder failure does not require rescoping", async () => {
     await configureBuilderFailure(
       makeFailedBuilderMetadata({ buildDurationMs: 5 * 60 * 1000 }),
@@ -286,6 +302,18 @@ describe("decomposer workflow", () => {
     });
     expect(result.steps.decompose.status).toBe("success");
     expect(result.steps.commit.status).toBe("success");
+    expect(commitWorkflowChanges).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      {
+        kind: "exact-paths",
+        paths: [
+          "data/tasks/doing/task-big-refactor.md",
+          "data/tasks/dropped/task-big-refactor.md",
+          "data/tasks/ready/task-scoped-subtask.md",
+        ],
+      },
+    );
   });
 
   it("detects a structured step timeout even when duration is short", async () => {

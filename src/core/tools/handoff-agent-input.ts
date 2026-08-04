@@ -2,7 +2,11 @@ import type {
   KotaJsonObject,
   KotaToolInputSchema,
 } from "#core/agent-harness/message-protocol.js";
-import type { AgentDef, AgentToolPolicy } from "#core/agents/agent-types.js";
+import type {
+  AgentDef,
+  AgentToolPolicy,
+  AgentWriteScope,
+} from "#core/agents/agent-types.js";
 import type {
   AgentHandoffMode,
   AgentHandoffRequest,
@@ -27,8 +31,13 @@ export function errorResult(content: string): ToolResult {
   return { content: `Error: ${content}`, is_error: true };
 }
 
-export function isErrorResult(value: object): value is ToolResult {
-  return "is_error" in value && value.is_error === true;
+export function isErrorResult<T>(value: T | ToolResult): value is ToolResult {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "is_error" in value &&
+    value.is_error === true
+  );
 }
 
 export function budgetFailureResult(failure: DelegateBudgetFailure): ToolResult {
@@ -140,10 +149,12 @@ export function readAutonomyMode(rawMode: string): AutonomyMode | ToolResult {
 export function resolveWriteScope(
   agent: AgentDef,
   requested: string[] | undefined,
-): string[] | ToolResult {
-  if (requested === undefined) return agent.writeScope;
-  if (agent.writeScope.length === 0) return requested;
-  const outside = requested.filter((entry) => !pathInScope(entry, agent.writeScope));
+): AgentWriteScope | ToolResult {
+  const registeredScope = agent.writeScope;
+  if (requested === undefined) return registeredScope;
+  if (registeredScope === "deny-all") return "deny-all";
+  if (registeredScope.length === 0) return requested;
+  const outside = requested.filter((entry) => !pathInScope(entry, registeredScope));
   if (outside.length > 0) {
     return errorResult(
       `requested write_scope exceeds the registered agent writeScope: ${outside.sort().join(", ")}`,

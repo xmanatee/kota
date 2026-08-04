@@ -357,7 +357,6 @@ const githubMentionResponderWorkflow: WorkflowDefinitionInput = {
       harness: AUTONOMY_AGENT_HARNESS,
       tier: AUTONOMY_AGENT_DEFAULTS.tier,
       effort: agent.effort,
-      allowedTools: ["Read", "LS", "Grep", "Glob"],
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       when: (ctx) => assessMention.outputRequired(ctx).agentEligible,
       outputFormat: "json",

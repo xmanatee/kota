@@ -20,6 +20,7 @@ import {
 import {
   resolveStepModel,
   validateHarnessOptions,
+  validateHarnessToolRestrictions,
   validateOutputFormat,
   validateOutputSchema,
   validateTokenBudget,
@@ -152,6 +153,13 @@ export function validateAgentStep(
       definitionPath,
     );
   }
+  validateHarnessToolRestrictions(
+    harnessName,
+    toolPolicy.policy.allowed,
+    toolPolicy.policy.disallowed,
+    stepLabel,
+    definitionPath,
+  );
 
   return {
     id: expectName(step.id, `${stepLabel}.id`, definitionPath),

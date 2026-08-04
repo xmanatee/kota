@@ -1,0 +1,3 @@
+1. Decomposer reasoning is passive and deny-all, native restrictions fail closed, and rejected mutations are restored before deterministic task mutation can commit.
+2. Regression coverage proves the Codex-default source-edit attempt cannot survive or commit and exact-path commit policy excludes unrelated mutations.
+3. The completed task and run evidence record reproducible validation commands and results.

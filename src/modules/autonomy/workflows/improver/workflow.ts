@@ -20,7 +20,6 @@ import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
   AUTONOMY_AGENT_HARNESS,
-  AUTONOMY_DISALLOWED_TOOLS,
   AUTONOMY_FULL_TEST_TIMEOUT_MS,
   checkCommitMessageExists,
   checkNoScratchArtifacts,
@@ -176,7 +175,6 @@ const improverWorkflow: WorkflowDefinitionInput = {
         inspectWorktree.output(ctx)?.dirty === false,
       tier: AUTONOMY_AGENT_DEFAULTS.tier,
       effort: agent.effort,
-      disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       repairLoop: {
         checks: [

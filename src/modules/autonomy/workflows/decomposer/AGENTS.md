@@ -7,6 +7,9 @@ This directory contains the decomposer workflow definition and its prompt.
 - Reads the exact task id from the failed run's `task-claim.json`. When that
   task remains active, its canonical markdown is included in the assessment
   and the agent returns a typed decomposition plan without mutating the checkout.
+- Both reasoning steps run passively under the agent's deny-all write scope.
+  Native harnesses therefore use their read-only OS sandbox; hosted harnesses
+  receive the passive read-tool policy.
 - `review-decomposition` independently compares the plan with that exact task
   markdown. The planner output uses the workflow's canonical exposed-output
   channel; a rejection fails before any task mutation.
@@ -19,6 +22,8 @@ This directory contains the decomposer workflow definition and its prompt.
 - `checkDecompositionApplied` verifies the dropped original and every ready
   subtask named by its `## Decomposed` section belong to the current mutation
   set before the workflow commits.
+- The terminal commit uses an exact path set derived from the claimed source
+  task, its dropped destination, and the approved ready subtask ids.
 - A terminal or missing claimed task is newer canonical evidence than the
   failed builder run, so the workflow skips it instead of creating stale work.
 - Keep decomposition logic inside this module, not in core or in the builder itself.

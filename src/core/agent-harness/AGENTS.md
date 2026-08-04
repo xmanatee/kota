@@ -33,10 +33,9 @@ the protocol and registry.
   settlement it rejects late results and drops callbacks. Native tool loops
   declare confirmed-stop support, register a run-local stop barrier before
   acting, and hold the run until the process can no longer mutate.
-- `guards.ts` owns commit, daemon-control, and authority-mutation guards;
-  `createWorkflowAgentGuards()` composes them. Named routes and credentials are
-  blocked there; `machine-authority-sandbox.ts` is the single OS-enforced
-  process boundary for opaque shell/code and native CLI harnesses.
+- `guards.ts` owns hidden agent/worktree nesting, commit, daemon-control, and
+  authority guards. `createWorkflowAgentGuards()` composes them; the machine-
+  authority sandbox is the OS boundary for opaque code and native CLIs.
 
 ## Owner-questions capability
 

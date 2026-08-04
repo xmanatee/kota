@@ -1,0 +1,58 @@
+Linked-worktree staging replay
+==============================
+
+The host Git metadata is read-only from this linked worktree. The exact commit
+set was staged and validated with the workspace-local index and object store:
+
+  GIT_INDEX_FILE=.kota/builder-evidence/2026-08-04T06-33-11-053Z-builder-le6opa/git-index
+  GIT_OBJECT_DIRECTORY=.kota/builder-evidence/2026-08-04T06-33-11-053Z-builder-le6opa/git-objects
+  GIT_ALTERNATE_OBJECT_DIRECTORIES=/Users/xmanatee/Desktop/mono/apps/kota/.git/objects
+
+Because that isolated staging cannot update the real worktree index, replay
+`git add -A --` for the following exact host paths before committing:
+
+  data/tasks/ready/task-security-review-the-decomposer-processes-task-mark.md
+  data/tasks/done/task-security-review-the-decomposer-processes-task-mark.md
+  src/core/agent-harness/AGENTS.md
+  src/core/agent-harness/guards.test.ts
+  src/core/agent-harness/guards.ts
+  src/core/agents/agent-types.ts
+  src/core/agents/handoff.ts
+  src/core/tools/handoff-agent-input.ts
+  src/core/tools/handoff-agent-runtime-helpers.ts
+  src/core/tools/handoff-agent.ts
+  src/core/workflow/repair-loop.ts
+  src/core/workflow/step-validators/validate-agent-step-helpers.ts
+  src/core/workflow/step-validators/validate-agent-step.test.ts
+  src/core/workflow/step-validators/validate-agent-step.ts
+  src/core/workflow/steps/AGENTS.md
+  src/core/workflow/steps/agent-write-scope-snapshot.ts
+  src/core/workflow/steps/agent-write-scope.ts
+  src/core/workflow/steps/step-executor-agent-prompt.ts
+  src/core/workflow/steps/step-executor-agent.ts
+  src/modules/agent-ops/client.ts
+  src/modules/agent-ops/index.ts
+  src/modules/autonomy/agent-policy.test.ts
+  src/modules/autonomy/commit.test.ts
+  src/modules/autonomy/commit.ts
+  src/modules/autonomy/workflows/AGENTS.md
+  src/modules/autonomy/workflows/builder/workflow.ts
+  src/modules/autonomy/workflows/decomposer/AGENTS.md
+  src/modules/autonomy/workflows/decomposer/workflow.test.ts
+  src/modules/autonomy/workflows/decomposer/workflow.ts
+  src/modules/autonomy/workflows/explorer/workflow.ts
+  src/modules/autonomy/workflows/github-mention-responder/workflow.ts
+  src/modules/autonomy/workflows/improver/workflow.ts
+  src/modules/autonomy/workflows/inbox-sorter/workflow.ts
+  src/modules/autonomy/workflows/pr-reviewer/workflow.test.ts
+  src/modules/autonomy/workflows/pr-reviewer/workflow.ts
+  src/modules/autonomy/workflows/progress-reviewer/workflow.ts
+  src/modules/autonomy/workflows/repo-ai-checks/workflow.test.ts
+  src/modules/autonomy/workflows/repo-ai-checks/workflow.ts
+  src/modules/autonomy/workflows/research-retry/workflow.ts
+  src/modules/autonomy/workflows/security-review/workflow.ts
+  src/modules/resource-discovery/catalog-owned-candidates.ts
+  src/workflow-step-executor-agent.integration.test.ts
+
+The builder runtime separately screens and exact-stages the registered evidence
+projection under `.kota/runs/2026-08-04T06-33-11-053Z-builder-le6opa/evidence/`.

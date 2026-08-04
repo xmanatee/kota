@@ -29,6 +29,10 @@ vi.mock("#modules/claude-agent-harness/executor.js", async () => {
     executeWithAgentSDK: executeWithAgentSDKMock,
   };
 });
+const collectTextFromCodexCliMock = vi.hoisted(() => vi.fn());
+vi.mock("#modules/codex-agent-harness/cli-runner.js", () => ({
+  collectTextFromCodexCli: collectTextFromCodexCliMock,
+}));
 vi.mock("#core/loop/system-prompt.js", () => ({
   buildKotaSystemPrompt: () => "system",
 }));
@@ -45,6 +49,7 @@ import { AgentWriteScopeViolationError } from "#core/workflow/steps/agent-write-
 import { executeAgentStep } from "#core/workflow/steps/step-executor-agent.js";
 import { AgentStepRuntimeError } from "#core/workflow/steps/step-executor-retry.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
+import { codexAgentHarness } from "#modules/codex-agent-harness/adapter.js";
 
 function makeDefinition(name = "test-workflow"): WorkflowDefinition {
   return {
@@ -760,6 +765,7 @@ describe("executeAgentStep — writeScope enforcement", () => {
     initRepo(projectDir);
     tryEmitMock.mockReset();
     executeWithAgentSDKMock.mockReset();
+    collectTextFromCodexCliMock.mockReset();
   });
 
   afterEach(() => {
@@ -900,6 +906,89 @@ describe("executeAgentStep — writeScope enforcement", () => {
         },
       ),
     ).resolves.toBeDefined();
+  });
+
+  it("restores every attempted mutation for an explicit deny-all writeScope", async () => {
+    writeTracked(projectDir, "src/core/keep.ts", "// legitimate staged dirt\n");
+    execFileSync("git", ["add", "src/core/keep.ts"], { cwd: projectDir });
+    writeTracked(projectDir, "src/core/keep.ts", "// legitimate worktree dirt\n");
+    let sandboxMode: string | undefined;
+    collectTextFromCodexCliMock.mockImplementation((options) => {
+      sandboxMode = options.sandboxMode;
+      writeTracked(projectDir, "src/core/keep.ts", "// unauthorized\n");
+      writeTracked(projectDir, "src/core/injected.ts", "// injected\n");
+      return Promise.resolve({
+        text: "done",
+        streamedText: "",
+        sessionId: undefined,
+        turns: 1,
+        totalCostUsd: 0.01,
+        subtype: undefined,
+        isError: false,
+      });
+    });
+    registerAgentHarness({ ...codexAgentHarness, readiness: undefined });
+
+    const agent = makeAgentDef({
+      name: "decomposer",
+      writeScope: "deny-all",
+    });
+    const step = makeAgentStep(projectDir, {
+      id: "decompose",
+      agentName: agent.name,
+      harness: "codex",
+      model: "gpt-5.6-sol",
+      autonomyMode: "passive",
+    });
+    const initialHead = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: projectDir,
+      encoding: "utf-8",
+    }).trim();
+
+    await expect(
+      executeAgentStep(
+        makeDefinition("decomposer"),
+        step,
+        makeMetadata("run-deny-all"),
+        { event: "workflow.completed", schemaRef: null, payload: {} },
+        new AbortController(),
+        () => {},
+        () => {},
+        {
+          projectDir,
+          log: () => {},
+          resolveAgentDef: () => agent,
+        },
+      ),
+    ).rejects.toMatchObject({
+      name: "AgentWriteScopeViolationError",
+      scope: "deny-all",
+      violations: ["src/core/injected.ts", "src/core/keep.ts"],
+    });
+
+    expect(readFileSync(join(projectDir, "src/core/keep.ts"), "utf-8")).toBe(
+      "// legitimate worktree dirt\n",
+    );
+    expect(
+      execFileSync("git", ["show", ":src/core/keep.ts"], {
+        cwd: projectDir,
+        encoding: "utf-8",
+      }),
+    ).toBe("// legitimate staged dirt\n");
+    expect(existsSync(join(projectDir, "src/core/injected.ts"))).toBe(false);
+    expect(sandboxMode).toBe("read-only");
+    expect(
+      execFileSync("git", ["rev-parse", "HEAD"], {
+        cwd: projectDir,
+        encoding: "utf-8",
+      }).trim(),
+    ).toBe(initialHead);
+    expect(
+      execFileSync("git", ["status", "--short", "--", "src/core"], {
+        cwd: projectDir,
+        encoding: "utf-8",
+      }).trim(),
+    ).toBe("MM src/core/keep.ts");
   });
 
   it("skips enforcement when the agent step does not run (recovery-only entry)", async () => {

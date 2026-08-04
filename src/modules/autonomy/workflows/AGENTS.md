@@ -47,11 +47,10 @@ reclassifying paths in individual workflows.
 
 ### Autonomy Mode Declaration
 
-Every agent step must declare its autonomy posture explicitly — the validator
-rejects agent steps without one. Prefer `defaultAutonomyMode` on the workflow
-when every step shares the same posture; use per-step `autonomyMode` only to
-diverge. `autonomyMode` is orthogonal to per-tool risk classification: it sets
-the session's supervision posture, tool-level guardrails still apply.
+Every agent step declares autonomy explicitly; prefer workflow-level
+`defaultAutonomyMode`. Native harnesses cannot honor named tool restrictions,
+so validation rejects them for every write scope. Passive mode is read-only;
+KOTA-controlled loops also receive workflow nesting, commit, and teardown guards.
 
 ### Agent-Step Retry and Error Classification
 

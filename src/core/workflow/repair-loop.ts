@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
+import type { AgentWriteScope } from "#core/agents/agent-types.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { resolveAgentRunDir } from "./agent-run-dir.js";
@@ -25,6 +26,7 @@ import {
   tryListWorkflowMutatedPaths,
   writeWriteScopeViolationArtifact,
 } from "./steps/agent-write-scope.js";
+import { captureWorkflowMutationSnapshot } from "./steps/agent-write-scope-snapshot.js";
 import type { AgentStepConfig, AgentStepResult } from "./steps/step-executor-agent.js";
 import { writeAgentTokenBudgetArtifact } from "./steps/step-executor-agent-token-budget.js";
 import { writeAgentTrajectoryDiagnosticsArtifact } from "./steps/step-executor-agent-trajectory-diagnostics.js";
@@ -49,7 +51,7 @@ export type RepairLoopFailureOutput = {
 
 type ScopedRepairAgent = {
   agentName: string;
-  writeScope: readonly string[];
+  writeScope: AgentWriteScope;
 };
 
 const REPAIR_NO_PROGRESS_LIMIT = 3;
@@ -301,17 +303,33 @@ export async function runAgentRepairLoop(
       trajectoryMessages.push(message);
       appendMessage(message);
     };
-    let repairResult: { text: string; turns?: number; totalCostUsd?: number };
+    const repairPreSnapshot = scopedAgent
+      ? captureWorkflowMutationSnapshot(workspaceDir)
+      : undefined;
+    let repairAttempt:
+      | {
+          ok: true;
+          result: { text: string; turns?: number; totalCostUsd?: number };
+        }
+      | { ok: false; error: Error };
     try {
-      repairResult = await executeRepairAgentIteration(
-        step,
-        repairPrompt,
-        context,
-        abortController,
-        appendRepairMessage,
-        agentConfig,
-        initialResult.tokenBudget,
-      );
+      repairAttempt = {
+        ok: true,
+        result: await executeRepairAgentIteration(
+          step,
+          repairPrompt,
+          context,
+          abortController,
+          appendRepairMessage,
+          agentConfig,
+          initialResult.tokenBudget,
+        ),
+      };
+    } catch (error) {
+      repairAttempt = {
+        ok: false,
+        error: error instanceof Error ? error : new Error(String(error)),
+      };
     } finally {
       writeAgentTokenBudgetArtifact(
         step.id,
@@ -320,6 +338,37 @@ export async function runAgentRepairLoop(
         initialResult.tokenBudget,
       );
     }
+
+    if (scopedAgent && repairPreSnapshot) {
+      const violations = findWriteScopeViolations(
+        repairPreSnapshot.changedPathsSince(
+          captureWorkflowMutationSnapshot(workspaceDir),
+        ),
+        scopedAgent.writeScope,
+      );
+      if (violations.length > 0) {
+        const violationCtx = {
+          stepId: step.id,
+          agentName: scopedAgent.agentName,
+          scope: scopedAgent.writeScope,
+          violations,
+        };
+        writeWriteScopeViolationArtifact({
+          ...violationCtx,
+          metadata,
+          projectDir: context.projectDir,
+        });
+        if (scopedAgent.writeScope === "deny-all") {
+          repairPreSnapshot.restoreDenyAllMutations(
+            workspaceDir,
+            violations,
+          );
+        }
+        throw new AgentWriteScopeViolationError(violationCtx);
+      }
+    }
+    if (!repairAttempt.ok) throw repairAttempt.error;
+    const repairResult = repairAttempt.result;
 
     iteration.agentResponse = repairResult.text;
     iteration.agentTurns = repairResult.turns;

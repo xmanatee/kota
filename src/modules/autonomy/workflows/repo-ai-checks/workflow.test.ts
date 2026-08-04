@@ -102,7 +102,7 @@ afterEach(() => {
 });
 
 describe("repo-ai-checks workflow", () => {
-  it("keeps the check agent passive and read-only", () => {
+  it("keeps the check agent passive without unsupported named native-tool policy", () => {
     const foreach = repoAiChecksWorkflow.steps.find((step) => step.id === "run-checks");
     expect(repoAiChecksWorkflow).toMatchObject({
       defaultAutonomyMode: "passive",
@@ -114,14 +114,15 @@ describe("repo-ai-checks workflow", () => {
         expect.objectContaining({
           id: "run-check",
           type: "agent",
-          allowedTools: ["Read", "LS", "Grep", "Glob", "github_get_pr", "github_list_prs"],
           outputFormat: "json",
         }),
       ],
     });
-    expect(foreach).not.toMatchObject({
-      steps: [expect.objectContaining({ allowedTools: expect.arrayContaining(["github_comment", "Bash"]) })],
-    });
+    const runCheck = foreach?.type === "foreach"
+      ? foreach.steps.find((step) => step.id === "run-check")
+      : undefined;
+    expect(runCheck).not.toHaveProperty("allowedTools");
+    expect(runCheck).not.toHaveProperty("disallowedTools");
   });
 
   it("skips irrelevant, fork, and low-trust PR events before discovery", async () => {

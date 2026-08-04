@@ -49,18 +49,14 @@ self-report.
 
 ## Agent writeScope: declare → enforce → fail
 
-Every `AgentDef` declares a `writeScope` listing the tracked-file paths that
-agent may mutate (path prefixes or exact file paths, relative to the project
-directory). An empty array is the explicit "unrestricted" declaration; absence
-is not — the field is required so silence cannot mean "write anywhere".
+Every `AgentDef` declares a `writeScope` of allowed repo paths. `[]` means
+unrestricted; `"deny-all"` means read-only. Silence never means write-anywhere.
 
-At the end of every agent step, `agent-write-scope.ts` diffs the worktree
-against `HEAD` and compares touched paths to the declared scope. Any mutation
-outside scope throws `AgentWriteScopeViolationError` and writes
-`<runDir>/steps/<stepId>.write-scope-violation.json` with the offending paths.
-The violation is a hard step failure — not classified as transient, so no
-retries are consumed. Recovery from a dirty worktree then runs through the
-existing `runtime.recovered` path.
+The write-scope boundary compares content-and-index-aware pre/post snapshots,
+including paths already dirty before the step. An out-of-scope mutation throws
+`AgentWriteScopeViolationError` and records the paths in the step artifact.
+This hard failure consumes no retry. Deny-all restores the exact pre-step index
+and worktree; other scopes retain the normal dirty-recovery path.
 
 This enforcement lives in the core executor, not in per-workflow prompts or
 repair checks. Workflows declare scope honestly on their agent definitions

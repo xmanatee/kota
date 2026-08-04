@@ -2,6 +2,10 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  type AgentHarness,
+  registerAgentHarness,
+} from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import {
   registerWorkflowDefinition,
@@ -179,4 +183,78 @@ describe("validateAgentStep registered agent resolution", () => {
       ),
     ).toThrow(/requested allowed tool\(s\) exceed the registered agent policy: Write/);
   });
+
+  it.each([
+    {
+      field: "allowedTools",
+      policy: { allowedTools: ["Read"] },
+      writeScope: [] as const,
+    },
+    {
+      field: "allowedTools",
+      policy: { allowedTools: [] },
+      writeScope: ["reviews/"] as const,
+    },
+    {
+      field: "disallowedTools",
+      policy: { disallowedTools: ["Bash"] },
+      writeScope: "deny-all" as const,
+    },
+  ])(
+    "rejects $field restrictions for every write scope when the selected native harness cannot honor them",
+    ({ field, policy, writeScope }) => {
+      const nativeHarness: AgentHarness = {
+        name: "native-tool-policy-fixture",
+        description: "Native harness fixture without KOTA tool control.",
+        supportsMultiTurn: false,
+        supportedHookKinds: [],
+        askOwnerToolName: null,
+        emitsAgentMessageStream: false,
+        toolControl: "native",
+        nativeAbortQuarantine: "confirmed-stop",
+        async run() {
+          return {
+            text: "unused",
+            streamedText: "",
+            turns: 1,
+            isError: false,
+          };
+        },
+      };
+      registerAgentHarness(nativeHarness);
+      const nativeReviewer: AgentDef = {
+        ...reviewer,
+        tools: undefined,
+        writeScope,
+      };
+
+      expect(() =>
+        validateWorkflowDefinitions(
+          [
+            registerWorkflowDefinition(definitionPath, {
+              name: "native-review-workflow",
+              triggers: [{ event: "runtime.idle" }],
+              steps: [
+                {
+                  id: "review",
+                  type: "agent",
+                  agentName: nativeReviewer.name,
+                  harness: nativeHarness.name,
+                  autonomyMode: "passive",
+                  ...policy,
+                },
+              ],
+            }),
+          ],
+          projectDir,
+          {
+            resolveAgentDef: (name) =>
+              name === nativeReviewer.name ? nativeReviewer : undefined,
+          },
+        ),
+      ).toThrow(
+        new RegExp(`${field}.*native-tool-policy-fixture.*cannot honor`),
+      );
+    },
+  );
 });

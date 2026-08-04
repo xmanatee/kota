@@ -1,9 +1,12 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type { AgentDef } from "#core/agents/agent-types.js";
+import type { AgentDef, AgentWriteScope } from "#core/agents/agent-types.js";
 import type { AgentHandoffRequest } from "#core/agents/handoff.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
-import { tryListWorkflowMutatedPaths } from "#core/workflow/steps/agent-write-scope.js";
+import {
+  tryCaptureWorkflowMutationSnapshot,
+  type WorkflowMutationSnapshot,
+} from "#core/workflow/steps/agent-write-scope-snapshot.js";
 import { getDelegateConfig } from "./delegate-config.js";
 import { errorResult } from "./handoff-agent-input.js";
 import {
@@ -102,10 +105,12 @@ export function buildSystemPrompt(
 
 export function writeScopeSnapshot(
   cwd: string,
-  writeScope: readonly string[],
-): string[] | ToolResult {
-  if (writeScope.length === 0) return tryListWorkflowMutatedPaths(cwd) ?? [];
-  const snapshot = tryListWorkflowMutatedPaths(cwd);
+  writeScope: AgentWriteScope,
+): WorkflowMutationSnapshot | undefined | ToolResult {
+  if (writeScope !== "deny-all" && writeScope.length === 0) {
+    return undefined;
+  }
+  const snapshot = tryCaptureWorkflowMutationSnapshot(cwd);
   if (snapshot === undefined) {
     return errorResult("writeScope enforcement requires a git worktree");
   }

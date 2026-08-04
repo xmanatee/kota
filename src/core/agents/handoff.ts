@@ -4,7 +4,7 @@ import type {
   KotaToolInputSchema,
 } from "#core/agent-harness/message-protocol.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
-import type { AgentToolPolicy } from "./agent-types.js";
+import type { AgentToolPolicy, AgentWriteScope } from "./agent-types.js";
 
 export type AgentHandoffMode = "call" | "transfer";
 
@@ -38,7 +38,7 @@ export type AgentHandoffRequest = {
   autonomyMode: AutonomyMode;
   budget: AgentHandoffBudget;
   toolPolicy: AgentToolPolicy;
-  writeScope: readonly string[];
+  writeScope: AgentWriteScope;
   resumeSessionId?: string;
   trace: AgentHandoffTraceLink;
 };

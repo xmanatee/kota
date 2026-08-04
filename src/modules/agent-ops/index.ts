@@ -138,7 +138,11 @@ export function buildAgentInspectEntries(agent: AgentSummary): KVEntry[] {
   });
   entries.push({
     label: "WriteScope",
-    value: agent.writeScope.length === 0 ? "<unrestricted>" : agent.writeScope.join(", "),
+    value: agent.writeScope === "deny-all"
+      ? "<deny-all>"
+      : agent.writeScope.length === 0
+        ? "<unrestricted>"
+        : agent.writeScope.join(", "),
     role: "muted",
   });
   if (agent.toolPolicy.allowed) {

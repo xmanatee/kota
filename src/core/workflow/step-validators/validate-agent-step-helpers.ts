@@ -153,6 +153,31 @@ export function validateHarnessOptions(
   return { [harnessName]: validated };
 }
 
+export function validateHarnessToolRestrictions(
+  harnessName: string,
+  allowedTools: readonly string[] | undefined,
+  disallowedTools: readonly string[] | undefined,
+  stepLabel: string,
+  definitionPath: string,
+): void {
+  if (!hasAgentHarness(harnessName)) return;
+  const harness = resolveAgentHarness(harnessName);
+  if (harness.toolControl === "kota") return;
+
+  if (allowedTools !== undefined) {
+    throw new WorkflowDefinitionError(
+      `${stepLabel}.allowedTools selects native harness "${harnessName}", which cannot honor KOTA named tool restrictions`,
+      definitionPath,
+    );
+  }
+  if (disallowedTools !== undefined && disallowedTools.length > 0) {
+    throw new WorkflowDefinitionError(
+      `${stepLabel}.disallowedTools selects native harness "${harnessName}", which cannot honor KOTA named tool restrictions`,
+      definitionPath,
+    );
+  }
+}
+
 export function resolveStepModel(args: {
   rawModel: StepOpaque;
   rawTier: StepOpaque;

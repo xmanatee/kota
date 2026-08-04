@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { createWorkflowAgentGuards } from "#core/agent-harness/index.js";
 import type { WorkflowAgentStepInput } from "#core/workflow/step-input-base.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { AUTONOMY_DISALLOWED_TOOLS } from "./shared.js";
 import builderWorkflow from "./workflows/builder/workflow.js";
 import decomposerWorkflow from "./workflows/decomposer/workflow.js";
 import explorerWorkflow from "./workflows/explorer/workflow.js";
@@ -13,7 +13,6 @@ import securityReviewWorkflow from "./workflows/security-review/workflow.js";
 
 const MUTATING_AGENT_WORKFLOWS = [
   builderWorkflow,
-  decomposerWorkflow,
   explorerWorkflow,
   improverWorkflow,
   inboxSorterWorkflow,
@@ -21,6 +20,7 @@ const MUTATING_AGENT_WORKFLOWS = [
 
 const TOP_LEVEL_AGENT_WORKFLOWS = [
   ...MUTATING_AGENT_WORKFLOWS,
+  decomposerWorkflow,
   prReviewerWorkflow,
 ];
 
@@ -46,13 +46,17 @@ describe("autonomy agent policy", () => {
     }
   });
 
-  it("prevents hidden low-tier subagent delegation and scratch worktree entry", () => {
-    for (const workflow of MUTATING_AGENT_WORKFLOWS) {
-      for (const step of agentSteps(workflow)) {
-        expect(step.disallowedTools, `${workflow.name}.${step.id}.disallowedTools`).toEqual(
-          AUTONOMY_DISALLOWED_TOOLS,
-        );
-      }
+  it("prevents hidden low-tier subagent delegation and scratch worktree entry", async () => {
+    const guard = createWorkflowAgentGuards();
+    const options = {
+      signal: new AbortController().signal,
+      toolUseId: "autonomy-agent-policy",
+    };
+    for (const toolName of ["Agent", "Task", "EnterWorktree", "ExitWorktree"]) {
+      await expect(guard(toolName, {}, options)).resolves.toMatchObject({
+        behavior: "deny",
+        decisionAttribution: "operator-deny",
+      });
     }
   });
 

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
-import type { AgentDef } from "#core/agents/agent-types.js";
+import type { AgentDef, AgentWriteScope } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
 import { detectInjection } from "#core/util/injection-detector.js";
@@ -130,7 +130,7 @@ export function buildAgentPrompt(
   priorStepOutputs: Record<string, unknown>,
   askOwnerToolName: string | null,
   foreach?: WorkflowStepContext["foreach"],
-  agentWriteScope?: readonly string[],
+  agentWriteScope?: AgentWriteScope,
   runtimeResources?: WorkflowRuntimeResources,
 ): { systemPromptAppend: string; prompt: string } {
   const promptBody = readFileSync(
@@ -156,7 +156,12 @@ export function buildAgentPrompt(
     `Trigger event: ${trigger.event}`,
     "Only runtime-only workflow facts are injected here. Discover repository context yourself.",
   ];
-  if (agentWriteScope !== undefined && agentWriteScope.length > 0) {
+  if (agentWriteScope === "deny-all") {
+    lines.push(
+      "Agent write scope: <deny-all>",
+      "Do not mutate tracked files; every attempted tracked-file mutation fails this step and is restored.",
+    );
+  } else if (agentWriteScope !== undefined && agentWriteScope.length > 0) {
     lines.push(
       `Agent write scope: ${agentWriteScope.join(", ")}`,
       "If you mutate tracked files, every changed path must stay inside the agent write scope; out-of-scope writes fail this step.",

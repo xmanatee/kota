@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-decomposer-processes-task-mark
 title: Security review: The decomposer processes task markdown using autonomous agent steps whose read-only tool declarations are discarded by the shipped native Codex harness. Its empty writeScope is explicitly unrestricted, and the terminal commit includes every mutated path. A prompt-influenced decomposition agent can therefore modify arbitrary repository files and have them committed instead of being limited to returning a plan for deterministic task mutation.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: The decomposer processes task markdown using autonomous agent steps whose read-only tool declarations are discarded by the shipped native Codex harness. Its empty writeScope is explicitly unrestricted, and the terminal commit includes every mutated path. A prompt-influenced decomposition agent can therefore modify arbitrary repository files and have them committed instead of being limited to returning a plan for deterministic task mutation.
 created_at: 2026-08-03T20:38:28.326Z
-updated_at: 2026-08-03T20:38:28.326Z
+updated_at: 2026-08-04T07:25:37.526Z
 ---
 
 ## Problem
@@ -167,3 +167,9 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/core/tools/handoff-agent.test.ts src/core/workflow/steps/agent-write-scope.test.ts src/workflow-step-executor-agent.integration.test.ts src/core/workflow/step-validators/validate-agent-step.test.ts src/modules/autonomy/commit.test.ts src/modules/autonomy/workflows/decomposer/workflow.test.ts src/workflow-validation.integration.test.ts` — 177 tests passed. The passive Codex regression restores a pre-dirty source's distinct staged/worktree contents, removes a new source edit, and leaves HEAD unchanged; validation rejects native named-tool restrictions for deny-all, bounded, and unrestricted agents.
+- `pnpm test src/core/workflow/repair-loop.test.ts src/core/workflow/repair-loop-workspace.test.ts src/core/workflow/steps/step-executor-agent-trajectory-diagnostics.test.ts src/strict-types-policy.integration.test.ts src/docs-surface.test.ts src/core/loop/instruction-files.test.ts` — 227 tests passed.
+- `pnpm run typecheck`, `pnpm run build`, `pnpm run lint`, and isolated-index `pnpm run validate-tasks` completed successfully.

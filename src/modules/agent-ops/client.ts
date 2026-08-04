@@ -12,7 +12,10 @@
  * `AgentsClient`; the `kota agent` CLI consumes them through
  * `ctx.client.agents`.
  */
-import type { AgentToolPolicy } from "#core/agents/agent-types.js";
+import type {
+  AgentToolPolicy,
+  AgentWriteScope,
+} from "#core/agents/agent-types.js";
 import type { ModuleSource } from "#core/modules/module-types.js";
 import type { ModuleSetupStatusState } from "#core/modules/setup-requirements.js";
 
@@ -73,7 +76,7 @@ export type AgentSummary = {
   model: string;
   effort?: "low" | "medium" | "high" | "xhigh" | "max";
   promptPath: string;
-  writeScope: string[];
+  writeScope: AgentWriteScope;
   skills?: string[] | "all";
   resolvedSkills: AgentResolvedSkill[];
   tools?: AgentToolPolicy;

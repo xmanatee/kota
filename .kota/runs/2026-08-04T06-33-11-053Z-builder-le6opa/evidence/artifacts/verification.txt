@@ -1,0 +1,31 @@
+Security boundary verification
+==============================
+
+Baseline: 915590859da015e94f128c8ad69d172b1423112a
+
+PASS  pnpm run typecheck
+PASS  pnpm run build
+PASS  pnpm run lint (repository baseline reports 120 warnings; no errors)
+PASS  pnpm run hygiene (isolated staged set; 5 advisory, no blocking findings)
+PASS  focused security suite: 7 files, 177 tests
+PASS  expanded workflow/security suite: 19 files, 348 tests
+PASS  repair-loop/diagnostics/type/docs ratchets: 6 files, 227 tests
+PASS  isolated-index pnpm run validate-tasks
+
+Hygiene advisory disposition: the agent-type wording is contract documentation.
+The four snapshot matches configure Git stdio; spawn status is checked and
+`execFileSync` throws on command failure, so restoration remains fail-closed.
+
+The focused Codex-default regression invokes the shipped adapter in passive
+mode, confirms `sandboxMode: "read-only"`, and simulates edits to a pre-dirty
+tracked source plus a new source file. It proves the source's distinct staged
+and worktree contents return exactly to their pre-step state, the new file is
+removed, and Git HEAD is unchanged. Native named-tool declarations are rejected
+for deny-all, bounded, and unrestricted agent write scopes.
+
+A broad diagnostic run completed 12,557 passing tests and found 13 failures.
+Five patch-attributable diagnostics/type/docs assertions were repaired and then
+passed in the ratchet run above. The other eight were environmental or
+host-index artifacts: seven hard-coded `/tmp` operations were denied by the host
+and the queue test read the host index instead of this linked worktree's isolated
+index. The canonical isolated-index queue validator passes.

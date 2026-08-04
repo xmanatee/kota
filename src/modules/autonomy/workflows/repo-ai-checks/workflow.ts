@@ -603,7 +603,6 @@ const repoAiChecksWorkflow: WorkflowDefinitionInput = {
           harness: AUTONOMY_AGENT_HARNESS,
           tier: AUTONOMY_AGENT_DEFAULTS.tier,
           effort: agent.effort,
-          allowedTools: ["Read", "LS", "Grep", "Glob", "github_get_pr", "github_list_prs"],
           timeoutMs: CHECK_AGENT_TIMEOUT_MS,
           maxTurns: 8,
           outputFormat: "json",

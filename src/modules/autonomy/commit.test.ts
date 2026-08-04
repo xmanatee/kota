@@ -241,4 +241,55 @@ describe("commitWorkflowChanges", () => {
     }).trim();
     expect(stillStaged).toBe("README.md");
   });
+
+  it("commits only the deterministic exact-path policy", () => {
+    writeFileSync(join(workspace.projectDir, "README.md"), "unauthorized source edit\n");
+    const taskPath = join(
+      workspace.projectDir,
+      "data",
+      "tasks",
+      "ready",
+      "task-security.md",
+    );
+    mkdirSync(join(workspace.projectDir, "data", "tasks", "ready"), {
+      recursive: true,
+    });
+    writeFileSync(taskPath, "security task\n");
+    writeFileSync(
+      join(workspace.runDirPath, "commit-message.txt"),
+      "decomposer: create bounded task",
+    );
+
+    const policy = {
+      kind: "exact-paths" as const,
+      paths: ["data/tasks/ready/task-security.md"],
+    };
+    expect(listCommitStagePaths(workspace.projectDir, policy)).toEqual([
+      "data/tasks/ready/task-security.md",
+    ]);
+
+    const result = commitWorkflowChanges(
+      workspace.projectDir,
+      workspace.runDirPath,
+      policy,
+    );
+
+    expect(result).toMatchObject({
+      committed: true,
+      committedPaths: ["data/tasks/ready/task-security.md"],
+      daemonRestartRequired: false,
+    });
+    expect(
+      execSync("git show --name-only --format= HEAD", {
+        cwd: workspace.projectDir,
+        encoding: "utf-8",
+      }).trim(),
+    ).toBe("data/tasks/ready/task-security.md");
+    expect(
+      execSync("git status --short -- README.md", {
+        cwd: workspace.projectDir,
+        encoding: "utf-8",
+      }).trim(),
+    ).toBe("M README.md");
+  });
 });

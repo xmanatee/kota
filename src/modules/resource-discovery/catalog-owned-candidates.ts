@@ -156,7 +156,11 @@ export function agentCandidates(
         metadata: metadata({
           model: agent.model,
           effort: agent.effort,
-          writeScope: agent.writeScope.length === 0 ? "unrestricted" : agent.writeScope.join(","),
+          writeScope: agent.writeScope === "deny-all"
+            ? "deny-all"
+            : agent.writeScope.length === 0
+              ? "unrestricted"
+              : agent.writeScope.join(","),
         }),
         extraFields: [
           { label: "prompt", text: agent.promptPath, weight: 1 },

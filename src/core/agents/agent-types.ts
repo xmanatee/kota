@@ -41,6 +41,9 @@ export type AgentToolPolicy = {
   disallowed?: string[];
 };
 
+/** Tracked-file mutation boundary enforced around an agent run. */
+export type AgentWriteScope = readonly string[] | "deny-all";
+
 /**
  * A named autonomous worker.
  *
@@ -71,9 +74,10 @@ export type AgentDef = {
    * path under `data/tasks/`.
    *
    * An empty array is the explicit "unrestricted" opt-in: every tracked-file
-   * mutation is allowed. Required on every agent because absence must not
-   * silently mean unrestricted; the workflow runtime enforces this at the
-   * end of an agent step.
+   * mutation is allowed. `"deny-all"` is the distinct read-only declaration:
+   * every attempted tracked-file mutation fails and is restored. Required on
+   * every agent because absence must not silently mean unrestricted; the
+   * workflow runtime enforces this at the end of an agent step.
    */
-  writeScope: string[];
+  writeScope: AgentWriteScope;
 };

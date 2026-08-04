@@ -55,6 +55,16 @@ const INFRASTRUCTURE_DESTROY_DENIAL_MESSAGE =
 const PACKAGE_BOOTSTRAP_DENIAL_MESSAGE =
   "Workflow agents must not install package managers or dependencies unless the project explicitly opts in with `.kota/allow-package-bootstrap`. Inspect the existing files and make the requested direct change.";
 
+const WORKFLOW_NESTING_DENIAL_MESSAGE =
+  "Workflow agents must not launch hidden subagents or create scratch worktrees. Use the workflow's declared agent step and workspace so ownership, limits, and recovery remain enforceable.";
+
+const WORKFLOW_NESTING_TOOLS = new Set([
+  "Agent",
+  "Task",
+  "EnterWorktree",
+  "ExitWorktree",
+]);
+
 const CONTROLLED_WORKFLOW_COMMANDS = new Set([
   "abort",
   "pause",
@@ -320,10 +330,23 @@ export function createPackageBootstrapGuard(): AgentCanUseTool {
   };
 }
 
+function createWorkflowNestingGuard(): AgentCanUseTool {
+  return async (toolName, input): Promise<AgentPermissionResult> => {
+    if (!WORKFLOW_NESTING_TOOLS.has(toolName)) {
+      return { behavior: "allow", updatedInput: input };
+    }
+    return {
+      behavior: "deny",
+      message: WORKFLOW_NESTING_DENIAL_MESSAGE,
+      decisionAttribution: "operator-deny",
+    };
+  };
+}
+
 /**
  * Standard guard stack applied to every workflow / autonomy agent run:
- * blocks `git commit` (the workflow commit step owns that) and denies calls
- * that would stop or restart the daemon hosting the agent.
+ * blocks hidden nesting and `git commit` (the workflow owns both), and denies
+ * calls that would stop or restart the daemon hosting the agent.
  */
 export function createWorkflowAgentGuards(
   authorityConfigPath?: string,
@@ -334,5 +357,6 @@ export function createWorkflowAgentGuards(
     createWorkflowShellTeardownGuard(),
     createAgentCommitGuard(),
     createPackageBootstrapGuard(),
+    createWorkflowNestingGuard(),
   );
 }

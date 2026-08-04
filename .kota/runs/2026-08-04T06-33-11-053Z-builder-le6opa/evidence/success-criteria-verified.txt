@@ -1,0 +1,3 @@
+1. Verified in code and tests: `writeScope: "deny-all"`, passive decomposer steps, all-scope native-harness restriction validation, and content-aware executor/repair/handoff restoration are implemented; typecheck and the focused suite pass.
+2. Verified by 177 focused tests and 348 expanded workflow tests: the real Codex adapter uses a read-only sandbox, simulated edits to a pre-dirty tracked source restore its exact staged/worktree state, a new source edit is removed, HEAD is unchanged, and exact-path commit coverage leaves unrelated edits uncommitted.
+3. Verified in the task's `## Verification` section and registered `artifacts/verification.txt`; the isolated-index queue validator also passes.
