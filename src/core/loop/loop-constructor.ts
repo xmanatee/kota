@@ -13,7 +13,7 @@ import { initTaskStore, setTaskStoreInstance } from "#core/daemon/task-store.js"
 import { tryEmit } from "#core/events/event-bus.js";
 import { remoteMcpToolDescriptionQualityReportsFromManager } from "#core/mcp/tool-description-quality.js";
 import { createModelClient } from "#core/model/model-client.js";
-import { resolveActivePresetFromConfig } from "#core/model/preset.js";
+import { resolveAgentRuntime } from "#core/model/preset.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
 import { initModuleLogStore, setModuleLogStoreInstance } from "#core/modules/module-log.js";
 import type { CreateSessionOptions, ModuleSession } from "#core/modules/module-types.js";
@@ -71,8 +71,9 @@ export function initAgentSession(
   state.mcpAuthorizationResolver = options.mcpAuthorizationResolver;
   state.mcpServers = options.mcpServers;
   state.clientApprovalResolver = options.clientApprovalResolver;
+  const agentRuntime = resolveAgentRuntime(options.config);
   state.model =
-    options.model || resolveActivePresetFromConfig(options.config).defaultModel;
+    options.model || agentRuntime.preset.defaultModel;
   state.editorModel = options.editorModel || state.model;
   state.maxTokens = options.maxTokens || 8192;
   state.verbose = options.verbose || false;
@@ -203,7 +204,6 @@ export function initAgentSession(
 
   state.moduleLoader = new ModuleLoader(options.config || {}, state.verbose);
   state.moduleLoader.setCwd(projectDir);
-  const activePreset = resolveActivePresetFromConfig(options.config);
   const configuredModelProvider = options.config?.modelProvider;
   const delegateModelProvider = configuredModelProvider
     ? {
@@ -222,7 +222,7 @@ export function initAgentSession(
     delegateModelProvider !== undefined && Object.keys(delegateModelProvider).length > 0;
   setDelegateConfig({
     model: state.editorModel,
-    modelTiers: options.config?.modelTiers,
+    modelTiers: agentRuntime.tiers,
     ...(hasDelegateModelProvider ? { modelProvider: delegateModelProvider } : {}),
     modelOutputTokenLimits: options.config?.modelOutputTokenLimits,
     client: state.client,
@@ -231,7 +231,7 @@ export function initAgentSession(
     instructionContext: instructionContext || undefined,
     costTracker: state.costTracker,
     transport: state.transport,
-    harness: options.config?.defaultAgentHarness ?? activePreset.harness,
+    harness: agentRuntime.harness,
     resolveAgentDef: (name) => state.moduleLoader.getAgentDef(name),
     resolveSkillsPrompt: (names, agentName) =>
       state.moduleLoader.getSkillsPromptFor(names, agentName),

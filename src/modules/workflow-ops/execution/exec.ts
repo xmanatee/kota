@@ -3,7 +3,7 @@ import { loadConfig } from "#core/config/config.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
-import { PRESET_ENV_VAR, resolvePreset } from "#core/model/preset.js";
+import { resolveAgentRuntime } from "#core/model/preset.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
@@ -157,17 +157,14 @@ export function registerExecCommand(
         cwd: ctx.cwd,
       });
       try {
-        const { preset } = resolvePreset({
-          env: process.env[PRESET_ENV_VAR],
-          config: runtimeConfig.defaultPreset,
-        });
+        const runtime = resolveAgentRuntime(runtimeConfig);
         const definitions = validateWorkflowDefinitions(
           runtimeLoader.getContributedWorkflows(),
           ctx.cwd,
           {
-            defaultAgentHarness: runtimeConfig.defaultAgentHarness ?? preset.harness,
-            preset,
-            modelTiers: runtimeConfig.modelTiers,
+            defaultAgentHarness: runtime.harness,
+            preset: runtime.preset,
+            modelTiers: runtime.tiers,
             resolveAgentDef: (agentName) => runtimeLoader.getAgentDef(agentName),
           },
         );

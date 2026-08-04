@@ -7,6 +7,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { resolveAgentRuntime } from "#core/model/preset.js";
 import type {
   WorkflowStepContext,
   WorkflowStepResult,
@@ -92,6 +93,7 @@ export function makeWorkflowStepContext(
     results[id] = makeStepResult(status);
   }
   return {
+    agentRuntime: resolveAgentRuntime(undefined),
     stepResults: results,
     stepOutputs,
     previousOutput: undefined,

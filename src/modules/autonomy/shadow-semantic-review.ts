@@ -40,11 +40,7 @@ import type {
   ShadowSemanticReviewStatus,
   ShadowSemanticReviewTargetResolution,
 } from "./shadow-semantic-review-types.js";
-import {
-  AUTONOMY_AGENT_DEFAULTS,
-  AUTONOMY_AGENT_HARNESS,
-  AUTONOMY_DISALLOWED_TOOLS,
-} from "./shared.js";
+import { AUTONOMY_DISALLOWED_TOOLS } from "./shared.js";
 
 const DEFAULT_SHADOW_REVIEW_MAX_TURNS = 8;
 
@@ -79,16 +75,16 @@ async function defaultInvoker(
   declaration: ShadowSemanticReviewerDeclaration,
   ctx: WorkflowStepContext,
 ): Promise<AgentHarnessResult> {
-  const harness = resolveAgentHarness(AUTONOMY_AGENT_HARNESS);
+  const harness = resolveAgentHarness(ctx.agentRuntime.harness);
   return ctx.runAgentHarness(
     harness,
     {
       prompt,
       cwd,
       systemPrompt: declaration.reviewer.systemPrompt,
-      model: declaration.reviewer.model ?? AUTONOMY_AGENT_DEFAULTS.model,
+      model: declaration.reviewer.model ?? ctx.agentRuntime.tiers.capable,
       maxTurns: declaration.reviewer.maxTurns ?? DEFAULT_SHADOW_REVIEW_MAX_TURNS,
-      effort: declaration.reviewer.effort ?? AUTONOMY_AGENT_DEFAULTS.effort,
+      effort: declaration.reviewer.effort ?? ctx.agentRuntime.effort,
       ...routeKotaToolControlOptions(harness, {
         disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
         canUseTool: createWorkflowAgentGuards(),

@@ -6,9 +6,7 @@ import {
 } from "#modules/autonomy/recovery.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
-  AUTONOMY_AGENT_HARNESS,
   stepCommitRequiresDaemonRestart,
-  stepCommitted,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
 import { progressReviewRequested } from "./events.js";
@@ -95,9 +93,7 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
       type: "agent",
       agentName: agent.name,
       promptPath: agent.promptPath,
-      harness: AUTONOMY_AGENT_HARNESS,
       tier: AUTONOMY_AGENT_DEFAULTS.tier,
-      effort: agent.effort,
       timeoutMs: REVIEW_AGENT_TIMEOUT_MS,
       maxTurns: 8,
       outputFormat: "json",

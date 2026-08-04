@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { resolveAgentRuntime } from "#core/model/preset.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { unexpectedWorkflowAgentHarnessRun } from "#core/workflow/testing/agent-harness-runner.js";
 import {
@@ -24,6 +25,7 @@ function initGitRepo(dir: string): void {
 
 function makeContext(projectDir: string, runDirPath: string): WorkflowStepContext {
   return {
+    agentRuntime: resolveAgentRuntime(undefined),
     stepResults: {},
     stepOutputs: { build: {} },
     previousOutput: undefined,

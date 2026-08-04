@@ -81,7 +81,9 @@ export function validateAgentStep(
     );
   }
 
-  const rawEffort = step.effort ?? agentDef?.effort;
+  const rawEffort = step.effort ?? (step.tier !== undefined
+    ? options.preset?.defaultEffort ?? agentDef?.effort
+    : agentDef?.effort);
   const effort = expectNonEmptyString(rawEffort, `${stepLabel}.effort`, definitionPath);
   if (!VALID_EFFORT_LEVELS.has(effort)) {
     throw new WorkflowDefinitionError(

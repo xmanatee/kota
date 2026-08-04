@@ -6,6 +6,7 @@ import {
 import type { ModuleEventPayloadObject } from "#core/events/module-event.js";
 import { getModuleEventRegistry } from "#core/events/module-event.js";
 import { validatePayloadAgainstSchema } from "#core/events/module-event-payload-validation.js";
+import { resolveAgentRuntime } from "#core/model/preset.js";
 import { matchesFilter } from "#core/workflow/run-executor-utils.js";
 import type { WorkflowPredicate, WorkflowStepContext } from "#core/workflow/run-types.js";
 import type { WorkflowStep } from "#core/workflow/step-types.js";
@@ -70,6 +71,7 @@ function makeDryRunContext(
 ): WorkflowStepContext {
   return {
     projectDir: process.cwd(),
+    agentRuntime: resolveAgentRuntime(undefined),
     workflow: {
       name: definition.name,
       definitionPath: definition.definitionPath,

@@ -36,6 +36,7 @@ import {
   getPreset,
   PRESET_ENV_VAR,
   resolveActivePresetFromConfig,
+  resolveAgentRuntime,
   resolvePreset,
 } from "#core/model/preset.js";
 import {
@@ -280,14 +281,11 @@ async function checkWorkflowDefinitions(projectDir: string): Promise<CheckResult
     const config = loadConfig(projectDir);
     const loader = await loadModuleMetadata(config, projectDir, false);
     const defs = loader.getContributedWorkflows();
-    const { preset } = resolvePreset({
-      env: process.env[PRESET_ENV_VAR],
-      config: config.defaultPreset,
-    });
+    const runtime = resolveAgentRuntime(config);
     const validated = validateWorkflowDefinitions(defs, projectDir, {
-      defaultAgentHarness: config.defaultAgentHarness ?? preset.harness,
-      preset,
-      modelTiers: config.modelTiers,
+      defaultAgentHarness: runtime.harness,
+      preset: runtime.preset,
+      modelTiers: runtime.tiers,
       resolveAgentDef: (name) => loader.getAgentDef(name),
     });
     return pass("Workflows: discoverable definitions", `${validated.length} valid`);

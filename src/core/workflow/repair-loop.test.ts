@@ -18,6 +18,7 @@ import type {
   AgentPermissionResult,
 } from "#core/agent-harness/types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
+import { resolveAgentRuntime } from "#core/model/preset.js";
 import {
   buildRepairPrompt,
   RepairLoopError,
@@ -70,6 +71,7 @@ function registerRepairHarness(
 function makeContext(projectDir: string): WorkflowStepContext {
   return {
     projectDir,
+    agentRuntime: resolveAgentRuntime(undefined),
     workflow: {
       name: "test-workflow",
       definitionPath: "src/modules/test/workflows/test/workflow.ts",

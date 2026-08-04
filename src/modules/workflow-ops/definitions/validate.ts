@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { ModelTiers } from "#core/model/model-router.js";
-import { PRESET_ENV_VAR, type Preset, resolvePreset } from "#core/model/preset.js";
+import { type Preset, resolveAgentRuntime } from "#core/model/preset.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import { validateWorkflowDefinitions, WorkflowDefinitionError } from "#core/workflow/validation.js";
@@ -103,16 +103,13 @@ export function registerValidateCommand(
     .action((opts: { workflow?: string; json?: boolean }) => {
       let results: ValidationResult[];
       try {
-        const { preset } = resolvePreset({
-          env: process.env[PRESET_ENV_VAR],
-          config: ctx.config.defaultPreset,
-        });
+        const runtime = resolveAgentRuntime(ctx.config);
         results = validateDefinitions(getWorkflowDefinitions(ctx), {
           workflow: opts.workflow,
           projectDir: ctx.cwd,
-          defaultAgentHarness: ctx.config.defaultAgentHarness ?? preset.harness,
-          preset,
-          modelTiers: ctx.config.modelTiers,
+          defaultAgentHarness: runtime.harness,
+          preset: runtime.preset,
+          modelTiers: runtime.tiers,
           resolveAgentDef: ctx.resolveAgentDef,
         });
       } catch (err) {

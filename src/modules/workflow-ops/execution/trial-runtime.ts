@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { loadConfig } from "#core/config/config.js";
 import { deriveDirectoryScopeId, loadRegistryFileFromDisk } from "#core/daemon/scope-registry.js";
-import { PRESET_ENV_VAR, resolvePreset } from "#core/model/preset.js";
+import { resolveAgentRuntime } from "#core/model/preset.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import { validateWorkflowDefinitions, WorkflowDefinitionError } from "#core/workflow/validation.js";
@@ -22,17 +22,14 @@ export function createDefaultWorkflowTrialRuntimeFactory(): WorkflowTrialRuntime
       installedModuleSourceDir: sourceProjectDir,
     });
     try {
-      const { preset } = resolvePreset({
-        env: process.env[PRESET_ENV_VAR],
-        config: runtimeConfig.defaultPreset,
-      });
+      const runtime = resolveAgentRuntime(runtimeConfig);
       const definitions = validateWorkflowDefinitions(
         runtimeLoader.getContributedWorkflows(),
         trialProjectDir,
         {
-          defaultAgentHarness: runtimeConfig.defaultAgentHarness ?? preset.harness,
-          preset,
-          modelTiers: runtimeConfig.modelTiers,
+          defaultAgentHarness: runtime.harness,
+          preset: runtime.preset,
+          modelTiers: runtime.tiers,
           resolveAgentDef: (name) => runtimeLoader.getAgentDef(name),
         },
       );

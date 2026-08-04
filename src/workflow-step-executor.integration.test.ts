@@ -7,6 +7,7 @@ import {
   registerAgentHarness,
 } from "#core/agent-harness/index.js";
 import { EventBus } from "#core/events/event-bus.js";
+import { resolveAgentRuntime } from "#core/model/preset.js";
 import type {
   WorkflowRunMetadata,
   WorkflowStepContext,
@@ -860,6 +861,7 @@ describe("executeStep repair loop", () => {
   function makeRepairContext(runTool: WorkflowStepContext["runTool"]): WorkflowStepContext {
     return {
       projectDir,
+      agentRuntime: resolveAgentRuntime(undefined),
       workflow: {
         name: "test",
         definitionPath: "src/modules/test/workflows/test/workflow.ts",

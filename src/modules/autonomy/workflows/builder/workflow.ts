@@ -17,7 +17,6 @@ import {
 } from "#modules/autonomy/recovery.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
-  AUTONOMY_AGENT_HARNESS,
   AUTONOMY_BUILDER_AGENT_IDLE_TIMEOUT_MS,
   stepCommitRequiresDaemonRestart,
   stepCommitted,
@@ -187,9 +186,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       type: "agent",
       agentName: agent.name,
       promptPath: agent.promptPath,
-      harness: AUTONOMY_AGENT_HARNESS,
       tier: AUTONOMY_AGENT_DEFAULTS.tier,
-      effort: agent.effort,
       timeoutMs: null,
       idleTimeoutMs: AUTONOMY_BUILDER_AGENT_IDLE_TIMEOUT_MS,
       when: (ctx) => {

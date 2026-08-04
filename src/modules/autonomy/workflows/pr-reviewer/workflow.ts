@@ -9,7 +9,6 @@ import { assertOutboundGitHubCommentBodyIsSafe } from "#modules/autonomy/github-
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
-  AUTONOMY_AGENT_HARNESS,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
 import type { GitHubPullRequestEventPayload } from "#modules/github-webhook/events.js";
@@ -324,9 +323,7 @@ const prReviewerWorkflow: WorkflowDefinitionInput = {
       type: "agent",
       agentName: agent.name,
       promptPath: agent.promptPath,
-      harness: AUTONOMY_AGENT_HARNESS,
       tier: AUTONOMY_AGENT_DEFAULTS.tier,
-      effort: agent.effort,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       when: (ctx) => !assessPr.outputRequired(ctx).skip,
       outputFormat: "json",

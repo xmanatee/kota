@@ -86,6 +86,9 @@ export function createMergeGateStep(): TypedCodeStepInput<MergeGateResult> {
 			const workspace = preparedWorktree(ctx);
 			if (!workspace?.taskId) throw new Error("Cannot run merge gate without a prepared task worktree");
 			const buildResult = ctx.stepResults.build;
+			if (!buildResult?.harness || !buildResult.model) {
+				throw new Error("Cannot run merge gate without the builder agent runtime");
+			}
 			return await mergeAutomationWorktree({
 				projectDir: ctx.projectDir,
 				taskId: workspace.taskId,
@@ -95,8 +98,9 @@ export function createMergeGateStep(): TypedCodeStepInput<MergeGateResult> {
 					runDirPath: ctx.workflow.runDirPath,
 					workflowName: ctx.workflow.name,
 					runId: ctx.workflow.runId,
-					harnessName: buildResult?.harness,
-					model: buildResult?.model,
+					harnessName: buildResult.harness,
+					model: buildResult.model,
+					effort: ctx.agentRuntime.effort,
 					runAgentHarness: ctx.runAgentHarness,
 					signal: ctx.signal,
 				}),

@@ -9,6 +9,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { resolveAgentRuntime } from "#core/model/preset.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { unexpectedWorkflowAgentHarnessRun } from "#core/workflow/testing/agent-harness-runner.js";
 import {
@@ -83,6 +84,7 @@ function claimContext(projectDir: string, taskId: string): WorkflowStepContext {
   const runDir = ".kota/runs/test-run";
   return {
     projectDir,
+    agentRuntime: resolveAgentRuntime(undefined),
     workflow: {
       name: "builder",
       definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",

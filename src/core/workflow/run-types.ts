@@ -8,6 +8,7 @@ import type {
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import type { EventJournal } from "#core/events/event-journal.js";
+import type { AgentRuntimeSelection } from "#core/model/preset.js";
 import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
 import type { WorkflowStepProgressReporter } from "./step-idle-timeout.js";
 import type { WorkflowAgentStep, WorkflowStep } from "./step-types.js";
@@ -197,6 +198,7 @@ export type WorkflowStepContext = {
   signal?: AbortSignal;
   approvalQueue?: ApprovalQueue;
   projectDir: string;
+  agentRuntime: AgentRuntimeSelection;
   workspaceDir?: string;
   runtimeResources?: WorkflowRuntimeResources;
   stateDir?: string;

@@ -30,6 +30,7 @@ import {
   initModuleEventRegistry,
   resetModuleEventRegistry,
 } from "#core/events/module-event.js";
+import { getPreset, SHIPPED_DEFAULT_PRESET_ID } from "#core/model/preset.js";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 import { validatePayloadSchema } from "#core/workflow/payload-validator.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
@@ -45,7 +46,6 @@ import {
   registerWorkflowDefinition,
   validateWorkflowDefinitions,
 } from "#core/workflow/validation.js";
-import { AUTONOMY_AGENT_HARNESS } from "#modules/autonomy/shared.js";
 import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
 import { assertTaskQueueValid } from "#modules/repo-tasks/task-queue-validation.js";
 import { progressReviewRequested } from "./events.js";
@@ -68,6 +68,9 @@ import {
   type ProgressReviewAgentOutput,
   readTaskStatus,
 } from "./progress-review.js";
+
+const TEST_PRESET = getPreset(SHIPPED_DEFAULT_PRESET_ID);
+
 import progressReviewerWorkflow, { progressReviewOutputSchema } from "./workflow.js";
 
 vi.mock("#core/util/repo-worktree.js", () => ({
@@ -484,7 +487,7 @@ function runCountBatchPayload(projectDir: string, runId: string): WorkflowBatchF
 
 function registerProgressReviewHarness(run: AgentHarness["run"]): void {
   registerAgentHarness({
-    name: AUTONOMY_AGENT_HARNESS,
+    name: TEST_PRESET.harness,
     description: "progress-reviewer workflow test harness",
     supportsMultiTurn: false,
     supportedHookKinds: [],
@@ -501,7 +504,7 @@ function compileProgressReviewerWorkflow() {
       "src/modules/autonomy/workflows/progress-reviewer/workflow.ts",
       progressReviewerWorkflow,
     ),
-  ])[0]!;
+  ], undefined, { defaultAgentHarness: TEST_PRESET.harness, preset: TEST_PRESET })[0]!;
 }
 
 function parseReviewInputFromAgentPrompt(

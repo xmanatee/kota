@@ -1,6 +1,6 @@
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { getGlobalConfigPath } from "#core/config/config.js";
+import { getGlobalConfigPath, type KotaConfig } from "#core/config/config.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import type {
@@ -14,6 +14,7 @@ import {
 } from "#core/events/event-bus.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { resolveAgentRuntime } from "#core/model/preset.js";
 import { assess } from "#core/tools/guardrails.js";
 import { executeTool } from "#core/tools/index.js";
 import { validateToolCallInput } from "#core/tools/tool-input-validation.js";
@@ -141,6 +142,7 @@ export function createStepContext(
   stepOutputList: unknown[],
   deps: {
     projectDir: string;
+    config?: KotaConfig;
     workspaceDir?: string;
     authorityConfigPath?: string;
     runtimeResources?: WorkflowRuntimeResources;
@@ -215,6 +217,7 @@ export function createStepContext(
       ? { approvalQueue: deps.approvalQueue }
       : {}),
     projectDir: deps.projectDir,
+    agentRuntime: resolveAgentRuntime(deps.config),
     workspaceDir,
     ...(deps.runtimeResources !== undefined
       ? { runtimeResources: deps.runtimeResources }

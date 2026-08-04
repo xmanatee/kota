@@ -14,7 +14,6 @@ import {
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
-  AUTONOMY_AGENT_HARNESS,
   checkCommitMessageExists,
   checkNoScratchArtifacts,
   runCheck,
@@ -231,9 +230,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       type: "agent",
       agentName: agent.name,
       promptPath: agent.promptPath,
-      harness: AUTONOMY_AGENT_HARNESS,
       tier: AUTONOMY_AGENT_DEFAULTS.tier,
-      effort: agent.effort,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       when: (ctx) => {
         if (ctx.trigger.event === "runtime.recovered") return false;

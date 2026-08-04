@@ -8,6 +8,7 @@ import {
 } from "#core/agent-harness/index.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
+import { getPreset, SHIPPED_DEFAULT_PRESET_ID } from "#core/model/preset.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import {
@@ -18,7 +19,6 @@ import {
   registerWorkflowDefinition,
   validateWorkflowDefinitions,
 } from "#core/workflow/validation.js";
-import { AUTONOMY_AGENT_HARNESS } from "#modules/autonomy/shared.js";
 import {
   cleanupTempDirs,
   makeProjectDir,
@@ -29,6 +29,8 @@ import {
   type ProgressReviewAgentEvidencePacket,
 } from "./progress-review.js";
 import progressReviewerWorkflow from "./workflow.js";
+
+const TEST_PRESET = getPreset(SHIPPED_DEFAULT_PRESET_ID);
 
 vi.mock("#core/util/repo-worktree.js", () => ({
   getRepoWorktreeStatus: vi.fn(),
@@ -133,7 +135,7 @@ function taskCountBatchPayload(
 
 function registerProgressReviewHarness(run: AgentHarness["run"]): void {
   registerAgentHarness({
-    name: AUTONOMY_AGENT_HARNESS,
+    name: TEST_PRESET.harness,
     description: "progress-reviewer task-count workflow test harness",
     supportsMultiTurn: false,
     supportedHookKinds: [],
@@ -150,7 +152,7 @@ function compileProgressReviewerWorkflow() {
       "src/modules/autonomy/workflows/progress-reviewer/workflow.ts",
       progressReviewerWorkflow,
     ),
-  ])[0]!;
+  ], undefined, { defaultAgentHarness: TEST_PRESET.harness, preset: TEST_PRESET })[0]!;
 }
 
 function parseReviewInputFromAgentPrompt(

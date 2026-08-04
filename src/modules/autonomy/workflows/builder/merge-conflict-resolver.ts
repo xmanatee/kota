@@ -2,6 +2,7 @@ import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
 	type AgentCanUseTool,
+	type AgentEffort,
 	type AgentPermissionResult,
 	composeCanUseTools,
 	createWorkflowAgentGuards,
@@ -11,8 +12,6 @@ import {
 } from "#core/agent-harness/index.js";
 import type { WorkflowAgentHarnessRunner } from "#core/workflow/run-types.js";
 import {
-	AUTONOMY_AGENT_DEFAULTS,
-	AUTONOMY_AGENT_HARNESS,
 	AUTONOMY_DISALLOWED_TOOLS,
 } from "#modules/autonomy/shared.js";
 import type {
@@ -49,8 +48,9 @@ export type MergeConflictResolverOptions = {
 	runDirPath: string;
 	workflowName: string;
 	runId: string;
-	harnessName?: string;
-	model?: string;
+	harnessName: string;
+	model: string;
+	effort: AgentEffort;
 	runAgentHarness: WorkflowAgentHarnessRunner;
 	signal?: AbortSignal;
 };
@@ -201,7 +201,7 @@ function appendAttemptArtifact(
 
 export function createMergeConflictResolver(options: MergeConflictResolverOptions): MergeGateResolver {
 	return async (request) => {
-		const harness = resolveAgentHarness(options.harnessName ?? AUTONOMY_AGENT_HARNESS);
+		const harness = resolveAgentHarness(options.harnessName);
 		if (!shouldRouteKotaToolControl(harness)) {
 			const summary =
 				`Merge-conflict resolver was not dispatched because harness "${harness.name}" declares ` +
@@ -219,11 +219,11 @@ export function createMergeConflictResolver(options: MergeConflictResolverOption
 			harness,
 			{
 				prompt: resolverPrompt(request),
-				model: options.model ?? AUTONOMY_AGENT_DEFAULTS.model,
+				model: options.model,
 				cwd: request.workspaceDir,
 				systemPrompt: SYSTEM_PROMPT,
 				maxTurns: MERGE_CONFLICT_RESOLVER_MAX_TURNS,
-				effort: AUTONOMY_AGENT_DEFAULTS.effort,
+				effort: options.effort,
 				...routeKotaToolControlOptions(harness, {
 					allowedTools: [...MERGE_CONFLICT_RESOLVER_ALLOWED_TOOLS],
 					disallowedTools: AUTONOMY_DISALLOWED_TOOLS,

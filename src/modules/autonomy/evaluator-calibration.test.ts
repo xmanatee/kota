@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { resolveAgentRuntime } from "#core/model/preset.js";
 import type {
   WorkflowStepContext,
   WorkflowStepResult,
@@ -71,6 +72,7 @@ function makeStepContext(
 ): WorkflowStepContext {
   return {
     projectDir: overrides.projectDir,
+    agentRuntime: resolveAgentRuntime(undefined),
     workflow: {
       name: "builder",
       definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",

@@ -130,6 +130,8 @@ describe("createMergeConflictResolver", () => {
 			workflowName: "builder",
 			runId: "test-run",
 			harnessName: "test-harness",
+			model: "test-model",
+			effort: "xhigh",
 			runAgentHarness,
 		});
 
@@ -182,6 +184,8 @@ describe("createMergeConflictResolver", () => {
 			workflowName: "builder",
 			runId: "test-run",
 			harnessName: "codex",
+			model: "test-model",
+			effort: "xhigh",
 			runAgentHarness,
 		});
 
@@ -206,6 +210,8 @@ describe("createMergeConflictResolver", () => {
 			workflowName: "builder",
 			runId: worktree.metadata.runId,
 			harnessName: "codex",
+			model: "test-model",
+			effort: "xhigh",
 			runAgentHarness,
 		});
 
@@ -245,6 +251,8 @@ describe("createMergeConflictResolver", () => {
 			workflowName: "builder",
 			runId: "test-run",
 			harnessName: "test-harness",
+			model: "test-model",
+			effort: "xhigh",
 			runAgentHarness,
 		});
 		const request = makeRequest(workspaceDir);

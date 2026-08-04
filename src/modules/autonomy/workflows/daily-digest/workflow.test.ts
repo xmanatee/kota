@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resolveAgentRuntime } from "#core/model/preset.js";
 import { unexpectedWorkflowAgentHarnessRun } from "#core/workflow/testing/agent-harness-runner.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import dailyDigestWorkflow, {
@@ -106,6 +107,7 @@ describe("daily-digest build-digest step", () => {
 
     await buildStep.run({
       projectDir,
+      agentRuntime: resolveAgentRuntime(undefined),
       workspaceDir: projectDir,
       workflow: {
         name: "daily-digest",
@@ -164,6 +166,7 @@ describe("daily-digest build-digest step", () => {
 
     const ctxBase = {
       projectDir,
+      agentRuntime: resolveAgentRuntime(undefined),
       workspaceDir: projectDir,
       trigger: { event: "schedule", schemaRef: null, payload: {} },
       previousOutput: undefined,

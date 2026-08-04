@@ -7,7 +7,7 @@ import {
   createModelClient,
   modelProviderSelectionFromConfig,
 } from "#core/model/model-client.js";
-import { resolveActivePresetFromConfig } from "#core/model/preset.js";
+import { resolveActivePresetFromConfig, resolveAgentRuntime } from "#core/model/preset.js";
 import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
 import type {
   ConversationMessage,
@@ -196,8 +196,9 @@ export function registerHistoryCommands(program: Command) {
       const providerName = config.modelProvider?.type;
       const useHarnessPath = providerName === undefined || providerName === "agent-sdk";
       if (useHarnessPath) {
-        const preset = resolveActivePresetFromConfig(config);
-        const harnessName = config.defaultAgentHarness ?? preset.harness;
+        const runtime = resolveAgentRuntime(config);
+        const preset = runtime.preset;
+        const harnessName = runtime.harness;
         const model = modelForHarness(modelSpec, harnessName);
         const modelProvider = modelProviderSelectionFromConfig(config);
         const resumeStore = openHarnessResumeConversation(resume.projectDir, resume.id);

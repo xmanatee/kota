@@ -19,7 +19,6 @@ import { writeRunSummary } from "#modules/autonomy/run-summary.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
-  AUTONOMY_AGENT_HARNESS,
   AUTONOMY_FULL_TEST_TIMEOUT_MS,
   checkCommitMessageExists,
   checkNoScratchArtifacts,
@@ -169,12 +168,10 @@ const improverWorkflow: WorkflowDefinitionInput = {
       type: "agent",
       agentName: agent.name,
       promptPath: agent.promptPath,
-      harness: AUTONOMY_AGENT_HARNESS,
       when: (ctx) =>
         shouldRunImproverFromGate(gateEvidenceStep.output(ctx)) &&
         inspectWorktree.output(ctx)?.dirty === false,
       tier: AUTONOMY_AGENT_DEFAULTS.tier,
-      effort: agent.effort,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       repairLoop: {
         checks: [

@@ -6,7 +6,6 @@ import { isGitHubImplementationRequest } from "#modules/autonomy/github-mention-
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
-  AUTONOMY_AGENT_HARNESS,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
 import type {
@@ -354,9 +353,7 @@ const githubMentionResponderWorkflow: WorkflowDefinitionInput = {
       type: "agent",
       agentName: agent.name,
       promptPath: agent.promptPath,
-      harness: AUTONOMY_AGENT_HARNESS,
       tier: AUTONOMY_AGENT_DEFAULTS.tier,
-      effort: agent.effort,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       when: (ctx) => assessMention.outputRequired(ctx).agentEligible,
       outputFormat: "json",

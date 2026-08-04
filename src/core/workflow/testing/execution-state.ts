@@ -1,3 +1,4 @@
+import { resolveAgentRuntime } from "#core/model/preset.js";
 import type {
   WorkflowRuntimeResources,
   WorkflowRuntimeState,
@@ -87,6 +88,7 @@ export class HarnessExecutionState {
 
     return {
       projectDir: this.projectDir,
+      agentRuntime: resolveAgentRuntime(undefined),
       workspaceDir: this.workspaceDir,
       ...(this.runtimeResources !== undefined
         ? { runtimeResources: this.runtimeResources }

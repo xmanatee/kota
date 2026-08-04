@@ -14,7 +14,6 @@ import {
   parseVerdict,
 } from "./critic.js";
 import { fileLineCitationsFromUnifiedDiff } from "./review-scrutiny-citations.js";
-import { AUTONOMY_AGENT_DEFAULTS } from "./shared.js";
 
 const GATE_MAX_TURNS = 10;
 const ARTIFACT_NAME = "semantic-gate-review.json";
@@ -64,14 +63,12 @@ export function getImproverSemanticGatePromptHash(): string {
   return createHash("sha256").update(GATE_SYSTEM_PROMPT).digest("hex").slice(0, 12);
 }
 
-type GateBaseConfig = Omit<AgentJudgeConfig, "harness">;
+type GateBaseConfig = Omit<AgentJudgeConfig, "harness" | "model" | "effort">;
 
 const gateBaseConfig: GateBaseConfig = {
   label: "Semantic gate",
   systemPrompt: GATE_SYSTEM_PROMPT,
-  model: AUTONOMY_AGENT_DEFAULTS.model,
   maxTurns: GATE_MAX_TURNS,
-  effort: AUTONOMY_AGENT_DEFAULTS.effort,
 };
 
 function readCommitMessage(runDirPath: string): string {
@@ -95,7 +92,12 @@ export function createImproverSemanticCheck(options?: {
     type: "code" as const,
     run: async (ctx, parentStep) => {
       const harnessName = options?.harnessName ?? parentStep.harness;
-      const gateConfig: AgentJudgeConfig = { ...gateBaseConfig, harness: harnessName };
+      const gateConfig: AgentJudgeConfig = {
+        ...gateBaseConfig,
+        harness: harnessName,
+        model: parentStep.model,
+        effort: parentStep.effort,
+      };
       const diffStat = getStagedDiff(ctx.projectDir);
       const changedFiles = getChangedFiles(ctx.projectDir);
 

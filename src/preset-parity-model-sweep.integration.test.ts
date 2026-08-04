@@ -28,14 +28,14 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   getPreset,
   listShippedPresets,
   mergePresetTiers,
-  PRESET_ENV_VAR,
   type Preset,
   resolveActivePresetFromConfig,
+  resolveAgentRuntime,
   resolveDefaultModel,
   resolveTierModel,
 } from "#core/model/preset.js";
@@ -259,9 +259,7 @@ describe("preset-parity model-id sweep — workflow agent step `tier` validates 
               {
                 type: "agent",
                 id: "probe-capable-tier",
-                harness: preset.harness,
                 tier: "capable",
-                effort: preset.defaultEffort,
                 autonomyMode: "autonomous",
                 promptPath: promptName,
               },
@@ -269,44 +267,25 @@ describe("preset-parity model-id sweep — workflow agent step `tier` validates 
           }),
         ],
         workflowRoot,
-        { preset },
+        { preset, defaultAgentHarness: preset.harness },
       );
       const step = validated.steps[0];
       if (step.type !== "agent") throw new Error("expected agent step");
+      expect(step.harness).toBe(preset.harness);
       expect(step.model).toBe(preset.tiers.capable);
+      expect(step.effort).toBe(preset.defaultEffort);
     });
   }
 });
 
-describe("preset-parity model-id sweep — autonomy fleet defaults rebuild per active preset", () => {
-  /**
-   * `AUTONOMY_AGENT_DEFAULTS` snapshots `process.env.KOTA_PRESET` at module
-   * load. To verify per-preset behavior we re-import the autonomy module
-   * with the env var set to each shipped preset id.
-   */
-  let savedEnv: string | undefined;
-
-  beforeEach(() => {
-    savedEnv = process.env[PRESET_ENV_VAR];
-  });
-
-  afterEach(() => {
-    if (savedEnv === undefined) {
-      delete process.env[PRESET_ENV_VAR];
-    } else {
-      process.env[PRESET_ENV_VAR] = savedEnv;
-    }
-  });
-
+describe("preset-parity model-id sweep — autonomy runtime resolves one preset bundle", () => {
   for (const preset of listShippedPresets()) {
-    it(`preset=${preset.id}: autonomy harness and model resolve from the same preset`, async () => {
-      process.env[PRESET_ENV_VAR] = preset.id;
-      vi.resetModules();
-      const fresh = await import("#modules/autonomy/shared.js");
-      expect(fresh.AUTONOMY_AGENT_HARNESS).toBe(preset.harness);
-      expect(fresh.AUTONOMY_AGENT_DEFAULTS.model).toBe(preset.tiers.capable);
-      expect(fresh.AUTONOMY_AGENT_DEFAULTS.effort).toBe(preset.defaultEffort);
-      expect(fresh.AUTONOMY_AGENT_DEFAULTS.tier).toBe("capable");
+    it(`preset=${preset.id}: harness, tiers, and effort resolve together`, () => {
+      const runtime = resolveAgentRuntime({ defaultPreset: preset.id });
+      expect(runtime.preset).toBe(preset);
+      expect(runtime.harness).toBe(preset.harness);
+      expect(runtime.tiers.capable).toBe(preset.tiers.capable);
+      expect(runtime.effort).toBe(preset.defaultEffort);
     });
   }
 });

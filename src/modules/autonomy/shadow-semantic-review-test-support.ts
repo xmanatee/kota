@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { resolveAgentRuntime } from "#core/model/preset.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { unexpectedWorkflowAgentHarnessRun } from "#core/workflow/testing/agent-harness-runner.js";
@@ -13,6 +14,7 @@ export function makeShadowReviewContext(
 ): WorkflowStepContext {
   return {
     projectDir,
+    agentRuntime: resolveAgentRuntime(undefined),
     workspaceDir: projectDir,
     workflow: {
       name: "fixture-workflow",

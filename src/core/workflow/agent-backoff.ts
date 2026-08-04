@@ -1,5 +1,5 @@
 import type { KotaConfig } from "#core/config/config.js";
-import { getPreset, SHIPPED_DEFAULT_PRESET_ID } from "#core/model/preset.js";
+import { resolveAgentRuntime } from "#core/model/preset.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowAgentBackoffSignal, WorkflowAgentBackoffState } from "./trigger-types.js";
 
@@ -84,6 +84,6 @@ export class AgentBackoffManager {
 }
 
 export function workflowAgentRuntimeId(config: KotaConfig | undefined): string {
-  const preset = getPreset(config?.defaultPreset ?? SHIPPED_DEFAULT_PRESET_ID);
-  return `${preset.id}:${config?.defaultAgentHarness ?? preset.harness}`;
+  const runtime = resolveAgentRuntime(config);
+  return `${runtime.preset.id}:${runtime.harness}`;
 }

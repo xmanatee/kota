@@ -3,9 +3,9 @@ import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { delimiter, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import {
-  PRESET_ENV_VAR,
-  resolvePreset,
+  getPreset,
   resolveTierModel,
+  SHIPPED_DEFAULT_PRESET_ID,
 } from "#core/model/preset.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type {
@@ -258,13 +258,7 @@ export const AUTONOMY_DISALLOWED_TOOLS = ["Agent", "Task", "EnterWorktree", "Exi
 export const AUTONOMY_AGENT_HANG_TIMEOUT_MS = 3 * 60 * 60 * 1000;
 export const AUTONOMY_BUILDER_AGENT_IDLE_TIMEOUT_MS = 60 * 60 * 1000;
 export const AUTONOMY_FULL_TEST_TIMEOUT_MS = 15 * 60 * 1000;
-const ACTIVE_AUTONOMY_PRESET = resolvePreset({ env: process.env[PRESET_ENV_VAR] })
-  .preset;
-// Shipped autonomy workflows must boot in a fresh clone with no operator-local
-// `.kota/config.json`, so they resolve through the shipped default preset when
-// KOTA_PRESET is unset. When KOTA_PRESET is set, harness + model + effort move
-// together and cannot form a cross-provider tuple.
-export const AUTONOMY_AGENT_HARNESS = ACTIVE_AUTONOMY_PRESET.harness;
+const AUTONOMY_AGENT_DEFINITION_PRESET = getPreset(SHIPPED_DEFAULT_PRESET_ID);
 
 // Tier the autonomy fleet runs at. `tier: "capable"` is what every autonomy
 // workflow agent step consumes; the workflow validator resolves it through
@@ -272,21 +266,16 @@ export const AUTONOMY_AGENT_HARNESS = ACTIVE_AUTONOMY_PRESET.harness;
 // own capable model without per-step edits.
 export const AUTONOMY_AGENT_TIER = "capable" as const;
 
-// Single source of truth for the autonomy fleet's model and effort level.
-// `model` and `effort` are resolved at module-load time from the active
-// preset (`KOTA_PRESET` env > shipped default). Every autonomy workflow
-// agent definition spreads this object, and the autonomy-internal judges
-// (critic, semantic gate) consume the same `model`/`effort` so a preset
-// switch flows through every autonomy surface without per-call edits.
-// No literal model id stays in this file — the negative grep test enforces
-// that on every CI run.
+// Registry defaults keep agent declarations complete. Workflow compilation
+// replaces this bundle from the active runtime whenever a step declares a
+// portable tier.
 function buildAutonomyAgentDefaults(): Pick<AgentDef, "model" | "effort"> & {
   tier: typeof AUTONOMY_AGENT_TIER;
 } {
   return {
     tier: AUTONOMY_AGENT_TIER,
-    model: resolveTierModel(ACTIVE_AUTONOMY_PRESET, AUTONOMY_AGENT_TIER),
-    effort: ACTIVE_AUTONOMY_PRESET.defaultEffort,
+    model: resolveTierModel(AUTONOMY_AGENT_DEFINITION_PRESET, AUTONOMY_AGENT_TIER),
+    effort: AUTONOMY_AGENT_DEFINITION_PRESET.defaultEffort,
   };
 }
 

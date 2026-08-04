@@ -18,7 +18,6 @@ import {
   resolveDurableOperatorEvidenceDir,
 } from "./product-evidence.js";
 import { fileLineCitationsFromUnifiedDiff } from "./review-scrutiny-citations.js";
-import { AUTONOMY_AGENT_DEFAULTS } from "./shared.js";
 import { formatProbeBlock } from "./task-probe.js";
 import { findTaskReviewTarget } from "./task-review-target.js";
 
@@ -115,14 +114,12 @@ export function getCriticPromptHash(): string {
 
 const CRITIC_MAX_TURNS = 20;
 
-type CriticBaseConfig = Omit<AgentJudgeConfig, "harness">;
+type CriticBaseConfig = Omit<AgentJudgeConfig, "harness" | "model" | "effort">;
 
 const criticBaseConfig: CriticBaseConfig = {
   label: "Critic agent",
   systemPrompt: CRITIC_SYSTEM_PROMPT,
-  model: AUTONOMY_AGENT_DEFAULTS.model,
   maxTurns: CRITIC_MAX_TURNS,
-  effort: AUTONOMY_AGENT_DEFAULTS.effort,
 };
 
 function taskIdFromReviewTargetPath(path: string): string | undefined {
@@ -138,20 +135,21 @@ export function createCriticCheck(options?: {
    * to drive the critic over a specific adapter directly.
    */
   harnessName?: string;
-  /** Override the critic model. Defaults to AUTONOMY_AGENT_DEFAULTS.model. */
+  /** Override the parent agent step's resolved model. */
   model?: string;
 }): WorkflowRepairCheck {
-  const baseConfig: CriticBaseConfig = {
-    ...criticBaseConfig,
-    ...(options?.model !== undefined ? { model: options.model } : {}),
-  };
   return {
     id: "critic-review",
     type: "code" as const,
     run: async (ctx, parentStep) => {
       const reviewDir = ctx.workspaceDir ?? ctx.projectDir;
       const harnessName = options?.harnessName ?? parentStep.harness;
-      const resolvedConfig: AgentJudgeConfig = { ...baseConfig, harness: harnessName };
+      const resolvedConfig: AgentJudgeConfig = {
+        ...criticBaseConfig,
+        harness: harnessName,
+        model: options?.model ?? parentStep.model,
+        effort: parentStep.effort,
+      };
       const target = findTaskReviewTarget(reviewDir);
       if (!target) {
         return "OK: no task in doing/ — skipping critic review";

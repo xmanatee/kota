@@ -246,6 +246,19 @@ export type PresetResolution = {
   readonly source: PresetSource;
 };
 
+export type AgentRuntimeConfig = {
+  readonly defaultPreset?: string;
+  readonly defaultAgentHarness?: string;
+  readonly modelTiers?: ModelTiers;
+};
+
+export type AgentRuntimeSelection = {
+  readonly preset: Preset;
+  readonly harness: string;
+  readonly tiers: Required<ModelTiers>;
+  readonly effort: AgentEffort;
+};
+
 export type PresetResolutionInput = {
   /** `--preset <id>` CLI flag value. */
   flag?: string;
@@ -286,6 +299,20 @@ export function resolveActivePresetFromConfig(
     env: env[PRESET_ENV_VAR],
     config: config?.defaultPreset,
   }).preset;
+}
+
+/** Resolve the complete harness/model/effort bundle used by agent runtimes. */
+export function resolveAgentRuntime(
+  config: AgentRuntimeConfig | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): AgentRuntimeSelection {
+  const preset = resolveActivePresetFromConfig(config, env);
+  return {
+    preset,
+    harness: config?.defaultAgentHarness ?? preset.harness,
+    tiers: mergePresetTiers(preset, config?.modelTiers),
+    effort: preset.defaultEffort,
+  };
 }
 
 /** Merge a preset's tier mapping with operator overrides. Operator wins per tier. */
