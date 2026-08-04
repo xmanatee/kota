@@ -244,7 +244,7 @@ export const antigravityCliAgentHarness: AgentHarness = {
   name: ANTIGRAVITY_CLI_AGENT_HARNESS_NAME,
   description:
     "Runs Antigravity CLI (`agy --print --output-format stream-json`) as Google's current native CLI path.",
-  supportsMultiTurn: false,
+  supportsMultiTurn: true,
   supportedHookKinds: ["preRun", "postRun"] as const,
   askOwnerToolName: null,
   emitsAgentMessageStream: true,

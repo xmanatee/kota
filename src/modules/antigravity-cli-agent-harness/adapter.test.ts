@@ -114,7 +114,7 @@ describe("antigravityCliAgentHarness", () => {
       ANTIGRAVITY_CLI_AGENT_HARNESS_NAME,
     );
     expect(antigravityCliAgentHarness.name).toBe("antigravity-cli");
-    expect(antigravityCliAgentHarness.supportsMultiTurn).toBe(false);
+    expect(antigravityCliAgentHarness.supportsMultiTurn).toBe(true);
     expect(antigravityCliAgentHarness.askOwnerToolName).toBeNull();
     expect(antigravityCliAgentHarness.emitsAgentMessageStream).toBe(true);
     expect(antigravityCliAgentHarness.toolControl).toBe("native");

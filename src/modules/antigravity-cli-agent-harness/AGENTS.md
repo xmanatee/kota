@@ -17,6 +17,10 @@ directory and consumes `stream-json`. Translate native events into
 effort maps to AGY's `low`, `medium`, or `high` values, with stronger KOTA
 levels capped at AGY's highest supported value.
 
+Interactive clients remain multi-turn through KOTA's transcript composition;
+the adapter still starts one isolated AGY process per turn and does not expose
+AGY-native conversation resume as a KOTA session mechanism.
+
 The CLI's own print timeout is only a final process cap. KOTA cancellation and
 workflow idle supervision remain the normal lifecycle controls.
 
