@@ -56,6 +56,29 @@ describe("WorkflowRuntime dispatch pause persistence", () => {
     ]);
   }
 
+  function persistRunningRun(store: WorkflowRunStore, id: string, workflow: string): void {
+    const startedAt = new Date(Date.now() - 60_000).toISOString();
+    const runDir = join(projectDir, ".kota", "runs", id);
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(
+      join(runDir, "metadata.json"),
+      JSON.stringify({
+        id,
+        workflow,
+        definitionPath: "src/core/workflow/runtime-lifecycle.test.ts",
+        trigger: { event: "manual", schemaRef: null, payload: {} },
+        startedAt,
+        status: "running",
+        runDir: `.kota/runs/${id}`,
+        steps: [],
+      }),
+    );
+    const state = store.readState();
+    state.activeRuns = [{ runId: id, workflow, startedAt }];
+    // biome-ignore lint/complexity/useLiteralKeys: fixture must simulate a crashed runtime.
+    store["writeState"](state);
+  }
+
   it("writes and removes the persisted operator pause marker", () => {
     const runtime = new WorkflowRuntime({
       bus: new EventBus(),
@@ -129,6 +152,45 @@ describe("WorkflowRuntime dispatch pause persistence", () => {
     }
     expect(executions).toBe(1);
     await restored.stop(0);
+  });
+
+  it("queues targeted recovery for an interrupted workflow when the checkout is clean", async () => {
+    initializeCleanGitRepo();
+    const store = new WorkflowRunStore(projectDir);
+    persistRunningRun(store, "run-interrupted", "recoverable-workflow");
+    const recoveryWorkflow = (name: string) => ({
+      name,
+      definitionPath: "src/core/workflow/runtime-lifecycle.test.ts",
+      moduleRoot: process.cwd(),
+      recoveryCapable: true,
+      triggers: [{ event: "runtime.recovered" }],
+      steps: [{ id: "recover", type: "code" as const, run: () => undefined }],
+    });
+    const runtime = new WorkflowRuntime({
+      bus: new EventBus(),
+      projectDir,
+      idleIntervalMs: 60_000,
+      workflows: [
+        recoveryWorkflow("recoverable-workflow"),
+        recoveryWorkflow("unrelated-recovery-workflow"),
+      ],
+    });
+
+    runtime.start("paused");
+
+    expect(runtime.getState().pendingRuns).toMatchObject([
+      {
+        workflowName: "recoverable-workflow",
+        trigger: {
+          event: "runtime.recovered",
+          payload: {
+            recoveredRunIds: ["run-interrupted"],
+            recoveredWorkflows: ["recoverable-workflow"],
+          },
+        },
+      },
+    ]);
+    await runtime.stop(0);
   });
 
   it("clears stale dirty-recovery state during startup when the tracked checkout is clean", async () => {

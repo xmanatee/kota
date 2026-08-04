@@ -34,9 +34,11 @@ function checkoutLabel(dirtyCheckout: WorkflowRecoveryDirtyCheckout): string {
 }
 
 /**
- * If the daemon recovered interrupted runs and the worktree is dirty, queue
- * `runtime.recovered` workflows ahead of the normal queue. Called from start
- * after `WorkflowRunStore.recoverInterruptedRuns()` returns the affected runs.
+ * Queue recovery for interrupted runs ahead of normal work. A dirty active
+ * checkout can affect every recovery-capable workflow, while a clean checkout
+ * only needs the interrupted workflows themselves. The latter also lets an
+ * interrupted workflow reconcile state it owns outside the active checkout,
+ * such as an isolated builder worktree.
  */
 export function queueInterruptedRunRecovery(
   state: WorkflowRuntimeRecoveryState,
@@ -45,7 +47,12 @@ export function queueInterruptedRunRecovery(
   if (interrupted.length === 0) return;
   const dirtyCheckout = runtimeDirtyCheckout(state);
   const worktree = getRepoWorktreeStatus(recoveryWorktreeDir(state, dirtyCheckout));
-  if (!worktree.available || !worktree.dirty) return;
+  const broadRecovery = worktree.available && worktree.dirty;
+  const interruptedWorkflows = new Set(interrupted.map((run) => run.workflow));
+  const definitionFilter = broadRecovery
+    ? recoveryFilter
+    : (definition: WorkflowDefinition) =>
+        recoveryFilter(definition) && interruptedWorkflows.has(definition.name);
 
   const queued = queueMatchingEventFirst(
     state,
@@ -54,20 +61,22 @@ export function queueInterruptedRunRecovery(
       recoveredRunIds: interrupted.map((run) => run.id),
       recoveredWorkflows: interrupted.map((run) => run.workflow),
       recoveredAt: new Date().toISOString(),
-      dirtyCheckout,
-      worktreeSummary: worktree.summary,
+      ...(broadRecovery ? { dirtyCheckout, worktreeSummary: worktree.summary } : {}),
     },
-    recoveryFilter,
+    definitionFilter,
   );
   if (queued === 0) {
-    state.log(
-      `Recovered interrupted run(s) left a dirty ${checkoutLabel(dirtyCheckout)}, but no recovery-capable workflow matched runtime.recovered: ${worktree.summary}`,
-    );
+    if (broadRecovery) {
+      state.log(
+        `Recovered interrupted run(s) left a dirty ${checkoutLabel(dirtyCheckout)}, but no recovery-capable workflow matched runtime.recovered: ${worktree.summary}`,
+      );
+    }
     return;
   }
-  state.log(
-    `Queued ${queued} recovery workflow${queued === 1 ? "" : "s"} for interrupted run(s) with uncommitted changes in ${checkoutLabel(dirtyCheckout)}: ${worktree.summary}`,
-  );
+  const scope = broadRecovery
+    ? `interrupted run(s) with uncommitted changes in ${checkoutLabel(dirtyCheckout)}: ${worktree.summary}`
+    : "interrupted recovery-capable workflow run(s)";
+  state.log(`Queued ${queued} recovery workflow${queued === 1 ? "" : "s"} for ${scope}`);
 }
 
 /**

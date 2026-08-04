@@ -91,8 +91,9 @@ Recoverable surfaces (append-only or file-backed; survive crash):
   time, and explicit stop reason. Workflow summaries and counters live only in
   the workflow run store.
 - **Workflow runtime** — run store (`.kota/runs/`), persisted queue, recovery
-  record. Interrupted runs detected on startup and, when the worktree is
-  dirty, `runtime.recovered` is queued first.
+  record. Interrupted recovery-capable workflows queue `runtime.recovered`
+  first on startup; a dirty active checkout broadens recovery to every
+  recovery-capable workflow.
 - **Scheduler** (`.kota/schedules-<hash>.json`) — persisted on every
   `add`, `cancel`, and `markFired`.
 - **Approval queue** (`.kota/approvals/*.json`) — one file per approval,
