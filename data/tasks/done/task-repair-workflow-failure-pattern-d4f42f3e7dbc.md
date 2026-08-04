@@ -1,12 +1,12 @@
 ---
 id: task-repair-workflow-failure-pattern-d4f42f3e7dbc
 title: Repair persistent improver workflow failure pattern
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Fix the local cause behind improver's persistent consecutive failure signal (step improve error 999e574cf5a4).
 created_at: 2026-08-03T08:00:57.197Z
-updated_at: 2026-08-03T18:37:56.548Z
+updated_at: 2026-08-04T04:22:12.106Z
 task_class: Meta
 ---
 
@@ -82,11 +82,23 @@ into deterministic, reviewable repair work.
 
 ## Acceptance Evidence
 
-- Test output for the repaired workflow or runtime path.
-- Detector test or run artifact showing this pattern no longer crosses the
-  escalation gate on fresh evidence.
-- Attention-event fixture or transcript showing any future escalation names
-  the task id without cost fields.
+- `a273b8e2d` removed the nested Codex sandbox that prevented agent-authored
+  commands from completing inside KOTA's machine-authority boundary;
+  `811986419` keeps a failed invoked command recoverable instead of aborting
+  the native harness; `4a1de2bc2` preserves terminal repair evidence so future
+  recurrences classify as `repair-check:commit-message-exists` rather than an
+  opaque step-error fingerprint.
+- Fresh detector execution at `2026-08-04T05:20:00.000Z` over the canonical
+  `.kota/runs/` store returned `matched: false` for
+  `workflow-failure:consecutive-failures:improver:step-error:9dc32dfa2618`
+  and no current improver patterns. Later improver run
+  `2026-08-03T18-46-08-867Z-improver-dfvsor` completed with a valid
+  `commit-message.txt`; `2026-08-03T21-09-24-239Z-improver-w2589l` then
+  completed as the explicit no-action path.
+- Focused native-harness, sandbox-policy, terminal-repair-evidence,
+  failure-detector, and escalator-workflow validation passed: 5 files and 48
+  tests. The attention assertions require the generated task id and reject
+  cost or throughput fields.
 
 <!-- workflow-failure-pattern-fingerprint: workflow-failure:consecutive-failures:improver:step-error:9dc32dfa2618 -->
 <!-- workflow-failure-evidence-fingerprint: 0069721e78d78d9b951887b6748dc51758a107a37308b5bc1d24b5a0e905bfb1 -->

@@ -1,0 +1,29 @@
+Persistent improver workflow failure repair validation
+
+Detector probe:
+- Canonical run store: /Users/xmanatee/Desktop/mono/apps/kota/.kota/runs
+- Target: workflow-failure:consecutive-failures:improver:step-error:9dc32dfa2618
+- Result at 2026-08-04T05:20:00.000Z: matched=false
+- Current improver patterns: none
+
+Focused tests:
+- src/modules/codex-agent-harness/adapter.test.ts
+- src/modules/execution/machine-authority-sandbox.test.ts
+- src/core/workflow/run-executor-step.test.ts
+- src/modules/autonomy/workflow-failure-escalation.test.ts
+- src/modules/autonomy/workflows/workflow-failure-escalator/workflow.test.ts
+- Result: 5 files passed, 48 tests passed
+
+Broader validation note:
+- An earlier pnpm argument-separator invocation unintentionally selected the full suite.
+- It did not complete cleanly in the native sandbox: Git subprocesses could not open /dev/null and built-CLI tests lacked the worktree dist output.
+- The exact five-file focused command was then rerun directly with Vitest's runner config and passed.
+
+Owning repairs already present:
+- a273b8e2d Fix native CLI sandbox ownership
+- 811986419 Let Codex recover from nested tool sandbox failures
+- 4a1de2bc2 fix(workflow): retain terminal repair evidence
+
+Fresh lifecycle evidence:
+- 2026-08-03T18-46-08-867Z-improver-dfvsor committed with commit-message.txt
+- 2026-08-03T21-09-24-239Z-improver-w2589l completed through the no-action path

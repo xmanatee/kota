@@ -1,0 +1,9 @@
+The native CLI sandbox denied the linked worktree's host .git/index.lock.
+The exact commit set was staged and validated with a workspace-local Git index
+and object directory, using the host object store as an alternate.
+
+Validated staged path:
+R077 data/tasks/ready/task-repair-workflow-failure-pattern-d4f42f3e7dbc.md data/tasks/done/task-repair-workflow-failure-pattern-d4f42f3e7dbc.md
+
+Host index replay required:
+git add -A

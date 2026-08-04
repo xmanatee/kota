@@ -1,0 +1,10 @@
+Close repaired improver failure pattern
+
+Record the owning native sandbox and terminal-repair evidence fixes, verify
+that the cited fingerprint is absent from fresh canonical run evidence, and
+close the stale repair task.
+
+Evidence: improver runs 2026-08-03T05-14-19-008Z-improver-cp9dla,
+2026-08-03T06-07-24-003Z-improver-uewwcq,
+2026-08-03T07-12-05-870Z-improver-8govyg, and fresh successful run
+2026-08-03T18-46-08-867Z-improver-dfvsor.
