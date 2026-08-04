@@ -164,6 +164,7 @@ export async function runAgentAttempt(input: {
           `Agent step "${step.id}" failed (${reason}): ${detail}`,
           classified.kind,
           false,
+          classified.retryAt,
         );
       }
       throw new Error(`Agent step "${step.id}" failed (${reason}): ${detail}`);
@@ -202,6 +203,7 @@ export async function runAgentAttempt(input: {
       `Agent step "${step.id}" failed: ${detail}`,
       classified.kind,
       classified.retryable,
+      classified.retryAt,
     );
   } finally {
     idleMonitor?.dispose();

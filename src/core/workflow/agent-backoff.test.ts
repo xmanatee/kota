@@ -77,6 +77,30 @@ describe("AgentBackoffManager", () => {
     expect(store.readState().agentBackoff).toBeUndefined();
   });
 
+  it("honors a provider retry timestamp beyond the local backoff cap", () => {
+    const manager = makeManager();
+
+    manager.apply({
+      kind: "rate_limit",
+      reason: "usage limit",
+      retryAt: "2026-05-16T09:00:00.000Z",
+    });
+
+    expect(store.readState().agentBackoff?.until).toBe("2026-05-16T09:00:00.000Z");
+  });
+
+  it("ignores an expired provider retry timestamp", () => {
+    const manager = makeManager();
+
+    manager.apply({
+      kind: "rate_limit",
+      reason: "usage limit",
+      retryAt: "2026-05-12T11:00:00.000Z",
+    });
+
+    expect(store.readState().agentBackoff?.until).toBe("2026-05-12T12:30:00.000Z");
+  });
+
   it("gates agent dispatch without deleting queued recovery work", () => {
     const definition: WorkflowDefinition = {
       name: "builder",

@@ -41,10 +41,17 @@ export class AgentBackoffManager {
       MAX_AGENT_BACKOFF_MS,
       Math.round(policy.initialDelayMs * policy.backoffFactor ** (nextFailureCount - 1)),
     );
+    const policyUntilMs = Date.now() + delayMs;
+    const retryAtMs = signal.retryAt === undefined
+      ? Number.NaN
+      : new Date(signal.retryAt).getTime();
+    const untilMs = Number.isFinite(retryAtMs)
+      ? Math.max(policyUntilMs, retryAtMs)
+      : policyUntilMs;
     const backoff: WorkflowAgentBackoffState = {
       kind: signal.kind,
       failureCount: nextFailureCount,
-      until: new Date(Date.now() + delayMs).toISOString(),
+      until: new Date(untilMs).toISOString(),
       updatedAt: new Date().toISOString(),
       reason: signal.reason,
     };

@@ -34,6 +34,7 @@ import {
   readAgentTrajectoryDiagnosticsCapabilityArtifact,
   writeAgentTrajectoryDiagnosticsArtifactFromCapability,
 } from "./steps/step-executor-agent-trajectory-diagnostics.js";
+import { workflowAgentBackoffSignalFromError } from "./steps/step-executor-retry.js";
 import type { WorkflowAgentBackoffSignal, WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
@@ -460,7 +461,7 @@ export async function executeWorkflowStep(
       err instanceof AgentStepRuntimeError &&
       (!isStepTimeout || idleTimeoutError !== undefined)
     ) {
-      agentBackoff = { kind: err.kind, reason: err.message };
+      agentBackoff = workflowAgentBackoffSignalFromError(err);
     }
     const trajectoryDiagnostics = writeFailedAgentTrajectoryDiagnostics({
       step,

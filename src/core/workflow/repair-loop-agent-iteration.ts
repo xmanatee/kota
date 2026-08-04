@@ -208,6 +208,7 @@ export async function executeRepairAgentIteration(
         `Repair agent for step "${step.id}" failed: ${detail}`,
         classified.kind,
         false,
+        classified.retryAt,
       );
     }
     throw new Error(`Repair agent for step "${step.id}" failed: ${detail}`);

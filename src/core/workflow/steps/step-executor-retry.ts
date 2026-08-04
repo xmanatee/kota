@@ -1,4 +1,8 @@
-import type { WorkflowAgentBackoffKind, WorkflowRetryConfig } from "../trigger-types.js";
+import type {
+  WorkflowAgentBackoffKind,
+  WorkflowAgentBackoffSignal,
+  WorkflowRetryConfig,
+} from "../trigger-types.js";
 
 /**
  * Runtime default retry applied to every agent step unless the step
@@ -17,6 +21,7 @@ export class AgentStepRuntimeError extends Error {
     message: string,
     readonly kind: WorkflowAgentBackoffKind,
     readonly retryable: boolean,
+    readonly retryAt?: string,
   ) {
     super(message);
     this.name = "AgentStepRuntimeError";
@@ -126,6 +131,7 @@ export type AgentFailureContext = {
 export type AgentFailureClassification = {
   kind: WorkflowAgentBackoffKind;
   retryable: boolean;
+  retryAt?: string;
 };
 
 const PROVIDER_HTTP_STATUSES = new Set([408, 500, 502, 503, 504, 529]);
@@ -153,6 +159,44 @@ function parseApiErrorStatus(text: string): number | undefined {
   if (!match) return undefined;
   const parsed = Number.parseInt(match[1], 10);
   return Number.isInteger(parsed) ? parsed : undefined;
+}
+
+function parseCodexRetryAt(text: string): string | undefined {
+  const match = /\btry again at ([A-Z][a-z]{2}) (\d{1,2})(?:st|nd|rd|th), (\d{4}) (\d{1,2}):(\d{2}) ([AP]M)\b/i.exec(
+    text,
+  );
+  if (!match) return undefined;
+  const month = [
+    "jan", "feb", "mar", "apr", "may", "jun",
+    "jul", "aug", "sep", "oct", "nov", "dec",
+  ].indexOf(match[1].toLowerCase());
+  const day = Number.parseInt(match[2], 10);
+  const year = Number.parseInt(match[3], 10);
+  const hour12 = Number.parseInt(match[4], 10);
+  const minute = Number.parseInt(match[5], 10);
+  if (month < 0 || day < 1 || day > 31 || hour12 < 1 || hour12 > 12 || minute > 59) {
+    return undefined;
+  }
+  const hour = hour12 % 12 + (match[6].toUpperCase() === "PM" ? 12 : 0);
+  const timestamp = new Date(year, month, day, hour, minute);
+  if (
+    timestamp.getFullYear() !== year ||
+    timestamp.getMonth() !== month ||
+    timestamp.getDate() !== day
+  ) {
+    return undefined;
+  }
+  return timestamp.toISOString();
+}
+
+export function workflowAgentBackoffSignalFromError(
+  error: AgentStepRuntimeError,
+): WorkflowAgentBackoffSignal {
+  return {
+    kind: error.kind,
+    reason: error.message,
+    ...(error.retryAt !== undefined ? { retryAt: error.retryAt } : {}),
+  };
 }
 
 const WRAPPED_CODEX_CLI_FAILURE_PREFIX =
@@ -268,11 +312,16 @@ export function classifyAgentRuntimeFailure(
 
   // SDK wraps CLI-side rate-limit / auth responses into its error text
   // without a structured code, so a narrow text check is the only signal.
-  if (/\b(?:rate limit|quota)\b/i.test(input.message)) {
-    return { kind: "rate_limit", retryable: false };
-  }
-  if (/(?:you've|you have) hit your (?:usage )?limit/i.test(input.message)) {
-    return { kind: "rate_limit", retryable: false };
+  if (
+    /\b(?:rate limit|quota)\b/i.test(input.message) ||
+    /(?:you've|you have) hit your (?:usage )?limit/i.test(input.message)
+  ) {
+    const retryAt = parseCodexRetryAt(input.message);
+    return {
+      kind: "rate_limit",
+      retryable: false,
+      ...(retryAt !== undefined ? { retryAt } : {}),
+    };
   }
   if (
     /\b(?:not logged in|please run \/login|unauthorized|authentication)\b/i.test(

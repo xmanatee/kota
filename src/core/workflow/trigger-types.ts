@@ -23,6 +23,7 @@ export type WorkflowAgentBackoffState = {
 export type WorkflowAgentBackoffSignal = {
   kind: WorkflowAgentBackoffKind;
   reason: string;
+  retryAt?: string;
 };
 
 export type WorkflowFilterScalar = string | number | boolean;

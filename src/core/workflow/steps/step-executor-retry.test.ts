@@ -172,7 +172,11 @@ describe("classifyAgentRuntimeFailure", () => {
         message:
           'Agent step "build" failed (codex_cli_error): You\'ve hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Jun 1st, 2026 1:01 AM.',
       }),
-    ).toEqual({ kind: "rate_limit", retryable: false });
+    ).toEqual({
+      kind: "rate_limit",
+      retryable: false,
+      retryAt: new Date("Jun 1, 2026 1:01 AM").toISOString(),
+    });
   });
 
   it("classifies harness readiness failures as operator setup/auth failures", () => {

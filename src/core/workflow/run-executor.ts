@@ -27,6 +27,7 @@ import {
   evaluateStepRunDecision,
 } from "./steps/step-executor.js";
 import { resolveWorkflowRunTokenBudget } from "./steps/step-executor-agent-token-budget.js";
+import { workflowAgentBackoffSignalFromError } from "./steps/step-executor-retry.js";
 import { createWorkflowAgentHarnessRunner } from "./steps/workflow-agent-harness-runner.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
@@ -254,10 +255,7 @@ export function executeWorkflowRun(
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       if (!agentBackoff && err instanceof AgentStepRuntimeError) {
-        agentBackoff = {
-          kind: err.kind,
-          reason: err.message,
-        };
+        agentBackoff = workflowAgentBackoffSignalFromError(err);
       }
       const status: WorkflowRunStatus =
         abortController.signal.aborted || err.name === "AbortError"

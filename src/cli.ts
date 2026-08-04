@@ -8,6 +8,10 @@ import { expandUserPromptReferences } from "#core/prompt-input/index.js";
 import { getActiveKotaClient } from "#core/server/client-holder.js";
 import { resolveKotaClient } from "#core/server/client-selector.js";
 import { setSkipConfirmations } from "#core/util/confirm.js";
+import {
+  ProcessSignalAbortError,
+  withProcessSignalAbort,
+} from "#core/util/process-signal-abort.js";
 import { blank, line, span } from "#modules/rendering/primitives.js";
 import { createRenderingProvider } from "#modules/rendering/rendering-provider.js";
 import { TerminalTransport, writeStdout } from "#modules/rendering/transport.js";
@@ -332,16 +336,19 @@ program
         return;
       }
       prompt = expandUserPromptReferences(prompt, runProjectDir).text;
-      const result = await runAgentHarnessWithConversationResume({
-        harness,
-        prompt,
-        run: {
-          model,
-          cwd: runProjectDir,
-          ...runOverrides,
-        },
-        conversation: conversationOptions,
-      });
+      const result = await withProcessSignalAbort((abortController) =>
+        runAgentHarnessWithConversationResume({
+          harness,
+          prompt,
+          run: {
+            model,
+            cwd: runProjectDir,
+            ...runOverrides,
+            abortController,
+          },
+          conversation: conversationOptions,
+        }),
+      );
       if (!result.streamedText && result.text) writeStdout(result.text);
       stdout().write(blank());
       return;
@@ -457,20 +464,23 @@ async function checkPipeMode() {
           model,
         });
         const harness = resolveAgentHarness(harnessName);
-        const result = await runAgentHarness(harness, {
-          prompt: expandUserPromptReferences(piped, process.cwd()).text,
-          model,
-          ...(modelProvider !== undefined ? { modelProvider } : {}),
-          verbose: config.verbose,
-          cwd: process.cwd(),
-          effort: preset.defaultEffort,
-          systemPrompt: buildKotaSystemPrompt(
-            config,
-            undefined,
-            process.cwd(),
-            process.cwd(),
-          ),
-        });
+        const result = await withProcessSignalAbort((abortController) =>
+          runAgentHarness(harness, {
+            prompt: expandUserPromptReferences(piped, process.cwd()).text,
+            model,
+            ...(modelProvider !== undefined ? { modelProvider } : {}),
+            verbose: config.verbose,
+            cwd: process.cwd(),
+            effort: preset.defaultEffort,
+            abortController,
+            systemPrompt: buildKotaSystemPrompt(
+              config,
+              undefined,
+              process.cwd(),
+              process.cwd(),
+            ),
+          }),
+        );
         if (!result.streamedText && result.text) writeStdout(result.text);
         stdout().write(blank());
         return true;
@@ -539,6 +549,9 @@ function isCliEntrypoint(): boolean {
 
 if (isCliEntrypoint()) {
   main().catch((err) => {
+    if (err instanceof ProcessSignalAbortError) {
+      process.exit(err.exitCode);
+    }
     const authMsg = formatAuthError(err);
     const message = authMsg ?? `Fatal: ${err.message}`;
     stderr().write(line(span(message, "error")));
