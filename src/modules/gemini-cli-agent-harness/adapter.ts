@@ -219,6 +219,7 @@ export const geminiCliAgentHarness: AgentHarness = {
   askOwnerToolName: null,
   emitsAgentMessageStream: false,
   toolControl: "native",
+  nativeAbortQuarantine: "confirmed-stop",
   unsupportedRunOptions: GEMINI_CLI_UNSUPPORTED_OPTIONS,
   readiness: geminiCliReadiness,
   async run(
@@ -231,7 +232,7 @@ export const geminiCliAgentHarness: AgentHarness = {
         'The "gemini-cli" agent harness requires an explicit model on the step or config.',
       );
     }
-    return collectTextFromGeminiCli({
+    const execution = collectTextFromGeminiCli({
       prompt: buildGeminiCliPrompt(options),
       cwd: options.cwd ?? process.cwd(),
       model: options.model,
@@ -241,5 +242,12 @@ export const geminiCliAgentHarness: AgentHarness = {
       abortController: options.abortController,
       writer,
     });
+    options.abortQuarantine?.register(async () => {
+      await execution.then(
+        () => undefined,
+        () => undefined,
+      );
+    });
+    return execution;
   },
 };

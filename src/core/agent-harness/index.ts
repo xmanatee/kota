@@ -177,6 +177,7 @@ export type {
   AgentDecisionAttribution,
   AgentEffort,
   AgentHarness,
+  AgentHarnessAbortQuarantine,
   AgentHarnessResult,
   AgentHarnessRunOptions,
   AgentHarnessStepOverrides,

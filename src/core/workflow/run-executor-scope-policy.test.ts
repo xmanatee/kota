@@ -1,4 +1,5 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -7,6 +8,10 @@ import {
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
 } from "#core/agent-harness/index.js";
+import {
+  NATIVE_CLI_PROCESS_GROUP_SPAWN_OPTIONS,
+  signalNativeCliProcessGroup,
+} from "#core/agent-harness/native-cli-process-group.js";
 import {
   type ResolvedScopePolicy,
   type RestrictiveScopePolicyChangeListener,
@@ -107,7 +112,7 @@ describe("workflow scope policy execution", () => {
     }
   });
 
-  it("stops an in-flight agent when authority publishes a restrictive revision", async () => {
+  it("cancels and quarantines an opaque native harness after a restrictive revision", async () => {
     const projectDir = join(
       tmpdir(),
       `kota-run-executor-live-policy-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -119,27 +124,100 @@ describe("workflow scope policy execution", () => {
       const harnessStarted = new Promise<void>((resolve) => {
         markHarnessStarted = resolve;
       });
+      let markHarnessFinished = () => {};
+      const harnessFinished = new Promise<void>((resolve) => {
+        markHarnessFinished = resolve;
+      });
+      let lateWriterAccepted: boolean | undefined;
+      let childTerminationSignal: NodeJS.Signals | null = null;
+      const childStartedPath = join(projectDir, "native-child-started.txt");
+      const lateMutationPath = join(projectDir, "after-restriction.txt");
       registerAgentHarness({
         name: harnessName,
-        description: "waits for a live scope-policy restriction",
+        description: "runs an opaque native process with a confirmed stop barrier",
         supportsMultiTurn: false,
         supportedHookKinds: [],
         askOwnerToolName: null,
-        emitsAgentMessageStream: false,
-        toolControl: "kota",
-        run: async (options: AgentHarnessRunOptions) => {
-          const signal = options.abortController?.signal;
-          if (signal === undefined) throw new Error("missing agent abort signal");
-          markHarnessStarted();
-          await new Promise<void>((_resolve, reject) => {
-            const rejectWithReason = () => reject(signal.reason);
-            if (signal.aborted) {
-              rejectWithReason();
-              return;
-            }
-            signal.addEventListener("abort", rejectWithReason, { once: true });
+        emitsAgentMessageStream: true,
+        toolControl: "native",
+        nativeAbortQuarantine: "confirmed-stop",
+        run: async (options: AgentHarnessRunOptions, writer) => {
+          const child = spawn(
+            process.execPath,
+            [
+              "-e",
+              [
+                'const { spawn } = require("node:child_process");',
+                'const { writeFileSync } = require("node:fs");',
+                "const mutation = [",
+                "  'setTimeout(() => require(\"node:fs\").writeFileSync(process.argv[1], \"late mutation\"), 250);',",
+                "  'setTimeout(() => process.exit(0), 500);',",
+                "].join(' ');",
+                "const worker = spawn(process.execPath, ['-e', mutation, process.argv[2]], { stdio: ['pipe', 'pipe', 'pipe'] });",
+                "worker.stdin.end();",
+                "worker.stdout.resume();",
+                "worker.stderr.resume();",
+                "worker.unref();",
+                "writeFileSync(process.argv[1], 'started');",
+                "process.stdout.write('ready\\n');",
+                "setTimeout(() => process.exit(0), 500);",
+              ].join(" "),
+              childStartedPath,
+              lateMutationPath,
+            ],
+            {
+              cwd: projectDir,
+              ...NATIVE_CLI_PROCESS_GROUP_SPAWN_OPTIONS,
+              stdio: ["pipe", "pipe", "pipe"],
+            },
+          );
+          child.stdin.end();
+          child.stderr.resume();
+          const childReady = new Promise<void>((resolve, reject) => {
+            child.once("error", reject);
+            child.stdout.once("data", () => resolve());
           });
-          throw new Error("unreachable harness completion");
+          const childClosed = new Promise<void>((resolve, reject) => {
+            let settled = false;
+            child.once("error", (error) => {
+              if (settled) return;
+              settled = true;
+              reject(error);
+            });
+            child.once("close", (_code, signal) => {
+              if (settled) return;
+              settled = true;
+              childTerminationSignal = signal;
+              resolve();
+            });
+          });
+          options.abortQuarantine?.register(async () => {
+            signalNativeCliProcessGroup(child, "SIGKILL");
+            await childClosed;
+          });
+          await childReady;
+          await options.onMessage?.({ type: "status", category: "agent.started" });
+          markHarnessStarted();
+          await childClosed;
+          lateWriterAccepted = writer?.write("stale native stdout");
+          await options.onMessage?.({
+            type: "tool_call",
+            toolUseId: "late-native-write",
+            toolName: "native_write",
+            input: { path: "after-restriction.txt" },
+          });
+          await options.onMessage?.({
+            type: "result",
+            text: "stale success",
+            isError: false,
+          });
+          markHarnessFinished();
+          return {
+            text: "stale success",
+            streamedText: "stale success",
+            turns: 1,
+            isError: false,
+          };
         },
       });
       writeFileSync(join(projectDir, "prompt.md"), "Wait for policy changes.\n");
@@ -183,15 +261,125 @@ describe("workflow scope policy execution", () => {
           );
         }),
       ]);
+      expect(existsSync(childStartedPath)).toBe(true);
       authority.restrict(policyFor(projectDir, true));
       const result = await promise;
+      await harnessFinished;
+      await new Promise((resolve) => setTimeout(resolve, 350));
 
       expect(result.metadata.status).toBe("failed");
       expect(result.metadata.steps[0]?.error).toMatch(
         /scope policy became more restrictive.*revision 0 -> 1.*areas: writes/,
       );
       expect(result.metadata.steps[0]?.errorKind).toBeUndefined();
+      expect(result.metadata.steps[0]).not.toHaveProperty("output");
       expect(authority.listenerCount()).toBe(0);
+      expect(lateWriterAccepted).toBe(false);
+      expect(childTerminationSignal).toBe("SIGKILL");
+      expect(existsSync(lateMutationPath)).toBe(false);
+      const eventsPath = join(
+        projectDir,
+        result.metadata.runDir,
+        "steps",
+        "agent.events.jsonl",
+      );
+      const events = readFileSync(eventsPath, "utf-8");
+      expect(events).toContain("agent.started");
+      expect(events).not.toContain("late-native-write");
+      expect(events).not.toContain("stale success");
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
+  it("releases authority listeners when a KOTA-controlled harness ignores a step timeout", async () => {
+    const projectDir = join(
+      tmpdir(),
+      `kota-run-executor-policy-timeout-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    try {
+      const harnessName = "run-executor-opaque-timeout";
+      let markHarnessStarted = () => {};
+      const harnessStarted = new Promise<void>((resolve) => {
+        markHarnessStarted = resolve;
+      });
+      let releaseHarness = () => {};
+      const harnessRelease = new Promise<void>((resolve) => {
+        releaseHarness = resolve;
+      });
+      let markHarnessFinished = () => {};
+      const harnessFinished = new Promise<void>((resolve) => {
+        markHarnessFinished = resolve;
+      });
+      registerAgentHarness({
+        name: harnessName,
+        description: "KOTA-controlled harness that ignores step timeout cancellation",
+        supportsMultiTurn: false,
+        supportedHookKinds: [],
+        askOwnerToolName: null,
+        emitsAgentMessageStream: true,
+        toolControl: "kota",
+        run: async (options: AgentHarnessRunOptions) => {
+          await options.onMessage?.({ type: "status", category: "agent.started" });
+          markHarnessStarted();
+          await harnessRelease;
+          await options.onMessage?.({ type: "status", category: "late.after-timeout" });
+          markHarnessFinished();
+          return {
+            text: "stale success after timeout",
+            streamedText: "stale success after timeout",
+            turns: 1,
+            isError: false,
+          };
+        },
+      });
+      writeFileSync(join(projectDir, "prompt.md"), "Wait past the timeout.\n");
+      const scopeId = deriveDirectoryScopeId(projectDir);
+      const authority = mutableAuthority(scopeId, policyFor(projectDir, false));
+      const definition: WorkflowDefinition = {
+        name: "opaque-timeout-policy-test",
+        enabled: true,
+        recoveryCapable: false,
+        definitionPath: "src/modules/test/workflows/opaque-timeout/workflow.ts",
+        moduleRoot: projectDir,
+        triggers: [],
+        steps: [{
+          id: "agent",
+          type: "agent",
+          harness: harnessName,
+          promptPath: "prompt.md",
+          moduleRoot: projectDir,
+          model: "test-model",
+          effort: "low",
+          autonomyMode: "autonomous",
+          timeoutMs: 10,
+        }],
+        tags: [],
+      };
+
+      const { promise } = executeWorkflowRun(definition, TRIGGER, {
+        projectDir,
+        bus: new EventBus(),
+        store: new WorkflowRunStore(projectDir),
+        log: vi.fn(),
+        scopePolicyAuthority: authority,
+      });
+      await harnessStarted;
+      const result = await promise;
+
+      expect(result.metadata.status).toBe("failed");
+      expect(result.metadata.steps[0]?.errorKind).toBe("step-timeout");
+      expect(authority.listenerCount()).toBe(0);
+      releaseHarness();
+      await harnessFinished;
+      const events = readFileSync(
+        join(projectDir, result.metadata.runDir, "steps", "agent.events.jsonl"),
+        "utf-8",
+      );
+      expect(events).toContain("agent.started");
+      expect(events).not.toContain("late.after-timeout");
+      expect(events).not.toContain("stale success after timeout");
     } finally {
       rmSync(projectDir, { recursive: true, force: true });
     }

@@ -84,8 +84,12 @@ function makeHarness(
     askOwnerToolName: null,
     emitsAgentMessageStream: false,
     toolControl: "native",
+    nativeAbortQuarantine: "confirmed-stop",
     readiness: () => readiness,
-    run,
+    run: async (options, writer) => {
+      options.abortQuarantine?.register(() => {});
+      return run(options, writer);
+    },
   };
 }
 

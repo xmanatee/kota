@@ -1,0 +1,20 @@
+Validation summary — 2026-08-04
+
+PASS
+
+- `NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true --reporter=dot src/core/agent-harness/runner.test.ts src/core/agent-harness/runner-session-environment.test.ts src/abort-cross-harness.integration.test.ts src/core/workflow/steps/workflow-agent-harness-runner.test.ts src/core/workflow/run-executor-scope-policy.test.ts src/modules/codex-agent-harness/adapter.test.ts src/modules/gemini-cli-agent-harness/adapter.test.ts src/modules/antigravity-cli-agent-harness/adapter.test.ts src/strict-types-policy.integration.test.ts src/core/agent-harness/no-sdk-shaped-neutral-fields.test.ts`
+  - 10 test files passed; 68 tests passed.
+- `node_modules/.bin/tsc --noEmit`
+- `NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true --reporter=dot src/strict-types-policy.integration.test.ts src/core/agent-harness/neutral-protocol-shape.test.ts`
+  - 2 test files passed; 7 tests passed.
+- Focused `node_modules/.bin/biome check` over the touched harness, workflow, adapter, and parity files.
+  - 76 files checked; no fixes required.
+- `pnpm test src/docs-surface.test.ts`
+  - 1 test file passed; 5 tests passed; `src/core/agent-harness/AGENTS.md` remains at its 143-line ratchet baseline.
+- `node --conditions=source --import tsx src/validate-queue.ts`
+  - Passed with the workspace-local Git startup redirect described below.
+- The restrictive-revision regression proves the native group leader starts and launches a descendant delayed writer, then confirms group `SIGKILL`, absence of the descendant mutation beyond its deadline, rejected stale success, and quarantined late callbacks.
+
+ENVIRONMENTAL BROADER-SUITE LIMITATION
+
+The builder host denies Git's `/dev/null` startup open (`spawnSync git EPERM`). Queue validation passed after inheriting a workspace-local interposer that redirects only that startup open to a regular ignored evidence file. The focused security, adapter, type, protocol, formatting, and queue checks above passed.

@@ -1,14 +1,14 @@
 ---
 id: task-invalidate-active-native-and-opaque-harness-runs-o
 title: Invalidate active native and opaque harness runs on restrictive policy revisions
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Cancel or quarantine harness execution that cannot reauthorize native tool calls when its starting authority revision becomes stale through restriction.
 depends_on: [task-add-revisioned-observable-scope-policy-authority]
 created_at: 2026-08-03T13:16:46.780Z
-updated_at: 2026-08-03T13:16:46.780Z
+updated_at: 2026-08-03T22:51:58.759Z
 ---
 
 ## Problem
@@ -50,3 +50,9 @@ Decomposed from `task-security-review-workflow-agent-steps-snapshot-scop` after 
 - A fake-harness regression demonstrating restrictive revision invalidation during an active run.
 - Assertions that late native actions and stale completion output are rejected or quarantined.
 - A recorded passing focused test command covering cancellation races and cleanup.
+
+## Verification
+
+`NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true --reporter=dot src/core/agent-harness/runner.test.ts src/core/agent-harness/runner-session-environment.test.ts src/abort-cross-harness.integration.test.ts src/core/workflow/steps/workflow-agent-harness-runner.test.ts src/core/workflow/run-executor-scope-policy.test.ts src/modules/codex-agent-harness/adapter.test.ts src/modules/gemini-cli-agent-harness/adapter.test.ts src/modules/antigravity-cli-agent-harness/adapter.test.ts src/strict-types-policy.integration.test.ts src/core/agent-harness/no-sdk-shaped-neutral-fields.test.ts`
+
+Passed on 2026-08-04: 10 test files and 68 tests passed, including a real descendant-process mutation regression. `node_modules/.bin/tsc --noEmit` and the focused Biome check also passed.

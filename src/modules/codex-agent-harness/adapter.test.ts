@@ -212,7 +212,7 @@ describe("codexAgentHarness", () => {
         "--cd",
         "/repo",
       ]),
-      expect.objectContaining({ cwd: "/repo" }),
+      expect.objectContaining({ cwd: "/repo", detached: true }),
     );
     expect(sandboxLaunchMock).toHaveBeenCalledWith(
       "codex",
@@ -455,8 +455,7 @@ describe("codexAgentHarness", () => {
     });
   });
 
-  it("force-kills aborted Codex CLI runs that do not exit after SIGTERM", async () => {
-    vi.useFakeTimers();
+  it("hard-kills aborted Codex CLI runs before releasing quarantine", async () => {
     const process = mockCodexProcess({ autoClose: false });
     const abortController = new AbortController();
 
@@ -466,13 +465,8 @@ describe("codexAgentHarness", () => {
       effort: "xhigh",
       abortController,
     });
-    await vi.runAllTicks();
 
     abortController.abort(new Error("step timeout"));
-
-    expect(process.child.kill).toHaveBeenCalledWith("SIGTERM");
-
-    await vi.advanceTimersByTimeAsync(5_000);
 
     expect(process.child.kill).toHaveBeenCalledWith("SIGKILL");
 
@@ -485,7 +479,6 @@ describe("codexAgentHarness", () => {
       isError: true,
       subtype: "aborted",
     });
-    vi.useRealTimers();
   });
 
   it("rejects unsupported KOTA-only surfaces loudly", async () => {

@@ -152,7 +152,7 @@ describe("geminiCliAgentHarness", () => {
         "--approval-mode",
         "default",
       ]),
-      expect.objectContaining({ cwd: "/repo" }),
+      expect.objectContaining({ cwd: "/repo", detached: true }),
     );
     expect(sandboxLaunchMock).toHaveBeenCalledWith(
       "gemini",
@@ -235,14 +235,14 @@ describe("geminiCliAgentHarness", () => {
     abortController.abort();
     child.stdout.end();
     child.stderr.end();
-    child.emit("close", null, "SIGTERM");
+    child.emit("close", null, "SIGKILL");
 
     await expect(run).resolves.toMatchObject({
       text: "Gemini CLI run aborted.",
       isError: true,
       subtype: "aborted",
     });
-    expect(child.kill).toHaveBeenCalledWith("SIGTERM");
+    expect(child.kill).toHaveBeenCalledWith("SIGKILL");
   });
 
   it("returns a typed empty-output error when Gemini CLI succeeds without JSON", async () => {

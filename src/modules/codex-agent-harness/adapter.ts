@@ -219,6 +219,7 @@ export const codexAgentHarness: AgentHarness = {
   askOwnerToolName: null,
   emitsAgentMessageStream: true,
   toolControl: "native",
+  nativeAbortQuarantine: "confirmed-stop",
   unsupportedRunOptions: CODEX_UNSUPPORTED_OPTIONS,
   readiness: codexReadiness,
   resolveIsolatedHostAuthEnv: resolveCodexIsolatedHostAuthEnv,
@@ -232,7 +233,7 @@ export const codexAgentHarness: AgentHarness = {
         'The "codex" agent harness requires an explicit model on the step or config.',
       );
     }
-    return collectTextFromCodexCli({
+    const execution = collectTextFromCodexCli({
       prompt: buildCodexPrompt(options),
       cwd: options.cwd ?? process.cwd(),
       model: options.model,
@@ -244,5 +245,12 @@ export const codexAgentHarness: AgentHarness = {
       writer,
       onMessage: options.onMessage,
     });
+    options.abortQuarantine?.register(async () => {
+      await execution.then(
+        () => undefined,
+        () => undefined,
+      );
+    });
+    return execution;
   },
 };

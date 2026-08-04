@@ -1348,7 +1348,7 @@ describe("executeStep repair loop", () => {
     expect(codeCheck).not.toHaveBeenCalled();
   });
 
-  it("stops repair loop mid-iteration when abort signal fires", async () => {
+  it("rejects a repair iteration aborted before its result can be accepted", async () => {
     const abortController = new AbortController();
 
     mockedExecuteWithAgentSDK
@@ -1370,24 +1370,23 @@ describe("executeStep repair loop", () => {
       },
     });
 
-    const wrapped = await executeStep(
-      makeDefinition(),
-      step,
-      makeMetadata(),
-      TRIGGER,
-      context,
-      abortController,
-      () => {},
-      () => {},
-      agentConfig,
-      new EventBus(),
-    ) as { output: Record<string, unknown> };
-    const result = wrapped.output;
+    await expect(
+      executeStep(
+        makeDefinition(),
+        step,
+        makeMetadata(),
+        TRIGGER,
+        context,
+        abortController,
+        () => {},
+        () => {},
+        agentConfig,
+        new EventBus(),
+      ),
+    ).rejects.toThrow("step timed out");
 
     expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
     expect(codeCheck).toHaveBeenCalledTimes(1);
-    const iterations = result.repairIterations as Array<Record<string, unknown>>;
-    expect(iterations).toHaveLength(1);
   });
 });
 

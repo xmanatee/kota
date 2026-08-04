@@ -88,6 +88,7 @@ export function makeHarness(
       AgentHarness,
       | "askOwnerToolName"
       | "emitsAgentMessageStream"
+      | "nativeAbortQuarantine"
       | "readiness"
       | "supportedHookKinds"
       | "supportsMultiTurn"
@@ -96,6 +97,7 @@ export function makeHarness(
     >
   > = {},
 ): AgentHarness {
+  const toolControl = overrides.toolControl ?? "kota";
   return {
     name,
     description: `test harness ${name}`,
@@ -103,14 +105,22 @@ export function makeHarness(
     supportedHookKinds: overrides.supportedHookKinds ?? [],
     askOwnerToolName: overrides.askOwnerToolName ?? null,
     emitsAgentMessageStream: overrides.emitsAgentMessageStream ?? false,
-    toolControl: overrides.toolControl ?? "kota",
+    toolControl,
+    ...(toolControl === "native"
+      ? { nativeAbortQuarantine: overrides.nativeAbortQuarantine ?? "confirmed-stop" }
+      : {}),
     ...(overrides.readiness !== undefined
       ? { readiness: overrides.readiness }
       : {}),
     ...(overrides.unsupportedRunOptions !== undefined
       ? { unsupportedRunOptions: overrides.unsupportedRunOptions }
       : {}),
-    run,
+    run: toolControl === "native"
+      ? async (options, writer) => {
+          options.abortQuarantine?.register(() => {});
+          return run(options, writer);
+        }
+      : run,
   };
 }
 

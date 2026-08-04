@@ -1,0 +1,5 @@
+1. `runAgentAttempt` and repair iterations bind the starting `scopePolicySnapshot` to `subscribeAgentScopePolicyRestrictions`; the regression observes revision 0 becoming restrictive revision 1.
+2. Native adapters are rejected before launch without the confirmed-stop capability, and declared adapters must register a run-local quarantine barrier before their native execution can continue.
+3. The workflow regression launches a real native process-group leader plus a descendant delayed writer, then proves a restrictive revision delivers `SIGKILL` to the group and prevents the descendant's workspace mutation beyond its write deadline.
+4. `createAgentHarnessCancellationBoundary` waits for confirmed native process closure, rejects stale terminal success, drops late message/writer callbacks, and cleans cancellation plus authority listeners on terminal paths.
+5. The recorded focused command passed 10 files and 68 tests; typecheck, strict-type/neutral-protocol guards, and focused Biome checks passed on 2026-08-04.

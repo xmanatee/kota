@@ -12,6 +12,10 @@ import {
   type NativeCliSandboxProcess,
   withNativeCliSandbox,
 } from "#core/agent-harness/machine-authority-sandbox.js";
+import {
+  NATIVE_CLI_PROCESS_GROUP_SPAWN_OPTIONS,
+  signalNativeCliProcessGroup,
+} from "#core/agent-harness/native-cli-process-group.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { prepareCodexRuntimeEnvironment } from "./runtime-home.js";
 
@@ -106,6 +110,7 @@ async function runCodexCliProcess(
   const child = spawn(sandboxedProcess.command, sandboxedProcess.args, {
     cwd: args.cwd,
     env: sandboxedProcess.env,
+    ...NATIVE_CLI_PROCESS_GROUP_SPAWN_OPTIONS,
     stdio: ["pipe", "pipe", "pipe"],
   });
 
@@ -124,26 +129,29 @@ async function runCodexCliProcess(
     forceKillTimer = undefined;
   };
   const sendSignal = (signal: NodeJS.Signals): void => {
-    if (child.exitCode === null) child.kill(signal);
+    signalNativeCliProcessGroup(child, signal);
   };
   const terminateChild = (): void => {
     sendSignal("SIGTERM");
     if (forceKillTimer !== undefined) return;
     forceKillTimer = setTimeout(() => {
-      if (child.exitCode === null) sendSignal("SIGKILL");
+      sendSignal("SIGKILL");
     }, CODEX_ABORT_FORCE_KILL_MS);
     forceKillTimer.unref?.();
+  };
+  const quarantineChild = (): void => {
+    sendSignal("SIGKILL");
   };
   let removeAbortListener: (() => void) | undefined;
   const abortController = args.abortController;
   if (abortController) {
-    if (abortController.signal.aborted) terminateChild();
+    if (abortController.signal.aborted) quarantineChild();
     else {
-      abortController.signal.addEventListener("abort", terminateChild, {
+      abortController.signal.addEventListener("abort", quarantineChild, {
         once: true,
       });
       removeAbortListener = () =>
-        abortController.signal.removeEventListener("abort", terminateChild);
+        abortController.signal.removeEventListener("abort", quarantineChild);
     }
   }
 

@@ -222,7 +222,9 @@ describe("workflow agent-step harness capability artifacts", () => {
     });
     const harnessName = "scope-policy-native";
     registerAgentHarness(
-      makeHarness(harnessName, run, { toolControl: "native" }),
+      makeHarness(harnessName, run, {
+        toolControl: "native",
+      }),
     );
 
     const { promise } = executeWorkflowRun(

@@ -44,6 +44,10 @@ The adapter runs one non-interactive CLI process per KOTA harness call:
 4. Read the final `turn.completed` usage event for token counts and return the
    neutral `AgentHarnessResult`.
 
+Cancellation terminates the CLI process group so spawned tools cannot outlive
+the CLI, and the run-local quarantine barrier stays pending until the group
+leader has closed.
+
 `autonomyMode: "passive"` maps to KOTA's read-only native-CLI boundary; every
 other supported mode maps to workspace-write. `supervised` is rejected because this
 non-interactive CLI path cannot route approvals through KOTA's approval queue.

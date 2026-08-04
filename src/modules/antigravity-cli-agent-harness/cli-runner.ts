@@ -8,6 +8,10 @@ import {
   type NativeCliSandboxProcess,
   withNativeCliSandbox,
 } from "#core/agent-harness/machine-authority-sandbox.js";
+import {
+  NATIVE_CLI_PROCESS_GROUP_SPAWN_OPTIONS,
+  signalNativeCliProcessGroup,
+} from "#core/agent-harness/native-cli-process-group.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
 export const ANTIGRAVITY_CLI_BINARY_NAME = "agy";
@@ -44,6 +48,7 @@ async function runAntigravityCliProcess(
   const child = spawn(sandboxedProcess.command, sandboxedProcess.args, {
     cwd: args.cwd,
     env: sandboxedProcess.env,
+    ...NATIVE_CLI_PROCESS_GROUP_SPAWN_OPTIONS,
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -52,7 +57,7 @@ async function runAntigravityCliProcess(
   let spawnError: string | undefined;
 
   const abort = (): void => {
-    child.kill("SIGTERM");
+    signalNativeCliProcessGroup(child, "SIGKILL");
   };
   let removeAbortListener: (() => void) | undefined;
   if (args.abortController) {

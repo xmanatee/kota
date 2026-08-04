@@ -50,6 +50,10 @@ The adapter runs one non-interactive CLI process per KOTA harness call:
    text and usage stats.
 5. Return the neutral `AgentHarnessResult`.
 
+Cancellation terminates the CLI process group so spawned tools cannot outlive
+the CLI, and the run-local quarantine barrier stays pending until the group
+leader has closed.
+
 `autonomyMode: "passive"` maps to Gemini CLI plan approval mode. Other modes
 use Gemini CLI's default approval behavior, which may fail loudly in headless
 runs when the CLI needs an approval KOTA cannot provide.

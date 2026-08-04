@@ -9,6 +9,10 @@ import {
   type NativeCliSandboxProcess,
   withNativeCliSandbox,
 } from "#core/agent-harness/machine-authority-sandbox.js";
+import {
+  NATIVE_CLI_PROCESS_GROUP_SPAWN_OPTIONS,
+  signalNativeCliProcessGroup,
+} from "#core/agent-harness/native-cli-process-group.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import {
   type CollectedGeminiOutput,
@@ -40,6 +44,7 @@ async function runGeminiCliProcess(
   const child = spawn(sandboxedProcess.command, sandboxedProcess.args, {
     cwd: args.cwd,
     env: sandboxedProcess.env,
+    ...NATIVE_CLI_PROCESS_GROUP_SPAWN_OPTIONS,
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -48,7 +53,7 @@ async function runGeminiCliProcess(
   let parseError: string | undefined;
 
   const abort = (): void => {
-    child.kill("SIGTERM");
+    signalNativeCliProcessGroup(child, "SIGKILL");
   };
   let removeAbortListener: (() => void) | undefined;
   if (args.abortController) {
@@ -71,7 +76,7 @@ async function runGeminiCliProcess(
     writer: args.writer,
   }).catch((err) => {
     parseError = err instanceof Error ? err.message : String(err);
-    child.kill("SIGTERM");
+    signalNativeCliProcessGroup(child, "SIGTERM");
     return emptyCollectedGeminiOutput();
   });
 

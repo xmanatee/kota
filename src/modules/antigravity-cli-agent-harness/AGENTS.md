@@ -45,6 +45,9 @@ AGY runs without pretending KOTA can supervise AGY's internal tool loop.
 Every invocation runs inside KOTA's single native-CLI OS sandbox. Passive mode
 can write only to an invocation temp root; autonomous mode can also write to
 the workspace; Git metadata and machine authority stay read-only.
+Cancellation terminates the CLI process group so spawned tools cannot outlive
+the CLI, and the run-local quarantine barrier stays pending until the group
+leader has closed.
 
 ## Capability Boundary
 

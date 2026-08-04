@@ -17,6 +17,7 @@ export type HarnessCapabilityUnsupportedRunOption = {
 export type HarnessCapabilitySnapshot = {
   readonly harnessName: string;
   readonly toolControl: AgentHarness["toolControl"];
+  readonly nativeAbortQuarantine: AgentHarness["nativeAbortQuarantine"] | null;
   readonly supportsMultiTurn: boolean;
   readonly askOwnerToolName: string | null;
   readonly emitsAgentMessageStream: boolean;
@@ -55,6 +56,7 @@ export type HarnessCapabilityReadinessSummary = {
 
 export type HarnessCapabilitySummary = {
   readonly toolControl: AgentHarness["toolControl"];
+  readonly nativeAbortQuarantine: AgentHarness["nativeAbortQuarantine"] | null;
   readonly supportsMultiTurn: boolean;
   readonly supportsOwnerQuestions: boolean;
   readonly askOwnerToolName: string | null;
@@ -205,6 +207,7 @@ export function buildHarnessCapabilitySnapshot(
   return {
     harnessName: harness.name,
     toolControl: harness.toolControl,
+    nativeAbortQuarantine: harness.nativeAbortQuarantine ?? null,
     supportsMultiTurn: harness.supportsMultiTurn,
     askOwnerToolName: harness.askOwnerToolName,
     emitsAgentMessageStream: harness.emitsAgentMessageStream,
@@ -222,6 +225,7 @@ export function summarizeHarnessCapability(
 ): HarnessCapabilitySummary {
   return {
     toolControl: snapshot.toolControl,
+    nativeAbortQuarantine: snapshot.nativeAbortQuarantine,
     supportsMultiTurn: snapshot.supportsMultiTurn,
     supportsOwnerQuestions: snapshot.askOwnerToolName !== null,
     askOwnerToolName: snapshot.askOwnerToolName,

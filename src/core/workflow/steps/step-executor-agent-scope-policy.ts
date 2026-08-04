@@ -59,17 +59,25 @@ export function subscribeAgentScopePolicyRestrictions(input: {
     );
   };
 
-  const unsubscribe = authority.subscribeRestrictiveChanges(
+  const unsubscribeAuthority = authority.subscribeRestrictiveChanges(
     scopeId,
     (change) => abortForRestriction(change.current),
   );
+  let disposed = false;
+  const dispose = (): void => {
+    if (disposed) return;
+    disposed = true;
+    input.abortController.signal.removeEventListener("abort", dispose);
+    unsubscribeAuthority();
+  };
+  input.abortController.signal.addEventListener("abort", dispose, { once: true });
   try {
     // Close the snapshot-to-subscription race without polling. Both authority
     // operations are synchronous, so any later restrictive commit reaches the listener.
     abortForRestriction(authority.getSnapshot(scopeId));
   } catch (error) {
-    unsubscribe();
+    dispose();
     throw error;
   }
-  return unsubscribe;
+  return dispose;
 }

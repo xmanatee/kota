@@ -1,0 +1,5 @@
+1. Active workflow harness attempts retain their starting scope-authority snapshot and subscribe to later restrictive revisions.
+2. Restrictive revisions abort active harnesses and the neutral harness boundary rejects stale success plus late message and writer callbacks.
+3. An opaque native fake-harness regression proves a post-restriction native action frame and successful terminal output are quarantined.
+4. Cancellation listeners and scope-authority subscriptions are removed after success, failure, restriction abort, and timeout paths.
+5. Focused tests, type checking, formatting, and the final verification command are recorded with the task.

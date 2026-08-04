@@ -657,6 +657,7 @@ describe("executeAgentStep — harness tool-control preflight", () => {
       askOwnerToolName: null,
       emitsAgentMessageStream: false,
       toolControl: "native",
+      nativeAbortQuarantine: "confirmed-stop",
       unsupportedRunOptions: [
         {
           runOption: "disallowedTools",
@@ -670,6 +671,7 @@ describe("executeAgentStep — harness tool-control preflight", () => {
         },
       ],
       async run(options) {
+        options.abortQuarantine?.register(() => {});
         calls.push({
           allowedTools: options.allowedTools,
           disallowedTools: options.disallowedTools,

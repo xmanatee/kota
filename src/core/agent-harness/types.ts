@@ -51,6 +51,14 @@ export type AgentSystemPrompt = string;
 export type AgentEffort = "low" | "medium" | "high" | "xhigh" | "max";
 
 export type AgentHarnessWriter = { write(text: string): boolean };
+export type AgentHarnessAbortQuarantine = {
+  /**
+   * Register the run-local stop barrier before a native harness can perform
+   * an action. The handler must stop the native execution and resolve only
+   * after it can no longer mutate the workspace or external systems.
+   */
+  register(handler: (reason: Error) => void | Promise<void>): void;
+};
 export type AgentHarnessWorkflowContext = {
   workflowName: string;
   runId: string;
@@ -139,6 +147,13 @@ export type AgentHarnessRunOptions = {
   tokenBudget?: AgentTokenBudgetLedger;
   effort: AgentEffort;
   abortController?: AbortController;
+  /**
+   * Run-local cancellation control installed by `runAgentHarness` for native
+   * tool loops. Callers do not provide this field; a native adapter declaring
+   * `nativeAbortQuarantine: "confirmed-stop"` must register its stop barrier
+   * synchronously when the execution starts.
+   */
+  abortQuarantine?: AgentHarnessAbortQuarantine;
   enableFileCheckpointing?: boolean;
   onMessage?: (message: KotaAgentMessage) => void | Promise<void>;
   thinkingEnabled?: boolean;
@@ -237,6 +252,16 @@ export type AgentHarness = {
    * process owns the tool loop and rejects KOTA-only controls.
    */
   readonly toolControl: "kota" | "native";
+  /**
+   * Declares that a native tool-loop adapter can stop its run and confirm
+   * termination after cancellation. Native runs with an AbortController are
+   * rejected before launch unless this is declared, and the adapter must then
+   * register a run-local barrier through `abortQuarantine`.
+   *
+   * KOTA-controlled adapters omit this because hosted tool calls reauthorize
+   * through KOTA and observe the run's AbortSignal directly.
+   */
+  readonly nativeAbortQuarantine?: "confirmed-stop";
   /**
    * Local readiness probe for operator-facing preflight surfaces. Adapters
    * own runtime details (native CLI, SDK package), harness-managed local

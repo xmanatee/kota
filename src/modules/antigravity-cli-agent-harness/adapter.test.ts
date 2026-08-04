@@ -164,7 +164,7 @@ describe("antigravityCliAgentHarness", () => {
         "--print-timeout",
         "5m",
       ]),
-      expect.objectContaining({ cwd: "/repo" }),
+      expect.objectContaining({ cwd: "/repo", detached: true }),
     );
     expect(sandboxLaunchMock).toHaveBeenCalledWith(
       "agy",
@@ -236,14 +236,14 @@ describe("antigravityCliAgentHarness", () => {
     abortController.abort();
     child.stdout.end();
     child.stderr.end();
-    child.emit("close", null, "SIGTERM");
+    child.emit("close", null, "SIGKILL");
 
     await expect(run).resolves.toMatchObject({
       text: "Antigravity CLI run aborted.",
       isError: true,
       subtype: "aborted",
     });
-    expect(child.kill).toHaveBeenCalledWith("SIGTERM");
+    expect(child.kill).toHaveBeenCalledWith("SIGKILL");
   });
 
   it("returns a typed empty-output error when AGY succeeds without text", async () => {

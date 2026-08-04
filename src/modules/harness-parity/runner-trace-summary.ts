@@ -127,6 +127,9 @@ function renderCapabilityBoundary(
   capability: HarnessCapabilitySnapshot,
 ): void {
   lines.push(`- toolControl: ${capability.toolControl}`);
+  lines.push(
+    `- nativeAbortQuarantine: ${capability.nativeAbortQuarantine ?? "none"}`,
+  );
   lines.push(`- supportsMultiTurn: ${capability.supportsMultiTurn}`);
   lines.push(
     `- ownerQuestions: ${

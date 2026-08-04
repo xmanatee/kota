@@ -253,6 +253,7 @@ export const antigravityCliAgentHarness: AgentHarness = {
   askOwnerToolName: null,
   emitsAgentMessageStream: false,
   toolControl: "native",
+  nativeAbortQuarantine: "confirmed-stop",
   unsupportedRunOptions: ANTIGRAVITY_CLI_UNSUPPORTED_OPTIONS,
   readiness: antigravityCliReadiness,
   async run(
@@ -268,7 +269,7 @@ export const antigravityCliAgentHarness: AgentHarness = {
     if (options.abortController?.signal.aborted) {
       return abortedAntigravityCliResult();
     }
-    return collectTextFromAntigravityCli({
+    const execution = collectTextFromAntigravityCli({
       prompt: buildAntigravityPrompt(options),
       cwd: options.cwd ?? process.cwd(),
       model: options.model,
@@ -278,5 +279,12 @@ export const antigravityCliAgentHarness: AgentHarness = {
       abortController: options.abortController,
       writer,
     });
+    options.abortQuarantine?.register(async () => {
+      await execution.then(
+        () => undefined,
+        () => undefined,
+      );
+    });
+    return execution;
   },
 };

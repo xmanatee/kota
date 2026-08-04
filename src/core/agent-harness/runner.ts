@@ -16,6 +16,7 @@ import {
   registerSessionEnvironment,
   unregisterSessionEnvironment,
 } from "#core/tools/session-environment.js";
+import { createAgentHarnessCancellationBoundary } from "./cancellation.js";
 import {
   type HarnessHookKind,
   hasHarnessHooks,
@@ -248,40 +249,76 @@ export async function runAgentHarness(
 ): Promise<AgentHarnessResult> {
   assertAdapterHonorsRegisteredHooks(harness);
   assertAdapterCanHostRequestedCapabilities(harness, options);
-
-  const tokenBudget = options.tokenBudget;
-  const tokenBudgetSource = tokenBudget
-    ? harnessBudgetSource("harness-run", harness, options)
-    : undefined;
-  const initialDebitCount = tokenBudget?.debitCount() ?? 0;
-  if (tokenBudget !== undefined && tokenBudgetSource !== undefined) {
-    const exhaustion = tokenBudget.checkCanStartTurn(tokenBudgetSource);
-    if (exhaustion) return tokenBudgetErrorResult(exhaustion);
+  const requireNativeQuarantine =
+    harness.toolControl === "native" && options.abortController !== undefined;
+  if (
+    requireNativeQuarantine &&
+    harness.nativeAbortQuarantine !== "confirmed-stop"
+  ) {
+    throw new Error(
+      `Agent harness "${harness.name}" cannot launch a cancellable native execution ` +
+        "without declaring nativeAbortQuarantine: \"confirmed-stop\".",
+    );
   }
 
   const sessionContext = createInvocationSessionContext(options);
-  const effectiveOptions = sessionContext === undefined || options.sessionContext !== undefined
+  const sessionOptions = sessionContext === undefined || options.sessionContext !== undefined
     ? options
     : { ...options, sessionContext };
+  const cancellation = createAgentHarnessCancellationBoundary(
+    harness.name,
+    sessionOptions,
+    writer,
+    requireNativeQuarantine,
+  );
+  const effectiveOptions = cancellation.options;
   if (sessionContext !== undefined) registerSessionEnvironment(sessionContext);
   try {
-    for (const hook of listHarnessHooks("preRun")) {
-      await hook.handler({ harness, options: effectiveOptions });
+    const tokenBudget = options.tokenBudget;
+    const tokenBudgetSource = tokenBudget
+      ? harnessBudgetSource("harness-run", harness, options)
+      : undefined;
+    const initialDebitCount = tokenBudget?.debitCount() ?? 0;
+    if (tokenBudget !== undefined && tokenBudgetSource !== undefined) {
+      const exhaustion = tokenBudget.checkCanStartTurn(tokenBudgetSource);
+      if (exhaustion) return tokenBudgetErrorResult(exhaustion);
     }
 
-    const result = applyResultOnlyTokenBudgetDebit(
-      harness,
-      effectiveOptions,
-      await harness.run(effectiveOptions, writer),
-      initialDebitCount,
-    );
+    const execution = async (): Promise<AgentHarnessResult> => {
+      for (const hook of listHarnessHooks("preRun")) {
+        cancellation.assertActive();
+        await hook.handler({ harness, options: effectiveOptions });
+      }
+      cancellation.assertActive();
 
-    for (const hook of listHarnessHooks("postRun")) {
-      await hook.handler({ harness, options: effectiveOptions, result });
-    }
+      const nativeRun = harness.run(effectiveOptions, cancellation.writer);
+      try {
+        cancellation.assertNativeQuarantineRegistered();
+      } catch (error) {
+        void nativeRun.catch(() => {});
+        throw error;
+      }
+      const nativeResult = await nativeRun;
+      cancellation.closeOutput();
+      cancellation.assertActive();
+      const result = applyResultOnlyTokenBudgetDebit(
+        harness,
+        effectiveOptions,
+        nativeResult,
+        initialDebitCount,
+      );
 
-    return result;
+      for (const hook of listHarnessHooks("postRun")) {
+        cancellation.assertActive();
+        await hook.handler({ harness, options: effectiveOptions, result });
+      }
+      cancellation.assertActive();
+      return result;
+    };
+
+    return await cancellation.race(execution);
   } finally {
+    cancellation.dispose();
     if (sessionContext !== undefined) unregisterSessionEnvironment(sessionContext);
   }
 }
