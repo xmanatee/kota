@@ -100,7 +100,7 @@ type CodeCheck = {
 // gate reads `parentStep.harness` as the default judge harness when the
 // factory leaves `harnessName` unset — these tests mock
 // `resolveAgentHarness`, so any registered name works.
-const TEST_PARENT_STEP = { harness: 'claude-agent-sdk' } as never;
+const TEST_PARENT_STEP = { harness: 'claude-agent-sdk', effort: 'xhigh' } as never;
 
 describe("createImproverSemanticCheck", () => {
   beforeEach(() => {

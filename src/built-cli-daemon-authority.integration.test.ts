@@ -70,6 +70,7 @@ describe.skipIf(!realLoopbackAvailable())("built CLI live trust revocation", () 
         env: {
           ...process.env,
           HOME: homeDir,
+          KOTA_PROJECT_DIR: projectDir,
           KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH: "",
           NODE_OPTIONS: "",
         },

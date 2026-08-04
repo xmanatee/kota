@@ -1624,7 +1624,7 @@ describe("workflow validation", () => {
   });
 
   it("exposes the expected autonomy workflows without pinning the full set", async () => {
-    const definitions = validateWorkflowDefinitionsCore(
+    const definitions = validateWorkflowDefinitions(
       await loadAutonomyWorkflowDefinitions(),
       process.cwd(),
     );

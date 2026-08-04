@@ -122,15 +122,14 @@ neutral surface carries only KOTA concepts, KOTA's own ModelClient provider
 selection (`modelProvider`), and harness-agnostic transport fields. Per-step
 adapter-private options travel through `harnessOverrides`, validated by the
 resolved adapter and threaded through as opaque `AgentHarnessStepOverrides`.
-`no-sdk-shaped-neutral-fields.test.ts` keeps provider-shaped identifiers off
+`no-sdk-shaped-neutral-fields.test.ts` keeps provider-shaped IDs off
 the neutral protocol surface.
 
-The invariant is stronger than "core doesn't import the claude SDK":
-*nothing in core treats a provider's type surface as its internal
-protocol*. Every tool, message, block, thinking config, and model
-response on a core interface is a KOTA-owned neutral type from
-`message-protocol.ts`; adapter modules translate at their seam.
-`no-anthropic-imports-in-core.test.ts` enforces this mechanically.
+Nothing in core treats a provider's type surface as its internal protocol.
+Every tool, message, block, thinking config, and model response on a core
+interface is a KOTA-owned neutral type from `message-protocol.ts`; adapter
+modules translate at their seam. `no-anthropic-imports-in-core.test.ts`
+enforces this mechanically.
 
 ## Per-step harness-specific options
 

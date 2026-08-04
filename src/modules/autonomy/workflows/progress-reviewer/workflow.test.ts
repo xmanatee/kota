@@ -5,6 +5,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -147,7 +148,7 @@ function reviewOutput(args: {
 }
 
 function makeProjectDir(label = "progress-reviewer"): string {
-  const dir = mkdtempSync(join(tmpdir(), `kota-${label}-`));
+  const dir = realpathSync.native(mkdtempSync(join(tmpdir(), `kota-${label}-`)));
   for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
     mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
     writeFileSync(join(dir, "data", "tasks", state, "AGENTS.md"), `# ${state}\n`);
@@ -620,14 +621,7 @@ describe("progress-reviewer workflow", () => {
     const moduleEvents = initModuleEventRegistry();
     moduleEvents.register("autonomy", progressReviewRequested);
 
-    expect(() =>
-      validateWorkflowDefinitions([
-        registerWorkflowDefinition(
-          "src/modules/autonomy/workflows/progress-reviewer/workflow.ts",
-          progressReviewerWorkflow,
-        ),
-      ]),
-    ).not.toThrow();
+    expect(() => compileProgressReviewerWorkflow()).not.toThrow();
 
     expect(progressReviewerWorkflow.triggers).toEqual(
       expect.arrayContaining([

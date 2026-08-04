@@ -135,6 +135,7 @@ describe.skipIf(!realLoopbackAvailable())("built CLI daemon smoke (provider-back
           // Redirect homedir() so we never read the developer's
           // ~/.kota/config.json into the smoke under test.
           HOME: homeDir,
+          KOTA_PROJECT_DIR: projectDir,
           KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH: "",
           // The vitest parent runs with `--conditions=source` to import
           // TypeScript directly. That env var would propagate and make

@@ -600,6 +600,7 @@ const repoAiChecksWorkflow: WorkflowDefinitionInput = {
           agentName: agent.name,
           promptPath: agent.promptPath,
           tier: AUTONOMY_AGENT_DEFAULTS.tier,
+          effort: AUTONOMY_AGENT_DEFAULTS.effort,
           timeoutMs: CHECK_AGENT_TIMEOUT_MS,
           maxTurns: 8,
           outputFormat: "json",

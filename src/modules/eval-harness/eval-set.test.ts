@@ -15,13 +15,21 @@ import type { WorkflowExecutor } from "./runner.js";
 describe("runEvalSet aggregation", () => {
   let fixturesRoot: string;
   let runsRoot: string;
+  let origPreset: string | undefined;
 
   beforeEach(() => {
+    origPreset = process.env.KOTA_PRESET;
+    delete process.env.KOTA_PRESET;
     fixturesRoot = mkdtempSync(join(tmpdir(), "kota-eval-harness-set-fx-"));
     runsRoot = mkdtempSync(join(tmpdir(), "kota-eval-harness-set-runs-"));
   });
 
   afterEach(() => {
+    if (origPreset !== undefined) {
+      process.env.KOTA_PRESET = origPreset;
+    } else {
+      delete process.env.KOTA_PRESET;
+    }
     rmSync(fixturesRoot, { recursive: true, force: true });
     rmSync(runsRoot, { recursive: true, force: true });
   });

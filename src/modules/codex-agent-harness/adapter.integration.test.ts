@@ -8,42 +8,56 @@ import {
 } from "#core/agent-harness/index.js";
 
 const spawnMock = vi.hoisted(() => vi.fn());
+const spawnSyncMock = vi.hoisted(() =>
+  vi.fn((_cmd: string, args?: string[]) => {
+    const argStr = args ? args.join(" ") : "";
+    if (argStr.includes("version")) {
+      return { status: 0, stdout: "codex 1.0.0\n", stderr: "" };
+    }
+    if (argStr.includes("login") || argStr.includes("status")) {
+      return { status: 0, stdout: "Logged in using ChatGPT\n", stderr: "" };
+    }
+    return { status: 0, stdout: "/usr/local/bin/codex\n", stderr: "" };
+  }),
+);
 
 vi.mock("node:child_process", async () => {
   const actual = await vi.importActual<typeof import("node:child_process")>(
     "node:child_process",
   );
-  return { ...actual, spawn: spawnMock };
+  return { ...actual, spawn: spawnMock, spawnSync: spawnSyncMock };
 });
 
 function mockCodexProcess(): void {
-  const child = new EventEmitter() as EventEmitter & {
-    stdin: PassThrough;
-    stdout: PassThrough;
-    stderr: PassThrough;
-    kill: ReturnType<typeof vi.fn>;
-  };
-  child.stdin = new PassThrough();
-  child.stdout = new PassThrough();
-  child.stderr = new PassThrough();
-  child.kill = vi.fn();
-  spawnMock.mockReturnValue(child);
-  queueMicrotask(() => {
-    child.stdout.write(`${JSON.stringify({
-      type: "thread.started",
-      thread_id: "cint",
-    })}\n`);
-    child.stdout.write(`${JSON.stringify({
-      type: "item.completed",
-      item: { type: "agent_message", text: "ok" },
-    })}\n`);
-    child.stdout.write(`${JSON.stringify({
-      type: "turn.completed",
-      usage: { input_tokens: 1, output_tokens: 1 },
-    })}\n`);
-    child.stdout.end();
-    child.stderr.end();
-    child.emit("close", 0, null);
+  spawnMock.mockImplementation(() => {
+    const child = new EventEmitter() as EventEmitter & {
+      stdin: PassThrough;
+      stdout: PassThrough;
+      stderr: PassThrough;
+      kill: ReturnType<typeof vi.fn>;
+    };
+    child.stdin = new PassThrough();
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    child.kill = vi.fn();
+    queueMicrotask(() => {
+      child.stdout.write(`${JSON.stringify({
+        type: "thread.started",
+        thread_id: "cint",
+      })}\n`);
+      child.stdout.write(`${JSON.stringify({
+        type: "item.completed",
+        item: { type: "agent_message", text: "ok" },
+      })}\n`);
+      child.stdout.write(`${JSON.stringify({
+        type: "turn.completed",
+        usage: { input_tokens: 1, output_tokens: 1 },
+      })}\n`);
+      child.stdout.end();
+      child.stderr.end();
+      child.emit("close", 0, null);
+    });
+    return child;
   });
 }
 

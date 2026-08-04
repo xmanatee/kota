@@ -442,8 +442,11 @@ describe("callTelegramApi", () => {
 
 describe("TelegramBot", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
+  let origPreset: string | undefined;
 
   beforeEach(() => {
+    origPreset = process.env.KOTA_PRESET;
+    delete process.env.KOTA_PRESET;
     fetchMock = installFetchMock();
     agentSessionOptions.length = 0;
     agentSendMock.mockClear();
@@ -459,6 +462,11 @@ describe("TelegramBot", () => {
   });
 
   afterEach(() => {
+    if (origPreset !== undefined) {
+      process.env.KOTA_PRESET = origPreset;
+    } else {
+      delete process.env.KOTA_PRESET;
+    }
     restoreFetch();
     resetTelegramPollingOwnersForTests();
   });

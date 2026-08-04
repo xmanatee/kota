@@ -127,16 +127,24 @@ async function captureNoColorStdout(
 describe("kota report CLI supervision load", () => {
   let projectDir: string;
   let origCwd: string;
+  let origEnvKotaProjectDir: string | undefined;
 
   beforeEach(() => {
     projectDir = mkdtempSync(join(tmpdir(), "kota-report-cli-load-"));
     mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
     origCwd = process.cwd();
+    origEnvKotaProjectDir = process.env.KOTA_PROJECT_DIR;
+    delete process.env.KOTA_PROJECT_DIR;
     process.chdir(projectDir);
   });
 
   afterEach(() => {
     process.chdir(origCwd);
+    if (origEnvKotaProjectDir !== undefined) {
+      process.env.KOTA_PROJECT_DIR = origEnvKotaProjectDir;
+    } else {
+      delete process.env.KOTA_PROJECT_DIR;
+    }
     rmSync(projectDir, { recursive: true, force: true });
   });
 

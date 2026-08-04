@@ -121,18 +121,15 @@ Recoverable surfaces (append-only or file-backed; survive crash):
   latency, or the fallback poll interval (5 s) when fs-watch misses the
   atomic rename.
 
-Deliberate losses (state is not reconstructible, and persistence is not worth
-the cost):
+Deliberate losses:
 
 - **Event ring buffer** (in-memory, 500 events) — clients must tolerate a
   reconnect-window gap after daemon restart. SSE clients already reconnect;
   durable replay lives in the event journal. The ring buffer is only the live
   SSE reconnect window, not the audit or replay store.
 - **Notification-gate buffer** (held `workflow.attention.digest` events during
-  quiet hours) — low volume, single event type, automatically released at
-  window end. If the daemon crashes mid-window, the held digest is lost; the
-  next real alert re-surfaces attention. Persisting this buffer would add a
-  second store for a single event stream.
+  quiet hours) — single event type, released at window end. If the daemon
+  crashes mid-window, the held digest is lost; the next alert re-surfaces attention.
 - **Workflow metric cache** (`daemon-handle.ts` memoization) —
   reconstructable by re-reading the run store on demand.
 - **Module health-check cache** — refreshed on the next probe cycle (30 s).

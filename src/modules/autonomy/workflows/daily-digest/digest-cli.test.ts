@@ -58,6 +58,7 @@ function makeProgram(): Command {
 describe("kota digest CLI", () => {
   let projectDir: string;
   let origCwd: string;
+  let origEnvKotaProjectDir: string | undefined;
   const observed: Array<{ event: string; payload: unknown }> = [];
   let unsubscribe: () => void;
 
@@ -67,6 +68,8 @@ describe("kota digest CLI", () => {
     mkdirSync(join(projectDir, "data", "tasks", "ready"), { recursive: true });
     mkdirSync(join(projectDir, "data", "tasks", "blocked"), { recursive: true });
     origCwd = process.cwd();
+    origEnvKotaProjectDir = process.env.KOTA_PROJECT_DIR;
+    delete process.env.KOTA_PROJECT_DIR;
     process.chdir(projectDir);
 
     // Pin Date.now so the seam-evaluated and CLI-evaluated windows match
@@ -93,6 +96,11 @@ describe("kota digest CLI", () => {
     resetEventBus();
     vi.useRealTimers();
     process.chdir(origCwd);
+    if (origEnvKotaProjectDir !== undefined) {
+      process.env.KOTA_PROJECT_DIR = origEnvKotaProjectDir;
+    } else {
+      delete process.env.KOTA_PROJECT_DIR;
+    }
     rmSync(projectDir, { recursive: true, force: true });
   });
 

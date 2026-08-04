@@ -202,6 +202,7 @@ describe("built CLI mcp-server smoke (tools registered through onLoad)", () => {
         env: {
           ...process.env,
           HOME: homeDir,
+          KOTA_PROJECT_DIR: projectDir,
           NODE_OPTIONS: "",
         },
         stdio: ["pipe", "pipe", "pipe"],

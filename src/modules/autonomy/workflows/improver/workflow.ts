@@ -172,6 +172,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
         shouldRunImproverFromGate(gateEvidenceStep.output(ctx)) &&
         inspectWorktree.output(ctx)?.dirty === false,
       tier: AUTONOMY_AGENT_DEFAULTS.tier,
+      effort: AUTONOMY_AGENT_DEFAULTS.effort,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       repairLoop: {
         checks: [

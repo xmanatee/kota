@@ -163,8 +163,10 @@ describe("telegramModule", () => {
   it("telegram-interactive channel starts with the default Codex preset without a model provider", async () => {
     const savedToken = process.env.TELEGRAM_BOT_TOKEN;
     const savedChatId = process.env.TELEGRAM_ALERT_CHAT_ID;
+    const savedPreset = process.env.KOTA_PRESET;
     process.env.TELEGRAM_BOT_TOKEN = "bot-token-test";
     process.env.TELEGRAM_ALERT_CHAT_ID = "123456789";
+    delete process.env.KOTA_PRESET;
     try {
       const channels = await resolveModuleChannels(
         telegramModule,
@@ -183,6 +185,8 @@ describe("telegramModule", () => {
       expect(result.status).toBe("started");
       expect(mockedResolveAgentHarness).toHaveBeenCalledWith("codex");
     } finally {
+      if (savedPreset !== undefined) process.env.KOTA_PRESET = savedPreset;
+      else delete process.env.KOTA_PRESET;
       if (savedToken !== undefined) process.env.TELEGRAM_BOT_TOKEN = savedToken;
       else delete process.env.TELEGRAM_BOT_TOKEN;
       if (savedChatId !== undefined) process.env.TELEGRAM_ALERT_CHAT_ID = savedChatId;

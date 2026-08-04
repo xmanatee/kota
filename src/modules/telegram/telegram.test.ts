@@ -208,6 +208,8 @@ describe("telegramModule", () => {
   });
 
   it("reports the default Codex backend as ready through setup capability readiness", async () => {
+    const savedPreset = process.env.KOTA_PRESET;
+    delete process.env.KOTA_PRESET;
     const readiness = { source: null as CapabilityReadinessSource | null };
     const ctx = makeStubCtx(
       undefined,
@@ -235,6 +237,8 @@ describe("telegramModule", () => {
         }),
       ]);
     } finally {
+      if (savedPreset !== undefined) process.env.KOTA_PRESET = savedPreset;
+      else delete process.env.KOTA_PRESET;
       await telegramModule.onUnload?.();
     }
   });});

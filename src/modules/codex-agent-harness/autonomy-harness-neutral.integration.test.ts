@@ -9,13 +9,30 @@ import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 
 const spawnMock = vi.hoisted(() => vi.fn());
-const execFileSyncMock = vi.hoisted(() => vi.fn(() => ""));
+const spawnSyncMock = vi.hoisted(() =>
+  vi.fn((_cmd: string, args?: string[]) => {
+    const argStr = args ? args.join(" ") : "";
+    if (argStr.includes("version")) {
+      return { status: 0, stdout: "codex 1.0.0\n", stderr: "" };
+    }
+    if (argStr.includes("login") || argStr.includes("status")) {
+      return { status: 0, stdout: "Logged in using ChatGPT\n", stderr: "" };
+    }
+    return { status: 0, stdout: "/usr/local/bin/codex\n", stderr: "" };
+  }),
+);
+const execFileSyncMock = vi.hoisted(() => vi.fn(() => "Logged in using ChatGPT"));
 
 vi.mock("node:child_process", async () => {
   const actual = await vi.importActual<typeof import("node:child_process")>(
     "node:child_process",
   );
-  return { ...actual, execFileSync: execFileSyncMock, spawn: spawnMock };
+  return {
+    ...actual,
+    execFileSync: execFileSyncMock,
+    spawn: spawnMock,
+    spawnSync: spawnSyncMock,
+  };
 });
 
 import "../claude-agent-harness/index.js";
@@ -24,33 +41,35 @@ import { executeAgentStep } from "#core/workflow/steps/step-executor-agent.js";
 import { CODEX_AGENT_HARNESS_NAME } from "./index.js";
 
 function mockCodexProcess(): { stdinText: () => string } {
-  const child = new EventEmitter() as EventEmitter & {
-    stdin: PassThrough;
-    stdout: PassThrough;
-    stderr: PassThrough;
-    kill: ReturnType<typeof vi.fn>;
-  };
-  child.stdin = new PassThrough();
-  child.stdout = new PassThrough();
-  child.stderr = new PassThrough();
-  child.kill = vi.fn();
-
   const stdinChunks: Buffer[] = [];
-  child.stdin.on("data", (chunk: Buffer) => stdinChunks.push(chunk));
+  spawnMock.mockImplementation(() => {
+    const child = new EventEmitter() as EventEmitter & {
+      stdin: PassThrough;
+      stdout: PassThrough;
+      stderr: PassThrough;
+      kill: ReturnType<typeof vi.fn>;
+    };
+    child.stdin = new PassThrough();
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    child.kill = vi.fn();
 
-  spawnMock.mockReturnValue(child);
-  queueMicrotask(() => {
-    child.stdout.write(`${JSON.stringify({
-      type: "item.completed",
-      item: { type: "agent_message", text: "done" },
-    })}\n`);
-    child.stdout.write(`${JSON.stringify({
-      type: "turn.completed",
-      usage: { input_tokens: 1, output_tokens: 1 },
-    })}\n`);
-    child.stdout.end();
-    child.stderr.end();
-    child.emit("close", 0, null);
+    child.stdin.on("data", (chunk: Buffer) => stdinChunks.push(chunk));
+
+    queueMicrotask(() => {
+      child.stdout.write(`${JSON.stringify({
+        type: "item.completed",
+        item: { type: "agent_message", text: "done" },
+      })}\n`);
+      child.stdout.write(`${JSON.stringify({
+        type: "turn.completed",
+        usage: { input_tokens: 1, output_tokens: 1 },
+      })}\n`);
+      child.stdout.end();
+      child.stderr.end();
+      child.emit("close", 0, null);
+    });
+    return child;
   });
 
   return { stdinText: () => Buffer.concat(stdinChunks).toString("utf8") };
@@ -101,7 +120,7 @@ describe("autonomy agent step on codex", () => {
   beforeEach(() => {
     spawnMock.mockReset();
     execFileSyncMock.mockReset();
-    execFileSyncMock.mockReturnValue("");
+    execFileSyncMock.mockReturnValue("Logged in using ChatGPT");
     projectDir = join(
       tmpdir(),
       `kota-codex-harness-step-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,

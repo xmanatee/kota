@@ -45,11 +45,15 @@ describe("kota attention CLI", () => {
   const observed: Array<{ event: string; payload: unknown }> = [];
   let unsubscribe: () => void;
 
+  let origEnvKotaProjectDir: string | undefined;
+
   beforeEach(() => {
     projectDir = mkdtempSync(join(tmpdir(), "kota-attention-cli-"));
     runsDir = join(projectDir, ".kota", "runs");
     mkdirSync(runsDir, { recursive: true });
     origCwd = process.cwd();
+    origEnvKotaProjectDir = process.env.KOTA_PROJECT_DIR;
+    delete process.env.KOTA_PROJECT_DIR;
     process.chdir(projectDir);
 
     observed.length = 0;
@@ -64,6 +68,11 @@ describe("kota attention CLI", () => {
     unsubscribe?.();
     resetEventBus();
     process.chdir(origCwd);
+    if (origEnvKotaProjectDir !== undefined) {
+      process.env.KOTA_PROJECT_DIR = origEnvKotaProjectDir;
+    } else {
+      delete process.env.KOTA_PROJECT_DIR;
+    }
     rmSync(projectDir, { recursive: true, force: true });
   });
 

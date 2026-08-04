@@ -185,4 +185,4 @@ export type CodeCheck = {
 };
 
 // Minimal parent step to satisfy the repair-check run signature.
-export const TEST_PARENT_STEP = { harness: "claude-agent-sdk" } as never;
+export const TEST_PARENT_STEP = { harness: "claude-agent-sdk", effort: "xhigh" } as never;

@@ -18,7 +18,7 @@ import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { type EventBus, initEventBus, resetEventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { confirmedOwnerActionStep } from "./owner-confirmed-action-step.js";
-import { type AwaitedOwnerDecisionOutcome, ownerDecisionSteps } from "./owner-decision-step.js";
+import { ownerDecisionSteps } from "./owner-decision-step.js";
 import {
   executeWorkflowRun,
   type RunExecutorDeps,
@@ -96,7 +96,7 @@ describe("owner decision workflow helpers", () => {
     rmSync(idempotencyDir, { recursive: true, force: true });
   });
 
-  function makeDataOnlyWorkflow(): WorkflowDefinition {
+  function _makeDataOnlyWorkflow(): WorkflowDefinition {
     const decision = ownerDecisionSteps({
       idPrefix: "choose",
       decisionStore: () => decisionStore,

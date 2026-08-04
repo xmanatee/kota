@@ -202,6 +202,7 @@ describe.skipIf(!realLoopbackAvailable())("built CLI serve smoke (provider-backe
           env: {
             ...process.env,
             HOME: homeDir,
+            KOTA_PROJECT_DIR: projectDir,
             NODE_OPTIONS: "",
           },
         },

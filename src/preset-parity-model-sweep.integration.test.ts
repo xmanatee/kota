@@ -281,7 +281,7 @@ describe("preset-parity model-id sweep — workflow agent step `tier` validates 
 describe("preset-parity model-id sweep — autonomy runtime resolves one preset bundle", () => {
   for (const preset of listShippedPresets()) {
     it(`preset=${preset.id}: harness, tiers, and effort resolve together`, () => {
-      const runtime = resolveAgentRuntime({ defaultPreset: preset.id });
+      const runtime = resolveAgentRuntime({ defaultPreset: preset.id }, {});
       expect(runtime.preset).toBe(preset);
       expect(runtime.harness).toBe(preset.harness);
       expect(runtime.tiers.capable).toBe(preset.tiers.capable);

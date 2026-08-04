@@ -170,6 +170,7 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
       agentName: agent.name,
       promptPath: agent.promptPath,
       tier: AUTONOMY_AGENT_DEFAULTS.tier,
+      effort: AUTONOMY_AGENT_DEFAULTS.effort,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       when: (ctx) => {
         if (ctx.trigger.event === "runtime.recovered") return false;

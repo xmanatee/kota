@@ -3,8 +3,8 @@ import { PassThrough } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ANTIGRAVITY_CLI_AGENT_HARNESS_NAME,
-  antigravityCliAuthReadiness,
   antigravityCliAgentHarness,
+  antigravityCliAuthReadiness,
 } from "./adapter.js";
 
 const spawnMock = vi.hoisted(() => vi.fn());

@@ -92,13 +92,8 @@ export function registerConfigSlice<K extends KotaModuleConfigKey>(
 ): void {
   const existing = _slices.get(slice.key);
   if (existing) {
-    if (existing === slice) {
-      if (owner) addOwner(owner, slice.key);
-      return;
-    }
-    throw new Error(
-      `Module config slice "${slice.key}" already registered with a different definition`,
-    );
+    if (owner) addOwner(owner, slice.key);
+    return;
   }
   _slices.set(slice.key, slice as ModuleConfigSlice);
   if (owner) addOwner(owner, slice.key);

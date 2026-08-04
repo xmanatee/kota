@@ -187,6 +187,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       agentName: agent.name,
       promptPath: agent.promptPath,
       tier: AUTONOMY_AGENT_DEFAULTS.tier,
+      effort: AUTONOMY_AGENT_DEFAULTS.effort,
       timeoutMs: null,
       idleTimeoutMs: AUTONOMY_BUILDER_AGENT_IDLE_TIMEOUT_MS,
       when: (ctx) => {

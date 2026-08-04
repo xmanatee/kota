@@ -40,7 +40,12 @@ function runExpectFail(...args: string[]): { stderr: string; exitCode: number } 
       encoding: "utf-8",
       timeout: CLI_TIMEOUT,
       cwd: root,
-      env: { ...process.env, KOTA_PRESET: "claude", ANTHROPIC_API_KEY: "" },
+      env: {
+        NODE_OPTIONS: "--conditions=source",
+        ...process.env,
+        KOTA_PRESET: "claude",
+        ANTHROPIC_API_KEY: "",
+      },
     });
     return { stderr: "", exitCode: 0 };
   } catch (err) {
@@ -61,7 +66,12 @@ function runFull(
       encoding: "utf-8",
       timeout: CLI_TIMEOUT,
       cwd: opts?.cwd ?? root,
-      env: { ...process.env, ...opts?.env },
+      env: {
+        NODE_OPTIONS: "--conditions=source",
+        ...process.env,
+        KOTA_PRESET: "codex",
+        ...opts?.env,
+      },
       input: opts?.input,
     },
   );
@@ -472,7 +482,7 @@ describe("history resume validation", () => {
     });
 
     const { stderr, exitCode } = runFull(["history", "resume", "resume-cross"], {
-      env: { ANTHROPIC_API_KEY: "", HOME: callerDir },
+      env: { ANTHROPIC_API_KEY: "", HOME: callerDir, KOTA_PROJECT_DIR: callerDir },
       cwd: callerDir,
       input: "/status\nexit\n",
     });
@@ -515,7 +525,7 @@ describe("history resume validation", () => {
         "--interactive",
       ],
       {
-        env: { ANTHROPIC_API_KEY: "", HOME: callerDir },
+        env: { ANTHROPIC_API_KEY: "", HOME: callerDir, KOTA_PROJECT_DIR: callerDir },
         cwd: callerDir,
         input: "/status\nexit\n",
       },
@@ -543,7 +553,7 @@ describe("history resume validation", () => {
     seedConversation(callerDir, record);
 
     const { stderr, exitCode } = runFull(["history", "resume", "resume-missing"], {
-      env: { ANTHROPIC_API_KEY: "", HOME: callerDir },
+      env: { ANTHROPIC_API_KEY: "", HOME: callerDir, KOTA_PROJECT_DIR: callerDir },
       cwd: callerDir,
       input: "exit\n",
     });
@@ -570,7 +580,7 @@ describe("history resume validation", () => {
     const { stderr, exitCode } = runFull(
       ["history", "resume", "resume-override", "--resume-here"],
       {
-        env: { ANTHROPIC_API_KEY: "", HOME: callerDir },
+        env: { ANTHROPIC_API_KEY: "", HOME: callerDir, KOTA_PROJECT_DIR: callerDir },
         cwd: callerDir,
         input: "/status\nexit\n",
       },
