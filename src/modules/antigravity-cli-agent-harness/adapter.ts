@@ -1,18 +1,19 @@
 /** `antigravity-cli` agent harness around AGY's headless event stream. */
 
-import { existsSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import type {
   AgentHarness,
   AgentHarnessAuthProbe,
   AgentHarnessReadiness,
   AgentHarnessResult,
   AgentHarnessRunOptions,
+  AgentHarnessRuntimeProbeDeps,
   AgentHarnessUnsupportedOption,
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
-import { probeNativeCliRuntime } from "#core/agent-harness/index.js";
+import {
+  probeNativeCliAuth,
+  probeNativeCliRuntime,
+} from "#core/agent-harness/index.js";
 import {
   ANTIGRAVITY_CLI_BINARY_NAME,
   abortedAntigravityCliResult,
@@ -33,13 +34,6 @@ export function resolveAntigravityCliIsolatedHostAuthEnv(
     ? {}
     : { [ANTIGRAVITY_CLI_KEYCHAIN_DIR_ENV]: keychainDirectory };
 }
-
-const ANTIGRAVITY_CONFIG_DIR = join(
-  homedir(),
-  ".gemini",
-  "antigravity-cli",
-);
-const ANTIGRAVITY_SETTINGS_PATH = join(ANTIGRAVITY_CONFIG_DIR, "settings.json");
 
 const ANTIGRAVITY_CLI_UNSUPPORTED_OPTIONS = [
   {
@@ -111,22 +105,22 @@ const ANTIGRAVITY_CLI_UNSUPPORTED_OPTIONS = [
   },
 ] as const satisfies readonly AgentHarnessUnsupportedOption[];
 
-function antigravityCliAuthReadiness(): AgentHarnessAuthProbe {
-  const settingsState = existsSync(ANTIGRAVITY_SETTINGS_PATH)
-    ? `settings file found at ${ANTIGRAVITY_SETTINGS_PATH}`
-    : `settings file not found at ${ANTIGRAVITY_SETTINGS_PATH}`;
-  return {
-    kind: "harness-managed-login",
-    status: "unverifiable",
+export function antigravityCliAuthReadiness(
+  deps?: AgentHarnessRuntimeProbeDeps,
+): AgentHarnessAuthProbe {
+  return probeNativeCliAuth({
+    binaryName: ANTIGRAVITY_CLI_BINARY_NAME,
+    statusArgs: ["models"],
     required: true,
-    command: ANTIGRAVITY_CLI_BINARY_NAME,
-    detail:
-      `${settingsState}; Antigravity CLI stores Google session state in the OS secure keyring ` +
-      "and current docs expose `/logout` but no stable headless auth-status command. " +
-      "The settings file is not proof of login state.",
-    summary:
-      "Antigravity CLI auth cannot be verified non-interactively",
-  };
+    readyPattern: /^gemini-\S+/m,
+    stalePattern: /(?:expired|refresh token)/i,
+    missingPattern:
+      /(?:log in|login|authentication required|unauthenticated|unauthorized|credentials)/i,
+    readySummary: "Antigravity CLI login and model access ready",
+    staleSummary: "Antigravity CLI login is stale",
+    missingSummary: "Antigravity CLI login not active; run `agy` and sign in",
+    renewalSummary: "run `agy` and sign in again before unattended runs",
+  }, deps);
 }
 
 function antigravityCliReadiness(): AgentHarnessReadiness {

@@ -3,6 +3,7 @@ import { PassThrough } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ANTIGRAVITY_CLI_AGENT_HARNESS_NAME,
+  antigravityCliAuthReadiness,
   antigravityCliAgentHarness,
 } from "./adapter.js";
 
@@ -132,7 +133,7 @@ describe("antigravityCliAgentHarness", () => {
     );
   });
 
-  it("reports AGY runtime and explicit non-interactive auth boundary in readiness", () => {
+  it("reports AGY runtime and headless model-access readiness", () => {
     const readiness = antigravityCliAgentHarness.readiness?.();
 
     expect(readiness).toMatchObject({
@@ -145,20 +146,32 @@ describe("antigravityCliAgentHarness", () => {
       },
       localAuth: {
         kind: "harness-managed-login",
-        status: "unverifiable",
-        command: "agy",
+        command: "agy models",
         required: true,
       },
     });
-    expect(readiness?.localAuth?.summary).toContain(
-      "cannot be verified non-interactively",
-    );
-    expect(readiness?.localAuth?.detail).toContain(
-      ".gemini/antigravity-cli/settings.json",
-    );
-    expect(readiness?.localAuth?.detail).toContain(
-      "settings file is not proof",
-    );
+  });
+
+  it("accepts a successful AGY model catalog as authenticated readiness", () => {
+    const readiness = antigravityCliAuthReadiness({
+      resolveBinary: () => ({
+        status: "ready",
+        executablePath: "/opt/bin/agy",
+      }),
+      readCommandVersion: () => ({ status: "error", detail: "not used" }),
+      readCommandOutput: () => ({
+        status: "ready",
+        output: "gemini-3.6-flash-high\ngemini-3.1-pro-high",
+      }),
+      readPackageVersion: () => ({ status: "error", detail: "not used" }),
+    });
+
+    expect(readiness).toMatchObject({
+      status: "ready",
+      command: "agy models",
+      summary: "Antigravity CLI login and model access ready",
+    });
+    expect(readiness.detail).toContain("gemini-3.1-pro-high");
   });
 
   it("runs AGY headlessly and translates its structured event stream", async () => {

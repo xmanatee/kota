@@ -40,5 +40,7 @@ workspace. Git metadata and machine authority remain protected.
 ## Model Routing
 
 The shipped preset selects current AGY model ids and always passes an explicit
-model and effort. Treat `agy models` as the local availability authority; do
-not infer support from older Gemini CLI model catalogs.
+model and effort. The required local auth probe uses `agy models`, which
+verifies the cached login and current model access without reading credentials.
+Treat that command as the local availability authority; do not infer support
+from older Gemini CLI model catalogs.
