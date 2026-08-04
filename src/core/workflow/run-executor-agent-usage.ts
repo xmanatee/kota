@@ -1,8 +1,20 @@
+import type { WorkflowStepResult } from "./run-types.js";
 import type { WorkflowStep } from "./step-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
 export function workflowUsesAgent(definition: WorkflowDefinition): boolean {
   return definition.steps.some(stepUsesAgent);
+}
+
+export function runHasSuccessfulAgentExecution(
+  steps: readonly WorkflowStepResult[],
+): boolean {
+  return steps.some(
+    (step) =>
+      step.type === "agent" &&
+      step.status === "success" &&
+      step.reused !== true,
+  );
 }
 
 function stepUsesAgent(step: WorkflowStep): boolean {

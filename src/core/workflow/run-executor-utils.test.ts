@@ -8,9 +8,11 @@ import {
 import {
   enqueueMatchingWorkflows,
   matchesFilter,
+  runHasSuccessfulAgentExecution,
   workflowUsesAgent,
 } from "./run-executor-utils.js";
 import { safeJsonStringify } from "./run-io.js";
+import type { WorkflowStepResult } from "./run-types.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 import { registerWorkflowDefinition, validateWorkflowDefinitions } from "./validation.js";
@@ -306,5 +308,38 @@ describe("workflowUsesAgent", () => {
         }),
       ),
     ).toBe(false);
+  });
+});
+
+describe("runHasSuccessfulAgentExecution", () => {
+  const stepResult = (
+    overrides: Partial<WorkflowStepResult>,
+  ): WorkflowStepResult => ({
+    id: "step",
+    type: "code",
+    status: "success",
+    startedAt: "2026-08-04T00:00:00.000Z",
+    completedAt: "2026-08-04T00:00:01.000Z",
+    durationMs: 1000,
+    ...overrides,
+  });
+
+  it("requires a fresh successful agent result", () => {
+    expect(
+      runHasSuccessfulAgentExecution([
+        stepResult({ type: "agent", status: "skipped" }),
+        stepResult({ type: "code", status: "success" }),
+      ]),
+    ).toBe(false);
+    expect(
+      runHasSuccessfulAgentExecution([
+        stepResult({ type: "agent", status: "success", reused: true }),
+      ]),
+    ).toBe(false);
+    expect(
+      runHasSuccessfulAgentExecution([
+        stepResult({ type: "agent", status: "success" }),
+      ]),
+    ).toBe(true);
   });
 });

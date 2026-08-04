@@ -12,7 +12,7 @@ import type { AgentBackoffManager } from "./agent-backoff.js";
 import { dismissSupersededWorkflowDeadLetters } from "./dead-letter-supersession.js";
 import { isWithinDispatchWindow } from "./dispatch-window.js";
 import { executeWorkflowRun } from "./run-executor.js";
-import { workflowUsesAgent } from "./run-executor-utils.js";
+import { runHasSuccessfulAgentExecution } from "./run-executor-utils.js";
 import { formatRunId } from "./run-io.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type {
@@ -251,11 +251,7 @@ export async function runWorkflow(
       state.backoff.apply(result.agentBackoff);
       return;
     }
-    if (
-      workflowUsesAgent(definition) &&
-      (result.metadata.status === "success" ||
-        result.metadata.status === "completed-with-warnings")
-    ) {
+    if (runHasSuccessfulAgentExecution(result.metadata.steps)) {
       state.backoff.clear();
     }
   } finally {

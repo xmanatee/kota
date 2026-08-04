@@ -7,7 +7,10 @@ import type { WorkflowRunMetadata, WorkflowStepResult } from "./run-types.js";
 import type { WorkflowRunTrigger, WorkflowTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
-export { workflowUsesAgent } from "./run-executor-agent-usage.js";
+export {
+  runHasSuccessfulAgentExecution,
+  workflowUsesAgent,
+} from "./run-executor-agent-usage.js";
 export { getEligibleAtMs, matchesFilter } from "./run-executor-filters.js";
 
 /**

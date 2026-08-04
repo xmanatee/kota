@@ -1,7 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { classifyAgentRuntimeFailure } from "./step-executor-retry.js";
 
 describe("classifyAgentRuntimeFailure", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("classifies native CLI sandbox bootstrap failures as local runtime failures", () => {
     expect(
       classifyAgentRuntimeFailure({
@@ -176,6 +180,23 @@ describe("classifyAgentRuntimeFailure", () => {
       kind: "rate_limit",
       retryable: false,
       retryAt: new Date("Jun 1, 2026 1:01 AM").toISOString(),
+    });
+  });
+
+  it("honors a relative provider quota reset time", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-04T16:49:25.000Z"));
+
+    expect(
+      classifyAgentRuntimeFailure({
+        subtype: "antigravity_cli_error",
+        message:
+          'Agent step "review-evidence" failed (antigravity_cli_error): Individual quota reached. Resets in 1h8m23s.',
+      }),
+    ).toEqual({
+      kind: "rate_limit",
+      retryable: false,
+      retryAt: "2026-08-04T17:57:48.000Z",
     });
   });
 

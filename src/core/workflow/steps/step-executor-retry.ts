@@ -189,6 +189,23 @@ function parseCodexRetryAt(text: string): string | undefined {
   return timestamp.toISOString();
 }
 
+function parseRelativeQuotaResetAt(text: string): string | undefined {
+  const match = /\bresets in (?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?\b/i.exec(text);
+  if (
+    !match ||
+    (match[1] === undefined &&
+      match[2] === undefined &&
+      match[3] === undefined)
+  ) {
+    return undefined;
+  }
+  const hours = Number.parseInt(match[1] ?? "0", 10);
+  const minutes = Number.parseInt(match[2] ?? "0", 10);
+  const seconds = Number.parseInt(match[3] ?? "0", 10);
+  const durationMs = ((hours * 60 + minutes) * 60 + seconds) * 1000;
+  return new Date(Date.now() + durationMs).toISOString();
+}
+
 export function workflowAgentBackoffSignalFromError(
   error: AgentStepRuntimeError,
 ): WorkflowAgentBackoffSignal {
@@ -316,7 +333,9 @@ export function classifyAgentRuntimeFailure(
     /\b(?:rate limit|quota)\b/i.test(input.message) ||
     /(?:you've|you have) hit your (?:usage )?limit/i.test(input.message)
   ) {
-    const retryAt = parseCodexRetryAt(input.message);
+    const retryAt =
+      parseCodexRetryAt(input.message) ??
+      parseRelativeQuotaResetAt(input.message);
     return {
       kind: "rate_limit",
       retryable: false,
