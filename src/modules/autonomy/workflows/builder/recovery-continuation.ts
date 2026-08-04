@@ -120,9 +120,10 @@ function requestedBuilderRecovery(
   ctx: Pick<WorkflowStepContext, "projectDir" | "trigger">,
 ): WorkflowStateRecoveryClaim[] | null {
   if (ctx.trigger.event !== BUILDER_RECOVERY_EVENT) return null;
-  const { taskId, worktreeRunId, workspaceDir } = ctx.trigger.payload;
+  const { taskId, sourceRunId, worktreeRunId, workspaceDir } = ctx.trigger.payload;
   if (
     typeof taskId !== "string" ||
+    typeof sourceRunId !== "string" ||
     typeof worktreeRunId !== "string" ||
     typeof workspaceDir !== "string"
   ) {
@@ -130,6 +131,7 @@ function requestedBuilderRecovery(
   }
   return listRecoveryClaims(ctx.projectDir).filter((candidate) =>
     candidate.claim.taskId === taskId &&
+    candidate.claim.runId === sourceRunId &&
     candidate.claim.worktreeRunId === worktreeRunId &&
     preservedBuilderWorkspaceDir(candidate) === workspaceDir
   );

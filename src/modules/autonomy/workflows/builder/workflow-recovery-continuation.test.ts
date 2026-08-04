@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import type { WorkflowStateRecoveryClaim } from "#modules/workflow-ops/state-recovery-provider.js";
 import "./workflow-test-support.js";
 import { listPendingBuilderRecoveries } from "./recovery-continuation.js";
 import builderWorkflow from "./workflow.js";
@@ -11,6 +12,57 @@ import {
   makeWorkflowProject,
   resetBuilderWorkflowMocks,
 } from "./workflow-test-support.js";
+
+function preservedRecoveryCandidate(input: {
+  projectDir: string;
+  taskId: string;
+  claimRunId: string;
+  worktreeRunId: string;
+  workspaceDir: string;
+}): WorkflowStateRecoveryClaim {
+  return {
+    claim: {
+      taskId: input.taskId,
+      taskState: "ready",
+      runId: input.claimRunId,
+      worktreeRunId: input.worktreeRunId,
+      workflowId: "builder",
+      owner: "workflow:builder",
+      workspaceDir: input.workspaceDir,
+      branch: `kota/task/${input.taskId}/${input.worktreeRunId}`,
+      baseCommit: "abc1234",
+      status: "active",
+      evidence: null,
+      updatedAt: "2026-06-27T00:00:00.000Z",
+    },
+    claimPath: `${input.projectDir}/.kota/task-claims/active/${input.taskId}.json`,
+    recoveryStatus: "stale",
+    safeToRetry: false,
+    ownerRunStatus: "failed",
+    worktree: {
+      found: true,
+      metadataPath: `${input.projectDir}/.kota/worktrees/${input.taskId}-${input.worktreeRunId}.json`,
+      workspaceDir: input.workspaceDir,
+      branch: `kota/task/${input.taskId}/${input.worktreeRunId}`,
+      state: "active",
+      runState: "finished",
+      dirtyState: "dirty",
+      dirtyEntries: ["M src/recovered.ts"],
+      cleanupBlockers: ["worktree has uncommitted tracked changes"],
+      mergeStatus: "not merged",
+      headCommit: "abc1234",
+      uniqueCommits: [],
+      uniqueCommitCount: 0,
+      branchAhead: 0,
+      branchBehind: 0,
+    },
+    relatedDeadLetters: [],
+    recommendedAction: {
+      kind: "needs-review",
+      reason: "worktree contains preserved uncommitted changes",
+    },
+  };
+}
 
 describe("builder preserved-work continuation", () => {
   beforeEach(async () => {
@@ -51,48 +103,13 @@ describe("builder preserved-work continuation", () => {
       preservedEvidence.findPreservedBuilderEvidenceRunId,
     ).mockReturnValue(worktreeRunId);
     vi.mocked(recovery.listRecoveryClaims).mockReturnValue([
-      {
-        claim: {
-          taskId,
-          taskState: "ready",
-          runId: claimRunId,
-          worktreeRunId,
-          workflowId: "builder",
-          owner: "workflow:builder",
-          workspaceDir,
-          branch: `kota/task/${taskId}/${worktreeRunId}`,
-          baseCommit: "abc1234",
-          status: "active",
-          evidence: null,
-          updatedAt: "2026-06-27T00:00:00.000Z",
-        },
-        claimPath: `${projectDir}/.kota/task-claims/active/${taskId}.json`,
-        recoveryStatus: "stale",
-        safeToRetry: false,
-        ownerRunStatus: "failed",
-        worktree: {
-          found: true,
-          metadataPath: `${projectDir}/.kota/worktrees/${taskId}-${worktreeRunId}.json`,
-          workspaceDir,
-          branch: `kota/task/${taskId}/${worktreeRunId}`,
-          state: "active",
-          runState: "finished",
-          dirtyState: "dirty",
-          dirtyEntries: ["M src/recovered.ts"],
-          cleanupBlockers: ["worktree has uncommitted tracked changes"],
-          mergeStatus: "not merged",
-          headCommit: "abc1234",
-          uniqueCommits: [],
-          uniqueCommitCount: 0,
-          branchAhead: 0,
-          branchBehind: 0,
-        },
-        relatedDeadLetters: [],
-        recommendedAction: {
-          kind: "needs-review",
-          reason: "worktree contains preserved uncommitted changes",
-        },
-      },
+      preservedRecoveryCandidate({
+        projectDir,
+        taskId,
+        claimRunId,
+        worktreeRunId,
+        workspaceDir,
+      }),
     ]);
     if (boundedContinuation) {
       const finalizerDir = join(projectDir, ".kota", "runs", claimRunId);
@@ -118,7 +135,7 @@ describe("builder preserved-work continuation", () => {
         event,
         payload: {
           taskId,
-          sourceRunId: worktreeRunId,
+          sourceRunId: claimRunId,
           worktreeRunId,
           workspaceDir,
           reason: `preserved builder work from ${worktreeRunId} requires recovery`,
@@ -151,5 +168,46 @@ describe("builder preserved-work continuation", () => {
     });
     expect(result.steps["release-task-claim"].status).toBe("success");
     expect(result.steps["cleanup-automation-worktree"].status).toBe("success");
+  });
+
+  it("ignores a recovery request after claim ownership advances", async () => {
+    const projectDir = makeWorkflowProject(makeEmptySnapshot());
+    const taskId = "task-claimed";
+    const worktreeRunId = "run-failed";
+    const workspaceDir = `${projectDir}/.worktrees/${taskId}-${worktreeRunId}`;
+    const recovery = await import(
+      "#modules/autonomy/workflow-state-recovery-claims.js"
+    );
+    vi.mocked(recovery.listRecoveryClaims).mockReturnValue([
+      preservedRecoveryCandidate({
+        projectDir,
+        taskId,
+        claimRunId: "run-new-owner",
+        worktreeRunId,
+        workspaceDir,
+      }),
+    ]);
+
+    const result = await new WorkflowTestHarness(builderWorkflow, {
+      projectDir,
+      trigger: {
+        event: "autonomy.builder.recovery.requested",
+        payload: {
+          taskId,
+          sourceRunId: "run-stale-owner",
+          worktreeRunId,
+          workspaceDir,
+          idempotencyKey: "builder-recovery:run-stale-owner",
+          reason: "stale preserved-work request",
+        },
+      },
+    }).run();
+
+    expect(result.status, result.error).toBe("success");
+    expect(result.steps["claim-task"].output).toMatchObject({
+      claimed: false,
+      recoveryPath: "no-actionable-task",
+    });
+    expect(result.steps.build.status).toBe("skipped");
   });
 });
