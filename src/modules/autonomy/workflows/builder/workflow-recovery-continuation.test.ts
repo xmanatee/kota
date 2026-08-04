@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import type { WorkflowStateRecoveryClaim } from "#modules/workflow-ops/state-recovery-provider.js";
 import "./workflow-test-support.js";
-import { listPendingBuilderRecoveries } from "./recovery-continuation.js";
+import {
+  claimPendingBuilderRecovery,
+  listPendingBuilderRecoveries,
+} from "./recovery-continuation.js";
 import builderWorkflow from "./workflow.js";
 import {
   makeEmptySnapshot,
@@ -76,21 +79,12 @@ describe("builder preserved-work continuation", () => {
       boundedContinuation: false,
     },
     {
-      label: "ordinary queue dispatch",
-      event: "autonomy.queue.available",
-      boundedContinuation: false,
-    },
-    {
       label: "an explicit retry after the automatic continuation bound",
       event: "autonomy.builder.recovery.requested",
       boundedContinuation: true,
     },
   ])("finishes preserved work through $label", async ({ event, boundedContinuation }) => {
-    const projectDir = makeWorkflowProject(
-      event === "autonomy.queue.available"
-        ? makeSnapshot(1, 0)
-        : makeEmptySnapshot(),
-    );
+    const projectDir = makeWorkflowProject(makeEmptySnapshot());
     const taskId = "task-claimed";
     const worktreeRunId = "run-failed";
     const claimRunId = boundedContinuation ? "run-failed-continuation" : worktreeRunId;
@@ -209,5 +203,31 @@ describe("builder preserved-work continuation", () => {
       recoveryPath: "no-actionable-task",
     });
     expect(result.steps.build.status).toBe("skipped");
+  });
+
+  it("keeps preserved claims out of ordinary queue dispatch", async () => {
+    const projectDir = makeWorkflowProject(makeSnapshot(1, 0));
+    const recovery = await import(
+      "#modules/autonomy/workflow-state-recovery-claims.js"
+    );
+
+    const result = claimPendingBuilderRecovery({
+      projectDir,
+      trigger: {
+        event: "autonomy.queue.available",
+        schemaRef: null,
+        payload: {},
+      },
+      workflow: {
+        name: "builder",
+        definitionPath: "test",
+        runId: "run-ordinary",
+        runDir: ".kota/runs/run-ordinary",
+        runDirPath: `${projectDir}/.kota/runs/run-ordinary`,
+      },
+    });
+
+    expect(result).toBeNull();
+    expect(recovery.listRecoveryClaims).not.toHaveBeenCalled();
   });
 });

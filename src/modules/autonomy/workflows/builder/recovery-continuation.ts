@@ -137,12 +137,6 @@ function requestedBuilderRecovery(
   );
 }
 
-function recoveryCandidates(
-  ctx: Pick<WorkflowStepContext, "projectDir" | "trigger">,
-): WorkflowStateRecoveryClaim[] {
-  return requestedBuilderRecovery(ctx) ?? listPendingBuilderRecoveries(ctx.projectDir);
-}
-
 function continuedClaimResult(
   projectDir: string,
   claim: TaskClaim,
@@ -183,16 +177,14 @@ function continueRecoveryCandidate(
 export function claimPendingBuilderRecovery(
   ctx: Pick<WorkflowStepContext, "projectDir" | "trigger" | "workflow">,
 ): QueueTaskClaimResult | null {
-  const candidates = recoveryCandidates(ctx);
-  const requested = ctx.trigger.event === BUILDER_RECOVERY_EVENT;
+  const candidates = requestedBuilderRecovery(ctx);
+  if (candidates === null) return null;
   const skipped: ClaimTaskAttempt[] = [];
   for (const candidate of candidates) {
     const attempt = continueRecoveryCandidate(
       ctx,
       candidate,
-      requested
-        ? `builder accepted requested recovery for ${candidate.claim.worktreeRunId}`
-        : `builder selected oldest pending recovery from ${candidate.claim.runId}`,
+      `builder accepted requested recovery for ${candidate.claim.worktreeRunId}`,
     );
     if (attempt.claimed && attempt.claim) {
       return continuedClaimResult(
