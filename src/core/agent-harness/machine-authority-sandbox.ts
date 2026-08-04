@@ -28,6 +28,8 @@ export type NativeCliSandboxProcess = {
 
 const LINUX_BUBBLEWRAP_PATHS = ["/usr/bin/bwrap", "/bin/bwrap"] as const;
 const MACOS_SANDBOX_EXEC_PATH = "/usr/bin/sandbox-exec";
+// Git sanitizes its standard descriptors through this sink before every command.
+const MACOS_WRITABLE_DEVICE_PATHS = ["/dev/null"] as const;
 
 function authorityPaths(authorityConfigPath?: string): {
   configDirectories: string[];
@@ -72,7 +74,12 @@ function macosProfile(
       ? []
       : [
           "(deny file-write*)",
-          `(allow file-write* ${sandboxPathSelectors(writableRoots).join(" ")})`,
+          `(allow file-write* ${[
+            ...MACOS_WRITABLE_DEVICE_PATHS.map(
+              (path) => `(literal ${JSON.stringify(path)})`,
+            ),
+            ...sandboxPathSelectors(writableRoots),
+          ].join(" ")})`,
         ]),
     `(deny file-write* ${[...protectedDirectories, ...protectedTokens].join(" ")})`,
     `(deny file-read* ${protectedTokens.join(" ")})`,

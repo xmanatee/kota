@@ -1,13 +1,13 @@
 ---
 id: task-resolve-the-stale-scope-policy-builder-recovery-cl
 title: Resolve the stale scope-policy builder recovery claim
-status: ready
+status: done
 priority: p1
 area: autonomy
 task_class: Meta
 summary: Reconcile the preserved builder worktree and stale claim for the revisioned scope-policy authority task, then exercise the nested-sandbox recovery change in a fresh builder run. Resolve both current dead letters based on that outcome without discarding valid preserved work.
 created_at: 2026-08-03T20:25:48.642Z
-updated_at: 2026-08-03T20:25:48.642Z
+updated_at: 2026-08-04T04:52:03.453Z
 ---
 
 ## Problem
@@ -58,3 +58,31 @@ Outcome-aware autonomy progress review.
 - Review-provided acceptance evidence:
 
     A fresh builder recovery run either lands the revisioned scope-policy authority task or releases/supersedes its claim with a durable disposition for preserved work; both cited dead letters have recorded final dispositions; the run no longer terminates with native_cli_sandbox_error; and dispatcher evidence no longer reports the task as an active stale recovery claim.
+
+## Resolution Evidence
+
+- `task-add-revisioned-observable-scope-policy-authority` is in `done/` with
+  its focused 12-file, 173-test verification recorded.
+- Builder run `2026-08-03T19-07-18-625Z-builder-nijy1h` completed the affected
+  work and released its task claim. Dead letter
+  `dlq-d02c2bcd-1bf3-4efc-aad8-83ec0158ddc1` records that run as its
+  superseding disposition.
+- The canonical `kota workflow dlq dismiss` command dismissed the duplicate
+  `dlq-f8850033-6708-4c59-8dd6-36717e7f6cbc` on 2026-08-04 with the same
+  successful builder run, completed task, and current dispatcher evidence as
+  its rationale.
+- Dispatcher run `2026-08-04T04-04-50-401Z-dispatcher-fsf6w5` reports
+  `builderRecoveryCandidateCount: 0` and an empty
+  `builderRecoveryRequested` list. The cited stale recovery claim is no longer
+  active.
+- The overlapping follow-up
+  `task-reconcile-the-remediated-native-sandbox-builder-de` remains unchanged
+  in `ready/` for a separately claimed run; this commit does not complete it.
+- This fresh builder run exposed a narrower follow-on defect before staging:
+  the bounded macOS native-CLI profile denied Git's required `/dev/null`
+  descriptor sanitization. The profile now permits writes only to that inert
+  device in addition to declared roots. Focused verification passed:
+  `NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true --reporter=dot src/modules/execution/machine-authority-sandbox.test.ts -t "gives native CLIs bounded workspace writes"` (1 test passed).
+  Broader verification also passed for the machine-authority sandbox and Codex
+  adapter (2 files, 19 tests), and Biome reported no issues in the two changed
+  source files.

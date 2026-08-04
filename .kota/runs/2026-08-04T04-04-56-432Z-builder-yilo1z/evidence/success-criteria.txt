@@ -1,0 +1,2 @@
+1. Reconcile the cited scope-policy builder recovery state: the authority task is complete, both dead letters have durable final dispositions, and current dispatcher evidence has no stale recovery claim.
+2. Record reviewable acceptance evidence for the reconciliation and verify the bounded native-CLI sandbox correction discovered by this fresh builder run.

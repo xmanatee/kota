@@ -1,0 +1,25 @@
+Host-index replay required.
+
+The native builder sandbox protects the linked worktree's real Git metadata. The exact commit set was therefore staged and validated with a workspace-local GIT_INDEX_FILE and GIT_OBJECT_DIRECTORY plus the host object store in GIT_ALTERNATE_OBJECT_DIRECTORIES.
+
+Validated staged set:
+- rename data/tasks/ready/task-resolve-the-stale-scope-policy-builder-recovery-cl.md to data/tasks/done/task-resolve-the-stale-scope-policy-builder-recovery-cl.md
+- modify src/core/agent-harness/machine-authority-sandbox.ts
+- modify src/modules/execution/machine-authority-sandbox.test.ts
+- add the claimed run's screened decision and protocol evidence under .kota/runs/2026-08-04T04-04-56-432Z-builder-yilo1z/evidence/
+
+The separately owned task-reconcile-the-remediated-native-sandbox-builder-de
+remains byte-for-byte at its HEAD path in data/tasks/ready/ and is absent from
+the staged set.
+
+The terminal host step must replay git add -A into the real worktree index before committing; isolated staging did not update that index.
+
+Repair attempt 6 reversed the prior foreign-task transition through the
+canonical task command using the workspace-local index, then restored its
+ready record exactly from HEAD. The claimed task and run evidence were also
+corrected so they no longer assert that the foreign task was completed.
+
+An ordinary `git add -A` replay reached the protected linked-worktree metadata
+but was denied creation of the host `index.lock` with `Operation not
+permitted`. The claimed-task-only set was therefore re-staged and revalidated
+in the workspace-local index for terminal host replay.

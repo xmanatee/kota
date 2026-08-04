@@ -49,7 +49,8 @@ describe("machine authority execution sandbox", () => {
     if (!launch.ok) return;
     const profile = launch.args[1]!;
     expect(profile).toContain("(deny file-write*)");
-    expect(profile).toContain('(allow file-write* (literal "/project")');
+    expect(profile).toContain('(allow file-write* (literal "/dev/null")');
+    expect(profile).toContain('(literal "/project")');
     expect(profile).toContain('(literal "/private/tmp/kota-native-cli")');
     expect(profile).toContain(
       '(deny file-write* (literal "/Users/operator/.kota")',
