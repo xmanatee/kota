@@ -1,0 +1,5 @@
+1. Primary and repair workflow agent runs pass an accessor backed by the canonical revisioned scope-policy authority to every KOTA-hosted tool loop.
+2. Hosted authorization reads the accessor for each invocation and applies the current scope policy and autonomy cap without weakening effect, approval, or native-harness invalidation rails.
+3. One active workflow agent step can make an allowed hosted write, observe a restrictive authority revision, and receive a denial for the next identical call without invoking the tool again.
+4. Focused tests cover representative write, module, network, and autonomy restrictions through the shared live authorization boundary, including option projection and Claude intercepted-tool authorization.
+5. The task records the final focused verification command and its passing result.

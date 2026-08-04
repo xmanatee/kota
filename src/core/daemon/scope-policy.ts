@@ -3,6 +3,7 @@ export type {
   RestrictiveScopePolicyChangeListener,
   ScopePolicyAuthority,
   ScopePolicySnapshot,
+  ScopePolicySnapshotAccessor,
 } from "./scope-policy-authority.js";
 export { capScopeAutonomyMode } from "./scope-policy-autonomy.js";
 export {

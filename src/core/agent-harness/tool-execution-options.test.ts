@@ -23,6 +23,7 @@ describe("agentHarnessToolExecutionOptions", () => {
     const tokenBudget = {} as NonNullable<
       AgentHarnessRunOptions["tokenBudget"]
     >;
+    const getScopePolicySnapshot = vi.fn();
     const options: AgentHarnessRunOptions = {
       prompt: "go",
       effort: "xhigh",
@@ -35,6 +36,7 @@ describe("agentHarnessToolExecutionOptions", () => {
       disallowedTools: ["denied"],
       canUseTool,
       guardrailsConfig,
+      getScopePolicySnapshot,
       clientApprovalResolver,
       approvalQueue,
       idempotencyStore,
@@ -62,6 +64,7 @@ describe("agentHarnessToolExecutionOptions", () => {
       verbose: true,
       autonomyMode: "supervised",
       guardrailsConfig,
+      getScopePolicySnapshot,
       clientApprovalResolver,
       approvalQueue,
       sessionId: "session-a",

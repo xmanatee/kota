@@ -1,14 +1,14 @@
 ---
 id: task-reauthorize-every-kota-hosted-workflow-tool-call-a
 title: Reauthorize every KOTA-hosted workflow tool call against live scope policy
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Move hosted-tool authorization from the agent-step snapshot to the current revisioned authority at each invocation boundary.
 depends_on: [task-add-revisioned-observable-scope-policy-authority]
 created_at: 2026-08-03T13:16:46.780Z
-updated_at: 2026-08-03T13:16:46.780Z
+updated_at: 2026-08-04T03:47:15.000Z
 ---
 
 ## Problem
@@ -49,3 +49,11 @@ Decomposed from `task-security-review-workflow-agent-steps-snapshot-scop` after 
 - A controlled active-step regression showing allow, restrictive mutation, then denial of the next identical hosted tool call.
 - An assertion that the denied call never reaches the hosted tool implementation.
 - A recorded passing focused test command.
+
+## Verification
+
+`TMPDIR="$PWD/.kota/tmp" NODE_OPTIONS=--conditions=source node_modules/.bin/vitest run --configLoader runner --silent=true --reporter=dot src/e2e-advanced.test.ts src/core/tools/tool-runner-live-scope-policy.test.ts src/core/agent-harness/tool-execution-options.test.ts src/core/workflow/run-executor-hosted-scope-policy.test.ts src/core/workflow/run-executor-scope-policy.test.ts src/core/workflow/steps/step-context-scope-policy.test.ts src/modules/claude-agent-harness/scope-policy-guard.test.ts src/modules/claude-agent-harness/adapter.test.ts src/core/tools/delegate-turn.test.ts src/core/tools/delegate-runtime-context.test.ts src/core/tools/delegate.test.ts`
+
+Passed after repair attempt 9 on 2026-08-04: the live-policy, direct workflow-context, delegate, Claude adapter, and advanced E2E suite passed 11 files and 46 tests. The direct `ctx.runTool("delegate")` regression permits one child write, restricts the live authority, denies the next identical child call, and proves the child runner executes only once. The advanced E2E fixtures keep real file mutations under the project root so shared guardrails test the intended operation instead of correctly denying an unrelated out-of-project temp path. `node_modules/.bin/tsc --noEmit` and focused Biome also passed.
+
+Passed after repair attempt 11 on 2026-08-04: the same focused suite passed 11 files and 47 tests after `createStepContext` began binding live authority, approval routing, and workflow trace identity around direct KOTA-hosted `ctx.runAgentHarness` calls. The new direct-harness regression keeps one hosted run active across an allow-to-deny revision, confirms the second identical write is denied, and proves its implementation executes only once. `node_modules/.bin/tsc --noEmit` and focused Biome also passed.

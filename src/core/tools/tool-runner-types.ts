@@ -1,6 +1,7 @@
 import type {
 	KotaJsonObject,
 	KotaMessage,
+	KotaToolInputSchema,
 	KotaToolUseBlock,
 } from "#core/agent-harness/message-protocol.js";
 import type { AgentCanUseTool } from "#core/agent-harness/run-option-types.js";
@@ -8,7 +9,10 @@ import type { AgentTokenBudgetLedger } from "#core/agent-harness/token-budget.js
 import type { AgentHarnessWorkflowContext } from "#core/agent-harness/types.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
-import type { ResolvedScopePolicy } from "#core/daemon/scope-policy.js";
+import type {
+	ResolvedScopePolicy,
+	ScopePolicySnapshotAccessor,
+} from "#core/daemon/scope-policy.js";
 import type { Transport } from "#core/loop/transport.js";
 import type {
 	McpInputResolver,
@@ -16,7 +20,12 @@ import type {
 } from "#core/mcp/manager.js";
 import type { AutonomyMode } from "./autonomy-mode.js";
 import type { GuardrailsConfig } from "./guardrails.js";
-import type { ToolResultBlock } from "./index.js";
+import type {
+	ToolResult,
+	ToolResultBlock,
+	ToolRunner,
+	ToolRunnerContext,
+} from "./index.js";
 import type { ToolApprovalResolver } from "./tool-approval.js";
 import type { ValidatedToolCallInput } from "./tool-input-validation.js";
 
@@ -36,6 +45,17 @@ export type ToolResultEntry = {
 
 export type McpPromptToolDeclarationFingerprints = ReadonlyMap<string, string>;
 
+export type LocalToolExecutor = (
+	name: string,
+	input: Parameters<ToolRunner>[0],
+	context?: ToolRunnerContext,
+) => Promise<ToolResult>;
+
+export type LocalToolExecution = {
+	inputSchemas: ReadonlyMap<string, KotaToolInputSchema>;
+	execute: LocalToolExecutor;
+};
+
 export type ToolCallExecutionOptions = {
 	resultLimit: number;
 	verbose: boolean;
@@ -47,6 +67,7 @@ export type ToolCallExecutionOptions = {
 	transport?: Transport;
 	guardrailsConfig?: GuardrailsConfig;
 	scopePolicy?: ResolvedScopePolicy;
+	getScopePolicySnapshot?: ScopePolicySnapshotAccessor;
 	clientApprovalResolver?: ToolApprovalResolver;
 	sessionId?: string;
 	cwd?: string;
@@ -62,6 +83,8 @@ export type ToolCallExecutionOptions = {
 	canUseTool?: AgentCanUseTool;
 	allowedTools?: readonly string[];
 	disallowedTools?: readonly string[];
+	/** Exact advertised schemas and runner wrappers for a nested hosted loop. */
+	localToolExecution?: LocalToolExecution;
 };
 
 export type ExecuteToolBlock = (block: ValidatedToolUseBlock) => Promise<ToolResultEntry>;

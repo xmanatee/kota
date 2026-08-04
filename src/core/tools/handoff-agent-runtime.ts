@@ -5,6 +5,10 @@ import type {
   AgentTokenBudgetLedger,
 } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
+import type {
+  ResolvedScopePolicy,
+  ScopePolicySnapshotAccessor,
+} from "#core/daemon/scope-policy.js";
 import type { Transport } from "#core/loop/transport.js";
 import type { ModelProviderSelection } from "#core/model/model-client.js";
 import type { ModelOutputTokenLimits } from "#core/model/output-token-limits.js";
@@ -20,6 +24,8 @@ export type HandoffAgentRuntime = {
   env?: Record<string, string>;
   delegateBudget: DelegateBudget;
   canUseTool?: AgentCanUseTool;
+  scopePolicy?: ResolvedScopePolicy;
+  getScopePolicySnapshot?: ScopePolicySnapshotAccessor;
   askOwner?: AgentAskOwnerOptions;
   tokenBudget?: AgentTokenBudgetLedger;
   transport?: Transport;

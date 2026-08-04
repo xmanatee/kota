@@ -18,6 +18,7 @@ import {
   EXPLORE_PROMPT,
   type PromptConfig,
 } from "#core/agents/delegate-prompts.js";
+import { capScopeAutonomyMode } from "#core/daemon/scope-policy.js";
 import type { CostTracker } from "#core/loop/cost.js";
 import type { Transport } from "#core/loop/transport.js";
 import type { ModelProviderSelection } from "#core/model/model-client.js";
@@ -28,6 +29,7 @@ import {
   type DelegateMetadata,
 } from "./delegate-format.js";
 import type { ToolResult } from "./index.js";
+import { getCurrentToolCallExecutionOptions } from "./tool-runner-runtime.js";
 
 const EXPLORE_HARNESS_TOOLS = [
   "Read",
@@ -93,6 +95,13 @@ export async function runDelegateHarness(
   }
   const harnessName = config.harness;
   const harness = resolveAgentHarness(harnessName);
+  const inheritedToolExecution = getCurrentToolCallExecutionOptions();
+  const scopePolicy = inheritedToolExecution?.getScopePolicySnapshot?.().policy
+    ?? inheritedToolExecution?.scopePolicy;
+  const inheritedAutonomyMode = inheritedToolExecution?.autonomyMode ?? "autonomous";
+  const autonomyMode = scopePolicy
+    ? capScopeAutonomyMode(inheritedAutonomyMode, scopePolicy)
+    : inheritedAutonomyMode;
 
   if (transport) {
     transport.emit({
@@ -108,8 +117,28 @@ export async function runDelegateHarness(
       ...(config.modelProvider !== undefined ? { modelProvider: config.modelProvider } : {}),
       modelOutputTokenLimits: config.modelOutputTokenLimits,
       systemPrompt,
-      ...routeKotaToolControlOptions(harness, { allowedTools }),
-      autonomyMode: "autonomous",
+      ...routeKotaToolControlOptions(harness, {
+        allowedTools,
+        canUseTool: inheritedToolExecution?.canUseTool,
+        scopePolicy,
+        getScopePolicySnapshot: inheritedToolExecution?.getScopePolicySnapshot,
+      }),
+      ...(inheritedToolExecution?.guardrailsConfig !== undefined
+        ? { guardrailsConfig: inheritedToolExecution.guardrailsConfig }
+        : {}),
+      ...(inheritedToolExecution?.clientApprovalResolver !== undefined
+        ? { clientApprovalResolver: inheritedToolExecution.clientApprovalResolver }
+        : {}),
+      ...(inheritedToolExecution?.approvalQueue !== undefined
+        ? { approvalQueue: inheritedToolExecution.approvalQueue }
+        : {}),
+      ...(inheritedToolExecution?.idempotencyStore !== undefined
+        ? { idempotencyStore: inheritedToolExecution.idempotencyStore }
+        : {}),
+      ...(inheritedToolExecution?.authorityConfigPath !== undefined
+        ? { authorityConfigPath: inheritedToolExecution.authorityConfigPath }
+        : {}),
+      autonomyMode,
       cwd: config.cwd ?? process.cwd(),
       effort: "xhigh",
       tokenBudget: config.tokenBudget,

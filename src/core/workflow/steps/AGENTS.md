@@ -8,7 +8,8 @@ This directory owns step execution strategies and context construction.
 - Each `step-executor-<type>.ts` implements one step type strategy (agent,
   approval, branch, foreach, parallel, retry classification, trigger).
 - `step-context.ts` constructs `WorkflowStepContext`; workflow-owned judges,
-  reviewers, and resolvers use `ctx.runAgentHarness` for capacity and cancellation.
+  reviewers, and resolvers use `ctx.runAgentHarness` for capacity, cancellation,
+  workflow tracing, and live hosted-tool scope authority.
 
 New step types add a new strategy file here and a dispatch case in
 `step-executor.ts`.
@@ -28,8 +29,7 @@ writeScope contract; everything else is a phase file:
   artifact derived from KOTA-native message frames.
 - `step-executor-agent-tool-scope.ts` — autonomy-mode → allowed/disallowed
   tool decisions (autonomous, supervised, passive).
-- `step-executor-agent-scope-policy.ts` — live authority monitoring that aborts
-  primary and repair harness attempts when a newer policy removes capability.
+- `step-executor-agent-scope-policy.ts` — reauthorizes hosted calls and aborts native agents if policy tightens.
 - `step-executor-agent-json.ts` — fenced extraction, JSON/schema errors, and validation.
 
 New internals land in phase files. The orchestrator keeps harness dispatch,

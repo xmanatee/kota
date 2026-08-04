@@ -1,6 +1,9 @@
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
-import type { ResolvedScopePolicy } from "#core/daemon/scope-policy.js";
+import type {
+  ResolvedScopePolicy,
+  ScopePolicySnapshotAccessor,
+} from "#core/daemon/scope-policy.js";
 import type { ModelProviderSelection } from "#core/model/model-client.js";
 import type { ModelOutputTokenLimits } from "#core/model/output-token-limits.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
@@ -165,8 +168,14 @@ export type AgentHarnessRunOptions = {
    * shared KOTA tool runner.
    */
   guardrailsConfig?: GuardrailsConfig;
-  /** Live machine-owned policy resolved for the directory scope running this agent. */
+  /** Policy resolved when the harness run starts, used for discovery and native setup. */
   scopePolicy?: ResolvedScopePolicy;
+  /**
+   * Current machine-owned authority for KOTA-hosted tool authorization. Hosted
+   * loops call this immediately before every invocation instead of retaining
+   * the run-start policy snapshot.
+   */
+  getScopePolicySnapshot?: ScopePolicySnapshotAccessor;
   clientApprovalResolver?: ToolApprovalResolver;
 	approvalQueue?: ApprovalQueue;
   idempotencyStore?: IdempotencyStore;

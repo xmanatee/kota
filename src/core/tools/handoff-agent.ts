@@ -11,6 +11,7 @@ import {
   buildAgentHandoffPrompt,
   resolveAgentToolPolicy,
 } from "#core/agents/handoff.js";
+import { capScopeAutonomyMode } from "#core/daemon/scope-policy.js";
 import {
   diffMutatedPaths,
   findWriteScopeViolations,
@@ -88,6 +89,10 @@ export async function runHandoffAgent(
 
   const runtime = resolveHandoffRuntime();
   if (isErrorResult(runtime)) return runtime;
+  const scopePolicy = runtime.getScopePolicySnapshot?.().policy ?? runtime.scopePolicy;
+  const effectiveAutonomyMode = scopePolicy
+    ? capScopeAutonomyMode(autonomyMode, scopePolicy)
+    : autonomyMode;
   const agent = runtime.resolveAgentDef(agentName);
   if (!agent) {
     return errorResult(`unknown registered agent "${agentName}"`);
@@ -106,7 +111,7 @@ export async function runHandoffAgent(
   if (isErrorResult(resolvedToolPolicy)) return resolvedToolPolicy;
   const askOwnerToolName = runtime.askOwner !== undefined ? harness.askOwnerToolName : null;
   const toolScope = resolveHandoffToolScope(
-    autonomyMode,
+    effectiveAutonomyMode,
     resolvedToolPolicy,
     askOwnerToolName,
   );
@@ -138,7 +143,7 @@ export async function runHandoffAgent(
         ...(inputSchema !== undefined ? { inputSchema } : {}),
         ...(outputSchema !== undefined ? { outputSchema } : {}),
         scope,
-        autonomyMode,
+        autonomyMode: effectiveAutonomyMode,
         budget: {
           maxTurns: budget.maxTurns,
           ...(budget.maxTotalTokens !== undefined
@@ -179,13 +184,15 @@ export async function runHandoffAgent(
           ...(runtime.env !== undefined ? { env: runtime.env } : {}),
           effort: agent.effort,
           maxTurns: budget.maxTurns,
-          autonomyMode,
+          autonomyMode: effectiveAutonomyMode,
           persistSession: mode === "transfer",
           ...(resumeSessionId !== undefined ? { resumeSessionId } : {}),
           ...routeKotaToolControlOptions(harness, {
             allowedTools: toolScope.allowedTools,
             disallowedTools: toolScope.disallowedTools,
             canUseTool: runtime.canUseTool,
+            scopePolicy,
+            getScopePolicySnapshot: runtime.getScopePolicySnapshot,
           }),
           ...(runtime.askOwner !== undefined ? { askOwner: runtime.askOwner } : {}),
           abortController: createChildAbortController(context),

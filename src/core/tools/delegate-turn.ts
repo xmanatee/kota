@@ -38,6 +38,7 @@ import type {
   ToolRunner,
   ToolRunnerContext,
 } from "./index.js";
+import type { ToolCallExecutionOptions } from "./tool-runner.js";
 
 export type TurnLoopOptions = {
   client: ModelClient;
@@ -55,6 +56,7 @@ export type TurnLoopOptions = {
   transport: Transport | undefined;
   costTracker: CostTracker | undefined;
   tokenBudget?: AgentTokenBudgetLedger;
+  toolExecutionOptions?: ToolCallExecutionOptions;
   modifiedFiles: Set<string>;
   collectedImages: ToolResultBlock[];
   toolsUsed: Set<string>;
@@ -74,7 +76,8 @@ export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopR
   const {
     client, messages, systemBlocks, tools, runners, runnerContext, mcpMgr, isExecute,
     selectedModel, modelOutputTokenLimits, maxTurns, mode, transport, costTracker,
-    tokenBudget, modifiedFiles, collectedImages, toolsUsed, urlsFetched, searchQueries,
+    tokenBudget, toolExecutionOptions, modifiedFiles, collectedImages, toolsUsed,
+    urlsFetched, searchQueries,
   } = opts;
   const outputTokenLimit = resolveModelOutputTokenLimit(
     selectedModel,
@@ -205,10 +208,13 @@ export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopR
 
     const validResults = await executeDelegateToolBlocks({
       toolBlocks,
+      tools,
       runners,
       runnerContext,
+      toolExecutionOptions,
       mcpMgr,
       isExecute,
+      messages,
       modifiedFiles,
       urlsFetched,
       searchQueries,

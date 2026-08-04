@@ -4,6 +4,7 @@ import { executeToolCallSchedule } from "./tool-call-schedule.js";
 import {
 	type ValidatedToolCallInput,
 	validateToolCallInput,
+	validateToolCallInputAgainstSchema,
 } from "./tool-input-validation.js";
 import { throwIfToolRunnerAborted } from "./tool-runner-abort.js";
 import { executeToolBlock } from "./tool-runner-execute-block.js";
@@ -31,6 +32,17 @@ export class ToolPermissionInterruptedError extends Error {
 
 function errorEntry(block: ToolUseBlock, content: string): ToolResultEntry {
 	return { tool_use_id: block.id, content, is_error: true };
+}
+
+function validateInput(
+	block: ToolUseBlock,
+	value: ToolUseBlock["input"],
+	options: ToolCallExecutionOptions,
+): ReturnType<typeof validateToolCallInput> {
+	const localSchema = options.localToolExecution?.inputSchemas.get(block.name);
+	return localSchema
+		? validateToolCallInputAgainstSchema(block.name, value, localSchema)
+		: validateToolCallInput(block.name, value, options.mcpManager);
 }
 
 function staleResultEntry(
@@ -102,7 +114,7 @@ async function preparePermissionedToolCall(
 		}
 		return { kind: "result", originalIndex, result: canUseTool.result };
 	}
-	const validated = validateToolCallInput(block.name, canUseTool.input, options.mcpManager);
+	const validated = validateInput(block, canUseTool.input, options);
 	if (!validated.ok) {
 		return {
 			kind: "result",
@@ -164,7 +176,7 @@ function prepareToolCall(
 			};
 		}
 	}
-	const validated = validateToolCallInput(block.name, block.input, options.mcpManager);
+	const validated = validateInput(block, block.input, options);
 	if (!validated.ok) {
 		return {
 			kind: "result",

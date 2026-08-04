@@ -1,3 +1,4 @@
+import { capScopeAutonomyMode } from "#core/daemon/scope-policy.js";
 import { tryEmit } from "#core/events/event-bus.js";
 import type { McpExecuteToolOptions } from "#core/mcp/manager.js";
 import { confirmAction } from "#core/util/confirm.js";
@@ -20,6 +21,7 @@ import { enqueueToolApproval } from "./tool-runner-approval-queue.js";
 import { executeToolWithIdempotency } from "./tool-runner-idempotency.js";
 import { staleMcpDeclarationResult } from "./tool-runner-mcp.js";
 import { recordToolExecutionMetric } from "./tool-runner-metrics.js";
+import { withToolCallExecutionOptions } from "./tool-runner-runtime.js";
 import { enforceToolScopePolicy } from "./tool-runner-scope-policy.js";
 import type {
 	ToolCallExecutionOptions,
@@ -130,10 +132,15 @@ export async function executeToolBlock(
 		return { outcome: "blocked", result: errorEntry(block, `Blocked by client approval: ${decision.message}`) };
 	};
 
-	if (options.scopePolicy) {
+	// The accessor returns an atomic policy-and-revision pair. Never retain its
+	// policy across invocations: a later call must observe a restrictive commit.
+	const scopePolicySnapshot = options.getScopePolicySnapshot?.();
+	const scopePolicy = scopePolicySnapshot?.policy ?? options.scopePolicy;
+	if (scopePolicy) {
 		const scopePolicyResult = await enforceToolScopePolicy({
 			block,
 			options,
+			policy: scopePolicy,
 			risk: assessment.risk,
 			askClientApproval,
 			emitAssessment: emitGuardrailAssessment,
@@ -141,7 +148,10 @@ export async function executeToolBlock(
 		if (scopePolicyResult) return scopePolicyResult;
 	}
 
-	const autonomyDecision = resolveAutonomyGate(autonomyMode, assessment);
+	const effectiveAutonomyMode = scopePolicy
+		? capScopeAutonomyMode(autonomyMode, scopePolicy)
+		: autonomyMode;
+	const autonomyDecision = resolveAutonomyGate(effectiveAutonomyMode, assessment);
 	if (autonomyDecision.action === "deny") {
 		emitGuardrailAssessment("deny", autonomyDecision.message);
 		return errorEntry(block, autonomyDecision.message);
@@ -271,7 +281,8 @@ export async function executeToolBlock(
 		);
 		if (dispatchStaleResult) return dispatchStaleResult;
 		if (!mcpManager?.isMcpTool(executionCall.name)) {
-			return executeTool(executionCall.name, executionCall.input, runnerContext);
+			const executeLocalTool = options.localToolExecution?.execute ?? executeTool;
+			return executeLocalTool(executionCall.name, executionCall.input, runnerContext);
 		}
 		const mcpOptions: McpExecuteToolOptions = {};
 		if (mcpInputResolver) mcpOptions.inputResolver = mcpInputResolver;
@@ -280,11 +291,13 @@ export async function executeToolBlock(
 			? mcpManager.executeTool(executionCall.name, executionCall.input, mcpOptions)
 			: mcpManager.executeTool(executionCall.name, executionCall.input);
 	};
-	const result = await executeToolWithIdempotency(
-		block,
-		input,
-		idempotencyStore,
-		() => getToolMiddleware().execute(call, baseFn),
+	const result = await withToolCallExecutionOptions(options, () =>
+		executeToolWithIdempotency(
+			block,
+			input,
+			idempotencyStore,
+			() => getToolMiddleware().execute(call, baseFn),
+		),
 	);
 	throwIfToolRunnerAborted(signal);
 	recordToolExecutionMetric({

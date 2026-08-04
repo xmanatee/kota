@@ -3,10 +3,13 @@ import type {
   AgentPermissionResult,
 } from "#core/agent-harness/index.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
-import type {
-  ResolvedScopePolicy,
+import {
+  capScopeAutonomyMode,
+  type ResolvedScopePolicy,
+  type ScopePolicySnapshotAccessor,
 } from "#core/daemon/scope-policy.js";
 import { decideScopePolicyToolCall } from "#core/daemon/scope-policy-tool-query.js";
+import { type AutonomyMode, resolveAutonomyGate } from "#core/tools/autonomy-mode.js";
 import {
   localWriteEffect,
   networkReadEffect,
@@ -101,6 +104,8 @@ function deny(message: string): AgentPermissionResult {
 
 export function createClaudeScopePolicyGuard(args: {
   policy: ResolvedScopePolicy;
+  autonomyMode: AutonomyMode;
+  getScopePolicySnapshot?: ScopePolicySnapshotAccessor;
   approvalQueue?: ApprovalQueue;
   cwd?: string;
   sessionId?: string;
@@ -118,18 +123,21 @@ export function createClaudeScopePolicyGuard(args: {
       );
     }
 
-    const availability = moduleAvailability(args.policy, binding.moduleName);
+    const policy = args.getScopePolicySnapshot?.().policy ?? args.policy;
+
+    const availability = moduleAvailability(policy, binding.moduleName);
     if (availability !== "enabled") {
       return deny(
         `Blocked by scope policy: module ${binding.moduleName} is ${availability} ` +
-          `(source ${args.policy.modules.source.scopeId}).`,
+          `(source ${policy.modules.source.scopeId}).`,
       );
     }
 
     const normalizedInput = binding.normalizeInput?.(input) ?? input;
     const effect = binding.effect(normalizedInput);
+    const risk = riskFromEffect(effect);
     const decision = decideScopePolicyToolCall(
-      args.policy,
+      policy,
       toolName,
       effect,
       normalizedInput as ValidatedToolCallInput,
@@ -137,26 +145,43 @@ export function createClaudeScopePolicyGuard(args: {
     if (decision.outcome === "deny" || decision.outcome === "ignore") {
       return deny(`Blocked by scope policy: ${decision.rendered}`);
     }
-    if (decision.outcome !== "confirm") {
+
+    const effectiveAutonomyMode = capScopeAutonomyMode(args.autonomyMode, policy);
+    const autonomyDecision = resolveAutonomyGate(effectiveAutonomyMode, {
+      tool: toolName,
+      risk,
+      policy: "allow",
+      reason: `${effect.kind} on ${effect.scope}`,
+    });
+    if (autonomyDecision.action === "deny") {
+      return deny(autonomyDecision.message);
+    }
+
+    const queueReason = decision.outcome === "confirm"
+      ? decision.rendered
+      : autonomyDecision.action === "queue"
+        ? autonomyDecision.reason
+        : undefined;
+    if (queueReason === undefined) {
       return { behavior: "allow", updatedInput: input };
     }
 
     if (!args.approvalQueue) {
       return deny(
-        `Blocked by scope policy because the approval queue is unavailable: ${decision.rendered}`,
+        `Blocked because the approval queue is unavailable: ${queueReason}`,
       );
     }
     const queued = args.approvalQueue.enqueue(
       toolName,
       input,
-      riskFromEffect(effect),
-      decision.rendered,
+      risk,
+      queueReason,
       "claude-agent-sdk-scope-policy",
       undefined,
       undefined,
       undefined,
       args.sessionId,
     );
-    return deny(`Queued for approval [${queued.id}]: ${decision.rendered}`);
+    return deny(`Queued for approval [${queued.id}]: ${queueReason}`);
   };
 }

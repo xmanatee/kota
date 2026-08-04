@@ -85,13 +85,15 @@ export async function runAgentAttempt(input: {
 
   let unsubscribeScopePolicy = () => {};
   try {
-    unsubscribeScopePolicy = subscribeAgentScopePolicyRestrictions({
-      stepId: step.id,
-      scopeId: agentConfig.scopeId,
-      authority: agentConfig.scopePolicyAuthority,
-      initialSnapshot: agentConfig.scopePolicySnapshot,
-      abortController: attemptAbortController,
-    });
+    if (resolvedHarness.toolControl === "native") {
+      unsubscribeScopePolicy = subscribeAgentScopePolicyRestrictions({
+        stepId: step.id,
+        scopeId: agentConfig.scopeId,
+        authority: agentConfig.scopePolicyAuthority,
+        initialSnapshot: agentConfig.scopePolicySnapshot,
+        abortController: attemptAbortController,
+      });
+    }
     if (attemptAbortController.signal.aborted) {
       throw attemptAbortController.signal.reason instanceof Error
         ? attemptAbortController.signal.reason
@@ -134,6 +136,15 @@ export async function runAgentAttempt(input: {
               : {}),
             delegateBudget: agentConfig.delegateBudget,
             canUseTool: harnessRunOptions.canUseTool,
+            ...(harnessRunOptions.options.scopePolicy !== undefined
+              ? { scopePolicy: harnessRunOptions.options.scopePolicy }
+              : {}),
+            ...(harnessRunOptions.options.getScopePolicySnapshot !== undefined
+              ? {
+                  getScopePolicySnapshot:
+                    harnessRunOptions.options.getScopePolicySnapshot,
+                }
+              : {}),
             ...(harnessRunOptions.askOwner !== undefined
               ? { askOwner: harnessRunOptions.askOwner }
               : {}),

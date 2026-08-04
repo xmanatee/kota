@@ -63,6 +63,10 @@ export function buildAgentHarnessRunOptions(input: {
   const workspaceDir = agentConfig.workspaceDir ?? agentConfig.projectDir;
   const scopeId = agentConfig.scopeId ?? deriveDirectoryScopeId(agentConfig.projectDir);
   const projectId = agentConfig.projectId ?? scopeId;
+  const scopePolicyAuthority = agentConfig.scopePolicyAuthority;
+  const getScopePolicySnapshot = scopePolicyAuthority === undefined
+    ? undefined
+    : () => scopePolicyAuthority.getSnapshot(scopeId);
   const toolScope = resolveAgentToolScope(
     agentConfig.scopePolicy
       ? capScopeAutonomyMode(step.autonomyMode, agentConfig.scopePolicy)
@@ -104,6 +108,7 @@ export function buildAgentHarnessRunOptions(input: {
         disallowedTools: toolScope.disallowedTools,
         canUseTool,
         scopePolicy: agentConfig.scopePolicy,
+        getScopePolicySnapshot,
       }),
       ...(agentConfig.config?.guardrails !== undefined
         ? { guardrailsConfig: agentConfig.config.guardrails }

@@ -7,6 +7,9 @@ export type ScopePolicySnapshot = {
   readonly policy: ResolvedScopePolicy;
 };
 
+/** Reads the current atomic policy-and-revision pair at an authorization boundary. */
+export type ScopePolicySnapshotAccessor = () => ScopePolicySnapshot;
+
 /** A committed policy change that removes at least one effective capability. */
 export type RestrictiveScopePolicyChange = {
   readonly scopeId: ScopeId;

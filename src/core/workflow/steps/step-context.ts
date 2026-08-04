@@ -17,6 +17,8 @@ import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { assess } from "#core/tools/guardrails.js";
 import { executeTool } from "#core/tools/index.js";
 import { validateToolCallInput } from "#core/tools/tool-input-validation.js";
+import type { ToolCallExecutionOptions } from "#core/tools/tool-runner.js";
+import { withToolCallExecutionOptions } from "#core/tools/tool-runner-runtime.js";
 import { enforceToolScopePolicy } from "#core/tools/tool-runner-scope-policy.js";
 import type { WorkflowRunStore } from "../run-store.js";
 import type {
@@ -82,7 +84,7 @@ async function enforceWorkflowToolScopePolicy(args: {
   input: Parameters<WorkflowRunToolRunner>[1];
   context: ReturnType<typeof buildToolContext>;
   policy: ResolvedScopePolicy;
-  approvalQueue: ApprovalQueue;
+  options: ToolCallExecutionOptions;
 }): Promise<void> {
   const validation = validateToolCallInput(args.name, args.input);
   if (!validation.ok) throw new Error(validation.error);
@@ -95,17 +97,8 @@ async function enforceWorkflowToolScopePolicy(args: {
   const assessment = assess(args.name, validation.input);
   const denied = await enforceToolScopePolicy({
     block,
-    options: {
-      resultLimit: Number.MAX_SAFE_INTEGER,
-      verbose: false,
-      autonomyMode: "autonomous",
-      approvalQueue: args.approvalQueue,
-      scopePolicy: args.policy,
-      cwd: args.context.cwd,
-      scopeId: args.context.scopeId,
-      projectId: args.context.projectId,
-      workflowContext: args.context.workflow,
-    },
+    options: args.options,
+    policy: args.policy,
     risk: assessment.risk,
     askClientApproval: async () => ({ outcome: "unavailable" }),
     emitAssessment: () => {},
@@ -174,6 +167,49 @@ export function createStepContext(
   const stateDir = deps.eventJournal
     ? dirname(dirname(deps.eventJournal.getPath()))
     : deps.store.rootDir;
+  const runAgentHarness: WorkflowAgentHarnessRunner = (
+    harness,
+    options,
+    execution,
+  ) => {
+    const context = buildToolContext(
+      metadata,
+      deps.pbus,
+      deps.currentStepId ?? "unknown",
+      options.cwd ?? workspaceDir,
+      deps.runtimeResources,
+      deps.approvalQueue,
+      deps.authorityConfigPath ?? getGlobalConfigPath(),
+    );
+    const authority = deps.scopePolicyAuthority;
+    if (harness.toolControl !== "kota" || authority === undefined) {
+      return deps.runAgentHarness(
+        harness,
+        {
+          ...options,
+          authorityConfigPath: context.authorityConfigPath,
+          workflowContext: context.workflow,
+        },
+        execution,
+      );
+    }
+
+    const getScopePolicySnapshot = () => authority.getSnapshot(context.scopeId);
+    return deps.runAgentHarness(
+      harness,
+      {
+        ...options,
+        authorityConfigPath: context.authorityConfigPath,
+        workflowContext: context.workflow,
+        ...(deps.approvalQueue !== undefined
+          ? { approvalQueue: deps.approvalQueue }
+          : {}),
+        scopePolicy: getScopePolicySnapshot().policy,
+        getScopePolicySnapshot,
+      },
+      execution,
+    );
+  };
   return {
     ...(deps.approvalQueue !== undefined
       ? { approvalQueue: deps.approvalQueue }
@@ -210,7 +246,27 @@ export function createStepContext(
         deps.approvalQueue,
         deps.authorityConfigPath ?? getGlobalConfigPath(),
       );
-      const scopePolicy = deps.scopePolicyAuthority?.getSnapshot(deps.pbus.getScopeId()).policy;
+      const authority = deps.scopePolicyAuthority;
+      const getScopePolicySnapshot = authority === undefined
+        ? undefined
+        : () => authority.getSnapshot(context.scopeId);
+      const scopePolicy = getScopePolicySnapshot?.().policy;
+      const executionOptions: ToolCallExecutionOptions = {
+        resultLimit: Number.MAX_SAFE_INTEGER,
+        verbose: false,
+        autonomyMode: "autonomous",
+        ...(deps.approvalQueue !== undefined
+          ? { approvalQueue: deps.approvalQueue }
+          : {}),
+        ...(scopePolicy !== undefined ? { scopePolicy } : {}),
+        ...(getScopePolicySnapshot !== undefined ? { getScopePolicySnapshot } : {}),
+        cwd: context.cwd,
+        ...(context.env !== undefined ? { env: context.env } : {}),
+        authorityConfigPath: context.authorityConfigPath,
+        workflowContext: context.workflow,
+        scopeId: context.scopeId,
+        projectId: context.projectId,
+      };
       if (scopePolicy !== undefined) {
         if (deps.approvalQueue === undefined) {
           throw new Error("Scope policy enforcement requires a workflow approval queue");
@@ -220,19 +276,24 @@ export function createStepContext(
           input,
           context,
           policy: scopePolicy,
-          approvalQueue: deps.approvalQueue,
+          options: executionOptions,
         });
       }
-      if (deps.runTool) {
-        return deps.runTool(name, input, context);
+      const runTool = deps.runTool;
+      if (runTool) {
+        return withToolCallExecutionOptions(executionOptions, () =>
+          runTool(name, input, context)
+        );
       }
-      const result = await executeTool(name, input, context);
+      const result = await withToolCallExecutionOptions(executionOptions, () =>
+        executeTool(name, input, context)
+      );
       if (result.is_error) {
         throw new Error(result.content);
       }
       return result;
     },
-    runAgentHarness: deps.runAgentHarness,
+    runAgentHarness,
     emit: (event, payload) => {
       const emittedPayload = deps.pbus.emitDynamic(event, payload);
       recordEmittedEvent(

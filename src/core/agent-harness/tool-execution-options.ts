@@ -34,6 +34,9 @@ export function agentHarnessToolExecutionOptions(
 		...(options.scopePolicy !== undefined
 			? { scopePolicy: options.scopePolicy }
 			: {}),
+		...(options.getScopePolicySnapshot !== undefined
+			? { getScopePolicySnapshot: options.getScopePolicySnapshot }
+			: {}),
 		...(options.clientApprovalResolver !== undefined
 			? { clientApprovalResolver: options.clientApprovalResolver }
 			: {}),

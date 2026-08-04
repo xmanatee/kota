@@ -19,13 +19,13 @@ the protocol and registry.
   every adapter consumes.
 - Streaming text goes through the optional `writer` so operators see live
   output regardless of which harness runs.
-- Neutral options carry tool risk, scope policy, commit/daemon guards, and
-  injection defense (`scopePolicy`, `canUseTool`, `mcpServers`, `allowedTools`,
-  `disallowedTools`). KOTA-routable
-  loops must honor them; other adapters list unsupported options in
-  `unsupportedRunOptions`, making `runAgentHarness` reject them before hooks or
-  launch. The cross-harness rails, abort, and MCP-server integration tests
-  enforce this apply-or-reject boundary.
+- Neutral options carry tool risk, live scope policy, commit/daemon guards, and
+  injection defense (`scopePolicy`, `getScopePolicySnapshot`, `canUseTool`, MCP
+  and tool lists). KOTA-routable loops must honor them; other adapters declare
+  them in `unsupportedRunOptions`, so `runAgentHarness` rejects them before
+  hooks or launch.
+- Nested handoffs and delegates are authorization boundaries: carry both
+  policy options; inherited tool lists and `canUseTool` are insufficient.
 - `sessionContext` is tool-runtime identity, not workflow trace/span metadata.
   `runAgentHarness` creates one per invocation; persistent interactive callers
   register one outer lifetime and reuse its context through teardown.
@@ -72,9 +72,9 @@ Owner questions are a protocol capability, not a provider field.
   `allowedTools`, and `disallowedTools`; harnesses bypassing shared policy also
   declare `scopePolicy`.
 - Workflows route KOTA-only options through `routeKotaToolControlOptions`.
-  Native harnesses receive capped autonomy and run inside KOTA's single
-  filesystem and machine-authority sandbox; direct KOTA policy callbacks
-  remain an adapter error.
+  Native harnesses use capped autonomy and filesystem/machine-authority
+  sandboxes; policy callbacks are errors. Hosted loops refresh
+  `getScopePolicySnapshot` per call; native loops abort on stricter revisions.
 - `capability-snapshot.ts` centralizes capability/readiness artifacts from
   resolved declarations, not harness-name catalogs. Adapter docs may explain
   rationale, but capability facts stay in code.

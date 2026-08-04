@@ -1,3 +1,4 @@
+import type { ResolvedScopePolicy } from "#core/daemon/scope-policy.js";
 import { decideScopePolicyToolCall } from "#core/daemon/scope-policy-tool-query.js";
 import { findModuleManifestToolEffect } from "#core/modules/module-manifest.js";
 import { confirmAction } from "#core/util/confirm.js";
@@ -14,6 +15,7 @@ import type {
 export async function enforceToolScopePolicy(args: {
   block: ValidatedToolUseBlock;
   options: ToolCallExecutionOptions;
+  policy: ResolvedScopePolicy;
   risk: "safe" | "moderate" | "dangerous";
   askClientApproval: (
     reason: string,
@@ -21,9 +23,7 @@ export async function enforceToolScopePolicy(args: {
   ) => Promise<ClientApprovalResult>;
   emitAssessment: (policy: "deny" | "confirm", reason: string) => void;
 }): Promise<ToolResultEntry | null> {
-  const { block, options } = args;
-  const policy = options.scopePolicy;
-  if (!policy) return null;
+  const { block, options, policy } = args;
 
   const manifestEffect = findModuleManifestToolEffect(block.name);
   if (manifestEffect) {

@@ -123,7 +123,9 @@ function isRunOptionRequested(
   if (option === "env") {
     return options.env !== undefined && Object.keys(options.env).length > 0;
   }
-  if (option === "scopePolicy") return options.scopePolicy !== undefined;
+  if (option === "scopePolicy") {
+    return options.scopePolicy !== undefined || options.getScopePolicySnapshot !== undefined;
+  }
   if (option === "harnessOverrides") return options.harnessOverrides !== undefined;
   if (option === "enableFileCheckpointing") return options.enableFileCheckpointing === true;
   if (option === "thinking") {
@@ -143,12 +145,14 @@ export function routeKotaToolControlOptions(
     disallowedTools?: string[];
     canUseTool?: AgentHarnessRunOptions["canUseTool"];
     scopePolicy?: AgentHarnessRunOptions["scopePolicy"];
+    getScopePolicySnapshot?: AgentHarnessRunOptions["getScopePolicySnapshot"];
   },
 ): {
   allowedTools?: string[];
   disallowedTools?: string[];
   canUseTool?: AgentHarnessRunOptions["canUseTool"];
   scopePolicy?: AgentHarnessRunOptions["scopePolicy"];
+  getScopePolicySnapshot?: AgentHarnessRunOptions["getScopePolicySnapshot"];
 } {
   if (!shouldRouteKotaToolControl(harness)) return {};
   return options;

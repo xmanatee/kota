@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   KotaContentBlock,
   KotaMessage,
@@ -7,9 +7,29 @@ import type {
   KotaToolResultBlock,
 } from "#core/agent-harness/message-protocol.js";
 import { AgentTokenBudgetLedger } from "#core/agent-harness/token-budget.js";
+import { resolveScopePolicy } from "#core/daemon/scope-policy.js";
 import type { McpManager } from "#core/mcp/manager.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import { runDelegateTurns } from "./delegate-turn.js";
+import { executeDelegateToolBlocks } from "./delegate-turn-tools.js";
+import { localWriteEffect } from "./effect.js";
+import { deregisterTool, registerTool } from "./index.js";
+
+const LIVE_POLICY_TOOL = "delegate_turn_live_policy_write";
+const LIVE_POLICY_TOOL_DEFINITION = {
+  name: LIVE_POLICY_TOOL,
+  description: "writes a thin delegate fixture",
+  input_schema: {
+    type: "object" as const,
+    properties: { path: { type: "string" as const } },
+    required: ["path"],
+    additionalProperties: false,
+  },
+};
+
+afterEach(() => {
+  deregisterTool(LIVE_POLICY_TOOL);
+});
 
 class TestStream implements KotaMessageStream {
   constructor(private readonly response: KotaModelResponse) {}
@@ -38,6 +58,74 @@ function modelResponse(
 }
 
 describe("runDelegateTurns", () => {
+  it("reauthorizes each thin delegate child call through the shared live boundary", async () => {
+    const projectDir = "/tmp/delegate-live-policy";
+    const scopeId = "scope-delegate-live-policy";
+    const policy = (readOnly: boolean) => resolveScopePolicy({
+      projection: {
+        rootScopeId: "global",
+        defaultScopeId: scopeId,
+        scopes: [
+          { scopeId: "global", displayName: "Global" },
+          {
+            scopeId,
+            displayName: "Delegate fixture",
+            parentScopeId: "global",
+            directoryRoot: projectDir,
+          },
+        ],
+      },
+      scopeId,
+      fragments: [{
+        scopeId,
+        reason: readOnly ? "Writes revoked." : "Writes allowed.",
+        ...(readOnly ? { writes: { mode: "none" as const } } : {}),
+      }],
+    });
+    let snapshot = { revision: 0, policy: policy(false) };
+    const runner = vi.fn(async () => ({ content: "executed" }));
+    registerTool(
+      LIVE_POLICY_TOOL_DEFINITION,
+      vi.fn(async () => ({ content: "unexpected global execution" })),
+      "delegate-live-policy-test",
+      { effect: localWriteEffect() },
+    );
+    const call = {
+      type: "tool_use" as const,
+      id: "same-thin-child-call",
+      name: LIVE_POLICY_TOOL,
+      input: { path: `${projectDir}/output.txt` },
+    };
+    const execute = () => executeDelegateToolBlocks({
+      toolBlocks: [call],
+      tools: [LIVE_POLICY_TOOL_DEFINITION],
+      runners: { [LIVE_POLICY_TOOL]: runner },
+      runnerContext: { cwd: projectDir, scopeId, projectId: scopeId },
+      toolExecutionOptions: {
+        resultLimit: 50_000,
+        verbose: false,
+        autonomyMode: "autonomous",
+        scopePolicy: snapshot.policy,
+        getScopePolicySnapshot: () => snapshot,
+      },
+      mcpMgr: undefined,
+      isExecute: true,
+      messages: [],
+      modifiedFiles: new Set(),
+      urlsFetched: new Set(),
+      searchQueries: new Set(),
+    });
+
+    const [allowed] = await execute();
+    snapshot = { revision: 1, policy: policy(true) };
+    const [denied] = await execute();
+
+    expect(allowed).toMatchObject({ content: "executed" });
+    expect(denied).toMatchObject({ is_error: true });
+    expect(denied?.content).toMatch(/Blocked by scope policy.*writes are disabled/);
+    expect(runner).toHaveBeenCalledTimes(1);
+  });
+
   it("preserves MCP structuredContent and metadata in delegated tool results", async () => {
     const responses = [
       modelResponse([
@@ -59,6 +147,15 @@ describe("runDelegateTurns", () => {
       },
     };
     const mcpMgr = {
+      getTools: vi.fn(() => [{
+        name: "mcp__search__lookup",
+        description: "Lookup",
+        input_schema: {
+          type: "object" as const,
+          properties: { query: { type: "string" as const } },
+          required: ["query"],
+        },
+      }]),
       isMcpTool: vi.fn((name: string) => name === "mcp__search__lookup"),
       getToolResultContentProvenance: vi.fn(() => ({
         kind: "external-mcp" as const,

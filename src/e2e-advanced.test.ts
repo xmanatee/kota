@@ -9,8 +9,7 @@
  * delegate E2E tests and architect mode tests.
  */
 
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetEventBus } from "./core/events/event-bus.js";
@@ -49,9 +48,9 @@ function createTestSession(
 }
 
 function makeTempDir(suffix: string): string {
-	const dir = join(tmpdir(), `kota-adv-${suffix}-${Date.now()}`);
-	mkdirSync(dir, { recursive: true });
-	return dir;
+	const parent = join(process.cwd(), ".kota", "tmp");
+	mkdirSync(parent, { recursive: true });
+	return mkdtempSync(join(parent, `kota-adv-${suffix}-`));
 }
 
 // ── Delegate E2E Tests ──────────────────────────────────────────────

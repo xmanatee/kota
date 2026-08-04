@@ -242,6 +242,7 @@ export const claudeAgentHarness: AgentHarness = {
       autonomyMode,
       harnessOverrides,
       scopePolicy,
+      getScopePolicySnapshot,
       approvalQueue,
       sessionContext,
       canUseTool,
@@ -271,6 +272,8 @@ export const claudeAgentHarness: AgentHarness = {
     const scopePolicyGuard = scopePolicy
       ? createClaudeScopePolicyGuard({
           policy: scopePolicy,
+          autonomyMode: autonomyMode ?? "autonomous",
+          ...(getScopePolicySnapshot ? { getScopePolicySnapshot } : {}),
           ...(approvalQueue ? { approvalQueue } : {}),
           ...(options.cwd ? { cwd: options.cwd } : {}),
           ...(sessionContext ? { sessionId: sessionContext.sessionId } : {}),

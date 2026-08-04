@@ -82,6 +82,12 @@ export async function executeRepairAgentIteration(
   const scopedAgent = step.agentName && agentConfig.resolveAgentDef
     ? agentConfig.resolveAgentDef(step.agentName)
     : undefined;
+  const scopePolicyAuthority = agentConfig.scopePolicyAuthority;
+  const scopeId = agentConfig.scopeId;
+  const getScopePolicySnapshot =
+    scopePolicyAuthority === undefined || scopeId === undefined
+      ? undefined
+      : () => scopePolicyAuthority.getSnapshot(scopeId);
 
   const runRepairHarness = async () => {
     const attemptAbortController = new AbortController();
@@ -106,13 +112,15 @@ export async function executeRepairAgentIteration(
       : undefined;
 
     try {
-      unsubscribeScopePolicy = subscribeAgentScopePolicyRestrictions({
-        stepId: step.id,
-        scopeId: agentConfig.scopeId,
-        authority: agentConfig.scopePolicyAuthority,
-        initialSnapshot: agentConfig.scopePolicySnapshot,
-        abortController: attemptAbortController,
-      });
+      if (harness.toolControl === "native") {
+        unsubscribeScopePolicy = subscribeAgentScopePolicyRestrictions({
+          stepId: step.id,
+          scopeId: agentConfig.scopeId,
+          authority: agentConfig.scopePolicyAuthority,
+          initialSnapshot: agentConfig.scopePolicySnapshot,
+          abortController: attemptAbortController,
+        });
+      }
       if (attemptAbortController.signal.aborted) {
         throw attemptAbortController.signal.reason instanceof Error
           ? attemptAbortController.signal.reason
@@ -139,6 +147,7 @@ export async function executeRepairAgentIteration(
             disallowedTools: toolScope.disallowedTools,
             canUseTool,
             scopePolicy: agentConfig.scopePolicy,
+            getScopePolicySnapshot,
           }),
           askOwner: harness.askOwnerToolName !== null
             ? { source: `workflow:${context.workflow.name}/${context.workflow.runId}/${step.id}` }

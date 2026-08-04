@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import { resolveScopePolicy } from "#core/daemon/scope-policy.js";
 import type { ScopeRegistryProjection } from "#core/daemon/scope-registry.js";
@@ -35,6 +35,85 @@ afterEach(() => {
 });
 
 describe("createClaudeScopePolicyGuard", () => {
+  it("resolves current authority before every intercepted Claude tool call", async () => {
+    const initialPolicy = resolveScopePolicy({
+      projection: PROJECTION,
+      scopeId: "workspace",
+    });
+    const restrictedPolicy = resolveScopePolicy({
+      projection: PROJECTION,
+      scopeId: "workspace",
+      fragments: [{
+        scopeId: "workspace",
+        reason: "Writes were revoked.",
+        writes: { mode: "none" },
+      }],
+    });
+    let snapshot = { revision: 0, policy: initialPolicy };
+    const getScopePolicySnapshot = vi.fn(() => snapshot);
+    const guard = createClaudeScopePolicyGuard({
+      policy: initialPolicy,
+      autonomyMode: "autonomous",
+      getScopePolicySnapshot,
+      cwd: "/tmp/workspace",
+    });
+
+    await expect(
+      guard("Write", { file_path: "/tmp/workspace/out.ts" }, CONTEXT),
+    ).resolves.toMatchObject({ behavior: "allow" });
+    snapshot = { revision: 1, policy: restrictedPolicy };
+    await expect(
+      guard("Write", { file_path: "/tmp/workspace/out.ts" }, CONTEXT),
+    ).resolves.toMatchObject({
+      behavior: "deny",
+      message: expect.stringContaining("writes are disabled"),
+    });
+    expect(getScopePolicySnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it("applies a restrictive live autonomy cap before the next Claude tool call", async () => {
+    const initialPolicy = resolveScopePolicy({
+      projection: PROJECTION,
+      scopeId: "workspace",
+    });
+    const passivePolicy = resolveScopePolicy({
+      projection: PROJECTION,
+      scopeId: "workspace",
+      fragments: [{
+        scopeId: "workspace",
+        reason: "Autonomous writes were revoked.",
+        autonomy: { defaultMode: "passive", maxMode: "passive" },
+      }],
+    });
+    let snapshot = { revision: 0, policy: initialPolicy };
+    const getScopePolicySnapshot = vi.fn(() => snapshot);
+    const guard = createClaudeScopePolicyGuard({
+      policy: initialPolicy,
+      autonomyMode: "autonomous",
+      getScopePolicySnapshot,
+      cwd: "/tmp/workspace",
+    });
+    const writeImplementation = vi.fn();
+    const invokeWrite = async () => {
+      const decision = await guard(
+        "Write",
+        { file_path: "/tmp/workspace/out.ts" },
+        CONTEXT,
+      );
+      if (decision.behavior === "allow") writeImplementation();
+      return decision;
+    };
+
+    await expect(invokeWrite()).resolves.toMatchObject({ behavior: "allow" });
+    snapshot = { revision: 1, policy: passivePolicy };
+    await expect(invokeWrite()).resolves.toMatchObject({
+      behavior: "deny",
+      message: expect.stringContaining('autonomy mode "passive"'),
+    });
+    expect(writeImplementation).toHaveBeenCalledTimes(1);
+    expect(getScopePolicySnapshot).toHaveBeenCalledTimes(2);
+  });
+
   it("applies write boundaries to normalized Claude file paths", async () => {
     const policy = resolveScopePolicy({
       projection: PROJECTION,
@@ -49,6 +128,7 @@ describe("createClaudeScopePolicyGuard", () => {
     });
     const guard = createClaudeScopePolicyGuard({
       policy,
+      autonomyMode: "autonomous",
       cwd: "/tmp/workspace",
     });
 
@@ -75,6 +155,7 @@ describe("createClaudeScopePolicyGuard", () => {
     });
     const guard = createClaudeScopePolicyGuard({
       policy,
+      autonomyMode: "autonomous",
       cwd: "/tmp/workspace",
     });
 
@@ -106,6 +187,7 @@ describe("createClaudeScopePolicyGuard", () => {
     });
     const guard = createClaudeScopePolicyGuard({
       policy,
+      autonomyMode: "autonomous",
       cwd: "/tmp/workspace",
     });
 
@@ -133,6 +215,7 @@ describe("createClaudeScopePolicyGuard", () => {
     });
     const guard = createClaudeScopePolicyGuard({
       policy,
+      autonomyMode: "autonomous",
       cwd: "/tmp/workspace",
     });
 
@@ -158,6 +241,7 @@ describe("createClaudeScopePolicyGuard", () => {
     );
     const guard = createClaudeScopePolicyGuard({
       policy,
+      autonomyMode: "autonomous",
       approvalQueue,
       cwd: "/tmp/workspace",
       sessionId: "session-1",
@@ -183,7 +267,10 @@ describe("createClaudeScopePolicyGuard", () => {
       projection: PROJECTION,
       scopeId: "workspace",
     });
-    const guard = createClaudeScopePolicyGuard({ policy });
+    const guard = createClaudeScopePolicyGuard({
+      policy,
+      autonomyMode: "autonomous",
+    });
 
     await expect(
       guard("FutureUnknownTool", {}, CONTEXT),
@@ -198,7 +285,10 @@ describe("createClaudeScopePolicyGuard", () => {
       projection: PROJECTION,
       scopeId: "workspace",
     });
-    const guard = createClaudeScopePolicyGuard({ policy });
+    const guard = createClaudeScopePolicyGuard({
+      policy,
+      autonomyMode: "autonomous",
+    });
 
     await expect(
       guard(

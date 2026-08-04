@@ -30,10 +30,11 @@ directly; nothing in core imports `@anthropic-ai/claude-agent-sdk`.
 - Scope policy is enforced at the harness boundary through the SDK's
   `canUseTool` callback. `scope-policy-guard.ts` binds Claude built-in tool
   names to KOTA effects and owning modules, denies unknown tools, applies
-  write/module/external-effect decisions, and queues confirmation outcomes.
-  Keep that binding aligned when Claude adds a built-in tool; an unbound tool
-  must remain fail-closed. Bash uses the same compound local/network
-  invocation classifier as KOTA execution tools.
+  write/module/external-effect decisions plus the current autonomy cap, and
+  queues confirmation outcomes. Each callback reads the workflow's current
+  revisioned authority before deciding. Keep that binding aligned when Claude
+  adds a built-in tool; an unbound tool must remain fail-closed. Bash uses the
+  same compound local/network invocation classifier as KOTA execution tools.
 - Claude command execution also runs in the SDK's fail-closed OS sandbox. The
   workspace stays writable while the machine-authority directory is denied;
   `canUseTool` text classification is defense in depth, not the authority

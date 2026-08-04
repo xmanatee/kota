@@ -17,6 +17,8 @@ export {
 	ToolPermissionInterruptedError,
 } from "./tool-runner-execution.js";
 export type {
+	LocalToolExecution,
+	LocalToolExecutor,
 	McpPromptToolDeclarationFingerprints,
 	ToolCallExecutionOptions,
 	ToolResultEntry,
