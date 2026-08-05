@@ -4,8 +4,8 @@
  *
  * This harness intentionally uses the installed `gemini` binary instead of
  * the Google Gen AI SDK. The CLI is the surface that honors cached Google
- * sign-in / Code Assist auth, its own tool loop, MCP settings, trusted
- * folders, and release-channel behavior.
+ * sign-in / Code Assist auth and its own tool loop inside KOTA's isolated OS
+ * sandbox.
  */
 
 import type {

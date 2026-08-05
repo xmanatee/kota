@@ -34,11 +34,10 @@ function checkoutLabel(dirtyCheckout: WorkflowRecoveryDirtyCheckout): string {
 }
 
 /**
- * Queue recovery for interrupted runs ahead of normal work. A dirty active
- * checkout can affect every recovery-capable workflow, while a clean checkout
- * only needs the interrupted workflows themselves. The latter also lets an
- * interrupted workflow reconcile state it owns outside the active checkout,
- * such as an isolated builder worktree.
+ * Queue recovery for interrupted runs ahead of normal work. Recovery remains
+ * owned by the interrupted workflows even when their checkout is dirty; other
+ * recovery-capable workflows must not mutate or preserve state they did not
+ * create.
  */
 export function queueInterruptedRunRecovery(
   state: WorkflowRuntimeRecoveryState,
@@ -49,10 +48,8 @@ export function queueInterruptedRunRecovery(
   const worktree = getRepoWorktreeStatus(recoveryWorktreeDir(state, dirtyCheckout));
   const broadRecovery = worktree.available && worktree.dirty;
   const interruptedWorkflows = new Set(interrupted.map((run) => run.workflow));
-  const definitionFilter = broadRecovery
-    ? recoveryFilter
-    : (definition: WorkflowDefinition) =>
-        recoveryFilter(definition) && interruptedWorkflows.has(definition.name);
+  const definitionFilter = (definition: WorkflowDefinition) =>
+    recoveryFilter(definition) && interruptedWorkflows.has(definition.name);
 
   const queued = queueMatchingEventFirst(
     state,
@@ -139,7 +136,9 @@ export function queueRecovery(state: WorkflowRuntimeRecoveryState): void {
       dirtyCheckout,
       worktreeSummary: recoveryStatus.worktreeSummary,
     },
-    recoveryFilter,
+    (definition) =>
+      recoveryFilter(definition) &&
+      definition.name === recoveryStatus.sourceWorkflow,
   );
   if (queued === 0) {
     pauseDispatch(

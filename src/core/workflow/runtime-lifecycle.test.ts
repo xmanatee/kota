@@ -193,6 +193,47 @@ describe("WorkflowRuntime dispatch pause persistence", () => {
     await runtime.stop(0);
   });
 
+  it("keeps dirty interrupted recovery owned by the interrupted workflow", async () => {
+    initializeCleanGitRepo();
+    const store = new WorkflowRunStore(projectDir);
+    persistRunningRun(store, "run-interrupted", "recoverable-workflow");
+    writeFileSync(join(projectDir, "tracked.txt"), "interrupted work\n", "utf8");
+    const recoveryWorkflow = (name: string) => ({
+      name,
+      definitionPath: "src/core/workflow/runtime-lifecycle.test.ts",
+      moduleRoot: process.cwd(),
+      recoveryCapable: true,
+      triggers: [{ event: "runtime.recovered" }],
+      steps: [{ id: "recover", type: "code" as const, run: () => undefined }],
+    });
+    const runtime = new WorkflowRuntime({
+      bus: new EventBus(),
+      projectDir,
+      idleIntervalMs: 60_000,
+      workflows: [
+        recoveryWorkflow("recoverable-workflow"),
+        recoveryWorkflow("unrelated-recovery-workflow"),
+      ],
+    });
+
+    runtime.start("paused");
+
+    expect(runtime.getState().pendingRuns).toMatchObject([
+      {
+        workflowName: "recoverable-workflow",
+        trigger: {
+          event: "runtime.recovered",
+          payload: {
+            recoveredRunIds: ["run-interrupted"],
+            recoveredWorkflows: ["recoverable-workflow"],
+            dirtyCheckout: "canonical",
+          },
+        },
+      },
+    ]);
+    await runtime.stop(0);
+  });
+
   it("clears stale dirty-recovery state during startup when the tracked checkout is clean", async () => {
     initializeCleanGitRepo();
     const store = new WorkflowRunStore(projectDir);

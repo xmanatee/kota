@@ -15,6 +15,9 @@ import {
   withNativeCliSandbox,
 } from "#core/agent-harness/native-cli-sandbox.js";
 import {
+  nativeCliWorkspaceConfigurationReadRoots,
+} from "#core/agent-harness/native-cli-sandbox-roots.js";
+import {
   type CollectedGeminiOutput,
   collectGeminiOutput,
   emptyCollectedGeminiOutput,
@@ -200,6 +203,7 @@ export async function collectTextFromGeminiCli(
   args: CollectTextFromGeminiCliArgs,
 ): Promise<AgentHarnessResult> {
   const cliArgs = [
+    "--skip-trust",
     "--prompt",
     args.prompt,
     "--output-format",
@@ -228,6 +232,9 @@ export async function collectTextFromGeminiCli(
         },
       }),
       allowedEgressHosts: GEMINI_CLI_PROVIDER_EGRESS_HOSTS,
+      readOnlyHostRoots: nativeCliWorkspaceConfigurationReadRoots(args.cwd, [
+        ".gemini/settings.json",
+      ]),
       prepareEnvironment: prepareGeminiCliRuntimeEnvironment,
     },
     (sandboxedProcess) => runGeminiCliProcess(args, sandboxedProcess),

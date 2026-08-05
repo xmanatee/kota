@@ -35,9 +35,10 @@ the protocol and registry.
   acting, and hold the run until the process can no longer mutate.
 - `guards.ts` owns hidden agent/worktree nesting, commit, daemon-control, and
   authority guards. Its OS sandbox gives opaque code and native CLIs minimal
-  environments, isolated home/temp, declared auth, enforced readable roots,
-  and provider-only egress through a host-owned CONNECT proxy. Native tools
-  never receive a direct host, loopback, metadata-service, or internet route.
+  environments, isolated home/temp, the exact project package-manager runtime,
+  declared auth, enforced readable roots, and provider-only egress through a
+  host-owned CONNECT proxy. Native tools never receive a direct host, loopback,
+  metadata-service, or internet route.
 
 ## Owner-questions capability
 

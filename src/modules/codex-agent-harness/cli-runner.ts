@@ -17,6 +17,9 @@ import {
   type NativeCliSandboxProcess,
   withNativeCliSandbox,
 } from "#core/agent-harness/native-cli-sandbox.js";
+import {
+  nativeCliWorkspaceConfigurationReadRoots,
+} from "#core/agent-harness/native-cli-sandbox-roots.js";
 import { prepareCodexRuntimeEnvironment } from "./runtime-home.js";
 
 const CODEX_ABORT_FORCE_KILL_MS = 5_000;
@@ -349,6 +352,9 @@ export async function collectTextFromCodexCli(
       mode: args.sandboxMode,
       env: buildCodexEnvironment(args.env),
       allowedEgressHosts: CODEX_PROVIDER_EGRESS_HOSTS,
+      readOnlyHostRoots: nativeCliWorkspaceConfigurationReadRoots(args.cwd, [
+        ".codex/config.toml",
+      ]),
       prepareEnvironment: prepareCodexRuntimeEnvironment,
     },
     (sandboxedProcess) => runCodexCliProcess(args, sandboxedProcess),

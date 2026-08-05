@@ -48,10 +48,10 @@ describe("runCheck", () => {
     const projectDir = mkdtempSync(join(tmpdir(), "kota-run-check-"));
     try {
       const script =
-        "process.stdout.write((process.env.CI ?? '') + ':' + (process.env.PNPM_CONFIG_PM_ON_FAIL ?? ''))";
+        "process.stdout.write((process.env.CI ?? '') + ':' + (process.env.GIT_OPTIONAL_LOCKS ?? ''))";
       await expect(
         runCheck(`${JSON.stringify(process.execPath)} -e ${JSON.stringify(script)}`, projectDir),
-      ).resolves.toBe("true:ignore");
+      ).resolves.toBe("true:0");
     } finally {
       rmSync(projectDir, { recursive: true, force: true });
     }

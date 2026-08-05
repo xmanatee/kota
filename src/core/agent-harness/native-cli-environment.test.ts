@@ -25,14 +25,14 @@ describe("native CLI child environment", () => {
       },
       projectedEnvKeys: ["CODEX_HOME", "CI"],
       overrides: {
-        PNPM_CONFIG_PM_ON_FAIL: "download",
+        KOTA_RUN_DIR: "/project/.kota/run",
       },
     });
 
     expect(env).toMatchObject({
       CI: "true",
       GIT_OPTIONAL_LOCKS: "0",
-      PNPM_CONFIG_PM_ON_FAIL: "ignore",
+      KOTA_RUN_DIR: "/project/.kota/run",
       PATH: "/usr/bin:/bin",
       LANG: "en_GB.UTF-8",
       LC_CTYPE: "UTF-8",
@@ -93,7 +93,6 @@ describe("native CLI child environment", () => {
       PATH: "/usr/bin",
       CI: "true",
       GIT_OPTIONAL_LOCKS: "0",
-      PNPM_CONFIG_PM_ON_FAIL: "ignore",
     });
   });
 });

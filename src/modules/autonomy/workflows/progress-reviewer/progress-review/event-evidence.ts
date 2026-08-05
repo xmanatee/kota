@@ -221,7 +221,9 @@ function listJournalEvents(args: {
       limit: args.remainingEventSlots + args.liveJournalIds.size + 1,
     };
     envelopes = journal.query(query);
-    prunedReferences = journal.queryPrunedReferences(query);
+    prunedReferences = journal.retainsExpiredMetadata()
+      ? journal.queryPrunedReferences(query)
+      : [];
   } catch (error) {
     args.excluded.push(
       `event journal: unavailable for ${args.batch.sourceEventName}: ${String(error)}`,

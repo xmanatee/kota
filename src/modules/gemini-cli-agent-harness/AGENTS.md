@@ -2,25 +2,15 @@
 
 Adapter module that registers the `gemini-cli` harness. The harness shells out
 to the installed Gemini CLI in headless structured-output mode instead of using
-`@google/genai` directly. This is now the legacy Gemini CLI surface that honors
-Gemini CLI's cached Google sign-in / Code Assist auth state.
+`@google/genai` directly and honors Gemini CLI's cached Google sign-in / Code
+Assist auth state.
 
 Route work here with the `gemini-cli` preset, default harness config, or a
 per-step `harness` value.
 
-## Migration Posture
-
-Google announced that on June 18, 2026, Gemini CLI and Gemini Code Assist IDE
-extensions stop serving requests for Google AI Pro / Ultra and free individual
-access. Operators should choose:
-
-- `antigravity-cli` for Google's current native terminal-agent runtime and
-  local Antigravity readiness checks.
-- `gemini` for SDK-backed Gemini runs using `GEMINI_API_KEY` or
-  `GOOGLE_API_KEY`.
-- `gemini-cli` only for legacy Gemini CLI access that remains supported for
-  enterprise/API-key paths or existing environments that still need the Gemini
-  CLI binary.
+Gemini CLI remains the Google enterprise and API-key native CLI path. Google
+individual-account OAuth is not served by Gemini CLI; use the existing
+`antigravity-cli` preset for that account type.
 
 ## Provider Routing
 
@@ -32,7 +22,11 @@ separate model catalog.
 Authentication is harness-managed. The readiness probe checks for the local
 Gemini CLI executable plus cached Gemini CLI Google OAuth / Code Assist
 credentials under the CLI's normal user config directory. Each run copies only
-those credentials and the selected auth mode into its isolated home.
+those credentials and the selected auth mode into its isolated home. The
+session-only `--skip-trust` flag satisfies Gemini CLI's headless bootstrap;
+KOTA's OS sandbox remains the single filesystem and network authority. A
+symlinked project settings file is readable only as the configuration input
+Gemini requires before applying that session flag.
 Gemini-specific API keys remain supported when explicitly configured, while
 unrelated daemon credentials and global tools, MCP, prompt, and `.env` files
 are not projected.
@@ -43,7 +37,8 @@ The adapter runs one non-interactive CLI process per KOTA harness call:
 
 1. Compose the KOTA system prompt, workflow rails, and task prompt into one
    `--prompt` payload.
-2. Spawn `gemini --prompt <payload> --output-format stream-json --model <model>`.
+2. Spawn `gemini --skip-trust --prompt <payload> --output-format stream-json
+   --model <model>`.
 3. Run the CLI inside KOTA's single native-CLI OS sandbox. Plan mode can write
    only to an invocation temp root; default mode can also write to the
    workspace. Reads stay within system/tool runtime, workspace dependencies,

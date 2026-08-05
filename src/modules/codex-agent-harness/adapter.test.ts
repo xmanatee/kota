@@ -227,6 +227,7 @@ describe("codexAgentHarness", () => {
           "auth.openai.com",
           "chatgpt.com",
         ],
+        readOnlyHostRoots: expect.any(Array),
         prepareEnvironment: expect.any(Function),
       },
       expect.any(Function),

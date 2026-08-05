@@ -7,6 +7,7 @@ import {
   startNativeCliEgressProxy,
 } from "./native-cli-egress-proxy.js";
 import { buildIsolatedNativeCliEnvironment } from "./native-cli-environment.js";
+import { prepareNativeCliPackageManagerRuntime } from "./native-cli-package-manager.js";
 import {
   nativeCliReadableRoots,
   resolveNativeCliExecutable,
@@ -115,7 +116,26 @@ export async function withNativeCliSandbox<T>(
   const temporaryDirectory = mkdtempSync(join(tmpdir(), "kota-native-cli-"));
   let egressProxy: NativeCliEgressProxy | undefined;
   try {
-    const executablePath = resolveNativeCliExecutable(executable, options.env);
+    const home = join(temporaryDirectory, "home");
+    for (const directory of [
+      home,
+      join(home, ".config"),
+      join(home, ".cache"),
+      join(home, ".local", "share"),
+      join(home, ".local", "state"),
+      join(temporaryDirectory, "runtime"),
+    ]) {
+      mkdirSync(directory, { recursive: true, mode: 0o700 });
+    }
+    const packageManager = prepareNativeCliPackageManagerRuntime(
+      options.cwd,
+      temporaryDirectory,
+      options.env,
+    );
+    const executablePath = resolveNativeCliExecutable(
+      executable,
+      packageManager.env,
+    );
     const allowedEgressHosts = options.allowedEgressHosts ?? [];
     if (allowedEgressHosts.length > 0) {
       egressProxy = await startNativeCliEgressProxy(
@@ -137,7 +157,7 @@ export async function withNativeCliSandbox<T>(
         executablePath,
         options.cwd,
         temporaryDirectory,
-        options.env,
+        packageManager.env,
       ),
       ...(linuxBridge === undefined
         ? []
@@ -145,9 +165,10 @@ export async function withNativeCliSandbox<T>(
             process.execPath,
             options.cwd,
             temporaryDirectory,
-            options.env,
+            packageManager.env,
           )),
       ...(options.readOnlyHostRoots ?? []),
+      ...packageManager.readOnlyHostRoots,
     ];
     const launch = buildMachineAuthoritySandboxLaunch(launchExecutable, launchArgs, {
       cwd: options.cwd,
@@ -162,21 +183,10 @@ export async function withNativeCliSandbox<T>(
         : { kind: "offline" },
     });
     if (!launch.ok) throw new Error(launch.error);
-    const home = join(temporaryDirectory, "home");
-    for (const directory of [
-      home,
-      join(home, ".config"),
-      join(home, ".cache"),
-      join(home, ".local", "share"),
-      join(home, ".local", "state"),
-      join(temporaryDirectory, "runtime"),
-    ]) {
-      mkdirSync(directory, { recursive: true, mode: 0o700 });
-    }
     const preparedEnvironment = options.prepareEnvironment?.(
       temporaryDirectory,
-      options.env,
-    ) ?? options.env;
+      packageManager.env,
+    ) ?? packageManager.env;
     const isolatedEnvironment = buildIsolatedNativeCliEnvironment(
       preparedEnvironment,
       temporaryDirectory,

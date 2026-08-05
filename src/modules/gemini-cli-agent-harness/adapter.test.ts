@@ -152,6 +152,7 @@ describe("geminiCliAgentHarness", () => {
       "authority-sandbox",
       expect.arrayContaining([
         "gemini",
+        "--skip-trust",
         "--prompt",
         expect.stringContaining("## Task\n\nplease echo"),
         "--output-format",
@@ -179,6 +180,7 @@ describe("geminiCliAgentHarness", () => {
           "generativelanguage.googleapis.com",
           "oauth2.googleapis.com",
         ],
+        readOnlyHostRoots: expect.any(Array),
         prepareEnvironment: expect.any(Function),
       },
       expect.any(Function),

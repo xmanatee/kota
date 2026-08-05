@@ -58,6 +58,10 @@ export class EventJournal {
     return this.filePath;
   }
 
+  retainsExpiredMetadata(): boolean {
+    return this.retention.kind === "expire-after-ms";
+  }
+
   appendFromBusEnvelope(envelope: BusEnvelope): EventEnvelope {
     const journaledAt = this.now();
     const sequence = this.nextSequence;
@@ -80,10 +84,11 @@ export class EventJournal {
   }
 
   query(query: EventJournalQuery = {}): EventEnvelope[] {
-    if (query.after === undefined && query.limit !== undefined && query.limit > 0) {
+    const reverseLimit = query.id !== undefined ? 1 : query.limit;
+    if (query.after === undefined && reverseLimit !== undefined && reverseLimit > 0) {
       const nowMs = this.now().getTime();
       return this.readFromEnd(
-        query.limit,
+        reverseLimit,
         (event) => envelopeAvailableForQuery(event, query, nowMs),
       );
     }
@@ -98,6 +103,15 @@ export class EventJournal {
 
   queryPrunedReferences(query: EventJournalQuery = {}): EvidencePrunedReference[] {
     const nowMs = this.now().getTime();
+    const reverseLimit = query.id !== undefined ? 1 : query.limit;
+    if (query.after === undefined && reverseLimit !== undefined && reverseLimit > 0) {
+      return this.readFromEnd(
+        reverseLimit,
+        (event) =>
+          hasMetadataReferenceAfterExpiry(event, nowMs) &&
+          envelopeMatchesQuery(event, query),
+      ).map(eventPrunedReference);
+    }
     const references = this.readEventsAfter(query.after)
       .filter((event) => hasMetadataReferenceAfterExpiry(event, nowMs))
       .filter((event) => envelopeMatchesQuery(event, query))
@@ -124,13 +138,8 @@ export class EventJournal {
   }
 
   private readNextSequence(): number {
-    const events = this.readAll();
-    if (events.length === 0) return 1;
-    let maxSequence = 0;
-    for (const event of events) {
-      if (event.sequence > maxSequence) maxSequence = event.sequence;
-    }
-    return maxSequence + 1;
+    const latest = this.readFromEnd(1, () => true).at(-1);
+    return latest === undefined ? 1 : latest.sequence + 1;
   }
 
   private readEventsAfter(after: string | undefined): EventEnvelope[] {

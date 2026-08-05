@@ -56,6 +56,18 @@ export function resolveNativeCliExecutable(
   return realpathSync.native(found);
 }
 
+export function nativeCliWorkspaceConfigurationReadRoots(
+  cwd: string,
+  relativePaths: readonly string[],
+): string[] {
+  return [...new Set(
+    relativePaths
+      .map((path) => join(cwd, path))
+      .filter(existsSync)
+      .map((path) => realpathSync.native(path)),
+  )];
+}
+
 function nodePackageRoot(path: string): string | undefined {
   const marker = `${sep}node_modules${sep}`;
   const markerIndex = path.lastIndexOf(marker);
