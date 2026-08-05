@@ -183,6 +183,10 @@ export type WorkflowLiveStatus = {
   codeConcurrency: number;
 };
 
+export type WorkflowResumeOptions = {
+  retryAgent?: boolean;
+};
+
 export type DaemonLiveStatus = DaemonState & {
   running: boolean;
   workflow: WorkflowLiveStatus;

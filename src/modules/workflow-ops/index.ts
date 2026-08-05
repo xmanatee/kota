@@ -410,7 +410,7 @@ const workflowModule: KotaModule = {
         writeOperatorPauseSignal(ctx.cwd);
         return { paused: true, already: false };
       },
-      async resume() {
+      async resume(options) {
         const store = new WorkflowRunStore(ctx.cwd);
         const recovery = reconcileWorkflowRecovery({
           projectDir: ctx.cwd,
@@ -430,10 +430,22 @@ const workflowModule: KotaModule = {
           };
         }
         const pausePath = join(store.rootDir, PAUSE_SIGNAL_FILE);
-        store.setAgentBackoff(null);
-        if (!existsSync(pausePath)) return { paused: false, already: true };
+        const agentBackoffCleared = options?.retryAgent === true &&
+          store.readState().agentBackoff !== undefined;
+        if (agentBackoffCleared) store.setAgentBackoff(null);
+        if (!existsSync(pausePath)) {
+          return {
+            paused: false,
+            already: true,
+            ...(agentBackoffCleared && { agentBackoffCleared: true as const }),
+          };
+        }
         clearWorkflowPauseSignal(ctx.cwd);
-        return { paused: false, already: false };
+        return {
+          paused: false,
+          already: false,
+          ...(agentBackoffCleared && { agentBackoffCleared: true as const }),
+        };
       },
       async abort() {
         const store = new WorkflowRunStore(ctx.cwd);
@@ -745,15 +757,17 @@ export function buildWorkflowDaemonHandler(
       if (!result) throw new Error("Daemon unreachable while pausing dispatch");
       return { paused: result.paused, already: result.already ?? false };
     },
-    resume: async () => {
+    resume: async (options) => {
+      const query = options?.retryAgent === true ? "?retryAgent=true" : "";
       const result = await link.request<{
         paused: boolean;
         already?: boolean;
         blocked?: "dirty-recovery";
         message?: string;
+        agentBackoffCleared?: true;
       }>(
         "POST",
-        "/workflow/resume",
+        `/workflow/resume${query}`,
       );
       if (!result) throw new Error("Daemon unreachable while resuming dispatch");
       return {
@@ -761,6 +775,9 @@ export function buildWorkflowDaemonHandler(
         already: result.already ?? false,
         ...(result.blocked && { blocked: result.blocked }),
         ...(result.message && { message: result.message }),
+        ...(result.agentBackoffCleared && {
+          agentBackoffCleared: result.agentBackoffCleared,
+        }),
       };
     },
     abort: async () => {

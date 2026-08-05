@@ -22,6 +22,9 @@ Shared utilities (`utils.ts`, `definitions-source.ts`) stay at the module root.
   related approval, question, and session reads remain typed client calls.
 - Tests are co-located with the code they cover inside each subdomain.
 - HTTP routes are contributed via `routes/routes.ts` using handlers in the same subdirectory.
+- `workflow resume` changes dispatch pause only. Clearing provider or
+  authentication backoff requires the explicit `--retry-agent` option after
+  the operator has fixed its cause.
 
 ## KotaClient Surface
 

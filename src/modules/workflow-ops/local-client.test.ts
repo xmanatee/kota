@@ -68,7 +68,7 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
     expect(second).toEqual({ paused: false, already: true });
   });
 
-  it("resume clears an agent backoff after the operator fixes its cause", async () => {
+  it("clears agent backoff only for an explicit retry", async () => {
     const store = new WorkflowRunStore(projectDir);
     store.setAgentBackoff({
       runtimeId: "antigravity-cli:antigravity-cli",
@@ -79,9 +79,18 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
       reason: "login was unavailable",
     });
 
-    const result = await buildHandler(projectDir).resume();
+    const handler = buildHandler(projectDir);
+    await expect(handler.resume()).resolves.toEqual({
+      paused: false,
+      already: true,
+    });
+    expect(store.readState().agentBackoff).toBeDefined();
 
-    expect(result).toEqual({ paused: false, already: true });
+    await expect(handler.resume({ retryAgent: true })).resolves.toEqual({
+      paused: false,
+      already: true,
+      agentBackoffCleared: true,
+    });
     expect(store.readState().agentBackoff).toBeUndefined();
   });
 

@@ -1390,6 +1390,28 @@ describe("DaemonControlServer", () => {
       const body = await res.json();
       expect(body.already).toBe(true);
     });
+
+    it("forwards explicit agent retries and reports cleared backoff", async () => {
+      const resumeWorkflowDispatch = vi.fn(() => ({
+        already: true,
+        agentBackoffCleared: true as const,
+      }));
+      handle = makeHandle({ resumeWorkflowDispatch });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(
+        port,
+        "/workflow/resume?retryAgent=true",
+        { method: "POST" },
+      );
+      const body = await res.json();
+      expect(body.agentBackoffCleared).toBe(true);
+      expect(resumeWorkflowDispatch).toHaveBeenCalledWith(undefined, {
+        retryAgent: true,
+      });
+    });
   });
 
   describe("POST /workflow/abort", () => {

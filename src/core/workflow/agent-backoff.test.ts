@@ -85,11 +85,11 @@ describe("AgentBackoffManager", () => {
     const manager = makeManager();
     manager.apply({ kind: "auth", reason: "login was unavailable" });
 
-    manager.clear("after operator resume");
+    manager.clear("after explicit operator retry");
 
     expect(store.readState().agentBackoff).toBeUndefined();
     expect(logs).toContain(
-      "Cleared agent dispatch backoff after operator resume (auth)",
+      "Cleared agent dispatch backoff after explicit operator retry (auth)",
     );
   });
 

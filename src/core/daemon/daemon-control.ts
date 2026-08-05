@@ -30,8 +30,8 @@ export type {
   DeadLetterQueueCounts, DeadLetterRedriveTarget, EventSchemaDetail, EventSchemaSummary,
   HealthStatus, InteractiveSession, WorkflowCostEntry, WorkflowDefinitionSummary,
   WorkflowDefinitionTriggerSummary, WorkflowDurationHistogramEntry, WorkflowLiveStatus,
-  WorkflowMetricCounts, WorkflowRunCountEntry, WorkflowRunDetail, WorkflowRunStepSummary,
-  WorkflowRunSummary,
+  WorkflowMetricCounts, WorkflowResumeOptions, WorkflowRunCountEntry, WorkflowRunDetail,
+  WorkflowRunStepSummary, WorkflowRunSummary,
 } from "./daemon-control-types.js";
 export type { ScopePolicyRouteResponse } from "./scope-policy.js";
 

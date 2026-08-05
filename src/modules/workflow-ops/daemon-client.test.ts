@@ -273,6 +273,26 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
     expect((calls[0] as { path: string }).path).toBe("/workflow/resume");
   });
 
+  it("routes explicit agent retries through the resume query", async () => {
+    const { transport, calls } = makeRecordingTransport({
+      respondRequest: () => ({
+        paused: false,
+        already: true,
+        agentBackoffCleared: true,
+      }),
+    });
+    const wf = workflowOpsModule.daemonClient!(transport).workflow!;
+
+    await expect(wf.resume({ retryAgent: true })).resolves.toEqual({
+      paused: false,
+      already: true,
+      agentBackoffCleared: true,
+    });
+    expect((calls[0] as { path: string }).path).toBe(
+      "/workflow/resume?retryAgent=true",
+    );
+  });
+
   it("resume throws byte-for-byte on transport failure", async () => {
     const { transport } = makeRecordingTransport({
       respondRequest: () => null,

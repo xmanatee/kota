@@ -25,6 +25,7 @@ import type {
   WorkflowDefinitionSummary,
   WorkflowLiveStatus,
   WorkflowMetricCounts,
+  WorkflowResumeOptions,
   WorkflowRunDetail,
   WorkflowRunSummary,
 } from "./daemon-control-types.js";
@@ -106,10 +107,11 @@ export type DaemonControlHandle = {
   getActiveProjectId(): ProjectId | null;
   setActiveProjectId(projectId: ProjectId | null): SetActiveProjectResult;
   pauseWorkflowDispatch(projectId?: ProjectId): { already: boolean };
-  resumeWorkflowDispatch(projectId?: ProjectId): {
+  resumeWorkflowDispatch(projectId?: ProjectId, options?: WorkflowResumeOptions): {
     already: boolean;
     blocked?: "dirty-recovery";
     message?: string;
+    agentBackoffCleared?: true;
   };
   abortActiveRuns(projectId?: ProjectId): { aborted: number };
   abortActiveRun(

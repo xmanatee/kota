@@ -69,17 +69,31 @@ export function registerControlCommands(wfCmd: Command, ctx: ModuleContext): voi
   wfCmd
     .command("resume")
     .description("Resume dispatching new workflow runs")
-    .action(async () => {
-      const result = await ctx.client.workflow.resume();
+    .option(
+      "--retry-agent",
+      "Clear agent backoff after fixing provider or authentication setup",
+    )
+    .action(async (options: { retryAgent?: boolean }) => {
+      const result = await ctx.client.workflow.resume(
+        options.retryAgent ? { retryAgent: true } : undefined,
+      );
       if (result.blocked === "dirty-recovery") {
         printWorkflowError(`Dispatch remains paused for dirty recovery. ${result.message ?? "Clean the checkout before resuming."}`);
         process.exit(1);
       }
       if (result.already) {
-        printWorkflowText("Dispatch is not paused.");
+        printWorkflowText(
+          result.agentBackoffCleared
+            ? "Agent backoff cleared; dispatch is running."
+            : "Dispatch is not paused.",
+        );
         return;
       }
-      printWorkflowText("Dispatch resumed.");
+      printWorkflowText(
+        result.agentBackoffCleared
+          ? "Dispatch resumed; agent backoff cleared."
+          : "Dispatch resumed.",
+      );
     });
 
   wfCmd

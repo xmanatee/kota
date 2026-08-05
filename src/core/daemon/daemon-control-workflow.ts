@@ -86,13 +86,18 @@ export function handleResumeWorkflow(handle: DaemonControlHandle, res: ServerRes
     jsonResponse(res, scope.status, scope.error);
     return;
   }
-  const { already, blocked, message } = handle.resumeWorkflowDispatch(scope.projectId);
+  const options = url.searchParams.get("retryAgent") === "true"
+    ? { retryAgent: true }
+    : undefined;
+  const { already, blocked, message, agentBackoffCleared } =
+    handle.resumeWorkflowDispatch(scope.projectId, options);
   jsonResponse(res, 200, {
     ok: true,
     paused: blocked === "dirty-recovery",
     ...(already && { already: true }),
     ...(blocked && { blocked }),
     ...(message && { message }),
+    ...(agentBackoffCleared && { agentBackoffCleared }),
   });
 }
 

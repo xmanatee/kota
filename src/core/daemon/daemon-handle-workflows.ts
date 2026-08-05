@@ -69,7 +69,7 @@ export function buildDaemonWorkflowHandle(
       if (!already) workflows.setDispatchPaused(true, "persistent");
       return { already };
     },
-    resumeWorkflowDispatch: (projectId?: ProjectId) => {
+    resumeWorkflowDispatch: (projectId, options) => {
       const workflows = lookupRuntime(projectId).workflowRuntime;
       const recovery = workflows.getRecoveryStatus();
       const pause = workflows.getDispatchPauseStatus(recovery);
@@ -81,9 +81,13 @@ export function buildDaemonWorkflowHandle(
         };
       }
       const already = !workflows.isDispatchPaused();
-      workflows.clearAgentBackoff("after operator resume");
+      const agentBackoffCleared = options?.retryAgent === true &&
+        workflows.clearAgentBackoff("after explicit operator retry");
       if (!already) workflows.setDispatchPaused(false, "persistent");
-      return { already };
+      return {
+        already,
+        ...(agentBackoffCleared && { agentBackoffCleared: true as const }),
+      };
     },
     probeCapabilityReadiness: () => ctx.probeCapabilityReadiness(),
     getClientIdentity: async (): Promise<ClientIdentity> => {

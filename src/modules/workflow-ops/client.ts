@@ -19,6 +19,7 @@ import type {
   WorkflowLiveStatus,
   WorkflowRunDetail,
   WorkflowRunSummary,
+  WorkflowResumeOptions,
 } from "#core/daemon/daemon-control.js";
 import type { EventJsonObject } from "#core/events/event-journal.js";
 import type { ScopeSelector } from "#core/server/scope-selector.js";
@@ -108,7 +109,10 @@ export type WorkflowPauseResult = { paused: boolean; already: boolean };
 export type WorkflowResumeResult = WorkflowPauseResult & {
   blocked?: "dirty-recovery";
   message?: string;
+  agentBackoffCleared?: true;
 };
+
+export type { WorkflowResumeOptions };
 
 /**
  * Result of `workflow.abort` (active runs).
@@ -252,7 +256,7 @@ export interface WorkflowClient {
    */
   listDefinitions(): Promise<WorkflowDefinitionsResult>;
   pause(): Promise<WorkflowPauseResult>;
-  resume(): Promise<WorkflowResumeResult>;
+  resume(options?: WorkflowResumeOptions): Promise<WorkflowResumeResult>;
   abort(): Promise<WorkflowAbortResult>;
   reload(): Promise<WorkflowReloadResult>;
   /**
