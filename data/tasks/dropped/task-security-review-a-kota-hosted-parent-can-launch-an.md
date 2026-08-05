@@ -1,13 +1,13 @@
 ---
 id: task-security-review-a-kota-hosted-parent-can-launch-an
 title: Security review: A KOTA-hosted parent can launch an agent-sdk delegate backed by a native tool-control harness, but the delegate only reads scope policy at launch. Native routing discards the live policy accessor, no parent abort signal is propagated, and no restrictive-policy subscription covers the child. A restrictive authority revision during the delegate run therefore leaves its native loop able to perform further writes or external effects and return stale success.
-status: ready
+status: dropped
 priority: p1
 area: security
 task_class: Safety
 summary: A KOTA-hosted parent can launch an agent-sdk delegate backed by a native tool-control harness, but the delegate only reads scope policy at launch. Native routing discards the live policy accessor, no parent abort signal is propagated, and no restrictive-policy subscription covers the child. A restrictive authority revision during the delegate run therefore leaves its native loop able to perform further writes or external effects and return stale success.
 created_at: 2026-08-04T06:45:49.622Z
-updated_at: 2026-08-04T06:45:49.622Z
+updated_at: 2026-08-05T12:37:15.112Z
 ---
 
 ## Problem
@@ -147,3 +147,9 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Decomposed
+
+- task-make-native-agent-invalidation-lifecycle-reusable
+- task-wire-native-agent-sdk-delegates-into-live-invalida
+- task-prove-native-delegate-quarantine-under-a-mid-run-a
