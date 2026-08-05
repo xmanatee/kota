@@ -6,7 +6,7 @@ priority: p1
 area: autonomy
 summary: Fix the local cause behind improver's persistent consecutive failure signal (step improve error a46a4e99c75a).
 created_at: 2026-08-05T09:31:40.506Z
-updated_at: 2026-08-05T09:32:30.153Z
+updated_at: 2026-08-05T09:33:18.395Z
 task_class: Meta
 ---
 
@@ -19,7 +19,7 @@ signal is considered local and code-actionable.
 
 Pattern fingerprint: `workflow-failure:consecutive-failures:improver:step-error:837684866e57`
 Root-cause fingerprint: `workflow-failure-root:improver:3257d48a548c`
-Evidence fingerprint: `10386195cb551c0abf42b5574a9e3f0519b02be2fadcd55717c683cf93836683`
+Evidence fingerprint: `a79f848b8b82143f887f9cf4c017e09b473c8d7e3b4643c00e9e88916280fd56`
 
 ## Failure Evidence
 
@@ -27,10 +27,11 @@ Evidence fingerprint: `10386195cb551c0abf42b5574a9e3f0519b02be2fadcd55717c683cf9
 - Workflow: improver
 - Failure class: step-error:improve:a46a4e99c75a
 - Signal: step improve error a46a4e99c75a
-- Run ids: 2026-08-05T07-44-52-890Z-improver-nhz0ks, 2026-08-05T09-29-13-611Z-improver-ttqzqt, 2026-08-05T09-30-07-323Z-improver-6mzalc, 2026-08-05T09-31-24-558Z-improver-r75jhz
-- Window: 2026-08-05T09:29:02.290Z to 2026-08-05T09:31:46.298Z
-- Actionable reason: improver has 4 consecutive failed completed runs with the same owned failure class (step improve error a46a4e99c75a).
+- Run ids: 2026-08-05T07-44-52-890Z-improver-nhz0ks, 2026-08-05T09-29-13-611Z-improver-ttqzqt, 2026-08-05T09-30-07-323Z-improver-6mzalc, 2026-08-05T09-31-24-558Z-improver-r75jhz, 2026-08-05T09-32-17-250Z-improver-nyrxjm
+- Window: 2026-08-05T09:29:02.290Z to 2026-08-05T09:32:59.381Z
+- Actionable reason: improver has 5 consecutive failed completed runs with the same owned failure class (step improve error a46a4e99c75a).
 
+- run 2026-08-05T09-32-17-250Z-improver-nyrxjm failed at step improve: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
 - run 2026-08-05T09-31-24-558Z-improver-r75jhz failed at step improve: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
 - run 2026-08-05T09-30-07-323Z-improver-6mzalc failed at step improve: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
 - run 2026-08-05T09-29-13-611Z-improver-ttqzqt failed at step improve: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
@@ -90,4 +91,4 @@ into deterministic, reviewable repair work.
   the task id without cost fields.
 
 <!-- workflow-failure-pattern-fingerprint: workflow-failure:consecutive-failures:improver:step-error:837684866e57 -->
-<!-- workflow-failure-evidence-fingerprint: 10386195cb551c0abf42b5574a9e3f0519b02be2fadcd55717c683cf93836683 -->
+<!-- workflow-failure-evidence-fingerprint: a79f848b8b82143f887f9cf4c017e09b473c8d7e3b4643c00e9e88916280fd56 -->
