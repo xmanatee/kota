@@ -257,8 +257,6 @@ describe("runAgentRepairLoop", () => {
   });
 
   it("stages workspace changes before repair checks run", async () => {
-    initGitRepo(projectDir);
-    writeFileSync(join(projectDir, "seed.txt"), "updated\n", "utf-8");
     const harnessName = uniqueName("repair-runtime-staging");
     const repairHarness = vi.fn<AgentHarness["run"]>();
     registerRepairHarness(harnessName, repairHarness);
@@ -278,6 +276,8 @@ describe("runAgentRepairLoop", () => {
         ],
       },
     });
+    initGitRepo(projectDir);
+    writeFileSync(join(projectDir, "seed.txt"), "updated\n", "utf-8");
 
     await runAgentRepairLoop(
       step,
@@ -429,7 +429,7 @@ describe("runAgentRepairLoop", () => {
         runtimeResources: context.runtimeResources,
         authorityConfigPath,
         scopeId: "scope-1",
-        projectId: "project-1",
+        projectId: "scope-1",
       },
     );
 
@@ -443,9 +443,9 @@ describe("runAgentRepairLoop", () => {
     expect(repairOptions?.workflowContext).toMatchObject({
       workflowName: "test-workflow",
       runId: "run-001",
-      stepId: "agent-step",
+      stepId: "agent",
       scopeId: "scope-1",
-      projectId: "project-1",
+      projectId: "scope-1",
     });
   });
 

@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import type {
   AgentHarnessResult,
+  AgentHarnessRunOptions,
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
 import { buildNativeCliEnvironment } from "#core/agent-harness/native-cli-environment.js";
@@ -64,6 +65,7 @@ type CollectTextFromGeminiCliArgs = {
   env: Record<string, string> | undefined;
   abortController: AbortController | undefined;
   writer: AgentHarnessWriter | undefined;
+  onMessage: AgentHarnessRunOptions["onMessage"] | undefined;
 };
 
 async function runGeminiCliProcess(
@@ -103,6 +105,7 @@ async function runGeminiCliProcess(
   const outputPromise: Promise<CollectedGeminiOutput> = collectGeminiOutput({
     lines: createInterface({ input: child.stdout }),
     writer: args.writer,
+    onMessage: args.onMessage,
   }).catch((err) => {
     parseError = err instanceof Error ? err.message : String(err);
     signalNativeCliProcessGroup(child, "SIGTERM");

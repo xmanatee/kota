@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { KotaAgentMessage } from "#core/agent-harness/index.js";
 import {
   GEMINI_CLI_AGENT_HARNESS_NAME,
   geminiCliAgentHarness,
@@ -94,11 +95,13 @@ describe("geminiCliAgentHarness", () => {
     expect(geminiCliAgentHarness.name).toBe("gemini-cli");
     expect(geminiCliAgentHarness.supportsMultiTurn).toBe(true);
     expect(geminiCliAgentHarness.askOwnerToolName).toBeNull();
-    expect(geminiCliAgentHarness.emitsAgentMessageStream).toBe(false);
+    expect(geminiCliAgentHarness.emitsAgentMessageStream).toBe(true);
     expect(geminiCliAgentHarness.toolControl).toBe("native");
     expect(geminiCliAgentHarness.unsupportedRunOptions?.map((option) => option.option)).toEqual(
       expect.arrayContaining(["allowedTools", "disallowedTools", "canUseTool", "scopePolicy"]),
     );
+    expect(geminiCliAgentHarness.unsupportedRunOptions?.map((option) => option.option))
+      .not.toContain("onMessage");
   });
 
   it("projects only the Gemini login locator when a trusted host replaces HOME", () => {
@@ -117,25 +120,36 @@ describe("geminiCliAgentHarness", () => {
           model: "gemini-2.5-pro",
         }),
         JSON.stringify({
+          type: "tool_use",
+          tool_name: "read_file",
+          tool_id: "tool-1",
+          parameters: { path: "README.md" },
+        }),
+        JSON.stringify({
+          type: "tool_result",
+          tool_id: "tool-1",
+          status: "success",
+          output: "# KOTA",
+        }),
+        JSON.stringify({
           type: "message",
           role: "assistant",
           content: "all done",
         }),
         JSON.stringify({
           type: "result",
+          status: "success",
           response: "all done",
           stats: {
-            models: {
-              "gemini-2.5-pro": {
-                tokens: { prompt: 18, candidates: 7 },
-              },
-            },
+            input_tokens: 18,
+            output_tokens: 7,
           },
         }),
       ],
     });
 
     const writer = { write: vi.fn().mockReturnValue(true) };
+    const messages: KotaAgentMessage[] = [];
     const result = await geminiCliAgentHarness.run(
       {
         prompt: "please echo",
@@ -144,6 +158,9 @@ describe("geminiCliAgentHarness", () => {
         systemPrompt: "be brief",
         cwd: "/repo",
         authorityConfigPath: "/operator/.kota/config.json",
+        onMessage: async (message) => {
+          messages.push(message);
+        },
       },
       writer,
     );
@@ -185,7 +202,8 @@ describe("geminiCliAgentHarness", () => {
       },
       expect.any(Function),
     );
-    const promptArg = spawnMock.mock.calls[0][1][2] as string;
+    const spawnedArgs = spawnMock.mock.calls[0][1] as string[];
+    const promptArg = spawnedArgs[spawnedArgs.indexOf("--prompt") + 1]!;
     expect(promptArg).toContain("## System instructions\n\nbe brief");
     expect(promptArg).toContain("Do not run `git commit`");
     expect(writer.write).toHaveBeenCalledWith("all done");
@@ -198,6 +216,90 @@ describe("geminiCliAgentHarness", () => {
       outputTokens: 7,
       isError: false,
     });
+    expect(messages).toEqual([
+      {
+        type: "status",
+        category: "gemini.initialized",
+        description: "gemini-2.5-pro",
+        sessionId: "session-1",
+      },
+      {
+        type: "tool_call",
+        toolUseId: "tool-1",
+        toolName: "read_file",
+        input: { path: "README.md" },
+        sessionId: "session-1",
+      },
+      {
+        type: "tool_result",
+        toolUseId: "tool-1",
+        isError: false,
+        content: "# KOTA",
+        sessionId: "session-1",
+      },
+      {
+        type: "text",
+        text: "all done",
+        sessionId: "session-1",
+      },
+      {
+        type: "result",
+        text: "all done",
+        subtype: "success",
+        isError: false,
+        numTurns: 1,
+        inputTokens: 18,
+        outputTokens: 7,
+        sessionId: "session-1",
+      },
+    ]);
+  });
+
+  it("preserves warning and unknown stream events without failing the run", async () => {
+    mockGeminiProcess({
+      stdoutLines: [
+        JSON.stringify({
+          type: "init",
+          session_id: "session-2",
+          model: "gemini-2.5-pro",
+        }),
+        JSON.stringify({
+          type: "error",
+          severity: "warning",
+          message: "Agent execution blocked once",
+        }),
+        JSON.stringify({ type: "future_event", detail: "preserve me" }),
+        JSON.stringify({ type: "message", role: "assistant", content: "recovered" }),
+        JSON.stringify({ type: "result", status: "success", stats: {} }),
+      ],
+    });
+    const messages: KotaAgentMessage[] = [];
+
+    const result = await geminiCliAgentHarness.run({
+      prompt: "continue",
+      model: "gemini-2.5-pro",
+      effort: "high",
+      onMessage: (message) => {
+        messages.push(message);
+      },
+    });
+
+    expect(result).toMatchObject({ text: "recovered", isError: false });
+    expect(messages).toEqual(expect.arrayContaining([
+      {
+        type: "status",
+        category: "gemini.error",
+        description: "warning",
+        text: "Agent execution blocked once",
+        sessionId: "session-2",
+      },
+      {
+        type: "raw",
+        adapter: "gemini-cli",
+        payload: { type: "future_event", detail: "preserve me" },
+        sessionId: "session-2",
+      },
+    ]));
   });
 
   it("does not inherit unrelated daemon credentials", async () => {

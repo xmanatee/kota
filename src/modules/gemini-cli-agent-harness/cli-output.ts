@@ -1,4 +1,7 @@
-import type { AgentHarnessWriter } from "#core/agent-harness/index.js";
+import type {
+  AgentHarnessWriter,
+  KotaAgentMessage,
+} from "#core/agent-harness/index.js";
 
 type GeminiCliError = {
   readonly type?: string;
@@ -10,6 +13,8 @@ type GeminiCliTokens = {
   readonly prompt?: number;
   readonly candidates?: number;
   readonly response?: number;
+  readonly input_tokens?: number;
+  readonly output_tokens?: number;
 };
 
 type GeminiCliModelStats = {
@@ -17,6 +22,8 @@ type GeminiCliModelStats = {
 };
 
 type GeminiCliStats = {
+  readonly input_tokens?: number;
+  readonly output_tokens?: number;
   readonly models?: {
     readonly [modelName: string]: GeminiCliModelStats | undefined;
   };
@@ -26,12 +33,19 @@ type GeminiCliStreamEvent = {
   readonly type?: string;
   readonly session_id?: string;
   readonly sessionId?: string;
+  readonly model?: string;
   readonly role?: string;
   readonly content?: string;
   readonly text?: string;
   readonly delta?: string;
   readonly message?: string;
   readonly response?: string | null;
+  readonly severity?: string;
+  readonly status?: string;
+  readonly tool_name?: string;
+  readonly tool_id?: string;
+  readonly parameters?: Extract<KotaAgentMessage, { type: "tool_call" }>["input"];
+  readonly output?: string;
   readonly stats?: GeminiCliStats;
   readonly error?: GeminiCliError | string | null;
 };
@@ -87,6 +101,19 @@ function errorMessage(error: GeminiCliError | string | null | undefined): string
 }
 
 function extractTokenCounts(stats: GeminiCliStats | undefined): TokenCounts {
+  if (
+    typeof stats?.input_tokens === "number" ||
+    typeof stats?.output_tokens === "number"
+  ) {
+    return {
+      ...(typeof stats.input_tokens === "number"
+        ? { inputTokens: stats.input_tokens }
+        : {}),
+      ...(typeof stats.output_tokens === "number"
+        ? { outputTokens: stats.output_tokens }
+        : {}),
+    };
+  }
   const models = stats?.models;
   if (!models) return {};
   let inputTokens = 0;
@@ -96,11 +123,12 @@ function extractTokenCounts(stats: GeminiCliStats | undefined): TokenCounts {
   for (const modelName of Object.keys(models)) {
     const tokens = models[modelName]?.tokens;
     if (!tokens) continue;
-    if (typeof tokens.prompt === "number") {
-      inputTokens += tokens.prompt;
+    const input = tokens.input_tokens ?? tokens.prompt;
+    if (typeof input === "number") {
+      inputTokens += input;
       sawInput = true;
     }
-    const output = tokens.candidates ?? tokens.response;
+    const output = tokens.output_tokens ?? tokens.candidates ?? tokens.response;
     if (typeof output === "number") {
       outputTokens += output;
       sawOutput = true;
@@ -112,9 +140,24 @@ function extractTokenCounts(stats: GeminiCliStats | undefined): TokenCounts {
   };
 }
 
+async function emit(
+  onMessage: ((message: KotaAgentMessage) => void | Promise<void>) | undefined,
+  message: KotaAgentMessage,
+): Promise<void> {
+  await onMessage?.(message);
+}
+
+function withSession(
+  message: KotaAgentMessage,
+  sessionId: string | undefined,
+): KotaAgentMessage {
+  return sessionId === undefined ? message : { ...message, sessionId };
+}
+
 export function collectGeminiOutput(args: {
   lines: AsyncIterable<string>;
   writer: AgentHarnessWriter | undefined;
+  onMessage: ((message: KotaAgentMessage) => void | Promise<void>) | undefined;
 }): Promise<CollectedGeminiOutput> {
   return (async () => {
     const chunks: string[] = [];
@@ -131,22 +174,87 @@ export function collectGeminiOutput(args: {
       if (isNonEmptyString(event.session_id)) sessionId = event.session_id;
       if (isNonEmptyString(event.sessionId)) sessionId = event.sessionId;
 
-      if (event.type === "message" && event.role !== "user") {
+      if (event.type === "init") {
+        await emit(
+          args.onMessage,
+          withSession(
+            {
+              type: "status",
+              category: "gemini.initialized",
+              ...(isNonEmptyString(event.model)
+                ? { description: event.model }
+                : {}),
+            },
+            sessionId,
+          ),
+        );
+      } else if (event.type === "message" && event.role !== "user") {
         const text = eventText(event);
         if (text) {
           chunks.push(text);
           args.writer?.write(text);
+          await emit(
+            args.onMessage,
+            withSession({ type: "text", text }, sessionId),
+          );
         }
-      }
-
-      if (event.type === "error") {
-        cliError = errorMessage(event.error) ?? event.message ?? "Gemini CLI reported an error";
-      }
-
-      if (event.type === "result" || event.type === undefined) {
+      } else if (
+        event.type === "tool_use" &&
+        isNonEmptyString(event.tool_id) &&
+        isNonEmptyString(event.tool_name) &&
+        event.parameters !== undefined
+      ) {
+        await emit(
+          args.onMessage,
+          withSession(
+            {
+              type: "tool_call",
+              toolUseId: event.tool_id,
+              toolName: event.tool_name,
+              input: event.parameters,
+            },
+            sessionId,
+          ),
+        );
+      } else if (event.type === "tool_result" && isNonEmptyString(event.tool_id)) {
+        const toolError = errorMessage(event.error);
+        await emit(
+          args.onMessage,
+          withSession(
+            {
+              type: "tool_result",
+              toolUseId: event.tool_id,
+              isError: event.status === "error" || toolError !== undefined,
+              content: event.output ?? toolError ?? "",
+            },
+            sessionId,
+          ),
+        );
+      } else if (event.type === "error") {
+        const detail = errorMessage(event.error) ??
+          event.message ?? "Gemini CLI reported an error";
+        if (event.severity !== "warning") cliError = detail;
+        await emit(
+          args.onMessage,
+          withSession(
+            {
+              type: "status",
+              category: "gemini.error",
+              ...(event.severity !== undefined
+                ? { description: event.severity }
+                : {}),
+              text: detail,
+            },
+            sessionId,
+          ),
+        );
+      } else if (event.type === "result" || event.type === undefined) {
         if (typeof event.response === "string") responseText = event.response;
         const parsedError = errorMessage(event.error);
         if (parsedError) cliError = parsedError;
+        if (event.status === "error" && cliError === undefined) {
+          cliError = "Gemini CLI reported status error";
+        }
         const parsedTokens = extractTokenCounts(event.stats);
         tokenCounts = {
           ...(parsedTokens.inputTokens !== undefined
@@ -160,12 +268,46 @@ export function collectGeminiOutput(args: {
               ? { outputTokens: tokenCounts.outputTokens }
               : {}),
         };
+        if (responseText && chunks.length === 0) {
+          chunks.push(responseText);
+          args.writer?.write(responseText);
+          await emit(
+            args.onMessage,
+            withSession({ type: "text", text: responseText }, sessionId),
+          );
+        }
+        await emit(
+          args.onMessage,
+          withSession(
+            {
+              type: "result",
+              ...(responseText !== undefined ? { text: responseText } : {}),
+              ...(event.status !== undefined ? { subtype: event.status } : {}),
+              isError: cliError !== undefined,
+              numTurns: 1,
+              ...(tokenCounts.inputTokens !== undefined
+                ? { inputTokens: tokenCounts.inputTokens }
+                : {}),
+              ...(tokenCounts.outputTokens !== undefined
+                ? { outputTokens: tokenCounts.outputTokens }
+                : {}),
+            },
+            sessionId,
+          ),
+        );
+      } else {
+        await emit(
+          args.onMessage,
+          withSession(
+            {
+              type: "raw",
+              adapter: "gemini-cli",
+              payload: { ...event },
+            },
+            sessionId,
+          ),
+        );
       }
-    }
-
-    if (responseText && chunks.length === 0) {
-      chunks.push(responseText);
-      args.writer?.write(responseText);
     }
 
     return {

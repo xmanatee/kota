@@ -17,9 +17,9 @@ import type {
   DeadLetterRedriveTarget,
   WorkflowDefinitionSummary,
   WorkflowLiveStatus,
+  WorkflowResumeOptions,
   WorkflowRunDetail,
   WorkflowRunSummary,
-  WorkflowResumeOptions,
 } from "#core/daemon/daemon-control.js";
 import type { EventJsonObject } from "#core/events/event-journal.js";
 import type { ScopeSelector } from "#core/server/scope-selector.js";

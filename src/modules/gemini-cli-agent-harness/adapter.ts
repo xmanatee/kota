@@ -95,11 +95,6 @@ const GEMINI_CLI_UNSUPPORTED_OPTIONS = [
     option: "thinkingEnabled/thinkingBudget",
     reason: "Gemini CLI owns provider-specific thinking controls outside this neutral surface.",
   },
-  {
-    runOption: "onMessage",
-    option: "onMessage",
-    reason: "Gemini CLI emits JSON events, not KotaAgentMessage frames.",
-  },
 ] as const satisfies readonly AgentHarnessUnsupportedOption[];
 
 function geminiCliReadiness(): AgentHarnessReadiness {
@@ -189,12 +184,6 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
         "Select a Gemini CLI model or settings profile instead.",
     );
   }
-  if (options.onMessage !== undefined) {
-    throw new Error(
-      'The "gemini-cli" agent harness emits text deltas only, not KotaAgentMessage frames. ' +
-        "Drop onMessage.",
-    );
-  }
 }
 
 function geminiApprovalMode(
@@ -229,7 +218,7 @@ export const geminiCliAgentHarness: AgentHarness = {
   supportsMultiTurn: true,
   supportedHookKinds: ["preRun", "postRun"] as const,
   askOwnerToolName: null,
-  emitsAgentMessageStream: false,
+  emitsAgentMessageStream: true,
   toolControl: "native",
   nativeAbortQuarantine: "confirmed-stop",
   unsupportedRunOptions: GEMINI_CLI_UNSUPPORTED_OPTIONS,
@@ -254,6 +243,7 @@ export const geminiCliAgentHarness: AgentHarness = {
       env: options.env,
       abortController: options.abortController,
       writer,
+      onMessage: options.onMessage,
     });
     options.abortQuarantine?.register(async () => {
       await execution.then(

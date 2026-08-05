@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { KotaAgentMessage } from "#core/agent-harness/index.js";
 import {
   hasAgentHarness,
   listAgentHarnessNames,
@@ -115,11 +116,15 @@ describe("gemini-cli agent harness integration", () => {
 
     const harness = resolveAgentHarness(GEMINI_CLI_AGENT_HARNESS_NAME);
     const writer = { write: vi.fn().mockReturnValue(true) };
+    const messages: KotaAgentMessage[] = [];
     const result = await harness.run(
       {
         prompt: "say ok",
         model: "gemini-2.5-pro",
         effort: "xhigh",
+        onMessage: (message) => {
+          messages.push(message);
+        },
       },
       writer,
     );
@@ -131,5 +136,10 @@ describe("gemini-cli agent harness integration", () => {
       streamedText: "ok",
       isError: false,
     });
+    expect(harness.emitsAgentMessageStream).toBe(true);
+    expect(messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "text", text: "ok" }),
+      expect.objectContaining({ type: "result", isError: false }),
+    ]));
   });
 });

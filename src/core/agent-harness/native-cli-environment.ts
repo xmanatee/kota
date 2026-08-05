@@ -139,5 +139,5 @@ export function buildIsolatedNativeCliEnvironment(
   };
   delete env.HOMEDRIVE;
   delete env.HOMEPATH;
-  return env;
+  return withAutomationProcessEnv(withProtectedGitBareRepositoryEnv(env));
 }

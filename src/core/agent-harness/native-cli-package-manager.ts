@@ -19,7 +19,7 @@ function projectPackageManager(cwd: string): string | undefined {
     const manifestPath = join(directory, "package.json");
     if (existsSync(manifestPath)) {
       const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
-        packageManager?: unknown;
+        packageManager?: string | number | boolean | object | null;
       };
       if (typeof manifest.packageManager === "string") {
         return manifest.packageManager;

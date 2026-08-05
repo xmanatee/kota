@@ -58,10 +58,6 @@ export class EventJournal {
     return this.filePath;
   }
 
-  retainsExpiredMetadata(): boolean {
-    return this.retention.kind === "expire-after-ms";
-  }
-
   appendFromBusEnvelope(envelope: BusEnvelope): EventEnvelope {
     const journaledAt = this.now();
     const sequence = this.nextSequence;

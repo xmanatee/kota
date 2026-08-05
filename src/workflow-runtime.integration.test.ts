@@ -1080,19 +1080,19 @@ describe("WorkflowRuntime", () => {
     execFileSync("git", ["add", ".gitignore", "README.md"], { cwd: projectDir, stdio: "ignore" });
     execFileSync("git", ["commit", "-m", "init"], { cwd: projectDir, stdio: "ignore" });
 
-    const builderDefinition = validateWorkflowDefinitions(
+    const improverDefinition = validateWorkflowDefinitions(
       [
-        registerWorkflowDefinition("test/builder.ts", {
-          name: "builder",
+        registerWorkflowDefinition("test/improver.ts", {
+          name: "improver",
           triggers: [{ event: "runtime.idle" }],
-          steps: [{ id: "run", type: "emit", event: "builder.done" }],
+          steps: [{ id: "run", type: "emit", event: "improver.done" }],
         }),
       ],
       projectDir,
     )[0];
 
     const store = new WorkflowRunStore(projectDir);
-    store.createRun(builderDefinition, {
+    store.createRun(improverDefinition, {
       event: "runtime.idle",
       schemaRef: null, payload: {},
     });
@@ -1139,7 +1139,7 @@ describe("WorkflowRuntime", () => {
     expect(state.activeRuns).toEqual([]);
 
     const runsDir = join(projectDir, ".kota", "runs");
-    const interruptedRunId = readdirSync(runsDir).find((runId) => runId.includes("-builder-"));
+    const interruptedRunId = readdirSync(runsDir).find((runId) => runId.includes("-improver-"));
     expect(interruptedRunId).toBeDefined();
     const metadata = JSON.parse(
       readFileSync(join(runsDir, interruptedRunId!, "metadata.json"), "utf-8"),
@@ -1350,7 +1350,7 @@ describe("WorkflowRuntime", () => {
     const store = new WorkflowRunStore(projectDir);
     store.setRecovery({
       sourceRunId: "run-1",
-      sourceWorkflow: "builder",
+      sourceWorkflow: "improver",
       worktreeFingerprint: "stale",
       worktreeSummary: "stale",
       attempts: 0,
@@ -1395,7 +1395,7 @@ describe("WorkflowRuntime", () => {
     expect(started).toEqual(["improver"]);
     const recovery = store.getRecovery();
     expect(recovery).toMatchObject({
-      sourceWorkflow: "builder",
+      sourceWorkflow: "improver",
       attempts: 1,
     });
     expect(recovery!.retryAttemptedBy).toHaveLength(1);
@@ -1457,7 +1457,7 @@ describe("WorkflowRuntime", () => {
     expect(existsSync(join(projectDir, ".kota", PAUSE_SIGNAL_FILE))).toBe(true);
   });
 
-  it("preserves original attribution when a non-causal workflow completes during pending recovery", async () => {
+  it("preserves original attribution through the owning recovery workflow", async () => {
     execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
     execFileSync("git", ["config", "user.name", "Kota Tests"], { cwd: projectDir, stdio: "ignore" });
     execFileSync("git", ["config", "user.email", "kota@example.com"], { cwd: projectDir, stdio: "ignore" });
@@ -1491,11 +1491,11 @@ describe("WorkflowRuntime", () => {
       projectDir,
       idleIntervalMs: 1_000,
       workflows: [
-        registerWorkflowDefinition("test/repairer.ts", {
-          name: "repairer",
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
           recoveryCapable: true,
           triggers: [{ event: "runtime.recovered" }],
-          steps: [{ id: "fix", type: "emit", event: "repairer.done" }],
+          steps: [{ id: "fix", type: "emit", event: "builder.done" }],
         }),
         registerWorkflowDefinition("test/digest.ts", {
           name: "digest",
@@ -1509,13 +1509,13 @@ describe("WorkflowRuntime", () => {
     await wait(80);
     await runtime.stop();
 
-    expect(started).toEqual(["repairer"]);
+    expect(started).toEqual(["builder"]);
 
     const recovery = store.getRecovery();
     expect(recovery!.sourceWorkflow).toBe("builder");
     expect(recovery!.sourceRunId).toBe("run-original");
     expect(recovery!.retryAttemptedBy).toHaveLength(1);
-    expect(recovery!.retryAttemptedBy[0].workflow).toBe("repairer");
+    expect(recovery!.retryAttemptedBy[0].workflow).toBe("builder");
   });
 
   it("fires interval-based schedule trigger immediately on first run", async () => {

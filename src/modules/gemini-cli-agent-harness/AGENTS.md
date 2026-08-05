@@ -45,9 +45,10 @@ The adapter runs one non-interactive CLI process per KOTA harness call:
    workspace, and invocation roots; Git metadata and machine authority stay
    read-only. Network access is restricted to declared Google model and
    authentication endpoints through KOTA's host-owned proxy.
-4. Parse newline-delimited JSON events. Assistant message chunks stream to the
-   optional `AgentHarnessWriter`; the final `result` event supplies response
-   text and usage stats.
+4. Parse newline-delimited JSON events. Normalize init, assistant text, tool,
+   error, and result events into `KotaAgentMessage`; preserve unknown events as
+   raw adapter frames. Assistant message chunks also stream to the optional
+   `AgentHarnessWriter`.
 5. Return the neutral `AgentHarnessResult`.
 
 Cancellation terminates the CLI process group so spawned tools cannot outlive
@@ -66,7 +67,9 @@ This adapter does not expose KOTA's tool registry, `canUseTool`,
 scope-policy evaluator, MCP servers, owner-question tool, or supervised
 approvals to the CLI. It declares `toolControl: "native"`. It still injects
 KOTA workflow rails into the prompt, but those rails are prompt-level
-instructions rather than KOTA-enforced tool guardrails.
+instructions rather than KOTA-enforced tool guardrails. Structured CLI events
+do feed KOTA's message-stream and trajectory diagnostics; observation does not
+change which runtime owns tool authorization.
 
 Do not treat this adapter as an autonomous builder-equivalent until a guarded
 tool-control path exists. It is safe as a native CLI runtime boundary and for

@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -41,7 +41,8 @@ function listMarkdown(dir: string): string[] {
 
 function listTextFiles(path: string): string[] {
   if (!existsSync(path)) return [];
-  const stat = statSync(path);
+  const stat = lstatSync(path);
+  if (stat.isSymbolicLink()) return [];
   if (stat.isDirectory()) {
     return readdirSync(path)
       .filter((entry) => !SKIPPED_SCAN_DIRECTORIES.has(entry))
