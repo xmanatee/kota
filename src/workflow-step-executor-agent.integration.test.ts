@@ -912,9 +912,9 @@ describe("executeAgentStep — writeScope enforcement", () => {
     writeTracked(projectDir, "src/core/keep.ts", "// legitimate staged dirt\n");
     execFileSync("git", ["add", "src/core/keep.ts"], { cwd: projectDir });
     writeTracked(projectDir, "src/core/keep.ts", "// legitimate worktree dirt\n");
-    let sandboxMode: string | undefined;
+    let writableRoots: readonly string[] | undefined;
     collectTextFromCodexCliMock.mockImplementation((options) => {
-      sandboxMode = options.sandboxMode;
+      writableRoots = options.writableRoots;
       writeTracked(projectDir, "src/core/keep.ts", "// unauthorized\n");
       writeTracked(projectDir, "src/core/injected.ts", "// injected\n");
       return Promise.resolve({
@@ -976,7 +976,7 @@ describe("executeAgentStep — writeScope enforcement", () => {
       }),
     ).toBe("// legitimate staged dirt\n");
     expect(existsSync(join(projectDir, "src/core/injected.ts"))).toBe(false);
-    expect(sandboxMode).toBe("read-only");
+    expect(writableRoots).toEqual([]);
     expect(
       execFileSync("git", ["rev-parse", "HEAD"], {
         cwd: projectDir,
