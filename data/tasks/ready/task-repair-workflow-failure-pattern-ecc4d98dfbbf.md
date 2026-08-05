@@ -6,7 +6,7 @@ priority: p1
 area: autonomy
 summary: Fix the local cause behind progress-reviewer's persistent consecutive failure signal (step review-evidence error a46a4e99c75a).
 created_at: 2026-08-05T09:31:40.519Z
-updated_at: 2026-08-05T10:07:27.359Z
+updated_at: 2026-08-05T10:09:14.292Z
 task_class: Meta
 ---
 
@@ -19,7 +19,7 @@ signal is considered local and code-actionable.
 
 Pattern fingerprint: `workflow-failure:consecutive-failures:progress-reviewer:step-error:5a927b61f240`
 Root-cause fingerprint: `workflow-failure-root:progress-reviewer:66404e9d7cec`
-Evidence fingerprint: `4ce2caf54d941add1e0160f415b24b1ab08a6f72619b9a65a750127cdc9a72ed`
+Evidence fingerprint: `5c94bf95d90c7754948c4a3fffb42225fc25e7f15fecf5141678a4a18f847647`
 
 ## Failure Evidence
 
@@ -27,10 +27,11 @@ Evidence fingerprint: `4ce2caf54d941add1e0160f415b24b1ab08a6f72619b9a65a750127cd
 - Workflow: progress-reviewer
 - Failure class: step-error:review-evidence:a46a4e99c75a
 - Signal: step review-evidence error a46a4e99c75a
-- Run ids: 2026-08-05T07-44-52-888Z-progress-reviewer-c3ivzx, 2026-08-05T09-28-06-719Z-progress-reviewer-b6t5wx, 2026-08-05T09-30-07-321Z-progress-reviewer-f6pxjb, 2026-08-05T09-32-17-248Z-progress-reviewer-qtjjdb, 2026-08-05T09-34-19-400Z-progress-reviewer-k9on70, 2026-08-05T09-36-08-330Z-progress-reviewer-p3g9ne, 2026-08-05T09-37-47-719Z-progress-reviewer-w2svmz, 2026-08-05T09-40-00-997Z-progress-reviewer-vlzzxa, 2026-08-05T09-41-58-224Z-progress-reviewer-hrzo8b, 2026-08-05T09-43-41-536Z-progress-reviewer-mdvlft, 2026-08-05T09-45-17-583Z-progress-reviewer-dtdfei, 2026-08-05T09-47-31-615Z-progress-reviewer-g34o2x, 2026-08-05T09-49-33-928Z-progress-reviewer-h56cr8, 2026-08-05T09-51-24-163Z-progress-reviewer-5tomg8, 2026-08-05T09-53-03-322Z-progress-reviewer-fix8h0, 2026-08-05T09-55-28-359Z-progress-reviewer-2b8kay, 2026-08-05T09-57-21-901Z-progress-reviewer-de21ok, 2026-08-05T09-59-07-484Z-progress-reviewer-qg7d7f, 2026-08-05T10-00-38-624Z-progress-reviewer-t14ayu, 2026-08-05T10-02-24-821Z-progress-reviewer-v3ntlr, 2026-08-05T10-04-26-485Z-progress-reviewer-yrxvz3, 2026-08-05T10-06-14-651Z-progress-reviewer-vwjxut
-- Window: 2026-08-05T09:28:52.486Z to 2026-08-05T10:06:51.755Z
-- Actionable reason: progress-reviewer has 22 consecutive failed completed runs with the same owned failure class (step review-evidence error a46a4e99c75a).
+- Run ids: 2026-08-05T07-44-52-888Z-progress-reviewer-c3ivzx, 2026-08-05T09-28-06-719Z-progress-reviewer-b6t5wx, 2026-08-05T09-30-07-321Z-progress-reviewer-f6pxjb, 2026-08-05T09-32-17-248Z-progress-reviewer-qtjjdb, 2026-08-05T09-34-19-400Z-progress-reviewer-k9on70, 2026-08-05T09-36-08-330Z-progress-reviewer-p3g9ne, 2026-08-05T09-37-47-719Z-progress-reviewer-w2svmz, 2026-08-05T09-40-00-997Z-progress-reviewer-vlzzxa, 2026-08-05T09-41-58-224Z-progress-reviewer-hrzo8b, 2026-08-05T09-43-41-536Z-progress-reviewer-mdvlft, 2026-08-05T09-45-17-583Z-progress-reviewer-dtdfei, 2026-08-05T09-47-31-615Z-progress-reviewer-g34o2x, 2026-08-05T09-49-33-928Z-progress-reviewer-h56cr8, 2026-08-05T09-51-24-163Z-progress-reviewer-5tomg8, 2026-08-05T09-53-03-322Z-progress-reviewer-fix8h0, 2026-08-05T09-55-28-359Z-progress-reviewer-2b8kay, 2026-08-05T09-57-21-901Z-progress-reviewer-de21ok, 2026-08-05T09-59-07-484Z-progress-reviewer-qg7d7f, 2026-08-05T10-00-38-624Z-progress-reviewer-t14ayu, 2026-08-05T10-02-24-821Z-progress-reviewer-v3ntlr, 2026-08-05T10-04-26-485Z-progress-reviewer-yrxvz3, 2026-08-05T10-06-14-651Z-progress-reviewer-vwjxut, 2026-08-05T10-07-50-557Z-progress-reviewer-q2lwrn
+- Window: 2026-08-05T09:28:52.486Z to 2026-08-05T10:08:18.050Z
+- Actionable reason: progress-reviewer has 23 consecutive failed completed runs with the same owned failure class (step review-evidence error a46a4e99c75a).
 
+- run 2026-08-05T10-07-50-557Z-progress-reviewer-q2lwrn failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
 - run 2026-08-05T10-06-14-651Z-progress-reviewer-vwjxut failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
 - run 2026-08-05T10-04-26-485Z-progress-reviewer-yrxvz3 failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
 - run 2026-08-05T10-02-24-821Z-progress-reviewer-v3ntlr failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
@@ -108,4 +109,4 @@ into deterministic, reviewable repair work.
   the task id without cost fields.
 
 <!-- workflow-failure-pattern-fingerprint: workflow-failure:consecutive-failures:progress-reviewer:step-error:5a927b61f240 -->
-<!-- workflow-failure-evidence-fingerprint: 4ce2caf54d941add1e0160f415b24b1ab08a6f72619b9a65a750127cdc9a72ed -->
+<!-- workflow-failure-evidence-fingerprint: 5c94bf95d90c7754948c4a3fffb42225fc25e7f15fecf5141678a4a18f847647 -->
