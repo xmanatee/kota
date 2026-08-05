@@ -15,6 +15,7 @@ import {
   writeRunWithCoverage,
   writeRunWithSkippedApprovalGateGap,
   writeRunWithSkippedOwnerWaitGateGap,
+  writeRunWithUnsupportedAgentStreamCoverageGaps,
 } from "./runtime-health-audit-control-coverage-test-support.js";
 
 const NOW = "2026-06-19T12:00:00.000Z";
@@ -118,6 +119,38 @@ describe("runtime health audit control coverage gaps", () => {
     const task = readFileSync(taskPath, "utf-8");
     expect(task).toContain(".kota/runs/control-gap-a/control-monitor-coverage.json");
     expect(task).toContain("external-payload-unscreened");
+  });
+
+  it("coalesces unsupported trajectory diagnostics into the agent stream capability gap", () => {
+    writeRunWithUnsupportedAgentStreamCoverageGaps(
+      projectDir,
+      "unsupported-stream-a",
+      "2026-06-19T10:00:00.000Z",
+    );
+    writeRunWithUnsupportedAgentStreamCoverageGaps(
+      projectDir,
+      "unsupported-stream-b",
+      "2026-06-19T11:00:00.000Z",
+    );
+
+    const audit = collectRuntimeHealthAudit({
+      projectDir,
+      options: { nowIso: NOW, interruptedRunMinCount: 2 },
+    });
+
+    expect(audit.inspected.controlCoverageGapRuns).toBe(2);
+    expect(audit.patterns).toEqual([
+      expect.objectContaining({
+        dedupeKey:
+          "control-coverage:agent-step-stream:unsupported-agent-message-stream",
+        observationCount: 2,
+      }),
+    ]);
+
+    const actions = reviewAndApply(audit);
+    expect(actions.createdTaskIds).toEqual([
+      "task-health-control-coverage-agent-step-stream-unsupported-agent-message-stream",
+    ]);
   });
 
   it("ignores stale skipped approval gate gaps from historical coverage artifacts", () => {

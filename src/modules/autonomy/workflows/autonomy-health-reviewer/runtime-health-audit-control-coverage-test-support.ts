@@ -207,6 +207,101 @@ export function writeRunWithAgentRuntimeCoverageGaps(
   );
 }
 
+export function writeRunWithUnsupportedAgentStreamCoverageGaps(
+  projectDir: string,
+  id: string,
+  startedAt: string,
+): void {
+  const runDir = join(projectDir, ".kota", "runs", id);
+  mkdirSync(runDir, { recursive: true });
+  const step: StepSeed = {
+    id: "improve",
+    type: "agent",
+    status: "failed",
+    error: 'Agent step "improve" failed: native harness stopped',
+  };
+  writeFileSync(
+    join(runDir, "metadata.json"),
+    JSON.stringify({
+      id,
+      workflow: "improver",
+      status: "failed",
+      startedAt,
+      completedAt: startedAt,
+      durationMs: 1000,
+      runDir: `.kota/runs/${id}`,
+      steps: [stepResult(step, startedAt)],
+    }),
+    "utf-8",
+  );
+  writeFileSync(
+    join(runDir, "control-monitor-coverage.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      generatedAt: startedAt,
+      artifactPath: `.kota/runs/${id}/control-monitor-coverage.json`,
+      run: {
+        id,
+        workflow: "improver",
+        triggerEvent: "workflow.completed",
+        status: "failed",
+        startedAt,
+        completedAt: startedAt,
+        headSha: "abc123",
+      },
+      monitoredSurfaceCounts: {
+        agentSteps: 1,
+        toolCalls: 0,
+        externalPayloadIngests: 0,
+        approvalRequests: 0,
+        ownerQuestionWaits: 0,
+        daemonHostControlDenials: 0,
+        runtimeProbes: 0,
+        postRunReviewLinks: 0,
+      },
+      summary: {
+        numerator: 1,
+        denominator: 3,
+        gapCount: 2,
+        unsupportedCount: 2,
+        pendingCount: 0,
+        blockedCount: 0,
+        warnedCount: 1,
+      },
+      families: [],
+      gaps: [
+        {
+          id: "agent-step-stream:unsupported-agent-message-stream:1",
+          family: "agent-step-stream",
+          severity: "warning",
+          reason: "unsupported-agent-message-stream",
+          subject: step.id,
+          evidenceRefs: [
+            `.kota/runs/${id}/steps/${step.id}.harness-capability.json`,
+          ],
+        },
+        {
+          id: "trajectory-diagnostics:unsupported-trajectory-diagnostics:2",
+          family: "trajectory-diagnostics",
+          severity: "warning",
+          reason: "unsupported-trajectory-diagnostics",
+          subject: step.id,
+          evidenceRefs: [
+            `.kota/runs/${id}/steps/${step.id}.trajectory-diagnostics.json`,
+          ],
+        },
+      ],
+      asyncReviewResponseMs: {
+        observations: 0,
+        min: null,
+        max: null,
+        average: null,
+      },
+    }),
+    "utf-8",
+  );
+}
+
 export function writeRunWithApprovalOwnerGateGap(
   projectDir: string,
   args: {

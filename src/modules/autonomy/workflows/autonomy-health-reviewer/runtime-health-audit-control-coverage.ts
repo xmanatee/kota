@@ -32,6 +32,25 @@ type ControlCoverageGapObservation = {
   gapCount: number;
 };
 
+type ControlCoverageGap = ControlMonitorCoverageArtifact["gaps"][number];
+
+function isDerivedUnsupportedTrajectoryGap(
+  gaps: readonly ControlCoverageGap[],
+  gap: ControlCoverageGap,
+): boolean {
+  if (
+    gap.family !== "trajectory-diagnostics" ||
+    gap.reason !== "unsupported-trajectory-diagnostics"
+  ) {
+    return false;
+  }
+  return gaps.some((candidate) =>
+    candidate.family === "agent-step-stream" &&
+    candidate.reason === "unsupported-agent-message-stream" &&
+    candidate.subject === gap.subject
+  );
+}
+
 function artifactRef(runId: string): string {
   return join(".kota", "runs", runId, CONTROL_MONITOR_COVERAGE_ARTIFACT);
 }
@@ -164,6 +183,10 @@ function observationsFor(
   for (const gap of artifact.gaps) {
     if (isStaleSkippedApprovalOwnerGateGap(ctx, run, gap)) continue;
     if (isInfrastructureAgentRuntimeCoverageGap(run, gap)) continue;
+    // Trajectory diagnostics consume the agent message stream. When a step
+    // lacks that stream, its unsupported trajectory gap is the same missing
+    // capability rather than an independent repair target.
+    if (isDerivedUnsupportedTrajectoryGap(artifact.gaps, gap)) continue;
     const key = `${gap.family}\0${gap.reason}`;
     const existing = byKey.get(key) ?? {
       family: gap.family,
