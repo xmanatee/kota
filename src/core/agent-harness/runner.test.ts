@@ -10,7 +10,7 @@ import {
   shouldRouteKotaToolControl,
 } from "./runner.js";
 import { harnessStub } from "./runner-fixtures.integration.js";
-import type { AgentHarness } from "./types.js";
+import type { AgentHarness, AgentHarnessRunOptions } from "./types.js";
 
 describe("runAgentHarness", () => {
   afterEach(() => {
@@ -128,8 +128,30 @@ describe("runAgentHarness", () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it("rejects live scope-policy authority at a native adapter boundary", async () => {
+    const { harness, run } = harnessStub("native-authority", []);
+    const nativeHarness: AgentHarness = { ...harness, toolControl: "native" };
+    const scopePolicyAuthority = {
+      getSnapshot: vi.fn(),
+      subscribeRestrictiveChanges: vi.fn(),
+    } as NonNullable<AgentHarnessRunOptions["scopePolicyAuthority"]>;
+
+    await expect(
+      runAgentHarness(nativeHarness, {
+        prompt: "x",
+        effort: "xhigh",
+        scopePolicyAuthority,
+      }),
+    ).rejects.toThrow(/native-authority.*cannot receive.*scope-policy authority/);
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it("routes KOTA tool control only to hosted loops but preserves scope policy for native preflight", () => {
     const { harness } = harnessStub("tool-loop", ["preRun", "postRun"]);
+    const scopePolicyAuthority = {
+      getSnapshot: vi.fn(),
+      subscribeRestrictiveChanges: vi.fn(),
+    } as NonNullable<AgentHarnessRunOptions["scopePolicyAuthority"]>;
     const scopePolicy = resolveScopePolicy({
       projection: {
         rootScopeId: "global",
@@ -141,9 +163,12 @@ describe("runAgentHarness", () => {
 
     expect(shouldRouteKotaToolControl(harness)).toBe(true);
     expect(shouldRouteKotaToolControl({ ...harness, toolControl: "native" })).toBe(false);
-    expect(routeKotaToolControlOptions(harness, { allowedTools: ["Read"] })).toEqual({
-      allowedTools: ["Read"],
-    });
+    expect(
+      routeKotaToolControlOptions(harness, {
+        allowedTools: ["Read"],
+        scopePolicyAuthority,
+      }),
+    ).toEqual({ allowedTools: ["Read"], scopePolicyAuthority });
     expect(
       routeKotaToolControlOptions(
         { ...harness, toolControl: "native" },
@@ -151,6 +176,7 @@ describe("runAgentHarness", () => {
           allowedTools: ["Read"],
           canUseTool: async () => ({ behavior: "allow" }),
           scopePolicy,
+          scopePolicyAuthority,
         },
       ),
     ).toEqual({ scopePolicy });

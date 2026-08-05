@@ -1,0 +1,60 @@
+Validation transcript — live native delegate invalidation and quarantine
+
+Command:
+pnpm test src/core/tools/delegate-harness.test.ts src/core/agent-harness/runner-cancellation.test.ts src/core/agent-harness/runner.test.ts src/core/agent-harness/tool-execution-options.test.ts src/core/workflow/run-executor-hosted-scope-policy.test.ts
+
+Result:
+Test Files  5 passed (5)
+Tests       21 passed (21)
+
+Coverage in this focused run:
+- inherited parent AbortSignal propagation into a distinct delegate child controller
+- active native quarantine on a supplied child AbortController
+- restrictive live authority revision aborting an active native delegate
+- fail-closed native launch when the inherited invalidation context is incomplete
+- lifecycle disposal after success, thrown failure, parent abort, and policy abort
+- hosted authority routing with native canUseTool and authority isolation preserved
+
+Command:
+pnpm test src/delegate-harness.integration.test.ts src/core/tools/delegate-turn.test.ts src/core/tools/tool-runner-live-scope-policy.test.ts src/core/loop/loop.test.ts src/core/workflow/steps/step-context-scope-policy.test.ts src/core/workflow/steps/step-context-native-scope-policy.test.ts src/core/workflow/steps/step-executor-agent-native-scope-policy.test.ts src/core/agent-harness/native-agent-invalidation.test.ts src/core/agent-harness/runner-scope-policy.test.ts src/modules/claude-agent-harness/adapter.test.ts
+
+Result:
+Test Files  10 passed (10)
+Tests       70 passed (70)
+
+Command:
+pnpm run typecheck
+
+Result:
+PASS — tsc --noEmit
+
+Command:
+pnpm test src/strict-types-policy.integration.test.ts src/root-layout.test.ts src/core/agent-harness/no-module-imports-in-core.test.ts
+
+Result:
+Test Files  3 passed (3)
+Tests       5 passed (5)
+
+Command:
+pnpm exec biome check <15 touched source and test files>
+
+Result:
+PASS — checked 15 files; no fixes applied.
+
+Task lifecycle:
+The first canonical task-move attempt reached the repo-tasks domain but the native sandbox rejected its real-index staging and the operation rolled back as designed. The final `pnpm kota task move task-wire-native-agent-sdk-delegates-into-live-invalida done` completed through a run-scoped disposable index and object store. The repository's real index remained untouched for the workflow host.
+
+Command:
+pnpm run validate-tasks with the same disposable exact-path index
+
+Result:
+PASS — queue validation completed without findings and the claimed task is in done/.
+
+Commit-set validation:
+The run-scoped disposable index staged the exact src/ and data/tasks/ change set. `git diff --cached --check` passed; the staged set contains the completed task rename, 14 modified source/test files, and the new focused delegate-harness test.
+
+Command:
+pnpm run hygiene with the run-scoped disposable commit-set index
+
+Result:
+PASS — staged changes show no repo hygiene issues.

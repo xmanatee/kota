@@ -11,6 +11,7 @@ import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import type {
 	ResolvedScopePolicy,
+	ScopePolicyAuthority,
 	ScopePolicySnapshotAccessor,
 } from "#core/daemon/scope-policy.js";
 import type { Transport } from "#core/loop/transport.js";
@@ -67,6 +68,7 @@ export type ToolCallExecutionOptions = {
 	transport?: Transport;
 	guardrailsConfig?: GuardrailsConfig;
 	scopePolicy?: ResolvedScopePolicy;
+	scopePolicyAuthority?: ScopePolicyAuthority;
 	getScopePolicySnapshot?: ScopePolicySnapshotAccessor;
 	clientApprovalResolver?: ToolApprovalResolver;
 	sessionId?: string;

@@ -2,6 +2,7 @@ import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import type {
   ResolvedScopePolicy,
+  ScopePolicyAuthority,
   ScopePolicySnapshotAccessor,
 } from "#core/daemon/scope-policy.js";
 import type { ModelProviderSelection } from "#core/model/model-client.js";
@@ -170,6 +171,12 @@ export type AgentHarnessRunOptions = {
   guardrailsConfig?: GuardrailsConfig;
   /** Policy resolved when the harness run starts, used for discovery and native setup. */
   scopePolicy?: ResolvedScopePolicy;
+  /**
+   * Live authority routed only into KOTA-owned tool execution so nested native
+   * launches can subscribe to restrictive revisions. Native adapters do not
+   * receive this object.
+   */
+  scopePolicyAuthority?: ScopePolicyAuthority;
   /**
    * Current machine-owned authority for KOTA-hosted tool authorization. Hosted
    * loops call this immediately before every invocation instead of retaining

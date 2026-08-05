@@ -7,6 +7,8 @@
 
 import {
   type AgentTokenBudgetLedger,
+  createNativeAgentInvalidationLifecycle,
+  type NativeAgentInvalidationLifecycle,
   resolveAgentHarness,
   routeKotaToolControlOptions,
   runAgentHarness,
@@ -18,7 +20,10 @@ import {
   EXPLORE_PROMPT,
   type PromptConfig,
 } from "#core/agents/delegate-prompts.js";
-import { capScopeAutonomyMode } from "#core/daemon/scope-policy.js";
+import {
+  capScopeAutonomyMode,
+  type ScopePolicySnapshot,
+} from "#core/daemon/scope-policy.js";
 import type { CostTracker } from "#core/loop/cost.js";
 import type { Transport } from "#core/loop/transport.js";
 import type { ModelProviderSelection } from "#core/model/model-client.js";
@@ -30,6 +35,7 @@ import {
 } from "./delegate-format.js";
 import type { ToolResult } from "./index.js";
 import { getCurrentToolCallExecutionOptions } from "./tool-runner-runtime.js";
+import type { ToolCallExecutionOptions } from "./tool-runner-types.js";
 
 const EXPLORE_HARNESS_TOOLS = [
   "Read",
@@ -66,6 +72,36 @@ export type DelegateHarnessConfig = {
   workflowContext?: AgentHarnessWorkflowContext;
 };
 
+function createNativeDelegateInvalidation(
+  harnessName: string,
+  inherited: ToolCallExecutionOptions | undefined,
+  initialSnapshot: ScopePolicySnapshot | undefined,
+): NativeAgentInvalidationLifecycle {
+  const parentSignal = inherited?.signal;
+  const scopeId = inherited?.scopeId;
+  const authority = inherited?.scopePolicyAuthority;
+  const missing = [
+    ...(parentSignal === undefined ? ["parent AbortSignal"] : []),
+    ...(scopeId === undefined ? ["scope id"] : []),
+    ...(authority === undefined ? ["scope-policy authority"] : []),
+    ...(initialSnapshot === undefined ? ["current scope-policy snapshot"] : []),
+  ];
+  if (missing.length > 0) {
+    throw new Error(
+      `Native delegate harness "${harnessName}" requires live invalidation context ` +
+        `(${missing.join(", ")} missing); refusing to launch.`,
+    );
+  }
+
+  return createNativeAgentInvalidationLifecycle({
+    executionLabel: `Native delegate harness "${harnessName}"`,
+    parentSignal,
+    scopeId,
+    authority,
+    initialSnapshot,
+  });
+}
+
 export async function runDelegateHarness(
   task: string,
   mode: "explore" | "execute" | "research",
@@ -96,69 +132,86 @@ export async function runDelegateHarness(
   const harnessName = config.harness;
   const harness = resolveAgentHarness(harnessName);
   const inheritedToolExecution = getCurrentToolCallExecutionOptions();
-  const scopePolicy = inheritedToolExecution?.getScopePolicySnapshot?.().policy
+  const scopePolicySnapshot = inheritedToolExecution?.getScopePolicySnapshot?.();
+  const scopePolicy = scopePolicySnapshot?.policy
     ?? inheritedToolExecution?.scopePolicy;
   const inheritedAutonomyMode = inheritedToolExecution?.autonomyMode ?? "autonomous";
   const autonomyMode = scopePolicy
     ? capScopeAutonomyMode(inheritedAutonomyMode, scopePolicy)
     : inheritedAutonomyMode;
+  const invalidation = harness.toolControl === "native"
+    ? createNativeDelegateInvalidation(
+        harnessName,
+        inheritedToolExecution,
+        scopePolicySnapshot,
+      )
+    : undefined;
 
-  if (transport) {
-    transport.emit({
-      type: "status",
-      message: `[kota] delegate(${mode}:${harnessName}) starting: ${taskPreview}`,
-    });
+  let result: Awaited<ReturnType<typeof runAgentHarness>>;
+  try {
+    if (transport) {
+      transport.emit({
+        type: "status",
+        message: `[kota] delegate(${mode}:${harnessName}) starting: ${taskPreview}`,
+      });
+    }
+    result = await runAgentHarness(
+      harness,
+      {
+        prompt: task,
+        model: config.model,
+        ...(config.modelProvider !== undefined ? { modelProvider: config.modelProvider } : {}),
+        modelOutputTokenLimits: config.modelOutputTokenLimits,
+        systemPrompt,
+        ...routeKotaToolControlOptions(harness, {
+          allowedTools,
+          canUseTool: inheritedToolExecution?.canUseTool,
+          scopePolicy,
+          scopePolicyAuthority: inheritedToolExecution?.scopePolicyAuthority,
+          getScopePolicySnapshot: inheritedToolExecution?.getScopePolicySnapshot,
+        }),
+        ...(inheritedToolExecution?.guardrailsConfig !== undefined
+          ? { guardrailsConfig: inheritedToolExecution.guardrailsConfig }
+          : {}),
+        ...(inheritedToolExecution?.clientApprovalResolver !== undefined
+          ? { clientApprovalResolver: inheritedToolExecution.clientApprovalResolver }
+          : {}),
+        ...(inheritedToolExecution?.approvalQueue !== undefined
+          ? { approvalQueue: inheritedToolExecution.approvalQueue }
+          : {}),
+        ...(inheritedToolExecution?.idempotencyStore !== undefined
+          ? { idempotencyStore: inheritedToolExecution.idempotencyStore }
+          : {}),
+        ...(inheritedToolExecution?.authorityConfigPath !== undefined
+          ? { authorityConfigPath: inheritedToolExecution.authorityConfigPath }
+          : {}),
+        ...(invalidation !== undefined
+          ? { abortController: invalidation.abortController }
+          : {}),
+        autonomyMode,
+        cwd: config.cwd ?? process.cwd(),
+        effort: "xhigh",
+        tokenBudget: config.tokenBudget,
+        ...(config.workflowContext !== undefined
+          ? { workflowContext: config.workflowContext }
+          : {}),
+      },
+      transport
+        ? {
+            write(text: string) {
+              transport.emit({
+                type: "progress",
+                content: text,
+                source: `delegate(${mode}:${harnessName})`,
+              });
+              return true;
+            },
+          }
+        : undefined,
+    );
+  } finally {
+    invalidation?.dispose();
   }
-  const result = await runAgentHarness(
-    harness,
-    {
-      prompt: task,
-      model: config.model,
-      ...(config.modelProvider !== undefined ? { modelProvider: config.modelProvider } : {}),
-      modelOutputTokenLimits: config.modelOutputTokenLimits,
-      systemPrompt,
-      ...routeKotaToolControlOptions(harness, {
-        allowedTools,
-        canUseTool: inheritedToolExecution?.canUseTool,
-        scopePolicy,
-        getScopePolicySnapshot: inheritedToolExecution?.getScopePolicySnapshot,
-      }),
-      ...(inheritedToolExecution?.guardrailsConfig !== undefined
-        ? { guardrailsConfig: inheritedToolExecution.guardrailsConfig }
-        : {}),
-      ...(inheritedToolExecution?.clientApprovalResolver !== undefined
-        ? { clientApprovalResolver: inheritedToolExecution.clientApprovalResolver }
-        : {}),
-      ...(inheritedToolExecution?.approvalQueue !== undefined
-        ? { approvalQueue: inheritedToolExecution.approvalQueue }
-        : {}),
-      ...(inheritedToolExecution?.idempotencyStore !== undefined
-        ? { idempotencyStore: inheritedToolExecution.idempotencyStore }
-        : {}),
-      ...(inheritedToolExecution?.authorityConfigPath !== undefined
-        ? { authorityConfigPath: inheritedToolExecution.authorityConfigPath }
-        : {}),
-      autonomyMode,
-      cwd: config.cwd ?? process.cwd(),
-      effort: "xhigh",
-      tokenBudget: config.tokenBudget,
-      ...(config.workflowContext !== undefined
-        ? { workflowContext: config.workflowContext }
-        : {}),
-    },
-    transport
-      ? {
-          write(text: string) {
-            transport.emit({
-              type: "progress",
-              content: text,
-              source: `delegate(${mode}:${harnessName})`,
-            });
-            return true;
-          },
-        }
-      : undefined,
-  );
 
   let completionReason: CompletionReason = "done";
   if (result.subtype === "error_max_turns") completionReason = "turn_limit";

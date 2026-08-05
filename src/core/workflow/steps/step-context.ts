@@ -206,6 +206,9 @@ export function createStepContext(
         ...(harness.toolControl === "kota" && deps.approvalQueue !== undefined
           ? { approvalQueue: deps.approvalQueue }
           : {}),
+        ...(harness.toolControl === "kota"
+          ? { scopePolicyAuthority: authority }
+          : {}),
         scopePolicy: getScopePolicySnapshot().policy,
         getScopePolicySnapshot,
       },
@@ -262,6 +265,7 @@ export function createStepContext(
           ? { approvalQueue: deps.approvalQueue }
           : {}),
         ...(scopePolicy !== undefined ? { scopePolicy } : {}),
+        ...(authority !== undefined ? { scopePolicyAuthority: authority } : {}),
         ...(getScopePolicySnapshot !== undefined ? { getScopePolicySnapshot } : {}),
         cwd: context.cwd,
         ...(context.env !== undefined ? { env: context.env } : {}),

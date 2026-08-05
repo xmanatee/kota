@@ -124,6 +124,37 @@ describe("runAgentHarness cancellation", () => {
     expect(run).toHaveBeenCalledOnce();
   });
 
+  it("activates native quarantine when a caller supplies a child AbortController", async () => {
+    const abortController = new AbortController();
+    const register = vi.fn();
+    const { harness } = harnessStub("delegate-child", []);
+    const nativeHarness: AgentHarness = {
+      ...harness,
+      toolControl: "native",
+      nativeAbortQuarantine: "confirmed-stop",
+      run: async (options) => {
+        expect(options.abortController).toBe(abortController);
+        expect(options.abortQuarantine).toBeDefined();
+        options.abortQuarantine?.register(register);
+        return {
+          text: "ok",
+          streamedText: "ok",
+          turns: 1,
+          isError: false,
+        };
+      },
+    };
+
+    await expect(
+      runAgentHarness(nativeHarness, {
+        prompt: "x",
+        effort: "xhigh",
+        abortController,
+      }),
+    ).resolves.toMatchObject({ text: "ok" });
+    expect(register).not.toHaveBeenCalled();
+  });
+
   it.each([
     { terminal: "success", run: async () => ({ text: "ok", streamedText: "ok", turns: 1, isError: false }) },
     { terminal: "failure", run: async () => { throw new Error("adapter failed"); } },

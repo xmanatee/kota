@@ -1,0 +1,6 @@
+1. Verified: delegate-harness creates one canonical lifecycle from the inherited signal, and the focused parent-abort test observes native quarantine.
+2. Verified: the focused mutable-authority test applies a restrictive revision, rejects with the canonical restriction error, and confirms listener release.
+3. Verified: delegate-harness passes the lifecycle controller to runAgentHarness; runner coverage confirms this activates the confirmed-stop quarantine contract.
+4. Verified: incomplete inherited context throws before the registered native harness run function is called.
+5. Verified: focused terminal-path tests assert one authority unsubscribe and zero remaining listeners after every terminal outcome.
+6. Verified: routing tests keep canUseTool and the live authority out of native adapter options while 21 focused, 70 broadened, and 5 policy tests pass.

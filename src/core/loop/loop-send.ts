@@ -241,7 +241,11 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
       }
 
       const resultLimit = state.context.getToolResultLimit();
-      const scopePolicy = state.scopePolicyAuthority?.getSnapshot(state.scopeId).policy;
+      const scopePolicyAuthority = state.scopePolicyAuthority;
+      const getScopePolicySnapshot = scopePolicyAuthority === undefined
+        ? undefined
+        : () => scopePolicyAuthority.getSnapshot(state.scopeId);
+      const scopePolicy = getScopePolicySnapshot?.().policy;
       const autonomyMode = scopePolicy
         ? capScopeAutonomyMode(state.autonomyMode, scopePolicy)
         : state.autonomyMode;
@@ -255,6 +259,8 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
         transport: state.transport,
         guardrailsConfig: state.guardrailsConfig,
         scopePolicy,
+        scopePolicyAuthority,
+        getScopePolicySnapshot,
         clientApprovalResolver: state.clientApprovalResolver,
         sessionId: state.sessionId,
         scopeId: state.scopeId,

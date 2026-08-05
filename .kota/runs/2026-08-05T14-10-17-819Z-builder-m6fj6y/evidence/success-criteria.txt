@@ -1,0 +1,6 @@
+1. Connect the inherited parent tool-call AbortSignal to one native delegate child controller.
+2. Abort an active native delegate through the canonical restrictive scope-policy subscription.
+3. Pass the child AbortController into runAgentHarness so native quarantine is mandatory.
+4. Refuse to launch a native delegate when required live invalidation context is missing.
+5. Dispose parent and authority listeners after success, thrown failure, parent abort, and policy abort.
+6. Preserve native tool-control isolation and guard the routing with focused delegate, runner, and workflow tests.

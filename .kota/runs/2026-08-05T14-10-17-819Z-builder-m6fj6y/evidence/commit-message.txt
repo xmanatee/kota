@@ -1,0 +1,1 @@
+security: quarantine native delegates on live authority changes

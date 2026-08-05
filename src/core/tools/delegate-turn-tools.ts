@@ -85,6 +85,9 @@ export async function executeDelegateToolBlocks(args: {
     ...(inherited?.scopePolicy !== undefined
       ? { scopePolicy: inherited.scopePolicy }
       : {}),
+    ...(inherited?.scopePolicyAuthority !== undefined
+      ? { scopePolicyAuthority: inherited.scopePolicyAuthority }
+      : {}),
     ...(inherited?.getScopePolicySnapshot !== undefined
       ? { getScopePolicySnapshot: inherited.getScopePolicySnapshot }
       : {}),

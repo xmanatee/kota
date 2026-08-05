@@ -1,14 +1,14 @@
 ---
 id: task-wire-native-agent-sdk-delegates-into-live-invalida
 title: Wire native agent-sdk delegates into live invalidation and quarantine
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Give every KOTA-hosted native delegate a live child abort controller, restrictive-policy subscription, and native runner quarantine instead of relying on its launch-time policy snapshot.
 depends_on: [task-make-native-agent-invalidation-lifecycle-reusable]
 created_at: 2026-08-05T12:37:15.050Z
-updated_at: 2026-08-05T12:37:15.050Z
+updated_at: 2026-08-05T15:32:38.431Z
 ---
 
 ## Problem

@@ -197,6 +197,7 @@ describe("workflow hosted tool live scope policy", () => {
       expect(hostedRunner).toHaveBeenCalledTimes(1);
       expect(harnessRunCount).toBe(2);
       expect(childOptions?.scopePolicy).toBeDefined();
+      expect(childOptions?.scopePolicyAuthority).toBe(authority);
       expect(childOptions?.getScopePolicySnapshot).toEqual(expect.any(Function));
       expect(authority.readCount()).toBeGreaterThanOrEqual(3);
       expect(authority.listenerCount()).toBe(0);

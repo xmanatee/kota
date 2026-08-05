@@ -8,6 +8,15 @@ export function assertAdapterCanHostRequestedCapabilities(
   harness: AgentHarness,
   options: AgentHarnessRunOptions,
 ): void {
+  if (
+    harness.toolControl === "native" &&
+    options.scopePolicyAuthority !== undefined
+  ) {
+    throw new Error(
+      `Agent harness "${harness.name}" cannot receive KOTA's live scope-policy authority. ` +
+        "Route only the resolved policy snapshot into native preflight.",
+    );
+  }
   const unsupported = requestedUnsupportedOptions(harness, options);
   if (unsupported.length > 0) {
     const labels = unsupported.map((entry) => entry.option).join(", ");
@@ -77,6 +86,7 @@ export function routeKotaToolControlOptions(
     disallowedTools?: string[];
     canUseTool?: AgentHarnessRunOptions["canUseTool"];
     scopePolicy?: AgentHarnessRunOptions["scopePolicy"];
+    scopePolicyAuthority?: AgentHarnessRunOptions["scopePolicyAuthority"];
     getScopePolicySnapshot?: AgentHarnessRunOptions["getScopePolicySnapshot"];
   },
 ): {
@@ -84,6 +94,7 @@ export function routeKotaToolControlOptions(
   disallowedTools?: string[];
   canUseTool?: AgentHarnessRunOptions["canUseTool"];
   scopePolicy?: AgentHarnessRunOptions["scopePolicy"];
+  scopePolicyAuthority?: AgentHarnessRunOptions["scopePolicyAuthority"];
   getScopePolicySnapshot?: AgentHarnessRunOptions["getScopePolicySnapshot"];
 } {
   if (!shouldRouteKotaToolControl(harness)) {

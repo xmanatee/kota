@@ -108,6 +108,7 @@ export function buildAgentHarnessRunOptions(input: {
         disallowedTools: toolScope.disallowedTools,
         canUseTool,
         scopePolicy: agentConfig.scopePolicy,
+        scopePolicyAuthority,
         getScopePolicySnapshot,
       }),
       ...(agentConfig.config?.guardrails !== undefined
