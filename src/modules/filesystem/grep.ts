@@ -1,14 +1,14 @@
 import { execFileSync } from "node:child_process";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
-import type { ToolResult } from "#core/tools/tool-result.js";
-import { resolveToolPath } from "./path-resolver.js";
 import {
   isProtectedProjectPath,
   protectedProjectGlobIgnores,
   protectedProjectGrepExcludes,
   protectedProjectPathError,
-} from "./protected-paths.js";
+} from "#core/tools/protected-project-paths.js";
+import type { ToolResult } from "#core/tools/tool-result.js";
+import { resolveToolPath } from "./path-resolver.js";
 
 export const grepTool: KotaTool = {
   name: "grep",

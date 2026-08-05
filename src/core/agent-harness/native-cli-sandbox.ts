@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { existingProtectedProjectPaths } from "#core/tools/protected-project-paths.js";
 import { buildMachineAuthoritySandboxLaunch } from "./machine-authority-sandbox.js";
 import {
   type NativeCliEgressProxy,
@@ -27,9 +28,18 @@ type NativeCliSandboxOptions = {
   readOnlyHostRoots?: readonly string[];
   allowedEgressHosts?: readonly string[];
   prepareEnvironment?: (
-    temporaryDirectory: string,
+    context: NativeCliRuntimeContext,
     env: NodeJS.ProcessEnv,
   ) => NodeJS.ProcessEnv;
+};
+
+export type NativeCliRuntimeContext = {
+  invocationRoot: string;
+  toolRuntimeRoot: string;
+  readableRoots: readonly string[];
+  writableRoots: readonly string[];
+  readProtectedPaths: readonly string[];
+  writeProtectedPaths: readonly string[];
 };
 
 const NATIVE_CLI_LINUX_PROXY_PORT = 43_217;
@@ -105,6 +115,19 @@ function withNativeCliEgressEnvironment(
   };
 }
 
+function pathIsWithin(root: string, candidate: string): boolean {
+  const child = relative(resolve(root), resolve(candidate));
+  return child === "" || (
+    child !== ".." &&
+    !child.startsWith(`..${sep}`) &&
+    !isAbsolute(child)
+  );
+}
+
+function absoluteRoots(paths: readonly string[], cwd: string): string[] {
+  return [...new Set(paths.map((path) => resolve(cwd, path)))];
+}
+
 export async function withNativeCliSandbox<T>(
   executable: string,
   args: readonly string[],
@@ -114,14 +137,15 @@ export async function withNativeCliSandbox<T>(
   const temporaryDirectory = mkdtempSync(join(tmpdir(), "kota-native-cli-"));
   let egressProxy: NativeCliEgressProxy | undefined;
   try {
-    const home = join(temporaryDirectory, "home");
+    const toolRuntimeRoot = join(temporaryDirectory, "tool-runtime");
+    const home = join(toolRuntimeRoot, "home");
     for (const directory of [
       home,
       join(home, ".config"),
       join(home, ".cache"),
       join(home, ".local", "share"),
       join(home, ".local", "state"),
-      join(temporaryDirectory, "runtime"),
+      join(toolRuntimeRoot, "runtime"),
     ]) {
       mkdirSync(directory, { recursive: true, mode: 0o700 });
     }
@@ -168,24 +192,44 @@ export async function withNativeCliSandbox<T>(
       ...(options.readOnlyHostRoots ?? []),
       ...packageManager.readOnlyHostRoots,
     ];
+    const readProtectedPaths = [...new Set([
+      ...existingProtectedProjectPaths(options.cwd),
+      ...(resolve(options.cwd) === resolve(process.cwd())
+        ? []
+        : existingProtectedProjectPaths(process.cwd())),
+    ])];
+    const writeProtectedPaths = [join(options.cwd, ".git")];
     const launch = buildMachineAuthoritySandboxLaunch(launchExecutable, launchArgs, {
       cwd: options.cwd,
       authorityConfigPath: options.authorityConfigPath,
       readableRoots,
       writableRoots: [...options.writableRoots, temporaryDirectory],
-      writeProtectedPaths: [join(options.cwd, ".git")],
+      readProtectedPaths,
+      writeProtectedPaths,
       networkAccess: egressProxy?.address.kind === "tcp"
         ? { kind: "loopback-proxy", port: egressProxy.address.port }
         : { kind: "offline" },
     });
     if (!launch.ok) throw new Error(launch.error);
     const preparedEnvironment = options.prepareEnvironment?.(
-      temporaryDirectory,
+      {
+        invocationRoot: temporaryDirectory,
+        toolRuntimeRoot,
+        readableRoots: absoluteRoots(
+          readableRoots.filter(
+            (path) => !pathIsWithin(temporaryDirectory, path),
+          ),
+          options.cwd,
+        ),
+        writableRoots: absoluteRoots(options.writableRoots, options.cwd),
+        readProtectedPaths,
+        writeProtectedPaths,
+      },
       packageManager.env,
     ) ?? packageManager.env;
     const isolatedEnvironment = buildIsolatedNativeCliEnvironment(
       preparedEnvironment,
-      temporaryDirectory,
+      toolRuntimeRoot,
     );
     const env = egressProxy === undefined
       ? isolatedEnvironment

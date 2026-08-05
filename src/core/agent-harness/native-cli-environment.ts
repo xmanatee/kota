@@ -121,21 +121,21 @@ export function buildNativeCliEnvironment(
 /** Defines invocation-scoped host-user and temporary-directory locators. */
 export function buildIsolatedNativeCliEnvironment(
   baseEnvironment: NodeJS.ProcessEnv,
-  invocationRoot: string,
+  toolRuntimeRoot: string,
 ): NodeJS.ProcessEnv {
-  const home = join(invocationRoot, "home");
+  const home = join(toolRuntimeRoot, "home");
   const env: NodeJS.ProcessEnv = {
     ...baseEnvironment,
     HOME: home,
     USERPROFILE: home,
-    TMPDIR: invocationRoot,
-    TMP: invocationRoot,
-    TEMP: invocationRoot,
+    TMPDIR: toolRuntimeRoot,
+    TMP: toolRuntimeRoot,
+    TEMP: toolRuntimeRoot,
     XDG_CONFIG_HOME: join(home, ".config"),
     XDG_CACHE_HOME: join(home, ".cache"),
     XDG_DATA_HOME: join(home, ".local", "share"),
     XDG_STATE_HOME: join(home, ".local", "state"),
-    XDG_RUNTIME_DIR: join(invocationRoot, "runtime"),
+    XDG_RUNTIME_DIR: join(toolRuntimeRoot, "runtime"),
   };
   delete env.HOMEDRIVE;
   delete env.HOMEPATH;

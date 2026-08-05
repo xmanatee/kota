@@ -31,7 +31,14 @@ describe("Codex runtime home", () => {
     writeFileSync(join(sourceHome, "config.toml"), "model = \"operator-default\"");
     writeFileSync(join(sourceHome, "state_5.sqlite"), "state");
 
-    const env = prepareCodexRuntimeEnvironment(invocationRoot, {
+    const env = prepareCodexRuntimeEnvironment({
+      invocationRoot,
+      toolRuntimeRoot: join(invocationRoot, "tool-runtime"),
+      readableRoots: ["/repo", "/usr"],
+      writableRoots: ["/repo/src"],
+      readProtectedPaths: ["/repo/.env"],
+      writeProtectedPaths: ["/repo/.git"],
+    }, {
       CODEX_HOME: sourceHome,
       KOTA_TEST_ENV: "preserved",
     });
@@ -42,8 +49,14 @@ describe("Codex runtime home", () => {
     });
     expect(readFileSync(join(env.CODEX_HOME!, "auth.json"), "utf8"))
       .toBe("{\"auth_mode\":\"chatgpt\"}");
-    expect(() => readFileSync(join(env.CODEX_HOME!, "config.toml"), "utf8"))
-      .toThrow();
+    const config = readFileSync(join(env.CODEX_HOME!, "config.toml"), "utf8");
+    expect(config).toContain('default_permissions = "kota-native"');
+    expect(config).toContain('approval_policy = "untrusted"');
+    expect(config).toContain('"/repo/src" = "write"');
+    expect(config).toContain('"/repo/.env" = "deny"');
+    expect(config).toContain('"/repo/.git" = "read"');
+    expect(config).toContain("enabled = false");
+    expect(config).not.toContain("operator-default");
     expect(() => readFileSync(join(env.CODEX_HOME!, "state_5.sqlite"), "utf8"))
       .toThrow();
   });

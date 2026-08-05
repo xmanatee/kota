@@ -2,9 +2,9 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { extname, join } from "node:path";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
+import { isProtectedProjectPath } from "#core/tools/protected-project-paths.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { resolveToolPath } from "./path-resolver.js";
-import { isProtectedProjectPath } from "./protected-paths.js";
 
 export const filesOverviewTool: KotaTool = {
   name: "files_overview",

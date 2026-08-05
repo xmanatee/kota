@@ -22,9 +22,11 @@ separate model catalog.
 Authentication is harness-managed. The readiness probe checks for the local
 Gemini CLI executable plus cached Gemini CLI Google OAuth / Code Assist
 credentials under the CLI's normal user config directory. Each run copies only
-those credentials and the selected auth mode into its isolated home. The
+those credentials and the selected auth mode into a provider-only home selected
+through Gemini's native `GEMINI_CLI_HOME` contract. The
 session-only `--skip-trust` flag satisfies Gemini CLI's headless bootstrap;
-KOTA's OS sandbox remains the single filesystem and network authority. A
+KOTA's outer OS sandbox and Gemini's tool sandbox enforce separate provider and
+model-tool boundaries. A
 symlinked project settings file is readable only as the configuration input
 Gemini requires before applying that session flag.
 Gemini-specific API keys remain supported when explicitly configured, while
@@ -37,10 +39,13 @@ The adapter runs one non-interactive CLI process per KOTA harness call:
 
 1. Compose the KOTA system prompt, workflow rails, and task prompt into one
    `--prompt` payload.
-2. Spawn `gemini --skip-trust --prompt <payload> --output-format stream-json
-   --model <model>`.
-3. Run the CLI inside KOTA's single native-CLI OS sandbox. Plan mode and
-   write-confirmation policy can write only to an invocation temp root;
+2. Spawn `gemini --sandbox --skip-trust --prompt <payload> --output-format
+   stream-json --model <model>`.
+3. Run the CLI inside KOTA's outer native-CLI OS sandbox. Gemini's nested tool
+   sandbox keeps model tools offline and hides provider login state. Plan mode
+   is read-only; autonomous bounded writes use `auto_edit`, so shell or other
+   permission-requiring effects fail closed in headless mode. Scope-policy
+   paths are the only worktree writes;
    allowed scope-policy paths are projected into the run worktree. Reads stay
    within system/tool runtime, workspace dependencies,
    workspace, and invocation roots; Git metadata and machine authority stay
@@ -56,14 +61,14 @@ Cancellation terminates the CLI process group so spawned tools cannot outlive
 the CLI, and the run-local quarantine barrier stays pending until the group
 leader has closed.
 
-`autonomyMode: "passive"` maps to Gemini CLI plan approval mode. Other modes
-use Gemini CLI's default approval behavior, which may fail loudly in headless
-runs when the CLI needs an approval KOTA cannot provide.
+`autonomyMode: "passive"`, denied writes, and denied destructive effects map to
+Gemini CLI plan mode. Other runs use `auto_edit`; permission requests KOTA
+cannot route fail closed in headless mode.
 
 ## Capability Boundary
 
 Gemini CLI owns its own tool runtime, MCP configuration, checkpointing, and
-approval loop. KOTA owns filesystem isolation so there is no nested sandbox.
+approval loop. KOTA also requires Gemini's nested tool sandbox.
 This adapter does not expose KOTA's tool registry, `canUseTool`, MCP servers,
 owner-question tool, or supervised approvals to the CLI. It declares
 `toolControl: "native"`. Scope writes are enforced by the shared OS sandbox,

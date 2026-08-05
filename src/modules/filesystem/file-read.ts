@@ -1,6 +1,10 @@
 import { existsSync, statSync } from "node:fs";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
+import {
+  isProtectedProjectPath,
+  protectedProjectPathError,
+} from "#core/tools/protected-project-paths.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import {
   formatSize,
@@ -13,7 +17,6 @@ import {
   readText,
 } from "./file-read-formats.js";
 import { fileNotFoundError, resolveToolPath } from "./path-resolver.js";
-import { isProtectedProjectPath, protectedProjectPathError } from "./protected-paths.js";
 
 export const fileReadTool: KotaTool = {
   name: "file_read",

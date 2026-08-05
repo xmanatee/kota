@@ -47,6 +47,7 @@ describe("machine authority execution sandbox", () => {
         "/opt/codex",
       ],
       writableRoots: ["/project", "/private/tmp/kota-native-cli"],
+      readProtectedPaths: ["/project/.env"],
       writeProtectedPaths: ["/project/.git"],
       networkAccess: { kind: "loopback-proxy", port: 48_121 },
       platform: "darwin",
@@ -75,6 +76,9 @@ describe("machine authority execution sandbox", () => {
       '(deny file-write* (literal "/Users/operator/.kota")',
     );
     expect(profile).toContain('(literal "/project/.git")');
+    expect(profile).toContain(
+      '(deny file-read* (literal "/project/.env")',
+    );
   });
 
   it("builds a Linux namespace with the authority directory read-only", () => {
@@ -113,6 +117,7 @@ describe("machine authority execution sandbox", () => {
       "/operator/.kota",
       "/project",
       "/project/.git",
+      "/project/.env",
       "/private/tmp/kota-native-cli",
       "/usr",
       "/opt/codex",
@@ -127,6 +132,7 @@ describe("machine authority execution sandbox", () => {
         "/private/tmp/kota-native-cli",
       ],
       writableRoots: ["/project", "/private/tmp/kota-native-cli"],
+      readProtectedPaths: ["/project/.env"],
       writeProtectedPaths: ["/project/.git"],
       networkAccess: { kind: "offline" },
       platform: "linux",
@@ -165,6 +171,9 @@ describe("machine authority execution sandbox", () => {
       "--ro-bind",
       "/project/.git",
       "/project/.git",
+      "--ro-bind",
+      "/dev/null",
+      "/project/.env",
     ]));
     expect(launch.args).not.toContain("/operator/.kota");
     expect(launch.args.slice(-5)).toEqual([

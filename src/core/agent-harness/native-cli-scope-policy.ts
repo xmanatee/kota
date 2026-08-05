@@ -6,19 +6,42 @@ import {
 } from "#core/daemon/scope-policy-paths.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 
-export function nativeCliWritableRoots(args: {
+export type NativeCliScopeProjection = {
+  executionMode: "bounded-edits" | "plan";
+  writableRoots: string[];
+};
+
+/**
+ * Native adapters expose no KOTA modules, deny tool network access, and use
+ * their CLI's fail-closed confirmation mode. This projection therefore only
+ * has to narrow the remaining local filesystem capability.
+ */
+export function projectNativeCliScope(args: {
   cwd: string;
   autonomyMode: AutonomyMode | undefined;
   scopePolicy: ResolvedScopePolicy | undefined;
-}): string[] {
-  if (args.autonomyMode === "passive") return [];
+}): NativeCliScopeProjection {
+  if (args.autonomyMode === "passive") {
+    return { executionMode: "plan", writableRoots: [] };
+  }
 
   const policy = args.scopePolicy;
-  if (policy === undefined) return [resolve(args.cwd)];
-  if (policy.ownerConfirmation.localWrite !== "allow") return [];
+  if (policy === undefined) {
+    return { executionMode: "bounded-edits", writableRoots: [resolve(args.cwd)] };
+  }
+  if (
+    policy.ownerConfirmation.localWrite !== "allow" ||
+    policy.ownerConfirmation.destructive === "deny"
+  ) {
+    return { executionMode: "plan", writableRoots: [] };
+  }
 
-  if (policy.writes.mode === "none") return [];
-  if (policy.writes.mode === "unrestricted") return [resolve(args.cwd)];
+  if (policy.writes.mode === "none") {
+    return { executionMode: "plan", writableRoots: [] };
+  }
+  if (policy.writes.mode === "unrestricted") {
+    return { executionMode: "bounded-edits", writableRoots: [resolve(args.cwd)] };
+  }
 
   const scopeRoot = policy.directoryRoot === undefined
     ? null
@@ -28,9 +51,11 @@ export function nativeCliWritableRoots(args: {
       `Native CLI cannot project ${policy.writes.mode} writes without a valid scope directory.`,
     );
   }
-  if (policy.writes.mode === "scope-directory") return [resolve(args.cwd)];
+  if (policy.writes.mode === "scope-directory") {
+    return { executionMode: "bounded-edits", writableRoots: [resolve(args.cwd)] };
+  }
 
-  return [...new Set(policy.writes.paths.map((path) => {
+  const writableRoots = [...new Set(policy.writes.paths.map((path) => {
     const resolvedPath = resolveScopePolicyPath(path, scopeRoot);
     if (
       resolvedPath === null ||
@@ -42,4 +67,8 @@ export function nativeCliWritableRoots(args: {
     }
     return resolve(args.cwd, relative(scopeRoot, resolvedPath));
   }))];
+  return {
+    executionMode: writableRoots.length === 0 ? "plan" : "bounded-edits",
+    writableRoots,
+  };
 }

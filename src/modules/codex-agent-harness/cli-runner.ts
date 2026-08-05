@@ -321,10 +321,8 @@ export async function collectTextFromCodexCli(
 ): Promise<AgentHarnessResult> {
   const cliArgs = [
     "exec",
-    "--dangerously-bypass-approvals-and-sandbox",
     "--json",
     "--ephemeral",
-    "--ignore-user-config",
     "--strict-config",
     "--disable",
     "plugins",
@@ -339,8 +337,6 @@ export async function collectTextFromCodexCli(
     "never",
     "-c",
     `model_reasoning_effort="${mapEffortToCodexReasoning(args.effort)}"`,
-    "-c",
-    'approval_policy="never"',
     "-",
   ];
   return withNativeCliSandbox(

@@ -102,6 +102,37 @@ describe("native CLI live sandbox", () => {
   );
 
   it.runIf(process.platform === "darwin")(
+    "denies project credential reads inside an otherwise readable workspace",
+    async () => {
+      const projectDir = mkdtempSync(join(tmpdir(), "kota-native-secret-sandbox-"));
+      roots.push(projectDir);
+      const secretPath = join(projectDir, ".env");
+      writeFileSync(secretPath, "TOKEN=project-secret\n");
+
+      const result = await withNativeCliSandbox(
+        "/bin/sh",
+        ["-c", 'cat "$TARGET"'],
+        {
+          cwd: projectDir,
+          writableRoots: [projectDir],
+          env: buildNativeCliEnvironment({
+            overrides: { TARGET: secretPath },
+          }),
+        },
+        (sandboxedProcess) => runNativeProcess(projectDir, sandboxedProcess),
+      );
+
+      if (isNativeCliSandboxBootstrapError(result.stderr)) {
+        expect(result.stdout).toBe("");
+        return;
+      }
+      expect(result.status).not.toBe(0);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toMatch(/operation not permitted/i);
+    },
+  );
+
+  it.runIf(process.platform === "darwin")(
     "permits only mediated provider-proxy traffic and denies direct loopback",
     async () => {
       const listener = createServer();

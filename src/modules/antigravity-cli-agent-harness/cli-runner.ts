@@ -62,7 +62,7 @@ type CollectTextFromAntigravityCliArgs = {
   cwd: string;
   model: string;
   effort: AgentEffort;
-  passive: boolean;
+  readOnly: boolean;
   writableRoots: readonly string[];
   authorityConfigPath: string | undefined;
   env: Record<string, string> | undefined;
@@ -213,8 +213,8 @@ export async function collectTextFromAntigravityCli(
     "--effort",
     antigravityCliEffort(args.effort),
     "--mode",
-    args.passive ? "plan" : "accept-edits",
-    "--dangerously-skip-permissions",
+    args.readOnly ? "plan" : "accept-edits",
+    "--sandbox",
     "--output-format",
     "stream-json",
     "--print-timeout",

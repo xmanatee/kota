@@ -4,12 +4,12 @@ import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { recordModification } from "#core/file-tracking/file-tracker.js";
 import { trackFileChange } from "#core/loop/file-changes.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
-import type { ToolResult } from "#core/tools/tool-result.js";
-import { lintFile } from "./lint.js";
 import {
   isMachineAuthorityMutationPath,
   machineAuthorityMutationError,
-} from "./protected-paths.js";
+} from "#core/tools/protected-project-paths.js";
+import type { ToolResult } from "#core/tools/tool-result.js";
+import { lintFile } from "./lint.js";
 
 const MAX_FILES = 50;
 const MAX_GLOB = 1000;

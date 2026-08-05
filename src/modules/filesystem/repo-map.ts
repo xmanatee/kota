@@ -2,12 +2,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { glob as globFn } from "glob";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
-import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
-import { resolveToolPath } from "./path-resolver.js";
 import {
   isProtectedProjectPath,
   protectedProjectGlobIgnores,
-} from "./protected-paths.js";
+} from "#core/tools/protected-project-paths.js";
+import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
+import { resolveToolPath } from "./path-resolver.js";
 
 export const repoMapTool: KotaTool = {
   name: "repo_map",

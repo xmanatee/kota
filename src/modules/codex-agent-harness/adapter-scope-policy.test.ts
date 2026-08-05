@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nativeCliWritableRoots } from "#core/agent-harness/native-cli-scope-policy.js";
+import { projectNativeCliScope } from "#core/agent-harness/native-cli-scope-policy.js";
 import { resolveScopePolicy, type ScopePolicyFragment } from "#core/daemon/scope-policy.js";
 import type { ScopeRegistryProjection } from "#core/daemon/scope-registry.js";
 import { codexAgentHarness } from "./adapter.js";
@@ -34,7 +34,7 @@ describe("Codex agent harness scope policy boundary", () => {
   });
 
   it("projects policy paths into the run worktree", () => {
-    expect(nativeCliWritableRoots({
+    expect(projectNativeCliScope({
       cwd: "/worktrees/run",
       autonomyMode: "autonomous",
       scopePolicy: policy({
@@ -42,20 +42,23 @@ describe("Codex agent harness scope policy boundary", () => {
         reason: "Limit writes to implementation and generated evidence.",
         writes: { mode: "paths", paths: ["src", "data/generated"] },
       }),
-    })).toEqual([
-      "/worktrees/run/src",
-      "/worktrees/run/data/generated",
-    ]);
+    })).toEqual({
+      executionMode: "bounded-edits",
+      writableRoots: [
+        "/worktrees/run/src",
+        "/worktrees/run/data/generated",
+      ],
+    });
   });
 
   it("denies native writes when either runtime or owner policy is read-only", () => {
     const writablePolicy = policy();
-    expect(nativeCliWritableRoots({
+    expect(projectNativeCliScope({
       cwd: "/worktrees/run",
       autonomyMode: "passive",
       scopePolicy: writablePolicy,
-    })).toEqual([]);
-    expect(nativeCliWritableRoots({
+    })).toEqual({ executionMode: "plan", writableRoots: [] });
+    expect(projectNativeCliScope({
       cwd: "/worktrees/run",
       autonomyMode: "autonomous",
       scopePolicy: policy({
@@ -63,11 +66,43 @@ describe("Codex agent harness scope policy boundary", () => {
         reason: "Require owner confirmation before local writes.",
         ownerConfirmation: { localWrite: "confirm" },
       }),
-    })).toEqual([]);
+    })).toEqual({ executionMode: "plan", writableRoots: [] });
+  });
+
+  it("keeps native tools offline and module-free while preserving bounded edits", () => {
+    expect(projectNativeCliScope({
+      cwd: "/worktrees/run",
+      autonomyMode: "autonomous",
+      scopePolicy: policy({
+        scopeId: "project",
+        reason: "No external or KOTA module effects.",
+        modules: { defaultAvailability: "disabled" },
+        externalEffects: {
+          networkRead: "deny",
+          networkWrite: "deny",
+          networkDestructive: "deny",
+        },
+      }),
+    })).toEqual({
+      executionMode: "bounded-edits",
+      writableRoots: ["/worktrees/run"],
+    });
+  });
+
+  it("uses plan mode when local destructive effects are denied", () => {
+    expect(projectNativeCliScope({
+      cwd: "/worktrees/run",
+      autonomyMode: "autonomous",
+      scopePolicy: policy({
+        scopeId: "project",
+        reason: "No destructive local effects.",
+        ownerConfirmation: { destructive: "deny" },
+      }),
+    })).toEqual({ executionMode: "plan", writableRoots: [] });
   });
 
   it("rejects policy paths that cannot be projected into the run worktree", () => {
-    expect(() => nativeCliWritableRoots({
+    expect(() => projectNativeCliScope({
       cwd: "/worktrees/run",
       autonomyMode: "autonomous",
       scopePolicy: policy({

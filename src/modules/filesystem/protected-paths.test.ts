@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { isProtectedProjectPath } from "./protected-paths.js";
+import { isProtectedProjectPath } from "#core/tools/protected-project-paths.js";
 
 const tempDirs: string[] = [];
 

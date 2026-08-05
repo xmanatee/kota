@@ -4,14 +4,14 @@ import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { recordModification } from "#core/file-tracking/file-tracker.js";
 import { trackFileChange } from "#core/loop/file-changes.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
+import {
+  isMachineAuthorityMutationPath,
+  machineAuthorityMutationError,
+} from "#core/tools/protected-project-paths.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { printWriteSummary } from "./diff.js";
 import { lintFile } from "./lint.js";
 import { resolveToolPath } from "./path-resolver.js";
-import {
-  isMachineAuthorityMutationPath,
-  machineAuthorityMutationError,
-} from "./protected-paths.js";
 
 export const fileWriteTool: KotaTool = {
   name: "file_write",

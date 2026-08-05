@@ -7,7 +7,7 @@ import {
   geminiCliAgentHarness,
   resolveGeminiCliIsolatedHostAuthEnv,
 } from "./adapter.js";
-import { GEMINI_CLI_AUTH_DIR_ENV } from "./runtime-home.js";
+import { GEMINI_CLI_HOME_ENV } from "./runtime-home.js";
 
 const spawnMock = vi.hoisted(() => vi.fn());
 const sandboxLaunchMock = vi.hoisted(() => vi.fn());
@@ -109,7 +109,7 @@ describe("geminiCliAgentHarness", () => {
   it("projects only the Gemini login locator when a trusted host replaces HOME", () => {
     expect(resolveGeminiCliIsolatedHostAuthEnv({ HOME: "/operator" }))
       .toEqual({
-        [GEMINI_CLI_AUTH_DIR_ENV]: "/operator/.gemini",
+        [GEMINI_CLI_HOME_ENV]: "/operator",
       });
   });
 
@@ -171,6 +171,7 @@ describe("geminiCliAgentHarness", () => {
       "authority-sandbox",
       expect.arrayContaining([
         "gemini",
+        "--sandbox",
         "--skip-trust",
         "--prompt",
         expect.stringContaining("## Task\n\nplease echo"),
@@ -179,7 +180,7 @@ describe("geminiCliAgentHarness", () => {
         "--model",
         "gemini-2.5-pro",
         "--approval-mode",
-        "default",
+        "auto_edit",
       ]),
       expect.objectContaining({ cwd: "/repo", detached: true }),
     );

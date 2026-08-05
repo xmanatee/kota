@@ -14,7 +14,7 @@ import {
   probeNativeCliAuth,
   probeNativeCliRuntime,
 } from "#core/agent-harness/index.js";
-import { nativeCliWritableRoots } from "#core/agent-harness/native-cli-scope-policy.js";
+import { projectNativeCliScope } from "#core/agent-harness/native-cli-scope-policy.js";
 import {
   ANTIGRAVITY_CLI_BINARY_NAME,
   abortedAntigravityCliResult,
@@ -249,17 +249,18 @@ export const antigravityCliAgentHarness: AgentHarness = {
     if (options.abortController?.signal.aborted) {
       return abortedAntigravityCliResult();
     }
+    const scope = projectNativeCliScope({
+      cwd: options.cwd ?? process.cwd(),
+      autonomyMode: options.autonomyMode,
+      scopePolicy: options.scopePolicy,
+    });
     const execution = collectTextFromAntigravityCli({
       prompt: buildAntigravityPrompt(options),
       cwd: options.cwd ?? process.cwd(),
       model: options.model,
       effort: options.effort,
-      passive: options.autonomyMode === "passive",
-      writableRoots: nativeCliWritableRoots({
-        cwd: options.cwd ?? process.cwd(),
-        autonomyMode: options.autonomyMode,
-        scopePolicy: options.scopePolicy,
-      }),
+      readOnly: scope.executionMode === "plan",
+      writableRoots: scope.writableRoots,
       authorityConfigPath: options.authorityConfigPath,
       env: options.env,
       abortController: options.abortController,

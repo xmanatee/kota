@@ -207,7 +207,7 @@ describe("antigravityCliAgentHarness", () => {
         "high",
         "--mode",
         "accept-edits",
-        "--dangerously-skip-permissions",
+        "--sandbox",
         "--output-format",
         "stream-json",
         "--print-timeout",
@@ -305,7 +305,7 @@ describe("antigravityCliAgentHarness", () => {
 
     expect(sandboxLaunchMock).toHaveBeenCalledWith(
       "agy",
-      expect.not.arrayContaining(["--sandbox"]),
+      expect.arrayContaining(["--sandbox", "--mode", "plan"]),
       expect.objectContaining({ writableRoots: [] }),
       expect.any(Function),
     );

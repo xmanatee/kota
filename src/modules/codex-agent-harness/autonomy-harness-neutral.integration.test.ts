@@ -166,12 +166,8 @@ describe("autonomy agent step on codex", () => {
       },
     });
     expect(spawnMock).toHaveBeenCalledTimes(1);
-    expect(spawnMock.mock.calls[0][1]).toEqual(
-      expect.arrayContaining([
-        "--dangerously-bypass-approvals-and-sandbox",
-        "-c",
-        'approval_policy="never"',
-      ]),
+    expect(spawnMock.mock.calls[0][1]).not.toContain(
+      "--dangerously-bypass-approvals-and-sandbox",
     );
     expect(codexProcess.stdinText()).toContain("## KOTA workflow rails");
     expect(codexProcess.stdinText()).toContain("Do not run `git commit`");

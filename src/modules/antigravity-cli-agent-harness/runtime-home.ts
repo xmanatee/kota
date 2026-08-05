@@ -5,6 +5,7 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import type { NativeCliRuntimeContext } from "#core/agent-harness/native-cli-sandbox.js";
 
 export const ANTIGRAVITY_CLI_KEYCHAIN_DIR_ENV =
   "KOTA_ANTIGRAVITY_CLI_KEYCHAIN_DIR";
@@ -20,7 +21,7 @@ export function resolveAntigravityCliKeychainDirectory(
 }
 
 export function prepareAntigravityCliRuntimeEnvironment(
-  temporaryDirectory: string,
+  context: NativeCliRuntimeContext,
   env: NodeJS.ProcessEnv,
 ): NodeJS.ProcessEnv {
   const keychainDirectory = resolveAntigravityCliKeychainDirectory(env);
@@ -33,7 +34,7 @@ export function prepareAntigravityCliRuntimeEnvironment(
     );
   }
 
-  const libraryDirectory = join(temporaryDirectory, "home", "Library");
+  const libraryDirectory = join(context.toolRuntimeRoot, "home", "Library");
   mkdirSync(libraryDirectory, { recursive: true, mode: 0o700 });
   symlinkSync(
     keychainDirectory,

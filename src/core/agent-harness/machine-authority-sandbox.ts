@@ -19,6 +19,7 @@ export type MachineAuthoritySandboxOptions = {
   authorityConfigPath?: string;
   readableRoots?: readonly string[];
   writableRoots?: readonly string[];
+  readProtectedPaths?: readonly string[];
   writeProtectedPaths?: readonly string[];
   networkAccess?:
     | { kind: "offline" }
@@ -62,6 +63,7 @@ function macosProfile(
   tokenPaths: readonly string[],
   readableRoots: readonly string[] | undefined,
   writableRoots: readonly string[] | undefined,
+  readProtectedPaths: readonly string[],
   writeProtectedPaths: readonly string[],
   networkAccess: MachineAuthoritySandboxOptions["networkAccess"],
 ): string {
@@ -69,7 +71,8 @@ function macosProfile(
     ...configDirectories,
     ...writeProtectedPaths,
   ]);
-  const protectedTokens = tokenPaths.map((path) => `(literal ${JSON.stringify(path)})`);
+  const protectedReads = [...readProtectedPaths, ...tokenPaths]
+    .map((path) => `(literal ${JSON.stringify(path)})`);
   return [
     "(version 1)",
     "(allow default)",
@@ -102,8 +105,8 @@ function macosProfile(
             ...sandboxPathSelectors(writableRoots),
           ].join(" ")})`,
         ]),
-    `(deny file-write* ${[...protectedDirectories, ...protectedTokens].join(" ")})`,
-    `(deny file-read* ${protectedTokens.join(" ")})`,
+    `(deny file-write* ${[...protectedDirectories, ...protectedReads].join(" ")})`,
+    `(deny file-read* ${protectedReads.join(" ")})`,
   ].join("\n");
 }
 
@@ -132,6 +135,10 @@ export function buildMachineAuthoritySandboxLaunch(
   const writableRoots = options.writableRoots === undefined
     ? undefined
     : resolveUniquePathIdentities(options.writableRoots, options.cwd);
+  const readProtectedPaths = resolveUniquePathIdentities(
+    options.readProtectedPaths ?? [],
+    options.cwd,
+  );
   const writeProtectedPaths = resolveUniquePathIdentities(
     options.writeProtectedPaths ?? [],
     options.cwd,
@@ -154,6 +161,7 @@ export function buildMachineAuthoritySandboxLaunch(
           tokenPaths,
           readableRoots,
           writableRoots,
+          readProtectedPaths,
           writeProtectedPaths,
           options.networkAccess,
         ),
@@ -203,9 +211,9 @@ export function buildMachineAuthoritySandboxLaunch(
     ].filter(
       (path) => pathExists(path) && pathIsWithinRoots(path, visibleRoots),
     ).flatMap((path) => ["--ro-bind", path, path]);
-    const hiddenTokenMounts = tokenPaths.flatMap((tokenPath) =>
-      pathExists(tokenPath) && pathIsWithinRoots(tokenPath, visibleRoots)
-        ? ["--ro-bind", "/dev/null", tokenPath]
+    const hiddenReadMounts = [...readProtectedPaths, ...tokenPaths].flatMap((path) =>
+      pathExists(path) && pathIsWithinRoots(path, visibleRoots)
+        ? ["--ro-bind", "/dev/null", path]
         : []
     );
     return {
@@ -229,7 +237,7 @@ export function buildMachineAuthoritySandboxLaunch(
             ]),
         ...writableMounts,
         ...protectedMounts,
-        ...hiddenTokenMounts,
+        ...hiddenReadMounts,
         "--chdir",
         resolve(options.cwd),
         "--",

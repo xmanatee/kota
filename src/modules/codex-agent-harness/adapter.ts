@@ -19,7 +19,7 @@ import {
   probeNativeCliAuth,
   probeNativeCliRuntime,
 } from "#core/agent-harness/index.js";
-import { nativeCliWritableRoots } from "#core/agent-harness/native-cli-scope-policy.js";
+import { projectNativeCliScope } from "#core/agent-harness/native-cli-scope-policy.js";
 import { collectTextFromCodexCli } from "./cli-runner.js";
 import { resolveCodexHome } from "./runtime-home.js";
 
@@ -217,16 +217,17 @@ export const codexAgentHarness: AgentHarness = {
         'The "codex" agent harness requires an explicit model on the step or config.',
       );
     }
+    const scope = projectNativeCliScope({
+      cwd: options.cwd ?? process.cwd(),
+      autonomyMode: options.autonomyMode,
+      scopePolicy: options.scopePolicy,
+    });
     const execution = collectTextFromCodexCli({
       prompt: buildCodexPrompt(options),
       cwd: options.cwd ?? process.cwd(),
       model: options.model,
       effort: options.effort,
-      writableRoots: nativeCliWritableRoots({
-        cwd: options.cwd ?? process.cwd(),
-        autonomyMode: options.autonomyMode,
-        scopePolicy: options.scopePolicy,
-      }),
+      writableRoots: scope.writableRoots,
       authorityConfigPath: options.authorityConfigPath,
       env: options.env,
       abortController: options.abortController,

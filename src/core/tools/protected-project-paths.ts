@@ -1,5 +1,5 @@
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
-import { escape as escapeGlob } from "glob";
+import { escape as escapeGlob, globSync } from "glob";
 import {
   isScopeAuthorityOperatorTokenPath,
   scopeAuthorityOperatorTokenPaths,
@@ -10,16 +10,21 @@ import {
   resolvePathThroughExistingAncestor,
 } from "#core/util/real-path.js";
 
-const PROTECTED_PROJECT_RUNTIME_FILES = [
+export const PROTECTED_PROJECT_RUNTIME_FILES = [
   ".kota/daemon-control.json",
   ".kota/secrets.json",
 ] as const;
 
-const PROTECTED_PROJECT_GLOB_IGNORES = [
-  "**/.kota/daemon-control.json",
-  "**/.kota/secrets.json",
+export const PROTECTED_PROJECT_ENV_GLOBS = [
+  ".env",
+  ".env.*",
   "**/.env",
   "**/.env.*",
+] as const;
+
+const PROTECTED_PROJECT_GLOB_IGNORES = [
+  ...PROTECTED_PROJECT_RUNTIME_FILES.map((path) => `**/${path}`),
+  ...PROTECTED_PROJECT_ENV_GLOBS,
 ] as const;
 
 const PROTECTED_PROJECT_GREP_EXCLUDES = [
@@ -55,6 +60,24 @@ export function protectedProjectGrepExcludes(
     ...PROTECTED_PROJECT_GREP_EXCLUDES,
     ...protectedOperatorTokenFileNames(context).map((fileName) => escapeGlob(fileName)),
   ];
+}
+
+export function existingProtectedProjectPaths(
+  projectDirectory: string,
+): string[] {
+  const projectRoot = resolve(projectDirectory);
+  const projectPaths = globSync(
+    [...PROTECTED_PROJECT_RUNTIME_FILES, ...PROTECTED_PROJECT_ENV_GLOBS],
+    {
+      cwd: projectRoot,
+      absolute: true,
+      dot: true,
+      nodir: true,
+      follow: false,
+      ignore: [".git/**", ".worktrees/**", "node_modules/**"],
+    },
+  );
+  return [...new Set(projectPaths.map((path) => resolve(path)))];
 }
 
 function normalizeRelativeProjectPath(relativePath: string): string {
@@ -133,11 +156,6 @@ function isPathWithin(root: string, target: string): boolean {
   return child === "" || (!child.startsWith("..") && !isAbsolute(child));
 }
 
-/**
- * Agent filesystem tools must never become a second writer for machine-owned
- * authority. Protect the whole containing directory to match the execution
- * sandbox, which also covers the operator credential beside the config file.
- */
 export function isMachineAuthorityMutationPath(
   filePath: string,
   context?: Pick<ToolRunnerContext, "authorityConfigPath" | "cwd">,

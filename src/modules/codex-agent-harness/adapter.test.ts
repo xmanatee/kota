@@ -198,10 +198,8 @@ describe("codexAgentHarness", () => {
       expect.arrayContaining([
         "codex",
         "exec",
-        "--dangerously-bypass-approvals-and-sandbox",
         "--json",
         "--ephemeral",
-        "--ignore-user-config",
         "--strict-config",
         "--disable",
         "plugins",
@@ -235,6 +233,10 @@ describe("codexAgentHarness", () => {
     expect(spawnMock.mock.calls[0][1]).not.toContain(
       'preferred_auth_method="chatgpt"',
     );
+    expect(spawnMock.mock.calls[0][1]).not.toContain(
+      "--dangerously-bypass-approvals-and-sandbox",
+    );
+    expect(spawnMock.mock.calls[0][1]).not.toContain("--ask-for-approval");
     const spawnEnv = spawnMock.mock.calls[0][2].env as NodeJS.ProcessEnv;
     expect(spawnEnv.OPENAI_API_KEY).toBeUndefined();
     expect(spawnEnv.KOTA_TEST_ENV).toBe("preserved");

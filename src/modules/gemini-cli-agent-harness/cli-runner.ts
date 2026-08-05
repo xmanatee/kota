@@ -24,14 +24,14 @@ import {
   emptyCollectedGeminiOutput,
 } from "./cli-output.js";
 import {
-  GEMINI_CLI_AUTH_DIR_ENV,
+  GEMINI_CLI_HOME_ENV,
   prepareGeminiCliRuntimeEnvironment,
 } from "./runtime-home.js";
 
-export type GeminiCliApprovalMode = "default" | "plan";
+export type GeminiCliApprovalMode = "auto_edit" | "plan";
 
 const GEMINI_CLI_AUTH_ENV_KEYS = [
-  GEMINI_CLI_AUTH_DIR_ENV,
+  GEMINI_CLI_HOME_ENV,
   "GEMINI_API_KEY",
   "GOOGLE_API_KEY",
 ] as const;
@@ -207,6 +207,7 @@ export async function collectTextFromGeminiCli(
   args: CollectTextFromGeminiCliArgs,
 ): Promise<AgentHarnessResult> {
   const cliArgs = [
+    "--sandbox",
     "--skip-trust",
     "--prompt",
     args.prompt,

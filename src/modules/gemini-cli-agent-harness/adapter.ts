@@ -17,12 +17,12 @@ import type {
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
 import { probeNativeCliRuntime } from "#core/agent-harness/index.js";
-import { nativeCliWritableRoots } from "#core/agent-harness/native-cli-scope-policy.js";
+import { projectNativeCliScope } from "#core/agent-harness/native-cli-scope-policy.js";
 import { geminiCliAuthReadiness } from "./auth-readiness.js";
 import { collectTextFromGeminiCli, type GeminiCliApprovalMode } from "./cli-runner.js";
 import {
-  GEMINI_CLI_AUTH_DIR_ENV,
-  resolveGeminiCliAuthDirectory,
+  GEMINI_CLI_HOME_ENV,
+  resolveGeminiCliHome,
 } from "./runtime-home.js";
 
 export const GEMINI_CLI_AGENT_HARNESS_NAME = "gemini-cli";
@@ -31,7 +31,7 @@ export function resolveGeminiCliIsolatedHostAuthEnv(
   env: NodeJS.ProcessEnv,
 ): Readonly<Record<string, string>> {
   return {
-    [GEMINI_CLI_AUTH_DIR_ENV]: resolveGeminiCliAuthDirectory(env),
+    [GEMINI_CLI_HOME_ENV]: resolveGeminiCliHome(env),
   };
 }
 
@@ -177,9 +177,9 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
 }
 
 function geminiApprovalMode(
-  options: AgentHarnessRunOptions,
+  executionMode: "bounded-edits" | "plan",
 ): GeminiCliApprovalMode {
-  return options.autonomyMode === "passive" ? "plan" : "default";
+  return executionMode === "plan" ? "plan" : "auto_edit";
 }
 
 function buildGeminiCliPrompt(options: AgentHarnessRunOptions): string {
@@ -224,16 +224,17 @@ export const geminiCliAgentHarness: AgentHarness = {
         'The "gemini-cli" agent harness requires an explicit model on the step or config.',
       );
     }
+    const scope = projectNativeCliScope({
+      cwd: options.cwd ?? process.cwd(),
+      autonomyMode: options.autonomyMode,
+      scopePolicy: options.scopePolicy,
+    });
     const execution = collectTextFromGeminiCli({
       prompt: buildGeminiCliPrompt(options),
       cwd: options.cwd ?? process.cwd(),
       model: options.model,
-      approvalMode: geminiApprovalMode(options),
-      writableRoots: nativeCliWritableRoots({
-        cwd: options.cwd ?? process.cwd(),
-        autonomyMode: options.autonomyMode,
-        scopePolicy: options.scopePolicy,
-      }),
+      approvalMode: geminiApprovalMode(scope.executionMode),
+      writableRoots: scope.writableRoots,
       authorityConfigPath: options.authorityConfigPath,
       env: options.env,
       abortController: options.abortController,

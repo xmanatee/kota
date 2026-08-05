@@ -8,8 +8,9 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import type { NativeCliRuntimeContext } from "#core/agent-harness/native-cli-sandbox.js";
 
-export const GEMINI_CLI_AUTH_DIR_ENV = "KOTA_GEMINI_CLI_AUTH_DIR";
+export const GEMINI_CLI_HOME_ENV = "GEMINI_CLI_HOME";
 
 type GeminiCliSettings = {
   selectedAuthType?: string;
@@ -20,12 +21,18 @@ type GeminiCliSettings = {
   };
 };
 
+export function resolveGeminiCliHome(
+  env: NodeJS.ProcessEnv,
+): string {
+  return env[GEMINI_CLI_HOME_ENV]?.trim()
+    || env.HOME?.trim()
+    || homedir();
+}
+
 export function resolveGeminiCliAuthDirectory(
   env: NodeJS.ProcessEnv,
 ): string {
-  const explicit = env[GEMINI_CLI_AUTH_DIR_ENV]?.trim();
-  if (explicit) return explicit;
-  return join(env.HOME?.trim() || homedir(), ".gemini");
+  return join(resolveGeminiCliHome(env), ".gemini");
 }
 
 function copyPrivateFile(source: string, destination: string): void {
@@ -54,11 +61,12 @@ function isolatedAuthSettings(source: string): GeminiCliSettings | null {
 
 /** Copies only Gemini CLI login state into the invocation-scoped home. */
 export function prepareGeminiCliRuntimeEnvironment(
-  temporaryDirectory: string,
+  context: NativeCliRuntimeContext,
   env: NodeJS.ProcessEnv,
 ): NodeJS.ProcessEnv {
   const sourceDirectory = resolveGeminiCliAuthDirectory(env);
-  const runtimeDirectory = join(temporaryDirectory, "home", ".gemini");
+  const runtimeHome = join(context.invocationRoot, "gemini-provider-home");
+  const runtimeDirectory = join(runtimeHome, ".gemini");
   mkdirSync(runtimeDirectory, { recursive: true, mode: 0o700 });
   for (const filename of ["oauth_creds.json", "google_accounts.json"]) {
     copyPrivateFile(
@@ -71,7 +79,5 @@ export function prepareGeminiCliRuntimeEnvironment(
     const destination = join(runtimeDirectory, "settings.json");
     writeFileSync(destination, JSON.stringify(settings), { mode: 0o600 });
   }
-  const prepared = { ...env };
-  delete prepared[GEMINI_CLI_AUTH_DIR_ENV];
-  return prepared;
+  return { ...env, [GEMINI_CLI_HOME_ENV]: runtimeHome };
 }

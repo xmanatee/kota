@@ -12,7 +12,10 @@ machine-authority isolation, and provider egress. The adapter rejects KOTA tool
 controls that cannot be enforced inside AGY.
 
 Each run creates an invocation-local AGY project bound to the requested working
-directory and consumes `stream-json`. Translate native events into
+directory, requires AGY's `--sandbox`, and consumes `stream-json`. The adapter
+never bypasses AGY permissions: edit-capable runs use `accept-edits`, while
+read-only projections use `plan` and all other permission requests fail closed.
+Translate native events into
 `KotaAgentMessage` frames here; preserve unknown frames as `raw` messages. KOTA
 effort maps to AGY's `low`, `medium`, or `high` values, with stronger KOTA
 levels capped at AGY's highest supported value.
