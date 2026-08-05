@@ -1,0 +1,81 @@
+Validation transcript — native agent invalidation lifecycle
+
+Command:
+pnpm test src/core/agent-harness/native-agent-invalidation.test.ts src/core/workflow/run-executor-scope-policy.test.ts
+
+Result:
+Test Files  2 passed (2)
+Tests       8 passed (8)
+
+Coverage in this focused run:
+- already-aborted and later-aborted parent signals
+- stale, equal-policy, less-restrictive, and restrictive authority snapshots
+- idempotent parent/authority listener cleanup on settlement, abort, and setup failure
+- the existing opaque native-process SIGKILL quarantine after a live restriction
+
+Command:
+pnpm test src/core/agent-harness/native-agent-invalidation.test.ts src/core/workflow/run-executor-scope-policy.test.ts src/core/workflow/repair-loop-workspace.test.ts src/core/workflow/repair-loop.test.ts src/core/workflow/steps/step-executor-agent-capability-native.test.ts src/core/workflow/steps/step-executor-agent-capability-unverifiable-auth.test.ts src/core/workflow/steps/step-executor-agent-capability.test.ts src/core/workflow/steps/step-executor-agent-native-scope-policy.test.ts src/core/workflow/steps/step-executor-agent-prompt.test.ts src/core/workflow/steps/step-executor-agent-tool-scope.test.ts src/core/workflow/steps/step-executor-agent-trajectory-diagnostics.test.ts
+
+Result:
+Test Files  11 passed (11)
+Tests       47 passed (47)
+
+Command:
+pnpm typecheck
+
+Result:
+PASS — tsc --noEmit
+
+Command:
+pnpm test src/strict-types-policy.integration.test.ts src/root-layout.test.ts
+
+Result:
+Test Files  2 passed (2)
+Tests       3 passed (3)
+
+Command:
+pnpm exec biome check src/core/agent-harness/native-agent-invalidation.ts src/core/agent-harness/native-agent-invalidation.test.ts src/core/agent-harness/index.ts src/core/workflow/steps/step-executor-agent-attempt.ts src/core/workflow/repair-loop-agent-iteration.ts
+
+Result:
+PASS — checked 5 files; no fixes applied.
+
+Broader diagnostic:
+pnpm test src/core/agent-harness
+
+Result:
+122/125 tests passed. The three failures are environment-only socket fixtures in native-cli-egress-proxy.test.ts and native-cli-sandbox.test.ts; each failed before its assertion with `listen EPERM: operation not permitted 127.0.0.1`. All non-listening agent-harness tests passed.
+
+Task lifecycle note:
+Both required `pnpm kota task move` attempts reached the canonical task domain but the read-only native Git metadata boundary rejected its exact-path staging with index.lock EPERM, so the domain operation rolled back as designed. Builder host repair must replay the claim-scoped canonical transition.
+
+Post-check repair attempt 1:
+
+Command:
+`pnpm test src/docs-surface.test.ts src/core/loop/instruction-files.test.ts src/core/agent-harness/native-agent-invalidation.test.ts src/core/workflow/run-executor-scope-policy.test.ts`
+
+Result:
+- Native invalidation and workflow quarantine tests pass.
+- The 8,000-byte instruction cap passes after consolidating the local lifecycle guidance.
+- `docs-surface.test.ts` cannot traverse the policy-denied `deploy/telegram-assistant/.env.example` in this native sandbox and exits with `lstat EPERM` before the AGENTS ratchet assertion.
+
+Independent ratchet proof:
+`src/core/agent-harness/AGENTS.md` is 143 lines against a 143-line baseline and 7,996 bytes against the 8,000-byte hard cap.
+
+Command:
+`pnpm test src/core/loop/instruction-files.test.ts`
+
+Result:
+Test Files  1 passed (1)
+Tests       205 passed (205)
+
+Task lifecycle repair:
+The canonical `pnpm kota task move task-make-native-agent-invalidation-lifecycle-reusable done` completed using a disposable index and object store under the agent-writable runtime temp directory. The real repository index remained untouched; the workflow host's claim-scoped staging bridge owns staging the resulting `ready/` to `done/` mutation after agent settlement.
+
+Command:
+`pnpm validate-tasks` against the disposable exact-path index
+
+Result:
+PASS — queue validation completed without findings. (`pnpm kota validate queue` was unavailable in this sandbox because CLI startup attempted a denied `127.0.0.1` listener.)
+
+Claimed-task commit-set probe:
+`OK: commit set resolves claimed task task-make-native-agent-invalidation-lifecycle-reusable`

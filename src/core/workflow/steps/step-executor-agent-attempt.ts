@@ -1,6 +1,7 @@
 import {
   type AgentHarness,
   type AgentTokenBudgetLedger,
+  createNativeAgentInvalidationLifecycle,
   type KotaAgentMessage,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
@@ -26,7 +27,6 @@ import {
   workflowOutputFromHarnessResult,
 } from "./step-executor-agent-output.js";
 import { buildAgentHarnessRunOptions } from "./step-executor-agent-run-options.js";
-import { subscribeAgentScopePolicyRestrictions } from "./step-executor-agent-scope-policy.js";
 import { makeToolTelemetryTracker } from "./step-executor-agent-telemetry.js";
 import {
   AgentStepRuntimeError,
@@ -65,35 +65,29 @@ export async function runAgentAttempt(input: {
     tokenBudget,
   } = input;
   const attemptMessages: KotaAgentMessage[] = [];
-  const attemptAbortController = new AbortController();
-  const forwardAbort = () => attemptAbortController.abort(abortController.signal.reason);
-  if (abortController.signal.aborted) {
-    forwardAbort();
-  } else {
-    abortController.signal.addEventListener("abort", forwardAbort, { once: true });
-  }
-  let idleMonitor: AgentStepIdleMonitor | undefined;
-  const captureMessage = createAgentAttemptMessageCapture({
-    messages: attemptMessages,
-    idleMonitor: () => idleMonitor,
-    bufferAgentMessages,
-    appendMessage,
+  const invalidation = createNativeAgentInvalidationLifecycle({
+    executionLabel: `Agent step "${step.id}"`,
+    parentSignal: abortController.signal,
+    ...(resolvedHarness.toolControl === "native"
+      ? {
+          scopeId: agentConfig.scopeId,
+          authority: agentConfig.scopePolicyAuthority,
+          initialSnapshot: agentConfig.scopePolicySnapshot,
+        }
+      : {}),
   });
-  const trackedMessage = resolvedHarness.emitsAgentMessageStream
-    ? makeToolTelemetryTracker(stepTelemetry, captureMessage)
-    : undefined;
-
-  let unsubscribeScopePolicy = () => {};
+  const attemptAbortController = invalidation.abortController;
+  let idleMonitor: AgentStepIdleMonitor | undefined;
   try {
-    if (resolvedHarness.toolControl === "native") {
-      unsubscribeScopePolicy = subscribeAgentScopePolicyRestrictions({
-        stepId: step.id,
-        scopeId: agentConfig.scopeId,
-        authority: agentConfig.scopePolicyAuthority,
-        initialSnapshot: agentConfig.scopePolicySnapshot,
-        abortController: attemptAbortController,
-      });
-    }
+    const captureMessage = createAgentAttemptMessageCapture({
+      messages: attemptMessages,
+      idleMonitor: () => idleMonitor,
+      bufferAgentMessages,
+      appendMessage,
+    });
+    const trackedMessage = resolvedHarness.emitsAgentMessageStream
+      ? makeToolTelemetryTracker(stepTelemetry, captureMessage)
+      : undefined;
     if (attemptAbortController.signal.aborted) {
       throw attemptAbortController.signal.reason instanceof Error
         ? attemptAbortController.signal.reason
@@ -207,7 +201,6 @@ export async function runAgentAttempt(input: {
     );
   } finally {
     idleMonitor?.dispose();
-    unsubscribeScopePolicy();
-    abortController.signal.removeEventListener("abort", forwardAbort);
+    invalidation.dispose();
   }
 }

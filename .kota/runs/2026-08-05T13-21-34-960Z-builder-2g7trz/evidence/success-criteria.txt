@@ -1,0 +1,5 @@
+1. One core native-agent lifecycle owns a child AbortController and composes inherited cancellation with the canonical restrictive scope-policy subscription.
+2. The lifecycle propagates both already-aborted and later-aborted parent signals to its child controller with the original abort reason.
+3. Only a newer, genuinely restrictive policy snapshot aborts the child; stale, equal-capability, and less-restrictive snapshots leave it active.
+4. Idempotent settlement cleanup removes the parent abort listener and authority subscription, including cleanup reached through abort.
+5. Workflow agent attempts and repair attempts use the shared lifecycle while the existing live native quarantine behavior remains covered and passing.

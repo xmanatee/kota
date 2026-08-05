@@ -1,13 +1,13 @@
 ---
 id: task-make-native-agent-invalidation-lifecycle-reusable
 title: Make native agent invalidation lifecycle reusable for nested launches
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Provide one canonical lifecycle that links an inherited abort signal and restrictive scope-policy revisions to a child AbortController, with deterministic listener cleanup.
 created_at: 2026-08-05T12:37:15.050Z
-updated_at: 2026-08-05T12:37:15.050Z
+updated_at: 2026-08-05T14:35:53.299Z
 ---
 
 ## Problem

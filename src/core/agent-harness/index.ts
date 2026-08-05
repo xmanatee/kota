@@ -71,6 +71,11 @@ export type {
   KotaToolResultBlockContent,
   KotaToolUseBlock,
 } from "./message-protocol.js";
+export type { NativeAgentInvalidationLifecycle } from "./native-agent-invalidation.js";
+export {
+  createNativeAgentInvalidationLifecycle,
+  NativeAgentScopePolicyRestrictionError,
+} from "./native-agent-invalidation.js";
 export type { NativeCliEnvironmentOptions } from "./native-cli-environment.js";
 export {
   buildIsolatedNativeCliEnvironment,

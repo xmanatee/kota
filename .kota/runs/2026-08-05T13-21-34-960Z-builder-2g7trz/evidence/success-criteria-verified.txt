@@ -1,0 +1,5 @@
+1. Verified: `src/core/agent-harness/native-agent-invalidation.ts` is the single owner of the child controller, parent propagation, canonical restrictive comparison/subscription, and disposal.
+2. Verified: focused tests pass for both an already-aborted parent and a parent aborted after lifecycle creation, including preservation of the original reason.
+3. Verified: focused tests pass for stale-revision, equal-policy, less-restrictive, and restrictive snapshots; only the restrictive snapshot aborts.
+4. Verified: focused tests prove abort cleanup, initialization-failure cleanup, and repeated manual disposal each remove the parent and authority listeners exactly once; late events cannot abort the settled child.
+5. Verified: normal workflow attempts and repair attempts both consume the shared lifecycle; the live quarantine regression plus the broader repair/agent-step set pass (47/47 tests).

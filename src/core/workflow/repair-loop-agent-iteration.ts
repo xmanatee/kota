@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { resolveAgentHarness } from "#core/agent-harness/index.js";
+import {
+  createNativeAgentInvalidationLifecycle,
+  resolveAgentHarness,
+} from "#core/agent-harness/index.js";
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
 import type { WorkflowRunMetadata, WorkflowStepContext } from "./run-types.js";
@@ -16,7 +19,6 @@ import {
   resolvePromptContextStartDir,
 } from "./steps/step-executor-agent.js";
 import { buildAgentHarnessRunOptions } from "./steps/step-executor-agent-run-options.js";
-import { subscribeAgentScopePolicyRestrictions } from "./steps/step-executor-agent-scope-policy.js";
 import {
   AgentStepRuntimeError,
   classifyAgentRuntimeFailure,
@@ -57,49 +59,43 @@ export async function executeRepairAgentIteration(
     : undefined;
 
   const runRepairHarness = async () => {
-    const attemptAbortController = new AbortController();
-    const forwardAbort = () => attemptAbortController.abort(abortController.signal.reason);
-    if (abortController.signal.aborted) {
-      attemptAbortController.abort(abortController.signal.reason);
-    } else {
-      abortController.signal.addEventListener("abort", forwardAbort, { once: true });
-    }
-    let idleMonitor: ReturnType<typeof createStepIdleTimeoutMonitor> | undefined;
-    let unsubscribeScopePolicy = () => {};
-    const messageCapture = harness.emitsAgentMessageStream
-      ? (message: KotaAgentMessage) => {
-          if (idleMonitor !== undefined && isAgentProgressMessage(message)) {
-            idleMonitor.reportProgress({
-              kind: "agent-message",
-              messageType: message.type,
-            });
+    const invalidation = createNativeAgentInvalidationLifecycle({
+      executionLabel: `Agent step "${step.id}"`,
+      parentSignal: abortController.signal,
+      ...(harness.toolControl === "native"
+        ? {
+            scopeId: agentConfig.scopeId,
+            authority: agentConfig.scopePolicyAuthority,
+            initialSnapshot: agentConfig.scopePolicySnapshot,
           }
-          appendMessage(message);
-        }
-      : undefined;
-    const { options } = buildAgentHarnessRunOptions({
-      step,
-      metadata,
-      agentConfig,
-      resolvedHarness: harness,
-      resolvedModel: resolveAgentModel(step, agentConfig),
-      prompt: repairPrompt,
-      systemPrompt,
-      abortController: attemptAbortController,
-      ...(messageCapture !== undefined ? { onMessage: messageCapture } : {}),
-      ...(tokenBudget !== undefined ? { tokenBudget } : {}),
+        : {}),
     });
-
+    const attemptAbortController = invalidation.abortController;
+    let idleMonitor: ReturnType<typeof createStepIdleTimeoutMonitor> | undefined;
     try {
-      if (harness.toolControl === "native") {
-        unsubscribeScopePolicy = subscribeAgentScopePolicyRestrictions({
-          stepId: step.id,
-          scopeId: agentConfig.scopeId,
-          authority: agentConfig.scopePolicyAuthority,
-          initialSnapshot: agentConfig.scopePolicySnapshot,
-          abortController: attemptAbortController,
-        });
-      }
+      const messageCapture = harness.emitsAgentMessageStream
+        ? (message: KotaAgentMessage) => {
+            if (idleMonitor !== undefined && isAgentProgressMessage(message)) {
+              idleMonitor.reportProgress({
+                kind: "agent-message",
+                messageType: message.type,
+              });
+            }
+            appendMessage(message);
+          }
+        : undefined;
+      const { options } = buildAgentHarnessRunOptions({
+        step,
+        metadata,
+        agentConfig,
+        resolvedHarness: harness,
+        resolvedModel: resolveAgentModel(step, agentConfig),
+        prompt: repairPrompt,
+        systemPrompt,
+        abortController: attemptAbortController,
+        ...(messageCapture !== undefined ? { onMessage: messageCapture } : {}),
+        ...(tokenBudget !== undefined ? { tokenBudget } : {}),
+      });
       if (attemptAbortController.signal.aborted) {
         throw attemptAbortController.signal.reason instanceof Error
           ? attemptAbortController.signal.reason
@@ -141,8 +137,7 @@ export async function executeRepairAgentIteration(
       throw error;
     } finally {
       idleMonitor?.dispose();
-      unsubscribeScopePolicy();
-      abortController.signal.removeEventListener("abort", forwardAbort);
+      invalidation.dispose();
     }
   };
 

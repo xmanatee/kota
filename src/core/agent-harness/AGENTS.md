@@ -29,10 +29,11 @@ the protocol and registry.
 - `sessionContext` is tool-runtime identity, not workflow trace/span metadata.
   `runAgentHarness` creates one per invocation; persistent interactive callers
   register one outer lifetime and reuse its context through teardown.
-- `runAgentHarness` is the cancellation quarantine boundary: after abort or
-  settlement it rejects late results and drops callbacks. Native tool loops
-  declare confirmed-stop support, register a run-local stop barrier before
-  acting, and hold the run until the process can no longer mutate.
+- `runAgentHarness` quarantines cancellation: after abort/settlement it rejects
+  late results and callbacks. Native tool loops register a confirmed-stop
+  barrier. Each native launch uses `createNativeAgentInvalidationLifecycle` for
+  child/parent abort propagation, restrictive policy, and idempotent cleanup;
+  nested launches reuse it.
 - `guards.ts` owns hidden agent/worktree nesting, commit, daemon-control, and
   authority guards. Its OS sandbox gives opaque code and native CLIs minimal
   environments, isolated home/temp, project package-manager runtimes,

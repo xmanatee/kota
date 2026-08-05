@@ -30,11 +30,12 @@ writeScope contract; everything else is a phase file:
   artifact derived from KOTA-native message frames.
 - `step-executor-agent-tool-scope.ts` — autonomy-mode → allowed/disallowed
   tool decisions (autonomous, supervised, passive).
-- `step-executor-agent-scope-policy.ts` — reauthorizes hosted calls and aborts native agents if policy tightens.
 - `step-executor-agent-json.ts` — fenced extraction, JSON/schema errors, and validation.
 
 New internals land in phase files. The orchestrator keeps harness dispatch,
 classified retries, and write-scope enforcement; phase-only helpers stay local.
+Native attempt cancellation and restrictive-policy invalidation use the shared
+agent-harness lifecycle described in `src/core/agent-harness/AGENTS.md`.
 
 ## Per-Run Emitted-Events Log
 

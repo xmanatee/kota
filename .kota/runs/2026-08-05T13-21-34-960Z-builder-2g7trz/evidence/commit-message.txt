@@ -1,0 +1,1 @@
+security: reuse native agent invalidation lifecycle
