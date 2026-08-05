@@ -6,7 +6,7 @@ priority: p1
 area: autonomy
 summary: Fix the local cause behind progress-reviewer's persistent consecutive failure signal (step review-evidence error a46a4e99c75a).
 created_at: 2026-08-05T09:31:40.519Z
-updated_at: 2026-08-05T09:46:18.399Z
+updated_at: 2026-08-05T09:48:41.989Z
 task_class: Meta
 ---
 
@@ -19,7 +19,7 @@ signal is considered local and code-actionable.
 
 Pattern fingerprint: `workflow-failure:consecutive-failures:progress-reviewer:step-error:5a927b61f240`
 Root-cause fingerprint: `workflow-failure-root:progress-reviewer:66404e9d7cec`
-Evidence fingerprint: `d532d03775a7f5b95290f03a59f072414883002b2642184b8860cf966f494d15`
+Evidence fingerprint: `b41a36c32d9aa42603b003bf1adbc6db6718db259e2c5e312924794bf7596929`
 
 ## Failure Evidence
 
@@ -27,10 +27,11 @@ Evidence fingerprint: `d532d03775a7f5b95290f03a59f072414883002b2642184b8860cf966
 - Workflow: progress-reviewer
 - Failure class: step-error:review-evidence:a46a4e99c75a
 - Signal: step review-evidence error a46a4e99c75a
-- Run ids: 2026-08-05T07-44-52-888Z-progress-reviewer-c3ivzx, 2026-08-05T09-28-06-719Z-progress-reviewer-b6t5wx, 2026-08-05T09-30-07-321Z-progress-reviewer-f6pxjb, 2026-08-05T09-32-17-248Z-progress-reviewer-qtjjdb, 2026-08-05T09-34-19-400Z-progress-reviewer-k9on70, 2026-08-05T09-36-08-330Z-progress-reviewer-p3g9ne, 2026-08-05T09-37-47-719Z-progress-reviewer-w2svmz, 2026-08-05T09-40-00-997Z-progress-reviewer-vlzzxa, 2026-08-05T09-41-58-224Z-progress-reviewer-hrzo8b, 2026-08-05T09-43-41-536Z-progress-reviewer-mdvlft, 2026-08-05T09-45-17-583Z-progress-reviewer-dtdfei
-- Window: 2026-08-05T09:28:52.486Z to 2026-08-05T09:45:37.100Z
-- Actionable reason: progress-reviewer has 11 consecutive failed completed runs with the same owned failure class (step review-evidence error a46a4e99c75a).
+- Run ids: 2026-08-05T07-44-52-888Z-progress-reviewer-c3ivzx, 2026-08-05T09-28-06-719Z-progress-reviewer-b6t5wx, 2026-08-05T09-30-07-321Z-progress-reviewer-f6pxjb, 2026-08-05T09-32-17-248Z-progress-reviewer-qtjjdb, 2026-08-05T09-34-19-400Z-progress-reviewer-k9on70, 2026-08-05T09-36-08-330Z-progress-reviewer-p3g9ne, 2026-08-05T09-37-47-719Z-progress-reviewer-w2svmz, 2026-08-05T09-40-00-997Z-progress-reviewer-vlzzxa, 2026-08-05T09-41-58-224Z-progress-reviewer-hrzo8b, 2026-08-05T09-43-41-536Z-progress-reviewer-mdvlft, 2026-08-05T09-45-17-583Z-progress-reviewer-dtdfei, 2026-08-05T09-47-31-615Z-progress-reviewer-g34o2x
+- Window: 2026-08-05T09:28:52.486Z to 2026-08-05T09:48:09.011Z
+- Actionable reason: progress-reviewer has 12 consecutive failed completed runs with the same owned failure class (step review-evidence error a46a4e99c75a).
 
+- run 2026-08-05T09-47-31-615Z-progress-reviewer-g34o2x failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
 - run 2026-08-05T09-45-17-583Z-progress-reviewer-dtdfei failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
 - run 2026-08-05T09-43-41-536Z-progress-reviewer-mdvlft failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
 - run 2026-08-05T09-41-58-224Z-progress-reviewer-hrzo8b failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
@@ -97,4 +98,4 @@ into deterministic, reviewable repair work.
   the task id without cost fields.
 
 <!-- workflow-failure-pattern-fingerprint: workflow-failure:consecutive-failures:progress-reviewer:step-error:5a927b61f240 -->
-<!-- workflow-failure-evidence-fingerprint: d532d03775a7f5b95290f03a59f072414883002b2642184b8860cf966f494d15 -->
+<!-- workflow-failure-evidence-fingerprint: b41a36c32d9aa42603b003bf1adbc6db6718db259e2c5e312924794bf7596929 -->
