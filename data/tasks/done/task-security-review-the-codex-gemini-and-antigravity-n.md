@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-codex-gemini-and-antigravity-n
 title: Security review: The Codex, Gemini, and Antigravity native adapters now advertise scope-policy support, but compile only local-write restrictions. Policies denying network effects, disabling modules, or requiring confirmation for other effects are accepted without enforcement or fail-closed rejection, while the unrestricted native tool loop and provider egress still launch.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: The Codex, Gemini, and Antigravity native adapters now advertise scope-policy support, but compile only local-write restrictions. Policies denying network effects, disabling modules, or requiring confirmation for other effects are accepted without enforcement or fail-closed rejection, while the unrestricted native tool loop and provider egress still launch.
 created_at: 2026-08-05T10:55:52.585Z
-updated_at: 2026-08-05T10:55:52.585Z
+updated_at: 2026-08-05T11:37:05.177Z
 ---
 
 ## Problem
@@ -110,4 +110,11 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Commit `5b68d01af` replaced the native writable-roots projection with a
+  fail-closed execution-mode projection, disabled native network tools, and
+  restored each CLI's own approval and sandbox boundary.
+- `pnpm vitest run src/modules/autonomy/workflow-failure-escalation.test.ts src/core/events/event-journal.test.ts src/modules/codex-agent-harness/adapter-scope-policy.test.ts src/core/agent-harness/native-cli-sandbox.test.ts src/core/agent-harness/machine-authority-sandbox.test.ts`
+  passed 32 focused checks on 2026-08-05.
+- A live Codex launch through the shipped adapter authenticated successfully;
+  a shell probe against a project `.env` returned `DENIED` and did not expose
+  the sentinel value.

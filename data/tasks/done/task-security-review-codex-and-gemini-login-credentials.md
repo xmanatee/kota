@@ -1,13 +1,13 @@
 ---
 id: task-security-review-codex-and-gemini-login-credentials
 title: Security review: Codex and Gemini login credentials are copied into the same invocation root that the unrestricted native tool process may read and write. Because Codex runs its tool loop with approvals and its internal sandbox bypassed, an injected instruction can direct a shell tool to read auth.json and place the ChatGPT credential in model-visible tool output or workflow artifacts.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Codex and Gemini login credentials are copied into the same invocation root that the unrestricted native tool process may read and write. Because Codex runs its tool loop with approvals and its internal sandbox bypassed, an injected instruction can direct a shell tool to read auth.json and place the ChatGPT credential in model-visible tool output or workflow artifacts.
 created_at: 2026-08-05T10:55:52.597Z
-updated_at: 2026-08-05T10:55:52.597Z
+updated_at: 2026-08-05T11:37:08.684Z
 ---
 
 ## Problem
@@ -110,4 +110,10 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Commit `5b68d01af` separated provider authentication from the native tool
+  runtime and made project/provider credential files unreadable and
+  unwritable by native tool subprocesses.
+- `pnpm vitest run src/modules/autonomy/workflow-failure-escalation.test.ts src/core/events/event-journal.test.ts src/modules/codex-agent-harness/adapter-scope-policy.test.ts src/core/agent-harness/native-cli-sandbox.test.ts src/core/agent-harness/machine-authority-sandbox.test.ts`
+  passed 32 focused checks on 2026-08-05.
+- A live Codex launch retained provider authentication while its shell probe
+  against a project `.env` returned `DENIED` without exposing the sentinel.

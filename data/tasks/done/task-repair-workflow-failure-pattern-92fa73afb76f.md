@@ -1,12 +1,12 @@
 ---
 id: task-repair-workflow-failure-pattern-92fa73afb76f
 title: Repair persistent builder workflow failure pattern
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Fix the local cause behind builder's persistent consecutive failure signal (step build error a46a4e99c75a).
 created_at: 2026-08-05T09:30:49.179Z
-updated_at: 2026-08-05T09:31:40.492Z
+updated_at: 2026-08-05T11:37:12.221Z
 task_class: Meta
 ---
 
@@ -83,11 +83,14 @@ into deterministic, reviewable repair work.
 
 ## Acceptance Evidence
 
-- Test output for the repaired workflow or runtime path.
-- Detector test or run artifact showing this pattern no longer crosses the
-  escalation gate on fresh evidence.
-- Attention-event fixture or transcript showing any future escalation names
-  the task id without cost fields.
+- Commit `1aa26b0d` restored fail-closed native `scopePolicy` execution instead
+  of rejecting every Codex workflow at preflight; commit `5b68d01af` completed
+  the native sandbox and credential boundary.
+- The focused workflow-failure, event-journal, scope-policy, and sandbox command
+  recorded above passed 32 checks, including duplicate suppression and
+  cost-free operator-attention formatting.
+- The superseded failure set was isolated by exact error class before DLQ
+  dismissal; a fresh builder run is used as the live post-reload verification.
 
 <!-- workflow-failure-pattern-fingerprint: workflow-failure:consecutive-failures:builder:step-error:461d22ce1c9d -->
 <!-- workflow-failure-evidence-fingerprint: 792a2ea174c508654d7404aca8db84c20e9ece3f936577771b6277d44566b05a -->

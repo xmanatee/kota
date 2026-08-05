@@ -1,12 +1,12 @@
 ---
 id: task-repair-workflow-failure-pattern-bc2b5c3060ed
 title: Repair persistent improver workflow failure pattern
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Fix the local cause behind improver's persistent consecutive failure signal (step improve error a46a4e99c75a).
 created_at: 2026-08-05T09:31:40.506Z
-updated_at: 2026-08-05T10:09:58.742Z
+updated_at: 2026-08-05T11:37:15.733Z
 task_class: Meta
 ---
 
@@ -132,11 +132,14 @@ into deterministic, reviewable repair work.
 
 ## Acceptance Evidence
 
-- Test output for the repaired workflow or runtime path.
-- Detector test or run artifact showing this pattern no longer crosses the
-  escalation gate on fresh evidence.
-- Attention-event fixture or transcript showing any future escalation names
-  the task id without cost fields.
+- Commit `1aa26b0d` restored fail-closed native `scopePolicy` execution instead
+  of rejecting every Codex workflow at preflight; commit `5b68d01af` completed
+  the native sandbox and credential boundary.
+- Run `2026-08-05T10-10-15-494Z-improver-v5hu6g` completed its Codex-backed
+  `improve` step successfully after the fix.
+- The focused workflow-failure, event-journal, scope-policy, and sandbox command
+  recorded above passed 32 checks, including duplicate suppression and
+  cost-free operator-attention formatting.
 
 <!-- workflow-failure-pattern-fingerprint: workflow-failure:consecutive-failures:improver:step-error:837684866e57 -->
 <!-- workflow-failure-evidence-fingerprint: 5f7dc05bc1d07a82b8bf8da73b075932bd2381489507fb9f5b35f76516ce244b -->
