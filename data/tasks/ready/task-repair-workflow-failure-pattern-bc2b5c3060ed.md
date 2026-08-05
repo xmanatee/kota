@@ -6,7 +6,7 @@ priority: p1
 area: autonomy
 summary: Fix the local cause behind improver's persistent consecutive failure signal (step improve error a46a4e99c75a).
 created_at: 2026-08-05T09:31:40.506Z
-updated_at: 2026-08-05T09:39:06.826Z
+updated_at: 2026-08-05T09:39:45.686Z
 task_class: Meta
 ---
 
@@ -19,7 +19,7 @@ signal is considered local and code-actionable.
 
 Pattern fingerprint: `workflow-failure:consecutive-failures:improver:step-error:837684866e57`
 Root-cause fingerprint: `workflow-failure-root:improver:3257d48a548c`
-Evidence fingerprint: `db50fd914c06ee107be353f09a0e316150021c734a4f94fc991715e11ea784c1`
+Evidence fingerprint: `6cfe03c63486482ef5fb7690b723d1365609e7114e41c834300da17577f8620a`
 
 ## Failure Evidence
 
@@ -27,10 +27,11 @@ Evidence fingerprint: `db50fd914c06ee107be353f09a0e316150021c734a4f94fc991715e11
 - Workflow: improver
 - Failure class: step-error:improve:a46a4e99c75a
 - Signal: step improve error a46a4e99c75a
-- Run ids: 2026-08-05T07-44-52-890Z-improver-nhz0ks, 2026-08-05T09-29-13-611Z-improver-ttqzqt, 2026-08-05T09-30-07-323Z-improver-6mzalc, 2026-08-05T09-31-24-558Z-improver-r75jhz, 2026-08-05T09-32-17-250Z-improver-nyrxjm, 2026-08-05T09-33-05-520Z-improver-lpe8u3, 2026-08-05T09-34-02-499Z-improver-mxa011, 2026-08-05T09-34-59-175Z-improver-hh48ef, 2026-08-05T09-35-46-162Z-improver-fedsa4, 2026-08-05T09-36-20-539Z-improver-jp7hn3, 2026-08-05T09-37-09-877Z-improver-q5sl5o, 2026-08-05T09-37-47-721Z-improver-y5gkdz
-- Window: 2026-08-05T09:29:02.290Z to 2026-08-05T09:38:35.694Z
-- Actionable reason: improver has 12 consecutive failed completed runs with the same owned failure class (step improve error a46a4e99c75a).
+- Run ids: 2026-08-05T07-44-52-890Z-improver-nhz0ks, 2026-08-05T09-29-13-611Z-improver-ttqzqt, 2026-08-05T09-30-07-323Z-improver-6mzalc, 2026-08-05T09-31-24-558Z-improver-r75jhz, 2026-08-05T09-32-17-250Z-improver-nyrxjm, 2026-08-05T09-33-05-520Z-improver-lpe8u3, 2026-08-05T09-34-02-499Z-improver-mxa011, 2026-08-05T09-34-59-175Z-improver-hh48ef, 2026-08-05T09-35-46-162Z-improver-fedsa4, 2026-08-05T09-36-20-539Z-improver-jp7hn3, 2026-08-05T09-37-09-877Z-improver-q5sl5o, 2026-08-05T09-37-47-721Z-improver-y5gkdz, 2026-08-05T09-38-50-396Z-improver-4gfehx
+- Window: 2026-08-05T09:29:02.290Z to 2026-08-05T09:39:26.995Z
+- Actionable reason: improver has 13 consecutive failed completed runs with the same owned failure class (step improve error a46a4e99c75a).
 
+- run 2026-08-05T09-38-50-396Z-improver-4gfehx failed at step improve: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
 - run 2026-08-05T09-37-47-721Z-improver-y5gkdz failed at step improve: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
 - run 2026-08-05T09-37-09-877Z-improver-q5sl5o failed at step improve: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
 - run 2026-08-05T09-36-20-539Z-improver-jp7hn3 failed at step improve: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
@@ -98,4 +99,4 @@ into deterministic, reviewable repair work.
   the task id without cost fields.
 
 <!-- workflow-failure-pattern-fingerprint: workflow-failure:consecutive-failures:improver:step-error:837684866e57 -->
-<!-- workflow-failure-evidence-fingerprint: db50fd914c06ee107be353f09a0e316150021c734a4f94fc991715e11ea784c1 -->
+<!-- workflow-failure-evidence-fingerprint: 6cfe03c63486482ef5fb7690b723d1365609e7114e41c834300da17577f8620a -->
