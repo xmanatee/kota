@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "scopeId": "8nrg1m",
+  "generatedAt": "2026-08-05T16:53:00.000Z",
+  "sourceReviewRunId": "2026-08-05T06-15-02-757Z-progress-reviewer-ya6eqn",
+  "reviewWindowDeadLetters": [
+    {
+      "id": "dlq-8e33b0d0-9eba-4967-b949-81900b0e8edf",
+      "beforeStatus": "open",
+      "action": "dismiss",
+      "afterStatus": "dismissed",
+      "dismissedAt": "2026-08-05T15:46:21.051Z",
+      "rationale": "Superseded by native machine-authority and invalidation fixes a6fcb8e8e and 06b92c973 plus terminal post-fix builder successes; the preserved dirty worktree remains available for explicit recovery review, so redrive would duplicate recovered work."
+    },
+    {
+      "id": "dlq-fdf7efd8-5d04-4da1-afc0-4781a8793027",
+      "beforeStatus": "open",
+      "action": "dismiss",
+      "afterStatus": "dismissed",
+      "dismissedAt": "2026-08-05T15:46:29.276Z",
+      "rationale": "Expired transient provider quota incident; bounded backoff and fallback were followed by consecutive terminal builder and improver successes, so redrive would duplicate current queue work."
+    },
+    {
+      "id": "dlq-36d8d8b7-d08e-4b3d-9a39-46079751f4c2",
+      "beforeStatus": "open",
+      "action": "dismiss",
+      "afterStatus": "dismissed",
+      "dismissedAt": "2026-08-05T15:46:23.760Z",
+      "rationale": "Superseded by native machine-authority and invalidation fixes a6fcb8e8e and 06b92c973 plus terminal post-fix builder successes; the preserved dirty worktree remains available for explicit recovery review, so redrive would duplicate recovered work."
+    },
+    {
+      "id": "dlq-d0b211a0-e677-4c67-b54b-1c776eb485d2",
+      "beforeStatus": "open",
+      "action": "dismiss",
+      "afterStatus": "dismissed",
+      "dismissedAt": "2026-08-05T15:46:26.466Z",
+      "rationale": "Superseded by native machine-authority and invalidation fixes a6fcb8e8e and 06b92c973 plus terminal post-fix builder successes; the preserved dirty worktree remains available for explicit recovery review, so redrive would duplicate recovered work."
+    },
+    {
+      "id": "dlq-7b3dd861-026f-4116-a40a-4f0715a9c8be",
+      "beforeStatus": "open",
+      "action": "dismiss",
+      "afterStatus": "dismissed",
+      "dismissedAt": "2026-08-05T15:46:31.847Z",
+      "rationale": "Expired transient provider quota incident; bounded backoff and fallback were followed by consecutive terminal builder and improver successes, so redrive would duplicate current queue work."
+    },
+    {
+      "id": "dlq-fcad13e8-c3c5-4fd5-9f52-94cc43dfd0cc",
+      "beforeStatus": "open",
+      "action": "dismiss",
+      "afterStatus": "dismissed",
+      "dismissedAt": "2026-08-05T15:46:34.454Z",
+      "rationale": "Expired transient provider quota incident; bounded backoff and fallback were followed by consecutive terminal builder and improver successes, so redrive would duplicate current queue work."
+    },
+    {
+      "id": "dlq-f8c6cb3f-b425-4390-a042-d9e50862d0eb",
+      "beforeStatus": "open",
+      "action": "dismiss",
+      "afterStatus": "dismissed",
+      "dismissedAt": "2026-08-05T15:46:37.055Z",
+      "rationale": "Expired transient provider quota incident; bounded backoff and fallback were followed by consecutive terminal builder and improver successes, so redrive would duplicate current queue work."
+    },
+    {
+      "id": "dlq-a32943de-6cdf-4d25-8262-1846e6e165f4",
+      "beforeStatus": "open",
+      "action": "dismiss",
+      "afterStatus": "dismissed",
+      "dismissedAt": "2026-08-05T15:46:39.656Z",
+      "rationale": "Expired transient provider quota incident; bounded backoff and fallback were followed by consecutive terminal builder and improver successes, so redrive would duplicate current queue work."
+    }
+  ],
+  "terminalPostFixRuns": [
+    {
+      "runId": "2026-08-05T13-21-34-959Z-builder-u1pptb",
+      "workflow": "builder",
+      "status": "success",
+      "completedAt": "2026-08-05T14:10:09.571Z"
+    },
+    {
+      "runId": "2026-08-05T13-21-34-960Z-builder-2g7trz",
+      "workflow": "builder",
+      "status": "success",
+      "completedAt": "2026-08-05T14:47:26.568Z"
+    },
+    {
+      "runId": "2026-08-05T13-21-39-471Z-improver-32yvku",
+      "workflow": "improver",
+      "status": "success",
+      "completedAt": "2026-08-05T15:16:25.563Z"
+    },
+    {
+      "runId": "2026-08-05T14-47-33-579Z-builder-1wxf9t",
+      "workflow": "builder",
+      "status": "success",
+      "completedAt": "2026-08-05T16:51:44.965Z"
+    }
+  ],
+  "subsequentProgressReview": {
+    "runId": "2026-08-05T14-47-27-900Z-progress-reviewer-ajw246",
+    "status": "success",
+    "completedAt": "2026-08-05T16:00:08.177Z",
+    "verdict": "needs-steering",
+    "openDeadLetterCount": 0,
+    "citedNativeHarnessFailureSignaturesPresent": false,
+    "remainingSteeringConcern": "evaluator-calibration-verdicts-absent",
+    "sourceArtifact": ".kota/runs/2026-08-05T14-47-27-900Z-progress-reviewer-ajw246/progress-review.json"
+  }
+}
