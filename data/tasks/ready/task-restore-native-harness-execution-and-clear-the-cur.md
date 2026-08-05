@@ -1,13 +1,13 @@
 ---
 id: task-restore-native-harness-execution-and-clear-the-cur
 title: Restore native harness execution and clear the current failure cluster
-status: blocked
+status: ready
 priority: p1
 area: autonomy
 task_class: Meta
 summary: Fix or fail over from native CLI launches that cannot read legitimate project or worktree configuration, Git metadata, and task executables. Distinguish filesystem-policy defects from transient provider quota exhaustion, prevent unavailable providers from producing repeated dead letters, and resolve the current builder items through canonical redrive or dismissal.
 created_at: 2026-08-05T07:42:26.080Z
-updated_at: 2026-08-05T14:00:04.000Z
+updated_at: 2026-08-05T17:10:05.531Z
 ---
 
 ## Problem
