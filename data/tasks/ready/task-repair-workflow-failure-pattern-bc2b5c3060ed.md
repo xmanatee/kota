@@ -6,7 +6,7 @@ priority: p1
 area: autonomy
 summary: Fix the local cause behind improver's persistent consecutive failure signal (step improve error a46a4e99c75a).
 created_at: 2026-08-05T09:31:40.506Z
-updated_at: 2026-08-05T09:41:55.825Z
+updated_at: 2026-08-05T09:42:41.822Z
 task_class: Meta
 ---
 
@@ -19,7 +19,7 @@ signal is considered local and code-actionable.
 
 Pattern fingerprint: `workflow-failure:consecutive-failures:improver:step-error:837684866e57`
 Root-cause fingerprint: `workflow-failure-root:improver:3257d48a548c`
-Evidence fingerprint: `1dd921759e511e150549bbd60af092b1ac43026413c5c4402bba2f1ad248aac8`
+Evidence fingerprint: `00be51eee4b2791efc061e281925d97433ac34c04f2d5df2f8ae02d6ca519852`
 
 ## Failure Evidence
 
@@ -27,10 +27,11 @@ Evidence fingerprint: `1dd921759e511e150549bbd60af092b1ac43026413c5c4402bba2f1ad
 - Workflow: improver
 - Failure class: step-error:improve:a46a4e99c75a
 - Signal: step improve error a46a4e99c75a
-- Run ids: 2026-08-05T07-44-52-890Z-improver-nhz0ks, 2026-08-05T09-29-13-611Z-improver-ttqzqt, 2026-08-05T09-30-07-323Z-improver-6mzalc, 2026-08-05T09-31-24-558Z-improver-r75jhz, 2026-08-05T09-32-17-250Z-improver-nyrxjm, 2026-08-05T09-33-05-520Z-improver-lpe8u3, 2026-08-05T09-34-02-499Z-improver-mxa011, 2026-08-05T09-34-59-175Z-improver-hh48ef, 2026-08-05T09-35-46-162Z-improver-fedsa4, 2026-08-05T09-36-20-539Z-improver-jp7hn3, 2026-08-05T09-37-09-877Z-improver-q5sl5o, 2026-08-05T09-37-47-721Z-improver-y5gkdz, 2026-08-05T09-38-50-396Z-improver-4gfehx, 2026-08-05T09-39-35-543Z-improver-ipbdeo, 2026-08-05T09-40-01-000Z-improver-dtzkba, 2026-08-05T09-40-52-937Z-improver-jsxf09
-- Window: 2026-08-05T09:29:02.290Z to 2026-08-05T09:41:12.168Z
-- Actionable reason: improver has 16 consecutive failed completed runs with the same owned failure class (step improve error a46a4e99c75a).
+- Run ids: 2026-08-05T07-44-52-890Z-improver-nhz0ks, 2026-08-05T09-29-13-611Z-improver-ttqzqt, 2026-08-05T09-30-07-323Z-improver-6mzalc, 2026-08-05T09-31-24-558Z-improver-r75jhz, 2026-08-05T09-32-17-250Z-improver-nyrxjm, 2026-08-05T09-33-05-520Z-improver-lpe8u3, 2026-08-05T09-34-02-499Z-improver-mxa011, 2026-08-05T09-34-59-175Z-improver-hh48ef, 2026-08-05T09-35-46-162Z-improver-fedsa4, 2026-08-05T09-36-20-539Z-improver-jp7hn3, 2026-08-05T09-37-09-877Z-improver-q5sl5o, 2026-08-05T09-37-47-721Z-improver-y5gkdz, 2026-08-05T09-38-50-396Z-improver-4gfehx, 2026-08-05T09-39-35-543Z-improver-ipbdeo, 2026-08-05T09-40-01-000Z-improver-dtzkba, 2026-08-05T09-40-52-937Z-improver-jsxf09, 2026-08-05T09-41-42-729Z-improver-ue3rmt
+- Window: 2026-08-05T09:29:02.290Z to 2026-08-05T09:42:11.343Z
+- Actionable reason: improver has 17 consecutive failed completed runs with the same owned failure class (step improve error a46a4e99c75a).
 
+- run 2026-08-05T09-41-42-729Z-improver-ue3rmt failed at step improve: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
 - run 2026-08-05T09-40-52-937Z-improver-jsxf09 failed at step improve: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
 - run 2026-08-05T09-40-01-000Z-improver-dtzkba failed at step improve: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
 - run 2026-08-05T09-39-35-543Z-improver-ipbdeo failed at step improve: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
@@ -102,4 +103,4 @@ into deterministic, reviewable repair work.
   the task id without cost fields.
 
 <!-- workflow-failure-pattern-fingerprint: workflow-failure:consecutive-failures:improver:step-error:837684866e57 -->
-<!-- workflow-failure-evidence-fingerprint: 1dd921759e511e150549bbd60af092b1ac43026413c5c4402bba2f1ad248aac8 -->
+<!-- workflow-failure-evidence-fingerprint: 00be51eee4b2791efc061e281925d97433ac34c04f2d5df2f8ae02d6ca519852 -->
