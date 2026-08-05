@@ -44,6 +44,19 @@ describe("runCheck", () => {
     }
   });
 
+  it("runs checks with the non-interactive automation environment", async () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "kota-run-check-"));
+    try {
+      const script =
+        "process.stdout.write((process.env.CI ?? '') + ':' + (process.env.PNPM_CONFIG_PM_ON_FAIL ?? ''))";
+      await expect(
+        runCheck(`${JSON.stringify(process.execPath)} -e ${JSON.stringify(script)}`, projectDir),
+      ).resolves.toBe("true:ignore");
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
   it("keeps the event loop responsive while a check runs", async () => {
     const projectDir = mkdtempSync(join(tmpdir(), "kota-run-check-"));
     try {

@@ -256,6 +256,47 @@ describe("runAgentRepairLoop", () => {
     );
   });
 
+  it("stages workspace changes before repair checks run", async () => {
+    initGitRepo(projectDir);
+    writeFileSync(join(projectDir, "seed.txt"), "updated\n", "utf-8");
+    const harnessName = uniqueName("repair-runtime-staging");
+    const repairHarness = vi.fn<AgentHarness["run"]>();
+    registerRepairHarness(harnessName, repairHarness);
+    const step = makeStep(projectDir, harnessName, {
+      repairLoop: {
+        maxRepairAttempts: 1,
+        checks: [
+          {
+            id: "staged-input",
+            type: "code",
+            run: () => execFileSync(
+              "git",
+              ["diff", "--cached", "--name-only"],
+              { cwd: projectDir, encoding: "utf8" },
+            ).trim(),
+          },
+        ],
+      },
+    });
+
+    await runAgentRepairLoop(
+      step,
+      makeInitialResult(),
+      makeContext(projectDir),
+      makeMetadata(),
+      new AbortController(),
+      vi.fn(),
+      { projectDir },
+    );
+
+    expect(execFileSync(
+      "git",
+      ["diff", "--cached", "--name-only"],
+      { cwd: projectDir, encoding: "utf8" },
+    ).trim()).toBe("seed.txt");
+    expect(repairHarness).not.toHaveBeenCalled();
+  });
+
   it("composes repair iteration tool guards from the step and workflow", async () => {
     const harnessName = uniqueName("repair-guards");
     const decisions: AgentPermissionResult[] = [];
@@ -338,6 +379,7 @@ describe("runAgentRepairLoop", () => {
   it("passes runtime env and agentRunDir to repair iterations", async () => {
     const harnessName = uniqueName("repair-runtime-resources");
     const agentRunDir = join(projectDir, ".worktrees", "task", ".kota", "runs", "run-001");
+    const authorityConfigPath = join(projectDir, "operator", "config.json");
     let repairOptions: AgentHarnessRunOptions | undefined;
     registerRepairHarness(harnessName, async (options) => {
       repairOptions = options;
@@ -385,6 +427,9 @@ describe("runAgentRepairLoop", () => {
       {
         projectDir,
         runtimeResources: context.runtimeResources,
+        authorityConfigPath,
+        scopeId: "scope-1",
+        projectId: "project-1",
       },
     );
 
@@ -394,6 +439,14 @@ describe("runAgentRepairLoop", () => {
     });
     expect(repairOptions?.env?.KOTA_RUN_DIR).toBe(agentRunDir);
     expect(repairOptions?.prompt).toContain(`Run directory:\n${agentRunDir}`);
+    expect(repairOptions?.authorityConfigPath).toBe(authorityConfigPath);
+    expect(repairOptions?.workflowContext).toMatchObject({
+      workflowName: "test-workflow",
+      runId: "run-001",
+      stepId: "agent-step",
+      scopeId: "scope-1",
+      projectId: "project-1",
+    });
   });
 
   it("fails repeated repair attempts that leave the same checks and diff unchanged", async () => {

@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import {
@@ -10,6 +11,7 @@ import {
   resolve,
   sep,
 } from "node:path";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
 const MACOS_NATIVE_RUNTIME_ROOTS = [
   "/System",
@@ -90,6 +92,26 @@ function safeExecutableDirectory(path: string, cwd: string): boolean {
   return normalized === join(homedir(), "Library", "pnpm");
 }
 
+export function nativeCliGitMetadataRoots(cwd: string): string[] {
+  const result = spawnSync(
+    "git",
+    ["rev-parse", "--absolute-git-dir", "--path-format=absolute", "--git-common-dir"],
+    {
+      cwd,
+      env: withProtectedGitBareRepositoryEnv(),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    },
+  );
+  if (result.error !== undefined) throw result.error;
+  if (result.status !== 0) return [];
+  return result.stdout
+    .split("\n")
+    .map((path) => path.trim())
+    .filter((path) => path.length > 0 && existsSync(path))
+    .map((path) => realpathSync.native(path));
+}
+
 export function nativeCliReadableRoots(
   executablePath: string,
   cwd: string,
@@ -111,6 +133,7 @@ export function nativeCliReadableRoots(
     ...platformRoots.filter(existsSync),
     cwd,
     invocationRoot,
+    ...nativeCliGitMetadataRoots(cwd),
     ...(existsSync(dependencyRoot) ? [dependencyRoot] : []),
     ...pathDirectories.filter(existsSync),
     ...pathDirectories.flatMap((path) => {

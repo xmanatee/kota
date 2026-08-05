@@ -7,6 +7,7 @@ import {
   resolveTierModel,
   SHIPPED_DEFAULT_PRESET_ID,
 } from "#core/model/preset.js";
+import { withAutomationProcessEnv } from "#core/util/automation-process-env.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type {
   WorkflowPredicate,
@@ -129,7 +130,7 @@ function collectNodeModulesBinDirs(cwd: string): string[] {
 }
 
 function buildRunCheckEnv(cwd: string): NodeJS.ProcessEnv {
-  const env = withProtectedGitBareRepositoryEnv();
+  const env = withAutomationProcessEnv(withProtectedGitBareRepositoryEnv());
   const pathValue = uniquePath([
     ...collectNodeModulesBinDirs(cwd),
     dirname(process.execPath),

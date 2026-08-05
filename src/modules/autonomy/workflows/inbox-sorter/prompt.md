@@ -25,5 +25,5 @@ and the destination state's local contract.
 
 ## Finish
 
-- Follow the workflow finish protocol after staging.
+- Follow the workflow finish protocol.
 - Lightweight validations run after you finish.

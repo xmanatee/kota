@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { withAutomationProcessEnv } from "#core/util/automation-process-env.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
 const REQUIRED_EXECUTABLE_ENV_KEYS = [
@@ -114,7 +115,7 @@ export function buildNativeCliEnvironment(
     env[key] = value;
   }
 
-  return withProtectedGitBareRepositoryEnv(env);
+  return withAutomationProcessEnv(withProtectedGitBareRepositoryEnv(env));
 }
 
 /** Defines invocation-scoped host-user and temporary-directory locators. */

@@ -142,8 +142,7 @@ export function buildRepairPrompt(
     ? join(runDirPath, "commit-message.txt")
     : "<run-directory>/commit-message.txt";
   lines.push(
-    "Fix these issues now. Stage all changes with `git add -A` before stopping —",
-    "review checks evaluate the staged diff, so unstaged fixes are invisible.",
+    "Fix these issues now. KOTA stages workspace changes for review after you stop; do not run `git add` or `git commit`.",
     `Write a short commit message to \`${commitMessagePath}\` summarizing what changed.`,
     "Finish this repair fully, then stop.",
   );
@@ -190,6 +189,15 @@ function repairProgressSnapshot(
     key: hash.digest("hex"),
     failureIds: failures.map((failure) => failure.id),
   };
+}
+
+function stageWorkflowChangesForRepairChecks(workspaceDir: string): void {
+  if (!getRepoWorktreeStatus(workspaceDir).available) return;
+  execFileSync("git", ["add", "-A"], {
+    cwd: workspaceDir,
+    env: withProtectedGitBareRepositoryEnv(),
+    stdio: ["ignore", "ignore", "pipe"],
+  });
 }
 
 function resolveScopedRepairAgent(
@@ -288,6 +296,7 @@ export async function runAgentRepairLoop(
     return wrap({ ...base, content: lastContent, turns: totalTurns, totalCostUsd, repairIterations: iterations, repairWarnings: warnings });
   }
 
+  stageWorkflowChangesForRepairChecks(workspaceDir);
   const { failures: initialFailures, warnings: initialWarnings } = await runChecksPhased(checks, context, step);
   let failures = initialFailures;
   warnings = initialWarnings;
@@ -321,6 +330,7 @@ export async function runAgentRepairLoop(
           step,
           repairPrompt,
           context,
+          metadata,
           abortController,
           appendRepairMessage,
           agentConfig,
@@ -383,6 +393,7 @@ export async function runAgentRepairLoop(
 
     if (abortController.signal.aborted) break;
 
+    stageWorkflowChangesForRepairChecks(workspaceDir);
     const phased = await runChecksPhased(checks, context, step);
     failures = phased.failures;
     warnings = phased.warnings;

@@ -1,15 +1,9 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import {
-  composeCanUseTools,
-  createWorkflowAgentGuards,
-  resolveAgentHarness,
-  routeKotaToolControlOptions,
-} from "#core/agent-harness/index.js";
+import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
-import { capScopeAutonomyMode } from "#core/daemon/scope-policy.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
-import type { WorkflowStepContext } from "./run-types.js";
+import type { WorkflowRunMetadata, WorkflowStepContext } from "./run-types.js";
 import {
   AgentStepIdleTimeoutError,
   createStepIdleTimeoutMonitor,
@@ -21,8 +15,8 @@ import {
   resolveAgentModel,
   resolvePromptContextStartDir,
 } from "./steps/step-executor-agent.js";
+import { buildAgentHarnessRunOptions } from "./steps/step-executor-agent-run-options.js";
 import { subscribeAgentScopePolicyRestrictions } from "./steps/step-executor-agent-scope-policy.js";
-import { resolveAgentToolScope } from "./steps/step-executor-agent-tool-scope.js";
 import {
   AgentStepRuntimeError,
   classifyAgentRuntimeFailure,
@@ -38,6 +32,7 @@ export async function executeRepairAgentIteration(
   step: WorkflowAgentStep,
   repairPrompt: string,
   context: WorkflowStepContext,
+  metadata: WorkflowRunMetadata,
   abortController: AbortController,
   appendMessage: (message: KotaAgentMessage) => void,
   agentConfig: AgentStepConfig,
@@ -56,38 +51,10 @@ export async function executeRepairAgentIteration(
     agentConfig.projectDir,
   );
   const harness = resolveAgentHarness(step.harness);
-  const harnessOverrides = step.harnessOptions?.[harness.name];
-  const autonomyMode = agentConfig.scopePolicy
-    ? capScopeAutonomyMode(step.autonomyMode, agentConfig.scopePolicy)
-    : step.autonomyMode;
-  const toolScope = resolveAgentToolScope(
-    autonomyMode,
-    step.allowedTools,
-    step.disallowedTools,
-    harness.askOwnerToolName,
-  );
-  const trialCanUseTool = agentConfig.createCanUseTool?.(step.id);
-  const workflowGuards = createWorkflowAgentGuards(agentConfig.authorityConfigPath);
-  const canUseTool = trialCanUseTool
-    ? composeCanUseTools(trialCanUseTool, workflowGuards)
-    : workflowGuards;
-  const modelProvider = agentConfig.config?.modelProvider === undefined
-    ? undefined
-    : {
-        provider: agentConfig.config.modelProvider.type,
-        baseUrl: agentConfig.config.modelProvider.baseUrl,
-        apiKey: agentConfig.config.modelProvider.apiKey,
-      };
   const workspaceDir = agentConfig.workspaceDir ?? agentConfig.projectDir;
   const scopedAgent = step.agentName && agentConfig.resolveAgentDef
     ? agentConfig.resolveAgentDef(step.agentName)
     : undefined;
-  const scopePolicyAuthority = agentConfig.scopePolicyAuthority;
-  const scopeId = agentConfig.scopeId;
-  const getScopePolicySnapshot =
-    scopePolicyAuthority === undefined || scopeId === undefined
-      ? undefined
-      : () => scopePolicyAuthority.getSnapshot(scopeId);
 
   const runRepairHarness = async () => {
     const attemptAbortController = new AbortController();
@@ -110,6 +77,18 @@ export async function executeRepairAgentIteration(
           appendMessage(message);
         }
       : undefined;
+    const { options } = buildAgentHarnessRunOptions({
+      step,
+      metadata,
+      agentConfig,
+      resolvedHarness: harness,
+      resolvedModel: resolveAgentModel(step, agentConfig),
+      prompt: repairPrompt,
+      systemPrompt,
+      abortController: attemptAbortController,
+      ...(messageCapture !== undefined ? { onMessage: messageCapture } : {}),
+      ...(tokenBudget !== undefined ? { tokenBudget } : {}),
+    });
 
     try {
       if (harness.toolControl === "native") {
@@ -128,35 +107,7 @@ export async function executeRepairAgentIteration(
       }
       const harnessRun = context.runAgentHarness(
         harness,
-        {
-          prompt: repairPrompt,
-          model: resolveAgentModel(step, agentConfig),
-          cwd: agentConfig.workspaceDir ?? agentConfig.projectDir,
-          systemPrompt,
-          modelOutputTokenLimits: agentConfig.config?.modelOutputTokenLimits,
-          ...(modelProvider !== undefined ? { modelProvider } : {}),
-          maxTurns: step.maxTurns,
-          effort: step.effort,
-          thinkingEnabled: step.thinkingEnabled,
-          thinkingBudget: step.thinkingBudget,
-          ...(agentConfig.runtimeResources !== undefined
-            ? { env: agentConfig.runtimeResources.env }
-            : {}),
-          ...routeKotaToolControlOptions(harness, {
-            allowedTools: toolScope.allowedTools,
-            disallowedTools: toolScope.disallowedTools,
-            canUseTool,
-            scopePolicy: agentConfig.scopePolicy,
-            getScopePolicySnapshot,
-          }),
-          askOwner: harness.askOwnerToolName !== null
-            ? { source: `workflow:${context.workflow.name}/${context.workflow.runId}/${step.id}` }
-            : undefined,
-          autonomyMode,
-          harnessOverrides,
-          ...(tokenBudget !== undefined ? { tokenBudget } : {}),
-          ...(messageCapture !== undefined ? { onMessage: messageCapture } : {}),
-        },
+        options,
         {
           signal: attemptAbortController.signal,
           ...(scopedAgent ? { workspaceKey: workspaceDir } : {}),

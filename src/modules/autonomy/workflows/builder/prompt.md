@@ -51,9 +51,9 @@ guessing.
   declare that command as a Runtime Probe instead. See `data/tasks/AGENTS.md`
   for accepted artifact kinds per surface.
 - Use `pnpm kota task move <id> <state>` for every task state transition.
-- Before staging, run the narrowest validation that proves the change, and
+- Before stopping, run the narrowest validation that proves the change, and
   broaden it when the touched behavior warrants more coverage. Fix failures
-  before proceeding to `git add -A`. Do not duplicate the workflow repair
+  before stopping. Do not duplicate the workflow repair
   loop's broad gates once narrow proof is sufficient.
 - Leave the task state aligned with reality.
-- Then follow the workflow finish protocol after staging.
+- Then follow the workflow finish protocol.

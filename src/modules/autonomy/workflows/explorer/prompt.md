@@ -144,5 +144,5 @@ Use `pnpm kota task create` to scaffold new task files, then follow
   `exploration-rationale.json` with `decision: "noop"` and an explicit
   reason, and stop. Do not commit changes; the workflow's commit step
   will skip on its own.
-- Otherwise follow the workflow finish protocol after staging and ensure
+- Otherwise follow the workflow finish protocol and ensure
   `exploration-rationale.json` reflects what you actually did.

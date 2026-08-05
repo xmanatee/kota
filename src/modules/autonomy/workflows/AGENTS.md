@@ -13,12 +13,12 @@ This directory contains the autonomy workflows and their co-located prompts.
 
 When a workflow agent finishes its work:
 
-- Stage changes with `git add -A` and write a short message to
-  `<run-directory>/commit-message.txt`. Do not run `git commit`; the workflow
-  commits after validation, while direct commits bypass repair and fail the run.
+- Write a short message to `<run-directory>/commit-message.txt`. Do not run
+  `git add` or `git commit`; the workflow stages after each agent response and
+  commits after validation.
 
 Prompts should not repeat these instructions. Workflow-specific finish guidance
-(e.g. validation before staging, conditional staging) stays in the prompt.
+(e.g. validation before stopping) stays in the prompt.
 
 ## Self-Trigger Loop Risk
 

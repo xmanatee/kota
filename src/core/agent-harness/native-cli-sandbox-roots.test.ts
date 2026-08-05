@@ -1,6 +1,8 @@
+import { execFileSync } from "node:child_process";
 import {
   mkdirSync,
   mkdtempSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -9,6 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  nativeCliGitMetadataRoots,
   nativeCliReadableRoots,
   resolveNativeCliExecutable,
 } from "./native-cli-sandbox-roots.js";
@@ -68,5 +71,29 @@ describe("native CLI sandbox roots", () => {
     expect(readableRoots).toContain(operatorBin);
     expect(readableRoots).toContain(nvmRoot);
     expect(readableRoots).not.toContain(operatorHome);
+  });
+
+  it("exposes linked-worktree Git metadata as read-only roots", () => {
+    const root = mkdtempSync(join(tmpdir(), "kota-native-git-roots-"));
+    roots.push(root);
+    const projectDir = join(root, "project");
+    const worktreeDir = join(root, "linked");
+    mkdirSync(projectDir);
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
+    execFileSync("git", ["config", "user.email", "test@example.com"], {
+      cwd: projectDir,
+    });
+    execFileSync("git", ["config", "user.name", "test"], { cwd: projectDir });
+    writeFileSync(join(projectDir, "tracked.txt"), "tracked\n");
+    execFileSync("git", ["add", "tracked.txt"], { cwd: projectDir });
+    execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: projectDir });
+    execFileSync("git", ["worktree", "add", "-q", "-b", "linked", worktreeDir], {
+      cwd: projectDir,
+    });
+
+    expect(nativeCliGitMetadataRoots(worktreeDir)).toEqual([
+      realpathSync.native(join(projectDir, ".git", "worktrees", "linked")),
+      realpathSync.native(join(projectDir, ".git")),
+    ]);
   });
 });

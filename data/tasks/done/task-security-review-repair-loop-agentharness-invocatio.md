@@ -1,13 +1,13 @@
 ---
 id: task-security-review-repair-loop-agentharness-invocatio
 title: Security review: Repair-loop AgentHarness invocations omit agentConfig.authorityConfigPath. For a native repair run under a custom machine authority configuration, the adapter therefore passes undefined to the sandbox, which protects only the default global authority directory and token. The custom scope-authority operator token remains readable by the native process and may also be writable when located under an allowed workspace root.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Repair-loop AgentHarness invocations omit agentConfig.authorityConfigPath. For a native repair run under a custom machine authority configuration, the adapter therefore passes undefined to the sandbox, which protects only the default global authority directory and token. The custom scope-authority operator token remains readable by the native process and may also be writable when located under an allowed workspace root.
 created_at: 2026-08-04T00:24:52.573Z
-updated_at: 2026-08-04T00:24:52.573Z
+updated_at: 2026-08-05T05:53:49.686Z
 ---
 
 ## Problem
@@ -138,4 +138,12 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `executeRepairAgentIteration` now delegates to the same
+  `buildAgentHarnessRunOptions` projection as the primary agent attempt, so
+  custom authority paths and workflow scope identity cannot drift between the
+  two invocation paths.
+- The focused repair-loop fixture records the emitted options and asserts the
+  custom authority path, workflow identity, scope id, and project id.
+- A source-module runtime probe loaded the shared primary/repair option path,
+  and a native sandbox probe completed `git status` from a linked worktree with
+  read-only host Git metadata.

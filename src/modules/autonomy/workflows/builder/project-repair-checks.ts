@@ -118,7 +118,7 @@ export async function checkMobileTypecheck(
           "Mobile client dependencies are not installed; cannot run mobile typecheck for staged mobile changes.",
           `Missing: ${missingDependencyMarkers.join(", ")}.`,
           `Changed: ${stagedAppChanges.join(", ")}.`,
-          "Run `pnpm install` in clients/mobile before staging mobile edits.",
+          "Run `pnpm install` in clients/mobile before finishing mobile edits.",
         ].join(" "),
       );
     }

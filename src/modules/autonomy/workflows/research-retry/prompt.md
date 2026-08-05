@@ -55,5 +55,5 @@ One of the following, chosen honestly from what you actually read:
 ## Finish
 
 - Use `pnpm kota task move <id> <state>` for every task state transition.
-- Follow the workflow finish protocol after staging.
+- Follow the workflow finish protocol.
 - Lightweight validations run after you finish.
