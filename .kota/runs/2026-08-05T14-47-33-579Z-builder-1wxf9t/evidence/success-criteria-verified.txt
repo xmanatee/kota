@@ -1,0 +1,6 @@
+1. Verified: `executeToolCalls` dispatched the built-in `delegate` tool and the native start latch resolved before authority revision 7 was restricted.
+2. Verified: revision 8 aborted the child controller, entered confirmed-stop quarantine, and the parent settled only after the quarantine handler completed.
+3. Verified: the held native fixture attempted `write-after-restriction` after quarantine release and the accepted-effects collection remained empty.
+4. Verified: the guarded writer rejected `stale native output` and the parent result rejected `stale successful terminal output` in favor of the restriction error.
+5. Verified: the authority fixture reported one subscription, one unsubscription, and zero listeners; every inherited parent-abort listener was explicitly removed.
+6. Verified: the registered transcript captures structured runtime-emitted events from the verbose focused command, which passed 2 files / 6 tests; the broadened 7-file / 33-test command also passed.

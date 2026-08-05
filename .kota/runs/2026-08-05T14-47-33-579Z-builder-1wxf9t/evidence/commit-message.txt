@@ -1,0 +1,1 @@
+test: isolate hosted native delegate quarantine regression

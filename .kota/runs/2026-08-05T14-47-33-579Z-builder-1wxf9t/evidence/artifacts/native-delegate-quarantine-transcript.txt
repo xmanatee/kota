@@ -1,0 +1,28 @@
+Native delegate quarantine runtime regression transcript
+
+Focused evidence command:
+NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner --silent=false --reporter=verbose src/core/tools/delegate-harness.test.ts src/core/tools/delegate-harness-quarantine.test.ts
+
+Runtime-emitted event lines captured verbatim from the passing hosted-route regression:
+[native-delegate-quarantine] {"event":"parent_delegate_dispatched","authorityRevision":7,"tool":"delegate","toolCallId":"parent-delegate-call"}
+[native-delegate-quarantine] {"event":"native_delegate_started","harness":"native-hosted-route","writerAccepted":true}
+[native-delegate-quarantine] {"event":"restrictive_policy_emitted","fromRevision":7,"toRevision":8,"writesRestricted":true}
+[native-delegate-quarantine] {"event":"native_child_abort_observed","aborted":true}
+[native-delegate-quarantine] {"event":"post_restriction_action_attempted","attempted":true,"accepted":false}
+[native-delegate-quarantine] {"event":"late_native_output_attempted","attempted":true,"accepted":false}
+[native-delegate-quarantine] {"event":"stale_terminal_success_returned","isError":false}
+[native-delegate-quarantine] {"event":"native_quarantine_completed","nativeFinished":true}
+[native-delegate-quarantine] {"event":"stale_terminal_success_rejected","parentReturnedError":true,"staleSuccessAccepted":false}
+[native-delegate-quarantine] {"event":"listeners_released","authoritySubscribed":1,"authorityUnsubscribed":1,"authorityLive":0,"parentAbortAdded":1,"parentAbortRemoved":1}
+
+Focused result:
+PASS quarantines hosted native activity after a mid-run restriction
+Test Files  2 passed (2)
+Tests       6 passed (6)
+
+Broadened command:
+NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner --silent=false --reporter=verbose src/core/tools/delegate-harness.test.ts src/core/tools/delegate-harness-quarantine.test.ts src/core/agent-harness/runner-cancellation.test.ts src/core/agent-harness/native-agent-invalidation.test.ts src/core/agent-harness/runner.test.ts src/core/tools/delegate.test.ts src/core/tools/tool-runner-live-scope-policy.test.ts
+
+Broadened result:
+Test Files  7 passed (7)
+Tests       33 passed (33)

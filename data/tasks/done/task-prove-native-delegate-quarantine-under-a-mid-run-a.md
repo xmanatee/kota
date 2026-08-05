@@ -1,14 +1,14 @@
 ---
 id: task-prove-native-delegate-quarantine-under-a-mid-run-a
 title: Prove native delegate quarantine under a mid-run authority restriction
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Add an adversarial runtime regression in which a KOTA-controlled parent launches a native delegate, policy becomes restrictive during execution, and all later native activity and stale completion are rejected.
 depends_on: [task-wire-native-agent-sdk-delegates-into-live-invalida]
 created_at: 2026-08-05T12:37:15.050Z
-updated_at: 2026-08-05T12:37:15.050Z
+updated_at: 2026-08-05T16:13:43.365Z
 ---
 
 ## Problem
@@ -49,5 +49,18 @@ Decomposed from `task-security-review-a-kota-hosted-parent-can-launch-an` after 
 ## Acceptance Evidence
 
 - Passing adversarial runtime regression transcript showing start, mid-run restriction, child abort, quarantine, rejected late action, and rejected stale terminal success.
+- Concrete transcript: .kota/runs/2026-08-05T14-47-33-579Z-builder-1wxf9t/evidence/artifacts/native-delegate-quarantine-transcript.txt
 - Listener instrumentation or assertions proving no parent-abort or restrictive-policy subscription leaks after the run.
 - Recorded focused verification command in the completed task evidence.
+
+## Verification
+
+Focused evidence command: NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner --silent=false --reporter=verbose src/core/tools/delegate-harness.test.ts src/core/tools/delegate-harness-quarantine.test.ts
+
+Passed: 2 test files and 6 tests.
+
+Broadened command: NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner --silent=false --reporter=verbose src/core/tools/delegate-harness.test.ts src/core/tools/delegate-harness-quarantine.test.ts src/core/agent-harness/runner-cancellation.test.ts src/core/agent-harness/native-agent-invalidation.test.ts src/core/agent-harness/runner.test.ts src/core/tools/delegate.test.ts src/core/tools/tool-runner-live-scope-policy.test.ts
+
+Passed: 7 test files and 33 tests.
+
+Runtime transcript: .kota/runs/2026-08-05T14-47-33-579Z-builder-1wxf9t/evidence/artifacts/native-delegate-quarantine-transcript.txt. It captures the regression's structured runtime-emitted events for the hosted parent start, revision 7 -> 8 restriction, observed child abort, completed quarantine, rejected post-restriction effect, rejected late writer output and stale success, and zero leaked authority or parent-abort listeners.

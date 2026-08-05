@@ -1,0 +1,6 @@
+1. The hosted KOTA tool runner launches the built-in delegate tool and proves the registered native harness started before authority is restricted.
+2. A restrictive live scope-policy revision aborts the child controller and the native confirmed-stop quarantine barrier completes.
+3. The native fixture deliberately attempts post-restriction activity and records no accepted effect.
+4. Late native writer output and stale successful terminal output are rejected by the shared harness boundary.
+5. Restrictive-policy and inherited parent-abort listeners are released after the delegate completes.
+6. A focused passing verification transcript and exact command are registered as run evidence and recorded on the completed task.
