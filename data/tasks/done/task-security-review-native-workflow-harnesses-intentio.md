@@ -1,13 +1,13 @@
 ---
 id: task-security-review-native-workflow-harnesses-intentio
 title: Security review: Native workflow harnesses intentionally discard the resolved scope policy and enforce only its autonomy cap. Because scope-policy dimensions are independent, an autonomous Codex step can still receive a workspace-write sandbox when writes.mode is none or path-bounded, and outbound networking remains allowed when externalEffects denies or requires confirmation. Restrictive policy is therefore not applied or rejected at launch.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Native workflow harnesses intentionally discard the resolved scope policy and enforce only its autonomy cap. Because scope-policy dimensions are independent, an autonomous Codex step can still receive a workspace-write sandbox when writes.mode is none or path-bounded, and outbound networking remains allowed when externalEffects denies or requires confirmation. Restrictive policy is therefore not applied or rejected at launch.
 created_at: 2026-08-04T00:24:52.565Z
-updated_at: 2026-08-04T00:24:52.565Z
+updated_at: 2026-08-05T09:58:00.000Z
 ---
 
 ## Problem
@@ -125,3 +125,13 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Final Verification
+
+- `pnpm test src/core/agent-harness/runner.test.ts src/core/agent-harness/runner-scope-policy.test.ts src/core/workflow/steps/step-executor-agent-capability.test.ts src/core/workflow/run-executor-scope-policy.test.ts src/core/tools/delegate-turn.test.ts src/core/tools/handoff-agent-input-policy.test.ts src/modules/codex-agent-harness/adapter.test.ts src/modules/gemini-cli-agent-harness/adapter.test.ts src/modules/antigravity-cli-agent-harness/adapter.test.ts` — 70 tests passed.
+- `pnpm test src/modules/claude-agent-harness/executor.test.ts src/core/events/event-bus.test.ts src/core/loop/instruction-files.test.ts src/modules/daemon-ops/index.test.ts src/daemon.integration.test.ts src/task-files.test.ts src/workflow-runtime.integration.test.ts src/workflow-validation.integration.test.ts` — 396 tests passed.
+- `pnpm typecheck`, `pnpm build`, focused Biome checks, and `pnpm validate-tasks` passed. Repo-wide `pnpm lint` completed with pre-existing warnings outside the changed files and no errors.
+- Post-check repair: 73 focused harness and policy tests passed after splitting oversized sources; `pnpm typecheck` passed, and all 216 tests in the six files reported by the failed broad test check passed in isolation.
+- Post-check repair attempt 2 corrected the obsolete Vitest `maxForks` setting to the supported `maxWorkers` setting, making the intended four-worker resource cap effective. The 11 reported CLI failures then passed alongside the changed security boundary: `pnpm test src/cli.test.ts src/module-cli-commands.integration.test.ts src/core/agent-harness/runner.test.ts src/core/agent-harness/runner-cancellation.test.ts src/core/agent-harness/runner-token-budget.test.ts src/core/agent-harness/runner-scope-policy.test.ts src/core/workflow/steps/step-executor-agent-capability.test.ts src/core/workflow/steps/step-executor-agent-native-scope-policy.test.ts src/core/workflow/run-executor-scope-policy.test.ts src/core/tools/delegate-turn.test.ts src/core/tools/handoff-agent-input-policy.test.ts src/modules/codex-agent-harness/adapter.test.ts src/modules/gemini-cli-agent-harness/adapter.test.ts src/modules/antigravity-cli-agent-harness/adapter.test.ts` — 14 files and 108 tests passed.
+- A repo-wide `pnpm test` rerun confirmed the CLI timeout failures are gone and completed 1,203 passing files / 12,374 passing tests. Its remaining 53 failed files / 236 failed tests are not a valid code signal inside the native sandbox: the failure set is rooted in denied temp-parent traversal or writes (`EPERM`), denied loopback connects, and macOS `sandbox_apply: Operation not permitted`, before the affected test behavior can run.
+- Post-check repair attempt 3 closed the direct workflow context bypass: `ctx.runAgentHarness` now injects live effective scope authority for native as well as KOTA-hosted harnesses, so unsupported native adapters fail before launch. `pnpm test src/core/workflow/steps/step-context-native-scope-policy.test.ts src/core/workflow/steps/step-context-scope-policy.test.ts src/core/agent-harness/runner-scope-policy.test.ts src/core/workflow/steps/step-executor-agent-native-scope-policy.test.ts src/core/workflow/run-executor-hosted-scope-policy.test.ts` — 5 files and 13 tests passed, including direct write-disabled and network-denied policies; `pnpm typecheck`, `pnpm validate-tasks`, and focused Biome checks passed.

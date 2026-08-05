@@ -9,7 +9,8 @@ This directory owns step execution strategies and context construction.
   approval, branch, foreach, parallel, retry classification, trigger).
 - `step-context.ts` constructs `WorkflowStepContext`; workflow-owned judges,
   reviewers, and resolvers use `ctx.runAgentHarness` for capacity, cancellation,
-  workflow tracing, and live hosted-tool scope authority.
+  workflow tracing, and live scope authority. Direct native harness calls carry
+  that authority into fail-closed capability preflight before process launch.
 
 New step types add a new strategy file here and a dispatch case in
 `step-executor.ts`.

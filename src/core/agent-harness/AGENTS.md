@@ -55,11 +55,10 @@ Owner questions are a protocol capability, not a provider field.
 - `emitsAgentMessageStream: boolean` — whether the adapter emits
   `KotaAgentMessage` frames to `onMessage`. Adapters without a stream reject
   `onMessage` at the boundary.
-- `toolControl: "kota" | "native"` — whether KOTA can route neutral
-  tool-control options into the adapter. `"kota"` adapters receive those
-  options and either honor or reject them at their own boundary. `"native"`
-  adapters own their CLI tool loop, so callers that intentionally use native
-  control omit KOTA-only tool options via `routeKotaToolControlOptions`.
+- `toolControl: "kota" | "native"` — `"kota"` adapters receive neutral tool
+  controls. Native adapters own their CLI loop, so routing omits named-tool
+  lists and callbacks but preserves scope policy; declaring it unsupported
+  fails the run before launch.
 - `supportsMultiTurn: boolean` — whether the REPL can launch this adapter.
   Single-shot runners set `false` so the REPL refuses to launch them rather
   than silently downgrading.
@@ -72,10 +71,9 @@ Owner questions are a protocol capability, not a provider field.
   readiness. Native CLIs without KOTA's tool gate declare `canUseTool`,
   `allowedTools`, and `disallowedTools`; harnesses bypassing shared policy also
   declare `scopePolicy`.
-- Workflows route KOTA-only options through `routeKotaToolControlOptions`.
-  Native harnesses use capped autonomy and filesystem/machine-authority
-  sandboxes; policy callbacks are errors. Hosted loops refresh
-  `getScopePolicySnapshot` per call; native loops abort on stricter revisions.
+- `routeKotaToolControlOptions` preserves effective scope policy for fail-closed
+  native preflight. Hosted loops refresh policy per call; launched native loops
+  abort on stricter revisions.
 - `capability-snapshot.ts` centralizes capability/readiness artifacts from
   resolved declarations, not harness-name catalogs. Adapter docs may explain
   rationale, but capability facts stay in code.

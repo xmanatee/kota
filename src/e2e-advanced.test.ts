@@ -10,7 +10,7 @@
  */
 
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetEventBus } from "./core/events/event-bus.js";
 import { AgentSession } from "./core/loop/loop.js";
@@ -120,12 +120,13 @@ describe("E2E: delegate sub-agent", () => {
 
 	it("main loop invokes delegate(execute) which modifies files", async () => {
 		const filePath = join(testDir, "hello.txt");
+		const relativeFilePath = relative(process.cwd(), filePath);
 		writeFileSync(filePath, "Hello World", "utf-8");
 
 		const { session, calls } = createTestSession([
 			// Main loop call 1: agent delegates a file edit
 			toolUseResponse("delegate", {
-				task: `Edit ${filePath} and change "World" to "Universe"`,
+				task: `Edit ${relativeFilePath} and change "World" to "Universe"`,
 				mode: "execute",
 			}),
 			// Delegate call 1: sub-agent reads file first

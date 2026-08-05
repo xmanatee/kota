@@ -184,7 +184,7 @@ export function createStepContext(
       deps.authorityConfigPath ?? getGlobalConfigPath(),
     );
     const authority = deps.scopePolicyAuthority;
-    if (harness.toolControl !== "kota" || authority === undefined) {
+    if (authority === undefined) {
       return deps.runAgentHarness(
         harness,
         {
@@ -203,7 +203,7 @@ export function createStepContext(
         ...options,
         authorityConfigPath: context.authorityConfigPath,
         workflowContext: context.workflow,
-        ...(deps.approvalQueue !== undefined
+        ...(harness.toolControl === "kota" && deps.approvalQueue !== undefined
           ? { approvalQueue: deps.approvalQueue }
           : {}),
         scopePolicy: getScopePolicySnapshot().policy,
