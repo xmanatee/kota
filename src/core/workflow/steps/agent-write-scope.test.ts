@@ -18,6 +18,7 @@ import {
   listWorkflowMutatedPaths,
   pathInScope,
   removeWorkflowScratchArtifacts,
+  requiresWriteScopeSnapshot,
   tryListWorkflowMutatedPaths,
   writeWriteScopeViolationArtifact,
 } from "./agent-write-scope.js";
@@ -83,6 +84,14 @@ describe("findWriteScopeViolations", () => {
         ["data/tasks/"],
       ),
     ).toEqual(["AGENTS.md", "docs/overview.md", "src/core/foo.ts"]);
+  });
+});
+
+describe("requiresWriteScopeSnapshot", () => {
+  it("captures full snapshots only for enforceable scopes", () => {
+    expect(requiresWriteScopeSnapshot([])).toBe(false);
+    expect(requiresWriteScopeSnapshot(["src/"])).toBe(true);
+    expect(requiresWriteScopeSnapshot("deny-all")).toBe(true);
   });
 });
 

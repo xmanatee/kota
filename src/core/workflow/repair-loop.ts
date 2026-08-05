@@ -23,6 +23,7 @@ import {
   diffMutatedPaths,
   findWriteScopeViolations,
   listWorkflowMutatedPaths,
+  requiresWriteScopeSnapshot,
   tryListWorkflowMutatedPaths,
   writeWriteScopeViolationArtifact,
 } from "./steps/agent-write-scope.js";
@@ -303,9 +304,10 @@ export async function runAgentRepairLoop(
       trajectoryMessages.push(message);
       appendMessage(message);
     };
-    const repairPreSnapshot = scopedAgent
-      ? captureWorkflowMutationSnapshot(workspaceDir)
-      : undefined;
+    const repairPreSnapshot =
+      scopedAgent && requiresWriteScopeSnapshot(scopedAgent.writeScope)
+        ? captureWorkflowMutationSnapshot(workspaceDir)
+        : undefined;
     let repairAttempt:
       | {
           ok: true;

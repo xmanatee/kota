@@ -52,11 +52,13 @@ self-report.
 Every `AgentDef` declares a `writeScope` of allowed repo paths. `[]` means
 unrestricted; `"deny-all"` means read-only. Silence never means write-anywhere.
 
-The write-scope boundary compares content-and-index-aware pre/post snapshots,
-including paths already dirty before the step. An out-of-scope mutation throws
-`AgentWriteScopeViolationError` and records the paths in the step artifact.
-This hard failure consumes no retry. Deny-all restores the exact pre-step index
-and worktree; other scopes retain the normal dirty-recovery path.
+Restricted and deny-all scopes compare content-and-index-aware pre/post
+snapshots, including paths already dirty before the step. Unrestricted scope
+uses lightweight mutation-path attribution because it has no rejection
+boundary. An out-of-scope mutation throws `AgentWriteScopeViolationError` and
+records the paths in the step artifact. This hard failure consumes no retry.
+Deny-all restores the exact pre-step index and worktree; other scopes retain
+the normal dirty-recovery path.
 
 This enforcement lives in the core executor, not in per-workflow prompts or
 repair checks. Workflows declare scope honestly on their agent definitions

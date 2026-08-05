@@ -208,6 +208,10 @@ export function pathInScope(path: string, scope: readonly string[]): boolean {
   return false;
 }
 
+export function requiresWriteScopeSnapshot(scope: AgentWriteScope): boolean {
+  return scope === "deny-all" || scope.length > 0;
+}
+
 /**
  * Filter the set of mutated tracked files down to those that fall outside
  * the declared writeScope. Sorted for stable output.

@@ -34,6 +34,7 @@ import {
   diffMutatedPaths,
   findWriteScopeViolations,
   removeWorkflowScratchArtifacts,
+  requiresWriteScopeSnapshot,
   tryListWorkflowMutatedPaths,
   writeWriteScopeViolationArtifact,
 } from "./agent-write-scope.js";
@@ -220,9 +221,10 @@ export async function executeAgentStep(
 
   const executeWithWorkspaceAttribution = async (): Promise<AgentStepResult> => {
     // Snapshot after the workspace lane so wait time is not attribution time.
-    const preStepSnapshot = scopedAgent
-      ? captureWorkflowMutationSnapshot(workspaceDir)
-      : undefined;
+    const preStepSnapshot =
+      scopedAgent && requiresWriteScopeSnapshot(scopedAgent.writeScope)
+        ? captureWorkflowMutationSnapshot(workspaceDir)
+        : undefined;
     const preStepMutatedPaths = preStepSnapshot?.mutatedPaths ??
       (tryListWorkflowMutatedPaths(workspaceDir) ?? []);
     let attempt:
