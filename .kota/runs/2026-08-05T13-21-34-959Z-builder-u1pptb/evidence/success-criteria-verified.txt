@@ -1,0 +1,2 @@
+1. Verified: the task is blocked on a typed operator capture and no longer treats commit 3ca1dcf46 as item-level DLQ proof or the active builder as a completed run; it now requires a root-scope eight-item export and a named terminal builder success before closure.
+2. Verified: the task retains all four cited dead-letter ids and both event ids, preserves the commits/tests that prove the harness portion, and the registered artifacts/validation.txt distinguishes verified progress from the missing acceptance evidence.

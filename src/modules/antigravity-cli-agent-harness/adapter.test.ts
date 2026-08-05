@@ -53,7 +53,7 @@ function mockAgyProcess(options: {
 }
 
 function successfulAgyOutput(text: string): string {
-  return [
+  return `${[
     { event: "init", conversation_id: "conversation-1" },
     {
       event: "step_update",
@@ -73,7 +73,7 @@ function successfulAgyOutput(text: string): string {
         usage: { input_tokens: 12, output_tokens: 3 },
       },
     },
-  ].map((event) => JSON.stringify(event)).join("\n") + "\n";
+  ].map((event) => JSON.stringify(event)).join("\n")}\n`;
 }
 
 function mockManualAgyProcess(): MockChild {

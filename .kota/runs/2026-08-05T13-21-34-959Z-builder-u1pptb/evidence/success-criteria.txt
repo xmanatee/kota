@@ -1,0 +1,2 @@
+1. Reconcile the critic findings by removing unsupported DLQ and builder-completion claims and blocking the task on a typed root-scope proof until both conditions exist.
+2. Preserve the verified native-harness evidence and every cited source id while recording the exact remaining acceptance work in the task and durable validation artifact.

@@ -38,7 +38,7 @@ describe("native CLI sandbox roots", () => {
     symlinkSync(executable, join(binDirectory, "native-cli"));
 
     expect(resolveNativeCliExecutable("native-cli", { PATH: binDirectory }))
-      .toBe(executable);
+      .toBe(realpathSync.native(executable));
   });
 
   it("does not widen an arbitrary operator bin directory to the operator home", () => {

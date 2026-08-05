@@ -1,0 +1,53 @@
+Native harness recovery verification
+Run: 2026-08-05T13-21-34-959Z-builder-u1pptb
+
+Live linked-worktree probe
+- Ancestor Codex configuration was read successfully without printing its contents: /Users/xmanatee/Desktop/mono/.codex/config.toml.
+- Git resolved the worktree root, linked-worktree metadata directory, and common Git directory:
+  /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-restore-native-harness-execution-and-clear-the-cur-2026-08-05t13-21-34-959z-builder-u1pptb
+  /Users/xmanatee/Desktop/mono/apps/kota/.git/worktrees/task-restore-native-harness-execution-and-clear-the-cur-2026-08-05t13-21-34-959z-builder-u1pptb
+  /Users/xmanatee/Desktop/mono/apps/kota/.git
+- `pnpm kota task show task-restore-native-harness-execution-and-clear-the-cur` executed through Node, tsx, pnpm, and the source CLI and returned the intended task.
+- The injected permission profile explicitly kept project `.env*`, protected data files, and `.kota/daemon-control.json` denied. No protected file was opened. Commit 5b68d01af's recorded live probe independently returned DENIED for a project `.env` while provider authentication continued to work.
+
+Project-root and queue evidence
+- Run 2026-08-05T10-10-15-492Z-progress-reviewer-9mlu60 completed its Codex-backed review-evidence step after the fix.
+- Run 2026-08-05T10-10-15-494Z-improver-v5hu6g completed its Codex-backed improve step after the fix.
+- Commit 3ca1dcf46 moves five task files. It does not record eight item ids, canonical before/after DLQ statuses, chosen actions, or per-item rationales and is not accepted as DLQ closeout proof.
+- The task still preserves dead letters dlq-8e33b0d0-9eba-4967-b949-81900b0e8edf, dlq-36d8d8b7-d08e-4b3d-9a39-46079751f4c2, dlq-d0b211a0-e677-4c67-b54b-1c776eb485d2, dlq-7b3dd861-026f-4116-a40a-4f0715a9c8be and events evtj-000000207913, evtj-000000207925.
+- `pnpm kota workflow dlq list --json --limit 200` returned open=0, dismissed=0, redriven=0 from this worktree-local store. Because the source review covers root scope 8nrg1m, that empty local store is explicitly not accepted as canonical closeout evidence.
+- `pnpm kota workflow list --workflow builder --status success --limit 30 --json` exposed no August builder success in the worktree-local run store. The current run remains active during review and is explicitly not presented as terminal success evidence.
+
+Focused regression verification
+- `pnpm vitest run src/core/agent-harness/native-cli-sandbox-roots.test.ts src/modules/codex-agent-harness/adapter-scope-policy.test.ts src/core/workflow/steps/step-executor-retry.test.ts src/core/workflow/agent-backoff.test.ts src/core/workflow/dead-letter-supersession.test.ts src/core/workflow/dead-letter-queue.test.ts --configLoader runner --silent=true`
+  Result: 6 files passed, 44 tests passed.
+- `pnpm vitest run src/core/agent-harness/native-cli-sandbox.test.ts --configLoader runner --silent=true -t 'lets a native CLI own the sandbox without an outer wrapper'`
+  Result: 1 file passed, 1 test passed, 3 tests skipped by the filter.
+
+Initial validation note
+- The first broad command exposed a physical-path expectation that compared `/var` to its macOS `/private/var` identity. The focused test was corrected to compare `realpathSync.native(executable)` and now passes.
+- The same broad command could not bind a loopback regression listener because this native agent profile intentionally denies host networking. The deterministic live-egress sandbox test remains unchanged for a trusted host; it was not presented as a pass in this run.
+
+Task state transition
+- Canonical ready-to-doing and doing-to-done `pnpm kota task move` attempts reached their Git staging operation but could not create the linked-worktree index.lock because native agents receive read-only Git metadata.
+- After critic review, canonical moves back to `ready` and then to `blocked` reached the same Git staging boundary and rolled back. The equivalent done-to-blocked transition was applied with the repository's documented content-patch fallback; the workflow runtime owns final staging.
+
+Final validation
+- `pnpm run typecheck`: passed.
+- `pnpm exec biome check src/core/agent-harness/native-cli-sandbox-roots.test.ts`: passed, no fixes required.
+- `git diff --check` over the task transition and focused test: passed.
+- `pnpm run validate-tasks`: passed against a temporary index and writable alternate object directory containing the final typed blocked-state transition. The real linked-worktree index and object database remained untouched for workflow-runtime staging.
+- `pnpm test src/task-files.test.ts`: passed, 1 file and 5 tests.
+- `pnpm test src/modules/autonomy/workflows/builder/agent-run-evidence-policy.test.ts src/modules/autonomy/workflows/builder/workflow-success-criteria.test.ts`: passed, 2 files and 10 tests.
+- `pnpm test src/modules/autonomy/workflows/builder/repair-checks.test.ts`: passed, 1 file and 9 tests covering terminal task-state and commit-set rails.
+
+Post-check repair
+- Corrected the existing import order in `src/modules/filesystem/repo-map.ts`, which was the single error hidden beyond Biome's default diagnostic limit.
+- Replaced newline concatenation in the Antigravity stream fixture with the requested template literal.
+- `pnpm lint`: passed (98 warning-only diagnostics remain outside this task's changes).
+- `pnpm test src/modules/antigravity-cli-agent-harness/adapter.test.ts src/modules/filesystem/repo-map.test.ts src/core/agent-harness/native-cli-sandbox-roots.test.ts`: passed, 3 files and 47 tests.
+
+Critic repair disposition
+- Removed the unsupported assertion that all eight root-scope DLQ items were canonically dismissed.
+- Removed the unsupported assertion that this still-active builder run satisfies the subsequent-builder-completion condition.
+- Blocked the task on a typed operator-capture artifact containing the exact two missing proofs: an eight-item canonical root-scope DLQ export with actions/rationales and a named terminal post-fix builder success followed by a clean progress review.
