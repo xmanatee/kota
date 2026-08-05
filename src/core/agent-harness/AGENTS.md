@@ -57,11 +57,9 @@ Owner questions are a protocol capability, not a provider field.
   `onMessage` at the boundary.
 - `toolControl: "kota" | "native"` — `"kota"` adapters receive neutral tool
   controls. Native adapters own their CLI loop, so routing omits named-tool
-  lists and callbacks. Their shared projection exposes no KOTA modules, keeps
-  model tools offline, uses fail-closed native confirmations, and compiles the
-  effective write boundary into both the outer OS sandbox and the CLI's tool
-  sandbox. Provider egress belongs to the CLI process, not its model tools.
-  Stricter live revisions abort the process.
+  lists and callbacks. The shared runtime requires each adapter to name one
+  machine-authority owner and projects scope into that boundary. Provider
+  egress belongs to the trusted CLI process; stricter live revisions abort it.
 - `supportsMultiTurn: boolean` — whether the REPL can launch this adapter.
   Single-shot runners set `false` so the REPL refuses to launch them rather
   than silently downgrading.

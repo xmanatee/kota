@@ -20,8 +20,11 @@ export type NativeCliSandboxProcess = {
   env: NodeJS.ProcessEnv;
 };
 
+export type NativeCliMachineAuthorityOwner = "kota" | "native-cli";
+
 type NativeCliSandboxOptions = {
   cwd: string;
+  machineAuthorityOwner: NativeCliMachineAuthorityOwner;
   authorityConfigPath?: string;
   writableRoots: readonly string[];
   env: NodeJS.ProcessEnv;
@@ -199,17 +202,23 @@ export async function withNativeCliSandbox<T>(
         : existingProtectedProjectPaths(process.cwd())),
     ])];
     const writeProtectedPaths = [join(options.cwd, ".git")];
-    const launch = buildMachineAuthoritySandboxLaunch(launchExecutable, launchArgs, {
-      cwd: options.cwd,
-      authorityConfigPath: options.authorityConfigPath,
-      readableRoots,
-      writableRoots: [...options.writableRoots, temporaryDirectory],
-      readProtectedPaths,
-      writeProtectedPaths,
-      networkAccess: egressProxy?.address.kind === "tcp"
-        ? { kind: "loopback-proxy", port: egressProxy.address.port }
-        : { kind: "offline" },
-    });
+    const launch = options.machineAuthorityOwner === "native-cli"
+      ? {
+          ok: true as const,
+          command: launchExecutable,
+          args: [...launchArgs],
+        }
+      : buildMachineAuthoritySandboxLaunch(launchExecutable, launchArgs, {
+          cwd: options.cwd,
+          authorityConfigPath: options.authorityConfigPath,
+          readableRoots,
+          writableRoots: [...options.writableRoots, temporaryDirectory],
+          readProtectedPaths,
+          writeProtectedPaths,
+          networkAccess: egressProxy?.address.kind === "tcp"
+            ? { kind: "loopback-proxy", port: egressProxy.address.port }
+            : { kind: "offline" },
+        });
     if (!launch.ok) throw new Error(launch.error);
     const preparedEnvironment = options.prepareEnvironment?.(
       {

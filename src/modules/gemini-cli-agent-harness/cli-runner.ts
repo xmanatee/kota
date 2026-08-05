@@ -223,6 +223,7 @@ export async function collectTextFromGeminiCli(
     cliArgs,
     {
       cwd: args.cwd,
+      machineAuthorityOwner: "kota",
       authorityConfigPath: args.authorityConfigPath,
       writableRoots: args.writableRoots,
       env: buildNativeCliEnvironment({

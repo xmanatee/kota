@@ -1,14 +1,14 @@
 ---
 id: task-enforce-protected-project-credentials-in-the-linux
 title: Enforce protected project credentials in the Linux native sandbox
-status: ready
+status: dropped
 priority: p1
 area: security
 task_class: Safety
 summary: Apply the canonical protected-read plan to Linux sandbox masking and prove protected files remain unreadable without breaking normal repository inspection.
 depends_on: [task-define-the-canonical-protected-read-plan-for-nativ]
 created_at: 2026-08-05T12:41:31.394Z
-updated_at: 2026-08-05T12:41:31.394Z
+updated_at: 2026-08-05T13:20:02.473Z
 ---
 
 ## Problem
@@ -50,3 +50,7 @@ Decomposed from `task-security-review-native-cli-agents-can-read-protect` after 
 - Focused sandbox-construction test output showing complete, deduplicated masks and fail-closed error handling.
 - A Linux runtime or CI artifact showing protected sentinel paths and aliases are unreadable.
 - The same runtime or CI artifact showing ordinary repository content and Git metadata remain readable.
+
+## Resolution
+
+Superseded by `5b68d01af` before this decomposition was created; the parent task records the Linux mask implementation and verification evidence.

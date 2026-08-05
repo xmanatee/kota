@@ -220,6 +220,7 @@ describe("antigravityCliAgentHarness", () => {
       expect.any(Array),
       expect.objectContaining({
         cwd: "/repo",
+        machineAuthorityOwner: "kota",
         authorityConfigPath: "/operator/.kota/config.json",
         writableRoots: ["/repo"],
         env: expect.any(Object),

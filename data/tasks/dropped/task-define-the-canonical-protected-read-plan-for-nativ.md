@@ -1,13 +1,13 @@
 ---
 id: task-define-the-canonical-protected-read-plan-for-nativ
 title: Define the canonical protected-read plan for native CLI sandboxes
-status: ready
+status: dropped
 priority: p1
 area: security
 task_class: Safety
 summary: Create one native-harness contract that identifies project credentials and existing authority-token protections across lexical and resolved filesystem paths.
 created_at: 2026-08-05T12:41:31.394Z
-updated_at: 2026-08-05T12:41:31.394Z
+updated_at: 2026-08-05T13:19:57.267Z
 ---
 
 ## Problem
@@ -48,3 +48,7 @@ Decomposed from `task-security-review-native-cli-agents-can-read-protect` after 
 - Focused unit-test output demonstrating the protected-read plan for literal, nested, symlinked, and realpath-resolved fixtures.
 - A test proving ordinary repository content and read-only Git metadata remain classified as readable.
 - A reviewable assertion that fixture secrets use sentinels and no protected contents enter logs or snapshots.
+
+## Resolution
+
+Superseded by `5b68d01af` before this decomposition was created; the parent task records the canonical implementation and verification evidence.

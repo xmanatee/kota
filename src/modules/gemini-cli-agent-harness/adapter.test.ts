@@ -189,6 +189,7 @@ describe("geminiCliAgentHarness", () => {
       expect.any(Array),
       {
         cwd: "/repo",
+        machineAuthorityOwner: "kota",
         authorityConfigPath: "/operator/.kota/config.json",
         writableRoots: ["/repo"],
         env: expect.any(Object),

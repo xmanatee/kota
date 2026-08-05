@@ -344,6 +344,7 @@ export async function collectTextFromCodexCli(
     cliArgs,
     {
       cwd: args.cwd,
+      machineAuthorityOwner: "native-cli",
       authorityConfigPath: args.authorityConfigPath,
       writableRoots: args.writableRoots,
       env: buildCodexEnvironment(args.env),

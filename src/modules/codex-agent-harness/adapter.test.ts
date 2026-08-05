@@ -217,6 +217,7 @@ describe("codexAgentHarness", () => {
       expect.any(Array),
       {
         cwd: "/repo",
+        machineAuthorityOwner: "native-cli",
         authorityConfigPath: "/operator/.kota/config.json",
         writableRoots: ["/repo"],
         env: expect.any(Object),

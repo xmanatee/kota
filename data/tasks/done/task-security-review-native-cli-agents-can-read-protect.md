@@ -1,13 +1,13 @@
 ---
 id: task-security-review-native-cli-agents-can-read-protect
 title: Security review: Native CLI agents can read protected project credentials, including the daemon bearer token. The native sandbox recursively exposes the entire workflow cwd while masking only scope-authority operator tokens, bypassing the protected-path policy enforced by KOTA filesystem tools. Untrusted prompt content can therefore cause credentials from `.kota/daemon-control.json`, `.kota/secrets.json`, or `.env*` to enter the native agent and provider context.
-status: dropped
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Native CLI agents can read protected project credentials, including the daemon bearer token. The native sandbox recursively exposes the entire workflow cwd while masking only scope-authority operator tokens, bypassing the protected-path policy enforced by KOTA filesystem tools. Untrusted prompt content can therefore cause credentials from `.kota/daemon-control.json`, `.kota/secrets.json`, or `.env*` to enter the native agent and provider context.
 created_at: 2026-08-05T07:39:46.100Z
-updated_at: 2026-08-05T12:41:31.439Z
+updated_at: 2026-08-05T13:19:52.042Z
 ---
 
 ## Problem
@@ -125,6 +125,8 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Fixed by `5b68d01af`: native runtimes share the protected-project path projection, macOS denies protected reads, Linux masks them, and Codex denies its provider runtime home.
+- Verified with `pnpm vitest run src/modules/filesystem/protected-paths.test.ts src/modules/execution/machine-authority-sandbox.test.ts src/core/agent-harness/native-cli-sandbox.test.ts src/modules/codex-agent-harness/runtime-home.test.ts` (4 files, 16 tests passed) and a live Codex sentinel probe (`.env` read status 1, permission denied, 0 leaked bytes).
 
 ## Decomposed
 

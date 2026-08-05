@@ -1,14 +1,14 @@
 ---
 id: task-enforce-protected-project-credentials-in-the-macos
 title: Enforce protected project credentials in the macOS native sandbox
-status: ready
+status: dropped
 priority: p1
 area: security
 task_class: Safety
 summary: Apply the canonical protected-read plan to the macOS Seatbelt profile and prove native agents cannot read protected files from a project-root cwd.
 depends_on: [task-define-the-canonical-protected-read-plan-for-nativ]
 created_at: 2026-08-05T12:41:31.394Z
-updated_at: 2026-08-05T12:41:31.394Z
+updated_at: 2026-08-05T13:20:07.676Z
 ---
 
 ## Problem
@@ -49,3 +49,7 @@ Decomposed from `task-security-review-native-cli-agents-can-read-protect` after 
 - Focused assertions over the generated Seatbelt profile showing protected denials coexist with repository-root allowances.
 - A macOS runtime transcript or test artifact showing permission-denied results for all sentinel credential paths and aliases.
 - The same transcript or test artifact showing successful reads of ordinary source and Git metadata.
+
+## Resolution
+
+Superseded by `5b68d01af` before this decomposition was created; the parent task records the macOS deny implementation and verification evidence.

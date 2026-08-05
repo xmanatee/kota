@@ -74,6 +74,7 @@ describe("native CLI live sandbox", () => {
         ],
         {
           cwd: projectDir,
+          machineAuthorityOwner: "kota",
           writableRoots: [],
           env: buildNativeCliEnvironment({
             overrides: { INSIDE_PATH: insidePath, OUTSIDE_PATH: outsidePath },
@@ -114,6 +115,7 @@ describe("native CLI live sandbox", () => {
         ["-c", 'cat "$TARGET"'],
         {
           cwd: projectDir,
+          machineAuthorityOwner: "kota",
           writableRoots: [projectDir],
           env: buildNativeCliEnvironment({
             overrides: { TARGET: secretPath },
@@ -168,6 +170,7 @@ describe("native CLI live sandbox", () => {
           ["-e", script],
           {
             cwd: projectDir,
+            machineAuthorityOwner: "kota",
             writableRoots: [],
             env: buildNativeCliEnvironment({
               overrides: { TARGET_PORT: String(address.port) },
@@ -193,4 +196,25 @@ describe("native CLI live sandbox", () => {
       }
     },
   );
+
+  it("lets a native CLI own the sandbox without an outer wrapper", async () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "kota-native-owned-sandbox-"));
+    roots.push(projectDir);
+
+    const process = await withNativeCliSandbox(
+      "/bin/sh",
+      ["-c", "true"],
+      {
+        cwd: projectDir,
+        machineAuthorityOwner: "native-cli",
+        writableRoots: [projectDir],
+        env: buildNativeCliEnvironment(),
+      },
+      async (sandboxedProcess) => sandboxedProcess,
+    );
+
+    expect(process.command).toBe("/bin/sh");
+    expect(process.args).toEqual(["-c", "true"]);
+    expect(process.env.HOME).toContain("kota-native-cli-");
+  });
 });

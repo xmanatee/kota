@@ -34,14 +34,11 @@ The adapter runs one non-interactive CLI process per KOTA harness call:
 1. Compose the KOTA system prompt, workflow rails, and task prompt into one
    stdin prompt for `codex exec -`.
 2. Spawn an ephemeral, strict-config `codex exec --json` process with user
-   plugins and hooks disabled and the selected model. KOTA's outer OS sandbox
-   limits the CLI process to provider-only egress and declared filesystem
-   roots. An invocation-generated Codex permission profile separately keeps
-   model tools offline, grants only the projected workspace writes, denies
-   project credentials, and uses fail-closed `untrusted` approvals. The auth
-   file lives in a provider runtime home outside tool-visible home and temp
-   roots; Codex can authenticate, but its shell tools cannot read or overwrite
-   the credential.
+   plugins and hooks disabled and the selected model. Codex owns the single
+   tool sandbox through an invocation-generated permission profile: model
+   tools stay offline, writes follow the projected scope, project and provider
+   credentials are denied, and approvals fail closed. KOTA owns the isolated
+   runtime, provider proxy, process lifecycle, and live-policy abort.
 3. Parse JSONL events from stdout. `item.completed` agent-message events are
    streamed to the optional `AgentHarnessWriter` and collected as final text.
 4. Read the final `turn.completed` usage event for token counts and return the
@@ -58,12 +55,12 @@ the effective scope policy.
 
 ## Capability Boundary
 
-Codex CLI owns its own tool runtime. This adapter does not expose KOTA's tool
-registry, MCP servers, `allowedTools`, `disallowedTools`, `canUseTool`, or
+Codex CLI owns its tool runtime and sandbox. This adapter does not expose
+KOTA's tool registry, MCP servers, `allowedTools`, `disallowedTools`, `canUseTool`, or
 scope-policy evaluator to the model. It declares `toolControl: "native"` and
-rejects unsupported neutral options before Codex CLI starts. The shared OS
-sandbox enforces the effective scope write boundary independently of the model,
-and a stricter live policy revision aborts the process.
+rejects unsupported neutral options before Codex CLI starts. The generated
+permission profile enforces scope independently of the prompt, and a stricter
+live policy revision aborts the process.
 `askOwnerToolName` is therefore `null`, so workflow prompts do not advertise a
 fake `ask_owner` tool. Workflows that need owner escalation should use the
 deterministic `askOwnerSteps` recipe outside the agent step.
