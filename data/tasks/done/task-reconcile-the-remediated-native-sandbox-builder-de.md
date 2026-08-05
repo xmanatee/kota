@@ -1,13 +1,13 @@
 ---
 id: task-reconcile-the-remediated-native-sandbox-builder-de
 title: Reconcile the remediated native sandbox builder dead letter
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Meta
 summary: Resolve dead-letter item dlq-f8850033-6708-4c59-8dd6-36717e7f6cbc against the current native CLI sandbox behavior. Determine whether it is stale after the recorded fixes or still reproducible, then dismiss or redrive it through the canonical dead-letter workflow.
 created_at: 2026-08-04T00:12:55.386Z
-updated_at: 2026-08-04T00:12:55.386Z
+updated_at: 2026-08-05T08:10:03.090Z
 ---
 
 ## Problem
@@ -57,3 +57,10 @@ Outcome-aware autonomy progress review.
 - Review-provided acceptance evidence:
 
     The exact dead-letter item is no longer open. A dismissal records evidence that the affected work completed under the repaired sandbox policy, or a redrive records a current terminal run and creates targeted repair work if the failure persists.
+
+## Resolution
+
+The canonical dead-letter store records
+`dlq-f8850033-6708-4c59-8dd6-36717e7f6cbc` as dismissed at
+`2026-08-04T04:44:15.247Z`. The task's acceptance condition is satisfied and
+no redrive is required.
