@@ -39,9 +39,10 @@ The adapter runs one non-interactive CLI process per KOTA harness call:
    `--prompt` payload.
 2. Spawn `gemini --skip-trust --prompt <payload> --output-format stream-json
    --model <model>`.
-3. Run the CLI inside KOTA's single native-CLI OS sandbox. Plan mode can write
-   only to an invocation temp root; default mode can also write to the
-   workspace. Reads stay within system/tool runtime, workspace dependencies,
+3. Run the CLI inside KOTA's single native-CLI OS sandbox. Plan mode and
+   write-confirmation policy can write only to an invocation temp root;
+   allowed scope-policy paths are projected into the run worktree. Reads stay
+   within system/tool runtime, workspace dependencies,
    workspace, and invocation roots; Git metadata and machine authority stay
    read-only. Network access is restricted to declared Google model and
    authentication endpoints through KOTA's host-owned proxy.
@@ -63,9 +64,10 @@ runs when the CLI needs an approval KOTA cannot provide.
 
 Gemini CLI owns its own tool runtime, MCP configuration, checkpointing, and
 approval loop. KOTA owns filesystem isolation so there is no nested sandbox.
-This adapter does not expose KOTA's tool registry, `canUseTool`,
-scope-policy evaluator, MCP servers, owner-question tool, or supervised
-approvals to the CLI. It declares `toolControl: "native"`. It still injects
+This adapter does not expose KOTA's tool registry, `canUseTool`, MCP servers,
+owner-question tool, or supervised approvals to the CLI. It declares
+`toolControl: "native"`. Scope writes are enforced by the shared OS sandbox,
+and stricter live policy revisions abort the process. It still injects
 KOTA workflow rails into the prompt, but those rails are prompt-level
 instructions rather than KOTA-enforced tool guardrails. Structured CLI events
 do feed KOTA's message-stream and trajectory diagnostics; observation does not

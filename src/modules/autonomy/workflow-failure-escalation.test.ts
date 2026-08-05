@@ -538,13 +538,21 @@ describe("workflow failure escalation tasks", () => {
 
     const first = applyFirstPattern(projectDir, failurePattern);
     expect(first.kind).toBe("created");
+    const taskPath = join(
+      projectDir,
+      "data",
+      "tasks",
+      "ready",
+      `${failurePattern.taskId}.md`,
+    );
+    const before = readFileSync(taskPath, "utf-8");
     const proposal = proposeWorkflowFailureEscalation(projectDir, warningPattern);
-    expect(proposal.action).toBe("refresh");
+    expect(proposal.action).toBe("noop");
     const second = applyWorkflowFailureEscalation(proposal, {
       projectDir,
       nowIso: "2026-05-29T13:00:00.000Z",
     });
-    expect(second.kind).toBe("refreshed");
+    expect(second.kind).toBe("noop");
 
     const readyTaskPath = join(
       projectDir,
@@ -554,7 +562,7 @@ describe("workflow failure escalation tasks", () => {
       `${failurePattern.taskId}.md`,
     );
     expect(existsSync(readyTaskPath)).toBe(true);
-    expect(readFileSync(readyTaskPath, "utf-8")).toContain("warn-a, warn-b, warn-c");
+    expect(readFileSync(readyTaskPath, "utf-8")).toBe(before);
   });
 
   it("formats operator attention without cost fields", () => {

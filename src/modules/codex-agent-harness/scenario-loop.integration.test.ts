@@ -119,7 +119,7 @@ describe("codex agent harness x fix-arithmetic-bug scenario", () => {
     expect(sandboxLaunchMock).toHaveBeenCalledWith(
       "codex",
       expect.any(Array),
-      expect.objectContaining({ cwd: workingDir, mode: "workspace-write" }),
+      expect.objectContaining({ cwd: workingDir, writableRoots: [workingDir] }),
       expect.any(Function),
     );
     expect(process.stdinText()).toContain(loaded.spec.prompt);

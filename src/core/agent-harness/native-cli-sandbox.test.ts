@@ -74,7 +74,7 @@ describe("native CLI live sandbox", () => {
         ],
         {
           cwd: projectDir,
-          mode: "read-only",
+          writableRoots: [],
           env: buildNativeCliEnvironment({
             overrides: { INSIDE_PATH: insidePath, OUTSIDE_PATH: outsidePath },
           }),
@@ -137,7 +137,7 @@ describe("native CLI live sandbox", () => {
           ["-e", script],
           {
             cwd: projectDir,
-            mode: "read-only",
+            writableRoots: [],
             env: buildNativeCliEnvironment({
               overrides: { TARGET_PORT: String(address.port) },
             }),

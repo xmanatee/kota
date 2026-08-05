@@ -220,7 +220,7 @@ describe("codexAgentHarness", () => {
       {
         cwd: "/repo",
         authorityConfigPath: "/operator/.kota/config.json",
-        mode: "workspace-write",
+        writableRoots: ["/repo"],
         env: expect.any(Object),
         allowedEgressHosts: [
           "api.openai.com",
@@ -375,7 +375,7 @@ describe("codexAgentHarness", () => {
     expect(sandboxLaunchMock).toHaveBeenCalledWith(
       "codex",
       expect.not.arrayContaining(["--sandbox"]),
-      expect.objectContaining({ mode: "read-only" }),
+      expect.objectContaining({ writableRoots: [] }),
       expect.any(Function),
     );
   });

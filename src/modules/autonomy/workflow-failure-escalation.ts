@@ -75,8 +75,6 @@ type RunWithTime = {
 
 type ExistingTask = {
   state: RepoTaskState;
-  path: string;
-  content: string;
   evidenceFingerprint: string | null;
   createdAt: string | null;
 };
@@ -92,12 +90,6 @@ export type WorkflowFailureEscalationProposal =
       action: "create";
       pattern: WorkflowFailurePattern;
       target: "ready";
-    }
-  | {
-      action: "refresh";
-      pattern: WorkflowFailurePattern;
-      target: "ready";
-      previousEvidenceFingerprint: string | null;
     }
   | {
       action: "promote";
@@ -124,12 +116,6 @@ export type WorkflowFailureEscalationApplied =
     }
   | {
       kind: "created";
-      taskId: string;
-      patternFingerprint: string;
-      path: string;
-    }
-  | {
-      kind: "refreshed";
       taskId: string;
       patternFingerprint: string;
       path: string;
@@ -613,8 +599,6 @@ function findExistingTask(projectDir: string, taskId: string): ExistingTask | nu
     const evidenceMatch = content.match(EVIDENCE_FINGERPRINT_RE);
     return {
       state,
-      path: candidate,
-      content,
       evidenceFingerprint: evidenceMatch?.[1] ?? null,
       createdAt,
     };
@@ -652,10 +636,10 @@ export function proposeWorkflowFailureEscalation(
 
   if (existing.state === "ready") {
     return {
-      action: "refresh",
+      action: "noop",
       pattern,
-      target: "ready",
-      previousEvidenceFingerprint: existing.evidenceFingerprint,
+      reason: `${pattern.taskId} already owns this root cause in ready/; repeated runs do not rewrite open work.`,
+      existingState: existing.state,
     };
   }
   if (existing.state === "backlog") {
@@ -842,29 +826,6 @@ export function applyWorkflowFailureEscalation(
     );
     return {
       kind: "created",
-      taskId: pattern.taskId,
-      patternFingerprint: pattern.fingerprint,
-      path: targetPath.slice(ctx.projectDir.length + 1),
-    };
-  }
-
-  if (proposal.action === "refresh") {
-    if (!existing || existing.state !== "ready") {
-      throw new Error(
-        `workflow-failure-escalation: expected ${pattern.taskId} in ready/ for refresh`,
-      );
-    }
-    writeRepoTaskFile(
-      ctx.projectDir,
-      targetPath,
-      buildWorkflowFailureTaskFile(
-        pattern,
-        "ready",
-        taskTimestamps(existing, ctx.nowIso),
-      ),
-    );
-    return {
-      kind: "refreshed",
       taskId: pattern.taskId,
       patternFingerprint: pattern.fingerprint,
       path: targetPath.slice(ctx.projectDir.length + 1),

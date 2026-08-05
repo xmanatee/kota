@@ -33,9 +33,10 @@ native login without inheriting global settings, plugins, history, or caches.
 Never copy or inspect the token itself.
 
 The OS sandbox permits AGY's internal loopback listener, but outbound traffic
-still goes only through KOTA's host-owned allowlisted proxy. Passive runs can
-write only to invocation state; autonomous runs can also write to the
-workspace. Git metadata and machine authority remain protected.
+still goes only through KOTA's host-owned allowlisted proxy. Effective scope
+policy paths are projected into the run worktree before launch; passive or
+write-confirmation runs can write only to invocation state. Git metadata and
+machine authority remain protected.
 
 ## Model Routing
 

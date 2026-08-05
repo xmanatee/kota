@@ -13,8 +13,6 @@ import {
   resolveNativeCliExecutable,
 } from "./native-cli-sandbox-roots.js";
 
-export type NativeCliSandboxMode = "read-only" | "workspace-write";
-
 export type NativeCliSandboxProcess = {
   command: string;
   args: string[];
@@ -24,7 +22,7 @@ export type NativeCliSandboxProcess = {
 type NativeCliSandboxOptions = {
   cwd: string;
   authorityConfigPath?: string;
-  mode: NativeCliSandboxMode;
+  writableRoots: readonly string[];
   env: NodeJS.ProcessEnv;
   readOnlyHostRoots?: readonly string[];
   allowedEgressHosts?: readonly string[];
@@ -174,9 +172,7 @@ export async function withNativeCliSandbox<T>(
       cwd: options.cwd,
       authorityConfigPath: options.authorityConfigPath,
       readableRoots,
-      writableRoots: options.mode === "workspace-write"
-        ? [options.cwd, temporaryDirectory]
-        : [temporaryDirectory],
+      writableRoots: [...options.writableRoots, temporaryDirectory],
       writeProtectedPaths: [join(options.cwd, ".git")],
       networkAccess: egressProxy?.address.kind === "tcp"
         ? { kind: "loopback-proxy", port: egressProxy.address.port }

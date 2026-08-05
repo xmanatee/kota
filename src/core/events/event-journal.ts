@@ -38,6 +38,20 @@ export type * from "./event-journal-types.js";
 const DEFAULT_JOURNAL_FILE = "journal.jsonl";
 const REVERSE_READ_CHUNK_BYTES = 64 * 1024;
 
+function reverseQueryLimit(query: EventJournalQuery): number | undefined {
+  if (query.id !== undefined) return 1;
+  if (query.limit !== undefined) return query.limit;
+  return query.sinceMs === undefined ? undefined : Number.MAX_SAFE_INTEGER;
+}
+
+function reverseQueryStop(
+  sinceMs: number | undefined,
+): ((event: EventEnvelope) => boolean) | undefined {
+  return sinceMs === undefined
+    ? undefined
+    : (event) => Date.parse(event.timestamps.journaledAt) <= sinceMs;
+}
+
 export class EventJournal {
   private readonly filePath: string;
   private readonly retention: EventJournalRetentionPolicy;
@@ -80,12 +94,13 @@ export class EventJournal {
   }
 
   query(query: EventJournalQuery = {}): EventEnvelope[] {
-    const reverseLimit = query.id !== undefined ? 1 : query.limit;
+    const reverseLimit = reverseQueryLimit(query);
     if (query.after === undefined && reverseLimit !== undefined && reverseLimit > 0) {
       const nowMs = this.now().getTime();
       return this.readFromEnd(
         reverseLimit,
         (event) => envelopeAvailableForQuery(event, query, nowMs),
+        reverseQueryStop(query.sinceMs),
       );
     }
     let events = this.readEventsAfter(query.after);
@@ -99,13 +114,14 @@ export class EventJournal {
 
   queryPrunedReferences(query: EventJournalQuery = {}): EvidencePrunedReference[] {
     const nowMs = this.now().getTime();
-    const reverseLimit = query.id !== undefined ? 1 : query.limit;
+    const reverseLimit = reverseQueryLimit(query);
     if (query.after === undefined && reverseLimit !== undefined && reverseLimit > 0) {
       return this.readFromEnd(
         reverseLimit,
         (event) =>
           hasMetadataReferenceAfterExpiry(event, nowMs) &&
           envelopeMatchesQuery(event, query),
+        reverseQueryStop(query.sinceMs),
       ).map(eventPrunedReference);
     }
     const references = this.readEventsAfter(query.after)
@@ -148,6 +164,7 @@ export class EventJournal {
   private readFromEnd(
     limit: number,
     include: (event: EventEnvelope) => boolean,
+    stop?: (event: EventEnvelope) => boolean,
   ): EventEnvelope[] {
     if (!existsSync(this.filePath)) return [];
     const descriptor = openSync(this.filePath, "r");
@@ -176,6 +193,7 @@ export class EventJournal {
             this.filePath,
             `byte ${position + index + 1}`,
           );
+          if (stop?.(event)) return matches.reverse();
           if (include(event)) matches.push(event);
           if (matches.length === limit) break;
         }
@@ -186,6 +204,7 @@ export class EventJournal {
         const line = leadingLine.toString("utf8").trim();
         if (line.length > 0) {
           const event = parseEventJournalLine(line, this.filePath, "byte 0");
+          if (stop?.(event)) return matches.reverse();
           if (include(event)) matches.push(event);
         }
       }

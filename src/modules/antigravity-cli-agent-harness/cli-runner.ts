@@ -63,6 +63,7 @@ type CollectTextFromAntigravityCliArgs = {
   model: string;
   effort: AgentEffort;
   passive: boolean;
+  writableRoots: readonly string[];
   authorityConfigPath: string | undefined;
   env: Record<string, string> | undefined;
   abortController?: AbortController;
@@ -225,7 +226,7 @@ export async function collectTextFromAntigravityCli(
     {
       cwd: args.cwd,
       authorityConfigPath: args.authorityConfigPath,
-      mode: args.passive ? "read-only" : "workspace-write",
+      writableRoots: args.writableRoots,
       env: buildNativeCliEnvironment({
         projectedEnvKeys: [ANTIGRAVITY_CLI_KEYCHAIN_DIR_ENV],
         overrides: {

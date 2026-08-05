@@ -36,8 +36,9 @@ The adapter runs one non-interactive CLI process per KOTA harness call:
 2. Spawn an ephemeral, strict-config `codex exec --json` process with user
    plugins and hooks disabled, the selected model, and Codex's internal
    sandbox bypassed. KOTA owns the one OS sandbox around the process: passive
-   runs can write only to an invocation temp root; autonomous runs can also
-   write to the workspace; reads stay within system/tool runtime, workspace
+   and write-confirmation runs can write only to an invocation temp root;
+   allowed scope-policy paths are projected into the run worktree; reads stay
+   within system/tool runtime, workspace
    dependencies, workspace, and invocation roots; Git metadata and machine
    authority stay read-only. Network access is restricted to declared
    OpenAI/ChatGPT endpoints through KOTA's host-owned proxy. Codex gets a
@@ -53,16 +54,19 @@ Cancellation terminates the CLI process group so spawned tools cannot outlive
 the CLI, and the run-local quarantine barrier stays pending until the group
 leader has closed.
 
-`autonomyMode: "passive"` maps to KOTA's read-only native-CLI boundary; every
-other supported mode maps to workspace-write. `supervised` is rejected because this
-non-interactive CLI path cannot route approvals through KOTA's approval queue.
+`autonomyMode: "passive"` maps to KOTA's read-only native-CLI boundary.
+`supervised` is rejected because this non-interactive CLI path cannot route
+approvals through KOTA's approval queue. Autonomous writes remain bounded by
+the effective scope policy.
 
 ## Capability Boundary
 
 Codex CLI owns its own tool runtime. This adapter does not expose KOTA's tool
 registry, MCP servers, `allowedTools`, `disallowedTools`, `canUseTool`, or
 scope-policy evaluator to the model. It declares `toolControl: "native"` and
-rejects unsupported neutral options before Codex CLI starts.
+rejects unsupported neutral options before Codex CLI starts. The shared OS
+sandbox enforces the effective scope write boundary independently of the model,
+and a stricter live policy revision aborts the process.
 `askOwnerToolName` is therefore `null`, so workflow prompts do not advertise a
 fake `ask_owner` tool. Workflows that need owner escalation should use the
 deterministic `askOwnerSteps` recipe outside the agent step.

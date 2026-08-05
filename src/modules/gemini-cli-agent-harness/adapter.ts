@@ -17,6 +17,7 @@ import type {
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
 import { probeNativeCliRuntime } from "#core/agent-harness/index.js";
+import { nativeCliWritableRoots } from "#core/agent-harness/native-cli-scope-policy.js";
 import { geminiCliAuthReadiness } from "./auth-readiness.js";
 import { collectTextFromGeminiCli, type GeminiCliApprovalMode } from "./cli-runner.js";
 import {
@@ -54,11 +55,6 @@ const GEMINI_CLI_UNSUPPORTED_OPTIONS = [
     runOption: "canUseTool",
     option: "canUseTool",
     reason: "Gemini CLI tool calls cannot be routed through KOTA's canUseTool gate.",
-  },
-  {
-    runOption: "scopePolicy",
-    option: "scopePolicy",
-    reason: "Gemini CLI tool calls cannot be routed through KOTA's scope-policy evaluator.",
   },
   {
     runOption: "askOwner",
@@ -134,12 +130,6 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
     throw new Error(
       'The "gemini-cli" agent harness cannot route Gemini CLI tool calls through KOTA canUseTool. ' +
         "Drop canUseTool or run a KOTA-hosted tool-loop harness.",
-    );
-  }
-  if (options.scopePolicy !== undefined) {
-    throw new Error(
-      'The "gemini-cli" agent harness cannot route Gemini CLI tool calls through KOTA scope policy. ' +
-        "Drop scopePolicy or run the KOTA-hosted gemini harness.",
     );
   }
   if (options.askOwner !== undefined) {
@@ -239,6 +229,11 @@ export const geminiCliAgentHarness: AgentHarness = {
       cwd: options.cwd ?? process.cwd(),
       model: options.model,
       approvalMode: geminiApprovalMode(options),
+      writableRoots: nativeCliWritableRoots({
+        cwd: options.cwd ?? process.cwd(),
+        autonomyMode: options.autonomyMode,
+        scopePolicy: options.scopePolicy,
+      }),
       authorityConfigPath: options.authorityConfigPath,
       env: options.env,
       abortController: options.abortController,

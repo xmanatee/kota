@@ -213,7 +213,6 @@ const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
 function actionLandedOnDisk(applied: WorkflowFailureEscalationApplied): boolean {
   return (
     applied.kind === "created" ||
-    applied.kind === "refreshed" ||
     applied.kind === "promoted" ||
     applied.kind === "recreated"
   );

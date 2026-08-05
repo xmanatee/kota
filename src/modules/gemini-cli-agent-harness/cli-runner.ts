@@ -61,6 +61,7 @@ type CollectTextFromGeminiCliArgs = {
   cwd: string;
   model: string;
   approvalMode: GeminiCliApprovalMode;
+  writableRoots: readonly string[];
   authorityConfigPath: string | undefined;
   env: Record<string, string> | undefined;
   abortController: AbortController | undefined;
@@ -222,7 +223,7 @@ export async function collectTextFromGeminiCli(
     {
       cwd: args.cwd,
       authorityConfigPath: args.authorityConfigPath,
-      mode: args.approvalMode === "plan" ? "read-only" : "workspace-write",
+      writableRoots: args.writableRoots,
       env: buildNativeCliEnvironment({
         projectedEnvKeys: [
           ...GEMINI_CLI_AUTH_ENV_KEYS,

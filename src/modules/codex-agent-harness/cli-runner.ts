@@ -102,7 +102,7 @@ type CollectTextFromCodexCliArgs = {
   cwd: string;
   model: string;
   effort: AgentEffort;
-  sandboxMode: "read-only" | "workspace-write";
+  writableRoots: readonly string[];
   authorityConfigPath: string | undefined;
   env: Record<string, string> | undefined;
   abortController: AbortController | undefined;
@@ -349,7 +349,7 @@ export async function collectTextFromCodexCli(
     {
       cwd: args.cwd,
       authorityConfigPath: args.authorityConfigPath,
-      mode: args.sandboxMode,
+      writableRoots: args.writableRoots,
       env: buildCodexEnvironment(args.env),
       allowedEgressHosts: CODEX_PROVIDER_EGRESS_HOSTS,
       readOnlyHostRoots: nativeCliWorkspaceConfigurationReadRoots(args.cwd, [

@@ -14,6 +14,7 @@ import {
   probeNativeCliAuth,
   probeNativeCliRuntime,
 } from "#core/agent-harness/index.js";
+import { nativeCliWritableRoots } from "#core/agent-harness/native-cli-scope-policy.js";
 import {
   ANTIGRAVITY_CLI_BINARY_NAME,
   abortedAntigravityCliResult,
@@ -57,12 +58,6 @@ const ANTIGRAVITY_CLI_UNSUPPORTED_OPTIONS = [
     option: "canUseTool",
     reason:
       "Antigravity CLI tool calls cannot be routed through KOTA's canUseTool gate.",
-  },
-  {
-    runOption: "scopePolicy",
-    option: "scopePolicy",
-    reason:
-      "Antigravity CLI tool calls cannot be routed through KOTA's scope-policy evaluator.",
   },
   {
     runOption: "askOwner",
@@ -165,12 +160,6 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
         "Use a KOTA-hosted tool-loop harness when KOTA must enforce tool policy.",
     );
   }
-  if (options.scopePolicy !== undefined) {
-    throw new Error(
-      'The "antigravity-cli" agent harness cannot route AGY tool calls through KOTA scope policy. ' +
-        "Use a KOTA-hosted tool-loop harness when KOTA must enforce scope policy.",
-    );
-  }
   if (options.askOwner !== undefined) {
     throw new Error(
       'The "antigravity-cli" agent harness cannot expose KOTA ask_owner to AGY CLI. ' +
@@ -266,6 +255,11 @@ export const antigravityCliAgentHarness: AgentHarness = {
       model: options.model,
       effort: options.effort,
       passive: options.autonomyMode === "passive",
+      writableRoots: nativeCliWritableRoots({
+        cwd: options.cwd ?? process.cwd(),
+        autonomyMode: options.autonomyMode,
+        scopePolicy: options.scopePolicy,
+      }),
       authorityConfigPath: options.authorityConfigPath,
       env: options.env,
       abortController: options.abortController,

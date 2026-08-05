@@ -126,11 +126,13 @@ describe("antigravityCliAgentHarness", () => {
         "allowedTools",
         "disallowedTools",
         "canUseTool",
-        "scopePolicy",
         "askOwner",
         "mcpServers",
       ]),
     );
+    expect(
+      antigravityCliAgentHarness.unsupportedRunOptions?.map((option) => option.option),
+    ).not.toContain("scopePolicy");
   });
 
   it("reports AGY runtime and headless model-access readiness", () => {
@@ -219,7 +221,7 @@ describe("antigravityCliAgentHarness", () => {
       expect.objectContaining({
         cwd: "/repo",
         authorityConfigPath: "/operator/.kota/config.json",
-        mode: "workspace-write",
+        writableRoots: ["/repo"],
         env: expect.any(Object),
         readOnlyHostRoots: [expect.stringContaining("Library/Keychains")],
         allowedEgressHosts: [
@@ -304,7 +306,7 @@ describe("antigravityCliAgentHarness", () => {
     expect(sandboxLaunchMock).toHaveBeenCalledWith(
       "agy",
       expect.not.arrayContaining(["--sandbox"]),
-      expect.objectContaining({ mode: "read-only" }),
+      expect.objectContaining({ writableRoots: [] }),
       expect.any(Function),
     );
   });

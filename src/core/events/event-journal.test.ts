@@ -341,6 +341,28 @@ describe("EventJournal", () => {
     expect(() => journal.query()).toThrow(/malformed event journal entry/);
   });
 
+  it("answers time-bounded recent queries without scanning unrelated history", () => {
+    const dir = trackTempDir();
+    let now = new Date("2026-06-05T10:00:00.000Z");
+    const journal = new EventJournal(dir, { now: () => now });
+    writeFileSync(journal.getPath(), "malformed historical entry\n", "utf8");
+    journal.appendFromBusEnvelope({
+      type: "old.boundary",
+      schemaRef: null,
+      payload: { source: "test" },
+    });
+    now = new Date("2026-06-05T10:00:01.000Z");
+    journal.appendFromBusEnvelope({
+      type: "recent.after-boundary",
+      schemaRef: null,
+      payload: { source: "test" },
+    });
+
+    expect(journal.query({
+      sinceMs: Date.parse("2026-06-05T10:00:00.000Z"),
+    })).toMatchObject([{ event: { name: "recent.after-boundary" } }]);
+  });
+
   it("excludes expired retained entries from queries", () => {
     const dir = trackTempDir();
     let now = new Date("2026-06-05T10:00:00.000Z");

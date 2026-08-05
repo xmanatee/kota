@@ -19,6 +19,7 @@ import {
   probeNativeCliAuth,
   probeNativeCliRuntime,
 } from "#core/agent-harness/index.js";
+import { nativeCliWritableRoots } from "#core/agent-harness/native-cli-scope-policy.js";
 import { collectTextFromCodexCli } from "./cli-runner.js";
 import { resolveCodexHome } from "./runtime-home.js";
 
@@ -50,11 +51,6 @@ const CODEX_UNSUPPORTED_OPTIONS = [
     runOption: "canUseTool",
     option: "canUseTool",
     reason: "Codex CLI tool calls cannot be routed through KOTA's canUseTool gate.",
-  },
-  {
-    runOption: "scopePolicy",
-    option: "scopePolicy",
-    reason: "Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.",
   },
   {
     runOption: "autonomyMode.supervised",
@@ -144,12 +140,6 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
         "Drop canUseTool or run a KOTA-hosted tool-loop harness.",
     );
   }
-  if (options.scopePolicy !== undefined) {
-    throw new Error(
-      'The "codex" agent harness cannot route Codex CLI tool calls through KOTA scope policy. ' +
-        "Drop scopePolicy or run a KOTA-hosted tool-loop harness.",
-    );
-  }
   if (options.autonomyMode === "supervised") {
     throw new Error(
       'The "codex" agent harness runs non-interactively and cannot route tool calls ' +
@@ -186,12 +176,6 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
         "Drop thinkingEnabled/thinkingBudget and use effort.",
     );
   }
-}
-
-function codexSandboxMode(
-  options: AgentHarnessRunOptions,
-): "read-only" | "workspace-write" {
-  return options.autonomyMode === "passive" ? "read-only" : "workspace-write";
 }
 
 function buildCodexPrompt(options: AgentHarnessRunOptions): string {
@@ -238,7 +222,11 @@ export const codexAgentHarness: AgentHarness = {
       cwd: options.cwd ?? process.cwd(),
       model: options.model,
       effort: options.effort,
-      sandboxMode: codexSandboxMode(options),
+      writableRoots: nativeCliWritableRoots({
+        cwd: options.cwd ?? process.cwd(),
+        autonomyMode: options.autonomyMode,
+        scopePolicy: options.scopePolicy,
+      }),
       authorityConfigPath: options.authorityConfigPath,
       env: options.env,
       abortController: options.abortController,

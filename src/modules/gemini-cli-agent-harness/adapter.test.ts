@@ -98,8 +98,10 @@ describe("geminiCliAgentHarness", () => {
     expect(geminiCliAgentHarness.emitsAgentMessageStream).toBe(true);
     expect(geminiCliAgentHarness.toolControl).toBe("native");
     expect(geminiCliAgentHarness.unsupportedRunOptions?.map((option) => option.option)).toEqual(
-      expect.arrayContaining(["allowedTools", "disallowedTools", "canUseTool", "scopePolicy"]),
+      expect.arrayContaining(["allowedTools", "disallowedTools", "canUseTool"]),
     );
+    expect(geminiCliAgentHarness.unsupportedRunOptions?.map((option) => option.option))
+      .not.toContain("scopePolicy");
     expect(geminiCliAgentHarness.unsupportedRunOptions?.map((option) => option.option))
       .not.toContain("onMessage");
   });
@@ -187,7 +189,7 @@ describe("geminiCliAgentHarness", () => {
       {
         cwd: "/repo",
         authorityConfigPath: "/operator/.kota/config.json",
-        mode: "workspace-write",
+        writableRoots: ["/repo"],
         env: expect.any(Object),
         allowedEgressHosts: [
           "accounts.google.com",
@@ -367,7 +369,7 @@ describe("geminiCliAgentHarness", () => {
     expect(sandboxLaunchMock).toHaveBeenCalledWith(
       "gemini",
       expect.arrayContaining(["--approval-mode", "plan"]),
-      expect.objectContaining({ mode: "read-only" }),
+      expect.objectContaining({ writableRoots: [] }),
       expect.any(Function),
     );
   });
