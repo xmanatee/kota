@@ -1,0 +1,3 @@
+security: isolate untrusted GitHub task text
+
+Screen GitHub task intake, preserve escaped source provenance, and render task and plan outputs through explicit untrusted prompt boundaries. Add focused injection regressions and keep the source-size repair scoped to security-owned files.

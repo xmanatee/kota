@@ -8,6 +8,7 @@ import {
   validateBaseStepTimeouts,
   WorkflowDefinitionError,
 } from "#core/workflow/validation-primitives.js";
+import { validateExposedOutputTrust } from "./validate-exposed-output-trust.js";
 
 export function validateRestartStep(
   step: WorkflowRestartStepInput,
@@ -50,6 +51,11 @@ export function validateRestartStep(
     exposeOutputToAgent: expectOptionalBoolean(
       step.exposeOutputToAgent,
       `steps[${index}].exposeOutputToAgent`,
+      definitionPath,
+    ),
+    exposedOutputTrust: validateExposedOutputTrust(
+      step,
+      `steps[${index}]`,
       definitionPath,
     ),
   };

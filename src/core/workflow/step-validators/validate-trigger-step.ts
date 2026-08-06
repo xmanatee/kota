@@ -9,6 +9,7 @@ import {
   validateBaseStepTimeouts,
   WorkflowDefinitionError,
 } from "#core/workflow/validation-primitives.js";
+import { validateExposedOutputTrust } from "./validate-exposed-output-trust.js";
 
 export function validateTriggerStep(
   step: WorkflowTriggerStepInput,
@@ -50,6 +51,11 @@ export function validateTriggerStep(
     exposeOutputToAgent: expectOptionalBoolean(
       step.exposeOutputToAgent,
       `steps[${index}].exposeOutputToAgent`,
+      definitionPath,
+    ),
+    exposedOutputTrust: validateExposedOutputTrust(
+      step,
+      `steps[${index}]`,
       definitionPath,
     ),
   };

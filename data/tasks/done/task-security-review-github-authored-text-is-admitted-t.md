@@ -1,13 +1,13 @@
 ---
 id: task-security-review-github-authored-text-is-admitted-t
 title: Security review: GitHub-authored text is admitted through a four-pattern blacklist and persisted as quoted task markdown, but the decomposer later treats the entire task markdown as authoritative. Exposed step outputs are inserted into the agent prompt without the untrusted-content envelope or injection screening used for trigger payloads. Instruction phrasing that bypasses the narrow blacklist can therefore influence both the decomposition generator and its approving reviewer, whose output is deterministically persisted as actionable tasks.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: GitHub-authored text is admitted through a four-pattern blacklist and persisted as quoted task markdown, but the decomposer later treats the entire task markdown as authoritative. Exposed step outputs are inserted into the agent prompt without the untrusted-content envelope or injection screening used for trigger payloads. Instruction phrasing that bypasses the narrow blacklist can therefore influence both the decomposition generator and its approving reviewer, whose output is deterministically persisted as actionable tasks.
 created_at: 2026-08-03T17:21:44.125Z
-updated_at: 2026-08-03T17:21:44.125Z
+updated_at: 2026-08-06T08:46:24.242Z
 ---
 
 ## Problem
@@ -111,3 +111,8 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/core/workflow/steps/step-executor-agent-prompt.test.ts src/core/workflow/run-store-snapshot.test.ts src/workflow-validation.integration.test.ts src/modules/autonomy/workflows/github-mention-intake/workflow.test.ts src/modules/autonomy/workflows/decomposer/workflow.test.ts` (131 tests passed).
+- `pnpm typecheck` passed.

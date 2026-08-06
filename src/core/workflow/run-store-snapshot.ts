@@ -29,6 +29,9 @@ function summarizeStep(step: WorkflowStep): Record<string, unknown> {
       tool: step.tool,
       ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
       ...(step.exposeOutputToAgent ? { exposeOutputToAgent: true } : {}),
+      ...(step.exposedOutputTrust
+        ? { exposedOutputTrust: step.exposedOutputTrust }
+        : {}),
     };
   }
   if (step.type === "agent") {
@@ -49,6 +52,9 @@ function summarizeStep(step: WorkflowStep): Record<string, unknown> {
       ...(step.harnessOptions ? { harnessOptions: step.harnessOptions } : {}),
       ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
       ...(step.exposeOutputToAgent ? { exposeOutputToAgent: true } : {}),
+      ...(step.exposedOutputTrust
+        ? { exposedOutputTrust: step.exposedOutputTrust }
+        : {}),
     };
   }
   if (step.type === "emit") {
@@ -58,6 +64,9 @@ function summarizeStep(step: WorkflowStep): Record<string, unknown> {
       event: step.event,
       ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
       ...(step.exposeOutputToAgent ? { exposeOutputToAgent: true } : {}),
+      ...(step.exposedOutputTrust
+        ? { exposedOutputTrust: step.exposedOutputTrust }
+        : {}),
     };
   }
   if (step.type === "restart") {
@@ -67,6 +76,9 @@ function summarizeStep(step: WorkflowStep): Record<string, unknown> {
       requires: step.requires,
       ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
       ...(step.exposeOutputToAgent ? { exposeOutputToAgent: true } : {}),
+      ...(step.exposedOutputTrust
+        ? { exposedOutputTrust: step.exposedOutputTrust }
+        : {}),
     };
   }
   if (step.type === "parallel") {
@@ -81,6 +93,9 @@ function summarizeStep(step: WorkflowStep): Record<string, unknown> {
     type: step.type,
     ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
     ...(step.exposeOutputToAgent ? { exposeOutputToAgent: true } : {}),
+    ...(step.exposedOutputTrust
+      ? { exposedOutputTrust: step.exposedOutputTrust }
+      : {}),
   };
 }
 

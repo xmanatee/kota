@@ -1,0 +1,3 @@
+1. GitHub-authored task source retains structural provenance, is screened with the shared injection detector, and is never presented to either decomposer agent as authoritative instructions.
+2. Both decomposition prompts escape task/source content inside an untrusted-content envelope, and the reviewer receives a separately sanitized source representation.
+3. Focused regression coverage proves blacklist-bypassing instruction text and closing-tag/fence content cannot break the trust boundary, and the completed task records the verification command.

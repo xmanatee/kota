@@ -9,6 +9,7 @@ import {
   expectOptionalInteger,
   WorkflowDefinitionError,
 } from "#core/workflow/validation-primitives.js";
+import { validateExposedOutputTrust } from "./validate-exposed-output-trust.js";
 
 export const MAX_BRANCH_DEPTH = 5;
 
@@ -111,6 +112,11 @@ export function validateBranchStep(
     exposeOutputToAgent: expectOptionalBoolean(
       step.exposeOutputToAgent,
       `steps[${index}].exposeOutputToAgent`,
+      definitionPath,
+    ),
+    exposedOutputTrust: validateExposedOutputTrust(
+      step,
+      `steps[${index}]`,
       definitionPath,
     ),
   };

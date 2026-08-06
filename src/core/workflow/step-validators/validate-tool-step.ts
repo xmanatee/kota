@@ -8,6 +8,7 @@ import {
   expectOptionalObjectOrFunction,
   validateBaseStepTimeouts,
 } from "#core/workflow/validation-primitives.js";
+import { validateExposedOutputTrust } from "./validate-exposed-output-trust.js";
 
 export function validateToolStep(
   step: WorkflowToolStepInput,
@@ -37,6 +38,11 @@ export function validateToolStep(
     exposeOutputToAgent: expectOptionalBoolean(
       step.exposeOutputToAgent,
       `steps[${index}].exposeOutputToAgent`,
+      definitionPath,
+    ),
+    exposedOutputTrust: validateExposedOutputTrust(
+      step,
+      `steps[${index}]`,
       definitionPath,
     ),
     retry: step.retry,

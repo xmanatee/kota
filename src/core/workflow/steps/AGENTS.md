@@ -100,10 +100,10 @@ config.
 
 ## Structured Agent Output
 
-`outputSchema` is the single contract for JSON agent output. The core prompt
-builder renders that schema for the agent, and the executor validates the same
-object after extraction. Do not duplicate schema fields in workflow prompts or
-silently default missing fields after validation.
+`outputSchema` is the single contract for JSON agent output; the core prompt
+builder renders it and the executor validates it, so prompts must not duplicate
+schema fields or default missing fields. External or agent-authored exposed text
+declares `exposedOutputTrust: "untrusted"` for screened, escaped rendering.
 
 ## Agent-Step Retry and Error Classification
 

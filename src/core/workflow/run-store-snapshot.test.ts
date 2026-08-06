@@ -136,4 +136,26 @@ describe("buildWorkflowSnapshot", () => {
     const snap = buildWorkflowSnapshot(wf);
     expect(snap.steps[0]).toEqual({ id: "s1", type: "code", exposeOutputToAgent: true });
   });
+
+  it("retains untrusted exposed-output provenance", () => {
+    const wf: WorkflowDefinition = {
+      ...baseWorkflow,
+      steps: [
+        {
+          id: "s1",
+          type: "code",
+          run: async () => ({}),
+          exposeOutputToAgent: true,
+          exposedOutputTrust: "untrusted",
+        },
+      ],
+    };
+    const snap = buildWorkflowSnapshot(wf);
+    expect(snap.steps[0]).toEqual({
+      id: "s1",
+      type: "code",
+      exposeOutputToAgent: true,
+      exposedOutputTrust: "untrusted",
+    });
+  });
 });

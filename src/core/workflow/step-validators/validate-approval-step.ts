@@ -8,6 +8,7 @@ import {
   validateBaseStepTimeouts,
   WorkflowDefinitionError,
 } from "#core/workflow/validation-primitives.js";
+import { validateExposedOutputTrust } from "./validate-exposed-output-trust.js";
 
 const VALID_DEFAULT_RESOLUTIONS = new Set(["deny", "approve"]);
 
@@ -45,6 +46,11 @@ export function validateApprovalStep(
     exposeOutputToAgent: expectOptionalBoolean(
       step.exposeOutputToAgent,
       `steps[${index}].exposeOutputToAgent`,
+      definitionPath,
+    ),
+    exposedOutputTrust: validateExposedOutputTrust(
+      step,
+      `steps[${index}]`,
       definitionPath,
     ),
   };

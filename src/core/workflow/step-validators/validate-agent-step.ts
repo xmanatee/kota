@@ -26,6 +26,7 @@ import {
   validateTokenBudget,
 } from "./validate-agent-step-helpers.js";
 import { validateRepairLoop } from "./validate-agent-step-repair-loop.js";
+import { validateExposedOutputTrust } from "./validate-exposed-output-trust.js";
 
 export const VALID_EFFORT_LEVELS = new Set([
   "low",
@@ -213,6 +214,11 @@ export function validateAgentStep(
     exposeOutputToAgent: expectOptionalBoolean(
       step.exposeOutputToAgent,
       `${stepLabel}.exposeOutputToAgent`,
+      definitionPath,
+    ),
+    exposedOutputTrust: validateExposedOutputTrust(
+      step,
+      stepLabel,
       definitionPath,
     ),
     retry: step.retry,

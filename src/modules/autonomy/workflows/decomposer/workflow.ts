@@ -204,6 +204,7 @@ const assessFailure = typedCodeStep<DecomposerAssessment>({
   id: "assess-failure",
   type: "code",
   exposeOutputToAgent: true,
+  exposedOutputTrust: "untrusted",
   validate: (raw) =>
     expectStructuredOutput<DecomposerAssessment>(raw, [
       "reason",
@@ -408,6 +409,7 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
       outputSchema: decompositionPlanOutputSchema,
       validate: decodeDecompositionPlan,
       exposeOutputToAgent: true,
+      exposedOutputTrust: "untrusted",
       when: shouldRunDecompose,
     },
     {

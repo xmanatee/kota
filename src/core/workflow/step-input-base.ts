@@ -37,6 +37,12 @@ export type WorkflowBaseStep = {
    * cannot reasonably discover from the repository itself.
    */
   exposeOutputToAgent?: boolean;
+  /**
+   * Marks an exposed output as containing untrusted source material. The
+   * prompt builder screens and escapes the serialized output inside an
+   * untrusted-content envelope before any later agent receives it.
+   */
+  exposedOutputTrust?: "untrusted";
 };
 
 export type WorkflowProgressStep = Omit<WorkflowBaseStep, "timeoutMs"> & {

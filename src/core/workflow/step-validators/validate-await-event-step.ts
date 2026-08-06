@@ -9,6 +9,7 @@ import {
   expectOptionalString,
   WorkflowDefinitionError,
 } from "#core/workflow/validation-primitives.js";
+import { validateExposedOutputTrust } from "./validate-exposed-output-trust.js";
 
 const DEFAULT_MATCH_FIELD = "id";
 
@@ -76,6 +77,11 @@ export function validateAwaitEventStep(
     exposeOutputToAgent: expectOptionalBoolean(
       step.exposeOutputToAgent,
       `steps[${index}].exposeOutputToAgent`,
+      definitionPath,
+    ),
+    exposedOutputTrust: validateExposedOutputTrust(
+      step,
+      `steps[${index}]`,
       definitionPath,
     ),
   };

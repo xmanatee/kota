@@ -14,6 +14,7 @@ import {
 } from "#core/workflow/validation-primitives.js";
 import { validateAgentStep } from "./validate-agent-step.js";
 import { validateCodeStep } from "./validate-code-step.js";
+import { validateExposedOutputTrust } from "./validate-exposed-output-trust.js";
 
 export function validateForeachStep(
   step: WorkflowForeachStepInput,
@@ -119,6 +120,11 @@ export function validateForeachStep(
     exposeOutputToAgent: expectOptionalBoolean(
       step.exposeOutputToAgent,
       `steps[${index}].exposeOutputToAgent`,
+      definitionPath,
+    ),
+    exposedOutputTrust: validateExposedOutputTrust(
+      step,
+      `steps[${index}]`,
       definitionPath,
     ),
     retryFailedItems: expectOptionalBoolean(

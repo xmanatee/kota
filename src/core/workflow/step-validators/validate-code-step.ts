@@ -7,6 +7,7 @@ import {
   validateProgressStepTimeouts,
   WorkflowDefinitionError,
 } from "#core/workflow/validation-primitives.js";
+import { validateExposedOutputTrust } from "./validate-exposed-output-trust.js";
 
 export function validateCodeStep(
   step: WorkflowCodeStepInput,
@@ -79,6 +80,11 @@ export function validateCodeStep(
     exposeOutputToAgent: expectOptionalBoolean(
       step.exposeOutputToAgent,
       `${stepLabel}.exposeOutputToAgent`,
+      definitionPath,
+    ),
+    exposedOutputTrust: validateExposedOutputTrust(
+      step,
+      stepLabel,
       definitionPath,
     ),
     ...(step.validate !== undefined

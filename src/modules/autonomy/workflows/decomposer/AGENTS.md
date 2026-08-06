@@ -11,8 +11,9 @@ This directory contains the decomposer workflow definition and its prompt.
   Native harnesses therefore use their read-only OS sandbox; hosted harnesses
   receive the passive read-tool policy.
 - `review-decomposition` independently compares the plan with that exact task
-  markdown. The planner output uses the workflow's canonical exposed-output
-  channel; a rejection fails before any task mutation.
+  markdown. The task snapshot and planner output use separate screened,
+  escaped untrusted exposed-output blocks; a rejection fails before any task
+  mutation.
 - `apply-decomposition` is the only mutation path: it creates the planned ready
   tasks through the repo-task writer, records dependencies, annotates the
   original, and moves it to `dropped/` through the task state machine.
