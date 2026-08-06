@@ -122,7 +122,7 @@ describe("writeCalibrationArtifact", () => {
       JSON.stringify({
         verdict: "pass",
         critical_issues: [],
-        warnings: [{ category: "style", message: "nit" }],
+        warnings: ["style nit"],
         summary: "ok",
       }),
     );
@@ -364,7 +364,78 @@ describe("writeCalibrationArtifact", () => {
     expect(artifact.criticPromptHash).toBe("promptvfixed");
   });
 
-  it("records verdict=absent when critic-review.json is missing", () => {
+  it("ingests the final verdict from the builder agent evidence source", () => {
+    const agentRunDir = join(root, ".kota", "builder-evidence", "run-test");
+    mkdirSync(agentRunDir, { recursive: true });
+    writeFileSync(
+      join(agentRunDir, "critic-review.json"),
+      JSON.stringify({
+        verdict: "pass_with_warnings",
+        critical_issues: [],
+        warnings: ["Follow-up is durably traced."],
+        summary: "Accepted with a traced warning.",
+      }),
+    );
+    writeFileSync(
+      join(runDir, "run-summary.json"),
+      JSON.stringify({
+        runId: "run-test",
+        workflow: "builder",
+        taskId: null,
+        filesChanged: ["src/modules/autonomy/evaluator-calibration.ts"],
+        completedAt: "2026-04-20T12:00:00.000Z",
+      }),
+    );
+
+    const ctx = makeStepContext({
+      runDir,
+      projectDir: root,
+      stepOutputs: { build: { repairIterations: [] } },
+      stepResults: {
+        build: {
+          id: "build",
+          type: "agent",
+          status: "success",
+          startedAt: "2026-04-20T11:59:00.000Z",
+          completedAt: "2026-04-20T12:00:00.000Z",
+          durationMs: 60000,
+        },
+      },
+    });
+
+    const artifact = writeCalibrationArtifact(ctx, {
+      criticVerdictRunDir: agentRunDir,
+      criticPromptHash: TEST_PROMPT_HASH,
+    });
+    expect(artifact).toMatchObject({
+      verdict: "pass_with_warnings",
+      warningCount: 1,
+      criticalIssueCount: 0,
+    });
+
+    const aggregate = aggregateCalibration(join(root, "runs"), {
+      criticPromptHash: TEST_PROMPT_HASH,
+      nowMs: Date.parse("2026-04-20T12:01:00.000Z"),
+    });
+    expect(aggregate.byVerdict).toEqual({
+      pass: 0,
+      pass_with_warnings: 1,
+      fail: 0,
+      absent: 0,
+    });
+    expect(
+      evaluateCalibrationGate(aggregate, {
+        thresholdRate: 0.25,
+        minSample: 1,
+        passWithWarningsThresholdRate: 0.75,
+        passWithWarningsMinSample: 1,
+      }),
+    ).toMatchObject({ status: "under-threshold" });
+  });
+
+  it("records verdict=absent when both critic verdict locations are missing", () => {
+    const agentRunDir = join(root, ".kota", "builder-evidence", "run-test");
+    mkdirSync(agentRunDir, { recursive: true });
     writeFileSync(
       join(runDir, "run-summary.json"),
       JSON.stringify({
@@ -392,9 +463,67 @@ describe("writeCalibrationArtifact", () => {
       },
     });
 
-    const artifact = writeCalibrationArtifact(ctx);
+    const artifact = writeCalibrationArtifact(ctx, {
+      criticVerdictRunDir: agentRunDir,
+    });
     expect(artifact.verdict).toBe("absent");
   });
+
+  it("fails loudly when the current critic verdict payload is invalid", () => {
+    const agentRunDir = join(root, ".kota", "builder-evidence", "run-test");
+    mkdirSync(agentRunDir, { recursive: true });
+    writeFileSync(
+      join(agentRunDir, "critic-review.json"),
+      JSON.stringify({
+        verdict: "maybe",
+        critical_issues: [],
+        warnings: [],
+        summary: "Malformed internal protocol data must not become absent.",
+      }),
+    );
+
+    const ctx = makeStepContext({
+      runDir,
+      projectDir: root,
+      stepOutputs: { build: { repairIterations: [] } },
+    });
+
+    expect(() =>
+      writeCalibrationArtifact(ctx, {
+        criticVerdictRunDir: agentRunDir,
+      }),
+    ).toThrow(/Invalid critic verdict/);
+  });
+
+  it.each([null, false, 0, ""])(
+    "fails loudly when the current critic verdict payload is the falsy JSON value %j",
+    (payload) => {
+      const agentRunDir = join(root, ".kota", "builder-evidence", "run-test");
+      mkdirSync(agentRunDir, { recursive: true });
+      writeFileSync(join(agentRunDir, "critic-review.json"), JSON.stringify(payload));
+      writeFileSync(
+        join(runDir, "critic-review.json"),
+        JSON.stringify({
+          verdict: "pass",
+          critical_issues: [],
+          warnings: [],
+          summary: "A stale fallback must not hide a malformed current payload.",
+        }),
+      );
+
+      const ctx = makeStepContext({
+        runDir,
+        projectDir: root,
+        stepOutputs: { build: { repairIterations: [] } },
+      });
+
+      expect(() =>
+        writeCalibrationArtifact(ctx, {
+          criticVerdictRunDir: agentRunDir,
+        }),
+      ).toThrow(/Invalid critic verdict payload/);
+    },
+  );
 });
 
 describe("aggregateCalibration", () => {

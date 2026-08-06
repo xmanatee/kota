@@ -1,0 +1,2 @@
+1. Trace the absent evaluator verdicts to their source and restore fail-safe builder/critic verdict ingestion with focused regression tests for extraction and missing-verdict behavior.
+2. Record replayed or live acceptance evidence showing a non-absent calibration verdict reaches the monitor and produces the expected drift decision while preserving the cited evidence ids.

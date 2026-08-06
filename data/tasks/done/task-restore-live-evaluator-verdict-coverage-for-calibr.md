@@ -1,13 +1,13 @@
 ---
 id: task-restore-live-evaluator-verdict-coverage-for-calibr
 title: Restore live evaluator-verdict coverage for calibration monitoring
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Meta
 summary: Trace why builder and critic outcomes produce only absent evaluator-calibration verdicts, then restore fail-safe verdict ingestion so the monitor can detect pass contradictions and warning follow-up drift.
 created_at: 2026-08-05T16:00:06.845Z
-updated_at: 2026-08-05T16:00:06.845Z
+updated_at: 2026-08-06T19:49:55.322Z
 ---
 
 ## Problem
@@ -56,3 +56,17 @@ Outcome-aware autonomy progress review.
 - Review-provided acceptance evidence:
 
     Focused tests cover critic-verdict extraction and missing-verdict handling; a live or replayed builder run writes a non-absent evaluator-calibration verdict, and the following monitor artifact reports nonzero pass, pass_with_warnings, or fail samples with the expected drift decision.
+
+- Builder run `2026-08-06T19-20-08-260Z-builder-qya2r8` traced the regression to
+  commit `c9af9d4df6a148fc513c01e673a2c58cff759081`: the critic moved to
+  `.kota/builder-evidence/<run-id>/critic-review.json`, while calibration kept
+  reading `.kota/runs/<run-id>/critic-review.json`.
+- The candidate explicitly passes the current builder evidence directory into
+  calibration, retains the canonical run root as a compatibility fallback,
+  records genuinely missing verdicts as `absent`, and rejects malformed verdict
+  payloads—including falsy top-level JSON—before a stale fallback can silently
+  hide them.
+- Replayed acceptance evidence is registered as
+  `.kota/runs/2026-08-06T19-20-08-260Z-builder-qya2r8/evidence/artifacts/evaluator-calibration-replay.json`.
+  It records one `pass_with_warnings` sample, zero absent samples, and the
+  expected `under-threshold` monitor decision.

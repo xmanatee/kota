@@ -1,0 +1,1 @@
+Restore fail-safe live evaluator verdict ingestion

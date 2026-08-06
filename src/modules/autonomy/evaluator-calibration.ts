@@ -16,6 +16,7 @@
 
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import type { KotaJsonValue } from "#core/agent-harness/message-protocol.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
 import { readRepairIterations } from "#core/workflow/repair-iteration-output.js";
 import type {
@@ -162,23 +163,38 @@ export const DEFAULT_CALIBRATION_MIN_SAMPLE = 8;
 export const DEFAULT_PASS_WITH_WARNINGS_THRESHOLD_RATE = 0.75;
 export const DEFAULT_PASS_WITH_WARNINGS_MIN_SAMPLE = 5;
 
-function readCriticVerdict(runDir: string): CriticVerdict | null {
-  const path = join(runDir, "critic-review.json");
-  const parsed = readOptionalJsonFile<CriticVerdict>(path);
-  if (!parsed) return null;
-  if (
-    parsed.verdict !== "pass" &&
-    parsed.verdict !== "pass_with_warnings" &&
-    parsed.verdict !== "fail"
-  ) {
-    return null;
+function readCriticVerdict(runDirs: readonly string[]): CriticVerdict | null {
+  for (const runDir of new Set(runDirs)) {
+    const path = join(runDir, "critic-review.json");
+    if (!existsSync(path)) continue;
+    const parsed = readOptionalJsonFile<KotaJsonValue>(path);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      throw new Error(`Invalid critic verdict payload in ${path}`);
+    }
+    if (
+      parsed.verdict !== "pass" &&
+      parsed.verdict !== "pass_with_warnings" &&
+      parsed.verdict !== "fail"
+    ) {
+      throw new Error(`Invalid critic verdict in ${path}: ${String(parsed.verdict)}`);
+    }
+    if (
+      !Array.isArray(parsed.critical_issues) ||
+      !parsed.critical_issues.every((issue) => typeof issue === "string") ||
+      !Array.isArray(parsed.warnings) ||
+      !parsed.warnings.every((warning) => typeof warning === "string") ||
+      typeof parsed.summary !== "string"
+    ) {
+      throw new Error(`Invalid critic verdict payload in ${path}`);
+    }
+    return {
+      verdict: parsed.verdict,
+      critical_issues: parsed.critical_issues,
+      warnings: parsed.warnings,
+      summary: parsed.summary,
+    };
   }
-  return {
-    verdict: parsed.verdict,
-    critical_issues: Array.isArray(parsed.critical_issues) ? parsed.critical_issues : [],
-    warnings: Array.isArray(parsed.warnings) ? parsed.warnings : [],
-    summary: typeof parsed.summary === "string" ? parsed.summary : "",
-  };
+  return null;
 }
 
 const AGENTS_BOOKKEEPING_SUFFIX = "AGENTS.md";
@@ -218,6 +234,13 @@ export type WriteCalibrationArtifactOptions = {
   agentStepId?: string;
   findTaskFinalState?: FindTaskFinalState;
   /**
+   * Directory where the critic wrote its final verdict. Builder agents use a
+   * workspace-local evidence source rather than the canonical workflow-run
+   * root, so callers must thread that source through explicitly. The run root
+   * remains a compatibility fallback for older and direct callers.
+   */
+  criticVerdictRunDir?: string;
+  /**
    * Override the recorded critic prompt hash. Production callers leave this
    * unset so the artifact captures whichever critic is shipping. Tests use
    * it to seed deterministic hashes alongside synthetic verdicts.
@@ -248,7 +271,10 @@ export function writeCalibrationArtifact(
     completedAt: string;
   }>(join(runDir, "run-summary.json"));
 
-  const criticVerdict = readCriticVerdict(runDir);
+  const criticVerdict = readCriticVerdict([
+    ...(options.criticVerdictRunDir ? [options.criticVerdictRunDir] : []),
+    runDir,
+  ]);
   const verdict: EvaluatorCalibrationVerdict = criticVerdict?.verdict ?? "absent";
   const warningCount = criticVerdict?.warnings.length ?? 0;
   const criticalIssueCount = criticVerdict?.critical_issues.length ?? 0;

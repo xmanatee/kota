@@ -257,7 +257,10 @@ const builderWorkflow: WorkflowDefinitionInput = {
           "workflow",
           "verdict",
         ]),
-      run: (ctx) => writeCalibrationArtifact(ctx),
+      run: (ctx) =>
+        writeCalibrationArtifact(ctx, {
+          criticVerdictRunDir: builderAgentRunDir(ctx),
+        }),
     }),
     cleanupAutomationWorktreeStep,
     {
