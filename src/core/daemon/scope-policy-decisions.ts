@@ -5,6 +5,7 @@ import type {
   ScopeActionPolicy,
   ScopePolicyDecision,
   ScopePolicyDecisionQuery,
+  ScopePolicySource,
   ScopePolicyToolEffectQuery,
 } from "./scope-policy-types.js";
 
@@ -126,13 +127,11 @@ function decideToolEffect(
   return {
     kind: "tool-effect",
     target,
-    outcome: action,
-    source: query.effectScope === "external-network"
-      ? policy.externalEffects.source
-      : policy.ownerConfirmation.source,
+    outcome: action.outcome,
+    source: action.source,
     reason: boundary.reason === null
-      ? `scope policy resolves this tool effect to ${action}`
-      : `${boundary.reason}; owner policy resolves this tool effect to ${action}`,
+      ? `scope policy resolves this tool effect to ${action.outcome}`
+      : `${boundary.reason}; owner policy resolves this tool effect to ${action.outcome}`,
   };
 }
 
@@ -215,13 +214,59 @@ function toolAction(
   policy: ResolvedScopePolicy,
   effectKind: ToolEffectKind,
   effectScope: ToolEffectScope,
-): ScopeActionPolicy {
-  if (effectScope === "external-network") {
-    if (effectKind === "read") return policy.externalEffects.networkRead;
-    if (effectKind === "write") return policy.externalEffects.networkWrite;
-    return policy.externalEffects.networkDestructive;
+): ToolActionDecision {
+  const ownerAction = ownerToolAction(policy, effectKind, effectScope);
+  if (effectScope !== "external-network") return ownerAction;
+
+  const networkAction: ToolActionDecision = {
+    outcome: effectKind === "read"
+      ? policy.externalEffects.networkRead
+      : effectKind === "write"
+        ? policy.externalEffects.networkWrite
+        : policy.externalEffects.networkDestructive,
+    source: policy.externalEffects.source,
+  };
+  return moreRestrictiveAction(networkAction, ownerAction);
+}
+
+type ToolActionDecision = {
+  outcome: ScopeActionPolicy;
+  source: ScopePolicySource;
+};
+
+function ownerToolAction(
+  policy: ResolvedScopePolicy,
+  effectKind: ToolEffectKind,
+  effectScope: ToolEffectScope,
+): ToolActionDecision {
+  const source = policy.ownerConfirmation.source;
+  if (effectKind === "destructive") {
+    return { outcome: policy.ownerConfirmation.destructive, source };
   }
-  if (effectKind === "destructive") return policy.ownerConfirmation.destructive;
-  if (effectKind === "write") return policy.ownerConfirmation.localWrite;
-  return "allow";
+  if (effectKind !== "write") return { outcome: "allow", source };
+
+  switch (effectScope) {
+    case "local-fs":
+      return { outcome: policy.ownerConfirmation.localWrite, source };
+    case "process-env":
+    case "external-network":
+      return { outcome: policy.ownerConfirmation.externalWrite, source };
+    case "session":
+    case "daemon-state":
+    case "operator-surface":
+      return { outcome: "allow", source };
+  }
+}
+
+const ACTION_RANK: Record<ScopeActionPolicy, number> = {
+  allow: 0,
+  confirm: 1,
+  deny: 2,
+};
+
+function moreRestrictiveAction(
+  left: ToolActionDecision,
+  right: ToolActionDecision,
+): ToolActionDecision {
+  return ACTION_RANK[right.outcome] > ACTION_RANK[left.outcome] ? right : left;
 }

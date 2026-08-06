@@ -1,13 +1,13 @@
 ---
 id: task-security-review-ownerconfirmationexternalwrite-is-
 title: Security review: ownerConfirmation.externalWrite is accepted, persisted, inherited, and reported as policy but is never consulted by tool-effect decisions. Setting it to deny does not deny external-network writes or other non-filesystem writes.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: ownerConfirmation.externalWrite is accepted, persisted, inherited, and reported as policy but is never consulted by tool-effect decisions. Setting it to deny does not deny external-network writes or other non-filesystem writes.
 created_at: 2026-08-03T00:34:23.709Z
-updated_at: 2026-08-03T00:34:23.709Z
+updated_at: 2026-08-06T05:31:35.928Z
 ---
 
 ## Problem
@@ -110,4 +110,14 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `ownerConfirmation.externalWrite` now governs recoverable `process-env` and
+  `external-network` writes. Network writes compose it with
+  `externalEffects.networkWrite` and use the more restrictive result; internal
+  session, daemon-state, and operator-surface coordination stays outside this
+  owner-confirmation category.
+- Decision tests cover every governed and excluded scope, and the live
+  tool-runner regression registers real process-environment and network-write
+  tools, executes each under the permissive policy, then proves neither runner
+  executes again after `externalWrite: deny` becomes effective.
+- Verification: `pnpm test src/core/daemon/scope-policy.test.ts src/core/daemon/scope-policy-widening.test.ts src/core/daemon/scope-authority-service.test.ts src/core/daemon/scope-authority.integration.test.ts src/core/tools/tool-runner-live-scope-policy.test.ts src/core/tools/tool-runner-permission.test.ts src/core/workflow/run-executor-hosted-scope-policy.test.ts src/core/workflow/run-executor-scope-policy.test.ts src/core/workflow/steps/step-context-scope-policy.test.ts src/modules/claude-agent-harness/scope-policy-guard.test.ts src/modules/execution/scope-policy-effects.test.ts` (11 files, 66 tests passed).
+- Static verification: `pnpm typecheck` and `pnpm exec biome check src/core/daemon/scope-policy-types.ts src/core/daemon/scope-policy-decisions.ts src/core/daemon/scope-policy.test.ts src/core/tools/tool-runner-live-scope-policy.test.ts`.

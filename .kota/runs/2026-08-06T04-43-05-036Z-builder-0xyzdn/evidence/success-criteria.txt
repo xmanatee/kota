@@ -1,0 +1,3 @@
+1. Define the exact tool-effect categories governed by ownerConfirmation.externalWrite and enforce deny/ask/allow without weakening the existing network, destructive, or local-write gates.
+2. Add focused decision and tool-runner regression coverage proving externalWrite: deny blocks every intended non-filesystem external write category while local filesystem writes keep their existing policy.
+3. Record the successful focused verification command in the completed task and leave its queue state aligned with the implementation.

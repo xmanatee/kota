@@ -1,0 +1,3 @@
+1. Verified: ownerConfirmation.externalWrite is explicitly scoped to process-environment and external-network writes; the decision engine composes network posture with owner policy by choosing the more restrictive action, while existing local, internal, and destructive gates remain independent.
+2. Verified: focused decision tests cover every governed and excluded scope, and registered-tool runner tests prove both governed write categories execute under allow then stop executing after externalWrite: deny becomes live.
+3. Verified: 66 related policy/runtime tests, the full TypeScript typecheck, and focused Biome checks pass; the exact commands and policy outcome are recorded in the task acceptance evidence.

@@ -11,8 +11,10 @@ import {
   registerModuleCapabilityManifestProjection,
 } from "#core/modules/module-manifest.js";
 import {
+  credentialInjectionEffect,
   localWriteEffect,
   networkReadEffect,
+  networkWriteEffect,
   readOnlyLocalEffect,
   type ToolEffect,
 } from "./effect.js";
@@ -63,6 +65,19 @@ describe("hosted tool live scope policy", () => {
       input: {},
       restriction: { externalEffects: { networkRead: "deny" } },
       expectedDenial: "read on external-network",
+    });
+  });
+
+  it.each([
+    ["process-environment", credentialInjectionEffect()],
+    ["external-network", networkWriteEffect()],
+  ] as const)("revokes %s writes through external owner policy", async (_surface, effect) => {
+    await expectLiveRestriction({
+      toolName: `live_policy_external_write_${effect.scope}`,
+      effect,
+      input: {},
+      restriction: { ownerConfirmation: { externalWrite: "deny" } },
+      expectedDenial: `${effect.scope} -> deny`,
     });
   });
 
@@ -147,7 +162,15 @@ function policyFor(
       ],
     },
     scopeId: SCOPE_ID,
-    fragments: [{ scopeId: SCOPE_ID, reason: "Live restriction fixture.", ...restriction }],
+    fragments: [
+      {
+        scopeId: "global",
+        reason: "Live tool execution starts without owner or network write restrictions.",
+        ownerConfirmation: { externalWrite: "allow" },
+        externalEffects: { networkWrite: "allow" },
+      },
+      { scopeId: SCOPE_ID, reason: "Live restriction fixture.", ...restriction },
+    ],
   });
 }
 

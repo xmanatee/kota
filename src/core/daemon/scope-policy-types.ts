@@ -56,8 +56,16 @@ export type ScopeAutonomyPolicy = {
 };
 
 export type ScopeOwnerConfirmationPolicy = {
+  /** Recoverable writes to the local filesystem. */
   localWrite: ScopeActionPolicy;
+  /**
+   * Recoverable writes outside KOTA's internal coordination surfaces:
+   * process-environment injection and external-network mutation. Network
+   * writes must also satisfy `externalEffects.networkWrite`; the more
+   * restrictive action wins.
+   */
   externalWrite: ScopeActionPolicy;
+  /** Destructive effects on every scope, composed with network posture when applicable. */
   destructive: ScopeActionPolicy;
 };
 

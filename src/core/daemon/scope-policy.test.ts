@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { ToolEffectScope } from "#core/tools/effect.js";
 import {
   decideScopePolicy,
   resolveScopePolicy,
@@ -203,6 +204,93 @@ describe("scope policy inheritance", () => {
       redaction: "full",
     });
     expect(policy.retention.source.scopeId).toBe("workspace");
+  });
+
+  it.each([
+    "process-env",
+    "external-network",
+  ] satisfies readonly ToolEffectScope[])(
+    "enforces external-write owner policy for %s writes",
+    (effectScope) => {
+      const policy = resolveScopePolicy({
+        projection: PROJECTION,
+        scopeId: "workspace",
+        fragments: [
+          {
+            scopeId: "workspace",
+            reason: "External writes are disabled for this workspace.",
+            ownerConfirmation: { externalWrite: "deny" },
+          },
+        ],
+      });
+
+      const decision = decideScopePolicy(policy, {
+        kind: "tool-effect",
+        toolName: "external_write_fixture",
+        effectKind: "write",
+        effectScope,
+      });
+
+      expect(decision.outcome).toBe("deny");
+      expect(decision.source.scopeId).toBe("workspace");
+    },
+  );
+
+  it.each([
+    "session",
+    "daemon-state",
+    "operator-surface",
+  ] satisfies readonly ToolEffectScope[])(
+    "does not treat internal %s coordination as an external write",
+    (effectScope) => {
+      const policy = resolveScopePolicy({
+        projection: PROJECTION,
+        scopeId: "workspace",
+        fragments: [
+          {
+            scopeId: "workspace",
+            reason: "External writes are disabled for this workspace.",
+            ownerConfirmation: { externalWrite: "deny" },
+          },
+        ],
+      });
+
+      expect(decideScopePolicy(policy, {
+        kind: "tool-effect",
+        toolName: "internal_write_fixture",
+        effectKind: "write",
+        effectScope,
+      }).outcome).toBe("allow");
+    },
+  );
+
+  it("keeps network posture authoritative when owner policy allows external writes", () => {
+    const policy = resolveScopePolicy({
+      projection: PROJECTION,
+      scopeId: "workspace",
+      fragments: [
+        {
+          scopeId: "global",
+          reason: "Owner confirmation alone permits external writes.",
+          ownerConfirmation: { externalWrite: "allow" },
+        },
+        {
+          scopeId: "workspace",
+          reason: "This workspace cannot mutate network state.",
+          externalEffects: { networkWrite: "deny" },
+        },
+      ],
+    });
+
+    const decision = decideScopePolicy(policy, {
+      kind: "tool-effect",
+      toolName: "network_write_fixture",
+      effectKind: "write",
+      effectScope: "external-network",
+    });
+
+    expect(decision.outcome).toBe("deny");
+    expect(decision.source.scopeId).toBe("workspace");
   });
 
   it("enforces local write boundaries before owner-confirmation policy", () => {
