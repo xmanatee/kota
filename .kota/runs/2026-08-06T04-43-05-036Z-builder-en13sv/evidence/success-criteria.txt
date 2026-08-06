@@ -1,0 +1,3 @@
+1. Gemini CLI launches are forced onto an empty invocation-scoped credential file backend and cannot inherit a Keychain-backed API key or an API-key authentication selection.
+2. Focused passive and autonomous regression coverage proves the guarded runtime boundary is applied before the native Gemini process can start.
+3. Focused validation passes and the completed task records the exact verification command and result.

@@ -13,6 +13,7 @@ import {
   GEMINI_CLI_HOME_ENV,
   GEMINI_CLI_SYSTEM_DEFAULTS_PATH_ENV,
   GEMINI_CLI_SYSTEM_SETTINGS_PATH_ENV,
+  GEMINI_FORCE_FILE_STORAGE_ENV,
   prepareGeminiCliRuntimeEnvironment,
   resolveGeminiCliAuthDirectory,
 } from "./runtime-home.js";
@@ -101,6 +102,34 @@ describe("Gemini CLI runtime home", () => {
     },
   );
 
+  it.each([
+    { selectedAuthType: "gemini-api-key" },
+    { security: { auth: { selectedType: "gemini-api-key" } } },
+  ])("rejects a possible Keychain-backed API-key selection before creating a runtime home", (settings) => {
+    const root = mkdtempSync(join(tmpdir(), "kota-gemini-keychain-selection-test-"));
+    roots.push(root);
+    const sourceHome = join(root, "source");
+    const sourceDirectory = join(sourceHome, ".gemini");
+    const invocationRoot = join(root, "invocation");
+    mkdirSync(sourceDirectory, { recursive: true });
+    mkdirSync(invocationRoot);
+    writeFileSync(join(sourceDirectory, "settings.json"), JSON.stringify(settings));
+
+    expect(() => prepareGeminiCliRuntimeEnvironment({
+      invocationRoot,
+      toolRuntimeRoot: join(invocationRoot, "tool-runtime"),
+      readableRoots: [],
+      writableRoots: [],
+      readProtectedPaths: [],
+      writeProtectedPaths: [],
+      readProtectedRoots: [],
+      protectedRuntimeRoot: join(invocationRoot, "protected-runtime"),
+    }, {
+      [GEMINI_CLI_HOME_ENV]: sourceHome,
+    })).toThrow(/settings\.json.*gemini-api-key selection.*refusing to launch/i);
+    expect(existsSync(join(invocationRoot, "gemini-provider-home"))).toBe(false);
+  });
+
   it("writes sanitized user and system settings without executable configuration", () => {
     const root = mkdtempSync(join(tmpdir(), "kota-gemini-runtime-settings-test-"));
     roots.push(root);
@@ -128,6 +157,7 @@ describe("Gemini CLI runtime home", () => {
       protectedRuntimeRoot: join(invocationRoot, "protected-runtime"),
     }, {
       [GEMINI_CLI_HOME_ENV]: sourceHome,
+      [GEMINI_FORCE_FILE_STORAGE_ENV]: "false",
       KOTA_RUN_DIR: "/project/.kota/run",
     });
     const runtimeHome = join(invocationRoot, "gemini-provider-home");
@@ -135,6 +165,7 @@ describe("Gemini CLI runtime home", () => {
 
     expect(env).toMatchObject({
       [GEMINI_CLI_HOME_ENV]: runtimeHome,
+      [GEMINI_FORCE_FILE_STORAGE_ENV]: "true",
       [GEMINI_CLI_SYSTEM_SETTINGS_PATH_ENV]: join(
         invocationRoot,
         "protected-runtime",

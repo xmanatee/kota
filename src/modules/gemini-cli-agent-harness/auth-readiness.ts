@@ -2,6 +2,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { AgentHarnessAuthProbe } from "#core/agent-harness/index.js";
+import {
+  type GeminiCliSettings,
+  geminiCliSettingsSelectApiKey,
+} from "./runtime-home.js";
 
 type GeminiOAuthCreds = {
   readonly access_token?: string;
@@ -92,6 +96,33 @@ export function geminiCliAuthReadiness(
         "but KOTA cannot safely project it without a provider-only broker",
       summary: GEMINI_CLI_BROKER_REQUIRED_SUMMARY,
     };
+  }
+  const settingsPath = join(geminiDir, "settings.json");
+  if (existsSync(settingsPath)) {
+    const parsed = readJsonFile<GeminiCliSettings>(settingsPath);
+    if (!parsed.ok) {
+      return {
+        kind: "harness-managed-login",
+        status: "error",
+        required: true,
+        command: "gemini",
+        detail: `failed to read Gemini CLI authentication settings: ${parsed.error}`,
+        summary: "Gemini CLI auth settings probe failed",
+      };
+    }
+    if (geminiCliSettingsSelectApiKey(parsed.value)) {
+      return {
+        kind: "harness-managed-login",
+        status: "error",
+        required: true,
+        command: "gemini",
+        detail:
+          "Gemini API-key authentication is selected in Gemini CLI settings, " +
+          "so KOTA cannot admit a possible system-Keychain-backed key without " +
+          "a provider-only broker",
+        summary: GEMINI_CLI_BROKER_REQUIRED_SUMMARY,
+      };
+    }
   }
   const oauthPath = join(geminiDir, "oauth_creds.json");
   if (existsSync(oauthPath)) {

@@ -45,7 +45,7 @@ function withTemporaryHome<T>(callback: () => T): T {
 
 function writeGeminiCache(
   home: string,
-  fileName: "oauth_creds.json" | "google_accounts.json",
+  fileName: "oauth_creds.json" | "google_accounts.json" | "settings.json",
   contents: string,
 ): void {
   const geminiDir = join(home, ".gemini");
@@ -222,6 +222,27 @@ describe("Gemini CLI auth readiness", () => {
         summary: "Gemini CLI provider auth broker unavailable",
       });
       expect(readiness.detail).not.toContain("provider-secret");
+    });
+  });
+
+  it.each([
+    { selectedAuthType: "gemini-api-key" },
+    { security: { auth: { selectedType: "gemini-api-key" } } },
+  ])("rejects a possible Keychain-backed API-key selection", (settings) => {
+    withTemporaryHome(() => {
+      writeGeminiCache(
+        process.env.HOME!,
+        "settings.json",
+        JSON.stringify(settings),
+      );
+
+      const readiness = geminiCliAuthReadiness();
+
+      expect(readiness).toMatchObject({
+        status: "error",
+        detail: expect.stringMatching(/system-Keychain-backed key/i),
+        summary: "Gemini CLI provider auth broker unavailable",
+      });
     });
   });
 });

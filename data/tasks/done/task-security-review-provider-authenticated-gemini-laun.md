@@ -1,13 +1,13 @@
 ---
 id: task-security-review-provider-authenticated-gemini-laun
 title: Security review: Provider-authenticated Gemini launches are not fully disabled on macOS. The guard detects API-key environment variables and two cached OAuth files, but Gemini CLI 0.46.0 can load a selected Gemini API key from the system Keychain. KOTA preserves the selected authentication mode, and its macOS sandbox allows unspecified operations by default, leaving Keychain access available to the native process tree. A keychain-backed API key can therefore authenticate the supposedly credential-free native loop without triggering readiness or launch rejection.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Provider-authenticated Gemini launches are not fully disabled on macOS. The guard detects API-key environment variables and two cached OAuth files, but Gemini CLI 0.46.0 can load a selected Gemini API key from the system Keychain. KOTA preserves the selected authentication mode, and its macOS sandbox allows unspecified operations by default, leaving Keychain access available to the native process tree. A keychain-backed API key can therefore authenticate the supposedly credential-free native loop without triggering readiness or launch rejection.
 created_at: 2026-08-06T03:57:53.720Z
-updated_at: 2026-08-06T03:57:53.720Z
+updated_at: 2026-08-06T04:54:04.840Z
 ---
 
 ## Problem
@@ -111,3 +111,19 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Result
+
+Gemini CLI launches now force the file credential backend into the
+invocation-scoped home and reject both supported `gemini-api-key` selection
+shapes before the native process starts. The blocking rollout decision is
+recorded in this builder run's `autonomy-change-decision.json`.
+
+## Verification
+
+- `pnpm test src/modules/gemini-cli-agent-harness/runtime-home.test.ts src/modules/gemini-cli-agent-harness/auth-readiness.test.ts src/modules/gemini-cli-agent-harness/adapter.test.ts src/strict-types-policy.integration.test.ts src/cli.test.ts src/module-cli-commands.integration.test.ts`
+  passed 71 tests across 6 files.
+- The builder autonomy-change check reports that
+  `autonomy-change-decision.json` covers all 3 staged material autonomy files.
+- Detailed code-level and environment evidence is projected at
+  `.kota/runs/2026-08-06T04-43-05-036Z-builder-en13sv/evidence/artifacts/validation.txt`.

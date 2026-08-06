@@ -10,6 +10,10 @@ import {
   listAgentHarnessNames,
   resolveAgentHarness,
 } from "#core/agent-harness/index.js";
+import {
+  GEMINI_CLI_HOME_ENV,
+  GEMINI_FORCE_FILE_STORAGE_ENV,
+} from "./runtime-home.js";
 
 const spawnMock = vi.hoisted(() => vi.fn());
 const spawnSyncMock = vi.hoisted(() =>
@@ -142,6 +146,19 @@ describe("gemini-cli agent harness integration", () => {
       );
 
       expect(spawnMock).toHaveBeenCalledTimes(1);
+      const childEnv = spawnMock.mock.calls[0]?.[2]?.env as
+        | NodeJS.ProcessEnv
+        | undefined;
+      expect(childEnv).toMatchObject({
+        [GEMINI_FORCE_FILE_STORAGE_ENV]: "true",
+      });
+      expect(childEnv?.[GEMINI_CLI_HOME_ENV]).not.toBe(credentialFreeHome);
+      expect(childEnv?.[GEMINI_CLI_HOME_ENV]).toMatch(
+        /kota-native-cli-.*\/gemini-provider-home$/,
+      );
+      expect(childEnv?.HOME).toMatch(
+        /kota-native-cli-.*\/tool-runtime\/home$/,
+      );
       expect(writer.write).toHaveBeenCalledWith("ok");
       expect(result).toMatchObject({
         text: "ok",

@@ -22,9 +22,12 @@ separate model catalog.
 Credential-bearing native launches currently fail closed. The readiness probe
 reports cached Gemini CLI OAuth / Code Assist credentials and Gemini API keys
 as unavailable until a provider-only broker can keep them outside Gemini's
-native process tree. Runs create a credential-free `GEMINI_CLI_HOME` containing
-only the selected auth mode plus KOTA-owned system settings. Those settings
-disable MCP, extensions, skills, and local environment loading. The outer OS
+native process tree. Runs force Gemini's encrypted file credential backend
+into the invocation-isolated home and create a credential-free
+`GEMINI_CLI_HOME` containing only a non-API-key selected auth mode plus
+KOTA-owned system settings. An API-key selection is itself rejected because it
+may refer to a system-Keychain-backed key. Those settings disable MCP,
+extensions, skills, and local environment loading. The outer OS
 sandbox hides repository `.gemini/` and `.agents/` trees so hooks, policies,
 discovery commands, and other executable workspace configuration cannot load,
 even though the session-only `--skip-trust` flag is still required for Gemini

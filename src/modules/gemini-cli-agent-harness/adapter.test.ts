@@ -461,6 +461,71 @@ describe("geminiCliAgentHarness", () => {
     },
   );
 
+  it.each(["passive", "autonomous"] as const)(
+    "rejects a possible Keychain-backed API key before the %s native loop starts",
+    async (autonomyMode) => {
+      const root = mkdtempSync(join(tmpdir(), "kota-keychain-gemini-home-"));
+      const workspace = join(root, "workspace");
+      const sourceHome = join(root, "provider-home");
+      const invocationRoot = join(root, "invocation");
+      mkdirSync(workspace, { recursive: true });
+      mkdirSync(join(sourceHome, ".gemini"), { recursive: true });
+      mkdirSync(invocationRoot);
+      writeFileSync(
+        join(sourceHome, ".gemini", "settings.json"),
+        JSON.stringify({
+          security: { auth: { selectedType: "gemini-api-key" } },
+        }),
+      );
+
+      sandboxLaunchMock.mockImplementationOnce(
+        async (
+          _executable: string,
+          _args: readonly string[],
+          options: {
+            env: NodeJS.ProcessEnv;
+            prepareEnvironment: (
+              context: {
+                invocationRoot: string;
+                toolRuntimeRoot: string;
+                readableRoots: readonly string[];
+                writableRoots: readonly string[];
+                readProtectedPaths: readonly string[];
+                writeProtectedPaths: readonly string[];
+                readProtectedRoots: readonly string[];
+                protectedRuntimeRoot: string;
+              },
+              env: NodeJS.ProcessEnv,
+            ) => NodeJS.ProcessEnv;
+          },
+        ) => options.prepareEnvironment({
+          invocationRoot,
+          toolRuntimeRoot: join(invocationRoot, "tool-runtime"),
+          readableRoots: [workspace],
+          writableRoots: autonomyMode === "passive" ? [] : [workspace],
+          readProtectedPaths: [],
+          writeProtectedPaths: [join(workspace, ".git")],
+          readProtectedRoots: [],
+          protectedRuntimeRoot: join(invocationRoot, "protected-runtime"),
+        }, options.env),
+      );
+
+      try {
+        await expect(geminiCliAgentHarness.run({
+          prompt: "inspect",
+          model: "gemini-2.5-pro",
+          effort: "xhigh",
+          autonomyMode,
+          cwd: workspace,
+          env: { [GEMINI_CLI_HOME_ENV]: sourceHome },
+        })).rejects.toThrow(/gemini-api-key selection.*refusing to launch/i);
+        expect(spawnMock).not.toHaveBeenCalled();
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
+
   it("maps passive runs to plan mode and KOTA's read-only sandbox", async () => {
     mockGeminiProcess({
       stdoutLines: [

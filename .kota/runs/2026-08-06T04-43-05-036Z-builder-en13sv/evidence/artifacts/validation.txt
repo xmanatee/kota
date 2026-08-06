@@ -1,0 +1,32 @@
+Gemini Keychain boundary verification
+
+Code-level boundary:
+- Gemini CLI 0.46.0 checks GEMINI_FORCE_FILE_STORAGE === "true" before native Keychain initialization and otherwise falls back to its home-scoped encrypted credential file.
+- KOTA now overwrites GEMINI_FORCE_FILE_STORAGE to "true" during runtime preparation; the shared native sandbox replaces $HOME with an invocation-scoped directory.
+- Both legacy selectedAuthType and current security.auth.selectedType API-key selections are rejected before the Gemini native process starts.
+- Adapter regressions cover passive and autonomous launches and assert that spawn is never called for a possible Keychain-backed selection.
+
+Passing validation:
+- pnpm test src/modules/gemini-cli-agent-harness/runtime-home.test.ts src/modules/gemini-cli-agent-harness/auth-readiness.test.ts src/modules/gemini-cli-agent-harness/adapter.test.ts src/strict-types-policy.integration.test.ts
+  Result: 4 files passed, 33 tests passed.
+- pnpm typecheck
+  Result: passed.
+- pnpm build
+  Result: passed.
+- pnpm exec biome check src/modules/gemini-cli-agent-harness
+  Result: 10 files checked, no fixes required.
+
+Environmental limitation:
+- pnpm test src/modules/gemini-cli-agent-harness selected adapter.integration.test.ts, whose existing native egress proxy fixture attempted to listen on 127.0.0.1. This builder sandbox rejected the listen call with EPERM. The socket-free focused tests above passed, and TypeScript compilation validates the added integration assertion.
+
+Task state:
+- Canonical task moves transitioned task-security-review-provider-authenticated-gemini-laun from ready to doing to done. The native sandbox protected the linked-worktree index, so the declared workflow-host staging owner retained each filesystem transition for the builder repair loop's exact-path host staging step.
+- pnpm run validate-tasks -- --min-ready 0 reached only task-untracked and task-deleted-unstaged for those two exact transition paths. This is the expected pre-host-staging result; the workflow repair step owns exact-path staging before it reruns queue validation.
+
+Post-check repair:
+- Added a schema-valid blocking autonomy-change-decision.json covering the harness and model-routing classifications for all 3 staged material autonomy files. The direct builder check returns: `OK: autonomy-change-decision.json covers 3 material autonomy file(s)`.
+- The builder evidence policy accepts all 6 source evidence files, including the decision JSON, for screened projection.
+- Re-ran the two originally failing CLI files together with the focused Gemini and strict-types suite:
+  `pnpm test src/modules/gemini-cli-agent-harness/runtime-home.test.ts src/modules/gemini-cli-agent-harness/auth-readiness.test.ts src/modules/gemini-cli-agent-harness/adapter.test.ts src/strict-types-policy.integration.test.ts src/cli.test.ts src/module-cli-commands.integration.test.ts`
+  Result: 6 files passed, 71 tests passed. Both original CLI help failures cleared without unrelated CLI source changes.
+- Re-ran `pnpm test` to exercise the broad suite. It passed 12,426 tests, including the two originally failing CLI files, then reported 222 unrelated sandbox-only failures. The dominant failure is that the native tool runtime parent directory is intentionally not readable/searchable (`EPERM`), with additional expected denials for loopback `listen` and the protected `deploy/telegram-assistant/.env.example`. Those restrictions prevent a clean all-suite result inside this native repair sandbox and are unrelated to the staged Gemini changes.

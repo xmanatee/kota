@@ -1,0 +1,1 @@
+Close Gemini CLI Keychain auth bypass with rollout evidence
