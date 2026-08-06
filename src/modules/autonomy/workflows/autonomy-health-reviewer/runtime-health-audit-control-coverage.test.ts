@@ -145,14 +145,12 @@ describe("runtime health audit control coverage gaps", () => {
 
     const actions = reviewAndApply(audit);
     expect(actions.createdTaskIds).toEqual([]);
-    expect(
-      existsSync(
-        readyTaskPath(
-          projectDir,
-          "task-health-control-coverage-agent-step-stream-unsupported-agent-message-stream",
-        ),
-      ),
-    ).toBe(false);
+    for (const taskId of [
+      "task-health-control-coverage-agent-step-stream-unsupported-agent-message-stream",
+      "task-health-control-coverage-trajectory-diagnostics-unsupported-trajectory-diagnostics",
+    ]) {
+      expect(existsSync(readyTaskPath(projectDir, taskId))).toBe(false);
+    }
   });
 
   it("ignores stale skipped approval gate gaps from historical coverage artifacts", () => {

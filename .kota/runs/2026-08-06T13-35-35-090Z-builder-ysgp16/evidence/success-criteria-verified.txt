@@ -1,0 +1,4 @@
+1. Verified the paired unsupported stream/trajectory root cause against the cited evidence trail, commits `578e66292` and `0fb05c55f`, and the prior promoted replay; all six task evidence refs are preserved in the current replay artifact.
+2. Verified the health reviewer reports zero actionable control-coverage gap runs while canonical artifacts retain the declared unsupported capability for operator inspection.
+3. Verified the focused regression path, genuine-gap control case, dedupe behavior, and terminal-task behavior with 4 passing test files and 14 passing tests; focused Biome validation and type checking also pass.
+4. Verified the replay produces no patterns or created task ids and explicitly leaves both unsupported-capability repair task paths absent; the registered replay and validation artifacts record the result.

@@ -1,0 +1,1 @@
+test(autonomy): pin unsupported trajectory health routing

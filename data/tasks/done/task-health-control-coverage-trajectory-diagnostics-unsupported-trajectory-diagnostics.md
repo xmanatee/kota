@@ -1,12 +1,12 @@
 ---
 id: task-health-control-coverage-trajectory-diagnostics-unsupported-trajectory-diagnostics
 title: Repair autonomy health pattern control-coverage:trajectory-diagnostics:unsupported-trajectory-diagnostics
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Health signals labeled control-coverage, local-code, runtime, trajectory-diagnostics, unsupported-trajectory-diagnostics repeatedly point at control-coverage:trajectory-diagnostics:unsupported-trajectory-diagnostics; investigate and improve the local autonomy protocol, validation, prompt, or module behavior without relying on direct auto-repair.
 created_at: 2026-08-05T12:41:36.644Z
-updated_at: 2026-08-05T12:41:36.644Z
+updated_at: 2026-08-06T13:45:36.785Z
 task_class: Meta
 ---
 
@@ -102,3 +102,31 @@ Autonomy fleet health: repeated local workflow and runtime health patterns shoul
 
 - Focused test output covering the repaired health pattern.
 - A follow-up `.kota/runs/` artifact, event replay, or reviewer artifact showing the pattern no longer routes incorrectly.
+
+## Resolution
+
+The cited warning was a derived capability gap, not a broken trajectory
+diagnostics producer. The affected agent steps declared that their harness did
+not emit an agent message stream; trajectory diagnostics consume that stream,
+so the same steps necessarily reported `unsupported-trajectory-diagnostics`.
+The health reviewer had treated the primary stream capability and its derived
+trajectory result as separate local-code repair patterns.
+
+The generic repair is already in this builder's base. Commit `578e66292`
+coalesces an unsupported trajectory result when the same step declares an
+unsupported agent stream, and commit `0fb05c55f` keeps declared unsupported
+capabilities visible in control-monitor artifacts while excluding them from
+local-code health actionability. The latter change was promoted by
+`.kota/runs/2026-08-06T11-39-00-766Z-builder-4fs6p4/evidence/autonomy-change-decision.json`.
+Neither repair uses a workflow-name allowlist.
+
+## Completion Evidence
+
+- The focused control-coverage, health-routing, same-evidence dedupe, and
+  terminal-task tests pass: 4 files and 14 tests.
+- Type checking and focused Biome validation pass.
+- The current regression assertion pins both the primary unsupported-stream
+  task id and this exact derived unsupported-trajectory task id as absent.
+- `.kota/runs/2026-08-06T13-35-35-090Z-builder-ysgp16/evidence/artifacts/control-monitor-coverage-routing-replay.json`
+  preserves every cited evidence ref and records zero actionable gap runs,
+  patterns, or created task ids for the repaired replay.

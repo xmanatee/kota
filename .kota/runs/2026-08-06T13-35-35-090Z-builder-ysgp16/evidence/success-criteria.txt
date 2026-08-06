@@ -1,0 +1,4 @@
+1. Identify the repeated unsupported trajectory-diagnostics root cause from the cited control-coverage evidence and preserve those evidence references.
+2. Verify that the autonomy health reviewer keeps declared unsupported capabilities operator-visible without routing the derived trajectory gap as local-code repair work.
+3. Pin the exact unsupported-trajectory task regression and genuine-gap control case with focused automated tests.
+4. Prove that replaying the same dedupe-key evidence creates no duplicate repair task, and record the replay plus validation in registered run evidence.
