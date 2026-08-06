@@ -1,0 +1,3 @@
+1. Verified by the fail-closed runtime-home implementation from fac9281cc and adapter regression proving cached OAuth rejects before spawn.
+2. Verified by 26 passing focused tests, including new runtime-home cases for both supported provider API-key environment variables.
+3. Verified by the task Completion section and passing typecheck plus queue validation.

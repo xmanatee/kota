@@ -73,6 +73,34 @@ describe("Gemini CLI runtime home", () => {
     expect(existsSync(join(invocationRoot, "gemini-provider-home"))).toBe(false);
   });
 
+  it.each(["GEMINI_API_KEY", "GOOGLE_API_KEY"] as const)(
+    "rejects %s before creating a runtime home",
+    (credentialKey) => {
+      const root = mkdtempSync(join(tmpdir(), "kota-gemini-api-key-test-"));
+      roots.push(root);
+      const sourceHome = join(root, "source");
+      const invocationRoot = join(root, "invocation");
+      mkdirSync(invocationRoot);
+
+      expect(() => prepareGeminiCliRuntimeEnvironment({
+        invocationRoot,
+        toolRuntimeRoot: join(invocationRoot, "tool-runtime"),
+        readableRoots: [],
+        writableRoots: [],
+        readProtectedPaths: [],
+        writeProtectedPaths: [],
+        readProtectedRoots: [],
+        protectedRuntimeRoot: join(invocationRoot, "protected-runtime"),
+      }, {
+        [GEMINI_CLI_HOME_ENV]: sourceHome,
+        [credentialKey]: "provider-secret",
+      })).toThrow(
+        new RegExp(`${credentialKey}.*provider-only authentication broker`, "i"),
+      );
+      expect(existsSync(join(invocationRoot, "gemini-provider-home"))).toBe(false);
+    },
+  );
+
   it("writes sanitized user and system settings without executable configuration", () => {
     const root = mkdtempSync(join(tmpdir(), "kota-gemini-runtime-settings-test-"));
     roots.push(root);

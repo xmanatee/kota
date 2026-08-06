@@ -1,0 +1,3 @@
+1. Gemini native launches with locally discoverable provider authentication fail before Gemini or repository-controlled native tools can start, without copying OAuth state or projecting provider API keys into a child process.
+2. Focused regressions cover cached OAuth files plus both supported provider API-key environment variables at the fail-closed runtime boundary.
+3. The task records the exact final verification commands and acceptance evidence.

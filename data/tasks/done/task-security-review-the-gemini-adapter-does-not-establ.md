@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-gemini-adapter-does-not-establ
 title: Security review: The Gemini adapter does not establish the claimed provider/tool credential boundary. It copies OAuth credentials beneath the invocation root and projects Gemini API keys into the native process environment, while KOTA makes the invocation root readable. On the installed Gemini CLI 0.46.0 macOS path, `--sandbox` uses a permissive profile and treats read-only shell commands such as `cat` as safe; shell execution also inherits the environment when redaction is disabled. Untrusted prompt content can therefore read cached OAuth material or API keys and return them through model-visible tool output or workflow artifacts.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: The Gemini adapter does not establish the claimed provider/tool credential boundary. It copies OAuth credentials beneath the invocation root and projects Gemini API keys into the native process environment, while KOTA makes the invocation root readable. On the installed Gemini CLI 0.46.0 macOS path, `--sandbox` uses a permissive profile and treats read-only shell commands such as `cat` as safe; shell execution also inherits the environment when redaction is disabled. Untrusted prompt content can therefore read cached OAuth material or API keys and return them through model-visible tool output or workflow artifacts.
 created_at: 2026-08-05T17:08:46.522Z
-updated_at: 2026-08-05T17:08:46.522Z
+updated_at: 2026-08-06T03:30:23.459Z
 ---
 
 ## Problem
@@ -34,6 +34,27 @@ claim:
 - The cited vulnerability is fixed or proven impossible with code-level evidence.
 - Focused regression coverage guards the fixed boundary.
 - The task records the final verification command or artifact.
+
+## Completion
+
+The overlapping Gemini workspace-configuration fix in commit `fac9281cc`
+removed copied OAuth state and made credential-bearing native launches fail
+before Gemini or repository-controlled configuration can start. Authenticated
+native runs remain unavailable until provider authentication is brokered
+outside Gemini's native tool process tree. Focused runtime-home coverage now
+pins the same fail-closed result for `GEMINI_API_KEY` and `GOOGLE_API_KEY` as
+well as cached OAuth files.
+
+Verification:
+
+- `pnpm test src/modules/gemini-cli-agent-harness/runtime-home.test.ts src/modules/gemini-cli-agent-harness/adapter.test.ts src/modules/gemini-cli-agent-harness/auth-readiness.test.ts`
+- `pnpm typecheck`
+- `pnpm validate-tasks`
+
+The focused suite passed 26 tests. Typecheck and task validation also passed.
+A broader `pnpm test src/modules/gemini-cli-agent-harness` run passed 27 tests;
+its one integration case could not bind the native egress proxy because this
+builder sandbox rejects `listen(127.0.0.1)` with `EPERM`.
 
 ## Source / Intent
 

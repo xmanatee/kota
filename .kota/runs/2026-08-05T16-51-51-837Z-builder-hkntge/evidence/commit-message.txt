@@ -1,0 +1,1 @@
+fix(gemini-cli): reject inherited provider auth in native launches
