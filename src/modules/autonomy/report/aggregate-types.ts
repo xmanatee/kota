@@ -194,6 +194,7 @@ export type HealthTopGroup = {
   signalCount: number;
   source: string;
   scope: string;
+  status: string;
 };
 
 export type AutonomyHealthBreakdown = {
@@ -204,6 +205,7 @@ export type AutonomyHealthBreakdown = {
   byScope: HealthCountRow<"scope">[];
   bySource: HealthCountRow<"source">[];
   byActionability: HealthCountRow<"actionability">[];
+  byStatus: HealthCountRow<"status">[];
   topGroups: HealthTopGroup[];
 };
 

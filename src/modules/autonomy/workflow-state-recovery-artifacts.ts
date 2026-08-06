@@ -1,5 +1,5 @@
 import { mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
 import { formatRunId, validateWorkflowRunId } from "#core/workflow/run-io.js";
 import type {
@@ -7,6 +7,7 @@ import type {
   WorkflowStateRecoveryClaim,
   WorkflowStateRecoveryResolveInput,
 } from "#modules/workflow-ops/state-recovery-provider.js";
+import { recordAutonomyIssueRecoveryDisposition } from "./autonomy-issue-projection.js";
 
 function artifactPath(input: WorkflowStateRecoveryResolveInput): string {
   const runId = input.artifactRunId === undefined
@@ -75,5 +76,11 @@ export function finishResolve(input: {
     createdAt: new Date().toISOString(),
   });
   writeArtifact(path, artifact);
+  recordAutonomyIssueRecoveryDisposition({
+    projectDir: input.resolveInput.projectDir,
+    taskId: input.resolveInput.taskId,
+    recoveryDispositionRef: relative(input.resolveInput.projectDir, path),
+    recordedAt: artifact.createdAt,
+  });
   return { artifactPath: path, artifact };
 }

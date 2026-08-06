@@ -41,6 +41,7 @@ export function signalForPattern(
   createdAt: string,
 ): AutonomyHealthSignal {
   const input: AutonomyHealthSignalInput = {
+    observation: "present",
     source: pattern.source,
     severity: pattern.severity,
     labels: pattern.labels,

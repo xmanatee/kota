@@ -11,3 +11,7 @@ deduped health patterns into bounded follow-up actions.
   entries instead of creating local repair tasks.
 - Batch by typed health labels and scope; avoid hardcoded workflow-name
   allowlists.
+- Treat health signals as explicit `present` / `changed` / `cleared`
+  observations. The durable autonomy-issue projection owns current lifecycle
+  and cross-source links; absence from a batch or bounded audit never clears an
+  issue or dismisses its owner question.

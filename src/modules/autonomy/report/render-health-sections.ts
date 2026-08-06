@@ -46,6 +46,15 @@ export function renderHealth(health: AutonomyHealthBreakdown): RenderNode[] {
     line(span("By actionability", "muted", true)),
     kvBlock(actionabilityEntries, 18),
     blank(),
+    line(span("By lifecycle", "muted", true)),
+    kvBlock(
+      health.byStatus.map((row) => ({
+        label: row.status,
+        value: String(row.count),
+      })),
+      18,
+    ),
+    blank(),
     line(span("Top labels", "muted", true)),
     ...health.byLabel.slice(0, 8).map((row) =>
       line(plain(`  ${row.label.padEnd(18)} ${String(row.count).padStart(3)} (${pct(row.count, health.totalSignals)})`)),
@@ -74,6 +83,8 @@ export function renderHealth(health: AutonomyHealthBreakdown): RenderNode[] {
         plain(group.source.padEnd(22)),
         plain(" "),
         span(group.actionability, "info"),
+        plain(" "),
+        span(group.status, group.status === "resolved" ? "muted" : "warn"),
         plain(" "),
         plain(group.dedupeKey),
       ));

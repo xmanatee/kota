@@ -1,288 +1,76 @@
-import { existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
-import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
-  projectAutonomyHealthEvidenceRefsForReview,
-  projectAutonomyHealthSummariesForReview,
-} from "./health-review-evidence-policy.js";
+  type AutonomyIssueDispositionKind,
+  type AutonomyIssueStatus,
+  readAutonomyIssueProjection,
+} from "./autonomy-issue-projection.js";
 import type {
   AutonomyHealthActionability,
   AutonomyHealthEvidenceRef,
-  AutonomyHealthJsonValue,
   AutonomyHealthSeverity,
 } from "./health-signal.js";
-import { isAutonomyHealthJsonObject } from "./health-signal.js";
-import { AUTONOMY_HEALTH_REVIEW_ARTIFACT } from "./workflows/autonomy-health-reviewer/health-review.js";
 
 export type AutonomyHealthIssueCard = {
+  issueKey: string;
+  status: AutonomyIssueStatus;
   reviewedAt: string;
   dedupeKey: string;
   severity: AutonomyHealthSeverity;
   labels: string[];
   actionability: AutonomyHealthActionability;
   signalCount: number;
+  semanticRevision: number;
+  disposition: AutonomyIssueDispositionKind;
   summaries: string[];
   evidenceRefs: AutonomyHealthEvidenceRef[];
   taskIds: string[];
   ownerQuestionIds: string[];
+  deadLetterIds: string[];
+  recoveryDispositionRefs: string[];
 };
 
 export type AutonomyHealthIssueEvidence = {
   generatedAt: string;
-  latestHealthReviewAt: string | null;
+  projectionUpdatedAt: string | null;
   issueCards: AutonomyHealthIssueCard[];
 };
 
-type RawReviewArtifact = {
-  generatedAt?: AutonomyHealthJsonValue;
-  review?: AutonomyHealthJsonValue;
-  actions?: AutonomyHealthJsonValue;
-};
-
-type CardActionIds = {
-  taskIds: string[];
-  ownerQuestionIds: string[];
-};
-
-type ReviewArtifactEntry = {
-  generatedAt: string;
-  groups: AutonomyHealthJsonValue[];
-  actionIdsByDedupeKey: Map<string, CardActionIds>;
-};
-
 const DEFAULT_CARD_LIMIT = 12;
-const MAX_SUMMARIES_PER_CARD = 3;
-const MAX_EVIDENCE_REFS_PER_CARD = 5;
 
-function isSeverity(
-  value: AutonomyHealthJsonValue | undefined,
-): value is AutonomyHealthSeverity {
-  return (
-    value === "info" ||
-    value === "warning" ||
-    value === "error" ||
-    value === "critical"
-  );
-}
-
-function isActionability(
-  value: AutonomyHealthJsonValue | undefined,
-): value is AutonomyHealthActionability {
-  return (
-    value === "local-code" ||
-    value === "owner-action" ||
-    value === "external-service" ||
-    value === "informational"
-  );
-}
-
-function stringArray(value: AutonomyHealthJsonValue | undefined): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((entry): entry is string => typeof entry === "string");
-}
-
-function emptyCardActionIds(): CardActionIds {
-  return { taskIds: [], ownerQuestionIds: [] };
-}
-
-function mutableActionIdsFor(
-  map: Map<string, CardActionIds>,
-  dedupeKey: string,
-): CardActionIds {
-  const existing = map.get(dedupeKey);
-  if (existing) return existing;
-  const created = emptyCardActionIds();
-  map.set(dedupeKey, created);
-  return created;
-}
-
-function actionIdsByDedupeKey(
-  value: AutonomyHealthJsonValue | undefined,
-): Map<string, CardActionIds> {
-  const map = new Map<string, CardActionIds>();
-  if (!isAutonomyHealthJsonObject(value) || !Array.isArray(value.applied)) {
-    return map;
-  }
-  for (const action of value.applied) {
-    if (!isAutonomyHealthJsonObject(action)) continue;
-    if (typeof action.dedupeKey !== "string") continue;
-    const ids = mutableActionIdsFor(map, action.dedupeKey);
-    if (
-      (action.kind === "created-task" ||
-        action.kind === "refreshed-task" ||
-        action.kind === "skipped-task") &&
-      typeof action.taskId === "string"
-    ) {
-      ids.taskIds.push(action.taskId);
-    }
-    if (
-      (action.kind === "owner-question" ||
-        action.kind === "skipped-owner-question") &&
-      typeof action.questionId === "string"
-    ) {
-      ids.ownerQuestionIds.push(action.questionId);
-    }
-  }
-  return map;
-}
-
-function evidenceRefs(
-  value: AutonomyHealthJsonValue | undefined,
-): AutonomyHealthEvidenceRef[] {
-  if (!Array.isArray(value)) return [];
-  const refs: AutonomyHealthEvidenceRef[] = [];
-  for (const entry of value) {
-    if (!isAutonomyHealthJsonObject(entry)) continue;
-    const { kind, ref, summary } = entry;
-    if (
-      kind !== "run" &&
-      kind !== "event" &&
-      kind !== "task" &&
-      kind !== "dead-letter" &&
-      kind !== "module-log" &&
-      kind !== "git" &&
-      kind !== "artifact"
-    ) {
-      continue;
-    }
-    if (typeof ref !== "string" || ref.trim().length === 0) continue;
-    refs.push({
-      kind,
-      ref,
-      ...(typeof summary === "string" && summary.trim().length > 0
-        ? { summary }
-        : {}),
-    });
-  }
-  return refs;
-}
-
-function readJson(path: string): RawReviewArtifact | null {
-  const raw = readOptionalJsonFile<AutonomyHealthJsonValue>(path);
-  return isAutonomyHealthJsonObject(raw) ? raw : null;
-}
-
-function cardFromGroup(args: {
-  group: AutonomyHealthJsonValue | undefined;
-  reviewedAt: string;
-  actionIds: CardActionIds;
-}): AutonomyHealthIssueCard | null {
-  if (!isAutonomyHealthJsonObject(args.group)) return null;
-  const dedupeKey = args.group.dedupeKey;
-  const severity = args.group.severity;
-  const actionability = args.group.actionability;
-  const signalCount = args.group.signalCount;
-  if (
-    typeof dedupeKey !== "string" ||
-    !isSeverity(severity) ||
-    !isActionability(actionability) ||
-    typeof signalCount !== "number"
-  ) {
-    return null;
-  }
-  const rawEvidenceRefs = evidenceRefs(args.group.evidenceRefs);
-  return {
-    reviewedAt: args.reviewedAt,
-    dedupeKey,
-    severity,
-    labels: stringArray(args.group.labels),
-    actionability,
-    signalCount,
-    summaries: projectAutonomyHealthSummariesForReview(
-      stringArray(args.group.summaries),
-      rawEvidenceRefs,
-    ).slice(0, MAX_SUMMARIES_PER_CARD),
-    evidenceRefs:
-      projectAutonomyHealthEvidenceRefsForReview(rawEvidenceRefs).slice(
-        0,
-        MAX_EVIDENCE_REFS_PER_CARD,
-      ),
-    taskIds: [...args.actionIds.taskIds],
-    ownerQuestionIds: [...args.actionIds.ownerQuestionIds],
-  };
-}
-
-function compareIsoDesc(a: string, b: string): number {
-  return b.localeCompare(a);
-}
-
-function hasUnresolvedLinkedTask(
-  card: AutonomyHealthIssueCard,
-  terminalTaskIds: ReadonlySet<string>,
-): boolean {
-  return (
-    card.taskIds.length === 0 ||
-    card.taskIds.some((taskId) => !terminalTaskIds.has(taskId))
-  );
-}
-
-export function collectRecentAutonomyHealthIssueCards(
+export function collectCurrentAutonomyHealthIssueCards(
   projectDir: string,
   options: { limit?: number; nowIso?: string } = {},
 ): AutonomyHealthIssueEvidence {
-  const generatedAt = options.nowIso ?? new Date().toISOString();
-  const runsDir = join(projectDir, ".kota", "runs");
-  if (!existsSync(runsDir)) {
-    return { generatedAt, latestHealthReviewAt: null, issueCards: [] };
-  }
-
-  const reviewArtifacts: ReviewArtifactEntry[] = [];
-  for (const entry of readdirSync(runsDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const artifactPath = join(runsDir, entry.name, AUTONOMY_HEALTH_REVIEW_ARTIFACT);
-    if (!existsSync(artifactPath)) continue;
-    const artifact = readJson(artifactPath);
-    if (!artifact || typeof artifact.generatedAt !== "string") continue;
-    const review = isAutonomyHealthJsonObject(artifact.review)
-      ? artifact.review
-      : undefined;
-    const groups = review?.groups;
-    if (!Array.isArray(groups)) continue;
-    const actions = isAutonomyHealthJsonObject(artifact.actions)
-      ? artifact.actions
-      : undefined;
-    reviewArtifacts.push({
-      generatedAt: artifact.generatedAt,
-      groups,
-      actionIdsByDedupeKey: actionIdsByDedupeKey(actions),
-    });
-  }
-
-  const latestHealthReviewAt =
-    reviewArtifacts.length > 0
-      ? reviewArtifacts.map((entry) => entry.generatedAt).sort(compareIsoDesc)[0]!
-      : null;
-  const cardsByDedupe = new Map<string, AutonomyHealthIssueCard>();
-  if (latestHealthReviewAt) {
-    for (const artifact of reviewArtifacts) {
-      if (artifact.generatedAt !== latestHealthReviewAt) continue;
-      for (const group of artifact.groups) {
-        const card = cardFromGroup({
-          group,
-          reviewedAt: artifact.generatedAt,
-          actionIds:
-            isAutonomyHealthJsonObject(group) &&
-            typeof group.dedupeKey === "string"
-              ? artifact.actionIdsByDedupeKey.get(group.dedupeKey) ??
-                emptyCardActionIds()
-              : emptyCardActionIds(),
-        });
-        if (!card) continue;
-        const existing = cardsByDedupe.get(card.dedupeKey);
-        if (existing && existing.reviewedAt >= card.reviewedAt) continue;
-        cardsByDedupe.set(card.dedupeKey, card);
-      }
-    }
-  }
-
+  const projection = readAutonomyIssueProjection(projectDir);
   const limit = options.limit ?? DEFAULT_CARD_LIMIT;
-  const terminalTaskIds = new Set(
-    listFullRepoTasks(projectDir, ["done", "dropped"]).map((task) => task.id),
-  );
-  const issueCards = [...cardsByDedupe.values()]
-    .filter((card) => hasUnresolvedLinkedTask(card, terminalTaskIds))
-    .sort((a, b) => compareIsoDesc(a.reviewedAt, b.reviewedAt))
-    .slice(0, limit);
-  return { generatedAt, latestHealthReviewAt, issueCards };
+  const issueCards = projection.issues
+    .filter((issue) => issue.status !== "resolved")
+    .sort(
+      (left, right) =>
+        right.lastSeenAt.localeCompare(left.lastSeenAt) ||
+        left.issueKey.localeCompare(right.issueKey),
+    )
+    .slice(0, limit)
+    .map((issue): AutonomyHealthIssueCard => ({
+      issueKey: issue.issueKey,
+      status: issue.status,
+      reviewedAt: issue.lastSeenAt,
+      dedupeKey: issue.rootCauseKey,
+      severity: issue.severity,
+      labels: [...issue.labels],
+      actionability: issue.actionability,
+      signalCount: issue.occurrenceCount,
+      semanticRevision: issue.semanticRevision,
+      disposition: issue.disposition.kind,
+      summaries: [...issue.summaries],
+      evidenceRefs: issue.evidenceRefs.map((ref) => ({ ...ref })),
+      taskIds: [...issue.links.taskIds],
+      ownerQuestionIds: [...issue.links.ownerQuestionIds],
+      deadLetterIds: [...issue.links.deadLetterIds],
+      recoveryDispositionRefs: [...issue.links.recoveryDispositionRefs],
+    }));
+  return {
+    generatedAt: options.nowIso ?? new Date().toISOString(),
+    projectionUpdatedAt: projection.updatedAt,
+    issueCards,
+  };
 }

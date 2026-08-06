@@ -9,6 +9,7 @@ import {
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { reconcileAutomationWorktrees } from "#modules/git/worktree-lifecycle.js";
 import { WORKFLOW_STATE_RECOVERY_PROVIDER_TYPE } from "#modules/workflow-ops/state-recovery-provider.js";
+import { initializeAutonomyIssueProjection } from "./autonomy-issue-projection-rebuild.js";
 import { autonomyHealthSignal } from "./health-signal.js";
 import { buildLoopQualityAuditCommand } from "./loop-quality-audit-cli.js";
 import { buildReportCommand } from "./report/report-cli.js";
@@ -150,6 +151,7 @@ const autonomyModule: KotaModule = {
   agents: async () => await discoverAutonomyAgents(),
   uiSurfaces: [dailyDigestUiSurfaceSource],
   onLoad: (ctx) => {
+    initializeAutonomyIssueProjection(ctx.cwd);
     ctx.registerProvider(
       SCOPE_DRAIN_INSPECTION_PROVIDER_TYPE,
       autonomyScopeDrainInspection,

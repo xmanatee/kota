@@ -16,6 +16,12 @@ export const AUTONOMY_HEALTH_ACTIONABILITIES = [
   "informational",
 ] as const;
 
+export const AUTONOMY_HEALTH_OBSERVATIONS = [
+  "present",
+  "changed",
+  "cleared",
+] as const;
+
 export const AUTONOMY_HEALTH_EVIDENCE_KINDS = [
   "run",
   "event",
@@ -29,6 +35,8 @@ export const AUTONOMY_HEALTH_EVIDENCE_KINDS = [
 export type AutonomyHealthSeverity = (typeof AUTONOMY_HEALTH_SEVERITIES)[number];
 export type AutonomyHealthActionability =
   (typeof AUTONOMY_HEALTH_ACTIONABILITIES)[number];
+export type AutonomyHealthObservation =
+  (typeof AUTONOMY_HEALTH_OBSERVATIONS)[number];
 export type AutonomyHealthEvidenceKind =
   (typeof AUTONOMY_HEALTH_EVIDENCE_KINDS)[number];
 
@@ -48,6 +56,7 @@ export type AutonomyHealthEvidenceRef = {
 
 export type AutonomyHealthSignalInput = {
   signalId?: string;
+  observation: AutonomyHealthObservation;
   source: AutonomyHealthSignalSource;
   severity: AutonomyHealthSeverity;
   labels: readonly string[];
@@ -61,6 +70,7 @@ export type AutonomyHealthSignalInput = {
 
 export type AutonomyHealthSignal = {
   signalId: string;
+  observation: AutonomyHealthObservation;
   source: AutonomyHealthSignalSource;
   severity: AutonomyHealthSeverity;
   labels: string[];
@@ -132,6 +142,20 @@ function assertActionability(
     );
   }
   return value as AutonomyHealthActionability;
+}
+
+function assertObservation(
+  value: AutonomyHealthJsonValue | undefined,
+): AutonomyHealthObservation {
+  if (
+    typeof value !== "string" ||
+    !AUTONOMY_HEALTH_OBSERVATIONS.includes(value as AutonomyHealthObservation)
+  ) {
+    throw new Error(
+      `observation must be one of ${AUTONOMY_HEALTH_OBSERVATIONS.join(", ")}`,
+    );
+  }
+  return value as AutonomyHealthObservation;
 }
 
 function assertEvidenceKind(
@@ -264,6 +288,7 @@ function normalizeWithoutSignalId(input: AutonomyHealthSignalInput): Omit<
   "signalId"
 > {
   const source = normalizeSource(input.source as AutonomyHealthJsonObject);
+  const observation = assertObservation(input.observation);
   const severity = assertSeverity(input.severity);
   const labels = normalizeLabels(input.labels);
   const summary = assertNonEmptyString(input.summary, "summary");
@@ -281,6 +306,7 @@ function normalizeWithoutSignalId(input: AutonomyHealthSignalInput): Omit<
   );
   const createdAt = assertIsoDate(input.createdAt, "createdAt");
   return {
+    observation,
     source,
     severity,
     labels,
@@ -318,6 +344,11 @@ const healthSignalPayloadSchema: ModuleEventPayloadSchema = {
   additionalProperties: false,
   properties: {
     signalId: { type: "string" },
+    observation: {
+      type: "string",
+      enum: AUTONOMY_HEALTH_OBSERVATIONS,
+      filterable: true,
+    },
     source: {
       type: "object",
       additionalProperties: true,
@@ -369,6 +400,7 @@ export const autonomyHealthSignal =
     "autonomy.health.signal",
     [
       "signalId",
+      "observation",
       "source",
       "severity",
       "labels",
@@ -385,6 +417,7 @@ export const autonomyHealthSignal =
       filterablePaths: [
         "source.kind",
         "source.id",
+        "observation",
         "severity",
         "labels",
         "labelsKey",
@@ -398,6 +431,7 @@ export const autonomyHealthSignal =
             scopeId: "example-scope",
             projectId: "example-scope",
             signalId: "health-example",
+            observation: "present",
             source: { kind: "workflow", id: "builder" },
             severity: "warning",
             labels: ["runtime"],

@@ -25,7 +25,6 @@ import {
   checkNoScratchArtifacts,
   runCheck,
   stepCommitRequiresDaemonRestart,
-  stepCommitted,
 } from "#modules/autonomy/shared.js";
 import {
   type AutonomyHealthReview,
@@ -174,6 +173,7 @@ function emptyActions(): AutonomyHealthReviewActionResult {
     createdTaskIds: [],
     ownerQuestionIds: [],
     dismissedOwnerQuestionIds: [],
+    issueTransitions: [],
     applied: [],
     touchedTaskQueue: false,
   };

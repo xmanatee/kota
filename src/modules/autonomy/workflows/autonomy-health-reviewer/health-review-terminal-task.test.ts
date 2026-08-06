@@ -19,6 +19,7 @@ function signal(
   overrides: Partial<AutonomyHealthSignalInput> = {},
 ): ReturnType<typeof normalizeHealthSignal> {
   return normalizeHealthSignal({
+    observation: "present",
     source: { kind: "workflow", id: "builder" },
     severity: "warning",
     labels: ["runtime"],
@@ -84,7 +85,7 @@ describe("autonomy health review terminal task handling", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("opens fresh repair work when a completed same-dedupe task has a different evidence fingerprint", () => {
+  it("reopens the stable repair task when a completed issue recurs", () => {
     const doneDir = join(projectDir, "data", "tasks", "done");
     mkdirSync(doneDir, { recursive: true });
     writeFileSync(
@@ -113,6 +114,10 @@ describe("autonomy health review terminal task handling", () => {
         "Older progress-reviewer write-scope DLQ evidence was handled.",
         "",
         "- .kota/dead-letter-queue/items.json#dlq-c3d9197c-110e-495d-ab5d-12e1de7925a7",
+        "",
+        "## Product / Safety Link",
+        "",
+        "This repair protects Product workflow execution from repeated DLQ failures.",
       ].join("\n"),
       "utf-8",
     );
@@ -141,7 +146,7 @@ describe("autonomy health review terminal task handling", () => {
     });
     const group = review.groups[0]!;
     const expectedTaskId =
-      `task-health-dead-letter-execution-workflow-runtime-progress-reviewer-${group.evidenceFingerprint.slice(0, 12)}`;
+      "task-health-dead-letter-execution-workflow-runtime-progress-reviewer";
 
     const actions = applyAutonomyHealthReviewActions({
       projectDir,
@@ -151,10 +156,10 @@ describe("autonomy health review terminal task handling", () => {
     });
 
     expect(group.evidenceFingerprint).not.toBe("bf712eea3fd1821c");
-    expect(actions.createdTaskIds).toEqual([expectedTaskId]);
+    expect(actions.createdTaskIds).toEqual([]);
     expect(actions.applied).toEqual([
       expect.objectContaining({
-        kind: "created-task",
+        kind: "refreshed-task",
         taskId: expectedTaskId,
         dedupeKey: "dead-letter:execution:workflow-runtime:progress-reviewer",
       }),

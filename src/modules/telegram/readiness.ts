@@ -170,6 +170,7 @@ export function emitTelegramPollConflictHealthSignal(
   reportedTelegramPollConflicts.add(reportKey);
 
   const signal = normalizeHealthSignal({
+    observation: "present",
     source: { kind: "module", id: "telegram-interactive", module: "telegram" },
     severity: "warning",
     labels: ["external-service", "polling", "telegram"],

@@ -33,6 +33,7 @@ function signal(
   summary: string,
 ): ReturnType<typeof normalizeHealthSignal> {
   const input: AutonomyHealthSignalInput = {
+    observation: "present",
     source: { kind: "workflow", id: "control-monitor-coverage" },
     severity: "warning",
     labels,
@@ -99,27 +100,10 @@ describe("autonomy health repair task deduplication", () => {
       "task-health-control-coverage-trajectory-diagnostics-missing-trajectory-diagnostics",
     ]);
     expect(replay.createdTaskIds).toEqual([]);
-    expect(
-      replay.applied.map((action) => ({
-        kind: action.kind,
-        dedupeKey: action.dedupeKey,
-        ...("taskId" in action ? { taskId: action.taskId } : {}),
-      })),
-    ).toEqual([
-      {
-        kind: "skipped-task",
-        dedupeKey:
-          "control-coverage:agent-step-stream:missing-agent-step-events",
-        taskId:
-          "task-health-control-coverage-agent-step-stream-missing-agent-step-events",
-      },
-      {
-        kind: "skipped-task",
-        dedupeKey:
-          "control-coverage:trajectory-diagnostics:missing-trajectory-diagnostics",
-        taskId:
-          "task-health-control-coverage-trajectory-diagnostics-missing-trajectory-diagnostics",
-      },
+    expect(replay.applied).toEqual([]);
+    expect(replay.issueTransitions.map((transition) => transition.kind)).toEqual([
+      "replayed",
+      "replayed",
     ]);
     expect(
       readdirSync(join(projectDir, "data", "tasks", "ready"))

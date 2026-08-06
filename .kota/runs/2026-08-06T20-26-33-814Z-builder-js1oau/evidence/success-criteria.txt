@@ -1,0 +1,6 @@
+1. One durable autonomy issue projection consistently exposes open, resolved, and needs-decision lifecycle state to health, recovery, improver, and status consumers.
+2. Partial or unrelated observation batches preserve every unresolved issue and linked owner question unless a typed clear explicitly resolves it.
+3. Stable normalized root-cause identity accumulates repeated provenance without semantic revision churn, while material changes revise the same issue.
+4. Typed clear and later recurrence transitions resolve and reopen the same issue with traceable history and linked disposition state.
+5. Restart replay reconstructs unresolved DLQ, recovery, owner-question, and task links without latest-review or compatibility fallbacks.
+6. Focused fixtures prove open, repeat, material change, partial batch, clear, reopen, and restart replay behavior.

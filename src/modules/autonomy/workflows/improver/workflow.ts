@@ -7,7 +7,7 @@ import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/c
 import { checkDocBloat } from "#modules/autonomy/doc-bloat-check.js";
 import {
   type AutonomyHealthIssueEvidence,
-  collectRecentAutonomyHealthIssueCards,
+  collectCurrentAutonomyHealthIssueCards,
 } from "#modules/autonomy/health-issue-cards.js";
 import { checkRepoHygiene } from "#modules/autonomy/hygiene-check.js";
 import { createImproverSemanticCheck } from "#modules/autonomy/improver-semantic-gate.js";
@@ -94,10 +94,10 @@ const gatherHealthIssueCardsStep = typedCodeStep<AutonomyHealthIssueEvidence>({
   validate: (raw) =>
     expectStructuredOutput<AutonomyHealthIssueEvidence>(raw, [
       "generatedAt",
-      "latestHealthReviewAt",
+      "projectionUpdatedAt",
       "issueCards",
     ]),
-  run: ({ projectDir }) => collectRecentAutonomyHealthIssueCards(projectDir),
+  run: ({ projectDir }) => collectCurrentAutonomyHealthIssueCards(projectDir),
 });
 
 const gatherTaskGovernanceStep = typedCodeStep<ImproverTaskGovernanceEvidence>({

@@ -2,6 +2,11 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  applyAutonomyIssueObservations,
+  buildAutonomyIssueObservation,
+  recordAutonomyIssueDispositions,
+} from "#modules/autonomy/autonomy-issue-projection.js";
 import { aggregateAutonomyReport } from "./aggregate.js";
 import { classifyTaskShape } from "./task-classification.js";
 
@@ -149,20 +154,6 @@ function writeUnsupportedTrajectoryDiagnostics(
         },
       ],
     }),
-  );
-}
-
-function writeHealthReview(
-  runsDir: string,
-  runId: string,
-  artifact: Record<string, unknown>,
-): void {
-  const dir = join(runsDir, runId);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(
-    join(dir, "autonomy-health-review.json"),
-    JSON.stringify(artifact),
-    "utf-8",
   );
 }
 
@@ -640,25 +631,33 @@ describe("aggregateAutonomyReport", () => {
   });
 
   it("aggregates autonomy health review counts by severity, label, scope, source, and actionability", () => {
-    writeHealthReview(runsDir, "health-review-1", {
-      generatedAt: new Date(NOW - MS_PER_DAY).toISOString(),
-      review: {
-        scope: { scopeId: "scope-a", projectId: "scope-a" },
-        groups: [
-          {
-            dedupeKey: "workflow:builder:runtime-warning",
-            source: { kind: "workflow", id: "builder" },
-            severity: "warning",
-            labels: ["runtime", "tool-friction"],
-            actionability: "local-code",
-            signalCount: 2,
-          },
-        ],
-      },
-      actions: {
-        createdTaskIds: ["task-health-workflow-builder-runtime-warning"],
-        ownerQuestionIds: [],
-      },
+    const observation = buildAutonomyIssueObservation({
+      kind: "present",
+      rootCauseKey: "workflow:builder:runtime-warning",
+      observedAt: new Date(NOW - MS_PER_DAY).toISOString(),
+      signalIds: ["health-builder-warning"],
+      source: { kind: "workflow", id: "builder" },
+      severity: "warning",
+      labels: ["runtime", "tool-friction"],
+      actionability: "local-code",
+      summaries: [],
+      evidenceRefs: [
+        { kind: "run", ref: ".kota/runs/builder-warning/metadata.json" },
+      ],
+      observationCount: 2,
+    });
+    applyAutonomyIssueObservations({ projectDir, observations: [observation] });
+    recordAutonomyIssueDispositions({
+      projectDir,
+      updates: [
+        {
+          issueKey: observation.issueKey,
+          kind: "task",
+          decidedAt: new Date(NOW - MS_PER_DAY + 1).toISOString(),
+          taskIds: ["task-health-workflow-builder-runtime-warning"],
+          ownerQuestionIds: [],
+        },
+      ],
     });
 
     const report = aggregateAutonomyReport({
@@ -675,13 +674,14 @@ describe("aggregateAutonomyReport", () => {
       { label: "runtime", count: 2 },
       { label: "tool-friction", count: 2 },
     ]);
-    expect(report.health.byScope).toEqual([{ scope: "scope-a", count: 2 }]);
+    expect(report.health.byScope).toEqual([{ scope: "project", count: 2 }]);
     expect(report.health.bySource).toEqual([
       { source: "workflow:builder", count: 2 },
     ]);
     expect(report.health.byActionability).toEqual([
       { actionability: "local-code", count: 2 },
     ]);
+    expect(report.health.byStatus).toEqual([{ status: "open", count: 1 }]);
   });
 
   it("breaks cost down by workflow over the window", () => {

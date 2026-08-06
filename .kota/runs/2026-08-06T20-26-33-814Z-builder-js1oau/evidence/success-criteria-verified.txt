@@ -1,0 +1,6 @@
+1. Verified `projection.json` is the single current lifecycle source read by health cards, the operator report, and improver, while health review and recovery update it through typed APIs.
+2. Verified unrelated partial reviews leave unresolved projection entries and pending owner questions unchanged; only a `cleared` transition dismisses linked questions.
+3. Verified changing run ids produces one stable issue key, revision 1, and accumulated evidence, while `changed` observations revise that same issue.
+4. Verified clear resolves the issue and recurrence reopens the same key with preserved history, links, and a new semantic revision.
+5. Verified restart reads and one-time chronological rebuild preserve task, owner-question, DLQ, and recovery links without a latest-review reader.
+6. Verified projection and consumer fixtures: 46 focused tests passed after typecheck; the broader autonomy run passed 1,163 tests with 2 skipped.

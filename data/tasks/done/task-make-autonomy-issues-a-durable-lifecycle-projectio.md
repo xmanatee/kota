@@ -1,13 +1,13 @@
 ---
 id: task-make-autonomy-issues-a-durable-lifecycle-projectio
 title: Make autonomy issues a durable lifecycle projection
-status: ready
+status: done
 priority: p0
 area: architecture
 task_class: Platform
 summary: Project source-owned health and recovery observations into one durable issue lifecycle keyed by semantic root cause.
 created_at: 2026-08-06T20:21:51.318Z
-updated_at: 2026-08-06T20:21:51.318Z
+updated_at: 2026-08-06T23:55:48.466Z
 ---
 
 ## Problem

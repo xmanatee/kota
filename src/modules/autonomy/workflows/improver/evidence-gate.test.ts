@@ -26,12 +26,15 @@ function localCodeHealthEvidence(args: {
   reviewedAt: string;
   evidenceRef?: string;
   summary?: string;
+  semanticRevision?: number;
 }): AutonomyHealthIssueEvidence {
   return {
     generatedAt: args.reviewedAt,
-    latestHealthReviewAt: args.reviewedAt,
+    projectionUpdatedAt: args.reviewedAt,
     issueCards: [
       {
+        issueKey: "autonomy-issue-control-coverage",
+        status: "open",
         reviewedAt: args.reviewedAt,
         dedupeKey: "control-coverage:approval-owner-gates:approval-or-owner-gate-unresolved",
         severity: "warning",
@@ -44,6 +47,8 @@ function localCodeHealthEvidence(args: {
         ],
         actionability: "local-code",
         signalCount: 1,
+        semanticRevision: args.semanticRevision ?? 1,
+        disposition: "task",
         summaries: [
           args.summary ??
             "Control monitor coverage gap approval-owner-gates/approval-or-owner-gate-unresolved recurred in 2 recent run(s).",
@@ -60,6 +65,8 @@ function localCodeHealthEvidence(args: {
         ],
         taskIds: [],
         ownerQuestionIds: [],
+        deadLetterIds: [],
+        recoveryDispositionRefs: [],
       },
     ],
   };
@@ -155,19 +162,25 @@ describe("improver evidence gate", () => {
   it("runs when new systemic local-code health issue evidence appears", () => {
     const healthEvidence = {
       generatedAt: "2026-06-17T12:31:00.000Z",
-      latestHealthReviewAt: "2026-06-17T12:30:00.000Z",
+      projectionUpdatedAt: "2026-06-17T12:30:00.000Z",
       issueCards: [
         {
+          issueKey: "autonomy-issue-builder-warning",
+          status: "open" as const,
           reviewedAt: "2026-06-17T12:30:00.000Z",
           dedupeKey: "workflow:builder:runtime-warning",
           severity: "warning" as const,
           labels: ["runtime"],
           actionability: "local-code" as const,
           signalCount: 2,
+          semanticRevision: 1,
+          disposition: "task" as const,
           summaries: ["Builder repeated the same local runtime failure."],
           evidenceRefs: [],
           taskIds: ["task-health-workflow-builder-runtime-warning"],
           ownerQuestionIds: [],
+          deadLetterIds: [],
+          recoveryDispositionRefs: [],
         },
       ],
     };
@@ -180,27 +193,33 @@ describe("improver evidence gate", () => {
 
     expect(decision.shouldRun).toBe(true);
     expect(decision.reason).toBe("new systemic health signal evidence");
-    expect(decision.latestHealthReviewAt).toBe("2026-06-17T12:30:00.000Z");
+    expect(decision.latestIssueProjectionAt).toBe("2026-06-17T12:30:00.000Z");
   });
 
   it("skips owner-action-only health issue evidence", () => {
     const healthEvidence = {
       generatedAt: "2026-06-19T07:56:02.532Z",
-      latestHealthReviewAt: "2026-06-19T07:32:57.137Z",
+      projectionUpdatedAt: "2026-06-19T07:32:57.137Z",
       issueCards: [
         {
+          issueKey: "autonomy-issue-owner-action",
+          status: "needs-decision" as const,
           reviewedAt: "2026-06-19T07:32:57.137Z",
           dedupeKey: "workflow:improver:interrupted-run:harness-abort",
           severity: "warning" as const,
           labels: ["harness-abort", "interrupted-run", "operator-action"],
           actionability: "owner-action" as const,
           signalCount: 1,
+          semanticRevision: 1,
+          disposition: "owner-question" as const,
           summaries: [
             "improver has recent interrupted runs caused by agent harness aborts.",
           ],
           evidenceRefs: [],
           taskIds: [],
           ownerQuestionIds: ["4d727b42"],
+          deadLetterIds: [],
+          recoveryDispositionRefs: [],
         },
       ],
     };
@@ -220,19 +239,25 @@ describe("improver evidence gate", () => {
   it("skips repeated health issue evidence after the last improver pass", () => {
     const healthEvidence = {
       generatedAt: "2026-06-17T12:31:00.000Z",
-      latestHealthReviewAt: "2026-06-17T12:30:00.000Z",
+      projectionUpdatedAt: "2026-06-17T12:30:00.000Z",
       issueCards: [
         {
+          issueKey: "autonomy-issue-builder-warning",
+          status: "open" as const,
           reviewedAt: "2026-06-17T12:30:00.000Z",
           dedupeKey: "workflow:builder:runtime-warning",
           severity: "warning" as const,
           labels: ["runtime"],
           actionability: "local-code" as const,
           signalCount: 2,
+          semanticRevision: 1,
+          disposition: "task" as const,
           summaries: ["Builder repeated the same local runtime failure."],
           evidenceRefs: [],
           taskIds: ["task-health-workflow-builder-runtime-warning"],
           ownerQuestionIds: [],
+          deadLetterIds: [],
+          recoveryDispositionRefs: [],
         },
       ],
     };
@@ -279,7 +304,7 @@ describe("improver evidence gate", () => {
     );
   });
 
-  it("runs when a newer health review carries changed local-code evidence", () => {
+  it("runs when the durable issue advances to a new semantic revision", () => {
     writeImproverEvidenceGateState(
       projectDir,
       decideImproverEvidenceGate(
@@ -298,12 +323,13 @@ describe("improver evidence gate", () => {
       localCodeHealthEvidence({
         reviewedAt: "2026-06-17T13:30:00.000Z",
         evidenceRef: ".kota/runs/control-gap-b/control-monitor-coverage.json",
+        semanticRevision: 2,
       }),
     );
 
     expect(decision.shouldRun).toBe(true);
     expect(decision.reason).toBe("new systemic health signal evidence");
-    expect(decision.latestHealthReviewAt).toBe("2026-06-17T13:30:00.000Z");
+    expect(decision.latestIssueProjectionAt).toBe("2026-06-17T13:30:00.000Z");
   });
 
   it("discards invalid persisted gate state instead of bricking the improver", () => {

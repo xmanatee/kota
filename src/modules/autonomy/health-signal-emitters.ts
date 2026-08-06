@@ -14,6 +14,7 @@ export function buildEvaluatorCalibrationDriftHealthSignal(args: {
     .sort()
     .join("-");
   return normalizeHealthSignal({
+    observation: "present",
     source: {
       kind: "workflow",
       id: "evaluator-calibration-monitor",

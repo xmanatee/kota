@@ -6,6 +6,7 @@ import {
 } from "./health-signal.js";
 
 const baseSignal: AutonomyHealthSignalInput = {
+  observation: "present",
   source: {
     kind: "workflow",
     id: "builder",

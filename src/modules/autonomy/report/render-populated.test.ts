@@ -171,6 +171,7 @@ describe("renderAutonomyReport with populated data", () => {
         byScope: [{ scope: "scope-a", count: 2 }],
         bySource: [{ source: "workflow:builder", count: 2 }],
         byActionability: [{ actionability: "local-code", count: 2 }],
+        byStatus: [{ status: "open", count: 1 }],
         topGroups: [
           {
             dedupeKey: "workflow:builder:runtime-warning",
@@ -180,6 +181,7 @@ describe("renderAutonomyReport with populated data", () => {
             signalCount: 2,
             source: "workflow:builder",
             scope: "scope-a",
+            status: "open",
           },
         ],
       },

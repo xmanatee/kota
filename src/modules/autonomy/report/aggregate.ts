@@ -243,11 +243,7 @@ export function aggregateAutonomyReport(
       postCompletionFollowUpLinks,
       priorPostCompletionFollowUpLinks,
     }),
-    health: buildAutonomyHealthBreakdown(
-      input.runsDir,
-      windowStartMs,
-      input.windowEndMs,
-    ),
+    health: buildAutonomyHealthBreakdown(input.projectDir),
     blockers: buildBlockerMix(allTasks),
     cost: buildCostBreakdown(runs),
   };

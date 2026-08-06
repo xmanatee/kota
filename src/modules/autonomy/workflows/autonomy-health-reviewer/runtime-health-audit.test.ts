@@ -191,12 +191,7 @@ describe("runtime health audit", () => {
 
     expect(first.createdTaskIds).toEqual([]);
     expect(first.ownerQuestionIds).toHaveLength(1);
-    expect(second.applied).toEqual([
-      expect.objectContaining({
-        kind: "skipped-owner-question",
-        dedupeKey: "module:telegram:getupdates-conflict",
-      }),
-    ]);
+    expect(second.applied).toEqual([]);
     expect(readyTaskFiles()).toEqual([]);
   });
 
@@ -350,18 +345,21 @@ describe("runtime health audit", () => {
 
     const actions = reviewAndApply(audit);
 
-    expect(actions.createdTaskIds).toEqual([]);
+    expect(actions.createdTaskIds).toEqual([
+      "task-health-dead-letter-execution-workflow-runtime-progress-reviewer",
+    ]);
     expect(actions.applied).toEqual([
       expect.objectContaining({
-        kind: "skipped-task",
-        taskId: "task-clear-stale-progress-reviewer-write-scope-dlq-item",
+        kind: "created-task",
+        taskId:
+          "task-health-dead-letter-execution-workflow-runtime-progress-reviewer",
         dedupeKey:
           "dead-letter:execution:workflow-runtime:progress-reviewer",
-        reason: expect.stringContaining("already tracks this evidence"),
       }),
     ]);
     expect(readyTaskFiles()).toEqual([
       "task-clear-stale-progress-reviewer-write-scope-dlq-item.md",
+      "task-health-dead-letter-execution-workflow-runtime-progress-reviewer.md",
     ]);
   });
 
@@ -392,13 +390,7 @@ describe("runtime health audit", () => {
     expect(first.createdTaskIds).toEqual([
       "task-health-workflow-builder-interrupted-run",
     ]);
-    expect(second.applied).toEqual([
-      expect.objectContaining({
-        kind: "skipped-task",
-        taskId: "task-health-workflow-builder-interrupted-run",
-        reason: expect.stringContaining("already records this evidence"),
-      }),
-    ]);
+    expect(second.applied).toEqual([]);
   });
 
   it("routes known runtime abort interruptions outside local repair tasks", () => {
@@ -611,8 +603,9 @@ describe("runtime health audit", () => {
       options: { nowIso: NOW },
     });
     const repeatedActions = reviewAndApply(repeatedAudit);
-    expect(repeatedActions.createdTaskIds).toEqual([
-      "task-health-daemon-shutdown-timeout",
+    expect(repeatedActions.createdTaskIds).toEqual([]);
+    expect(repeatedActions.issueTransitions).toEqual([
+      expect.objectContaining({ kind: "repeated", requiresDecision: false }),
     ]);
   });
 

@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
-  readdirSync,
   readFileSync,
   writeFileSync,
 } from "node:fs";
@@ -10,10 +9,18 @@ import { join, relative } from "node:path";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import type { BusEvents } from "#core/events/event-bus.js";
 import {
-  parseFlatFrontMatter,
   serializeFlatFrontMatter,
 } from "#core/util/frontmatter.js";
 import type { WorkflowBatchFlushPayload } from "#core/workflow/trigger-types.js";
+import {
+  type AutonomyIssueDispositionUpdate,
+  type AutonomyIssueObservation,
+  type AutonomyIssueTransition,
+  applyAutonomyIssueObservations,
+  buildAutonomyIssueObservation,
+  recordAutonomyIssueDispositions,
+} from "#modules/autonomy/autonomy-issue-projection.js";
+import { initializeAutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection-rebuild.js";
 import {
   projectAutonomyHealthEvidenceRefsForReview,
   projectAutonomyHealthSummariesForReview,
@@ -24,6 +31,7 @@ import {
   type AutonomyHealthEvidenceRef,
   type AutonomyHealthJsonObject,
   type AutonomyHealthJsonValue,
+  type AutonomyHealthObservation,
   type AutonomyHealthSeverity,
   type AutonomyHealthSignal,
   type AutonomyHealthSignalInput,
@@ -32,6 +40,7 @@ import {
   normalizeHealthSignal,
 } from "#modules/autonomy/health-signal.js";
 import {
+  moveTaskById,
   REPO_TASK_STATES,
   type RepoTaskState,
   writeRepoTaskFile,
@@ -43,6 +52,7 @@ type TriggerPayload = WorkflowBatchFlushPayload | AutonomyHealthJsonObject;
 
 export type AutonomyHealthReviewGroup = {
   dedupeKey: string;
+  observation: AutonomyHealthObservation;
   labels: string[];
   labelsKey: string;
   source: AutonomyHealthSignal["source"];
@@ -121,6 +131,7 @@ export type AutonomyHealthReviewActionResult = {
   createdTaskIds: string[];
   ownerQuestionIds: string[];
   dismissedOwnerQuestionIds: string[];
+  issueTransitions: AutonomyIssueTransition[];
   applied: AutonomyHealthAppliedAction[];
   touchedTaskQueue: boolean;
 };
@@ -137,13 +148,6 @@ type OwnerQuestionAskedPayload = Omit<
 >;
 
 type TaskAttrs = Record<string, string | string[]>;
-const OPEN_TASK_STATES = [
-  "backlog",
-  "ready",
-  "doing",
-  "blocked",
-] as const satisfies readonly RepoTaskState[];
-
 const SEVERITY_RANK: Record<AutonomyHealthSeverity, number> = {
   info: 0,
   warning: 1,
@@ -255,26 +259,31 @@ function groupSignals(
 
   return [...byDedupe.entries()]
     .map(([dedupeKey, grouped]) => {
-      const labels = uniqueStrings(grouped.flatMap((signal) => signal.labels));
+      const latestObservation = grouped.at(-1)!.observation;
+      const current = grouped.filter(
+        (signal) => signal.observation === latestObservation,
+      );
+      const labels = uniqueStrings(current.flatMap((signal) => signal.labels));
       const evidenceRefs = uniqueEvidenceRefs(
-        grouped.flatMap((signal) => signal.evidenceRefs),
+        current.flatMap((signal) => signal.evidenceRefs),
       );
       return {
         dedupeKey,
+        observation: latestObservation,
         labels,
         labelsKey: labels.join(","),
-        source: grouped[0]!.source,
-        severity: maxSeverity(grouped.map((signal) => signal.severity)),
+        source: current[0]!.source,
+        severity: maxSeverity(current.map((signal) => signal.severity)),
         actionability: primaryActionability(
-          grouped.map((signal) => signal.actionability),
+          current.map((signal) => signal.actionability),
         ),
-        signalCount: grouped.length,
-        observationCount: grouped.reduce(
+        signalCount: current.length,
+        observationCount: current.reduce(
           (total, signal) => total + signal.observationCount,
           0,
         ),
-        signalIds: uniqueStrings(grouped.map((signal) => signal.signalId)),
-        summaries: uniqueStrings(grouped.map((signal) => signal.summary)),
+        signalIds: uniqueStrings(current.map((signal) => signal.signalId)),
+        summaries: uniqueStrings(current.map((signal) => signal.summary)),
         evidenceRefs,
         evidenceFingerprint: evidenceFingerprint(dedupeKey, evidenceRefs),
       } satisfies AutonomyHealthReviewGroup;
@@ -372,10 +381,6 @@ function taskIdForGroup(group: AutonomyHealthReviewGroup): string {
   return `task-health-${slugFromDedupeKey(group.dedupeKey)}`;
 }
 
-function fingerprintedTaskIdForGroup(group: AutonomyHealthReviewGroup): string {
-  return `${taskIdForGroup(group)}-${group.evidenceFingerprint.slice(0, 12)}`;
-}
-
 function taskPathForId(projectDir: string, state: RepoTaskState, taskId: string): string {
   return join(projectDir, "data", "tasks", state, `${taskId}.md`);
 }
@@ -389,62 +394,6 @@ function findExistingTask(projectDir: string, taskId: string): {
     const path = taskPathForId(projectDir, state, taskId);
     if (!existsSync(path)) continue;
     return { state, path, raw: readFileSync(path, "utf-8") };
-  }
-  return null;
-}
-
-function taskIdFromRaw(raw: string, fallback: string): string {
-  const id = parseFlatFrontMatter(raw).attrs.id;
-  return typeof id === "string" && id.trim().length > 0 ? id : fallback;
-}
-
-function evidenceTokens(ref: AutonomyHealthEvidenceRef): string[] {
-  const tokens = [ref.ref];
-  if (ref.kind === "dead-letter") {
-    const deadLetterId = ref.ref.split("#").at(-1)?.trim();
-    if (deadLetterId) tokens.push(deadLetterId);
-  }
-  return tokens;
-}
-
-function rawRecordsEvidenceRef(
-  raw: string,
-  ref: AutonomyHealthEvidenceRef,
-): boolean {
-  return evidenceTokens(ref).some((token) => raw.includes(token));
-}
-
-function rawRecordsGroupEvidence(
-  raw: string,
-  group: AutonomyHealthReviewGroup,
-): boolean {
-  return (
-    raw.includes(`<!-- autonomy-health-dedupe-key: ${group.dedupeKey} -->`) &&
-    group.evidenceRefs.every((ref) => rawRecordsEvidenceRef(raw, ref))
-  );
-}
-
-function findOpenTaskRecordingEvidence(projectDir: string, group: AutonomyHealthReviewGroup): {
-  state: RepoTaskState;
-  taskId: string;
-  path: string;
-} | null {
-  for (const state of OPEN_TASK_STATES) {
-    const dir = join(projectDir, "data", "tasks", state);
-    if (!existsSync(dir)) continue;
-    const names = readdirSync(dir)
-      .filter((name) => name.endsWith(".md") && name !== "AGENTS.md")
-      .sort((a, b) => a.localeCompare(b));
-    for (const name of names) {
-      const path = join(dir, name);
-      const raw = readFileSync(path, "utf-8");
-      if (!rawRecordsGroupEvidence(raw, group)) continue;
-      return {
-        state,
-        taskId: taskIdFromRaw(raw, name.replace(/\.md$/, "")),
-        path,
-      };
-    }
   }
   return null;
 }
@@ -658,57 +607,11 @@ function createOrRefreshTask(args: {
       };
     }
     if (isTerminalTaskState(existing.state)) {
-      const existingEvidenceTask = findOpenTaskRecordingEvidence(
-        args.projectDir,
-        args.group,
-      );
-      if (existingEvidenceTask) {
-        return {
-          kind: "skipped-task",
-          taskId: existingEvidenceTask.taskId,
-          dedupeKey: args.group.dedupeKey,
-          reason:
-            `existing ${existingEvidenceTask.state} task already tracks this evidence: ` +
-            relative(args.projectDir, existingEvidenceTask.path),
-        };
-      }
-
-      const fingerprintedTaskId = fingerprintedTaskIdForGroup(args.group);
-      const fingerprintedExisting = findExistingTask(
-        args.projectDir,
-        fingerprintedTaskId,
-      );
-      if (fingerprintedExisting) {
-        if (taskAlreadyRecordsEvidence(fingerprintedExisting.raw, args.group)) {
-          return {
-            kind: "skipped-task",
-            taskId: fingerprintedTaskId,
-            dedupeKey: args.group.dedupeKey,
-            reason: "existing task already records this evidence",
-          };
-        }
-        if (fingerprintedExisting.state !== "ready") {
-          return {
-            kind: "skipped-task",
-            taskId: fingerprintedTaskId,
-            dedupeKey: args.group.dedupeKey,
-            reason:
-              `existing task is ${fingerprintedExisting.state}; ` +
-              "leaving lifecycle state unchanged",
-          };
-        }
-        return refreshReadyTask({
-          projectDir: args.projectDir,
-          taskId: fingerprintedTaskId,
-          path: fingerprintedExisting.path,
-          group: args.group,
-          nowIso: args.nowIso,
-        });
-      }
-
-      return createReadyTask({
+      moveTaskById(args.projectDir, taskId, "ready");
+      return refreshReadyTask({
         projectDir: args.projectDir,
-        taskId: fingerprintedTaskId,
+        taskId,
+        path: taskPathForId(args.projectDir, "ready", taskId),
         group: args.group,
         nowIso: args.nowIso,
       });
@@ -729,21 +632,6 @@ function createOrRefreshTask(args: {
       group: args.group,
       nowIso: args.nowIso,
     });
-  }
-
-  const existingEvidenceTask = findOpenTaskRecordingEvidence(
-    args.projectDir,
-    args.group,
-  );
-  if (existingEvidenceTask) {
-    return {
-      kind: "skipped-task",
-      taskId: existingEvidenceTask.taskId,
-      dedupeKey: args.group.dedupeKey,
-      reason:
-        `existing ${existingEvidenceTask.state} task already tracks this evidence: ` +
-        relative(args.projectDir, existingEvidenceTask.path),
-    };
   }
 
   return createReadyTask({
@@ -842,57 +730,116 @@ export function applyAutonomyHealthReviewActions(args: {
   nowIso: string;
   emitOwnerQuestionAsked?: (payload: OwnerQuestionAskedPayload) => void;
 }): AutonomyHealthReviewActionResult {
-  const activeDedupeKeys = new Set(
-    args.review.groups.map(
-      (group) => `autonomy-health-reviewer:${group.dedupeKey}`,
-    ),
+  initializeAutonomyIssueProjection(args.projectDir);
+  const observations = autonomyIssueObservationsFromReview(args.review);
+  const projected = applyAutonomyIssueObservations({
+    projectDir: args.projectDir,
+    observations,
+  });
+  const groupByIssueKey = new Map(
+    observations.map((observation, index) => [
+      observation.issueKey,
+      args.review.groups[index]!,
+    ]),
   );
   const ownerQuestions = new OwnerQuestionQueue(
     join(args.projectDir, ".kota", "owner-questions"),
   );
-  const dismissedOwnerQuestionIds = ownerQuestions
-    .list("pending")
-    .filter(
-      (item) =>
-        item.source === "autonomy-health-reviewer" &&
-        item.dedupeKey !== undefined &&
-        !activeDedupeKeys.has(item.dedupeKey),
-    )
-    .map((item) => {
+  const dismissedOwnerQuestionIds = projected.transitions.flatMap((transition) => {
+    if (transition.kind !== "cleared") return [];
+    const issue = projected.projection.issues.find(
+      (candidate) => candidate.issueKey === transition.issueKey,
+    );
+    if (!issue) return [];
+    return issue.links.ownerQuestionIds.flatMap((questionId) => {
+      const item = ownerQuestions.get(questionId);
+      if (item?.status !== "pending") return [];
       ownerQuestions.dismiss(
-        item.id,
-        "Superseded because the latest autonomy health review no longer reports this pattern",
+        questionId,
+        "Resolved by an explicit autonomy issue clear observation",
         "autonomy-health-reviewer",
       );
-      return item.id;
+      return [questionId];
     });
-  const applied = args.review.groups.map((group): AutonomyHealthAppliedAction => {
+  });
+  const applied = projected.transitions.flatMap((transition): AutonomyHealthAppliedAction[] => {
+    if (!transition.requiresDecision) return [];
+    const group = groupByIssueKey.get(transition.issueKey);
+    if (!group) {
+      throw new Error(`missing health review group for ${transition.issueKey}`);
+    }
     if (shouldCreateLocalRepairTask(group)) {
-      return createOrRefreshTask({
+      return [createOrRefreshTask({
         projectDir: args.projectDir,
         group,
         nowIso: args.nowIso,
-      });
+      })];
     }
     if (
       group.actionability === "owner-action" ||
       group.actionability === "external-service"
     ) {
-      return enqueueOwnerQuestion({
+      return [enqueueOwnerQuestion({
         projectDir: args.projectDir,
         runId: args.runId,
         group,
         emitOwnerQuestionAsked: args.emitOwnerQuestionAsked,
-      });
+      })];
     }
-    return {
+    return [{
       kind: "attention",
       dedupeKey: group.dedupeKey,
       reason:
         group.actionability === "local-code"
           ? "local-code signal has not crossed systemic threshold"
           : "informational health signal recorded without queue action",
-    };
+    }];
+  });
+  const dispositionUpdates: AutonomyIssueDispositionUpdate[] = applied.map(
+    (action) => {
+      const issueKey = observations.find(
+        (observation) => observation.rootCauseKey === action.dedupeKey,
+      )?.issueKey;
+      if (!issueKey) {
+        throw new Error(`missing autonomy issue observation for ${action.dedupeKey}`);
+      }
+      if (
+        action.kind === "created-task" ||
+        action.kind === "refreshed-task" ||
+        action.kind === "skipped-task"
+      ) {
+        return {
+          issueKey,
+          kind: "task",
+          decidedAt: args.nowIso,
+          taskIds: [action.taskId],
+          ownerQuestionIds: [],
+        };
+      }
+      if (
+        action.kind === "owner-question" ||
+        action.kind === "skipped-owner-question"
+      ) {
+        return {
+          issueKey,
+          kind: "owner-question",
+          decidedAt: args.nowIso,
+          taskIds: [],
+          ownerQuestionIds: [action.questionId],
+        };
+      }
+      return {
+        issueKey,
+        kind: "attention",
+        decidedAt: args.nowIso,
+        taskIds: [],
+        ownerQuestionIds: [],
+      };
+    },
+  );
+  recordAutonomyIssueDispositions({
+    projectDir: args.projectDir,
+    updates: dispositionUpdates,
   });
   return {
     createdTaskIds: applied
@@ -906,9 +853,36 @@ export function applyAutonomyHealthReviewActions(args: {
       )
       .map((action) => action.questionId),
     dismissedOwnerQuestionIds,
+    issueTransitions: projected.transitions,
     applied,
     touchedTaskQueue: applied.some(actionTouchesTaskQueue),
   };
+}
+
+export function autonomyIssueObservationsFromReview(
+  review: AutonomyHealthReview,
+): AutonomyIssueObservation[] {
+  return review.groups.map((group) => {
+    const evidenceRefs = projectAutonomyHealthEvidenceRefsForReview(
+      group.evidenceRefs,
+    );
+    return buildAutonomyIssueObservation({
+      kind: group.observation,
+      rootCauseKey: group.dedupeKey,
+      observedAt: review.generatedAt,
+      signalIds: group.signalIds,
+      source: group.source,
+      severity: group.severity,
+      actionability: group.actionability,
+      labels: group.labels,
+      summaries: projectAutonomyHealthSummariesForReview(
+        group.summaries,
+        group.evidenceRefs,
+      ),
+      evidenceRefs,
+      observationCount: group.observationCount,
+    });
+  });
 }
 
 function projectSignalForArtifact(

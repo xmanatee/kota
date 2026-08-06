@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from "node:f
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { type BusEvents, EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import type { WorkflowBatchFlushPayload } from "#core/workflow/trigger-types.js";
@@ -21,6 +22,7 @@ function signal(
   overrides: Partial<AutonomyHealthSignalInput> = {},
 ): ReturnType<typeof normalizeHealthSignal> {
   return normalizeHealthSignal({
+    observation: "present",
     source: { kind: "workflow", id: "builder" },
     severity: "warning",
     labels: ["runtime"],
@@ -245,11 +247,9 @@ describe("autonomy health review actions", () => {
 
     expect(first.createdTaskIds).toHaveLength(1);
     expect(second.createdTaskIds).toHaveLength(0);
-    expect(second.applied).toEqual([
-      expect.objectContaining({
-        kind: "skipped-task",
-        reason: expect.stringContaining("already records this evidence"),
-      }),
+    expect(second.applied).toEqual([]);
+    expect(second.issueTransitions).toEqual([
+      expect.objectContaining({ kind: "replayed", requiresDecision: false }),
     ]);
   });
 
@@ -282,6 +282,78 @@ describe("autonomy health review actions", () => {
         kind: "owner-question",
       }),
     );
+  });
+
+  it("keeps unrelated owner questions pending until an explicit clear observation", () => {
+    const ownerReview = buildAutonomyHealthReview({
+      triggerPayload: batchPayload([
+        signal({
+          severity: "error",
+          labels: ["operator-action", "external-service"],
+          actionability: "owner-action",
+          dedupeKey: "telegram:duplicate-consumer:getupdates",
+          summary: "Telegram getUpdates conflict needs operator decision.",
+        }),
+      ]),
+      generatedAt: NOW,
+    });
+    const ownerActions = applyAutonomyHealthReviewActions({
+      projectDir,
+      runId: "health-review-owner",
+      review: ownerReview,
+      nowIso: NOW,
+    });
+    const questionId = ownerActions.ownerQuestionIds[0]!;
+    const unrelatedReview = buildAutonomyHealthReview({
+      triggerPayload: batchPayload([
+        signal({
+          dedupeKey: "workflow:builder:unrelated-warning",
+          evidenceRefs: [
+            {
+              kind: "run",
+              ref: ".kota/runs/builder-unrelated/metadata.json",
+            },
+          ],
+        }),
+      ]),
+      generatedAt: "2026-06-17T13:00:00.000Z",
+    });
+    const unrelatedActions = applyAutonomyHealthReviewActions({
+      projectDir,
+      runId: "health-review-unrelated",
+      review: unrelatedReview,
+      nowIso: "2026-06-17T13:00:00.000Z",
+    });
+    const queue = new OwnerQuestionQueue(
+      join(projectDir, ".kota", "owner-questions"),
+    );
+
+    expect(unrelatedActions.dismissedOwnerQuestionIds).toEqual([]);
+    expect(queue.get(questionId)?.status).toBe("pending");
+
+    const clearReview = buildAutonomyHealthReview({
+      triggerPayload: batchPayload([
+        signal({
+          observation: "cleared",
+          severity: "error",
+          labels: ["operator-action", "external-service"],
+          actionability: "owner-action",
+          dedupeKey: "telegram:duplicate-consumer:getupdates",
+          summary: "The duplicate Telegram consumer was explicitly cleared.",
+          createdAt: "2026-06-17T14:00:00.000Z",
+        }),
+      ]),
+      generatedAt: "2026-06-17T14:00:00.000Z",
+    });
+    const clearActions = applyAutonomyHealthReviewActions({
+      projectDir,
+      runId: "health-review-clear",
+      review: clearReview,
+      nowIso: "2026-06-17T14:00:00.000Z",
+    });
+
+    expect(clearActions.dismissedOwnerQuestionIds).toEqual([questionId]);
+    expect(queue.get(questionId)?.status).toBe("dismissed");
   });
 
   it("projects runtime-derived owner-question fields before storage and event emission", () => {
@@ -389,6 +461,7 @@ describe("autonomy health review actions", () => {
         createdTaskIds: [],
         ownerQuestionIds: [],
         dismissedOwnerQuestionIds: [],
+        issueTransitions: [],
         applied: [],
         touchedTaskQueue: false,
       },
@@ -461,6 +534,7 @@ describe("autonomy health review actions", () => {
         createdTaskIds: [],
         ownerQuestionIds: [],
         dismissedOwnerQuestionIds: [],
+        issueTransitions: [],
         applied: [],
         touchedTaskQueue: false,
       },
