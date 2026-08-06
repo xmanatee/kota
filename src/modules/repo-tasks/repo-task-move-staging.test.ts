@@ -5,6 +5,7 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -128,6 +129,41 @@ Keep the transition canonical.
 
     expect(readFileSync(readyPath, "utf-8")).toBe(readyContent);
     expect(readFileSync(donePath, "utf-8")).toBe(doneContent);
+  });
+
+  it("rejects a direct source symlink without rewriting its external target", () => {
+    const root = mkdtempSync(join(tmpdir(), "kota-task-move-symlink-"));
+    roots.push(root);
+    const projectDir = join(root, "project");
+    const readyDir = join(projectDir, "data", "tasks", "ready");
+    const doingDir = join(projectDir, "data", "tasks", "doing");
+    mkdirSync(readyDir, { recursive: true });
+    mkdirSync(doingDir, { recursive: true });
+    const outsidePath = join(root, `${TASK_ID}.md`);
+    const outsideContent = `---
+id: ${TASK_ID}
+title: Reject linked task moves
+status: ready
+priority: p1
+area: security
+summary: The external target must remain unchanged.
+created_at: 2026-08-06T00:00:00.000Z
+updated_at: 2026-08-06T00:00:00.000Z
+---
+
+## Problem
+
+External task target.
+`;
+    writeFileSync(outsidePath, outsideContent, "utf-8");
+    const linkedTaskPath = join(readyDir, `${TASK_ID}.md`);
+    symlinkSync(outsidePath, linkedTaskPath);
+
+    expect(() => moveTaskById(projectDir, TASK_ID, "doing")).toThrow(
+      /symbolic-link markdown entries are forbidden/,
+    );
+    expect(readFileSync(outsidePath, "utf-8")).toBe(outsideContent);
+    expect(readFileSync(linkedTaskPath, "utf-8")).toBe(outsideContent);
   });
 
   it("retries exact task staging after a native agent sandbox moves the file", () => {

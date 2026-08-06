@@ -6,7 +6,7 @@ import {
   readFileSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { join, relative } from "node:path";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import type { BusEvents } from "#core/events/event-bus.js";
 import {
@@ -608,7 +608,6 @@ function createReadyTask(args: {
   nowIso: string;
 }): Extract<AutonomyHealthAppliedAction, { kind: "created-task" }> {
   const taskPath = taskPathForId(args.projectDir, "ready", args.taskId);
-  mkdirSync(dirname(taskPath), { recursive: true });
   writeRepoTaskFile(
     args.projectDir,
     taskPath,

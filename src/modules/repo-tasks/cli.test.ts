@@ -86,8 +86,6 @@ function stubCtx(
         },
         async search(query: string, filter?: RepoTaskSearchFilter): Promise<RepoTaskSearchResult> {
           if (overrides?.search) return overrides.search(query, filter);
-          // Default: keyword path through the default store. Mirrors the
-          // local handler behavior when the operator passes --keyword.
           const opts: { topK: number; states?: RepoTaskState[] } = {
             topK: filter?.limit ?? 20,
           };
@@ -106,7 +104,8 @@ function stubCtx(
   } as unknown as ModuleContext;
 }
 
-vi.mock("node:child_process", () => ({
+vi.mock("node:child_process", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("node:child_process")>()),
   execSync: vi.fn(),
   execFileSync: vi.fn(),
 }));

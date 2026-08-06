@@ -1,0 +1,4 @@
+Harden canonical task mutation path safety
+
+Anchor task and inbox mutations to verified directories, preserve external
+targets across path races, and keep exact staging safe for inbox removals.

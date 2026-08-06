@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { classifyWorkflowGeneratedTask } from "#modules/autonomy/workflow-generated-task-class.js";
 import {
@@ -226,7 +226,6 @@ export function createOrUpdateSecurityFindingTasks(
     const safeClaim = frontMatterScalar(finding.claim);
     const title = `Security review: ${safeClaim}`;
     const target = resolveSecurityFindingTaskTarget(projectDir, `task-${slugifyTaskTitle(title)}`);
-    mkdirSync(dirname(target.path), { recursive: true });
     const now = new Date().toISOString();
     const existingCreatedAt = target.kind === "update"
       ? String(parseFlatFrontMatter(readFileSync(target.path, "utf-8")).attrs.created_at ?? now)

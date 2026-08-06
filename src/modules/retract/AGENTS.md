@@ -71,9 +71,9 @@ the provider API, and core never hard-codes the target set.
 
 ## Boundaries
 
-- No raw filesystem deletes for tasks. The tasks contributor routes
-  through `moveTaskById(projectDir, id, "dropped")` so the state-machine
-  invariants and `updated_at` / `git mv` semantics stay intact.
+- No raw filesystem deletes for tasks or inbox entries. Tasks route through
+  `moveTaskById(projectDir, id, "dropped")`; inbox entries route through the
+  repo-tasks domain's verified remove-and-stage operation.
 - Project contributors must use the supplied project context; default
   provider getters are not a valid path for multi-project retract.
 - No second registry, no second public retract path. `register()` is

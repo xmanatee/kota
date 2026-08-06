@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import {
   existsSync,
-  mkdirSync,
   readdirSync,
   readFileSync,
 } from "node:fs";
@@ -749,7 +748,6 @@ export function applyTrajectoryDiagnosticEscalation(
   const existing = findExistingTask(ctx.projectDir, pattern.taskId);
   const targetDir = getRepoTaskStateDir(ctx.projectDir, "ready");
   const targetPath = join(targetDir, `${pattern.taskId}.md`);
-  mkdirSync(targetDir, { recursive: true });
 
   if (proposal.action === "create") {
     if (existsSync(targetPath)) {

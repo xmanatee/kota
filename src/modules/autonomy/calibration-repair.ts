@@ -23,7 +23,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
@@ -245,7 +245,6 @@ export function applyCalibrationRepair(
       getRepoTaskStateDir(ctx.projectDir, "ready"),
       `${proposal.taskId}.md`,
     );
-    mkdirSync(getRepoTaskStateDir(ctx.projectDir, "ready"), { recursive: true });
     if (existsSync(targetPath)) {
       throw new Error(
         `calibration-repair: refusing to overwrite existing ${targetPath} during recreate`,
@@ -267,7 +266,6 @@ export function applyCalibrationRepair(
 
   // action === "create"
   const targetDir = getRepoTaskStateDir(ctx.projectDir, "ready");
-  mkdirSync(targetDir, { recursive: true });
   const targetPath = join(targetDir, `${proposal.taskId}.md`);
   if (existsSync(targetPath)) {
     throw new Error(

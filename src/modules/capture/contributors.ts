@@ -13,14 +13,13 @@
  * - tasks    — `createNormalizedTask` writes a normalized task into
  *               `data/tasks/backlog/` and stages the new file. The first
  *               non-empty line is the title.
- * - inbox    — `captureInboxTask` writes a quick `# title` note into
- *               `data/inbox/` without a random suffix.
+ * - inbox    — the repo-tasks domain writes and stages the note under
+ *               `data/inbox/` through its verified mutation boundary.
  *
  * Errors from the underlying writer (filesystem failure, slug collision,
  * empty title) propagate verbatim so the seam can surface them as the
  * typed `contributor_failed` arm.
  */
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type {
   KnowledgeProvider,
@@ -30,6 +29,8 @@ import {
   getRepoInboxDir,
   REPO_INBOX_DIR,
   REPO_TASKS_DIR,
+  readRepoInboxFile,
+  writeRepoInboxFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   createNormalizedTask,
@@ -130,13 +131,12 @@ function createInboxRecord(projectDir: string, input: CaptureContributorInput) {
   }
   const id = `note-${slug}`;
   const inboxDir = getRepoInboxDir(projectDir);
-  mkdirSync(inboxDir, { recursive: true });
   const filePath = join(inboxDir, `${id}.md`);
-  if (existsSync(filePath)) {
+  if (readRepoInboxFile(projectDir, filePath) !== null) {
     throw new Error(`Inbox file "${id}.md" already exists.`);
   }
   const body = input.text.endsWith("\n") ? input.text : `${input.text}\n`;
-  writeFileSync(filePath, body, "utf-8");
+  writeRepoInboxFile(projectDir, filePath, body);
   const repoRelative = join(REPO_INBOX_DIR, `${id}.md`);
   return { target: "inbox" as const, recordId: id, path: repoRelative };
 }

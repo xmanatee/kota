@@ -18,7 +18,8 @@ import {
   slugifyTaskTitle,
 } from "./repo-tasks-operations.js";
 
-vi.mock("node:child_process", () => ({
+vi.mock("node:child_process", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("node:child_process")>()),
   execSync: vi.fn(),
   execFileSync: vi.fn(),
 }));
@@ -72,8 +73,7 @@ describe("slugifyTaskTitle", () => {
   });
 
   it("truncates at 50 characters", () => {
-    const long = "a".repeat(60);
-    expect(slugifyTaskTitle(long).length).toBe(50);
+    expect(slugifyTaskTitle("a".repeat(60)).length).toBe(50);
   });
 
   it("does not leave a trailing separator after truncation", () => {
@@ -99,8 +99,7 @@ describe("showTask", () => {
   });
 
   it("returns { found: false } when task does not exist", () => {
-    const result = showTask(projectDir, "task-missing");
-    expect(result).toEqual({ found: false });
+    expect(showTask(projectDir, "task-missing")).toEqual({ found: false });
   });
 
   it("finds task in any state and returns its content + state", () => {

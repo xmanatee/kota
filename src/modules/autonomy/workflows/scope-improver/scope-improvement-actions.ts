@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { join, relative } from "node:path";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import {
@@ -68,7 +68,6 @@ function writeTask(args: {
     );
   }
   const path = taskPathForId(args.projectDir, "ready", id);
-  mkdirSync(dirname(path), { recursive: true });
   writeRepoTaskFile(
     args.projectDir,
     path,

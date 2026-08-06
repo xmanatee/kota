@@ -1,12 +1,21 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { findRouteMatch } from "#core/modules/route-matcher.js";
 import { handleTaskMove, handleTaskStateChange, taskRoutes } from "./routes.js";
 import { makeProjectDir, mockRequest, mockResponse, writeTaskFile } from "./routes-test-helpers.js";
 
-vi.mock("node:child_process", () => ({
+vi.mock("node:child_process", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("node:child_process")>()),
   execSync: vi.fn(() => {
     throw new Error("not a git repo");
   }),
@@ -145,6 +154,45 @@ describe("task state routes", () => {
     expect(result.status).toBe(200);
     expect(result.body).toMatchObject({ fromState: "ready", toState: "doing" });
     expect(existsSync(join(projectDir, "data", "tasks", "doing", "task-mover.md"))).toBe(true);
+  });
+
+  it("rejects a symlinked task in the daemon move route without changing its target", async () => {
+    writeTaskFile(projectDir, "ready", "linked-route", {
+      id: "task-linked-route",
+      status: "ready",
+    });
+    const sourcePath = join(
+      projectDir,
+      "data",
+      "tasks",
+      "ready",
+      "task-linked-route.md",
+    );
+    const outsidePath = join(projectDir, "outside-route-target.md");
+    const outsideContent = readFileSync(sourcePath, "utf-8");
+    writeFileSync(outsidePath, outsideContent, "utf-8");
+    rmSync(sourcePath);
+    symlinkSync(outsidePath, sourcePath);
+
+    const { res, result } = mockResponse();
+    await handleTaskMove(
+      mockRequest({ state: "doing" }),
+      res,
+      "task-linked-route",
+      projectDir,
+    );
+
+    expect(result.status).toBe(500);
+    expect(result.body).toMatchObject({
+      error: expect.stringMatching(/symbolic-link markdown entries are forbidden/),
+    });
+    expect(readFileSync(outsidePath, "utf-8")).toBe(outsideContent);
+    expect(lstatSync(sourcePath).isSymbolicLink()).toBe(true);
+    expect(
+      existsSync(
+        join(projectDir, "data", "tasks", "doing", "task-linked-route.md"),
+      ),
+    ).toBe(false);
   });
 
   it("returns 400 for encoded slash traversal ids on the unrestricted move route", async () => {

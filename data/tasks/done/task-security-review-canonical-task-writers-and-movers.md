@@ -1,13 +1,13 @@
 ---
 id: task-security-review-canonical-task-writers-and-movers
 title: Security review: Canonical task writers and movers follow project-controlled symbolic links. A task file or parent-directory symlink can redirect host-side daemon and workflow mutations outside the selected project, including into another project's task queue.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Canonical task writers and movers follow project-controlled symbolic links. A task file or parent-directory symlink can redirect host-side daemon and workflow mutations outside the selected project, including into another project's task queue.
 created_at: 2026-08-06T06:19:49.672Z
-updated_at: 2026-08-06T06:19:49.672Z
+updated_at: 2026-08-06T07:32:33.202Z
 ---
 
 ## Problem
@@ -125,3 +125,18 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Verified on 2026-08-06 with `pnpm typecheck`; `TMPDIR="$(cd "${TMPDIR:-/tmp}" && pwd -P)" NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner --silent=true src/modules/repo-tasks/repo-tasks-operations.test.ts src/modules/repo-tasks/repo-task-path-safety.test.ts src/modules/repo-tasks/repo-mutation-parent-race.test.ts src/modules/repo-tasks/repo-task-move-staging.test.ts src/modules/repo-tasks/repo-task-native-staging.test.ts src/modules/repo-tasks/routes-state.test.ts src/modules/repo-tasks/routes-create.test.ts src/modules/repo-tasks/routes-maintenance.test.ts src/modules/retract/contributors.test.ts src/modules/capture/contributors.test.ts src/modules/autonomy/workflows/backlog-promoter/workflow.test.ts src/modules/autonomy/workflows/backlog-promoter/path-safety.test.ts src/strict-types-policy.integration.test.ts src/core/modules/module-deps.test.ts src/retract-pipeline.integration.test.ts` (15 files, 92 tests passed); `pnpm validate-tasks`; and `pnpm lint`. The three original failing test files pass 44 of 44 tests together. The post-check CLI integration rerun passes 3 of 3 tests both alone and during the full suite. The managed-sandbox full run passed 12,448 tests; its remaining failures were sandbox-policy EPERMs for the protected runtime parent, loopback listeners, and the unreadable Telegram env example.
+
+## Source Size Exception
+
+kind: source-size-cleanup
+files:
+- src/modules/autonomy/calibration-repair.ts
+- src/modules/autonomy/fan-out-consolidation.ts
+- src/modules/autonomy/trajectory-diagnostic-escalation.ts
+- src/modules/autonomy/workflow-failure-escalation.ts
+- src/modules/autonomy/workflows/autonomy-health-reviewer/health-review.ts
+- src/modules/autonomy/workflows/progress-reviewer/progress-review/action-writers.ts
+- src/modules/repo-tasks/cli.test.ts
+- src/modules/repo-tasks/repo-tasks-domain.ts
+- src/modules/repo-tasks/repo-tasks-operations.test.ts

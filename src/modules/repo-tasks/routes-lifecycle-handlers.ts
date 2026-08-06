@@ -1,4 +1,3 @@
-import { mkdirSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import { jsonResponse } from "#core/server/session-pool.js";
@@ -58,7 +57,6 @@ export async function handleTaskCreate(
   const filename = `${id}.md`;
   const filePath = join(getRepoInboxDir(projectDir), filename);
   try {
-    mkdirSync(getRepoInboxDir(projectDir), { recursive: true });
     writeRepoInboxFile(
       projectDir,
       filePath,

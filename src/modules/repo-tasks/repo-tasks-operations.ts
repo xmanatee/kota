@@ -7,11 +7,7 @@
  */
 import {
   existsSync,
-  mkdirSync,
   readdirSync,
-  readFileSync,
-  renameSync,
-  rmSync,
 } from "node:fs";
 import { join } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
@@ -19,13 +15,10 @@ import type {
   RepoTaskCaptureResult,
   RepoTaskCreateOptions,
   RepoTaskCreateResult,
-  RepoTaskGcOptions,
-  RepoTaskGcResult,
   RepoTaskShowResult,
-  RepoTaskState,
   RepoTaskUpdateBodyResult,
 } from "./client.js";
-import { stageRepoPaths } from "./repo-file-mutations.js";
+import { readVerifiedRepoMarkdownFile } from "./repo-file-mutations.js";
 import {
   getRepoInboxDir,
   getRepoTasksDir,
@@ -37,8 +30,6 @@ import {
   writeRepoTaskFile,
 } from "./repo-tasks-domain.js";
 import { isRepoTaskId } from "./task-id.js";
-
-const TERMINAL_STATES: RepoTaskState[] = ["done", "dropped"];
 
 /**
  * Slugify a task title into a stable kebab-case suffix used in filenames.
@@ -68,11 +59,16 @@ export function showTask(projectDir: string, id: string): RepoTaskShowResult {
   const tasksDir = getRepoTasksDir(projectDir);
   for (const state of REPO_TASK_STATES) {
     const filePath = join(tasksDir, state, `${id}.md`);
-    if (existsSync(filePath)) {
+    const content = readVerifiedRepoMarkdownFile({
+      projectDir,
+      rootDir: tasksDir,
+      filePath,
+    });
+    if (content !== null) {
       return {
         found: true,
         state,
-        content: readFileSync(filePath, "utf-8"),
+        content,
       };
     }
   }
@@ -93,7 +89,12 @@ export function updateTaskBody(
     for (const file of readdirSync(stateDir)) {
       if (!file.endsWith(".md") || file === "AGENTS.md") continue;
       const filePath = join(stateDir, file);
-      const content = readFileSync(filePath, "utf-8");
+      const content = readVerifiedRepoMarkdownFile({
+        projectDir,
+        rootDir: tasksDir,
+        filePath,
+      });
+      if (content === null) continue;
       if (parseFlatFrontMatter(content).attrs.id !== id) continue;
       if (state === "done" || state === "dropped") {
         return { ok: false, reason: "terminal" };
@@ -158,10 +159,15 @@ export function createNormalizedTask(
   const id = `task-${slug}`;
   const tasksDir = getRepoTasksDir(projectDir);
   const stateDir = join(tasksDir, options.state);
-  mkdirSync(stateDir, { recursive: true });
   const filePath = join(stateDir, `${id}.md`);
 
-  if (existsSync(filePath)) {
+  if (
+    readVerifiedRepoMarkdownFile({
+      projectDir,
+      rootDir: tasksDir,
+      filePath,
+    }) !== null
+  ) {
     return {
       ok: false,
       reason: "already_exists",
@@ -208,10 +214,15 @@ export function captureInboxTask(
 
   const id = `task-${slug}`;
   const inboxDir = getRepoInboxDir(projectDir);
-  mkdirSync(inboxDir, { recursive: true });
   const filePath = join(inboxDir, `${id}.md`);
 
-  if (existsSync(filePath)) {
+  if (
+    readVerifiedRepoMarkdownFile({
+      projectDir,
+      rootDir: inboxDir,
+      filePath,
+    }) !== null
+  ) {
     return {
       ok: false,
       reason: "already_exists",
@@ -223,52 +234,4 @@ export function captureInboxTask(
   return { ok: true, id, path: filePath };
 }
 
-/**
- * Archive or delete terminal tasks (`done`, `dropped`) older than `days`.
- * Used by both the CLI `task gc` and the matching daemon HTTP route.
- */
-export function gcTerminalTasks(
-  projectDir: string,
-  options: RepoTaskGcOptions = {},
-): RepoTaskGcResult {
-  const days = options.days ?? 30;
-  const deleteMode = options.delete ?? false;
-  const dryRun = options.dryRun ?? false;
-  const tasksDir = getRepoTasksDir(projectDir);
-  const archiveDir = join(projectDir, ".kota", "task-archive");
-  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-  const archived: string[] = [];
-  const deleted: string[] = [];
-
-  for (const state of TERMINAL_STATES) {
-    const dir = join(tasksDir, state);
-    if (!existsSync(dir)) continue;
-    const files = readdirSync(dir).filter(
-      (file) => file.endsWith(".md") && file !== "AGENTS.md",
-    );
-    for (const file of files) {
-      const filePath = join(dir, file);
-      const content = readFileSync(filePath, "utf-8");
-      const { attrs } = parseFlatFrontMatter(content);
-      const raw = attrs.updated_at;
-      const updatedAt = raw ? new Date(String(raw)) : null;
-      if (!updatedAt || Number.isNaN(updatedAt.getTime()) || updatedAt >= cutoff) continue;
-      if (deleteMode) {
-        if (!dryRun) {
-          rmSync(filePath);
-          stageRepoPaths(projectDir, [filePath]);
-        }
-        deleted.push(file);
-      } else {
-        if (!dryRun) {
-          mkdirSync(archiveDir, { recursive: true });
-          renameSync(filePath, join(archiveDir, file));
-          stageRepoPaths(projectDir, [filePath]);
-        }
-        archived.push(file);
-      }
-    }
-  }
-
-  return { archived, deleted };
-}
+export { gcTerminalTasks } from "./repo-task-gc.js";

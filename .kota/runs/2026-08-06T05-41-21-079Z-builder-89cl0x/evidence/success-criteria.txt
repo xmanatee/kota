@@ -1,0 +1,3 @@
+1. Canonical task and inbox writers reject symlinked or non-regular entries and symlinked directory components before writing outside the canonical project root.
+2. Canonical task moves preserve external targets and fail safely when a source, destination, or parent component is unsafe, including daemon-route and autonomous host-code callers.
+3. Focused regression tests and type checking pass, the completed task records the verification commands, and exact task-path staging remains delegated to the workflow host.

@@ -1,5 +1,13 @@
 import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -148,6 +156,7 @@ describe("createInboxContributor (real filesystem)", () => {
     const filePath = join(projectDir, "data", "inbox", "note-x.md");
     const repoRelative = "data/inbox/note-x.md";
     execSync(`echo 'rough thought' > "${filePath}"`);
+    execSync(`git add -- "${repoRelative}"`, { cwd: projectDir });
     expect(existsSync(filePath)).toBe(true);
 
     const contrib = createInboxContributor(projectDir);
@@ -158,6 +167,42 @@ describe("createInboxContributor (real filesystem)", () => {
       record: { target: "inbox", recordId: "note-x", path: repoRelative },
     });
     expect(existsSync(filePath)).toBe(false);
+  });
+
+  it("unlinks an untracked inbox file without staging a nonexistent path", async () => {
+    const projectDir = makeProjectDir();
+    const filePath = join(projectDir, "data", "inbox", "note-untracked.md");
+    writeFileSync(filePath, "rough thought\n");
+
+    const result = await createInboxContributor(projectDir).retract({
+      path: "data/inbox/note-untracked.md",
+    });
+
+    expect(result).toEqual({
+      kind: "removed",
+      record: {
+        target: "inbox",
+        recordId: "note-untracked",
+        path: "data/inbox/note-untracked.md",
+      },
+    });
+    expect(existsSync(filePath)).toBe(false);
+  });
+
+  it("rejects a symlinked inbox parent without deleting its external target", async () => {
+    const projectDir = makeProjectDir();
+    const inboxDir = join(projectDir, "data", "inbox");
+    const outsideDir = mkdtempSync(join(tmpdir(), "retract-inbox-outside-"));
+    const outsidePath = join(outsideDir, "note-x.md");
+    writeFileSync(outsidePath, "must remain\n");
+    rmSync(inboxDir, { recursive: true });
+    symlinkSync(outsideDir, inboxDir, "dir");
+
+    const contrib = createInboxContributor(projectDir);
+    await expect(
+      contrib.retract({ path: "data/inbox/note-x.md" }),
+    ).rejects.toThrow(/symbolic-link directory components are forbidden/);
+    expect(readFileSync(outsidePath, "utf8")).toBe("must remain\n");
   });
 
   it("returns not_found when the path is missing", async () => {

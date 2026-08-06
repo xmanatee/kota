@@ -1,7 +1,15 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import { readVerifiedRepoMarkdownFile } from "./repo-mutation-path-safety.js";
+import {
+  moveVerifiedRepoMarkdownFile,
+  removeVerifiedRepoMarkdownFile,
+  writeVerifiedRepoMarkdownFile,
+} from "./repo-physical-file-mutations.js";
+
+export { readVerifiedRepoMarkdownFile };
 
 export const REPO_TASK_STAGING_OWNER_ENV = "KOTA_REPO_TASK_STAGING_OWNER";
 export const REPO_TASK_WORKFLOW_HOST_STAGING_OWNER = "workflow-host";
@@ -25,22 +33,6 @@ export function shouldDeferRepoTaskStagingToWorkflowHost(
     return false;
   }
   return PROTECTED_GIT_INDEX_WRITE_ERROR.test(error.message);
-}
-
-function relativePathWithin(rootDir: string, filePath: string): string {
-  const relativePath = relative(resolve(rootDir), resolve(filePath));
-  if (
-    relativePath.length === 0 ||
-    relativePath === ".." ||
-    relativePath.startsWith(`..${sep}`) ||
-    isAbsolute(relativePath)
-  ) {
-    throw new Error(`Repo mutation path must be inside ${rootDir}: ${filePath}`);
-  }
-  if (!relativePath.endsWith(".md")) {
-    throw new Error(`Repo mutation path must name a markdown file: ${filePath}`);
-  }
-  return relativePath;
 }
 
 function repoRelativePath(projectDir: string, filePath: string): string {
@@ -108,7 +100,34 @@ export function writeAndStageRepoMarkdownFile(args: {
   filePath: string;
   content: string;
 }): void {
-  relativePathWithin(args.rootDir, args.filePath);
-  writeFileSync(args.filePath, args.content, "utf-8");
+  writeVerifiedRepoMarkdownFile(args);
   stageRepoPaths(args.projectDir, [args.filePath]);
+}
+
+export function moveAndStageRepoMarkdownFile(args: {
+  projectDir: string;
+  sourceRootDir: string;
+  sourcePath: string;
+  destinationRootDir: string;
+  destinationPath: string;
+  sourceContent: string;
+  destinationContent: string;
+  stage: () => void;
+}): void {
+  moveVerifiedRepoMarkdownFile({
+    ...args,
+    shouldDeferStaging: shouldDeferRepoTaskStagingToWorkflowHost,
+  });
+}
+
+export function removeAndStageRepoMarkdownFile(args: {
+  projectDir: string;
+  rootDir: string;
+  filePath: string;
+  stage: () => void;
+}): void {
+  removeVerifiedRepoMarkdownFile({
+    ...args,
+    shouldDeferStaging: shouldDeferRepoTaskStagingToWorkflowHost,
+  });
 }

@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
@@ -260,7 +260,6 @@ export function writeFollowUpTask(args: {
     };
   }
   const taskPath = taskPathForId(args.projectDir, "ready", id);
-  mkdirSync(dirname(taskPath), { recursive: true });
   const now = new Date().toISOString();
   const taskClass = classifyWorkflowGeneratedTask({
     workflowName: "progress-reviewer",

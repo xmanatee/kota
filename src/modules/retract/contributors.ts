@@ -12,23 +12,25 @@
  * - tasks     — `moveTaskById(projectDir, id, "dropped")` routes through
  *               the existing state machine. The contributor never deletes
  *               the file and never bypasses `updated_at` / `git mv`.
- * - inbox     — `unlinkSync` against the resolved repo-relative path. The
- *               contributor refuses any path outside `data/inbox/`.
+ * - inbox     — the repo-tasks domain identity-checks, removes, and stages the
+ *               resolved path through its descriptor-anchored boundary.
  *
  * Errors from the underlying writer (filesystem failure, git failure,
  * unexpected state) propagate verbatim so the seam can surface them as the
  * typed `contributor_failed` arm.
  */
-import { existsSync, unlinkSync } from "node:fs";
-import { join, normalize, relative } from "node:path";
+import { existsSync } from "node:fs";
+import { join, relative, resolve, sep } from "node:path";
 import type {
   KnowledgeProvider,
   MemoryProvider,
 } from "#core/modules/provider-types.js";
 import {
-  getRepoInboxDir,moveTaskById, 
+  getRepoInboxDir,
+  moveTaskById,
   REPO_INBOX_DIR,
-  REPO_TASKS_DIR
+  REPO_TASKS_DIR,
+  removeRepoInboxFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type {
   InboxRetractContributor,
@@ -108,21 +110,22 @@ function retractInbox(
   path: string,
 ): RetractContributorResult {
   const inboxDir = getRepoInboxDir(projectDir);
-  const absolute = normalize(join(projectDir, path));
+  const absolute = resolve(projectDir, path);
   const inside = relative(inboxDir, absolute);
   if (
-    inside.startsWith("..") ||
+    inside === ".." ||
+    inside.startsWith(`..${sep}`) ||
     inside === "" ||
-    inside.includes("/")
+    inside.includes(sep) ||
+    !inside.endsWith(".md")
   ) {
     throw new Error(
       `Refusing to retract inbox path outside ${REPO_INBOX_DIR}: ${path}`,
     );
   }
-  if (!existsSync(absolute)) {
+  if (!removeRepoInboxFile(projectDir, absolute)) {
     return { kind: "not_found", identifier: path };
   }
-  unlinkSync(absolute);
   const recordId = inside.replace(/\.md$/, "");
   return {
     kind: "removed",

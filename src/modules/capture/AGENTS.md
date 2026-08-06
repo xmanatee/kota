@@ -106,9 +106,9 @@ its `register()` API; nothing in core hard-codes the contributor set.
 
 - No new persistence path. Each contributor delegates to its store's
   existing in-process writer (`MemoryProvider.save`,
-  `KnowledgeProvider.create`, `createNormalizedTask`, an inbox
-  `writeFileSync`). The seam never writes a parallel record on the side
-  and never logs a separate envelope.
+  `KnowledgeProvider.create`, `createNormalizedTask`, or the repo-tasks
+  domain's verified inbox writer). The seam never writes a parallel record on
+  the side and never logs a separate envelope.
 - Project contributors must use the supplied project context; default
   provider getters are not a valid path for multi-project capture.
 - No public classifier-prompt knob. Tuning the routing prompt lands as

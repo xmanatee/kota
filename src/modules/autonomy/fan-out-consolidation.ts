@@ -19,7 +19,7 @@
  * rendered/runtime artifacts that span the surface family.
  */
 
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { classifyTaskShape } from "#modules/autonomy/report/task-classification.js";
@@ -361,7 +361,6 @@ export function applyConsolidationProposal(
   }
 
   const targetDir = getRepoTaskStateDir(ctx.projectDir, "ready");
-  mkdirSync(targetDir, { recursive: true });
   const targetPath = join(targetDir, `${proposal.taskId}.md`);
   if (existsSync(targetPath)) {
     throw new Error(

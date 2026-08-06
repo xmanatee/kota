@@ -1,19 +1,22 @@
 import {
   existsSync,
-  mkdirSync,
   readdirSync,
   readFileSync,
-  renameSync,
-  writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { getRepoHeadSha } from "#core/util/repo-worktree.js";
 import {
-  shouldDeferRepoTaskStagingToWorkflowHost,
+  moveAndStageRepoMarkdownFile,
+  readVerifiedRepoMarkdownFile,
+  removeAndStageRepoMarkdownFile,
   stageExistingOrTrackedRepoPaths,
   writeAndStageRepoMarkdownFile,
 } from "./repo-file-mutations.js";
+import {
+  hasConcreteTaskAcceptanceEvidence,
+  hasProductSafetyTaskLink,
+} from "./repo-task-sections.js";
 import {
   findUnfinishedTaskDependencies,
   readTaskDependencyIds,
@@ -30,14 +33,16 @@ export const REPO_DATA_DIR = "data";
 export const REPO_TASKS_DIR = join(REPO_DATA_DIR, "tasks");
 export const REPO_INBOX_DIR = join(REPO_DATA_DIR, "inbox");
 
-export const TASK_SOURCE_INTENT_PLACEHOLDER =
-  "Preserve the owner request, inbox capture, research source, or runtime evidence that caused this task. Keep urgency and product intent intact.";
-
-export const TASK_INITIATIVE_PLACEHOLDER =
-  "Name the broader product, architecture, or autonomy outcome this task advances. For p3 maintenance, write `N/A - scoped maintenance`.";
-
-export const TASK_ACCEPTANCE_EVIDENCE_PLACEHOLDER =
-  "- Describe the command, artifact, transcript, screenshot, fixture, or demo that will prove the task is actually done.";
+export {
+  buildIndexableTaskText,
+  extractTaskSections,
+  hasConcreteTaskAcceptanceEvidence,
+  hasProductSafetyTaskLink,
+  INDEXABLE_TASK_SECTIONS,
+  TASK_ACCEPTANCE_EVIDENCE_PLACEHOLDER,
+  TASK_INITIATIVE_PLACEHOLDER,
+  TASK_SOURCE_INTENT_PLACEHOLDER,
+} from "./repo-task-sections.js";
 
 export const REPO_TASK_STATES = [
   "backlog",
@@ -49,33 +54,6 @@ export const REPO_TASK_STATES = [
 ] as const;
 
 export type RepoTaskState = (typeof REPO_TASK_STATES)[number];
-
-function extractRepoTaskSection(raw: string, heading: string): string | null {
-  const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = raw.match(
-    new RegExp(`^## ${escapedHeading}\\s*\\n([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, "m"),
-  );
-  if (!match) return null;
-  const body = match[1].trim();
-  return body.length > 0 ? body : null;
-}
-
-export function hasConcreteTaskAcceptanceEvidence(raw: string): boolean {
-  const section = extractRepoTaskSection(raw, "Acceptance Evidence");
-  if (!section) return false;
-  if (section.includes(TASK_ACCEPTANCE_EVIDENCE_PLACEHOLDER)) {
-    return false;
-  }
-  return /(?:^|\n)\s*-\s+\S/.test(section) ||
-    /\b(?:transcript|screenshot|fixture|test|command|artifact|validation|demo|snapshot)\b/i.test(section);
-}
-
-export function hasProductSafetyTaskLink(raw: string): boolean {
-  const section = extractRepoTaskSection(raw, "Product / Safety Link");
-  if (!section) return false;
-  if (section.replace(/[-*\s]/g, "").length < 12) return false;
-  return /\b(?:Product|Safety|task-[a-z0-9-]+)\b/i.test(section);
-}
 
 export type RepoTaskQueueSnapshot = {
   counts: Record<RepoTaskState, number>;
@@ -152,6 +130,40 @@ export function writeRepoInboxFile(
     filePath,
     content,
   });
+}
+
+export function readRepoInboxFile(
+  projectDir: string,
+  filePath: string,
+): string | null {
+  return readVerifiedRepoMarkdownFile({
+    projectDir,
+    rootDir: getRepoInboxDir(projectDir),
+    filePath,
+  });
+}
+
+export function removeRepoInboxFile(
+  projectDir: string,
+  filePath: string,
+): boolean {
+  const inboxDir = getRepoInboxDir(projectDir);
+  if (
+    readVerifiedRepoMarkdownFile({
+      projectDir,
+      rootDir: inboxDir,
+      filePath,
+    }) === null
+  ) {
+    return false;
+  }
+  removeAndStageRepoMarkdownFile({
+    projectDir,
+    rootDir: inboxDir,
+    filePath,
+    stage: () => stageExistingOrTrackedRepoPaths(projectDir, [filePath]),
+  });
+  return true;
 }
 
 export function countRepoTaskState(projectDir: string, state: RepoTaskState): number {
@@ -382,74 +394,6 @@ export type RepoTaskDependencyWait = {
   waitingOn: string[];
 };
 
-/** Indexable body sections: title and summary plus these markdown sections. */
-export const INDEXABLE_TASK_SECTIONS = [
-  "Problem",
-  "Desired Outcome",
-  "Constraints",
-  "Source / Intent",
-  "Initiative",
-] as const;
-
-/**
- * Extract the configured indexable text for a task: title, summary, and the
- * `## Problem`, `## Desired Outcome`, `## Constraints`, `## Source / Intent`,
- * and `## Initiative` body sections joined into a single string. `## Plan`
- * and `## Acceptance Evidence` are skipped because they churn faster than
- * the task's intent.
- */
-export function buildIndexableTaskText(record: RepoTaskFullRecord): string {
-  const parts: string[] = [];
-  if (record.title) parts.push(record.title);
-  if (record.summary) parts.push(record.summary);
-  const sections = extractTaskSections(
-    record.body,
-    INDEXABLE_TASK_SECTIONS as unknown as readonly string[],
-  );
-  for (const heading of INDEXABLE_TASK_SECTIONS) {
-    const body = sections[heading];
-    if (body) parts.push(body.trim());
-  }
-  return parts.join("\n\n").trim();
-}
-
-/**
- * Parse `## Heading` sections out of a task body, returning each requested
- * section keyed by heading. Headings are matched case-sensitively at the
- * start of a line. A section ends at the next `## ` heading or at end of body.
- */
-export function extractTaskSections(
-  body: string,
-  headings: readonly string[],
-): Record<string, string> {
-  const wanted = new Set(headings);
-  const lines = body.split(/\r?\n/);
-  const result: Record<string, string> = {};
-  let currentHeading: string | null = null;
-  let buffer: string[] = [];
-  const flush = () => {
-    if (currentHeading) {
-      result[currentHeading] = buffer.join("\n").trim();
-    }
-    buffer = [];
-    currentHeading = null;
-  };
-  for (const line of lines) {
-    const match = /^##\s+(.+)\s*$/.exec(line);
-    if (match) {
-      flush();
-      const heading = match[1].trim();
-      if (wanted.has(heading)) {
-        currentHeading = heading;
-      }
-      continue;
-    }
-    if (currentHeading) buffer.push(line);
-  }
-  flush();
-  return result;
-}
-
 /**
  * List every full task record across the requested states, reading the
  * normalized frontmatter fields the provider seam needs. Tasks missing
@@ -605,14 +549,6 @@ export type MoveTaskResult = {
   previousPath: string;
 };
 
-/**
- * Stage every existing or indexed state path for one task id.
- *
- * The state mover uses this after its filesystem rename. The builder repair
- * loop may retry the same domain-owned operation from the host process when a
- * native agent sandbox protects Git metadata, keeping the retry claim-scoped
- * instead of broad-staging the task queue.
- */
 export function stageRepoTaskStateMutation(
   projectDir: string,
   id: string,
@@ -652,25 +588,37 @@ export function moveTaskById(
   const tasksDir = getRepoTasksDir(projectDir);
   let fromState: RepoTaskState | null = null;
   let fromPath: string | null = null;
+  let content: string | null = null;
   for (const state of REPO_TASK_STATES) {
     const candidate = join(tasksDir, state, `${id}.md`);
-    if (existsSync(candidate)) {
+    const candidateContent = readVerifiedRepoMarkdownFile({
+      projectDir,
+      rootDir: tasksDir,
+      filePath: candidate,
+    });
+    if (candidateContent !== null) {
       fromState = state;
       fromPath = candidate;
+      content = candidateContent;
       break;
     }
   }
-  if (!fromState || !fromPath) {
+  if (!fromState || !fromPath || content === null) {
     throw new Error(`Task "${id}" not found in any state directory`);
   }
   if (fromState === toState) {
     throw new Error(`Task "${id}" is already in "${toState}"`);
   }
   const dstPath = join(tasksDir, toState, `${id}.md`);
-  if (existsSync(dstPath)) {
+  if (
+    readVerifiedRepoMarkdownFile({
+      projectDir,
+      rootDir: tasksDir,
+      filePath: dstPath,
+    }) !== null
+  ) {
     throw new Error(`Task "${id}" already exists in "${toState}"`);
   }
-  const content = readFileSync(fromPath, "utf-8");
   const { attrs, body } = parseFlatFrontMatter(content);
   assertTaskStateTransitionAllowed(
     {
@@ -690,21 +638,16 @@ export function moveTaskById(
   attrs.updated_at = new Date().toISOString();
   const updated = serializeFlatFrontMatter(attrs, body);
 
-  mkdirSync(dirname(dstPath), { recursive: true });
-  renameSync(fromPath, dstPath);
-  writeFileSync(dstPath, updated, "utf-8");
-  try {
-    stageRepoTaskStateMutation(projectDir, id);
-  } catch (stageError) {
-    if (
-      !(stageError instanceof Error) ||
-      !shouldDeferRepoTaskStagingToWorkflowHost(stageError)
-    ) {
-      renameSync(dstPath, fromPath);
-      writeFileSync(fromPath, content, "utf-8");
-      throw stageError;
-    }
-  }
+  moveAndStageRepoMarkdownFile({
+    projectDir,
+    sourceRootDir: tasksDir,
+    sourcePath: fromPath,
+    destinationRootDir: tasksDir,
+    destinationPath: dstPath,
+    sourceContent: content,
+    destinationContent: updated,
+    stage: () => stageRepoTaskStateMutation(projectDir, id),
+  });
 
   return {
     id,

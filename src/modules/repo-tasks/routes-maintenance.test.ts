@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleTaskBodyUpdate, handleTaskGc } from "./routes.js";
 import { makeProjectDir, mockRequest, mockResponse, writeTaskFile } from "./routes-test-helpers.js";
 
-vi.mock("node:child_process", () => ({
+vi.mock("node:child_process", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("node:child_process")>()),
   execSync: vi.fn(() => {
     throw new Error("not a git repo");
   }),

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
   serializeFlatFrontMatter,
@@ -150,7 +150,6 @@ export function applyDecompositionPlan(args: {
   }
 
   const readyDir = getRepoTaskStateDir(args.projectDir, "ready");
-  mkdirSync(readyDir, { recursive: true });
   const now = new Date().toISOString();
   for (const [index, task] of subtasks.entries()) {
     const id = subtaskIds[index]!;

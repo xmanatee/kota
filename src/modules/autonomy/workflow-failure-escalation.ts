@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { readRepairIterations } from "#core/workflow/repair-iteration-output.js";
@@ -807,7 +807,6 @@ export function applyWorkflowFailureEscalation(
   const existing = findExistingTask(ctx.projectDir, pattern.taskId);
   const targetDir = getRepoTaskStateDir(ctx.projectDir, "ready");
   const targetPath = join(targetDir, `${pattern.taskId}.md`);
-  mkdirSync(targetDir, { recursive: true });
 
   if (proposal.action === "create") {
     if (existsSync(targetPath)) {

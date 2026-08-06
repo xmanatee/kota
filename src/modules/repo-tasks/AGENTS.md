@@ -18,6 +18,12 @@ served at `/api/tasks`.
   before returning; staging failure is an operation failure, never a
   best-effort warning. Workflows and routes must not write these files
   directly or maintain a second move/staging implementation.
+- The domain mutation boundary owns physical path safety and directory
+  creation. It rejects symlinked/non-regular markdown entries and symlinked
+  directory components. Isolated helpers enter verified directories and use
+  no-follow descriptors plus single-component relative operations, so a raced
+  parent replacement cannot redirect a write, move, or removal. Callers must
+  not pre-create task or inbox directories before invoking it.
 - Native agent sandboxes may protect Git metadata even when task files are
   writable. An explicit builder runtime owner lets the task mover retain its
   filesystem transition only for a protected-index denial; builder repair then

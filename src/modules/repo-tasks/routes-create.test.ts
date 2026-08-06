@@ -1,4 +1,11 @@
-import { readdirSync, readFileSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+} from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -8,7 +15,8 @@ import {
 } from "./routes.js";
 import { makeProjectDir, mockRequest, mockResponse } from "./routes-test-helpers.js";
 
-vi.mock("node:child_process", () => ({
+vi.mock("node:child_process", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("node:child_process")>()),
   execSync: vi.fn(() => {
     throw new Error("not a git repo");
   }),
@@ -44,6 +52,27 @@ describe("task create routes", () => {
     const { res, result } = mockResponse();
     await handleTaskCreate(mockRequest({ summary: "No title here" }), res, projectDir);
     expect(result.status).toBe(400);
+  });
+
+  it("rejects a symlinked inbox directory in the daemon create route", async () => {
+    const outsideDir = join(projectDir, "outside-inbox");
+    mkdirSync(outsideDir, { recursive: true });
+    mkdirSync(join(projectDir, "data"), { recursive: true });
+    symlinkSync(outsideDir, join(projectDir, "data", "inbox"), "dir");
+
+    const { res, result } = mockResponse();
+    await handleTaskCreate(
+      mockRequest({ title: "Escaping inbox", summary: "Must not be written" }),
+      res,
+      projectDir,
+    );
+
+    expect(result.status).toBe(500);
+    expect(result.body).toMatchObject({
+      error: expect.stringMatching(/symbolic-link directory components are forbidden/),
+    });
+    expect(existsSync(join(outsideDir, "task-escaping-inbox.md"))).toBe(false);
+    expect(readdirSync(outsideDir)).toEqual([]);
   });
 
   it("creates a normalized task with full template", async () => {

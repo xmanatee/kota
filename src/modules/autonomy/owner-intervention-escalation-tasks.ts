@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import {
@@ -131,7 +131,6 @@ function writeReadyTask(
 ): string {
   const targetDir = getRepoTaskStateDir(projectDir, "ready");
   const targetPath = join(targetDir, `${pattern.taskId}.md`);
-  mkdirSync(targetDir, { recursive: true });
   writeRepoTaskFile(
     projectDir,
     targetPath,
