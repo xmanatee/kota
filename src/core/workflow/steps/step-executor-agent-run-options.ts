@@ -7,7 +7,6 @@ import {
   composeCanUseTools,
   createWorkflowAgentGuards,
   type KotaAgentMessage,
-  routeKotaToolControlOptions,
 } from "#core/agent-harness/index.js";
 import { capScopeAutonomyMode } from "#core/daemon/scope-policy.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
@@ -15,7 +14,7 @@ import type { ModelProviderSelection } from "#core/model/model-client.js";
 import type { WorkflowRunMetadata } from "../run-types.js";
 import type { WorkflowAgentStep } from "../step-types.js";
 import type { AgentStepConfig } from "./step-executor-agent.js";
-import { resolveAgentToolScope } from "./step-executor-agent-tool-scope.js";
+import { resolveWorkflowAgentRunContract } from "./step-executor-agent-run-contract.js";
 
 export type AgentHarnessRunOptionBundle = {
   options: AgentHarnessRunOptions;
@@ -59,7 +58,6 @@ export function buildAgentHarnessRunOptions(input: {
     onMessage,
     tokenBudget,
   } = input;
-  const harnessOverrides = step.harnessOptions?.[resolvedHarness.name];
   const workspaceDir = agentConfig.workspaceDir ?? agentConfig.projectDir;
   const scopeId = agentConfig.scopeId ?? deriveDirectoryScopeId(agentConfig.projectDir);
   const projectId = agentConfig.projectId ?? scopeId;
@@ -67,28 +65,38 @@ export function buildAgentHarnessRunOptions(input: {
   const getScopePolicySnapshot = scopePolicyAuthority === undefined
     ? undefined
     : () => scopePolicyAuthority.getSnapshot(scopeId);
-  const toolScope = resolveAgentToolScope(
-    agentConfig.scopePolicy
-      ? capScopeAutonomyMode(step.autonomyMode, agentConfig.scopePolicy)
-      : step.autonomyMode,
-    step.allowedTools,
-    step.disallowedTools,
-    resolvedHarness.askOwnerToolName,
-  );
   const trialCanUseTool = agentConfig.createCanUseTool?.(step.id);
   const workflowGuards = createWorkflowAgentGuards(agentConfig.authorityConfigPath);
   const canUseTool = trialCanUseTool
     ? composeCanUseTools(trialCanUseTool, workflowGuards)
     : workflowGuards;
-  const askOwner = resolvedHarness.askOwnerToolName !== null
-    ? { source: `workflow:${metadata.workflow}/${metadata.id}/${step.id}` }
-    : undefined;
+  const contract = resolveWorkflowAgentRunContract({
+    step,
+    harness: resolvedHarness,
+    model: resolvedModel,
+    prompt,
+    canUseTool,
+    askOwnerSource: `workflow:${metadata.workflow}/${metadata.id}/${step.id}`,
+    // Definitions already validated the static model id. Launch repeats the
+    // run-option capability assertion without turning runtime readiness into a
+    // second definition compiler.
+    validateModel: false,
+    autonomyMode: agentConfig.scopePolicy
+      ? capScopeAutonomyMode(step.autonomyMode, agentConfig.scopePolicy)
+      : step.autonomyMode,
+    ...(onMessage !== undefined ? { onMessage } : {}),
+    ...(agentConfig.scopePolicy !== undefined
+      ? { scopePolicy: agentConfig.scopePolicy }
+      : {}),
+    ...(scopePolicyAuthority !== undefined ? { scopePolicyAuthority } : {}),
+    ...(getScopePolicySnapshot !== undefined ? { getScopePolicySnapshot } : {}),
+  });
+  const askOwner = contract.askOwner;
   const modelProvider = modelProviderSelection(agentConfig.config);
 
   return {
     options: {
-      prompt,
-      model: resolvedModel,
+      ...contract.options,
       cwd: workspaceDir,
       ...(agentConfig.authorityConfigPath !== undefined
         ? { authorityConfigPath: agentConfig.authorityConfigPath }
@@ -99,18 +107,6 @@ export function buildAgentHarnessRunOptions(input: {
       systemPrompt,
       modelOutputTokenLimits: agentConfig.config?.modelOutputTokenLimits,
       ...(modelProvider !== undefined ? { modelProvider } : {}),
-      maxTurns: step.maxTurns,
-      effort: step.effort,
-      thinkingEnabled: step.thinkingEnabled,
-      thinkingBudget: step.thinkingBudget,
-      ...routeKotaToolControlOptions(resolvedHarness, {
-        allowedTools: toolScope.allowedTools,
-        disallowedTools: toolScope.disallowedTools,
-        canUseTool,
-        scopePolicy: agentConfig.scopePolicy,
-        scopePolicyAuthority,
-        getScopePolicySnapshot,
-      }),
       ...(agentConfig.config?.guardrails !== undefined
         ? { guardrailsConfig: agentConfig.config.guardrails }
         : {}),
@@ -120,11 +116,6 @@ export function buildAgentHarnessRunOptions(input: {
       ...(agentConfig.idempotencyStore !== undefined
         ? { idempotencyStore: agentConfig.idempotencyStore }
         : {}),
-      askOwner,
-      autonomyMode: agentConfig.scopePolicy
-        ? capScopeAutonomyMode(step.autonomyMode, agentConfig.scopePolicy)
-        : step.autonomyMode,
-      harnessOverrides,
       abortController,
       workflowContext: {
         workflowName: metadata.workflow,
@@ -135,7 +126,6 @@ export function buildAgentHarnessRunOptions(input: {
         projectId,
       },
       ...(tokenBudget !== undefined ? { tokenBudget } : {}),
-      ...(onMessage !== undefined ? { onMessage } : {}),
     },
     canUseTool,
     askOwner,

@@ -1,9 +1,10 @@
 import {
   createWorkflowAgentGuards,
   resolveAgentHarness,
-  routeKotaToolControlOptions,
 } from "#core/agent-harness/index.js";
 import type { WorkflowAgentHarnessRunner } from "#core/workflow/run-types.js";
+import type { WorkflowAgentRunContractSpec } from "#core/workflow/step-types.js";
+import { resolveWorkflowAgentRunContract } from "#core/workflow/steps/step-executor-agent-run-contract.js";
 import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
 import { parseVerdict } from "./critic-verdict.js";
 import { AUTONOMY_DISALLOWED_TOOLS, sleep } from "./shared.js";
@@ -35,6 +36,28 @@ const JSON_REMINDER =
   "checkmarks, no markdown, no code fences. The first character must be `{` " +
   "and the last must be `}`.";
 
+export function resolveAgentJudgeRunContract(
+  config: AgentJudgeConfig,
+): WorkflowAgentRunContractSpec {
+  let harness: ReturnType<typeof resolveAgentHarness> | undefined;
+  try {
+    harness = resolveAgentHarness(config.harness);
+  } catch {
+    // Metadata-only validation can run before harness modules are loaded.
+  }
+  return {
+    harness: config.harness,
+    model: config.model,
+    effort: config.effort,
+    maxTurns: config.maxTurns,
+    autonomyMode: "autonomous",
+    ownerQuestionAccess: "disabled",
+    ...(harness?.toolControl === "kota"
+      ? { disallowedTools: AUTONOMY_DISALLOWED_TOOLS }
+      : {}),
+  };
+}
+
 export async function invokeAgentJudge(
   userMessage: string,
   cwd: string,
@@ -45,6 +68,7 @@ export async function invokeAgentJudge(
   const maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
   const retryBaseDelayMs = config.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS;
   const harness = resolveAgentHarness(config.harness);
+  const runContract = resolveAgentJudgeRunContract(config);
   let lastError: Error | undefined;
   let needsFormatReminder = false;
 
@@ -57,20 +81,20 @@ export async function invokeAgentJudge(
 
     let response: { text: string; isError: boolean; subtype?: string };
     try {
+      const resolved = resolveWorkflowAgentRunContract({
+        step: runContract,
+        harness,
+        model: runContract.model,
+        prompt: promptForAttempt,
+        canUseTool: createWorkflowAgentGuards(),
+        askOwnerSource: `judge:${config.label}`,
+      });
       response = await runAgentHarness(
         harness,
         {
-          prompt: promptForAttempt,
-          model: config.model,
+          ...resolved.options,
           cwd,
           systemPrompt: config.systemPrompt,
-          maxTurns: config.maxTurns,
-          effort: config.effort,
-          ...routeKotaToolControlOptions(harness, {
-            disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
-            canUseTool: createWorkflowAgentGuards(),
-          }),
-          autonomyMode: "autonomous",
         },
         {
           signal,

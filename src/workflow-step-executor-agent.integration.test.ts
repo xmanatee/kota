@@ -643,7 +643,7 @@ describe("executeAgentStep — harness tool-control preflight", () => {
     expect(calls[0].canUseTool).toEqual(expect.any(Function));
   });
 
-  it("omits KOTA tool-control options for native tool-control harnesses", async () => {
+  it("rejects named KOTA tool restrictions for native tool-control harnesses", async () => {
     const calls: Array<{
       allowedTools?: string[];
       disallowedTools?: string[];
@@ -686,29 +686,24 @@ describe("executeAgentStep — harness tool-control preflight", () => {
       },
     });
 
-    const result = await executeAgentStep(
-      makeDefinition(),
-      makeAgentStep(projectDir, {
-        harness: "native-tool-control-harness",
-        model: "fake-model",
-        disallowedTools: ["Bash"],
-      }),
-      makeMetadata("run-tool-control-native"),
-      { event: "runtime.idle", schemaRef: null, payload: {} },
-      new AbortController(),
-      () => {},
-      () => {},
-      { projectDir, log: () => {} },
-    );
+    await expect(
+      executeAgentStep(
+        makeDefinition(),
+        makeAgentStep(projectDir, {
+          harness: "native-tool-control-harness",
+          model: "fake-model",
+          disallowedTools: ["Bash"],
+        }),
+        makeMetadata("run-tool-control-native"),
+        { event: "runtime.idle", schemaRef: null, payload: {} },
+        new AbortController(),
+        () => {},
+        () => {},
+        { projectDir, log: () => {} },
+      ),
+    ).rejects.toThrow(/disallowedTools.*native-tool-control-harness.*cannot honor/);
 
-    expect(result.harness).toBe("native-tool-control-harness");
-    expect(calls).toEqual([
-      {
-        allowedTools: undefined,
-        disallowedTools: undefined,
-        hasCanUseTool: false,
-      },
-    ]);
+    expect(calls).toEqual([]);
   });
 });
 

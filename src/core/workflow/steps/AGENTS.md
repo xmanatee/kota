@@ -28,8 +28,8 @@ writeScope contract; everything else is a phase file:
 - `step-executor-agent-telemetry.ts` — tool telemetry and its run artifact.
 - `step-executor-agent-trajectory-diagnostics.ts` — advisory process-quality
   artifact derived from KOTA-native message frames.
-- `step-executor-agent-tool-scope.ts` — autonomy-mode → allowed/disallowed
-  tool decisions (autonomous, supervised, passive).
+- `step-executor-agent-tool-scope.ts` — autonomy-mode → tool decisions;
+  `step-executor-agent-run-contract.ts` — shared launch contract resolution.
 - `step-executor-agent-json.ts` — fenced extraction, JSON/schema errors, and validation.
 
 New internals land in phase files. The orchestrator keeps harness dispatch,

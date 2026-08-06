@@ -147,8 +147,7 @@ Workflow gating only:
 
 ## Agent Judge Runtime Contract
 
-The shared agent-step retry classifier (`src/core/workflow/steps/AGENTS.md`)
-governs autonomy judges. Judge-backed repair checks (critic, improver semantic
-gate) catch runaway turn/token throws and warn — editing code cannot shrink a
-judge's budget — while the primitive still throws. Unclassified SDK failures
-reject the check.
+Agent judges use the shared retry classifier (`src/core/workflow/steps/AGENTS.md`).
+Runaway turn/token failures warn because edits cannot change a judge's budget;
+unclassified SDK failures reject. Judge-backed checks declare
+`resolveAgentContract`; validation and runtime consume the same contract.

@@ -16,7 +16,7 @@ export const MAX_BRANCH_DEPTH = 5;
 export function validateBranchStep(
   step: WorkflowBranchStepInput,
   definitionPath: string,
-  index: number,
+  _index: number,
   moduleRoot: string,
   workflowDefaultAutonomyMode: AutonomyMode | undefined,
   validateArmStep: (
@@ -25,32 +25,34 @@ export function validateBranchStep(
     armIndex: number,
     moduleRoot: string,
     workflowDefaultAutonomyMode: AutonomyMode | undefined,
+    stepLabel: string,
   ) => WorkflowStep,
+  stepLabel: string,
   depth = 0,
 ): WorkflowBranchStep {
   if (depth >= MAX_BRANCH_DEPTH) {
     throw new WorkflowDefinitionError(
-      `steps[${index}] branch nesting depth exceeds maximum of ${MAX_BRANCH_DEPTH}`,
+      `${stepLabel} branch nesting depth exceeds maximum of ${MAX_BRANCH_DEPTH}`,
       definitionPath,
     );
   }
 
   if (typeof step.condition !== "function") {
     throw new WorkflowDefinitionError(
-      `steps[${index}].condition must be a function`,
+      `${stepLabel}.condition must be a function`,
       definitionPath,
     );
   }
   if (step.idleTimeoutMs !== undefined) {
     throw new WorkflowDefinitionError(
-      `steps[${index}].idleTimeoutMs is not supported on branch groups — put idleTimeoutMs on leaf steps`,
+      `${stepLabel}.idleTimeoutMs is not supported on branch groups — put idleTimeoutMs on leaf steps`,
       definitionPath,
     );
   }
 
   if (!Array.isArray(step.ifTrue) || step.ifTrue.length === 0) {
     throw new WorkflowDefinitionError(
-      `steps[${index}].ifTrue must be a non-empty array`,
+      `${stepLabel}.ifTrue must be a non-empty array`,
       definitionPath,
     );
   }
@@ -66,6 +68,7 @@ export function validateBranchStep(
         armIndex,
         moduleRoot,
         workflowDefaultAutonomyMode,
+        `${armLabel}[${armIndex}]`,
       );
       if (validated.type === "restart") {
         throw new WorkflowDefinitionError(
@@ -82,41 +85,41 @@ export function validateBranchStep(
       return validated;
     });
 
-  const ifTrue = validateArm(step.ifTrue, `steps[${index}].ifTrue`);
+  const ifTrue = validateArm(step.ifTrue, `${stepLabel}.ifTrue`);
   const ifFalse = step.ifFalse
-    ? validateArm(step.ifFalse, `steps[${index}].ifFalse`)
+    ? validateArm(step.ifFalse, `${stepLabel}.ifFalse`)
     : [];
 
   return {
-    id: expectName(step.id, `steps[${index}].id`, definitionPath),
+    id: expectName(step.id, `${stepLabel}.id`, definitionPath),
     type: "branch",
     condition: step.condition,
     ifTrue,
     ifFalse,
     when: expectOptionalFunction(
       step.when,
-      `steps[${index}].when`,
+      `${stepLabel}.when`,
       definitionPath,
     ) as WorkflowBranchStep["when"],
     continueOnFailure: expectOptionalBoolean(
       step.continueOnFailure,
-      `steps[${index}].continueOnFailure`,
+      `${stepLabel}.continueOnFailure`,
       definitionPath,
     ),
     timeoutMs: expectOptionalInteger(
       step.timeoutMs,
-      `steps[${index}].timeoutMs`,
+      `${stepLabel}.timeoutMs`,
       definitionPath,
       1,
     ),
     exposeOutputToAgent: expectOptionalBoolean(
       step.exposeOutputToAgent,
-      `steps[${index}].exposeOutputToAgent`,
+      `${stepLabel}.exposeOutputToAgent`,
       definitionPath,
     ),
     exposedOutputTrust: validateExposedOutputTrust(
       step,
-      `steps[${index}]`,
+      stepLabel,
       definitionPath,
     ),
   };

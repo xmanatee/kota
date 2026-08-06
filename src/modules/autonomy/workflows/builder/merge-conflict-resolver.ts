@@ -2,15 +2,17 @@ import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
 	type AgentCanUseTool,
-	type AgentEffort,
 	type AgentPermissionResult,
 	composeCanUseTools,
 	createWorkflowAgentGuards,
+	hasAgentHarness,
 	resolveAgentHarness,
-	routeKotaToolControlOptions,
 	shouldRouteKotaToolControl,
 } from "#core/agent-harness/index.js";
+import type { AgentRuntimeSelection } from "#core/model/preset.js";
 import type { WorkflowAgentHarnessRunner } from "#core/workflow/run-types.js";
+import type { WorkflowAgentRunContractSpec } from "#core/workflow/step-types.js";
+import { resolveWorkflowAgentRunContract } from "#core/workflow/steps/step-executor-agent-run-contract.js";
 import {
 	AUTONOMY_DISALLOWED_TOOLS,
 } from "#modules/autonomy/shared.js";
@@ -48,12 +50,32 @@ export type MergeConflictResolverOptions = {
 	runDirPath: string;
 	workflowName: string;
 	runId: string;
-	harnessName: string;
-	model: string;
-	effort: AgentEffort;
+	agentContract: WorkflowAgentRunContractSpec;
 	runAgentHarness: WorkflowAgentHarnessRunner;
 	signal?: AbortSignal;
 };
+
+export function resolveMergeConflictResolverRunContract(
+	runtime: AgentRuntimeSelection,
+): WorkflowAgentRunContractSpec {
+	const harness = hasAgentHarness(runtime.harness)
+		? resolveAgentHarness(runtime.harness)
+		: undefined;
+	return {
+		harness: runtime.harness,
+		model: runtime.tiers.capable,
+		effort: runtime.effort,
+		maxTurns: MERGE_CONFLICT_RESOLVER_MAX_TURNS,
+		autonomyMode: "autonomous",
+		ownerQuestionAccess: "disabled",
+		...(harness && shouldRouteKotaToolControl(harness)
+			? {
+				allowedTools: [...MERGE_CONFLICT_RESOLVER_ALLOWED_TOOLS],
+				disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
+			}
+			: {}),
+	};
+}
 
 function tail(value: string): string {
 	return value.length <= ARTIFACT_TAIL_LIMIT ? value : value.slice(value.length - ARTIFACT_TAIL_LIMIT);
@@ -201,7 +223,7 @@ function appendAttemptArtifact(
 
 export function createMergeConflictResolver(options: MergeConflictResolverOptions): MergeGateResolver {
 	return async (request) => {
-		const harness = resolveAgentHarness(options.harnessName);
+		const harness = resolveAgentHarness(options.agentContract.harness);
 		if (!shouldRouteKotaToolControl(harness)) {
 			const summary =
 				`Merge-conflict resolver was not dispatched because harness "${harness.name}" declares ` +
@@ -215,24 +237,23 @@ export function createMergeConflictResolver(options: MergeConflictResolverOption
 			});
 			return { resolved: false, summary };
 		}
+		const resolved = resolveWorkflowAgentRunContract({
+			step: options.agentContract,
+			harness,
+			model: options.agentContract.model,
+			prompt: resolverPrompt(request),
+			canUseTool: composeCanUseTools(
+				createWorkflowAgentGuards(),
+				createMergeConflictResolverToolGuard(request),
+			),
+			askOwnerSource: `merge-conflict-resolver:${options.workflowName}/${options.runId}`,
+		});
 		const response = await options.runAgentHarness(
 			harness,
 			{
-				prompt: resolverPrompt(request),
-				model: options.model,
+				...resolved.options,
 				cwd: request.workspaceDir,
 				systemPrompt: SYSTEM_PROMPT,
-				maxTurns: MERGE_CONFLICT_RESOLVER_MAX_TURNS,
-				effort: options.effort,
-				...routeKotaToolControlOptions(harness, {
-					allowedTools: [...MERGE_CONFLICT_RESOLVER_ALLOWED_TOOLS],
-					disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
-					canUseTool: composeCanUseTools(
-						createWorkflowAgentGuards(),
-						createMergeConflictResolverToolGuard(request),
-					),
-				}),
-				autonomyMode: "autonomous",
 			},
 			{
 				signal: options.signal,

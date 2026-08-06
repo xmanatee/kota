@@ -1,0 +1,5 @@
+1. Definition load rejects a statically incompatible resolved workflow agent contract with workflow, nested step path, harness, option, and adapter reason before runtime records are created.
+2. Definition validation and primary, repair-judge, and agent-launching code-step execution share one pure resolver for effective model, autonomy, tool policy, owner-question access, thinking, persistence defaults, and harness overrides.
+3. Active workflow definitions validate under the shipped preset matrix, while dynamic harness readiness and scope-policy state remain runtime-only checks.
+4. Focused fixtures cover unsupported autonomy, another unsupported run option, a supported native contract, nested paths, and no queue/run/DLQ side effects.
+5. Task state, validation evidence, and completion metadata accurately record the implemented contract and proof commands.

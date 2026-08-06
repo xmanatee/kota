@@ -111,7 +111,9 @@ describe("workflow native-harness capability artifacts", () => {
       id: "agent",
       status: "failed",
     });
-    expect(result.metadata.steps[0]?.error).toContain("thinking");
+    expect(result.metadata.steps[0]?.error).toContain(
+      'allowedTools selects native harness "capability-native", which cannot honor KOTA named tool restrictions',
+    );
     expect(run).not.toHaveBeenCalled();
 
     const artifact = readCapabilityArtifact(

@@ -1,5 +1,6 @@
 import type { WorkflowStepContext } from "./run-types.js";
 import type { WorkflowBaseStep, WorkflowProgressStep } from "./step-input-base.js";
+import type { WorkflowAgentRunContractResolver } from "./step-types.js";
 
 /**
  * Decoder that validates a raw step output and returns the typed value.
@@ -63,6 +64,12 @@ export type WorkflowCodeStepInput = WorkflowProgressStep & {
   type: "code";
   run: (context: WorkflowStepContext) => Promise<unknown> | unknown;
   /**
+   * Pure declaration for code steps that launch an agent. Definition
+   * validation resolves this against the active agent runtime before dispatch;
+   * the code step must use the same contract at runtime.
+   */
+  resolveAgentContract?: WorkflowAgentRunContractResolver;
+  /**
    * When true, this top-level code step's validated output must include an
    * absolute `workspaceDir` string. The run executor uses that path for
    * subsequent code, tool, agent, and repair-loop execution while keeping run
@@ -92,6 +99,7 @@ export type TypedCodeStepInput<T> = WorkflowBaseStep & {
   type: "code";
   run: (context: WorkflowStepContext) => Promise<T> | T;
   validate: CodeStepOutputValidator<T>;
+  resolveAgentContract?: WorkflowAgentRunContractResolver;
   updatesWorkspaceDir?: boolean;
   updatesRuntimeResources?: boolean;
   /**
@@ -178,6 +186,7 @@ export function typedCodeStep<T>(
     type: "code";
     run: (context: WorkflowStepContext) => Promise<T> | T;
     validate: CodeStepOutputValidator<T>;
+    resolveAgentContract?: WorkflowAgentRunContractResolver;
     updatesWorkspaceDir?: boolean;
     updatesRuntimeResources?: boolean;
   },

@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
+import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
 import {
   type AgentJudgeConfig,
   invokeAgentJudge,
   isJudgeRunawayError,
   judgeUnavailableResult,
+  resolveAgentJudgeRunContract,
 } from "./agent-judge.js";
 import {
   getChangedFiles,
@@ -26,6 +28,7 @@ export {
   invokeAgentJudge,
   isJudgeRunawayError,
   judgeUnavailableResult,
+  resolveAgentJudgeRunContract,
 } from "./agent-judge.js";
 export {
   getChangedFiles,
@@ -122,34 +125,41 @@ const criticBaseConfig: CriticBaseConfig = {
   maxTurns: CRITIC_MAX_TURNS,
 };
 
+type CriticCheckOptions = {
+  runDirPath?: string;
+  harnessName?: string;
+  model?: string;
+};
+
+function resolveCriticJudgeConfig(
+  parentStep: WorkflowAgentStep,
+  options: CriticCheckOptions | undefined,
+): AgentJudgeConfig {
+  return {
+    ...criticBaseConfig,
+    harness: options?.harnessName ?? parentStep.harness,
+    model: options?.model ?? parentStep.model,
+    effort: parentStep.effort,
+  };
+}
+
 function taskIdFromReviewTargetPath(path: string): string | undefined {
   return path.match(/(?:^|\/)(task-[^/]+)\.md$/)?.[1];
 }
 
-export function createCriticCheck(options?: {
-  runDirPath?: string;
-  /**
-   * Force a specific harness name. Production callers leave this unset so the
-   * check dispatches through the parent agent step's resolved harness (which
-   * the validator populated from `config.defaultAgentHarness`). Tests use it
-   * to drive the critic over a specific adapter directly.
+export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairCheck {
+  /*
+   * Force a specific harness/model only in direct fixtures. Production checks
+   * inherit the parent step's definition-resolved contract.
    */
-  harnessName?: string;
-  /** Override the parent agent step's resolved model. */
-  model?: string;
-}): WorkflowRepairCheck {
   return {
     id: "critic-review",
     type: "code" as const,
+    resolveAgentContract: (parentStep) =>
+      resolveAgentJudgeRunContract(resolveCriticJudgeConfig(parentStep, options)),
     run: async (ctx, parentStep) => {
       const reviewDir = ctx.workspaceDir ?? ctx.projectDir;
-      const harnessName = options?.harnessName ?? parentStep.harness;
-      const resolvedConfig: AgentJudgeConfig = {
-        ...criticBaseConfig,
-        harness: harnessName,
-        model: options?.model ?? parentStep.model,
-        effort: parentStep.effort,
-      };
+      const resolvedConfig = resolveCriticJudgeConfig(parentStep, options);
       const target = findTaskReviewTarget(reviewDir);
       if (!target) {
         return "OK: no task in doing/ — skipping critic review";

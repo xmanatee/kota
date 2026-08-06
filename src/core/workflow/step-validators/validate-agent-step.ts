@@ -1,9 +1,11 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { hasAgentHarness, resolveAgentHarness } from "#core/agent-harness/registry.js";
 import { resolveAgentToolPolicy } from "#core/agents/handoff.js";
 import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowAgentStepInput } from "#core/workflow/step-input-base.js";
 import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
+import { resolveStaticWorkflowAgentRunContract } from "#core/workflow/steps/step-executor-agent-run-contract.js";
 import {
   expectName,
   expectNonEmptyString,
@@ -20,7 +22,6 @@ import {
 import {
   resolveStepModel,
   validateHarnessOptions,
-  validateHarnessToolRestrictions,
   validateOutputFormat,
   validateOutputSchema,
   validateTokenBudget,
@@ -39,15 +40,12 @@ export const VALID_EFFORT_LEVELS = new Set([
 export function validateAgentStep(
   step: WorkflowAgentStepInput,
   definitionPath: string,
-  index: number,
+  stepLabel: string,
   moduleRoot: string,
   workflowDefaultAutonomyMode: AutonomyMode | undefined,
   options: WorkflowValidationOptions,
-  childIndex?: number,
+  workflowName: string,
 ): WorkflowAgentStep {
-  const stepLabel = childIndex !== undefined
-    ? `steps[${index}].steps[${childIndex}]`
-    : `steps[${index}]`;
   const agentName = step.agentName !== undefined
     ? expectNonEmptyString(step.agentName, `${stepLabel}.agentName`, definitionPath)
     : undefined;
@@ -120,15 +118,15 @@ export function validateAgentStep(
     );
   }
 
-  const { model, tier } = resolveStepModel({
+  const { model: declaredModel, tier } = resolveStepModel({
     rawModel: step.model ?? (step.tier === undefined ? agentDef?.model : undefined),
     rawTier: step.tier,
-    harnessName,
     stepLabel,
     definitionPath,
     preset: options.preset,
     modelTiers: options.modelTiers,
   });
+  const model = (agentName ? options.agentModels?.[agentName] : undefined) ?? declaredModel;
 
   const harnessOptions = validateHarnessOptions(
     step.harnessOptions,
@@ -156,15 +154,7 @@ export function validateAgentStep(
       definitionPath,
     );
   }
-  validateHarnessToolRestrictions(
-    harnessName,
-    toolPolicy.policy.allowed,
-    toolPolicy.policy.disallowed,
-    stepLabel,
-    definitionPath,
-  );
-
-  return {
+  const validatedStep: WorkflowAgentStep = {
     id: expectName(step.id, `${stepLabel}.id`, definitionPath),
     type: "agent",
     agentName,
@@ -234,4 +224,42 @@ export function validateAgentStep(
       definitionPath,
     ) as WorkflowAgentStep["validate"],
   };
+
+  if (hasAgentHarness(harnessName)) {
+    try {
+      resolveStaticWorkflowAgentRunContract({
+        step: validatedStep,
+        harness: resolveAgentHarness(harnessName),
+        source: `workflow:${workflowName}/${stepLabel}`,
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new WorkflowDefinitionError(
+        `workflow "${workflowName}" ${stepLabel} resolved agent run contract is incompatible: ${detail}`,
+        definitionPath,
+      );
+    }
+  }
+
+  for (const [checkIndex, check] of (validatedStep.repairLoop?.checks ?? []).entries()) {
+    if (check.type !== "code" || check.resolveAgentContract === undefined) continue;
+    const checkLabel = `${stepLabel}.repairLoop.checks[${checkIndex}]`;
+    try {
+      const contract = check.resolveAgentContract(validatedStep);
+      if (!hasAgentHarness(contract.harness)) continue;
+      resolveStaticWorkflowAgentRunContract({
+        step: contract,
+        harness: resolveAgentHarness(contract.harness),
+        source: `workflow:${workflowName}/${checkLabel}`,
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new WorkflowDefinitionError(
+        `workflow "${workflowName}" ${checkLabel} resolved judge run contract is incompatible: ${detail}`,
+        definitionPath,
+      );
+    }
+  }
+
+  return validatedStep;
 }

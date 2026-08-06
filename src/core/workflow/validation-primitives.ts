@@ -40,6 +40,7 @@ export type WorkflowValidationOptions = {
    * definition error instead of a late runtime surprise.
    */
   resolveAgentDef?: (name: string) => AgentDef | undefined;
+  agentModels?: Readonly<Record<string, string>>;
 };
 
 export function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -279,12 +280,6 @@ export function expectOptionalFunction(
   return value as (...args: never[]) => unknown;
 }
 
-/**
- * Reject any keys on `value` that aren't in `allowedKeys`. Used to keep
- * nested definition blocks strictly in sync with their TypeScript contract —
- * silently ignoring unknown keys lets removed fields linger in the runtime
- * parser after the type contract drops them.
- */
 export function rejectUnknownKeys(
   value: Record<string, unknown>,
   allowedKeys: readonly string[],

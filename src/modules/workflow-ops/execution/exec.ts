@@ -158,15 +158,17 @@ export function registerExecCommand(
       });
       try {
         const runtime = resolveAgentRuntime(runtimeConfig);
+        const validationOptions = {
+          defaultAgentHarness: runtime.harness,
+          preset: runtime.preset,
+          modelTiers: runtime.tiers,
+          agentModels: runtimeConfig.agentModels,
+          resolveAgentDef: (agentName: string) => runtimeLoader.getAgentDef(agentName),
+        };
         const definitions = validateWorkflowDefinitions(
           runtimeLoader.getContributedWorkflows(),
           ctx.cwd,
-          {
-            defaultAgentHarness: runtime.harness,
-            preset: runtime.preset,
-            modelTiers: runtime.tiers,
-            resolveAgentDef: (agentName) => runtimeLoader.getAgentDef(agentName),
-          },
+          validationOptions,
         );
         const definition = definitions.find((d) => d.name === name);
         if (!definition) {
@@ -178,10 +180,16 @@ export function registerExecCommand(
           printWorkflowError(`Workflow "${name}" is disabled.`);
           process.exit(1);
         }
-        const executionDefinition =
-          agentExecutionOverride !== undefined
-            ? overrideWorkflowAgentExecution(definition, agentExecutionOverride)
-            : definition;
+        const executionDefinition = agentExecutionOverride !== undefined
+          ? validateWorkflowDefinitions(
+              [overrideWorkflowAgentExecution(definition, agentExecutionOverride)],
+              ctx.cwd,
+              validationOptions,
+            )[0]
+          : definition;
+        if (executionDefinition === undefined) {
+          throw new Error(`Workflow "${name}" disappeared during execution validation.`);
+        }
 
         const bus = new EventBus();
         const pbus = new ProjectScopedEventBus(bus, deriveDirectoryScopeId(ctx.cwd));

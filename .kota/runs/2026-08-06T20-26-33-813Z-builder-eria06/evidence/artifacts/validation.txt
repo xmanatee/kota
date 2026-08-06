@@ -1,0 +1,60 @@
+Resolved workflow agent contract validation
+Run: 2026-08-06T20-26-33-813Z-builder-eria06
+
+Exact real-Codex rejection
+Command: node --conditions=source --import tsx --input-type=module -e <passive Codex validation fixture>
+Exit: 0 (the fixture caught and printed the expected WorkflowDefinitionError)
+Output:
+fixture/passive-codex.ts: workflow "passive-codex-fixture" steps[0] resolved agent run contract is incompatible: Agent harness "codex" cannot honor requested run option(s): autonomyMode="passive". autonomyMode="passive": Codex CLI native tool calls cannot be classified and denied individually under KOTA's passive contract.
+
+Feature validation
+- Initial focused run: PASS — 27 files, 574 tests.
+- Resolved-contract and active code-step suites after critic repair: PASS — 7 files, 34 tests.
+- Workflow validation integration after critic repair: PASS — 87 tests.
+- Workflow refactor suites: PASS — 4 files, 50 tests.
+- Doctor refactor suites: PASS — 2 files, 51 tests.
+- Workflow validation integration: PASS — 87 tests.
+- Agent executor integration: PASS — 21 tests.
+- Refactored workflow/doctor aggregate: PASS — 3 files, 90 tests.
+- The contract fixtures cover unsupported autonomy and thinking, supported validation-to-launch parity with an agent-model override, runtime-only readiness, nested agent and code-step paths, repair-loop judges, and shadow-review launch parity.
+- Pre-dispatch fixtures assert pendingRuns=[], runs=[], DLQ=[], and zero harness launches for primary, unregistered repair-judge, and unregistered code-step contracts.
+
+Static and policy checks
+- pnpm run typecheck: PASS.
+- pnpm build: PASS.
+- pnpm run validate-tasks: PASS.
+- Biome check over every repair-touched TypeScript file: PASS.
+- strict-types, root-layout, no-module-imports-in-core, and module-dependency policy tests: PASS.
+- git diff --check over the readable project surface: PASS.
+- AGENTS ratchets restored exactly: src/core/workflow/AGENTS.md 129/129 lines; src/core/workflow/steps/AGENTS.md 134/134 lines.
+- Direct docs-surface execution is unavailable in this managed sandbox because deploy/telegram-assistant/.env.example is policy-denied; the failing ratchet predicate was reproduced directly and is now clean.
+
+Source-size repair
+- Cohesive runtime types, executor types, workflow helpers, and doctor checks were extracted into local modules.
+- The new contract validation test is 300 lines; its dispatch fixtures live in a separate focused test.
+- Code-step contract coverage lives in a separate 73-line test; the expanded dispatch fixture remains below 200 lines.
+- Three touched source files remain above the advisory 300-line guideline, below the severe batch threshold of four: decomposer/workflow.test.ts, workflow-step-executor-agent.integration.test.ts, and workflow-validation.integration.test.ts.
+- No touched oversized file has substantial positive growth.
+
+Shipped preset matrix
+- codex: 29/29 definitions valid.
+- claude: 29/29 definitions valid.
+- openrouter: 29/29 definitions valid.
+- openrouter-lab: 29/29 definitions valid.
+- gemini: 29/29 definitions valid.
+- gemini-cli: 29/29 definitions valid.
+- antigravity-cli: 29/29 definitions valid.
+
+Repository-wide diagnostic
+Command: pnpm test
+Result: 1,227 files / 12,503 tests passed; 48 files / 222 tests failed under the managed sandbox; 5 files / 21 tests skipped.
+The failures are environmental: the unreadable managed runtime authority directory, denied loopback listeners/native sandbox operations, and the protected deploy/telegram-assistant/.env.example. Task-focused and touched-surface suites pass independently as recorded above.
+
+Post-check repair attempt 3
+- Critical finding 1 repaired: `merge-gate` declares `resolveAgentContract`, and the builder merge-conflict resolver uses that same contract through `resolveWorkflowAgentRunContract` before launch.
+- Critical finding 2 repaired: branch-arm code-step validation preserves the supplied label and reports `steps[0].ifTrue[0]` exactly.
+- Focused command (`code-step-agent-contract-validation`, `merge-conflict-resolver`, `merge-gate-step`): PASS — 3 files, 7 tests.
+- Broad command (`workflow-validation.integration` plus the builder directory): PASS — 29 files, 218 tests.
+- Policy command (`strict-types`, root layout, no module imports in core, module dependencies, workflow validation): PASS — 5 files, 94 tests.
+- `pnpm run typecheck`, `pnpm build`, `pnpm run validate-tasks`, and Biome over all six final repair-touched files: PASS.
+- Final touched source sizes: `merge-conflict-resolver.test.ts` 285 lines, `merge-gate-step.test.ts` 58 lines, and `code-step-agent-contract-validation.test.ts` 133 lines; the repair adds no oversized file.

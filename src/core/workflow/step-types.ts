@@ -3,6 +3,7 @@ import type {
   AgentHarnessStepOverrides,
 } from "#core/agent-harness/types.js";
 import type { ModelTier } from "#core/model/model-router.js";
+import type { AgentRuntimeSelection } from "#core/model/preset.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type {
   WorkflowPredicate,
@@ -84,6 +85,30 @@ export type WorkflowAgentStep = WorkflowProgressStep & {
   validate?: WorkflowAgentStepOutputValidator;
 };
 
+/** Definition-known fields that determine adapter capability compatibility. */
+export type WorkflowAgentRunContractSpec = Pick<
+  WorkflowAgentStep,
+  | "harness"
+  | "model"
+  | "effort"
+  | "maxTurns"
+  | "thinkingEnabled"
+  | "thinkingBudget"
+  | "allowedTools"
+  | "disallowedTools"
+  | "harnessOptions"
+  | "autonomyMode"
+> & {
+  ownerQuestionAccess?: "available" | "disabled";
+  persistSession?: boolean;
+  enableFileCheckpointing?: boolean;
+};
+
+/** Pure declaration used by non-agent steps that launch an agent internally. */
+export type WorkflowAgentRunContractResolver = (
+  runtime: AgentRuntimeSelection,
+) => WorkflowAgentRunContractSpec;
+
 export type WorkflowEmitStep = WorkflowBaseStep & {
   type: "emit";
   event: string;
@@ -99,6 +124,7 @@ export type WorkflowRestartStep = WorkflowBaseStep & {
 export type WorkflowCodeStep = WorkflowProgressStep & {
   type: "code";
   run: (context: WorkflowStepContext) => Promise<unknown> | unknown;
+  resolveAgentContract?: WorkflowAgentRunContractResolver;
   updatesWorkspaceDir?: boolean;
   updatesRuntimeResources?: boolean;
   /**

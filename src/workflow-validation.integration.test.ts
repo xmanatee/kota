@@ -1039,7 +1039,7 @@ describe("workflow validation", () => {
         projectDir,
       ),
     ).toThrow(
-      /steps\[0\].model rejected by harness "claude-agent-sdk": unknown model "gpt-4-turbo"/,
+      /workflow "builder" steps\[0\] resolved agent run contract is incompatible: unknown model "gpt-4-turbo" for harness "claude-agent-sdk"/,
     );
   });
 
@@ -1103,6 +1103,38 @@ describe("workflow validation", () => {
         projectDir,
       ),
     ).not.toThrow();
+  });
+
+  it("rejects a passive Codex contract with its exact workflow and step path", () => {
+    writeFileSync(
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "passive-codex-fixture",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [
+              {
+                id: "review",
+                type: "agent",
+                promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+                harness: "codex",
+                model: "gpt-5.6-sol",
+                effort: "xhigh",
+                autonomyMode: "passive",
+              },
+            ],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(
+      /test\/builder\.ts: workflow "passive-codex-fixture" steps\[0\] resolved agent run contract is incompatible: Agent harness "codex" cannot honor requested run option\(s\): autonomyMode="passive"\. autonomyMode="passive": Codex CLI native tool calls cannot be classified and denied individually under KOTA's passive contract\./,
+    );
   });
 
   it("accepts a non-claude model id when the resolved harness declares no catalog (gemini)", () => {
@@ -1549,34 +1581,35 @@ describe("workflow validation", () => {
     expect(step && "autonomyMode" in step ? step.autonomyMode : undefined).toBe("passive");
   });
 
-  it("allows supervised autonomyMode on workflow agent steps", () => {
+  it("rejects supervised autonomyMode when the resolved harness cannot honor it", () => {
     writeFileSync(
       join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
-    const definitions = validateWorkflowDefinitions(
-      [
-        registerWorkflowDefinition("test/builder.ts", {
-          name: "builder",
-          triggers: [{ event: "runtime.idle" }],
-          steps: [
-            {
-              id: "build",
-              type: "agent",
-              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
-              model: "claude-opus-4-7",
-              effort: "xhigh",
-              autonomyMode: "supervised",
-            },
-          ],
-        }),
-      ],
-      projectDir,
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [
+              {
+                id: "build",
+                type: "agent",
+                promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+                model: "claude-opus-4-7",
+                effort: "xhigh",
+                autonomyMode: "supervised",
+              },
+            ],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(
+      /claude-agent-sdk.*autonomyMode="supervised".*no native route into KOTA's approval queue/,
     );
-
-    const step = definitions[0]?.steps[0];
-    expect(step && "autonomyMode" in step ? step.autonomyMode : undefined).toBe("supervised");
   });
 
   it("rejects invalid defaultAutonomyMode on workflow definitions", () => {

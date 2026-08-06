@@ -1,0 +1,171 @@
+import {
+  type AgentHarnessAuthProbe,
+  type AgentHarnessReadiness,
+  redactAgentHarnessAuthDetail,
+} from "#core/agent-harness/index.js";
+import { loadConfig } from "#core/config/config.js";
+import { PRESET_ENV_VAR, resolvePreset } from "#core/model/preset.js";
+import {
+  collectPresetHarnessReadiness,
+  isPresetHarnessReadinessReady,
+  type PresetHarnessReadiness,
+} from "#core/model/preset-readiness.js";
+import type { DoctorCheckResult } from "./client.js";
+import { fail, pass } from "./doctor-results.js";
+
+function runtimeProbeStatus(
+  probe: PresetHarnessReadiness["adapter"]["localRuntime"],
+): DoctorCheckResult["status"] {
+  return probe.status === "ready" || !probe.required ? "pass" : "fail";
+}
+
+function runtimeProbeName(
+  probe: PresetHarnessReadiness["adapter"]["localRuntime"],
+): string {
+  if (probe.kind === "native-cli") return probe.binaryName;
+  if (probe.kind === "node-runtime") return "node";
+  return probe.packageName;
+}
+
+function runtimeProbeDetail(
+  probe: PresetHarnessReadiness["adapter"]["localRuntime"],
+): string {
+  return probe.status === "error" ? `${probe.summary} (${probe.detail})` : probe.summary;
+}
+
+function presetReadinessSummary(readiness: PresetHarnessReadiness): string {
+  if (!readiness.auth.ready) return `auth ${readiness.auth.summary}`;
+  if (readiness.adapter.localRuntime.required && readiness.adapter.localRuntime.status !== "ready") {
+    return `runtime ${readiness.adapter.localRuntime.summary}`;
+  }
+  return `${readiness.auth.summary}; runtime ${readiness.adapter.localRuntime.summary}`;
+}
+
+function hasRequiredRuntimeFailure(readiness: PresetHarnessReadiness): boolean {
+  return readiness.adapter.localRuntime.required && readiness.adapter.localRuntime.status !== "ready";
+}
+
+function authCheckStatus(readiness: PresetHarnessReadiness): DoctorCheckResult["status"] {
+  if (
+    readiness.auth.mode === "harness-managed-login" &&
+    (readiness.auth.probe.status === "expiring" || readiness.auth.probe.status === "unverifiable")
+  ) {
+    return "warn";
+  }
+  return readiness.auth.ready ? "pass" : "fail";
+}
+
+function redactAuthProbeMetadata(probe: AgentHarnessAuthProbe): AgentHarnessAuthProbe {
+  return { ...probe, detail: redactAgentHarnessAuthDetail(probe.detail) };
+}
+
+function redactHarnessReadinessMetadata(
+  readiness: AgentHarnessReadiness,
+): AgentHarnessReadiness {
+  const localAuth = readiness.localAuth === undefined
+    ? undefined
+    : redactAuthProbeMetadata(readiness.localAuth);
+  return { ...readiness, ...(localAuth !== undefined ? { localAuth } : {}) };
+}
+
+function redactPresetReadinessMetadata(
+  readiness: PresetHarnessReadiness,
+): PresetHarnessReadiness {
+  const adapter = redactHarnessReadinessMetadata(readiness.adapter);
+  const auth = readiness.auth.mode === "harness-managed-login"
+    ? { ...readiness.auth, probe: redactAuthProbeMetadata(readiness.auth.probe) }
+    : readiness.auth;
+  return { ...readiness, adapter, auth };
+}
+
+function renderPresetReadinessChecks(
+  readiness: PresetHarnessReadiness,
+  sourceLabel: string,
+): DoctorCheckResult[] {
+  const metadataReadiness = redactPresetReadinessMetadata(readiness);
+  const sourceDetail =
+    `source: ${sourceLabel}, harness: ${readiness.harnessId}, defaultModel: ${readiness.defaultModel}`;
+  const authStatus = authCheckStatus(readiness);
+  const presetStatus: DoctorCheckResult["status"] =
+    authStatus === "warn" && !hasRequiredRuntimeFailure(readiness)
+      ? "warn"
+      : isPresetHarnessReadinessReady(readiness)
+        ? "pass"
+        : "fail";
+  const checks: DoctorCheckResult[] = [
+    {
+      label: `Preset: ${readiness.presetId}`,
+      status: presetStatus,
+      detail: `${presetReadinessSummary(readiness)} (${sourceDetail})`,
+      metadata: { presetReadiness: metadataReadiness },
+    },
+    pass(
+      `Preset tiers: ${readiness.presetId}`,
+      `fast=${readiness.tiers.fast}, balanced=${readiness.tiers.balanced}, capable=${readiness.tiers.capable}`,
+    ),
+    pass(
+      `Preset adapter: ${readiness.presetId}`,
+      `kind=${readiness.adapter.adapterKind}, harness=${readiness.harnessId}`,
+    ),
+    {
+      label: `Preset runtime: ${readiness.presetId}`,
+      status: runtimeProbeStatus(readiness.adapter.localRuntime),
+      detail: runtimeProbeDetail(readiness.adapter.localRuntime),
+    },
+  ];
+  for (const optional of readiness.adapter.optionalRuntimes) {
+    checks.push({
+      label: `Preset optional runtime: ${readiness.presetId}/${runtimeProbeName(optional)}`,
+      status: runtimeProbeStatus(optional),
+      detail: runtimeProbeDetail(optional),
+    });
+  }
+  checks.push({
+    label: `Preset auth: ${readiness.presetId}`,
+    status: authCheckStatus(readiness),
+    detail: readiness.auth.summary,
+  });
+  checks.push(pass(
+    `Preset unsupported options: ${readiness.presetId}`,
+    readiness.adapter.unsupportedOptions.length === 0
+      ? "none"
+      : readiness.adapter.unsupportedOptions.map((option) => option.option).join(", "),
+  ));
+  return checks;
+}
+
+export function checkPresetHarnessReadiness(
+  projectDir: string,
+  requestedPresetId: string | undefined,
+): DoctorCheckResult[] {
+  const config = loadConfig(projectDir);
+  let resolution: ReturnType<typeof resolvePreset>;
+  try {
+    resolution = resolvePreset({
+      flag: requestedPresetId,
+      env: process.env[PRESET_ENV_VAR],
+      config: config.defaultPreset,
+    });
+  } catch (err) {
+    return [fail("Preset", err instanceof Error ? err.message : String(err))];
+  }
+  const { preset, source } = resolution;
+  const readiness = collectPresetHarnessReadiness(preset, {
+    tierOverrides: config.modelTiers,
+  });
+  return renderPresetReadinessChecks(
+    readiness,
+    source === "default" ? "shipped default" : source,
+  );
+}
+
+export function extractPresetReadiness(
+  checks: readonly DoctorCheckResult[],
+): PresetHarnessReadiness | undefined {
+  for (const check of checks) {
+    if (check.metadata?.presetReadiness) {
+      return redactPresetReadinessMetadata(check.metadata.presetReadiness);
+    }
+  }
+  return undefined;
+}

@@ -1,34 +1,18 @@
 import {
-  type AgentCanUseTool,
-  type AgentTokenBudgetLedger,
   findRequiredHarnessReadinessFailures,
   formatRequiredHarnessReadinessFailures,
   type KotaAgentMessage,
   resolveAgentHarness,
-  type TrajectoryDiagnosticsMetadata,
 } from "#core/agent-harness/index.js";
-import type { AgentDef } from "#core/agents/agent-types.js";
-import type { KotaConfig } from "#core/config/config.js";
-import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
-import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
-import type {
-  ResolvedScopePolicy,
-  ScopePolicyAuthority,
-  ScopePolicySnapshot,
-} from "#core/daemon/scope-policy.js";
-import type { DelegateBudget } from "#core/tools/delegate-budget.js";
-import type { ToolResult } from "#core/tools/index.js";
 import { ToolTelemetry } from "#core/tools/tool-telemetry.js";
 import type {
   WorkflowRunMetadata,
-  WorkflowRuntimeResources,
   WorkflowStepContext,
 } from "../run-types.js";
 import { WorkflowStepOutputValidationError } from "../step-input-code.js";
 import type { WorkflowAgentStep } from "../step-types.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import type { WorkflowDefinition } from "../types.js";
-import type { AgentRunLimiter } from "./agent-run-limiter.js";
 import {
   AgentWriteScopeViolationError,
   diffMutatedPaths,
@@ -48,12 +32,18 @@ import {
   buildAgentPrompt,
   buildAgentSystemPrompt,
 } from "./step-executor-agent-prompt.js";
+import { resolveWorkflowAgentModel } from "./step-executor-agent-run-contract.js";
 import { writeToolTelemetryArtifact } from "./step-executor-agent-telemetry.js";
 import {
   resolveAgentStepTokenBudget,
   writeAgentTokenBudgetArtifact,
 } from "./step-executor-agent-token-budget.js";
 import { writeAgentTrajectoryDiagnosticsArtifact } from "./step-executor-agent-trajectory-diagnostics.js";
+import type {
+  AgentStepConfig,
+  AgentStepResult,
+  WorkflowStepOutput,
+} from "./step-executor-agent-types.js";
 import {
   AgentStepRuntimeError,
   classifyAgentRuntimeFailure,
@@ -61,44 +51,12 @@ import {
   withRetry,
 } from "./step-executor-retry.js";
 
-export type WorkflowStepOutput =
-  | ToolResult
-  | { content: string; sessionId?: string; turns?: number; totalCostUsd?: number; inputTokens?: number; outputTokens?: number; subtype?: string }
-  | Record<string, unknown>
-  | string | number | boolean | null | undefined;
-export type AgentStepResult = {
-  output: WorkflowStepOutput;
-  harness: string;
-  model: string;
-  trajectoryDiagnostics: TrajectoryDiagnosticsMetadata;
-  trajectoryMessages: readonly KotaAgentMessage[];
-  preStepMutatedPaths: readonly string[];
-  tokenBudget?: AgentTokenBudgetLedger;
-};
-
-export type AgentStepConfig = {
-  model?: string;
-  config?: KotaConfig;
-  projectDir: string;
-  workspaceDir?: string;
-  authorityConfigPath?: string;
-  runtimeResources?: WorkflowRuntimeResources;
-  log?: (message: string) => void;
-  resolveAgentDef?: (name: string) => AgentDef | undefined;
-  resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
-  createCanUseTool?: (stepId: string) => AgentCanUseTool;
-  agentRunLimiter?: AgentRunLimiter;
-  delegateBudget?: DelegateBudget;
-  runTokenBudget?: AgentTokenBudgetLedger;
-	approvalQueue?: ApprovalQueue;
-  idempotencyStore?: IdempotencyStore;
-  scopeId?: string;
-  projectId?: string;
-  scopePolicyAuthority?: ScopePolicyAuthority;
-  scopePolicySnapshot?: ScopePolicySnapshot;
-  scopePolicy?: ResolvedScopePolicy;
-};
 export { resolvePromptContextStartDir } from "./step-executor-agent-prompt.js";
+export type {
+  AgentStepConfig,
+  AgentStepResult,
+  WorkflowStepOutput,
+} from "./step-executor-agent-types.js";
 export {
   AgentStepRuntimeError,
   classifyAgentRuntimeFailure,
@@ -107,7 +65,7 @@ export {
 };
 
 export function resolveAgentModel(step: WorkflowAgentStep, agentConfig: AgentStepConfig): string {
-  return (step.agentName ? agentConfig.config?.agentModels?.[step.agentName] : undefined) ?? step.model;
+  return resolveWorkflowAgentModel(step, agentConfig.config?.agentModels);
 }
 
 export async function executeAgentStep(

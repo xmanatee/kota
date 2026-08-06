@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
+import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
 import {
   type AgentJudgeConfig,
   getChangedFiles,
@@ -12,6 +13,7 @@ import {
   isJudgeRunawayError,
   judgeUnavailableResult,
   parseVerdict,
+  resolveAgentJudgeRunContract,
 } from "./critic.js";
 import { fileLineCitationsFromUnifiedDiff } from "./review-scrutiny-citations.js";
 
@@ -71,33 +73,41 @@ const gateBaseConfig: GateBaseConfig = {
   maxTurns: GATE_MAX_TURNS,
 };
 
+type ImproverSemanticCheckOptions = {
+  runDirPath?: string;
+  harnessName?: string;
+};
+
+function resolveSemanticGateJudgeConfig(
+  parentStep: WorkflowAgentStep,
+  options: ImproverSemanticCheckOptions | undefined,
+): AgentJudgeConfig {
+  return {
+    ...gateBaseConfig,
+    harness: options?.harnessName ?? parentStep.harness,
+    model: parentStep.model,
+    effort: parentStep.effort,
+  };
+}
+
 function readCommitMessage(runDirPath: string): string {
   const path = join(runDirPath, "commit-message.txt");
   if (!existsSync(path)) return "(no commit message found)";
   return readFileSync(path, "utf8").trim();
 }
 
-export function createImproverSemanticCheck(options?: {
-  runDirPath?: string;
-  /**
-   * Force a specific harness name. Production callers leave this unset so the
-   * check dispatches through the parent agent step's resolved harness (which
-   * the validator populated from `config.defaultAgentHarness`). Tests use it
-   * to drive the gate over a specific adapter directly.
-   */
-  harnessName?: string;
-}): WorkflowRepairCheck {
+export function createImproverSemanticCheck(
+  options?: ImproverSemanticCheckOptions,
+): WorkflowRepairCheck {
   return {
     id: "semantic-quality-gate",
     type: "code" as const,
+    resolveAgentContract: (parentStep) =>
+      resolveAgentJudgeRunContract(
+        resolveSemanticGateJudgeConfig(parentStep, options),
+      ),
     run: async (ctx, parentStep) => {
-      const harnessName = options?.harnessName ?? parentStep.harness;
-      const gateConfig: AgentJudgeConfig = {
-        ...gateBaseConfig,
-        harness: harnessName,
-        model: parentStep.model,
-        effort: parentStep.effort,
-      };
+      const gateConfig = resolveSemanticGateJudgeConfig(parentStep, options);
       const diffStat = getStagedDiff(ctx.projectDir);
       const changedFiles = getChangedFiles(ctx.projectDir);
 

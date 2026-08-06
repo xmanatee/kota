@@ -9,6 +9,11 @@ import {
 	clearAgentHarnessRegistryForTest,
 	registerAgentHarness,
 } from "#core/agent-harness/index.js";
+import {
+	type AgentRuntimeSelection,
+	getPreset,
+	SHIPPED_DEFAULT_PRESET_ID,
+} from "#core/model/preset.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { createWorkflowAgentHarnessRunner } from "#core/workflow/steps/workflow-agent-harness-runner.js";
 import {
@@ -22,10 +27,25 @@ import {
 import {
 	createMergeConflictResolver,
 	MERGE_CONFLICT_RESOLVER_ALLOWED_TOOLS,
+	resolveMergeConflictResolverRunContract,
 } from "./merge-conflict-resolver.js";
 
 const tempDirs: string[] = [];
 const runAgentHarness = createWorkflowAgentHarnessRunner(undefined);
+const TEST_PRESET = getPreset(SHIPPED_DEFAULT_PRESET_ID);
+
+function testAgentRuntime(harness: string): AgentRuntimeSelection {
+	return {
+		preset: TEST_PRESET,
+		harness,
+		tiers: { ...TEST_PRESET.tiers },
+		effort: "xhigh",
+	};
+}
+
+function mergeResolverContract(harness: string) {
+	return resolveMergeConflictResolverRunContract(testAgentRuntime(harness));
+}
 
 function makeWorkspace(): string {
 	const dir = mkdtempSync(join(tmpdir(), "kota-merge-resolver-"));
@@ -129,9 +149,7 @@ describe("createMergeConflictResolver", () => {
 			runDirPath: join(workspaceDir, ".kota/runs/test-run"),
 			workflowName: "builder",
 			runId: "test-run",
-			harnessName: "test-harness",
-			model: "test-model",
-			effort: "xhigh",
+			agentContract: mergeResolverContract("test-harness"),
 			runAgentHarness,
 		});
 
@@ -142,6 +160,15 @@ describe("createMergeConflictResolver", () => {
 
 		expect(run).toHaveBeenCalledOnce();
 		const options = run.mock.calls[0][0] as AgentHarnessRunOptions;
+		expect(options).toMatchObject({
+			model: TEST_PRESET.tiers.capable,
+			maxTurns: 8,
+			effort: "xhigh",
+			autonomyMode: "autonomous",
+			persistSession: false,
+			enableFileCheckpointing: false,
+		});
+		expect(options.askOwner).toBeUndefined();
 		expect(options.allowedTools).toEqual([...MERGE_CONFLICT_RESOLVER_ALLOWED_TOOLS]);
 		expect(options.allowedTools).not.toContain("Bash");
 		expect(options.allowedTools).not.toContain("shell");
@@ -183,9 +210,7 @@ describe("createMergeConflictResolver", () => {
 			runDirPath,
 			workflowName: "builder",
 			runId: "test-run",
-			harnessName: "codex",
-			model: "test-model",
-			effort: "xhigh",
+			agentContract: mergeResolverContract("codex"),
 			runAgentHarness,
 		});
 
@@ -209,9 +234,7 @@ describe("createMergeConflictResolver", () => {
 			runDirPath: join(projectDir, ".kota/runs/run-native-merge-conflict"),
 			workflowName: "builder",
 			runId: worktree.metadata.runId,
-			harnessName: "codex",
-			model: "test-model",
-			effort: "xhigh",
+			agentContract: mergeResolverContract("codex"),
 			runAgentHarness,
 		});
 
@@ -250,9 +273,7 @@ describe("createMergeConflictResolver", () => {
 			runDirPath: join(workspaceDir, ".kota/runs/test-run"),
 			workflowName: "builder",
 			runId: "test-run",
-			harnessName: "test-harness",
-			model: "test-model",
-			effort: "xhigh",
+			agentContract: mergeResolverContract("test-harness"),
 			runAgentHarness,
 		});
 		const request = makeRequest(workspaceDir);

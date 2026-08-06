@@ -3,6 +3,10 @@ import type {
   WorkflowStepContext,
   WorkflowValueResolver,
 } from "#core/workflow/run-types.js";
+import type {
+  WorkflowAgentRunContractSpec,
+  WorkflowAgentStep,
+} from "#core/workflow/step-types.js";
 import {
   expectName,
   expectNonEmptyString,
@@ -81,6 +85,11 @@ export function validateRepairLoop(
         severity: severity as "error" | "warning" | undefined,
         phase,
         run: run as (context: WorkflowStepContext) => Promise<RepairLoopOpaque> | RepairLoopOpaque,
+        resolveAgentContract: expectOptionalFunction(
+          check.resolveAgentContract,
+          `${field}.checks[${i}].resolveAgentContract`,
+          definitionPath,
+        ) as ((parentStep: WorkflowAgentStep) => WorkflowAgentRunContractSpec) | undefined,
       };
     }
 

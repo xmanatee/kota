@@ -1,10 +1,18 @@
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  type AgentHarness,
+  type AgentHarnessRunOptions,
+  clearAgentHarnessRegistryForTest,
+  registerAgentHarness,
+} from "#core/agent-harness/index.js";
+import { resolveAgentRuntime } from "#core/model/preset.js";
 import {
   buildShadowSemanticReviewPrompt,
   parseShadowSemanticReviewerResponse,
+  resolveShadowSemanticReviewRunContract,
   runShadowSemanticReview,
   workflowMutationArtifacts,
 } from "./shadow-semantic-review.js";
@@ -17,6 +25,10 @@ import {
 } from "./shadow-semantic-review-test-support.js";
 
 describe("shadow semantic review runtime", () => {
+  afterEach(() => {
+    clearAgentHarnessRegistryForTest();
+  });
+
   it("builds prompts from declared artifacts without hidden context leakage", () => {
     const declaration = baseShadowReviewDeclaration();
     const prompt = buildShadowSemanticReviewPrompt(declaration, {
@@ -170,6 +182,80 @@ describe("shadow semantic review runtime", () => {
     expect(response.findings[0]).toMatchObject({
       falsePositive: true,
       falsePositiveReason: "Existing task was already closed.",
+    });
+  });
+
+  it("declares and launches the shadow reviewer through one resolved contract", async () => {
+    const harness: AgentHarness = {
+      name: "shadow-review-contract-fixture",
+      description: "shadow review contract fixture",
+      supportsMultiTurn: false,
+      supportedHookKinds: [],
+      askOwnerToolName: null,
+      emitsAgentMessageStream: false,
+      toolControl: "native",
+      nativeAbortQuarantine: "confirmed-stop",
+      unsupportedRunOptions: [],
+      run: async () => ({
+        text: "unused",
+        streamedText: "",
+        turns: 1,
+        isError: false,
+      }),
+    };
+    registerAgentHarness(harness);
+    const { projectDir, runDirPath } = makeShadowReviewDirs();
+    const runtime = {
+      ...resolveAgentRuntime(undefined, {}),
+      harness: harness.name,
+    };
+    const declaration = baseShadowReviewDeclaration({
+      reviewer: {
+        ...baseShadowReviewDeclaration().reviewer,
+        model: "shadow-model",
+        effort: "high",
+        maxTurns: 5,
+      },
+    });
+    const runAgentHarness = vi.fn(async (
+      _harness: AgentHarness,
+      _options: Omit<AgentHarnessRunOptions, "abortController">,
+    ) => ({
+      text: JSON.stringify({
+        decision: "pass",
+        summary: "The declared target is sound.",
+        citedArtifacts: ["artifact:diff"],
+        findings: [],
+      }),
+      streamedText: "",
+      turns: 1,
+      isError: false,
+    }));
+    const ctx = {
+      ...makeShadowReviewContext(projectDir, runDirPath),
+      agentRuntime: runtime,
+      runAgentHarness,
+    };
+
+    await runShadowSemanticReview({ ctx, declaration });
+
+    const contract = resolveShadowSemanticReviewRunContract(runtime, declaration);
+    expect(contract).toMatchObject({
+      harness: harness.name,
+      model: "shadow-model",
+      effort: "high",
+      maxTurns: 5,
+      autonomyMode: "autonomous",
+      ownerQuestionAccess: "disabled",
+    });
+    expect(runAgentHarness).toHaveBeenCalledOnce();
+    expect(runAgentHarness.mock.calls[0]?.[1]).toMatchObject({
+      model: contract.model,
+      effort: contract.effort,
+      maxTurns: contract.maxTurns,
+      autonomyMode: contract.autonomyMode,
+      persistSession: false,
+      enableFileCheckpointing: false,
     });
   });
 });

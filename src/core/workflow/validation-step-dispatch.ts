@@ -41,10 +41,12 @@ export function validateStep(
   options: WorkflowValidationOptions,
   allowWorkspaceDirUpdate = true,
   allowRuntimeResourcesUpdate = true,
+  stepLabel = `steps[${index}]`,
+  workflowName = "<unresolved>",
 ): WorkflowStep {
   if (!step || typeof step !== "object") {
     throw new WorkflowDefinitionError(
-      `steps[${index}] must be an object`,
+      `${stepLabel} must be an object`,
       definitionPath,
     );
   }
@@ -54,10 +56,11 @@ export function validateStep(
     return validateAgentStep(
       step,
       definitionPath,
-      index,
+      stepLabel,
       moduleRoot,
       workflowDefaultAutonomyMode,
       options,
+      workflowName,
     );
   }
   if (step.type === "emit") return validateEmitStep(step, definitionPath, index);
@@ -65,10 +68,10 @@ export function validateStep(
     return validateRestartStep(step, definitionPath, index);
   }
   if (step.type === "code") {
-    return validateCodeStep(step, definitionPath, index, `steps[${index}]`, {
+    return validateCodeStep(step, definitionPath, index, stepLabel, {
       allowWorkspaceDirUpdate,
       allowRuntimeResourcesUpdate,
-    });
+    }, options, workflowName);
   }
   if (step.type === "parallel") {
     return validateParallelGroup(
@@ -78,6 +81,8 @@ export function validateStep(
       moduleRoot,
       workflowDefaultAutonomyMode,
       options,
+      stepLabel,
+      workflowName,
     );
   }
   if (step.type === "trigger") {
@@ -90,8 +95,20 @@ export function validateStep(
       index,
       moduleRoot,
       workflowDefaultAutonomyMode,
-      (armStep, dp, armIndex, root, armDefault) =>
-        validateStep(armStep, dp, armIndex, root, armDefault, options, false),
+      (armStep, dp, armIndex, root, armDefault, armStepLabel) =>
+        validateStep(
+          armStep,
+          dp,
+          armIndex,
+          root,
+          armDefault,
+          options,
+          false,
+          true,
+          armStepLabel,
+          workflowName,
+        ),
+      stepLabel,
     );
   }
   if (step.type === "foreach") {
@@ -102,6 +119,8 @@ export function validateStep(
       moduleRoot,
       workflowDefaultAutonomyMode,
       options,
+      stepLabel,
+      workflowName,
     );
   }
   if (step.type === "approval") {
@@ -120,7 +139,7 @@ export function validateStep(
   }
 
   throw new WorkflowDefinitionError(
-    `steps[${index}].type must be "tool", "agent", "emit", "restart", "code", "parallel", "trigger", "branch", "foreach", "approval", or "await-event"`,
+    `${stepLabel}.type must be "tool", "agent", "emit", "restart", "code", "parallel", "trigger", "branch", "foreach", "approval", or "await-event"`,
     definitionPath,
   );
 }

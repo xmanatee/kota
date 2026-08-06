@@ -21,6 +21,7 @@ type ValidateDefinitionsOptions = {
   defaultAgentHarness?: string;
   preset?: Preset;
   modelTiers?: ModelTiers;
+  agentModels?: Readonly<Record<string, string>>;
   resolveAgentDef?: (name: string) => AgentDef | undefined;
 };
 
@@ -47,6 +48,7 @@ export function validateDefinitions(
           defaultAgentHarness: options.defaultAgentHarness,
           preset: options.preset,
           modelTiers: options.modelTiers,
+          agentModels: options.agentModels,
           resolveAgentDef: options.resolveAgentDef,
         },
       );
@@ -72,6 +74,7 @@ export function validateDefinitions(
           defaultAgentHarness: options.defaultAgentHarness,
           preset: options.preset,
           modelTiers: options.modelTiers,
+          agentModels: options.agentModels,
           resolveAgentDef: options.resolveAgentDef,
         },
       );
@@ -110,6 +113,7 @@ export function registerValidateCommand(
           defaultAgentHarness: runtime.harness,
           preset: runtime.preset,
           modelTiers: runtime.tiers,
+          agentModels: ctx.config.agentModels,
           resolveAgentDef: ctx.resolveAgentDef,
         });
       } catch (err) {

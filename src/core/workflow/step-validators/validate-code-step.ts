@@ -1,11 +1,18 @@
+import { hasAgentHarness, resolveAgentHarness } from "#core/agent-harness/registry.js";
 import type { CodeStepOutputValidator, WorkflowCodeStepInput } from "#core/workflow/step-input-code.js";
-import type { WorkflowCodeStep } from "#core/workflow/step-types.js";
+import type {
+  WorkflowAgentRunContractResolver,
+  WorkflowCodeStep,
+} from "#core/workflow/step-types.js";
+import { resolveStaticWorkflowAgentRunContract } from "#core/workflow/steps/step-executor-agent-run-contract.js";
+import { resolveWorkflowValidationAgentRuntime } from "#core/workflow/validation-agent-runtime.js";
 import {
   expectName,
   expectOptionalBoolean,
   expectOptionalFunction,
   validateProgressStepTimeouts,
   WorkflowDefinitionError,
+  type WorkflowValidationOptions,
 } from "#core/workflow/validation-primitives.js";
 import { validateExposedOutputTrust } from "./validate-exposed-output-trust.js";
 
@@ -18,6 +25,8 @@ export function validateCodeStep(
     allowWorkspaceDirUpdate?: boolean;
     allowRuntimeResourcesUpdate?: boolean;
   } = {},
+  validationOptions: WorkflowValidationOptions = {},
+  workflowName = "<unresolved>",
 ): WorkflowCodeStep {
   if (typeof step.run !== "function") {
     throw new WorkflowDefinitionError(
@@ -58,7 +67,13 @@ export function validateCodeStep(
     );
   }
 
-  return {
+  const resolveAgentContract = expectOptionalFunction(
+    step.resolveAgentContract,
+    `${stepLabel}.resolveAgentContract`,
+    definitionPath,
+  ) as WorkflowAgentRunContractResolver | undefined;
+
+  const validatedStep: WorkflowCodeStep = {
     id: expectName(step.id, `${stepLabel}.id`, definitionPath),
     type: "code",
     run: step.run,
@@ -90,5 +105,29 @@ export function validateCodeStep(
     ...(step.validate !== undefined
       ? { validate: step.validate as CodeStepOutputValidator<unknown> }
       : {}),
+    ...(resolveAgentContract !== undefined ? { resolveAgentContract } : {}),
   };
+
+  if (resolveAgentContract !== undefined) {
+    try {
+      const contract = resolveAgentContract(
+        resolveWorkflowValidationAgentRuntime(validationOptions),
+      );
+      if (hasAgentHarness(contract.harness)) {
+        resolveStaticWorkflowAgentRunContract({
+          step: contract,
+          harness: resolveAgentHarness(contract.harness),
+          source: `workflow:${workflowName}/${stepLabel}`,
+        });
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new WorkflowDefinitionError(
+        `workflow "${workflowName}" ${stepLabel} resolved code-step agent run contract is incompatible: ${detail}`,
+        definitionPath,
+      );
+    }
+  }
+
+  return validatedStep;
 }

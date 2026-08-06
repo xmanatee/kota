@@ -10,120 +10,22 @@ import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import type { AgentRuntimeSelection } from "#core/model/preset.js";
 import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
+import type {
+  WorkflowRunStatus,
+  WorkflowRuntimeState,
+  WorkflowStepErrorKind,
+  WorkflowStepSkipReason,
+  WorkflowStepStatus,
+} from "./runtime-state-types.js";
 import type { WorkflowStepProgressReporter } from "./step-idle-timeout.js";
-import type { WorkflowAgentStep, WorkflowStep } from "./step-types.js";
-import type { WorkflowAgentBackoffSignal, WorkflowAgentBackoffState, WorkflowBatchBuffers, WorkflowRunTrigger } from "./trigger-types.js";
+import type {
+  WorkflowAgentRunContractSpec,
+  WorkflowAgentStep,
+  WorkflowStep,
+} from "./step-types.js";
+import type { WorkflowAgentBackoffSignal, WorkflowRunTrigger } from "./trigger-types.js";
 
-export type WorkflowRunStatus =
-  | "success"
-  | "failed"
-  | "interrupted"
-  | "completed-with-warnings";
-
-export type WorkflowStepStatus = "success" | "failed" | "skipped";
-
-export type WorkflowStepTimeoutErrorKind = "idle-timeout" | "step-timeout";
-export type WorkflowRepairErrorKind =
-  | "repair-no-progress"
-  | "repair-attempts-exhausted";
-export type WorkflowStepErrorKind =
-  | WorkflowStepTimeoutErrorKind
-  | WorkflowRepairErrorKind;
-
-export function isWorkflowStepTimeoutErrorKind(
-  kind: WorkflowStepErrorKind | undefined,
-): kind is WorkflowStepTimeoutErrorKind {
-  return kind === "idle-timeout" || kind === "step-timeout";
-}
-
-export function isWorkflowRepairErrorKind(
-  kind: WorkflowStepErrorKind | undefined,
-): kind is WorkflowRepairErrorKind {
-  return kind === "repair-no-progress" || kind === "repair-attempts-exhausted";
-}
-
-export type WorkflowStepSkipReasonKind =
-  | "when-predicate"
-  | "branch-arm-not-taken"
-  | "parent-skipped"
-  | "foreach-empty";
-
-export type WorkflowStepSkipReason = {
-  kind: WorkflowStepSkipReasonKind;
-  label?: string;
-};
-
-export type WorkflowActiveRun = {
-  runId: string;
-  workflow: string;
-  startedAt: string;
-};
-
-export type WorkflowQueuedRun = {
-  runId?: string;
-  workflowName: string;
-  trigger: WorkflowRunTrigger;
-  enqueuedAtMs: number;
-  notBeforeMs: number;
-};
-
-export type WorkflowRecoveryRetryAttempt = {
-  workflow: string;
-  runId: string;
-  attemptedAt: string;
-};
-
-export type WorkflowRecoveryDirtyCheckout = "canonical" | "workspace";
-
-export type WorkflowRecoveryState = {
-  sourceRunId: string;
-  sourceWorkflow: string;
-  dirtyCheckout?: WorkflowRecoveryDirtyCheckout;
-  worktreeFingerprint: string;
-  worktreeSummary: string;
-  attempts: number;
-  retryAttemptedBy: WorkflowRecoveryRetryAttempt[];
-  updatedAt: string;
-};
-
-export type WorkflowRunRef = {
-  runId: string;
-  startedAt: string;
-};
-
-export type WorkflowCompletion = {
-  runId: string;
-  startedAt: string;
-  completedAt: string;
-  status: WorkflowRunStatus;
-};
-
-/**
- * Per-workflow entry in persisted runtime state. `lastStarted` and
- * `lastCompletion` are independent, each self-describing a single run.
- * They may refer to the same run (idle after completion) or different runs
- * (a new run has started before the previous completion rolled off) but
- * fields within each slot always belong to one run.
- */
-export type WorkflowStateEntry = {
-  lastStarted?: WorkflowRunRef;
-  lastCompletion?: WorkflowCompletion;
-  nextScheduledAt?: string;
-};
-
-export type WorkflowRuntimeState = {
-  activeRuns?: WorkflowActiveRun[];
-  completedRuns: number;
-  totalCostUsd?: number;
-  totalInputTokens?: number;
-  totalOutputTokens?: number;
-  definitionsLoadedAt?: string;
-  agentBackoff?: WorkflowAgentBackoffState;
-  recovery?: WorkflowRecoveryState;
-  batchBuffers?: WorkflowBatchBuffers;
-  pendingRuns: WorkflowQueuedRun[];
-  workflows: Record<string, WorkflowStateEntry>;
-};
+export * from "./runtime-state-types.js";
 
 export type WorkflowContextInfo = {
   name: string;
@@ -308,6 +210,14 @@ export type WorkflowRepairCheck = {
         context: WorkflowStepContext,
         parentStep: WorkflowAgentStep,
       ) => Promise<unknown> | unknown;
+      /**
+       * Pure declaration for code checks that launch a judge agent. Definition
+       * validation resolves this against the parent step before dispatch; the
+       * check must use the same resolved contract at runtime.
+       */
+      resolveAgentContract?: (
+        parentStep: WorkflowAgentStep,
+      ) => WorkflowAgentRunContractSpec;
     }
 );
 

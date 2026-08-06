@@ -18,6 +18,7 @@ export function getValidatedWorkflowDefinitions(
     defaultAgentHarness: runtime.harness,
     preset: runtime.preset,
     modelTiers: runtime.tiers,
+    agentModels: ctx.config.agentModels,
     resolveAgentDef: ctx.resolveAgentDef,
   });
 }

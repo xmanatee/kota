@@ -1,9 +1,10 @@
 import { resolveAgentHarness } from "#core/agent-harness/index.js";
-import { resolveAgentRuntime } from "#core/model/preset.js";
+import { type AgentRuntimeSelection, resolveAgentRuntime } from "#core/model/preset.js";
 import type { WorkflowRuntimeDispatchState } from "./runtime-dispatch.js";
-import type { WorkflowStep } from "./step-types.js";
+import type { WorkflowAgentRunContractSpec, WorkflowStep } from "./step-types.js";
+import { resolveStaticWorkflowAgentRunContract } from "./steps/step-executor-agent-run-contract.js";
 import type { WorkflowDefinition } from "./types.js";
-import { validateWorkflowDefinitions } from "./validation.js";
+import { validateWorkflowDefinitions, WorkflowDefinitionError } from "./validation.js";
 
 export function compileDefinitions(
   state: Pick<WorkflowRuntimeDispatchState, "workflowInputs" | "projectDir" | "config" | "resolveAgentDef">,
@@ -13,23 +14,91 @@ export function compileDefinitions(
     defaultAgentHarness: runtime.harness,
     preset: runtime.preset,
     modelTiers: runtime.tiers,
+    agentModels: state.config?.agentModels,
     resolveAgentDef: state.resolveAgentDef,
   });
 }
 
-function assertRegisteredHarnessesInSteps(steps: readonly WorkflowStep[]): void {
-  for (const step of steps) {
+function assertLoadableAgentContract(input: {
+  resolveContract: () => WorkflowAgentRunContractSpec;
+  workflowName: string;
+  stepLabel: string;
+  definitionPath: string;
+}): void {
+  try {
+    const contract = input.resolveContract();
+    const harness = resolveAgentHarness(contract.harness);
+    resolveStaticWorkflowAgentRunContract({
+      step: contract,
+      harness,
+      source: `workflow:${input.workflowName}/${input.stepLabel}`,
+    });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new WorkflowDefinitionError(
+      `workflow "${input.workflowName}" ${input.stepLabel} resolved agent run contract is incompatible: ${detail}`,
+      input.definitionPath,
+    );
+  }
+}
+
+function assertLoadableAgentContractsInSteps(
+  steps: readonly WorkflowStep[],
+  runtime: AgentRuntimeSelection,
+  definition: Pick<WorkflowDefinition, "name" | "definitionPath">,
+  path = "steps",
+): void {
+  for (const [index, step] of steps.entries()) {
+    const stepLabel = `${path}[${index}]`;
     if (step.type === "agent") {
-      resolveAgentHarness(step.harness);
+      assertLoadableAgentContract({
+        resolveContract: () => step,
+        workflowName: definition.name,
+        stepLabel,
+        definitionPath: definition.definitionPath,
+      });
+      for (const [checkIndex, check] of (step.repairLoop?.checks ?? []).entries()) {
+        if (check.type !== "code" || check.resolveAgentContract === undefined) continue;
+        assertLoadableAgentContract({
+          resolveContract: () => check.resolveAgentContract!(step),
+          workflowName: definition.name,
+          stepLabel: `${stepLabel}.repairLoop.checks[${checkIndex}]`,
+          definitionPath: definition.definitionPath,
+        });
+      }
+      continue;
+    }
+    if (step.type === "code" && step.resolveAgentContract !== undefined) {
+      assertLoadableAgentContract({
+        resolveContract: () => step.resolveAgentContract!(runtime),
+        workflowName: definition.name,
+        stepLabel,
+        definitionPath: definition.definitionPath,
+      });
       continue;
     }
     if (step.type === "parallel" || step.type === "foreach") {
-      assertRegisteredHarnessesInSteps(step.steps);
+      assertLoadableAgentContractsInSteps(
+        step.steps,
+        runtime,
+        definition,
+        `${stepLabel}.steps`,
+      );
       continue;
     }
     if (step.type === "branch") {
-      assertRegisteredHarnessesInSteps(step.ifTrue);
-      assertRegisteredHarnessesInSteps(step.ifFalse);
+      assertLoadableAgentContractsInSteps(
+        step.ifTrue,
+        runtime,
+        definition,
+        `${stepLabel}.ifTrue`,
+      );
+      assertLoadableAgentContractsInSteps(
+        step.ifFalse,
+        runtime,
+        definition,
+        `${stepLabel}.ifFalse`,
+      );
     }
   }
 }
@@ -37,9 +106,10 @@ function assertRegisteredHarnessesInSteps(steps: readonly WorkflowStep[]): void 
 export function resolveDefinitions(
   state: Pick<WorkflowRuntimeDispatchState, "workflowInputs" | "projectDir" | "config">,
 ): WorkflowDefinition[] {
+  const runtime = resolveAgentRuntime(state.config);
   const definitions = compileDefinitions(state);
   for (const definition of definitions) {
-    assertRegisteredHarnessesInSteps(definition.steps);
+    assertLoadableAgentContractsInSteps(definition.steps, runtime, definition);
   }
   return definitions;
 }

@@ -19,42 +19,44 @@ import { validateExposedOutputTrust } from "./validate-exposed-output-trust.js";
 export function validateForeachStep(
   step: WorkflowForeachStepInput,
   definitionPath: string,
-  index: number,
+  _index: number,
   moduleRoot: string,
   workflowDefaultAutonomyMode: AutonomyMode | undefined,
   options: WorkflowValidationOptions,
+  stepLabel: string,
+  workflowName: string,
 ): WorkflowForeachStep {
   if (step.items === undefined || step.items === null) {
     throw new WorkflowDefinitionError(
-      `steps[${index}].items is required`,
+      `${stepLabel}.items is required`,
       definitionPath,
     );
   }
   if (step.idleTimeoutMs !== undefined) {
     throw new WorkflowDefinitionError(
-      `steps[${index}].idleTimeoutMs is not supported on foreach groups — put idleTimeoutMs on leaf steps`,
+      `${stepLabel}.idleTimeoutMs is not supported on foreach groups — put idleTimeoutMs on leaf steps`,
       definitionPath,
     );
   }
   if (typeof step.items !== "function" && !Array.isArray(step.items)) {
     throw new WorkflowDefinitionError(
-      `steps[${index}].items must be a function or array`,
+      `${stepLabel}.items must be a function or array`,
       definitionPath,
     );
   }
 
-  const as = expectNonEmptyString(step.as, `steps[${index}].as`, definitionPath);
+  const as = expectNonEmptyString(step.as, `${stepLabel}.as`, definitionPath);
 
   if (!Array.isArray(step.steps) || step.steps.length === 0) {
     throw new WorkflowDefinitionError(
-      `steps[${index}].steps must be a non-empty array`,
+      `${stepLabel}.steps must be a non-empty array`,
       definitionPath,
     );
   }
 
   const maxConcurrency = expectOptionalInteger(
     step.maxConcurrency,
-    `steps[${index}].maxConcurrency`,
+    `${stepLabel}.maxConcurrency`,
     definitionPath,
     1,
   );
@@ -62,13 +64,13 @@ export function validateForeachStep(
   const innerSteps = step.steps.map((innerStep, innerIndex) => {
     if (!innerStep || typeof innerStep !== "object") {
       throw new WorkflowDefinitionError(
-        `steps[${index}].steps[${innerIndex}] must be an object`,
+        `${stepLabel}.steps[${innerIndex}] must be an object`,
         definitionPath,
       );
     }
     if (innerStep.type !== "code" && innerStep.type !== "agent") {
       throw new WorkflowDefinitionError(
-        `steps[${index}].steps[${innerIndex}].type must be "code" or "agent" — foreach, parallel, branch, trigger, emit, and restart are not allowed inside a foreach body`,
+        `${stepLabel}.steps[${innerIndex}].type must be "code" or "agent" — foreach, parallel, branch, trigger, emit, and restart are not allowed inside a foreach body`,
         definitionPath,
       );
     }
@@ -77,25 +79,28 @@ export function validateForeachStep(
         innerStep as WorkflowCodeStepInput,
         definitionPath,
         innerIndex,
-        `steps[${index}].steps[${innerIndex}]`,
+        `${stepLabel}.steps[${innerIndex}]`,
         {
           allowWorkspaceDirUpdate: false,
           allowRuntimeResourcesUpdate: false,
         },
+        options,
+        workflowName,
       ) as WorkflowCodeStep;
     }
     return validateAgentStep(
       innerStep as WorkflowAgentStepInput,
       definitionPath,
-      innerIndex,
+      `${stepLabel}.steps[${innerIndex}]`,
       moduleRoot,
       workflowDefaultAutonomyMode,
       options,
+      workflowName,
     ) as WorkflowAgentStep;
   });
 
   return {
-    id: expectName(step.id, `steps[${index}].id`, definitionPath),
+    id: expectName(step.id, `${stepLabel}.id`, definitionPath),
     type: "foreach",
     items: step.items,
     as,
@@ -103,33 +108,33 @@ export function validateForeachStep(
     maxConcurrency,
     when: expectOptionalFunction(
       step.when,
-      `steps[${index}].when`,
+      `${stepLabel}.when`,
       definitionPath,
     ) as WorkflowForeachStep["when"],
     continueOnFailure: expectOptionalBoolean(
       step.continueOnFailure,
-      `steps[${index}].continueOnFailure`,
+      `${stepLabel}.continueOnFailure`,
       definitionPath,
     ),
     timeoutMs: expectOptionalInteger(
       step.timeoutMs,
-      `steps[${index}].timeoutMs`,
+      `${stepLabel}.timeoutMs`,
       definitionPath,
       1,
     ),
     exposeOutputToAgent: expectOptionalBoolean(
       step.exposeOutputToAgent,
-      `steps[${index}].exposeOutputToAgent`,
+      `${stepLabel}.exposeOutputToAgent`,
       definitionPath,
     ),
     exposedOutputTrust: validateExposedOutputTrust(
       step,
-      `steps[${index}]`,
+      stepLabel,
       definitionPath,
     ),
     retryFailedItems: expectOptionalBoolean(
       step.retryFailedItems,
-      `steps[${index}].retryFailedItems`,
+      `${stepLabel}.retryFailedItems`,
       definitionPath,
     ),
   };

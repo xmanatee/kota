@@ -244,7 +244,7 @@ describe("decomposer workflow", () => {
     });
   });
 
-  it("runs both reasoning steps as passive deny-all agents without unenforceable named tool policy", () => {
+  it("runs both reasoning steps as native-compatible deny-all agents without named tool policy", () => {
     expect(agent.writeScope).toBe("deny-all");
     const steps = decomposerWorkflow.steps.filter(
       (candidate) => candidate.type === "agent",
@@ -253,7 +253,7 @@ describe("decomposer workflow", () => {
     expect(steps).toHaveLength(2);
     for (const step of steps) {
       expect(step.autonomyMode ?? decomposerWorkflow.defaultAutonomyMode).toBe(
-        "passive",
+        "autonomous",
       );
       expect(step.allowedTools).toBeUndefined();
       expect(step.disallowedTools).toBeUndefined();

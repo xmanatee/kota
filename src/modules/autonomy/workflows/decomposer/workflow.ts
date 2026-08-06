@@ -197,7 +197,10 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
   description: "Rescope builder tasks after timeout or exhausted repair.",
   tags: ["monitored"],
   recoveryCapable: true,
-  defaultAutonomyMode: "passive",
+  // Capable-tier presets may resolve to a native CLI harness. Both reasoning
+  // agents remain read-only through AgentDef deny-all plus whole-step mutation
+  // enforcement, while autonomous is the native harness's enforceable mode.
+  defaultAutonomyMode: "autonomous",
   triggers: [
     {
       event: "workflow.completed",

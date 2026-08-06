@@ -1,11 +1,9 @@
 # Workflow Runtime
-This directory owns workflow definitions, validation, execution, repair loops, and persisted run state.
+Owns workflow definitions, validation, execution, repair loops, and persisted run state.
 
 - Put top-level autonomous execution semantics here, not in prompts or scheduler side channels.
-- Workflows are the only automation surface: hooks, jobs, standing orders,
-  webhooks, and autonomous loops compile to typed workflows.
-- `automation` is the authoring concept; `workflow` is the durable runtime form.
-  Triggers queue runs, schedules produce triggers, and steps execute in order.
+- Workflows are the only automation surface; all automation compiles to them.
+- `automation` is authoring; `workflow` is the durable triggered runtime form.
 - `defineAutomation` / `defineHook` must return ordinary workflow definitions
   before validation, scheduling, approvals, storage, or APIs observe them.
 - Agent harness lifecycle hooks are internal, not operator-authored hooks.
@@ -29,11 +27,13 @@ This directory owns workflow definitions, validation, execution, repair loops, a
   cannot be recovered cheaply from normal repo context and tools.
 
 ## Per-Concern Validation Split
-`validation.ts` only orchestrates. Put new rules in the sibling that owns the
-concern: step dispatch, definition shape, step ids, restart constraints,
-trigger references, trigger event shape, or assembly-level checks such as
-notifications, self-loop prevention, and recovery consistency. Do not regrow
-`validation.ts` past the orchestrator boundary.
+`validation.ts` only orchestrates. Put rules in the sibling that owns step
+dispatch, definition shape/ids, restarts, triggers, or assembly checks. Do not
+regrow `validation.ts` past the orchestrator boundary.
+
+Agent leaves, judge checks, and agent-launching code steps use the launch resolver
+to assert their fully resolved static adapter contract during definition load.
+Dynamic readiness and live policy remain launch-time state; launch repeats the capability assertion.
 
 ## Per-Concern Run-Store Split
 Run-store helpers are split by concern: filesystem/JSON IO, runtime-state

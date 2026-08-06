@@ -51,6 +51,10 @@ export function validateWorkflowDefinitions(
         moduleRoot,
         defaultAutonomyMode,
         options,
+        true,
+        true,
+        `steps[${stepIndex}]`,
+        name,
       ),
     );
 

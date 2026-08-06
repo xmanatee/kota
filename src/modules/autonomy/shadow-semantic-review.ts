@@ -1,9 +1,10 @@
 import {
   type AgentHarnessResult,
   createWorkflowAgentGuards,
+  hasAgentHarness,
   resolveAgentHarness,
-  routeKotaToolControlOptions,
 } from "#core/agent-harness/index.js";
+import type { AgentRuntimeSelection } from "#core/model/preset.js";
 import type {
   WorkflowPredicate,
   WorkflowStepContext,
@@ -13,6 +14,8 @@ import {
   expectStructuredOutput,
   typedCodeStep,
 } from "#core/workflow/step-input-code.js";
+import type { WorkflowAgentRunContractSpec } from "#core/workflow/step-types.js";
+import { resolveWorkflowAgentRunContract } from "#core/workflow/steps/step-executor-agent-run-contract.js";
 import {
   shadowSemanticReviewShouldBlock,
   validateShadowSemanticReviewerDeclaration,
@@ -75,21 +78,22 @@ async function defaultInvoker(
   declaration: ShadowSemanticReviewerDeclaration,
   ctx: WorkflowStepContext,
 ): Promise<AgentHarnessResult> {
-  const harness = resolveAgentHarness(ctx.agentRuntime.harness);
+  const contract = resolveShadowSemanticReviewRunContract(ctx.agentRuntime, declaration);
+  const harness = resolveAgentHarness(contract.harness);
+  const resolved = resolveWorkflowAgentRunContract({
+    step: contract,
+    harness,
+    model: contract.model,
+    prompt,
+    canUseTool: createWorkflowAgentGuards(),
+    askOwnerSource: `shadow-review:${declaration.id}`,
+  });
   return ctx.runAgentHarness(
     harness,
     {
-      prompt,
+      ...resolved.options,
       cwd,
       systemPrompt: declaration.reviewer.systemPrompt,
-      model: declaration.reviewer.model ?? ctx.agentRuntime.tiers.capable,
-      maxTurns: declaration.reviewer.maxTurns ?? DEFAULT_SHADOW_REVIEW_MAX_TURNS,
-      effort: declaration.reviewer.effort ?? ctx.agentRuntime.effort,
-      ...routeKotaToolControlOptions(harness, {
-        disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
-        canUseTool: createWorkflowAgentGuards(),
-      }),
-      autonomyMode: "autonomous",
     },
     {
       signal: ctx.signal,
@@ -97,6 +101,26 @@ async function defaultInvoker(
       writer: { write: () => true },
     },
   );
+}
+
+export function resolveShadowSemanticReviewRunContract(
+  runtime: AgentRuntimeSelection,
+  declaration: ShadowSemanticReviewerDeclaration,
+): WorkflowAgentRunContractSpec {
+  const harness = hasAgentHarness(runtime.harness)
+    ? resolveAgentHarness(runtime.harness)
+    : undefined;
+  return {
+    harness: runtime.harness,
+    model: declaration.reviewer.model ?? runtime.tiers.capable,
+    effort: declaration.reviewer.effort ?? runtime.effort,
+    maxTurns: declaration.reviewer.maxTurns ?? DEFAULT_SHADOW_REVIEW_MAX_TURNS,
+    autonomyMode: "autonomous",
+    ownerQuestionAccess: "disabled",
+    ...(harness?.toolControl === "kota"
+      ? { disallowedTools: AUTONOMY_DISALLOWED_TOOLS }
+      : {}),
+  };
 }
 
 function resultFromArtifact(
@@ -201,6 +225,8 @@ export function createShadowSemanticReviewStep(args: {
         "decision",
         "blocked",
       ]),
+    resolveAgentContract: (runtime) =>
+      resolveShadowSemanticReviewRunContract(runtime, args.declaration),
     run: (ctx) => runShadowSemanticReview({ ctx, declaration: args.declaration }),
   });
 }

@@ -1,13 +1,9 @@
 import {
-  hasAgentHarness,
   listAgentHarnessNames,
   resolveAgentHarness,
 } from "#core/agent-harness/registry.js";
 import type { AgentTokenBudgetConfig } from "#core/agent-harness/token-budget.js";
-import type {
-  AgentHarness,
-  AgentHarnessStepOverrides,
-} from "#core/agent-harness/types.js";
+import type { AgentHarnessStepOverrides } from "#core/agent-harness/types.js";
 import { DEFAULT_MODEL_TIERS, type ModelTier } from "#core/model/model-router.js";
 import { mergePresetTiers, type Preset } from "#core/model/preset.js";
 import {
@@ -153,41 +149,15 @@ export function validateHarnessOptions(
   return { [harnessName]: validated };
 }
 
-export function validateHarnessToolRestrictions(
-  harnessName: string,
-  allowedTools: readonly string[] | undefined,
-  disallowedTools: readonly string[] | undefined,
-  stepLabel: string,
-  definitionPath: string,
-): void {
-  if (!hasAgentHarness(harnessName)) return;
-  const harness = resolveAgentHarness(harnessName);
-  if (harness.toolControl === "kota") return;
-
-  if (allowedTools !== undefined) {
-    throw new WorkflowDefinitionError(
-      `${stepLabel}.allowedTools selects native harness "${harnessName}", which cannot honor KOTA named tool restrictions`,
-      definitionPath,
-    );
-  }
-  if (disallowedTools !== undefined && disallowedTools.length > 0) {
-    throw new WorkflowDefinitionError(
-      `${stepLabel}.disallowedTools selects native harness "${harnessName}", which cannot honor KOTA named tool restrictions`,
-      definitionPath,
-    );
-  }
-}
-
 export function resolveStepModel(args: {
   rawModel: StepOpaque;
   rawTier: StepOpaque;
-  harnessName: string;
   stepLabel: string;
   definitionPath: string;
   preset: Preset | undefined;
   modelTiers: WorkflowValidationOptions["modelTiers"];
 }): { model: string; tier: ModelTier | undefined } {
-  const { rawModel, rawTier, harnessName, stepLabel, definitionPath, preset, modelTiers } = args;
+  const { rawModel, rawTier, stepLabel, definitionPath, preset, modelTiers } = args;
   const hasModel = rawModel !== undefined;
   const hasTier = rawTier !== undefined;
   if (hasModel && hasTier) {
@@ -222,36 +192,9 @@ export function resolveStepModel(args: {
         definitionPath,
       );
     }
-    runHarnessValidateModelId(harnessName, model, stepLabel, definitionPath);
     return { model, tier: resolvedTier };
   }
 
   const model = expectNonEmptyString(rawModel, `${stepLabel}.model`, definitionPath);
-  runHarnessValidateModelId(harnessName, model, stepLabel, definitionPath);
   return { model, tier: undefined };
-}
-
-function runHarnessValidateModelId(
-  harnessName: string,
-  modelId: string,
-  stepLabel: string,
-  definitionPath: string,
-): void {
-  if (!hasAgentHarness(harnessName)) return;
-  let harness: AgentHarness;
-  try {
-    harness = resolveAgentHarness(harnessName);
-  } catch {
-    return;
-  }
-  if (!harness.validateModelId) return;
-  try {
-    harness.validateModelId(modelId);
-  } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
-    throw new WorkflowDefinitionError(
-      `${stepLabel}.model rejected by harness "${harnessName}": ${detail}`,
-      definitionPath,
-    );
-  }
 }

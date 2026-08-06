@@ -1,13 +1,13 @@
 ---
 id: task-validate-resolved-workflow-agent-capabilities-befo
 title: Validate resolved workflow agent capabilities before dispatch
-status: ready
+status: done
 priority: p0
 area: core
 task_class: Platform
 summary: Reject statically impossible workflow and agent-harness contracts at definition load using the canonical run-option resolver.
 created_at: 2026-08-06T20:21:41.180Z
-updated_at: 2026-08-06T20:21:41.180Z
+updated_at: 2026-08-06T21:37:35.968Z
 ---
 
 ## Problem
