@@ -48,6 +48,7 @@ describe("machine authority execution sandbox", () => {
       ],
       writableRoots: ["/project", "/private/tmp/kota-native-cli"],
       readProtectedPaths: ["/project/.env"],
+      readProtectedRoots: ["/project/.gemini"],
       writeProtectedPaths: ["/project/.git"],
       networkAccess: { kind: "loopback-proxy", port: 48_121 },
       platform: "darwin",
@@ -79,6 +80,7 @@ describe("machine authority execution sandbox", () => {
     expect(profile).toContain(
       '(deny file-read* (literal "/project/.env")',
     );
+    expect(profile).toContain('(subpath "/project/.gemini")');
   });
 
   it("builds a Linux namespace with the authority directory read-only", () => {
@@ -118,7 +120,9 @@ describe("machine authority execution sandbox", () => {
       "/project",
       "/project/.git",
       "/project/.env",
+      "/project/.gemini",
       "/private/tmp/kota-native-cli",
+      "/private/tmp/kota-native-cli/protected-read-root-mask",
       "/usr",
       "/opt/codex",
     ]);
@@ -133,6 +137,9 @@ describe("machine authority execution sandbox", () => {
       ],
       writableRoots: ["/project", "/private/tmp/kota-native-cli"],
       readProtectedPaths: ["/project/.env"],
+      readProtectedRoots: ["/project/.gemini"],
+      readProtectedRootMask:
+        "/private/tmp/kota-native-cli/protected-read-root-mask",
       writeProtectedPaths: ["/project/.git"],
       networkAccess: { kind: "offline" },
       platform: "linux",
@@ -174,6 +181,9 @@ describe("machine authority execution sandbox", () => {
       "--ro-bind",
       "/dev/null",
       "/project/.env",
+      "--ro-bind",
+      "/private/tmp/kota-native-cli/protected-read-root-mask",
+      "/project/.gemini",
     ]));
     expect(launch.args).not.toContain("/operator/.kota");
     expect(launch.args.slice(-5)).toEqual([

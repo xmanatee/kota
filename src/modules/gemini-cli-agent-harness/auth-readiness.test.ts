@@ -26,13 +26,19 @@ function withTemporaryHome<T>(callback: () => T): T {
   const home = mkdtempSync(join(tmpdir(), "kota-gemini-cli-auth-"));
   const previousHome = process.env.HOME;
   const previousUserProfile = process.env.USERPROFILE;
+  const previousGeminiApiKey = process.env.GEMINI_API_KEY;
+  const previousGoogleApiKey = process.env.GOOGLE_API_KEY;
   process.env.HOME = home;
   process.env.USERPROFILE = home;
+  delete process.env.GEMINI_API_KEY;
+  delete process.env.GOOGLE_API_KEY;
   try {
     return callback();
   } finally {
     restoreEnvVar("HOME", previousHome);
     restoreEnvVar("USERPROFILE", previousUserProfile);
+    restoreEnvVar("GEMINI_API_KEY", previousGeminiApiKey);
+    restoreEnvVar("GOOGLE_API_KEY", previousGoogleApiKey);
     rmSync(home, { recursive: true, force: true });
   }
 }
@@ -56,16 +62,14 @@ describe("Gemini CLI auth readiness", () => {
     withTemporaryHome(() => {
       registerAgentHarness(geminiCliAgentHarness);
 
-      const readiness = collectPresetHarnessReadiness(getPreset("gemini-cli"), {
-        now: () => new Date("2026-06-22T00:00:00.000Z"),
-      });
+      const readiness = collectPresetHarnessReadiness(getPreset("gemini-cli"));
 
       expect(readiness.adapter.localAuth).toMatchObject({
         kind: "harness-managed-login",
         status: "missing",
         required: true,
         command: "gemini",
-        summary: "Gemini CLI login not active; run `gemini` and sign in",
+        summary: "Gemini CLI provider auth broker unavailable",
       });
       expect(readiness.auth).toMatchObject({
         mode: "harness-managed-login",
@@ -76,13 +80,13 @@ describe("Gemini CLI auth readiness", () => {
           command: "gemini",
         },
         summary:
-          "harness-managed auth not ready (Gemini CLI login not active; run `gemini` and sign in)",
+          "harness-managed auth not ready (Gemini CLI provider auth broker unavailable)",
       });
       expect(isPresetHarnessReadinessReady(readiness)).toBe(false);
     });
   });
 
-  it("reports refreshable cached OAuth credentials as ready even when the access token is expired", () => {
+  it("rejects refreshable cached OAuth credentials without a provider broker", () => {
     withTemporaryHome(() => {
       writeGeminiCache(
         process.env.HOME!,
@@ -94,21 +98,19 @@ describe("Gemini CLI auth readiness", () => {
         }),
       );
 
-      const readiness = geminiCliAuthReadiness({
-        now: () => new Date("2026-06-22T00:00:00.000Z"),
-      });
+      const readiness = geminiCliAuthReadiness();
 
       expect(readiness).toMatchObject({
-        status: "ready",
+        status: "error",
         detail:
-          "cached OAuth refresh token found at ~/.gemini/oauth_creds.json",
-        summary: "Gemini CLI Google login cached with refresh token",
+          "cached Gemini CLI OAuth credentials were detected, but KOTA cannot project them into the native tool process tree without a provider-only broker",
+        summary: "Gemini CLI provider auth broker unavailable",
       });
       expect(readiness).not.toHaveProperty("expiresAt");
     });
   });
 
-  it("reports unexpired non-refreshable cached OAuth credentials as ready", () => {
+  it("rejects non-refreshable cached OAuth credentials without a provider broker", () => {
     withTemporaryHome(() => {
       writeGeminiCache(
         process.env.HOME!,
@@ -119,20 +121,18 @@ describe("Gemini CLI auth readiness", () => {
         }),
       );
 
-      const readiness = geminiCliAuthReadiness({
-        now: () => new Date("2026-06-22T00:00:00.000Z"),
-      });
+      const readiness = geminiCliAuthReadiness();
 
       expect(readiness).toMatchObject({
-        status: "ready",
+        status: "error",
         detail:
-          "cached non-refreshable OAuth access token expires at 2026-06-22T02:00:00.000Z",
-        summary: "Gemini CLI Google login cached",
+          "cached Gemini CLI OAuth credentials were detected, but KOTA cannot project them into the native tool process tree without a provider-only broker",
+        summary: "Gemini CLI provider auth broker unavailable",
       });
     });
   });
 
-  it("warns for near-expiry non-refreshable cached OAuth credentials", () => {
+  it("does not expose cached OAuth values in the broker failure", () => {
     withTemporaryHome(() => {
       writeGeminiCache(
         process.env.HOME!,
@@ -143,24 +143,19 @@ describe("Gemini CLI auth readiness", () => {
         }),
       );
 
-      const readiness = geminiCliAuthReadiness({
-        now: () => new Date("2026-06-22T00:00:00.000Z"),
-      });
+      const readiness = geminiCliAuthReadiness();
 
       expect(readiness).toMatchObject({
-        status: "expiring",
-        expiresAt: "2026-06-22T00:30:00.000Z",
-        renewalSummary:
-          "run `gemini` and sign in again before unattended runs",
+        status: "error",
         detail:
-          "cached non-refreshable OAuth access token expires at 2026-06-22T00:30:00.000Z",
-        summary: "Gemini CLI Google login expires soon",
+          "cached Gemini CLI OAuth credentials were detected, but KOTA cannot project them into the native tool process tree without a provider-only broker",
+        summary: "Gemini CLI provider auth broker unavailable",
       });
       expect(readiness.detail).not.toContain("redacted-access-token");
     });
   });
 
-  it("reports expired non-refreshable cached OAuth credentials as stale", () => {
+  it("rejects expired cached OAuth material before launch too", () => {
     withTemporaryHome(() => {
       writeGeminiCache(
         process.env.HOME!,
@@ -171,18 +166,13 @@ describe("Gemini CLI auth readiness", () => {
         }),
       );
 
-      const readiness = geminiCliAuthReadiness({
-        now: () => new Date("2026-06-22T00:00:00.000Z"),
-      });
+      const readiness = geminiCliAuthReadiness();
 
       expect(readiness).toMatchObject({
-        status: "stale",
-        expiredAt: "2026-06-21T23:59:00.000Z",
-        renewalSummary:
-          "run `gemini` and sign in again before unattended runs",
+        status: "error",
         detail:
-          "cached non-refreshable OAuth access token expired at 2026-06-21T23:59:00.000Z",
-        summary: "Gemini CLI cached auth expired",
+          "cached Gemini CLI OAuth credentials were detected, but KOTA cannot project them into the native tool process tree without a provider-only broker",
+        summary: "Gemini CLI provider auth broker unavailable",
       });
       expect(readiness.detail).not.toContain("redacted-access-token");
     });
@@ -196,9 +186,7 @@ describe("Gemini CLI auth readiness", () => {
         "{ not json",
       );
 
-      const readiness = geminiCliAuthReadiness({
-        now: () => new Date("2026-06-22T00:00:00.000Z"),
-      });
+      const readiness = geminiCliAuthReadiness();
 
       expect(readiness).toMatchObject({
         status: "error",
@@ -212,16 +200,28 @@ describe("Gemini CLI auth readiness", () => {
 
   it("reports missing Gemini CLI cache as missing auth", () => {
     withTemporaryHome(() => {
-      const readiness = geminiCliAuthReadiness({
-        now: () => new Date("2026-06-22T00:00:00.000Z"),
-      });
+      const readiness = geminiCliAuthReadiness();
 
       expect(readiness).toMatchObject({
         status: "missing",
-        detail:
-          "no cached Gemini CLI Google OAuth / Code Assist credentials found under ~/.gemini",
-        summary: "Gemini CLI login not active; run `gemini` and sign in",
+        detail: "no brokered Gemini CLI provider authentication is available",
+        summary: "Gemini CLI provider auth broker unavailable",
       });
+    });
+  });
+
+  it("rejects provider API keys without exposing their values", () => {
+    withTemporaryHome(() => {
+      const readiness = geminiCliAuthReadiness({
+        env: { GEMINI_API_KEY: "provider-secret" },
+      });
+
+      expect(readiness).toMatchObject({
+        status: "error",
+        detail: expect.stringContaining("GEMINI_API_KEY"),
+        summary: "Gemini CLI provider auth broker unavailable",
+      });
+      expect(readiness.detail).not.toContain("provider-secret");
     });
   });
 });

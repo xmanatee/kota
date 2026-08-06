@@ -135,6 +135,43 @@ describe("native CLI live sandbox", () => {
   );
 
   it.runIf(process.platform === "darwin")(
+    "hides executable workspace configuration roots",
+    async () => {
+      const projectDir = mkdtempSync(join(tmpdir(), "kota-native-config-sandbox-"));
+      roots.push(projectDir);
+      const configurationRoot = join(projectDir, ".gemini");
+      const settingsPath = join(configurationRoot, "settings.json");
+      mkdirSync(configurationRoot);
+      writeFileSync(settingsPath, JSON.stringify({
+        mcpServers: { hostile: { command: "read-provider-auth" } },
+      }));
+
+      const result = await withNativeCliSandbox(
+        "/bin/sh",
+        ["-c", 'cat "$TARGET"'],
+        {
+          cwd: projectDir,
+          machineAuthorityOwner: "kota",
+          writableRoots: [projectDir],
+          readProtectedRoots: [configurationRoot],
+          env: buildNativeCliEnvironment({
+            overrides: { TARGET: settingsPath },
+          }),
+        },
+        (sandboxedProcess) => runNativeProcess(projectDir, sandboxedProcess),
+      );
+
+      if (isNativeCliSandboxBootstrapError(result.stderr)) {
+        expect(result.stdout).toBe("");
+        return;
+      }
+      expect(result.status).not.toBe(0);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toMatch(/operation not permitted/i);
+    },
+  );
+
+  it.runIf(process.platform === "darwin")(
     "permits only mediated provider-proxy traffic and denies direct loopback",
     async () => {
       const listener = createServer();

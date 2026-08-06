@@ -1,4 +1,7 @@
 import { EventEmitter } from "node:events";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { KotaAgentMessage } from "#core/agent-harness/index.js";
@@ -113,33 +116,49 @@ describe("gemini-cli agent harness integration", () => {
 
   it("runs end-to-end through the registry without falling back to a different harness", async () => {
     mockGeminiCliProcess();
-
-    const harness = resolveAgentHarness(GEMINI_CLI_AGENT_HARNESS_NAME);
-    const writer = { write: vi.fn().mockReturnValue(true) };
-    const messages: KotaAgentMessage[] = [];
-    const result = await harness.run(
-      {
-        prompt: "say ok",
-        model: "gemini-2.5-pro",
-        effort: "xhigh",
-        onMessage: (message) => {
-          messages.push(message);
-        },
-      },
-      writer,
+    const credentialFreeHome = mkdtempSync(
+      join(tmpdir(), "kota-gemini-cli-integration-"),
     );
+    const previousGeminiApiKey = process.env.GEMINI_API_KEY;
+    const previousGoogleApiKey = process.env.GOOGLE_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+    delete process.env.GOOGLE_API_KEY;
 
-    expect(spawnMock).toHaveBeenCalledTimes(1);
-    expect(writer.write).toHaveBeenCalledWith("ok");
-    expect(result).toMatchObject({
-      text: "ok",
-      streamedText: "ok",
-      isError: false,
-    });
-    expect(harness.emitsAgentMessageStream).toBe(true);
-    expect(messages).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: "text", text: "ok" }),
-      expect.objectContaining({ type: "result", isError: false }),
-    ]));
+    try {
+      const harness = resolveAgentHarness(GEMINI_CLI_AGENT_HARNESS_NAME);
+      const writer = { write: vi.fn().mockReturnValue(true) };
+      const messages: KotaAgentMessage[] = [];
+      const result = await harness.run(
+        {
+          prompt: "say ok",
+          model: "gemini-2.5-pro",
+          effort: "xhigh",
+          env: { GEMINI_CLI_HOME: credentialFreeHome },
+          onMessage: (message) => {
+            messages.push(message);
+          },
+        },
+        writer,
+      );
+
+      expect(spawnMock).toHaveBeenCalledTimes(1);
+      expect(writer.write).toHaveBeenCalledWith("ok");
+      expect(result).toMatchObject({
+        text: "ok",
+        streamedText: "ok",
+        isError: false,
+      });
+      expect(harness.emitsAgentMessageStream).toBe(true);
+      expect(messages).toEqual(expect.arrayContaining([
+        expect.objectContaining({ type: "text", text: "ok" }),
+        expect.objectContaining({ type: "result", isError: false }),
+      ]));
+    } finally {
+      if (previousGeminiApiKey === undefined) delete process.env.GEMINI_API_KEY;
+      else process.env.GEMINI_API_KEY = previousGeminiApiKey;
+      if (previousGoogleApiKey === undefined) delete process.env.GOOGLE_API_KEY;
+      else process.env.GOOGLE_API_KEY = previousGoogleApiKey;
+      rmSync(credentialFreeHome, { recursive: true, force: true });
+    }
   });
 });

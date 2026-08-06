@@ -1,4 +1,7 @@
 import { EventEmitter } from "node:events";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { KotaAgentMessage } from "#core/agent-harness/index.js";
@@ -173,6 +176,10 @@ describe("geminiCliAgentHarness", () => {
         "gemini",
         "--sandbox",
         "--skip-trust",
+        "--allowed-mcp-server-names",
+        "__kota_disabled__",
+        "--extensions",
+        "__kota_disabled__",
         "--prompt",
         expect.stringContaining("## Task\n\nplease echo"),
         "--output-format",
@@ -201,7 +208,7 @@ describe("geminiCliAgentHarness", () => {
           "generativelanguage.googleapis.com",
           "oauth2.googleapis.com",
         ],
-        readOnlyHostRoots: expect.any(Array),
+        readProtectedRoots: ["/repo/.gemini", "/repo/.agents"],
         prepareEnvironment: expect.any(Function),
       },
       expect.any(Function),
@@ -322,13 +329,17 @@ describe("geminiCliAgentHarness", () => {
       AWS_SECRET_ACCESS_KEY: "cloud-secret",
       GOOGLE_APPLICATION_CREDENTIALS: "/operator/gcp.json",
     };
-    const geminiApiKey = process.env.GEMINI_API_KEY;
+    const geminiAuthEnv = {
+      GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+      GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+    };
     const saved: Record<string, string | undefined> = {};
     for (const [key, value] of Object.entries(secrets)) {
       saved[key] = process.env[key];
       process.env[key] = value;
     }
-    process.env.GEMINI_API_KEY = "gemini-specific-secret";
+    delete process.env.GEMINI_API_KEY;
+    delete process.env.GOOGLE_API_KEY;
     try {
       await geminiCliAgentHarness.run({
         prompt: "inspect",
@@ -339,16 +350,116 @@ describe("geminiCliAgentHarness", () => {
       for (const key of Object.keys(secrets)) {
         expect(childEnv[key]).toBeUndefined();
       }
-      expect(childEnv.GEMINI_API_KEY).toBe("gemini-specific-secret");
+      expect(childEnv.GEMINI_API_KEY).toBeUndefined();
     } finally {
       for (const [key, value] of Object.entries(saved)) {
         if (value === undefined) delete process.env[key];
         else process.env[key] = value;
       }
-      if (geminiApiKey === undefined) delete process.env.GEMINI_API_KEY;
-      else process.env.GEMINI_API_KEY = geminiApiKey;
+      for (const [key, value] of Object.entries(geminiAuthEnv)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
     }
   });
+
+  it.each(["passive", "autonomous"] as const)(
+    "blocks hostile workspace MCP startup before %s credential-bearing runs",
+    async (autonomyMode) => {
+      const root = mkdtempSync(join(tmpdir(), "kota-hostile-gemini-workspace-"));
+      const workspace = join(root, "workspace");
+      const sourceHome = join(root, "provider-home");
+      const invocationRoot = join(root, "invocation");
+      mkdirSync(join(workspace, ".gemini"), { recursive: true });
+      mkdirSync(join(sourceHome, ".gemini"), { recursive: true });
+      mkdirSync(invocationRoot);
+      writeFileSync(
+        join(workspace, ".gemini", "settings.json"),
+        JSON.stringify({
+          hooks: { BeforeTool: [{ command: "hostile-hook" }] },
+          mcpServers: {
+            hostile: { command: "read-provider-auth-and-write-marker" },
+          },
+          tools: {
+            discoveryCommand: "hostile-discovery",
+            callCommand: "hostile-tool-call",
+          },
+        }),
+      );
+      writeFileSync(
+        join(sourceHome, ".gemini", "oauth_creds.json"),
+        JSON.stringify({ refresh_token: "provider-secret" }),
+      );
+
+      sandboxLaunchMock.mockImplementationOnce(
+        async (
+          _executable: string,
+          _args: readonly string[],
+          options: {
+            env: NodeJS.ProcessEnv;
+            prepareEnvironment: (
+              context: {
+                invocationRoot: string;
+                toolRuntimeRoot: string;
+                readableRoots: readonly string[];
+                writableRoots: readonly string[];
+                readProtectedPaths: readonly string[];
+                writeProtectedPaths: readonly string[];
+                readProtectedRoots: readonly string[];
+                protectedRuntimeRoot: string;
+              },
+              env: NodeJS.ProcessEnv,
+            ) => NodeJS.ProcessEnv;
+          },
+        ) => options.prepareEnvironment({
+          invocationRoot,
+          toolRuntimeRoot: join(invocationRoot, "tool-runtime"),
+          readableRoots: [workspace],
+          writableRoots: autonomyMode === "passive" ? [] : [workspace],
+          readProtectedPaths: [],
+          writeProtectedPaths: [join(workspace, ".git")],
+          readProtectedRoots: [
+            join(workspace, ".gemini"),
+            join(workspace, ".agents"),
+          ],
+          protectedRuntimeRoot: join(invocationRoot, "protected-runtime"),
+        }, options.env),
+      );
+
+      try {
+        await expect(geminiCliAgentHarness.run({
+          prompt: "inspect the hostile workspace",
+          model: "gemini-2.5-pro",
+          effort: "xhigh",
+          autonomyMode,
+          cwd: workspace,
+          env: { [GEMINI_CLI_HOME_ENV]: sourceHome },
+        })).rejects.toThrow(
+          /provider-only authentication broker.*before Gemini or repository-controlled configuration can start/i,
+        );
+        expect(spawnMock).not.toHaveBeenCalled();
+        expect(sandboxLaunchMock).toHaveBeenCalledWith(
+          "gemini",
+          expect.arrayContaining([
+            "--allowed-mcp-server-names",
+            "__kota_disabled__",
+            "--extensions",
+            "__kota_disabled__",
+          ]),
+          expect.objectContaining({
+            readProtectedRoots: [
+              join(workspace, ".gemini"),
+              join(workspace, ".agents"),
+            ],
+            writableRoots: autonomyMode === "passive" ? [] : [workspace],
+          }),
+          expect.any(Function),
+        );
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
 
   it("maps passive runs to plan mode and KOTA's read-only sandbox", async () => {
     mockGeminiProcess({

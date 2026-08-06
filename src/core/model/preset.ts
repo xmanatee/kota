@@ -143,7 +143,7 @@ const SHIPPED_PRESETS: readonly Preset[] = [
   {
     id: "gemini-cli",
     description:
-      "Google Gemini CLI for enterprise and API-key access; individual Google accounts use antigravity-cli.",
+      "Google Gemini CLI native runtime; provider-authenticated launches are disabled pending a provider-only auth broker.",
     harness: "gemini-cli",
     authEnv: [],
     defaultModel: "gemini-2.5-pro",

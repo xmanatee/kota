@@ -1,0 +1,36 @@
+Task: task-security-review-the-gemini-adapter-trusts-reposito
+
+Result:
+Gemini native launches hide repository .gemini/ and .agents/ roots, load
+KOTA-owned write-protected system settings that disable executable
+configuration, and reject OAuth or API-key projection before Gemini or a
+workspace process can start. Authenticated Gemini CLI runs remain intentionally
+unavailable until a provider-only authentication broker exists.
+
+Passing verification:
+- pnpm typecheck
+- pnpm test src/modules/gemini-cli-agent-harness/adapter.test.ts src/modules/gemini-cli-agent-harness/runtime-home.test.ts src/modules/gemini-cli-agent-harness/auth-readiness.test.ts src/modules/execution/machine-authority-sandbox.test.ts
+  Result: 4 files passed, 31 tests passed.
+- pnpm test src/core/agent-harness/native-cli-sandbox.test.ts -t "hides executable workspace configuration roots"
+  Result: 1 focused test passed.
+- pnpm validate-tasks
+
+Environment note:
+The all-tests invocation also selected loopback-listener fixtures that this
+builder sandbox forbids with listen EPERM on 127.0.0.1. The deterministic and
+focused security checks above pass.
+
+Repair verification:
+- The autonomy decision run check reports that autonomy-change-decision.json
+  covers all 8 staged material autonomy files.
+- `pnpm test src/modules/autonomy/autonomy-change-decision.test.ts`
+  Result: 1 file passed, 4 tests passed.
+- The claimed task is present under data/tasks/done/ with status: done.
+
+The canonical `pnpm kota task move task-security-review-the-gemini-adapter-trusts-reposito done`
+operation was retried. Its internal `git add` hit the native agent's read-only
+Git metadata boundary and rolled back, so the equivalent ready-to-done
+working-tree transition was applied directly. The final `pnpm validate-tasks
+-- --summary` attempt reports only the expected untracked destination and
+unstaged source deletion until the workflow stages workspace changes after
+the agent stops.

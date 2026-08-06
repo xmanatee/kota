@@ -39,6 +39,8 @@ describe("Antigravity CLI runtime home", () => {
       writableRoots: [],
       readProtectedPaths: [],
       writeProtectedPaths: [],
+      readProtectedRoots: [],
+      protectedRuntimeRoot: join(root, "protected-runtime"),
     }, {
       [ANTIGRAVITY_CLI_KEYCHAIN_DIR_ENV]: keychainDirectory,
       PATH: "/usr/bin",
@@ -69,6 +71,8 @@ describe("Antigravity CLI runtime home", () => {
         writableRoots: [],
         readProtectedPaths: [],
         writeProtectedPaths: [],
+        readProtectedRoots: [],
+        protectedRuntimeRoot: join(root, "protected-runtime"),
       },
       { [ANTIGRAVITY_CLI_KEYCHAIN_DIR_ENV]: join(root, "missing") },
     )).toThrow(/keychain directory does not exist/);

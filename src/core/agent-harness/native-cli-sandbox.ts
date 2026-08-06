@@ -29,6 +29,7 @@ type NativeCliSandboxOptions = {
   writableRoots: readonly string[];
   env: NodeJS.ProcessEnv;
   readOnlyHostRoots?: readonly string[];
+  readProtectedRoots?: readonly string[];
   allowedEgressHosts?: readonly string[];
   prepareEnvironment?: (
     context: NativeCliRuntimeContext,
@@ -43,6 +44,8 @@ export type NativeCliRuntimeContext = {
   writableRoots: readonly string[];
   readProtectedPaths: readonly string[];
   writeProtectedPaths: readonly string[];
+  readProtectedRoots: readonly string[];
+  protectedRuntimeRoot: string;
 };
 
 const NATIVE_CLI_LINUX_PROXY_PORT = 43_217;
@@ -141,9 +144,19 @@ export async function withNativeCliSandbox<T>(
   let egressProxy: NativeCliEgressProxy | undefined;
   try {
     const toolRuntimeRoot = join(temporaryDirectory, "tool-runtime");
+    const readProtectedRootMask = join(
+      temporaryDirectory,
+      "protected-read-root-mask",
+    );
+    const protectedRuntimeRoot = join(
+      temporaryDirectory,
+      "protected-runtime",
+    );
     const home = join(toolRuntimeRoot, "home");
     for (const directory of [
       home,
+      readProtectedRootMask,
+      protectedRuntimeRoot,
       join(home, ".config"),
       join(home, ".cache"),
       join(home, ".local", "share"),
@@ -201,7 +214,12 @@ export async function withNativeCliSandbox<T>(
         ? []
         : existingProtectedProjectPaths(process.cwd())),
     ])];
-    const writeProtectedPaths = [join(options.cwd, ".git")];
+    const readProtectedRoots = [...new Set(options.readProtectedRoots ?? [])];
+    const writeProtectedPaths = [
+      join(options.cwd, ".git"),
+      readProtectedRootMask,
+      protectedRuntimeRoot,
+    ];
     const launch = options.machineAuthorityOwner === "native-cli"
       ? {
           ok: true as const,
@@ -214,6 +232,8 @@ export async function withNativeCliSandbox<T>(
           readableRoots,
           writableRoots: [...options.writableRoots, temporaryDirectory],
           readProtectedPaths,
+          readProtectedRoots,
+          readProtectedRootMask,
           writeProtectedPaths,
           networkAccess: egressProxy?.address.kind === "tcp"
             ? { kind: "loopback-proxy", port: egressProxy.address.port }
@@ -232,7 +252,9 @@ export async function withNativeCliSandbox<T>(
         ),
         writableRoots: absoluteRoots(options.writableRoots, options.cwd),
         readProtectedPaths,
+        readProtectedRoots,
         writeProtectedPaths,
+        protectedRuntimeRoot,
       },
       packageManager.env,
     ) ?? packageManager.env;

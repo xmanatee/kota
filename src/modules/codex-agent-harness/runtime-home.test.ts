@@ -38,6 +38,8 @@ describe("Codex runtime home", () => {
       writableRoots: ["/repo/src"],
       readProtectedPaths: ["/repo/.env"],
       writeProtectedPaths: ["/repo/.git"],
+      readProtectedRoots: [],
+      protectedRuntimeRoot: join(invocationRoot, "protected-runtime"),
     }, {
       CODEX_HOME: sourceHome,
       KOTA_TEST_ENV: "preserved",

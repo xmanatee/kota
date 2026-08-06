@@ -19,19 +19,16 @@ preset intentionally uses the same Gemini model tier names as the SDK-backed
 `gemini` preset; the difference is the runtime and auth boundary, not a
 separate model catalog.
 
-Authentication is harness-managed. The readiness probe checks for the local
-Gemini CLI executable plus cached Gemini CLI Google OAuth / Code Assist
-credentials under the CLI's normal user config directory. Each run copies only
-those credentials and the selected auth mode into a provider-only home selected
-through Gemini's native `GEMINI_CLI_HOME` contract. The
-session-only `--skip-trust` flag satisfies Gemini CLI's headless bootstrap;
-KOTA's outer OS sandbox and Gemini's tool sandbox enforce separate provider and
-model-tool boundaries. A
-symlinked project settings file is readable only as the configuration input
-Gemini requires before applying that session flag.
-Gemini-specific API keys remain supported when explicitly configured, while
-unrelated daemon credentials and global tools, MCP, prompt, and `.env` files
-are not projected.
+Credential-bearing native launches currently fail closed. The readiness probe
+reports cached Gemini CLI OAuth / Code Assist credentials and Gemini API keys
+as unavailable until a provider-only broker can keep them outside Gemini's
+native process tree. Runs create a credential-free `GEMINI_CLI_HOME` containing
+only the selected auth mode plus KOTA-owned system settings. Those settings
+disable MCP, extensions, skills, and local environment loading. The outer OS
+sandbox hides repository `.gemini/` and `.agents/` trees so hooks, policies,
+discovery commands, and other executable workspace configuration cannot load,
+even though the session-only `--skip-trust` flag is still required for Gemini
+CLI's headless bootstrap.
 
 ## Loop Shape
 
@@ -78,9 +75,10 @@ instructions rather than KOTA-enforced tool guardrails. Structured CLI events
 do feed KOTA's message-stream and trajectory diagnostics; observation does not
 change which runtime owns tool authorization.
 
-Do not treat this adapter as an autonomous builder-equivalent until a guarded
-tool-control path exists. It is safe as a native CLI runtime boundary and for
-headless tasks that the CLI can complete under its own approval policy.
+Do not treat this adapter as an autonomous builder-equivalent until guarded
+tool control and provider-only authentication both exist. Credential-free
+launches remain available for boundary diagnostics, but authenticated provider
+runs are intentionally unavailable.
 The unsupported tool-control options are declared on the harness and reported
 through readiness; direct callers that pass them fail before Gemini CLI starts.
 

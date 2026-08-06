@@ -1,0 +1,3 @@
+1. Hide repository-owned Gemini executable configuration from the native CLI and force MCP, hooks, extensions, skills, policies, and discovery-command surfaces off through KOTA-owned launch configuration.
+2. Refuse authenticated Gemini CLI launches before any Gemini or repository process starts until a provider-only authentication broker prevents native children from inheriting provider authentication material.
+3. Add focused passive and autonomous hostile-workspace regressions and record the passing verification command in the completed task.

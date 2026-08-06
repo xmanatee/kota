@@ -1,6 +1,4 @@
 import {
-  chmodSync,
-  copyFileSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -11,6 +9,37 @@ import { join } from "node:path";
 import type { NativeCliRuntimeContext } from "#core/agent-harness/native-cli-sandbox.js";
 
 export const GEMINI_CLI_HOME_ENV = "GEMINI_CLI_HOME";
+export const GEMINI_CLI_SYSTEM_SETTINGS_PATH_ENV =
+  "GEMINI_CLI_SYSTEM_SETTINGS_PATH";
+export const GEMINI_CLI_SYSTEM_DEFAULTS_PATH_ENV =
+  "GEMINI_CLI_SYSTEM_DEFAULTS_PATH";
+
+const GEMINI_CLI_AUTH_ENV_KEYS = [
+  "GEMINI_API_KEY",
+  "GOOGLE_API_KEY",
+] as const;
+const GEMINI_CLI_AUTH_FILES = [
+  "oauth_creds.json",
+  "google_accounts.json",
+] as const;
+
+const KOTA_GEMINI_SYSTEM_SETTINGS = {
+  admin: {
+    secureModeEnabled: true,
+    extensions: { enabled: false },
+    mcp: { enabled: false, config: {}, requiredConfig: {} },
+    skills: { enabled: false },
+  },
+  advanced: { ignoreLocalEnv: true },
+  security: {
+    blockGitExtensions: true,
+    environmentVariableRedaction: {
+      enabled: true,
+      allowed: [],
+      blocked: [GEMINI_CLI_HOME_ENV, ...GEMINI_CLI_AUTH_ENV_KEYS],
+    },
+  },
+} as const;
 
 type GeminiCliSettings = {
   selectedAuthType?: string;
@@ -35,12 +64,6 @@ export function resolveGeminiCliAuthDirectory(
   return join(resolveGeminiCliHome(env), ".gemini");
 }
 
-function copyPrivateFile(source: string, destination: string): void {
-  if (!existsSync(source)) return;
-  copyFileSync(source, destination);
-  chmodSync(destination, 0o600);
-}
-
 function isolatedAuthSettings(source: string): GeminiCliSettings | null {
   if (!existsSync(source)) return null;
   const settings = JSON.parse(readFileSync(source, "utf8")) as GeminiCliSettings;
@@ -59,25 +82,63 @@ function isolatedAuthSettings(source: string): GeminiCliSettings | null {
   };
 }
 
-/** Copies only Gemini CLI login state into the invocation-scoped home. */
+function credentialBearingInputs(
+  sourceDirectory: string,
+  env: NodeJS.ProcessEnv,
+): string[] {
+  return [
+    ...GEMINI_CLI_AUTH_ENV_KEYS.filter((key) => env[key]?.trim()),
+    ...GEMINI_CLI_AUTH_FILES.filter((filename) =>
+      existsSync(join(sourceDirectory, filename))
+    ),
+  ];
+}
+
+/**
+ * Builds a KOTA-owned Gemini home without projecting provider credentials.
+ * Credential-bearing launches stay disabled until provider authentication can
+ * be brokered outside Gemini's native process tree.
+ */
 export function prepareGeminiCliRuntimeEnvironment(
   context: NativeCliRuntimeContext,
   env: NodeJS.ProcessEnv,
 ): NodeJS.ProcessEnv {
   const sourceDirectory = resolveGeminiCliAuthDirectory(env);
+  const credentialInputs = credentialBearingInputs(sourceDirectory, env);
+  if (credentialInputs.length > 0) {
+    throw new Error(
+      'The "gemini-cli" agent harness cannot safely project provider credentials ' +
+        `(${credentialInputs.join(", ")}) into Gemini's native tool process tree. ` +
+        "A provider-only authentication broker is required; refusing to launch " +
+        "before Gemini or repository-controlled configuration can start.",
+    );
+  }
   const runtimeHome = join(context.invocationRoot, "gemini-provider-home");
   const runtimeDirectory = join(runtimeHome, ".gemini");
   mkdirSync(runtimeDirectory, { recursive: true, mode: 0o700 });
-  for (const filename of ["oauth_creds.json", "google_accounts.json"]) {
-    copyPrivateFile(
-      join(sourceDirectory, filename),
-      join(runtimeDirectory, filename),
-    );
-  }
   const settings = isolatedAuthSettings(join(sourceDirectory, "settings.json"));
   if (settings !== null) {
     const destination = join(runtimeDirectory, "settings.json");
     writeFileSync(destination, JSON.stringify(settings), { mode: 0o600 });
   }
-  return { ...env, [GEMINI_CLI_HOME_ENV]: runtimeHome };
+  const systemSettingsPath = join(
+    context.protectedRuntimeRoot,
+    "kota-system-settings.json",
+  );
+  const systemDefaultsPath = join(
+    context.protectedRuntimeRoot,
+    "kota-system-defaults.json",
+  );
+  writeFileSync(
+    systemSettingsPath,
+    JSON.stringify(KOTA_GEMINI_SYSTEM_SETTINGS),
+    { mode: 0o600 },
+  );
+  writeFileSync(systemDefaultsPath, "{}", { mode: 0o600 });
+  return {
+    ...env,
+    [GEMINI_CLI_HOME_ENV]: runtimeHome,
+    [GEMINI_CLI_SYSTEM_SETTINGS_PATH_ENV]: systemSettingsPath,
+    [GEMINI_CLI_SYSTEM_DEFAULTS_PATH_ENV]: systemDefaultsPath,
+  };
 }

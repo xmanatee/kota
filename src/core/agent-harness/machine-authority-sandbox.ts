@@ -20,6 +20,8 @@ export type MachineAuthoritySandboxOptions = {
   readableRoots?: readonly string[];
   writableRoots?: readonly string[];
   readProtectedPaths?: readonly string[];
+  readProtectedRoots?: readonly string[];
+  readProtectedRootMask?: string;
   writeProtectedPaths?: readonly string[];
   networkAccess?:
     | { kind: "offline" }
@@ -64,6 +66,7 @@ function macosProfile(
   readableRoots: readonly string[] | undefined,
   writableRoots: readonly string[] | undefined,
   readProtectedPaths: readonly string[],
+  readProtectedRoots: readonly string[],
   writeProtectedPaths: readonly string[],
   networkAccess: MachineAuthoritySandboxOptions["networkAccess"],
 ): string {
@@ -71,8 +74,11 @@ function macosProfile(
     ...configDirectories,
     ...writeProtectedPaths,
   ]);
-  const protectedReads = [...readProtectedPaths, ...tokenPaths]
-    .map((path) => `(literal ${JSON.stringify(path)})`);
+  const protectedReads = [
+    ...[...readProtectedPaths, ...tokenPaths]
+      .map((path) => `(literal ${JSON.stringify(path)})`),
+    ...sandboxPathSelectors(readProtectedRoots),
+  ];
   return [
     "(version 1)",
     "(allow default)",
@@ -139,6 +145,10 @@ export function buildMachineAuthoritySandboxLaunch(
     options.readProtectedPaths ?? [],
     options.cwd,
   );
+  const readProtectedRoots = resolveUniquePathIdentities(
+    options.readProtectedRoots ?? [],
+    options.cwd,
+  );
   const writeProtectedPaths = resolveUniquePathIdentities(
     options.writeProtectedPaths ?? [],
     options.cwd,
@@ -162,6 +172,7 @@ export function buildMachineAuthoritySandboxLaunch(
           readableRoots,
           writableRoots,
           readProtectedPaths,
+          readProtectedRoots,
           writeProtectedPaths,
           options.networkAccess,
         ),
@@ -216,6 +227,30 @@ export function buildMachineAuthoritySandboxLaunch(
         ? ["--ro-bind", "/dev/null", path]
         : []
     );
+    const existingProtectedRoots = readProtectedRoots.filter(
+      (path) => pathExists(path) && pathIsWithinRoots(path, visibleRoots),
+    );
+    const readProtectedRootMask = options.readProtectedRootMask === undefined
+      ? undefined
+      : resolve(options.readProtectedRootMask);
+    if (
+      existingProtectedRoots.length > 0 &&
+      (
+        readProtectedRootMask === undefined ||
+        !pathExists(readProtectedRootMask)
+      )
+    ) {
+      return {
+        ok: false,
+        error:
+          "machine authority sandbox protected read roots require an existing empty-directory mask",
+      };
+    }
+    const hiddenReadRootMounts = existingProtectedRoots.flatMap((path) => [
+      "--ro-bind",
+      readProtectedRootMask!,
+      path,
+    ]);
     return {
       ok: true,
       command: bubblewrap,
@@ -238,6 +273,7 @@ export function buildMachineAuthoritySandboxLaunch(
         ...writableMounts,
         ...protectedMounts,
         ...hiddenReadMounts,
+        ...hiddenReadRootMounts,
         "--chdir",
         resolve(options.cwd),
         "--",

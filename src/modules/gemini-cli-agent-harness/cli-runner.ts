@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type {
   AgentHarnessResult,
@@ -15,9 +16,6 @@ import {
   type NativeCliSandboxProcess,
   withNativeCliSandbox,
 } from "#core/agent-harness/native-cli-sandbox.js";
-import {
-  nativeCliWorkspaceConfigurationReadRoots,
-} from "#core/agent-harness/native-cli-sandbox-roots.js";
 import {
   type CollectedGeminiOutput,
   collectGeminiOutput,
@@ -51,6 +49,8 @@ const GEMINI_CLI_PROVIDER_EGRESS_HOSTS = [
   "generativelanguage.googleapis.com",
   "oauth2.googleapis.com",
 ] as const;
+
+const KOTA_DISABLED_GEMINI_COMPONENT = "__kota_disabled__";
 
 function formatStderr(stderr: string[]): string {
   return stderr.join("").trim();
@@ -209,6 +209,10 @@ export async function collectTextFromGeminiCli(
   const cliArgs = [
     "--sandbox",
     "--skip-trust",
+    "--allowed-mcp-server-names",
+    KOTA_DISABLED_GEMINI_COMPONENT,
+    "--extensions",
+    KOTA_DISABLED_GEMINI_COMPONENT,
     "--prompt",
     args.prompt,
     "--output-format",
@@ -238,9 +242,10 @@ export async function collectTextFromGeminiCli(
         },
       }),
       allowedEgressHosts: GEMINI_CLI_PROVIDER_EGRESS_HOSTS,
-      readOnlyHostRoots: nativeCliWorkspaceConfigurationReadRoots(args.cwd, [
-        ".gemini/settings.json",
-      ]),
+      readProtectedRoots: [
+        join(args.cwd, ".gemini"),
+        join(args.cwd, ".agents"),
+      ],
       prepareEnvironment: prepareGeminiCliRuntimeEnvironment,
     },
     (sandboxedProcess) => runGeminiCliProcess(args, sandboxedProcess),

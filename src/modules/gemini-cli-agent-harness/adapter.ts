@@ -204,7 +204,7 @@ function buildGeminiCliPrompt(options: AgentHarnessRunOptions): string {
 export const geminiCliAgentHarness: AgentHarness = {
   name: GEMINI_CLI_AGENT_HARNESS_NAME,
   description:
-    "Runs the installed Gemini CLI (`gemini --output-format stream-json`) so KOTA uses Gemini CLI Google login / Code Assist auth from local CLI state.",
+    "Runs the installed Gemini CLI in a KOTA-owned native sandbox; authenticated launches remain disabled until provider auth can be brokered outside the native tool tree.",
   supportsMultiTurn: true,
   supportedHookKinds: ["preRun", "postRun"] as const,
   askOwnerToolName: null,
