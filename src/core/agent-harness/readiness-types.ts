@@ -89,6 +89,7 @@ export type AgentHarnessUnsupportedRunOption =
   | "disallowedTools"
   | "canUseTool"
   | "askOwner"
+  | "autonomyMode.passive"
   | "autonomyMode.supervised"
   | "persistSession"
   | "resumeSessionId"

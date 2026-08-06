@@ -53,6 +53,12 @@ const CODEX_UNSUPPORTED_OPTIONS = [
     reason: "Codex CLI tool calls cannot be routed through KOTA's canUseTool gate.",
   },
   {
+    runOption: "autonomyMode.passive",
+    option: 'autonomyMode="passive"',
+    reason:
+      "Codex CLI native tool calls cannot be classified and denied individually under KOTA's passive contract.",
+  },
+  {
     runOption: "autonomyMode.supervised",
     option: 'autonomyMode="supervised"',
     reason: "The non-interactive CLI path cannot route approvals through KOTA's queue.",
@@ -138,6 +144,13 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
     throw new Error(
       'The "codex" agent harness cannot route Codex CLI tool calls through KOTA canUseTool. ' +
         "Drop canUseTool or run a KOTA-hosted tool-loop harness.",
+    );
+  }
+  if (options.autonomyMode === "passive") {
+    throw new Error(
+      'The "codex" agent harness cannot enforce KOTA\'s passive contract because ' +
+        "Codex CLI native tool calls cannot be classified and denied individually. " +
+        "Use autonomous mode with an enforceable scope policy or a KOTA-hosted tool-loop harness.",
     );
   }
   if (options.autonomyMode === "supervised") {

@@ -1,0 +1,5 @@
+1. Verified: the Codex adapter and generic harness runner reject passive mode before hooks, sandbox setup, or subprocess launch.
+2. Verified: the focused adapter regression covers shell execution, outbound GET, outbound POST, and native MCP/tool requests; the 53-test security suite passed.
+3. Verified: the task is in done state with the exact passing test, typecheck, build, and formatting commands recorded under Final Verification.
+
+Validation notes: the full Codex module directory run reached 26 passing tests but its two provider-proxy integration fixtures could not bind `127.0.0.1` in the native sandbox (`listen EPERM`). Queue validation currently reports only the expected deferred Git staging for the task move; the builder workflow host owns claim-scoped task staging before its queue-validation repair check.

@@ -58,6 +58,7 @@ function isRunOptionRequested(
   }
   if (option === "canUseTool") return options.canUseTool !== undefined;
   if (option === "askOwner") return options.askOwner !== undefined;
+  if (option === "autonomyMode.passive") return options.autonomyMode === "passive";
   if (option === "autonomyMode.supervised") return options.autonomyMode === "supervised";
   if (option === "persistSession") return options.persistSession === true;
   if (option === "resumeSessionId") return options.resumeSessionId !== undefined;

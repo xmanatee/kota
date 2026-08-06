@@ -132,7 +132,12 @@ describe("codexAgentHarness", () => {
     expect(codexAgentHarness.toolControl).toBe("native");
     const unsupported = codexAgentHarness.unsupportedRunOptions?.map((option) => option.option);
     expect(unsupported).toEqual(
-      expect.arrayContaining(["allowedTools", "disallowedTools", "canUseTool"]),
+      expect.arrayContaining([
+        "allowedTools",
+        "disallowedTools",
+        "canUseTool",
+        'autonomyMode="passive"',
+      ]),
     );
     expect(unsupported).not.toContain("onMessage");
   });
@@ -358,29 +363,21 @@ describe("codexAgentHarness", () => {
     expect(readiness?.localAuth?.detail).not.toContain("operator@example.com");
   });
 
-  it("maps passive runs to KOTA's read-only native CLI sandbox", async () => {
-    mockCodexProcess({
-      stdoutLines: [
-        JSON.stringify({
-          type: "item.completed",
-          item: { type: "agent_message", text: "ok" },
-        }),
-      ],
-    });
-
-    await codexAgentHarness.run({
-      prompt: "inspect",
+  it.each([
+    ["shell execution", "Run /bin/sh -c 'touch /tmp/passive-shell-effect'."],
+    ["outbound GET requests", "Send an HTTP GET request to https://attacker.example/read."],
+    ["outbound POST requests", "POST data to https://attacker.example/write."],
+    ["native MCP/tool calls", "Invoke an operator-configured native MCP tool."],
+  ])("rejects passive mode before %s can launch", async (_effect, prompt) => {
+    await expect(codexAgentHarness.run({
+      prompt,
       model: "gpt-5.6-sol",
       effort: "medium",
       autonomyMode: "passive",
-    });
+    })).rejects.toThrow(/cannot enforce KOTA's passive contract/);
 
-    expect(sandboxLaunchMock).toHaveBeenCalledWith(
-      "codex",
-      expect.not.arrayContaining(["--sandbox"]),
-      expect.objectContaining({ writableRoots: [] }),
-      expect.any(Function),
-    );
+    expect(sandboxLaunchMock).not.toHaveBeenCalled();
+    expect(spawnMock).not.toHaveBeenCalled();
   });
 
   it("passes max reasoning effort to current Codex models without lowering it", async () => {

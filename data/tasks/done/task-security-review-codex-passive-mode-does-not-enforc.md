@@ -1,13 +1,13 @@
 ---
 id: task-security-review-codex-passive-mode-does-not-enforc
 title: Security review: Codex passive mode does not enforce KOTA's passive-session contract. It changes only filesystem write roots while launching the full native tool runtime with Codex approvals and sandboxing bypassed. Because the outer sandbox leaves process execution and network access enabled and KOTA tool gates are unavailable, a passive Codex run can perform external side effects without denial or operator approval.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Codex passive mode does not enforce KOTA's passive-session contract. It changes only filesystem write roots while launching the full native tool runtime with Codex approvals and sandboxing bypassed. Because the outer sandbox leaves process execution and network access enabled and KOTA tool gates are unavailable, a passive Codex run can perform external side effects without denial or operator approval.
 created_at: 2026-08-03T20:38:28.354Z
-updated_at: 2026-08-03T20:38:28.354Z
+updated_at: 2026-08-06T14:08:53.800Z
 ---
 
 ## Problem
@@ -139,3 +139,9 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Final Verification
+
+- `pnpm test src/core/agent-harness/runner.test.ts src/modules/codex-agent-harness/adapter.test.ts src/modules/codex-agent-harness/adapter-scope-policy.test.ts src/modules/codex-agent-harness/runtime-home.test.ts src/workflow-step-executor-agent.integration.test.ts` — 5 files and 53 tests passed.
+- `pnpm test src/strict-types-policy.integration.test.ts src/root-layout.test.ts` — 2 files and 3 tests passed.
+- `pnpm typecheck`, `pnpm build`, and focused Biome checks passed.

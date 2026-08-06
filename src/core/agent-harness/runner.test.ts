@@ -128,6 +128,37 @@ describe("runAgentHarness", () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it("rejects a declared passive-mode incompatibility before hooks or adapter run", async () => {
+    const preRun = vi.fn();
+    registerHarnessHook({
+      kind: "preRun",
+      owner: "observer",
+      name: "before",
+      handler: preRun,
+    });
+    const { harness, run } = harnessStub("native-cli", ["preRun", "postRun"]);
+    const unsupportedHarness: AgentHarness = {
+      ...harness,
+      unsupportedRunOptions: [
+        {
+          runOption: "autonomyMode.passive",
+          option: 'autonomyMode="passive"',
+          reason: "native tool calls cannot enforce the passive effect boundary",
+        },
+      ],
+    };
+
+    await expect(
+      runAgentHarness(unsupportedHarness, {
+        prompt: "x",
+        effort: "xhigh",
+        autonomyMode: "passive",
+      }),
+    ).rejects.toThrow(/native-cli.*passive.*native tool calls/);
+    expect(preRun).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it("rejects live scope-policy authority at a native adapter boundary", async () => {
     const { harness, run } = harnessStub("native-authority", []);
     const nativeHarness: AgentHarness = { ...harness, toolControl: "native" };

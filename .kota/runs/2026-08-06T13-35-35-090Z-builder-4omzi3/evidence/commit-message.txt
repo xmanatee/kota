@@ -1,0 +1,1 @@
+Reject unenforceable Codex passive mode before native launch

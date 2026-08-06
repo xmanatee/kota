@@ -48,10 +48,10 @@ Cancellation terminates the CLI process group so spawned tools cannot outlive
 the CLI, and the run-local quarantine barrier stays pending until the group
 leader has closed.
 
-`autonomyMode: "passive"` maps to KOTA's read-only native-CLI boundary.
-`supervised` is rejected because this non-interactive CLI path cannot route
-approvals through KOTA's approval queue. Autonomous writes remain bounded by
-the effective scope policy.
+`passive` is rejected because the adapter cannot classify and deny every
+non-safe native shell/tool invocation before it runs. `supervised` is rejected
+because this non-interactive CLI path cannot route approvals through KOTA's
+approval queue. Autonomous writes remain bounded by the effective scope policy.
 
 ## Capability Boundary
 

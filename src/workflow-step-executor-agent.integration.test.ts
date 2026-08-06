@@ -29,10 +29,6 @@ vi.mock("#modules/claude-agent-harness/executor.js", async () => {
     executeWithAgentSDK: executeWithAgentSDKMock,
   };
 });
-const collectTextFromCodexCliMock = vi.hoisted(() => vi.fn());
-vi.mock("#modules/codex-agent-harness/cli-runner.js", () => ({
-  collectTextFromCodexCli: collectTextFromCodexCliMock,
-}));
 vi.mock("#core/loop/system-prompt.js", () => ({
   buildKotaSystemPrompt: () => "system",
 }));
@@ -49,7 +45,6 @@ import { AgentWriteScopeViolationError } from "#core/workflow/steps/agent-write-
 import { executeAgentStep } from "#core/workflow/steps/step-executor-agent.js";
 import { AgentStepRuntimeError } from "#core/workflow/steps/step-executor-retry.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
-import { codexAgentHarness } from "#modules/codex-agent-harness/adapter.js";
 
 function makeDefinition(name = "test-workflow"): WorkflowDefinition {
   return {
@@ -765,7 +760,6 @@ describe("executeAgentStep — writeScope enforcement", () => {
     initRepo(projectDir);
     tryEmitMock.mockReset();
     executeWithAgentSDKMock.mockReset();
-    collectTextFromCodexCliMock.mockReset();
   });
 
   afterEach(() => {
@@ -912,9 +906,7 @@ describe("executeAgentStep — writeScope enforcement", () => {
     writeTracked(projectDir, "src/core/keep.ts", "// legitimate staged dirt\n");
     execFileSync("git", ["add", "src/core/keep.ts"], { cwd: projectDir });
     writeTracked(projectDir, "src/core/keep.ts", "// legitimate worktree dirt\n");
-    let writableRoots: readonly string[] | undefined;
-    collectTextFromCodexCliMock.mockImplementation((options) => {
-      writableRoots = options.writableRoots;
+    executeWithAgentSDKMock.mockImplementation(() => {
       writeTracked(projectDir, "src/core/keep.ts", "// unauthorized\n");
       writeTracked(projectDir, "src/core/injected.ts", "// injected\n");
       return Promise.resolve({
@@ -927,8 +919,6 @@ describe("executeAgentStep — writeScope enforcement", () => {
         isError: false,
       });
     });
-    registerAgentHarness({ ...codexAgentHarness, readiness: undefined });
-
     const agent = makeAgentDef({
       name: "decomposer",
       writeScope: "deny-all",
@@ -936,8 +926,6 @@ describe("executeAgentStep — writeScope enforcement", () => {
     const step = makeAgentStep(projectDir, {
       id: "decompose",
       agentName: agent.name,
-      harness: "codex",
-      model: "gpt-5.6-sol",
       autonomyMode: "passive",
     });
     const initialHead = execFileSync("git", ["rev-parse", "HEAD"], {
@@ -976,7 +964,6 @@ describe("executeAgentStep — writeScope enforcement", () => {
       }),
     ).toBe("// legitimate staged dirt\n");
     expect(existsSync(join(projectDir, "src/core/injected.ts"))).toBe(false);
-    expect(writableRoots).toEqual([]);
     expect(
       execFileSync("git", ["rev-parse", "HEAD"], {
         cwd: projectDir,
