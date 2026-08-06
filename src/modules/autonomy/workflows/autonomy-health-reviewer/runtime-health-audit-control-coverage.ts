@@ -6,8 +6,11 @@ import {
   type ControlMonitorCoverageArtifact,
 } from "#core/workflow/control-monitor-coverage.js";
 import { readPrunedWorkflowRunReferences } from "#core/workflow/run-store-retention.js";
-import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { AutonomyHealthEvidenceRef } from "#modules/autonomy/health-signal.js";
+import {
+  type StoredWorkflowRun,
+  storedWorkflowRunDirectory,
+} from "#modules/workflow-ops/runs/workflow-history.js";
 import {
   isInfrastructureAgentRuntimeCoverageGap,
   isStaleSkippedApprovalOwnerGateGap,
@@ -19,7 +22,7 @@ import {
 } from "./runtime-health-audit-model.js";
 
 type WorkflowHistoryRunLike = Pick<
-  WorkflowRunMetadata,
+  StoredWorkflowRun,
   "id" | "workflow" | "status" | "startedAt" | "steps"
 >;
 
@@ -64,8 +67,12 @@ function readArtifact(
   ctx: RuntimeHealthAuditContext,
   run: WorkflowHistoryRunLike,
 ): ControlMonitorCoverageArtifact | null {
+  const runDir = storedWorkflowRunDirectory(
+    join(ctx.projectDir, ".kota", "runs"),
+    run,
+  );
   return readOptionalJsonFile<ControlMonitorCoverageArtifact>(
-    join(ctx.projectDir, ".kota", "runs", run.id, CONTROL_MONITOR_COVERAGE_ARTIFACT),
+    join(runDir, CONTROL_MONITOR_COVERAGE_ARTIFACT),
   );
 }
 

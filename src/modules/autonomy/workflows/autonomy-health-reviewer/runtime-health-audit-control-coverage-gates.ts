@@ -7,13 +7,16 @@ import {
 } from "#core/workflow/control-monitor-coverage-readers.js";
 import {
   isWorkflowStepTimeoutErrorKind,
-  type WorkflowRunMetadata,
   type WorkflowStepResult,
 } from "#core/workflow/run-types.js";
 import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
+import {
+  type StoredWorkflowRun,
+  storedWorkflowRunDirectory,
+} from "#modules/workflow-ops/runs/workflow-history.js";
 import type { RuntimeHealthAuditContext } from "./runtime-health-audit-model.js";
 
-type WorkflowHistoryRunLike = Pick<WorkflowRunMetadata, "id" | "steps">;
+type WorkflowHistoryRunLike = Pick<StoredWorkflowRun, "id" | "steps">;
 type ControlCoverageGap = ControlMonitorCoverageArtifact["gaps"][number];
 type StepEvidence = {
   id?: string;
@@ -51,7 +54,13 @@ function stepEvidenceRefForRun(
     return null;
   }
 
-  const stepsDir = resolve(ctx.projectDir, ".kota", "runs", run.id, "steps");
+  const stepsDir = resolve(
+    storedWorkflowRunDirectory(
+      join(ctx.projectDir, ".kota", "runs"),
+      run,
+    ),
+    "steps",
+  );
   const resolvedPath = resolve(ctx.projectDir, path);
   const relativeToSteps = relative(stepsDir, resolvedPath);
   if (
@@ -72,8 +81,12 @@ function ownerWaitStepIdsForRun(
   ctx: RuntimeHealthAuditContext,
   run: WorkflowHistoryRunLike,
 ): Set<string> {
+  const runDir = storedWorkflowRunDirectory(
+    join(ctx.projectDir, ".kota", "runs"),
+    run,
+  );
   const snapshot = readJsonObject(
-    join(ctx.projectDir, ".kota", "runs", run.id, "workflow.json"),
+    join(runDir, "workflow.json"),
   );
   return new Set(
     snapshotStepsFrom(snapshot)

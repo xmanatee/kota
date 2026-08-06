@@ -213,6 +213,29 @@ describe("runtime health audit control coverage gaps", () => {
     expectNoObservableGateDiagnostics(audit);
   });
 
+  it("rejects an alternate-run metadata id before the gate suppressor reads artifacts", () => {
+    writeRunWithSkippedApprovalGateGap(
+      projectDir,
+      "authentic-skipped-gate",
+      "2026-06-19T10:00:00.000Z",
+    );
+    writeRunWithApprovalOwnerGateGap(projectDir, {
+      id: "forged-current-run",
+      metadataId: "authentic-skipped-gate",
+      startedAt: "2026-06-19T11:00:00.000Z",
+      step: { id: "approve-comment", type: "approval", status: "skipped" },
+    });
+
+    const audit = collectRuntimeHealthAudit({
+      projectDir,
+      options: { nowIso: NOW, interruptedRunMinCount: 2 },
+    });
+
+    expect(audit.inspected.recentRuns).toBe(1);
+    expect(audit.inspected.controlCoverageArtifacts).toBe(1);
+    expectNoObservableGateDiagnostics(audit);
+  });
+
   it("ignores missing agent runtime evidence from infrastructure failed steps", () => {
     writeRunWithAgentRuntimeCoverageGaps(projectDir, {
       id: "transport-missing-runtime-a",

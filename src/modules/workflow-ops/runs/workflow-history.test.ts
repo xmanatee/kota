@@ -5,7 +5,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowStepResult } from "#core/workflow/run-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
-import { computeHistoryStats, loadRunsInWindow } from "./workflow-history.js";
+import {
+  computeHistoryStats,
+  listStoredWorkflowRuns,
+  loadRunsInWindow,
+} from "./workflow-history.js";
 
 const minimalWorkflow = (name: string): WorkflowDefinition => ({
   name,
@@ -95,6 +99,46 @@ describe("workflow history", () => {
 
       const runs = loadRunsInWindow(store.runsDir, Date.now() - 86400_000);
       expect(runs.map((item) => item.workflow)).toEqual(["builder"]);
+    });
+
+    it("rejects mismatched, alternate-run, traversal, and noncanonical directory identities", () => {
+      const startedAt = new Date().toISOString();
+      const cases = [
+        ["mismatched-directory", "different-run"],
+        ["forged-alternate-directory", "authentic-alternate-run"],
+        ["posix-traversal-directory", "../authentic-alternate-run"],
+        ["windows-traversal-directory", "..\\authentic-alternate-run"],
+        ["unsafe directory", "unsafe directory"],
+      ] as const;
+      for (const [directoryName, metadataId] of cases) {
+        const runDir = join(store.runsDir, directoryName);
+        mkdirSync(runDir, { recursive: true });
+        writeFileSync(
+          join(runDir, "metadata.json"),
+          JSON.stringify({
+            id: metadataId,
+            workflow: "builder",
+            status: "success",
+            startedAt,
+          }),
+        );
+      }
+
+      const authenticRunDir = join(store.runsDir, "authentic-alternate-run");
+      mkdirSync(authenticRunDir, { recursive: true });
+      writeFileSync(
+        join(authenticRunDir, "metadata.json"),
+        JSON.stringify({
+          id: "authentic-alternate-run",
+          workflow: "builder",
+          status: "success",
+          startedAt,
+        }),
+      );
+
+      expect(listStoredWorkflowRuns(store.runsDir).map((run) => run.id)).toEqual([
+        "authentic-alternate-run",
+      ]);
     });
   });
 

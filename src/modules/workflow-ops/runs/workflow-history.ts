@@ -1,7 +1,18 @@
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { validateWorkflowRunId } from "#core/workflow/run-io.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+
+declare const storedWorkflowRunDirectoryId: unique symbol;
+
+export type StoredWorkflowRunDirectoryId = string & {
+  readonly [storedWorkflowRunDirectoryId]: "stored-workflow-run-directory-id";
+};
+
+export type StoredWorkflowRun = WorkflowRunMetadata & {
+  id: StoredWorkflowRunDirectoryId;
+};
 
 export type HistoryStats = {
   total: number;
@@ -43,29 +54,60 @@ function isWorkflowRunMetadata(value: WorkflowRunMetadata | null): value is Work
   );
 }
 
+function storedWorkflowRunForDirectory(
+  value: WorkflowRunMetadata | null,
+  directoryName: string,
+): StoredWorkflowRun | null {
+  if (!isWorkflowRunMetadata(value)) return null;
+  let validatedDirectoryName: string;
+  try {
+    validatedDirectoryName = validateWorkflowRunId(
+      directoryName,
+      "Stored workflow run directory",
+    );
+  } catch {
+    return null;
+  }
+  if (value.id !== validatedDirectoryName) return null;
+  return {
+    ...value,
+    id: validatedDirectoryName as StoredWorkflowRunDirectoryId,
+  };
+}
+
+export function storedWorkflowRunDirectory(
+  runsDir: string,
+  run: Pick<StoredWorkflowRun, "id">,
+): string {
+  return join(runsDir, run.id);
+}
+
 export function loadRunsInWindow(
   runsDir: string,
   cutoffMs: number,
   untilMs = Number.POSITIVE_INFINITY,
-): WorkflowRunMetadata[] {
+): StoredWorkflowRun[] {
   return listStoredWorkflowRuns(runsDir, { sinceMs: cutoffMs, untilMs });
 }
 
 export function listStoredWorkflowRuns(
   runsDir: string,
   filter: StoredWorkflowRunFilter = {},
-): WorkflowRunMetadata[] {
+): StoredWorkflowRun[] {
   let dirs: string[];
   try {
     dirs = readdirSync(runsDir);
   } catch {
     return [];
   }
-  const runs: WorkflowRunMetadata[] = [];
+  const runs: StoredWorkflowRun[] = [];
   for (const dir of dirs) {
     const metadataPath = join(runsDir, dir, "metadata.json");
-    const metadata = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
-    if (!isWorkflowRunMetadata(metadata)) continue;
+    const metadata = storedWorkflowRunForDirectory(
+      readOptionalJsonFile<WorkflowRunMetadata>(metadataPath),
+      dir,
+    );
+    if (!metadata) continue;
     const startedAtMs = new Date(metadata.startedAt).getTime();
     if (filter.untilMs !== undefined && startedAtMs > filter.untilMs) continue;
     if (filter.sinceMs !== undefined && startedAtMs < filter.sinceMs) continue;

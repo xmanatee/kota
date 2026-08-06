@@ -1,0 +1,3 @@
+1. Stored workflow history rejects metadata whose run id is not the exact canonical basename of the enumerated run directory, preventing alternate-run and traversal substitution.
+2. Runtime health workflow, coverage, error, and step-artifact readers consume only the directory identity validated by workflow history.
+3. Focused regressions cover mismatched, alternate-run, and traversal metadata ids and the final task records the passing verification command.

@@ -306,6 +306,7 @@ export function writeRunWithApprovalOwnerGateGap(
   projectDir: string,
   args: {
     id: string;
+    metadataId?: string;
     startedAt: string;
     step: StepSeed;
     evidenceRefs?: string[];
@@ -320,7 +321,7 @@ export function writeRunWithApprovalOwnerGateGap(
   writeFileSync(
     join(runDir, "metadata.json"),
     JSON.stringify({
-      id,
+      id: args.metadataId ?? id,
       workflow: "github-mention-intake",
       status: "success",
       startedAt,

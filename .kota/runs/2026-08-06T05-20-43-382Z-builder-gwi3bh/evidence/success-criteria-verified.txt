@@ -1,0 +1,3 @@
+1. Verified: workflow history validates the enumerated basename with the canonical workflow run-id validator, requires metadata.id to match exactly, and rejects mismatched, alternate-run, traversal, and noncanonical identities.
+2. Verified: a branded StoredWorkflowRun directory id and storedWorkflowRunDirectory helper now gate runtime-health workflow snapshots, coverage artifacts, step artifacts, and interrupted-run errors.
+3. Verified: the focused Vitest command passes 20 tests, typecheck and targeted Biome checks pass, and the done task records the verification commands.

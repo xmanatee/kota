@@ -1,7 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AutonomyHealthEvidenceRef } from "#modules/autonomy/health-signal.js";
-import { loadRunsInWindow } from "#modules/workflow-ops/runs/workflow-history.js";
+import {
+  loadRunsInWindow,
+  storedWorkflowRunDirectory,
+} from "#modules/workflow-ops/runs/workflow-history.js";
 import { scanControlCoverageGaps } from "./runtime-health-audit-control-coverage.js";
 import {
   addPattern,
@@ -29,7 +32,13 @@ function readInterruptedRunErrorSummary(
   ctx: RuntimeHealthAuditContext,
   run: WorkflowHistoryRun,
 ): string | null {
-  const errorPath = join(ctx.projectDir, ".kota", "runs", run.id, "error.txt");
+  const errorPath = join(
+    storedWorkflowRunDirectory(
+      join(ctx.projectDir, ".kota", "runs"),
+      run,
+    ),
+    "error.txt",
+  );
   if (!existsSync(errorPath)) return null;
   const text = readFileSync(errorPath, "utf-8").slice(0, MAX_RUN_ERROR_TEXT_BYTES);
   return truncateSingleLine(text);
