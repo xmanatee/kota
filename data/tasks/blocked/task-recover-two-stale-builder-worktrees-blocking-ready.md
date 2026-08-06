@@ -1,13 +1,13 @@
 ---
 id: task-recover-two-stale-builder-worktrees-blocking-ready
 title: Recover two stale builder worktrees blocking ready security tasks
-status: ready
+status: blocked
 priority: p1
 area: autonomy
 task_class: Meta
 summary: Use the canonical state-recovery path to inspect and disposition the preserved worktrees for task-security-review-codex-passive-mode-does-not-enforc and task-security-review-workflow-handoff-children-do-not-i, preserving any non-superseded changes and reconciling their expired active claims and task states.
 created_at: 2026-08-06T10:32:23.576Z
-updated_at: 2026-08-06T10:32:23.576Z
+updated_at: 2026-08-06T11:57:08.999Z
 ---
 
 ## Problem
@@ -54,3 +54,17 @@ Outcome-aware autonomy progress review.
 - Review-provided acceptance evidence:
 
     State-recovery evidence records a recover, supersede, or preserve disposition for both worktrees; every non-superseded change is merged or durably preserved; the expired active claims are cleared or reconciled; and a subsequent builder queue inspection shows each task as claimable or done rather than skipped-stale-worktree.
+
+## Recovery Blocker
+
+- Builder evidence: `.kota/runs/2026-08-06T11-39-00-766Z-builder-ljn8o9/evidence/artifacts/recovery-analysis.txt`.
+- This sandbox cannot read the canonical active-claim store or the two preserved worktrees, and cannot reach the authenticated daemon control address. The read-only branch/index projection is insufficient to authorize a recover, supersede, or discard disposition.
+- Continue from the canonical project runtime with the exact active claim run ids recorded in the builder evidence; inspect unstaged and untracked work before applying the recovery provider recommendation.
+
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/task-recover-two-stale-builder-worktrees-blocking-ready/canonical-state-recovery.json
+description: from the canonical project runtime, capture state-recovery disposition evidence for both preserved worktrees, including claim reconciliation and the subsequent builder queue inspection
+```

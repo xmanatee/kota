@@ -1,0 +1,54 @@
+Stale builder worktree recovery analysis
+Run: 2026-08-06T11-39-00-766Z-builder-ljn8o9
+Task: task-recover-two-stale-builder-worktrees-blocking-ready
+Result: blocked before state mutation; neither claim was released or superseded.
+
+Canonical recovery access
+
+- `pnpm kota task move task-recover-two-stale-builder-worktrees-blocking-ready doing` reached the task domain mutation, then failed while staging because the native builder has read-only Git metadata. The command rolled the file move back.
+- `pnpm dev workflow state-recovery list` from the leased task worktree inspected that worktree's local runtime and therefore reported no unresolved state.
+- A read-only call to the canonical recovery provider for `/Users/xmanatee/Desktop/mono/apps/kota` failed with `EPERM` while scanning `.kota/task-claims/active`. The same sandbox denies the two preserved worktree directories and the daemon-control address. No safe daemon-backed alternative was available without bypassing those denials.
+- Because the claim store and worktree contents were inaccessible, no recovery mutation or cleanup was attempted. Treating Git's sandbox-limited `prunable` projection as proof that either worktree is absent would be unsafe.
+
+Claim evidence supplied by the queue projection
+
+1. task-security-review-codex-passive-mode-does-not-enforc
+   Active claim run: 2026-08-05T00-19-00-889Z-builder-1ylf1j
+   Preserved worktree run: 2026-08-04T12-52-17-054Z-builder-gomw1k
+   Worktree: /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-security-review-codex-passive-mode-does-not-enforc-2026-08-04t12-52-17-054z-builder-gomw1k
+   Queue recovery status/path: stale / skipped-stale-worktree
+
+2. task-security-review-workflow-handoff-children-do-not-i
+   Active claim run: 2026-08-05T05-45-35-292Z-builder-38kpyl
+   Preserved worktree run: 2026-08-04T20-25-13-006Z-builder-0tc6ur
+   Worktree: /Users/xmanatee/Desktop/mono/apps/kota/.worktrees/task-security-review-workflow-handoff-children-do-not-i-2026-08-04t20-25-13-006z-builder-0tc6ur
+   Queue recovery status/path: stale / skipped-stale-worktree
+
+Read-only Git recovery evidence
+
+1. Passive-mode branch
+   Branch head: 11fa923b3fac0a838349e9ee0ccc076bf464c6c4
+   Relative to main at 44f50a397767229a363ee4f27277daee1dbf89a1: main ahead 106, branch ahead 0.
+   The branch head is contained by main. The worktree index differs from its HEAD only by five completion records: four run-evidence files and a ready-to-done task rename with updated acceptance evidence.
+   Indexed blob ids: commit message ec7327bc85cc963a90b7aa83866e01d3802f9fa3; manifest c45dce30f3b47a074fa9045a1db40f5c4933dcda; both criteria ed96d984d9056c6ef89fcfbfaf5cb5361a0c12a4; done task 603fa50bd70d2e1b0ba2ebae2b426c2c7e1b3f17.
+   The indexed evidence says passive Codex was rejected. Canonical main has since superseded that posture with a read-only native CLI sandbox and provider-only egress. Relevant contained commits include 1e22755f5 (`security: isolate native CLI state, files, and provider egress`), 5b68d01af (native CLI provider-state isolation), and a6fcb8e8e (`fix: assign native CLI machine authority ownership`).
+
+2. Handoff-policy branch
+   Branch head: ea850848dfad207c25efbcff2d70ed217e4e32ac
+   Relative to main at 44f50a397767229a363ee4f27277daee1dbf89a1: main ahead 96, branch ahead 0.
+   The branch head is contained by main. The worktree index differs from its HEAD only by five completion records: four run-evidence files and a ready-to-done task rename with updated acceptance evidence.
+   Indexed blob ids: commit message 8b0d75572216739ff095aebacb4717f92210a228; manifest c45dce30f3b47a074fa9045a1db40f5c4933dcda; verified criteria 6dc12ca0d1ee71ef0aadf3841abc2e8e35a017e5; declared criteria 387612c8d65bda820190968932bee177a8550d58; done task 04100758fdcbaf14c3ce8dcb003c085b929d7084.
+   Canonical commit c04984903 (`Reauthorize KOTA-hosted workflow tool calls against live policy`) contains the scope-policy propagation and autonomy capping asserted by the indexed evidence.
+
+Validation
+
+- `pnpm test src/modules/codex-agent-harness/adapter.test.ts src/core/tools/handoff-agent.test.ts src/core/agent-harness/machine-authority-sandbox.test.ts`: 2 discovered files passed, 18 tests passed. The named machine-authority file does not exist and Vitest ignored it.
+- `pnpm test src/modules/codex-agent-harness/adapter.test.ts src/modules/codex-agent-harness/adapter-scope-policy.test.ts src/core/tools/handoff-agent.test.ts src/core/agent-harness/native-cli-egress-proxy.test.ts src/core/agent-harness/native-cli-sandbox-roots.test.ts src/core/agent-harness/native-cli-sandbox.test.ts`: 32 tests passed. Three live network tests could not bind 127.0.0.1 because this builder sandbox returns `listen EPERM`; no assertion failure was observed outside that environmental restriction.
+
+Required authorized continuation
+
+Run `pnpm dev workflow state-recovery list --json` from the canonical project runtime or through its authenticated daemon client. Inspect actual unstaged and untracked worktree content in addition to the indexed records above. If that inspection confirms the indexed completion records are the only preserved changes and main supersedes them, use the provider's recommended supersede action with the exact active claim run id, a canonical superseding commit, cleanup, and explicit discard only after retaining this evidence. Complete each security task only after confirming its current main implementation satisfies its Done When. Then rerun the recovery list and builder queue inspection; acceptance requires both claims to be absent or reconciled and both tasks to be claimable or done.
+
+Repair-loop disposition
+
+The claimed recovery task was moved from `ready` to `blocked` through `pnpm kota task move`. Its typed `operator-capture` precondition points at `.kota/runs/task-recover-two-stale-builder-worktrees-blocking-ready/canonical-state-recovery.json`, where the authorized continuation must record both worktree dispositions, claim reconciliation, and the subsequent builder queue inspection.

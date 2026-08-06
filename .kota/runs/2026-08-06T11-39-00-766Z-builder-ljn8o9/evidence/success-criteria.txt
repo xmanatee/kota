@@ -1,0 +1,2 @@
+1. Resolve or explicitly disprove the cited stale-worktree progress gap with canonical state-recovery evidence for both security tasks.
+2. Record acceptance evidence proving preserved changes and expired claims were reconciled and both security tasks are claimable or done.

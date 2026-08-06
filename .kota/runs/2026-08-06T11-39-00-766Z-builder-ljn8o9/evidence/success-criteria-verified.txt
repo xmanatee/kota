@@ -1,0 +1,4 @@
+1. Not verified: Git metadata establishes that both branch heads are contained by main and preserves the indexed completion records, but the builder sandbox denied the parent project claim store, so no canonical state-recovery disposition was written.
+2. Not verified: recovery-analysis.txt records the exact evidence and blocker, but the two expired active claims remain unreconciled and the tasks cannot yet be proven claimable or done.
+
+Repair disposition: the claimed recovery task was moved from ready to blocked through the canonical task mover. Its task record now names the projected recovery analysis and a typed operator-capture path for canonical-runtime recovery evidence.
