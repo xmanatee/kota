@@ -1,0 +1,5 @@
+fix blocked-promoter owner authorization
+
+- require the displayed literal unblock token for promotion
+- reject stale owner answers when the task precondition changes during await
+- isolate security regressions from oversized legacy test files

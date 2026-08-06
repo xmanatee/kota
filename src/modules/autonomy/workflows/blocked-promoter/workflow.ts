@@ -26,9 +26,9 @@ import {
   stepCommitted,
 } from "#modules/autonomy/shared.js";
 import type { MoveTaskResult } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { answerApprovesPromotion } from "./owner-decision-authorization.js";
 import {
   type AskOutcomeApplication,
-  answerApprovesPromotion,
   applyAskOutcome,
   applyOperatorCaptureInstruction,
   type BlockerAction,
@@ -114,6 +114,22 @@ function reorderProposedAnswers(
   return [head, ...proposed.slice(0, idx), ...proposed.slice(idx + 1)];
 }
 
+function displayedOwnerAnswers(candidate: OwnerAskCandidate): string[] {
+  const baseProposed =
+    candidate.proposedAnswers.length > 0
+      ? candidate.proposedAnswers
+      : ["unblock"];
+  const reordered = reorderProposedAnswers(
+    baseProposed,
+    candidate.recommendedAnswer,
+  );
+  return reordered.some(
+    (answer) => answer.trim().toLowerCase() === "unblock",
+  )
+    ? reordered
+    : [...reordered, "unblock"];
+}
+
 const askSteps = askOwnerSteps({
   idPrefix: "blocked-promoter-ask",
   awaitTimeoutMs: 10 * 60 * 1000,
@@ -124,17 +140,6 @@ const askSteps = askOwnerSteps({
         "blocked-promoter ask step ran without an owner-ask candidate — gate predicate is broken",
       );
     }
-    const baseProposed =
-      candidate.proposedAnswers.length > 0
-        ? candidate.proposedAnswers
-        : ["unblock"];
-    const reordered = reorderProposedAnswers(
-      baseProposed,
-      candidate.recommendedAnswer,
-    );
-    const ensureUnblock = reordered.includes("unblock")
-      ? reordered
-      : [...reordered, "unblock"];
     const recommendationLine = candidate.recommendedAnswer
       ? `\n\nRecommended option: ${candidate.recommendedAnswer}.`
       : "";
@@ -153,7 +158,7 @@ const askSteps = askOwnerSteps({
           "does not silently absorb queue capacity. Reply with the chosen " +
           "variant or 'unblock' to promote the task; any other answer just " +
           "refreshes the asked marker.",
-      proposedAnswers: ensureUnblock,
+      proposedAnswers: displayedOwnerAnswers(candidate),
       source: "blocked-promoter",
       taskId: candidate.taskId,
     };
@@ -182,7 +187,10 @@ const applyOutcome = typedCodeStep<AskOutcomeApplication[]>({
     const outcome = askSteps.consume.outputRequired(ctx);
     let approved = false;
     if (outcome.kind === "answered") {
-      approved = answerApprovesPromotion(outcome.answer, candidate.proposedAnswers);
+      approved = answerApprovesPromotion(
+        outcome.answer,
+        displayedOwnerAnswers(candidate),
+      );
     }
     return applyAskOutcome({
       projectDir: ctx.projectDir,

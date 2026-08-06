@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-owner-decision-gate-accepts-ye
 title: Security review: The owner-decision gate accepts `yes`, `approve`, `promote`, or `unblock` as approval even when the answer was not offered by the task's proposed_answers. Because the blocked task controls the question, an affirmative answer to a question whose meaning is to remain blocked can be interpreted as authorization to write a resolved marker and promote the task, reversing the operator's intent.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: The owner-decision gate accepts `yes`, `approve`, `promote`, or `unblock` as approval even when the answer was not offered by the task's proposed_answers. Because the blocked task controls the question, an affirmative answer to a question whose meaning is to remain blocked can be interpreted as authorization to write a resolved marker and promote the task, reversing the operator's intent.
 created_at: 2026-08-03T17:21:44.136Z
-updated_at: 2026-08-03T17:21:44.136Z
+updated_at: 2026-08-06T09:46:31.094Z
 ---
 
 ## Problem
@@ -111,3 +111,4 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Verification: `TMPDIR="$(cd "${TMPDIR:-/tmp}" && pwd -P)" NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner --silent=true src/modules/autonomy/workflows/blocked-promoter/owner-decision-authorization.test.ts src/modules/autonomy/workflows/blocked-promoter/owner-decision-authorization.workflow.test.ts src/modules/autonomy/workflows/blocked-promoter/promotion.test.ts src/modules/autonomy/workflows/blocked-promoter/workflow.test.ts src/modules/autonomy/workflows/blocked-promoter/owner-decision-cycle.integration.test.ts` (44 tests passed), plus `src/cli.test.ts` in the combined 79-test run, `pnpm typecheck`, and focused Biome checks.

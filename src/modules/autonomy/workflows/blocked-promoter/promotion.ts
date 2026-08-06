@@ -23,6 +23,7 @@ import {
   writeRepoTaskFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { readTaskDependencyIds } from "#modules/repo-tasks/task-dependencies.js";
+import { assertOwnerDecisionCandidateIsCurrent } from "./owner-decision-authorization.js";
 
 export type BlockedTaskRecord = {
   id: string;
@@ -178,8 +179,6 @@ export type AskOutcomeApplication =
       lastAskedAt: string;
     };
 
-const APPROVAL_ANSWERS = new Set(["unblock", "promote", "approve", "yes"]);
-
 const RECOMMENDED_LINE_RE = /(?:^|[\s.])recommended:\s*([a-z0-9][a-z0-9-_]*)/i;
 
 /**
@@ -200,25 +199,6 @@ export function extractRecommendedAnswer(
 }
 
 /**
- * Detect whether the operator's free-form answer should count as the
- * unblock signal for the slot. Conservative: only the answers explicitly
- * named on the precondition's `proposed_answers` list (intersected with the
- * approval keyword set) are treated as approvals; everything else only
- * refreshes the asked marker so we do not auto-promote on an ambiguous
- * answer.
- */
-export function answerApprovesPromotion(
-  answer: string,
-  proposedAnswers: string[],
-): boolean {
-  const normalized = answer.trim().toLowerCase();
-  if (APPROVAL_ANSWERS.has(normalized)) return true;
-  return proposedAnswers
-    .map((a) => a.trim().toLowerCase())
-    .some((proposed) => proposed === normalized && APPROVAL_ANSWERS.has(proposed));
-}
-
-/**
  * Write either a resolved marker (operator approved) or refresh the asked
  * marker (everything else). The asked marker is always refreshed so the
  * next cycle does not re-ask within the cadence window.
@@ -236,6 +216,7 @@ export function applyAskOutcome(args: {
     throw new Error(`blocked-promoter: task file disappeared: ${filePath}`);
   }
   const raw = readFileSync(filePath, "utf-8");
+  assertOwnerDecisionCandidateIsCurrent(raw, candidate);
   const split = splitFrontMatter(raw);
   if (!split) {
     throw new Error(`blocked-promoter: task file has no frontmatter: ${filePath}`);
