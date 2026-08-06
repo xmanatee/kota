@@ -1,13 +1,13 @@
 ---
 id: task-security-review-task-claim-storage-follows-project
 title: Security review: Task-claim storage follows project-controlled directory symlinks. A project can redirect .kota/task-claims/active, history, or locks into another project, causing host-side claim reads, writes, renames, and archival to cross the project boundary.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Task-claim storage follows project-controlled directory symlinks. A project can redirect .kota/task-claims/active, history, or locks into another project, causing host-side claim reads, writes, renames, and archival to cross the project boundary.
 created_at: 2026-08-06T12:54:42.988Z
-updated_at: 2026-08-06T12:54:42.988Z
+updated_at: 2026-08-06T13:18:42.531Z
 ---
 
 ## Problem
@@ -110,4 +110,5 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `pnpm exec vitest run src/modules/autonomy/task-claim-path-security.test.ts src/modules/autonomy/task-claim-recovery.test.ts src/modules/autonomy/task-claim-races.test.ts src/modules/autonomy/workflow-state-recovery-actions.test.ts src/modules/autonomy/workflow-state-recovery-observability.test.ts --configLoader runner --silent=true` — 5 files and 32 tests pass, including sibling-project `active`, `history`, and `locks` redirects, symlinked claim leaves, stored-task-id mismatch, recovery, and concurrent replacement coverage.
+- `pnpm typecheck`, `pnpm build`, and `pnpm lint` pass. The repository-wide lint command retains pre-existing warning-only diagnostics outside the touched files.

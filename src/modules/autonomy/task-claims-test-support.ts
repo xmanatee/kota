@@ -70,7 +70,7 @@ if (input.operation === "claim-task") {
     taskState: input.taskState,
     taskFile: staleClaim.taskFile,
   }, now);
-  if (!archiveClaimIfUnchanged(input.projectDir, taskClaimPath(input.projectDir, input.taskId), staleClaim, now)) {
+  if (!archiveClaimIfUnchanged(input.projectDir, staleClaim, now)) {
     result = {
       claimed: false,
       taskId: input.taskId,
@@ -81,7 +81,7 @@ if (input.operation === "claim-task") {
       reason: "claim changed during stale recovery",
     };
   } else {
-    writeClaim(taskClaimPath(input.projectDir, input.taskId), claim, "wx");
+    writeClaim(input.projectDir, claim, "wx");
     result = {
       claimed: true,
       taskId: input.taskId,

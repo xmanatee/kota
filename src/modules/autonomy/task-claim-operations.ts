@@ -1,4 +1,3 @@
-import { existsSync, unlinkSync } from "node:fs";
 import {
   archiveClaim,
   archiveClaimIfUnchanged,
@@ -56,7 +55,7 @@ export function claimTask(input: ClaimTaskInput): ClaimTaskAttempt {
     const inspection = inspectTaskClaimWithOwnerRun(input.projectDir, existing, path, now);
     if (sameWorkflowRun(existing, input) && existing.status === "active") {
       const resumed = buildClaim(input, now, existing.createdAt);
-      writeClaim(path, resumed, "w");
+      writeClaim(input.projectDir, resumed, "w");
       return {
         claimed: true,
         taskId: input.taskId,
@@ -79,14 +78,14 @@ export function claimTask(input: ClaimTaskInput): ClaimTaskAttempt {
           : `task is already claimed by ${existing.owner} (${existing.runId})`,
       );
     }
-    if (!archiveClaimIfUnchanged(input.projectDir, path, existing, now)) {
+    if (!archiveClaimIfUnchanged(input.projectDir, existing, now)) {
       return skippedAttempt(input.taskId, null, null, "write-conflict", "claim changed during stale recovery");
     }
   }
 
   const claim = buildClaim(input, now);
   try {
-    writeClaim(path, claim, "wx");
+    writeClaim(input.projectDir, claim, "wx");
   } catch {
     const conflict = readActiveTaskClaim(input.projectDir, input.taskId);
     const inspection = conflict ? inspectTaskClaimWithOwnerRun(input.projectDir, conflict, path, now) : null;
@@ -222,7 +221,7 @@ function mutateActiveClaim(
   if (!mutationActorMatches(claim, input)) return mismatchResult(claim, path, input, now);
 
   const next = mutate(claim, now);
-  writeClaim(path, next, "w");
+  writeClaim(input.projectDir, next, "w");
   const inspection = inspectTaskClaim(next, path, now);
   return {
     taskId: input.taskId,
@@ -302,9 +301,8 @@ export function releaseTaskClaim(input: TaskClaimMutationInput): TaskClaimTermin
     updatedAt: now.toISOString(),
     evidence: input.evidence,
   };
-  writeClaim(path, released, "w");
-  archiveClaim(input.projectDir, path, released, now);
-  if (existsSync(path)) unlinkSync(path);
+  writeClaim(input.projectDir, released, "w");
+  archiveClaim(input.projectDir, released, now);
   return {
     taskId: input.taskId,
     changed: true,
@@ -328,9 +326,8 @@ export function supersedeTaskClaim(input: TaskClaimMutationInput): TaskClaimTerm
     updatedAt: now.toISOString(),
     evidence: input.evidence,
   };
-  writeClaim(path, superseded, "w");
-  archiveClaim(input.projectDir, path, superseded, now);
-  if (existsSync(path)) unlinkSync(path);
+  writeClaim(input.projectDir, superseded, "w");
+  archiveClaim(input.projectDir, superseded, now);
   return {
     taskId: input.taskId,
     changed: true,

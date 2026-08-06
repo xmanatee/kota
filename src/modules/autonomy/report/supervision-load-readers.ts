@@ -4,7 +4,7 @@ import type { KotaJsonValue } from "#core/agent-harness/message-protocol.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import {
-  listTaskClaimInspections,
+  readTaskClaimInspectionStore,
   type TaskClaimInspection,
 } from "#modules/autonomy/task-claims.js";
 import { renderOnDemandAttention } from "#modules/autonomy/workflows/attention-digest/step.js";
@@ -59,12 +59,27 @@ function readTaskClaims(
   windowEndMs: number,
 ): StoreResult<TaskClaimInspection> {
   const activeClaimsDir = join(projectDir, ".kota", "task-claims", "active");
-  const evidence = directoryEvidence("task-claims", activeClaimsDir);
-  if (evidence.status !== "available") return { items: null, evidence };
   try {
+    const store = readTaskClaimInspectionStore(projectDir, new Date(windowEndMs));
+    if (!store.available) {
+      return {
+        items: null,
+        evidence: {
+          source: "task-claims",
+          status: "missing",
+          path: activeClaimsDir,
+          message: "task-claims store is not available",
+        },
+      };
+    }
     return {
-      items: listTaskClaimInspections(projectDir, new Date(windowEndMs)),
-      evidence,
+      items: store.items,
+      evidence: {
+        source: "task-claims",
+        status: "available",
+        path: activeClaimsDir,
+        message: "task-claims store read",
+      },
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

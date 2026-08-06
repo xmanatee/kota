@@ -22,6 +22,7 @@ export {
   inspectTaskClaimWithOwnerRun,
   listTaskClaimInspections,
   readActiveTaskClaim,
+  readTaskClaimInspectionStore,
   taskClaimPath,
   writeClaim,
 } from "./task-claim-files.js";

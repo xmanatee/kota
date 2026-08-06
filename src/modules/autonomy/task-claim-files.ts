@@ -1,15 +1,4 @@
-import { randomUUID } from "node:crypto";
-import {
-  existsSync,
-  linkSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  renameSync,
-  unlinkSync,
-  writeFileSync,
-} from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import type { KotaJsonObject, KotaJsonValue } from "#core/agent-harness/message-protocol.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunStatus } from "#core/workflow/run-types.js";
@@ -24,10 +13,12 @@ import {
   readVerifiedRepoTaskFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
+  type ClaimFileIdentity,
+  runClaimFilesystemOperation,
+} from "./task-claim-filesystem.js";
+import {
   ACTIVE_CLAIMS_DIR,
-  CLAIM_HISTORY_DIR,
   CLAIM_SCHEMA_VERSION,
-  CLAIMS_ROOT,
   type ClaimTaskInput,
   type ContinueTaskClaimInput,
   DEFAULT_TASK_CLAIM_LEASE_MS,
@@ -37,21 +28,27 @@ import {
   type TaskClaimStatus,
 } from "./task-claim-types.js";
 
+function claimFilesystemFail(reason: string): never {
+  throw new Error(`Task claim filesystem: ${reason}`);
+}
+
+function claimFileName(taskId: string): string {
+  return `${safeTaskClaimSegment(taskId)}.json`;
+}
+
 export function taskClaimPath(projectDir: string, taskId: string): string {
-  return join(projectDir, ACTIVE_CLAIMS_DIR, `${safeTaskClaimSegment(taskId)}.json`);
+  return join(projectDir, ACTIVE_CLAIMS_DIR, claimFileName(taskId));
 }
 
-function claimHistoryPath(projectDir: string, claim: TaskClaim, now: Date): string {
-  return join(
-    projectDir,
-    CLAIM_HISTORY_DIR,
-    safeTaskClaimSegment(claim.taskId),
-    `${safeTaskClaimSegment(now.toISOString())}-${safeTaskClaimSegment(claim.runId)}-${claim.status}.json`,
-  );
-}
-
-function ensureParent(path: string): void {
-  mkdirSync(dirname(path), { recursive: true });
+function claimHistoryLocation(claim: TaskClaim, now: Date): {
+  historyTaskSegment: string;
+  historyFileName: string;
+} {
+  return {
+    historyTaskSegment: safeTaskClaimSegment(claim.taskId),
+    historyFileName:
+      `${safeTaskClaimSegment(now.toISOString())}-${safeTaskClaimSegment(claim.runId)}-${claim.status}.json`,
+  };
 }
 
 function isTaskClaimStatus(value: string | undefined): value is TaskClaimStatus {
@@ -138,10 +135,15 @@ type StoredTaskClaim = Omit<Partial<TaskClaim>, "schemaVersion"> & {
   schemaVersion?: number;
 };
 
-function readClaimFile(projectDir: string, path: string): TaskClaim {
-  const parsed = JSON.parse(readFileSync(path, "utf8")) as StoredTaskClaim;
+function parseClaimFile(
+  projectDir: string,
+  path: string,
+  content: string,
+  requestedTaskId: string,
+): TaskClaim {
+  const parsed = JSON.parse(content) as StoredTaskClaim;
   if (
-    typeof parsed.taskId !== "string" ||
+    parsed.taskId !== requestedTaskId ||
     !isRepoTaskState(parsed.taskState) ||
     typeof parsed.runId !== "string" ||
     (parsed.worktreeRunId !== undefined && typeof parsed.worktreeRunId !== "string") ||
@@ -213,26 +215,18 @@ function readClaimFile(projectDir: string, path: string): TaskClaim {
   };
 }
 
-export function writeClaim(path: string, claim: TaskClaim, flag: "w" | "wx"): void {
-  ensureParent(path);
-  const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
-  try {
-    writeFileSync(temporaryPath, `${JSON.stringify(claim, null, 2)}\n`, {
-      encoding: "utf8",
-      flag: "wx",
-    });
-    if (flag === "wx") {
-      linkSync(temporaryPath, path);
-    } else {
-      renameSync(temporaryPath, path);
-    }
-  } finally {
-    if (existsSync(temporaryPath)) unlinkSync(temporaryPath);
-  }
-}
-
-function taskClaimMutationLockPath(projectDir: string, taskId: string): string {
-  return join(projectDir, CLAIMS_ROOT, "locks", `${safeTaskClaimSegment(taskId)}.lock`);
+export function writeClaim(
+  projectDir: string,
+  claim: TaskClaim,
+  flag: "w" | "wx",
+): void {
+  runClaimFilesystemOperation(projectDir, {
+    operation: "write-active",
+    taskId: claim.taskId,
+    fileName: claimFileName(claim.taskId),
+    content: `${JSON.stringify(claim, null, 2)}\n`,
+    flag,
+  });
 }
 
 function sameClaim(left: TaskClaim, right: TaskClaim): boolean {
@@ -261,21 +255,38 @@ function sameClaim(left: TaskClaim, right: TaskClaim): boolean {
     left.evidence === right.evidence;
 }
 
-function acquireClaimMutationLock(projectDir: string, claim: TaskClaim, now: Date): string | null {
-  const lockPath = taskClaimMutationLockPath(projectDir, claim.taskId);
-  ensureParent(lockPath);
-  try {
-    writeFileSync(lockPath, `${claim.runId}\n${now.toISOString()}\n`, {
-      encoding: "utf8",
-      flag: "wx",
-    });
-    return lockPath;
-  } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "EEXIST") {
-      return null;
-    }
-    throw error;
+type ClaimMutationLock = {
+  fileName: string;
+  identity: ClaimFileIdentity;
+};
+
+function acquireClaimMutationLock(
+  projectDir: string,
+  claim: TaskClaim,
+  now: Date,
+): ClaimMutationLock | null {
+  const fileName = `${safeTaskClaimSegment(claim.taskId)}.lock`;
+  const response = runClaimFilesystemOperation(projectDir, {
+    operation: "acquire-lock",
+    lockFileName: fileName,
+    content: `${claim.runId}\n${now.toISOString()}\n`,
+  });
+  if (response.acquired === false) return null;
+  if (response.acquired !== true || response.lockIdentity === undefined) {
+    return claimFilesystemFail("helper omitted an acquired lock identity");
   }
+  return { fileName, identity: response.lockIdentity };
+}
+
+function releaseClaimMutationLock(
+  projectDir: string,
+  lock: ClaimMutationLock,
+): void {
+  runClaimFilesystemOperation(projectDir, {
+    operation: "release-lock",
+    lockFileName: lock.fileName,
+    lockIdentity: lock.identity,
+  });
 }
 
 function assertClaimTaskFileCurrent(input: ClaimTaskInput): void {
@@ -388,55 +399,75 @@ export function inspectTaskClaimWithOwnerRun(
 
 export function readActiveTaskClaim(projectDir: string, taskId: string): TaskClaim | null {
   const path = taskClaimPath(projectDir, taskId);
-  if (!existsSync(path)) return null;
-  return readClaimFile(projectDir, path);
+  const response = runClaimFilesystemOperation(projectDir, {
+    operation: "read-active",
+    taskId,
+    fileName: claimFileName(taskId),
+  });
+  if (response.content === null) return null;
+  if (response.content === undefined) {
+    return claimFilesystemFail("helper omitted active claim content");
+  }
+  return parseClaimFile(projectDir, path, response.content, taskId);
 }
 
 export function listTaskClaimInspections(
   projectDir: string,
   now: Date = new Date(),
 ): TaskClaimInspection[] {
+  return readTaskClaimInspectionStore(projectDir, now).items;
+}
+
+export function readTaskClaimInspectionStore(
+  projectDir: string,
+  now: Date = new Date(),
+): { available: boolean; items: TaskClaimInspection[] } {
   const dir = join(projectDir, ACTIVE_CLAIMS_DIR);
-  if (!existsSync(dir)) return [];
-  const paths = readdirSync(dir)
-    .filter((name) => name.endsWith(".json"))
-    .sort()
-    .map((name) => join(dir, name));
-  if (paths.length === 0) return [];
+  const response = runClaimFilesystemOperation(projectDir, { operation: "list-active" });
+  if (response.entries === undefined || response.available === undefined) {
+    return claimFilesystemFail("helper omitted active claim store state");
+  }
+  if (response.entries.length === 0) {
+    return { available: response.available, items: [] };
+  }
   const worktrees = listAutomationWorktreeStatuses(projectDir);
-  return paths.map((path) =>
-    inspectTaskClaimWithOwnerRun(
+  const items = response.entries.map((entry) => {
+    const path = join(dir, entry.name);
+    return inspectTaskClaimWithOwnerRun(
       projectDir,
-      readClaimFile(projectDir, path),
+      parseClaimFile(projectDir, path, entry.content, entry.taskId),
       path,
       now,
       worktrees,
-    ),
-  );
+    );
+  });
+  return { available: response.available, items };
 }
 
-export function archiveClaim(projectDir: string, path: string, claim: TaskClaim, now: Date): void {
-  const historyPath = claimHistoryPath(projectDir, claim, now);
-  ensureParent(historyPath);
-  renameSync(path, historyPath);
+export function archiveClaim(projectDir: string, claim: TaskClaim, now: Date): void {
+  runClaimFilesystemOperation(projectDir, {
+    operation: "archive-active",
+    taskId: claim.taskId,
+    fileName: claimFileName(claim.taskId),
+    ...claimHistoryLocation(claim, now),
+  });
 }
 
 export function archiveClaimIfUnchanged(
   projectDir: string,
-  path: string,
   expected: TaskClaim,
   now: Date,
 ): boolean {
-  const lockPath = acquireClaimMutationLock(projectDir, expected, now);
-  if (!lockPath) return false;
+  const lock = acquireClaimMutationLock(projectDir, expected, now);
+  if (!lock) return false;
   try {
-    if (!existsSync(path)) return false;
-    const current = readClaimFile(projectDir, path);
+    const current = readActiveTaskClaim(projectDir, expected.taskId);
+    if (current === null) return false;
     if (!sameClaim(current, expected)) return false;
-    archiveClaim(projectDir, path, current, now);
+    archiveClaim(projectDir, current, now);
     return true;
   } finally {
-    unlinkSync(lockPath);
+    releaseClaimMutationLock(projectDir, lock);
   }
 }
 
@@ -446,17 +477,19 @@ export function continueClaimIfUnchanged(
   input: ContinueTaskClaimInput,
 ): TaskClaim | null {
   const now = input.now ?? new Date();
-  const path = taskClaimPath(projectDir, expected.taskId);
-  const lockPath = acquireClaimMutationLock(projectDir, expected, now);
-  if (!lockPath) return null;
+  const lock = acquireClaimMutationLock(projectDir, expected, now);
+  if (!lock) return null;
   try {
-    if (!existsSync(path)) return null;
-    const current = readClaimFile(projectDir, path);
+    const current = readActiveTaskClaim(projectDir, expected.taskId);
+    if (current === null) return null;
     if (!sameClaim(current, expected)) return null;
 
-    const historyPath = claimHistoryPath(projectDir, current, now);
-    ensureParent(historyPath);
-    linkSync(path, historyPath);
+    runClaimFilesystemOperation(projectDir, {
+      operation: "copy-active-history",
+      taskId: current.taskId,
+      fileName: claimFileName(current.taskId),
+      ...claimHistoryLocation(current, now),
+    });
     const leaseMs = input.leaseMs ?? current.leaseMs;
     const acquiredAt = now.toISOString();
     const continued: TaskClaim = {
@@ -472,9 +505,9 @@ export function continueClaimIfUnchanged(
       status: "active",
       evidence: input.evidence,
     };
-    writeClaim(path, continued, "w");
+    writeClaim(projectDir, continued, "w");
     return continued;
   } finally {
-    unlinkSync(lockPath);
+    releaseClaimMutationLock(projectDir, lock);
   }
 }

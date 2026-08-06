@@ -1,0 +1,3 @@
+1. Verified that every active, history, and locks operation enters the claim store through identity and no-follow checks, rejects unsafe components or leaves, and performs relative operations inside the verified directory.
+2. Verified exact stored-taskId-to-filename binding and sibling-project active, history, locks, and claim-leaf regressions without sibling reads, writes, replacement, archival, or removal.
+3. Verified the recorded five-file focused command (32 tests), the broader claim-consumer suite (102 tests), the strict-types ratchet, typecheck, build, and lint.
