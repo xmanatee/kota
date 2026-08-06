@@ -1,0 +1,3 @@
+1. Repair the progress-reviewer harness/autonomy-mode mismatch so fresh runs do not recreate workflow-failure:consecutive-failures:progress-reviewer:step-error:556ea0c99bcf.
+2. Add focused regression coverage for the local workflow cause and the failure detector's classification of this recurrence.
+3. Preserve operator attention escalation output that names the generated repair task id and exposes no cost fields.

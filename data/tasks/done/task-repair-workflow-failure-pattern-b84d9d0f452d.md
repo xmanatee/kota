@@ -1,12 +1,12 @@
 ---
 id: task-repair-workflow-failure-pattern-b84d9d0f452d
 title: Repair persistent progress-reviewer workflow failure pattern
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Fix the local cause behind progress-reviewer's persistent consecutive failure signal (step review-evidence error 75a9264428a7).
 created_at: 2026-08-06T19:03:50.676Z
-updated_at: 2026-08-06T19:03:50.676Z
+updated_at: 2026-08-06T19:29:05.225Z
 task_class: Meta
 ---
 

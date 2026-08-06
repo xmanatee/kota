@@ -1,0 +1,18 @@
+Validation evidence for task-repair-workflow-failure-pattern-b84d9d0f452d
+
+PASS: pnpm test src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts src/modules/autonomy/workflow-failure-escalation.test.ts
+Result: 2 test files passed; 51 tests passed. The runtime workflow fixture observed autonomyMode=autonomous, and the detector fixture reproduced fingerprint workflow-failure:consecutive-failures:progress-reviewer:step-error:556ea0c99bcf before showing that a fresh success clears it.
+
+PASS: pnpm test src/modules/autonomy/workflows/workflow-failure-escalator/workflow.test.ts
+Result: 1 test file passed; 3 tests passed. The attention event contains the generated task id and excludes cost and throughput fields.
+
+PASS: pnpm test src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts
+Result: 1 test file passed; 36 tests passed after the final runtime autonomy-mode assertion.
+
+PASS: pnpm exec biome check src/modules/autonomy/workflows/progress-reviewer/workflow.ts src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts src/modules/autonomy/workflow-failure-escalation.test.ts
+Result: 3 files checked; no fixes required.
+
+PASS: pnpm typecheck
+Result: TypeScript completed with no errors.
+
+DEFERRED TO WORKFLOW HOST: pnpm run validate-tasks reported only the claimed task's unstaged ready/ deletion and untracked done/ destination. Native CLI Git metadata is read-only; the builder's claimed-task-state-staged repair check owns exact-path staging before queue validation.

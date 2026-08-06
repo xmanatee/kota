@@ -21,6 +21,7 @@ function makeRun(opts: {
   workflow: string;
   hoursAgo: number;
   status: WorkflowRunMetadata["status"];
+  stepId?: string;
   repairCheckId?: string;
   stepError?: string;
   warnings?: WorkflowRunWarning[];
@@ -48,7 +49,7 @@ function makeRun(opts: {
     runDir: `.kota/runs/${opts.id}`,
     steps: [
       {
-        id: "main",
+        id: opts.stepId ?? "main",
         type: "agent",
         status: failed ? "failed" : "success",
         startedAt: completedAt,
@@ -249,6 +250,67 @@ describe("detectPersistentWorkflowFailurePatternsFromRuns", () => {
     );
 
     expect(patterns).toEqual([]);
+  });
+
+  it("treats repeated native passive-mode contract failures as local and clears them after success", () => {
+    const passiveModeError =
+      'Agent harness "codex" cannot honor requested run option(s): autonomyMode="passive". ' +
+      'autonomyMode="passive": Codex CLI native tool calls cannot be classified and denied ' +
+      "individually under KOTA's passive contract.";
+    const failedRuns = [
+      makeRun({
+        id: "progress-review-a",
+        workflow: "progress-reviewer",
+        hoursAgo: 4,
+        status: "failed",
+        stepId: "review-evidence",
+        stepError: passiveModeError,
+      }),
+      makeRun({
+        id: "progress-review-b",
+        workflow: "progress-reviewer",
+        hoursAgo: 3,
+        status: "failed",
+        stepId: "review-evidence",
+        stepError: passiveModeError,
+      }),
+      makeRun({
+        id: "progress-review-c",
+        workflow: "progress-reviewer",
+        hoursAgo: 2,
+        status: "failed",
+        stepId: "review-evidence",
+        stepError: passiveModeError,
+      }),
+    ];
+
+    const patterns = detectPersistentWorkflowFailurePatternsFromRuns(failedRuns, {
+      nowMs: NOW,
+    });
+
+    expect(patterns).toHaveLength(1);
+    expect(patterns[0]).toMatchObject({
+      workflow: "progress-reviewer",
+      kind: "consecutive-failures",
+      signalKind: "step-error",
+      signalId: "review-evidence:75a9264428a7",
+      fingerprint:
+        "workflow-failure:consecutive-failures:progress-reviewer:step-error:556ea0c99bcf",
+    });
+
+    const freshSuccess = makeRun({
+      id: "progress-review-fixed",
+      workflow: "progress-reviewer",
+      hoursAgo: 1,
+      status: "success",
+      stepId: "review-evidence",
+    });
+    expect(
+      detectPersistentWorkflowFailurePatternsFromRuns(
+        [...failedRuns, freshSuccess],
+        { nowMs: NOW },
+      ),
+    ).toEqual([]);
   });
 
   it("ignores classified infrastructure failures", () => {

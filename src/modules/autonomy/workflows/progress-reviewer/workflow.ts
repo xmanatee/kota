@@ -36,7 +36,9 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
     "Review bounded scoped activity evidence and create normal follow-up tasks or owner questions when steering is needed.",
   tags: ["progress-reviewer"],
   recoveryCapable: true,
-  defaultAutonomyMode: "passive",
+  // Capable-tier presets may resolve to a native CLI harness. The reviewer is
+  // still bounded by its AgentDef writeScope and the whole-step mutation check.
+  defaultAutonomyMode: "autonomous",
   triggers: [
     {
       event: progressReviewRequested.name,

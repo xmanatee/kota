@@ -573,11 +573,12 @@ describe("progress-reviewer workflow", () => {
     return dir;
   }
 
-  it("keeps the prompt aligned with fenced JSON output extraction", () => {
+  it("keeps native capable-tier execution and fenced JSON extraction aligned", () => {
     const prompt = readFileSync(new URL("./prompt.md", import.meta.url), "utf-8");
     const definition = compileProgressReviewerWorkflow();
     const reviewStep = definition.steps.find((step) => step.id === "review-evidence");
 
+    expect(definition.defaultAutonomyMode).toBe("autonomous");
     expect(reviewStep).toEqual(
       expect.objectContaining({
         type: "agent",
@@ -2040,6 +2041,7 @@ describe("progress-reviewer workflow", () => {
 
     expect(result.metadata.status).toBe("success");
     expect(harnessCalls).toHaveLength(1);
+    expect(harnessCalls[0]?.autonomyMode).toBe("autonomous");
     expect(result.metadata.warnings ?? []).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ type: "step-output-truncated" }),
