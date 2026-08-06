@@ -68,3 +68,5 @@ kind: operator-capture
 path: .kota/runs/task-recover-two-stale-builder-worktrees-blocking-ready/canonical-state-recovery.json
 description: from the canonical project runtime, capture state-recovery disposition evidence for both preserved worktrees, including claim reconciliation and the subsequent builder queue inspection
 ```
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-08-06T13:58:36.881Z -->
