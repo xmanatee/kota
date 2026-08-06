@@ -23,7 +23,10 @@ const CLI = resolve(root, "src/cli.ts");
 const require = createRequire(import.meta.url);
 const TSX_IMPORT = require.resolve("tsx");
 
-const CLI_TIMEOUT = 30_000;
+// Full-suite runs share the host with other process-heavy workers. Keep the
+// child-process budget aligned with the CLI integration tests while leaving
+// margin beneath Vitest's 60-second per-test timeout.
+const CLI_TIMEOUT = 45_000;
 
 function run(...args: string[]): string {
   return execFileSync(process.execPath, ["--import", TSX_IMPORT, CLI, ...args], {

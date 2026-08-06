@@ -37,6 +37,15 @@ type ControlCoverageGapObservation = {
 
 type ControlCoverageGap = ControlMonitorCoverageArtifact["gaps"][number];
 
+function isDeclaredUnsupportedAgentStreamGap(
+  gap: ControlCoverageGap,
+): boolean {
+  return (
+    gap.family === "agent-step-stream" &&
+    gap.reason === "unsupported-agent-message-stream"
+  );
+}
+
 function isDerivedUnsupportedTrajectoryGap(
   gaps: readonly ControlCoverageGap[],
   gap: ControlCoverageGap,
@@ -190,6 +199,11 @@ function observationsFor(
   for (const gap of artifact.gaps) {
     if (isStaleSkippedApprovalOwnerGateGap(ctx, run, gap)) continue;
     if (isInfrastructureAgentRuntimeCoverageGap(run, gap)) continue;
+    // The control artifact keeps declared unsupported capabilities visible to
+    // operators, but they are not evidence that a workflow regressed. A
+    // capability-parity initiative may add the stream deliberately; repeated
+    // runs on the same non-streaming harness must not create repair churn.
+    if (isDeclaredUnsupportedAgentStreamGap(gap)) continue;
     // Trajectory diagnostics consume the agent message stream. When a step
     // lacks that stream, its unsupported trajectory gap is the same missing
     // capability rather than an independent repair target.

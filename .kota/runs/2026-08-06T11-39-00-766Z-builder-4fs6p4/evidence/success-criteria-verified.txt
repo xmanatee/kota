@@ -1,0 +1,4 @@
+1. Verified the cited pattern is the autonomy health audit converting the monitor's explicit unsupported harness capability into `local-code` repair work.
+2. Verified control-monitor artifacts still record `unsupported-agent-message-stream`, while the health audit excludes that capability boundary and its derived trajectory gap from actionable patterns.
+3. Verified the original 13 focused assertions plus the 45-test repair rerun pass: unsupported-stream fixtures produce zero gap runs, patterns, or created tasks; genuine gaps still create one repair task; the CLI preflight reports its expected authentication error under load.
+4. Verified `artifacts/control-monitor-coverage-routing-replay.json` preserves every cited source ref and `artifacts/validation.txt` records the passing commands plus the managed-sandbox limits on the broad suite.

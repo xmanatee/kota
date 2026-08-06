@@ -121,7 +121,7 @@ describe("runtime health audit control coverage gaps", () => {
     expect(task).toContain("external-payload-unscreened");
   });
 
-  it("coalesces unsupported trajectory diagnostics into the agent stream capability gap", () => {
+  it("does not route declared unsupported agent streams into repair tasks", () => {
     writeRunWithUnsupportedAgentStreamCoverageGaps(
       projectDir,
       "unsupported-stream-a",
@@ -138,19 +138,21 @@ describe("runtime health audit control coverage gaps", () => {
       options: { nowIso: NOW, interruptedRunMinCount: 2 },
     });
 
-    expect(audit.inspected.controlCoverageGapRuns).toBe(2);
-    expect(audit.patterns).toEqual([
-      expect.objectContaining({
-        dedupeKey:
-          "control-coverage:agent-step-stream:unsupported-agent-message-stream",
-        observationCount: 2,
-      }),
-    ]);
+    expect(audit.inspected.controlCoverageArtifacts).toBe(2);
+    expect(audit.inspected.controlCoverageGapRuns).toBe(0);
+    expect(audit.patterns).toEqual([]);
+    expectNoObservableGateDiagnostics(audit);
 
     const actions = reviewAndApply(audit);
-    expect(actions.createdTaskIds).toEqual([
-      "task-health-control-coverage-agent-step-stream-unsupported-agent-message-stream",
-    ]);
+    expect(actions.createdTaskIds).toEqual([]);
+    expect(
+      existsSync(
+        readyTaskPath(
+          projectDir,
+          "task-health-control-coverage-agent-step-stream-unsupported-agent-message-stream",
+        ),
+      ),
+    ).toBe(false);
   });
 
   it("ignores stale skipped approval gate gaps from historical coverage artifacts", () => {

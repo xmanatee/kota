@@ -1,0 +1,1 @@
+autonomy: ignore unsupported stream gaps and stabilize CLI preflight coverage

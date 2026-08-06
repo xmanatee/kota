@@ -1,0 +1,4 @@
+1. Identify why the cited control-coverage observations repeatedly became local repair work.
+2. Keep declared unsupported agent streams visible in control artifacts without routing them as workflow regressions.
+3. Prove the unsupported-stream regression path and preserve repair routing for genuine control gaps without duplicate task churn.
+4. Leave focused validation and a source-preserving routing replay for later review.

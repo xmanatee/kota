@@ -1,12 +1,12 @@
 ---
 id: task-health-control-coverage-agent-step-stream-unsupported-agent-message-stream
 title: Repair autonomy health pattern control-coverage:agent-step-stream:unsupported-agent-message-stream
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Health signals labeled agent-step-stream, control-coverage, local-code, runtime, unsupported-agent-message-stream repeatedly point at control-coverage:agent-step-stream:unsupported-agent-message-stream; investigate and improve the local autonomy protocol, validation, prompt, or module behavior without relying on direct auto-repair.
 created_at: 2026-08-05T12:41:36.644Z
-updated_at: 2026-08-05T12:41:36.644Z
+updated_at: 2026-08-06T12:18:04.017Z
 task_class: Meta
 ---
 

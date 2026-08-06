@@ -1,0 +1,27 @@
+Validation recorded 2026-08-06T12:16:46Z
+
+Command: pnpm exec biome check src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit-control-coverage.ts src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit-control-coverage.test.ts
+Result: PASS — checked 2 files; no fixes applied.
+
+Command: pnpm test src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit-control-coverage.test.ts src/modules/autonomy/workflows/autonomy-health-reviewer/health-review-dedupe.test.ts src/core/workflow/control-monitor-coverage-gaps.test.ts
+Result: PASS — 3 test files, 13 tests.
+
+Command: pnpm typecheck
+Result: PASS — tsc --noEmit completed successfully.
+
+Command: pnpm validate-tasks
+Result: DEFERRED TO WORKFLOW HOST — the validator reported only the claimed task's unstaged source deletion and destination file. The native worktree has a protected Git index; both task moves used the repo-tasks `KOTA_REPO_TASK_STAGING_OWNER=workflow-host` bridge, and the builder's claim-scoped host repair owns exact-path staging before queue validation.
+
+Command: inspectBuilderEvidence(.kota/builder-evidence/2026-08-06T11-39-00-766Z-builder-4fs6p4)
+Result: PASS — 7 screened files, 7041 bytes before this validation note update.
+
+Repair validation recorded 2026-08-06T12:31Z
+
+Command: pnpm test src/cli.test.ts src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit-control-coverage.test.ts --reporter=verbose
+Result: PASS — 2 test files, 45 tests. This includes the exact provider-authentication preflight assertion from the failed post-check.
+
+Command: pnpm exec biome check src/cli.test.ts src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit-control-coverage.ts src/modules/autonomy/workflows/autonomy-health-reviewer/runtime-health-audit-control-coverage.test.ts
+Result: PASS — checked 3 files; no fixes applied.
+
+Command: pnpm test --reporter=dot
+Result: REPAIRED ASSERTION PASS / MANAGED-SANDBOX BLOCKED — the CLI preflight emitted the expected provider-authentication error under full-suite load and was absent from the failure list. The suite continued to 12,467 passing tests, then reported 222 unrelated failures caused by enforced environment policy, including EPERM for the protected deployment example configuration, unreadable parent runtime directories, and denied loopback listeners.
