@@ -27,6 +27,20 @@ export function isAutonomyMode(value: unknown): value is AutonomyMode {
   return value === "passive" || value === "supervised" || value === "autonomous";
 }
 
+/** Keep a nested session at or below the posture already imposed by its parent. */
+export function capAutonomyMode(
+  requested: AutonomyMode,
+  maximum: AutonomyMode,
+): AutonomyMode {
+  return autonomyRank(requested) <= autonomyRank(maximum) ? requested : maximum;
+}
+
+function autonomyRank(mode: AutonomyMode): number {
+  if (mode === "passive") return 0;
+  if (mode === "supervised") return 1;
+  return 2;
+}
+
 export type AutonomyGateDecision =
   | { action: "allow" }
   | { action: "deny"; message: string }

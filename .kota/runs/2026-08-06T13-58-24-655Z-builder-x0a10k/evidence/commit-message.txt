@@ -1,0 +1,1 @@
+fix: close empty handoff allowlist authorization bypass

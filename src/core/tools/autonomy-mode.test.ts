@@ -1,11 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
   AUTONOMY_MODES,
+  capAutonomyMode,
   isAutonomyMode,
   resolveAutonomyGate,
   supervisedGuardrailsConfig,
 } from "./autonomy-mode.js";
 import { type Assessment, assess } from "./guardrails.js";
+
+describe("capAutonomyMode", () => {
+  it("never lets a nested session exceed its parent posture", () => {
+    expect(capAutonomyMode("autonomous", "supervised")).toBe("supervised");
+    expect(capAutonomyMode("autonomous", "passive")).toBe("passive");
+    expect(capAutonomyMode("passive", "autonomous")).toBe("passive");
+  });
+});
 
 function assessment(
   risk: Assessment["risk"],

@@ -3,20 +3,14 @@ import {
   routeKotaToolControlOptions,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
-import type { KotaJsonObject } from "#core/agent-harness/message-protocol.js";
-import type { AgentToolPolicy } from "#core/agents/agent-types.js";
 import type { AgentHandoffRequest } from "#core/agents/handoff.js";
-import {
-  type AgentHandoffMode,
-  buildAgentHandoffPrompt,
-  resolveAgentToolPolicy,
-} from "#core/agents/handoff.js";
+import { buildAgentHandoffPrompt } from "#core/agents/handoff.js";
+import { getGlobalConfigPath } from "#core/config/config.js";
 import { capScopeAutonomyMode } from "#core/daemon/scope-policy.js";
 import {
   findWriteScopeViolations,
 } from "#core/workflow/steps/agent-write-scope.js";
-import { assembleDelegateResult } from "./delegate-format.js";
-import { localWriteEffect } from "./effect.js";
+import { capAutonomyMode } from "./autonomy-mode.js";
 import {
   budgetFailureResult,
   buildRequestedToolPolicy,
@@ -37,6 +31,8 @@ import {
   type ToolInput,
   validateStructuredInput,
 } from "./handoff-agent-input.js";
+import { formatCompletedHandoffResult } from "./handoff-agent-result.js";
+import { withHandoffAgentRuntime } from "./handoff-agent-runtime.js";
 import {
   buildSystemPrompt,
   createChildAbortController,
@@ -45,7 +41,7 @@ import {
   resolveHandoffRuntime,
   writeScopeSnapshot,
 } from "./handoff-agent-runtime-helpers.js";
-import { handoffAgentTool } from "./handoff-agent-tool.js";
+import { buildAgentToolPolicy } from "./handoff-agent-tool-policy.js";
 import type { ToolResult, ToolRunnerContext } from "./index.js";
 
 export async function runHandoffAgent(
@@ -89,15 +85,28 @@ export async function runHandoffAgent(
   const runtime = resolveHandoffRuntime();
   if (isErrorResult(runtime)) return runtime;
   const scopePolicy = runtime.getScopePolicySnapshot?.().policy ?? runtime.scopePolicy;
+  const parentCappedAutonomyMode = capAutonomyMode(
+    autonomyMode,
+    runtime.autonomyMode ?? "autonomous",
+  );
   const effectiveAutonomyMode = scopePolicy
-    ? capScopeAutonomyMode(autonomyMode, scopePolicy)
-    : autonomyMode;
+    ? capScopeAutonomyMode(parentCappedAutonomyMode, scopePolicy)
+    : parentCappedAutonomyMode;
   const agent = runtime.resolveAgentDef(agentName);
   if (!agent) {
     return errorResult(`unknown registered agent "${agentName}"`);
   }
 
   const harness = resolveAgentHarness(runtime.harness);
+  if (
+    harness.toolControl === "kota" &&
+    scopePolicy !== undefined &&
+    runtime.approvalQueue === undefined
+  ) {
+    return errorResult(
+      "KOTA-hosted handoff scope-policy enforcement requires the parent approval queue",
+    );
+  }
   if (runtime.askOwner !== undefined && harness.askOwnerToolName === null) {
     return errorResult(
       `agent harness "${harness.name}" cannot host inherited owner-question context`,
@@ -129,7 +138,21 @@ export async function runHandoffAgent(
   try {
     return await budgetLease.run(async () => {
       const cwd = context?.cwd ?? runtime.cwd;
-      const scope = readScope(input, currentScope(cwd, context));
+      const current = currentScope(cwd, context);
+      if (runtime.scopeId !== undefined && runtime.scopeId !== current.scopeId) {
+        return errorResult(
+          `handoff runtime scope "${runtime.scopeId}" does not match current scope "${current.scopeId}"`,
+        );
+      }
+      if (
+        runtime.projectId !== undefined &&
+        runtime.projectId !== current.projectId
+      ) {
+        return errorResult(
+          `handoff runtime project "${runtime.projectId}" does not match current project "${current.projectId}"`,
+        );
+      }
+      const scope = readScope(input, current);
       if (isErrorResult(scope)) return scope;
       const preSnapshot = writeScopeSnapshot(cwd, writeScope);
       if (preSnapshot !== undefined && isErrorResult(preSnapshot)) {
@@ -173,34 +196,61 @@ export async function runHandoffAgent(
       const childTokenBudget = runtime.tokenBudget && budget.maxTotalTokens !== undefined
         ? runtime.tokenBudget.createChild({ maxTotalTokens: budget.maxTotalTokens })
         : runtime.tokenBudget;
-      const result = await runAgentHarness(
-        harness,
+      const result = await withHandoffAgentRuntime(
         {
-          prompt: buildAgentHandoffPrompt(request),
-          model: agent.model,
-          ...(runtime.modelProvider !== undefined ? { modelProvider: runtime.modelProvider } : {}),
-          modelOutputTokenLimits: runtime.modelOutputTokenLimits,
-          systemPrompt,
+          ...runtime,
           cwd,
-          ...(runtime.env !== undefined ? { env: runtime.env } : {}),
-          effort: agent.effort,
-          maxTurns: budget.maxTurns,
           autonomyMode: effectiveAutonomyMode,
-          persistSession: mode === "transfer",
-          ...(resumeSessionId !== undefined ? { resumeSessionId } : {}),
-          ...routeKotaToolControlOptions(harness, {
-            allowedTools: toolScope.allowedTools,
-            disallowedTools: toolScope.disallowedTools,
-            canUseTool: runtime.canUseTool,
-            scopePolicy,
-            getScopePolicySnapshot: runtime.getScopePolicySnapshot,
-          }),
-          ...(runtime.askOwner !== undefined ? { askOwner: runtime.askOwner } : {}),
-          abortController: createChildAbortController(context),
-          ...(childTokenBudget !== undefined ? { tokenBudget: childTokenBudget } : {}),
-          ...(context?.workflow !== undefined ? { workflowContext: context.workflow } : {}),
+          scopeId: scope.scopeId,
+          projectId: scope.projectId ?? scope.scopeId,
+          ...(scopePolicy !== undefined ? { scopePolicy } : {}),
         },
-        createHarnessWriter(runtime.transport),
+        () => runAgentHarness(
+          harness,
+          {
+            prompt: buildAgentHandoffPrompt(request),
+            model: agent.model,
+            ...(runtime.modelProvider !== undefined ? { modelProvider: runtime.modelProvider } : {}),
+            modelOutputTokenLimits: runtime.modelOutputTokenLimits,
+            systemPrompt,
+            cwd,
+            ...(runtime.env !== undefined ? { env: runtime.env } : {}),
+            effort: agent.effort,
+            maxTurns: budget.maxTurns,
+            autonomyMode: effectiveAutonomyMode,
+            persistSession: mode === "transfer",
+            ...(resumeSessionId !== undefined ? { resumeSessionId } : {}),
+            ...routeKotaToolControlOptions(harness, {
+              allowedTools: toolScope.allowedTools,
+              disallowedTools: toolScope.disallowedTools,
+              canUseTool: runtime.canUseTool,
+              scopePolicy,
+              scopePolicyAuthority: runtime.scopePolicyAuthority,
+              getScopePolicySnapshot: runtime.getScopePolicySnapshot,
+            }),
+            authorityConfigPath:
+              runtime.authorityConfigPath ?? getGlobalConfigPath(),
+            ...(harness.toolControl === "kota" && runtime.approvalQueue !== undefined
+              ? { approvalQueue: runtime.approvalQueue }
+              : {}),
+            ...(runtime.guardrailsConfig !== undefined
+              ? { guardrailsConfig: runtime.guardrailsConfig }
+              : {}),
+            ...(runtime.idempotencyStore !== undefined
+              ? { idempotencyStore: runtime.idempotencyStore }
+              : {}),
+            sessionContext: {
+              sessionId: `handoff:${trace.causationId}`,
+              scopeId: scope.scopeId,
+              projectId: scope.projectId ?? scope.scopeId,
+            },
+            ...(runtime.askOwner !== undefined ? { askOwner: runtime.askOwner } : {}),
+            abortController: createChildAbortController(context),
+            ...(childTokenBudget !== undefined ? { tokenBudget: childTokenBudget } : {}),
+            ...(context?.workflow !== undefined ? { workflowContext: context.workflow } : {}),
+          },
+          createHarnessWriter(runtime.transport),
+        ),
       );
       const postSnapshot = writeScopeSnapshot(cwd, writeScope);
       if (postSnapshot !== undefined && isErrorResult(postSnapshot)) {
@@ -245,67 +295,3 @@ export async function runHandoffAgent(
     budgetLease.release();
   }
 }
-
-function buildAgentToolPolicy(
-  agentPolicy: AgentToolPolicy | undefined,
-  requestedToolPolicy: AgentToolPolicy,
-): AgentToolPolicy | ToolResult {
-  const toolPolicy = resolveAgentToolPolicy(agentPolicy, requestedToolPolicy);
-  return toolPolicy.ok ? toolPolicy.policy : errorResult(toolPolicy.message);
-}
-
-function formatCompletedHandoffResult(input: {
-  agentName: string;
-  mode: AgentHandoffMode;
-  text: string;
-  turns: number;
-  trace: AgentHandoffRequest["trace"];
-  childSessionId?: string;
-  resumeSessionId?: string;
-  structuredOutput?: KotaJsonObject;
-  harnessName: string;
-  maxTurns: number;
-}): ToolResult {
-  const traceWithChild = {
-    ...input.trace,
-    ...(input.childSessionId ? { childSessionId: input.childSessionId } : {}),
-  };
-  const structuredContent: KotaJsonObject = {
-    kind: "completed",
-    agentName: input.agentName,
-    mode: input.mode,
-    turns: input.turns,
-    content: input.text,
-    trace: traceWithChild,
-    ...(input.childSessionId ? { childSessionId: input.childSessionId } : {}),
-    ...(input.resumeSessionId !== undefined ? { resumedSessionId: input.resumeSessionId } : {}),
-    ...(input.structuredOutput ? { structuredOutput: input.structuredOutput } : {}),
-  };
-  const assembled = assembleDelegateResult(
-    input.text,
-    {
-      mode: `handoff:${input.agentName}`,
-      turnsUsed: input.turns,
-      turnsMax: input.maxTurns,
-      toolsUsed: [input.harnessName],
-      completionReason: "done",
-      urlsFetched: [],
-      searchQueries: [],
-    },
-    new Set(),
-    [],
-  );
-  return {
-    ...assembled,
-    structuredContent,
-    _meta: {
-      handoff: structuredContent,
-    },
-  };
-}
-
-export const registration = {
-  tool: handoffAgentTool,
-  runner: runHandoffAgent,
-  effect: localWriteEffect(),
-};

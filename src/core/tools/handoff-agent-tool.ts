@@ -73,7 +73,10 @@ export const handoffAgentTool: KotaTool = {
       },
       allowed_tools: {
         type: "array",
+        minItems: 1,
         items: { type: "string" },
+        description:
+          "Non-empty finite child capability list. The runtime uses it to classify the handoff's aggregate effect; omission is treated as an unbounded external/destructive capability envelope.",
       },
       disallowed_tools: {
         type: "array",

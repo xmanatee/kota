@@ -129,14 +129,49 @@ export async function runAgentAttempt(input: {
               ? { modelProvider: harnessRunOptions.modelProvider }
               : {}),
             delegateBudget: agentConfig.delegateBudget,
+            autonomyMode: harnessRunOptions.options.autonomyMode ?? step.autonomyMode,
             canUseTool: harnessRunOptions.canUseTool,
+            ...(harnessRunOptions.options.workflowContext !== undefined
+              ? {
+                  scopeId: harnessRunOptions.options.workflowContext.scopeId,
+                  projectId:
+                    harnessRunOptions.options.workflowContext.projectId,
+                }
+              : {}),
             ...(harnessRunOptions.options.scopePolicy !== undefined
               ? { scopePolicy: harnessRunOptions.options.scopePolicy }
+              : {}),
+            ...(harnessRunOptions.options.scopePolicyAuthority !== undefined
+              ? {
+                  scopePolicyAuthority:
+                    harnessRunOptions.options.scopePolicyAuthority,
+                }
               : {}),
             ...(harnessRunOptions.options.getScopePolicySnapshot !== undefined
               ? {
                   getScopePolicySnapshot:
                     harnessRunOptions.options.getScopePolicySnapshot,
+                }
+              : {}),
+            ...(harnessRunOptions.options.authorityConfigPath !== undefined
+              ? {
+                  authorityConfigPath:
+                    harnessRunOptions.options.authorityConfigPath,
+                }
+              : {}),
+            ...(harnessRunOptions.options.approvalQueue !== undefined
+              ? { approvalQueue: harnessRunOptions.options.approvalQueue }
+              : {}),
+            ...(harnessRunOptions.options.guardrailsConfig !== undefined
+              ? {
+                  guardrailsConfig:
+                    harnessRunOptions.options.guardrailsConfig,
+                }
+              : {}),
+            ...(harnessRunOptions.options.idempotencyStore !== undefined
+              ? {
+                  idempotencyStore:
+                    harnessRunOptions.options.idempotencyStore,
                 }
               : {}),
             ...(harnessRunOptions.askOwner !== undefined

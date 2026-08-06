@@ -203,6 +203,25 @@ describe("handoff_agent", () => {
     expect(receivedOptions[0].modelProvider).toEqual(scopedModelProvider);
   });
 
+  it("rejects an empty allowed_tools list before child dispatch", async () => {
+    const result = await runHandoffAgent({
+      agent: "reviewer",
+      mode: "call",
+      input: { task: "Do not widen the registered child policy." },
+      reason: "Prove an empty allowlist cannot mean unrestricted.",
+      autonomy_mode: "autonomous",
+      budget: { max_turns: 3 },
+      scope: scopeInput(projectDir),
+      allowed_tools: [],
+    });
+
+    expect(result).toMatchObject({ is_error: true });
+    expect(result.content).toContain(
+      "allowed_tools must contain at least one tool when provided",
+    );
+    expect(receivedOptions).toHaveLength(0);
+  });
+
   it("uses the runner context cwd for approved selected-project handoffs", async () => {
     const selectedProjectDir = mkdtempSync(join(tmpdir(), "kota-handoff-selected-project-"));
     mkdirSync(join(selectedProjectDir, "agents"), { recursive: true });

@@ -582,14 +582,17 @@ describe("registry-derived risk", () => {
     }
   });
 
-  it("moderate registrations are classified as moderate by guardrails (with benign input)", () => {
+  it("moderate registrations honor invocation effect resolution", () => {
     const moderateRegs = getCoreRegistrations().filter((r) => riskFromEffect(r.effect) === "moderate");
     expect(moderateRegs.length).toBeGreaterThan(0);
     for (const reg of moderateRegs) {
       // Use benign input that won't trigger dangerous-content patterns
-      const { risk } = classifyRisk(reg.tool.name, { command: "echo hello", code: "print(1)", path: "./foo.ts", method: "GET" });
-      // shell/process/file ops may be "safe" for HTTP GET or "moderate" for benign commands
-      expect(["safe", "moderate"]).toContain(risk);
+      const input = { command: "echo hello", code: "print(1)", path: "./foo.ts", method: "GET" };
+      const { risk } = classifyRisk(reg.tool.name, input);
+      const invocationRisk = riskFromEffect(reg.resolveEffect?.(input) ?? reg.effect);
+      // A dynamic resolver may conservatively escalate even benign-looking input
+      // when a required capability envelope is absent.
+      expect(risk).toBe(invocationRisk === "dangerous" ? "dangerous" : "moderate");
     }
   });
 });

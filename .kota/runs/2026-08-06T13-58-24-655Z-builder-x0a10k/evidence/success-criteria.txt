@@ -1,0 +1,3 @@
+1. The handoff child receives the parent step's resolved scope identity, scope policy, authority configuration, and approval queue, with child autonomy bounded by the parent and policy.
+2. Handoff execution cannot conceal child module, write-boundary, network, or other external effects behind an under-classified local-write invocation.
+3. Focused regressions prove denied module, write, and network effects remain denied in KOTA-hosted handoff children, and the task records the verification command.

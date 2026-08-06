@@ -11,7 +11,7 @@ import { registration as confirm } from "./confirm.js";
 import { registration as customTool, initCustomToolRegistry } from "./custom-tool.js";
 import { registration as delegate } from "./delegate.js";
 import type { ToolEffect } from "./effect.js";
-import { registration as handoffAgent } from "./handoff-agent.js";
+import { registration as handoffAgent } from "./handoff-agent-registration.js";
 import {
 	deregisterLocalToolApprovalBinding,
 	registerLocalToolApprovalBinding,

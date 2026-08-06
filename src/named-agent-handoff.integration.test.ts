@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,6 +9,12 @@ import {
 } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { EventBus } from "#core/events/event-bus.js";
+import {
+  handoffApprovalQueue,
+  handoffScopePolicy,
+  handoffScopePolicyAuthority,
+  initHandoffPolicyGitProject,
+} from "#core/tools/handoff-agent-scope-policy-test-support.js";
 import { executeTool } from "#core/tools/index.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
@@ -18,13 +23,8 @@ import {
   validateWorkflowDefinitions,
 } from "#core/workflow/validation.js";
 
-function initGit(projectDir: string): void {
-  execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
-  execFileSync("git", ["config", "user.email", "t@example.com"], { cwd: projectDir });
-  execFileSync("git", ["config", "user.name", "test"], { cwd: projectDir });
-  execFileSync("git", ["config", "commit.gpgsign", "false"], { cwd: projectDir });
-  execFileSync("git", ["add", "-A"], { cwd: projectDir });
-  execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: projectDir });
+function harnessError(text: string) {
+  return { text, streamedText: text, turns: 1, isError: true };
 }
 
 describe("named agent handoff workflow integration", () => {
@@ -37,7 +37,7 @@ describe("named agent handoff workflow integration", () => {
     mkdirSync(join(projectDir, "agents"), { recursive: true });
     writeFileSync(join(projectDir, "agents", "parent.md"), "Parent prompt.\n");
     writeFileSync(join(projectDir, "agents", "reviewer.md"), "Reviewer prompt.\n");
-    initGit(projectDir);
+    initHandoffPolicyGitProject(projectDir);
     parentAgent = {
       name: "parent",
       role: "Coordinate review handoffs.",
@@ -70,6 +70,12 @@ describe("named agent handoff workflow integration", () => {
       if (name === reviewerAgent.name) return reviewerAgent;
       return undefined;
     };
+    const policy = handoffScopePolicy(projectDir);
+    const scopeId = policy.scopeId;
+    const scopePolicyAuthority = handoffScopePolicyAuthority(policy);
+    const bus = new EventBus();
+    const approvalQueue = handoffApprovalQueue(projectDir, scopeId, bus);
+    const authorityConfigPath = join(projectDir, ".machine", "config.json");
     let parentWorkflowContext: AgentHarnessRunOptions["workflowContext"];
     registerAgentHarness({
       name: "handoff-fixture",
@@ -81,24 +87,26 @@ describe("named agent handoff workflow integration", () => {
       toolControl: "kota",
       run: vi.fn(async (options) => {
         if (options.systemPrompt?.includes("Reviewer prompt.")) {
+          if (
+            options.scopePolicy !== policy ||
+            options.scopePolicyAuthority !== scopePolicyAuthority ||
+            options.approvalQueue !== approvalQueue ||
+            options.authorityConfigPath !== authorityConfigPath ||
+            options.sessionContext?.scopeId !== scopeId ||
+            options.sessionContext.projectId !== scopeId
+          ) {
+            return harnessError("child did not inherit workflow scope authority");
+          }
           const expectedAskOwnerSource = parentWorkflowContext
             ? `workflow:${parentWorkflowContext.workflowName}/${parentWorkflowContext.runId}/${parentWorkflowContext.stepId}`
             : "";
           if (options.askOwner?.source !== expectedAskOwnerSource) {
-            return {
-              text: "child did not inherit askOwner source",
-              streamedText: "child did not inherit askOwner source",
-              turns: 1,
-              isError: true,
-            };
+            return harnessError("child did not inherit askOwner source");
           }
           if (!options.allowedTools?.includes("ask_owner")) {
-            return {
-              text: "child allowedTools did not include inherited ask_owner tool",
-              streamedText: "child allowedTools did not include inherited ask_owner tool",
-              turns: 1,
-              isError: true,
-            };
+            return harnessError(
+              "child allowedTools did not include inherited ask_owner tool",
+            );
           }
           const guardDecision = await options.canUseTool?.(
             "Bash",
@@ -112,12 +120,7 @@ describe("named agent handoff workflow integration", () => {
             guardDecision?.behavior !== "deny" ||
             !guardDecision.message.includes("Workflow agents must not run `git commit`")
           ) {
-            return {
-              text: "child did not inherit workflow canUseTool guard",
-              streamedText: "child did not inherit workflow canUseTool guard",
-              turns: 1,
-              isError: true,
-            };
+            return harnessError("child did not inherit workflow canUseTool guard");
           }
           return {
             text: 'reviewed\n```json\n{"verdict":"pass","summary":"child reviewed"}\n```',
@@ -129,12 +132,7 @@ describe("named agent handoff workflow integration", () => {
         }
 
         if (!options.workflowContext) {
-          return {
-            text: "missing workflow context",
-            streamedText: "missing workflow context",
-            turns: 1,
-            isError: true,
-          };
+          return harnessError("missing workflow context");
         }
         parentWorkflowContext = options.workflowContext;
         const handoff = await executeTool(
@@ -167,6 +165,7 @@ describe("named agent handoff workflow integration", () => {
               required: ["verdict", "summary"],
               additionalProperties: false,
             },
+            allowed_tools: ["Read"],
           },
           {
             sessionId: "parent-session",
@@ -177,12 +176,7 @@ describe("named agent handoff workflow integration", () => {
           },
         );
         if (handoff.is_error) {
-          return {
-            text: handoff.content,
-            streamedText: handoff.content,
-            turns: 1,
-            isError: true,
-          };
+          return harnessError(handoff.content);
         }
         const output = handoff.structuredContent?.structuredOutput as {
           verdict: string;
@@ -275,10 +269,13 @@ describe("named agent handoff workflow integration", () => {
       { event: "runtime.idle", schemaRef: null, payload: {} },
       {
         projectDir,
-        bus: new EventBus(),
+        bus,
         store,
         log: vi.fn(),
         resolveAgentDef,
+        scopePolicyAuthority,
+        approvalQueue,
+        authorityConfigPath,
       },
       new AbortController(),
     );

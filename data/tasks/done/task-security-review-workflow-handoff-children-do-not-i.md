@@ -1,13 +1,13 @@
 ---
 id: task-security-review-workflow-handoff-children-do-not-i
 title: Security review: Workflow handoff children do not inherit the parent step's resolved scope policy. The child uses its caller-selected autonomy mode and inherits only the generic canUseTool guard. KOTA-hosted child tool execution therefore sees no scope policy and skips module, write-boundary, and external-effect enforcement. The outer handoff is classified only as a local filesystem write, so it cannot represent prohibited network effects performed by the child.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Workflow handoff children do not inherit the parent step's resolved scope policy. The child uses its caller-selected autonomy mode and inherits only the generic canUseTool guard. KOTA-hosted child tool execution therefore sees no scope policy and skips module, write-boundary, and external-effect enforcement. The outer handoff is classified only as a local filesystem write, so it cannot represent prohibited network effects performed by the child.
 created_at: 2026-08-04T00:24:52.556Z
-updated_at: 2026-08-04T00:24:52.556Z
+updated_at: 2026-08-06T18:26:56.000Z
 ---
 
 ## Problem
@@ -112,3 +112,11 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/core/tools/index.test.ts src/core/tools/guardrails.test.ts src/core/tools/handoff-agent.test.ts src/core/tools/handoff-agent-nested-autonomy.test.ts src/core/tools/handoff-agent-scope-policy.test.ts src/core/tools/handoff-agent-effect-policy.test.ts src/modules/git/index.test.ts src/modules/execution/scope-policy-effects.test.ts src/named-agent-handoff.integration.test.ts` — passed 9 files / 117 tests covering inherited write, network, module, authority, approval, scope identity, transitive immediate-parent autonomy caps, aggregate effects including rejected and externally destructive empty allowlists, dynamically escalating Git effects, real execution-tool registration envelopes, registry risk resolution, and registration isolation.
+- A broader affected-runtime suite passed 14 files / 130 tests, including handoff input/runtime, tool permission, guardrail, live scope-policy, workflow, and inbound-signal coverage.
+- The three files cited by the severe source-size check remain within the guideline at 284, 297, and 300 lines; the co-located source-size check/escalation suite passed 2 files / 12 tests.
+- `pnpm test src/strict-types-policy.integration.test.ts` — passed 1 file / 1 test.
+- `pnpm typecheck` — passed.

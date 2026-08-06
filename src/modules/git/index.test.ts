@@ -59,6 +59,18 @@ describe("git tool effects", () => {
 		});
 	});
 
+	it("exposes its dynamically escalating capability envelope to handoffs", () => {
+		registerGitTool();
+
+		expect(getToolEffect("handoff_agent", {
+			allowed_tools: ["git"],
+		})).toMatchObject({
+			kind: "destructive",
+			scope: "external-network",
+			openWorld: true,
+		});
+	});
+
 	it("classifies force flags, force refspecs, and force-with-lease as dangerous", () => {
 		registerGitTool();
 

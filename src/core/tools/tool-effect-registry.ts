@@ -47,6 +47,12 @@ export function getModuleToolEffectMetadata(
   return moduleToolEffects.get(name);
 }
 
+export function getRegisteredToolEffectMetadata(
+  name: string,
+): ToolEffectMetadata | undefined {
+  return coreToolEffects.get(name) ?? moduleToolEffects.get(name);
+}
+
 export function resolveRegisteredToolEffect(
   name: string,
   input?: Parameters<ToolRunner>[0],

@@ -140,9 +140,6 @@ export function readAutonomyMode(rawMode: string): AutonomyMode | ToolResult {
   if (!isAutonomyMode(rawMode)) {
     return errorResult("autonomy_mode must be passive, supervised, or autonomous");
   }
-  if (rawMode === "supervised") {
-    return errorResult("autonomy_mode supervised is not supported for handoff_agent because child SDK tool calls cannot be routed through KOTA approvals");
-  }
   return rawMode;
 }
 
@@ -215,6 +212,11 @@ export function readParent(
 export function buildRequestedToolPolicy(input: ToolInput): AgentToolPolicy | ToolResult {
   const allowed = readStringArray(input, "allowed_tools");
   if (allowed && !Array.isArray(allowed)) return allowed;
+  if (allowed?.length === 0) {
+    return errorResult(
+      "allowed_tools must contain at least one tool when provided; omit it for an unrestricted child capability envelope",
+    );
+  }
   const disallowed = readStringArray(input, "disallowed_tools");
   if (disallowed && !Array.isArray(disallowed)) return disallowed;
   return {

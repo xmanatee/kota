@@ -52,6 +52,18 @@ beforeEach(() => {
 afterEach(() => clearCustomTools());
 
 describe("execution tool scope-policy effects", () => {
+  it("classifies handoffs granting real execution tools as externally destructive", () => {
+    for (const name of ["shell", "process", "code_exec"]) {
+      expect(getToolEffect("handoff_agent", {
+        allowed_tools: [name],
+      }), name).toMatchObject({
+        kind: "destructive",
+        scope: "external-network",
+        openWorld: true,
+      });
+    }
+  });
+
   it("resolves real shell, process, and code registrations to network effects", () => {
     expect(getToolEffect("shell", {
       command: "curl https://example.com/status",

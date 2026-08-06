@@ -27,6 +27,9 @@ export async function triggerInboundSignalAgent(
         ? { modelOutputTokenLimits: ctx.config.modelOutputTokenLimits }
         : {}),
       delegateBudget: createDelegateBudget(),
+      autonomyMode: options.autonomyMode,
+      scopeId: String(options.payload.scopeId),
+      projectId: String(options.payload.projectId),
     },
     () =>
       runHandoffAgent(
