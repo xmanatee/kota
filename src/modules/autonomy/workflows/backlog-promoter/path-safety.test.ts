@@ -143,10 +143,11 @@ describe("backlog-promoter task path safety", () => {
     const result = await harness.run();
 
     expect(result.status).toBe("failed");
-    expect(result.steps["apply-promotion"].status).toBe("failed");
-    expect(result.steps["apply-promotion"].error).toMatch(
+    expect(result.steps["inspect-backlog"].status).toBe("failed");
+    expect(result.steps["inspect-backlog"].error).toMatch(
       /symbolic-link markdown entries are forbidden/,
     );
+    expect(result.steps["apply-promotion"]).toBeUndefined();
     expect(readFileSync(outsidePath, "utf-8")).toBe(outsideContent);
     expect(lstatSync(linkedTaskPath).isSymbolicLink()).toBe(true);
     expect(

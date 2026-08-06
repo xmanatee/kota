@@ -66,9 +66,13 @@ export function writeClaim(
     join(dir, `${taskId}.json`),
     `${JSON.stringify(
       {
-        schemaVersion: 1,
+        schemaVersion: 2,
         taskId,
         taskState: "ready",
+        taskFile: {
+          path: `data/tasks/ready/${taskId}.md`,
+          snapshot: { dev: 1, ino: 1, size: 1, mtimeMs: 1, ctimeMs: 1 },
+        },
         runId,
         workflowId: "builder",
         owner: "workflow:builder",

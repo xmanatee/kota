@@ -1,8 +1,11 @@
 import { join } from "node:path";
-import type { RepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
+import type {
+  RepoTaskFileDescriptor,
+  RepoTaskState,
+} from "#modules/repo-tasks/repo-tasks-domain.js";
 
 export const DEFAULT_TASK_CLAIM_LEASE_MS = 7 * 60 * 60 * 1000;
-export const CLAIM_SCHEMA_VERSION = 1;
+export const CLAIM_SCHEMA_VERSION = 2;
 export const CLAIMS_ROOT = join(".kota", "task-claims");
 export const ACTIVE_CLAIMS_DIR = join(CLAIMS_ROOT, "active");
 export const CLAIM_HISTORY_DIR = join(CLAIMS_ROOT, "history");
@@ -59,6 +62,7 @@ export type TaskClaim = {
   schemaVersion: typeof CLAIM_SCHEMA_VERSION;
   taskId: string;
   taskState: RepoTaskState;
+  taskFile: RepoTaskFileDescriptor;
   runId: string;
   /** Original builder run that owns the preserved worktree, when this claim is continued. */
   worktreeRunId?: string;
@@ -87,6 +91,7 @@ export type ClaimTaskInput = {
   projectDir: string;
   taskId: string;
   taskState: RepoTaskState;
+  taskFile: RepoTaskFileDescriptor;
   runId: string;
   workflowId: string;
   owner: string;
@@ -107,7 +112,10 @@ export type ClaimTaskAttempt = {
   reason: string | null;
 };
 
-export type ClaimNextQueueTaskInput = Omit<ClaimTaskInput, "taskId" | "taskState"> & {
+export type ClaimNextQueueTaskInput = Omit<
+  ClaimTaskInput,
+  "taskId" | "taskState" | "taskFile"
+> & {
   candidateStates?: readonly RepoTaskState[];
 };
 

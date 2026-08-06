@@ -19,7 +19,9 @@ import {
 } from "#modules/git/worktree-lifecycle.js";
 import {
   REPO_TASK_STATES,
+  REPO_TASKS_DIR,
   type RepoTaskState,
+  readVerifiedRepoTaskFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   ACTIVE_CLAIMS_DIR,
@@ -65,6 +67,36 @@ function isRepoTaskState(value: string | undefined): value is RepoTaskState {
   return REPO_TASK_STATES.includes(value as RepoTaskState);
 }
 
+function isTaskFileDescriptor(
+  value: TaskClaim["taskFile"] | undefined,
+  taskId: string | undefined,
+  taskState: RepoTaskState | undefined,
+): value is TaskClaim["taskFile"] {
+  if (
+    value === undefined ||
+    value === null ||
+    typeof value !== "object" ||
+    taskId === undefined ||
+    taskState === undefined ||
+    typeof value.path !== "string" ||
+    value.snapshot === undefined ||
+    value.snapshot === null ||
+    typeof value.snapshot !== "object" ||
+    value.path !== join(REPO_TASKS_DIR, taskState, `${taskId}.md`)
+  ) {
+    return false;
+  }
+  const snapshot = value.snapshot;
+  return (
+    Number.isSafeInteger(snapshot.dev) &&
+    Number.isSafeInteger(snapshot.ino) &&
+    Number.isSafeInteger(snapshot.size) &&
+    snapshot.size >= 0 &&
+    Number.isFinite(snapshot.mtimeMs) &&
+    Number.isFinite(snapshot.ctimeMs)
+  );
+}
+
 type OwnerRunStatus = WorkflowRunStatus | "running";
 
 function isJsonObject(value: KotaJsonValue | undefined): value is KotaJsonObject {
@@ -102,10 +134,13 @@ function readOwnerRunStatus(projectDir: string, claim: TaskClaim): OwnerRunStatu
   return metadata.status;
 }
 
-function readClaimFile(path: string): TaskClaim {
-  const parsed = JSON.parse(readFileSync(path, "utf8")) as Partial<TaskClaim>;
+type StoredTaskClaim = Omit<Partial<TaskClaim>, "schemaVersion"> & {
+  schemaVersion?: number;
+};
+
+function readClaimFile(projectDir: string, path: string): TaskClaim {
+  const parsed = JSON.parse(readFileSync(path, "utf8")) as StoredTaskClaim;
   if (
-    parsed.schemaVersion !== CLAIM_SCHEMA_VERSION ||
     typeof parsed.taskId !== "string" ||
     !isRepoTaskState(parsed.taskState) ||
     typeof parsed.runId !== "string" ||
@@ -124,10 +159,41 @@ function readClaimFile(path: string): TaskClaim {
   ) {
     throw new Error(`Malformed task claim file: ${path}`);
   }
+  let taskState = parsed.taskState;
+  let taskFile = parsed.taskFile;
+  if (parsed.schemaVersion === 1) {
+    // Version 1 claims predate verified queue identities. Resolve their
+    // current canonical task once through the no-follow boundary so recovery
+    // remains available without treating the old claim as proof for a new
+    // decomposer prompt.
+    taskFile = undefined;
+    const candidateStates = [
+      taskState,
+      ...REPO_TASK_STATES.filter((state) => state !== taskState),
+    ];
+    for (const state of candidateStates) {
+      const currentTask = readVerifiedRepoTaskFile(projectDir, state, parsed.taskId);
+      if (currentTask !== null) {
+        taskState = state;
+        taskFile = {
+          path: currentTask.path,
+          snapshot: currentTask.snapshot,
+        };
+        break;
+      }
+    }
+  }
+  if (
+    (parsed.schemaVersion !== CLAIM_SCHEMA_VERSION && parsed.schemaVersion !== 1) ||
+    !isTaskFileDescriptor(taskFile, parsed.taskId, taskState)
+  ) {
+    throw new Error(`Malformed task claim file: ${path}`);
+  }
   return {
     schemaVersion: CLAIM_SCHEMA_VERSION,
     taskId: parsed.taskId,
-    taskState: parsed.taskState,
+    taskState,
+    taskFile,
     runId: parsed.runId,
     ...(parsed.worktreeRunId !== undefined
       ? { worktreeRunId: parsed.worktreeRunId }
@@ -173,6 +239,12 @@ function sameClaim(left: TaskClaim, right: TaskClaim): boolean {
   return left.schemaVersion === right.schemaVersion &&
     left.taskId === right.taskId &&
     left.taskState === right.taskState &&
+    left.taskFile.path === right.taskFile.path &&
+    left.taskFile.snapshot.dev === right.taskFile.snapshot.dev &&
+    left.taskFile.snapshot.ino === right.taskFile.snapshot.ino &&
+    left.taskFile.snapshot.size === right.taskFile.snapshot.size &&
+    left.taskFile.snapshot.mtimeMs === right.taskFile.snapshot.mtimeMs &&
+    left.taskFile.snapshot.ctimeMs === right.taskFile.snapshot.ctimeMs &&
     left.runId === right.runId &&
     left.worktreeRunId === right.worktreeRunId &&
     left.workflowId === right.workflowId &&
@@ -206,13 +278,37 @@ function acquireClaimMutationLock(projectDir: string, claim: TaskClaim, now: Dat
   }
 }
 
+function assertClaimTaskFileCurrent(input: ClaimTaskInput): void {
+  const current = readVerifiedRepoTaskFile(
+    input.projectDir,
+    input.taskState,
+    input.taskId,
+  );
+  const expected = input.taskFile;
+  if (
+    current === null ||
+    current.path !== expected.path ||
+    current.snapshot.dev !== expected.snapshot.dev ||
+    current.snapshot.ino !== expected.snapshot.ino ||
+    current.snapshot.size !== expected.snapshot.size ||
+    current.snapshot.mtimeMs !== expected.snapshot.mtimeMs ||
+    current.snapshot.ctimeMs !== expected.snapshot.ctimeMs
+  ) {
+    throw new Error(
+      `Cannot claim task ${input.taskId}: verified task file changed during queue selection`,
+    );
+  }
+}
+
 export function buildClaim(input: ClaimTaskInput, now: Date, createdAt?: string): TaskClaim {
+  assertClaimTaskFileCurrent(input);
   const leaseMs = input.leaseMs ?? DEFAULT_TASK_CLAIM_LEASE_MS;
   const acquiredAt = now.toISOString();
   return {
     schemaVersion: CLAIM_SCHEMA_VERSION,
     taskId: input.taskId,
     taskState: input.taskState,
+    taskFile: input.taskFile,
     runId: input.runId,
     workflowId: input.workflowId,
     owner: input.owner,
@@ -293,7 +389,7 @@ export function inspectTaskClaimWithOwnerRun(
 export function readActiveTaskClaim(projectDir: string, taskId: string): TaskClaim | null {
   const path = taskClaimPath(projectDir, taskId);
   if (!existsSync(path)) return null;
-  return readClaimFile(path);
+  return readClaimFile(projectDir, path);
 }
 
 export function listTaskClaimInspections(
@@ -311,7 +407,7 @@ export function listTaskClaimInspections(
   return paths.map((path) =>
     inspectTaskClaimWithOwnerRun(
       projectDir,
-      readClaimFile(path),
+      readClaimFile(projectDir, path),
       path,
       now,
       worktrees,
@@ -335,7 +431,7 @@ export function archiveClaimIfUnchanged(
   if (!lockPath) return false;
   try {
     if (!existsSync(path)) return false;
-    const current = readClaimFile(path);
+    const current = readClaimFile(projectDir, path);
     if (!sameClaim(current, expected)) return false;
     archiveClaim(projectDir, path, current, now);
     return true;
@@ -355,7 +451,7 @@ export function continueClaimIfUnchanged(
   if (!lockPath) return null;
   try {
     if (!existsSync(path)) return null;
-    const current = readClaimFile(path);
+    const current = readClaimFile(projectDir, path);
     if (!sameClaim(current, expected)) return null;
 
     const historyPath = claimHistoryPath(projectDir, current, now);

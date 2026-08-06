@@ -1,4 +1,19 @@
 {
   "claimed": true,
-  "taskId": "task-fixture-agent-call-replay-target"
+  "taskId": "task-fixture-agent-call-replay-target",
+  "claim": {
+    "schemaVersion": 2,
+    "taskId": "task-fixture-agent-call-replay-target",
+    "taskState": "ready",
+    "taskFile": {
+      "path": "data/tasks/ready/task-fixture-agent-call-replay-target.md",
+      "snapshot": {
+        "dev": 1,
+        "ino": 1,
+        "size": 1,
+        "mtimeMs": 1,
+        "ctimeMs": 1
+      }
+    }
+  }
 }

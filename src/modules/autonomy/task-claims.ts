@@ -1,7 +1,9 @@
 import {
-  listFullRepoTasks,
-  listRepoTaskDependencyWaits,
+  listVerifiedFullRepoTasks,
+  type RepoTaskFileDescriptor,
   type RepoTaskFullRecord,
+  readVerifiedRepoTaskFile,
+  type VerifiedRepoTaskFullRecord,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { listTaskClaimInspections } from "./task-claim-files.js";
 import { claimTask } from "./task-claim-operations.js";
@@ -76,22 +78,64 @@ function compareCandidateTasks(a: RepoTaskFullRecord, b: RepoTaskFullRecord): nu
   return a.id.localeCompare(b.id);
 }
 
+function assertTaskFileStillMatches(
+  expected: VerifiedRepoTaskFullRecord,
+  current: RepoTaskFileDescriptor,
+): void {
+  const left = expected.taskFile;
+  const right = current;
+  if (
+    left.path !== right.path ||
+    left.snapshot.dev !== right.snapshot.dev ||
+    left.snapshot.ino !== right.snapshot.ino ||
+    left.snapshot.size !== right.snapshot.size ||
+    left.snapshot.mtimeMs !== right.snapshot.mtimeMs ||
+    left.snapshot.ctimeMs !== right.snapshot.ctimeMs
+  ) {
+    throw new Error(
+      `Cannot claim task ${expected.id}: verified task file changed during queue selection`,
+    );
+  }
+}
+
 export function claimNextQueueTask(input: ClaimNextQueueTaskInput): QueueTaskClaimResult {
   const now = input.now ?? new Date();
   const candidateStates = input.candidateStates ?? CLAIM_CANDIDATE_STATES;
+  const allTasks = listVerifiedFullRepoTasks(input.projectDir);
+  const stateByTaskId = new Map(allTasks.map((task) => [task.id, task.state]));
   const waitingIds = new Set(
-    listRepoTaskDependencyWaits(input.projectDir, candidateStates).map((wait) => wait.id),
+    allTasks
+      .filter((task) => candidateStates.includes(task.state))
+      .filter((task) =>
+        task.dependsOn.some(
+          (dependency) => stateByTaskId.get(dependency) !== "done",
+        ),
+      )
+      .map((task) => task.id),
   );
-  const candidates = listFullRepoTasks(input.projectDir, candidateStates)
+  const candidates = allTasks
+    .filter((task) => candidateStates.includes(task.state))
     .filter((task) => !waitingIds.has(task.id))
     .sort(compareCandidateTasks);
   const skipped: ClaimTaskAttempt[] = [];
 
   for (const task of candidates) {
+    const current = readVerifiedRepoTaskFile(
+      input.projectDir,
+      task.state,
+      task.id,
+    );
+    if (current === null) {
+      throw new Error(
+        `Cannot claim task ${task.id}: verified task file disappeared during queue selection`,
+      );
+    }
+    assertTaskFileStillMatches(task, current);
     const attempt = claimTask({
       ...input,
       taskId: task.id,
       taskState: task.state,
+      taskFile: task.taskFile,
       now,
     });
     if (attempt.claimed) {

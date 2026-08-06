@@ -7,6 +7,7 @@ import {
   markTaskClaimPendingMerge,
 } from "#modules/autonomy/task-claims.js";
 import {
+  claimInput,
   makeProject,
   writeTask,
 } from "#modules/autonomy/task-claims-test-support.js";
@@ -26,9 +27,12 @@ describe("dispatcher claim-aware queue availability", () => {
   it("stays quiescent for a pending-merge ready task", async () => {
     writeTask(projectDir, "ready", "task-pending", "2026-06-27T00:00:00.000Z");
     const claim = claimTask({
-      projectDir,
-      taskId: "task-pending",
-      taskState: "ready",
+      ...claimInput(
+        projectDir,
+        "task-pending",
+        "run-pending",
+        new Date("2026-06-27T00:00:00.000Z"),
+      ),
       runId: "run-pending",
       workflowId: "builder",
       owner: "workflow:builder",

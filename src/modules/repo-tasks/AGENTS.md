@@ -24,6 +24,11 @@ served at `/api/tasks`.
   no-follow descriptors plus single-component relative operations, so a raced
   parent replacement cannot redirect a write, move, or removal. Callers must
   not pre-create task or inbox directories before invoking it.
+- Task enumeration and reads use that same descriptor-anchored boundary rooted
+  at the canonical `data/tasks/` directory. Queue consumers must use the
+  verified domain list/read APIs, which reject linked parents and entries and
+  return the file snapshot needed to bind a claim; do not discover queue work
+  with direct pathname reads.
 - Native agent sandboxes may protect Git metadata even when task files are
   writable. An explicit builder runtime owner lets the task mover retain its
   filesystem transition only for a protected-index denial; builder repair then

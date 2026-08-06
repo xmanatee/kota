@@ -124,9 +124,13 @@ export async function resetBuilderWorkflowMocks(): Promise<void> {
     claimed: true,
     taskId: "task-claimed",
     claim: {
-      schemaVersion: 1,
+      schemaVersion: 2,
       taskId: "task-claimed",
       taskState: "ready",
+      taskFile: {
+        path: "data/tasks/ready/task-claimed.md",
+        snapshot: { dev: 1, ino: 1, size: 1, mtimeMs: 1, ctimeMs: 1 },
+      },
       runId: "harness-run-id",
       workflowId: "builder",
       owner: "workflow:builder",
@@ -170,9 +174,13 @@ export async function resetBuilderWorkflowMocks(): Promise<void> {
     taskId: input.taskId,
     changed: true,
     claim: {
-      schemaVersion: 1,
+      schemaVersion: 2,
       taskId: input.taskId,
       taskState: "ready",
+      taskFile: {
+        path: `data/tasks/ready/${input.taskId}.md`,
+        snapshot: { dev: 1, ino: 1, size: 1, mtimeMs: 1, ctimeMs: 1 },
+      },
       runId: input.runId,
       workflowId: input.workflowId,
       owner: `workflow:${input.workflowId}`,

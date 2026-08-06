@@ -5,8 +5,11 @@ This directory contains the decomposer workflow definition and its prompt.
 - Triggers on builder failure events and classifies structured timeout or
   exhausted repair outcomes.
 - Reads the exact task id from the failed run's `task-claim.json`. When that
-  task remains active, its canonical markdown is included in the assessment
-  and the agent returns a typed decomposition plan without mutating the checkout.
+  artifact carries the queue reader's verified file snapshot and the task
+  remains active, decomposer reopens its canonical markdown through the
+  repo-tasks no-follow reader before including it in the assessment. Missing
+  bindings, linked parents, and linked task entries fail closed before agent
+  dispatch.
 - Both reasoning steps run passively under the agent's deny-all write scope.
   Native harnesses therefore use their read-only OS sandbox; hosted harnesses
   receive the passive read-tool policy.

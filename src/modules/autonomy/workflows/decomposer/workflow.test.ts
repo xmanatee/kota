@@ -30,6 +30,7 @@ vi.mock("#modules/autonomy/commit.js", () => ({
 }));
 
 vi.mock("#modules/autonomy/task-claims.js", () => ({
+  CLAIM_SCHEMA_VERSION: 2,
   readActiveTaskClaim: vi.fn(() => null),
   supersedeTaskClaim: vi.fn(() => ({
     taskId: "task-big-refactor",
@@ -40,6 +41,16 @@ vi.mock("#modules/autonomy/task-claims.js", () => ({
     reason: null,
   })),
 }));
+
+vi.mock("#modules/repo-tasks/repo-tasks-domain.js", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("#modules/repo-tasks/repo-tasks-domain.js")
+  >();
+  return {
+    ...actual,
+    readVerifiedRepoTaskFile: vi.fn(),
+  };
+});
 
 vi.mock("#modules/autonomy/shared.js", async () => {
   const actual = await vi.importActual<typeof import("#modules/autonomy/shared.js")>(
@@ -106,7 +117,27 @@ async function configureBuilderFailure(
   vi.mocked(readOptionalJsonFile).mockImplementation((path: string) => {
     if (path.endsWith("/metadata.json")) return metadata as never;
     if (path.endsWith("/task-claim.json")) {
-      return taskId === null ? null : ({ claimed: true, taskId } as never);
+      return taskId === null
+        ? null
+        : ({
+            claimed: true,
+            taskId,
+            claim: {
+              schemaVersion: 2,
+              taskId,
+              taskState: "ready",
+              taskFile: {
+                path: `data/tasks/ready/${taskId}.md`,
+                snapshot: {
+                  dev: 1,
+                  ino: 1,
+                  size: 1,
+                  mtimeMs: 1,
+                  ctimeMs: 1,
+                },
+              },
+            },
+          } as never);
     }
     return null;
   });
@@ -166,6 +197,26 @@ describe("decomposer workflow", () => {
     vi.clearAllMocks();
     const { readActiveTaskClaim } = await import("#modules/autonomy/task-claims.js");
     vi.mocked(readActiveTaskClaim).mockReturnValue(null);
+    const { readVerifiedRepoTaskFile } = await import(
+      "#modules/repo-tasks/repo-tasks-domain.js"
+    );
+    vi.mocked(readVerifiedRepoTaskFile).mockImplementation(
+      (_projectDir, state, taskId) =>
+        state === "doing"
+          ? {
+              path: `data/tasks/doing/${taskId}.md`,
+              content:
+                `---\nid: ${taskId}\n---\n\n## Problem\n\nCanonical task intent.\n`,
+              snapshot: {
+                dev: 1,
+                ino: 2,
+                size: 1,
+                mtimeMs: 1,
+                ctimeMs: 1,
+              },
+            }
+          : null,
+    );
     const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
     const fs = await import("node:fs");
     vi.mocked(fs.existsSync).mockImplementation((path: unknown) => {
@@ -414,8 +465,10 @@ describe("decomposer workflow", () => {
       }),
       "task-already-resolved",
     );
-    const fs = await import("node:fs");
-    vi.mocked(fs.existsSync).mockReturnValue(false);
+    const { readVerifiedRepoTaskFile } = await import(
+      "#modules/repo-tasks/repo-tasks-domain.js"
+    );
+    vi.mocked(readVerifiedRepoTaskFile).mockReturnValue(null);
 
     const harness = new WorkflowTestHarness(decomposerWorkflow, {
       trigger: { event: "workflow.completed", schemaRef: null, payload: TRIGGER_PAYLOAD },
@@ -567,10 +620,25 @@ describe("decomposer workflow", () => {
       }),
     );
 
-    const fs = await import("node:fs");
-    vi.mocked(fs.existsSync).mockImplementation(
-      (p: unknown) =>
-        typeof p === "string" && p.endsWith("data/tasks/ready/task-big-refactor.md"),
+    const { readVerifiedRepoTaskFile } = await import(
+      "#modules/repo-tasks/repo-tasks-domain.js"
+    );
+    vi.mocked(readVerifiedRepoTaskFile).mockImplementation(
+      (_projectDir, state, taskId) =>
+        state === "ready"
+          ? {
+              path: `data/tasks/ready/${taskId}.md`,
+              content:
+                `---\nid: ${taskId}\n---\n\n## Problem\n\nCanonical task intent.\n`,
+              snapshot: {
+                dev: 1,
+                ino: 2,
+                size: 1,
+                mtimeMs: 1,
+                ctimeMs: 1,
+              },
+            }
+          : null,
     );
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");

@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-decomposer-follows-project-con
 title: Security review: The decomposer follows project-controlled task symlinks before applying the new untrusted-content prompt envelope. A task entry can reference another readable project or external file, causing host-side code to read that target and include its contents in taskMarkdown sent to the agent. Screening and escaping prevent delimiter injection but do not prevent the prior cross-project disclosure.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: The decomposer follows project-controlled task symlinks before applying the new untrusted-content prompt envelope. A task entry can reference another readable project or external file, causing host-side code to read that target and include its contents in taskMarkdown sent to the agent. Screening and escaping prevent delimiter injection but do not prevent the prior cross-project disclosure.
 created_at: 2026-08-06T10:29:11.571Z
-updated_at: 2026-08-06T10:29:11.571Z
+updated_at: 2026-08-06T10:57:54.841Z
 ---
 
 ## Problem
@@ -125,3 +125,5 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Verification: `pnpm test src/modules/autonomy/task-claim-path-security.test.ts src/modules/autonomy/task-claim-races.test.ts src/modules/autonomy/task-claim-recovery.test.ts src/modules/autonomy/workflows/decomposer/workflow.test.ts src/modules/autonomy/workflows/decomposer/task-read-security.test.ts src/modules/repo-tasks/repo-task-path-safety.test.ts` — 34 tests passed, including sibling-project state-parent and task-entry symlinks and proof that external task content never reaches the decomposer agent step.
+- Static validation: `pnpm exec tsc --noEmit --pretty false`, focused `pnpm exec biome check`, and `pnpm test src/strict-types-policy.integration.test.ts` passed.

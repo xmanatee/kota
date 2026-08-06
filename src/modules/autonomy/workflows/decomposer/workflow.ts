@@ -1,14 +1,8 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
-import { labeledPredicate, type WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import {
-  type BuilderDecompositionFailureKind,
-  classifyBuilderFailureForDecomposition,
-} from "#modules/autonomy/builder-failure-classification.js";
 import {
   checkCommitStageable,
   commitWorkflowChanges,
@@ -33,6 +27,11 @@ import {
   supersedeTaskClaim,
 } from "#modules/autonomy/task-claims.js";
 import {
+  assessFailure,
+  decompositionTargetTaskId,
+  shouldRunDecompose,
+} from "./assessment.js";
+import {
   type AppliedDecomposition,
   applyDecompositionPlan,
 } from "./decomposition-actions.js";
@@ -51,182 +50,7 @@ export const agent: AgentDef = {
   writeScope: "deny-all",
 };
 
-export type DecomposerAssessment = {
-  reason: string;
-  failedRunId: string;
-  failedRunDir: string;
-  failureKind: BuilderDecompositionFailureKind | null;
-} & (
-  | { shouldDecompose: false }
-  | {
-      shouldDecompose: true;
-      taskId: string;
-      taskPath: string;
-      taskMarkdown: string;
-    }
-);
-
-const TASK_STATES_FOR_IDENTIFIED_TASK = ["doing", "blocked", "ready"] as const;
-
-function findTaskById(
-  projectDir: string,
-  taskId: string,
-): { id: string; path: string } | null {
-  for (const state of TASK_STATES_FOR_IDENTIFIED_TASK) {
-    const candidate = join(projectDir, "data", "tasks", state, `${taskId}.md`);
-    if (existsSync(candidate)) {
-      return { id: taskId, path: join("data", "tasks", state, `${taskId}.md`) };
-    }
-  }
-  return null;
-}
-
-type ResolvedSource = {
-  runId: string;
-  runDir: string;
-  /** True when the trigger gives us no usable source context (non-builder recovery). */
-  skip: boolean;
-};
-
-function resolveSourceRun(
-  triggerEvent: string,
-  payload: Record<string, unknown>,
-): ResolvedSource {
-  if (triggerEvent === "runtime.recovered") {
-    const sourceWorkflow = payload.sourceWorkflow;
-    if (sourceWorkflow !== "builder") {
-      return { runId: "", runDir: "", skip: true };
-    }
-    const sourceRunId = payload.sourceRunId;
-    if (typeof sourceRunId !== "string" || sourceRunId.length === 0) {
-      throw new Error(
-        "Decomposer recovery trigger payload must include sourceRunId when sourceWorkflow is builder",
-      );
-    }
-    return {
-      runId: sourceRunId,
-      runDir: join(".kota", "runs", sourceRunId),
-      skip: false,
-    };
-  }
-
-  const runDir = payload.runDir;
-  const runId = payload.runId;
-  if (typeof runDir !== "string" || typeof runId !== "string") {
-    throw new Error("Decomposer trigger payload must include runDir and runId");
-  }
-  return { runId, runDir, skip: false };
-}
-
-type BuilderTaskClaimArtifact = {
-  claimed?: boolean;
-  taskId?: string | null;
-};
-
-function readClaimedTaskId(projectDir: string, runDir: string): string | null {
-  const artifact = readOptionalJsonFile<BuilderTaskClaimArtifact>(
-    join(projectDir, runDir, "task-claim.json"),
-  );
-  return artifact?.claimed === true && typeof artifact.taskId === "string"
-    ? artifact.taskId
-    : null;
-}
-
-function buildAssessment(
-  projectDir: string,
-  triggerEvent: string,
-  triggerPayload: Record<string, unknown>,
-): DecomposerAssessment {
-  const source = resolveSourceRun(triggerEvent, triggerPayload);
-
-  if (source.skip) {
-    return {
-      shouldDecompose: false,
-      reason: "Recovery source was not builder — nothing for decomposer to do",
-      failedRunId: "",
-      failedRunDir: "",
-      failureKind: null,
-    };
-  }
-
-  const metadataPath = join(projectDir, source.runDir, "metadata.json");
-  const metadata = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
-
-  if (!metadata) {
-    return {
-      shouldDecompose: false,
-      reason: `Could not read run metadata at ${metadataPath}`,
-      failedRunId: source.runId,
-      failedRunDir: source.runDir,
-      failureKind: null,
-    };
-  }
-
-  const failureKind = classifyBuilderFailureForDecomposition(metadata);
-  if (failureKind === null) {
-    return {
-      shouldDecompose: false,
-      reason: "Builder failure does not require task rescoping",
-      failedRunId: source.runId,
-      failedRunDir: source.runDir,
-      failureKind: null,
-    };
-  }
-
-  const candidateId = readClaimedTaskId(projectDir, source.runDir);
-  const task = candidateId ? findTaskById(projectDir, candidateId) : null;
-
-  if (!task) {
-    return {
-      shouldDecompose: false,
-      reason: candidateId
-        ? `Builder task ${candidateId} is no longer active; its current task state supersedes this failure`
-        : "Builder run has no claimed task artifact to rescope",
-      failedRunId: source.runId,
-      failedRunDir: source.runDir,
-      failureKind,
-    };
-  }
-
-  return {
-    shouldDecompose: true,
-    reason: `Builder ${failureKind === "timeout" ? "timed out" : "exhausted repair"} on ${task.id} — rescoping`,
-    failedRunId: source.runId,
-    failedRunDir: source.runDir,
-    taskId: task.id,
-    taskPath: task.path,
-    taskMarkdown: readFileSync(join(projectDir, task.path), "utf-8"),
-    failureKind,
-  };
-}
-
-const assessFailure = typedCodeStep<DecomposerAssessment>({
-  id: "assess-failure",
-  type: "code",
-  exposeOutputToAgent: true,
-  exposedOutputTrust: "untrusted",
-  validate: (raw) =>
-    expectStructuredOutput<DecomposerAssessment>(raw, [
-      "reason",
-      "failedRunId",
-      "failedRunDir",
-      "failureKind",
-      "shouldDecompose",
-    ]),
-  run: ({ projectDir, trigger }) =>
-    buildAssessment(projectDir, trigger.event, trigger.payload),
-});
-
-const shouldRunDecompose = labeledPredicate(
-  "no-decompose-target",
-  (ctx) => assessFailure.outputRequired(ctx).shouldDecompose,
-);
-
-function decompositionTargetTaskId(ctx: Parameters<typeof assessFailure.outputRequired>[0]): string {
-  const assessment = assessFailure.outputRequired(ctx);
-  if (assessment.shouldDecompose) return assessment.taskId;
-  throw new Error("decompose step ran without an active task target");
-}
+export type { DecomposerAssessment } from "./assessment.js";
 
 const requireDecompositionApproval = typedCodeStep<{ approved: true }>({
   id: "require-decomposition-approval",

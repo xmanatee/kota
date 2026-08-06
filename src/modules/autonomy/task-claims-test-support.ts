@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { Readable } from "node:stream";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
+import { readVerifiedRepoTaskFile } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { ClaimTaskAttempt, QueueTaskClaimResult } from "./task-claims.js";
 
 export const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
@@ -22,6 +23,7 @@ import {
   taskClaimPath,
   writeClaim,
 } from "#modules/autonomy/task-claims.js";
+import { readVerifiedRepoTaskFile } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 const raw = process.env.KOTA_CLAIM_WORKER_INPUT;
 if (!raw) throw new Error("Missing KOTA_CLAIM_WORKER_INPUT");
@@ -45,12 +47,17 @@ const common = {
   leaseMs: input.leaseMs,
   now: new Date(input.now),
 };
+const selectedTask = input.taskId && input.taskState
+  ? readVerifiedRepoTaskFile(input.projectDir, input.taskState, input.taskId)
+  : null;
 let result;
 if (input.operation === "claim-task") {
+  if (!selectedTask) throw new Error("Missing verified task file");
   result = claimTask({
       ...common,
       taskId: input.taskId,
       taskState: input.taskState,
+      taskFile: { path: selectedTask.path, snapshot: selectedTask.snapshot },
     });
 } else if (input.operation === "claim-next") {
   result = claimNextQueueTask(common);
@@ -61,6 +68,7 @@ if (input.operation === "claim-task") {
     ...common,
     taskId: input.taskId,
     taskState: input.taskState,
+    taskFile: staleClaim.taskFile,
   }, now);
   if (!archiveClaimIfUnchanged(input.projectDir, taskClaimPath(input.projectDir, input.taskId), staleClaim, now)) {
     result = {
@@ -157,10 +165,13 @@ export function writeOwnerRunMetadata(
 }
 
 export function claimInput(projectDir: string, taskId: string, runId: string, now: Date) {
+  const taskFile = readVerifiedRepoTaskFile(projectDir, "ready", taskId);
+  if (taskFile === null) throw new Error(`Missing task fixture ${taskId}`);
   return {
     projectDir,
     taskId,
     taskState: "ready" as const,
+    taskFile: { path: taskFile.path, snapshot: taskFile.snapshot },
     runId,
     workflowId: "builder",
     owner: `workflow:builder:${runId}`,

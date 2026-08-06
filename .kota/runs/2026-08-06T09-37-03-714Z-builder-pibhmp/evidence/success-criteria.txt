@@ -1,0 +1,3 @@
+1. Queue discovery and decomposer task reads use the descriptor-anchored, no-follow boundary rooted at the canonical data/tasks directory, rejecting linked parents or entries before claim or dispatch and retaining verified file identity through the read.
+2. Focused regression coverage uses a task symlink to an external sibling-project file and proves its contents are neither discovered as a claim candidate nor included in the decomposer assessment exposed to the agent.
+3. Focused validation passes and the completed task records the exact verification command.

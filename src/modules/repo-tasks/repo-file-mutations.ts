@@ -2,14 +2,23 @@ import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
-import { readVerifiedRepoMarkdownFile } from "./repo-mutation-path-safety.js";
+import {
+  listVerifiedRepoMarkdownFiles,
+  readVerifiedRepoMarkdownFile,
+  readVerifiedRepoMarkdownFileWithIdentity,
+} from "./repo-mutation-path-safety.js";
 import {
   moveVerifiedRepoMarkdownFile,
   removeVerifiedRepoMarkdownFile,
   writeVerifiedRepoMarkdownFile,
 } from "./repo-physical-file-mutations.js";
 
-export { readVerifiedRepoMarkdownFile };
+export type { FileSnapshot } from "./repo-mutation-path-safety.js";
+export {
+  listVerifiedRepoMarkdownFiles,
+  readVerifiedRepoMarkdownFile,
+  readVerifiedRepoMarkdownFileWithIdentity,
+};
 
 export const REPO_TASK_STAGING_OWNER_ENV = "KOTA_REPO_TASK_STAGING_OWNER";
 export const REPO_TASK_WORKFLOW_HOST_STAGING_OWNER = "workflow-host";

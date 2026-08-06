@@ -107,9 +107,13 @@ vi.mock("#modules/autonomy/task-claims.js", () => ({
     taskId: input.taskId,
     changed: true,
     claim: {
-      schemaVersion: 1,
+      schemaVersion: 2,
       taskId: input.taskId,
       taskState: "ready",
+      taskFile: {
+        path: `data/tasks/ready/${input.taskId}.md`,
+        snapshot: { dev: 1, ino: 1, size: 1, mtimeMs: 1, ctimeMs: 1 },
+      },
       runId: input.runId,
       workflowId: input.workflowId,
       owner: `workflow:${input.workflowId}`,

@@ -45,6 +45,7 @@ type PreparedPath = {
 
 type HelperRequest = PreparedPath &
   (
+    | { operation: "list" }
     | { operation: "read" }
     | ({ operation: "write"; content: string } & MutationExpectation)
     | { operation: "remove"; expectedSnapshot: FileSnapshot }
@@ -53,6 +54,7 @@ type HelperRequest = PreparedPath &
 type HelperResponse =
   | {
       ok: true;
+      entries?: Array<{ name: string; content: string; snapshot: FileSnapshot }>;
       snapshot?:
         | { exists: false }
         | { exists: true; content: string; snapshot: FileSnapshot };
@@ -210,6 +212,32 @@ export function readVerifiedRepoMarkdownFileWithIdentity(args: {
     content: response.snapshot.content,
     snapshot: response.snapshot.snapshot,
   };
+}
+
+export function listVerifiedRepoMarkdownFiles(args: {
+  projectDir: string;
+  rootDir: string;
+  directoryPath: string;
+}): Array<{ name: string; content: string; snapshot: FileSnapshot }> {
+  const response = runHelper(
+    {
+      operation: "list",
+      ...preparePath({
+        projectDir: args.projectDir,
+        rootDir: args.rootDir,
+        filePath: join(args.directoryPath, ".kota-listing.md"),
+        createParent: false,
+      }),
+    },
+    args.directoryPath,
+  );
+  if (response.entries === undefined) {
+    throw unsafeRepoMutationPath(
+      args.directoryPath,
+      "helper omitted the markdown directory entries",
+    );
+  }
+  return response.entries;
 }
 
 export function readVerifiedRepoMarkdownFile(args: {

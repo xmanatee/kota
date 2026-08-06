@@ -1,0 +1,5 @@
+1. Verified: repo-task state enumeration and exact reads now run inside the descriptor-anchored no-follow helper; queue claims persist and revalidate the returned path and file snapshot, while decomposer accepts only schema-v2 bound claim artifacts and reopens the current task through the same boundary.
+2. Verified: the expanded 47-test suite passed, including sibling-project state-parent and leaf-task symlinks, absence of claim creation, legacy-claim safe recovery, confirmation that external marker content never reaches the decomposer agent step, backlog-promoter fail-closed behavior, and the shipped decomposer replay.
+3. Verified: TypeScript, focused Biome, task validation, and the strict-types policy test passed, and the done task records the exact focused verification command and result.
+
+Validation note: a final `pnpm test` rerun reached 12,467 passing tests, including both repaired suites, but the managed sandbox produced 222 unrelated failures because the protected runtime parent and Telegram env example are unreadable and loopback listeners are forbidden (`EPERM`).

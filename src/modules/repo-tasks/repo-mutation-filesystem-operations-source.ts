@@ -1,4 +1,24 @@
 export const REPO_MUTATION_FILESYSTEM_OPERATIONS_SOURCE = `
+function listMarkdown(request, parentIdentity) {
+  inspectAnchoredParent(request, parentIdentity);
+  const names = readdirSync(".")
+    .filter((name) => name.endsWith(".md"))
+    .sort();
+  const entries = [];
+  for (const name of names) {
+    const snapshot = readMarkdown(
+      { ...request, fileName: name },
+      parentIdentity,
+    );
+    if (!snapshot.exists) {
+      refuse("markdown entry disappeared during directory discovery");
+    }
+    entries.push({ name, content: snapshot.content, snapshot: snapshot.snapshot });
+  }
+  inspectAnchoredParent(request, parentIdentity);
+  return entries;
+}
+
 function readMarkdown(request, parentIdentity) {
   inspectAnchoredParent(request, parentIdentity);
   const opened = inspectMarkdownEntry(request.fileName, undefined);

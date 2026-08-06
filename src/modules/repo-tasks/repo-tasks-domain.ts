@@ -1,14 +1,16 @@
 import {
   existsSync,
   readdirSync,
-  readFileSync,
 } from "node:fs";
 import { join } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { getRepoHeadSha } from "#core/util/repo-worktree.js";
 import {
+  type FileSnapshot,
+  listVerifiedRepoMarkdownFiles,
   moveAndStageRepoMarkdownFile,
   readVerifiedRepoMarkdownFile,
+  readVerifiedRepoMarkdownFileWithIdentity,
   removeAndStageRepoMarkdownFile,
   stageExistingOrTrackedRepoPaths,
   writeAndStageRepoMarkdownFile,
@@ -168,11 +170,11 @@ export function removeRepoInboxFile(
 
 export function countRepoTaskState(projectDir: string, state: RepoTaskState): number {
   const dir = getRepoTaskStateDir(projectDir, state);
-  if (!existsSync(dir)) return 0;
-
-  return readdirSync(dir).filter(
-    (name) => name.endsWith(".md") && name !== "AGENTS.md",
-  ).length;
+  return listVerifiedRepoMarkdownFiles({
+    projectDir,
+    rootDir: getRepoTasksDir(projectDir),
+    directoryPath: dir,
+  }).filter((entry) => entry.name !== "AGENTS.md").length;
 }
 
 export function countRepoInboxEntries(projectDir: string): number {
@@ -386,6 +388,37 @@ export type RepoTaskFullRecord = {
   anchor: boolean;
 };
 
+export type RepoTaskFileDescriptor = {
+  path: string;
+  snapshot: FileSnapshot;
+};
+
+export type VerifiedRepoTaskFullRecord = RepoTaskFullRecord & {
+  taskFile: RepoTaskFileDescriptor;
+};
+
+export function readVerifiedRepoTaskFile(
+  projectDir: string,
+  state: RepoTaskState,
+  id: string,
+): ({ content: string } & RepoTaskFileDescriptor) | null {
+  if (!isRepoTaskId(id)) {
+    throw new Error(`Invalid task id: ${id}`);
+  }
+  const path = join(REPO_TASKS_DIR, state, `${id}.md`);
+  const verified = readVerifiedRepoMarkdownFileWithIdentity({
+    projectDir,
+    rootDir: getRepoTasksDir(projectDir),
+    filePath: join(projectDir, path),
+  });
+  if (verified === null) return null;
+  const { attrs } = parseFlatFrontMatter(verified.content);
+  if (attrs.id !== id) {
+    throw new Error(`Task entry ${path} does not declare its canonical id ${id}`);
+  }
+  return { path, content: verified.content, snapshot: verified.snapshot };
+}
+
 export type RepoTaskDependencyWait = {
   id: string;
   title: string;
@@ -400,19 +433,21 @@ export type RepoTaskDependencyWait = {
  * required frontmatter (id, title, status, updated_at) are skipped so
  * downstream callers can rely on strict shapes.
  */
-export function listFullRepoTasks(
+export function listVerifiedFullRepoTasks(
   projectDir: string,
   states: readonly RepoTaskState[] = REPO_TASK_STATES,
-): RepoTaskFullRecord[] {
+): VerifiedRepoTaskFullRecord[] {
   const tasksDir = getRepoTasksDir(projectDir);
-  const result: RepoTaskFullRecord[] = [];
+  const result: VerifiedRepoTaskFullRecord[] = [];
   for (const state of states) {
     const dir = join(tasksDir, state);
-    if (!existsSync(dir)) continue;
-    for (const name of readdirSync(dir)) {
-      if (!name.endsWith(".md") || name === "AGENTS.md") continue;
-      const filePath = join(dir, name);
-      const content = readFileSync(filePath, "utf-8");
+    for (const entry of listVerifiedRepoMarkdownFiles({
+      projectDir,
+      rootDir: tasksDir,
+      directoryPath: dir,
+    })) {
+      const { name, content, snapshot } = entry;
+      if (name === "AGENTS.md") continue;
       const { attrs, body } = parseFlatFrontMatter(content);
       if (
         typeof attrs.id !== "string" ||
@@ -420,6 +455,12 @@ export function listFullRepoTasks(
         typeof attrs.updated_at !== "string"
       ) {
         continue;
+      }
+      const expectedName = `${attrs.id}.md`;
+      if (name !== expectedName) {
+        throw new Error(
+          `Task entry ${join(REPO_TASKS_DIR, state, name)} must be named ${expectedName}`,
+        );
       }
       const priority = typeof attrs.priority === "string" ? attrs.priority : "";
       const area = typeof attrs.area === "string" ? attrs.area : "";
@@ -439,10 +480,21 @@ export function listFullRepoTasks(
         body,
         dependsOn: readTaskDependencyIds(attrs),
         anchor: parseAnchorField(typeof attrs.anchor === "string" ? attrs.anchor : undefined),
+        taskFile: {
+          path: join(REPO_TASKS_DIR, state, name),
+          snapshot,
+        },
       });
     }
   }
   return result;
+}
+
+export function listFullRepoTasks(
+  projectDir: string,
+  states: readonly RepoTaskState[] = REPO_TASK_STATES,
+): RepoTaskFullRecord[] {
+  return listVerifiedFullRepoTasks(projectDir, states);
 }
 
 export function listRepoTaskDependencyWaits(
@@ -523,12 +575,14 @@ export function listRepoTasksInState(
   state: RepoTaskState,
 ): RepoTaskRecord[] {
   const dir = getRepoTaskStateDir(projectDir, state);
-  if (!existsSync(dir)) return [];
-
   const records: RepoTaskRecord[] = [];
-  for (const name of readdirSync(dir)) {
-    if (!name.endsWith(".md") || name === "AGENTS.md") continue;
-    const content = readFileSync(join(dir, name), "utf-8");
+  for (const entry of listVerifiedRepoMarkdownFiles({
+    projectDir,
+    rootDir: getRepoTasksDir(projectDir),
+    directoryPath: dir,
+  })) {
+    if (entry.name === "AGENTS.md") continue;
+    const content = entry.content;
     const fm = parseFrontmatterBlock(content);
     if (!fm || !fm.id || !fm.updated_at) continue;
     records.push({

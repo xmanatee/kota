@@ -18,6 +18,7 @@ import {
   lstatSync,
   mkdirSync,
   openSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   renameSync,
@@ -40,7 +41,8 @@ try {
   if (
     request === null ||
     typeof request !== "object" ||
-    (request.operation !== "read" &&
+    (request.operation !== "list" &&
+      request.operation !== "read" &&
       request.operation !== "write" &&
       request.operation !== "remove") ||
     typeof request.projectRootPath !== "string" ||
@@ -85,7 +87,11 @@ try {
 
   const parentIdentity = enterParent(request);
   if (parentIdentity === undefined) {
-    respond({ ok: true, snapshot: { exists: false } });
+    respond(
+      request.operation === "list"
+        ? { ok: true, entries: [] }
+        : { ok: true, snapshot: { exists: false } },
+    );
   } else {
     const directoryFd = openSync(
       ".",
@@ -95,7 +101,9 @@ try {
       if (!sameIdentity(fstatSync(directoryFd), parentIdentity)) {
         refuse("parent directory changed while it was opened");
       }
-      if (request.operation === "read") {
+      if (request.operation === "list") {
+        respond({ ok: true, entries: listMarkdown(request, parentIdentity) });
+      } else if (request.operation === "read") {
         respond({ ok: true, snapshot: readMarkdown(request, parentIdentity) });
       } else if (request.operation === "write") {
         respond({
