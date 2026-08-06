@@ -1,0 +1,31 @@
+Validation for task-restore-native-harness-execution-and-clear-the-cur
+Run: 2026-08-06T03-13-33-350Z-builder-6grbwn
+
+Acceptance closeout source
+
+- Read `.kota/runs/2026-08-05T13-21-34-959Z-builder-u1pptb/evidence/artifacts/root-scope-closeout-proof.json` from the projected builder worktree.
+- Structured scan result: scopeId=8nrg1m; reviewWindowDeadLetters=8; open-to-dismissed items with action and rationale=8; successful post-fix builder runs=3.
+- Subsequent progress review: run `2026-08-05T14-47-27-900Z-progress-reviewer-ajw246`, status=success, openDeadLetterCount=0, citedNativeHarnessFailureSignaturesPresent=false.
+- The task retains the four cited dead-letter ids and two cited event ids in Source / Intent. The operator proof additionally preserves the other four review-window DLQ ids.
+
+Live native task CLI proof
+
+- Baseline command: `pnpm kota task move task-restore-native-harness-execution-and-clear-the-cur doing`.
+- Baseline result: failed at `git add -A` because the linked-worktree `index.lock` is intentionally not writable, then rolled the transition back to ready.
+- Candidate command under the builder runtime contract: `KOTA_REPO_TASK_STAGING_OWNER=workflow-host pnpm kota task move task-restore-native-harness-execution-and-clear-the-cur doing`.
+- Candidate result: exit 0; `Moved "task-restore-native-harness-execution-and-clear-the-cur" from "ready" to "doing".` The native agent did not write Git metadata; the existing phase-1 host check remains responsible for exact-path staging before queue validation.
+- Terminal command under the same contract moved the task from doing to done with exit 0, proving repeated canonical transitions survive the protected index boundary.
+
+Passing validation
+
+- Combined focused command across repo-task moves, deterministic native protected-index handling, task CLI, builder runtime resources, claimed-task host staging, module dependencies, and strict-types policy — 7 files passed, 52 tests passed.
+- `pnpm test src/root-layout.test.ts` — 1 file passed, 2 tests passed.
+- `pnpm typecheck` — passed.
+- `pnpm exec biome check` over all five changed TypeScript files — passed with no fixes.
+- `pnpm build` — passed.
+- `pnpm dev workflow validate` — 29 of 29 workflow definitions valid.
+
+Non-counted attempts
+
+- The first direct Vitest invocation used its default bundled config loader and could not write Vite's cache beneath the read-only linked `node_modules`; rerunning with the repository's `--configLoader runner` contract passed.
+- `pnpm test -- <focused files>` placed a separator before the file filters, so Vitest treated it as a broad run. It was stopped after expected pre-host-stage queue tracking and nested managed-sandbox failures plus missing pre-build `dist` output. The correctly filtered command, build, and scoped policy checks above are the validation results for this agent step; the workflow repair loop owns host staging and broad gates.

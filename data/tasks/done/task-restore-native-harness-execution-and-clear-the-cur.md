@@ -1,13 +1,13 @@
 ---
 id: task-restore-native-harness-execution-and-clear-the-cur
 title: Restore native harness execution and clear the current failure cluster
-status: ready
+status: done
 priority: p1
 area: autonomy
 task_class: Meta
 summary: Fix or fail over from native CLI launches that cannot read legitimate project or worktree configuration, Git metadata, and task executables. Distinguish filesystem-policy defects from transient provider quota exhaustion, prevent unavailable providers from producing repeated dead letters, and resolve the current builder items through canonical redrive or dismissal.
 created_at: 2026-08-05T07:42:26.080Z
-updated_at: 2026-08-05T17:10:05.531Z
+updated_at: 2026-08-06T04:26:47.608Z
 ---
 
 ## Problem
@@ -96,37 +96,21 @@ macOS `/var` to `/private/var` alias does not create a false failure inside a
 managed native run. Detailed commands and the live read probe are recorded in
 this run's `artifacts/validation.txt`.
 
-## Remaining Acceptance Work
+## Resolution
 
-This task is intentionally blocked; two review-provided conditions are not yet
-evidenced:
+The operator capture now exists at
+`.kota/runs/2026-08-05T13-21-34-959Z-builder-u1pptb/evidence/artifacts/root-scope-closeout-proof.json`.
+It records all eight review-window DLQ ids with open-to-dismissed actions and
+per-item rationales, three successful post-fix builder runs, and successful
+progress review `2026-08-05T14-47-27-900Z-progress-reviewer-ajw246` with zero
+open dead letters and none of the cited native-harness failure signatures.
 
-- The source review reports eight open root-scope dead letters but preserves
-  only the four highest-detail item ids above. Commit `3ca1dcf46` moves five
-  task files and does not record the eight canonical DLQ item ids, before/after
-  statuses, chosen actions, or per-item rationales. A root-scope export must
-  enumerate all eight review-window items and show each as canonically redriven
-  or dismissed with rationale. The command
-  `pnpm kota workflow dlq list --json --limit 200` run here returned the empty
-  worktree-local store (`open=0`, `dismissed=0`, `redriven=0`) and therefore is
-  explicitly not accepted as proof for scope `8nrg1m`.
-- A terminal builder run after the native repair must be named and its
-  successful status recorded. This run remains under post-check review, and a
-  commit or linked-worktree read probe alone does not prove workflow
-  completion. After both that terminal builder evidence and the item-level DLQ
-  export exist, re-run a progress review and close this task only if the cited
-  failure signatures are absent.
-
-## Unblock Precondition
-
-```text
-kind: operator-capture
-path: .kota/runs/2026-08-05T13-21-34-959Z-builder-u1pptb/evidence/artifacts/root-scope-closeout-proof.json
-description: root-scope eight-item DLQ dispositions plus terminal post-fix builder and progress-review statuses
-```
-
-This is an operator-controlled external-environment capture: the daemon's
-canonical root-scope DLQ and terminal status of this still-active run are both
-outside the builder worktree. The proof must contain all eight item ids with
-before/after statuses, actions, and rationales, then name a terminal successful
-builder run and a subsequent progress review without the cited signatures.
+This run also closed the remaining linked-worktree transition defect exposed
+by the canonical task CLI. Builder runtime resources now declare the existing
+workflow host as the repo-task staging owner. A native task move retains its
+filesystem transition only when `git add` is denied specifically because the
+linked-worktree index is protected; undeclared, transient, and other staging
+failures still roll back. The phase-1 builder repair continues to exact-stage
+only the claimed task before queue validation. Current-run verification and
+the live ready-to-doing-to-done transcript are recorded in
+`.kota/runs/2026-08-06T03-13-33-350Z-builder-6grbwn/evidence/artifacts/validation.txt`.

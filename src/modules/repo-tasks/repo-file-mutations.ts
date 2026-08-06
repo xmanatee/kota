@@ -3,6 +3,30 @@ import { existsSync, writeFileSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
+export const REPO_TASK_STAGING_OWNER_ENV = "KOTA_REPO_TASK_STAGING_OWNER";
+export const REPO_TASK_WORKFLOW_HOST_STAGING_OWNER = "workflow-host";
+
+const PROTECTED_GIT_INDEX_WRITE_ERROR =
+  /index\.lock[\s\S]*(?:operation not permitted|permission denied|read-only file system)/i;
+
+/**
+ * Native builder agents cannot write linked-worktree Git metadata. Their
+ * workflow host owns an exact-path staging repair before queue validation, so
+ * only that explicitly declared owner may defer a protected-index failure.
+ */
+export function shouldDeferRepoTaskStagingToWorkflowHost(
+  error: Error,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  if (
+    env[REPO_TASK_STAGING_OWNER_ENV] !==
+    REPO_TASK_WORKFLOW_HOST_STAGING_OWNER
+  ) {
+    return false;
+  }
+  return PROTECTED_GIT_INDEX_WRITE_ERROR.test(error.message);
+}
+
 function relativePathWithin(rootDir: string, filePath: string): string {
   const relativePath = relative(resolve(rootDir), resolve(filePath));
   if (

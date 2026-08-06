@@ -1,6 +1,10 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { WorkflowRuntimeResources } from "#core/workflow/run-types.js";
+import {
+  REPO_TASK_STAGING_OWNER_ENV,
+  REPO_TASK_WORKFLOW_HOST_STAGING_OWNER,
+} from "#modules/repo-tasks/repo-file-mutations.js";
 import { initializeBuilderEvidenceManifest } from "./agent-run-evidence-manifest.js";
 import {
   type BuilderRuntimeDependencyPreflight,
@@ -111,6 +115,7 @@ export async function assignBuilderRuntimeResources(
   const ports = portAssignment.ports;
   const artifactPath = join(input.runDirPath, "builder-runtime-resources.json");
   const env = {
+    [REPO_TASK_STAGING_OWNER_ENV]: REPO_TASK_WORKFLOW_HOST_STAGING_OWNER,
     KOTA_RUNTIME_PROFILE_ID: profileId,
     KOTA_WORKSPACE_DIR: input.workspaceDir,
     KOTA_RUN_DIR: agentRunDir,

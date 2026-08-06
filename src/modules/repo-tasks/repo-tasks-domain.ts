@@ -10,6 +10,7 @@ import { dirname, join } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { getRepoHeadSha } from "#core/util/repo-worktree.js";
 import {
+  shouldDeferRepoTaskStagingToWorkflowHost,
   stageExistingOrTrackedRepoPaths,
   writeAndStageRepoMarkdownFile,
 } from "./repo-file-mutations.js";
@@ -695,9 +696,14 @@ export function moveTaskById(
   try {
     stageRepoTaskStateMutation(projectDir, id);
   } catch (stageError) {
-    renameSync(dstPath, fromPath);
-    writeFileSync(fromPath, content, "utf-8");
-    throw stageError;
+    if (
+      !(stageError instanceof Error) ||
+      !shouldDeferRepoTaskStagingToWorkflowHost(stageError)
+    ) {
+      renameSync(dstPath, fromPath);
+      writeFileSync(fromPath, content, "utf-8");
+      throw stageError;
+    }
   }
 
   return {

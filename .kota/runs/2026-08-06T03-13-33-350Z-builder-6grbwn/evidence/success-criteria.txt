@@ -1,0 +1,2 @@
+1. The cited native-harness and dead-letter progress gap is fixed with item-level root-scope disposition evidence, successful post-fix builder runs, and a later progress review without the cited failure signatures.
+2. This run records acceptance evidence and leaves canonical native task transitions executable while Git metadata remains workflow-host owned.

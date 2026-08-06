@@ -19,9 +19,11 @@ served at `/api/tasks`.
   best-effort warning. Workflows and routes must not write these files
   directly or maintain a second move/staging implementation.
 - Native agent sandboxes may protect Git metadata even when task files are
-  writable. Builder repair retries the repo-tasks domain's claim-scoped staging
-  operation from the host before queue validation; do not replace that bridge
-  with broad workflow-owned `git add` logic.
+  writable. An explicit builder runtime owner lets the task mover retain its
+  filesystem transition only for a protected-index denial; builder repair then
+  retries the repo-tasks domain's claim-scoped staging operation from the host
+  before queue validation. Other staging failures still roll back. Do not
+  replace that bridge with broad workflow-owned `git add` logic.
 - State moves rename and rewrite first, then stage the exact source and
   destination paths together. Keep a real linked-worktree regression around
   repeated moves so a staged deletion plus untracked destination cannot pass

@@ -42,6 +42,7 @@ describe("builder runtime resource assignment", () => {
     );
     expect(metadata.env.KOTA_RUN_DIR).toBe(metadata.agentRunDir);
     expect(metadata.env.KOTA_RUN_ARTIFACT_DIR).toBe(metadata.artifactRoot);
+    expect(metadata.env.KOTA_REPO_TASK_STAGING_OWNER).toBe("workflow-host");
   });
 
   it("keeps a preserved worktree on its existing evidence lineage", async () => {
