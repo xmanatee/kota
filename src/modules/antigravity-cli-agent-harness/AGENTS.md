@@ -27,6 +27,12 @@ AGY-native conversation resume as a KOTA session mechanism.
 The CLI's own print timeout is only a final process cap. KOTA cancellation and
 workflow idle supervision remain the normal lifecycle controls.
 
+Workflow `outputSchema` values pass through AGY's native `--json-schema`
+surface; core still validates the normalized structured result. A terminal AGY
+`SUCCESS` is transport success even when AGY omits response text. Workflow
+validators and repair loops decide whether useful work occurred; only a missing
+terminal result is a transport failure.
+
 ## Isolation
 
 Daemon runs use an invocation-local home and inherit no provider, GitHub,

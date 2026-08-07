@@ -94,6 +94,11 @@ export type AgentHarnessRunOptions = {
   prompt: string;
   model?: string;
   /**
+   * KOTA-owned structured-output contract. Adapters may enforce it through a
+   * native provider surface; workflow execution still validates the result.
+   */
+  outputSchema?: Record<string, unknown>;
+  /**
    * Shared ModelClient provider selection for adapters that execute through
    * `createModelClient`. This is KOTA's own model routing surface, not a
    * provider-native wire shape; adapters that use native CLIs ignore it.

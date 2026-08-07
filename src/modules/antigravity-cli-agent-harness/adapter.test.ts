@@ -76,6 +76,32 @@ function successfulAgyOutput(text: string): string {
   ].map((event) => JSON.stringify(event)).join("\n")}\n`;
 }
 
+function successfulStructuredAgyOutput(value: Record<string, unknown>): string {
+  return `${JSON.stringify({
+    event: "result",
+    result: {
+      conversation_id: "conversation-structured",
+      status: "SUCCESS",
+      response: JSON.stringify(value),
+      structured_output: value,
+      num_turns: 1,
+      usage: { input_tokens: 20, output_tokens: 5 },
+    },
+  })}\n`;
+}
+
+function successfulEmptyAgyOutput(): string {
+  return `${JSON.stringify({
+    event: "result",
+    result: {
+      conversation_id: "conversation-empty",
+      status: "SUCCESS",
+      num_turns: 1,
+      usage: { input_tokens: 8, output_tokens: 0 },
+    },
+  })}\n`;
+}
+
 function mockManualAgyProcess(): MockChild {
   const child = new EventEmitter() as MockChild;
   child.stdout = new PassThrough();
@@ -261,6 +287,35 @@ describe("antigravityCliAgentHarness", () => {
     });
   });
 
+  it("uses AGY native structured output and normalizes its result for core validation", async () => {
+    const outputSchema = {
+      type: "object",
+      required: ["status"],
+      properties: { status: { type: "string" } },
+    };
+    mockAgyProcess({
+      stdout: successfulStructuredAgyOutput({ status: "complete" }),
+    });
+
+    const result = await antigravityCliAgentHarness.run({
+      prompt: "inspect",
+      model: "gemini-3.6-flash",
+      effort: "xhigh",
+      outputSchema,
+    });
+
+    const commandArgs = spawnMock.mock.calls[0][1] as string[];
+    expect(commandArgs).toContain("--json-schema");
+    expect(commandArgs[commandArgs.indexOf("--json-schema") + 1]).toBe(
+      JSON.stringify(outputSchema),
+    );
+    expect(result).toMatchObject({
+      text: '```json\n{"status":"complete"}\n```',
+      sessionId: "conversation-structured",
+      isError: false,
+    });
+  });
+
   it("does not inherit daemon provider, GitHub, notification, or cloud credentials", async () => {
     mockAgyProcess({ stdout: successfulAgyOutput("ok") });
     const secrets = {
@@ -351,7 +406,27 @@ describe("antigravityCliAgentHarness", () => {
     expect(child.kill).toHaveBeenCalledWith("SIGKILL");
   });
 
-  it("returns a typed empty-output error when AGY succeeds without text", async () => {
+  it("preserves terminal AGY success without text for workflow-level validation", async () => {
+    mockAgyProcess({ stdout: successfulEmptyAgyOutput() });
+
+    const result = await antigravityCliAgentHarness.run({
+      prompt: "x",
+      model: "gemini-3.6-flash",
+      effort: "xhigh",
+    });
+
+    expect(result).toMatchObject({
+      text: "",
+      streamedText: "",
+      sessionId: "conversation-empty",
+      turns: 1,
+      inputTokens: 8,
+      outputTokens: 0,
+      isError: false,
+    });
+  });
+
+  it("rejects a process exit without AGY's terminal result event", async () => {
     mockAgyProcess();
 
     const result = await antigravityCliAgentHarness.run({
@@ -361,9 +436,9 @@ describe("antigravityCliAgentHarness", () => {
     });
 
     expect(result).toMatchObject({
-      text: "Antigravity CLI completed without structured output.",
+      text: "Antigravity CLI exited without a terminal result event.",
       isError: true,
-      subtype: "antigravity_cli_empty_output",
+      subtype: "antigravity_cli_incomplete_output",
     });
   });
 

@@ -259,6 +259,7 @@ export const antigravityCliAgentHarness: AgentHarness = {
       cwd: options.cwd ?? process.cwd(),
       model: options.model,
       effort: options.effort,
+      outputSchema: options.outputSchema,
       readOnly: scope.executionMode === "plan",
       writableRoots: scope.writableRoots,
       authorityConfigPath: options.authorityConfigPath,

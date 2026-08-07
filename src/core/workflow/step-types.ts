@@ -98,6 +98,7 @@ export type WorkflowAgentRunContractSpec = Pick<
   | "disallowedTools"
   | "harnessOptions"
   | "autonomyMode"
+  | "outputSchema"
 > & {
   ownerQuestionAccess?: "available" | "disabled";
   persistSession?: boolean;

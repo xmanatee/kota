@@ -28,6 +28,7 @@ type AntigravityResult = {
   conversation_id?: string;
   status?: string;
   response?: string;
+  structured_output?: unknown;
   error?: string;
   num_turns?: number;
   usage?: AntigravityUsage;
@@ -43,6 +44,8 @@ type AntigravityEvent = {
 export type CollectedAntigravityOutput = {
   streamedText: string;
   responseText?: string;
+  structuredOutput?: unknown;
+  hasTerminalResult: boolean;
   sessionId?: string;
   cliError?: string;
   turns: number;
@@ -82,6 +85,8 @@ export function collectAntigravityOutput(args: {
   return (async () => {
     const chunks: string[] = [];
     let responseText: string | undefined;
+    let structuredOutput: unknown;
+    let hasTerminalResult = false;
     let sessionId: string | undefined;
     let cliError: string | undefined;
     let turns = 0;
@@ -143,6 +148,8 @@ export function collectAntigravityOutput(args: {
           sessionId = result.conversation_id;
         }
         responseText = result.response;
+        structuredOutput = result.structured_output;
+        hasTerminalResult = true;
         turns = result.num_turns ?? 0;
         inputTokens = result.usage?.input_tokens;
         outputTokens = result.usage?.output_tokens;
@@ -181,6 +188,8 @@ export function collectAntigravityOutput(args: {
     return {
       streamedText: chunks.join(""),
       ...(responseText !== undefined ? { responseText } : {}),
+      ...(structuredOutput !== undefined ? { structuredOutput } : {}),
+      hasTerminalResult,
       ...(sessionId !== undefined ? { sessionId } : {}),
       ...(cliError !== undefined ? { cliError } : {}),
       turns,
@@ -193,6 +202,7 @@ export function collectAntigravityOutput(args: {
 export function emptyCollectedAntigravityOutput(): CollectedAntigravityOutput {
   return {
     streamedText: "",
+    hasTerminalResult: false,
     turns: 0,
   };
 }

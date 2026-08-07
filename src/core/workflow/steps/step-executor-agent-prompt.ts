@@ -229,7 +229,7 @@ export function buildAgentPrompt(
     );
   }
   lines.push(
-    "If you leave a textual summary, keep it brief and factual.",
+    "Always leave a brief factual final response after the last tool call.",
     "Write any run-specific artifacts under the run directory when useful.",
     "Finish this step fully, then stop.",
   );

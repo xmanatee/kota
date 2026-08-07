@@ -62,6 +62,7 @@ type CollectTextFromAntigravityCliArgs = {
   cwd: string;
   model: string;
   effort: AgentEffort;
+  outputSchema?: Record<string, unknown>;
   readOnly: boolean;
   writableRoots: readonly string[];
   authorityConfigPath: string | undefined;
@@ -175,16 +176,22 @@ async function runAntigravityCliProcess(
     };
   }
 
-  const text = output.responseText ?? output.streamedText;
-  if (!text) {
+  if (!output.hasTerminalResult) {
     return {
-      text: "Antigravity CLI completed without structured output.",
-      streamedText: "",
+      text: "Antigravity CLI exited without a terminal result event.",
+      streamedText: output.streamedText,
+      ...(output.sessionId !== undefined ? { sessionId: output.sessionId } : {}),
       turns: output.turns,
+      ...(output.inputTokens !== undefined ? { inputTokens: output.inputTokens } : {}),
+      ...(output.outputTokens !== undefined ? { outputTokens: output.outputTokens } : {}),
       isError: true,
-      subtype: "antigravity_cli_empty_output",
+      subtype: "antigravity_cli_incomplete_output",
     };
   }
+
+  const text = output.structuredOutput === undefined
+    ? output.responseText ?? output.streamedText
+    : `\`\`\`json\n${JSON.stringify(output.structuredOutput)}\n\`\`\``;
 
   return {
     text,
@@ -212,6 +219,9 @@ export async function collectTextFromAntigravityCli(
     args.model,
     "--effort",
     antigravityCliEffort(args.effort),
+    ...(args.outputSchema === undefined
+      ? []
+      : ["--json-schema", JSON.stringify(args.outputSchema)]),
     "--mode",
     args.readOnly ? "plan" : "accept-edits",
     "--sandbox",

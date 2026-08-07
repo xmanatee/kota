@@ -88,6 +88,14 @@ function untrustedBlock(
 }
 
 describe("buildAgentPrompt trigger payload trust boundary", () => {
+  it("requires a terminal response after the agent's final tool call", () => {
+    const prompt = buildPrompt({ event: "manual", schemaRef: null, payload: {} });
+
+    expect(prompt).toContain(
+      "Always leave a brief factual final response after the last tool call.",
+    );
+  });
+
   it("wraps a benign trigger payload as untrusted data while preserving JSON", () => {
     const prompt = buildPrompt({
       event: "manual",

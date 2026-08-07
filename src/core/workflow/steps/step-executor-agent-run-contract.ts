@@ -112,6 +112,7 @@ export function resolveWorkflowAgentRunContract(input: {
     askOwner,
     autonomyMode,
     harnessOverrides: step.harnessOptions?.[harness.name],
+    outputSchema: step.outputSchema,
     persistSession: step.persistSession ?? false,
     enableFileCheckpointing: step.enableFileCheckpointing ?? false,
     ...(onMessage !== undefined ? { onMessage } : {}),
