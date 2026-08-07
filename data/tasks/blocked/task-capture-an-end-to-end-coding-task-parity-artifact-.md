@@ -151,4 +151,4 @@ the Codex harness path is locally viable. It does not unblock this task because
 the precondition requires the operator-captured all-registered-harness artifact
 under `.kota/runs/harness-parity-*`.
 
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-07-23T23:11:20.617Z -->
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-08-07T01:12:24.247Z -->

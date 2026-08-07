@@ -125,4 +125,4 @@ run because neither `OPENROUTER_API_KEY` nor KOTA's OpenRouter secret resolution
 returned a credential. The remaining evidence is an operator-captured live-key
 matrix run under this task's run directory once an OpenRouter key is configured.
 
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-07-23T23:11:20.617Z -->
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-08-07T01:12:24.247Z -->
