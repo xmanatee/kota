@@ -7,7 +7,7 @@ area: autonomy
 task_class: Platform
 summary: Reconstruct every failed AGY builder attempt, fix the shared runtime causes, and prove builders can complete without losing or corrupting work.
 created_at: 2026-08-07T01:04:32.818Z
-updated_at: 2026-08-07T01:04:32.818Z
+updated_at: 2026-08-07T01:14:56Z
 ---
 
 ## Problem
@@ -24,6 +24,15 @@ itself.
 
 Without that analysis, another AGY rollout can preserve the same zero-success
 builder behavior while doctor and lightweight agent steps appear healthy.
+
+A fresh Gemini 3.6 Flash canary on 2026-08-07 isolated a second failure class.
+The AGY process returned a successful stream result after using tools, but the
+result contained neither final response text nor streamed text. KOTA correctly
+classified this as `antigravity_cli_empty_output`. The same signature failed an
+improver, a progress reviewer, and two builders within two minutes, while a
+security reviewer completed normally through the same harness. This is not
+provider quota evidence: the failed calls returned success, consumed input and
+output tokens, and had no quota reset or provider error.
 
 ## Desired Outcome
 
@@ -43,7 +52,7 @@ branches remain reviewable; no failure path may discard uncommitted changes.
   Git metadata remains read-only to native agents and KOTA owns staging and
   commits.
 - Do not classify every failure as provider quota. Separate provider, sandbox,
-  adapter, verification, repair-loop, and task-quality causes.
+  adapter/output-contract, verification, repair-loop, and task-quality causes.
 - Do not add blind timeouts, fixed retry counts, or automatic work discard.
 - Reuse the canonical provider backoff, recovery projection, claim, DLQ, and
   worktree lifecycle mechanisms; do not add AGY-only shadow state.
@@ -55,6 +64,10 @@ branches remain reviewable; no failure path may discard uncommitted changes.
 - A root-cause table covers every AGY builder attempt in the rollout window,
   including duration, task, terminal error, preserved work, retry/disposition,
   and responsible subsystem.
+- The investigation explains whether an empty successful AGY stream means the
+  model omitted its required final answer, AGY omitted or changed a stream
+  frame, or KOTA failed to collect a valid frame. Evidence must come from the
+  real adapter boundary, not from accepting empty output as success.
 - Focused fixtures reproduce each KOTA-owned failure class before the fix and
   demonstrate the corrected behavior afterward.
 - At least one representative AGY builder run completes the full builder
@@ -74,6 +87,20 @@ Representative failures include builder runs ending on provider quota reset
 windows and native cascade `operation not permitted` errors against worktree
 `.git` metadata and `node_modules/.bin/vitest`. Successful non-builder AGY runs
 do not satisfy this task.
+
+The 2026-08-07 canary adds these exact `antigravity_cli_empty_output` runs:
+
+- `2026-08-06T20-54-20-563Z-improver-fapxop`
+- `2026-08-06T20-54-21-500Z-progress-reviewer-vcwa2p`
+- `2026-08-07T01-10-51-326Z-builder-uqoutb`
+- `2026-08-07T01-10-51-326Z-builder-6rjqk8`
+
+Both builder result frames reported AGY `SUCCESS` after one tool call, with
+20,641/393 and 20,652/534 input/output tokens respectively, but zero final text
+and no changed paths. The same canary's security-review run
+`2026-08-06T20-26-33-816Z-security-review-3xna1r` completed through
+`gemini-3.6-flash`, proving the binary, authentication, selected model, and
+basic stream parser were not universally unavailable.
 
 ## Initiative
 

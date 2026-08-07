@@ -8,7 +8,7 @@ task_class: Platform
 depends_on: [task-prove-agy-builder-parity-end-to-end]
 summary: Use provider evidence to prevent continuous AGY operation from wasting cycles in quota backoff while preserving useful autonomous throughput.
 created_at: 2026-08-07T01:04:44.227Z
-updated_at: 2026-08-07T01:04:44.227Z
+updated_at: 2026-08-07T01:14:56Z
 ---
 
 ## Problem
@@ -23,6 +23,13 @@ cannot finish before the next reset.
 The current backoff mechanism protects the provider but does not yet prove
 that an AGY-backed fleet allocates its available quota to the highest-value
 dispatchable work or that it halts when output quality is materially worse.
+
+The 2026-08-07 canary also showed that productivity gating cannot be limited to
+quota errors. Four agent workflows, including two builders, returned AGY
+`SUCCESS` frames with token usage but no final text. The daemon immediately
+continued dispatching related reviewers and builders, producing six open DLQs
+for three duplicate fingerprints before the operator paused it. A provider can
+therefore be reachable and still yield no useful autonomous work.
 
 ## Desired Outcome
 
@@ -43,6 +50,9 @@ minor issues become deduplicated tasks while useful work continues.
 - Do not estimate quota from token counts or hardcode Google plan limits. Use
   provider reset/error evidence and supported AGY usage signals when present.
 - Do not retry agent workflows while the same provider incident is active.
+- Treat repeated output-contract failures with zero useful artifacts as one
+  canary incident even when the provider process reports success; do not wait
+  for quota backoff before parking agent dispatch.
 - Do not discard partially completed work when parking for quota recovery.
 - Keep one provider-backoff source of truth shared by dispatch, status, health,
   recovery, and resume paths.
@@ -63,6 +73,9 @@ minor issues become deduplicated tasks while useful work continues.
 - A material quality or productivity regression pauses autonomy automatically
   through the canonical control path and records why; minor findings are
   deduplicated without stopping productive work.
+- A canary that records repeated successful-but-empty AGY results stops before
+  dispatching more builders, preserves one representative incident, and does
+  not create duplicate DLQs for the same workflow/error fingerprint.
 - Status surfaces explain whether AGY is working, quota-parked, quality-paused,
   or idle without inferring health from process uptime alone.
 
