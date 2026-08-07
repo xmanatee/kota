@@ -7,7 +7,7 @@ area: autonomy
 task_class: Platform
 summary: Reconstruct every failed AGY builder attempt, fix the shared runtime causes, and prove builders can complete without losing or corrupting work.
 created_at: 2026-08-07T01:04:32.818Z
-updated_at: 2026-08-07T02:04:56Z
+updated_at: 2026-08-07T15:26:57Z
 ---
 
 ## Problem
@@ -27,9 +27,9 @@ builder behavior while doctor and lightweight agent steps appear healthy.
 
 A fresh Gemini 3.6 Flash canary on 2026-08-07 isolated a second failure class.
 The AGY process returned terminal `SUCCESS` after using one tool, but the result
-contained neither final response text nor streamed text. KOTA now preserves
-that transport success and lets workflow checks decide whether useful work was
-completed. The same signature failed an improver, a progress reviewer, and
+contained neither final response text nor streamed text. At the time, KOTA
+preserved that transport success and left workflow checks to detect the missing
+work. The same signature failed an improver, a progress reviewer, and
 multiple builders, while a security reviewer completed normally through the
 same harness. This is not provider quota evidence: the calls returned success,
 consumed input and output tokens, and had no quota reset or provider error.
@@ -42,6 +42,39 @@ repair checks; it made no implementation or task transition, so the canonical
 pre-commit consistency gate rejected it. The daemon was halted after these two
 runs rather than spending the planned three-hour window repeating a proven
 failure mode.
+
+## Confirmed Root Cause
+
+The 2026-08-07 adapter investigation reproduced the empty-success failure
+outside the workflow. KOTA launched AGY headlessly with closed stdin,
+invocation-local settings, `--mode accept-edits`, and AGY's `--sandbox` nested
+inside KOTA's machine-authority sandbox. AGY execution modes do not approve
+shell commands; unconfigured `run_command` permissions default to an
+interactive ask. Headless AGY therefore soft-denied the command, emitted the
+tool error, and then emitted terminal `SUCCESS` with no response. KOTA retained
+the status event but classified only the terminal status, hiding the denial
+from the harness result and repeating it in fresh repair attempts.
+
+This matches AGY's documented contracts:
+
+- `https://antigravity.google/docs/cli/modes` states that execution modes do
+  not override `run_command` permission rules.
+- `https://antigravity.google/docs/cli/permissions` states that unconfigured
+  commands default to `Ask`.
+- `https://antigravity.google/changelog` records that headless permission asks
+  are intentionally soft-denied with a stderr notice.
+
+The adapter now has one authority boundary: AGY tools are non-interactively
+approved inside KOTA's existing filesystem/process/egress sandbox, and AGY's
+nested terminal sandbox is not launched. An empty terminal success following a
+tool failure is a typed harness error, while a later final response proves that
+AGY recovered. A real isolated probe completed `run_command`, `write_to_file`,
+and verification in one turn; a second probe confirmed that a write outside
+the projected workspace remained blocked by KOTA.
+
+Do not reintroduce nested sandboxing or interactive AGY permission defaults.
+The remaining task scope is the historical quota/recovery matrix and durable
+full-builder parity evidence required below.
 
 ## Desired Outcome
 

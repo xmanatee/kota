@@ -6,15 +6,18 @@ inside this adapter rather than branching on the harness name elsewhere.
 
 ## Runtime Boundary
 
-AGY owns its model tool loop, skills, plugins, MCP configuration, browser use,
-and native permission model. KOTA owns process cancellation, workspace mode,
-machine-authority isolation, and provider egress. The adapter rejects KOTA tool
-controls that cannot be enforced inside AGY.
+AGY owns its model tool loop, tool catalog, skills, plugins, MCP configuration,
+and browser implementation. KOTA owns process cancellation, workspace mode,
+machine-authority isolation, provider egress, and the non-interactive permission
+disposition. The adapter rejects per-tool controls that cannot be enforced at
+that process boundary.
 
 Each run creates an invocation-local AGY project bound to the requested working
-directory, requires AGY's `--sandbox`, and consumes `stream-json`. The adapter
-never bypasses AGY permissions: edit-capable runs use `accept-edits`, while
-read-only projections use `plan` and all other permission requests fail closed.
+directory and consumes `stream-json`. KOTA's machine-authority sandbox is the
+single filesystem, process, and egress boundary. Because headless AGY cannot
+service permission prompts, the adapter auto-approves AGY-native tools inside
+that boundary instead of nesting AGY's terminal sandbox. Edit-capable runs use
+`accept-edits`; read-only projections use `plan` with no writable scope.
 Translate native events into
 `KotaAgentMessage` frames here; preserve unknown frames as `raw` messages. KOTA
 effort maps to AGY's `low`, `medium`, or `high` values, with stronger KOTA
@@ -29,9 +32,11 @@ workflow idle supervision remain the normal lifecycle controls.
 
 Workflow `outputSchema` values pass through AGY's native `--json-schema`
 surface; core still validates the normalized structured result. A terminal AGY
-`SUCCESS` is transport success even when AGY omits response text. Workflow
-validators and repair loops decide whether useful work occurred; only a missing
-terminal result is a transport failure.
+`SUCCESS` is transport success when AGY omits response text without an
+unrecovered tool failure. A tool failure followed by an empty terminal success
+is a harness error; workflow validators still decide whether otherwise
+successful work satisfies the task. A missing terminal result is a transport
+failure.
 
 ## Isolation
 

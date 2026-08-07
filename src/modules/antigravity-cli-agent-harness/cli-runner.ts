@@ -57,6 +57,27 @@ function formatStderr(chunks: readonly string[]): string {
   return chunks.join("").trim();
 }
 
+function terminalToolFailure(
+  output: CollectedAntigravityOutput,
+): { detail: string; subtype: string } | undefined {
+  if (output.lastToolFailure === undefined) return undefined;
+  if (output.structuredOutput !== undefined) return undefined;
+  if ((output.responseText ?? output.streamedText).trim().length > 0) return undefined;
+
+  const { toolName, detail } = output.lastToolFailure;
+  const message = toolName === undefined
+    ? detail
+    : `Antigravity CLI completed without a response after tool "${toolName}" failed: ${detail}`;
+  return {
+    detail: message,
+    subtype: isNativeCliSandboxBootstrapError(detail)
+      ? "native_cli_sandbox_error"
+      : /\b(?:denied|permission)\b/i.test(detail)
+      ? "antigravity_cli_permission_error"
+      : "antigravity_cli_tool_error",
+  };
+}
+
 type CollectTextFromAntigravityCliArgs = {
   prompt: string;
   cwd: string;
@@ -189,6 +210,20 @@ async function runAntigravityCliProcess(
     };
   }
 
+  const toolFailure = terminalToolFailure(output);
+  if (toolFailure !== undefined) {
+    return {
+      text: toolFailure.detail,
+      streamedText: output.streamedText,
+      ...(output.sessionId !== undefined ? { sessionId: output.sessionId } : {}),
+      turns: output.turns,
+      ...(output.inputTokens !== undefined ? { inputTokens: output.inputTokens } : {}),
+      ...(output.outputTokens !== undefined ? { outputTokens: output.outputTokens } : {}),
+      isError: true,
+      subtype: toolFailure.subtype,
+    };
+  }
+
   const text = output.structuredOutput === undefined
     ? output.responseText ?? output.streamedText
     : `\`\`\`json\n${JSON.stringify(output.structuredOutput)}\n\`\`\``;
@@ -224,7 +259,7 @@ export async function collectTextFromAntigravityCli(
       : ["--json-schema", JSON.stringify(args.outputSchema)]),
     "--mode",
     args.readOnly ? "plan" : "accept-edits",
-    "--sandbox",
+    "--dangerously-skip-permissions",
     "--output-format",
     "stream-json",
     "--print-timeout",

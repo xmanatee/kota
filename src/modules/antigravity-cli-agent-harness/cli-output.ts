@@ -48,6 +48,10 @@ export type CollectedAntigravityOutput = {
   hasTerminalResult: boolean;
   sessionId?: string;
   cliError?: string;
+  lastToolFailure?: {
+    toolName?: string;
+    detail: string;
+  };
   turns: number;
   inputTokens?: number;
   outputTokens?: number;
@@ -89,6 +93,7 @@ export function collectAntigravityOutput(args: {
     let hasTerminalResult = false;
     let sessionId: string | undefined;
     let cliError: string | undefined;
+    let lastToolFailure: CollectedAntigravityOutput["lastToolFailure"];
     let turns = 0;
     let inputTokens: number | undefined;
     let outputTokens: number | undefined;
@@ -129,6 +134,16 @@ export function collectAntigravityOutput(args: {
           continue;
         }
         const toolName = update.tool_name ?? update.tool_info?.name;
+        const toolError = update.tool_info?.error?.message;
+        if (toolError !== undefined || update.state?.toUpperCase() === "ERROR") {
+          lastToolFailure = {
+            ...(toolName !== undefined ? { toolName } : {}),
+            detail: toolError ??
+              (toolName === undefined
+                ? "Antigravity CLI tool failed"
+                : `Antigravity CLI tool "${toolName}" failed`),
+          };
+        }
         await emit(args.onMessage, {
           type: "status",
           category: update.step_type ?? "step",
@@ -192,6 +207,7 @@ export function collectAntigravityOutput(args: {
       hasTerminalResult,
       ...(sessionId !== undefined ? { sessionId } : {}),
       ...(cliError !== undefined ? { cliError } : {}),
+      ...(lastToolFailure !== undefined ? { lastToolFailure } : {}),
       turns,
       ...(inputTokens !== undefined ? { inputTokens } : {}),
       ...(outputTokens !== undefined ? { outputTokens } : {}),

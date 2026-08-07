@@ -102,6 +102,49 @@ function successfulEmptyAgyOutput(): string {
   })}\n`;
 }
 
+function agyOutputAfterToolFailure(options: {
+  detail: string;
+  response?: string;
+}): string {
+  const events: Record<string, unknown>[] = [
+    { event: "init", conversation_id: "conversation-tool-failure" },
+    {
+      event: "step_update",
+      step_update: {
+        conversation_id: "conversation-tool-failure",
+        step_type: "tool",
+        state: "ERROR",
+        tool_name: "run_command",
+        tool_info: {
+          name: "run_command",
+          error: { message: options.detail },
+        },
+      },
+    },
+  ];
+  if (options.response !== undefined) {
+    events.push({
+      event: "step_update",
+      step_update: {
+        conversation_id: "conversation-tool-failure",
+        step_type: "agent_response",
+        text_delta: options.response,
+      },
+    });
+  }
+  events.push({
+    event: "result",
+    result: {
+      conversation_id: "conversation-tool-failure",
+      status: "SUCCESS",
+      ...(options.response !== undefined ? { response: options.response } : {}),
+      num_turns: 1,
+      usage: { input_tokens: 20, output_tokens: 2 },
+    },
+  });
+  return `${events.map((event) => JSON.stringify(event)).join("\n")}\n`;
+}
+
 function mockManualAgyProcess(): MockChild {
   const child = new EventEmitter() as MockChild;
   child.stdout = new PassThrough();
@@ -233,7 +276,7 @@ describe("antigravityCliAgentHarness", () => {
         "high",
         "--mode",
         "accept-edits",
-        "--sandbox",
+        "--dangerously-skip-permissions",
         "--output-format",
         "stream-json",
         "--print-timeout",
@@ -267,6 +310,7 @@ describe("antigravityCliAgentHarness", () => {
       expect.any(Function),
     );
     const commandArgs = spawnMock.mock.calls[0][1] as string[];
+    expect(commandArgs).not.toContain("--sandbox");
     const promptArg = commandArgs[commandArgs.indexOf("--print") + 1]!;
     expect(promptArg).toContain("## System instructions\n\nbe brief");
     expect(promptArg).toContain("Do not run `git commit`");
@@ -361,7 +405,11 @@ describe("antigravityCliAgentHarness", () => {
 
     expect(sandboxLaunchMock).toHaveBeenCalledWith(
       "agy",
-      expect.arrayContaining(["--sandbox", "--mode", "plan"]),
+      expect.arrayContaining([
+        "--dangerously-skip-permissions",
+        "--mode",
+        "plan",
+      ]),
       expect.objectContaining({ writableRoots: [] }),
       expect.any(Function),
     );
@@ -422,6 +470,53 @@ describe("antigravityCliAgentHarness", () => {
       turns: 1,
       inputTokens: 8,
       outputTokens: 0,
+      isError: false,
+    });
+  });
+
+  it("reports a denied tool when AGY follows it with an empty terminal success", async () => {
+    mockAgyProcess({
+      stdout: agyOutputAfterToolFailure({
+        detail: "User denied permission for command(pwd)",
+      }),
+    });
+
+    const result = await antigravityCliAgentHarness.run({
+      prompt: "x",
+      model: "gemini-3.6-flash",
+      effort: "xhigh",
+    });
+
+    expect(result).toMatchObject({
+      text: expect.stringContaining(
+        'completed without a response after tool "run_command" failed',
+      ),
+      streamedText: "",
+      turns: 1,
+      inputTokens: 20,
+      outputTokens: 2,
+      isError: true,
+      subtype: "antigravity_cli_permission_error",
+    });
+  });
+
+  it("accepts a final response when AGY recovers from an earlier tool failure", async () => {
+    mockAgyProcess({
+      stdout: agyOutputAfterToolFailure({
+        detail: "command failed once",
+        response: "recovered",
+      }),
+    });
+
+    const result = await antigravityCliAgentHarness.run({
+      prompt: "x",
+      model: "gemini-3.6-flash",
+      effort: "xhigh",
+    });
+
+    expect(result).toMatchObject({
+      text: "recovered",
+      streamedText: "recovered",
       isError: false,
     });
   });

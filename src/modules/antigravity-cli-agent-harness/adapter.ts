@@ -46,12 +46,14 @@ const ANTIGRAVITY_CLI_UNSUPPORTED_OPTIONS = [
   {
     runOption: "allowedTools",
     option: "allowedTools",
-    reason: "Antigravity CLI owns its own tool catalog and permission model.",
+    reason:
+      "Antigravity CLI owns its tool catalog; KOTA constrains its process boundary rather than individual native tools.",
   },
   {
     runOption: "disallowedTools",
     option: "disallowedTools",
-    reason: "Antigravity CLI owns its own tool catalog and permission model.",
+    reason:
+      "Antigravity CLI owns its tool catalog; KOTA constrains its process boundary rather than individual native tools.",
   },
   {
     runOption: "canUseTool",
@@ -145,13 +147,13 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
   if (options.allowedTools && options.allowedTools.length > 0) {
     throw new Error(
       'The "antigravity-cli" agent harness cannot constrain AGY tools through KOTA allowedTools. ' +
-        "Configure Antigravity permissions inside AGY instead.",
+        "Use KOTA scope policy or a KOTA-hosted tool-loop harness.",
     );
   }
   if (options.disallowedTools && options.disallowedTools.length > 0) {
     throw new Error(
       'The "antigravity-cli" agent harness cannot constrain AGY tools through KOTA disallowedTools. ' +
-        "Configure Antigravity permissions inside AGY instead.",
+        "Use KOTA scope policy or a KOTA-hosted tool-loop harness.",
     );
   }
   if (options.canUseTool !== undefined) {
