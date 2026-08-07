@@ -165,18 +165,18 @@ const SHIPPED_PRESETS: readonly Preset[] = [
       "Google Antigravity via the local AGY CLI (`agy --print`) with structured native tool-loop events.",
     harness: "antigravity-cli",
     authEnv: [],
-    defaultModel: "gemini-3.1-pro",
+    defaultModel: "gemini-3.6-flash",
     tiers: {
       fast: "gemini-3.6-flash",
       balanced: "gemini-3.6-flash",
-      capable: "gemini-3.1-pro",
+      capable: "gemini-3.6-flash",
     },
     outputTokenLimits: {
       fast: 8192,
       balanced: 8192,
       capable: 8192,
     },
-    defaultEffort: "xhigh",
+    defaultEffort: "max",
   },
 ];
 

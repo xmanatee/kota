@@ -308,8 +308,9 @@ describe("preset harness readiness", () => {
 
   it("includes Antigravity CLI preset tiers while preserving harness-managed auth failure", () => {
     registerAntigravityReadinessHarness();
+    const preset = getPreset("antigravity-cli");
 
-    const readiness = collectPresetHarnessReadiness(getPreset("antigravity-cli"), {
+    const readiness = collectPresetHarnessReadiness(preset, {
       env: { GEMINI_API_KEY: "g-test" },
       now: () => new Date("2026-05-26T00:00:00.000Z"),
     });
@@ -317,12 +318,8 @@ describe("preset harness readiness", () => {
     expect(readiness).toMatchObject({
       presetId: "antigravity-cli",
       harnessId: "antigravity-cli",
-      defaultModel: "gemini-3.1-pro",
-      tiers: {
-        fast: "gemini-3.6-flash",
-        balanced: "gemini-3.6-flash",
-        capable: "gemini-3.1-pro",
-      },
+      defaultModel: preset.defaultModel,
+      tiers: preset.tiers,
       auth: {
         mode: "harness-managed-login",
         ready: false,

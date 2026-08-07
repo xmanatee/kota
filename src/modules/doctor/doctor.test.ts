@@ -859,7 +859,10 @@ describe("kota doctor --preset preflight", () => {
     expect(presetRow?.status).toBe("pass");
     expect(presetRow?.detail).toContain("harness-managed auth");
     expect(presetRow?.detail).toContain("Antigravity CLI Google login active");
-    expect(tiersRow?.detail).toContain("gemini-3.6-flash");
+    expect(tiersRow?.status).toBe("pass");
+    expect(tiersRow?.detail).toContain("fast=");
+    expect(tiersRow?.detail).toContain("balanced=");
+    expect(tiersRow?.detail).toContain("capable=");
     expect(unsupportedRow?.detail).toContain("canUseTool");
   });
 
