@@ -1,13 +1,13 @@
 ---
 id: task-validate-agy-model-routing-against-long-horizon-co
 title: Validate AGY model routing against long-horizon coding evidence
-status: ready
+status: dropped
 priority: p1
 area: architecture
 task_class: Platform
 summary: Make AGY model selection evidence-driven for KOTA coding and autonomy rather than relying on model-family labels or literal configuration assertions.
 created_at: 2026-08-07T01:04:26.755Z
-updated_at: 2026-08-07T01:04:26.755Z
+updated_at: 2026-08-08T10:52:40.178Z
 ---
 
 ## Problem
@@ -90,3 +90,9 @@ Evidence-gated AGY autonomy rollout.
   verification output, rubric verdicts, and final routing decision.
 - A transcript showing the selected model and maximum effort reaching the real
   AGY process without fallback.
+
+## Decomposed
+
+- task-build-reusable-agy-model-evaluation-suite-in-eval
+- task-enforce-agy-model-readiness-gates-and-dynamic-pres
+- task-execute-agy-model-benchmark-and-document-routing-d
