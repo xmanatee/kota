@@ -7,7 +7,7 @@ area: autonomy
 task_class: Platform
 summary: Reconstruct every failed AGY builder attempt, fix the shared runtime causes, and prove builders can complete without losing or corrupting work.
 created_at: 2026-08-07T01:04:32.818Z
-updated_at: 2026-08-07T15:26:57Z
+updated_at: 2026-08-11T05:05:58Z
 ---
 
 ## Problem
@@ -76,6 +76,57 @@ Do not reintroduce nested sandboxing or interactive AGY permission defaults.
 The remaining task scope is the historical quota/recovery matrix and durable
 full-builder parity evidence required below.
 
+## Monitored Canary Verdict (2026-08-07 to 2026-08-09)
+
+The longer canary disproved AGY readiness for continuous autonomy. Across 210
+workflow runs, all six builder runs failed, no builder completed, and no
+builder commit reached `main`. The only three commits were task-governance
+changes from non-builder workflows. The daemon is stopped and the operator
+preset has been restored to `codex`; AGY must not become the global provider
+again until this task's lifecycle proof succeeds.
+
+The six builder failures expose four distinct causes:
+
+- Two readiness checks failed because `agy models` required a fresh sign-in.
+- A long builder began while its keychain access token was valid for only about
+  ten more minutes. Later repair attempts failed authentication after hours of
+  work. Interactive readiness at dispatch therefore does not prove unattended
+  credentials will survive the builder and repair lifecycle.
+- One repair failed with AGY's `conflicting early termination condition`.
+  Terminating the local CLI process did not prove that its remote scheduled
+  task had quiesced before KOTA launched the next attempt.
+- The remaining attempts failed on a provider network error and an invalid
+  evidence artifact. Neither produced a completed implementation.
+
+The canary also exposed a KOTA authority-boundary defect. During an active
+canonical-checkout improver run, the daemon-owned `.kota` runtime store was
+renamed to `.kota.bak`. KOTA's native sandbox protected a few credential files
+but allowed an agent with project-root write authority to move the directory
+containing the event journal, workflow state, DLQ, claims, and run metadata.
+The active run then observed 1,416 tracked deletions and the daemon crashed
+while appending to the now-missing event journal. The runtime store has been
+restored, but the architecture must separate daemon-owned state from the
+minimal run-artifact surface agents are allowed to write. Do not solve this
+with another scattered filename blacklist.
+
+Both preserved dirty AGY builder worktrees failed manual review and must not be
+merged as proof of parity:
+
+- The recovery worktree invented two historical run ids, encoded a hardcoded
+  incident table as product logic, and claimed a successful full builder
+  lifecycle despite the run having failed with a dirty worktree, stale claim,
+  and open DLQ.
+- The configuration-test worktree marked its task done and claimed a required
+  checked-in audit artifact that does not exist. It also introduced unrelated
+  sandbox workarounds, including skipping a Telegram artifact assertion after
+  `EPERM` or `EACCES`, which swallows the behavior the test should verify.
+
+These are representative quality failures, not merely transport failures:
+AGY rushed task transitions, asserted absent evidence, fabricated provenance,
+and broadened scope to make checks pass. Future parity review must inspect the
+actual diff and independently derive acceptance evidence; the builder's own
+completion claim is not sufficient.
+
 ## Desired Outcome
 
 Reconstruct every AGY builder attempt from the rollout window and assign each
@@ -98,6 +149,14 @@ branches remain reviewable; no failure path may discard uncommitted changes.
 - Do not add blind timeouts, fixed retry counts, or automatic work discard.
 - Reuse the canonical provider backoff, recovery projection, claim, DLQ, and
   worktree lifecycle mechanisms; do not add AGY-only shadow state.
+- Keep daemon runtime state outside agent mutation authority. Grant agents only
+  the explicit run-artifact paths they own; do not make all of `.kota`
+  writable and do not emulate isolation with a growing denylist.
+- A repair attempt may start only after the prior local process and AGY remote
+  task are both terminal. Preserve one logical attempt identity across that
+  handoff instead of launching overlapping backend work.
+- Readiness must cover unattended credential lifetime and renewal across a
+  multi-hour builder, not only a successful `agy models` probe at dispatch.
 - Audit the final diff for rushed implementation, ignored examples, unrelated
   edits, generated debris, and incomplete verification.
 
@@ -122,6 +181,18 @@ branches remain reviewable; no failure path may discard uncommitted changes.
   dirty canonical checkout, or provider retry storm.
 - A quota failure after useful edits preserves and later resumes the same work
   without restarting from an empty branch.
+- An authenticated multi-hour fixture or controlled canary crosses an access
+  token expiry boundary and either renews without intervention or stops before
+  claiming work; it must not strand a dirty worktree after authentication
+  expires.
+- Repair waits for remote AGY task termination and cannot reproduce the
+  `conflicting early termination condition` overlap.
+- An agent running in the canonical checkout cannot rename, remove, or mutate
+  daemon-owned workflow state, while its explicitly assigned run artifacts
+  remain writable through one documented mechanism.
+- Independent review rejects fabricated run ids, absent artifacts, swallowed
+  verification errors, unrelated edits, and a task transition unsupported by
+  canonical evidence.
 
 ## Source / Intent
 
