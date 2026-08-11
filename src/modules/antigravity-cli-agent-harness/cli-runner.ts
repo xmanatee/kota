@@ -21,6 +21,7 @@ import {
   collectAntigravityOutput,
   emptyCollectedAntigravityOutput,
 } from "./cli-output.js";
+import { resolveAntigravityCliEffort } from "./model-readiness.js";
 import {
   ANTIGRAVITY_CLI_PROVIDER_EGRESS_HOSTS,
   buildAntigravityCliEnvironment,
@@ -83,10 +84,6 @@ type CollectTextFromAntigravityCliArgs = {
   writer?: AgentHarnessWriter;
   onMessage?: (message: KotaAgentMessage) => void | Promise<void>;
 };
-
-function antigravityCliEffort(effort: AgentEffort): "low" | "medium" | "high" {
-  return effort === "low" || effort === "medium" ? effort : "high";
-}
 
 async function runAntigravityCliProcess(
   args: CollectTextFromAntigravityCliArgs,
@@ -244,7 +241,7 @@ export async function collectTextFromAntigravityCli(
     "--model",
     args.model,
     "--effort",
-    antigravityCliEffort(args.effort),
+    resolveAntigravityCliEffort(args.effort),
     ...(args.outputSchema === undefined
       ? []
       : ["--json-schema", JSON.stringify(args.outputSchema)]),

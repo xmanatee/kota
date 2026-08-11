@@ -88,6 +88,8 @@ export async function executeAgentStep(
     metadata,
     agentConfig.projectDir,
     resolvedHarness,
+    resolvedModel,
+    step.effort,
   );
   const readinessFailures =
     findRequiredHarnessReadinessFailures(capabilitySnapshot);

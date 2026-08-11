@@ -1,0 +1,22 @@
+Validation summary for task-enforce-agy-model-readiness-gates-and-dynamic-pres
+
+- pnpm typecheck: passed.
+- pnpm build: passed.
+- Focused readiness, doctor, Antigravity adapter, eval availability, workflow preflight, and preset model-sweep suite: 180 tests passed across 10 files.
+- Final doctor, preset-readiness, and cross-layer AGY preflight rerun: 59 tests passed across 3 files.
+- Workflow capability, harness-parity, module-boundary, root-layout, docs-surface, and strict-type gates: 27 tests passed across 11 files.
+- Preset resolution and parity suite: 98 tests passed; 14 live-provider scenarios skipped through their explicit readiness gates.
+- The dynamic selection contract in preset-parity.integration.test.ts passed and asserted registry-derived model/effort propagation.
+- Biome checks for every changed source file passed. Repository-wide lint exited successfully with unrelated pre-existing warnings in split owner-decision and approval-queue tests.
+- pnpm hygiene passed for the agent-visible index state.
+- pnpm validate-tasks reached only the expected workflow-host staging bridge: the canonical task move was retained under KOTA_REPO_TASK_STAGING_OWNER=workflow-host, while this native agent cannot write Git metadata. The workflow host owns exact-path staging before its queue-validation repair gate.
+
+Post-check repair validation
+
+- src/core/agent-harness/AGENTS.md is 7,836 bytes and passes the 8,000-byte instruction-file cap.
+- The new Antigravity and doctor readiness cases now live in focused co-located test files; the effective source-size scan reports two advisory oversized files, below the four-file severe threshold.
+- Focused instruction, Antigravity, doctor, preset, and autonomy readiness suite: 291 tests passed across 7 files.
+- pnpm typecheck passed after the test split.
+- Biome passed for every file changed by the repair.
+- preset-parity.integration.test.ts plus an isolated approval-queue control test passed with a workspace-local temp root: 4 passed, 14 live-provider scenarios readiness-skipped.
+- A repository-wide pnpm test attempt reached 12,527 passing tests but cannot be a valid sandbox gate here: 223 tests failed because the managed permission profile rejects loopback listen calls, denies traversal of the protected runtime temp ancestor, and denies deploy/telegram-assistant/.env.example. An affected approval-queue test passes when rerun with an allowed workspace-local temp root.

@@ -290,8 +290,10 @@ export type AgentHarness = {
   /**
    * Local readiness probe for operator-facing preflight surfaces. Adapters
    * own runtime details (native CLI, SDK package), harness-managed local
-   * auth checks, and unsupported neutral options; preset consumers add preset
-   * id, model tiers, and env-auth state.
+   * auth checks, unsupported neutral options, and any dynamic model/effort
+   * catalog they alone can verify. Preset consumers add preset id, model
+   * tiers, and env-auth state; workflow consumers pass their exact resolved
+   * model and effort before launch.
    */
   readonly readiness?: AgentHarnessReadinessProbe;
   /**

@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import {
+  type AgentEffort,
   type AgentHarness,
   buildHarnessCapabilityArtifact,
   buildHarnessCapabilitySnapshot,
@@ -13,8 +14,10 @@ export function writeHarnessCapabilityArtifact(
   metadata: WorkflowRunMetadata,
   projectDir: string,
   harness: AgentHarness,
+  model: string,
+  effort: AgentEffort,
 ): HarnessCapabilitySnapshot {
-  const snapshot = buildHarnessCapabilitySnapshot(harness);
+  const snapshot = buildHarnessCapabilitySnapshot(harness, { model, effort });
   const filePath = join(
     resolve(projectDir, metadata.runDir),
     "steps",

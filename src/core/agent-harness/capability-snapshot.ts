@@ -1,7 +1,9 @@
 import type { HarnessHookKind } from "./hooks.js";
 import type {
   AgentHarnessAuthProbe,
+  AgentHarnessModelEffortReadiness,
   AgentHarnessReadiness,
+  AgentHarnessReadinessRequest,
   AgentHarnessRuntimeProbe,
   AgentHarnessUnsupportedOption,
   AgentHarnessUnsupportedRunOption,
@@ -27,20 +29,38 @@ export type HarnessCapabilitySnapshot = {
 };
 
 export type HarnessRequiredReadinessFailure = {
-  readonly surface: "localRuntime" | "localAuth" | "optionalRuntime";
-  readonly kind: AgentHarnessRuntimeProbe["kind"] | AgentHarnessAuthProbe["kind"];
+  readonly surface:
+    | "localRuntime"
+    | "localAuth"
+    | "modelEffort"
+    | "optionalRuntime";
+  readonly kind:
+    | AgentHarnessRuntimeProbe["kind"]
+    | AgentHarnessAuthProbe["kind"]
+    | AgentHarnessModelEffortReadiness["kind"];
   readonly status: Exclude<
-    AgentHarnessRuntimeProbe["status"] | AgentHarnessAuthProbe["status"],
+    | AgentHarnessRuntimeProbe["status"]
+    | AgentHarnessAuthProbe["status"]
+    | AgentHarnessModelEffortReadiness["status"],
     "ready" | "expiring"
   >;
   readonly summary: string;
 };
 
 export type HarnessCapabilityReadinessProbeSummary = {
-  readonly kind: AgentHarnessRuntimeProbe["kind"] | AgentHarnessAuthProbe["kind"];
-  readonly status: AgentHarnessRuntimeProbe["status"] | AgentHarnessAuthProbe["status"];
+  readonly kind:
+    | AgentHarnessRuntimeProbe["kind"]
+    | AgentHarnessAuthProbe["kind"]
+    | AgentHarnessModelEffortReadiness["kind"];
+  readonly status:
+    | AgentHarnessRuntimeProbe["status"]
+    | AgentHarnessAuthProbe["status"]
+    | AgentHarnessModelEffortReadiness["status"];
   readonly required: boolean;
   readonly summary: string;
+  readonly model?: string;
+  readonly effort?: AgentHarnessModelEffortReadiness["effort"];
+  readonly adapterModel?: string;
   readonly expiresAt?: string;
   readonly expiredAt?: string;
   readonly renewalSummary?: string;
@@ -50,6 +70,7 @@ export type HarnessCapabilityReadinessSummary = {
   readonly adapterKind: AgentHarnessReadiness["adapterKind"];
   readonly localRuntime: HarnessCapabilityReadinessProbeSummary;
   readonly localAuth?: HarnessCapabilityReadinessProbeSummary;
+  readonly modelEffort?: HarnessCapabilityReadinessProbeSummary;
   readonly optionalRuntimes: readonly HarnessCapabilityReadinessProbeSummary[];
   readonly unsupportedOptions: readonly HarnessCapabilityUnsupportedRunOption[];
 };
@@ -105,7 +126,10 @@ function mergeUnsupportedOptions(
 }
 
 function summarizeProbe(
-  probe: AgentHarnessRuntimeProbe | AgentHarnessAuthProbe,
+  probe:
+    | AgentHarnessRuntimeProbe
+    | AgentHarnessAuthProbe
+    | AgentHarnessModelEffortReadiness,
 ): HarnessCapabilityReadinessProbeSummary {
   const expiryMetadata =
     probe.kind === "harness-managed-login" && probe.status === "expiring"
@@ -128,6 +152,13 @@ function summarizeProbe(
     status: probe.status,
     required: probe.required,
     summary: probe.summary,
+    ...(probe.kind === "model-effort"
+      ? {
+          model: probe.model,
+          effort: probe.effort,
+          adapterModel: probe.adapterModel,
+        }
+      : {}),
     ...expiryMetadata,
   };
 }
@@ -141,6 +172,9 @@ function summarizeReadiness(
     ...(readiness.localAuth !== undefined
       ? { localAuth: summarizeProbe(readiness.localAuth) }
       : {}),
+    ...(readiness.modelEffort !== undefined
+      ? { modelEffort: summarizeProbe(readiness.modelEffort) }
+      : {}),
     optionalRuntimes: readiness.optionalRuntimes.map(summarizeProbe),
     unsupportedOptions: normalizeUnsupportedOptions(readiness.unsupportedOptions),
   };
@@ -149,7 +183,10 @@ function summarizeReadiness(
 function appendRequiredReadinessFailure(
   failures: HarnessRequiredReadinessFailure[],
   surface: HarnessRequiredReadinessFailure["surface"],
-  probe: AgentHarnessRuntimeProbe | AgentHarnessAuthProbe,
+  probe:
+    | AgentHarnessRuntimeProbe
+    | AgentHarnessAuthProbe
+    | AgentHarnessModelEffortReadiness,
 ): void {
   if (
     !probe.required ||
@@ -181,6 +218,13 @@ export function findRequiredHarnessReadinessFailures(
   if (readiness.localAuth !== undefined) {
     appendRequiredReadinessFailure(failures, "localAuth", readiness.localAuth);
   }
+  if (readiness.modelEffort !== undefined) {
+    appendRequiredReadinessFailure(
+      failures,
+      "modelEffort",
+      readiness.modelEffort,
+    );
+  }
   for (const runtime of readiness.optionalRuntimes) {
     appendRequiredReadinessFailure(failures, "optionalRuntime", runtime);
   }
@@ -202,8 +246,9 @@ export function formatRequiredHarnessReadinessFailures(
 
 export function buildHarnessCapabilitySnapshot(
   harness: AgentHarness,
+  request?: AgentHarnessReadinessRequest,
 ): HarnessCapabilitySnapshot {
-  const localReadiness = harness.readiness?.();
+  const localReadiness = harness.readiness?.(request);
   return {
     harnessName: harness.name,
     toolControl: harness.toolControl,

@@ -22,6 +22,7 @@ const antigravityCliAgentHarnessModule: KotaModule = {
 export {
   ANTIGRAVITY_CLI_AGENT_HARNESS_NAME,
   antigravityCliAgentHarness,
+  antigravityCliReadiness,
 } from "./adapter.js";
 
 export default antigravityCliAgentHarnessModule;

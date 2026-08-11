@@ -4,6 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentEffort } from "#core/agent-harness/index.js";
 import {
+  parseAntigravityCliModelCatalog,
+  resolveAntigravityCliCatalogModel,
+} from "#modules/antigravity-cli-agent-harness/model-readiness.js";
+import {
   AGY_MODEL_EVALUATION_EFFORT,
   AGY_MODEL_EVALUATION_NATIVE_EFFORT,
   type AgyModelAvailabilityEvidence,
@@ -21,8 +25,6 @@ import {
 } from "./subprocess-executor-env.js";
 import { containerExecutionProfileCanRun } from "./subprocess-executor-preflight.js";
 import type { SubprocessExecutorOptions } from "./subprocess-executor-types.js";
-
-const AGY_MODEL_TOKEN = /\bgemini-[A-Za-z0-9][A-Za-z0-9._-]*/g;
 
 export type AgyModelsCommandResult = {
   status: number | null;
@@ -45,14 +47,7 @@ export type AgyModelAvailabilityProbe =
       evidence: AgyModelAvailabilityEvidence;
     };
 
-export function parseAgyAvailableModels(output: string): string[] {
-  return [...new Set(output.match(AGY_MODEL_TOKEN) ?? [])].sort();
-}
-
-function requestedAgyCatalogModel(model: string): string {
-  const effortSuffix = `-${AGY_MODEL_EVALUATION_NATIVE_EFFORT}`;
-  return model.endsWith(effortSuffix) ? model : `${model}${effortSuffix}`;
-}
+export const parseAgyAvailableModels = parseAntigravityCliModelCatalog;
 
 export function runAgyModelsCommand(
   execution: EvalRunExecution,
@@ -150,7 +145,9 @@ export function probeAgyModelAvailability(
   const availableModels = parseAgyAvailableModels(
     [commandResult.stdout, commandResult.stderr].join("\n"),
   );
-  const requestedCatalogModels = requestedModels.map(requestedAgyCatalogModel);
+  const requestedCatalogModels = requestedModels.map((model) =>
+    resolveAntigravityCliCatalogModel(model, AGY_MODEL_EVALUATION_EFFORT)
+  );
   const unavailable = requestedCatalogModels.filter(
     (model) => !availableModels.includes(model),
   );

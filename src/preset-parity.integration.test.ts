@@ -1,8 +1,8 @@
 /**
  * Cross-preset operator-shaped runtime parity gate.
  *
- * Boots `node dist/cli.js` under each shipped preset (`claude`, `codex`,
- * `openrouter`, `gemini`, `gemini-cli`, `antigravity-cli`) and runs a deterministic single-turn scenario, the smallest
+ * Boots `node dist/cli.js` under each preset returned by the shipped registry
+ * and runs a deterministic single-turn scenario, the smallest
  * operator-visible end-to-end probe that proves the preset switch actually
  * propagates from the CLI flag through harness resolution to the model id
  * the adapter sends. Pairs with `src/preset-parity-model-sweep.test.ts`,
@@ -11,19 +11,20 @@
  *
  * Per-preset preflight behavior:
  *   - Each preset records the shared harness-readiness object: auth
- *     alternatives, local runtime probe, adapter kind, and unsupported
- *     neutral-option boundaries.
- *   - When auth and required local runtime are ready, the scenario runs:
+ *     alternatives, local runtime probe, selected model/effort availability,
+ *     adapter kind, and unsupported neutral-option boundaries.
+ *   - When auth, required local runtime, and the selected model/effort are
+ *     ready, the scenario runs:
  *     `node dist/cli.js -p "Reply with the single word OK"` with
  *     `KOTA_PRESET=<id>` and the full env passed through.
- *   - When auth or required local runtime is missing, both the preflight
+ *   - When any required readiness is missing, both the preflight
  *     assertion and the scenario test loud-skip via `it.skipIf`; the skip
  *     title names the actionable reason and `preflight.json` preserves the
  *     structured readiness payload for diagnosis.
  *
  * Run-artifact layout (per task contract): every preset's recordings land
  * under `.kota/runs/<run-id>/preset-parity/<preset-id>/`:
- *   - `preflight.json` — auth/runtime readiness snapshot, missing list,
+ *   - `preflight.json` — auth/runtime/model readiness snapshot, missing list,
  *     decision, and structured per-preset readiness.
  *   - `transcript.txt` — full stdout + stderr from the spawned CLI.
  *   - `result.json` — exit code, observed model id banner, response text.
@@ -144,10 +145,20 @@ function recordPreflight(preset: Preset): PreflightArtifact {
     message =
       `preset "${preset.id}" auth not ready (${readiness.auth.summary}) — ` +
       `run \`kota doctor --preset ${preset.id}\` to diagnose.`;
-  } else {
+  } else if (readiness.adapter.localRuntime.status !== "ready") {
     message =
       `preset "${preset.id}" local runtime not ready (${readiness.adapter.localRuntime.summary}) — ` +
       `run \`kota doctor --preset ${preset.id}\` to diagnose.`;
+  } else if (
+    readiness.adapter.modelEffort !== undefined &&
+    readiness.adapter.modelEffort.status !== "ready"
+  ) {
+    message =
+      `preset "${preset.id}" model/effort not ready ` +
+      `(${readiness.adapter.modelEffort.summary}) — ` +
+      `run \`kota doctor --preset ${preset.id}\` to diagnose.`;
+  } else {
+    message = `preset "${preset.id}" has an unclassified readiness failure.`;
   }
   const artifact: PreflightArtifact = {
     presetId: preset.id,
@@ -307,7 +318,7 @@ beforeAll(() => {
       `started: ${new Date().toISOString()}`,
       "",
       "Per-preset directories:",
-      "  preflight.json — auth/runtime readiness snapshot and decision.",
+      "  preflight.json — auth/runtime/model readiness snapshot and decision.",
       "  transcript.txt — stdout/stderr tail of the spawned CLI.",
       "  result.json    — exit code, banner model id, response text.",
       "",
@@ -339,6 +350,9 @@ describe("preset-parity gate — per-preset preflight", () => {
         ? artifact.readiness.auth.summary
       : artifact.readiness.adapter.localRuntime.status !== "ready"
         ? artifact.readiness.adapter.localRuntime.summary
+        : artifact.readiness.adapter.modelEffort !== undefined &&
+            artifact.readiness.adapter.modelEffort.status !== "ready"
+          ? artifact.readiness.adapter.modelEffort.summary
         : null;
     const skip = artifact.decision === "preflight-failure";
     const titleSuffix = skip
@@ -355,6 +369,23 @@ describe("preset-parity gate — per-preset preflight", () => {
       },
     );
   }
+});
+
+describe("preset-parity gate — dynamic selection contract", () => {
+  it("passes each selection-aware harness its active preset model and effort", () => {
+    const observed: NonNullable<
+      PresetHarnessReadiness["adapter"]["modelEffort"]
+    >[] = [];
+    for (const preset of listShippedPresets()) {
+      const selection = collectPresetHarnessReadiness(preset).adapter.modelEffort;
+      if (selection === undefined) continue;
+      observed.push(selection);
+      expect(selection.model).toBe(preset.defaultModel);
+      expect(selection.effort).toBe(preset.defaultEffort);
+      expect(selection.adapterModel.length).toBeGreaterThan(0);
+    }
+    expect(observed.length).toBeGreaterThan(0);
+  });
 });
 
 describe("preset-parity gate — single-turn scenario (boot + first response)", () => {

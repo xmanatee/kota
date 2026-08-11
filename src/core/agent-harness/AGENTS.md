@@ -6,8 +6,8 @@ the protocol and registry.
 
 ## Protocol
 
-- `AgentHarness.run(options, writer?)` takes a prompt plus neutral options and
-  returns a typed result (text, tokens, turns, subtype, isError, sessionId).
+- `AgentHarness.run(options, writer?)` takes neutral options and returns a typed
+  result (text, tokens, turns, subtype, isError, sessionId).
 - A harness must not silently coerce unsupported options. If an adapter cannot
   honor a requested option (for example a tools list against a text-only
   harness), it should fail loudly at the boundary.
@@ -17,8 +17,7 @@ the protocol and registry.
   shapes; adapters that want to wrap the text in a native envelope do the
   wrapping inside the adapter. `AgentSystemPrompt = string` is the contract
   every adapter consumes.
-- Streaming text goes through the optional `writer` so operators see live
-  output regardless of which harness runs.
+- The optional `writer` streams text to operators across every harness.
 - Neutral options carry tool risk, live scope policy, commit/daemon guards, and
   injection defense (`scopePolicy`, `getScopePolicySnapshot`, `canUseTool`, MCP
   and tool lists). KOTA-routable loops must honor them; other adapters declare
@@ -48,25 +47,22 @@ Owner questions are a protocol capability, not a provider field.
   `ask_owner` tool through their native mechanism.
 - `askOwnerToolName` declares support. `runAgentHarness` rejects `askOwner`
   before `run()` when the adapter declares `null`.
-- `runWithAskOwnerSource` provides per-run attribution through
-  `AsyncLocalStorage`.
+- `runWithAskOwnerSource` provides per-run attribution.
 
 ## Capability flags
 
-- `emitsAgentMessageStream: boolean` — whether the adapter emits
-  `KotaAgentMessage` frames to `onMessage`. Adapters without a stream reject
-  `onMessage` at the boundary.
+- `emitsAgentMessageStream` — adapters without a `KotaAgentMessage` stream
+  reject `onMessage` at the boundary.
 - `toolControl: "kota" | "native"` — `"kota"` adapters receive neutral tool
   controls. Native adapters own their CLI loop, so routing omits named-tool
   lists and callbacks. The shared runtime requires each adapter to name one
   machine-authority owner and projects scope into that boundary. Provider
   egress belongs to the trusted CLI process; stricter live revisions abort it.
-- `supportsMultiTurn: boolean` — whether the REPL can launch this adapter.
-  Single-shot runners set `false` so the REPL refuses to launch them rather
-  than silently downgrading.
-- `readiness` — adapter-owned local preflight: adapter kind, runtime and local
-  auth probes, optional peer probes, and unsupported options. It makes no
-  provider network calls.
+- `supportsMultiTurn` — single-shot runners set `false`, so the REPL rejects
+  them instead of silently downgrading.
+- `readiness` — adapter-owned local runtime/auth, optional peer, unsupported-
+  option, and exact model/effort preflight. Launch rejects required failures;
+  definition validation stays host-independent and probes stay host-local.
 - `resolveIsolatedHostAuthEnv` — optional non-secret login-locator projection
   when trusted host runners replace `HOME`; tokens remain outside this contract.
 - `unsupportedRunOptions` is enforced before hooks or launch and mirrored in

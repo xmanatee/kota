@@ -1,13 +1,13 @@
 ---
 id: task-enforce-agy-model-readiness-gates-and-dynamic-pres
 title: Enforce AGY model readiness gates and dynamic preset resolution validation
-status: ready
+status: done
 priority: p1
 area: architecture
 task_class: Platform
 summary: Add model/effort availability checks to doctor/readiness and update preset resolution tests to verify selection and propagation dynamically.
 created_at: 2026-08-08T10:52:38.954Z
-updated_at: 2026-08-08T10:52:38.954Z
+updated_at: 2026-08-11T11:36:26.903Z
 ---
 
 ## Problem

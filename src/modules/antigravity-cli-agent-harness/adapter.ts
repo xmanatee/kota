@@ -4,6 +4,7 @@ import type {
   AgentHarness,
   AgentHarnessAuthProbe,
   AgentHarnessReadiness,
+  AgentHarnessReadinessRequest,
   AgentHarnessResult,
   AgentHarnessRunOptions,
   AgentHarnessRuntimeProbeDeps,
@@ -20,6 +21,7 @@ import {
   abortedAntigravityCliResult,
   collectTextFromAntigravityCli,
 } from "./cli-runner.js";
+import { resolveAntigravityCliModelEffortReadiness } from "./model-readiness.js";
 import {
   ANTIGRAVITY_CLI_KEYCHAIN_DIR_ENV,
   resolveAntigravityCliKeychainDirectory,
@@ -120,7 +122,11 @@ export function antigravityCliAuthReadiness(
   }, deps);
 }
 
-function antigravityCliReadiness(): AgentHarnessReadiness {
+export function antigravityCliReadiness(
+  request?: AgentHarnessReadinessRequest,
+  deps?: AgentHarnessRuntimeProbeDeps,
+): AgentHarnessReadiness {
+  const localAuth = antigravityCliAuthReadiness(deps);
   return {
     adapterKind: "native-cli",
     localRuntime: probeNativeCliRuntime({
@@ -130,8 +136,16 @@ function antigravityCliReadiness(): AgentHarnessReadiness {
       required: true,
       missingSummary:
         "Antigravity CLI executable `agy` not found on PATH; install Antigravity CLI first",
-    }),
-    localAuth: antigravityCliAuthReadiness(),
+    }, deps),
+    localAuth,
+    ...(request !== undefined
+      ? {
+          modelEffort: resolveAntigravityCliModelEffortReadiness(
+            request,
+            localAuth,
+          ),
+        }
+      : {}),
     optionalRuntimes: [],
     unsupportedOptions: ANTIGRAVITY_CLI_UNSUPPORTED_OPTIONS,
   };

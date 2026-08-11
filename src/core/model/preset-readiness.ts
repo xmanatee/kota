@@ -1,6 +1,7 @@
 import {
   type AgentHarnessAuthProbe,
   type AgentHarnessReadiness,
+  type AgentHarnessReadinessRequest,
   type AgentHarnessRuntimeProbe,
   resolveAgentHarness,
 } from "#core/agent-harness/index.js";
@@ -46,6 +47,8 @@ export type PresetHarnessReadiness = {
 export type PresetHarnessReadinessOptions = {
   readonly env?: NodeJS.ProcessEnv;
   readonly tierOverrides?: ModelTiers;
+  /** Exact runtime selection to probe; defaults to the preset's CLI default. */
+  readonly selection?: AgentHarnessReadinessRequest;
   readonly now?: () => Date;
 };
 
@@ -69,7 +72,10 @@ function missingHarnessReadiness(
   };
 }
 
-function collectAdapterReadiness(preset: Preset): AgentHarnessReadiness {
+function collectAdapterReadiness(
+  preset: Preset,
+  selection: AgentHarnessReadinessRequest,
+): AgentHarnessReadiness {
   try {
     const harness = resolveAgentHarness(preset.harness);
     if (!harness.readiness) {
@@ -78,7 +84,7 @@ function collectAdapterReadiness(preset: Preset): AgentHarnessReadiness {
         `registered harness "${preset.harness}" does not declare readiness`,
       );
     }
-    return harness.readiness();
+    return harness.readiness(selection);
   } catch (err) {
     return missingHarnessReadiness(
       preset,
@@ -178,7 +184,9 @@ export function isPresetHarnessReadinessReady(
 ): boolean {
   return (
     readiness.auth.ready &&
-    requiredRuntimeReady(readiness.adapter.localRuntime)
+    requiredRuntimeReady(readiness.adapter.localRuntime) &&
+    (readiness.adapter.modelEffort === undefined ||
+      readiness.adapter.modelEffort.status === "ready")
   );
 }
 
@@ -186,7 +194,13 @@ export function collectPresetHarnessReadiness(
   preset: Preset,
   options: PresetHarnessReadinessOptions = {},
 ): PresetHarnessReadiness {
-  const adapter = collectAdapterReadiness(preset);
+  const adapter = collectAdapterReadiness(
+    preset,
+    options.selection ?? {
+      model: preset.defaultModel,
+      effort: preset.defaultEffort,
+    },
+  );
   return {
     presetId: preset.id,
     harnessId: preset.harness,

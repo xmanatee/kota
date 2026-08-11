@@ -37,13 +37,15 @@ export async function runScenarioOnHarness(
   const artifactDir = join(params.outBaseDir, harness.name);
   mkdirSync(artifactDir, { recursive: true });
 
-  const capability = buildHarnessCapabilitySnapshot(harness);
+  const effort = callOptions.effort ?? DEFAULT_EFFORT;
+  const capability = buildHarnessCapabilitySnapshot(harness, {
+    model: callOptions.model,
+    effort,
+  });
   const materialized = materializeWorkingDir(scenario);
   const { workingDir } = materialized;
   const runStartedAt = new Date();
   const runStartMs = runStartedAt.getTime();
-  const effort = callOptions.effort ?? DEFAULT_EFFORT;
-
   const stageRecords: HarnessParityStageRunRecord[] = [];
   try {
     for (const stage of scenario.spec.stages) {

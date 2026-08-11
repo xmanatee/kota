@@ -4,7 +4,11 @@ import {
   redactAgentHarnessAuthDetail,
 } from "#core/agent-harness/index.js";
 import { loadConfig } from "#core/config/config.js";
-import { PRESET_ENV_VAR, resolvePreset } from "#core/model/preset.js";
+import {
+  mergePresetTiers,
+  PRESET_ENV_VAR,
+  resolvePreset,
+} from "#core/model/preset.js";
 import {
   collectPresetHarnessReadiness,
   isPresetHarnessReadinessReady,
@@ -38,11 +42,24 @@ function presetReadinessSummary(readiness: PresetHarnessReadiness): string {
   if (readiness.adapter.localRuntime.required && readiness.adapter.localRuntime.status !== "ready") {
     return `runtime ${readiness.adapter.localRuntime.summary}`;
   }
+  if (
+    readiness.adapter.modelEffort !== undefined &&
+    readiness.adapter.modelEffort.status !== "ready"
+  ) {
+    return `model/effort ${readiness.adapter.modelEffort.summary}`;
+  }
   return `${readiness.auth.summary}; runtime ${readiness.adapter.localRuntime.summary}`;
 }
 
-function hasRequiredRuntimeFailure(readiness: PresetHarnessReadiness): boolean {
-  return readiness.adapter.localRuntime.required && readiness.adapter.localRuntime.status !== "ready";
+function hasRequiredReadinessFailure(
+  readiness: PresetHarnessReadiness,
+): boolean {
+  return (
+    (readiness.adapter.localRuntime.required &&
+      readiness.adapter.localRuntime.status !== "ready") ||
+    (readiness.adapter.modelEffort !== undefined &&
+      readiness.adapter.modelEffort.status !== "ready")
+  );
 }
 
 function authCheckStatus(readiness: PresetHarnessReadiness): DoctorCheckResult["status"] {
@@ -84,10 +101,11 @@ function renderPresetReadinessChecks(
 ): DoctorCheckResult[] {
   const metadataReadiness = redactPresetReadinessMetadata(readiness);
   const sourceDetail =
-    `source: ${sourceLabel}, harness: ${readiness.harnessId}, defaultModel: ${readiness.defaultModel}`;
+    `source: ${sourceLabel}, harness: ${readiness.harnessId}, ` +
+    `defaultModel: ${readiness.defaultModel}`;
   const authStatus = authCheckStatus(readiness);
   const presetStatus: DoctorCheckResult["status"] =
-    authStatus === "warn" && !hasRequiredRuntimeFailure(readiness)
+    authStatus === "warn" && !hasRequiredReadinessFailure(readiness)
       ? "warn"
       : isPresetHarnessReadinessReady(readiness)
         ? "pass"
@@ -120,6 +138,17 @@ function renderPresetReadinessChecks(
       detail: runtimeProbeDetail(optional),
     });
   }
+  if (readiness.adapter.modelEffort !== undefined) {
+    const selection = readiness.adapter.modelEffort;
+    checks.push({
+      label: `Preset model/effort: ${readiness.presetId}`,
+      status: selection.status === "ready" ? "pass" : "fail",
+      detail:
+        selection.status === "ready"
+          ? selection.summary
+          : `${selection.summary} (${selection.detail})`,
+    });
+  }
   checks.push({
     label: `Preset auth: ${readiness.presetId}`,
     status: authCheckStatus(readiness),
@@ -150,8 +179,13 @@ export function checkPresetHarnessReadiness(
     return [fail("Preset", err instanceof Error ? err.message : String(err))];
   }
   const { preset, source } = resolution;
+  const tiers = mergePresetTiers(preset, config.modelTiers);
   const readiness = collectPresetHarnessReadiness(preset, {
     tierOverrides: config.modelTiers,
+    selection: {
+      model: tiers.capable,
+      effort: preset.defaultEffort,
+    },
   });
   return renderPresetReadinessChecks(
     readiness,

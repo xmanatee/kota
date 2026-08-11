@@ -12,6 +12,14 @@ import {
   SHIPPED_DEFAULT_PRESET_ID,
 } from "./preset.js";
 
+function resolutionFixtures(): readonly [Preset, Preset, Preset] {
+  const [flag, env, config] = listShippedPresets();
+  if (flag === undefined || env === undefined || config === undefined) {
+    throw new Error("Preset precedence tests require three shipped presets");
+  }
+  return [flag, env, config];
+}
+
 describe("shipped preset registry", () => {
   it("every shipped preset declares model tiers and an explicit auth contract", () => {
     for (const preset of listShippedPresets()) {
@@ -59,20 +67,30 @@ describe("shipped preset registry", () => {
 
 describe("resolvePreset", () => {
   it("flag wins over env, config, and the shipped default", () => {
-    const { preset, source } = resolvePreset({ flag: "codex", env: "gemini", config: "claude" });
-    expect(preset.id).toBe("codex");
+    const [flag, env, config] = resolutionFixtures();
+    const { preset, source } = resolvePreset({
+      flag: flag.id,
+      env: env.id,
+      config: config.id,
+    });
+    expect(preset).toBe(flag);
     expect(source).toBe("flag");
   });
 
   it("env wins over config and the shipped default when no flag is given", () => {
-    const { preset, source } = resolvePreset({ env: "gemini", config: "claude" });
-    expect(preset.id).toBe("gemini");
+    const [, env, config] = resolutionFixtures();
+    const { preset, source } = resolvePreset({
+      env: env.id,
+      config: config.id,
+    });
+    expect(preset).toBe(env);
     expect(source).toBe("env");
   });
 
   it("config wins over the shipped default when no flag or env is given", () => {
-    const { preset, source } = resolvePreset({ config: "codex" });
-    expect(preset.id).toBe("codex");
+    const [, , config] = resolutionFixtures();
+    const { preset, source } = resolvePreset({ config: config.id });
+    expect(preset).toBe(config);
     expect(source).toBe("config");
   });
 
@@ -83,8 +101,13 @@ describe("resolvePreset", () => {
   });
 
   it("treats empty strings as 'not provided'", () => {
-    const { preset, source } = resolvePreset({ flag: "", env: "", config: "codex" });
-    expect(preset.id).toBe("codex");
+    const [, , config] = resolutionFixtures();
+    const { preset, source } = resolvePreset({
+      flag: "",
+      env: "",
+      config: config.id,
+    });
+    expect(preset).toBe(config);
     expect(source).toBe("config");
   });
 
@@ -96,29 +119,29 @@ describe("resolvePreset", () => {
 });
 
 describe("mergePresetTiers and resolvePresetTierModel", () => {
-  const codex = getPreset("codex");
+  const preset = getPreset(SHIPPED_DEFAULT_PRESET_ID);
 
   it("returns the preset's own tiers when there are no overrides", () => {
-    expect(mergePresetTiers(codex, undefined)).toEqual(codex.tiers);
+    expect(mergePresetTiers(preset, undefined)).toEqual(preset.tiers);
   });
 
   it("operator overrides win on a per-tier basis", () => {
-    const merged = mergePresetTiers(codex, { capable: "operator-capable-model" });
+    const merged = mergePresetTiers(preset, { capable: "operator-capable-model" });
     expect(merged.capable).toBe("operator-capable-model");
-    expect(merged.fast).toBe(codex.tiers.fast);
-    expect(merged.balanced).toBe(codex.tiers.balanced);
+    expect(merged.fast).toBe(preset.tiers.fast);
+    expect(merged.balanced).toBe(preset.tiers.balanced);
   });
 
   it("resolvePresetTierModel honors overrides", () => {
-    expect(resolvePresetTierModel(codex, "fast")).toBe(codex.tiers.fast);
-    expect(resolvePresetTierModel(codex, "fast", { fast: "operator-fast-model" })).toBe(
+    expect(resolvePresetTierModel(preset, "fast")).toBe(preset.tiers.fast);
+    expect(resolvePresetTierModel(preset, "fast", { fast: "operator-fast-model" })).toBe(
       "operator-fast-model",
     );
   });
 });
 
 describe("checkPresetAuth", () => {
-  const codex = getPreset("codex");
+  const preset = getPreset(SHIPPED_DEFAULT_PRESET_ID);
 
   it("honors each shipped preset's declared env-auth contract", () => {
     for (const preset of listShippedPresets()) {
@@ -131,7 +154,8 @@ describe("checkPresetAuth", () => {
   });
 
   it("returns the inspected preset for downstream messaging", () => {
-    const r: { preset: Preset; missing: readonly string[] } = checkPresetAuth(codex, {});
-    expect(r.preset.id).toBe("codex");
+    const result: { preset: Preset; missing: readonly string[] } =
+      checkPresetAuth(preset, {});
+    expect(result.preset).toBe(preset);
   });
 });

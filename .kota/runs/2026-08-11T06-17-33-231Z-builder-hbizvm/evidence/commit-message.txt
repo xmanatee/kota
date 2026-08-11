@@ -1,0 +1,3 @@
+Enforce AGY model and effort readiness gates
+
+Probe exact effort-qualified AGY selections in doctor and workflow preflight, derive preset assertions dynamically, and keep readiness coverage in focused suites.

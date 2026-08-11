@@ -1,3 +1,5 @@
+import type { AgentEffort } from "./types.js";
+
 export type AgentHarnessAdapterKind =
   | "agent-sdk"
   | "native-cli"
@@ -154,15 +156,44 @@ export type AgentHarnessAuthProbe =
       readonly summary: string;
     };
 
+export type AgentHarnessReadinessRequest = {
+  readonly model: string;
+  readonly effort: AgentEffort;
+};
+
+type AgentHarnessModelEffortReadinessBase = {
+  readonly kind: "model-effort";
+  readonly required: true;
+  readonly model: string;
+  readonly effort: AgentEffort;
+  /** Exact adapter-owned catalog entry used to validate the selection. */
+  readonly adapterModel: string;
+  readonly command: string;
+  readonly summary: string;
+};
+
+export type AgentHarnessModelEffortReadiness =
+  | (AgentHarnessModelEffortReadinessBase & {
+      readonly status: "ready";
+    })
+  | (AgentHarnessModelEffortReadinessBase & {
+      readonly status: "unavailable" | "error";
+      readonly detail: string;
+    });
+
 export type AgentHarnessReadiness = {
   readonly adapterKind: AgentHarnessAdapterKind;
   readonly localRuntime: AgentHarnessRuntimeProbe;
   readonly localAuth?: AgentHarnessAuthProbe;
+  /** Dynamic availability for the exact requested model/effort, when owned by the adapter. */
+  readonly modelEffort?: AgentHarnessModelEffortReadiness;
   readonly optionalRuntimes: readonly AgentHarnessRuntimeProbe[];
   readonly unsupportedOptions: readonly AgentHarnessUnsupportedOption[];
 };
 
-export type AgentHarnessReadinessProbe = () => AgentHarnessReadiness;
+export type AgentHarnessReadinessProbe = (
+  request?: AgentHarnessReadinessRequest,
+) => AgentHarnessReadiness;
 
 export type BinaryResolution =
   | { readonly status: "ready"; readonly executablePath: string }
