@@ -1,0 +1,2 @@
+1. Not verified: the live suite did not start because no Docker engine or configured Google provider-egress isolation is available; the preflight and needs-more-data decision are recorded without fabricated scenario evidence.
+2. Not verified: AGY 1.1.12 is installed, but `agy models` exits 1, so authentication and `gemini-3.6-flash-high` at KOTA effort max cannot be verified and no passing execution transcript exists.

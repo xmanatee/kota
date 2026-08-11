@@ -1,0 +1,5 @@
+Validation summary
+
+- Registered builder evidence screening: passed before this summary was added (7 files, 5,150 bytes).
+- Focused blocked-precondition and builder-evidence policy tests: 2 files passed, 28 tests passed.
+- Queue validation inspected the blocked task without content or precondition findings. It reported only the expected deferred-staging pair for the canonical ready-to-blocked rename: the blocked destination is untracked and the ready source deletion is unstaged in the native agent sandbox. The workflow host owns exact-path staging after the agent response.

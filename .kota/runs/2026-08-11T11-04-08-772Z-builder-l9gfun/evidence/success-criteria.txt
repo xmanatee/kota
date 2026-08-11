@@ -1,0 +1,2 @@
+1. Produce a complete AGY model-routing benchmark artifact set containing scenario definitions, per-candidate traces, changed-path reports, rubric verdicts, and a routing decision summary.
+2. Capture a real antigravity-cli execution transcript showing the selected Gemini 3.6 Flash model at maximum effort, with passing KOTA autonomy rubrics and zero unexplained scope regressions.
