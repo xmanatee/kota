@@ -1,12 +1,12 @@
 ---
 id: task-health-dead-letter-execution-workflow-runtime-improver
 title: Repair autonomy health pattern dead-letter:execution:workflow-runtime:improver
-status: ready
+status: dropped
 priority: p2
 area: autonomy
 summary: Health signals labeled dead-letter, execution, local-code repeatedly point at dead-letter:execution:workflow-runtime:improver; investigate and improve the local autonomy protocol, validation, prompt, or module behavior without relying on direct auto-repair.
 created_at: 2026-08-11T05:23:34.234Z
-updated_at: 2026-08-11T05:23:34.234Z
+updated_at: 2026-08-11T11:20:08.274Z
 task_class: Meta
 ---
 
@@ -92,3 +92,7 @@ Autonomy fleet health: repeated local workflow and runtime health patterns shoul
 
 - Focused test output covering the repaired health pattern.
 - A follow-up `.kota/runs/` artifact, event replay, or reviewer artifact showing the pattern no longer routes incorrectly.
+
+## Disposition
+
+Dropped as duplicate. Every cited improver failure came from the AGY canary period, which is now superseded by global Codex routing and covered by `task-recover-agy-builder-completion-reliability-from-th` and `task-enforce-agy-model-readiness-gates-and-dynamic-pres`. The source dead letters were dismissed, so retaining this generic task would create duplicate recovery work.

@@ -1,13 +1,13 @@
 ---
 id: task-redrive-or-clear-open-dead-letters-from-harness-re
 title: Redrive or clear open dead letters from harness readiness errors
-status: ready
+status: done
 priority: p1
 area: autonomy
 task_class: Meta
 summary: Review and redrive or dismiss the 5 open dead letters in .kota/dead-letter-queue/items.json resulting from temporary harness authentication and readiness failures now that AGY tool execution has been restored.
 created_at: 2026-08-08T10:53:39.462Z
-updated_at: 2026-08-08T10:53:39.462Z
+updated_at: 2026-08-11T11:20:03.110Z
 ---
 
 ## Problem
@@ -59,3 +59,7 @@ Outcome-aware autonomy progress review.
 - Review-provided acceptance evidence:
 
     All 5 open dead letters are redriven or dismissed, and workflow dispatches resume without harness readiness blockages.
+
+## Resolution
+
+On 2026-08-11, all five cited AGY authentication and readiness dead letters were dismissed as historical incidents after global routing returned to Codex. Dispatch resumed, subsequent Codex builders completed successfully, and `workflow dlq list --json` reported zero open dead letters.

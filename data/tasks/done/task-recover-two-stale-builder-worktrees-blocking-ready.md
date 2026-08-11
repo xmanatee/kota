@@ -1,13 +1,13 @@
 ---
 id: task-recover-two-stale-builder-worktrees-blocking-ready
 title: Recover two stale builder worktrees blocking ready security tasks
-status: blocked
+status: done
 priority: p1
 area: autonomy
 task_class: Meta
 summary: Use the canonical state-recovery path to inspect and disposition the preserved worktrees for task-security-review-codex-passive-mode-does-not-enforc and task-security-review-workflow-handoff-children-do-not-i, preserving any non-superseded changes and reconciling their expired active claims and task states.
 created_at: 2026-08-06T10:32:23.576Z
-updated_at: 2026-08-06T11:57:08.999Z
+updated_at: 2026-08-11T11:23:27.393Z
 ---
 
 ## Problem
@@ -70,3 +70,7 @@ description: from the canonical project runtime, capture state-recovery disposit
 ```
 
 <!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-08-06T13:58:36.881Z -->
+
+## Resolution
+
+Both cited security tasks are complete with recorded verification evidence. On 2026-08-11, the canonical recovery projection reported no stale worktrees or unresolved claims; the only worktree was owned by the current active builder and correctly classified as `active`. The obsolete operator-capture blocker is therefore satisfied, and the task no longer belongs in the blocked queue.

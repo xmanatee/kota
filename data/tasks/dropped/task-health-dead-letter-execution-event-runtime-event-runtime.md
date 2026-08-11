@@ -1,12 +1,12 @@
 ---
 id: task-health-dead-letter-execution-event-runtime-event-runtime
 title: Repair autonomy health pattern dead-letter:execution:event-runtime:event-runtime
-status: ready
+status: dropped
 priority: p2
 area: autonomy
 summary: Health signals labeled dead-letter, execution, local-code repeatedly point at dead-letter:execution:event-runtime:event-runtime; investigate and improve the local autonomy protocol, validation, prompt, or module behavior without relying on direct auto-repair.
 created_at: 2026-08-11T05:23:34.234Z
-updated_at: 2026-08-11T05:23:34.234Z
+updated_at: 2026-08-11T11:20:05.568Z
 task_class: Meta
 ---
 
@@ -87,3 +87,7 @@ Autonomy fleet health: repeated local workflow and runtime health patterns shoul
 
 - Focused test output covering the repaired health pattern.
 - A follow-up `.kota/runs/` artifact, event replay, or reviewer artifact showing the pattern no longer routes incorrectly.
+
+## Disposition
+
+Dropped as duplicate. The cited journal dead letters were dismissed after the runtime store and journal were restored and more than 40 workflows completed without recurrence. Durable root-cause work remains tracked by `task-recover-agy-builder-completion-reliability-from-th`, including the daemon-owned `.kota` authority boundary; this generic parallel task would duplicate that work.
