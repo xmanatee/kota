@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import { setBuilderPortAvailabilityCheckerForTest } from "./runtime-resource-ports.js";
+import "./builder-harness-preflight-test-mock.js";
 import builderWorkflow from "./workflow.js";
 
 vi.mock("#core/config/config.js", () => ({

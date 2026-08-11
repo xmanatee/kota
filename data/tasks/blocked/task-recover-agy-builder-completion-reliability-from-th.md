@@ -1,13 +1,13 @@
 ---
 id: task-recover-agy-builder-completion-reliability-from-th
 title: Recover AGY builder completion reliability from the zero-success rollout
-status: ready
+status: blocked
 priority: p1
 area: autonomy
 task_class: Platform
 summary: Reconstruct every failed AGY builder attempt, fix the shared runtime causes, and prove builders can complete without losing or corrupting work.
 created_at: 2026-08-07T01:04:32.818Z
-updated_at: 2026-08-11T05:05:58Z
+updated_at: 2026-08-11T13:06:04.689Z
 ---
 
 ## Problem
@@ -248,3 +248,47 @@ Evidence-gated AGY autonomy rollout.
 - A successful builder run directory containing the AGY event trace, scoped
   diff, verification output, commit, task transition, claim release, worktree
   cleanup, and final recovery projection.
+
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/agy-builder-recovery-live-pass/
+description: authenticated trusted-host AGY evidence — export the canonical 2026-08-07 through 2026-08-09 builder run records needed to identify every historical attempt, run the live macOS runtime write-boundary fixture outside a nested agent sandbox, then run a controlled long-lived AGY builder canary with operator-managed login across an access-token expiry boundary and capture the sandbox result, AGY event trace, scoped implementation diff, verification, commit, task transition, claim release, worktree cleanup, DLQ state, and final recovery projection under .kota/runs/agy-builder-recovery-live-pass/
+```
+
+## Status (2026-08-11 builder)
+
+Implemented the KOTA-owned lifecycle fixes that can be proven without the
+operator's canonical runtime store or AGY login:
+
+- KOTA-owned native sandboxes now protect `.kota` as one structural runtime
+  boundary. Only the validated per-invocation `builder-evidence/<run-id>` and
+  `tmp/<run-id>` roots remain writable. Deterministic macOS-profile and Linux
+  mount-order fixtures cover the boundary construction, but this builder's
+  outer sandbox prevents the nested macOS process from starting, so trusted-host
+  live mutation-denial proof remains part of the operator-capture blocker.
+- AGY cancellation now waits for a terminal remote result before releasing
+  native abort quarantine. Missing terminal confirmation fails closed, and
+  repair continues the same AGY conversation id rather than creating a fresh
+  remote project.
+- Builder harness readiness now runs before claim acquisition. AGY's current
+  `agy models` response proves present model access but not multi-hour renewal,
+  so unattended AGY builders fail before claiming until supported renewal
+  evidence exists.
+- Repair-loop output aggregates initial and completed repair-call token usage,
+  preserves it on terminal repair failures, and records the resumed session id.
+
+Focused harness, workflow, repair accounting, preclaim, and structural sandbox
+tests pass, as does TypeScript. The macOS live sandbox fixture reports skipped
+when its bootstrap smoke probe is denied; it no longer converts a process that
+never started into a passing result. The changed files pass Biome. Repo-wide
+Biome reaches only unrelated pre-existing unused-symbol warnings in split
+owner-decision and approval-queue tests.
+
+The four run ids named in this task were recorded in this builder's incomplete
+incident-matrix artifact with only task-backed facts. The longer canary says six
+builders failed but does not expose their run ids, task ids, durations, or
+canonical records in the repository, and the sandbox cannot read the daemon's
+runtime store. Those rows and the required authenticated successful builder
+run were not invented; they are the operator-capture blocker above.

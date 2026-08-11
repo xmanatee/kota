@@ -7,6 +7,7 @@ import {
   HARD_MAX_STEP_OUTPUT_BYTES,
   type StepAccumulators,
 } from "./run-executor-step.js";
+import { AgentStepRuntimeError } from "./steps/step-executor.js";
 
 const executeStepMock = vi.hoisted(() => vi.fn());
 vi.mock("./steps/step-executor.js", () => ({
@@ -204,6 +205,8 @@ describe("executeWorkflowStep — costUsd capture", () => {
       content: "repair did not resolve the check",
       turns: 3,
       totalCostUsd: 0.21,
+      inputTokens: 92_328,
+      outputTokens: 3_189,
       repairIterations: [
         {
           attempt: 1,
@@ -221,6 +224,7 @@ describe("executeWorkflowStep — costUsd capture", () => {
         ["lint"],
         output,
         "repair made no progress",
+        new AgentStepRuntimeError("provider repair failed", "provider", false),
       ),
     );
 
@@ -242,7 +246,13 @@ describe("executeWorkflowStep — costUsd capture", () => {
       status: "failed",
       errorKind: "repair-no-progress",
       costUsd: 0.21,
+      inputTokens: 92_328,
+      outputTokens: 3_189,
       output: { repairIterations: output.repairIterations },
+    });
+    expect(result.agentBackoff).toMatchObject({
+      kind: "provider",
+      reason: "provider repair failed",
     });
   });
 });

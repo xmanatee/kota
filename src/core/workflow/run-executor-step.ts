@@ -438,30 +438,41 @@ export async function executeWorkflowStep(
     // If the step-level controller was aborted by the deadline (not the run-level abort),
     // surface a plain Error so the run gets status "failed" rather than "interrupted".
     const abortReason = stepAbortController.signal.reason;
+    const caughtError = error instanceof Error ? error : new Error(String(error));
+    const repairFailure = caughtError instanceof RepairLoopError
+      ? caughtError
+      : undefined;
+    const nestedRepairIdleTimeout =
+      repairFailure?.agentBackoff instanceof AgentStepIdleTimeoutError
+        ? repairFailure.agentBackoff
+        : undefined;
     const idleTimeoutError =
-      error instanceof WorkflowStepIdleTimeoutError ||
-      error instanceof AgentStepIdleTimeoutError
-        ? error
+      caughtError instanceof WorkflowStepIdleTimeoutError ||
+      caughtError instanceof AgentStepIdleTimeoutError
+        ? caughtError
         : abortReason instanceof WorkflowStepIdleTimeoutError ||
             abortReason instanceof AgentStepIdleTimeoutError
           ? abortReason
-          : undefined;
+          : nestedRepairIdleTimeout;
     const isStepTimeout =
       stepAbortController.signal.aborted &&
       !runAbortController.signal.aborted &&
       idleTimeoutError === undefined;
-    const err = idleTimeoutError ?? (isStepTimeout
+    const err = repairFailure ?? idleTimeoutError ?? (isStepTimeout
       ? (() => {
           return new Error(abortReason instanceof Error ? abortReason.message : `Step "${step.id}" timed out`);
         })()
-      : error instanceof Error ? error : new Error(String(error)));
+      : caughtError);
 
+    const agentRuntimeFailure = err instanceof AgentStepRuntimeError
+      ? err
+      : repairFailure?.agentBackoff;
     let agentBackoff: WorkflowAgentBackoffSignal | undefined;
     if (
-      err instanceof AgentStepRuntimeError &&
+      agentRuntimeFailure !== undefined &&
       (!isStepTimeout || idleTimeoutError !== undefined)
     ) {
-      agentBackoff = workflowAgentBackoffSignalFromError(err);
+      agentBackoff = workflowAgentBackoffSignalFromError(agentRuntimeFailure);
     }
     const trajectoryDiagnostics = writeFailedAgentTrajectoryDiagnostics({
       step,
@@ -470,7 +481,6 @@ export async function executeWorkflowStep(
       messages: capturedAgentMessages,
       log: deps.log,
     });
-    const repairFailure = err instanceof RepairLoopError ? err : undefined;
     const repairFailureOutput = repairFailure
       ? applyOutputSizeLimit(
           repairFailure.output,
@@ -494,6 +504,8 @@ export async function executeWorkflowStep(
       ...(repairFailure !== undefined
         ? {
             costUsd: repairFailure.output.totalCostUsd,
+            inputTokens: repairFailure.output.inputTokens,
+            outputTokens: repairFailure.output.outputTokens,
             output: repairFailureOutput?.output,
           }
         : {}),
@@ -502,7 +514,7 @@ export async function executeWorkflowStep(
         ? { errorKind: "idle-timeout" as const, idleTimeoutMs: idleTimeoutError.idleTimeoutMs }
         : isStepTimeout
           ? { errorKind: "step-timeout" as const }
-          : repairFailure !== undefined
+          : repairFailure?.kind !== undefined
             ? { errorKind: repairFailure.kind }
         : {}),
       ...(step.continueOnFailure ? { continueOnFailure: true } : {}),

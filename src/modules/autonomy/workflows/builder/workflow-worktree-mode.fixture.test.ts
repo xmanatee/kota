@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import { setBuilderPortAvailabilityCheckerForTest } from "./runtime-resource-ports.js";
+import "./builder-harness-preflight-test-mock.js";
 import builderWorkflow from "./workflow.js";
 
 vi.mock("#core/config/config.js", () => ({

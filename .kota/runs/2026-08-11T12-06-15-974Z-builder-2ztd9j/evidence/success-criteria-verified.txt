@@ -1,0 +1,11 @@
+1. BLOCKED — four named attempts are recorded without invented facts, but the six-run monitored canary lacks canonical run ids and records in the accessible repository.
+2. VERIFIED — AGY event collection already distinguishes empty terminal success after a tool failure; the focused adapter suite retains the typed failure and token counts.
+3. PARTIAL — focused fixtures pass for structural runtime-state isolation, confirmed remote stop, same-conversation repair, preclaim unattended auth, and failed repair-result token accounting; trusted-host macOS execution remains outstanding.
+4. BLOCKED — no operator-authenticated AGY builder lifecycle can run until unattended renewal is supported and captured.
+5. BLOCKED — no valid representative run exists to review; the task explicitly rejects the two preserved dirty worktrees as proof.
+6. BLOCKED — lifecycle cleanup must be derived from the missing successful run directory, not inferred from unit tests.
+7. BLOCKED — existing provider recovery rails remain intact, but the required live quota-after-edits resume artifact is not accessible in this run.
+8. PARTIAL — preclaim fixtures prove unverifiable AGY renewal stops before claim; the operator-controlled expiry-boundary canary remains required.
+9. VERIFIED — cancellation uses graceful process-group termination, quarantine rejects missing remote terminal confirmation, and repair resumes the same AGY conversation id.
+10. PARTIAL — deterministic macOS-profile and Linux mount-order fixtures cover the structural boundary, but nested sandbox bootstrap is denied in this builder environment, so live assigned-write/runtime-mutation denial remains part of the trusted-host operator capture.
+11. PARTIAL — this change records missing provenance and blocks the task rather than fabricating completion; independent review of the future live run remains required.

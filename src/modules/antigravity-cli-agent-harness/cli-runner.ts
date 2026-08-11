@@ -32,18 +32,10 @@ import {
 } from "./runtime-home.js";
 
 export const ANTIGRAVITY_CLI_BINARY_NAME = "agy";
+export const ANTIGRAVITY_CLI_UNCONFIRMED_STOP_SUBTYPE =
+  "antigravity_cli_unconfirmed_remote_stop";
 
 const ANTIGRAVITY_CLI_PRINT_TIMEOUT = "24h";
-
-export function abortedAntigravityCliResult(): AgentHarnessResult {
-  return {
-    text: "Antigravity CLI run aborted.",
-    streamedText: "",
-    turns: 0,
-    isError: true,
-    subtype: "aborted",
-  };
-}
 
 function formatStderr(chunks: readonly string[]): string {
   return chunks.join("").trim();
@@ -80,6 +72,7 @@ type CollectTextFromAntigravityCliArgs = {
   writableRoots: readonly string[];
   authorityConfigPath: string | undefined;
   env: Record<string, string> | undefined;
+  resumeSessionId?: string;
   abortController?: AbortController;
   writer?: AgentHarnessWriter;
   onMessage?: (message: KotaAgentMessage) => void | Promise<void>;
@@ -101,7 +94,9 @@ async function runAntigravityCliProcess(
   let parseError: string | undefined;
 
   const abort = (): void => {
-    signalNativeCliProcessGroup(child, "SIGKILL");
+    // AGY schedules work remotely. Give the CLI a chance to cancel that task
+    // and emit its terminal result before the local process group closes.
+    signalNativeCliProcessGroup(child, "SIGTERM");
   };
   let removeAbortListener: (() => void) | undefined;
   if (args.abortController) {
@@ -140,6 +135,22 @@ async function runAntigravityCliProcess(
   const [output] = await Promise.all([outputPromise, stderrDone]);
 
   if (args.abortController?.signal.aborted) {
+    if (!output.hasTerminalResult) {
+      const attempt = output.sessionId === undefined
+        ? "the remote attempt"
+        : `remote attempt ${output.sessionId}`;
+      return {
+        text:
+          `Antigravity CLI stopped locally before ${attempt} reported a terminal result.`,
+        streamedText: output.streamedText,
+        ...(output.sessionId !== undefined ? { sessionId: output.sessionId } : {}),
+        turns: output.turns,
+        ...(output.inputTokens !== undefined ? { inputTokens: output.inputTokens } : {}),
+        ...(output.outputTokens !== undefined ? { outputTokens: output.outputTokens } : {}),
+        isError: true,
+        subtype: ANTIGRAVITY_CLI_UNCONFIRMED_STOP_SUBTYPE,
+      };
+    }
     return {
       text: "Antigravity CLI run aborted.",
       streamedText: output.streamedText,
@@ -235,7 +246,9 @@ export async function collectTextFromAntigravityCli(
     ...(args.env ?? {}),
   });
   const cliArgs = [
-    "--new-project",
+    ...(args.resumeSessionId === undefined
+      ? ["--new-project"]
+      : ["--conversation", args.resumeSessionId]),
     "--print",
     args.prompt,
     "--model",

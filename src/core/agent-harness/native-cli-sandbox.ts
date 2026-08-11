@@ -10,6 +10,7 @@ import {
 } from "./native-cli-egress-proxy.js";
 import { buildIsolatedNativeCliEnvironment } from "./native-cli-environment.js";
 import { prepareNativeCliPackageManagerRuntime } from "./native-cli-package-manager.js";
+import { nativeCliRuntimeWriteBoundary } from "./native-cli-runtime-write-boundary.js";
 import {
   nativeCliReadableRoots,
   resolveNativeCliExecutable,
@@ -227,6 +228,8 @@ export async function withNativeCliSandbox<T>(
       readProtectedRootMask,
       protectedRuntimeRoot,
     ];
+    const runtimeWriteBoundary = options.machineAuthorityOwner === "kota"
+      ? nativeCliRuntimeWriteBoundary(options.cwd, options.env) : undefined;
     const launch = options.machineAuthorityOwner === "native-cli"
       ? {
           ok: true as const,
@@ -242,6 +245,7 @@ export async function withNativeCliSandbox<T>(
           readProtectedRoots,
           readProtectedRootMask,
           writeProtectedPaths,
+          writeBoundaries: runtimeWriteBoundary === undefined ? [] : [runtimeWriteBoundary],
           networkAccess: egressProxy?.address.kind === "tcp"
             ? { kind: "loopback-proxy", port: egressProxy.address.port }
             : { kind: "offline" },

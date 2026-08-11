@@ -1,5 +1,4 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
@@ -7,10 +6,6 @@ import {
   type EvaluatorCalibrationArtifact,
   writeCalibrationArtifact,
 } from "#modules/autonomy/evaluator-calibration.js";
-import {
-  type ClaimAwareRepoTaskQueueSnapshot,
-  getClaimAwareRepoTaskQueueSnapshot,
-} from "#modules/autonomy/queue-availability.js";
 import {
   onRecoveryTrigger,
   resetWorktreeForRecovery,
@@ -22,7 +17,6 @@ import {
   stepCommitted,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
-import { reconcileAutomationWorktrees } from "#modules/git/worktree-lifecycle.js";
 import { commitBuilderWorkflowChanges } from "./agent-run-artifacts.js";
 import type { BranchStepResult, CleanupResult } from "./branch-per-task.js";
 import { cleanupMergedBranches, createPullRequest, createTaskBranch } from "./branch-per-task.js";
@@ -44,10 +38,12 @@ import {
   createPrepareBuilderWorktreeStep,
 } from "./prepare-worktree-step.js";
 import {
-  BUILDER_RECOVERY_EVENT,
-  type BuilderRecoveryDispatchResult,
-  requestPendingBuilderRecoveries,
-} from "./recovery-continuation.js";
+  builderHarnessPreflightStep,
+  inspectReadyQueue,
+  reconcileWorktreesForRecoveryStep,
+  requestRecoveryContinuationsStep,
+} from "./queue-preflight-steps.js";
+import { BUILDER_RECOVERY_EVENT } from "./recovery-continuation.js";
 import { builderRepairChecks } from "./repair-checks.js";
 import type { BuilderRunSummary } from "./run-summary.js";
 import { writeBuilderRunSummary } from "./run-summary.js";
@@ -70,54 +66,6 @@ export const agent: AgentDef = {
   // unrestricted rather than absence-means-unlimited.
   writeScope: [],
 };
-
-type InspectResult = ClaimAwareRepoTaskQueueSnapshot & { dirty: boolean };
-type ReconcileWorktreesResult = ReturnType<typeof reconcileAutomationWorktrees>;
-
-const inspectReadyQueue = typedCodeStep<InspectResult>({
-  id: "inspect-ready-queue",
-  type: "code",
-  validate: (raw) =>
-    expectStructuredOutput<InspectResult>(raw, [
-      "dirty",
-      "pullableCount",
-      "actionableCount",
-      "counts",
-    ]),
-  run: (ctx) => {
-    const worktree = getRepoWorktreeStatus(workflowWorkspaceDir(ctx));
-    const dirty = worktree.available && worktree.dirty;
-    return { ...getClaimAwareRepoTaskQueueSnapshot(ctx.projectDir), dirty };
-  },
-});
-
-const reconcileWorktreesForRecoveryStep = typedCodeStep<ReconcileWorktreesResult>({
-  id: "reconcile-worktrees-for-recovery",
-  type: "code",
-  when: onRecoveryTrigger,
-  validate: (raw) =>
-    expectStructuredOutput<ReconcileWorktreesResult>(raw, [
-      "inspected",
-      "active",
-      "unlocked",
-      "removed",
-      "preserved",
-      "items",
-    ]),
-  run: (ctx) => reconcileAutomationWorktrees(ctx.projectDir),
-});
-
-const requestRecoveryContinuationsStep = typedCodeStep<BuilderRecoveryDispatchResult>({
-  id: "request-recovery-continuations",
-  type: "code",
-  when: onRecoveryTrigger,
-  validate: (raw) =>
-    expectStructuredOutput<BuilderRecoveryDispatchResult>(raw, [
-      "candidateCount",
-      "requested",
-    ]),
-  run: requestPendingBuilderRecoveries,
-});
 
 const claimTaskStep = createClaimTaskStep(inspectReadyQueue);
 const prepareWorktreeStep = createPrepareBuilderWorktreeStep(claimTaskStep);
@@ -179,6 +127,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
     reconcileWorktreesForRecoveryStep,
     requestRecoveryContinuationsStep,
     inspectReadyQueue,
+    builderHarnessPreflightStep,
     claimTaskStep,
     prepareWorktreeStep,
     {

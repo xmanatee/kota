@@ -1,6 +1,7 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, vi } from "vitest";
+import { getPreset, resolveTierModel } from "#core/model/preset.js";
 import type { RepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { setBuilderPortAvailabilityCheckerForTest } from "./runtime-resource-ports.js";
 import "./workflow-test-mocks.js";
@@ -85,6 +86,16 @@ export async function resetBuilderWorkflowMocks(): Promise<void> {
   vi.clearAllMocks();
   restoreBuilderPortAvailability();
   restoreBuilderPortAvailability = setBuilderPortAvailabilityCheckerForTest(async () => true);
+
+  const harnessPreflight = await import("./builder-harness-preflight.js");
+  vi.mocked(harnessPreflight.runBuilderHarnessPreflight).mockReturnValue({
+    harness: "codex",
+    model: resolveTierModel(getPreset("codex"), "capable"),
+    effort: "xhigh",
+    ready: true,
+    artifactPath:
+      ".kota/runs/harness/steps/builder-preclaim.harness-capability.json",
+  });
 
   const config = await import("#core/config/config.js");
   vi.mocked(config.loadConfig).mockReturnValue({

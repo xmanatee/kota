@@ -1,0 +1,11 @@
+1. Build an evidence-backed incident matrix covering every AGY builder attempt in the rollout window.
+2. Classify empty AGY terminal success at the real adapter boundary and retain the tool failure and usage evidence.
+3. Add focused fixtures for each KOTA-owned failure class fixed in this change.
+4. Capture one representative AGY run completing the full builder lifecycle.
+5. Independently review that representative run's scoped implementation diff and task transition.
+6. Prove the completed run releases its claim, worktree, and DLQ state without dirtying the canonical checkout.
+7. Prove quota recovery preserves and resumes useful work without an empty restart.
+8. Cross an AGY access-token expiry boundary or stop before task claim when unattended renewal cannot be verified.
+9. Prevent repair from starting until the prior local AGY process and remote task are terminal.
+10. Prevent native agents from mutating or renaming daemon-owned `.kota` state while assigned evidence stays writable.
+11. Reject fabricated provenance, absent artifacts, swallowed verification, unrelated edits, and unsupported task completion.

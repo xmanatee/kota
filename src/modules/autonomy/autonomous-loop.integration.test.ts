@@ -63,6 +63,11 @@ async function waitForCompletedWorkflows(
 
 async function loadAutonomyWorkflowDefinitions(): Promise<RegisteredWorkflowDefinitionInput[]> {
   vi.resetModules();
+  const [{ registerAgentHarness }, { claudeAgentHarness }] = await Promise.all([
+    import("#core/agent-harness/registry.js"),
+    import("#modules/claude-agent-harness/adapter.js"),
+  ]);
+  registerAgentHarness(claudeAgentHarness);
   const { default: autonomyModule } = await import("./index.js");
   const workflows = autonomyModule.workflows;
   if (!workflows || typeof workflows !== "function") {

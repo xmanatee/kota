@@ -5,6 +5,7 @@ import {
   ANTIGRAVITY_CLI_AGENT_HARNESS_NAME,
   antigravityCliAgentHarness,
   antigravityCliAuthReadiness,
+  antigravityCliReadiness,
 } from "./adapter.js";
 
 const spawnMock = vi.hoisted(() => vi.fn());
@@ -245,6 +246,36 @@ describe("antigravityCliAgentHarness", () => {
     expect(readiness.detail).toContain("gemini-3.1-pro-high");
   });
 
+  it("does not treat current AGY access as verified unattended renewal", () => {
+    const readiness = antigravityCliReadiness(
+      {
+        model: "gemini-3.6-flash",
+        effort: "xhigh",
+        unattended: true,
+      },
+      {
+        resolveBinary: () => ({
+          status: "ready",
+          executablePath: "/opt/bin/agy",
+        }),
+        readCommandVersion: () => ({ status: "ready", version: "1.1.12" }),
+        readCommandOutput: () => ({
+          status: "ready",
+          output: "gemini-3.6-flash-high",
+        }),
+        readPackageVersion: () => ({ status: "error", detail: "not used" }),
+      },
+    );
+
+    expect(readiness.localAuth).toMatchObject({
+      status: "unverifiable",
+      required: true,
+      summary:
+        "Antigravity CLI unattended credential renewal cannot be verified",
+    });
+    expect(readiness.modelEffort).toMatchObject({ status: "ready" });
+  });
+
   it("runs AGY headlessly and translates its structured event stream", async () => {
     mockAgyProcess({ stdout: successfulAgyOutput("all done") });
 
@@ -360,6 +391,24 @@ describe("antigravityCliAgentHarness", () => {
     });
   });
 
+  it("resumes a named AGY conversation without creating overlapping remote work", async () => {
+    mockAgyProcess({ stdout: successfulAgyOutput("continued") });
+
+    await antigravityCliAgentHarness.run({
+      prompt: "repair",
+      model: "gemini-3.6-flash",
+      effort: "xhigh",
+      resumeSessionId: "conversation-existing",
+    });
+
+    const commandArgs = spawnMock.mock.calls[0][1] as string[];
+    expect(commandArgs).toEqual(expect.arrayContaining([
+      "--conversation",
+      "conversation-existing",
+    ]));
+    expect(commandArgs).not.toContain("--new-project");
+  });
+
   it("does not inherit daemon provider, GitHub, notification, or cloud credentials", async () => {
     mockAgyProcess({ stdout: successfulAgyOutput("ok") });
     const secrets = {
@@ -431,27 +480,82 @@ describe("antigravityCliAgentHarness", () => {
     });
   });
 
-  it("returns an aborted result when the caller aborts the subprocess", async () => {
+  it("rejects abort quarantine when AGY closes without a remote terminal result", async () => {
     const child = mockManualAgyProcess();
     const abortController = new AbortController();
+    let quarantine: ((reason: Error) => void | Promise<void>) | undefined;
     const run = antigravityCliAgentHarness.run({
       prompt: "x",
       model: "gemini-3.6-flash",
       effort: "xhigh",
       abortController,
+      abortQuarantine: {
+        register: (handler) => {
+          quarantine = handler;
+        },
+      },
     });
 
     abortController.abort();
     child.stdout.end();
     child.stderr.end();
-    child.emit("close", null, "SIGKILL");
+    child.emit("close", null, "SIGTERM");
+
+    await expect(run).resolves.toMatchObject({
+      text: expect.stringContaining(
+        "stopped locally before the remote attempt reported a terminal result",
+      ),
+      isError: true,
+      subtype: "antigravity_cli_unconfirmed_remote_stop",
+    });
+    await expect(quarantine?.(new Error("cancelled"))).rejects.toThrow(
+      /stopped locally before the remote attempt reported a terminal result/,
+    );
+    expect(child.kill).toHaveBeenCalledWith("SIGTERM");
+  });
+
+  it("releases abort quarantine only after AGY reports the remote attempt terminal", async () => {
+    const child = mockManualAgyProcess();
+    const abortController = new AbortController();
+    let quarantine: ((reason: Error) => void | Promise<void>) | undefined;
+    const run = antigravityCliAgentHarness.run({
+      prompt: "x",
+      model: "gemini-3.6-flash",
+      effort: "xhigh",
+      abortController,
+      abortQuarantine: {
+        register: (handler) => {
+          quarantine = handler;
+        },
+      },
+    });
+
+    abortController.abort();
+    child.stdout.write(`${JSON.stringify({
+      event: "result",
+      result: {
+        conversation_id: "remote-attempt-1",
+        status: "CANCELLED",
+        error: "cancelled",
+        num_turns: 2,
+        usage: { input_tokens: 31, output_tokens: 4 },
+      },
+    })}\n`);
+    child.stdout.end();
+    child.stderr.end();
+    child.emit("close", null, "SIGTERM");
 
     await expect(run).resolves.toMatchObject({
       text: "Antigravity CLI run aborted.",
+      sessionId: "remote-attempt-1",
+      turns: 2,
+      inputTokens: 31,
+      outputTokens: 4,
       isError: true,
       subtype: "aborted",
     });
-    expect(child.kill).toHaveBeenCalledWith("SIGKILL");
+    await expect(quarantine?.(new Error("cancelled"))).resolves.toBeUndefined();
+    expect(child.kill).toHaveBeenCalledWith("SIGTERM");
   });
 
   it("preserves terminal AGY success without text for workflow-level validation", async () => {

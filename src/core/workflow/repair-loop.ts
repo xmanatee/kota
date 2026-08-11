@@ -1,217 +1,54 @@
-import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import { join } from "node:path";
 import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
-import type { AgentWriteScope } from "#core/agents/agent-types.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { resolveAgentRunDir } from "./agent-run-dir.js";
-import { executeRepairAgentIteration } from "./repair-loop-agent-iteration.js";
+import {
+  executeRepairAgentIteration,
+  RepairAgentIterationError,
+  type RepairAgentIterationResult,
+} from "./repair-loop-agent-iteration.js";
 import {
   type RepairCheckResult,
   runChecksPhased,
 } from "./repair-loop-checks.js";
+import {
+  repairProgressSnapshot,
+  stageWorkflowChangesForRepairChecks,
+} from "./repair-loop-progress.js";
+import { buildRepairPrompt } from "./repair-loop-prompt.js";
+import {
+  createRepairLoopResultWrapper,
+  resolveScopedRepairAgent,
+} from "./repair-loop-result.js";
+import {
+  type RepairIteration,
+  RepairLoopError,
+  type RepairLoopFailureOutput,
+} from "./repair-loop-types.js";
 import type {
-  WorkflowRepairErrorKind,
   WorkflowRunMetadata,
   WorkflowStepContext,
 } from "./run-types.js";
 import type { WorkflowAgentStep } from "./step-types.js";
 import {
   AgentWriteScopeViolationError,
-  diffMutatedPaths,
   findWriteScopeViolations,
-  listWorkflowMutatedPaths,
   requiresWriteScopeSnapshot,
-  tryListWorkflowMutatedPaths,
   writeWriteScopeViolationArtifact,
 } from "./steps/agent-write-scope.js";
 import { captureWorkflowMutationSnapshot } from "./steps/agent-write-scope-snapshot.js";
 import type { AgentStepConfig, AgentStepResult } from "./steps/step-executor-agent.js";
 import { writeAgentTokenBudgetArtifact } from "./steps/step-executor-agent-token-budget.js";
-import { writeAgentTrajectoryDiagnosticsArtifact } from "./steps/step-executor-agent-trajectory-diagnostics.js";
+import { AgentStepRuntimeError } from "./steps/step-executor-retry.js";
 
 export type { RepairCheckResult } from "./repair-loop-checks.js";
-
-export type RepairIteration = {
-  attempt: number;
-  failures: RepairCheckResult[];
-  agentResponse?: string;
-  agentTurns?: number;
-  agentCostUsd?: number;
-};
-
-export type RepairLoopFailureOutput = {
-  content: string;
-  turns: number;
-  totalCostUsd: number;
-  repairIterations: RepairIteration[];
-  repairWarnings: RepairCheckResult[];
-};
-
-type ScopedRepairAgent = {
-  agentName: string;
-  writeScope: AgentWriteScope;
-};
+export { buildRepairPrompt } from "./repair-loop-prompt.js";
+export {
+  type RepairIteration,
+  RepairLoopError,
+  type RepairLoopFailureOutput,
+} from "./repair-loop-types.js";
 
 const REPAIR_NO_PROGRESS_LIMIT = 3;
-const MIN_MARKDOWN_FENCE_LENGTH = 3;
-
-export class RepairLoopError extends Error {
-  constructor(
-    readonly kind: WorkflowRepairErrorKind,
-    readonly stepId: string,
-    readonly failureIds: string[],
-    readonly output: RepairLoopFailureOutput,
-    message: string,
-  ) {
-    super(message);
-    this.name = "RepairLoopError";
-  }
-}
-
-type RepairProgressSnapshot = {
-  key: string;
-  failureIds: string[];
-};
-
-function maxBacktickRun(value: string): number {
-  let longest = 0;
-  let current = 0;
-  for (const char of value) {
-    if (char === "`") {
-      current += 1;
-      longest = Math.max(longest, current);
-    } else {
-      current = 0;
-    }
-  }
-  return longest;
-}
-
-function markdownFenceForContent(value: string): string {
-  return "`".repeat(Math.max(MIN_MARKDOWN_FENCE_LENGTH, maxBacktickRun(value) + 1));
-}
-
-function escapeUntrustedBlockText(value: string): string {
-  return value.replace(/[<>&]/g, (char) => {
-    if (char === "<") return "\\u003c";
-    if (char === ">") return "\\u003e";
-    return "\\u0026";
-  });
-}
-
-function renderFailureOutput(failure: RepairCheckResult): string[] {
-  const output = escapeUntrustedBlockText(failure.output.trim());
-  const fence = markdownFenceForContent(output);
-  return [
-    `## ${failure.id}`,
-    '<untrusted-content source="repair-check.output">',
-    fence,
-    output,
-    fence,
-    "</untrusted-content>",
-    "",
-  ];
-}
-
-export function buildRepairPrompt(
-  attempt: number,
-  maxRepairAttempts: number | undefined,
-  failures: RepairCheckResult[],
-  step: WorkflowAgentStep,
-  runDirPath?: string,
-): string {
-  const attemptLabel = maxRepairAttempts === undefined
-    ? `${attempt}`
-    : `${attempt}/${maxRepairAttempts}`;
-  const lines = [
-    `Post-check repair attempt ${attemptLabel} for step "${step.id}".`,
-    "",
-    "The following checks failed after your previous work:",
-    "",
-  ];
-  for (const failure of failures) {
-    lines.push(...renderFailureOutput(failure));
-  }
-  if (runDirPath) {
-    lines.push("Run directory:", runDirPath, "");
-  }
-  const commitMessagePath = runDirPath
-    ? join(runDirPath, "commit-message.txt")
-    : "<run-directory>/commit-message.txt";
-  lines.push(
-    "Fix these issues now. KOTA stages workspace changes for review after you stop; do not run `git add` or `git commit`.",
-    `Write a short commit message to \`${commitMessagePath}\` summarizing what changed.`,
-    "Finish this repair fully, then stop.",
-  );
-  return lines.join("\n");
-}
-
-function gitDiffAgainstHead(workspaceDir: string): string {
-  try {
-    return execFileSync("git", ["diff", "--binary", "HEAD", "--"], {
-      cwd: workspaceDir,
-      env: withProtectedGitBareRepositoryEnv(),
-      encoding: "utf8",
-      maxBuffer: 20 * 1024 * 1024,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return `git diff unavailable: ${message}`;
-  }
-}
-
-function repairFailureIdentity(failures: RepairCheckResult[]): string {
-  return failures
-    .map((failure) => failure.id)
-    .sort()
-    .join("\0");
-}
-
-function repairProgressSnapshot(
-  workspaceDir: string,
-  failures: RepairCheckResult[],
-): RepairProgressSnapshot {
-  const status = getRepoWorktreeStatus(workspaceDir);
-  const diff = status.available ? gitDiffAgainstHead(workspaceDir) : "";
-  const hash = createHash("sha256");
-  hash.update(repairFailureIdentity(failures));
-  hash.update("\0");
-  hash.update(status.headSha);
-  hash.update("\0");
-  hash.update(status.fingerprint);
-  hash.update("\0");
-  hash.update(diff);
-  return {
-    key: hash.digest("hex"),
-    failureIds: failures.map((failure) => failure.id),
-  };
-}
-
-function stageWorkflowChangesForRepairChecks(workspaceDir: string): void {
-  if (!getRepoWorktreeStatus(workspaceDir).available) return;
-  execFileSync("git", ["add", "-A"], {
-    cwd: workspaceDir,
-    env: withProtectedGitBareRepositoryEnv(),
-    stdio: ["ignore", "ignore", "pipe"],
-  });
-}
-
-function resolveScopedRepairAgent(
-  step: WorkflowAgentStep,
-  agentConfig: AgentStepConfig,
-): ScopedRepairAgent | undefined {
-  if (!step.agentName || !agentConfig.resolveAgentDef) return undefined;
-  const agentDef = agentConfig.resolveAgentDef(step.agentName);
-  if (!agentDef) return undefined;
-  return {
-    agentName: step.agentName,
-    writeScope: agentDef.writeScope,
-  };
-}
 
 export async function runAgentRepairLoop(
   step: WorkflowAgentStep,
@@ -227,6 +64,11 @@ export async function runAgentRepairLoop(
   const base = (initialResult.output && typeof initialResult.output === "object") ? initialResult.output as Record<string, unknown> : {};
   let totalTurns = typeof base.turns === "number" ? base.turns : 0;
   let totalCostUsd = typeof base.totalCostUsd === "number" ? base.totalCostUsd : 0;
+  let inputTokens = typeof base.inputTokens === "number" ? base.inputTokens : 0;
+  let outputTokens = typeof base.outputTokens === "number" ? base.outputTokens : 0;
+  let logicalAttemptSessionId = typeof base.sessionId === "string"
+    ? base.sessionId
+    : undefined;
   let lastContent = typeof base.content === "string" ? base.content : "";
   let warnings = [] as RepairCheckResult[];
   const trajectoryMessages = [...initialResult.trajectoryMessages];
@@ -242,58 +84,55 @@ export async function runAgentRepairLoop(
     content: lastContent,
     turns: totalTurns,
     totalCostUsd,
+    inputTokens,
+    outputTokens,
+    ...(logicalAttemptSessionId === undefined
+      ? {}
+      : { sessionId: logicalAttemptSessionId }),
     repairIterations: iterations,
     repairWarnings: warnings,
   });
+  const recordRepairResult = (
+    iteration: RepairIteration,
+    result: RepairAgentIterationResult,
+  ): void => {
+    iteration.agentResponse = result.text;
+    iteration.agentTurns = result.turns;
+    iteration.agentCostUsd = result.totalCostUsd;
+    iteration.agentInputTokens = result.inputTokens;
+    iteration.agentOutputTokens = result.outputTokens;
+    iteration.agentSessionId = result.sessionId;
+    iterations.push(iteration);
 
-  const wrap = (output: Record<string, unknown>): AgentStepResult => {
-    const postStepMutatedPaths = scopedAgent
-      ? listWorkflowMutatedPaths(workspaceDir)
-      : (tryListWorkflowMutatedPaths(workspaceDir) ?? []);
-    const changedFiles = diffMutatedPaths(
-      initialResult.preStepMutatedPaths,
-      postStepMutatedPaths,
-    );
-    const trajectoryDiagnostics = writeAgentTrajectoryDiagnosticsArtifact({
-      stepId: step.id,
-      runDir: context.workflow.runDir,
-      projectDir: context.projectDir,
-      harness: resolvedHarness,
-      messages: trajectoryMessages,
-      changedFiles,
-    });
-    if (scopedAgent) {
-      const violations = findWriteScopeViolations(
-        changedFiles,
-        scopedAgent.writeScope,
-      );
-      if (violations.length > 0) {
-        const violationCtx = {
-          stepId: step.id,
-          agentName: scopedAgent.agentName,
-          scope: scopedAgent.writeScope,
-          violations,
-        };
-        writeWriteScopeViolationArtifact({
-          ...violationCtx,
-          metadata,
-          projectDir: context.projectDir,
-        });
-        throw new AgentWriteScopeViolationError(violationCtx);
-      }
-    }
-    return {
-      output,
-      harness: initialResult.harness,
-      model: initialResult.model,
-      trajectoryDiagnostics,
-      trajectoryMessages,
-      preStepMutatedPaths: initialResult.preStepMutatedPaths,
-    };
+    lastContent = result.text;
+    totalTurns += result.turns ?? 0;
+    totalCostUsd += result.totalCostUsd ?? 0;
+    inputTokens += result.inputTokens ?? 0;
+    outputTokens += result.outputTokens ?? 0;
+    logicalAttemptSessionId = result.sessionId ?? logicalAttemptSessionId;
   };
+  const wrap = createRepairLoopResultWrapper({
+    step,
+    initialResult,
+    context,
+    metadata,
+    resolvedHarness,
+    trajectoryMessages,
+    scopedAgent,
+    workspaceDir,
+  });
 
   if (abortController.signal.aborted) {
-    return wrap({ ...base, content: lastContent, turns: totalTurns, totalCostUsd, repairIterations: iterations, repairWarnings: warnings });
+    return wrap({
+      ...base,
+      content: lastContent,
+      turns: totalTurns,
+      totalCostUsd,
+      inputTokens,
+      outputTokens,
+      repairIterations: iterations,
+      repairWarnings: warnings,
+    });
   }
 
   stageWorkflowChangesForRepairChecks(workspaceDir);
@@ -320,7 +159,7 @@ export async function runAgentRepairLoop(
     let repairAttempt:
       | {
           ok: true;
-          result: { text: string; turns?: number; totalCostUsd?: number };
+          result: RepairAgentIterationResult;
         }
       | { ok: false; error: Error };
     try {
@@ -335,6 +174,7 @@ export async function runAgentRepairLoop(
           appendRepairMessage,
           agentConfig,
           initialResult.tokenBudget,
+          logicalAttemptSessionId,
         ),
       };
     } catch (error) {
@@ -379,17 +219,31 @@ export async function runAgentRepairLoop(
         throw new AgentWriteScopeViolationError(violationCtx);
       }
     }
-    if (!repairAttempt.ok) throw repairAttempt.error;
+    if (!repairAttempt.ok) {
+      const failedIteration = repairAttempt.error instanceof RepairAgentIterationError
+        ? repairAttempt.error
+        : undefined;
+      iteration.agentError = repairAttempt.error.message;
+      if (failedIteration !== undefined) {
+        recordRepairResult(iteration, failedIteration.result);
+      } else {
+        iterations.push(iteration);
+      }
+      const agentBackoff = failedIteration?.agentBackoff ??
+        (repairAttempt.error instanceof AgentStepRuntimeError
+          ? repairAttempt.error
+          : undefined);
+      throw new RepairLoopError(
+        undefined,
+        step.id,
+        failures.map((failure) => failure.id),
+        failureOutput(),
+        repairAttempt.error.message,
+        agentBackoff,
+      );
+    }
     const repairResult = repairAttempt.result;
-
-    iteration.agentResponse = repairResult.text;
-    iteration.agentTurns = repairResult.turns;
-    iteration.agentCostUsd = repairResult.totalCostUsd;
-    iterations.push(iteration);
-
-    lastContent = repairResult.text;
-    totalTurns += repairResult.turns ?? 0;
-    totalCostUsd += repairResult.totalCostUsd ?? 0;
+    recordRepairResult(iteration, repairResult);
 
     if (abortController.signal.aborted) break;
 
@@ -435,6 +289,11 @@ export async function runAgentRepairLoop(
     content: lastContent,
     turns: totalTurns,
     totalCostUsd,
+    inputTokens,
+    outputTokens,
+    ...(logicalAttemptSessionId === undefined
+      ? {}
+      : { sessionId: logicalAttemptSessionId }),
     repairIterations: iterations,
     repairWarnings: warnings,
   });

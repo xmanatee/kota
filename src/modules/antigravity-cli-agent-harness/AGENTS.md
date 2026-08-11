@@ -26,12 +26,20 @@ Command-bearing tool events carry exact and prefix fingerprints for durable
 adherence checks; raw command parameters remain provider tool I/O and must not
 be persisted as trace text.
 
-Interactive clients remain multi-turn through KOTA's transcript composition;
-the adapter still starts one isolated AGY process per turn and does not expose
-AGY-native conversation resume as a KOTA session mechanism.
+Interactive clients remain multi-turn through KOTA's transcript composition.
+The adapter starts one isolated AGY process per turn; when KOTA supplies a
+`resumeSessionId`, it resumes that exact AGY conversation with
+`--conversation`. Builder repair loops carry the result conversation id into
+the next repair invocation so one logical attempt cannot overlap a fresh
+remote project.
 
 The CLI's own print timeout is only a final process cap. KOTA cancellation and
-workflow idle supervision remain the normal lifecycle controls.
+workflow idle supervision remain the normal lifecycle controls. Cancellation
+sends a graceful signal to the isolated process group, then keeps the native
+abort quarantine closed until AGY emits a terminal result for the remote
+attempt and the local process settles. A local exit without that remote
+terminal frame is an unconfirmed-stop failure, never permission to launch a
+repair attempt.
 
 Workflow `outputSchema` values pass through AGY's native `--json-schema`
 surface; core still validates the normalized structured result. A terminal AGY
@@ -64,7 +72,9 @@ Git metadata and machine authority remain protected.
 The shipped preset selects current AGY model ids and always passes an explicit
 model and effort. The required local auth probe uses `agy models`, which
 verifies the cached login and current model access without reading credentials.
-Treat that command as the local availability authority; do not infer support
-from older Gemini CLI model catalogs. Catalog entries are effort-qualified, so
-availability checks must match the requested model and mapped AGY effort
-together.
+Treat that command as the local availability authority for short runs; it does
+not prove credential lifetime or renewal. Long-running builder preflight asks
+for unattended readiness and fails closed while AGY exposes only current
+access. Do not infer support from older Gemini CLI model catalogs. Catalog
+entries are effort-qualified, so availability checks must match the requested
+model and mapped AGY effort together.

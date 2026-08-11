@@ -1,5 +1,7 @@
 import { vi } from "vitest";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
+import "./builder-harness-preflight-test-mock.js";
+import "./workflow-agent-run-artifacts-test-mock.js";
 import "./workflow-worktree-test-mocks.js";
 
 vi.mock("#core/config/config.js", () => ({
@@ -38,20 +40,6 @@ vi.mock("#modules/repo-tasks/repo-tasks-domain.js", () => ({
 vi.mock("#modules/autonomy/commit.js", () => ({
   commitWorkflowChanges: vi.fn(),
 }));
-
-vi.mock("./agent-run-artifacts.js", async () => {
-  const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-
-  return {
-    checkAgentRunArtifactsReady: vi.fn(() => "OK: builder run evidence ready"),
-    checkBuilderWorkflowChangesStageable: vi.fn(
-      () => "OK: builder workflow changes stageable",
-    ),
-    commitBuilderWorkflowChanges: vi.fn((workspaceDir: string, agentRunDir: string) =>
-      commitWorkflowChanges(workspaceDir, agentRunDir),
-    ),
-  };
-});
 
 vi.mock("./preserved-evidence.js", () => ({
   findPreservedBuilderEvidenceRunId: vi.fn(() => null),

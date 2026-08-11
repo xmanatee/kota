@@ -1,0 +1,88 @@
+AGY builder recovery validation
+
+PASS focused lifecycle fixtures
+Command: pnpm exec vitest run --configLoader runner src/core/agent-harness/native-cli-runtime-write-boundary.test.ts src/core/agent-harness/runner-cancellation.test.ts src/core/workflow/active-run-handle-usage.test.ts src/core/workflow/repair-loop-usage.test.ts src/core/workflow/run-executor-step.test.ts src/modules/antigravity-cli-agent-harness/adapter.test.ts --reporter=dot
+Result: 6 files, 40 tests passed and 1 macOS live fixture skipped because the nested sandbox bootstrap smoke probe was denied. Passing coverage includes Linux read-only-overlay mount ordering, confirmed and unconfirmed AGY stop cases, same-conversation repair, and terminal-failure usage accounting. This result does not claim live macOS mutation denial.
+
+PASS existing repair-loop regression suite
+Command: pnpm exec vitest run --configLoader runner src/core/workflow/repair-loop.test.ts --reporter=dot
+Result: 1 file, 8 tests passed.
+
+PASS installed AGY CLI resume-surface inspection
+Command: agy --help | rg -- "--conversation"
+Result: the installed CLI documents `--conversation` as "Resume a previous conversation by ID".
+
+PASS complete builder workflow suite
+Command: pnpm exec vitest run --configLoader runner src/modules/autonomy/workflows/builder --reporter=dot
+Result: 31 files, 134 tests passed, including preclaim unattended-auth readiness and failure-before-claim coverage.
+
+PASS repository architecture guards
+Command: pnpm exec vitest run --configLoader runner src/strict-types-policy.integration.test.ts src/root-layout.test.ts src/core/modules/module-deps.test.ts --reporter=dot
+Result: 3 files, 5 tests passed.
+
+PASS pnpm run typecheck
+Result: tsc --noEmit completed successfully.
+
+PASS changed-file formatting and static checks
+Command: pnpm exec biome check <26 touched TypeScript files>
+Result: all touched TypeScript files clean. git diff --check also passed.
+
+PASS source-size severity review
+Result: three touched tracked source files remain above the 300-line advisory guideline; the blocking severe-batch threshold is four. No touched oversized file grew by more than 150 lines.
+
+ENVIRONMENTAL LIMITATION native CLI legacy live egress test
+Command: pnpm exec vitest run --configLoader runner src/core/agent-harness/native-cli-sandbox.test.ts ...
+Result: its pre-existing provider-proxy case could not bind 127.0.0.1 in this managed sandbox (listen EPERM). The runtime-state boundary live test was skipped because sandbox-exec could not bootstrap inside the existing builder sandbox.
+
+REPO-WIDE ADVISORY pnpm run lint
+Result: Biome checked 3354 files and stopped on unrelated pre-existing unused-symbol diagnostics in owner-decision-step-part-8.test.ts, owner-decision-step.test.ts, and split approval-queue daemon-control tests. Touched files pass the focused Biome check above.
+
+EXPECTED WORKFLOW-HOST STAGING NOTICE pnpm run validate-tasks
+Result: the task move is structurally valid but remains unstaged in this native-agent worktree; validation reports the deleted ready path and new blocked path until the workflow host stages the exact transition.
+
+POST-CHECK REPAIR 2026-08-11
+
+PASS reported test regressions
+Command: TMPDIR=/tmp NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner src/docs-surface.test.ts src/core/loop/instruction-files.test.ts src/no-hardcoded-model-defaults.integration.test.ts src/modules/autonomy/autonomous-loop.integration.test.ts src/modules/autonomy/workflows/builder/builder-harness-preflight.test.ts src/modules/autonomy/workflows/builder/workflow-harness-preflight.test.ts --reporter=dot
+Result: 6 files, 218 tests passed. The builder integration reloads and registers its real Claude harness after resetting the module graph, instruction files are within byte/line ratchets, and test fixtures resolve their model through the canonical preset.
+
+PASS autonomy change decision coverage
+Result: autonomy-change-decision.json covers all 10 staged material autonomy files, including model-routing.
+
+PASS static validation
+Result: pnpm typecheck passed; pnpm lint completed with 97 unrelated existing warnings; git diff --check and git diff --cached --check passed.
+
+PASS task queue validation
+Result: pnpm run validate-tasks completed successfully with the staged ready-to-blocked transition.
+
+ENVIRONMENTAL LIMITATION repo-wide pnpm test
+Result: 12,538 tests passed, 223 failed, and 21 skipped. Failures were outside the changed surfaces and were dominated by the managed sandbox denying searchable access to /private, loopback listen, and the explicitly protected deploy/telegram-assistant/.env.example. The reported post-check failures all pass in the focused gate above.
+
+POST-CHECK REPAIR ATTEMPT 2
+
+PASS source-size severe gate projection
+Result: machine-authority-sandbox.ts is 250 lines and repair-loop.ts is 276 lines. Their extracted concern files range from 43 to 139 lines. Applying the canonical source-size detector to the final worktree projection reports two advisory oversized aggregate test files, below the blocking batch threshold of four, with no oversized untracked source files.
+
+PASS deterministic sandbox and repair-loop regression suite
+Command: pnpm exec vitest run --configLoader runner src/core/agent-harness/native-cli-runtime-write-boundary.test.ts src/core/workflow/repair-loop.test.ts src/core/workflow/repair-loop-usage.test.ts src/core/workflow/repair-loop-workspace.test.ts src/core/workflow/run-executor-step.test.ts --reporter=dot
+Result: 5 files, 24 tests passed and 1 live macOS fixture skipped after an explicit bootstrap smoke probe; deterministic boundary construction and repair behavior passed.
+
+PASS repair refactor static validation
+Result: pnpm run typecheck passed; focused Biome checks passed for all seven refactored files; git diff --check HEAD -- passed.
+
+ENVIRONMENTAL LIMITATION legacy live provider-proxy test
+Command: pnpm exec vitest run --configLoader runner src/core/agent-harness/native-cli-runtime-write-boundary.test.ts src/core/agent-harness/native-cli-sandbox.test.ts src/core/workflow/repair-loop.test.ts src/core/workflow/repair-loop-usage.test.ts src/core/workflow/repair-loop-workspace.test.ts src/core/workflow/run-executor-step.test.ts --reporter=dot
+Result: 28 tests passed, 1 live macOS fixture skipped, and the sole failure is the pre-existing provider-proxy fixture blocked by the managed sandbox at listen 127.0.0.1 with EPERM. The runtime write-boundary fixture did not execute.
+
+POST-CHECK REPAIR ATTEMPT 4
+
+PASS failed repair-result telemetry regression
+Command: pnpm exec vitest run --configLoader runner src/core/agent-harness/native-cli-runtime-write-boundary.test.ts src/core/workflow/repair-loop.test.ts src/core/workflow/repair-loop-usage.test.ts src/core/workflow/repair-loop-workspace.test.ts src/core/workflow/run-executor-step.test.ts src/core/workflow/run-executor.test.ts src/core/workflow/active-run-handle-usage.test.ts --reporter=dot
+Result: 7 files passed, with 60 tests passed and 1 live macOS test skipped. A repair harness response with isError=true records its text, turns, cost, input/output tokens, and session id in terminal repair output while preserving classified provider backoff. The integration fixture proves the failed step and final run both report 41 input and 6 output tokens rather than zero.
+
+HONESTLY NOT EXECUTED live macOS runtime-state boundary
+Result: the test performs a sandbox-exec bootstrap smoke probe before registration. This nested builder environment returns sandbox_apply: Operation not permitted, so Vitest reports the live case as skipped instead of passed. Deterministic macOS profile and Linux mount-order assertions remain covered; trusted-host execution is still required.
+
+PASS final static and task-state validation
+Commands: pnpm run typecheck; pnpm exec biome check <8 repair files>; pnpm run validate-tasks; git diff --check HEAD --
+Result: TypeScript, focused Biome, the canonical task validator, and whitespace validation all completed successfully. repair-loop.ts remains at the 300-line advisory boundary rather than creating a new oversized production file.

@@ -36,8 +36,10 @@ the protocol and registry.
 - `guards.ts` owns hidden agent/worktree nesting, commit, daemon-control, and
   authority guards. Its OS sandbox gives opaque code and native CLIs minimal
   environments, isolated home/temp, project package-manager runtimes,
-  declared auth, readable roots, and provider-only egress via a
-  host-owned proxy. Native tools lack direct host, loopback, metadata-service, or internet route.
+  declared auth/read roots, and provider-only egress through a host-owned proxy.
+  Native tools lack direct host, loopback, metadata-service, or internet routes.
+  KOTA native sandboxes protect `.kota`; only validated `KOTA_RUN_DIR` /
+  `KOTA_RUN_TEMP_DIR` evidence and temp paths are writable.
 
 ## Owner-questions capability
 
@@ -62,7 +64,8 @@ Owner questions are a protocol capability, not a provider field.
   them instead of silently downgrading.
 - `readiness` — adapter-owned local runtime/auth, optional peer, unsupported-
   option, and exact model/effort preflight. Launch rejects required failures;
-  definition validation stays host-independent and probes stay host-local.
+  definition validation stays host-independent and probes stay host-local. An
+  `unattended` preclaim fails when current access cannot prove renewal.
 - `resolveIsolatedHostAuthEnv` — optional non-secret login-locator projection
   when trusted host runners replace `HOME`; tokens remain outside this contract.
 - `unsupportedRunOptions` is enforced before hooks or launch and mirrored in
@@ -89,12 +92,9 @@ Owner questions are a protocol capability, not a provider field.
 
 ## Lifecycle hooks (harness-neutral)
 
-`hooks.ts` owns the neutral lifecycle hook surface. Modules register
-`preRun`/`postRun` hooks through `ctx.registerHarnessHook`; callers invoke
-adapters through `runAgentHarness(harness, options, writer)`. The entry point
-dispatches every registered hook of a supported kind around the adapter's
-native run, and throws if a hook kind is registered that the adapter does not
-list in `supportedHookKinds`.
+`hooks.ts` owns neutral lifecycle hooks. Modules register `preRun`/`postRun`
+through `ctx.registerHarnessHook`; `runAgentHarness` dispatches declared hook
+kinds around the adapter and rejects undeclared kinds.
 
 `src/core/loop/pre-send-hooks.ts` is a separate classic-loop surface
 (architect module). New cross-adapter decoration uses the neutral harness

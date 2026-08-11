@@ -16,9 +16,10 @@ import {
   probeNativeCliRuntime,
 } from "#core/agent-harness/index.js";
 import { projectNativeCliScope } from "#core/agent-harness/native-cli-scope-policy.js";
+import { abortedAntigravityCliResult } from "./cli-result.js";
 import {
   ANTIGRAVITY_CLI_BINARY_NAME,
-  abortedAntigravityCliResult,
+  ANTIGRAVITY_CLI_UNCONFIRMED_STOP_SUBTYPE,
   collectTextFromAntigravityCli,
 } from "./cli-runner.js";
 import { resolveAntigravityCliModelEffortReadiness } from "./model-readiness.js";
@@ -81,11 +82,6 @@ const ANTIGRAVITY_CLI_UNSUPPORTED_OPTIONS = [
     reason: "KOTA-managed session persistence is not exposed by this adapter.",
   },
   {
-    runOption: "resumeSessionId",
-    option: "resumeSessionId",
-    reason: "KOTA-managed session resume is not exposed by this adapter.",
-  },
-  {
     runOption: "harnessOverrides",
     option: "harnessOverrides",
     reason:
@@ -126,7 +122,21 @@ export function antigravityCliReadiness(
   request?: AgentHarnessReadinessRequest,
   deps?: AgentHarnessRuntimeProbeDeps,
 ): AgentHarnessReadiness {
-  const localAuth = antigravityCliAuthReadiness(deps);
+  const observedAuth = antigravityCliAuthReadiness(deps);
+  const localAuth: AgentHarnessAuthProbe =
+    request?.unattended === true &&
+      (observedAuth.status === "ready" || observedAuth.status === "expiring")
+      ? {
+          kind: "harness-managed-login",
+          status: "unverifiable",
+          required: true,
+          command: observedAuth.command,
+          detail:
+            "`agy models` proves current model access but does not report credential lifetime or unattended renewal capability.",
+          summary:
+            "Antigravity CLI unattended credential renewal cannot be verified",
+        }
+      : observedAuth;
   return {
     adapterKind: "native-cli",
     localRuntime: probeNativeCliRuntime({
@@ -142,7 +152,7 @@ export function antigravityCliReadiness(
       ? {
           modelEffort: resolveAntigravityCliModelEffortReadiness(
             request,
-            localAuth,
+            observedAuth,
           ),
         }
       : {}),
@@ -192,12 +202,6 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
     throw new Error(
       'The "antigravity-cli" agent harness does not expose KOTA-managed session persistence. ' +
         "Drop persistSession.",
-    );
-  }
-  if (options.resumeSessionId !== undefined) {
-    throw new Error(
-      'The "antigravity-cli" agent harness does not expose KOTA-managed session resume. ' +
-        "Drop resumeSessionId.",
     );
   }
   if (options.harnessOverrides !== undefined) {
@@ -280,15 +284,16 @@ export const antigravityCliAgentHarness: AgentHarness = {
       writableRoots: scope.writableRoots,
       authorityConfigPath: options.authorityConfigPath,
       env: options.env,
+      resumeSessionId: options.resumeSessionId,
       abortController: options.abortController,
       writer,
       onMessage: options.onMessage,
     });
     options.abortQuarantine?.register(async () => {
-      await execution.then(
-        () => undefined,
-        () => undefined,
-      );
+      const result = await execution;
+      if (result.subtype === ANTIGRAVITY_CLI_UNCONFIRMED_STOP_SUBTYPE) {
+        throw new Error(result.text);
+      }
     });
     return execution;
   },

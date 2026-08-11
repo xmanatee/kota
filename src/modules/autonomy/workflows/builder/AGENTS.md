@@ -1,6 +1,5 @@
 # Builder Workflow
-- Own one normalized task at a time. Resume `doing/` before pulling from `ready/`.
-  `backlog-promoter` alone promotes backlog and records why.
+- Own one normalized task at a time. Resume `doing/` before pulling from `ready/`; `backlog-promoter` alone promotes backlog and records why.
 - Own implementation quality, architecture, completeness, honest task-state updates, and hard validation fixes before the run ends.
 - Tasks define the contract and constraints; the implementing agent owns the detailed plan.
 - Changes here shape the default autonomous development behavior.
@@ -16,6 +15,7 @@
 - A clean timeout or exhausted repair reserves the task claim for decomposer
   disposition. Builder must not reclaim that task while decomposition is
   pending; ordinary failures still release clean claims normally.
+- Long-running harness readiness runs before task claim acquisition; unverifiable unattended renewal leaves the task and worktree untouched.
 ## Success Criteria
 Declare concrete success criteria before implementation and verify them before completion:
 

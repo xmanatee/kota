@@ -23,8 +23,8 @@ Owns workflow definitions, validation, execution, repair loops, and persisted ru
   durable queued runs; a restart must preserve keyed redrives and pending work.
 - Hard step timeouts cap wall-clock runtime. Idle-progress timeouts cap gaps
   between trusted progress signals: code heartbeats or typed agent messages.
-- Agent steps receive a thin runtime envelope. Expose prior output only when it
-  cannot be recovered cheaply from normal repo context and tools.
+- Agent steps receive a thin runtime envelope; expose prior output only when normal repo context and tools cannot recover it cheaply.
+- Repair-loop output accumulates initial and repair token usage, including on terminal failure, so run accounting reflects consumed quota.
 
 ## Per-Concern Validation Split
 `validation.ts` only orchestrates. Put rules in the sibling that owns step

@@ -28,7 +28,21 @@ export type RepairAgentIterationResult = {
   text: string;
   turns?: number;
   totalCostUsd?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  sessionId?: string;
 };
+
+export class RepairAgentIterationError extends Error {
+  constructor(
+    readonly result: RepairAgentIterationResult,
+    readonly agentBackoff: AgentStepRuntimeError | undefined,
+    message: string,
+  ) {
+    super(message);
+    this.name = "RepairAgentIterationError";
+  }
+}
 
 export async function executeRepairAgentIteration(
   step: WorkflowAgentStep,
@@ -39,6 +53,7 @@ export async function executeRepairAgentIteration(
   appendMessage: (message: KotaAgentMessage) => void,
   agentConfig: AgentStepConfig,
   tokenBudget: AgentStepResult["tokenBudget"],
+  resumeSessionId?: string,
 ): Promise<RepairAgentIterationResult> {
   const promptBody = readFileSync(
     resolve(step.moduleRoot, step.promptPath),
@@ -84,7 +99,7 @@ export async function executeRepairAgentIteration(
             appendMessage(message);
           }
         : undefined;
-      const { options } = buildAgentHarnessRunOptions({
+      const { options: baseOptions } = buildAgentHarnessRunOptions({
         step,
         metadata,
         agentConfig,
@@ -96,6 +111,10 @@ export async function executeRepairAgentIteration(
         ...(messageCapture !== undefined ? { onMessage: messageCapture } : {}),
         ...(tokenBudget !== undefined ? { tokenBudget } : {}),
       });
+      const options = {
+        ...baseOptions,
+        ...(resumeSessionId === undefined ? {} : { resumeSessionId }),
+      };
       if (attemptAbortController.signal.aborted) {
         throw attemptAbortController.signal.reason instanceof Error
           ? attemptAbortController.signal.reason
@@ -143,21 +162,35 @@ export async function executeRepairAgentIteration(
 
   const result = await runRepairHarness();
 
+  const iterationResult: RepairAgentIterationResult = {
+    text: result.text,
+    turns: result.turns,
+    totalCostUsd: result.totalCostUsd,
+    inputTokens: result.inputTokens,
+    outputTokens: result.outputTokens,
+    sessionId: result.sessionId,
+  };
+
   if (result.isError) {
     const detail = result.text.trim() || "Repair agent returned an error";
     const classified = classifyAgentRuntimeFailure({
       message: detail,
       subtype: result.subtype,
     });
-    if (classified) {
-      throw new AgentStepRuntimeError(
-        `Repair agent for step "${step.id}" failed: ${detail}`,
+    const message = `Repair agent for step "${step.id}" failed: ${detail}`;
+    const agentBackoff = classified
+      ? new AgentStepRuntimeError(
+        message,
         classified.kind,
         false,
         classified.retryAt,
-      );
-    }
-    throw new Error(`Repair agent for step "${step.id}" failed: ${detail}`);
+      )
+      : undefined;
+    throw new RepairAgentIterationError(
+      iterationResult,
+      agentBackoff,
+      message,
+    );
   }
-  return { text: result.text, turns: result.turns, totalCostUsd: result.totalCostUsd };
+  return iterationResult;
 }

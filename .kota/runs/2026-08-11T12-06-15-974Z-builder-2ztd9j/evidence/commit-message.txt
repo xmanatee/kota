@@ -1,0 +1,1 @@
+Preserve failed repair telemetry and report sandbox proof honestly

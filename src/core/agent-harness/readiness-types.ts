@@ -159,6 +159,11 @@ export type AgentHarnessAuthProbe =
 export type AgentHarnessReadinessRequest = {
   readonly model: string;
   readonly effort: AgentEffort;
+  /**
+   * The caller will depend on this login across an unattended, long-running
+   * agent lifecycle. Adapters that cannot verify renewal should fail closed.
+   */
+  readonly unattended?: boolean;
 };
 
 type AgentHarnessModelEffortReadinessBase = {
