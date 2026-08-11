@@ -35,19 +35,29 @@ describe("model output-token limit resolver", () => {
   });
 
   it("honors provider-prefixed model strings by matching the model id", () => {
-    expect(resolveModelOutputTokenLimit("openai/gpt-5.6-luna")).toEqual({
-      model: "openai/gpt-5.6-luna",
-      matchedModel: "gpt-5.6-luna",
-      maxTokens: 128_000,
+    const shippedLimits = listShippedModelOutputTokenLimits();
+    const model = listShippedPresetModelIds().find((candidate) => !candidate.includes("/"));
+    if (!model) throw new Error("expected a providerless shipped model id");
+    const prefixedModel = `provider/${model}`;
+    expect(resolveModelOutputTokenLimit(prefixedModel)).toEqual({
+      model: prefixedModel,
+      matchedModel: model,
+      maxTokens: shippedLimits[model],
       source: "shipped-preset",
     });
   });
 
-  it("covers OpenRouter's resolved model id after provider parsing", () => {
-    expect(resolveModelOutputTokenLimit("openai/gpt-4.1-mini")).toEqual({
-      model: "openai/gpt-4.1-mini",
-      matchedModel: "openai/gpt-4.1-mini",
-      maxTokens: 8192,
+  it("covers a provider-routed preset model after the outer provider is parsed", () => {
+    const shippedLimits = listShippedModelOutputTokenLimits();
+    const canonicalModel = listShippedPresetModelIds().find(
+      (candidate) => candidate.split("/").length > 2,
+    );
+    if (!canonicalModel) throw new Error("expected a nested provider-routed model id");
+    const parsedModel = canonicalModel.split("/").slice(1).join("/");
+    expect(resolveModelOutputTokenLimit(parsedModel)).toEqual({
+      model: parsedModel,
+      matchedModel: parsedModel,
+      maxTokens: shippedLimits[parsedModel],
       source: "shipped-preset",
     });
   });

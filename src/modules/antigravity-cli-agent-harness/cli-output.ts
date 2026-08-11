@@ -2,6 +2,10 @@ import type {
   AgentHarnessWriter,
   KotaAgentMessage,
 } from "#core/agent-harness/index.js";
+import type {
+  KotaJsonObject,
+  KotaJsonValue,
+} from "#core/agent-harness/message-protocol.js";
 
 type AntigravityUsage = {
   input_tokens?: number;
@@ -10,7 +14,7 @@ type AntigravityUsage = {
 
 type AntigravityToolInfo = {
   name?: string;
-  parameters?: Record<string, unknown>;
+  parameters?: KotaJsonObject;
   error?: { message?: string };
 };
 
@@ -28,7 +32,7 @@ type AntigravityResult = {
   conversation_id?: string;
   status?: string;
   response?: string;
-  structured_output?: unknown;
+  structured_output?: KotaJsonValue;
   error?: string;
   num_turns?: number;
   usage?: AntigravityUsage;
@@ -44,7 +48,7 @@ type AntigravityEvent = {
 export type CollectedAntigravityOutput = {
   streamedText: string;
   responseText?: string;
-  structuredOutput?: unknown;
+  structuredOutput?: KotaJsonValue;
   hasTerminalResult: boolean;
   sessionId?: string;
   cliError?: string;
@@ -89,7 +93,7 @@ export function collectAntigravityOutput(args: {
   return (async () => {
     const chunks: string[] = [];
     let responseText: string | undefined;
-    let structuredOutput: unknown;
+    let structuredOutput: KotaJsonValue | undefined;
     let hasTerminalResult = false;
     let sessionId: string | undefined;
     let cliError: string | undefined;
@@ -190,7 +194,7 @@ export function collectAntigravityOutput(args: {
       await emit(args.onMessage, {
         type: "raw",
         adapter: "antigravity-cli",
-        payload: event as unknown as Record<string, unknown>,
+        payload: { ...event },
         ...(sessionId !== undefined ? { sessionId } : {}),
       });
     }

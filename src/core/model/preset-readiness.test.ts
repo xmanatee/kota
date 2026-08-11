@@ -191,25 +191,22 @@ describe("preset harness readiness", () => {
 
   it("reports missing env-auth alternatives without making provider calls", () => {
     registerGeminiReadinessHarness();
+    const preset = getPreset("gemini");
 
-    const readiness = collectPresetHarnessReadiness(getPreset("gemini"), {
+    const readiness = collectPresetHarnessReadiness(preset, {
       env: {},
       now: () => new Date("2026-05-14T00:00:00.000Z"),
     });
 
     expect(readiness).toMatchObject({
-      presetId: "gemini",
-      harnessId: "gemini",
-      defaultModel: "gemini-2.5-pro",
-      tiers: {
-        fast: "gemini-2.5-flash-lite",
-        balanced: "gemini-2.5-flash",
-        capable: "gemini-2.5-pro",
-      },
+      presetId: preset.id,
+      harnessId: preset.harness,
+      defaultModel: preset.defaultModel,
+      tiers: preset.tiers,
       auth: {
         mode: "env",
         ready: false,
-        missing: ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
+        missing: preset.authEnv,
       },
       adapter: {
         adapterKind: "provider-sdk",

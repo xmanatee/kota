@@ -1,0 +1,1 @@
+Replace configuration snapshots with behavioral coverage

@@ -56,6 +56,11 @@
   at external I/O boundaries, and only when the normalized result is explicit.
 - Do not add test-only production flags, hooks, or override parameters just to make tests easier.
 - Prefer designs that are naturally testable through clear boundaries and explicit inputs and outputs.
+- Test configuration consumers, not copies of configuration data. Schema and
+  validator tests should exercise accepted and rejected shapes; resolution and
+  integration tests should exercise precedence, propagation, no-fallback
+  behavior, and observable effects. Inspect literal registries directly unless
+  a generated projection is being compared with its canonical source.
 - Avoid optimizing healthy mechanisms for speed or cost at the expense of quality, clarity, or capability.
 - Owner-visible product quality outranks internal meta-work. When CLI, client,
   daemon status, approvals, owner requests, setup, or blocked-work visibility

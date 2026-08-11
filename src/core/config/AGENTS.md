@@ -18,6 +18,11 @@ Config fields, defaults, and enum values are code-owned contracts. Keep the
 TypeScript schema, JSON Schema generation, warnings, and focused tests as the
 source of truth instead of maintaining a parallel prose catalog.
 
+Tests here cover parsing, sanitization, validation, layer precedence, trust
+boundaries, and downstream propagation. Do not assert a handwritten inventory
+of config keys or copy shipped default values merely to freeze the registry;
+inspect declarative values in their canonical source.
+
 Machine authority keys (`trustedProjects`, `scopePolicies`, `scopeAuthority`)
 are global-config only. Always strip them from project config and caller
 overrides, including for an otherwise trusted project; daemon mutations go

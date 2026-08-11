@@ -6,7 +6,6 @@ import {
   listShippedPresetIds,
   listShippedPresets,
   mergePresetTiers,
-  PRESET_ENV_VAR,
   type Preset,
   resolvePreset,
   resolvePresetTierModel,
@@ -14,21 +13,6 @@ import {
 } from "./preset.js";
 
 describe("shipped preset registry", () => {
-  it("includes the canonical claude/codex/openrouter/openrouter-lab/gemini/gemini-cli/antigravity-cli presets", () => {
-    const ids = listShippedPresetIds();
-    expect(ids).toEqual(
-      expect.arrayContaining([
-        "claude",
-        "codex",
-        "openrouter",
-        "openrouter-lab",
-        "gemini",
-        "gemini-cli",
-        "antigravity-cli",
-      ]),
-    );
-  });
-
   it("every shipped preset declares model tiers and an explicit auth contract", () => {
     for (const preset of listShippedPresets()) {
       expect(preset.defaultModel.length).toBeGreaterThan(0);
@@ -56,76 +40,20 @@ describe("shipped preset registry", () => {
   });
 
   it("hasPreset returns true for shipped ids and false for unknown ones", () => {
-    expect(hasPreset("claude")).toBe(true);
-    expect(hasPreset("codex")).toBe(true);
-    expect(hasPreset("openrouter")).toBe(true);
-    expect(hasPreset("openrouter-lab")).toBe(true);
-    expect(hasPreset("gemini")).toBe(true);
-    expect(hasPreset("gemini-cli")).toBe(true);
-    expect(hasPreset("antigravity-cli")).toBe(true);
+    for (const id of listShippedPresetIds()) {
+      expect(hasPreset(id)).toBe(true);
+    }
     expect(hasPreset("nonexistent")).toBe(false);
   });
 
   it("getPreset throws a loud error naming the available ids when given an unknown id", () => {
     expect(() => getPreset("nonexistent")).toThrow(
-      /Unknown preset "nonexistent".*claude.*codex.*gemini.*gemini-cli.*antigravity-cli/,
+      `Unknown preset "nonexistent". Shipped presets: ${listShippedPresetIds().join(", ")}.`,
     );
-  });
-
-  it("PRESET_ENV_VAR is the documented KOTA_PRESET env var name", () => {
-    expect(PRESET_ENV_VAR).toBe("KOTA_PRESET");
   });
 
   it("the shipped default preset is part of the shipped registry", () => {
     expect(hasPreset(SHIPPED_DEFAULT_PRESET_ID)).toBe(true);
-  });
-
-  it("maps the Codex quality tiers to the GPT-5.6 family", () => {
-    expect(getPreset("codex")).toMatchObject({
-      defaultModel: "gpt-5.6-sol",
-      tiers: {
-        fast: "gpt-5.6-luna",
-        balanced: "gpt-5.6-terra",
-        capable: "gpt-5.6-sol",
-      },
-      outputTokenLimits: {
-        fast: 128_000,
-        balanced: 128_000,
-        capable: 128_000,
-      },
-      defaultEffort: "xhigh",
-    });
-  });
-
-  it("exposes OpenRouter lab preset metadata for diagnostics while keeping it non-default", () => {
-    const preset = getPreset("openrouter-lab");
-    const metadata = {
-      presetId: preset.id,
-      harness: preset.harness,
-      authEnv: preset.authEnv,
-      defaultModel: preset.defaultModel,
-      tiers: preset.tiers,
-      outputTokenLimits: preset.outputTokenLimits,
-      defaultEffort: preset.defaultEffort,
-    };
-    expect(SHIPPED_DEFAULT_PRESET_ID).not.toBe("openrouter-lab");
-    expect(metadata).toEqual({
-      presetId: "openrouter-lab",
-      harness: "openai-tools",
-      authEnv: ["OPENROUTER_API_KEY"],
-      defaultModel: "openrouter/z-ai/glm-5.2",
-      tiers: {
-        fast: "openrouter/deepseek/deepseek-v4-flash",
-        balanced: "openrouter/qwen/qwen3.7-plus",
-        capable: "openrouter/z-ai/glm-5.2",
-      },
-      outputTokenLimits: {
-        fast: 65536,
-        balanced: 65536,
-        capable: 32768,
-      },
-      defaultEffort: "high",
-    });
   });
 });
 
@@ -175,67 +103,31 @@ describe("mergePresetTiers and resolvePresetTierModel", () => {
   });
 
   it("operator overrides win on a per-tier basis", () => {
-    const merged = mergePresetTiers(codex, { capable: "gpt-5.6-sol-override" });
-    expect(merged.capable).toBe("gpt-5.6-sol-override");
+    const merged = mergePresetTiers(codex, { capable: "operator-capable-model" });
+    expect(merged.capable).toBe("operator-capable-model");
     expect(merged.fast).toBe(codex.tiers.fast);
     expect(merged.balanced).toBe(codex.tiers.balanced);
   });
 
   it("resolvePresetTierModel honors overrides", () => {
     expect(resolvePresetTierModel(codex, "fast")).toBe(codex.tiers.fast);
-    expect(resolvePresetTierModel(codex, "fast", { fast: "gpt-tiny" })).toBe("gpt-tiny");
+    expect(resolvePresetTierModel(codex, "fast", { fast: "operator-fast-model" })).toBe(
+      "operator-fast-model",
+    );
   });
 });
 
 describe("checkPresetAuth", () => {
   const codex = getPreset("codex");
-  const openrouter = getPreset("openrouter");
-  const openrouterLab = getPreset("openrouter-lab");
-  const claude = getPreset("claude");
-  const gemini = getPreset("gemini");
-  const geminiCli = getPreset("gemini-cli");
-  const antigravityCli = getPreset("antigravity-cli");
 
-  it("does not require env auth for the Codex CLI preset", () => {
-    const { missing } = checkPresetAuth(codex, {});
-    expect(missing).toEqual([]);
-  });
-
-  it("does not require env auth for the native Gemini CLI preset", () => {
-    const { missing } = checkPresetAuth(geminiCli, {});
-    expect(missing).toEqual([]);
-  });
-
-  it("does not require env auth for the native Antigravity CLI preset", () => {
-    const { missing } = checkPresetAuth(antigravityCli, {});
-    expect(missing).toEqual([]);
-  });
-
-  it("reports the missing var when an env-auth preset is unset", () => {
-    const result = checkPresetAuth(claude, {});
-    expect(result.missing).toEqual(claude.authEnv);
-  });
-
-  it("uses OPENROUTER_API_KEY for the OpenRouter preset", () => {
-    expect(checkPresetAuth(openrouter, {}).missing).toEqual(["OPENROUTER_API_KEY"]);
-    expect(checkPresetAuth(openrouter, { OPENROUTER_API_KEY: "sk-or-test" }).missing).toEqual([]);
-  });
-
-  it("uses OPENROUTER_API_KEY for the OpenRouter lab preset", () => {
-    expect(checkPresetAuth(openrouterLab, {}).missing).toEqual(["OPENROUTER_API_KEY"]);
-    expect(checkPresetAuth(openrouterLab, { OPENROUTER_API_KEY: "sk-or-test" }).missing).toEqual([]);
-  });
-
-  it("treats multi-alternate auth (gemini) as satisfied when any alternate is set", () => {
-    const both = checkPresetAuth(gemini, { GOOGLE_API_KEY: "g-test" });
-    expect(both.missing).toEqual([]);
-    const neither = checkPresetAuth(gemini, {});
-    expect(neither.missing).toEqual(gemini.authEnv);
-  });
-
-  it("does not require the same alternate name across presets", () => {
-    const r = checkPresetAuth(claude, { ANTHROPIC_API_KEY: "key" });
-    expect(r.missing).toEqual([]);
+  it("honors each shipped preset's declared env-auth contract", () => {
+    for (const preset of listShippedPresets()) {
+      const unset = checkPresetAuth(preset, {});
+      expect(unset.missing).toEqual(preset.authEnv);
+      for (const envName of preset.authEnv) {
+        expect(checkPresetAuth(preset, { [envName]: "test-key" }).missing).toEqual([]);
+      }
+    }
   });
 
   it("returns the inspected preset for downstream messaging", () => {

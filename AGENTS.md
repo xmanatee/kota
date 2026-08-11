@@ -9,5 +9,8 @@ the repo.
 - Before touching data files or task state, read `data/AGENTS.md` and `data/tasks/AGENTS.md`.
 - When touching a directory, read its local `AGENTS.md` first if present.
 - Keep docs, data files, and local `AGENTS.md` files aligned with reality.
+- Test configuration through validation, resolution, propagation, rejection,
+  or observable effects. Inspect declarative values in their canonical source;
+  do not copy literal catalogs into tests merely to freeze them.
 - Native CLI agents receive read-only Git metadata. Workflow runtime owns index
   staging and commits; agents must not write Git metadata directly.

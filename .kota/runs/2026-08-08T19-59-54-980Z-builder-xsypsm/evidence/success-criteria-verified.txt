@@ -1,0 +1,5 @@
+1. Verified in root `AGENTS.md`, `docs/STANDARDS.md`, `src/core/config/AGENTS.md`, and `src/core/model/AGENTS.md`.
+2. Verified by the registered `configuration-test-audit.md`, which records remove, replace, and keep rationales by test surface.
+3. Verified by removal of literal preset, config-key, provider-preset, OpenRouter capability/tier, token-limit, and pricing catalogs from tests.
+4. Verified by 12 focused and cross-subsystem test files passing 184 tests covering validation, resolution, propagation, routing, rejection, and cost effects.
+5. Verified by two focused source searches returning zero copied-catalog matches and the clean focused test run recorded in `focused-tests-transcript.txt`.

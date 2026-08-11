@@ -28,7 +28,9 @@ describe("loadConfig", () => {
   }
 
   it("returns empty config when no files exist", () => {
-    const config = loadConfig(tmpDir);
+    const config = loadConfig(tmpDir, undefined, {
+      globalConfigPath: join(tmpDir, "missing-global-config.json"),
+    });
     expect(config).toEqual({});
   });
 
@@ -37,11 +39,11 @@ describe("loadConfig", () => {
     mkdirSync(configDir, { recursive: true });
     writeFileSync(
       join(configDir, "config.json"),
-      JSON.stringify({ model: "claude-opus-4-7", maxTokens: 4096 }),
+      JSON.stringify({ model: "project-model", maxTokens: 4096 }),
     );
 
     const config = loadTrustedConfig();
-    expect(config.model).toBe("claude-opus-4-7");
+    expect(config.model).toBe("project-model");
     expect(config.maxTokens).toBe(4096);
   });
 
@@ -121,11 +123,11 @@ describe("loadConfig", () => {
     mkdirSync(configDir, { recursive: true });
     writeFileSync(
       join(configDir, "config.json"),
-      JSON.stringify({ model: "claude-haiku-4-5-20251001", maxTokens: 2048 }),
+      JSON.stringify({ model: "file-model", maxTokens: 2048 }),
     );
 
-    const config = loadTrustedConfig({ model: "claude-opus-4-7" });
-    expect(config.model).toBe("claude-opus-4-7");
+    const config = loadTrustedConfig({ model: "override-model" });
+    expect(config.model).toBe("override-model");
     expect(config.maxTokens).toBe(2048); // not overridden
   });
 
@@ -160,12 +162,12 @@ describe("loadConfig", () => {
     mkdirSync(configDir, { recursive: true });
     writeFileSync(
       join(configDir, "config.json"),
-      JSON.stringify({ agentModels: { builder: "claude-opus-4-7", explorer: "claude-haiku-4-5-20251001" } }),
+      JSON.stringify({ agentModels: { builder: "builder-model", explorer: "explorer-model" } }),
     );
 
     const config = loadTrustedConfig();
-    expect(config.agentModels?.builder).toBe("claude-opus-4-7");
-    expect(config.agentModels?.explorer).toBe("claude-haiku-4-5-20251001");
+    expect(config.agentModels?.builder).toBe("builder-model");
+    expect(config.agentModels?.explorer).toBe("explorer-model");
   });
 
   it("sanitizes agentModels: drops non-string and empty values", () => {
@@ -173,11 +175,11 @@ describe("loadConfig", () => {
     mkdirSync(configDir, { recursive: true });
     writeFileSync(
       join(configDir, "config.json"),
-      JSON.stringify({ agentModels: { valid: "claude-opus-4-7", bad: 42, empty: "" } }),
+      JSON.stringify({ agentModels: { valid: "valid-model", bad: 42, empty: "" } }),
     );
 
     const config = loadTrustedConfig();
-    expect(config.agentModels?.valid).toBe("claude-opus-4-7");
+    expect(config.agentModels?.valid).toBe("valid-model");
     expect(config.agentModels?.bad).toBeUndefined();
     expect(config.agentModels?.empty).toBeUndefined();
   });
@@ -187,12 +189,12 @@ describe("loadConfig", () => {
     mkdirSync(configDir, { recursive: true });
     writeFileSync(
       join(configDir, "config.json"),
-      JSON.stringify({ agentModels: { builder: "claude-opus-4-7", explorer: "claude-sonnet-4-6" } }),
+      JSON.stringify({ agentModels: { builder: "file-builder-model", explorer: "file-explorer-model" } }),
     );
 
-    const config = loadTrustedConfig({ agentModels: { explorer: "claude-haiku-4-5-20251001" } });
-    expect(config.agentModels?.builder).toBe("claude-opus-4-7");      // from file
-    expect(config.agentModels?.explorer).toBe("claude-haiku-4-5-20251001"); // overridden
+    const config = loadTrustedConfig({ agentModels: { explorer: "override-explorer-model" } });
+    expect(config.agentModels?.builder).toBe("file-builder-model");
+    expect(config.agentModels?.explorer).toBe("override-explorer-model");
   });
 
   it("handles malformed JSON gracefully", () => {
@@ -200,7 +202,9 @@ describe("loadConfig", () => {
     mkdirSync(configDir, { recursive: true });
     writeFileSync(join(configDir, "config.json"), "not json {{{");
 
-    const config = loadConfig(tmpDir);
+    const config = loadConfig(tmpDir, undefined, {
+      globalConfigPath: join(tmpDir, "missing-global-config.json"),
+    });
     expect(config).toEqual({});
   });
 
@@ -209,7 +213,9 @@ describe("loadConfig", () => {
     mkdirSync(configDir, { recursive: true });
     writeFileSync(join(configDir, "config.json"), JSON.stringify([1, 2, 3]));
 
-    const config = loadConfig(tmpDir);
+    const config = loadConfig(tmpDir, undefined, {
+      globalConfigPath: join(tmpDir, "missing-global-config.json"),
+    });
     expect(config).toEqual({});
   });
 

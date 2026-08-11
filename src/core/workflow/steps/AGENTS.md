@@ -12,8 +12,7 @@ This directory owns step execution strategies and context construction.
   workflow tracing, and live scope authority. Direct native harness calls carry
   that authority into fail-closed capability preflight before process launch.
 
-New step types add a new strategy file here and a dispatch case in
-`step-executor.ts`.
+New step types add a new strategy file here and a dispatch case in `step-executor.ts`.
 
 ## Per-Phase Files Inside `step-executor-agent.ts`
 
@@ -129,7 +128,7 @@ that protects repair loops from runaway-judge throws.
 The repair-loop's own agent invocation (`executeRepairAgentIteration` in
 `../repair-loop.ts`) classifies SDK `isError` results through the same path:
 when the SDK exhausts its internal retries on a provider 5xx, it throws a
-non-retryable `AgentStepRuntimeError` so the run-executor surfaces a
-classified backoff signal to `AgentBackoffManager`. Without this, a
+non-retryable `AgentStepRuntimeError` so the run-executor surfaces a classified
+backoff signal to `AgentBackoffManager`. Without this, a
 provider outage during repair leaks as a plain `Error` and the dispatcher
 fires the next agent workflow into the same saturated provider.

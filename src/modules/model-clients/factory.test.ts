@@ -6,7 +6,6 @@ import { AnthropicModelClient } from "./anthropic.js";
 import {
 	apiKeyNameForProvider,
 	createModelClientImpl,
-	PROVIDER_PRESETS,
 	parseModelString,
 	resolveApiKey,
 } from "./factory.js";
@@ -121,44 +120,6 @@ describe("apiKeyNameForProvider", () => {
 		expect(apiKeyNameForProvider("openrouter")).toBe("OPENROUTER_API_KEY");
 		expect(apiKeyNameForProvider("ollama")).toBe("");
 		expect(apiKeyNameForProvider("custom-provider")).toBe("OPENAI_API_KEY");
-	});
-});
-
-describe("PROVIDER_PRESETS", () => {
-	it("has expected providers", () => {
-		expect(Object.keys(PROVIDER_PRESETS)).toEqual(
-			expect.arrayContaining([
-				"openai",
-				"anthropic-oai",
-				"ollama",
-				"groq",
-				"together",
-				"openrouter",
-				"lmstudio",
-			]),
-		);
-	});
-
-	it("ollama defaults to localhost:11434", () => {
-		expect(PROVIDER_PRESETS.ollama.baseUrl).toBe(
-			"http://localhost:11434/v1",
-		);
-	});
-
-	it("reasoning-capable provider presets declare reasoning translators", () => {
-		expect(PROVIDER_PRESETS.openai.effortTranslator?.wireSurface).toBe(
-			"openai-reasoning-effort",
-		);
-		expect(PROVIDER_PRESETS.openrouter.effortTranslator?.wireSurface).toBe(
-			"openrouter-reasoning-effort",
-		);
-		expect(PROVIDER_PRESETS["anthropic-oai"].effortTranslator?.wireSurface).toBe(
-			"anthropic-thinking",
-		);
-		expect(PROVIDER_PRESETS.ollama.effortTranslator).toBeUndefined();
-		expect(PROVIDER_PRESETS.groq.effortTranslator).toBeUndefined();
-		expect(PROVIDER_PRESETS.together.effortTranslator).toBeUndefined();
-		expect(PROVIDER_PRESETS.lmstudio.effortTranslator).toBeUndefined();
 	});
 });
 

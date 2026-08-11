@@ -1,0 +1,5 @@
+1. Root, model, and configuration guidance requires tests to verify validation, resolution, propagation, rejection, or observable behavior instead of copying declarative values.
+2. The completed task records every audited model, preset, or configuration test with a keep, remove, or replace rationale.
+3. Redundant literal assertions and snapshots are removed without replacing them with copied catalogs.
+4. Remaining focused tests clearly cover configuration validation, precedence, propagation, runtime selection, rejection, or observable effects.
+5. Source-search and focused-test evidence demonstrates that intentional canonical configuration value changes no longer require unrelated test-data edits.

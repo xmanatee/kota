@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  KNOWN_CONFIG_KEYS,
   warnIgnoredUntrustedProjectConfig,
   warnInvalidConcurrencyConfig,
   warnUnknownConfigKeys,
@@ -32,7 +31,7 @@ describe("warnUnknownConfigKeys", () => {
   it("emits no warnings when config has only known keys", () => {
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
-      JSON.stringify({ model: "claude-sonnet-4-6", approvalTtlMs: 60000 }),
+      JSON.stringify({ model: "test-model", approvalTtlMs: 60000 }),
     );
     const warnings: string[] = [];
     warnUnknownConfigKeys(projectDir, (msg) => warnings.push(msg));
@@ -42,7 +41,7 @@ describe("warnUnknownConfigKeys", () => {
   it("emits a warning for each unknown top-level key", () => {
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
-      JSON.stringify({ model: "claude-sonnet-4-6", typoKey: true, anotherBadKey: 42 }),
+      JSON.stringify({ model: "test-model", typoKey: true, anotherBadKey: 42 }),
     );
     const warnings: string[] = [];
     warnUnknownConfigKeys(projectDir, (msg) => warnings.push(msg));
@@ -103,28 +102,6 @@ describe("warnUnknownConfigKeys", () => {
     warnUnknownConfigKeys(projectDir, (msg) => warnings.push(msg), moduleKeys);
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain('"totallyUnknown"');
-  });
-});
-
-describe("KNOWN_CONFIG_KEYS", () => {
-  it("contains the core-owned keys", () => {
-    const expected = [
-      "model", "editorModel", "maxTokens", "thinking", "thinkingBudget",
-      "verbose", "skipConfirmations", "trustedProjects", "autoEnable", "user", "aliases", "reflection",
-      "guardrails", "modules", "foreignModules", "providers",
-      "modelTiers", "modelOutputTokenLimits", "agentModels", "defaultAgentHarness", "defaultPreset", "approvalTtlMs",
-      "runsGc", "serve", "cli", "log", "daemon", "notifications", "workflow",
-      "moduleMonitoring",
-    ];
-    for (const key of expected) {
-      expect(KNOWN_CONFIG_KEYS.has(key), `missing key: ${key}`).toBe(true);
-    }
-  });
-
-  it("does not contain module-registered keys", () => {
-    for (const key of ["scheduler", "webhooks", "mcp", "tracing", "failover", "modelProvider"]) {
-      expect(KNOWN_CONFIG_KEYS.has(key), `should not contain module key: ${key}`).toBe(false);
-    }
   });
 });
 
@@ -243,7 +220,7 @@ describe("warnInvalidConcurrencyConfig", () => {
   it("emits no warnings when scheduler key is absent", () => {
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
-      JSON.stringify({ model: "claude-sonnet-4-6" }),
+      JSON.stringify({ model: "test-model" }),
     );
     const warnings: string[] = [];
     warnInvalidConcurrencyConfig(projectDir, (msg) => warnings.push(msg));

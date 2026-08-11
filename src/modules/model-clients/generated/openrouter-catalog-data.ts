@@ -81,12 +81,6 @@ export type OpenRouterModelCapabilities = OpenRouterObservedModel & {
 
 export type OpenRouterCandidateSetId = "openrouter-lab";
 
-export const OPENROUTER_LAB_PRESET_TIER_MODELS = {
-	fast: "deepseek/deepseek-v4-flash",
-	balanced: "qwen/qwen3.7-plus",
-	capable: "z-ai/glm-5.2",
-} as const;
-
 export const OPENROUTER_LAB_CANDIDATE_MODEL_IDS = [
 	"z-ai/glm-5.2",
 	"moonshotai/kimi-k2.7-code",

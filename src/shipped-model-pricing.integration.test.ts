@@ -5,16 +5,10 @@ import {
 	MODEL_PRICING_PROVIDER_TOKEN,
 	resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
-import { createShippedModelPricingProvider } from "#modules/model-clients/pricing.js";
-
-const TARGET_PRICED_MODELS = [
-	"gpt-5.6-sol",
-	"gpt-5.6-terra",
-	"gpt-5.6-luna",
-	"gemini-2.5-pro",
-	"gemini-2.5-flash",
-	"gemini-2.5-flash-lite",
-] as const;
+import {
+	createShippedModelPricingProvider,
+	listShippedModelPricingStatuses,
+} from "#modules/model-clients/pricing.js";
 
 describe("shipped model pricing and CostTracker", () => {
 	beforeEach(() => {
@@ -30,8 +24,11 @@ describe("shipped model pricing and CostTracker", () => {
 		resetProviderRegistry();
 	});
 
-	it("produces nonzero representative costs for shipped Codex/OpenAI and Gemini models", () => {
-		for (const model of TARGET_PRICED_MODELS) {
+	it("produces nonzero costs for every shipped model classified as priced", () => {
+		const pricedModels = listShippedModelPricingStatuses()
+			.filter((status) => status.kind === "priced")
+			.map((status) => status.model);
+		for (const model of pricedModels) {
 			const tracker = new CostTracker();
 			tracker.addUsage(model, {
 				input_tokens: 1_000,

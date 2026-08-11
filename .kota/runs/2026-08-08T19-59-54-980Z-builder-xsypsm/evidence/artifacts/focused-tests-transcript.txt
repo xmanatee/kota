@@ -1,0 +1,62 @@
+# Behavioral configuration coverage transcript
+
+Command:
+pnpm test src/core/config/config.test.ts src/core/config/config-warnings.test.ts src/core/model/preset.test.ts src/core/model/preset-readiness.test.ts src/core/model/output-token-limits.test.ts src/modules/model-clients/factory.test.ts src/modules/model-clients/openrouter-catalog.test.ts src/modules/model-clients/openrouter-capabilities.test.ts src/modules/model-clients/pricing.test.ts src/shipped-model-pricing.integration.test.ts src/no-hardcoded-model-defaults.integration.test.ts src/preset-parity-model-sweep.integration.test.ts
+
+Result:
+Test Files  12 passed (12)
+Tests       184 passed (184)
+Duration    606ms
+
+Command:
+pnpm exec biome check src/core/config/config.test.ts src/core/config/config-warnings.test.ts src/core/model/output-token-limits.test.ts src/core/model/preset-readiness.test.ts src/core/model/preset.test.ts src/modules/model-clients/factory.test.ts src/modules/model-clients/generated/openrouter-catalog-data.ts src/modules/model-clients/openrouter-capabilities.test.ts src/modules/model-clients/openrouter-catalog.test.ts src/modules/model-clients/openrouter-catalog.ts src/modules/model-clients/pricing.test.ts src/shipped-model-pricing.integration.test.ts
+
+Result:
+Checked 12 files. No fixes applied.
+
+Command:
+pnpm typecheck
+
+Result:
+tsc --noEmit completed successfully.
+
+Command:
+rg -l 'gpt-5\.6-(sol|terra|luna)|claude-(opus|sonnet|haiku)-|gemini-(2\.5|3\.6)-|openrouter/(deepseek|qwen|z-ai)' <rewritten config, preset, readiness, output-limit, catalog, capability, and pricing tests> | wc -l
+
+Result:
+0
+
+Command:
+rg -l 'TARGET_.*MODELS|OPENROUTER_LAB_PRESET_TIER_MODELS|describe\("PROVIDER_PRESETS"|describe\("KNOWN_CONFIG_KEYS"|PRESET_ENV_VAR is the documented' src/core src/modules/model-clients src/shipped-model-pricing.integration.test.ts | wc -l
+
+Result:
+0
+
+Additional repository checks:
+- `src/docs-surface.test.ts` was attempted with the expanded suite. Its only failure was an environment EPERM while reading the policy-denied `deploy/telegram-assistant/.env.example`, before the assertion could inspect documentation.
+- `pnpm lint` completed with repository-pre-existing warnings in unrelated test files and no errors in the changed files.
+- `pnpm validate-tasks` completed successfully after workflow-host staging preserved the canonical task move.
+
+## Post-check repair validation
+
+Command:
+pnpm test src/core/config/config.test.ts src/strict-types-policy.integration.test.ts src/core/agent-harness/neutral-protocol-shape.test.ts src/modules/antigravity-cli-agent-harness/adapter.test.ts src/modules/model-clients/openrouter-catalog.test.ts src/modules/model-clients/openrouter-capabilities.test.ts
+
+Result:
+Test Files  6 passed (6)
+Tests       45 passed (45)
+
+Command:
+pnpm test src/core/config/config.test.ts src/core/config/config-warnings.test.ts src/core/model/preset.test.ts src/core/model/preset-readiness.test.ts src/core/model/output-token-limits.test.ts src/modules/model-clients/factory.test.ts src/modules/model-clients/openrouter-catalog.test.ts src/modules/model-clients/openrouter-capabilities.test.ts src/modules/model-clients/pricing.test.ts src/shipped-model-pricing.integration.test.ts src/no-hardcoded-model-defaults.integration.test.ts src/preset-parity-model-sweep.integration.test.ts
+
+Result:
+Test Files  12 passed (12)
+Tests       184 passed (184)
+
+Additional repair checks:
+- `pnpm run typecheck` completed successfully.
+- `pnpm run build` completed successfully.
+- Changed production and test TypeScript files pass `pnpm exec biome check`.
+- The scoped documentation ratchet is exactly `134/134` lines for `src/core/workflow/steps/AGENTS.md`.
+- The autonomy decision check reports `OK: autonomy-change-decision.json covers 2 material autonomy file(s)` against the currently staged catalog cleanup; the artifact also covers the harness-class repair files the workflow host will stage.
+- A repository-wide `pnpm test` attempt reached 1,231 passing files and 12,497 passing tests. Remaining failures were caused by the managed sandbox denying traversal of its temp parent, localhost `listen`, and the protected Telegram `.env.example`. Re-running six representative temp-dependent approval suites with a workspace-local `TMPDIR` passed 24/24 tests unchanged.

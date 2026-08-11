@@ -16,6 +16,7 @@ import {
   type NativeCliSandboxProcess,
   withNativeCliSandbox,
 } from "#core/agent-harness/native-cli-sandbox.js";
+import type { AgentOutputSchema } from "#core/agent-harness/types.js";
 import {
   type CollectedAntigravityOutput,
   collectAntigravityOutput,
@@ -83,7 +84,7 @@ type CollectTextFromAntigravityCliArgs = {
   cwd: string;
   model: string;
   effort: AgentEffort;
-  outputSchema?: Record<string, unknown>;
+  outputSchema?: AgentOutputSchema;
   readOnly: boolean;
   writableRoots: readonly string[];
   authorityConfigPath: string | undefined;

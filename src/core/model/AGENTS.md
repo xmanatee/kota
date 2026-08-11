@@ -23,3 +23,8 @@ routing, the `Preset` abstraction, and streaming behavior.
   surfaced for legacy callers; consumers should query the active preset via
   `mergePresetTiers(preset, overrides)` instead of importing the constant
   directly.
+- Model tests cover registry validation, resolution precedence, override
+  behavior, adapter propagation, rejection, and observable routing. Do not copy
+  shipped preset ids, model names, tier maps, token limits, or pricing rows into
+  expected test catalogs; derive behavioral expectations from the canonical
+  registry.

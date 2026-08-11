@@ -3,12 +3,9 @@ import { getPreset } from "#core/model/preset.js";
 import {
 	assertOpenRouterCapabilityCatalogFresh,
 	getOpenRouterModelCapabilities,
-	OPENROUTER_DIRECT_PROVIDER_ROUTE_DECISIONS,
 	OPENROUTER_LAB_CANDIDATE_MODEL_IDS,
-	OPENROUTER_LAB_PRESET_TIER_MODELS,
 	OPENROUTER_MODEL_CATALOG_OBSERVED_AT,
 	OPENROUTER_MODEL_CATALOG_SOURCE_URL,
-	OPENROUTER_REQUESTED_CANDIDATE_RESOLUTIONS,
 	resolveFreshOpenRouterCandidateSet,
 	resolveOpenRouterCandidateSet,
 } from "./openrouter-catalog.js";
@@ -23,12 +20,6 @@ describe("OpenRouter capability catalog", () => {
 		expect(candidates.map((candidate) => candidate.id)).toEqual([
 			...OPENROUTER_LAB_CANDIDATE_MODEL_IDS,
 		]);
-		expect(candidates.map((candidate) => candidate.id)).toContain(
-			"inclusionai/ring-2.6-1t",
-		);
-		expect(candidates.map((candidate) => candidate.id)).not.toContain(
-			"inclusionai/ling-2.6-1t",
-		);
 
 		for (const candidate of candidates) {
 			expect(candidate.id).not.toBe("openrouter/auto");
@@ -50,66 +41,11 @@ describe("OpenRouter capability catalog", () => {
 		}
 	});
 
-	it("records capability differences that request validation must preserve", () => {
-		const glm = getOpenRouterModelCapabilities("z-ai/glm-5.2");
-		expect(glm).toMatchObject({
-			providerModelId: "openrouter/z-ai/glm-5.2",
-			contextLength: 1_048_576,
-			maxOutputTokens: 32_768,
-			supportsTools: true,
-			supportsStructuredOutputs: true,
-			supportsParallelToolCalls: false,
-			supportsReasoning: true,
-			mandatoryReasoning: false,
-			reasoningEffortLevels: ["xhigh", "high"],
-		});
-
-		const kimi = getOpenRouterModelCapabilities("moonshotai/kimi-k2.7-code");
-		expect(kimi.supportsParallelToolCalls).toBe(true);
-		expect(kimi.mandatoryReasoning).toBe(true);
-		expect(kimi.inputModalities).toEqual(["text", "image"]);
-
-		const kat = getOpenRouterModelCapabilities("kwaipilot/kat-coder-pro-v2");
-		expect(kat.supportsTools).toBe(true);
-		expect(kat.supportsReasoning).toBe(false);
-		expect(kat.supportsStructuredOutputs).toBe(true);
-
-		const laguna = getOpenRouterModelCapabilities("poolside/laguna-m.1");
-		expect(laguna.supportsTools).toBe(true);
-		expect(laguna.supportsReasoning).toBe(true);
-		expect(laguna.supportsStructuredOutputs).toBe(false);
-
-		const hy3 = getOpenRouterModelCapabilities("tencent/hy3-preview");
-		expect(hy3.maxOutputTokens).toBeNull();
-		expect(hy3.reasoningEffortLevels).toEqual(["high", "low", "none"]);
-
-		const ring = getOpenRouterModelCapabilities("inclusionai/ring-2.6-1t");
-		expect(ring).toMatchObject({
-			name: "inclusionAI: Ring-2.6-1T",
-			providerModelId: "openrouter/inclusionai/ring-2.6-1t",
-			supportsTools: true,
-			supportsStructuredOutputs: true,
-			supportsReasoning: true,
-			mandatoryReasoning: false,
-		});
-	});
-
-	it("aligns the non-default OpenRouter lab preset with the candidate catalog", () => {
+	it("resolves every OpenRouter lab preset tier through the capability catalog", () => {
 		const preset = getPreset("openrouter-lab");
-		expect(preset.tiers).toEqual({
-			fast: "openrouter/deepseek/deepseek-v4-flash",
-			balanced: "openrouter/qwen/qwen3.7-plus",
-			capable: "openrouter/z-ai/glm-5.2",
-		});
-		expect(getOpenRouterModelCapabilities(preset.tiers.fast).id).toBe(
-			OPENROUTER_LAB_PRESET_TIER_MODELS.fast,
-		);
-		expect(getOpenRouterModelCapabilities(preset.tiers.balanced).id).toBe(
-			OPENROUTER_LAB_PRESET_TIER_MODELS.balanced,
-		);
-		expect(getOpenRouterModelCapabilities(preset.tiers.capable).id).toBe(
-			OPENROUTER_LAB_PRESET_TIER_MODELS.capable,
-		);
+		for (const model of Object.values(preset.tiers)) {
+			expect(getOpenRouterModelCapabilities(model).providerModelId).toBe(model);
+		}
 	});
 
 	it("keeps local OpenAI-compatible routes outside OpenRouter metadata", () => {
@@ -136,13 +72,5 @@ describe("OpenRouter capability catalog", () => {
 				new Date("2027-01-01T00:00:00.000Z"),
 			),
 		).toThrow(/OpenRouter capability catalog is stale/);
-	});
-
-	it("records requested route decisions without inventing direct providers", () => {
-		expect(OPENROUTER_REQUESTED_CANDIDATE_RESOLUTIONS).toEqual([]);
-		expect(OPENROUTER_DIRECT_PROVIDER_ROUTE_DECISIONS.map((decision) => decision.provider)).toEqual([
-			"z-ai",
-			"moonshotai",
-		]);
 	});
 });

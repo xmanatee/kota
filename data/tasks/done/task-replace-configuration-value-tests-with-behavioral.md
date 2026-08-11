@@ -1,13 +1,13 @@
 ---
 id: task-replace-configuration-value-tests-with-behavioral
 title: Replace configuration-value tests with behavioral coverage
-status: ready
+status: done
 priority: p1
 area: architecture
 task_class: Meta
 summary: Remove tests that merely freeze declarative configuration values and establish project guidance and review checks that require tests to cover mechanisms and behavior.
 created_at: 2026-08-07T01:04:49.507Z
-updated_at: 2026-08-07T01:04:49.507Z
+updated_at: 2026-08-11T05:39:15.059Z
 ---
 
 ## Problem

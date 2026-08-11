@@ -80,6 +80,10 @@ export type AgentHarnessWorkflowContext = {
  */
 export type AgentHarnessStepOverrides = unknown;
 
+/** JSON Schema object whose extension-key values remain opaque to core. */
+export type AgentOutputSchemaValue = unknown;
+export type AgentOutputSchema = Record<string, AgentOutputSchemaValue>;
+
 /**
  * Neutral, KOTA-native run options every adapter consumes.
  *
@@ -97,7 +101,7 @@ export type AgentHarnessRunOptions = {
    * KOTA-owned structured-output contract. Adapters may enforce it through a
    * native provider surface; workflow execution still validates the result.
    */
-  outputSchema?: Record<string, unknown>;
+  outputSchema?: AgentOutputSchema;
   /**
    * Shared ModelClient provider selection for adapters that execute through
    * `createModelClient`. This is KOTA's own model routing surface, not a
