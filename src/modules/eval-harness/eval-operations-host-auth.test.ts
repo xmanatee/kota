@@ -3,7 +3,7 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import "../codex-agent-harness/index.js";
-import { executorExtraEnvForRun } from "./eval-operations.js";
+import { executorExtraEnvForRun } from "./eval-run-execution.js";
 
 describe("eval harness trusted-host auth environment", () => {
   let projectDir: string;

@@ -1,3 +1,4 @@
+import { NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV } from "#core/agent-harness/native-cli-egress-proxy.js";
 import { buildFilteredInheritedSubprocessEnv } from "#core/modules/subprocess-env.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
 import { sessionEnvironmentForExecution } from "#core/tools/session-environment.js";
@@ -11,6 +12,7 @@ const PROVIDER_EGRESS_PROXY_ENV_KEYS = new Set([
   "http_proxy",
   "https_proxy",
   "all_proxy",
+  NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV,
 ]);
 const ENV_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 

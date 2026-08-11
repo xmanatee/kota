@@ -35,6 +35,9 @@ export function workflowExecArgs(
       "--agent-model",
       request.agentExecutionOverride.model,
     );
+    if (request.agentExecutionOverride.effort !== undefined) {
+      args.push("--agent-effort", request.agentExecutionOverride.effort);
+    }
   }
   if (request.triggerPayload !== undefined) {
     args.push("--payload", JSON.stringify(request.triggerPayload));
@@ -48,7 +51,8 @@ export function containerRunArgs(params: {
   workingDir: string;
   replayRecordingsRoot?: string;
   envFilePath: string;
-  execArgs: string[];
+  command: string;
+  commandArgs: string[];
 }): string[] {
   const profile = params.executionProfile.observedOrEnforcedProfile;
   const networkPolicy = params.executionProfile.networkPolicy;
@@ -73,8 +77,8 @@ export function containerRunArgs(params: {
     "--env-file",
     params.envFilePath,
     params.backend.image,
-    "node",
-    ...params.execArgs,
+    params.command,
+    ...params.commandArgs,
   ];
 }
 

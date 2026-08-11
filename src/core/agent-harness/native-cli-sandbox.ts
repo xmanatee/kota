@@ -4,6 +4,7 @@ import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { existingProtectedProjectPaths } from "#core/tools/protected-project-paths.js";
 import { buildMachineAuthoritySandboxLaunch } from "./machine-authority-sandbox.js";
 import {
+  NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV,
   type NativeCliEgressProxy,
   startNativeCliEgressProxy,
 } from "./native-cli-egress-proxy.js";
@@ -174,13 +175,19 @@ export async function withNativeCliSandbox<T>(
       executable,
       packageManager.env,
     );
+    const upstreamProxyUrl = options.env[
+      NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV
+    ]?.trim() || undefined;
     const allowedEgressHosts = options.allowedEgressHosts ?? [];
     if (allowedEgressHosts.length > 0) {
       egressProxy = await startNativeCliEgressProxy(
         allowedEgressHosts,
-        process.platform === "linux"
-          ? join(temporaryDirectory, "provider-egress.sock")
-          : undefined,
+        {
+          ...(process.platform === "linux"
+            ? { unixSocketPath: join(temporaryDirectory, "provider-egress.sock") }
+            : {}),
+          ...(upstreamProxyUrl === undefined ? {} : { upstreamProxyUrl }),
+        },
       );
     }
     const linuxBridge = egressProxy?.address.kind === "unix"
@@ -240,6 +247,8 @@ export async function withNativeCliSandbox<T>(
             : { kind: "offline" },
         });
     if (!launch.ok) throw new Error(launch.error);
+    const providerEnvironment = { ...packageManager.env };
+    delete providerEnvironment[NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV];
     const preparedEnvironment = options.prepareEnvironment?.(
       {
         invocationRoot: temporaryDirectory,
@@ -256,8 +265,8 @@ export async function withNativeCliSandbox<T>(
         writeProtectedPaths,
         protectedRuntimeRoot,
       },
-      packageManager.env,
-    ) ?? packageManager.env;
+      providerEnvironment,
+    ) ?? providerEnvironment;
     const isolatedEnvironment = buildIsolatedNativeCliEnvironment(
       preparedEnvironment,
       toolRuntimeRoot,

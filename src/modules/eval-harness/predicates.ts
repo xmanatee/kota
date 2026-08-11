@@ -91,8 +91,9 @@ export type FixturePredicate =
   | {
       /**
        * Passes when every repo path changed since the fixture's initial git
-       * commit is inside `allowedPaths`. Runtime artifacts under `.kota/`
-       * are ignored because the workflow host writes them for every run.
+       * commit is inside `allowedPaths`. Runtime artifacts under
+       * `.kota/runs/` are ignored because the workflow host writes them for
+       * every run. Other tracked `.kota/` paths remain candidate-owned scope.
        */
       kind: "git-changes-within";
       allowedPaths: readonly string[];
@@ -174,6 +175,8 @@ export type PredicateEvalResult = {
   passed: boolean;
   /** Short explanation — always present, for artifact readability. */
   detail: string;
+  /** Exact observed paths for git-changes-within evidence. */
+  changedPaths?: readonly string[];
 };
 
 export type PredicateEvaluationContext = {
@@ -212,7 +215,7 @@ const OUTPUT_TAIL_LIMIT = 4_000;
 const GIT_PREDICATE_TIMEOUT_MS = 30_000;
 const GIT_PREDICATE_PREFIX =
   "git -c core.fsmonitor=false -c core.hooksPath=/dev/null --no-pager";
-const DEFAULT_GIT_CHANGE_IGNORED_PREFIXES = [".kota/"] as const;
+const DEFAULT_GIT_CHANGE_IGNORED_PREFIXES = [".kota/runs/"] as const;
 
 type JsonValue =
   | string
@@ -431,6 +434,7 @@ async function evaluateGitChangesWithin(
       predicate,
       passed: false,
       detail: changed.detail,
+      changedPaths: [],
     };
   }
   const allowed = new Set(predicate.allowedPaths);
@@ -440,7 +444,10 @@ async function evaluateGitChangesWithin(
     return {
       predicate,
       passed: true,
-      detail: `git changed paths are within allowed set (${paths.length} changed path(s))`,
+      detail:
+        `git changed paths are within allowed set (${paths.length} changed path(s)). ` +
+        `Changed: ${paths.join(", ") || "(none)"}.`,
+      changedPaths: paths,
     };
   }
   return {
@@ -450,6 +457,7 @@ async function evaluateGitChangesWithin(
       `git changed path(s) outside allowed set: ${offenders.join(", ")}. ` +
       `Changed: ${paths.join(", ") || "(none)"}. ` +
       `Allowed: ${predicate.allowedPaths.join(", ") || "(none)"}.`,
+    changedPaths: paths,
   };
 }
 

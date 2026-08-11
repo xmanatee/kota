@@ -1,0 +1,3 @@
+1. The eval-harness exposes an executable AGY model-suite runner that drives isolated planning, scoped-coding, and repair fixtures through the antigravity-cli harness at KOTA effort max.
+2. Every candidate/scenario attempt records the workflow trace, exact changed-path scope, instruction/scope/outcome rubric scores, and a pass/fail verdict, while unavailable models or effort requests fail explicitly without fallback.
+3. Focused unit and integration coverage proves candidate validation, live harness/model/effort propagation, scenario execution, metric collection, and artifact persistence.

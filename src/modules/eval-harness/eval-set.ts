@@ -47,6 +47,7 @@ import {
 } from "./run-configuration.js";
 import {
   cleanupFixtureWorkingDir,
+  type FixtureRunReport,
   runFixture,
   type WorkflowAgentExecutionOverride,
   type WorkflowExecutor,
@@ -71,6 +72,8 @@ export type EvalSetParams = {
   runArtifactBaseDir: string;
   repeatCount: number;
   priorBaseline?: PersistedBaseline | null;
+  /** Preset-selection environment used to fingerprint this eval run. */
+  env?: NodeJS.ProcessEnv;
   /**
    * Whether to retain fixture working directories after the run. False by
    * default; set true from CLI `--keep` for post-mortem debugging.
@@ -80,6 +83,8 @@ export type EvalSetParams = {
 
 export type EvalSetReport = {
   runs: readonly FixtureRun[];
+  /** Internal per-attempt evidence retained for specialized suite projections. */
+  runReports: readonly FixtureRunReport[];
   perFixture: readonly FixtureScore[];
   fixtureDiagnostics: FixtureDiagnosticsReport;
   aggregate: AggregateScore;
@@ -127,6 +132,7 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
   const startedAt = new Date().toISOString();
 
   const runs: FixtureRun[] = [];
+  const runReports: FixtureRunReport[] = [];
   const runArtifactEvidence: EvalFixtureRunAttributionEvidence[] = [];
   const resolvedHarnessModelEvidence =
     createResolvedHarnessModelEvidenceAccumulator();
@@ -144,6 +150,7 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
         repeatCount: params.repeatCount,
       });
       runs.push(report.run);
+      runReports.push(report);
       addFixtureRunHarnessModelEvidence(
         resolvedHarnessModelEvidence,
         fixture,
@@ -171,6 +178,7 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
     resolvedHarnessModelEvidence: finalizeResolvedHarnessModelEvidence(
       resolvedHarnessModelEvidence,
     ),
+    ...(params.env !== undefined && { env: params.env }),
   });
   const componentAttribution = buildEvalComponentAttribution({
     priorBaseline: params.priorBaseline ?? null,
@@ -213,6 +221,7 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
 
   return {
     runs,
+    runReports,
     perFixture,
     fixtureDiagnostics,
     aggregate,

@@ -65,7 +65,7 @@ describe("git-changes-within predicate", () => {
   it("fails when committed or working-tree paths leave the allowed set", async () => {
     const context = isolatedGitContext(() =>
       existsSync(join(workDir, "forbidden"))
-        ? "?? data/forbidden.txt\n"
+        ? " M .kota/config.json\n"
         : "?? .kota/runs/run-1/metadata.json\n",
     );
     const predicate = {
@@ -77,7 +77,7 @@ describe("git-changes-within predicate", () => {
     writeFileSync(join(workDir, "forbidden"), "present\n");
     const forbidden = await evaluatePredicate(workDir, predicate, context);
     expect(forbidden.passed).toBe(false);
-    expect(forbidden.detail).toContain("data/forbidden.txt");
+    expect(forbidden.detail).toContain(".kota/config.json");
   });
 
   it("does not execute a repository fsmonitor on the evaluator host", async () => {

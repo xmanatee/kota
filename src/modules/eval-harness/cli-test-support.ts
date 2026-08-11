@@ -8,6 +8,10 @@ import {
   type EvaluatorCalibrationArtifact,
 } from "#modules/autonomy/evaluator-calibration.js";
 import type {
+  AgyModelEvaluationOptions,
+  AgyModelEvaluationResult,
+} from "./agy-model-evaluation-types.js";
+import type {
   EvalHarnessClient,
   EvalListResult,
   EvalRunOptions,
@@ -34,6 +38,14 @@ export function makeFakeCtx(projectDir: string): ModuleContext {
     },
     async run(options) {
       return runEvalHarness(projectDir, options ?? {});
+    },
+    async runAgyModels() {
+      return {
+        ok: false,
+        reason: "no_candidates",
+        message: "not configured in this test context",
+        artifactDir: null,
+      };
     },
     async calibration(options) {
       return runEvalCalibration(projectDir, options ?? {});
@@ -63,6 +75,14 @@ export function makeListCtx(result: EvalListResult): ModuleContext {
         componentAttribution: SAMPLE_COMPONENT_ATTRIBUTION,
         baselineConfigurationComparison: null,
         runArtifactBaseDir: "/tmp/eval-run",
+      };
+    },
+    async runAgyModels() {
+      return {
+        ok: false,
+        reason: "no_candidates",
+        message: "not configured in this test context",
+        artifactDir: null,
       };
     },
     async calibration() {
@@ -103,6 +123,44 @@ export function makeRunRecordingCtx(
         componentAttribution:
           resultOverrides.componentAttribution ?? SAMPLE_COMPONENT_ATTRIBUTION,
       };
+    },
+    async runAgyModels() {
+      return {
+        ok: false,
+        reason: "no_candidates",
+        message: "not configured in this test context",
+        artifactDir: null,
+      };
+    },
+    async calibration() {
+      return SAMPLE_CALIBRATION_RESULT;
+    },
+  };
+  const client = { evalHarness } as KotaClient;
+  return { cwd: "/tmp/project", client } as ModuleContext;
+}
+
+export function makeAgyRecordingCtx(
+  calls: AgyModelEvaluationOptions[],
+  result: AgyModelEvaluationResult,
+): ModuleContext {
+  const evalHarness: EvalHarnessClient = {
+    async list() {
+      return {
+        fixtures: [],
+        controlDecisionCoverage: SAMPLE_CONTROL_DECISION_COVERAGE,
+      };
+    },
+    async run() {
+      return {
+        ok: false,
+        reason: "no_fixtures",
+        message: "unused",
+      };
+    },
+    async runAgyModels(options) {
+      calls.push(options);
+      return result;
     },
     async calibration() {
       return SAMPLE_CALIBRATION_RESULT;

@@ -230,6 +230,12 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
         reason: "no_fixtures" as const,
         message: "stub",
       }),
+      runAgyModels: async () => ({
+        ok: false as const,
+        reason: "no_candidates" as const,
+        message: "stub",
+        artifactDir: null,
+      }),
       calibration: async () => EMPTY_EVAL_CALIBRATION_RESULT,
     },
     voice: {

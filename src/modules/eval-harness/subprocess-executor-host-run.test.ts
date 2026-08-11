@@ -82,7 +82,7 @@ describe("createSubprocessExecutor host execution", () => {
     expect(outcome.runArtifactPath).toContain("run-1-noop-abc");
   });
 
-  it("passes requested agent harness and model overrides to workflow exec", async () => {
+  it("passes requested agent harness, model, and effort overrides to workflow exec", async () => {
     const fakeKota = join(dirs.binariesDir, "kota-agent-override.mjs");
     writeFakeKotaScript(
       fakeKota,
@@ -106,6 +106,7 @@ describe("createSubprocessExecutor host execution", () => {
       agentExecutionOverride: {
         harness: "openai-tools",
         model: "openrouter/z-ai/glm-5.2",
+        effort: "max",
       },
     });
 
@@ -121,6 +122,8 @@ describe("createSubprocessExecutor host execution", () => {
       "openai-tools",
       "--agent-model",
       "openrouter/z-ai/glm-5.2",
+      "--agent-effort",
+      "max",
     ]);
   });
 

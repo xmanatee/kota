@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { projectWorkflowStepResultForStorage } from "./run-evidence.js";
+import {
+  buildKotaAgentCommandTrace,
+  kotaAgentCommandTraceMatches,
+} from "#core/agent-harness/index.js";
+import {
+  projectKotaAgentMessageForStorage,
+  projectWorkflowStepResultForStorage,
+} from "./run-evidence.js";
 import type { WorkflowStepResult } from "./run-types.js";
 
 describe("workflow run evidence projection", () => {
@@ -35,5 +42,27 @@ describe("workflow run evidence projection", () => {
       outputTokens: 34,
     });
     expect(JSON.stringify(projected)).not.toContain("raw-token");
+  });
+
+  it("retains command fingerprints while redacting provider status output", () => {
+    const commandTrace = buildKotaAgentCommandTrace(
+      "git commit -m secret=raw-token",
+    );
+    const projected = projectKotaAgentMessageForStorage({
+      type: "status",
+      category: "tool",
+      toolName: "run_command",
+      commandTrace,
+      output: [JSON.stringify({ command: "git commit -m secret=raw-token" })],
+    });
+
+    expect(projected.output).toEqual([
+      expect.stringContaining('"reason":"provider-payload"'),
+    ]);
+    expect(JSON.stringify(projected)).not.toContain("raw-token");
+    expect(
+      kotaAgentCommandTraceMatches(commandTrace, "git commit", "prefix"),
+    ).toBe(true);
+    expect(projected.commandTrace).toEqual(commandTrace);
   });
 });

@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import type { AgentEffort } from "#core/agent-harness/index.js";
 import { loadConfig } from "#core/config/config.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
@@ -18,10 +19,19 @@ import type { WorkflowDefinition } from "#core/workflow/types.js";
 import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
 import { printWorkflowError, printWorkflowText } from "../cli-output.js";
 
-type AgentExecutionOverride = {
+export type AgentExecutionOverride = {
   harness: string;
   model: string;
+  effort?: AgentEffort;
 };
+
+const AGENT_EFFORTS = [
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+] as const satisfies readonly AgentEffort[];
 
 function trimOption(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
@@ -31,17 +41,38 @@ function trimOption(value: string | undefined): string | undefined {
 function resolveAgentExecutionOverride(opts: {
   agentHarness?: string;
   agentModel?: string;
+  agentEffort?: string;
 }): AgentExecutionOverride | undefined {
   const harness = trimOption(opts.agentHarness);
   const model = trimOption(opts.agentModel);
+  const effort = trimOption(opts.agentEffort);
   if ((harness === undefined) !== (model === undefined)) {
     printWorkflowError(
       "--agent-harness and --agent-model must be provided together.",
     );
     process.exit(1);
   }
+  if (effort !== undefined && (harness === undefined || model === undefined)) {
+    printWorkflowError(
+      "--agent-effort requires --agent-harness and --agent-model.",
+    );
+    process.exit(1);
+  }
+  if (
+    effort !== undefined &&
+    !AGENT_EFFORTS.includes(effort as AgentEffort)
+  ) {
+    printWorkflowError(
+      `--agent-effort must be one of: ${AGENT_EFFORTS.join(", ")}.`,
+    );
+    process.exit(1);
+  }
   return harness !== undefined && model !== undefined
-    ? { harness, model }
+    ? {
+        harness,
+        model,
+        ...(effort !== undefined && { effort: effort as AgentEffort }),
+      }
     : undefined;
 }
 
@@ -54,6 +85,7 @@ function overrideAgentStep(
     ...withoutTier,
     harness: override.harness,
     model: override.model,
+    ...(override.effort !== undefined && { effort: override.effort }),
   };
 }
 
@@ -91,7 +123,7 @@ function overrideWorkflowStep(
   return step;
 }
 
-function overrideWorkflowAgentExecution(
+export function overrideWorkflowAgentExecution(
   definition: WorkflowDefinition,
   override: AgentExecutionOverride,
 ): WorkflowDefinition {
@@ -127,6 +159,7 @@ export function registerExecCommand(
     .option("--payload <json>", "JSON object merged into the trigger payload")
     .option("--agent-harness <name>", "Override every agent step harness")
     .option("--agent-model <model>", "Override every agent step model")
+    .option("--agent-effort <effort>", "Override every agent step effort")
     .action(async (
       name: string,
       opts: {
@@ -134,6 +167,7 @@ export function registerExecCommand(
         payload?: string;
         agentHarness?: string;
         agentModel?: string;
+        agentEffort?: string;
       },
     ) => {
       const agentExecutionOverride = resolveAgentExecutionOverride(opts);

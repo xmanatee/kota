@@ -158,4 +158,110 @@ describe("evalHarnessRoutes POST /api/eval/run", () => {
       error: expect.stringContaining("isolationBackend.image"),
     });
   });
+
+  it("registers the AGY suite route and rejects an empty candidate list", async () => {
+    const route = evalHarnessRoutes(makeFakeCtx(projectDir)).find(
+      (candidate) =>
+        candidate.method === "POST" &&
+        candidate.path === "/api/eval/agy-models",
+    );
+    if (!route) {
+      throw new Error("POST /api/eval/agy-models route not registered");
+    }
+    const { res, result } = mockResponse();
+
+    await route.handler(
+      mockRequest(JSON.stringify({ candidates: [], effort: "max" })),
+      res,
+    );
+
+    expect(result.status).toBe(400);
+    expect(result.body).toMatchObject({
+      error: expect.stringContaining("candidates"),
+    });
+  });
+
+  it("rejects AGY host execution before dispatching the suite", async () => {
+    const route = evalHarnessRoutes(makeFakeCtx(projectDir)).find(
+      (candidate) =>
+        candidate.method === "POST" &&
+        candidate.path === "/api/eval/agy-models",
+    );
+    if (!route) {
+      throw new Error("POST /api/eval/agy-models route not registered");
+    }
+    const { res, result } = mockResponse();
+
+    await route.handler(
+      mockRequest(
+        JSON.stringify({
+          candidates: ["gemini-3.6-flash"],
+          effort: "max",
+          isolationBackend: { kind: "host-subprocess" },
+        }),
+      ),
+      res,
+    );
+
+    expect(result.status).toBe(400);
+    expect(result.body).toMatchObject({
+      error: expect.stringContaining("requires container isolation"),
+    });
+  });
+
+  it("rejects AGY containers without Google provider egress", async () => {
+    const route = evalHarnessRoutes(makeFakeCtx(projectDir)).find(
+      (candidate) =>
+        candidate.method === "POST" &&
+        candidate.path === "/api/eval/agy-models",
+    );
+    if (!route) {
+      throw new Error("POST /api/eval/agy-models route not registered");
+    }
+    const baseBackend = {
+      kind: "container",
+      executable: "docker",
+      image: "kota-eval:latest",
+      kotaBinaryPath: "/opt/kota/bin/kota.mjs",
+    };
+    const cases = [
+      {
+        networkPolicy: { kind: "offline" },
+        message: "requires a provider-egress container network",
+      },
+      {
+        networkPolicy: {
+          kind: "provider-egress",
+          provider: "openai",
+          enforcement: {
+            kind: "docker-internal-proxy",
+            networkName: "kota-provider-egress",
+            proxyUrl: "http://provider-proxy:8080",
+          },
+        },
+        message: "requires Google provider egress",
+      },
+    ];
+
+    for (const testCase of cases) {
+      const { res, result } = mockResponse();
+      await route.handler(
+        mockRequest(
+          JSON.stringify({
+            candidates: ["gemini-3.6-flash"],
+            effort: "max",
+            isolationBackend: {
+              ...baseBackend,
+              networkPolicy: testCase.networkPolicy,
+            },
+          }),
+        ),
+        res,
+      );
+      expect(result.status).toBe(400);
+      expect(result.body).toMatchObject({
+        error: expect.stringContaining(testCase.message),
+      });
+    }
+  });
 });

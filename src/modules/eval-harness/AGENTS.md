@@ -5,28 +5,20 @@ and fixture execution. CLI, HTTP, and cadence share one path.
 
 ## Infrastructure Noise Rule
 
-Resource config can swing scores past model-ranking gaps, so fixture runs
-must carry:
+Resource config can swing scores past model-ranking gaps, so fixture runs carry:
 
-- **Resource profile** — host class, CPU allocation and kill threshold, with
-  matching memory fields.
-- **Execution profile preflight** — backend kind, requested/observed/enforced
-  profile, diagnostics, and gate eligibility. Host subprocess runs are
-  non-gating unless an executor verifies CPU/memory facts.
-- **Repeat index and total** — fixtures run k times; k=1 is non-gating.
-- **Timing envelope** — budget, observed duration, deadline hits, and clean
-  returns.
+- **Resource profile** — host class; CPU allocation/kill threshold; matching memory.
+- **Execution preflight** — backend, requested/observed/enforced profile,
+  diagnostics, and gate eligibility. Host subprocess is non-gating without
+  verified CPU/memory facts.
+- **Repeat index/total** — fixtures run k times; k=1 is non-gating.
+- **Timing** — budget, duration, deadline hits, and clean return.
 
 ## Pass@k vs Pass^k
 
-The harness always reports both:
-
-- `pass@k` — fraction of fixtures where at least one of k runs passed
-  (capability).
-- `pass^k` — fraction of fixtures where every run passed (consistency).
-
-Gate rollouts on `pass^k`; track capability on `pass@k`. Reporting only one
-loses the distinction.
+The harness reports `pass@k` (fixtures with any successful run, capability) and
+`pass^k` (fixtures whose every run passed, consistency). Gate on `pass^k` and
+track capability on `pass@k`.
 
 ## Regression Gate Threshold
 
@@ -109,12 +101,10 @@ score movement as quality signal.
 
 ## Runner Lifecycle And Execution Paths
 
-Each fixture run materializes initial state into a fresh tmpdir, runs the
-workflow through a pluggable executor, evaluates predicates, and emits a
-per-run artifact. Fixtures run sequentially; parallel replicas corrupt resource
-profiles and noise comparison. `gated` means do not ship as-is; rerun on the
-same host class. `not-gated` with profile drift or too small a sample means
-rerun with the correct config.
+Each run materializes a fresh tmpdir, uses a pluggable executor, evaluates
+predicates, and emits an artifact. Run fixtures sequentially; parallel replicas
+corrupt profiles and noise comparisons. `gated`: do not ship; rerun on the same
+host class. `not-gated` from profile drift or a small sample: rerun correctly.
 
 Three paths share the same `runFixture` + subprocess executor:
 
@@ -150,6 +140,16 @@ Time-sliding fixtures use the runner templating pass:
 `{{NOW_MINUS_HOURS:N}}` and `{{NOW_MINUS_MINUTES:N}}` rewrite to ISO
 timestamps before `Date.now()` at materialization.
 
+## AGY Model Evaluation
+
+`kota eval agy-models` runs planning, scoped coding, and repair through
+`antigravity-cli`. Candidate, container, and provider-egress flags are required;
+Google egress and KOTA `max`/AGY `high` are fixed, without fallback or replay.
+Probe `agy models` only in the configured candidate container and reject
+unavailable candidates before fixtures. Artifacts record traces, changed paths,
+rubrics, and verdicts; instruction checks cite fixture sources. The native-CLI
+allowlist proxy chains to the container provider proxy, never public addresses.
+
 ## Fixture Candidate Mining
 
 Candidate mining is advisory: `kota eval fixture-candidates` writes bounded
@@ -158,14 +158,11 @@ fixtures or affects pass@k/pass^k.
 
 ## Boundaries
 
-- Scoring, fixture-run contract, runner, gate decisions, and persisted cadence
-  baseline all live in this module.
-- Do NOT add a parallel metrics store. Aggregate scores surface through a
-  typed completion event, regressions through the typed regression event,
-  per-run evidence as artifacts, and baseline as one row.
+- Scoring, runner contracts, gates, and cadence baseline live in this module.
+- No parallel metrics store: use typed completion/regression events, run
+  artifacts, and one baseline row.
 - No cost signals leak into agent-facing context (autonomy rule).
-- Fixture workspaces live under the OS tmpdir, never in the repo; use harness
-  entry points and retain host login only through the adapter's non-secret auth locator.
-- The replay adapter is module-owned. Do not add a parallel fixture-scoped
-  mock layer under `src/core/agent-harness/`; the adapter registers through
-  the standard registry and swaps in via the subprocess executor's env seam.
+- Fixture workspaces use the OS tmpdir; auth stays behind the adapter's
+  non-secret locator.
+- Replay is module-owned and swaps through the standard harness registry/env seam;
+  do not add fixture mocks under `src/core/agent-harness/`.

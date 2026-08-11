@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV } from "#core/agent-harness/native-cli-egress-proxy.js";
 import {
   PROVIDER_EGRESS_NETWORK_LABELS,
   providerEgressEndpointLabelValue,
@@ -46,6 +47,7 @@ describe("createSubprocessExecutor provider-egress container execution", () => {
         "writeFileSync(join(process.cwd(), 'provider-env.json'), JSON.stringify({",
         "  httpProxy: process.env.HTTP_PROXY,",
         "  httpsProxy: process.env.HTTPS_PROXY,",
+        `  nativeCliUpstreamProxy: process.env.${NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV},`,
         "  nodeUseEnvProxy: process.env.NODE_USE_ENV_PROXY,",
         "  apiKey: process.env.OPENAI_API_KEY,",
         "  authEnvKeys: process.env.KOTA_EVAL_PROVIDER_EGRESS_AUTH_ENV_KEYS,",
@@ -102,6 +104,9 @@ describe("createSubprocessExecutor provider-egress container execution", () => {
       const endpointLabel = providerEgressEndpointLabelValue(endpoints);
       expect(envCapture.httpProxy).toBe("http://provider-proxy:8080");
       expect(envCapture.httpsProxy).toBe("http://provider-proxy:8080");
+      expect(envCapture.nativeCliUpstreamProxy).toBe(
+        "http://provider-proxy:8080",
+      );
       expect(envCapture.nodeUseEnvProxy).toBe("1");
       expect(envCapture.apiKey).toBe("sk-provider-egress-test");
       expect(envCapture.authEnvKeys).toBe("OPENAI_API_KEY");
@@ -131,6 +136,9 @@ describe("createSubprocessExecutor provider-egress container execution", () => {
       expect(existsSync(log.envFiles[0]!)).toBe(false);
       expect(log.inheritedOpenAiApiKey).toBeUndefined();
       expect(log.env.HTTPS_PROXY).toBe("http://provider-proxy:8080");
+      expect(log.env[NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV]).toBe(
+        "http://provider-proxy:8080",
+      );
       expect(log.env.NODE_USE_ENV_PROXY).toBe("1");
       expect(log.env.OPENAI_API_KEY).toBe("sk-provider-egress-test");
       expect(log.env.KOTA_EVAL_PROVIDER_EGRESS_ACTIVE).toBe("1");

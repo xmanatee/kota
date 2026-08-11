@@ -4,7 +4,10 @@ import type { ExecutionProfilePreflightResult } from "./fixture-run.js";
 import { fixtureScoringContext } from "./fixture-scoring-context.js";
 import { evaluateObjectiveMetricsForOutcome } from "./objective-metrics.js";
 import { evaluatePredicateExpectations, evaluatePredicates } from "./predicates.js";
-import { applyRoundTaskInput } from "./runner-materialize.js";
+import {
+  applyRoundTaskInput,
+  usesAgentStepReplay,
+} from "./runner-materialize.js";
 import { outcomeFromExecution } from "./runner-outcome.js";
 import type {
   RoundRunReport,
@@ -77,7 +80,10 @@ export async function executeRound(params: {
         agentExecutionOverride: params.agentExecutionOverride,
       }),
       ...(triggerPayload !== undefined && { triggerPayload }),
-      ...(params.fixture.agentStepRecordings.length > 0 && {
+      ...(usesAgentStepReplay(
+        params.fixture,
+        params.agentExecutionOverride !== undefined,
+      ) && {
         replayRecordingsRoot: params.fixture.fixtureDir,
       }),
       ...(params.shimDir !== null && { externalCallShimDir: params.shimDir }),

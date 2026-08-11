@@ -1,0 +1,3 @@
+Fix AGY command evidence and effort-qualified availability
+
+Persist redaction-safe command fingerprints for instruction scoring and require each candidate's high-effort AGY catalog entry before evaluation.

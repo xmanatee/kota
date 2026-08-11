@@ -6,7 +6,6 @@ import type {
   AgentHarnessWriter,
   KotaAgentMessage,
 } from "#core/agent-harness/index.js";
-import { buildNativeCliEnvironment } from "#core/agent-harness/native-cli-environment.js";
 import {
   NATIVE_CLI_PROCESS_GROUP_SPAWN_OPTIONS,
   signalNativeCliProcessGroup,
@@ -23,7 +22,10 @@ import {
   emptyCollectedAntigravityOutput,
 } from "./cli-output.js";
 import {
-  ANTIGRAVITY_CLI_KEYCHAIN_DIR_ENV,
+  ANTIGRAVITY_CLI_PROVIDER_EGRESS_HOSTS,
+  buildAntigravityCliEnvironment,
+} from "./provider-egress.js";
+import {
   prepareAntigravityCliRuntimeEnvironment,
   resolveAntigravityCliKeychainDirectory,
 } from "./runtime-home.js";
@@ -31,18 +33,6 @@ import {
 export const ANTIGRAVITY_CLI_BINARY_NAME = "agy";
 
 const ANTIGRAVITY_CLI_PRINT_TIMEOUT = "24h";
-
-const ANTIGRAVITY_PROVIDER_EGRESS_HOSTS = [
-  "accounts.google.com",
-  "aiplatform.googleapis.com",
-  "businessaicode.googleapis.com",
-  "cloudcode-pa.googleapis.com",
-  "daily-cloudcode-pa.googleapis.com",
-  "generativelanguage.googleapis.com",
-  "lh3.googleusercontent.com",
-  "oauth2.googleapis.com",
-  "www.googleapis.com",
-] as const;
 
 export function abortedAntigravityCliResult(): AgentHarnessResult {
   return {
@@ -274,20 +264,15 @@ export async function collectTextFromAntigravityCli(
       machineAuthorityOwner: "kota",
       authorityConfigPath: args.authorityConfigPath,
       writableRoots: args.writableRoots,
-      env: buildNativeCliEnvironment({
-        projectedEnvKeys: [ANTIGRAVITY_CLI_KEYCHAIN_DIR_ENV],
-        overrides: {
-          ...(args.env ?? {}),
-          ...(keychainDirectory === undefined
-            ? {}
-            : { [ANTIGRAVITY_CLI_KEYCHAIN_DIR_ENV]: keychainDirectory }),
-          NO_COLOR: "1",
-        },
+      env: buildAntigravityCliEnvironment({
+        inheritedEnv: process.env,
+        overrides: args.env,
+        keychainDirectory,
       }),
       readOnlyHostRoots: keychainDirectory === undefined
         ? []
         : [keychainDirectory],
-      allowedEgressHosts: ANTIGRAVITY_PROVIDER_EGRESS_HOSTS,
+      allowedEgressHosts: ANTIGRAVITY_CLI_PROVIDER_EGRESS_HOSTS,
       prepareEnvironment: prepareAntigravityCliRuntimeEnvironment,
     },
     (sandboxedProcess) =>

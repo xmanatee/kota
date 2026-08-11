@@ -119,6 +119,13 @@ export function projectKotaAgentMessageForStorage(
         );
       }
       if (message.toolName !== undefined) projected.toolName = message.toolName;
+      if (message.commandTrace !== undefined) {
+        projected.commandTrace = {
+          algorithm: message.commandTrace.algorithm,
+          exactDigests: [...message.commandTrace.exactDigests],
+          prefixDigests: [...message.commandTrace.prefixDigests],
+        };
+      }
       if (message.output !== undefined) {
         projected.output = message.output.map((entry) =>
           formatProjectedEvidenceText(projectText(entry, "provider-payload"))

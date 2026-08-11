@@ -11,6 +11,7 @@
  * surfaced as `KotaAgentRawMessage` with the adapter name and a raw payload,
  * never as a permissive `Record<string, unknown>` arm on the union.
  */
+import type { KotaAgentCommandTrace } from "./command-trace.js";
 import type { KotaContentBlock } from "./message-protocol.js";
 
 /** Session id the adapter assigned to this run, if any. */
@@ -70,6 +71,7 @@ export type KotaAgentStatusMessage = KotaAgentMessageEnvelope & {
   category: string;
   description?: string;
   toolName?: string;
+  commandTrace?: KotaAgentCommandTrace;
   output?: string[];
   text?: string;
 };

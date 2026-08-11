@@ -14,6 +14,10 @@ import type {
   CalibrationGateDecision,
   EvaluatorCalibrationAggregate,
 } from "#modules/autonomy/evaluator-calibration.js";
+import type {
+  AgyModelEvaluationOptions,
+  AgyModelEvaluationResult,
+} from "./agy-model-evaluation-types.js";
 import type { CodeHealthAggregate } from "./code-health-diagnostics.js";
 import type { EvalComponentAttributionOperatorSummary } from "./eval-attribution.js";
 import type {
@@ -135,5 +139,8 @@ export type EvalCalibrationResult = {
 export interface EvalHarnessClient {
   list(): Promise<EvalListResult>;
   run(options?: EvalRunOptions): Promise<EvalRunResult>;
+  runAgyModels(
+    options: AgyModelEvaluationOptions,
+  ): Promise<AgyModelEvaluationResult>;
   calibration(options?: EvalCalibrationOptions): Promise<EvalCalibrationResult>;
 }

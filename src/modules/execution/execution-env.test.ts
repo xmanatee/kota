@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV } from "#core/agent-harness/native-cli-egress-proxy.js";
 import {
   injectSessionEnvironmentVariable,
   registerSessionEnvironment,
@@ -14,6 +15,7 @@ const TOUCHED_KEYS = [
   "http_proxy",
   "https_proxy",
   "all_proxy",
+  NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV,
   "OPENAI_API_KEY",
   "KOTA_EVAL_PROVIDER_EGRESS_ACTIVE",
   "KOTA_EVAL_PROVIDER_EGRESS_AUTH_ENV_KEYS",
@@ -92,6 +94,8 @@ describe("buildExecutionEnv", () => {
     process.env.http_proxy = "http://provider-proxy:8080";
     process.env.https_proxy = "http://provider-proxy:8080";
     process.env.all_proxy = "http://provider-proxy:8080";
+    process.env[NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV] =
+      "http://provider-proxy:8080";
     process.env.OPENAI_API_KEY = "sk-provider-egress-test";
     process.env.KOTA_EVAL_PROVIDER_EGRESS_ACTIVE = "1";
     process.env.KOTA_EVAL_PROVIDER_EGRESS_AUTH_ENV_KEYS = "OPENAI_API_KEY";
@@ -117,6 +121,8 @@ describe("buildExecutionEnv", () => {
       toolUseId: "tool-1",
       env: {
         HTTPS_PROXY: "http://restored-proxy:8080",
+        [NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV]:
+          "http://restored-native-proxy:8080",
         OPENAI_API_KEY: "restored-provider-credential",
         KOTA_EVAL_PROVIDER_EGRESS_ACTIVE: "0",
       },
@@ -128,6 +134,7 @@ describe("buildExecutionEnv", () => {
     expect(env.http_proxy).toBeUndefined();
     expect(env.https_proxy).toBeUndefined();
     expect(env.all_proxy).toBeUndefined();
+    expect(env[NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV]).toBeUndefined();
     expect(env.OPENAI_API_KEY).toBeUndefined();
     expect(env.KOTA_EVAL_PROVIDER_EGRESS_ACTIVE).toBeUndefined();
     expect(env.KOTA_EVAL_PROVIDER_EGRESS_AUTH_ENV_KEYS).toBeUndefined();

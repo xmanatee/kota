@@ -2,6 +2,7 @@ import type {
   AgentHarnessWriter,
   KotaAgentMessage,
 } from "#core/agent-harness/index.js";
+import { buildKotaAgentCommandTrace } from "#core/agent-harness/index.js";
 import type {
   KotaJsonObject,
   KotaJsonValue,
@@ -45,6 +46,13 @@ type AntigravityEvent = {
   result?: AntigravityResult;
 };
 
+const TRACE_COMMAND_PARAMETER_KEYS = new Set([
+  "cmd",
+  "command",
+  "command_line",
+  "commandline",
+]);
+
 export type CollectedAntigravityOutput = {
   streamedText: string;
   responseText?: string;
@@ -83,6 +91,22 @@ async function emit(
   message: KotaAgentMessage,
 ): Promise<void> {
   await onMessage?.(message);
+}
+
+function traceableCommand(
+  parameters: KotaJsonObject | undefined,
+): string | undefined {
+  if (parameters === undefined) return undefined;
+  for (const [key, value] of Object.entries(parameters)) {
+    if (
+      TRACE_COMMAND_PARAMETER_KEYS.has(key.toLowerCase()) &&
+      typeof value === "string" &&
+      value.trim().length > 0
+    ) {
+      return value;
+    }
+  }
+  return undefined;
 }
 
 export function collectAntigravityOutput(args: {
@@ -139,6 +163,9 @@ export function collectAntigravityOutput(args: {
         }
         const toolName = update.tool_name ?? update.tool_info?.name;
         const toolError = update.tool_info?.error?.message;
+        const command = traceableCommand(
+          update.tool_info?.parameters,
+        );
         if (toolError !== undefined || update.state?.toUpperCase() === "ERROR") {
           lastToolFailure = {
             ...(toolName !== undefined ? { toolName } : {}),
@@ -153,6 +180,9 @@ export function collectAntigravityOutput(args: {
           category: update.step_type ?? "step",
           ...(update.state !== undefined ? { description: update.state } : {}),
           ...(toolName !== undefined ? { toolName } : {}),
+          ...(command !== undefined
+            ? { commandTrace: buildKotaAgentCommandTrace(command) }
+            : {}),
           ...(update.tool_info?.error?.message !== undefined
             ? { text: update.tool_info.error.message }
             : {}),

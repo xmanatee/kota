@@ -1,13 +1,13 @@
 ---
 id: task-build-reusable-agy-model-evaluation-suite-in-eval
 title: Build reusable AGY model evaluation suite in eval-harness
-status: ready
+status: done
 priority: p1
 area: architecture
 task_class: Platform
 summary: Create an isolated scenario evaluation suite under src/modules/eval-harness/ to benchmark Google AGY models on representative KOTA planning, coding, and repair tasks.
 created_at: 2026-08-08T10:52:38.954Z
-updated_at: 2026-08-08T10:52:38.954Z
+updated_at: 2026-08-11T07:01:08.141Z
 ---
 
 ## Problem

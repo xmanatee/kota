@@ -7,6 +7,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV } from "#core/agent-harness/native-cli-egress-proxy.js";
 import { PRESET_ENV_VAR, resolvePreset } from "#core/model/preset.js";
 import { envWithoutSourceConditionNodeOption } from "#core/util/node-options.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
@@ -168,6 +169,7 @@ function containerNetworkEnv(
       providerEgressAuthEnvKeysFor(networkPolicy.provider).join(","),
     HTTP_PROXY: networkPolicy.proxyUrl,
     HTTPS_PROXY: networkPolicy.proxyUrl,
+    [NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV]: networkPolicy.proxyUrl,
     NODE_USE_ENV_PROXY: "1",
     KOTA_EVAL_PROVIDER_EGRESS_ENDPOINTS: endpoints,
     KOTA_EVAL_PROVIDER_EGRESS_PROVIDER: networkPolicy.provider,

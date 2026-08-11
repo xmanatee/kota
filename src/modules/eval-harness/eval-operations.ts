@@ -6,16 +6,10 @@
  * set, the same run report shape, and the same calibration aggregate.
  */
 import { mkdirSync, realpathSync } from "node:fs";
-import { join, resolve } from "node:path";
-import { resolveAgentHarness } from "#core/agent-harness/index.js";
-import { loadConfig } from "#core/config/config.js";
+import { join } from "node:path";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
-import {
-  PRESET_ENV_VAR,
-  resolveActivePresetFromConfig,
-} from "#core/model/preset.js";
 import { loadBaseline } from "./baseline-store.js";
 import type {
   EvalListResult,
@@ -23,6 +17,7 @@ import type {
   EvalRunResult,
 } from "./client.js";
 import { toEvalComponentAttributionOperatorSummary } from "./eval-attribution.js";
+import { createEvalRunExecution } from "./eval-run-execution.js";
 import { runEvalSet } from "./eval-set.js";
 import { evalHarnessSetCompleted } from "./events.js";
 import {
@@ -32,114 +27,23 @@ import {
   loadFixture,
   summarizeControlDecisionCoverage,
 } from "./fixture.js";
-import type { ResourceProfile } from "./fixture-run.js";
 import { ObjectiveMetricValidationError } from "./objective-metrics.js";
-import {
-  type ProviderEgressTaskSubprocessBoundaryRequest,
-  providerEgressAuthEnvKeysFor,
-} from "./provider-egress.js";
 import {
   compareRunConfigurations,
   missingPriorRunConfigurationComparison,
   toRunConfigurationOperatorSummary,
 } from "./run-configuration.js";
-import {
-  createSubprocessExecutor,
-  detectHostSubprocessResourceProfile,
-  type SubprocessIsolationBackend,
-} from "./subprocess-executor.js";
 
 export { runEvalCalibration } from "./eval-calibration-operation.js";
 
-export const DEFAULT_HOST_CLASS = "local-dev";
 const DEFAULT_REPEATS = 3;
 
-function fixturesRootFor(projectDir: string): string {
+export function fixturesRootFor(projectDir: string): string {
   return join(projectDir, "src/modules/eval-harness/fixtures");
 }
 
-function evalRunsRootFor(projectDir: string): string {
+export function evalRunsRootFor(projectDir: string): string {
   return join(projectDir, ".kota/eval-runs");
-}
-
-function kotaBinaryPathFor(projectDir: string): string {
-  return resolve(join(projectDir, "bin/kota.mjs"));
-}
-
-function isolationBackendForRun(options: EvalRunOptions): SubprocessIsolationBackend {
-  return options.isolationBackend ?? { kind: "host-subprocess" };
-}
-
-function providerEgressTaskBoundaryForRun(
-  projectDir: string,
-  backend: SubprocessIsolationBackend,
-): ProviderEgressTaskSubprocessBoundaryRequest | undefined {
-  if (
-    backend.kind !== "container" ||
-    backend.networkPolicy?.kind !== "provider-egress"
-  ) {
-    return undefined;
-  }
-  const activePreset = resolveActivePresetFromConfig(loadConfig(projectDir));
-  const harness = resolveAgentHarness(activePreset.harness);
-  return {
-    agentHarness: activePreset.harness,
-    toolControl: harness.toolControl,
-  };
-}
-
-function envForKeys(
-  keys: readonly string[],
-  env: NodeJS.ProcessEnv = process.env,
-): Record<string, string> | undefined {
-  const authEnv: Record<string, string> = {};
-  for (const key of keys) {
-    const value = env[key];
-    if (value !== undefined) authEnv[key] = value;
-  }
-  return Object.keys(authEnv).length > 0 ? authEnv : undefined;
-}
-
-function providerEgressAuthEnvForRun(
-  backend: SubprocessIsolationBackend,
-  env: NodeJS.ProcessEnv,
-): Record<string, string> | undefined {
-  if (
-    backend.kind !== "container" ||
-    backend.networkPolicy?.kind !== "provider-egress"
-  ) {
-    return undefined;
-  }
-  return envForKeys(
-    providerEgressAuthEnvKeysFor(backend.networkPolicy.provider),
-    env,
-  );
-}
-
-function isolatedHostAuthEnvForRun(
-  activePreset: ReturnType<typeof resolveActivePresetFromConfig>,
-  backend: SubprocessIsolationBackend,
-  env: NodeJS.ProcessEnv,
-): Readonly<Record<string, string>> {
-  if (backend.kind !== "host-subprocess" || activePreset.authEnv.length > 0) {
-    return {};
-  }
-  const harness = resolveAgentHarness(activePreset.harness);
-  return harness.resolveIsolatedHostAuthEnv?.(env) ?? {};
-}
-
-export function executorExtraEnvForRun(
-  projectDir: string,
-  backend: SubprocessIsolationBackend,
-  env: NodeJS.ProcessEnv = process.env,
-): Record<string, string> {
-  const activePreset = resolveActivePresetFromConfig(loadConfig(projectDir), env);
-  return {
-    [PRESET_ENV_VAR]: activePreset.id,
-    ...(envForKeys(activePreset.authEnv, env) ?? {}),
-    ...isolatedHostAuthEnvForRun(activePreset, backend, env),
-    ...(providerEgressAuthEnvForRun(backend, env) ?? {}),
-  };
 }
 
 export function listEvalFixtures(projectDir: string): EvalListResult {
@@ -158,24 +62,6 @@ export function listEvalFixtures(projectDir: string): EvalListResult {
       tags: [...(f.spec.tags ?? [])],
     })),
     controlDecisionCoverage: summarizeControlDecisionCoverage(fixtures),
-  };
-}
-
-function buildProfile(options: EvalRunOptions, defaultHost: string): ResourceProfile {
-  const hostClass = options.hostClass ?? defaultHost;
-  const detected = detectHostSubprocessResourceProfile(hostClass);
-  const cpuAllocationCores =
-    options.cpuAllocationCores ?? detected.cpuAllocationCores;
-  const cpuKillThresholdCores = options.cpuKillThresholdCores ?? cpuAllocationCores;
-  const memoryAllocationMB =
-    options.memoryAllocationMB ?? detected.memoryAllocationMB;
-  const memoryKillThresholdMB = options.memoryKillThresholdMB ?? memoryAllocationMB;
-  return {
-    hostClass,
-    cpuAllocationCores,
-    cpuKillThresholdCores,
-    memoryAllocationMB,
-    memoryKillThresholdMB,
   };
 }
 
@@ -212,17 +98,10 @@ export async function runEvalHarness(
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const runArtifactBaseDir = join(evalRunsRootFor(projectDir), stamp);
   mkdirSync(runArtifactBaseDir, { recursive: true });
-  const isolationBackend = isolationBackendForRun(options);
-  const executor = createSubprocessExecutor({
-    kotaBinaryPath: kotaBinaryPathFor(projectDir),
-    isolationBackend,
-    extraEnv: executorExtraEnvForRun(projectDir, isolationBackend),
-    providerEgressTaskBoundary: providerEgressTaskBoundaryForRun(
-      projectDir,
-      isolationBackend,
-    ),
-  });
-  const requestedProfile = buildProfile(options, DEFAULT_HOST_CLASS);
+  const { executor, requestedProfile } = createEvalRunExecution(
+    projectDir,
+    options,
+  );
   const repeatCount = options.repeatCount ?? DEFAULT_REPEATS;
   const priorBaseline = loadBaseline(projectDir);
   let report: Awaited<ReturnType<typeof runEvalSet>>;

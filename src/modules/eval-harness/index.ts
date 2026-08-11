@@ -19,8 +19,9 @@ import type { KotaModule } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { line, span } from "#modules/rendering/primitives.js";
 import { printToStderr } from "#modules/rendering/transport.js";
+import { runAgyModelEvaluationSuite } from "./agy-model-evaluation.js";
 import evalHarnessCadence from "./cadence-workflow.js";
-import { buildEvalCommand } from "./cli.js";
+import { buildEvalCommand } from "./cli-command.js";
 import type {
   EvalCalibrationOptions,
   EvalCalibrationResult,
@@ -79,7 +80,13 @@ const evalHarnessModule: KotaModule = {
   // "claude-agent-sdk" slot when KOTA_EVAL_HARNESS_REPLAY_ROOT is set. The
   // subprocess executor is the only production caller that sets that env,
   // so operator and daemon runs are unaffected.
-  dependencies: ["autonomy", "rendering", "claude-agent-harness", "repo-tasks"],
+  dependencies: [
+    "antigravity-cli-agent-harness",
+    "autonomy",
+    "rendering",
+    "claude-agent-harness",
+    "repo-tasks",
+  ],
   events: [evalHarnessSetCompleted],
   commands: (ctx) => [buildEvalCommand(ctx)],
   tools: () => createReplayToolFixtureDefs(replayRoot),
@@ -93,6 +100,9 @@ const evalHarnessModule: KotaModule = {
       },
       async run(options) {
         return runEvalHarness(ctx.cwd, options ?? {}, new EventBus());
+      },
+      async runAgyModels(options) {
+        return runAgyModelEvaluationSuite(ctx.cwd, options);
       },
       async calibration(options) {
         return runEvalCalibration(ctx.cwd, options ?? {});
@@ -146,6 +156,14 @@ function buildEvalHarnessDaemonHandler(link: DaemonTransport): EvalHarnessClient
         "POST",
         "/api/eval/run",
         options ?? {},
+        { timeoutMs: EVAL_RUN_DAEMON_TIMEOUT_MS },
+      );
+    },
+    runAgyModels: async (options) => {
+      return link.requestStrict(
+        "POST",
+        "/api/eval/agy-models",
+        options,
         { timeoutMs: EVAL_RUN_DAEMON_TIMEOUT_MS },
       );
     },

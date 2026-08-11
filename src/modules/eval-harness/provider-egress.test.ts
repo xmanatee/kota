@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  ANTIGRAVITY_CLI_PROVIDER_AUTH_ENV_KEYS,
+  ANTIGRAVITY_CLI_PROVIDER_EGRESS_HOSTS,
+} from "#modules/antigravity-cli-agent-harness/provider-egress.js";
+import {
   providerEgressAuthEnvKeysFor,
   providerEgressEndpointLabelValue,
   providerEgressEndpointsFor,
@@ -7,6 +11,15 @@ import {
 } from "./provider-egress.js";
 
 describe("provider-egress provider catalog", () => {
+  it("derives Google egress and auth from the Antigravity adapter contract", () => {
+    expect(
+      providerEgressEndpointsFor("google").map((endpoint) => endpoint.host),
+    ).toEqual([...ANTIGRAVITY_CLI_PROVIDER_EGRESS_HOSTS]);
+    expect(providerEgressAuthEnvKeysFor("google")).toEqual([
+      ...ANTIGRAVITY_CLI_PROVIDER_AUTH_ENV_KEYS,
+    ]);
+  });
+
   it("includes OpenRouter endpoint and auth metadata", () => {
     const endpoints = providerEgressEndpointsFor("openrouter");
 

@@ -27,6 +27,12 @@ export {
   formatRequiredHarnessReadinessFailures,
   summarizeHarnessCapability,
 } from "./capability-snapshot.js";
+export type { KotaAgentCommandTrace } from "./command-trace.js";
+export {
+  buildKotaAgentCommandTrace,
+  KOTA_AGENT_COMMAND_TRACE_ALGORITHM,
+  kotaAgentCommandTraceMatches,
+} from "./command-trace.js";
 export {
   composeCanUseTools,
   createAgentCommitGuard,

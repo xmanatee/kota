@@ -25,6 +25,10 @@ Shared utilities (`utils.ts`, `definitions-source.ts`) stay at the module root.
 - `workflow resume` changes dispatch pause only. Clearing provider or
   authentication backoff requires the explicit `--retry-agent` option after
   the operator has fixed its cause.
+- workflow exec is the eval-harness subprocess boundary. Its paired
+  --agent-harness / --agent-model override may also carry --agent-effort so
+  model-matrix runs execute the requested runtime facts instead of merely
+  labelling the result.
 
 ## KotaClient Surface
 

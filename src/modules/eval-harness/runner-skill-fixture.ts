@@ -6,7 +6,12 @@ import { isSkillAblationFixtureSpec, type LoadedFixture, type SkillAblationFixtu
 import { type ExecutionProfilePreflightResult, type FixtureRun, resourceProfileFromExecutionProfile, type SkillAblationRun, type SkillAblationVariantRun } from "./fixture-run.js";
 import { fixtureScoringContext } from "./fixture-scoring-context.js";
 import { evaluatePredicateExpectations, evaluatePredicates } from "./predicates.js";
-import { fixtureExecutionMode, materializeFixtureWorkingDirAt, resolveSkillAblationVariantWorkingDir } from "./runner-materialize.js";
+import {
+  fixtureExecutionMode,
+  materializeFixtureWorkingDirAt,
+  resolveSkillAblationVariantWorkingDir,
+  usesAgentStepReplay,
+} from "./runner-materialize.js";
 import { outcomeFromExecution } from "./runner-outcome.js";
 import { writeSkillAblationRunArtifact } from "./runner-skill-artifact.js";
 import { evaluateSkillAblationDirection, skillAblationExecutionOutcome, skillAblationObjectiveMetrics, summarizeSkillAblationOutcome, topLevelObjectiveMetricsForSkillAblation } from "./runner-skill-metrics.js";
@@ -104,7 +109,10 @@ async function executeSkillAblationVariant(params: {
       ...(params.variant.triggerPayload !== undefined && {
         triggerPayload: params.variant.triggerPayload,
       }),
-      ...(params.fixture.agentStepRecordings.length > 0 && {
+      ...(usesAgentStepReplay(
+        params.fixture,
+        params.agentExecutionOverride !== undefined,
+      ) && {
         replayRecordingsRoot: params.fixture.fixtureDir,
       }),
       ...(shimDir !== null && { externalCallShimDir: shimDir }),
@@ -232,7 +240,10 @@ export async function runSkillAblationFixture(
     fixtureId: spec.id,
     runIndex: params.runIndex,
     repeatCount: params.repeatCount,
-    executionMode: fixtureExecutionMode(params.fixture),
+    executionMode: fixtureExecutionMode(
+      params.fixture,
+      params.agentExecutionOverride !== undefined,
+    ),
     outcome,
     resourceProfile,
     executionProfile: params.executionProfile,

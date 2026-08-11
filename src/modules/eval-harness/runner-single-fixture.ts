@@ -7,7 +7,11 @@ import { evaluateObjectiveMetricsForOutcome } from "./objective-metrics.js";
 import { evaluatePredicateExpectations, evaluatePredicates } from "./predicates.js";
 import { writeRunArtifact } from "./runner-artifact.js";
 import { codeHealthBaselineFor, finalCodeHealthFor } from "./runner-code-health.js";
-import { fixtureExecutionMode, materializeFixtureWorkingDir } from "./runner-materialize.js";
+import {
+  fixtureExecutionMode,
+  materializeFixtureWorkingDir,
+  usesAgentStepReplay,
+} from "./runner-materialize.js";
 import { outcomeFromExecution } from "./runner-outcome.js";
 import type { FixtureRunReport, RunFixtureParams, WorkflowExecutionOutcome } from "./runner-types.js";
 import { evaluateVerifierCalibration, verifierCalibrationConfigurationError, writeVerifierCalibrationArtifact } from "./runner-verifier.js";
@@ -74,7 +78,10 @@ export async function runSingleWorkflowFixture(
       fixtureId: params.fixture.spec.id,
       runIndex: params.runIndex,
       repeatCount: params.repeatCount,
-      executionMode: fixtureExecutionMode(params.fixture),
+      executionMode: fixtureExecutionMode(
+        params.fixture,
+        params.agentExecutionOverride !== undefined,
+      ),
       outcome: outcomeFromExecution(executionOutcome, false),
       resourceProfile,
       executionProfile: params.executionProfile,
@@ -132,7 +139,10 @@ export async function runSingleWorkflowFixture(
       fixtureId: params.fixture.spec.id,
       runIndex: params.runIndex,
       repeatCount: params.repeatCount,
-      executionMode: fixtureExecutionMode(params.fixture),
+      executionMode: fixtureExecutionMode(
+        params.fixture,
+        params.agentExecutionOverride !== undefined,
+      ),
       outcome: outcomeFromExecution(executionOutcome, false),
       resourceProfile,
       executionProfile: params.executionProfile,
@@ -182,7 +192,10 @@ export async function runSingleWorkflowFixture(
       ...(spec.triggerPayload !== undefined && {
         triggerPayload: spec.triggerPayload,
       }),
-      ...(params.fixture.agentStepRecordings.length > 0 && {
+      ...(usesAgentStepReplay(
+        params.fixture,
+        params.agentExecutionOverride !== undefined,
+      ) && {
         replayRecordingsRoot: params.fixture.fixtureDir,
       }),
       ...(shimDir !== null && { externalCallShimDir: shimDir }),
@@ -224,7 +237,10 @@ export async function runSingleWorkflowFixture(
     fixtureId: params.fixture.spec.id,
     runIndex: params.runIndex,
     repeatCount: params.repeatCount,
-    executionMode: fixtureExecutionMode(params.fixture),
+    executionMode: fixtureExecutionMode(
+      params.fixture,
+      params.agentExecutionOverride !== undefined,
+    ),
     outcome,
     resourceProfile,
     executionProfile: params.executionProfile,

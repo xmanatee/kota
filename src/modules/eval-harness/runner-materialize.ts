@@ -138,8 +138,20 @@ export function materializeFixtureWorkingDir(fixture: LoadedFixture): {
   });
 }
 
-export function fixtureExecutionMode(fixture: LoadedFixture): FixtureRunExecutionMode {
-  return fixture.agentStepRecordings.length > 0 ? "replay" : "live";
+export function usesAgentStepReplay(
+  fixture: LoadedFixture,
+  hasAgentExecutionOverride: boolean,
+): boolean {
+  return !hasAgentExecutionOverride && fixture.agentStepRecordings.length > 0;
+}
+
+export function fixtureExecutionMode(
+  fixture: LoadedFixture,
+  hasAgentExecutionOverride: boolean,
+): FixtureRunExecutionMode {
+  return usesAgentStepReplay(fixture, hasAgentExecutionOverride)
+    ? "replay"
+    : "live";
 }
 
 export function relativePathInside(root: string, relativePath: string, label: string): string {

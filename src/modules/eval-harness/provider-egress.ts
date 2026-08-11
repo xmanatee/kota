@@ -1,4 +1,8 @@
 import type { Preset } from "#core/model/preset.js";
+import {
+  ANTIGRAVITY_CLI_PROVIDER_AUTH_ENV_KEYS,
+  ANTIGRAVITY_CLI_PROVIDER_EGRESS_HOSTS,
+} from "#modules/antigravity-cli-agent-harness/provider-egress.js";
 
 export type ProviderEgressProvider = "anthropic" | "openai" | "openrouter" | "google";
 
@@ -128,21 +132,19 @@ const PROVIDER_ENDPOINTS: Readonly<Record<ProviderEgressProvider, readonly Provi
       port: 443,
     },
   ],
-  google: [
-    {
-      id: "google-generative-language-api",
-      protocol: "https",
-      host: "generativelanguage.googleapis.com",
-      port: 443,
-    },
-  ],
+  google: ANTIGRAVITY_CLI_PROVIDER_EGRESS_HOSTS.map((host) => ({
+    id: host,
+    protocol: "https" as const,
+    host,
+    port: 443 as const,
+  })),
 };
 
 const PROVIDER_AUTH_ENV_KEYS: Readonly<Record<ProviderEgressProvider, readonly string[]>> = {
   anthropic: ["ANTHROPIC_API_KEY"],
   openai: ["OPENAI_API_KEY"],
   openrouter: ["OPENROUTER_API_KEY"],
-  google: ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
+  google: ANTIGRAVITY_CLI_PROVIDER_AUTH_ENV_KEYS,
 };
 
 const HARNESS_PROVIDER: Readonly<Record<string, ProviderEgressProvider>> = {

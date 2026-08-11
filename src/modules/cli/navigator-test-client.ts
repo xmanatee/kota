@@ -228,6 +228,12 @@ export function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
         },
       }),
       run: stub({ ok: false, reason: "no_fixtures", message: "stub" }),
+      runAgyModels: stub({
+        ok: false,
+        reason: "no_candidates",
+        message: "stub",
+        artifactDir: null,
+      }),
       calibration: stub(EMPTY_EVAL_CALIBRATION_RESULT),
     },
     recall: { recall: stub({ ok: true, hits: [] }) },

@@ -75,7 +75,10 @@ export async function runMultiRoundFixture(
       fixtureId: spec.id,
       runIndex: params.runIndex,
       repeatCount: params.repeatCount,
-      executionMode: fixtureExecutionMode(params.fixture),
+      executionMode: fixtureExecutionMode(
+        params.fixture,
+        params.agentExecutionOverride !== undefined,
+      ),
       outcome: outcomeFromExecution(executionOutcome, false),
       resourceProfile,
       executionProfile: params.executionProfile,
@@ -208,7 +211,10 @@ export async function runMultiRoundFixture(
     fixtureId: spec.id,
     runIndex: params.runIndex,
     repeatCount: params.repeatCount,
-    executionMode: fixtureExecutionMode(params.fixture),
+    executionMode: fixtureExecutionMode(
+      params.fixture,
+      params.agentExecutionOverride !== undefined,
+    ),
     outcome,
     resourceProfile,
     executionProfile: params.executionProfile,

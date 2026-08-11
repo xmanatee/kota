@@ -10,6 +10,23 @@ export {
   recordingPathForStep,
   recordingsDirForFixture,
 } from "./agent-step-recording.js";
+export {
+  parseAgyAvailableModels,
+  probeAgyModelAvailability,
+  validateAgyEvaluationEffort,
+} from "./agy-model-availability.js";
+export { runAgyModelEvaluationSuite } from "./agy-model-evaluation.js";
+export {
+  changedPathScopeFromRun,
+  scoreAgyScenarioRun,
+} from "./agy-model-evaluation-rubric.js";
+export type * from "./agy-model-evaluation-types.js";
+export {
+  AGY_MODEL_EVALUATION_EFFORT,
+  AGY_MODEL_EVALUATION_HARNESS,
+  AGY_MODEL_EVALUATION_NATIVE_EFFORT,
+  AGY_MODEL_EVALUATION_SCENARIOS,
+} from "./agy-model-evaluation-types.js";
 export type {
   BaselineAssessment,
   CandidateAssessment,

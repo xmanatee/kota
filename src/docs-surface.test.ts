@@ -45,7 +45,12 @@ function listTextFiles(path: string): string[] {
   if (stat.isSymbolicLink()) return [];
   if (stat.isDirectory()) {
     return readdirSync(path)
-      .filter((entry) => !SKIPPED_SCAN_DIRECTORIES.has(entry))
+      .filter(
+        (entry) =>
+          !SKIPPED_SCAN_DIRECTORIES.has(entry) &&
+          entry !== ".env" &&
+          !entry.startsWith(".env."),
+      )
       .flatMap((entry) => listTextFiles(join(path, entry)));
   }
   return TEXT_EXTENSIONS.has(extname(path)) ? [path] : [];

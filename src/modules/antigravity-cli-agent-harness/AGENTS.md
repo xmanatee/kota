@@ -22,6 +22,9 @@ Translate native events into
 `KotaAgentMessage` frames here; preserve unknown frames as `raw` messages. KOTA
 effort maps to AGY's `low`, `medium`, or `high` values, with stronger KOTA
 levels capped at AGY's highest supported value.
+Command-bearing tool events carry exact and prefix fingerprints for durable
+adherence checks; raw command parameters remain provider tool I/O and must not
+be persisted as trace text.
 
 Interactive clients remain multi-turn through KOTA's transcript composition;
 the adapter still starts one isolated AGY process per turn and does not expose
@@ -40,17 +43,21 @@ failure.
 
 ## Isolation
 
-Daemon runs use an invocation-local home and inherit no provider, GitHub,
-notification, or cloud credentials. On macOS, the isolated home exposes only
-the host Keychain directory through a read-only symlink so AGY can reuse its
-native login without inheriting global settings, plugins, history, or caches.
-Never copy or inspect the token itself.
+Daemon runs use an invocation-local home and ordinarily inherit no provider,
+GitHub, notification, or cloud credentials. On macOS, the isolated home
+exposes only the host Keychain directory through a read-only symlink so AGY
+can reuse its native login without inheriting global settings, plugins,
+history, or caches. Provider-egress eval containers explicitly project only
+this adapter's declared Google auth variables while the eval-owned upstream
+proxy marker is active. Never copy or inspect the token itself.
 
 The OS sandbox permits AGY's internal loopback listener, but outbound traffic
-still goes only through KOTA's host-owned allowlisted proxy. Effective scope
-policy paths are projected into the run worktree before launch; passive or
-write-confirmation runs can write only to invocation state. Git metadata and
-machine authority remain protected.
+still goes only through KOTA's host-owned allowlisted proxy. In provider-egress
+eval containers that proxy chains allowed CONNECT requests through the
+eval-configured Docker-network proxy; it never opens a direct provider route.
+Effective scope policy paths are projected into the run worktree before
+launch; passive or write-confirmation runs can write only to invocation state.
+Git metadata and machine authority remain protected.
 
 ## Model Routing
 
@@ -58,4 +65,6 @@ The shipped preset selects current AGY model ids and always passes an explicit
 model and effort. The required local auth probe uses `agy models`, which
 verifies the cached login and current model access without reading credentials.
 Treat that command as the local availability authority; do not infer support
-from older Gemini CLI model catalogs.
+from older Gemini CLI model catalogs. Catalog entries are effort-qualified, so
+availability checks must match the requested model and mapped AGY effort
+together.
