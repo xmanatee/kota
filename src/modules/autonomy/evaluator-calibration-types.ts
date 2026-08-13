@@ -1,0 +1,83 @@
+import type { WorkflowRunStatus } from "#core/workflow/run-types.js";
+import type { RepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
+
+export const EVALUATOR_CALIBRATION_ARTIFACT = "evaluator-calibration.json";
+
+/**
+ * Repair-check id of the critic. A failure means the critic found something
+ * the builder repaired before commit; it is diagnostic iteration evidence.
+ */
+export const CRITIC_CHECK_ID = "critic-review";
+
+export type EvaluatorCalibrationVerdict =
+  | "pass"
+  | "pass_with_warnings"
+  | "fail"
+  | "absent";
+
+/** Raw evaluator signals derived after a builder run commits. */
+export type EvaluatorCalibrationArtifact = {
+  runId: string;
+  workflow: string;
+  completedAt: string;
+  verdict: EvaluatorCalibrationVerdict;
+  warningCount: number;
+  criticalIssueCount: number;
+  repairIterations: number;
+  /**
+   * Checks repaired in the final iteration. A non-converging build never
+   * writes this artifact, so these are diagnostic rather than failure signals.
+   */
+  finalIterationFailures: string[];
+  /**
+   * Iterations where the critic rejected a draft that was later repaired.
+   * Contradiction detection requires a later overlapping final failure.
+   */
+  criticFailureCount: number;
+  terminalRunStatus: WorkflowRunStatus | "running";
+  taskId: string | null;
+  taskFinalState: RepoTaskState | null;
+  /** Source paths touched by the run, excluding tasks and AGENTS bookkeeping. */
+  sourceFilesChanged: string[];
+  /** Hash of the active critic prompt; prompt changes reset the sample window. */
+  criticPromptHash: string;
+};
+
+export type EvaluatorCalibrationAggregate = {
+  windowStartMs: number;
+  windowEndMs: number;
+  totalRuns: number;
+  byVerdict: Record<EvaluatorCalibrationVerdict, number>;
+  /** Passes followed by an overlapping run with a final failure signal. */
+  passContradictionCount: number;
+  passContradictionRate: number;
+  /** Hedged verdicts followed by another overlapping hedging/failing run. */
+  passWithWarningsFollowUpCount: number;
+  passWithWarningsFollowUpRate: number;
+};
+
+export type CalibrationDriftKind =
+  | "pass-contradiction"
+  | "pass-with-warnings-escalation";
+
+export type CalibrationGateConfig = {
+  thresholdRate: number;
+  minSample: number;
+  /** PWW overlap is naturally common, so it uses a separate higher threshold. */
+  passWithWarningsThresholdRate: number;
+  passWithWarningsMinSample: number;
+};
+
+export type CalibrationGateDecision =
+  | { status: "insufficient-sample"; reason: string }
+  | { status: "under-threshold"; reason: string }
+  | { status: "gated"; reason: string; kinds: CalibrationDriftKind[] };
+
+export const DEFAULT_CALIBRATION_THRESHOLD_RATE = 0.25;
+export const DEFAULT_CALIBRATION_MIN_SAMPLE = 8;
+/**
+ * Historical PWW overlap was about 70% across a clean seven-day window, so
+ * 75% leaves headroom for shared-file churn while surfacing sustained hedging.
+ */
+export const DEFAULT_PASS_WITH_WARNINGS_THRESHOLD_RATE = 0.75;
+export const DEFAULT_PASS_WITH_WARNINGS_MIN_SAMPLE = 5;

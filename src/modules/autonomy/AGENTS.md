@@ -54,17 +54,16 @@ or `data/watchlist.yaml`.
 
 ## Live-Run Evaluator Calibration
 
-Fixture `pass^k` catches generator drift; run artifacts catch evaluator drift.
-Pass-contradiction needs later final failure overlap (`verdict==="fail"` or
-failed terminal status); `criticFailureCount>0` alone is diagnostic. Mechanical
-repair is iteration noise. PWW escalation needs later final hedging/failing
-overlap; prompt-hash changes reset the window.
-Drift creates/recreates/promotes `task-evaluator-calibration-drift-repair` in
-`ready/`; regression bridges to attention digest. Recreate noops when the prior
-repair commit is newer than the latest artifact. Critic blocks weak rendered
-evidence, placeholder tests, untracked compat shims, hedged baseline ratchets,
-source dishonesty, untracked Done-When gaps, and untested runtime defects.
-Non-trivial warnings need a durable trace; otherwise critical.
+Fixture `pass^k` catches generator drift; artifacts catch evaluator drift.
+Pass-contradiction requires later overlapping `fail` verdict or terminal failure;
+repair counts alone are diagnostic. Failed builders write calibration during
+terminal finalization; prompt changes reset the window. PWW escalation requires
+later overlapping hedge/failure. Unavailable review clears stale verdicts.
+Drift manages `task-evaluator-calibration-drift-repair` in `ready/` and bridges
+to attention digest; recreate noops until evidence postdates the repair commit.
+Critic blocks weak evidence, placeholder tests, compat shims, hedged ratchets,
+dishonest sources, Done-When gaps, untested defects, and fixture-only signals.
+Non-trivial warnings require a durable trace; otherwise critical.
 
 ## External Pattern Decisions
 

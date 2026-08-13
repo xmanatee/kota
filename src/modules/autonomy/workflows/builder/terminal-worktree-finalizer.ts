@@ -12,6 +12,7 @@ import {
   listAutomationWorktreeUniqueCommits,
   reconcileAutomationWorktrees,
 } from "#modules/git/worktree-lifecycle.js";
+import { recordFailedBuilderCalibration } from "./failed-calibration-finalizer.js";
 import {
   BUILDER_RECOVERY_EVENT,
   builderRecoveryRequestForCandidate,
@@ -165,6 +166,7 @@ function recoveryActionFor(
 export async function finalizeBuilderTerminalWorktree(
   input: WorkflowTerminalFinalizerInput,
 ): Promise<void> {
+  recordFailedBuilderCalibration(input);
   const workspace = workspaceOutput(input);
   if (!workspace) return;
   const runDirPath = join(input.projectDir, input.metadata.runDir);

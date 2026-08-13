@@ -189,7 +189,7 @@ export function seedCalibration(
     repairIterations: 1,
     finalIterationFailures: [],
     criticFailureCount: 0,
-    terminalRunStatus: "success",
+    terminalRunStatus: verdict === "fail" ? "failed" : "success",
     taskId: null,
     taskFinalState: null,
     sourceFilesChanged,

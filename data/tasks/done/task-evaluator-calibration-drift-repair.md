@@ -1,12 +1,12 @@
 ---
 id: task-evaluator-calibration-drift-repair
 title: Repair evaluator calibration drift
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Restore the live-run evaluator calibration loop to within threshold by tightening critic guidance, repair-loop checks, or the calibration gate itself.
 created_at: 2026-08-13T15:08:48.668Z
-updated_at: 2026-08-13T15:08:48.668Z
+updated_at: 2026-08-13T16:06:36.633Z
 ---
 
 ## Problem
@@ -89,3 +89,24 @@ not only a clean commit with advisory caveats.
   or the recorded rationale for retuning it.
 - Updated scoped autonomy guidance naming which critic warning classes
   must fail, track follow-up, or pass as harmless.
+
+## Outcome
+
+Repaired the stale verdict lifecycle without silencing the live
+pass-contradiction gate or changing its 25% threshold. The critic clears its
+prior verdict and scrutiny outcome before every retry, making an unavailable
+final review honestly produce `absent`. The detector keeps its original
+`verdict === "fail"` OR failed-terminal-run contract, and the builder terminal
+finalizer now writes calibration for failed build steps before worktree cleanup;
+the post-commit writer continues to cover successful runs.
+
+The critic now treats evaluator signals reachable only in synthetic fixtures as
+critical, intentionally resetting the prompt-hash sample. The live CLI reports
+`insufficient-sample` with 0 fresh runs under prompt `a9c80b96e38f`, while a
+production-shaped test creates a failed builder artifact through the terminal
+writer and proves it contradicts an earlier overlapping pass. Calibration
+artifact writing, aggregation, and public types remain split into focused
+modules without a severe source-size batch. Evidence is registered as
+`.kota/runs/2026-08-13T15-36-07-327Z-builder-ed267r/evidence/artifacts/calibration-repair.json`;
+the final focused set passed 61 tests, 34 related tests passed, and lint,
+typecheck, build, task validation, and all 29 workflow definitions passed.
