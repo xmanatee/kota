@@ -1,6 +1,5 @@
 import { execFileSync } from "node:child_process";
 import {
-  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -2705,35 +2704,28 @@ describe("progress-reviewer workflow", () => {
         "artifact",
       );
     }
-    const unreadableDir = join(
+    const beyondLimitDir = join(
       projectDir,
       ".kota",
       "runs",
       "builder-success",
-      "zz-unreadable",
+      "zz-beyond-limit",
     );
-    mkdirSync(unreadableDir);
-    writeFileSync(join(unreadableDir, "blocked.txt"), "blocked");
-    chmodSync(unreadableDir, 0);
+    mkdirSync(beyondLimitDir);
+    writeFileSync(join(beyondLimitDir, "blocked.txt"), "blocked");
 
-    let evidence: ReturnType<typeof collectProgressReviewEvidence> | null = null;
-    try {
-      evidence = collectProgressReviewEvidence({
-        projectDir,
-        trigger: {
-          event: progressReviewRequested.name,
-          schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
-        },
-        now: NOW,
-      });
-    } finally {
-      chmodSync(unreadableDir, 0o700);
-    }
+    const evidence = collectProgressReviewEvidence({
+      projectDir,
+      trigger: {
+        event: progressReviewRequested.name,
+        schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+      },
+      now: NOW,
+    });
 
-    if (!evidence) throw new Error("progress-review evidence was not collected");
     expect(evidence.artifacts).toHaveLength(PROGRESS_REVIEW_MAX_ARTIFACTS);
     expect(evidence.artifacts.map((artifact) => artifact.file)).not.toContain(
-      "zz-unreadable/blocked.txt",
+      "zz-beyond-limit/blocked.txt",
     );
     expect(evidence.excluded).toContain(
       `artifacts: truncated after ${PROGRESS_REVIEW_MAX_ARTIFACTS} files`,
@@ -2764,23 +2756,16 @@ describe("progress-reviewer workflow", () => {
     );
     mkdirSync(maxDepthDir, { recursive: true });
     writeFileSync(join(maxDepthDir, "too-deep.txt"), "too deep");
-    chmodSync(maxDepthDir, 0);
 
-    let evidence: ReturnType<typeof collectProgressReviewEvidence> | null = null;
-    try {
-      evidence = collectProgressReviewEvidence({
-        projectDir,
-        trigger: {
-          event: progressReviewRequested.name,
-          schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
-        },
-        now: NOW,
-      });
-    } finally {
-      chmodSync(maxDepthDir, 0o700);
-    }
+    const evidence = collectProgressReviewEvidence({
+      projectDir,
+      trigger: {
+        event: progressReviewRequested.name,
+        schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+      },
+      now: NOW,
+    });
 
-    if (!evidence) throw new Error("progress-review evidence was not collected");
     expect(evidence.artifacts.map((artifact) => artifact.file)).not.toContain(tooDeepPath);
     expect(evidence.excluded).toContain(
       `artifacts for builder-success: skipped entries deeper than ${PROGRESS_REVIEW_MAX_ARTIFACT_DEPTH} path segments`,
