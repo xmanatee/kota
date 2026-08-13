@@ -279,9 +279,7 @@ export async function collectTextFromAntigravityCli(
         overrides: args.env,
         keychainDirectory,
       }),
-      readOnlyHostRoots: keychainDirectory === undefined
-        ? []
-        : [keychainDirectory],
+      readOnlyHostRoots: [],
       allowedEgressHosts: ANTIGRAVITY_CLI_PROVIDER_EGRESS_HOSTS,
       prepareEnvironment: prepareAntigravityCliRuntimeEnvironment,
     },

@@ -12,10 +12,13 @@ import type {
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
 import {
-  probeNativeCliAuth,
   probeNativeCliRuntime,
 } from "#core/agent-harness/index.js";
 import { projectNativeCliScope } from "#core/agent-harness/native-cli-scope-policy.js";
+import {
+  type AntigravityCliAuthReadinessOptions,
+  antigravityCliAuthReadiness,
+} from "./auth-readiness.js";
 import { abortedAntigravityCliResult } from "./cli-result.js";
 import {
   ANTIGRAVITY_CLI_BINARY_NAME,
@@ -100,29 +103,12 @@ const ANTIGRAVITY_CLI_UNSUPPORTED_OPTIONS = [
   },
 ] as const satisfies readonly AgentHarnessUnsupportedOption[];
 
-export function antigravityCliAuthReadiness(
-  deps?: AgentHarnessRuntimeProbeDeps,
-): AgentHarnessAuthProbe {
-  return probeNativeCliAuth({
-    binaryName: ANTIGRAVITY_CLI_BINARY_NAME,
-    statusArgs: ["models"],
-    required: true,
-    readyPattern: /^gemini-\S+/m,
-    stalePattern: /(?:expired|refresh token)/i,
-    missingPattern:
-      /(?:log in|login|authentication required|unauthenticated|unauthorized|credentials)/i,
-    readySummary: "Antigravity CLI login and model access ready",
-    staleSummary: "Antigravity CLI login is stale",
-    missingSummary: "Antigravity CLI login not active; run `agy` and sign in",
-    renewalSummary: "run `agy` and sign in again before unattended runs",
-  }, deps);
-}
-
 export function antigravityCliReadiness(
   request?: AgentHarnessReadinessRequest,
   deps?: AgentHarnessRuntimeProbeDeps,
+  authOptions?: AntigravityCliAuthReadinessOptions,
 ): AgentHarnessReadiness {
-  const observedAuth = antigravityCliAuthReadiness(deps);
+  const observedAuth = antigravityCliAuthReadiness(deps, authOptions);
   const localAuth: AgentHarnessAuthProbe =
     request?.unattended === true &&
       (observedAuth.status === "ready" || observedAuth.status === "expiring")

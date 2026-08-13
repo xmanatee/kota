@@ -2,7 +2,6 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
-  readlinkSync,
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -23,7 +22,7 @@ afterEach(() => {
 });
 
 describe("Antigravity CLI runtime home", () => {
-  it("projects the macOS keychain directory into the isolated home", () => {
+  it("rejects the host Keychains directory before creating a projection", () => {
     const root = mkdtempSync(join(tmpdir(), "kota-agy-home-"));
     roots.push(root);
     const keychainDirectory = join(root, "host-keychains");
@@ -32,7 +31,8 @@ describe("Antigravity CLI runtime home", () => {
     mkdirSync(keychainDirectory);
     mkdirSync(join(toolRuntimeRoot, "home"), { recursive: true });
 
-    const env = prepareAntigravityCliRuntimeEnvironment({
+    const projection = join(toolRuntimeRoot, "home", "Library", "Keychains");
+    expect(() => prepareAntigravityCliRuntimeEnvironment({
       invocationRoot,
       toolRuntimeRoot,
       readableRoots: [],
@@ -44,19 +44,15 @@ describe("Antigravity CLI runtime home", () => {
     }, {
       [ANTIGRAVITY_CLI_KEYCHAIN_DIR_ENV]: keychainDirectory,
       PATH: "/usr/bin",
-    });
-
-    const projection = join(toolRuntimeRoot, "home", "Library", "Keychains");
-    expect(lstatSync(projection).isSymbolicLink()).toBe(true);
-    expect(readlinkSync(projection)).toBe(keychainDirectory);
-    expect(env).toEqual({ PATH: "/usr/bin" });
+    })).toThrow(/provider-only authentication broker.*refusing to launch/i);
+    expect(() => lstatSync(projection)).toThrow();
   });
 
   it("does not invent a file-backed keyring projection on other platforms", () => {
     expect(resolveAntigravityCliKeychainDirectory({}, "linux")).toBeUndefined();
   });
 
-  it("fails when the declared keychain directory is missing", () => {
+  it("rejects even a missing declared keychain directory instead of weakening the boundary", () => {
     const root = mkdtempSync(join(tmpdir(), "kota-agy-home-"));
     roots.push(root);
     const invocationRoot = join(root, "invocation");
@@ -75,6 +71,6 @@ describe("Antigravity CLI runtime home", () => {
         protectedRuntimeRoot: join(root, "protected-runtime"),
       },
       { [ANTIGRAVITY_CLI_KEYCHAIN_DIR_ENV]: join(root, "missing") },
-    )).toThrow(/keychain directory does not exist/);
+    )).toThrow(/Keychains directory.*refusing to launch/i);
   });
 });

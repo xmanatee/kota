@@ -1,0 +1,3 @@
+1. Remove the operator's general macOS Keychains directory from the Antigravity native tool loop and fail closed before AGY starts when narrow authentication is unavailable.
+2. Add focused regression coverage for the sandbox readable-root and prelaunch authentication boundaries.
+3. Record a passing focused verification command in the completed task and run evidence.

@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-auto-approved-antigravity-nati
 title: Security review: The auto-approved Antigravity native tool loop receives read access to the operator's entire macOS Keychains directory. Untrusted prompts or repository content could induce native tools to query unrelated credentials and expose them through model traffic.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: The auto-approved Antigravity native tool loop receives read access to the operator's entire macOS Keychains directory. Untrusted prompts or repository content could induce native tools to query unrelated credentials and expose them through model traffic.
 created_at: 2026-08-13T13:06:08.341Z
-updated_at: 2026-08-13T13:06:08.341Z
+updated_at: 2026-08-13T14:00:41.535Z
 ---
 
 ## Problem
@@ -111,3 +111,10 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/modules/antigravity-cli-agent-harness` — 9 files and 29 tests passed, including sandbox readable-root, prelaunch Keychain rejection, and macOS auth-readiness coverage.
+- `pnpm test src/agy-model-readiness.integration.test.ts src/core/model/preset-readiness-unverifiable-auth.test.ts src/core/model/preset-readiness.test.ts src/modules/doctor/doctor-preset-readiness.test.ts src/modules/doctor/doctor-unverifiable-auth.test.ts src/modules/eval-harness/provider-egress.test.ts src/modules/eval-harness/agy-model-availability-container.test.ts` — 7 files and 15 downstream readiness/provider-egress tests passed.
+- `pnpm run typecheck`, `pnpm run build`, targeted `pnpm exec biome check`, and repository-wide `pnpm run lint` passed; lint retained pre-existing warnings in unrelated owner-decision and approval-queue tests.
+- `pnpm test src/strict-types-policy.integration.test.ts src/root-layout.test.ts` — 2 policy files and 3 tests passed.
