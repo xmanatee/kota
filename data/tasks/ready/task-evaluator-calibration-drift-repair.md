@@ -1,12 +1,12 @@
 ---
 id: task-evaluator-calibration-drift-repair
 title: Repair evaluator calibration drift
-status: done
+status: ready
 priority: p1
 area: autonomy
 summary: Restore the live-run evaluator calibration loop to within threshold by tightening critic guidance, repair-loop checks, or the calibration gate itself.
-created_at: 2026-05-16T02:37:19.045Z
-updated_at: 2026-05-16T02:43:04.033Z
+created_at: 2026-08-13T15:08:48.668Z
+updated_at: 2026-08-13T15:08:48.668Z
 ---
 
 ## Problem
@@ -21,18 +21,18 @@ Drift kind(s): pass-contradiction.
 
 Decision reason from the monitor:
 
-> Pass-verdict contradiction rate 44.4% exceeds threshold 25.0% (4 of 9 pass verdicts).
+> Pass-verdict contradiction rate 37.5% exceeds threshold 25.0% (3 of 8 pass verdicts).
 
 ## Calibration Snapshot
 
-- Window: 2026-05-09T02:37:18.808Z → 2026-05-16T02:37:18.808Z
-- Total runs in window: 11
-- Pass verdicts: 9
-- Pass-with-warnings verdicts: 2
-- Fail verdicts: 0
-- Absent verdicts: 0
-- Pass-contradiction rate: 44.4% (4 of 9); threshold 25.0%.
-- Pass-with-warnings follow-up rate: 50.0% (1 of 2); threshold 75.0%.
+- Window: 2026-08-06T15:08:39.194Z → 2026-08-13T15:08:39.194Z
+- Total runs in window: 13
+- Pass verdicts: 8
+- Pass-with-warnings verdicts: 0
+- Fail verdicts: 1
+- Absent verdicts: 4
+- Pass-contradiction rate: 37.5% (3 of 8); threshold 25.0%.
+- Pass-with-warnings follow-up rate: 0.0% (0 of 0); threshold 75.0%.
 
 ## Desired Outcome
 
@@ -73,7 +73,7 @@ visible in the run artifact rather than only in attention digests.
 ## Source / Intent
 
 Auto-created by `evaluator-calibration-monitor` after the live calibration
-gate fired at 2026-05-16T02:37:19.045Z. Replaces the previous notification-only
+gate fired at 2026-08-13T15:08:48.668Z. Replaces the previous notification-only
 behavior so calibration drift becomes a deterministic next action in the
 queue rather than a recurring attention item.
 
@@ -89,14 +89,3 @@ not only a clean commit with advisory caveats.
   or the recorded rationale for retuning it.
 - Updated scoped autonomy guidance naming which critic warning classes
   must fail, track follow-up, or pass as harmless.
-
-## Completion Evidence
-
-- `.kota/runs/2026-05-16T02-37-51-356Z-builder-fjb7q2/calibration-repair.json`
-  shows the latest sample under threshold: pass contradiction `0 of 9`
-  (`0.0%`) against the `25.0%` threshold.
-- `.kota/runs/2026-05-16T02-37-51-356Z-builder-fjb7q2/evaluator-calibration-test.txt`
-  records `25 passed`; `critic-test.txt` records `22 passed`.
-- `src/modules/autonomy/evaluator-calibration.ts` now documents
-  `criticFailureCount` as diagnostic review evidence only, matching the
-  scoped guidance in `src/modules/autonomy/AGENTS.md`.
