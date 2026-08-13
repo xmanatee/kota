@@ -68,6 +68,11 @@ export async function executeRepairAgentIteration(
     agentConfig.projectDir,
   );
   const harness = resolveAgentHarness(step.harness);
+  const repairSessionId = harness.unsupportedRunOptions?.some(
+    (entry) => entry.runOption === "resumeSessionId",
+  )
+    ? undefined
+    : resumeSessionId;
   const workspaceDir = agentConfig.workspaceDir ?? agentConfig.projectDir;
   const scopedAgent = step.agentName && agentConfig.resolveAgentDef
     ? agentConfig.resolveAgentDef(step.agentName)
@@ -113,7 +118,7 @@ export async function executeRepairAgentIteration(
       });
       const options = {
         ...baseOptions,
-        ...(resumeSessionId === undefined ? {} : { resumeSessionId }),
+        ...(repairSessionId === undefined ? {} : { resumeSessionId: repairSessionId }),
       };
       if (attemptAbortController.signal.aborted) {
         throw attemptAbortController.signal.reason instanceof Error

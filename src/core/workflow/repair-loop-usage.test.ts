@@ -158,4 +158,137 @@ describe("repair-loop usage", () => {
     });
     expect(resumedSessionIds).toEqual(["attempt-1"]);
   });
+
+  it("starts a fresh repair call when the harness declares resume unsupported", async () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "kota-repair-fresh-session-"));
+    roots.push(projectDir);
+    writeFileSync(join(projectDir, "prompt.md"), "Repair.\n", "utf8");
+    mkdirSync(join(projectDir, ".kota", "runs", "run-2"), { recursive: true });
+    const harnessName = `repair-fresh-session-${Date.now()}`;
+    const receivedSessionIds: Array<string | undefined> = [];
+    registerAgentHarness({
+      name: harnessName,
+      description: "repair fresh-session fixture",
+      supportsMultiTurn: true,
+      supportedHookKinds: [],
+      askOwnerToolName: null,
+      emitsAgentMessageStream: false,
+      toolControl: "kota",
+      unsupportedRunOptions: [{
+        runOption: "resumeSessionId",
+        option: "resumeSessionId",
+        reason: "fixture harness starts a fresh process for each call",
+      }],
+      run: async (options: AgentHarnessRunOptions) => {
+        receivedSessionIds.push(options.resumeSessionId);
+        return {
+          text: "repair complete",
+          streamedText: "repair complete",
+          turns: 1,
+          inputTokens: 20,
+          outputTokens: 3,
+          sessionId: "fresh-repair-session",
+          isError: false,
+        };
+      },
+    });
+    let checkRuns = 0;
+    const step: WorkflowAgentStep = {
+      id: "build",
+      type: "agent",
+      harness: harnessName,
+      model: "fixture-model",
+      effort: "low",
+      autonomyMode: "autonomous",
+      moduleRoot: projectDir,
+      promptPath: "prompt.md",
+      repairLoop: {
+        maxRepairAttempts: 1,
+        checks: [{
+          id: "fail-once",
+          type: "code",
+          run: () => {
+            checkRuns += 1;
+            if (checkRuns === 1) throw new Error("needs repair");
+            return "ok";
+          },
+        }],
+      },
+    };
+    const metadata: WorkflowRunMetadata = {
+      id: "run-2",
+      workflow: "fixture",
+      definitionPath: "workflow.ts",
+      trigger: { event: "runtime.idle", schemaRef: null, payload: {} },
+      startedAt: "2026-08-13T00:00:00.000Z",
+      status: "running",
+      runDir: ".kota/runs/run-2",
+      steps: [],
+    };
+    const context = {
+      projectDir,
+      agentRuntime: resolveAgentRuntime(undefined),
+      workflow: {
+        name: "fixture",
+        definitionPath: "workflow.ts",
+        runId: "run-2",
+        runDir: metadata.runDir,
+        runDirPath: join(projectDir, metadata.runDir),
+      },
+      trigger: metadata.trigger,
+      previousOutput: undefined,
+      stepOutputs: {},
+      stepResults: {},
+      stepOutputList: [],
+      runAgentHarness: createWorkflowAgentHarnessRunner(undefined),
+      runTool: async () => ({ content: "unused" }),
+      emit: vi.fn(),
+      requestRestart: vi.fn(),
+      readPrompt: () => "Repair.\n",
+      readRuntimeState: () => ({ completedRuns: 0, pendingRuns: [], workflows: {} }),
+      reportProgress: vi.fn(),
+      triggerWorkflow: async () => ({ runId: "unused", status: "queued" as const }),
+    } satisfies WorkflowStepContext;
+    const initialResult: AgentStepResult = {
+      output: {
+        content: "initial",
+        turns: 1,
+        totalCostUsd: 0,
+        inputTokens: 10,
+        outputTokens: 2,
+        sessionId: "initial-session",
+      },
+      harness: harnessName,
+      model: "fixture-model",
+      trajectoryDiagnostics: {
+        artifactPath: ".kota/runs/run-2/steps/build.trajectory-diagnostics.json",
+        warningCount: 0,
+        unsupportedTrajectoryCount: 0,
+        missingStreamingFramesCount: 0,
+        missingFinalVerificationAfterEditCount: 0,
+        repeatedIdenticalFailingCommandCount: 0,
+        editAfterSuccessfulVerificationCount: 0,
+        longPreambleWithoutTaskTouchCount: 0,
+      },
+      trajectoryMessages: [],
+      preStepMutatedPaths: [],
+    };
+
+    const result = await runAgentRepairLoop(
+      step,
+      initialResult,
+      context,
+      metadata,
+      new AbortController(),
+      vi.fn(),
+      { projectDir },
+    );
+
+    expect(receivedSessionIds).toEqual([undefined]);
+    expect(result.output).toMatchObject({
+      content: "repair complete",
+      sessionId: "fresh-repair-session",
+      repairIterations: [{ attempt: 1, agentSessionId: "fresh-repair-session" }],
+    });
+  });
 });
