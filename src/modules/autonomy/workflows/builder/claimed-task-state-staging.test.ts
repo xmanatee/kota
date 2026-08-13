@@ -7,9 +7,15 @@ const mocks = vi.hoisted(() => ({
   ]),
 }));
 
-vi.mock("#modules/repo-tasks/repo-tasks-domain.js", () => ({
-  stageRepoTaskStateMutation: mocks.stageRepoTaskStateMutation,
-}));
+vi.mock(
+  "#modules/repo-tasks/repo-tasks-domain.js",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("#modules/repo-tasks/repo-tasks-domain.js")
+    >()),
+    stageRepoTaskStateMutation: mocks.stageRepoTaskStateMutation,
+  }),
+);
 
 import { builderRepairChecks } from "./repair-checks.js";
 import { checkClaimedTaskStateStaged } from "./task-state-repair-checks.js";

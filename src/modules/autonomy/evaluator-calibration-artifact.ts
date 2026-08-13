@@ -20,9 +20,14 @@ import {
   type EvaluatorCalibrationVerdict,
 } from "./evaluator-calibration-types.js";
 
+export type CalibrationCriticVerdict = CriticVerdict & {
+  /** Prompt identity captured when the critic made this verdict. */
+  reviewerPromptHash: string | null;
+};
+
 export function readCalibrationCriticVerdict(
   runDirs: readonly string[],
-): CriticVerdict | null {
+): CalibrationCriticVerdict | null {
   for (const runDir of new Set(runDirs)) {
     const path = join(runDir, "critic-review.json");
     if (!existsSync(path)) continue;
@@ -46,11 +51,18 @@ export function readCalibrationCriticVerdict(
     ) {
       throw new Error(`Invalid critic verdict payload in ${path}`);
     }
+    if (
+      parsed.reviewerPromptHash !== undefined &&
+      typeof parsed.reviewerPromptHash !== "string"
+    ) {
+      throw new Error(`Invalid critic reviewerPromptHash in ${path}`);
+    }
     return {
       verdict: parsed.verdict,
       critical_issues: parsed.critical_issues,
       warnings: parsed.warnings,
       summary: parsed.summary,
+      reviewerPromptHash: parsed.reviewerPromptHash ?? null,
     };
   }
   return null;
@@ -157,6 +169,7 @@ export function writeCalibrationArtifact(
     runId: string;
     workflow: string;
     taskId: string | null;
+    commitSha: string;
     filesChanged: string[];
     completedAt: string;
   }>(join(runDir, "run-summary.json"));
@@ -185,10 +198,14 @@ export function writeCalibrationArtifact(
     taskFinalState: taskId
       ? findTaskFinalState(ctx.projectDir, taskId)
       : null,
+    sourceRevision: runSummary?.commitSha ?? null,
     sourceFilesChanged: (runSummary?.filesChanged ?? []).filter(
       isCalibrationSourceFile,
     ),
-    criticPromptHash: options.criticPromptHash ?? getCriticPromptHash(),
+    criticPromptHash:
+      options.criticPromptHash ??
+      criticVerdict?.reviewerPromptHash ??
+      getCriticPromptHash(),
   };
 
   writeJsonFileAtomic(join(runDir, EVALUATOR_CALIBRATION_ARTIFACT), artifact);

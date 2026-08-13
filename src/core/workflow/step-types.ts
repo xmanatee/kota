@@ -120,6 +120,7 @@ export type WorkflowRestartStep = WorkflowBaseStep & {
   type: "restart";
   reason?: WorkflowValueResolver<string>;
   requires: string[];
+  allowPostRestartEmits?: boolean;
 };
 
 export type WorkflowCodeStep = WorkflowProgressStep & {

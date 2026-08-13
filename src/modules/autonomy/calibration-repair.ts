@@ -22,12 +22,8 @@
  * commit step picks up the changes.
  */
 
-import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { serializeFlatFrontMatter } from "#core/util/frontmatter.js";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import {
   getRepoTaskStateDir,
   getRepoTasksDir,
@@ -37,11 +33,12 @@ import {
   type RepoTaskState,
   writeRepoTaskFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
-import {
-  type CalibrationDriftKind,
-  EVALUATOR_CALIBRATION_ARTIFACT,
-  type EvaluatorCalibrationAggregate,
-  type EvaluatorCalibrationArtifact,
+import { inspectCalibrationRepairFreshness } from "./calibration-repair-freshness.js";
+import { buildCalibrationRepairTaskFile } from "./calibration-repair-task.js";
+import type {
+  CalibrationDriftKind,
+  CalibrationGateDecision,
+  EvaluatorCalibrationAggregate,
 } from "./evaluator-calibration.js";
 
 export const CALIBRATION_REPAIR_TASK_ID = "task-evaluator-calibration-drift-repair";
@@ -99,56 +96,6 @@ function findExistingRepairTaskState(projectDir: string): RepoTaskState | null {
 }
 
 /**
- * Most recent calibration artifact's `completedAt` across the entire runs
- * directory, in epoch ms. Returns null when no artifact has been written or
- * when none parses cleanly. Walks the directory in reverse-sorted order so the
- * first artifact found is the newest; the directory naming convention prefixes
- * timestamps so lexical sort matches chronological sort. The full set is
- * relevant rather than just the gate's window because the staleness check
- * compares against task-file commits which are not window-scoped.
- */
-function lastCalibrationArtifactCompletedAtMs(projectDir: string): number | null {
-  const runsDir = join(projectDir, ".kota", "runs");
-  if (!existsSync(runsDir)) return null;
-  const entries = readdirSync(runsDir).sort().reverse();
-  for (const entry of entries) {
-    const path = join(runsDir, entry, EVALUATOR_CALIBRATION_ARTIFACT);
-    let parsed: EvaluatorCalibrationArtifact | null;
-    try {
-      parsed = readOptionalJsonFile<EvaluatorCalibrationArtifact>(path);
-    } catch {
-      continue;
-    }
-    if (!parsed) continue;
-    if (typeof parsed.completedAt !== "string") continue;
-    const ms = Date.parse(parsed.completedAt);
-    if (Number.isFinite(ms)) return ms;
-  }
-  return null;
-}
-
-/**
- * Last commit timestamp (committer date) for a path in the repo, in epoch ms.
- * Returns null when the file has no git history yet (e.g. the test sandbox
- * staged it but has not committed it).
- */
-function lastCommitMsForPath(projectDir: string, absolutePath: string): number | null {
-  let raw: string;
-  try {
-    raw = execFileSync("git", ["log", "-1", "--format=%cI", "--", absolutePath], {
-      cwd: projectDir,
-      env: withProtectedGitBareRepositoryEnv(),
-      encoding: "utf-8",
-    }).trim();
-  } catch {
-    return null;
-  }
-  if (!raw) return null;
-  const ms = Date.parse(raw);
-  return Number.isFinite(ms) ? ms : null;
-}
-
-/**
  * Decide what to do about the calibration repair task. Pure: reads disk to
  * find the current state, but does not mutate.
  */
@@ -171,30 +118,31 @@ export function proposeCalibrationRepair(
     };
   }
   if (existing && RECREATE_STATES.has(existing)) {
-    // Defend against the recreate-loop that fires once per prompt update: a
-    // builder closes the previous repair task to done/ when the fix lands; the
-    // monitor that runs on `workflow.build.committed` from the same commit may
-    // still hold the pre-fix module imports because the daemon restart has not
-    // completed yet. Under those stale imports the gate aggregation skips the
-    // post-ea9bda71 hash filter and re-fires on pre-fix verdicts. When the
-    // done-task's most recent commit is later than the most recent calibration
-    // artifact on disk, no post-fix builder run has written calibration data
-    // yet, so the gate is firing on data that pre-dates the fix. Return noop
-    // and wait for fresh evidence.
+    // A source-changing repair commit is reviewed and calibrated by the
+    // pre-restart daemon. Concurrent builders may also finish afterward from
+    // branches based before the fix. Wall-clock ordering therefore cannot
+    // prove that the repaired evaluator has observed a run; require a source
+    // revision descended from the commit that closed the repair task.
     const previousTaskPath = join(
       getRepoTaskStateDir(ctx.projectDir, existing),
       `${CALIBRATION_REPAIR_TASK_ID}.md`,
     );
-    const closedAtMs = lastCommitMsForPath(ctx.projectDir, previousTaskPath);
-    const lastArtifactMs = lastCalibrationArtifactCompletedAtMs(ctx.projectDir);
-    if (closedAtMs !== null && lastArtifactMs !== null && closedAtMs > lastArtifactMs) {
+    const freshness = inspectCalibrationRepairFreshness(
+      ctx.projectDir,
+      previousTaskPath,
+      CALIBRATION_REPAIR_TASK_ID,
+    );
+    if (freshness.status !== "descendant-observed") {
+      const evidenceReason =
+        freshness.status === "awaiting-descendant"
+          ? `no calibration artifact is based on repair ${freshness.repairRevision} or a descendant revision`
+          : "the repair-closing revision is unavailable";
       return {
         action: "noop",
         reason:
-          `${CALIBRATION_REPAIR_TASK_ID} closed at ${new Date(closedAtMs).toISOString()} ` +
-          `is more recent than the latest calibration artifact at ${new Date(lastArtifactMs).toISOString()}; ` +
-          `gate is firing on pre-fix data and no post-fix builder run has written calibration evidence yet — ` +
-          `let fresh artifacts accrue under the running critic prompt before re-opening the repair task.`,
+          `${CALIBRATION_REPAIR_TASK_ID} remains closed because ${evidenceReason}; ` +
+          `later wall-clock artifacts can still belong to the closing run or a concurrent pre-fix branch — ` +
+          `let a descendant builder run exercise the repaired evaluator before re-opening the task.`,
         existingState: existing,
       };
     }
@@ -284,132 +232,24 @@ export function applyCalibrationRepair(
   };
 }
 
-function pct(value: number): string {
-  return `${(value * 100).toFixed(1)}%`;
-}
-
-function describeDriftKinds(kinds: readonly CalibrationDriftKind[]): string {
-  return kinds.join(", ");
-}
-
-function buildCalibrationRepairTaskFile(
-  taskId: string,
-  state: "ready",
-  ctx: CalibrationRepairContext,
-): string {
-  const attrs: Record<string, string> = {
-    id: taskId,
-    title: "Repair evaluator calibration drift",
-    status: state,
-    priority: "p1",
-    area: "autonomy",
-    summary:
-      "Restore the live-run evaluator calibration loop to within threshold by tightening critic guidance, repair-loop checks, or the calibration gate itself.",
-    created_at: ctx.nowIso,
-    updated_at: ctx.nowIso,
-  };
-
-  const body = buildCalibrationRepairTaskBody(ctx);
-  return serializeFlatFrontMatter(attrs, body);
-}
-
-function buildCalibrationRepairTaskBody(ctx: CalibrationRepairContext): string {
-  const { aggregate, driftKinds } = ctx;
-  const lines: string[] = [
-    "",
-    "## Problem",
-    "",
-    "The live-run evaluator calibration gate fired in the last builder commit.",
-    "That signal turns into a typed `evaluator-calibration.regression.detected`",
-    "event and an attention-digest entry, but it must also turn into a concrete",
-    "repair: the critic, repair-loop checks, prompt guidance, or the gate",
-    "configuration itself need to change so the rate returns within threshold.",
-    "",
-    `Drift kind(s): ${describeDriftKinds(driftKinds)}.`,
-    "",
-    "Decision reason from the monitor:",
-    "",
-    `> ${ctx.decisionReason.replace(/\n/g, "\n> ")}`,
-    "",
-    "## Calibration Snapshot",
-    "",
-    `- Window: ${new Date(aggregate.windowStartMs).toISOString()} → ${new Date(aggregate.windowEndMs).toISOString()}`,
-    `- Total runs in window: ${aggregate.totalRuns}`,
-    `- Pass verdicts: ${aggregate.byVerdict.pass}`,
-    `- Pass-with-warnings verdicts: ${aggregate.byVerdict.pass_with_warnings}`,
-    `- Fail verdicts: ${aggregate.byVerdict.fail}`,
-    `- Absent verdicts: ${aggregate.byVerdict.absent}`,
-    `- Pass-contradiction rate: ${pct(aggregate.passContradictionRate)} (${aggregate.passContradictionCount} of ${aggregate.byVerdict.pass}); threshold ${pct(ctx.thresholdRate)}.`,
-    `- Pass-with-warnings follow-up rate: ${pct(aggregate.passWithWarningsFollowUpRate)} (${aggregate.passWithWarningsFollowUpCount} of ${aggregate.byVerdict.pass_with_warnings}); threshold ${pct(ctx.passWithWarningsThresholdRate)}.`,
-    "",
-    "## Desired Outcome",
-    "",
-    "Either:",
-    "",
-    "- the underlying calibration drift is fixed (tighten critic guidance,",
-    "  introduce a sharper repair-loop check, raise the bar for accepted",
-    "  warnings, fix a prompt that lets the critic accept weak evidence); or",
-    "- the threshold is intentionally widened with a recorded reason (the",
-    "  current rate is the new healthy floor for the changed workload).",
-    "",
-    "Either way, the next monitor run should land back at `under-threshold` or",
-    "`insufficient-sample` for the relevant kind, and that result must be",
-    "visible in the run artifact rather than only in attention digests.",
-    "",
-    "## Constraints",
-    "",
-    "- Keep critic input artifact-only (diff, repo state, run artifacts,",
-    "  optional runtime probe). Do not feed thinking traces or self-reports.",
-    "- Do not silence the gate by raising the threshold without a documented",
-    "  rationale committed alongside the threshold change.",
-    "- Keep operator-facing notification surfaces (attention digest) working —",
-    "  this task is in addition to that bridge, not instead of it.",
-    "- Do not add a parallel lessons store or audit surface.",
-    "",
-    "## Done When",
-    "",
-    "1. The drift kind named above is no longer firing on the last calibration",
-    "   sample, OR the gate config has been deliberately retuned with a",
-    "   recorded rationale.",
-    "2. Recent critic verdicts that were treated as `pass`/`pass_with_warnings`",
-    "   despite weak evidence have been re-classified by tighter guidance, a",
-    "   sharper repair-loop check, or follow-up tasks created for accepted",
-    "   trade-offs.",
-    "3. A run-directory artifact (`calibration-repair.json` or equivalent)",
-    "   shows the post-fix calibration aggregate moving back within threshold.",
-    "",
-    "## Source / Intent",
-    "",
-    "Auto-created by `evaluator-calibration-monitor` after the live calibration",
-    `gate fired at ${ctx.nowIso}. Replaces the previous notification-only`,
-    "behavior so calibration drift becomes a deterministic next action in the",
-    "queue rather than a recurring attention item.",
-    "",
-    "## Initiative",
-    "",
-    "Autonomy execution quality: builder success should mean proven completion,",
-    "not only a clean commit with advisory caveats.",
-    "",
-    "## Acceptance Evidence",
-    "",
-    "- Test output for the calibration repair / critic classification fixtures.",
-    "- A monitor run-directory artifact showing the gate back within threshold,",
-    "  or the recorded rationale for retuning it.",
-    "- Updated scoped autonomy guidance naming which critic warning classes",
-    "  must fail, track follow-up, or pass as harmless.",
-    "",
-  ];
-  return lines.join("\n");
-}
-
 export type CalibrationRepairArtifact = {
+  runId: string;
+  workflow: string;
+  triggerEvent: string;
+  sourceRunId: string | null;
+  criticPromptHash: string;
+  gateStatus: CalibrationGateDecision["status"];
   decisionReason: string;
   driftKinds: readonly CalibrationDriftKind[];
-  proposal: CalibrationRepairProposal;
-  applied: CalibrationRepairApplied;
+  /** Null when the aggregate does not require a queue mutation. */
+  proposal: CalibrationRepairProposal | null;
+  /** Null when no proposal was applied, including dirty-worktree skips. */
+  applied: CalibrationRepairApplied | null;
   aggregate: EvaluatorCalibrationAggregate;
   thresholdRate: number;
+  minSample: number;
   passWithWarningsThresholdRate: number;
+  passWithWarningsMinSample: number;
   generatedAt: string;
 };
 

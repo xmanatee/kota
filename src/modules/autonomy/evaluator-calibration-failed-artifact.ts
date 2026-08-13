@@ -91,6 +91,14 @@ function changedWorkspacePaths(workspaceDir: string): string[] {
   ].sort();
 }
 
+function workspaceSourceRevision(workspaceDir: string): string {
+  const [revision] = gitPathLines(workspaceDir, ["rev-parse", "HEAD"]);
+  if (!revision || !/^[0-9a-f]{40}$/.test(revision)) {
+    throw new Error("Failed builder calibration could not resolve workspace HEAD");
+  }
+  return revision;
+}
+
 export type WriteFailedCalibrationArtifactOptions = {
   /** Deterministic prompt-hash override for tests. */
   criticPromptHash?: string;
@@ -124,10 +132,14 @@ export function writeFailedCalibrationArtifact(
       workspace.workspaceDir,
       workspace.taskId,
     ),
+    sourceRevision: workspaceSourceRevision(workspace.workspaceDir),
     sourceFilesChanged: changedWorkspacePaths(workspace.workspaceDir).filter(
       isCalibrationSourceFile,
     ),
-    criticPromptHash: options.criticPromptHash ?? getCriticPromptHash(),
+    criticPromptHash:
+      options.criticPromptHash ??
+      criticVerdict?.reviewerPromptHash ??
+      getCriticPromptHash(),
   };
   writeJsonFileAtomic(join(runDir, EVALUATOR_CALIBRATION_ARTIFACT), artifact);
   return artifact;

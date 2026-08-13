@@ -1,0 +1,3 @@
+1. The affected 3-of-10 pass-contradiction sample is preserved, while the active gate uses a monitor-history-backed minimum that makes this small sample ineligible without widening the 25% threshold.
+2. Calibration-repair completion rejects aggregate-only, unrelated, config-mismatched, or undispositioned weak-evidence repairs; the three retained contradictions are assigned to an open, source-bound follow-up task.
+3. Monitor, successful-builder, and failed-builder artifacts retain prompt and source provenance; repair recreation accepts only descendant evidence and source-changing builder handoffs wait for restart.

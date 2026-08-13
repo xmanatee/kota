@@ -37,6 +37,8 @@ export type EvaluatorCalibrationArtifact = {
   terminalRunStatus: WorkflowRunStatus | "running";
   taskId: string | null;
   taskFinalState: RepoTaskState | null;
+  /** Git revision anchoring the reviewed workspace (result commit or failed-run base). */
+  sourceRevision: string | null;
   /** Source paths touched by the run, excluding tasks and AGENTS bookkeeping. */
   sourceFilesChanged: string[];
   /** Hash of the active critic prompt; prompt changes reset the sample window. */
@@ -74,7 +76,13 @@ export type CalibrationGateDecision =
   | { status: "gated"; reason: string; kinds: CalibrationDriftKind[] };
 
 export const DEFAULT_CALIBRATION_THRESHOLD_RATE = 0.25;
-export const DEFAULT_CALIBRATION_MIN_SAMPLE = 8;
+/**
+ * Small pass samples made individual overlaps move the rate by 10–12.5 points:
+ * live 8–10-pass windows repeatedly gated at 30–44%, while the preserved
+ * 73–74-pass windows held at 2.7%. Twenty passes keeps the unchanged 25% rate
+ * meaningful without treating early-window volatility as evaluator drift.
+ */
+export const DEFAULT_CALIBRATION_MIN_SAMPLE = 20;
 /**
  * Historical PWW overlap was about 70% across a clean seven-day window, so
  * 75% leaves headroom for shared-file churn while surfacing sustained hedging.

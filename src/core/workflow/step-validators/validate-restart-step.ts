@@ -16,6 +16,11 @@ export function validateRestartStep(
   index: number,
 ): WorkflowRestartStep {
   const reason = step.reason;
+  const allowPostRestartEmits = expectOptionalBoolean(
+    step.allowPostRestartEmits,
+    `steps[${index}].allowPostRestartEmits`,
+    definitionPath,
+  );
   if (
     reason !== undefined &&
     typeof reason !== "string" &&
@@ -38,6 +43,7 @@ export function validateRestartStep(
         `steps[${index}].requires`,
         definitionPath,
       ) ?? [],
+    ...(allowPostRestartEmits !== undefined ? { allowPostRestartEmits } : {}),
     when: expectOptionalFunction(
       step.when,
       `steps[${index}].when`,

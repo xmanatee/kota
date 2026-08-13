@@ -32,6 +32,7 @@ function seedRun(
     terminalRunStatus: "success",
     taskId: null,
     taskFinalState: null,
+    sourceRevision: "1111111111111111111111111111111111111111",
     sourceFilesChanged,
     criticPromptHash,
   };

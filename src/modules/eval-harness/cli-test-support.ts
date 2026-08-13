@@ -192,6 +192,7 @@ export function seedCalibration(
     terminalRunStatus: verdict === "fail" ? "failed" : "success",
     taskId: null,
     taskFinalState: null,
+    sourceRevision: "1111111111111111111111111111111111111111",
     sourceFilesChanged,
     criticPromptHash: getCriticPromptHash(),
   };

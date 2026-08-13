@@ -108,6 +108,7 @@ describe("writeFailedCalibrationArtifact", () => {
       terminalRunStatus: "success",
       taskId: null,
       taskFinalState: null,
+      sourceRevision: "1111111111111111111111111111111111111111",
       sourceFilesChanged: ["src/core/a.ts", "src/core/b.ts"],
       criticPromptHash: PROMPT_HASH,
     };
@@ -135,6 +136,7 @@ describe("writeFailedCalibrationArtifact", () => {
     expect(artifact).toMatchObject({
       verdict: "fail",
       terminalRunStatus: "failed",
+      sourceRevision: expect.stringMatching(/^[0-9a-f]{40}$/),
       sourceFilesChanged: ["src/core/a.ts"],
       finalIterationFailures: ["critic-review"],
     });

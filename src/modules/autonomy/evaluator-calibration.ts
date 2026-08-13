@@ -14,6 +14,7 @@ export {
   type WriteCalibrationArtifactOptions,
   writeCalibrationArtifact,
 } from "./evaluator-calibration-artifact.js";
+export { resolveCalibrationGateConfig } from "./evaluator-calibration-config.js";
 export {
   type WriteFailedCalibrationArtifactOptions,
   writeFailedCalibrationArtifact,

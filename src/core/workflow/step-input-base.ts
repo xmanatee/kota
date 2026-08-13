@@ -157,6 +157,8 @@ export type WorkflowRestartStepInput = WorkflowBaseStep & {
   type: "restart";
   reason?: WorkflowValueResolver<string>;
   requires?: string[];
+  /** Allow only final emit handoffs after restart has paused dispatch. */
+  allowPostRestartEmits?: boolean;
 };
 
 export type WorkflowNotifyConfig = {

@@ -54,13 +54,15 @@ or `data/watchlist.yaml`.
 
 ## Live-Run Evaluator Calibration
 
-Fixture `pass^k` catches generator drift; artifacts catch evaluator drift.
-Pass-contradiction requires later overlapping `fail` verdict or terminal failure;
-repair counts alone are diagnostic. Failed builders write calibration during
-terminal finalization; prompt changes reset the window. PWW escalation requires
-later overlapping hedge/failure. Unavailable review clears stale verdicts.
-Drift manages `task-evaluator-calibration-drift-repair` in `ready/` and bridges
-to attention digest; recreate noops until evidence postdates the repair commit.
+`pass^k` catches generator drift; artifacts catch evaluator drift. A later
+overlapping final failure contradicts a pass; raw evidence is never deduped.
+Repair counts are diagnostic. Failed builders retain the judgment-time prompt
+hash; prompt changes reset the window; unavailable review clears stale verdicts.
+PWW needs a later hedge/failure. Drift manages the repair task and digest. Gate
+retunes require repeated evidence and rationale; completion
+verifies the affected snapshot against active config and binds each retained
+signal to an open source-specific task. Reopen only from a repair-descendant
+revision.
 Critic blocks weak evidence, placeholder tests, compat shims, hedged ratchets,
 dishonest sources, Done-When gaps, untested defects, and fixture-only signals.
 Non-trivial warnings require a durable trace; otherwise critical.
