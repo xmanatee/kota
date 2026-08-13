@@ -1,0 +1,15 @@
+Focused command:
+TMPDIR=/private/tmp NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner --silent=true src/core/workflow/repair-loop-usage.test.ts src/workflow-step-executor.integration.test.ts src/modules/autonomy/workflow-failure-escalation.test.ts src/modules/autonomy/workflows/workflow-failure-escalator/workflow.test.ts
+
+Result on 2026-08-13:
+- exit 0
+- 4 test files passed
+- 77 tests passed
+- duration 1.15s
+
+Covered outcomes:
+- A harness that declares resumeSessionId unsupported receives a fresh repair call.
+- Repair telemetry and provider classification remain preserved.
+- A successful fresh workflow run clears an older consecutive-failure streak.
+- Operator attention includes the generated workflow-failure repair task id.
+- Operator attention excludes cost and throughput fields.

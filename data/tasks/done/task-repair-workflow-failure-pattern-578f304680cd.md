@@ -1,12 +1,12 @@
 ---
 id: task-repair-workflow-failure-pattern-578f304680cd
 title: Repair persistent builder workflow failure pattern
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Fix the local cause behind builder's persistent consecutive failure signal (repair-check test).
 created_at: 2026-08-13T13:39:55.406Z
-updated_at: 2026-08-13T13:39:55.406Z
+updated_at: 2026-08-13T15:21:05.206Z
 task_class: Meta
 ---
 
