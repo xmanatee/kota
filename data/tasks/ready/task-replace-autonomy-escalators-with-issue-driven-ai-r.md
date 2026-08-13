@@ -1,14 +1,14 @@
 ---
 id: task-replace-autonomy-escalators-with-issue-driven-ai-r
 title: Replace autonomy escalators with issue-driven AI review
-status: backlog
+status: ready
 priority: p0
 area: autonomy
 task_class: Meta
 depends_on: [task-validate-resolved-workflow-agent-capabilities-befo, task-make-autonomy-issues-a-durable-lifecycle-projectio]
 summary: Remove completion-wide escalator scans and direct improver edits in favor of one AI disposition per materially changed durable issue.
 created_at: 2026-08-06T20:22:00.325Z
-updated_at: 2026-08-06T20:22:00.325Z
+updated_at: 2026-08-13T10:19:21.986Z
 ---
 
 ## Problem
