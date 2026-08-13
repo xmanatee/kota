@@ -1,13 +1,13 @@
 ---
 id: task-recover-the-two-stale-builder-claims-blocking-high
 title: Recover the two stale builder claims blocking high-priority ready work
-status: ready
+status: blocked
 priority: p1
 area: autonomy
 task_class: Meta
 summary: Use the canonical workflow state-recovery path to inspect and disposition the preserved worktrees for the daemon-control responsiveness and issue-driven escalator tasks. Preserve or merge unique changes, release or supersede the stale claims with rationale, and reconcile their linked resumeSessionId dead letters now that the underlying harness defect has passed live verification.
 created_at: 2026-08-13T15:51:09.264Z
-updated_at: 2026-08-13T15:51:09.264Z
+updated_at: 2026-08-13T18:00:37.000Z
 ---
 
 ## Problem
@@ -60,3 +60,24 @@ Outcome-aware autonomy progress review.
 - Review-provided acceptance evidence:
 
     A workflow-state-recovery artifact records each worktree's before state, unique changes, recover/merge/supersede disposition, and resulting claim state; no unique work is discarded; both underlying tasks are done or safely claimable; a subsequent dispatcher artifact no longer lists either task as stale or skipped-stale-worktree; both linked dead letters have terminal redrive or dismissal dispositions tied to the live post-fix verification; and task validation passes.
+
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/2026-08-13T15-36-07-328Z-workflow-state-recovery-host-replay/verification.json
+description: trusted-host replay of both exact supersede commands recorded in builder run 2026-08-13T15-36-07-328Z-builder-9gvvrx, with verification.json citing both canonical workflow-state-recovery artifacts that dismiss dead letters dlq-ae1303b0-16c0-472b-8f5a-9edd3e48e205 and dlq-b8c26da0-96dd-41ae-99e5-df191d245afe plus a later dispatcher artifact proving neither underlying task remains claim-blocked or skipped as a stale worktree
+```
+
+## Status (2026-08-13 builder)
+
+The leased builder worktree can inspect read-only Git common metadata but cannot
+read or mutate the daemon's canonical parent-scope claim and dead-letter stores.
+The projected
+`.kota/runs/2026-08-13T15-36-07-328Z-builder-9gvvrx/evidence/artifacts/workflow-state-recovery-host-replay.json`
+artifact proves both registered worktree paths are absent, both retained branches
+have zero commits outside canonical HEAD, and no unique work needs preservation.
+It records the two exact fail-closed trusted-host commands, terminal dismissal
+rationale, and the dispatcher success predicate. The task remains blocked until
+those commands run against the canonical runtime store and produce the artifacts
+named above; no claim or dead-letter mutation is asserted by this builder run.
