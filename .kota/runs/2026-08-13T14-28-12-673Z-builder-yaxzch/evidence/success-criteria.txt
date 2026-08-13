@@ -1,0 +1,3 @@
+1. Verify the shared local cause behind the three source-file-size-severe builder failures is repaired and no longer recurs on a fresh builder repair handoff.
+2. Verify focused tests cover both the repaired runtime path and the detector behavior that clears the consecutive-failure pattern after success.
+3. Verify future operator attention still names the generated repair task id without cost or throughput fields.

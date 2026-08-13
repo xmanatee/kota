@@ -1,12 +1,12 @@
 ---
 id: task-repair-workflow-failure-pattern-7355908d343c
 title: Repair persistent builder workflow failure pattern
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Fix the local cause behind builder's persistent consecutive failure signal (repair-check source-file-size-severe).
 created_at: 2026-08-13T13:39:55.362Z
-updated_at: 2026-08-13T13:39:55.362Z
+updated_at: 2026-08-13T14:58:28.347Z
 task_class: Meta
 ---
 
@@ -82,11 +82,24 @@ into deterministic, reviewable repair work.
 
 ## Acceptance Evidence
 
-- Test output for the repaired workflow or runtime path.
-- Detector test or run artifact showing this pattern no longer crosses the
-  escalation gate on fresh evidence.
-- Attention-event fixture or transcript showing any future escalation names
-  the task id without cost fields.
+- Commit `132438782a063cabc88a8f04445f0c574035cf85` identifies all three
+  cited builder runs and fixes their shared terminal cause: the repair loop
+  no longer passes `resumeSessionId` to a harness that declares that option
+  unsupported. The source-size findings remain honest and actionable; the fix
+  restores the repair agent that was supposed to address them.
+- Fresh builder run `2026-08-13T13-41-33-035Z-builder-agejs2` exercised the
+  post-fix Codex repair path. Its committed
+  `repair-delivery-and-dlq-reconciliation.md` artifact records that repair
+  attempt 1 reached a fresh Codex invocation, corrected the seeded evidence
+  failure, and moved its task to done without the former SDK/provider
+  rejection.
+- Focused validation on 2026-08-13 passed 4 files and 77 tests:
+  `repair-loop-usage.test.ts`, `workflow-step-executor.integration.test.ts`,
+  `workflow-failure-escalation.test.ts`, and the workflow-failure-escalator
+  `workflow.test.ts`. The coverage proves unsupported-resume routing, proves a
+  successful fresh run clears an old consecutive-failure streak, and requires
+  future attention events to include the generated repair task id while
+  excluding cost and throughput fields.
 
 <!-- workflow-failure-pattern-fingerprint: workflow-failure:consecutive-failures:builder:repair-check:ed9f63452889 -->
 <!-- workflow-failure-evidence-fingerprint: 54f87f3494490b46ba2dd535dba62c79edc08a9739d1cc7645296f98d2e889d4 -->
