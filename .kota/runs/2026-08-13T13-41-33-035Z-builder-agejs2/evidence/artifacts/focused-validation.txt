@@ -1,0 +1,17 @@
+Focused command:
+pnpm test -- src/core/workflow/repair-loop-usage.test.ts src/workflow-step-executor.integration.test.ts
+
+Result: exit 0 on 2026-08-13 after commit 132438782a06. The suite covers fresh repair calls for harnesses that declare resumeSessionId unsupported and preserves classified repair telemetry.
+
+An earlier direct `pnpm exec vitest` attempt was rejected before test execution because Vite tried to write under the read-only node_modules link. The canonical package test script uses the runner config loader and passed.
+
+Repair validation:
+- success-criteria declared: 2 criteria (minimum 2)
+- success-criteria verified: 2 numbered evidence items for 2 criteria
+- builder evidence policy: 6 registered files, 4544 bytes ready before this validation note was appended
+- task transition: the canonical task CLI moved the claimed task from doing to done through the protected-index workflow-host bridge; exact-path restaging and commit-stageable rerun remain owned by the workflow host after the repair invocation returns
+
+Focused repair command:
+TMPDIR="$(cd "${TMPDIR:-/tmp}" && pwd -P)" NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner --silent=true src/modules/autonomy/workflows/builder/agent-run-artifacts.test.ts src/modules/autonomy/workflows/builder/workflow-success-criteria.test.ts src/modules/repo-tasks/repo-task-native-staging.test.ts src/modules/repo-tasks/repo-task-move-staging.test.ts
+
+Result: exit 0 on 2026-08-13; 4 test files passed, 18 tests passed.

@@ -1,13 +1,13 @@
 ---
 id: task-verify-post-fix-builder-repair-delivery-and-reconc
 title: Verify post-fix builder repair delivery and reconcile dead letters
-status: ready
+status: done
 priority: p1
 area: platform
 task_class: Platform
 summary: After the restart required by commit 132438782a06, exercise a builder repair path under Codex and record whether it proceeds without the unsupported resumeSessionId option. Reconcile the four matching builder/improver dead letters separately from the transient 503.
 created_at: 2026-08-13T13:37:56.869Z
-updated_at: 2026-08-13T13:37:56.869Z
+updated_at: 2026-08-13T14:37:56.544Z
 ---
 
 ## Problem
@@ -53,3 +53,17 @@ Outcome-aware autonomy progress review.
 - Review-provided acceptance evidence:
 
     A post-restart builder run reaches and completes a repair iteration without an unsupported resumeSessionId failure, and each of the four matching open dead letters is redriven, dismissed, or retained with a recorded unresolved cause. The unrelated 503 remains separately classified.
+
+- Builder run `2026-08-13T13-41-33-035Z-builder-agejs2` is the live
+  post-restart verification vehicle. Its initial Codex build step ran from a
+  revision containing `132438782a06`; focused repair-loop tests passed before
+  the run entered its post-check repair handoff.
+- Registered run artifact `repair-delivery-and-dlq-reconciliation.md` preserves
+  the four resume-related source runs, the two review-cited DLQ ids, the
+  canonical-store access blocker, and the separately classified transient 503.
+- KOTA delivered post-check repair attempt 1 to a fresh Codex invocation. The
+  repair received an ordinary builder-evidence ENOENT caused by the deliberately
+  absent `success-criteria-verified.txt`, not an unsupported `resumeSessionId`
+  SDK/provider rejection. The repair invocation created the missing protocol
+  file, passed direct evidence-policy reinspection, and moved the task to done
+  through KOTA's protected-index workflow-host staging bridge.
