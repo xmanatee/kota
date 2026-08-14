@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 2,
+  "taskId": "task-fixture-agent-call-replay-target",
+  "taskState": "ready",
+  "taskFile": {
+    "path": "data/tasks/ready/task-fixture-agent-call-replay-target.md",
+    "snapshot": {
+      "dev": 1,
+      "ino": 1,
+      "size": 1,
+      "mtimeMs": 1,
+      "ctimeMs": 1
+    }
+  },
+  "taskContentDigest": "1cfd994aa9549b865d4abed33cedbbb5bbcd1d5d0b58bc1d72f9b387ad825a14",
+  "taskContractDigest": "b163b025433259f78b8df2a011d77988a2e855c0332083d312b489307657a9a2",
+  "runId": "2026-04-24T14-00-00-000Z-builder-agcf01",
+  "workflowId": "builder",
+  "owner": "workflow:builder",
+  "workspaceDir": ".",
+  "branch": "main",
+  "baseCommit": "fixture-base-commit",
+  "leaseMs": 25200000,
+  "leaseAcquiredAt": "2026-04-24T14:00:00.000Z",
+  "leaseExpiresAt": "2026-04-24T21:00:00.000Z",
+  "createdAt": "2026-04-24T14:00:00.000Z",
+  "updatedAt": "2026-04-24T17:00:00.000Z",
+  "status": "pending-decomposition",
+  "evidence": "builder timed out without stageable progress"
+}

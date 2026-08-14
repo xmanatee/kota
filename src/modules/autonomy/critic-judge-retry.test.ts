@@ -62,6 +62,47 @@ describe("critic judge retry handling", () => {
     expect(existsSync(join(runDir, "critic-review.json"))).toBe(false);
   });
 
+  it("clears a prior failed verdict when the final critic attempt is unavailable", async () => {
+    const dir = makeTmpDir();
+    writeDoingTask(dir, "task-stale-fail.md", "---\ntitle: Test stale fail\n---\nContent.");
+    const runDir = makeRunDir(dir);
+    mockRunAgentHarness.mockResolvedValueOnce({
+      text: JSON.stringify({
+        verdict: "fail",
+        critical_issues: ["The first draft is incomplete."],
+        warnings: [],
+        summary: "Repair is required.",
+      }),
+      streamedText: "",
+      turns: 1,
+      isError: false,
+    });
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    await expect(
+      (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP),
+    ).rejects.toThrow(/critical issue/);
+    expect(existsSync(join(runDir, "critic-review.json"))).toBe(true);
+    expect(existsSync(join(runDir, "review-scrutiny.json"))).toBe(true);
+
+    mockRunAgentHarness.mockResolvedValueOnce({
+      text: "",
+      streamedText: "",
+      turns: 20,
+      isError: true,
+      subtype: "error_max_turns",
+    });
+    const result = await (check as CodeCheck).run(
+      makeContext(dir, runDir),
+      TEST_PARENT_STEP,
+    );
+
+    expect(result).toMatch(/critic unavailable/);
+    expect(result).toMatch(/verdict=absent/);
+    expect(existsSync(join(runDir, "critic-review.json"))).toBe(false);
+    expect(existsSync(join(runDir, "review-scrutiny.json"))).toBe(false);
+  });
+
   it("returns a warning when the SDK throws with a runaway max-turns message", async () => {
     const dir = makeTmpDir();
     writeDoingTask(dir, "task-thrown.md", "---\ntitle: Test thrown\n---\nContent.");

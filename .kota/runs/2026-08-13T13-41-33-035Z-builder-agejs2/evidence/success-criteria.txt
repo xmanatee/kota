@@ -1,0 +1,2 @@
+1. Complete a post-restart Codex repair iteration in builder run 2026-08-13T13-41-33-035Z-builder-agejs2 without forwarding the unsupported resumeSessionId option.
+2. Preserve and reconcile all four resume-related builder/improver dead letters with a recorded disposition or unresolved cause, while keeping the unrelated transient 503 separately classified.

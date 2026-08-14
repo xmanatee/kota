@@ -1,0 +1,1 @@
+Exercise decomposer symlink guard with valid claim bindings

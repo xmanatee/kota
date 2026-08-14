@@ -241,6 +241,17 @@ const builderWorkflow: WorkflowDefinitionInput = {
     }),
     builderParallelMetricsStep,
     {
+      id: "request-restart",
+      type: "restart",
+      when: (ctx) =>
+        claimedTaskConsistencySucceeded(ctx) &&
+        builderCommitPublished(ctx) &&
+        stepCommitRequiresDaemonRestart("commit")(ctx),
+      reason: "builder workflow published a validated commit",
+      requires: ["commit", CLAIMED_TASK_CONSISTENCY_STEP_ID],
+      allowPostRestartEmits: true,
+    },
+    {
       id: "emit-build-committed",
       type: "emit",
       when: (ctx) =>
@@ -261,16 +272,6 @@ const builderWorkflow: WorkflowDefinitionInput = {
           durationMs: summary?.durationMs ?? null,
         };
       },
-    },
-    {
-      id: "request-restart",
-      type: "restart",
-      when: (ctx) =>
-        claimedTaskConsistencySucceeded(ctx) &&
-        builderCommitPublished(ctx) &&
-        stepCommitRequiresDaemonRestart("commit")(ctx),
-      reason: "builder workflow published a validated commit",
-      requires: ["commit", CLAIMED_TASK_CONSISTENCY_STEP_ID],
     },
   ],
 };

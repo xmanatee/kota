@@ -189,9 +189,10 @@ export function seedCalibration(
     repairIterations: 1,
     finalIterationFailures: [],
     criticFailureCount: 0,
-    terminalRunStatus: "success",
+    terminalRunStatus: verdict === "fail" ? "failed" : "success",
     taskId: null,
     taskFinalState: null,
+    sourceRevision: "1111111111111111111111111111111111111111",
     sourceFilesChanged,
     criticPromptHash: getCriticPromptHash(),
   };

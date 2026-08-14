@@ -3,8 +3,7 @@
 - Own implementation quality, architecture, completeness, honest task-state updates, and hard validation fixes before the run ends.
 - Tasks define the contract and constraints; the implementing agent owns the detailed plan.
 - Changes here shape the default autonomous development behavior.
-- Mutating work uses the workflow-selected cwd: normally a task worktree;
-  `branchPerTask: false` is an explicit serial opt-out.
+- Mutating work uses the workflow-selected cwd: normally a task worktree; `branchPerTask: false` is an explicit serial opt-out.
 - Give preserved work one automatic continuation. Productive builder work is
   governed by trusted progress; a continuation that fails or stops reporting
   progress preserves the worktree for typed state-recovery review.
@@ -16,23 +15,26 @@
   disposition. Builder must not reclaim that task while decomposition is
   pending; ordinary failures still release clean claims normally.
 - Long-running harness readiness runs before task claim acquisition; unverifiable unattended renewal leaves the task and worktree untouched.
+- Source-changing commits request daemon restart before emitting the build-committed handoff. The paused runtime persists that handoff so consumers evaluate it only after loading the committed definitions; task-only commits keep the immediate path.
 ## Success Criteria
 Declare concrete success criteria before implementation and verify them before completion:
 
 - `$KOTA_RUN_DIR/success-criteria.txt`
 - `$KOTA_RUN_DIR/success-criteria-verified.txt`
 
-`$KOTA_RUN_DIR` is the agent-writable `.kota/builder-evidence/` source, never the
-canonical workflow run store; the protocol files above are code-registered.
-Preserved-work continuations retain the original evidence directory and durable
-projection lineage while execution-scoped temp, port, and run metadata use the
-new continuation run.
+`$KOTA_RUN_DIR` is agent-writable `.kota/builder-evidence/`, not the canonical workflow store; the protocol files above are code-registered.
+Preserved-work continuations keep the original evidence and projection lineage; execution-scoped temp, port, and run metadata use the new run.
 Put additional evidence under `$KOTA_RUN_ARTIFACT_DIR`; register its path and kind
 in `$KOTA_RUN_DIR/evidence-manifest.json`. Before task validation, the repair loop
 screens, bounds, projects to `.kota/runs/<run-id>/evidence/`, and exact-stages it.
 The terminal commit repeats projection and excludes both runtime namespaces.
 Unregistered files cannot satisfy Product evidence. Text passes secret screening;
 PNG is re-encoded without metadata; other opaque containers are not registrable.
+Calibration-repair tasks register `calibration-repair.json`. Gate-retune evidence
+cites the claimed task's Git-backed monitor snapshot, preserves its aggregate,
+matches active config, cites repeated monitor history, and assigns every retained
+weak-evidence signal to an open source-bound disposition task; unrelated,
+aggregate-only, undispositioned, or prompt-reset evidence fails.
 
 Number each criterion at column 0 (`1.`, `2.`, ...), one per Done-When item.
 The repair check counts numbered items only; column-0 bullets (`- `/`* `) and
@@ -40,10 +42,9 @@ prose are treated as notes, so `Design notes` or `Known limitations` sections
 do not inflate the criterion count. Match the numbered-item count between the
 two files.
 
-Keep completion reviewable. If external resources or runtime behavior matter,
-leave enough ordinary context in the task state, docs, code, or run notes for a
-later reviewer to verify the result. If a required resource cannot be reached,
-  record the blocker instead of inferring completion.
+Keep completion reviewable. When external resources or runtime behavior matter,
+leave enough ordinary context for later verification. If a required resource
+cannot be reached, record the blocker instead of inferring completion.
 ## Runtime Probes
 
 The critic inspects the diff, task state, and run artifacts. When success
@@ -86,8 +87,7 @@ an optional runtime probe the critic runs before judging.
   `summary`.
 ## Source Size Exceptions
 
-The builder treats severe source-size warning batches as blocking before commit.
-A cleanup task can declare a typed exception only when every named warning shrinks:
+The builder blocks severe source-size warning batches before commit; a cleanup task can declare a typed exception only when every named warning shrinks:
 
 ```md
 ## Source Size Exception

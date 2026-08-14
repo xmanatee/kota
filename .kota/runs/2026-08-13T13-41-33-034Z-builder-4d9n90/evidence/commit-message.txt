@@ -1,0 +1,1 @@
+security: isolate Antigravity from host Keychains and record rollout decision

@@ -26,6 +26,10 @@ import {
   projectAgentRunArtifactsForValidation,
 } from "./agent-run-artifacts.js";
 import {
+  CALIBRATION_REPAIR_EVIDENCE_CHECK_ID,
+  checkCalibrationRepairEvidence,
+} from "./calibration-repair-evidence-check.js";
+import {
   checkMacosSwiftBuild,
   checkMobileTypecheck,
   checkModuleBoundary,
@@ -43,6 +47,7 @@ import {
 } from "./task-state-repair-checks.js";
 import { builderAgentRunDir, workflowWorkspaceDir } from "./workspace.js";
 
+export { checkCalibrationRepairEvidence } from "./calibration-repair-evidence-check.js";
 export { checkModuleBoundary } from "./project-repair-checks.js";
 export {
   checkSuccessCriteriaDeclared,
@@ -82,6 +87,17 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
         projectAgentRunArtifactsForValidation(
           builderAgentRunDir(ctx),
           workflowWorkspaceDir(ctx),
+        ),
+    },
+    {
+      id: CALIBRATION_REPAIR_EVIDENCE_CHECK_ID,
+      type: "code" as const,
+      phase: 2,
+      run: (ctx) =>
+        checkCalibrationRepairEvidence(
+          workflowWorkspaceDir(ctx),
+          builderAgentRunDir(ctx),
+          ctx.stepOutputs["claim-task"] as QueueTaskClaimResult | undefined,
         ),
     },
     {

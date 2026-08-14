@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   buildCriticReviewScrutinyRecord,
@@ -9,6 +9,7 @@ import {
   countFileLineCitations,
   normalizeFileLineCitations,
 } from "./review-scrutiny-citations.js";
+import { REVIEW_SCRUTINY_ARTIFACT } from "./review-scrutiny-types.js";
 
 export type CriticVerdict = {
   verdict: "pass" | "fail" | "pass_with_warnings";
@@ -16,6 +17,14 @@ export type CriticVerdict = {
   warnings: string[];
   summary: string;
 };
+
+export function clearCriticOutcomeArtifacts(runDir: string): void {
+  // A repair loop can invoke the critic more than once. These artifacts
+  // represent only the final invocation, so clear the prior outcome before
+  // starting another judge attempt.
+  rmSync(join(runDir, "critic-review.json"), { force: true });
+  rmSync(join(runDir, REVIEW_SCRUTINY_ARTIFACT), { force: true });
+}
 
 type JsonValue = string | number | boolean | null | JsonValue[] | JsonObject;
 type JsonObject = { [key: string]: JsonValue | undefined };

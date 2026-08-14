@@ -1,0 +1,3 @@
+1. Fresh builder evidence with the repaired local behavior does not re-trigger workflow-failure:consecutive-failures:builder:repair-check:9f86d081884c, or any classification/threshold change is explicitly justified in committed code.
+2. Focused tests prove both the repaired workflow/runtime path and the failure-pattern detector behavior that prevents this recurrence.
+3. Future operator attention for an actionable workflow-failure escalation names the generated task id and exposes no cost fields.

@@ -8,6 +8,7 @@ import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import { CALIBRATION_REPAIR_TASK_ID } from "#modules/autonomy/calibration-repair.js";
 import { getCriticPromptHash } from "#modules/autonomy/critic.js";
 import {
+  DEFAULT_CALIBRATION_MIN_SAMPLE,
   EVALUATOR_CALIBRATION_ARTIFACT,
   type EvaluatorCalibrationArtifact,
 } from "#modules/autonomy/evaluator-calibration.js";
@@ -80,7 +81,13 @@ async function mockDirtyWorktree() {
 type SeedOverrides = Partial<
   Pick<
     EvaluatorCalibrationArtifact,
-    "verdict" | "sourceFilesChanged" | "finalIterationFailures" | "criticFailureCount"
+    | "verdict"
+    | "sourceRevision"
+    | "sourceFilesChanged"
+    | "finalIterationFailures"
+    | "criticFailureCount"
+    | "criticPromptHash"
+    | "terminalRunStatus"
   >
 >;
 
@@ -102,14 +109,16 @@ function seedCalibration(
     repairIterations: 1,
     finalIterationFailures: overrides.finalIterationFailures ?? [],
     criticFailureCount: overrides.criticFailureCount ?? 0,
-    terminalRunStatus: "success",
+    terminalRunStatus: overrides.terminalRunStatus ?? "success",
     taskId: null,
     taskFinalState: null,
+    sourceRevision:
+      overrides.sourceRevision ?? "1111111111111111111111111111111111111111",
     sourceFilesChanged: overrides.sourceFilesChanged ?? [],
     // Match the running critic prompt so the workflow's filtered aggregation
     // counts these seeded runs. Cross-prompt-version filtering is exercised
     // directly in evaluator-calibration.test.ts.
-    criticPromptHash: getCriticPromptHash(),
+    criticPromptHash: overrides.criticPromptHash ?? getCriticPromptHash(),
   };
   writeFileSync(
     join(runDir, EVALUATOR_CALIBRATION_ARTIFACT),
@@ -135,6 +144,20 @@ function commitInitial(dir: string): void {
   execFileSync("git", ["commit", "--allow-empty", "-m", "initial", "--quiet"], {
     cwd: dir,
   });
+}
+
+function headRevision(dir: string): string {
+  return execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: dir,
+    encoding: "utf8",
+  }).trim();
+}
+
+function commitSourceChange(dir: string, name: string): string {
+  writeFileSync(join(dir, `${name}.ts`), `export const value = ${JSON.stringify(name)};\n`);
+  execFileSync("git", ["add", `${name}.ts`], { cwd: dir });
+  execFileSync("git", ["commit", "-m", name, "--quiet"], { cwd: dir });
+  return headRevision(dir);
 }
 
 const buildTrigger = {
@@ -248,8 +271,15 @@ describe("evaluator-calibration-monitor workflow", () => {
     );
     expect(existsSync(calibrationArtifactPath)).toBe(true);
     const artifact = JSON.parse(readFileSync(calibrationArtifactPath, "utf-8"));
-    expect(artifact.applied.kind).toBe("created");
-    expect(artifact.driftKinds).toContain("pass-contradiction");
+    expect(artifact).toMatchObject({
+      runId: "harness-run-id",
+      workflow: "evaluator-calibration-monitor",
+      triggerEvent: "workflow.build.committed",
+      sourceRunId: "run-newer",
+      criticPromptHash: getCriticPromptHash(),
+      driftKinds: ["pass-contradiction"],
+      applied: { kind: "created" },
+    });
   });
 
   it("does not emit when the contradiction rate is under threshold", async () => {
@@ -283,6 +313,104 @@ describe("evaluator-calibration-monitor workflow", () => {
         join(projectDir, "data", "tasks", "ready", `${CALIBRATION_REPAIR_TASK_ID}.md`),
       ),
     ).toBe(false);
+    const artifact = JSON.parse(
+      readFileSync(
+        join(projectDir, ".kota", "runs", "harness", "calibration-repair.json"),
+        "utf-8",
+      ),
+    );
+    expect(artifact).toMatchObject({
+      gateStatus: "under-threshold",
+      proposal: null,
+      applied: null,
+    });
+  });
+
+  it("keeps the affected 3-of-10 sample intact but below the retuned minimum", async () => {
+    const activePromptHash = getCriticPromptHash();
+    process.env.KOTA_EVALUATOR_CALIBRATION_MIN_SAMPLE = String(
+      DEFAULT_CALIBRATION_MIN_SAMPLE,
+    );
+    process.env.KOTA_EVALUATOR_CALIBRATION_PWW_MIN_SAMPLE = "5";
+    commitInitial(projectDir);
+    const now = Date.now();
+    const hour = 60 * 60 * 1000;
+    for (let index = 0; index < 10; index++) {
+      seedCalibration(
+        runsDir,
+        `source-sample-pass-${index}`,
+        new Date(now - (20 - index) * hour).toISOString(),
+        {
+          verdict: "pass",
+          criticPromptHash: activePromptHash,
+          sourceFilesChanged:
+            index < 3
+              ? ["src/modules/autonomy/affected.ts"]
+              : [`src/modules/autonomy/healthy-${index}.ts`],
+        },
+      );
+    }
+    // Preserve the source relationship: the later failure overlaps all three
+    // passes. The repair changes sample adequacy, not historical verdicts.
+    seedCalibration(
+      runsDir,
+      "source-sample-failure",
+      new Date(now - 2 * hour).toISOString(),
+      {
+        verdict: "fail",
+        criticPromptHash: activePromptHash,
+        terminalRunStatus: "failed",
+        sourceFilesChanged: ["src/modules/autonomy/affected.ts"],
+      },
+    );
+    for (let index = 0; index < 4; index++) {
+      seedCalibration(
+        runsDir,
+        `source-sample-absent-${index}`,
+        new Date(now - (6 - index) * hour).toISOString(),
+        {
+          verdict: "absent",
+          criticPromptHash: activePromptHash,
+          sourceFilesChanged: [],
+        },
+      );
+    }
+    const harness = new WorkflowTestHarness(evaluatorCalibrationMonitor, {
+      projectDir,
+      trigger: buildTrigger,
+    });
+    const result = await harness.run();
+    expect(result.status).toBe("success");
+    expect(
+      result.emitted.filter(
+        (event) => event.event === "evaluator-calibration.regression.detected",
+      ),
+    ).toHaveLength(0);
+
+    const artifact = JSON.parse(
+      readFileSync(
+        join(projectDir, ".kota", "runs", "harness", "calibration-repair.json"),
+        "utf-8",
+      ),
+    );
+    expect(artifact).toMatchObject({
+      runId: "harness-run-id",
+      workflow: "evaluator-calibration-monitor",
+      triggerEvent: "workflow.build.committed",
+      sourceRunId: "run-newer",
+      criticPromptHash: getCriticPromptHash(),
+      gateStatus: "insufficient-sample",
+      aggregate: {
+        totalRuns: 15,
+        byVerdict: { pass: 10, pass_with_warnings: 0, fail: 1, absent: 4 },
+        passContradictionCount: 3,
+        passContradictionRate: 0.3,
+      },
+      thresholdRate: 0.25,
+      minSample: DEFAULT_CALIBRATION_MIN_SAMPLE,
+      proposal: null,
+      applied: null,
+    });
   });
 
   it("leaves an in-flight repair task alone (noop) when the gate fires again", async () => {
@@ -355,6 +483,7 @@ describe("evaluator-calibration-monitor workflow", () => {
       ].join("\n"),
     );
     commitInitial(projectDir);
+    const postFixRevision = commitSourceChange(projectDir, "post-fix-calibration");
 
     const now = new Date();
     const hour = 60 * 60 * 1000;
@@ -371,6 +500,7 @@ describe("evaluator-calibration-monitor workflow", () => {
     // post-fix builder run accruing here.
     seedCalibration(runsDir, "run-post-fix", new Date(now.getTime() + 60_000).toISOString(), {
       verdict: "pass",
+      sourceRevision: postFixRevision,
       sourceFilesChanged: ["src/core/unrelated.ts"],
     });
 
@@ -396,13 +526,17 @@ describe("evaluator-calibration-monitor workflow", () => {
   it("noops the recreate when the previous repair task was just closed and no post-fix calibration artifact exists", async () => {
     const now = new Date();
     const hour = 60 * 60 * 1000;
+    commitInitial(projectDir);
+    const preFixRevision = headRevision(projectDir);
     // Seed pre-fix calibration evidence first so the gate fires.
     seedCalibration(runsDir, "run-older", new Date(now.getTime() - 5 * hour).toISOString(), {
       verdict: "pass",
+      sourceRevision: preFixRevision,
       sourceFilesChanged: ["src/core/a.ts"],
     });
     seedCalibration(runsDir, "run-newer", new Date(now.getTime() - 1 * hour).toISOString(), {
       verdict: "fail",
+      sourceRevision: preFixRevision,
       sourceFilesChanged: ["src/core/a.ts"],
     });
 

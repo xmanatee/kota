@@ -3,9 +3,10 @@ import { WorkflowDefinitionError } from "./validation-primitives.js";
 
 /**
  * Restart-step constraints: at most one restart step per workflow, the restart
- * step must be the final step, every required-step id must resolve to an
- * earlier step in the same workflow, and required steps must be of a type that
- * the restart machinery can re-run safely (`tool`, `code`, or `parallel`).
+ * step is final unless it explicitly allows pure event handoffs, every
+ * required-step id must resolve to an earlier step in the same workflow, and
+ * required steps must be of a type that the restart machinery can re-run
+ * safely (`tool`, `code`, or `parallel`).
  */
 export function validateRestartConstraints(
   steps: WorkflowStep[],
@@ -24,9 +25,21 @@ export function validateRestartConstraints(
 
   const restartStep = restartSteps[0];
   const restartIndex = steps.findIndex((step) => step.id === restartStep.id);
-  if (restartIndex !== steps.length - 1) {
+  if (
+    restartIndex !== steps.length - 1 &&
+    restartStep.allowPostRestartEmits !== true
+  ) {
     throw new WorkflowDefinitionError(
       `restart step "${restartStep.id}" must be the final step`,
+      definitionPath,
+    );
+  }
+  const invalidFollowingStep = steps
+    .slice(restartIndex + 1)
+    .find((step) => step.type !== "emit");
+  if (invalidFollowingStep !== undefined) {
+    throw new WorkflowDefinitionError(
+      `restart step "${restartStep.id}" may only be followed by emit steps, got "${invalidFollowingStep.type}" for "${invalidFollowingStep.id}"`,
       definitionPath,
     );
   }

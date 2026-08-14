@@ -8,6 +8,7 @@ import {
 } from "#core/agent-harness/index.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
+import { RepairLoopError } from "#core/workflow/repair-loop.js";
 import type {
   WorkflowRunMetadata,
   WorkflowStepContext,
@@ -24,10 +25,7 @@ import {
   executeToolStep,
   withRetry,
 } from "#core/workflow/steps/step-executor.js";
-import {
-  AgentStepRuntimeError,
-  classifyAgentRuntimeFailure,
-} from "#core/workflow/steps/step-executor-retry.js";
+import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
 import { createWorkflowAgentHarnessRunner } from "#core/workflow/steps/workflow-agent-harness-runner.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
@@ -1033,10 +1031,9 @@ describe("executeStep repair loop", () => {
     expect(harnessCalls).toEqual([{ hasOnMessage: false }, { hasOnMessage: false }]);
   });
 
-  it("classifies SDK isError from repair agent into provider-kind AgentStepRuntimeError", async () => {
-    // Repair-loop runtime failures must surface a classified backoff signal so
-    // AgentBackoffManager applies the provider-kind dispatch delay. A plain
-    // Error here lets the next dispatcher tick collide with the same outage.
+  it("preserves repair telemetry with a classified provider backoff signal", async () => {
+    // Repair-loop runtime failures retain the repair result while nesting the
+    // classified backoff signal that the run executor applies to dispatch.
     mockedExecuteWithAgentSDK
       .mockResolvedValueOnce(SUCCESS_RESULT) // initial agent run
       .mockResolvedValueOnce({
@@ -1076,12 +1073,20 @@ describe("executeStep repair loop", () => {
       thrown = err;
     }
 
-    expect(thrown).toBeInstanceOf(AgentStepRuntimeError);
-    const runtimeErr = thrown as AgentStepRuntimeError;
-    expect(runtimeErr.kind).toBe("provider");
-    expect(runtimeErr.retryable).toBe(false);
-    expect(runtimeErr.message).toContain('Repair agent for step "test-step" failed');
-    expect(runtimeErr.message).toContain("API Error: 529");
+    expect(thrown).toBeInstanceOf(RepairLoopError);
+    expect(thrown).toMatchObject({
+      agentBackoff: {
+        kind: "provider",
+        retryable: false,
+        message: expect.stringContaining('Repair agent for step "test-step" failed'),
+      },
+      output: {
+        repairIterations: [{
+          agentResponse: expect.stringContaining("API Error: 529"),
+          agentError: expect.stringContaining("API Error: 529"),
+        }],
+      },
+    });
   });
 
   it("budget exhaustion: throws after maxRepairAttempts with still-failing checks", async () => {

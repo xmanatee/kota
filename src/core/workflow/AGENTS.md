@@ -21,19 +21,19 @@ Owns workflow definitions, validation, execution, repair loops, and persisted ru
   resume remains a separate operator-selected checkpoint operation.
 - Dirty recovery pauses dispatch and prepends recovery work without discarding
   durable queued runs; a restart must preserve keyed redrives and pending work.
+- A restart step is terminal. `allowPostRestartEmits` permits only pure emit
+  handoffs afterward so dispatch pauses before consumers queue; other work is invalid.
 - Hard step timeouts cap wall-clock runtime. Idle-progress timeouts cap gaps
   between trusted progress signals: code heartbeats or typed agent messages.
 - Agent steps receive a thin runtime envelope; expose prior output only when normal repo context and tools cannot recover it cheaply.
 - Repair-loop output accumulates initial and repair token usage, including on terminal failure, so run accounting reflects consumed quota.
 
 ## Per-Concern Validation Split
-`validation.ts` only orchestrates. Put rules in the sibling that owns step
-dispatch, definition shape/ids, restarts, triggers, or assembly checks. Do not
-regrow `validation.ts` past the orchestrator boundary.
-
+`validation.ts` only orchestrates; put rules in the sibling owning dispatch,
+definition shape/ids, restarts, triggers, or assembly. Do not regrow it.
 Agent leaves, judge checks, and agent-launching code steps use the launch resolver
-to assert their fully resolved static adapter contract during definition load.
-Dynamic readiness and live policy remain launch-time state; launch repeats the capability assertion.
+to validate resolved static adapter contracts at definition load and launch;
+dynamic readiness and policy remain launch-time state.
 
 ## Per-Concern Run-Store Split
 Run-store helpers are split by concern: filesystem/JSON IO, runtime-state
