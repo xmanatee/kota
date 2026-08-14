@@ -19,6 +19,8 @@ export type SubprocessExecutorOptions = {
    * own their subprocess env and therefore remain runnable but non-gating.
    */
   providerEgressTaskBoundary?: ProviderEgressTaskSubprocessBoundaryRequest;
+  /** Abort the active workflow subprocess when its owning execution ends. */
+  signal?: AbortSignal;
   /**
    * Optional isolation backend request. Host subprocess execution is the
    * default and is explicitly non-gating because it cannot enforce CPU or

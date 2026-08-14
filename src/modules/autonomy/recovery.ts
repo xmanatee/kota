@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
+import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import { labeledPredicate, type WorkflowPredicate } from "#core/workflow/run-types.js";
 
 export type RecoveryResetResult = {
@@ -102,6 +103,12 @@ export function resetWorktreeForRecovery(
     currentBranch: branchRestored ? baseBranch : currentBranch,
   };
 }
+
+export const resetWorktreeForRecoveryOperation =
+  defineWorkflowBlockingOperation<RecoveryResetOptions, RecoveryResetResult>(
+    import.meta.url,
+    "resetWorktreeForRecovery",
+  );
 
 /**
  * Predicate selecting steps that should run only on the recovery entry path.

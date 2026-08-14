@@ -6,6 +6,7 @@ import { createCriticCheck } from "./critic.js";
 import {
   type CodeCheck,
   getMockRunAgentHarness,
+  getMockRunBlocking,
   getPromptArg,
   makeContext,
   makeRunDir,
@@ -17,6 +18,7 @@ import {
 } from "./critic-test-fixture.integration.js";
 
 const mockRunAgentHarness = getMockRunAgentHarness();
+const mockRunBlocking = getMockRunBlocking();
 
 describe("createCriticCheck", () => {
   beforeEach(resetCriticTestMocks);
@@ -35,6 +37,10 @@ describe("createCriticCheck", () => {
     const check = createCriticCheck();
     const result = await (check as CodeCheck).run(makeContext(dir), TEST_PARENT_STEP);
     expect(result).toMatch(/pass/);
+    expect(mockRunBlocking).toHaveBeenCalledWith(
+      expect.objectContaining({ exportName: "inspectCriticReviewInWorker" }),
+      expect.objectContaining({ reviewDir: dir }),
+    );
     expect(mockRunAgentHarness).toHaveBeenCalledOnce();
   });
 

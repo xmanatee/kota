@@ -18,7 +18,9 @@ import type {
 import { buildDaemonConfigReloadHandle } from "./daemon-handle-config-reload.js";
 import { buildDaemonRunHandle } from "./daemon-handle-runs.js";
 import { buildDaemonWorkflowHandle } from "./daemon-handle-workflows.js";
+import { buildDaemonHealthStatus } from "./daemon-health.js";
 import type { DaemonState } from "./daemon-state.js";
+import type { EventLoopLatencySnapshot } from "./event-loop-latency.js";
 import type { ProjectRuntime, ProjectRuntimeRegistry } from "./project-runtime.js";
 import type {
   ScopeAuthorityOperatorAction,
@@ -60,6 +62,7 @@ export type DaemonHandleContext = {
   log: (message: string) => void;
   getModuleSummaries: () => readonly ModuleSummary[];
   getModuleHealthChecks: () => Record<string, ModuleHealthCheckResult>;
+  getEventLoopLatency?: () => EventLoopLatencySnapshot;
   probeCapabilityReadiness: () => Promise<CapabilityReadinessResponse>;
   getChannelStatuses: () => readonly ChannelStatus[];
 };
@@ -93,15 +96,10 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
   };
 
   return {
-    getHealthStatus: () => {
-      const checks = ctx.getModuleHealthChecks();
-      const hasUnhealthy = Object.values(checks).some((check) => check.status === "unhealthy");
-      return {
-        scheduler: "ok" as const,
-        modules: hasUnhealthy ? ("error" as const) : ("ok" as const),
-        ...(Object.keys(checks).length > 0 ? { moduleHealthChecks: checks } : {}),
-      };
-    },
+    getHealthStatus: () => buildDaemonHealthStatus(
+      ctx.getModuleHealthChecks(),
+      ctx.getEventLoopLatency?.(),
+    ),
     getDaemonLiveState: () => ({ ...ctx.getState(), running: ctx.isRunning() }),
     listChannelStatuses: () => [...ctx.getChannelStatuses()],
     listModuleSetupStatuses: () => setupService.list(),

@@ -1,47 +1,37 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import {
-  checkCommitStageable,
-  commitWorkflowChanges,
-} from "#modules/autonomy/commit.js";
 import {
   decodeWorkflowCommitOutcome,
   type WorkflowCommitOutcome,
 } from "#modules/autonomy/commit-result.js";
 import {
-  applyOwnerInterventionEscalation,
   buildOwnerInterventionAttentionDigest,
-  detectRecurringOwnerInterventionPatterns,
   type OwnerInterventionEscalationApplied,
   type OwnerInterventionEscalationDetection,
   type OwnerInterventionEscalationProposal,
-  proposeOwnerInterventionEscalation,
 } from "#modules/autonomy/owner-intervention-escalation.js";
-import {
-  normalizeOwnerInterventionEscalationConfig,
-  ownerInterventionThresholds,
-} from "#modules/autonomy/owner-intervention-escalation-types.js";
 import {
   onNormalTrigger,
   onRecoveryTrigger,
-  resetWorktreeForRecovery,
+  resetWorktreeForRecoveryOperation,
 } from "#modules/autonomy/recovery.js";
+import { runCheck, stepCommitRequiresDaemonRestart } from "#modules/autonomy/shared.js";
 import {
-  checkCommitMessageExists,
-  checkNoScratchArtifacts,
-  runCheck,
-  stepCommitRequiresDaemonRestart,
-  stepCommitted,
-} from "#modules/autonomy/shared.js";
+  workflowCommitOperation,
+  workflowCommitValidationOperation,
+} from "#modules/autonomy/workflow-commit-operations.js";
+import {
+  inspectOwnerInterventionPatternsOperation,
+  type OwnerInterventionInspection,
+} from "./inspection.js";
+import {
+  applyOwnerInterventionTasksOperation,
+  proposeOwnerInterventionTasksOperation,
+} from "./task-operations.js";
 
-type Inspection = {
-  dirty: boolean;
-  status: "dirty" | "none" | "patterns-detected";
-  detection: OwnerInterventionEscalationDetection;
-};
+type Inspection = OwnerInterventionInspection;
 
 type ProposalOutput = {
   proposals: OwnerInterventionEscalationProposal[];
@@ -60,16 +50,6 @@ export type OwnerInterventionEscalationArtifact = {
   applied: OwnerInterventionEscalationApplied[];
 };
 
-function emptyDetection(): OwnerInterventionEscalationDetection {
-  const config = normalizeOwnerInterventionEscalationConfig();
-  return {
-    thresholds: ownerInterventionThresholds(config),
-    patterns: [],
-    ignoredPatterns: [],
-    belowThresholdPatterns: [],
-  };
-}
-
 const inspectPatterns = typedCodeStep<Inspection>({
   id: "inspect-patterns",
   type: "code",
@@ -80,23 +60,8 @@ const inspectPatterns = typedCodeStep<Inspection>({
       "status",
       "detection",
     ]),
-  run: ({ projectDir }) => {
-    const worktree = getRepoWorktreeStatus(projectDir);
-    const dirty = worktree.available && worktree.dirty;
-    if (dirty) {
-      return {
-        dirty,
-        status: "dirty",
-        detection: emptyDetection(),
-      };
-    }
-    const detection = detectRecurringOwnerInterventionPatterns(projectDir);
-    return {
-      dirty,
-      status: detection.patterns.length > 0 ? "patterns-detected" : "none",
-      detection,
-    };
-  },
+  run: ({ projectDir, runBlocking }) =>
+    runBlocking(inspectOwnerInterventionPatternsOperation, { projectDir }),
 });
 
 const proposeTasks = typedCodeStep<ProposalOutput>({
@@ -111,11 +76,10 @@ const proposeTasks = typedCodeStep<ProposalOutput>({
   validate: (raw) => expectStructuredOutput<ProposalOutput>(raw, ["proposals"]),
   run: (ctx) => {
     const inspection = inspectPatterns.outputRequired(ctx);
-    return {
-      proposals: inspection.detection.patterns.map((pattern) =>
-        proposeOwnerInterventionEscalation(ctx.projectDir, pattern)
-      ),
-    };
+    return ctx.runBlocking(proposeOwnerInterventionTasksOperation, {
+      projectDir: ctx.projectDir,
+      patterns: inspection.detection.patterns,
+    });
   },
 });
 
@@ -125,15 +89,11 @@ const applyTasks = typedCodeStep<ApplyOutput>({
   when: (ctx) => proposeTasks.output(ctx) !== undefined,
   validate: (raw) => expectStructuredOutput<ApplyOutput>(raw, ["applied"]),
   run: (ctx) => {
-    const proposals = proposeTasks.outputRequired(ctx).proposals;
-    return {
-      applied: proposals.map((proposal) =>
-        applyOwnerInterventionEscalation(proposal, {
-          projectDir: ctx.projectDir,
-          nowIso: new Date().toISOString(),
-        })
-      ),
-    };
+    return ctx.runBlocking(applyOwnerInterventionTasksOperation, {
+      projectDir: ctx.projectDir,
+      proposals: proposeTasks.outputRequired(ctx).proposals,
+      nowIso: new Date().toISOString(),
+    });
   },
 });
 
@@ -207,9 +167,10 @@ const validateBeforeCommit = typedCodeStep<{ ok: true }>({
   },
   run: async (ctx) => {
     await runCheck("pnpm run validate-tasks", ctx.projectDir, { signal: ctx.signal });
-    checkNoScratchArtifacts(ctx.projectDir);
-    checkCommitStageable(ctx.projectDir);
-    checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir);
+    await ctx.runBlocking(workflowCommitValidationOperation, {
+      projectDir: ctx.projectDir,
+      runDirPath: ctx.workflow.runDirPath,
+    });
     return { ok: true } as const;
   },
 });
@@ -219,8 +180,11 @@ const commitChanges = typedCodeStep<WorkflowCommitOutcome>({
   type: "code",
   when: (ctx) => validateBeforeCommit.output(ctx)?.ok === true,
   validate: decodeWorkflowCommitOutcome,
-  run: ({ projectDir, workflow }) =>
-    commitWorkflowChanges(projectDir, workflow.runDirPath),
+  run: (ctx) =>
+    ctx.runBlocking(workflowCommitOperation, {
+      projectDir: ctx.projectDir,
+      runDirPath: ctx.workflow.runDirPath,
+    }),
 });
 
 const ownerInterventionEscalator: WorkflowDefinitionInput = {
@@ -242,9 +206,9 @@ const ownerInterventionEscalator: WorkflowDefinitionInput = {
       id: "reset-for-recovery",
       type: "code",
       when: onRecoveryTrigger,
-      run: ({ projectDir }) =>
-        resetWorktreeForRecovery({
-          projectDir,
+      run: (ctx) =>
+        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
+          projectDir: ctx.projectDir,
           workflowName: "owner-intervention-escalator",
         }),
     },

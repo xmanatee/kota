@@ -1,12 +1,9 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import {
 	expectStructuredOutput,
 	type TypedCodeStepInput,
 	typedCodeStep,
 } from "#core/workflow/step-input-code.js";
-import { cleanupAutomationWorktree } from "#modules/git/worktree-lifecycle.js";
 import {
 	type MergeGateResult,
 	mergeAutomationWorktree,
@@ -18,18 +15,12 @@ import {
 	MERGE_CONFLICT_RESOLUTION_ATTEMPTS,
 	resolveMergeConflictResolverRunContract,
 } from "./merge-conflict-resolver.js";
+import {
+	type AutomationWorktreeCleanupResult,
+	cleanupAutomationWorktreeOperation,
+} from "./merge-gate-operations.js";
 import type { BuilderWorkspaceResult } from "./prepare-worktree-step.js";
 import { builderWorktreeRunId } from "./workspace.js";
-
-export type AutomationWorktreeCleanupResult = {
-	removed: boolean;
-	workspaceDir: string | null;
-	metadataPath: string | null;
-	artifactPath: string;
-	state: string | null;
-	cleanupEligible: boolean;
-	blockers: string[];
-};
 
 const MERGE_GATE_VALIDATION_COMMAND = [
 	"pnpm",
@@ -87,21 +78,24 @@ export function createMergeGateStep(): TypedCodeStepInput<MergeGateResult> {
 		run: async (ctx) => {
 			const workspace = preparedWorktree(ctx);
 			if (!workspace?.taskId) throw new Error("Cannot run merge gate without a prepared task worktree");
-			return await mergeAutomationWorktree({
-				projectDir: ctx.projectDir,
-				taskId: workspace.taskId,
-				runId: builderWorktreeRunId(ctx),
-				validationCommand: MERGE_GATE_VALIDATION_COMMAND,
-				resolver: createMergeConflictResolver({
-					runDirPath: ctx.workflow.runDirPath,
-					workflowName: ctx.workflow.name,
-					runId: ctx.workflow.runId,
-					agentContract: resolveMergeConflictResolverRunContract(ctx.agentRuntime),
-					runAgentHarness: ctx.runAgentHarness,
-					signal: ctx.signal,
-				}),
-				maxResolutionAttempts: MERGE_CONFLICT_RESOLUTION_ATTEMPTS,
-			});
+			return await mergeAutomationWorktree(
+				{
+					projectDir: ctx.projectDir,
+					taskId: workspace.taskId,
+					runId: builderWorktreeRunId(ctx),
+					validationCommand: MERGE_GATE_VALIDATION_COMMAND,
+					resolver: createMergeConflictResolver({
+						runDirPath: ctx.workflow.runDirPath,
+						workflowName: ctx.workflow.name,
+						runId: ctx.workflow.runId,
+						agentContract: resolveMergeConflictResolverRunContract(ctx.agentRuntime),
+						runAgentHarness: ctx.runAgentHarness,
+						signal: ctx.signal,
+					}),
+					maxResolutionAttempts: MERGE_CONFLICT_RESOLUTION_ATTEMPTS,
+				},
+				ctx,
+			);
 		},
 	});
 }
@@ -124,23 +118,12 @@ export function createCleanupAutomationWorktreeStep(): TypedCodeStepInput<Automa
 		run: (ctx) => {
 			const workspace = preparedWorktree(ctx);
 			if (!workspace?.taskId) throw new Error("Cannot cleanup automation worktree without a prepared task id");
-			const result = cleanupAutomationWorktree({
+			return ctx.runBlocking(cleanupAutomationWorktreeOperation, {
 				projectDir: ctx.projectDir,
 				taskId: workspace.taskId,
 				runId: builderWorktreeRunId(ctx),
+				runDirPath: ctx.workflow.runDirPath,
 			});
-			const artifact = {
-				removed: result.removed,
-				workspaceDir: result.inspection.metadata.workspaceDir,
-				metadataPath: result.inspection.metadataPath,
-				artifactPath: join(ctx.workflow.runDirPath, "automation-worktree-cleanup.json"),
-				state: result.inspection.metadata.state,
-				cleanupEligible: result.inspection.cleanup.eligible,
-				blockers: result.inspection.cleanup.blockers,
-			};
-			mkdirSync(dirname(artifact.artifactPath), { recursive: true });
-			writeFileSync(artifact.artifactPath, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
-			return artifact;
 		},
 	});
 }

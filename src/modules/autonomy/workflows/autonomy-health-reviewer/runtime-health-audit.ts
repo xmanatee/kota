@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import { scanDeadLetters } from "./runtime-health-audit-dead-letters.js";
 import {
   scanDaemonEvidence,
@@ -100,3 +101,33 @@ export function writeRuntimeHealthAuditArtifact(
   writeFileSync(artifactPath, `${JSON.stringify(audit, null, 2)}\n`, "utf-8");
   return artifactPath;
 }
+
+export type RuntimeHealthAuditOperationInput = {
+  projectDir: string;
+  runDirPath: string;
+  nowIso: string;
+};
+
+export type RuntimeHealthAuditOperationOutput = {
+  audit: RuntimeHealthAudit;
+  artifactPath: string;
+};
+
+export function collectRuntimeHealthAuditInWorker(
+  input: RuntimeHealthAuditOperationInput,
+): RuntimeHealthAuditOperationOutput {
+  const audit = collectRuntimeHealthAudit({
+    projectDir: input.projectDir,
+    options: { nowIso: input.nowIso },
+  });
+  return {
+    audit,
+    artifactPath: writeRuntimeHealthAuditArtifact(input.runDirPath, audit),
+  };
+}
+
+export const collectRuntimeHealthAuditOperation =
+  defineWorkflowBlockingOperation<
+    RuntimeHealthAuditOperationInput,
+    RuntimeHealthAuditOperationOutput
+  >(import.meta.url, "collectRuntimeHealthAuditInWorker");

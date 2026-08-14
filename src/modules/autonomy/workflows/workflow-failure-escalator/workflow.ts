@@ -10,13 +10,8 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import {
-  checkCommitStageable,
-  commitWorkflowChanges,
-} from "#modules/autonomy/commit.js";
 import {
   decodeWorkflowCommitOutcome,
   type WorkflowCommitOutcome,
@@ -24,42 +19,31 @@ import {
 import {
   onNormalTrigger,
   onRecoveryTrigger,
-  resetWorktreeForRecovery,
+  resetWorktreeForRecoveryOperation,
 } from "#modules/autonomy/recovery.js";
+import { runCheck, stepCommitRequiresDaemonRestart } from "#modules/autonomy/shared.js";
 import {
-  checkCommitMessageExists,
-  checkNoScratchArtifacts,
-  runCheck,
-  stepCommitRequiresDaemonRestart,
-  stepCommitted,
-} from "#modules/autonomy/shared.js";
+  workflowCommitOperation,
+  workflowCommitValidationOperation,
+} from "#modules/autonomy/workflow-commit-operations.js";
 import {
-  applyWorkflowFailureEscalation,
   buildWorkflowFailureAttentionDigest,
-  DEFAULT_CONSECUTIVE_FAILURE_RUNS,
-  DEFAULT_FAILURE_RATE_MIN_RUNS,
-  DEFAULT_FAILURE_RATE_MIN_WINDOW_MS,
-  DEFAULT_REPEATED_WARNING_RUNS,
-  detectPersistentWorkflowFailurePatterns,
-  proposeWorkflowFailureEscalation,
   type WorkflowFailureEscalationApplied,
   type WorkflowFailureEscalationProposal,
   type WorkflowFailurePattern,
 } from "#modules/autonomy/workflow-failure-escalation.js";
+import {
+  inspectWorkflowFailurePatternsOperation,
+  type WorkflowFailureInspection,
+  type WorkflowFailureThresholds,
+} from "./inspection.js";
+import {
+  applyWorkflowFailureTasksOperation,
+  proposeWorkflowFailureTasksOperation,
+} from "./task-operations.js";
 
-type Thresholds = {
-  consecutiveFailureRuns: number;
-  failureRateMinRuns: number;
-  failureRateMinWindowMs: number;
-  repeatedWarningRuns: number;
-};
-
-type Inspection = {
-  dirty: boolean;
-  status: "dirty" | "none" | "patterns-detected";
-  patterns: WorkflowFailurePattern[];
-  thresholds: Thresholds;
-};
+type Thresholds = WorkflowFailureThresholds;
+type Inspection = WorkflowFailureInspection;
 
 type ProposalOutput = {
   proposals: WorkflowFailureEscalationProposal[];
@@ -77,12 +61,6 @@ export type WorkflowFailureEscalationArtifact = {
   applied: WorkflowFailureEscalationApplied[];
 };
 
-function readPositiveIntegerEnv(name: string, fallback: number): number {
-  const raw = Number(process.env[name]);
-  if (!Number.isSafeInteger(raw) || raw <= 0) return fallback;
-  return raw;
-}
-
 const inspectPatterns = typedCodeStep<Inspection>({
   id: "inspect-patterns",
   type: "code",
@@ -94,52 +72,8 @@ const inspectPatterns = typedCodeStep<Inspection>({
       "patterns",
       "thresholds",
     ]),
-  run: ({ projectDir }) => {
-    const worktree = getRepoWorktreeStatus(projectDir);
-    const dirty = worktree.available && worktree.dirty;
-    const thresholds = {
-      consecutiveFailureRuns: readPositiveIntegerEnv(
-        "KOTA_WORKFLOW_FAILURE_CONSECUTIVE_RUNS",
-        DEFAULT_CONSECUTIVE_FAILURE_RUNS,
-      ),
-      failureRateMinRuns: readPositiveIntegerEnv(
-        "KOTA_WORKFLOW_FAILURE_RATE_MIN_RUNS",
-        DEFAULT_FAILURE_RATE_MIN_RUNS,
-      ),
-      failureRateMinWindowMs:
-        readPositiveIntegerEnv(
-          "KOTA_WORKFLOW_FAILURE_RATE_MIN_DAYS",
-          DEFAULT_FAILURE_RATE_MIN_WINDOW_MS / (24 * 60 * 60 * 1000),
-        ) *
-        24 *
-        60 *
-        60 *
-        1000,
-      repeatedWarningRuns: readPositiveIntegerEnv(
-        "KOTA_WORKFLOW_FAILURE_WARNING_RUNS",
-        DEFAULT_REPEATED_WARNING_RUNS,
-      ),
-    };
-    const patterns = detectPersistentWorkflowFailurePatterns(
-      join(projectDir, ".kota", "runs"),
-      {
-        consecutiveFailureRuns: thresholds.consecutiveFailureRuns,
-        failureRateMinRuns: thresholds.failureRateMinRuns,
-        failureRateMinWindowMs: thresholds.failureRateMinWindowMs,
-        repeatedWarningRuns: thresholds.repeatedWarningRuns,
-      },
-    );
-    return {
-      dirty,
-      status: dirty
-        ? "dirty"
-        : patterns.length > 0
-          ? "patterns-detected"
-          : "none",
-      patterns,
-      thresholds,
-    };
-  },
+  run: ({ projectDir, runBlocking }) =>
+    runBlocking(inspectWorkflowFailurePatternsOperation, { projectDir }),
 });
 
 const proposeTasks = typedCodeStep<ProposalOutput>({
@@ -154,11 +88,10 @@ const proposeTasks = typedCodeStep<ProposalOutput>({
   validate: (raw) => expectStructuredOutput<ProposalOutput>(raw, ["proposals"]),
   run: (ctx) => {
     const inspection = inspectPatterns.outputRequired(ctx);
-    return {
-      proposals: inspection.patterns.map((pattern) =>
-        proposeWorkflowFailureEscalation(ctx.projectDir, pattern)
-      ),
-    };
+    return ctx.runBlocking(proposeWorkflowFailureTasksOperation, {
+      projectDir: ctx.projectDir,
+      patterns: inspection.patterns,
+    });
   },
 });
 
@@ -168,15 +101,11 @@ const applyTasks = typedCodeStep<ApplyOutput>({
   when: (ctx) => proposeTasks.output(ctx) !== undefined,
   validate: (raw) => expectStructuredOutput<ApplyOutput>(raw, ["applied"]),
   run: (ctx) => {
-    const proposals = proposeTasks.outputRequired(ctx).proposals;
-    return {
-      applied: proposals.map((proposal) =>
-        applyWorkflowFailureEscalation(proposal, {
-          projectDir: ctx.projectDir,
-          nowIso: new Date().toISOString(),
-        })
-      ),
-    };
+    return ctx.runBlocking(applyWorkflowFailureTasksOperation, {
+      projectDir: ctx.projectDir,
+      proposals: proposeTasks.outputRequired(ctx).proposals,
+      nowIso: new Date().toISOString(),
+    });
   },
 });
 
@@ -253,9 +182,10 @@ const validateBeforeCommit = typedCodeStep<{ ok: true }>({
   },
   run: async (ctx) => {
     await runCheck("pnpm run validate-tasks", ctx.projectDir, { signal: ctx.signal });
-    checkNoScratchArtifacts(ctx.projectDir);
-    checkCommitStageable(ctx.projectDir);
-    checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir);
+    await ctx.runBlocking(workflowCommitValidationOperation, {
+      projectDir: ctx.projectDir,
+      runDirPath: ctx.workflow.runDirPath,
+    });
     return { ok: true } as const;
   },
 });
@@ -265,8 +195,11 @@ const commitChanges = typedCodeStep<WorkflowCommitOutcome>({
   type: "code",
   when: (ctx) => validateBeforeCommit.output(ctx)?.ok === true,
   validate: decodeWorkflowCommitOutcome,
-  run: ({ projectDir, workflow }) =>
-    commitWorkflowChanges(projectDir, workflow.runDirPath),
+  run: (ctx) =>
+    ctx.runBlocking(workflowCommitOperation, {
+      projectDir: ctx.projectDir,
+      runDirPath: ctx.workflow.runDirPath,
+    }),
 });
 
 const workflowFailureEscalator: WorkflowDefinitionInput = {
@@ -287,9 +220,9 @@ const workflowFailureEscalator: WorkflowDefinitionInput = {
       id: "reset-for-recovery",
       type: "code",
       when: onRecoveryTrigger,
-      run: ({ projectDir }) =>
-        resetWorktreeForRecovery({
-          projectDir,
+      run: (ctx) =>
+        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
+          projectDir: ctx.projectDir,
           workflowName: "workflow-failure-escalator",
         }),
     },

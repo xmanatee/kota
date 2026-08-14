@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import { listWorkflowMutatedPaths } from "#core/workflow/steps/agent-write-scope.js";
 import { getChangedFiles, getStagedDiff, getStagedDiffContent } from "./critic-diff.js";
 import type { ShadowSemanticReviewArtifactRef } from "./shadow-semantic-review-types.js";
@@ -119,3 +120,22 @@ export function workflowMutationArtifacts(
     ];
   }
 }
+
+export type ShadowSemanticReviewTargetOperationInput = {
+  kind: "staged-diff" | "workflow-mutations";
+  projectDir: string;
+};
+
+export function collectShadowSemanticReviewTargetsInWorker(
+  input: ShadowSemanticReviewTargetOperationInput,
+): ShadowSemanticReviewArtifactRef[] {
+  return input.kind === "staged-diff"
+    ? stagedDiffArtifacts(input.projectDir)
+    : workflowMutationArtifacts(input.projectDir);
+}
+
+export const shadowSemanticReviewTargetOperation =
+  defineWorkflowBlockingOperation<
+    ShadowSemanticReviewTargetOperationInput,
+    ShadowSemanticReviewArtifactRef[]
+  >(import.meta.url, "collectShadowSemanticReviewTargetsInWorker");

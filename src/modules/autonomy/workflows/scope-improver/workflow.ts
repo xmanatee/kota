@@ -1,177 +1,42 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import {
-  checkCommitStageable,
-  commitWorkflowChanges,
-} from "#modules/autonomy/commit.js";
 import {
   decodeWorkflowCommitOutcome,
   type WorkflowCommitOutcome,
 } from "#modules/autonomy/commit-result.js";
 import {
-  onNormalTrigger,
   onRecoveryTrigger,
-  resetWorktreeForRecovery,
+  resetWorktreeForRecoveryOperation,
 } from "#modules/autonomy/recovery.js";
 import {
-  checkCommitMessageExists,
-  checkNoScratchArtifacts,
   runCheck,
   stepCommitRequiresDaemonRestart,
-  stepCommitted,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
-import { assertTaskQueueValid } from "#modules/repo-tasks/task-queue-validation.js";
 import {
-  applyScopeImprovementRecommendations,
-  collectScopeImprovementInputs,
-  discoverScopeImprovementCandidates,
-  gatherScopeImprovementEvidence,
-  recommendScopeImprovements,
+  workflowCommitOperation,
+  workflowCommitValidationOperation,
+} from "#modules/autonomy/workflow-commit-operations.js";
+import { taskQueueValidationOperation } from "#modules/repo-tasks/task-queue-validation-operation.js";
+import {
   type ScopeImprovementActionResult,
   type ScopeImprovementArtifact,
-  type ScopeImprovementCandidate,
   type ScopeImprovementCooldownDecision,
-  type ScopeImprovementEvidencePacket,
-  type ScopeImprovementInputs,
   type ScopeImprovementPreflight,
-  type ScopeImprovementRecommendation,
   writeScopeImprovementArtifact,
 } from "./scope-improvement.js";
 import { writeScopeImprovementState } from "./scope-improvement-state.js";
 import { scopeImproverTriggers } from "./triggers.js";
-
-type WorktreeInspection = {
-  available: boolean;
-  dirty: boolean;
-  entries: string[];
-  summary: string;
-};
-
-const inspectWorktree = typedCodeStep<WorktreeInspection>({
-  id: "inspect-worktree",
-  type: "code",
-  when: onNormalTrigger,
-  validate: (raw) =>
-    expectStructuredOutput<WorktreeInspection>(raw, [
-      "available",
-      "dirty",
-      "entries",
-      "summary",
-    ]),
-  run: ({ projectDir }) => {
-    const worktree = getRepoWorktreeStatus(projectDir);
-    return {
-      available: worktree.available,
-      dirty: !worktree.available || worktree.dirty,
-      entries: worktree.entries,
-      summary: worktree.summary,
-    };
-  },
-});
-
-const collectInputs = typedCodeStep<ScopeImprovementInputs>({
-  id: "collect-scope-inputs",
-  type: "code",
-  when: onNormalTrigger,
-  validate: (raw) =>
-    expectStructuredOutput<ScopeImprovementInputs>(raw, [
-      "generatedAt",
-      "triggerKind",
-      "triggerEvent",
-      "scope",
-      "config",
-      "state",
-      "instructions",
-      "changedFiles",
-      "evidence",
-      "throttle",
-    ]),
-  run: ({ projectDir, trigger }) =>
-    collectScopeImprovementInputs({ projectDir, trigger, now: new Date() }),
-});
-
-const discoverCandidates = typedCodeStep<{
-  candidates: ScopeImprovementCandidate[];
-}>({
-  id: "discover-candidates",
-  type: "code",
-  when: stepSucceeded("collect-scope-inputs"),
-  validate: (raw) =>
-    expectStructuredOutput<{ candidates: ScopeImprovementCandidate[] }>(raw, [
-      "candidates",
-    ]),
-  run: (ctx) => ({
-    candidates: discoverScopeImprovementCandidates(collectInputs.outputRequired(ctx)),
-  }),
-});
-
-const gatherEvidence = typedCodeStep<ScopeImprovementEvidencePacket>({
-  id: "gather-evidence",
-  type: "code",
-  when: stepSucceeded("discover-candidates"),
-  validate: (raw) =>
-    expectStructuredOutput<ScopeImprovementEvidencePacket>(raw, [
-      "generatedAt",
-      "scope",
-      "triggerKind",
-      "triggerEvent",
-      "evidence",
-      "candidates",
-    ]),
-  run: (ctx) =>
-    gatherScopeImprovementEvidence({
-      inputs: collectInputs.outputRequired(ctx),
-      candidates: discoverCandidates.outputRequired(ctx).candidates,
-    }),
-});
-
-const recommend = typedCodeStep<{
-  recommendations: ScopeImprovementRecommendation[];
-}>({
-  id: "recommend-improvements",
-  type: "code",
-  when: stepSucceeded("gather-evidence"),
-  validate: (raw) =>
-    expectStructuredOutput<{ recommendations: ScopeImprovementRecommendation[] }>(
-      raw,
-      ["recommendations"],
-    ),
-  run: (ctx) => ({
-    recommendations: recommendScopeImprovements({
-      inputs: collectInputs.outputRequired(ctx),
-      evidence: gatherEvidence.outputRequired(ctx),
-    }),
-  }),
-});
-
-const applyRecommendations = typedCodeStep<ScopeImprovementActionResult>({
-  id: "apply-recommendations",
-  type: "code",
-  when: (ctx) => {
-    if (!stepSucceeded("recommend-improvements")(ctx)) return false;
-    if (inspectWorktree.output(ctx)?.dirty !== false) return false;
-    return recommend.outputRequired(ctx).recommendations.length > 0;
-  },
-  validate: (raw) =>
-    expectStructuredOutput<ScopeImprovementActionResult>(raw, [
-      "createdTaskIds",
-      "ownerQuestionIds",
-      "safeEditPaths",
-      "applied",
-      "requiresCommit",
-    ]),
-  run: (ctx) =>
-    applyScopeImprovementRecommendations({
-      projectDir: ctx.projectDir,
-      runId: ctx.workflow.runId,
-      inputs: collectInputs.outputRequired(ctx),
-      recommendations: recommend.outputRequired(ctx).recommendations,
-    }),
-});
+import {
+  applyRecommendations,
+  collectInputs,
+  discoverCandidates,
+  gatherEvidence,
+  inspectWorktree,
+  recommend,
+} from "./workflow-analysis-steps.js";
 
 function hasVisibleActions(actions: ScopeImprovementActionResult): boolean {
   return (
@@ -302,11 +167,15 @@ const validateBeforeCommit = typedCodeStep<{ ok: true }>({
     return obj;
   },
   run: async (ctx) => {
-    assertTaskQueueValid(ctx.projectDir, { minReady: 0 });
+    await ctx.runBlocking(taskQueueValidationOperation, {
+      projectDir: ctx.projectDir,
+      options: { minReady: 0 },
+    });
     await runCheck("pnpm run validate-tasks", ctx.projectDir, { signal: ctx.signal });
-    checkNoScratchArtifacts(ctx.projectDir);
-    checkCommitStageable(ctx.projectDir);
-    checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir);
+    await ctx.runBlocking(workflowCommitValidationOperation, {
+      projectDir: ctx.projectDir,
+      runDirPath: ctx.workflow.runDirPath,
+    });
     return { ok: true } as const;
   },
 });
@@ -316,8 +185,11 @@ const commitChanges = typedCodeStep<WorkflowCommitOutcome>({
   type: "code",
   when: (ctx) => validateBeforeCommit.output(ctx)?.ok === true,
   validate: decodeWorkflowCommitOutcome,
-  run: ({ projectDir, workflow }) =>
-    commitWorkflowChanges(projectDir, workflow.runDirPath),
+  run: (ctx) =>
+    ctx.runBlocking(workflowCommitOperation, {
+      projectDir: ctx.projectDir,
+      runDirPath: ctx.workflow.runDirPath,
+    }),
 });
 
 const scopeImproverWorkflow: WorkflowDefinitionInput = {
@@ -332,8 +204,11 @@ const scopeImproverWorkflow: WorkflowDefinitionInput = {
       id: "reset-for-recovery",
       type: "code",
       when: onRecoveryTrigger,
-      run: ({ projectDir }) =>
-        resetWorktreeForRecovery({ projectDir, workflowName: "scope-improver" }),
+      run: (ctx) =>
+        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
+          projectDir: ctx.projectDir,
+          workflowName: "scope-improver",
+        }),
     },
     inspectWorktree,
     collectInputs,

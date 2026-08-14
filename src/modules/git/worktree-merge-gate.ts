@@ -1,34 +1,27 @@
-import { inspectAutomationWorktree } from "./worktree-lifecycle.js";
-import { readDirtyState } from "./worktree-lifecycle-support.js";
-import type { AutomationWorktreeSelector } from "./worktree-lifecycle-types.js";
 import {
-	captureMergeIndexSnapshot,
-	commitResolvedMerge,
-	stageConflictPaths,
-	validateAndFastForwardCanonical,
-	validateResolvedMergeBoundary,
-} from "./worktree-merge-gate-finalize.js";
+	runWorkflowBlockingOperation,
+	type WorkflowBlockingOperationRunner,
+} from "#core/workflow/blocking-operation.js";
 import {
 	acquireMergeGateLock,
 	releaseMergeGateLock,
-	writeMergeGateMetrics,
 } from "./worktree-merge-gate-lock.js";
-import { finishCleanMerge, pendingBlocked } from "./worktree-merge-gate-results.js";
+import type {
+	MergeGatePhaseInput,
+	MergeGatePhaseResult,
+	MergeGateResolutionState,
+	} from "./worktree-merge-gate-operation-types.js";
 import {
-	abortMerge,
-	classifyConflicts,
-	currentHead,
-	DEFAULT_MAX_RESOLUTION_ATTEMPTS,
-	isAncestor,
-	pending,
-	runGit,
-	runValidation,
-} from "./worktree-merge-gate-support.js";
+	mergeGateLockFailureOperation,
+	writeMergeGateMetricsOperation,
+} from "./worktree-merge-gate-operations.js";
+import { prepareMergeAutomationWorktreeOperation } from "./worktree-merge-gate-prepare-operation.js";
+import { continueMergeAutomationWorktreeOperation } from "./worktree-merge-gate-resolution-operation.js";
+import { DEFAULT_MAX_RESOLUTION_ATTEMPTS } from "./worktree-merge-gate-support.js";
 import type {
 	MergeAutomationWorktreeInput,
-	MergeGateConflict,
+	MergeGateResolverResult,
 	MergeGateResult,
-	MergeGateValidation,
 } from "./worktree-merge-gate-types.js";
 
 export type {
@@ -43,238 +36,92 @@ export type {
 	MergeGateValidation,
 } from "./worktree-merge-gate-types.js";
 
-async function resolveTextConflicts(
-	selector: AutomationWorktreeSelector,
-	input: MergeAutomationWorktreeInput & {
-		branch: string;
-		baseCommit: string;
-		canonicalHeadCommit: string;
-		workspaceDir: string;
-		conflicts: MergeGateConflict[];
-	},
-): Promise<MergeGateResult> {
-	const maxAttempts = input.maxResolutionAttempts ?? DEFAULT_MAX_RESOLUTION_ATTEMPTS;
-	if (!input.resolver || maxAttempts <= 0) {
-		return pending(selector, {
-			branch: input.branch,
-			baseCommit: input.baseCommit,
-			canonicalHeadCommit: input.canonicalHeadCommit,
-			headCommit: currentHead(input.workspaceDir),
-			reason: "text conflicts require a configured merge resolver",
-			conflicts: input.conflicts,
-			resolutionAttempts: 0,
-			validation: null,
-		});
-	}
-	let validation: MergeGateValidation | null = null;
-	let conflicts = input.conflicts;
-	for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-		const beforeResolver = captureMergeIndexSnapshot(input.workspaceDir);
-		const resolution = await input.resolver({
-			workspaceDir: input.workspaceDir,
-			attempt,
-			conflicts,
-			previousValidation: validation,
-		});
-		if (!resolution.resolved) {
-			return pending(selector, {
-				branch: input.branch,
-				baseCommit: input.baseCommit,
-				canonicalHeadCommit: input.canonicalHeadCommit,
-				headCommit: currentHead(input.workspaceDir),
-				reason: resolution.summary || "merge resolver did not resolve conflicts",
-				conflicts,
-				resolutionAttempts: attempt,
-				validation,
-			});
-		}
-		const unresolvedMarkers = stageConflictPaths(input.workspaceDir, conflicts);
-		if (unresolvedMarkers.length > 0) {
-			conflicts = unresolvedMarkers;
-			validation = runValidation(input.workspaceDir, input.validationCommand);
-			continue;
-		}
-		const remaining = classifyConflicts(input.workspaceDir);
-		if (remaining.length > 0) conflicts = remaining;
-		if (remaining.length === 0) {
-			const boundaryViolation = validateResolvedMergeBoundary(input.workspaceDir, {
-				beforeResolver,
-				allowedConflictPaths: conflicts.map((conflict) => conflict.path),
-			});
-			if (boundaryViolation) {
-				return pendingBlocked(selector, {
-					branch: input.branch,
-					baseCommit: input.baseCommit,
-					canonicalHeadCommit: input.canonicalHeadCommit,
-					headCommit: currentHead(input.workspaceDir),
-					reason: boundaryViolation.reason,
-					conflicts: boundaryViolation.conflicts,
-					resolutionAttempts: attempt,
-					validation: null,
-				});
-			}
-		}
-		validation = runValidation(input.workspaceDir, input.validationCommand);
-		if (remaining.length === 0 && (!validation || validation.passed)) {
-			const commit = commitResolvedMerge(input.workspaceDir, input.branch);
-			if (!commit.ok) {
-				return pendingBlocked(selector, {
-					branch: input.branch,
-					baseCommit: input.baseCommit,
-					canonicalHeadCommit: input.canonicalHeadCommit,
-					headCommit: currentHead(input.workspaceDir),
-					reason: commit.reason,
-					conflicts: [],
-					resolutionAttempts: attempt,
-					validation,
-				});
-			}
-			return validateAndFastForwardCanonical(selector, {
-				branch: input.branch,
-				baseCommit: input.baseCommit,
-				canonicalHeadCommit: input.canonicalHeadCommit,
-				validationCommand: input.validationCommand,
-				resolutionAttempts: attempt,
-			});
-		}
-	}
-	return pendingBlocked(selector, {
-		branch: input.branch,
-		baseCommit: input.baseCommit,
-		canonicalHeadCommit: input.canonicalHeadCommit,
-		headCommit: currentHead(input.workspaceDir),
-		reason: "merge resolver exhausted bounded attempts",
-		conflicts,
-		resolutionAttempts: maxAttempts,
-		validation,
-	});
-}
+type MergeGatePhaseRunner = {
+	prepare: (input: MergeGatePhaseInput) => Promise<MergeGatePhaseResult>;
+	continueResolution: (input: {
+		state: MergeGateResolutionState;
+		resolution: MergeGateResolverResult;
+	}) => Promise<MergeGatePhaseResult>;
+	lockFailure: (input: {
+		selector: Pick<MergeAutomationWorktreeInput, "projectDir" | "taskId" | "runId">;
+		reason: string;
+		waitMs: number;
+	}) => Promise<MergeGateResult>;
+	writeMetrics: (input: {
+		result: MergeGateResult;
+		waitMs: number;
+		mergeDurationMs: number;
+	}) => Promise<MergeGateResult>;
+};
 
-async function mergeAutomationWorktreeUnlocked(input: MergeAutomationWorktreeInput): Promise<MergeGateResult> {
-	const selector: AutomationWorktreeSelector = {
-		projectDir: input.projectDir,
-		taskId: input.taskId,
-		runId: input.runId,
+const defaultBlockingOperationRunner: WorkflowBlockingOperationRunner = {
+	runBlocking: (operation, input) => runWorkflowBlockingOperation(operation, input),
+};
+
+function workerPhaseRunner(runner: WorkflowBlockingOperationRunner): MergeGatePhaseRunner {
+	return {
+		prepare: (input) => runner.runBlocking(prepareMergeAutomationWorktreeOperation, input),
+		continueResolution: (input) => runner.runBlocking(continueMergeAutomationWorktreeOperation, input),
+		lockFailure: (input) => runner.runBlocking(mergeGateLockFailureOperation, input),
+		writeMetrics: (input) => runner.runBlocking(writeMergeGateMetricsOperation, input),
 	};
-	const inspection = inspectAutomationWorktree(selector);
-	const { metadata } = inspection;
-	const branch = inspection.branch;
-	const baseCommit = metadata.baseCommit;
-	const workspaceDir = metadata.workspaceDir;
-	const canonicalHeadCommit = currentHead(selector.projectDir);
-	const workspaceHeadCommit = currentHead(workspaceDir);
-	const canonicalDirty = readDirtyState(selector.projectDir);
-
-	if (!inspection.exists) {
-		return pendingBlocked(selector, {
-			branch,
-			baseCommit,
-			canonicalHeadCommit,
-			headCommit: workspaceHeadCommit,
-			reason: "worktree path is missing",
-		});
-	}
-	if (canonicalDirty.trackedDirty || canonicalDirty.untracked) {
-		return pendingBlocked(selector, {
-			branch,
-			baseCommit,
-			canonicalHeadCommit,
-			headCommit: workspaceHeadCommit,
-			reason: `canonical checkout is dirty before merge gate: ${canonicalDirty.entries.join(", ")}`,
-		});
-	}
-	if (inspection.dirty.dirty) {
-		return pendingBlocked(selector, {
-			branch,
-			baseCommit,
-			canonicalHeadCommit,
-			headCommit: workspaceHeadCommit,
-			reason: `worktree is dirty before merge gate: ${inspection.dirty.entries.join(", ")}`,
-		});
-	}
-	if (isAncestor(workspaceDir, workspaceHeadCommit, canonicalHeadCommit)) {
-		return validateAndFastForwardCanonical(selector, {
-			branch,
-			baseCommit,
-			canonicalHeadCommit,
-			validationCommand: input.validationCommand,
-			resolutionAttempts: 0,
-		});
-	}
-	if (!isAncestor(workspaceDir, canonicalHeadCommit, workspaceHeadCommit)) {
-		const merge = runGit(workspaceDir, ["merge", "--no-ff", "--no-commit", canonicalHeadCommit]);
-		if (!merge.ok) {
-			const conflicts = classifyConflicts(workspaceDir);
-			if (conflicts.some((conflict) => conflict.kind !== "text")) {
-				return pendingBlocked(selector, {
-					branch,
-					baseCommit,
-					canonicalHeadCommit,
-					headCommit: currentHead(workspaceDir),
-					reason: "merge contains binary, generated, or high-risk conflicts",
-					conflicts,
-				});
-			}
-			return await resolveTextConflicts(selector, { ...input, branch, baseCommit, canonicalHeadCommit, workspaceDir, conflicts });
-		}
-		return finishCleanMerge(selector, {
-			branch,
-			baseCommit,
-			canonicalHeadCommit,
-			workspaceDir,
-			validationCommand: input.validationCommand,
-		});
-	}
-	abortMerge(workspaceDir);
-	return validateAndFastForwardCanonical(selector, {
-		branch,
-		baseCommit,
-		canonicalHeadCommit,
-		validationCommand: input.validationCommand,
-		resolutionAttempts: 0,
-	});
 }
 
-export async function mergeAutomationWorktree(input: MergeAutomationWorktreeInput): Promise<MergeGateResult> {
-	const selector: AutomationWorktreeSelector = {
+async function coordinateMergeAutomationWorktree(
+	input: MergeAutomationWorktreeInput,
+	runner: MergeGatePhaseRunner,
+): Promise<MergeGateResult> {
+	const selector = {
 		projectDir: input.projectDir,
 		taskId: input.taskId,
 		runId: input.runId,
 	};
 	const lock = await acquireMergeGateLock({
-		projectDir: input.projectDir,
-		taskId: input.taskId,
-		runId: input.runId,
+		...selector,
 		timeoutMs: input.lockTimeoutMs,
 	});
 	if (!lock.acquired) {
-		const inspection = inspectAutomationWorktree(selector);
-		const workspaceHeadCommit = inspection.exists ? currentHead(inspection.metadata.workspaceDir) : "";
-		return writeMergeGateMetrics(
-			pendingBlocked(selector, {
-				branch: inspection.branch,
-				baseCommit: inspection.metadata.baseCommit,
-				canonicalHeadCommit: currentHead(input.projectDir),
-				headCommit: workspaceHeadCommit,
-				reason: lock.reason,
-			}),
-			{
-				waitMs: lock.waitMs,
-				mergeDurationMs: 0,
-				serializedByLock: true,
-			},
-		);
+		return await runner.lockFailure({
+			selector,
+			reason: lock.reason,
+			waitMs: lock.waitMs,
+		});
 	}
 
 	const mergeStartedAt = Date.now();
 	try {
-		const result = await mergeAutomationWorktreeUnlocked(input);
-		return writeMergeGateMetrics(result, {
+		let phase = await runner.prepare({
+			...selector,
+			validationCommand: input.validationCommand,
+			resolverConfigured: input.resolver !== undefined,
+			maxResolutionAttempts: input.maxResolutionAttempts ?? DEFAULT_MAX_RESOLUTION_ATTEMPTS,
+		});
+		while (phase.kind === "resolve") {
+			if (!input.resolver) {
+				throw new Error("Merge gate requested conflict resolution without a configured resolver");
+			}
+			const state = phase.state;
+			const resolution = await input.resolver({
+				workspaceDir: state.workspaceDir,
+				attempt: state.attempt,
+				conflicts: state.conflicts,
+				previousValidation: state.validation,
+			});
+			phase = await runner.continueResolution({ state, resolution });
+		}
+		return await runner.writeMetrics({
+			result: phase.result,
 			waitMs: lock.waitMs,
 			mergeDurationMs: Date.now() - mergeStartedAt,
-			serializedByLock: true,
 		});
 	} finally {
-		releaseMergeGateLock(input.projectDir);
+		await releaseMergeGateLock(input.projectDir);
 	}
+}
+
+export function mergeAutomationWorktree(
+	input: MergeAutomationWorktreeInput,
+	runner: WorkflowBlockingOperationRunner = defaultBlockingOperationRunner,
+): Promise<MergeGateResult> {
+	return coordinateMergeAutomationWorktree(input, workerPhaseRunner(runner));
 }

@@ -32,6 +32,7 @@ export {
   parseShadowSemanticReviewerResponse,
 } from "./shadow-semantic-review-prompt.js";
 export {
+  shadowSemanticReviewTargetOperation,
   stagedDiffArtifacts,
   workflowMutationArtifacts,
 } from "./shadow-semantic-review-targets.js";
@@ -56,7 +57,9 @@ export type ShadowSemanticReviewStepResult = {
 
 export type ExecutableShadowSemanticReviewerDeclaration =
   ShadowSemanticReviewerDeclaration & {
-    targetResolver: (ctx: WorkflowStepContext) => ShadowSemanticReviewTargetResolution;
+    targetResolver: (
+      ctx: WorkflowStepContext,
+    ) => ShadowSemanticReviewTargetResolution | Promise<ShadowSemanticReviewTargetResolution>;
   };
 
 export type ShadowSemanticReviewInvoker = (
@@ -138,7 +141,7 @@ export async function runShadowSemanticReview(args: {
 }): Promise<ShadowSemanticReviewStepResult> {
   const { ctx, declaration } = args;
   validateShadowSemanticReviewerDeclaration(ctx.projectDir, declaration);
-  const resolution = declaration.targetResolver(ctx);
+  const resolution = await declaration.targetResolver(ctx);
   if (resolution.kind === "skip") {
     const { path } = writeShadowSemanticReviewArtifact(ctx, declaration, {
       status: "skipped",

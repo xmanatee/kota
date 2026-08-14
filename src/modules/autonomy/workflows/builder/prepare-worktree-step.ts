@@ -1,8 +1,5 @@
-import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { loadConfig } from "#core/config/config.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import {
   expectStructuredOutput,
@@ -16,12 +13,13 @@ import {
 } from "#modules/autonomy/task-claims.js";
 import {
   type AutomationWorktreeInspection,
-  continueAutomationWorktree,
-  createAutomationWorktree,
-  lockAutomationWorktree,
   updateAutomationWorktreeRuntimeResources,
 } from "#modules/git/worktree-lifecycle.js";
-import { builderWorktreeModeEnabledFromConfig } from "./builder-config.js";
+import {
+  continueBuilderWorktreeOperation,
+  createBuilderWorktreeOperation,
+  inspectBuilderWorkspaceModeOperation,
+} from "./prepare-worktree-operations.js";
 import { findPreservedBuilderEvidenceRunId } from "./preserved-evidence.js";
 import {
   assignBuilderRuntimeResources,
@@ -43,21 +41,6 @@ export type BuilderWorkspaceResult = {
   metadataPath: string | null;
   copiedSetupFiles: string[];
 };
-
-function gitOutput(repoDir: string, args: string[]): string | null {
-  const result = spawnSync("git", args, {
-    cwd: repoDir,
-    env: withProtectedGitBareRepositoryEnv(),
-    encoding: "utf-8",
-    stdio: "pipe",
-  });
-  if (result.status !== 0) return null;
-  return result.stdout.trim() || null;
-}
-
-function builderWorktreeModeEnabled(projectDir: string): boolean {
-  return builderWorktreeModeEnabledFromConfig(loadConfig(projectDir));
-}
 
 function writeWorkspaceArtifact(
   runDirPath: string,
@@ -161,9 +144,14 @@ export function createPrepareBuilderWorktreeStep(
         if (!worktreeRunId) {
           throw new Error(`Recovery claim for ${taskId} does not identify its preserved worktree`);
         }
-        const inspection = continueAutomationWorktree(
-          { projectDir: ctx.projectDir, taskId, runId: worktreeRunId },
-          ctx.workflow.runId,
+        const inspection = await ctx.runBlocking(
+          continueBuilderWorktreeOperation,
+          {
+            projectDir: ctx.projectDir,
+            taskId,
+            worktreeRunId,
+            continuationRunId: ctx.workflow.runId,
+          },
         );
         const evidenceRunId = findPreservedBuilderEvidenceRunId(
           inspection.metadata.workspaceDir,
@@ -178,7 +166,10 @@ export function createPrepareBuilderWorktreeStep(
         );
       }
 
-      if (!builderWorktreeModeEnabled(ctx.projectDir)) {
+      const mode = await ctx.runBlocking(inspectBuilderWorkspaceModeOperation, {
+        projectDir: ctx.projectDir,
+      });
+      if (!mode.enabled) {
         const workspaceDir = ctx.workspaceDir ?? ctx.projectDir;
         const runtimeResources = await assignBuilderRuntimeResources({
           projectDir: ctx.projectDir,
@@ -192,9 +183,9 @@ export function createPrepareBuilderWorktreeStep(
           projectDir: ctx.projectDir,
           workspaceDir,
           runtimeResources,
-          branch: gitOutput(ctx.projectDir, ["rev-parse", "--abbrev-ref", "HEAD"]),
-          baseCommit: claim.claim?.baseCommit ?? gitOutput(ctx.projectDir, ["rev-parse", "HEAD"]),
-          headCommit: gitOutput(ctx.projectDir, ["rev-parse", "HEAD"]),
+          branch: mode.branch,
+          baseCommit: claim.claim?.baseCommit ?? mode.headCommit,
+          headCommit: mode.headCommit,
           taskId,
           claimId,
           claimPath: taskClaimPath(ctx.projectDir, taskId),
@@ -203,7 +194,7 @@ export function createPrepareBuilderWorktreeStep(
         });
       }
 
-      createAutomationWorktree({
+      const locked = await ctx.runBlocking(createBuilderWorktreeOperation, {
         projectDir: ctx.projectDir,
         taskId,
         runId: ctx.workflow.runId,
@@ -211,10 +202,6 @@ export function createPrepareBuilderWorktreeStep(
         owner: `workflow:${ctx.workflow.name}`,
         baseRef: claim.claim?.baseCommit ?? "HEAD",
       });
-      const locked = lockAutomationWorktree(
-        { projectDir: ctx.projectDir, taskId, runId: ctx.workflow.runId },
-        "builder agent running",
-      );
       return prepareWorktreeResources(
         ctx,
         locked,

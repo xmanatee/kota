@@ -125,6 +125,10 @@ describe("builder workflow queue gating", () => {
     });
     expect(vi.mocked(resetWorktreeForRecovery)).toHaveBeenCalledWith(
       expect.objectContaining({ workflowName: "builder", restoreBaseBranch: true }),
+      expect.objectContaining({
+        reportProgress: expect.any(Function),
+        signal: expect.any(AbortSignal),
+      }),
     );
     expect(result.steps["claim-task"].status).toBe("skipped");
     expect(result.steps.build.status).toBe("skipped");

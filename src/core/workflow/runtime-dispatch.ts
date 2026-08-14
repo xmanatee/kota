@@ -7,7 +7,7 @@ import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
+import { getRepoWorktreeStatusAsync } from "#core/util/repo-worktree.js";
 import type { AgentBackoffManager } from "./agent-backoff.js";
 import { dismissSupersededWorkflowDeadLetters } from "./dead-letter-supersession.js";
 import { isWithinDispatchWindow } from "./dispatch-window.js";
@@ -15,20 +15,19 @@ import { executeWorkflowRun } from "./run-executor.js";
 import { runHasSuccessfulAgentExecution } from "./run-executor-utils.js";
 import { formatRunId } from "./run-io.js";
 import type { WorkflowRunStore } from "./run-store.js";
-import type {
-  WorkflowRunExecutionResult,
-  WorkflowRunMetadata,
-} from "./run-types.js";
+import type { WorkflowRunExecutionResult } from "./run-types.js";
 import type { WorkflowRuntimeConfig } from "./runtime-config.js";
 import { canDispatchDefinition } from "./runtime-dispatch-concurrency.js";
 import { recordFailedWorkflowDispatchDeadLetter } from "./runtime-dispatch-dead-letter.js";
 import { loadDefinitions } from "./runtime-dispatch-definitions.js";
 import { handleDirtyCompletion } from "./runtime-dispatch-dirty-recovery.js";
 import { triggerWorkflowFromStep } from "./runtime-dispatch-trigger.js";
+import { getIdleEventSignature } from "./runtime-idle-signature.js";
 import { checkAbortSignal, checkReloadSignal, PAUSE_SIGNAL_FILE } from "./runtime-signals.js";
+import { runTerminalFinalizer } from "./runtime-terminal-finalizer.js";
 import type { ScheduleTriggerManager } from "./schedule-triggers.js";
 import type { AgentRunLimiter } from "./steps/agent-run-limiter.js";
-import type { WorkflowAgentBackoffKind, WorkflowRunTrigger } from "./trigger-types.js";
+import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./types.js";
 import type { WorkflowQueueManager } from "./workflow-queue.js";
 
@@ -70,33 +69,20 @@ export interface WorkflowRuntimeDispatchState {
   idleIntervalMs: number;
   lastIdleEventSignature?: string;
   lastIdleEventEmittedAtMs?: number;
+  idleSignatureCheck?: Promise<string>;
   workflowInputs?: readonly RegisteredWorkflowDefinitionInput[];
   resolveAgentDef?: (name: string) => AgentDef | undefined;
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
   log(message: string): void;
 }
 
-function getIdleEventSignature(projectDir: string, workspaceDir: string): string {
-  const worktree = getRepoWorktreeStatus(projectDir);
-  const workspaceWorktree =
-    workspaceDir === projectDir ? worktree : getRepoWorktreeStatus(workspaceDir);
-  return [
-    "project",
-    worktree.available ? "git" : "no-git",
-    worktree.headSha,
-    worktree.fingerprint,
-    "workspace",
-    workspaceWorktree.available ? "git" : "no-git",
-    workspaceWorktree.headSha,
-    workspaceWorktree.fingerprint,
-  ].join("\0");
-}
-
 function workspaceDirFor(state: WorkflowRuntimeDispatchState): string {
   return state.workspaceDir ?? state.runtimeConfig.workspaceDir ?? state.projectDir;
 }
 
-export function emitIdleEvent(state: WorkflowRuntimeDispatchState): void {
+export async function emitIdleEvent(
+  state: WorkflowRuntimeDispatchState,
+): Promise<void> {
   checkAbortSignal(state.projectDir, state.activeRuns, (msg) => state.log(msg));
   checkReloadSignal(
     state.projectDir,
@@ -114,8 +100,34 @@ export function emitIdleEvent(state: WorkflowRuntimeDispatchState): void {
   if (state.stopping || state.activeRuns.size > 0 || idleTriggerAlreadyQueued) return;
   const dispatchWindow = state.config?.scheduler?.dispatchWindow;
   if (dispatchWindow && !isWithinDispatchWindow(dispatchWindow)) return;
+  if (state.idleSignatureCheck !== undefined) return;
+  const initialEmission = state.lastIdleEventEmittedAtMs === undefined;
+  if (initialEmission) {
+    state.lastIdleEventEmittedAtMs = Date.now();
+    state.pbus.emit("runtime.idle", {
+      timestamp: new Date().toISOString(),
+      idleIntervalMs: state.idleIntervalMs,
+    });
+  }
   const workspaceDir = workspaceDirFor(state);
-  const signature = getIdleEventSignature(state.projectDir, workspaceDir);
+  const idleSignatureCheck = getIdleEventSignature(state.projectDir, workspaceDir);
+  state.idleSignatureCheck = idleSignatureCheck;
+  let signature: string;
+  try {
+    signature = await idleSignatureCheck;
+  } finally {
+    state.idleSignatureCheck = undefined;
+  }
+  if (initialEmission) {
+    state.lastIdleEventSignature = signature;
+    return;
+  }
+  const triggerQueuedDuringInspection = state.wfQueue
+    .getRuns()
+    .some((run) => run.trigger.event === "runtime.idle");
+  if (state.stopping || state.activeRuns.size > 0 || triggerQueuedDuringInspection) {
+    return;
+  }
   const now = Date.now();
   const recentlyEmittedUnchanged =
     state.lastIdleEventSignature === signature &&
@@ -130,7 +142,10 @@ export function emitIdleEvent(state: WorkflowRuntimeDispatchState): void {
   });
 }
 
-export function maybeStartNext(state: WorkflowRuntimeDispatchState): void {
+export function maybeStartNext(
+  state: WorkflowRuntimeDispatchState,
+  immediatePreRunFingerprint?: string,
+): void {
   if (state.stopping || state.dispatchPaused) return;
   if (existsSync(join(state.projectDir, ".kota", PAUSE_SIGNAL_FILE))) return;
 
@@ -140,7 +155,14 @@ export function maybeStartNext(state: WorkflowRuntimeDispatchState): void {
     if (!definition) continue;
 
     state.log(`Dispatching workflow "${queued!.workflowName}"`);
-    void runWorkflow(state, definition, queued!.trigger, queued!.runId);
+    void runWorkflow(
+      state,
+      definition,
+      queued!.trigger,
+      queued!.runId,
+      immediatePreRunFingerprint,
+    );
+    immediatePreRunFingerprint = undefined;
   }
 }
 
@@ -149,14 +171,9 @@ export async function runWorkflow(
   definition: WorkflowDefinition,
   trigger: WorkflowRunTrigger,
   runId?: string,
+  immediatePreRunFingerprint?: string,
 ): Promise<void> {
   const workspaceDir = workspaceDirFor(state);
-  const preRunFingerprint = getRepoWorktreeStatus(workspaceDir).fingerprint;
-  // Claim the concurrency slot synchronously BEFORE executeWorkflowRun runs.
-  // executeWorkflowRun emits `workflow.started` on the bus synchronously; the
-  // wildcard handler re-enters `maybeStartNext` on the same call stack. Until
-  // this workflow is present in `activeRuns`, the cap check sees zero active
-  // agent runs and a second agent workflow can dispatch past the cap.
   const abortController = new AbortController();
   const reservedRunId = runId ?? formatRunId(definition.name);
   let resolveReservation!: (value: WorkflowRunExecutionResult) => void;
@@ -172,11 +189,12 @@ export async function runWorkflow(
     abortController,
   };
   state.activeRuns.set(reservedRunId, reservation);
-  let reservationReleased = false;
+  const preRunFingerprint =
+    immediatePreRunFingerprint ??
+    (await getRepoWorktreeStatusAsync(workspaceDir)).fingerprint;
+  let nextPreRunFingerprint: string | undefined;
   const releaseReservation = () => {
-    if (reservationReleased) return;
     state.activeRuns.delete(reservedRunId);
-    reservationReleased = true;
   };
   const { promise } = executeWorkflowRun(
     definition,
@@ -214,8 +232,6 @@ export async function runWorkflow(
     },
     abortController,
   );
-  promise.then(resolveReservation, rejectReservation);
-
   try {
     const result = await promise;
     if (result.agentBackoff) {
@@ -240,7 +256,21 @@ export async function runWorkflow(
         log: state.log,
       });
     }
-    handleDirtyCompletion(state, definition, result.metadata, preRunFingerprint);
+    const completedWorktree = await handleDirtyCompletion(
+      state,
+      definition,
+      result.metadata,
+      preRunFingerprint,
+    );
+    if (
+      completedWorktree.available &&
+      !completedWorktree.dirty &&
+      state.activeRuns.size === 1 &&
+      definition.terminalFinalizer === undefined
+    ) {
+      nextPreRunFingerprint = completedWorktree.fingerprint;
+    }
+    resolveReservation(result);
     releaseReservation();
     await runTerminalFinalizer(
       state,
@@ -256,38 +286,11 @@ export async function runWorkflow(
     ) {
       state.backoff.clear();
     }
+  } catch (error) {
+    rejectReservation(error instanceof Error ? error : new Error(String(error)));
+    throw error;
   } finally {
     releaseReservation();
-    maybeStartNext(state);
-  }
-}
-
-async function runTerminalFinalizer(
-  state: WorkflowRuntimeDispatchState,
-  definition: WorkflowDefinition,
-  trigger: WorkflowRunTrigger,
-  metadata: WorkflowRunMetadata,
-  workspaceDir: string,
-  agentFailureKind?: WorkflowAgentBackoffKind,
-): Promise<void> {
-  if (definition.terminalFinalizer === undefined) return;
-  try {
-    await definition.terminalFinalizer({
-      projectDir: state.projectDir,
-      workspaceDir,
-      metadata,
-      trigger,
-      ...(agentFailureKind !== undefined ? { agentFailureKind } : {}),
-      emit: (event, payload) => {
-        state.pbus.emitDynamic(event, payload);
-      },
-      log: state.log,
-    });
-  } catch (error) {
-    state.log(
-      `Workflow "${definition.name}" terminal finalizer failed for ${metadata.id}: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
+    maybeStartNext(state, nextPreRunFingerprint);
   }
 }

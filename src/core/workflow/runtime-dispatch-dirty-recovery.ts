@@ -1,4 +1,7 @@
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
+import {
+  getRepoWorktreeStatusAsync,
+  type RepoWorktreeStatus,
+} from "#core/util/repo-worktree.js";
 import type {
   WorkflowRecoveryDirtyCheckout,
   WorkflowRunExecutionResult,
@@ -29,14 +32,14 @@ function restartReasonLabel(dirtyCheckout: WorkflowRecoveryDirtyCheckout): strin
   return dirtyCheckout === "workspace" ? "workspace checkout" : "worktree";
 }
 
-export function handleDirtyCompletion(
+export async function handleDirtyCompletion(
   state: WorkflowRuntimeDispatchState,
   definition: WorkflowDefinition,
   metadata: WorkflowRunExecutionResult["metadata"],
   preRunFingerprint: string,
-): void {
-  const worktree = getRepoWorktreeStatus(workspaceDirFor(state));
-  if (!worktree.available) return;
+): Promise<RepoWorktreeStatus> {
+  const worktree = await getRepoWorktreeStatusAsync(workspaceDirFor(state));
+  if (!worktree.available) return worktree;
   const dirtyCheckout = dirtyCheckoutFor(state);
   const label = checkoutLabel(dirtyCheckout);
 
@@ -44,7 +47,7 @@ export function handleDirtyCompletion(
     if (state.store.getRecovery()) {
       state.store.setRecovery(null);
     }
-    return;
+    return worktree;
   }
 
   const existing = state.store.getRecovery();
@@ -56,7 +59,7 @@ export function handleDirtyCompletion(
     state.log(
       `${label} dirty after "${definition.name}" while ${otherActiveWorkflows.join(", ")} still active - deferring attribution: ${worktree.summary}`,
     );
-    return;
+    return worktree;
   }
 
   if (worktree.fingerprint === preRunFingerprint) {
@@ -74,7 +77,7 @@ export function handleDirtyCompletion(
       state.log(
         `${label} still dirty after "${definition.name}" and recovery already owns the same fingerprint - dispatch paused: ${worktree.summary}`,
       );
-      return;
+      return worktree;
     }
     state.store.setRecovery({
       sourceRunId: metadata.id,
@@ -90,7 +93,7 @@ export function handleDirtyCompletion(
     state.log(
       `${label} was already dirty before "${definition.name}" and remained dirty - dispatch paused: ${worktree.summary}`,
     );
-    return;
+    return worktree;
   }
 
   pauseDispatchForDirtyWorktree(state);
@@ -110,7 +113,7 @@ export function handleDirtyCompletion(
     state.log(
       `Recovery already attempted for dirty ${label.toLowerCase()} left by "${existing.sourceWorkflow}" (${existing.sourceRunId}). Dispatch paused: ${worktree.summary}`,
     );
-    return;
+    return worktree;
   }
 
   state.store.setRecovery({
@@ -131,4 +134,5 @@ export function handleDirtyCompletion(
     workflow: definition.name,
     runId: metadata.id,
   });
+  return worktree;
 }

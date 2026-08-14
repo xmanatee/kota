@@ -76,6 +76,7 @@ import progressReviewerWorkflow, { progressReviewOutputSchema } from "./workflow
 
 vi.mock("#core/util/repo-worktree.js", () => ({
   getRepoWorktreeStatus: vi.fn(),
+  getRepoWorktreeStatusAsync: vi.fn(),
 }));
 
 vi.mock("#modules/autonomy/commit.js", async () => {
@@ -524,8 +525,10 @@ function parseReviewInputFromAgentPrompt(
 }
 
 async function mockCleanWorktree() {
-  const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
-  vi.mocked(getRepoWorktreeStatus).mockReturnValue({
+  const { getRepoWorktreeStatus, getRepoWorktreeStatusAsync } = await import(
+    "#core/util/repo-worktree.js"
+  );
+  const status = {
     available: true,
     dirty: false,
     trackedDirty: false,
@@ -533,12 +536,16 @@ async function mockCleanWorktree() {
     fingerprint: "",
     summary: "clean",
     headSha: "abc1234",
-  });
+  };
+  vi.mocked(getRepoWorktreeStatus).mockReturnValue(status);
+  vi.mocked(getRepoWorktreeStatusAsync).mockResolvedValue(status);
 }
 
 async function mockDirtyWorktree() {
-  const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
-  vi.mocked(getRepoWorktreeStatus).mockReturnValue({
+  const { getRepoWorktreeStatus, getRepoWorktreeStatusAsync } = await import(
+    "#core/util/repo-worktree.js"
+  );
+  const status = {
     available: true,
     dirty: true,
     trackedDirty: true,
@@ -546,7 +553,9 @@ async function mockDirtyWorktree() {
     fingerprint: "src/active-builder-change.ts:M",
     summary: "M src/active-builder-change.ts",
     headSha: "abc1234",
-  });
+  };
+  vi.mocked(getRepoWorktreeStatus).mockReturnValue(status);
+  vi.mocked(getRepoWorktreeStatusAsync).mockResolvedValue(status);
 }
 
 describe("progress-reviewer workflow", () => {

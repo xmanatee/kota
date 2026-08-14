@@ -1,47 +1,42 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
-import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import { withWorkflowBlockingOperation } from "#core/workflow/blocking-operation-context.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
-import { checkDocBloat } from "#modules/autonomy/doc-bloat-check.js";
-import {
-  type AutonomyHealthIssueEvidence,
-  collectCurrentAutonomyHealthIssueCards,
-} from "#modules/autonomy/health-issue-cards.js";
-import { checkRepoHygiene } from "#modules/autonomy/hygiene-check.js";
 import { createImproverSemanticCheck } from "#modules/autonomy/improver-semantic-gate.js";
-import { onRecoveryTrigger, resetWorktreeForRecovery } from "#modules/autonomy/recovery.js";
-import type { RunOutcomeAggregation } from "#modules/autonomy/run-outcome-aggregation.js";
-import { aggregateRunOutcomes } from "#modules/autonomy/run-outcome-aggregation.js";
+import {
+  onRecoveryTrigger,
+  resetWorktreeForRecoveryOperation,
+} from "#modules/autonomy/recovery.js";
 import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
 import { writeRunSummary } from "#modules/autonomy/run-summary.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
   AUTONOMY_FULL_TEST_TIMEOUT_MS,
-  checkCommitMessageExists,
-  checkNoScratchArtifacts,
   runCheck,
   stepCommitRequiresDaemonRestart,
   stepCommitted,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
 import {
-  decideImproverEvidenceGate,
-  readImproverEvidenceGateState,
+  workflowCommitCheckOperation,
+  workflowCommitOperation,
+} from "#modules/autonomy/workflow-commit-operations.js";
+import {
+  type ImproverWorktreeInspection,
+  improverRepairCheckOperation,
+  inspectImproverWorktreeOperation,
+} from "./blocking-operations.js";
+import {
   shouldRunImproverFromGate,
   writeImproverEvidenceGateState,
 } from "./evidence-gate.js";
 import {
-  collectImproverTaskGovernance,
-  type ImproverTaskGovernanceEvidence,
-} from "./task-governance.js";
-
-type WorktreeInspection = {
-  dirty: boolean;
-  summary: string;
-};
+  gateEvidenceStep,
+  gatherHealthIssueCardsStep,
+  gatherRunDataStep,
+  gatherTaskGovernanceStep,
+} from "./evidence-steps.js";
 
 export const agent: AgentDef = {
   name: "improver",
@@ -53,81 +48,13 @@ export const agent: AgentDef = {
   writeScope: [],
 };
 
-const gatherRunDataStep = typedCodeStep<RunOutcomeAggregation>({
-  id: "gather-run-data",
-  type: "code",
-  exposeOutputToAgent: true,
-  validate: (raw) =>
-    expectStructuredOutput<RunOutcomeAggregation>(raw, [
-      "failureRates24h",
-      "failureRates7d",
-      "topRepairFailures24h",
-      "topRepairFailures7d",
-      "durationOutliers",
-      "agentStepTimeouts7d",
-      "latestActionableRunAt",
-    ]),
-  run: ({ projectDir }) => {
-    const store = new WorkflowRunStore(projectDir);
-    return aggregateRunOutcomes(store.runsDir);
-  },
-});
-
-const inspectWorktree = typedCodeStep<WorktreeInspection>({
+const inspectWorktree = typedCodeStep<ImproverWorktreeInspection>({
   id: "inspect-worktree",
   type: "code",
   validate: (raw) =>
-    expectStructuredOutput<WorktreeInspection>(raw, ["dirty", "summary"]),
-  run: ({ projectDir }) => {
-    const worktree = getRepoWorktreeStatus(projectDir);
-    return {
-      dirty: worktree.available && worktree.dirty,
-      summary: worktree.summary,
-    };
-  },
-});
-
-const gatherHealthIssueCardsStep = typedCodeStep<AutonomyHealthIssueEvidence>({
-  id: "gather-health-issue-cards",
-  type: "code",
-  exposeOutputToAgent: true,
-  validate: (raw) =>
-    expectStructuredOutput<AutonomyHealthIssueEvidence>(raw, [
-      "generatedAt",
-      "projectionUpdatedAt",
-      "issueCards",
-    ]),
-  run: ({ projectDir }) => collectCurrentAutonomyHealthIssueCards(projectDir),
-});
-
-const gatherTaskGovernanceStep = typedCodeStep<ImproverTaskGovernanceEvidence>({
-  id: "gather-task-governance",
-  type: "code",
-  exposeOutputToAgent: true,
-  validate: (raw) =>
-    expectStructuredOutput<ImproverTaskGovernanceEvidence>(raw, [
-      "generatedAt",
-      "openByTaskClass",
-      "actionableMetaWithoutProductSafetyLink",
-      "productDoneWithoutOperatorEvidence",
-    ]),
-  run: ({ projectDir }) => collectImproverTaskGovernance(projectDir),
-});
-
-const gateEvidenceStep = typedCodeStep<ReturnType<typeof decideImproverEvidenceGate>>({
-  id: "gate-evidence",
-  type: "code",
-  validate: (raw) =>
-    expectStructuredOutput<ReturnType<typeof decideImproverEvidenceGate>>(raw, [
-      "shouldRun",
-      "reason",
-    ]),
-  run: (ctx) =>
-    decideImproverEvidenceGate(
-      gatherRunDataStep.outputRequired(ctx),
-      readImproverEvidenceGateState(ctx.projectDir),
-      gatherHealthIssueCardsStep.outputRequired(ctx),
-    ),
+    expectStructuredOutput<ImproverWorktreeInspection>(raw, ["dirty", "summary"]),
+  run: ({ projectDir, runBlocking }) =>
+    runBlocking(inspectImproverWorktreeOperation, { projectDir }),
 });
 
 const improverWorkflow: WorkflowDefinitionInput = {
@@ -155,8 +82,11 @@ const improverWorkflow: WorkflowDefinitionInput = {
       id: "clean-recovery-state",
       type: "code",
       when: onRecoveryTrigger,
-      run: ({ projectDir }) =>
-        resetWorktreeForRecovery({ projectDir, workflowName: "improver" }),
+      run: (ctx) =>
+        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
+          projectDir: ctx.projectDir,
+          workflowName: "improver",
+        }),
     },
     inspectWorktree,
     gatherRunDataStep,
@@ -233,29 +163,50 @@ const improverWorkflow: WorkflowDefinitionInput = {
           {
             id: "no-scratch-artifacts",
             type: "code" as const,
-            run: (ctx) => checkNoScratchArtifacts(ctx.projectDir),
+            run: (ctx) =>
+              withWorkflowBlockingOperation(ctx).runBlocking(workflowCommitCheckOperation, {
+                kind: "scratch-artifacts",
+                projectDir: ctx.projectDir,
+              }),
           },
           {
             id: "doc-bloat",
             type: "code" as const,
             phase: 1,
-            run: (ctx) => checkDocBloat(ctx.projectDir),
+            run: (ctx) =>
+              withWorkflowBlockingOperation(ctx).runBlocking(
+                improverRepairCheckOperation,
+                { kind: "doc-bloat", projectDir: ctx.projectDir },
+              ),
           },
           {
             id: "repo-hygiene",
             type: "code" as const,
             phase: 1,
-            run: (ctx) => checkRepoHygiene(ctx.projectDir),
+            run: (ctx) =>
+              withWorkflowBlockingOperation(ctx).runBlocking(
+                improverRepairCheckOperation,
+                { kind: "repo-hygiene", projectDir: ctx.projectDir },
+              ),
           },
           {
             id: "commit-message-exists",
             type: "code" as const,
-            run: (ctx) => checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir),
+            run: (ctx) =>
+              withWorkflowBlockingOperation(ctx).runBlocking(workflowCommitCheckOperation, {
+                kind: "commit-message",
+                projectDir: ctx.projectDir,
+                runDirPath: ctx.workflow.runDirPath,
+              }),
           },
           {
             id: "commit-stageable",
             type: "code" as const,
-            run: (ctx) => checkCommitStageable(ctx.projectDir),
+            run: (ctx) =>
+              withWorkflowBlockingOperation(ctx).runBlocking(workflowCommitCheckOperation, {
+                kind: "commit-stageable",
+                projectDir: ctx.projectDir,
+              }),
           },
           { ...createImproverSemanticCheck(), phase: 2 },
         ],
@@ -275,8 +226,11 @@ const improverWorkflow: WorkflowDefinitionInput = {
       id: "commit",
       type: "code",
       when: stepSucceeded("record-evidence-fingerprint"),
-      run: ({ projectDir, workflow }) =>
-        commitWorkflowChanges(projectDir, workflow.runDirPath),
+      run: (ctx) =>
+        ctx.runBlocking(workflowCommitOperation, {
+          projectDir: ctx.projectDir,
+          runDirPath: ctx.workflow.runDirPath,
+        }),
     },
     typedCodeStep<WorkflowRunSummary>({
       id: "write-run-summary",

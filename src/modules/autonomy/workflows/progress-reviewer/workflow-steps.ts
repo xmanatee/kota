@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
+import { getRepoWorktreeStatusAsync } from "#core/util/repo-worktree.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import {
   type CodeStepOutputValidator,
@@ -10,35 +10,33 @@ import {
   typedCodeStep,
 } from "#core/workflow/step-input-code.js";
 import {
-  checkCommitStageable,
-  commitWorkflowChanges,
-} from "#modules/autonomy/commit.js";
-import {
   decodeWorkflowCommitOutcome,
   type WorkflowCommitOutcome,
 } from "#modules/autonomy/commit-result.js";
 import { onNormalTrigger } from "#modules/autonomy/recovery.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
-  checkCommitMessageExists,
-  checkNoScratchArtifacts,
   runCheck,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
-import { assertTaskQueueValid } from "#modules/repo-tasks/task-queue-validation.js";
 import {
-  applyProgressReviewActions,
-  collectProgressReviewEvidence,
+  workflowCommitOperation,
+  workflowCommitValidationOperation,
+} from "#modules/autonomy/workflow-commit-operations.js";
+import { taskQueueValidationOperation } from "#modules/repo-tasks/task-queue-validation-operation.js";
+import {
+  collectProgressReviewEvidenceOperation,
   compactProgressReviewEvidenceForAgent,
   decodeProgressReviewAgentOutputForEvidence,
   PROGRESS_REVIEW_EVIDENCE_ARTIFACT,
   type ProgressReviewActionResult,
   type ProgressReviewAgentEvidencePacket,
-  type ProgressReviewAgentOutput,
   type ProgressReviewArtifact,
   type ProgressReviewEvidencePacket,
+  progressReviewActionOperation,
   writeProgressReviewArtifact,
 } from "./progress-review.js";
+import { emptyActions } from "./workflow-results.js";
 
 export const REVIEW_AGENT_TIMEOUT_MS = 30 * 60 * 1000;
 
@@ -131,8 +129,8 @@ export const inspectWorktree = typedCodeStep<WorktreeInspection>({
   type: "code",
   when: onNormalTrigger,
   validate: (raw) => expectStructuredOutput<WorktreeInspection>(raw, ["dirty"]),
-  run: ({ projectDir }) => {
-    const worktree = getRepoWorktreeStatus(projectDir);
+  run: async ({ projectDir }) => {
+    const worktree = await getRepoWorktreeStatusAsync(projectDir);
     return { dirty: worktree.available && worktree.dirty };
   },
 });
@@ -142,13 +140,12 @@ export const collectEvidence = typedCodeStep<ProgressReviewEvidenceHandle>({
   type: "code",
   when: onNormalTrigger,
   validate: validateProgressReviewEvidenceHandle,
-  run: ({ projectDir, stateDir, eventJournal, trigger, workflow }) => {
-    const packet = collectProgressReviewEvidence({
+  run: async ({ projectDir, stateDir, trigger, workflow, runBlocking }) => {
+    const packet = await runBlocking(collectProgressReviewEvidenceOperation, {
       projectDir,
-      stateDir,
-      eventJournal,
+      stateDir: stateDir ?? join(projectDir, ".kota"),
       trigger,
-      now: new Date(),
+      nowIso: new Date().toISOString(),
     });
     return writeProgressReviewEvidencePacket(workflow.runDirPath, packet);
   },
@@ -194,7 +191,7 @@ export const applyActions = typedCodeStep<ProgressReviewActionResult>({
     ]),
   run: (ctx) => {
     const evidence = readProgressReviewEvidencePacket(ctx);
-    return applyProgressReviewActions({
+    return ctx.runBlocking(progressReviewActionOperation, {
       projectDir: ctx.projectDir,
       runId: ctx.workflow.runId,
       evidence,
@@ -206,15 +203,6 @@ export const applyActions = typedCodeStep<ProgressReviewActionResult>({
     });
   },
 });
-
-export function emptyActions(): ProgressReviewActionResult {
-  return {
-    createdTaskIds: [],
-    ownerQuestionIds: [],
-    applied: [],
-    touchedTaskQueue: false,
-  };
-}
 
 export const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
   id: "write-artifact",
@@ -279,11 +267,15 @@ export const validateBeforeCommit = typedCodeStep<{ ok: true }>({
     return obj;
   },
   run: async (ctx) => {
-    assertTaskQueueValid(ctx.projectDir, { minReady: 0 });
+    await ctx.runBlocking(taskQueueValidationOperation, {
+      projectDir: ctx.projectDir,
+      options: { minReady: 0 },
+    });
     await runCheck("pnpm run validate-tasks", ctx.projectDir, { signal: ctx.signal });
-    checkNoScratchArtifacts(ctx.projectDir);
-    checkCommitStageable(ctx.projectDir);
-    checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir);
+    await ctx.runBlocking(workflowCommitValidationOperation, {
+      projectDir: ctx.projectDir,
+      runDirPath: ctx.workflow.runDirPath,
+    });
     return { ok: true } as const;
   },
 });
@@ -293,10 +285,9 @@ export const commitChanges = typedCodeStep<WorkflowCommitOutcome>({
   type: "code",
   when: (ctx) => validateBeforeCommit.output(ctx)?.ok === true,
   validate: decodeWorkflowCommitOutcome,
-  run: ({ projectDir, workflow }) =>
-    commitWorkflowChanges(projectDir, workflow.runDirPath),
+  run: (ctx) =>
+    ctx.runBlocking(workflowCommitOperation, {
+      projectDir: ctx.projectDir,
+      runDirPath: ctx.workflow.runDirPath,
+    }),
 });
-
-export function needsAttention(review: ProgressReviewAgentOutput): boolean {
-  return review.verdict === "needs-steering" || review.verdict === "blocked";
-}

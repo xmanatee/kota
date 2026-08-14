@@ -1,12 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import {
-  checkCommitStageable,
-  commitWorkflowChanges,
-} from "#modules/autonomy/commit.js";
 import {
   decodeWorkflowCommitOutcome,
   type WorkflowCommitOutcome,
@@ -14,44 +9,32 @@ import {
 import {
   onNormalTrigger,
   onRecoveryTrigger,
-  resetWorktreeForRecovery,
+  resetWorktreeForRecoveryOperation,
 } from "#modules/autonomy/recovery.js";
 import {
-  checkCommitMessageExists,
-  checkNoScratchArtifacts,
   runCheck,
   stepCommitRequiresDaemonRestart,
   stepCommitted,
 } from "#modules/autonomy/shared.js";
 import {
-  type MoveTaskResult,
-  moveTaskById,
-} from "#modules/repo-tasks/repo-tasks-domain.js";
+  workflowCommitOperation,
+  workflowCommitValidationOperation,
+} from "#modules/autonomy/workflow-commit-operations.js";
 import {
-  buildPromotionRationale,
-  PROMOTION_BATCH_LIMIT,
-  type PromotionRationale,
-} from "./promotion.js";
+  applyBacklogPromotionOperation,
+  type BacklogInspection,
+  inspectBacklogOperation,
+  type PromotionMoves,
+} from "./blocking-operations.js";
 
-type Inspection = {
-  dirty: boolean;
-  rationale: PromotionRationale;
-};
-
-const inspectBacklog = typedCodeStep<Inspection>({
+const inspectBacklog = typedCodeStep<BacklogInspection>({
   id: "inspect-backlog",
   type: "code",
   when: onNormalTrigger,
   validate: (raw) =>
-    expectStructuredOutput<Inspection>(raw, ["dirty", "rationale"]),
-  run: ({ projectDir }) => {
-    const worktree = getRepoWorktreeStatus(projectDir);
-    const dirty = worktree.available && worktree.dirty;
-    const rationale = buildPromotionRationale(projectDir, {
-      batchLimit: PROMOTION_BATCH_LIMIT,
-    });
-    return { dirty, rationale };
-  },
+    expectStructuredOutput<BacklogInspection>(raw, ["dirty", "rationale"]),
+  run: ({ projectDir, runBlocking }) =>
+    runBlocking(inspectBacklogOperation, { projectDir }),
 });
 
 type WriteRationaleResult = {
@@ -78,10 +61,6 @@ const writeRationale = typedCodeStep<WriteRationaleResult>({
   },
 });
 
-type PromotionMoves = {
-  promotions: MoveTaskResult[];
-};
-
 const applyPromotion = typedCodeStep<PromotionMoves>({
   id: "apply-promotion",
   type: "code",
@@ -90,11 +69,10 @@ const applyPromotion = typedCodeStep<PromotionMoves>({
     expectStructuredOutput<PromotionMoves>(raw, ["promotions"]),
   run: (ctx) => {
     const rationale = inspectBacklog.outputRequired(ctx).rationale;
-    const promotions: MoveTaskResult[] = [];
-    for (const selection of rationale.selected) {
-      promotions.push(moveTaskById(ctx.projectDir, selection.id, "ready"));
-    }
-    return { promotions };
+    return ctx.runBlocking(applyBacklogPromotionOperation, {
+      projectDir: ctx.projectDir,
+      taskIds: rationale.selected.map((selection) => selection.id),
+    });
   },
 });
 
@@ -140,9 +118,10 @@ const validateBeforeCommit = typedCodeStep<{ ok: true }>({
   },
   run: async (ctx) => {
     await runCheck("pnpm run validate-tasks", ctx.projectDir, { signal: ctx.signal });
-    checkNoScratchArtifacts(ctx.projectDir);
-    checkCommitStageable(ctx.projectDir);
-    checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir);
+    await ctx.runBlocking(workflowCommitValidationOperation, {
+      projectDir: ctx.projectDir,
+      runDirPath: ctx.workflow.runDirPath,
+    });
     return { ok: true } as const;
   },
 });
@@ -152,8 +131,11 @@ const commitChanges = typedCodeStep<WorkflowCommitOutcome>({
   type: "code",
   when: (ctx) => validateBeforeCommit.output(ctx)?.ok === true,
   validate: decodeWorkflowCommitOutcome,
-  run: ({ projectDir, workflow }) =>
-    commitWorkflowChanges(projectDir, workflow.runDirPath),
+  run: (ctx) =>
+    ctx.runBlocking(workflowCommitOperation, {
+      projectDir: ctx.projectDir,
+      runDirPath: ctx.workflow.runDirPath,
+    }),
 });
 
 const backlogPromoterWorkflow: WorkflowDefinitionInput = {
@@ -178,8 +160,11 @@ const backlogPromoterWorkflow: WorkflowDefinitionInput = {
       id: "reset-for-recovery",
       type: "code",
       when: onRecoveryTrigger,
-      run: ({ projectDir }) =>
-        resetWorktreeForRecovery({ projectDir, workflowName: "backlog-promoter" }),
+      run: (ctx) =>
+        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
+          projectDir: ctx.projectDir,
+          workflowName: "backlog-promoter",
+        }),
     },
     inspectBacklog,
     writeRationale,

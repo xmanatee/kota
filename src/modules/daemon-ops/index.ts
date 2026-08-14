@@ -49,7 +49,6 @@ import {
   statusBanner,
 } from "#modules/rendering/primitives.js";
 import { print, printToStderr, renderToString, writeJson, writeStdout, writeStdoutLine } from "#modules/rendering/transport.js";
-import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type {
   DaemonOpsClient,
   SessionsClient,
@@ -99,6 +98,7 @@ import {
 import { buildSessionCommand } from "./session-cli.js";
 import { sessionsLocalClient } from "./sessions-local.js";
 import { buildStatusCommand } from "./status-cli.js";
+import { DaemonTaskQueueProjection } from "./task-queue-projection.js";
 import { parseUiActionRequest } from "./ui-action-request.js";
 import { daemonOpsUiSurfaceSources } from "./ui-sources.js";
 
@@ -1079,10 +1079,16 @@ const daemonModule: KotaModule = {
       });
 
       if (useDashboard) {
-        const dashboard = new DaemonDashboard(() => ({
-          ...daemon.getDashboardSnapshot(),
-          taskQueue: getRepoTaskQueueSnapshot(projectDir),
-        }));
+        const taskQueueProjection = new DaemonTaskQueueProjection(projectDir);
+        const dashboard = new DaemonDashboard(() => {
+          const taskQueue = taskQueueProjection.getSnapshot();
+          return {
+            ...daemon.getDashboardSnapshot(),
+            ...(taskQueue !== undefined ? { taskQueue } : {}),
+          };
+        }, {
+          refreshProjection: (signal) => taskQueueProjection.refresh(signal),
+        });
         dashboard.start();
         try {
           await daemon.start();

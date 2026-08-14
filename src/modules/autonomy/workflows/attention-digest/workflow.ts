@@ -2,9 +2,9 @@ import { join } from "node:path";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   onRecoveryTrigger,
-  resetWorktreeForRecovery,
+  resetWorktreeForRecoveryOperation,
 } from "#modules/autonomy/recovery.js";
-import { runAttentionDigestStep } from "./step.js";
+import { attentionDigestStepOperation } from "./step.js";
 
 const attentionDigestWorkflow: WorkflowDefinitionInput = {
   name: "attention-digest",
@@ -31,15 +31,22 @@ const attentionDigestWorkflow: WorkflowDefinitionInput = {
       id: "reset-for-recovery",
       type: "code",
       when: onRecoveryTrigger,
-      run: ({ projectDir }) =>
-        resetWorktreeForRecovery({ projectDir, workflowName: "attention-digest" }),
+      run: (ctx) =>
+        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
+          projectDir: ctx.projectDir,
+          workflowName: "attention-digest",
+        }),
     },
     {
       id: "digest",
       type: "code",
-      run: ({ projectDir, emit }) => {
+      run: async ({ projectDir, emit, runBlocking }) => {
         const runsDir = join(projectDir, ".kota", "runs");
-        runAttentionDigestStep(projectDir, runsDir, undefined, emit);
+        const result = await runBlocking(attentionDigestStepOperation, {
+          projectDir,
+          runsDir,
+        });
+        if (result.event) emit(result.event.name, result.event.payload);
       },
     },
   ],

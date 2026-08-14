@@ -8,7 +8,7 @@ import {
 } from "#modules/autonomy/evaluator-calibration.js";
 import {
   onRecoveryTrigger,
-  resetWorktreeForRecovery,
+  resetWorktreeForRecoveryOperation,
 } from "#modules/autonomy/recovery.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
@@ -17,9 +17,14 @@ import {
   stepCommitted,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
-import { commitBuilderWorkflowChanges } from "./agent-run-artifacts.js";
-import type { BranchStepResult, CleanupResult } from "./branch-per-task.js";
-import { cleanupMergedBranches, createPullRequest, createTaskBranch } from "./branch-per-task.js";
+import { commitBuilderChangesOperation } from "./blocking-operations.js";
+import {
+  type BranchStepResult,
+  type CleanupResult,
+  cleanupMergedBranches,
+  createPullRequest,
+  createTaskBranch,
+} from "./branch-per-task.js";
 import { builderMaxConcurrentRunsFromConfig } from "./builder-config.js";
 import {
   CLAIMED_TASK_CONSISTENCY_STEP_ID,
@@ -46,7 +51,10 @@ import {
 import { BUILDER_RECOVERY_EVENT } from "./recovery-continuation.js";
 import { builderRepairChecks } from "./repair-checks.js";
 import type { BuilderRunSummary } from "./run-summary.js";
-import { writeBuilderRunSummary } from "./run-summary.js";
+import {
+  type BuilderRunSummaryBuildOutput,
+  writeBuilderRunSummaryOperation,
+} from "./run-summary-operation.js";
 import { createCleanupBuilderRuntimeResourcesStep } from "./runtime-resource-cleanup-step.js";
 import {
   createClaimTaskStep,
@@ -118,7 +126,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       type: "code",
       when: onRecoveryTrigger,
       run: (ctx) =>
-        resetWorktreeForRecovery({
+        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
           projectDir: workflowWorkspaceDir(ctx),
           workflowName: "builder",
           restoreBaseBranch: true,
@@ -176,7 +184,10 @@ const builderWorkflow: WorkflowDefinitionInput = {
       when: (ctx) =>
         stepSucceeded("create-task-branch")(ctx) && claimedTaskConsistencySucceeded(ctx),
       run: (ctx) =>
-        commitBuilderWorkflowChanges(workflowWorkspaceDir(ctx), builderAgentRunDir(ctx)),
+        ctx.runBlocking(commitBuilderChangesOperation, {
+          workspaceDir: workflowWorkspaceDir(ctx),
+          agentRunDir: builderAgentRunDir(ctx),
+        }),
     },
     typedCodeStep<BuilderRunSummary>({
       id: "write-run-summary",
@@ -192,7 +203,16 @@ const builderWorkflow: WorkflowDefinitionInput = {
           "commitMessage",
           "filesChanged",
         ]),
-      run: (ctx) => writeBuilderRunSummary(ctx),
+      run: (ctx) =>
+        ctx.runBlocking(writeBuilderRunSummaryOperation, {
+          projectDir: ctx.projectDir,
+          workspaceDir: ctx.workspaceDir,
+          workflow: ctx.workflow,
+          buildOutput: ctx.stepOutputs.build as
+            | BuilderRunSummaryBuildOutput
+            | undefined,
+          buildResult: ctx.stepResults.build,
+        }),
     }),
     mergeGateStep,
     createReleaseTaskClaimStep(claimTaskStep),

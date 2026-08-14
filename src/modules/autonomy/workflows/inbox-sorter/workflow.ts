@@ -1,28 +1,32 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
+import { withWorkflowBlockingOperation } from "#core/workflow/blocking-operation-context.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import {
   onNormalTrigger,
   onRecoveryTrigger,
-  resetWorktreeForRecovery,
+  resetWorktreeForRecoveryOperation,
 } from "#modules/autonomy/recovery.js";
 import {
   createShadowSemanticReviewStep,
   type ExecutableShadowSemanticReviewerDeclaration,
-  workflowMutationArtifacts,
+  shadowSemanticReviewTargetOperation,
 } from "#modules/autonomy/shadow-semantic-review.js";
 import type { ShadowSemanticReviewTargetResolution } from "#modules/autonomy/shadow-semantic-review-types.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
-  checkCommitMessageExists,
-  checkNoScratchArtifacts,
   runCheck,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
-import { getRepoTaskQueueSnapshot, REPO_INBOX_DIR } from "#modules/repo-tasks/repo-tasks-domain.js";
+import {
+  workflowCommitCheckOperation,
+  workflowCommitOperation,
+} from "#modules/autonomy/workflow-commit-operations.js";
+import {
+  type InboxSorterAssessment,
+  inspectInboxSorterStateOperation,
+} from "./inspect-inbox.js";
 
 export const agent: AgentDef = {
   name: "inbox-sorter",
@@ -32,38 +36,19 @@ export const agent: AgentDef = {
   writeScope: ["data/"],
 };
 
-type InboxSorterAssessment = {
-  inboxCount: number;
-  needsAttention: boolean;
-};
-
 const inspectInbox = typedCodeStep<InboxSorterAssessment>({
   id: "inspect-inbox",
   type: "code",
   when: onNormalTrigger,
   validate: (raw) =>
     expectStructuredOutput<InboxSorterAssessment>(raw, ["inboxCount", "needsAttention"]),
-  run: ({ projectDir }) => {
-    const status = getRepoWorktreeStatus(projectDir);
-    const nonInboxChanges = status.entries.filter(
-      (entry) => !entry.includes(REPO_INBOX_DIR),
-    );
-    if (status.available && nonInboxChanges.length > 0) {
-      throw new Error(
-        `Repository has changes outside inbox: ${nonInboxChanges.join(", ")}`,
-      );
-    }
-    const queue = getRepoTaskQueueSnapshot(projectDir);
-    return {
-      inboxCount: queue.inboxCount,
-      needsAttention: queue.inboxCount > 0,
-    };
-  },
+  run: ({ projectDir, runBlocking }) =>
+    runBlocking(inspectInboxSorterStateOperation, { projectDir }),
 });
 
-function resolveInboxSorterShadowTarget(
+async function resolveInboxSorterShadowTarget(
   ctx: Parameters<ExecutableShadowSemanticReviewerDeclaration["targetResolver"]>[0],
-): ShadowSemanticReviewTargetResolution {
+): Promise<ShadowSemanticReviewTargetResolution> {
   const inspection = inspectInbox.output(ctx);
   if (!inspection?.needsAttention) {
     return {
@@ -79,6 +64,13 @@ function resolveInboxSorterShadowTarget(
       citedArtifacts: ["metadata:sort-inbox"],
     };
   }
+  const mutationArtifacts = await withWorkflowBlockingOperation(ctx).runBlocking(
+    shadowSemanticReviewTargetOperation,
+    {
+      kind: "workflow-mutations",
+      projectDir: ctx.workspaceDir ?? ctx.projectDir,
+    },
+  );
   return {
     kind: "target",
     target: {
@@ -91,7 +83,7 @@ function resolveInboxSorterShadowTarget(
           path: "metadata:inspect-inbox",
           content: JSON.stringify(inspection, null, 2),
         },
-        ...workflowMutationArtifacts(ctx.workspaceDir ?? ctx.projectDir),
+        ...mutationArtifacts,
       ],
     },
   };
@@ -139,8 +131,11 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
       id: "reset-for-recovery",
       type: "code",
       when: onRecoveryTrigger,
-      run: ({ projectDir }) =>
-        resetWorktreeForRecovery({ projectDir, workflowName: "inbox-sorter" }),
+      run: (ctx) =>
+        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
+          projectDir: ctx.projectDir,
+          workflowName: "inbox-sorter",
+        }),
     },
     inspectInbox,
     {
@@ -169,17 +164,30 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
           {
             id: "no-scratch-artifacts",
             type: "code" as const,
-            run: (ctx) => checkNoScratchArtifacts(ctx.projectDir),
+            run: (ctx) =>
+              withWorkflowBlockingOperation(ctx).runBlocking(workflowCommitCheckOperation, {
+                kind: "scratch-artifacts",
+                projectDir: ctx.projectDir,
+              }),
           },
           {
             id: "commit-message-exists",
             type: "code" as const,
-            run: (ctx) => checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir),
+            run: (ctx) =>
+              withWorkflowBlockingOperation(ctx).runBlocking(workflowCommitCheckOperation, {
+                kind: "commit-message",
+                projectDir: ctx.projectDir,
+                runDirPath: ctx.workflow.runDirPath,
+              }),
           },
           {
             id: "commit-stageable",
             type: "code" as const,
-            run: (ctx) => checkCommitStageable(ctx.projectDir),
+            run: (ctx) =>
+              withWorkflowBlockingOperation(ctx).runBlocking(workflowCommitCheckOperation, {
+                kind: "commit-stageable",
+                projectDir: ctx.projectDir,
+              }),
           },
         ],
       },
@@ -189,7 +197,11 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
       id: "commit",
       type: "code",
       when: stepSucceeded("sort-inbox"),
-      run: ({ projectDir, workflow }) => commitWorkflowChanges(projectDir, workflow.runDirPath),
+      run: (ctx) =>
+        ctx.runBlocking(workflowCommitOperation, {
+          projectDir: ctx.projectDir,
+          runDirPath: ctx.workflow.runDirPath,
+        }),
     },
   ],
 };

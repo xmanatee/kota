@@ -2,11 +2,14 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
-import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { writeDiffSummaryConsistencyArtifact } from "#modules/autonomy/diff-summary-consistency.js";
 import type { ObservabilityObligationReview } from "#modules/autonomy/observability-obligation.js";
 import { readObservabilityObligationReviewArtifact } from "#modules/autonomy/observability-obligation.js";
-import { type WorkflowRunSummary, writeRunSummary } from "#modules/autonomy/run-summary.js";
+import {
+  type WorkflowRunSummary,
+  type WorkflowRunSummaryContext,
+  writeRunSummary,
+} from "#modules/autonomy/run-summary.js";
 import {
   extractSourceFileSizeWarningsFromBuildOutput,
   type SourceFileSizeWarning,
@@ -182,7 +185,9 @@ export function findTerminalTaskInChangedFiles(
   return primaryTask(findTerminalTasksInChangedFiles(projectDir, files));
 }
 
-export function writeBuilderRunSummary(ctx: WorkflowStepContext): BuilderRunSummary {
+export function writeBuilderRunSummary(
+  ctx: WorkflowRunSummaryContext,
+): BuilderRunSummary {
   const summary = writeRunSummary(ctx, "build", findTaskInChangedFiles);
   const repoDir = ctx.workspaceDir ?? ctx.projectDir;
   const observabilityObligations = readObservabilityObligationReviewArtifact(

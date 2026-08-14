@@ -2,7 +2,7 @@ import { GLOBAL_SCOPE_ID } from "#core/daemon/scope-registry.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   onRecoveryTrigger,
-  resetWorktreeForRecovery,
+  resetWorktreeForRecoveryOperation,
 } from "#modules/autonomy/recovery.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
@@ -15,14 +15,13 @@ import {
   PROGRESS_REVIEW_SCHEDULE_EVENT,
 } from "./progress-review.js";
 import { progressReviewOutputSchema } from "./workflow-output-schema.js";
+import { emptyActions, needsAttention } from "./workflow-results.js";
 import {
   agent,
   applyActions,
   collectEvidence,
   commitChanges,
-  emptyActions,
   inspectWorktree,
-  needsAttention,
   prepareReviewInput,
   REVIEW_AGENT_TIMEOUT_MS,
   validateBeforeCommit,
@@ -81,9 +80,9 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
       id: "reset-for-recovery",
       type: "code",
       when: onRecoveryTrigger,
-      run: ({ projectDir }) =>
-        resetWorktreeForRecovery({
-          projectDir,
+      run: (ctx) =>
+        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
+          projectDir: ctx.projectDir,
           workflowName: "progress-reviewer",
         }),
     },

@@ -18,6 +18,8 @@ and live runtime state.
 - Clients should use daemon client wrappers for URL construction, response
   decoding, authentication, polling, and live updates. They must not read
   daemon runtime files directly.
+- Health reports event-loop latency as an observational lifecycle diagnostic,
+  never as workflow state or a control trigger.
 - Process-manager integration and operator CLI behavior belongs in the
   daemon-ops module; the daemon core owns the runtime host itself.
 

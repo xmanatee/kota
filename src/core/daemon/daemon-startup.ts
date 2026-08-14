@@ -79,6 +79,7 @@ export async function runDaemonStartup(
     token: ctx.token,
   });
   ctx.log(`Control API on http://127.0.0.1:${controlPort}`);
+  ctx.eventLoopLatency.start();
 
   const idleTtlMs = ctx.config.sessionIdleTtlMs ?? 5 * 60_000;
   const sweepMs = ctx.config.sessionSweepIntervalMs ?? 60_000;

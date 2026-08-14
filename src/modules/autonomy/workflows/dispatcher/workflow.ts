@@ -1,22 +1,16 @@
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
-  getClaimAwareRepoTaskQueueSnapshot,
   isThinClaimAwareDispatchableQueue,
 } from "#modules/autonomy/queue-availability.js";
 import {
   BUILDER_RECOVERY_EVENT,
-  requestPendingBuilderRecoveries,
+  emitBuilderRecoveryRequest,
 } from "../builder/recovery-continuation.js";
-import { inspectResearchRetryAvailability } from "../research-retry/precondition.js";
 import { scopeImprovementEvidenceReady } from "../scope-improver/events.js";
 import {
-  inspectScopeImprovementEvidenceGate,
-  recordScopeImprovementEvidenceReady,
-} from "../scope-improver/evidence-gate.js";
-import {
-  inspectSecurityReviewDue,
   SECURITY_REVIEW_DUE_EVENT,
 } from "../security-review/due-check.js";
+import { dispatcherInspectionOperation } from "./inspection.js";
 
 // Not recovery-capable: dispatcher only reads repo state and emits events — it
 // never mutates tracked files, so it cannot leave dirt to heal and cannot help
@@ -36,15 +30,20 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
     {
       id: "assess-and-dispatch",
       type: "code",
-      run: ({ projectDir, emit }) => {
-        const queue = getClaimAwareRepoTaskQueueSnapshot(projectDir);
-        const researchRetryAvailability = inspectResearchRetryAvailability(projectDir);
-        const securityReviewDue = inspectSecurityReviewDue(projectDir);
-        const scopeImprovementEvidence = inspectScopeImprovementEvidenceGate({
+      run: async ({ projectDir, emit, runBlocking }) => {
+        const {
+          queue,
+          researchRetryAvailability,
+          securityReviewDue,
+          scopeImprovementEvidence,
+          builderRecovery,
+        } = await runBlocking(dispatcherInspectionOperation, {
           projectDir,
-          now: new Date(),
+          nowIso: new Date().toISOString(),
         });
-        const builderRecovery = requestPendingBuilderRecoveries({ projectDir, emit });
+        for (const request of builderRecovery.requested) {
+          emitBuilderRecoveryRequest(emit, request);
+        }
         const queueBlocked =
           !queue.hasDispatchableWork &&
           (queue.dependencyBlockedTasks.length > 0 ||
@@ -106,10 +105,6 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           scopeImprovementEvidence.shouldEmit &&
           scopeImprovementEvidence.payload
         ) {
-          recordScopeImprovementEvidenceReady({
-            projectDir,
-            payload: scopeImprovementEvidence.payload,
-          });
           emit(
             scopeImprovementEvidenceReady.name,
             scopeImprovementEvidence.payload,

@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("node:child_process", () => ({
-  spawnSync: vi.fn(),
-}));
+vi.mock("node:child_process", async () => {
+  const actual = await vi.importActual<typeof import("node:child_process")>(
+    "node:child_process",
+  );
+  return { ...actual, spawnSync: vi.fn() };
+});
 
 vi.mock("node:fs", () => ({
   readFileSync: vi.fn(),
@@ -60,8 +63,11 @@ describe("createTaskBranch", () => {
       } as never)
       .mockReturnValueOnce({ status: 0, stdout: "main\n", stderr: "" } as never);
 
-    const { createTaskBranch } = await import("./branch-per-task.js");
-    const result = createTaskBranch(makeWorktreeCtx());
+    const { createTaskBranchInWorker, createTaskBranchOperationInput } =
+      await import("./branch-per-task.js");
+    const result = createTaskBranchInWorker(
+      createTaskBranchOperationInput(makeWorktreeCtx()),
+    );
 
     expect(result).toEqual({
       branchPerTask: true,
@@ -96,8 +102,11 @@ describe("createPullRequest", () => {
         stderr: "",
       } as never);
 
-    const { createPullRequest } = await import("./branch-per-task.js");
-    const result = createPullRequest(makeWorktreeCtx());
+    const { createPullRequestInWorker, createPullRequestOperationInput } =
+      await import("./branch-per-task.js");
+    const result = createPullRequestInWorker(
+      createPullRequestOperationInput(makeWorktreeCtx()),
+    );
 
     expect(result).toEqual({ prUrl: "https://github.com/org/repo/pull/42" });
     const gitCheckoutCalls = vi.mocked(spawnSync).mock.calls.filter(
@@ -116,8 +125,13 @@ describe("cleanupMergedBranches", () => {
   });
 
   it("returns empty result when branchPerTask=false", async () => {
-    const { cleanupMergedBranches } = await import("./branch-per-task.js");
-    const result = cleanupMergedBranches(makeCtx({ branchPerTask: false, branch: null }));
+    const { cleanupMergedBranchesInWorker, cleanupMergedBranchesOperationInput } =
+      await import("./branch-per-task.js");
+    const result = cleanupMergedBranchesInWorker(
+      cleanupMergedBranchesOperationInput(
+        makeCtx({ branchPerTask: false, branch: null }),
+      ),
+    );
     expect(result).toEqual({ cleaned: [], warnings: [] });
   });
 
@@ -125,8 +139,11 @@ describe("cleanupMergedBranches", () => {
     const { spawnSync } = await import("node:child_process");
     vi.mocked(spawnSync).mockReturnValueOnce({ status: 1, stdout: "", stderr: "not installed" } as never);
 
-    const { cleanupMergedBranches } = await import("./branch-per-task.js");
-    const result = cleanupMergedBranches(makeCtx());
+    const { cleanupMergedBranchesInWorker, cleanupMergedBranchesOperationInput } =
+      await import("./branch-per-task.js");
+    const result = cleanupMergedBranchesInWorker(
+      cleanupMergedBranchesOperationInput(makeCtx()),
+    );
 
     expect(result.cleaned).toEqual([]);
     expect(result.warnings).toHaveLength(1);
@@ -148,8 +165,13 @@ describe("cleanupMergedBranches", () => {
       .mockReturnValueOnce({ status: 0, stdout: "", stderr: "" } as never) // delete task-old-1
       .mockReturnValueOnce({ status: 0, stdout: "", stderr: "" } as never); // delete task-old-2
 
-    const { cleanupMergedBranches } = await import("./branch-per-task.js");
-    const result = cleanupMergedBranches(makeCtx({ branch: "kota/task/task-current" }));
+    const { cleanupMergedBranchesInWorker, cleanupMergedBranchesOperationInput } =
+      await import("./branch-per-task.js");
+    const result = cleanupMergedBranchesInWorker(
+      cleanupMergedBranchesOperationInput(
+        makeCtx({ branch: "kota/task/task-current" }),
+      ),
+    );
 
     expect(result.cleaned).toEqual(["kota/task/task-old-1", "kota/task/task-old-2"]);
     expect(result.warnings).toEqual([]);
@@ -168,8 +190,13 @@ describe("cleanupMergedBranches", () => {
       .mockReturnValueOnce({ status: 1, stdout: "", stderr: "remote: branch not found" } as never) // delete task-old-1 fails
       .mockReturnValueOnce({ status: 0, stdout: "", stderr: "" } as never); // delete task-old-2 succeeds
 
-    const { cleanupMergedBranches } = await import("./branch-per-task.js");
-    const result = cleanupMergedBranches(makeCtx({ branch: "kota/task/task-current" }));
+    const { cleanupMergedBranchesInWorker, cleanupMergedBranchesOperationInput } =
+      await import("./branch-per-task.js");
+    const result = cleanupMergedBranchesInWorker(
+      cleanupMergedBranchesOperationInput(
+        makeCtx({ branch: "kota/task/task-current" }),
+      ),
+    );
 
     expect(result.cleaned).toEqual(["kota/task/task-old-2"]);
     expect(result.warnings).toHaveLength(1);
@@ -183,8 +210,11 @@ describe("cleanupMergedBranches", () => {
       .mockReturnValueOnce({ status: 0, stdout: "", stderr: "" } as never) // gh auth status
       .mockReturnValueOnce({ status: 1, stdout: "", stderr: "API error" } as never); // gh pr list
 
-    const { cleanupMergedBranches } = await import("./branch-per-task.js");
-    const result = cleanupMergedBranches(makeCtx());
+    const { cleanupMergedBranchesInWorker, cleanupMergedBranchesOperationInput } =
+      await import("./branch-per-task.js");
+    const result = cleanupMergedBranchesInWorker(
+      cleanupMergedBranchesOperationInput(makeCtx()),
+    );
 
     expect(result.cleaned).toEqual([]);
     expect(result.warnings).toHaveLength(1);

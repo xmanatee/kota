@@ -17,7 +17,7 @@ import {
 import type { MergeGateConflict, MergeGateResult } from "./worktree-merge-gate-types.js";
 
 export type MergeIndexSnapshot = {
-	entriesByPath: ReadonlyMap<string, readonly string[]>;
+	entriesByPath: readonly (readonly [string, readonly string[]])[];
 	stagedPaths: readonly string[];
 };
 
@@ -184,7 +184,7 @@ export function commitResolvedMerge(workspaceDir: string, branch: string): Commi
 
 export function captureMergeIndexSnapshot(workspaceDir: string): MergeIndexSnapshot {
 	return {
-		entriesByPath: indexEntriesByPath(workspaceDir),
+		entriesByPath: [...indexEntriesByPath(workspaceDir).entries()],
 		stagedPaths: stagedPaths(workspaceDir),
 	};
 }
@@ -209,7 +209,7 @@ export function validateResolvedMergeBoundary(
 
 	const allowedConflictPaths = new Set(input.allowedConflictPaths);
 	const currentEntries = indexEntriesByPath(workspaceDir);
-	const changedProtectedPaths = [...input.beforeResolver.entriesByPath.entries()]
+	const changedProtectedPaths = input.beforeResolver.entriesByPath
 		.filter(([path, entries]) => !allowedConflictPaths.has(path) && !sameEntries(entries, currentEntries.get(path)))
 		.map(([path]) => path)
 		.sort();

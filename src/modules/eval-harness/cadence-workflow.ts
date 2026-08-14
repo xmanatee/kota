@@ -8,37 +8,16 @@
  * baseline there still owns the comparison.
  */
 
-import { writeFileSync } from "node:fs";
-import { isAbsolute, join, resolve } from "node:path";
+import { isAbsolute } from "node:path";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
-  assessAgainstBaseline,
-  type BaselineAssessment,
-} from "./baseline-assessment.js";
-import { loadBaseline, saveBaseline } from "./baseline-store.js";
-import { runEvalSet } from "./eval-set.js";
+  type EvalHarnessCadenceResult,
+  evalHarnessCadenceOperation,
+} from "./cadence-operation.js";
 import { evalHarnessSetCompleted } from "./events.js";
-import { loadAllFixtures } from "./fixture.js";
-import type { FixtureDiagnosticAggregate } from "./scoring.js";
-import {
-  createSubprocessExecutor,
-  detectHostSubprocessResourceProfile,
-  type SubprocessIsolationBackend,
-} from "./subprocess-executor.js";
+import type { SubprocessIsolationBackend } from "./subprocess-executor.js";
 
-type CadenceResult = {
-  fixtureCount: number;
-  repeatCount: number;
-  passAtK: number;
-  passHatK: number;
-  fixtureDiagnostics: FixtureDiagnosticAggregate;
-  runArtifactBaseDir: string;
-  assessmentStatus: BaselineAssessment["status"];
-};
-
-const CADENCE_HOST_CLASS = "autonomy-cadence";
-const CADENCE_REPEAT_COUNT = 3;
 export const EVAL_HARNESS_CADENCE_CONTAINER_EXECUTABLE_ENV =
   "KOTA_EVAL_HARNESS_CADENCE_CONTAINER_EXECUTABLE";
 export const EVAL_HARNESS_CADENCE_CONTAINER_IMAGE_ENV =
@@ -86,11 +65,13 @@ export function resolveCadenceIsolationBackend(
   return { kind: "container", executable, image, kotaBinaryPath };
 }
 
-const runHarness = typedCodeStep<CadenceResult>({
+export const runHarness = typedCodeStep<EvalHarnessCadenceResult>({
   id: "run-harness",
   type: "code",
+  timeoutMs: null,
+  idleTimeoutMs: 5 * 60 * 1000,
   validate: (raw) =>
-    expectStructuredOutput<CadenceResult>(raw, [
+    expectStructuredOutput<EvalHarnessCadenceResult>(raw, [
       "fixtureCount",
       "repeatCount",
       "passAtK",
@@ -99,156 +80,19 @@ const runHarness = typedCodeStep<CadenceResult>({
       "runArtifactBaseDir",
       "assessmentStatus",
     ]),
-  run: async ({ projectDir, workflow, emit }) => {
-    const fixturesRoot = join(projectDir, "src/modules/eval-harness/fixtures");
-    const fixtures = loadAllFixtures(fixturesRoot);
-    if (fixtures.length === 0) {
-      throw new Error(
-        `eval-harness cadence has no fixtures under "${fixturesRoot}". ` +
-          "Add at least one fixture before enabling the cadence workflow.",
-      );
-    }
-    const executor = createSubprocessExecutor({
-      kotaBinaryPath: resolve(join(projectDir, "bin/kota.mjs")),
+  run: async (ctx) => {
+    const output = await ctx.runBlocking(evalHarnessCadenceOperation, {
+      projectDir: ctx.projectDir,
+      runDirPath: ctx.workflow.runDirPath,
       isolationBackend: resolveCadenceIsolationBackend(),
     });
-    const runArtifactBaseDir = join(workflow.runDirPath, "eval-runs");
-    const requestedProfile =
-      detectHostSubprocessResourceProfile(CADENCE_HOST_CLASS);
-    const priorBaseline = loadBaseline(projectDir);
-    const report = await runEvalSet({
-      projectDir,
-      fixtures,
-      executor,
-      requestedProfile,
-      runArtifactBaseDir,
-      repeatCount: CADENCE_REPEAT_COUNT,
-      priorBaseline,
-    });
-
-    const assessment = assessAgainstBaseline(priorBaseline, {
-      aggregate: report.aggregate,
-      executionProfile: report.executionProfile,
-      runConfiguration: report.runConfiguration,
-      componentAttribution: report.componentAttribution,
-      runArtifactBaseDir: report.runArtifactBaseDir,
-      recordedAt: report.completedAt,
-    });
-
-    if (assessment.status === "gated") {
-      emit("eval-harness.regression.detected", {
-        baseline: {
-          fixtureCount: assessment.priorBaseline.aggregate.fixtureCount,
-          repeatCount: assessment.priorBaseline.aggregate.repeatCount ?? 0,
-          passAtK: assessment.priorBaseline.aggregate.passAtK,
-          passHatK: assessment.priorBaseline.aggregate.passHatK,
-        },
-        candidate: {
-          fixtureCount: report.aggregate.fixtureCount,
-          repeatCount: report.repeatCount,
-          passAtK: report.aggregate.passAtK,
-          passHatK: report.aggregate.passHatK,
-        },
-        hostClass: report.resourceProfile.hostClass,
-        noiseBandPercentagePoints: assessment.noiseBandPercentagePoints,
-        dropPercentagePoints: assessment.dropPercentagePoints,
-        runArtifactBaseDir: report.runArtifactBaseDir,
-        reason: assessment.reason,
-      });
-    } else if (
-      assessment.status === "first-run" ||
-      assessment.status === "not-gated" ||
-      (assessment.status === "non-gating" &&
-        assessment.kind === "run-configuration")
-    ) {
-      saveBaseline(projectDir, assessment.baselineToRecord);
+    if (output.regressionEvent !== null) {
+      ctx.emit("eval-harness.regression.detected", output.regressionEvent);
     }
-
-    writeFileSync(
-      join(workflow.runDirPath, "ran-at.json"),
-      JSON.stringify(
-        {
-          fixtureCount: report.aggregate.fixtureCount,
-          repeatCount: report.repeatCount,
-          passAtK: report.aggregate.passAtK,
-          passHatK: report.aggregate.passHatK,
-          fixtureDiagnostics: report.fixtureDiagnostics.aggregate,
-          resourceProfile: report.resourceProfile,
-          executionProfile: report.executionProfile,
-          runConfiguration: report.runConfiguration,
-          componentAttribution: report.componentAttribution,
-          startedAt: report.startedAt,
-          completedAt: report.completedAt,
-          assessment: summarizeAssessment(assessment),
-        },
-        null,
-        2,
-      ),
-    );
-
-    emit(evalHarnessSetCompleted.name, {
-      fixtureCount: report.aggregate.fixtureCount,
-      repeatCount: report.repeatCount,
-      passAtK: report.aggregate.passAtK,
-      passHatK: report.aggregate.passHatK,
-      fixtureDiagnostics: report.fixtureDiagnostics.aggregate,
-      hostClass: report.resourceProfile.hostClass,
-      runArtifactBaseDir: report.runArtifactBaseDir,
-      runConfigurationFingerprint: report.runConfiguration.fingerprint,
-      runConfigurationSummary: report.runConfiguration.summary,
-      startedAt: report.startedAt,
-      completedAt: report.completedAt,
-    });
-
-    return {
-      fixtureCount: report.aggregate.fixtureCount,
-      repeatCount: report.repeatCount,
-      passAtK: report.aggregate.passAtK,
-      passHatK: report.aggregate.passHatK,
-      fixtureDiagnostics: report.fixtureDiagnostics.aggregate,
-      runArtifactBaseDir: report.runArtifactBaseDir,
-      assessmentStatus: assessment.status,
-    };
+    ctx.emit(evalHarnessSetCompleted.name, output.completedEvent);
+    return output.result;
   },
 });
-
-function summarizeAssessment(
-  assessment: BaselineAssessment,
-): Record<string, unknown> {
-  if (assessment.status === "non-gating") {
-    if (assessment.kind === "run-configuration") {
-      return {
-        status: "non-gating",
-        kind: assessment.kind,
-        reason: assessment.reason,
-        comparison: assessment.comparison,
-      };
-    }
-    return {
-      status: "non-gating",
-      kind: assessment.kind,
-      reason: assessment.reason,
-      resourceProfile: assessment.resourceProfile,
-    };
-  }
-  if (assessment.status === "first-run") {
-    return { status: "first-run" };
-  }
-  if (assessment.status === "gated") {
-    return {
-      status: "gated",
-      reason: assessment.reason,
-      dropPercentagePoints: assessment.dropPercentagePoints,
-      noiseBandPercentagePoints: assessment.noiseBandPercentagePoints,
-    };
-  }
-  return {
-    status: "not-gated",
-    reason: assessment.reason,
-    dropPercentagePoints: assessment.dropPercentagePoints,
-    noiseBandPercentagePoints: assessment.noiseBandPercentagePoints,
-  };
-}
 
 const evalHarnessCadence: WorkflowDefinitionInput = {
   name: "eval-harness-cadence",

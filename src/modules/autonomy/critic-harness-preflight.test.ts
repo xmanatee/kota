@@ -11,6 +11,10 @@ import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
 import { createWorkflowAgentHarnessRunner } from "#core/workflow/steps/workflow-agent-harness-runner.js";
 import { createCriticCheck } from "./critic.js";
+import {
+  type CriticReviewInspectionInput,
+  inspectCriticReviewInWorker,
+} from "./review-input-operations.js";
 
 function makeParentStep(harness: string): WorkflowAgentStep {
   return {
@@ -25,7 +29,10 @@ function makeParentStep(harness: string): WorkflowAgentStep {
   };
 }
 
-function makeContext(projectDir: string, runDir: string): WorkflowStepContext {
+function makeContext(
+  projectDir: string,
+  runDir: string,
+): WorkflowStepContext {
   return {
     projectDir,
     workflow: {
@@ -40,6 +47,11 @@ function makeContext(projectDir: string, runDir: string): WorkflowStepContext {
     stepOutputs: {},
     stepResults: {},
     stepOutputList: [],
+    runBlocking: async (
+      _operation: { exportName: string },
+      input: CriticReviewInspectionInput,
+    ) =>
+      inspectCriticReviewInWorker(input as CriticReviewInspectionInput) as never,
     runTool: vi.fn(),
     runAgentHarness: createWorkflowAgentHarnessRunner(undefined),
     emit: vi.fn(),

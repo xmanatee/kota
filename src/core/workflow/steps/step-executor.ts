@@ -1,10 +1,18 @@
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
 import type { EventBus } from "#core/events/event-bus.js";
+import { withWorkflowBlockingOperation } from "../blocking-operation-context.js";
 import type { RepairCheckResult, RepairIteration } from "../repair-loop.js";
-import { buildRepairPrompt, runAgentRepairLoop } from "../repair-loop.js";
+import {
+  buildRepairPrompt,
+  RepairLoopError,
+  runAgentRepairLoop,
+} from "../repair-loop.js";
 import type { WorkflowRunMetadata, WorkflowStepContext, WorkflowStepSkipReason } from "../run-types.js";
 import type { WorkflowNotifyConfig } from "../step-input-base.js";
-import { WorkflowStepOutputValidationError } from "../step-input-code.js";
+import {
+  type WorkflowCodeStepContext,
+  WorkflowStepOutputValidationError,
+} from "../step-input-code.js";
 import type { WorkflowApprovalStep, WorkflowAwaitEventStep, WorkflowCodeStep, WorkflowEmitStep, WorkflowRestartStep, WorkflowStep, WorkflowToolStep, WorkflowTriggerStep } from "../step-types.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import type { WorkflowDefinition } from "../types.js";
@@ -150,7 +158,9 @@ export async function executeCodeStep(
   step: WorkflowCodeStep,
   context: WorkflowStepContext,
 ): Promise<WorkflowStepOutput> {
-  const rawOutput = await step.run(context);
+  const codeContext: WorkflowCodeStepContext =
+    withWorkflowBlockingOperation(context);
+  const rawOutput = await step.run(codeContext);
   if (step.validate === undefined) return rawOutput as WorkflowStepOutput;
   try {
     return step.validate(rawOutput) as WorkflowStepOutput;
@@ -187,7 +197,22 @@ export async function executeStep(
       context.foreach,
     );
     if (!step.repairLoop) return result;
-    return runAgentRepairLoop(step, result, context, metadata, abortController, appendMessage, agentConfig);
+    try {
+      return await runAgentRepairLoop(
+        step,
+        result,
+        context,
+        metadata,
+        abortController,
+        appendMessage,
+        agentConfig,
+      );
+    } catch (error) {
+      if (error instanceof RepairLoopError && error.agentBackoff !== undefined) {
+        throw error.asAgentStepRuntimeError();
+      }
+      throw error;
+    }
   }
   if (step.type === "emit") return executeEmitStep(step, context, definition.notify);
   if (step.type === "restart") return executeRestartStep(step, context);

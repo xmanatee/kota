@@ -8,7 +8,6 @@ import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type {
   WorkflowPredicate,
   WorkflowRepairLoopConfig,
-  WorkflowStepContext,
   WorkflowValueResolver,
 } from "./run-types.js";
 import type {
@@ -16,7 +15,10 @@ import type {
   WorkflowBaseStep,
   WorkflowProgressStep,
 } from "./step-input-base.js";
-import type { CodeStepOutputValidator } from "./step-input-code.js";
+import type {
+  CodeStepOutputValidator,
+  WorkflowCodeStepContext,
+} from "./step-input-code.js";
 import type { WorkflowRetryConfig } from "./trigger-types.js";
 
 export type WorkflowToolStep = WorkflowBaseStep & {
@@ -124,7 +126,7 @@ export type WorkflowRestartStep = WorkflowBaseStep & {
 
 export type WorkflowCodeStep = WorkflowProgressStep & {
   type: "code";
-  run: (context: WorkflowStepContext) => Promise<unknown> | unknown;
+  run: (context: WorkflowCodeStepContext) => Promise<unknown> | unknown;
   resolveAgentContract?: WorkflowAgentRunContractResolver;
   updatesWorkspaceDir?: boolean;
   updatesRuntimeResources?: boolean;

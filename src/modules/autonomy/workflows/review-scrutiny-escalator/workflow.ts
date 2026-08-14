@@ -8,13 +8,8 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import {
-  checkCommitStageable,
-  commitWorkflowChanges,
-} from "#modules/autonomy/commit.js";
 import {
   decodeWorkflowCommitOutcome,
   type WorkflowCommitOutcome,
@@ -22,34 +17,29 @@ import {
 import {
   onNormalTrigger,
   onRecoveryTrigger,
-  resetWorktreeForRecovery,
+  resetWorktreeForRecoveryOperation,
 } from "#modules/autonomy/recovery.js";
 import {
-  applyReviewScrutinyEscalation,
   buildReviewScrutinyAttentionDigest,
-  detectRecurringReviewScrutinyPatterns,
-  proposeReviewScrutinyEscalation,
   type ReviewScrutinyEscalationApplied,
   type ReviewScrutinyEscalationDetection,
   type ReviewScrutinyEscalationProposal,
 } from "#modules/autonomy/review-scrutiny-escalation.js";
+import { runCheck, stepCommitRequiresDaemonRestart } from "#modules/autonomy/shared.js";
 import {
-  checkCommitMessageExists,
-  checkNoScratchArtifacts,
-  runCheck,
-  stepCommitRequiresDaemonRestart,
-  stepCommitted,
-} from "#modules/autonomy/shared.js";
+  workflowCommitOperation,
+  workflowCommitValidationOperation,
+} from "#modules/autonomy/workflow-commit-operations.js";
 import {
-  emptyReviewScrutinyDetection,
-  readReviewScrutinyEscalatorConfig,
-} from "./config.js";
+  inspectReviewScrutinyPatternsOperation,
+  type ReviewScrutinyInspection,
+} from "./inspection.js";
+import {
+  applyReviewScrutinyTasksOperation,
+  proposeReviewScrutinyTasksOperation,
+} from "./task-operations.js";
 
-type Inspection = {
-  dirty: boolean;
-  status: "dirty" | "none" | "patterns-detected";
-  detection: ReviewScrutinyEscalationDetection;
-};
+type Inspection = ReviewScrutinyInspection;
 
 type ProposalOutput = {
   proposals: ReviewScrutinyEscalationProposal[];
@@ -78,28 +68,8 @@ const inspectPatterns = typedCodeStep<Inspection>({
       "status",
       "detection",
     ]),
-  run: ({ projectDir }) => {
-    const config = readReviewScrutinyEscalatorConfig();
-    const worktree = getRepoWorktreeStatus(projectDir);
-    const dirty = worktree.available && worktree.dirty;
-    if (dirty) {
-      return {
-        dirty,
-        status: "dirty",
-        detection: emptyReviewScrutinyDetection(config),
-      };
-    }
-    const detection = detectRecurringReviewScrutinyPatterns(
-      projectDir,
-      join(projectDir, ".kota", "runs"),
-      config,
-    );
-    return {
-      dirty,
-      status: detection.patterns.length > 0 ? "patterns-detected" : "none",
-      detection,
-    };
-  },
+  run: ({ projectDir, runBlocking }) =>
+    runBlocking(inspectReviewScrutinyPatternsOperation, { projectDir }),
 });
 
 const proposeTasks = typedCodeStep<ProposalOutput>({
@@ -118,11 +88,11 @@ const proposeTasks = typedCodeStep<ProposalOutput>({
       ...inspection.detection.thresholds,
       nowMs: Date.now(),
     };
-    return {
-      proposals: inspection.detection.patterns.map((pattern) =>
-        proposeReviewScrutinyEscalation(ctx.projectDir, pattern, config)
-      ),
-    };
+    return ctx.runBlocking(proposeReviewScrutinyTasksOperation, {
+      projectDir: ctx.projectDir,
+      patterns: inspection.detection.patterns,
+      config,
+    });
   },
 });
 
@@ -132,15 +102,11 @@ const applyTasks = typedCodeStep<ApplyOutput>({
   when: (ctx) => proposeTasks.output(ctx) !== undefined,
   validate: (raw) => expectStructuredOutput<ApplyOutput>(raw, ["applied"]),
   run: (ctx) => {
-    const proposals = proposeTasks.outputRequired(ctx).proposals;
-    return {
-      applied: proposals.map((proposal) =>
-        applyReviewScrutinyEscalation(proposal, {
-          projectDir: ctx.projectDir,
-          nowIso: new Date().toISOString(),
-        })
-      ),
-    };
+    return ctx.runBlocking(applyReviewScrutinyTasksOperation, {
+      projectDir: ctx.projectDir,
+      proposals: proposeTasks.outputRequired(ctx).proposals,
+      nowIso: new Date().toISOString(),
+    });
   },
 });
 
@@ -214,9 +180,10 @@ const validateBeforeCommit = typedCodeStep<{ ok: true }>({
   },
   run: async (ctx) => {
     await runCheck("pnpm run validate-tasks", ctx.projectDir, { signal: ctx.signal });
-    checkNoScratchArtifacts(ctx.projectDir);
-    checkCommitStageable(ctx.projectDir);
-    checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir);
+    await ctx.runBlocking(workflowCommitValidationOperation, {
+      projectDir: ctx.projectDir,
+      runDirPath: ctx.workflow.runDirPath,
+    });
     return { ok: true } as const;
   },
 });
@@ -226,8 +193,11 @@ const commitChanges = typedCodeStep<WorkflowCommitOutcome>({
   type: "code",
   when: (ctx) => validateBeforeCommit.output(ctx)?.ok === true,
   validate: decodeWorkflowCommitOutcome,
-  run: ({ projectDir, workflow }) =>
-    commitWorkflowChanges(projectDir, workflow.runDirPath),
+  run: (ctx) =>
+    ctx.runBlocking(workflowCommitOperation, {
+      projectDir: ctx.projectDir,
+      runDirPath: ctx.workflow.runDirPath,
+    }),
 });
 
 const reviewScrutinyEscalator: WorkflowDefinitionInput = {
@@ -248,9 +218,9 @@ const reviewScrutinyEscalator: WorkflowDefinitionInput = {
       id: "reset-for-recovery",
       type: "code",
       when: onRecoveryTrigger,
-      run: ({ projectDir }) =>
-        resetWorktreeForRecovery({
-          projectDir,
+      run: (ctx) =>
+        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
+          projectDir: ctx.projectDir,
           workflowName: "review-scrutiny-escalator",
         }),
     },

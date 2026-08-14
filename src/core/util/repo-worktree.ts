@@ -1,5 +1,8 @@
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
+import { promisify } from "node:util";
 import { withProtectedGitBareRepositoryEnv } from "./protected-git-env.js";
+
+const execFileAsync = promisify(execFile);
 
 export type RepoWorktreeStatus = {
   available: boolean;
@@ -19,6 +22,19 @@ export function getRepoHeadSha(projectDir: string): string {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
     }).trim();
+  } catch {
+    return "";
+  }
+}
+
+export async function getRepoHeadShaAsync(projectDir: string): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], {
+      cwd: projectDir,
+      env: withProtectedGitBareRepositoryEnv(),
+      encoding: "utf8",
+    });
+    return stdout.trim();
   } catch {
     return "";
   }
@@ -55,6 +71,47 @@ export function getRepoWorktreeStatus(projectDir: string): RepoWorktreeStatus {
       fingerprint: entries.join("\n"),
       summary: summarizeEntries(entries),
       headSha: getRepoHeadSha(projectDir),
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      available: false,
+      dirty: false,
+      trackedDirty: false,
+      entries: [],
+      fingerprint: "",
+      summary: `git status unavailable: ${message}`,
+      headSha: "",
+    };
+  }
+}
+
+export async function getRepoWorktreeStatusAsync(
+  projectDir: string,
+): Promise<RepoWorktreeStatus> {
+  try {
+    const [{ stdout }, headSha] = await Promise.all([
+      execFileAsync(
+        "git",
+        ["status", "--porcelain=v1", "--untracked-files=all"],
+        {
+          cwd: projectDir,
+          env: withProtectedGitBareRepositoryEnv(),
+          encoding: "utf8",
+        },
+      ),
+      getRepoHeadShaAsync(projectDir),
+    ]);
+    const output = stdout.trim();
+    const entries = output ? output.split("\n").map((line) => line.trim()) : [];
+    return {
+      available: true,
+      dirty: entries.length > 0,
+      trackedDirty: entries.some((entry) => !entry.startsWith("??")),
+      entries,
+      fingerprint: entries.join("\n"),
+      summary: summarizeEntries(entries),
+      headSha,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

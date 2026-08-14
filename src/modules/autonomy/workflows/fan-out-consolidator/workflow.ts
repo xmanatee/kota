@@ -15,79 +15,42 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import {
-  checkCommitStageable,
-  commitWorkflowChanges,
-} from "#modules/autonomy/commit.js";
 import {
   decodeWorkflowCommitOutcome,
   type WorkflowCommitOutcome,
 } from "#modules/autonomy/commit-result.js";
 import {
-  type FanOutConsolidationArtifact,
-  seedFanOutConsolidationTasks,
-} from "#modules/autonomy/fan-out-consolidation.js";
-import {
   onNormalTrigger,
   onRecoveryTrigger,
-  resetWorktreeForRecovery,
+  resetWorktreeForRecoveryOperation,
 } from "#modules/autonomy/recovery.js";
+import { runCheck, stepCommitRequiresDaemonRestart } from "#modules/autonomy/shared.js";
 import {
-  checkCommitMessageExists,
-  checkNoScratchArtifacts,
-  runCheck,
-  stepCommitRequiresDaemonRestart,
-  stepCommitted,
-} from "#modules/autonomy/shared.js";
+  workflowCommitOperation,
+  workflowCommitValidationOperation,
+} from "#modules/autonomy/workflow-commit-operations.js";
+import {
+  detectAndSeedFanOutOperation,
+  type FanOutDetectionInspection,
+} from "./blocking-operations.js";
 
-type DetectionInspection = {
-  dirty: boolean;
-  artifact: FanOutConsolidationArtifact;
-  touchedDisk: boolean;
-};
-
-const detectAndSeed = typedCodeStep<DetectionInspection>({
+const detectAndSeed = typedCodeStep<FanOutDetectionInspection>({
   id: "detect-and-seed",
   type: "code",
   when: onNormalTrigger,
   validate: (raw) =>
-    expectStructuredOutput<DetectionInspection>(raw, [
+    expectStructuredOutput<FanOutDetectionInspection>(raw, [
       "dirty",
       "artifact",
       "touchedDisk",
     ]),
-  run: ({ projectDir }) => {
-    const worktree = getRepoWorktreeStatus(projectDir);
-    const dirty = worktree.available && worktree.dirty;
-    if (dirty) {
-      const now = new Date();
-      return {
-        dirty,
-        touchedDisk: false,
-        artifact: {
-          generatedAt: now.toISOString(),
-          detection: { windowMs: 0, minSurfaces: 0, nowMs: now.getTime() },
-          batches: [],
-          proposals: [],
-          applied: [],
-        },
-      };
-    }
-    const now = new Date();
-    const result = seedFanOutConsolidationTasks({
+  run: ({ projectDir, runBlocking }) =>
+    runBlocking(detectAndSeedFanOutOperation, {
       projectDir,
-      nowMs: now.getTime(),
-      nowIso: now.toISOString(),
-    });
-    return {
-      dirty,
-      touchedDisk: result.touchedDisk,
-      artifact: result.artifact,
-    };
-  },
+      nowIso: new Date().toISOString(),
+    }),
 });
 
 const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
@@ -149,9 +112,10 @@ const validateBeforeCommit = typedCodeStep<{ ok: true }>({
   },
   run: async (ctx) => {
     await runCheck("pnpm run validate-tasks", ctx.projectDir, { signal: ctx.signal });
-    checkNoScratchArtifacts(ctx.projectDir);
-    checkCommitStageable(ctx.projectDir);
-    checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir);
+    await ctx.runBlocking(workflowCommitValidationOperation, {
+      projectDir: ctx.projectDir,
+      runDirPath: ctx.workflow.runDirPath,
+    });
     return { ok: true } as const;
   },
 });
@@ -161,8 +125,11 @@ const commitChanges = typedCodeStep<WorkflowCommitOutcome>({
   type: "code",
   when: (ctx) => validateBeforeCommit.output(ctx)?.ok === true,
   validate: decodeWorkflowCommitOutcome,
-  run: ({ projectDir, workflow }) =>
-    commitWorkflowChanges(projectDir, workflow.runDirPath),
+  run: (ctx) =>
+    ctx.runBlocking(workflowCommitOperation, {
+      projectDir: ctx.projectDir,
+      runDirPath: ctx.workflow.runDirPath,
+    }),
 });
 
 const fanOutConsolidatorWorkflow: WorkflowDefinitionInput = {
@@ -181,9 +148,9 @@ const fanOutConsolidatorWorkflow: WorkflowDefinitionInput = {
       id: "reset-for-recovery",
       type: "code",
       when: onRecoveryTrigger,
-      run: ({ projectDir }) =>
-        resetWorktreeForRecovery({
-          projectDir,
+      run: (ctx) =>
+        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
+          projectDir: ctx.projectDir,
           workflowName: "fan-out-consolidator",
         }),
     },

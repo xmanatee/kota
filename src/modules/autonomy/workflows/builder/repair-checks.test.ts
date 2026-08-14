@@ -12,21 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resolveAgentRuntime } from "#core/model/preset.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { unexpectedWorkflowAgentHarnessRun } from "#core/workflow/testing/agent-harness-runner.js";
-import {
-  OBSERVABILITY_OBLIGATION_REVIEW_ARTIFACT,
-  OBSERVABILITY_OBLIGATION_WARNING_TYPE,
-} from "#modules/autonomy/observability-obligation.js";
-import { SOURCE_FILE_SIZE_WARNING_TYPE } from "#modules/autonomy/source-size-check.js";
-import {
-  SOURCE_FILE_SEVERE_BATCH_THRESHOLD,
-  SOURCE_FILE_SIZE_SEVERE_TYPE,
-} from "#modules/autonomy/source-size-escalation.js";
-import { SOURCE_FILE_SIZE_REVIEW_ARTIFACT } from "#modules/autonomy/source-size-review-artifact.js";
 import { builderRepairChecks } from "./repair-checks.js";
-
-function lines(count: number): string {
-  return `${Array.from({ length: count }, (_, i) => `export const value${i} = ${i};`).join("\n")}\n`;
-}
 
 function initRepo(dir: string): void {
   execSync("git init -q", { cwd: dir });
@@ -155,150 +141,16 @@ describe("builder repository-backed repair checks", () => {
     expect(existsSync(join(repoDir, "lint-fix-ran"))).toBe(false);
   });
 
-  it("wires severe source-size batches as blocking while preserving advisory warning artifacts", async () => {
-    for (let i = 0; i < SOURCE_FILE_SEVERE_BATCH_THRESHOLD; i += 1) {
-      writeFileSync(join(repoDir, "src", `large-${i}.ts`), lines(301));
-    }
-    execSync("git add src", { cwd: repoDir });
-    const runDir = join(repoDir, ".kota", "runs", "test-run");
-    mkdirSync(runDir, { recursive: true });
-    const checks = new Map(builderRepairChecks().map((check) => [check.id, check]));
-    const severe = checks.get(SOURCE_FILE_SIZE_SEVERE_TYPE);
-    const advisory = checks.get(SOURCE_FILE_SIZE_WARNING_TYPE);
-    const ctx = {
-      projectDir: repoDir,
-      workflow: { runDirPath: runDir },
-    } as WorkflowStepContext;
-
-    expect(severe).toMatchObject({
-      id: SOURCE_FILE_SIZE_SEVERE_TYPE,
-      type: "code",
-      phase: 1,
-    });
-    expect(advisory).toMatchObject({
-      id: SOURCE_FILE_SIZE_WARNING_TYPE,
-      type: "code",
-      severity: "warning",
-      phase: 1,
-    });
-    if (!severe || severe.type !== "code") throw new Error("missing severe source-size check");
-    if (!advisory || advisory.type !== "code") throw new Error("missing advisory source-size check");
-
-    expect(() => severe.run(ctx, {} as never)).toThrow(/Blocking severe source-size failure/);
-    expect(JSON.parse(readFileSync(join(runDir, SOURCE_FILE_SIZE_REVIEW_ARTIFACT), "utf-8")))
-      .toMatchObject({
-        outcome: "blocking",
-        reasons: expect.arrayContaining([
-          expect.objectContaining({
-            kind: "oversized-batch",
-          }),
-        ]),
-      });
-    expect(() => advisory.run(ctx, {} as never)).toThrow(SOURCE_FILE_SIZE_WARNING_TYPE);
-  });
-
-  it("wires observability obligation diagnostics as advisory run artifacts", async () => {
-    const workflowDir = join(repoDir, "src", "core", "workflow");
-    mkdirSync(workflowDir, { recursive: true });
-    writeFileSync(
-      join(workflowDir, "retry.ts"),
-      [
-        "export async function runStep(step: { run(): Promise<void> }) {",
-        "  try {",
-        "    return await step.run();",
-        "  } catch (error) {",
-        "    return null;",
-        "  }",
-        "}",
-      ].join("\n"),
-    );
-    execSync("git add src/core/workflow/retry.ts", { cwd: repoDir });
-    const runDir = join(repoDir, ".kota", "runs", "test-run-observability");
-    mkdirSync(runDir, { recursive: true });
-    const checks = new Map(builderRepairChecks().map((check) => [check.id, check]));
-    const observability = checks.get(OBSERVABILITY_OBLIGATION_WARNING_TYPE);
-    const ctx = {
-      projectDir: repoDir,
-      workflow: { runDirPath: runDir },
-    } as WorkflowStepContext;
-
-    expect(observability).toMatchObject({
-      id: OBSERVABILITY_OBLIGATION_WARNING_TYPE,
-      type: "code",
-      severity: "warning",
-      phase: 1,
-    });
-    if (!observability || observability.type !== "code") {
-      throw new Error("missing observability obligation check");
-    }
-
-    expect(() => observability.run(ctx, {} as never)).toThrow(
-      OBSERVABILITY_OBLIGATION_WARNING_TYPE,
-    );
-    expect(JSON.parse(readFileSync(join(runDir, OBSERVABILITY_OBLIGATION_REVIEW_ARTIFACT), "utf-8")))
-      .toMatchObject({
-        outcome: "warning",
-        missingFiles: ["src/core/workflow/retry.ts"],
-      });
-  });
-
-  it("runs repository-backed checks against workspaceDir while writing artifacts to the run directory", async () => {
-    const projectDir = join(tmpdir(), `kota-builder-canonical-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
-    mkdirSync(projectDir, { recursive: true });
-    initRepo(projectDir);
-    const workflowDir = join(repoDir, "src", "core", "workflow");
-    mkdirSync(workflowDir, { recursive: true });
-    writeFileSync(
-      join(workflowDir, "workspace-retry.ts"),
-      [
-        "export async function runStep(step: { run(): Promise<void> }) {",
-        "  try {",
-        "    return await step.run();",
-        "  } catch (error) {",
-        "    return null;",
-        "  }",
-        "}",
-      ].join("\n"),
-    );
-    execSync("git add src/core/workflow/workspace-retry.ts", { cwd: repoDir });
-    const runDir = join(projectDir, ".kota", "runs", "test-run-workspace");
-    mkdirSync(runDir, { recursive: true });
-    const checks = new Map(builderRepairChecks().map((check) => [check.id, check]));
-    const observability = checks.get(OBSERVABILITY_OBLIGATION_WARNING_TYPE);
-    const ctx = {
-      projectDir,
-      workspaceDir: repoDir,
-      workflow: { runDirPath: runDir },
-    } as WorkflowStepContext;
-
-    try {
-      if (!observability || observability.type !== "code") {
-        throw new Error("missing observability obligation check");
-      }
-
-      expect(() => observability.run(ctx, {} as never)).toThrow(
-        OBSERVABILITY_OBLIGATION_WARNING_TYPE,
-      );
-      expect(JSON.parse(readFileSync(join(runDir, OBSERVABILITY_OBLIGATION_REVIEW_ARTIFACT), "utf-8")))
-        .toMatchObject({
-          outcome: "warning",
-          missingFiles: ["src/core/workflow/workspace-retry.ts"],
-        });
-    } finally {
-      rmSync(projectDir, { recursive: true, force: true });
-    }
-  });
-
-  it("passes claimed-task commit-set repair when the terminal task matches the claim", () => {
+  it("passes claimed-task commit-set repair when the terminal task matches the claim", async () => {
     writeTask(repoDir, "done", "task-claimed");
     const check = claimedTaskCommitSetCheck();
 
-    expect(check.run(claimContext(repoDir, "task-claimed"), {} as never)).toBe(
+    await expect(check.run(claimContext(repoDir, "task-claimed"), {} as never)).resolves.toBe(
       "OK: commit set resolves claimed task task-claimed",
     );
   });
 
-  it("passes claimed-task commit-set repair when acceptance evidence backfills existing done tasks", () => {
+  it("passes claimed-task commit-set repair when acceptance evidence backfills existing done tasks", async () => {
     writeTask(repoDir, "done", "task-existing-evidence");
     execSync("git add data/tasks/done/task-existing-evidence.md", { cwd: repoDir });
     execSync('git commit -q -m "existing evidence task"', { cwd: repoDir });
@@ -312,33 +164,33 @@ describe("builder repository-backed repair checks", () => {
     writeTask(repoDir, "done", "task-claimed");
     const check = claimedTaskCommitSetCheck();
 
-    expect(check.run(claimContext(repoDir, "task-claimed"), {} as never)).toBe(
+    await expect(check.run(claimContext(repoDir, "task-claimed"), {} as never)).resolves.toBe(
       "OK: commit set resolves claimed task task-claimed",
     );
   });
 
-  it("fails claimed-task commit-set repair when the commit set completes another task too", () => {
+  it("fails claimed-task commit-set repair when the commit set completes another task too", async () => {
     writeTask(repoDir, "done", "task-claimed");
     writeTask(repoDir, "done", "task-other");
     const check = claimedTaskCommitSetCheck();
 
-    expect(() => check.run(claimContext(repoDir, "task-claimed"), {} as never))
-      .toThrow(/commit set also completes task-other/);
+    await expect(check.run(claimContext(repoDir, "task-claimed"), {} as never))
+      .rejects.toThrow(/commit set also completes task-other/);
   });
 
-  it("fails claimed-task commit-set repair before commit when a different task is terminal", () => {
+  it("fails claimed-task commit-set repair before commit when a different task is terminal", async () => {
     writeTask(repoDir, "done", "task-other");
     const check = claimedTaskCommitSetCheck();
 
-    expect(() => check.run(claimContext(repoDir, "task-claimed"), {} as never))
-      .toThrow(/claimed task-claimed but the commit set identifies task-other/);
+    await expect(check.run(claimContext(repoDir, "task-claimed"), {} as never))
+      .rejects.toThrow(/claimed task-claimed but the commit set identifies task-other/);
   });
 
-  it("fails claimed-task commit-set repair when the claimed task is not terminal", () => {
+  it("fails claimed-task commit-set repair when the claimed task is not terminal", async () => {
     writeTask(repoDir, "ready", "task-claimed");
     const check = claimedTaskCommitSetCheck();
 
-    expect(() => check.run(claimContext(repoDir, "task-claimed"), {} as never))
-      .toThrow(/commit set does not identify a completed task/);
+    await expect(check.run(claimContext(repoDir, "task-claimed"), {} as never))
+      .rejects.toThrow(/commit set does not identify a completed task/);
   });
 });

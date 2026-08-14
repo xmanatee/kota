@@ -3,7 +3,10 @@ import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { getRepoWorktreeStatus } from "./repo-worktree.js";
+import {
+  getRepoWorktreeStatus,
+  getRepoWorktreeStatusAsync,
+} from "./repo-worktree.js";
 
 function createNestedBareRepoWithHookConfig(projectDir: string): {
   bareDir: string;
@@ -68,6 +71,23 @@ describe("repo worktree validation", () => {
     const status = getRepoWorktreeStatus(projectDir);
     expect(status.dirty).toBe(true);
     expect(status.trackedDirty).toBe(false);
+  });
+
+  it("reports the same tracked and untracked state asynchronously", async () => {
+    writeFileSync(join(projectDir, "README.md"), "changed\n");
+    writeFileSync(join(projectDir, "untracked.txt"), "new file\n");
+
+    const status = await getRepoWorktreeStatusAsync(projectDir);
+
+    expect(status.available).toBe(true);
+    expect(status.dirty).toBe(true);
+    expect(status.trackedDirty).toBe(true);
+    expect(status.entries).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("README.md"),
+        expect.stringContaining("untracked.txt"),
+      ]),
+    );
   });
 
   it("rejects implicit nested bare repository discovery before hook-capable config can run", () => {

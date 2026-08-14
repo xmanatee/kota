@@ -212,7 +212,7 @@ export async function resetBuilderWorkflowMocks(): Promise<void> {
   }));
 
   const branch = await import("./branch-per-task.js");
-  vi.mocked(branch.createTaskBranch).mockImplementation((ctx) => {
+  vi.mocked(branch.createTaskBranch).mockImplementation(async (ctx) => {
     const payload = ctx.trigger.payload;
     if (payload.branchPerTask === true) {
       return {
@@ -229,14 +229,14 @@ export async function resetBuilderWorkflowMocks(): Promise<void> {
       taskId: null,
     };
   });
-  vi.mocked(branch.createPullRequest).mockImplementation((ctx) => {
+  vi.mocked(branch.createPullRequest).mockImplementation(async (ctx) => {
     const payload = ctx.trigger.payload;
     if (payload.prError === true) {
       throw new Error("gh CLI is not available or not authenticated.");
     }
     return { prUrl: String(payload.prUrl ?? "https://github.com/example/repo/pull/1") };
   });
-  vi.mocked(branch.cleanupMergedBranches).mockImplementation((ctx) => {
+  vi.mocked(branch.cleanupMergedBranches).mockImplementation(async (ctx) => {
     const payload = ctx.trigger.payload;
     return {
       cleaned: Array.isArray(payload.cleanedBranches) ? payload.cleanedBranches : [],

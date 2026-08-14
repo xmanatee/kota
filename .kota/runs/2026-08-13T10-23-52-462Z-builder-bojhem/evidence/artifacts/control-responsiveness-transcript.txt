@@ -1,0 +1,145 @@
+Control-plane responsiveness acceptance transcript
+Run: 2026-08-13T10-23-52-462Z-builder-bojhem
+
+Command:
+pnpm test src/core/workflow/blocking-operation.test.ts src/daemon-control-workflow-responsiveness.integration.test.ts src/modules/daemon-ops/dashboard.test.ts src/modules/daemon-ops/dashboard-responsiveness.integration.test.ts
+
+Result:
+- 4 test files passed; 44 tests passed.
+- CPU-bound workflow duration: 1,866 ms.
+- Inline main-thread baseline /health latency: 699.986 ms.
+- Worker-boundary maximum control/CLI status latency: 1.002 ms (bound: 500 ms).
+- CLI live-status latency: 1.002 ms; daemon reported running with a fresh control address.
+- Event-loop maximum sampled delay during the worker candidate: 21 ms.
+- Three pause/resume cycles returned live paused=true/false state.
+- Terminal workflow status: success; worker output was present in canonical metadata.
+- Worker failure reached canonical failed metadata; a transient worker failure recovered to success with attempts=2; operator abort reached interrupted metadata.
+- Progress heartbeat forwarding and worker abort/error transport passed focused boundary tests.
+
+Dashboard fixture:
+- Queue size: 1,600 task records.
+- Stderr burst: 250 writes, coalesced to 1 frame.
+- Projection refresh count: 1; no overlapping refresh occurred.
+- Live /status latency: 2.106 ms (bound: 500 ms).
+- Daemon stop latency: 0.843 ms (bound: 500 ms).
+
+Additional validation:
+- 10 affected workflow/unit files passed; 145 tests passed.
+- Explorer, progress-reviewer, scope-improver, security-review, and task-validation tests: 158 of 159 passed. The sole failure is the current-repo tracked-task assertion because native workflow-host staging is intentionally deferred until the host repair phase; all 158 behavior tests passed.
+- TypeScript typecheck passed.
+- Production build passed.
+- Built JavaScript worker smoke test returned {"value":"dist-ok","blockedForMs":25}.
+- Strict-types, root-layout, and module-dependency guards passed (5 tests).
+- Relevant daemon handle/control/dashboard/recovery tests passed (115 tests).
+
+The full-repo lint command completed with warnings. The new blocking-operation warning was fixed; remaining warnings are pre-existing unused symbols in unrelated split test files.
+
+Recovery continuation validation (2026-08-13T11-49-21-496Z-builder-1clmsy):
+- The 4 acceptance files passed again: 44 tests passed.
+- CPU-bound workflow duration: 1,862 ms.
+- Inline main-thread baseline /health latency: 699.531 ms.
+- Worker-boundary maximum control/CLI status latency: 0.929 ms (bound: 500 ms).
+- Event-loop maximum sampled delay during the worker candidate: 3 ms.
+- Dashboard queue size: 1,600; 250 stderr writes coalesced to one frame and one projection refresh.
+- Dashboard live /status latency: 2.373 ms; daemon stop latency: 0.852 ms (bound: 500 ms).
+- Nineteen migrated workflow/core test files passed: 229 tests passed.
+- Six daemon handle/control/recovery/state test files passed: 133 tests passed.
+- Queue availability, strategic coverage, and task validation passed: 69 tests passed.
+- Task validation, TypeScript typecheck, production build, strict-types/root-layout/module-dependency guards (5 tests), changed-file Biome checks (50 files), and the built JavaScript worker smoke passed.
+- Full src lint completed with 96 pre-existing warnings in unrelated split test files; all 50 changed TypeScript files were clean.
+- A broader 20-file command passed 285 of 286 checks. The isolated failure is a repository-baseline test in src/workflow-step-executor.integration.test.ts that expects a direct AgentStepRuntimeError even though the unchanged repair-loop implementation now intentionally wraps that signal in RepairLoopError.agentBackoff. This task only adds the required runBlocking context stub to that test and does not alter the failing classification path.
+
+Recovery continuation validation (2026-08-14T04-31-59-044Z-builder-18pact):
+- The 4 acceptance files passed again: 44 tests passed.
+- CPU-bound workflow duration: 1,864 ms.
+- Inline main-thread baseline /health latency: 700.238 ms.
+- Worker-boundary maximum control/CLI status latency: 0.967 ms (bound: 500 ms).
+- Event-loop maximum sampled delay during the worker candidate: 22 ms.
+- Dashboard queue size: 1,600; 250 stderr writes coalesced to one frame and one projection refresh.
+- Dashboard live /status latency: 2.108 ms; daemon stop latency: 0.902 ms (bound: 500 ms).
+- Eighteen migrated workflow/core test files passed: 195 tests passed.
+- Six daemon handle/control/recovery/state test files passed: 131 tests passed.
+- Queue validation, task-file integrity, strict-types, root-layout, and module-dependency guards passed: 75 tests passed.
+- Task validation, TypeScript typecheck, production build, and changed-file Biome checks passed; all 50 changed TypeScript files were clean.
+- The built JavaScript worker smoke test returned {"value":"dist-ok","blockedForMs":25}. An initial eval-only smoke command was discarded because Node propagates --input-type=module to file-backed workers, which Node itself rejects; the production-shaped invocation without that eval-only flag passed.
+
+Post-check repair validation (2026-08-14):
+- Corrected repair-agent SDK error classification while preserving repair evidence, provider backoff, and the exact 100 ms idle-timeout metadata. Six focused repair/error-policy files passed: 108 tests passed.
+- Replaced the responsiveness fixture's raw fetch with the governed daemon-loopback outbound HTTP profile; the outbound fetch-policy guard passes.
+- Live responsiveness and repository guards passed together: 19 files and 381 tests. The CPU fixture ran for 1,887 ms while the maximum control/CLI latency was 0.906 ms against the 500 ms bound; sampled event-loop delay was 2 ms.
+- The dashboard fixture projected 1,600 tasks once, coalesced 250 stderr writes into one frame, and kept status/stop latency at 2.226/0.937 ms.
+- Documentation ratchets and the 8,000-byte instruction cap pass. Final sizes are 129 lines for core/workflow, 7,991 bytes for core/daemon, and 7,799 bytes for daemon-ops.
+- TypeScript typecheck, production build, task validation, and Biome over all 52 changed TypeScript files pass.
+- The final source-size scan reports only three advisory oversized files (security-review/workflow.ts, daemon-ops/dashboard.test.ts, and daemon-ops/index.ts), below the four-file severe threshold. No file grew by more than 150 lines and no warning overlaps the open run-executor cleanup task.
+- A full-suite diagnostic completed with 1,252 files and 12,545 tests passing. Its managed-sandbox failures were dominated by the unreadable protected runtime root, loopback-listen EPERM, and the explicitly denied Telegram env example; the two in-scope failures it exposed were fixed and reconfirmed by the focused green sets above.
+
+Post-check repair attempt 3 validation (2026-08-14):
+- Migrated remaining production Git/worktree, queue, calibration, escalation, progress-review, health-audit, and evidence inspections to the shared blocking-operation boundary or asynchronous Git status APIs.
+- Reworked the recovery fixture so the first workflow run fails canonically and a second run is triggered through the control API with retryOf. The successful run persists retryOf in live and run-store metadata, retains it in the trigger payload, and reports two actual marker-backed attempts.
+- Sixty-three migrated-workflow files passed 361 tests.
+- Seventeen control/runtime files passed 110 tests. The CPU fixture ran for 1,866 ms; its inline baseline was 699.415 ms and maximum control/CLI latency was 1.007 ms against the 500 ms bound, with 3 ms maximum sampled event-loop delay.
+- The dashboard fixture projected 1,600 tasks once, coalesced 250 stderr writes into one frame, and kept status/stop latency at 2.066/1.040 ms.
+- Strict-types, root-layout, task-file integrity, and module-dependency guards passed 10 tests across 4 files.
+- TypeScript typecheck, the production build, task validation, and changed-file Biome checks passed.
+
+Post-check repair attempt 4 validation (2026-08-14):
+- Preserved the initial runtime.idle event's durable journal ordering while moving its Git signature inspection off the event loop. Runtime shutdown now drains that inspection and the post-run worktree inspection before fixture or daemon teardown.
+- The two reported runtime/dead-letter regressions pass together with dirty-recovery coverage: 3 files and 61 tests.
+- Thirteen refactored autonomy workflow files pass 132 tests; the split dashboard files pass 34 tests; runtime lifecycle/dispatch and terminal semantics pass 19 tests.
+- The live blocking-operation control fixture passes 7 tests. Its 1,862 ms workflow kept maximum control/CLI latency at 0.880 ms against the 500 ms bound; three pause/resume cycles and canonical success/failure/recovery/abort metadata passed.
+- The dashboard projected 1,600 tasks once, coalesced 250 stderr writes into one frame, and kept status/stop latency at 2.024/0.803 ms.
+- TypeScript typecheck, production build, task validation, strict-types/root-layout/task-file/module-dependency guards, and Biome over all changed TypeScript files pass.
+- The touched source-size scan now reports only three advisory files (progress-reviewer/workflow.test.ts, daemon-ops/index.ts, and workflow-runtime.integration.test.ts), below the four-file severe threshold.
+- A full-suite diagnostic reached 1,256 passing files and 12,543 passing tests. Its remaining failures require capabilities denied to this managed sandbox: traversal of the protected temporary parent, loopback listeners, and the explicitly unreadable Telegram env example. The in-scope dead-letter cleanup race exposed during that diagnostic was fixed and reconfirmed by the focused green runtime set.
+
+Post-check repair attempt 5 validation (2026-08-14):
+- All synchronous autonomy commit preflight, terminal commit, and recovery reset calls now use definition-owned blocking operations. A source-policy guard prevents workflow definitions and repair checks from directly invoking those Git helpers.
+- A production commit-operation fixture ran a deliberately 250 ms Git hook in a worker while the main event loop continued ticking; the worker boundary, commit fixture, and policy guard passed 6/6 tests.
+- Twenty-two affected autonomy workflow files passed 215/215 tests.
+- The live control, terminal-semantics, and foreground-dashboard fixtures passed 3/3 tests. The CPU workflow ran for 1,865 ms; inline baseline latency was 699.950 ms and maximum worker-boundary control/CLI latency was 1.080 ms against the 500 ms bound.
+- The dashboard projected 1,600 tasks once, coalesced 250 stderr writes into one frame, served `/status` in 2.013 ms, and completed the real CLI stop backend path (authenticated `/status` -> recorded PID SIGTERM -> daemon signal handler) in 500.800 ms against a 1,000 ms end-to-end bound. Persisted stop reason was `sigterm`.
+- TypeScript typecheck, production build, task validation, focused Biome/diff checks, and strict-types/root-layout/task-file/module-dependency guards (10/10 tests) pass.
+
+Post-check repair attempt 7 validation (2026-08-14):
+- Moved the builder's recursive module-boundary inspection, both Git-backed source-size checks, and its documentation, hygiene, observability, and autonomy-decision staged-diff validators behind the shared workflow blocking-operation worker. Worker failures are unwrapped on the daemon side so repair warning/error payloads keep their prior content.
+- Extended the autonomy source-policy guard to reject direct production calls to those inspection helpers outside the worker implementation modules.
+- The builder repair-check suite and source-policy guard passed 24/24 tests; TypeScript typecheck and focused Biome checks passed.
+- The core blocking-operation and live control-responsiveness set passed 15/15 tests. A 1,862 ms blocking workflow operation kept maximum control latency at 0.878 ms and CLI status latency at 0.832 ms against the 500 ms bound, with 2 ms maximum sampled event-loop delay and three live pause/resume cycles.
+
+Post-check repair attempt 9 validation (2026-08-14):
+- Moved the security-review Git mutation baseline, due-target resolution, and recursive candidate scan into definition-owned worker operations; moved builder recovery worktree reconciliation through the same boundary.
+- Strengthened the source-policy guard to catch direct synchronous process, recursive repository, security-scan, and recovery-reconciliation calls from production code-step definitions.
+- Five focused worker/security/builder files passed 40/40 tests. This includes a real worker-thread fixture that loaded and executed both new security operations and the builder reconciliation operation against a temporary Git repository.
+- The source-size and repository-diagnostic set passed 12/12 tests. TypeScript typecheck, the production build, focused Biome, and diff whitespace validation passed.
+- The compiled JavaScript worker smoke returned {"baselinePaths":0,"scanCandidates":0,"reconciled":0} after loading and executing all three migrated descriptors from `dist/`.
+- An ad hoc CLI worker probe could not start because the managed sandbox denies the tsx CLI's IPC socket; the equivalent committed Vitest worker-thread fixture passed without an IPC side channel.
+
+Post-check repair attempt 11 validation (2026-08-14):
+- Moved scope-improver's full task-queue duplicate scan and canonical synchronous task staging behind the shared workflow blocking-operation boundary.
+- Strengthened the source-policy guard to reject direct production calls to the scope-improvement mutation helper, while allowing its definition-owned worker implementation.
+- The scope-improver and real-worker boundary suites passed 15/15 tests. The worker fixture executed the real queue scan and created and staged a task in a temporary Git repository.
+- The live control, terminal-semantics, and foreground-dashboard fixtures passed 3/3 tests. The CPU workflow ran for 1,865 ms; inline baseline latency was 700.174 ms and maximum worker-boundary control/CLI latency was 1.063 ms against the 500 ms bound, with 3 ms maximum sampled event-loop delay.
+- The dashboard projected 1,600 tasks once, coalesced 250 stderr writes into one frame, served `/status` in 2.091 ms, and completed the authenticated stop path in 503.702 ms against the 1,000 ms end-to-end bound.
+- TypeScript typecheck, production build, task validation, focused Biome, and diff whitespace validation passed.
+
+Post-check repair attempt 14 validation (2026-08-14):
+- Moved the builder merge gate's synchronous Git integration and `pnpm test` validation into serializable prepare/continue/finalize worker phases while keeping the bounded agent resolver daemon-coordinated between phases. Merged-worktree cleanup uses the same boundary.
+- Moved blocked-task promotion, owner-outcome mutation, and operator-capture mutation behind definition-owned workers. The owner-decision restart fixture now waits for the asynchronous move to finish rather than observing its transient destination write.
+- Focused merge-gate, conflict-resolution, builder, blocked-promoter, source-policy, and real-worker coverage passed 61/61 tests. The final broader Git/builder/blocked-promoter/control-terminal/dashboard set passed 367/367 tests.
+- The live CPU fixture ran for 1,864 ms while maximum control/CLI latency was 0.880 ms against the 500 ms bound, with three pause/resume cycles and canonical terminal metadata. The dashboard projected 1,600 tasks once, coalesced 250 stderr writes into one frame, served status in 2.136 ms, and completed authenticated stop in 503.198 ms against the 1,000 ms bound.
+- TypeScript, production build, task validation, strict-types, root-layout, focused Biome, and source-size validation passed. The final combined source-size scan retains three advisory legacy warnings, below the four-file severe threshold, with no file above the 150-line blocking-growth threshold.
+
+Post-check repair attempt 15 validation (2026-08-14):
+- Moved daily-digest run-history/task aggregation behind a definition-owned blocking operation and moved builder terminal Git/worktree inspection, reconciliation, claim mutation, port-lease persistence, and artifact writing behind a terminal-finalizer blocking operation.
+- Extended the terminal-finalizer runtime contract with the same typed `runBlocking` capability used by code steps. A deliberately 1,200 ms CPU-bound terminal finalizer served concurrent health, status, pause, and resume requests within the 500 ms control bound and preserved successful terminal step metadata.
+- Strengthened the source-policy guard against indirect daily-digest scans and inline terminal worktree reconciliation. The focused daily-digest, builder-finalizer, policy-boundary, and real-worker set passed 15/15 tests; the expanded live-control/runtime set passed 72/72 tests.
+- The live workflow fixture ran for 1,866 ms; its inline baseline was 699.475 ms and maximum control/CLI latency was 0.982 ms against the 500 ms bound, with 3 ms maximum sampled event-loop delay and three live pause/resume cycles.
+- The critical workflow/daemon/strict-types set passed 398/398 tests, and documentation/instruction-cap ratchets passed 210/210 tests with core workflow guidance held at its 129-line baseline. TypeScript typecheck, production build, task validation, full-source Biome with no errors (90 pre-existing unrelated warnings), changed-file Biome, and diff whitespace validation passed.
+
+Post-check repair attempt 18 validation (2026-08-14):
+- Moved the critic's remaining production blockers behind definition-owned workers: backlog task promotion, decomposer assessment/application/claim finalization, and recursive repo AI-check discovery. The same audit migrated dispatcher, research-retry, autonomy-health, builder recovery/claim/consistency/run-summary, security-finding, explorer-rationale, fan-out, and four escalation workflow repository paths.
+- Strengthened the source-policy guard to reject synchronous task/Git helpers plus recursive directory walks and synchronous subprocesses in uncatalogued indirect workflow helpers. A new real-worker fixture executes backlog mutation, decomposition, and recursive discovery concurrently while a host timer fires.
+- Twenty-one focused workflow, policy, and production-operation files passed 162/162 tests. Seven live-control, terminal-semantics, dashboard, and real-worker files passed 8/8 tests.
+- The 1,865 ms CPU workflow fixture recorded a 699.968 ms inline baseline and 0.911 ms maximum control latency against the 500 ms bound; CLI status completed in 0.887 ms, sampled event-loop delay peaked at 2 ms, and three pause/resume cycles remained live.
+- The dashboard projected 1,600 tasks once, coalesced 250 stderr writes into one frame, served status in 2.050 ms, and completed authenticated stop in 503.608 ms against its 1,000 ms bound.
+- Strict-types and 18/18 layout/module/task/source-size guards passed. TypeScript typecheck, production build, task validation, focused Biome over 192 files, and diff whitespace validation passed.

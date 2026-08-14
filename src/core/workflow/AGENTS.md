@@ -12,8 +12,7 @@ Owns workflow definitions, validation, execution, repair loops, and persisted ru
 - `buildOperatorQueuedRun` owns operator-trigger construction for every client
   path. Retry and replay preserve the source event and schema; lineage belongs
   in payload metadata and must not replace the semantic event.
-- Validation, retries, timeouts, dispatch windows, truncation, and notification
-  suppression belong in typed code and tests.
+- Validation, retries, timeouts, dispatch windows, truncation, and notification suppression belong in typed code and tests.
   Do not duplicate their exact fields, enum values, or event names in docs.
 - Cross-run retries may replay ordinary completed steps, but a completed code
   step that updates the workspace or runtime resources restarts the workflow;
@@ -23,6 +22,7 @@ Owns workflow definitions, validation, execution, repair loops, and persisted ru
   durable queued runs; a restart must preserve keyed redrives and pending work.
 - Hard step timeouts cap wall-clock runtime. Idle-progress timeouts cap gaps
   between trusted progress signals: code heartbeats or typed agent messages.
+- Potentially blocking code steps use `ctx.runBlocking`; repair checks adapt with `withWorkflowBlockingOperation(ctx)`, and terminal finalizers use their `runBlocking` for repository inspection, synchronous child processes, and reconciliation. The daemon owns worker abort, progress, and errors while lightweight work stays inline.
 - Agent steps receive a thin runtime envelope; expose prior output only when normal repo context and tools cannot recover it cheaply.
 - Repair-loop output accumulates initial and repair token usage, including on terminal failure, so run accounting reflects consumed quota.
 

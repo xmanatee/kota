@@ -1,23 +1,30 @@
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
+import { promisify } from "node:util";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
+import { getRepoWorktreeStatusAsync } from "#core/util/repo-worktree.js";
 import type { RepairCheckResult } from "./repair-loop-checks.js";
+
+const execFileAsync = promisify(execFile);
 
 export type RepairProgressSnapshot = {
   key: string;
   failureIds: string[];
 };
 
-function gitDiffAgainstHead(workspaceDir: string): string {
+async function gitDiffAgainstHead(workspaceDir: string): Promise<string> {
   try {
-    return execFileSync("git", ["diff", "--binary", "HEAD", "--"], {
+    const { stdout } = await execFileAsync(
+      "git",
+      ["diff", "--binary", "HEAD", "--"],
+      {
       cwd: workspaceDir,
       env: withProtectedGitBareRepositoryEnv(),
       encoding: "utf8",
       maxBuffer: 20 * 1024 * 1024,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+      },
+    );
+    return stdout;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return `git diff unavailable: ${message}`;
@@ -31,12 +38,12 @@ function repairFailureIdentity(failures: RepairCheckResult[]): string {
     .join("\0");
 }
 
-export function repairProgressSnapshot(
+export async function repairProgressSnapshot(
   workspaceDir: string,
   failures: RepairCheckResult[],
-): RepairProgressSnapshot {
-  const status = getRepoWorktreeStatus(workspaceDir);
-  const diff = status.available ? gitDiffAgainstHead(workspaceDir) : "";
+): Promise<RepairProgressSnapshot> {
+  const status = await getRepoWorktreeStatusAsync(workspaceDir);
+  const diff = status.available ? await gitDiffAgainstHead(workspaceDir) : "";
   const hash = createHash("sha256");
   hash.update(repairFailureIdentity(failures));
   hash.update("\0");
@@ -51,13 +58,12 @@ export function repairProgressSnapshot(
   };
 }
 
-export function stageWorkflowChangesForRepairChecks(
+export async function stageWorkflowChangesForRepairChecks(
   workspaceDir: string,
-): void {
-  if (!getRepoWorktreeStatus(workspaceDir).available) return;
-  execFileSync("git", ["add", "-A"], {
+): Promise<void> {
+  if (!(await getRepoWorktreeStatusAsync(workspaceDir)).available) return;
+  await execFileAsync("git", ["add", "-A"], {
     cwd: workspaceDir,
     env: withProtectedGitBareRepositoryEnv(),
-    stdio: ["ignore", "ignore", "pipe"],
   });
 }

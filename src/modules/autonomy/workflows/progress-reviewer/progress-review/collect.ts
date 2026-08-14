@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import type { EventJournal } from "#core/events/event-journal.js";
+import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import { cloneDeadLetterEvidence, cloneEvidenceItem, evidenceRefs } from "./agent-packet.js";
 import { listArtifactEvidence } from "./artifact-evidence.js";
@@ -202,3 +203,27 @@ export function collectProgressReviewEvidence(args: {
     excluded: aggregateExcluded(scopes),
   };
 }
+
+export type ProgressReviewEvidenceOperationInput = {
+  projectDir: string;
+  stateDir: string;
+  trigger: WorkflowRunTrigger;
+  nowIso: string;
+};
+
+export function collectProgressReviewEvidenceInWorker(
+  input: ProgressReviewEvidenceOperationInput,
+): ProgressReviewEvidencePacket {
+  return collectProgressReviewEvidence({
+    projectDir: input.projectDir,
+    stateDir: input.stateDir,
+    trigger: input.trigger,
+    now: new Date(input.nowIso),
+  });
+}
+
+export const collectProgressReviewEvidenceOperation =
+  defineWorkflowBlockingOperation<
+    ProgressReviewEvidenceOperationInput,
+    ProgressReviewEvidencePacket
+  >(import.meta.url, "collectProgressReviewEvidenceInWorker");

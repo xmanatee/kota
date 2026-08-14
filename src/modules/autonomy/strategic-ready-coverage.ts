@@ -1,3 +1,4 @@
+import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import {
   assertStrategicReadyCoverage,
   hasStrategicReadyCoverageGap,
@@ -44,3 +45,19 @@ export function assertClaimAwareStrategicReadyCoverage(
     strategicReadyCoverageOptionsForClaimAwareQueue(queue),
   );
 }
+
+export function inspectClaimAwareStrategicReadyCoverage(input: {
+  projectDir: string;
+  nowIso?: string;
+}): string {
+  return assertClaimAwareStrategicReadyCoverage(
+    input.projectDir,
+    input.nowIso === undefined ? new Date() : new Date(input.nowIso),
+  );
+}
+
+export const claimAwareStrategicReadyCoverageOperation =
+  defineWorkflowBlockingOperation<
+    { projectDir: string; nowIso?: string },
+    string
+  >(import.meta.url, "inspectClaimAwareStrategicReadyCoverage");

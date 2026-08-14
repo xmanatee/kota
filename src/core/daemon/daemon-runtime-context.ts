@@ -13,6 +13,7 @@ import type { DaemonControlHandle } from "./daemon-control-types.js";
 import type { DaemonLogger } from "./daemon-logger.js";
 import type { DaemonState } from "./daemon-state.js";
 import type { DaemonStateRoot } from "./daemon-state-root.js";
+import type { DaemonEventLoopLatencyMonitor } from "./event-loop-latency.js";
 import type { ProjectRuntimeRegistry } from "./project-runtime.js";
 import type { ScopeAuthorityOperatorTokenVerifier } from "./scope-authority-operator-token.js";
 import type { ScopeAuthorityService } from "./scope-authority-service.js";
@@ -43,6 +44,7 @@ export type DaemonRuntimeContext = {
   readonly projectRuntimes: ProjectRuntimeRegistry;
   readonly scopeLifecycle: ScopeLifecycleService;
   readonly scopeRuntimeHost: ScopeRuntimeHost;
+  readonly eventLoopLatency: DaemonEventLoopLatencyMonitor;
   unsubscribe: (() => void) | null;
   sessionSweepTimer: ReturnType<typeof setInterval> | null;
   healthCheckTimer: ReturnType<typeof setInterval> | null;

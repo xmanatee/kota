@@ -1,4 +1,3 @@
-import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
@@ -9,11 +8,8 @@ import {
   AUTONOMY_AGENT_DEFAULTS,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
-import {
-  discoverRepoAiChecks,
-  RepoAiCheckDiscoveryError,
-} from "#modules/repo-ai-checks/discovery.js";
 import { repoAiChecksCompletedEvent } from "#modules/repo-ai-checks/events.js";
+import { discoverRepoAiChecksOperation } from "./blocking-operations.js";
 import {
   assessPr,
   type DiscoveredCheckRun,
@@ -31,7 +27,6 @@ import {
   boundedCommentBody,
   githubCommentInput,
   summarizeCheckResults,
-  writeJsonArtifact,
 } from "./workflow-results.js";
 
 export type {
@@ -71,50 +66,12 @@ const discoverChecks = typedCodeStep<DiscoveredCheckRun>({
     if (assessment.skip) throw new Error("cannot discover repo AI checks for a skipped PR");
     const artifactDir = join(ctx.workflow.runDir, "repo-ai-checks");
     const artifactDirPath = join(ctx.workflow.runDirPath, "repo-ai-checks");
-    mkdirSync(artifactDirPath, { recursive: true });
-
-    if (!existsSync(ctx.projectDir)) {
-      const skipped: DiscoveredCheckRun = {
-        ...assessment,
-        skip: true,
-        skipReason: "trusted base project checkout is unavailable",
-        artifactDir,
-        checks: [],
-        diagnostics: [],
-      };
-      writeJsonArtifact(join(artifactDirPath, "discovery.json"), skipped);
-      return skipped;
-    }
-
-    let discovery: ReturnType<typeof discoverRepoAiChecks>;
-    try {
-      discovery = discoverRepoAiChecks(ctx.projectDir);
-    } catch (error) {
-      if (error instanceof RepoAiCheckDiscoveryError) throw error;
-      const message = error instanceof Error ? error.message : String(error);
-      const skipped: DiscoveredCheckRun = {
-        ...assessment,
-        skip: true,
-        skipReason: `trusted base check discovery is unavailable: ${message}`,
-        artifactDir,
-        checks: [],
-        diagnostics: [],
-      };
-      writeJsonArtifact(join(artifactDirPath, "discovery.json"), skipped);
-      return skipped;
-    }
-    const output: DiscoveredCheckRun = {
-      ...assessment,
-      skip: discovery.checks.length === 0,
-      ...(discovery.checks.length === 0
-        ? { skipReason: "no repo-local AI check files discovered" }
-        : {}),
+    return ctx.runBlocking(discoverRepoAiChecksOperation, {
+      projectDir: ctx.projectDir,
       artifactDir,
-      checks: discovery.checks,
-      diagnostics: discovery.diagnostics,
-    };
-    writeJsonArtifact(join(artifactDirPath, "discovery.json"), output);
-    return output;
+      artifactDirPath,
+      assessment,
+    });
   },
 });
 

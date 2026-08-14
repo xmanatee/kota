@@ -1,13 +1,9 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { withWorkflowBlockingOperation } from "#core/workflow/blocking-operation-context.js";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
 import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
 import {
   type AgentJudgeConfig,
-  getChangedFiles,
-  getStagedDiff,
-  getStagedDiffContent,
   handleVerdict,
   invokeAgentJudge,
   isJudgeRunawayError,
@@ -15,7 +11,7 @@ import {
   parseVerdict,
   resolveAgentJudgeRunContract,
 } from "./critic.js";
-import { fileLineCitationsFromUnifiedDiff } from "./review-scrutiny-citations.js";
+import { improverSemanticInspectionOperation } from "./review-input-operations.js";
 
 const GATE_MAX_TURNS = 10;
 const ARTIFACT_NAME = "semantic-gate-review.json";
@@ -90,12 +86,6 @@ function resolveSemanticGateJudgeConfig(
   };
 }
 
-function readCommitMessage(runDirPath: string): string {
-  const path = join(runDirPath, "commit-message.txt");
-  if (!existsSync(path)) return "(no commit message found)";
-  return readFileSync(path, "utf8").trim();
-}
-
 export function createImproverSemanticCheck(
   options?: ImproverSemanticCheckOptions,
 ): WorkflowRepairCheck {
@@ -108,17 +98,21 @@ export function createImproverSemanticCheck(
       ),
     run: async (ctx, parentStep) => {
       const gateConfig = resolveSemanticGateJudgeConfig(parentStep, options);
-      const diffStat = getStagedDiff(ctx.projectDir);
-      const changedFiles = getChangedFiles(ctx.projectDir);
-
-      if (!changedFiles.trim()) {
+      const runDir = options?.runDirPath ?? ctx.workflow.runDirPath;
+      const inspection = await withWorkflowBlockingOperation(ctx).runBlocking(
+        improverSemanticInspectionOperation,
+        { projectDir: ctx.projectDir, runDirPath: runDir },
+      );
+      if (inspection.status === "no-changes") {
         return "OK: no staged changes — skipping semantic gate";
       }
-
-      const diffContent = getStagedDiffContent(ctx.projectDir);
-      const runDir = options?.runDirPath ?? ctx.workflow.runDirPath;
-      const commitMessage = readCommitMessage(runDir);
-      const fallbackFileLineCitations = fileLineCitationsFromUnifiedDiff(diffContent);
+      const {
+        changedFiles,
+        diffStat,
+        diffContent,
+        commitMessage,
+        fallbackFileLineCitations,
+      } = inspection;
       const verdictContext = {
         runId: ctx.workflow.runId,
         workflow: ctx.workflow.name,

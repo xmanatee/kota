@@ -286,15 +286,8 @@ export type DeadLetterQueueMutationResult =
   | { ok: true; item: DeadLetterItem; runId?: string; workflowName?: string; event?: string }
   | { ok: false; reason: "not_found" | "not_redrivable" | "unknown_workflow" };
 
-export type ComponentStatus = "ok" | "error";
-
-export type ModuleHealthCheckResult = {
-  status: "healthy" | "degraded" | "unhealthy";
-  message?: string;
-};
-
-export type HealthStatus = {
-  scheduler: ComponentStatus;
-  modules: ComponentStatus;
-  moduleHealthChecks?: Record<string, ModuleHealthCheckResult>;
-};
+export type {
+  ComponentStatus,
+  HealthStatus,
+  ModuleHealthCheckResult,
+} from "./daemon-health-types.js";

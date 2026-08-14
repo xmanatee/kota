@@ -33,6 +33,10 @@ vi.mock("node:child_process", async () => {
 });
 
 import { createCriticCheck } from "#modules/autonomy/critic.js";
+import {
+  type CriticReviewInspectionInput,
+  inspectCriticReviewInWorker,
+} from "#modules/autonomy/review-input-operations.js";
 import "../claude-agent-harness/index.js";
 import "./index.js";
 import { executeAgentStep } from "#core/workflow/steps/step-executor-agent.js";
@@ -225,6 +229,10 @@ describe("autonomy agent steps and judges on openai-tools", () => {
         trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
         stepOutputs: {},
         stepResults: {},
+        runBlocking: async (
+          _operation: { exportName: string },
+          input: CriticReviewInspectionInput,
+        ) => inspectCriticReviewInWorker(input),
         runTool: vi.fn(),
         runAgentHarness: createWorkflowAgentHarnessRunner(undefined),
         emit: vi.fn(),

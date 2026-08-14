@@ -1,5 +1,6 @@
 import type { KotaConfig } from "#core/config/config.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import type { WorkflowBlockingOperationRunner } from "./blocking-operation.js";
 import type { WorkflowRunMetadata } from "./run-types.js";
 import type { WorkflowNotifyConfig } from "./step-input-base.js";
 import type { WorkflowStepInput } from "./step-input-types.js";
@@ -105,7 +106,7 @@ export type WorkflowDefinitionInput = {
   steps: WorkflowStepInput[];
 };
 
-export type WorkflowTerminalFinalizerInput = {
+export type WorkflowTerminalFinalizerInput = WorkflowBlockingOperationRunner & {
   projectDir: string;
   workspaceDir: string;
   metadata: WorkflowRunMetadata;

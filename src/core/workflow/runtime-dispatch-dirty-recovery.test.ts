@@ -133,7 +133,7 @@ describe("handleDirtyCompletion", () => {
     }
   });
 
-  it("pauses dispatch when a run starts and ends on the same dirty fingerprint", () => {
+  it("pauses dispatch when a run starts and ends on the same dirty fingerprint", async () => {
     const projectDir = makeProjectDir();
     dirs.push(projectDir);
     const preRunFingerprint = getRepoWorktreeStatus(projectDir).fingerprint;
@@ -145,7 +145,12 @@ describe("handleDirtyCompletion", () => {
       logs,
     } = makeState(projectDir);
 
-    handleDirtyCompletion(state, makeDefinition(), makeMetadata(), preRunFingerprint);
+    await handleDirtyCompletion(
+      state,
+      makeDefinition(),
+      makeMetadata(),
+      preRunFingerprint,
+    );
 
     expect(state.dispatchPaused).toBe(true);
     expect(getQueuedRuns()).toEqual([pendingRun]);
@@ -160,7 +165,7 @@ describe("handleDirtyCompletion", () => {
     expect(logs.join("\n")).toContain("already dirty before");
   });
 
-  it("attributes dirty recovery to workspaceDir while canonical projectDir stays clean", () => {
+  it("attributes dirty recovery to workspaceDir while canonical projectDir stays clean", async () => {
     const projectDir = makeCleanProjectDir();
     const workspaceDir = makeCleanProjectDir();
     dirs.push(projectDir, workspaceDir);
@@ -173,7 +178,12 @@ describe("handleDirtyCompletion", () => {
       workspaceDir,
     );
 
-    handleDirtyCompletion(state, makeDefinition(), makeMetadata(), "clean-before-run");
+    await handleDirtyCompletion(
+      state,
+      makeDefinition(),
+      makeMetadata(),
+      "clean-before-run",
+    );
 
     expect(projectStatus.trackedDirty).toBe(false);
     expect(state.dispatchPaused).toBe(true);
@@ -194,14 +204,19 @@ describe("handleDirtyCompletion", () => {
     );
   });
 
-  it("attributes an untracked file to the workflow that introduced it", () => {
+  it("attributes an untracked file to the workflow that introduced it", async () => {
     const projectDir = makeCleanProjectDir();
     dirs.push(projectDir);
     const preRunFingerprint = getRepoWorktreeStatus(projectDir).fingerprint;
     writeFileSync(join(projectDir, "untracked.txt"), "preserve me\n");
     const { state, getRecovery, emit } = makeState(projectDir);
 
-    handleDirtyCompletion(state, makeDefinition(), makeMetadata(), preRunFingerprint);
+    await handleDirtyCompletion(
+      state,
+      makeDefinition(),
+      makeMetadata(),
+      preRunFingerprint,
+    );
 
     expect(getRecovery()).toMatchObject({
       sourceRunId: "run-builder",
@@ -218,7 +233,7 @@ describe("handleDirtyCompletion", () => {
     );
   });
 
-  it("pauses dispatch when an existing recovery fingerprint is still dirty", () => {
+  it("pauses dispatch when an existing recovery fingerprint is still dirty", async () => {
     const projectDir = makeProjectDir();
     dirs.push(projectDir);
     const preRunFingerprint = getRepoWorktreeStatus(projectDir).fingerprint;
@@ -244,7 +259,12 @@ describe("handleDirtyCompletion", () => {
       "retry-run",
     );
 
-    handleDirtyCompletion(state, makeDefinition(), makeMetadata("retry-run"), preRunFingerprint);
+    await handleDirtyCompletion(
+      state,
+      makeDefinition(),
+      makeMetadata("retry-run"),
+      preRunFingerprint,
+    );
 
     expect(state.dispatchPaused).toBe(true);
     expect(getQueuedRuns()).toEqual([pendingRun]);

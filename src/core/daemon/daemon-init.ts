@@ -27,6 +27,7 @@ import type {
   BuildDaemonInitParams,
   DaemonRuntimeContext,
 } from "./daemon-runtime-context.js";
+import { DaemonEventLoopLatencyMonitor } from "./event-loop-latency.js";
 import {
   WORKFLOW_METRICS_SOURCE_PROVIDER_TYPE,
   type WorkflowMetricsSource,
@@ -65,6 +66,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     projectRuntimes,
   } = params;
   const sessions = new Map<string, InteractiveSession>();
+  const eventLoopLatency = new DaemonEventLoopLatencyMonitor();
 
   // Closures inside the handle and provider seams reference `ctx` — they
   // resolve lazily when invoked, so the variable is fully assigned before
@@ -158,6 +160,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     log,
     getModuleSummaries: () => config.getModuleSummaries?.() ?? [],
     getModuleHealthChecks: () => ctx.moduleHealthChecks,
+    getEventLoopLatency: () => ctx.eventLoopLatency.snapshot(),
     probeCapabilityReadiness: () => probeCapabilityReadinessWithTrigger(getDefaultWorkflows()),
     getChannelStatuses: () => ctx.channelStatuses,
   });
@@ -270,6 +273,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     projectRuntimes,
     scopeLifecycle,
     scopeRuntimeHost,
+    eventLoopLatency,
     unsubscribe: null,
     sessionSweepTimer: null,
     healthCheckTimer: null,

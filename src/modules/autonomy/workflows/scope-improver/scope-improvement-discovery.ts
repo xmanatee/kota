@@ -6,6 +6,7 @@ import {
 import { join } from "node:path";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import {
   WORKFLOW_BATCH_FLUSH_EVENT,
   type WorkflowRunTrigger,
@@ -197,6 +198,28 @@ export function collectScopeImprovementInputs(args: {
     throttle: throttleDecision(config, state, files, args.now),
   };
 }
+
+export type ScopeImprovementInputCollectionRequest = {
+  projectDir: string;
+  trigger: WorkflowRunTrigger;
+  nowIso: string;
+};
+
+export function collectScopeImprovementInputsInWorker(
+  request: ScopeImprovementInputCollectionRequest,
+): ScopeImprovementInputs {
+  return collectScopeImprovementInputs({
+    projectDir: request.projectDir,
+    trigger: request.trigger,
+    now: new Date(request.nowIso),
+  });
+}
+
+export const collectScopeImprovementInputsOperation =
+  defineWorkflowBlockingOperation<
+    ScopeImprovementInputCollectionRequest,
+    ScopeImprovementInputs
+  >(import.meta.url, "collectScopeImprovementInputsInWorker");
 
 export function discoverScopeImprovementCandidates(
   inputs: ScopeImprovementInputs,

@@ -1,3 +1,4 @@
+import { withWorkflowBlockingOperation } from "#core/workflow/blocking-operation-context.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import type { TypedCodeStepInput } from "#core/workflow/step-input-code.js";
 import type {
@@ -5,7 +6,7 @@ import type {
 } from "#modules/autonomy/shadow-semantic-review.js";
 import {
   createShadowSemanticReviewStep,
-  workflowMutationArtifacts,
+  shadowSemanticReviewTargetOperation,
 } from "#modules/autonomy/shadow-semantic-review.js";
 import type { ShadowSemanticReviewTargetResolution } from "#modules/autonomy/shadow-semantic-review-types.js";
 import { stepSucceeded } from "#modules/autonomy/shared.js";
@@ -65,13 +66,13 @@ export function createResearchRetryShadowReviewStep(args: {
   });
 }
 
-function resolveResearchRetryShadowTarget(
+async function resolveResearchRetryShadowTarget(
   ctx: WorkflowStepContext,
   steps: {
     inspectCandidates: TypedCodeStepInput<InspectResult>;
     markAttempt: TypedCodeStepInput<MarkAttemptResult>;
   },
-): ShadowSemanticReviewTargetResolution {
+): Promise<ShadowSemanticReviewTargetResolution> {
   const inspection = steps.inspectCandidates.output(ctx);
   if (!inspection?.candidate) {
     return {
@@ -87,6 +88,13 @@ function resolveResearchRetryShadowTarget(
       citedArtifacts: ["metadata:retry"],
     };
   }
+  const mutationArtifacts = await withWorkflowBlockingOperation(ctx).runBlocking(
+    shadowSemanticReviewTargetOperation,
+    {
+      kind: "workflow-mutations",
+      projectDir: ctx.workspaceDir ?? ctx.projectDir,
+    },
+  );
   return {
     kind: "target",
     target: {
@@ -108,7 +116,7 @@ function resolveResearchRetryShadowTarget(
           path: "metadata:mark-attempt",
           content: JSON.stringify(steps.markAttempt.output(ctx) ?? null, null, 2),
         },
-        ...workflowMutationArtifacts(ctx.workspaceDir ?? ctx.projectDir),
+        ...mutationArtifacts,
       ],
     },
   };

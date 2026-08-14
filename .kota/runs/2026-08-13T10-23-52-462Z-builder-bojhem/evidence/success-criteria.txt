@@ -1,0 +1,6 @@
+1. A deliberately CPU-blocking workflow operation executes outside the daemon event loop while health, live status, pause, and resume requests repeatedly complete within the fixture's documented latency bound.
+2. Queue and repository inspections used by production workflow code run through the shared blocking-operation boundary or asynchronous APIs, without changing ordinary lightweight code-step authoring.
+3. The foreground dashboard renders a cached task projection, coalesces stderr bursts, and never performs overlapping expensive snapshot refreshes.
+4. The CLI status path remains live during the blocking fixture, and pause/resume updates the daemon-owned workflow state without persisted-state fallback.
+5. Worker success, failure, progress, timeout/abort, and workflow terminal metadata remain observable through the existing run record and response evidence.
+6. Focused integration evidence records bounded control latency, correct terminal workflow state, dashboard refresh bounds, and passing validation.

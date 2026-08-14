@@ -1,32 +1,29 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
+import { withWorkflowBlockingOperation } from "#core/workflow/blocking-operation-context.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import {
   onNormalTrigger,
   onRecoveryTrigger,
-  resetWorktreeForRecovery,
+  resetWorktreeForRecoveryOperation,
 } from "#modules/autonomy/recovery.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
-  checkCommitMessageExists,
-  checkNoScratchArtifacts,
   runCheck,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
-import { listResearchRetryCandidates, type ResearchRetryCandidate } from "./candidates.js";
 import {
-  checkResearchRetryCapability,
-  evaluateCandidate,
-  type MarkAttemptResult,
-  writeMarkerForCandidate,
-} from "./precondition.js";
+  workflowCommitCheckOperation,
+  workflowCommitOperation,
+} from "#modules/autonomy/workflow-commit-operations.js";
 import {
-  type CandidateSummary,
+  inspectResearchRetryCandidatesOperation,
+  markResearchRetryAttemptOperation,
+} from "./blocking-operations.js";
+import type { MarkAttemptResult } from "./precondition.js";
+import {
   createResearchRetryShadowReviewStep,
-  type ExaminedCandidate,
   type InspectResult,
 } from "./shadow-review.js";
 
@@ -39,14 +36,6 @@ export const agent: AgentDef = {
   skills: "all",
   writeScope: ["data/tasks/", "data/inbox/"],
 };
-
-function summarizeCandidate(candidate: ResearchRetryCandidate): CandidateSummary {
-  return {
-    id: candidate.id,
-    updatedAt: candidate.updatedAt,
-    urls: candidate.urls,
-  };
-}
 
 const inspectCandidates = typedCodeStep<InspectResult>({
   id: "inspect-candidates",
@@ -63,48 +52,8 @@ const inspectCandidates = typedCodeStep<InspectResult>({
       "marker",
       "examined",
     ]),
-  run: ({ projectDir }) => {
-    const worktree = getRepoWorktreeStatus(projectDir);
-    const dirty = worktree.available && worktree.dirty;
-    const capability = checkResearchRetryCapability(projectDir);
-    const candidates = listResearchRetryCandidates(projectDir);
-
-    const examined: ExaminedCandidate[] = [];
-    for (const candidate of candidates) {
-      const evaluation = evaluateCandidate({
-        urls: candidate.urls,
-        body: candidate.body,
-        capability,
-      });
-      if (evaluation.skipReason === null) {
-        return {
-          dirty,
-          candidateCount: candidates.length,
-          capability,
-          candidate: summarizeCandidate(candidate),
-          fingerprint: evaluation.fingerprint,
-          marker: evaluation.marker,
-          examined,
-        };
-      }
-      examined.push({
-        id: candidate.id,
-        fingerprint: evaluation.fingerprint,
-        marker: evaluation.marker,
-        skipReason: evaluation.skipReason,
-      });
-    }
-
-    return {
-      dirty,
-      candidateCount: candidates.length,
-      capability,
-      candidate: null,
-      fingerprint: null,
-      marker: null,
-      examined,
-    };
-  },
+  run: ({ projectDir, runBlocking }) =>
+    runBlocking(inspectResearchRetryCandidatesOperation, { projectDir }),
 });
 
 const markAttempt = typedCodeStep<MarkAttemptResult>({
@@ -123,7 +72,7 @@ const markAttempt = typedCodeStep<MarkAttemptResult>({
     if (!inspection.candidate) {
       return { written: false, reason: "no candidate selected" };
     }
-    return writeMarkerForCandidate({
+    return ctx.runBlocking(markResearchRetryAttemptOperation, {
       projectDir: ctx.projectDir,
       candidateId: inspection.candidate.id,
     });
@@ -156,9 +105,9 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
       id: "reset-for-recovery",
       type: "code",
       when: onRecoveryTrigger,
-      run: ({ projectDir }) =>
-        resetWorktreeForRecovery({
-          projectDir,
+      run: (ctx) =>
+        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
+          projectDir: ctx.projectDir,
           workflowName: "research-retry",
           restoreBaseBranch: true,
         }),
@@ -191,17 +140,30 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
           {
             id: "no-scratch-artifacts",
             type: "code" as const,
-            run: (ctx) => checkNoScratchArtifacts(ctx.projectDir),
+            run: (ctx) =>
+              withWorkflowBlockingOperation(ctx).runBlocking(workflowCommitCheckOperation, {
+                kind: "scratch-artifacts",
+                projectDir: ctx.projectDir,
+              }),
           },
           {
             id: "commit-message-exists",
             type: "code" as const,
-            run: (ctx) => checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir),
+            run: (ctx) =>
+              withWorkflowBlockingOperation(ctx).runBlocking(workflowCommitCheckOperation, {
+                kind: "commit-message",
+                projectDir: ctx.projectDir,
+                runDirPath: ctx.workflow.runDirPath,
+              }),
           },
           {
             id: "commit-stageable",
             type: "code" as const,
-            run: (ctx) => checkCommitStageable(ctx.projectDir),
+            run: (ctx) =>
+              withWorkflowBlockingOperation(ctx).runBlocking(workflowCommitCheckOperation, {
+                kind: "commit-stageable",
+                projectDir: ctx.projectDir,
+              }),
           },
         ],
       },
@@ -212,7 +174,11 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
       id: "commit",
       type: "code",
       when: stepSucceeded("retry"),
-      run: ({ projectDir, workflow }) => commitWorkflowChanges(projectDir, workflow.runDirPath),
+      run: (ctx) =>
+        ctx.runBlocking(workflowCommitOperation, {
+          projectDir: ctx.projectDir,
+          runDirPath: ctx.workflow.runDirPath,
+        }),
     },
   ],
 };

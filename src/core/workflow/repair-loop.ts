@@ -135,11 +135,11 @@ export async function runAgentRepairLoop(
     });
   }
 
-  stageWorkflowChangesForRepairChecks(workspaceDir);
+  await stageWorkflowChangesForRepairChecks(workspaceDir);
   const { failures: initialFailures, warnings: initialWarnings } = await runChecksPhased(checks, context, step);
   let failures = initialFailures;
   warnings = initialWarnings;
-  let previousProgress = repairProgressSnapshot(workspaceDir, failures);
+  let previousProgress = await repairProgressSnapshot(workspaceDir, failures);
   let noProgressAttempts = 0;
 
   for (let attempt = 1; failures.length > 0 && (maxRepairAttempts === undefined || attempt <= maxRepairAttempts); attempt++) {
@@ -247,13 +247,13 @@ export async function runAgentRepairLoop(
 
     if (abortController.signal.aborted) break;
 
-    stageWorkflowChangesForRepairChecks(workspaceDir);
+    await stageWorkflowChangesForRepairChecks(workspaceDir);
     const phased = await runChecksPhased(checks, context, step);
     failures = phased.failures;
     warnings = phased.warnings;
 
     if (failures.length > 0) {
-      const progress = repairProgressSnapshot(workspaceDir, failures);
+      const progress = await repairProgressSnapshot(workspaceDir, failures);
       if (progress.key === previousProgress.key) {
         noProgressAttempts += 1;
       } else {

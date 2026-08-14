@@ -1,7 +1,17 @@
 import type { AgentWriteScope } from "#core/agents/agent-types.js";
 import type { RepairCheckResult } from "./repair-loop-checks.js";
-import type { WorkflowRepairErrorKind } from "./run-types.js";
-import type { AgentStepRuntimeError } from "./steps/step-executor-retry.js";
+import type {
+  WorkflowRepairErrorKind,
+  WorkflowStepErrorKind,
+} from "./run-types.js";
+import {
+  AGENT_STEP_RUNTIME_ERROR,
+  installAgentStepRuntimeErrorBrand,
+} from "./steps/agent-step-runtime-error-brand.js";
+import { AgentStepRuntimeError } from "./steps/step-executor-retry.js";
+import type { WorkflowAgentBackoffKind } from "./trigger-types.js";
+
+installAgentStepRuntimeErrorBrand(AgentStepRuntimeError);
 
 export type RepairIteration = {
   attempt: number;
@@ -32,8 +42,11 @@ export type ScopedRepairAgent = {
 };
 
 export class RepairLoopError extends Error {
+  [AGENT_STEP_RUNTIME_ERROR]: boolean;
+  private stepRuntimeKind: WorkflowAgentBackoffKind | undefined;
+
   constructor(
-    readonly kind: WorkflowRepairErrorKind | undefined,
+    readonly repairKind: WorkflowRepairErrorKind | undefined,
     readonly stepId: string,
     readonly failureIds: string[],
     readonly output: RepairLoopFailureOutput,
@@ -42,5 +55,24 @@ export class RepairLoopError extends Error {
   ) {
     super(message);
     this.name = "RepairLoopError";
+    this[AGENT_STEP_RUNTIME_ERROR] = false;
+  }
+
+  get kind(): WorkflowStepErrorKind | undefined {
+    return this.repairKind ?? this.stepRuntimeKind;
+  }
+
+  get retryable(): boolean | undefined {
+    return this.stepRuntimeKind === undefined
+      ? undefined
+      : this.agentBackoff?.retryable;
+  }
+
+  asAgentStepRuntimeError(): this {
+    if (this.repairKind === undefined && this.agentBackoff !== undefined) {
+      this.stepRuntimeKind = this.agentBackoff.kind;
+      this[AGENT_STEP_RUNTIME_ERROR] = true;
+    }
+    return this;
   }
 }

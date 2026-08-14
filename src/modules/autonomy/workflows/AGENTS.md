@@ -33,6 +33,9 @@ Timeouts, trigger validation, dirty recovery, commit prevention, and repair
 checks are runtime rails, not prompt policy. Keep code typed and prompts role-
 focused. Commit prevention lives at the SDK `canUseTool` boundary. Its guards
 use bare `deny`; `interrupt: true` aborts the session and discards progress.
+Synchronous Git commit preflight, terminal commit, and recovery reset helpers
+run through definition-owned blocking operations; workflow steps and repair
+checks must not invoke those helpers directly on the daemon event loop.
 
 Every workflow that calls `commitWorkflowChanges` must also wire
 `checkCommitStageable` into its repair loop. The terminal commit step's

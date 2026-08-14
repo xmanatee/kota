@@ -1,11 +1,11 @@
 # Eval Harness Module
 
-This module hosts KOTA's autonomy eval harness: scoring, regression gating,
-and fixture execution. CLI, HTTP, and cadence share one path.
+Owns autonomy eval scoring, regression gates, and fixture execution. CLI,
+HTTP, and cadence share one path.
 
 ## Infrastructure Noise Rule
 
-Resource config can swing scores past model-ranking gaps, so fixture runs carry:
+Resource config can outweigh model-ranking gaps, so fixture runs carry:
 
 - **Resource profile** — host class; CPU allocation/kill threshold; matching memory.
 - **Execution preflight** — backend, requested/observed/enforced profile,
@@ -16,13 +16,12 @@ Resource config can swing scores past model-ranking gaps, so fixture runs carry:
 
 ## Pass@k vs Pass^k
 
-The harness reports `pass@k` (fixtures with any successful run, capability) and
-`pass^k` (fixtures whose every run passed, consistency). Gate on `pass^k` and
-track capability on `pass@k`.
+`pass@k` means any repeat passed (capability); `pass^k` means every repeat
+passed (consistency). Gate on `pass^k`; track capability on `pass@k`.
 
 ## Regression Gate Threshold
 
-A candidate change is gated only when all of the following hold:
+A candidate is gated only when:
 
 1. `pass^k` drops beyond the calibrated noise band.
 2. Both runs used the same `k`, at or above the gating minimum.
@@ -152,17 +151,18 @@ allowlist proxy chains to the container provider proxy, never public addresses.
 
 ## Fixture Candidate Mining
 
-Candidate mining is advisory: `kota eval fixture-candidates` writes bounded
-JSON/Markdown from local `.kota/runs/` with rejection codes, but never creates
-fixtures or affects pass@k/pass^k.
+`kota eval fixture-candidates` mines bounded advisory JSON/Markdown from local
+runs. It never creates fixtures or affects pass@k/pass^k.
 
 ## Boundaries
 
 - Scoring, runner contracts, gates, and cadence baseline live in this module.
+- Cadence discovery, materialization, subprocesses, persistence, and artifact
+  writes use daemon-owned blocking operations; workflows emit their results.
 - No parallel metrics store: use typed completion/regression events, run
   artifacts, and one baseline row.
 - No cost signals leak into agent-facing context (autonomy rule).
 - Fixture workspaces use the OS tmpdir; auth stays behind the adapter's
   non-secret locator.
-- Replay is module-owned and swaps through the standard harness registry/env seam;
-  do not add fixture mocks under `src/core/agent-harness/`.
+- Replay uses the standard harness registry/env seam; keep fixture mocks out of
+  `src/core/agent-harness/`.

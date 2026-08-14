@@ -3,6 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createImproverSemanticCheck } from "./improver-semantic-gate.js";
+import {
+  type ImproverSemanticInspectionInput,
+  inspectImproverSemanticReviewInWorker,
+} from "./review-input-operations.js";
 
 const mockRunAgentHarness = vi.hoisted(() => vi.fn());
 const mockResolveAgentHarness = vi.hoisted(() =>
@@ -21,6 +25,17 @@ const mockCreateWorkflowAgentGuards = vi.hoisted(
   () => vi.fn(() => vi.fn(async () => ({ behavior: "allow" }))),
 );
 const mockExecFileSync = vi.hoisted(() => vi.fn());
+const mockRunBlocking = vi.fn(
+  async (
+    operation: { exportName: string },
+    input: ImproverSemanticInspectionInput,
+  ) => {
+    if (operation.exportName !== "inspectImproverSemanticReviewInWorker") {
+      throw new Error(`Unexpected blocking operation ${operation.exportName}`);
+    }
+    return inspectImproverSemanticReviewInWorker(input);
+  },
+);
 
 vi.mock("#core/agent-harness/index.js", async () => {
   const actual = await vi.importActual<typeof import("#core/agent-harness/index.js")>(
@@ -63,6 +78,7 @@ function makeContext(projectDir: string, runDirPath: string) {
     trigger: { event: "workflow.build.committed", payload: {} },
     stepOutputs: {},
     stepResults: {},
+    runBlocking: mockRunBlocking,
     runTool: vi.fn(),
     runAgentHarness: mockRunAgentHarness,
     emit: vi.fn(),

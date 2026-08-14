@@ -4,6 +4,11 @@ import { join } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 
+export type WorkflowRunSummaryContext = Pick<
+  WorkflowStepContext,
+  "projectDir" | "stepOutputs" | "stepResults" | "workflow" | "workspaceDir"
+>;
+
 export type WorkflowRunSummary = {
   runId: string;
   workflow: string;
@@ -28,7 +33,7 @@ function git(projectDir: string, args: string): string {
 }
 
 export function writeRunSummary(
-  ctx: WorkflowStepContext,
+  ctx: WorkflowRunSummaryContext,
   agentStepId: string,
   findTask?: (projectDir: string, filesChanged: string[]) => { taskId: string | null; taskTitle: string | null },
 ): WorkflowRunSummary {

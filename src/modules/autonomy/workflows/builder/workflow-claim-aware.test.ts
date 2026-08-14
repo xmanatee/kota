@@ -13,6 +13,10 @@ import {
 } from "./workflow-test-support.js";
 
 vi.mock("#modules/autonomy/queue-availability.js", () => ({
+  claimAwareRepoTaskQueueSnapshotOperation: {
+    moduleUrl: "file:///claim-aware-queue-test.ts",
+    exportName: "inspectClaimAwareRepoTaskQueueSnapshot",
+  },
   getClaimAwareRepoTaskQueueSnapshot: vi.fn(),
 }));
 
@@ -61,6 +65,14 @@ describe("builder workflow claim-aware queue gating", () => {
       },
       stepMocks: {
         build: { turns: [], totalCostUsd: 0.03 },
+      },
+      contextOverrides: {
+        runBlocking: async (operation) => {
+          if (operation.exportName === "inspectRepoWorktreeInWorker") {
+            return { available: true, dirty: false } as never;
+          }
+          return snapshot as never;
+        },
       },
     });
 

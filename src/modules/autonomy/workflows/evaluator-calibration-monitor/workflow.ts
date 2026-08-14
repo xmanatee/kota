@@ -1,82 +1,38 @@
-/**
- * Live-run evaluator calibration monitor.
- *
- * After each builder run commits, this workflow aggregates calibration
- * artifacts across the rolling window and — when either drift kind crosses
- * its configured threshold — produces a deterministic corrective action
- * against the repo-tasks queue and emits the typed
- * `evaluator-calibration.regression.detected` event so the notify bridge can
- * still surface it through the attention digest.
- *
- * The corrective action is one of: leave the in-flight repair task alone,
- * create a new one in `ready/`, recreate one that previously closed, or
- * promote one that was sitting in `backlog/`. Without this corrective path
- * the monitor was notification-only — it kept reporting drift but the queue
- * never got a concrete next action. The autonomy contract explicitly forbids
- * leaving systemic drift as a "remember this later" attention loop.
- */
-
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import {
-  applyCalibrationRepair,
-  type CalibrationRepairApplied,
-  type CalibrationRepairArtifact,
-  type CalibrationRepairProposal,
-  proposeCalibrationRepair,
+import type {
+  CalibrationRepairApplied,
+  CalibrationRepairProposal,
 } from "#modules/autonomy/calibration-repair.js";
-import {
-  checkCommitStageable,
-  commitWorkflowChanges,
-} from "#modules/autonomy/commit.js";
 import {
   decodeWorkflowCommitOutcome,
   type WorkflowCommitOutcome,
 } from "#modules/autonomy/commit-result.js";
-import { getCriticPromptHash } from "#modules/autonomy/critic.js";
-import {
-  aggregateCalibration,
-  type CalibrationDriftKind,
-  DEFAULT_CALIBRATION_MIN_SAMPLE,
-  DEFAULT_CALIBRATION_THRESHOLD_RATE,
-  DEFAULT_PASS_WITH_WARNINGS_MIN_SAMPLE,
-  DEFAULT_PASS_WITH_WARNINGS_THRESHOLD_RATE,
-  type EvaluatorCalibrationAggregate,
-  evaluateCalibrationGate,
-} from "#modules/autonomy/evaluator-calibration.js";
 import { autonomyHealthSignal } from "#modules/autonomy/health-signal.js";
 import { buildEvaluatorCalibrationDriftHealthSignal } from "#modules/autonomy/health-signal-emitters.js";
 import {
   onNormalTrigger,
   onRecoveryTrigger,
-  resetWorktreeForRecovery,
+  resetWorktreeForRecoveryOperation,
 } from "#modules/autonomy/recovery.js";
+import { runCheck, stepCommitRequiresDaemonRestart } from "#modules/autonomy/shared.js";
 import {
-  checkCommitMessageExists,
-  checkNoScratchArtifacts,
-  runCheck,
-  stepCommitRequiresDaemonRestart,
-  stepCommitted,
-} from "#modules/autonomy/shared.js";
+  workflowCommitOperation,
+  workflowCommitValidationOperation,
+} from "#modules/autonomy/workflow-commit-operations.js";
+import { writeCalibrationRepairArtifact } from "./artifact.js";
+import {
+  type EvaluatorCalibrationInspection,
+  inspectEvaluatorCalibrationOperation,
+} from "./inspection.js";
+import {
+  applyCalibrationRepairOperation,
+  proposeCalibrationRepairOperation,
+} from "./repair-operations.js";
 
-type GateInspection = {
-  dirty: boolean;
-  status: "insufficient-sample" | "under-threshold" | "gated";
-  reason: string;
-  driftKinds: CalibrationDriftKind[];
-  thresholdRate: number;
-  passWithWarningsThresholdRate: number;
-  aggregate: EvaluatorCalibrationAggregate;
-};
-
-function readNumberEnv(name: string, fallback: number): number {
-  const raw = Number(process.env[name]);
-  if (!Number.isFinite(raw) || raw <= 0) return fallback;
-  return raw;
-}
+type GateInspection = EvaluatorCalibrationInspection;
 
 const inspectGate = typedCodeStep<GateInspection>({
   id: "evaluate-calibration",
@@ -92,48 +48,8 @@ const inspectGate = typedCodeStep<GateInspection>({
       "passWithWarningsThresholdRate",
       "aggregate",
     ]),
-  run: ({ projectDir }) => {
-    const worktree = getRepoWorktreeStatus(projectDir);
-    const dirty = worktree.available && worktree.dirty;
-    const runsDir = join(projectDir, ".kota", "runs");
-    const config = {
-      thresholdRate: readNumberEnv(
-        "KOTA_EVALUATOR_CALIBRATION_THRESHOLD_RATE",
-        DEFAULT_CALIBRATION_THRESHOLD_RATE,
-      ),
-      minSample: Math.floor(
-        readNumberEnv(
-          "KOTA_EVALUATOR_CALIBRATION_MIN_SAMPLE",
-          DEFAULT_CALIBRATION_MIN_SAMPLE,
-        ),
-      ),
-      passWithWarningsThresholdRate: readNumberEnv(
-        "KOTA_EVALUATOR_CALIBRATION_PWW_THRESHOLD_RATE",
-        DEFAULT_PASS_WITH_WARNINGS_THRESHOLD_RATE,
-      ),
-      passWithWarningsMinSample: Math.floor(
-        readNumberEnv(
-          "KOTA_EVALUATOR_CALIBRATION_PWW_MIN_SAMPLE",
-          DEFAULT_PASS_WITH_WARNINGS_MIN_SAMPLE,
-        ),
-      ),
-    };
-
-    const aggregate = aggregateCalibration(runsDir, {
-      criticPromptHash: getCriticPromptHash(),
-    });
-    const decision = evaluateCalibrationGate(aggregate, config);
-
-    return {
-      dirty,
-      status: decision.status,
-      reason: decision.reason,
-      driftKinds: decision.status === "gated" ? decision.kinds : [],
-      thresholdRate: config.thresholdRate,
-      passWithWarningsThresholdRate: config.passWithWarningsThresholdRate,
-      aggregate,
-    };
-  },
+  run: ({ projectDir, runBlocking }) =>
+    runBlocking(inspectEvaluatorCalibrationOperation, { projectDir }),
 });
 
 type ProposeResult = {
@@ -150,9 +66,9 @@ const proposeRepair = typedCodeStep<ProposeResult>({
   },
   validate: (raw) =>
     expectStructuredOutput<ProposeResult>(raw, ["proposal"]),
-  run: (ctx) => {
+  run: async (ctx) => {
     const inspection = inspectGate.outputRequired(ctx);
-    const proposal = proposeCalibrationRepair({
+    const proposal = await ctx.runBlocking(proposeCalibrationRepairOperation, {
       projectDir: ctx.projectDir,
       decisionReason: inspection.reason,
       driftKinds: inspection.driftKinds,
@@ -175,17 +91,21 @@ const applyRepair = typedCodeStep<ApplyResult>({
   when: (ctx) => proposeRepair.output(ctx) !== undefined,
   validate: (raw) =>
     expectStructuredOutput<ApplyResult>(raw, ["applied"]),
-  run: (ctx) => {
+  run: async (ctx) => {
     const inspection = inspectGate.outputRequired(ctx);
     const proposal = proposeRepair.outputRequired(ctx).proposal;
-    const applied = applyCalibrationRepair(proposal, {
-      projectDir: ctx.projectDir,
-      decisionReason: inspection.reason,
-      driftKinds: inspection.driftKinds,
-      aggregate: inspection.aggregate,
-      thresholdRate: inspection.thresholdRate,
-      passWithWarningsThresholdRate: inspection.passWithWarningsThresholdRate,
-      nowIso: new Date().toISOString(),
+    const applied = await ctx.runBlocking(applyCalibrationRepairOperation, {
+      proposal,
+      context: {
+        projectDir: ctx.projectDir,
+        decisionReason: inspection.reason,
+        driftKinds: inspection.driftKinds,
+        aggregate: inspection.aggregate,
+        thresholdRate: inspection.thresholdRate,
+        passWithWarningsThresholdRate:
+          inspection.passWithWarningsThresholdRate,
+        nowIso: new Date().toISOString(),
+      },
     });
     return { applied };
   },
@@ -201,19 +121,12 @@ const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
     const inspection = inspectGate.outputRequired(ctx);
     const proposal = proposeRepair.outputRequired(ctx).proposal;
     const applied = applyRepair.outputRequired(ctx).applied;
-    mkdirSync(ctx.workflow.runDirPath, { recursive: true });
-    const artifactPath = join(ctx.workflow.runDirPath, "calibration-repair.json");
-    const artifact: CalibrationRepairArtifact = {
-      decisionReason: inspection.reason,
-      driftKinds: inspection.driftKinds,
+    const artifactPath = writeCalibrationRepairArtifact({
+      runDirPath: ctx.workflow.runDirPath,
+      inspection,
       proposal,
       applied,
-      aggregate: inspection.aggregate,
-      thresholdRate: inspection.thresholdRate,
-      passWithWarningsThresholdRate: inspection.passWithWarningsThresholdRate,
-      generatedAt: new Date().toISOString(),
-    };
-    writeFileSync(artifactPath, `${JSON.stringify(artifact, null, 2)}\n`);
+    });
     return { written: true, path: artifactPath };
   },
 });
@@ -272,9 +185,10 @@ const validateBeforeCommit = typedCodeStep<{ ok: true }>({
   },
   run: async (ctx) => {
     await runCheck("pnpm run validate-tasks", ctx.projectDir, { signal: ctx.signal });
-    checkNoScratchArtifacts(ctx.projectDir);
-    checkCommitStageable(ctx.projectDir);
-    checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir);
+    await ctx.runBlocking(workflowCommitValidationOperation, {
+      projectDir: ctx.projectDir,
+      runDirPath: ctx.workflow.runDirPath,
+    });
     return { ok: true } as const;
   },
 });
@@ -284,8 +198,11 @@ const commitChanges = typedCodeStep<WorkflowCommitOutcome>({
   type: "code",
   when: (ctx) => validateBeforeCommit.output(ctx)?.ok === true,
   validate: decodeWorkflowCommitOutcome,
-  run: ({ projectDir, workflow }) =>
-    commitWorkflowChanges(projectDir, workflow.runDirPath),
+  run: (ctx) =>
+    ctx.runBlocking(workflowCommitOperation, {
+      projectDir: ctx.projectDir,
+      runDirPath: ctx.workflow.runDirPath,
+    }),
 });
 
 const evaluatorCalibrationMonitor: WorkflowDefinitionInput = {
@@ -305,9 +222,9 @@ const evaluatorCalibrationMonitor: WorkflowDefinitionInput = {
       id: "reset-for-recovery",
       type: "code",
       when: onRecoveryTrigger,
-      run: ({ projectDir }) =>
-        resetWorktreeForRecovery({
-          projectDir,
+      run: (ctx) =>
+        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
+          projectDir: ctx.projectDir,
           workflowName: "evaluator-calibration-monitor",
         }),
     },

@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { writeMergeGateArtifact } from "./worktree-merge-gate-support.js";
 import type { MergeGateResult } from "./worktree-merge-gate-types.js";
@@ -27,11 +27,11 @@ export async function acquireMergeGateLock(input: {
 	const startedAt = Date.now();
 	const timeoutMs = input.timeoutMs ?? DEFAULT_MERGE_GATE_LOCK_TIMEOUT_MS;
 	const lockPath = lockDir(input.projectDir);
-	mkdirSync(dirname(lockPath), { recursive: true });
+	await mkdir(dirname(lockPath), { recursive: true });
 	while (true) {
 		try {
-			mkdirSync(lockPath);
-			writeFileSync(
+			await mkdir(lockPath);
+			await writeFile(
 				join(lockPath, "owner.json"),
 				`${JSON.stringify(
 					{
@@ -60,8 +60,8 @@ export async function acquireMergeGateLock(input: {
 	}
 }
 
-export function releaseMergeGateLock(projectDir: string): void {
-	rmSync(lockDir(projectDir), { recursive: true, force: true });
+export async function releaseMergeGateLock(projectDir: string): Promise<void> {
+	await rm(lockDir(projectDir), { recursive: true, force: true });
 }
 
 export function writeMergeGateMetrics(

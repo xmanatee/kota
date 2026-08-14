@@ -4,6 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type Mock, vi } from "vitest";
 import type { CriticVerdict } from "./critic.js";
+import {
+  type CriticReviewInspectionInput,
+  inspectCriticReviewInWorker,
+} from "./review-input-operations.js";
 
 type RunAgentHarnessMock = Mock<(...args: unknown[]) => unknown>;
 
@@ -22,6 +26,17 @@ const mockResolveAgentHarness = vi.hoisted(() =>
 );
 const mockCreateWorkflowAgentGuards = vi.hoisted(
   () => vi.fn(() => vi.fn(async () => ({ behavior: "allow" }))),
+);
+const mockRunBlocking = vi.fn(
+  async (
+    operation: { exportName: string },
+    input: CriticReviewInspectionInput,
+  ) => {
+    if (operation.exportName !== "inspectCriticReviewInWorker") {
+      throw new Error(`Unexpected blocking operation ${operation.exportName}`);
+    }
+    return inspectCriticReviewInWorker(input);
+  },
 );
 
 vi.mock("./task-probe-sandbox.js", async (importOriginal) => ({
@@ -63,6 +78,10 @@ export function resetCriticTestMocks(): void {
   vi.useRealTimers();
   vi.clearAllMocks();
   vi.mocked(execFileSync).mockReturnValue("");
+}
+
+export function getMockRunBlocking(): typeof mockRunBlocking {
+  return mockRunBlocking;
 }
 
 export function makeTmpDir(): string {
@@ -148,6 +167,7 @@ export function makeContext(
     trigger: { event: "autonomy.queue.available", payload: {} },
     stepOutputs: {},
     stepResults: {},
+    runBlocking: mockRunBlocking,
     runTool: vi.fn(),
     runAgentHarness: mockRunAgentHarness,
     emit: vi.fn(),

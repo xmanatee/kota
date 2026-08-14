@@ -1,3 +1,7 @@
+export {
+  type ProgressReviewActionOperationInput,
+  progressReviewActionOperation,
+} from "./progress-review/action-operation.js";
 export { applyProgressReviewActions, readTaskStatus } from "./progress-review/actions.js";
 export {
   decodeProgressReviewAgentOutput,
@@ -8,7 +12,10 @@ export {
   compactProgressReviewEvidenceForAgent,
 } from "./progress-review/agent-packet.js";
 export { writeProgressReviewArtifact } from "./progress-review/artifact.js";
-export { collectProgressReviewEvidence } from "./progress-review/collect.js";
+export {
+  collectProgressReviewEvidence,
+  collectProgressReviewEvidenceOperation,
+} from "./progress-review/collect.js";
 export {
   PROGRESS_REVIEW_AGENT_MAX_EVIDENCE,
   PROGRESS_REVIEW_ARTIFACT,

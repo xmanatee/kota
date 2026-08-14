@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import {
   type ClaimTaskAttempt,
@@ -115,6 +116,24 @@ export function requestPendingBuilderRecoveries(
   }
   return { candidateCount: candidates.length, requested };
 }
+
+export function inspectPendingBuilderRecoveriesInWorker(input: {
+  projectDir: string;
+}): BuilderRecoveryDispatchResult {
+  const candidates = listPendingBuilderRecoveries(input.projectDir);
+  return {
+    candidateCount: candidates.length,
+    requested: candidates
+      .slice(0, 1)
+      .map((candidate) => builderRecoveryRequestForCandidate(candidate)),
+  };
+}
+
+export const inspectPendingBuilderRecoveriesOperation =
+  defineWorkflowBlockingOperation<
+    { projectDir: string },
+    BuilderRecoveryDispatchResult
+  >(import.meta.url, "inspectPendingBuilderRecoveriesInWorker");
 
 function requestedBuilderRecovery(
   ctx: Pick<WorkflowStepContext, "projectDir" | "trigger">,

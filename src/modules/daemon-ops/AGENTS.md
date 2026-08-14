@@ -91,10 +91,9 @@ same paths. Do not reinvent selection per command.
   the static block above it has no horizontal rules of its own. The rule uses
   the rendering module's `sectionRule` primitive so it fills the terminal
   width instead of clipping to a fixed column count.
-- The live dashboard enters the terminal's alternate-screen buffer on a TTY.
-  Refreshes overwrite a private buffer instead of scrolling the primary
-  buffer, so a daemon-long session cannot accumulate duplicated status frames
-  in scrollback. Non-TTY contexts skip this and keep normal line output.
+- On a TTY the dashboard refreshes the alternate-screen buffer; non-TTY keeps
+  normal output. Task counts use a non-overlapping cached worker projection,
+  and stderr bursts schedule at most one pending frame.
 - The `Work` section only renders when the task queue carries actionable
   signal. Zero-valued states (`Doing 0`, `Backlog 0`, etc.) are filtered out
   of the counts row and a fully-zero queue suppresses the section entirely,

@@ -1,11 +1,16 @@
 import { resolveAgentRuntime } from "#core/model/preset.js";
 import type {
+  WorkflowBlockingOperation,
+  WorkflowBlockingOperationHandler,
+} from "#core/workflow/blocking-operation.js";
+import type {
   WorkflowRuntimeResources,
   WorkflowRuntimeState,
   WorkflowStepContext,
   WorkflowStepResult,
   WorkflowStepSkipReason,
 } from "#core/workflow/run-types.js";
+import type { WorkflowCodeStepContext } from "#core/workflow/step-input-code.js";
 import type { WorkflowStepInput } from "#core/workflow/step-input-types.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
@@ -21,6 +26,25 @@ import {
   BRANCH_ARM_NOT_TAKEN,
   makeStepResult,
 } from "./results.js";
+
+async function runBlockingOperationInProcess<TInput, TOutput>(
+  operation: WorkflowBlockingOperation<TInput, TOutput>,
+  input: TInput,
+): Promise<TOutput> {
+  const module: {
+    [exportName: string]: WorkflowBlockingOperationHandler<TInput, TOutput>;
+  } = await import(operation.moduleUrl);
+  const handler = module[operation.exportName];
+  if (typeof handler !== "function") {
+    throw new Error(
+      `Workflow blocking operation export "${operation.exportName}" is not a function`,
+    );
+  }
+  return handler(input, {
+    signal: new AbortController().signal,
+    reportProgress: () => {},
+  });
+}
 
 type HarnessRuntimeTrigger = {
   event: string;
@@ -75,7 +99,7 @@ export class HarnessExecutionState {
     this.runParallel = options.parallel ?? false;
   }
 
-  buildContext(overrides: BuildContextOverrides = {}): WorkflowStepContext {
+  buildContext(overrides: BuildContextOverrides = {}): WorkflowCodeStepContext {
     const previousOutput =
       this.stepOutputList.length > 0
         ? this.stepOutputList[this.stepOutputList.length - 1]
@@ -122,6 +146,9 @@ export class HarnessExecutionState {
       readPrompt: this.options.contextOverrides?.readPrompt ?? (() => ""),
       readRuntimeState: () => runtimeState,
       reportProgress: () => {},
+      runBlocking:
+        this.options.contextOverrides?.runBlocking ??
+        ((operation, input) => runBlockingOperationInProcess(operation, input)),
       triggerWorkflow:
         this.options.contextOverrides?.triggerWorkflow ??
         (() => {

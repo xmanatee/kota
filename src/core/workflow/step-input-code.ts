@@ -1,5 +1,6 @@
+import type { WorkflowBlockingOperationRunner } from "./blocking-operation.js";
 import type { WorkflowStepContext } from "./run-types.js";
-import type { WorkflowBaseStep, WorkflowProgressStep } from "./step-input-base.js";
+import type { WorkflowProgressStep } from "./step-input-base.js";
 import type { WorkflowAgentRunContractResolver } from "./step-types.js";
 
 /**
@@ -11,6 +12,9 @@ import type { WorkflowAgentRunContractResolver } from "./step-types.js";
  * a `WorkflowStepOutputValidationError` with the offending step id.
  */
 export type CodeStepOutputValidator<T> = (rawOutput: unknown) => T;
+
+export type WorkflowCodeStepContext = WorkflowStepContext &
+  WorkflowBlockingOperationRunner;
 
 /**
  * Common minimal decoder: assert that `raw` is a non-null, non-array object
@@ -62,7 +66,7 @@ export function expectArrayOutput<T>(
 
 export type WorkflowCodeStepInput = WorkflowProgressStep & {
   type: "code";
-  run: (context: WorkflowStepContext) => Promise<unknown> | unknown;
+  run: (context: WorkflowCodeStepContext) => Promise<unknown> | unknown;
   /**
    * Pure declaration for code steps that launch an agent. Definition
    * validation resolves this against the active agent runtime before dispatch;
@@ -95,9 +99,9 @@ export type WorkflowCodeStepInput = WorkflowProgressStep & {
  * A typed code step with a runtime-validated output accessor.
  * Extends WorkflowCodeStepInput and is assignable wherever WorkflowCodeStepInput is accepted.
  */
-export type TypedCodeStepInput<T> = WorkflowBaseStep & {
+export type TypedCodeStepInput<T> = WorkflowProgressStep & {
   type: "code";
-  run: (context: WorkflowStepContext) => Promise<T> | T;
+  run: (context: WorkflowCodeStepContext) => Promise<T> | T;
   validate: CodeStepOutputValidator<T>;
   resolveAgentContract?: WorkflowAgentRunContractResolver;
   updatesWorkspaceDir?: boolean;
@@ -182,9 +186,9 @@ function decodeStepOutput<T>(
  * ```
  */
 export function typedCodeStep<T>(
-  def: WorkflowBaseStep & {
+  def: WorkflowProgressStep & {
     type: "code";
-    run: (context: WorkflowStepContext) => Promise<T> | T;
+    run: (context: WorkflowCodeStepContext) => Promise<T> | T;
     validate: CodeStepOutputValidator<T>;
     resolveAgentContract?: WorkflowAgentRunContractResolver;
     updatesWorkspaceDir?: boolean;

@@ -1,64 +1,30 @@
-import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { loadConfig } from "#core/config/config.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
-import { REPO_TASKS_DIR } from "#modules/repo-tasks/repo-tasks-domain.js";
-import { builderWorktreeModeEnabledFromConfig } from "./builder-config.js";
+import type { WorkflowCodeStepContext } from "#core/workflow/step-input-code.js";
+import {
+  type BranchStepResult,
+  type CleanupMergedBranchesOperationInput,
+  type CleanupResult,
+  type CreatePullRequestOperationInput,
+  type CreateTaskBranchOperationInput,
+  cleanupMergedBranchesOperation,
+  createPullRequestOperation,
+  createTaskBranchOperation,
+} from "./branch-per-task-operations.js";
 import type { BuilderRunSummary } from "./run-summary.js";
 import { workflowWorkspaceDir } from "./workspace.js";
 
-export type CleanupResult = {
-  cleaned: string[];
-  warnings: string[];
-};
-
-export type BranchStepResult = {
-  branchPerTask: boolean;
-  branch: string | null;
-  baseBranch: string | null;
-  taskId: string | null;
-};
-
-function findTaskIdFromStagedFiles(projectDir: string): string | null {
-  const result = spawnSync("git", ["diff", "--cached", "--name-only"], {
-    cwd: projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-    encoding: "utf-8",
-    stdio: "pipe",
-  });
-  if (result.status !== 0) return null;
-
-  const files = result.stdout.trim().split("\n").filter(Boolean);
-  for (const file of files) {
-    if (
-      !file.startsWith(`${REPO_TASKS_DIR}/`) ||
-      !file.endsWith(".md") ||
-      file.endsWith("AGENTS.md")
-    ) {
-      continue;
-    }
-    try {
-      const content = readFileSync(join(projectDir, file), "utf-8");
-      const idMatch = content.match(/^id:\s+(.+)$/m);
-      if (idMatch) return idMatch[1].trim();
-    } catch {
-      // file moved/deleted at this path, skip
-    }
-  }
-  return null;
-}
-
-function getCurrentBranch(projectDir: string): string {
-  const result = spawnSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
-    cwd: projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-    encoding: "utf-8",
-    stdio: "pipe",
-  });
-  return result.stdout.trim() || "main";
-}
+export type {
+  BranchStepResult,
+  CleanupMergedBranchesOperationInput,
+  CleanupResult,
+  CreatePullRequestOperationInput,
+  CreateTaskBranchOperationInput,
+} from "./branch-per-task-operations.js";
+export {
+  cleanupMergedBranchesInWorker,
+  createPullRequestInWorker,
+  createTaskBranchInWorker,
+} from "./branch-per-task-operations.js";
 
 function getClaimedTaskId(ctx: WorkflowStepContext): string | null {
   const claim = ctx.stepOutputs["claim-task"];
@@ -69,193 +35,67 @@ function getClaimedTaskId(ctx: WorkflowStepContext): string | null {
   return typeof taskId === "string" && taskId ? taskId : null;
 }
 
-export function createTaskBranch(ctx: WorkflowStepContext): BranchStepResult {
-  const projectDir = workflowWorkspaceDir(ctx);
-  const config = loadConfig(ctx.projectDir);
-
-  if (projectDir !== ctx.projectDir) {
-    return {
-      branchPerTask: true,
-      branch: getCurrentBranch(projectDir),
-      baseBranch: getCurrentBranch(ctx.projectDir),
-      taskId: getClaimedTaskId(ctx) ?? findTaskIdFromStagedFiles(projectDir),
-    };
-  }
-
-  if (!builderWorktreeModeEnabledFromConfig(config)) {
-    return { branchPerTask: false, branch: null, baseBranch: null, taskId: null };
-  }
-
-  const baseBranch = getCurrentBranch(projectDir);
-  const taskId = findTaskIdFromStagedFiles(projectDir);
-  const shortRunId = ctx.workflow.runId.replace(/[^a-z0-9]/gi, "-").slice(0, 20);
-  const branchSuffix = taskId ?? shortRunId;
-  const branch = `kota/task/${branchSuffix}`;
-
-  const checkout = spawnSync("git", ["checkout", "-b", branch], {
-    cwd: projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-    encoding: "utf-8",
-    stdio: "pipe",
-  });
-
-  if (checkout.status !== 0) {
-    throw new Error(
-      `Failed to create branch ${branch}: ${checkout.stderr || checkout.stdout}`,
-    );
-  }
-
-  return { branchPerTask: true, branch, baseBranch, taskId };
+export function createTaskBranchOperationInput(
+  ctx: WorkflowStepContext,
+): CreateTaskBranchOperationInput {
+  return {
+    projectDir: ctx.projectDir,
+    workspaceDir: workflowWorkspaceDir(ctx),
+    runId: ctx.workflow.runId,
+    claimedTaskId: getClaimedTaskId(ctx),
+  };
 }
 
-export function createPullRequest(ctx: WorkflowStepContext): { prUrl: string } {
-  const projectDir = workflowWorkspaceDir(ctx);
-  const branchInfo = ctx.stepOutputs["create-task-branch"] as BranchStepResult;
-  const summary = ctx.stepOutputs["write-run-summary"] as BuilderRunSummary | undefined;
-
-  const authCheck = spawnSync("gh", ["auth", "status"], {
-    cwd: projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-    encoding: "utf-8",
-    stdio: "pipe",
-  });
-  if (authCheck.status !== 0) {
-    throw new Error(
-      `gh CLI is not available or not authenticated. ` +
-        `Install gh from https://cli.github.com and run 'gh auth login' to enable branch-per-task mode.\n` +
-        `${authCheck.stderr || authCheck.stdout}`,
-    );
-  }
-
-  const branch = branchInfo.branch!;
-  const baseBranch = branchInfo.baseBranch ?? "main";
-
-  const push = spawnSync("git", ["push", "origin", branch], {
-    cwd: projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-    encoding: "utf-8",
-    stdio: "pipe",
-  });
-  if (push.status !== 0) {
-    throw new Error(`Failed to push branch ${branch}: ${push.stderr || push.stdout}`);
-  }
-
-  const taskTitle = summary?.taskTitle ?? branchInfo.taskId ?? "Builder task";
-  const runDir = ctx.workflow.runDir;
-  const filesChanged = summary?.filesChanged?.length ?? 0;
-  const costUsd = summary?.costUsd != null ? `$${summary.costUsd.toFixed(4)}` : "—";
-
-  const body = [
-    `## ${taskTitle}`,
-    ``,
-    `**Run**: \`${runDir}\``,
-    `**Files changed**: ${filesChanged}`,
-    `**Cost**: ${costUsd}`,
-    ``,
-    `*Automated by KOTA builder workflow.*`,
-  ].join("\n");
-
-  const prCreate = spawnSync(
-    "gh",
-    ["pr", "create", "--title", taskTitle, "--body", body, "--base", baseBranch, "--head", branch],
-    {
-      cwd: projectDir,
-      env: withProtectedGitBareRepositoryEnv(),
-      encoding: "utf-8",
-      stdio: "pipe",
-    },
+export function createTaskBranch(
+  ctx: WorkflowCodeStepContext,
+): Promise<BranchStepResult> {
+  return ctx.runBlocking(
+    createTaskBranchOperation,
+    createTaskBranchOperationInput(ctx),
   );
-
-  if (prCreate.status !== 0) {
-    throw new Error(`Failed to create pull request: ${prCreate.stderr || prCreate.stdout}`);
-  }
-
-  if (projectDir !== ctx.projectDir) {
-    return { prUrl: prCreate.stdout.trim() };
-  }
-
-  // Restore base branch so the daemon restarts on the correct branch for subsequent runs.
-  const restore = spawnSync("git", ["checkout", baseBranch], {
-    cwd: projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-    encoding: "utf-8",
-    stdio: "pipe",
-  });
-  if (restore.status !== 0) {
-    throw new Error(
-      `PR created but failed to restore base branch ${baseBranch}: ${restore.stderr || restore.stdout}`,
-    );
-  }
-
-  return { prUrl: prCreate.stdout.trim() };
 }
 
-export function cleanupMergedBranches(ctx: WorkflowStepContext): CleanupResult {
-  const projectDir = workflowWorkspaceDir(ctx);
-  const branchInfo = ctx.stepOutputs["create-task-branch"] as BranchStepResult | undefined;
-  const cleaned: string[] = [];
-  const warnings: string[] = [];
+export function createPullRequestOperationInput(
+  ctx: WorkflowStepContext,
+): CreatePullRequestOperationInput {
+  const summary = ctx.stepOutputs["write-run-summary"] as
+    | BuilderRunSummary
+    | undefined;
+  return {
+    projectDir: workflowWorkspaceDir(ctx),
+    canonicalProjectDir: ctx.projectDir,
+    runDir: ctx.workflow.runDir,
+    branchInfo: ctx.stepOutputs["create-task-branch"] as BranchStepResult,
+    ...(summary !== undefined ? { summary } : {}),
+  };
+}
 
-  if (!branchInfo?.branchPerTask) {
-    return { cleaned, warnings };
-  }
+export function createPullRequest(
+  ctx: WorkflowCodeStepContext,
+): Promise<{ prUrl: string }> {
+  return ctx.runBlocking(
+    createPullRequestOperation,
+    createPullRequestOperationInput(ctx),
+  );
+}
 
-  try {
-    const authCheck = spawnSync("gh", ["auth", "status"], {
-      cwd: projectDir,
-      env: withProtectedGitBareRepositoryEnv(),
-      encoding: "utf-8",
-      stdio: "pipe",
-    });
-    if (authCheck.status !== 0) {
-      warnings.push("gh CLI not available; skipping branch cleanup");
-      return { cleaned, warnings };
-    }
+export function cleanupMergedBranchesOperationInput(
+  ctx: WorkflowStepContext,
+): CleanupMergedBranchesOperationInput {
+  const branchInfo = ctx.stepOutputs["create-task-branch"] as
+    | BranchStepResult
+    | undefined;
+  return {
+    projectDir: workflowWorkspaceDir(ctx),
+    ...(branchInfo !== undefined ? { branchInfo } : {}),
+  };
+}
 
-    const listResult = spawnSync(
-      "gh",
-      ["pr", "list", "--state", "merged", "--json", "headRefName", "--limit", "100"],
-      {
-        cwd: projectDir,
-        env: withProtectedGitBareRepositoryEnv(),
-        encoding: "utf-8",
-        stdio: "pipe",
-      },
-    );
-    if (listResult.status !== 0) {
-      warnings.push(`Failed to list merged PRs: ${listResult.stderr || listResult.stdout}`);
-      return { cleaned, warnings };
-    }
-
-    let prs: Array<{ headRefName: string }>;
-    try {
-      prs = JSON.parse(listResult.stdout) as Array<{ headRefName: string }>;
-    } catch {
-      warnings.push(`Failed to parse gh pr list output: ${listResult.stdout}`);
-      return { cleaned, warnings };
-    }
-
-    const currentBranch = branchInfo.branch;
-    const toDelete = prs
-      .map((pr) => pr.headRefName)
-      .filter((b) => b.startsWith("kota/task/") && b !== currentBranch);
-
-    for (const branch of toDelete) {
-      const del = spawnSync("git", ["push", "origin", "--delete", branch], {
-        cwd: projectDir,
-        env: withProtectedGitBareRepositoryEnv(),
-        encoding: "utf-8",
-        stdio: "pipe",
-      });
-      if (del.status !== 0) {
-        warnings.push(`Failed to delete branch ${branch}: ${del.stderr || del.stdout}`);
-      } else {
-        cleaned.push(branch);
-      }
-    }
-  } catch (err) {
-    warnings.push(`Unexpected error during branch cleanup: ${err instanceof Error ? err.message : String(err)}`);
-  }
-
-  return { cleaned, warnings };
+export function cleanupMergedBranches(
+  ctx: WorkflowCodeStepContext,
+): Promise<CleanupResult> {
+  return ctx.runBlocking(
+    cleanupMergedBranchesOperation,
+    cleanupMergedBranchesOperationInput(ctx),
+  );
 }

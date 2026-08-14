@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { withWorkflowBlockingOperation } from "#core/workflow/blocking-operation-context.js";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
 import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
 import {
@@ -8,20 +9,10 @@ import {
   judgeUnavailableResult,
   resolveAgentJudgeRunContract,
 } from "./agent-judge.js";
-import {
-  getChangedFiles,
-  getStagedDiff,
-  getStagedDiffContent,
-} from "./critic-diff.js";
-import { runProbeIfDeclared } from "./critic-runtime-probe.js";
 import { handleVerdict, parseVerdict } from "./critic-verdict.js";
-import {
-  checkProductOperatorEvidence,
-  resolveDurableOperatorEvidenceDir,
-} from "./product-evidence.js";
-import { fileLineCitationsFromUnifiedDiff } from "./review-scrutiny-citations.js";
+import { resolveDurableOperatorEvidenceDir } from "./product-evidence.js";
+import { criticReviewInspectionOperation } from "./review-input-operations.js";
 import { formatProbeBlock } from "./task-probe.js";
-import { findTaskReviewTarget } from "./task-review-target.js";
 
 export type { AgentJudgeConfig } from "./agent-judge.js";
 export {
@@ -160,22 +151,37 @@ export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairC
     run: async (ctx, parentStep) => {
       const reviewDir = ctx.workspaceDir ?? ctx.projectDir;
       const resolvedConfig = resolveCriticJudgeConfig(parentStep, options);
-      const target = findTaskReviewTarget(reviewDir);
-      if (!target) {
-        return "OK: no task in doing/ — skipping critic review";
-      }
-
-      const taskContent = target.content;
-      const diffStat = getStagedDiff(reviewDir);
-      const diffContent = getStagedDiffContent(reviewDir);
-      const changedFiles = getChangedFiles(reviewDir);
       const workspaceRunDir = ctx.runtimeResources?.agentRunDir;
       const runDir = options?.runDirPath ?? workspaceRunDir ?? ctx.workflow.runDirPath;
       const durableEvidenceDir = options?.runDirPath !== undefined
         ? runDir
         : resolveDurableOperatorEvidenceDir(reviewDir, runDir);
+      const inspection = await withWorkflowBlockingOperation(ctx).runBlocking(
+        criticReviewInspectionOperation,
+        {
+          reviewDir,
+          runDir,
+          durableEvidenceDir,
+          ...(options?.runDirPath === undefined && workspaceRunDir !== undefined
+            ? { artifactWorkspaceDir: reviewDir }
+            : {}),
+        },
+      );
+      if (inspection.status === "no-task") {
+        return "OK: no task in doing/ — skipping critic review";
+      }
+
+      const {
+        target,
+        diffStat,
+        diffContent,
+        changedFiles,
+        probeResult,
+        productEvidence,
+        fallbackFileLineCitations,
+      } = inspection;
+      const taskContent = target.content;
       const taskId = taskIdFromReviewTargetPath(target.path);
-      const fallbackFileLineCitations = fileLineCitationsFromUnifiedDiff(diffContent);
       const verdictContext = {
         runId: ctx.workflow.runId,
         workflow: ctx.workflow.name,
@@ -184,22 +190,6 @@ export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairC
         fallbackFileLineCitations,
       };
 
-      const probeResult = runProbeIfDeclared(
-        taskContent,
-        target.path,
-        reviewDir,
-        runDir,
-        options?.runDirPath === undefined && workspaceRunDir !== undefined
-          ? reviewDir
-          : undefined,
-      );
-      const productEvidence = checkProductOperatorEvidence({
-        taskContent,
-        taskState: target.state,
-        evidenceDirPath: durableEvidenceDir,
-        changedFiles,
-        hasRuntimeProbeResult: probeResult !== null,
-      });
       if (productEvidence.required && !productEvidence.satisfied) {
         return handleVerdict(
           {

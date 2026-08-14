@@ -1,3 +1,4 @@
+import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import {
   getRepoTaskQueueSnapshot,
   listFullRepoTasks,
@@ -34,6 +35,11 @@ export type RepoTaskClaimBlock = {
 
 export type ClaimAwareRepoTaskQueueSnapshot = RepoTaskQueueSnapshot & {
   claimBlockedTasks: RepoTaskClaimBlock[];
+};
+
+export type ClaimAwareRepoTaskQueueSnapshotInput = {
+  projectDir: string;
+  nowIso?: string;
 };
 
 function listClaimBlockedTasks(
@@ -105,6 +111,21 @@ export function getClaimAwareRepoTaskQueueSnapshot(
     claimBlockedTasks,
   };
 }
+
+export function inspectClaimAwareRepoTaskQueueSnapshot(
+  input: ClaimAwareRepoTaskQueueSnapshotInput,
+): ClaimAwareRepoTaskQueueSnapshot {
+  return getClaimAwareRepoTaskQueueSnapshot(
+    input.projectDir,
+    input.nowIso === undefined ? new Date() : new Date(input.nowIso),
+  );
+}
+
+export const claimAwareRepoTaskQueueSnapshotOperation =
+  defineWorkflowBlockingOperation<
+    ClaimAwareRepoTaskQueueSnapshotInput,
+    ClaimAwareRepoTaskQueueSnapshot
+  >(import.meta.url, "inspectClaimAwareRepoTaskQueueSnapshot");
 
 export function isThinClaimAwareDispatchableQueue(
   snapshot: ClaimAwareRepoTaskQueueSnapshot,

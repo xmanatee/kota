@@ -7,7 +7,7 @@ import {
   typedCodeStep,
 } from "#core/workflow/step-input-code.js";
 import type { MergeGateResult } from "#modules/git/worktree-merge-gate.js";
-import type { AutomationWorktreeCleanupResult } from "./merge-gate-step.js";
+import type { AutomationWorktreeCleanupResult } from "./merge-gate-operations.js";
 import type { BuilderWorkspaceResult } from "./prepare-worktree-step.js";
 
 export type BuilderParallelMetrics = {

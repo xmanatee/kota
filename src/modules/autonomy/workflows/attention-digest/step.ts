@@ -1,17 +1,10 @@
 import { join } from "node:path";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
+import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import { getClaimAwareRepoTaskQueueSnapshot } from "#modules/autonomy/queue-availability.js";
 import { loadRecentRuns, type RunSummary } from "#modules/autonomy/shared.js";
-import {
-  parseBlockedPrecondition,
-  readOperatorCaptureInstructedMarker,
-  readOwnerAskMarkers,
-} from "#modules/repo-tasks/blocked-precondition.js";
-import {
-  countRepoTaskState,
-  listRepoTasksInState,
-  type RepoTaskRecord,
-} from "#modules/repo-tasks/repo-tasks-domain.js";
+import { countRepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { blockedAttentionItems } from "./blocked-attention.js";
 
 const DIGEST_EVERY_N_RUNS = 10;
 // KOTA_DIGEST_WARNINGS_COUNT: number of builder runs with warnings to trigger the check (default 3)
@@ -20,24 +13,11 @@ const DEFAULT_WARNINGS_COUNT = 3;
 const DEFAULT_WARNINGS_WINDOW = 10;
 // KOTA_DIGEST_BLOCKED_AGE_DAYS: a blocked task is "long-blocked" when its
 // updated_at is older than this many days (default 3)
-const DEFAULT_BLOCKED_AGE_DAYS = 3;
 // KOTA_DIGEST_BLOCKED_AGED_DAYS: an additional escalation threshold for
 // blocked tasks the autonomy loop genuinely cannot promote on its own —
 // owner-decision and operator-capture preconditions surface here so they do
 // not silently absorb queue capacity (default 14, matching the
 // blocked-promoter owner-ask cadence).
-const DEFAULT_BLOCKED_AGED_DAYS = 14;
-const MAX_INDIVIDUAL_BLOCKED_ITEMS = 5;
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-/**
- * Cooldown window the digest honors when blocked-promoter has already
- * surfaced a concrete action for an operator-gated blocker. Matches the
- * 14-day owner-ask cadence and the operator-capture instruction cadence
- * so a single round-trip suppresses duplicate digest noise for the same
- * cycle. Operator-gated entries within this window are dropped from the
- * "Operator-gated blocker aged" list.
- */
-const ACTION_COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000;
 
 export type AttentionItem = { label: string; detail: string };
 
@@ -47,6 +27,18 @@ export type RenderedAttention = {
 };
 
 export const NO_ATTENTION_ITEMS_TEXT = "No attention items right now.";
+
+export type AttentionDigestStepInput = {
+  projectDir: string;
+  runsDir: string;
+};
+
+export type AttentionDigestStepResult = {
+  event?: {
+    name: "workflow.attention.digest";
+    payload: RenderedAttention;
+  };
+};
 
 function builderFailureStreak(recentRuns: RunSummary[]): number {
   // recentRuns is most-recent-first; count consecutive builder failures from the head
@@ -90,146 +82,6 @@ function builderWarningsCheck(recentRuns: RunSummary[]): AttentionItem | null {
     : `${warningRuns.length} of the last ${builderRuns.length} builder runs completed with warnings`;
 
   return { label: "Repeated warnings", detail };
-}
-
-function hasOwnerBlocker(body: string): boolean {
-  const match = body.match(/(?:^|\n)##\s+Blocker\b[^\n]*\n([\s\S]*?)(?=\n##\s|$)/i);
-  if (!match) return false;
-  return /\bowner\b/i.test(match[1]);
-}
-
-type LongBlockedEntry = { record: RepoTaskRecord; ageDays: number };
-
-function hasFreshActionMarker(record: RepoTaskRecord, nowMs: number): boolean {
-  const parsed = parseBlockedPrecondition(`---\n---\n${record.body}`);
-  if (!parsed.ok) return false;
-  const precondition = parsed.precondition;
-  if (precondition.kind === "owner-decision") {
-    const askMarkers = readOwnerAskMarkers(record.body);
-    return askMarkers.some((m) => {
-      if (m.slot !== precondition.slot) return false;
-      const ms = Date.parse(m.lastAskedAt);
-      return !Number.isNaN(ms) && nowMs - ms < ACTION_COOLDOWN_MS;
-    });
-  }
-  if (precondition.kind === "operator-capture") {
-    const marker = readOperatorCaptureInstructedMarker(record.body);
-    if (!marker) return false;
-    const ms = Date.parse(marker.lastInstructedAt);
-    return !Number.isNaN(ms) && nowMs - ms < ACTION_COOLDOWN_MS;
-  }
-  return false;
-}
-
-function findLongBlocked(
-  records: RepoTaskRecord[],
-  thresholdDays: number,
-  nowMs: number,
-): LongBlockedEntry[] {
-  const entries: LongBlockedEntry[] = [];
-  for (const record of records) {
-    const updatedMs = Date.parse(record.frontmatter.updatedAt);
-    if (Number.isNaN(updatedMs)) continue;
-    const ageDays = Math.floor((nowMs - updatedMs) / MS_PER_DAY);
-    if (ageDays < thresholdDays) continue;
-    if (hasFreshActionMarker(record, nowMs)) continue;
-    entries.push({ record, ageDays });
-  }
-  entries.sort((a, b) => b.ageDays - a.ageDays);
-  return entries;
-}
-
-function findOperatorGatedAged(
-  records: RepoTaskRecord[],
-  thresholdDays: number,
-  nowMs: number,
-): LongBlockedEntry[] {
-  const entries: LongBlockedEntry[] = [];
-  for (const record of records) {
-    const updatedMs = Date.parse(record.frontmatter.updatedAt);
-    if (Number.isNaN(updatedMs)) continue;
-    const ageDays = Math.floor((nowMs - updatedMs) / MS_PER_DAY);
-    if (ageDays < thresholdDays) continue;
-    const parsed = parseBlockedPrecondition(
-      `---\n---\n${record.body}`,
-    );
-    if (!parsed.ok) continue;
-    const precondition = parsed.precondition;
-    if (precondition.kind === "owner-decision") {
-      const askMarkers = readOwnerAskMarkers(record.body);
-      const fresh = askMarkers.find((m) => {
-        if (m.slot !== precondition.slot) return false;
-        const ms = Date.parse(m.lastAskedAt);
-        return !Number.isNaN(ms) && nowMs - ms < ACTION_COOLDOWN_MS;
-      });
-      if (fresh) continue;
-      entries.push({ record, ageDays });
-      continue;
-    }
-    if (precondition.kind === "operator-capture") {
-      const marker = readOperatorCaptureInstructedMarker(record.body);
-      if (marker) {
-        const ms = Date.parse(marker.lastInstructedAt);
-        if (!Number.isNaN(ms) && nowMs - ms < ACTION_COOLDOWN_MS) continue;
-      }
-      entries.push({ record, ageDays });
-    }
-  }
-  entries.sort((a, b) => b.ageDays - a.ageDays);
-  return entries;
-}
-
-function blockedAttentionItems(projectDir: string): AttentionItem[] {
-  const blockedCount = countRepoTaskState(projectDir, "blocked");
-  if (blockedCount === 0) return [];
-
-  const threshold =
-    Number(process.env.KOTA_DIGEST_BLOCKED_AGE_DAYS) || DEFAULT_BLOCKED_AGE_DAYS;
-  const agedThreshold =
-    Number(process.env.KOTA_DIGEST_BLOCKED_AGED_DAYS) || DEFAULT_BLOCKED_AGED_DAYS;
-  const records = listRepoTasksInState(projectDir, "blocked");
-  const longBlocked = findLongBlocked(records, threshold, Date.now());
-  const operatorGatedAged = findOperatorGatedAged(records, agedThreshold, Date.now());
-
-  const items: AttentionItem[] = [];
-  // Aggregate pressure remains visible unless every blocked task is already
-  // surfaced individually — otherwise operators would see the same tasks twice.
-  if (blockedCount >= 2 && longBlocked.length < blockedCount) {
-    items.push({
-      label: "Blocked backlog",
-      detail: `${blockedCount} blocked tasks`,
-    });
-  }
-
-  const shown = longBlocked.slice(0, MAX_INDIVIDUAL_BLOCKED_ITEMS);
-  for (const { record, ageDays } of shown) {
-    const label = hasOwnerBlocker(record.body)
-      ? "Owner decision pending"
-      : "Stale blocker";
-    items.push({
-      label,
-      detail: `${record.frontmatter.id} (blocked ${ageDays}d)`,
-    });
-  }
-  const tail = longBlocked.length - MAX_INDIVIDUAL_BLOCKED_ITEMS;
-  if (tail > 0) {
-    items.push({
-      label: "More long-blocked tasks",
-      detail: `${tail} additional blocked tasks past threshold`,
-    });
-  }
-
-  // Operator-gated preconditions need operator action rather than another
-  // autonomy retry. owner-decision needs an answer; operator-capture promotes
-  // only after the named evidence path exists. Surface both explicitly past
-  // the longer aging threshold.
-  for (const { record, ageDays } of operatorGatedAged) {
-    items.push({
-      label: "Operator-gated blocker aged",
-      detail: `${record.frontmatter.id} (blocked ${ageDays}d, operator-gated precondition)`,
-    });
-  }
-  return items;
 }
 
 function claimBlockedQueueAttentionItems(projectDir: string): AttentionItem[] {
@@ -332,25 +184,42 @@ export function renderOnDemandAttention(opts: {
  *
  * Called directly by the attention-digest workflow code step.
  */
-export function runAttentionDigestStep(
-  projectDir: string,
-  runsDir: string,
-  _log?: (message: string) => void,
-  emit?: (event: string, payload: Record<string, unknown>) => void,
-): void {
+export function inspectAttentionDigestStep(
+  input: AttentionDigestStepInput,
+): AttentionDigestStepResult {
+  const { projectDir, runsDir } = input;
   // Counter is persisted so it survives daemon restarts (which happen after every builder build).
   const counterFile = join(runsDir, "..", "attention-digest-counter.json");
 
   const saved = readOptionalJsonFile<{ count: number }>(counterFile);
   const count = (saved?.count ?? 0) + 1;
   writeJsonFileAtomic(counterFile, { count });
-  if (count % DIGEST_EVERY_N_RUNS !== 0) return;
+  if (count % DIGEST_EVERY_N_RUNS !== 0) return {};
 
   const { items, text } = renderOnDemandAttention({ projectDir, runsDir });
-  if (items.length === 0) return;
+  if (items.length === 0) return {};
 
-  emit?.("workflow.attention.digest", {
-    items,
-    text,
-  });
+  return {
+    event: {
+      name: "workflow.attention.digest",
+      payload: { items, text },
+    },
+  };
+}
+
+export const attentionDigestStepOperation = defineWorkflowBlockingOperation<
+  AttentionDigestStepInput,
+  AttentionDigestStepResult
+>(import.meta.url, "inspectAttentionDigestStep");
+
+export function runAttentionDigestStep(
+  projectDir: string,
+  runsDir: string,
+  _log?: (message: string) => void,
+  emit?: (event: string, payload: Record<string, unknown>) => void,
+): void {
+  const result = inspectAttentionDigestStep({ projectDir, runsDir });
+  if (!result.event) return;
+
+  emit?.(result.event.name, result.event.payload);
 }

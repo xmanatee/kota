@@ -3,29 +3,25 @@ import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import {
-  checkCommitStageable,
-  commitWorkflowChanges,
-  type WorkflowCommitPathPolicy,
+import type {
+  WorkflowCommitPathPolicy,
 } from "#modules/autonomy/commit.js";
 import {
   onRecoveryTrigger,
-  resetWorktreeForRecovery,
+  resetWorktreeForRecoveryOperation,
 } from "#modules/autonomy/recovery.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
-  checkCommitMessageExists,
-  checkNoScratchArtifacts,
   runCheck,
   stepCommitRequiresDaemonRestart,
   stepCommitted,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
 import {
-  readActiveTaskClaim,
-  supersedeTaskClaim,
-} from "#modules/autonomy/task-claims.js";
+  workflowCommitOperation,
+  workflowCommitValidationOperation,
+} from "#modules/autonomy/workflow-commit-operations.js";
 import {
   assessFailure,
   decompositionTargetTaskId,
@@ -33,8 +29,10 @@ import {
 } from "./assessment.js";
 import {
   type AppliedDecomposition,
-  applyDecompositionPlan,
-} from "./decomposition-actions.js";
+  applyDecompositionOperation,
+  type FinalizedSourceClaim,
+  finalizeSourceClaimOperation,
+} from "./blocking-operations.js";
 import {
   decodeDecompositionPlan,
   decodeDecompositionReview,
@@ -91,7 +89,7 @@ const applyDecomposition = typedCodeStep<AppliedDecomposition>({
     expectStructuredOutput<AppliedDecomposition>(raw, ["taskId", "subtaskIds"]),
   run: (ctx) => {
     const assessment = assessFailure.outputRequired(ctx);
-    return applyDecompositionPlan({
+    return ctx.runBlocking(applyDecompositionOperation, {
       projectDir: ctx.projectDir,
       taskId: decompositionTargetTaskId(ctx),
       failedRunId: assessment.failedRunId,
@@ -134,26 +132,20 @@ const validateDecomposition = typedCodeStep<{
       "commitMessage",
       "commitStage",
     ]),
-  run: async (ctx) => ({
-    taskQueue: await runCheck("pnpm run validate-tasks", ctx.projectDir, {
+  run: async (ctx) => {
+    const taskQueue = await runCheck("pnpm run validate-tasks", ctx.projectDir, {
       signal: ctx.signal,
-    }),
-    scratchArtifacts: checkNoScratchArtifacts(ctx.projectDir),
-    commitMessage: checkCommitMessageExists(
-      ctx.workflow.runDirPath,
-      ctx.projectDir,
-    ),
-    commitStage: checkCommitStageable(
-      ctx.projectDir,
-      decompositionCommitPathPolicy(ctx),
-    ),
-  }),
+    });
+    const validation = await ctx.runBlocking(workflowCommitValidationOperation, {
+      projectDir: ctx.projectDir,
+      runDirPath: ctx.workflow.runDirPath,
+      policy: decompositionCommitPathPolicy(ctx),
+    });
+    return { taskQueue, ...validation };
+  },
 });
 
-const finalizeSourceClaim = typedCodeStep<{
-  changed: boolean;
-  recoveryStatus: string;
-}>({
+const finalizeSourceClaim = typedCodeStep<FinalizedSourceClaim>({
   id: "finalize-source-claim",
   type: "code",
   when: stepCommitted("commit"),
@@ -164,31 +156,12 @@ const finalizeSourceClaim = typedCodeStep<{
     if (!assessment.shouldDecompose) {
       throw new Error("Cannot finalize a source claim without a decomposition target");
     }
-    const claim = readActiveTaskClaim(ctx.projectDir, assessment.taskId);
-    if (
-      claim !== null &&
-      (claim.status !== "pending-decomposition" || claim.workflowId !== "builder")
-    ) {
-      throw new Error(
-        `Cannot finalize claim for ${assessment.taskId}: claim is ${claim.workflowId}/${claim.status}`,
-      );
-    }
-    const result = supersedeTaskClaim({
+    return ctx.runBlocking(finalizeSourceClaimOperation, {
       projectDir: ctx.projectDir,
       taskId: assessment.taskId,
-      runId: claim?.runId ?? assessment.failedRunId,
-      workflowId: claim?.workflowId ?? "builder",
-      evidence: `decomposer ${ctx.workflow.runId} replaced the exhausted task with bounded subtasks`,
+      failedRunId: assessment.failedRunId,
+      workflowRunId: ctx.workflow.runId,
     });
-    if (!result.changed && result.claim !== null) {
-      throw new Error(
-        `Cannot finalize claim for ${assessment.taskId}: ${result.reason ?? "claim ownership changed"}`,
-      );
-    }
-    return {
-      changed: result.changed,
-      recoveryStatus: result.recoveryStatus,
-    };
   },
 });
 
@@ -220,8 +193,11 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
       id: "reset-for-recovery",
       type: "code",
       when: onRecoveryTrigger,
-      run: ({ projectDir }) =>
-        resetWorktreeForRecovery({ projectDir, workflowName: "decomposer" }),
+      run: (ctx) =>
+        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
+          projectDir: ctx.projectDir,
+          workflowName: "decomposer",
+        }),
     },
     assessFailure,
     {
@@ -261,11 +237,11 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
       type: "code",
       when: stepSucceeded("validate-decomposition"),
       run: (ctx) =>
-        commitWorkflowChanges(
-          ctx.projectDir,
-          ctx.workflow.runDirPath,
-          decompositionCommitPathPolicy(ctx),
-        ),
+        ctx.runBlocking(workflowCommitOperation, {
+          projectDir: ctx.projectDir,
+          runDirPath: ctx.workflow.runDirPath,
+          policy: decompositionCommitPathPolicy(ctx),
+        }),
     },
     finalizeSourceClaim,
     {

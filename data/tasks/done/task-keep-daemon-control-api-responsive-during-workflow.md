@@ -1,13 +1,13 @@
 ---
 id: task-keep-daemon-control-api-responsive-during-workflow
 title: Keep daemon control API responsive during workflow execution
-status: ready
+status: done
 priority: p1
 area: core
 task_class: Platform
 summary: Prevent in-process workflow code from starving the daemon control API so live status and control commands remain responsive while workflows perform CPU-heavy or synchronous work.
 created_at: 2026-08-11T11:26:43.004Z
-updated_at: 2026-08-13T10:16:28.000Z
+updated_at: 2026-08-13T11:39:24.834Z
 ---
 
 ## Problem

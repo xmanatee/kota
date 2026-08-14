@@ -3,14 +3,30 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveAgentRuntime } from "#core/model/preset.js";
+import type { WorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import { unexpectedWorkflowAgentHarnessRun } from "#core/workflow/testing/agent-harness-runner.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
+import {
+  buildDailyDigestInWorker,
+  type DailyDigestBuildOperationInput,
+  dailyDigestBuildOperation,
+} from "./blocking-operations.js";
 import dailyDigestWorkflow, {
   DAILY_DIGEST_DIGEST_JSON,
   DAILY_DIGEST_DIGEST_TXT,
   DAILY_DIGEST_EVENT,
   DAILY_DIGEST_STATE_FILENAME,
 } from "./workflow.js";
+
+async function runBlockingInline<TInput, TOutput>(
+  operation: WorkflowBlockingOperation<TInput, TOutput>,
+  input: TInput,
+): Promise<TOutput> {
+  expect(operation).toBe(dailyDigestBuildOperation);
+  return buildDailyDigestInWorker(
+    input as DailyDigestBuildOperationInput,
+  ) as TOutput;
+}
 
 vi.mock("#core/daemon/owner-question-queue.js", async () => {
   const actual =
@@ -134,6 +150,7 @@ describe("daily-digest build-digest step", () => {
         workflows: {},
       }),
       reportProgress: () => {},
+      runBlocking: runBlockingInline,
       triggerWorkflow: async () => ({ runId: "x", status: "queued" as const }),
     });
 
@@ -185,6 +202,7 @@ describe("daily-digest build-digest step", () => {
         workflows: {},
       }),
       reportProgress: () => {},
+      runBlocking: runBlockingInline,
       triggerWorkflow: async () => ({ runId: "x", status: "queued" as const }),
     };
 

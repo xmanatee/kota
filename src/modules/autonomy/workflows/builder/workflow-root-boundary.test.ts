@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ROOT_ENTRYPOINT_SOURCES } from "#core/root-layout.js";
-import { checkModuleBoundary } from "./repair-checks.js";
+import { checkModuleBoundary } from "./project-repair-checks.js";
 
 function makeTmpProject(): string {
   const dir = join(tmpdir(), `kota-boundary-${Date.now()}-${Math.random().toString(36).slice(2)}`);

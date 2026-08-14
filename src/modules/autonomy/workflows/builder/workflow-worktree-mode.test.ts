@@ -105,6 +105,7 @@ describe("builder workflow worktree mode", () => {
         resolver: expect.any(Function),
         maxResolutionAttempts: 2,
       }),
+      expect.objectContaining({ runBlocking: expect.any(Function) }),
     );
 
     const { releaseTaskClaim } = await import("#modules/autonomy/task-claims.js");

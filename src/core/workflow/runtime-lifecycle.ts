@@ -122,11 +122,11 @@ export function startRuntime(
   maybeStartNext(state);
 
   state.idleTimer = setInterval(() => {
-    emitIdleEvent(state);
+    void emitIdleEvent(state);
   }, state.idleIntervalMs);
   state.idleTimer.unref();
 
-  emitIdleEvent(state);
+  void emitIdleEvent(state);
 }
 
 /** Persisted await-event work remains drain-relevant while its resumer is idle. */
@@ -163,6 +163,10 @@ export async function stopRuntime(
   state.scheduleTriggers.clearAll();
   state.eventBatches.clearAll();
   state.watchTriggers.clearAll();
+
+  if (state.idleSignatureCheck !== undefined) {
+    await state.idleSignatureCheck;
+  }
 
   if (state.activeRuns.size === 0) return;
 

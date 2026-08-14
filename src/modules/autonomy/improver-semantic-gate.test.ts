@@ -7,6 +7,7 @@ import {
   createImproverSemanticCheck,
   getImproverSemanticGatePromptHash,
 } from "./improver-semantic-gate.js";
+import { type ImproverSemanticInspectionInput, inspectImproverSemanticReviewInWorker } from "./review-input-operations.js";
 import { AUTONOMY_DISALLOWED_TOOLS } from "./shared.js";
 
 const mockRunAgentHarness = vi.hoisted(() => vi.fn());
@@ -25,6 +26,10 @@ const mockResolveAgentHarness = vi.hoisted(() =>
 const mockCreateWorkflowAgentGuards = vi.hoisted(
   () => vi.fn(() => vi.fn(async () => ({ behavior: "allow" }))),
 );
+const mockRunBlocking = vi.fn(
+  async (_operation: { exportName: string }, input: ImproverSemanticInspectionInput) =>
+    inspectImproverSemanticReviewInWorker(input),
+);
 
 vi.mock("#core/agent-harness/index.js", async () => {
   const actual = await vi.importActual<typeof import("#core/agent-harness/index.js")>(
@@ -41,10 +46,6 @@ vi.mock("#core/agent-harness/index.js", async () => {
 function getPromptArg(call: unknown[]): string {
   const options = call[1] as { prompt: string };
   return options.prompt;
-}
-
-function getOptionsArg(call: unknown[]): Record<string, unknown> {
-  return call[1] as Record<string, unknown>;
 }
 
 vi.mock("node:child_process", async () => {
@@ -73,6 +74,7 @@ function makeContext(projectDir: string, runDirPath?: string) {
     trigger: { event: "workflow.build.committed", payload: {} },
     stepOutputs: {},
     stepResults: {},
+    runBlocking: mockRunBlocking,
     runTool: vi.fn(),
     runAgentHarness: mockRunAgentHarness,
     emit: vi.fn(),
@@ -96,10 +98,6 @@ type CodeCheck = {
   run: (ctx: never, parentStep: never) => Promise<unknown>;
 };
 
-// Minimal parent step to satisfy the repair-check run signature. The semantic
-// gate reads `parentStep.harness` as the default judge harness when the
-// factory leaves `harnessName` unset — these tests mock
-// `resolveAgentHarness`, so any registered name works.
 const TEST_PARENT_STEP = { harness: 'claude-agent-sdk', effort: 'xhigh' } as never;
 
 describe("createImproverSemanticCheck", () => {
@@ -143,6 +141,10 @@ describe("createImproverSemanticCheck", () => {
     const check = createImproverSemanticCheck({ runDirPath: runDir });
     const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
     expect(result).toMatch(/pass/);
+    expect(mockRunBlocking).toHaveBeenCalledWith(
+      expect.objectContaining({ exportName: "inspectImproverSemanticReviewInWorker" }),
+      { projectDir: dir, runDirPath: runDir },
+    );
     expect(mockRunAgentHarness).toHaveBeenCalledOnce();
 
     const prompt = getPromptArg(mockRunAgentHarness.mock.calls[0]);
@@ -284,7 +286,7 @@ describe("createImproverSemanticCheck", () => {
     expect(prompt).toContain(`${runDir}/metadata.json`);
     expect(prompt).toContain(`${runDir}/steps/*.events.jsonl`);
 
-    const options = getOptionsArg(mockRunAgentHarness.mock.calls[0]);
+    const options = mockRunAgentHarness.mock.calls[0][1] as Record<string, unknown>;
     expect(options.allowedTools).toBeUndefined();
     expect(options.disallowedTools).toEqual(AUTONOMY_DISALLOWED_TOOLS);
     expect(options.effort).toBe("xhigh");

@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { serializeFlatFrontMatter } from "#core/util/frontmatter.js";
+import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import {
   getRepoInboxDir,
   getRepoTaskStateDir,
@@ -219,12 +220,16 @@ function skipped(signature: string, reason: string): ScopeImprovementAppliedActi
   return { kind: "skipped", signature, reason };
 }
 
-export function applyScopeImprovementRecommendations(args: {
+export type ApplyScopeImprovementRecommendationsInput = {
   projectDir: string;
   runId: string;
   inputs: ScopeImprovementArtifact["inputs"];
   recommendations: readonly ScopeImprovementRecommendation[];
-}): ScopeImprovementActionResult {
+};
+
+export function applyScopeImprovementRecommendations(
+  args: ApplyScopeImprovementRecommendationsInput,
+): ScopeImprovementActionResult {
   const applied = args.recommendations.map((recommendation) => {
     if (recommendation.kind === "create-task") {
       return writeTask({ projectDir: args.projectDir, runId: args.runId, recommendation });
@@ -244,6 +249,12 @@ export function applyScopeImprovementRecommendations(args: {
   });
   return summarizeActions(applied);
 }
+
+export const applyScopeImprovementRecommendationsOperation =
+  defineWorkflowBlockingOperation<
+    ApplyScopeImprovementRecommendationsInput,
+    ScopeImprovementActionResult
+  >(import.meta.url, "applyScopeImprovementRecommendations");
 
 function summarizeActions(
   applied: ScopeImprovementAppliedAction[],

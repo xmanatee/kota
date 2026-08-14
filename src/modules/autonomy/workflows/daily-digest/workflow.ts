@@ -8,29 +8,25 @@
  * operators. Per `workflows/AGENTS.md`, autonomy workflows must not
  * subscribe to `runtime.idle` — only the dispatcher does.
  *
- * The data + render pipeline lives in `on-demand.ts` (`computeDigestSnapshot`)
- * so the cadence path here and the telegram `/digest` path cannot drift; the
- * cadence step layers state-write and event-emit on top.
+ * The data + render pipeline is shared with the on-demand digest, while its
+ * repository and run-history scan executes through the workflow blocking
+ * boundary together with cadence artifact/state writes. The code step only
+ * emits the resulting operator event on the daemon thread.
  */
 
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { writeJsonFileAtomic } from "#core/util/json-file.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import type { DailyDigestData } from "./aggregate.js";
 import {
-  type DailyDigestData,
-  digestStateFromCounts,
-} from "./aggregate.js";
-import {
-  computeDigestSnapshot,
+  DAILY_DIGEST_DIGEST_JSON,
+  DAILY_DIGEST_DIGEST_TXT,
   DAILY_DIGEST_STATE_FILENAME,
-} from "./on-demand.js";
+  dailyDigestBuildOperation,
+} from "./blocking-operations.js";
 
 export { DAILY_DIGEST_STATE_FILENAME };
 export const DAILY_DIGEST_EVENT = "workflow.daily.digest";
-export const DAILY_DIGEST_DIGEST_JSON = "digest.json";
-export const DAILY_DIGEST_DIGEST_TXT = "digest.txt";
+export { DAILY_DIGEST_DIGEST_JSON, DAILY_DIGEST_DIGEST_TXT };
 
 const buildDigest = typedCodeStep<DailyDigestData>({
   id: "build-digest",
@@ -42,22 +38,11 @@ const buildDigest = typedCodeStep<DailyDigestData>({
       "queueDelta",
       "quiet",
     ]),
-  run: ({ projectDir, workflow, emit }) => {
-    const statePath = join(projectDir, ".kota", DAILY_DIGEST_STATE_FILENAME);
-    const snapshot = computeDigestSnapshot({ projectDir });
-
-    writeFileSync(
-      join(workflow.runDirPath, DAILY_DIGEST_DIGEST_JSON),
-      JSON.stringify(snapshot.data, null, 2),
-    );
-    writeFileSync(
-      join(workflow.runDirPath, DAILY_DIGEST_DIGEST_TXT),
-      `${snapshot.text}\n`,
-    );
-    writeJsonFileAtomic(
-      statePath,
-      digestStateFromCounts(snapshot.currentCounts, snapshot.windowEndMs),
-    );
+  run: async ({ projectDir, workflow, emit, runBlocking }) => {
+    const snapshot = await runBlocking(dailyDigestBuildOperation, {
+      projectDir,
+      runDirPath: workflow.runDirPath,
+    });
 
     emit(DAILY_DIGEST_EVENT, {
       windowStartedAt: snapshot.data.windowStartedAt,

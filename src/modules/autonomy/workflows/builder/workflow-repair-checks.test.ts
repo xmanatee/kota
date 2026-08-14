@@ -148,7 +148,7 @@ describe("builder workflow prompt and repair checks", () => {
     expect(checks.get("critic-review")?.phase).toBe(3);
   });
 
-  it("reads autonomy change decisions from the builder agent run directory", () => {
+  it("reads autonomy change decisions from the builder agent run directory", async () => {
     const dir = join(
       tmpdir(),
       `kota-builder-agent-decision-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -219,7 +219,7 @@ describe("builder workflow prompt and repair checks", () => {
       expect(check?.type).toBe("code");
       if (check?.type !== "code") throw new Error("Expected autonomy-change-decision code check");
 
-      expect(
+      await expect(
         check.run(
           {
             projectDir: dir,
@@ -233,7 +233,7 @@ describe("builder workflow prompt and repair checks", () => {
           } as never,
           {} as never,
         ),
-      ).toContain("covers 1 material autonomy file");
+      ).resolves.toContain("covers 1 material autonomy file");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -177,8 +177,8 @@ vi.mock("#modules/autonomy/workflow-state-recovery-claims.js", () => ({
   listRecoveryClaims: vi.fn(() => []),
 }));
 
-vi.mock("#modules/git/worktree-merge-gate.js", () => ({
-  mergeAutomationWorktree: vi.fn((input: {
+vi.mock("#modules/git/worktree-merge-gate.js", () => {
+  const mergedResult = (input: {
     projectDir: string;
     taskId: string;
     runId: string;
@@ -210,8 +210,11 @@ vi.mock("#modules/git/worktree-merge-gate.js", () => ({
       serializedByLock: true,
     },
     artifactPath: `${input.projectDir}/.kota/worktrees/${input.taskId}-${input.runId}.merge-gate.json`,
-  })),
-}));
+  });
+  return {
+    mergeAutomationWorktree: vi.fn(mergedResult),
+  };
+});
 
 vi.mock("./run-summary.js", () => ({
   findTerminalTaskInChangedFiles: vi.fn(() => ({

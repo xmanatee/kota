@@ -17,176 +17,26 @@
  * marker and promotes the task to `ready/`.
  */
 
-import { execFileSync } from "node:child_process";
 import {
   existsSync,
-  mkdirSync,
-  mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
-  writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Daemon, resetScheduler } from "#core/daemon/index.js";
+import { resetScheduler } from "#core/daemon/index.js";
 import {
   getOwnerQuestionQueue,
   resetOwnerQuestionQueue,
 } from "#core/daemon/owner-question-queue.js";
 import { getEventBus, resetEventBus } from "#core/events/event-bus.js";
-import { registerWorkflowDefinition } from "#core/workflow/validation.js";
-import { tryHandleOwnerQuestionReply } from "#modules/telegram/owner-question-reply.js";
-import blockedPromoterWorkflow from "./workflow.js";
-
-// The cycle's components must be real. The mocks below cover infrastructure
-// adjacent to (not inside) the cycle: validation gates, the git commit, the
-// task store init, and the Telegram HTTP client. None of these belong to the
-// four seams the test pins.
-
-vi.mock("#modules/telegram/client.js", () => ({
-  callTelegramApi: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock("#modules/autonomy/shared.js", async () => {
-  const actual = await vi.importActual<typeof import("#modules/autonomy/shared.js")>(
-    "#modules/autonomy/shared.js",
-  );
-  return {
-    ...actual,
-    runCheck: vi.fn(() => "ok"),
-    checkNoScratchArtifacts: vi.fn(() => "ok"),
-    checkCommitMessageExists: vi.fn(() => "ok"),
-  };
-});
-
-vi.mock("#modules/autonomy/commit.js", async () => {
-  const actual = await vi.importActual<typeof import("#modules/autonomy/commit.js")>(
-    "#modules/autonomy/commit.js",
-  );
-  return {
-    ...actual,
-    commitWorkflowChanges: vi.fn(() => ({
-      committed: true,
-      committedPaths: ["data/tasks/ready/task-pick-variant.md"],
-      daemonRestartRequired: false,
-    })),
-    checkCommitStageable: vi.fn(() => "ok"),
-  };
-});
-
-vi.mock("#core/daemon/task-store.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("#core/daemon/task-store.js")>();
-  return { ...actual, initTaskStore: vi.fn() };
-});
-
-async function waitFor<T>(
-  predicate: () => T | null | undefined | false,
-  timeoutMs: number,
-  description: string,
-): Promise<T> {
-  const start = Date.now();
-  for (;;) {
-    const value = predicate();
-    if (value) return value as T;
-    if (Date.now() - start >= timeoutMs) {
-      throw new Error(`Timed out after ${timeoutMs}ms waiting for: ${description}`);
-    }
-    await new Promise((r) => setTimeout(r, 25));
-  }
-}
-
-function blockedTaskBody(): string {
-  const now = "2026-04-25T00:00:00.000Z";
-  return [
-    "---",
-    "id: task-pick-variant",
-    "title: Pick variant",
-    "status: blocked",
-    "priority: p1",
-    "area: autonomy",
-    "summary: pick variant",
-    `created_at: ${now}`,
-    `updated_at: ${now}`,
-    "---",
-    "",
-    "## Problem",
-    "Pick a variant for the cycle test.",
-    "",
-    "## Desired Outcome",
-    "A variant is chosen.",
-    "",
-    "## Constraints",
-    "None.",
-    "",
-    "## Done When",
-    "- variant is chosen",
-    "",
-    "## Unblock Precondition",
-    "",
-    "```",
-    "kind: owner-decision",
-    "slot: pick-variant",
-    "question: Which variant should we pick?",
-    "context: Variants A, B, hybrid sketched in body.",
-    "proposed_answers: variant-a, variant-b, hybrid, unblock",
-    "```",
-    "",
-    "## Source / Intent",
-    "Cycle integration test fixture.",
-    "",
-    "## Initiative",
-    "Owner-in-the-loop reliability.",
-    "",
-    "## Acceptance Evidence",
-    "- this test",
-    "",
-  ].join("\n");
-}
-
-function setupProjectDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "owner-decision-cycle-"));
-  writeFileSync(join(dir, ".gitignore"), ".kota/\n");
-  for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
-    mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
-    writeFileSync(join(dir, "data", "tasks", state, "AGENTS.md"), `# ${state}\n`);
-  }
-  writeFileSync(
-    join(dir, "data", "tasks", "blocked", "task-pick-variant.md"),
-    blockedTaskBody(),
-  );
-  execFileSync("git", ["init", "--quiet", "-b", "main"], { cwd: dir });
-  execFileSync("git", ["config", "user.email", "t@t"], { cwd: dir });
-  execFileSync("git", ["config", "user.name", "t"], { cwd: dir });
-  execFileSync("git", ["add", "-A"], { cwd: dir });
-  execFileSync("git", ["commit", "-q", "-m", "init"], { cwd: dir });
-  return dir;
-}
-
-function makeDaemon(projectDir: string): Daemon {
-  const stateDir = join(projectDir, ".kota");
-  return new Daemon({
-    projectDir,
-    stateDir,
-    idleIntervalMs: 5_000,
-    pollIntervalMs: 60_000,
-    shutdownGracePeriodMs: 10_000,
-    restartExit: vi.fn(),
-    workflows: [
-      registerWorkflowDefinition(
-        "src/modules/autonomy/workflows/blocked-promoter/workflow.ts",
-        {
-          ...blockedPromoterWorkflow,
-          // blocked-promoter has no agent step, so any absolute moduleRoot
-          // satisfies validation; pin it to the scratch project to keep
-          // any future prompt resolution inside the test fixture.
-          moduleRoot: projectDir,
-        },
-      ),
-    ],
-  });
-}
+import {
+  makeDaemon,
+  setupProjectDir,
+  tryHandleOwnerQuestionReply,
+  waitFor,
+} from "./owner-decision-cycle-test-support.js";
 
 describe("owner-decision blocked-task unblock cycle", () => {
   let projectDir: string;
@@ -389,8 +239,15 @@ describe("owner-decision blocked-task unblock cycle", () => {
           "ready",
           "task-pick-variant.md",
         );
+        const blockedPath = join(
+          projectDir,
+          "data",
+          "tasks",
+          "blocked",
+          "task-pick-variant.md",
+        );
         await waitFor(
-          () => existsSync(promotedPath),
+          () => existsSync(promotedPath) && !existsSync(blockedPath),
           20_000,
           "blocked task to promote to ready/ after the resume run completes " +
             "(seam: installAwaitResumers resume + blocked-promoter follow-up promotion)",
@@ -402,9 +259,7 @@ describe("owner-decision blocked-task unblock cycle", () => {
           "the task body must carry the blocked-promoter-resolved marker",
         ).toContain("blocked-promoter-resolved: slot=pick-variant");
         expect(
-          existsSync(
-            join(projectDir, "data", "tasks", "blocked", "task-pick-variant.md"),
-          ),
+          existsSync(blockedPath),
           "the task must have moved out of blocked/",
         ).toBe(false);
       } finally {

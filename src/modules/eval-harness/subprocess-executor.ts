@@ -71,6 +71,7 @@ export function createSubprocessExecutor(
       );
     },
     async execute(request: WorkflowExecutionRequest): Promise<WorkflowExecutionOutcome> {
+      options.signal?.throwIfAborted();
       const startMs = Date.now();
       const hostKotaRoot = dirname(dirname(resolve(options.kotaBinaryPath)));
       const hostKotaDistDir = join(hostKotaRoot, "dist");
@@ -104,6 +105,7 @@ export function createSubprocessExecutor(
           request,
           existingWorkflowRunIds,
           startMs,
+          options.signal,
         );
       } finally {
         childSpec.cleanup?.();
@@ -167,6 +169,7 @@ async function runChildAndReadOutcome(
   request: WorkflowExecutionRequest,
   existingWorkflowRunIds: ReadonlySet<string>,
   startMs: number,
+  signal?: AbortSignal,
 ): Promise<WorkflowExecutionOutcome> {
   const child = spawn(childSpec.command, childSpec.args, {
     cwd: childSpec.cwd,
@@ -183,15 +186,26 @@ async function runChildAndReadOutcome(
     timedOut = true;
     child.kill("SIGTERM");
   }, request.budgetMs);
+  const onAbort = (): void => {
+    child.kill("SIGTERM");
+  };
+  signal?.addEventListener("abort", onAbort, { once: true });
 
-  const { code, spawnError } = await new Promise<{
-    code: number | null;
-    spawnError: Error | null;
-  }>((resolve) => {
-    child.on("exit", (exitCode) => resolve({ code: exitCode, spawnError: null }));
-    child.on("error", (err) => resolve({ code: null, spawnError: err }));
-  });
-  clearTimeout(budgetTimer);
+  let code: number | null;
+  let spawnError: Error | null;
+  try {
+    ({ code, spawnError } = await new Promise<{
+      code: number | null;
+      spawnError: Error | null;
+    }>((resolve) => {
+      child.on("exit", (exitCode) => resolve({ code: exitCode, spawnError: null }));
+      child.on("error", (err) => resolve({ code: null, spawnError: err }));
+    }));
+  } finally {
+    clearTimeout(budgetTimer);
+    signal?.removeEventListener("abort", onAbort);
+  }
+  signal?.throwIfAborted();
 
   const durationMs = Date.now() - startMs;
   if (timedOut) {

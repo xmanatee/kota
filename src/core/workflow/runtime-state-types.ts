@@ -1,4 +1,5 @@
 import type {
+  WorkflowAgentBackoffKind,
   WorkflowAgentBackoffState,
   WorkflowBatchBuffers,
   WorkflowRunTrigger,
@@ -18,7 +19,8 @@ export type WorkflowRepairErrorKind =
   | "repair-attempts-exhausted";
 export type WorkflowStepErrorKind =
   | WorkflowStepTimeoutErrorKind
-  | WorkflowRepairErrorKind;
+  | WorkflowRepairErrorKind
+  | WorkflowAgentBackoffKind;
 
 export function isWorkflowStepTimeoutErrorKind(
   kind: WorkflowStepErrorKind | undefined,

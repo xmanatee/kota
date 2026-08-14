@@ -28,6 +28,7 @@ export async function runDaemonShutdown(
     clearInterval(ctx.healthCheckTimer);
     ctx.healthCheckTimer = null;
   }
+  ctx.eventLoopLatency.stop();
 
   for (const adapter of ctx.activeChannels) {
     await adapter.stop();

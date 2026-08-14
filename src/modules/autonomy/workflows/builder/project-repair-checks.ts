@@ -5,14 +5,10 @@ import {
   ROOT_CROSS_CUTTING_FIXTURES,
   ROOT_ENTRYPOINT_SOURCES,
 } from "#core/root-layout.js";
-import { type RunCheckOptions, runCheck } from "#modules/autonomy/shared.js";
-
-const PACKAGE_PROJECT_MARKERS = [
-  "package.json",
-  "package.yaml",
-  "package.json5",
-  "pnpm-workspace.yaml",
-] as const;
+import {
+  type RunCheckOptions,
+  runCheck,
+} from "#modules/autonomy/shared.js";
 
 const MOBILE_TYPECHECK_DEPENDENCY_MARKERS = [
   "node_modules/.bin/tsc",
@@ -150,33 +146,4 @@ function listStagedPathChanges(projectDir: string, pathspec: string): string[] {
     throw new Error(`Cannot inspect staged ${pathspec} changes: ${reason}`);
   }
   return result.stdout.split("\n").map((line) => line.trim()).filter(Boolean);
-}
-
-export async function checkMacosSwiftBuild(
-  projectDir: string,
-  options: RepairCheckOptions = {},
-): Promise<string> {
-  const appleDir = join(projectDir, "clients/apple");
-  if (!existsSync(join(appleDir, "Package.swift"))) {
-    return "OK: no Apple client present";
-  }
-  return runCheck("swift build", appleDir, {
-    timeoutMs: 180_000,
-    signal: options.signal,
-  });
-}
-
-function hasPackageProject(projectDir: string): boolean {
-  return PACKAGE_PROJECT_MARKERS.some((marker) => existsSync(join(projectDir, marker)));
-}
-
-export async function checkPackageScript(
-  projectDir: string,
-  command: string,
-  options: RunCheckOptions = {},
-): Promise<string> {
-  if (!hasPackageProject(projectDir)) {
-    return "OK: no package project present";
-  }
-  return runCheck(command, projectDir, options);
 }

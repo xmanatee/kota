@@ -2201,7 +2201,10 @@ describe("WorkflowRuntime", () => {
 
       // Release the first run; only after that should the second one start.
       releases.shift()!();
-      await wait(40);
+      await waitUntil(
+        () => inFlightCount === 1 && releases.length === 1,
+        1_000,
+      );
       expect(maxInFlight).toBe(1);
       expect(inFlightCount).toBe(1);
 

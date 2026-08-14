@@ -1,5 +1,6 @@
 import { tmpdir } from "node:os";
 import type { ToolResult } from "#core/tools/tool-result.js";
+import type { WorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import type {
   WorkflowRuntimeResources,
   WorkflowRuntimeState,
@@ -81,6 +82,10 @@ export type HarnessOptions = {
    * call runTool, triggerWorkflow, or readPrompt.
    */
   contextOverrides?: {
+    runBlocking?: <TInput, TOutput>(
+      operation: WorkflowBlockingOperation<TInput, TOutput>,
+      input: TInput,
+    ) => Promise<TOutput>;
     runTool?: (name: string, input: HarnessObjectValue) => Promise<ToolResult>;
     readPrompt?: (promptPath: string) => string;
     triggerWorkflow?: (

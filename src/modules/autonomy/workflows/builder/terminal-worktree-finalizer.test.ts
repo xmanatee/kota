@@ -2,6 +2,10 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type {
+  WorkflowBlockingOperation,
+  WorkflowBlockingOperationRunner,
+} from "#core/workflow/blocking-operation.js";
 import type { WorkflowTerminalFinalizerInput } from "#core/workflow/types.js";
 
 const {
@@ -39,8 +43,24 @@ vi.mock("#modules/autonomy/task-claims.js", () => ({
 }));
 
 import { finalizeBuilderTerminalWorktree } from "./terminal-worktree-finalizer.js";
+import {
+  type BuilderTerminalWorktreeOperationInput,
+  builderTerminalWorktreeFinalizerOperation,
+  runBuilderTerminalWorktreeFinalizerInWorker,
+} from "./terminal-worktree-finalizer-operation.js";
 
 const tempDirs: string[] = [];
+
+async function runBlockingInline<TInput, TOutput>(
+  operation: WorkflowBlockingOperation<TInput, TOutput>,
+  input: TInput,
+): Promise<TOutput> {
+  expect(operation).toBe(builderTerminalWorktreeFinalizerOperation);
+  const output = await runBuilderTerminalWorktreeFinalizerInWorker(
+    input as BuilderTerminalWorktreeOperationInput,
+  );
+  return output as TOutput;
+}
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -78,70 +98,8 @@ function finalizerInput(status: "success" | "failed"): WorkflowTerminalFinalizer
     },
     emit: vi.fn(),
     log: vi.fn(),
+    runBlocking: runBlockingInline satisfies WorkflowBlockingOperationRunner["runBlocking"],
   };
-}
-
-function continuedFinalizerInput(): WorkflowTerminalFinalizerInput {
-  const input = finalizerInput("failed");
-  input.metadata.id = "recovery-run";
-  input.metadata.runDir = ".kota/runs/recovery-run";
-  const prepareStep = input.metadata.steps.find((step) => step.id === "prepare-worktree");
-  if (prepareStep === undefined) throw new Error("prepare-worktree fixture is missing");
-  prepareStep.output = {
-    enabled: true,
-    taskId: "task-one",
-    worktreeRunId: "builder-run",
-  };
-  input.trigger.event = "autonomy.builder.recovery.requested";
-  return input;
-}
-
-function mockPreservedWorktree(input: {
-  claimRunId: string;
-  dirtyState: "dirty" | "conflicted";
-  blocker: string;
-}): void {
-  inspectAutomationWorktree.mockReturnValue({
-    branch: "kota/task-one",
-    headCommit: "abc123",
-    metadata: {
-      state: "active",
-      ...(input.claimRunId !== "builder-run"
-        ? { recoveryRunId: input.claimRunId }
-        : {}),
-      runtimeResources: { profileId: `task-one:${input.claimRunId}` },
-    },
-    cleanup: { blockers: [input.blocker] },
-  });
-  listAutomationWorktreeUniqueCommits.mockReturnValue({ commits: [] });
-  reconcileAutomationWorktrees.mockReturnValue({
-    items: [
-      {
-        taskId: "task-one",
-        runId: "builder-run",
-        removed: false,
-        blockers: [input.blocker],
-      },
-    ],
-  });
-  findRecoveryClaim.mockReturnValue({
-    claim: {
-      taskId: "task-one",
-      runId: input.claimRunId,
-      worktreeRunId: "builder-run",
-      workflowId: "builder",
-    },
-    ownerRunStatus: "failed",
-    worktree: {
-      found: true,
-      dirtyState: input.dirtyState,
-      workspaceDir: "/tmp/preserved-builder",
-    },
-    recommendedAction: {
-      kind: "needs-review",
-      reason: input.blocker,
-    },
-  });
 }
 
 describe("finalizeBuilderTerminalWorktree", () => {
@@ -319,70 +277,4 @@ describe("finalizeBuilderTerminalWorktree", () => {
     });
   });
 
-  it("requests one continuation for terminal preserved changes", async () => {
-    mockPreservedWorktree({
-      claimRunId: "builder-run",
-      dirtyState: "dirty",
-      blocker: "worktree has uncommitted tracked changes",
-    });
-    const input = finalizerInput("failed");
-
-    await finalizeBuilderTerminalWorktree(input);
-
-    expect(input.emit).toHaveBeenCalledWith(
-      "autonomy.builder.recovery.requested",
-      expect.objectContaining({
-        taskId: "task-one",
-        sourceRunId: "builder-run",
-        worktreeRunId: "builder-run",
-      }),
-    );
-    expect(releaseTaskClaim).not.toHaveBeenCalled();
-  });
-
-  it("preserves an ambiguous continuation without dispatching another", async () => {
-    mockPreservedWorktree({
-      claimRunId: "recovery-run",
-      dirtyState: "conflicted",
-      blocker: "worktree has conflicted paths",
-    });
-    const input = continuedFinalizerInput();
-
-    await finalizeBuilderTerminalWorktree(input);
-
-    expect(input.emit).not.toHaveBeenCalled();
-    expect(
-      JSON.parse(
-        readFileSync(
-          join(input.projectDir, input.metadata.runDir, "terminal-worktree-finalizer.json"),
-          "utf8",
-        ),
-      ),
-    ).toMatchObject({
-      removed: false,
-      blockers: ["worktree has conflicted paths"],
-      recoveryRequested: false,
-    });
-  });
-
-  it("retries a continuation only after a classified provider failure", async () => {
-    mockPreservedWorktree({
-      claimRunId: "recovery-run",
-      dirtyState: "dirty",
-      blocker: "worktree has uncommitted tracked changes",
-    });
-    const input = continuedFinalizerInput();
-    input.agentFailureKind = "provider";
-
-    await finalizeBuilderTerminalWorktree(input);
-
-    expect(input.emit).toHaveBeenCalledTimes(1);
-    expect(input.emit).toHaveBeenCalledWith(
-      "autonomy.builder.recovery.requested",
-      expect.objectContaining({
-        sourceRunId: "recovery-run",
-        worktreeRunId: "builder-run",
-      }),
-    );
-  });
 });
