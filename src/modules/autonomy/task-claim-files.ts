@@ -17,6 +17,11 @@ import {
   runClaimFilesystemOperation,
 } from "./task-claim-filesystem.js";
 import {
+  isTaskClaimContentDigest,
+  taskClaimContentDigest,
+  taskClaimContractDigest,
+} from "./task-claim-task-binding.js";
+import {
   ACTIVE_CLAIMS_DIR,
   CLAIM_SCHEMA_VERSION,
   type ClaimTaskInput,
@@ -157,6 +162,10 @@ function parseClaimFile(
     typeof parsed.leaseExpiresAt !== "string" ||
     typeof parsed.createdAt !== "string" ||
     typeof parsed.updatedAt !== "string" ||
+    (parsed.taskContentDigest !== undefined &&
+      !isTaskClaimContentDigest(parsed.taskContentDigest)) ||
+    (parsed.taskContractDigest !== undefined &&
+      !isTaskClaimContentDigest(parsed.taskContractDigest)) ||
     !isTaskClaimStatus(parsed.status)
   ) {
     throw new Error(`Malformed task claim file: ${path}`);
@@ -196,6 +205,12 @@ function parseClaimFile(
     taskId: parsed.taskId,
     taskState,
     taskFile,
+    ...(parsed.taskContentDigest !== undefined
+      ? { taskContentDigest: parsed.taskContentDigest }
+      : {}),
+    ...(parsed.taskContractDigest !== undefined
+      ? { taskContractDigest: parsed.taskContractDigest }
+      : {}),
     runId: parsed.runId,
     ...(parsed.worktreeRunId !== undefined
       ? { worktreeRunId: parsed.worktreeRunId }
@@ -239,6 +254,8 @@ function sameClaim(left: TaskClaim, right: TaskClaim): boolean {
     left.taskFile.snapshot.size === right.taskFile.snapshot.size &&
     left.taskFile.snapshot.mtimeMs === right.taskFile.snapshot.mtimeMs &&
     left.taskFile.snapshot.ctimeMs === right.taskFile.snapshot.ctimeMs &&
+    left.taskContentDigest === right.taskContentDigest &&
+    left.taskContractDigest === right.taskContractDigest &&
     left.runId === right.runId &&
     left.worktreeRunId === right.worktreeRunId &&
     left.workflowId === right.workflowId &&
@@ -289,7 +306,7 @@ function releaseClaimMutationLock(
   });
 }
 
-function assertClaimTaskFileCurrent(input: ClaimTaskInput): void {
+function assertClaimTaskFileCurrent(input: ClaimTaskInput) {
   const current = readVerifiedRepoTaskFile(
     input.projectDir,
     input.taskState,
@@ -309,10 +326,11 @@ function assertClaimTaskFileCurrent(input: ClaimTaskInput): void {
       `Cannot claim task ${input.taskId}: verified task file changed during queue selection`,
     );
   }
+  return current;
 }
 
 export function buildClaim(input: ClaimTaskInput, now: Date, createdAt?: string): TaskClaim {
-  assertClaimTaskFileCurrent(input);
+  const currentTask = assertClaimTaskFileCurrent(input);
   const leaseMs = input.leaseMs ?? DEFAULT_TASK_CLAIM_LEASE_MS;
   const acquiredAt = now.toISOString();
   return {
@@ -320,6 +338,8 @@ export function buildClaim(input: ClaimTaskInput, now: Date, createdAt?: string)
     taskId: input.taskId,
     taskState: input.taskState,
     taskFile: input.taskFile,
+    taskContentDigest: taskClaimContentDigest(currentTask.content),
+    taskContractDigest: taskClaimContractDigest(currentTask.content),
     runId: input.runId,
     workflowId: input.workflowId,
     owner: input.owner,

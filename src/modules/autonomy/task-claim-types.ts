@@ -63,6 +63,10 @@ export type TaskClaim = {
   taskId: string;
   taskState: RepoTaskState;
   taskFile: RepoTaskFileDescriptor;
+  /** Exact digest of the claimed task bytes. */
+  taskContentDigest?: string;
+  /** Digest of the task contract, excluding lifecycle-only frontmatter. */
+  taskContractDigest?: string;
   runId: string;
   /** Original builder run that owns the preserved worktree, when this claim is continued. */
   worktreeRunId?: string;

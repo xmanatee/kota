@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { validateWorkflowRunId } from "#core/workflow/run-io.js";
 import { labeledPredicate, type WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
@@ -7,14 +8,10 @@ import {
   type BuilderDecompositionFailureKind,
   classifyBuilderFailureForDecomposition,
 } from "#modules/autonomy/builder-failure-classification.js";
-import { CLAIM_SCHEMA_VERSION } from "#modules/autonomy/task-claims.js";
 import {
-  REPO_TASK_STATES,
-  REPO_TASKS_DIR,
-  type RepoTaskFileDescriptor,
-  type RepoTaskState,
-  readVerifiedRepoTaskFile,
-} from "#modules/repo-tasks/repo-tasks-domain.js";
+  type DecompositionSource,
+  resolveDecompositionOwnership,
+} from "./assessment-ownership.js";
 
 export type DecomposerAssessment = {
   reason: string;
@@ -31,24 +28,7 @@ export type DecomposerAssessment = {
     }
 );
 
-const TASK_STATES_FOR_IDENTIFIED_TASK = ["doing", "blocked", "ready"] as const;
-
-function findTaskById(
-  projectDir: string,
-  taskId: string,
-): { id: string; path: string; markdown: string } | null {
-  for (const state of TASK_STATES_FOR_IDENTIFIED_TASK) {
-    const taskFile = readVerifiedRepoTaskFile(projectDir, state, taskId);
-    if (taskFile !== null) {
-      return { id: taskId, path: taskFile.path, markdown: taskFile.content };
-    }
-  }
-  return null;
-}
-
-type ResolvedSource = {
-  runId: string;
-  runDir: string;
+type ResolvedSource = DecompositionSource & {
   /** True when the trigger gives us no usable source context (non-builder recovery). */
   skip: boolean;
 };
@@ -63,14 +43,15 @@ function resolveSourceRun(
       return { runId: "", runDir: "", skip: true };
     }
     const sourceRunId = payload.sourceRunId;
-    if (typeof sourceRunId !== "string" || sourceRunId.length === 0) {
+    if (typeof sourceRunId !== "string") {
       throw new Error(
         "Decomposer recovery trigger payload must include sourceRunId when sourceWorkflow is builder",
       );
     }
+    const runId = validateWorkflowRunId(sourceRunId, "Decomposer recovery source");
     return {
-      runId: sourceRunId,
-      runDir: join(".kota", "runs", sourceRunId),
+      runId,
+      runDir: join(".kota", "runs", runId),
       skip: false,
     };
   }
@@ -80,81 +61,35 @@ function resolveSourceRun(
   if (typeof runDir !== "string" || typeof runId !== "string") {
     throw new Error("Decomposer trigger payload must include runDir and runId");
   }
-  return { runId, runDir, skip: false };
-}
-
-type BuilderTaskClaimArtifact = {
-  claimed?: boolean;
-  taskId?: string | null;
-  claim?: {
-    schemaVersion?: number;
-    taskId?: string;
-    taskState?: RepoTaskState;
-    taskFile?: {
-      path?: string;
-      snapshot?: {
-        dev?: number;
-        ino?: number;
-        size?: number;
-        mtimeMs?: number;
-        ctimeMs?: number;
-      };
-    };
-  } | null;
-};
-
-function isVerifiedClaimBinding(
-  artifact: BuilderTaskClaimArtifact,
-): artifact is BuilderTaskClaimArtifact & {
-  claimed: true;
-  taskId: string;
-  claim: {
-    schemaVersion: typeof CLAIM_SCHEMA_VERSION;
-    taskId: string;
-    taskState: RepoTaskState;
-    taskFile: RepoTaskFileDescriptor;
-  };
-} {
-  const claim = artifact.claim;
-  if (
-    artifact.claimed !== true ||
-    typeof artifact.taskId !== "string" ||
-    claim === null ||
-    claim === undefined ||
-    claim.schemaVersion !== CLAIM_SCHEMA_VERSION ||
-    claim.taskId !== artifact.taskId ||
-    claim.taskState === undefined ||
-    !REPO_TASK_STATES.includes(claim.taskState) ||
-    claim.taskFile === undefined ||
-    claim.taskFile.snapshot === undefined ||
-    claim.taskFile.path !==
-      join(REPO_TASKS_DIR, claim.taskState, `${artifact.taskId}.md`)
-  ) {
-    return false;
+  if (payload.workflow !== "builder" || payload.status !== "failed") {
+    throw new Error(
+      "Decomposer workflow.completed trigger must identify a failed builder run",
+    );
   }
-  const snapshot = claim.taskFile.snapshot;
-  return (
-    typeof snapshot.dev === "number" &&
-    Number.isSafeInteger(snapshot.dev) &&
-    typeof snapshot.ino === "number" &&
-    Number.isSafeInteger(snapshot.ino) &&
-    typeof snapshot.size === "number" &&
-    Number.isSafeInteger(snapshot.size) &&
-    snapshot.size >= 0 &&
-    typeof snapshot.mtimeMs === "number" &&
-    Number.isFinite(snapshot.mtimeMs) &&
-    typeof snapshot.ctimeMs === "number" &&
-    Number.isFinite(snapshot.ctimeMs)
-  );
+  const validatedRunId = validateWorkflowRunId(runId, "Decomposer trigger");
+  const canonicalRunDir = join(".kota", "runs", validatedRunId);
+  if (runDir !== canonicalRunDir) {
+    throw new Error(
+      `Decomposer trigger runDir must equal canonical run directory ${canonicalRunDir}`,
+    );
+  }
+  return { runId: validatedRunId, runDir: canonicalRunDir, skip: false };
 }
 
-function readClaimedTaskId(projectDir: string, runDir: string): string | null {
-  const artifact = readOptionalJsonFile<BuilderTaskClaimArtifact>(
-    join(projectDir, runDir, "task-claim.json"),
-  );
-  return artifact !== null && isVerifiedClaimBinding(artifact)
-    ? artifact.taskId
-    : null;
+function assertBuilderFailureMetadata(
+  metadata: WorkflowRunMetadata,
+  source: ResolvedSource,
+): void {
+  if (
+    metadata.id !== source.runId ||
+    metadata.workflow !== "builder" ||
+    metadata.status !== "failed" ||
+    metadata.runDir !== source.runDir
+  ) {
+    throw new Error(
+      `Decomposer source metadata must identify failed builder run ${source.runId} at ${source.runDir}`,
+    );
+  }
 }
 
 function buildAssessment(
@@ -186,6 +121,7 @@ function buildAssessment(
       failureKind: null,
     };
   }
+  assertBuilderFailureMetadata(metadata, source);
 
   const failureKind = classifyBuilderFailureForDecomposition(metadata);
   if (failureKind === null) {
@@ -198,20 +134,20 @@ function buildAssessment(
     };
   }
 
-  const candidateId = readClaimedTaskId(projectDir, source.runDir);
-  const task = candidateId ? findTaskById(projectDir, candidateId) : null;
-
-  if (!task) {
+  const ownership = resolveDecompositionOwnership(projectDir, source);
+  if (ownership.kind !== "owned-task") {
     return {
       shouldDecompose: false,
-      reason: candidateId
-        ? `Builder task ${candidateId} is no longer active; its current task state supersedes this failure`
-        : "Builder run has no claimed task artifact to rescope",
+      reason:
+        ownership.kind === "missing-artifact"
+          ? "Builder run has no claimed task artifact to rescope"
+          : ownership.reason,
       failedRunId: source.runId,
       failedRunDir: source.runDir,
       failureKind,
     };
   }
+  const task = ownership.task;
 
   return {
     shouldDecompose: true,
@@ -223,6 +159,39 @@ function buildAssessment(
     taskMarkdown: task.markdown,
     failureKind,
   };
+}
+
+export function assertDecompositionOwnership(
+  projectDir: string,
+  assessment: DecomposerAssessment,
+): void {
+  if (!assessment.shouldDecompose) {
+    throw new Error("Cannot verify decomposition ownership without an active target");
+  }
+  const runId = validateWorkflowRunId(
+    assessment.failedRunId,
+    "Decomposer assessment",
+  );
+  const canonicalRunDir = join(".kota", "runs", runId);
+  if (assessment.failedRunDir !== canonicalRunDir) {
+    throw new Error(
+      `Decomposer assessment runDir must equal canonical run directory ${canonicalRunDir}`,
+    );
+  }
+  const ownership = resolveDecompositionOwnership(projectDir, {
+    runId,
+    runDir: canonicalRunDir,
+  });
+  if (
+    ownership.kind !== "owned-task" ||
+    ownership.task.id !== assessment.taskId ||
+    ownership.task.path !== assessment.taskPath ||
+    ownership.task.markdown !== assessment.taskMarkdown
+  ) {
+    throw new Error(
+      `Cannot apply decomposition for ${assessment.taskId}: failed-run ownership changed after assessment`,
+    );
+  }
 }
 
 export const assessFailure = typedCodeStep<DecomposerAssessment>({

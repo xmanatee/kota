@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-decomposer-does-not-bind-the-t
 title: Security review: The decomposer does not bind the triggering failed run, claim artifact, current task, and active pending-decomposition claim into one ownership check before mutating canonical task state. A forged, traversing, or stale trigger/run artifact can therefore select a current task with the same id and make the decomposer create subtasks and drop it even when the failed builder run no longer owns that task.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: The decomposer does not bind the triggering failed run, claim artifact, current task, and active pending-decomposition claim into one ownership check before mutating canonical task state. A forged, traversing, or stale trigger/run artifact can therefore select a current task with the same id and make the decomposer create subtasks and drop it even when the failed builder run no longer owns that task.
 created_at: 2026-08-06T12:54:43.032Z
-updated_at: 2026-08-06T12:54:43.032Z
+updated_at: 2026-08-13T23:35:38.000Z
 ---
 
 ## Problem
@@ -125,3 +125,11 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/modules/autonomy/workflows/decomposer src/modules/eval-harness/fixture-templating.test.ts` — 8 files and 45 tests passed, including canonical run-path, metadata, forged artifact, replaced-task, missing-claim, different-run claim, pre-apply ownership, materialized file-identity, and valid-claim symbolic-link regressions.
+- `pnpm test src/modules/eval-harness/replay-smoke.test.ts -t "replays decomposer-agent-call-replay"` passed the production subprocess path through assessment, both agent steps, mutation, commit, and exact claim finalization.
+- `pnpm build`, `pnpm typecheck`, changed-file Biome checks, the instruction-size guard, and `pnpm kota workflow validate` (29/29 definitions) passed. A full-suite retry reached 12,574 passing tests and exposed one instruction-cap issue that was fixed; the other 223 failures were restricted-runner `EPERM` denials for loopback, the tool-runtime parent, and the policy-denied Telegram env example rather than failures in the changed surfaces.
+- Post-check repair replaced the impossible preserved-inode assumption with exact source-content and transition-stable task-contract digests. A production `claimTask` + `moveTaskById` regression proves `ready/` → `doing/` changes the inode while retaining ownership; same-path replacement and any non-canonical or contract-changing move still fail closed. The 40-test decomposer suite, 18 focused claim tests, production subprocess replay, build, typecheck, changed-file Biome checks, strict-types/task-file/instruction guards, and all 29 workflow definitions passed.
+- Repair attempt 3 made the linked-task regression non-vacuous: its run artifact and authoritative pending-decomposition claim now carry identical valid content/contract digests, and the test asserts rejection by the no-follow symbolic-link guard before sibling content can reach an agent. `pnpm test src/modules/autonomy/workflows/decomposer` passed all 40 tests.

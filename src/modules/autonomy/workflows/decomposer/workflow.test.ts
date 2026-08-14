@@ -7,8 +7,19 @@ import {
   type HarnessOptions,
   WorkflowTestHarness,
 } from "#core/workflow/testing/index.js";
+import {
+  taskClaimContentDigest,
+  taskClaimContractDigest,
+} from "#modules/autonomy/task-claim-task-binding.js";
 import type { DecompositionPlan } from "./decomposition-plan.js";
 import decomposerWorkflow, { agent } from "./workflow.js";
+import {
+  CLAIM_SNAPSHOT,
+  claimedTaskFile,
+  FAILED_RUN_ID,
+  matchingPendingClaim,
+  TASK_MARKDOWN,
+} from "./workflow-test-support.js";
 
 vi.mock("#core/util/json-file.js", () => ({
   readOptionalJsonFile: vi.fn(),
@@ -30,6 +41,7 @@ vi.mock("#modules/autonomy/commit.js", () => ({
 }));
 
 vi.mock("#modules/autonomy/task-claims.js", () => ({
+  CLAIM_CANDIDATE_STATES: ["doing", "ready"],
   CLAIM_SCHEMA_VERSION: 2,
   readActiveTaskClaim: vi.fn(() => null),
   supersedeTaskClaim: vi.fn(() => ({
@@ -77,7 +89,7 @@ function makeFailedBuilderMetadata(opts: {
   buildErrorKind?: WorkflowStepErrorKind;
 }): WorkflowRunMetadata {
   return {
-    id: "run-failed-builder",
+    id: FAILED_RUN_ID,
     workflow: "builder",
     definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
     trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
@@ -112,7 +124,16 @@ function makeFailedBuilderMetadata(opts: {
 async function configureBuilderFailure(
   metadata: WorkflowRunMetadata,
   taskId: string | null = "task-big-refactor",
+  artifactOverrides: {
+    runId?: string;
+    workflowId?: string;
+    status?: string;
+  } = {},
 ) {
+  const { readActiveTaskClaim } = await import("#modules/autonomy/task-claims.js");
+  vi.mocked(readActiveTaskClaim).mockReturnValue(
+    taskId === null ? null : matchingPendingClaim(taskId),
+  );
   const { readOptionalJsonFile } = await import("#core/util/json-file.js");
   vi.mocked(readOptionalJsonFile).mockImplementation((path: string) => {
     if (path.endsWith("/metadata.json")) return metadata as never;
@@ -126,16 +147,12 @@ async function configureBuilderFailure(
               schemaVersion: 2,
               taskId,
               taskState: "ready",
-              taskFile: {
-                path: `data/tasks/ready/${taskId}.md`,
-                snapshot: {
-                  dev: 1,
-                  ino: 1,
-                  size: 1,
-                  mtimeMs: 1,
-                  ctimeMs: 1,
-                },
-              },
+              taskFile: claimedTaskFile(taskId),
+              taskContentDigest: taskClaimContentDigest(TASK_MARKDOWN),
+              taskContractDigest: taskClaimContractDigest(TASK_MARKDOWN),
+              runId: artifactOverrides.runId ?? FAILED_RUN_ID,
+              workflowId: artifactOverrides.workflowId ?? "builder",
+              status: artifactOverrides.status ?? "active",
             },
           } as never);
     }
@@ -145,7 +162,7 @@ async function configureBuilderFailure(
 
 const TRIGGER_PAYLOAD = {
   workflow: "builder",
-  runId: "run-failed-builder",
+  runId: FAILED_RUN_ID,
   status: "failed",
   triggerEvent: "autonomy.queue.available",
   durationMs: 3_600_000,
@@ -205,14 +222,13 @@ describe("decomposer workflow", () => {
         state === "doing"
           ? {
               path: `data/tasks/doing/${taskId}.md`,
-              content:
-                `---\nid: ${taskId}\n---\n\n## Problem\n\nCanonical task intent.\n`,
+              content: TASK_MARKDOWN,
               snapshot: {
-                dev: 1,
+                ...CLAIM_SNAPSHOT,
                 ino: 2,
-                size: 1,
-                mtimeMs: 1,
-                ctimeMs: 1,
+                size: 2,
+                mtimeMs: 2,
+                ctimeMs: 2,
               },
             }
           : null,
@@ -226,7 +242,7 @@ describe("decomposer workflow", () => {
     });
     vi.mocked(fs.readFileSync).mockImplementation((path, options) => {
       if (String(path).includes("data/tasks/")) {
-        return "---\nid: task-fixture\n---\n\n## Problem\n\nCanonical task intent.\n";
+        return TASK_MARKDOWN;
       }
       return actual.readFileSync(path, options as never);
     });
@@ -322,7 +338,91 @@ describe("decomposer workflow", () => {
     expect(result.steps.decompose.status).toBe("skipped");
   });
 
-  it("runs decompose for a timed-out claimed task", async () => {
+  it("rejects a claimed run whose active pending-decomposition claim is missing", async () => {
+    await configureBuilderFailure(
+      makeFailedBuilderMetadata({
+        buildDurationMs: HANG_TIMEOUT_BUILD_MS,
+        buildErrorKind: "step-timeout",
+      }),
+    );
+    const { readActiveTaskClaim } = await import("#modules/autonomy/task-claims.js");
+    vi.mocked(readActiveTaskClaim).mockReturnValue(null);
+
+    const result = await new WorkflowTestHarness(decomposerWorkflow, {
+      trigger: {
+        event: "workflow.completed",
+        schemaRef: null,
+        payload: TRIGGER_PAYLOAD,
+      },
+      stepMocks: decomposeStepMocks(),
+    }).run();
+
+    expect(result.steps["assess-failure"].status).toBe("failed");
+    expect(result.steps["assess-failure"].error).toContain(
+      "pending-decomposition claim is missing",
+    );
+    expect(result.steps.decompose).toBeUndefined();
+  });
+
+  it("rejects a forged run claim artifact that does not match the authoritative claim", async () => {
+    await configureBuilderFailure(
+      makeFailedBuilderMetadata({
+        buildDurationMs: HANG_TIMEOUT_BUILD_MS,
+        buildErrorKind: "step-timeout",
+      }),
+      "task-big-refactor",
+      { runId: "run-forged-builder" },
+    );
+
+    const result = await new WorkflowTestHarness(decomposerWorkflow, {
+      trigger: {
+        event: "workflow.completed",
+        schemaRef: null,
+        payload: TRIGGER_PAYLOAD,
+      },
+      stepMocks: decomposeStepMocks(),
+    }).run();
+
+    expect(result.steps["assess-failure"].status).toBe("failed");
+    expect(result.steps["assess-failure"].error).toContain(
+      "run claim artifact does not match",
+    );
+    expect(result.steps.decompose).toBeUndefined();
+  });
+
+  it("rejects replay after the claimed task file was replaced under the same id", async () => {
+    await configureBuilderFailure(
+      makeFailedBuilderMetadata({
+        buildDurationMs: HANG_TIMEOUT_BUILD_MS,
+        buildErrorKind: "step-timeout",
+      }),
+    );
+    const { readVerifiedRepoTaskFile } = await import(
+      "#modules/repo-tasks/repo-tasks-domain.js"
+    );
+    vi.mocked(readVerifiedRepoTaskFile).mockReturnValue({
+      path: "data/tasks/ready/task-big-refactor.md",
+      content: TASK_MARKDOWN,
+      snapshot: { ...CLAIM_SNAPSHOT, ino: 999 },
+    });
+
+    const result = await new WorkflowTestHarness(decomposerWorkflow, {
+      trigger: {
+        event: "workflow.completed",
+        schemaRef: null,
+        payload: TRIGGER_PAYLOAD,
+      },
+      stepMocks: decomposeStepMocks(),
+    }).run();
+
+    expect(result.steps["assess-failure"].output).toMatchObject({
+      shouldDecompose: false,
+      reason: expect.stringMatching(/changed.*current task identity supersedes/i),
+    });
+    expect(result.steps.decompose.status).toBe("skipped");
+  });
+
+  it("runs decompose after the claimed task moves from ready to doing", async () => {
     await configureBuilderFailure(
       makeFailedBuilderMetadata({
         buildDurationMs: HANG_TIMEOUT_BUILD_MS,
@@ -481,7 +581,7 @@ describe("decomposer workflow", () => {
     expect(result.steps["assess-failure"].output).toMatchObject({
       shouldDecompose: false,
       failureKind: "timeout",
-      reason: expect.stringMatching(/no longer active.*supersedes/i),
+      reason: expect.stringMatching(/no longer.*claimable task state.*supersedes/i),
     });
     expect(result.steps.decompose.status).toBe("skipped");
   });
@@ -540,7 +640,7 @@ describe("decomposer workflow", () => {
     });
   });
 
-  it("finalizes the current pending decomposition claim after a builder retry", async () => {
+  it("rejects a different builder run's pending-decomposition claim before planning", async () => {
     await configureBuilderFailure(
       makeFailedBuilderMetadata({
         buildDurationMs: HANG_TIMEOUT_BUILD_MS,
@@ -548,22 +648,15 @@ describe("decomposer workflow", () => {
       }),
     );
 
-    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({
-      committed: true,
-      committedPaths: ["data/tasks/ready/task-scoped-subtask.md"],
-      daemonRestartRequired: false,
-    } as never);
-
     const { readActiveTaskClaim, supersedeTaskClaim } = await import(
       "#modules/autonomy/task-claims.js"
     );
-    vi.mocked(readActiveTaskClaim).mockReturnValue({
-      taskId: "task-big-refactor",
-      runId: "run-newer-builder",
-      workflowId: "builder",
-      status: "pending-decomposition",
-    } as never);
+    vi.mocked(readActiveTaskClaim).mockReturnValue(
+      matchingPendingClaim("task-big-refactor", {
+        runId: "run-newer-builder",
+      }),
+    );
+    const { applyDecompositionPlan } = await import("./decomposition-actions.js");
 
     const harness = new WorkflowTestHarness(decomposerWorkflow, {
       trigger: { event: "workflow.completed", schemaRef: null, payload: TRIGGER_PAYLOAD },
@@ -572,14 +665,13 @@ describe("decomposer workflow", () => {
 
     const result = await harness.run();
 
-    expect(result.steps["finalize-source-claim"].status).toBe("success");
-    expect(supersedeTaskClaim).toHaveBeenCalledWith({
-      projectDir: expect.any(String),
-      taskId: "task-big-refactor",
-      runId: "run-newer-builder",
-      workflowId: "builder",
-      evidence: expect.stringContaining("replaced the exhausted task"),
-    });
+    expect(result.steps["assess-failure"].status).toBe("failed");
+    expect(result.steps["assess-failure"].error).toContain(
+      "run-newer-builder/pending-decomposition",
+    );
+    expect(result.steps.decompose).toBeUndefined();
+    expect(applyDecompositionPlan).not.toHaveBeenCalled();
+    expect(supersedeTaskClaim).not.toHaveBeenCalled();
   });
 
   it("rejects a semantically misaligned plan before task mutation", async () => {
@@ -611,6 +703,41 @@ describe("decomposer workflow", () => {
     expect(applyDecompositionPlan).not.toHaveBeenCalled();
   });
 
+  it("revalidates failed-run ownership immediately before applying decomposition", async () => {
+    await configureBuilderFailure(
+      makeFailedBuilderMetadata({
+        buildDurationMs: HANG_TIMEOUT_BUILD_MS,
+        buildErrorKind: "step-timeout",
+      }),
+    );
+    const { readActiveTaskClaim } = await import("#modules/autonomy/task-claims.js");
+    vi.mocked(readActiveTaskClaim)
+      .mockReturnValueOnce(matchingPendingClaim("task-big-refactor"))
+      .mockReturnValue(
+        matchingPendingClaim("task-big-refactor", {
+          runId: "run-replacement-builder",
+        }),
+      );
+    const { applyDecompositionPlan } = await import("./decomposition-actions.js");
+
+    const result = await new WorkflowTestHarness(decomposerWorkflow, {
+      trigger: {
+        event: "workflow.completed",
+        schemaRef: null,
+        payload: TRIGGER_PAYLOAD,
+      },
+      stepMocks: decomposeStepMocks(),
+    }).run();
+
+    expect(result.steps.decompose.status).toBe("success");
+    expect(result.steps["review-decomposition"].status).toBe("success");
+    expect(result.steps["apply-decomposition"].status).toBe("failed");
+    expect(result.steps["apply-decomposition"].error).toContain(
+      "claim ownership is builder/run-replacement-builder/pending-decomposition",
+    );
+    expect(applyDecompositionPlan).not.toHaveBeenCalled();
+  });
+
   it("decomposes on runtime.recovered when the source was a timed-out builder", async () => {
     await configureBuilderFailure(
       makeFailedBuilderMetadata({
@@ -628,15 +755,8 @@ describe("decomposer workflow", () => {
         state === "ready"
           ? {
               path: `data/tasks/ready/${taskId}.md`,
-              content:
-                `---\nid: ${taskId}\n---\n\n## Problem\n\nCanonical task intent.\n`,
-              snapshot: {
-                dev: 1,
-                ino: 2,
-                size: 1,
-                mtimeMs: 1,
-                ctimeMs: 1,
-              },
+              content: TASK_MARKDOWN,
+              snapshot: { ...CLAIM_SNAPSHOT },
             }
           : null,
     );

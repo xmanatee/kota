@@ -27,6 +27,7 @@ import {
   supersedeTaskClaim,
 } from "#modules/autonomy/task-claims.js";
 import {
+  assertDecompositionOwnership,
   assessFailure,
   decompositionTargetTaskId,
   shouldRunDecompose,
@@ -91,6 +92,7 @@ const applyDecomposition = typedCodeStep<AppliedDecomposition>({
     expectStructuredOutput<AppliedDecomposition>(raw, ["taskId", "subtaskIds"]),
   run: (ctx) => {
     const assessment = assessFailure.outputRequired(ctx);
+    assertDecompositionOwnership(ctx.projectDir, assessment);
     return applyDecompositionPlan({
       projectDir: ctx.projectDir,
       taskId: decompositionTargetTaskId(ctx),
@@ -166,21 +168,23 @@ const finalizeSourceClaim = typedCodeStep<{
     }
     const claim = readActiveTaskClaim(ctx.projectDir, assessment.taskId);
     if (
-      claim !== null &&
-      (claim.status !== "pending-decomposition" || claim.workflowId !== "builder")
+      claim === null ||
+      claim.status !== "pending-decomposition" ||
+      claim.workflowId !== "builder" ||
+      claim.runId !== assessment.failedRunId
     ) {
       throw new Error(
-        `Cannot finalize claim for ${assessment.taskId}: claim is ${claim.workflowId}/${claim.status}`,
+        `Cannot finalize claim for ${assessment.taskId}: expected builder/${assessment.failedRunId}/pending-decomposition ownership`,
       );
     }
     const result = supersedeTaskClaim({
       projectDir: ctx.projectDir,
       taskId: assessment.taskId,
-      runId: claim?.runId ?? assessment.failedRunId,
-      workflowId: claim?.workflowId ?? "builder",
+      runId: assessment.failedRunId,
+      workflowId: "builder",
       evidence: `decomposer ${ctx.workflow.runId} replaced the exhausted task with bounded subtasks`,
     });
-    if (!result.changed && result.claim !== null) {
+    if (!result.changed) {
       throw new Error(
         `Cannot finalize claim for ${assessment.taskId}: ${result.reason ?? "claim ownership changed"}`,
       );
