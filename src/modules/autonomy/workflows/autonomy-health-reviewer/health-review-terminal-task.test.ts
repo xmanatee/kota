@@ -85,7 +85,7 @@ describe("autonomy health review terminal task handling", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("reopens the stable repair task when a completed issue recurs", () => {
+  it("leaves completed tasks untouched when an issue recurs", () => {
     const doneDir = join(projectDir, "data", "tasks", "done");
     mkdirSync(doneDir, { recursive: true });
     writeFileSync(
@@ -150,32 +150,24 @@ describe("autonomy health review terminal task handling", () => {
 
     const actions = applyAutonomyHealthReviewActions({
       projectDir,
-      runId: "health-review-run",
       review,
-      nowIso: NOW,
     });
 
     expect(group.evidenceFingerprint).not.toBe("bf712eea3fd1821c");
-    expect(actions.createdTaskIds).toEqual([]);
     expect(actions.applied).toEqual([
       expect.objectContaining({
-        kind: "refreshed-task",
-        taskId: expectedTaskId,
+        kind: "decision-requested",
         dedupeKey: "dead-letter:execution:workflow-runtime:progress-reviewer",
       }),
     ]);
     const task = readFileSync(
-      join(projectDir, "data", "tasks", "ready", `${expectedTaskId}.md`),
+      join(projectDir, "data", "tasks", "done", `${expectedTaskId}.md`),
       "utf-8",
     );
     expect(task).toContain(
       "<!-- autonomy-health-dedupe-key: dead-letter:execution:workflow-runtime:progress-reviewer -->",
     );
-    expect(task).toContain(
-      `<!-- autonomy-health-evidence-fingerprint: ${group.evidenceFingerprint} -->`,
-    );
-    for (const id of currentDlqIds) {
-      expect(task).toContain(id);
-    }
+    expect(task).toContain("bf712eea3fd1821c");
+    expect(task).not.toContain(currentDlqIds[0]);
   });
 });

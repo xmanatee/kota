@@ -1,0 +1,216 @@
+Acceptance validation for task-replace-autonomy-escalators-with-issue-driven-ai-r
+Generated: 2026-08-14T00:54:20Z
+
+PASS  pnpm test <17 focused issue/proposal/improver/health/DLQ/policy/integration files>
+      17 files passed; 366 tests passed. This includes the repair-agent provider-error classification and all five shipped replay smoke fixtures.
+
+PASS  pnpm typecheck
+      TypeScript completed with no errors.
+
+PASS  pnpm kota workflow validate
+      25/25 definitions valid. The four removed escalator workflows are absent.
+
+PASS  source definition scan
+      No workflow.ts under src/modules/autonomy/workflows contains owner-intervention-escalator, review-scrutiny-escalator, trajectory-diagnostic-escalator, or workflow-failure-escalator.
+
+PASS  git diff --check excluding the policy-denied deploy environment example
+      No whitespace errors.
+
+PASS  pnpm biome check <11 repair-touched files>
+      No formatting or lint errors.
+
+PASS  source-size repair shape
+      Every newly added or positively growing production source is at or below 300 lines. All touched sources above 300 lines shrink and are named in the task's typed source-size cleanup exception.
+
+PASS  autonomy-change-decision
+      The decision covers workflow, prompt, reviewer, critic-gate, improver-gate, and repair-loop change classes.
+
+PASS  pnpm hygiene (earlier in this run)
+      Repository hygiene checks passed before task-state staging.
+
+PASS  focused strict/root/module boundary validation (earlier in this run)
+      3 files and 5 tests passed.
+
+PASS  KOTA_REPO_TASK_STAGING_OWNER=workflow-host pnpm kota task move task-replace-autonomy-escalators-with-issue-driven-ai-r done
+      The canonical repo-tasks operation moved the task from doing to done and retained the filesystem transition for the workflow host's exact-path staging repair.
+
+PASS  pnpm test src/modules/repo-tasks/repo-task-native-staging.test.ts src/modules/repo-tasks/repo-task-move-staging.test.ts
+      2 files passed; 7 tests passed, including the protected-index workflow-host bridge used by this native run.
+
+CONTEXT  pnpm test (broad repository run before the final deleted-file fix)
+      1,243 files passed, 51 failed, 5 skipped; 12,492 tests passed, 226 failed, 22 skipped.
+      The managed host caused 225 failures by denying socket listeners, access to its temporary parent directory, and the policy-protected Telegram environment example. The one task-related failure occurred before workflow exact-path staging, when the instruction-cap test still enumerated an intentionally deleted replay fixture from the then-current index. Workflow staging removed the deleted path from the index, and the final focused run passes without changing the instruction-loader test. This broad run is reported for transparency and is not claimed as an acceptance pass.
+
+The acceptance evidence is the final focused 366-test regression, type checking, workflow validation, source scan, and the structured replay/trace artifacts registered in this run.
+
+REPAIR PASS  pnpm test src/core/workflow/repair-loop-usage.test.ts src/core/workflow/run-executor-repair-result-usage.test.ts
+      2 files passed; 2 tests passed. Failed resumed repairs retain cumulative usage, iteration evidence, and classified provider backoff.
+
+REPAIR PASS  pnpm test src/core/workflow/repair-loop.test.ts src/core/workflow/repair-loop-usage.test.ts src/core/workflow/run-executor-step.test.ts src/core/workflow/run-executor-repair-result-usage.test.ts
+      4 files passed; 22 tests passed across the repair-loop and executor failure paths.
+
+REPAIR PASS  pnpm typecheck
+      TypeScript completed with no errors after the repair.
+
+REPAIR PASS  pnpm exec biome check src/core/workflow/repair-loop.ts
+      Biome reported no errors or formatting changes.
+
+REPAIR PASS  pnpm test src/core/workflow/repair-loop.test.ts src/core/workflow/repair-loop-usage.test.ts src/core/workflow/run-executor-step.test.ts src/core/workflow/run-executor-repair-result-usage.test.ts src/workflow-step-executor.integration.test.ts src/core/workflow/steps/step-executor-retry.test.ts
+      6 files and 98 tests passed. The SDK isError regression now surfaces an AgentStepRuntimeError while failed-repair usage and provider backoff remain persisted.
+
+REPAIR PASS  pnpm typecheck
+      TypeScript completed with no errors after the classified repair-error fix.
+
+REPAIR PASS  pnpm exec biome check src/core/workflow/repair-loop-types.ts src/core/workflow/repair-loop.ts src/core/workflow/run-executor-step.ts src/core/workflow/repair-loop-usage.test.ts
+      Biome reported no errors or formatting changes.
+
+REPAIR PASS  pnpm test src/strict-types-policy.integration.test.ts src/root-layout.test.ts
+      2 files and 3 tests passed.
+
+REPAIR PASS  git diff --check -- <four repair-touched workflow files>
+      No whitespace errors.
+
+REPAIR ATTEMPT 4 PASS  source-size final projection
+      run-executor-step.ts: 249 lines; autonomous-loop.integration.test.ts: 274; repair-loop.ts: 300; trajectory-diagnostic-escalation.ts: 298; health-review.ts: 241. New executor, trajectory, autonomous-loop, and health-review helpers are each below 180 lines.
+      The exact final changed-source scan has four >300-line files, all shrinking and all named by the task's typed source-size cleanup exception: trajectory-diagnostic-escalation.test.ts (-114), runtime-health-audit-control-coverage.test.ts (-4), runtime-health-audit.test.ts (-2), and progress-reviewer/workflow.test.ts (-1). No remaining warning overlaps task-resolve-agy-recovery-source-size-blockers.
+
+REPAIR ATTEMPT 4 PASS  runtime/strict/source-size regression
+      9 files and 106 tests passed, covering repair-loop behavior, executor accounting, classified repair-agent errors, strict types, root layout, and source-size escalation.
+
+REPAIR ATTEMPT 4 PASS  autonomy split regression
+      9 files and 43 tests passed, covering real workflow handoff without improver fan-out, trajectory diagnostics, health issue decisions, runtime audit, and health-review workflow behavior.
+
+REPAIR ATTEMPT 4 PASS  pnpm typecheck; pnpm kota workflow validate; pnpm run validate-tasks
+      TypeScript completed with no errors, all 25 workflow definitions validated, and the task queue is valid.
+
+REPAIR ATTEMPT 4 PASS  pnpm exec biome check <18 repair-touched files>; git diff HEAD --check
+      Formatting, lint, import organization, and whitespace checks passed.
+
+REPAIR ATTEMPT 5 PASS  pnpm test src/modules/autonomy/latest-200-routing-replay.integration.test.ts
+      1 file and 1 test passed. The executable aggregate-preserving replay routes all 200 retained categories through the compiled candidate definitions; 92 removed-escalator rows and 11 generic-improver rows produce zero candidate matches.
+
+REPAIR ATTEMPT 5 PASS  pnpm test src/modules/autonomy/autonomy-issue-lifecycle.integration.test.ts
+      1 file and 1 test passed in 3.2 seconds. Production source subscriptions, health review, projection, generated-work storage, WorkflowRuntime, and dispatcher execute failure -> one issue -> one AI disposition -> one task -> actionableCount 1 -> explicit resolution. Only the AI response is mocked.
+
+REPAIR ATTEMPT 5 PASS  pnpm test src/modules/autonomy/autonomy-issue-sources.test.ts
+      1 file and 4 tests passed. Four retained progress-reviewer run failures plus four canonical records reconstructed from those run ids share one issue key, remain one open issue after three evented dismissals, and resolve only after the fourth dismissal cites commit 532ab1ae.
+
+REPAIR ATTEMPT 5 PASS  canonical DLQ event paths
+      workflow-ops local simulated redrive and dismissal emit scoped workflow.dead-letter.changed events. Workflow-state recovery related-DLQ dismissal emits the same canonical event through the module event proxy. Source resolution carries all matching canonical DLQ ids.
+
+REPAIR ATTEMPT 5 PASS  current generated-work link invariant
+      Task-to-question and question-to-task transitions return only the current record. Same-issue projection updates select the latest whole disposition instead of unioning historical ids; resolve clears both task and owner-question link arrays.
+
+REPAIR ATTEMPT 5 PASS  final lifecycle regression matrix
+      13 files and 60 tests passed across health review, durable issue sources/projection, generated work, improver, workflow-ops, state recovery, project runtime, latest-200 routing, and the executed lifecycle integration.
+
+REPAIR ATTEMPT 5 PASS  final architecture and source-size matrix
+      5 files and 17 tests passed: strict-types policy, root layout, module dependencies, source-size checks, and source-size escalation.
+
+REPAIR ATTEMPT 5 PASS  pnpm typecheck; pnpm kota workflow validate; pnpm run validate-tasks
+      TypeScript completed with no errors, all 25 workflow definitions validated, and the canonical task queue is valid.
+
+REPAIR ATTEMPT 5 PASS  pnpm exec biome check <18 repair-touched files>; removed workflow source scan
+      Formatting, lint, and imports pass. No autonomy workflow definition contains any of the four removed escalator names.
+
+EVIDENCE BOUNDARY  2026-08-06 runtime retention
+      Commit 0002fdfa3 retained the latest-200 aggregate (92 escalator, 11 improver, 97 non-target) but not the ignored raw rows. The replay artifact therefore executes every retained category and does not claim missing row order or timestamps. The four original DLQ UUIDs were also ignored; commit-backed production run ids are reconstructed through the canonical store, and the generated queue ids plus before/after states are recorded in workflow-failure-single-path-trace.json.
+
+REPAIR ATTEMPT 5 FINAL PASS  unified source identity and evidence policies
+      The exact progress-reviewer workflow failures and their reconstructed workflow-dispatch DLQs now share one normalized root-cause key. The post-unification trace matrix passed 7 files and 41 tests; autonomy-decision, reporting, strict-types, root-layout, module-dependency, and source-size policies passed 7 files and 25 tests; TypeScript completed with no errors.
+
+REPAIR ATTEMPT 6 PASS  direct-read and focused behavior matrix
+      7 files and 40 tests passed, including the exact KotaClient direct-read guard, workflow-ops evented dead-letter mutations, issue projection/sources, generated work, and workflow-state recovery observability.
+
+REPAIR ATTEMPT 6 PASS  type, architecture, queue, and workflow validation
+      TypeScript completed with no errors. Strict types, root layout, module dependencies, and source-size policy passed 5 files and 17 tests. The task queue is valid and all 25 workflow definitions validate.
+
+REPAIR ATTEMPT 6 PASS  final source-size projection
+      Newly added issue-source, generated-work, local-client, and recovery helpers are below 300 lines. Six remaining oversized sources all shrink relative to HEAD and are named in the task's typed source-size cleanup exception; workflow-ops/index.ts shrinks by 120 lines and workflow-ops/local-client.test.ts by 45.
+
+REPAIR ATTEMPT 6 PASS  formatting and whitespace
+      Biome passes the 13 repair-touched TypeScript files and git diff --check passes with the policy-protected Telegram environment example excluded.
+
+REPAIR ATTEMPT 6 CONTEXT  broad managed-sandbox run
+      1,250 files and 12,497 tests passed. The remaining 48 files / 223 tests fail only because the managed host denies traversal of its temporary parent, socket listeners, or the protected deploy/telegram-assistant/.env.example. The original workflow-ops KotaClient direct-read guard passes and is absent from the failure set.
+
+REPAIR ATTEMPT 7 PASS  ordered issue-lifecycle regression
+      14 files and 94 tests passed. Immediate workflow failure followed by later workflow-dispatch DLQ evidence stays on semantic revision 1 with one AI disposition; answering a generated owner question revises the originating issue and updates its stable proposal from question to task.
+
+REPAIR ATTEMPT 7 PASS  stable progress-review proposal and attention lifecycle
+      Progress-review task and owner-question outputs share one required semantic topic key. A second review that rewords the task, question, rationale, and acceptance text over the same evidence produces skipped-task and skipped-owner-question actions, does not rewrite provenance, and skips workflow.attention.digest; a task-to-question disposition change reuses the same proposal key.
+
+REPAIR ATTEMPT 7 PASS  architecture, type, workflow, and queue validation
+      Strict types, root layout, module dependencies, and both source-size policies passed 5 files and 17 tests. TypeScript completed with no errors, all 25 workflow definitions validated, and the canonical task queue is valid.
+
+REPAIR ATTEMPT 7 PASS  formatting and focused whitespace
+      Biome passes all 15 repair-touched TypeScript files. Focused git diff whitespace validation passes for the repair-touched source and evidence paths.
+
+REPAIR ATTEMPT 8 PASS  source-size severe projection
+      The two new oversized issue-lifecycle suites were split into four focused files of 163-298 lines, the progress-review workflow helper is 299 lines, and shared progress-review fixtures moved into a 157-line helper. The combined staged-plus-repair scan leaves six oversized files, all shrinking by 2-120 lines and all named in the task's typed source-size cleanup exception.
+
+REPAIR ATTEMPT 8 PASS  focused behavior, types, queue, and formatting
+      Six files and 49 tests passed across issue lifecycle, source-owned observations, the full progress-reviewer workflow, and source-size escalation. TypeScript and task-queue validation pass. Biome reports no diagnostics on the repair-touched files; the repository-wide lint command exits successfully with unrelated pre-existing warnings.
+
+REPAIR ATTEMPT 9 PASS  generated-work lifecycle and commit boundaries
+      Nine files and 86 tests passed. Improver commits only the exact generated-task paths; progress-reviewer and scope-improver preserve task drops when a proposal becomes an owner question; an explicit source clear drops and exact-path commits the generated task, clears current issue links, and emits resolution attention only after durability.
+
+REPAIR ATTEMPT 9 PASS  pnpm typecheck
+      TypeScript completed with no errors after the lifecycle repair.
+
+REPAIR ATTEMPT 9 PASS  architecture, formatting, and workflow validation
+      Five files and 17 tests passed across strict types, root layout, module dependencies, and source-size policy. Biome passes 20 repair-touched files, focused whitespace validation passes, and all 25 workflow definitions validate.
+
+REPAIR ATTEMPT 9 DEFERRED  canonical task queue validation
+      The task move from done to blocked succeeded through the canonical repo-tasks command with a valid operator-capture precondition, but the native agent cannot write the linked-worktree index. validate-tasks therefore reports only the expected untracked blocked path and unstaged done-path deletion until the workflow host performs its exact-path staging handoff.
+
+REPAIR ATTEMPT 9 BLOCKED  exact production acceptance inputs
+      The canonical trusted-host dead-letter store and run archive return Operation not permitted in this managed builder. Git retains only the latest-200 aggregate and four production run ids, not the exact 200 rows or original DLQ UUIDs. The synthetic even-distribution replay and replacement-UUID acceptance claims were removed. The task has a typed operator-capture precondition and the autonomy decision is needs-more-data.
+
+REPAIR ATTEMPT 11 PASS  source-size severe gate
+      The exact staged-index evaluator returns outcome `exception`. All seven oversized warnings shrink relative to HEAD (-114, -4, -2, -26, -30, -120, and -45 lines) and are named by the blocked task's typed source-size cleanup exception.
+
+REPAIR ATTEMPT 11 PASS  source-size and queue validation
+      The two source-size policy files passed all 8 tests. `pnpm run validate-tasks` also completed successfully with the staged ready-to-blocked task transition.
+
+REPAIR ATTEMPT 22 PASS  stale-claim replacement race
+      Lock acquisition now reserves the final lock path with exclusive no-follow creation instead of installing it through a temporary hard link. The focused three-test race suite passed once normally and then passed 20 consecutive stress runs; the eight-test task-claim path-security suite also passed.
+
+REPAIR ATTEMPT 22 PASS  source-size severe gate
+      The exact staged-index evaluator returns `OK: typed source-size cleanup exception applied`. Both source-size policy suites pass all 8 tests; the two repaired claim filesystem sources remain below 300 lines.
+
+REPAIR ATTEMPT 22 PASS  types, formatting, queue, and focused environment check
+      `pnpm run typecheck`, focused Biome, `pnpm run validate-tasks`, and focused whitespace validation pass. A representative 22-test approval-queue suite passes when TMPDIR is placed under the readable workspace.
+
+REPAIR ATTEMPT 22 CONTEXT  broad managed-sandbox run
+      The repaired task-claim race is absent from the broad failure set: 1,252 files and 12,502 tests passed. The remaining 48 files / 223 tests fail outside the touched area because the managed host denies traversal of its temporary parent, loopback listeners, or the policy-protected Telegram environment example. The workspace-local TMPDIR rerun above confirms the dominant approval-queue failures are environmental.
+
+REPAIR ATTEMPT 23 PASS  source-size severe gate
+      The exact staged-index evaluator returns outcome `exception`. All seven oversized warnings shrink relative to HEAD (-114, -4, -2, -26, -30, -120, and -45 lines), and the staged blocked task names every warning in its typed source-size cleanup exception.
+
+REPAIR ATTEMPT 23 PASS  source-size policy regression
+      The focused source-size escalation and review-artifact suites pass all 8 tests. Focused staged-diff whitespace validation also passes.
+
+REPAIR ATTEMPT 27 PASS  source-size severe gate
+      The exact staged-index evaluator returns `OK: typed source-size cleanup exception applied`. All seven warnings are net-reducing (-114, -4, -2, -26, -30, -120, and -45 lines), and the staged blocked task names every warning in its typed cleanup exception.
+
+REPAIR ATTEMPT 27 PASS  source-size policy and queue validation
+      Both focused source-size policy suites pass all 8 tests, and `pnpm run validate-tasks` completes successfully.
+
+REPAIR ATTEMPT 29 PASS  source-size severe gate
+      The exact staged-index evaluator returns `OK: typed source-size cleanup exception applied`. All seven warnings are net-reducing (-114, -4, -2, -26, -30, -120, and -45 lines), and the staged blocked task names every warning in its typed cleanup exception.
+
+REPAIR ATTEMPT 29 PASS  source-size policy and queue validation
+      The focused source-size escalation suite passes all 6 tests with Vitest's non-bundling config loader, and `pnpm run validate-tasks` completes successfully.
+
+REPAIR ATTEMPT 30 PASS  source-size severe gate
+      The live staged-index evaluator returns `OK: typed source-size cleanup exception applied`. All seven oversized warnings are net-reducing (-114, -4, -2, -26, -30, -120, and -45 lines), and the staged blocked task names every warning in its typed cleanup exception.
+
+REPAIR ATTEMPT 30 PASS  source-size policy regression
+      `pnpm exec vitest run --configLoader runner src/modules/autonomy/source-size-escalation.test.ts src/modules/autonomy/source-size-review-artifact.test.ts` passes all 8 tests.
+
+REPAIR ATTEMPT 36 PASS  source-size severe bootstrap repair
+      Four warned tests were split into cohesive helpers and suites of 26-231 lines. The final HEAD-to-worktree scan reports only three net-reducing legacy warnings (-26, -30, and -120 lines), below the four-file severe threshold, with no substantial growth and no open cleanup overlap. The task-local exception is no longer needed.
+
+REPAIR ATTEMPT 36 PASS  moved coverage, types, formatting, and queue validation
+      Eight focused files and all 44 moved tests pass. `pnpm run typecheck`, focused Biome over all 12 repair-touched files, and `pnpm run validate-tasks` complete successfully. Test-title counts before and after each split match exactly (9, 10, 10, and 15).

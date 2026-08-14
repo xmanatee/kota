@@ -1,16 +1,10 @@
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
-import { join, relative } from "node:path";
-import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
-import { serializeFlatFrontMatter } from "#core/util/frontmatter.js";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import {
-  getRepoInboxDir,
-  getRepoTaskStateDir,
-  listFullRepoTasks,
-  REPO_TASK_STATES,
-  type RepoTaskState,
-  writeRepoTaskFile,
-} from "#modules/repo-tasks/repo-tasks-domain.js";
-import { slugifyTaskTitle } from "#modules/repo-tasks/repo-tasks-operations.js";
+  type GeneratedWorkProposalAction,
+  materializeGeneratedWorkProposal,
+} from "#modules/autonomy/generated-work-proposal.js";
 import {
   isScopeImprovementWriteAllowed,
   readScopeImprovementConfig,
@@ -24,78 +18,9 @@ import {
   type ScopeImprovementRecommendation,
 } from "./scope-improvement-types.js";
 
-function taskPathForId(projectDir: string, state: RepoTaskState, id: string): string {
-  return join(getRepoTaskStateDir(projectDir, state), `${id}.md`);
-}
-
-function findExistingTask(projectDir: string, id: string, title: string): string | null {
-  for (const state of REPO_TASK_STATES) {
-    const path = taskPathForId(projectDir, state, id);
-    if (existsSync(path)) return join("data", "tasks", state, `${id}.md`);
-  }
-  const normalizedTitle = title.trim().toLowerCase();
-  for (const task of listFullRepoTasks(projectDir)) {
-    if (task.title.trim().toLowerCase() === normalizedTitle) {
-      return join("data", "tasks", task.state, `${task.id}.md`);
-    }
-  }
-  const inboxDir = getRepoInboxDir(projectDir);
-  if (!existsSync(inboxDir)) return null;
-  for (const file of readdirSync(inboxDir)) {
-    if (file === `${id}.md`) return join("data", "inbox", file);
-  }
-  return null;
-}
-
-function writeTask(args: {
-  projectDir: string;
-  runId: string;
-  recommendation: Extract<ScopeImprovementRecommendation, { kind: "create-task" }>;
-}): ScopeImprovementAppliedAction {
-  const id = `task-${slugifyTaskTitle(args.recommendation.title)}`;
-  if (id === "task-") {
-    return skipped(args.recommendation.signature, "title produced an empty task slug");
-  }
-  const existing = findExistingTask(
-    args.projectDir,
-    id,
-    args.recommendation.title,
-  );
-  if (existing) {
-    return skipped(
-      args.recommendation.signature,
-      `matching task already exists at ${existing}`,
-    );
-  }
-  const path = taskPathForId(args.projectDir, "ready", id);
-  writeRepoTaskFile(
-    args.projectDir,
-    path,
-    serializeFlatFrontMatter(taskAttrs(id, args.recommendation), taskBody(args)),
-  );
-  return {
-    kind: "created-task",
-    taskId: id,
-    path: relative(args.projectDir, path),
-    signature: args.recommendation.signature,
-  };
-}
-
-function taskAttrs(
-  id: string,
-  recommendation: Extract<ScopeImprovementRecommendation, { kind: "create-task" }>,
-): Record<string, string> {
-  const now = new Date().toISOString();
-  return {
-    id,
-    title: recommendation.title,
-    status: "ready",
-    priority: "p2",
-    area: "autonomy",
-    summary: recommendation.summary,
-    created_at: now,
-    updated_at: now,
-  };
+function proposalKey(signature: string): string {
+  const digest = createHash("sha256").update(signature.trim()).digest("hex").slice(0, 20);
+  return `scope-improver:${digest}`;
 }
 
 function taskBody(args: {
@@ -129,6 +54,10 @@ function taskBody(args: {
     "",
     ...args.recommendation.evidenceIds.map((id) => `- ${id}`),
     "",
+    "## Product / Safety Link",
+    "",
+    "This Meta proposal keeps continuous scope improvement tied to inspectable Product and Safety outcomes instead of introducing a parallel autonomous edit path.",
+    "",
     "## Initiative",
     "",
     "Scope-aware continuous improvement.",
@@ -138,6 +67,51 @@ function taskBody(args: {
     ...task.acceptanceEvidence.map((item) => `- ${item}`),
     "",
   ].join("\n");
+}
+
+function taskPath(actions: readonly GeneratedWorkProposalAction[]): string | null {
+  return actions.find(
+    (action): action is Extract<GeneratedWorkProposalAction, { path: string }> =>
+      "path" in action,
+  )?.path ?? null;
+}
+
+function writeTask(args: {
+  projectDir: string;
+  runId: string;
+  recommendation: Extract<ScopeImprovementRecommendation, { kind: "create-task" }>;
+}): ScopeImprovementAppliedAction {
+  const result = materializeGeneratedWorkProposal({
+    projectDir: args.projectDir,
+    proposal: {
+      kind: "task",
+      proposalKey: proposalKey(args.recommendation.signature),
+      title: args.recommendation.title,
+      summary: args.recommendation.summary,
+      priority: "p2",
+      area: "autonomy",
+      taskClass: "Meta",
+      body: taskBody(args),
+      provenance: {
+        source: "scope-improver",
+        runId: args.runId,
+        evidenceRefs: args.recommendation.evidenceIds,
+      },
+    },
+  });
+  const created = result.actions.some((action) => action.kind === "created-task");
+  const updated = result.actions.some((action) =>
+    action.kind === "updated-task" || action.kind === "reopened-task"
+  );
+  if ((!created && !updated) || !result.taskId) {
+    return skipped(args.recommendation.signature, "stable generated-work task is current");
+  }
+  return {
+    kind: created ? "created-task" : "updated-task",
+    taskId: result.taskId,
+    path: taskPath(result.actions) ?? `data/tasks/ready/${result.taskId}.md`,
+    signature: args.recommendation.signature,
+  };
 }
 
 function writeSafeEdit(args: {
@@ -182,37 +156,60 @@ function enqueueQuestion(args: {
   projectDir: string;
   runId: string;
   recommendation: Extract<ScopeImprovementRecommendation, { kind: "owner-question" }>;
-}): ScopeImprovementAppliedAction {
-  const queue = new OwnerQuestionQueue(join(args.projectDir, ".kota", "owner-questions"));
-  const { item, created } = queue.enqueueDeduplicated({
-    dedupeKey: `scope-improver:${args.recommendation.signature}`,
-    context:
-      `Scope improvement run ${args.runId} cited evidence ids: ` +
-      args.recommendation.evidenceIds.join(", "),
-    question: args.recommendation.question,
-    reason: args.recommendation.reason,
-    source: "scope-improver",
-    answerBehavior: "record-only",
-    origin: {
-      kind: "workflow",
-      workflowName: "scope-improver",
-      runId: args.runId,
-      stepId: "apply-recommendations",
-      taskId: null,
+}): ScopeImprovementAppliedAction[] {
+  const result = materializeGeneratedWorkProposal({
+    projectDir: args.projectDir,
+    proposal: {
+      kind: "owner-question",
+      proposalKey: proposalKey(args.recommendation.signature),
+      context:
+        `Scope improvement run ${args.runId} cited evidence ids: ` +
+        args.recommendation.evidenceIds.join(", "),
+      question: args.recommendation.question,
+      reason: args.recommendation.reason,
+      proposedAnswers: args.recommendation.proposedAnswers,
+      provenance: {
+        source: "scope-improver",
+        runId: args.runId,
+        evidenceRefs: args.recommendation.evidenceIds,
+      },
+      origin: {
+        kind: "workflow",
+        workflowName: "scope-improver",
+        runId: args.runId,
+        stepId: "apply-recommendations",
+        taskId: null,
+      },
     },
-    proposedAnswers: args.recommendation.proposedAnswers,
   });
-  if (!created) {
-    return skipped(
-      args.recommendation.signature,
-      `matching pending owner question already exists: ${item.id}`,
-    );
+  const created = result.actions.some((action) =>
+    action.kind === "created-owner-question"
+  );
+  const updated = result.actions.some((action) =>
+    action.kind === "updated-owner-question" ||
+    action.kind === "reopened-owner-question"
+  );
+  const droppedTasks: ScopeImprovementAppliedAction[] = result.actions.flatMap(
+    (action) => action.kind === "dropped-task"
+      ? [{
+        kind: "dropped-task" as const,
+        taskId: action.taskId,
+        fromState: action.fromState,
+        signature: args.recommendation.signature,
+      }]
+      : [],
+  );
+  if ((!created && !updated) || !result.ownerQuestionId) {
+    return [
+      ...droppedTasks,
+      skipped(args.recommendation.signature, "stable owner question is current"),
+    ];
   }
-  return {
-    kind: "owner-question",
-    questionId: item.id,
+  return [...droppedTasks, {
+    kind: created ? "owner-question" : "updated-owner-question",
+    questionId: result.ownerQuestionId,
     signature: args.recommendation.signature,
-  };
+  }];
 }
 
 function skipped(signature: string, reason: string): ScopeImprovementAppliedAction {
@@ -225,17 +222,18 @@ export function applyScopeImprovementRecommendations(args: {
   inputs: ScopeImprovementArtifact["inputs"];
   recommendations: readonly ScopeImprovementRecommendation[];
 }): ScopeImprovementActionResult {
-  const applied = args.recommendations.map((recommendation) => {
+  const applied = args.recommendations.flatMap(
+    (recommendation): ScopeImprovementAppliedAction[] => {
     if (recommendation.kind === "create-task") {
-      return writeTask({ projectDir: args.projectDir, runId: args.runId, recommendation });
+      return [writeTask({ projectDir: args.projectDir, runId: args.runId, recommendation })];
     }
     if (recommendation.kind === "owner-question") {
       return enqueueQuestion({ projectDir: args.projectDir, runId: args.runId, recommendation });
     }
     if (recommendation.kind === "safe-edit") {
-      return writeSafeEdit({ projectDir: args.projectDir, recommendation });
+      return [writeSafeEdit({ projectDir: args.projectDir, recommendation })];
     }
-    return skipped(recommendation.signature, recommendation.reason);
+    return [skipped(recommendation.signature, recommendation.reason)];
   });
   writeScopeImprovementState({
     projectDir: args.projectDir,
@@ -268,7 +266,12 @@ function summarizeActions(
     ownerQuestionIds,
     safeEditPaths,
     applied,
-    requiresCommit: createdTaskIds.length > 0 || safeEditPaths.length > 0,
+    requiresCommit:
+      applied.some((action) =>
+        action.kind === "created-task" ||
+        action.kind === "updated-task" ||
+        action.kind === "dropped-task"
+      ) || safeEditPaths.length > 0,
   };
 }
 

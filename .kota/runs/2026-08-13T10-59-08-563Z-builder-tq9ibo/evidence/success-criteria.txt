@@ -1,0 +1,7 @@
+1. Remove the four autonomy escalator workflows without adding another generic successful workflow.completed consumer.
+2. Route the passive-Codex incident through one durable issue, one AI disposition, and at most one stable generated task or owner question across repeated run ids and DLQs.
+3. Show that the latest-200 baseline's 92 escalator executions disappear and that every candidate issue review is attributable to a unique material issue transition.
+4. Make improver read-only with respect to product source and send proposed repairs through the canonical task lifecycle for builder implementation.
+5. Link the current progress-reviewer DLQs to one issue and resolve that issue from dismissal evidence containing commit 532ab1ae.
+6. Deduplicate proposed work across every task and owner-question state, updating the same stable record when the disposition changes.
+7. Prove detector ownership, restart replay, material-change, no-op repeat, and proposal lifecycle behavior with focused fixtures and repository validation.

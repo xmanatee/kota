@@ -9,7 +9,9 @@ import {
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { reconcileAutomationWorktrees } from "#modules/git/worktree-lifecycle.js";
 import { WORKFLOW_STATE_RECOVERY_PROVIDER_TYPE } from "#modules/workflow-ops/state-recovery-provider.js";
+import { autonomyIssueDecisionRequested } from "./autonomy-issue-events.js";
 import { initializeAutonomyIssueProjection } from "./autonomy-issue-projection-rebuild.js";
+import { subscribeAutonomyIssueSources } from "./autonomy-issue-sources.js";
 import { autonomyHealthSignal } from "./health-signal.js";
 import { buildLoopQualityAuditCommand } from "./loop-quality-audit-cli.js";
 import { buildReportCommand } from "./report/report-cli.js";
@@ -146,19 +148,21 @@ const autonomyModule: KotaModule = {
     scopeImprovementRequested,
     scopeImprovementEvidenceReady,
     autonomyHealthSignal,
+    autonomyIssueDecisionRequested,
   ],
   workflows: async () => await discoverAutonomyWorkflowDefinitions(),
   agents: async () => await discoverAutonomyAgents(),
   uiSurfaces: [dailyDigestUiSurfaceSource],
   onLoad: (ctx) => {
     initializeAutonomyIssueProjection(ctx.cwd);
+    subscribeAutonomyIssueSources(ctx);
     ctx.registerProvider(
       SCOPE_DRAIN_INSPECTION_PROVIDER_TYPE,
       autonomyScopeDrainInspection,
     );
     ctx.registerProvider(
       WORKFLOW_STATE_RECOVERY_PROVIDER_TYPE,
-      createWorkflowStateRecoveryProvider(),
+      createWorkflowStateRecoveryProvider(ctx.events),
     );
     ctx.events.subscribe("workflow.interrupted.alert", (payload) => {
       if (payload.workflow !== "builder") return;

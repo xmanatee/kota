@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { getCriticPromptHash } from "./critic.js";
 import {
-  buildReviewScrutinyAttentionDigest,
   buildReviewScrutinyEscalationReport,
   detectRecurringReviewScrutinyPatternsFromReport,
   type ReviewScrutinyEscalationConfig,
@@ -157,18 +156,7 @@ describe("review scrutiny core critic pattern", () => {
       repairTaskId: detection.patterns[0]?.taskId,
     });
 
-    const attention = buildReviewScrutinyAttentionDigest([
-      {
-        surface: "critic",
-        workflow: "builder",
-        taskId: detection.patterns[0]!.taskId,
-        action: "skipped",
-        thinAcceptances: 3,
-        approvalLikeDecisions: 3,
-        runIds: detection.patterns[0]!.runIds,
-      },
-    ]);
-    const output = JSON.stringify({ operatorReport, attention });
+    const output = JSON.stringify({ operatorReport });
     expect(output).toContain(detection.patterns[0]!.taskId);
     expect(output).not.toMatch(/cost|throughput/i);
   });

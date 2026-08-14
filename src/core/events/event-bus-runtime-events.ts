@@ -181,6 +181,16 @@ export type RuntimeBusEvents = {
     costUsd?: number;
     runDir: string;
     definitionPath: string;
+    trajectoryDiagnostics?: {
+      artifactPath: string;
+      warningCount: number;
+      unsupportedTrajectoryCount: number;
+      missingStreamingFramesCount: number;
+      missingFinalVerificationAfterEditCount: number;
+      repeatedIdenticalFailingCommandCount: number;
+      editAfterSuccessfulVerificationCount: number;
+      longPreambleWithoutTaskTouchCount: number;
+    };
     /** Effective autonomy posture for this step. See {@link workflow.step.started}. */
     autonomyMode?: AutonomyMode;
     skipReason?: WorkflowStepSkipReason;

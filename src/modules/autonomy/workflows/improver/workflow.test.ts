@@ -1,20 +1,20 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
-import improverWorkflow from "./workflow.js";
-
-const cleanWorktreeStatus = {
-  available: true,
-  dirty: false,
-  trackedDirty: false,
-  entries: [],
-  fingerprint: "",
-  summary: "clean",
-  headSha: "abc123",
-};
+import { autonomyIssueDecisionRequested } from "#modules/autonomy/autonomy-issue-events.js";
+import {
+  applyAutonomyIssueObservations,
+  buildAutonomyIssueObservation,
+  listAutonomyIssues,
+} from "#modules/autonomy/autonomy-issue-projection.js";
+import {
+  checkCommitStageable,
+  commitWorkflowChanges,
+} from "#modules/autonomy/commit.js";
+import improverWorkflow, { agent } from "./workflow.js";
 
 vi.mock("#core/util/repo-worktree.js", () => ({
   getRepoWorktreeStatus: vi.fn(() => ({
@@ -29,287 +29,251 @@ vi.mock("#core/util/repo-worktree.js", () => ({
 }));
 
 vi.mock("#modules/autonomy/commit.js", () => ({
-  commitWorkflowChanges: vi.fn(),
-}));
-
-vi.mock("#modules/autonomy/run-summary.js", () => ({
-  writeRunSummary: vi.fn(() => ({
-    runId: "test-run",
-    workflow: "improver",
-    taskId: null,
-    taskTitle: null,
-    outcome: "success",
-    commitSha: "abc123",
-    commitMessage: "test",
-    filesChanged: [],
-    costUsd: null,
-    durationMs: null,
-    completedAt: new Date().toISOString(),
+  checkCommitStageable: vi.fn(),
+  commitWorkflowChanges: vi.fn(() => ({
+    committed: true,
+    committedPaths: ["data/tasks/ready/task-fixture.md"],
+    daemonRestartRequired: false,
   })),
 }));
 
-describe("improver workflow", () => {
+const OBSERVED_DISPOSITION = {
+  action: "observe" as const,
+  rationale: "Evidence is diagnostic and does not justify implementation work yet.",
+  taskTitle: "",
+  taskSummary: "",
+  taskPriority: "p2" as const,
+  taskArea: "autonomy",
+  taskClass: "Meta" as const,
+  taskAcceptanceEvidence: "",
+  ownerQuestion: "",
+  ownerReason: "",
+  proposedAnswers: [],
+};
+
+const TASK_DISPOSITION = {
+  ...OBSERVED_DISPOSITION,
+  action: "create-task" as const,
+  rationale: "The stable failure needs a builder-owned repair.",
+  taskTitle: "Repair the stable builder fixture failure",
+  taskSummary: "Route the fixture failure through the normal builder lifecycle.",
+  taskAcceptanceEvidence: "A focused fixture proves the failure no longer recurs.",
+};
+
+const RESOLVED_DISPOSITION = {
+  ...OBSERVED_DISPOSITION,
+  action: "resolve" as const,
+  rationale: "The revised evidence proves the root cause is resolved.",
+};
+
+const mockedCheckCommitStageable = vi.mocked(checkCommitStageable);
+const mockedCommitWorkflowChanges = vi.mocked(commitWorkflowChanges);
+
+describe("improver issue disposition workflow", () => {
   let projectDir: string;
 
   beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(getRepoWorktreeStatus).mockReturnValue(cleanWorktreeStatus);
+    mockedCheckCommitStageable.mockClear();
+    mockedCommitWorkflowChanges.mockClear();
     projectDir = join(
       tmpdir(),
-      `kota-improver-workflow-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      `kota-improver-issue-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
     mkdirSync(projectDir, { recursive: true });
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
+    writeFileSync(
+      join(projectDir, "package.json"),
+      JSON.stringify({ scripts: { "validate-tasks": "true" } }),
+      "utf-8",
+    );
   });
 
   afterEach(() => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  function writeFailedRun(id = "failed-builder-run"): void {
-    const runDir = join(projectDir, ".kota", "runs", id);
-    mkdirSync(runDir, { recursive: true });
-    writeFileSync(
-      join(runDir, "metadata.json"),
-      JSON.stringify({
-        id,
-        workflow: "builder",
-        definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
-        trigger: { event: "runtime.idle", payload: {} },
-        startedAt: new Date().toISOString(),
-        completedAt: new Date().toISOString(),
-        status: "failed",
-        runDir: `.kota/runs/${id}`,
-        steps: [],
-      }),
-    );
+  function openIssue() {
+    const observation = buildAutonomyIssueObservation({
+      kind: "present",
+      rootCauseKey: "workflow:builder:fixture-failure",
+      observedAt: "2026-08-13T10:00:00.000Z",
+      source: { kind: "workflow", id: "builder", workflow: "builder" },
+      severity: "error",
+      actionability: "local-code",
+      labels: ["workflow-failure"],
+      summaries: ["The fixture failed."],
+      evidenceRefs: [{ kind: "run", ref: ".kota/runs/fixture" }],
+      observationCount: 1,
+      signalIds: ["signal-fixture"],
+    });
+    const result = applyAutonomyIssueObservations({
+      projectDir,
+      observations: [observation],
+    });
+    return result.projection.issues[0]!;
   }
 
-  function writeTask(
-    state: string,
-    id: string,
-    options: { taskClass?: "Product" | "Safety" | "Platform" | "Meta"; body?: string } = {},
-  ): void {
-    const taskDir = join(projectDir, "data", "tasks", state);
-    mkdirSync(taskDir, { recursive: true });
-    const lines = [
-      "---",
-      `id: ${id}`,
-      `title: ${id}`,
-      `status: ${state}`,
-      "priority: p1",
-      "area: autonomy",
-      `summary: ${id} summary`,
-      "created_at: 2026-06-01T00:00:00.000Z",
-      "updated_at: 2026-06-01T00:00:00.000Z",
-    ];
-    if (options.taskClass) lines.push(`task_class: ${options.taskClass}`);
-    lines.push("---", "", options.body ?? "## Problem\n\nTask body.\n");
-    writeFileSync(join(taskDir, `${id}.md`), `${lines.join("\n")}\n`);
-  }
-
-  it("uses evidence gating rather than trigger cooldowns for pacing", () => {
-    for (const trigger of improverWorkflow.triggers) {
-      expect(trigger.cooldownMs, `${trigger.event} should not delay evidence checks`).toBeUndefined();
-    }
-  });
-
-  it("keeps lint validation read-only", async () => {
-    writeFileSync(
-      join(projectDir, "package.json"),
-      JSON.stringify({
-        scripts: {
-          lint: "node -e \"process.exit(0)\"",
-          "lint:fix":
-            "node -e \"require('node:fs').writeFileSync('lint-fix-ran', '')\"",
-        },
-      }),
+  it("has no generic successful-completion trigger or implementation write scope", () => {
+    expect(improverWorkflow.triggers.map((trigger) => trigger.event)).toEqual([
+      autonomyIssueDecisionRequested.name,
+      "runtime.recovered",
+    ]);
+    expect(improverWorkflow.triggers).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ event: "workflow.completed" })]),
     );
-    const improve = improverWorkflow.steps.find((step) => step.id === "improve");
-    if (improve?.type !== "agent" || !improve.repairLoop) {
-      throw new Error("improver agent step has no repair loop");
-    }
-    const lint = improve.repairLoop.checks.find((check) => check.id === "lint");
-    if (!lint || lint.type !== "code") {
-      throw new Error("improver repair loop has no code lint check");
-    }
-
-    await lint.run({ projectDir } as never, {} as never);
-
-    expect(existsSync(join(projectDir, "lint-fix-ran"))).toBe(false);
+    expect(improverWorkflow.defaultAutonomyMode).toBe("autonomous");
+    expect(agent.writeScope).toBe("deny-all");
+    expect(
+      improverWorkflow.steps.find((step) => step.id === "select-issue"),
+    ).toEqual(expect.objectContaining({ exposeOutputToAgent: true }));
   });
 
-  it("exposes task-class and operator-evidence governance to the agent", async () => {
-    writeTask("ready", "task-meta-missing-link", { taskClass: "Meta" });
-    writeTask("done", "task-product-without-evidence", {
-      taskClass: "Product",
-      body: "## Acceptance Evidence\n\n- Unit tests passed.\n",
-    });
+  it("reviews one undecided semantic revision and does not review it again", async () => {
+    const issue = openIssue();
+    const trigger = {
+      event: autonomyIssueDecisionRequested.name,
+      payload: {
+        scopeId: "scope-fixture",
+        projectId: "scope-fixture",
+        issueKey: issue.issueKey,
+        rootCauseKey: issue.rootCauseKey,
+        semanticRevision: issue.semanticRevision,
+        transition: "opened",
+        observedAt: issue.lastSeenAt,
+      },
+    };
+    const first = await new WorkflowTestHarness(improverWorkflow, {
+      projectDir,
+      trigger,
+      stepMocks: { "review-issue": OBSERVED_DISPOSITION },
+    }).run();
 
-    const step = improverWorkflow.steps.find(
-      (candidate) => candidate.id === "gather-task-governance",
+    expect(first.status).toBe("success");
+    expect(first.steps["review-issue"].status).toBe("success");
+    expect(first.steps["record-disposition"].status).toBe("success");
+    expect(first.steps["emit-attention"].status).toBe("skipped");
+    expect(listAutonomyIssues(projectDir)[0]?.disposition.kind).toBe("observed");
+
+    const repeated = await new WorkflowTestHarness(improverWorkflow, {
+      projectDir,
+      trigger,
+      stepMocks: { "review-issue": OBSERVED_DISPOSITION },
+    }).run();
+
+    expect(repeated.status).toBe("success");
+    expect(repeated.steps["select-issue"].output).toMatchObject({ eligible: false });
+    expect(repeated.steps["review-issue"].status).toBe("skipped");
+  });
+
+  it("recovery restores state without replaying AI review", async () => {
+    const result = await new WorkflowTestHarness(improverWorkflow, {
+      projectDir,
+      trigger: { event: "runtime.recovered", payload: {} },
+      stepMocks: { "review-issue": OBSERVED_DISPOSITION },
+    }).run();
+
+    expect(result.steps["select-issue"].output).toMatchObject({
+      eligible: false,
+      reason: expect.stringContaining("without replaying AI review"),
+    });
+    expect(result.steps["review-issue"].status).toBe("skipped");
+  });
+
+  it("routes a repair through one stable task and resolves it on a revised issue", async () => {
+    const issue = openIssue();
+    const triggerFor = (
+      semanticRevision: number,
+      transition: "opened" | "revised",
+    ) => ({
+      event: autonomyIssueDecisionRequested.name,
+      payload: {
+        scopeId: "scope-fixture",
+        projectId: "scope-fixture",
+        issueKey: issue.issueKey,
+        rootCauseKey: issue.rootCauseKey,
+        semanticRevision,
+        transition,
+        observedAt: "2026-08-13T10:00:00.000Z",
+      },
+    });
+    const created = await new WorkflowTestHarness(improverWorkflow, {
+      projectDir,
+      trigger: triggerFor(1, "opened"),
+      stepMocks: { "review-issue": TASK_DISPOSITION },
+    }).run();
+
+    expect(created.status, JSON.stringify(created, null, 2)).toBe("success");
+    const applied = created.steps["apply-disposition"].output as {
+      materialized: { taskId: string | null };
+    };
+    const taskId = applied.materialized.taskId;
+    expect(taskId).toEqual(expect.stringMatching(/^task-/));
+    expect(
+      existsSync(join(projectDir, "data", "tasks", "ready", `${taskId}.md`)),
+    ).toBe(true);
+    expect(listAutonomyIssues(projectDir)[0]?.links.taskIds).toEqual([taskId]);
+    const readyPath = `data/tasks/ready/${taskId}.md`;
+    expect(mockedCheckCommitStageable).toHaveBeenLastCalledWith(projectDir, {
+      kind: "exact-paths",
+      paths: [readyPath],
+    });
+    expect(mockedCommitWorkflowChanges).toHaveBeenLastCalledWith(
+      projectDir,
+      expect.any(String),
+      { kind: "exact-paths", paths: [readyPath] },
     );
-    expect(step).toEqual(expect.objectContaining({ exposeOutputToAgent: true }));
 
-    const harness = new WorkflowTestHarness(improverWorkflow, {
+    const revisedObservation = buildAutonomyIssueObservation({
+      kind: "changed",
+      rootCauseKey: issue.rootCauseKey,
+      observedAt: "2026-08-13T11:00:00.000Z",
+      source: { kind: "workflow", id: "builder", workflow: "builder" },
+      severity: "critical",
+      actionability: "local-code",
+      labels: ["workflow-failure"],
+      summaries: ["The fixture now carries explicit resolution evidence."],
+      evidenceRefs: [{ kind: "run", ref: ".kota/runs/fixture-resolution" }],
+      observationCount: 1,
+      signalIds: ["signal-fixture-resolution"],
+    });
+    const revised = applyAutonomyIssueObservations({
       projectDir,
-      trigger: {
-        event: "workflow.completed",
-        payload: { workflow: "builder", status: "success" },
-      },
-      stepMocks: {
-        improve: { turns: [], totalCostUsd: 0.1 },
-      },
-    });
-
-    const result = await harness.run();
-
-    expect(result.steps["gather-task-governance"].status).toBe("success");
-    expect(result.steps["gather-task-governance"].output).toMatchObject({
-      openByTaskClass: [{ taskClass: "Meta", count: 1 }],
-      actionableMetaWithoutProductSafetyLink: [
-        expect.objectContaining({ taskId: "task-meta-missing-link" }),
-      ],
-      productDoneWithoutOperatorEvidence: [
-        expect.objectContaining({ taskId: "task-product-without-evidence" }),
-      ],
-    });
-  });
-
-  it("skips commit and request-restart when improve fails", async () => {
-    writeFailedRun();
-
-    // No mock provided for improve → harness fails the agent step
-    const harness = new WorkflowTestHarness(improverWorkflow, {
+      observations: [revisedObservation],
+    }).transitions[0]!;
+    const resolved = await new WorkflowTestHarness(improverWorkflow, {
       projectDir,
-      trigger: {
-        event: "workflow.completed",
-        payload: { workflow: "builder", status: "success" },
-      },
-      stepMocks: {},
+      trigger: triggerFor(revised.semanticRevision, "revised"),
+      stepMocks: { "review-issue": RESOLVED_DISPOSITION },
+    }).run();
+
+    expect(resolved.status).toBe("success");
+    const resolvedApplied = resolved.steps["apply-disposition"].output as {
+      materialized: {
+        taskId: string | null;
+        actions: Array<{ kind: string; taskId?: string }>;
+      };
+    };
+    expect(resolvedApplied.materialized).toMatchObject({
+      taskId: null,
+      actions: [expect.objectContaining({ kind: "dropped-task", taskId })],
     });
-
-    const result = await harness.run();
-
-    expect(result.status).toBe("failed");
-    expect(result.steps["gate-evidence"].status).toBe("success");
-    expect(result.steps.improve.status).toBe("failed");
-    expect(result.steps["record-evidence-fingerprint"]).toBeUndefined();
-    expect(result.steps.commit).toBeUndefined();
-    expect(result.steps["request-restart"]).toBeUndefined();
-  });
-
-  it("runs request-restart when improve succeeds and commit commits", async () => {
-    writeFailedRun();
-    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true, committedPaths: ["src/change.ts"], daemonRestartRequired: true } as never);
-
-    const harness = new WorkflowTestHarness(improverWorkflow, {
+    expect(
+      existsSync(join(projectDir, "data", "tasks", "dropped", `${taskId}.md`)),
+    ).toBe(true);
+    expect(mockedCommitWorkflowChanges).toHaveBeenLastCalledWith(
       projectDir,
-      trigger: {
-        event: "workflow.completed",
-        payload: { workflow: "builder", status: "success" },
+      expect.any(String),
+      {
+        kind: "exact-paths",
+        paths: [
+          `data/tasks/dropped/${taskId}.md`,
+          `data/tasks/ready/${taskId}.md`,
+        ],
       },
-      stepMocks: {
-        improve: { turns: [], totalCostUsd: 0.1 },
-      },
+    );
+    expect(listAutonomyIssues(projectDir)[0]).toMatchObject({
+      status: "resolved",
+      links: { taskIds: [], ownerQuestionIds: [] },
     });
-
-    const result = await harness.run();
-
-    expect(result.status).toBe("success");
-    expect(result.steps.improve.status).toBe("success");
-    expect(result.steps["record-evidence-fingerprint"].status).toBe("success");
-    expect(result.steps.commit.status).toBe("success");
-    expect(result.steps["write-run-summary"].status).toBe("success");
-    expect(result.steps["request-restart"].status).toBe("success");
-  });
-
-  it("skips request-restart and write-run-summary when nothing was committed", async () => {
-    writeFailedRun();
-    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: false, committedPaths: [], daemonRestartRequired: false } as never);
-
-    const harness = new WorkflowTestHarness(improverWorkflow, {
-      projectDir,
-      trigger: {
-        event: "workflow.completed",
-        payload: { workflow: "builder", status: "success" },
-      },
-      stepMocks: {
-        improve: { turns: [], totalCostUsd: 0.05 },
-      },
-    });
-
-    const result = await harness.run();
-
-    expect(result.status).toBe("success");
-    expect(result.steps.improve.status).toBe("success");
-    expect(result.steps["record-evidence-fingerprint"].status).toBe("success");
-    expect(result.steps.commit.status).toBe("success");
-    expect(result.steps["write-run-summary"].status).toBe("skipped");
-    expect(result.steps["request-restart"].status).toBe("skipped");
-  });
-
-  it("skips the agent step when the recent aggregate has no actionable evidence", async () => {
-    const harness = new WorkflowTestHarness(improverWorkflow, {
-      projectDir,
-      trigger: {
-        event: "workflow.completed",
-        payload: { workflow: "builder", status: "success" },
-      },
-      stepMocks: {
-        improve: { turns: [], totalCostUsd: 0.1 },
-      },
-    });
-
-    const result = await harness.run();
-
-    expect(result.status).toBe("success");
-    expect(result.steps["gate-evidence"].status).toBe("success");
-    expect(result.steps.improve.status).toBe("skipped");
-    expect(result.steps["record-evidence-fingerprint"].status).toBe("skipped");
-    expect(result.steps.commit.status).toBe("skipped");
-    expect(result.steps["write-run-summary"].status).toBe("skipped");
-    expect(result.steps["request-restart"].status).toBe("skipped");
-  });
-
-  it("skips the agent step when the canonical checkout is dirty", async () => {
-    writeFailedRun();
-    vi.mocked(getRepoWorktreeStatus).mockReturnValue({
-      available: true,
-      dirty: true,
-      trackedDirty: true,
-      entries: [" M src/modules/autonomy/workflows/improver/workflow.ts"],
-      fingerprint: " M src/modules/autonomy/workflows/improver/workflow.ts",
-      summary: "M src/modules/autonomy/workflows/improver/workflow.ts",
-      headSha: "abc123",
-    });
-
-    const harness = new WorkflowTestHarness(improverWorkflow, {
-      projectDir,
-      trigger: {
-        event: "workflow.completed",
-        payload: { workflow: "builder", status: "success" },
-      },
-      stepMocks: {
-        improve: { turns: [], totalCostUsd: 0.1 },
-      },
-    });
-
-    const result = await harness.run();
-
-    expect(result.status).toBe("success");
-    expect(result.steps["inspect-worktree"].output).toMatchObject({ dirty: true });
-    expect(result.steps.improve.status).toBe("skipped");
-    expect(result.steps["record-evidence-fingerprint"].status).toBe("skipped");
-    expect(result.steps.commit.status).toBe("skipped");
-  });
-
-  it("write-run-summary step exists and appears before request-restart", () => {
-    const steps = improverWorkflow.steps;
-    const summaryIdx = steps.findIndex((s) => s.id === "write-run-summary");
-    const restartIdx = steps.findIndex((s) => s.id === "request-restart");
-    expect(summaryIdx).toBeGreaterThan(-1);
-    expect(restartIdx).toBeGreaterThan(summaryIdx);
   });
 });

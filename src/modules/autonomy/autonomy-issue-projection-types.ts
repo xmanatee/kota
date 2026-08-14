@@ -22,6 +22,8 @@ export type AutonomyIssueDispositionKind =
   | "task"
   | "owner-question"
   | "attention"
+  | "observed"
+  | "resolved"
   | "cleared";
 
 export type AutonomyIssueLinks = {

@@ -156,7 +156,9 @@ function taskPathsFromStagedFiles(changedFiles: readonly SourceFileSizeChangedFi
         file.startsWith(`${REPO_TASKS_DIR}/`) &&
         file.endsWith(".md") &&
         !file.endsWith("AGENTS.md") &&
-        (file.includes("/doing/") || file.includes("/done/")),
+        (file.includes("/doing/") ||
+          file.includes("/blocked/") ||
+          file.includes("/done/")),
     );
 }
 

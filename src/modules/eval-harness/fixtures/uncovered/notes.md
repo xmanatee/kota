@@ -82,21 +82,13 @@ a reason the predicate/payload changes do not resolve.
   empirical-code optimization against a deterministic objective metric.
   A replay-backed fixture gates the workflow-layer substrate, which is
   complementary, not overlapping.
-- **improver (agent-call path)** — now covered by
-  `improver-agent-call-replay`. The recorded-agent-step replay adapter
-  exercises both improver's `improve` agent step and its
-  `semantic-quality-gate` judge from source run
-  `2026-04-24T17-23-37-109Z-improver-tqqgmc` without paying for any
-  LLM. The retirement reason that previously blocked an improver
-  fixture ("requires an explicit 'clone from KOTA source' harness
-  capability") was stale relative to today's scaffold pattern: the
-  fixture's `initial/package.json` stubs the repair-loop shell-outs as
-  `"true"` no-ops (same pattern `builder-agent-call-replay` uses), its
-  `.kota/runs/` seed rides the new fixture-templating pass so the
-  evidence gate always sees a recent actionable run, and the two
-  recordings (`improve.json` + `semantic-gate-review.json`) are
-  authored end-to-end by the recorder CLI. Real `pnpm
-  build`/`typecheck`/`lint`/`test` enforcement stays in KOTA's own CI.
+- **improver (issue-disposition agent-call path)** — uncovered. The old
+  source-editing improver replay was retired with the completion-wide
+  aggregate workflow it encoded. The replacement runs once per materially
+  revised durable issue, stays read-only, and has no implementation repair
+  loop or semantic-quality-gate judge. A new replay needs a real source run
+  from that issue-driven contract; deterministic transition and proposal
+  behavior remains covered by focused tests meanwhile.
 - **research-retry (workflow-layer path)** — now covered by
   `research-retry-agent-call-replay`. The fixture replays source run
   `2026-04-23T00-03-55-062Z-research-retry-u92f1u`, seeds a hermetic

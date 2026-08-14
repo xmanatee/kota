@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -84,34 +84,28 @@ describe("autonomy health repair task deduplication", () => {
 
     const first = applyAutonomyHealthReviewActions({
       projectDir,
-      runId: "health-review-run",
       review,
-      nowIso: NOW,
     });
     const replay = applyAutonomyHealthReviewActions({
       projectDir,
-      runId: "health-review-replay",
       review,
-      nowIso: "2026-06-17T13:00:00.000Z",
     });
 
-    expect(first.createdTaskIds).toEqual([
-      "task-health-control-coverage-agent-step-stream-missing-agent-step-events",
-      "task-health-control-coverage-trajectory-diagnostics-missing-trajectory-diagnostics",
+    expect(first.applied).toEqual([
+      expect.objectContaining({
+        kind: "decision-requested",
+        dedupeKey: "control-coverage:agent-step-stream:missing-agent-step-events",
+      }),
+      expect.objectContaining({
+        kind: "decision-requested",
+        dedupeKey:
+          "control-coverage:trajectory-diagnostics:missing-trajectory-diagnostics",
+      }),
     ]);
-    expect(replay.createdTaskIds).toEqual([]);
     expect(replay.applied).toEqual([]);
     expect(replay.issueTransitions.map((transition) => transition.kind)).toEqual([
       "replayed",
       "replayed",
-    ]);
-    expect(
-      readdirSync(join(projectDir, "data", "tasks", "ready"))
-        .filter((name) => name.endsWith(".md"))
-        .sort((a, b) => a.localeCompare(b)),
-    ).toEqual([
-      "task-health-control-coverage-agent-step-stream-missing-agent-step-events.md",
-      "task-health-control-coverage-trajectory-diagnostics-missing-trajectory-diagnostics.md",
     ]);
   });
 });

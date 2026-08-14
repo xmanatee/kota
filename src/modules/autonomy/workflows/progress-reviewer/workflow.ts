@@ -116,7 +116,7 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
       type: "emit",
       when: (ctx) => {
         if (!stepSucceeded("write-artifact")(ctx)) return false;
-        return needsAttention(decodeProgressReviewAgentOutput(ctx.stepOutputs["review-evidence"]));
+        return needsAttention(applyActions.output(ctx) ?? emptyActions());
       },
       event: "workflow.attention.digest",
       payload: (ctx) => {

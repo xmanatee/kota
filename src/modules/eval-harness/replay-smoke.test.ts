@@ -10,15 +10,13 @@
  * fixtures end-to-end through the same `runFixture` + subprocess executor path
  * the cadence uses, asserting predicate pass.
  *
- * Six fixtures cover the full set of workflow-runtime branches we want to
+ * Five fixtures cover the full set of workflow-runtime branches we want to
  * gate at `pnpm test` time:
  *   - `decomposer-agent-call-replay` is the smallest fixture and is the only
  *     one whose repair loop runs `pnpm run validate-tasks` against the
  *     fixture's tmp project root, so it gates the task-validator-as-repair-
- *     check path against silent regression.
- *   - `improver-agent-call-replay` covers judge-prompt routing
- *     (`semantic-gate-review` recording) and gather-run-data aggregation in
- *     a way the other shipped replay fixtures do not.
+ *     check path against silent regression. Its `review-decomposition`
+ *     recording also covers judge-prompt routing.
  *   - `explorer-agent-call-replay` covers the explorer's post-agent plumbing
  *     (the `record-exploration` state-file rewrite, the
  *     `apply-watchlist-updates` reader's empty-apply path, the five explorer
@@ -47,10 +45,9 @@
  *     the deterministic `github_comment` output step via the eval module's
  *     local replay tools, and the typed `workflow.pr.review.posted` emission shape —
  *     none of which the other shipped replays exercise.
- * The builder fixture stays in cadence-only coverage because its surfaces
- * (workflow-step prompt routing, repair-loop survival, commit step's
- * `git add -A`, restart request) are already exercised by the gated
- * fixtures.
+ * The builder fixture stays cadence-only. The retired source-editing improver
+ * replay is intentionally absent: the issue-driven improver no longer has
+ * that workflow shape.
  *
  * The subprocess executor invokes `node bin/kota.mjs workflow exec ...`,
  * which loads `dist/cli.js`. The autonomy builder's repair loop runs
@@ -79,7 +76,6 @@ const PROJECT_DIR = fileURLToPath(new URL("../../..", import.meta.url));
 
 const SMOKE_FIXTURE_IDS = [
   "decomposer-agent-call-replay",
-  "improver-agent-call-replay",
   "explorer-agent-call-replay",
   "inbox-sorter-agent-call-replay",
   "research-retry-agent-call-replay",

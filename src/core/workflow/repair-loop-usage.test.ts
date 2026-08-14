@@ -5,10 +5,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
-import { RepairLoopError, runAgentRepairLoop } from "./repair-loop.js";
+import { runAgentRepairLoop } from "./repair-loop.js";
 import type { WorkflowRunMetadata, WorkflowStepContext } from "./run-types.js";
 import type { WorkflowAgentStep } from "./step-types.js";
 import type { AgentStepResult } from "./steps/step-executor-agent.js";
+import { AgentStepRuntimeError } from "./steps/step-executor-retry.js";
 import { createWorkflowAgentHarnessRunner } from "./steps/workflow-agent-harness-runner.js";
 
 const roots: string[] = [];
@@ -137,12 +138,9 @@ describe("repair-loop usage", () => {
       vi.fn(),
       { projectDir },
     )).rejects.toMatchObject({
-      name: RepairLoopError.name,
-      kind: undefined,
-      agentBackoff: {
-        kind: "rate_limit",
-        retryable: false,
-      },
+      name: AgentStepRuntimeError.name,
+      kind: "rate_limit",
+      retryable: false,
       output: {
         inputTokens: 41,
         outputTokens: 6,

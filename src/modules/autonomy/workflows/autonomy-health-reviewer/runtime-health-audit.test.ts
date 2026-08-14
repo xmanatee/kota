@@ -1,165 +1,30 @@
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { DeadLetterItem } from "#core/daemon/dead-letter-queue.js";
-import {
-  DAEMON_STOP_ATTEMPTS_RELATIVE_PATH,
-  recordDaemonStopAttempt,
-} from "#modules/daemon-ops/daemon-ops-operations.js";
-import {
-  applyAutonomyHealthReviewActions,
-  buildAutonomyHealthReviewFromSignals,
-} from "./health-review.js";
 import { collectRuntimeHealthAudit } from "./runtime-health-audit.js";
-
-const NOW = "2026-06-19T12:00:00.000Z";
+import {
+  makeRuntimeHealthAuditProjectDir,
+  RUNTIME_HEALTH_AUDIT_NOW,
+  reviewAndApplyRuntimeHealthAudit,
+  runtimeHealthReadyTaskFiles,
+  staleWorkflowDispatchDeadLetter,
+  writeRuntimeHealthDeadLetterQueue,
+  writeRuntimeHealthModuleLog,
+} from "./runtime-health-audit-test-context.js";
 
 describe("runtime health audit", () => {
   let projectDir: string;
 
   beforeEach(() => {
-    projectDir = join(
-      tmpdir(),
-      `kota-runtime-health-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    );
-    mkdirSync(projectDir, { recursive: true });
-    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
+    projectDir = makeRuntimeHealthAuditProjectDir();
   });
 
   afterEach(() => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  function reviewAndApply(audit: ReturnType<typeof collectRuntimeHealthAudit>) {
-    const review = buildAutonomyHealthReviewFromSignals({
-      signals: audit.signals,
-      generatedAt: NOW,
-      sourceEventName: "autonomy.runtime-health.audit",
-      reason: "test",
-    });
-    return applyAutonomyHealthReviewActions({
-      projectDir,
-      runId: "runtime-health-test",
-      review,
-      nowIso: NOW,
-    });
-  }
-
-  function writeModuleLog(moduleName: string, lines: string[]): void {
-    const dir = join(projectDir, ".kota", "modules", moduleName);
-    mkdirSync(dir, { recursive: true });
-    const timestamped = lines.map((line) =>
-      JSON.stringify({ ts: NOW, ...(JSON.parse(line) as Record<string, unknown>) }),
-    );
-    writeFileSync(
-      join(dir, "logs.jsonl"),
-      `${timestamped.join("\n")}\n`,
-      "utf-8",
-    );
-  }
-
-  function readyTaskFiles(): string[] {
-    const dir = join(projectDir, "data", "tasks", "ready");
-    if (!existsSync(dir)) return [];
-    return readdirSync(dir).filter((name) => name.endsWith(".md"));
-  }
-
-  function staleWorkflowDispatchDeadLetter(
-    overrides: {
-      id?: string;
-      workflow?: string;
-      reason?: string;
-      lastErrorClass?: DeadLetterItem["failure"]["lastErrorClass"];
-      updatedAt?: string;
-    } = {},
-  ): DeadLetterItem {
-    const id = overrides.id ?? "dlq-stale-1";
-    const workflow = overrides.workflow ?? "builder";
-    const updatedAt = overrides.updatedAt ?? "2026-06-17T08:00:00.000Z";
-    return {
-      id,
-      type: "workflow-dispatch",
-      status: "open",
-      scopeId: "scope-a",
-      projectId: "scope-a",
-      owningModule: "workflow-runtime",
-      sourceEventIds: ["evt-1"],
-      affectedWorkflowNames: [workflow],
-      failure: {
-        reason:
-          overrides.reason ?? "Payload failed validation for workflow dispatch",
-        retryCount: 2,
-        lastErrorClass: overrides.lastErrorClass ?? "validation",
-        firstFailedAt: updatedAt,
-        lastFailedAt: updatedAt,
-      },
-      source: {
-        kind: "workflow-dispatch",
-        workflowName: workflow,
-        triggerEvent: "autonomy.queue.available",
-        triggerSchemaRef: null,
-        failedRunId: `run-${workflow}-failed`,
-        runDir: `.kota/runs/run-${workflow}-failed`,
-      },
-      redrive: {
-        kind: "workflow",
-        workflowName: workflow,
-        source: { kind: "run-trigger", runId: `run-${workflow}-failed` },
-      },
-      redactedProjection: {},
-      createdAt: updatedAt,
-      updatedAt,
-      redriveAttempts: [],
-      retention: { kind: "retain" },
-    };
-  }
-
-  function writeDeadLetterQueue(items: DeadLetterItem[]): void {
-    mkdirSync(join(projectDir, ".kota", "dead-letter-queue"), {
-      recursive: true,
-    });
-    writeFileSync(
-      join(projectDir, ".kota", "dead-letter-queue", "items.json"),
-      JSON.stringify({ items }, null, 2),
-      "utf-8",
-    );
-  }
-
-  function writeRun(args: {
-    id: string;
-    workflow: string;
-    status: "interrupted" | "success";
-    startedAt: string;
-    error?: string;
-  }): void {
-    const runDir = join(projectDir, ".kota", "runs", args.id);
-    mkdirSync(runDir, { recursive: true });
-    writeFileSync(
-      join(runDir, "metadata.json"),
-      JSON.stringify(
-        {
-          id: args.id,
-          workflow: args.workflow,
-          status: args.status,
-          startedAt: args.startedAt,
-          completedAt: args.startedAt,
-          durationMs: 1000,
-          steps: [],
-        },
-        null,
-        2,
-      ),
-      "utf-8",
-    );
-    if (args.error) {
-      writeFileSync(join(runDir, "error.txt"), args.error, "utf-8");
-    }
-  }
-
-  it("routes Telegram getUpdates conflicts to one duplicate-consumer owner outcome", () => {
-    writeModuleLog("telegram", [
+  it("routes Telegram getUpdates conflicts to one issue decision", () => {
+    writeRuntimeHealthModuleLog(projectDir, "telegram", [
       JSON.stringify({
         level: "warn",
         message:
@@ -173,7 +38,7 @@ describe("runtime health audit", () => {
 
     const audit = collectRuntimeHealthAudit({
       projectDir,
-      options: { nowIso: NOW },
+      options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW },
     });
 
     expect(audit.patterns).toEqual([
@@ -186,21 +51,26 @@ describe("runtime health audit", () => {
       }),
     ]);
 
-    const first = reviewAndApply(audit);
-    const second = reviewAndApply(audit);
+    const first = reviewAndApplyRuntimeHealthAudit(projectDir, audit);
+    const second = reviewAndApplyRuntimeHealthAudit(projectDir, audit);
 
-    expect(first.createdTaskIds).toEqual([]);
-    expect(first.ownerQuestionIds).toHaveLength(1);
+    expect(first.applied).toEqual([
+      expect.objectContaining({
+        kind: "decision-requested",
+        dedupeKey: "module:telegram:getupdates-conflict",
+        transition: "opened",
+      }),
+    ]);
     expect(second.applied).toEqual([]);
-    expect(readyTaskFiles()).toEqual([]);
+    expect(runtimeHealthReadyTaskFiles(projectDir)).toEqual([]);
   });
 
-  it("creates one consolidated local repair task for stale open DLQ items", () => {
-    writeDeadLetterQueue([staleWorkflowDispatchDeadLetter()]);
+  it("requests one issue decision for stale open DLQ items", () => {
+    writeRuntimeHealthDeadLetterQueue(projectDir, [staleWorkflowDispatchDeadLetter()]);
 
     const audit = collectRuntimeHealthAudit({
       projectDir,
-      options: { nowIso: NOW, staleDeadLetterMs: 60 * 60 * 1000 },
+      options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW, staleDeadLetterMs: 60 * 60 * 1000 },
     });
 
     expect(audit.patterns).toEqual([
@@ -211,24 +81,18 @@ describe("runtime health audit", () => {
       }),
     ]);
 
-    const actions = reviewAndApply(audit);
-    expect(actions.createdTaskIds).toEqual([
-      "task-health-dead-letter-validation-workflow-runtime-builder",
+    const actions = reviewAndApplyRuntimeHealthAudit(projectDir, audit);
+    expect(actions.applied).toEqual([
+      expect.objectContaining({
+        kind: "decision-requested",
+        dedupeKey: "dead-letter:validation:workflow-runtime:builder",
+      }),
     ]);
-    const taskPath = join(
-      projectDir,
-      "data",
-      "tasks",
-      "ready",
-      "task-health-dead-letter-validation-workflow-runtime-builder.md",
-    );
-    const task = readFileSync(taskPath, "utf-8");
-    expect(task).toContain(".kota/dead-letter-queue/items.json#dlq-stale-1");
-    expect(task).toContain("Payload failed validation for workflow dispatch");
+    expect(runtimeHealthReadyTaskFiles(projectDir)).toEqual([]);
   });
 
   it("keeps classified agent transport DLQs separate from local execution repairs", () => {
-    writeDeadLetterQueue([
+    writeRuntimeHealthDeadLetterQueue(projectDir, [
       staleWorkflowDispatchDeadLetter({
         id: "dlq-provider-transport",
         lastErrorClass: "execution",
@@ -245,7 +109,7 @@ describe("runtime health audit", () => {
 
     const audit = collectRuntimeHealthAudit({
       projectDir,
-      options: { nowIso: NOW, staleDeadLetterMs: 60 * 60 * 1000 },
+      options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW, staleDeadLetterMs: 60 * 60 * 1000 },
     });
 
     expect(audit.patterns).toEqual(
@@ -273,24 +137,24 @@ describe("runtime health audit", () => {
       ]),
     );
 
-    const actions = reviewAndApply(audit);
-    expect(actions.createdTaskIds).toEqual([
-      "task-health-dead-letter-execution-workflow-runtime-builder",
-    ]);
-    const taskPath = join(
-      projectDir,
-      "data",
-      "tasks",
-      "ready",
-      "task-health-dead-letter-execution-workflow-runtime-builder.md",
+    const actions = reviewAndApplyRuntimeHealthAudit(projectDir, audit);
+    expect(actions.applied).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "decision-requested",
+          dedupeKey: "dead-letter:execution:workflow-runtime:builder",
+        }),
+        expect.objectContaining({
+          kind: "decision-requested",
+          dedupeKey: "dead-letter:provider:workflow-runtime:builder",
+        }),
+      ]),
     );
-    const task = readFileSync(taskPath, "utf-8");
-    expect(task).toContain("dlq-local-execution");
-    expect(task).not.toContain("dlq-provider-transport");
+    expect(runtimeHealthReadyTaskFiles(projectDir)).toEqual([]);
   });
 
-  it("does not create a duplicate repair task when active work tracks stale DLQ evidence", () => {
-    writeDeadLetterQueue([
+  it("does not infer issue disposition from a title-related active task", () => {
+    writeRuntimeHealthDeadLetterQueue(projectDir, [
       staleWorkflowDispatchDeadLetter({
         id: "dlq-c3d9197c-110e-495d-ab5d-12e1de7925a7",
         workflow: "progress-reviewer",
@@ -312,8 +176,8 @@ describe("runtime health audit", () => {
         "priority: p3",
         "area: platform",
         "summary: Existing active work tracks the stale DLQ item.",
-        `created_at: ${NOW}`,
-        `updated_at: ${NOW}`,
+        `created_at: ${RUNTIME_HEALTH_AUDIT_NOW}`,
+        `updated_at: ${RUNTIME_HEALTH_AUDIT_NOW}`,
         "---",
         "",
         "<!-- autonomy-health-dedupe-key: dead-letter:execution:workflow-runtime:progress-reviewer -->",
@@ -331,7 +195,7 @@ describe("runtime health audit", () => {
 
     const audit = collectRuntimeHealthAudit({
       projectDir,
-      options: { nowIso: NOW, staleDeadLetterMs: 60 * 60 * 1000 },
+      options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW, staleDeadLetterMs: 60 * 60 * 1000 },
     });
 
     expect(audit.patterns).toEqual([
@@ -343,294 +207,18 @@ describe("runtime health audit", () => {
       }),
     ]);
 
-    const actions = reviewAndApply(audit);
+    const actions = reviewAndApplyRuntimeHealthAudit(projectDir, audit);
 
-    expect(actions.createdTaskIds).toEqual([
-      "task-health-dead-letter-execution-workflow-runtime-progress-reviewer",
-    ]);
     expect(actions.applied).toEqual([
       expect.objectContaining({
-        kind: "created-task",
-        taskId:
-          "task-health-dead-letter-execution-workflow-runtime-progress-reviewer",
+        kind: "decision-requested",
         dedupeKey:
           "dead-letter:execution:workflow-runtime:progress-reviewer",
       }),
     ]);
-    expect(readyTaskFiles()).toEqual([
+    expect(runtimeHealthReadyTaskFiles(projectDir)).toEqual([
       "task-clear-stale-progress-reviewer-write-scope-dlq-item.md",
-      "task-health-dead-letter-execution-workflow-runtime-progress-reviewer.md",
     ]);
   });
 
-  it("creates one root-cause repair task for repeated interrupted runs", () => {
-    for (const [id, startedAt] of [
-      ["run-a", "2026-06-19T10:00:00.000Z"],
-      ["run-b", "2026-06-19T11:00:00.000Z"],
-    ] as const) {
-      writeRun({ id, workflow: "builder", status: "interrupted", startedAt });
-    }
-
-    const audit = collectRuntimeHealthAudit({
-      projectDir,
-      options: { nowIso: NOW, interruptedRunMinCount: 2 },
-    });
-
-    expect(audit.patterns).toEqual([
-      expect.objectContaining({
-        dedupeKey: "workflow:builder:interrupted-run",
-        category: "local-code",
-        observationCount: 2,
-      }),
-    ]);
-
-    const first = reviewAndApply(audit);
-    const second = reviewAndApply(audit);
-
-    expect(first.createdTaskIds).toEqual([
-      "task-health-workflow-builder-interrupted-run",
-    ]);
-    expect(second.applied).toEqual([]);
-  });
-
-  it("routes known runtime abort interruptions outside local repair tasks", () => {
-    writeRun({
-      id: "improver-abort-a",
-      workflow: "improver",
-      status: "interrupted",
-      startedAt: "2026-06-17T16:38:32.184Z",
-      error: 'Agent step "improve" failed (aborted): Codex CLI run aborted.',
-    });
-    writeRun({
-      id: "improver-abort-b",
-      workflow: "improver",
-      status: "interrupted",
-      startedAt: "2026-06-17T16:52:59.769Z",
-      error: 'Agent step "improve" failed (aborted): Codex CLI run aborted.',
-    });
-    writeRun({
-      id: "improver-restart",
-      workflow: "improver",
-      status: "interrupted",
-      startedAt: "2026-06-15T23:44:08.673Z",
-      error: "Interrupted: daemon restarted while run was in progress.",
-    });
-
-    const audit = collectRuntimeHealthAudit({
-      projectDir,
-      options: { nowIso: NOW, interruptedRunMinCount: 2 },
-    });
-
-    expect(audit.patterns).toEqual([
-      expect.objectContaining({
-        dedupeKey: "workflow:improver:interrupted-run:harness-abort",
-        category: "operator-action",
-        actionability: "owner-action",
-        labels: expect.arrayContaining([
-          "harness-abort",
-          "improver",
-          "interrupted-run",
-          "operator-action",
-        ]),
-        observationCount: 2,
-        evidenceRefs: expect.arrayContaining([
-          expect.objectContaining({
-            kind: "artifact",
-            ref: ".kota/runs/improver-abort-a/error.txt",
-            summary:
-              'Agent step "improve" failed (aborted): Codex CLI run aborted.',
-          }),
-        ]),
-      }),
-    ]);
-    expect(audit.patterns).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          dedupeKey: "workflow:improver:interrupted-run",
-        }),
-      ]),
-    );
-
-    const actions = reviewAndApply(audit);
-
-    expect(actions.createdTaskIds).toEqual([]);
-    expect(actions.ownerQuestionIds).toHaveLength(1);
-    expect(readyTaskFiles()).toEqual([]);
-  });
-
-  it("suppresses interrupted runs recovered by a newer success", () => {
-    writeRun({
-      id: "builder-interrupted-a",
-      workflow: "builder",
-      status: "interrupted",
-      startedAt: "2026-06-19T09:00:00.000Z",
-      error: 'Agent step "build" failed (aborted): Codex CLI run aborted.',
-    });
-    writeRun({
-      id: "builder-interrupted-b",
-      workflow: "builder",
-      status: "interrupted",
-      startedAt: "2026-06-19T10:00:00.000Z",
-      error: 'Agent step "build" failed (aborted): Codex CLI run aborted.',
-    });
-    writeRun({
-      id: "builder-recovered",
-      workflow: "builder",
-      status: "success",
-      startedAt: "2026-06-19T11:00:00.000Z",
-    });
-    writeRun({
-      id: "improver-success",
-      workflow: "improver",
-      status: "success",
-      startedAt: "2026-06-19T08:00:00.000Z",
-    });
-    for (const [id, startedAt] of [
-      ["improver-interrupted-a", "2026-06-19T09:00:00.000Z"],
-      ["improver-interrupted-b", "2026-06-19T10:00:00.000Z"],
-    ] as const) {
-      writeRun({
-        id,
-        workflow: "improver",
-        status: "interrupted",
-        startedAt,
-      });
-    }
-
-    const audit = collectRuntimeHealthAudit({
-      projectDir,
-      options: { nowIso: NOW, interruptedRunMinCount: 2 },
-    });
-
-    expect(audit.inspected.interruptedRuns).toBe(4);
-    expect(audit.patterns).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          dedupeKey: "workflow:builder:interrupted-run:harness-abort",
-        }),
-      ]),
-    );
-    expect(audit.patterns).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          dedupeKey: "workflow:improver:interrupted-run",
-          observationCount: 2,
-        }),
-      ]),
-    );
-  });
-
-  it("reads status-derived operator runtime warnings from daemon control evidence", () => {
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
-    writeFileSync(
-      join(projectDir, ".kota", "daemon-control.json"),
-      JSON.stringify(
-        {
-          port: 8765,
-          pid: Number.MAX_SAFE_INTEGER,
-          startedAt: "2026-06-19T10:00:00.000Z",
-          token: "test-token",
-        },
-        null,
-        2,
-      ),
-      "utf-8",
-    );
-
-    const audit = collectRuntimeHealthAudit({
-      projectDir,
-      options: { nowIso: NOW },
-    });
-
-    expect(audit.inspected.operatorRuntimeWarnings).toBeGreaterThanOrEqual(1);
-    expect(audit.patterns).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          dedupeKey: "operator-inbox:runtime:daemon-control-stale",
-          category: "operator-action",
-          actionability: "owner-action",
-          evidenceRefs: [
-            expect.objectContaining({
-              kind: "artifact",
-              ref: join(".kota", "daemon-control.json"),
-            }),
-          ],
-        }),
-      ]),
-    );
-  });
-
-  it("reads daemon stop timeout evidence recorded by daemon-ops", () => {
-    recordDaemonStopAttempt({
-      projectDir,
-      attemptedAt: "2026-06-19T11:00:00.000Z",
-      timeoutSec: 3,
-      result: { ok: false, reason: "timeout", pid: 12345 },
-    });
-
-    const audit = collectRuntimeHealthAudit({
-      projectDir,
-      options: { nowIso: NOW },
-    });
-
-    expect(audit.inspected.daemonStopAttempts).toBe(1);
-    expect(audit.patterns).toEqual([
-      expect.objectContaining({
-        dedupeKey: "daemon:shutdown-timeout",
-        category: "local-code",
-        actionability: "local-code",
-        severity: "warning",
-        evidenceRefs: [
-          expect.objectContaining({
-            kind: "artifact",
-            ref: `${DAEMON_STOP_ATTEMPTS_RELATIVE_PATH}#L1`,
-          }),
-        ],
-      }),
-    ]);
-
-    const actions = reviewAndApply(audit);
-    expect(actions.createdTaskIds).toEqual([]);
-
-    recordDaemonStopAttempt({
-      projectDir,
-      attemptedAt: "2026-06-19T11:30:00.000Z",
-      timeoutSec: 3,
-      result: { ok: false, reason: "timeout", pid: 12345 },
-    });
-    const repeatedAudit = collectRuntimeHealthAudit({
-      projectDir,
-      options: { nowIso: NOW },
-    });
-    const repeatedActions = reviewAndApply(repeatedAudit);
-    expect(repeatedActions.createdTaskIds).toEqual([]);
-    expect(repeatedActions.issueTransitions).toEqual([
-      expect.objectContaining({ kind: "repeated", requiresDecision: false }),
-    ]);
-  });
-
-  it("keeps noisy external provider failures out of local repair tasks", () => {
-    writeModuleLog("email", [
-      JSON.stringify({ message: "SMTP provider network timeout" }),
-      JSON.stringify({ message: "SMTP provider ECONNRESET while sending" }),
-      JSON.stringify({ message: "SMTP provider network timeout" }),
-    ]);
-
-    const audit = collectRuntimeHealthAudit({
-      projectDir,
-      options: { nowIso: NOW },
-    });
-
-    expect(audit.patterns).toEqual([
-      expect.objectContaining({
-        dedupeKey: "module:email:external-provider-failure",
-        category: "external-service/auth",
-        actionability: "external-service",
-      }),
-    ]);
-
-    const actions = reviewAndApply(audit);
-    expect(actions.createdTaskIds).toEqual([]);
-    expect(readyTaskFiles()).toEqual([]);
-  });
 });

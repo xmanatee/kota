@@ -95,6 +95,7 @@ const HANDLER_IMPL_ALLOWLIST: ReadonlySet<string> = new Set<string>([
   "eval-harness/eval-operations.ts",
   "eval-harness/eval-control-routes.ts",
   "eval-harness/routes.ts",
+  "workflow-ops/dead-letter-local-client.ts",
   // The audit tool runner and its store live below the CLI surface; the
   // tool is invoked through agent harness, not through a CLI subcommand
   // action handler.

@@ -129,47 +129,6 @@ export type OwnerInterventionEscalationProposal =
       previousEvidenceFingerprint: string | null;
     };
 
-export type OwnerInterventionEscalationApplied =
-  | {
-      kind: "noop";
-      taskId: string;
-      patternFingerprint: string;
-      reason: string;
-      existingState?: ExistingOwnerInterventionTask["state"];
-    }
-  | {
-      kind: "created";
-      taskId: string;
-      patternFingerprint: string;
-      path: string;
-    }
-  | {
-      kind: "refreshed";
-      taskId: string;
-      patternFingerprint: string;
-      path: string;
-    }
-  | {
-      kind: "promoted";
-      taskId: string;
-      patternFingerprint: string;
-      fromState: "backlog";
-      path: string;
-      previousPath: string;
-    }
-  | {
-      kind: "recreated";
-      taskId: string;
-      patternFingerprint: string;
-      previousState: "done" | "dropped";
-      path: string;
-    };
-
-export type OwnerInterventionEscalationContext = {
-  projectDir: string;
-  nowIso: string;
-};
-
 export type OwnerInterventionPatternSummary = {
   kind: OwnerInterventionPatternKind;
   dimension: OwnerInterventionPatternDimension;
@@ -188,15 +147,6 @@ export type OwnerInterventionEscalationReport = {
   activePatterns: OwnerInterventionPatternSummary[];
   ignoredPatterns: OwnerInterventionPatternSummary[];
   belowThresholdPatterns: OwnerInterventionPatternSummary[];
-};
-
-export type OwnerInterventionAttentionEntry = {
-  kind: OwnerInterventionPatternKind;
-  dimension: OwnerInterventionPatternDimension;
-  taskId: string;
-  action: OwnerInterventionEscalationApplied["kind"] | "skipped";
-  questionCount: number;
-  runIds: string[];
 };
 
 export function normalizeOwnerInterventionEscalationConfig(

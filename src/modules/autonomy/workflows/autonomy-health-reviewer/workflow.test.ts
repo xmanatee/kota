@@ -52,10 +52,10 @@ describe("autonomy-health-reviewer workflow", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("uses the shared canonical-mutation group because it mutates task files", () => {
-    expect(autonomyWorkflowConcurrencyGroupFor(autonomyHealthReviewerWorkflow.name)).toBe(
-      AUTONOMY_CANONICAL_MUTATION_CONCURRENCY_GROUP,
-    );
+  it("serializes explicit generated-task resolution with canonical mutators", () => {
+    expect(
+      autonomyWorkflowConcurrencyGroupFor(autonomyHealthReviewerWorkflow.name),
+    ).toBe(AUTONOMY_CANONICAL_MUTATION_CONCURRENCY_GROUP);
   });
 
   it("reviews health signals and audits persisted runtime evidence on a cadence", () => {

@@ -20,9 +20,13 @@ import { EventBus } from "#core/events/event-bus.js";
 import { getPreset, PRESET_ENV_VAR } from "#core/model/preset.js";
 import { enqueueMatchingWorkflows } from "#core/workflow/run-executor-utils.js";
 import { WorkflowRuntime } from "#core/workflow/runtime.js";
-import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
+import {
+  loadAutonomyWorkflowDefinitions,
+  seedAutonomousLoopFixture,
+  wait,
+} from "./autonomous-loop.integration-test-helpers.js";
 
 vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   const actual = await vi.importActual("../claude-agent-harness/executor.js");
@@ -36,188 +40,6 @@ import "#modules/claude-agent-harness/index.js";
 
 const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
 
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitForCompletedWorkflows(
-  completedRuns: Array<{ workflow: string }>,
-  workflowNames: readonly string[],
-  timeoutMs: number,
-): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (true) {
-    const seen = new Set(completedRuns.map((run) => run.workflow));
-    if (workflowNames.every((name) => seen.has(name))) {
-      return;
-    }
-    if (Date.now() >= deadline) break;
-    await wait(25);
-  }
-  throw new Error(
-    `Timed out waiting for workflows ${workflowNames.join(", ")}; saw ${
-      completedRuns.map((run) => run.workflow).join(", ") || "none"
-    }`,
-  );
-}
-
-async function loadAutonomyWorkflowDefinitions(): Promise<RegisteredWorkflowDefinitionInput[]> {
-  vi.resetModules();
-  const [{ registerAgentHarness }, { claudeAgentHarness }] = await Promise.all([
-    import("#core/agent-harness/registry.js"),
-    import("#modules/claude-agent-harness/adapter.js"),
-  ]);
-  registerAgentHarness(claudeAgentHarness);
-  const { default: autonomyModule } = await import("./index.js");
-  const workflows = autonomyModule.workflows;
-  if (!workflows || typeof workflows !== "function") {
-    throw new Error("autonomy module must expose workflows as a contribution factory");
-  }
-  return [...await workflows({} as never)] as RegisteredWorkflowDefinitionInput[];
-}
-
-/**
- * Seed the fixture project so:
- *   - `inbox-sorter` has inbox work and can complete successfully without
- *     needing to mutate the fixture
- *   - `explorer` sees a non-empty normalized queue and therefore skips
- *   - `builder` still has actionable normalized work after inbox-sorter
- *     succeeds
- *
- * This lets us test the autonomous handoff cleanly without relying on
- * explorer to invent new tasks first.
- */
-function seedFixtureProject(projectDir: string): void {
-  for (const dir of [
-    "src/modules/autonomy/workflows/inbox-sorter",
-    "src/modules/autonomy/workflows/explorer",
-    "src/modules/autonomy/workflows/builder",
-    "src/modules/autonomy/workflows/improver",
-    "data/inbox",
-    "data/tasks/ready",
-    "data/tasks/backlog",
-    "data/tasks/doing",
-    "data/tasks/blocked",
-    "data/tasks/done",
-    "data/tasks/dropped",
-    ".kota",
-  ]) {
-    mkdirSync(join(projectDir, dir), { recursive: true });
-  }
-
-  // Prompt files required by validateAgentStep
-  writeFileSync(join(projectDir, "src/modules/autonomy/workflows/inbox-sorter/prompt.md"), "Sort inbox.\n");
-  writeFileSync(join(projectDir, "src/modules/autonomy/workflows/explorer/prompt.md"), "Explore.\n");
-  writeFileSync(join(projectDir, "src/modules/autonomy/workflows/builder/prompt.md"), "Build.\n");
-  writeFileSync(join(projectDir, "src/modules/autonomy/workflows/improver/prompt.md"), "Improve.\n");
-
-  // One inbox capture so inbox-sorter has work.
-  writeFileSync(join(projectDir, "data/inbox/task-capture.md"), "# Capture\n\nInteresting idea.\n");
-
-  // 4 ready tasks — well-formed so they pass builder preflight validation
-  const makeReadyTask = (id: string, title: string) =>
-    `---\nid: ${id}\ntitle: ${title}\nstatus: ready\npriority: p2\narea: workflow\nsummary: Summary.\ncreated_at: 2026-01-01\nupdated_at: 2026-01-01\n---\n\n## Problem\n\nA problem exists.\n\n## Desired Outcome\n\nThe problem is resolved.\n\n## Constraints\n\nNone.\n\n## Done When\n\nThe problem is gone.\n`;
-  const makeBacklogTask = (id: string, title: string) =>
-    `---\nid: ${id}\ntitle: ${title}\nstatus: backlog\npriority: p3\narea: workflow\nsummary: Summary.\ncreated_at: 2026-01-01\nupdated_at: 2026-01-01\n---\n\n## Problem\n\nA problem exists.\n\n## Desired Outcome\n\nThe problem is resolved.\n\n## Constraints\n\nNone.\n\n## Done When\n\nThe problem is gone.\n`;
-  writeFileSync(
-    join(projectDir, "data/tasks/ready/task-alpha.md"),
-    makeReadyTask("task-alpha", "Task Alpha"),
-  );
-  writeFileSync(
-    join(projectDir, "data/tasks/ready/task-beta.md"),
-    makeReadyTask("task-beta", "Task Beta"),
-  );
-  writeFileSync(
-    join(projectDir, "data/tasks/ready/task-gamma.md"),
-    makeReadyTask("task-gamma", "Task Gamma"),
-  );
-  writeFileSync(
-    join(projectDir, "data/tasks/ready/task-delta.md"),
-    makeReadyTask("task-delta", "Task Delta"),
-  );
-
-  // 8 backlog tasks so BACKLOG_TASK_TARGET (8) is met
-  for (let i = 1; i <= 8; i++) {
-    writeFileSync(
-      join(projectDir, `data/tasks/backlog/task-${i}.md`),
-      makeBacklogTask(`task-${i}`, `Backlog ${i}`),
-    );
-  }
-
-  // Pre-seed runtime state so the explorer cooldown timer sees a recent completion.
-  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-  writeFileSync(
-    join(projectDir, ".kota/workflow-state.json"),
-    JSON.stringify({
-      completedRuns: 1,
-      pendingRuns: [],
-      workflows: {
-        explorer: {
-          lastCompletion: {
-            runId: "run-explorer-seed",
-            startedAt: tenMinutesAgo,
-            completedAt: tenMinutesAgo,
-            status: "success",
-          },
-        },
-      },
-    }),
-  );
-
-  // Explorer now measures refresh from a file-based timestamp instead of
-  // its workflow-state completion, so seed that too.
-  writeFileSync(
-    join(projectDir, ".kota/explorer-state.json"),
-    JSON.stringify({ lastExplorationAt: tenMinutesAgo }),
-  );
-
-  // Trivial package.json so end-of-step validation checks pass instantly when
-  // the workflow runs shell commands with cwd: projectDir (exit 0 for all scripts).
-  writeFileSync(
-    join(projectDir, "package.json"),
-    JSON.stringify({
-      name: "test-fixture",
-      scripts: {
-        "validate-tasks": "node -e \"process.exit(0)\"",
-        lint: "node -e \"process.exit(0)\"",
-        test: "node -e \"process.exit(0)\"",
-        typecheck: "node -e \"process.exit(0)\"",
-        build: "node -e \"process.exit(0)\"",
-      },
-    }),
-  );
-  writeFileSync(
-    join(projectDir, "pnpm-lock.yaml"),
-    [
-      "lockfileVersion: '9.0'",
-      "",
-      "settings:",
-      "  autoInstallPeers: true",
-      "  excludeLinksFromLockfile: false",
-      "",
-      "importers:",
-      "",
-      "  .: {}",
-      "",
-    ].join("\n"),
-  );
-
-  // .gitignore mirrors the real project: runtime state is not source.
-  // Without this, getRepoWorktreeStatus would report dirty when the workflow
-  // runtime modifies workflow-state.json and creates run artifacts.
-  writeFileSync(
-    join(projectDir, ".gitignore"),
-    ".kota/\n.worktrees/\nnode_modules/\n",
-  );
-
-  // Initialize a git repo so workflow commit steps can run if a test needs them.
-  // Commit all seeded files (excluding .kota/) so worktree reads as clean.
-  execSync("git init -b main && git add .", { cwd: projectDir });
-  execSync('git -c user.email="test@test" -c user.name="Test" commit -m "init"', {
-    cwd: projectDir,
-  });
-}
-
 describe("autonomous workflow loop integration", () => {
   let projectDir: string;
   let savedPreset: string | undefined;
@@ -229,7 +51,7 @@ describe("autonomous workflow loop integration", () => {
       tmpdir(),
       `kota-integ-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    seedFixtureProject(projectDir);
+    seedAutonomousLoopFixture(projectDir);
     mockedExecuteWithAgentSDK.mockReset();
   });
 
@@ -241,157 +63,6 @@ describe("autonomous workflow loop integration", () => {
       process.env[PRESET_ENV_VAR] = savedPreset;
     }
   });
-
-  it(
-    "drives the inbox-sorter → builder → improver handoff using real workflow definitions",
-    { timeout: 90_000 },
-    async () => {
-      mockedExecuteWithAgentSDK
-        .mockResolvedValueOnce({
-          text: "Inbox sorted",
-          streamedText: "",
-          turns: 1,
-          totalCostUsd: 0.01,
-          isError: false,
-        } as never)
-        .mockResolvedValueOnce({
-          text: JSON.stringify({
-            decision: "pass",
-            summary: "Inbox sorter artifacts are consistent.",
-            citedArtifacts: [],
-            findings: [],
-          }),
-          streamedText: "",
-          turns: 1,
-          totalCostUsd: 0.01,
-          subtype: "success",
-          isError: false,
-        } as never)
-        .mockResolvedValue({
-          text: "Agent step hit max turns",
-          streamedText: "",
-          turns: 40,
-          totalCostUsd: 0.3,
-          subtype: "error_max_turns",
-          isError: true,
-        } as never);
-
-      const bus = new EventBus();
-      const completedRuns: Array<{
-        workflow: string;
-        status: string;
-        triggerEvent: string;
-        triggerPayload: Record<string, unknown>;
-      }> = [];
-
-      bus.on("workflow.completed", (payload) => {
-        completedRuns.push({
-          workflow: payload.workflow as string,
-          status: payload.status as string,
-          triggerEvent: payload.triggerEvent as string,
-          triggerPayload: payload as Record<string, unknown>,
-        });
-      });
-
-      const workflows = (await loadAutonomyWorkflowDefinitions()).filter((workflow) =>
-        ["dispatcher", "inbox-sorter", "builder", "improver"].includes(workflow.name),
-      );
-      const { setBuilderPortAvailabilityCheckerForTest } = await import(
-        "./workflows/builder/runtime-resource-ports.js"
-      );
-      const restorePortAvailability = setBuilderPortAvailabilityCheckerForTest(async () => true);
-      const runtime = new WorkflowRuntime({
-        config: { defaultAgentHarness: "claude-agent-sdk", defaultPreset: "claude" },
-        bus,
-        projectDir,
-        idleIntervalMs: 10,
-        workflows,
-      });
-
-      runtime.start();
-      try {
-        await waitForCompletedWorkflows(
-          completedRuns,
-          ["inbox-sorter", "builder", "improver"],
-          70_000,
-        );
-      } finally {
-        restorePortAvailability();
-        await runtime.stop();
-      }
-
-      // ── Inbox sorter ──────────────────────────────────────────────────────
-      const inboxSorterRun = completedRuns.find((r) => r.workflow === "inbox-sorter");
-      expect(inboxSorterRun, "inbox-sorter must complete").toBeDefined();
-      expect(inboxSorterRun?.status).toBe("success");
-
-      // ── Builder triggered by inbox-sorter ─────────────────────────────────
-      const builderRun = completedRuns.find((r) => r.workflow === "builder");
-      expect(builderRun, "builder must complete after inbox-sorter").toBeDefined();
-      expect(builderRun?.triggerEvent).toBe("autonomy.queue.available");
-
-      // ── Builder run artifacts ─────────────────────────────────────────────
-      const runsDir = join(projectDir, ".kota", "runs");
-      expect(existsSync(runsDir)).toBe(true);
-      const runIds = readdirSync(runsDir);
-      expect(runIds.length).toBeGreaterThanOrEqual(2);
-
-      const builderRunDir = runIds.find((id) => {
-        const meta = JSON.parse(readFileSync(join(runsDir, id, "metadata.json"), "utf-8"));
-        return meta.workflow === "builder";
-      });
-      expect(builderRunDir, "builder run directory must exist").toBeDefined();
-
-      const builderMeta = JSON.parse(
-        readFileSync(join(runsDir, builderRunDir!, "metadata.json"), "utf-8"),
-      );
-      expect(builderMeta.status).toBe("failed");
-
-      // inspect-ready-queue step must have run and returned the task snapshot
-      const inspectStep = JSON.parse(
-        readFileSync(join(runsDir, builderRunDir!, "steps", "inspect-ready-queue.json"), "utf-8"),
-      );
-      expect(inspectStep.status).toBe("success");
-      expect(inspectStep.output).toMatchObject({
-        counts: { ready: 4, backlog: 8 },
-        inboxCount: 1,
-      });
-
-      // build agent step must have run and failed
-      const buildStep = JSON.parse(
-        readFileSync(join(runsDir, builderRunDir!, "steps", "build.json"), "utf-8"),
-      );
-      expect(buildStep.status).toBe("failed");
-      expect(buildStep.error).toContain("max turns");
-
-      // post-build commit should not have run on a failed build step
-      expect(existsSync(join(runsDir, builderRunDir!, "steps", "commit.json"))).toBe(false);
-
-      // ── Improver triggered by any monitored completion ────────────────────
-      // Improver now fires on any monitored completion (success or failure) —
-      // it reads 24h/7d aggregates, not one specific run, so it's
-      // entity-agnostic by design. The evidence gate is the pacing gate: it
-      // skips when recent run data has no new actionable signal.
-      const improverRun = completedRuns.find((r) => r.workflow === "improver");
-      expect(improverRun, "improver must be triggered by a monitored completion").toBeDefined();
-      expect(improverRun?.triggerEvent).toBe("workflow.completed");
-
-      const improverRunDir = runIds.find((id) => {
-        const meta = JSON.parse(readFileSync(join(runsDir, id, "metadata.json"), "utf-8"));
-        return meta.workflow === "improver";
-      });
-      expect(improverRunDir, "improver run directory must exist").toBeDefined();
-
-      const improverMeta = JSON.parse(
-        readFileSync(join(runsDir, improverRunDir!, "metadata.json"), "utf-8"),
-      );
-
-      // Trigger event is always workflow.completed; the payload's workflow
-      // may be any monitored workflow that completed first within the window.
-      expect(improverMeta.trigger.event).toBe("workflow.completed");
-      expect(improverMeta.trigger.payload.tags).toContain("monitored");
-    },
-  );
 
   it(
     "explorer does not run when exploration refresh is not due (no-op churn eliminated)",
@@ -561,7 +232,7 @@ describe("autonomous workflow loop integration", () => {
     },
   );
 
-  it("a new workflow tagged 'monitored' is observed by attention-digest and improver without editing them", async () => {
+  it("a monitored completion reaches attention-digest but not issue-driven improver", async () => {
     mkdirSync(join(projectDir, "src/modules/autonomy/workflows/attention-digest"), { recursive: true });
     writeFileSync(join(projectDir, "src/modules/autonomy/workflows/attention-digest/prompt.md"), "Digest.\n");
 
@@ -598,6 +269,6 @@ describe("autonomous workflow loop integration", () => {
     });
 
     expect(enqueued).toContain("attention-digest");
-    expect(enqueued).toContain("improver");
+    expect(enqueued).not.toContain("improver");
   });
 });

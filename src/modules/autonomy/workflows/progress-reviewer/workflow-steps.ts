@@ -34,7 +34,6 @@ import {
   PROGRESS_REVIEW_EVIDENCE_ARTIFACT,
   type ProgressReviewActionResult,
   type ProgressReviewAgentEvidencePacket,
-  type ProgressReviewAgentOutput,
   type ProgressReviewArtifact,
   type ProgressReviewEvidencePacket,
   writeProgressReviewArtifact,
@@ -221,10 +220,7 @@ export const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
   type: "code",
   when: stepSucceeded("review-evidence"),
   validate: (raw) =>
-    expectStructuredOutput<{ written: boolean; path: string }>(raw, [
-      "written",
-      "path",
-    ]),
+    expectStructuredOutput<{ written: boolean; path: string }>(raw, ["written", "path"]),
   run: (ctx) => {
     const reviewInput = prepareReviewInput.outputRequired(ctx);
     const evidence = readProgressReviewEvidencePacket(ctx);
@@ -260,11 +256,7 @@ export const writeCommitMessage = typedCodeStep<{ written: boolean }>({
       ...actions.createdTaskIds.map((id) => `- create ${id}`),
     ];
     mkdirSync(ctx.workflow.runDirPath, { recursive: true });
-    writeFileSync(
-      join(ctx.workflow.runDirPath, "commit-message.txt"),
-      `${lines.join("\n")}\n`,
-      "utf-8",
-    );
+    writeFileSync(join(ctx.workflow.runDirPath, "commit-message.txt"), `${lines.join("\n")}\n`);
     return { written: true };
   },
 });
@@ -297,6 +289,11 @@ export const commitChanges = typedCodeStep<WorkflowCommitOutcome>({
     commitWorkflowChanges(projectDir, workflow.runDirPath),
 });
 
-export function needsAttention(review: ProgressReviewAgentOutput): boolean {
-  return review.verdict === "needs-steering" || review.verdict === "blocked";
+export function needsAttention(actions: ProgressReviewActionResult): boolean {
+  return actions.applied.some((action) =>
+    action.kind === "created-task" ||
+    action.kind === "updated-task" ||
+    action.kind === "owner-question" ||
+    action.kind === "updated-owner-question"
+  );
 }

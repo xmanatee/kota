@@ -1,308 +1,274 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
-import { WorkflowRunStore } from "#core/workflow/run-store.js";
-import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
-import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
-import { checkDocBloat } from "#modules/autonomy/doc-bloat-check.js";
 import {
-  type AutonomyHealthIssueEvidence,
-  collectCurrentAutonomyHealthIssueCards,
-} from "#modules/autonomy/health-issue-cards.js";
-import { checkRepoHygiene } from "#modules/autonomy/hygiene-check.js";
-import { createImproverSemanticCheck } from "#modules/autonomy/improver-semantic-gate.js";
-import { onRecoveryTrigger, resetWorktreeForRecovery } from "#modules/autonomy/recovery.js";
-import type { RunOutcomeAggregation } from "#modules/autonomy/run-outcome-aggregation.js";
-import { aggregateRunOutcomes } from "#modules/autonomy/run-outcome-aggregation.js";
-import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
-import { writeRunSummary } from "#modules/autonomy/run-summary.js";
+  expectStructuredOutput,
+  typedCodeStep,
+} from "#core/workflow/step-input-code.js";
+import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { autonomyIssueDecisionRequested } from "#modules/autonomy/autonomy-issue-events.js";
+import {
+  recordAutonomyIssueDispositions,
+} from "#modules/autonomy/autonomy-issue-projection.js";
+import {
+  checkCommitStageable,
+  commitWorkflowChanges,
+} from "#modules/autonomy/commit.js";
+import {
+  decodeWorkflowCommitOutcome,
+  type WorkflowCommitOutcome,
+} from "#modules/autonomy/commit-result.js";
+import {
+  type GeneratedWorkProposalResult,
+  generatedWorkTaskMutationPaths,
+  materializeGeneratedWorkProposal,
+} from "#modules/autonomy/generated-work-proposal.js";
+import {
+  onRecoveryTrigger,
+  resetWorktreeForRecovery,
+} from "#modules/autonomy/recovery.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
-  AUTONOMY_FULL_TEST_TIMEOUT_MS,
   checkCommitMessageExists,
   checkNoScratchArtifacts,
   runCheck,
-  stepCommitRequiresDaemonRestart,
   stepCommitted,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
 import {
-  decideImproverEvidenceGate,
-  readImproverEvidenceGateState,
-  shouldRunImproverFromGate,
-  writeImproverEvidenceGateState,
-} from "./evidence-gate.js";
+  decodeIssueDisposition,
+  type IssueDisposition,
+  issueDispositionOutputSchema,
+} from "./issue-disposition.js";
 import {
-  collectImproverTaskGovernance,
-  type ImproverTaskGovernanceEvidence,
-} from "./task-governance.js";
+  selectIssue,
+  triggerIssue,
+} from "./issue-selection.js";
+import { proposalFor } from "./issue-work-proposal.js";
 
-type WorktreeInspection = {
-  dirty: boolean;
-  summary: string;
+type WorktreeInspection = { dirty: boolean };
+
+type AppliedDisposition = {
+  issueKey: string;
+  semanticRevision: number;
+  disposition: IssueDisposition;
+  materialized: GeneratedWorkProposalResult;
 };
+
+function taskCommitPolicy(materialized: GeneratedWorkProposalResult) {
+  return {
+    kind: "exact-paths" as const,
+    paths: generatedWorkTaskMutationPaths(materialized.actions),
+  };
+}
 
 export const agent: AgentDef = {
   name: "improver",
-  role: "Improve the autonomous development system itself using evidence from recent runs.",
+  role:
+    "Disposition one durable autonomy issue without editing implementation files.",
   promptPath: "src/modules/autonomy/workflows/improver/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
-  // Improver tunes autonomy surfaces (prompts, validation, triggers, queue
-  // shaping) that span the repo, so its scope is explicitly unrestricted.
-  writeScope: [],
+  writeScope: "deny-all",
 };
-
-const gatherRunDataStep = typedCodeStep<RunOutcomeAggregation>({
-  id: "gather-run-data",
-  type: "code",
-  exposeOutputToAgent: true,
-  validate: (raw) =>
-    expectStructuredOutput<RunOutcomeAggregation>(raw, [
-      "failureRates24h",
-      "failureRates7d",
-      "topRepairFailures24h",
-      "topRepairFailures7d",
-      "durationOutliers",
-      "agentStepTimeouts7d",
-      "latestActionableRunAt",
-    ]),
-  run: ({ projectDir }) => {
-    const store = new WorkflowRunStore(projectDir);
-    return aggregateRunOutcomes(store.runsDir);
-  },
-});
 
 const inspectWorktree = typedCodeStep<WorktreeInspection>({
   id: "inspect-worktree",
   type: "code",
   validate: (raw) =>
-    expectStructuredOutput<WorktreeInspection>(raw, ["dirty", "summary"]),
+    expectStructuredOutput<WorktreeInspection>(raw, ["dirty"]),
   run: ({ projectDir }) => {
-    const worktree = getRepoWorktreeStatus(projectDir);
+    const status = getRepoWorktreeStatus(projectDir);
+    return { dirty: status.available && status.dirty };
+  },
+});
+
+const applyDisposition = typedCodeStep<AppliedDisposition>({
+  id: "apply-disposition",
+  type: "code",
+  when: stepSucceeded("review-issue"),
+  validate: (raw) =>
+    expectStructuredOutput<AppliedDisposition>(raw, [
+      "issueKey",
+      "semanticRevision",
+      "disposition",
+      "materialized",
+    ]),
+  run: (ctx) => {
+    const selected = triggerIssue(ctx);
+    if (!selected.eligible || !selected.issue) {
+      throw new Error(`stale autonomy issue disposition: ${selected.reason}`);
+    }
+    const disposition = decodeIssueDisposition(ctx.stepOutputs["review-issue"]);
+    const materialized = materializeGeneratedWorkProposal({
+      projectDir: ctx.projectDir,
+      proposal: proposalFor(selected.issue, disposition, ctx.workflow.runId),
+    });
     return {
-      dirty: worktree.available && worktree.dirty,
-      summary: worktree.summary,
+      issueKey: selected.issue.issueKey,
+      semanticRevision: selected.issue.semanticRevision,
+      disposition,
+      materialized,
     };
   },
 });
 
-const gatherHealthIssueCardsStep = typedCodeStep<AutonomyHealthIssueEvidence>({
-  id: "gather-health-issue-cards",
+const writeCommitMessage = typedCodeStep<{ written: boolean }>({
+  id: "write-commit-message",
   type: "code",
-  exposeOutputToAgent: true,
+  when: (ctx) =>
+    applyDisposition.output(ctx)?.materialized.touchedTaskQueue === true,
   validate: (raw) =>
-    expectStructuredOutput<AutonomyHealthIssueEvidence>(raw, [
-      "generatedAt",
-      "projectionUpdatedAt",
-      "issueCards",
-    ]),
-  run: ({ projectDir }) => collectCurrentAutonomyHealthIssueCards(projectDir),
+    expectStructuredOutput<{ written: boolean }>(raw, ["written"]),
+  run: (ctx) => {
+    const applied = applyDisposition.outputRequired(ctx);
+    mkdirSync(ctx.workflow.runDirPath, { recursive: true });
+    writeFileSync(
+      join(ctx.workflow.runDirPath, "commit-message.txt"),
+      `improver: materialize ${applied.issueKey} disposition\n`,
+      "utf-8",
+    );
+    return { written: true };
+  },
 });
 
-const gatherTaskGovernanceStep = typedCodeStep<ImproverTaskGovernanceEvidence>({
-  id: "gather-task-governance",
+const validateBeforeCommit = typedCodeStep<{ ok: true }>({
+  id: "validate-before-commit",
   type: "code",
-  exposeOutputToAgent: true,
-  validate: (raw) =>
-    expectStructuredOutput<ImproverTaskGovernanceEvidence>(raw, [
-      "generatedAt",
-      "openByTaskClass",
-      "actionableMetaWithoutProductSafetyLink",
-      "productDoneWithoutOperatorEvidence",
-    ]),
-  run: ({ projectDir }) => collectImproverTaskGovernance(projectDir),
+  when: stepSucceeded("write-commit-message"),
+  validate: (raw) => expectStructuredOutput<{ ok: true }>(raw, ["ok"]),
+  run: async (ctx) => {
+    const policy = taskCommitPolicy(
+      applyDisposition.outputRequired(ctx).materialized,
+    );
+    await runCheck("pnpm run validate-tasks", ctx.projectDir, {
+      signal: ctx.signal,
+    });
+    checkNoScratchArtifacts(ctx.projectDir);
+    checkCommitStageable(ctx.projectDir, policy);
+    checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir);
+    return { ok: true } as const;
+  },
 });
 
-const gateEvidenceStep = typedCodeStep<ReturnType<typeof decideImproverEvidenceGate>>({
-  id: "gate-evidence",
+const commitChanges = typedCodeStep<WorkflowCommitOutcome>({
+  id: "commit",
   type: "code",
-  validate: (raw) =>
-    expectStructuredOutput<ReturnType<typeof decideImproverEvidenceGate>>(raw, [
-      "shouldRun",
-      "reason",
-    ]),
+  when: stepSucceeded("validate-before-commit"),
+  validate: decodeWorkflowCommitOutcome,
   run: (ctx) =>
-    decideImproverEvidenceGate(
-      gatherRunDataStep.outputRequired(ctx),
-      readImproverEvidenceGateState(ctx.projectDir),
-      gatherHealthIssueCardsStep.outputRequired(ctx),
+    commitWorkflowChanges(
+      ctx.projectDir,
+      ctx.workflow.runDirPath,
+      taskCommitPolicy(applyDisposition.outputRequired(ctx).materialized),
     ),
+});
+
+const recordDisposition = typedCodeStep<{ recorded: true }>({
+  id: "record-disposition",
+  type: "code",
+  when: (ctx) => {
+    const applied = applyDisposition.output(ctx);
+    if (!applied) return false;
+    return !applied.materialized.touchedTaskQueue || stepCommitted("commit")(ctx);
+  },
+  validate: (raw) =>
+    expectStructuredOutput<{ recorded: true }>(raw, ["recorded"]),
+  run: (ctx) => {
+    const applied = applyDisposition.outputRequired(ctx);
+    const taskIds = applied.materialized.taskId
+      ? [applied.materialized.taskId]
+      : [];
+    const ownerQuestionIds = applied.materialized.ownerQuestionId
+      ? [applied.materialized.ownerQuestionId]
+      : [];
+    recordAutonomyIssueDispositions({
+      projectDir: ctx.projectDir,
+      updates: [{
+        issueKey: applied.issueKey,
+        kind:
+          applied.disposition.action === "create-task"
+            ? "task"
+            : applied.disposition.action === "ask-owner"
+            ? "owner-question"
+            : applied.disposition.action === "resolve"
+            ? "resolved"
+            : "observed",
+        decidedAt: new Date().toISOString(),
+        taskIds,
+        ownerQuestionIds,
+      }],
+    });
+    return { recorded: true } as const;
+  },
 });
 
 const improverWorkflow: WorkflowDefinitionInput = {
   name: "improver",
   description:
-    "Improve the autonomous development system itself using evidence from recent runs.",
+    "Disposition one new or materially revised durable autonomy issue and route implementation through generated work.",
   recoveryCapable: true,
   defaultAutonomyMode: "autonomous",
   triggers: [
-    // Any monitored workflow completion is a signal that aggregate run data
-    // may have shifted — improver reads 24h/7d aggregates, not one specific
-    // run, so it's entity-agnostic by design. Self-trigger-safe: improver
-    // does not carry the "monitored" tag.
-    {
-      event: "workflow.completed",
-      filter: { tags: ["monitored"] },
-    },
-    // Distinct trigger class: recovery re-entry after a daemon crash.
-    {
-      event: "runtime.recovered",
-    },
+    { event: autonomyIssueDecisionRequested.name },
+    { event: "runtime.recovered" },
   ],
   steps: [
     {
-      id: "clean-recovery-state",
+      id: "reset-for-recovery",
       type: "code",
       when: onRecoveryTrigger,
       run: ({ projectDir }) =>
         resetWorktreeForRecovery({ projectDir, workflowName: "improver" }),
     },
     inspectWorktree,
-    gatherRunDataStep,
-    gatherHealthIssueCardsStep,
-    gatherTaskGovernanceStep,
-    gateEvidenceStep,
+    selectIssue,
     {
-      id: "improve",
+      id: "review-issue",
       type: "agent",
       agentName: agent.name,
       promptPath: agent.promptPath,
-      when: (ctx) =>
-        shouldRunImproverFromGate(gateEvidenceStep.output(ctx)) &&
-        inspectWorktree.output(ctx)?.dirty === false,
       tier: AUTONOMY_AGENT_DEFAULTS.tier,
       effort: AUTONOMY_AGENT_DEFAULTS.effort,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
-      repairLoop: {
-        checks: [
-          {
-            id: "build-output",
-            type: "code" as const,
-            run: (ctx) => runCheck("pnpm build", ctx.projectDir, { signal: ctx.signal }),
-          },
-          {
-            id: "workflow-validate",
-            type: "code" as const,
-            phase: 1,
-            run: (ctx) => runCheck(
-              "pnpm dev workflow validate",
-              ctx.projectDir,
-              { signal: ctx.signal },
-            ),
-          },
-          {
-            id: "task-queue-valid",
-            type: "code" as const,
-            phase: 1,
-            run: (ctx) => runCheck(
-              "pnpm run validate-tasks",
-              ctx.projectDir,
-              { signal: ctx.signal },
-            ),
-          },
-          {
-            id: "typecheck",
-            type: "code" as const,
-            phase: 1,
-            run: (ctx) => runCheck(
-              "pnpm run typecheck",
-              ctx.projectDir,
-              { signal: ctx.signal },
-            ),
-          },
-          {
-            id: "lint",
-            type: "code" as const,
-            phase: 1,
-            run: (ctx) => runCheck(
-              "pnpm run lint",
-              ctx.projectDir,
-              { signal: ctx.signal },
-            ),
-          },
-          {
-            id: "test",
-            type: "code" as const,
-            phase: 1,
-            run: (ctx) => runCheck("pnpm test", ctx.projectDir, {
-              timeoutMs: AUTONOMY_FULL_TEST_TIMEOUT_MS,
-              signal: ctx.signal,
-            }),
-          },
-          {
-            id: "no-scratch-artifacts",
-            type: "code" as const,
-            run: (ctx) => checkNoScratchArtifacts(ctx.projectDir),
-          },
-          {
-            id: "doc-bloat",
-            type: "code" as const,
-            phase: 1,
-            run: (ctx) => checkDocBloat(ctx.projectDir),
-          },
-          {
-            id: "repo-hygiene",
-            type: "code" as const,
-            phase: 1,
-            run: (ctx) => checkRepoHygiene(ctx.projectDir),
-          },
-          {
-            id: "commit-message-exists",
-            type: "code" as const,
-            run: (ctx) => checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir),
-          },
-          {
-            id: "commit-stageable",
-            type: "code" as const,
-            run: (ctx) => checkCommitStageable(ctx.projectDir),
-          },
-          { ...createImproverSemanticCheck(), phase: 2 },
-        ],
-      },
-    },
-    {
-      id: "record-evidence-fingerprint",
-      type: "code",
-      when: stepSucceeded("improve"),
-      run: (ctx) =>
-        writeImproverEvidenceGateState(
-          ctx.projectDir,
-          gateEvidenceStep.outputRequired(ctx),
-        ),
-    },
-    {
-      id: "commit",
-      type: "code",
-      when: stepSucceeded("record-evidence-fingerprint"),
-      run: ({ projectDir, workflow }) =>
-        commitWorkflowChanges(projectDir, workflow.runDirPath),
-    },
-    typedCodeStep<WorkflowRunSummary>({
-      id: "write-run-summary",
-      type: "code",
-      when: stepCommitted("commit"),
-      validate: (raw) =>
-        expectStructuredOutput<WorkflowRunSummary>(raw, [
-          "runId",
-          "workflow",
-          "outcome",
-          "commitSha",
-          "commitMessage",
-          "filesChanged",
-        ]),
-      run: (ctx) => writeRunSummary(ctx, "improve"),
-    }),
-    {
-      id: "request-restart",
-      type: "restart",
+      outputFormat: "json",
+      outputSchema: issueDispositionOutputSchema,
+      validate: decodeIssueDisposition,
       when: (ctx) =>
-        stepSucceeded("write-run-summary")(ctx) &&
-        stepCommitRequiresDaemonRestart("commit")(ctx),
-      reason: "improver workflow finished validation and commit",
-      requires: ["write-run-summary"],
+        selectIssue.output(ctx)?.eligible === true &&
+        inspectWorktree.output(ctx)?.dirty === false,
+    },
+    applyDisposition,
+    writeCommitMessage,
+    validateBeforeCommit,
+    commitChanges,
+    recordDisposition,
+    {
+      id: "emit-attention",
+      type: "emit",
+      when: (ctx) =>
+        stepSucceeded("record-disposition")(ctx) &&
+        applyDisposition.output(ctx)?.disposition.action !== "observe",
+      event: "workflow.attention.digest",
+      payload: (ctx) => {
+        const applied = applyDisposition.outputRequired(ctx);
+        return {
+          items: [{
+            label: "Autonomy issue disposition",
+            detail:
+              `${applied.issueKey} revision ${applied.semanticRevision}: ` +
+              `${applied.disposition.action}`,
+          }],
+          text:
+            `Autonomy issue ${applied.issueKey} revision ${applied.semanticRevision} ` +
+            `was dispositioned as ${applied.disposition.action}: ` +
+            applied.disposition.rationale,
+        };
+      },
     },
   ],
 };
 
+export { issueDispositionOutputSchema };
 export default improverWorkflow;

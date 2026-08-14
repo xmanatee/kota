@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import type { RepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 export const SCOPE_IMPROVEMENT_ARTIFACT = "scope-improvement.json";
 export const SCOPE_IMPROVEMENT_SCHEDULE_EVENT =
@@ -144,7 +145,15 @@ export type ScopeImprovementRecommendation =
 
 export type ScopeImprovementAppliedAction =
   | { kind: "created-task"; taskId: string; path: string; signature: string }
+  | { kind: "updated-task"; taskId: string; path: string; signature: string }
+  | {
+      kind: "dropped-task";
+      taskId: string;
+      fromState: RepoTaskState;
+      signature: string;
+    }
   | { kind: "owner-question"; questionId: string; signature: string }
+  | { kind: "updated-owner-question"; questionId: string; signature: string }
   | { kind: "safe-edit"; path: string; signature: string }
   | { kind: "skipped"; signature: string; reason: string };
 

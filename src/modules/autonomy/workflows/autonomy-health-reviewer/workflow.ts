@@ -1,16 +1,8 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync } from "node:fs";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import {
-  checkCommitStageable,
-  commitWorkflowChanges,
-} from "#modules/autonomy/commit.js";
-import {
-  decodeWorkflowCommitOutcome,
-  type WorkflowCommitOutcome,
-} from "#modules/autonomy/commit-result.js";
+import { autonomyIssueDecisionRequested } from "#modules/autonomy/autonomy-issue-events.js";
 import {
   type AutonomyHealthJsonObject,
   type AutonomyHealthSignal,
@@ -21,12 +13,6 @@ import {
   resetWorktreeForRecovery,
 } from "#modules/autonomy/recovery.js";
 import {
-  checkCommitMessageExists,
-  checkNoScratchArtifacts,
-  runCheck,
-  stepCommitRequiresDaemonRestart,
-} from "#modules/autonomy/shared.js";
-import {
   type AutonomyHealthReview,
   type AutonomyHealthReviewActionResult,
   applyAutonomyHealthReviewActions,
@@ -35,6 +21,9 @@ import {
   buildAutonomyHealthReviewFromSignals,
   writeAutonomyHealthReviewArtifact,
 } from "./health-review.js";
+import {
+  createHealthReviewTaskResolutionSteps,
+} from "./health-review-task-resolution.js";
 import {
   collectRuntimeHealthAudit,
   type RuntimeHealthAudit,
@@ -155,24 +144,34 @@ const applyActions = typedCodeStep<ActionOutput>({
     buildReview.output(ctx) !== undefined &&
     inspectWorktree.output(ctx)?.dirty === false,
   validate: (raw) => expectStructuredOutput<ActionOutput>(raw, ["actions"]),
-  run: (ctx) => ({
-    actions: applyAutonomyHealthReviewActions({
+  run: (ctx) => {
+    const actions = applyAutonomyHealthReviewActions({
       projectDir: ctx.projectDir,
-      runId: ctx.workflow.runId,
       review: buildReview.outputRequired(ctx).review,
-      nowIso: new Date().toISOString(),
-      emitOwnerQuestionAsked: (payload) => {
-        ctx.emit("owner.question.asked", payload);
-      },
-    }),
-  }),
+    });
+    for (const action of actions.applied) {
+      if (action.kind !== "decision-requested") continue;
+      ctx.emit(autonomyIssueDecisionRequested.name, {
+        issueKey: action.issueKey,
+        rootCauseKey: action.dedupeKey,
+        semanticRevision: action.semanticRevision,
+        transition: action.transition,
+        observedAt: buildReview.outputRequired(ctx).review.generatedAt,
+      });
+    }
+    return { actions };
+  },
 });
+
+const taskResolution = createHealthReviewTaskResolutionSteps(applyActions);
 
 function emptyActions(): AutonomyHealthReviewActionResult {
   return {
     createdTaskIds: [],
+    droppedTaskIds: [],
     ownerQuestionIds: [],
     dismissedOwnerQuestionIds: [],
+    taskMutationPaths: [],
     issueTransitions: [],
     applied: [],
     touchedTaskQueue: false,
@@ -182,7 +181,8 @@ function emptyActions(): AutonomyHealthReviewActionResult {
 const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
   id: "write-artifact",
   type: "code",
-  when: (ctx) => buildReview.output(ctx) !== undefined,
+  when: async (ctx) =>
+    buildReview.output(ctx) !== undefined && await taskResolution.isDurable(ctx),
   validate: (raw) =>
     expectStructuredOutput<{ written: boolean; path: string }>(raw, [
       "written",
@@ -218,67 +218,10 @@ const writeRuntimeAuditArtifact = typedCodeStep<{ written: boolean; path: string
   },
 });
 
-const writeCommitMessage = typedCodeStep<{ written: boolean }>({
-  id: "write-commit-message",
-  type: "code",
-  when: (ctx) => applyActions.output(ctx)?.actions.touchedTaskQueue === true,
-  validate: (raw) =>
-    expectStructuredOutput<{ written: boolean }>(raw, ["written"]),
-  run: (ctx) => {
-    const actions = applyActions.outputRequired(ctx).actions;
-    const taskActions = actions.applied.filter(
-      (action) => action.kind === "created-task" || action.kind === "refreshed-task",
-    );
-    const lines = [
-      `autonomy-health-reviewer: route ${taskActions.length} health repair task(s)`,
-      "",
-      ...taskActions.map((action) =>
-        action.kind === "created-task"
-          ? `- create ${action.taskId}`
-          : `- refresh ${action.taskId}`,
-      ),
-    ];
-    mkdirSync(ctx.workflow.runDirPath, { recursive: true });
-    writeFileSync(
-      join(ctx.workflow.runDirPath, "commit-message.txt"),
-      `${lines.join("\n")}\n`,
-      "utf-8",
-    );
-    return { written: true };
-  },
-});
-
-const validateBeforeCommit = typedCodeStep<{ ok: true }>({
-  id: "validate-before-commit",
-  type: "code",
-  when: (ctx) => writeCommitMessage.output(ctx)?.written === true,
-  validate: (raw) => {
-    const obj = expectStructuredOutput<{ ok: true }>(raw, ["ok"]);
-    if (obj.ok !== true) throw new Error(`expected ok: true, got ${String(obj.ok)}`);
-    return obj;
-  },
-  run: async (ctx) => {
-    await runCheck("pnpm run validate-tasks", ctx.projectDir, { signal: ctx.signal });
-    checkNoScratchArtifacts(ctx.projectDir);
-    checkCommitStageable(ctx.projectDir);
-    checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir);
-    return { ok: true } as const;
-  },
-});
-
-const commitChanges = typedCodeStep<WorkflowCommitOutcome>({
-  id: "commit",
-  type: "code",
-  when: (ctx) => validateBeforeCommit.output(ctx)?.ok === true,
-  validate: decodeWorkflowCommitOutcome,
-  run: ({ projectDir, workflow }) =>
-    commitWorkflowChanges(projectDir, workflow.runDirPath),
-});
-
 const autonomyHealthReviewerWorkflow: WorkflowDefinitionInput = {
   name: "autonomy-health-reviewer",
   description:
-    "Batch typed autonomy health signals and persisted runtime evidence into deduped review artifacts, repair tasks, owner questions, and attention items.",
+    "Project typed autonomy health observations into durable issue transitions and request review only for undecided revisions.",
   recoveryCapable: true,
   triggers: [
     {
@@ -320,28 +263,21 @@ const autonomyHealthReviewerWorkflow: WorkflowDefinitionInput = {
     buildRuntimeAudit,
     buildReview,
     applyActions,
+    ...taskResolution.steps,
     writeArtifact,
     writeRuntimeAuditArtifact,
-    writeCommitMessage,
-    validateBeforeCommit,
-    commitChanges,
     {
       id: "emit-attention",
       type: "emit",
-      when: (ctx) => (buildReview.output(ctx)?.review.groups.length ?? 0) > 0,
+      when: async (ctx) =>
+        (applyActions.output(ctx)?.actions.applied.length ?? 0) > 0 &&
+        await taskResolution.isDurable(ctx),
       event: "workflow.attention.digest",
       payload: (ctx) =>
         buildAutonomyHealthAttentionDigest({
           review: buildReview.outputRequired(ctx).review,
           actions: applyActions.output(ctx)?.actions ?? emptyActions(),
         }),
-    },
-    {
-      id: "request-restart",
-      type: "restart",
-      when: stepCommitRequiresDaemonRestart("commit"),
-      reason: "autonomy-health-reviewer committed health repair task changes",
-      requires: ["commit"],
     },
   ],
 };

@@ -1,13 +1,9 @@
 import { join } from "node:path";
-import type {
-  DeadLetterFailureClass,
-  DeadLetterItem,
-} from "#core/daemon/dead-letter-queue.js";
+import type { DeadLetterItem } from "#core/daemon/dead-letter-queue.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
-import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
+import { deadLetterHealthCategory } from "#modules/autonomy/dead-letter-health.js";
 import {
   addPattern,
-  type PatternInput,
   type RuntimeHealthAuditContext,
   truncateSingleLine,
 } from "./runtime-health-audit-model.js";
@@ -23,48 +19,6 @@ function dlqWorkflowKey(item: DeadLetterItem): string {
   return workflow ?? item.owningModule;
 }
 
-function parseAgentFailureSubtype(reason: string): string | undefined {
-  const match = /\(([^)]+)\):/.exec(reason);
-  return match?.[1];
-}
-
-function deadLetterCategory(
-  item: DeadLetterItem,
-): Pick<PatternInput, "category" | "actionability" | "labels" | "severity"> & {
-  failureClass: DeadLetterFailureClass;
-} {
-  const agentFailureClass = classifyAgentRuntimeFailure({
-    message: item.failure.reason,
-    subtype: parseAgentFailureSubtype(item.failure.reason),
-  })?.kind;
-  const failureClass = agentFailureClass ?? item.failure.lastErrorClass;
-
-  switch (failureClass) {
-    case "auth":
-    case "provider":
-    case "rate_limit":
-      return {
-        failureClass,
-        category: "external-service/auth",
-        actionability: "external-service",
-        labels: ["dead-letter", "external-service", failureClass],
-        severity: "warning",
-      };
-    case "schema":
-    case "validation":
-    case "execution":
-    case "runtime":
-    case "unknown":
-      return {
-        failureClass,
-        category: "local-code",
-        actionability: "local-code",
-        labels: ["dead-letter", "local-code", failureClass],
-        severity: "error",
-      };
-  }
-}
-
 export function scanDeadLetters(ctx: RuntimeHealthAuditContext): void {
   const path = join(ctx.projectDir, ".kota", "dead-letter-queue", "items.json");
   const snapshot = readOptionalJsonFile<DeadLetterSnapshot>(path);
@@ -78,7 +32,7 @@ export function scanDeadLetters(ctx: RuntimeHealthAuditContext): void {
     if (ctx.nowMs - updatedMs < ctx.staleDeadLetterMs) continue;
     ctx.inspected.staleOpenDeadLetterItems += 1;
 
-    const classification = deadLetterCategory(item);
+    const classification = deadLetterHealthCategory(item.failure);
     const workflowKey = dlqWorkflowKey(item);
     addPattern(ctx, {
       dedupeKey:

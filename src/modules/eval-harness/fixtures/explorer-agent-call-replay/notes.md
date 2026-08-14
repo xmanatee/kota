@@ -84,7 +84,7 @@ a 30-minute threshold, so a hard-coded `lastExplorationAt` would silently
 stop firing once the fixture aged past threshold. The runner's
 `applyFixtureTemplates` rewrites `{{NOW_MINUS_HOURS:6}}` on every
 materialization so the seed always looks at least six hours old at replay
-time — the same pattern `improver-agent-call-replay` uses for its
+  time — the same replay-scaffold pattern used by the builder fixture for its
 evidence-gate seed.
 
 By replaying the explore step, this fixture exercises every workflow-layer

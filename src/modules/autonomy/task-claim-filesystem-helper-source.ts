@@ -101,20 +101,21 @@ function acquireLock(request) {
     return { ok: true, acquired: false };
   }
   try {
-    writePrivateFile(identities, request.lockFileName, request.content, "wx");
+    const lockIdentity = createPrivateLock(
+      identities,
+      request.lockFileName,
+      request.content,
+    );
+    return { ok: true, acquired: true, lockIdentity };
   } catch (error) {
     if (
       error &&
-      (error.code === "EEXIST" ||
-        error.safeReason === "task claim destination changed during write" ||
-        error.safeReason === "task claim entry already exists")
+      error.code === "EEXIST"
     ) {
       return { ok: true, acquired: false };
     }
     throw error;
   }
-  const installed = lstatSync(request.lockFileName);
-  return { ok: true, acquired: true, lockIdentity: identity(installed) };
 }
 
 function releaseLock(request) {

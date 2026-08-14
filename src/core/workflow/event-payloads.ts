@@ -58,6 +58,9 @@ export function buildStepCompletedPayload(
     ...(result.costUsd != null ? { costUsd: result.costUsd } : {}),
     runDir: metadata.runDir,
     definitionPath: metadata.definitionPath,
+    ...(result.trajectoryDiagnostics !== undefined
+      ? { trajectoryDiagnostics: result.trajectoryDiagnostics }
+      : {}),
     ...(autonomyMode !== undefined ? { autonomyMode } : {}),
     ...(result.skipReason !== undefined ? { skipReason: result.skipReason } : {}),
   };

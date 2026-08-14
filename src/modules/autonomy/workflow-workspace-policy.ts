@@ -47,9 +47,14 @@ export const AUTONOMY_WORKFLOW_WORKSPACE_POLICIES = [
     workflow: "autonomy-health-reviewer",
     kind: "canonical-control-state",
     trackedMutationScope: "task-control-state",
-    writes: ["data/tasks/", "owner-question records", ".kota/runs/"],
+    writes: [
+      "autonomy issue projection",
+      "generated task resolution under data/tasks/",
+      "owner-question resolution",
+      ".kota/runs/",
+    ],
     reason:
-      "Health review turns runtime control signals into normal queue repairs and owner questions; those records must land in the canonical task/control state.",
+      "Health review records issue transitions in daemon-visible state and resolves the linked generated task when an explicit source clear makes it terminal.",
     safetyMechanisms: CANONICAL_CONTROL_SAFETY,
   },
   {
@@ -171,17 +176,11 @@ export const AUTONOMY_WORKFLOW_WORKSPACE_POLICIES = [
   {
     workflow: "improver",
     kind: "canonical-control-state",
-    trackedMutationScope: "autonomy-control-plane",
-    writes: ["src/modules/autonomy/", "src/core/workflow/", "docs and task governance surfaces"],
+    trackedMutationScope: "task-control-state",
+    writes: ["data/tasks/", "owner-question records", ".kota/runs/"],
     reason:
-      "Improver repairs KOTA-owned autonomy control-plane files from aggregated run evidence; until non-task worktree leases exist, it stays canonical and shares the tracked-mutation concurrency group.",
-    safetyMechanisms: [
-      "clean-checkout preflight gates the agent step",
-      "tracked canonical mutators share one runtime concurrency group",
-      "broad build, workflow validation, task validation, typecheck, lint, and test repair-loop checks",
-      "commit-stageable dry-run covers the canonical path set",
-      "restart happens only after a committed change",
-    ],
+      "Improver reviews one changed issue revision without source write access, then routes accepted work through the canonical task or owner-question lifecycle.",
+    safetyMechanisms: CANONICAL_CONTROL_SAFETY,
   },
   {
     workflow: "inbox-sorter",
@@ -190,15 +189,6 @@ export const AUTONOMY_WORKFLOW_WORKSPACE_POLICIES = [
     writes: ["data/inbox/", "data/tasks/", "data/"],
     reason:
       "Inbox sorting turns rough captures into canonical project data; the sorted result must be visible to queue validation and dispatcher routing.",
-    safetyMechanisms: CANONICAL_CONTROL_SAFETY,
-  },
-  {
-    workflow: "owner-intervention-escalator",
-    kind: "canonical-control-state",
-    trackedMutationScope: "task-control-state",
-    writes: ["data/tasks/", ".kota/runs/"],
-    reason:
-      "Owner-intervention patterns become repair tasks in the canonical queue and attention artifacts in the run record.",
     safetyMechanisms: CANONICAL_CONTROL_SAFETY,
   },
   {
@@ -238,15 +228,6 @@ export const AUTONOMY_WORKFLOW_WORKSPACE_POLICIES = [
     safetyMechanisms: CANONICAL_CONTROL_SAFETY,
   },
   {
-    workflow: "review-scrutiny-escalator",
-    kind: "canonical-control-state",
-    trackedMutationScope: "task-control-state",
-    writes: ["data/tasks/", ".kota/runs/"],
-    reason:
-      "Review scrutiny escalation opens or refreshes repair tasks from repeated review-quality patterns.",
-    safetyMechanisms: CANONICAL_CONTROL_SAFETY,
-  },
-  {
     workflow: "scope-improver",
     kind: "canonical-control-state",
     trackedMutationScope: "autonomy-control-plane",
@@ -266,24 +247,6 @@ export const AUTONOMY_WORKFLOW_WORKSPACE_POLICIES = [
       "agent writeScope is limited to .kota/runs/",
       ...CANONICAL_CONTROL_SAFETY,
     ],
-  },
-  {
-    workflow: "trajectory-diagnostic-escalator",
-    kind: "canonical-control-state",
-    trackedMutationScope: "task-control-state",
-    writes: ["data/tasks/", ".kota/runs/"],
-    reason:
-      "Trajectory diagnostics become canonical repair tasks when repeated process-quality patterns cross threshold.",
-    safetyMechanisms: CANONICAL_CONTROL_SAFETY,
-  },
-  {
-    workflow: "workflow-failure-escalator",
-    kind: "canonical-control-state",
-    trackedMutationScope: "task-control-state",
-    writes: ["data/tasks/", ".kota/runs/"],
-    reason:
-      "Persistent workflow failures become canonical repair tasks so runtime failures do not stay notification-only.",
-    safetyMechanisms: CANONICAL_CONTROL_SAFETY,
   },
 ] as const satisfies readonly AutonomyWorkflowWorkspacePolicy[];
 

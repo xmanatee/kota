@@ -1,6 +1,5 @@
 import {
   enqueueOwnerQuestion,
-  taskDedupeProjectDirs,
   writeFollowUpTask,
 } from "./action-writers.js";
 import {
@@ -25,14 +24,13 @@ export function applyProgressReviewActions(args: {
 }): ProgressReviewActionResult {
   validateProgressReviewEvidenceIds({ evidence: args.evidence, review: args.review });
   const applied: ProgressReviewAppliedAction[] = [];
-  const dedupeProjectDirs = taskDedupeProjectDirs(args.projectDir, args.evidence);
   for (const { group } of progressReviewFindingGroupEntries(args.review)) {
     for (const task of group.followUpTasks) {
-      applied.push(writeFollowUpTask({ ...args, dedupeProjectDirs, task }));
+      applied.push(writeFollowUpTask({ ...args, task }));
     }
   }
   for (const question of args.review.ownerQuestions) {
-    applied.push(enqueueOwnerQuestion({ ...args, question }));
+    applied.push(...enqueueOwnerQuestion({ ...args, question }));
   }
   return summarizeAppliedActions(applied);
 }
@@ -50,10 +48,16 @@ function summarizeAppliedActions(
       action.kind === "owner-question"
     )
     .map((action) => action.questionId);
+  const touchedTaskQueue = applied.some(
+    (action) =>
+      action.kind === "created-task" ||
+      action.kind === "updated-task" ||
+      action.kind === "dropped-task",
+  );
   return {
     createdTaskIds,
     ownerQuestionIds,
     applied,
-    touchedTaskQueue: createdTaskIds.length > 0,
+    touchedTaskQueue,
   };
 }
