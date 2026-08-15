@@ -1,13 +1,13 @@
 ---
 id: task-security-review-remote-mcp-http-requests-call-the
 title: Security review: Remote MCP HTTP requests call the host fetch implementation directly with configured headers and JSON-RPC bodies. Default redirect handling therefore bypasses KOTA's target validation, private-network protection, credential stripping, and cross-origin body-replay rejection, allowing a compromised MCP endpoint to redirect requests across trust boundaries.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Remote MCP HTTP requests call the host fetch implementation directly with configured headers and JSON-RPC bodies. Default redirect handling therefore bypasses KOTA's target validation, private-network protection, credential stripping, and cross-origin body-replay rejection, allowing a compromised MCP endpoint to redirect requests across trust boundaries.
 created_at: 2026-08-15T04:06:48.889Z
-updated_at: 2026-08-15T04:06:48.889Z
+updated_at: 2026-08-15T04:28:05.755Z
 ---
 
 ## Problem
@@ -111,3 +111,8 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm typecheck && pnpm lint && pnpm test src/core/outbound-http/transport.test.ts src/core/outbound-http/transport-errors.test.ts src/core/outbound-http/profiles.test.ts src/core/mcp/client.test.ts src/outbound-http-fetch-policy.integration.test.ts src/strict-types-policy.integration.test.ts`
+- Result: typecheck and lint passed; 6 test files passed with 174 tests. Task validation and diff hygiene also passed.

@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import { OUTBOUND_HTTP_PROFILES, outboundHttp } from "#core/outbound-http/index.js";
 import type {
   McpAuthorizationFlowError,
   McpAuthorizationServerMetadata,
@@ -852,14 +853,35 @@ export abstract class McpClientOAuthTokenRuntime extends McpClientProtectedResou
     scopes: readonly string[],
     label: string,
   ): Promise<JsonRpcResult> {
+    const method = init.method?.toUpperCase() ?? "GET";
+    if (method !== "GET" && method !== "POST") {
+      throw this.authorizationFlowError(
+        resource,
+        issuer,
+        scopes,
+        `${label} failed: unsupported outbound HTTP method ${method}`,
+      );
+    }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), CONNECT_TIMEOUT);
     try {
       let response: Response;
       try {
-        response = await fetch(url, { ...init, signal: controller.signal });
+        ({ response } = await outboundHttp.requestStream({
+          profile: OUTBOUND_HTTP_PROFILES.oauthProtectedResource([issuer, url]),
+          operation: "mcp.oauth",
+          url,
+          method,
+          headers: init.headers,
+          body: init.body,
+          signal: controller.signal,
+          limits: {
+            timeoutMs: CONNECT_TIMEOUT,
+            responseBytes: MCP_HTTP_RESPONSE_BODY_MAX_BYTES,
+          },
+        }));
       } catch (err) {
-        const message = err instanceof Error && err.name === "AbortError"
+        const message = controller.signal.aborted || (err instanceof Error && err.name === "AbortError")
           ? `request timed out after ${CONNECT_TIMEOUT}ms`
           : err instanceof Error ? err.message : String(err);
         throw this.authorizationFlowError(resource, issuer, scopes, `${label} failed: ${message}`);

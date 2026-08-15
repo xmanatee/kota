@@ -26,6 +26,8 @@ export {
   type OutboundHttpRequest,
   type OutboundHttpResponse,
   type OutboundHttpRetryDisposition,
+  type OutboundHttpStreamingOptions,
+  type OutboundHttpStreamingResponse,
   type OutboundHttpTelemetryEvent,
   type OutboundHttpTelemetrySink,
 } from "#core/outbound-http/types.js";

@@ -1,3 +1,4 @@
+import { OUTBOUND_HTTP_PROFILES, outboundHttp } from "#core/outbound-http/index.js";
 import type {
   McpAuthorizationChallenge,
   McpProtectedResourceMetadataDiscovery,
@@ -84,18 +85,29 @@ export abstract class McpClientProtectedResourceRuntime extends McpClientNotific
   protected async fetchProtectedResourceMetadata(
     url: string,
   ): Promise<McpProtectedResourceMetadataDiscovery> {
+    if (this.transport.type !== "http") {
+      throw new Error(`MCP server "${this.serverName}" is not an HTTP transport`);
+    }
+    const transport = this.transport;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), CONNECT_TIMEOUT);
     try {
       let response: Response;
       try {
-        response = await fetch(url, {
+        ({ response } = await outboundHttp.requestStream({
+          profile: OUTBOUND_HTTP_PROFILES.oauthProtectedResource([transport.url]),
+          operation: "mcp.protected-resource-metadata",
+          url,
           method: "GET",
           headers: { Accept: "application/json" },
           signal: controller.signal,
-        });
+          limits: {
+            timeoutMs: CONNECT_TIMEOUT,
+            responseBytes: MCP_HTTP_RESPONSE_BODY_MAX_BYTES,
+          },
+        }));
       } catch (err) {
-        const message = err instanceof Error && err.name === "AbortError"
+        const message = controller.signal.aborted || (err instanceof Error && err.name === "AbortError")
           ? `request timed out after ${CONNECT_TIMEOUT}ms`
           : err instanceof Error ? err.message : String(err);
         return {

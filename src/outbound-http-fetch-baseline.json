@@ -12,16 +12,6 @@
   "src/core/daemon/daemon-instance-lock.ts": [
     "Identifier:ExpressionStatement:a4c3f9c7bdcf03b7"
   ],
-  "src/core/mcp/client-http-runtime.ts": [
-    "Identifier:ExpressionStatement:8c9856038dca5aef",
-    "Identifier:FirstStatement:cd1120f7ee8b888a"
-  ],
-  "src/core/mcp/client-oauth-token-runtime.ts": [
-    "Identifier:ExpressionStatement:9dc7628b0ea48b3d"
-  ],
-  "src/core/mcp/client-protected-resource-runtime.ts": [
-    "Identifier:ExpressionStatement:3615d8978d0f0eb4"
-  ],
   "src/core/modules/foreign-module-http.ts": [
     "Identifier:ExpressionStatement:edf2e758606a893b"
   ],

@@ -1,0 +1,1 @@
+Preserve long-lived MCP streams behind outbound HTTP policy

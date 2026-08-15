@@ -15,3 +15,6 @@ core protocols and module adapters.
   browsing remains module-owned by `browser`.
 - Inject an `OutboundHttpDispatcher` and resolver for deterministic tests; do
   not add per-consumer fetch hooks.
+- Streaming responses stay profile-bounded by default. A long-lived protocol
+  stream may select the typed caller-managed mode only when its consumer keeps
+  frames and in-progress buffers bounded.
