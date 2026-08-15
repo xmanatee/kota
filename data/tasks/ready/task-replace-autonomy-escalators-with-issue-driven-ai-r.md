@@ -1,14 +1,14 @@
 ---
 id: task-replace-autonomy-escalators-with-issue-driven-ai-r
 title: Replace autonomy escalators with issue-driven AI review
-status: blocked
+status: ready
 priority: p0
 area: autonomy
 task_class: Meta
 depends_on: [task-validate-resolved-workflow-agent-capabilities-befo, task-make-autonomy-issues-a-durable-lifecycle-projectio]
 summary: Remove completion-wide escalator scans and direct improver edits in favor of one AI disposition per materially changed durable issue.
 created_at: 2026-08-06T20:22:00.325Z
-updated_at: 2026-08-14T04:22:58.199Z
+updated_at: 2026-08-15T10:39:57.742Z
 ---
 
 ## Problem
@@ -19,8 +19,8 @@ review scrutiny, and owner intervention. `improver` also wakes after every
 monitored completion, rebuilds overlapping aggregate evidence, and may edit and
 commit autonomy code directly. Runtime recovery fans these workflows out again.
 
-In the latest 200 completed runs audited on 2026-08-06, the four escalators
-accounted for 92 runs and one material action. `improver` ran 11 times; two AI
+In the exact latest 200 completed runs audited on 2026-08-06, the four escalators
+accounted for 92 runs and one material action. `improver` ran 10 times; two AI
 invocations consumed 29.5 agent-minutes and produced no commit. Over seven
 days, improver ran 131 times, made about 86 agent starts, and produced five
 commits. The loops are individually bounded, but ownership is duplicated and a
@@ -121,24 +121,17 @@ slot or creating conflicting work while Product and Safety tasks wait.
 - Source searches and workflow validation output show the four escalator
   definitions and direct improver commit path are absent.
 
-## Unblock Precondition
+## Operator Capture (2026-08-15)
 
-```text
-kind: operator-capture
-path: .kota/runs/2026-08-13T10-59-08-563Z-builder-tq9ibo/evidence/artifacts/production-routing-source/
-description: On the trusted KOTA host, export the exact 200 workflow-run rows used by the 2026-08-06 audit and the original four progress-reviewer DLQ records tied to the retained production run ids. Capture the original DLQ ids and canonical before/after states, dismiss or otherwise resolve any records still open with commit 532ab1ae evidence, then run the candidate replay over those same 200 rows and record every workflow invocation, issue transition, AI decision, attention item, and generated-work record in this directory.
-```
+The trusted canonical event journal and dead-letter store retain both missing
+inputs. The capture under
+`.kota/runs/2026-08-13T10-59-08-563Z-builder-tq9ibo/evidence/artifacts/production-routing-source/`
+contains the exact ordered 200-row audit window and all four original DLQ
+records. Each DLQ was already dismissed on 2026-08-06 with commit `532ab1ae`
+and two subsequent successful production runs as evidence, so no further DLQ
+mutation is required. The exact rows also correct the earlier retained
+aggregate: `improver` occurred 10 times, not 11.
 
-## Blocked Status (2026-08-14 repair 9)
-
-The runtime implementation and focused lifecycle tests are complete, including
-exact-path-only improver commits, durable task-to-question transitions, and
-explicit-clear resolution of the linked generated task. The two production
-acceptance inputs are not available in Git: commit `0002fdfa3` retains only the
-latest-200 aggregate, and commit `532ab1ae` retains the four production run ids
-but not their original DLQ UUIDs. This managed builder also receives
-`Operation not permitted` for the canonical `.kota/runs/` archive and cannot
-read the canonical dead-letter store. The earlier evenly distributed 200-row
-test and replacement DLQ UUIDs were synthetic, so they have been removed from
-acceptance claims. The task remains blocked until the trusted-host capture above
-provides the exact source rows and canonical DLQ dispositions.
+The remaining work is builder-owned acceptance: replay the captured rows through
+the candidate routing and record workflow invocations, issue transitions, AI
+decisions, attention items, and generated work in the same evidence directory.
