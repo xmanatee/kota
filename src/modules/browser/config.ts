@@ -1,4 +1,17 @@
 import { isAbsolute, resolve } from "node:path";
+import {
+  OUTBOUND_HTTP_PROFILES,
+  type OutboundHttpProfile,
+} from "#core/outbound-http/index.js";
+
+export type BrowserNetworkProfileConfig =
+  | { name: "public-untrusted" }
+  | { name: "configured-provider"; allowedOrigins: string[] };
+
+export type BrowserNetworkProfile = Extract<
+  OutboundHttpProfile,
+  { readonly name: "public-untrusted" | "configured-provider" }
+>;
 
 export type BrowserModuleConfig = {
   /**
@@ -22,6 +35,12 @@ export type BrowserModuleConfig = {
    * browser session.
    */
   headless?: boolean;
+  /**
+   * Network boundary applied to every Chromium request. Absence selects the
+   * public-untrusted profile. Private targets are available only when an
+   * operator explicitly selects configured-provider and lists each origin.
+   */
+  networkProfile?: BrowserNetworkProfileConfig;
 };
 
 export type RawBrowserModuleConfig =
@@ -33,6 +52,7 @@ export type ResolvedBrowserProfileConfig = {
   storageStatePath: string | null;
   persist: boolean;
   headless: boolean;
+  networkProfile: BrowserNetworkProfile;
 };
 
 export function resolveBrowserProfileConfig(
@@ -42,6 +62,7 @@ export function resolveBrowserProfileConfig(
     storageStatePath: readStorageStatePath(raw),
     persist: readPersistProfile(raw),
     headless: readHeadless(raw),
+    networkProfile: readNetworkProfile(raw),
   };
 }
 
@@ -59,6 +80,38 @@ function readPersistProfile(raw: RawBrowserModuleConfig): boolean {
 function readHeadless(raw: RawBrowserModuleConfig): boolean {
   if (!raw || !("headless" in raw)) return true;
   return raw.headless !== false;
+}
+
+function readNetworkProfile(raw: RawBrowserModuleConfig): BrowserNetworkProfile {
+  if (!raw || !("networkProfile" in raw) || raw.networkProfile === undefined) {
+    return OUTBOUND_HTTP_PROFILES.publicUntrusted;
+  }
+  const configured = raw.networkProfile;
+  if (!configured || typeof configured !== "object" || !("name" in configured)) {
+    throw new TypeError(
+      "modules.browser.networkProfile must select public-untrusted or configured-provider",
+    );
+  }
+  if (configured.name === "public-untrusted") {
+    return OUTBOUND_HTTP_PROFILES.publicUntrusted;
+  }
+  if (
+    configured.name !== "configured-provider" ||
+    !("allowedOrigins" in configured) ||
+    !Array.isArray(configured.allowedOrigins) ||
+    configured.allowedOrigins.some((origin) => typeof origin !== "string")
+  ) {
+    throw new TypeError(
+      "modules.browser.networkProfile configured-provider requires an allowedOrigins string array",
+    );
+  }
+  const profile = OUTBOUND_HTTP_PROFILES.configuredProvider(
+    configured.allowedOrigins,
+  );
+  if (profile.name !== "configured-provider") {
+    throw new TypeError("configured browser network profile did not resolve");
+  }
+  return profile;
 }
 
 export function resolveStorageStatePath(

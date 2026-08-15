@@ -1,0 +1,3 @@
+1. Every Playwright request initiated by browser navigation and rendered content readers is connection-boundary checked against the selected network profile, with public-untrusted as the default and private targets available only through an explicit operator-selected profile.
+2. Focused regression coverage rejects loopback, private-address, link-local, redirect, DNS-rebinding, and subresource policy bypasses while proving the explicit private-target profile path.
+3. The focused verification command passes and is recorded in the completed task as acceptance evidence.

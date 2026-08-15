@@ -195,6 +195,11 @@ const browserModule: KotaModule = {
     }
     const profile = resolveProfile(ctx);
     configureBrowserProfile(profile);
+    if (profile.networkProfile.name === "configured-provider") {
+      ctx.log.info(
+        `browser: configured-provider network profile selected for ${profile.networkProfile.allowedOrigins.length} operator-approved origin(s)`,
+      );
+    }
     if (profile.storageStatePath) {
       ctx.log.info(
         `browser: authenticated profile configured at ${profile.storageStatePath}` +

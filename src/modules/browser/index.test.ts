@@ -11,6 +11,7 @@ vi.mock("./lifecycle.js", () => ({
     storageStatePath: null,
     persist: false,
     headless: true,
+    networkProfile: { name: "public-untrusted" },
   })),
   persistBrowserProfile: vi.fn(async () => {}),
 }));

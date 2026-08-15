@@ -1,13 +1,13 @@
 ---
 id: task-security-review-browser-navigation-and-article-rea
 title: Security review: Browser navigation and article-reading tools send arbitrary HTTP(S) URLs directly to Playwright without the shared public-untrusted target, redirect, or DNS-rebinding checks. An autonomous browser-enabled session can therefore read loopback, private-network, or link-local services and return their contents to the agent.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Browser navigation and article-reading tools send arbitrary HTTP(S) URLs directly to Playwright without the shared public-untrusted target, redirect, or DNS-rebinding checks. An autonomous browser-enabled session can therefore read loopback, private-network, or link-local services and return their contents to the agent.
 created_at: 2026-08-15T13:48:20.966Z
-updated_at: 2026-08-15T13:48:20.966Z
+updated_at: 2026-08-15T14:07:03.359Z
 ---
 
 ## Problem
@@ -125,3 +125,9 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm exec vitest run --configLoader runner src/modules/browser src/core/outbound-http src/strict-types-policy.integration.test.ts` — 12 test files and 111 tests passed, including focused loopback, private-address, link-local, redirect/subresource, DNS-rebinding, proxy-authentication, explicit configured-provider, and strict-types coverage.
+- `pnpm run typecheck` — passed.
+- `pnpm run lint` — passed across `src/`.

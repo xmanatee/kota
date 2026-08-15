@@ -1,7 +1,14 @@
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
-import { resolveStorageStatePath } from "./config.js";
+import {
+  type BrowserNetworkProfile,
+  resolveStorageStatePath,
+} from "./config.js";
+import {
+  type BrowserNetworkProxy,
+  startBrowserNetworkProxy,
+} from "./network-proxy.js";
 import {
   loadPlaywrightModule,
   type PlaywrightBrowser,
@@ -17,6 +24,7 @@ let pw: PlaywrightModule | null = null;
 let browser: PlaywrightBrowser | null = null;
 let context: PlaywrightContext | null = null;
 let page: PlaywrightPage | null = null;
+let networkProxy: BrowserNetworkProxy | null = null;
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
@@ -30,12 +38,14 @@ export type BrowserProfileOptions = {
   storageStatePath: string | null;
   persist: boolean;
   headless: boolean;
+  networkProfile: BrowserNetworkProfile;
 };
 
 let profile: BrowserProfileOptions = {
   storageStatePath: null,
   persist: false,
   headless: true,
+  networkProfile: { name: "public-untrusted" },
 };
 
 /**
@@ -73,7 +83,24 @@ async function ensureContext(): Promise<PlaywrightContext> {
   if (context) return context;
   const playwright = await ensurePlaywright();
   if (!browser || !browser.isConnected()) {
-    browser = await playwright.chromium.launch({ headless: profile.headless });
+    networkProxy = await startBrowserNetworkProxy({
+      profile: profile.networkProfile,
+    });
+    try {
+      browser = await playwright.chromium.launch({
+        headless: profile.headless,
+        args: ["--proxy-bypass-list=<-loopback>"],
+        proxy: {
+          server: networkProxy.server,
+          username: networkProxy.username,
+          password: networkProxy.password,
+        },
+      });
+    } catch (error) {
+      await networkProxy.close();
+      networkProxy = null;
+      throw error;
+    }
   }
   const storagePath = resolveStoragePath(null);
   const options: { storageState?: string } = {};
@@ -132,6 +159,10 @@ export async function closeBrowser(): Promise<void> {
     await browser.close().catch(() => {});
   }
   browser = null;
+  if (networkProxy) {
+    await networkProxy.close().catch(() => {});
+  }
+  networkProxy = null;
   pw = null;
 }
 

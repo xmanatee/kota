@@ -10,6 +10,13 @@ scoped content-ingest tools for auth-walled and JS-gated sources.
   module loads cleanly without Playwright installed and logs a warning.
 - A single browser + context + page is reused across tool calls and closed on
   idle timeout or session cleanup.
+- Chromium uses a module-owned authenticated loopback proxy to apply shared
+  outbound target policy and DNS-pin every connection, including redirects,
+  click navigations, WebSocket tunnels, and subresources.
+- `modules.browser.networkProfile` defaults to `public-untrusted`, rejecting
+  loopback, private, link-local, and rebinding targets. Private access requires
+  `configured-provider` with every page origin in `allowedOrigins`; the proxy
+  still resolves and pins the connection-time address.
 - Do not add Playwright to the project's required dependencies. It stays as
   an optional peer that operators install when they need browser capability.
 
