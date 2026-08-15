@@ -1,12 +1,12 @@
 ---
 id: task-reconcile-the-six-open-workflow-dead-letters
 title: Reconcile the six open workflow dead letters
-status: ready
+status: dropped
 priority: p1
 area: autonomy
 summary: Classify every current open dead letter against the completed unreadable-evidence fix, blocked citation-repair work, dropped resume-capability task, and transient upstream outage. Redrive only after prerequisites are satisfied, dismiss stale items with durable reasons, and bind every remaining actionable failure to a non-duplicate open task.
 created_at: 2026-08-15T08:17:22.207Z
-updated_at: 2026-08-15T08:17:22.207Z
+updated_at: 2026-08-15T10:29:16.227Z
 task_class: Meta
 ---
 ## Problem
@@ -76,3 +76,11 @@ Proposal key: `progress-reviewer:operations:dead-letter-reconciliation`
   - Evidence: task:task-make-workflow-evidence-collection-tolerate-unreada
 
 <!-- generated-work-proposal: {"key":"progress-reviewer:operations:dead-letter-reconciliation","provenance":[{"source":"progress-reviewer","runId":"2026-08-15T06-03-26-273Z-progress-reviewer-8fdx3t","evidenceRefs":["dead-letter:dlq-263574f1-cd0d-4369-a818-8050cae6d16e","dead-letter:dlq-69a4e56a-2119-4b30-b661-aa07517a4d83","dead-letter:dlq-8c912d98-2b05-4160-a77f-5cec930102db","dead-letter:dlq-ee8ffaa1-ea74-4d68-816d-768c8101b0b7","dead-letter:dlq-f084687d-a51d-4ebd-aba7-574d9ac57ae6","task:task-align-autonomy-resume-requests-with-codex-harness","task:task-make-progress-reviewer-evidence-citation-failures","task:task-make-workflow-evidence-collection-tolerate-unreada"]}]} -->
+
+## Disposition
+
+Dropped as duplicate queue work. `task-terminally-disposition-the-four-residual-workflow`
+already owns the four historical provider, resume-capability, and unreadable-evidence
+dead letters. `task-make-progress-reviewer-evidence-citation-failures` owns the two
+remaining citation failures. Together they cover all six open items with their exact
+evidence IDs and source-specific acceptance criteria.
