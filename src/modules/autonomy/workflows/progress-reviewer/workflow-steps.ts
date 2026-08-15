@@ -30,6 +30,7 @@ import {
   collectProgressReviewEvidence,
   compactProgressReviewEvidenceForAgent,
   decodeProgressReviewAgentOutputForEvidence,
+  digestProgressReviewEvidencePacket,
   PROGRESS_REVIEW_EVIDENCE_ARTIFACT,
   type ProgressReviewActionResult,
   type ProgressReviewAgentEvidencePacket,
@@ -43,13 +44,12 @@ import {
 } from "./progress-review.js";
 
 export const REVIEW_AGENT_TIMEOUT_MS = 30 * 60 * 1000;
-
 export const agent: AgentDef = {
   name: "progress-reviewer",
   role: "Assess bounded scoped activity evidence and return structured steering recommendations.",
   promptPath: "src/modules/autonomy/workflows/progress-reviewer/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
-  writeScope: [".kota/runs/"],
+  writeScope: "deny-all",
 };
 
 type WorktreeInspection = {
@@ -66,6 +66,7 @@ function writeProgressReviewEvidencePacket(
     generatedAt: packet.generatedAt,
     artifact: PROGRESS_REVIEW_EVIDENCE_ARTIFACT,
     artifactPath,
+    contentSha256: digestProgressReviewEvidencePacket(packet),
   };
 }
 

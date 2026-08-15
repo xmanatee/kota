@@ -1,3 +1,4 @@
+import type { AgentWriteScope } from "#core/agents/agent-types.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import type {
@@ -115,6 +116,18 @@ export type AgentHarnessRunOptions = {
    */
   modelOutputTokenLimits?: ModelOutputTokenLimits;
   cwd?: string;
+  /**
+   * Agent-owned local filesystem mutation boundary, relative to `cwd`.
+   * Direct-filesystem adapters must project this into their sandbox; hosted
+   * tool loops pass it to the shared permissioned tool runner.
+   */
+  agentWriteScope?: AgentWriteScope;
+  /**
+   * Runtime-owned per-run directory where a workflow agent may write evidence
+   * and finish-protocol artifacts. This is enforced as a separate exception
+   * to `agentWriteScope`; sibling workflow state remains inaccessible.
+   */
+  agentOutputDir?: string;
   /**
    * Per-run subprocess environment additions. Callers use this for isolated
    * runtime resources such as temp roots and port ranges; adapters must merge

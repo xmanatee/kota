@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowAgentStepOutputValidationContext } from "#core/workflow/step-input-base.js";
 import {
@@ -16,7 +17,14 @@ export type ProgressReviewEvidenceHandle = {
   generatedAt: string;
   artifact: typeof PROGRESS_REVIEW_EVIDENCE_ARTIFACT;
   artifactPath: string;
+  contentSha256: string;
 };
+
+export function digestProgressReviewEvidencePacket(
+  packet: ProgressReviewEvidencePacket,
+): string {
+  return createHash("sha256").update(JSON.stringify(packet)).digest("hex");
+}
 
 export const validateProgressReviewEvidencePacket: CodeStepOutputValidator<
   ProgressReviewEvidencePacket
@@ -42,6 +50,7 @@ export const validateProgressReviewEvidenceHandle: CodeStepOutputValidator<
     "generatedAt",
     "artifact",
     "artifactPath",
+    "contentSha256",
   ]);
   if (handle.artifact !== PROGRESS_REVIEW_EVIDENCE_ARTIFACT) {
     throw new Error(
@@ -53,6 +62,14 @@ export const validateProgressReviewEvidenceHandle: CodeStepOutputValidator<
   }
   if (typeof handle.artifactPath !== "string" || !handle.artifactPath.trim()) {
     throw new Error("progress-review evidence artifactPath must be non-empty");
+  }
+  if (
+    typeof handle.contentSha256 !== "string" ||
+    !/^[a-f0-9]{64}$/.test(handle.contentSha256)
+  ) {
+    throw new Error(
+      "progress-review evidence contentSha256 must be a lowercase SHA-256 digest",
+    );
   }
   return handle;
 };
@@ -86,7 +103,14 @@ export function readProgressReviewEvidencePacketFromHandle(
       `progress-review evidence artifact is missing: ${handle.artifactPath}`,
     );
   }
-  return validateProgressReviewEvidencePacket(raw);
+  const packet = validateProgressReviewEvidencePacket(raw);
+  const actualSha256 = digestProgressReviewEvidencePacket(packet);
+  if (actualSha256 !== handle.contentSha256) {
+    throw new Error(
+      `progress-review evidence artifact digest mismatch: ${handle.artifactPath}`,
+    );
+  }
+  return packet;
 }
 
 export function validateProgressReviewAgentStepOutput(

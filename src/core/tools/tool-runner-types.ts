@@ -7,6 +7,7 @@ import type {
 import type { AgentCanUseTool } from "#core/agent-harness/run-option-types.js";
 import type { AgentTokenBudgetLedger } from "#core/agent-harness/token-budget.js";
 import type { AgentHarnessWorkflowContext } from "#core/agent-harness/types.js";
+import type { AgentWriteScope } from "#core/agents/agent-types.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import type {
@@ -73,6 +74,8 @@ export type ToolCallExecutionOptions = {
 	clientApprovalResolver?: ToolApprovalResolver;
 	sessionId?: string;
 	cwd?: string;
+	agentWriteScope?: AgentWriteScope;
+	agentOutputDir?: string;
 	env?: Record<string, string>;
 	authorityConfigPath?: string;
 	workflowContext?: AgentHarnessWorkflowContext;

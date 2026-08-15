@@ -1,0 +1,7 @@
+security: close reviewer output authorization gaps
+
+- bind runtime-authored review evidence to its pre-agent digest
+- enforce isolated output writes in Claude's effective permission path
+- preserve destructive approval for output-targeted hosted tools
+- preserve direct Claude permission callbacks when no extra guard is active
+- keep core tool-runtime guidance within the instruction injection cap

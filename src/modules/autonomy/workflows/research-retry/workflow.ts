@@ -1,5 +1,6 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
+import { resolveAgentRunDirFromContext } from "#core/workflow/agent-run-dir.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
@@ -196,7 +197,11 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
           {
             id: "commit-message-exists",
             type: "code" as const,
-            run: (ctx) => checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir),
+            run: (ctx) =>
+              checkCommitMessageExists(
+                resolveAgentRunDirFromContext(ctx),
+                ctx.projectDir,
+              ),
           },
           {
             id: "commit-stageable",
@@ -212,7 +217,11 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
       id: "commit",
       type: "code",
       when: stepSucceeded("retry"),
-      run: ({ projectDir, workflow }) => commitWorkflowChanges(projectDir, workflow.runDirPath),
+      run: (ctx) =>
+        commitWorkflowChanges(
+          ctx.projectDir,
+          resolveAgentRunDirFromContext(ctx),
+        ),
     },
   ],
 };

@@ -8,11 +8,9 @@ import type {
   AgentHarnessWriter,
   AgentMcpServers,
 } from "#core/agent-harness/index.js";
-import {
-  composeCanUseTools,
-  probeNodePackageRuntime,
-} from "#core/agent-harness/index.js";
+import { probeNodePackageRuntime } from "#core/agent-harness/index.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import { createClaudePermissionGuard } from "./adapter-permission-guards.js";
 import type {
   ClaudeAgentMcpServers,
   ClaudeAgentSdkPermissionMode,
@@ -25,7 +23,6 @@ import {
   KOTA_OWNER_QUESTIONS_MCP_SERVER,
   KOTA_OWNER_QUESTIONS_MCP_TOOL,
 } from "./kota-tools-mcp.js";
-import { createClaudeScopePolicyGuard } from "./scope-policy-guard.js";
 import type { SDKSystemPrompt } from "./sdk-types.js";
 
 export const CLAUDE_AGENT_HARNESS_NAME = "claude-agent-sdk";
@@ -270,19 +267,17 @@ export const claudeAgentHarness: AgentHarness = {
       claudeOverrides?.permissionMode ??
       autonomyModeToPermissionMode(autonomyMode ?? "autonomous");
     const settingSources = claudeOverrides?.settingSources ?? DEFAULT_SETTING_SOURCES;
-    const scopePolicyGuard = scopePolicy
-      ? createClaudeScopePolicyGuard({
-          policy: scopePolicy,
-          autonomyMode: autonomyMode ?? "autonomous",
-          ...(getScopePolicySnapshot ? { getScopePolicySnapshot } : {}),
-          ...(approvalQueue ? { approvalQueue } : {}),
-          ...(options.cwd ? { cwd: options.cwd } : {}),
-          ...(sessionContext ? { sessionId: sessionContext.sessionId } : {}),
-        })
-      : undefined;
-    const effectiveCanUseTool = canUseTool && scopePolicyGuard
-      ? composeCanUseTools(canUseTool, scopePolicyGuard)
-      : canUseTool ?? scopePolicyGuard;
+    const effectiveCanUseTool = createClaudePermissionGuard({
+      canUseTool,
+      scopePolicy,
+      getScopePolicySnapshot,
+      approvalQueue,
+      autonomyMode: autonomyMode ?? "autonomous",
+      cwd: options.cwd,
+      sessionId: sessionContext?.sessionId,
+      agentWriteScope: options.agentWriteScope,
+      agentOutputDir: options.agentOutputDir,
+    });
 
     return executeWithAgentSDK(
       prompt,

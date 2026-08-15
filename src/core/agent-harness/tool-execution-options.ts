@@ -47,6 +47,12 @@ export function agentHarnessToolExecutionOptions(
 			? { sessionId: toolRunnerContext.sessionId }
 			: {}),
 		...(cwd !== undefined ? { cwd } : {}),
+		...(options.agentWriteScope !== undefined
+			? { agentWriteScope: options.agentWriteScope }
+			: {}),
+		...(options.agentOutputDir !== undefined
+			? { agentOutputDir: options.agentOutputDir }
+			: {}),
 		...(options.env !== undefined ? { env: options.env } : {}),
 		authorityConfigPath: options.authorityConfigPath ?? getGlobalConfigPath(),
 		...(toolRunnerContext.workflow !== undefined

@@ -5,6 +5,7 @@ import { confirmAction } from "#core/util/confirm.js";
 import { getToolEffect } from "./index.js";
 import type { ClientApprovalResult } from "./tool-approval.js";
 import { extractApprovalContext } from "./tool-approval.js";
+import { isAgentOutputOnlyWrite } from "./tool-runner-agent-write-scope.js";
 import { enqueueToolApproval } from "./tool-runner-approval-queue.js";
 import type {
   ToolCallExecutionOptions,
@@ -46,8 +47,18 @@ export async function enforceToolScopePolicy(args: {
       `Blocked by scope policy: ${block.name} has no declared tool effect.`,
     );
   }
+  // Agent output is outside the project write catalog by construction. Reopen
+  // only that path boundary; owner-confirmation policy (especially destructive
+  // effects) must still decide the call.
+  const decisionPolicy: ResolvedScopePolicy =
+    policy.writes.mode !== "none" && isAgentOutputOnlyWrite(block, options)
+      ? {
+          ...policy,
+          writes: { mode: "unrestricted", source: policy.writes.source },
+        }
+      : policy;
   const decision = decideScopePolicyToolCall(
-    policy,
+    decisionPolicy,
     block.name,
     effect,
     block.input,

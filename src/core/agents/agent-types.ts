@@ -41,7 +41,7 @@ export type AgentToolPolicy = {
   disallowed?: string[];
 };
 
-/** Tracked-file mutation boundary enforced around an agent run. */
+/** Project mutation boundary enforced during and after an agent run. */
 export type AgentWriteScope = readonly string[] | "deny-all";
 
 /**
@@ -68,7 +68,8 @@ export type AgentDef = {
   /** Tool access policy. */
   tools?: AgentToolPolicy;
   /**
-   * Tracked-file paths this agent may mutate, relative to `projectDir`. Each
+   * Project paths this agent may mutate, relative to its workflow workspace.
+   * Each
    * entry is a path prefix (directory) or an exact file path. A trailing
    * slash is optional — `"data/tasks/"` and `"data/tasks"` both match any
    * path under `data/tasks/`.
@@ -77,7 +78,12 @@ export type AgentDef = {
    * mutation is allowed. `"deny-all"` is the distinct read-only declaration:
    * every attempted tracked-file mutation fails and is restored. Required on
    * every agent because absence must not silently mean unrestricted; the
-   * workflow runtime enforces this at the end of an agent step.
+   * Direct-filesystem harnesses project this into their machine sandbox and
+   * KOTA-hosted tools enforce it before execution. Workflow agents separately
+   * receive one runtime-owned per-run output directory for evidence and finish
+   * artifacts; that exception never exposes sibling workflow state. The
+   * workflow runtime also checks the resulting repo mutation set after the
+   * agent step.
    */
   writeScope: AgentWriteScope;
 };

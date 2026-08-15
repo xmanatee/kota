@@ -1,5 +1,6 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
+import { resolveAgentRunDirFromContext } from "#core/workflow/agent-run-dir.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
@@ -267,7 +268,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
               const queue = inspectQueue.outputRequired(ctx);
               const rationale = checkExplorationRationale(
                 ctx.projectDir,
-                ctx.workflow.runDirPath,
+                resolveAgentRunDirFromContext(ctx),
                 {
                   actionableCount: queue.actionableCount,
                   strategicReadyCoverageGap: queue.strategicReadyCoverageGap,
@@ -284,12 +285,19 @@ const explorerWorkflow: WorkflowDefinitionInput = {
           {
             id: "watchlist-update-commit-message",
             type: "code" as const,
-            run: (ctx) => checkWatchlistUpdatesCommitMessage(ctx.workflow.runDirPath),
+            run: (ctx) =>
+              checkWatchlistUpdatesCommitMessage(
+                resolveAgentRunDirFromContext(ctx),
+              ),
           },
           {
             id: "commit-message-exists",
             type: "code" as const,
-            run: (ctx) => checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir),
+            run: (ctx) =>
+              checkCommitMessageExists(
+                resolveAgentRunDirFromContext(ctx),
+                ctx.projectDir,
+              ),
           },
           {
             id: "commit-stageable",
@@ -311,10 +319,12 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       id: "apply-watchlist-updates",
       type: "code",
       when: stepSucceeded("explore"),
-      run: ({ projectDir, workflow }) => {
-        const payload = readWatchlistUpdatesFromRun(workflow.runDirPath);
+      run: (ctx) => {
+        const payload = readWatchlistUpdatesFromRun(
+          resolveAgentRunDirFromContext(ctx),
+        );
         if (!payload) return { applied: [] };
-        const applied = applyWatchlistUpdates(projectDir, payload);
+        const applied = applyWatchlistUpdates(ctx.projectDir, payload);
         return { applied };
       },
     },
@@ -322,7 +332,11 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       id: "commit",
       type: "code",
       when: stepSucceeded("explore"),
-      run: ({ projectDir, workflow }) => commitWorkflowChanges(projectDir, workflow.runDirPath),
+      run: (ctx) =>
+        commitWorkflowChanges(
+          ctx.projectDir,
+          resolveAgentRunDirFromContext(ctx),
+        ),
     },
   ],
 };

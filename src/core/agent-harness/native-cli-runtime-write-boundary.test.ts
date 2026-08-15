@@ -103,6 +103,39 @@ describe("native CLI runtime write boundary", () => {
     expect(mountIndex("--bind", tempRoot)).toBeGreaterThan(protectedIndex);
   });
 
+  it("reopens only the isolated per-run agent output root under runtime state", () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "kota-native-agent-scope-"));
+    roots.push(projectDir);
+    const runtimeRoot = join(projectDir, ".kota");
+    const runStore = join(runtimeRoot, "runs");
+    const reviewerOutput = join(runStore, "run-1", "agent-output");
+    mkdirSync(reviewerOutput, { recursive: true });
+
+    const boundary = nativeCliRuntimeWriteBoundary(
+      projectDir,
+      {},
+      [reviewerOutput],
+    );
+    expect(boundary?.writableDescendants).toEqual([reviewerOutput]);
+
+    const launch = buildMachineAuthoritySandboxLaunch("/bin/sh", [], {
+      cwd: projectDir,
+      platform: "linux",
+      pathExists: () => true,
+      readableRoots: [projectDir],
+      writableRoots: [reviewerOutput],
+      writeBoundaries: [boundary!],
+    });
+    expect(launch.ok).toBe(true);
+    if (!launch.ok) return;
+    expect(launch.args).toContain(reviewerOutput);
+    expect(launch.args).not.toContain(join(runStore, "run-1"));
+    const runStoreBind = launch.args.findIndex((arg, index) =>
+      arg === "--bind" && launch.args[index + 1] === runStore
+    );
+    expect(runStoreBind).toBe(-1);
+  });
+
   it.runIf(canBootstrapMacosSandbox)(
     "protects daemon state while assigned run roots remain writable",
     async () => {

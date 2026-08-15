@@ -55,6 +55,26 @@ describe("agent-sdk executor options and lifecycle", () => {
     });
   });
 
+  it("projects the agent-owned write scope into the SDK sandbox allowlist", () => {
+    const options = buildQueryOptions({
+      cwd: "/tmp/project",
+      agentWriteScope: ["data/tasks/"],
+      agentOutputDir: "/tmp/project/.kota/runs/run-1/agent-output",
+      effort: "xhigh",
+    });
+
+    expect(options.sandbox?.filesystem?.allowWrite).toEqual([
+      "/tmp/project/data/tasks",
+      "/tmp/project/.kota/runs/run-1/agent-output",
+    ]);
+    expect(options.sandbox?.filesystem?.allowWrite).not.toContain(
+      "/tmp/project/.kota/runs",
+    );
+    expect(options.sandbox?.filesystem?.allowWrite).not.toContain(
+      "/tmp/project",
+    );
+  });
+
   it("denies native reads of an environment-selected arbitrary token filename", () => {
     const priorTokenPath = process.env.KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH;
     const tokenPath = "/operator/credentials/machine-proof.dat";

@@ -1,14 +1,24 @@
+import { resolveAgentFilesystemWriteRoots } from "#core/agent-harness/agent-write-scope-roots.js";
 import type {
   AgentCanUseTool,
   AgentPermissionResult,
 } from "#core/agent-harness/index.js";
+import type { AgentWriteScope } from "#core/agents/agent-types.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import {
   capScopeAutonomyMode,
   type ResolvedScopePolicy,
   type ScopePolicySnapshotAccessor,
 } from "#core/daemon/scope-policy.js";
-import { decideScopePolicyToolCall } from "#core/daemon/scope-policy-tool-query.js";
+import {
+  isScopePolicyPathWithin,
+  resolveScopePolicyPath,
+} from "#core/daemon/scope-policy-paths.js";
+import {
+  decideScopePolicyToolCall,
+  scopePolicyToolEffectQueries,
+} from "#core/daemon/scope-policy-tool-query.js";
+import type { ScopePolicyToolEffectQuery } from "#core/daemon/scope-policy-types.js";
 import { type AutonomyMode, resolveAutonomyGate } from "#core/tools/autonomy-mode.js";
 import {
   localWriteEffect,
@@ -99,6 +109,75 @@ function deny(message: string): AgentPermissionResult {
     behavior: "deny",
     message,
     decisionAttribution: "operator-deny",
+  };
+}
+
+type LocalWriteQuery = Extract<
+  ScopePolicyToolEffectQuery,
+  { effectKind: "write" | "destructive"; effectScope: "local-fs" }
+>;
+
+function isLocalWriteQuery(
+  query: ScopePolicyToolEffectQuery,
+): query is LocalWriteQuery {
+  return query.effectScope === "local-fs" &&
+    (query.effectKind === "write" || query.effectKind === "destructive");
+}
+
+/**
+ * Enforce the named agent's local mutation boundary in the SDK permission
+ * path used by Claude's built-in file tools. The SDK command sandbox remains
+ * the machine boundary for Bash; this guard prevents built-in Write/Edit calls
+ * from inheriting a wider scope-policy or caller authorization.
+ */
+export function createClaudeAgentWriteScopeGuard(args: {
+  agentWriteScope: AgentWriteScope;
+  agentOutputDir?: string;
+  cwd?: string;
+}): AgentCanUseTool {
+  const cwd = args.cwd ?? process.cwd();
+  const allowedRoots = resolveAgentFilesystemWriteRoots(
+    cwd,
+    args.agentWriteScope,
+    args.agentOutputDir,
+  ) ?? [];
+
+  return async (toolName, input): Promise<AgentPermissionResult> => {
+    const binding = CLAUDE_TOOL_POLICY_BINDINGS.get(toolName);
+    if (!binding) {
+      return deny(
+        `Blocked by agent write scope: Claude tool ${toolName} has no effect-aware policy binding.`,
+      );
+    }
+    const normalizedInput = binding.normalizeInput?.(input) ?? input;
+    const writeQueries = scopePolicyToolEffectQueries(
+      toolName,
+      binding.effect(normalizedInput),
+      normalizedInput as ValidatedToolCallInput,
+    ).filter(isLocalWriteQuery);
+    if (writeQueries.length === 0) {
+      return { behavior: "allow", updatedInput: input };
+    }
+    if (allowedRoots.length === 0) {
+      return deny("Blocked by agent write scope: local filesystem writes are denied.");
+    }
+    for (const query of writeQueries) {
+      if (query.targetPath === undefined) {
+        return deny(
+          "Blocked by agent write scope: write-capable execution does not expose a complete filesystem target.",
+        );
+      }
+      const target = resolveScopePolicyPath(query.targetPath, cwd);
+      if (
+        target === null ||
+        !allowedRoots.some((root) => isScopePolicyPathWithin(root, target))
+      ) {
+        return deny(
+          `Blocked by agent write scope: ${query.targetPath} is outside the declared write roots.`,
+        );
+      }
+    }
+    return { behavior: "allow", updatedInput: input };
   };
 }
 

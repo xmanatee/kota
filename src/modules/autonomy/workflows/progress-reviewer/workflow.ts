@@ -38,7 +38,8 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
   tags: ["progress-reviewer"],
   recoveryCapable: true,
   // Capable-tier presets may resolve to a native CLI harness. The reviewer is
-  // still bounded by its AgentDef writeScope and the whole-step mutation check.
+  // bounded by its projected AgentDef writeScope plus the post-step mutation
+  // check.
   defaultAutonomyMode: "autonomous",
   triggers: [
     {

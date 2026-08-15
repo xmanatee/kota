@@ -25,6 +25,8 @@ describe("antigravityCliAgentHarness execution", () => {
         effort: "xhigh",
         systemPrompt: "be brief",
         cwd: "/repo",
+        agentWriteScope: ["data/tasks/"],
+        agentOutputDir: "/repo/.kota/runs/run-1/agent-output",
         authorityConfigPath: "/operator/.kota/config.json",
         onMessage,
       },
@@ -59,7 +61,14 @@ describe("antigravityCliAgentHarness execution", () => {
         cwd: "/repo",
         machineAuthorityOwner: "kota",
         authorityConfigPath: "/operator/.kota/config.json",
-        writableRoots: ["/repo"],
+        writableRoots: [
+          "/repo/data/tasks",
+          "/repo/.kota/runs/run-1/agent-output",
+        ],
+        runtimeWritableRoots: [
+          "/repo/data/tasks",
+          "/repo/.kota/runs/run-1/agent-output",
+        ],
         env: expect.any(Object),
         readOnlyHostRoots: [],
         allowedEgressHosts: [

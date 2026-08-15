@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-progress-reviewers-citation-ga
 title: Security review: The progress-reviewer's citation gate and action step trust progress-review-evidence.json after the review agent has been granted permission to modify that artifact. A compromised or injected agent can add a fabricated evidence ID, cite it in its final output, and have both output validation and apply-actions accept the modified evidence before materializing an ungrounded task or owner question.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: The progress-reviewer's citation gate and action step trust progress-review-evidence.json after the review agent has been granted permission to modify that artifact. A compromised or injected agent can add a fabricated evidence ID, cite it in its final output, and have both output validation and apply-actions accept the modified evidence before materializing an ungrounded task or owner question.
 created_at: 2026-08-15T08:13:58.075Z
-updated_at: 2026-08-15T08:13:58.075Z
+updated_at: 2026-08-15T10:49:44.000Z
 ---
 
 ## Problem
@@ -156,3 +156,12 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Verified with `pnpm exec vitest --configLoader runner run src/modules/autonomy/workflows/progress-reviewer` (8 files, 48 tests passed).
+- Verified the isolated workflow-output repair across progress-reviewer, Explorer, inbox-sorter, research-retry, native/SDK harnesses, hosted tools, and the post-step Git backstop with the focused Vitest command recorded in the builder run (26 files, 225 tests passed, 1 skipped).
+- Verified repository formatting with `pnpm run lint` (3,505 files checked).
+- Verified with `pnpm run typecheck`.
+- Verified with `pnpm run build`.
+- Verified task state with `pnpm run validate-tasks`.
+- Post-check repair verified with one consolidated focused Vitest run spanning progress-reviewer integrity, repair-loop workspace handling, harness/tool write boundaries, Explorer, and replay smoke fixtures (25 files, 338 tests passed, 1 platform-gated skip).
+- Post-check source-size review reduced six cited files to 300 lines or fewer, leaving three legacy touched advisories below the four-warning severe batch threshold.
+- Repair attempt 7 verified Claude's effective SDK permission callback, destructive output approval, progress-reviewer integrity, cross-harness write isolation, workflow propagation, and strict-types policy with one consolidated Vitest run (26 files, 157 tests passed, 1 platform-gated skip), plus `pnpm run lint` (3,509 files), `pnpm run typecheck`, `pnpm run build`, and `pnpm run validate-tasks`.

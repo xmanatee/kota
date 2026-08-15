@@ -8,6 +8,7 @@ export {
   compactProgressReviewEvidenceForAgent,
 } from "./progress-review/agent-packet.js";
 export {
+  digestProgressReviewEvidencePacket,
   type ProgressReviewEvidenceHandle,
   readProgressReviewEvidencePacketFromHandle,
   validateProgressReviewAgentEvidencePacket,

@@ -34,7 +34,7 @@
     },
     {
       "kind": "file-exists",
-      "path": ".kota/runs/fixture-research-retry-agent-call-replay-2026-04-25/commit-message.txt"
+      "path": ".kota/runs/fixture-research-retry-agent-call-replay-2026-04-25/agent-output/commit-message.txt"
     },
     {
       "kind": "file-exists",

@@ -16,6 +16,10 @@ When a workflow agent finishes its work:
 - Write a short message to `<run-directory>/commit-message.txt`. Do not run
   `git add` or `git commit`; the workflow stages after each agent response and
   commits after validation.
+- The agent-facing run directory is an isolated `agent-output/` descendant (or
+  a workflow runtime-resource override such as builder evidence), not the
+  canonical workflow directory containing metadata and step state. Code steps
+  that consume agent-authored finish artifacts resolve the same output path.
 
 Prompts should not repeat these instructions. Workflow-specific finish guidance
 (e.g. validation before stopping) stays in the prompt.

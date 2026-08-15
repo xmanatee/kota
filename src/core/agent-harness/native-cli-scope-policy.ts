@@ -1,10 +1,15 @@
 import { relative, resolve } from "node:path";
+import type { AgentWriteScope } from "#core/agents/agent-types.js";
 import type { ResolvedScopePolicy } from "#core/daemon/scope-policy.js";
 import {
   isScopePolicyPathWithin,
   resolveScopePolicyPath,
 } from "#core/daemon/scope-policy-paths.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import {
+  intersectWritableRoots,
+  resolveAgentFilesystemWriteRoots,
+} from "./agent-write-scope-roots.js";
 
 export type NativeCliScopeProjection = {
   executionMode: "bounded-edits" | "plan";
@@ -20,14 +25,41 @@ export function projectNativeCliScope(args: {
   cwd: string;
   autonomyMode: AutonomyMode | undefined;
   scopePolicy: ResolvedScopePolicy | undefined;
+  agentWriteScope?: AgentWriteScope;
+  agentOutputDir?: string;
 }): NativeCliScopeProjection {
+  const applyAgentWriteScope = (
+    projection: NativeCliScopeProjection,
+  ): NativeCliScopeProjection => {
+    const scopedRoots = intersectWritableRoots(
+      projection.writableRoots,
+      resolveAgentFilesystemWriteRoots(
+        args.cwd,
+        args.agentWriteScope,
+        args.agentOutputDir,
+      ),
+    );
+    const outputRoots = resolveAgentFilesystemWriteRoots(
+      args.cwd,
+      "deny-all",
+      args.agentOutputDir,
+    ) ?? [];
+    const writableRoots = [...new Set([...scopedRoots, ...outputRoots])];
+    return {
+      executionMode: writableRoots.length === 0 ? "plan" : projection.executionMode,
+      writableRoots,
+    };
+  };
   if (args.autonomyMode === "passive") {
     return { executionMode: "plan", writableRoots: [] };
   }
 
   const policy = args.scopePolicy;
   if (policy === undefined) {
-    return { executionMode: "bounded-edits", writableRoots: [resolve(args.cwd)] };
+    return applyAgentWriteScope({
+      executionMode: "bounded-edits",
+      writableRoots: [resolve(args.cwd)],
+    });
   }
   if (
     policy.ownerConfirmation.localWrite !== "allow" ||
@@ -40,7 +72,10 @@ export function projectNativeCliScope(args: {
     return { executionMode: "plan", writableRoots: [] };
   }
   if (policy.writes.mode === "unrestricted") {
-    return { executionMode: "bounded-edits", writableRoots: [resolve(args.cwd)] };
+    return applyAgentWriteScope({
+      executionMode: "bounded-edits",
+      writableRoots: [resolve(args.cwd)],
+    });
   }
 
   const scopeRoot = policy.directoryRoot === undefined
@@ -52,7 +87,10 @@ export function projectNativeCliScope(args: {
     );
   }
   if (policy.writes.mode === "scope-directory") {
-    return { executionMode: "bounded-edits", writableRoots: [resolve(args.cwd)] };
+    return applyAgentWriteScope({
+      executionMode: "bounded-edits",
+      writableRoots: [resolve(args.cwd)],
+    });
   }
 
   const writableRoots = [...new Set(policy.writes.paths.map((path) => {
@@ -67,8 +105,8 @@ export function projectNativeCliScope(args: {
     }
     return resolve(args.cwd, relative(scopeRoot, resolvedPath));
   }))];
-  return {
+  return applyAgentWriteScope({
     executionMode: writableRoots.length === 0 ? "plan" : "bounded-edits",
     writableRoots,
-  };
+  });
 }

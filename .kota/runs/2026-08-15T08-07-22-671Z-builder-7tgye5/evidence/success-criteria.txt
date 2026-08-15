@@ -1,0 +1,3 @@
+1. Bind progress-review evidence to runtime-owned authority across the reviewer agent step and exclude evidence, step state, and metadata from the reviewer write scope.
+2. Add runtime regression coverage proving a harness-forged evidence ID cannot create a follow-up task or owner question.
+3. Record the final focused verification commands in the completed task.
