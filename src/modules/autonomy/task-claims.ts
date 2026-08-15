@@ -14,6 +14,7 @@ import {
   type QueueTaskClaimResult,
 } from "./task-claim-types.js";
 
+export { updateTaskClaimCanonicalReconciliation } from "./task-claim-canonical-reconciliation.js";
 export {
   archiveClaim,
   archiveClaimIfUnchanged,
@@ -48,6 +49,7 @@ export {
   type QueueTaskClaimResult,
   skippedTaskClaimRecoveryPath,
   type TaskClaim,
+  type TaskClaimCanonicalReconciliationInput,
   type TaskClaimInspection,
   type TaskClaimMutationInput,
   type TaskClaimRecoveryPath,

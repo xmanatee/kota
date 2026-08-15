@@ -1,13 +1,12 @@
 import { vi } from "vitest";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import "./builder-harness-preflight-test-mock.js";
+import "./workflow-canonical-reconciliation-test-mocks.js";
 import "./workflow-agent-run-artifacts-test-mock.js";
 import "./workflow-worktree-test-mocks.js";
-
 vi.mock("#core/config/config.js", () => ({
   loadConfig: vi.fn(() => ({ modules: { builder: { branchPerTask: false } } })),
 }));
-
 vi.mock("#core/util/repo-worktree.js", () => ({
   getRepoWorktreeStatus: vi.fn(() => ({
     available: true,
@@ -20,7 +19,6 @@ vi.mock("#core/util/repo-worktree.js", () => ({
   })),
   getRepoHeadSha: vi.fn(() => "abc1234"),
 }));
-
 vi.mock("#core/workflow/steps/agent-write-scope.js", () => ({
   diffMutatedPaths: vi.fn((pre: readonly string[], post: readonly string[]) => {
     const preSet = new Set(pre);
@@ -166,6 +164,13 @@ vi.mock("#modules/autonomy/task-claims.js", () => ({
       status: "active",
       evidence: input.evidence,
     },
+    recoveryStatus: "agent-running",
+    safeToRetry: false,
+    reason: null,
+  })),
+  updateTaskClaimCanonicalReconciliation: vi.fn((input: { canonicalReconciliation: object }) => ({
+    changed: true,
+    claim: { canonicalReconciliation: input.canonicalReconciliation },
     recoveryStatus: "agent-running",
     safeToRetry: false,
     reason: null,

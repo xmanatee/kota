@@ -14,6 +14,9 @@ import { networkWriteEffect } from "#core/tools/effect.js";
 import { gitTool, runGit } from "./git.js";
 import { resolveGitToolEffect } from "./push-safety.js";
 
+export type { CheckpointAndReconcileAutomationWorktreeInput } from "./worktree-canonical-reconciliation.js";
+export { checkpointAndReconcileAutomationWorktree } from "./worktree-canonical-reconciliation.js";
+export { updateAutomationWorktreeCanonicalReconciliation } from "./worktree-canonical-reconciliation-metadata.js";
 export type {
 	AutomationWorktreeCleanupStatus,
 	AutomationWorktreeDirtySummary,
@@ -46,6 +49,13 @@ export {
 	updateAutomationWorktreeRuntimeResources,
 	updateAutomationWorktreeState,
 } from "./worktree-lifecycle.js";
+export type {
+	AutomationWorktreeCanonicalConflict,
+	AutomationWorktreeCanonicalReconciliation,
+	AutomationWorktreeCanonicalReconciliationDisposition,
+	AutomationWorktreeCanonicalReconciliationPhase,
+	AutomationWorktreeCanonicalValidation,
+} from "./worktree-lifecycle-types.js";
 export type {
 	MergeAutomationWorktreeInput,
 	MergeConflictKind,

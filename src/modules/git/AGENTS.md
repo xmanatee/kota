@@ -17,6 +17,10 @@ This directory owns the `git` capability pack — version control operations wit
 - Automation worktrees use `.worktreeinclude` as a line-oriented allowlist for
   copied local setup files. Entries must be repo-relative, must point at
   git-ignored files or directories, and must not be symlinks.
+- Preserved builder recovery checkpoints visible work on the existing task
+  branch, then reconciles canonical under the same lock and bounded conflict
+  boundary as the final merge gate. Worktree metadata keeps the original base,
+  checkpoint, integrated head, conflicts, and disposition.
 
 ## Boundaries
 

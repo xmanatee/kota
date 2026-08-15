@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import type { AutomationWorktreeCanonicalReconciliation } from "#modules/git/worktree-lifecycle-types.js";
 import type {
   RepoTaskFileDescriptor,
   RepoTaskState,
@@ -75,6 +76,7 @@ export type TaskClaim = {
   workspaceDir: string;
   branch: string;
   baseCommit: string;
+  canonicalReconciliation?: AutomationWorktreeCanonicalReconciliation;
   leaseMs: number;
   leaseAcquiredAt: string;
   leaseExpiresAt: string;
@@ -159,6 +161,10 @@ export type TaskClaimWorkspaceInput = TaskClaimMutationInput & {
   workspaceDir: string;
   branch: string;
   baseCommit: string;
+};
+
+export type TaskClaimCanonicalReconciliationInput = TaskClaimMutationInput & {
+  canonicalReconciliation: AutomationWorktreeCanonicalReconciliation;
 };
 
 export type ContinueTaskClaimInput = {

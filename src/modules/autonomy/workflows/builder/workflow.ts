@@ -38,6 +38,10 @@ import {
   createPrepareBuilderWorktreeStep,
 } from "./prepare-worktree-step.js";
 import {
+  createPreservedCanonicalReconciliationStep,
+  preservedCanonicalReconciliationReady,
+} from "./preserved-canonical-reconciliation-step.js";
+import {
   builderHarnessPreflightStep,
   inspectReadyQueue,
   reconcileWorktreesForRecoveryStep,
@@ -69,6 +73,8 @@ export const agent: AgentDef = {
 
 const claimTaskStep = createClaimTaskStep(inspectReadyQueue);
 const prepareWorktreeStep = createPrepareBuilderWorktreeStep(claimTaskStep);
+const preservedCanonicalReconciliationStep =
+  createPreservedCanonicalReconciliationStep();
 const claimedTaskConsistencyStep = createClaimedTaskConsistencyStep(claimTaskStep);
 const mergeGateStep = createMergeGateStep();
 const cleanupAutomationWorktreeStep = createCleanupAutomationWorktreeStep();
@@ -130,6 +136,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
     builderHarnessPreflightStep,
     claimTaskStep,
     prepareWorktreeStep,
+    preservedCanonicalReconciliationStep,
     {
       id: "build",
       type: "agent",
@@ -148,7 +155,11 @@ const builderWorkflow: WorkflowDefinitionInput = {
         const claim = claimTaskStep.output(ctx);
         const workspace = prepareWorktreeStep.output(ctx);
         if (ctx.trigger.event === BUILDER_RECOVERY_EVENT) {
-          return claim?.claimed === true && workspace !== undefined;
+          return (
+            claim?.claimed === true &&
+            workspace !== undefined &&
+            preservedCanonicalReconciliationReady(ctx)
+          );
         }
         return !dirty && actionableCount > 0 && claim?.claimed === true && workspace !== undefined;
       },

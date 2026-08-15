@@ -4,9 +4,9 @@
 - Tasks define the contract and constraints; the implementing agent owns the detailed plan.
 - Changes here shape the default autonomous development behavior.
 - Mutating work uses the workflow-selected cwd: normally a task worktree; `branchPerTask: false` is an explicit serial opt-out.
-- Give preserved work one automatic continuation. Productive builder work is
-  governed by trusted progress; a continuation that fails or stops reporting
-  progress preserves the worktree for typed state-recovery review.
+- Give preserved work one automatic continuation only after its complete visible work is checkpointed on the existing branch and the merge-gate-serialized canonical head is reconciled.
+  Keep original-base provenance; unresolved overlap stays checkpointed and claim-held for review. Productive work is governed by trusted progress;
+  a continuation that fails or stops reporting progress preserves the worktree for typed state-recovery review.
 - Recovery scanning decides whether to emit an automatic continuation. Once a
   recovery event is queued, its exact task/worktree target governs consumption;
   do not reapply the producer's automatic-attempt gate in the builder.

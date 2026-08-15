@@ -195,3 +195,11 @@ vi.mock("#modules/git/worktree-lifecycle.js", () => ({
     }),
   ),
 }));
+
+vi.mock("#modules/git/worktree-canonical-reconciliation-metadata.js", () => ({
+  updateAutomationWorktreeCanonicalReconciliation: vi.fn(
+    (selector: WorktreeSelector, canonicalReconciliation: object) => ({
+      metadata: { ...makeMetadata(selector, "active"), canonicalReconciliation },
+    }),
+  ),
+}));

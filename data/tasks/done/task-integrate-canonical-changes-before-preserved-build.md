@@ -1,13 +1,13 @@
 ---
 id: task-integrate-canonical-changes-before-preserved-build
 title: Integrate canonical changes before preserved builder continuation
-status: ready
+status: done
 priority: p1
 area: architecture
 task_class: Platform
 summary: Checkpoint preserved builder work and reconcile canonical divergence before an agent resumes, so recovery never extends obsolete code or defers known conflicts to the final merge gate.
 created_at: 2026-08-14T16:28:47.409Z
-updated_at: 2026-08-14T16:28:47.409Z
+updated_at: 2026-08-15T02:45:08.715Z
 ---
 
 ## Problem

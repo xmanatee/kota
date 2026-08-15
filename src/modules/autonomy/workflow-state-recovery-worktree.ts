@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
-import type { WorkflowRunStatus } from "#core/workflow/run-types.js";
+import { isAutomationWorktreeCanonicalReconciliation } from "#modules/git/worktree-canonical-reconciliation-record.js";
 import {
   type AutomationWorktreeInspection,
   type AutomationWorktreeMetadata,
@@ -14,14 +14,7 @@ import type {
 } from "#modules/workflow-ops/state-recovery-provider.js";
 import { safeTaskClaimSegment } from "./task-claim-types.js";
 import type { TaskClaim } from "./task-claims.js";
-
-type OwnerRunStatus = WorkflowRunStatus | "running";
-
-type OwnerRunMetadataProjection = {
-  id?: string;
-  workflow?: string;
-  status?: OwnerRunStatus;
-};
+import type { OwnerRunStatus } from "./workflow-state-recovery-run-status.js";
 
 const TERMINAL_SUCCESS_STATUSES = new Set<OwnerRunStatus>([
   "success",
@@ -32,33 +25,18 @@ const TERMINAL_FAILURE_STATUSES = new Set<OwnerRunStatus>([
   "interrupted",
 ]);
 
-function isOwnerRunStatus(value: string | undefined): value is OwnerRunStatus {
-  return (
-    value === "running" ||
-    value === "success" ||
-    value === "failed" ||
-    value === "interrupted" ||
-    value === "completed-with-warnings"
-  );
+function canonicalReconciliationProjection(
+  metadata: AutomationWorktreeMetadata,
+): Pick<WorkflowStateRecoveryWorktreeEvidence, "canonicalReconciliation"> {
+  const record = metadata.canonicalReconciliation;
+  if (record === undefined) return {};
+  if (!isAutomationWorktreeCanonicalReconciliation(record)) {
+    throw new Error("Malformed worktree canonical reconciliation metadata");
+  }
+  return { canonicalReconciliation: record };
 }
 
-export function readOwnerRunStatus(
-  projectDir: string,
-  claim: TaskClaim,
-): OwnerRunStatus | null {
-  const metadata = readOptionalJsonFile<OwnerRunMetadataProjection>(
-    join(projectDir, ".kota", "runs", claim.runId, "metadata.json"),
-  );
-  if (
-    metadata === null ||
-    metadata.id !== claim.runId ||
-    metadata.workflow !== claim.workflowId ||
-    !isOwnerRunStatus(metadata.status)
-  ) {
-    return null;
-  }
-  return metadata.status;
-}
+export { readOwnerRunStatus } from "./workflow-state-recovery-run-status.js";
 
 function metadataPath(projectDir: string, claim: TaskClaim): string {
   return join(
@@ -115,6 +93,7 @@ function worktreeEvidenceFromInspection(
     ...(unique.error !== undefined ? { uniqueCommitError: unique.error } : {}),
     branchAhead: unique.branchAhead,
     branchBehind: unique.branchBehind,
+    ...canonicalReconciliationProjection(inspection.metadata),
   };
 }
 
@@ -147,6 +126,7 @@ function worktreeEvidenceFromMetadata(
       : {}),
     branchAhead: null,
     branchBehind: null,
+    ...canonicalReconciliationProjection(metadata),
   };
 }
 
