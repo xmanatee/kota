@@ -1,14 +1,14 @@
 ---
 id: task-run-progress-and-scope-reflection-only-at-semantic
 title: Run progress and scope reflection only at semantic boundaries
-status: backlog
+status: ready
 priority: p0
 area: autonomy
 task_class: Meta
 depends_on: [task-replace-autonomy-escalators-with-issue-driven-ai-r]
 summary: Replace periodic and completion-count reflection with deduplicated reviews of meaningful queue, initiative, owner, and scope changes.
 created_at: 2026-08-06T20:22:08.881Z
-updated_at: 2026-08-06T20:22:08.881Z
+updated_at: 2026-08-15T16:31:22.655Z
 ---
 
 ## Problem

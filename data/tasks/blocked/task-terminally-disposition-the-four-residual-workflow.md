@@ -7,7 +7,7 @@ area: platform
 task_class: Platform
 summary: After the existing stale-claim recovery task resolves its two explicitly cited dead letters, reconcile the four remaining open items covering the original builder and improver resumeSessionId failures, the transient 503, and the unreadable-fixture EACCES failure. Preserve claim and worktree recovery ownership in the existing task rather than duplicating it.
 created_at: 2026-08-13T17:38:05.815Z
-updated_at: 2026-08-15T13:26:41.362Z
+updated_at: 2026-08-15T16:31:00.000Z
 ---
 
 ## Problem
@@ -59,6 +59,10 @@ Outcome-aware autonomy progress review.
 ## Status (2026-08-15 builder)
 
 The four residual records have evidence-backed terminal dismissal decisions in registered builder artifact `dead-letter-host-replay.json`. The isolated worktree correctly exposes neither the canonical directory-scope DLQ nor its recovery projection, so this run made no canonical DLQ, claim, or worktree mutation. A trusted host must verify each exact source-run guard, apply or confirm the four dismissals, and capture the six-id open-state projection. The existing recovery task remains the sole owner of the two claim-linked records and their unique-work preservation proof.
+
+## Status (2026-08-15 host verification)
+
+Host replay stopped before mutation because the packet does not satisfy its own source-run guard. Canonical record `dlq-ee8ffaa1-ea74-4d68-816d-768c8101b0b7` belongs to workflow `builder` and failed run `2026-08-13T10-23-52-461Z-builder-pmbg6e`; the packet maps it to workflow `improver` and nonexistent source run `2026-08-13T13-18-45-672Z-improver-36d1kf`. No residual dead letter was dismissed. Correct and revalidate that exact mapping against the canonical record before requesting another host replay; do not weaken the guard or substitute a different item.
 
 ## Unblock Precondition
 
