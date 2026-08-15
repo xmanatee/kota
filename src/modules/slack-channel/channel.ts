@@ -31,6 +31,7 @@ export function makeSlackChannelDef(moduleCtx: ModuleContext): ChannelDef {
 				notifyChannel: config.notifyChannel,
 				config: moduleCtx.config,
 				autonomyMode,
+				moduleLoader: ctx.moduleLoader,
 				getDefaultProjectRuntime: ctx.getDefaultProjectRuntime,
 				recall: moduleCtx.client.recall,
 				answer: moduleCtx.client.answer,

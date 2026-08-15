@@ -1,9 +1,9 @@
 import {
   type DeadLetterItem,
-  deadLetterStoreForProject,
   deadLetterWorkflowName,
 } from "#core/daemon/dead-letter-queue.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
+import { resolveAutonomyIssueRuntimeScope } from "./autonomy-issue-runtime-scope.js";
 import {
   emitHealth,
   stableToken,
@@ -13,7 +13,10 @@ import {
 } from "./autonomy-issue-source-shared.js";
 import { deadLetterHealthCategory } from "./dead-letter-health.js";
 
-type DeadLetterSourceContext = Pick<ModuleRuntimeContext, "cwd" | "events">;
+type DeadLetterSourceContext = Pick<
+  ModuleRuntimeContext,
+  "events" | "getProvider"
+>;
 
 function deadLetterIssueKey(item: DeadLetterItem): string {
   const workflowName = deadLetterWorkflowName(item);
@@ -32,6 +35,7 @@ function deadLetterIssueKey(item: DeadLetterItem): string {
 
 export function subscribeDeadLetterChanges(ctx: DeadLetterSourceContext): void {
   ctx.events.subscribe("workflow.dead-letter.changed", (payload) => {
+    const runtime = resolveAutonomyIssueRuntimeScope(ctx, payload);
     const classification = deadLetterHealthCategory({
       lastErrorClass: payload.failureClass,
       reason: payload.failureReason,
@@ -48,7 +52,7 @@ export function subscribeDeadLetterChanges(ctx: DeadLetterSourceContext): void {
       })
       : `dead-letter:${classification.failureClass}:` +
         `${stableToken(payload.owningModule)}:${stableToken(workflowKey)}`;
-    const matchingItems = deadLetterStoreForProject(ctx.cwd)
+    const matchingItems = runtime.deadLetterQueue
       .list()
       .filter((item) => deadLetterIssueKey(item) === dedupeKey);
     if (
@@ -57,7 +61,7 @@ export function subscribeDeadLetterChanges(ctx: DeadLetterSourceContext): void {
     ) {
       return;
     }
-    emitHealth(ctx, payload.projectId, {
+    emitHealth(ctx, runtime.scopeId, {
       observation: payload.status === "open" ? "present" : "cleared",
       source: workflowFailureName !== undefined
         ? workflowFailureHealthSource(workflowFailureName)

@@ -23,7 +23,6 @@ import {
   type ApprovalQueue,
   getApprovalQueue,
   resetApprovalQueue,
-  setApprovalQueueInstance,
 } from "#core/daemon/approval-queue.js";
 import {
   type DaemonControlHandle,
@@ -34,9 +33,8 @@ import { daemonSetupControlHandleStubs } from "#core/daemon/daemon-setup-control
 import type { OwnerDecisionStore } from "#core/daemon/owner-decision-store.js";
 import type { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
-import {
-  buildConfiguredProject,
-  type ConfiguredProject,
+import type {
+  ConfiguredProject,
 } from "#core/daemon/scope-registry.js";
 import {
   initProviderRegistry,
@@ -51,7 +49,7 @@ vi.mock("#core/tools/index.js", () => ({
 
 const TEST_TOKEN = "approvals-test-token";
 
-function approvePending(queue: ApprovalQueue, id: string): void {
+function _approvePending(queue: ApprovalQueue, id: string): void {
   const selection = queue.getExecutionSnapshot(id);
   if (!selection.ok) throw new Error("expected execution snapshot");
   const result = queue.approveForExecution(selection.snapshot.descriptor);
@@ -118,7 +116,7 @@ function makeHandle(): DaemonControlHandle {
   };
 }
 
-async function fetchWith(
+async function _fetchWith(
   port: number,
   path: string,
   init: RequestInit = {},
@@ -137,7 +135,7 @@ function reviewDigest(queue: ApprovalQueue, id: string): string {
   return review.digest;
 }
 
-function approvalPost(queue: ApprovalQueue, id: string, note?: string): RequestInit {
+function _approvalPost(queue: ApprovalQueue, id: string, note?: string): RequestInit {
   return {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -148,7 +146,7 @@ function approvalPost(queue: ApprovalQueue, id: string, note?: string): RequestI
   };
 }
 
-function approveAllPost(queue: ApprovalQueue): RequestInit {
+function _approveAllPost(queue: ApprovalQueue): RequestInit {
   return {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -161,7 +159,7 @@ function approveAllPost(queue: ApprovalQueue): RequestInit {
   };
 }
 
-function registerProjectQueueProvider(
+function _registerProjectQueueProvider(
   entries: Array<{
     project: ConfiguredProject;
     approvalQueue: ApprovalQueue;
@@ -210,13 +208,13 @@ describe("approval-queue module daemon-control routes", () => {
   let server: DaemonControlServer;
   let port: number;
   let queueDir: string;
-  let queue: ApprovalQueue;
+  let _queue: ApprovalQueue;
 
   beforeEach(async () => {
     queueDir = mkdtempSync(join(tmpdir(), "kota-approvals-control-"));
     resetProviderRegistry();
     resetApprovalQueue();
-    queue = getApprovalQueue(queueDir);
+    _queue = getApprovalQueue(queueDir);
     vi.mocked(executeTool).mockResolvedValue({ content: "ok" });
     server = new DaemonControlServer(makeHandle(), TEST_TOKEN, {
       controlRoutes: approvalControlRoutes(),

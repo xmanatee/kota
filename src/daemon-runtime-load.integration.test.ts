@@ -13,30 +13,40 @@
  *   `loadRuntimeModules` so the lifecycle and the served routes cannot
  *   diverge.
  *
- * The two cases below are the contract:
- *   - `loadRuntimeModules` registers provider-backed seams. A daemon built
- *     from its contributions serves `/api/knowledge` with 200.
- *   - A `"commands"` loader cannot hand back its routes at all: the typed
- *     accessor throws so a runtime host can never silently ship with a
- *     partial module lifecycle.
+ * This test proves `loadRuntimeModules` registers provider-backed seams and a
+ * daemon built from its contributions serves `/api/knowledge` with 200.
  */
 
-import { mkdirSync, readFileSync, rmSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Daemon } from "#core/daemon/daemon.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
+import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
 import { resetScheduler } from "#core/daemon/scheduler.js";
-import { resetEventBus } from "#core/events/event-bus.js";
-import { discoverModules } from "#core/modules/module-discovery.js";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import { EventBus, initEventBus, resetEventBus } from "#core/events/event-bus.js";
+import { EventJournal } from "#core/events/event-journal.js";
+import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
-import { discoverProjectModules } from "#core/modules/project-discovery.js";
 import {
   getKnowledgeProvider,
+  getProviderRegistry,
   resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
+import { autonomyIssueDecisionRequested } from "#modules/autonomy/autonomy-issue-events.js";
+import { readAutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection.js";
+import {
+  type AutonomyHealthSignal,
+  autonomyHealthSignal,
+} from "#modules/autonomy/health-signal.js";
 
 function readControlAddress(stateDir: string): DaemonControlAddress {
   const raw = readFileSync(join(stateDir, "daemon-control.json"), "utf-8");
@@ -54,15 +64,15 @@ async function fetchWithToken(
 }
 
 describe("daemon runtime module load", () => {
+  let rootDir: string;
   let projectDir: string;
   let stateDir: string;
 
   beforeEach(() => {
-    projectDir = join(
-      tmpdir(),
-      `kota-runtime-load-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    );
+    rootDir = mkdtempSync(join(tmpdir(), "kota-runtime-load-"));
+    projectDir = join(rootDir, "project-a");
     stateDir = join(projectDir, ".kota");
+    mkdirSync(projectDir, { recursive: true });
     mkdirSync(stateDir, { recursive: true });
     resetEventBus();
     resetScheduler();
@@ -73,30 +83,49 @@ describe("daemon runtime module load", () => {
     resetEventBus();
     resetScheduler();
     resetProviderRegistry();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(rootDir, { recursive: true, force: true });
+  });
+
+  it("rejects a daemon host whose loader is bound to a different event authority", () => {
+    const loaderBus = new EventBus();
+    const loader = new ModuleLoader({}, false, { mode: "runtime" });
+    loader.setBus(loaderBus);
+
+    expect(() => new Daemon({
+      runtimeModuleHost: { eventBus: new EventBus(), moduleLoader: loader },
+      projectDir,
+      stateDir,
+    })).toThrow(/bound to a different EventBus authority/);
   });
 
   it("loadRuntimeModules registers provider-backed seams; daemon serves /api/knowledge", async () => {
-    const config = { defaultAgentHarness: "claude-agent-sdk" };
-    const loader = await loadRuntimeModules({ config, cwd: projectDir });
+    const config = {
+      defaultAgentHarness: "claude-agent-sdk",
+      model: "ollama/gpt-5.6-sol",
+    };
+    const eventBus = initEventBus();
+    const loader = await loadRuntimeModules({
+      config,
+      cwd: projectDir,
+      eventBus,
+    });
+    const sourceListenerCount = eventBus.listenerCount("workflow.failure.alert");
 
     expect(() => getKnowledgeProvider()).not.toThrow();
+    expect(sourceListenerCount).toBeGreaterThan(0);
 
     const daemon = new Daemon({
+      runtimeModuleHost: { eventBus, moduleLoader: loader },
       projectDir,
       stateDir,
       idleIntervalMs: 60_000,
       pollIntervalMs: 60_000,
-      // Keep workflows/channels off the daemon so the test is bounded by
-      // route serving alone. The lifecycle being verified — `onLoad` ran,
-      // therefore provider-backed handlers work — is independent of the
-      // workflow runtime, and loading every project workflow against an
-      // empty tmp directory triggers unrelated startup churn.
       workflows: [],
       channels: [],
       controlRoutes: loader.getContributedControlRoutes(),
       routes: loader.getRoutes(),
       config,
+      unloadModules: () => loader.unloadAll(),
     });
 
     const startPromise = daemon.start();
@@ -115,36 +144,130 @@ describe("daemon runtime module load", () => {
       await daemon.stop();
       await startPromise;
     }
-  });
+    expect(eventBus.listenerCount("workflow.failure.alert")).toBe(0);
 
-  it("\"commands\" mode loader refuses to hand back routes/control-routes/health while exposing static contributions", async () => {
-    const config = { defaultAgentHarness: "claude-agent-sdk" };
-    const projectModules = await discoverProjectModules();
-    const installedModules = await discoverModules(projectDir);
-    const loader = new ModuleLoader(config, false, { mode: "commands" });
-    loader.setCwd(projectDir);
-    await loader.loadAll(projectModules, installedModules);
+    const restartedLoader = await loadRuntimeModules({
+      config,
+      cwd: projectDir,
+      eventBus,
+    });
+    const restartedSourceListenerCount = eventBus.listenerCount("workflow.failure.alert");
+    const reviewerWorkflow = restartedLoader.getContributedWorkflows().find(
+      (workflow) => workflow.name === "autonomy-health-reviewer",
+    );
+    expect(restartedSourceListenerCount).toBe(sourceListenerCount);
+    expect(reviewerWorkflow).toBeDefined();
 
-    // No provider was registered: the registry surfaces that directly,
-    // independent of the loader contract.
-    expect(() => getKnowledgeProvider()).toThrow(/knowledge provider/);
+    const healthSignals: Array<AutonomyHealthSignal & {
+      scopeId: string;
+      projectId: string;
+    }> = [];
+    const decisions: Array<{ scopeId: string; projectId: string; issueKey: string }> = [];
+    eventBus.on(autonomyHealthSignal, (payload) => healthSignals.push(payload));
+    const restartedDaemon = new Daemon({
+      runtimeModuleHost: { eventBus, moduleLoader: restartedLoader },
+      projectDir,
+      stateDir,
+      idleIntervalMs: 60_000,
+      pollIntervalMs: 60_000,
+      // Keep the restarted fixture bounded to the workflow that consumes the
+      // source-owned health event and projects its durable decision handoff.
+      workflows: [reviewerWorkflow!],
+      channels: [],
+      controlRoutes: restartedLoader.getContributedControlRoutes(),
+      routes: restartedLoader.getRoutes(),
+      config,
+      unloadModules: () => restartedLoader.unloadAll(),
+    });
 
-    // The lifecycle contract narrows to genuinely runtime-dependent accessors:
-    // route handlers and control-route handlers close over onLoad-initialized
-    // provider state, and module health probes do the same. Reading those from
-    // a commands-mode loader is the partial-context bug class; the typed
-    // boundary throws so a daemon cannot ingest them. There is no escape hatch.
-    expect(() => loader.getRoutes()).toThrow(/lifecycle mode "runtime"/);
-    expect(() => loader.getContributedControlRoutes()).toThrow(/lifecycle mode "runtime"/);
-    await expect(loader.probeHealthChecks()).rejects.toThrow(/lifecycle mode "runtime"/);
-
-    // Static-data accessors stay safe in commands mode because they are
-    // populated from each module's definition during load(), independent of
-    // onLoad side effects. CLI surfaces (workflow validate/exec, daemon
-    // reload-config diff) read these without spinning up a runtime lifecycle.
-    expect(() => loader.getContributedWorkflows()).not.toThrow();
-    expect(() => loader.getContributedChannels()).not.toThrow();
-    expect(() => loader.getSkillsPrompt()).not.toThrow();
-    expect(() => loader.getAgentDef("nonexistent")).not.toThrow();
+    const restartedStartPromise = restartedDaemon.start();
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      const scopeId = deriveDirectoryScopeId(projectDir);
+      const address = readControlAddress(stateDir);
+      const createSessionResponse = await globalThis.fetch(
+        `http://127.0.0.1:${address.port}/sessions`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${address.token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ autonomy_mode: "supervised" }),
+        },
+      );
+      const createSessionDiagnostic = await createSessionResponse.clone().text();
+      expect(createSessionResponse.status, createSessionDiagnostic).toBe(201);
+      const createdSession = await createSessionResponse.json() as {
+        session_id: string;
+      };
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(eventBus.listenerCount("workflow.failure.alert")).toBe(
+        restartedSourceListenerCount,
+      );
+      const runtimeScopeProvider = getProviderRegistry()?.get(
+        DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE,
+      );
+      expect(runtimeScopeProvider?.resolve(scopeId)).toEqual(
+        expect.objectContaining({ ok: true }),
+      );
+      const decisionObserved = new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(
+          () => reject(new Error("timed out waiting for scoped autonomy issue decision")),
+          3000,
+        );
+        eventBus.on(autonomyIssueDecisionRequested, (payload) => {
+          decisions.push(payload);
+          clearTimeout(timeout);
+          resolve();
+        });
+      });
+      new ProjectScopedEventBus(eventBus, scopeId).emit("workflow.failure.alert", {
+        workflow: "builder",
+        runId: "daemon-runtime-event-run",
+        status: "failed",
+        durationMs: 1000,
+        errorSummary: "daemon runtime integration failure",
+        text: "builder failed",
+      });
+      expect(healthSignals).toEqual([
+        expect.objectContaining({
+          scopeId,
+          projectId: scopeId,
+          source: expect.objectContaining({ id: "builder" }),
+        }),
+      ]);
+      await decisionObserved;
+      expect(decisions).toEqual([
+        expect.objectContaining({ scopeId, projectId: scopeId }),
+      ]);
+      expect(readAutonomyIssueProjection(projectDir).issues).toEqual([
+        expect.objectContaining({
+          status: "needs-decision",
+          source: expect.objectContaining({ id: "builder" }),
+        }),
+      ]);
+      const journal = new EventJournal(join(stateDir, "events"));
+      expect(journal.query({ type: autonomyHealthSignal.name, scopeId })).toHaveLength(1);
+      expect(journal.query({ type: autonomyIssueDecisionRequested.name, scopeId })).toHaveLength(1);
+      const deleteSessionResponse = await globalThis.fetch(
+        `http://127.0.0.1:${address.port}/sessions/${createdSession.session_id}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${address.token}` },
+        },
+      );
+      expect(deleteSessionResponse.status).toBe(204);
+      expect(eventBus.listenerCount("workflow.failure.alert")).toBe(
+        restartedSourceListenerCount,
+      );
+      expect(getProviderRegistry()?.get(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE)).toBe(
+        runtimeScopeProvider,
+      );
+    } finally {
+      await restartedDaemon.stop();
+      await restartedStartPromise;
+    }
+    expect(eventBus.listenerCount("workflow.failure.alert")).toBe(0);
   });
 });

@@ -40,6 +40,7 @@ export interface ModuleContextParams {
   config: KotaConfig;
   moduleStorages: Map<string, ModuleStorage>;
   getBus: () => EventBus | null;
+  trackEventSubscription: (unsubscribe: () => void) => () => void;
   getRoutes: () => RouteRegistration[];
   getContributedControlRoutes: () => ControlRouteRegistration[];
   getContributedWorkflows: () => RegisteredWorkflowDefinitionInput[];
@@ -48,7 +49,7 @@ export interface ModuleContextParams {
   getModuleSummaries: () => ModuleSummary[];
   resolveAgentDef: (name: string) => AgentDef | undefined;
   resolveSkillsPrompt: (skillNames: string[] | "all", agentName?: string) => string;
-  sessionFactory: ((opts: CreateSessionOptions) => ModuleSession) | null;
+  getSessionFactory: () => ((opts: CreateSessionOptions) => ModuleSession) | null;
   callTool: (name: string, input: Record<string, unknown>) => Promise<ToolResult>;
   probeHealthChecks: () => Promise<Record<string, HealthCheckResult>>;
   getRegisteredConfigKeys: () => ReadonlySet<string>;
@@ -75,13 +76,24 @@ function getOrCreateStorage(
  * signature that mirrors `EventBus`.
  */
 class ModuleEventProxyImpl implements ModuleEventProxy {
-  constructor(private readonly getBus: () => EventBus | null) {}
+  constructor(
+    private readonly getBus: () => EventBus | null,
+    private readonly trackSubscription: (unsubscribe: () => void) => () => void,
+  ) {}
+
+  private requireBus(operation: string): EventBus {
+    const bus = this.getBus();
+    if (bus) return bus;
+    throw new Error(
+      `Module event ${operation} requires a bound runtime EventBus. ` +
+        "Runtime module loading must bind the host event authority before lifecycle execution.",
+    );
+  }
 
   emit<K extends keyof BusEvents>(event: K, payload: BusEvents[K]): void;
   emit<E extends ModuleEventDef>(event: E, payload: ModuleEventPayload<E>): void;
   emit(event: string | ModuleEventDef, payload: Record<string, unknown>): void {
-    const bus = this.getBus();
-    if (!bus) return;
+    const bus = this.requireBus("emit");
     if (typeof event !== "string") {
       assertModuleEventPayload(event, payload as ModuleEventPayloadObject);
       bus.emit(event, payload as ModuleEventPayload<typeof event>);
@@ -103,36 +115,37 @@ class ModuleEventProxyImpl implements ModuleEventProxy {
     event: string | ModuleEventDef,
     handler: (payload: never) => void,
   ): () => void {
-    const bus = this.getBus();
-    if (!bus) return () => {};
+    const bus = this.requireBus("subscribe");
     const name = typeof event === "string" ? event : event.name;
-    return bus.on(name, handler as never);
+    return this.trackSubscription(bus.on(name, handler as never));
   }
 
   emitExternal(event: string, payload: Record<string, unknown>): void {
-    this.getBus()?.emit(event, payload);
+    this.requireBus("emitExternal").emit(event, payload);
   }
 
   subscribeExternal(
     event: string,
     handler: (payload: Record<string, unknown>) => void,
   ): () => void {
-    const bus = this.getBus();
-    if (!bus) return () => {};
-    return bus.on(event, handler as never);
+    const bus = this.requireBus("subscribeExternal");
+    return this.trackSubscription(bus.on(event, handler as never));
   }
 
   listenerCount(event?: string): number {
-    return this.getBus()?.listenerCount(event) ?? 0;
+    return this.requireBus("listenerCount").listenerCount(event);
   }
 }
 
-function createEventProxy(getBus: () => EventBus | null): ModuleEventProxy {
-  return new ModuleEventProxyImpl(getBus);
+function createEventProxy(
+  getBus: () => EventBus | null,
+  trackSubscription: (unsubscribe: () => void) => () => void,
+): ModuleEventProxy {
+  return new ModuleEventProxyImpl(getBus, trackSubscription);
 }
 
 export function createModuleContext(params: ModuleContextParams, moduleName?: string): ModuleRuntimeContext {
-  const { cwd, verbose, config, moduleStorages, getBus, getRoutes, getContributedControlRoutes, getContributedWorkflows, getContributedChannels, getContributedUiSurfaces, getModuleSummaries, resolveAgentDef, resolveSkillsPrompt, sessionFactory, callTool, probeHealthChecks, getRegisteredConfigKeys } = params;
+  const { cwd, verbose, config, moduleStorages, getBus, trackEventSubscription, getRoutes, getContributedControlRoutes, getContributedWorkflows, getContributedChannels, getContributedUiSurfaces, getModuleSummaries, resolveAgentDef, resolveSkillsPrompt, getSessionFactory, callTool, probeHealthChecks, getRegisteredConfigKeys } = params;
   const storage = moduleName
     ? getOrCreateStorage(moduleName, cwd, moduleStorages)
     : new ModuleStorage(cwd, "_default");
@@ -180,8 +193,9 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
     listTools: (): string[] => {
       return getRegisteredTools().map((t) => t.name);
     },
-    events: createEventProxy(getBus),
+    events: createEventProxy(getBus, trackEventSubscription),
     createSession: (opts?: CreateSessionOptions): ModuleSession => {
+      const sessionFactory = getSessionFactory();
       if (!sessionFactory) {
         throw new Error("Session factory not available. createSession() can only be used during agent sessions, not CLI commands.");
       }

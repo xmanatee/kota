@@ -28,6 +28,7 @@ export function recordEventEmitFailureDeadLetter(input: {
     input.defaultProjectId,
     input.log,
   );
+  if (runtime === null) return;
   createEventEnvelopeDeadLetter({
     store: runtime.deadLetterQueue,
     scopeId: runtime.project.projectId,
@@ -46,19 +47,30 @@ function runtimeForEventFailure(
   runtimes: ProjectRuntimeRegistry,
   defaultProjectId: string,
   log: (message: string) => void,
-): ProjectRuntime {
-  const scopeId = scopeIdFromPayload(failure.payload) ?? defaultProjectId;
+): ProjectRuntime | null {
+  const payloadScopeId = scopeIdFromPayload(failure.payload);
+  if (payloadScopeId === null) {
+    log(
+      `Event "${failure.event}" failed with conflicting scope selectors; ` +
+        "no project DLQ was selected",
+    );
+    return null;
+  }
+  const scopeId = payloadScopeId ?? defaultProjectId;
   try {
     return runtimes.get(scopeId);
   } catch (error) {
     log(
-      `Event "${failure.event}" failed before dispatch with unknown scope "${scopeId}"; recording DLQ item under default scope ${runtimes.getDefaultProjectId()}: ${error instanceof Error ? error.message : String(error)}`,
+      `Event "${failure.event}" failed before dispatch with unknown scope "${scopeId}"; ` +
+        `no project DLQ was selected: ${error instanceof Error ? error.message : String(error)}`,
     );
-    return runtimes.getDefault();
+    return null;
   }
 }
 
-function scopeIdFromPayload(payload: EventEmitFailure["payload"]): string | undefined {
+function scopeIdFromPayload(
+  payload: EventEmitFailure["payload"],
+): string | null | undefined {
   const scopeId =
     typeof payload.scopeId === "string" && payload.scopeId.length > 0
       ? payload.scopeId
@@ -67,5 +79,8 @@ function scopeIdFromPayload(payload: EventEmitFailure["payload"]): string | unde
     typeof payload.projectId === "string" && payload.projectId.length > 0
       ? payload.projectId
       : undefined;
+  if (scopeId !== undefined && projectId !== undefined && scopeId !== projectId) {
+    return null;
+  }
   return scopeId ?? projectId;
 }

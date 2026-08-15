@@ -59,7 +59,7 @@ describe("owner decision workflow helpers", () => {
   let decisionStore: OwnerDecisionStore;
   let questionQueue: OwnerQuestionQueue;
   let approvalQueue: ApprovalQueue;
-  let deadLetterQueue: DeadLetterQueueStore;
+  let _deadLetterQueue: DeadLetterQueueStore;
   let idempotencyStore: IdempotencyStore;
   const log = vi.fn();
 
@@ -77,7 +77,7 @@ describe("owner decision workflow helpers", () => {
     decisionStore = new OwnerDecisionStore(decisionDir, "scope-a", pbus);
     questionQueue = new OwnerQuestionQueue(questionDir, pbus);
     approvalQueue = new ApprovalQueue(approvalDir, pbus);
-    deadLetterQueue = new DeadLetterQueueStore(deadLetterDir);
+    _deadLetterQueue = new DeadLetterQueueStore(deadLetterDir);
     idempotencyStore = new IdempotencyStore(idempotencyDir, "scope-a");
     setApprovalQueueInstance(approvalQueue);
     setIdempotencyStoreInstance(idempotencyStore);
@@ -126,7 +126,7 @@ describe("owner decision workflow helpers", () => {
     };
   }
 
-  function makeConfirmedActionWorkflow(
+  function _makeConfirmedActionWorkflow(
     calls: string[],
     decisionAction: typeof ACTION = ACTION,
     adapterAction: typeof ACTION = decisionAction,
@@ -209,7 +209,7 @@ describe("owner decision workflow helpers", () => {
     throw new Error("owner question was not enqueued");
   }
 
-  async function approvePendingApproval(): Promise<string> {
+  async function _approvePendingApproval(): Promise<string> {
     for (let attempt = 0; attempt < 100; attempt++) {
       await new Promise((resolve) => setTimeout(resolve, 10));
       const pending = approvalQueue.list("pending");

@@ -1,6 +1,5 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
@@ -12,7 +11,6 @@ import {
   type WorkflowCommitOutcome,
 } from "#modules/autonomy/commit-result.js";
 import {
-  onNormalTrigger,
   onRecoveryTrigger,
   resetWorktreeForRecovery,
 } from "#modules/autonomy/recovery.js";
@@ -21,132 +19,26 @@ import {
   checkNoScratchArtifacts,
   runCheck,
   stepCommitRequiresDaemonRestart,
-  stepCommitted,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
 import { assertTaskQueueValid } from "#modules/repo-tasks/task-queue-validation.js";
 import {
+  collectInputs,
+  discoverCandidates,
+  gatherEvidence,
+  inspectWorktree,
+  recommend,
+} from "./preparation-steps.js";
+import {
   applyScopeImprovementRecommendations,
-  collectScopeImprovementInputs,
-  discoverScopeImprovementCandidates,
-  gatherScopeImprovementEvidence,
-  recommendScopeImprovements,
   type ScopeImprovementActionResult,
   type ScopeImprovementArtifact,
-  type ScopeImprovementCandidate,
   type ScopeImprovementCooldownDecision,
-  type ScopeImprovementEvidencePacket,
-  type ScopeImprovementInputs,
   type ScopeImprovementPreflight,
-  type ScopeImprovementRecommendation,
   writeScopeImprovementArtifact,
 } from "./scope-improvement.js";
 import { writeScopeImprovementState } from "./scope-improvement-state.js";
 import { scopeImproverTriggers } from "./triggers.js";
-
-type WorktreeInspection = {
-  available: boolean;
-  dirty: boolean;
-  entries: string[];
-  summary: string;
-};
-
-const inspectWorktree = typedCodeStep<WorktreeInspection>({
-  id: "inspect-worktree",
-  type: "code",
-  when: onNormalTrigger,
-  validate: (raw) =>
-    expectStructuredOutput<WorktreeInspection>(raw, [
-      "available",
-      "dirty",
-      "entries",
-      "summary",
-    ]),
-  run: ({ projectDir }) => {
-    const worktree = getRepoWorktreeStatus(projectDir);
-    return {
-      available: worktree.available,
-      dirty: !worktree.available || worktree.dirty,
-      entries: worktree.entries,
-      summary: worktree.summary,
-    };
-  },
-});
-
-const collectInputs = typedCodeStep<ScopeImprovementInputs>({
-  id: "collect-scope-inputs",
-  type: "code",
-  when: onNormalTrigger,
-  validate: (raw) =>
-    expectStructuredOutput<ScopeImprovementInputs>(raw, [
-      "generatedAt",
-      "triggerKind",
-      "triggerEvent",
-      "scope",
-      "config",
-      "state",
-      "instructions",
-      "changedFiles",
-      "evidence",
-      "throttle",
-    ]),
-  run: ({ projectDir, trigger }) =>
-    collectScopeImprovementInputs({ projectDir, trigger, now: new Date() }),
-});
-
-const discoverCandidates = typedCodeStep<{
-  candidates: ScopeImprovementCandidate[];
-}>({
-  id: "discover-candidates",
-  type: "code",
-  when: stepSucceeded("collect-scope-inputs"),
-  validate: (raw) =>
-    expectStructuredOutput<{ candidates: ScopeImprovementCandidate[] }>(raw, [
-      "candidates",
-    ]),
-  run: (ctx) => ({
-    candidates: discoverScopeImprovementCandidates(collectInputs.outputRequired(ctx)),
-  }),
-});
-
-const gatherEvidence = typedCodeStep<ScopeImprovementEvidencePacket>({
-  id: "gather-evidence",
-  type: "code",
-  when: stepSucceeded("discover-candidates"),
-  validate: (raw) =>
-    expectStructuredOutput<ScopeImprovementEvidencePacket>(raw, [
-      "generatedAt",
-      "scope",
-      "triggerKind",
-      "triggerEvent",
-      "evidence",
-      "candidates",
-    ]),
-  run: (ctx) =>
-    gatherScopeImprovementEvidence({
-      inputs: collectInputs.outputRequired(ctx),
-      candidates: discoverCandidates.outputRequired(ctx).candidates,
-    }),
-});
-
-const recommend = typedCodeStep<{
-  recommendations: ScopeImprovementRecommendation[];
-}>({
-  id: "recommend-improvements",
-  type: "code",
-  when: stepSucceeded("gather-evidence"),
-  validate: (raw) =>
-    expectStructuredOutput<{ recommendations: ScopeImprovementRecommendation[] }>(
-      raw,
-      ["recommendations"],
-    ),
-  run: (ctx) => ({
-    recommendations: recommendScopeImprovements({
-      inputs: collectInputs.outputRequired(ctx),
-      evidence: gatherEvidence.outputRequired(ctx),
-    }),
-  }),
-});
 
 const applyRecommendations = typedCodeStep<ScopeImprovementActionResult>({
   id: "apply-recommendations",

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { UiSurface } from "#core/daemon/ui-surface.js";
 import type { KotaClient } from "#core/server/kota-client.js";
-import { ModuleLoader } from "./module-loader.js";
+import { createRuntimeModuleLoader } from "./module-context.test-helpers.js";
 
 function uiProjectionClient(): KotaClient {
   const client = {
@@ -36,7 +36,7 @@ function demoSurface() {
 
 describe("ModuleLoader live UI surfaces", () => {
   it("projects live sources and validates global extension ids", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createRuntimeModuleLoader({});
     const surface = demoSurface();
     await loader.load({
       name: "ui-provider",
@@ -57,7 +57,7 @@ describe("ModuleLoader live UI surfaces", () => {
   });
 
   it("rejects invalid runtime discriminants", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createRuntimeModuleLoader({});
     const surface = {
       ...demoSurface(),
       nodes: [{ kind: "timeline" } as unknown as UiSurface["nodes"][number]],
@@ -71,7 +71,7 @@ describe("ModuleLoader live UI surfaces", () => {
   });
 
   it("rejects duplicate source ids at registration", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createRuntimeModuleLoader({});
     await loader.load({
       name: "first-ui-provider",
       uiSurfaces: [{ sourceId: "status", project: () => [] }],
@@ -85,7 +85,7 @@ describe("ModuleLoader live UI surfaces", () => {
   });
 
   it("reloads source definitions and applies explicit scope selection", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createRuntimeModuleLoader({});
     let title = "Before reload";
     await loader.load({
       name: "live-ui-provider",
@@ -126,7 +126,7 @@ describe("ModuleLoader live UI surfaces", () => {
     activeProjectId,
     expectedScopeId,
   }) => {
-    const loader = new ModuleLoader({});
+    const loader = createRuntimeModuleLoader({});
     const baseMemoryList = vi.fn(async () => ({ entries: [{ content: "base" }] }));
     const scopedMemoryList = vi.fn(async () => ({ entries: [{ content: "scoped" }] }));
     const scopedClient = {
@@ -171,7 +171,7 @@ describe("ModuleLoader live UI surfaces", () => {
   });
 
   it("wraps contributor failures with typed source ownership", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createRuntimeModuleLoader({});
     await loader.load({
       name: "failing-ui-provider",
       uiSurfaces: [{

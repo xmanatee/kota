@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { truncateToolResult } from "./core/loop/context.js";
-import { ModuleLoader } from "./core/modules/module-loader.js";
+import { createRuntimeModuleLoader } from "./core/modules/module-context.test-helpers.js";
 import { clearCustomTools, executeTool, getAllTools } from "./core/tools/index.js";
 import { enableGroup, filterTools, resetGroups } from "./core/tools/tool-groups.js";
 import { FailureTracker } from "./core/tools/tool-runner.js";
@@ -13,7 +13,7 @@ import renderingModule from "./modules/rendering/index.js";
 let testDir: string;
 
 beforeAll(async () => {
-  const loader = new ModuleLoader({});
+  const loader = createRuntimeModuleLoader({});
   await loader.loadAll([renderingModule, filesystemModule]);
 });
 
@@ -92,8 +92,9 @@ describe("files_overview × truncateToolResult (cross-module context)", () => {
     // Truncate to a small limit
     const truncated = truncateToolResult(text, 300);
     expect(truncated.length).toBeLessThan(text.length);
-    // Should still contain the header line
-    expect(truncated).toContain("50 files");
+    // The directory header survives even when a long absolute path consumes
+    // the retained prefix before its trailing count fields.
+    expect(truncated).toContain("Directory:");
     // Truncation notice present (context.ts uses "chars omitted" format)
     expect(truncated).toContain("chars omitted");
   });

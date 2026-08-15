@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { ModuleLoader } from "#core/modules/module-loader.js";
+import { createRuntimeModuleLoader } from "#core/modules/module-context.test-helpers.js";
 import { clearCustomTools } from "#core/tools/index.js";
 import {
   getToolTelemetry,
@@ -161,7 +161,7 @@ describe("ToolTelemetry", () => {
 
 describe("Integration: telemetry populated via executeToolCalls", () => {
   beforeAll(async () => {
-    const loader = new ModuleLoader({});
+    const loader = createRuntimeModuleLoader({});
     await loader.loadAll([renderingModule, filesystemModule]);
   });
 
@@ -277,7 +277,6 @@ describe("toToolCallSummary", () => {
     expect(edit).toEqual({ tool: "Edit", count: 1, totalMs: 1200 });
   });
 });
-
 describe("Singleton management", () => {
   afterEach(() => {
     resetToolTelemetry();

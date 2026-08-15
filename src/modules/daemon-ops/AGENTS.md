@@ -17,7 +17,7 @@ surface around the daemon runtime. It also owns the daemon-facing CLI commands.
   `kota session` CLI plus the `sessions` `KotaClient` namespace
   (`client.sessions.list()` / `client.sessions.setAutonomyMode()`) end-to-end.
   Both the local-side handler (`sessionsLocalClient`) and the daemon-side
-  handler (`buildSessionsDaemonHandler` in `index.ts`, contributed through the
+  handler (`buildSessionsDaemonHandler` in `daemon-client-handlers.ts`, contributed through the
   `daemonClient(link)` factory) realize the contract declared in `client.ts`.
   Validate mode values before issuing the HTTP call. Do not embed mode-change
   flow into any other subcommand (e.g. approval resolution) — mode is a
@@ -28,7 +28,7 @@ surface around the daemon runtime. It also owns the daemon-facing CLI commands.
   `daemon-ops-operations.ts`) reads `.kota/daemon-control.json` to
   distinguish "not running" from "stale/unverified control file"; local stop
   authenticates `/status` and confirms the published pid before signaling. The daemon-side
-  handler (`buildDaemonOpsDaemonHandler` in `index.ts`, contributed through
+  handler (`buildDaemonOpsDaemonHandler` in `daemon-client-handlers.ts`, contributed through
   the same `daemonClient(link)` factory alongside `sessions`) routes
   `status()`/`pid()` through `GET /status` and `reload()` through
   `POST /reload`. Both client arms stop the daemon by signaling the published

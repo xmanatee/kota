@@ -7,6 +7,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { EventBus } from "./core/events/event-bus.js";
 import { ModuleLoader } from "./core/modules/module-loader.js";
 import type { KotaModule } from "./core/modules/module-types.js";
 import { discoverProjectModules } from "./core/modules/project-discovery.js";
@@ -14,6 +15,12 @@ import { clearCustomTools, executeTool, getAllTools } from "./core/tools/index.j
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, } from "./core/tools/tool-groups.js";
 
 let projectModules: KotaModule[];
+
+function createRuntimeLoader(): ModuleLoader {
+  const loader = new ModuleLoader({});
+  loader.setBus(new EventBus());
+  return loader;
+}
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -34,7 +41,7 @@ describe("module → CLI pipeline (full lifecycle)", () => {
   });
 
   it("ModuleLoader.loadAll registers tools from all tool-providing modules", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createRuntimeLoader();
     await loader.loadAll(projectModules);
 
     // Memory and scheduler modules provide tools
@@ -54,7 +61,7 @@ describe("module → CLI pipeline (full lifecycle)", () => {
   });
 
   it("ModuleLoader.loadAll registers all project modules", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createRuntimeLoader();
     await loader.loadAll(projectModules);
 
     const names = loader.getLoadedModules();
@@ -77,7 +84,7 @@ describe("module → CLI pipeline (full lifecycle)", () => {
 
   it("\"commands\" mode loader produces same commands as runtime loader (no tool side-effects)", async () => {
     // Runtime loader registers tools
-    const fullLoader = new ModuleLoader({});
+    const fullLoader = createRuntimeLoader();
     await fullLoader.loadAll(projectModules);
     const fullCommands = fullLoader.getCommands().map((c) => c.name()).sort();
 
@@ -99,7 +106,7 @@ describe("module → CLI pipeline (full lifecycle)", () => {
   });
 
   it("module tools appear in tool registry when groups are enabled", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createRuntimeLoader();
     await loader.loadAll(projectModules);
 
     // Before enabling groups, module tools should be hidden
@@ -120,7 +127,7 @@ describe("module → CLI pipeline (full lifecycle)", () => {
   });
 
   it("unloadAll clears module tools and resets state", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createRuntimeLoader();
     await loader.loadAll(projectModules);
 
     expect(loader.getModuleCount()).toBe(projectModules.length);
@@ -139,7 +146,7 @@ describe("module → CLI pipeline (full lifecycle)", () => {
   });
 
   it("getRoutes collects HTTP routes from route-providing modules", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createRuntimeLoader();
     await loader.loadAll(projectModules);
 
     const routes = loader.getRoutes();
@@ -165,7 +172,7 @@ describe("module lifecycle across multiple loadAll/unloadAll cycles", () => {
   });
 
   it("can load, unload, and reload modules cleanly", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createRuntimeLoader();
 
     // First cycle
     await loader.loadAll(projectModules);
@@ -177,7 +184,7 @@ describe("module lifecycle across multiple loadAll/unloadAll cycles", () => {
     expect(loader.getModuleCount()).toBe(0);
 
     // Second cycle — should work identically
-    const loader2 = new ModuleLoader({});
+    const loader2 = createRuntimeLoader();
     await loader2.loadAll(projectModules);
     expect(loader2.getModuleCount()).toBe(projectModules.length);
     const memResult2 = await executeTool("memory", { action: "list" });
@@ -187,11 +194,11 @@ describe("module lifecycle across multiple loadAll/unloadAll cycles", () => {
   });
 
   it("two loaders cannot register the same module tools simultaneously", async () => {
-    const loader1 = new ModuleLoader({});
+    const loader1 = createRuntimeLoader();
     await loader1.loadAll(projectModules);
 
     // Second loader should fail on duplicate tools — project module failures throw
-    const loader2 = new ModuleLoader({});
+    const loader2 = createRuntimeLoader();
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await expect(loader2.loadAll(projectModules)).rejects.toThrow("project module(s) failed to load");

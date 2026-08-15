@@ -15,6 +15,7 @@
  * both consume contributions through a loader returned from here.
  */
 import type { KotaConfig } from "#core/config/config.js";
+import type { EventBus } from "#core/events/event-bus.js";
 import { discoverModules } from "./module-discovery.js";
 import { ModuleLoader } from "./module-loader.js";
 import { discoverProjectModules } from "./project-discovery.js";
@@ -22,6 +23,8 @@ import { discoverProjectModules } from "./project-discovery.js";
 export type RuntimeLoaderOptions = {
   config: KotaConfig;
   cwd: string;
+  /** Exact event authority owned by the runtime host. */
+  eventBus: EventBus;
   verbose?: boolean;
   /** Alternate persisted machine-authority file for embedders. */
   globalConfigPath?: string;
@@ -32,6 +35,11 @@ export type RuntimeLoaderOptions = {
 export async function loadRuntimeModules(
   options: RuntimeLoaderOptions,
 ): Promise<ModuleLoader> {
+  if (!options.eventBus) {
+    throw new Error(
+      "Runtime module loading requires the host EventBus before lifecycle execution",
+    );
+  }
   const verbose = options.verbose ?? false;
   const loader = new ModuleLoader(options.config, verbose, {
     mode: "runtime",
@@ -39,6 +47,7 @@ export async function loadRuntimeModules(
     installedModuleSourceDir: options.installedModuleSourceDir,
   });
   loader.setCwd(options.cwd);
+  loader.setBus(options.eventBus);
   const projectModules = await discoverProjectModules();
   const installedModuleSourceDir = options.installedModuleSourceDir ?? options.cwd;
   const installedModules = await discoverModules(installedModuleSourceDir, verbose, {

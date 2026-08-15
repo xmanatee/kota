@@ -11,7 +11,6 @@ import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { PRESET_ENV_VAR } from "#core/model/preset.js";
-import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import { WorkflowRuntime } from "#core/workflow/runtime.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
 import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
@@ -22,6 +21,7 @@ import {
 } from "./autonomous-loop.integration-test-helpers.js";
 import { readAutonomyIssueProjection } from "./autonomy-issue-projection.js";
 import { subscribeAutonomyIssueSources } from "./autonomy-issue-sources.js";
+import { makeAutonomyIssueSourceContext } from "./autonomy-issue-sources.test-helpers.js";
 import { autonomyHealthSignal, normalizeHealthSignal } from "./health-signal.js";
 import { getClaimAwareRepoTaskQueueSnapshot } from "./queue-availability.js";
 
@@ -86,7 +86,10 @@ describe("issue-driven autonomy lifecycle integration", () => {
 
       const bus = new EventBus();
       const pbus = new ProjectScopedEventBus(bus, deriveDirectoryScopeId(projectDir));
-      subscribeAutonomyIssueSources({ cwd: projectDir, events: makeStubEventProxy(bus) });
+      const source = makeAutonomyIssueSourceContext(
+        projectDir, bus, deriveDirectoryScopeId(projectDir),
+      );
+      subscribeAutonomyIssueSources(source.ctx);
       const completed: Array<{
         workflow: string;
         status: string;
@@ -241,7 +244,6 @@ describe("issue-driven autonomy lifecycle integration", () => {
           resolution: "root cause fixed and verified",
         }),
       );
-
       const clearRuntime = createRuntime(["autonomy-health-reviewer"]);
       clearRuntime.start();
       try {

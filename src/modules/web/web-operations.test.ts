@@ -36,6 +36,7 @@ vi.mock("#core/modules/runtime-loader.js", async () => {
       getRoutes: () => [],
       getRegisteredConfigKeys: () => new Set<string>(),
       assembleDaemonClientHandlers: () => stubs.buildMigratedNamespaceTestStubs(),
+      setSessionFactory: () => {},
     })),
   };
 });

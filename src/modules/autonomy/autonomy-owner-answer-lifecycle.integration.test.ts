@@ -7,7 +7,6 @@ import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { PRESET_ENV_VAR } from "#core/model/preset.js";
-import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import { WorkflowRuntime } from "#core/workflow/runtime.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
 import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
@@ -18,6 +17,7 @@ import {
 } from "./autonomous-loop.integration-test-helpers.js";
 import { readAutonomyIssueProjection } from "./autonomy-issue-projection.js";
 import { subscribeAutonomyIssueSources } from "./autonomy-issue-sources.js";
+import { makeAutonomyIssueSourceContext } from "./autonomy-issue-sources.test-helpers.js";
 
 vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   const actual = await vi.importActual("../claude-agent-harness/executor.js");
@@ -95,7 +95,13 @@ describe("issue-driven owner-answer lifecycle integration", () => {
 
       const bus = new EventBus();
       const pbus = new ProjectScopedEventBus(bus, deriveDirectoryScopeId(projectDir));
-      subscribeAutonomyIssueSources({ cwd: projectDir, events: makeStubEventProxy(bus) });
+      subscribeAutonomyIssueSources(
+        makeAutonomyIssueSourceContext(
+          projectDir,
+          bus,
+          deriveDirectoryScopeId(projectDir),
+        ).ctx,
+      );
       const completed: string[] = [];
       bus.on("workflow.completed", (payload) => {
         if (payload.workflow === "improver") completed.push(payload.runId);

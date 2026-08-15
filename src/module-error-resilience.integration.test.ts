@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { EventBus } from "./core/events/event-bus.js";
 import { NullTransport } from "./core/loop/transport.js";
 import { ModuleLoader } from "./core/modules/module-loader.js";
 import type { KotaModule } from "./core/modules/module-types.js";
@@ -13,6 +14,12 @@ import { clearCustomTools } from "./core/tools/index.js";
 import { clearCustomGroups, resetGroups } from "./core/tools/tool-groups.js";
 
 let projectModules: KotaModule[];
+
+function createRuntimeLoader(): ModuleLoader {
+  const loader = new ModuleLoader({});
+  loader.setBus(new EventBus());
+  return loader;
+}
 
 const noopChrome: ReplChrome = {
   announceHarness: () => {},
@@ -58,7 +65,7 @@ afterEach(() => {
 
 describe("module error resilience", () => {
   it("broken project module in loadAll throws after loading remaining modules", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createRuntimeLoader();
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const brokenModule: KotaModule = {
@@ -80,7 +87,7 @@ describe("module error resilience", () => {
   });
 
   it("broken installed module in loadAll does not throw", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createRuntimeLoader();
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const brokenInstalled: KotaModule = {
@@ -99,7 +106,7 @@ describe("module error resilience", () => {
   });
 
   it("broken module commands() does not prevent other module commands", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createRuntimeLoader();
     const chunks: string[] = [];
     installRenderingCapture(chunks);
 
@@ -124,7 +131,7 @@ describe("module error resilience", () => {
   });
 
   it("broken module routes() does not prevent other module routes", async () => {
-    const loader = new ModuleLoader({});
+    const loader = createRuntimeLoader();
     const chunks: string[] = [];
     installRenderingCapture(chunks);
 

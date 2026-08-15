@@ -88,6 +88,7 @@ export function makeTelegramInteractiveChannel(
         verbose: ctx.verbose || ctx.config.verbose,
         config: ctx.config,
         autonomyMode,
+        moduleLoader: channelCtx.moduleLoader,
         pollOwner: {
           owner: "telegram-interactive",
           source: "daemon channel",

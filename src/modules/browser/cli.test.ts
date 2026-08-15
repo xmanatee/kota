@@ -105,6 +105,7 @@ describe("browser CLI", () => {
     expect(mocks.loadRuntimeModules).toHaveBeenCalledWith({
       config: mocks.loadConfig.mock.results[0].value,
       cwd: tempDir,
+      eventBus: expect.anything(),
     });
     expect(mocks.isPlaywrightAvailable).toHaveBeenCalledWith(tempDir);
     expect(mocks.loadRuntimeModules.mock.invocationCallOrder[0]).toBeLessThan(

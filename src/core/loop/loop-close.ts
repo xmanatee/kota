@@ -28,15 +28,17 @@ export function runClose(state: AgentLoopState, errored: boolean): void {
   }
   if (state.sessionPath) state.context.save(state.sessionPath);
   (state as AgentLoopState & { saveToHistory: () => void }).saveToHistory();
-  runCleanupHooks();
-  resetCustomTools();
-  resetModuleFactory();
-  resetChangeTracker();
-  resetGroups();
-  resetProviderRegistry();
-  resetToolTelemetry();
-  resetAgentStatusProviders();
-  state.moduleLoader.unloadAll().catch(() => {});
+  if (state.ownsModuleRuntime) {
+    runCleanupHooks();
+    resetCustomTools();
+    resetModuleFactory();
+    resetChangeTracker();
+    resetGroups();
+    resetProviderRegistry();
+    resetToolTelemetry();
+    resetAgentStatusProviders();
+    state.moduleLoader.unloadAll().catch(() => {});
+  }
   state.mcpManager?.close().catch(() => {});
   if (state.sessionStartTime > 0) {
     tryEmit("session.end", {

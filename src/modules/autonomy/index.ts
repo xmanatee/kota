@@ -10,7 +10,7 @@ import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from 
 import { reconcileAutomationWorktrees } from "#modules/git/worktree-lifecycle.js";
 import { WORKFLOW_STATE_RECOVERY_PROVIDER_TYPE } from "#modules/workflow-ops/state-recovery-provider.js";
 import { autonomyIssueDecisionRequested } from "./autonomy-issue-events.js";
-import { initializeAutonomyIssueProjection } from "./autonomy-issue-projection-rebuild.js";
+import { resolveAutonomyIssueRuntimeScope } from "./autonomy-issue-runtime-scope.js";
 import { subscribeAutonomyIssueSources } from "./autonomy-issue-sources.js";
 import { autonomyHealthSignal } from "./health-signal.js";
 import { buildLoopQualityAuditCommand } from "./loop-quality-audit-cli.js";
@@ -108,7 +108,7 @@ async function discoverAutonomyAgents(): Promise<AgentDef[]> {
 }
 
 function reconcileBuilderWorktreesFromRuntime(
-  ctx: ModuleRuntimeContext,
+  ctx: Pick<ModuleRuntimeContext, "cwd" | "log">,
   source: string,
 ): void {
   try {
@@ -154,7 +154,6 @@ const autonomyModule: KotaModule = {
   agents: async () => await discoverAutonomyAgents(),
   uiSurfaces: [dailyDigestUiSurfaceSource],
   onLoad: (ctx) => {
-    initializeAutonomyIssueProjection(ctx.cwd);
     subscribeAutonomyIssueSources(ctx);
     ctx.registerProvider(
       SCOPE_DRAIN_INSPECTION_PROVIDER_TYPE,
@@ -166,7 +165,11 @@ const autonomyModule: KotaModule = {
     );
     ctx.events.subscribe("workflow.interrupted.alert", (payload) => {
       if (payload.workflow !== "builder") return;
-      reconcileBuilderWorktreesFromRuntime(ctx, `workflow.interrupted.alert ${payload.runId}`);
+      const runtime = resolveAutonomyIssueRuntimeScope(ctx, payload);
+      reconcileBuilderWorktreesFromRuntime(
+        { cwd: runtime.projectDir, log: ctx.log },
+        `workflow.interrupted.alert ${payload.runId}`,
+      );
     });
   },
   commands: () => [

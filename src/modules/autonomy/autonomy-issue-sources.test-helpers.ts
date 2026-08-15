@@ -1,9 +1,16 @@
+import {
+  createProjectRuntime,
+  type ProjectRuntime,
+} from "#core/daemon/project-runtime.js";
+import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
-import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
+import { ProviderRegistry } from "#core/modules/provider-registry.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
-import { subscribeAutonomyIssueSources } from "./autonomy-issue-sources.js";
+import {
+  type AutonomyIssueSourceContext,
+  subscribeAutonomyIssueSources,
+} from "./autonomy-issue-sources.js";
 import {
   type AutonomyHealthSignal,
   autonomyHealthSignal,
@@ -11,52 +18,43 @@ import {
 
 export const ISSUE_SOURCE_SCOPE_ID = "scope-fixture";
 
-function makeContext(
+export function makeAutonomyIssueSourceContext(
   projectDir: string,
   bus: EventBus,
-): ModuleRuntimeContext {
+  scopeId = ISSUE_SOURCE_SCOPE_ID,
+): { ctx: AutonomyIssueSourceContext; runtime: ProjectRuntime } {
+  const runtime = createProjectRuntime({
+    project: { projectId: scopeId, projectDir, displayName: scopeId },
+    bus,
+    onLog: () => {},
+    installSingletons: false,
+  });
+  const registry = new ProviderRegistry();
+  registry.register(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE, "test", {
+    resolve: (selectedId) =>
+      selectedId === scopeId
+        ? { ok: true, runtime }
+        : { ok: false, projectId: selectedId },
+  });
   return {
-    cwd: projectDir,
-    verbose: false,
-    config: {} as ModuleRuntimeContext["config"],
-    storage: new ModuleStorage(projectDir, "autonomy"),
-    registerGroup: () => {},
-    getRoutes: () => [],
-    getContributedWorkflows: () => [],
-    getContributedChannels: () => [],
-    getContributedUiSurfaces: () => [],
-    getContributedControlRoutes: () => [],
-    getModuleSummaries: () => [],
-    getModuleConfig: () => undefined,
-    log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
-    getSecret: () => null,
-    listTools: () => [],
-    events: makeStubEventProxy(bus),
-    createSession: () => ({ send: async () => "", close: () => {} }),
-    registerProvider: () => {},
-    getProvider: () => null,
-    callTool: async () => ({ content: "" }),
-    registerMiddleware: () => {},
-    registerDynamicStateProvider: () => {},
-    registerCleanupHook: () => {},
-    registerPreSendHook: () => {},
-    registerHarnessHook: () => {},
-    resolveAgentDef: () => undefined,
-    resolveSkillsPrompt: () => "",
-    probeHealthChecks: async () => ({}),
-    getRegisteredConfigKeys: () => new Set<string>(),
-    client: {} as never,
+    ctx: {
+      events: makeStubEventProxy(bus),
+      getProvider: (token) => registry.get(token),
+    },
+    runtime,
   };
 }
 
 export function wireAutonomyIssueSourceFixture(projectDir: string): {
   pbus: ProjectScopedEventBus;
   signals: AutonomyHealthSignal[];
+  runtime: ProjectRuntime;
 } {
   const bus = new EventBus();
   const pbus = new ProjectScopedEventBus(bus, ISSUE_SOURCE_SCOPE_ID);
   const signals: AutonomyHealthSignal[] = [];
   bus.on(autonomyHealthSignal, (payload) => signals.push(payload));
-  subscribeAutonomyIssueSources(makeContext(projectDir, bus));
-  return { pbus, signals };
+  const { ctx, runtime } = makeAutonomyIssueSourceContext(projectDir, bus);
+  subscribeAutonomyIssueSources(ctx);
+  return { pbus, signals, runtime };
 }

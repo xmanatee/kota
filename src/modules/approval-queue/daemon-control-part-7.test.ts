@@ -23,7 +23,6 @@ import {
   type ApprovalQueue,
   getApprovalQueue,
   resetApprovalQueue,
-  setApprovalQueueInstance,
 } from "#core/daemon/approval-queue.js";
 import {
   type DaemonControlHandle,
@@ -34,9 +33,8 @@ import { daemonSetupControlHandleStubs } from "#core/daemon/daemon-setup-control
 import type { OwnerDecisionStore } from "#core/daemon/owner-decision-store.js";
 import type { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
-import {
-  buildConfiguredProject,
-  type ConfiguredProject,
+import type {
+  ConfiguredProject,
 } from "#core/daemon/scope-registry.js";
 import {
   initProviderRegistry,
@@ -53,7 +51,7 @@ const executeTool = vi.fn<ToolRunner>();
 
 const TEST_TOKEN = "approvals-test-token";
 
-function approvePending(queue: ApprovalQueue, id: string): void {
+function _approvePending(queue: ApprovalQueue, id: string): void {
   const selection = queue.getExecutionSnapshot(id);
   if (!selection.ok) throw new Error("expected execution snapshot");
   const result = queue.approveForExecution(selection.snapshot.descriptor);
@@ -139,7 +137,7 @@ function reviewDigest(queue: ApprovalQueue, id: string): string {
   return review.digest;
 }
 
-function approvalPost(queue: ApprovalQueue, id: string, note?: string): RequestInit {
+function _approvalPost(queue: ApprovalQueue, id: string, note?: string): RequestInit {
   return {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -163,7 +161,7 @@ function approveAllPost(queue: ApprovalQueue): RequestInit {
   };
 }
 
-function registerProjectQueueProvider(
+function _registerProjectQueueProvider(
   entries: Array<{
     project: ConfiguredProject;
     approvalQueue: ApprovalQueue;

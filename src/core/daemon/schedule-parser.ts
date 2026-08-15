@@ -5,6 +5,8 @@
  * testable and reusable without importing the Scheduler class.
  */
 
+import { projectStorageIdentity } from "./project-storage-identity.js";
+
 export type ScheduledItem = {
   id: number;
   description: string;
@@ -67,9 +69,10 @@ export function getPendingSummary(items: ScheduledItem[]): string | null {
  * Used by both Scheduler and TaskStore to derive per-project filenames.
  */
 export function projectHash(path: string): string {
+  const identity = projectStorageIdentity(path);
   let h = 5381;
-  for (let i = 0; i < path.length; i++) {
-    h = ((h << 5) + h + path.charCodeAt(i)) >>> 0;
+  for (let i = 0; i < identity.length; i++) {
+    h = ((h << 5) + h + identity.charCodeAt(i)) >>> 0;
   }
   return h.toString(36);
 }

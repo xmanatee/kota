@@ -21,7 +21,7 @@ import {
 } from "#core/tools/effect.js";
 import { clearCustomTools, executeTool, getAllTools } from "#core/tools/index.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "#core/tools/tool-groups.js";
-import { ModuleLoader } from "./module-loader.js";
+import { ModuleLoader as RuntimeModuleLoader } from "./module-loader.js";
 import { projectSetupStatusOntoManifest } from "./module-manifest.js";
 import type { KotaModule } from "./module-types.js";
 import {
@@ -30,6 +30,13 @@ import {
   resetProviderRegistry,
 } from "./provider-registry.js";
 import type { RenderingProvider, ReplChrome } from "./provider-types.js";
+
+class ModuleLoader extends RuntimeModuleLoader {
+  constructor(...args: ConstructorParameters<typeof RuntimeModuleLoader>) {
+    super(...args);
+    if (args[2]?.mode !== "commands") this.setBus(new EventBus());
+  }
+}
 
 function fakeSlice(key: string, description = "test"): ModuleConfigSlice {
   return {

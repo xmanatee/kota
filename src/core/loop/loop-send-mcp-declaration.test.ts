@@ -111,6 +111,7 @@ function testLoopState(mcpManager: AgentLoopState["mcpManager"]): AgentLoopState
     channelIdentity: undefined,
     autonomyMode: "autonomous",
     moduleLoader: {} as never,
+    ownsModuleRuntime: true,
     closed: false,
     activeAbortControllers: new Set(),
     sigintHandler: () => {},

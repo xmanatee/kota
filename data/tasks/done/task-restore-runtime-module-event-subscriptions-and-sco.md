@@ -1,13 +1,13 @@
 ---
 id: task-restore-runtime-module-event-subscriptions-and-sco
 title: Restore runtime module event subscriptions and scoped issue routing
-status: ready
+status: done
 priority: p0
 area: architecture
 task_class: Platform
 summary: Make runtime module subscriptions bind to the daemon EventBus before onLoad and route autonomy issue-source evidence through the originating scope.
 created_at: 2026-08-14T10:32:50.593Z
-updated_at: 2026-08-14T10:32:50.593Z
+updated_at: 2026-08-14T19:54:58.617Z
 ---
 
 ## Problem

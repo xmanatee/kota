@@ -28,6 +28,8 @@ export function createDaemonRuntimeContext(
   config: DaemonConfig,
   hooks: DaemonRuntimeContextHooks = {},
 ): DaemonRuntimeContext {
+  const bus = config.runtimeModuleHost?.eventBus ?? initEventBus();
+  config.runtimeModuleHost?.moduleLoader.assertEventBusAuthority(bus);
   const logger = new DaemonLogger(config.logFormat);
   const log = (message: string) => logger.line(message);
   const configuredProjects = resolveConfiguredProjects({
@@ -60,7 +62,6 @@ export function createDaemonRuntimeContext(
   state.pid = process.pid;
   state.startedAt = new Date().toISOString();
   const token = randomBytes(32).toString("hex");
-  const bus = initEventBus();
   const eventJournal = new EventJournal(join(stateDir, "events"), {
     scopeLineage: (scopeId) => scopeLineageForId(scopeId, projectRegistry),
   });

@@ -8,7 +8,7 @@
  */
 
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { KotaModule } from "#core/modules/module-types.js";
 import type { ModuleSetupRequirement } from "#core/modules/setup-requirements.js";
 import { AUTONOMY_MODES } from "#core/tools/autonomy-mode.js";
 import { operatorSurfaceEffect } from "#core/tools/effect.js";

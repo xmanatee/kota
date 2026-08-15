@@ -40,7 +40,6 @@ import {
   checkNoScratchArtifacts,
   runCheck,
   stepCommitRequiresDaemonRestart,
-  stepCommitted,
 } from "#modules/autonomy/shared.js";
 
 type DetectionInspection = {

@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
+import { initEventBus } from "#core/events/event-bus.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import { executeTool } from "#core/tools/index.js";
@@ -40,6 +41,7 @@ export function buildBrowserCommand(ctx: ModuleContext): Command {
         const runtimeLoader = await loadRuntimeModules({
           config: runtimeConfig,
           cwd: ctx.cwd,
+          eventBus: initEventBus(),
         });
         const defaults = defaultSourceAccessReportOptions(ctx.cwd);
         try {
