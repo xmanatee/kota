@@ -1,12 +1,12 @@
 ---
 id: task-align-autonomy-resume-requests-with-codex-harness
 title: Align autonomy resume requests with Codex harness capabilities
-status: ready
+status: dropped
 priority: p1
 area: architecture
 summary: Prevent builder, improver, and other recovery paths from passing resumeSessionId to adapters that do not support managed session resume. Preserve recoverable work through an explicitly supported fallback instead of dead-lettering the dispatch.
 created_at: 2026-08-15T04:10:07.075Z
-updated_at: 2026-08-15T04:10:07.075Z
+updated_at: 2026-08-15T04:26:49.678Z
 task_class: Platform
 ---
 ## Problem
@@ -16,6 +16,16 @@ task_class: Platform
 ## Desired Outcome
 
 Resolve the progress-review finding identified by topic harness-resume:codex-capability.
+
+## Disposition
+
+Dropped as duplicate and based on stale failure evidence. Commit `132438782a06`
+already made repair-loop option resolution capability-aware, and subsequent
+Codex builder and improver repairs completed without another unsupported
+`resumeSessionId` failure. The two cited resume dead letters are historical;
+`task-terminally-disposition-the-four-residual-workflow` owns their terminal
+cleanup. The third cited dead letter is a separate progress-review evidence-ID
+failure owned by `task-make-progress-reviewer-evidence-citation-failures`.
 
 ## Constraints
 
