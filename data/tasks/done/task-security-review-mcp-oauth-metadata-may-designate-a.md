@@ -1,13 +1,13 @@
 ---
 id: task-security-review-mcp-oauth-metadata-may-designate-a
 title: Security review: MCP OAuth metadata may designate an arbitrary plain-HTTP or private-network token endpoint, and fetchOAuthJson automatically adds that endpoint's origin to its outbound allowlist. Secret-bearing token requests can therefore transmit authorization codes, PKCE verifiers, client secrets, private-key assertions, or enterprise subject tokens without TLS or to an internal service selected by compromised metadata.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: MCP OAuth metadata may designate an arbitrary plain-HTTP or private-network token endpoint, and fetchOAuthJson automatically adds that endpoint's origin to its outbound allowlist. Secret-bearing token requests can therefore transmit authorization codes, PKCE verifiers, client secrets, private-key assertions, or enterprise subject tokens without TLS or to an internal service selected by compromised metadata.
 created_at: 2026-08-15T06:01:56.166Z
-updated_at: 2026-08-15T06:01:56.166Z
+updated_at: 2026-08-15T08:36:23.932Z
 ---
 
 ## Problem
@@ -125,3 +125,9 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Verification
+
+- `pnpm test src/core/mcp src/core/outbound-http` — 17 test files and 283 tests passed, including remote-HTTP and private/loopback endpoint rejection before OAuth credential dispatch.
+- `pnpm typecheck`, `pnpm build`, and `pnpm lint` passed.
+- `pnpm test src/strict-types-policy.integration.test.ts src/root-layout.test.ts` — 2 test files and 3 guard tests passed.

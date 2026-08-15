@@ -343,13 +343,19 @@ export function normalizeHttpsUrl(value: string, label: string): string {
   if (url.protocol !== "https:") {
     throw new Error(`${label} must use https`);
   }
+  if (url.username || url.password) {
+    throw new Error(`${label} must not contain URL credentials`);
+  }
   return url.toString();
 }
 
 export function validateOAuthIssuer(value: string): string {
   const url = new URL(value);
-  if (url.protocol !== "https:" && url.protocol !== "http:") {
-    throw new Error("OAuth issuer must use http or https");
+  if (url.protocol !== "https:") {
+    throw new Error("OAuth issuer must use https");
+  }
+  if (url.username || url.password) {
+    throw new Error("OAuth issuer must not contain URL credentials");
   }
   if (url.search.length > 0 || url.hash.length > 0) {
     throw new Error("OAuth issuer must not include query or fragment");
@@ -475,7 +481,7 @@ export function normalizeEnterpriseManagedIdentityProvider(
 ): NormalizedMcpEnterpriseManagedIdentityProvider {
   return {
     issuer: validateOAuthIssuer(identityProvider.issuer),
-    tokenEndpoint: normalizeHttpUrl(
+    tokenEndpoint: normalizeHttpsUrl(
       identityProvider.tokenEndpoint,
       "enterprise-managed identityProvider.tokenEndpoint",
     ),

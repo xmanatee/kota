@@ -21,6 +21,7 @@ import {
   type OutboundHttpDispatcher,
   OutboundHttpError,
   type OutboundHttpMethod,
+  type OutboundHttpProfile,
   type OutboundHttpRequest,
   type OutboundHttpResponse,
   type OutboundHttpStreamingOptions,
@@ -66,6 +67,19 @@ export class OutboundHttpTransport {
         ? "caller-managed-streaming"
         : "profile-bounded-streaming",
     );
+  }
+
+  async validateTarget(
+    profile: OutboundHttpProfile,
+    url: string | URL,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const validation = validateOutboundHttpTarget(
+      url instanceof URL ? url : new URL(url),
+      profile,
+      this.#resolveAddresses,
+    );
+    await (signal === undefined ? validation : abortable(validation, signal));
   }
 
   async #execute(request: OutboundHttpRequest, responseMode: "buffered"): Promise<OutboundHttpResponse>;

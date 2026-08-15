@@ -2,6 +2,7 @@ export const OUTBOUND_HTTP_PROFILE_NAMES = [
   "public-untrusted",
   "configured-provider",
   "oauth-protected-resource",
+  "oauth-metadata-endpoint",
   "daemon-loopback",
   "explicit-callback",
 ] as const;
@@ -16,6 +17,10 @@ export type OutboundHttpProfile =
     }
   | {
       readonly name: "oauth-protected-resource";
+      readonly allowedOrigins: readonly string[];
+    }
+  | {
+      readonly name: "oauth-metadata-endpoint";
       readonly allowedOrigins: readonly string[];
     }
   | { readonly name: "daemon-loopback" }

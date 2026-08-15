@@ -18,10 +18,17 @@ export function createDefaultOutboundHttpDispatcher(
   resolveAddresses: OutboundHttpAddressResolver = resolveOutboundAddresses,
 ): OutboundHttpDispatcher {
   return async (url, init, context) =>
-    context.profile === "public-untrusted" ? dispatchPublicRequest(url, init, resolveAddresses) : globalThis.fetch(url, init);
+    context.profile === "public-untrusted" || context.profile === "oauth-metadata-endpoint"
+      ? dispatchPublicRequest(url, init, resolveAddresses, context.profile)
+      : globalThis.fetch(url, init);
 }
 
-async function dispatchPublicRequest(url: URL, init: RequestInit, resolveAddresses: OutboundHttpAddressResolver): Promise<Response> {
+async function dispatchPublicRequest(
+  url: URL,
+  init: RequestInit,
+  resolveAddresses: OutboundHttpAddressResolver,
+  policyLabel: "public-untrusted" | "oauth-metadata-endpoint",
+): Promise<Response> {
   const request = url.protocol === "https:" ? httpsRequest : httpRequest;
   const headers = requestHeadersFromInit(init.headers);
   const body = await requestBodyFromInit(init.body);
@@ -29,7 +36,13 @@ async function dispatchPublicRequest(url: URL, init: RequestInit, resolveAddress
     method: init.method,
     headers,
     lookup: (hostname, lookupOptions, callback) => {
-      lookupPublicAddress(hostname, lookupOptions, callback, resolveAddresses);
+      lookupPublicAddress(
+        hostname,
+        lookupOptions,
+        callback,
+        resolveAddresses,
+        policyLabel,
+      );
     },
   };
   if (init.signal) options.signal = init.signal;
@@ -56,8 +69,9 @@ function lookupPublicAddress(
   options: PublicLookupOptions,
   callback: PublicLookupCallback,
   resolveAddresses: OutboundHttpAddressResolver,
+  policyLabel: "public-untrusted" | "oauth-metadata-endpoint",
 ): void {
-  void resolvePublicOutboundAddresses(hostname, resolveAddresses).then(
+  void resolvePublicOutboundAddresses(hostname, resolveAddresses, policyLabel).then(
     (addresses) => {
       const requestedFamily = lookupFamilyFromOptions(options);
       const candidates =
@@ -99,7 +113,7 @@ async function requestBodyFromInit(body: BodyInit | null | undefined): Promise<s
   if (body instanceof ArrayBuffer) return new Uint8Array(body);
   if (ArrayBuffer.isView(body)) return new Uint8Array(body.buffer, body.byteOffset, body.byteLength);
   if (body instanceof Blob) return new Uint8Array(await body.arrayBuffer());
-  throw new TypeError("public-untrusted request body must be a string, URLSearchParams, Blob, or byte buffer");
+  throw new TypeError("public-network request body must be a string, URLSearchParams, Blob, or byte buffer");
 }
 
 function headersFromIncoming(headers: IncomingHttpHeaders): Headers {
