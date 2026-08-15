@@ -1,12 +1,8 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
+import { lstatSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
-import {
-  EVALUATOR_CALIBRATION_ARTIFACT,
-  type EvaluatorCalibrationArtifact,
-} from "./evaluator-calibration.js";
+import { readBoundCalibrationArtifact } from "./calibration-repair-run-evidence.js";
 
 export type CalibrationRepairFreshness =
   | { status: "untracked-repair" }
@@ -17,6 +13,8 @@ export type CalibrationRepairFreshness =
       runId: string;
       sourceRevision: string;
     };
+
+const GIT_REVISION = /^[0-9a-f]{40}$/;
 
 function gitOutput(projectDir: string, args: readonly string[]): string | null {
   const result = spawnSync("git", [...args], {
@@ -69,24 +67,24 @@ export function inspectCalibrationRepairFreshness(
     "--",
     repairedTaskPath,
   ]);
-  if (repairRevision === null || !/^[0-9a-f]{40}$/.test(repairRevision)) {
+  if (repairRevision === null || !GIT_REVISION.test(repairRevision)) {
     return { status: "untracked-repair" };
   }
 
   const runsDir = join(projectDir, ".kota", "runs");
-  if (existsSync(runsDir)) {
-    for (const entry of readdirSync(runsDir).sort().reverse()) {
-      let artifact: EvaluatorCalibrationArtifact | null;
-      try {
-        artifact = readOptionalJsonFile<EvaluatorCalibrationArtifact>(
-          join(runsDir, entry, EVALUATOR_CALIBRATION_ARTIFACT),
-        );
-      } catch {
-        continue;
-      }
+  const runsStats = lstatSync(runsDir, { throwIfNoEntry: false });
+  if (
+    runsStats?.isDirectory() &&
+    !runsStats.isSymbolicLink()
+  ) {
+    const entries = readdirSync(runsDir, { withFileTypes: true })
+      .sort((left, right) => right.name.localeCompare(left.name));
+    for (const entry of entries) {
+      if (entry.isSymbolicLink() || !entry.isDirectory()) continue;
+      const artifact = readBoundCalibrationArtifact(runsDir, entry.name);
       if (artifact === null) continue;
       const sourceRevision = artifact.sourceRevision;
-      if (!sourceRevision || !/^[0-9a-f]{40}$/.test(sourceRevision)) continue;
+      if (!sourceRevision || !GIT_REVISION.test(sourceRevision)) continue;
       if (
         sourceRevision === repairRevision &&
         artifact.taskId === repairTaskId

@@ -1,13 +1,13 @@
 ---
 id: task-security-review-calibration-repair-freshness-trust
 title: Security review: Calibration repair freshness trusts an evaluator-calibration.json placed in any run directory without binding it to trusted run metadata, the builder workflow, or a runtime-authored calibration step. An agent permitted to write run artifacts can forge a descendant sourceRevision and make a closed calibration repair task eligible for recreation.
-status: ready
+status: done
 priority: p2
 area: security
 task_class: Safety
 summary: Calibration repair freshness trusts an evaluator-calibration.json placed in any run directory without binding it to trusted run metadata, the builder workflow, or a runtime-authored calibration step. An agent permitted to write run artifacts can forge a descendant sourceRevision and make a closed calibration repair task eligible for recreation.
 created_at: 2026-08-14T00:14:00.365Z
-updated_at: 2026-08-14T00:14:00.365Z
+updated_at: 2026-08-15T22:45:22.640Z
 ---
 
 ## Problem

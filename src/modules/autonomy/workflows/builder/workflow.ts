@@ -3,6 +3,7 @@ import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
+  EVALUATOR_CALIBRATION_STEP_ID,
   type EvaluatorCalibrationArtifact,
   writeCalibrationArtifact,
 } from "#modules/autonomy/evaluator-calibration.js";
@@ -208,7 +209,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
     mergeGateStep,
     createReleaseTaskClaimStep(claimTaskStep),
     typedCodeStep<EvaluatorCalibrationArtifact>({
-      id: "write-calibration-artifact",
+      id: EVALUATOR_CALIBRATION_STEP_ID,
       type: "code",
       when: (ctx) => claimedTaskConsistencySucceeded(ctx) && stepCommitted("commit")(ctx),
       validate: (raw) =>

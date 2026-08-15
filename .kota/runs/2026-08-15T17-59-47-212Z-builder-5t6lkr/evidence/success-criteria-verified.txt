@@ -1,0 +1,3 @@
+1. Verified: freshness now accepts only regular evidence bound to a successful terminal builder metadata record, the canonical calibration code step and step record, and matching directory, metadata, and artifact run identities.
+2. Verified: focused tests reject metadata-less, mismatched, non-builder, non-terminal, missing/wrong/failed-step, malformed, artifact-symlink, and run-directory-symlink candidates; the bound descendant builder case passes.
+3. Verified: artifacts/verification.txt records the final commands and passing results and is registered in evidence-manifest.json.
