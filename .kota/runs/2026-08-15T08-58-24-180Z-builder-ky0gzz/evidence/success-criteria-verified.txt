@@ -1,0 +1,7 @@
+1. Verified by `pnpm kota workflow validate` (25/25 definitions valid) and the exact-capture integration test: the shipped catalog has none of the four escalators, and improver has no `workflow.completed` trigger.
+2. Verified by `artifacts/production-routing-replay.json` and the exact-capture integration test: all 200 captured completions replayed, baseline escalator invocations total 92, baseline improver invocations total 10, and both candidate totals are zero.
+3. Verified by `artifacts/passive-codex-single-path-trace.json`: the four original passive-Codex dead letters produce one issue, one AI disposition, one stable generated task, and no duplicate attention for repeated observations.
+4. Verified by the improver workflow fixture and workspace-policy tests: improver stays `deny-all`, its generated repair follows the shared task materializer, and that task becomes ready and builder-eligible before terminal cleanup.
+5. Verified by `artifacts/passive-codex-single-path-trace.json`: all four original dead-letter ids link to issue `autonomy-issue-85e804d0100b55d31c1c`, and terminal replay using repair commit `532ab1ae` resolves it.
+6. Verified by the focused generated-work proposal suite: one stable proposal survives deduplication and updates across task and owner-question lifecycle states.
+7. Verified by the 33-test focused lifecycle suite and the exact-capture integration test: source observations, restart replay, material revision, repeated no-op handling, proposal lifecycle, and the failure-to-resolution path all pass.

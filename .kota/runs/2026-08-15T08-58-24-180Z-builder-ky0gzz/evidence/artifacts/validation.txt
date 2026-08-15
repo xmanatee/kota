@@ -1,0 +1,27 @@
+Validation completed 2026-08-15
+
+- Post-check repair attempt 3 replaced the replay helper's broad batched-payload cast with property-level narrowing.
+  Passed: strict-types policy, both production routing replay integrations, full typecheck, and focused Biome check.
+- `pnpm test src/modules/autonomy/production-routing-replay.integration.test.ts`
+  Passed: 1 file, 2 tests.
+- Focused autonomy issue lifecycle, projection, source, runtime-source, generated-work, improver, and workspace-policy suite.
+  Passed: 8 files, 33 tests.
+- `pnpm run typecheck`
+  Passed after fixing the readonly tuple expectation caught by the initial run.
+- `pnpm run lint`
+  Passed: 3,510 files checked, no fixes needed.
+- Workflow validation, autonomy-change-decision, root-layout, and strict-types guard suite.
+  Passed: 4 files, 94 tests.
+- `pnpm kota workflow validate`
+  Passed: 25 of 25 shipped workflow definitions valid.
+- `pnpm exec biome check src/modules/autonomy/production-routing-replay.integration.test.ts`
+  Passed.
+- `jq empty` over the production replay, passive-Codex trace, autonomy change decision, and canonical candidate replay reports.
+  Passed.
+- `pnpm run validate-tasks -- --min-ready 0` against a temporary host-equivalent index containing the ready-to-done task rename.
+  Passed. The staged view reports `R099` from ready to done.
+
+Environment notes:
+
+- The repository Git index is intentionally read-only to native agents. The final task validation used an isolated temporary index and object directory with the repository object store as a read-only alternate; no Git metadata was modified.
+- A nonessential ad-hoc `tsx -e` diagnostic could not create its sandbox IPC socket. The same deterministic identifier calculation was confirmed with plain Node, and the production-path integration tests passed.
