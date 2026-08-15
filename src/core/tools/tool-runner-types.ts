@@ -73,6 +73,7 @@ export type ToolCallExecutionOptions = {
 	getScopePolicySnapshot?: ScopePolicySnapshotAccessor;
 	clientApprovalResolver?: ToolApprovalResolver;
 	sessionId?: string;
+	projectDir?: string;
 	cwd?: string;
 	agentWriteScope?: AgentWriteScope;
 	agentOutputDir?: string;

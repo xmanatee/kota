@@ -26,6 +26,7 @@ export type TelegramHarnessSessionAgentOptions = {
   modelProvider?: ModelProviderSelection;
   modelOutputTokenLimits?: KotaConfig["modelOutputTokenLimits"];
   effort: AgentEffort;
+  projectDir: string;
   cwd: string;
   scopeId: string;
   config: KotaConfig;
@@ -70,6 +71,7 @@ export class TelegramHarnessSessionAgent {
         {
           prompt,
           model: this.options.model,
+          projectDir: this.options.projectDir,
           cwd: this.options.cwd,
           effort: this.options.effort,
           autonomyMode: this.options.autonomyMode,
@@ -78,7 +80,7 @@ export class TelegramHarnessSessionAgent {
             this.options.config,
             undefined,
             this.options.cwd,
-            this.options.cwd,
+            this.options.projectDir,
           ),
           modelOutputTokenLimits: this.options.modelOutputTokenLimits,
           sessionContext: this.sessionContext,

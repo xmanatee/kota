@@ -19,6 +19,7 @@ export async function triggerInboundSignalAgent(
   const result = await withHandoffAgentRuntime(
     {
       cwd: ctx.cwd,
+      projectDir: ctx.cwd,
       harness,
       resolveAgentDef: ctx.resolveAgentDef,
       resolveSkillsPrompt: ctx.resolveSkillsPrompt,

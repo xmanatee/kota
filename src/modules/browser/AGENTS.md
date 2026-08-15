@@ -1,15 +1,14 @@
 # Browser Module
 
-This module provides browser automation tools via Playwright, plus
-scoped content-ingest tools for auth-walled and JS-gated sources.
+Provides Playwright automation and scoped content-ingest for auth-walled/JS-gated sources.
 
 - Tools are in the `browser` group for progressive disclosure.
 - All interactive tools are classified as `dangerous` risk since they execute
   page-side JS and can trigger external side effects. `browser_close` is `safe`.
 - Playwright is lazy-imported at first use via `playwright-loader.ts`. The
   module loads cleanly without Playwright installed and logs a warning.
-- A single browser + context + page is reused across tool calls and closed on
-  idle timeout or session cleanup.
+- One Chromium process may be shared, but authenticated contexts/pages are isolated
+  by scope/session; each closes on idle timeout or cleanup and is never reused.
 - Chromium uses a module-owned authenticated loopback proxy to apply shared
   outbound target policy and DNS-pin every connection, including redirects,
   click navigations, WebSocket tunnels, and subresources.
@@ -17,8 +16,7 @@ scoped content-ingest tools for auth-walled and JS-gated sources.
   loopback, private, link-local, and rebinding targets. Private access requires
   `configured-provider` with every page origin in `allowedOrigins`; the proxy
   still resolves and pins the connection-time address.
-- Do not add Playwright to the project's required dependencies. It stays as
-  an optional peer that operators install when they need browser capability.
+- Keep Playwright operator-installed and optional; do not add it to required dependencies.
 
 ## Authenticated Browser Profile
 
@@ -27,18 +25,20 @@ Operators configure a persistent login session via `modules.browser`
 
 - `storageStatePath` points at a Playwright [`storageState`](https://playwright.dev/docs/auth)
   JSON file containing cookies and localStorage for an authenticated session.
-  Relative paths resolve against the project directory. If the file exists,
-  every browser context is created with it loaded; if it does not, the module
-  falls back to an ephemeral context.
+  Relative paths resolve against the invoking scope's project directory. If
+  the file exists, that session's browser context is created with it loaded;
+  if it does not, the module falls back to an ephemeral context.
+- Absolute, project-escaping, or symlink-escaping `storageStatePath` values belong
+  only to their configuring scope. Other scopes stay ephemeral and never persist
+  there; prefer project-local paths for per-scope profiles.
 - `persistProfile: true` writes the current context's state back to the same
   path on idle close. Operators use this to capture a fresh login (run once
   with `persistProfile: true`, log in interactively, then pin the file in
   their secrets surface with `persistProfile: false`).
 - The storageState file is outside repo source — never check it in. KOTA's
   secrets surface is the right home; the path is the configuration knob.
-- The profile is shared across `browser_navigate`, `browser_get_text`,
-  `x_post_read`, `rendered_article_read`, and every other browser tool in
-  this module.
+- The scope-resolved profile source is shared by its tools; live cookies,
+  localStorage, and page state remain isolated per scope and session.
 - `headless` defaults to `true`. Set `modules.browser.headless=false` only
   for operator-run source-access captures where a vendor blocks headless
   automation but allows a normal headed browser session. This is an explicit

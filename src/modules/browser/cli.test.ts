@@ -111,10 +111,19 @@ describe("browser CLI", () => {
     expect(mocks.loadRuntimeModules.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.executeTool.mock.invocationCallOrder[0],
     );
-    expect(mocks.executeTool).toHaveBeenCalledWith("rendered_article_read", {
-      url: "https://example.com/article",
-      timeout: 1234,
-    });
+    expect(mocks.executeTool).toHaveBeenCalledWith(
+      "rendered_article_read",
+      {
+        url: "https://example.com/article",
+        timeout: 1234,
+      },
+      expect.objectContaining({
+        sessionId: expect.stringMatching(/^browser-cli:/),
+        scopeId: expect.any(String),
+        projectId: expect.any(String),
+        cwd: tempDir,
+      }),
+    );
     expect(commandModeCallTool).not.toHaveBeenCalled();
     expect(unloadAll).toHaveBeenCalledTimes(1);
 

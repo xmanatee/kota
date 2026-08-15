@@ -49,9 +49,11 @@ afterEach(() => {
 });
 
 describe("createStepContext", () => {
-  it("passes the project cwd into workflow tool-runner contexts", async () => {
+  it("separates the canonical project root from the workflow workspace", async () => {
     const projectDir = tempProject();
     try {
+      const workspaceDir = join(projectDir, ".worktrees", "run-1");
+      mkdirSync(workspaceDir, { recursive: true });
       const bus = new EventBus();
       const pbus = new ProjectScopedEventBus(bus, "scope-a");
       const store = new WorkflowRunStore(projectDir);
@@ -67,6 +69,7 @@ describe("createStepContext", () => {
         [],
         {
           projectDir,
+          workspaceDir,
           bus,
           pbus,
           store,
@@ -77,14 +80,20 @@ describe("createStepContext", () => {
         },
       );
 
-      await context.runTool("composition.workspace", { action: "list" });
+      await context.runTool(
+        "composition.workspace",
+        { action: "list" },
+        { stepId: "build", sessionId: "workflow-session" },
+      );
 
       expect(runTool).toHaveBeenCalledWith(
         "composition.workspace",
         { action: "list" },
         {
           authorityConfigPath,
-          cwd: projectDir,
+          projectDir,
+          cwd: workspaceDir,
+          sessionId: "workflow-session",
           stepId: "build",
           scopeId: "scope-a",
           projectId: "scope-a",

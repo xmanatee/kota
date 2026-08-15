@@ -24,13 +24,11 @@ import { analyzeRequest, formatContextHint } from "./request-analyzer.js";
 import { processToolResults } from "./verify-tracker.js";
 
 const MAX_ITERATIONS = 200;
-
 function throwIfAborted(signal: AbortSignal): void {
   if (!signal.aborted) return;
   const { reason } = signal;
   throw reason instanceof Error ? reason : new Error("Session cancelled");
 }
-
 function snapshotMcpToolDeclarationFingerprints(
   state: AgentLoopState,
   mcpTools: readonly { name: string }[],
@@ -48,7 +46,6 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
   const abortController = new AbortController();
   state.activeAbortControllers.add(abortController);
   const { signal } = abortController;
-
   try {
     if (!state.initialized) await state.initPromise;
     throwIfAborted(signal);
@@ -60,20 +57,17 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
         channelIdentity: state.channelIdentity,
       });
     }
-
     const analysis = analyzeRequest(prompt, state.projectDir);
     const taskRoute = routeTask(prompt);
     let augmentedPrompt = prompt;
     if (analysis) augmentedPrompt += formatContextHint(analysis);
     augmentedPrompt += formatTaskHint(taskRoute);
-
     state.context.addUserMessage(augmentedPrompt);
     for (const g of detectToolGroups(prompt)) enableGroup(g);
     if (taskRoute) {
       for (const g of taskRoute.groups) enableGroup(g);
     }
     let lastResult = "";
-
     const preSendResults = await runPreSendHooks({
       client: state.client,
       model: state.model,
@@ -263,6 +257,8 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
         getScopePolicySnapshot,
         clientApprovalResolver: state.clientApprovalResolver,
         sessionId: state.sessionId,
+        projectDir: state.projectDir,
+        cwd: state.projectDir,
         scopeId: state.scopeId,
         projectId: state.scopeId,
         authorityConfigPath: state.authorityConfigPath,
@@ -291,7 +287,6 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
         state.context.addUserMessage(msg);
       }
     }
-
     throwIfAborted(signal);
     if (state.sessionPath) state.context.save(state.sessionPath);
     saveToHistoryImpl(state);

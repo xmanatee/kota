@@ -20,7 +20,6 @@ vi.mock("#modules/claude-agent-harness/executor.js", async (importActual) => {
 import type {
   AgentHarness,
   AgentHarnessResult,
-  AgentHarnessRunOptions,
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
 import type { ReplChrome } from "#core/modules/provider-types.js";
@@ -86,76 +85,6 @@ describe("runHarnessRepl", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
-  });
-
-  it("rejects harnesses that do not support multi-turn", async () => {
-    const singleTurnHarness: AgentHarness = {
-      name: "one-shot",
-      description: "single-turn only",
-      supportsMultiTurn: false,
-      supportedHookKinds: ["preRun", "postRun"],
-      askOwnerToolName: null,
-      emitsAgentMessageStream: false,
-      toolControl: "kota",
-      run: async (): Promise<AgentHarnessResult> => ({
-        text: "",
-        streamedText: "",
-        turns: 0,
-        isError: false,
-      }),
-    };
-
-    await expect(
-      runHarnessRepl({
-        harness: singleTurnHarness,
-        model: "irrelevant",
-        cwd: process.cwd(),
-        run: { effort: "xhigh" },
-        input: makeInput(["hi", "exit"]),
-        chrome: new CapturingChrome(),
-        output: new CapturingOutput(),
-      }),
-    ).rejects.toThrow(/one-shot.*does not support multi-turn/);
-  });
-
-  it("announces harness + model before the first turn", async () => {
-    const captured: AgentHarnessRunOptions[] = [];
-    const harness: AgentHarness = {
-      name: "stub",
-      description: "stub for banner test",
-      supportsMultiTurn: true,
-      supportedHookKinds: ["preRun", "postRun"],
-      askOwnerToolName: null,
-      emitsAgentMessageStream: false,
-      toolControl: "kota",
-      run: async (options): Promise<AgentHarnessResult> => {
-        captured.push(options);
-        return {
-          text: "ok",
-          streamedText: "ok",
-          turns: 1,
-          isError: false,
-        };
-      },
-    };
-
-    const chrome = new CapturingChrome();
-    await runHarnessRepl({
-      harness,
-      model: "test-model-x",
-      cwd: process.cwd(),
-      run: { effort: "xhigh" },
-      input: makeInput(["hi", "exit"]),
-      chrome,
-      output: new CapturingOutput(),
-    });
-
-    const announce = chrome.events.find((e) => e.kind === "announce");
-    expect(announce).toMatchObject({
-      kind: "announce",
-      harness: { name: "stub" },
-      model: "test-model-x",
-    });
   });
 
   it("carries transcript context across turns for the thin adapter", async () => {

@@ -209,6 +209,7 @@ export async function runHarnessRepl(options: HarnessReplOptions): Promise<void>
           ...options.run,
           prompt: composed,
           model: options.model,
+          projectDir: options.run.projectDir ?? options.cwd,
           cwd: options.cwd,
         },
         writer,

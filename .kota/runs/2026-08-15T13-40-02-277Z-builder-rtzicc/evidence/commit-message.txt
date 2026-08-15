@@ -1,0 +1,1 @@
+fix(browser): isolate authenticated contexts by session

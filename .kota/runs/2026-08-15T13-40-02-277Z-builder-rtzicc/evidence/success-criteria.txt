@@ -1,0 +1,3 @@
+1. Browser contexts and current pages are isolated by scope and session, every browser runner preserves ToolRunnerContext, relative storage-state paths resolve from the invoking project, and external or symlink-escaping profile paths remain bound to their configuring scope.
+2. Focused regression coverage proves cross-session and cross-scope isolation, scope-relative profile loading, absolute/project-escaping/symlink-escaping profile ownership, session-bound teardown, and runner-context forwarding through real operator paths.
+3. The task records the final focused verification commands, and the affected browser and core tool-context suites, typecheck, lint, and task validation pass.

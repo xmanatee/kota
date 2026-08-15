@@ -45,8 +45,9 @@ function createInvocationSessionContext(
   const declared = declaredAgentHarnessSessionContext(options);
   if (declared !== undefined) return declared;
   const workflow = options.workflowContext;
+  const projectDir = options.projectDir ?? options.cwd;
   const scopeId = workflow?.scopeId ??
-    (options.cwd === undefined ? undefined : deriveDirectoryScopeId(options.cwd));
+    (projectDir === undefined ? undefined : deriveDirectoryScopeId(projectDir));
   if (scopeId === undefined) return undefined;
   return {
     sessionId: `harness:${randomUUID()}`,

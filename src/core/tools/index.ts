@@ -30,6 +30,9 @@ export type ToolRunnerContext = {
   sessionId?: string;
   toolUseId?: string;
   signal?: AbortSignal;
+  /** Canonical directory root of the selected directory-backed scope. */
+  projectDir?: string;
+  /** Execution working directory, which may be an isolated worktree. */
   cwd?: string;
   env?: Record<string, string>;
   /** Machine-owned config document that arbitrary execution must not mutate. */
@@ -46,7 +49,6 @@ export type ToolRunnerContext = {
     projectId: string;
   };
 };
-
 export type ToolRunner = (
   input: Record<string, unknown>,
   context?: ToolRunnerContext,
@@ -55,7 +57,6 @@ export type ResolvedToolSet = {
   tools: KotaTool[];
   runners: { [name: string]: ToolRunner };
 };
-
 /** Co-located tool metadata. Each tool file exports one of these. */
 export type ToolRegistration = {
   tool: KotaTool;
@@ -119,7 +120,6 @@ export function getToolEffect(
 
 const runners: Record<string, ToolRunner> = {};
 const tools: KotaTool[] = [];
-
 function ensureInit(): void {
   if (_initialized) return;
   _initialized = true;
@@ -131,7 +131,6 @@ function ensureInit(): void {
     if (reg.group) registerCustomGroup(reg.group, [reg.tool.name]);
   }
 }
-
 /** Returns the full tool list (core + module-registered). Read-only. */
 export function getAllTools(): readonly KotaTool[] {
   ensureInit();

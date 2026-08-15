@@ -1,230 +1,127 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  activateRunnerContext,
+  cleanUpLifecycleTest,
+  getLifecycleTestState,
+  loadConfiguredLifecycle,
+  resetLifecycleTestState,
+  runnerContext,
+} from "./lifecycle-test-support.js";
 
-type State = {
-  capturedContextOptions: Array<{ storageState?: string }>;
-  capturedLaunchOptions: LaunchOptions[];
-  lastContextStorageWrite: string | null;
-};
+const lifecycleTestState = getLifecycleTestState();
 
-type LaunchOptions = {
-  headless?: boolean;
-  args?: string[];
-  proxy?: { server: string; username?: string; password?: string };
-};
-
-const PUBLIC_NETWORK_PROFILE = { name: "public-untrusted" } as const;
-
-const { state } = vi.hoisted(() => ({
-  state: {
-    capturedContextOptions: [] as Array<{ storageState?: string }>,
-    capturedLaunchOptions: [] as LaunchOptions[],
-    lastContextStorageWrite: null as string | null,
-  } as State,
-}));
-
-vi.mock("./playwright-loader.js", async () => {
-  return {
-    loadPlaywrightModule: vi.fn(async () => mockPlaywright()),
-  };
-});
-
-function mockPlaywright() {
-  return {
-    chromium: {
-      launch: async (options?: LaunchOptions) => {
-        state.capturedLaunchOptions.push(options ?? {});
-        return makeBrowser();
-      },
-    },
-  };
-}
-
-function makeBrowser() {
-  return {
-    isConnected: () => true,
-    newContext: async (options?: { storageState?: string }) => {
-      state.capturedContextOptions.push(options ?? {});
-      let loadedCookie: string | null = null;
-      if (options?.storageState) {
-        try {
-          const parsed = JSON.parse(readFileSync(options.storageState, "utf8"));
-          loadedCookie = parsed.authCookie ?? null;
-        } catch {
-          loadedCookie = null;
-        }
-      }
-      return makeContext(loadedCookie);
-    },
-    close: async () => undefined,
-  };
-}
-
-function makeContext(loadedCookie: string | null) {
-  return {
-    newPage: async () => makePage(loadedCookie),
-    storageState: async (opts?: { path?: string }) => {
-      if (opts?.path) {
-        state.lastContextStorageWrite = opts.path;
-        writeFileSync(opts.path, JSON.stringify({ authCookie: loadedCookie }), "utf8");
-      }
-      return {};
-    },
-    close: async () => undefined,
-  };
-}
-
-function makePage(loadedCookie: string | null) {
-  const authed = loadedCookie === "valid-session";
-  return {
-    goto: async () => undefined,
-    waitForSelector: async () => null,
-    title: async () => (authed ? "Protected" : "Login"),
-    url: () => "https://auth-walled.example.test/",
-    click: async () => undefined,
-    fill: async () => undefined,
-    evaluate: async () =>
-      authed
-        ? "Authenticated content — welcome, operator."
-        : "Please sign in to continue.",
-    setViewportSize: async () => undefined,
-    screenshot: async () => Buffer.from("fake"),
-    isClosed: () => false,
-    close: async () => undefined,
-  };
-}
-
-describe("browser lifecycle — authenticated profile", () => {
+describe("browser lifecycle — session isolation", () => {
   let workDir: string;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.resetModules();
-    state.capturedContextOptions = [];
-    state.capturedLaunchOptions = [];
-    state.lastContextStorageWrite = null;
+    resetLifecycleTestState();
     workDir = mkdtempSync(join(tmpdir(), "kota-browser-lifecycle-"));
   });
 
-  afterEach(() => {
-    rmSync(workDir, { recursive: true, force: true });
+  afterEach(async () => {
+    await cleanUpLifecycleTest(workDir);
   });
 
-  it("loads storageState and unlocks auth-walled content", async () => {
-    const profilePath = join(workDir, "x-profile.json");
-    writeFileSync(profilePath, JSON.stringify({ authCookie: "valid-session" }), "utf8");
-    const lifecycle = await import("./lifecycle.js");
-    lifecycle.configureBrowserProfile({
-      storageStatePath: profilePath,
-      persist: false,
-      headless: true,
-      networkProfile: PUBLIC_NETWORK_PROFILE,
-    });
-    const page = await lifecycle.getPage();
-    await page.goto("https://auth-walled.example.test/");
-    const content = (await page.evaluate("document.body.innerText")) as string;
-    expect(content).toBe("Authenticated content — welcome, operator.");
-    expect(state.capturedContextOptions[0]?.storageState).toBe(profilePath);
-    expect(state.capturedLaunchOptions[0]?.headless).toBe(true);
-    expect(state.capturedLaunchOptions[0]?.args).toContain(
-      "--proxy-bypass-list=<-loopback>",
+  it("isolates contexts and current pages by scope and session", async () => {
+    const lifecycle = await loadConfiguredLifecycle(workDir);
+    const sessionA = await activateRunnerContext(
+      runnerContext(workDir, "session-a", "scope-a"),
     );
-    expect(state.capturedLaunchOptions[0]?.proxy).toMatchObject({
-      server: expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+$/),
-      username: expect.any(String),
-      password: expect.any(String),
-    });
-    await lifecycle.closeBrowser();
+    const sessionB = await activateRunnerContext(
+      runnerContext(workDir, "session-b", "scope-a"),
+    );
+    const scopeB = await activateRunnerContext(
+      runnerContext(workDir, "session-a", "scope-b"),
+    );
+    const pageA = await lifecycle.getPage(sessionA);
+    const pageB = await lifecycle.getPage(sessionB);
+    const pageOtherScope = await lifecycle.getPage(scopeB);
+
+    expect(await lifecycle.getPage(sessionA)).toBe(pageA);
+    expect(pageB).not.toBe(pageA);
+    expect(pageOtherScope).not.toBe(pageA);
+    expect(lifecycleTestState.capturedContextOptions).toHaveLength(3);
+
+    await pageA.goto("https://private.example.test/session-a");
+    expect(pageA.url()).toContain("session-a");
+    expect(pageB.url()).toBe("about:blank");
+    expect(pageOtherScope.url()).toBe("about:blank");
   });
 
-  it("falls back to ephemeral context when storageState file is absent", async () => {
-    const profilePath = join(workDir, "absent.json");
+  it("binds context teardown to the owning session lifecycle", async () => {
+    const context = await activateRunnerContext(runnerContext(workDir));
+    const sessionEnvironment = await import("#core/tools/session-environment.js");
+    const lifecycle = await loadConfiguredLifecycle(workDir);
+    const page = await lifecycle.getPage(context);
+
+    sessionEnvironment.unregisterSessionEnvironment(context);
+
+    await vi.waitFor(() => expect(page.isClosed()).toBe(true));
+    expect(lifecycleTestState.closedContexts).toBe(1);
+  });
+
+  it("closes only the invoking session resource", async () => {
+    const lifecycle = await loadConfiguredLifecycle(workDir);
+    const sessionA = await activateRunnerContext(
+      runnerContext(workDir, "session-a"),
+    );
+    const sessionB = await activateRunnerContext(
+      runnerContext(workDir, "session-b"),
+    );
+    const pageA = await lifecycle.getPage(sessionA);
+    const pageB = await lifecycle.getPage(sessionB);
+
+    await lifecycle.closeBrowserSession(sessionA);
+
+    expect(pageA.isClosed()).toBe(true);
+    expect(pageB.isClosed()).toBe(false);
+    expect(await lifecycle.getPage(sessionB)).toBe(pageB);
+  });
+
+  it("fails closed without complete or consistent session identity", async () => {
     const lifecycle = await import("./lifecycle.js");
-    lifecycle.configureBrowserProfile({
-      storageStatePath: profilePath,
-      persist: false,
-      headless: true,
-      networkProfile: PUBLIC_NETWORK_PROFILE,
-    });
-    const page = await lifecycle.getPage();
-    await page.goto("https://auth-walled.example.test/");
-    const content = (await page.evaluate("document.body.innerText")) as string;
-    expect(content).toBe("Please sign in to continue.");
-    expect(state.capturedContextOptions[0]?.storageState).toBeUndefined();
-    await lifecycle.closeBrowser();
+    await expect(lifecycle.getPage()).rejects.toThrow("session identity");
+    await expect(
+      lifecycle.getPage({ sessionId: "session-a", cwd: workDir }),
+    ).rejects.toThrow("project scope");
+    await expect(
+      lifecycle.getPage({ sessionId: "session-a", scopeId: "scope-a" }),
+    ).rejects.toThrow("project directory");
+    await expect(
+      lifecycle.getPage({
+        sessionId: "session-a",
+        scopeId: "scope-a",
+        projectId: "scope-b",
+        projectDir: workDir,
+        cwd: workDir,
+      }),
+    ).rejects.toThrow("values conflict");
+    await expect(
+      lifecycle.getPage({
+        sessionId: "ended-session",
+        scopeId: "scope-a",
+        projectId: "scope-a",
+        projectDir: workDir,
+        cwd: workDir,
+      }),
+    ).rejects.toThrow("live session");
   });
 
-  it("persists storage state on close when persist=true", async () => {
-    const profilePath = join(workDir, "persisted.json");
-    writeFileSync(profilePath, JSON.stringify({ authCookie: "valid-session" }), "utf8");
-    const lifecycle = await import("./lifecycle.js");
-    lifecycle.configureBrowserProfile({
-      storageStatePath: profilePath,
-      persist: true,
-      headless: true,
-      networkProfile: PUBLIC_NETWORK_PROFILE,
-    });
-    await lifecycle.getPage();
-    await lifecycle.closeBrowser();
-    expect(state.lastContextStorageWrite).toBe(profilePath);
-    const persisted = JSON.parse(readFileSync(profilePath, "utf8"));
-    expect(persisted.authCookie).toBe("valid-session");
-  });
-
-  it("does not persist when persist=false even with profile configured", async () => {
-    const profilePath = join(workDir, "nopersist.json");
-    writeFileSync(profilePath, JSON.stringify({ authCookie: "valid-session" }), "utf8");
-    const lifecycle = await import("./lifecycle.js");
-    lifecycle.configureBrowserProfile({
-      storageStatePath: profilePath,
-      persist: false,
-      headless: true,
-      networkProfile: PUBLIC_NETWORK_PROFILE,
-    });
-    await lifecycle.getPage();
-    await lifecycle.closeBrowser();
-    expect(state.lastContextStorageWrite).toBeNull();
-  });
-
-  it("treats absence of a profile as ephemeral context", async () => {
-    const lifecycle = await import("./lifecycle.js");
-    lifecycle.configureBrowserProfile({
-      storageStatePath: null,
-      persist: false,
-      headless: true,
-      networkProfile: PUBLIC_NETWORK_PROFILE,
-    });
-    await lifecycle.getPage();
-    expect(state.capturedContextOptions[0]?.storageState).toBeUndefined();
-    await lifecycle.closeBrowser();
-  });
-
-  it("launches a headed browser when explicitly configured", async () => {
-    const lifecycle = await import("./lifecycle.js");
-    lifecycle.configureBrowserProfile({
-      storageStatePath: null,
-      persist: false,
-      headless: false,
-      networkProfile: PUBLIC_NETWORK_PROFILE,
-    });
-    await lifecycle.getPage();
-    expect(state.capturedLaunchOptions[0]?.headless).toBe(false);
-    await lifecycle.closeBrowser();
-  });
-
-  it("detects a project-local Playwright installation without CommonJS globals", async () => {
+  it("detects project-local Playwright without CommonJS globals", async () => {
     const lifecycle = await import("./lifecycle.js");
     const projectDir = join(workDir, "project");
     const packageDir = join(projectDir, "node_modules", "playwright");
     mkdirSync(packageDir, { recursive: true });
-    writeFileSync(join(projectDir, "package.json"), '{"name":"fixture"}\n', "utf8");
+    writeFileSync(join(projectDir, "package.json"), '{"name":"fixture"}\n');
     writeFileSync(
       join(packageDir, "package.json"),
       '{"name":"playwright","version":"0.0.0","main":"index.js"}\n',
-      "utf8",
     );
-    writeFileSync(join(packageDir, "index.js"), "module.exports = {};\n", "utf8");
+    writeFileSync(join(packageDir, "index.js"), "module.exports = {};\n");
 
     expect(lifecycle.isPlaywrightAvailable(projectDir)).toBe(true);
   });

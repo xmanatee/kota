@@ -30,7 +30,6 @@ import type {
 	ToolResultEntry,
 	ValidatedToolUseBlock,
 } from "./tool-runner-types.js";
-
 export async function executeToolBlock(
 	block: ValidatedToolUseBlock,
 	options: ToolCallExecutionOptions,
@@ -47,6 +46,7 @@ export async function executeToolBlock(
 		guardrailsConfig,
 		clientApprovalResolver,
 		sessionId,
+		projectDir,
 		cwd,
 		env,
 		authorityConfigPath,
@@ -75,7 +75,6 @@ export async function executeToolBlock(
 		recordToolExecutionMetric({ block, input, result: staleResult, resultLimit, transport });
 		return toolResultEntry(block, staleResult);
 	}
-
 	const assessment = guardrailsConfig
 		? assess(block.name, input, guardrailsConfig)
 		: assess(block.name, input);
@@ -170,7 +169,6 @@ export async function executeToolBlock(
 		}
 		clientApprovedAutonomyGate = true;
 	}
-
 	emitGuardrailAssessment(assessment.policy, assessment.reason);
 	if (assessment.policy === "deny") {
 		return toolErrorEntry(
@@ -228,6 +226,7 @@ export async function executeToolBlock(
 		...(approvalQueue !== undefined ? { approvalQueue } : {}),
 		...(sessionId && { sessionId }),
 		toolUseId: block.id,
+		...(projectDir !== undefined ? { projectDir } : {}),
 		...(cwd !== undefined ? { cwd } : {}),
 		...(env !== undefined ? { env } : {}),
 		...(authorityConfigPath !== undefined ? { authorityConfigPath } : {}),

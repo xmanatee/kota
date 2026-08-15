@@ -1,4 +1,9 @@
+import { randomUUID } from "node:crypto";
 import type { KotaAgentMessage } from "#core/agent-harness/index.js";
+import {
+  registerSessionEnvironment,
+  unregisterSessionEnvironment,
+} from "#core/tools/session-environment.js";
 import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
 import {
   activeTimingMetadata,
@@ -104,6 +109,18 @@ export async function executeWorkflowStep(
     signal: stepAbortController.signal,
     reportProgress: idleMonitor?.reportProgress ?? context.reportProgress ?? (() => {}),
   };
+  const toolSession = {
+    sessionId: `workflow:${randomUUID()}`,
+    scopeId: deps.pbus.getScopeId(),
+    projectId: deps.pbus.getProjectId(),
+  };
+  registerSessionEnvironment(toolSession);
+  progressContext.runTool = (name, input, toolContext) =>
+    context.runTool(name, input, {
+      ...toolContext,
+      stepId: toolContext?.stepId ?? step.id,
+      sessionId: toolSession.sessionId,
+    });
   const capturedAgentMessages: KotaAgentMessage[] = [];
 
   try {
@@ -242,6 +259,7 @@ export async function executeWorkflowStep(
       capturedAgentMessages,
     });
   } finally {
+    unregisterSessionEnvironment(toolSession);
     activeTimeout?.dispose();
     idleMonitor?.dispose();
     runAbortController.signal.removeEventListener("abort", forwardRunAbort);

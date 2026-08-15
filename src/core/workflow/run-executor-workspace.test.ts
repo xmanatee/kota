@@ -9,6 +9,7 @@ import type {
   AgentHarnessRunOptions,
 } from "#core/agent-harness/types.js";
 import { EventBus } from "#core/events/event-bus.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowAgentStep } from "./step-types.js";
@@ -152,7 +153,7 @@ describe("workflow workspaceDir execution", () => {
       agentOptions = options;
       return AGENT_OK_RESULT;
     });
-    let toolCwd: string | undefined;
+    let toolContext: ToolRunnerContext | undefined;
     const definition = makeDefinition({
       moduleRoot: projectDir,
       steps: [
@@ -180,7 +181,7 @@ describe("workflow workspaceDir execution", () => {
         store,
         log,
         runTool: async (_name, _input, context) => {
-          toolCwd = context?.cwd;
+          toolContext = context;
           return { content: "ok" };
         },
       });
@@ -197,7 +198,13 @@ describe("workflow workspaceDir execution", () => {
         workspaceDir,
         runDirPath: join(projectDir, result.metadata.runDir),
       });
-      expect(toolCwd).toBe(workspaceDir);
+      expect(toolContext).toMatchObject({
+        projectDir,
+        cwd: workspaceDir,
+        sessionId: expect.stringMatching(/^workflow:/),
+        scopeId: expect.any(String),
+      });
+      expect(agentOptions?.projectDir).toBe(projectDir);
       expect(agentOptions?.cwd).toBe(workspaceDir);
       expect(
         existsSync(

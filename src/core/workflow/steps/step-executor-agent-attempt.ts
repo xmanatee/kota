@@ -115,6 +115,7 @@ export async function runAgentAttempt(input: {
     const harnessRun = agentConfig.delegateBudget
       ? withHandoffAgentRuntime(
           {
+            projectDir: agentConfig.projectDir,
             cwd: agentConfig.workspaceDir ?? agentConfig.projectDir,
             harness: resolvedHarness.name,
             resolveAgentDef: agentConfig.resolveAgentDef ?? (() => undefined),

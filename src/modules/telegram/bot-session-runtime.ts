@@ -115,6 +115,7 @@ export class TelegramSessionRuntime {
           : {}),
         modelOutputTokenLimits: config.modelOutputTokenLimits,
         effort: backend.preset.defaultEffort,
+        projectDir: target.projectDir,
         cwd: target.projectDir,
         scopeId: target.projectId,
         config,

@@ -32,7 +32,8 @@ describe("agentHarnessToolExecutionOptions", () => {
       effort: "xhigh",
       verbose: true,
       autonomyMode: "supervised",
-      cwd: "/project",
+      projectDir: "/project",
+      cwd: "/project/.worktrees/run-a",
       agentWriteScope: ["generated/"],
       agentOutputDir: "/project/.kota/runs/run-a/agent-output",
       authorityConfigPath: "/operator/machine/config.json",
@@ -75,7 +76,8 @@ describe("agentHarnessToolExecutionOptions", () => {
       clientApprovalResolver,
       approvalQueue,
       sessionId: "session-a",
-      cwd: "/project",
+      projectDir: "/project",
+      cwd: "/project/.worktrees/run-a",
       agentWriteScope: ["generated/"],
       agentOutputDir: "/project/.kota/runs/run-a/agent-output",
       authorityConfigPath: "/operator/machine/config.json",
@@ -99,6 +101,18 @@ describe("agentHarnessToolExecutionOptions", () => {
     );
 
     expect(projected.authorityConfigPath).toMatch(/[/\\]\.kota[/\\]config\.json$/);
+  });
+
+  it("uses the harness cwd as the project root when an interactive caller has one directory", () => {
+    const projected = agentHarnessToolExecutionOptions(
+      { prompt: "go", effort: "xhigh", cwd: "/project" },
+      { resultLimit: 100 },
+    );
+
+    expect(projected).toMatchObject({
+      projectDir: "/project",
+      cwd: "/project",
+    });
   });
 
 });

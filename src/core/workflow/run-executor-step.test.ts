@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { registerSessionEnvironmentResource } from "#core/tools/session-environment.js";
 import { RepairLoopError } from "./repair-loop.js";
 import {
   applyOutputSizeLimit,
@@ -113,7 +114,6 @@ describe("executeWorkflowStep — costUsd capture", () => {
     triggers: [],
     steps: [],
   };
-
   const metadata = {
     id: "run-cost-01",
     workflow: "test-wf",
@@ -124,7 +124,6 @@ describe("executeWorkflowStep — costUsd capture", () => {
     status: "running" as const,
     steps: [],
   };
-
   const trigger = { event: "runtime.idle" as const, schemaRef: null, payload: {} };
 
   const context = {
@@ -134,20 +133,22 @@ describe("executeWorkflowStep — costUsd capture", () => {
     previousOutput: undefined,
     stepOutputs: {},
     stepOutputList: [],
+    runTool: vi.fn(),
   };
-
   const run = {
     metadata,
     recordStep: vi.fn(),
     appendAgentMessage: vi.fn(),
     writeAgentInputs: vi.fn(),
   };
-
   const bus = { emit: vi.fn() } as any;
-  const pbus = { emit: bus.emit, getProjectId: () => "test-project" } as any;
+  const pbus = {
+    emit: bus.emit,
+    getScopeId: () => "test-project",
+    getProjectId: () => "test-project",
+  } as any;
   const log = vi.fn();
   const agentConfig = { config: {}, log, projectDir: "/tmp" } as any;
-
   it("captures costUsd from agent step output onto WorkflowStepResult", async () => {
     const agentOutput = { content: "done", totalCostUsd: 0.42, turns: 3 };
     executeStepMock.mockResolvedValueOnce({
@@ -182,6 +183,47 @@ describe("executeWorkflowStep — costUsd capture", () => {
     );
 
     expect(result.completed.costUsd).toBeUndefined();
+  });
+
+  it("binds direct workflow tools to an invocation session and tears it down", async () => {
+    const cleanup = vi.fn();
+    const runTool = vi.fn(async (_name, _input, toolContext) => {
+      expect(toolContext).toMatchObject({
+        stepId: "browser-read",
+        sessionId: expect.stringMatching(/^workflow:/),
+      });
+      registerSessionEnvironmentResource(
+        { ...toolContext, scopeId: "test-project", projectId: "test-project" },
+        cleanup,
+      );
+      return { content: "ok" };
+    });
+    executeStepMock.mockImplementationOnce(
+      async (_definition, _step, _metadata, _trigger, stepContext) =>
+        stepContext.runTool("browser_get_text", {}, { stepId: "browser-read" }),
+    );
+    const step = {
+      id: "browser-read",
+      type: "tool" as const,
+      tool: "browser_get_text",
+    };
+
+    const result = await executeWorkflowStep(
+      definition as any,
+      step as any,
+      run,
+      trigger,
+      { ...context, runTool } as any,
+      new AbortController(),
+      agentConfig,
+      makeAcc(),
+      { bus, pbus, log },
+      Date.now(),
+    );
+
+    expect(result.completed.status).toBe("success");
+    expect(runTool).toHaveBeenCalledOnce();
+    expect(cleanup).toHaveBeenCalledOnce();
   });
 
   it("does not set costUsd when agent output lacks totalCostUsd", async () => {

@@ -110,6 +110,7 @@ export function buildAgentHarnessRunOptions(input: {
   return {
     options: {
       ...contract.options,
+      projectDir: agentConfig.projectDir,
       cwd: workspaceDir,
       ...(agentWriteScope !== undefined ? { agentWriteScope } : {}),
       agentOutputDir,
