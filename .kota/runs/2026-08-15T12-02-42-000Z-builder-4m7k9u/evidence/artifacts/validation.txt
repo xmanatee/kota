@@ -1,0 +1,48 @@
+Focused dead-letter and state-recovery validation
+
+Command:
+TMPDIR=<builder-run-temp> NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner --silent=true src/core/daemon/dead-letter-queue.test.ts src/core/workflow/dead-letter-queue.test.ts src/modules/workflow-ops/dead-letter-local-client.test.ts src/modules/autonomy/workflow-state-recovery-actions.test.ts src/modules/workflow-ops/state-recovery-command.test.ts
+
+Result on 2026-08-15:
+- exit 0
+- 5 test files passed
+- 29 tests passed
+- duration 3.42s
+
+Covered outcomes:
+- durable dead-letter status, dismissal, and redrive transitions
+- workflow dead-letter projection behavior
+- local CLI dead-letter client behavior
+- claim/worktree recovery disposition actions and preservation rules
+- operator state-recovery command rendering
+
+Task queue validation
+
+Command:
+pnpm validate-tasks
+
+Result before the workflow-host post-response stage:
+- exit 1
+- no schema, lifecycle, dependency, blocked-precondition, or queue-shape errors
+- the only findings are task-untracked for the new blocked path and task-deleted-unstaged for the old ready path
+
+This is the expected native-builder staging boundary. Both task moves ran through
+the canonical repo-tasks domain with KOTA_REPO_TASK_STAGING_OWNER=workflow-host;
+the linked-worktree index is read-only to this agent, and the workflow host owns
+the exact source/destination staging before its repair-loop queue validation.
+The host replay success predicate requires a final exit-0 pnpm validate-tasks
+result after both canonical DLQ disposition and the host-owned task staging.
+
+Focused queue semantics check
+
+Result:
+- exit 0
+- validateTaskQueue reported zero non-staging errors
+- exactly two expected workflow-host staging findings were present
+
+Builder evidence policy
+
+Result:
+- exit 0
+- 6 registered evidence files
+- more than 12 KB of screened evidence ready for projection

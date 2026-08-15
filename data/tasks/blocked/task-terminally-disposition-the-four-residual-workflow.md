@@ -1,13 +1,13 @@
 ---
 id: task-terminally-disposition-the-four-residual-workflow
 title: Terminally disposition the four residual workflow-dispatch dead letters
-status: ready
+status: blocked
 priority: p2
 area: platform
 task_class: Platform
 summary: After the existing stale-claim recovery task resolves its two explicitly cited dead letters, reconcile the four remaining open items covering the original builder and improver resumeSessionId failures, the transient 503, and the unreadable-fixture EACCES failure. Preserve claim and worktree recovery ownership in the existing task rather than duplicating it.
 created_at: 2026-08-13T17:38:05.815Z
-updated_at: 2026-08-13T17:38:05.815Z
+updated_at: 2026-08-15T13:26:41.362Z
 ---
 
 ## Problem
@@ -56,3 +56,14 @@ Outcome-aware autonomy progress review.
 - Review-provided acceptance evidence:
 
     A run artifact maps each of the four residual dead-letter ids to its source run, superseding evidence, and redrive-or-dismiss decision; the existing recovery task remains the sole owner of its two cited claim-linked items; the resulting projection contains none of the original six open items; no unique claim or worktree changes are lost; and focused dead-letter/state-recovery tests plus task validation pass.
+## Status (2026-08-15 builder)
+
+The four residual records have evidence-backed terminal dismissal decisions in registered builder artifact `dead-letter-host-replay.json`. The isolated worktree correctly exposes neither the canonical directory-scope DLQ nor its recovery projection, so this run made no canonical DLQ, claim, or worktree mutation. A trusted host must verify each exact source-run guard, apply or confirm the four dismissals, and capture the six-id open-state projection. The existing recovery task remains the sole owner of the two claim-linked records and their unique-work preservation proof.
+
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/2026-08-15T12-02-42-000Z-dead-letter-terminal-disposition-host/verification.json
+description: trusted canonical-host capture that verifies and terminally dismisses the four residual dead-letter ids using the registered replay packet, proves none of the original six ids remains open, cites task-recover-the-two-stale-builder-claims-blocking-high as sole owner of the two claim-linked items, and confirms no unique claim or worktree changes were lost
+```

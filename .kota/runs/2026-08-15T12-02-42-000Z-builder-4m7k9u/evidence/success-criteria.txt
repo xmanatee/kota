@@ -1,0 +1,2 @@
+1. Reconcile each of the four residual dead-letter ids against its source run and superseding evidence, choose a terminal redrive-or-dismiss disposition, and prove whether the canonical projection no longer reports any of the original six items as open without taking ownership of claim-linked recovery.
+2. Record durable acceptance evidence, preserve all cited ids, prove no unique claim or worktree changes are lost, and run focused dead-letter/state-recovery tests plus task validation.
