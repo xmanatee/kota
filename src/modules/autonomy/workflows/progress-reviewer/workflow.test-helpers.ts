@@ -8,15 +8,28 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+  type AgentHarness,
+  type AgentHarnessRunOptions,
+  registerAgentHarness,
+} from "#core/agent-harness/index.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import { getPreset, SHIPPED_DEFAULT_PRESET_ID } from "#core/model/preset.js";
 import type { WorkflowBatchFlushPayload } from "#core/workflow/trigger-types.js";
+import {
+  registerWorkflowDefinition,
+  validateWorkflowDefinitions,
+} from "#core/workflow/validation.js";
 import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
 import {
   decodeProgressReviewAgentOutput,
+  type ProgressReviewAgentEvidencePacket,
   type ProgressReviewAgentOutput,
 } from "./progress-review.js";
+import progressReviewerWorkflow from "./workflow.js";
 
 export const NOW = new Date("2026-06-04T12:00:00.000Z");
+const TEST_PRESET = getPreset(SHIPPED_DEFAULT_PRESET_ID);
 
 export function readProgressReviewFixture(name: string): ProgressReviewAgentOutput {
   return decodeProgressReviewAgentOutput(
@@ -66,6 +79,95 @@ export function makeProgressReviewProjectDir(label = "progress-reviewer"): strin
   execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: dir });
   execFileSync("git", ["config", "user.name", "test"], { cwd: dir });
   return dir;
+}
+
+export function writeProgressReviewTask(
+  projectDir: string,
+  state: string,
+  id: string,
+): void {
+  const timestamp = NOW.toISOString();
+  writeFileSync(
+    join(projectDir, "data", "tasks", state, `${id}.md`),
+    `---
+id: ${id}
+title: ${id}
+status: ${state}
+priority: p2
+area: autonomy
+summary: ${id} summary
+created_at: ${timestamp}
+updated_at: ${timestamp}
+---
+
+## Problem
+
+Review fixture problem.
+
+## Desired Outcome
+
+Review fixture outcome.
+
+## Constraints
+
+- Keep evidence cited.
+
+## Done When
+
+- Done.
+
+## Source / Intent
+
+Progress reviewer test fixture.
+
+## Initiative
+
+Outcome-aware autonomy progress review.
+
+## Acceptance Evidence
+
+- Test fixture.
+`,
+  );
+}
+
+export function registerProgressReviewHarness(run: AgentHarness["run"]): void {
+  registerAgentHarness({
+    name: TEST_PRESET.harness,
+    description: "progress-reviewer workflow test harness",
+    supportsMultiTurn: false,
+    supportedHookKinds: [],
+    askOwnerToolName: null,
+    emitsAgentMessageStream: false,
+    toolControl: "kota",
+    run,
+  });
+}
+
+export function compileProgressReviewerWorkflow() {
+  return validateWorkflowDefinitions(
+    [
+      registerWorkflowDefinition(
+        "src/modules/autonomy/workflows/progress-reviewer/workflow.ts",
+        progressReviewerWorkflow,
+      ),
+    ],
+    undefined,
+    { defaultAgentHarness: TEST_PRESET.harness, preset: TEST_PRESET },
+  )[0]!;
+}
+
+export function parseReviewInputFromAgentPrompt(
+  options: AgentHarnessRunOptions,
+): ProgressReviewAgentEvidencePacket {
+  const match = options.prompt.match(
+    /<step id="prepare-review-input">\n([\s\S]*?)\n<\/step>/,
+  );
+  if (!match) throw new Error("expected prepare-review-input in agent prompt");
+  if (options.prompt.includes('<step id="collect-evidence">')) {
+    throw new Error("collect-evidence must not be exposed to the agent");
+  }
+  return JSON.parse(match[1]!) as ProgressReviewAgentEvidencePacket;
 }
 
 export function channelBatchPayload(projectDir: string): WorkflowBatchFlushPayload {

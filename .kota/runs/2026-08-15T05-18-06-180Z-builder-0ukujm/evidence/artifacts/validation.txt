@@ -1,0 +1,45 @@
+Focused validation completed in the builder worktree.
+
+- pnpm test src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts src/modules/autonomy/workflows/progress-reviewer/workflow-task-count.test.ts src/modules/autonomy/workflows/progress-reviewer/workflow-citation-correction.test.ts
+  Result after source-size repair: 3 files passed, 40 tests passed. The two synthetic citation-boundary cases now live in a focused 238-line suite; exact source-DLQ replay remains blocked.
+- pnpm exec biome check src/modules/autonomy/workflows/progress-reviewer/workflow.test-helpers.ts src/modules/autonomy/workflows/progress-reviewer/workflow-citation-correction.test.ts
+  Result after source-size repair: passed with no fixes required.
+- git diff HEAD --numstat -- '*.ts'; changed TypeScript line-count audit
+  Result after source-size repair: the 3,115-line workflow.test.ts is restored exactly to HEAD and is absent from the final diff; every changed or new TypeScript file is at most 290 lines, below the 300-line guideline.
+- pnpm run typecheck
+  Result after source-size repair: passed.
+- pnpm exec vitest run --configLoader runner src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts src/core/workflow/run-executor.test.ts src/core/workflow/testing/harness-results.test.ts
+  Result: 3 files passed, 78 tests passed.
+- pnpm exec vitest run --configLoader runner src/strict-types-policy.integration.test.ts src/core/workflow/testing/harness-results.test.ts src/core/workflow/step-validators/validate-agent-step.test.ts
+  Result: 3 files passed, 14 tests passed.
+- pnpm run typecheck
+  Result: passed.
+- pnpm run lint
+  Result: passed; 3,494 source files checked.
+- pnpm exec vitest run --configLoader runner src/core/workflow src/modules/autonomy/workflows/progress-reviewer
+  Result: 102 files and 693 tests passed directly. The 17 tests in approval-step.test.ts and approval-step-integrity.test.ts failed only because the injected native runtime temp parent was non-searchable (EPERM).
+- TMPDIR=<readable-task-temp> pnpm exec vitest run --configLoader runner src/core/workflow/steps/approval-step.test.ts src/core/workflow/steps/approval-step-integrity.test.ts
+  Result: both previously environment-blocked files passed; 17 tests passed. Across the broad partition and rerun, all 104 files and 710 tests passed.
+- pnpm kota workflow validate
+  Result: 25 of 25 workflow definitions passed, including progress-reviewer.
+- Builder evidence policy and autonomy-change-decision parser
+  Result: all 7 evidence files passed screening and projection; autonomy-change-decision.json decoded as valid.
+- Builder success-criteria checks
+  Result after critic repair: 3 declared criteria and 3 numbered verification items are present; items 1 and 2 are verified, while item 3 explicitly records the canonical-runtime blocker.
+- pnpm run validate-tasks
+  Result before workflow-host staging: expected native protected-index diagnostics for the task move (untracked blocked destination and unstaged done deletion). `pnpm kota task move ... blocked` could not acquire the protected Git index lock, so the workspace move was retained for the workflow host's exact-path staging before terminal queue validation.
+
+Critic-repair validation:
+
+- pnpm test src/modules/autonomy/workflows/progress-reviewer/workflow-citation-correction.test.ts
+  Result: 1 file passed, 2 tests passed.
+- pnpm exec biome check src/modules/autonomy/workflows/progress-reviewer/workflow-citation-correction.test.ts
+  Result: passed with no fixes required.
+- JSON.parse over both source and projected dead-letter-disposition.json and autonomy-change-decision.json artifacts
+  Result: all four artifacts parsed successfully.
+- Exact autonomy-change-decision decoder over the builder source artifact
+  Result: valid `needs-more-data:fixture-only` decision.
+- pnpm kota task show task-make-progress-reviewer-evidence-citation-failures
+  Result: the task resolves uniquely in `blocked` with the typed operator-capture precondition and preserved autonomy-issue provenance.
+- pnpm run validate-tasks -- --summary
+  Result: only the two expected protected-index staging diagnostics above; no structural, lifecycle, dependency, or blocked-precondition finding was reported.

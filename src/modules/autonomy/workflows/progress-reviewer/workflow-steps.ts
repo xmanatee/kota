@@ -1,11 +1,10 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
-import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
+import { writeJsonFileAtomic } from "#core/util/json-file.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import {
-  type CodeStepOutputValidator,
   expectStructuredOutput,
   typedCodeStep,
 } from "#core/workflow/step-input-code.js";
@@ -35,7 +34,11 @@ import {
   type ProgressReviewActionResult,
   type ProgressReviewAgentEvidencePacket,
   type ProgressReviewArtifact,
+  type ProgressReviewEvidenceHandle,
   type ProgressReviewEvidencePacket,
+  readProgressReviewEvidencePacketFromHandle,
+  validateProgressReviewAgentEvidencePacket,
+  validateProgressReviewEvidenceHandle,
   writeProgressReviewArtifact,
 } from "./progress-review.js";
 
@@ -51,52 +54,6 @@ export const agent: AgentDef = {
 
 type WorktreeInspection = {
   dirty: boolean;
-};
-
-type ProgressReviewEvidenceHandle = {
-  generatedAt: string;
-  artifact: typeof PROGRESS_REVIEW_EVIDENCE_ARTIFACT;
-  artifactPath: string;
-};
-
-const validateProgressReviewEvidencePacket: CodeStepOutputValidator<
-  ProgressReviewEvidencePacket
-> = (raw) => {
-  return expectStructuredOutput<ProgressReviewEvidencePacket>(raw, [
-    "generatedAt",
-    "triggerKind",
-    "triggerEvent",
-    "scope",
-    "window",
-    "scopes",
-    "evidence",
-    "approvals",
-    "excluded",
-    "taskClassDistribution",
-    "operatorJourneyRisks",
-  ]);
-};
-
-const validateProgressReviewEvidenceHandle: CodeStepOutputValidator<
-  ProgressReviewEvidenceHandle
-> = (raw) => {
-  const handle = expectStructuredOutput<ProgressReviewEvidenceHandle>(raw, [
-    "generatedAt",
-    "artifact",
-    "artifactPath",
-  ]);
-  if (handle.artifact !== PROGRESS_REVIEW_EVIDENCE_ARTIFACT) {
-    throw new Error(
-      `unexpected progress-review evidence artifact ${String(handle.artifact)}`,
-    );
-  }
-  if (typeof handle.generatedAt !== "string" || !handle.generatedAt.trim()) {
-    throw new Error("progress-review evidence generatedAt must be non-empty");
-  }
-  if (typeof handle.artifactPath !== "string" || !handle.artifactPath.trim()) {
-    throw new Error("progress-review evidence artifactPath must be non-empty");
-  }
-  return handle;
 };
 
 function writeProgressReviewEvidencePacket(
@@ -115,14 +72,9 @@ function writeProgressReviewEvidencePacket(
 function readProgressReviewEvidencePacket(
   ctx: WorkflowStepContext,
 ): ProgressReviewEvidencePacket {
-  const handle = collectEvidence.outputRequired(ctx);
-  const raw = readOptionalJsonFile<unknown>(handle.artifactPath);
-  if (raw === null) {
-    throw new Error(
-      `progress-review evidence artifact is missing: ${handle.artifactPath}`,
-    );
-  }
-  return validateProgressReviewEvidencePacket(raw);
+  return readProgressReviewEvidencePacketFromHandle(
+    collectEvidence.outputRequired(ctx),
+  );
 }
 
 export const inspectWorktree = typedCodeStep<WorktreeInspection>({
@@ -158,21 +110,7 @@ export const prepareReviewInput = typedCodeStep<ProgressReviewAgentEvidencePacke
   type: "code",
   when: stepSucceeded("collect-evidence"),
   exposeOutputToAgent: true,
-  validate: (raw) =>
-    expectStructuredOutput<ProgressReviewAgentEvidencePacket>(raw, [
-      "generatedAt",
-      "triggerKind",
-      "triggerEvent",
-      "scope",
-      "window",
-      "batch",
-      "scopes",
-      "counts",
-      "deadLetterCounts",
-      "operatorJourneyRisks",
-      "evidence",
-      "excluded",
-    ]),
+  validate: validateProgressReviewAgentEvidencePacket,
   run: (ctx) =>
     compactProgressReviewEvidenceForAgent(readProgressReviewEvidencePacket(ctx)),
 });

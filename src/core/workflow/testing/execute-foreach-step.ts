@@ -116,10 +116,15 @@ export async function executeForeachStep(
           innerOutput = validateWorkflowStepOutput(
             innerStep,
             await resolveStepMock(state.stepMocks[innerStep.id], iterContext),
+            iterContext,
           );
         } else {
           const innerRaw = await innerStep.run(iterContext);
-          innerOutput = validateWorkflowStepOutput(innerStep, innerRaw);
+          innerOutput = validateWorkflowStepOutput(
+            innerStep,
+            innerRaw,
+            iterContext,
+          );
         }
       } catch (err) {
         innerError = err instanceof Error ? err.message : String(err);

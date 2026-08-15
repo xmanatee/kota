@@ -13,6 +13,7 @@ import { progressReviewRequested } from "./events.js";
 import {
   decodeProgressReviewAgentOutput,
   PROGRESS_REVIEW_SCHEDULE_EVENT,
+  validateProgressReviewAgentStepOutput,
 } from "./progress-review.js";
 import { progressReviewOutputSchema } from "./workflow-output-schema.js";
 import {
@@ -101,7 +102,7 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
       maxTurns: 8,
       outputFormat: "json",
       outputSchema: progressReviewOutputSchema,
-      validate: decodeProgressReviewAgentOutput,
+      validate: validateProgressReviewAgentStepOutput,
       when: (ctx) =>
         stepSucceeded("prepare-review-input")(ctx) &&
         inspectWorktree.output(ctx)?.dirty === false,

@@ -7,6 +7,14 @@ export {
 export {
   compactProgressReviewEvidenceForAgent,
 } from "./progress-review/agent-packet.js";
+export {
+  type ProgressReviewEvidenceHandle,
+  readProgressReviewEvidencePacketFromHandle,
+  validateProgressReviewAgentEvidencePacket,
+  validateProgressReviewAgentStepOutput,
+  validateProgressReviewEvidenceHandle,
+  validateProgressReviewEvidencePacket,
+} from "./progress-review/agent-step-output.js";
 export { writeProgressReviewArtifact } from "./progress-review/artifact.js";
 export { collectProgressReviewEvidence } from "./progress-review/collect.js";
 export {

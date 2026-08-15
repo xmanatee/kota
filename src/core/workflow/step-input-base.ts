@@ -4,13 +4,24 @@ import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type {
   WorkflowPredicate,
   WorkflowRepairLoopConfig,
+  WorkflowStepContext,
   WorkflowValueResolver,
 } from "./run-types.js";
 import type { CodeStepOutputValidator } from "./step-input-code.js";
 import type { WorkflowRetryConfig } from "./trigger-types.js";
 
-export type WorkflowAgentStepOutputValidator = CodeStepOutputValidator<
-  object | string | number | boolean | null | undefined
+export type WorkflowAgentStepOutputValidationContext = Pick<
+  WorkflowStepContext,
+  "projectDir" | "stepOutputs"
+>;
+
+export type WorkflowAgentStepOutputValidator = (
+  rawOutput: Parameters<
+    CodeStepOutputValidator<object | string | number | boolean | null | undefined>
+  >[0],
+  context: WorkflowAgentStepOutputValidationContext,
+) => ReturnType<
+  CodeStepOutputValidator<object | string | number | boolean | null | undefined>
 >;
 
 export type WorkflowBaseStep = {
@@ -142,7 +153,9 @@ export type WorkflowAgentStepInput = WorkflowProgressStep & {
   /**
    * Optional decoder for final agent output. It runs before the step output
    * is recorded, and before streamed agent frames are flushed for validated
-   * steps.
+   * steps. The validation context exposes prior decoded step outputs so a
+   * workflow can enforce dynamic semantic contracts, such as requiring cited
+   * identifiers to come from an earlier evidence packet.
    */
   validate?: WorkflowAgentStepOutputValidator;
 };

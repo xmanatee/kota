@@ -1,4 +1,5 @@
 import type { AgentHarnessResult } from "#core/agent-harness/index.js";
+import type { WorkflowAgentStepOutputValidationContext } from "../step-input-base.js";
 import { WorkflowStepOutputValidationError } from "../step-input-code.js";
 import type { WorkflowAgentStep } from "../step-types.js";
 import type { WorkflowStepOutput } from "./step-executor-agent.js";
@@ -12,10 +13,11 @@ import {
 export function validateAgentStepOutput(
   step: WorkflowAgentStep,
   output: WorkflowStepOutput,
+  context: WorkflowAgentStepOutputValidationContext,
 ): WorkflowStepOutput {
   if (step.validate === undefined) return output;
   try {
-    return step.validate(output) as WorkflowStepOutput;
+    return step.validate(output, context) as WorkflowStepOutput;
   } catch (error) {
     const cause = error instanceof Error ? error : new Error(String(error));
     throw new WorkflowStepOutputValidationError(step.id, "run", cause);

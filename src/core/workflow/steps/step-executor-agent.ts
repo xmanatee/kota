@@ -166,6 +166,10 @@ export async function executeAgentStep(
       onJsonOutputFeedback: (feedback) => {
         lastJsonOutputFeedback = feedback;
       },
+      outputValidationContext: {
+        projectDir: agentConfig.projectDir,
+        stepOutputs: priorStepOutputs,
+      },
     });
 
   const retry = step.retry ?? DEFAULT_AGENT_STEP_RETRY;
