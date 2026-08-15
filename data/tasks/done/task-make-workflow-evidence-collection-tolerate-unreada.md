@@ -1,12 +1,12 @@
 ---
 id: task-make-workflow-evidence-collection-tolerate-unreada
 title: Make workflow evidence collection tolerate unreadable run entries
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Prevent an unreadable descendant within a run directory from failing the entire evidence-collection or workflow-dispatch operation. Record the inaccessible entry as excluded evidence and continue processing accessible artifacts.
 created_at: 2026-08-15T05:19:30.410Z
-updated_at: 2026-08-15T05:19:30.410Z
+updated_at: 2026-08-15T07:22:38.258Z
 task_class: Meta
 ---
 ## Problem
