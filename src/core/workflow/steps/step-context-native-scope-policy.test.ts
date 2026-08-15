@@ -127,6 +127,8 @@ describe("direct workflow native harness scope policy", () => {
         },
       );
 
+      expect(context.scopePolicySnapshot).toEqual({ revision: 0, policy });
+
       await expect(
         context.runAgentHarness(harness, {
           prompt: "Exercise direct native authorization.",

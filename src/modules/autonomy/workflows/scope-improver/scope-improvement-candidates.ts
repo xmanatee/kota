@@ -34,7 +34,7 @@ export function missingGuidanceCandidate(
     summary:
       "The scope has no AGENTS.md guidance, so improvement work lacks local constraints.",
     evidenceIds: ["policy:scope-improvement"],
-    preferredAction: inputs.config.allowAutonomousEdits ? "safe-edit" : "owner-question",
+    preferredAction: "owner-question",
   };
 }
 
@@ -73,53 +73,4 @@ export function recentChangeCandidate(
     skipReason:
       "recent file-change evidence does not name a concrete scope gap without task, run, or owner context",
   };
-}
-
-export function taskQueueEventWithoutActionableEvidence(
-  inputs: ScopeImprovementInputs,
-): ScopeImprovementCandidate {
-  return {
-    id: "task-queue-event-without-actionable-evidence",
-    signature: `${inputs.scope.scopeId}:task-queue-event-without-actionable-evidence`,
-    title: `Skip queue-only task event in ${inputs.scope.displayName}`,
-    summary:
-      "A task.changed event reported queue counts but no concrete task, file, or failure evidence.",
-    evidenceIds: ["queue:snapshot"],
-    preferredAction: "skip",
-    skipReason:
-      "queue counts do not identify a concrete scope improvement without task, file, or run evidence",
-  };
-}
-
-export function failedRunCandidates(
-  inputs: ScopeImprovementInputs,
-): ScopeImprovementCandidate[] {
-  return inputs.evidence
-    .filter((item) => item.kind === "run")
-    .map((failure) => ({
-      id: failure.id,
-      signature: `${inputs.scope.scopeId}:${failure.id}`,
-      title: `Investigate ${failure.summary}`,
-      summary: "A failed run is evidence of scope work that may need repair.",
-      evidenceIds: [failure.id],
-      preferredAction: "create-task" as const,
-      task: {
-        problem:
-          `${failure.summary} is a failed scoped workflow run and may indicate broken automation, validation, or task-state handling.`,
-        desiredOutcome:
-          "Inspect the cited run artifact and repair the concrete failure, or record why no scope-local repair is warranted.",
-        constraints: [
-          "Preserve the cited evidence ids until this task is resolved.",
-          "Keep the work scoped to the directory that produced the finding.",
-        ],
-        doneWhen: [
-          "The cited failure is repaired or explicitly rejected with evidence.",
-          "The scope-improvement artifact remains enough to audit the decision.",
-          "Focused validation covers the repaired failure path or documented no-op.",
-        ],
-        acceptanceEvidence: [
-          "Scope-improvement artifact plus focused validation output for the failed run investigation.",
-        ],
-      },
-    }));
 }

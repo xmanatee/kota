@@ -32,9 +32,13 @@ import progressReviewerWorkflow from "./workflow.js";
 
 const TEST_PRESET = getPreset(SHIPPED_DEFAULT_PRESET_ID);
 
-vi.mock("#core/util/repo-worktree.js", () => ({
-  getRepoWorktreeStatus: vi.fn(),
-}));
+vi.mock("#core/util/repo-worktree.js", async () => {
+  const actual =
+    await vi.importActual<typeof import("#core/util/repo-worktree.js")>(
+      "#core/util/repo-worktree.js",
+    );
+  return { ...actual, getRepoWorktreeStatus: vi.fn() };
+});
 
 type TaskCountEvent = {
   runId: string;

@@ -1,25 +1,20 @@
 import {
   existsSync,
-  readdirSync,
   readFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import type { ScopePolicySnapshot } from "#core/daemon/scope-policy.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
-import {
-  WORKFLOW_BATCH_FLUSH_EVENT,
-  type WorkflowRunTrigger,
-} from "#core/workflow/trigger-types.js";
+import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
+import type { ScopeImprovementRequest } from "./events.js";
 import {
-  scopeImprovementEvidenceReady,
-  scopeImprovementRequested,
-} from "./events.js";
+  computeScopeContentFingerprint,
+  isScopePolicyEvidenceRef,
+} from "./scope-fingerprint.js";
 import {
-  failedRunCandidates,
   missingGuidanceCandidate,
   recentChangeCandidate,
-  taskQueueEventWithoutActionableEvidence,
 } from "./scope-improvement-candidates.js";
 import {
   readScopeImprovementConfig,
@@ -27,38 +22,25 @@ import {
 } from "./scope-improvement-state.js";
 import {
   SCOPE_IMPROVEMENT_MAX_CHANGED_FILES_PER_RUN,
-  SCOPE_IMPROVEMENT_SCHEDULE_EVENT,
   type ScopeImprovementCandidate,
-  type ScopeImprovementConfig,
   type ScopeImprovementEvidence,
   type ScopeImprovementEvidencePacket,
   type ScopeImprovementInputs,
-  type ScopeImprovementState,
   type ScopeImprovementTriggerKind,
   type ScopeInstruction,
 } from "./scope-improvement-types.js";
 
 function triggerKind(trigger: WorkflowRunTrigger): ScopeImprovementTriggerKind {
-  const event = sourceTriggerEvent(trigger);
-  if (event === "files.changed") return "file";
-  if (event === "task.changed") return "task";
-  if (event === "workflow.build.committed") return "run";
-  if (event === scopeImprovementEvidenceReady.name) return "evidence";
-  if (event === SCOPE_IMPROVEMENT_SCHEDULE_EVENT || event === "schedule") {
-    return "schedule";
+  const payload = trigger.payload as ScopeImprovementRequest;
+  if (payload.boundary === "initial-onboarding") return "initial-onboarding";
+  if (payload.boundary === "content-policy-changed") {
+    return "content-policy-changed";
   }
-  if (event === scopeImprovementRequested.name) return "manual";
-  return "manual";
-}
-
-function sourceTriggerEvent(trigger: WorkflowRunTrigger): string {
-  if (trigger.event !== WORKFLOW_BATCH_FLUSH_EVENT) return trigger.event;
-  const sourceEventName = trigger.payload.sourceEventName;
-  return typeof sourceEventName === "string" ? sourceEventName : trigger.event;
+  return "explicit-request";
 }
 
 function changedFiles(trigger: WorkflowRunTrigger): string[] {
-  const files = trigger.payload.files;
+  const files = trigger.payload.evidenceRefs;
   if (!Array.isArray(files)) return [];
   return files.filter((file): file is string => typeof file === "string");
 }
@@ -85,30 +67,6 @@ function readInstructions(projectDir: string, files: readonly string[]): ScopeIn
   return instructions;
 }
 
-function recentRunEvidence(projectDir: string): ScopeImprovementEvidence[] {
-  const runsDir = join(projectDir, ".kota", "runs");
-  if (!existsSync(runsDir)) return [];
-  return readdirSync(runsDir)
-    .sort()
-    .reverse()
-    .slice(0, 8)
-    .flatMap((runId) => {
-      const metadata = readOptionalJsonFile<{
-        workflow?: string;
-        status?: string;
-      }>(join(runsDir, runId, "metadata.json"));
-      if (!metadata || metadata.status !== "failed") return [];
-      return [
-        {
-          id: `run:${runId}`,
-          kind: "run" as const,
-          summary: `Failed workflow run ${metadata.workflow ?? "unknown"} (${runId})`,
-          path: join(".kota", "runs", runId, "metadata.json"),
-        },
-      ];
-    });
-}
-
 function queueEvidence(projectDir: string): ScopeImprovementEvidence {
   const snapshot = getRepoTaskQueueSnapshot(projectDir);
   return {
@@ -120,42 +78,31 @@ function queueEvidence(projectDir: string): ScopeImprovementEvidence {
   };
 }
 
-function throttleDecision(
-  config: ScopeImprovementConfig,
-  state: ScopeImprovementState,
-  files: readonly string[],
-  now: Date,
-): ScopeImprovementInputs["throttle"] {
-  if (files.length > SCOPE_IMPROVEMENT_MAX_CHANGED_FILES_PER_RUN) {
-    return {
-      reason:
-        `file event included ${files.length} paths; limit is ` +
-        `${SCOPE_IMPROVEMENT_MAX_CHANGED_FILES_PER_RUN}`,
-      eventCount: files.length,
-    };
-  }
-  if (!state.lastRunAt) return null;
-  const elapsedMinutes = (now.getTime() - Date.parse(state.lastRunAt)) / 60_000;
-  if (!Number.isFinite(elapsedMinutes) || elapsedMinutes >= config.minMinutesBetweenRuns) {
-    return null;
-  }
-  return {
-    reason:
-      `last scope improvement ran ${elapsedMinutes.toFixed(1)} minutes ago; ` +
-      `minimum is ${config.minMinutesBetweenRuns}`,
-    eventCount: files.length,
-  };
-}
-
 export function collectScopeImprovementInputs(args: {
   projectDir: string;
   trigger: WorkflowRunTrigger;
   now: Date;
+  scopePolicySnapshot: ScopePolicySnapshot;
 }): ScopeImprovementInputs {
   const scopeId = deriveDirectoryScopeId(args.projectDir);
   const config = readScopeImprovementConfig(args.projectDir);
   const state = readScopeImprovementState(args.projectDir, scopeId);
-  const files = changedFiles(args.trigger);
+  const payload = args.trigger.payload as ScopeImprovementRequest;
+  const computedFingerprint = computeScopeContentFingerprint(
+    args.projectDir,
+    args.scopePolicySnapshot.policy,
+  );
+  const automatic = payload.automatic === true;
+  // Automatic requests are latest-only semantic inputs. Re-read their
+  // canonical state at execution so a guidance change between queueing and
+  // consumption cannot make a stale payload authoritative.
+  const fingerprint = automatic
+    ? computedFingerprint.fingerprint
+    : payload.fingerprint ?? computedFingerprint.fingerprint;
+  const evidenceRefs = automatic
+    ? computedFingerprint.refs
+    : changedFiles(args.trigger);
+  const files = evidenceRefs.filter((ref) => !isScopePolicyEvidenceRef(ref));
   const instructions = readInstructions(args.projectDir, files);
   const evidence: ScopeImprovementEvidence[] = [
     ...instructions.map((item) => ({
@@ -171,13 +118,19 @@ export function collectScopeImprovementInputs(args: {
       path,
     })),
     queueEvidence(args.projectDir),
-    ...recentRunEvidence(args.projectDir),
+    {
+      id: "policy:scope-authority",
+      kind: "policy",
+      summary:
+        `resolved scope policy revision=${args.scopePolicySnapshot.revision} ` +
+        `autonomy=${args.scopePolicySnapshot.policy.autonomy.defaultMode}/` +
+        `${args.scopePolicySnapshot.policy.autonomy.maxMode} ` +
+        `writes=${args.scopePolicySnapshot.policy.writes.mode}`,
+    },
     {
       id: "policy:scope-improvement",
       kind: "policy",
-      summary:
-        `enabled=${config.enabled} autonomousEdits=${config.allowAutonomousEdits} ` +
-        `writePaths=${config.writePaths.join(",") || "(none)"}`,
+      summary: `enabled=${config.enabled} maxActionsPerRun=${config.maxActionsPerRun}`,
     },
   ];
   return {
@@ -194,14 +147,19 @@ export function collectScopeImprovementInputs(args: {
     instructions,
     changedFiles: files,
     evidence,
-    throttle: throttleDecision(config, state, files, args.now),
+    semanticInput: {
+      automatic,
+      fingerprint,
+      evidenceRefs,
+    },
+    alreadyConsumed: automatic && state.consumedFingerprint === fingerprint,
   };
 }
 
 export function discoverScopeImprovementCandidates(
   inputs: ScopeImprovementInputs,
 ): ScopeImprovementCandidate[] {
-  if (!inputs.config.enabled || inputs.throttle) return [];
+  if (!inputs.config.enabled || inputs.alreadyConsumed) return [];
   const candidates: ScopeImprovementCandidate[] = [];
   const skippedCandidates: ScopeImprovementCandidate[] = [];
   const hasInstructions = inputs.instructions.length > 0;
@@ -213,10 +171,6 @@ export function discoverScopeImprovementCandidates(
     } else {
       candidates.push(candidate);
     }
-  }
-  candidates.push(...failedRunCandidates(inputs));
-  if (hasInstructions && inputs.triggerKind === "task") {
-    skippedCandidates.push(taskQueueEventWithoutActionableEvidence(inputs));
   }
   return [...candidates, ...skippedCandidates].slice(0, inputs.config.maxActionsPerRun);
 }

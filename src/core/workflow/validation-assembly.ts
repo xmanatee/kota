@@ -82,6 +82,16 @@ export function assembleWorkflowDefinition(
     ),
     ...(maxConcurrentRuns !== undefined ? { maxConcurrentRuns } : {}),
     ...(dispatchBurst !== undefined ? { dispatchBurst } : {}),
+    triggerAdmission: (() => {
+      if (definition.triggerAdmission === undefined) return undefined;
+      if (typeof definition.triggerAdmission !== "function") {
+        throw new WorkflowDefinitionError(
+          "triggerAdmission must be a function",
+          definitionPath,
+        );
+      }
+      return definition.triggerAdmission;
+    })(),
     inputSchema:
       definition.inputSchema != null
         ? (definition.inputSchema as Record<string, unknown>)

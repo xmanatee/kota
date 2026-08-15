@@ -96,5 +96,18 @@ export const progressReviewOutputSchema = {
         },
       },
     },
+    resolutions: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["topicKey", "reason", "evidenceIds"],
+        additionalProperties: false,
+        properties: {
+          topicKey: { type: "string", pattern: "^[a-z0-9][a-z0-9:_-]*$" },
+          reason: { type: "string" },
+          evidenceIds: { type: "array", items: { type: "string" } },
+        },
+      },
+    },
   },
 } satisfies JsonSchemaObject;

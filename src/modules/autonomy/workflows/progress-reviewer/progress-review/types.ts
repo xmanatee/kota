@@ -16,6 +16,7 @@ import type {
 
 export type ProgressReviewTriggerKind =
   | "manual"
+  | "semantic-boundary"
   | "schedule"
   | "run-count"
   | "task-count"
@@ -48,7 +49,8 @@ export type ProgressReviewEvidenceRef = {
     | "git"
     | "owner-question"
     | "approval"
-    | "dead-letter";
+    | "dead-letter"
+    | "state";
   summary: string;
   path?: string;
   pruned?: ProgressReviewPrunedEvidenceReference;
@@ -73,6 +75,9 @@ export type ProgressReviewTaskEvidence = ProgressReviewEvidenceRef & {
   priority: string;
   area: string;
   taskClass: RepoTaskClass;
+  anchor: boolean;
+  dependsOn: string[];
+  waitingOn: string[];
   operatorEvidenceMentioned: boolean;
 };
 
@@ -185,6 +190,7 @@ export type ProgressReviewScopeEvidence = {
   approvals: ProgressReviewApprovalEvidence[];
   deadLetterCounts: ProgressReviewDeadLetterCounts[];
   deadLetters: ProgressReviewDeadLetterEvidence[];
+  canonicalState: ProgressReviewEvidenceRef[];
   taskClassDistribution: ProgressReviewTaskClassCount[];
   operatorJourneyRisks: ProgressReviewOperatorJourneyRisk[];
   evidence: ProgressReviewEvidenceRef[];
@@ -193,6 +199,13 @@ export type ProgressReviewScopeEvidence = {
 
 export type ProgressReviewEvidencePacket = {
   generatedAt: string;
+  semanticInput: {
+    automatic: boolean;
+    boundary: string;
+    inputRevision: number | null;
+    evidenceRefs: string[];
+    reason: string;
+  };
   triggerKind: ProgressReviewTriggerKind;
   triggerEvent: string;
   scope: ProgressReviewScope;
@@ -216,47 +229,18 @@ export type ProgressReviewEvidencePacket = {
   approvals: ProgressReviewApprovalEvidence[];
   deadLetterCounts: ProgressReviewDeadLetterCounts[];
   deadLetters: ProgressReviewDeadLetterEvidence[];
+  canonicalState: ProgressReviewEvidenceRef[];
   taskClassDistribution: ProgressReviewTaskClassCount[];
   operatorJourneyRisks: ProgressReviewOperatorJourneyRisk[];
   evidence: ProgressReviewEvidenceRef[];
   excluded: string[];
 };
 
-export type ProgressReviewEvidenceCounts = {
-  runs: number;
-  tasks: number;
-  events: number;
-  artifacts: number;
-  git: number;
-  ownerQuestions: number;
-  approvals: number;
-  deadLetters: number;
-  evidence: number;
-  taskClasses: ProgressReviewTaskClassCount[];
-};
-
-export type ProgressReviewAgentScopeSummary = {
-  scope: ProgressReviewScope;
-  window: ProgressReviewEvidenceWindow;
-  counts: ProgressReviewEvidenceCounts;
-  excluded: string[];
-};
-
-export type ProgressReviewAgentEvidencePacket = {
-  generatedAt: string;
-  triggerKind: ProgressReviewTriggerKind;
-  triggerEvent: string;
-  scope: ProgressReviewScope;
-  window: ProgressReviewEvidencePacket["window"];
-  batch: ProgressReviewEvidencePacket["batch"];
-  scopes: ProgressReviewAgentScopeSummary[];
-  counts: ProgressReviewEvidenceCounts;
-  deadLetterCounts: ProgressReviewDeadLetterCounts[];
-  operatorJourneyRisks: ProgressReviewOperatorJourneyRisk[];
-  evidence: ProgressReviewEvidenceRef[];
-  excluded: string[];
-};
-
+export type {
+  ProgressReviewAgentEvidencePacket,
+  ProgressReviewAgentScopeSummary,
+  ProgressReviewEvidenceCounts,
+} from "./agent-packet-types.js";
 
 export type {
   ExistingWorkItem,
@@ -286,4 +270,5 @@ export type {
   ProgressReviewFindingGroup,
   ProgressReviewFollowUpTaskOutput,
   ProgressReviewOwnerQuestionOutput,
+  ProgressReviewResolutionOutput,
 } from "./review-types.js";

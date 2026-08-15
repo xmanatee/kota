@@ -1,5 +1,6 @@
 import {
   enqueueOwnerQuestion,
+  resolveGeneratedWork,
   writeFollowUpTask,
 } from "./action-writers.js";
 import {
@@ -31,6 +32,12 @@ export function applyProgressReviewActions(args: {
   }
   for (const question of args.review.ownerQuestions) {
     applied.push(...enqueueOwnerQuestion({ ...args, question }));
+  }
+  for (const resolution of args.review.resolutions ?? []) {
+    applied.push(...resolveGeneratedWork({
+      projectDir: args.projectDir,
+      resolution,
+    }));
   }
   return summarizeAppliedActions(applied);
 }

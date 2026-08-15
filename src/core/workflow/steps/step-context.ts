@@ -60,13 +60,8 @@ async function enforceWorkflowToolScopePolicy(args: {
   if (denied) throw new Error(denied.content);
 }
 
-/**
- * Per-run append-only log of events a step emitted via `ctx.emit`. The
- * harness eval layer's `run-emits-event` / `run-omits-event` predicates
- * inspect this file; emit-only workflows whose failure mode is a wrong bus
- * event need an observable artifact that does not depend on the step
- * choosing to include the emission in its output.
- */
+// Per-run append-only event trace for evals and emit-only workflows whose
+// failure mode cannot be reconstructed from the step's returned output.
 export const EMITTED_EVENTS_LOG_FILENAME = "emitted-events.jsonl";
 
 function recordEmittedEvent(
@@ -122,6 +117,9 @@ export function createStepContext(
   const stateDir = deps.eventJournal
     ? dirname(dirname(deps.eventJournal.getPath()))
     : deps.store.rootDir;
+  const scopePolicySnapshot = deps.scopePolicyAuthority?.getSnapshot(
+    deps.pbus.getScopeId(),
+  );
   const runAgentHarness: WorkflowAgentHarnessRunner = (
     harness,
     options,
@@ -186,6 +184,7 @@ export function createStepContext(
     ...(deps.eventJournal !== undefined
       ? { eventJournal: deps.eventJournal }
       : {}),
+    ...(scopePolicySnapshot !== undefined ? { scopePolicySnapshot } : {}),
     workflow: {
       name: metadata.workflow,
       definitionPath: metadata.definitionPath,

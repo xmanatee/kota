@@ -7,6 +7,7 @@ import type {
 } from "#core/agent-harness/index.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
+import type { ScopePolicySnapshot } from "#core/daemon/scope-policy.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import type { AgentRuntimeSelection } from "#core/model/preset.js";
 import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
@@ -105,6 +106,13 @@ export type WorkflowStepContext = {
   runtimeResources?: WorkflowRuntimeResources;
   stateDir?: string;
   eventJournal?: EventJournal;
+  /**
+   * The authoritative resolved scope policy captured when this step starts.
+   * Code steps use this snapshot for policy-derived decisions and evidence;
+   * tool and agent calls continue to re-check the live authority at their own
+   * execution boundaries.
+   */
+  scopePolicySnapshot?: ScopePolicySnapshot;
   workflow: WorkflowContextInfo;
   trigger: WorkflowRunTrigger;
   previousOutput: unknown;

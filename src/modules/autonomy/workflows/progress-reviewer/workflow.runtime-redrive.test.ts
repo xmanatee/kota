@@ -17,17 +17,24 @@ import {
   reviewOutput,
 } from "./workflow.test-helpers.js";
 
-vi.mock("#core/util/repo-worktree.js", () => ({
-  getRepoWorktreeStatus: vi.fn(() => ({
-    available: true,
-    dirty: false,
-    trackedDirty: false,
-    entries: [],
-    fingerprint: "",
-    summary: "clean",
-    headSha: "abc1234",
-  })),
-}));
+vi.mock("#core/util/repo-worktree.js", async () => {
+  const actual =
+    await vi.importActual<typeof import("#core/util/repo-worktree.js")>(
+      "#core/util/repo-worktree.js",
+    );
+  return {
+    ...actual,
+    getRepoWorktreeStatus: vi.fn(() => ({
+      available: true,
+      dirty: false,
+      trackedDirty: false,
+      entries: [],
+      fingerprint: "",
+      summary: "clean",
+      headSha: "abc1234",
+    })),
+  };
+});
 
 vi.mock("#modules/autonomy/commit.js", async () => {
   const actual = await vi.importActual<typeof import("#modules/autonomy/commit.js")>(

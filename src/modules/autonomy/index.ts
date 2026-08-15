@@ -23,11 +23,15 @@ import { attentionRoutes } from "./workflows/attention-digest/attention-route.js
 import { buildDigestCommand } from "./workflows/daily-digest/digest-cli.js";
 import { digestRoutes } from "./workflows/daily-digest/digest-route.js";
 import { dailyDigestUiSurfaceSource } from "./workflows/daily-digest/ui-surface.js";
-import { progressReviewRequested } from "./workflows/progress-reviewer/events.js";
 import {
-  scopeImprovementEvidenceReady,
+  automaticProgressReviewRequested,
+  progressReviewRequested,
+} from "./workflows/progress-reviewer/events.js";
+import {
+  scopeImprovementChanged,
   scopeImprovementRequested,
 } from "./workflows/scope-improver/events.js";
+import { subscribeScopeImprovementOnboarding } from "./workflows/scope-improver/semantic-request.js";
 
 // Absolute path to KOTA's install root (the directory that contains `src/` in
 // source mode and `dist/` in built mode). Workflow `promptPath` values are
@@ -145,8 +149,9 @@ const autonomyModule: KotaModule = {
   ],
   events: [
     progressReviewRequested,
+    automaticProgressReviewRequested,
     scopeImprovementRequested,
-    scopeImprovementEvidenceReady,
+    scopeImprovementChanged,
     autonomyHealthSignal,
     autonomyIssueDecisionRequested,
   ],
@@ -155,6 +160,7 @@ const autonomyModule: KotaModule = {
   uiSurfaces: [dailyDigestUiSurfaceSource],
   onLoad: (ctx) => {
     subscribeAutonomyIssueSources(ctx);
+    subscribeScopeImprovementOnboarding(ctx);
     ctx.registerProvider(
       SCOPE_DRAIN_INSPECTION_PROVIDER_TYPE,
       autonomyScopeDrainInspection,

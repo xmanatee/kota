@@ -46,6 +46,18 @@ describe("production completion routing replay", () => {
     ).toBe(capture.verification.rowSha256);
     expect(capture.verification.removedEscalatorRuns).toBe(92);
     expect(capture.verification.workflowCounts.improver).toBe(10);
+    const historicalProgress = capture.rows.filter(
+      (row) => row.workflow === "progress-reviewer",
+    );
+    const historicalScope = capture.rows.filter(
+      (row) => row.workflow === "scope-improver",
+    );
+    expect(historicalProgress).toHaveLength(17);
+    expect(historicalScope).toHaveLength(4);
+    expect(historicalProgress.reduce((total, row) => total + row.durationMs, 0))
+      .toBe(1_998_830);
+    expect(historicalScope.reduce((total, row) => total + row.durationMs, 0))
+      .toBe(3_778);
 
     const rawDefinitions = await autonomyWorkflowInputs();
     const definitions = validateWorkflowDefinitions(rawDefinitions, REPO_ROOT, {
@@ -62,6 +74,17 @@ describe("production completion routing replay", () => {
         expect.objectContaining({ event: "workflow.completed" }),
       ]),
     );
+    for (const workflowName of ["progress-reviewer", "scope-improver"]) {
+      const triggers = definitions.find(
+        (definition) => definition.name === workflowName,
+      )?.triggers ?? [];
+      expect(triggers.some((trigger) => trigger.schedule || trigger.batch))
+        .toBe(false);
+      expect(triggers.some((trigger) =>
+        trigger.event === "workflow.completed" ||
+        trigger.event === "workflow.build.committed"
+      )).toBe(false);
+    }
 
     const replayDir = mkdtempSync(join(tmpdir(), "kota-routing-window-"));
     tempDirs.push(replayDir);
@@ -95,18 +118,8 @@ describe("production completion routing replay", () => {
         0,
       );
 
-      expect(invocations).toHaveLength(10);
-      expect(new Set(invocations.map((run) => run.workflow))).toEqual(
-        new Set(["progress-reviewer"]),
-      );
-      expect(invocations.every((run) => run.triggerEvent === "workflow.batch.flushed"))
-        .toBe(true);
-      expect(invocations.every((run) => run.sourceOrders.length === 5)).toBe(true);
-      expect(new Set(invocations.flatMap((run) => run.sourceOrders))).toHaveProperty(
-        "size",
-        50,
-      );
-      expect(pendingInputs).toBe(2);
+      expect(invocations).toEqual([]);
+      expect(pendingInputs).toBe(0);
       expect(
         invocations.filter((run) =>
           REMOVED_ESCALATORS.includes(

@@ -33,11 +33,15 @@ import {
   applyScopeImprovementRecommendations,
   type ScopeImprovementActionResult,
   type ScopeImprovementArtifact,
-  type ScopeImprovementCooldownDecision,
+  type ScopeImprovementConsumptionDecision,
   type ScopeImprovementPreflight,
   writeScopeImprovementArtifact,
 } from "./scope-improvement.js";
-import { writeScopeImprovementState } from "./scope-improvement-state.js";
+import {
+  deferScopeImprovementInput,
+  writeScopeImprovementState,
+} from "./scope-improvement-state.js";
+import { admitScopeImprovementTrigger } from "./semantic-request.js";
 import { scopeImproverTriggers } from "./triggers.js";
 
 const applyRecommendations = typedCodeStep<ScopeImprovementActionResult>({
@@ -52,7 +56,6 @@ const applyRecommendations = typedCodeStep<ScopeImprovementActionResult>({
     expectStructuredOutput<ScopeImprovementActionResult>(raw, [
       "createdTaskIds",
       "ownerQuestionIds",
-      "safeEditPaths",
       "applied",
       "requiresCommit",
     ]),
@@ -68,40 +71,55 @@ const applyRecommendations = typedCodeStep<ScopeImprovementActionResult>({
 function hasVisibleActions(actions: ScopeImprovementActionResult): boolean {
   return (
     actions.createdTaskIds.length > 0 ||
-    actions.ownerQuestionIds.length > 0 ||
-    actions.safeEditPaths.length > 0
+    actions.ownerQuestionIds.length > 0
   );
 }
 
-function zeroActionCooldownReason(
+function zeroActionConsumptionReason(
   ctx: Parameters<typeof collectInputs.outputRequired>[0],
 ): string | null {
   const inputs = collectInputs.outputRequired(ctx);
-  if (!inputs.config.enabled || inputs.throttle) return null;
+  if (!inputs.config.enabled) return null;
   if (applyRecommendations.output(ctx)) return null;
-  const recommendations = recommend.output(ctx)?.recommendations ?? [];
-  if (recommendations.length === 0) return "no scope-improvement recommendations";
-  if (inspectWorktree.output(ctx)?.dirty !== false) {
-    return "worktree was dirty before recommendations could be applied";
+  if (inputs.alreadyConsumed) {
+    return "latest automatic scope fingerprint was already consumed";
   }
-  return null;
+  const recommendations = recommend.output(ctx)?.recommendations ?? [];
+  return recommendations.length === 0
+    ? "semantic input produced no scope-improvement recommendations"
+    : null;
 }
 
-const recordZeroActionCooldown = typedCodeStep<ScopeImprovementCooldownDecision>({
-  id: "record-zero-action-cooldown",
+const recordSemanticConsumption = typedCodeStep<ScopeImprovementConsumptionDecision>({
+  id: "record-semantic-consumption",
   type: "code",
   when: stepSucceeded("recommend-improvements"),
   validate: (raw) =>
-    expectStructuredOutput<ScopeImprovementCooldownDecision>(raw, [
+    expectStructuredOutput<ScopeImprovementConsumptionDecision>(raw, [
       "recorded",
       "reason",
     ]),
   run: (ctx) => {
-    const reason = zeroActionCooldownReason(ctx);
+    const inputs = collectInputs.outputRequired(ctx);
+    const recommendations = recommend.output(ctx)?.recommendations ?? [];
+    if (
+      inputs.semanticInput.automatic &&
+      !inputs.alreadyConsumed &&
+      inspectWorktree.output(ctx)?.dirty !== false &&
+      recommendations.length > 0 &&
+      !applyRecommendations.output(ctx)
+    ) {
+      deferScopeImprovementInput(ctx.projectDir, inputs);
+      return {
+        recorded: false,
+        reason: "semantic scope input deferred until the canonical worktree is clean",
+      };
+    }
+    const reason = zeroActionConsumptionReason(ctx);
     if (!reason) return { recorded: false, reason: null };
     writeScopeImprovementState({
       projectDir: ctx.projectDir,
-      inputs: collectInputs.outputRequired(ctx),
+      inputs,
       actions: [],
     });
     return { recorded: true, reason };
@@ -112,7 +130,6 @@ function emptyActions(): ScopeImprovementActionResult {
   return {
     createdTaskIds: [],
     ownerQuestionIds: [],
-    safeEditPaths: [],
     applied: [],
     requiresCommit: false,
   };
@@ -149,7 +166,7 @@ const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
       evidence: gatherEvidence.outputRequired(ctx),
       recommendations: recommend.output(ctx)?.recommendations ?? [],
       actions: applyRecommendations.output(ctx) ?? emptyActions(),
-      cooldown: recordZeroActionCooldown.output(ctx) ?? {
+      consumption: recordSemanticConsumption.output(ctx) ?? {
         recorded: false,
         reason: null,
       },
@@ -172,7 +189,6 @@ const writeCommitMessage = typedCodeStep<{ written: boolean }>({
       "scope-improver: apply scoped improvement action(s)",
       "",
       ...actions.createdTaskIds.map((id) => `- create ${id}`),
-      ...actions.safeEditPaths.map((path) => `- edit ${path}`),
     ];
     mkdirSync(ctx.workflow.runDirPath, { recursive: true });
     writeFileSync(
@@ -215,9 +231,10 @@ const commitChanges = typedCodeStep<WorkflowCommitOutcome>({
 const scopeImproverWorkflow: WorkflowDefinitionInput = {
   name: "scope-improver",
   description:
-    "Watch configured scopes and turn evidence-backed improvement candidates into tasks, owner questions, or bounded safe edits.",
+    "Review explicit onboarding and material scope-policy/content changes, then propose normal tasks or owner questions.",
   tags: ["scope-improvement"],
   recoveryCapable: true,
+  triggerAdmission: admitScopeImprovementTrigger,
   triggers: scopeImproverTriggers,
   steps: [
     {
@@ -233,7 +250,7 @@ const scopeImproverWorkflow: WorkflowDefinitionInput = {
     gatherEvidence,
     recommend,
     applyRecommendations,
-    recordZeroActionCooldown,
+    recordSemanticConsumption,
     writeArtifact,
     writeCommitMessage,
     validateBeforeCommit,
@@ -255,14 +272,13 @@ const scopeImproverWorkflow: WorkflowDefinitionInput = {
               label: "Scope improvement",
               detail:
                 `tasks=${actions.createdTaskIds.length} ` +
-                `questions=${actions.ownerQuestionIds.length} edits=${actions.safeEditPaths.length}`,
+                `questions=${actions.ownerQuestionIds.length}`,
             },
           ],
           text:
             "Scope improvement run completed.\n" +
             `Tasks: ${actions.createdTaskIds.join(", ") || "none"}\n` +
-            `Owner questions: ${actions.ownerQuestionIds.join(", ") || "none"}\n` +
-            `Safe edits: ${actions.safeEditPaths.join(", ") || "none"}`,
+            `Owner questions: ${actions.ownerQuestionIds.join(", ") || "none"}`,
         };
       },
     },

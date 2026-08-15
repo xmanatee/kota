@@ -57,10 +57,22 @@ export const collectInputs = typedCodeStep<ScopeImprovementInputs>({
       "instructions",
       "changedFiles",
       "evidence",
-      "throttle",
+      "semanticInput",
+      "alreadyConsumed",
     ]),
-  run: ({ projectDir, trigger }) =>
-    collectScopeImprovementInputs({ projectDir, trigger, now: new Date() }),
+  run: ({ projectDir, trigger, scopePolicySnapshot }) => {
+    if (!scopePolicySnapshot) {
+      throw new Error(
+        "scope-improver requires an authoritative resolved scope-policy snapshot",
+      );
+    }
+    return collectScopeImprovementInputs({
+      projectDir,
+      trigger,
+      now: new Date(),
+      scopePolicySnapshot,
+    });
+  },
 });
 
 export const discoverCandidates = typedCodeStep<{

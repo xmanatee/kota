@@ -34,7 +34,6 @@ export {
   PROGRESS_REVIEW_MAX_GIT_STATUS_LINES,
   PROGRESS_REVIEW_MAX_RUNS,
   PROGRESS_REVIEW_MAX_TASKS,
-  PROGRESS_REVIEW_SCHEDULE_EVENT,
 } from "./progress-review/constants.js";
 export {
   classifyProgressReviewTrigger,

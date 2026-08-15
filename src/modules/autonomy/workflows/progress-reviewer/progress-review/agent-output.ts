@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { decodeProgressReviewAgentOutput } from "./agent-output-schema.js";
 import { assertProgressReviewPrunedEvidenceRef } from "./pruned-evidence.js";
 import type {
   ProgressReviewAgentOutput,
@@ -6,56 +6,7 @@ import type {
   ProgressReviewFindingGroup,
 } from "./types.js";
 
-const reviewClaimSchema = z.object({
-  id: z.string().min(1),
-  claim: z.string().min(1),
-  evidenceIds: z.array(z.string().min(1)).min(1),
-  confidence: z.enum(["low", "medium", "high"]),
-}).strict();
-
-const reviewFollowUpTaskSchema = z.object({
-  topicKey: z.string().regex(/^[a-z0-9][a-z0-9:_-]*$/),
-  title: z.string().min(1),
-  summary: z.string().min(1),
-  priority: z.enum(["p0", "p1", "p2", "p3"]),
-  area: z.string().min(1),
-  evidenceIds: z.array(z.string().min(1)).min(1),
-  acceptanceEvidence: z.string().min(1),
-}).strict();
-
-const reviewOwnerQuestionSchema = z.object({
-  topicKey: z.string().regex(/^[a-z0-9][a-z0-9:_-]*$/),
-  question: z.string().min(1),
-  reason: z.string().min(1),
-  evidenceIds: z.array(z.string().min(1)).min(1),
-  proposedAnswers: z.array(z.string().min(1)).min(1).optional(),
-}).strict();
-
-const reviewFindingGroupSchema = z.object({
-  claims: z.array(reviewClaimSchema),
-  followUpTasks: z.array(reviewFollowUpTaskSchema),
-}).strict();
-
-const progressReviewAgentOutputSchema = z.object({
-  verdict: z.enum([
-    "on-track",
-    "needs-steering",
-    "blocked",
-    "insufficient-evidence",
-  ]),
-  summary: z.string().min(1),
-  findings: z.object({
-    crossScope: reviewFindingGroupSchema,
-    localScope: reviewFindingGroupSchema,
-  }).strict(),
-  ownerQuestions: z.array(reviewOwnerQuestionSchema),
-}).strict();
-
-export function decodeProgressReviewAgentOutput(
-  raw: Parameters<typeof progressReviewAgentOutputSchema.parse>[0],
-): ProgressReviewAgentOutput {
-  return progressReviewAgentOutputSchema.parse(raw);
-}
+export { decodeProgressReviewAgentOutput } from "./agent-output-schema.js";
 
 export function progressReviewFindingGroupEntries(review: ProgressReviewAgentOutput): readonly {
   label: string;
@@ -252,6 +203,17 @@ function normalizeProgressReviewEvidenceIds(args: {
         evidenceIds: question.evidenceIds,
       }),
     })),
+    resolutions: (args.review.resolutions ?? []).map((resolution) => ({
+      ...resolution,
+      evidenceIds: normalizeEvidenceIds({
+        evidence: args.evidence,
+        fullEvidence: args.fullEvidence,
+        knownIds,
+        fullKnownIds,
+        field: `resolution ${resolution.topicKey}`,
+        evidenceIds: resolution.evidenceIds,
+      }),
+    })),
   };
 }
 
@@ -283,10 +245,17 @@ export function validateProgressReviewEvidenceIds(args: {
       evidenceIds: question.evidenceIds,
     });
   }
+  for (const resolution of args.review.resolutions ?? []) {
+    assertKnownEvidenceIds({
+      knownIds,
+      field: `resolution ${resolution.topicKey}`,
+      evidenceIds: resolution.evidenceIds,
+    });
+  }
 }
 
 export function decodeProgressReviewAgentOutputForEvidence(
-  raw: Parameters<typeof progressReviewAgentOutputSchema.parse>[0],
+  raw: Parameters<typeof decodeProgressReviewAgentOutput>[0],
   evidence: ProgressReviewEvidenceIdPacket,
   fullEvidence?: ProgressReviewEvidenceIdPacket,
 ): ProgressReviewAgentOutput {

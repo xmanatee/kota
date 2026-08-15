@@ -21,6 +21,7 @@ import {
   resolveWorkflowDispatchBurst,
 } from "./workflow-queue-burst.js";
 import { rejectInvalidTriggerPayload } from "./workflow-queue-validation.js";
+import { rejectUnadmittedWorkflowTrigger } from "./workflow-trigger-admission.js";
 
 export type WorkflowQueueManagerConfig = {
   store: WorkflowRunStore;
@@ -90,6 +91,13 @@ export class WorkflowQueueManager {
       })
     ) return;
 
+    if (rejectUnadmittedWorkflowTrigger({
+      definition,
+      projectDir: this.config.projectDir ?? process.cwd(),
+      trigger,
+      log: this.config.log,
+    })) return;
+
     const dispatchBurst = resolveWorkflowDispatchBurst({
       definition,
       trigger,
@@ -107,7 +115,7 @@ export class WorkflowQueueManager {
       trigger.event === WORKFLOW_BATCH_FLUSH_EVENT ||
       dispatchBurst > 1 ||
       queueEveryDelivery ||
-      explicitlyKeyed;
+      (explicitlyKeyed && triggerConfig.queueMode !== "latest");
     const existingIndex = distinctQueuedRun
       ? -1
       : this.queue.findIndex(

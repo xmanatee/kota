@@ -34,6 +34,12 @@ export type ProgressReviewOwnerQuestionOutput = {
   proposedAnswers?: string[];
 };
 
+export type ProgressReviewResolutionOutput = {
+  topicKey: string;
+  reason: string;
+  evidenceIds: string[];
+};
+
 export type ProgressReviewAgentOutput = {
   verdict: "on-track" | "needs-steering" | "blocked" | "insufficient-evidence";
   summary: string;
@@ -42,6 +48,7 @@ export type ProgressReviewAgentOutput = {
     localScope: ProgressReviewFindingGroup;
   };
   ownerQuestions: ProgressReviewOwnerQuestionOutput[];
+  resolutions?: ProgressReviewResolutionOutput[];
 };
 
 export type ProgressReviewAppliedAction =
@@ -84,6 +91,15 @@ export type ProgressReviewAppliedAction =
   | {
       kind: "skipped-owner-question";
       question: string;
+      reason: string;
+    }
+  | {
+      kind: "dismissed-owner-question";
+      questionId: string;
+    }
+  | {
+      kind: "resolved-work";
+      topicKey: string;
       reason: string;
     };
 

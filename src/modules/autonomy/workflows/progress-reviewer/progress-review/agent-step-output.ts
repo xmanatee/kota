@@ -31,6 +31,7 @@ export const validateProgressReviewEvidencePacket: CodeStepOutputValidator<
 > = (raw) =>
   expectStructuredOutput<ProgressReviewEvidencePacket>(raw, [
     "generatedAt",
+    "semanticInput",
     "triggerKind",
     "triggerEvent",
     "scope",
@@ -79,6 +80,7 @@ export const validateProgressReviewAgentEvidencePacket: CodeStepOutputValidator<
 > = (raw) =>
   expectStructuredOutput<ProgressReviewAgentEvidencePacket>(raw, [
     "generatedAt",
+    "semanticInput",
     "triggerKind",
     "triggerEvent",
     "scope",

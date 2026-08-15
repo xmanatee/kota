@@ -1,0 +1,6 @@
+autonomy: gate semantic reflection before queueing
+
+Reject consumed or superseded automatic inputs before queue insertion, preserve
+cleanup retries with delivery-attempt keys, and emit initial scope review from
+live scope registration. Split queue admission and progress consumption state
+into focused modules that stay within source-size rails.

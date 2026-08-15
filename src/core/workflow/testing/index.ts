@@ -1,4 +1,5 @@
 import { tmpdir } from "node:os";
+import type { ScopePolicySnapshot } from "#core/daemon/scope-policy.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type {
   WorkflowRuntimeResources,
@@ -64,6 +65,8 @@ export type HarnessOptions = {
    */
   workspaceDir?: string;
   runtimeResources?: WorkflowRuntimeResources;
+  /** Authoritative policy snapshot exposed to code steps in this test run. */
+  scopePolicySnapshot?: ScopePolicySnapshot;
   /**
    * Mock outputs for agent steps and (optionally) tool steps.
    * Agent steps require a mock; a missing mock throws a clear error.
