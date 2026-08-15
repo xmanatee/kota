@@ -1,13 +1,13 @@
 ---
 id: task-close-observability-obligations-from-recent-harnes
 title: Close observability obligations from recent harness builders
-status: ready
+status: done
 priority: p2
 area: autonomy
 task_class: Meta
 summary: Recheck the observability diagnostics for commits 30549f8c5f13 and cabddc9c8ef6, preserving the later evidence for the Antigravity CLI files and adding focused assertions or narrow rationale for the remaining agent-harness types, daemon client test-stub, and execution-environment candidates.
 created_at: 2026-08-11T12:15:14.603Z
-updated_at: 2026-08-11T12:15:14.603Z
+updated_at: 2026-08-15T03:44:09.374Z
 ---
 
 ## Problem

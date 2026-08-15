@@ -135,6 +135,10 @@ describe("buildExecutionEnv", () => {
     expect(env.https_proxy).toBeUndefined();
     expect(env.all_proxy).toBeUndefined();
     expect(env[NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV]).toBeUndefined();
+    expect(
+      Object.hasOwn(env, NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV),
+      "native provider proxy metadata must not cross the execution risk boundary",
+    ).toBe(false);
     expect(env.OPENAI_API_KEY).toBeUndefined();
     expect(env.KOTA_EVAL_PROVIDER_EGRESS_ACTIVE).toBeUndefined();
     expect(env.KOTA_EVAL_PROVIDER_EGRESS_AUTH_ENV_KEYS).toBeUndefined();

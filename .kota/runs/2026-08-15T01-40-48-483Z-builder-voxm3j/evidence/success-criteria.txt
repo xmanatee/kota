@@ -1,0 +1,2 @@
+1. Recheck commits 30549f8c5f13 and cabddc9c8ef6 together with the later Antigravity CLI evidence, map every observability-sensitive candidate to inspectable evidence or narrow rationale, preserve the cited evidence ids, and report no unresolved missing files.
+2. Add focused observable assertions or narrow rationale for the agent-harness type, daemon client test-stub, and execution-environment gaps; record durable acceptance evidence and pass the focused tests plus task validation.
