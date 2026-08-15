@@ -28,6 +28,8 @@ export function makeSlackChannelDef(moduleCtx: ModuleContext): ChannelDef {
 			const bot = new SlackBot({
 				botToken: config.botToken,
 				appToken: config.appToken,
+				workspaceId: config.workspaceId,
+				allowedUserIds: config.allowedUserIds ?? [],
 				notifyChannel: config.notifyChannel,
 				config: moduleCtx.config,
 				autonomyMode,

@@ -1,6 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { EventBus } from "#core/events/event-bus.js";
-import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { resolveModuleChannels } from "#core/modules/module-types.js";
 
@@ -15,86 +13,11 @@ vi.mock("./bot.js", () => {
   return { SlackBot };
 });
 
-import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import { SlackBot } from "./bot.js";
 import slackChannelModule from "./index.js";
+import { makeSlackChannelModuleTestContext as makeStubCtx } from "./index-test-support.js";
 
 const MockedSlackBot = vi.mocked(SlackBot);
-
-function makeStubCtx(
-  bus?: EventBus,
-  moduleConfig?: Record<string, unknown>,
-  kotaConfig?: ModuleRuntimeContext["config"],
-): ModuleRuntimeContext {
-  const b = bus ?? new EventBus();
-  return {
-    cwd: "/tmp",
-    verbose: false,
-    config: kotaConfig ?? ({ serve: { defaultAutonomyMode: "supervised" } } as ModuleRuntimeContext["config"]),
-    storage: new ModuleStorage("/tmp/test", "slack-channel"),
-    registerGroup: () => {},
-    getRoutes: () => [],
-    getContributedWorkflows: () => [],
-    getContributedChannels: () => [],
-      getContributedUiSurfaces: () => [],
-    getContributedControlRoutes: () => [],
-    getModuleSummaries: () => [],
-    getModuleConfig: () => moduleConfig as never,
-    log: Object.assign(() => {}, {
-      info: () => {},
-      warn: vi.fn(),
-      error: () => {},
-      debug: () => {},
-    }),
-    getSecret: vi.fn(() => null),
-    listTools: () => [],
-    events: makeStubEventProxy(b),
-    createSession: () => ({ send: async () => "", close: () => {} }),
-    registerProvider: () => {},
-    getProvider: () => null,
-    callTool: async () => ({ content: "" }),
-    registerMiddleware: () => {},
-    registerDynamicStateProvider: () => {},
-    registerCleanupHook: () => {},
-    registerPreSendHook: () => {},
-    registerHarnessHook: () => {},
-    resolveAgentDef: () => undefined,
-    resolveSkillsPrompt: () => "",
-    probeHealthChecks: async () => ({}),
-    getRegisteredConfigKeys: () => new Set<string>(),
-    client: {
-      recall: {},
-      answer: {},
-      capture: {},
-      memory: {},
-      knowledge: {},
-      history: {},
-      tasks: {},
-      approvals: {
-        list: vi.fn(async () => ({
-          approvals: [{
-            id: "abc123",
-            scopeId: "test-project",
-            tool: "shell",
-            input: { redacted: true, reason: "tool-io" },
-            review: {
-              status: "available",
-              input: { command: "deploy --target /srv/app" },
-              context: "user: deploy the client release",
-              digest: "a".repeat(64),
-            },
-            risk: "dangerous",
-            reason: "Runs commands",
-            createdAt: "2026-07-28T22:00:00.000Z",
-            status: "pending",
-          }],
-        })),
-        approve: vi.fn(),
-        reject: vi.fn(),
-      },
-    } as never,
-  };
-}
 
 describe("slackChannelModule metadata", () => {
   it("has correct name and version", () => {
@@ -131,6 +54,11 @@ describe("slackChannelModule metadata", () => {
         id: "app-token-ref",
         valueKind: "secret-reference",
         configPath: "modules.slack-channel.appToken",
+      },
+      {
+        id: "workspace-id",
+        valueKind: undefined,
+        configPath: "modules.slack-channel.workspaceId",
       },
       {
         id: "notify-channel",
@@ -194,6 +122,17 @@ describe("slackChannelModule onLoad", () => {
     });
     slackChannelModule.onLoad!(ctx);
     expect(MockedSlackBot).not.toHaveBeenCalled();
+  });
+
+  it("warns that interactive input is default-denied without admission config", () => {
+    const ctx = makeStubCtx(undefined, {
+      botToken: "xoxb-test",
+      appToken: "xapp-test",
+    });
+    slackChannelModule.onLoad!(ctx);
+    expect(ctx.log.warn).toHaveBeenCalledWith(
+      expect.stringContaining("interactive input is disabled"),
+    );
   });
 
   it("throws loudly when neither channel nor serve autonomy is configured", () => {

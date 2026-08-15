@@ -17,7 +17,7 @@ describe("SlackBot", () => {
       ws.simulateMessage({
         type: "events_api",
         envelope_id: "env-123",
-        payload: { event: { type: "message", text: "hi", user: "U1", channel: "D1" } },
+        payload: { team_id: "T-TEST", event: { type: "message", text: "hi", user: "U1", channel: "D1", channel_type: "im" } },
       });
 
       expect(ws.send).toHaveBeenCalledWith(JSON.stringify({ envelope_id: "env-123" }));
@@ -64,7 +64,7 @@ describe("SlackBot", () => {
       ws.simulateMessage({
         type: "events_api",
         envelope_id: "env-1",
-        payload: { event: { type: "message", text: "hello bot", user: "U1", channel: "D1" } },
+        payload: { team_id: "T-TEST", event: { type: "message", text: "hello bot", user: "U1", channel: "D1", channel_type: "im" } },
       });
 
       // Give async handleMessage time to run
@@ -91,7 +91,7 @@ describe("SlackBot", () => {
         type: "events_api",
         envelope_id: "env-auto",
         payload: {
-          team_id: "T1",
+          team_id: "T-TEST",
           event_id: "Ev1",
           event_time: 1770000000,
           event: {
@@ -99,6 +99,7 @@ describe("SlackBot", () => {
             text: "!task capture deploy regression",
             user: "U1",
             channel: "D1",
+            channel_type: "im",
             ts: "1770000000.100000",
           },
         },
@@ -191,6 +192,7 @@ describe("SlackBot", () => {
         envelope_id: "env-2",
         payload: {
           type: "block_actions",
+          team: { id: "T-TEST" },
           actions: [{
             action_id: "approve:abc123",
             value: `approve:abc123:${"a".repeat(64)}`,
@@ -224,6 +226,7 @@ describe("SlackBot", () => {
 
       const interactivePayload = {
         type: "block_actions",
+        team: { id: "T-TEST" },
         actions: [{ action_id: "reject:xyz", value: "reject:xyz" }],
         user: { id: "U1", name: "Test" },
         channel: { id: "C1" },
@@ -241,6 +244,7 @@ describe("SlackBot", () => {
       bot.stop();
       await startPromise.catch(() => {});
     });
+
   });
 
   // --- handleMessage: busy user ---

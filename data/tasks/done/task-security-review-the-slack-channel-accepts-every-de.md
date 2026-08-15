@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-slack-channel-accepts-every-de
 title: Security review: The Slack channel accepts every delivered message with a user and channel as authorized interactive input. Its closed configuration has no interactive-user allowlist, while slash commands and agent sessions execute without applying the inbound-signal trust classification. Any workspace user visible to the Slack app can consequently access project-backed clients or invoke the agent under the configured autonomy mode.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: The Slack channel accepts every delivered message with a user and channel as authorized interactive input. Its closed configuration has no interactive-user allowlist, while slash commands and agent sessions execute without applying the inbound-signal trust classification. Any workspace user visible to the Slack app can consequently access project-backed clients or invoke the agent under the configured autonomy mode.
 created_at: 2026-08-15T04:06:48.935Z
-updated_at: 2026-08-15T04:06:48.935Z
+updated_at: 2026-08-15T05:33:29.171Z
 ---
 
 ## Problem
@@ -111,3 +111,7 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Verification on 2026-08-15:
+  - `NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner --silent=true src/modules/slack-channel` — 18 files and 115 tests passed, including denial before slash commands, inbound-signal emission, sessions, and approval callbacks.
+  - `pnpm typecheck` — passed.
+  - `pnpm build:schema` followed by the focused `src/modules/config/config.test.ts` suite — generated schema matched the source fragment and all 22 tests passed.

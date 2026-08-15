@@ -82,9 +82,9 @@ const slackChannelModule: KotaModule = {
     {
       id: "socket-mode-config",
       kind: "config",
-      title: "Slack Socket Mode config references",
+      title: "Slack Socket Mode and admission config",
       description:
-        "Project config references that point the Slack bot and app tokens at stored secrets.",
+        "Project config for stored token references, the expected workspace, the interactive user allowlist, and notification delivery.",
       required: true,
       scope: "project",
       owner: "slack-channel",
@@ -109,6 +109,16 @@ const slackChannelModule: KotaModule = {
             configPath: "modules.slack-channel.appToken",
             required: true,
             placeholder: "$SLACK_APP_TOKEN",
+          },
+          {
+            id: "workspace-id",
+            label: "Slack workspace ID",
+            type: "string",
+            configPath: "modules.slack-channel.workspaceId",
+            required: true,
+            placeholder: "T0123456789",
+            helperText:
+              "Interactive input remains disabled until allowedUserIds is also set in the project module config.",
           },
           {
             id: "notify-channel",
@@ -163,6 +173,13 @@ const slackChannelModule: KotaModule = {
     properties: {
       botToken: { type: "string", minLength: 1 },
       appToken: { type: "string", minLength: 1 },
+      workspaceId: { type: "string", minLength: 1 },
+      allowedUserIds: {
+        type: "array",
+        minItems: 1,
+        uniqueItems: true,
+        items: { type: "string", minLength: 1 },
+      },
       notifyChannel: { type: "string", minLength: 1 },
       defaultAutonomyMode: { type: "string", enum: AUTONOMY_MODES },
       inboundSignals: {
@@ -200,6 +217,11 @@ const slackChannelModule: KotaModule = {
         "slack-channel module: botToken and appToken are required — module inactive",
       );
       return;
+    }
+    if (!config.workspaceId || !config.allowedUserIds?.length) {
+      ctx.log.warn(
+        "slack-channel module: interactive input is disabled until workspaceId and allowedUserIds are configured",
+      );
     }
     // Resolve autonomy mode early so config errors surface at load time, not
     // at first connection. The channel adapter re-resolves at create time.

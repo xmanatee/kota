@@ -177,6 +177,8 @@ export function makeBot(overrides?: Partial<ConstructorParameters<typeof SlackBo
   return new SlackBot({
     botToken: "xoxb-test",
     appToken: "xapp-test",
+    workspaceId: "T-TEST",
+    allowedUserIds: ["U1", "U2", "U-SLASH", "U-FREE"],
     notifyChannel: "C-NOTIFY",
     autonomyMode: "supervised",
     getDefaultProjectRuntime: () => runtime,
@@ -264,7 +266,16 @@ export async function sendSlashAndAwait(
   ws.simulateMessage({
     type: "events_api",
     envelope_id: envelope,
-    payload: { event: { type: "message", text, user: "U-SLASH", channel: channelId } },
+    payload: {
+      team_id: "T-TEST",
+      event: {
+        type: "message",
+        text,
+        user: "U-SLASH",
+        channel: channelId,
+        channel_type: "im",
+      },
+    },
   });
   await vi.waitFor(() => {
     if (!findPostMessage(channelId)) throw new Error("no chat.postMessage yet");

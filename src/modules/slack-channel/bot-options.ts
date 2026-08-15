@@ -27,6 +27,8 @@ export type SlackInboundSignalRuntime = {
 export type SlackBotOptions = {
 	botToken: string;
 	appToken: string;
+	workspaceId?: string;
+	allowedUserIds: readonly string[];
 	notifyChannel?: string;
 	model?: string;
 	verbose?: boolean;

@@ -24,7 +24,10 @@ describe("SlackBot", () => {
       ws.simulateMessage({
         type: "events_api",
         envelope_id: "env-1",
-        payload: { event: { type: "message", text: "msg1", user: "U1", channel: "D1" } },
+        payload: {
+          team_id: "T-TEST",
+          event: { type: "message", text: "msg1", user: "U1", channel: "D1", channel_type: "im" },
+        },
       });
 
       // Let the first message start processing
@@ -34,7 +37,10 @@ describe("SlackBot", () => {
       ws.simulateMessage({
         type: "events_api",
         envelope_id: "env-2",
-        payload: { event: { type: "message", text: "msg2", user: "U1", channel: "D1" } },
+        payload: {
+          team_id: "T-TEST",
+          event: { type: "message", text: "msg2", user: "U1", channel: "D1", channel_type: "im" },
+        },
       });
 
       await vi.waitFor(() =>
@@ -77,6 +83,7 @@ describe("SlackBot", () => {
         envelope_id: "env-1",
         payload: {
           type: "block_actions",
+          team: { id: "T-TEST" },
           actions: [{
             action_id: "approve:abc",
             value: `approve:abc:${"a".repeat(64)}`,
@@ -132,6 +139,7 @@ describe("SlackBot", () => {
         envelope_id: "env-failed-execution",
         payload: {
           type: "block_actions",
+          team: { id: "T-TEST" },
           actions: [{
             action_id: "approve:failed",
             value: `approve:failed:${"a".repeat(64)}`,
@@ -173,6 +181,7 @@ describe("SlackBot", () => {
         envelope_id: "env-1",
         payload: {
           type: "block_actions",
+          team: { id: "T-TEST" },
           actions: [{ action_id: "reject:def", value: "reject:def" }],
           user: { id: "U1", name: "Test" },
           channel: { id: "C1" },
@@ -213,6 +222,7 @@ describe("SlackBot", () => {
         envelope_id: "env-1",
         payload: {
           type: "block_actions",
+          team: { id: "T-TEST" },
           actions: [{
             action_id: "approve:gone",
             value: `approve:gone:${"a".repeat(64)}`,
@@ -248,6 +258,7 @@ describe("SlackBot", () => {
         envelope_id: "env-1",
         payload: {
           type: "block_actions",
+          team: { id: "T-TEST" },
           actions: [{ action_id: "unknown:abc", value: "unknown:abc" }],
           user: { id: "U1", name: "Test" },
           channel: { id: "C1" },

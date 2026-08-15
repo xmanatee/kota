@@ -3,6 +3,10 @@
 This directory owns the bidirectional Slack bot channel for KOTA.
 
 - Uses Slack Socket Mode (WebSocket) to receive messages without a public HTTP endpoint.
+- Interactive input is default-deny. Messages must be direct messages from a
+  configured `allowedUserIds` member in the configured `workspaceId`, and
+  callbacks must match that workspace and user policy before any action runs.
+  Inbound-signal actor trust is separate downstream metadata, not admission.
 - One `AgentSession` per Slack user in the current default scope — free-form
   DMs resolve the live daemon default, and default changes close sessions from
   the previous scope.
@@ -41,10 +45,10 @@ This directory owns the bidirectional Slack bot channel for KOTA.
 Create a Slack App (api.slack.com/apps > Create New App > From Scratch).
 
 Configure bot messaging scopes, enable Socket Mode with an app-level token,
-subscribe to DM events, and enable interactivity. Socket Mode handles the
-endpoint; install the app to the workspace and keep tokens in the shared
-secret store through `$SLACK_BOT_TOKEN` and `$SLACK_APP_TOKEN` config
-references.
+subscribe to DM events, and enable interactivity. Configure `workspaceId` and
+at least one `allowedUserIds` entry for interactive access. Socket Mode handles
+the endpoint; install the app to the workspace and keep tokens in the shared
+secret store through `$SLACK_BOT_TOKEN` and `$SLACK_APP_TOKEN` config references.
 
 ## Boundaries
 

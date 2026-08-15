@@ -15,7 +15,7 @@ describe("SlackBot", () => {
       ws.simulateMessage({
         type: "events_api",
         envelope_id: "env-1",
-        payload: { event: { type: "message", text: "msg1", user: "U1", channel: "D1" } },
+        payload: { team_id: "T-TEST", event: { type: "message", text: "msg1", user: "U1", channel: "D1", channel_type: "im" } },
       });
       await vi.waitFor(() => expect(AgentSession).toHaveBeenCalledTimes(1));
       expect(bot.listScopeSessionIds("test-project"))
@@ -34,7 +34,7 @@ describe("SlackBot", () => {
       ws.simulateMessage({
         type: "events_api",
         envelope_id: "env-2",
-        payload: { event: { type: "message", text: "msg2", user: "U1", channel: "D1" } },
+        payload: { team_id: "T-TEST", event: { type: "message", text: "msg2", user: "U1", channel: "D1", channel_type: "im" } },
       });
       await new Promise((r) => setTimeout(r, 50));
 
@@ -54,7 +54,7 @@ describe("SlackBot", () => {
       ws.simulateMessage({
         type: "events_api",
         envelope_id: "env-1",
-        payload: { event: { type: "message", text: "hi", user: "U1", channel: "D1" } },
+        payload: { team_id: "T-TEST", event: { type: "message", text: "hi", user: "U1", channel: "D1", channel_type: "im" } },
       });
       await vi.waitFor(() => expect(AgentSession).toHaveBeenCalledTimes(1));
       await new Promise((r) => setTimeout(r, 50));
@@ -62,7 +62,7 @@ describe("SlackBot", () => {
       ws.simulateMessage({
         type: "events_api",
         envelope_id: "env-2",
-        payload: { event: { type: "message", text: "hi", user: "U2", channel: "D2" } },
+        payload: { team_id: "T-TEST", event: { type: "message", text: "hi", user: "U2", channel: "D2", channel_type: "im" } },
       });
       await vi.waitFor(() => expect(AgentSession).toHaveBeenCalledTimes(2));
 
@@ -88,13 +88,13 @@ describe("SlackBot", () => {
       ws.simulateMessage({
         type: "events_api",
         envelope_id: "env-1",
-        payload: { event: { type: "message", text: "hi", user: "U1", channel: "D1" } },
+        payload: { team_id: "T-TEST", event: { type: "message", text: "hi", user: "U1", channel: "D1", channel_type: "im" } },
       });
       await new Promise((r) => setTimeout(r, 50));
       ws.simulateMessage({
         type: "events_api",
         envelope_id: "env-2",
-        payload: { event: { type: "message", text: "hi", user: "U2", channel: "D2" } },
+        payload: { team_id: "T-TEST", event: { type: "message", text: "hi", user: "U2", channel: "D2", channel_type: "im" } },
       });
       await new Promise((r) => setTimeout(r, 50));
 
