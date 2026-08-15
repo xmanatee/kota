@@ -1,14 +1,14 @@
 ---
 id: task-run-progress-and-scope-reflection-only-at-semantic
 title: Run progress and scope reflection only at semantic boundaries
-status: done
+status: ready
 priority: p0
 area: autonomy
 task_class: Meta
 depends_on: [task-replace-autonomy-escalators-with-issue-driven-ai-r]
 summary: Replace periodic and completion-count reflection with deduplicated reviews of meaningful queue, initiative, owner, and scope changes.
 created_at: 2026-08-06T20:22:08.881Z
-updated_at: 2026-08-15T19:06:39.603Z
+updated_at: 2026-08-15T22:31:43.578Z
 ---
 
 ## Problem
@@ -96,9 +96,34 @@ traffic should continue without invoking either reviewer.
 - A newly onboarded external scope receives exactly one initial review;
   restart, unchanged content, failures, and DLQs do not retrigger it, while a
   material scope-policy/content change does.
+- Daemon recovery reapplies each current workflow definition's trigger
+  validation and semantic admission before restoring persisted pending runs.
+  Removed, malformed, consumed, or superseded automatic inputs never re-enter
+  the queue, while explicit lossless requests remain recoverable.
 - The stale worktree recovery task is updated, completed, or dropped through
   the normal generated-work lifecycle once the recovery projection reports no
   stale worktrees.
+
+## Post-Deployment Gap (2026-08-15)
+
+Commit `d25d5784bbc31942e6d549d74fc694e517a97d89` removed the periodic and
+completion-count triggers and added pre-queue semantic admission. Its live
+restart still restored two pending inputs created by the old definition:
+
+- `2026-08-15T18-00-02-233Z-progress-reviewer-r9yv8n` from
+  `autonomy.progress-review.scheduled`
+- `2026-08-15T18-12-21-231Z-progress-reviewer-6306a1` from
+  `workflow.batch.flushed`
+
+The reloaded workflow has neither trigger, but `WorkflowQueue.restorePending`
+filters only by enabled workflow name and bypasses payload validation,
+current-trigger membership, and `triggerAdmission`. Both obsolete runs remain
+queued and their legacy payloads would be interpreted as explicit reviews,
+causing two more agent calls. Reuse the same definition-owned admission path
+during pending-state restoration, reject inputs no longer accepted by the
+current definition before persisting the restored queue, and cover this exact
+old-definition-to-new-definition restart behavior. Do not add a migration,
+one-off queue scrubber, or special case for these run ids.
 
 ## Source / Intent
 
