@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import { CALIBRATION_REPAIR_TASK_ID } from "#modules/autonomy/calibration-repair.js";
+import { seedArtifact as seedBoundCalibrationArtifact } from "#modules/autonomy/calibration-repair-freshness-test-support.js";
 import { getCriticPromptHash } from "#modules/autonomy/critic.js";
 import {
   DEFAULT_CALIBRATION_MIN_SAMPLE,
@@ -495,14 +496,14 @@ describe("evaluator-calibration-monitor workflow", () => {
       verdict: "fail",
       sourceFilesChanged: ["src/core/a.ts"],
     });
-    // The recreate-loop guard requires at least one calibration artifact whose
-    // completedAt is later than the done-state task's last commit. Simulate a
-    // post-fix builder run accruing here.
-    seedCalibration(runsDir, "run-post-fix", new Date(now.getTime() + 60_000).toISOString(), {
-      verdict: "pass",
-      sourceRevision: postFixRevision,
-      sourceFilesChanged: ["src/core/unrelated.ts"],
-    });
+    // The recreate-loop guard accepts only canonical builder evidence whose
+    // source revision descends from the repair-closing commit.
+    seedBoundCalibrationArtifact(
+      projectDir,
+      "run-post-fix",
+      postFixRevision,
+      "task-post-fix",
+    );
 
     const harness = new WorkflowTestHarness(evaluatorCalibrationMonitor, {
       projectDir,

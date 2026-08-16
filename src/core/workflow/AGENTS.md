@@ -12,15 +12,15 @@ Owns workflow definitions, validation, execution, repair loops, and persisted ru
 - `buildOperatorQueuedRun` owns operator-trigger construction for every client
   path. Retry and replay preserve the source event and schema; lineage belongs
   in payload metadata and must not replace the semantic event.
-- Validation, retries, timeouts, dispatch windows, truncation, and notification
-  suppression belong in typed code and tests.
-  Do not duplicate their exact fields, enum values, or event names in docs.
-- Cross-run retries may replay ordinary completed steps, but a completed code
-  step that updates the workspace or runtime resources restarts the workflow;
-  those execution-context outputs belong to the source run. Explicit step
+- Keep validation, retries, timeouts, dispatch windows, truncation, and
+  notification suppression in typed code and tests, not field catalogs in docs.
+- Cross-run retries may replay ordinary completed steps, but workspace or runtime
+  resource updates restart the workflow and stay with the source run. Explicit
   resume remains a separate operator-selected checkpoint operation.
 - Dirty recovery pauses dispatch and prepends recovery work without discarding
   durable queued runs; a restart must preserve keyed redrives and pending work.
+- On reload, revalidate pending automatic work against the enabled definition,
+  payload contract, and admission watermark; preserve explicit control/resume work.
 - A restart step is terminal. `allowPostRestartEmits` permits only pure emit
   handoffs afterward so dispatch pauses before consumers queue; other work is invalid.
 - Hard step timeouts cap wall-clock runtime. Idle-progress timeouts cap gaps

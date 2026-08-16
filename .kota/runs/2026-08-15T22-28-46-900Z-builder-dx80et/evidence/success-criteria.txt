@@ -1,0 +1,8 @@
+1. Progress and scope workflow definitions contain none of the removed periodic, completion-count, build-count, generic recovery-agent, or failed-run/DLQ discovery triggers, and the trigger-matrix evidence records only retained semantic boundaries.
+2. Automatic progress and scope inputs carry stable semantic revisions or scope fingerprints, consume each unique input once, and coalesce repeated or superseded inputs before queue insertion.
+3. Latest-200-run replay evidence shows uninterrupted normal delivery causes no progress or scope AI calls without an accepted semantic boundary, and reports invocation, unique-input, AI-minute, action, and duplicate/no-op measures.
+4. Progress review derives complete current queue, anchor, dependency, issue, recovery, and owner-decision references from canonical state without persisting a second aggregate worldview.
+5. Fixtures prove one parked-queue transition can request useful steering while five later successful builds do not request another review, including blocked-task and owner-decision boundaries.
+6. Fixtures prove a newly onboarded external scope receives exactly one initial review, unchanged restart/failure/DLQ inputs do not retrigger it, and a material content or policy change does.
+7. Pending-run restoration applies each current workflow definition's trigger validation and semantic admission, drops removed, malformed, consumed, and superseded automatic inputs before queue persistence, and preserves valid explicit lossless requests.
+8. Generated steering work, including the stale-worktree recovery task, is reconciled through the shared proposal lifecycle when current canonical recovery state disproves its premise.

@@ -1,14 +1,16 @@
 import type { KotaConfig } from "#core/config/config.js";
 import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
-import { getEligibleAtMs } from "./run-executor-utils.js";
+import { getEligibleAtMs, matchesFilter } from "./run-executor-utils.js";
 import { formatRunId, workflowRunIdFromPayload } from "./run-io.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowQueuedRun } from "./run-types.js";
 import {
   WORKFLOW_BATCH_FLUSH_EVENT,
   type WorkflowAgentBackoffState,
+  type WorkflowBatchFlushPayload,
   type WorkflowRunTrigger,
+  type WorkflowTrigger,
 } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 import {
@@ -38,6 +40,65 @@ export type WorkflowQueueManagerConfig = {
   log: (message: string) => void;
 };
 
+const RESTORABLE_CONTROL_TRIGGER_EVENTS = new Set([
+  "manual",
+  "resume",
+  "workflow.triggered",
+]);
+
+type RestoredTriggerResolution =
+  | { kind: "control" }
+  | { kind: "declared"; triggerConfig: WorkflowTrigger };
+
+function resolveRestoredTrigger(
+  definition: WorkflowDefinition,
+  trigger: WorkflowRunTrigger,
+): RestoredTriggerResolution | null {
+  if (RESTORABLE_CONTROL_TRIGGER_EVENTS.has(trigger.event)) {
+    return { kind: "control" };
+  }
+  if (trigger.event === WORKFLOW_BATCH_FLUSH_EVENT) {
+    const payload = trigger.payload as Partial<WorkflowBatchFlushPayload>;
+    const triggerIndex = payload.batch?.triggerIndex;
+    if (
+      payload.batch?.workflow !== definition.name ||
+      typeof payload.sourceEventName !== "string" ||
+      typeof triggerIndex !== "number" ||
+      !Number.isInteger(triggerIndex) ||
+      triggerIndex < 0
+    ) {
+      return null;
+    }
+    const triggerConfig = definition.triggers[triggerIndex];
+    if (
+      !triggerConfig?.batch ||
+      triggerConfig.event !== payload.sourceEventName
+    ) {
+      return null;
+    }
+    return { kind: "declared", triggerConfig };
+  }
+  const triggerConfig = definition.triggers.find(
+    (candidate) =>
+      !candidate.batch &&
+      candidate.event === trigger.event &&
+      matchesFilter(candidate.filter, trigger.payload),
+  );
+  return triggerConfig ? { kind: "declared", triggerConfig } : null;
+}
+
+function restoredRunIsDistinct(
+  triggerConfig: WorkflowTrigger,
+  trigger: WorkflowRunTrigger,
+  dispatchBurst: number,
+): boolean {
+  return trigger.event === WORKFLOW_BATCH_FLUSH_EVENT ||
+    dispatchBurst > 1 ||
+    triggerConfig.queueMode === "all" ||
+    (hasExplicitWorkflowDispatchKey(trigger) &&
+      triggerConfig.queueMode !== "latest");
+}
+
 export class WorkflowQueueManager {
   private queue: WorkflowQueuedRun[] = [];
 
@@ -61,15 +122,80 @@ export class WorkflowQueueManager {
 
   restorePending(): void {
     const state = this.config.store.readState();
-    const validNames = new Set(
+    const definitions = new Map(
       this.config
         .getDefinitions()
         .filter((definition) => definition.enabled)
-        .map((definition) => definition.name),
+        .map((definition) => [definition.name, definition]),
     );
-    this.queue = state.pendingRuns.filter((item) =>
-      validNames.has(item.workflowName),
-    );
+    const restored: WorkflowQueuedRun[] = [];
+    for (const item of state.pendingRuns) {
+      const definition = definitions.get(item.workflowName);
+      if (!definition) continue;
+      const resolution = resolveRestoredTrigger(definition, item.trigger);
+      if (!resolution) {
+        this.config.log(
+          `Skipped restored workflow "${definition.name}" from event "${item.trigger.event}": event is not accepted by the current definition`,
+        );
+        continue;
+      }
+      if (
+        resolution.kind === "declared" &&
+        rejectInvalidTriggerPayload({
+          definition,
+          trigger: item.trigger,
+          deadLetterQueue: this.config.deadLetterQueue,
+          scopeId: this.config.getScopeId(),
+          log: this.config.log,
+        })
+      ) {
+        continue;
+      }
+      if (
+        rejectUnadmittedWorkflowTrigger({
+          definition,
+          projectDir: this.config.projectDir ?? process.cwd(),
+          trigger: item.trigger,
+          log: this.config.log,
+        })
+      ) {
+        continue;
+      }
+      if (
+        resolution.kind === "declared" &&
+        !restoredRunIsDistinct(
+          resolution.triggerConfig,
+          item.trigger,
+          resolveWorkflowDispatchBurst({
+            definition,
+            trigger: item.trigger,
+            projectDir: this.config.projectDir ?? process.cwd(),
+            config: this.config.getConfig?.(),
+          }),
+        )
+      ) {
+        const existingIndex = restored.findIndex(
+          (queued) =>
+            queued.workflowName === item.workflowName &&
+            queued.trigger.event === item.trigger.event,
+        );
+        if (existingIndex >= 0) {
+          const existing = restored[existingIndex]!;
+          restored[existingIndex] = {
+            ...item,
+            runId: existing.runId,
+            enqueuedAtMs: existing.enqueuedAtMs,
+            notBeforeMs: Math.max(existing.notBeforeMs, item.notBeforeMs),
+          };
+          this.config.log(
+            `Coalesced restored workflow "${definition.name}" with event "${item.trigger.event}" against the current definition`,
+          );
+          continue;
+        }
+      }
+      restored.push(item);
+    }
+    this.queue = restored;
     this.persist();
     if (this.queue.length > 0) {
       this.config.log(`Recovered ${this.queue.length} queued workflow run(s)`);

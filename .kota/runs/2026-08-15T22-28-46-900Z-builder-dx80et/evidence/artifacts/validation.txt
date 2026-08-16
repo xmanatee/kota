@@ -1,0 +1,56 @@
+PASS: pnpm test src/core/workflow/workflow-queue-restoration.test.ts
+  1 file, 2 tests passed.
+
+PASS: focused semantic/reflection/runtime regression suite
+  10 files, 27 tests passed, including runtime lifecycle, trigger admission,
+  queue restoration, latest-200 production routing, progress semantic inputs,
+  scope fingerprints/requests, dispatcher queue admission, idempotency, and
+  strict-types policy.
+
+PASS: broader workflow/runtime regression suite
+  7 files, 196 tests passed, including event batches, pending persistence,
+  workflow runtime and validation integration, progress-reviewer,
+  scope-improver, and dispatcher semantic reflection.
+
+PASS: canonical progress evidence and proposal reconciliation
+  2 files, 2 tests passed.
+
+PASS: pnpm typecheck
+PASS: biome check for changed TypeScript files
+PASS: builder evidence manifest parser (2 registered artifacts)
+PASS: autonomy-change-decision parser (decision=promote)
+
+PASS: post-check repair
+  Registered restoration-proof.json and validation.txt now live under the
+  canonical artifacts/ root used by builder evidence resolution.
+  Exact agent-run-artifacts-ready check: passed for all 7 evidence files.
+  Exact commit-stageable check: 5 mutated paths already staged.
+
+PASS: post-check repair attempt 2 focused regression suite
+  docs-surface, workflow-queue restoration, and evaluator-calibration-monitor:
+  3 files, 17 tests passed. The AGENTS.md ratchet remains at 129 lines, and
+  calibration recreation uses canonical bound descendant-run evidence.
+
+PASS: post-check repair attempt 2 typecheck and formatting
+  pnpm typecheck
+  biome check for the 3 changed TypeScript files
+
+ENVIRONMENT-LIMITED: full pnpm test rerun
+  12,654 tests passed; 223 unrelated tests failed because this interactive
+  sandbox denies traversal above its tool-runtime temp root, loopback listen,
+  and deploy/telegram-assistant/.env.example reads. The supplied repair run had
+  reached the same suite with only the two focused failures fixed above.
+
+PASS: post-check repair attempt 3 burst-restoration regression suite
+  8 files, 27 tests passed, covering pending persistence/restoration, keyed
+  recovery, live parallel burst dispatch, concurrency, dirty recovery, trigger
+  admission, and ordinary runtime dispatch.
+
+PASS: post-check repair attempt 3 typecheck and formatting
+  pnpm typecheck
+  biome check for workflow-queue.ts and workflow-queue-restoration.test.ts
+
+PASS: post-check repair attempt 3 evidence validation
+  autonomy-change-decision parser: valid
+  builder evidence manifest parser: 2 registered artifacts
+  restoration-proof.json: valid JSON
