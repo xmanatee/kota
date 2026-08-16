@@ -7,16 +7,18 @@ area: core
 task_class: Meta
 summary: Inventory and disposition unique historical recovery stashes through the canonical recovery projection without losing unsuperseded work.
 created_at: 2026-08-05T06:45:45.708Z
-updated_at: 2026-08-05T06:45:45.708Z
+updated_at: 2026-08-16T08:36:30.000Z
 ---
 
 ## Problem
 
-Crash recovery accumulated 325 hidden Git stash entries while repeatedly
+Crash recovery accumulated hundreds of hidden Git stash entries while repeatedly
 dispatching every recovery-capable workflow against the same dirty checkout.
 The runtime now limits recovery to the workflow that owns the interrupted or
-persisted incident, but 315 distinct historical snapshots still contain
-potentially unsuperseded task, queue, and source changes. They are invisible to
+persisted incident, but the 2026-08-16 recheck still finds 320 entries. Their
+current unique-tree count must be recomputed rather than inferred from the
+older 325-entry inventory, and potentially unsuperseded task, queue, and source
+changes remain invisible to
 `workflow state-recovery`, so operators cannot distinguish valuable work from
 safe cleanup without manual Git archaeology.
 
@@ -58,11 +60,11 @@ worktrees, DLQs, and task state.
 ## Source / Intent
 
 Runtime investigation on 2026-08-05 found 325 recovery stash entries produced
-by repeated startup recovery. Exact tree comparison identified only ten safe
-duplicate/superseded entries; the remaining 315 snapshots are distinct and
-must not be discarded without semantic evidence. This closes the remaining
-state-recovery source-of-truth gap behind the owner's request for no hidden
-leftovers or ambiguous recovery state.
+by repeated startup recovery. The 2026-08-16 audit found 320 remaining entries;
+because removals may have changed the duplicate set, the implementation must
+recompute tree identity and supersession evidence before any further cleanup.
+This closes the remaining state-recovery source-of-truth gap behind the owner's
+request for no hidden leftovers or ambiguous recovery state.
 
 ## Initiative
 

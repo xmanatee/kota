@@ -1,13 +1,13 @@
 ---
 id: task-security-review-prepare-review-input-includes-proj
 title: Security review: prepare-review-input includes project-controlled task titles and external event summaries but is exposed without exposedOutputTrust: "untrusted". Hostile evidence text therefore reaches the autonomous reviewer without the shared injection screening and boundary escaping used for untrusted step output.
-status: ready
+status: dropped
 priority: p2
 area: security
 task_class: Safety
 summary: prepare-review-input includes project-controlled task titles and external event summaries but is exposed without exposedOutputTrust: "untrusted". Hostile evidence text therefore reaches the autonomous reviewer without the shared injection screening and boundary escaping used for untrusted step output.
 created_at: 2026-08-15T12:10:57.024Z
-updated_at: 2026-08-15T12:10:57.024Z
+updated_at: 2026-08-16T08:41:38.310Z
 ---
 
 ## Problem
@@ -125,3 +125,12 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Superseded
+
+Dropped on 2026-08-16 as the same stable finding and candidate identity as
+`task-security-review-prepare-review-input-contains-proj`. The older task is
+the canonical implementation record. This task retains the second review run's
+provenance as evidence for
+`task-deduplicate-repeated-security-review-findings-by-s`; it must not be built
+or silently deleted.

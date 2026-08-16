@@ -8,7 +8,7 @@ task_class: Meta
 depends_on: [task-replace-autonomy-escalators-with-issue-driven-ai-r]
 summary: Replace periodic and completion-count reflection with deduplicated reviews of meaningful queue, initiative, owner, and scope changes.
 created_at: 2026-08-06T20:22:08.881Z
-updated_at: 2026-08-15T22:31:43.578Z
+updated_at: 2026-08-16T08:36:30.000Z
 ---
 
 ## Problem
@@ -124,6 +124,13 @@ during pending-state restoration, reject inputs no longer accepted by the
 current definition before persisting the restored queue, and cover this exact
 old-definition-to-new-definition restart behavior. Do not add a migration,
 one-off queue scrubber, or special case for these run ids.
+
+The 2026-08-16 stopped-daemon audit still reports both obsolete runs in the
+four-item persisted queue, alongside one legitimate builder request and one
+security-review request. This confirms that the gap survives restart and is
+not merely stale status rendering. Acceptance must prove that restoration drops
+only the two inputs no longer admitted by the current progress-reviewer
+definition and preserves valid lossless requests.
 
 ## Source / Intent
 
